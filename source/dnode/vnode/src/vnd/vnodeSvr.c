@@ -1388,7 +1388,7 @@ static bool vnodeAllowFollowerRead(SVnode *pVnode, SRpcMsg *pMsg) {
   }
 
   SSubQueryMsg queryMsg = {0};
-  if (tDeserializeSSubQueryMsg(pMsg->pCont, pMsg->contLen, &queryMsg) < 0) {
+  if (tDeserializeSSubQueryMsgExt(pMsg->pCont, pMsg->contLen, &queryMsg, TSDB_SUBQ_DEC_SKIP_ALL) < 0) {
     return false;
   }
 

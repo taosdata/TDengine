@@ -8239,6 +8239,9 @@ static int32_t createVirtualNormalChildTableLogicNode(SLogicPlanContext* pCxt, S
     return code;
   }
 
+  pVtableScan->canDeferSources = !pTagScan && !pVtableScan->hasTagRef && !pVtableScan->pAlignCols &&
+      taosHashGetSize(pRefTablesMap) > 1 && !inStreamCalcClause(pCxt->pPlanCxt) &&
+      !inStreamTriggerClause(pCxt->pPlanCxt) && !pCxt->pPlanCxt->topicQuery;
   *pLogicNode = (SLogicNode*)pVtableScan;
   taosHashCleanup(pRefTablesMap);
   taosHashCleanup(pRefTableNodeMap);
@@ -13043,11 +13046,10 @@ int32_t createLogicPlan(SPlanContext* pCxt, SLogicSubplan** pLogicSubplan) {
   code = createQueryLogicNode(&cxt, pCxt->pAstRoot, &pSubplan->pNode);
   if (TSDB_CODE_SUCCESS == code) {
     setLogicNodeParent(pSubplan->pNode);
-    code = buildJoinInputProps(pCxt->pJoinPropsStore, pSubplan->pNode);
-  }
-  if (TSDB_CODE_SUCCESS == code) {
-    code = propagateJoinRequiredColumns(pCxt->pJoinPropsStore,
-                                        pSubplan->pNode);
+    if (logicTreeHasJoin(pSubplan->pNode)) {
+      code = buildJoinInputProps(pCxt->pJoinPropsStore, pSubplan->pNode);
+      if (code == TSDB_CODE_SUCCESS) code = propagateJoinRequiredColumns(pCxt->pJoinPropsStore, pSubplan->pNode);
+    }
   }
   if (TSDB_CODE_SUCCESS == code) {
     setLogicSubplanType(pCxt, pSubplan);

@@ -919,6 +919,102 @@ TEST(CorrelationContractTest, SingleLevelPlanJsonKeepsLegacyShape) {
   EXPECT_EQ(std::string::npos, json.find("\"ExplainMode\":"));
 }
 
+TEST(CorrelationContractTest, SubqueryCountsRoundTripForStreamAndSchedulerPlans) {
+  NodePtr root = makeNode(QUERY_NODE_PHYSICAL_PLAN);
+  NodePtr child = makeNode(QUERY_NODE_PHYSICAL_PLAN);
+  auto* plan = reinterpret_cast<SQueryPlan*>(root.get());
+  for (SNode* node : {root.get(), child.get()}) {
+    auto* dag = reinterpret_cast<SQueryPlan*>(node);
+    NodePtr level = makeNode(QUERY_NODE_NODE_LIST);
+    NodePtr task = makeNode(QUERY_NODE_PHYSICAL_SUBPLAN);
+    reinterpret_cast<SSubplan*>(task.get())->pDataSink =
+        reinterpret_cast<SDataSinkNode*>(makeNode(QUERY_NODE_PHYSICAL_PLAN_DISPATCH).release());
+    ASSERT_EQ(TSDB_CODE_SUCCESS,
+              nodesListMakeStrictAppend(&reinterpret_cast<SNodeListNode*>(level.get())->pNodeList, task.release()));
+    ASSERT_EQ(TSDB_CODE_SUCCESS, nodesListMakeStrictAppend(&dag->pSubplans, level.release()));
+    dag->numOfSubplans = 1;
+  }
+  ASSERT_EQ(TSDB_CODE_SUCCESS, nodesListMakeStrictAppend(&plan->pChildren, child.release()));
+
+  // Stored stream plans count only their own tasks. Scheduler plans include their child jobs.
+  for (int32_t expectedCount : {1, 2}) {
+    plan->numOfSubplans = expectedCount;
+    std::string json = saveJson(root.get());
+    std::vector<char> msg = saveMsg(root.get());
+    EXPECT_EQ(expectedCount == 2, json.find("\"CountIncludesSubqueries\"") != std::string::npos);
+    EXPECT_EQ(expectedCount == 2, findTlvField(msg, 0, 15) < msg.size());  // QUERY_PLAN_CODE_COUNT_INCLUDES_SUBQUERIES
+
+    // The root is a single task and its edge list is optional, independently of the count flag.
+    auto withoutLinks = msg;
+    size_t links = findTlvField(withoutLinks, 0, 5);  // QUERY_PLAN_CODE_SUBPLAN_LINKS
+    ASSERT_LT(links, withoutLinks.size());
+    size_t end = links + kTlvHeaderSize + payloadSize(withoutLinks, links);
+    ASSERT_LE(end, withoutLinks.size());
+    withoutLinks.erase(withoutLinks.begin() + links, withoutLinks.begin() + end);
+    updateOuterSize(&withoutLinks);
+    SNode* rawWithoutLinks = nullptr;
+    ASSERT_EQ(0, nodesMsgToNode(withoutLinks.data(), withoutLinks.size(), &rawWithoutLinks));
+    NodePtr decodedWithoutLinks(rawWithoutLinks, nodesDestroyNode);
+    EXPECT_EQ(expectedCount, reinterpret_cast<SQueryPlan*>(decodedWithoutLinks.get())->numOfSubplans);
+    for (bool useJson : {true, false}) {
+      SNode* raw = nullptr;
+      ASSERT_EQ(TSDB_CODE_SUCCESS, useJson ? nodesStringToNode(json.c_str(), &raw)
+                                          : nodesMsgToNode(msg.data(), msg.size(), &raw));
+      NodePtr decoded(raw, nodesDestroyNode);
+      auto* back = reinterpret_cast<SQueryPlan*>(decoded.get());
+      ASSERT_NE(nullptr, back);
+      EXPECT_EQ(expectedCount, back->numOfSubplans);
+      ASSERT_EQ(1, LIST_LENGTH(back->pChildren));
+      EXPECT_EQ(1, reinterpret_cast<SQueryPlan*>(nodesListGetNode(back->pChildren, 0))->numOfSubplans);
+    }
+  }
+}
+
+TEST(CorrelationContractTest, JsonSubqueryAppendFailureReclaimsDecodedChild) {
+  NodePtr root = makeNode(QUERY_NODE_PHYSICAL_PLAN);
+  auto* plan = reinterpret_cast<SQueryPlan*>(root.get());
+  ASSERT_EQ(TSDB_CODE_SUCCESS, nodesListMakeStrictAppend(&plan->pChildren, makeNode(QUERY_NODE_PHYSICAL_PLAN).release()));
+  std::string json = saveJson(root.get());
+
+  SNode* decoded = nullptr;
+  nodesTestSetStrictAppendFailOnce();
+  EXPECT_EQ(TSDB_CODE_OUT_OF_MEMORY, nodesStringToNode(json.c_str(), &decoded));
+  EXPECT_EQ(nullptr, decoded);
+  ASSERT_EQ(TSDB_CODE_SUCCESS, nodesStringToNode(json.c_str(), &decoded));
+  NodePtr owned(decoded, nodesDestroyNode);
+  EXPECT_EQ(1, LIST_LENGTH(reinterpret_cast<SQueryPlan*>(owned.get())->pChildren));
+}
+
+TEST(CorrelationContractTest, JsonSubqueryTemplateExportPropagatesFirstFailure) {
+  NodePtr root = makeNode(QUERY_NODE_PHYSICAL_PLAN);
+  auto* plan = reinterpret_cast<SQueryPlan*>(root.get());
+  NodePtr child = makeNode(QUERY_NODE_PHYSICAL_PLAN);
+  auto* childPlan = reinterpret_cast<SQueryPlan*>(child.get());
+  NodePtr level = makeNode(QUERY_NODE_NODE_LIST);
+  NodePtr scan = makeNode(QUERY_NODE_PHYSICAL_SUBPLAN);
+  auto* subplan = reinterpret_cast<SSubplan*>(scan.get());
+  subplan->pExecTargets = taosArrayInit(2, sizeof(SSubplanTarget));
+  ASSERT_NE(nullptr, subplan->pExecTargets);
+  for (int32_t i = 1; i <= 2; ++i) {
+    SSubplanTarget target = {};
+    target.subplanId = i;
+    ASSERT_NE(nullptr, taosArrayPush(subplan->pExecTargets, &target));
+  }
+  childPlan->numOfSubplans = 2;
+  ASSERT_EQ(TSDB_CODE_SUCCESS,
+            nodesListMakeStrictAppend(&reinterpret_cast<SNodeListNode*>(level.get())->pNodeList, scan.release()));
+  ASSERT_EQ(TSDB_CODE_SUCCESS, nodesListMakeStrictAppend(&childPlan->pSubplans, level.release()));
+  ASSERT_EQ(TSDB_CODE_SUCCESS, nodesListMakeStrictAppend(&plan->pChildren, child.release()));
+  ASSERT_EQ(TSDB_CODE_SUCCESS, nodesListMakeStrictAppend(&plan->pChildren, makeNode(QUERY_NODE_PHYSICAL_PLAN).release()));
+
+  char* json = nullptr;
+  nodesTestSetStrictAppendFailOnce();
+  EXPECT_EQ(TSDB_CODE_OUT_OF_MEMORY, nodesNodeToString(root.get(), false, &json, nullptr));
+  EXPECT_EQ(nullptr, json);
+  // Fault injection fires while expanding the first child. Its template remains reusable.
+  EXPECT_FALSE(saveJson(root.get()).empty());
+}
+
 TEST(CorrelationContractTest, MergeSourceRangeSurvivesTemplateMessage) {
   NodePtr merge = makeNode(QUERY_NODE_PHYSICAL_PLAN_MERGE);
   auto* pMerge = reinterpret_cast<SMergePhysiNode*>(merge.get());

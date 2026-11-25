@@ -83,6 +83,123 @@ bool nodesIsValidPhysiJoin(ENodeType type, int32_t joinType, int32_t subType) {
   }
 }
 
+void nodesClearPlanExportView(SPlanExportView* view) {
+  if (!view->instances) return;
+  SNode* level = NULL;
+  FOREACH(level, view->plan.pSubplans) {
+    SNodeListNode* group = (SNodeListNode*)level;
+    SNode* item = NULL;
+    FOREACH(item, group->pNodeList) {
+      nodesClearList(((SSubplan*)item)->pChildren);
+    }
+    nodesClearList(group->pNodeList);
+    group->pNodeList = NULL;
+  }
+  nodesDestroyList(view->plan.pSubplans);
+  taosMemoryFree(view->instances);
+}
+
+int32_t nodesCountPlanAndSubqueries(const SQueryPlan* plan, int32_t localCount, int32_t* total) {
+  int32_t count = localCount;
+  SNode* child = NULL;
+  FOREACH(child, plan->pChildren) {
+    if (!child || nodeType(child) != QUERY_NODE_PHYSICAL_PLAN) return TSDB_CODE_PLAN_INTERNAL_ERROR;
+    int32_t tasks = ((const SQueryPlan*)child)->numOfSubplans;
+    if (tasks < 0 || count > INT32_MAX - tasks) return TSDB_CODE_PLAN_INTERNAL_ERROR;
+    count += tasks;
+  }
+  *total = count;
+  return TSDB_CODE_SUCCESS;
+}
+
+int32_t nodesBuildPlanExportView(const SQueryPlan* plan, SPlanExportView* view) {
+  view->plan = *plan;
+  int32_t count = 0;
+  bool hasTemplate = false;
+  SNode* level = NULL;
+  FOREACH(level, plan->pSubplans) {
+    if (nodeType(level) != QUERY_NODE_NODE_LIST) return TSDB_CODE_PLAN_INTERNAL_ERROR;
+    SNode* node = NULL;
+    FOREACH(node, ((SNodeListNode*)level)->pNodeList) {
+      if (nodeType(node) != QUERY_NODE_PHYSICAL_SUBPLAN) return TSDB_CODE_PLAN_INTERNAL_ERROR;
+      int32_t targets = subplanGetTargetCount((SSubplan*)node);
+      if (count > INT32_MAX - targets) return TSDB_CODE_PLAN_INTERNAL_ERROR;
+      count += targets;
+      hasTemplate |= targets > 1;
+    }
+  }
+  // The scheduler also counts retained subquery jobs in its root task budget.
+  // A serialized DAG describes only its own levels and carries each child job separately.
+  if (plan->pChildren && count != plan->numOfSubplans) {
+    int32_t total = 0;
+    NODES_ERR_RET(nodesCountPlanAndSubqueries(plan, count, &total));
+    if (total != plan->numOfSubplans) return TSDB_CODE_PLAN_INTERNAL_ERROR;
+    view->plan.numOfSubplans = count;
+  }
+  if (!hasTemplate) return TSDB_CODE_SUCCESS;
+  if (count != view->plan.numOfSubplans) return TSDB_CODE_PLAN_INTERNAL_ERROR;
+
+  view->plan.pSubplans = NULL;
+  view->instances = taosMemoryCalloc(count, sizeof(SSubplan));
+  if (!view->instances) return terrno;
+  SHashObj* byPlan = taosHashInit(count, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), false, HASH_NO_LOCK);
+  if (!byPlan) return terrno;
+  int32_t code = TSDB_CODE_SUCCESS;
+  int32_t offset = 0;
+  FOREACH(level, plan->pSubplans) {
+    SNodeListNode* group = NULL;
+    NODES_ERR_JRET(nodesMakeNode(QUERY_NODE_NODE_LIST, (SNode**)&group));
+    NODES_ERR_JRET(nodesListMakeStrictAppend(&view->plan.pSubplans, (SNode*)group));
+    SNode* node = NULL;
+    FOREACH(node, ((SNodeListNode*)level)->pNodeList) {
+      const SSubplan* original = (const SSubplan*)node;
+      int32_t targets = subplanGetTargetCount(original);
+      NODES_ERR_JRET(taosHashPut(byPlan, &node, POINTER_BYTES, &offset, sizeof(offset)));
+      for (int32_t i = 0; i < targets; ++i) {
+        SSubplan* instance = &view->instances[offset++];
+        *instance = *original;
+        instance->pChildren = NULL;
+        instance->pParents = NULL;
+        instance->pExecTargets = NULL;
+        if (targets > 1) {
+          const SSubplanTarget* target = taosArrayGet(original->pExecTargets, i);
+          instance->id.subplanId = target->subplanId;
+          instance->execNode = target->execNode;
+          instance->execNodeStat = target->execNodeStat;
+        }
+        NODES_ERR_JRET(nodesListMakeAppend(&group->pNodeList, (SNode*)instance));
+      }
+    }
+  }
+
+  offset = 0;
+  FOREACH(level, plan->pSubplans) {
+    SNode* node = NULL;
+    FOREACH(node, ((SNodeListNode*)level)->pNodeList) {
+      const SSubplan* parent = (const SSubplan*)node;
+      SSubplan* instance = &view->instances[offset];
+      offset += subplanGetTargetCount(parent);
+      // A template is a leaf. Each original parent still depends on all its targets.
+      SNode* child = NULL;
+      FOREACH(child, parent->pChildren) {
+        if (nodeType(child) != QUERY_NODE_PHYSICAL_SUBPLAN) {
+          NODES_ERR_JRET(nodesListMakeAppend(&instance->pChildren, child));
+          continue;
+        }
+        const int32_t* start = taosHashGet(byPlan, &child, POINTER_BYTES);
+        if (!start) NODES_ERR_JRET(TSDB_CODE_PLAN_INTERNAL_ERROR);
+        int32_t targets = subplanGetTargetCount((SSubplan*)child);
+        for (int32_t i = 0; i < targets; ++i) {
+          NODES_ERR_JRET(nodesListMakeAppend(&instance->pChildren, (SNode*)&view->instances[*start + i]));
+        }
+      }
+    }
+  }
+_return:
+  taosHashCleanup(byPlan);
+  return code;
+}
+
 int32_t nodesRestoreSubplanDag(SQueryPlan* pPlan, const SArray* pLinks) {
   int32_t   code = TSDB_CODE_SUCCESS;
   int32_t   lino = 0;
@@ -3019,6 +3136,9 @@ void nodesDestroyNode(SNode* pNode) {
     }
     case QUERY_NODE_LOGIC_PLAN_VIRTUAL_TABLE_SCAN: {
       SVirtualScanLogicNode* pLogicNode = (SVirtualScanLogicNode*)pNode;
+      nodesDestroyList(pLogicNode->pDeferredSourceScans);
+      nodesDestroyNode(pLogicNode->pDeferredPrimaryCond);
+      nodesDestroyNode(pLogicNode->deferredSourceLimit);
       destroyLogicNode((SLogicNode*)pLogicNode);
       nodesDestroyList(pLogicNode->pScanCols);
       nodesDestroyList(pLogicNode->pScanPseudoCols);
@@ -3565,6 +3685,7 @@ void nodesDestroyNode(SNode* pNode) {
       nodesDestroyNode((SNode*)pSubplan->pNode);
       nodesDestroyNode((SNode*)pSubplan->pDataSink);
       nodesDestroyList(pSubplan->pSubQ);
+      taosArrayDestroy(pSubplan->pExecTargets);
       taosArrayDestroy(pSubplan->pSubqueryDeps);
       nodesDestroyNode((SNode*)pSubplan->pTagCond);
       nodesDestroyNode((SNode*)pSubplan->pTagIndexCond);

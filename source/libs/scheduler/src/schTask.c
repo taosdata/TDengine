@@ -38,6 +38,7 @@ void schFreeTask(SSchJob *pJob, SSchTask *pTask) {
     taosArrayDestroy(pTask->candidateAddrs);
   }
 
+  nodesDestroyNode((SNode *)pTask->localPlan);
   taosMemoryFreeClear(pTask->msg);
 
   if (pTask->children) {
@@ -661,9 +662,10 @@ void schResetTaskForRetry(SSchJob *pJob, SSchTask *pTask) {
   // Relaunch must reinsert an unfinished task for result-release cleanup.
   SCH_SET_TASK_STATUS(pTask, JOB_TASK_STATUS_INIT);
   schDeregisterTaskHb(pJob, pTask);
-  taosMemoryFreeClear(pTask->msg);
-
-  pTask->msgLen = 0;
+  if (!pTask->target) {
+    taosMemoryFreeClear(pTask->msg);
+    pTask->msgLen = 0;
+  }
   pTask->lastMsgType = 0;
   pTask->childReady = 0;
   TAOS_MEMSET(&pTask->succeedAddr, 0, sizeof(pTask->succeedAddr));
@@ -1043,13 +1045,14 @@ int32_t schSetTaskCandidateAddrs(SSchJob *pJob, SSchTask *pTask) {
     SCH_ERR_RET(terrno);
   }
 
-  if (pTask->plan->execNode.epSet.numOfEps > 0) {
-    if (NULL == taosArrayPush(pTask->candidateAddrs, &pTask->plan->execNode)) {
+  const SQueryNodeAddr *pExecNode = schTaskGetExecNode(pTask);
+  if (pExecNode->epSet.numOfEps > 0) {
+    if (NULL == taosArrayPush(pTask->candidateAddrs, pExecNode)) {
       SCH_TASK_ELOG("taosArrayPush execNode to candidate addrs failed, errno:%d", ERRNO);
       SCH_ERR_RET(terrno);
     }
 
-    SCH_TASK_TLOG("use execNode in plan as candidate addr, numOfEps:%d", pTask->plan->execNode.epSet.numOfEps);
+    SCH_TASK_TLOG("use execNode in plan as candidate addr, numOfEps:%d", pExecNode->epSet.numOfEps);
 
     SQueryNodeAddr *pAddr = taosArrayGet(pTask->candidateAddrs, 0);
     if (NULL == pAddr) {
@@ -1066,7 +1069,7 @@ int32_t schSetTaskCandidateAddrs(SSchJob *pJob, SSchTask *pTask) {
   }
 
   if (SCH_IS_DATA_BIND_TASK(pTask)) {
-    SCH_TASK_ELOG("no execNode specified for data src task, numOfEps:%d", pTask->plan->execNode.epSet.numOfEps);
+    SCH_TASK_ELOG("no execNode specified for data src task, numOfEps:%d", pExecNode->epSet.numOfEps);
     SCH_ERR_RET(TSDB_CODE_SCH_INTERNAL_ERROR);
   }
 
@@ -1329,22 +1332,59 @@ _return:
   SCH_RET(code);
 }
 
+static int32_t schEncodeTemplateTask(SSchJob *pJob, SSchTask *pTask, char **msg, int32_t *len) {
+  SSchPlanBodyCache *cache = pTask->cachedBody;
+  char *body = atomic_load_ptr(&cache->body);
+  if (!body) {
+    int32_t code = TSDB_CODE_SUCCESS;
+    SCH_LOCK(SCH_WRITE, &pJob->planBodyCacheLock);
+    body = atomic_load_ptr(&cache->body);
+    if (!body) {
+      code = qSubPlanBuildInvariantBody(pTask->plan, &body, &cache->len);
+      if (code == TSDB_CODE_SUCCESS) atomic_store_ptr(&cache->body, body);
+    }
+    SCH_UNLOCK(SCH_WRITE, &pJob->planBodyCacheLock);
+    SCH_ERR_RET(code);
+  }
+  return qSubPlanAssembleMsg(pTask->plan, body, cache->len, pTask->target, msg, len);
+}
+
+int32_t schPrepareLocalTaskPlan(SSchJob *pJob, SSchTask *pTask) {
+  if (!pTask->target || pTask->localPlan) return TSDB_CODE_SUCCESS;
+  char *msg = NULL;
+  int32_t len = 0;
+  SCH_ERR_RET(schEncodeTemplateTask(pJob, pTask, &msg, &len));
+  int32_t code = qMsgToSubplan(msg, len, &pTask->localPlan);
+  taosMemoryFree(msg);
+  return code;
+}
+
+static int32_t schTaskPlanToString(SSchTask *pTask, char **msg, int32_t *len) {
+  if (!pTask->target) return qSubPlanToString(pTask->plan, msg, len);
+  SSubplan instance = *pTask->plan;
+  instance.id.subplanId = pTask->target->subplanId;
+  instance.execNode = pTask->target->execNode;
+  instance.execNodeStat = pTask->target->execNodeStat;
+  return qSubPlanToString(&instance, msg, len);
+}
+
 int32_t schLaunchRemoteTask(SSchJob *pJob, SSchTask *pTask) {
   SSubplan *plan = pTask->plan;
   int32_t   code = 0;
 
   if (NULL == pTask->msg) {  // TODO add more detailed reason for failure
     SCH_LOCK(SCH_WRITE, &pTask->planLock);
-    code = qSubPlanToMsg(plan, &pTask->msg, &pTask->msgLen);
+    code = pTask->target ? schEncodeTemplateTask(pJob, pTask, &pTask->msg, &pTask->msgLen)
+                         : qSubPlanToMsg(plan, &pTask->msg, &pTask->msgLen);
     if (TSDB_CODE_SUCCESS == code && tsQueryPlannerTrace) {
-      if (SUBPLAN_TYPE_MODIFY == plan->subplanType) {
+      if (SUBPLAN_TYPE_MODIFY == plan->subplanType && !plan->pNode) {
         SDataInserterNode *insert = (SDataInserterNode *)plan->pDataSink;
         SCH_TASK_DLOG("MODIFY plan, tables:%d, payload size:%u", insert ? insert->numOfTables : 0,
                       insert ? insert->size : 0);
       } else {
         char   *msg = NULL;
         int32_t msgLen = 0;
-        int32_t traceCode = qSubPlanToString(plan, &msg, &msgLen);
+        int32_t traceCode = schTaskPlanToString(pTask, &msg, &msgLen);
         if (TSDB_CODE_SUCCESS == traceCode) {
           SCH_TASK_DLOGL("physical plan len:%d, %s", msgLen, msg);
           taosMemoryFree(msg);
@@ -1387,7 +1427,8 @@ int32_t schLaunchLocalTask(SSchJob *pJob, SSchTask *pTask) {
   qwMsg.msgInfo.taskType = (pJob->attr.type == JOB_TYPE_HQUERY)? TASK_TYPE_HQUERY:TASK_TYPE_QUERY;
   qwMsg.msgInfo.explain = SCH_IS_EXPLAIN_JOB(pJob);
   qwMsg.msgInfo.needFetch = SCH_TASK_NEED_FETCH(pTask);
-  qwMsg.msg = pTask->plan;
+  SCH_ERR_RET(schPrepareLocalTaskPlan(pJob, pTask));
+  qwMsg.msg = pTask->localPlan ? pTask->localPlan : pTask->plan;
   qwMsg.msgType = pTask->plan->msgType;
   qwMsg.connInfo.handle = pJob->conn.pTrans;
   qwMsg.pWorkerCb = pJob->pWorkerCb;

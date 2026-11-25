@@ -3494,13 +3494,13 @@ static int32_t qExplainBuildPlanCtx(SQueryPlan *pDag, SExplainPlanCtx *pCtx) {
       plan = (SSubplan *)taskNode;
       pGroup = taosHashGet(pCtx->groupHash, &plan->id.groupId, sizeof(plan->id.groupId));
       if (pGroup) {
-        ++pGroup->nodeNum;
+        pGroup->nodeNum += subplanGetTargetCount(plan);
         ++n;
         continue;
       }
 
       SExplainGroup group = {0};
-      group.nodeNum = 1;
+      group.nodeNum = subplanGetTargetCount(plan);
       group.plan = plan;
 
       if (0 != taosHashPut(pCtx->groupHash, &plan->id.groupId, sizeof(plan->id.groupId), &group, sizeof(group))) {
@@ -3511,7 +3511,7 @@ static int32_t qExplainBuildPlanCtx(SQueryPlan *pDag, SExplainPlanCtx *pCtx) {
     }
 
     if (0 == i) {
-      if (taskNum > 1) {
+      if (taskNum > 1 || subplanGetTargetCount(plan) > 1) {
         qError("invalid taskNum %d for level 0", taskNum);
         QRY_ERR_JRET(TSDB_CODE_QRY_INVALID_INPUT);
       }

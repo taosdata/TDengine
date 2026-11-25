@@ -30,6 +30,60 @@ using namespace std;
 
 class PlanOptimizeTest : public PlannerTestBase {};
 
+extern "C" void nodesTestSetStrictAppendFailOnce(void);
+extern "C" int64_t nodesTestGetLiveAllocations(void);
+
+TEST(PlanSplitTest, batchedScanBranchesRespectSplitDoneAndReleaseOnFailure) {
+  for (ENodeType branchType : {QUERY_NODE_LOGIC_PLAN_AGG, QUERY_NODE_LOGIC_PLAN_WINDOW}) {
+    for (bool failAppend : {false, true}) {
+      SCOPED_TRACE(::testing::Message() << branchType << ", failAppend=" << failAppend);
+      int64_t allocations = nodesTestGetLiveAllocations();
+      auto make = [](ENodeType type) -> SNode* {
+        SNode* node = nullptr;
+        EXPECT_EQ(0, nodesMakeNode(type, &node));
+        return node;
+      };
+      auto append = [](SLogicNode* parent, SLogicNode* child) {
+        EXPECT_EQ(0, nodesListMakeAppend(&parent->pChildren, (SNode*)child));
+        child->pParent = parent;
+      };
+      SPlanContext cxt = {};
+      auto* plan = (SLogicSubplan*)make(QUERY_NODE_LOGIC_SUBPLAN);
+      auto* merge = (SMergeLogicNode*)make(QUERY_NODE_LOGIC_PLAN_MERGE);
+      plan->pNode = &merge->node;
+      merge->colsMerge = branchType == QUERY_NODE_LOGIC_PLAN_AGG;
+      for (int i = 0; i < 3; ++i) {
+        auto* branch = (SLogicNode*)make(branchType);
+        auto* scan = (SScanLogicNode*)make(QUERY_NODE_LOGIC_PLAN_SCAN);
+        scan->scanType = SCAN_TYPE_TABLE;
+        scan->tableType = TSDB_NORMAL_TABLE;
+        if (branchType == QUERY_NODE_LOGIC_PLAN_WINDOW) {
+          ((SWindowLogicNode*)branch)->winType = WINDOW_TYPE_EXTERNAL;
+          scan->node.splitDone = i == 1;
+        } else {
+          branch->splitDone = i == 1;
+        }
+        append(&merge->node, branch);
+        append(branch, &scan->node);
+      }
+      if (failAppend) {
+        nodesTestSetStrictAppendFailOnce();
+        EXPECT_EQ(TSDB_CODE_OUT_OF_MEMORY, splitLogicPlan(&cxt, plan));
+      } else {
+        EXPECT_EQ(0, splitLogicPlan(&cxt, plan));
+        EXPECT_EQ(2, LIST_LENGTH(plan->pChildren));
+        for (int i = 0; i < 3; ++i) {
+          auto* branch = (SLogicNode*)nodesListGetNode(merge->node.pChildren, i);
+          EXPECT_EQ(i == 1 ? QUERY_NODE_LOGIC_PLAN_SCAN : QUERY_NODE_LOGIC_PLAN_EXCHANGE,
+                    nodeType(nodesListGetNode(branch->pChildren, 0)));
+        }
+      }
+      nodesDestroyNode((SNode*)plan);
+      EXPECT_EQ(allocations, nodesTestGetLiveAllocations());
+    }
+  }
+}
+
 static bool lastScanUnsupportedPkType = false;
 
 static int32_t lastScanCompositeCatalogGetTableMeta(
@@ -547,9 +601,7 @@ class PlanCacheAggregateTest : public PlannerTestBase {
     }
     ASSERT_EQ(nodeType(input), QUERY_NODE_PHYSICAL_PLAN_EXCHANGE);
     const auto* source = (const SExchangePhysiNode*)input;
-    ASSERT_GT(LIST_LENGTH(branch->pChildren), 1);
-    int32_t firstVgroup = -1;
-    bool multipleVgroups = false;
+    multiset<int32_t> vgroups;
     SNode* child = nullptr;
     FOREACH(child, branch->pChildren) {
       const auto* leaf = (const SSubplan*)child;
@@ -557,8 +609,16 @@ class PlanCacheAggregateTest : public PlannerTestBase {
       EXPECT_LE(leaf->id.groupId, source->srcEndGroupId);
       EXPECT_EQ(leaf->subplanType, SUBPLAN_TYPE_SCAN);
       ASSERT_NE(leaf->pNode, nullptr);
-      if (firstVgroup == -1) firstVgroup = leaf->execNode.nodeId;
-      multipleVgroups |= leaf->execNode.nodeId != firstVgroup;
+      if (leaf->pExecTargets == nullptr) {
+        vgroups.insert(leaf->execNode.nodeId);
+      } else {
+        for (size_t i = 0; i < taosArrayGetSize(leaf->pExecTargets); ++i) {
+          const auto* target = static_cast<const SSubplanTarget*>(
+              taosArrayGet(leaf->pExecTargets, i));
+          ASSERT_NE(target, nullptr);
+          vgroups.insert(target->execNode.nodeId);
+        }
+      }
       if (cached) {
         EXPECT_EQ(nodeType(leaf->pNode),
                   QUERY_NODE_PHYSICAL_PLAN_LAST_ROW_SCAN);
@@ -574,7 +634,7 @@ class PlanCacheAggregateTest : public PlannerTestBase {
             }), 0);
       }
     }
-    EXPECT_TRUE(multipleVgroups);
+    EXPECT_EQ(vgroups, (multiset<int32_t>{2, 3}));
   }
 
   static void checkExchangeSourceRange(const SExchangePhysiNode* exchange,

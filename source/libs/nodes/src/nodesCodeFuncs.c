@@ -7575,6 +7575,7 @@ static int32_t jsonToSubplan(const SJson* pJson, void* pObj) {
 
 static const char* jkPlanQueryId = "QueryId";
 static const char* jkPlanNumOfSubplans = "NumOfSubplans";
+static const char* jkPlanCountIncludesSubqueries = "CountIncludesSubqueries";
 static const char* jkPlanSubplans = "Subplans";
 static const char* jkPlanSubplanLevels = "SubplanLevels";
 static const char* jkPlanSubplanLinks = "SubplanLinks";
@@ -7731,7 +7732,7 @@ _return:
   return code;
 }
 
-static int32_t planToJson(const void* pObj, SJson* pJson) {
+static int32_t planToJsonImpl(const void* pObj, SJson* pJson) {
   const SQueryPlan* pNode = (const SQueryPlan*)pObj;
   bool extended = NULL != pNode->pCorrelationTemplates || LIST_LENGTH(pNode->pSubplans) > 1;
   char tmpBuf[64] = {0};
@@ -7759,6 +7760,7 @@ static int32_t planToJson(const void* pObj, SJson* pJson) {
     FOREACH(pTmp, pNode->pChildren) {
       snprintf(tmpBuf, sizeof(tmpBuf), "%s%d", jkPlanSubQueries, i);
       code = tjsonAddObject(pJson, tmpBuf, nodeToJson, pTmp);
+      if (TSDB_CODE_SUCCESS != code) break;
       ++i;
     }
   }
@@ -7775,6 +7777,18 @@ static int32_t planToJson(const void* pObj, SJson* pJson) {
       code = tjsonAddTArray(pJson, "SubqueryDependencies", subqueryDependencyToJson, pNode->pSubqueryDeps);
     }
   }
+  return code;
+}
+
+static int32_t planToJson(const void* pObj, SJson* pJson) {
+  const SQueryPlan* plan = (const SQueryPlan*)pObj;
+  SPlanExportView view = {0};
+  int32_t code = nodesBuildPlanExportView(plan, &view);
+  if (code == TSDB_CODE_SUCCESS) code = planToJsonImpl(&view.plan, pJson);
+  if (code == TSDB_CODE_SUCCESS && view.plan.numOfSubplans != plan->numOfSubplans) {
+    code = tjsonAddBoolToObject(pJson, jkPlanCountIncludesSubqueries, true);
+  }
+  nodesClearPlanExportView(&view);
   return code;
 }
 
@@ -8122,10 +8136,10 @@ static int32_t jsonToPlan(const SJson* pJson, void* pObj) {
   }
   if (TSDB_CODE_SUCCESS == code && numOfSubQueries > 0) {
     char tmpBuf[64] = {0};
-    SNode* pPlan = NULL;
     for (int32_t i = 0; i < numOfSubQueries; ++i) {
+      SNode* pPlan = NULL;
       snprintf(tmpBuf, sizeof(tmpBuf), "%s%d", jkPlanSubQueries, i);
-      code = jsonToNodeObject(pJson, tmpBuf, (SNode**)&pPlan);
+      code = jsonToNodeObject(pJson, tmpBuf, &pPlan);
       if (code) {
         break;
       }
@@ -8137,12 +8151,18 @@ static int32_t jsonToPlan(const SJson* pJson, void* pObj) {
       }
       code = nodesListMakeStrictAppend(&pNode->pChildren, pPlan);
       if (code) {
-        nodesDestroyNode(pPlan);
         break;
       }
     }
   }
   
+  bool countIncludesSubqueries = false;
+  if (TSDB_CODE_SUCCESS == code && tjsonGetObjectItem(pJson, jkPlanCountIncludesSubqueries)) {
+    code = tjsonGetBoolValue(pJson, jkPlanCountIncludesSubqueries, &countIncludesSubqueries);
+  }
+  if (TSDB_CODE_SUCCESS == code && countIncludesSubqueries) {
+    code = nodesCountPlanAndSubqueries(pNode, pNode->numOfSubplans, &pNode->numOfSubplans);
+  }
   if (TSDB_CODE_SUCCESS == code) {
     code = correlationJsonList(pJson, "CorrelationTemplates", &pNode->pCorrelationTemplates, QUERY_NODE_CORRELATION_TEMPLATE);
   }

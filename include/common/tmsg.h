@@ -5745,6 +5745,13 @@ typedef struct SSubQueryMsg {
 } SSubQueryMsg;
 
 int32_t tSerializeSSubQueryMsg(void* buf, int32_t bufLen, SSubQueryMsg* pReq);
+#define TSDB_SUBQ_DEC_SKIP_SQL         (1U << 0)
+#define TSDB_SUBQ_DEC_SKIP_MSG         (1U << 1)
+#define TSDB_SUBQ_DEC_SKIP_ENDPOINTS   (1U << 2)
+#define TSDB_SUBQ_DEC_SKIP_CORRELATION (1U << 3)
+#define TSDB_SUBQ_DEC_SKIP_ALL         (TSDB_SUBQ_DEC_SKIP_SQL | TSDB_SUBQ_DEC_SKIP_MSG | TSDB_SUBQ_DEC_SKIP_ENDPOINTS | TSDB_SUBQ_DEC_SKIP_CORRELATION)
+
+int32_t tDeserializeSSubQueryMsgExt(void *buf, int32_t bufLen, SSubQueryMsg *pReq, uint32_t skipFlags);
 int32_t tDeserializeSSubQueryMsg(void* buf, int32_t bufLen, SSubQueryMsg* pReq);
 void    tFreeSSubQueryMsg(SSubQueryMsg* pReq);
 int32_t tValidateCorrelationParams(const SArray* pDefs, const SArray* pValues);

@@ -27,6 +27,7 @@
 #include <atomic>
 #include <future>
 #include <iostream>
+#include <memory>
 #include <thread>
 #include <vector>
 
@@ -1517,6 +1518,152 @@ TEST(otherTest, function) {
   schHandleLinkBrokenCallback(&hbParam, &dataBuf, TSDB_CODE_SUCCESS);
   
   schMgmt.jobRef = -1;
+}
+
+TEST(otherTest, templateTargetsValidateAndBuildTaskRelations) {
+  auto* job = static_cast<SSchJob*>(taosMemoryCalloc(1, sizeof(SSchJob)));
+  ASSERT_NE(nullptr, job);
+  ASSERT_EQ(0, tsem_init(&job->rspSem, 0, 0));
+  std::unique_ptr<SSchJob, decltype(&schFreeJobImpl)> owned(job, schFreeJobImpl);
+  ASSERT_EQ(0, nodesMakeNode(QUERY_NODE_PHYSICAL_PLAN, reinterpret_cast<SNode**>(&job->pDag)));
+  schtBuildQueryDag(job->pDag);
+  auto* level = reinterpret_cast<SNodeListNode*>(nodesListGetNode(job->pDag->pSubplans, 1));
+  ASSERT_NE(nullptr, level);
+  auto* scan = reinterpret_cast<SSubplan*>(nodesListGetNode(level->pNodeList, 0));
+  ASSERT_NE(nullptr, scan);
+
+  constexpr int32_t targets = 3;
+  scan->pExecTargets = taosArrayInit(targets, sizeof(SSubplanTarget));
+  ASSERT_NE(nullptr, scan->pExecTargets);
+  for (int32_t i = 0; i < targets; ++i) {
+    SSubplanTarget target = {};
+    target.subplanId = scan->id.subplanId + i;
+    target.execNode = scan->execNode;
+    target.execNode.nodeId += i;
+    ASSERT_NE(nullptr, taosArrayPush(scan->pExecTargets, &target));
+  }
+
+  auto* second = static_cast<SSubplanTarget*>(taosArrayGet(scan->pExecTargets, 1));
+  auto& eps = second->execNode.epSet;
+  eps.numOfEps = 0;
+  EXPECT_EQ(TSDB_CODE_SCH_DATA_SRC_EP_MISS, schValidateSubplan(job, scan, 1, 0, targets));
+  scan->subplanType = SUBPLAN_TYPE_HSYSSCAN;
+  EXPECT_EQ(TSDB_CODE_QRY_INVALID_INPUT, schValidateSubplan(job, scan, 1, 0, targets));
+  scan->subplanType = SUBPLAN_TYPE_SCAN;
+  eps.numOfEps = TSDB_MAX_REPLICA + 1;
+  EXPECT_EQ(TSDB_CODE_QRY_INVALID_INPUT, schValidateSubplan(job, scan, 1, 0, targets));
+  eps.numOfEps = 1;
+  eps.inUse = 1;
+  EXPECT_EQ(TSDB_CODE_QRY_INVALID_INPUT, schValidateSubplan(job, scan, 1, 0, targets));
+  eps.inUse = 0;
+  ASSERT_EQ(0, nodesListMakeAppend(&scan->pChildren, nodesListGetNode(scan->pParents, 0)));
+  EXPECT_EQ(TSDB_CODE_QRY_INVALID_INPUT, schValidateSubplan(job, scan, 1, 0, targets));
+  nodesClearList(scan->pChildren);
+  scan->pChildren = nullptr;
+
+  job->pDag->numOfSubplans = 1 + targets;
+  job->taskList = taosHashInit(4, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT), false, HASH_NO_LOCK);
+  ASSERT_NE(nullptr, job->taskList);
+  ASSERT_EQ(0, schValidateAndBuildJob(job->pDag, job));
+  ASSERT_EQ(1 + targets, job->taskNum);
+  auto* rootLevel = static_cast<SSchLevel*>(taosArrayGet(job->levels, 0));
+  auto* root = static_cast<SSchTask*>(taosArrayGet(rootLevel->subTasks, 0));
+  auto* leaves = static_cast<SSchLevel*>(taosArrayGet(job->levels, 1));
+  ASSERT_EQ(targets, taosArrayGetSize(root->children));
+  ASSERT_EQ(targets, taosArrayGetSize(leaves->subTasks));
+  for (int32_t i = 0; i < targets; ++i) {
+    auto* leaf = static_cast<SSchTask*>(taosArrayGet(leaves->subTasks, i));
+    EXPECT_EQ(leaf, taosArrayGetP(root->children, i));
+    ASSERT_EQ(1, taosArrayGetSize(leaf->parents));
+    EXPECT_EQ(root, taosArrayGetP(leaf->parents, 0));
+    EXPECT_EQ(scan, leaf->plan);
+    EXPECT_EQ(scan->id.subplanId + i, schTaskGetSubplanId(leaf));
+    EXPECT_EQ(scan->execNode.nodeId + i, schTaskGetExecNode(leaf)->nodeId);
+  }
+}
+
+TEST(otherTest, localTemplatePreservesSortLimitAndTaskIdentity) {
+  SSchJob job = {};
+  SSchPlanBodyCache cache = {};
+  SSubplan plan = {};
+  SSortPhysiNode sort = {};
+  SLimitNode limit = {};
+  SValueNode value = {};
+  value.node.type = QUERY_NODE_VALUE;
+  value.node.resType.type = TSDB_DATA_TYPE_BIGINT;
+  value.node.resType.bytes = sizeof(int64_t);
+  value.translate = true;
+  value.datum.i = 17;
+  limit.type = QUERY_NODE_LIMIT;
+  limit.limit = &value;
+  sort.node.type = QUERY_NODE_PHYSICAL_PLAN_SORT;
+  sort.node.pLimit = reinterpret_cast<SNode*>(&limit);
+  sort.calcGroupId = true;
+  plan.type = QUERY_NODE_PHYSICAL_SUBPLAN;
+  plan.subplanType = SUBPLAN_TYPE_HSYSSCAN;
+  plan.requiresAncestorContext = true;
+  plan.id.subplanId = 1;
+  plan.execNode.nodeId = 2;
+  plan.pNode = &sort.node;
+
+  SSubplanTarget target = {};
+  target.subplanId = 5;
+  target.execNode.nodeId = 11;
+  target.execNodeStat.tableNum = 3;
+  SSchTask task = {};
+  task.plan = &plan;
+  task.target = &target;
+  task.cachedBody = &cache;
+  ASSERT_EQ(0, schPrepareLocalTaskPlan(&job, &task));
+  ASSERT_NE(nullptr, task.localPlan);
+  EXPECT_EQ(5, task.localPlan->id.subplanId);
+  EXPECT_EQ(11, task.localPlan->execNode.nodeId);
+  EXPECT_EQ(3, task.localPlan->execNodeStat.tableNum);
+  EXPECT_TRUE(task.localPlan->requiresAncestorContext);
+  auto* localSort = reinterpret_cast<SSortPhysiNode*>(task.localPlan->pNode);
+  ASSERT_NE(nullptr, localSort);
+  ASSERT_EQ(QUERY_NODE_PHYSICAL_PLAN_SORT, localSort->node.type);
+  EXPECT_TRUE(localSort->calcGroupId);
+  auto* localLimit = reinterpret_cast<SLimitNode*>(localSort->node.pLimit);
+  ASSERT_NE(nullptr, localLimit);
+  ASSERT_NE(nullptr, localLimit->limit);
+  EXPECT_EQ(17, localLimit->limit->datum.i);
+  localLimit->limit->datum.i = 8;
+  EXPECT_EQ(17, value.datum.i);
+  EXPECT_EQ(1, plan.id.subplanId);
+  EXPECT_EQ(2, plan.execNode.nodeId);
+
+  nodesDestroyNode(reinterpret_cast<SNode*>(task.localPlan));
+  taosMemoryFree(cache.body);
+}
+
+TEST(otherTest, retryReusesOnlyImmutableTemplateMessages) {
+  SSchJob job = {};
+  SSchTask task = {};
+  SSubplan plan = {};
+  SSubplanTarget target = {};
+  plan.subplanType = SUBPLAN_TYPE_SCAN;
+  task.plan = &plan;
+  task.target = &target;
+  job.execTasks = taosHashInit(1, taosGetDefaultHashFunction(TSDB_DATA_TYPE_UBIGINT), false, HASH_NO_LOCK);
+  ASSERT_NE(nullptr, job.execTasks);
+  task.msg = static_cast<char*>(taosMemoryMalloc(4));
+  ASSERT_NE(nullptr, task.msg);
+  memcpy(task.msg, "abc", 4);
+  task.msgLen = 4;
+  char* original = task.msg;
+
+  schResetTaskForRetry(&job, &task);
+  EXPECT_EQ(original, task.msg);
+  EXPECT_EQ(4, task.msgLen);
+  EXPECT_STREQ("abc", task.msg);
+  EXPECT_TRUE(task.waitRetry);
+
+  task.target = nullptr;
+  schResetTaskForRetry(&job, &task);
+  EXPECT_EQ(nullptr, task.msg);
+  EXPECT_EQ(0, task.msgLen);
+  taosHashCleanup(job.execTasks);
 }
 
 TEST(otherTest, taskRetryConfig) {
