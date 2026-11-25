@@ -18,6 +18,7 @@
 #include "executorInt.h"
 #include "extConnector.h"
 #include "extTypeMap.h"
+#include "filter.h"
 #include "nodes.h"
 #include "operator.h"
 #include "os.h"
@@ -7873,6 +7874,10 @@ static int32_t initVtbWindowInfo(SDynQueryCtrlOperatorInfo* pInfo, SDynQueryCtrl
   initResultSizeInfo(&pOperator->resultInfo, 1);
   code = blockDataEnsureCapacity(pInfo->vtbWindow.pRes, pOperator->resultInfo.capacity);
   QUERY_CHECK_CODE(code, line, _return);
+  code = filterInitFromNode(pPhyciNode->node.pConditions, &pOperator->exprSupp.pFilterInfo, 0,
+                            pTaskInfo->pStreamRuntimeInfo);
+  QUERY_CHECK_CODE(code, line, _return);
+  filterSetExecContext(pOperator->exprSupp.pFilterInfo, pTaskInfo, isTaskKilled);
 
   return code;
 _return:
@@ -8187,7 +8192,7 @@ _return:
   return code;
 }
 
-int32_t vtbWindowNext(SOperatorInfo* pOperator, SSDataBlock** ppRes) {
+static int32_t getVtbWindowBatch(SOperatorInfo* pOperator, SSDataBlock** ppRes) {
   int32_t                    code = TSDB_CODE_SUCCESS;
   int32_t                    lino = 0;
   SDynQueryCtrlOperatorInfo* pDynInfo = pOperator->info;
@@ -8373,6 +8378,18 @@ _return:
     pTaskInfo->code = code;
     T_LONG_JMP(pTaskInfo->env, code);
   }
+  return code;
+}
+
+static int32_t vtbWindowNext(SOperatorInfo* pOperator, SSDataBlock** ppRes) {
+  int32_t code = TSDB_CODE_SUCCESS;
+  do {
+    code = getVtbWindowBatch(pOperator, ppRes);
+    if (code != TSDB_CODE_SUCCESS || *ppRes == NULL) {
+      return code;
+    }
+    code = doFilterWithTaskCorrelation(*ppRes, pOperator->exprSupp.pFilterInfo, NULL, NULL, pOperator->pTaskInfo);
+  } while (code == TSDB_CODE_SUCCESS && (*ppRes)->info.rows == 0);
   return code;
 }
 

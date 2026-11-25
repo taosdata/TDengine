@@ -1416,7 +1416,7 @@ static int32_t pdcSplitTagCondForVstb(SNode** ppTagCond, SNode** ppSysTagCond, S
 }
 
 static int32_t pdcDealVirtualSuperTableScan(SOptimizeContext* pCxt, SDynQueryCtrlLogicNode* pScan) {
-  if (NULL == pScan->node.pConditions ||
+  if (DYN_QTYPE_VTB_WINDOW == pScan->qType || NULL == pScan->node.pConditions ||
       OPTIMIZE_FLAG_TEST_MASK(pScan->node.optimizedFlag, OPTIMIZE_FLAG_PUSH_DOWN_CONDE)) {
     return TSDB_CODE_SUCCESS;
   }
@@ -15563,7 +15563,6 @@ static int32_t generateMergeNodeForExtWindows(SHashObj* pExtWinMap, SArray* pExt
   pMerge->numOfChannels = taosHashGetSize(pExtWinMap);
   pMerge->srcGroupId = -1;
   pMerge->node.precision = pWindow->node.precision;
-  TSWAP(pWindow->node.pConditions, pMerge->node.pConditions);
 
   for (int32_t i = 0; i < taosArrayGetSize(pExtWinOrder); ++i) {
     SWindowLogicNode** pExtWindow = taosArrayGet(pExtWinOrder, i);
@@ -15684,6 +15683,8 @@ static int32_t vtableWindowOptimize(SOptimizeContext* pCxt, SLogicSubplan* pLogi
   pDynWindowNode->vtbWindow.isVstb = false;
   pDynWindowNode->qType = DYN_QTYPE_VTB_WINDOW;
   pDynWindowNode->vtbWindow.extendOption = pWindow->extendOption;
+  // Window predicates need the final row, including aggregates from every source.
+  TSWAP(pNewWindow->node.pConditions, pDynWindowNode->node.pConditions);
 
   PLAN_ERR_JRET(splitWindowAggFuncsToMultiExtWindows(pDynWindowNode, pNewWindow, pVirtualScan, pExtWinMap,
                                                      pExtWinOrder));
@@ -17537,6 +17538,7 @@ static int32_t vstableWindowOptimizeImpl(SOptimizeContext* pCxt, SLogicSubplan* 
   pRootDyn->vtbWindow.wdurationSlotId = -1;
   pRootDyn->vtbWindow.isVstb = true;
   pRootDyn->vtbWindow.extendOption = pWindow->extendOption;
+  TSWAP(pBoundary->node.pConditions, pRootDyn->node.pConditions);
   OPTIMIZE_FLAG_SET_MASK(pRootDyn->node.optimizedFlag, OPTIMIZE_FLAG_VTB_WINDOW);
   NODES_DESTORY_LIST(pRootDyn->node.pTargets);
   PLAN_ERR_JRET(nodesCloneList(pWindow->node.pTargets, &pRootDyn->node.pTargets));

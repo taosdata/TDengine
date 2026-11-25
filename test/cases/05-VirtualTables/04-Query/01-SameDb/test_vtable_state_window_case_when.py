@@ -55,14 +55,14 @@ class TestVtableStateWindowCaseWhen:
         tdSql.execute(f"create database {DB} vgroups 2;")
         # motor1: ts 01..04, MillRun = 1,1,2,2
         tdSql.execute(
-            f"create table {DB}.origin1 (ts timestamp, MillRun int, attr1 int, attr2 int, attr3 int)"
+            f"create table {DB}.origin1 (ts timestamp, MillRun int, attr1 int, attr2 int, attr3 int, current1 int)"
         )
         tdSql.execute(
             f"insert into {DB}.origin1 values "
-            f"({BASE_TS + 0}, 1, 10, 100, 1000) "
-            f"({BASE_TS + 1000}, 1, 20, 200, 2000) "
-            f"({BASE_TS + 2000}, 2, 30, 300, 3000) "
-            f"({BASE_TS + 3000}, 2, 40, 400, 4000)"
+            f"({BASE_TS + 0}, 1, 10, 100, 1000, NULL) "
+            f"({BASE_TS + 1000}, 1, 20, 200, 2000, NULL) "
+            f"({BASE_TS + 2000}, 2, 30, 300, 3000, 0) "
+            f"({BASE_TS + 3000}, 2, 40, 400, 4000, 0)"
         )
         # motor2: only rows at ts 02 and ts 04, so the merged virtual rows carry
         # NULL for attr4..attr6 at ts 01 and ts 03.
@@ -75,6 +75,7 @@ class TestVtableStateWindowCaseWhen:
         tdSql.execute(
             f"create vtable {DB}.vt_test (ts timestamp, "
             f"MillRun int from {DB}.origin1.MillRun, "
+            f"current1 int from {DB}.origin1.current1, "
             f"attr1 int from {DB}.origin1.attr1, "
             f"attr2 int from {DB}.origin1.attr2, "
             f"attr3 int from {DB}.origin1.attr3, "
@@ -141,6 +142,51 @@ class TestVtableStateWindowCaseWhen:
             (BASE_TS + 2000, 70, 700, 4000, 60, 600, 6000),
         ], split=True)
 
+    def do_filtered_window_query(self):
+        query = (
+            f"select _wstart + 0s as output_timestamp, sum(current1) as m1_c1, "
+            f"sum(attr2) as m1_c2, max(attr3) as m1_max, "
+            f"sum(attr4) as m2_c1, sum(attr5) as m2_c2, max(attr6) as m2_max "
+            f"from {DB}.vt_test where ts >= {BASE_TS} state_window(MillRun)"
+        )
+        first = (BASE_TS, None, 300, 2000, 50, 500, 5000)
+        second = (BASE_TS + 2000, 0, 700, 4000, 60, 600, 6000)
+        self._check_windows(query, [first, second], split=True)
+        for condition, expected in (
+            ("m1_c1 is not null", [second]),
+            ("m1_c1 is null", [first]),
+            ("m1_c1 is not null and m2_c1 < 60", []),
+        ):
+            self._check_windows(f"select * from ({query}) w where {condition}", expected, split=True)
+
+    def do_filtered_vstable_window_query(self):
+        tdSql.execute(f"create stable {DB}.vs (ts timestamp, run_flag int, a int, b int) tags(t int) virtual 1")
+        tdSql.execute(
+            f"create vtable {DB}.vc (run_flag from {DB}.origin1.MillRun, "
+            f"a from {DB}.origin1.current1, b from {DB}.origin2.attr4) using {DB}.vs tags(1)"
+        )
+        query = f"select _wstart as st, sum(a) as sa, max(b) as mb from {DB}.vs state_window(run_flag)"
+        self._check_windows(f"select * from ({query}) w where sa is not null", [(BASE_TS + 2000, 0, 60)],
+                            split=True)
+
+    def do_filtered_window_batches(self):
+        # Only the last window matches, after several batches with no qualifying rows.
+        tdSql.execute(f"create table {DB}.batch_source (ts timestamp, run_flag int, v int)")
+        num_windows = 12290
+        for start in range(0, num_windows, 500):
+            rows = " ".join(
+                f"({BASE_TS + i}, {i % 2}, {7 if i == num_windows - 1 else 'NULL'})"
+                for i in range(start, min(start + 500, num_windows))
+            )
+            tdSql.execute(f"insert into {DB}.batch_source values {rows}")
+        tdSql.execute(
+            f"create vtable {DB}.batch_vt (ts timestamp, run_flag int from {DB}.batch_source.run_flag, "
+            f"v int from {DB}.batch_source.v, other_metric int from {DB}.origin2.attr4)"
+        )
+        query = f"select _wstart, sum(v) as sv, max(other_metric) from {DB}.batch_vt state_window(run_flag)"
+        self._check_windows(f"select * from ({query}) w where sv is not null",
+                            [(BASE_TS + num_windows - 1, 7, None)], split=True)
+
     def do_percentile_agg_query(self):
         window = f"from {DB}.vt_test state_window(MillRun)"
         approx = f"select _wstart, sum(attr1), apercentile(attr4, 95) {window}"
@@ -160,6 +206,8 @@ class TestVtableStateWindowCaseWhen:
         3. count(*) alongside a cross-origin aggregate
         4. plain single-column aggregates still follow the optimized path
         5. approximate percentiles can be split; exact percentiles retain both scan phases
+        6. outer filters on virtual tables and virtual supertables distinguish NULL from zero
+        7. entirely filtered batches do not hide subsequent matching windows
 
         Catalog:
             - VirtualTable
@@ -172,6 +220,7 @@ class TestVtableStateWindowCaseWhen:
 
         History:
             - 2026-11-23 tdcrew created
+            - 2026-11-23 Joey Sima added outer window filter coverage
         """
         self.do_case_when_agg_query()
         self.do_expression_param_agg_query()
@@ -179,3 +228,6 @@ class TestVtableStateWindowCaseWhen:
         self.do_count_star_query()
         self.do_plain_column_agg_query()
         self.do_percentile_agg_query()
+        self.do_filtered_window_query()
+        self.do_filtered_vstable_window_query()
+        self.do_filtered_window_batches()
