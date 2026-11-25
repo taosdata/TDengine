@@ -2265,10 +2265,11 @@ int32_t ctgInitTask(SCtgJob* pJob, CTG_TASK_TYPE type, void* param, int32_t* tas
   // Subtasks are created from concurrent response handlers; taking the id
   // outside the lock lets the push order diverge from the id order and routes
   // a batch reply to the wrong task.
-  int32_t tid = atomic_fetch_add_32(&pJob->taskIdx, 1);
+  int32_t tid = pJob->taskIdx;
 
   CTG_ERR_JRET(ctgGrowTaskArray(pJob));
   CTG_ERR_JRET((*gCtgAsyncFps[type].initFp)(pJob, tid, param));
+  ++pJob->taskIdx;  // Failed initializers did not append a task.
 
   if (taskId) {
     *taskId = tid;
@@ -3022,35 +3023,6 @@ static int32_t ctgInitTaskMsgCtxBatchs(SCtgTaskReq* pReq, SCtgMsgCtx* pMsgCtx) {
   return TSDB_CODE_SUCCESS;
 }
 
-static int32_t ctgCloneTaskParentIds(SCtgTask* pTask, SArray** ppParentIds) {
-  int32_t code = TSDB_CODE_SUCCESS;
-  bool    locked = false;
-
-  if (NULL == pTask || NULL == ppParentIds) {
-    CTG_ERR_RET(TSDB_CODE_CTG_INTERNAL_ERROR);
-  }
-
-  *ppParentIds = NULL;
-
-  CTG_LOCK(CTG_WRITE, &pTask->lock);
-  locked = true;
-  if (NULL != pTask->pParents) {
-    *ppParentIds = taosArrayDup(pTask->pParents, NULL);
-    if (NULL == *ppParentIds) {
-      code = terrno;
-      goto _return;
-    }
-  }
-
-_return:
-
-  if (locked) {
-    CTG_UNLOCK(CTG_WRITE, &pTask->lock);
-  }
-
-  CTG_RET(code);
-}
-
 static int32_t ctgCallParentSubCb(SCtgJob* pJob, SCtgTaskReq* pReq, int32_t parentTaskId, int32_t* pRet) {
   int32_t    code = TSDB_CODE_SUCCESS;
   SCtgTask*  pParent = NULL;
@@ -3097,7 +3069,7 @@ static int32_t ctgCallParentSubCb(SCtgJob* pJob, SCtgTaskReq* pReq, int32_t pare
   return TSDB_CODE_SUCCESS;
 }
 
-int32_t ctgCallSubCb(SCtgTaskReq* pReq) {
+static int32_t ctgCallSubCb(SCtgTaskReq* pReq, const SArray* pParentIds) {
   int32_t   code = 0;
   SCtgTask* pTask = pReq ? pReq->pTask : NULL;
   if (NULL == pTask) {
@@ -3106,11 +3078,8 @@ int32_t ctgCallSubCb(SCtgTaskReq* pReq) {
 
   SCtgJob* pJob = pTask->pJob;
   int32_t  taskId = pTask->taskId;
-  SArray*  pParentIds = NULL;
 
-  CTG_ERR_JRET(ctgCloneTaskParentIds(pTask, &pParentIds));
-
-  int32_t parentNum = pParentIds ? taosArrayGetSize(pParentIds) : 0;
+  int32_t parentNum = taosArrayGetSize(pParentIds);
   for (int32_t i = 0; i < parentNum; ++i) {
     int32_t* pParentTaskId = taosArrayGet(pParentIds, i);
     if (NULL == pParentTaskId) {
@@ -3156,8 +3125,6 @@ int32_t ctgCallSubCb(SCtgTaskReq* pReq) {
   }
 
 _return:
-  taosArrayDestroy(pParentIds);
-
   CTG_RET(code);
 }
 
@@ -3199,19 +3166,26 @@ static int32_t ctgHandleTaskEndByReq(SCtgTaskReq* pReq, int32_t rspCode) {
   int32_t  taskId = pTask->taskId;
   int32_t  taskType = pTask->type;
 
+  // Take the pending notifications under the subscription lock. Later subscribers
+  // see DONE and receive the result directly, including when allocation failed.
+  CTG_LOCK(CTG_WRITE, &pTask->lock);
   if (CTG_TASK_DONE == pTask->status) {
+    CTG_UNLOCK(CTG_WRITE, &pTask->lock);
     return TSDB_CODE_SUCCESS;
   }
+  pTask->code = rspCode;
+  pTask->status = CTG_TASK_DONE;
+  SArray parents = {.elemSize = sizeof(int32_t)};
+  taosArraySwap(&parents, pTask->pParents);
+  CTG_UNLOCK(CTG_WRITE, &pTask->lock);
 
   qDebug("QID:0x%" PRIx64 ", job:0x%" PRIx64 ", task:%d end with result:%s", pJob->queryId, pJob->refId, pTask->taskId,
          tstrerror(rspCode));
 
-  pTask->code = rspCode;
-  pTask->status = CTG_TASK_DONE;
-
   // Should not return directly, need to update job errCode and check whether all tasks are done. Otherwise, jobs may
   // not end properly and cause memory leak.
-  code = ctgCallSubCb(pReq);
+  code = ctgCallSubCb(pReq, &parents);
+  taosMemoryFree(parents.pData);
 
   int32_t taskDone = atomic_add_fetch_32(&pJob->taskDone, 1);
   if (taskDone < taosArrayGetSize(pJob->pTasks)) {
@@ -6478,11 +6452,12 @@ int32_t ctgGetVStbRefDbsCb(SCtgTaskReq* pReq) {
       break;
   }
 
-  CTG_RET(ctgLaunchGetVStbRefDbsTaskByReq(pReq));
+  CTG_ERR_JRET(ctgLaunchGetVStbRefDbsTaskByReq(pReq));
+  return TSDB_CODE_SUCCESS;
 
 _return:
 
-  CTG_RET(ctgHandleTaskEndByReq(pReq, code ? code : pTask->subRes.code));
+  CTG_RET(ctgHandleTaskEndByReq(pReq, code));
 }
 
 int32_t ctgGetTbTagCb(SCtgTaskReq* pReq) {
@@ -7195,7 +7170,9 @@ int32_t ctgSetSubTaskCb(SCtgTask* pSub, SCtgTaskReq* pReq) {
   CTG_LOCK(CTG_WRITE, &pSub->lock);
   if (CTG_TASK_DONE == pSub->status) {
     pTask->subRes.code = pSub->code;
-    CTG_ERR_JRET((*gCtgAsyncFps[pSub->type].cloneFp)(pSub, &pTask->subRes.res));
+    if (TSDB_CODE_SUCCESS == pSub->code) {
+      pTask->subRes.code = (*gCtgAsyncFps[pSub->type].cloneFp)(pSub, &pTask->subRes.res);
+    }
     callCb = true;
   } else {
     if (NULL == pSub->pParents) {
@@ -7271,13 +7248,14 @@ int32_t ctgLaunchSubTask(SCtgTaskReq* pReq, CTG_TASK_TYPE type, ctgSubTaskCbFp f
 
   CTG_ERR_RET(ctgSearchExistingTask(pJob, type, param, &subTaskId));
   if (subTaskId < 0) {
-    CTG_ERR_RET(ctgInitTask(pJob, type, param, &subTaskId));
-    newTask = true;
+    int32_t initCode = ctgInitTask(pJob, type, param, &subTaskId);
     pReq->pTask = ctgGetTask(pJob, taskId);
     if (NULL == pReq->pTask) {
       qError("fail to get parent task:%d after init subtask", taskId);
       CTG_ERR_RET(TSDB_CODE_CTG_INTERNAL_ERROR);
     }
+    CTG_ERR_RET(initCode);
+    newTask = true;
     pTask = pReq->pTask;
   }
 
@@ -7291,7 +7269,13 @@ int32_t ctgLaunchSubTask(SCtgTaskReq* pReq, CTG_TASK_TYPE type, ctgSubTaskCbFp f
     pSub->subTask = true;
   }
 
-  CTG_ERR_RET(ctgSetSubTaskCb(pSub, pReq));
+  int32_t code = ctgSetSubTaskCb(pSub, pReq);
+  if (code) {
+    if (newTask) {
+      (void)ctgHandleTaskEnd(pSub, code);
+    }
+    CTG_RET(code);
+  }
 
   if (newTask) {
     SCtgMsgCtx* pMsgCtx = ctgGetTaskLinkMsgCtx(pTask);
@@ -7325,7 +7309,11 @@ int32_t ctgLaunchSubTask(SCtgTaskReq* pReq, CTG_TASK_TYPE type, ctgSubTaskCbFp f
       CTG_ERR_RET(TSDB_CODE_CTG_INTERNAL_ERROR);
     }
     pSubMsgCtx->pBatchs = pPrevSubBatchs;
-    CTG_ERR_RET(ret);
+    if (ret) {
+      // A registered child counts towards job completion even if its first request fails.
+      SCtgTaskReq failedReq = {.pTask = pSub, .msgIdx = -1, .pBatchs = pLaunchBatchs};
+      return ctgHandleTaskEndByReq(&failedReq, ret);
+    }
     (void)atomic_val_compare_exchange_32((int32_t*)&pSub->status, 0, CTG_TASK_LAUNCHED);
   }
 

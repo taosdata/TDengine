@@ -10491,12 +10491,7 @@ static int32_t setVSuperTableRefScanVgroupList(STranslateContext* pCxt, SName* p
 
   SArray* pVStbRefs = NULL;
   code = getVStbRefDbsFromCache(pCxt->pMetaCache, pName, &pVStbRefs);
-  // A non-leaf VST query expands to subqueries over leaf descendants discovered at translate time.
-  // Those leaves were not gathered during collectMetaKey, so their ref-db info is absent from cache.
-  // A miss here means "no tag-ref source dbs for this table" (e.g. leaves with literal-only tags),
-  // which is non-fatal: leave the ref-scan vgroup list empty.
-  // TODO: when a late-discovered leaf has tag references, its ref dbs need a synchronous catalog
-  // fetch (no sync API exists for VStbRefDbs yet); add one to cover that case.
+  // Some callers reserve metadata slots without filling them (e.g. statement preparation).
   if (TSDB_CODE_PAR_TABLE_NOT_EXIST == code) {
     pVStbRefs = NULL;
     code = TSDB_CODE_SUCCESS;
@@ -11751,11 +11746,51 @@ static int32_t buildLeafSelectStmt(const char* dbName, const char* tableName, co
   return TSDB_CODE_SUCCESS;
 }
 
-// Rewrite a non-leaf VST query to UNION ALL of leaf descendants (projecting parent's schema)
-static int32_t checkStreamOriginsSync(SParseContext* ctx, SArray* names);
+static int32_t getVstRefsSync(SParseContext* ctx, SArray* names, bool checkStreamOrigins, SArray** ppRefs);
 
+// The leaf names first become available during translation. Fetch their reference
+// metadata in one catalog request before planning any of the generated scans.
+static int32_t translateVstLeafQuery(STranslateContext* pCxt, SNode** pTable, bool inJoin,
+                                     const SVstLeavesRsp* pLeaves, bool checkStreamOrigins) {
+  int32_t          code = TSDB_CODE_SUCCESS;
+  SCatalogReq      req = {0};
+  SMetaData        meta = {0};
+  SParseMetaCache  refs = {0};
+  SParseMetaCache* pSavedCache = pCxt->pMetaCache;
+  SParseMetaCache  leafCache = pSavedCache ? *pSavedCache : (SParseMetaCache){0};
+
+  req.pVStbRefDbs = taosArrayInit(pLeaves->numLeaves, sizeof(SName));
+  if (req.pVStbRefDbs == NULL) {
+    return terrno;
+  }
+  for (int32_t i = 0; i < pLeaves->numLeaves; ++i) {
+    const SVstLeafInfo* pLeaf = &pLeaves->pLeaves[i];
+    SName               name = {0};
+    PAR_ERR_JRET(tNameFromString(&name, pLeaf->dbFName, T_NAME_ACCT | T_NAME_DB));
+    PAR_ERR_JRET(tNameAddTbName(&name, pLeaf->stbName, strlen(pLeaf->stbName)));
+    if (taosArrayPush(req.pVStbRefDbs, &name) == NULL) {
+      PAR_ERR_JRET(terrno);
+    }
+  }
+
+  PAR_ERR_JRET(getVstRefsSync(pCxt->pParseCxt, req.pVStbRefDbs, checkStreamOrigins, &meta.pVStbRefDbs));
+  PAR_ERR_JRET(putMetaDataToCache(&req, &meta, &refs));
+  leafCache.pVStbRefDbs = refs.pVStbRefDbs;
+  leafCache.pVStbRefParent = pSavedCache;
+  pCxt->pMetaCache = &leafCache;
+  code = translateTable(pCxt, pTable, inJoin);
+  pCxt->pMetaCache = pSavedCache;
+
+_return:
+  destoryParseMetaCache(&refs, false);
+  catalogFreeMetaData(&meta);
+  taosArrayDestroy(req.pVStbRefDbs);
+  return code;
+}
+
+// Rewrite a non-leaf VST query to UNION ALL of leaf descendants (projecting parent's schema)
 static int32_t rewriteNonLeafVstQuery(STranslateContext* pCxt, SNode** pTable, SRealTableNode* pRealTable,
-                                      bool checkStreamOrigins) {
+                                      bool inJoin, bool checkStreamOrigins) {
   int32_t        code = TSDB_CODE_SUCCESS;
   SParseContext* pParCxt = pCxt->pParseCxt;
   SVstLeavesRsp  rsp = {0};
@@ -11766,10 +11801,8 @@ static int32_t rewriteNonLeafVstQuery(STranslateContext* pCxt, SNode** pTable, S
   toName(pParCxt->acctId, pRealTable->table.dbName, pRealTable->table.tableName, &name);
   (void)tNameGetFullDbName(&name, dbFName);
 
-  SRequestConnInfo conn = {.pTrans = pParCxt->pTransporter,
-                           .requestId = pParCxt->requestId,
-                           .requestObjRefId = pParCxt->requestRid,
-                           .mgmtEps = pParCxt->mgmtEpSet};
+  SRequestConnInfo conn = {0};
+  parseCxtToConnInfo(pParCxt, &conn);
 
   code = catalogGetVstLeaves(pParCxt->pCatalog, &conn, dbFName, pRealTable->pMeta->suid, &rsp);
   if (TSDB_CODE_SUCCESS != code) {
@@ -11782,23 +11815,6 @@ static int32_t rewriteNonLeafVstQuery(STranslateContext* pCxt, SNode** pTable, S
     return TSDB_CODE_SUCCESS;
   }
 
-  // The catalog returns descendants at translation time, after the initial metadata collection.
-  if (checkStreamOrigins) {
-    SArray* names = taosArrayInit(rsp.numLeaves, sizeof(SName));
-    if (!names) code = terrno;
-    for (int32_t i = 0; !code && i < rsp.numLeaves; ++i) {
-      SName leaf = {0};
-      code = tNameFromString(&leaf, rsp.pLeaves[i].dbFName, T_NAME_ACCT | T_NAME_DB);
-      if (!code) code = tNameAddTbName(&leaf, rsp.pLeaves[i].stbName, strlen(rsp.pLeaves[i].stbName));
-      if (!code && !taosArrayPush(names, &leaf)) code = terrno;
-    }
-    if (!code) code = checkStreamOriginsSync(pParCxt, names);
-    taosArrayDestroy(names);
-    if (code) {
-      tFreeSVstLeavesRsp(&rsp);
-      return code;
-    }
-  }
   EStreamPlaceholder placeholder =
       checkStreamOrigins && pRealTable->placeholderType == SP_PARTITION_TBNAME ? SP_PARTITION_TBNAME : SP_NONE;
   if (rsp.numLeaves == 1) {
@@ -11829,8 +11845,9 @@ static int32_t rewriteNonLeafVstQuery(STranslateContext* pCxt, SNode** pTable, S
 
     nodesDestroyNode(*pTable);
     *pTable = (SNode*)pTempTable;
+    code = translateVstLeafQuery(pCxt, pTable, inJoin, &rsp, checkStreamOrigins);
     tFreeSVstLeavesRsp(&rsp);
-    return TSDB_CODE_SUCCESS;
+    return code;
   }
 
   // Multiple leaves: keep all UNION ALL operands in one flat node.
@@ -11860,9 +11877,9 @@ static int32_t rewriteNonLeafVstQuery(STranslateContext* pCxt, SNode** pTable, S
 
   nodesDestroyNode(*pTable);
   *pTable = (SNode*)pTempTable;
-
+  code = translateVstLeafQuery(pCxt, pTable, inJoin, &rsp, checkStreamOrigins);
   tFreeSVstLeavesRsp(&rsp);
-  return TSDB_CODE_SUCCESS;
+  return code;
 
 _return:
   nodesDestroyNode(pSetOp);
@@ -12076,6 +12093,7 @@ static int32_t translateVirtualSuperTable(STranslateContext* pCxt, SNode** pTabl
          pRealTable->pVgroupList ? pRealTable->pVgroupList->numOfVgroups : 0,
          pInsCols->pVgroupList ? pInsCols->pVgroupList->numOfVgroups : 0);
   PAR_ERR_JRET(nodesListMakeAppend(&pVTable->refTables, (SNode*)pInsCols));
+  pInsCols = NULL;  // refTables now owns the scan, including on later translation errors.
   PAR_ERR_JRET(createVStbExtTableNodes(pCxt, pVTable));
 
   // Add tag-ref source tables (including transitive sources for multi-hop chains)
@@ -12157,140 +12175,6 @@ static int32_t translateVirtualSuperTable(STranslateContext* pCxt, SNode** pTabl
         int32_t rc = translateTable(pCxt, (SNode**)&pRefNode, false);
         if (rc != TSDB_CODE_SUCCESS) {
           vtbRefSetSrcTableErrMsg(pCxt, rc, pRef, pVTable->table.dbName, pVTable->table.tableName);
-          nodesDestroyNode((SNode*)pRefNode);
-          code = rc;
-          taosArrayDestroy(pNextRefs);
-          taosArrayDestroy(pPendingRefs);
-          pCxt->refTable = false;
-          pCxt->pParseCxt->async = tmpAsync;
-          taosHashCleanup(pTagRefDedup);
-          goto _return;
-        }
-        code = nodesListMakeStrictAppend(&pVTable->refTables, (SNode*)pRefNode);
-        if (code != TSDB_CODE_SUCCESS) {
-          taosArrayDestroy(pNextRefs);
-          taosArrayDestroy(pPendingRefs);
-          pCxt->refTable = false;
-          pCxt->pParseCxt->async = tmpAsync;
-          taosHashCleanup(pTagRefDedup);
-          goto _return;
-        }
-        code = taosHashPut(pTagRefDedup, tableNameKey, strlen(tableNameKey), NULL, 0);
-        if (code != TSDB_CODE_SUCCESS) {
-          taosArrayDestroy(pNextRefs);
-          taosArrayDestroy(pPendingRefs);
-          pCxt->refTable = false;
-          pCxt->pParseCxt->async = tmpAsync;
-          taosHashCleanup(pTagRefDedup);
-          goto _return;
-        }
-
-        // If this source is also virtual with tag-refs, queue its refs for next depth
-        if (pRefNode->pMeta && pRefNode->pMeta->tagRef && pRefNode->pMeta->numOfTagRefs > 0) {
-          for (int32_t j = 0; j < pRefNode->pMeta->numOfTagRefs; j++) {
-            SColRef* pTransRef = &pRefNode->pMeta->tagRef[j];
-            if (pTransRef->hasRef) {
-              if (NULL == taosArrayPush(pNextRefs, pTransRef)) {
-                taosArrayDestroy(pNextRefs);
-                taosArrayDestroy(pPendingRefs);
-                pCxt->refTable = false;
-                pCxt->pParseCxt->async = tmpAsync;
-                taosHashCleanup(pTagRefDedup);
-                PAR_ERR_JRET(terrno);
-              }
-            }
-          }
-        }
-      }
-
-      taosArrayDestroy(pPendingRefs);
-      pPendingRefs = pNextRefs;
-    }
-    taosArrayDestroy(pPendingRefs);
-
-    pCxt->refTable = false;
-    pCxt->pParseCxt->async = tmpAsync;
-    taosHashCleanup(pTagRefDedup);
-  }
-
-  // Add tag-ref source tables (including transitive sources for multi-hop chains)
-  // to refTables so planner can find them via findRefTableNode and resolve the chain
-  // to the terminal physical STB.
-  if (pVTable->pMeta->tagRef && pVTable->pMeta->numOfTagRefs > 0) {
-    SHashObj* pTagRefDedup = taosHashInit(pVTable->pMeta->numOfTagRefs * 2,
-                                          taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), false, HASH_NO_LOCK);
-    PAR_ERR_JRET(pTagRefDedup ? TSDB_CODE_SUCCESS : terrno);
-    bool tmpAsync = pCxt->pParseCxt->async;
-    pCxt->pParseCxt->async = false;
-    pCxt->refTable = true;
-
-    // Seed with direct tag-ref sources from this virtual STB
-    SArray* pPendingRefs = taosArrayInit(pVTable->pMeta->numOfTagRefs, sizeof(SColRef));
-    if (!pPendingRefs) {
-      pCxt->refTable = false;
-      pCxt->pParseCxt->async = tmpAsync;
-      taosHashCleanup(pTagRefDedup);
-      PAR_ERR_JRET(terrno);
-    }
-    for (int32_t i = 0; i < pVTable->pMeta->numOfTagRefs; i++) {
-      SColRef* pTagRef = &pVTable->pMeta->tagRef[i];
-      if (pTagRef->hasRef) {
-        if (NULL == taosArrayPush(pPendingRefs, pTagRef)) {
-          taosArrayDestroy(pPendingRefs);
-          pCxt->refTable = false;
-          pCxt->pParseCxt->async = tmpAsync;
-          taosHashCleanup(pTagRefDedup);
-          PAR_ERR_JRET(terrno);
-        }
-      }
-    }
-
-    // BFS through the chain: fetch each level's source tables until physical terminal
-    for (int32_t depth = 0; depth < TSDB_MAX_VTABLE_REF_DEPTH && taosArrayGetSize(pPendingRefs) > 0; ++depth) {
-      SArray* pNextRefs = taosArrayInit(4, sizeof(SColRef));
-      if (!pNextRefs) {
-        taosArrayDestroy(pPendingRefs);
-        pCxt->refTable = false;
-        pCxt->pParseCxt->async = tmpAsync;
-        taosHashCleanup(pTagRefDedup);
-        PAR_ERR_JRET(terrno);
-      }
-
-      for (int32_t i = 0; i < taosArrayGetSize(pPendingRefs); i++) {
-        SColRef* pRef = taosArrayGet(pPendingRefs, i);
-
-        char   tableNameKey[TSDB_TABLE_FNAME_LEN] = {0};
-        TSlice buf = {0};
-        sliceInit(&buf, tableNameKey, sizeof(tableNameKey));
-        if (pRef->refDbName[0] != '\0') {
-          code = sliceAppend(&buf, pRef->refDbName, strlen(pRef->refDbName));
-          if (code == TSDB_CODE_SUCCESS) code = sliceAppend(&buf, ".", 1);
-        }
-        if (code == TSDB_CODE_SUCCESS) code = sliceAppend(&buf, pRef->refTableName, strlen(pRef->refTableName));
-        if (code != TSDB_CODE_SUCCESS) {
-          taosArrayDestroy(pNextRefs);
-          taosArrayDestroy(pPendingRefs);
-          pCxt->refTable = false;
-          pCxt->pParseCxt->async = tmpAsync;
-          taosHashCleanup(pTagRefDedup);
-          goto _return;
-        }
-
-        if (taosHashGet(pTagRefDedup, tableNameKey, strlen(tableNameKey)) != NULL) continue;
-
-        SRealTableNode* pRefNode = NULL;
-        code = nodesMakeNode(QUERY_NODE_REAL_TABLE, (SNode**)&pRefNode);
-        if (code != TSDB_CODE_SUCCESS) {
-          taosArrayDestroy(pNextRefs);
-          taosArrayDestroy(pPendingRefs);
-          pCxt->refTable = false;
-          pCxt->pParseCxt->async = tmpAsync;
-          taosHashCleanup(pTagRefDedup);
-          goto _return;
-        }
-        setTableNameByColRef(pRefNode, pRef);
-        int32_t rc = translateTable(pCxt, (SNode**)&pRefNode, false);
-        if (rc != TSDB_CODE_SUCCESS) {
           nodesDestroyNode((SNode*)pRefNode);
           code = rc;
           taosArrayDestroy(pNextRefs);
@@ -13933,19 +13817,13 @@ static int32_t translateRealTable(STranslateContext* pCxt, SNode** pTable, bool 
         // restore the original mode. Mirrors setVSuperTableRefScanVgroupList's async toggle.
         bool savedAsync = pCxt->pParseCxt->async;
         pCxt->pParseCxt->async = false;
-        code = rewriteNonLeafVstQuery(pCxt, pTable, pRealTable, pLocalVstExpanded != NULL);
-        if (TSDB_CODE_SUCCESS != code) {
-          pCxt->pParseCxt->async = savedAsync;
-          goto _return;
-        }
-        // Rewritten to temp table - translate it and return
+        code = rewriteNonLeafVstQuery(pCxt, pTable, pRealTable, inJoin, pLocalVstExpanded != NULL);
+        pCxt->pParseCxt->async = savedAsync;
+        PAR_ERR_JRET(code);
         if (nodeType(*pTable) == QUERY_NODE_TEMP_TABLE) {
           if (pLocalVstExpanded) *pLocalVstExpanded = true;
-          code = translateTable(pCxt, pTable, inJoin);
-          pCxt->pParseCxt->async = savedAsync;
           PAR_RET(code);
         }
-        pCxt->pParseCxt->async = savedAsync;
         // No leaves found - fall through to normal virtual table path (will return empty)
       }
       bool savedAsync = pCxt->pParseCxt->async;
@@ -15887,44 +15765,51 @@ static int32_t checkStreamTimeAlignRefDbs(const SArray* refs) {
 }
 
 typedef struct {
-  tsem_t  sem;
-  int32_t code;
-  size_t  count;
-} SStreamOriginCheck;
+  tsem_t   sem;
+  int32_t  code;
+  size_t   count;
+  bool     checkStreamOrigins;
+  SArray** ppRefs;
+} SVstRefLookup;
 
-static void finishStreamOriginCheck(SMetaData* meta, void* param, int32_t code) {
-  SStreamOriginCheck* check = param;
-  if (!code && (!meta || taosArrayGetSize(meta->pVStbRefDbs) != check->count)) code = TSDB_CODE_STREAM_INVALID_TRIGGER;
-  for (size_t i = 0; !code && i < check->count; ++i) {
-    const SMetaRes* result = taosArrayGet(meta->pVStbRefDbs, i);
-    code = result->code ? result->code : checkStreamTimeAlignRefDbs(result->pRes);
+static void finishVstRefLookup(SMetaData* meta, void* param, int32_t code) {
+  SVstRefLookup* lookup = param;
+  if (!code && (!meta || taosArrayGetSize(meta->pVStbRefDbs) != lookup->count)) {
+    code = lookup->checkStreamOrigins ? TSDB_CODE_STREAM_INVALID_TRIGGER : TSDB_CODE_CTG_INTERNAL_ERROR;
   }
-  check->code = code;
-  TAOS_UNUSED(tsem_post(&check->sem));
+  for (size_t i = 0; !code && i < lookup->count; ++i) {
+    const SMetaRes* result = taosArrayGet(meta->pVStbRefDbs, i);
+    code = result->code;
+    if (!code && lookup->checkStreamOrigins) code = checkStreamTimeAlignRefDbs(result->pRes);
+  }
+  if (!code && lookup->ppRefs) {
+    // The translation cache borrows these results until all generated leaf scans have been translated.
+    *lookup->ppRefs = meta->pVStbRefDbs;
+    meta->pVStbRefDbs = NULL;
+  }
+  lookup->code = code;
+  TAOS_UNUSED(tsem_post(&lookup->sem));
 }
 
-static int32_t checkStreamOriginsSync(SParseContext* ctx, SArray* names) {
-  SCatalogReq        req = {.pVStbRefDbs = names};
-  SStreamOriginCheck check = {.count = taosArrayGetSize(names)};
-  SRequestConnInfo   conn = {.pTrans = ctx->pTransporter,
-                             .requestId = ctx->requestId,
-                             .requestObjRefId = ctx->requestRid,
-                             .mgmtEps = ctx->mgmtEpSet,
-                             .txnId = ctx->txnId};
-  TAOS_CHECK_RETURN(tsem_init(&check.sem, 0, 0));
+static int32_t getVstRefsSync(SParseContext* ctx, SArray* names, bool checkStreamOrigins, SArray** ppRefs) {
+  SCatalogReq      req = {.pVStbRefDbs = names};
+  SVstRefLookup    lookup = {.count = taosArrayGetSize(names), .checkStreamOrigins = checkStreamOrigins, .ppRefs = ppRefs};
+  SRequestConnInfo conn = {0};
+  parseCxtToConnInfo(ctx, &conn);
+  TAOS_CHECK_RETURN(tsem_init(&lookup.sem, 0, 0));
   // Catalog completion can run on the same queue as asynchronous SQL analysis.
   bool    worker = taosInAsyncTask();
   int32_t code = worker ? taosAsyncWait() : 0;
   if (!code) {
-    code = catalogAsyncGetAllMeta(ctx->pCatalog, &conn, &req, finishStreamOriginCheck, &check, NULL);
-    if (!code) code = tsem_wait(&check.sem);
-    if (!code) code = check.code;
+    code = catalogAsyncGetAllMeta(ctx->pCatalog, &conn, &req, finishVstRefLookup, &lookup, NULL);
+    if (!code) code = tsem_wait(&lookup.sem);
+    if (!code) code = lookup.code;
     if (worker) {
       int32_t recovered = taosAsyncRecover();
       if (!code) code = recovered;
     }
   }
-  TAOS_UNUSED(tsem_destroy(&check.sem));
+  TAOS_UNUSED(tsem_destroy(&lookup.sem));
   return code;
 }
 
@@ -15949,7 +15834,7 @@ static int32_t checkStreamTimeAlignSource(STranslateContext* pCxt, SNode* pNode)
   if (pCxt->pMetaCache == NULL) {
     SArray* names = taosArrayInit(1, sizeof(name));
     if (!names) return terrno;
-    int32_t code = taosArrayPush(names, &name) ? checkStreamOriginsSync(pCxt->pParseCxt, names) : terrno;
+    int32_t code = taosArrayPush(names, &name) ? getVstRefsSync(pCxt->pParseCxt, names, true, NULL) : terrno;
     taosArrayDestroy(names);
     return code;
   }

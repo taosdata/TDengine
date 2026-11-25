@@ -27,6 +27,7 @@
 
 #include "catalogInt.h"
 #include "taoserror.h"
+#include "tref.h"
 
 extern "C" int32_t ctgHandleGetVStbRefDbsRsp(SCtgTaskReq* tReq, int32_t reqType, const SDataBuf* pMsg,
                                                 int32_t rspCode);
@@ -122,4 +123,78 @@ TEST(ctgVStbRefDbsRsp, failedBatchResponseCompletesTaskOnce) {
   taosMemoryFree(rspBuf);
   taosArrayDestroyEx(ctx.pSubTablesList, tDestroySVSubTablesRsp);
   taosArrayDestroy(job.pTasks);
+}
+
+TEST(ctgVStbRefDbsRsp, failedVgroupLookupReachesUserCallback) {
+  struct Result {
+    tsem_t sem;
+    int32_t calls;
+    int32_t errors[3];
+  } result = {};
+  auto callback = [](SMetaData* meta, void* param, int32_t) {
+    auto* result = static_cast<Result*>(param);
+    ++result->calls;
+    EXPECT_EQ(taosArrayGetSize(meta->pVStbRefDbs), 3u);
+    for (size_t i = 0; i < 3 && i < taosArrayGetSize(meta->pVStbRefDbs); ++i) {
+      result->errors[i] = static_cast<SMetaRes*>(taosArrayGet(meta->pVStbRefDbs, i))->code;
+    }
+    EXPECT_EQ(tsem_post(&result->sem), 0);
+  };
+
+  SCatalog* catalog = nullptr;
+  ASSERT_EQ(catalogInit(nullptr), 0);
+  ASSERT_EQ(catalogGetHandle(1, &catalog), 0);
+  ASSERT_EQ(tsem_init(&result.sem, 0, 0), 0);
+  SName leaves[] = {{TSDB_TABLE_NAME_T, 1, "db", "a"}, {TSDB_TABLE_NAME_T, 1, "db", "b"},
+                    {TSDB_TABLE_NAME_T, 1, "db", "c"}};
+  SCatalogReq req = {};
+  req.pVStbRefDbs = taosArrayFromList(leaves, 3, sizeof(SName));
+  ASSERT_NE(req.pVStbRefDbs, nullptr);
+  SRequestConnInfo conn = {};
+  SCtgJob* job = nullptr;
+  ASSERT_EQ(ctgInitJob(catalog, &conn, &job, &req, callback, &result), 0);
+
+  // Resume each launched leaf as if its table metadata just arrived. All share a cold DB route.
+  auto resume = [&](int32_t id) {
+    auto* task = ctgGetTask(job, id);
+    auto* meta = static_cast<STableMeta*>(taosMemoryCalloc(1, sizeof(STableMeta)));
+    if (!meta) return TSDB_CODE_OUT_OF_MEMORY;
+    meta->virtualStb = true;
+    meta->tableType = TSDB_SUPER_TABLE;
+    task->status = CTG_TASK_LAUNCHED;
+    task->subRes.type = CTG_TASK_GET_TB_META;
+    task->subRes.res = meta;
+    SCtgTaskReq subReq = {};
+    subReq.pTask = task;
+    subReq.msgIdx = -1;
+    return ctgGetVStbRefDbsCb(&subReq);
+  };
+
+  auto& ops = gCtgAsyncFps[CTG_TASK_GET_DB_VGROUP];
+  auto init = ops.initFp;
+  ops.initFp = [](SCtgJob*, int32_t, void*) { return TSDB_CODE_OUT_OF_MEMORY; };
+  int32_t initCode = resume(0);
+  ops.initFp = init;
+  EXPECT_EQ(initCode, 0);
+  EXPECT_EQ(job->taskDone, 1);
+
+  auto launch = ops.launchFp;
+  ops.launchFp = [](SCtgTask*) { return TSDB_CODE_RPC_NETWORK_UNAVAIL; };
+  int32_t launchCode = resume(1);
+  ops.launchFp = launch;
+  EXPECT_EQ(launchCode, 0);
+  EXPECT_EQ(job->taskDone, 3);
+
+  // The last leaf subscribes after the vgroup task failed and has no result to clone.
+  EXPECT_EQ(resume(2), 0);
+  EXPECT_EQ(tsem_timewait(&result.sem, 5000), 0);
+  EXPECT_EQ(result.calls, 1);
+  EXPECT_EQ(result.errors[0], TSDB_CODE_OUT_OF_MEMORY);
+  EXPECT_EQ(result.errors[1], TSDB_CODE_RPC_NETWORK_UNAVAIL);
+  EXPECT_EQ(result.errors[2], TSDB_CODE_RPC_NETWORK_UNAVAIL);
+  EXPECT_EQ(job->taskDone, 4);
+  EXPECT_EQ(taosReleaseRef(gCtgMgmt.jobPool, job->refId), 0);
+  taosArrayDestroy(req.pVStbRefDbs);
+  EXPECT_EQ(tsem_destroy(&result.sem), 0);
+  catalogDestroy();
 }

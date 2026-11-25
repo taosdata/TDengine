@@ -332,6 +332,7 @@ typedef struct SParseMetaCache {
   SHashObj* pTSMAs;        // key is tsmaFName, elements are STableTSMAInfo*
   SHashObj* pTableName;    // key is tbFUid, elements is STableMeta*(append with tbName)
   SHashObj* pVStbRefDbs;   // key is tbFName, element is SArray<SVStbRefDbsRsp*>
+  const struct SParseMetaCache* pVStbRefParent;  // Borrowed while translating late-discovered VST leaves.
   SArray*   pDnodes;       // element is SDNodeAddr
   bool      dnodeRequired;
   bool      forceFetchViewMeta;
