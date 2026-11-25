@@ -2,8 +2,86 @@
 # SPDX-License-Identifier: AGPL-3.0-or-later
 
 import unittest
+from pathlib import Path
+import subprocess
+import tempfile
+from unittest.mock import Mock, patch
 
-from stream_deploy_cli import HealthyHeartbeats, SnodeHealthScan
+from stream_deploy_cli import HealthyHeartbeats, SnodeHealthScan, run_case, wait_dnode_ready
+
+
+class DnodeReadinessTest(unittest.TestCase):
+    @staticmethod
+    def status(state, vnodes, support):
+        return f'| status | vnodes | support_vnodes |\n| {state} | {vnodes} | {support} |\n'
+
+    def test_waits_for_online_status_and_two_available_vnodes(self):
+        sql = Mock(side_effect=[
+            '',
+            self.status('offline', 0, 0),
+            self.status('offline', 0, 4),
+            self.status('ready', 0, 0),
+            self.status('ready', 3, 4),
+            self.status('ready', 2, 4),
+        ])
+        with patch('stream_deploy_cli.time.sleep') as sleep:
+            wait_dnode_ready(sql)
+        self.assertEqual(sql.call_count, 6)
+        self.assertEqual(sleep.call_count, 5)
+
+    def test_ready_node_does_not_sleep(self):
+        with patch('stream_deploy_cli.time.sleep') as sleep:
+            wait_dnode_ready(Mock(return_value=self.status('ready', 0, 2)))
+        sleep.assert_not_called()
+
+    def test_timeout_reports_last_status(self):
+        last = self.status('offline', 0, 0)
+        with patch('stream_deploy_cli.time.monotonic', side_effect=[0, 0, 1]), \
+                patch('stream_deploy_cli.time.sleep'):
+            with self.assertRaises(AssertionError) as error:
+                wait_dnode_ready(Mock(return_value=last), timeout=1)
+        self.assertIn('dnode 1 ready with capacity for two vgroups', str(error.exception))
+        self.assertIn(last, str(error.exception))
+
+    def test_sql_failure_is_not_retried(self):
+        sql = Mock(side_effect=RuntimeError('test daemon exited with 1'))
+        with self.assertRaisesRegex(RuntimeError, 'test daemon exited with 1'):
+            wait_dnode_ready(sql)
+        sql.assert_called_once()
+
+    def test_fixture_waits_before_snode_and_database_creation(self):
+        states = [self.status('offline', 0, 0), self.status('ready', 0, 4)]
+        statements = []
+
+        def execute(command, **kwargs):
+            statement = command[-1]
+            statements.append(statement)
+            if statement == 'select 1':
+                text = '| 1 |\n| 1 |\n'
+            elif statement.startswith('show dnode 1 variables'):
+                text = '| dnode_id | name | value |\n| 1 | logDir | ./log |\n'
+            elif 'information_schema.ins_dnodes' in statement:
+                text = states.pop(0)
+            else:
+                self.assertFalse(states, f'DDL ran before dnode readiness: {statement}')
+                if statement == 'create database testdb vgroups 2':
+                    raise RuntimeError('database creation reached')
+                text = ''
+            return subprocess.CompletedProcess(command, 0, text.encode())
+
+        server = Mock()
+        server.poll.return_value = None
+        with tempfile.TemporaryDirectory() as tmp, \
+                patch('stream_deploy_cli.available_ports', return_value=(16030, 16031)), \
+                patch('stream_deploy_cli.subprocess.Popen', return_value=server), \
+                patch('stream_deploy_cli.subprocess.run', side_effect=execute), \
+                patch('stream_deploy_cli.time.sleep'):
+            with self.assertRaisesRegex(RuntimeError, 'database creation reached'):
+                run_case(Path(tmp), Path('daemon'), Path('taos'))
+        self.assertIn('create snode on dnode 1', statements)
+        self.assertEqual(statements[-1], 'create database testdb vgroups 2')
+        server.terminate.assert_called_once()
+        server.wait.assert_called_once_with(timeout=12)
 
 
 class HeartbeatResultTest(unittest.TestCase):

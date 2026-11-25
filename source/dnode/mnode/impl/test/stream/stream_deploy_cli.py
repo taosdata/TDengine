@@ -40,6 +40,22 @@ def rows(text):
             for line in text.splitlines() if line.rstrip().endswith('|')][1:]
 
 
+def wait_dnode_ready(sql, timeout=80):
+    last = ''
+
+    def ready():
+        nonlocal last
+        last = sql('select status,vnodes,support_vnodes from information_schema.ins_dnodes where id=1')
+        result = rows(last)
+        return (len(result) == 1 and result[0][0] == 'ready'
+                and int(result[0][2]) - int(result[0][1]) >= 2)
+
+    try:
+        wait('dnode 1 ready with capacity for two vgroups', ready, timeout)
+    except AssertionError as error:
+        raise AssertionError(f'{error}\nlast dnode status:\n{last}') from None
+
+
 class HealthyHeartbeats:
     def __init__(self, stream_id):
         self.trigger = f' {stream_id} Trigger TASK:'
@@ -147,6 +163,7 @@ def run_case(root, daemon, shell):
             'select status from information_schema.ins_dnodes where id=1 and support_vnodes > 0', ready=False)))
         reported = rows(sql("show dnode 1 variables like 'logDir'"))
         assert len(reported) == 1 and (root / reported[0][2]).samefile(root / 'log'), reported
+        wait_dnode_ready(sql)
         if not rows(sql('show snodes')):
             sql('create snode on dnode 1')
         sql('create database testdb vgroups 2')
