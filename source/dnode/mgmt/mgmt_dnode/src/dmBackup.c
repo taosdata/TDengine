@@ -19,11 +19,20 @@
 #include "libs/crypt/crypt.h"
 #include "libs/sm4/sm4.h"
 #include "tencrypt.h"
+#include "vnodeInt.h"
+
+#define DM_BACKUP_MANIFEST_VERSION 2
 
 typedef struct {
   char    name[TSDB_DB_FNAME_LEN];
   SArray *vgIds;  // int32_t
 } SBackupDatabaseInfo;
+
+typedef struct {
+  int64_t      endVersion;
+  const cJSON *fileSets;
+  const cJSON *vnode;
+} SBackupManifestVnode;
 
 typedef struct {
   SDnodeMgmt       *pMgmt;
@@ -422,6 +431,7 @@ static int32_t dmBackupWriteManifest(const SBackupTask *pTask, const char *backu
   char      manifestPath[PATH_MAX] = {0};
   char      id[32] = {0};
   char      chain[32] = {0};
+  char      previous[32] = {0};
   char      checksum[sizeof("sha256:") + SHA256_DIGEST_SIZE * 2] = {0};
   const SBackupDnodeReq *pReq = &pTask->req;
   SDmBackupFile backupFile = {0};
@@ -433,11 +443,19 @@ static int32_t dmBackupWriteManifest(const SBackupTask *pTask, const char *backu
   }
   (void)snprintf(id, sizeof(id), "%" PRId64, pReq->backupId);
   (void)snprintf(chain, sizeof(chain), "%" PRId64, pReq->chainId);
-  if ((code = tjsonAddIntegerToObject(pJson, "version", 1)) != 0 ||
+  if (!pReq->isFull) {
+    if (pTask->previousBackupId <= 0) {
+      code = TSDB_CODE_INVALID_DATA_FMT;
+      goto _exit;
+    }
+    (void)snprintf(previous, sizeof(previous), "%" PRId64, pTask->previousBackupId);
+  }
+  if ((code = tjsonAddIntegerToObject(pJson, "version", DM_BACKUP_MANIFEST_VERSION)) != 0 ||
       (code = tjsonAddStringToObject(pJson, "tsdbVersion", td_version)) != 0 ||
+      (code = tjsonAddIntegerToObject(pJson, "clusterId", pTask->clusterId)) != 0 ||
       (code = tjsonAddStringToObject(pJson, "id", id)) != 0 ||
       (code = tjsonAddStringToObject(pJson, "chain", chain)) != 0 ||
-      (code = tjsonAddStringToObject(pJson, "previous", "")) != 0) {
+      (code = tjsonAddStringToObject(pJson, "previous", previous)) != 0) {
     goto _exit;
   }
 
@@ -597,9 +615,35 @@ static int32_t dmBackupWriteManifest(const SBackupTask *pTask, const char *backu
         goto _exit;
       }
     }
-    if ((code = tjsonAddIntegerToObject(pVnode, "startVersion", 0)) != 0 ||
+    int64_t baseVersion = 0;
+    if (!pReq->isFull) {
+      SBackupVnodeBaseline *pBaseline = taosArrayGet(pTask->previousVnodeBaselines, i);
+      if (pBaseline == NULL || pBaseline->endVersion == INT64_MAX) {
+        tjsonDelete(pVnode);
+        code = TSDB_CODE_INVALID_DATA_FMT;
+        goto _exit;
+      }
+      baseVersion = pBaseline->endVersion;
+      if ((code = tjsonAddIntegerToObject(pVnode, "baseVersion", baseVersion)) != 0) {
+        tjsonDelete(pVnode);
+        goto _exit;
+      }
+    }
+    if ((code = tjsonAddIntegerToObject(pVnode, "dbUid", pVgroup->dbUid)) != 0 ||
+        (code = tjsonAddIntegerToObject(pVnode, "startVersion", pReq->isFull ? 0 : baseVersion + 1)) != 0 ||
         (code = tjsonAddIntegerToObject(pVnode, "endVersion", pDigest->snapshotIndex)) != 0 ||
         (code = tjsonAddIntegerToObject(pVnode, "numOfChunks", pDigest->numOfChunks)) != 0) {
+      tjsonDelete(pVnode);
+      goto _exit;
+    }
+    SJson *pFileSets = tjsonParse(pDigest->fileSetsJson);
+    if (pFileSets == NULL) {
+      tjsonDelete(pVnode);
+      code = TSDB_CODE_INVALID_JSON_FORMAT;
+      goto _exit;
+    }
+    if ((code = tjsonAddItemToObject(pVnode, "fileSets", pFileSets)) != 0) {
+      tjsonDelete(pFileSets);
       tjsonDelete(pVnode);
       goto _exit;
     }
@@ -620,7 +664,13 @@ static int32_t dmBackupWriteManifest(const SBackupTask *pTask, const char *backu
     goto _exit;
   }
   (void)snprintf(manifestPath, sizeof(manifestPath), "%s%sbackup.json", backupDir, TD_DIRSEP);
-  int32_t len = strlen(buffer);
+  size_t manifestLen = strlen(buffer);
+  if (manifestLen > DM_BACKUP_MAX_MANIFEST_SIZE) {
+    dError("backup manifest exceeds maximum size:%d", DM_BACKUP_MAX_MANIFEST_SIZE);
+    code = TSDB_CODE_INVALID_DATA_FMT;
+    goto _exit;
+  }
+  int32_t len = (int32_t)manifestLen;
   code = dmBackupFileCreate(&backupFile, manifestPath, pReq->hasPassword ? pReq->password : NULL);
   if (code == 0) {
     code = dmBackupFileWrite(&backupFile, buffer, len);
@@ -640,13 +690,30 @@ _exit:
   return code;
 }
 
-void dmBackupFreeTaskArtifacts(SBackupTask *pTask) {
+static void dmBackupClearVnodeBaselines(SBackupTask *pTask) {
+  for (int32_t i = 0; pTask->previousVnodeBaselines != NULL &&
+                      i < taosArrayGetSize(pTask->previousVnodeBaselines); ++i) {
+    SBackupVnodeBaseline *pBaseline = taosArrayGet(pTask->previousVnodeBaselines, i);
+    taosMemoryFree(pBaseline->fileSetsJson);
+  }
+  taosArrayDestroy(pTask->previousVnodeBaselines);
+  pTask->previousVnodeBaselines = NULL;
+}
+
+// Release everything a task owns except the task struct itself. Safe to call more than once.
+void dmBackupFreeTaskResources(SBackupTask *pTask) {
   if (pTask == NULL) {
     return;
   }
+  tFreeSBackupDnodeReq(&pTask->req);
   taosArrayDestroy(pTask->snodeCheckpoints);
   taosArrayDestroy(pTask->snodeConfigs);
+  for (int32_t i = 0; pTask->vnodeSnapshots != NULL && i < taosArrayGetSize(pTask->vnodeSnapshots); ++i) {
+    SBackupVnodeDigest *pDigest = taosArrayGet(pTask->vnodeSnapshots, i);
+    taosMemoryFree(pDigest->fileSetsJson);
+  }
   taosArrayDestroy(pTask->vnodeSnapshots);
+  dmBackupClearVnodeBaselines(pTask);
   pTask->snodeCheckpoints = NULL;
   pTask->snodeConfigs = NULL;
   pTask->vnodeSnapshots = NULL;
@@ -778,8 +845,8 @@ static int32_t dmBackupPullMnodeMeta(SDnodeMgmt *pMgmt, SBackupTask *pTask, cons
   }
   rpcFreeCont(rpcRsp.pCont);
 
-  if (metaRsp.numOfFiles > tListLen(digests)) {
-    dError("too many mnode meta files:%d", metaRsp.numOfFiles);
+  if (metaRsp.numOfFiles != tListLen(digests)) {
+    dError("invalid number of mnode meta files:%d", metaRsp.numOfFiles);
     code = TSDB_CODE_INVALID_DATA_FMT;
     goto _exit;
   }
@@ -1017,7 +1084,6 @@ static int32_t dmBackupGetVgroupLeader(SDnodeMgmt *pMgmt, const SBackupDnodeReq 
   }
   rpcFreeCont(rpcRsp.pCont);
   if (code != 0) {
-    dError("failed to resolve backup vgroup:%d leader since %s", vgId, tstrerror(code));
     return code;
   }
   if (pRsp->vgId != vgId || pRsp->leaderDnodeId <= 0 || pRsp->leaderEpSet.numOfEps != 1) {
@@ -1087,7 +1153,8 @@ static int32_t dmBackupVnodeSyncCommitRpc(SDnodeMgmt *pMgmt, const SEpSet *pEpSe
   return code;
 }
 
-static int32_t dmBackupPullVgroupSnapshot(SDnodeMgmt *pMgmt, SBackupTask *pTask, const SBackupVgroupInfo *pVgroup, const char *backupDir) {
+static int32_t dmBackupPullVgroupSnapshot(SDnodeMgmt *pMgmt, SBackupTask *pTask, const SBackupVgroupInfo *pVgroup,
+                                         const SBackupVnodeBaseline *pBaseline, const char *backupDir) {
   int32_t                  code = 0;
   bool                     started = false;
   SDmBackupFile            backupFile = {0};
@@ -1099,14 +1166,34 @@ static int32_t dmBackupPullVgroupSnapshot(SDnodeMgmt *pMgmt, SBackupTask *pTask,
                                       .backupId = pTask->req.backupId,
                                       .isFull = pTask->req.isFull};
   SBackupVnodeSnapRsp     snapRsp = {0};
+  char                   *fileSetsJson = NULL;
 
+  if (!snapReq.isFull) {
+    if (pBaseline == NULL || pBaseline->fileSetsJson == NULL) return TSDB_CODE_INVALID_DATA_FMT;
+    size_t len = strlen(pBaseline->fileSetsJson) + 1;
+    if (len > UINT32_MAX) return TSDB_CODE_INVALID_DATA_FMT;
+    snapReq.baseVersion = pBaseline->endVersion;
+    snapReq.fileSets = (uint8_t *)pBaseline->fileSetsJson;
+    snapReq.fileSetsLen = (uint32_t)len;
+  }
   if ((code = dmBackupCheckCancelled(pMgmt, pTask)) != 0) {
     return code;
   }
 
   // Resolve immediately before BEGIN; the returned endpoint stays pinned for this session.
-  code = dmBackupGetVgroupLeader(pMgmt, &pTask->req, pVgroup->vgId, &leaderRsp);
+  // The dnode task can start before the mnode commits its backup record.
+  for (int32_t attempt = 0; attempt < 1200; ++attempt) {
+    code = dmBackupGetVgroupLeader(pMgmt, &pTask->req, pVgroup->vgId, &leaderRsp);
+    if (code != TSDB_CODE_NEED_RETRY) break;
+    if ((code = dmBackupCheckCancelled(pMgmt, pTask)) != 0) break;
+    code = TSDB_CODE_NEED_RETRY;
+    if (attempt == 0) {
+      dInfo("backup:%" PRId64 " waiting for its mnode record", pTask->req.backupId);
+    }
+    if (attempt < 1199) taosMsleep(100);
+  }
   if (code != 0) {
+    dError("failed to resolve backup vgroup:%d leader since %s", pVgroup->vgId, tstrerror(code));
     goto _exit;
   }
   if ((code = dmBackupCheckCancelled(pMgmt, pTask)) != 0) {
@@ -1123,6 +1210,41 @@ static int32_t dmBackupPullVgroupSnapshot(SDnodeMgmt *pMgmt, SBackupTask *pTask,
     goto _exit;
   }
   started = true;
+  if (!snapReq.isFull) {
+    if (snapRsp.vgId != snapReq.vgId || snapRsp.snapshotIndex < snapReq.baseVersion) {
+      dError("invalid incremental backup snapshot response for vgroup:%d", snapReq.vgId);
+      code = TSDB_CODE_INVALID_MSG;
+      goto _exit;
+    }
+  }
+  if (snapRsp.vgId != snapReq.vgId || snapRsp.data == NULL || snapRsp.dataLen <= 1 ||
+      ((char *)snapRsp.data)[snapRsp.dataLen - 1] != '\0' ||
+      strlen((char *)snapRsp.data) != (size_t)snapRsp.dataLen - 1) {
+    dError("invalid fileset description for vgroup:%d", snapReq.vgId);
+    code = TSDB_CODE_INVALID_MSG;
+    goto _exit;
+  }
+  SJson *pFileSets = tjsonParse((char *)snapRsp.data);
+  const cJSON *pVersion = pFileSets == NULL ? NULL : cJSON_GetObjectItemCaseSensitive(pFileSets, "version");
+  const cJSON *pSets = pFileSets == NULL ? NULL : cJSON_GetObjectItemCaseSensitive(pFileSets, "sets");
+  if (!cJSON_IsObject(pFileSets) || !cJSON_IsString(pVersion) || strcmp(pVersion->valuestring, "1") != 0 ||
+      !cJSON_IsArray(pSets)) {
+    tjsonDelete(pFileSets);
+    dError("invalid fileset description for vgroup:%d", snapReq.vgId);
+    code = TSDB_CODE_INVALID_MSG;
+    goto _exit;
+  }
+  if (!snapReq.isFull) {
+    dInfo("incremental backup vgroup:%d snapshot:%" PRId64 " base:%" PRId64 " filesets:%d",
+          snapReq.vgId, snapRsp.snapshotIndex, snapReq.baseVersion, cJSON_GetArraySize(pSets));
+  }
+  tjsonDelete(pFileSets);
+  // Owned by this function rather than the rpc container: snapRsp.data comes from
+  // tDecodeBinaryAlloc (taosMemoryMalloc), so it must be released with taosMemoryFree
+  // (or handed to the digest), never rpcFreeCont.
+  fileSetsJson = snapRsp.data;
+  snapRsp.data = NULL;
+  snapRsp.dataLen = 0;
   if ((code = dmBackupCheckCancelled(pMgmt, pTask)) != 0) {
     goto _exit;
   }
@@ -1149,6 +1271,7 @@ static int32_t dmBackupPullVgroupSnapshot(SDnodeMgmt *pMgmt, SBackupTask *pTask,
   tFreeSBackupVnodeSnapRsp(&snapRsp);
 
   snapReq.op = BACKUP_VNODE_SNAP_FETCH;
+  int64_t lastIndex = 0;
   while (true) {
     if ((code = dmBackupCheckCancelled(pMgmt, pTask)) != 0) {
       goto _exit;
@@ -1159,6 +1282,24 @@ static int32_t dmBackupPullVgroupSnapshot(SDnodeMgmt *pMgmt, SBackupTask *pTask,
     }
     if ((code = dmBackupCheckCancelled(pMgmt, pTask)) != 0) {
       goto _exit;
+    }
+    if (snapRsp.vgId != snapReq.vgId || snapRsp.snapshotIndex != header.snapshotIndex ||
+        (snapRsp.eof != 0 && snapRsp.eof != 1) ||
+        (snapRsp.eof && snapRsp.dataLen != 0) ||
+        (!snapRsp.eof && (snapRsp.data == NULL || snapRsp.dataLen < sizeof(SSnapDataHdr)))) {
+      dError("invalid backup snapshot block response for vgroup:%d", snapReq.vgId);
+      code = TSDB_CODE_INVALID_MSG;
+      goto _exit;
+    }
+    if (!snapRsp.eof) {
+      const SSnapDataHdr *pHeader = snapRsp.data;
+      int64_t             payloadLen = (int64_t)snapRsp.dataLen - (int64_t)sizeof(*pHeader);
+      if (pHeader->size < 0 || pHeader->size != payloadLen || pHeader->index != lastIndex + 1) {
+        dError("invalid backup snapshot block for vgroup:%d", snapReq.vgId);
+        code = TSDB_CODE_INVALID_MSG;
+        goto _exit;
+      }
+      lastIndex = pHeader->index;
     }
     if (snapRsp.dataLen > 0 &&
       (code = dmBackupFileWrite(&backupFile, snapRsp.data, snapRsp.dataLen)) != 0) {
@@ -1189,10 +1330,13 @@ static int32_t dmBackupPullVgroupSnapshot(SDnodeMgmt *pMgmt, SBackupTask *pTask,
   }
   SBackupVnodeDigest digest = {.vgId = pVgroup->vgId,
                                .snapshotIndex = header.snapshotIndex,
-                               .numOfChunks = backupFile.numOfChunks};
+                               .numOfChunks = backupFile.numOfChunks,
+                               .fileSetsJson = fileSetsJson};
   memcpy(digest.digest, backupFile.checksum, sizeof(backupFile.checksum));
   if (code == 0 && taosArrayPush(pTask->vnodeSnapshots, &digest) == NULL) {
     code = terrno;
+  } else if (code == 0) {
+    fileSetsJson = NULL;
   }
   (void)taosThreadMutexUnlock(&pMgmt->backupMutex);
   if (code != 0) {
@@ -1202,6 +1346,7 @@ static int32_t dmBackupPullVgroupSnapshot(SDnodeMgmt *pMgmt, SBackupTask *pTask,
         backupFile.numOfChunks, leaderRsp.leaderDnodeId);
 
 _exit:
+  taosMemoryFree(fileSetsJson);
   tFreeSBackupVnodeSnapRsp(&snapRsp);
   int32_t closeCode = dmBackupFileClose(&backupFile);
   if (code == 0 && closeCode != 0) {
@@ -1245,7 +1390,11 @@ static void *dmBackupVgroupWorkerFp(void *pParam) {
 
     SBackupVgroupInfo *pVgroup = taosArrayGet(pTask->req.vgroups, idx);
 
-    code = dmBackupPullVgroupSnapshot(pCtx->pMgmt, pTask, pVgroup, pCtx->backupDir);
+    const SBackupVnodeBaseline *pBaseline = NULL;
+    if (!pTask->req.isFull) {
+      pBaseline = taosArrayGet(pTask->previousVnodeBaselines, idx);
+    }
+    code = dmBackupPullVgroupSnapshot(pCtx->pMgmt, pTask, pVgroup, pBaseline, pCtx->backupDir);
     if (code != 0) {
       dError("failed to backup vgroup:%d since %s", pVgroup->vgId, tstrerror(code));
       // Record the first failure; dmBackupCheckCancelled propagates it to
@@ -1401,14 +1550,397 @@ int32_t dmProcessBackupTask(SDnodeMgmt *pMgmt, SBackupTask *pTask) {
 _exit:
   if (stagingDirCreated && (code != 0 || dmBackupCheckCancelled(pMgmt, pTask) != 0)) {
     taosRemoveDir(stagingDir);
-    dInfo("backup task chainId:%" PRId64 " backupId:%" PRId64 " removed partial output:%s", pReq->chainId, pReq->backupId, stagingDir);
+    if (taosDirExist(stagingDir)) {
+      dError("backup task chainId:%" PRId64 " backupId:%" PRId64 " could not remove partial output:%s",
+             pReq->chainId, pReq->backupId, stagingDir);
+    } else {
+      dInfo("backup task chainId:%" PRId64 " backupId:%" PRId64 " removed partial output:%s",
+            pReq->chainId, pReq->backupId, stagingDir);
+    }
   }
   return code;
+}
+
+static int32_t dmFindMaxIdInDirBefore(const char *dirPath, int64_t beforeId, int64_t *pMaxId) {
+  terrno = TSDB_CODE_SUCCESS;
+  TdDirPtr pDir = taosOpenDir(dirPath);
+  if (pDir == NULL) {
+    return TSDB_CODE_NOT_FOUND;
+  }
+
+  int64_t       maxId = 0;
+  TdDirEntryPtr pEntry = NULL;
+  int32_t code = 0;
+  while (true) {
+    terrno = TSDB_CODE_SUCCESS;
+    pEntry = taosReadDir(pDir);
+    if (pEntry == NULL) {
+      code = terrno;
+      break;
+    }
+    char *name = taosGetDirEntryName(pEntry);
+    if (name == NULL || !taosDirEntryIsDir(pEntry)) {
+      continue;
+    }
+    char   *end = NULL;
+    SET_ERRNO(0);
+    int64_t id = taosStr2Int64(name, &end, 10);
+    if (ERRNO == ERANGE || end == name || end == NULL || *end != '\0' || id <= 0) {
+      continue;
+    }
+    if (id > maxId && id < beforeId) {
+      maxId = id;
+    }
+  }
+  if (taosCloseDir(&pDir) != 0 && code == 0) code = terrno;
+  if (code != 0) return code;
+
+  if (maxId <= 0) {
+    return TSDB_CODE_NOT_FOUND;
+  }
+  *pMaxId = maxId;
+  return 0;
+}
+
+static int32_t dmFindMaxIdInDir(const char *dirPath, int64_t *pMaxId) {
+  return dmFindMaxIdInDirBefore(dirPath, INT64_MAX, pMaxId);
+}
+
+static int32_t dmBackupParseManifestInt(const cJSON *pValue, int64_t *pResult) {
+  const double maxExactJsonInteger = 9007199254740991.0;
+  if (cJSON_IsString(pValue)) {
+    const char *value = pValue->valuestring;
+    if (value == NULL || *value == '\0') return TSDB_CODE_INVALID_DATA_FMT;
+    for (const char *p = value; *p != '\0'; ++p) {
+      if (*p < '0' || *p > '9') return TSDB_CODE_INVALID_DATA_FMT;
+    }
+    char *end = NULL;
+    SET_ERRNO(0);
+    int64_t number = taosStr2Int64(value, &end, 10);
+    if (ERRNO == ERANGE || end == value || *end != '\0' || number < 0) {
+      return TSDB_CODE_INVALID_DATA_FMT;
+    }
+    *pResult = number;
+    return 0;
+  }
+  if (!cJSON_IsNumber(pValue) || !(pValue->valuedouble >= 0) ||
+      pValue->valuedouble > maxExactJsonInteger) {
+    return TSDB_CODE_INVALID_DATA_FMT;
+  }
+  int64_t number = (int64_t)pValue->valuedouble;
+  if ((double)number != pValue->valuedouble) return TSDB_CODE_INVALID_DATA_FMT;
+  *pResult = number;
+  return 0;
+}
+
+static int32_t dmBackupCheckDnodes(const SBackupDnodeReq *pReq, const SJson *pManifest) {
+  const cJSON *pDnodes = tjsonGetObjectItem(pManifest, "dnodes");
+  if (!cJSON_IsArray(pDnodes)) {
+    dError("invalid dnode list in previous backup manifest");
+    return TSDB_CODE_INVALID_DATA_FMT;
+  }
+  int32_t count = cJSON_GetArraySize(pDnodes);
+  SHashObj *pIds = taosHashInit(TMAX(count, 1), taosGetDefaultHashFunction(TSDB_DATA_TYPE_INT), false, HASH_NO_LOCK);
+  if (pIds == NULL) return terrno;
+  int32_t code = 0;
+  const cJSON *pDnode;
+  cJSON_ArrayForEach(pDnode, pDnodes) {
+    int64_t id = 0;
+    if (dmBackupParseManifestInt(pDnode, &id) != 0 || id <= 0 || id > INT32_MAX) {
+      code = TSDB_CODE_INVALID_DATA_FMT;
+      goto _exit;
+    }
+    int32_t dnodeId = (int32_t)id;
+    if (taosHashGet(pIds, &dnodeId, sizeof(dnodeId)) != NULL) {
+      code = TSDB_CODE_INVALID_DATA_FMT;
+      goto _exit;
+    }
+    code = taosHashPut(pIds, &dnodeId, sizeof(dnodeId), &dnodeId, sizeof(dnodeId));
+    if (code != 0) goto _exit;
+  }
+  int32_t currentCount = pReq->dnodes == NULL ? 0 : taosArrayGetSize(pReq->dnodes);
+  if (count != currentCount) {
+    code = TSDB_CODE_BACKUP_TOPOLOGY_CHANGED;
+    goto _exit;
+  }
+  for (int32_t i = 0; i < currentCount; ++i) {
+    const SBackupDnodeInfo *pCurrent = taosArrayGet(pReq->dnodes, i);
+    if (taosHashGet(pIds, &pCurrent->id, sizeof(pCurrent->id)) == NULL) {
+      code = TSDB_CODE_BACKUP_TOPOLOGY_CHANGED;
+      goto _exit;
+    }
+  }
+_exit:
+  if (code == TSDB_CODE_BACKUP_TOPOLOGY_CHANGED) {
+    dError("dnode membership changed since previous backup; create a new full backup");
+  } else if (code != 0) {
+    dError("failed to validate dnodes in previous backup manifest since %s", tstrerror(code));
+  }
+  taosHashCleanup(pIds);
+  return code;
+}
+
+static int32_t dmBackupReadVnodeBaselines(SBackupTask *pTask, const SJson *pManifest) {
+  const cJSON *pVnodes = tjsonGetObjectItem(pManifest, "vnodes");
+  int32_t numOfVgroups = pTask->req.vgroups == NULL ? 0 : taosArrayGetSize(pTask->req.vgroups);
+  if (!cJSON_IsArray(pVnodes)) {
+    dError("invalid vnode list in previous backup manifest");
+    return TSDB_CODE_INVALID_DATA_FMT;
+  }
+  if (cJSON_GetArraySize(pVnodes) != numOfVgroups) {
+    dError("previous backup vnode count does not match the current topology");
+    return TSDB_CODE_BACKUP_TOPOLOGY_CHANGED;
+  }
+
+  pTask->previousVnodeBaselines = taosArrayInit(numOfVgroups, sizeof(SBackupVnodeBaseline));
+  if (pTask->previousVnodeBaselines == NULL) {
+    return terrno;
+  }
+  SHashObj *pVersions = taosHashInit(numOfVgroups > 0 ? numOfVgroups : 1,
+                                     taosGetDefaultHashFunction(TSDB_DATA_TYPE_INT), false, HASH_NO_LOCK);
+  int32_t code = 0;
+  if (pVersions == NULL) {
+    code = terrno;
+    goto _exit;
+  }
+  for (const cJSON *pVnode = pVnodes->child; pVnode != NULL; pVnode = pVnode->next) {
+    const cJSON *pId = cJSON_GetObjectItemCaseSensitive(pVnode, "id");
+    const cJSON *pEnd = cJSON_GetObjectItemCaseSensitive(pVnode, "endVersion");
+    const cJSON *pFileSets = cJSON_GetObjectItemCaseSensitive(pVnode, "fileSets");
+    const cJSON *pFileSetsVersion = cJSON_GetObjectItemCaseSensitive(pFileSets, "version");
+    const cJSON *pSets = cJSON_GetObjectItemCaseSensitive(pFileSets, "sets");
+    int64_t id = 0;
+    int64_t endVersion = 0;
+    int64_t fileSetsVersion = 0;
+    if (dmBackupParseManifestInt(pId, &id) != 0 || id <= 0 || id > INT32_MAX ||
+        dmBackupParseManifestInt(pEnd, &endVersion) != 0) {
+      dError("invalid vnode id or endVersion in previous backup manifest");
+      code = TSDB_CODE_INVALID_DATA_FMT;
+      goto _exit;
+    }
+    if (!cJSON_IsObject(pFileSets) || dmBackupParseManifestInt(pFileSetsVersion, &fileSetsVersion) != 0 ||
+        fileSetsVersion != 1 || !cJSON_IsArray(pSets)) {
+      dError("invalid or missing fileset description for vnode:%" PRId64 " in previous backup manifest", id);
+      code = TSDB_CODE_INVALID_DATA_FMT;
+      goto _exit;
+    }
+    int32_t vgId = (int32_t)id;
+    if (taosHashGet(pVersions, &vgId, sizeof(vgId)) != NULL) {
+      dError("duplicate vnode:%d in previous backup manifest", vgId);
+      code = TSDB_CODE_INVALID_DATA_FMT;
+      goto _exit;
+    }
+    SBackupManifestVnode value = {.endVersion = endVersion, .fileSets = pFileSets, .vnode = pVnode};
+    code = taosHashPut(pVersions, &vgId, sizeof(vgId), &value, sizeof(value));
+    if (code != 0) goto _exit;
+  }
+  for (int32_t i = 0; i < numOfVgroups; ++i) {
+    const SBackupVgroupInfo *pGroup = taosArrayGet(pTask->req.vgroups, i);
+    SBackupManifestVnode *pValue = taosHashGet(pVersions, &pGroup->vgId, sizeof(pGroup->vgId));
+    if (pValue == NULL) {
+      dError("vnode:%d missing from previous backup manifest", pGroup->vgId);
+      code = TSDB_CODE_BACKUP_TOPOLOGY_CHANGED;
+      goto _exit;
+    }
+    const cJSON *pDbUid = cJSON_GetObjectItemCaseSensitive(pValue->vnode, "dbUid");
+    const cJSON *pDnodes = cJSON_GetObjectItemCaseSensitive(pValue->vnode, "dnodes");
+    char dbUid[32] = {0};
+    (void)snprintf(dbUid, sizeof(dbUid), "%" PRId64, pGroup->dbUid);
+    if (!cJSON_IsString(pDbUid) || pDbUid->valuestring == NULL || !cJSON_IsArray(pDnodes)) {
+      dError("invalid database identity or replica list for vnode:%d in previous backup", pGroup->vgId);
+      code = TSDB_CODE_INVALID_DATA_FMT;
+      goto _exit;
+    }
+    if (strcmp(pDbUid->valuestring, dbUid) != 0 ||
+        cJSON_GetArraySize(pDnodes) != pGroup->numOfDnodes) {
+      dError("vnode:%d database identity or replica count changed since previous backup", pGroup->vgId);
+      code = TSDB_CODE_BACKUP_TOPOLOGY_CHANGED;
+      goto _exit;
+    }
+    SHashObj *pReplicaIds = taosHashInit(TMAX(pGroup->numOfDnodes, 1),
+                                         taosGetDefaultHashFunction(TSDB_DATA_TYPE_INT), false, HASH_NO_LOCK);
+    if (pReplicaIds == NULL) {
+      code = terrno;
+      goto _exit;
+    }
+    const cJSON *pDnode;
+    cJSON_ArrayForEach(pDnode, pDnodes) {
+      int64_t dnodeId = 0;
+      if (dmBackupParseManifestInt(pDnode, &dnodeId) != 0 || dnodeId <= 0 || dnodeId > INT32_MAX) {
+        code = TSDB_CODE_INVALID_DATA_FMT;
+        break;
+      }
+      int32_t id = (int32_t)dnodeId;
+      if (taosHashGet(pReplicaIds, &id, sizeof(id)) != NULL) {
+        code = TSDB_CODE_INVALID_DATA_FMT;
+        break;
+      }
+      code = taosHashPut(pReplicaIds, &id, sizeof(id), &id, sizeof(id));
+      if (code != 0) break;
+    }
+    for (int32_t j = 0; j < pGroup->numOfDnodes; ++j) {
+      if (code != 0) break;
+      if (taosHashGet(pReplicaIds, &pGroup->dnodeIds[j], sizeof(pGroup->dnodeIds[j])) == NULL) {
+        dError("vnode:%d replica placement changed since previous backup", pGroup->vgId);
+        code = TSDB_CODE_BACKUP_TOPOLOGY_CHANGED;
+      }
+    }
+    taosHashCleanup(pReplicaIds);
+    if (code != 0) goto _exit;
+    SBackupVnodeBaseline baseline = {.endVersion = pValue->endVersion,
+                                     .fileSetsJson = tjsonToString(pValue->fileSets)};
+    if (baseline.fileSetsJson == NULL) {
+      code = terrno != 0 ? terrno : TSDB_CODE_OUT_OF_MEMORY;
+      goto _exit;
+    }
+    if (taosArrayPush(pTask->previousVnodeBaselines, &baseline) == NULL) {
+      taosMemoryFree(baseline.fileSetsJson);
+      code = terrno;
+      goto _exit;
+    }
+  }
+_exit:
+  taosHashCleanup(pVersions);
+  if (code != 0) {
+    dmBackupClearVnodeBaselines(pTask);
+  }
+  return code;
+}
+
+static int32_t dmBackupValidateChainLinks(const char *chainDir, int64_t chainId, int64_t lastId,
+                                          const char *password) {
+  int64_t id = lastId;
+  while (true) {
+    char backupDir[PATH_MAX] = {0};
+    (void)snprintf(backupDir, sizeof(backupDir), "%s%s%" PRId64, chainDir, TD_DIRSEP, id);
+    SJson *manifest = NULL;
+    int32_t code = dmBackupReadManifest(backupDir, password, &manifest);
+    if (code != 0) {
+      dError("failed to read backup chain link:%" PRId64 " since %s", id, tstrerror(code));
+      return code;
+    }
+    int64_t manifestId = 0;
+    int64_t manifestChain = 0;
+    const cJSON *previous = tjsonGetObjectItem(manifest, "previous");
+    int64_t parent = 0;
+    bool isRoot = cJSON_IsString(previous) && previous->valuestring[0] == '\0';
+    if (dmBackupParseManifestInt(tjsonGetObjectItem(manifest, "id"), &manifestId) != 0 ||
+        dmBackupParseManifestInt(tjsonGetObjectItem(manifest, "chain"), &manifestChain) != 0 ||
+        manifestId != id || manifestChain != chainId ||
+        (isRoot && id != chainId) ||
+        (!isRoot && (dmBackupParseManifestInt(previous, &parent) != 0 || parent < chainId || parent >= id))) {
+      code = TSDB_CODE_INVALID_DATA_FMT;
+    }
+    tjsonDelete(manifest);
+    if (code != 0) {
+      dError("invalid backup chain link:%" PRId64 " in:%s", id, chainDir);
+      return code;
+    }
+    if (isRoot) return 0;
+    int64_t expectedParent = 0;
+    code = dmFindMaxIdInDirBefore(chainDir, id, &expectedParent);
+    if (code != 0 || expectedParent != parent) {
+      dError("backup chain link:%" PRId64 " skips or misses a backup in:%s", id, chainDir);
+      return TSDB_CODE_INVALID_DATA_FMT;
+    }
+    id = parent;
+  }
+}
+
+static int32_t dmBackupResolveChainId(SBackupTask *pTask) {
+  SBackupDnodeReq *pReq = &pTask->req;
+  if (pReq->backupRoot[0] == '\0') {
+    dError("failed to resolve backup chain since backup root is empty");
+    return TSDB_CODE_INVALID_PARA;
+  }
+  if (pReq->isFull) {
+    return 0;
+  }
+
+  int32_t code = 0;
+  if (pReq->chainId == 0) {
+    code = dmFindMaxIdInDir(pReq->backupRoot, &pReq->chainId);
+    if (code != 0) {
+      dError("failed to create incremental backup since no backup chain found in:%s", pReq->backupRoot);
+      return code;
+    }
+  }
+
+  char chainDir[PATH_MAX] = {0};
+  (void)snprintf(chainDir, sizeof(chainDir), "%s%s%" PRId64, pReq->backupRoot, TD_DIRSEP, pReq->chainId);
+
+  int64_t lastBackupId = 0;
+  code = dmFindMaxIdInDir(chainDir, &lastBackupId);
+  if (code != 0) {
+    dError("failed to create incremental backup since no backup found in chain dir:%s", chainDir);
+    return code;
+  }
+  if (lastBackupId >= pReq->backupId) {
+    dError("backup chain:%" PRId64 " tail:%" PRId64 " is not older than the new backup:%" PRId64 " in:%s",
+           pReq->chainId, lastBackupId, pReq->backupId, chainDir);
+    return TSDB_CODE_INVALID_DATA_FMT;
+  }
+
+  char lastBackupDir[PATH_MAX] = {0};
+  (void)snprintf(lastBackupDir, sizeof(lastBackupDir), "%s%s%" PRId64, chainDir, TD_DIRSEP, lastBackupId);
+
+  SJson *pManifest = NULL;
+  code = dmBackupReadManifest(lastBackupDir, pReq->hasPassword ? pReq->password : NULL, &pManifest);
+  if (code == 0) {
+    int64_t version = 0;
+    int64_t manifestId = 0;
+    int64_t manifestChain = 0;
+    const cJSON *pVersion = tjsonGetObjectItem(pManifest, "version");
+    if (dmBackupParseManifestInt(pVersion, &version) != 0) {
+      dError("invalid version in previous backup manifest");
+      code = TSDB_CODE_INVALID_DATA_FMT;
+    } else if (version < DM_BACKUP_MANIFEST_VERSION) {
+      dError("previous backup manifest version 1 has no fileset description; create a new full backup");
+      code = TSDB_CODE_VERSION_NOT_COMPATIBLE;
+    } else if (version != DM_BACKUP_MANIFEST_VERSION) {
+      dError("unsupported previous backup manifest version:%" PRId64, version);
+      code = TSDB_CODE_VERSION_NOT_COMPATIBLE;
+    } else if (dmBackupParseManifestInt(tjsonGetObjectItem(pManifest, "id"), &manifestId) != 0 ||
+               dmBackupParseManifestInt(tjsonGetObjectItem(pManifest, "chain"), &manifestChain) != 0 ||
+               manifestId != lastBackupId || manifestChain != pReq->chainId) {
+      dError("previous backup manifest identity is invalid in:%s", lastBackupDir);
+      code = TSDB_CODE_INVALID_DATA_FMT;
+    } else {
+      int64_t clusterId = 0;
+      if (dmBackupParseManifestInt(tjsonGetObjectItem(pManifest, "clusterId"), &clusterId) != 0 || clusterId <= 0) {
+        dError("invalid or missing cluster ID in previous backup manifest:%s", lastBackupDir);
+        code = TSDB_CODE_INVALID_DATA_FMT;
+      } else if (clusterId != pTask->clusterId) {
+        dError("cluster ID:%" PRId64 " differs from previous backup cluster ID:%" PRId64,
+               pTask->clusterId, clusterId);
+        code = TSDB_CODE_BACKUP_CLUSTER_MISMATCH;
+      }
+    }
+  }
+  if (code == 0) {
+    code = dmBackupCheckDnodes(pReq, pManifest);
+  }
+  if (code == 0) {
+    code = dmBackupReadVnodeBaselines(pTask, pManifest);
+  }
+  tjsonDelete(pManifest);
+  if (code == 0) {
+    code = dmBackupValidateChainLinks(chainDir, pReq->chainId, lastBackupId,
+                                      pReq->hasPassword ? pReq->password : NULL);
+  }
+  if (code != 0) {
+    dError("failed to read last backup manifest in:%s since %s", lastBackupDir, tstrerror(code));
+    return code;
+  }
+
+  pTask->previousBackupId = lastBackupId;
+  return 0;
 }
 
 int32_t dmProcessBackupReq(SDnodeMgmt *pMgmt, SRpcMsg *pMsg) {
   SBackupTask     *pTask = NULL;
   SBackupTaskItem *pTaskItem = NULL;
+  void            *pRsp = NULL;
 
   pTask = taosMemoryCalloc(1, sizeof(SBackupTask));
   if (pTask == NULL) {
@@ -1418,18 +1950,53 @@ int32_t dmProcessBackupReq(SDnodeMgmt *pMgmt, SRpcMsg *pMsg) {
     taosMemoryFree(pTask);
     return TSDB_CODE_INVALID_MSG;
   }
+  (void)taosThreadRwlockRdlock(&pMgmt->pData->lock);
+  pTask->clusterId = pMgmt->pData->clusterId;
+  (void)taosThreadRwlockUnlock(&pMgmt->pData->lock);
+  if (pTask->clusterId <= 0) {
+    dError("cannot start backup with invalid cluster ID:%" PRId64, pTask->clusterId);
+    dmBackupFreeTaskResources(pTask);
+    taosMemoryFree(pTask);
+    return TSDB_CODE_INVALID_DATA_FMT;
+  }
   pTask->running = true;
 
   (void)taosThreadMutexLock(&pMgmt->backupMutex);
   if (pMgmt->pBackupTask != NULL && pMgmt->pBackupTask->running) {
     (void)taosThreadMutexUnlock(&pMgmt->backupMutex);
-    tFreeSBackupDnodeReq(&pTask->req);
+    dmBackupFreeTaskResources(pTask);
     taosMemoryFree(pTask);
     return TSDB_CODE_BACKUP_IN_PROGRESS;
   }
+
+  int32_t code = dmBackupResolveChainId(pTask);
+  if (code != 0) {
+    (void)taosThreadMutexUnlock(&pMgmt->backupMutex);
+    dmBackupFreeTaskResources(pTask);
+    taosMemoryFree(pTask);
+    terrno = code;
+    return code;
+  }
+
+  SBackupRsp rsp = {
+      .chainId = pTask->req.chainId,
+      .backupId = pTask->req.backupId,
+      .bAccepted = 1,
+  };
+  int32_t rspLen = tSerializeSBackupRsp(NULL, 0, &rsp);
+  if (rspLen > 0) {
+    pRsp = rpcMallocCont(rspLen);
+  }
+  if (pRsp == NULL || tSerializeSBackupRsp(pRsp, rspLen, &rsp) < 0) {
+    (void)taosThreadMutexUnlock(&pMgmt->backupMutex);
+    rpcFreeCont(pRsp);
+    dmBackupFreeTaskResources(pTask);
+    taosMemoryFree(pTask);
+    return terrno != 0 ? terrno : TSDB_CODE_OUT_OF_MEMORY;
+  }
+
   if (pMgmt->pBackupTask != NULL) {
-    tFreeSBackupDnodeReq(&pMgmt->pBackupTask->req);
-    dmBackupFreeTaskArtifacts(pMgmt->pBackupTask);
+    dmBackupFreeTaskResources(pMgmt->pBackupTask);
   }
   taosMemoryFreeClear(pMgmt->pBackupTask);
   pMgmt->pBackupTask = pTask;
@@ -1441,14 +2008,14 @@ int32_t dmProcessBackupReq(SDnodeMgmt *pMgmt, SRpcMsg *pMsg) {
       pMgmt->pBackupTask = NULL;
     }
     (void)taosThreadMutexUnlock(&pMgmt->backupMutex);
-    tFreeSBackupDnodeReq(&pTask->req);
-    dmBackupFreeTaskArtifacts(pTask);
+    rpcFreeCont(pRsp);
+    dmBackupFreeTaskResources(pTask);
     taosMemoryFree(pTask);
     return terrno;
   }
   pTaskItem->pTask = pTask;
 
-  int32_t code = dmPutBackupTaskToQueue(pMgmt, pTaskItem);
+  code = dmPutBackupTaskToQueue(pMgmt, pTaskItem);
   if (code != 0) {
     taosFreeQitem(pTaskItem);
     (void)taosThreadMutexLock(&pMgmt->backupMutex);
@@ -1456,12 +2023,14 @@ int32_t dmProcessBackupReq(SDnodeMgmt *pMgmt, SRpcMsg *pMsg) {
       pMgmt->pBackupTask = NULL;
     }
     (void)taosThreadMutexUnlock(&pMgmt->backupMutex);
-    tFreeSBackupDnodeReq(&pTask->req);
-    dmBackupFreeTaskArtifacts(pTask);
+    rpcFreeCont(pRsp);
+    dmBackupFreeTaskResources(pTask);
     taosMemoryFree(pTask);
     return code;
   }
 
+  pMsg->info.rsp = pRsp;
+  pMsg->info.rspLen = rspLen;
   dInfo("accepted backup task, chainId:%" PRId64 " backupId:%" PRId64, pTask->req.chainId, pTask->req.backupId);
   return 0;
 }

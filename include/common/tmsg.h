@@ -3542,13 +3542,13 @@ int32_t tDeserializeSKillCompactReq(void* buf, int32_t bufLen, SKillCompactReq* 
 void    tFreeSKillCompactReq(SKillCompactReq* pReq);
 
 // ==================== Cluster-level backup/restore ====================
-// client -> mnode: start a backup. Phase 2 only wires cluster-level FULL backup;
-// isFull and dbName are reserved for later phases.
+// client -> mnode: start a backup. The parser supports cluster-level FULL and
+// INCREMENTAL; dnode rejects incomplete incremental execution.
 typedef struct {
   int32_t dnodeId;                     // dnode that owns backupRoot and runs the agent
   char    backupRoot[TSDB_MOUNT_PATH_LEN];
-  int8_t  isFull;                      // reserved: 1 = full, 0 = incremental
-  int64_t backupChainId;               // reserved: target chain for incremental; 0 = latest
+  int8_t  isFull;                      // 1 = full, 0 = incremental
+  int64_t backupChainId;               // target chain for incremental; 0 = latest
   char    dbName[TSDB_DB_FNAME_LEN];   // reserved: empty = whole cluster
   int8_t  hasPassword;
   char    password[TSDB_PASSWORD_LEN];
@@ -3743,6 +3743,9 @@ typedef struct {
   int64_t backupId;
   int8_t  isFull;
   int8_t  op;
+  int64_t baseVersion;  // previous snapshot endVersion for incremental backups
+  uint8_t* fileSets;    // borrowed buffer; present only for incremental BEGIN
+  uint32_t fileSetsLen;
 } SBackupVnodeSnapReq;
 
 typedef struct {

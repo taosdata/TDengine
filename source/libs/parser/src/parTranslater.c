@@ -27175,17 +27175,9 @@ static int32_t translateTimeRange(STranslateContext* pCxt, const char* dbName, S
 
 static int32_t translateBackup(STranslateContext* pCxt, SCreateBackupStmt* pStmt) {
   PAR_ENTERPRISE_ONLY(pCxt, "BACKUP DATABASE");
-  // Phase 1: only cluster-level FULL backup is accepted; incremental and
-  // database-level backups are reserved for a later phase.
-  // A target backup chain id only applies to incremental backup, so specifying
-  // it together with FULL (or without incremental) is rejected here as well.
-  if (!pStmt->isFull) {
+  if (pStmt->isFull && 0 != pStmt->backupChainId) {
     return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_OPS_NOT_SUPPORT,
-                                   "INCREMENTAL backup is not supported yet");
-  }
-  if (0 != pStmt->backupChainId) {
-    return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_OPS_NOT_SUPPORT,
-                                   "specifying a backup chain id is not supported yet");
+                                   "a backup chain id is only allowed for INCREMENTAL backup");
   }
   if ('\0' != pStmt->dbName[0]) {
     return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_OPS_NOT_SUPPORT,

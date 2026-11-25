@@ -196,7 +196,8 @@ _out:
 
 void vnodeSnapReaderClose(SVSnapReader *pReader);
 
-int32_t vnodeSnapReaderOpen(SVnode *pVnode, SSnapshotParam *pParam, SVSnapReader **ppReader) {
+static int32_t vnodeSnapReaderOpenImpl(SVnode *pVnode, SSnapshotParam *pParam, SVSnapReader **ppReader,
+                                       const char *baseFileSets, int64_t baseVersion, char **fileSetsJson) {
   int32_t       code = 0;
   int64_t       sver = pParam->start;
   int64_t       ever = pParam->end;
@@ -215,9 +216,18 @@ int32_t vnodeSnapReaderOpen(SVnode *pVnode, SSnapshotParam *pParam, SVSnapReader
   // and reads pReader->destDnodeId; if this line is mistakenly reordered after it, the MEDIUM reader silently gets 0 (neither compilation nor the RAW path errors out).
   pReader->destDnodeId = pParam->destDnodeId;
 
-  // snapshot info
-  code = vnodeSnapReaderDealWithSnapInfo(pReader, pParam);
-  if (code) goto _exit;
+  if (baseFileSets) {
+    code = tsdbFSetJsonToRangeDiff(baseFileSets, &pReader->pRanges);
+    if (code) goto _exit;
+    pReader->tsdbRAWDone = true;
+    pReader->tsdbMEDIUMDone = true;
+    code = tsdbBackupSnapReaderOpen(pVnode->pTsdb, baseVersion + 1, ever, pReader->pRanges,
+                                    &pReader->pTsdbReader, fileSetsJson);
+    if (code) goto _exit;
+  } else {
+    code = vnodeSnapReaderDealWithSnapInfo(pReader, pParam);
+    if (code) goto _exit;
+  }
 
   // open tsdb snapshot raw reader
   if (!pReader->tsdbRAWDone) {
@@ -240,6 +250,7 @@ _exit:
   if (code) {
     vError("vgId:%d, vnode snapshot reader open failed since %s", TD_VID(pVnode), tstrerror(code));
     if (pReader != NULL) vnodeSnapReaderClose(pReader);
+    if (fileSetsJson) taosMemoryFreeClear(*fileSetsJson);
     *ppReader = NULL;
   } else {
     vInfo(KEYOP("restore-dnode", "START") "vgId:%d, vnode snapshot reader opened, sver:%" PRId64 " ever:%" PRId64,
@@ -249,9 +260,15 @@ _exit:
   return code;
 }
 
+int32_t vnodeSnapReaderOpen(SVnode *pVnode, SSnapshotParam *pParam, SVSnapReader **ppReader) {
+  return vnodeSnapReaderOpenImpl(pVnode, pParam, ppReader, NULL, 0, NULL);
+}
+
 static int32_t vnodeBackupSnapReaderOpen(SVnode *pVnode, SSnapshotParam *pParam, bool isFull,
-                                         SVSnapReader **ppReader) {
-  int32_t code = vnodeSnapReaderOpen(pVnode, pParam, ppReader);
+                                         const char *baseFileSets, int64_t baseVersion,
+                                         SVSnapReader **ppReader, char **fileSetsJson) {
+  int32_t code = vnodeSnapReaderOpenImpl(pVnode, pParam, ppReader, isFull ? NULL : baseFileSets,
+                                         baseVersion, fileSetsJson);
   if (code != 0) return code;
 
   // Full backup uses RAW data; incremental backup uses normal logical TSDB data. Neither uses MEDIUM.
@@ -324,6 +341,7 @@ static void vnodeCloseBackupSnapLocked(SVnode *pVnode) {
   pVnode->backupSnapBackupId = 0;
   pVnode->backupSnapIndex = 0;
   pVnode->backupSnapLastActivityMs = 0;
+  pVnode->backupSnapIncremental = false;
 }
 
 static bool vnodeBackupSnapTimedOut(const SVnode *pVnode, int64_t nowMs) {
@@ -372,7 +390,8 @@ static int32_t vnodeBuildBackupSnapRsp(SRpcMsg *pMsg, const SBackupVnodeSnapRsp 
 }
 
 static bool vnodeBackupSnapOwnerMatches(const SVnode *pVnode, const SBackupVnodeSnapReq *pReq) {
-  return pVnode->backupSnapChainId == pReq->chainId && pVnode->backupSnapBackupId == pReq->backupId;
+  return pVnode->backupSnapChainId == pReq->chainId && pVnode->backupSnapBackupId == pReq->backupId &&
+         pVnode->backupSnapIncremental == !pReq->isFull;
 }
 
 int32_t vnodeProcessBackupSnapReq(SVnode *pVnode, SRpcMsg *pMsg) {
@@ -391,7 +410,9 @@ int32_t vnodeProcessBackupSnapReq(SVnode *pVnode, SRpcMsg *pMsg) {
                                        &req) != 0) {
     return TSDB_CODE_INVALID_MSG;
   }
-  if (req.vgId != TD_VID(pVnode) || req.op < BACKUP_VNODE_SNAP_BEGIN || req.op > BACKUP_VNODE_SNAP_RELEASE) {
+  if (req.vgId != TD_VID(pVnode) || (req.isFull != 0 && req.isFull != 1) ||
+      (!req.isFull && req.baseVersion < 0) ||
+      req.op < BACKUP_VNODE_SNAP_BEGIN || req.op > BACKUP_VNODE_SNAP_RELEASE) {
     return TSDB_CODE_INVALID_MSG;
   }
 
@@ -412,16 +433,46 @@ int32_t vnodeProcessBackupSnapReq(SVnode *pVnode, SRpcMsg *pMsg) {
       }
       code = vnodeGetSnapshot(pVnode, &snapshot);
       if (code != 0) goto _exit;
+      if (!req.isFull && (req.baseVersion > snapshot.lastApplyIndex || req.baseVersion == INT64_MAX)) {
+        vError("vgId:%d, backup base version:%" PRId64 " exceeds snapshot:%" PRId64, req.vgId,
+               req.baseVersion, snapshot.lastApplyIndex);
+        code = TSDB_CODE_INVALID_DATA_FMT;
+        goto _exit;
+      }
+      if (!req.isFull) {
+        if (req.fileSets == NULL || req.fileSetsLen <= 1 || req.fileSets[req.fileSetsLen - 1] != '\0' ||
+            strlen((char *)req.fileSets) != req.fileSetsLen - 1) {
+          vError("vgId:%d, invalid incremental backup fileset description", req.vgId);
+          code = TSDB_CODE_INVALID_MSG;
+          goto _exit;
+        }
+      }
+      // Metadata and TQ remain full; TSDB uses the incremental base version.
       param.start = 0;
       param.end = snapshot.lastApplyIndex;
-      code = vnodeBackupSnapReaderOpen(pVnode, &param, req.isFull, &pVnode->pBackupSnapReader);
+      char *fileSetsJson = NULL;
+      code = vnodeBackupSnapReaderOpen(pVnode, &param, req.isFull, (char *)req.fileSets, req.baseVersion,
+                                       &pVnode->pBackupSnapReader, &fileSetsJson);
       if (code != 0) goto _exit;
       snapOpened = true;
 
+      if (req.isFull) {
+        code = tsdbSnapRAWReaderFileSetsJson(pVnode->pBackupSnapReader->pTsdbRAWReader, &fileSetsJson);
+        if (code != 0) goto _exit;
+      }
+      pData = (uint8_t *)fileSetsJson;
+      size_t jsonLen = strlen((const char *)pData) + 1;
+      if (jsonLen > INT32_MAX) {
+        code = TSDB_CODE_INVALID_MSG;
+        goto _exit;
+      }
+      rsp.data = pData;
+      rsp.dataLen = (int32_t)jsonLen;
       pVnode->backupSnapChainId = req.chainId;
       pVnode->backupSnapBackupId = req.backupId;
       pVnode->backupSnapIndex = snapshot.lastApplyIndex;
       pVnode->backupSnapLastActivityMs = nowMs;
+      pVnode->backupSnapIncremental = !req.isFull;
       rsp.snapshotIndex = snapshot.lastApplyIndex;
       break;
 
@@ -708,13 +759,13 @@ int32_t vnodeSnapRead(SVSnapReader *pReader, uint8_t **ppData, uint32_t *nData) 
       rsmaSnapReaderClose(&pReader->pRsmaReader);
     }
   }
+#endif
 
   if (!pReader->bseDone) {
     if (pReader->pBseReader == NULL) {
       code = bseSnapReaderOpen(pReader->pVnode->pBse, pReader->sver, pReader->ever, &pReader->pBseReader);
       TSDB_CHECK_CODE(code, lino, _exit);
     }
-    int32_t len = 0;
     code = bseSnapReaderRead(pReader->pBseReader, ppData);
     TSDB_CHECK_CODE(code, lino, _exit);
     if (*ppData) {
@@ -725,7 +776,6 @@ int32_t vnodeSnapRead(SVSnapReader *pReader, uint8_t **ppData, uint32_t *nData) 
     }
   }
 
-#endif
   *ppData = NULL;
   *nData = 0;
 
@@ -914,6 +964,30 @@ _exit:
   return code;
 }
 
+int32_t vnodeBackupSnapWriterOpen(SVnode *pVnode, SSnapshotParam *pParam, const char *baseFileSets,
+                                  SVSnapWriter **ppWriter) {
+  if (pVnode == NULL || pParam == NULL || pParam->data != NULL || ppWriter == NULL) {
+    return TSDB_CODE_INVALID_PARA;
+  }
+  *ppWriter = NULL;
+  TFileSetRangeArray *pRanges = NULL;
+  int32_t code = 0;
+  if (baseFileSets != NULL) {
+    code = tsdbFSetJsonToRangeDiff(baseFileSets, &pRanges);
+    if (code != 0) return code;
+  }
+
+  code = vnodeSnapWriterOpen(pVnode, pParam, ppWriter);
+  if (code != 0) {
+    tsdbTFileSetRangeArrayDestroy(&pRanges);
+    return code;
+  }
+  TFileSetRangeArray **ppWriterRanges = vnodeSnapWriterGetTsdbRanges(*ppWriter, SNAP_DATA_TSDB);
+  tsdbTFileSetRangeArrayDestroy(ppWriterRanges);
+  ppWriterRanges[0] = pRanges;
+  return 0;
+}
+
 static void vnodeSnapWriterDestroyTsdbRanges(SVSnapWriter *pWriter) {
   int32_t tsdbTyps[TSDB_RETENTION_MAX] = {SNAP_DATA_TSDB, SNAP_DATA_RSMA1, SNAP_DATA_RSMA2};
   for (int32_t j = 0; j < TSDB_RETENTION_MAX; ++j) {
@@ -1010,12 +1084,22 @@ int32_t vnodeSnapWriterClose(SVSnapWriter *pWriter, int8_t rollback, SSnapshot *
     code = rsmaSnapWriterClose(&pWriter->pRsmaSnapWriter, rollback);
     if (code) goto _exit;
   }
+#endif
 
   if (pWriter->pBseSnapWriter) {
     bseSnapWriterClose(&pWriter->pBseSnapWriter, rollback);
+    if (!rollback) {
+      // The BSE files were replaced by the snapshot, so the in-memory tables must be rebuilt from
+      // them; a failure here leaves BSE only partially recovered.
+      code = bseReload(pVnode->pBse);
+      if (code) {
+        vError("vgId:%d, failed to reload bse after applying the snapshot since %s", TD_VID(pVnode),
+               tstrerror(code));
+        goto _exit;
+      }
+    }
   }
 
-#endif
   code = vnodeBegin(pVnode);
   if (code) goto _exit;
 
@@ -1207,6 +1291,7 @@ int32_t vnodeSnapWrite(SVSnapWriter *pWriter, uint8_t *pData, uint32_t nData) {
       code = rsmaSnapWrite(pWriter->pRsmaSnapWriter, pData, nData);
       TSDB_CHECK_CODE(code, lino, _exit);
     } break;
+#endif
     case SNAP_DATA_BSE: {
       if (pWriter->pBseSnapWriter == NULL) {
         code = bseSnapWriterOpen(pVnode->pBse, pWriter->sver, pWriter->ever, &pWriter->pBseSnapWriter);
@@ -1215,7 +1300,6 @@ int32_t vnodeSnapWrite(SVSnapWriter *pWriter, uint8_t *pData, uint32_t nData) {
       code = bseSnapWriterWrite(pWriter->pBseSnapWriter, pData, nData);
       TSDB_CHECK_CODE(code, lino, _exit);
     } break;
-#endif
     default:
       break;
   }

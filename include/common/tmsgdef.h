@@ -186,7 +186,7 @@
   // dnode backup agent -> mnode: pull mnode metadata (sdb.data + mnode.json + sync/)
   TD_DEF_MSG_TYPE(TDMT_MND_BACKUP_META, "backup-meta", SBackupMetaReq, SBackupMetaRsp)
   // mnode -> dnode: dispatch backup job to the target dnode agent
-  TD_DEF_MSG_TYPE(TDMT_DND_BACKUP, "dnode-backup", SBackupDnodeReq, NULL)
+  TD_DEF_MSG_TYPE(TDMT_DND_BACKUP, "dnode-backup", SBackupDnodeReq, SBackupRsp)
   // mnode -> dnode: query backup progress from the agent
   TD_DEF_MSG_TYPE(TDMT_DND_BACKUP_PROGRESS, "dnode-backup-progress", SBackupProgressReq, SBackupProgressRsp)
   // mnode -> dnode: cancel an active backup agent task

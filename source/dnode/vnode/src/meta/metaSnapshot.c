@@ -383,7 +383,7 @@ int32_t metaSnapWrite(SMetaSnapWriter* pWriter, uint8_t* pData, uint32_t nData) 
   code = metaDecodeEntry(pDecoder, &metaEntry);
   TSDB_CHECK_CODE(code, lino, _exit);
 
-  metaHandleSyncEntry(pMeta, &metaEntry);
+  (void)metaHandleSyncEntry(pMeta, &metaEntry);
 
   // Batch-meta-txn: if the snapshot entry carries a pending txn marker (txnId != 0),
   // populate txn.idx so vnodeTxnRebuildFromMeta can reconstruct in-memory txn state

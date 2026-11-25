@@ -1905,14 +1905,19 @@ int mainWindows(int argc, char **argv) {
     if ((code = dmCheckRunning(tsDataDir, &pFile)) != 0) {
       printf("failed to restore because taosd is running, please stop it first, reason:%s\n", tstrerror(code));
     } else {
-      (void)taosCloseFile(&pFile);
       code = dmRestoreFromBackupChain(&global.restoreOpt);
+      int32_t closeCode = taosCloseFile(&pFile);
+      if (closeCode != 0) {
+        int32_t closeError = terrno != 0 ? terrno : TSDB_CODE_FAILED;
+        printf("failed to release restore lock: %s\n", tstrerror(closeError));
+        if (code == 0) code = closeError;
+      }
     }
     taosCleanupCfg();
     taosCloseLog();
     taosCleanupArgs();
     taosConvDestroy();
-    return code;
+    return code == 0 ? EXIT_SUCCESS : EXIT_FAILURE;
   }
 #endif
 

@@ -564,6 +564,8 @@ TAOS_DEFINE_ERROR(TSDB_CODE_BACKUP_ALREADY_EXIST,         "Backup chain or backu
 TAOS_DEFINE_ERROR(TSDB_CODE_BACKUP_IN_PROGRESS,           "A backup is already in progress")
 TAOS_DEFINE_ERROR(TSDB_CODE_BACKUP_CANCELLED,             "Backup cancelled")
 TAOS_DEFINE_ERROR(TSDB_CODE_RESTORE_CANCELLED,            "Restore cancelled")
+TAOS_DEFINE_ERROR(TSDB_CODE_BACKUP_TOPOLOGY_CHANGED,      "Cluster topology changed since previous backup")
+TAOS_DEFINE_ERROR(TSDB_CODE_BACKUP_CLUSTER_MISMATCH,      "Cluster ID differs from previous backup")
 
 // dnode
 TAOS_DEFINE_ERROR(TSDB_CODE_DNODE_OFFLINE,                "Dnode is offline")

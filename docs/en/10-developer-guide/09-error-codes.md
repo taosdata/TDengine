@@ -908,6 +908,8 @@ Below are the business error codes for each module.
 | 0x80001101 | Backup in progress | A backup is already running | Wait for the active backup to finish or cancel it before starting another |
 | 0x80001102 | Backup cancelled | The backup was cancelled | Run the backup again when ready |
 | 0x80001103 | Restore cancelled | The user declined a restore confirmation prompt | Run the restore again and confirm when prompted |
+| 0x80001104 | Backup topology changed | The cluster topology differs from the previous backup, so an incremental backup cannot continue | Create a new full cluster backup |
+| 0x80001105 | Backup cluster mismatch | The current cluster ID differs from the previous backup, so an incremental backup cannot continue | Create a new full backup on the current cluster |
 
 ## Connectors
 
