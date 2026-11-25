@@ -63,7 +63,8 @@ def ci_scaled_retry(seconds):
 
 
 def _scaled_query_times(queryTimes, err=None):
-    if not _is_asan_ci_build():
+    # Explicit single attempts let callers own the retry deadline and error policy.
+    if queryTimes == 1 or not _is_asan_ci_build():
         return queryTimes
     if err is not None and any(token in str(err) for token in _TRANSIENT_SQL_ERRORS):
         return max(queryTimes, 60)
