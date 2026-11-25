@@ -6157,6 +6157,7 @@ static int32_t updateDynQueryCtrlVtbWindowInfo(SPhysiPlanContext* pCxt, SNodeLis
 
   PLAN_ERR_RET(setMultiBlockSlotId(pCxt, pChildren, NULL, pLogicNode->node.pTargets, &pDynCtrl->vtbWindow.pTargets));
   PLAN_ERR_RET(addDataBlockSlots(pCxt, pDynCtrl->vtbWindow.pTargets, pDynCtrl->node.pOutputDataBlockDesc));
+  PLAN_ERR_RET(setConditionsSlotId(pCxt, (SLogicNode*)pLogicNode, (SPhysiNode*)pDynCtrl));
 
   return code;
 }
