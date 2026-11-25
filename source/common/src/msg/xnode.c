@@ -747,7 +747,11 @@ int32_t tDeserializeSMDropXnodeReq(void *buf, int32_t bufLen, SMDropXnodeReq *pR
   TAOS_CHECK_EXIT(tDecodeI32(&decoder, &pReq->force));
   TAOS_CHECK_EXIT(tDecodeI32(&decoder, &pReq->urlLen));
   if (pReq->urlLen > 0) {
-    TAOS_CHECK_EXIT(tDecodeBinaryAlloc(&decoder, (void **)&pReq->url, NULL));
+    uint64_t urlBinLen = 0;
+    TAOS_CHECK_EXIT(tDecodeCStrAllocChecked(&decoder, (void **)&pReq->url, &urlBinLen));
+    if (urlBinLen != (uint64_t)pReq->urlLen) {
+      TAOS_CHECK_EXIT(TSDB_CODE_INVALID_MSG);
+    }
   }
   DECODESQL();
   tEndDecode(&decoder);
