@@ -61,7 +61,12 @@ Here you can see the object hierarchy and inspect table schemas, tags, and sampl
 Explorer also provides a SQL query entry. Copy the following SQL and run it on the page to view meter data.
 
 ```sql
-SELECT tbname, ts, current, voltage, phase
+SELECT
+  tbname,
+  ts,
+  current,
+  voltage,
+  phase
 FROM test.meters
 WHERE tbname = 'd1'
 ORDER BY ts DESC

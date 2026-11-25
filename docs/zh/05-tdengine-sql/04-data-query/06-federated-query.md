@@ -131,8 +131,8 @@ PASSWORD = 'password'
 [DATABASE = database_name]
 [SCHEMA = schema_name]
 [OPTIONS (
-    'option_key' = 'option_value'
-    [, ...]
+  'option_key' = 'option_value'
+  [, ...]
 )];
 ```
 
@@ -252,118 +252,117 @@ Oracle 没有专属参数，只支持通用参数中的 `connect_timeout_ms` 与
 
 ```sql
 CREATE EXTERNAL SOURCE mysql_prod
-TYPE = 'mysql'
-HOST = 'mysql.example.com'
-PORT = 3306
-USER = 'reader'
-PASSWORD = 'your_password'
-DATABASE = power
-OPTIONS (
+  TYPE = 'mysql'
+  HOST = 'mysql.example.com'
+  PORT = 3306
+  USER = 'reader'
+  PASSWORD = 'your_password'
+  DATABASE = power
+  OPTIONS(
     'connect_timeout_ms' = '5000',
     'read_timeout_ms' = '30000'
-);
+  );
 
 CREATE EXTERNAL SOURCE pg_prod
-TYPE = 'postgresql'
-HOST = 'pg.example.com'
-PORT = 5432
-USER = 'readonly'
-PASSWORD = 'your_password'
-DATABASE = iot
-SCHEMA = public
-OPTIONS ('sslmode' = 'require');
+  TYPE = 'postgresql'
+  HOST = 'pg.example.com'
+  PORT = 5432
+  USER = 'readonly'
+  PASSWORD = 'your_password'
+  DATABASE = iot
+  SCHEMA = public
+  OPTIONS('sslmode' = 'require');
 
 CREATE EXTERNAL SOURCE IF NOT EXISTS influx_prod
-TYPE = 'influxdb'
-HOST = 'influx.example.com'
-PORT = 8086
-USER = ''
-PASSWORD = ''
-DATABASE = telegraf
-OPTIONS (
+  TYPE = 'influxdb'
+  HOST = 'influx.example.com'
+  PORT = 8086
+  USER = ''
+  PASSWORD = ''
+  DATABASE = telegraf
+  OPTIONS(
     'api_token' = 'your_token',
     'protocol' = 'flight_sql',
     'tls_enabled' = 'true'
-);
+  );
 
 -- InfluxDB 1.8：HTTP Basic 认证，显式选择 RP
 CREATE EXTERNAL SOURCE influx18_prod
-TYPE = 'influxdb'
-HOST = 'influx18.example.com'
-PORT = 8086
-USER = 'readonly'
-PASSWORD = 'your_password'
-DATABASE = telegraf
-OPTIONS (
+  TYPE = 'influxdb'
+  HOST = 'influx18.example.com'
+  PORT = 8086
+  USER = 'readonly'
+  PASSWORD = 'your_password'
+  DATABASE = telegraf
+  OPTIONS(
     'version' = '1.8',
     'protocol' = 'http',
     'retention_policy' = 'autogen'
-);
+  );
 
 -- 直接查询：表路径不包含 RP
-SELECT time, value FROM influx18_prod.telegraf.meters;
+SELECT
+  time,
+  value
+FROM influx18_prod.telegraf.meters;
 
 -- SQL Server 2022：指定默认 database 和 schema，启用 TLS 并校验服务端证书
 CREATE EXTERNAL SOURCE sqlserver_prod
-TYPE = 'sqlserver'
-HOST = 'sqlserver.example.com'
-PORT = 1433
-USER = 'td_reader'
-PASSWORD = 'your_password'
-DATABASE = Telemetry
-SCHEMA = dbo
-OPTIONS (
+  TYPE = 'sqlserver'
+  HOST = 'sqlserver.example.com'
+  PORT = 1433
+  USER = 'td_reader'
+  PASSWORD = 'your_password'
+  DATABASE = Telemetry
+  SCHEMA = dbo
+  OPTIONS(
     'tls_enabled' = 'true',
     'connect_timeout_ms' = '5000',
     'read_timeout_ms' = '60000'
-);
+  );
 
 -- 测试环境：加密但不校验证书
 CREATE EXTERNAL SOURCE sqlserver_test
-TYPE = 'sqlserver'
-HOST = '192.0.2.10'
-PORT = 1433
-USER = 'readonly'
-PASSWORD = 'your_password'
-DATABASE = Telemetry
-OPTIONS (
+  TYPE = 'sqlserver'
+  HOST = '192.0.2.10'
+  PORT = 1433
+  USER = 'readonly'
+  PASSWORD = 'your_password'
+  DATABASE = Telemetry
+  OPTIONS(
     'tls_enabled' = 'true',
     'trust_server_certificate' = 'true'
-);
+  );
 
 -- Oracle：DATABASE 为服务名，SCHEMA 为默认 schema
 CREATE EXTERNAL SOURCE oracle_prod
-TYPE = 'oracle'
-HOST = 'oracle.example.com'
-PORT = 1521
-USER = 'td_reader'
-PASSWORD = 'your_password'
-DATABASE = 'ORCLPDB1'
-SCHEMA = 'TELEMETRY'
-OPTIONS (
+  TYPE = 'oracle'
+  HOST = 'oracle.example.com'
+  PORT = 1521
+  USER = 'td_reader'
+  PASSWORD = 'your_password'
+  DATABASE = 'ORCLPDB1'
+  SCHEMA = 'TELEMETRY'
+  OPTIONS(
     'connect_timeout_ms' = '5000',
     'read_timeout_ms' = '60000'
-);
+  );
 ```
 
 以下示例说明超时、未知参数和删除参数的行为：
 
 ```sql
 -- 合法：显式设置为无限等待
-ALTER EXTERNAL SOURCE pg_prod
-SET OPTIONS('read_timeout_ms' = '0');
+ALTER EXTERNAL SOURCE pg_prod SET OPTIONS('read_timeout_ms' = '0');
 
 -- 非法：1 到 99 不在允许范围内
-ALTER EXTERNAL SOURCE pg_prod
-SET OPTIONS('read_timeout_ms' = '99');
+ALTER EXTERNAL SOURCE pg_prod SET OPTIONS('read_timeout_ms' = '99');
 
 -- 非法：未知参数会返回 TSDB_CODE_PAR_SYNTAX_ERROR
-ALTER EXTERNAL SOURCE mysql_prod
-SET OPTIONS('unknown_opt' = 'x');
+ALTER EXTERNAL SOURCE mysql_prod SET OPTIONS('unknown_opt' = 'x');
 
 -- 合法：删除已有参数
-ALTER EXTERNAL SOURCE mysql_prod
-SET OPTIONS('ssl_mode' = '');
+ALTER EXTERNAL SOURCE mysql_prod SET OPTIONS('ssl_mode' = '');
 ```
 
 ## 管理外部数据源
@@ -418,7 +417,14 @@ DESCRIBE EXTERNAL SOURCE mysql_prod;
 #### 示例
 
 ```sql
-SELECT source_name, type, host, port, database, schema, create_time
+SELECT
+  source_name,
+  type,
+  host,
+  port,
+  DATABASE,
+  schema,
+  create_time
 FROM information_schema.ins_ext_sources
 WHERE type = 'mysql';
 ```
@@ -447,9 +453,7 @@ WHERE type = 'mysql';
 #### 语法
 
 ```sql
-ALTER EXTERNAL SOURCE source_name
-SET HOST = 'hostname',
-    PORT = port_number;
+ALTER EXTERNAL SOURCE source_name SET HOST = 'hostname', PORT = port_number;
 ```
 
 #### 可修改字段
@@ -471,22 +475,16 @@ SET HOST = 'hostname',
 
 ```sql
 -- 切换到只读从库
-ALTER EXTERNAL SOURCE mysql_prod
-SET HOST = 'mysql-ro.example.com',
-    PORT = 3307;
+ALTER EXTERNAL SOURCE mysql_prod SET HOST = 'mysql-ro.example.com', PORT = 3307;
 
 -- 修改 PostgreSQL 账号和密码
-ALTER EXTERNAL SOURCE pg_prod
-SET USER = 'new_reader',
-    PASSWORD = 'new_password';
+ALTER EXTERNAL SOURCE pg_prod SET USER = 'new_reader', PASSWORD = 'new_password';
 
 -- 修改默认数据库
-ALTER EXTERNAL SOURCE mysql_prod
-SET DATABASE = power_v2;
+ALTER EXTERNAL SOURCE mysql_prod SET DATABASE = power_v2;
 
 -- 增量增加读取超时，已有参数仍保留
-ALTER EXTERNAL SOURCE mysql_prod
-SET OPTIONS('read_timeout_ms' = '3000');
+ALTER EXTERNAL SOURCE mysql_prod SET OPTIONS('read_timeout_ms' = '3000');
 ```
 
 ### 刷新外部数据源
@@ -566,16 +564,21 @@ MySQL 的索引、存储过程和触发器，PostgreSQL 的索引、序列和触
 
 ```sql
 -- 统计无时间戳主键的外部表行数
-SELECT COUNT(*) FROM pg_prod.public.device_info;
+SELECT COUNT(*)
+FROM pg_prod.public.device_info;
 
 -- 查询不含时间戳列的外部视图
-SELECT * FROM mysql_prod.v_device_dim LIMIT 100;
+SELECT *
+FROM mysql_prod.v_device_dim
+LIMIT 100;
 
 -- SQL Server 无时间戳主键的外部维度表
-SELECT * FROM sqlserver_prod.dbo.device_info;
+SELECT *
+FROM sqlserver_prod.dbo.device_info;
 
 -- Oracle 无时间戳主键的外部维度表
-SELECT * FROM oracle_prod.`TELEMETRY`.device_info;
+SELECT *
+FROM oracle_prod.`TELEMETRY`.device_info;
 ```
 
 无时间线外部表不能直接用于 `INTERVAL`、状态/会话/事件/计数窗口、`FILL`、`INTERP`、时序差分/积分类函数、ASOF JOIN 或 Window JOIN。源对象具有合适时间列时，可以先通过 `REFERENCE` 建立虚拟表时间轴，再查询虚拟表。直接外部列路径仍使用源主键时间列及其列过滤校验规则。
@@ -663,28 +666,50 @@ SELECT * FROM oracle_prod.`TELEMETRY`.device_info;
 
 ```sql
 -- 查询外部表
-SELECT * FROM mysql_prod.meters;
-SELECT * FROM mysql_prod.power.meters;
-SELECT * FROM pg_prod.devices;
-SELECT * FROM pg_prod.public.devices;
-SELECT * FROM sqlserver_prod.sensor_data;
-SELECT * FROM sqlserver_prod.telemetry.sensor_data;
-SELECT * FROM sqlserver_prod.Archive.telemetry.sensor_data;
-SELECT * FROM oracle_prod.sensor_data;
-SELECT * FROM oracle_prod.`TELEMETRY`.sensor_data;
+SELECT *
+FROM mysql_prod.meters;
+
+SELECT *
+FROM mysql_prod.power.meters;
+
+SELECT *
+FROM pg_prod.devices;
+
+SELECT *
+FROM pg_prod.public.devices;
+
+SELECT *
+FROM sqlserver_prod.sensor_data;
+
+SELECT *
+FROM sqlserver_prod.telemetry.sensor_data;
+
+SELECT *
+FROM sqlserver_prod.Archive.telemetry.sensor_data;
+
+SELECT *
+FROM oracle_prod.sensor_data;
+
+SELECT *
+FROM oracle_prod.`TELEMETRY`.sensor_data;
 
 -- 虚拟表 DDL 中引用外部列
 current FLOAT FROM mysql_prod.meters.current
 current FLOAT FROM mysql_prod.power.meters.current
 owner VARCHAR(64) FROM pg_prod.public.meter_asset.owner
+
 -- SQL Server 三段式（源需配置默认 database 和 schema）
 value FLOAT FROM sqlserver_prod.sensor_data.value
+
 -- SQL Server 四段式（源需配置默认 database，schema 由路径给出）
 value FLOAT FROM sqlserver_prod.telemetry.sensor_data.value
+
 -- SQL Server 五段式（完整命名空间）
 value FLOAT FROM sqlserver_prod.Archive.telemetry.sensor_data.value
+
 -- Oracle 三段式（源需配置默认 schema）
 value FLOAT FROM oracle_prod.sensor_data.value
+
 -- Oracle 四段式（显式 schema）
 value FLOAT FROM oracle_prod.`TELEMETRY`.sensor_data.value
 ```
@@ -697,7 +722,9 @@ value FLOAT FROM oracle_prod.`TELEMETRY`.sensor_data.value
 
 ```sql
 USE source_name;
+
 USE source_name.database;
+
 USE source_name.schema;
 ```
 
@@ -716,39 +743,66 @@ Oracle 的 `USE` 语义为：`USE source_name` 使用默认 schema；`USE source
 ```sql
 -- 使用 MySQL 默认数据库
 USE mysql_prod;
-SELECT * FROM meters LIMIT 10;
+
+SELECT *
+FROM meters
+LIMIT 10;
 
 -- 显式选择 MySQL 数据库
 USE mysql_prod.power;
-SELECT * FROM meters LIMIT 10;
+
+SELECT *
+FROM meters
+LIMIT 10;
 
 -- 显式选择 PostgreSQL schema
 USE pg_prod.public;
-SELECT * FROM devices LIMIT 10;
+
+SELECT *
+FROM devices
+LIMIT 10;
 
 -- 使用 SQL Server 默认命名空间
 USE sqlserver_prod;
-SELECT * FROM sensor_data LIMIT 10;
+
+SELECT *
+FROM sensor_data
+LIMIT 10;
 
 -- 显式切换 SQL Server database（schema 使用默认值）
 USE sqlserver_prod.Archive;
-SELECT * FROM sensor_data LIMIT 10;
+
+SELECT *
+FROM sensor_data
+LIMIT 10;
 
 -- 同时切换 SQL Server database 和 schema
 USE sqlserver_prod.Archive.telemetry;
-SELECT * FROM sensor_data LIMIT 10;
+
+SELECT *
+FROM sensor_data
+LIMIT 10;
 
 -- 使用 Oracle 默认 schema
 USE oracle_prod;
-SELECT * FROM sensor_data LIMIT 10;
+
+SELECT *
+FROM sensor_data
+LIMIT 10;
 
 -- 显式选择 Oracle schema
 USE oracle_prod.`TELEMETRY`;
-SELECT * FROM sensor_data LIMIT 10;
+
+SELECT *
+FROM sensor_data
+LIMIT 10;
 
 -- 切回本地数据库并清除外部上下文
 USE power;
-SELECT * FROM meters LIMIT 10;
+
+SELECT *
+FROM meters
+LIMIT 10;
 ```
 
 ## 查询外部数据
@@ -757,7 +811,10 @@ SELECT * FROM meters LIMIT 10;
 
 ```sql
 -- 单一外部源查询
-SELECT ts, current, voltage
+SELECT
+  ts,
+  current,
+  voltage
 FROM mysql_prod.power_meters
 WHERE meter_id = 1001
   AND ts >= '2026-04-01 00:00:00'
@@ -766,22 +823,30 @@ ORDER BY ts
 LIMIT 1000;
 
 -- 两个均含时间戳主键的外部时序表关联（ON 须包含主时间戳列）
-SELECT m.ts, m.current, a.voltage
+SELECT
+  m.ts,
+  m.current,
+  a.voltage
 FROM mysql_prod.meters m
 JOIN pg_prod.public.archive_meters a
-  ON m.ts = a.ts AND m.meter_id = a.meter_id
+  ON m.ts = a.ts
+ AND m.meter_id = a.meter_id
 WHERE m.ts >= '2026-04-01 00:00:00'
   AND m.ts < '2026-04-02 00:00:00';
 
 -- SQL Server 外部表范围查询
-SELECT ts, value
+SELECT
+  ts,
+  value
 FROM sqlserver_prod.telemetry.sensor_data
 WHERE ts >= '2026-01-01 00:00:00'
   AND ts < '2026-01-02 00:00:00'
 ORDER BY ts;
 
 -- Oracle 外部表范围查询
-SELECT ts, value
+SELECT
+  ts,
+  value
 FROM oracle_prod.`TELEMETRY`.sensor_data
 WHERE ts >= '2026-01-01 00:00:00'
   AND ts < '2026-01-02 00:00:00'
@@ -792,9 +857,10 @@ ORDER BY ts;
 
 ```sql
 -- InfluxDB 外部表窗口聚合（按 Tag 组合分组）
-SELECT _wstart AS ts,
-       location,
-       AVG(temperature) AS avg_temp
+SELECT
+  _wstart AS ts,
+  location,
+  AVG(temperature) AS avg_temp
 FROM influx_prod.telegraf.sensor_readings
 WHERE ts >= '2026-04-01 00:00:00'
   AND ts < '2026-04-02 00:00:00'
@@ -803,9 +869,10 @@ INTERVAL(10m)
 ORDER BY ts;
 
 -- 外部时序表分组统计
-SELECT location,
-       COUNT(*) AS point_cnt,
-       AVG(temperature) AS avg_temperature
+SELECT
+  location,
+  COUNT(*) AS point_cnt,
+  AVG(temperature) AS avg_temperature
 FROM influx_prod.telegraf.sensor_readings
 WHERE ts >= '2026-04-01 00:00:00'
   AND ts < '2026-04-02 00:00:00'
@@ -813,12 +880,18 @@ GROUP BY location
 ORDER BY point_cnt DESC;
 
 -- 本地库与外部归档库 UNION ALL 统一分析
-SELECT ts, meter_id, current
+SELECT
+  ts,
+  meter_id,
+  current
 FROM power.meters
 WHERE ts >= '2026-03-01 00:00:00'
   AND ts < '2026-03-15 00:00:00'
 UNION ALL
-SELECT ts, meter_id, current
+SELECT
+  ts,
+  meter_id,
+  current
 FROM mysql_prod.power_archive
 WHERE ts >= '2026-03-01 00:00:00'
   AND ts < '2026-03-15 00:00:00'
@@ -876,8 +949,7 @@ MySQL、PostgreSQL、SQL Server 和 Oracle 外部表不支持 `SELECT TAGS ...`�
 创建虚拟普通表时，外部列引用语法如下：
 
 ```sql
-CREATE VTABLE [IF NOT EXISTS] [db_name.]vtb_name
-    (create_definition [, create_definition] ...)
+CREATE VTABLE [IF NOT EXISTS] [db_name.]vtb_name (create_definition [, create_definition] ...)
 
 create_definition:
     ts_col_name TIMESTAMP
@@ -894,17 +966,16 @@ column_reference:
 创建虚拟子表时，可在列引用中使用相同的外部路径：
 
 ```sql
-CREATE VTABLE [IF NOT EXISTS] [db_name.]vtb_name
-    (create_definition [, create_definition] ...)
-    USING [db_name.]stb_name
-    [(tag_name [, tag_name] ...)]
-    TAGS (tag_value [, tag_value] ...)
+CREATE VTABLE [IF NOT EXISTS] [db_name.]vtb_name (create_definition [, create_definition] ...)
+  USING [db_name.]stb_name
+  [(tag_name [, tag_name] ...)]
+  TAGS (tag_value [, tag_value] ...)
 
 create_definition:
-    [stb_col_name FROM] column_reference
+  [stb_col_name FROM] column_reference
 
 tag_value:
-    const_value | table_name.tag_name
+  const_value | table_name.tag_name
 ```
 
 ### InfluxDB SERIES 列引用
@@ -913,7 +984,7 @@ tag_value:
 
 ```sql
 SERIES series_alias AS source_name.database_name.measurement_name
-    (tag_name = 'tag_value' [, tag_name = 'tag_value'] ...)
+  (tag_name = 'tag_value' [, tag_name = 'tag_value'] ...)
 ```
 
 该语法具有以下约束：
@@ -927,33 +998,52 @@ SERIES series_alias AS source_name.database_name.measurement_name
 
 ```sql
 CREATE VTABLE v_a1 (
-  ts TIMESTAMP,
+  ts    TIMESTAMP,
   value DOUBLE FROM s1.value
 )
-SERIES s1 AS influx_source.metrics.meters (device = 'd1');
+  SERIES s1 AS influx_source.metrics.meters(device = 'd1');
 ```
 
 对于上文的 `influx18_prod`，RP 已由外部源配置为 `autogen`，`SERIES` 目标仍写为 `influx18_prod.telegraf.meters`。假设 `meters` 仅包含 `device` 一个 Tag，且 `value` 为浮点 Field，以下示例同时创建虚拟普通表、虚拟超级表和虚拟子表：
 
 ```sql
-CREATE DATABASE IF NOT EXISTS influx18_demo PRECISION 'ns';
+CREATE DATABASE IF NOT EXISTS influx18_demo
+  PRECISION 'ns';
+
 USE influx18_demo;
 
 CREATE VTABLE v_influx18 (
-  ts TIMESTAMP,
+  ts    TIMESTAMP,
   value DOUBLE FROM s1.value
 )
-SERIES s1 AS influx18_prod.telegraf.meters (device = 'd1');
+  SERIES s1 AS influx18_prod.telegraf.meters(device = 'd1');
 
-CREATE STABLE vst_influx18 (ts TIMESTAMP, value DOUBLE)
-TAGS (device BINARY(32)) VIRTUAL 1;
+CREATE STABLE vst_influx18 (
+  ts    TIMESTAMP,
+  value DOUBLE
+) TAGS (
+  device BINARY(32)
+)
+  VIRTUAL 1;
 
-CREATE VTABLE vc_influx18 (value FROM s1.value)
-USING vst_influx18 TAGS ('d1')
-SERIES s1 AS influx18_prod.telegraf.meters (device = 'd1');
+CREATE VTABLE vc_influx18 (
+  value FROM s1.value
+)
+  USING vst_influx18
+  TAGS ('d1')
+  SERIES s1 AS influx18_prod.telegraf.meters(device = 'd1');
 
-SELECT ts, value FROM v_influx18 ORDER BY ts;
-SELECT ts, value FROM vst_influx18 ORDER BY ts;
+SELECT
+  ts,
+  value
+FROM v_influx18
+ORDER BY ts;
+
+SELECT
+  ts,
+  value
+FROM vst_influx18
+ORDER BY ts;
 ```
 
 本地数据库使用纳秒精度，以保留 InfluxDB 的时间精度。`device = 'd1'` 是列引用的 Series 定位条件，即使查询未写 `WHERE`，读取的数据也只来自该 Series；虚拟子表的本地 `TAGS ('d1')` 不能替代 `SERIES` 声明中的 Tag 条件。
@@ -962,16 +1052,16 @@ SELECT ts, value FROM vst_influx18 ORDER BY ts;
 
 ```sql
 CREATE VTABLE v_a2 (
-  ts TIMESTAMP,
+  ts    TIMESTAMP,
   value DOUBLE
 );
 
-ALTER VTABLE v_a2
-  ADD SERIES s1 AS influx_source.metrics.meters (device = 'd1');
+ALTER VTABLE v_a2 ADD SERIES s1 AS influx_source.metrics.meters(device = 'd1');
 
 ALTER VTABLE v_a2 ALTER COLUMN value SET s1.value;
 
 ALTER VTABLE v_a2 ALTER COLUMN value SET NULL;
+
 ALTER VTABLE v_a2 REMOVE SERIES s1;
 ```
 
@@ -982,10 +1072,9 @@ ALTER VTABLE v_a2 REMOVE SERIES s1;
 虚拟超级表语法保持不变，仅定义 schema，不包含外部列引用：
 
 ```sql
-CREATE STABLE [IF NOT EXISTS] stb_name
-    (create_definition [, create_definition] ...)
-    TAGS (create_definition [, create_definition] ...)
-    VIRTUAL 1;
+CREATE STABLE [IF NOT EXISTS] stb_name (create_definition [, create_definition] ...)
+  TAGS (create_definition [, create_definition] ...)
+  VIRTUAL 1;
 ```
 
 ### 示例
@@ -994,18 +1083,18 @@ CREATE STABLE [IF NOT EXISTS] stb_name
 
 ```sql
 CREATE EXTERNAL SOURCE meter_mysql
-TYPE = 'mysql'
-HOST = '10.0.0.1'
-PORT = 3306
-USER = 'reader'
-PASSWORD = 'your_password';
+  TYPE = 'mysql'
+  HOST = '10.0.0.1'
+  PORT = 3306
+  USER = 'reader'
+  PASSWORD = 'your_password';
 
 CREATE VTABLE v_d1001 (
-  ts TIMESTAMP,
-  current FLOAT FROM power.d1001.current,
-  voltage INT FROM power.d1001.voltage,
+  ts          TIMESTAMP,
+  current     FLOAT FROM power.d1001.current,
+  voltage     INT FROM power.d1001.voltage,
   temperature FLOAT FROM meter_mysql.asset_db.meter_samples.temperature,
-  humidity FLOAT FROM meter_mysql.asset_db.meter_samples.humidity
+  humidity    FLOAT FROM meter_mysql.asset_db.meter_samples.humidity
 );
 ```
 
@@ -1025,19 +1114,32 @@ CREATE VTABLE v_d1001 (
 含外部引用的虚拟表支持所有标准 TDengine 查询语法，包括普通查询、聚合和窗口聚合：
 
 ```sql
-SELECT ts, current, voltage, temperature
+SELECT
+  ts,
+  current,
+  voltage,
+  temperature
 FROM v_d1001
-WHERE ts >= '2026-04-01' AND ts < '2026-04-02'
+WHERE ts >= '2026-04-01'
+  AND ts < '2026-04-02'
 ORDER BY ts;
 
-SELECT COUNT(*), AVG(current), AVG(temperature)
+SELECT
+  COUNT(*),
+  AVG(current),
+  AVG(temperature)
 FROM v_d1001
-WHERE ts >= '2026-04-01' AND ts < '2026-04-02'
+WHERE ts >= '2026-04-01'
+  AND ts < '2026-04-02'
 GROUP BY humidity;
 
-SELECT _wstart, AVG(current), AVG(voltage)
+SELECT
+  _wstart,
+  AVG(current),
+  AVG(voltage)
 FROM v_d1001
-WHERE ts >= '2026-04-01' AND ts < '2026-04-02'
+WHERE ts >= '2026-04-01'
+  AND ts < '2026-04-02'
 INTERVAL(1h);
 ```
 
@@ -1049,7 +1151,10 @@ InfluxDB 1.8 的扫描节点会显示 `InfluxDB version=1.8 RP=...`。如果 RP 
 
 ```sql
 EXPLAIN
-SELECT ts, voltage, current
+SELECT
+  ts,
+  voltage,
+  current
 FROM mysql_prod.power.sensor_data
 WHERE ts >= '2024-01-01'
 ORDER BY ts
@@ -1152,15 +1257,24 @@ FederatedScan on mysql_prod.power.sensor_data
 本地库保存近期高频数据，MySQL 保存归档数据时，可以使用 `UNION ALL` 统一分析：
 
 ```sql
-SELECT ts, meter_id, current, voltage
+SELECT
+  ts,
+  meter_id,
+  current,
+  voltage
 FROM power.meters
-WHERE ts >= '2026-03-10' AND ts < '2026-04-10'
-
+WHERE ts >= '2026-03-10'
+  AND ts < '2026-04-10'
 UNION ALL
 
-SELECT ts, meter_id, current, voltage
+SELECT
+  ts,
+  meter_id,
+  current,
+  voltage
 FROM mysql_prod.power_meters
-WHERE ts >= '2026-03-10' AND ts < '2026-03-17'
+WHERE ts >= '2026-03-10'
+  AND ts < '2026-03-17'
 ORDER BY ts;
 ```
 
@@ -1169,12 +1283,14 @@ ORDER BY ts;
 无需同步数据，也可对 InfluxDB Measurement 使用 TDengine 的窗口聚合：
 
 ```sql
-SELECT _wstart AS ts,
-       AVG(temperature) AS avg_temp,
-       MAX(temperature) AS max_temp,
-       MIN(temperature) AS min_temp
+SELECT
+  _wstart AS ts,
+  AVG(temperature) AS avg_temp,
+  MAX(temperature) AS max_temp,
+  MIN(temperature) AS min_temp
 FROM influx_prod.telegraf.sensor_readings
-WHERE ts >= '2026-04-01' AND ts < '2026-04-08'
+WHERE ts >= '2026-04-01'
+  AND ts < '2026-04-08'
 INTERVAL(1h)
 ORDER BY ts;
 ```
@@ -1184,12 +1300,15 @@ ORDER BY ts;
 外部参与 `JOIN` 的表须有可映射为 `TIMESTAMP` 的主键时间列，且 `ON` 条件须包含该时间列。例如，可将 TDengine 本地时序与外部 PostgreSQL 时序归档按时间戳和设备标识关联：
 
 ```sql
-SELECT l.meter_id,
-       AVG(l.current * a.voltage) AS avg_power
+SELECT
+  l.meter_id,
+  AVG(l.current * a.voltage) AS avg_power
 FROM power.meters l
 JOIN pg_prod.public.archive_meters a
-  ON l.ts = a.ts AND l.meter_id = a.meter_id
-WHERE l.ts >= '2026-04-01' AND l.ts < '2026-04-02'
+  ON l.ts = a.ts
+ AND l.meter_id = a.meter_id
+WHERE l.ts >= '2026-04-01'
+  AND l.ts < '2026-04-02'
 GROUP BY l.meter_id
 ORDER BY avg_power DESC
 LIMIT 20;

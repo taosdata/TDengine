@@ -18,7 +18,9 @@ import covariate from '../../../assets/fc-covariate.webp';
 | `future_co_val` | 整数 | 未来协变量数据 |
 
 ```sql
-taos> select * from foo limit 8;
+taos> SELECT *
+      FROM foo
+      LIMIT 8;
            ts            |   val       | past_co_val | future_co_val |
 ======================================================================
  2020-01-01 00:00:12.681 |          13 |            1|             1 |
@@ -93,16 +95,29 @@ algo=expr1
 
 ```sql
 -- 使用 arima 算法进行预测，预测结果是 10 条记录（默认值），数据进行白噪声检查，默认置信区间 95%
-SELECT  _flow, _fhigh, _frowts, FORECAST(val, "algo=arima")
+SELECT
+  _flow,
+  _fhigh,
+  _frowts,
+  FORECAST(val, "algo=arima")
 FROM foo;
 
 -- 使用 arima 算法进行预测：输入为周期数据，每 10 个采样点是一个周期；返回置信区间 95% 的上下边界，同时忽略白噪声检查
-SELECT  _flow, _fhigh, _frowts, FORECAST(val, "algo=arima,conf=0.95,period=10,wncheck=0")
+SELECT
+  _flow,
+  _fhigh,
+  _frowts,
+  FORECAST(val, "algo=arima,conf=0.95,period=10,wncheck=0")
 FROM foo;
 ```
 
 ```sql
-taos> select _flow, _fhigh, _frowts, forecast(val) from foo;
+taos> SELECT
+        _flow,
+        _fhigh,
+        _frowts,
+        FORECAST(val)
+      FROM foo;
         _flow         |        _fhigh        |       _frowts           | forecast(val) |
 ========================================================================================
            10.5286684 |           41.8038254 | 2020-01-01 00:01:35.000 |            26 |
@@ -139,7 +154,10 @@ TDgpt 支持单变量分析预测（single-variable forecasting）。自 `v3.3.6
 
 ```sql
 -- 第一列（val）为主变量，之后的列（past_co_val）为历史协变量，调用 moirai 基础时序模型
-SELECT _frowts, forecast(val, past_co_val, 'algo=moirai') FROM foo;
+SELECT
+  _frowts,
+  FORECAST(val, past_co_val, 'algo=moirai')
+FROM foo;
 ```
 
 ### 未来协变量预测

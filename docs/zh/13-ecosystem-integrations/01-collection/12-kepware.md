@@ -220,7 +220,10 @@ CREATE DATABASE IF NOT EXISTS kepware;
 接入详情显示「已验收」表示验收通过。也可以直接在 taosExplorer 的 SQL 编辑器中检查各子表的最新接收时间：
 
 ```sql
-SELECT tbname, COUNT(*) AS rows, MAX(rts) AS latest_rts
+SELECT
+  tbname,
+  COUNT(*) AS rows,
+  MAX(rts) AS latest_rts
 FROM kepware.opc_double
 PARTITION BY tbname
 LIMIT 20;

@@ -69,7 +69,7 @@ You can also manage multi-instance quotas through License Center (ELS + CLS). Us
 Your TDengine TSDB-Enterprise deployment is now licensed. You can run the following SQL statement to view the details of your license, including expiration date:
 
 ```sql
-SHOW GRANTS\G;
+SHOW GRANTS \G;
 ```
 
 </TabItem>

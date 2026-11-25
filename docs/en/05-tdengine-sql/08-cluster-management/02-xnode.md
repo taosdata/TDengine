@@ -18,9 +18,14 @@ Xnodes are the basic execution units of the data synchronization service, respon
 **Syntax**
 
 ```sql
+CREATE XNODE 'url';
+
 CREATE XNODE 'url'
-CREATE XNODE 'url' USER name PASS 'password'
-CREATE XNODE 'url' TOKEN 'token'
+  USER name
+  PASS 'password';
+
+CREATE XNODE 'url'
+  TOKEN 'token';
 ```
 
 **Parameter Description**
@@ -35,13 +40,16 @@ While the control connection is active, a taosX instance accepts xnoded connecti
 
 ```sql
 taos> CREATE XNODE "h1:6055";
-Create OK, 0 row(s) affected (0.050798s)
+Create OK, 0 row(s) affected
 
-taos> CREATE XNODE 'x1:6055' USER root PASS 'taosdata';
-Create OK, 0 row(s) affected (0.050798s)
+taos> CREATE XNODE 'x1:6055'
+        USER root
+        PASS 'taosdata';
+Create OK, 0 row(s) affected
 
-taos> CREATE XNODE 'x2:6055' TOKEN 'C8V3o0ZVvYQ6sMEnjfixjtw0OvN9nIPFAL1HWvSKmHbQsds8vBpVbrEZn2hrzar';
-Create OK, 0 row(s) affected (0.050798s)
+taos> CREATE XNODE 'x2:6055'
+        TOKEN 'C8V3o0ZVvYQ6sMEnjfixjtw0OvN9nIPFAL1HWvSKmHbQsds8vBpVbrEZn2hrzar';
+Create OK, 0 row(s) affected
 ```
 
 ### Modify Authorization
@@ -49,8 +57,9 @@ Create OK, 0 row(s) affected (0.050798s)
 Modifying authentication will restart the daemon xnoded. This command alters the credentials used by the single `xnoded` daemon to connect to `taosd`.
 
 ```sql
-ALTER XNODE SET USER name PASS 'password'
-ALTER XNODE SET TOKEN 'token'
+ALTER XNODE SET USER name PASS 'password';
+
+ALTER XNODE SET TOKEN 'token';
 ```
 
 **Parameter Description**
@@ -61,10 +70,10 @@ ALTER XNODE SET TOKEN 'token'
 
 ```sql
 taos> ALTER XNODE SET TOKEN 'C8V3o0ZVvYQ6sMEnjfixjtw0OvN9nIPFAL1HWvSKmHbQsds8vBpVbrEZn2hrzar';
-Query OK, 0 row(s) affected (0.024293s)
+Query OK, 0 row(s) affected
 
 taos> ALTER XNODE SET USER root PASS 'taosdata';
-Query OK, 0 row(s) affected (0.025161s)
+Query OK, 0 row(s) affected
 ```
 
 ### Restart Daemon
@@ -83,7 +92,7 @@ RESTART XNODE
 
 ```sql
 taos> RESTART XNODE;
-Query OK, 0 row(s) affected (0.028153s)
+Query OK, 0 row(s) affected
 ```
 
 ### View Xnodes
@@ -97,7 +106,7 @@ SHOW XNODES [WHERE condition]
 **Example**
 
 ```sql
-taos> SHOW XNODES;
+SHOW XNODES;
 ```
 
 Output result:
@@ -106,7 +115,7 @@ Output result:
 id | url     | status | create_time                 | update_time             |
 ===============================================================================
 1  | h1:6055 | online | 2025-12-14 01:01:34.655     | 2025-12-14 01:01:34.655 |
-Query OK, 1 row(s) in set (0.005518s)
+Query OK, 1 row(s) in set
 ```
 
 ### Drain Xnode
@@ -127,7 +136,7 @@ DRAIN XNODE id
 
 ```sql
 taos> DRAIN XNODE 4;
-Query OK, 0 row(s) affected (0.014246s)
+Query OK, 0 row(s) affected
 ```
 
 ### Delete Xnode
@@ -149,10 +158,10 @@ DROP XNODE FORCE {id | 'url'}
 
 ```sql
 taos> DROP XNODE 1;
-Drop OK, 0 row(s) affected (0.038173s)
+Drop OK, 0 row(s) affected
 
 taos> DROP XNODE 'localhost:6055';
-Drop OK, 0 row(s) affected (0.038593s)
+Drop OK, 0 row(s) affected
 ```
 
 To register the taosX instance with a different TDengine cluster, you must first execute `DROP XNODE` in the original cluster to release ownership.
@@ -212,8 +221,11 @@ Syntax note: All task_options can be used simultaneously, separated by spaces, o
 **Example**
 
 ```sql
-taos> CREATE XNODE TASK "t4" FROM 'kafka://localhost:9092?topics=abc&group=abcgroup' TO 'taos+ws://localhost:6041/test' WITH parser '{"model":{"name":"cc_abc","using":"cc","tags":["g"],"columns":["ts","b"]},"mutate":[{"map":{"ts":{"cast":"ts","as":"TIMESTAMP(ms)"},"b":{"cast":"a","as":"VARCHAR"},"g":{"value":"1","as":"INT"}}}]}';
-Create OK, 0 row(s) affected (0.038959s)
+taos> CREATE XNODE TASK "t4"
+        FROM 'kafka://localhost:9092?topics=abc&group=abcgroup'
+        TO 'taos+ws://localhost:6041/test'
+        WITH parser '{"model":{"name":"cc_abc","using":"cc","tags":["g"],"columns":["ts","b"]},"mutate":[{"map":{"ts":{"cast":"ts","as":"TIMESTAMP(ms)"},"b":{"cast":"a","as":"VARCHAR"},"g":{"value":"1","as":"INT"}}}]}';
+Create OK, 0 row(s) affected
 ```
 
 #### Active-Active Tasks
@@ -305,6 +317,7 @@ CREATE XNODE TASK 'aa_power_a_b'
   FROM 'tmq+ws://root:taosdata@td1:6041/power'
   TO 'taos+ws://root:taosdata@td2:6041/power'
   WITH TYPE 'replica';
+
 START XNODE TASK 'aa_power_a_b';
 ```
 
@@ -327,7 +340,7 @@ SHOW XNODE TASKS WHERE parser != '{}' AND parser IS NOT NULL;
 **Example**
 
 ```sql
-taos> SHOW XNODE TASKS;
+SHOW XNODE TASKS;
 ```
 
 Output result:
@@ -348,7 +361,7 @@ taos> SHOW XNODE TASKS \G;
      labels: NULL
 create_time: 2026-01-13 07:56:18.076
 update_time: 2026-01-13 07:56:18.076
-Query OK, 2 row(s) in set (0.019692s)
+Query OK, 2 row(s) in set
 ```
 
 ### Start Task
@@ -419,7 +432,7 @@ Task type is immutable after creation. When modifying an active-active task's DS
 
 ```sql
 taos> ALTER XNODE TASK 3 FROM 'pulsar://zgc...' TO 'testdb' WITH xnode_id 33 via 333 reason 'zgc_test';
-Query OK, 0 row(s) affected (0.036077s)
+Query OK, 0 row(s) affected
 ```
 
 ### Delete Task
@@ -456,7 +469,7 @@ The same active-active mapping cannot be recreated until cleanup completes. Recr
 
 ```sql
 taos> DROP XNODE TASK 3;
-Drop OK, 0 row(s) affected (0.038191s)
+Drop OK, 0 row(s) affected
 ```
 
 ## Job Management
@@ -480,7 +493,7 @@ SHOW XNODE JOBS WHERE config != '{}' AND config IS NOT NULL;
 **Example**
 
 ```sql
-taos> SHOW XNODE JOBS\G;
+taos> SHOW XNODE JOBS \G;
 *************************** 1.row ***************************
        id: 1
   task_id: 3
@@ -491,7 +504,7 @@ taos> SHOW XNODE JOBS\G;
    reason: NULL
 create_time: 2025-12-14 02:52:31.281
 update_time: 2025-12-14 02:52:31.281
-Query OK, 1 row(s) in set (0.004714s)
+Query OK, 1 row(s) in set
 ```
 
 ### Manual Rebalance
@@ -508,7 +521,7 @@ Syntax note: Manual rebalance currently only supports the xnode_id parameter, wh
 
 ```sql
 taos> REBALANCE XNODE JOB 1 WITH xnode_id 1;
-Query OK, 0 row(s) affected (0.011808s)
+Query OK, 0 row(s) affected
 ```
 
 ### Automatic Rebalance
@@ -524,14 +537,14 @@ Syntax note: WHERE job_conditions is optional, used to filter job data that meet
 **Example**
 
 ```sql
-taos> REBALANCE XNODE JOBS WHERE id>1;
-Query OK, 0 row(s) affected (0.014246s)
+taos> REBALANCE XNODE JOBS WHERE id > 1;
+Query OK, 0 row(s) affected
 
-taos> REBALANCE XNODE JOBS WHERE task_id=1 and (xnode_id=3 or xnode_id=4);
-Query OK, 0 row(s) affected (0.007237s)
+taos> REBALANCE XNODE JOBS WHERE task_id = 1 AND (xnode_id = 3 OR xnode_id = 4);
+Query OK, 0 row(s) affected
 
 taos> REBALANCE XNODE JOBS;
-Query OK, 0 row(s) affected (0.023245s)
+Query OK, 0 row(s) affected
 ```
 
 ## Agent Management
@@ -557,11 +570,12 @@ agent_options:
 **Example**
 
 ```sql
-taos> create xnode agent 'a1';
-Create OK, 0 row(s) affected (0.013910s)
+taos> CREATE xnode agent 'a1';
+Create OK, 0 row(s) affected
 
-taos> create xnode agent 'a2' with status 'running';
-Create OK, 0 row(s) affected (0.013414s)
+taos> CREATE xnode agent 'a2'
+        WITH status 'running';
+Create OK, 0 row(s) affected
 ```
 
 ### Query Agent
@@ -575,7 +589,7 @@ SHOW XNODE AGENTS [WHERE condition]
 **Example**
 
 ```sql
-taos> show xnode agents\G;
+taos> SHOW xnode agents \G;
 *************************** 1.row ***************************
          id: 1
        name: a1
@@ -593,7 +607,7 @@ update_time: 2026-01-12 09:51:41.364
 ALTER XNODE AGENT {agent_id | 'name'} WITH alter_options
 
 alter_options {
-  STATUS 'status'
+    STATUS 'status'
   | NAME 'name'
 }
 ```
@@ -607,11 +621,11 @@ alter_options {
 **Example**
 
 ```sql
-taos> alter xnode agent 1 with name 'test1';
-Query OK, 0 row(s) affected (0.008387s)
+taos> ALTER xnode agent 1 WITH name 'test1';
+Query OK, 0 row(s) affected
 
-taos> alter xnode agent 'a2' with name 'test2' status 'online';
-Query OK, 0 row(s) affected (0.008685s)
+taos> ALTER xnode agent 'a2' WITH name 'test2' status 'online';
+Query OK, 0 row(s) affected
 ```
 
 ### Delete Agent
@@ -629,6 +643,6 @@ DROP XNODE AGENT {agent_id | 'name'}
 **Example**
 
 ```sql
-taos> drop xnode agent 1;
-Drop OK, 0 row(s) affected (0.012281s)
+taos> DROP xnode agent 1;
+Drop OK, 0 row(s) affected
 ```

@@ -25,6 +25,7 @@ Create a dedicated read-only account in Dameng, for example:
 
 ```sql
 CREATE USER TDSYNC IDENTIFIED BY "Sync_Passw0rd";
+
 GRANT SELECT ON SCADA.METER_READINGS TO TDSYNC;
 ```
 
@@ -184,13 +185,13 @@ A power dispatch system often stores snapshot data in Dameng every 1 or 5 minute
 
 ```sql
 CREATE TABLE SCADA.SECTION_DATA (
-    POINT_ID    VARCHAR(32),
-    POINT_NAME  VARCHAR(128),
-    STATION     VARCHAR(64),
-    SAMPLE_TIME DATETIME(3),
-    VAL         NUMBER(12, 4),
-    QUALITY     INT,
-    PRIMARY KEY (POINT_ID, SAMPLE_TIME)
+  POINT_ID   VARCHAR(32),
+  POINT_NAME VARCHAR(128),
+  STATION    VARCHAR(64),
+  SAMPLE_TIME DATETIME(3),
+  VAL NUMBER(12, 4),
+  QUALITY    INT,
+  PRIMARY KEY(POINT_ID, SAMPLE_TIME)
 );
 ```
 
@@ -199,15 +200,17 @@ The goal is to migrate the 2024 historical data into TDengine and then keep sync
 1. Create a millisecond-precision database and supertable in TDengine:
 
     ```sql
-    CREATE DATABASE scada PRECISION 'ms';
+    CREATE DATABASE scada
+      PRECISION 'ms';
+
     CREATE STABLE scada.section_data (
-        ts      TIMESTAMP,
-        val     DECIMAL(12, 4),
-        quality INT
+      ts      TIMESTAMP,
+      val     DECIMAL(12, 4),
+      quality INT
     ) TAGS (
-        point_id   VARCHAR(32),
-        point_name NCHAR(128),
-        station    NCHAR(64)
+      point_id   VARCHAR(32),
+      point_name NCHAR(128),
+      station    NCHAR(64)
     );
     ```
 
@@ -226,8 +229,14 @@ The goal is to migrate the 2024 historical data into TDengine and then keep sync
 6. Submit the task. After the migration, query the snapshot data in TDengine:
 
     ```sql
-    SELECT ts, val, quality FROM scada.section_data
-    WHERE point_id = 'P0001' AND ts >= '2024-06-01' AND ts < '2024-06-02';
+    SELECT
+      ts,
+      val,
+      quality
+    FROM scada.section_data
+    WHERE point_id = 'P0001'
+      AND ts >= '2024-06-01'
+      AND ts < '2024-06-02';
     ```
 
 `(POINT_ID, SAMPLE_TIME)` is unique in the source table. After mapping, each point has one subtable and `ts` is unique in that subtable, which satisfies [Idempotent Writes](./23-rdb-integration.md#idempotent-writes).

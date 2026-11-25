@@ -278,20 +278,24 @@ anodeAllowInternalUrl false
 
 ```sql
 SHOW ANODES;
+```
 
-taos> show anodes;
+```sql
+taos> SHOW anodes;
   id |     url          | status |       create_time       |       update_time       |
 =======================================================================================
   1  | 192.168.0.1:6035 | ready  | 2024-11-28 18:44:27.089 | 2024-11-28 18:44:27.089 |
-Query OK, 1 row(s) in set (0.037205s)
+Query OK, 1 row(s) in set
 ```
 
 #### 查看可用分析模型
 
 ```sql
 SHOW ANODES FULL;
+```
 
-taos> show anodes full;
+```sql
+taos> SHOW anodes FULL;
      id      |            type            |              algo              |
 ============================================================================
            1 | anomaly-detection          | grubbs                         |
@@ -303,7 +307,7 @@ taos> show anodes full;
            1 | forecast                   | holtwinters                    |
            1 | forecast                   | tdtsfm_1                       |
            1 | forecast                   | timemoe-fc                     |
-Query OK, 9 row(s) in set (0.028750s)
+Query OK, 9 row(s) in set
 ```
 
 列表中的算法分为异常检测与预测分析两类；具体条目以当前节点实际加载结果为准。常见内置模型如下：

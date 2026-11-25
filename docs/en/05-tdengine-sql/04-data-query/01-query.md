@@ -75,7 +75,7 @@ window_clause: {
     SESSION(ts_col, tol_val)
     | STATE_WINDOW(state_expr [, state_expr ...]) [EXTEND(extend_val)] [ZEROTH_STATE(zeroth_val [, zeroth_val ...])] [TRUE_FOR(true_for_expr)]
   | INTERVAL(interval_val [, interval_offset]) [SLIDING (sliding_val)] [WATERMARK(watermark_val)] [fill_clause]
-  | EXTERNAL_WINDOW ((subquery) window_alias) [fill_clause]
+  | EXTERNAL_WINDOW((subquery) window_alias) [fill_clause]
   | EVENT_WINDOW START WITH start_trigger_condition END WITH end_trigger_condition [TRUE_FOR(true_for_expr)]
   | COUNT_WINDOW(count_val[, sliding_val][, col_name ...])
 }
@@ -119,8 +119,8 @@ true_for_expr:
 
 true_for_arg: {
     limit_expr
-  | start(limit_expr)
-  | end(limit_expr)
+  | START(limit_expr)
+  | END(limit_expr)
 }
 
 limit_expr: {
@@ -190,17 +190,76 @@ The currently supported Hints list is as follows:
 Examples:
 
 ```sql
-SELECT /*+ BATCH_SCAN() */ a.ts FROM stable1 a, stable2 b where a.tag0 = b.tag0 and a.ts = b.ts;
-SELECT /*+ SORT_FOR_GROUP() */ count(*), c1 FROM stable1 PARTITION BY c1;
-SELECT /*+ PARTITION_FIRST() */ count(*), c1 FROM stable1 PARTITION BY c1;
-SELECT /*+ PARTITION_FIRST() */ gid, _wstart, COUNT(*) FROM meters PARTITION BY gid STATE_WINDOW(status);
-SELECT /*+ PARTITION_FIRST() */ category, _wstart, COUNT(*) FROM meters PARTITION BY category STATE_WINDOW(status);
-SELECT /*+ PARA_TABLES_SORT() */ * from stable1 order by ts;
-SELECT /*+ SMALLDATA_TS_SORT() */ * from stable1 order by ts;
-SELECT /*+ SMALLDATA_SCAN_SORT() */ * from stable1 order by ts;
-SELECT /*+ FAST_INTERVAL() */ _wstart, count(*), sum(c1) FROM stable1 WHERE ts >= '2024-01-01 00:00:00' AND ts < '2024-01-01 01:00:00' INTERVAL(10s);
-SELECT /*+ EX_INTERVAL() */ _wstart, count(*), sum(c1), avg(c2) FROM stable1 WHERE ts >= '2024-01-01 00:00:00' AND ts < '2024-01-01 01:00:00' INTERVAL(10s);
-SELECT /*+ INTERVAL_LIMIT() */ _wstart, max(c1) FROM stable1 INTERVAL(1m) LIMIT 5;
+SELECT /*+ BATCH_SCAN() */ a.ts
+FROM stable1 a, stable2 b
+WHERE a.tag0 = b.tag0
+  AND a.ts = b.ts;
+
+SELECT
+  /*+ SORT_FOR_GROUP() */ COUNT(*),
+  c1
+FROM stable1
+PARTITION BY c1;
+
+SELECT
+  /*+ PARTITION_FIRST() */ COUNT(*),
+  c1
+FROM stable1
+PARTITION BY c1;
+
+SELECT
+  /*+ PARTITION_FIRST() */ gid,
+  _wstart,
+  COUNT(*)
+FROM meters
+PARTITION BY gid
+STATE_WINDOW(status);
+
+SELECT
+  /*+ PARTITION_FIRST() */ category,
+  _wstart,
+  COUNT(*)
+FROM meters
+PARTITION BY category
+STATE_WINDOW(status);
+
+SELECT /*+ PARA_TABLES_SORT() */ *
+FROM stable1
+ORDER BY ts;
+
+SELECT /*+ SMALLDATA_TS_SORT() */ *
+FROM stable1
+ORDER BY ts;
+
+SELECT /*+ SMALLDATA_SCAN_SORT() */ *
+FROM stable1
+ORDER BY ts;
+
+SELECT
+  /*+ FAST_INTERVAL() */ _wstart,
+  COUNT(*),
+  SUM(c1)
+FROM stable1
+WHERE ts >= '2024-01-01 00:00:00'
+  AND ts < '2024-01-01 01:00:00'
+INTERVAL(10s);
+
+SELECT
+  /*+ EX_INTERVAL() */ _wstart,
+  COUNT(*),
+  SUM(c1),
+  AVG(c2)
+FROM stable1
+WHERE ts >= '2024-01-01 00:00:00'
+  AND ts < '2024-01-01 01:00:00'
+INTERVAL(10s);
+
+SELECT
+  /*+ INTERVAL_LIMIT() */ _wstart,
+  MAX(c1)
+FROM stable1
+INTERVAL(1m)
+LIMIT 5;
 ```
 
 ### NO_CONCURRENT_LAST_SCAN
@@ -214,15 +273,26 @@ causes the hint to be ignored, preserving the default behavior.
 
 ```sql
 -- Concurrent scans by default
-SELECT tbname, COUNT(*), LAST(current)
-FROM meters PARTITION BY tbname;
+SELECT
+  tbname,
+  COUNT(*),
+  LAST(current)
+FROM meters
+PARTITION BY tbname;
 
 -- Disable grouped concurrent splitting
-SELECT /*+ NO_CONCURRENT_LAST_SCAN() */ tbname, COUNT(*), LAST(current)
-FROM meters PARTITION BY tbname;
+SELECT
+  /*+ NO_CONCURRENT_LAST_SCAN() */ tbname,
+  COUNT(*),
+  LAST(current)
+FROM meters
+PARTITION BY tbname;
 
 -- Disable ungrouped concurrent splitting
-SELECT /*+ NO_CONCURRENT_LAST_SCAN() */ COUNT(*), LAST(current) FROM meters;
+SELECT
+  /*+ NO_CONCURRENT_LAST_SCAN() */ COUNT(*),
+  LAST(current)
+FROM meters;
 ```
 
 For eligible grouped queries, the planner splits cache-eligible `LAST` and
@@ -259,9 +329,13 @@ Eligibility conditions include:
 For example, this query partitions by the tag `tag0`:
 
 ```sql
-SELECT /*+ FAST_INTERVAL() */ tag0, _wstart, AVG(c1)
+SELECT
+  /*+ FAST_INTERVAL() */ tag0,
+  _wstart,
+  AVG(c1)
 FROM stable1
-WHERE ts >= '2024-01-01 00:00:00' AND ts < '2024-01-01 01:00:00'
+WHERE ts >= '2024-01-01 00:00:00'
+  AND ts < '2024-01-01 01:00:00'
 PARTITION BY tag0
 INTERVAL(10m);
 ```
@@ -285,10 +359,13 @@ Use a verbose execution plan to verify eligibility, for example:
 
 ```sql
 EXPLAIN VERBOSE TRUE
-SELECT /*+ INTERVAL_LIMIT() */ _wstart, MAX(c1)
+SELECT
+  /*+ INTERVAL_LIMIT() */ _wstart,
+  MAX(c1)
 FROM stable1
 INTERVAL(1m)
-LIMIT 5 OFFSET 20;
+LIMIT 5
+OFFSET 20;
 ```
 
 An `interval_limit=25` field on Table Scan indicates that pruning is enabled. For queries that meet both sets of conditions, combine `FAST_INTERVAL()` and `INTERVAL_LIMIT()` in one comment, such as `/*+ FAST_INTERVAL() INTERVAL_LIMIT() */`.
@@ -312,21 +389,30 @@ Query statements can specify some or all columns as the return results. Both dat
 The wildcard * can be used to refer to all columns. For basic tables and subtables, only regular columns are included in the results. For supertables, tag columns are also included.
 
 ```sql
-SELECT * FROM d1001;
+SELECT *
+FROM d1001;
 ```
 
 The wildcard supports table name prefixes, the following two SQL statements both return all columns:
 
 ```sql
-SELECT * FROM d1001;
-SELECT d1001.* FROM d1001;
+SELECT *
+FROM d1001;
+
+SELECT d1001.*
+FROM d1001;
 ```
 
 In JOIN queries, there is a difference between a prefixed *and an unprefixed*; * returns all column data from all tables (excluding tags), while a prefixed wildcard returns only the column data from that table.
 
 ```sql
-SELECT * FROM d1001, d1003 WHERE d1001.ts=d1003.ts;
-SELECT d1001.* FROM d1001,d1003 WHERE d1001.ts = d1003.ts;
+SELECT *
+FROM d1001, d1003
+WHERE d1001.ts = d1003.ts;
+
+SELECT d1001.*
+FROM d1001, d1003
+WHERE d1001.ts = d1003.ts;
 ```
 
 In the above query statements, the former returns all columns from both d1001 and d1003, while the latter only returns all columns from d1001.
@@ -339,7 +425,12 @@ The `count(*)` function only returns one column. The `first`, `last`, `last_row`
 In queries involving supertables and subtables, *tag columns* can be specified, and the values of the tag columns are returned along with the data of the regular columns.
 
 ```sql
-SELECT location, groupid, current FROM d1001 LIMIT 2;
+SELECT
+  location,
+  groupid,
+  current
+FROM d1001
+LIMIT 2;
 ```
 
 ### Aliases
@@ -384,7 +475,10 @@ SELECT TAGS tag_name [, tag_name ...] FROM stb_name
 In the `SELECT` clause, if the column names of the result set are not specified, the default column names of the result set use the expression names in the `SELECT` clause. Additionally, users can use `AS` to rename the columns in the result set. For example:
 
 ```sql
-taos> SELECT ts, ts AS primary_key_ts FROM d1001;
+SELECT
+  ts,
+  ts AS primary_key_ts
+FROM d1001;
 ```
 
 However, renaming individual columns is not supported for `first(*)`, `last(*)`, `last_row(*)`.
@@ -399,19 +493,32 @@ However, renaming individual columns is not supported for `first(*)`, `last(*)`,
 Retrieve all subtable names and related tag information from a supertable:
 
 ```sql
-SELECT TAGS TBNAME, location FROM meters;
+SELECT
+  TAGS TBNAME,
+  location
+FROM meters;
 ```
 
 It is recommended that users query the subtable tag information of supertables using the INS_TAGS system table under INFORMATION_SCHEMA, for example, to get all subtable names and tag values of the supertable meters:
 
 ```sql
-SELECT table_name, tag_name, tag_type, tag_value FROM information_schema.ins_tags WHERE stable_name='meters';
+SELECT
+  table_name,
+  tag_name,
+  tag_type,
+  tag_value
+FROM information_schema.ins_tags
+WHERE stable_name = 'meters';
 ```
 
 Count the number of subtables under a supertable:
 
 ```sql
-SELECT COUNT(*) FROM (SELECT DISTINCT TBNAME FROM meters);
+SELECT COUNT(*)
+FROM (
+  SELECT DISTINCT TBNAME
+  FROM meters
+);
 ```
 
 Both queries only support adding filtering conditions for tags (TAGS) in the WHERE clause.
@@ -433,7 +540,10 @@ These three pseudocolumns can only be used in window slicing queries within time
 In TDengine, the first column of all tables must be of timestamp type and serve as the primary key. The pseudocolumns `_rowts` and `_c0` both represent the value of this column. Compared to the actual primary key timestamp column, using pseudo-columns is more flexible and semantically standard. For example, they can be used with functions like max and min.
 
 ```sql
-select _rowts, max(current) from meters;
+SELECT
+  _rowts,
+  MAX(current)
+FROM meters;
 ```
 
 **\_IROWTS**
@@ -441,14 +551,26 @@ select _rowts, max(current) from meters;
 The `_irowts` pseudocolumn can only be used with the interp function to return the timestamp column corresponding to the interpolation result of the interp function.
 
 ```sql
-select _irowts, interp(current) from meters range('2020-01-01 10:00:00', '2020-01-01 10:30:00') every(1s) fill(linear);
+SELECT
+  _irowts,
+  INTERP(current)
+FROM meters
+RANGE ('2020-01-01 10:00:00', '2020-01-01 10:30:00')
+EVERY(1s)
+FILL(linear);
 ```
 
 **\_IROWTS\_ORIGIN**
 The `_irowts_origin` pseudocolumn can only be used with the interp function, and is only applicable for FILL types PREV/NEXT/NEAR. It returns the timestamp column of the original data used by the interp function. If there are no values within the range, it returns NULL.
 
 ```sql
-select _irowts_origin, interp(current) from meters range('2020-01-01 10:00:00', '2020-01-01 10:30:00') every(1s) fill(NEXT);
+SELECT
+  _irowts_origin,
+  INTERP(current)
+FROM meters
+RANGE ('2020-01-01 10:00:00', '2020-01-01 10:30:00')
+EVERY(1s)
+FILL(NEXT);
 ```
 
 ## Query Objects
@@ -475,8 +597,8 @@ For more join types and usage, see [TDengine Join Queries](./05-join.md).
 
 ```sql
 TEXT(column_list)
-    VALUES (val [, val] ...) [(val [, val] ...)] ...
-    [alias]
+  VALUES (val [, val] ...) [(val [, val] ...)] ...
+  [alias]
 ```
 
 ### Description
@@ -502,43 +624,47 @@ TEXT(column_list)
 
 ```sql
 -- Basic query: inline smart-meter readings
-SELECT ts, current, voltage
-FROM TEXT(ts TIMESTAMP, current FLOAT, voltage INT)
-    VALUES ('2024-01-01 08:00:00', 10.2, 220)
-           ('2024-01-01 09:00:00', 10.8, 221) t1;
+SELECT
+  ts,
+  current,
+  voltage
+FROM TEXT(ts TIMESTAMP, current FLOAT, voltage INT) VALUES ('2024-01-01 08:00:00', 10.2, 220) ('2024-01-01 09:00:00', 10.8, 221) t1;
 
 -- Filter: find readings with voltage above threshold
-SELECT ts, current, voltage
-FROM TEXT(ts TIMESTAMP, current FLOAT, voltage INT)
-    VALUES ('2024-01-01 08:00:00', 10.2, 220)
-           ('2024-01-01 09:00:00', 10.8, 221)
-           ('2024-01-01 10:00:00', 11.5, 219) t2
+SELECT
+  ts,
+  current,
+  voltage
+FROM TEXT(ts TIMESTAMP, current FLOAT, voltage INT) VALUES ('2024-01-01 08:00:00', 10.2, 220) ('2024-01-01 09:00:00', 10.8, 221) ('2024-01-01 10:00:00', 11.5, 219) t2
 WHERE voltage > 220;
 
 -- Subquery: secondary filter on inline data
-SELECT * FROM (
-    SELECT ts, current, voltage
-    FROM TEXT(ts TIMESTAMP, current FLOAT, voltage INT)
-        VALUES ('2024-01-01 08:00:00', 10.2, 220)
-               ('2024-01-01 09:00:00', 10.8, 221) readings
-) sub WHERE current > 10.5;
+SELECT *
+FROM (
+  SELECT
+    ts,
+    current,
+    voltage
+  FROM TEXT(ts TIMESTAMP, current FLOAT, voltage INT) VALUES ('2024-01-01 08:00:00', 10.2, 220) ('2024-01-01 09:00:00', 10.8, 221) readings
+) sub
+WHERE current > 10.5;
 
 -- Window aggregation: average current and peak voltage per 6-hour window
-SELECT _wstart, AVG(current), MAX(voltage)
-FROM TEXT(ts TIMESTAMP, current FLOAT, voltage INT)
-    VALUES ('2024-01-01 08:00:00', 10.2, 220)
-           ('2024-01-01 09:00:00', 10.8, 221)
-           ('2024-01-01 10:00:00', 11.5, 219)
-           ('2024-01-01 14:00:00', 9.8,  218) t3
+SELECT
+  _wstart,
+  AVG(current),
+  MAX(voltage)
+FROM TEXT(ts TIMESTAMP, current FLOAT, voltage INT) VALUES ('2024-01-01 08:00:00', 10.2, 220) ('2024-01-01 09:00:00', 10.8, 221) ('2024-01-01 10:00:00', 11.5, 219) ('2024-01-01 14:00:00', 9.8, 218) t3
 INTERVAL(6h);
 
 -- JOIN: correlate inline calibration data with real meter table
-SELECT m.ts, m.current, cal.factor
+SELECT
+  m.ts,
+  m.current,
+  cal.factor
 FROM meters m
-JOIN TEXT(ts TIMESTAMP, factor FLOAT)
-    VALUES ('2024-01-01 08:00:00', 1.02)
-           ('2024-01-01 09:00:00', 0.98) cal
-ON m.ts = cal.ts;
+JOIN TEXT(ts TIMESTAMP, factor FLOAT) VALUES ('2024-01-01 08:00:00', 1.02) ('2024-01-01 09:00:00', 0.98) cal
+  ON m.ts = cal.ts;
 ```
 
 ## FILE CSV Data Source
@@ -549,7 +675,7 @@ ON m.ts = cal.ts;
 
 ```sql
 FILE('file_path', 'column_list' [, header=true] [, delimiter='char'])
-    [alias]
+  [alias]
 ```
 
 ### Description
@@ -574,40 +700,55 @@ Same as `TEXT`: maximum 10,000 rows, 4,096 columns, 1,000,000 cells, and 8 MB pe
 
 ```sql
 -- Read all four columns from a meter readings CSV
-SELECT ts, current, voltage, phase
-FROM FILE('./meter_readings.csv',
-          'ts TIMESTAMP, current FLOAT, voltage INT, phase FLOAT') f;
+SELECT
+  ts,
+  current,
+  voltage,
+  phase
+FROM FILE('./meter_readings.csv', 'ts TIMESTAMP, current FLOAT, voltage INT, phase FLOAT') f;
 
 -- CSV has 4 columns; read only current and voltage
-SELECT ts, current
-FROM FILE('./meter_readings.csv',
-          'ts TIMESTAMP, current FLOAT, voltage INT, phase FLOAT') f;
+SELECT
+  ts,
+  current
+FROM FILE('./meter_readings.csv', 'ts TIMESTAMP, current FLOAT, voltage INT, phase FLOAT') f;
 
 -- CSV has a header row; skip it with header=true
-SELECT ts, current, voltage, phase
-FROM FILE('./meter_readings_with_header.csv',
-          'ts TIMESTAMP, current FLOAT, voltage INT, phase FLOAT',
-          header=true) f;
+SELECT
+  ts,
+  current,
+  voltage,
+  phase
+FROM FILE('./meter_readings_with_header.csv', 'ts TIMESTAMP, current FLOAT, voltage INT, phase FLOAT', header = true) f;
 
 -- Subquery: filter and aggregate CSV data
-SELECT AVG(current), MAX(voltage)
+SELECT
+  AVG(current),
+  MAX(voltage)
 FROM (
-    SELECT ts, current, voltage
-    FROM FILE('./meter_readings.csv',
-              'ts TIMESTAMP, current FLOAT, voltage INT, phase FLOAT') src
-) sub WHERE voltage BETWEEN 200 AND 250;
+  SELECT
+    ts,
+    current,
+    voltage
+  FROM FILE('./meter_readings.csv', 'ts TIMESTAMP, current FLOAT, voltage INT, phase FLOAT') src
+) sub
+WHERE voltage BETWEEN 200 AND 250;
 
 -- JOIN: correlate CSV calibration data with real meter table
-SELECT m.ts, m.current, cal.factor
+SELECT
+  m.ts,
+  m.current,
+  cal.factor
 FROM meters m
-JOIN FILE('./calibration.csv',
-          'ts TIMESTAMP, factor FLOAT') cal
-ON m.ts = cal.ts;
+JOIN FILE('./calibration.csv', 'ts TIMESTAMP, factor FLOAT') cal
+  ON m.ts = cal.ts;
 
 -- Window aggregation: per-hour statistics from CSV
-SELECT _wstart, AVG(current), MAX(voltage)
-FROM FILE('./meter_readings.csv',
-          'ts TIMESTAMP, current FLOAT, voltage INT, phase FLOAT') f
+SELECT
+  _wstart,
+  AVG(current),
+  MAX(voltage)
+FROM FILE('./meter_readings.csv', 'ts TIMESTAMP, current FLOAT, voltage INT, phase FLOAT') f
 INTERVAL(1h);
 ```
 
@@ -618,7 +759,7 @@ INTERVAL(1h);
 ### Syntax
 
 ```sql
-TABLE(table_function_call)
+TABLE (table_function_call)
 ```
 
 ### Description
@@ -694,7 +835,8 @@ The FILL_VALS parameter specifies the filling values. The number and format are 
 Example:
 
 ```sql
-taos> select * from fill_example;
+taos> SELECT *
+      FROM fill_example;
            ts            |   c1        |
 ========================================
  2026-01-01 00:00:00.000 | 2026        |
@@ -704,8 +846,15 @@ taos> select * from fill_example;
  2026-01-01 00:00:04.000 | NULL        |
  2026-01-01 00:00:05.000 | NULL        |
  2026-01-01 00:00:06.000 | 6202        |
+Query OK, 7 row(s) in set
 
-taos> select _irowts as ts, interp(c1) from fill_example range('2026-01-01 00:00:01', '2026-01-01 00:00:05') every(1s) fill(near);
+taos> SELECT
+        _irowts AS ts,
+        INTERP(c1)
+      FROM fill_example
+      RANGE ('2026-01-01 00:00:01', '2026-01-01 00:00:05')
+      EVERY(1s)
+      FILL(near);
            ts            |   c1        |
 ========================================
  2026-01-01 00:00:01.000 | 2026        |
@@ -713,8 +862,15 @@ taos> select _irowts as ts, interp(c1) from fill_example range('2026-01-01 00:00
  2026-01-01 00:00:03.000 | 2026        |
  2026-01-01 00:00:04.000 | 6202        |
  2026-01-01 00:00:05.000 | 6202        |
+Query OK, 5 row(s) in set
 
-taos> select _irowts as ts, interp(c1) from fill_example range('2026-01-01 00:00:01', '2026-01-01 00:00:05') every(1s) fill(near) surround(2s, 0);
+taos> SELECT
+        _irowts AS ts,
+        INTERP(c1)
+      FROM fill_example
+      RANGE ('2026-01-01 00:00:01', '2026-01-01 00:00:05')
+      EVERY(1s)
+      FILL(near) SURROUND(2s, 0);
            ts            |   c1        |
 ========================================
  2026-01-01 00:00:01.000 | 2026        |
@@ -722,8 +878,17 @@ taos> select _irowts as ts, interp(c1) from fill_example range('2026-01-01 00:00
  2026-01-01 00:00:03.000 | 0           |
  2026-01-01 00:00:04.000 | 6202        |
  2026-01-01 00:00:05.000 | 6202        |
+Query OK, 5 row(s) in set
 
-taos> select _wstart, _wend, avg(c1), last(c1) from fill_example where ts between "2026-01-01 00:00:00" and "2026-01-01 00:00:06" interval(1s) fill(prev) surround(5s, 0, 0);
+taos> SELECT
+        _wstart,
+        _wend,
+        AVG(c1),
+        LAST(c1)
+      FROM fill_example
+      WHERE ts BETWEEN "2026-01-01 00:00:00" AND "2026-01-01 00:00:06"
+      INTERVAL(1s)
+      FILL(prev) SURROUND(5s, 0, 0);
          _wstart         |          _wend          |  avg(c1)   |  last(c1)   |
 ===============================================================================
  2026-01-01 00:00:00.000 | 2026-01-01 00:00:01.000 |       2026 |        2026 |
@@ -733,8 +898,17 @@ taos> select _wstart, _wend, avg(c1), last(c1) from fill_example where ts betwee
  2026-01-01 00:00:04.000 | 2026-01-01 00:00:05.000 |       2026 |        2026 |
  2026-01-01 00:00:05.000 | 2026-01-01 00:00:06.000 |       2026 |        2026 |
  2026-01-01 00:00:06.000 | 2026-01-01 00:00:07.000 |       6202 |        6202 |
+Query OK, 7 row(s) in set
 
-taos> select _wstart, _wend, avg(c1), last(c1) from fill_example where ts between "2026-01-01 00:00:00" and "2026-01-01 00:00:06" interval(1s) fill(next) surround(2s, 0, 0);
+taos> SELECT
+        _wstart,
+        _wend,
+        AVG(c1),
+        LAST(c1)
+      FROM fill_example
+      WHERE ts BETWEEN "2026-01-01 00:00:00" AND "2026-01-01 00:00:06"
+      INTERVAL(1s)
+      FILL(next) SURROUND(2s, 0, 0);
          _wstart         |          _wend          |  avg(c1)   |  last(c1)   |
 ===============================================================================
  2026-01-01 00:00:00.000 | 2026-01-01 00:00:01.000 |       2026 |        2026 |
@@ -744,6 +918,7 @@ taos> select _wstart, _wend, avg(c1), last(c1) from fill_example where ts betwee
  2026-01-01 00:00:04.000 | 2026-01-01 00:00:05.000 |       6202 |        6202 |
  2026-01-01 00:00:05.000 | 2026-01-01 00:00:06.000 |       6202 |        6202 |
  2026-01-01 00:00:06.000 | 2026-01-01 00:00:07.000 |       6202 |        6202 |
+Query OK, 7 row(s) in set
 ```
 
 ## GROUP BY
@@ -793,22 +968,33 @@ The following examples show valid usage in aggregate, non-aggregate, and implici
 
 ```sql
 -- Aggregate query: the ordinary column location is a grouping key
-SELECT location, COUNT(*)
+SELECT
+  location,
+  COUNT(*)
 FROM meters
 GROUP BY location
-HAVING location = 'California.SanFrancisco' AND COUNT(*) > 10;
+HAVING location = 'California.SanFrancisco'
+  AND COUNT(*) > 10;
 
 -- Non-aggregate PARTITION BY: current need not be a partition key
-SELECT ts, current
+SELECT
+  ts,
+  current
 FROM meters
 PARTITION BY location
 HAVING current > 10;
 
 -- Implicit partition using only an ordinary column expression
-SELECT ts, current FROM meters HAVING current > 10;
+SELECT
+  ts,
+  current
+FROM meters
+HAVING current > 10;
 
 -- Implicit partition using only aggregate expressions
-SELECT COUNT(*), AVG(current)
+SELECT
+  COUNT(*),
+  AVG(current)
 FROM meters
 HAVING COUNT(*) > 100;
 ```
@@ -831,7 +1017,7 @@ A window function call has the following basic form:
 
 ```sql
 function_name ( [ arguments ] ) OVER (
-    [ PARTITION BY expr [, ...] ]
+  [ PARTITION BY expr [, ...] ]
     [ ORDER BY expr [ ASC | DESC ] [, ...] ]
     [ { ROWS | RANGE } frame_extent ]
 )
@@ -861,27 +1047,35 @@ Common patterns:
 
 ```sql
 -- Last 1 hour
-SELECT * FROM meters
+SELECT *
+FROM meters
 WHERE ts >= NOW() - 1h;
 
 -- Today
-SELECT * FROM meters
-WHERE ts >= TODAY() AND ts < TODAY() + 1d;
+SELECT *
+FROM meters
+WHERE ts >= TODAY()
+  AND ts < TODAY() + 1d;
 
 -- Yesterday
-SELECT * FROM meters
-WHERE ts >= TODAY() - 1d AND ts < TODAY();
+SELECT *
+FROM meters
+WHERE ts >= TODAY() - 1d
+  AND ts < TODAY();
 
 -- Since the start of this week
-SELECT * FROM meters
+SELECT *
+FROM meters
 WHERE ts >= TIMETRUNCATE(NOW(), 1w);
 
 -- Since the start of this month
-SELECT * FROM meters
+SELECT *
+FROM meters
 WHERE ts >= TIMETRUNCATE(NOW(), 1n);
 
 -- Fixed time range
-SELECT * FROM meters
+SELECT *
+FROM meters
 WHERE ts >= '2024-01-01 00:00:00'
   AND ts < '2024-02-01 00:00:00';
 ```
@@ -904,6 +1098,7 @@ SELECT DATABASE();
 
 ```sql
 SELECT CLIENT_VERSION();
+
 SELECT SERVER_VERSION();
 ```
 
@@ -961,9 +1156,18 @@ The length of the regular match string cannot exceed 128 bytes. You can set and 
 
 ### Syntax
 
-```text
-CASE value WHEN compare_value THEN result [WHEN compare_value THEN result ...] [ELSE result] END
-CASE WHEN condition THEN result [WHEN condition THEN result ...] [ELSE result] END
+```sql
+CASE value
+  WHEN compare_value THEN result
+  [WHEN compare_value THEN result ...]
+  [ELSE result]
+END
+
+CASE
+  WHEN condition THEN result
+  [WHEN condition THEN result ...]
+  [ELSE result]
+END
 ```
 
 ### Description
@@ -981,13 +1185,25 @@ The return type of the CASE expression is the result type of the first WHEN THEN
 A device has three status codes, displaying its status, the statement is as follows:
 
 ```sql
-SELECT CASE dev_status WHEN 1 THEN 'Running' WHEN 2 THEN 'Warning' WHEN 3 THEN 'Downtime' ELSE 'Unknown' END FROM dev_table;
+SELECT
+  CASE dev_status
+    WHEN 1 THEN 'Running'
+    WHEN 2 THEN 'Warning'
+    WHEN 3 THEN 'Downtime'
+    ELSE 'Unknown'
+  END
+FROM dev_table;
 ```
 
 Calculate the average voltage of smart meters, and if the voltage is less than 200 or greater than 250, it is considered a statistical error, and the value is corrected to 220, the statement is as follows:
 
 ```sql
-SELECT AVG(CASE WHEN voltage < 200 or voltage > 250 THEN 220 ELSE voltage END) FROM meters;
+SELECT AVG(
+  CASE
+    WHEN voltage < 200 OR voltage > 250 THEN 220
+    ELSE voltage
+  END)
+FROM meters;
 ```
 
 ## JOIN Clause
@@ -1010,16 +1226,21 @@ LEFT JOIN operation between supertables:
 
 ```sql
 SELECT *
-FROM temp_stable t1 LEFT JOIN temp_stable t2
-ON t1.ts = t2.ts AND t1.deviceid = t2.deviceid AND t1.status=0;
+FROM temp_stable t1
+LEFT JOIN temp_stable t2
+       ON t1.ts = t2.ts
+      AND t1.deviceid = t2.deviceid
+      AND t1.status = 0;
 ```
 
 LEFT ASOF JOIN operation between a subtable and a supertable:
 
 ```sql
 SELECT *
-FROM temp_ctable t1 LEFT ASOF JOIN temp_stable t2
-ON t1.ts = t2.ts AND t1.deviceid = t2.deviceid;
+FROM temp_ctable t1
+LEFT ASOF JOIN temp_stable t2
+            ON t1.ts = t2.ts
+           AND t1.deviceid = t2.deviceid;
 ```
 
 For more information on JOIN operations, see the page [TDengine Join Queries](./05-join.md)
@@ -1038,9 +1259,11 @@ If the input contains no `TIMESTAMP` column, the query enters no-timeline mode. 
 
 ```sql
 -- Subquery does not output the system time column ts; event_time becomes the degraded timeline
-SELECT diff(val)
+SELECT DIFF(val)
 FROM (
-  SELECT event_time, val
+  SELECT
+    event_time,
+    val
   FROM sensor_data
   ORDER BY event_time
 );
@@ -1050,7 +1273,9 @@ FROM (
 -- With no TIMESTAMP column in the result, adjacent differences follow the subquery ORDER BY
 SELECT DIFF(avg_v)
 FROM (
-  SELECT groupId, AVG(voltage) AS avg_v
+  SELECT
+    groupId,
+    AVG(voltage) AS avg_v
   FROM meters
   GROUP BY groupId
   ORDER BY groupId
@@ -1095,8 +1320,20 @@ Since version 3.4.0.0, TDengine TSDB supports non-correlated scalar subqueries i
 Examples of non-correlated scalar subqueries appearing in SELECT and WHERE clauses are as follows:
 
 ```sql
-SELECT col1, (SELECT sum(col1) FROM tb1) FROM tb2;
-SELECT col1 FROM tb2 WHERE col1 >= (SELECT avg(col1) FROM tb1);
+SELECT
+  col1,
+(
+  SELECT SUM(col1)
+  FROM tb1
+  )
+FROM tb2;
+
+SELECT col1
+FROM tb2
+WHERE col1 >= (
+  SELECT AVG(col1)
+  FROM tb1
+);
 ```
 
 ## Correlated Scalar Subqueries
@@ -1104,8 +1341,16 @@ SELECT col1 FROM tb2 WHERE col1 >= (SELECT avg(col1) FROM tb1);
 A correlated scalar subquery refers to a column in an outer query block. The inner query runs when the containing expression is evaluated, using the values at that position. For example:
 
 ```sql
-SELECT r.ts, r.c1,
-       (SELECT h.c1 FROM history h WHERE h.device_id = r.device_id ORDER BY h.ts DESC LIMIT 1)
+SELECT
+  r.ts,
+  r.c1,
+(
+  SELECT h.c1
+  FROM history h
+  WHERE h.device_id = r.device_id
+  ORDER BY h.ts DESC
+  LIMIT 1
+  )
 FROM readings r;
 ```
 
@@ -1123,14 +1368,37 @@ Starting from version 3.4.1.0, TDengine TSDB supports the following subquery exp
 
 ```sql
 -- Basic usage of the WHERE clause
-select col1 from tb2 where col1 in (select col1 from tb1 where f2 > 10);
+SELECT col1
+FROM tb2
+WHERE col1 IN (
+  SELECT col1
+  FROM tb1
+  WHERE f2 > 10
+);
 
 -- Used in JOIN association conditions
-select a.ts from tb1 a 
-join tb2 b on a.ts = b.ts and a.f1 in (select col1 from tb1 union select col1 from tb2);
+SELECT a.ts
+FROM tb1 a
+JOIN tb2 b
+  ON a.ts = b.ts
+ AND a.f1 IN (
+    SELECT col1
+  FROM tb1
+  UNION
+  SELECT col1
+  FROM tb2
+);
 
 -- Used in CASE expressions
-select case when f1 in (select f2 from tb1) then 0 else 1 end from tb1;
+SELECT
+  CASE
+    WHEN f1 IN (
+      SELECT f2
+      FROM tb1
+    ) THEN 0
+    ELSE 1
+  END
+FROM tb1;
 ```
 
 ### NOT IN subquery
@@ -1139,15 +1407,36 @@ The combination of the NOT IN operator and subqueries is used to determine wheth
 
 ```sql
 -- Basic usage of the WHERE clause
-select col1 from tb2 where col1 not in (select col1 from tb1 where f2 < 100);
+SELECT col1
+FROM tb2
+WHERE col1 NOT IN (
+  SELECT col1
+  FROM tb1
+  WHERE f2 < 100
+);
 
 -- Usage in the HAVING clause
-select avg(f1) from tb1 
-group by f1 having f1 not in (select f1 from tb2 interval(10s));
+SELECT AVG(f1)
+FROM tb1
+GROUP BY f1
+HAVING f1 NOT IN (
+  SELECT f1
+  FROM tb2
+  INTERVAL(10s)
+);
 
 -- Usage in JOIN conditions
-select a.ts, b.val from tb1 a
-join tb2 b on a.ts = b.ts and a.f2 not in (select col2 from tb3 where ts > '2026-01-01');
+SELECT
+  a.ts,
+  b.val
+FROM tb1 a
+JOIN tb2 b
+  ON a.ts = b.ts
+ AND a.f2 NOT IN (
+    SELECT col2
+  FROM tb3
+  WHERE ts > '2026-01-01'
+);
 ```
 
 ### ALL Subquery
@@ -1156,14 +1445,34 @@ When using the ALL operator in combination with a subquery, ALL must be combined
 
 ```sql
 -- Greater than all results of the subquery
-select col1, col2 from tb1 where col1 > ALL (select f1 from tb2 where f2 > 10);
+SELECT
+  col1,
+  col2
+FROM tb1
+WHERE col1 > ALL (
+  SELECT f1
+  FROM tb2
+  WHERE f2 > 10
+);
 
 -- Not equal to all results of the subquery
-select col1 from tb1 where col1 <> ALL (select avg(f1) from tb2 group by f2);
+SELECT col1
+FROM tb1
+WHERE col1 <> ALL (
+  SELECT AVG(f1)
+  FROM tb2
+  GROUP BY f2
+);
 
 -- Used in the HAVING clause
-select sum(f1) from tb1 
-group by f1 having max(f2) <= ALL (select col3 from tb3 interval(1s));
+SELECT SUM(f1)
+FROM tb1
+GROUP BY f1
+HAVING MAX(f2) <= ALL (
+  SELECT col3
+  FROM tb3
+  INTERVAL(1s)
+);
 ```
 
 ### ANY Subquery
@@ -1172,15 +1481,42 @@ The combination of the ANY operator and subqueries requires ANY to be used in co
 
 ```sql
 -- Less than any result of a subquery
-select a.ts, b.val from tb1 a 
-join tb2 b on a.ts = b.ts and a.f1 < ANY (select col1 from tb3 union select col1 from tb4);
+SELECT
+  a.ts,
+  b.val
+FROM tb1 a
+JOIN tb2 b
+  ON a.ts = b.ts
+ AND a.f1 < ANY(
+    SELECT col1
+  FROM tb3
+  UNION
+  SELECT col1
+  FROM tb4
+);
 
 -- Used in INSERT INTO SELECT
-insert into tb6 (ts, val) 
-select ts, f1 from tb1 where f1 = ANY (select col1 from tb7 where ts > '2026-01-01 00:00:00');
+INSERT INTO tb6(ts, val)
+SELECT
+  ts,
+  f1
+FROM tb1
+WHERE f1 = ANY(
+  SELECT col1
+  FROM tb7
+  WHERE ts > '2026-01-01 00:00:00'
+);
 
 -- Used in a CASE expression
-select case when f2 >= ANY (select f3 from tb8) then 'high' else 'low' end from tb1;
+SELECT
+  CASE
+    WHEN f2 >= ANY(
+      SELECT f3
+      FROM tb8
+    ) THEN 'high'
+    ELSE 'low'
+  END
+FROM tb1;
 ```
 
 ### SOME Subquery
@@ -1189,14 +1525,32 @@ The combination of the SOME operator and subqueries, where SOME is fully equival
 
 ```sql
 -- Used in HAVING clause
-select avg(f1) from tb1 
-group by f1 having sum(f2) >= SOME (select f3 from tb2 interval(1s));
+SELECT AVG(f1)
+FROM tb1
+GROUP BY f1
+HAVING SUM(f2) >= SOME(
+  SELECT f3
+  FROM tb2
+  INTERVAL(1s)
+);
 
 -- Used in SELECT list
-select col1, f2 > SOME (select f1 from tb3) as flag from tb1;
+SELECT
+  col1,
+f2 > SOME(
+  SELECT f1
+  FROM tb3
+  ) AS flag
+FROM tb1;
 
 -- Basic usage in WHERE clause
-select col1 from tb1 where f3 = SOME (select col2 from tb4 where f4 < 50);
+SELECT col1
+FROM tb1
+WHERE f3 = SOME(
+  SELECT col2
+  FROM tb4
+  WHERE f4 < 50
+);
 ```
 
 ### EXISTS Subquery
@@ -1205,16 +1559,41 @@ The combination of the EXISTS operator and subqueries: EXISTS only determines wh
 
 ```sql
 -- Used in CASE expression
-select case when exists (select 1 from tb2 where tb2.col1 = 1) 
-           then 'exist' else 'not exist' end as status from tb1;
+SELECT
+  CASE
+    WHEN EXISTS (
+      SELECT 1
+      FROM tb2
+      WHERE tb2.col1 = 1
+    ) THEN 'exist'
+    ELSE 'not exist'
+  END AS status
+FROM tb1;
 
 -- Used in combination with UNION
-select col1 from tb1 where exists (select 1 from tb4) 
-union 
-select col2 from tb2 where exists (select 1 from tb5 where f2 > 0);
+SELECT col1
+FROM tb1
+WHERE EXISTS (
+  SELECT 1
+  FROM tb4
+)
+UNION
+SELECT col2
+FROM tb2
+WHERE EXISTS (
+  SELECT 1
+  FROM tb5
+  WHERE f2 > 0
+);
 
 -- Basic usage in WHERE clause
-select col1 from tb1 where exists (select * from tb3 where f3 = 1);
+SELECT col1
+FROM tb1
+WHERE EXISTS (
+  SELECT *
+  FROM tb3
+  WHERE f3 = 1
+);
 ```
 
 ### NOT EXISTS Subquery
@@ -1223,21 +1602,39 @@ The combination of the NOT EXISTS operator and subqueries, where NOT EXISTS is l
 
 ```sql
 -- Used in the SELECT list
-select col1, not exists (select f1 from tb3 where f1 = 1) as flag from tb1;
+SELECT
+  col1,
+NOT EXISTS (
+  SELECT f1
+  FROM tb3
+  WHERE f1 = 1
+  ) AS flag
+FROM tb1;
 
 -- Used in the WHERE clause
-select col1 from tb1 
-where not exists (select 1 from tb2 where f2 between 10 and 20);
+SELECT col1
+FROM tb1
+WHERE NOT EXISTS (
+  SELECT 1
+  FROM tb2
+  WHERE f2 BETWEEN 10 AND 20
+);
 
 -- Used in the JOIN condition
-select a.ts from tb1 a
-left join tb2 b on a.ts = b.ts 
-where not exists (select 1 from tb3 where tb3.col1 = 1);
+SELECT a.ts
+FROM tb1 a
+LEFT JOIN tb2 b
+       ON a.ts = b.ts
+WHERE NOT EXISTS (
+  SELECT 1
+  FROM tb3
+  WHERE tb3.col1 = 1
+);
 ```
 
 ## UNION Clause
 
-```text title="Syntax"
+```sql title="Syntax"
 SELECT ...
 UNION [ALL] SELECT ...
 [UNION [ALL] SELECT ...]
@@ -1255,25 +1652,42 @@ After combination, the column names of the result set are determined by those de
 For the following example, the table tb1 is created with the statement:
 
 ```sql
-CREATE TABLE tb1 (ts TIMESTAMP, col1 INT, col2 FLOAT, col3 BINARY(50));
+CREATE TABLE tb1 (
+  ts   TIMESTAMP,
+  col1 INT,
+  col2 FLOAT,
+  col3 BINARY(50)
+);
 ```
 
 Query all records from tb1 for the past hour:
 
 ```sql
-SELECT * FROM tb1 WHERE ts >= NOW - 1h;
+SELECT *
+FROM tb1
+WHERE ts >= NOW - 1h;
 ```
 
 Query the table tb1 for the time range from 2018-06-01 08:00:00.000 to 2018-06-02 08:00:00.000, and records where the string of col3 ends with 'nny', results ordered by timestamp in descending order:
 
 ```sql
-SELECT * FROM tb1 WHERE ts > '2018-06-01 08:00:00.000' AND ts <= '2018-06-02 08:00:00.000' AND col3 LIKE '%nny' ORDER BY ts DESC;
+SELECT *
+FROM tb1
+WHERE ts > '2018-06-01 08:00:00.000'
+  AND ts <= '2018-06-02 08:00:00.000'
+  AND col3 LIKE '%nny'
+ORDER BY ts DESC;
 ```
 
 Query the sum of col1 and col2, named as complex, where the time is greater than 2018-06-01 08:00:00.000, col2 is greater than 1.2, and only output the first 10 records starting from the 5th:
 
 ```sql
-SELECT (col1 + col2) AS 'complex' FROM tb1 WHERE ts > '2018-06-01 08:00:00.000' AND col2 > 1.2 LIMIT 10 OFFSET 5;
+SELECT (col1 + col2) AS 'complex'
+FROM tb1
+WHERE ts > '2018-06-01 08:00:00.000'
+  AND col2 > 1.2
+LIMIT 10
+OFFSET 5;
 ```
 
 Query records from the past 10 minutes where col2 is greater than 3.14, and output the results to the file `/home/testoutput.csv`:

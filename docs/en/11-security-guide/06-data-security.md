@@ -52,9 +52,16 @@ taosk -c /etc/taos \
 ```
 
 ```sql
-CREATE DATABASE secure_db ENCRYPT_ALGORITHM 'SM4-CBC';
-SELECT * FROM information_schema.ins_encrypt_status;
-SELECT name, `encrypt_algorithm` FROM information_schema.ins_databases;
+CREATE DATABASE secure_db
+  ENCRYPT_ALGORITHM 'SM4-CBC';
+
+SELECT *
+FROM information_schema.ins_encrypt_status;
+
+SELECT
+  name,
+  `encrypt_algorithm`
+FROM information_schema.ins_databases;
 ```
 
 Starting with `v3.4.0.0`, audit databases require `ENCRYPT_ALGORITHM` to be non-`none`; see [Audit and Compliance · Create an Audit Database](./07-audit-and-compliance.md#create-audit-database).
@@ -144,8 +151,10 @@ The edit flow loads `CFG_KEY` from the data directory, decrypts to a temporary f
 
 ```sql
 SHOW ENCRYPT_STATUS;
+
 -- Equivalent
-SELECT * FROM information_schema.ins_encrypt_status;
+SELECT *
+FROM information_schema.ins_encrypt_status;
 ```
 
 Example output:
@@ -182,6 +191,7 @@ systemctl start taosd
 
 ```sql
 ALTER SYSTEM SET SVR_KEY 'new_svr_key';
+
 ALTER SYSTEM SET DB_KEY 'new_db_key';
 ```
 
@@ -348,6 +358,7 @@ View built-in and custom algorithms:
 
 ```sql
 SHOW ENCRYPT_ALGORITHMS;
+
 -- More complete fields are available in information_schema.ins_encrypt_algorithms
 ```
 
@@ -376,15 +387,18 @@ id | algorithm_id | name    | desc                     | type                   
 View one class of algorithm:
 
 ```sql
-SELECT algorithm_id, name, `desc` FROM information_schema.ins_encrypt_algorithms
+SELECT
+  algorithm_id,
+  name,
+  `desc`
+FROM information_schema.ins_encrypt_algorithms
 WHERE type = 'Digests';
 ```
 
 Add a custom algorithm:
 
 ```sql
-CREATE ENCRYPT_ALGR 'vigenere' ALGR_NAME 'vigenere' DESC 'my custom algr'
-  ALGR_TYPE 'Symmetric_Ciphers_CBC_mode' OSSL_ALGR_NAME 'vigenere';
+CREATE ENCRYPT_ALGR 'vigenere' ALGR_NAME 'vigenere' DESC 'my custom algr' ALGR_TYPE 'Symmetric_Ciphers_CBC_mode' OSSL_ALGR_NAME 'vigenere';
 ```
 
 `ALGR_TYPE` is `Symmetric_Ciphers_CBC_mode`, `Digests`, or `Asymmetric_Ciphers`. Only a custom algorithm of the symmetric type can be used in `ENCRYPT_ALGORITHM` when creating a database.
@@ -426,16 +440,25 @@ database_option: {
 - Before creating an encrypted database, generate `DATA_KEY` with `taosk --encrypt-data`.
 
 ```sql
-CREATE DATABASE db1 ENCRYPT_ALGORITHM 'SM4-CBC';
-CREATE DATABASE db2 ENCRYPT_ALGORITHM 'AES-128-CBC';
-CREATE DATABASE db3 ENCRYPT_ALGORITHM 'AES-256-CBC';
-CREATE DATABASE db4;   -- Not encrypted
+CREATE DATABASE db1
+  ENCRYPT_ALGORITHM 'SM4-CBC';
+
+CREATE DATABASE db2
+  ENCRYPT_ALGORITHM 'AES-128-CBC';
+
+CREATE DATABASE db3
+  ENCRYPT_ALGORITHM 'AES-256-CBC';
+
+CREATE DATABASE db4;  -- Not encrypted
 ```
 
 View database-level configuration:
 
 ```sql
-SELECT name, `encrypt_algorithm` FROM information_schema.ins_databases;
+SELECT
+  name,
+  `encrypt_algorithm`
+FROM information_schema.ins_databases;
 ```
 
 Displayed values can vary by version, such as `SM4-CBC` or `sm4`; use the actual query result.
@@ -472,13 +495,21 @@ Examples:
 
 ```sql
 -- Database level
-CREATE DATABASE db SECURE_DELETE 1;
+CREATE DATABASE db
+  SECURE_DELETE 1;
+
 ALTER DATABASE db SECURE_DELETE 1;
 
 -- Supertable / table level, OR-combined with database and statement levels
 CREATE STABLE meters (
-  ts TIMESTAMP, current FLOAT, voltage INT
-) TAGS (location VARCHAR(64)) SECURE_DELETE 1;
+  ts      TIMESTAMP,
+  current FLOAT,
+  voltage INT
+) TAGS (
+  location VARCHAR(64)
+)
+  SECURE_DELETE 1;
+
 ALTER STABLE meters SECURE_DELETE 1;
 
 -- Statement level

@@ -52,11 +52,11 @@ radius=expr
 
 ```sql
 -- 计算 col1 和 col2 两列数据的动态规整结果，不设置邻域矩阵搜索半径
-SELECT dtw(col1, col2)
+SELECT DTW(col1, col2)
 FROM foo;
 
 -- 计算相似度时指定数值邻域矩阵搜索半径为 2
-SELECT dtw(col1, col2, 'radius=2')
+SELECT DTW(col1, col2, 'radius=2')
 FROM foo;
 ```
 
@@ -81,7 +81,10 @@ radius=expr
 #### 示例
 
 ```sql
-taos> select col1, col2 from foo;
+taos> SELECT
+        col1,
+        col2
+      FROM foo;
        col1     |      col2    |
 ================================
               1 |            1 |
@@ -91,8 +94,8 @@ taos> select col1, col2 from foo;
             1.1 |          1.6 |
 
 
-taos> select dtw_path(col1, col2,'radius=1') res from foo;
-
+taos> SELECT DTW_PATH(col1, col2, 'radius=1') res
+      FROM foo;
                res              |
 =================================
  (0, 0)                         |
@@ -142,10 +145,10 @@ lag_end=expr
 
 ```sql
 -- 计算 col1 和 col2 两列数据在不同滞后步数下的相关性
-SELECT tlcc(col1, col2)
+SELECT TLCC(col1, col2)
 FROM foo;
 
 -- 计算 col1 和 col2 两列数据在滞后步数 -10 到 10 下的相关性
-SELECT tlcc(col1, col2, 'lag_start=-10, lag_end=10')
+SELECT TLCC(col1, col2, 'lag_start=-10, lag_end=10')
 FROM foo;
 ```

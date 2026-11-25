@@ -36,7 +36,8 @@ SHOW SNODES;
 For more detailed information, use:
 
 ```sql
-SELECT * FROM information_schema.`ins_snodes`;
+SELECT *
+FROM information_schema.`ins_snodes`;
 ```
 
 ### Delete an Snode

@@ -19,9 +19,9 @@ description: 写入数据的详细语法
 
 ```sql
 INSERT INTO
-    tb_name
-        [USING stb_name [(tag1_name, ...)] TAGS (tag1_value, ...) [TTL value] [COMMENT 'string']]
-        [(field1_name, ...)]
+  tb_name
+    [USING stb_name [(tag1_name, ...)] TAGS (tag1_value, ...) [TTL value] [COMMENT 'string']]
+    [(field1_name, ...)]
         VALUES (field1_value, ...) [(field1_value2, ...) ...] | FILE csv_file_path
     [tb2_name
         [USING stb_name [(tag1_name, ...)] TAGS (tag1_value, ...) [TTL value] [COMMENT 'string']]
@@ -36,7 +36,7 @@ INSERT INTO tb_name [(field1_name, ...)] subquery
 
 ```sql
 INSERT INTO
-    stb1_name [(field1_name, ...)]
+  stb1_name [(field1_name, ...)]
         VALUES (field1_value, ...) [(field1_value2, ...) ...] | FILE csv_file_path
     [stb2_name [(field1_name, ...)]
         VALUES (field1_value, ...) [(field1_value2, ...) ...] | FILE csv_file_path
@@ -67,7 +67,8 @@ INSERT INTO stb_name (tbname, field1_name, ...) subquery
 指定已经创建好的子表或普通表，用 `VALUES` 写入一行：
 
 ```sql
-INSERT INTO d1001 VALUES (NOW, 10.2, 219, 0.32);
+INSERT INTO d1001
+VALUES (NOW, 10.2, 219, 0.32);
 ```
 
 值的顺序与表的列顺序一致。同一条语句里多个 `NOW` 会得到同一个时间戳，见 [时间戳](#时间戳)。
@@ -77,9 +78,13 @@ INSERT INTO d1001 VALUES (NOW, 10.2, 219, 0.32);
 多行可以省略逗号，也可以按标准 SQL 用逗号分隔：
 
 ```sql
-INSERT INTO d1001 VALUES ('2021-07-13 14:06:32.272', 10.2, 219, 0.32) (1626164208000, 10.15, 217, 0.33);
+INSERT INTO d1001
+VALUES ('2021-07-13 14:06:32.272', 10.2, 219, 0.32)
+       (1626164208000, 10.15, 217, 0.33);
 
-INSERT INTO d1001 VALUES ('2021-07-13 14:06:32.272', 10.2, 219, 0.32), (1626164208000, 10.15, 217, 0.33);
+INSERT INTO d1001
+VALUES ('2021-07-13 14:06:32.272', 10.2, 219, 0.32),
+       (1626164208000, 10.15, 217, 0.33);
 ```
 
 一次插入多行时，不要把每行的时间戳都写成 `NOW`，可以写成 `NOW`、`NOW + 1s` 这样的不同值。
@@ -89,7 +94,8 @@ INSERT INTO d1001 VALUES ('2021-07-13 14:06:32.272', 10.2, 219, 0.32), (16261642
 无论一行还是多行，都可以只给部分列赋值。语句里没有出现的列自动填 `NULL`。主键时间戳必须出现，且不能为 `NULL`。
 
 ```sql
-INSERT INTO d1001 (ts, current, phase) VALUES ('2021-07-13 14:06:33.196', 10.27, 0.31);
+INSERT INTO d1001 (ts, current, phase)
+VALUES ('2021-07-13 14:06:33.196', 10.27, 0.31);
 ```
 
 ### 向多个表插入记录
@@ -97,8 +103,11 @@ INSERT INTO d1001 (ts, current, phase) VALUES ('2021-07-13 14:06:33.196', 10.27,
 一条语句可以向多张表写入，每张表都可以指定列。表与表之间的逗号可以省略：
 
 ```sql
-INSERT INTO d1001 VALUES ('2021-07-13 14:06:34.630', 10.2, 219, 0.32) ('2021-07-13 14:06:35.779', 10.15, 217, 0.33)
-            d1002 (ts, current, phase) VALUES ('2021-07-13 14:06:34.255', 10.27, 0.31);
+INSERT INTO d1001
+VALUES ('2021-07-13 14:06:34.630', 10.2, 219, 0.32)
+       ('2021-07-13 14:06:35.779', 10.15, 217, 0.33)
+d1002(ts, current, phase)
+VALUES ('2021-07-13 14:06:34.255', 10.27, 0.31);
 ```
 
 这些子表可能分布在不同 vnode 上。某个 vnode 写入失败时，其他 vnode 已经写入的数据不会回滚，见 [部分写入成功](#部分写入成功)。
@@ -113,33 +122,55 @@ import Link from "@docusaurus/Link";
 写入时如果表可能还不存在，用 `USING` 按超级表自动建表。表已经存在时，不会建新表，也不会修改标签值。自动建表必须给出超级表名和 `TAGS`。
 
 ```sql
-INSERT INTO d21001 USING meters TAGS ('California.SanFrancisco', 2) VALUES ('2021-07-13 14:06:32.272', 10.2, 219, 0.32);
+INSERT INTO d21001
+USING meters
+TAGS ('California.SanFrancisco', 2)
+VALUES ('2021-07-13 14:06:32.272', 10.2, 219, 0.32);
 ```
 
 可以只指定部分标签列，其余标签列为 `NULL`：
 
 ```sql
-INSERT INTO d21005 USING meters (groupId) TAGS (2) VALUES ('2021-07-13 14:06:33.196', 10.15, 217, 0.33);
+INSERT INTO d21005
+USING meters (groupId)
+TAGS (2)
+VALUES ('2021-07-13 14:06:33.196', 10.15, 217, 0.33);
 ```
 
 新建子表时可以同时指定生命周期和注释：
 
 ```sql
-INSERT INTO d21004 USING meters TAGS ('California.SanFrancisco', 2) TTL 30 COMMENT 'from gateway' VALUES (NOW, 10.2, 219, 0.32);
+INSERT INTO d21004
+USING meters
+TAGS ('California.SanFrancisco', 2) TTL 30 COMMENT 'from gateway'
+VALUES (NOW, 10.2, 219, 0.32);
 ```
 
 一条语句里可以给多张表自动建表：
 
 ```sql
-INSERT INTO d21001 USING meters TAGS ('California.SanFrancisco', 2) VALUES ('2021-07-13 14:06:34.630', 10.2, 219, 0.32) ('2021-07-13 14:06:35.779', 10.15, 217, 0.33)
-            d21002 USING meters (groupId) TAGS (2) VALUES ('2021-07-13 14:06:34.255', 10.15, 217, 0.33)
-            d21003 USING meters (groupId) TAGS (2) (ts, current, phase) VALUES ('2021-07-13 14:06:34.255', 10.27, 0.31);
+INSERT INTO d21001
+USING meters
+TAGS ('California.SanFrancisco', 2)
+VALUES ('2021-07-13 14:06:34.630', 10.2, 219, 0.32)
+       ('2021-07-13 14:06:35.779', 10.15, 217, 0.33)
+d21002
+USING meters (groupId)
+TAGS (2)
+VALUES ('2021-07-13 14:06:34.255', 10.15, 217, 0.33)
+d21003
+USING meters (groupId)
+TAGS (2) (ts, current, phase)
+VALUES ('2021-07-13 14:06:34.255', 10.27, 0.31);
 ```
 
 语句会先完整解析再执行。下面这条语句不会出现「数据写失败但表已经建成」的结果：
 
 ```sql
-INSERT INTO d1001 USING meters TAGS ('Beijing.Chaoyang', 2) VALUES ('a');
+INSERT INTO d1001
+USING meters
+TAGS ('Beijing.Chaoyang', 2)
+VALUES ('a');
 ```
 
 ## 从文件写入
@@ -166,14 +197,20 @@ INSERT INTO d1001 FILE '/tmp/csvfile.csv';
 ### 自动建表并写入
 
 ```sql
-INSERT INTO d21001 USING meters TAGS ('California.SanFrancisco', 2) FILE '/tmp/csvfile.csv';
+INSERT INTO d21001
+USING meters
+TAGS ('California.SanFrancisco', 2) FILE '/tmp/csvfile.csv';
 ```
 
 一条语句里可以给多张表从各自的文件写入。表已经存在时，不会修改标签值：
 
 ```sql
-INSERT INTO d21001 USING meters TAGS ('California.SanFrancisco', 2) FILE '/tmp/csvfile_21001.csv'
-            d21002 USING meters (groupId) TAGS (2) FILE '/tmp/csvfile_21002.csv';
+INSERT INTO d21001
+USING meters
+TAGS ('California.SanFrancisco', 2) FILE '/tmp/csvfile_21001.csv'
+d21002
+USING meters (groupId)
+TAGS (2) FILE '/tmp/csvfile_21002.csv';
 ```
 
 ## 从查询结果写入
@@ -183,48 +220,85 @@ INSERT INTO d21001 USING meters TAGS ('California.SanFrancisco', 2) FILE '/tmp/c
 整表复制时，查询结果的列顺序与目标表一致：
 
 ```sql
-INSERT INTO d1002 SELECT * FROM d1001;
+INSERT INTO d1002
+SELECT *
+FROM d1001;
 ```
 
 整个查询也可以放进括号。这里的括号表示子查询，不是列清单：
 
 ```sql
-INSERT INTO d1002 (SELECT * FROM d1001);
+INSERT INTO d1002 (
+  SELECT *
+  FROM d1001
+);
 ```
 
 指定目标列时，括号里是列名，查询结果按这个顺序写入。没有出现的列填 `NULL`，时间戳不能省略：
 
 ```sql
 INSERT INTO d1002 (ts, current)
-SELECT ts, current FROM d1001 WHERE current > 10;
+SELECT
+  ts,
+  current
+FROM d1001
+WHERE current > 10;
 
 INSERT INTO d1002 (ts, phase, current)
-SELECT ts, phase, current + 1 FROM d1001;
+SELECT
+  ts,
+  phase,
+  current + 1
+FROM d1001;
 ```
 
 查询也可以是窗口聚合。下面的语句把 `d1001` 按分钟降采样，每分钟写入一行平均电流、最大电压和记录数。`_wstart` 是窗口起始时间，写入目标表的时间戳列：
 
 ```sql
-CREATE TABLE d1001_stat (ts TIMESTAMP, avg_current DOUBLE, max_voltage INT, cnt BIGINT);
+CREATE TABLE d1001_stat (
+  ts          TIMESTAMP,
+  avg_current DOUBLE,
+  max_voltage INT,
+  cnt         BIGINT
+);
 
 INSERT INTO d1001_stat
-SELECT _wstart, avg(current), max(voltage), count(*)
+SELECT
+  _wstart,
+  AVG(current),
+  MAX(voltage),
+  COUNT(*)
 FROM d1001
-WHERE ts >= '2021-07-13 14:00:00' AND ts < '2021-07-13 15:00:00'
+WHERE ts >= '2021-07-13 14:00:00'
+  AND ts < '2021-07-13 15:00:00'
 INTERVAL(1m);
 ```
 
 列按位置对齐，不按列名对齐。查询结果的列数或类型无法写入目标列时，语句失败。例如 `tb1` 的列是 `ts`、`f1`、`f2`，`tba` 的列是 `ts`、`f1`、`f2`、`f3`，且对应列的类型不同：
 
 ```sql
-CREATE TABLE tb1 (ts TIMESTAMP, f1 INT, f2 BINARY(200));
-CREATE TABLE tba (ts TIMESTAMP, f1 BINARY(10), f2 BIGINT, f3 DOUBLE);
+CREATE TABLE tb1 (
+  ts TIMESTAMP,
+  f1 INT,
+  f2 BINARY(200)
+);
+
+CREATE TABLE tba (
+  ts TIMESTAMP,
+  f1 BINARY(10),
+  f2 BIGINT,
+  f3 DOUBLE
+);
 
 -- 列数和类型都对不上
-INSERT INTO tba SELECT * FROM tb1;
+INSERT INTO tba
+SELECT *
+FROM tb1;
 
 -- 查询的 ts、f1、f2 分别写入 ts、f2、f1，f3 为 NULL
-INSERT INTO tba (ts, f2, f1) SELECT * FROM tb1;
+INSERT INTO tba(ts, f2, f1)
+SELECT *
+FROM tb1;
 ```
 
 向超级表写入查询结果时，列清单的第一列必须是 `tbname`，见 [向超级表写入](#向超级表写入)。
@@ -237,16 +311,23 @@ INSERT INTO tba (ts, f2, f1) SELECT * FROM tb1;
 
 ```sql
 INSERT INTO meters (tbname, location, groupId, ts, current, voltage, phase)
-            VALUES ('d31001', 'California.SanFrancisco', 2, '2021-07-13 14:06:34.630', 10.2, 219, 0.32)
-            ('d31001', 'California.SanFrancisco', 2, '2021-07-13 14:06:35.779', 10.15, 217, 0.33)
-            ('d31002', NULL, 2, '2021-07-13 14:06:34.255', 10.15, 217, 0.33);
+VALUES ('d31001', 'California.SanFrancisco', 2, '2021-07-13 14:06:34.630', 10.2, 219, 0.32)
+       ('d31001', 'California.SanFrancisco', 2, '2021-07-13 14:06:35.779', 10.15, 217, 0.33)
+       ('d31002', NULL, 2, '2021-07-13 14:06:34.255', 10.15, 217, 0.33);
 ```
 
 从查询结果写入时同样要列出列，并且 `tbname` 是列清单的第一列，也是查询结果的第一列。下面的语句在 `d31004` 不存在时自动建表：
 
 ```sql
 INSERT INTO meters (tbname, location, groupId, ts, current, voltage, phase)
-SELECT 'd31004', 'California.SanFrancisco', 2, ts, current, voltage, phase
+SELECT
+  'd31004',
+  'California.SanFrancisco',
+  2,
+  ts,
+  current,
+  voltage,
+  phase
 FROM d1001;
 ```
 
@@ -254,7 +335,14 @@ FROM d1001;
 
 ```sql
 INSERT INTO meters (tbname, location, groupId, ts, current, voltage, phase)
-SELECT concat('copy_', tbname), 'California.SanFrancisco', 2, ts, current, voltage, phase
+SELECT
+  CONCAT('copy_', tbname),
+  'California.SanFrancisco',
+  2,
+  ts,
+  current,
+  voltage,
+  phase
 FROM d1001
 PARTITION BY tbname;
 ```
@@ -262,13 +350,28 @@ PARTITION BY tbname;
 分组和窗口可以一起用。下面的语句把 `meters` 的每张子表按分钟降采样，写入超级表 `meters_1m`：子表名由原子表名加 `_1m` 生成，标签沿用原子表的标签。`PARTITION BY` 中列出 `location` 和 `groupId`，查询结果才能输出这两个标签列：
 
 ```sql
-CREATE STABLE meters_1m (ts TIMESTAMP, avg_current DOUBLE, max_voltage INT, cnt BIGINT)
-    TAGS (location BINARY(64), groupId INT);
+CREATE STABLE meters_1m (
+  ts          TIMESTAMP,
+  avg_current DOUBLE,
+  max_voltage INT,
+  cnt         BIGINT
+) TAGS (
+  location BINARY(64),
+  groupId  INT
+);
 
 INSERT INTO meters_1m (tbname, location, groupId, ts, avg_current, max_voltage, cnt)
-SELECT concat(tbname, '_1m'), location, groupId, _wstart, avg(current), max(voltage), count(*)
+SELECT
+  CONCAT(tbname, '_1m'),
+  location,
+  groupId,
+  _wstart,
+  AVG(current),
+  MAX(voltage),
+  COUNT(*)
 FROM meters
-WHERE ts >= '2021-07-13 14:00:00' AND ts < '2021-07-13 15:00:00'
+WHERE ts >= '2021-07-13 14:00:00'
+  AND ts < '2021-07-13 15:00:00'
 PARTITION BY tbname, location, groupId
 INTERVAL(1m);
 ```
@@ -280,8 +383,7 @@ INTERVAL(1m);
 ```
 
 ```sql
-INSERT INTO meters (tbname, location, groupId, ts, current, voltage, phase)
-            FILE '/tmp/csvfile_stb.csv';
+INSERT INTO meters (tbname, location, groupId, ts, current, voltage, phase) FILE '/tmp/csvfile_stb.csv';
 ```
 
 ## 写入行为

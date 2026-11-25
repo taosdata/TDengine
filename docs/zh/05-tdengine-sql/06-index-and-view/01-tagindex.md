@@ -29,7 +29,8 @@ DROP INDEX [IF EXISTS] index_name;
 可通过系统表查询已有索引（也可加过滤条件缩小范围）：
 
 ```sql
-SELECT * FROM information_schema.ins_indexes;
+SELECT *
+FROM information_schema.ins_indexes;
 ```
 
 系统表列说明参见 [INS_INDEXES](../09-system-info/01-meta.md#ins_indexes)。

@@ -52,19 +52,27 @@ JOIN 的连接条件须能作为布尔表达式求值。以下类型不能作为
 保留原有按时刻关联的写法，并在时间相等的行中比较电压：
 
 ```sql
-SELECT a.ts, a.voltage, b.voltage
-FROM d1001 a JOIN d1002 b
-ON a.ts = b.ts AND a.voltage > b.voltage;
+SELECT
+  a.ts,
+  a.voltage,
+  b.voltage
+FROM d1001 a
+JOIN d1002 b
+  ON a.ts = b.ts
+ AND a.voltage > b.voltage;
 ```
 
 附加条件可以包含 `OR`。以下左连接保留 `d1001` 的全部行；只有满足时间及日期条件时，才填充右侧列：
 
 ```sql
-SELECT a.ts, b.ts, b.voltage
-FROM d1001 a LEFT JOIN d1002 b
-ON a.ts = b.ts
-AND (a.ts < '2025-01-01 00:00:00.000'
-     OR a.ts >= '2025-01-02 00:00:00.000');
+SELECT
+  a.ts,
+  b.ts,
+  b.voltage
+FROM d1001 a
+LEFT JOIN d1002 b
+       ON a.ts = b.ts
+      AND (a.ts < '2025-01-01 00:00:00.000' OR a.ts >= '2025-01-02 00:00:00.000');
 ```
 
 **按时间粒度关联**
@@ -72,10 +80,15 @@ AND (a.ts < '2025-01-01 00:00:00.000'
 将时间戳截断到秒后匹配，返回同一秒内且左侧电流大于右侧电流的全部行对：
 
 ```sql
-SELECT a.ts, b.ts, a.current, b.current
-FROM d1001 a JOIN d1002 b
-ON TIMETRUNCATE(a.ts, 1s) = TIMETRUNCATE(b.ts, 1s)
-AND a.current > b.current;
+SELECT
+  a.ts,
+  b.ts,
+  a.current,
+  b.current
+FROM d1001 a
+JOIN d1002 b
+  ON TIMETRUNCATE(a.ts, 1s) = TIMETRUNCATE(b.ts, 1s)
+ AND a.current > b.current;
 ```
 
 **按业务列与表达式关联**
@@ -83,29 +96,46 @@ AND a.current > b.current;
 自 `v3.4.3.0` 起，可以只按业务列匹配，不必附加主时间戳等值条件。以下查询关联同组、同地点的记录，再比较电压；匹配行不必来自同一时刻：
 
 ```sql
-SELECT a.ts, b.ts, a.voltage, b.voltage
-FROM meters a JOIN meters b
-ON a.groupId = b.groupId AND a.location = b.location
-AND a.voltage > b.voltage;
+SELECT
+  a.ts,
+  b.ts,
+  a.voltage,
+  b.voltage
+FROM meters a
+JOIN meters b
+  ON a.groupId = b.groupId
+ AND a.location = b.location
+ AND a.voltage > b.voltage;
 ```
 
 表达式可以分别引用各自输入，也可以在完整条件中同时引用两侧：
 
 ```sql
 -- 左侧电压加 1 后等于右侧电压
-SELECT a.ts, b.ts, a.voltage, b.voltage
-FROM d1001 a LEFT JOIN d1002 b
-ON a.voltage + 1 = b.voltage;
+SELECT
+  a.ts,
+  b.ts,
+  a.voltage,
+  b.voltage
+FROM d1001 a
+LEFT JOIN d1002 b
+       ON a.voltage + 1 = b.voltage;
 
 -- 显式转换后比较
-SELECT a.ts, b.ts
-FROM d1001 a JOIN d1002 b
-ON CAST(a.voltage AS BIGINT) = CAST(b.voltage AS BIGINT);
+SELECT
+  a.ts,
+  b.ts
+FROM d1001 a
+JOIN d1002 b
+  ON CAST(a.voltage AS BIGINT) = CAST(b.voltage AS BIGINT);
 
 -- 混合引用两侧的等式
-SELECT a.ts, b.ts
-FROM meters a JOIN meters b
-ON a.voltage + b.groupId = b.voltage;
+SELECT
+  a.ts,
+  b.ts
+FROM meters a
+JOIN meters b
+  ON a.voltage + b.groupId = b.voltage;
 ```
 
 **按范围与组合布尔条件关联**
@@ -113,13 +143,22 @@ ON a.voltage + b.groupId = b.voltage;
 以下查询不包含等值条件，分别按电压范围和完整布尔条件匹配：
 
 ```sql
-SELECT a.ts, b.ts, a.voltage, b.voltage
-FROM d1001 a JOIN d1002 b
-ON a.voltage BETWEEN b.voltage - 5 AND b.voltage + 5;
+SELECT
+  a.ts,
+  b.ts,
+  a.voltage,
+  b.voltage
+FROM d1001 a
+JOIN d1002 b
+  ON a.voltage BETWEEN b.voltage - 5 AND b.voltage + 5;
 
-SELECT a.ts, b.ts
-FROM d1001 a JOIN d1002 b
-ON a.voltage < b.voltage OR a.current > b.current;
+SELECT
+  a.ts,
+  b.ts
+FROM d1001 a
+JOIN d1002 b
+  ON a.voltage < b.voltage
+  OR a.current > b.current;
 ```
 
 **`INNER JOIN` 中的 `ON` 与 `WHERE`**
@@ -127,25 +166,41 @@ ON a.voltage < b.voltage OR a.current > b.current;
 对于以下普通行级条件，两种写法返回相同的行对：
 
 ```sql
-SELECT a.ts, b.ts
-FROM d1001 a INNER JOIN d1002 b
-ON a.voltage = b.voltage AND a.current > 10;
+SELECT
+  a.ts,
+  b.ts
+FROM d1001 a
+INNER JOIN d1002 b
+        ON a.voltage = b.voltage
+       AND a.current > 10;
 
-SELECT a.ts, b.ts
+SELECT
+  a.ts,
+  b.ts
 FROM d1001 a, d1002 b
-WHERE a.voltage = b.voltage AND a.current > 10;
+WHERE a.voltage = b.voltage
+  AND a.current > 10;
 ```
 
 这种等价性不适用于外连接。下面第一条保留所有左侧行，右侧没有符合条件的行时补 NULL；第二条会过滤掉这些未匹配行：
 
 ```sql
-SELECT a.ts, b.ts, b.voltage
-FROM d1001 a LEFT JOIN d1002 b
-ON a.ts = b.ts AND b.voltage > 220;
+SELECT
+  a.ts,
+  b.ts,
+  b.voltage
+FROM d1001 a
+LEFT JOIN d1002 b
+       ON a.ts = b.ts
+      AND b.voltage > 220;
 
-SELECT a.ts, b.ts, b.voltage
-FROM d1001 a LEFT JOIN d1002 b
-ON a.ts = b.ts
+SELECT
+  a.ts,
+  b.ts,
+  b.voltage
+FROM d1001 a
+LEFT JOIN d1002 b
+       ON a.ts = b.ts
 WHERE b.voltage > 220;
 ```
 
@@ -154,18 +209,34 @@ WHERE b.voltage > 220;
 单侧 ON 条件也按行对判断。下面第一条查询中，左侧电压大于 220 的行与所有右侧行匹配；没有匹配的左侧行补 NULL。第二条没有任何匹配，所有左侧行均保留，右侧列均为 NULL：
 
 ```sql
-SELECT a.ts, b.ts
-FROM d1001 a LEFT JOIN d1002 b ON a.voltage > 220;
+SELECT
+  a.ts,
+  b.ts
+FROM d1001 a
+LEFT JOIN d1002 b
+       ON a.voltage > 220;
 
-SELECT a.ts, b.ts
-FROM d1001 a LEFT JOIN d1002 b ON FALSE;
+SELECT
+  a.ts,
+  b.ts
+FROM d1001 a
+LEFT JOIN d1002 b
+       ON FALSE;
 ```
 
 无条件连接使用 `CROSS JOIN` 或逗号语法；两条查询都返回完整笛卡尔积：
 
 ```sql
-SELECT a.ts, b.ts FROM d1001 a CROSS JOIN d1002 b;
-SELECT a.ts, b.ts FROM d1001 a, d1002 b;
+SELECT
+  a.ts,
+  b.ts
+FROM d1001 a
+CROSS JOIN d1002 b;
+
+SELECT
+  a.ts,
+  b.ts
+FROM d1001 a, d1002 b;
 ```
 
 普通 `JOIN` 仍须指定 `ON`；`CROSS JOIN` 不接受 `ON`，需要过滤时使用 `WHERE`。
@@ -175,12 +246,25 @@ SELECT a.ts, b.ts FROM d1001 a, d1002 b;
 以下两个聚合子查询都未输出时间列，仍可按 `groupId` 关联。普通 JOIN 能执行，不代表其结果可直接用于后续时间线函数或窗口查询：
 
 ```sql
-SELECT a.groupId, a.avg_voltage, b.avg_current
-FROM (SELECT groupId, AVG(voltage) AS avg_voltage
-      FROM meters GROUP BY groupId) a
-JOIN (SELECT groupId, AVG(current) AS avg_current
-      FROM meters GROUP BY groupId) b
-ON a.groupId = b.groupId;
+SELECT
+  a.groupId,
+  a.avg_voltage,
+  b.avg_current
+FROM (
+  SELECT
+    groupId,
+    AVG(voltage) AS avg_voltage
+  FROM meters
+  GROUP BY groupId
+) a
+JOIN (
+  SELECT
+    groupId,
+    AVG(current) AS avg_current
+  FROM meters
+  GROUP BY groupId
+) b
+  ON a.groupId = b.groupId;
 ```
 
 条件放宽不解除现有类型和输入来源限制。ASOF/WINDOW 示例及其专用规则见后续对应章节。
@@ -202,14 +286,29 @@ ON a.groupId = b.groupId;
 在 `SELECT` 后使用 `/*+ JOIN_ALGO(算法) */`，算法参数为 `HASH`、`MERGE` 或 `THETA`：
 
 ```sql
-EXPLAIN SELECT /*+ JOIN_ALGO(HASH) */ a.ts, b.ts
-FROM meters a JOIN meters b ON a.groupId = b.groupId;
+EXPLAIN
+SELECT
+  /*+ JOIN_ALGO(HASH) */ a.ts,
+  b.ts
+FROM meters a
+JOIN meters b
+  ON a.groupId = b.groupId;
 
-EXPLAIN SELECT /*+ JOIN_ALGO(MERGE) */ a.ts, b.ts
-FROM meters a JOIN meters b ON a.ts = b.ts;
+EXPLAIN
+SELECT
+  /*+ JOIN_ALGO(MERGE) */ a.ts,
+  b.ts
+FROM meters a
+JOIN meters b
+  ON a.ts = b.ts;
 
-EXPLAIN SELECT /*+ JOIN_ALGO(THETA) */ a.ts, b.ts
-FROM meters a JOIN meters b ON a.voltage < b.voltage;
+EXPLAIN
+SELECT
+  /*+ JOIN_ALGO(THETA) */ a.ts,
+  b.ts
+FROM meters a
+JOIN meters b
+  ON a.voltage < b.voltage;
 ```
 
 - Hint 是算法偏好。Merge 不适用时可回退 Hash；无法使用等值 key 时可回退 Theta。以 EXPLAIN 中的实际算法为准，不能仅凭 Hint 判断执行路径。
@@ -272,7 +371,15 @@ SELECT ... FROM table_name1, table_name2 [WHERE ...] [...]
 表 `d1001` 与表 `d1002` 中同时出现电压大于 220V 的时刻及各自的电压值：
 
 ```sql
-SELECT a.ts, a.voltage, b.voltage FROM d1001 a JOIN d1002 b ON a.ts = b.ts AND a.voltage > 220 AND b.voltage > 220;
+SELECT
+  a.ts,
+  a.voltage,
+  b.voltage
+FROM d1001 a
+JOIN d1002 b
+  ON a.ts = b.ts
+ AND a.voltage > 220
+ AND b.voltage > 220;
 ```
 
 ### Left/Right Outer Join
@@ -304,7 +411,15 @@ SELECT ... FROM table_name1 LEFT|RIGHT [OUTER] JOIN table_name2 ON ... [WHERE ..
 保留 `d1001` 的全部记录；仅当同一时刻双方电压均大于 220V 时显示 `d1002` 的电压，否则右侧为 `NULL`：
 
 ```sql
-SELECT a.ts, a.voltage, b.voltage FROM d1001 a LEFT JOIN d1002 b ON a.ts = b.ts AND a.voltage > 220 AND b.voltage > 220;
+SELECT
+  a.ts,
+  a.voltage,
+  b.voltage
+FROM d1001 a
+LEFT JOIN d1002 b
+       ON a.ts = b.ts
+      AND a.voltage > 220
+      AND b.voltage > 220;
 ```
 
 ### Left/Right Semi Join
@@ -332,7 +447,13 @@ SELECT ... FROM table_name1 LEFT|RIGHT SEMI JOIN table_name2 ON ... [WHERE ...] 
 表 `d1001` 中电压大于 220V，且存在其他电表同一时刻电压也大于 220V 的时间：
 
 ```sql
-SELECT a.ts FROM d1001 a LEFT SEMI JOIN meters b ON a.ts = b.ts AND a.voltage > 220 AND b.voltage > 220 AND b.tbname != 'd1001';
+SELECT a.ts
+FROM d1001 a
+LEFT SEMI JOIN meters b
+            ON a.ts = b.ts
+           AND a.voltage > 220
+           AND b.voltage > 220
+           AND b.tbname != 'd1001';
 ```
 
 ### Left/Right Anti-Semi Join
@@ -360,7 +481,13 @@ SELECT ... FROM table_name1 LEFT|RIGHT ANTI JOIN table_name2 ON ... [WHERE ...] 
 表 `d1001` 中电压大于 220V，且不存在其他电表同一时刻电压也大于 220V 的时间：
 
 ```sql
-SELECT a.ts FROM d1001 a LEFT ANTI JOIN meters b ON a.ts = b.ts AND b.voltage > 220 AND b.tbname != 'd1001' WHERE a.voltage > 220;
+SELECT a.ts
+FROM d1001 a
+LEFT ANTI JOIN meters b
+            ON a.ts = b.ts
+           AND b.voltage > 220
+           AND b.tbname != 'd1001'
+WHERE a.voltage > 220;
 ```
 
 ### Left/Right ASOF Join
@@ -410,7 +537,16 @@ JOIN 结果作为输入的规则见 [多表混合嵌套 JOIN](#多表混合嵌�
 先为 `d1001` 的每行匹配 `d1002` 在同一时刻或此前最近的一条记录，再仅保留双方电压均大于 220V 的结果。若最近记录的电压不符合条件，不会继续查找更早的记录：
 
 ```sql
-SELECT a.ts, a.voltage, b.ts, b.voltage FROM d1001 a LEFT ASOF JOIN d1002 b ON a.ts >= b.ts WHERE a.voltage > 220 AND b.voltage > 220;
+SELECT
+  a.ts,
+  a.voltage,
+  b.ts,
+  b.voltage
+FROM d1001 a
+LEFT ASOF JOIN d1002 b
+            ON a.ts >= b.ts
+WHERE a.voltage > 220
+  AND b.voltage > 220;
 ```
 
 ### Left/Right Window Join
@@ -474,22 +610,36 @@ JOIN 结果作为输入的规则见 [多表混合嵌套 JOIN](#多表混合嵌�
 以下查询以 `d1001` 每行的时间加 1 秒为参照值，在 `d1002` 中匹配同一时间的行：
 
 ```sql
-SELECT a.ts, b.ts
-FROM d1001 a LEFT WINDOW JOIN d1002 b
-WINDOW_TIME(a.ts + 1s, b.ts)
-WINDOW_OFFSET(0s, 0s);
+SELECT
+  a.ts,
+  b.ts
+FROM d1001 a
+LEFT WINDOW JOIN d1002 b WINDOW_TIME(a.ts + 1s, b.ts) WINDOW_OFFSET(0s, 0s);
 ```
 
 表 `d1001` 电压大于 220V 时，前后 1 秒区间内表 `d1002` 的电压值：
 
 ```sql
-SELECT a.ts, a.voltage, b.voltage FROM d1001 a LEFT WINDOW JOIN d1002 b WINDOW_OFFSET(-1s, 1s) WHERE a.voltage > 220;
+SELECT
+  a.ts,
+  a.voltage,
+  b.voltage
+FROM d1001 a
+LEFT WINDOW JOIN d1002 b WINDOW_OFFSET(-1s, 1s)
+WHERE a.voltage > 220;
 ```
 
 表 `d1001` 电压大于 220V，且前后 1 秒区间内表 `d1002` 的电压平均值也大于 220V 的时间及电压值：
 
 ```sql
-SELECT a.ts, a.voltage, AVG(b.voltage) FROM d1001 a LEFT WINDOW JOIN d1002 b WINDOW_OFFSET(-1s, 1s) WHERE a.voltage > 220 HAVING (AVG(b.voltage) > 220);
+SELECT
+  a.ts,
+  a.voltage,
+  AVG(b.voltage)
+FROM d1001 a
+LEFT WINDOW JOIN d1002 b WINDOW_OFFSET(-1s, 1s)
+WHERE a.voltage > 220
+HAVING (AVG(b.voltage) > 220);
 ```
 
 ### Full Outer Join
@@ -524,7 +674,14 @@ SELECT ... FROM table_name1 FULL [OUTER] JOIN table_name2 ON ... [WHERE ...] [..
 表 `d1001` 与表 `d1002` 中记录的全部时刻及电压值：
 
 ```sql
-SELECT a.ts, a.voltage, b.ts, b.voltage FROM d1001 a FULL JOIN d1002 b ON a.ts = b.ts;
+SELECT
+  a.ts,
+  a.voltage,
+  b.ts,
+  b.voltage
+FROM d1001 a
+FULL JOIN d1002 b
+       ON a.ts = b.ts;
 ```
 
 ## 约束和限制
@@ -573,18 +730,25 @@ SELECT a.ts, a.voltage, b.ts, b.voltage FROM d1001 a FULL JOIN d1002 b ON a.ts =
 先按时刻关联两块电表，再为左侧电表的每条记录匹配第三块电表同一时刻或此前最近的读数：
 
 ```sql
-SELECT a.ts, a.voltage, b.voltage, c.voltage
+SELECT
+  a.ts,
+  a.voltage,
+  b.voltage,
+  c.voltage
 FROM (d1001 a LEFT JOIN d1002 b ON a.ts = b.ts)
-LEFT ASOF JOIN d1003 c ON a.ts >= c.ts;
+LEFT ASOF JOIN d1003 c
+            ON a.ts >= c.ts;
 ```
 
 右输入也可以是 JOIN 结果。下例按 `b.ts` 匹配 `a.ts` 前后 1 秒内的两表关联记录：
 
 ```sql
-SELECT a.ts, b.voltage, c.voltage
+SELECT
+  a.ts,
+  b.voltage,
+  c.voltage
 FROM d1001 a
-LEFT WINDOW JOIN (d1002 b JOIN d1003 c ON b.ts = c.ts)
-WINDOW_TIME(a.ts, b.ts) WINDOW_OFFSET(-1s, 1s);
+LEFT WINDOW JOIN (d1002 b JOIN d1003 c ON b.ts = c.ts) WINDOW_TIME(a.ts, b.ts) WINDOW_OFFSET(-1s, 1s);
 ```
 
 ### JOIN 结果作为 ASOF/WINDOW 输入

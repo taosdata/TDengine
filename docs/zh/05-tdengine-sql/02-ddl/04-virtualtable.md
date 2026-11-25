@@ -25,13 +25,12 @@ description: 对虚拟表的各种管理操作
 ### 创建虚拟普通表
 
 ```sql
-CREATE VTABLE [IF NOT EXISTS] [db_name.]vtb_name
-    (
-        ts_col_name timestamp,
-        create_definition[ ,create_definition] ...
-    )
-    [reference_definition | series_definition] ...
-    [TAGS (vtag_def [, vtag_def] ...)]
+CREATE VTABLE [IF NOT EXISTS] [db_name.]vtb_name (
+  ts_col_name timestamp,
+  create_definition[ ,create_definition] ...
+)
+  [reference_definition | series_definition] ...
+  [TAGS (vtag_def [, vtag_def] ...)]
 
   create_definition:
     vtb_col_name column_definition
@@ -56,7 +55,6 @@ CREATE VTABLE [IF NOT EXISTS] [db_name.]vtb_name
   vtag_def:
     tag_name type_name = const_value
     | tag_name type_name FROM [db_name.]table_name.tag_name
-
 ```
 
 引用 TDengine 表或已有虚拟表时，`column_reference` 使用 `[db_name.]table_name.col_name`，因此列定义仍为 `type_name [FROM [db_name.]table_name.col_name]`。`ext_source_name` 表示已创建的外部数据源，`series_alias` 表示 InfluxDB 的 `SERIES` 声明别名，`reference_alias` 表示指定外部时间列的 `REFERENCE` 声明别名。外部引用的可选 `WHERE filter_condition` 见 [外部列引用条件过滤](#外部列引用条件过滤)。SQL Server 外部列引用支持三种形式：三段式 `ext_source_name.table_name.col_name`（需源配置默认 `DATABASE` 和 `SCHEMA`）、四段式 `ext_source_name.schema.table_name.col_name`（需源配置默认 `DATABASE`）和五段式 `ext_source_name.database.schema.table_name.col_name`；相对形式在创建时会展开为五段式完整命名空间存储。
@@ -70,23 +68,24 @@ InfluxDB 1.8 和 3.x 的列引用均使用 `ext_source_name.table_name.col_name`
 ### 创建虚拟子表
 
 ```sql
-CREATE VTABLE [IF NOT EXISTS] [db_name.]vtb_name
-    (create_definition[ ,create_definition] ...)
-    USING [db_name.]stb_name
+CREATE VTABLE [IF NOT EXISTS] [db_name.]vtb_name (create_definition[ ,create_definition] ...)
+  USING [db_name.]stb_name
     [(tag_definition [, tag_definition] ...)]
     TAGS (tag_value [, tag_value] ...)
     [reference_definition | series_definition] ...
 
-  create_definition:
-     [stb_col_name FROM] column_reference
-     | owned_col_name type_name [FROM column_reference]
-  tag_definition:
-     tag_name
-     | owned_tag_name type_name
-  tag_value:
-     const_value
-     | [tag_name] FROM [db_name.]table_name.tag_name
-     | [db_name.]table_name.tag_name
+create_definition:
+    [stb_col_name FROM] column_reference
+  | owned_col_name type_name [FROM column_reference]
+
+tag_definition:
+    tag_name
+  | owned_tag_name type_name
+
+tag_value:
+    const_value
+  | [tag_name] FROM [db_name.]table_name.tag_name
+  | [db_name.]table_name.tag_name
 ```
 
 #### 批量创建虚拟子表
@@ -94,16 +93,19 @@ CREATE VTABLE [IF NOT EXISTS] [db_name.]vtb_name
 一条 `CREATE VTABLE` 语句可以包含多个虚拟子表建表子句。各子句之间不使用逗号分隔，每个子句都可以独立指定 `IF NOT EXISTS`、虚拟超级表、列引用、标签值、标签引用、`REFERENCE` 和 `SERIES`。
 
 ```sql
-CREATE VTABLE
-    IF NOT EXISTS meter_v1 (
-        voltage FROM source_meter_1.voltage,
-        current FROM source_meter_1.current
-    ) USING meters_vst TAGS ('beijing', 1)
-    IF NOT EXISTS meter_v2 (
-        voltage FROM s2.voltage,
-        current FROM s2.current
-    ) USING meters_vst TAGS ('shanghai', 2)
-    SERIES s2 AS influx_src.metrics.meters (site='shanghai');
+CREATE VTABLE IF NOT EXISTS meter_v1 (
+  voltage FROM source_meter_1.voltage,
+  current FROM source_meter_1.current
+)
+  USING meters_vst
+  TAGS ('beijing', 1)
+IF NOT EXISTS meter_v2(
+  voltage FROM s2.voltage,
+  current FROM s2.current
+)
+  USING meters_vst
+  TAGS ('shanghai', 2)
+  SERIES s2 AS influx_src.metrics.meters(site = 'shanghai');
 ```
 
 批量创建虚拟子表时应注意：
@@ -133,15 +135,19 @@ CREATE VTABLE
 **示例**
 
 ```sql
-CREATE TABLE ev_log (ts timestamp, event bigint);
+CREATE TABLE ev_log (
+  ts    TIMESTAMP,
+  event BIGINT
+);
 
 CREATE VTABLE v_d1 (
-    switch   FROM p10.val,            -- 对齐列：不带类型
-    ext_ev   BIGINT FROM ev_log.event -- 自有列：显式类型 + 引用
-) USING v_devices (
-    device,                           -- 对齐标签：按名绑定
-    owner   VARCHAR(16)               -- 自有标签：显式类型
-) TAGS ('d1', 'alice');
+  switch FROM p10.val,  -- 对齐列：不带类型
+  ext_ev BIGINT FROM ev_log.event -- 自有列：显式类型 + 引用
+)
+    USING v_devices (device, -- 对齐标签：按名绑定
+    owner VARCHAR(16) -- 自有标签：显式类型
+  )
+  TAGS ('d1', 'alice');
 ```
 
 自有列、自有标签只存在于该虚拟子表本身：直接查询该子表时可见（`SELECT *` 的结果中自有列排在虚拟超级表列之后），查询虚拟超级表时**不可见**，虚拟超级表的 schema 不受影响。
@@ -179,17 +185,24 @@ CREATE VTABLE v_d1 (
 
 ```sql
 CREATE VTABLE readings (
-    ts TIMESTAMP,
-    value DOUBLE FROM r1.value WHERE device = 'd1'
-)
-REFERENCE r1 AS sqlsrc.telemetry.dbo.readings_view TIMESTAMP EventTime;
+  ts    TIMESTAMP,
+  value DOUBLE FROM r1.value WHERE device = 'd1'
+) REFERENCE r1 AS sqlsrc.telemetry.dbo.readings_view TIMESTAMP EventTime;
 
-CREATE STABLE readings_vst (ts TIMESTAMP, value DOUBLE) TAGS (device VARCHAR(16)) VIRTUAL 1;
+CREATE STABLE readings_vst (
+  ts    TIMESTAMP,
+  value DOUBLE
+) TAGS (
+  device VARCHAR(16)
+)
+  VIRTUAL 1;
+
 CREATE VTABLE readings_d1 (
-    value FROM r1.value WHERE device = 'd1',
-    extra_value DOUBLE
-) USING readings_vst TAGS ('d1')
-REFERENCE r1 AS sqlsrc.telemetry.dbo.readings_view TIMESTAMP EventTime;
+  value FROM r1.value WHERE device = 'd1',
+  extra_value DOUBLE
+)
+  USING readings_vst
+  TAGS ('d1') REFERENCE r1 AS sqlsrc.telemetry.dbo.readings_view TIMESTAMP EventTime;
 ```
 
 示例假设 SQL Server 视图 `readings_view` 的 `EventTime` 可映射为 `TIMESTAMP`，`value` 可映射为 `DOUBLE`。同一外部对象可以通过多个别名选择相同或不同的时间列。虚拟普通表的声明位于列列表之后、`TAGS` 之前，虚拟子表的声明位于 `TAGS` 之后。多个 `REFERENCE` 和 `SERIES` 可以交错声明，以空白分隔。
@@ -220,9 +233,9 @@ ALTER VTABLE readings REMOVE REFERENCE r2;
 
 ```sql
 filter_condition:
-    column_name comparison_operator literal
-    | (filter_condition)
-    | filter_condition AND filter_condition
+  column_name comparison_operator literal
+  | (filter_condition)
+  | filter_condition AND filter_condition
 
 comparison_operator: = | != | <> | < | <= | > | >=
 ```
@@ -240,21 +253,31 @@ comparison_operator: = | != | <> | < | <= | > | >=
 
 ```sql
 CREATE VTABLE filtered_readings (
-    ts TIMESTAMP,
-    a INT FROM mysql_src.metrics.readings.v WHERE device = 'd1' AND tenant = 1,
-    b INT FROM mysql_src.metrics.readings.w WHERE device = 'd2' AND tenant = 1
+  ts TIMESTAMP,
+  a  INT FROM mysql_src.metrics.readings.v WHERE device = 'd1' AND tenant = 1,
+  b  INT FROM mysql_src.metrics.readings.w WHERE device = 'd2' AND tenant = 1
 );
 
-CREATE STABLE filtered_stable (ts TIMESTAMP, a INT) TAGS (site INT) VIRTUAL 1;
-CREATE VTABLE filtered_child (
-    a FROM mysql_src.metrics.readings.v WHERE device = 'd1' AND tenant = 1
-) USING filtered_stable TAGS (1);
+CREATE STABLE filtered_stable (
+  ts TIMESTAMP,
+  a  INT
+) TAGS (
+  site INT
+)
+  VIRTUAL 1;
 
-ALTER VTABLE filtered_readings ADD COLUMN c INT
-    FROM mysql_src.metrics.readings.v WHERE device = 'd1' AND tenant = 1 AND v >= 10;
-ALTER VTABLE filtered_readings ALTER COLUMN a SET
-    mysql_src.metrics.readings.v WHERE device = 'd2' AND tenant = 1;
+CREATE VTABLE filtered_child (
+  a FROM mysql_src.metrics.readings.v WHERE device = 'd1' AND tenant = 1
+)
+  USING filtered_stable
+  TAGS (1);
+
+ALTER VTABLE filtered_readings ADD COLUMN c INT FROM mysql_src.metrics.readings.v WHERE device = 'd1' AND tenant = 1 AND v >= 10;
+
+ALTER VTABLE filtered_readings ALTER COLUMN a SET mysql_src.metrics.readings.v WHERE device = 'd2' AND tenant = 1;
+
 ALTER VTABLE filtered_readings ALTER COLUMN b SET NULL;
+
 SHOW CREATE VTABLE filtered_readings;
 ```
 
@@ -274,22 +297,37 @@ SHOW CREATE VTABLE filtered_readings;
 以智能电表场景为例，底层超级表 `meters` 的子表作为标签引用的数据源：
 
 ```sql
-CREATE STABLE meters (ts TIMESTAMP, v INT) TAGS (region VARCHAR(16), gid INT);
-CREATE TABLE d0 USING meters TAGS ('us-east', 1);
+CREATE STABLE meters (
+  ts TIMESTAMP,
+  v  INT
+) TAGS (
+  region VARCHAR(16),
+  gid    INT
+);
+
+CREATE TABLE d0
+  USING meters
+  TAGS ('us-east', 1);
 
 -- 创建虚拟普通表，同时声明自有标签与标签引用
 CREATE VTABLE vntb (
-    ts TIMESTAMP,
-    v  INT FROM db.d0.v                    -- 列引用
+  ts TIMESTAMP,
+  v  INT FROM db.d0.v -- 列引用
 ) TAGS (
-    owner  VARCHAR(16) = 'alice',          -- 自有标签
-    level  INT = 0,                        -- 自有标签
-    region VARCHAR(16) FROM db.d0.region   -- 标签引用，值随 d0.region
+  owner  VARCHAR(16) = 'alice',  -- 自有标签
+  level  INT = 0,  -- 自有标签
+  region VARCHAR(16) FROM db.d0.region -- 标签引用，值随 d0.region
 );
 
-SELECT owner, level FROM vntb;             -- 自有标签，投影本表值
-SELECT region FROM vntb;                   -- 标签引用，取源表 region 值
-SELECT * FROM vntb WHERE region = 'us-east';  -- 过滤条件下推到源表标签索引
+SELECT
+  owner,
+  level
+FROM vntb;  -- 自有标签，投影本表值
+SELECT region
+FROM vntb;  -- 标签引用，取源表 region 值
+SELECT *
+FROM vntb
+WHERE region = 'us-east';  -- 过滤条件下推到源表标签索引
 ```
 
 **使用说明**
@@ -342,11 +380,10 @@ SELECT * FROM vntb WHERE region = 'us-east';  -- 过滤条件下推到源表标�
 ### 创建继承的虚拟超级表
 
 ```sql
-CREATE STABLE [IF NOT EXISTS] [db_name.]stb_name
-    (col_name col_type [, ...])
-    [TAGS (tag_name tag_type [, ...])]
-    BASE ON [db_name.]parent_stb_name [, [db_name.]parent_stb_name] ...
-    VIRTUAL 1
+CREATE STABLE [IF NOT EXISTS] [db_name.]stb_name (col_name col_type [, ...])
+  [TAGS (tag_name tag_type [, ...])]
+  BASE ON [db_name.]parent_stb_name [, [db_name.]parent_stb_name] ...
+  VIRTUAL 1
 ```
 
 `BASE ON` 子句指定一个或多个父虚拟超级表。子虚拟超级表会继承每个父虚拟超级表除主时间戳列以外的列以及全部标签，子虚拟超级表自身的列和标签追加在继承列和继承标签之后。
@@ -355,21 +392,39 @@ CREATE STABLE [IF NOT EXISTS] [db_name.]stb_name
 
 ```sql
 -- 父虚拟超级表：通用设备字段
-CREATE STABLE p_device (ts timestamp, status int) TAGS (region int) VIRTUAL 1;
+CREATE STABLE p_device (
+  ts     TIMESTAMP,
+  status INT
+) TAGS (
+  region INT
+)
+  VIRTUAL 1;
 
 -- 子虚拟超级表：继承 status 和 region，增加温度列
-CREATE STABLE p_temp (ts timestamp, temp float) TAGS (sensor_id int)
-    BASE ON test_db.p_device VIRTUAL 1;
+CREATE STABLE p_temp (
+  ts   TIMESTAMP,
+  temp FLOAT
+) TAGS (
+  sensor_id INT
+)
+  BASE ON test_db.p_device
+  VIRTUAL 1;
 
 -- 在子虚拟超级表下创建虚拟子表
-CREATE VTABLE vct_t1 (status FROM src.c1, temp FROM src.c2)
-    USING test_db.p_temp TAGS (100, 1);
+CREATE VTABLE vct_t1 (
+  status FROM src.c1,
+  temp FROM src.c2
+)
+  USING test_db.p_temp
+  TAGS (100, 1);
 
 -- 查询子虚拟超级表（叶子）
-SELECT * FROM test_db.p_temp;
+SELECT *
+FROM test_db.p_temp;
 
 -- 查询父虚拟超级表（非叶子）
-SELECT count(*) FROM test_db.p_device;
+SELECT COUNT(*)
+FROM test_db.p_device;
 ```
 
 ### 修改继承关系
@@ -490,17 +545,19 @@ SHOW VTABLE INHERITS;
 
 ```sql
 CREATE VTABLE v1 (
-    ts timestamp,
-    c1 int from t1.value,
-    c2 int from t2.value,
-    c3 int from t3.value1,
-    c4 int from t3.value2);
+  ts TIMESTAMP,
+  c1 INT FROM t1.value,
+  c2 INT FROM t2.value,
+  c3 INT FROM t3.value1,
+  c4 INT FROM t3.value2
+);
 ```
 
 那么根据虚拟表对于多表数据的整合规则，执行如下查询时：
 
 ```sql
-SELECT * FROM v1;
+SELECT *
+FROM v1;
 ```
 
 结果如下：
@@ -556,7 +613,10 @@ SELECT * FROM v1;
 如果没有选择全部列，只是选择了部分列，查询结果只会包含所选列对应原始表的时间戳。例如执行如下查询：
 
 ```sql
-SELECT c1, c2 FROM v1;
+SELECT
+  c1,
+  c2
+FROM v1;
 ```
 
 得到的结果如下图所示：
@@ -730,7 +790,7 @@ ALTER VTABLE tb_name SET TAG tag_name1 = new_tag_value1, tag_name2 = new_tag_val
 #### 把标签设置为字面量
 
 ```sql
-ALTER VTABLE v0 SET TAG local_tag='local0_updated';
+ALTER VTABLE v0 SET TAG local_tag = 'local0_updated';
 ```
 
 将标签设置为字面量值时，如果该标签原本是标签引用，则其引用关系会被清除，之后该标签变为一个静态值，不再随源表变化。
@@ -739,10 +799,10 @@ ALTER VTABLE v0 SET TAG local_tag='local0_updated';
 
 ```sql
 -- 同库引用：引用同库中 src0 表的 city 标签
-ALTER VTABLE v0 SET TAG ref_city=src0.city;
+ALTER VTABLE v0 SET TAG ref_city = src0.city;
 
 -- 跨库引用：使用 db_name.table.tag 三段式
-ALTER VTABLE v0 SET TAG ref_city=db1.src1.city;
+ALTER VTABLE v0 SET TAG ref_city = db1.src1.city;
 ```
 
 将标签设置为标签引用后，查询时会实时解析为被引用标签的当前值。该操作既可以为一个原本是字面量的标签新增引用，也可以把一个已有的标签引用重新指向另一个源标签。约束与 `CREATE VTABLE` 时的标签引用一致：
@@ -803,14 +863,16 @@ ALTER VTABLE vtb_name ADD TAG owned_tag_name type_name
 
 ```sql
 ALTER VTABLE v_d1 ADD TAG dept VARCHAR(16);
+
 ALTER VTABLE v_d1 SET TAG dept = 'rd';
 ```
 
 ### 删除自有列或自有标签
 
 ```sql
-ALTER VTABLE vtb_name DROP COLUMN owned_col_name
-ALTER VTABLE vtb_name DROP TAG owned_tag_name
+ALTER VTABLE vtb_name DROP COLUMN owned_col_name;
+
+ALTER VTABLE vtb_name DROP TAG owned_tag_name;
 ```
 
 仅能删除自有成员。若要删除来自虚拟超级表的级联列或标签，使用 `ALTER STABLE stb_name DROP COLUMN/DROP TAG`（会级联影响全部虚拟子表，不影响其他自有成员）。

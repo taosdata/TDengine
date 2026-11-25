@@ -40,8 +40,9 @@ FORECAST(passengers, "algo=prophet,growth=linear,yearly_seasonality=true,weekly_
 完整的调用 SQL 语句如下：
 
 ```sql
-SELECT _frowts,
-       FORECAST(passengers, "algo=prophet,growth=linear,yearly_seasonality=true,weekly_seasonality=true,changepoint_prior_scale=0.1")
+SELECT
+  _frowts,
+  FORECAST(passengers, "algo=prophet,growth=linear,yearly_seasonality=true,weekly_seasonality=true,changepoint_prior_scale=0.1")
 FROM air;
 ```
 

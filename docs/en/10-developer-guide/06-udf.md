@@ -273,19 +273,30 @@ To better operate the above data structures, some convenience functions are prov
 Create table:
 
 ```sql
-CREATE TABLE battery(ts TIMESTAMP, vol1 FLOAT, vol2 FLOAT, vol3 FLOAT, deviceId VARCHAR(16));
+CREATE TABLE battery (
+  ts       TIMESTAMP,
+  vol1     FLOAT,
+  vol2     FLOAT,
+  vol3     FLOAT,
+  deviceId VARCHAR(16)
+);
 ```
 
 Create custom function:
 
 ```sql
-CREATE AGGREGATE FUNCTION max_vol AS '/root/udf/libmaxvol.so' OUTPUTTYPE BINARY(64) BUFSIZE 10240 LANGUAGE 'C'; 
+CREATE AGGREGATE FUNCTION max_vol
+  AS '/root/udf/libmaxvol.so'
+  OUTPUTTYPE BINARY(64)
+  BUFSIZE 10240
+  LANGUAGE 'C';
 ```
 
 Use custom function:
 
 ```sql
-SELECT max_vol(vol1, vol2, vol3, deviceid) FROM battery;
+SELECT max_vol(vol1, vol2, vol3, deviceid)
+FROM battery;
 ```
 
 <details>
@@ -308,19 +319,27 @@ The `extract_avg` function converts a comma-separated string sequence into a set
 Create table:
 
 ```sql
-CREATE TABLE scores(ts TIMESTAMP, varStr VARCHAR(128));
+CREATE TABLE scores (
+  ts     TIMESTAMP,
+  varStr VARCHAR(128)
+);
 ```
 
 Create custom function:
 
 ```sql
-CREATE AGGREGATE FUNCTION extract_avg AS '/root/udf/libextract_avg.so' OUTPUTTYPE DOUBLE BUFSIZE 16 LANGUAGE 'C'; 
+CREATE AGGREGATE FUNCTION extract_avg
+  AS '/root/udf/libextract_avg.so'
+  OUTPUTTYPE DOUBLE
+  BUFSIZE 16
+  LANGUAGE 'C';
 ```
 
 Use custom function:
 
 ```sql
-SELECT extract_avg(valStr) FROM scores;
+SELECT extract_avg(valStr)
+FROM scores;
 ```
 
 Generate `.so` file
@@ -365,12 +384,26 @@ Create tables:
 
 ```sql
 -- Plain table for full-table aggregation and time-window queries
-CREATE TABLE vibration (ts TIMESTAMP, val DOUBLE);
+CREATE TABLE vibration (
+  ts  TIMESTAMP,
+  val DOUBLE
+);
 
 -- Super table for per-subtable grouped queries
-CREATE STABLE vibration_stb (ts TIMESTAMP, val DOUBLE) TAGS (device_id INT);
-CREATE TABLE vibration_d1 USING vibration_stb TAGS (1);
-CREATE TABLE vibration_d2 USING vibration_stb TAGS (2);
+CREATE STABLE vibration_stb (
+  ts  TIMESTAMP,
+  val DOUBLE
+) TAGS (
+  device_id INT
+);
+
+CREATE TABLE vibration_d1
+  USING vibration_stb
+  TAGS (1);
+
+CREATE TABLE vibration_d2
+  USING vibration_stb
+  TAGS (2);
 ```
 
 Generate `.so` file:
@@ -392,13 +425,18 @@ Use custom function:
 
 ```sql
 -- Full-table aggregation: compute permutation entropy over the entire table
-SELECT perm_entropy(val) FROM vibration;
+SELECT perm_entropy(val)
+FROM vibration;
 
 -- Time-window aggregation: compute permutation entropy independently for each window
-SELECT perm_entropy(val) FROM vibration INTERVAL(10s);
+SELECT perm_entropy(val)
+FROM vibration
+INTERVAL(10s);
 
 -- Grouped by subtable: compute permutation entropy separately for each device
-SELECT perm_entropy(val) FROM vibration_stb PARTITION BY tbname;
+SELECT perm_entropy(val)
+FROM vibration_stb
+PARTITION BY tbname;
 ```
 
 <details>
@@ -696,32 +734,47 @@ The scalar function's `process` method must return as many rows of data as there
 Next, create the corresponding UDF function, execute the following statement in the TDengine CLI.
 
 ```sql
-CREATE FUNCTION myfun AS '/root/udf/myfun.py' OUTPUTTYPE DOUBLE LANGUAGE 'Python';
+CREATE FUNCTION myfun
+  AS '/root/udf/myfun.py'
+  OUTPUTTYPE DOUBLE
+  LANGUAGE 'Python';
 ```
 
 ```text
 taos> create function myfun as '/root/udf/myfun.py' outputtype double language 'Python';
-Create OK, 0 row(s) affected (0.005202s)
+Create OK, 0 row(s) affected
 ```
 
 It looks smooth, next let's check all the custom functions in the system to confirm it was created successfully.
 
-```text
-taos> show functions;
+```sql
+taos> SHOW functions;
               name              |
 =================================
  myfun                          |
-Query OK, 1 row(s) in set (0.005767s)
+Query OK, 1 row(s) in set
 ```
 
 Generate test data, you can execute the following commands in the TDengine CLI.
 
 ```sql
 CREATE DATABASE test;
-CREATE TABLE t(ts TIMESTAMP, v1 INT, v2 INT, v3 INT);
-INSERT INTO t VALUES('2023-05-01 12:13:14', 1, 2, 3);
-INSERT INTO t VALUES('2023-05-03 08:09:10', 2, 3, 4);
-INSERT INTO t VALUES('2023-05-10 07:06:05', 3, 4, 5);
+
+CREATE TABLE t (
+  ts TIMESTAMP,
+  v1 INT,
+  v2 INT,
+  v3 INT
+);
+
+INSERT INTO t
+VALUES ('2023-05-01 12:13:14', 1, 2, 3);
+
+INSERT INTO t
+VALUES ('2023-05-03 08:09:10', 2, 3, 4);
+
+INSERT INTO t
+VALUES ('2023-05-10 07:06:05', 3, 4, 5);
 ```
 
 Test the myfun function.
@@ -749,8 +802,9 @@ The error is clear: the Python plugin `libtaospyudf.so` was not loaded. Starting
 
 After fixing the environment error, execute again as follows.
 
-```text
-taos> select myfun(v1) from t;
+```sql
+taos> SELECT myfun(v1)
+      FROM t;
          myfun(v1)         |
 ============================
                0.693147181 |
@@ -766,8 +820,9 @@ Although the myfun function passed the test, it has two drawbacks.
 
 1. This scalar function only accepts 1 column of data as input, and it will not throw an exception if multiple columns are passed.
 
-```text
-taos> select myfun(v1, v2) from t;
+```sql
+taos> SELECT myfun(v1, v2)
+      FROM t;
        myfun(v1, v2)       |
 ============================
                0.693147181 |
@@ -788,7 +843,10 @@ def process(block):
 Execute the following statement to update the existing UDF.
 
 ```sql
-CREATE OR REPLACE FUNCTION myfun AS '/root/udf/myfun.py' OUTPUTTYPE DOUBLE LANGUAGE 'Python';
+CREATE OR REPLACE FUNCTION myfun
+  AS '/root/udf/myfun.py'
+  OUTPUTTYPE DOUBLE
+  LANGUAGE 'Python';
 ```
 
 Passing two arguments to myfun will result in a failure.
@@ -842,23 +900,33 @@ def process(block):
 Create the UDF.
 
 ```sql
-CREATE FUNCTION nsum AS '/root/udf/nsum.py' OUTPUTTYPE DOUBLE LANGUAGE 'Python';
+CREATE FUNCTION nsum
+  AS '/root/udf/nsum.py'
+  OUTPUTTYPE DOUBLE
+  LANGUAGE 'Python';
 ```
 
 Test the UDF.
 
-```text
-taos> insert into t values('2023-05-25 09:09:15', 6, null, 8);
-Insert OK, 1 row(s) affected (0.003675s)
+```sql
+taos> INSERT INTO t
+      VALUES ('2023-05-25 09:09:15', 6, NULL, 8);
+Insert OK, 1 row(s) affected
 
-taos> select ts, v1, v2, v3,  nsum(v1, v2, v3) from t;
+taos> SELECT
+        ts,
+        v1,
+        v2,
+        v3,
+        nsum(v1, v2, v3)
+      FROM t;
            ts            |     v1      |     v2      |     v3      |     nsum(v1, v2, v3)      |
 ================================================================================================
  2023-05-01 12:13:14.000 |           1 |           2 |           3 |              14.000000000 |
  2023-05-03 08:09:10.000 |           2 |           3 |           4 |              20.000000000 |
  2023-05-10 07:06:05.000 |           3 |           4 |           5 |              26.000000000 |
  2023-05-25 09:09:15.000 |           6 |        NULL |           8 |                      NULL |
-Query OK, 4 row(s) in set (0.010653s)
+Query OK, 4 row(s) in set
 ```
 
 #### Example Four
@@ -894,7 +962,10 @@ def process(block):
 The UDF framework maps TDengine's timestamp type to Python's int type, so this function only accepts an integer representing milliseconds. The process method first checks the parameters, then uses the moment package to replace the day of the week with Sunday, and finally formats the output. The output string length is fixed at 10 characters long, so you can create the UDF function like this.
 
 ```sql
-CREATE FUNCTION nextsunday AS '/root/udf/nextsunday.py' OUTPUTTYPE BINARY(10) LANGUAGE 'Python';
+CREATE FUNCTION nextsunday
+  AS '/root/udf/nextsunday.py'
+  OUTPUTTYPE BINARY(10)
+  LANGUAGE 'Python';
 ```
 
 At this point, test the function. If you started taosd with systemctl, you will definitely encounter an error.
@@ -939,15 +1010,18 @@ UdfdLdLibPath /usr/lib/python3.8:/usr/lib/python3.8/lib-dynload:/usr/local/lib/p
 
 After saving, execute `systemctl restart taosd`, then test again and there will be no errors.
 
-```text
-taos> select ts, nextsunday(ts) from t;
+```sql
+taos> SELECT
+        ts,
+        nextsunday(ts)
+      FROM t;
            ts            | nextsunday(ts) |
 ===========================================
  2023-05-01 12:13:14.000 | 2023-05-07     |
  2023-05-03 08:09:10.000 | 2023-05-07     |
  2023-05-10 07:06:05.000 | 2023-05-14     |
  2023-05-25 09:09:15.000 | 2023-05-28     |
-Query OK, 4 row(s) in set (1.011474s)
+Query OK, 4 row(s) in set
 ```
 
 #### Example Five
@@ -1008,7 +1082,11 @@ In this example, we not only defined an aggregate function but also added the fu
 Execute the following SQL statement to create the corresponding UDF.
 
 ```sql
-CREATE OR REPLACE AGGREGATE FUNCTION myspread AS '/root/udf/myspread.py' OUTPUTTYPE DOUBLE BUFSIZE 128 LANGUAGE 'Python';
+CREATE OR REPLACE AGGREGATE FUNCTION myspread
+  AS '/root/udf/myspread.py'
+  OUTPUTTYPE DOUBLE
+  BUFSIZE 128
+  LANGUAGE 'Python';
 ```
 
 This SQL statement has two important differences from the SQL statement used to create scalar functions.
@@ -1023,18 +1101,20 @@ This SQL statement has two important differences from the SQL statement used to 
 
 To test this function, you can see that the output of `myspread` is consistent with that of the built-in `spread` function.
 
-```text
-taos> select myspread(v1) from t;
+```sql
+taos> SELECT myspread(v1)
+      FROM t;
        myspread(v1)        |
 ============================
                5.000000000 |
-Query OK, 1 row(s) in set (0.013486s)
+Query OK, 1 row(s) in set
 
-taos> select spread(v1) from t;
+taos> SELECT SPREAD(v1)
+      FROM t;
         spread(v1)         |
 ============================
                5.000000000 |
-Query OK, 1 row(s) in set (0.005501s)
+Query OK, 1 row(s) in set
 ```
 
 Finally, by checking the execution log, you can see that the reduce function was executed 3 times, during which the max value was updated 4 times, and the min value was updated only once.
@@ -1133,7 +1213,10 @@ Here, `buffer_size` represents the size of the buffer for intermediate calculati
 The following SQL creates a UDF named `l2norm`.
 
 ```sql
-CREATE AGGREGATE FUNCTION l2norm AS "/home/taos/udf_example/libl2norm.so" OUTPUTTYPE DOUBLE bufsize 8;
+CREATE AGGREGATE FUNCTION l2norm
+  AS "/home/taos/udf_example/libl2norm.so"
+  OUTPUTTYPE DOUBLE
+  bufsize 8;
 ```
 
 ### Deleting UDFs
@@ -1157,5 +1240,6 @@ SHOW FUNCTIONS;
 Each update of a UDF with the same name increases the version number by 1.
 
 ```sql
-SELECT * FROM ins_functions \G;     
+SELECT *
+FROM ins_functions \G;
 ```

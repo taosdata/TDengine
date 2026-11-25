@@ -11,27 +11,30 @@ sidebar_label: Statistical Algorithms
 
 ```sql
 --- Use the k-sigma algorithm with a k value of 2
-SELECT _WSTART, COUNT(*)
-FROM foo
-ANOMALY_WINDOW(foo.i32, "algo=ksigma,k=2")
+SELECT
+  _WSTART,
+  COUNT(*)
+FROM foo ANOMALY_WINDOW(foo.i32, "algo=ksigma,k=2")
 ```
 
 - Interquartile range (IQR)<sup>[2]</sup>: IQR divides a rank-ordered dataset into even quartiles, Q1 through Q3. IQR=Q3-Q1, for *v*, Q1 - (1.5 x IQR) \<= v \<= Q3 + (1.5 x IQR) is normal. Data points outside this range are considered anomalous. This algorithm does not take any parameters.
 
 ```sql
 --- Use the IQR algorithm.
-SELECT _WSTART, COUNT(*)
-FROM foo
-ANOMALY_WINDOW(foo.i32, "algo=iqr")
+SELECT
+  _WSTART,
+  COUNT(*)
+FROM foo ANOMALY_WINDOW(foo.i32, "algo=iqr")
 ```
 
 - Grubbs's test<sup>[3]</sup>, or maximum normalized residual test: Grubbs is used to test whether the deviation from mean of the maximum and minimum is anomalous. It requires a univariate data set in a close to normal distribution. Grubbs's test cannot be uses for datasets that are not normally distributed. This algorithm does not take any parameters.
 
 ```sql
 --- Use Grubbs's test.
-SELECT _WSTART, COUNT(*)
-FROM foo
-ANOMALY_WINDOW(foo.i32, "algo=grubbs")
+SELECT
+  _WSTART,
+  COUNT(*)
+FROM foo ANOMALY_WINDOW(foo.i32, "algo=grubbs")
 ```
 
 - Seasonal Hybrid ESD (S-H-ESD)<sup>[4]</sup>: Extreme Studentized Deviate (ESD) can identify multiple anomalies in time-series data. You define whether to detect positive anomalies (`pos`), negative anomalies (`neg`), or both (`both`). The maximum proportion of data that can be anomalous (`max_anoms`) is at worst 49.9% Typically, the proportion of anomalies in a dataset does not exceed 5%.
@@ -44,9 +47,10 @@ ANOMALY_WINDOW(foo.i32, "algo=grubbs")
 
 ```sql
 --- Use the SHESD algorithm in both directions with a maximum 5% of the data being anomalous
-SELECT _WSTART, COUNT(*)
-FROM foo
-ANOMALY_WINDOW(foo.i32, "algo=shesd,direction=both,anoms=0.05")
+SELECT
+  _WSTART,
+  COUNT(*)
+FROM foo ANOMALY_WINDOW(foo.i32, "algo=shesd,direction=both,anoms=0.05")
 ```
 
 The following algorithms are in development:

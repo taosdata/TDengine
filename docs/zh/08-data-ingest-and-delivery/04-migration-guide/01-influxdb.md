@@ -52,7 +52,8 @@ toc_max_heading_level: 4
 InfluxDB 的时间精度可以混用秒、毫秒、微秒和纳秒。为避免精度丢失，迁移目标数据库应使用纳秒精度。例如：
 
 ```sql
-CREATE DATABASE migration_db PRECISION 'ns';
+CREATE DATABASE migration_db
+  PRECISION 'ns';
 ```
 
 生产迁移前还应完成以下准备：
@@ -252,7 +253,10 @@ GROUP BY time(1m), "host"
 可改写为：
 
 ```sql
-SELECT _wstart AS window_start, host, AVG(usage) AS avg_usage
+SELECT
+  _wstart AS window_start,
+  host,
+  AVG(usage) AS avg_usage
 FROM migration_db.cpu
 WHERE _ts >= '2024-01-01 00:00:00.000000000'
   AND _ts < '2024-01-01 00:02:00.000000000'
@@ -268,7 +272,9 @@ INTERVAL(1m);
 下面的 InfluxQL 查询按 `region` 统计指定时间范围内的 CPU 最大值和样本数：
 
 ```sql
-SELECT MAX("usage"), COUNT("usage")
+SELECT
+  MAX("usage"),
+  COUNT("usage")
 FROM "cpu"
 WHERE time >= '2024-01-01T00:00:00Z'
   AND time < '2024-01-02T00:00:00Z'
@@ -278,7 +284,10 @@ GROUP BY "region"
 使用 `PARTITION BY` 可以让每个 `region` 独立计算：
 
 ```sql
-SELECT region, MAX(usage) AS max_usage, COUNT(usage) AS sample_count
+SELECT
+  region,
+  MAX(usage) AS max_usage,
+  COUNT(usage) AS sample_count
 FROM migration_db.cpu
 WHERE _ts >= '2024-01-01 00:00:00.000000000'
   AND _ts < '2024-01-02 00:00:00.000000000'
@@ -288,7 +297,10 @@ PARTITION BY region;
 当需要逐个子表计算时，使用 `PARTITION BY tbname`。例如，以下查询返回每个子表在一小时内的平均值：
 
 ```sql
-SELECT tbname, _wstart AS window_start, AVG(usage) AS avg_usage
+SELECT
+  tbname,
+  _wstart AS window_start,
+  AVG(usage) AS avg_usage
 FROM migration_db.cpu
 WHERE _ts >= '2024-01-01 00:00:00.000000000'
   AND _ts < '2024-01-01 01:00:00.000000000'
@@ -313,7 +325,9 @@ WHERE host = 'server01';
 下面的 InfluxQL 查询获取 `server01` 最近的 10 条 CPU 数据：
 
 ```sql
-SELECT "usage", "load"
+SELECT
+  "usage",
+  "load"
 FROM "cpu"
 WHERE "host" = 'server01'
 ORDER BY time DESC
@@ -323,7 +337,10 @@ LIMIT 10
 可改写为：
 
 ```sql
-SELECT _ts, usage, load
+SELECT
+  _ts,
+  usage,
+  load
 FROM migration_db.cpu
 WHERE host = 'server01'
 ORDER BY _ts DESC
@@ -343,13 +360,15 @@ WHERE time >= '2024-01-01T00:00:00Z'
   AND time < '2024-01-01T01:00:00Z'
   AND "host" = 'server01'
 GROUP BY time(1m)
-fill(previous)
+FILL(previous)
 ```
 
 可改写为：
 
 ```sql
-SELECT _wstart AS window_start, AVG(usage) AS avg_usage
+SELECT
+  _wstart AS window_start,
+  AVG(usage) AS avg_usage
 FROM migration_db.cpu
 WHERE _ts >= '2024-01-01 00:00:00.000000000'
   AND _ts < '2024-01-01 01:00:00.000000000'
@@ -374,8 +393,9 @@ CREATE STREAM cpu_usage_1m_stream
   FROM migration_db.cpu
   INTO cpu_usage_1m
   AS
-    SELECT _twstart AS ts,
-           AVG(usage) AS avg_usage
+    SELECT
+      _twstart AS ts,
+      AVG(usage) AS avg_usage
     FROM %%trows;
 ```
 
@@ -384,9 +404,14 @@ CREATE STREAM cpu_usage_1m_stream
 [数据订阅](../../06-data-subscription/index.md) 可将新写入数据或查询结果以主题形式分发给下游消费者，减少定时轮询。下面的查询主题将 CPU 数据提供给告警或实时分析服务：
 
 ```sql
-CREATE TOPIC cpu_realtime_topic AS
-SELECT tbname, _ts, usage, status
-FROM migration_db.cpu;
+CREATE TOPIC cpu_realtime_topic
+  AS
+    SELECT
+      tbname,
+      _ts,
+      usage,
+      status
+    FROM migration_db.cpu;
 ```
 
 查询主题不支持聚合和时间窗口。需要订阅聚合结果时，应先通过流式计算将结果写入表，再订阅该结果表。
@@ -397,9 +422,9 @@ FROM migration_db.cpu;
 
 ```sql
 CREATE VTABLE device_overview (
-    ts TIMESTAMP,
-    cpu_usage DOUBLE FROM migration_db.cpu_server01.usage,
-    temperature FLOAT FROM migration_db.env_server01.temperature
+  ts          TIMESTAMP,
+  cpu_usage   DOUBLE FROM migration_db.cpu_server01.usage,
+  temperature FLOAT FROM migration_db.env_server01.temperature
 );
 ```
 

@@ -25,13 +25,18 @@ CREATE [OR REPLACE] FUNCTION function_name AS library_path OUTPUTTYPE output_typ
 For example, the following statement can create libbitand.so as a UDF available in the system:
 
   ```sql
-  CREATE FUNCTION bit_and AS "/home/taos/udf_example/libbitand.so" OUTPUTTYPE INT;
+  CREATE FUNCTION bit_and
+    AS "/home/taos/udf_example/libbitand.so"
+    OUTPUTTYPE INT;
   ```
 
 For example, the following statement can modify the already defined bit_and function, with the output type as BIGINT, implemented in Python.
 
   ```sql
-  CREATE OR REPLACE FUNCTION bit_and AS "/home/taos/udf_example/bit_and.py" OUTPUTTYPE BIGINT LANGUAGE 'Python';
+  CREATE OR REPLACE FUNCTION bit_and
+    AS "/home/taos/udf_example/bit_and.py"
+    OUTPUTTYPE BIGINT
+    LANGUAGE 'Python';
   ```
 
 - Creating aggregate functions:
@@ -50,13 +55,19 @@ CREATE [OR REPLACE] AGGREGATE FUNCTION function_name AS library_path OUTPUTTYPE 
   For example, the following statement can create libl2norm.so as a UDF available in the system:
 
   ```sql
-  CREATE AGGREGATE FUNCTION l2norm AS "/home/taos/udf_example/libl2norm.so" OUTPUTTYPE DOUBLE bufsize 8;
+  CREATE AGGREGATE FUNCTION l2norm
+    AS "/home/taos/udf_example/libl2norm.so"
+    OUTPUTTYPE DOUBLE
+    bufsize 8;
   ```
 
   For example, the following statement can modify the buffer size of the already defined l2norm function to 64.
 
   ```sql
-  CREATE OR REPLACE AGGREGATE FUNCTION l2norm AS "/home/taos/udf_example/libl2norm.so" OUTPUTTYPE DOUBLE bufsize 64;
+  CREATE OR REPLACE AGGREGATE FUNCTION l2norm
+    AS "/home/taos/udf_example/libl2norm.so"
+    OUTPUTTYPE DOUBLE
+    bufsize 64;
   ```
 
 About how to develop custom functions, please refer to [UDF Usage Instructions](../../10-developer-guide/06-udf.md).
@@ -86,7 +97,8 @@ SHOW FUNCTIONS;
 In SQL commands, you can directly call the user-defined function using the function name assigned when the UDF was created in the system. For example:
 
 ```sql
-SELECT bit_and(c1,c2) FROM table;
+SELECT bit_and(c1, c2)
+FROM TABLE;
 ```
 
 This means calling the user-defined function named bit_and on the data columns named c1 and c2 in the table. User-defined functions in SQL commands can be used in conjunction with query features such as WHERE.

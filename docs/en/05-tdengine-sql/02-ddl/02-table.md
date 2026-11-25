@@ -37,7 +37,6 @@ table_option: {
   | SMA(col_name [, col_name] ...)
   | TTL value
 }
-
 ```
 
 Usage Notes:
@@ -67,13 +66,19 @@ CREATE TABLE [IF NOT EXISTS] tb_name (create_definition [, create_definition] ..
 
 ```sql
 CREATE TABLE [IF NOT EXISTS] tb_name (create_definition [, create_definition] ...)
-    TAGS (tag_name1 tag_type1 = const_value1 [, ...]);
+  TAGS (tag_name1 tag_type1 = const_value1 [, ...]);
 ```
 
 When every tag in the `TAGS` clause carries an explicit `= const_value`, the statement creates a basic table with owned tags, for example:
 
 ```sql
-CREATE TABLE ntb (ts TIMESTAMP, v INT) TAGS (loc INT = 5, dept VARCHAR(16) = 'rd');
+CREATE TABLE ntb (
+  ts TIMESTAMP,
+  v  INT
+) TAGS (
+  loc  INT = 5,
+  dept VARCHAR(16) = 'rd'
+);
 ```
 
 An owned tag of a basic table is a table-level constant: projecting it returns that constant for every row, and using it in a `WHERE` filter is evaluated with constant semantics; tag rows are marked `TAG` in the `DESC` output. `SHOW CREATE TABLE` returns a single `CREATE TABLE ... TAGS(...)` statement in which owned tags are inlined as `= value` (a NULL value is emitted as `= NULL`), ready for replay.
@@ -139,7 +144,6 @@ alter_table_option: {
     TTL value
   | COMMENT 'string_value'
 }
-
 ```
 
 Usage Instructions:

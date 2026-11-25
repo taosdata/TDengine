@@ -32,20 +32,19 @@ Manually execute `sudo ./tcollector.py`
 
 After waiting a few seconds, use the TDengine CLI to query whether TDengine has created the corresponding database and written data.
 
-```text
-taos> show databases;
+```sql
+taos> SHOW databases;
               name              |
 =================================
  information_schema             |
  performance_schema             |
  tcollector                     |
-Query OK, 3 rows in database (0.001647s)
+Query OK, 3 row(s) in set
 
-
-taos> use tcollector;
+taos> USE tcollector;
 Database changed.
 
-taos> show stables;
+taos> SHOW stables;
               name              |
 =================================
  proc.meminfo.hugepages_rsvd    |

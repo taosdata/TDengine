@@ -58,11 +58,11 @@ SHOW CREATE RSMA [db_name.]rsma_name;
 **示例**
 
 ```sql
-taos> SHOW CREATE RSMA rsma7\G;
+taos> SHOW CREATE RSMA rsma7 \G;
 *************************** 1.row ***************************
        RSMA: `rsma7`
 Create RSMA: CREATE RSMA `rsma7` ON `d0`.`stb1` FUNCTION(min(`c0`),max(`c1`),avg(`c2`),sum(`c3`),first(`c4`),last(`c5`),first(`c6`)) INTERVAL(60000a,300000a)
-Query OK, 1 row(s) in set (0.005250s)
+Query OK, 1 row(s) in set
 ```
 
 ## 显示所有 RSMA
@@ -75,7 +75,7 @@ SELECT * FROM information_schema.ins_rsmas [WHERE db_name = '{db_name}'];
 **示例**
 
 ```sql
-taos> SHOW RSMAS\G;
+taos> SHOW RSMAS \G;
 *************************** 1.row ***************************
   rsma_name: rsma7
     rsma_id: 4785417934375247480
@@ -85,7 +85,7 @@ taos> SHOW RSMAS\G;
 create_time: 2025-10-03 23:03:57.577
    interval: 60000a,300000a
   func_list: min(c0),max(c1),avg(c2),sum(c3),first(c4),last(c5),first(c6)
-Query OK, 1 row(s) in set (0.014238s)
+Query OK, 1 row(s) in set
 ```
 
 其中，`func_list` 只显示创建时通过 `FUNCTION` 显式指定的函数。
@@ -97,28 +97,31 @@ ROLLUP DATABASE db_name [start_opt] [end_opt]
 ROLLUP [db_name] VGROUPS IN (vgroup_ids) [start_opt] [end_opt]
 
 start_opt ::= START WITH timestamp_literal   -- 如 'YYYY-MM-DD HH24:MI:SS'
-            | START WITH unix_timestamp      -- 如 1672531200
-            | START WITH TIMESTAMP timestamp_literal
+  | START WITH unix_timestamp      -- 如 1672531200
+  | START WITH TIMESTAMP timestamp_literal
 
-end_opt   ::= END WITH timestamp_literal
-            | END WITH unix_timestamp
-            | END WITH TIMESTAMP timestamp_literal
+end_opt ::= END WITH timestamp_literal
+  | END WITH unix_timestamp
+  | END WITH TIMESTAMP timestamp_literal
 ```
 
 **示例**
 
 ```sql
-taos> ROLLUP DATABASE d0 START WITH '2025-12-30 10:00:00.000' END WITH '2025-12-31 10:00:00.000';
+taos> ROLLUP DATABASE d0
+        START WITH '2025-12-30 10:00:00.000'
+        END WITH '2025-12-31 10:00:00.000';
   result  |      id     | reason  |
 ===================================
  accepted |   53584270  | success |
-Query OK, 1 row(s) in set (0.009359s)
+Query OK, 1 row(s) in set
 
-taos> ROLLUP d0 VGROUPS IN (2,3) START WITH '2025-12-30 10:00:00.000';
+taos> ROLLUP d0 VGROUPS IN (2, 3)
+        START WITH '2025-12-30 10:00:00.000';
   result  |      id     | reason  |
 ===================================
  accepted |  1726039381 | success |
-Query OK, 1 row(s) in set (0.010345s)
+Query OK, 1 row(s) in set
 ```
 
 说明：
@@ -146,14 +149,14 @@ taos> SHOW RETENTIONS;
  retention_id | db_name |       start_time        | trigger_mode | type   |
 ============================================================================
     857434526 | d0      | 2025-10-11 11:26:04.649 | manual       | rollup |
-Query OK, 1 row(s) in set (0.004885s)
+Query OK, 1 row(s) in set
 
 taos> SHOW RETENTION 857434526;
  retention_id | vgroup_id | dnode_id | number_fileset | finished |       start_time        | progress(%) | remain_time(s) |
 ===========================================================================================================================
     857434526 |         6 |        1 |              4 |        1 | 2025-10-11 11:26:04.649 |          24 |             31 |
     857434526 |         7 |        1 |              0 |        0 | 2025-10-11 11:26:04.649 |           0 |              0 |
-Query OK, 2 row(s) in set (0.005828s)
+Query OK, 2 row(s) in set
 ```
 
 ### 中止 RSMA 任务

@@ -20,7 +20,9 @@ TDengine 内置数据库 `INFORMATION_SCHEMA`，用于访问数据库元数据�
 - 系统表中部分列名为关键字，查询时需用反引号转义。例如查询数据库 `test` 的 `vgroup` 数量：
 
 ```sql
-SELECT `vgroups` FROM information_schema.ins_databases WHERE name = 'test';
+SELECT `vgroups`
+FROM information_schema.ins_databases
+WHERE name = 'test';
 ```
 
 :::

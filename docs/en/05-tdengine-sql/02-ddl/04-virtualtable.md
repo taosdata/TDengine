@@ -21,11 +21,10 @@ A virtual supertable (VST) can inherit columns and tags from one or more parent 
 ### Create an Inherited Virtual Supertable
 
 ```sql
-CREATE STABLE [IF NOT EXISTS] [db_name.]stb_name
-    (col_name col_type [, ...])
-    [TAGS (tag_name tag_type [, ...])]
-    BASE ON [db_name.]parent_stb_name [, [db_name.]parent_stb_name] ...
-    VIRTUAL 1
+CREATE STABLE [IF NOT EXISTS] [db_name.]stb_name (col_name col_type [, ...])
+  [TAGS (tag_name tag_type [, ...])]
+  BASE ON [db_name.]parent_stb_name [, [db_name.]parent_stb_name] ...
+  VIRTUAL 1
 ```
 
 The `BASE ON` clause specifies one or more parent VSTs to inherit from. The child VST inherits all tags and all non-primary-timestamp columns from each parent. The child's own columns and tags are appended after the inherited ones.
@@ -34,21 +33,39 @@ Example:
 
 ```sql
 -- Parent VST with common device fields
-CREATE STABLE p_device (ts timestamp, status int) TAGS (region int) VIRTUAL 1;
+CREATE STABLE p_device (
+  ts     TIMESTAMP,
+  status INT
+) TAGS (
+  region INT
+)
+  VIRTUAL 1;
 
 -- Child VST inherits status + region, adds temperature
-CREATE STABLE p_temp (ts timestamp, temp float) TAGS (sensor_id int)
-    BASE ON test_db.p_device VIRTUAL 1;
+CREATE STABLE p_temp (
+  ts   TIMESTAMP,
+  temp FLOAT
+) TAGS (
+  sensor_id INT
+)
+  BASE ON test_db.p_device
+  VIRTUAL 1;
 
 -- Create a VCT under the child
-CREATE VTABLE vct_t1 (status FROM src.c1, temp FROM src.c2)
-    USING test_db.p_temp TAGS (100, 1);
+CREATE VTABLE vct_t1 (
+  status FROM src.c1,
+  temp FROM src.c2
+)
+  USING test_db.p_temp
+  TAGS (100, 1);
 
 -- Query the child VST (leaf)
-SELECT * FROM test_db.p_temp;
+SELECT *
+FROM test_db.p_temp;
 
 -- Query the parent VST (non-leaf) — returns UNION ALL of all descendant VCTs
-SELECT count(*) FROM test_db.p_device;
+SELECT COUNT(*)
+FROM test_db.p_device;
 ```
 
 ### Alter Inheritance
@@ -98,13 +115,12 @@ Refer to the `VIRTUAL` parameter in [Create Supertable](./03-stable.md#create-a-
 ### Create Virtual Basic Table
 
 ```sql
-CREATE VTABLE [IF NOT EXISTS] [db_name].vtb_name
-    (
-        ts_col_name timestamp,
-        create_definition[ ,create_definition] ...
-    )
-    [reference_definition | series_definition] ...
-    [TAGS (vtag_def [, vtag_def] ...)]
+CREATE VTABLE [IF NOT EXISTS] [db_name].vtb_name (
+  ts_col_name timestamp,
+  create_definition[ ,create_definition] ...
+)
+  [reference_definition | series_definition] ...
+  [TAGS (vtag_def [, vtag_def] ...)]
 
   create_definition:
     vtb_col_name column_definition
@@ -142,24 +158,25 @@ When creating a virtual basic table, you can declare tags with the `TAGS` clause
 ### Create Virtual Subtable
 
 ```sql
-CREATE VTABLE [IF NOT EXISTS] [db_name].vtb_name
-    (create_definition[ ,create_definition] ...)
-    USING [db_name.]stb_name
+CREATE VTABLE [IF NOT EXISTS] [db_name].vtb_name (create_definition[ ,create_definition] ...)
+  USING [db_name.]stb_name
     [(tag_definition [, tag_definition] ...)]
     TAGS (tag_value [, tag_value] ...)
     [reference_definition | series_definition] ...
 
-  create_definition:
-     [stb_col_name FROM] column_reference
-     | owned_col_name type_name [FROM column_reference]
-  tag_definition:
-     tag_name
-     | owned_tag_name type_name
-  tag_value:
-     const_value
-     | [db_name.]table_name.tag_name
-     | FROM [db_name.]table_name.tag_name
-     | tag_name FROM [db_name.]table_name.tag_name
+create_definition:
+    [stb_col_name FROM] column_reference
+  | owned_col_name type_name [FROM column_reference]
+
+tag_definition:
+    tag_name
+  | owned_tag_name type_name
+
+tag_value:
+    const_value
+  | [db_name.]table_name.tag_name
+  | FROM [db_name.]table_name.tag_name
+  | tag_name FROM [db_name.]table_name.tag_name
 ```
 
 #### Batch Creation of Virtual Subtables
@@ -167,16 +184,19 @@ CREATE VTABLE [IF NOT EXISTS] [db_name].vtb_name
 A single `CREATE VTABLE` statement can contain multiple virtual-subtable clauses. Do not separate clauses with commas. Each clause can independently specify `IF NOT EXISTS`, a virtual supertable, column references, tag values, tag references, `REFERENCE`, and `SERIES` declarations.
 
 ```sql
-CREATE VTABLE
-    IF NOT EXISTS meter_v1 (
-        voltage FROM source_meter_1.voltage,
-        current FROM source_meter_1.current
-    ) USING meters_vst TAGS ('beijing', 1)
-    IF NOT EXISTS meter_v2 (
-        voltage FROM s2.voltage,
-        current FROM s2.current
-    ) USING meters_vst TAGS ('shanghai', 2)
-    SERIES s2 AS influx_src.metrics.meters (site='shanghai');
+CREATE VTABLE IF NOT EXISTS meter_v1 (
+  voltage FROM source_meter_1.voltage,
+  current FROM source_meter_1.current
+)
+  USING meters_vst
+  TAGS ('beijing', 1)
+IF NOT EXISTS meter_v2(
+  voltage FROM s2.voltage,
+  current FROM s2.current
+)
+  USING meters_vst
+  TAGS ('shanghai', 2)
+  SERIES s2 AS influx_src.metrics.meters(site = 'shanghai');
 ```
 
 The following rules apply to batch creation:
@@ -206,15 +226,19 @@ A virtual subtable can have members that are independent of the virtual supertab
 **Example**
 
 ```sql
-CREATE TABLE ev_log (ts timestamp, event bigint);
+CREATE TABLE ev_log (
+  ts    TIMESTAMP,
+  event BIGINT
+);
 
 CREATE VTABLE v_d1 (
-    switch   FROM p10.val,            -- aligned column: no type
-    ext_ev   BIGINT FROM ev_log.event -- owned column: explicit type + reference
-) USING v_devices (
-    device,                           -- aligned tag: bound by name
-    owner   VARCHAR(16)               -- owned tag: explicit type
-) TAGS ('d1', 'alice');
+  switch FROM p10.val,  -- aligned column: no type
+  ext_ev BIGINT FROM ev_log.event -- owned column: explicit type + reference
+)
+    USING v_devices (device, -- aligned tag: bound by name
+    owner VARCHAR(16) -- owned tag: explicit type
+  )
+  TAGS ('d1', 'alice');
 ```
 
 Owned columns and owned tags exist only on that virtual subtable: they are visible when you query the subtable directly (in `SELECT *`, owned columns appear after the virtual supertable's columns), but they are **not visible** when you query the virtual supertable — the virtual supertable's schema is unaffected.
@@ -252,17 +276,24 @@ A `REFERENCE` declaration stores the source object and time column. Each data co
 
 ```sql
 CREATE VTABLE readings (
-    ts TIMESTAMP,
-    value DOUBLE FROM r1.value WHERE device = 'd1'
-)
-REFERENCE r1 AS sqlsrc.telemetry.dbo.readings_view TIMESTAMP EventTime;
+  ts    TIMESTAMP,
+  value DOUBLE FROM r1.value WHERE device = 'd1'
+) REFERENCE r1 AS sqlsrc.telemetry.dbo.readings_view TIMESTAMP EventTime;
 
-CREATE STABLE readings_vst (ts TIMESTAMP, value DOUBLE) TAGS (device VARCHAR(16)) VIRTUAL 1;
+CREATE STABLE readings_vst (
+  ts    TIMESTAMP,
+  value DOUBLE
+) TAGS (
+  device VARCHAR(16)
+)
+  VIRTUAL 1;
+
 CREATE VTABLE readings_d1 (
-    value FROM r1.value WHERE device = 'd1',
-    extra_value DOUBLE
-) USING readings_vst TAGS ('d1')
-REFERENCE r1 AS sqlsrc.telemetry.dbo.readings_view TIMESTAMP EventTime;
+  value FROM r1.value WHERE device = 'd1',
+  extra_value DOUBLE
+)
+  USING readings_vst
+  TAGS ('d1') REFERENCE r1 AS sqlsrc.telemetry.dbo.readings_view TIMESTAMP EventTime;
 ```
 
 The example assumes that the SQL Server view `readings_view` exposes an `EventTime` column mapped to `TIMESTAMP` and a `value` column mapped to `DOUBLE`. Multiple aliases can select the same or different time columns from one object. Declarations follow the column list and precede `TAGS` for virtual basic tables. They follow `TAGS` for virtual subtables. Multiple `REFERENCE` and `SERIES` declarations can be interleaved and separated by whitespace.
@@ -293,9 +324,9 @@ Virtual basic tables and virtual subtables can reference data columns in MySQL, 
 
 ```sql
 filter_condition:
-    column_name comparison_operator literal
-    | (filter_condition)
-    | filter_condition AND filter_condition
+  column_name comparison_operator literal
+  | (filter_condition)
+  | filter_condition AND filter_condition
 
 comparison_operator: = | != | <> | < | <= | > | >=
 ```
@@ -313,21 +344,31 @@ Assume an existing MySQL external data source named `mysql_src` contains `metric
 
 ```sql
 CREATE VTABLE filtered_readings (
-    ts TIMESTAMP,
-    a INT FROM mysql_src.metrics.readings.v WHERE device = 'd1' AND tenant = 1,
-    b INT FROM mysql_src.metrics.readings.w WHERE device = 'd2' AND tenant = 1
+  ts TIMESTAMP,
+  a  INT FROM mysql_src.metrics.readings.v WHERE device = 'd1' AND tenant = 1,
+  b  INT FROM mysql_src.metrics.readings.w WHERE device = 'd2' AND tenant = 1
 );
 
-CREATE STABLE filtered_stable (ts TIMESTAMP, a INT) TAGS (site INT) VIRTUAL 1;
-CREATE VTABLE filtered_child (
-    a FROM mysql_src.metrics.readings.v WHERE device = 'd1' AND tenant = 1
-) USING filtered_stable TAGS (1);
+CREATE STABLE filtered_stable (
+  ts TIMESTAMP,
+  a  INT
+) TAGS (
+  site INT
+)
+  VIRTUAL 1;
 
-ALTER VTABLE filtered_readings ADD COLUMN c INT
-    FROM mysql_src.metrics.readings.v WHERE device = 'd1' AND tenant = 1 AND v >= 10;
-ALTER VTABLE filtered_readings ALTER COLUMN a SET
-    mysql_src.metrics.readings.v WHERE device = 'd2' AND tenant = 1;
+CREATE VTABLE filtered_child (
+  a FROM mysql_src.metrics.readings.v WHERE device = 'd1' AND tenant = 1
+)
+  USING filtered_stable
+  TAGS (1);
+
+ALTER VTABLE filtered_readings ADD COLUMN c INT FROM mysql_src.metrics.readings.v WHERE device = 'd1' AND tenant = 1 AND v >= 10;
+
+ALTER VTABLE filtered_readings ALTER COLUMN a SET mysql_src.metrics.readings.v WHERE device = 'd2' AND tenant = 1;
+
 ALTER VTABLE filtered_readings ALTER COLUMN b SET NULL;
+
 SHOW CREATE VTABLE filtered_readings;
 ```
 
@@ -347,22 +388,37 @@ Like its columns, a virtual basic table's tags come in two forms, which can be m
 In a smart-meter scenario, the subtables of the supertable `meters` serve as tag-ref sources:
 
 ```sql
-CREATE STABLE meters (ts TIMESTAMP, v INT) TAGS (region VARCHAR(16), gid INT);
-CREATE TABLE d0 USING meters TAGS ('us-east', 1);
+CREATE STABLE meters (
+  ts TIMESTAMP,
+  v  INT
+) TAGS (
+  region VARCHAR(16),
+  gid    INT
+);
+
+CREATE TABLE d0
+  USING meters
+  TAGS ('us-east', 1);
 
 -- Create a virtual basic table with both an owned tag and a tag-ref
 CREATE VTABLE vntb (
-    ts TIMESTAMP,
-    v  INT FROM db.d0.v                    -- column reference
+  ts TIMESTAMP,
+  v  INT FROM db.d0.v -- column reference
 ) TAGS (
-    owner  VARCHAR(16) = 'alice',          -- owned tag
-    level  INT = 0,                        -- owned tag
-    region VARCHAR(16) FROM db.d0.region   -- tag-ref, value follows d0.region
+  owner  VARCHAR(16) = 'alice',  -- owned tag
+  level  INT = 0,  -- owned tag
+  region VARCHAR(16) FROM db.d0.region -- tag-ref, value follows d0.region
 );
 
-SELECT owner, level FROM vntb;             -- owned tags, projected from the table itself
-SELECT region FROM vntb;                   -- tag-ref, resolved from the source table
-SELECT * FROM vntb WHERE region = 'us-east';  -- filter pushed down to the source tag index
+SELECT
+  owner,
+  level
+FROM vntb;  -- owned tags, projected from the table itself
+SELECT region
+FROM vntb;  -- tag-ref, resolved from the source table
+SELECT *
+FROM vntb
+WHERE region = 'us-east';  -- filter pushed down to the source tag index
 ```
 
 Usage Notes:
@@ -490,17 +546,19 @@ Create a virtual table v1:
 
 ```sql
 CREATE VTABLE v1 (
-    ts timestamp,
-    c1 int FROM t1.value,
-    c2 int FROM t2.value,
-    c3 int FROM t3.value1,
-    c4 int FROM t3.value2);
+  ts TIMESTAMP,
+  c1 INT FROM t1.value,
+  c2 INT FROM t2.value,
+  c3 INT FROM t3.value1,
+  c4 INT FROM t3.value2
+);
 ```
 
 Querying all columns:
 
 ```sql
-SELECT * FROM v1;
+SELECT *
+FROM v1;
 ```
 
 Result:
@@ -556,7 +614,10 @@ Result:
 Partial column query:
 
 ```sql
-SELECT c1, c2 FROM v1;
+SELECT
+  c1,
+  c2
+FROM v1;
 ```
 
 Result:
@@ -730,7 +791,7 @@ ALTER VTABLE tb_name SET TAG tag_name1=new_tag_value1, tag_name2=new_tag_value2 
 #### Set a Tag to a Literal
 
 ```sql
-ALTER VTABLE v0 SET TAG local_tag='local0_updated';
+ALTER VTABLE v0 SET TAG local_tag = 'local0_updated';
 ```
 
 When a tag is set to a literal value, any existing tag-ref on that tag is cleared. The tag then becomes a static value that no longer tracks the source.
@@ -739,10 +800,10 @@ When a tag is set to a literal value, any existing tag-ref on that tag is cleare
 
 ```sql
 -- Same database: reference the city tag of table src0
-ALTER VTABLE v0 SET TAG ref_city=src0.city;
+ALTER VTABLE v0 SET TAG ref_city = src0.city;
 
 -- Cross database: use the db_name.table.tag three-part form
-ALTER VTABLE v0 SET TAG ref_city=db1.src1.city;
+ALTER VTABLE v0 SET TAG ref_city = db1.src1.city;
 ```
 
 After a tag is set to a tag-ref, queries resolve it to the referenced tag's current value at query time. This operation can both add a reference to a tag that was previously a literal and repoint an existing tag-ref to a different source tag. The constraints match those for tag-refs at `CREATE VTABLE` time:
@@ -803,14 +864,16 @@ Appends an owned tag to a virtual subtable with an initial value of `NULL`; lite
 
 ```sql
 ALTER VTABLE v_d1 ADD TAG dept VARCHAR(16);
+
 ALTER VTABLE v_d1 SET TAG dept = 'rd';
 ```
 
 ### Drop an Owned Column or Owned Tag
 
 ```sql
-ALTER VTABLE vtb_name DROP COLUMN owned_col_name
-ALTER VTABLE vtb_name DROP TAG owned_tag_name
+ALTER VTABLE vtb_name DROP COLUMN owned_col_name;
+
+ALTER VTABLE vtb_name DROP TAG owned_tag_name;
 ```
 
 Only owned members can be dropped. To remove a cascaded column or tag inherited from the virtual supertable, use `ALTER STABLE stb_name DROP COLUMN/DROP TAG` (this cascades to all virtual subtables and does not affect other owned members).

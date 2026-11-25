@@ -44,8 +44,20 @@ The example scenario is a power system where users collect electricity usage dat
 **Step 1**, Create tables in TDengine.
 
 ```sql
-CREATE STABLE meters (ts TIMESTAMP, num INT, temperature FLOAT, goods INT) TAGS (device NCHAR(20));
-CREATE TABLE goods (ts1 TIMESTAMP, ts2 TIMESTAMP, goods FLOAT);
+CREATE STABLE meters (
+  ts          TIMESTAMP,
+  num         INT,
+  temperature FLOAT,
+  goods       INT
+) TAGS (
+  device NCHAR(20)
+);
+
+CREATE TABLE goods (
+  ts1   TIMESTAMP,
+  ts2   TIMESTAMP,
+  goods FLOAT
+);
 ```
 
 ![Create tables in TDengine](../../assets/seeq-01.webp)

@@ -83,7 +83,11 @@ Save this file to the `./lib/taosanalytics/algo/fc/` directory and restart the `
 
 ```sql
 --- Detect anomalies in the `col` column using the newly added `myfc` algorithm
-SELECT  _flow, _fhigh, _frowts, FORECAST(col_name, "algo=myfc")
+SELECT
+  _flow,
+  _fhigh,
+  _frowts,
+  FORECAST(col_name, "algo=myfc")
 FROM foo;
 ```
 

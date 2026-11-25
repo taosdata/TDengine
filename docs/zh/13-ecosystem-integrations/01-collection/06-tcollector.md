@@ -35,19 +35,18 @@ sudo systemctl restart taosadapter
 等待数秒后使用 `taos` shell 查询 TDengine 是否创建相应数据库并写入数据。
 
 ```sql
-taos> show databases;
+taos> SHOW databases;
               name              |
 =================================
  information_schema             |
  performance_schema             |
  tcollector                     |
-Query OK, 3 rows in database (0.001647s)
+Query OK, 3 row(s) in set
 
-
-taos> use tcollector;
+taos> USE tcollector;
 Database changed.
 
-taos> show stables;
+taos> SHOW stables;
               name              |
 =================================
  proc.meminfo.hugepages_rsvd    |

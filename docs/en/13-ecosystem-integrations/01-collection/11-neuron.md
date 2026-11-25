@@ -200,7 +200,8 @@ A Neuron tag is a collection point and maps to a measurement column. A TDengine 
 Run the following statement in a TDengine SQL client. Do not manually create the supertable or subtables.
 
 ```sql
-CREATE DATABASE IF NOT EXISTS neuron_meters_demo PRECISION 'ms';
+CREATE DATABASE IF NOT EXISTS neuron_meters_demo
+  PRECISION 'ms';
 ```
 
 #### 2. Check the Direct Connection Endpoint
@@ -277,19 +278,23 @@ An explicit schema preserves voltage as an integer instead of treating schemales
 2. Enter the following statement in the SQL editor.
 
    ```sql
-   SELECT values.current AS current,
-          values.voltage AS voltage,
-          values.phase AS phase,
-          timestamp AS ets,
-          node_name AS device,
-          CASE WHEN node_name IN ("workshop01_meter01", "workshop01_meter02")
-               THEN "1" ELSE "2" END AS group_id,
-          CASE WHEN node_name IN ("workshop01_meter01", "workshop01_meter02")
-               THEN "Factory01.Workshop01" ELSE "Factory01.Workshop02" END AS location
+   SELECT
+     values.current AS current,
+     values.voltage AS voltage,
+     values.phase AS phase,
+     timestamp AS ets,
+     node_name AS device,
+     CASE
+       WHEN node_name IN ("workshop01_meter01", "workshop01_meter02") THEN "1"
+       ELSE "2"
+     END AS group_id,
+     CASE
+       WHEN node_name IN ("workshop01_meter01", "workshop01_meter02") THEN "Factory01.Workshop01"
+       ELSE "Factory01.Workshop02"
+     END AS location
    FROM meters_stream
    WHERE group_name = "electrical_readings"
-     AND node_name IN ("workshop01_meter01", "workshop01_meter02",
-                       "workshop02_meter01", "workshop02_meter02")
+     AND node_name IN ("workshop01_meter01", "workshop01_meter02", "workshop02_meter01", "workshop02_meter02")
    ```
 
    This SQL selects reports from the four meters' `electrical_readings` groups, extracts current, voltage, and phase, preserves the original timestamp and device name, and assigns the location and business group identifier by device name. The device name determines the subtable name; location and business group are written as TAGs.
@@ -402,7 +407,11 @@ Regardless of the onboarding method, confirm ingestion through query results —
    ```sql
    DESCRIBE neuron_meters_demo.meters;
 
-   SELECT DISTINCT TBNAME, device, group_id, location
+   SELECT
+     DISTINCT TBNAME,
+     device,
+     group_id,
+     location
    FROM neuron_meters_demo.meters;
    ```
 
@@ -411,16 +420,24 @@ Regardless of the onboarding method, confirm ingestion through query results —
 2. Query the latest data and compare it with **Data Collection → Data Monitoring**. Replace the subtable name to check all four devices.
 
    ```sql
-   SELECT _ts, current, voltage, phase
+   SELECT
+     _ts,
+     current,
+     voltage,
+     phase
    FROM neuron_meters_demo.workshop01_meter01
-   ORDER BY _ts DESC LIMIT 5;
+   ORDER BY _ts DESC
+   LIMIT 5;
    ```
 
 3. Repeat the following query a few seconds apart to confirm that the row count increases in all four subtables.
 
    ```sql
-   SELECT TBNAME, COUNT(*)
-   FROM neuron_meters_demo.meters PARTITION BY TBNAME;
+   SELECT
+     TBNAME,
+     COUNT(*)
+   FROM neuron_meters_demo.meters
+   PARTITION BY TBNAME;
    ```
 
 ## View Monitoring

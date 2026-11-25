@@ -29,7 +29,8 @@ DROP INDEX [IF EXISTS] index_name;
 Query existing indexes via the system table (you can add filter conditions to narrow the scope):
 
 ```sql
-SELECT * FROM information_schema.ins_indexes;
+SELECT *
+FROM information_schema.ins_indexes;
 ```
 
 For column descriptions, see [INS_INDEXES](../09-system-info/01-meta.md#ins_indexes).

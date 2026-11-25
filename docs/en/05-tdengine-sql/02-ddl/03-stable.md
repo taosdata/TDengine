@@ -5,15 +5,14 @@ title: Supertables
 ## Create a Supertable
 
 ```sql
-CREATE STABLE [IF NOT EXISTS] [db_name.]stb_name
-    (create_definition [, create_definition] ...)
-    TAGS (create_definition [, create_definition] ...)
-    [BASE ON [db_name.]parent_stb_name [, [db_name.]parent_stb_name] ...]
-    [table_options]
- 
+CREATE STABLE [IF NOT EXISTS] [db_name.]stb_name (create_definition [, create_definition] ...)
+  TAGS (create_definition [, create_definition] ...)
+  [BASE ON [db_name.]parent_stb_name [, [db_name.]parent_stb_name] ...]
+  [table_options]
+
 create_definition:
     col_name column_definition
- 
+
 column_definition:
     type_name [COMPOSITE KEY] [ENCODE 'encode_type'] [COMPRESS 'compress_type'] [LEVEL 'level_type']
 
@@ -116,19 +115,22 @@ taos> SHOW TABLE TAGS FROM st1;
  st1s1                          |           1 | losangeles           |
  st1s2                          |           2 | sanfrancisco         |
  st1s3                          |           3 | sacramento           |
-Query OK, 3 rows in database (0.004455s)
+Query OK, 3 row(s) in set
 ```
 
 You can display the values of only specified tags with the following statement:
 
 ```sql
-taos> SELECT DISTINCT TBNAME, id FROM st1;
+taos> SELECT
+        DISTINCT TBNAME,
+        id
+      FROM st1;
              tbname             |     id      |
 ===============================================
  st1s1                          |           1 |
  st1s2                          |           2 |
  st1s3                          |           3 |
-Query OK, 3 rows in database (0.002891s)
+Query OK, 3 row(s) in set
 ```
 
 Note that you must include `DISTINCT` and `TBNAME` in this statement to ensure accurate and fast results in the event that data is missing or the dataset is large.
@@ -143,17 +145,21 @@ taos> SHOW TAGS FROM st1s1;
 ============================================================================================================
  st1s1           | test            | st1             | id              | INT             | 1               |
  st1s1           | test            | st1             | loc             | VARCHAR(20)     | sanfrancisco    |
-Query OK, 2 rows in database (0.003684s)
+Query OK, 2 row(s) in set
 ```
 
 You can display the values of only specified tags with the following statement:
 
 ```sql
-taos> SELECT DISTINCT TBNAME, id, loc FROM st1s1;
+taos> SELECT
+        DISTINCT TBNAME,
+        id,
+        loc
+      FROM st1s1;
      tbname      |     id      |       loc       |
 ==================================================
  st1s1           |           1 | sanfrancisco    |
-Query OK, 1 rows in database (0.001884s)
+Query OK, 1 row(s) in set
 ```
 
 ## Delete a Supertable
@@ -178,7 +184,7 @@ The following statement modifies the parameters of an existing supertable:
 
 ```sql
 ALTER STABLE [db_name.]stb_name alter_table_clause
- 
+
 alter_table_clause: {
     alter_table_options
   | ADD COLUMN col_name column_type
@@ -192,10 +198,10 @@ alter_table_clause: {
   | ADD BASE ON [db_name.]parent_stb_name [, [db_name.]parent_stb_name] ...
   | DROP BASE ON [db_name.]parent_stb_name [, [db_name.]parent_stb_name] ...
 }
- 
+
 alter_table_options:
     alter_table_option ...
- 
+
 alter_table_option: {
     COMMENT 'string_value'
   | KEEP value

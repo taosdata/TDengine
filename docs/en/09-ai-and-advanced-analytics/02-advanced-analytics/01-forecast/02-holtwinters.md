@@ -34,7 +34,10 @@ FORECAST(i32, "algo=holtwinters,period=10,trend=mul,seasonal=mul")
 The complete SQL statement is shown as follows:
 
 ```sql
-SELECT _frowts, FORECAST(i32, "algo=holtwinters,period=10,trend=mul,seasonal=mul") FROM foo;
+SELECT
+  _frowts,
+  FORECAST(i32, "algo=holtwinters,period=10,trend=mul,seasonal=mul")
+FROM foo;
 ```
 
 ```json5

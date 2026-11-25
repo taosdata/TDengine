@@ -113,13 +113,12 @@ Applications can access TDengine through two paths: WebSocket/REST via taosAdapt
 
 ```sql
 -- Create a Bearer Token in taosd
-CREATE TOKEN
-    auth_code 'my_auth_code'
-    client_id  'app_server_01'
-    expire_time '2026-12-31T23:59:59';
+CREATE TOKEN auth_code 'my_auth_code' client_id 'app_server_01' expire_time '2026-12-31T23:59:59';
 
 -- Query the token value
-SELECT token FROM information_schema.ins_tokens WHERE auth_code = 'my_auth_code';
+SELECT token
+FROM information_schema.ins_tokens
+WHERE auth_code = 'my_auth_code';
 ```
 
 **HTTP examples:**
@@ -596,8 +595,8 @@ For complete syntax and parameter descriptions, see the SQL manual [Users](../05
 
 ```sql
 CREATE USER [IF NOT EXISTS] <username>
-    PASS '<password>'
-    [TOTPSEED '<totpseed>']          -- Specify the TOTP key seed (Enterprise Edition)
+  PASS '<password>'
+  [TOTPSEED '<totpseed>']          -- Specify the TOTP key seed (Enterprise Edition)
     [ACCOUNT LOCK | ACCOUNT UNLOCK]  -- Initial lock state
     [
         SYSINFO { 0 | 1 }            -- Whether system information can be viewed (default 1)
@@ -631,9 +630,13 @@ CREATE USER [IF NOT EXISTS] <username>
 
 ```sql
 ALTER USER alice PASS 'NewP@ssw0rd!';
+
 ALTER USER alice ACCOUNT LOCK;
+
 ALTER USER alice ACCOUNT UNLOCK;
+
 ALTER USER alice FAILED_LOGIN_ATTEMPTS 5;
+
 ALTER USER alice ADD HOST '192.168.1.0/24';
 ```
 
@@ -667,7 +670,9 @@ TDengine implements time-based one-time passwords (TOTP) based on RFC 6238.
 
 ```sql
 -- 1. Specify the TOTP seed when creating the user
-CREATE USER alice PASS 'P@ssw0rd!' TOTPSEED 'my-seed-string' TOTP 1;
+CREATE USER alice
+  PASS 'P@ssw0rd!'
+  TOTPSEED 'my-seed-string' TOTP 1;
 
 -- 2. Obtain the actual TOTP secret (for scanning by an Authenticator App)
 SELECT GENERATE_TOTP_SECRET('my-seed-string');
@@ -691,14 +696,12 @@ TOKEN authentication is suitable for long-running applications and avoids storin
 **Create a TOKEN:**
 
 ```sql
-CREATE TOKEN
-    auth_code 'my_auth_code'
-    client_id  'sensor_gateway'
-    expire_time '2026-12-31T23:59:59'
-    other_info  'production environment';
+CREATE TOKEN auth_code 'my_auth_code' client_id 'sensor_gateway' expire_time '2026-12-31T23:59:59' other_info 'production environment';
 
 -- Exchange auth_code for the actual token
-SELECT token FROM information_schema.ins_tokens WHERE auth_code = 'my_auth_code';
+SELECT token
+FROM information_schema.ins_tokens
+WHERE auth_code = 'my_auth_code';
 ```
 
 **Use TOKEN to log in:**
@@ -920,6 +923,7 @@ IP access control takes effect at the taosd account level. It supports CIDR nota
 ```sql
 -- Allow connections only from specified network segments
 ALTER USER alice ADD HOST '192.168.10.0/24';
+
 ALTER USER alice ADD HOST '10.0.0.0/8';
 
 -- Deny connections from a specified IP
@@ -953,10 +957,15 @@ TDengine Enterprise Edition supports two privilege models:
 
 ```sql
 GRANT READ ON db_name.* TO user1;
+
 GRANT WRITE ON db_name.stb1 TO user2;
+
 CREATE ROLE analyst;
+
 GRANT READ ON sensor_db.* TO analyst;
+
 GRANT ROLE analyst TO alice;
+
 REVOKE WRITE ON db_name.* FROM user2;
 ```
 
@@ -1036,8 +1045,14 @@ auditCreateTable  = 1
 
 ```sql
 SHOW USERS;
-SELECT * FROM information_schema.ins_users WHERE name = 'alice';
-SELECT * FROM information_schema.ins_tokens;
+
+SELECT *
+FROM information_schema.ins_users
+WHERE name = 'alice';
+
+SELECT *
+FROM information_schema.ins_tokens;
+
 SHOW CONNECTIONS;
 ```
 

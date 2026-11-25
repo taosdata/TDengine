@@ -48,8 +48,20 @@ sudo seeq restart
 **第 1 步**，在 TDengine 中创建表。
 
 ```sql
-CREATE STABLE meters (ts TIMESTAMP, num INT, temperature FLOAT, goods INT) TAGS (device NCHAR(20));
-CREATE TABLE goods (ts1 TIMESTAMP, ts2 TIMESTAMP, goods FLOAT);
+CREATE STABLE meters (
+  ts          TIMESTAMP,
+  num         INT,
+  temperature FLOAT,
+  goods       INT
+) TAGS (
+  device NCHAR(20)
+);
+
+CREATE TABLE goods (
+  ts1   TIMESTAMP,
+  ts2   TIMESTAMP,
+  goods FLOAT
+);
 ```
 
 ![Seeq demo schema](../../assets/seeq-01.webp)

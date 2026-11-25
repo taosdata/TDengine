@@ -37,25 +37,31 @@ toc_max_heading_level: 4
 如果你还没有创建这些对象，可以直接在第一个 shell 中执行下面的 SQL。
 
 ```sql
-CREATE DATABASE IF NOT EXISTS power PRECISION 'ms' KEEP 3650 DURATION 10 BUFFER 16;
+CREATE DATABASE IF NOT EXISTS power
+  PRECISION 'ms'
+  KEEP 3650
+  DURATION 10
+  BUFFER 16;
 
 USE power;
 
 CREATE STABLE IF NOT EXISTS meters (
-    ts timestamp,
-    current float,
-    voltage int,
-    phase float
+  ts      TIMESTAMP,
+  current FLOAT,
+  voltage INT,
+  phase   FLOAT
 ) TAGS (
-    location varchar(64),
-    group_id int
+  location VARCHAR(64),
+  group_id INT
 );
 
 CREATE TABLE IF NOT EXISTS d1001
-USING meters TAGS ("California.SanFrancisco", 2);
+  USING meters
+  TAGS ("California.SanFrancisco", 2);
 
 CREATE TABLE IF NOT EXISTS d1002
-USING meters TAGS ("California.SanFrancisco", 3);
+  USING meters
+  TAGS ("California.SanFrancisco", 3);
 ```
 
 ## 创建订阅主题
@@ -63,8 +69,15 @@ USING meters TAGS ("California.SanFrancisco", 3);
 在第一个 shell 中创建一个名为 `topic_meters` 的主题。主题定义了订阅者可以收到哪些数据。下面的主题订阅 `meters` 超级表中新写入的数据，并额外输出 `tbname`，方便你看到数据来自哪张子表。
 
 ```sql
-CREATE TOPIC IF NOT EXISTS topic_meters AS
-SELECT tbname, ts, current, voltage, phase FROM meters;
+CREATE TOPIC IF NOT EXISTS topic_meters
+  AS
+    SELECT
+      tbname,
+      ts,
+      current,
+      voltage,
+      phase
+    FROM meters;
 ```
 
 执行下面的命令可以查看主题是否创建成功。
@@ -100,8 +113,11 @@ Press Ctrl+C to stop.
 在第一个 shell 中写入两条新的电表数据。
 
 ```sql
-INSERT INTO d1001 VALUES (NOW, 10.3, 219, 0.31);
-INSERT INTO d1002 VALUES (NOW, 10.2, 220, 0.23);
+INSERT INTO d1001
+VALUES (NOW, 10.3, 219, 0.31);
+
+INSERT INTO d1002
+VALUES (NOW, 10.2, 220, 0.23);
 ```
 
 回到第二个 shell，可以看到订阅命令实时输出了刚写入的数据。输出格式会随终端宽度略有变化，内容类似如下：
@@ -152,7 +168,9 @@ subscribe -h;
 
 ```sql
 SHOW TOPICS;
+
 SHOW CONSUMERS;
+
 SHOW SUBSCRIPTIONS;
 ```
 
@@ -160,7 +178,9 @@ SHOW SUBSCRIPTIONS;
 
 ```sql
 DROP CONSUMER GROUP IF EXISTS FORCE quickstart_cg ON topic_meters;
+
 DROP CONSUMER GROUP IF EXISTS FORCE quickstart_cg_earliest ON topic_meters;
+
 DROP TOPIC IF EXISTS topic_meters;
 ```
 

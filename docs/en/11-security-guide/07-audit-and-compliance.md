@@ -47,15 +47,24 @@ There are two mutually exclusive primary paths:
 
 ```sql
 -- Create an encrypted audit database; VGROUPS must be 1
-CREATE DATABASE audit VGROUPS 1 IS_AUDIT 1
-  ENCRYPT_ALGORITHM 'SM4-CBC' WAL_LEVEL 2 PRECISION 'ns';
+CREATE DATABASE audit
+  VGROUPS 1
+  IS_AUDIT 1
+  ENCRYPT_ALGORITHM 'SM4-CBC'
+  WAL_LEVEL 2
+  PRECISION 'ns';
 
 ALTER ALL DNODES 'audit' '1';
+
 ALTER ALL DNODES 'auditSaveInSelf' '1';
-ALTER ALL DNODES 'auditLevel' '3';   -- Increase to 4 / 5 as needed
+
+ALTER ALL DNODES 'auditLevel' '3';  -- Increase to 4 / 5 as needed
 
 -- Query; use the actual database name you created
-SELECT * FROM audit.operations ORDER BY ts DESC LIMIT 100;
+SELECT *
+FROM audit.operations
+ORDER BY ts DESC
+LIMIT 100;
 ```
 
 ## 2. taosd Parameters
@@ -76,6 +85,7 @@ For complete types, value ranges, and dynamic modification support, see [taosd](
 
 ```sql
 ALTER ALL DNODES 'auditLevel' '5';
+
 SHOW VARIABLES LIKE 'audit%';
 ```
 
@@ -94,8 +104,13 @@ CREATE DATABASE [IF NOT EXISTS] db_name [database_options] IS_AUDIT 1;
 Common combination for local-cluster writes:
 
 ```sql
-CREATE DATABASE audit VGROUPS 1 IS_AUDIT 1
-  ENCRYPT_ALGORITHM 'SM4-CBC' WAL_LEVEL 2 PRECISION 'ns' KEEP 1825d;
+CREATE DATABASE audit
+  VGROUPS 1
+  IS_AUDIT 1
+  ENCRYPT_ALGORITHM 'SM4-CBC'
+  WAL_LEVEL 2
+  PRECISION 'ns'
+  KEEP 1825d;
 ```
 
 Constraints, enforced by the server in `v3.4.0.0+`:
@@ -165,16 +180,18 @@ Supertable schema, aligned with the current Keeper and `auditSaveInSelf` paths:
 
 ```sql
 CREATE STABLE IF NOT EXISTS operations (
-  ts TIMESTAMP,
-  user_name VARCHAR(25),
-  operation VARCHAR(20),
-  db VARCHAR(65),
-  resource VARCHAR(193),
+  ts             TIMESTAMP,
+  user_name      VARCHAR(25),
+  operation      VARCHAR(20),
+  db             VARCHAR(65),
+  resource       VARCHAR(193),
   client_address VARCHAR(64),
-  details VARCHAR(50000),
-  affected_rows BIGINT UNSIGNED,
-  `duration` DOUBLE
-) TAGS (cluster_id VARCHAR(64));
+  details        VARCHAR(50000),
+  affected_rows  BIGINT UNSIGNED,
+  `duration`     DOUBLE
+) TAGS (
+  cluster_id VARCHAR(64)
+);
 ```
 
 Notes:
@@ -275,19 +292,34 @@ After `taosd` and Keeper are configured and started correctly, unless local-clus
 
 ```sql
 SHOW VARIABLES LIKE 'audit%';
-SELECT name, is_audit, allow_drop, `encrypt_algorithm`, precision
-  FROM information_schema.ins_databases
-  WHERE is_audit = 1;
-SELECT ts, user_name, operation, db, resource, client_address, details
-  FROM audit.operations
-  ORDER BY ts DESC
-  LIMIT 100;
+
+SELECT
+  name,
+  is_audit,
+  allow_drop,
+  `encrypt_algorithm`,
+  precision
+FROM information_schema.ins_databases
+WHERE is_audit = 1;
+
+SELECT
+  ts,
+  user_name,
+  operation,
+  db,
+  resource,
+  client_address,
+  details
+FROM audit.operations
+ORDER BY ts DESC
+LIMIT 100;
 ```
 
 Before deleting an audit database, as `SYSAUDIT` only:
 
 ```sql
 ALTER DATABASE audit ALLOW_DROP 1;
+
 DROP DATABASE audit;
 ```
 

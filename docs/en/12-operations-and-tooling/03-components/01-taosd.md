@@ -429,19 +429,25 @@ Both are valid settings for the east-8 (Beijing) time zone. Note that under the 
 The connection timezone affects parsing of strings without an explicit offset and local calendar boundaries. It does not change the absolute timestamp returned by `NOW()`. For example:
 
 ```sql
-SELECT count(*) FROM table_name WHERE TS<'2019-04-11 12:01:08';
+SELECT COUNT(*)
+FROM table_name
+WHERE TS < '2019-04-11 12:01:08';
 ```
 
 In GMT+8, the SQL statement is equivalent to:
 
 ```sql
-SELECT count(*) FROM table_name WHERE TS<1554955268000;
+SELECT COUNT(*)
+FROM table_name
+WHERE TS < 1554955268000;
 ```
 
 In the UTC time zone, the SQL statement is equivalent to:
 
 ```sql
-SELECT count(*) FROM table_name WHERE TS<1554984068000;
+SELECT COUNT(*)
+FROM table_name
+WHERE TS < 1554984068000;
 ```
 
 To avoid the uncertainties brought by using string time formats, you can also directly use Unix Timestamps. Additionally, you can use timestamp strings with time zones in SQL statements, such as RFC3339 formatted timestamp strings, 2013-04-12T15:52:01.123+08:00 or ISO-8601 formatted timestamp strings 2013-04-12T15:52:01.123+0800. The conversion of these two strings to Unix Timestamps is not affected by the system's local time zone.

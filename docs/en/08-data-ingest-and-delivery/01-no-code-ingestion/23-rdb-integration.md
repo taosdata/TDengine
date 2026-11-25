@@ -112,13 +112,13 @@ The source meter-reading table is:
 
 ```sql
 CREATE TABLE METER_READINGS (
-    ID           BIGINT PRIMARY KEY,
-    METER_ID     VARCHAR(32),
-    LOCATION     VARCHAR(64),
-    READING_TS   TIMESTAMP,
-    INGEST_TS    TIMESTAMP,
-    VOLTAGE      DECIMAL(10, 3),
-    CURRENT_A    DOUBLE
+  ID         BIGINT PRIMARY KEY,
+  METER_ID   VARCHAR(32),
+  LOCATION   VARCHAR(64),
+  READING_TS TIMESTAMP,
+  INGEST_TS  TIMESTAMP,
+  VOLTAGE    DECIMAL(10, 3),
+  CURRENT_A  DOUBLE
 );
 ```
 
@@ -250,12 +250,20 @@ After synchronization finishes, you can also run summary queries in the source d
 
 ```sql
 -- Source (Dameng in this example)
-SELECT COUNT(*), SUM(VOLTAGE) FROM METER_READINGS
-WHERE READING_TS >= '2024-01-01 00:00:00' AND READING_TS < '2024-02-01 00:00:00';
+SELECT
+  COUNT(*),
+  SUM(VOLTAGE)
+FROM METER_READINGS
+WHERE READING_TS >= '2024-01-01 00:00:00'
+  AND READING_TS < '2024-02-01 00:00:00';
 
 -- TDengine
-SELECT COUNT(*), SUM(voltage) FROM meters
-WHERE ts >= '2024-01-01 00:00:00' AND ts < '2024-02-01 00:00:00';
+SELECT
+  COUNT(*),
+  SUM(voltage)
+FROM meters
+WHERE ts >= '2024-01-01 00:00:00'
+  AND ts < '2024-02-01 00:00:00';
 ```
 
 ### Conditions for a Complete Match

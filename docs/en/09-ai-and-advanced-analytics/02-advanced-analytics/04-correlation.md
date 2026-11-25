@@ -57,14 +57,14 @@ option_expr: {
 Calculate DTW between col1 and col2 without specifying radius:
 
 ```sql
-SELECT dtw(col1, col2)
+SELECT DTW(col1, col2)
 FROM foo;
 ```
 
 Specify radius = 2:
 
 ```sql
-SELECT dtw(col1, col2, 'radius=2')
+SELECT DTW(col1, col2, 'radius=2')
 FROM foo;
 ```
 
@@ -88,7 +88,10 @@ option_expr: {
 ### Example
 
 ```sql
-taos> SELECT col1, col2 FROM foo;
+taos> SELECT
+        col1,
+        col2
+      FROM foo;
        col1 |       col2 |
 =========================
           1 |          1 |
@@ -97,7 +100,8 @@ taos> SELECT col1, col2 FROM foo;
         1.2 |        1.8 |
         1.1 |        1.6 |
 
-taos> SELECT dtw_path(col1, col2, 'radius=1') res FROM foo;
+taos> SELECT DTW_PATH(col1, col2, 'radius=1') res
+      FROM foo;
                res |
 ===================
             (0, 0) |
@@ -146,13 +150,13 @@ lag_end=expr,
 Calculate correlation across default lag range:
 
 ```sql
-SELECT tlcc(col1, col2)
+SELECT TLCC(col1, col2)
 FROM foo;
 ```
 
 Specify lag range:
 
 ```sql
-SELECT tlcc(col1, col2, 'lag_start=-10, lag_end=10')
+SELECT TLCC(col1, col2, 'lag_start=-10, lag_end=10')
 FROM foo;
 ```

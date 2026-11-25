@@ -34,7 +34,10 @@ FORECAST(i32, "algo=holtwinters,period=10,trend=mul,seasonal=mul")
 完整的调用 SQL 语句如下：
 
 ```SQL
-SELECT _frowts, FORECAST(i32, "algo=holtwinters,period=10,trend=mul,seasonal=mul") FROM foo;
+SELECT
+  _frowts,
+  FORECAST(i32, "algo=holtwinters,period=10,trend=mul,seasonal=mul")
+FROM foo;
 ```
 
 ```json5

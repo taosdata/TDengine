@@ -338,17 +338,24 @@ LAG() 函数是 Spark 提供获取当前行之前某行数据的函数，示例�
 1. 通过 TDengine SQL 获取数据并创建 Spark View, 详见 createSparkView()。
 
     ``` sql
-    select tbname,* from test.meters where tbname='d0'
+    SELECT
+      tbname,
+      *
+    FROM test.meters
+    WHERE tbname = 'd0'
     ```
 
 2. 使用 Spark SQL 查询 Spark View 数据，计算电压周变化率，SQL 如下：
 
     ``` sql
-    SELECT tbname, ts, voltage,
-          (LAG(voltage, 7) OVER (ORDER BY tbname)) AS voltage_last_week, 
-          "CONCAT(ROUND(((voltage - (LAG(voltage, 7) OVER (ORDER BY tbname))) / (LAG(voltage, 7)
+    SELECT
+      tbname,
+      ts,
+      voltage,
+      (LAG(voltage, 7) OVER(ORDER BY tbname)) AS voltage_last_week,
+      "CONCAT(ROUND(((voltage - (LAG(voltage, 7) OVER (ORDER BY tbname))) / (LAG(voltage, 7)
           OVER (ORDER BY tbname)) * 100), 1),'%') AS weekly_growth_rate ",
-          FROM sparkMeters
+    FROM sparkMeters
     ```
 
 3. 输出分析结果，如图：  

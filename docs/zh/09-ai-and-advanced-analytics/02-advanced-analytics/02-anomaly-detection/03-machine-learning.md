@@ -25,7 +25,9 @@ Autoencoder<sup>[1]</sup>：TDgpt 提供了一个使用自编码器（Autoencode
 
 ```sql
 -- 在 options 中增加 model 参数 sample-ad-autoencoder，采用自编码器的异常检测模型进行异常检测
-SELECT _wstart, count(*)
+SELECT
+  _wstart,
+  COUNT(*)
 FROM foo ANOMALY_WINDOW(val, 'algo=sample_ad_model,model=sample-ad-autoencoder');
 ```
 
@@ -41,9 +43,10 @@ FROM foo ANOMALY_WINDOW(val, 'algo=sample_ad_model,model=sample-ad-autoencoder')
 
 ```SQL
 --- 使用 IForest 进行多变量异常检测
-SELECT _WSTART, COUNT(*)
-FROM foo
-ANOMALY_WINDOW(foo.i32, foo.i64, "algo=iforest,contamination=0.1,n_estimators=100,random_state=42")
+SELECT
+  _WSTART,
+  COUNT(*)
+FROM foo ANOMALY_WINDOW(foo.i32, foo.i64, "algo=iforest,contamination=0.1,n_estimators=100,random_state=42")
 ```
 
 后续添加机器（深度）学习异常检测算法

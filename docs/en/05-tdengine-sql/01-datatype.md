@@ -78,7 +78,8 @@ The formats below use TDengine datetime format patterns. `HH24` represents the h
 Default timestamp precision is milliseconds. When creating a database, set microseconds or nanoseconds with `PRECISION`.
 
 ```sql
-CREATE DATABASE db_name PRECISION 'ns';
+CREATE DATABASE db_name
+  PRECISION 'ns';
 ```
 
 For full `PRECISION` details, see [Create Database](./02-ddl/01-database.md).
@@ -155,17 +156,24 @@ Other limits:
 2. Use the JSON value operator `->`.
 
    ```sql
-   SELECT * FROM s1 WHERE info->'k1' = 'v1';
+   SELECT *
+   FROM s1
+   WHERE info->'k1' = 'v1';
 
-   SELECT info->'k1' FROM s1;
+   SELECT info->'k1'
+   FROM s1;
    ```
 
 3. Use `CONTAINS` to test whether a JSON key exists.
 
    ```sql
-   SELECT * FROM s1 WHERE info CONTAINS 'k2';
+   SELECT *
+   FROM s1
+   WHERE info CONTAINS 'k2';
 
-   SELECT * FROM s1 WHERE info CONTAINS 'k1';
+   SELECT *
+   FROM s1
+   WHERE info CONTAINS 'k1';
    ```
 
 ### Supported Operations
@@ -173,13 +181,22 @@ Other limits:
 - In `WHERE`, `MATCH`, `NMATCH`, `BETWEEN ... AND`, `LIKE`, `AND`, `OR`, `IS NULL`, and `IS NOT NULL` are supported; `IN` is not.
 
   ```sql
-  SELECT * FROM s1 WHERE info->'k1' MATCH 'v*';
+  SELECT *
+  FROM s1
+  WHERE info->'k1' MATCH 'v*';
 
-  SELECT * FROM s1 WHERE info->'k1' LIKE 'v%' AND info CONTAINS 'k2';
+  SELECT *
+  FROM s1
+  WHERE info->'k1' LIKE 'v%'
+    AND info CONTAINS 'k2';
 
-  SELECT * FROM s1 WHERE info IS NULL;
+  SELECT *
+  FROM s1
+  WHERE info IS NULL;
 
-  SELECT * FROM s1 WHERE info->'k1' IS NOT NULL;
+  SELECT *
+  FROM s1
+  WHERE info->'k1' IS NOT NULL;
   ```
 
 - JSON tags can appear in `GROUP BY`, `ORDER BY`, `JOIN`, `UNION ALL`, and subqueries, e.g. `GROUP BY info->'key'`.
@@ -202,9 +219,18 @@ Other limits:
 The following are not supported:
 
 ```sql
-SELECT jtag->'key' FROM (SELECT jtag FROM stable);
+SELECT jtag->'key'
+FROM (
+  SELECT jtag
+  FROM STABLE
+);
 
-SELECT jtag->'key' FROM (SELECT jtag FROM stable) WHERE jtag->'key' > 0;
+SELECT jtag->'key'
+FROM (
+  SELECT jtag
+  FROM STABLE
+)
+WHERE jtag->'key' > 0;
 ```
 
 ## Constants

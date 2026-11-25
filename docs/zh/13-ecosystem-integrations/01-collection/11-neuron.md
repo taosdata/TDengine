@@ -200,7 +200,8 @@ Neuron Tag 是采集点位，对应测量列；TDengine TAG 是子表属性。`g
 在 TDengine SQL 客户端执行以下语句，无需手工创建超级表或子表：
 
 ```sql
-CREATE DATABASE IF NOT EXISTS neuron_meters_demo PRECISION 'ms';
+CREATE DATABASE IF NOT EXISTS neuron_meters_demo
+  PRECISION 'ms';
 ```
 
 #### 2. 检查直连接口
@@ -277,19 +278,23 @@ curl -i http://adapter-host:6041/influxdb/v1/ping
 2. 在 SQL 编辑区域输入以下语句。
 
    ```sql
-   SELECT values.current AS current,
-          values.voltage AS voltage,
-          values.phase AS phase,
-          timestamp AS ets,
-          node_name AS device,
-          CASE WHEN node_name IN ("workshop01_meter01", "workshop01_meter02")
-               THEN "1" ELSE "2" END AS group_id,
-          CASE WHEN node_name IN ("workshop01_meter01", "workshop01_meter02")
-               THEN "Factory01.Workshop01" ELSE "Factory01.Workshop02" END AS location
+   SELECT
+     values.current AS current,
+     values.voltage AS voltage,
+     values.phase AS phase,
+     timestamp AS ets,
+     node_name AS device,
+     CASE
+       WHEN node_name IN ("workshop01_meter01", "workshop01_meter02") THEN "1"
+       ELSE "2"
+     END AS group_id,
+     CASE
+       WHEN node_name IN ("workshop01_meter01", "workshop01_meter02") THEN "Factory01.Workshop01"
+       ELSE "Factory01.Workshop02"
+     END AS location
    FROM meters_stream
    WHERE group_name = "electrical_readings"
-     AND node_name IN ("workshop01_meter01", "workshop01_meter02",
-                       "workshop02_meter01", "workshop02_meter02")
+     AND node_name IN ("workshop01_meter01", "workshop01_meter02", "workshop02_meter01", "workshop02_meter02")
    ```
 
    该 SQL 筛选四台电表的 `electrical_readings` 采集组报告，提取电流、电压和相位，保留原始时间戳和设备名，并按设备名设置位置与业务组编号。设备名用于指定子表名，位置与业务组编号写入 TAG。
@@ -402,7 +407,11 @@ NeuronEX 页面默认设置 `sendSingle=true`，用于逐行计算动态标签�
    ```sql
    DESCRIBE neuron_meters_demo.meters;
 
-   SELECT DISTINCT TBNAME, device, group_id, location
+   SELECT
+     DISTINCT TBNAME,
+     device,
+     group_id,
+     location
    FROM neuron_meters_demo.meters;
    ```
 
@@ -411,16 +420,24 @@ NeuronEX 页面默认设置 `sendSingle=true`，用于逐行计算动态标签�
 2. 查询最新数据，与「数据采集 → 数据监控」比较。将子表名替换为其他设备名，逐一检查四台设备。
 
    ```sql
-   SELECT _ts, current, voltage, phase
+   SELECT
+     _ts,
+     current,
+     voltage,
+     phase
    FROM neuron_meters_demo.workshop01_meter01
-   ORDER BY _ts DESC LIMIT 5;
+   ORDER BY _ts DESC
+   LIMIT 5;
    ```
 
 3. 间隔数秒重复执行以下查询，确认四个子表的行数持续增长。
 
    ```sql
-   SELECT TBNAME, COUNT(*)
-   FROM neuron_meters_demo.meters PARTITION BY TBNAME;
+   SELECT
+     TBNAME,
+     COUNT(*)
+   FROM neuron_meters_demo.meters
+   PARTITION BY TBNAME;
    ```
 
 ## 查看监控

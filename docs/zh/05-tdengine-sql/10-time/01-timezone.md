@@ -93,8 +93,9 @@ Windows 继承的 `TZ` 必须使用支持的时区格式。`EST5EDT,M3.2.0,M11.1
 
 ```sql
 SET TIMEZONE 'Asia/Shanghai';
-SET TIMEZONE '-08:00';      -- POSIX: local = UTC+8，效果同北京时间
-SET TIMEZONE '+08:00';      -- POSIX: local = UTC-8，不是北京时间
+
+SET TIMEZONE '-08:00';  -- POSIX: local = UTC+8，效果同北京时间
+SET TIMEZONE '+08:00';  -- POSIX: local = UTC-8，不是北京时间
 SET TIMEZONE 'America/New_York';
 ```
 
@@ -213,10 +214,21 @@ SET FIRST_DAY_OF_WEEK 1;
 ### TO_ISO8601
 
 ```sql
-SELECT TO_ISO8601(ts) FROM t;                        -- 使用连接时区
-SELECT TO_ISO8601(ts, '+09:00') FROM t;              -- 指定固定偏移（ISO 8601 符号）
-SELECT TO_ISO8601(ts, 'UTC+09:00') FROM t;           -- 等价写法，'UTC' 前缀会被剥离
-SELECT TO_ISO8601(ts, 'America/New_York') FROM t;    -- 指定 IANA 时区
+-- 使用连接时区
+SELECT TO_ISO8601(ts)
+FROM t;
+
+-- 指定固定偏移（ISO 8601 符号）
+SELECT TO_ISO8601(ts, '+09:00')
+FROM t;
+
+-- 等价写法，'UTC' 前缀会被剥离
+SELECT TO_ISO8601(ts, 'UTC+09:00')
+FROM t;
+
+-- 指定 IANA 时区
+SELECT TO_ISO8601(ts, 'America/New_York')
+FROM t;
 ```
 
 **符号约定**：`TO_ISO8601` 是唯一使用 ISO 8601 符号约定的入口——`local = UTC + offset`，即 `'+08:00'` 表示东八区（北京时间）。以下写法完全等价：`'+0800'`、`'+08:00'`、`'UTC+8'`、`'UTC+0800'`、`'UTC+08:00'`。其余入口（`SET TIMEZONE`、`taos.cfg`、`TO_CHAR`、`TIMETRUNCATE` 等）均使用 POSIX 符号约定（`+` = 西区）。
@@ -234,12 +246,29 @@ SELECT TO_ISO8601('2026-07-15 12:00:00');  -- ...T12:00:00-04:00 (EDT, 夏令时
 将时间戳截断到指定单位边界。
 
 ```sql
-SELECT TIMETRUNCATE(ts, 1d) FROM t;                          -- 截断到当天 00:00:00
-SELECT TIMETRUNCATE(ts, 1w) FROM t;                          -- 截断到一周起始日 00:00:00
-SELECT TIMETRUNCATE(ts, 1n) FROM t;                          -- 截断到当月 1 日
-SELECT TIMETRUNCATE(ts, 1q) FROM t;                          -- 截断到当季首月 1 日
-SELECT TIMETRUNCATE(ts, 1y) FROM t;                          -- 截断到当年 1 月 1 日
-SELECT TIMETRUNCATE(ts, 1d, 'America/New_York') FROM t;      -- 指定时区
+-- 截断到当天 00:00:00
+SELECT TIMETRUNCATE(ts, 1d)
+FROM t;
+
+-- 截断到一周起始日 00:00:00
+SELECT TIMETRUNCATE(ts, 1w)
+FROM t;
+
+-- 截断到当月 1 日
+SELECT TIMETRUNCATE(ts, 1n)
+FROM t;
+
+-- 截断到当季首月 1 日
+SELECT TIMETRUNCATE(ts, 1q)
+FROM t;
+
+-- 截断到当年 1 月 1 日
+SELECT TIMETRUNCATE(ts, 1y)
+FROM t;
+
+-- 指定时区
+SELECT TIMETRUNCATE(ts, 1d, 'America/New_York')
+FROM t;
 ```
 
 **支持的自然时间单位**
@@ -255,9 +284,9 @@ SELECT TIMETRUNCATE(ts, 1d, 'America/New_York') FROM t;      -- 指定时区
 **示例**
 
 ```sql
-SELECT TIMETRUNCATE('2026-03-15', 1n);   -- 2026-03-01 00:00:00
-SELECT TIMETRUNCATE('2026-05-15', 1q);   -- 2026-04-01 00:00:00
-SELECT TIMETRUNCATE('2026-08-15', 1y);   -- 2026-01-01 00:00:00
+SELECT TIMETRUNCATE('2026-03-15', 1n);  -- 2026-03-01 00:00:00
+SELECT TIMETRUNCATE('2026-05-15', 1q);  -- 2026-04-01 00:00:00
+SELECT TIMETRUNCATE('2026-08-15', 1y);  -- 2026-01-01 00:00:00
 ```
 
 **第三参数**（时区）：
@@ -282,6 +311,7 @@ SELECT TIMEZONE();
 
 ```sql
 SELECT TIMEZONE();
+
 SELECT TO_ISO8601(NOW());
 ```
 
@@ -296,17 +326,26 @@ SELECT TO_ISO8601(NOW());
 `INTERVAL` 支持按自然时间单位切分窗口：
 
 ```sql
-SELECT _wstart, COUNT(*) FROM meters
-  INTERVAL(1n)                      -- 按月切分
-  FILL(PREV);
+SELECT
+  _wstart,
+  COUNT(*)
+FROM meters
+INTERVAL(1n) -- 按月切分
+FILL(PREV);
 
-SELECT _wstart, AVG(voltage) FROM meters
-  INTERVAL(1q)                      -- 按季度切分
-  FILL(NULL);
+SELECT
+  _wstart,
+  AVG(voltage)
+FROM meters
+INTERVAL(1q) -- 按季度切分
+FILL(NULL);
 
-SELECT _wstart, SUM(energy) FROM meters
-  INTERVAL(1w)                      -- 按周切分（尊重 firstDayOfWeek）
-  FILL(LINEAR);
+SELECT
+  _wstart,
+  SUM(energy)
+FROM meters
+INTERVAL(1w) -- 按周切分（尊重 firstDayOfWeek）
+FILL(LINEAR);
 ```
 
 **支持的自然时间单位**
@@ -358,12 +397,18 @@ STREAM_OPTIONS(CONFIG(timezone = 'Asia/Shanghai', firstDayOfWeek = 1))
 
 ```sql
 SET TIMEZONE 'Asia/Shanghai';
+
 SET FIRST_DAY_OF_WEEK 1;
 
-CREATE STREAM meters_monthly INTERVAL(1n) FROM meters
-  INTO meters_monthly_out AS
-  SELECT _twstart AS window_start, AVG(current) AS avg_current
-  FROM %%trows;
+CREATE STREAM meters_monthly
+  INTERVAL(1n)
+  FROM meters
+  INTO meters_monthly_out
+  AS
+    SELECT
+      _twstart AS window_start,
+      AVG(current) AS avg_current
+    FROM %%trows;
 ```
 
 上例创建后，流会保存 `timezone = 'Asia/Shanghai'` 和 `firstDayOfWeek = 1`。可用 `SHOW CREATE STREAM` 确认实际写入的 `CONFIG`。
@@ -400,33 +445,51 @@ CREATE STREAM meters_monthly INTERVAL(1n) FROM meters
 
 ```sql
 -- 每季度按东京当地时间触发
-CREATE STREAM meters_quarter_tokyo PERIOD(1q)
+CREATE STREAM meters_quarter_tokyo
+  PERIOD(1q)
   STREAM_OPTIONS(CONFIG(timezone = 'Asia/Tokyo', firstDayOfWeek = 1))
-  INTO meters_quarter_tokyo_out AS
-  SELECT CAST(_tlocaltime / 1000000 AS TIMESTAMP) AS ts,
-         AVG(current) AS avg_current
-  FROM meters;
+  INTO meters_quarter_tokyo_out
+  AS
+    SELECT
+      CAST(_tlocaltime / 1000000 AS TIMESTAMP) AS ts,
+      AVG(current) AS avg_current
+    FROM meters;
 
 -- 按纽约当地年边界滑动触发
-CREATE STREAM meters_slide_year SLIDING(1y) FROM meters
+CREATE STREAM meters_slide_year
+  SLIDING(1y)
+  FROM meters
   STREAM_OPTIONS(CONFIG(timezone = 'America/New_York', firstDayOfWeek = 0))
-  INTO meters_slide_year_out AS
-  SELECT _tprev_ts AS window_start, AVG(current) AS avg_current
-  FROM %%trows;
+  INTO meters_slide_year_out
+  AS
+    SELECT
+      _tprev_ts AS window_start,
+      AVG(current) AS avg_current
+    FROM %%trows;
 
 -- 按伦敦当地自然月划分窗口
-CREATE STREAM meters_monthly INTERVAL(1n) FROM meters
+CREATE STREAM meters_monthly
+  INTERVAL(1n)
+  FROM meters
   STREAM_OPTIONS(CONFIG(timezone = 'Europe/London', firstDayOfWeek = 1))
-  INTO meters_monthly_out AS
-  SELECT _twstart AS window_start, AVG(current) AS avg_current
-  FROM %%trows;
+  INTO meters_monthly_out
+  AS
+    SELECT
+      _twstart AS window_start,
+      AVG(current) AS avg_current
+    FROM %%trows;
 
 -- 每 2 秒计算前 1 秒，窗口之间会有空隙
-CREATE STREAM meters_gapped INTERVAL(1s) SLIDING(2s) FROM meters
+CREATE STREAM meters_gapped
+  INTERVAL(1s) SLIDING(2s)
+  FROM meters
   STREAM_OPTIONS(CONFIG(timezone = 'Asia/Shanghai', firstDayOfWeek = 1))
-  INTO meters_gapped_out AS
-  SELECT _twstart AS window_start, AVG(current) AS avg_current
-  FROM %%trows;
+  INTO meters_gapped_out
+  AS
+    SELECT
+      _twstart AS window_start,
+      AVG(current) AS avg_current
+    FROM %%trows;
 ```
 
 ### 偏移
@@ -479,7 +542,11 @@ CREATE STREAM meters_gapped INTERVAL(1s) SLIDING(2s) FROM meters
 ```sql
 SHOW CREATE STREAM db_name.stream_name;
 
-SELECT stream_name, timezone, first_day_of_week, sql
+SELECT
+  stream_name,
+  timezone,
+  first_day_of_week,
+  sql
 FROM information_schema.ins_streams;
 ```
 

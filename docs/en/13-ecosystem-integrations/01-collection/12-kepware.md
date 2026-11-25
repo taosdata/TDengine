@@ -218,7 +218,10 @@ While running or verified, the details page shows only **Check Data** and **Dele
 A status of **Verified** on the integration details page means verification passed. You can also check the latest receive time of each child table in the taosExplorer SQL editor:
 
 ```sql
-SELECT tbname, COUNT(*) AS rows, MAX(rts) AS latest_rts
+SELECT
+  tbname,
+  COUNT(*) AS rows,
+  MAX(rts) AS latest_rts
 FROM kepware.opc_double
 PARTITION BY tbname
 LIMIT 20;

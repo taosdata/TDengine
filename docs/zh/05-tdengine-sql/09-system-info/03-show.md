@@ -20,6 +20,7 @@ SHOW [db_name.]ALIVE;
 
 ```sql
 SHOW ANODES;
+
 SHOW ANODES FULL;
 ```
 
@@ -100,6 +101,7 @@ SHOW DNODE dnode_id VARIABLES [LIKE 'pattern'];
 
 ```sql
 SHOW COMPACTS;
+
 SHOW COMPACT compact_id;
 ```
 
@@ -289,8 +291,11 @@ SHOW INSTANCES [LIKE 'pattern'];
 
 ```sql
 SHOW LICENCES;
+
 SHOW GRANTS;
+
 SHOW GRANTS FULL;
+
 SHOW GRANTS LOGS;
 ```
 
@@ -386,6 +391,7 @@ SHOW [db_name.]RSMAS;
 
 ```sql
 SHOW SCANS;
+
 SHOW SCAN scan_id;
 ```
 
@@ -524,8 +530,7 @@ _block_dist: 3682 |
 *************************** 24.row ***************************
 
 _block_dist: 3881 |||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||  4 (80.00%)
-
-Query OK, 24 row(s) in set (0.002444s)
+Query OK, 24 row(s) in set
 ```
 
 </details>
@@ -596,6 +601,7 @@ SHOW TRANSACTION ORPHANS;
 
 ```sql
 SHOW TRANSACTIONS;
+
 SHOW TRANSACTION transaction_id;
 ```
 
@@ -621,6 +627,7 @@ SHOW USER PRIVILEGES;
 
 ```sql
 SHOW USERS;
+
 SHOW USERS FULL;
 ```
 
@@ -646,6 +653,7 @@ SHOW [db_name.]VIEWS [LIKE 'pattern'];
 
 ```sql
 SHOW VNODES;
+
 SHOW VNODES ON DNODE dnode_id;
 ```
 

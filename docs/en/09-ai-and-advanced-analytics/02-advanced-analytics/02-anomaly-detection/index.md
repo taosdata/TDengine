@@ -8,9 +8,11 @@ This service is provided via an anomaly window that has been introduced into TDe
 
 ```sql
 --- Use the IQR algorithm to detect anomalies in the `col_val` column. Also return the start and end time of the anomaly window as well as the sum of the `col` column within the window.
-SELECT _wstart, _wend, SUM(col) 
-FROM foo
-ANOMALY_WINDOW(col_val, "algo=iqr");
+SELECT
+  _wstart,
+  _wend,
+  SUM(col)
+FROM foo ANOMALY_WINDOW(col_val, "algo=iqr");
 ```
 
 As shown in the following figure, the anode returns the anomaly window `[10:51:30, 10:53:40]`.
@@ -55,26 +57,41 @@ Window pseudo-columns (`_WSTART`, `_WEND`, `_WDURATION`) are also available to d
 
 ```sql
 --- Use the IQR algorithm to detect anomalies in the `i32` column. Also return the start and end time of the anomaly window, the sum of the `i32` column within the window, and the anomaly mark.
-SELECT _wstart, _wend, SUM(i32), _anomalymark
-FROM foo
-ANOMALY_WINDOW(i32, "algo=iqr");
+SELECT
+  _wstart,
+  _wend,
+  SUM(i32),
+  _anomalymark
+FROM foo ANOMALY_WINDOW(i32, "algo=iqr");
 
 --- Use the k-sigma algorithm with k value of 2 to detect anomalies in the `i32` column.
-SELECT _wstart, _wend, SUM(i32) 
-FROM foo
-ANOMALY_WINDOW(i32, "algo=ksigma,k=2");
+SELECT
+  _wstart,
+  _wend,
+  SUM(i32)
+FROM foo ANOMALY_WINDOW(i32, "algo=ksigma,k=2");
+```
 
-taos> SELECT _wstart, _wend, count(*) FROM foo ANOMALY_WINDOW(i32);
+```sql
+taos> SELECT
+        _wstart,
+        _wend,
+        COUNT(*)
+      FROM foo ANOMALY_WINDOW(i32);
          _wstart         |          _wend          |   count(*)    |
 ====================================================================
  2020-01-01 00:00:16.000 | 2020-01-01 00:00:17.000 |             2 |
-Query OK, 1 row(s) in set (0.028946s)
+Query OK, 1 row(s) in set
+```
 
+```sql
 --- Multiple columns are accepted in `v3.4.1.0` and later. A single-column
 --- algorithm such as k-sigma ignores the i8 column.
-SELECT _wstart, _wend, SUM(i32)
-FROM foo
-ANOMALY_WINDOW(i32, i8, "algo=ksigma,k=2");
+SELECT
+  _wstart,
+  _wend,
+  SUM(i32)
+FROM foo ANOMALY_WINDOW(i32, i8, "algo=ksigma,k=2");
 ```
 
 ### Using Anomaly Windows in Stream Processing
@@ -83,15 +100,19 @@ In a stream calculation query, `%%tbname.column_name` refers to a data column in
 
 ```sql
 CREATE STREAM sm2
-    INTERVAL(1h) SLIDING(1h)
-    FROM meters PARTITION BY tbname
-    STREAM_OPTIONS(FILL_HISTORY)
-    INTO td2
-AS
-    SELECT _wstart AS ts, _wend AS end_ts, COUNT(*) AS ab
+  INTERVAL(1h) SLIDING(1h)
+  FROM meters
+  PARTITION BY tbname
+  STREAM_OPTIONS(FILL_HISTORY)
+  INTO td2
+  AS
+    SELECT
+      _wstart AS ts,
+      _wend AS end_ts,
+      COUNT(*) AS ab
     FROM %%tbname
-    WHERE _c0 >= _twstart AND _c0 <= _twend
-    ANOMALY_WINDOW(%%tbname.voltage, "algo=ksigma,k=1");
+    WHERE _c0 >= _twstart
+      AND _c0 <= _twend ANOMALY_WINDOW(%%tbname.voltage, "algo=ksigma,k=1");
 ```
 
 `PARTITION BY tbname` triggers a separate calculation for each subtable. The `WHERE` clause limits the detection input to the current one-hour trigger window. The k-sigma algorithm detects anomalies in that subtable's `voltage` column, and `COUNT(*)` counts the records in each resulting anomaly window. One trigger window can produce zero, one, or multiple anomaly windows.

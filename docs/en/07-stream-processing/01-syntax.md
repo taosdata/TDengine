@@ -49,8 +49,8 @@ true_for_expr:
 
 true_for_arg: {
     limit_expr
-  | start(limit_expr)
-  | end(limit_expr)
+  | START(limit_expr)
+  | END(limit_expr)
 }
 
 limit_expr: {
@@ -230,7 +230,12 @@ CREATE STREAM s_tag_state
   FROM meters
   PARTITION BY tbname
   INTO meters_state_out
-  AS SELECT _twstart AS ts, _twend AS te, COUNT(*) AS cnt FROM %%trows;
+  AS
+    SELECT
+      _twstart AS ts,
+      _twend AS te,
+      COUNT(*) AS cnt
+    FROM %%trows;
 ```
 
 Multi-key state-window example:
@@ -242,7 +247,11 @@ CREATE STREAM s_multi_state
   PARTITION BY tbname
   INTO result_table
   AS
-    SELECT _twstart AS ts, _twend AS te, COUNT(*) AS cnt FROM %%trows;
+    SELECT
+      _twstart AS ts,
+      _twend AS te,
+      COUNT(*) AS cnt
+    FROM %%trows;
 ```
 
 The stream above cuts a new window whenever either `s1` or `s2` changes. Zero-state filtering is applied only to `s1 = 1`; `s2` does not participate in zero-state matching.
@@ -276,7 +285,12 @@ CREATE STREAM s_tag_event
   FROM meters
   PARTITION BY tbname
   INTO meters_event_out
-  AS SELECT _twstart AS ts, _twend AS te, COUNT(*) AS cnt FROM %%trows;
+  AS
+    SELECT
+      _twstart AS ts,
+      _twend AS te,
+      COUNT(*) AS cnt
+    FROM %%trows;
 ```
 
 Usage Notes:
@@ -311,31 +325,44 @@ This temperature alarm confirms opening after the temperature stays at or above 
 
 ```sql
 CREATE DATABASE true_for_demo;
+
 USE true_for_demo;
-CREATE TABLE sensor (ts TIMESTAMP, temperature INT);
+
+CREATE TABLE sensor (
+  ts          TIMESTAMP,
+  temperature INT
+);
 
 CREATE STREAM temperature_alarm
-  EVENT_WINDOW(START WITH temperature >= 80 END WITH temperature < 80)
-  TRUE_FOR(START(1m), END(COUNT 2))
+  EVENT_WINDOW(START WITH temperature >= 80 END WITH temperature < 80) TRUE_FOR(START(1m), END(COUNT 2))
   STREAM_OPTIONS(EVENT_TYPE(WINDOW_CLOSE))
   FROM sensor
   INTO temperature_alarm_out
-  AS SELECT _twstart AS ts, _twend AS te, COUNT(*) AS cnt FROM %%trows;
+  AS
+    SELECT
+      _twstart AS ts,
+      _twend AS te,
+      COUNT(*) AS cnt
+    FROM %%trows;
 ```
 
 After the stream is ready, insert the following data in timestamp order:
 
 ```sql
-INSERT INTO sensor VALUES
-  ('2026-01-01 10:00:00', 85)
-  ('2026-01-01 10:00:30', 70)
-  ('2026-01-01 10:01:00', 85)
-  ('2026-01-01 10:01:30', 86)
-  ('2026-01-01 10:02:00', 87)
-  ('2026-01-01 10:02:10', 70)
-  ('2026-01-01 10:02:20', 69);
+INSERT INTO sensor
+VALUES ('2026-01-01 10:00:00', 85)
+       ('2026-01-01 10:00:30', 70)
+       ('2026-01-01 10:01:00', 85)
+       ('2026-01-01 10:01:30', 86)
+       ('2026-01-01 10:02:00', 87)
+       ('2026-01-01 10:02:10', 70)
+       ('2026-01-01 10:02:20', 69);
 
-SELECT ts, te, cnt FROM temperature_alarm_out;
+SELECT
+  ts,
+  te,
+  cnt
+FROM temperature_alarm_out;
 ```
 
 The window is evaluated as follows:
@@ -399,15 +426,16 @@ Example:
 
 ```sql
 CREATE STREAM s_event_tree
-  EVENT_WINDOW(
-    START WITH ((current >= 12 TRUE_FOR(1s), current >= 10), voltage < 215 TRUE_FOR(COUNT 3))
-    END WITH voltage < 210
-  )
-  TRUE_FOR(10s)
+  EVENT_WINDOW(START WITH ((current >= 12 TRUE_FOR(1s), current >= 10), voltage < 215 TRUE_FOR(COUNT 3)) END WITH voltage < 210) TRUE_FOR(10s)
   FROM meters
   PARTITION BY tbname
   INTO event_tree_out(ts, path COMPOSITE KEY, cnt)
-  AS SELECT _twstart, _event_condition_path, COUNT(*) FROM %%trows;
+  AS
+    SELECT
+      _twstart,
+      _event_condition_path,
+      COUNT(*)
+    FROM %%trows;
 ```
 
 The condition paths in this example are:
@@ -451,7 +479,7 @@ Applicable Scenarios:
 ##### Nested Window Trigger
 
 ```sql
-WINDOW (
+WINDOW(
   nested_window_type AS outer_layer,
   ...,
   nested_window_type [AS leaf_layer]
@@ -474,7 +502,7 @@ Charging piles continuously report battery state of charge (SOC). Applications o
 
 ```sql
 CREATE STREAM order_pairs
-  WINDOW (
+  WINDOW(
     STATE_WINDOW(order_id) EXTEND(1) AS order_scope,
     COUNT_WINDOW(2, 1) AS pair
   )
@@ -482,12 +510,13 @@ CREATE STREAM order_pairs
   STREAM_OPTIONS(EVENT_TYPE(WINDOW_CLOSE))
   INTO order_pair_results
   AS
-    SELECT _twstart AS ts,
-           _twend AS window_end,
-           order_scope._twstart AS order_start,
-           FIRST(soc) AS previous_soc,
-           LAST(soc) AS current_soc,
-           LAST(soc) - FIRST(soc) AS soc_delta
+    SELECT
+      _twstart AS ts,
+      _twend AS window_end,
+      order_scope._twstart AS order_start,
+      FIRST(soc) AS previous_soc,
+      LAST(soc) AS current_soc,
+      LAST(soc) - FIRST(soc) AS soc_delta
     FROM %%trows;
 ```
 
@@ -561,7 +590,7 @@ By default, the results of a stream are stored in an output table. Each output t
 [INTO [db_name.]table_name] [NODELAY_CREATE_SUBTABLE] [OUTPUT_SUBTABLE(tbname_expr)] [(column_name1, column_name2 [COMPOSITE KEY][, ...])] [TAGS (tag_definition [, ...])]
 
 tag_definition:
-    tag_name type_name AS expr
+  tag_name type_name AS expr
 ```
 
 Details are as follows:
@@ -689,10 +718,10 @@ Event notifications are optional actions executed after a stream is triggered. N
 [notification_definition]
 
 notification_definition:
-    NOTIFY(url [, ...]) [ON (event_types)] [WHERE condition] [NOTIFY_OPTIONS(notify_option[|notify_option])]
+  NOTIFY(url [, ...]) [ON (event_types)] [WHERE condition] [NOTIFY_OPTIONS(notify_option[|notify_option])]
 
 event_types:
-    event_type [|event_type]
+  event_type [|event_type]
 
 event_type: {WINDOW_OPEN | WINDOW_CLOSE | IDLE | RESUME}
 ```
@@ -974,7 +1003,11 @@ SHOW CREATE STREAM [db_name.]stream_name;
 For more detailed information, query [`INS_STREAMS`](../05-tdengine-sql/09-system-info/01-meta.md#ins_streams):
 
 ```sql
-SELECT stream_name, timezone, first_day_of_week, sql
+SELECT
+  stream_name,
+  timezone,
+  first_day_of_week,
+  sql
 FROM information_schema.ins_streams;
 ```
 
@@ -987,7 +1020,8 @@ For recalculation records, see [`INS_STREAM_RECALCULATES`](../05-tdengine-sql/09
 When a stream is running, it is executed as multiple tasks. Detailed task information can be obtained from [`INS_STREAM_TASKS`](../05-tdengine-sql/09-system-info/01-meta.md#ins_stream_tasks):
 
 ```sql
-SELECT * from information_schema.`ins_stream_tasks`;
+SELECT *
+FROM information_schema.`ins_stream_tasks`;
 ```
 
 ## Start or Stop a Stream
@@ -1045,8 +1079,11 @@ CREATE STREAM stream_db.influx18_high_voltage
   STREAM_OPTIONS(PRE_FILTER(voltage > 220))
   INTO stream_db.influx18_result
   AS
-  SELECT _twstart AS ts, COUNT(*) AS cnt, AVG(voltage) AS avg_voltage
-  FROM %%trows;
+    SELECT
+      _twstart AS ts,
+      COUNT(*) AS cnt,
+      AVG(voltage) AS avg_voltage
+    FROM %%trows;
 ```
 
 Each InfluxDB 1.8 series has its own subtable identity. `PARTITION BY` determines the trigger groups: without it, one measurement uses one group; with `PARTITION BY tbname`, each series uses its own group; you can also group by measurement tags or a tag subset. To bind a stream to a specific series, create an InfluxDB SERIES virtual table and create the stream from that table. See [InfluxDB SERIES column references](../05-tdengine-sql/04-data-query/06-federated-query.md#influxdb-series-column-references).

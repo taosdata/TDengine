@@ -70,13 +70,21 @@ KILL SCAN <scan_id>;
 When one or more nodes in a multi-replica cluster restart due to upgrades or other reasons, it may lead to an imbalance in the load among the various dnodes in the cluster. In extreme cases, all vgroup leaders may be located on the same dnode. To solve this problem, you can use the following commands, which were first released in version 3.0.4.0. It is recommended to use the latest version as much as possible.
 
 ```sql
-balance vgroup leader; # Rebalance all vgroup leaders (random mode)
-balance vgroup leader on <vgroup_id>; # Rebalance a vgroup leader (random mode)
-balance vgroup leader database <database_name>; # Rebalance all vgroup leaders within a database (random mode)
+balance vgroup leader;
 
-balance vgroup leader force; # Force-rebalance all vgroup leaders (forced mode)
-balance vgroup leader on <vgroup_id> force; # Force-rebalance a vgroup leader (forced mode)
-balance vgroup leader database <database_name> force; # Force-rebalance all vgroup leaders within a database (forced mode)
+# Rebalance ALL vgroup leaders(random mode) balance vgroup leader ON < vgroup_id >;
+
+# Rebalance a vgroup leader(random mode) balance vgroup leader DATABASE < database_name >;
+
+# Rebalance ALL vgroup leaders within a DATABASE(random mode)
+
+balance vgroup leader force;
+
+# Force - rebalance ALL vgroup leaders(forced mode) balance vgroup leader ON < vgroup_id > force;
+
+# Force - rebalance a vgroup leader(forced mode) balance vgroup leader DATABASE < database_name > force;
+
+# Force - rebalance ALL vgroup leaders within a DATABASE(forced mode)
 ```
 
 **Functionality**
@@ -97,13 +105,21 @@ There are two modes of leader rebalancing:
 If the data on a data node (dnode) in the cluster is completely lost or damaged, such as due to disk damage or directory deletion, you can use the restore dnode command to recover some or all logical nodes on that data node. This feature relies on data replication from other replicas in the cluster, so it only works when the number of dnodes in the cluster is three or more and the number of replicas is three.
 
 ```sql
-restore dnode <dnode_id>; # Restore mnode, all vnodes, and qnode on dnode
-restore dnode <dnode_id> parallel <n>; # Restore with n concurrent vnodes, 0 for unlimited
-restore mnode on dnode <dnode_id>; # Restore mnode on dnode
-restore vnode on dnode <dnode_id>; # Restore all vnodes on dnode
-restore vnode on dnode <dnode_id> parallel <n>; # Restore vnodes with n concurrent, 0 for unlimited
-restore vnode on dnode <dnode_id> on vgroup <vgroup_id>; # Restore one vnode on dnode
-restore qnode on dnode <dnode_id>; # Restore qnode on dnode
+restore dnode <dnode_id>;
+
+# Restore mnode, ALL vnodes, AND qnode ON dnode restore dnode <dnode_id> parallel <n>;
+
+# Restore WITH n concurrent vnodes, 0 for unlimited restore mnode ON dnode <dnode_id>;
+
+# Restore mnode ON dnode restore vnode ON dnode <dnode_id>;
+
+# Restore ALL vnodes ON dnode restore vnode ON dnode <dnode_id> parallel <n>;
+
+# Restore vnodes WITH n concurrent, 0 for unlimited restore vnode ON dnode <dnode_id> ON vgroup <vgroup_id>;
+
+# Restore one vnode ON dnode restore qnode ON dnode <dnode_id>;
+
+# Restore qnode ON dnode
 ```
 
 **PARALLEL Parameter**

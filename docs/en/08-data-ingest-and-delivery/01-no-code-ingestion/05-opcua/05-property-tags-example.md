@@ -49,7 +49,9 @@ Fill connection/authentication fields based on your real OPC UA environment.
 
 ```sql
 USE <target_db>;
+
 SHOW STABLES;
+
 DESCRIBE <stable_name>;
 ```
 
@@ -61,7 +63,10 @@ You should see TAG columns that match the actual Property names on your server, 
 Then verify values:
 
 ```sql
-SELECT tbname, `limit`, `EngineeringUnits`
+SELECT
+  tbname,
+  `limit`,
+  `EngineeringUnits`
 FROM <stable_name>
 LIMIT 5;
 ```
