@@ -213,6 +213,99 @@ ATAN(expr)
 
 **Usage Notes**: Can only be used with normal columns, selection, and projection functions, not with aggregation functions.
 
+### BIT_COUNT
+
+```sql
+BIT_COUNT(expr)
+```
+
+**Function Classification**: Scalar function.
+
+**Function Description**: Returns the number of bits set to 1 in the binary representation of `expr` (population count). Numeric, temporal and textual arguments are counted as 64-bit integers; binary arguments are counted byte by byte.
+
+**Version**: v3.5.0.0
+
+**Return Type**: BIGINT. Numeric, temporal and textual arguments return 0 to 64; `VARBINARY`, `BLOB` and `MEDIUMBLOB` arguments return 0 to 8 × byte length, which may exceed 64.
+
+**Applicable Data Types**
+
+- `expr`: TINYINT, SMALLINT, INT, BIGINT and their unsigned variants, BOOL, FLOAT, DOUBLE, DECIMAL, VARCHAR, NCHAR, VARBINARY, BLOB, MEDIUMBLOB, TIMESTAMP.
+- JSON and GEOMETRY are not supported.
+
+**Nested Subquery Support**: Applicable to both inner and outer queries.
+
+**Applicable to**: Tables and supertables.
+
+**Usage Notes**
+
+- Returns NULL when `expr` is NULL.
+- Signed integers are counted in 64-bit two's complement, so `BIT_COUNT(-1)` returns 64 and `BIT_COUNT(-2)` returns 63.
+- Unsigned integers are zero-extended to 64 bits before counting.
+- BOOL TRUE is treated as 1 and FALSE as 0.
+- FLOAT, DOUBLE and DECIMAL are rounded to the nearest integer (half away from zero) first. NaN, positive or negative infinity, and values outside the BIGINT range after rounding return NULL. For example, `BIT_COUNT(2.9)` returns 2 (2.9 rounds to 3, which has two bits set) and `BIT_COUNT(-2.9)` returns 63 (rounded to -3).
+- VARCHAR and NCHAR are parsed as a decimal integer prefix: leading blanks are skipped, an optional sign is accepted, and parsing stops at the first non-digit character. Text that cannot be parsed returns 0; an integer prefix beyond the BIGINT range saturates at the BIGINT boundary without a warning.
+- VARBINARY, BLOB and MEDIUMBLOB are counted bit by bit over the raw bytes without numeric parsing or charset conversion. An empty value returns 0, and the result may exceed 64.
+- TIMESTAMP is formatted in the connection time zone as the decimal value `YYYYMMDDHHMMSS` (the MySQL `+0` numeric context), with the fractional second rounded to the nearest second and `.5` or above carrying into the next second. The resulting value is counted in 64-bit two's complement. The same timestamp text produces the same result in any session time zone; the same epoch value may produce different results in different session time zones.
+
+**Compatibility Differences from MySQL 8.0**
+
+- Return type: the MySQL documentation describes an unsigned 64-bit integer; TDengine returns `BIGINT`. The numeric semantics are the same.
+- Floating point and fixed point arguments: both round to the nearest integer (half away from zero) and produce the same result.
+- TIMESTAMP: both use the `+0` `YYYYMMDDHHMMSS` numeric context. MySQL `DATETIME` covers years 1000 to 9999, while the TDengine `TIMESTAMP` range is engine-defined; text outside that range fails at the `CAST` stage.
+- Floating point special and out-of-range values: NaN, +/-Infinity and values outside the 64-bit integer range after rounding return NULL in TDengine, whereas MySQL results vary by version and conversion rule.
+- Text arguments: TDengine emits no per-row warning and saturates an overflowing integer prefix to the signed 64-bit boundary; MySQL follows its unsigned 64-bit and warning rules.
+- Binary arguments: both count bits in the binary value and the result may exceed 64. TDengine does not support the `b'...'` bit literal; use `CAST(... AS VARBINARY)` instead.
+- Other types: TDengine rejects JSON and GEOMETRY arguments at translation time.
+
+**Example**
+
+```sql
+taos> select bit_count(29);
+ bit_count(29) |
+================
+             4 |
+
+taos> select bit_count(0), bit_count(-1), bit_count(-2);
+ bit_count(0) | bit_count(-1) | bit_count(-2) |
+==============================================
+            0 |            64 |            63 |
+
+taos> select bit_count(2.9), bit_count(2.5), bit_count(-2.9);
+ bit_count(2.9) | bit_count(2.5) | bit_count(-2.9) |
+===================================================
+              2 |              2 |               63 |
+
+taos> select bit_count(cast(2.9 as decimal(5,1)));
+ bit_count(cast(2.9 as decimal(5,1))) |
+=======================================
+                                     2 |
+
+taos> select bit_count(cast('ABCD' as varbinary));
+ bit_count(cast('ABCD' as varbinary)) |
+=======================================
+                                     9 |
+
+taos> select bit_count(cast('2026-11-23 15:45:22' as timestamp));
+ bit_count(cast('2026-11-23 15:45:22' as timestamp)) |
+======================================================
+                                                   20 |
+
+taos> select bit_count(cast(2.9 as double)), bit_count('12abc'), bit_count('abc');
+ bit_count(cast(2.9 as double)) | bit_count('12abc') | bit_count('abc') |
+=========================================================================
+                              2 |                  2 |                0 |
+
+taos> select bit_count(null);
+ bit_count(null) |
+==================
+ NULL            |
+
+taos> select bit_count(1e308);
+ bit_count(1e308) |
+===================
+ NULL             |
+```
+
 ### CEIL
 
 ```sql
