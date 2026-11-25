@@ -85,6 +85,14 @@ fi
 mkdir -p "${install_dir}/share/tsfm"
 cp "${tsfm_release_manifest}" "${install_dir}/share/tsfm/tsfm-release.json"
 
+# AI skills are read-only agent guidance shipped with the product.
+if [ -d "${top_dir}/skills" ]; then
+  mkdir -p "${install_dir}/skills"
+  cp -R "${top_dir}/skills/." "${install_dir}/skills/"
+  find "${install_dir}/skills" -type d -name "__pycache__" -exec rm -rf {} + 2>/dev/null || :
+  find "${install_dir}/skills" -type f \( -name "*.pyc" -o -name "*.pyo" \) -delete 2>/dev/null || :
+fi
+
 if [ -f "${cfg_dir}/${serverName}.service" ]; then
   cp ${cfg_dir}/${serverName}.service ${install_dir}/cfg || :
 fi
