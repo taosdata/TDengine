@@ -193,6 +193,32 @@ TEST(ParserTimeAlignTest, tableAlias) {
   EXPECT_STREQ("align_vt", pTable->table.tableAlias);
 }
 
+TEST(ParserTimeAlignTest, quotedTablePathIsUnescaped) {
+  // Regression: the database token used to be copied verbatim, so a quoted
+  // qualifier (`db`.`tbl`) kept its backticks and the later metadata lookup
+  // reported "Database does not exist" (defect 7179993062).
+  // The parser un-escapes identifiers in place, so the SQL must be writable.
+  int32_t code = TSDB_CODE_SUCCESS;
+  char    sql[] = "SELECT * FROM TABLE(time_align(TABLE `db1`.`vt-1`))";
+  QueryGuard query = parseTimeAlignSql(sql, &code);
+  ASSERT_EQ(TSDB_CODE_SUCCESS, code);
+  STimeAlignTableNode* pTable = timeAlignTableOf(query);
+  ASSERT_NE(nullptr, pTable);
+  EXPECT_STREQ("db1", pTable->dbName);
+  EXPECT_STREQ("vt-1", pTable->tbName);
+  EXPECT_STREQ("vt-1", pTable->table.tableAlias);
+
+  // Escaped backticks inside a quoted identifier decode to a literal backtick.
+  code = TSDB_CODE_SUCCESS;
+  char escapedSql[] = "SELECT * FROM TABLE(time_align(TABLE `d``b`.`v``t`))";
+  QueryGuard escaped = parseTimeAlignSql(escapedSql, &code);
+  ASSERT_EQ(TSDB_CODE_SUCCESS, code);
+  pTable = timeAlignTableOf(escaped);
+  ASSERT_NE(nullptr, pTable);
+  EXPECT_STREQ("d`b", pTable->dbName);
+  EXPECT_STREQ("v`t", pTable->tbName);
+}
+
 TEST(ParserTimeAlignTest, rejectsInvalidArguments) {
   // Unknown table function inside TABLE(...).
   expectParseError("SELECT * FROM TABLE(other_func(TABLE vt))");
