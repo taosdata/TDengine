@@ -1,0 +1,921 @@
+# Copyright (c) 2025 TAOS Data, Inc. <jhtao@taosdata.com>
+#
+# SPDX-License-Identifier: AGPL-3.0-or-later
+#
+# This program is free software: you can use, redistribute, and/or modify
+# it under the terms of the GNU Affero General Public License, version 3
+# or later ("AGPL"), as published by the Free Software Foundation.
+#
+# This program is distributed in the hope that it will be useful, but WITHOUT
+# ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+# FITNESS FOR A PARTICULAR PURPOSE.
+#
+# You should have received a copy of the GNU Affero General Public License
+# along with this program. If not, see <http://www.gnu.org/licenses/>.
+
+from new_test_framework.utils import tdLog, tdSql, tdStream, sc, clusterComCheck
+
+
+class TestNormalTableCreateSyntax:
+
+    def setup_class(cls):
+        tdLog.debug(f"start to execute {__file__}")
+
+    def setup_method(self):
+        # These methods used to run in their own taosd process, so every one of
+        # them started from an empty server. They now share a single deployment,
+        # therefore drop every user database first to keep that isolation
+        # (several cases assert on information_schema.ins_databases).
+        tdSql.query(
+            "select name from information_schema.ins_databases "
+            "where name not in ('information_schema', 'performance_schema')"
+        )
+        for i in range(tdSql.queryRows):
+            tdSql.execute(f"drop database if exists `{tdSql.getData(i, 0)}`")
+
+
+    def test_normal_table_datatypes(self):
+        """Normal table data types
+
+        1. Create a normal table containing bigint, binary, bool, double, float, int, smallint, tinyint types
+        2. Write data
+        3. Perform a projection query, including an order by condition
+        4. Perform a filter query, including various comparison conditions
+
+
+        Since: v3.0.0.0
+
+        Labels: common,ci,integration,functional
+
+        Jira: None
+
+        History:
+            - 2025-8-12 Simon Guan Migrated from tsim/table/bigint.sim
+            - 2025-8-12 Simon Guan Migrated from tsim/table/binary.sim
+            - 2025-8-12 Simon Guan Migrated from tsim/table/bool.sim
+            - 2025-8-12 Simon Guan Migrated from tsim/table/double.sim
+            - 2025-8-12 Simon Guan Migrated from tsim/table/float.sim
+            - 2025-8-12 Simon Guan Migrated from tsim/table/int.sim
+            - 2025-8-12 Simon Guan Migrated from tsim/table/smallint.sim
+            - 2025-8-12 Simon Guan Migrated from tsim/table/tinyint.sim
+            - 2026-11-20 Alex Merged into 01-NormalTables/test_normaltable_create_syntax.py so the methods share one taosd deployment (CI deploys once per test class)
+
+        """
+
+        self.TableBigint()
+        tdStream.dropAllStreamsAndDbs()
+        self.TableBinary()
+        tdStream.dropAllStreamsAndDbs()
+        self.TableBool()
+        tdStream.dropAllStreamsAndDbs()
+        self.TableDouble()
+        tdStream.dropAllStreamsAndDbs()
+        self.TableFloat()
+        tdStream.dropAllStreamsAndDbs()
+        self.TableInt()
+        tdStream.dropAllStreamsAndDbs()
+        self.TableSmallint()
+        tdStream.dropAllStreamsAndDbs()
+        self.TableTinyint()
+        tdStream.dropAllStreamsAndDbs()
+
+
+    def TableBigint(self):
+        i = 0
+        dbPrefix = "lm_bi_db"
+        tbPrefix = "lm_bi_tb"
+        db = dbPrefix + str(i)
+        tb = tbPrefix + str(i)
+
+        tdLog.info(f"=============== step1")
+        tdSql.prepare(dbname=db)
+        tdSql.execute(f"use {db}")
+        tdSql.execute(f"create table {tb} (ts timestamp, speed bigint)")
+
+        # sql insert into $tb values (now, -9223372036854775809)
+        tdSql.execute(f"insert into {tb} values (now, -9223372036854770000)")
+        tdSql.query(f"select * from {tb}")
+        tdSql.checkRows(1)
+
+        # if $tdSql.getData(0,1) != -9223372036854775808 then
+        tdSql.checkData(0, 1, -9223372036854770000)
+
+        tdLog.info(f"=============== step2")
+        # sql insert into $tb values (now+1a, -9223372036854775808)
+        tdSql.execute(f"insert into {tb} values (now+1a, -9223372036854770000)")
+        tdSql.query(f"select * from {tb}")
+        tdSql.checkRows(2)
+
+        # if $tdSql.getData(0,1) != -9223372036854775808 then
+        tdSql.checkData(0, 1, -9223372036854770000)
+
+        tdLog.info(f"=============== step3")
+        # sql insert into $tb values (now+1a, 9223372036854775807)
+        tdSql.execute(f"insert into {tb} values (now+2a, 9223372036854770000)")
+        tdSql.query(f"select * from {tb} order by ts desc")
+        tdSql.checkRows(3)
+
+        # if $tdSql.getData(0,1) != 9223372036854775807 then
+        tdSql.checkData(0, 1, 9223372036854770000)
+
+        tdLog.info(f"=============== step4")
+        # sql insert into $tb values (now+1a, 9223372036854775808)
+        tdSql.execute(f"insert into {tb} values (now+3a, 9223372036854770000)")
+        tdSql.query(f"select * from {tb} order by ts desc")
+        tdSql.checkRows(4)
+
+        # if $tdSql.getData(0,1) != 9223372036854775807 then
+        tdSql.checkData(0, 1, 9223372036854770000)
+
+        tdSql.execute(f"drop database {db}")
+        tdSql.query(f"select * from information_schema.ins_databases")
+        tdSql.checkRows(2)
+
+
+    def TableBinary(self):
+        i = 0
+        dbPrefix = "lm_bn_db"
+        tbPrefix = "lm_bn_tb"
+        db = dbPrefix + str(i)
+        tb = tbPrefix + str(i)
+
+        tdLog.info(f"=============== step1")
+        tdSql.prepare(dbname=db)
+        tdSql.execute(f"use {db}")
+        tdSql.execute(f"create table {tb} (ts timestamp, speed binary(5))")
+
+        tdSql.error(f"insert into {tb} values (now, ) ")
+
+        tdLog.info(f"=============== step2")
+        tdSql.execute(f"insert into {tb} values (now+1a, '1234')")
+        tdSql.query(f"select speed from {tb} order by ts desc")
+        tdSql.checkRows(1)
+
+        tdSql.checkData(0, 0, 1234)
+
+        tdLog.info(f"=============== step3")
+        tdSql.execute(f"insert into {tb} values (now+2a, '23456')")
+        tdSql.query(f"select speed from {tb} order by ts desc")
+        tdSql.checkRows(2)
+
+        tdLog.info(f"==> {tdSql.getData(0,0)}")
+        tdSql.checkData(0, 0, 23456)
+
+        tdLog.info(f"=============== step4")
+        tdSql.error(f"insert into {tb} values (now+3a, '345678')")
+        tdSql.execute(f"insert into {tb} values (now+3a, '34567')")
+        tdSql.query(f"select speed from {tb} order by ts desc")
+        tdSql.checkRows(3)
+
+        tdLog.info(f"==> {tdSql.getData(0,0)}")
+        tdSql.checkData(0, 0, 34567)
+
+        tdSql.execute(f"drop database {db}")
+        tdSql.query(f"select * from information_schema.ins_databases")
+        tdSql.checkRows(2)
+
+
+    def TableBool(self):
+        i = 0
+        dbPrefix = "lm_bo_db"
+        tbPrefix = "lm_bo_tb"
+        db = dbPrefix + str(i)
+        tb = tbPrefix + str(i)
+
+        tdLog.info(f"=============== step1")
+        tdSql.prepare(dbname=db)
+        tdSql.execute(f"use {db}")
+        x = 0
+        tdSql.execute(f"create table {tb} (ts timestamp, speed bool)")
+
+        tdSql.execute(f"insert into {tb} values (now, true)")
+        tdSql.query(f"select * from {tb}")
+        tdSql.checkRows(1)
+
+        tdSql.checkData(0, 1, 1)
+
+        tdLog.info(f"=============== step2")
+        tdSql.execute(f"insert into {tb} values (now+1m, 1)")
+        tdSql.query(f"select * from {tb} order by ts desc")
+        tdSql.checkRows(2)
+
+        tdSql.checkData(0, 1, 1)
+
+        tdLog.info(f"=============== step3")
+        tdSql.execute(f"insert into {tb} values (now+2m, 2)")
+        tdSql.query(f"select * from {tb} order by ts desc")
+        tdSql.checkRows(3)
+
+        tdSql.checkData(0, 1, 1)
+
+        tdLog.info(f"=============== step4")
+        tdSql.execute(f"insert into {tb} values (now+3m, 0)")
+        tdSql.query(f"select * from {tb} order by ts desc")
+        tdSql.checkRows(4)
+
+        tdSql.checkData(0, 1, 0)
+
+        tdLog.info(f"=============== step5")
+        tdSql.execute(f"insert into {tb} values (now+4m, -1)")
+        tdSql.query(f"select * from {tb} order by ts desc")
+        tdSql.checkRows(5)
+
+        tdSql.checkData(0, 1, 1)
+
+        tdLog.info(f"=============== step6")
+        tdSql.execute(f"insert into {tb} values (now+5m, false)")
+        tdSql.query(f"select * from {tb} order by ts desc")
+        tdSql.checkRows(6)
+
+        tdSql.checkData(0, 1, 0)
+
+        tdSql.execute(f"drop database {db}")
+        tdSql.query(f"select * from information_schema.ins_databases")
+        tdSql.checkRows(2)
+
+
+    def TableDouble(self):
+        i = 0
+        dbPrefix = "lm_do_db"
+        tbPrefix = "lm_do_tb"
+        db = dbPrefix + str(i)
+        tb = tbPrefix + str(i)
+
+        tdLog.info(f"=============== step1")
+        tdSql.prepare(dbname=db)
+        tdSql.execute(f"use {db}")
+        tdSql.execute(f"create table {tb} (ts timestamp, speed double)")
+
+        tdLog.info(f"=============== step2")
+
+        tdSql.query(f"select * from {tb} order by ts desc")
+        tdSql.checkRows(0)
+
+        tdLog.info(f"=============== step3")
+        tdSql.execute(f"insert into {tb} values (now+2a, 2.85)")
+        tdSql.query(f"select * from {tb} order by ts desc")
+        tdSql.checkRows(1)
+
+        tdSql.checkData(0, 1, 2.850000000)
+
+        tdLog.info(f"=============== step4")
+        tdSql.execute(f"insert into {tb} values (now+3a, 3.4)")
+        tdSql.query(f"select * from {tb} order by ts desc")
+        tdSql.checkRows(2)
+
+        tdSql.checkData(0, 1, 3.400000000)
+
+        tdLog.info(f"=============== step5")
+        tdSql.error(f"insert into {tb} values (now+4a, a2) ")
+        tdSql.execute(f"insert into {tb} values (now+4a, 0)")
+        tdSql.query(f"select * from {tb} order by ts desc")
+        tdSql.checkRows(3)
+
+        tdSql.checkData(0, 1, 0.000000000)
+
+        tdLog.info(f"=============== step6")
+        tdSql.error(f"insert into {tb} values (now+5a, 2a) ")
+        tdSql.execute(f"insert into {tb} values(now+5a, 2)")
+        tdSql.query(f"select * from {tb} order by ts desc")
+        tdSql.checkRows(4)
+
+        tdSql.checkData(0, 1, 2.000000000)
+
+        tdLog.info(f"=============== step7")
+        tdSql.error(f"insert into {tb} values (now+6a, 2a'1)")
+        tdSql.execute(f"insert into {tb} values(now+6a, 2)")
+        tdSql.query(f"select * from {tb} order by ts desc")
+        tdSql.checkRows(5)
+
+        tdSql.checkData(0, 1, 2.000000000)
+
+        tdSql.execute(f"drop database {db}")
+        tdSql.query(f"select * from information_schema.ins_databases")
+        tdSql.checkRows(2)
+
+
+    def TableFloat(self):
+        i = 0
+        dbPrefix = "lm_fl_db"
+        tbPrefix = "lm_fl_tb"
+        db = dbPrefix + str(i)
+        tb = tbPrefix + str(i)
+
+        tdLog.info(f"=============== step1")
+        tdSql.execute(f"create database {db}")
+        tdSql.execute(f"use {db}")
+        tdSql.execute(f"create table {tb} (ts timestamp, speed float)")
+
+        tdLog.info(f"=============== step2")
+        tdSql.query(f"select * from {tb} order by ts desc")
+        tdSql.checkRows(0)
+
+        tdLog.info(f"=============== step3")
+        tdSql.execute(f"insert into {tb} values (now+2a, 2.85)")
+        tdSql.query(f"select * from {tb} order by ts desc")
+        tdSql.checkRows(1)
+
+        tdSql.checkData(0, 1, 2.85000)
+
+        tdLog.info(f"=============== step4")
+        tdSql.execute(f"insert into {tb} values (now+3a, 3.4)")
+        tdSql.query(f"select * from {tb} order by ts desc")
+        tdSql.checkRows(2)
+
+        tdSql.checkData(0, 1, 3.40000)
+
+        tdLog.info(f"=============== step5")
+        tdSql.error(f"insert into {tb} values (now+4a, a2)")
+        tdSql.execute(f"insert into {tb} values (now+4a, 0)")
+        tdSql.query(f"select * from {tb} order by ts desc")
+        tdSql.checkRows(3)
+
+        tdSql.checkData(0, 1, 0.00000)
+
+        tdLog.info(f"=============== step6")
+        tdSql.error(f"insert into {tb} values (now+5a, 2a)")
+        tdSql.execute(f"insert into {tb} values (now+5a, 2)")
+        tdSql.query(f"select * from {tb} order by ts desc")
+        tdSql.checkRows(4)
+
+        tdSql.checkData(0, 1, 2.00000)
+
+        tdLog.info(f"=============== step7")
+        tdSql.error(f"insert into {tb} values (now+6a, 2a'1)")
+        tdSql.execute(f"insert into {tb} values (now+6a, 2)")
+        tdSql.query(f"select * from {tb} order by ts desc")
+        tdSql.checkRows(5)
+
+        tdSql.checkData(0, 1, 2.00000)
+
+        tdSql.execute(f"drop database {db}")
+        tdSql.query(f"select * from information_schema.ins_databases")
+        tdSql.checkRows(2)
+
+
+    def TableInt(self):
+        i = 0
+        dbPrefix = "lm_in_db"
+        tbPrefix = "lm_in_tb"
+        db = dbPrefix + str(i)
+        tb = tbPrefix + str(i)
+
+        tdLog.info(f"=============== step1")
+        tdSql.prepare(dbname=db)
+        tdSql.execute(f"use {db}")
+        tdSql.execute(f"create table {tb} (ts timestamp, speed int)")
+
+        tdSql.execute(f"insert into {tb} values (now, NULL)")
+        tdSql.query(f"select * from {tb} order by ts desc")
+        tdSql.checkRows(1)
+
+        tdSql.checkData(0, 1, None)
+
+        tdLog.info(f"=============== step2")
+        tdSql.execute(f"insert into {tb} values (now+1m, -2147483648)")
+        tdSql.execute(f"insert into {tb} values (now+2m, NULL)")
+        tdSql.query(f"select * from {tb} order by ts desc")
+        tdSql.checkRows(3)
+
+        tdSql.checkData(0, 1, None)
+
+        tdLog.info(f"=============== step3")
+        tdSql.execute(f"insert into {tb} values (now+3m, 2147483647)")
+        tdSql.query(f"select * from {tb} order by ts desc")
+        tdSql.checkRows(4)
+
+        tdSql.checkData(0, 1, 2147483647)
+
+        tdLog.info(f"=============== step4")
+        tdSql.error(f"insert into {tb} values (now+4m, 2147483648)")
+        tdSql.execute(f"insert into {tb} values (now+5m, NULL)")
+        tdSql.query(f"select * from {tb} order by ts desc")
+        tdSql.checkRows(5)
+
+        tdSql.checkData(0, 1, None)
+
+        tdLog.info(f"=============== step5")
+        tdSql.error(f"insert into {tb} values (now+6m, a2)")
+        tdSql.execute(f"insert into {tb} values (now+7m, 0)")
+        tdSql.query(f"select * from {tb} order by ts desc")
+        tdSql.checkRows(6)
+
+        tdSql.checkData(0, 1, 0)
+
+        tdLog.info(f"=============== step6")
+        tdSql.error(f"insert into {tb} values (now+8m, 2a)")
+        tdSql.execute(f" insert into {tb} values (now+9m, 2)")
+        tdSql.query(f"select * from {tb} order by ts desc")
+        tdSql.checkRows(7)
+
+        tdSql.checkData(0, 1, 2)
+
+        tdLog.info(f"=============== step7")
+        tdSql.error(f"insert into {tb} values (now+10m, 2a'1)")
+        tdSql.execute(f"insert into {tb} values (now+11m, 2)")
+        tdSql.query(f"select * from {tb} order by ts desc")
+        tdSql.checkRows(8)
+
+        tdSql.checkData(0, 1, 2)
+
+        tdLog.info(f"=============== step8")
+        tdSql.execute(f'insert into {tb} values (now+12m, "NULL")')
+        tdSql.query(f"select * from {tb} order by ts desc")
+        tdSql.checkRows(9)
+
+        tdSql.checkData(0, 1, None)
+
+        tdLog.info(f"=============== step9")
+        tdSql.execute(f"insert into {tb} values (now+13m, 'NULL')")
+        tdSql.query(f"select * from {tb} order by ts desc")
+        tdSql.checkRows(10)
+
+        tdSql.checkData(0, 1, None)
+
+        tdLog.info(f"=============== step10")
+        tdSql.execute(f"insert into {tb} values (now+14m, -123)")
+        tdSql.query(f"select * from {tb} order by ts desc")
+        tdSql.checkRows(11)
+
+        tdSql.checkData(0, 1, -123)
+
+        tdSql.execute(f"drop database {db}")
+        tdSql.query(f"select * from information_schema.ins_databases")
+        tdSql.checkRows(2)
+
+
+    def TableSmallint(self):
+        i = 0
+        dbPrefix = "lm_sm_db"
+        tbPrefix = "lm_sm_tb"
+        db = dbPrefix + str(i)
+        tb = tbPrefix + str(i)
+
+        tdLog.info(f"=============== step1")
+        tdSql.prepare(dbname=db)
+        tdSql.execute(f"use {db}")
+        tdSql.execute(f"create table {tb} (ts timestamp, speed smallint)")
+
+        tdSql.execute(f"insert into {tb} values (now, NULL)")
+        tdSql.query(f"select * from {tb} order by ts desc")
+        tdSql.checkRows(1)
+
+        tdLog.info(f"{tdSql.getData(0,1)}")
+        tdSql.checkData(0, 1, None)
+
+        tdLog.info(f"=============== step2")
+        tdSql.execute(f"insert into {tb} values (now+1m, -32768)")
+        tdSql.execute(f"insert into {tb} values (now+2m, NULL)")
+        tdSql.query(f"select * from {tb} order by ts desc")
+        tdSql.checkRows(3)
+
+        tdSql.checkData(0, 1, None)
+
+        tdLog.info(f"=============== step3")
+        tdSql.execute(f"insert into {tb} values (now+3m, 32767)")
+        tdSql.query(f"select * from {tb} order by ts desc")
+        tdSql.checkRows(4)
+
+        tdSql.checkData(0, 1, 32767)
+
+        tdLog.info(f"=============== step4")
+        tdSql.error(f"insert into {tb} values (now+4m, 32768)")
+        tdSql.execute(f"insert into {tb} values (now+5m, NULL)")
+        tdSql.query(f"select * from {tb} order by ts desc")
+        tdSql.checkRows(5)
+
+        tdSql.checkData(0, 1, None)
+
+        tdLog.info(f"=============== step5")
+        tdSql.error(f"insert into {tb} values (now+6m, a2)")
+        tdSql.execute(f"insert into {tb} values (now+7m, 0)")
+        tdSql.query(f"select * from {tb} order by ts desc")
+        tdSql.checkRows(6)
+
+        tdSql.checkData(0, 1, 0)
+
+        tdLog.info(f"=============== step6")
+        tdSql.error(f"insert into {tb} values (now+8m, 2a)")
+        tdSql.execute(f"insert into {tb} values (now+9m, 2)")
+        tdSql.query(f"select * from {tb} order by ts desc")
+        tdSql.checkRows(7)
+
+        tdSql.checkData(0, 1, 2)
+
+        tdLog.info(f"=============== step7")
+        tdSql.error(f"insert into {tb} values (now+10m, 2a'1)")
+        tdSql.execute(f"insert into {tb} values (now+11m, 2)")
+        tdSql.query(f"select * from {tb} order by ts desc")
+        tdSql.checkRows(8)
+
+        tdSql.checkData(0, 1, 2)
+
+        tdSql.execute(f"drop database {db}")
+        tdSql.query(f"select * from information_schema.ins_databases")
+        tdSql.checkRows(2)
+
+
+    def TableTinyint(self):
+        i = 0
+        dbPrefix = "lm_ti_db"
+        tbPrefix = "lm_ti_tb"
+        db = dbPrefix + str(i)
+        tb = tbPrefix + str(i)
+
+        tdLog.info(f"=============== step1")
+        tdSql.prepare(dbname=db)
+        tdSql.execute(f"use {db}")
+        tdSql.execute(f"create table {tb} (ts timestamp, speed tinyint)")
+
+        tdSql.execute(f"insert into {tb} values (now, NULL)")
+        tdSql.query(f"select * from {tb} order by ts desc")
+        tdSql.checkRows(1)
+
+        tdSql.checkData(0, 1, None)
+
+        tdLog.info(f"=============== step2")
+        tdSql.execute(f"insert into {tb} values (now+1m, -128)")
+        tdSql.execute(f"insert into {tb} values (now+2m, NULL)")
+        tdSql.query(f"select * from {tb} order by ts desc")
+        tdSql.checkRows(3)
+
+        tdSql.checkData(0, 1, None)
+
+        tdLog.info(f"=============== step3")
+        tdSql.execute(f"insert into {tb} values (now+3m, 127)")
+        tdSql.query(f"select * from {tb} order by ts desc")
+        tdSql.checkRows(4)
+
+        tdSql.checkData(0, 1, 127)
+
+        tdLog.info(f"=============== step4")
+        tdSql.error(f"insert into {tb} values (now+4m, 128)")
+        tdSql.execute(f"insert into {tb} values (now+5m, NULL)")
+        tdSql.query(f"select * from {tb}")
+        tdSql.checkRows(5)
+
+        tdSql.checkData(0, 1, None)
+
+        tdLog.info(f"=============== step5")
+        tdSql.error(f"insert into {tb} values (now+6m, a2)")
+        tdSql.execute(f"insert into {tb} values (now+7m, 0)")
+        tdSql.query(f"select * from {tb} order by ts desc")
+        tdSql.checkRows(6)
+
+        tdSql.checkData(0, 1, 0)
+
+        tdLog.info(f"=============== step6")
+        tdSql.error(f"insert into {tb} values (now+8m, 2a)")
+        tdSql.execute(f"insert into {tb} values (now+9m, 2)")
+        tdSql.query(f"select * from {tb} order by ts desc")
+        tdSql.checkRows(7)
+
+        tdSql.checkData(0, 1, 2)
+
+        tdLog.info(f"=============== step7")
+        tdSql.error(f"insert into {tb} values (now+10m, 2a'1)")
+        tdSql.execute(f"insert into {tb} values (now+11m, 2)")
+        tdSql.query(f"select * from {tb} order by ts desc")
+        tdSql.checkRows(8)
+
+        tdSql.checkData(0, 1, 2)
+
+        tdSql.execute(f"drop database {db}")
+        tdSql.query(f"select * from information_schema.ins_databases")
+        tdSql.checkRows(2)
+
+
+    def test_normal_table_synatx(self):
+        """Normal table syntax
+
+        1. Attempt to create tables with invalid table names
+        2. Attempt to create tables with invalid column names
+        3. Attempt to create tables with invalid data types
+        4. Create normal tables with valid and invalid names
+
+
+        Since: v3.0.0.0
+
+        Labels: common,ci,integration,functional
+
+        Jira: None
+
+        History:
+            - 2025-8-12 Simon Guan Migrated from tsim/parser/create_tb.sim
+            - 2025-8-12 Simon Guan Migrated from tsim/table/column_name.sim
+            - 2025-8-12 Simon Guan Migrated from tsim/table/table.sim
+            - 2026-11-20 Alex Merged into 01-NormalTables/test_normaltable_create_syntax.py so the methods share one taosd deployment (CI deploys once per test class)
+
+        """
+
+        self.CreateTb()
+        tdStream.dropAllStreamsAndDbs()
+        self.ColumnName()
+        tdStream.dropAllStreamsAndDbs()
+        self.Table()
+        tdStream.dropAllStreamsAndDbs()
+
+        
+
+    def CreateTb(self):
+        tdLog.info(f"======================== dnode1 start")
+
+        dbPrefix = "fi_in_db"
+        tbPrefix = "fi_in_tb"
+        mtPrefix = "fi_in_mt"
+        tbNum = 10
+        rowNum = 20
+        totalNum = 200
+
+        tdLog.info(f"create_tb test")
+        tdLog.info(f"=============== set up")
+        i = 0
+        db = dbPrefix + "0"
+        mt = mtPrefix + "0"
+        tb = tbPrefix + "0"
+
+        tdSql.execute(f"create database {db}")
+        tdSql.execute(f"use {db}")
+
+        # case1: case_insensitivity test
+        tdLog.info(f"=========== create_tb.sim case1: case_insensitivity test")
+        tdSql.execute(
+            f"CREATE TABLE {tb} (TS TIMESTAMP, COL1 INT, COL2 BIGINT, COL3 FLOAT, COL4 DOUBLE, COL5 BINARY(10), COL6 BOOL, COL7 SMALLINT, COL8 TINYINT, COL9 NCHAR(10));"
+        )
+        tdSql.query(f"show tables")
+
+        tdSql.checkRows(1)
+        tdSql.checkData(0, 0, tb)
+
+        tdSql.execute(f"DROP TABLE {tb}")
+        tdSql.query(f"show tables")
+        tdSql.checkRows(0)
+
+        tdLog.info(f"case_insensitivity test passed")
+
+        # case2: illegal_table_name test
+        tdLog.info(f"=========== create_tb.sim case2: illegal_table_name test")
+        illegal_db1 = "1db"
+        illegal_db2 = "d@b"
+
+        tdSql.error(f"create table {illegal_db1} (ts timestamp, tcol int)")
+        tdSql.error(f"create table {illegal_db2} (ts timestamp, tcol int)")
+        tdLog.info(f"illegal_table_name test passed")
+
+        # case3: illegal_data_types
+        tdLog.info(f"========== create_tb.sim case3: illegal_data_types test")
+        i_ts = "time"  # "illegal" "ts"
+        i_binary = "binary"  # "illegal" "binary"
+        i_bigint = "long"  # "illegal" "bigint"
+        i_smallint = "short"  # "illegal" "smallint"
+        i_tinyint = "byte"  # "illegal" "tinyint"
+        i_binary2 = "varchar(20)"  # "illegal" "string"
+        nchar = "nchar"  # "unspecified" "nchar" "length"
+
+        tdSql.error(f"create table {tb} (ts {i_ts} , col int)")
+        tdSql.error(f"create table {tb} (ts timestamp, col {i_binary} )")
+        tdSql.error(f"create table {tb} (ts timestamp, col {i_bigint} )")
+        tdSql.error(f"create table {tb} (ts timestamp, col {i_smallint} )")
+        tdSql.error(f"create table {tb} (ts timestamp, col {i_tinyint} )")
+        tdSql.execute(f"create table {tb} (ts timestamp, col {i_binary2} )")
+        tdSql.execute(f"drop table {tb}")
+        tdSql.error(f"create table {tb} (ts timestamp, col {nchar} )")
+        tdSql.execute(f"create table {tb} (ts timestamp, col nchar(20))")
+        tdSql.query(f"show tables")
+        tdSql.checkRows(1)
+        tdSql.checkData(0, 0, tb)
+
+        tdSql.execute(f"drop table {tb}")
+        tdLog.info(f"illegal data type test passed")
+
+        # case4: illegal_column_names
+        # Only frequently used key words are tested here
+        tdLog.info(f"========== create_tb.sim case4: illegal_column_names")
+        tb_ = "table"
+        tbs = "tables"
+        db_ = "database"
+        dbs = "databases"
+        ses = "session"
+        int = "int"
+        bint = "bigint"
+        binary = "binary"
+        str = "string"
+        tag = "tag"
+        tags = "tags"
+        sint = "smallint"
+        tint = "tinyint"
+        nchar = "nchar"
+
+        tdSql.error(f"create table {tb} (ts timestamp, {tb_} int)")
+        tdSql.error(f"create table {tb} (ts timestamp, {tbs} int)")
+        tdSql.error(f"create table {tb} (ts timestamp, {db_} int)")
+        tdSql.error(f"create table {tb} (ts timestamp, {dbs} int)")
+        tdSql.error(f"create table {tb} (ts timestamp, {ses} int)")
+        tdSql.error(f"create table {tb} (ts timestamp, {int} int)")
+        tdSql.error(f"create table {tb} (ts timestamp, {bint} int)")
+        tdSql.error(f"create table {tb} (ts timestamp, {binary} int)")
+        tdSql.execute(f"create table {tb} (ts timestamp, {str} int)")
+        tdSql.execute(f"drop table {tb}")
+        tdSql.error(f"create table {tb} (ts timestamp, {tag} int)")
+        tdSql.error(f"create table {tb} (ts timestamp, {tags} int)")
+        tdSql.error(f"create table {tb} (ts timestamp, {sint} int)")
+        tdSql.error(f"create table {tb} (ts timestamp, {tint} int)")
+        tdSql.error(f"create table {tb} (ts timestamp, {nchar} int)")
+
+        # too long column name
+        tdSql.error(
+            f"create table {tb} (ts timestamp, abcde_123456789_123456789_123456789_123456789_123456789_123456789 int)"
+        )
+        tdSql.error(
+            f"create table tx(ts timestamp, k int) tags(abcd5_123456789_123456789_123456789_123456789_123456789_123456789 int)"
+        )
+        tdLog.info(f"illegal_column_names test passed")
+
+        # case5: chinese_char_in_table_support
+        tdLog.info(
+            f"========== create_tb.sim case5: chinese_char_in_table_support test"
+        )
+
+        CN_char = "涛思"
+        tb1 = "tb1"
+        tdSql.error(f"create table {CN_char} (ts timestamp, col1 int)")
+        # sql show tables
+        # if $rows != 1 then
+        #  return -1
+        # endi
+        # print expected: $CN_char
+        # print returned: $tdSql.getData(0,0)
+        # if $tdSql.getData(0,0) != $CN_char then
+        #  return -1
+        # endi
+        # sql drop table $CN_char
+
+        tdSql.error(f"create table {tb1} (ts timestamp, {CN_char} int)")
+        # print expected: $tb1
+        # print returned: $tdSql.getData(1,0)
+        # sql show tables
+        # if $rows != 1 then
+        #  return -1
+        # endi
+        # if $tdSql.getData(0,0) != $tb1 then
+        #  return -1
+        # endi
+        # sql describe $tb1
+        ##print expected $CN_char
+        ##print returned $tdSql.getData(1,0)
+        # if $tdSql.getData(1,0) != $CN_char then
+        #  return -1
+        # endi
+        # sql drop table $tb1
+        tdLog.info(f"chinese_char_in_table_support test passed")
+
+        # case6: table_already_exists
+        tdLog.info(f"========== create_tb.sim case6: table_already_exists")
+        tdSql.execute(f"create table tbs (ts timestamp, col int)")
+        tdSql.execute(f"insert into tbs values (now, 1)")
+        tdSql.error(f"create table tbs (ts timestamp, col bool)")
+        # sql_error create table tb (ts timestamp, col bool)
+        tdLog.info(f"table_already_exists test passed")
+
+        # case7: table_name_length_exceeds_limit
+        tdLog.info(f"========== create_tb.sim case7: table_name_length_exceeds_limit")
+        tbname32 = "_32_aaaabbbbccccddddaaaabbbbcccc"
+        tbname64 = "_64_aaaabbbbccccddddaaaabbbbccccddddaaaabbbbccccddddaaaabbbbcccc"
+        tbname63 = "_63_aaaabbbbccccddddaaaabbbbccccddddaaaabbbbccccddddaaaabbbbccc"
+        tbname65 = "_65_aaaabbbbccccddddaaaabbbbccccddddaaaabbbbccccddddaaaabbbbcccca1111111111111111111111111111111111aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+        tdSql.execute(f"create table {tbname32} (ts timestamp, col int)")
+        tdSql.execute(f"insert into {tbname32} values (now, 1)")
+        tdSql.execute(f"create table {tbname64} (ts timestamp, col int)")
+        tdSql.execute(f"insert into {tbname64} values (now, 1)")
+        tdSql.execute(f"create table {tbname63} (ts timestamp, col int)")
+        tdSql.execute(f"insert into {tbname63} values (now, 1)")
+        tdSql.error(f"create table {tbname65} (ts timestamp, col int)")
+        # sql_error create table tb (ts timestamp, col bool)
+        tdLog.info(f"table_already_exists test passed")
+
+        tdSql.execute(f"drop database {db}")
+        tdSql.query(f"select * from information_schema.ins_databases")
+        tdSql.checkRows(2)
+
+
+    def ColumnName(self):
+        i = 0
+        dbPrefix = "lm_cm_db"
+        tbPrefix = "lm_cm_tb"
+        db = dbPrefix + str(i)
+        tb = tbPrefix + str(i)
+
+        tdLog.info(f"=============== step1")
+        tdSql.prepare(db)
+        tdSql.execute(f"use {db}")
+
+        tdSql.error(f"drop table dd ")
+        tdSql.error(f"create table {tb}(ts timestamp, int) ")
+
+        tdSql.query(f"show tables")
+        tdSql.checkRows(0)
+
+        tdLog.info(f"=============== step2")
+        tdSql.execute(f"create table {tb} (ts timestamp, s int)")
+        tdSql.query(f"show tables")
+        tdSql.checkRows(1)
+
+        tdSql.execute(f"drop table {tb}")
+        tdSql.query(f"show tables")
+        tdSql.checkRows(0)
+
+        tdLog.info(f"=============== step3")
+        tdSql.execute(f"create table {tb} (ts timestamp, a0123456789 int)")
+        tdSql.query(f"show tables")
+        tdSql.checkRows(1)
+
+        tdSql.execute(f"drop table {tb}")
+        tdSql.query(f"show tables")
+        tdSql.checkRows(0)
+
+        tdLog.info(f"=============== step4")
+        tdSql.execute(
+            f"create table {tb} (ts timestamp, a0123456789012345678901234567890123456789 int)"
+        )
+        tdSql.execute(f"drop table {tb}")
+
+        tdSql.query(f"show tables")
+        tdSql.checkRows(0)
+
+        tdLog.info(f"=============== step5")
+        tdSql.execute(f"create table {tb} (ts timestamp, a0123456789 int)")
+        tdSql.query(f"show tables")
+        tdSql.checkRows(1)
+
+        tdSql.execute(f"insert into {tb} values (now , 1)")
+        tdSql.query(f"select * from {tb}")
+        tdSql.checkRows(1)
+
+        tdSql.execute(f"drop database {db}")
+        tdSql.query(f"select * from information_schema.ins_databases")
+        tdSql.checkRows(2)
+
+
+    def Table(self):
+        i = 0
+        dbPrefix = "lm_tb_db"
+        tbPrefix = "lm_tb_tb"
+        db = dbPrefix + str(i)
+        tb = tbPrefix + str(i)
+
+        tdLog.info(f"=============== step1")
+        tdSql.prepare(dbname=db)
+        tdSql.error(f"drop table dd")
+        tdSql.error(f"create table (ts timestamp, speed int)")
+
+        tdSql.query(f"show tables")
+        tdSql.checkRows(0)
+
+        tdLog.info(f"=============== step2")
+        tdSql.execute(f"create table a (ts timestamp, speed int)")
+        tdSql.query(f"show tables")
+        tdSql.checkRows(1)
+
+        tdSql.execute(f"drop table a")
+        tdSql.query(f"show tables")
+        tdSql.checkRows(0)
+
+        tdLog.info(f"=============== step3")
+        tdSql.execute(f"create table a0123456789 (ts timestamp, speed int)")
+        tdSql.query(f"show tables")
+        tdSql.checkRows(1)
+
+        tdSql.execute(f"drop table a0123456789")
+        tdSql.query(f"show tables")
+        tdSql.checkRows(0)
+
+        tdLog.info(f"=============== step4")
+        tdSql.error(
+            f"create table ab01234567890123456789a0123456789a0123456789ab01234567890123456789a0123456789a0123456789ab01234567890123456789a0123456789a0123456789ab01234567890123456789a0123456789a0123456789ab01234567890123456789a0123456789a0123456789ab01234567890123456789a0123456789a0123456789 (ts timestamp, speed int) "
+        )
+
+        tdSql.query(f"show tables")
+        tdSql.checkRows(0)
+
+        tdLog.info(f"=============== step5")
+        tdSql.error(f"create table a;1 (ts timestamp, speed int)")
+
+        tdSql.query(f"show tables")
+        tdSql.checkRows(0)
+
+        tdLog.info(f"=============== step6")
+        tdSql.error(f"create table a'1  (ts timestamp, speed int)")
+        tdSql.query(f"show tables")
+        tdSql.checkRows(0)
+
+        tdLog.info(f"=============== step7")
+        tdSql.error(f"create table (a)  (ts timestamp, speed int)")
+        tdSql.query(f"show tables")
+        tdSql.checkRows(0)
+
+        tdLog.info(f"=============== step8")
+        tdSql.error(f"create table a.1  (ts timestamp, speed int) ")
+
+        tdSql.execute(f"drop database {db}")
+        tdSql.query(f"select * from information_schema.ins_databases")
+        tdSql.checkRows(2)
