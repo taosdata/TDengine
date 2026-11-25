@@ -7583,6 +7583,23 @@ _err:
   return NULL;
 }
 
+static int32_t parseXnodeResourceName(SAstCreateContext* pCxt, const SToken* pToken, EXnodeResourceType resourceType,
+                                      char* name, int32_t capacity) {
+  const char* resource = resourceType == XNODE_AGENT ? "agent" : "task";
+  int32_t     maxLen = resourceType == XNODE_AGENT ? TSDB_XNODE_AGENT_NAME_LEN : TSDB_XNODE_TASK_NAME_LEN;
+  // Reserve space for one byte beyond the limit and the terminator so truncation cannot hide overflow.
+  if (capacity < maxLen + 2) {
+    return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_INTERNAL_ERROR,
+                                   "Xnode %s name buffer capacity should be at least %d bytes", resource, maxLen + 2);
+  }
+  int32_t len = trimString(pToken->z, pToken->n, name, capacity);
+  if (len <= 0 || len > maxLen) {
+    return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_SYNTAX_ERROR,
+                                   "Xnode %s name length should be between 1 and %d bytes", resource, maxLen);
+  }
+  return TSDB_CODE_SUCCESS;
+}
+
 SNode* createXnodeTaskWithOptionsDirectly(SAstCreateContext* pCxt, const SToken* pResourceName, SNode* pSource,
                                           SNode* pSink, SNode* pNode) {
   SNode* pStmt = NULL;
@@ -7605,13 +7622,8 @@ SNode* createXnodeTaskWithOptionsDirectly(SAstCreateContext* pCxt, const SToken*
   CHECK_MAKE_NODE(pStmt);
   SCreateXnodeTaskStmt* pTaskStmt = (SCreateXnodeTaskStmt*)pStmt;
   if (pResourceName->type == TK_NK_STRING) {
-    if (pResourceName->n > TSDB_XNODE_TASK_NAME_LEN + 2) {
-      pCxt->errCode =
-          generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_SYNTAX_ERROR,
-                                  "Xnode task name should be less than %d characters", TSDB_XNODE_TASK_NAME_LEN);
-      goto _err;
-    }
-    COPY_STRING_FORM_STR_TOKEN(pTaskStmt->name, pResourceName);
+    pCxt->errCode = parseXnodeResourceName(pCxt, pResourceName, XNODE_TASK, pTaskStmt->name, sizeof(pTaskStmt->name));
+    CHECK_PARSER_STATUS(pCxt);
   } else if (pResourceName->type == TK_NK_ID) {
     COPY_STRING_FORM_STR_TOKEN(pTaskStmt->name, pResourceName);
   } else {
@@ -7648,14 +7660,9 @@ SNode* createXnodeAgentWithOptionsDirectly(SAstCreateContext* pCxt, const SToken
   CHECK_MAKE_NODE(pStmt);
   SCreateXnodeAgentStmt* pAgentStmt = (SCreateXnodeAgentStmt*)pStmt;
 
-  if (pResourceName->type == TK_NK_STRING && pResourceName->n > 2) {
-    if (pResourceName->n > TSDB_XNODE_AGENT_NAME_LEN + 2) {
-      pCxt->errCode =
-          generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_SYNTAX_ERROR,
-                                  "Xnode agent name should be less than %d characters", TSDB_XNODE_AGENT_NAME_LEN);
-      goto _err;
-    }
-    COPY_STRING_FORM_STR_TOKEN(pAgentStmt->name, pResourceName);
+  if (pResourceName->type == TK_NK_STRING) {
+    pCxt->errCode = parseXnodeResourceName(pCxt, pResourceName, XNODE_AGENT, pAgentStmt->name, sizeof(pAgentStmt->name));
+    CHECK_PARSER_STATUS(pCxt);
   } else {
     pCxt->errCode = generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_SYNTAX_ERROR,
                                             "Invalid xnode agent name type: %d", pResourceName->type);
@@ -7733,15 +7740,11 @@ SNode* createStartXnodeTaskStmt(SAstCreateContext* pCxt, const EXnodeResourceTyp
       goto _err;
     }
   } else {
-    if (pIdOrName->n > TSDB_XNODE_RESOURCE_NAME_LEN + 2) {
-      pCxt->errCode =
-          generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_SYNTAX_ERROR,
-                                  "Xnode task name should be less than %d characters", TSDB_XNODE_RESOURCE_NAME_LEN);
-      goto _err;
-    }
-    char buf[TSDB_XNODE_RESOURCE_NAME_LEN + 1] = {0};
-    COPY_STRING_FORM_STR_TOKEN(buf, pIdOrName);
+    char buf[TSDB_XNODE_TASK_NAME_LEN + 2] = {0};
+    pCxt->errCode = parseXnodeResourceName(pCxt, pIdOrName, XNODE_TASK, buf, sizeof(buf));
+    CHECK_PARSER_STATUS(pCxt);
     pTaskStmt->name = xCreateCowStr(strlen(buf), buf, true);
+    CHECK_OUT_OF_MEM(pTaskStmt->name.ptr);
   }
 
   return (SNode*)pTaskStmt;
@@ -7776,15 +7779,11 @@ SNode* createStopXnodeTaskStmt(SAstCreateContext* pCxt, const EXnodeResourceType
       goto _err;
     }
   } else {
-    if (pIdOrName->n > TSDB_XNODE_RESOURCE_NAME_LEN + 2) {
-      pCxt->errCode =
-          generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_SYNTAX_ERROR,
-                                  "Xnode task name should be less than %d characters", TSDB_XNODE_RESOURCE_NAME_LEN);
-      goto _err;
-    }
-    char buf[TSDB_XNODE_RESOURCE_NAME_LEN + 1] = {0};
-    COPY_STRING_FORM_STR_TOKEN(buf, pIdOrName);
+    char buf[TSDB_XNODE_TASK_NAME_LEN + 2] = {0};
+    pCxt->errCode = parseXnodeResourceName(pCxt, pIdOrName, XNODE_TASK, buf, sizeof(buf));
+    CHECK_PARSER_STATUS(pCxt);
     pTaskStmt->name = xCreateCowStr(strlen(buf), buf, true);
+    CHECK_OUT_OF_MEM(pTaskStmt->name.ptr);
   }
 
   return (SNode*)pTaskStmt;
@@ -7902,14 +7901,11 @@ SNode* updateXnodeTaskWithOptionsDirectly(SAstCreateContext* pCxt, const SToken*
   if (pResIdOrName->type == TK_NK_INTEGER) {
     pTaskStmt->tid = taosStr2Int32(pResIdOrName->z, NULL, 10);
   } else {
-    if (pResIdOrName->n <= 2) {
-      pCxt->errCode =
-          generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_SYNTAX_ERROR, "Xnode task name can't be empty string");
-      goto _err;
-    }
-    char buf[TSDB_XNODE_TASK_NAME_LEN] = {0};
-    COPY_STRING_FORM_STR_TOKEN(buf, pResIdOrName);
+    char buf[TSDB_XNODE_TASK_NAME_LEN + 2] = {0};
+    pCxt->errCode = parseXnodeResourceName(pCxt, pResIdOrName, XNODE_TASK, buf, sizeof(buf));
+    CHECK_PARSER_STATUS(pCxt);
     pTaskStmt->name = xCreateCowStr(strlen(buf), buf, true);
+    CHECK_OUT_OF_MEM(pTaskStmt->name.ptr);
   }
 
   if (pSource != NULL) {
@@ -7985,14 +7981,11 @@ SNode* alterXnodeAgentWithOptionsDirectly(SAstCreateContext* pCxt, const SToken*
   if (pResIdOrName->type == TK_NK_INTEGER) {
     pAgentStmt->id = taosStr2Int32(pResIdOrName->z, NULL, 10);
   } else {
-    if (pResIdOrName->n <= 2) {
-      pCxt->errCode =
-          generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_SYNTAX_ERROR, "Xnode alter agent name can't be empty string");
-      goto _err;
-    }
-    char buf[TSDB_XNODE_AGENT_NAME_LEN] = {0};
-    COPY_STRING_FORM_STR_TOKEN(buf, pResIdOrName);
+    char buf[TSDB_XNODE_AGENT_NAME_LEN + 2] = {0};
+    pCxt->errCode = parseXnodeResourceName(pCxt, pResIdOrName, XNODE_AGENT, buf, sizeof(buf));
+    CHECK_PARSER_STATUS(pCxt);
     pAgentStmt->name = xCreateCowStr(strlen(buf), buf, true);
+    CHECK_OUT_OF_MEM(pAgentStmt->name.ptr);
   }
 
   if (nodeType(pNode) == QUERY_NODE_XNODE_TASK_OPTIONS) {
@@ -8050,7 +8043,7 @@ _err:
 
 SNode* dropXnodeResource(SAstCreateContext* pCxt, EXnodeResourceType resourceType, SToken* pResourceName) {
   SNode* pStmt = NULL;
-  char   buf[TSDB_XNODE_TASK_NAME_LEN + 1] = {0};
+  char   buf[TSDB_XNODE_RESOURCE_NAME_LEN + 2] = {0};
 
   CHECK_PARSER_STATUS(pCxt);
   if (pResourceName == NULL || pResourceName->n <= 0) {
@@ -8058,7 +8051,8 @@ SNode* dropXnodeResource(SAstCreateContext* pCxt, EXnodeResourceType resourceTyp
                                             "Xnode resource name should not be NULL or empty");
     goto _err;
   }
-  if (pResourceName->n > TSDB_XNODE_RESOURCE_NAME_LEN) {
+  if (pResourceName->n > TSDB_XNODE_RESOURCE_NAME_LEN &&
+      !(pResourceName->type == TK_NK_STRING && (resourceType == XNODE_TASK || resourceType == XNODE_AGENT))) {
     pCxt->errCode = generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_SYNTAX_ERROR,
                                             "Invalid xnode resource name length: %d, max length: %d", pResourceName->n,
                                             TSDB_XNODE_RESOURCE_NAME_LEN);
@@ -8071,14 +8065,10 @@ SNode* dropXnodeResource(SAstCreateContext* pCxt, EXnodeResourceType resourceTyp
       SDropXnodeTaskStmt* pTaskStmt = (SDropXnodeTaskStmt*)pStmt;
 
       if (pResourceName->type == TK_NK_STRING) {
-        if (pResourceName->n > TSDB_XNODE_TASK_NAME_LEN + 2) {
-          pCxt->errCode = generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_SYNTAX_ERROR,
-                                                  "Invalid xnode task name length: %d, max length: %d",
-                                                  pResourceName->n, TSDB_XNODE_TASK_NAME_LEN);
-          goto _err;
-        }
-        COPY_STRING_FORM_STR_TOKEN(buf, pResourceName);
+        pCxt->errCode = parseXnodeResourceName(pCxt, pResourceName, XNODE_TASK, buf, sizeof(buf));
+        CHECK_PARSER_STATUS(pCxt);
         pTaskStmt->name = taosStrndupi(buf, sizeof(buf));
+        CHECK_OUT_OF_MEM(pTaskStmt->name);
       } else if (pResourceName->type == TK_NK_ID) {
         COPY_STRING_FORM_ID_TOKEN(buf, pResourceName);
         pTaskStmt->name = taosStrndupi(buf, sizeof(buf));
@@ -8096,14 +8086,10 @@ SNode* dropXnodeResource(SAstCreateContext* pCxt, EXnodeResourceType resourceTyp
       SDropXnodeAgentStmt* pDropAgent = (SDropXnodeAgentStmt*)pStmt;
 
       if (pResourceName->type == TK_NK_STRING) {
-        if (pResourceName->n > TSDB_XNODE_TASK_NAME_LEN + 2) {
-          pCxt->errCode = generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_SYNTAX_ERROR,
-                                                  "Invalid xnode task name length: %d, max length: %d",
-                                                  pResourceName->n, TSDB_XNODE_TASK_NAME_LEN);
-          goto _err;
-        }
-        COPY_STRING_FORM_STR_TOKEN(buf, pResourceName);
+        pCxt->errCode = parseXnodeResourceName(pCxt, pResourceName, XNODE_AGENT, buf, sizeof(buf));
+        CHECK_PARSER_STATUS(pCxt);
         pDropAgent->name = taosStrndupi(buf, sizeof(buf));
+        CHECK_OUT_OF_MEM(pDropAgent->name);
       } else if (pResourceName->type == TK_NK_ID) {
         COPY_STRING_FORM_ID_TOKEN(buf, pResourceName);
         pDropAgent->name = taosStrndupi(buf, sizeof(buf));
