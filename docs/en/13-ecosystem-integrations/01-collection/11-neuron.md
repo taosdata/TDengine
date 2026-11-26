@@ -13,17 +13,17 @@ import NeuronOneClick from './resource/_neuron-one-click.mdx'
 
 This guide describes three ways to write data collected by Neuron to TDengine:
 
-- **Install-time onboarding**: For environments where NeuronEX Enterprise is not yet installed. The installation command installs NeuronEX, activates its license, registers it with taosExplorer, creates the `neuron` business database, the `neuron_demo` demo database, and four demo devices, and configures the write path. No operation in taosExplorer is required after installation.
+- **Install-time onboarding**: For environments where NeuronEX Enterprise is not yet installed. The installation command installs NeuronEX, validates its entitlement (importing an explicitly supplied license), registers it with taosExplorer, creates the `neuron` business database, the `neuron_demo` demo database, and four demo devices, and configures the write path. No operation in taosExplorer is required after installation.
 - **One-click onboarding**: For environments where Neuron or NeuronEX is already deployed. On the **Data In → Data Collection Agents → Neuron** page in taosExplorer, enter the Neuron address and credentials; taosExplorer automatically configures the data stream, processing rules, and collection subscriptions.
 - **Manual onboarding**: For environments where Neuron or NeuronEX is already deployed and you need custom tags, business attributes, or data transformation. Manually configure the data stream, processing rule, and InfluxDB v1 write action in the NeuronEX interface.
 
 | Method | Neuron preinstalled? | Use case | taosExplorer operation | License activation |
 | --- | --- | --- | --- | --- |
-| Install-time onboarding | No | NeuronEX Enterprise not yet installed | None | Automatic |
+| Install-time onboarding | No | NeuronEX Enterprise not yet installed | None | Import and validate when explicitly supplied |
 | One-click onboarding | Yes | Neuron or NeuronEX already deployed | Wizard | User-managed |
 | Manual onboarding | Yes | Already deployed; custom tags or transformation needed | Manual configuration | User-managed |
 
-All three methods share the same data plane: Neuron sends collection reports to eKuiper; eKuiper extracts measurement columns and tags, encodes them as Influx line protocol, and writes them to TDengine in batches; schemaless writes automatically create the supertable and subtables. This integration can ingest the industrial protocols supported by Neuron: more than 70 by protocol family, and more than 100 when PLC sub-series and similar drivers are counted separately. Named entries are listed in [Driver Details](#driver-details). After you purchase TDengine TSDB-Enterprise, Taos Data can procure the EMQX Neuron software license; install-time onboarding automatically activates the license provided with the Enterprise package or specified in the installation parameters.
+All three methods share the same data plane: Neuron sends collection reports to eKuiper; eKuiper extracts measurement columns and tags, encodes them as Influx line protocol, and writes them to TDengine in batches; schemaless writes automatically create the supertable and subtables. This integration can ingest the industrial protocols supported by Neuron: more than 70 by protocol family, and more than 100 when PLC sub-series and similar drivers are counted separately. Named entries are listed in [Driver Details](#driver-details). After you purchase TDengine TSDB-Enterprise, Taos Data can procure the EMQX Neuron software license; install-time onboarding imports and validates a license explicitly specified with `NEURONEX_LICENSE_FILE` in the environment file.
 
 <figure style={{width: 'fit-content', margin: '0 auto'}}>
 
@@ -38,97 +38,136 @@ As shown above, Neuron converts device data into JSON collection reports; eKuipe
 
 ## Install-Time Onboarding
 
+This section uses the independent `neuronex` package of the Apex `tsdb-edge` component to install NeuronEX and complete demo onboarding when all connection settings are supplied. TDengine, taosAdapter, and a taosExplorer version supporting Neuron onboarding must be available on the center side. NeuronEX integration targets support Linux x64 and arm64 and require Bash, `curl`, `jq`, and `flock`.
+
 :::note
 
-Install-time onboarding relies on the `apex` tool, which is not yet released. It is planned for release in early November 2026. Stay tuned.
-
-:::
-
-This section applies to environments where NeuronEX Enterprise is not yet installed. The installation automatically creates the business database `neuron`, the demo database `neuron_demo`, four demo devices, and the collection group `meters`. After installation, you can view the result directly in taosExplorer without creating an integration there. To connect real devices, continue adding devices, collection groups, and tags in NeuronEX. Before configuring devices, review the [Data Mapping and Collection Configuration Guidelines](#appendix-data-mapping-and-collection-configuration-guidelines).
-
-The installation also imports and activates the NeuronEX license automatically, so you do not need to upload it manually in NeuronEX. If no valid license is provided, NeuronEX uses the built-in 30-tag free license and the installation still completes; add a license when you exceed the free quota or need the full data-processing capability. The license scope, expiration, and hardware binding are shown on the **Administration → License** page in NeuronEX.
-
-The installation command is provided by the `apex` tool in the TDengine Enterprise package; you do not need to install NeuronEX separately.
-
-After installation, taosExplorer polls the NeuronEX device list every 5 minutes by default. When it finds a new device with configured tags, it automatically creates or updates the integration rules without any action in taosExplorer. Automatic discovery only covers new device names; when an existing device adds a collection group or tags, click **Refresh Configuration** on the taosExplorer detail page to rescan. Adjust the polling interval with the taosExplorer environment variable `NEURON_POLL_INTERVAL_SECS` (default `300` seconds); set it to `0` to disable polling.
-
-taosExplorer manages the rules and subscriptions it creates. Do not edit generated rules in eKuiper: a refresh reconciles an owned rule to the current mapping and overwrites manual changes. Configure devices, groups, and tags in Neuron or NeuronEX, then use **Refresh Configuration**.
-
-:::tip
-
-For same-host installation, no connection parameters are required. For cross-host installation, you must specify the TDengine host address. For other parameters, see [Cross-Host Installation](#cross-host-installation).
+This workflow describes the current Apex branch implementation. Public `tsdb-edge/stable` resolves to `v3.4.3.10`; its component manifest is downloadable and requires Apex `v0.3.87`. Also prepare the matching `scripts/apex-neuronex.sh` and `tdengine-tsdb-edge-enterprise-<version>.yaml`, and preload the manifest under `<apex_home>/manifests/`. The internal `release.tdengine.net` directory contains this profile, but the corresponding manifest and NeuronEX artifact URLs returned 404 during review; confirm both artifacts are downloadable before using the internal source, or use an available public version. Apex release packages do not bundle component manifests, so running the `latest` installer alone does not establish these prerequisites.
 
 :::
 
 ### Same-Host Installation
 
-When TDengine and NeuronEX are deployed on the same host, run:
+#### Prepare the Center Services
+
+If the center services are not installed, first install Apex and deploy All-in-One:
 
 ```bash
-sudo apex install all
+curl -fsSL https://downloads.taosdata.com/apex/latest/install.sh | sudo bash -s -- -m apex
 ```
 
-The installation automatically performs the following work:
-
-- Install and start NeuronEX; the default web port is `8085`.
-- Register NeuronEX with the local taosExplorer.
-- Import and activate the NeuronEX license; after installation, view the activation status, expiration date, and tag quota under **Administration → License** in NeuronEX.
-- Create the business database `neuron` (`--database`, default `neuron`); reuse it if it already exists.
-- Create the demo database `neuron_demo` (`--database-demo`, default `neuron_demo`); reuse it if it already exists.
-- Create four Modbus simulator devices, `demo_meter01` through `demo_meter04`, all in the `meters` collection group and writing to `neuron_demo`.
-- Configure TDengine write parameters and generate demo rules with a `location` tag.
-- Generate a NeuronEX administrator password and save it to `/var/lib/apex/neuronex-admin-password` (readable only by root).
-
-After installation, NeuronEX is connected to the local TDengine; you do not need to enter a Neuron address, database, or integration configuration. Typical output:
-
-```text
-[apex] Installing TDengine All-in-One...
-[apex] NeuronEX installed and started: http://127.0.0.1:8085
-[apex] NeuronEX registered with taosExplorer: http://127.0.0.1:6060
-[apex] Database neuron created.
-[apex] Demo database neuron_demo created.
-[apex] Demo devices created: demo_meter01, demo_meter02, demo_meter03, demo_meter04
-[apex] NeuronEX admin password saved to /var/lib/apex/neuronex-admin-password
-[apex] NeuronEX is connected to TDengine.
-```
-
-### Cross-Host Installation
-
-When TDengine is on another host, run the following on the NeuronEX host:
+Here, `-m apex` selects host deployment mode; the default profile is `All-in-One`. **This is not a NeuronEX installation command.** To deploy only the TSDB stack, set the profile on the installer side:
 
 ```bash
-sudo apex install neuronex --tdengine-host 192.168.1.100
+curl -fsSL https://downloads.taosdata.com/apex/latest/install.sh | sudo env APEX_DEPLOY_PROFILE=TSDB-Enterprise bash -s -- -m apex
 ```
 
-Replace `192.168.1.100` with the IP address or domain name of the target TDengine host. Other parameters use their defaults. To customize the TDengine username, password, or other settings, append the parameters in the following table:
+Skip this step if compatible center services are already available. Then ensure that the Apex version, scripts, and Edge manifest meet the requirements above. The installer does not currently support selecting NeuronEX with `APEX_DEPLOY_PROFILE=tsdb-edge`.
 
-| Parameter | Default | Description |
-| --- | --- | --- |
-| `--tdengine-host` | Local host | TDengine host IP or domain name; required for cross-host installation |
-| `--tdengine-port` | `6041` | taosAdapter REST port |
-| `--tdengine-user` | `root` | TDengine username; must have permission to create databases and write to the target database |
-| `--tdengine-password` | `taosdata` | TDengine user password |
-| `--explorer-port` | `6060` | taosExplorer port |
-| `--database` | `neuron` | Business database; created automatically if it does not exist |
-| `--database-demo` | `neuron_demo` | Demo database; created automatically if it does not exist; the four demo devices write to it |
+#### Configure the NeuronEX Deployment
 
-Cross-host installation also creates the business database `neuron`, the demo database `neuron_demo`, and four demo devices. After installation, NeuronEX registers with the taosExplorer automatically and configures the write path. The output is similar to same-host installation, with the registration address `http://<TDengine_IP>:6060` and the TDengine target `http://<TDengine_IP>:6041`. If TDengine is already installed separately on the same host, you can omit `--tdengine-host`.
+Save the following as `deployment-neuronex.yaml`. Alternatively, use `manifests/deployment-tsdb-edge-only.yaml` from the matching Apex package. On arm64, change `platform` to `linux-arm64`.
 
-:::note
+```yaml
+apiVersion: tdengine.taosdata.com/v1
+kind: Deployment
+metadata:
+  name: NeuronEX demo
+spec:
+  release:
+    profile: tsdb-edge
+    channel: stable
+  nodes:
+    - name: node1
+      transport: local
+      host: localhost
+      platform: linux-x64
+      roles:
+        - id: node1-tsdb-edge
+          component: tsdb-edge
+          version: auto
+          packages: [neuronex]
+          envFile: tsdb-edge.env
+```
 
-The installation generates a NeuronEX administrator password and saves it to `/var/lib/apex/neuronex-admin-password`. Use it when you log in to NeuronEX for the first time or add real devices:
+On the Apex controller, create `<apex_home>/conf/tsdb-edge.env` and restrict it to owner read/write access (`0600`). When running as root without configuration overrides, the default `apex_home` is `/root/.apex`; use the actual path for a custom Apex home. Replace the placeholders with the current TDengine credentials and do not commit this file to version control:
+
+```dotenv
+NEURONEX_EXPLORER_URL=http://localhost:6060
+NEURONEX_ADAPTER_URL=http://localhost:6041
+NEURONEX_ENDPOINT=http://localhost:8085
+NEURONEX_TSDB_USER=<tsdb-user>
+NEURONEX_TSDB_PASSWORD=<tsdb-password>
+```
+
+All five settings are required. The packaged `conf/tsdb-edge.env` provides localhost examples and initial `root` / `taosdata` credentials; verify the actual services and passwords before use. URLs must be HTTP(S) base URLs without embedded credentials, queries, or fragments. Omitting all integration-related variables installs software only; supplying a partial configuration fails before deployment.
+
+| Setting | Description |
+| --- | --- |
+| `NEURONEX_EXPLORER_URL` | taosExplorer URL reachable from the NeuronEX host |
+| `NEURONEX_ADAPTER_URL` | taosAdapter URL reachable from the NeuronEX host |
+| `NEURONEX_ENDPOINT` | NeuronEX URL reachable from taosExplorer; default port `8085` |
+| `NEURONEX_TSDB_USER`, `NEURONEX_TSDB_PASSWORD` | Current TDengine credentials with permission to query system information, create databases, and access the target databases |
+| `NEURONEX_ADMIN_PASSWORD` (optional) | Current administrator password when adopting an existing NeuronEX installation; not an automatic password-reset option |
+| `NEURONEX_LICENSE_FILE` (optional) | License file path relative to the controller's `<apex_home>/conf/`, for example `neuronex.lic` |
+
+The TDengine user must be an enabled superuser, or an enabled user with `createdb=1` and `sysinfo=1`. Every existing target database (`neuron` and `neuron_demo`) must be owned by this user, including when using a superuser. Apex does not create users or grant permissions automatically.
+
+#### Run the Deployment
+
+Run under the same execution identity for which the Apex home above is configured:
+
+```bash
+sudo apex deploy -f deployment-neuronex.yaml --yes
+```
+
+For an existing deployment context containing a `tsdb-edge` role, explicitly select that file to install the independent package:
+
+```bash
+apex validate -f deployment-neuronex.yaml
+sudo apex package install neuronex -f deployment-neuronex-resolved.yaml
+```
+
+`apex validate` resolves `version: auto`; save its resolved YAML output as `deployment-neuronex-resolved.yaml` and pass that file to `-f`. With SSH transport, remote NeuronEX lifecycle commands run as the SSH login account, which must have root privileges; `sudo` on the controller does not elevate permissions on the remote host.
+
+After a successful deployment, you can omit `-f` and run `sudo apex package install neuronex` using the saved Default Deployment. A default deployment containing only TSDB roles does not automatically become an Edge deployment.
+
+The integration action runs after software installation, startup, and health checks:
+
+- Establish an administrator identity on a fresh installation and save the password to `/var/lib/apex/neuronex-admin-password` on the target. Retries reuse the verified identity and do not automatically reset existing passwords.
+- Validate the installed entitlement, or import and revalidate an explicitly supplied license. Without a supplied license, the built-in 30-tag free entitlement can be used if it meets the requirements. The demo uses 12 tags; free data processing is limited to approximately 60 minutes. An explicit license that is invalid, expired, or lacks capacity or permissions fails integration instead of silently falling back to free entitlement. Check scope, expiration, and hardware binding under **Administration → License** in NeuronEX.
+- Create or reuse compatible databases: the empty business database `neuron` and demo database `neuron_demo`. These names are fixed; Apex does not change existing retention or precision. Conflicting objects remain intact and cause an error.
+- Use one built-in Modbus simulator to prepare four logical devices, `demo_meter01` through `demo_meter04`, each with the `meters` group collecting `current`, `voltage`, and `phase` once per second.
+- Create or resume the `NeuronEX demo` integration in taosExplorer, **registering only `neuron_demo`**. taosExplorer manages the rules and subscriptions.
+- Verify integration readiness and at least two observations showing fresh data in all four tables. Neither row counts nor latest timestamps may decrease for any table, and at least one of them must increase. Software health or local acquisition alone does not establish complete onboarding.
+
+Check `integration: succeeded` and `integrationStage: complete`, together with `integrationId`, `database`, `tables`, and `evidence` in the result. `/var/lib/apex/neuronex-integration.json` on the target retains safe integration evidence. Integration failure returns a nonzero exit code but preserves installed software and existing resources. Resolve the problem and rerun the original command to recover; do not delete databases or identity files merely to retry. A successful free demo does not certify production entitlement or sustained operation.
+
+On the NeuronEX host, view the administrator password with:
 
 ```bash
 sudo cat /var/lib/apex/neuronex-admin-password
 ```
 
-To use a custom password, append `--neuron-password-file <path>` to the installation command.
+### Cross-Host Installation
 
-:::
+The implementation accepts separate hosts for the center services and NeuronEX. When deploying on the NeuronEX host, replace the environment-file URLs with addresses reachable in both directions, for example:
+
+```dotenv
+NEURONEX_EXPLORER_URL=https://tsdb.example.com:6060
+NEURONEX_ADAPTER_URL=https://tsdb.example.com:6041
+NEURONEX_ENDPOINT=https://edge.example.com:8085
+```
+
+Keep the other required credentials. Use HTTPS URLs for taosExplorer, taosAdapter, and NeuronEX in cross-host configurations because requests carry TDengine Basic Auth credentials; HTTP is for trusted, isolated test networks only. The NeuronEX host must reach the center services, and taosExplorer must reach `NEURONEX_ENDPOINT`. Do not use `localhost` for services on another host. With Apex SSH transport, `envFile` and the license file are still read from the controller's `<apex_home>/conf/`, not the corresponding remote directory. Live acceptance currently covers same-host Linux x64; validate a separate-host topology in the actual network rather than treating configuration support as completed cross-host acceptance.
 
 ### View the Result in taosExplorer
 
-Both same-host and cross-host installation automatically create an integration record in taosExplorer. Log in to taosExplorer and go to **Data In → Data Collection Agents → Neuron** to see the automatically created NeuronEX integration. The demo devices write data every second, and the status changes to **Verified** automatically. In the `neuron_demo` database, you can see the `meters` supertable and four subtables, `demo_meter01` through `demo_meter04`, with `location` tags `Factory01.Workshop01`, `Factory01.Workshop02`, `Factory02.Workshop01`, and `Factory02.Workshop02`. **This page is for viewing only; you do not need to create an integration or enter any configuration.**
+After successful onboarding, open the configured taosExplorer and go to **Data In → Data Collection Agents → Neuron** to view `NeuronEX demo`; do not create a duplicate integration. In `neuron_demo`, check the `meters` supertable and subtables `demo_meter01` through `demo_meter04`, with locations `Factory01.Workshop01`, `Factory01.Workshop02`, `Factory02.Workshop01`, and `Factory02.Workshop02`, respectively.
+
+Real devices added later may be discovered by this integration and written to `neuron_demo`; **they are not automatically isolated into `neuron`**, which is initially empty. Plan separate production databases and integrations before production use. For device naming and grouping, see [Data Mapping and Collection Configuration Guidelines](#appendix-data-mapping-and-collection-configuration-guidelines). When an existing device gains groups or tags, click **Refresh Configuration** in taosExplorer. Do not manually edit the eKuiper rules it manages; refresh overwrites those changes.
+
+taosExplorer polls the device list every 5 minutes by default. Automatic discovery covers new device names with configured tags; adding groups or tags to an existing device still requires a manual refresh. Set the taosExplorer environment variable `NEURON_POLL_INTERVAL_SECS` to change the interval (default `300` seconds), or set it to `0` to disable polling.
 
 <figure style={{width: 'fit-content', margin: '0 auto'}}>
 
@@ -400,7 +439,7 @@ Writes to the same subtable with the same millisecond timestamp overwrite existi
 
 ## Verify the Results
 
-Regardless of the onboarding method, confirm ingestion through query results — a running rule or a successful ping does not confirm that data is being written. The following SQL uses the database and table names from the manual onboarding example. For install-time onboarding, use `neuron_demo` (demo) or `neuron` (real devices) as the database and the collection group name as the supertable name. For one-click onboarding, use your target database and mapped supertable names.
+Regardless of the onboarding method, confirm ingestion through query results — a running rule or a successful ping does not confirm that data is being written. The following SQL uses the database and table names from the manual onboarding example. For install-time onboarding, use `neuron_demo` and the `meters` supertable. The `neuron` database is initially empty; query the actually configured target database for real devices. For one-click onboarding, use your target database and mapped supertable names.
 
 1. In a TDengine SQL client, check the automatically generated schema and device tags.
 
@@ -417,7 +456,7 @@ Regardless of the onboarding method, confirm ingestion through query results —
 
    There should be four subtables with field types and tags matching the example data model.
 
-2. Query the latest data and compare it with **Data Collection → Data Monitoring**. Replace the subtable name to check all four devices.
+2. Query the latest data and compare it with **Data Collection → Data Monitoring**. For install-time onboarding, use `demo_meter01` through `demo_meter04`, replacing the name to check each device; the manual onboarding example's `workshop01_meter01` does not apply here.
 
    ```sql
    SELECT
@@ -425,12 +464,12 @@ Regardless of the onboarding method, confirm ingestion through query results —
      current,
      voltage,
      phase
-   FROM neuron_meters_demo.workshop01_meter01
+   FROM neuron_demo.demo_meter01
    ORDER BY _ts DESC
    LIMIT 5;
    ```
 
-3. Repeat the following query a few seconds apart to confirm that the row count increases in all four subtables.
+3. Run the following query at least twice a few seconds apart and also check each table's latest timestamp. All four tables should contain fresh data, neither their row counts nor latest timestamps should decrease, and at least one of these values should increase.
 
    ```sql
    SELECT
@@ -583,11 +622,11 @@ These results support capacity planning and do not represent TDengine's write li
 
 | Symptom | Checks and actions |
 | --- | --- |
-| No integration record appears in taosExplorer after install-time onboarding | Confirm the installation command succeeded. For same-host installation, check the local taosExplorer; for cross-host installation, check the taosExplorer at `--tdengine-host`. Review the installation output and taosExplorer logs |
+| No integration record appears in taosExplorer after install-time onboarding | Confirm the Apex result shows `integration: succeeded` and `integrationStage: complete`. Check the service at `NEURONEX_EXPLORER_URL`, the Apex operation logs, and taosExplorer logs |
 | The status remains "Configuration Preserved; Verification Pending" after install-time onboarding | Confirm the four demo devices are running and connected; check whether **Data Monitoring** in NeuronEX shows data, and review taosExplorer logs |
-| NeuronEX still shows the 30-tag free license after installation | Confirm that the installation package or parameters provide a valid license. Check **Hardware Token**, **Expire At**, and **Tags Usage** under **Administration → License** in NeuronEX. If the license is not active, upload it manually or re-run the installation command |
+| NeuronEX still shows the 30-tag free license after installation | Without `NEURONEX_LICENSE_FILE`, built-in free entitlement can be used. For a production license, configure a valid license file on the controller and retry; verify entitlement under **Administration → License** in NeuronEX. An explicit license failure does not fall back to free entitlement |
 | Forgot the NeuronEX administrator password | Run `sudo cat /var/lib/apex/neuronex-admin-password` to view the password generated during installation |
-| Data stops after changing the NeuronEX password | Update the credentials on the taosExplorer integration detail page (**Edit Configuration**), or re-run the installation command and pass the new password with `--neuron-password-file` |
+| Data stops after changing the NeuronEX password | First update the saved credentials on the taosExplorer integration detail page (**Edit Configuration**), then synchronize `NEURONEX_ADMIN_PASSWORD` to the current password and rerun the original Apex command. Changing only the environment file and rerunning is rejected because the registration credentials differ |
 | One-click onboarding reports "No acquisition groups with readable points were found" | Configure device collection in Neuron first; confirm devices are running and connected, with tag values visible in **Data Monitoring** |
 | One-click onboarding fails with a subtable name conflict | The subtable name conflicts with an existing table in the database; set a **Table Name Prefix** for the integration to distinguish it, and confirm that same-named measurement columns have compatible types |
 | Data stops being written after the TDengine password is changed | Click **Refresh Configuration** on the integration detail page to update the rules with the current login credentials |
