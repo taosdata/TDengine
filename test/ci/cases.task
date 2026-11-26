@@ -738,8 +738,6 @@
 ,,y,.,./ci/pytest.sh pytest cases/11-Functions/01-Scalar/test_fun_sca_time_convert.py
 ,,y,.,./ci/pytest.sh pytest cases/11-Functions/01-Scalar/test_fun_sca_stateduration.py
 ,,y,.,./ci/pytest.sh pytest cases/11-Functions/01-Scalar/test_fun_sca_strcmp.py
-,,y,.,./ci/pytest.sh pytest cases/11-Functions/01-Scalar/test_fun_sca_substr.py
-,,y,.,./ci/pytest.sh pytest cases/11-Functions/01-Scalar/test_fun_sca_tan.py
 ,,y,.,./ci/pytest.sh pytest cases/11-Functions/01-Scalar/test_fun_sca_timediff.py
 ,,y,.,./ci/pytest.sh pytest cases/11-Functions/01-Scalar/test_fun_sca_time_format.py
 ,,y,.,./ci/pytest.sh pytest cases/11-Functions/01-Scalar/test_fun_sca_timezone.py
