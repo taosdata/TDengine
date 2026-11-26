@@ -5822,10 +5822,11 @@ TEST(tmsgTest, vtable_resolve_response_strips_optional_tagcond_tail) {
   tFreeSVTableRefResolveRsp(&decoded);
 
   // An empty-tag flag on a column response is invalid and must not allocate a tag.
-  bytes.back() = 1;
+  ASSERT_FALSE(bytes.empty());
+  bytes.at(bytes.size() - 1) = 1;
   EXPECT_LT(tDeserializeSVTableRefResolveRsp(bytes.data(), bytes.size(), &decoded), 0);
   EXPECT_EQ(decoded.items, nullptr);
-  bytes.back() = 0;
+  bytes.at(bytes.size() - 1) = 0;
 
   // A truncated extension must fail and release all partially decoded items.
   bytes.pop_back();
