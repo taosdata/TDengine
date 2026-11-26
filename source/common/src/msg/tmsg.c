@@ -22484,7 +22484,19 @@ static int32_t decodeAlterTableUpdateTagVal(SDecoder *pDecoder, SVAlterTbReq *pR
 
   SUpdatedTagVal     tag = {0};
   tag.colId = pReq->colId;
-  TAOS_CHECK_EXIT(tDecodeCStr(pDecoder, &tag.tagName));
+  {
+    // tagName is matched with strcmp() in updatedTagValueArrayToHashMap(), so the
+    // terminating '\0' must live inside the length-prefixed payload. A zero-length
+    // payload yields a one-past-end pointer and is rejected; a 1-byte "\0" payload
+    // is a legitimate empty string and stays accepted.
+    uint8_t *pTagNameWire = NULL;
+    uint32_t tagNameWireLen = 0;
+    TAOS_CHECK_EXIT(tDecodeBinary(pDecoder, &pTagNameWire, &tagNameWireLen));
+    if (tagNameWireLen == 0 || pTagNameWire[tagNameWireLen - 1] != '\0') {
+      TAOS_CHECK_EXIT(TSDB_CODE_INVALID_MSG);
+    }
+    tag.tagName = (char *)pTagNameWire;
+  }
   TAOS_CHECK_EXIT(tDecodeI8(pDecoder, &tag.isNull));
   TAOS_CHECK_EXIT(tDecodeI8(pDecoder, &tag.tagType));
   if (!tag.isNull) {
@@ -22532,7 +22544,17 @@ static int32_t decodeAlterTableUpdateMultiTagVal(SDecoder *pDecoder, SVAlterTbRe
   for (int32_t i = 0; i < nTags; i++) {
     SUpdatedTagVal tag = {0};
     TAOS_CHECK_EXIT(tDecodeI32v(pDecoder, &tag.colId));
-    TAOS_CHECK_EXIT(tDecodeCStr(pDecoder, &tag.tagName));
+    {
+      // same C-string consumer as the other SET TAG decoders (strcmp in
+      // updatedTagValueArrayToHashMap()); only zero-length payloads are rejected
+      uint8_t *pTagNameWire = NULL;
+      uint32_t tagNameWireLen = 0;
+      TAOS_CHECK_EXIT(tDecodeBinary(pDecoder, &pTagNameWire, &tagNameWireLen));
+      if (tagNameWireLen == 0 || pTagNameWire[tagNameWireLen - 1] != '\0') {
+        TAOS_CHECK_EXIT(TSDB_CODE_INVALID_MSG);
+      }
+      tag.tagName = (char *)pTagNameWire;
+    }
     TAOS_CHECK_EXIT(tDecodeI8(pDecoder, &tag.isNull));
     TAOS_CHECK_EXIT(tDecodeI8(pDecoder, &tag.tagType));
     if (!tag.isNull) {
@@ -22585,11 +22607,37 @@ static int32_t decodeAlterTableUpdateMultiTableTagVal(SDecoder *pDecoder, SVAlte
       int8_t useRegexp;
       TAOS_CHECK_EXIT(tDecodeI8(pDecoder, &useRegexp));
       TAOS_CHECK_EXIT(tDecodeI32v(pDecoder, &tag.colId));
-      TAOS_CHECK_EXIT(tDecodeCStr(pDecoder, &tag.tagName));
+      {
+        // tagName is matched with strcmp() in updatedTagValueArrayToHashMap(), so the
+        // terminating '\0' must live inside the length-prefixed payload. A zero-length
+        // payload yields a one-past-end pointer and is rejected; a 1-byte "\0" payload
+        // is a legitimate empty string and stays accepted.
+        uint8_t *pTagNameWire = NULL;
+        uint32_t tagNameWireLen = 0;
+        TAOS_CHECK_EXIT(tDecodeBinary(pDecoder, &pTagNameWire, &tagNameWireLen));
+        if (tagNameWireLen == 0 || pTagNameWire[tagNameWireLen - 1] != '\0') {
+          TAOS_CHECK_EXIT(TSDB_CODE_INVALID_MSG);
+        }
+        tag.tagName = (char *)pTagNameWire;
+      }
       TAOS_CHECK_EXIT(tDecodeI8(pDecoder, &tag.tagType));
       if (useRegexp) {
-        TAOS_CHECK_EXIT(tDecodeCStr(pDecoder, &tag.regexp));
-        TAOS_CHECK_EXIT(tDecodeCStr(pDecoder, &tag.replacement));
+        // regexp is handed to threadGetRegComp()/regcomp() and replacement to the
+        // substitution builder, both of which walk them as C strings.
+        uint8_t *pRegexpWire = NULL;
+        uint8_t *pReplacementWire = NULL;
+        uint32_t regexpWireLen = 0;
+        uint32_t replacementWireLen = 0;
+        TAOS_CHECK_EXIT(tDecodeBinary(pDecoder, &pRegexpWire, &regexpWireLen));
+        if (regexpWireLen == 0 || pRegexpWire[regexpWireLen - 1] != '\0') {
+          TAOS_CHECK_EXIT(TSDB_CODE_INVALID_MSG);
+        }
+        TAOS_CHECK_EXIT(tDecodeBinary(pDecoder, &pReplacementWire, &replacementWireLen));
+        if (replacementWireLen == 0 || pReplacementWire[replacementWireLen - 1] != '\0') {
+          TAOS_CHECK_EXIT(TSDB_CODE_INVALID_MSG);
+        }
+        tag.regexp = (char *)pRegexpWire;
+        tag.replacement = (char *)pReplacementWire;
       } else {
         TAOS_CHECK_EXIT(tDecodeI8(pDecoder, &tag.isNull));
         if (!tag.isNull) {
@@ -22725,11 +22773,33 @@ static int32_t tDecodeSVAlterTbReqCommon(SDecoder *pDecoder, SVAlterTbReq *pReq)
         int8_t useRegexp;
         TAOS_CHECK_EXIT(tDecodeI8(pDecoder, &useRegexp));
         TAOS_CHECK_EXIT(tDecodeI32v(pDecoder, &tag.colId));
-        TAOS_CHECK_EXIT(tDecodeCStr(pDecoder, &tag.tagName));
+        {
+          // same C-string consumers as UPDATE_MULTI_TABLE_TAG_VAL above; only
+          // zero-length payloads are rejected
+          uint8_t *pTagNameWire = NULL;
+          uint32_t tagNameWireLen = 0;
+          TAOS_CHECK_EXIT(tDecodeBinary(pDecoder, &pTagNameWire, &tagNameWireLen));
+          if (tagNameWireLen == 0 || pTagNameWire[tagNameWireLen - 1] != '\0') {
+            TAOS_CHECK_EXIT(TSDB_CODE_INVALID_MSG);
+          }
+          tag.tagName = (char *)pTagNameWire;
+        }
         TAOS_CHECK_EXIT(tDecodeI8(pDecoder, &tag.tagType));
         if (useRegexp) {
-          TAOS_CHECK_EXIT(tDecodeCStr(pDecoder, &tag.regexp));
-          TAOS_CHECK_EXIT(tDecodeCStr(pDecoder, &tag.replacement));
+          uint8_t *pRegexpWire = NULL;
+          uint8_t *pReplacementWire = NULL;
+          uint32_t regexpWireLen = 0;
+          uint32_t replacementWireLen = 0;
+          TAOS_CHECK_EXIT(tDecodeBinary(pDecoder, &pRegexpWire, &regexpWireLen));
+          if (regexpWireLen == 0 || pRegexpWire[regexpWireLen - 1] != '\0') {
+            TAOS_CHECK_EXIT(TSDB_CODE_INVALID_MSG);
+          }
+          TAOS_CHECK_EXIT(tDecodeBinary(pDecoder, &pReplacementWire, &replacementWireLen));
+          if (replacementWireLen == 0 || pReplacementWire[replacementWireLen - 1] != '\0') {
+            TAOS_CHECK_EXIT(TSDB_CODE_INVALID_MSG);
+          }
+          tag.regexp = (char *)pRegexpWire;
+          tag.replacement = (char *)pReplacementWire;
         } else {
           TAOS_CHECK_EXIT(tDecodeI8(pDecoder, &tag.isNull));
           if (!tag.isNull) {
