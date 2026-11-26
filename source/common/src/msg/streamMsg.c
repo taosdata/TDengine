@@ -3628,11 +3628,15 @@ int32_t tDecodeSStreamReaderDeployMsg(SDecoder* pDecoder, SStreamReaderDeployMsg
     TAOS_CHECK_EXIT(tDecodeI8(pDecoder, &pSpec->partitionByTag));
     TAOS_CHECK_EXIT(tDecodeI8(pDecoder, &pSpec->partitionByTbname));
     /* Decode prefilter / triggerPrefilter as nullable, null-terminated C strings
-     * (mirror of the tEncodeCStr calls above; empty entry decodes back to NULL). */
-    TAOS_CHECK_EXIT(tDecodeCStrAlloc(pDecoder, &pSpec->prefilter));
-    TAOS_CHECK_EXIT(tDecodeCStrAlloc(pDecoder, &pSpec->triggerPrefilter));
-    TAOS_CHECK_EXIT(tDecodeCStrAlloc(pDecoder, &pSpec->tagCondJson));
-    pSpec->tagCondLen = pSpec->tagCondJson == NULL ? 0 : (int32_t)strlen(pSpec->tagCondJson);
+     * (mirror of the tEncodeCStr calls above; empty entry decodes back to NULL).
+     * Use the checked decoder so a blob whose last byte is not '\0' is refused here
+     * instead of being read past the exact-size allocation by the strlen/%s consumers
+     * below and downstream (tEncodeCStr always writes the terminator on the wire). */
+    uint64_t tagCondBlobLen = 0;
+    TAOS_CHECK_EXIT(tDecodeCStrAllocChecked(pDecoder, (void**)&pSpec->prefilter, NULL));
+    TAOS_CHECK_EXIT(tDecodeCStrAllocChecked(pDecoder, (void**)&pSpec->triggerPrefilter, NULL));
+    TAOS_CHECK_EXIT(tDecodeCStrAllocChecked(pDecoder, (void**)&pSpec->tagCondJson, &tagCondBlobLen));
+    pSpec->tagCondLen = tagCondBlobLen > 0 ? (int32_t)(tagCondBlobLen - 1) : 0;  /* exclude NUL */
     /* Column lists and type mappings are produced by mnode and consumed by the
      * snode stream reader when building trigger/calc external SELECT lists. */
     TAOS_CHECK_EXIT(tDecodeSStreamExtFixedStringArray(pDecoder, &pSpec->triggerColumns, TSDB_COL_NAME_LEN));
@@ -3665,7 +3669,8 @@ int32_t tDecodeSStreamReaderDeployMsg(SDecoder* pDecoder, SStreamReaderDeployMsg
       }
       for (int32_t j = 0; j < numPartExprs; ++j) {
         char **pExpr = taosArrayGet(pSpec->partitionTagExprs, j);
-        TAOS_CHECK_EXIT(tDecodeCStrAlloc(pDecoder, pExpr));
+        /* Same NUL-termination requirement: elements are later read with taosStrdup/%s. */
+        TAOS_CHECK_EXIT(tDecodeCStrAllocChecked(pDecoder, (void**)pExpr, NULL));
       }
     }
     /* pSpec->triggerPrefilterAst is not on the wire here; tDecodeStreamHbRsp binds it from
