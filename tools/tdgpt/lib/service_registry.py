@@ -59,7 +59,7 @@ from lib.util import safely_remove_file
 # Category directories under the custom algorithm root whose modules are
 # imported and registered as services. The batch plugins live under BATCH_KIND
 # and are discovered separately.
-_CUSTOM_SERVICE_KINDS = ("ad", "fc")
+_CUSTOM_SERVICE_KINDS = ("ad", "fc", "classification", "regression")
 
 
 class ServiceRegistry:
@@ -569,7 +569,10 @@ class ServiceRegistry:
                         continue
 
     def load_custom_services(self):
-        """Discover persistent ad/fc/batch plugins without exposing them on sys.path."""
+        """Discover persistent ad/fc/classification/regression/batch plugins.
+
+        The directories are read in place; none of them is added to sys.path.
+        """
         config = Configure.get_instance()
         root = Path(config.get_custom_algo_directory())
         explicit = bool(os.environ.get("TDGPT_CUSTOM_ALGO_DIR")) or (
@@ -598,11 +601,12 @@ class ServiceRegistry:
     def _warn_if_world_writable(root):
         """Flag writable directories whose files this service imports and runs.
 
-        The scan reads user code from ``<root>/ad``, ``<root>/fc`` and
-        ``<root>/batch``, so a root that is not writable below it does not clear
-        them: any one of them being writable lets another user replace a file
-        that then runs as this service. The root itself is checked too, because
-        whoever can write there can replace one of those directories.
+        The scan reads user code from ``<root>/ad``, ``<root>/fc``,
+        ``<root>/classification``, ``<root>/regression`` and ``<root>/batch``,
+        so a root that is not writable below it does not clear them: any one of
+        them being writable lets another user replace a file that then runs as
+        this service. The root itself is checked too, because whoever can write
+        there can replace one of those directories.
 
         The check is advisory. Refusing to start here would strand deployments
         whose directory mode predates this rule, while the log entry keeps the

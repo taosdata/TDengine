@@ -33,6 +33,8 @@ class PersistentRegistryTest(unittest.TestCase):
         self.custom = self.root / "custom"
         (self.custom / "ad").mkdir(parents=True)
         (self.custom / "fc").mkdir()
+        (self.custom / "classification").mkdir()
+        (self.custom / "regression").mkdir()
         self.cfg = self.root / "taosanode.config.py"
         self.cfg.write_text(f"custom_algo_dir = {str(self.custom)!r}\n")
         old = Configure._instance
@@ -58,6 +60,27 @@ class PersistentRegistryTest(unittest.TestCase):
         self.plugin("forecast.py")
         self.registry.load_custom_services()
         self.assertEqual(self.registry.services["user_forecast"].execute(), 42)
+
+    def test_classification_and_regression_plugins_register(self):
+        (self.custom / "classification/demo.py").write_text(
+            "from lib.base import AbstractClassificationService\n"
+            "class _Classifier(AbstractClassificationService):\n"
+            "    name = 'user_classification'\n"
+            "    def execute(self): return [1, 0]\n"
+        )
+        (self.custom / "regression/demo.py").write_text(
+            "from lib.base import AbstractRegressionService\n"
+            "class _Regressor(AbstractRegressionService):\n"
+            "    name = 'user_regression'\n"
+            "    def execute(self): return [1.5, 2.5]\n"
+        )
+        self.registry.load_custom_services()
+        self.assertEqual(
+            self.registry.services["user_classification"].execute(), [1, 0]
+        )
+        self.assertEqual(
+            self.registry.services["user_regression"].execute(), [1.5, 2.5]
+        )
 
     def test_root_initializer_exports_helpers_and_runs_once(self):
         (self.custom / "__init__.py").write_text(

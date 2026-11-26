@@ -235,6 +235,6 @@ curl -s -X POST http://127.0.0.1:6035/api/v1/analysis/batch \
 
 - **不要继承服务基类**。`ad/`、`fc/` 插件使用的服务基类带有 `type` 属性，那是 `ServiceRegistry` 的成员契约；批量包络线插件注册在独立表中，不参与 `/list` 输出。误继承会被记录一条告警，插件仍可用，但容易引起误解。
 - **依赖装在主 venv**。用户算法使用主服务解释器，第三方库需提前装入主 venv，服务启动时不会执行 `pip install`。官方模型的 TSFM venv 与主 venv 相互独立。
-- **目录权限**。`batch/` 下是会被导入并执行的代码，属主应为服务的运行用户，目录 `0750`、文件 `0640` 即可。`custom/`、`custom/ad`、`custom/fc`、`custom/batch` 中任一目录为 world-writable 时，服务会在启动日志中告警；Windows 上不检查该权限（Python 为目录合成的 `st_mode` 恒为 `0777`，与真实 ACL 无关）。
+- **目录权限**。`batch/` 下是会被导入并执行的代码，属主应为服务的运行用户，目录 `0750`、文件 `0640` 即可。`custom/`、`custom/ad`、`custom/fc`、`custom/classification`、`custom/regression`、`custom/batch` 中任一目录为 world-writable 时，服务会在启动日志中告警；Windows 上不检查该权限（Python 为目录合成的 `st_mode` 恒为 `0777`，与真实 ACL 无关）。
 - **不要使用符号链接**。安装迁移遇到链接文件会中止并提示手工处理，升级路径上容易留下未迁移的算法；请使用实体文件。
 - **Docker 部署需挂载**。容器内路径必须与挂载目标一致，否则容器重建后算法丢失；也可用 `TDGPT_CUSTOM_ALGO_DIR` 覆盖运行时目录，但该变量不影响安装器迁移。

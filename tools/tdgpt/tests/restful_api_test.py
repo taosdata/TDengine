@@ -581,6 +581,37 @@ class RestfulTest(TestCase):
         self.assertEqual(response.json["rows"], 1)
         self.assertEqual(response.json["algo"], "iqr")
 
+    def test_classification(self):
+        """test classification api"""
+        class FakeClassifier:
+            def set_input_data(self, input_data, schema=None):
+                self.input_data = input_data
+
+            def set_params(self, params):
+                self.params = params
+
+            def execute(self):
+                return [1 if row[0] >= 2.0 else 0 for row in self.input_data]
+
+        with patch(
+            "lib.taosanalytics.handlers.classification.loader.get_service",
+            return_value=FakeClassifier(),
+        ):
+            response = self.client.post(
+                "/classification",
+                json={
+                    "algo": "user_classification",
+                    "schema": [["feature", "DOUBLE", 8]],
+                    "data": [[1.0, 2.0, 3.0]],
+                    "option": "threshold=2",
+                },
+            )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.json["algo"], "user_classification")
+        self.assertEqual(response.json["rows"], 3)
+        self.assertEqual(response.json["res"], [0, 1, 1])
+
     def test_ad_error_get(self):
         """1. invalid http method"""
         response = self.client.get(

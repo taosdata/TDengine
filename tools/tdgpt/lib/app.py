@@ -29,6 +29,7 @@ from lib.service_registry import loader
 from lib.taosanalytics import ANODE_VER
 from lib.taosanalytics.handlers.anomaly import handle_anomaly
 from lib.taosanalytics.handlers.assoc import handle_association
+from lib.taosanalytics.handlers.classification import handle_classification
 from lib.taosanalytics.handlers.clustering import handle_clustering
 from lib.taosanalytics.handlers.correlation import handle_correlation
 from lib.taosanalytics.handlers.forecast import handle_forecast
@@ -184,6 +185,13 @@ def handle_regression_req():
     """handle the regression request"""
     AppLogger.info("recv regression request from %s", request.remote_addr)
     return handle_regression(request)
+
+
+@app.route("/classification", methods=["POST"])
+def handle_classification_req():
+    """handle the classification request"""
+    AppLogger.info("recv classification request from %s", request.remote_addr)
+    return handle_classification(request)
 
 
 @app.route("/series-diagnosis", methods=["POST"])
