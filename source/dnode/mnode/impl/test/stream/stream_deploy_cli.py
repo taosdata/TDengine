@@ -45,7 +45,9 @@ def wait_dnode_ready(sql, timeout=80):
 
     def ready():
         nonlocal last
-        last = sql('select status,vnodes,support_vnodes from information_schema.ins_dnodes where id=1')
+        # vnodes is reserved in the SQL parser (TK_VNODES), so the column name
+        # has to be quoted; unquoted it fails with 'syntax error near "vnodes"'.
+        last = sql('select status,`vnodes`,`support_vnodes` from information_schema.ins_dnodes where id=1')
         result = rows(last)
         return (len(result) == 1 and result[0][0] == 'ready'
                 and int(result[0][2]) - int(result[0][1]) >= 2)
