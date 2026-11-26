@@ -27,6 +27,8 @@ class DnodeReadinessTest(unittest.TestCase):
         with patch('stream_deploy_cli.time.sleep') as sleep:
             wait_dnode_ready(sql)
         self.assertEqual(sql.call_count, 6)
+        sql.assert_called_with(
+            'select status,`vnodes`,support_vnodes from information_schema.ins_dnodes where id=1')
         self.assertEqual(sleep.call_count, 5)
 
     def test_ready_node_does_not_sleep(self):

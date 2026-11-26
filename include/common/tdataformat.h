@@ -65,10 +65,9 @@ typedef struct SColumnDataAgg *SColumnDataAggPtr;
 #define HAS_BLOB  ((uint8_t)0x8)
 
 // bitmap ================================
-const static uint8_t BIT1_MAP[8] = {0b11111110, 0b11111101, 0b11111011, 0b11110111,
-                                    0b11101111, 0b11011111, 0b10111111, 0b01111111};
+const static uint8_t BIT1_MAP[8] = {0xfe, 0xfd, 0xfb, 0xf7, 0xef, 0xdf, 0xbf, 0x7f};
 
-const static uint8_t BIT2_MAP[4] = {0b11111100, 0b11110011, 0b11001111, 0b00111111};
+const static uint8_t BIT2_MAP[4] = {0xfc, 0xf3, 0xcf, 0x3f};
 
 #define ONE               ((uint8_t)1)
 #define THREE             ((uint8_t)3)

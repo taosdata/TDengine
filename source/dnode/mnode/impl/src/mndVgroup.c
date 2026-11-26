@@ -1270,6 +1270,8 @@ static int32_t mndRetrieveVgroups(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *p
   bool      showAll = false, showIter = false;
   int64_t   dbUid = 0;
 
+  mInfo("start to retrieve vgroups");
+
   MND_SHOW_CHECK_OBJ_PRIVILEGE_ALL(RPC_MSG_USER(pReq), RPC_MSG_TOKEN(pReq), PRIV_SHOW_VGROUPS, PRIV_OBJ_DB, 0, _OVER);
 
   if (strlen(pShow->db) > 0) {

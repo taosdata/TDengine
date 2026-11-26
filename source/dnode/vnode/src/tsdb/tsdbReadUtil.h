@@ -225,13 +225,15 @@ typedef struct SBlockLoadSuppInfo {
   SColumnDataAgg      tsColAgg;
   int16_t*            colId;
   int16_t*            slotId;
-  char**              buildBuf;  // build string tmp buffer, todo remove it later after all string format being updated.
+  bool*               colHasSma;  // block SMA enabled per requested column, parallel to colId
+  char**              buildBuf;   // build string tmp buffer, todo remove it later after all string format being updated.
   int32_t             numOfCols;
   int32_t             numOfPks;
   SColumnInfo         pk;
   int32_t             pkSrcSlot;
   int32_t             pkDstSlot;
-  bool                smaValid;  // the sma on all queried columns are activated
+  bool                smaValid;      // the sma on all queried columns are activated
+  bool                smaOnAnyCol;   // block SMA is activated on at least one queried column
   ETsdReaderBlockSmaMode blockSmaMode;
 
   void* args;

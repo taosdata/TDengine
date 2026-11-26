@@ -16,6 +16,7 @@
  */
 
 #include "cmdnodes.h"
+#include "functionMgt.h"
 #include "libs/new-stream/stream.h"
 #include "mndDb.h"
 #include "mndDnode.h"
@@ -1416,6 +1417,68 @@ int32_t msmBuildStreamSnodeInfo(SMnode* pMnode, SStreamObj* pStream, SStreamSnod
   return TSDB_CODE_SUCCESS;
 }
 
+static EDealRes msmCollectPrecreateOutputOptions(SNode* pNode, void* pContext) {
+  int32_t* pOptions = pContext;
+  if (nodeType(pNode) == QUERY_NODE_COLUMN) {
+    BIT_FLAG_SET_MASK(*pOptions, STREAM_OPTION_OUTPUT_NEEDS_GROUP_VALUES);
+  }
+  if (nodeType(pNode) != QUERY_NODE_FUNCTION) return DEAL_RES_CONTINUE;
+
+  switch (((SFunctionNode*)pNode)->funcType) {
+    case FUNCTION_TYPE_TBNAME:
+    case FUNCTION_TYPE_PLACEHOLDER_COLUMN:
+    case FUNCTION_TYPE_PLACEHOLDER_TBNAME:
+    case FUNCTION_TYPE_PLACEHOLDER_ROLLUP_TAG:
+      BIT_FLAG_SET_MASK(*pOptions, STREAM_OPTION_OUTPUT_NEEDS_GROUP_VALUES);
+      break;
+    case FUNCTION_TYPE_TPREV_TS:
+    case FUNCTION_TYPE_TCURRENT_TS:
+    case FUNCTION_TYPE_TNEXT_TS:
+    case FUNCTION_TYPE_TWSTART:
+    case FUNCTION_TYPE_TWEND:
+    case FUNCTION_TYPE_TPREV_WSTART:
+    case FUNCTION_TYPE_TPREV_WEND:
+    case FUNCTION_TYPE_TWDURATION:
+    case FUNCTION_TYPE_TWROWNUM:
+    case FUNCTION_TYPE_TPREV_LOCALTIME:
+    case FUNCTION_TYPE_TLOCALTIME:
+    case FUNCTION_TYPE_TNEXT_LOCALTIME:
+    case FUNCTION_TYPE_TIDLESTART:
+    case FUNCTION_TYPE_TIDLEEND:
+    case FUNCTION_TYPE_TEVENT_CONDITION_PATH:
+      BIT_FLAG_SET_MASK(*pOptions, STREAM_OPTION_OUTPUT_NEEDS_TRIGGER_VALUES);
+      break;
+    default:
+      break;
+  }
+  return DEAL_RES_CONTINUE;
+}
+
+static int32_t msmSetPrecreateOutputOptions(const SCMCreateStreamReq* pCreate, int32_t* pOptions) {
+  SNode* pName = NULL;
+  SNodeList* pTags = NULL;
+  int32_t outputOptions = STREAM_OPTION_PRECREATE_OUTPUT_ANALYZED;
+  int32_t code = TSDB_CODE_SUCCESS;
+
+  // Serialized output expressions are available even in requests from older clients.
+  if (pCreate->subTblNameExpr != NULL) {
+    TAOS_CHECK_GOTO(nodesStringToNode(pCreate->subTblNameExpr, &pName), NULL, _exit);
+    nodesWalkExpr(pName, msmCollectPrecreateOutputOptions, &outputOptions);
+  }
+  if (pCreate->tagValueExpr != NULL) {
+    TAOS_CHECK_GOTO(nodesStringToList(pCreate->tagValueExpr, &pTags), NULL, _exit);
+    nodesWalkExprs(pTags, msmCollectPrecreateOutputOptions, &outputOptions);
+  }
+  BIT_FLAG_UNSET_MASK(*pOptions, STREAM_OPTION_PRECREATE_OUTPUT_ANALYZED | STREAM_OPTION_OUTPUT_NEEDS_TRIGGER_VALUES |
+                                   STREAM_OPTION_OUTPUT_NEEDS_GROUP_VALUES);
+  *pOptions |= outputOptions;
+
+_exit:
+  nodesDestroyNode(pName);
+  nodesDestroyList(pTags);
+  return code;
+}
+
 int32_t msmBuildTriggerDeployInfo(SMnode* pMnode, SStmStatus* pInfo, SStmTaskDeploy* pDeploy, SStreamObj* pStream) {
   int32_t code = TSDB_CODE_SUCCESS;
   int32_t lino = 0;
@@ -1505,7 +1568,12 @@ int32_t msmBuildTriggerDeployInfo(SMnode* pMnode, SStmStatus* pInfo, SStmTaskDep
 
   pMsg->leaderSnodeId = pStream->mainSnodeId;
   pMsg->streamName = pInfo->streamName;
-  pMsg->nodelayCreateSubtable = pStream->pCreate->nodelayCreateSubtable;
+  // The create-stream transaction already creates a fixed normal output table.
+  pMsg->nodelayCreateSubtable = pStream->pCreate->nodelayCreateSubtable &&
+                                (!pMsg->isTriggerTblVirt || pStream->pCreate->outTblType == TSDB_SUPER_TABLE);
+  if (pMsg->nodelayCreateSubtable && pMsg->isTriggerTblVirt) {
+    TAOS_CHECK_EXIT(msmSetPrecreateOutputOptions(pInfo->pCreate, &pMsg->addOptions));
+  }
   pMsg->timeConfig = pStream->pCreate->timeConfig;
   tstrncpy(pDeploy->task.charset, pStream->pCreate->charset, sizeof(pDeploy->task.charset));
 
