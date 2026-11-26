@@ -2742,7 +2742,11 @@ TEST_F(ParserStreamTest, StreamPlanGoldenLegacySubplanJsonUnchanged) {
       const string goldenToken = string("\"Name\":\"") + pGoldenSlot->name + "\"";
       ASSERT_EQ(1, pstReplaceUniqueJsonToken(&normalized, actualToken, goldenToken));
     }
-    ASSERT_EQ(1, pstReplaceUniqueJsonToken(&normalized, ",\"CharsetName\":\"UTF-8\"", ""));
+    // Each node appends its charset after its own last legacy field.
+    ASSERT_EQ(1, pstReplaceUniqueJsonToken(&normalized, R"("Datum":"8589934594","CharsetName":"UTF-8"})",
+                                           R"("Datum":"8589934594"})"));
+    ASSERT_EQ(1, pstReplaceUniqueJsonToken(&normalized, R"("UserAppId":"0","CharsetName":"UTF-8"})",
+                                           R"("UserAppId":"0"})"));
     static const string kEmptyRefSource = "\"RefSource\":\"\",";
     for (int32_t i = 0; i < 2; ++i) {
       const size_t pos = normalized.find(kEmptyRefSource);
@@ -5805,6 +5809,29 @@ TEST(StreamPlanJsonTest, LegacyScanModeKeepsExplicitModesAndMissingActual) {
   }
 }
 
+// Legacy snapshots predate connection charset on physical subplans. Check the
+// new field explicitly before comparing the remaining plan with the snapshot.
+void check_and_delete_subplan_charset(cJSON* node, bool required = true) {
+  if (cJSON_IsObject(node)) {
+    cJSON* type = cJSON_GetObjectItemCaseSensitive(node, "NodeType");
+    if (cJSON_IsString(type) && atoi(type->valuestring) == QUERY_NODE_PHYSICAL_SUBPLAN) {
+      cJSON* body = cJSON_GetObjectItemCaseSensitive(node, "PhysiSubplan");
+      ASSERT_TRUE(cJSON_IsObject(body));
+      cJSON* charset = cJSON_GetObjectItemCaseSensitive(body, "CharsetName");
+      if (required || charset != nullptr) {
+        ASSERT_TRUE(cJSON_IsString(charset));
+        EXPECT_STREQ(charset->valuestring, "UTF-8");
+        cJSON_DeleteItemFromObjectCaseSensitive(body, "CharsetName");
+      }
+    }
+  }
+  if (cJSON_IsObject(node) || cJSON_IsArray(node)) {
+    for (cJSON* item = node->child; item != nullptr; item = item->next) {
+      check_and_delete_subplan_charset(item, required);
+    }
+  }
+}
+
 void checkJsonStringEqual(const char* pExpect, const char* pActual, const char* const* pIgnoredFields,
                           int32_t numOfIgnoredFields) {
   cJSON* expect = cJSON_Parse(pExpect);
@@ -5819,6 +5846,8 @@ void checkJsonStringEqual(const char* pExpect, const char* pActual, const char* 
   delete_all_specified_fields(actual, pIgnoredFields, numOfIgnoredFields);
   delete_expression_charset_name_fields(expect);
   delete_expression_charset_name_fields(actual);
+  check_and_delete_subplan_charset(expect, false);
+  check_and_delete_subplan_charset(actual);
 
   normalize_last_scan_type(expect, true);
   normalize_last_scan_type(actual, false);
@@ -5855,6 +5884,8 @@ void checkCreateStreamTriggerScanPlan(SCMCreateStreamReq* expect, SCMCreateStrea
   delete_all_specified_fields(j2, ignoredFields, sizeof(ignoredFields) / sizeof(ignoredFields[0]));
   delete_expression_charset_name_fields(j1);
   delete_expression_charset_name_fields(j2);
+  check_and_delete_subplan_charset(j1, false);
+  check_and_delete_subplan_charset(j2);
 
   normalize_last_scan_type(j1, true);
   normalize_last_scan_type(j2, false);
@@ -5900,6 +5931,8 @@ void checkCreateStreamCalcPlan(SCMCreateStreamReq* expect, SCMCreateStreamReq* r
   delete_all_specified_fields(j2, ignoredFields, sizeof(ignoredFields) / sizeof(ignoredFields[0]));
   delete_expression_charset_name_fields(j1);
   delete_expression_charset_name_fields(j2);
+  check_and_delete_subplan_charset(j1, false);
+  check_and_delete_subplan_charset(j2);
   // Function.Id is an auto-incrementing counter assigned during translation; it drifts with
   // execution order/global state and carries no semantic meaning, unlike other "Id" fields
   // (e.g. Subplan/QueryNodeAddr Id) which reflect real plan structure and must still match.

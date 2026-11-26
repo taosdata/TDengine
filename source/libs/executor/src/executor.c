@@ -41,7 +41,9 @@
 #include "streamexecutorInt.h"
 #include "taosdef.h"
 #include "tarray.h"
+#include "tcompare.h"
 #include "tdatablock.h"
+#include "tglobal.h"
 #include "tref.h"
 #include "trpc.h"
 #include "ttypes.h"
@@ -1155,6 +1157,7 @@ int32_t qSemWait(qTaskInfo_t task, tsem_t* pSem) {
 int32_t qCreateExecTask(SReadHandle* readHandle, int32_t vgId, uint64_t taskId, SSubplan* pSubplan,
                         qTaskInfo_t* pTaskInfo, DataSinkHandle* handle, int8_t compressResult, char* sql,
                         EOPTR_EXEC_MODEL model, SArray** subEndPoints, bool enableExplain) {
+  taosRegexSetPoolSize(tsNumOfQueryThreads);
   SExecTaskInfo** pTask = (SExecTaskInfo**)pTaskInfo;
   (void)taosThreadOnce(&initPoolOnce, initRefPool);
 

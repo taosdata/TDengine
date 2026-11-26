@@ -23,6 +23,8 @@
 #include "monitor.h"
 #include "taoserror.h"
 #include "tarray.h"
+#include "tcompare.h"
+#include "tconv.h"
 #include "tencode.h"
 #include "tglobal.h"
 #include "thash.h"
@@ -48,6 +50,21 @@ static int32_t vnodeProcessAlterStbReq(SVnode *pVnode, int64_t ver, void *pReq, 
 static int32_t vnodeProcessDropStbReq(SVnode *pVnode, int64_t ver, void *pReq, int32_t len, SRpcMsg *pRsp, SRpcMsg *pOriginRpc);
 static int32_t vnodeProcessCreateTbReq(SVnode *pVnode, int64_t ver, void *pReq, int32_t len, SRpcMsg *pRsp,
                                        SRpcMsg *pOriginRpc);
+// Validate all regex operations before mutating any tag or transaction state.
+static int32_t vnodeCheckTagRegex(SArray *tags, const char *charset) {
+  for (int32_t i = 0; i < taosArrayGetSize(tags); ++i) {
+    SUpdatedTagVal *tag = taosArrayGet(tags, i);
+    if (tag->regexp == NULL) continue;
+    if (charset == NULL || charset[0] == 0) return TSDB_CODE_CHARSET_CONVERT_ERROR;
+    void *charsetCxt = taosConvInit(charset);
+    if (charsetCxt == NULL) return TSDB_CODE_CHARSET_CONVERT_ERROR;
+    int32_t code = taosCheckRegexLocale(charsetCxt);
+    if (code == 0) code = taosCheckRegexCharset(tag->regexp, charsetCxt);
+    if (code != 0) return code;
+  }
+  return 0;
+}
+
 static int32_t vnodeProcessAlterTbReq(SVnode *pVnode, int64_t ver, void *pReq, int32_t len, SRpcMsg *pRsp);
 static int32_t vnodeProcessDropTbReq(SVnode *pVnode, int64_t ver, void *pReq, int32_t len, SRpcMsg *pRsp,
                                      SRpcMsg *pOriginRpc);
@@ -2475,6 +2492,17 @@ static int32_t vnodeProcessAlterTbReq(SVnode *pVnode, int64_t ver, void *pReq, i
   // decode
   if (tDecodeSVAlterTbReq(&dc, &vAlterTbReq) < 0) {
     vAlterTbRsp.code = TSDB_CODE_INVALID_MSG;
+    tDecoderClear(&dc);
+    goto _exit;
+  }
+
+  code = vnodeCheckTagRegex(vAlterTbReq.pMultiTag, vAlterTbReq.charset);
+  for (int32_t i = 0; code == 0 && i < taosArrayGetSize(vAlterTbReq.tables); ++i) {
+    SUpdateTableTagVal *table = taosArrayGet(vAlterTbReq.tables, i);
+    code = vnodeCheckTagRegex(table->tags, vAlterTbReq.charset);
+  }
+  if (code != 0) {
+    vAlterTbRsp.code = code;
     tDecoderClear(&dc);
     goto _exit;
   }

@@ -1040,7 +1040,7 @@ put: {
 }
   ST_TASK_DLOG("runner output block to sink code:0x%0x, rows: %" PRId64 ", tbname: %s, createTb: %d, gid: %" PRId64,
                code, pBlock ? pBlock->info.rows : 0, pExec->tbname, *createTb, pExec->runtimeInfo.funcInfo.groupId);
-  printDataBlock(pBlock, "output block to sink", "runner", pTask->task.streamId);
+  printDataBlock(pBlock, "output block to sink", "runner", pTask->task.streamId, pTask->task.charsetCxt);
   if (code == TSDB_CODE_SUCCESS) {
     *createTb = false;
     if (pBlock && pBlock->info.rows > 0) stRunnerRecordOutput(pTask, pBlock->info.rows, 1);
@@ -2426,7 +2426,7 @@ static int32_t stRunnerExecuteRequest(SStreamRunnerTask* pTask, SSTriggerCalcReq
         lino = __LINE__;
         goto end;
       }
-      printDataBlock(frame->block, __func__, "streamExecuteTask block", pTask->task.streamId);
+      printDataBlock(frame->block, __func__, "streamExecuteTask block", pTask->task.streamId, pTask->task.charsetCxt);
 
       frame->publishedGroup = pExec->runtimeInfo.funcInfo.curGrpCalc;
       frame->publishedGid = pExec->runtimeInfo.funcInfo.groupId;
@@ -2752,7 +2752,7 @@ static int32_t stRunnerExecuteRequest(SStreamRunnerTask* pTask, SSTriggerCalcReq
         lino = __LINE__;
         goto end;
       }
-      printDataBlock(frame->block, __func__, "streamExecuteTask block", pTask->task.streamId);
+      printDataBlock(frame->block, __func__, "streamExecuteTask block", pTask->task.streamId, pTask->task.charsetCxt);
 
       STREAM_CHECK_CONDITION_GOTO(frame->block == NULL && !frame->finished, TSDB_CODE_INVALID_PARA);
       if (frame->block == NULL) {
@@ -2872,7 +2872,7 @@ static int32_t stRunnerExecuteRequest(SStreamRunnerTask* pTask, SSTriggerCalcReq
       lino = __LINE__;
       goto end;
     }
-    printDataBlock(frame->block, __func__, "streamExecuteTask block", pTask->task.streamId);
+    printDataBlock(frame->block, __func__, "streamExecuteTask block", pTask->task.streamId, pTask->task.charsetCxt);
     if (pTask->topTask) {
       if (pExec->runtimeInfo.funcInfo.withExternalWindow) {
         ST_TASK_DLOG("[runner calc] external window: %d, curIdx: %d, curOutIdx: %d, nextOutIdx: %d, gid:%" PRId64,

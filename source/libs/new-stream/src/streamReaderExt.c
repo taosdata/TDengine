@@ -39,6 +39,7 @@
 #include "executor.h"
 #include "extConnector.h"
 #include "extTypeMap.h"   // extTimestampTypeTzClass
+#include "tconv.h"
 #include "osString.h"     // taosUcs4ToMbs / TdUcs4 (extColCellToStr NCHAR conversion)
 #include "plannodes.h"    // SExtColTypeMapping full definition
 #include "querynodes.h"   // SColumnNode / SExprNode
@@ -2042,7 +2043,10 @@ static int32_t extColCellToStr(SColumnInfoData *pCol, int32_t row, char *outBuf,
               row, pCol->info.type, rawLen, outBufLen);
       return TSDB_CODE_STREAM_EXT_TAG_INVALID;
     }
-    int32_t len = taosUcs4ToMbs((TdUcs4 *)pVal, rawLen, outBuf, NULL);
+    // These strings are used in external-source SQL and UTF-8 tagset keys.
+    void *utf8 = taosConvInit("UTF-8");
+    if (utf8 == NULL) return TSDB_CODE_CHARSET_CONVERT_ERROR;
+    int32_t len = taosUcs4ToMbs((TdUcs4 *)pVal, rawLen, outBuf, utf8);
     if (len < 0 || len >= outBufLen) {
       outBuf[0] = '\0';
       stError("ext: convert NCHAR cell from UCS-4 failed row:%d type:%d rawLen:%d bufLen:%d resultLen:%d", row,
@@ -3989,7 +3993,7 @@ static int32_t handleLastTsPullRelational(SStreamExtReaderInfo *pInfo,
       globalMaxTs = *(int64_t *)colDataGetData(pCol, 0);
       ST_TASK_DLOG("ext: lastTs globalMaxTs=%" PRId64, globalMaxTs);
     }
-    printDataBlock(pBlock, __func__, "ext_last_ts_raw", pTask->streamId);
+    printDataBlock(pBlock, __func__, "ext_last_ts_raw", pTask->streamId, pTask->charsetCxt);
     blockDataDestroy(pBlock);
   }
 
@@ -4574,7 +4578,7 @@ static int32_t extAppendRelationalMetaRow(const SStreamTask *pTask, SSDataBlock 
   int64_t ekey = *(int64_t *)colDataGetData(colMax, 0);
   int64_t cnt = colCnt ? *(int64_t *)colDataGetData(colCnt, 0) : 0;
 
-  printDataBlock(pBlock, __func__, "ext_meta_relational_raw", pTask->streamId);
+  printDataBlock(pBlock, __func__, "ext_meta_relational_raw", pTask->streamId, pTask->charsetCxt);
 
   int32_t code = metaBlockAppendRow(pMetaBlock, groupId, skey, ekey, uid, cnt);
   if (code != TSDB_CODE_SUCCESS) {
@@ -5304,7 +5308,7 @@ static int32_t handleMetaPull(SStreamExtReaderInfo *pInfo,
   }
   int64_t metaRows = (pRsp->pMetaBlock != NULL) ? pRsp->pMetaBlock->info.rows : 0;
   ST_TASK_DLOG("ext: handleMetaPull done code=%d metaRows=%" PRId64, code, metaRows);
-  printDataBlock(pRsp->pMetaBlock, __func__, "ext_meta", pTask->streamId);
+  printDataBlock(pRsp->pMetaBlock, __func__, "ext_meta", pTask->streamId, pTask->charsetCxt);
 
   /* Mirror vnodeProcessStreamWalMetaDataNewReq: return NO_DATA when empty so
    * the trigger side can distinguish "nothing new" from a real error. */
@@ -6344,7 +6348,7 @@ static int32_t handleDataPull(SStreamExtReaderInfo *pInfo,
 
   dataRows = (pRsp->pDataBlock != NULL) ? pRsp->pDataBlock->info.rows : 0;
   ST_TASK_DLOG("ext: handleDataPull done code=%d dataRows=%" PRId64, code, dataRows);
-  printDataBlock(pRsp->pDataBlock, __func__, "ext_data", pTask->streamId);
+  printDataBlock(pRsp->pDataBlock, __func__, "ext_data", pTask->streamId, pTask->charsetCxt);
 
   /* Mirror vnodeProcessStreamWalMetaDataNewReq: signal NO_DATA when result is
    * empty so the trigger side treats this as a normal empty-poll. */
@@ -6408,8 +6412,8 @@ static int32_t handleMetaDataPull(SStreamExtReaderInfo *pInfo,
           code,
           pRsp->pMetaBlock ? pRsp->pMetaBlock->info.rows : 0,
           pRsp->pDataBlock ? pRsp->pDataBlock->info.rows : 0);
-  printDataBlock(pRsp->pMetaBlock, __func__, "ext_meta_data_meta", pTask->streamId);
-  printDataBlock(pRsp->pDataBlock, __func__, "ext_meta_data_data", pTask->streamId);
+  printDataBlock(pRsp->pMetaBlock, __func__, "ext_meta_data_meta", pTask->streamId, pTask->charsetCxt);
+  printDataBlock(pRsp->pDataBlock, __func__, "ext_meta_data_data", pTask->streamId, pTask->charsetCxt);
 
 _exit:
   if (pUidWindow != NULL) {
@@ -6501,7 +6505,7 @@ static int32_t handleCalcDataPull(SStreamExtReaderInfo *pInfo,
 
   calcRows = (pRsp->pDataBlock != NULL) ? pRsp->pDataBlock->info.rows : 0;
   ST_TASK_DLOG("ext: handleCalcDataPull done code=%d calcRows=%" PRId64, code, calcRows);
-  printDataBlock(pRsp->pDataBlock, __func__, "ext_calc_data", pTask->streamId);
+  printDataBlock(pRsp->pDataBlock, __func__, "ext_calc_data", pTask->streamId, pTask->charsetCxt);
   if (code == TSDB_CODE_SUCCESS && calcRows == 0) {
     ST_TASK_DLOG("%s", "ext: handleCalcDataPull no rows -> TSDB_CODE_STREAM_NO_DATA");
     code = TSDB_CODE_STREAM_NO_DATA;
@@ -6572,7 +6576,12 @@ static int32_t extBuildNCharGroupValue(const SStreamTask *pTask, const char *col
   int32_t outLen = 0;
   if (srcLen > 0) {
     outLen = maxUcs4;
-    bool ok = taosMbsToUcs4(colVal, srcLen, (TdUcs4 *)val.data.pData, maxUcs4, &outLen, NULL);
+    void *utf8 = taosConvInit("UTF-8");
+    if (utf8 == NULL) {
+      taosMemoryFree(val.data.pData);
+      return TSDB_CODE_CHARSET_CONVERT_ERROR;
+    }
+    bool ok = taosMbsToUcs4(colVal, srcLen, (TdUcs4 *)val.data.pData, maxUcs4, &outLen, utf8);
     if (!ok) {
       ST_TASK_ELOG("ext: handleGroupColValuePull UTF-8 to UCS-4 conversion failed for col='%s'", colName);
       taosMemoryFree(val.data.pData);

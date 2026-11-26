@@ -725,7 +725,6 @@ static int32_t handleStreamFetchFromCache(SSnode* pSnode, SRpcMsg* pRpcMsg) {
 
 _exit:
 
-  printDataBlock(readInfo.pBlock, __func__, "fetchFromCache", streamId);
 
   stsDebug("task %" PRIx64 " TDMT_STREAM_FETCH_FROM_CACHE_RSP with code:%d rows:%" PRId64 ", size:%d, time range:[%" PRId64 ", %" PRId64 "]", 
       req.taskId, code, readInfo.pBlock ? readInfo.pBlock->info.rows : 0, (int32_t)size, readInfo.start, readInfo.end);  
@@ -1037,7 +1036,7 @@ static int32_t handleExtFetchReq(SSnode *pSnode, SRpcMsg *pRpcMsg) {
   }
 
   TAOS_CHECK_EXIT(streamReaderExtFetchData(pInfo, skey, ekey, &pBlock));
-  printDataBlock(pBlock, __func__, "fetch calc ext data", pRpcMsg->info.traceId.msgId);
+  printDataBlock(pBlock, __func__, "fetch calc ext data", pRpcMsg->info.traceId.msgId, pTask->task.charsetCxt);
   
   outRows = (pBlock != NULL) ? pBlock->info.rows : 0;
 

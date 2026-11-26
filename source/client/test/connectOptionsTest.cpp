@@ -935,13 +935,12 @@ TEST(charsetCase, charset_Test) {
 
   // 7.2 trim
   snprintf(sql, sizeof(sql), "select trim(LEADING c1 from '%s') from db1.ctb1", zhongguofenGbk);
-  check_sql_result(pConnGbk, sql, zhongguofenGbk);
+  check_sql_result(pConnGbk, sql, fenGbk);
   char zhongguofenUtf8[32] = {0};
   snprintf(zhongguofenUtf8, sizeof(zhongguofenUtf8), "%s%s", zhongguoUtf8, fenUtf8);
-  // GBK connection: the UTF-8-byte literal decodes to a GBK string that does
-  // not share c1's leading run, so nothing is trimmed and it returns unchanged.
+  // The UTF-8 bytes of this literal are invalid in the GBK connection.
   snprintf(sql, sizeof(sql), "select trim(LEADING c1 from '%s') from db1.ctb1", zhongguofenUtf8);
-  check_sql_result(pConnGbk, sql, zhongguofenUtf8);
+  execQueryFail(pConnGbk, sql);
 
   check_sql_result(pConnGbk, "select char(c1) from db1.ctb1", "");
 
@@ -958,7 +957,7 @@ TEST(charsetCase, charset_Test) {
   execQuery(pConnGbk, "select UPPER(c1) from db1.ctb1");
 
   snprintf(sql, sizeof(sql), "select position(c1 in '%s') from db1.ctb1", zhongguofenGbk);
-  check_sql_result_integer(pConnGbk, sql, 0);
+  check_sql_result_integer(pConnGbk, sql, 1);
 
   snprintf(sql, sizeof(sql), "select position('%s' in c1) from db1.ctb1", guoUtf8);
   check_sql_result_integer(pConnUTF8, sql, 2);

@@ -6545,7 +6545,7 @@ char* getStreamOpName(uint16_t opType) {
   return "error name";
 }
 
-void printDataBlock(SSDataBlock* pBlock, const char* flag, const char* taskIdStr, int64_t qId) {
+void printDataBlock(SSDataBlock* pBlock, const char* flag, const char* taskIdStr, int64_t qId, void *charsetCxt) {
   if (qDebugFlag & DEBUG_TRACE) {
     if (!pBlock) {
       qDebug("%" PRIx64 " %s %s %s: Block is Null", qId, taskIdStr, flag, __func__);
@@ -6556,7 +6556,7 @@ void printDataBlock(SSDataBlock* pBlock, const char* flag, const char* taskIdStr
     }
     
     char*   pBuf = NULL;
-    int32_t code = dumpBlockData(pBlock, flag, &pBuf, taskIdStr, qId);
+    int32_t code = dumpBlockData(pBlock, flag, &pBuf, taskIdStr, qId, charsetCxt);
     if (code == 0) {
       qDebugL("%" PRIx64 " %s %s", qId, __func__, pBuf);
       taosMemoryFree(pBuf);
@@ -6564,7 +6564,7 @@ void printDataBlock(SSDataBlock* pBlock, const char* flag, const char* taskIdStr
   }
 }
 
-void printSpecDataBlock(SSDataBlock* pBlock, const char* flag, const char* opStr, const char* taskIdStr) {
+void printSpecDataBlock(SSDataBlock* pBlock, const char* flag, const char* opStr, const char* taskIdStr, void *charsetCxt) {
   if (!pBlock) {
     qDebug("%s===stream===%s %s: Block is Null", taskIdStr, flag, opStr);
     return;
@@ -6578,7 +6578,7 @@ void printSpecDataBlock(SSDataBlock* pBlock, const char* flag, const char* opStr
     char* pBuf = NULL;
     char  flagBuf[64];
     snprintf(flagBuf, sizeof(flagBuf), "%s %s", flag, opStr);
-    int32_t code = dumpBlockData(pBlock, flagBuf, &pBuf, taskIdStr, 0);
+    int32_t code = dumpBlockData(pBlock, flagBuf, &pBuf, taskIdStr, 0, charsetCxt);
     if (code == 0) {
       qDebug("%s", pBuf);
       taosMemoryFree(pBuf);

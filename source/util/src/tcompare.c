@@ -19,7 +19,16 @@
 #define _GNU_SOURCE
 #define _XOPEN_SOURCE
 #define _DEFAULT_SOURCE
+// System locale headers must precede the OS abstraction's forbidden-API macros.
+#ifndef WINDOWS
+#include <langinfo.h>
+#include <locale.h>
+#ifdef __APPLE__
+#include <xlocale.h>
+#endif
+#endif
 #include "tcompare.h"
+#include "tconv.h"
 #include "decimal.h"
 #include "osString.h"
 #include "regex.h"
@@ -1323,10 +1332,6 @@ int32_t wcsPatternMatch(const TdUcs4 *pattern, size_t psize, const TdUcs4 *str, 
   return (j >= ssize || str[j] == 0) ? TSDB_PATTERN_MATCH : TSDB_PATTERN_NOMATCH;
 }
 
-int32_t comparestrRegexNMatch(const void *pLeft, const void *pRight) {
-  return comparestrRegexMatch(pLeft, pRight) ? 0 : 1;
-}
-
 typedef struct UsingRegex {
   regex_t pRegex;
   int32_t lastUsedTime;
@@ -1340,10 +1345,323 @@ typedef struct RegexCache {
   SRWLatch  mutex;
   bool      exit;
   int8_t    inited;
+#ifndef WINDOWS
+  SHashObj *poolHash;
+  TdThreadMutex poolLock;
+  SHashObj *localeHash;
+  int32_t poolCount;  // Searchable entries; the hash size also counts retired borrowers.
+#endif
 } RegexCache;
+#ifdef WINDOWS
 static RegexCache sRegexCache;
+#else
+static RegexCache sRegexCache = {.poolLock = PTHREAD_MUTEX_INITIALIZER};
+#endif
 #define MAX_REGEX_CACHE_SIZE   20
 #define REGEX_CACHE_CLEAR_TIME 30
+
+#ifndef WINDOWS
+typedef struct SRegexPool {
+  regex_t *slots;
+  bool *busy;
+  int32_t count;
+  int32_t compiled;
+  int64_t lastUsed;
+  locale_t locale;
+  TdThreadMutex mutex;
+  TdThreadCond available;
+} SRegexPool;
+
+static int32_t regexPoolSize = 1;
+
+static void regexLocaleFree(void *value) { freelocale(*(locale_t *)value); }
+
+static void regexPoolFree(void *value) {
+  SRegexPool *pool = *(SRegexPool **)value;
+  for (int32_t i = 0; i < pool->compiled; ++i) regfree(&pool->slots[i]);
+  if (pool->locale != (locale_t)0) freelocale(pool->locale);
+  (void)taosThreadCondDestroy(&pool->available);
+  (void)taosThreadMutexDestroy(&pool->mutex);
+  taosMemoryFree(pool->slots);
+  taosMemoryFree(pool->busy);
+  taosMemoryFree(pool);
+}
+
+static const char *regexCanonicalCharset(const char *charset) {
+  // glibc and BSD report different names for the C locale's ASCII codeset.
+  if (strcasecmp(charset, "ASCII") == 0 || strcasecmp(charset, "US-ASCII") == 0 ||
+      strcasecmp(charset, "ANSI_X3.4-1968") == 0 || strcasecmp(charset, "CP367") == 0 ||
+      strcasecmp(charset, "IBM367") == 0 || strcasecmp(charset, "ISO646-US") == 0) {
+    return "ASCII";
+  }
+#ifdef __GLIBC__
+  // glibc iconv accepts these aliases, but its locale reports GBK as CODESET.
+  if (strcasecmp(charset, "CP936") == 0 || strcasecmp(charset, "MS936") == 0 ||
+      strcasecmp(charset, "WINDOWS-936") == 0 || strcasecmp(charset, "GB13000") == 0) {
+    return "GBK";
+  }
+#endif
+  return charset;
+}
+
+// Locale spelling and charset spelling are separate namespaces. Discover the
+// installed locale by CODESET rather than maintaining a list of client encodings.
+static bool regexSameCharset(const char *a, const char *b) {
+  while (*a || *b) {
+    if (*a == '-' || *a == '_') { ++a; continue; }
+    if (*b == '-' || *b == '_') { ++b; continue; }
+    unsigned char ac = (unsigned char)*a;
+    unsigned char bc = (unsigned char)*b;
+    if (ac >= 'a' && ac <= 'z') ac -= 'a' - 'A';
+    if (bc >= 'a' && bc <= 'z') bc -= 'a' - 'A';
+    if (ac != bc) return false;
+    if (*a) ++a;
+    if (*b) ++b;
+  }
+  return true;
+}
+
+static locale_t regexTryLocale(const char *name, const char *charset) {
+  locale_t locale = newlocale(LC_CTYPE_MASK | LC_COLLATE_MASK, name, (locale_t)0);
+  if (locale != (locale_t)0 && !regexSameCharset(regexCanonicalCharset(nl_langinfo_l(CODESET, locale)), charset)) {
+    freelocale(locale);
+    locale = (locale_t)0;
+  }
+  return locale;
+}
+
+static locale_t regexFindLocale(const char *charset) {
+  // C/POSIX are always available, but charset names are not locale names.
+  // In particular client syntax validation requests ANSI_X3.4-1968. Avoid
+  // spawning locale(1) for these built-ins (including under sanitizer preload).
+  locale_t locale = regexTryLocale("C", charset);
+  if (locale != (locale_t)0) return locale;
+  locale = regexTryLocale(tsLocale, charset);
+  if (locale != (locale_t)0) return locale;
+  locale = regexTryLocale("C.UTF-8", charset);
+  if (locale != (locale_t)0) return locale;
+  locale = regexTryLocale(charset, charset);
+  if (locale != (locale_t)0) return locale;
+  // Honour private locale installations as well as the system locale archive.
+  const char *paths = getenv("LOCPATH");
+  if (paths != NULL) {
+    char *copy = taosStrdup(paths);
+    if (copy == NULL) return (locale_t)0;
+    char *save = NULL;
+    for (char *path = strtok_r(copy, ":", &save); path != NULL; path = strtok_r(NULL, ":", &save)) {
+      TdDirPtr dir = taosOpenDir(path);
+      if (dir == NULL) continue;
+      TdDirEntryPtr entry;
+      while ((entry = taosReadDir(dir)) != NULL) {
+        const char *name = taosGetDirEntryName(entry);
+        if (name[0] == '.') continue;
+        locale = regexTryLocale(name, charset);
+        if (locale != (locale_t)0) break;
+      }
+      (void)taosCloseDir(&dir);
+      if (locale != (locale_t)0) break;
+    }
+    taosMemoryFree(copy);
+    if (locale != (locale_t)0) return locale;
+  }
+  // A fixed command only: no client-supplied text is interpreted by a shell.
+#ifdef __linux__
+  // Do not inject the caller's instrumentation into the system utility. LSan
+  // can terminate locale(1) before its buffered locale list reaches the pipe.
+  TdCmdPtr command = taosOpenCmd("/usr/bin/env -u LD_PRELOAD /usr/bin/locale -a");
+#else
+  TdCmdPtr command = taosOpenCmd("/usr/bin/locale -a");
+#endif
+  if (command != NULL) {
+    char name[256];
+    while (taosGetsCmd(command, sizeof(name), name) > 0) {
+      if (locale != (locale_t)0) continue;  // Drain the pipe before pclose.
+      name[strcspn(name, "\r\n")] = 0;
+      locale = regexTryLocale(name, charset);
+    }
+    taosCloseCmd(&command);
+  }
+  return locale;
+}
+
+// Called with poolLock held and query memory pooling disabled. The cache owns
+// the returned locale, which can be duplicated for a matcher pool.
+static int32_t regexGetLocaleLocked(const char *charset, locale_t *result) {
+  if (sRegexCache.localeHash == NULL) {
+    sRegexCache.localeHash = taosHashInit(16, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), false, HASH_NO_LOCK);
+    if (sRegexCache.localeHash == NULL) {
+      return terrno;
+    }
+    taosHashSetFreeFp(sRegexCache.localeHash, regexLocaleFree);
+  }
+
+  size_t len = strlen(charset);
+  locale_t *cachedLocale = taosHashGet(sRegexCache.localeHash, charset, len);
+  if (cachedLocale != NULL) {
+    *result = *cachedLocale;
+    return TSDB_CODE_SUCCESS;
+  }
+
+  locale_t locale = regexFindLocale(charset);
+  if (locale == (locale_t)0) {
+    uError("no POSIX regex locale for client charset:%s", charset);
+    return TSDB_CODE_CHARSET_CONVERT_ERROR;
+  }
+  int32_t code = taosHashPut(sRegexCache.localeHash, charset, len, &locale, sizeof(locale));
+  if (code != TSDB_CODE_SUCCESS) {
+    freelocale(locale);
+    return code;
+  }
+  *result = locale;
+  return TSDB_CODE_SUCCESS;
+}
+
+// poolLock serializes lookup and eviction. Hash references keep a removed pool
+// alive until its last borrower/waiter releases it.
+static int32_t regexEvictPool(void) {
+  if (sRegexCache.poolCount < MAX_REGEX_CACHE_SIZE) return 0;
+  char *oldestKey = NULL;
+  size_t oldestLen = 0;
+  int64_t oldestTime = INT64_MAX;
+  SRegexPool **entry = taosHashIterate(sRegexCache.poolHash, NULL);
+  while (entry != NULL) {
+    int64_t used = atomic_load_64(&(*entry)->lastUsed);
+    if (used < oldestTime) {
+      size_t len = 0;
+      void *key = taosHashGetKey(entry, &len);
+      char *copy = taosMemoryRealloc(oldestKey, len);
+      if (copy == NULL) {
+        taosHashCancelIterate(sRegexCache.poolHash, entry);
+        taosMemoryFree(oldestKey);
+        return terrno;
+      }
+      oldestKey = copy;
+      memcpy(oldestKey, key, len);
+      oldestLen = len;
+      oldestTime = used;
+    }
+    entry = taosHashIterate(sRegexCache.poolHash, entry);
+  }
+  int32_t code = oldestKey == NULL ? 0 : taosHashRemove(sRegexCache.poolHash, oldestKey, oldestLen);
+  if (oldestKey != NULL && code == 0) --sRegexCache.poolCount;
+  taosMemoryFree(oldestKey);
+  return code;
+}
+
+static int32_t regexPoolAcquire(const char *pattern, const char *charset, SRegexPool ***reference) {
+  size_t charsetLen = strlen(charset) + 1;
+  size_t patternLen = strlen(pattern);
+  char *key = taosMemoryMalloc(charsetLen + patternLen);
+  if (key == NULL) return terrno;
+  memcpy(key, charset, charsetLen);
+  memcpy(key + charsetLen, pattern, patternLen);
+  int32_t code = TSDB_CODE_SUCCESS;
+  (void)taosThreadMutexLock(&sRegexCache.poolLock);
+  if (sRegexCache.poolHash == NULL) {
+    sRegexCache.poolHash = taosHashInit(64, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), false, HASH_ENTRY_LOCK);
+    if (sRegexCache.poolHash == NULL) { code = terrno; goto _done; }
+    taosHashSetFreeFp(sRegexCache.poolHash, regexPoolFree);
+  }
+  *reference = taosHashAcquire(sRegexCache.poolHash, key, charsetLen + patternLen);
+  if (*reference == NULL) {
+    SRegexPool *pool = taosMemoryCalloc(1, sizeof(*pool));
+    if (pool == NULL) { code = terrno; goto _done; }
+    code = taosThreadMutexInit(&pool->mutex, NULL);
+    if (code != 0) { taosMemoryFree(pool); goto _done; }
+    code = taosThreadCondInit(&pool->available, NULL);
+    if (code != 0) {
+      (void)taosThreadMutexDestroy(&pool->mutex);
+      taosMemoryFree(pool);
+      goto _done;
+    }
+    pool->count = TMAX(1, atomic_load_32(&regexPoolSize));
+    locale_t locale = (locale_t)0;
+    code = regexGetLocaleLocked(charset, &locale);
+    if (code == TSDB_CODE_SUCCESS) {
+      pool->locale = duplocale(locale);
+      if (pool->locale == (locale_t)0) {
+        code = TAOS_SYSTEM_ERROR(ERRNO);
+      }
+    }
+    if (code == TSDB_CODE_SUCCESS) {
+      pool->slots = taosMemoryCalloc(pool->count, sizeof(regex_t));
+      pool->busy = taosMemoryCalloc(pool->count, sizeof(bool));
+      if (pool->slots == NULL || pool->busy == NULL) code = terrno;
+    }
+    if (code == TSDB_CODE_SUCCESS) {
+      locale_t previous = uselocale(pool->locale);
+      if (previous == (locale_t)0) {
+        code = TAOS_SYSTEM_ERROR(ERRNO);
+        uError("failed to select regex compilation locale for charset:%s, code:%d", charset, code);
+      } else {
+        for (int32_t i = 0; i < pool->count; ++i) {
+          if (regcomp(&pool->slots[i], pattern, REG_EXTENDED) != 0) {
+            code = TSDB_CODE_PAR_REGULAR_EXPRESSION_ERROR;
+            break;
+          }
+          ++pool->compiled;
+        }
+        // No executor callbacks or longjmp-capable code runs in this scope.
+        (void)uselocale(previous);
+      }
+    }
+    if (code == TSDB_CODE_SUCCESS) {
+      pool->lastUsed = taosGetTimestampSec();
+      code = regexEvictPool();
+      if (code == 0) {
+        code = taosHashPut(sRegexCache.poolHash, key, charsetLen + patternLen, &pool, sizeof(pool));
+        if (code == 0) ++sRegexCache.poolCount;
+      }
+    }
+    if (code != TSDB_CODE_SUCCESS) {
+      regexPoolFree(&pool);
+    } else {
+      *reference = taosHashAcquire(sRegexCache.poolHash, key, charsetLen + patternLen);
+      if (*reference == NULL) code = TSDB_CODE_APP_ERROR;
+    }
+  }
+_done:
+  (void)taosThreadMutexUnlock(&sRegexCache.poolLock);
+  taosMemoryFree(key);
+  return code;
+}
+#endif
+
+void taosRegexSetPoolSize(int32_t threads) {
+#ifndef WINDOWS
+  atomic_store_32(&regexPoolSize, TMAX(1, threads));
+#endif
+}
+
+int32_t taosCheckRegexLocale(void *charsetCxt) {
+#ifdef WINDOWS
+  (void)charsetCxt;
+  return TSDB_CODE_SUCCESS;
+#else
+  int32_t previousCancel = 0;
+  int32_t code = taosThreadSetCancelState(PTHREAD_CANCEL_DISABLE, &previousCancel);
+  if (code != TSDB_CODE_SUCCESS) {
+    return code;
+  }
+
+  // Discovery can read directories or a subprocess pipe, and the cached
+  // locale must outlive the query requesting it.
+  bool poolEnabled = false;
+  bool randomErrors = false;
+  (void)poolEnabled;
+  (void)randomErrors;
+  taosSaveDisableMemPoolUsage(poolEnabled, randomErrors);
+  code = taosThreadMutexLock(&sRegexCache.poolLock);
+  if (code == TSDB_CODE_SUCCESS) {
+    locale_t locale = (locale_t)0;
+    code = regexGetLocaleLocked(regexCanonicalCharset(taosConvCharset(charsetCxt)), &locale);
+    (void)taosThreadMutexUnlock(&sRegexCache.poolLock);
+  }
+  taosRestoreEnableMemPoolUsage(poolEnabled, randomErrors);
+  (void)taosThreadSetCancelState(previousCancel, NULL);
+  return code;
+#endif
+}
 
 static void checkRegexCache(void *param, void *tmrId) {
   int32_t code = 0;
@@ -1356,6 +1674,21 @@ static void checkRegexCache(void *param, void *tmrId) {
     uError("failed to reset regex cache timer");
     goto _exit;
   }
+#ifndef WINDOWS
+  (void)taosThreadMutexLock(&sRegexCache.poolLock);
+  if (sRegexCache.poolHash != NULL && taosHashGetSize(sRegexCache.poolHash) >= MAX_REGEX_CACHE_SIZE) {
+    SRegexPool **entry = taosHashIterate(sRegexCache.poolHash, NULL);
+    while (entry != NULL) {
+      if (taosGetTimestampSec() - atomic_load_64(&(*entry)->lastUsed) > REGEX_CACHE_CLEAR_TIME) {
+        size_t len = 0;
+        void *key = taosHashGetKey(entry, &len);
+        if (taosHashRemove(sRegexCache.poolHash, key, len) == 0) --sRegexCache.poolCount;
+      }
+      entry = taosHashIterate(sRegexCache.poolHash, entry);
+    }
+  }
+  (void)taosThreadMutexUnlock(&sRegexCache.poolLock);
+#endif
   if (taosHashGetSize(sRegexCache.regexHash) < MAX_REGEX_CACHE_SIZE) {
     goto _exit;
   }
@@ -1426,78 +1759,39 @@ void DestroyRegexCache() {
   taosWUnLockLatch(&sRegexCache.mutex);
   taosHashCleanup(sRegexCache.regexHash);
   sRegexCache.regexHash = NULL;
+#ifndef WINDOWS
+  taosHashCleanup(sRegexCache.poolHash);
+  sRegexCache.poolHash = NULL;
+  sRegexCache.poolCount = 0;
+  taosHashCleanup(sRegexCache.localeHash);
+  sRegexCache.localeHash = NULL;
+#endif
   taosTmrCleanUp(sRegexCache.regexCacheTmr);
   sRegexCache.regexCacheTmr = NULL;
+  atomic_store_8(&sRegexCache.inited, 0);
 }
 
-// Validate a pattern with the engine that will actually execute it.
-//
-// On Windows the match runs through PCRE2 (see winRegexExec), so validation has
-// to use PCRE2 too: compiling with regcomp() would reject constructs PCRE2
-// accepts - '(?:...)' , '\b', lazy quantifiers - and accept constructs PCRE2
-// reads differently, leaving "the pattern compiled" and "the pattern works"
-// unrelated statements.  Every other platform keeps the POSIX engine for both
-// steps, so its behaviour is unchanged.
-int32_t checkRegexPatternEx(const char *pPattern, char *errBuf, int32_t errLen) {
-  if (errBuf != NULL && errLen > 0) {
-    errBuf[0] = '\0';
+// Client-side validation may lack the execution server's installed locale.
+// Validate ASCII syntax locally; non-ASCII POSIX patterns are checked on receipt.
+int32_t checkRegexPatternEx(const char *pPattern, char *errBuf, int32_t errLen, void *charsetCxt) {
+  if (errBuf != NULL && errLen > 0) errBuf[0] = 0;
+  if (pPattern == NULL) return TSDB_CODE_PAR_REGULAR_EXPRESSION_ERROR;
+#ifndef WINDOWS
+  for (const unsigned char *p = (const unsigned char *)pPattern; *p; ++p) {
+    if (*p >= 0x80) return TSDB_CODE_SUCCESS;
   }
-
-  if (pPattern == NULL) {
-    if (errBuf != NULL && errLen > 0) {
-      (void)snprintf(errBuf, errLen, "pattern is NULL");
-    }
-    return TSDB_CODE_PAR_REGULAR_EXPRESSION_ERROR;
-  }
-
-#if defined(WINDOWS) && defined(USE_PCRE2)
-  // Mirror winRegexExec(): the text path compiles with PCRE2_UTF and falls back
-  // to a plain byte compile for binary payloads, so accept a pattern if either
-  // of the two compiles.
-  int32_t    errorCode = 0;
-  PCRE2_SIZE errorOffset = 0;
-  pcre2_code *code =
-      pcre2_compile((PCRE2_SPTR)pPattern, PCRE2_ZERO_TERMINATED, PCRE2_UTF, &errorCode, &errorOffset, NULL);
-  if (code != NULL) {
-    pcre2_code_free(code);
-    return TSDB_CODE_SUCCESS;
-  }
-
-  int32_t    rawErrorCode = 0;
-  PCRE2_SIZE rawErrorOffset = 0;
-  pcre2_code *rawCode =
-      pcre2_compile((PCRE2_SPTR)pPattern, PCRE2_ZERO_TERMINATED, 0, &rawErrorCode, &rawErrorOffset, NULL);
-  if (rawCode != NULL) {
-    pcre2_code_free(rawCode);
-    return TSDB_CODE_SUCCESS;
-  }
-
-  PCRE2_UCHAR msg[256] = {0};
-  (void)pcre2_get_error_message(errorCode, msg, sizeof(msg));
-  if (errBuf != NULL && errLen > 0) {
-    (void)snprintf(errBuf, errLen, "%s at offset %d", (const char *)msg, (int32_t)errorOffset);
-  }
-  uError("Failed to compile regex pattern %s. reason %s", pPattern, (const char *)msg);
-  return TSDB_CODE_PAR_REGULAR_EXPRESSION_ERROR;
-#else
-  regex_t regex;
-  int32_t ret = regcomp(&regex, pPattern, REG_EXTENDED);
-  if (ret != 0) {
-    char msgbuf[256] = {0};
-    (void)regerror(ret, &regex, msgbuf, tListLen(msgbuf));
-    if (errBuf != NULL && errLen > 0) {
-      (void)snprintf(errBuf, errLen, "%s", msgbuf);
-    }
-    uError("Failed to compile regex pattern %s. reason %s", pPattern, msgbuf);
-    return TSDB_CODE_PAR_REGULAR_EXPRESSION_ERROR;
-  }
-  regfree(&regex);
-  return TSDB_CODE_SUCCESS;
+  charsetCxt = taosConvInit("ANSI_X3.4-1968");
+  if (charsetCxt == NULL) return TSDB_CODE_CHARSET_CONVERT_ERROR;
 #endif
+  int32_t code = taosCheckRegexCharset(pPattern, charsetCxt);
+  if (code != 0 && errBuf != NULL && errLen > 0) {
+    (void)snprintf(errBuf, errLen, "%s", tstrerror(code));
+  }
+  return code;
 }
 
-int32_t checkRegexPattern(const char *pPattern) {
-  return checkRegexPatternEx(pPattern, NULL, 0);
+int32_t checkRegexPattern(const char *pPattern, void *charsetCxt) {
+  return checkRegexPatternEx(pPattern, NULL, 0, charsetCxt);
 }
 
 int32_t getRegComp(const char *pPattern, HashRegexPtr **regexRet) {
@@ -1641,7 +1935,6 @@ int32_t threadGetRegComp(regex_t **regex, const char *pPattern) {
 typedef struct SWinRegexSlot {
   char       *pattern;
   pcre2_code *utfCode; /* compiled with PCRE2_UTF, used for text payloads */
-  pcre2_code *rawCode; /* compiled without PCRE2_UTF, fallback for binary payloads */
 } SWinRegexSlot;
 
 static threadlocal SWinRegexSlot gWinRegexSlot = {0};
@@ -1650,16 +1943,12 @@ static void winRegexSlotReset(void) {
   if (gWinRegexSlot.utfCode != NULL) {
     pcre2_code_free(gWinRegexSlot.utfCode);
   }
-  if (gWinRegexSlot.rawCode != NULL) {
-    pcre2_code_free(gWinRegexSlot.rawCode);
-  }
   taosMemoryFree(gWinRegexSlot.pattern);
   gWinRegexSlot.pattern = NULL;
   gWinRegexSlot.utfCode = NULL;
-  gWinRegexSlot.rawCode = NULL;
 }
 
-static pcre2_code *winRegexCompile(const char *pPattern, bool utf) {
+static pcre2_code *winRegexCompile(const char *pPattern) {
   if (gWinRegexSlot.pattern == NULL || strcmp(gWinRegexSlot.pattern, pPattern) != 0) {
     winRegexSlotReset();
     gWinRegexSlot.pattern = taosStrdup(pPattern);
@@ -1668,362 +1957,232 @@ static pcre2_code *winRegexCompile(const char *pPattern, bool utf) {
     }
   }
 
-  pcre2_code **slot = utf ? &gWinRegexSlot.utfCode : &gWinRegexSlot.rawCode;
+  pcre2_code **slot = &gWinRegexSlot.utfCode;
   if (*slot != NULL) {
     return *slot;
   }
 
   int32_t    errorCode = 0;
   PCRE2_SIZE errorOffset = 0;
-  *slot = pcre2_compile((PCRE2_SPTR)pPattern, PCRE2_ZERO_TERMINATED, utf ? PCRE2_UTF : 0, &errorCode, &errorOffset,
+  *slot = pcre2_compile((PCRE2_SPTR)pPattern, PCRE2_ZERO_TERMINATED, PCRE2_UTF, &errorCode, &errorOffset,
                         NULL);
   if (*slot == NULL) {
     PCRE2_UCHAR msg[256] = {0};
     (void)pcre2_get_error_message(errorCode, msg, sizeof(msg));
-    uDebug("failed to compile regex pattern %s, utf:%d, reason:%s", pPattern, utf, (char *)msg);
+    uDebug("failed to compile regex pattern %s, reason:%s", pPattern, (char *)msg);
   }
   return *slot;
 }
 
-/* returns 0 on a match and 1 otherwise, mirroring doExecRegexMatch() */
-static int32_t winRegexExec(const char *pString, const char *pPattern, bool tryUtf) {
-  if (tryUtf) {
-    pcre2_code *code = winRegexCompile(pPattern, true);
-    if (code != NULL) {
-      pcre2_match_data *matchData = pcre2_match_data_create_from_pattern(code, NULL);
-      if (matchData != NULL) {
-        int32_t rc = pcre2_match(code, (PCRE2_SPTR)pString, PCRE2_ZERO_TERMINATED, 0, 0, matchData, NULL);
-        pcre2_match_data_free(matchData);
-        if (rc >= 0) {
-          return 0;
-        }
-        if (rc == PCRE2_ERROR_NOMATCH) {
-          return 1;
-        }
-        /* Invalid UTF-8 subject or unsupported construct: retry as raw bytes. */
-        uDebug("utf-8 regex match failed for pattern %s, rc:%d", pPattern, rc);
+#endif
+
+#ifdef WINDOWS
+static int32_t winRegexCharsetImpl(const char *string, const char *pattern, size_t count,
+                               regmatch_t *matches, int32_t flags, void *charsetCxt) {
+#ifndef USE_PCRE2
+  return TSDB_CODE_OPS_NOT_SUPPORT;
+#else
+  if (string == NULL || pattern == NULL || (count > 0 && matches == NULL)) return TSDB_CODE_INVALID_PARA;
+  void *utf8 = taosConvInit("UTF-8");
+  if (utf8 == NULL) return TSDB_CODE_CHARSET_CONVERT_ERROR;
+  char *subject = NULL;
+  char *expression = NULL;
+  pcre2_match_data *data = NULL;
+  int32_t result = taosMbsToMbs(string, strlen(string), charsetCxt, utf8, &subject, NULL);
+  if (result != 0) goto _exit;
+  result = taosMbsToMbs(pattern, strlen(pattern), charsetCxt, utf8, &expression, NULL);
+  if (result != 0) goto _exit;
+  pcre2_code *compiled = winRegexCompile(expression);
+  if (compiled == NULL) { result = TSDB_CODE_PAR_REGULAR_EXPRESSION_ERROR; goto _exit; }
+  data = pcre2_match_data_create_from_pattern(compiled, NULL);
+  if (data == NULL) { result = TSDB_CODE_OUT_OF_MEMORY; goto _exit; }
+  result = pcre2_match(compiled, (PCRE2_SPTR)subject, PCRE2_ZERO_TERMINATED, 0,
+                       flags & REG_NOTBOL ? PCRE2_NOTBOL : 0, data, NULL);
+  if (result == PCRE2_ERROR_NOMATCH) { result = 1; goto _exit; }
+  if (result < 0) { result = TSDB_CODE_PAR_REGULAR_EXPRESSION_ERROR; goto _exit; }
+  result = 0;
+  PCRE2_SIZE *offsets = pcre2_get_ovector_pointer(data);
+  uint32_t groups = pcre2_get_ovector_count(data);
+  for (size_t i = 0; i < count; ++i) {
+    matches[i].rm_so = matches[i].rm_eo = -1;
+    if (i >= groups || offsets[2 * i] == PCRE2_UNSET) continue;
+    // Return byte offsets in the caller's encoding, not PCRE2's UTF-8 buffer.
+    for (int32_t end = 0; end < 2; ++end) {
+      int32_t bytes = 0;
+      size_t characters = 0;
+      for (size_t j = 0; j < offsets[2 * i + end]; ++j) {
+        if (((unsigned char)subject[j] & 0xc0) != 0x80) ++characters;
+      }
+      result = taosMbsCharOffset(string, strlen(string), characters, charsetCxt, &bytes);
+      if (result != 0) goto _exit;
+      if (end == 0) matches[i].rm_so = bytes;
+      else matches[i].rm_eo = bytes;
+    }
+  }
+_exit:
+  if (data != NULL) pcre2_match_data_free(data);
+  taosMemoryFree(subject);
+  taosMemoryFree(expression);
+  return result;
+#endif
+}
+#endif
+
+int32_t taosExecRegexCapturesCharset(const char *string, const char *pattern, size_t count,
+                                    regmatch_t *matches, int32_t flags, void *charsetCxt) {
+#ifdef WINDOWS
+  // Cached objects outlive the query whose memory pool happens to be active.
+  bool poolEnabled = false;
+  bool randomErrors = false;
+  (void)poolEnabled;
+  (void)randomErrors;
+  taosSaveDisableMemPoolUsage(poolEnabled, randomErrors);
+  int32_t code = winRegexCharsetImpl(string, pattern, count, matches, flags, charsetCxt);
+  taosRestoreEnableMemPoolUsage(poolEnabled, randomErrors);
+  return code;
+#else
+  int32_t code = TSDB_CODE_SUCCESS;
+  int32_t previousCancel = 0;
+  if (pattern == NULL || string == NULL) return TSDB_CODE_INVALID_PARA;
+  if (count > 0 && matches == NULL) return TSDB_CODE_INVALID_PARA;
+  // BSD regcomp rejects an empty ERE; replacement still needs a zero-width
+  // match at the current position, including subsequent REG_NOTBOL calls.
+  if (pattern[0] == 0) {
+    for (size_t i = 0; i < count; ++i) {
+      matches[i].rm_so = matches[i].rm_eo = i == 0 ? 0 : -1;
+    }
+    return TSDB_CODE_SUCCESS;
+  }
+  // Query kill is cooperative: executor longjmps only after this function
+  // returns. Defer pthread cancellation too, until locale, slot and hash
+  // reference have all been restored. No callbacks run while locale is changed.
+  code = taosThreadSetCancelState(PTHREAD_CANCEL_DISABLE, &previousCancel);
+  if (code != 0) return code;
+  // Cached objects outlive the query whose memory pool happens to be active.
+  bool poolEnabled = false;
+  bool randomErrors = false;
+  (void)poolEnabled;
+  (void)randomErrors;
+  taosSaveDisableMemPoolUsage(poolEnabled, randomErrors);
+  SRegexPool **reference = NULL;
+  code = regexPoolAcquire(pattern, regexCanonicalCharset(taosConvCharset(charsetCxt)), &reference);
+  if (code == TSDB_CODE_SUCCESS) {
+    SRegexPool *pool = *reference;
+    int32_t slot = -1;
+    (void)taosThreadMutexLock(&pool->mutex);
+    while (slot < 0) {
+      for (int32_t i = 0; i < pool->count; ++i) {
+        if (!pool->busy[i]) { slot = i; pool->busy[i] = true; break; }
+      }
+      if (slot < 0) {
+        code = taosThreadCondWait(&pool->available, &pool->mutex);
+        if (code != 0) break;
       }
     }
-  }
+    (void)taosThreadMutexUnlock(&pool->mutex);
+    if (slot >= 0) {
+      if (code == TSDB_CODE_SUCCESS) {
+        locale_t previous = uselocale(pool->locale);
+        if (previous == (locale_t)0) {
+          code = TAOS_SYSTEM_ERROR(ERRNO);
+          uError("failed to select regex matching locale, code:%d", code);
+        } else {
+          int32_t result = regexec(&pool->slots[slot], string, count, matches, flags);
+          (void)uselocale(previous);
+          if (result == REG_NOMATCH) code = 1;
+          else if (result != 0) code = TSDB_CODE_PAR_REGULAR_EXPRESSION_ERROR;
 
-  pcre2_code *code = winRegexCompile(pPattern, false);
-  if (code == NULL) {
-    terrno = TSDB_CODE_PAR_REGULAR_EXPRESSION_ERROR;
-    return 1;
-  }
-
-  pcre2_match_data *matchData = pcre2_match_data_create_from_pattern(code, NULL);
-  if (matchData == NULL) {
-    terrno = TSDB_CODE_PAR_REGULAR_EXPRESSION_ERROR;
-    return 1;
-  }
-
-  int32_t rc = pcre2_match(code, (PCRE2_SPTR)pString, PCRE2_ZERO_TERMINATED, 0, 0, matchData, NULL);
-  pcre2_match_data_free(matchData);
-  if (rc >= 0) {
-    return 0;
-  }
-
-  if (rc != PCRE2_ERROR_NOMATCH) {
-    terrno = TSDB_CODE_PAR_REGULAR_EXPRESSION_ERROR;
-    uDebug("failed to match %s with pattern %s, rc:%d", pString, pPattern, rc);
-  }
-  return 1;
-}
-
-/* Same as winRegexExec() but reports the offsets of capture group groupIdx. */
-static int32_t winRegexExecGroups(const char *pString, const char *pPattern, int32_t groupIdx, int32_t *pStart,
-                                  int32_t *pLen) {
-  *pStart = -1;
-  *pLen = 0;
-
-  for (int32_t attempt = 0; attempt < 2; ++attempt) {
-    bool        utf = (attempt == 0);
-    pcre2_code *code = winRegexCompile(pPattern, utf);
-    if (code == NULL) {
-      continue;
+        }
+      }
+      (void)taosThreadMutexLock(&pool->mutex);
+      pool->busy[slot] = false;
+      (void)taosThreadCondSignal(&pool->available);
+      (void)taosThreadMutexUnlock(&pool->mutex);
     }
-
-    pcre2_match_data *matchData = pcre2_match_data_create_from_pattern(code, NULL);
-    if (matchData == NULL) {
-      terrno = TSDB_CODE_PAR_REGULAR_EXPRESSION_ERROR;
-      return terrno;
-    }
-
-    int32_t rc = pcre2_match(code, (PCRE2_SPTR)pString, PCRE2_ZERO_TERMINATED, 0, 0, matchData, NULL);
-    if (rc == PCRE2_ERROR_NOMATCH) {
-      pcre2_match_data_free(matchData);
-      return 1;
-    }
-    if (rc < 0) {
-      pcre2_match_data_free(matchData);
-      uDebug("failed to match %s with pattern %s, rc:%d", pString, pPattern, rc);
-      continue;  /* retry in raw byte mode */
-    }
-
-    uint32_t         count = pcre2_get_ovector_count(matchData);
-    PCRE2_SIZE      *ov = pcre2_get_ovector_pointer(matchData);
-    if (groupIdx >= 0 && (uint32_t)groupIdx < count && ov[2 * groupIdx] != PCRE2_UNSET) {
-      *pStart = (int32_t)ov[2 * groupIdx];
-      *pLen = (int32_t)(ov[2 * groupIdx + 1] - ov[2 * groupIdx]);
-    }
-    pcre2_match_data_free(matchData);
-    return 0;
+    atomic_store_64(&pool->lastUsed, taosGetTimestampSec());
+    taosHashRelease(sRegexCache.poolHash, reference);
   }
-
-  terrno = TSDB_CODE_PAR_REGULAR_EXPRESSION_ERROR;
-  return terrno;
-}
-
-/*
- * UCS-4 to UTF-8. Converting to UTF-8 instead of the configured server charset
- * keeps the code point semantics of the regex independent from the client and
- * server locale, which is what PCRE2 in UTF mode expects.
- */
-static int32_t winUcs4ToUtf8(const void *pUcs4, size_t ucs4Len, char **ppOut) {
-  *ppOut = NULL;
-  if (ucs4Len == 0) {
-    *ppOut = taosMemoryMalloc(1);
-    if (*ppOut == NULL) {
-      return -1;
-    }
-    (*ppOut)[0] = 0;
-    return 0;
-  }
-
-  size_t       count = ucs4Len / sizeof(TdUcs4);
-  const char  *src = (const char *)pUcs4;
-  char        *out = taosMemoryMalloc(count * 4 + 1);
-  if (out == NULL) {
-    return -1;
-  }
-
-  size_t pos = 0;
-  for (size_t i = 0; i < count; ++i) {
-    uint32_t cp = 0;
-    memcpy(&cp, src + i * sizeof(TdUcs4), sizeof(TdUcs4));
-    if (cp <= 0x7F) {
-      out[pos++] = (char)cp;
-    } else if (cp <= 0x7FF) {
-      out[pos++] = (char)(0xC0 | (cp >> 6));
-      out[pos++] = (char)(0x80 | (cp & 0x3F));
-    } else if (cp <= 0xFFFF) {
-      out[pos++] = (char)(0xE0 | (cp >> 12));
-      out[pos++] = (char)(0x80 | ((cp >> 6) & 0x3F));
-      out[pos++] = (char)(0x80 | (cp & 0x3F));
-    } else {
-      out[pos++] = (char)(0xF0 | (cp >> 18));
-      out[pos++] = (char)(0x80 | ((cp >> 12) & 0x3F));
-      out[pos++] = (char)(0x80 | ((cp >> 6) & 0x3F));
-      out[pos++] = (char)(0x80 | (cp & 0x3F));
-    }
-  }
-  out[pos] = 0;
-  *ppOut = out;
-  return (int32_t)pos;
-}
-#endif
-
-static int32_t doExecRegexMatch(const char *pString, const char *pPattern) {
-  // An empty pattern is not a usable regular expression: treat it as "no
-  // match" so that every regex engine behaves the same. POSIX platforms reach
-  // the same result through the regex cache, which rejects zero-length keys,
-  // while engines that accept "" (e.g. the MSVC build) would otherwise match
-  // every string.
-  if (pPattern == NULL || pPattern[0] == '\0') {
-    return 1;
-  }
-
-#if defined(WINDOWS) && defined(USE_PCRE2)
-  return winRegexExec(pString, pPattern, true);
-#else
-  regex_t *regex = NULL;
-  int32_t  ret = threadGetRegComp(&regex, pPattern);
-  if (ret != 0) {
-    return ret;
-  }
-
-  regmatch_t pmatch[1];
-  ret = regexec(regex, pString, 1, pmatch, 0);
-  if (ret != 0 && ret != REG_NOMATCH) {
-    char msgbuf[256] = {0};
-    terrno = TSDB_CODE_PAR_REGULAR_EXPRESSION_ERROR;
-    (void)regerror(ret, regex, msgbuf, sizeof(msgbuf));
-    uDebug("Failed to match %s with pattern %s, reason %s", pString, pPattern, msgbuf)
-  }
-
-  return (ret == 0) ? 0 : 1;
+  // A pending cancellation may take effect here, after all scoped state is gone.
+  taosRestoreEnableMemPoolUsage(poolEnabled, randomErrors);
+  (void)taosThreadSetCancelState(previousCancel, NULL);
+  return code;
 #endif
 }
 
-int32_t taosExecRegexMatch(const char *pString, const char *pPattern) {
-  return doExecRegexMatch(pString, pPattern);
+int32_t taosExecRegexGroupsCharset(const char *string, const char *pattern, int32_t group,
+                                  int32_t *start, int32_t *len, void *charsetCxt) {
+  if (string == NULL || pattern == NULL) return TSDB_CODE_INVALID_PARA;
+  // MATCH and extraction retain their historical empty-pattern behavior.
+  // The capture API also serves tag replacement, where an empty ERE matches.
+  if (group < 0) {
+    if (*pattern == 0) return 1;
+    return taosExecRegexCapturesCharset(string, pattern, 0, NULL, 0, charsetCxt);
+  }
+  if (start == NULL || len == NULL) return TSDB_CODE_INVALID_PARA;
+  *start = -1;
+  *len = 0;
+  if (*pattern == 0) return 1;
+  size_t count = (size_t)group + 1;
+  regmatch_t local[16];
+  regmatch_t *matches = count <= tListLen(local) ? local : taosMemoryCalloc(count, sizeof(*matches));
+  if (matches == NULL) return terrno;
+  int32_t code = taosExecRegexCapturesCharset(string, pattern, count, matches, 0, charsetCxt);
+  if (code == 0 && matches[group].rm_so >= 0) {
+    *start = matches[group].rm_so;
+    *len = matches[group].rm_eo - matches[group].rm_so;
+  }
+  if (matches != local) taosMemoryFree(matches);
+  return code;
 }
 
-int32_t taosExecRegexMatchGroups(const char *pString, const char *pPattern, int32_t groupIdx, int32_t *pStart,
-                                 int32_t *pLen) {
-  *pStart = -1;
-  *pLen = 0;
-
-  if (pString == NULL || pPattern == NULL || pPattern[0] == '\0') {
-    return 1;
-  }
-
-#if defined(WINDOWS) && defined(USE_PCRE2)
-  return winRegexExecGroups(pString, pPattern, groupIdx, pStart, pLen);
-#else
-  if (groupIdx < 0) {
-    return 1;
-  }
-
-  regex_t *regex = NULL;
-  int32_t  ret = threadGetRegComp(&regex, pPattern);
-  if (ret != 0) {
-    return ret;
-  }
-
-  int32_t nmatch = groupIdx + 1;
-  // Called once per row by regexp_extract: keep the common small group counts off
-  // the heap so a large result set does not pay a malloc/free per row.
-  regmatch_t smallBuf[16];
-  regmatch_t *pmatch = smallBuf;
-  if (nmatch > (int32_t)(sizeof(smallBuf) / sizeof(smallBuf[0]))) {
-    pmatch = taosMemoryMalloc(nmatch * sizeof(regmatch_t));
-    if (pmatch == NULL) {
-      return terrno;
-    }
-  }
-  (void)memset(pmatch, 0xFF, nmatch * sizeof(regmatch_t));
-
-  ret = regexec(regex, pString, nmatch, pmatch, 0);
-  if (ret == 0) {
-    if (pmatch[groupIdx].rm_so != -1) {
-      *pStart = (int32_t)pmatch[groupIdx].rm_so;
-      *pLen = (int32_t)(pmatch[groupIdx].rm_eo - pmatch[groupIdx].rm_so);
-    }
-    if (pmatch != smallBuf) taosMemoryFree(pmatch);
-    return 0;
-  }
-
-  if (pmatch != smallBuf) taosMemoryFree(pmatch);
-  if (ret == REG_NOMATCH) {
-    return 1;
-  }
-
-  terrno = TSDB_CODE_PAR_REGULAR_EXPRESSION_ERROR;
-  return terrno;
-#endif
+int32_t taosExecRegexMatchCharset(const char *string, const char *pattern, void *charsetCxt) {
+  return taosExecRegexGroupsCharset(string, pattern, -1, NULL, NULL, charsetCxt);
 }
 
-static int32_t compareRegexMatch(const char *pLeft, size_t leftLen, const char *pRight, size_t rightLen) {
-  char *pattern = taosMemoryMalloc(rightLen + 1);
-  if (NULL == pattern) {
-    return 1;  // terrno has been set
+int32_t taosCheckRegexCharset(const char *pattern, void *charsetCxt) {
+  // Compile through the same pool and encoding that execution will use.
+  int32_t code = taosExecRegexMatchCharset("", pattern, charsetCxt);
+  return code == 1 ? TSDB_CODE_SUCCESS : code;
+}
+
+static int32_t regexValueToString(const void *value, int32_t type, void *charsetCxt, char **out) {
+  if (!IS_VAR_DATA_TYPE(type) || type == TSDB_DATA_TYPE_JSON) return TSDB_CODE_QRY_INVALID_INPUT;
+  int32_t len = IS_STR_DATA_BLOB(type) ? blobDataLen(value) : varDataLen(value);
+  const char *data = IS_STR_DATA_BLOB(type) ? blobDataVal(value) : varDataVal(value);
+  *out = taosMemoryMalloc((size_t)len + 1);
+  if (*out == NULL) return terrno;
+  if (type == TSDB_DATA_TYPE_NCHAR) {
+    len = taosUcs4ToMbs((TdUcs4 *)data, len, *out, charsetCxt);
+    if (len < 0) { taosMemoryFreeClear(*out); return TSDB_CODE_SCALAR_CONVERT_NCHAR_ERROR; }
+  } else {
+    memcpy(*out, data, len);
   }
-
-  (void)memcpy(pattern, pRight, rightLen);
-  pattern[rightLen] = 0;
-
-  char *str = taosMemoryMalloc(leftLen + 1);
-  if (NULL == str) {
-    taosMemoryFree(pattern);
-    return 1;  // terrno has been set
-  }
-
-  (void)memcpy(str, pLeft, leftLen);
-  str[leftLen] = 0;
-
-  int32_t ret = doExecRegexMatch(str, pattern);
-
-  taosMemoryFree(str);
-  taosMemoryFree(pattern);
-
-  return (ret == 0) ? 0 : 1;
+  (*out)[len] = 0;
+  return TSDB_CODE_SUCCESS;
 }
 
-int32_t comparestrRegexMatch(const void *pLeft, const void *pRight) {
-  return compareRegexMatch(varDataVal(pLeft), varDataLen(pLeft), varDataVal(pRight), varDataLen(pRight));
-}
-
-int32_t compareBlobRegexMatch(const void *pLeft, const void *pRight) {
-  return compareRegexMatch(blobDataVal(pLeft), blobDataLen(pLeft), blobDataVal(pRight), blobDataLen(pRight));
-}
-
-int32_t compareBlobRegexNMatch(const void *pLeft, const void *pRight) {
-  return compareBlobRegexMatch(pLeft, pRight) ? 0 : 1;
-}
-
-int32_t comparewcsRegexMatch(const void *pString, const void *pPattern) {
-#if defined(WINDOWS) && defined(USE_PCRE2)
-  /* Feed PCRE2 valid UTF-8 built straight from the UCS-4 payload instead of the
-   * server charset, so the match does not depend on the locale in use. */
+int32_t taosCheckRegexValue(const void *value, int32_t type, void *charsetCxt) {
   char *pattern = NULL;
-  char *str = NULL;
-
-  if (winUcs4ToUtf8(varDataVal(pPattern), varDataLen(pPattern), &pattern) < 0) {
-    return 1;  // terrno has been set
-  }
-
-  if (winUcs4ToUtf8(varDataVal(pString), varDataLen(pString), &str) < 0) {
-    taosMemoryFree(pattern);
-    return 1;  // terrno has been set
-  }
-
-  int32_t ret = doExecRegexMatch(str, pattern);
-
-  taosMemoryFree(str);
+  int32_t code = regexValueToString(value, type, charsetCxt, &pattern);
+  if (code == 0) code = taosCheckRegexCharset(pattern, charsetCxt);
   taosMemoryFree(pattern);
-
-  return (ret == 0) ? 0 : 1;
-#else
-  size_t len = varDataLen(pPattern);
-  char  *pattern = taosMemoryMalloc(len + 1);
-  if (NULL == pattern) {
-    return 1;  // terrno has been set
-  }
-
-  // Deliberately server-charset (see taosUcs4ToMbsCharsetInsensitive): both
-  // pattern and string are client-independent UCS-4 fed to the server-locale
-  // regex engine, so the querying client's charset does not affect the match.
-  int convertLen =
-      taosUcs4ToMbsCharsetInsensitive((TdUcs4 *)varDataVal(pPattern), len,
-                                      pattern);
-  if (convertLen < 0) {
-    taosMemoryFree(pattern);
-    return 1;  // terrno has been set
-  }
-
-  pattern[convertLen] = 0;
-
-  len = varDataLen(pString);
-  char *str = taosMemoryMalloc(len + 1);
-  if (NULL == str) {
-    taosMemoryFree(pattern);
-    return 1;  // terrno has been set
-  }
-
-  // Server-charset for the same reason as the pattern above.
-  convertLen = taosUcs4ToMbsCharsetInsensitive((TdUcs4 *)varDataVal(pString),
-                                               len, str);
-  if (convertLen < 0) {
-    taosMemoryFree(str);
-    taosMemoryFree(pattern);
-    return 1;  // terrno has been set
-  }
-
-  str[convertLen] = 0;
-
-  int32_t ret = doExecRegexMatch(str, pattern);
-
-  taosMemoryFree(str);
-  taosMemoryFree(pattern);
-
-  return (ret == 0) ? 0 : 1;
-#endif
+  return code;
 }
 
-int32_t comparewcsRegexNMatch(const void *pLeft, const void *pRight) {
-  return comparewcsRegexMatch(pLeft, pRight) ? 0 : 1;
+int32_t taosCompareRegexCharset(const void *left, int32_t leftType, const void *right, int32_t rightType,
+                               void *charsetCxt, int32_t *result) {
+  char *string = NULL;
+  char *pattern = NULL;
+  int32_t code = regexValueToString(left, leftType, charsetCxt, &string);
+  if (code == TSDB_CODE_SUCCESS) code = regexValueToString(right, rightType, charsetCxt, &pattern);
+  if (code == TSDB_CODE_SUCCESS) {
+    int32_t ret = taosExecRegexMatchCharset(string, pattern, charsetCxt);
+    if (ret == 0 || ret == 1) *result = ret;
+    else code = ret;
+  }
+  taosMemoryFree(string);
+  taosMemoryFree(pattern);
+  return code;
 }
 
 int32_t taosArrayCompareString(const void *a, const void *b) {
@@ -2168,9 +2327,9 @@ __compar_fn_t getComparFunc(int32_t type, int32_t optr) {
     case TSDB_DATA_TYPE_BINARY:
     case TSDB_DATA_TYPE_GEOMETRY: {
       if (optr == OP_TYPE_MATCH) {
-        comparFn = comparestrRegexMatch;
+        comparFn = NULL;  // Regex callers use taosCompareRegexCharset.
       } else if (optr == OP_TYPE_NMATCH) {
-        comparFn = comparestrRegexNMatch;
+        comparFn = NULL;  // Regex callers use taosCompareRegexCharset.
       } else if (optr == OP_TYPE_LIKE) { /* wildcard query using like operator */
         comparFn = comparestrPatternMatch;
       } else if (optr == OP_TYPE_NOT_LIKE) { /* wildcard query using like operator */
@@ -2188,9 +2347,9 @@ __compar_fn_t getComparFunc(int32_t type, int32_t optr) {
 
     case TSDB_DATA_TYPE_NCHAR: {
       if (optr == OP_TYPE_MATCH) {
-        comparFn = comparewcsRegexMatch;
+        comparFn = NULL;  // Regex callers use taosCompareRegexCharset.
       } else if (optr == OP_TYPE_NMATCH) {
-        comparFn = comparewcsRegexNMatch;
+        comparFn = NULL;  // Regex callers use taosCompareRegexCharset.
       } else if (optr == OP_TYPE_LIKE) {
         comparFn = comparewcsPatternMatch;
       } else if (optr == OP_TYPE_NOT_LIKE) {

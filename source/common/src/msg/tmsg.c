@@ -22476,6 +22476,7 @@ int32_t tEncodeSVAlterTbReq(SEncoder *pEncoder, const SVAlterTbReq *pReq) {
   TAOS_CHECK_EXIT(tEncodeVtableReferenceExt(pEncoder, &pReq->referenceExt));
   TAOS_CHECK_EXIT(tEncodeBool(pEncoder, pReq->hasExpectedRversion));
   TAOS_CHECK_EXIT(tEncodeI32(pEncoder, pReq->expectedRversion));
+  TAOS_CHECK_EXIT(tEncodeCStr(pEncoder, pReq->charset ? pReq->charset : ""));
   tEndEncode(pEncoder);
 _exit:
   return code;
@@ -22945,6 +22946,23 @@ int32_t tDecodeSVAlterTbReq(SDecoder *pDecoder, SVAlterTbReq *pReq) {
   if (!tDecodeIsEnd(pDecoder)) {
     TAOS_CHECK_EXIT(tDecodeBool(pDecoder, &pReq->hasExpectedRversion));
     TAOS_CHECK_EXIT(tDecodeI32(pDecoder, &pReq->expectedRversion));
+  }
+  pReq->charset = NULL;
+  if (!tDecodeIsEnd(pDecoder)) {
+    char *charset = NULL;
+    TAOS_CHECK_EXIT(tDecodeBoundedCStr(pDecoder, &charset, TD_CHARSET_LEN));
+    if (charset != NULL && charset[0] != 0) pReq->charset = charset;
+  }
+  for (int32_t i = 0; i < taosArrayGetSize(pReq->pMultiTag); ++i) {
+    SUpdatedTagVal *tag = taosArrayGet(pReq->pMultiTag, i);
+    tag->charset = pReq->charset;
+  }
+  for (int32_t i = 0; i < taosArrayGetSize(pReq->tables); ++i) {
+    SUpdateTableTagVal *table = taosArrayGet(pReq->tables, i);
+    for (int32_t j = 0; j < taosArrayGetSize(table->tags); ++j) {
+      SUpdatedTagVal *tag = taosArrayGet(table->tags, j);
+      tag->charset = pReq->charset;
+    }
   }
   tEndDecode(pDecoder);
 _exit:

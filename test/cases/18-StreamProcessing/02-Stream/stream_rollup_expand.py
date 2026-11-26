@@ -14,8 +14,11 @@
 # along with this program. If not, see <http://www.gnu.org/licenses/>.
 
 import time
+from contextlib import closing
 
-from new_test_framework.utils import tdLog, tdSql, tdStream
+import taos
+
+from new_test_framework.utils import tdCom, tdLog, tdSql, tdStream
 
 
 class TestStreamRollupExpand:
@@ -646,13 +649,16 @@ class TestStreamRollupExpand:
                 "create table t_unicode using meters tags ('华.东.沪')",
             ]
         )
-        tdSql.execute(
-            "create stream s_p11 interval(1h) sliding(1h) from meters "
-            "rollup by location stream_options(max_delay(3s)) into rs_p11 "
-            "(ts, leaf_val, cnt) "
-            "tags (full_loc nchar(256) as %%1, leaf nchar(64) as %%rollup_tag) "
-            "as select _twstart, %%rollup_tag as leaf_val, count(*) as cnt from %%trows"
-        )
+        # The ASCII creator cannot encode the existing Chinese NCHAR path.
+        with closing(taos.connect(config=tdCom.getClientCfgPath(), database="db_rollup_placeholder",
+                                  charset="ASCII")) as creator, closing(creator.cursor()) as cursor:
+            cursor.execute(
+                "create stream s_p11 interval(1h) sliding(1h) from meters "
+                "rollup by location stream_options(max_delay(3s)) into rs_p11 "
+                "(ts, leaf_val, cnt) "
+                "tags (full_loc nchar(256) as %%1, leaf nchar(64) as %%rollup_tag) "
+                "as select _twstart, %%rollup_tag as leaf_val, count(*) as cnt from %%trows"
+            )
         self.wait_stream_running("s_p11", "db_rollup_placeholder")
         tdSql.execute("insert into t_unicode values (1700000000000, 1.0)")
         self.wait_rows("rs_p11", 3)

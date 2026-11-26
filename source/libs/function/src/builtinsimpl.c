@@ -5049,7 +5049,7 @@ static int32_t copyLagLeadRowValue(SqlFunctionCtx* pCtx, SFuncInputRow* pRow, SL
   return TSDB_CODE_SUCCESS;
 }
 
-int32_t setLagLeadDefaultValueToCol(SColumnInfoData* pOutput, int32_t pos, SFunctParam* pDefaultParam) {
+int32_t setLagLeadDefaultValueToCol(SColumnInfoData* pOutput, int32_t pos, SFunctParam* pDefaultParam, void *charsetCxt) {
   SVariant* pDefault = &pDefaultParam->param;
   uint8_t   type = pOutput->info.type;
   STypeMod  inputTypeMod = pDefaultParam->pCol == NULL ? 0 : typeGetTypeModFromCol(pDefaultParam->pCol);
@@ -5267,10 +5267,9 @@ int32_t setLagLeadDefaultValueToCol(SColumnInfoData* pOutput, int32_t pos, SFunc
             break;
           }
 
-          // WKT geometry default is ASCII, so charset-insensitive.
           int32_t cvtLen =
-              taosUcs4ToMbsCharsetInsensitive((TdUcs4*)varDataVal(pDefault->pz),
-                                              charLen, inputWkt);
+              taosUcs4ToMbs((TdUcs4*)varDataVal(pDefault->pz),
+                                              charLen, inputWkt, charsetCxt);
           if (cvtLen < 0) {
             taosMemoryFree(inputWkt);
             retCode = TSDB_CODE_FAILED;
@@ -5348,7 +5347,8 @@ static int32_t setLagLeadDefaultValue(SqlFunctionCtx* pCtx, int32_t pos) {
     return TSDB_CODE_SUCCESS;
   }
 
-  return setLagLeadDefaultValueToCol(pOutput, pos, pDefaultParam);
+  return setLagLeadDefaultValueToCol(pOutput, pos, pDefaultParam,
+                                       pCtx->pExpr->pExpr->_function.pFunctNode->charsetCxt);
 }
 
 static int32_t cloneLagLeadRowValue(const SLagLeadRowValue* pSrc, SLagLeadRowValue* pDst) {

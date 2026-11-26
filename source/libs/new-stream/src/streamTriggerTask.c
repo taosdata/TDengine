@@ -510,10 +510,20 @@ static int32_t stTriggerParseDurationTagValue(const SStreamGroupValue *pValue, b
     return terrno;
   }
   if (pValue->data.type == TSDB_DATA_TYPE_NCHAR) {
-    len = taosUcs4ToMbs((TdUcs4 *)pData, dataLen, pBuf, NULL);
-    if (len < 0 || len > dataLen) {
+    if (dataLen % sizeof(TdUcs4) != 0) {
       taosMemoryFree(pBuf);
       return TSDB_CODE_STREAM_INVALID_TIME_UNIT;
+    }
+    // Duration literals contain only ASCII digits, a sign and a unit.
+    len = dataLen / sizeof(TdUcs4);
+    for (int32_t i = 0; i < len; ++i) {
+      TdUcs4 ch;
+      memcpy(&ch, pData + i * sizeof(ch), sizeof(ch));
+      if ((uint32_t)ch > 0x7f) {
+        taosMemoryFree(pBuf);
+        return TSDB_CODE_STREAM_INVALID_TIME_UNIT;
+      }
+      pBuf[i] = (char)ch;
     }
   } else {
     memcpy(pBuf, pData, dataLen);
@@ -842,7 +852,7 @@ static bool stTriggerTaskNeedsDurationTags(const SStreamTriggerTask *pTask) {
   return pTask != NULL && pTask->useDurationTagRuntime;
 }
 
-static void stTriggerTaskFormatGroupPath(SArray *groupColVals, char *buf, int32_t bufLen) {
+static void stTriggerTaskFormatGroupPath(SArray *groupColVals, char *buf, int32_t bufLen, void *charsetCxt) {
   if (buf == NULL || bufLen <= 0) {
     return;
   }
@@ -858,13 +868,13 @@ static void stTriggerTaskFormatGroupPath(SArray *groupColVals, char *buf, int32_
   }
 
   if (pValue->data.type == TSDB_DATA_TYPE_NCHAR) {
+    if (charsetCxt == NULL) return;
     if (pValue->data.nData >= bufLen) {
       buf[bufLen - 1] = '\0';
       return;
     }
 
-    // Trigger diagnostics have no client query context; use the server charset.
-    int32_t len = taosUcs4ToMbsCharsetInsensitive((TdUcs4 *)pValue->data.pData, pValue->data.nData, buf);
+    int32_t len = taosUcs4ToMbs((TdUcs4 *)pValue->data.pData, pValue->data.nData, buf, charsetCxt);
     if (len < 0 || len >= bufLen) {
       buf[0] = '\0';
     } else {
@@ -25804,7 +25814,7 @@ static int32_t stRealtimeContextSendCalcReq(SSTriggerRealtimeContext *pContext, 
 
   // amend ekey of interval window trigger and sliding trigger
   char rollupPath[TSDB_TABLE_NAME_LEN] = {0};
-  stTriggerTaskFormatGroupPath(pCalcReq->groupColVals, rollupPath, sizeof(rollupPath));
+  stTriggerTaskFormatGroupPath(pCalcReq->groupColVals, rollupPath, sizeof(rollupPath), pTask->task.charsetCxt);
   for (int32_t i = 0; i < TARRAY_SIZE(pCalcReq->params); i++) {
     SSTriggerCalcParam *pParam = taosArrayGet(pCalcReq->params, i);
     if (pTask->triggerType == STREAM_TRIGGER_PERIOD) {

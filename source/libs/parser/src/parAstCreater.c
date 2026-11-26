@@ -1943,6 +1943,7 @@ SNode* createPositionFunctionNode(SAstCreateContext* pCxt, SNode* pExpr, SNode* 
   CHECK_PARSER_STATUS(pCxt);
   pCxt->errCode = nodesListMakeAppend(&func->pParameterList, pExpr2);
   CHECK_PARSER_STATUS(pCxt);
+  func->charsetCxt = pCxt->pQueryCxt->charsetCxt;
   return (SNode*)func;
 _err:
   nodesDestroyNode((SNode*)func);
@@ -5355,7 +5356,7 @@ SNode* createAlterTagValueNodeWithExpression(SAstCreateContext* pCxt, SToken* pT
   }
   (void)trimString(pattern->z, pattern->n, pNode->regexp, pattern->n);
 
-  int32_t code = checkRegexPattern(pNode->regexp);
+  int32_t code = checkRegexPattern(pNode->regexp, pCxt->pQueryCxt->charsetCxt);
   if (code != 0) {
     pCxt->errCode = generateSyntaxErrMsgExt(&pCxt->msgBuf, code,
                                             "'%s' is not a valid regular expression", pNode->regexp);

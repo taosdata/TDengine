@@ -679,7 +679,7 @@ char*   jobTaskStatusStr(int32_t status);
 SSchema createSchema(int8_t type, int32_t bytes, col_id_t colId, const char* name);
 
 void    destroyQueryExecRes(SExecResult* pRes);
-int32_t dataConverToStr(char* str, int64_t capacity, int type, void* buf, int32_t bufSize, int32_t* len);
+int32_t dataConverToStr(char* str, int64_t capacity, int type, void* buf, int32_t bufSize, int32_t* len, void *charsetCxt);
 void    parseTagDatatoJson(void* p, char** jsonStr, void *charsetCxt);
 int32_t setColRef(SColRef* colRef, col_id_t colId, const char* colName, char* refColName, char* refTableName,
                   char* refDbName, const char* refSchemaName, int8_t refType, const char* refSourceName,

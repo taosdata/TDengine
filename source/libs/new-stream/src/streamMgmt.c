@@ -17,6 +17,7 @@
 
 #include "executor.h"
 #include "streamInt.h"
+#include "tconv.h"
 #include "tmisce.h"
 #include "tref.h"
 #include "stream.h"
@@ -216,6 +217,7 @@ static int32_t smAddTasksToStreamMap(SStmStreamDeploy* pDeploy, SStreamInfo* pSt
       SStreamReaderTask* pTask = tdListReserve(pStream->readerList);
       TSDB_CHECK_NULL(pTask, code, lino, _exit, terrno);
       pTask->task = pReader->task;
+      pTask->task.charsetCxt = taosConvInit(pTask->task.charset[0] ? pTask->task.charset : taosConvCharset(NULL));
       if (guarded || pReader->colocatedReaderRuntime) {
         code = smInstallSnodeReader(pTask, pReader, pStream, pDeploy->readerDeployEpoch, staleReaders);
         if (code) taosMemoryFree(tdListPopTail(pStream->readerList));
@@ -276,6 +278,7 @@ static int32_t smAddTasksToStreamMap(SStmStreamDeploy* pDeploy, SStreamInfo* pSt
     
     pStream->triggerTaskId = pSrc->taskId;
     pTask->task = *pSrc;
+    pTask->task.charsetCxt = taosConvInit(pTask->task.charset[0] ? pTask->task.charset : taosConvCharset(NULL));
 
     code = taosHashPut(gStreamMgmt.taskMap, &pSrc->streamId, sizeof(pSrc->streamId) + sizeof(pSrc->taskId), &pTask, POINTER_BYTES);
     if (code) {
@@ -326,6 +329,7 @@ static int32_t smAddTasksToStreamMap(SStmStreamDeploy* pDeploy, SStreamInfo* pSt
 
       SStmTaskDeploy* pRunner = taosArrayGet(pDeploy->runnerTasks, i);
       pTask->task = pRunner->task;
+      pTask->task.charsetCxt = taosConvInit(pTask->task.charset[0] ? pTask->task.charset : taosConvCharset(NULL));
 
       code = taosHashPut(gStreamMgmt.taskMap, &pTask->task.streamId, sizeof(pTask->task.streamId) + sizeof(pTask->task.taskId), &pTask, POINTER_BYTES);
       if (code) {

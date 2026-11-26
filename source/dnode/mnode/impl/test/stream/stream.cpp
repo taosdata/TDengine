@@ -18164,6 +18164,17 @@ TEST(MndStreamWatchTest, CalcReaderBuilderRejectsUnknownReplica) {
   status.runnerReplica = 5;
   ASSERT_EQ(msmBuildReaderDeployInfo(&deploy, nullptr, &status, false), TSDB_CODE_SUCCESS);
   EXPECT_EQ(deploy.msg.reader.msg.calc.execReplica, 15);
+  EXPECT_STREQ(deploy.task.charset, "");
+
+  SCMCreateStreamReq createReq = {};
+  tstrncpy(createReq.charset, "GBK", sizeof(createReq.charset));
+  status.pCreate = &createReq;
+  ASSERT_EQ(msmBuildReaderDeployInfo(&deploy, nullptr, &status, false), TSDB_CODE_SUCCESS);
+  EXPECT_STREQ(deploy.task.charset, "GBK");
+
+  status.pCreate = nullptr;
+  ASSERT_EQ(msmBuildReaderDeployInfo(&deploy, nullptr, &status, false), TSDB_CODE_SUCCESS);
+  EXPECT_STREQ(deploy.task.charset, "");
 }
 
 TEST(MndStreamWatchTest, TimeAlignPeriodRequiresLocalMetadataWithoutRawReads) {

@@ -57,27 +57,40 @@ int32_t InitRegexCache();
 void    DestroyRegexCache();
 int32_t rawStrPatternMatch(const char *pattern, const char *str);
 int32_t patternMatch(const char *pattern, size_t psize, const char *str, size_t ssize, const SPatternCompareInfo *pInfo);
-int32_t checkRegexPattern(const char *pPattern);
+int32_t checkRegexPattern(const char *pPattern, void *charsetCxt);
 
 // Same as checkRegexPattern(), but compiles the pattern with the engine that
 // will execute it (PCRE2 on Windows, POSIX ERE elsewhere) and writes the engine
 // diagnostic into errBuf. Returns TSDB_CODE_SUCCESS when the pattern is usable.
-int32_t checkRegexPatternEx(const char *pPattern, char *errBuf, int32_t errLen);
+int32_t checkRegexPatternEx(const char *pPattern, char *errBuf, int32_t errLen, void *charsetCxt);
 int32_t threadGetRegComp(regex_t **regex, const char *pPattern);
 void    DestoryThreadLocalRegComp();
 
-// Match pString against the POSIX-extended pattern pPattern. Returns 0 on a
-// match and 1 otherwise. Both strings must be NUL terminated. On Windows the
-// match runs through PCRE2 in UTF mode because the CRT engine there counts
-// bytes instead of characters.
-int32_t taosExecRegexMatch(const char *pString, const char *pPattern);
-
-// Match pString against pPattern and report capture group groupIdx.
-// Returns 0 on a match, 1 when nothing matched and a TSDB error code when the
-// engine failed. pStart/pLen receive the byte offsets of the group inside
-// pString; pStart is set to -1 when the group did not participate.
-int32_t taosExecRegexMatchGroups(const char *pString, const char *pPattern, int32_t groupIdx, int32_t *pStart,
-                                 int32_t *pLen);
+// Query-aware POSIX matching. REG_EXTENDED is fixed. The locale and borrowed
+// pool slot are restored/released before returning, including on engine errors.
+// Applies to newly compiled pools only; existing pools retain their slot count.
+// Values below one select a single slot. Cache destruction requires all users to stop.
+void    taosRegexSetPoolSize(int32_t threads);
+// Resolve and cache the query's locale without compiling a pattern. Windows
+// uses PCRE2 and returns success without a POSIX locale lookup.
+// A missing POSIX locale returns TSDB_CODE_CHARSET_CONVERT_ERROR. Use the same
+// query charset for validation and execution; validation cannot rule out later
+// allocation or engine errors. NULL charsetCxt selects the process default.
+int32_t taosCheckRegexLocale(void *charsetCxt);
+// Matching returns 0 for a match, 1 for no match, or a TSDB error code.
+int32_t taosExecRegexMatchCharset(const char *string, const char *pattern, void *charsetCxt);
+// group < 0 skips capture extraction. Otherwise start and len must be non-NULL
+// and receive byte offsets/lengths; start=-1 and len=0 indicate no participating
+// capture. The return convention is the same as taosExecRegexMatchCharset.
+int32_t taosExecRegexGroupsCharset(const char *string, const char *pattern, int32_t group,
+                                  int32_t *start, int32_t *len, void *charsetCxt);
+int32_t taosExecRegexCapturesCharset(const char *string, const char *pattern, size_t count,
+                                    regmatch_t *matches, int32_t flags, void *charsetCxt);
+int32_t taosCheckRegexValue(const void *value, int32_t type, void *charsetCxt);
+int32_t taosCheckRegexCharset(const char *pattern, void *charsetCxt);
+// Returns a TSDB status; on success *result is 0 for a match or 1 for no match.
+int32_t taosCompareRegexCharset(const void *left, int32_t leftType, const void *right, int32_t rightType,
+                               void *charsetCxt, int32_t *result);
 
 int32_t wcsPatternMatch(const TdUcs4 *pattern, size_t psize, const TdUcs4 *str, size_t ssize, const SPatternCompareInfo *pInfo);
 
@@ -124,13 +137,7 @@ int32_t compareDecimal128(const void* pleft, const void* pright);
 int32_t compareDecimal64SameScale(const void* pleft, const void* pright);
 int32_t compareDecimal128SameScale(const void* pleft, const void* pright);
 
-int32_t comparestrRegexMatch(const void *pLeft, const void *pRight);
-int32_t comparestrRegexNMatch(const void *pLeft, const void *pRight);
-int32_t compareBlobRegexMatch(const void *pLeft, const void *pRight);
-int32_t compareBlobRegexNMatch(const void *pLeft, const void *pRight);
 
-int32_t comparewcsRegexMatch(const void *pLeft, const void *pRight);
-int32_t comparewcsRegexNMatch(const void *pLeft, const void *pRight);
 
 int32_t compareInt8ValDesc(const void *pLeft, const void *pRight);
 int32_t compareInt16ValDesc(const void *pLeft, const void *pRight);
@@ -249,6 +256,7 @@ int32_t compareUint64Uint8(const void *pLeft, const void *pRight);
 int32_t compareUint64Uint16(const void *pLeft, const void *pRight);
 int32_t compareUint64Uint32(const void *pLeft, const void *pRight);
 
+// For string MATCH/NMATCH, this returns NULL. Use taosCompareRegexCharset with the connection charset.
 __compar_fn_t getComparFunc(int32_t type, int32_t optr);
 __compar_fn_t getKeyComparFunc(int32_t keyType, int32_t order);
 __compar_fn_t getWindowKeyComparFunc(int32_t keyType, int32_t order);

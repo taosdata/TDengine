@@ -4883,7 +4883,7 @@ _end:
 }
 
 // for debug
-int32_t dumpBlockData(SSDataBlock* pDataBlock, const char* flag, char** pDataBuf, const char* taskIdStr, int64_t qId) {
+int32_t dumpBlockData(SSDataBlock* pDataBlock, const char* flag, char** pDataBuf, const char* taskIdStr, int64_t qId, void *charsetCxt) {
   int32_t lino = 0;
   int32_t size = 2048 * 1024;
   int32_t code = 0;
@@ -4999,9 +4999,9 @@ int32_t dumpBlockData(SSDataBlock* pDataBlock, const char* flag, char** pDataBuf
           char*   pData = colDataGetVarData(pColInfoData, j);
           int32_t dataSize = TMIN(sizeof(pBuf), varDataLen(pData));
           memset(pBuf, 0, sizeof(pBuf));
-          // Debug rendering has no query context; use the process/server charset.
-          code = taosUcs4ToMbsCharsetInsensitive((TdUcs4*)varDataVal(pData),
-                                                 dataSize, pBuf);
+          if (charsetCxt == NULL) { code = TSDB_CODE_CHARSET_CONVERT_ERROR; goto _exit; }
+          code = taosUcs4ToMbs((TdUcs4*)varDataVal(pData),
+                                                 dataSize, pBuf, charsetCxt);
           if (code < 0) {
             uError("func %s failed to convert to ucs charset since %s", __func__, tstrerror(code));
             lino = __LINE__;

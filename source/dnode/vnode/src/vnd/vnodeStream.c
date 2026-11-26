@@ -35,6 +35,7 @@
 #include "tarray.h"
 #include "tcommon.h"
 #include "tcompare.h"
+#include "tconv.h"
 #include "tdatablock.h"
 #include "tdb.h"
 #include "tdef.h"
@@ -912,14 +913,18 @@ static int32_t readRollupTagPath(SStreamTriggerReaderInfo* sStreamReaderInfo, SM
   }
 
   if (type == TSDB_DATA_TYPE_NCHAR) {
+    // Keep NCHAR paths in UTF-8 while splitting on ASCII dots and forming group prefixes.
+    void* utf8 = taosConvInit("UTF-8");
+    if (utf8 == NULL) {
+      code = TSDB_CODE_CHARSET_CONVERT_ERROR;
+      goto end;
+    }
     path = taosMemoryCalloc(1, tagLen + 1);
     if (path == NULL) {
       code = terrno;
       goto end;
     }
-    // Rollup paths are server-internal and must use the same server charset in both directions.
-    int32_t len = taosUcs4ToMbsCharsetInsensitive((TdUcs4*)varDataVal(pData),
-                                                  tagLen, path);
+    int32_t len = taosUcs4ToMbs((TdUcs4*)varDataVal(pData), tagLen, path, utf8);
     if (len < 0) {
       code = len;
       goto end;
@@ -955,14 +960,14 @@ static int32_t setRollupGroupValue(SStreamGroupValue* pValue, const char* path, 
   pValue->isNull = false;
 
   if (type == TSDB_DATA_TYPE_NCHAR) {
+    void* utf8 = taosConvInit("UTF-8");
+    if (utf8 == NULL) return TSDB_CODE_CHARSET_CONVERT_ERROR;
     int32_t ucs4Cap = (pathLen + 1) * TSDB_NCHAR_SIZE;
     pValue->data.pData = taosMemoryCalloc(1, ucs4Cap);
     if (pValue->data.pData == NULL) {
       return terrno;
     }
-    if (!taosMbsToUcs4CharsetInsensitive(path, pathLen,
-                                         (TdUcs4*)pValue->data.pData, ucs4Cap,
-                                         &pValue->data.nData)) {
+    if (!taosMbsToUcs4(path, pathLen, (TdUcs4*)pValue->data.pData, ucs4Cap, &pValue->data.nData, utf8)) {
       taosMemoryFreeClear(pValue->data.pData);
       return terrno;
     }
@@ -979,7 +984,7 @@ static int32_t setRollupGroupValue(SStreamGroupValue* pValue, const char* path, 
   return TSDB_CODE_SUCCESS;
 }
 
-static void formatRollupGroupPath(SArray* gInfo, char* buf, int32_t bufLen) {
+static void formatRollupGroupPath(SArray* gInfo, char* buf, int32_t bufLen, void *charsetCxt) {
   if (buf == NULL || bufLen <= 0) {
     return;
   }
@@ -995,13 +1000,14 @@ static void formatRollupGroupPath(SArray* gInfo, char* buf, int32_t bufLen) {
   }
 
   if (pValue->data.type == TSDB_DATA_TYPE_NCHAR) {
+    if (charsetCxt == NULL) return;
     if (pValue->data.nData >= bufLen) {
       buf[bufLen - 1] = '\0';
       return;
     }
 
-    int32_t len = taosUcs4ToMbsCharsetInsensitive((TdUcs4*)pValue->data.pData,
-                                                  pValue->data.nData, buf);
+    int32_t len = taosUcs4ToMbs((TdUcs4*)pValue->data.pData,
+                                                  pValue->data.nData, buf, charsetCxt);
     if (len < 0 || len >= bufLen) {
       buf[0] = '\0';
     } else {
@@ -1026,7 +1032,7 @@ static void logRollupGroupSummary(SStreamTriggerReaderInfo* sStreamReaderInfo) {
 
   SArray** ppGroup = taosHashIterate(sStreamReaderInfo->groupIdMap, NULL);
   while (ppGroup != NULL && sampleNum < 3) {
-    formatRollupGroupPath(*ppGroup, sample[sampleNum], sizeof(sample[sampleNum]));
+    formatRollupGroupPath(*ppGroup, sample[sampleNum], sizeof(sample[sampleNum]), ((SStreamTask*)pTask)->charsetCxt);
     sampleNum++;
     ppGroup = taosHashIterate(sStreamReaderInfo->groupIdMap, ppGroup);
   }
@@ -1084,13 +1090,14 @@ static int32_t setRollupPrefixColData(SColumnInfoData* pColData, const char* pre
   char*   ucs4 = NULL;
 
   if (pColData->info.type == TSDB_DATA_TYPE_NCHAR) {
+    void* utf8 = taosConvInit("UTF-8");
+    if (utf8 == NULL) return TSDB_CODE_CHARSET_CONVERT_ERROR;
     int32_t ucs4Cap = (prefixLen + 1) * TSDB_NCHAR_SIZE;
     int32_t ucs4Len = 0;
 
     ucs4 = taosMemoryCalloc(1, ucs4Cap);
     STREAM_CHECK_NULL_GOTO(ucs4, terrno);
-    if (!taosMbsToUcs4CharsetInsensitive(prefix, prefixLen, (TdUcs4*)ucs4,
-                                         ucs4Cap, &ucs4Len)) {
+    if (!taosMbsToUcs4(prefix, prefixLen, (TdUcs4*)ucs4, ucs4Cap, &ucs4Len, utf8)) {
       code = streamRollupErrno();
       goto end;
     }
@@ -5392,7 +5399,7 @@ static int32_t vnodeProcessStreamTsdbMetaReq(SVnode* pVnode, SRpcMsg* pMsg, SSTr
 
   ST_TASK_DLOG("vgId:%d %s get result rows:%" PRId64, TD_VID(pVnode), __func__, pTaskInner->pResBlockDst->info.rows);
   STREAM_CHECK_RET_GOTO(buildRsp(pTaskInner->pResBlockDst, &buf, &size));
-  printDataBlock(pTaskInner->pResBlockDst, __func__, "meta", ((SStreamTask *)sStreamReaderInfo->pTask)->streamId);
+  printDataBlock(pTaskInner->pResBlockDst, __func__, "meta", ((SStreamTask *)sStreamReaderInfo->pTask)->streamId, ((SStreamTask*)sStreamReaderInfo->pTask)->charsetCxt);
   if (!hasNext) {
     STREAM_CHECK_RET_GOTO(taosHashRemove(sStreamReaderInfo->streamTaskMap, &key, LONG_BYTES));
     pTaskInner = NULL;
@@ -5682,9 +5689,9 @@ static int32_t vnodeProcessStreamTsdbCalcDataReq(SVnode* pVnode, SRpcMsg* pMsg, 
   blockDataTransform(pBlockRes, pTaskInner->pResBlockDst);
   STREAM_CHECK_RET_GOTO(buildRsp(pBlockRes, &buf, &size));
   addReaderResponseBlock(pRspStats, pBlockRes);
-  printDataBlock(pBlockRes, __func__, "tsdb_calc_data", ((SStreamTask*)pTask)->streamId);
+  printDataBlock(pBlockRes, __func__, "tsdb_calc_data", ((SStreamTask*)pTask)->streamId, ((SStreamTask*)sStreamReaderInfo->pTask)->charsetCxt);
   ST_TASK_DLOG("vgId:%d %s get result rows:%" PRId64, TD_VID(pVnode), __func__, pBlockRes->info.rows);
-  printDataBlock(pBlockRes, __func__, "tsdb_data", ((SStreamTask*)pTask)->streamId);
+  printDataBlock(pBlockRes, __func__, "tsdb_data", ((SStreamTask*)pTask)->streamId, ((SStreamTask*)sStreamReaderInfo->pTask)->charsetCxt);
 
   if (!hasNext) {
     STREAM_CHECK_RET_GOTO(taosHashRemove(sStreamReaderInfo->streamTaskMap, &key, LONG_BYTES));
@@ -5844,7 +5851,7 @@ static int32_t vnodeProcessStreamTsdbVirtalDataReq(SVnode* pVnode, SRpcMsg* pMsg
   STREAM_CHECK_RET_GOTO(buildRsp(pTaskInner->pResBlockDst, &buf, &size));
   addReaderResponseBlock(pRspStats, pTaskInner->pResBlockDst);
   ST_TASK_DLOG("vgId:%d %s get result rows:%" PRId64, TD_VID(pVnode), __func__, pTaskInner->pResBlockDst->info.rows);
-  printDataBlock(pTaskInner->pResBlockDst, __func__, "tsdb_data", ((SStreamTask*)pTask)->streamId);
+  printDataBlock(pTaskInner->pResBlockDst, __func__, "tsdb_data", ((SStreamTask*)pTask)->streamId, ((SStreamTask*)sStreamReaderInfo->pTask)->charsetCxt);
   if (done) {
     STREAM_CHECK_RET_GOTO(taosHashRemove(sStreamReaderInfo->streamTaskMap, &key, LONG_BYTES));
   }
@@ -6950,9 +6957,9 @@ static int32_t vnodeProcessStreamWalMetaNewReq(SVnode* pVnode, SRpcMsg* pMsg, SS
     taosArrayPopFrontBatch(sStreamReaderInfo->pendingGroupColRefresh, pendingConsumed);
     pendingConsumed = 0;
   }
-  printDataBlock(sStreamReaderInfo->metaBlock, __func__, "meta", ((SStreamTask*)pTask)->streamId);
-  printDataBlock(resultRsp.deleteBlock, __func__, "delete", ((SStreamTask*)pTask)->streamId);
-  printDataBlock(resultRsp.tableBlock, __func__, "table", ((SStreamTask*)pTask)->streamId);
+  printDataBlock(sStreamReaderInfo->metaBlock, __func__, "meta", ((SStreamTask*)pTask)->streamId, ((SStreamTask*)sStreamReaderInfo->pTask)->charsetCxt);
+  printDataBlock(resultRsp.deleteBlock, __func__, "delete", ((SStreamTask*)pTask)->streamId, ((SStreamTask*)sStreamReaderInfo->pTask)->charsetCxt);
+  printDataBlock(resultRsp.tableBlock, __func__, "table", ((SStreamTask*)pTask)->streamId, ((SStreamTask*)sStreamReaderInfo->pTask)->charsetCxt);
 
 end:
   if (code == 0 && resultRsp.totalRows == 0 && taosArrayGetSize(resultRsp.groupInfos) == 0) {
@@ -7095,10 +7102,10 @@ static int32_t vnodeProcessStreamWalMetaDataNewReq(SVnode* pVnode, SRpcMsg* pMsg
     taosArrayPopFrontBatch(sStreamReaderInfo->pendingGroupColRefresh, pendingConsumed);
     pendingConsumed = 0;
   }
-  printDataBlock(sStreamReaderInfo->metaBlock, __func__, "meta", ((SStreamTask*)pTask)->streamId);
-  printDataBlock(resultRsp.dataBlock, __func__, "data", ((SStreamTask*)pTask)->streamId);
-  printDataBlock(resultRsp.deleteBlock, __func__, "delete", ((SStreamTask*)pTask)->streamId);
-  printDataBlock(resultRsp.tableBlock, __func__, "table", ((SStreamTask*)pTask)->streamId);
+  printDataBlock(sStreamReaderInfo->metaBlock, __func__, "meta", ((SStreamTask*)pTask)->streamId, ((SStreamTask*)sStreamReaderInfo->pTask)->charsetCxt);
+  printDataBlock(resultRsp.dataBlock, __func__, "data", ((SStreamTask*)pTask)->streamId, ((SStreamTask*)sStreamReaderInfo->pTask)->charsetCxt);
+  printDataBlock(resultRsp.deleteBlock, __func__, "delete", ((SStreamTask*)pTask)->streamId, ((SStreamTask*)sStreamReaderInfo->pTask)->charsetCxt);
+  printDataBlock(resultRsp.tableBlock, __func__, "table", ((SStreamTask*)pTask)->streamId, ((SStreamTask*)sStreamReaderInfo->pTask)->charsetCxt);
   printIndexHash(resultRsp.indexHash, pTask);
   stReaderResponseStatsSetWalData(pRspStats, &resultRsp);
   pRspStats->lastReturnedWalVer = resultRsp.ver;
@@ -7175,7 +7182,7 @@ static int32_t vnodeProcessStreamWalDataNewReq(SVnode* pVnode, SRpcMsg* pMsg, SS
   size = tSerializeSStreamWalDataResponse(NULL, 0, &resultRsp);
   buf = rpcMallocCont(size);
   size = tSerializeSStreamWalDataResponse(buf, size, &resultRsp);
-  printDataBlock(resultRsp.dataBlock, __func__, "data", ((SStreamTask*)pTask)->streamId);
+  printDataBlock(resultRsp.dataBlock, __func__, "data", ((SStreamTask*)pTask)->streamId, ((SStreamTask*)sStreamReaderInfo->pTask)->charsetCxt);
   printIndexHash(resultRsp.indexHash, pTask);
   stReaderResponseStatsSetWalData(pRspStats, &resultRsp);
   pRspStats->lastReturnedWalVer = resultRsp.ver;
@@ -7241,7 +7248,7 @@ static int32_t vnodeProcessStreamWalCalcDataNewReq(SVnode* pVnode, SRpcMsg* pMsg
   size = tSerializeSStreamWalDataResponse(NULL, 0, &resultRsp);
   buf = rpcMallocCont(size);
   size = tSerializeSStreamWalDataResponse(buf, size, &resultRsp);
-  printDataBlock(resultRsp.dataBlock, __func__, "data", ((SStreamTask*)pTask)->streamId);
+  printDataBlock(resultRsp.dataBlock, __func__, "data", ((SStreamTask*)pTask)->streamId, ((SStreamTask*)sStreamReaderInfo->pTask)->charsetCxt);
   printIndexHash(resultRsp.indexHash, pTask);
   stReaderResponseStatsSetWalData(pRspStats, &resultRsp);
   pRspStats->lastReturnedWalVer = resultRsp.ver;
@@ -7867,7 +7874,7 @@ static int32_t vnodeProcessStreamVTableTagInfoReq(SVnode* pVnode, SRpcMsg* pMsg,
   }
 
   stsDebug("vgId:%d %s get result rows:%" PRId64, TD_VID(pVnode), __func__, pBlock->info.rows);
-  printDataBlock(pBlock, __func__, "", streamId);
+  printDataBlock(pBlock, __func__, "", streamId, ((SStreamTask*)sStreamReaderInfo->pTask)->charsetCxt);
   STREAM_CHECK_RET_GOTO(buildRsp(pBlock, &buf, &size));
 
 end:
@@ -8231,11 +8238,11 @@ static int32_t vnodeProcessStreamFetchMsg(SVnode* pVnode, SRpcMsg* pMsg, SQueueI
   for(size_t i = 0; i < taosArrayGetSize(pResList); i++){
     SSDataBlock* pBlock = taosArrayGetP(pResList, i);
     if (pBlock == NULL) continue;
-    printDataBlock(pBlock, __func__, "fetch", ((SStreamTask*)pTask)->streamId);
+    printDataBlock(pBlock, __func__, "fetch", ((SStreamTask*)pTask)->streamId, ((SStreamTask*)pTask)->charsetCxt);
 /*    
     if (sStreamReaderCalcInfo->rtInfo.funcInfo.withExternalWindow) {
       STREAM_CHECK_RET_GOTO(qStreamFilter(pBlock, sStreamReaderCalcInfo->pFilterInfo, NULL));
-      printDataBlock(pBlock, __func__, "fetch filter");
+      printDataBlock(pBlock, __func__, "fetch filter", ((SStreamTask*)sStreamReaderInfo->pTask)->charsetCxt);
     }
 */    
   }

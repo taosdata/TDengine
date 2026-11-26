@@ -1309,6 +1309,11 @@ void* msmSearchCalcExtScanPlan(SArray* pList) {
 int32_t msmBuildReaderDeployInfo(SStmTaskDeploy* pDeploy, void* calcScanPlan, SStmStatus* pInfo, bool triggerReader) {
   SStreamReaderDeployMsg* pMsg = &pDeploy->msg.reader;
   pMsg->triggerReader = triggerReader;
+  // Calc readers can be built without a create request (legacy/default charset).
+  pDeploy->task.charset[0] = 0;
+  if (pInfo->pCreate != NULL) {
+    tstrncpy(pDeploy->task.charset, pInfo->pCreate->charset, sizeof(pDeploy->task.charset));
+  }
   
   if (triggerReader) {
     SStreamReaderDeployFromTrigger* pTrigger = &pMsg->msg.trigger;
@@ -1502,6 +1507,7 @@ int32_t msmBuildTriggerDeployInfo(SMnode* pMnode, SStmStatus* pInfo, SStmTaskDep
   pMsg->streamName = pInfo->streamName;
   pMsg->nodelayCreateSubtable = pStream->pCreate->nodelayCreateSubtable;
   pMsg->timeConfig = pStream->pCreate->timeConfig;
+  tstrncpy(pDeploy->task.charset, pStream->pCreate->charset, sizeof(pDeploy->task.charset));
 
   if (0 == pInfo->runnerNum) {
     mstsDebug("no runner task, skip set trigger's runner list, deployNum:%d", pInfo->runnerDeploys);
@@ -1538,6 +1544,7 @@ int32_t msmBuildRunnerDeployInfo(SStmTaskDeploy* pDeploy, SSubplan* plan, SStrea
 
   int64_t                 streamId = pStream->pCreate->streamId;
   SStreamRunnerDeployMsg* pMsg = &pDeploy->msg.runner;
+  tstrncpy(pDeploy->task.charset, pStream->pCreate->charset, sizeof(pDeploy->task.charset));
   //TAOS_CHECK_EXIT(qSubPlanToString(plan, &pMsg->pPlan, NULL));
 
   pMsg->execReplica = atomic_load_32(&pInfo->runnerReplica);

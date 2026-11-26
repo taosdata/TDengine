@@ -17,6 +17,7 @@
 
 #include "cJSON.h"
 #include "streamMsg.h"
+#include "tconv.h"
 #include "tbase64.h"
 #include "tjson.h"
 #include "tvariant.h"
@@ -1446,6 +1447,10 @@ static int32_t scmCreateStreamReqToJsonImpl(const void* pObj, void* pJson) {
     }
   }
 
+  // Preserve legacy request bytes when no connection charset was persisted.
+  if (pReq->charset[0] != 0) {
+    return tjsonAddStringToObject(pJson, "Charset", pReq->charset);
+  }
   return TSDB_CODE_SUCCESS;
 }
 
@@ -1484,6 +1489,10 @@ _end:
 
 int32_t jsonToSCMCreateStreamReq(const void* pJson, void* pObj) {
   SCMCreateStreamReq* pReq = (SCMCreateStreamReq*)pObj;
+  if (tjsonGetObjectItem(pJson, "Charset") != NULL) {
+    TAOS_CHECK_RETURN(tjsonGetStringValue1(pJson, "Charset", pReq->charset, sizeof(pReq->charset)));
+    if (pReq->charset[0] != 0 && taosConvInit(pReq->charset) == NULL) return TSDB_CODE_CHARSET_CONVERT_ERROR;
+  }
   pReq->calcTsSlotId = -1;
   pReq->triTsSlotId = -1;
   pReq->calcPkSlotId = -1;

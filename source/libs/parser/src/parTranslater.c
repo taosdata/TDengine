@@ -34580,6 +34580,7 @@ static int32_t buildCreateStreamReq(STranslateContext* pCxt, SCreateStreamStmt* 
   pCxt->streamInfo.rollupTagList = pTrigger->pRollupTagList;
 
   PAR_ERR_JRET(createStreamReqBuildDefaultReq(pCxt, pStmt, pReq));
+  tstrncpy(pReq->charset, taosConvCharset(pCxt->pParseCxt->charsetCxt), sizeof(pReq->charset));
   if (pNested != NULL) {
     pReq->addOptions |= STREAM_OPTION_NESTED_WINDOW_PLAN;
     if (pTriggerOptions != NULL && pTriggerOptions->flushOnOuterClose) {
@@ -44720,6 +44721,7 @@ static int32_t doRewriteAlterMultiTableTagVal(STranslateContext* pCxt, SQuery* p
         goto _error;
       }
       req.pReq->action = TSDB_ALTER_TABLE_UPDATE_MULTI_TABLE_TAG_VAL;
+      req.pReq->charset = taosConvCharset(pCxt->pParseCxt->charsetCxt);
       req.pReq->txnId = pCxt->pParseCxt->txnId;
       req.pReq->tables = taosArrayInit(10, sizeof(SUpdateTableTagVal));
       if (req.pReq->tables == NULL) {
@@ -44924,6 +44926,7 @@ static int32_t createAlterChildTableTagValVgroupReqs(STranslateContext* pCxt, SA
     }
 
     req.pReq->action = TSDB_ALTER_TABLE_UPDATE_CHILD_TABLE_TAG_VAL;
+    req.pReq->charset = taosConvCharset(pCxt->pParseCxt->charsetCxt);
     req.pReq->txnId = pCxt->pParseCxt->txnId;
     req.pReq->txnDdlQuota = vgQuota;
 
@@ -45143,6 +45146,7 @@ static int32_t rewriteAlterTableImpl(STranslateContext* pCxt, SAlterTableStmt* p
   }
 
   SVAlterTbReq req = {0};
+  req.charset = taosConvCharset(pCxt->pParseCxt->charsetCxt);
   req.txnId = pCxt->pParseCxt->txnId;
   int32_t      code = buildAlterTbReq(pCxt, pStmt, pTableMeta, &req);
 

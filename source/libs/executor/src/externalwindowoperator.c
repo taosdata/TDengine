@@ -2701,7 +2701,7 @@ static void mergeAlignExtWinDo(SOperatorInfo* pOperator) {
     code = setInputDataBlock(pSup, pBlock, pExtW->binfo.inputTsOrder, pBlock->info.scanFlag, true);
     QUERY_CHECK_CODE(code, lino, _exit);
 
-    printDataBlock(pBlock, __func__, "externalwindowAlign", pTaskInfo->id.queryId);
+    printDataBlock(pBlock, __func__, "externalwindowAlign", pTaskInfo->id.queryId, pTaskInfo->charsetCxt);
 
     if (EEXT_MODE_SCALAR == pExtW->mode) {
       TAOS_CHECK_EXIT(mergeAlignExtWinProjectDo(pOperator, &pExtW->binfo.resultRowInfo, pBlock, pRes));
@@ -8511,7 +8511,7 @@ static int32_t extWinOpen(SOperatorInfo* pOperator) {
       pExtW->orgTableTimeRange.ekey = TMAX(pExtW->orgTableTimeRange.ekey, ekey);
     }
 
-    printDataBlock(pBlock, __func__, pTaskInfo->id.str, pTaskInfo->id.queryId);
+    printDataBlock(pBlock, __func__, pTaskInfo->id.str, pTaskInfo->id.queryId, pTaskInfo->charsetCxt);
 
     qDebug("%s ext window mode:%s baseGrp:%" PRIu64 " grp:%" PRIu64 " got %" PRId64 " rows from downstream",
            GET_TASKID(pTaskInfo), extWinModeStr(pExtW->mode), pBlock->info.id.baseGId, pBlock->info.id.groupId, pBlock->info.rows);
@@ -8668,7 +8668,7 @@ static int32_t extWinNext(SOperatorInfo* pOperator, SSDataBlock** ppRes) {
       GET_TASKID(pTaskInfo), pExtW->lastTGrpId, pExtW->lastCGrpId, (*ppRes)->info.rows);
         
     pOperator->resultInfo.totalRows += (*ppRes)->info.rows;
-    printDataBlock(*ppRes, __func__, GET_TASKID(pTaskInfo), pTaskInfo->id.queryId);
+    printDataBlock(*ppRes, __func__, GET_TASKID(pTaskInfo), pTaskInfo->id.queryId, pTaskInfo->charsetCxt);
   }
 
 _exit:
@@ -8686,7 +8686,7 @@ _exit:
   pExtW->boundaryReady = false;
 
   if (pTaskInfo->execModel == OPTR_EXEC_MODEL_STREAM && (*ppRes)) {
-    printDataBlock(*ppRes, getStreamOpName(pOperator->operatorType), GET_TASKID(pTaskInfo), pTaskInfo->id.queryId);
+    printDataBlock(*ppRes, getStreamOpName(pOperator->operatorType), GET_TASKID(pTaskInfo), pTaskInfo->id.queryId, pTaskInfo->charsetCxt);
   }
 
   return code;

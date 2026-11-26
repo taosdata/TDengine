@@ -1152,6 +1152,8 @@ Regular expression filtering can only be applied to table names (i.e., tbname fi
 
 The length of the regular match string cannot exceed 128 bytes. You can set and adjust the maximum allowed regular match string length through the parameter *maxRegexStringLen*, which is a client configuration parameter and requires a restart to take effect.
 
+Regular expression matching uses the connection charset. On Linux and macOS, queries fail if the server does not have a locale for that charset. On Windows, queries fail if the input cannot be decoded using the connection charset.
+
 ## CASE Expression
 
 ### Syntax
