@@ -87,7 +87,6 @@ typedef struct STaskSubJobCtx {
   char*              idStr;
   void*              pTaskInfo;
   void*              rpcHandle;
-  int64_t            transporterId;
   int32_t            code;
   int32_t            rspLen;
   tsem_t             ready;
@@ -102,6 +101,13 @@ typedef struct SScalarFetchParam {
   int32_t           subQIdx;
   SNode*            pRes;
   int64_t           subJobRefId;
+  // Transport handle of this very fetch request. The transport writes it before the request can
+  // be dispatched and the completion callback releases exactly this handle, so concurrent
+  // fetches of the same sub-job never release each other's in-flight requests.
+  int64_t           transId;
+  // Transport instance that owns transId. Kept here as a numeric handle so the completion
+  // callback can still release the request handle after the sub-job context was destroyed.
+  void*             pTransporter;
 } SScalarFetchParam;
 
 

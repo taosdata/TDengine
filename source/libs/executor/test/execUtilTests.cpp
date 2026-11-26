@@ -6886,6 +6886,111 @@ TEST(execUtilTest, lateRemoteResponsesRetainBorrowedConsumerOwnership) {
   }
 }
 
+extern "C" int32_t sendFetchRemoteNodeReq(STaskSubJobCtx *, int32_t, SNode *, bool);
+
+namespace {
+// Records the per-request transport handles produced by sendFetchRemoteNodeReq and the handles the
+// completion callback releases, without a real RPC layer.
+struct ScalarFetchHandleProbe {
+  std::vector<int64_t>       sent;
+  std::vector<int64_t>       freed;
+  std::vector<SMsgSendInfo *> messages;
+  int64_t                    nextRid = 1;
+};
+
+ScalarFetchHandleProbe *gScalarFetchHandleProbe = nullptr;
+
+int32_t scalarFetchCaptureSend(void *, SEpSet *, int64_t *transporter, SMsgSendInfo *message) {
+  if (gScalarFetchHandleProbe == nullptr) {
+    return TSDB_CODE_INVALID_PARA;
+  }
+  *transporter = gScalarFetchHandleProbe->nextRid++;
+  gScalarFetchHandleProbe->sent.push_back(*transporter);
+  gScalarFetchHandleProbe->messages.push_back(message);
+  return TSDB_CODE_SUCCESS;
+}
+
+int32_t scalarFetchCaptureFree(void *, int64_t pid) {
+  if (gScalarFetchHandleProbe != nullptr) {
+    gScalarFetchHandleProbe->freed.push_back(pid);
+  }
+  return TSDB_CODE_SUCCESS;
+}
+}  // namespace
+
+// Regression for the "rpc state already dropped" defect: every fetch request owns its transport
+// handle. A late response of request A must release A's handle even if request B was sent in the
+// meantime; releasing a context-wide "latest handle" would drop B's in-flight request instead.
+TEST(execUtilTest, remoteFetchCallbackReleasesItsOwnTransportHandle) {
+  ASSERT_EQ(qExecutorInit(), TSDB_CODE_SUCCESS);
+
+  SExecTaskInfo task = {};
+  task.execModel = OPTR_EXEC_MODEL_BATCH;
+  task.id.queryId = 0x1234;
+
+  SNode res = {};
+  res.type = QUERY_NODE_REMOTE_VALUE;
+
+  auto *source = static_cast<SDownstreamSourceNode *>(taosMemoryCalloc(1, sizeof(SDownstreamSourceNode)));
+  ASSERT_NE(nullptr, source);
+  source->addr.nodeId = 7;
+  source->fetchMsgType = TDMT_SCH_FETCH;
+  source->sId = 66;
+  source->clientId = 77;
+  source->taskId = 88;
+  source->execId = 9;
+
+  auto *ctx = static_cast<STaskSubJobCtx *>(taosMemoryCalloc(1, sizeof(STaskSubJobCtx)));
+  ASSERT_NE(nullptr, ctx);
+  ctx->pTaskInfo = &task;
+  ctx->idStr = const_cast<char *>("scalar fetch handle ownership test");
+  ctx->queryId = 0x1234;
+  ctx->taskId = 0x5678;
+  ctx->rpcHandle = reinterpret_cast<void *>(0x1);
+  ctx->subEndPoints = taosArrayInit(1, POINTER_BYTES);
+  ASSERT_NE(nullptr, ctx->subEndPoints);
+  ASSERT_NE(nullptr, taosArrayPush(ctx->subEndPoints, &source));
+  ASSERT_EQ(0, tsem_init(&ctx->ready, 0, 0));
+  ctx->subJobRefId = taosAddRef(fetchObjRefPool, ctx);
+  ASSERT_GT(ctx->subJobRefId, 0);
+
+  ScalarFetchHandleProbe probe;
+  probe.nextRid = 5001;
+  gScalarFetchHandleProbe = &probe;
+
+  Stub stub;
+  stub.set(asyncSendMsgToServer, scalarFetchCaptureSend);
+  stub.set(asyncFreeConnById, scalarFetchCaptureFree);
+
+  ASSERT_EQ(TSDB_CODE_SUCCESS, sendFetchRemoteNodeReq(ctx, 0, &res, true));
+  ASSERT_EQ(TSDB_CODE_SUCCESS, sendFetchRemoteNodeReq(ctx, 0, &res, true));
+  ASSERT_EQ(2u, probe.messages.size());
+  EXPECT_EQ((std::vector<int64_t>{5001, 5002}), probe.sent);
+
+  // Deliver the first response only after the second request was sent. With a shared handle slot
+  // this callback would see 5002 and release the second request's handle instead of 5001.
+  SDataBuf buf = {};
+  EXPECT_EQ(TSDB_CODE_SUCCESS, probe.messages[0]->fp(probe.messages[0]->param, &buf, TSDB_CODE_RPC_STATE_DROPED));
+  EXPECT_EQ((std::vector<int64_t>{5001}), probe.freed);
+  EXPECT_EQ(0, tsem_timewait(&ctx->ready, 1000));
+
+  EXPECT_EQ(TSDB_CODE_SUCCESS, probe.messages[1]->fp(probe.messages[1]->param, &buf, TSDB_CODE_RPC_STATE_DROPED));
+  EXPECT_EQ((std::vector<int64_t>{5001, 5002}), probe.freed);
+  EXPECT_EQ(0, tsem_timewait(&ctx->ready, 1000));
+
+  for (auto *message : probe.messages) {
+    destroySendMsgInfo(message);
+  }
+  probe.messages.clear();
+
+  stub.reset(asyncSendMsgToServer);
+  stub.reset(asyncFreeConnById);
+  gScalarFetchHandleProbe = nullptr;
+
+  // From here on destroySubJobCtx owns the context, its endpoint nodes, and the semaphore.
+  EXPECT_EQ(TSDB_CODE_SUCCESS, taosRemoveRef(fetchObjRefPool, ctx->subJobRefId));
+}
+
 TEST(execUtilTest, remoteListCacheOwnsHashesAfterFirstConsumerDestruction) {
   SRemoteValueListNode* pFirst = nullptr;
   ASSERT_EQ(nodesMakeNode(QUERY_NODE_REMOTE_VALUE_LIST, reinterpret_cast<SNode**>(&pFirst)), TSDB_CODE_SUCCESS);

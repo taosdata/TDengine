@@ -1135,6 +1135,7 @@ int64_t transAddExHandle(int32_t refMgt, void* p) {
 }
 void transRemoveExHandle(int32_t refMgt, int64_t refId) {
   // acquire extern handle
+  transDiagRefEvent(refMgt, refId, 4);
   int32_t code = taosRemoveRef(refMgt, refId);
   if (code != 0) {
     tTrace("failed to remove %" PRId64 " from resetId:%d", refId, refMgt);
@@ -1142,11 +1143,13 @@ void transRemoveExHandle(int32_t refMgt, int64_t refId) {
 }
 
 void* transAcquireExHandle(int32_t refMgt, int64_t refId) {  // acquire extern handle
+  transDiagRefEvent(refMgt, refId, 2);
   return (void*)taosAcquireRef(refMgt, refId);
 }
 
 void transReleaseExHandle(int32_t refMgt, int64_t refId) {
   // release extern handle
+  transDiagRefEvent(refMgt, refId, 3);
   int32_t code = taosReleaseRef(refMgt, refId);
   if (code != 0) {
     tTrace("failed to release %" PRId64 " from resetId:%d", refId, refMgt);
@@ -1158,6 +1161,12 @@ void transDestroyExHandle(void* handle) {
   }
   SExHandle* eh = handle;
   tDebug("trans destroy sid:%" PRId64 ", memory %p", eh->refId, handle);
+  {
+    char buf[16] = {0};
+    if (taosGetEnv("TD_DIAG_QID_REF", buf, sizeof(buf)) > 0 && atoi(buf) != 0) {
+      tWarn("diag destroy sid:%" PRId64 ", mem:%p", eh->refId, handle);
+    }
+  }
   taosMemoryFree(handle);
 }
 

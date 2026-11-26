@@ -26,6 +26,131 @@
 #include "transSasl.h"
 // clang-format on
 
+// ==== qid state lifecycle diagnostics (defect 7169223624) ====
+// Track requests that are queued for a qid so that a qid release or a connection teardown can
+// report a race with unprocessed requests, and remember released qids to catch late sends.
+// Bookkeeping only, no behavior change. Enabled by TD_DIAG_QID_STATE=1.
+static SHashObj*     gDiagQidPending = NULL;
+static SHashObj*     gDiagQidTomb = NULL;
+static TdThreadMutex gDiagQidMtx;
+static TdThreadOnce  gDiagQidMtxOnce = PTHREAD_ONCE_INIT;
+static int32_t       gDiagQidEnabled = -1;
+
+static void diagQidMutexInit(void) { (void)taosThreadMutexInit(&gDiagQidMtx, NULL); }
+
+static void diagQidLock(void) {
+  (void)taosThreadOnce(&gDiagQidMtxOnce, diagQidMutexInit);
+  (void)taosThreadMutexLock(&gDiagQidMtx);
+}
+
+static void diagQidUnlock(void) { (void)taosThreadMutexUnlock(&gDiagQidMtx); }
+
+static bool diagQidOn(void) {
+  if (gDiagQidEnabled < 0) {
+    char buf[16] = {0};
+    gDiagQidEnabled = (taosGetEnv("TD_DIAG_QID_STATE", buf, sizeof(buf)) > 0 && atoi(buf) != 0) ? 1 : 0;
+  }
+  return gDiagQidEnabled == 1;
+}
+
+static int32_t gDiagQidRefEnabled = -1;
+static bool diagQidRefOn(void) {
+  if (gDiagQidRefEnabled < 0) {
+    char buf[16] = {0};
+    gDiagQidRefEnabled = (taosGetEnv("TD_DIAG_QID_REF", buf, sizeof(buf)) > 0 && atoi(buf) != 0) ? 1 : 0;
+  }
+  return gDiagQidRefEnabled == 1;
+}
+
+static SHashObj* gDiagEvTab = NULL;
+
+static void diagQidInit(void) {
+  if (gDiagQidPending == NULL) {
+    gDiagQidPending = taosHashInit(1024, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT), false, HASH_NO_LOCK);
+  }
+  if (gDiagQidTomb == NULL) {
+    gDiagQidTomb = taosHashInit(1024, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT), false, HASH_NO_LOCK);
+  }
+  if (gDiagEvTab == NULL) {
+    gDiagEvTab = taosHashInit(4096, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT), false, HASH_NO_LOCK);
+  }
+}
+
+static void diagQidPendingAdd(int64_t qid) {
+  if (!diagQidOn() || qid == 0) return;
+  int32_t code = 0;
+  diagQidLock();
+  diagQidInit();
+  if (gDiagQidPending != NULL) {
+    int32_t* pc = taosHashGet(gDiagQidPending, &qid, sizeof(qid));
+    int32_t  c = pc ? (*pc + 1) : 1;
+    code = taosHashPut(gDiagQidPending, &qid, sizeof(qid), &c, sizeof(c));
+  }
+  diagQidUnlock();
+  if (code != 0) {
+    tWarn("diag failed to track pending sid:%" PRId64 " since %s", qid, tstrerror(code));
+  }
+}
+
+static void diagQidPendingDel(int64_t qid) {
+  if (!diagQidOn() || qid == 0) return;
+  int32_t code = 0;
+  diagQidLock();
+  if (gDiagQidPending != NULL) {
+    int32_t* pc = taosHashGet(gDiagQidPending, &qid, sizeof(qid));
+    if (pc != NULL) {
+      if (*pc > 1) {
+        int32_t c = *pc - 1;
+        code = taosHashPut(gDiagQidPending, &qid, sizeof(qid), &c, sizeof(c));
+      } else {
+        code = taosHashRemove(gDiagQidPending, &qid, sizeof(qid));
+      }
+    }
+  }
+  diagQidUnlock();
+  if (code != 0) {
+    tWarn("diag failed to untrack pending sid:%" PRId64 " since %s", qid, tstrerror(code));
+  }
+}
+
+static int32_t diagQidPendingCount(int64_t qid) {
+  int32_t c = 0;
+  if (!diagQidOn() || qid == 0) return 0;
+  diagQidLock();
+  if (gDiagQidPending != NULL) {
+    int32_t* pc = taosHashGet(gDiagQidPending, &qid, sizeof(qid));
+    if (pc != NULL) c = *pc;
+  }
+  diagQidUnlock();
+  return c;
+}
+
+static void diagQidTombAdd(int64_t qid) {
+  if (!diagQidOn() || qid == 0) return;
+  int32_t code = 0;
+  diagQidLock();
+  diagQidInit();
+  if (gDiagQidTomb != NULL) {
+    int64_t ts = taosGetTimestampMs();
+    code = taosHashPut(gDiagQidTomb, &qid, sizeof(qid), &ts, sizeof(ts));
+  }
+  diagQidUnlock();
+  if (code != 0) {
+    tWarn("diag failed to tombstone sid:%" PRId64 " since %s", qid, tstrerror(code));
+  }
+}
+
+static bool diagQidTombHas(int64_t qid) {
+  bool has = false;
+  if (!diagQidOn() || qid == 0) return false;
+  diagQidLock();
+  if (gDiagQidTomb != NULL) {
+    has = (taosHashGet(gDiagQidTomb, &qid, sizeof(qid)) != NULL);
+  }
+  diagQidUnlock();
+  return has;
+}
+
 #ifndef TD_ASTRA_RPC
 typedef struct {
   int32_t numOfConn;
@@ -121,8 +246,96 @@ typedef struct SCliReq {
   int8_t        inSendQ;
   STransMsg     msg;
   int8_t        inRetry;
+  int8_t        diagProcessed;
 
 } SCliReq;
+
+// Per-rid reference-operation journal: keeps the recent events of every qid rid in memory and
+// dumps them only when that rid fails a state check. No hot-path logging.
+#define DIAG_EV_MAX 16
+typedef struct {
+  int32_t op[DIAG_EV_MAX];
+  int64_t ts[DIAG_EV_MAX];
+  int32_t n;
+} SDiagEv;
+
+static void diagEvPut(int64_t rid, int32_t op) {
+  if (!diagQidOn() || rid == 0) return;
+  diagQidLock();
+  diagQidInit();
+  if (gDiagEvTab != NULL) {
+    SDiagEv* p = taosHashGet(gDiagEvTab, &rid, sizeof(rid));
+    if (p == NULL) {
+      SDiagEv ev = {0};
+      if (taosHashPut(gDiagEvTab, &rid, sizeof(rid), &ev, sizeof(ev)) == 0) {
+        p = taosHashGet(gDiagEvTab, &rid, sizeof(rid));
+      }
+    }
+    if (p != NULL) {
+      int32_t i = p->n % DIAG_EV_MAX;
+      p->op[i] = op;
+      p->ts[i] = taosGetTimestampUs();
+      p->n++;
+    }
+  }
+  diagQidUnlock();
+}
+
+void transDiagRefEvent(int32_t refMgt, int64_t refId, int32_t op) {
+  if (!diagQidOn()) return;
+  if (refMgt != transGetRefMgt()) return;
+  diagEvPut(refId, op);
+}
+
+static void diagDumpRid(int64_t rid) {
+  SDiagEv ev = {0};
+  bool have = false;
+  diagQidLock();
+  if (gDiagEvTab != NULL) {
+    SDiagEv* p = taosHashGet(gDiagEvTab, &rid, sizeof(rid));
+    if (p != NULL) {
+      ev = *p;
+      have = true;
+    }
+  }
+  diagQidUnlock();
+  if (!have || ev.n == 0) {
+    tWarn("diag refjournal sid:%" PRId64 ": no events", rid);
+    return;
+  }
+  int32_t start = ev.n > DIAG_EV_MAX ? ev.n - DIAG_EV_MAX : 0;
+  for (int32_t i = start; i < ev.n; ++i) {
+    int32_t k = i % DIAG_EV_MAX;
+    tWarn("diag refjournal sid:%" PRId64 ", seq:%d, op:%d, ts:%" PRId64, rid, i, ev.op[k], ev.ts[k]);
+  }
+}
+
+// Timing-only diagnostic: slow down async-pool processing of selected request types so that
+// scheduling/interleaving windows can be widened. No protocol or state behavior is changed;
+// disabled unless TD_DIAG_DELAY_MS > 0. TD_DIAG_DELAY_MSGTYPE selects one msgType, negative
+// means all requests.
+static void cliDiagDelayReq(SCliReq* pReq) {
+  static int32_t inited = 0;
+  static int32_t delayMs = 0;
+  static int32_t delayMsgType = -1;
+  if (!inited) {
+    char buf[32] = {0};
+    inited = 1;
+    if (taosGetEnv("TD_DIAG_DELAY_MS", buf, sizeof(buf)) > 0) {
+      delayMs = atoi(buf);
+    }
+    buf[0] = '\0';
+    if (taosGetEnv("TD_DIAG_DELAY_MSGTYPE", buf, sizeof(buf)) > 0) {
+      delayMsgType = atoi(buf);
+    }
+  }
+
+  if (delayMs > 0 && pReq != NULL && (delayMsgType < 0 || pReq->msg.msgType == delayMsgType)) {
+    tDebug("diag timing: delay %dms before processing %s, sid:%" PRId64, delayMs, TMSG_INFO(pReq->msg.msgType),
+           pReq->msg.info.qId);
+    taosMsleep(delayMs);
+  }
+}
 
 typedef struct SCliThrd {
   TdThread    thread;  // tid
@@ -485,6 +698,12 @@ void destroyCliConnQTable(SCliConn* conn) {
 
     TAOS_UNUSED(taosHashRemove(thrd->pIdConnTable, qid, sizeof(*qid)));
 
+    if (diagQidOn()) {
+      diagEvPut(*qid, 8);
+      tWarn("%s conn:%p, conn-destroy removes sid:%" PRId64 ", pending:%d (qtable)", CONN_GET_INST_LABEL(conn), conn,
+            *qid, diagQidPendingCount(*qid));
+    }
+    diagQidTombAdd(*qid);
     transReleaseExHandle(transGetRefMgt(), *qid);
     transRemoveExHandle(transGetRefMgt(), *qid);
   }
@@ -631,6 +850,11 @@ int32_t cliHandleState_mayHandleReleaseResp(SCliConn* conn, STransMsgHead* pHead
             qId);
 
     STransCtx* p = taosHashGet(conn->pQTable, &qId, sizeof(qId));
+    if (diagQidOn()) {
+      diagEvPut(qId, 7);
+      tWarn("%s conn:%p, server release sid:%" PRId64 ", seq:%" PRId64 ", code:%s, pending:%d, registered:%d",
+            CONN_GET_INST_LABEL(conn), conn, qId, seqNum, tstrerror(pHead->code), diagQidPendingCount(qId), p != NULL);
+    }
     // Devon scan item 351: only release state that belongs to this connection. A peer-supplied
     // qId used to be applied to the process-global ref set unconditionally, letting a rogue
     // server destroy handles owned by other connections. Unknown qIds are ignored.
@@ -661,6 +885,7 @@ int32_t cliHandleState_mayHandleReleaseResp(SCliConn* conn, STransMsgHead* pHead
 
     transReleaseExHandle(transGetRefMgt(), qId);
     transRemoveExHandle(transGetRefMgt(), qId);
+    diagQidTombAdd(qId);
 
     while (!QUEUE_IS_EMPTY(&set)) {
       queue* el = QUEUE_HEAD(&set);
@@ -1335,6 +1560,12 @@ static void cliDestroyAllQidFromThrd(SCliConn* conn) {
     STransCtx* ctx = pIter;
     transCtxCleanup(ctx);
 
+    if (diagQidOn()) {
+      diagEvPut(*qid, 8);
+      tWarn("%s conn:%p, conn-destroy removes sid:%" PRId64 ", pending:%d (thrd)", CONN_GET_INST_LABEL(conn), conn,
+            *qid, diagQidPendingCount(*qid));
+    }
+    diagQidTombAdd(*qid);
     transReleaseExHandle(transGetRefMgt(), *qid);
     transRemoveExHandle(transGetRefMgt(), *qid);
 
@@ -2315,6 +2546,13 @@ int32_t cliMayGetStateByQid(SCliThrd* pThrd, SCliReq* pReq, SCliConn** pConn) {
   } else {
     SExHandle* exh = transAcquireExHandle(transGetRefMgt(), qid);
     if (exh == NULL) {
+      int32_t refCnt = 0;
+      int32_t refRemoved = 0;
+      int32_t refState = taosQueryRefState(transGetRefMgt(), qid, &refCnt, &refRemoved);
+      diagDumpRid(qid);
+      tWarn("%s state-dropped: ref handle missing, msgType:%s, sid:%" PRId64
+            ", refstate:%d, count:%d, removed:%d",
+            transLabel(pThrd->pInst), TMSG_INFO(pReq->msg.msgType), qid, refState, refCnt, refRemoved);
       return TSDB_CODE_RPC_STATE_DROPED;
     }
 
@@ -2322,6 +2560,8 @@ int32_t cliMayGetStateByQid(SCliThrd* pThrd, SCliReq* pReq, SCliConn** pConn) {
 
     if (pState == NULL) {
       if (pReq->ctx == NULL) {
+        tWarn("%s state-dropped: state-table missing and request has no ctx, msgType:%s, sid:%" PRId64,
+              transLabel(pThrd->pInst), TMSG_INFO(pReq->msg.msgType), qid);
         transReleaseExHandle(transGetRefMgt(), qid);
         return TSDB_CODE_RPC_STATE_DROPED;
       }
@@ -2353,6 +2593,11 @@ int32_t cliHandleState_mayUpdateState(SCliConn* pConn, SCliReq* pReq) {
   } else {
     tDebug("%s conn:%p, succ to add statue, sid:%" PRId64 " (1)", transLabel(pThrd->pInst), pConn, qid);
   }
+  if (diagQidOn() && code == 0) {
+    diagEvPut(qid, 5);
+    tWarn("%s conn:%p, state add sid:%" PRId64 ", msgType:%s, msgId:0x%" PRIx64, transLabel(pThrd->pInst), pConn, qid,
+          TMSG_INFO(pReq->msg.msgType), pReq->msg.info.traceId.msgId);
+  }
 
   TAOS_UNUSED(cliHandleState_mayUpdateStateCtx(pConn, pReq));
   return code;
@@ -2360,6 +2605,15 @@ int32_t cliHandleState_mayUpdateState(SCliConn* pConn, SCliReq* pReq) {
 void cliHandleBatchReq(SCliThrd* pThrd, SCliReq* pReq) {
   int32_t   lino = 0;
   STransMsg resp = {0};
+  cliDiagDelayReq(pReq);
+  if (diagQidOn()) {
+    if (pReq->diagProcessed) {
+      tWarn("%s REPROCESS req sid:%" PRId64 ", msgType:%s, msgId:0x%" PRIx64, transLabel(pThrd->pInst),
+            pReq->msg.info.qId, TMSG_INFO(pReq->msg.msgType), pReq->msg.info.traceId.msgId);
+    }
+    pReq->diagProcessed = 1;
+  }
+  diagQidPendingDel(pReq->msg.info.qId);
   int32_t   code = (pThrd->initCb)(pThrd, pReq, NULL);
   TAOS_CHECK_GOTO(code, &lino, _exception);
 
@@ -2411,7 +2665,9 @@ void cliHandleBatchReq(SCliThrd* pThrd, SCliReq* pReq) {
 _exception:
   resp.code = code;
   STraceId* trace = &pReq->msg.info.traceId;
-  tGWarn("%s failed to process req since %s", pInst->label, tstrerror(code));
+  tGWarn("%s failed to process req since %s, msgType:%s, sid:%" PRId64 ", QID:0x%" PRIx64 ":0x%" PRIx64, pInst->label,
+         tstrerror(code), TMSG_INFO(pReq->msg.msgType), pReq->msg.info.qId, TRACE_GET_ROOTID(trace),
+         TRACE_GET_MSGID(trace));
 
   code = (pThrd->notifyExceptCb)(pThrd, pReq, &resp);
   if (code != 0) {
@@ -3595,6 +3851,7 @@ int32_t transSendRequest(void* pInstRef, const SEpSet* pEpSet, STransMsg* pReq, 
     return TSDB_CODE_RPC_MODULE_QUIT;
   }
   int32_t   code = 0;
+  int8_t    diagAdded = 0;
   int64_t   handle = (int64_t)pReq->info.handle;
   SCliThrd* pThrd = transGetWorkThrd(pInst, handle);
   if (pThrd == NULL) {
@@ -3602,6 +3859,18 @@ int32_t transSendRequest(void* pInstRef, const SEpSet* pEpSet, STransMsg* pReq, 
   }
 
   pReq->info.qId = handle;
+  if (diagQidRefOn()) {
+    tWarn("%s diag reuse sid:%" PRId64 ", msgType:%s, msgId:0x%" PRIx64, transLabel(pInst), handle,
+          TMSG_INFO(pReq->msgType), pReq->info.traceId.msgId);
+  }
+  if (pReq->msgType != TDMT_SCH_TASK_RELEASE && pReq->info.qId != 0) {
+    if (diagQidTombHas(pReq->info.qId)) {
+      tWarn("%s send %s with already-released sid:%" PRId64, transLabel(pInst), TMSG_INFO(pReq->msgType),
+            pReq->info.qId);
+    }
+    diagQidPendingAdd(pReq->info.qId);
+    diagAdded = 1;
+  }
 
   SCliReq* pCliMsg = NULL;
   TAOS_CHECK_GOTO(transInitMsg(pInstRef, pEpSet, pReq, ctx, &pCliMsg), NULL, _exception);
@@ -3610,6 +3879,7 @@ int32_t transSendRequest(void* pInstRef, const SEpSet* pEpSet, STransMsg* pReq, 
   tGDebug("%s send request at thread:%08" PRId64 ", dst:%s:%d, app:%p", transLabel(pInst), pThrd->pid,
           EPSET_GET_INUSE_IP(pEpSet), EPSET_GET_INUSE_PORT(pEpSet), pReq->info.ahandle);
   if ((code = transAsyncSend(pThrd->asyncPool, &(pCliMsg->q))) != 0) {
+    if (diagAdded) diagQidPendingDel(pReq->info.qId);
     destroyReq(pCliMsg);
     transInstRelease((int64_t)pInstRef);
     return (code == TSDB_CODE_RPC_ASYNC_MODULE_QUIT ? TSDB_CODE_RPC_MODULE_QUIT : code);
@@ -3619,6 +3889,7 @@ int32_t transSendRequest(void* pInstRef, const SEpSet* pEpSet, STransMsg* pReq, 
   return 0;
 
 _exception:
+  if (diagAdded) diagQidPendingDel(pReq->info.qId);
   transFreeMsg(pReq->pCont);
   pReq->pCont = NULL;
   if (code != 0) {
@@ -3635,28 +3906,43 @@ int32_t transSendRequestWithId(void* pInstRef, const SEpSet* pEpSet, STransMsg* 
     return TSDB_CODE_RPC_MSG_EXCCED_LIMIT;
   }
   int32_t code = 0;
+  int64_t transId = 0;
   int8_t  transIdInited = 0;
+  int8_t  diagAdded = 0;
 
   STrans* pInst = (STrans*)transInstAcquire(transGetInstMgt(), (int64_t)pInstRef);
   if (pInst == NULL) {
     TAOS_CHECK_GOTO(TSDB_CODE_RPC_MODULE_QUIT, NULL, _exception);
   }
 
-  TAOS_CHECK_GOTO(transAllocHandle(transpointId), NULL, _exception);
+  // The handle is request-scoped: transpointId points to a slot owned by the caller and may be
+  // shared by concurrent senders. Publish it once and use only the local copy afterwards. Every
+  // re-read of the slot could pick up another request's handle, so a release could drop a
+  // different in-flight request's state and make it fail with TSDB_CODE_RPC_STATE_DROPED.
+  TAOS_CHECK_GOTO(transAllocHandle(&transId), NULL, _exception);
+  *transpointId = transId;
 
-  SCliThrd* pThrd = transGetWorkThrd(pInst, *transpointId);
+  SCliThrd* pThrd = transGetWorkThrd(pInst, transId);
   if (pThrd == NULL) {
     TAOS_CHECK_GOTO(TSDB_CODE_RPC_BROKEN_LINK, NULL, _exception);
   }
 
-  SExHandle* exh = transAcquireExHandle(transGetRefMgt(), *transpointId);
+  SExHandle* exh = transAcquireExHandle(transGetRefMgt(), transId);
   if (exh == NULL) {
     TAOS_CHECK_GOTO(TSDB_CODE_RPC_MODULE_QUIT, NULL, _exception);
   }
   transIdInited = 1;
 
-  pReq->info.handle = (void*)(*transpointId);
-  pReq->info.qId = *transpointId;
+  pReq->info.handle = (void*)transId;
+  pReq->info.qId = transId;
+  if (pReq->msgType != TDMT_SCH_TASK_RELEASE && pReq->info.qId != 0) {
+    if (diagQidTombHas(pReq->info.qId)) {
+      tWarn("%s send %s with already-released sid:%" PRId64, transLabel(pInst), TMSG_INFO(pReq->msgType),
+            pReq->info.qId);
+    }
+    diagQidPendingAdd(pReq->info.qId);
+    diagAdded = 1;
+  }
 
   SCliReq* pCliMsg = NULL;
   TAOS_CHECK_GOTO(transInitMsg(pInstRef, pEpSet, pReq, NULL, &pCliMsg), NULL, _exception);
@@ -3665,19 +3951,22 @@ int32_t transSendRequestWithId(void* pInstRef, const SEpSet* pEpSet, STransMsg* 
   tGDebug("%s send request at thread:%08" PRId64 ", dst:%s:%d, app:%p", transLabel(pInst), pThrd->pid,
           EPSET_GET_INUSE_IP(pEpSet), EPSET_GET_INUSE_PORT(pEpSet), pReq->info.ahandle);
   if ((code = transAsyncSend(pThrd->asyncPool, &(pCliMsg->q))) != 0) {
+    if (diagAdded) diagQidPendingDel(pReq->info.qId);
     destroyReq(pCliMsg);
+    if (transIdInited) transReleaseExHandle(transGetRefMgt(), transId);
     transInstRelease((int64_t)pInstRef);
     return (code == TSDB_CODE_RPC_ASYNC_MODULE_QUIT ? TSDB_CODE_RPC_MODULE_QUIT : code);
   }
 
-  transReleaseExHandle(transGetRefMgt(), *transpointId);
+  transReleaseExHandle(transGetRefMgt(), transId);
   transInstRelease((int64_t)pInstRef);
   return 0;
 
 _exception:
+  if (diagAdded) diagQidPendingDel(pReq->info.qId);
   transFreeMsg(pReq->pCont);
   pReq->pCont = NULL;
-  if (transIdInited) transReleaseExHandle(transGetRefMgt(), *transpointId);
+  if (transIdInited) transReleaseExHandle(transGetRefMgt(), transId);
 
   transInstRelease((int64_t)pInstRef);
   tError("failed to send request since %s", tstrerror(code));
@@ -4054,6 +4343,10 @@ int32_t transAllocHandle(int64_t* refId) {
   QUEUE_INIT(&exh->q);
   taosInitRWLatch(&exh->latch);
   tDebug("trans alloc sid:%" PRId64 ", malloc:%p", exh->refId, exh);
+  diagEvPut(exh->refId, 1);
+  if (diagQidRefOn()) {
+    tWarn("diag alloc sid:%" PRId64 ", mem:%p", exh->refId, exh);
+  }
   *refId = exh->refId;
   return 0;
 }
@@ -4086,6 +4379,11 @@ int32_t transFreeConnById(void* pInstRef, int64_t transpointId) {
 
   STraceId* trace = &pCli->msg.info.traceId;
   tGDebug("%s start to free conn sid:%" PRId64, pInst->label, transpointId);
+  if (diagQidOn()) {
+    diagEvPut(transpointId, 6);
+    tGWarn("%s client requested release, sid:%" PRId64 ", pending:%d", pInst->label, transpointId,
+           diagQidPendingCount(transpointId));
+  }
 
   code = transAsyncSend(pThrd->asyncPool, &pCli->q);
   if (code != 0) {
@@ -4164,6 +4462,12 @@ static void cliConnRemoveTimoutQidMsg(SCliConn* pConn, int64_t* st, queue* set) 
                tstrerror(code));
       }
 
+      if (diagQidOn()) {
+        diagEvPut(*qid, 9);
+        tWarn("%s conn:%p, read-timeout removes sid:%" PRId64 ", pending:%d", CONN_GET_INST_LABEL(pConn), pConn, *qid,
+              diagQidPendingCount(*qid));
+      }
+      diagQidTombAdd(*qid);
       transReleaseExHandle(transGetRefMgt(), *qid);
       transRemoveExHandle(transGetRefMgt(), *qid);
 
@@ -4575,6 +4879,7 @@ int32_t transSendRequest(void* shandle, const SEpSet* pEpSet, STransMsg* pReq, S
 
 int32_t transSendRequestWithId(void* shandle, const SEpSet* pEpSet, STransMsg* pReq, int64_t* transpointId) {
   int32_t code;
+  int64_t transId = 0;
   int8_t  idInited = 0;
 
   STrans* pInst = (STrans*)transAcquireExHandle(transGetInstMgt(), (int64_t)shandle);
@@ -4582,16 +4887,19 @@ int32_t transSendRequestWithId(void* shandle, const SEpSet* pEpSet, STransMsg* p
     TAOS_CHECK_GOTO(terrno, NULL, _exception);
   }
 
-  TAOS_CHECK_GOTO(transAllocHandle(transpointId), NULL, _exception);
+  // Keep the handle request-scoped: the caller's slot may be shared by concurrent senders, so the
+  // value is published once and only the local copy is used afterwards.
+  TAOS_CHECK_GOTO(transAllocHandle(&transId), NULL, _exception);
+  *transpointId = transId;
 
-  SExHandle* exh = transAcquireExHandle(transGetRefMgt(), *transpointId);
+  SExHandle* exh = transAcquireExHandle(transGetRefMgt(), transId);
   if (exh == NULL) {
     TAOS_CHECK_GOTO(TSDB_CODE_RPC_MODULE_QUIT, NULL, _exception);
   }
   idInited = 1;
 
-  pReq->info.handle = (void*)(*transpointId);
-  pReq->info.qId = *transpointId;
+  pReq->info.handle = (void*)transId;
+  pReq->info.qId = transId;
   exh->handle = shandle;
 
   code = transSendRequest(shandle, pEpSet, pReq, NULL);
@@ -4602,7 +4910,7 @@ _exception:
     tError("failedt to send request with id since %s", tstrerror(code));
   }
 
-  if (idInited) transReleaseExHandle(transGetRefMgt(), *transpointId);
+  if (idInited) transReleaseExHandle(transGetRefMgt(), transId);
   transReleaseExHandle(transGetInstMgt(), (int64_t)shandle);
   return code;
 }

@@ -562,6 +562,7 @@
 ,,y,.,./ci/pytest.sh pytest cases/09-DataQuerying/07-SLimit/test_slimit.py
 ,,y,.,./ci/pytest.sh pytest cases/09-DataQuerying/07-SLimit/test_slimit_basic.py
 ## 08-SubQuery
+,,y,.,./ci/pytest.sh pytest cases/09-DataQuerying/08-SubQuery/test_scalar_subquery_fetch_concurrency.py
 ,,y,.,./ci/pytest.sh pytest cases/09-DataQuerying/08-SubQuery/test_query_sub.py
 ,,y,.,./ci/pytest.sh pytest cases/09-DataQuerying/08-SubQuery/test_query_sub_bugs.py -N 3
 ,,n,.,pytest cases/09-DataQuerying/08-SubQuery/test_scalar_sub2.py

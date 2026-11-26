@@ -7423,6 +7423,22 @@ void handleRemoteTableRes(SScalarFetchParam* pParam, STaskSubJobCtx* ctx, SRetri
 }
 
 
+// Releases the transport handle of the fetch request that this response completes. Every request
+// owns exactly one handle (see SScalarFetchParam), so the handle is released even when the sub-job
+// context has already been destroyed.
+static void remoteFetchReleaseHandle(SScalarFetchParam* pParam, const char* idStr) {
+  if (pParam->transId <= 0) {
+    return;
+  }
+
+  int32_t ret = asyncFreeConnById(pParam->pTransporter, pParam->transId);
+  if (ret != 0) {
+    qWarn("%s failed to free subQ rpc handle, code:%s, subQIdx:%d, sid:%" PRId64, idStr != NULL ? idStr : "remote fetch",
+          tstrerror(ret), pParam->subQIdx, pParam->transId);
+  }
+  pParam->transId = 0;
+}
+
 int32_t remoteFetchCallBack(void* param, SDataBuf* pMsg, int32_t code) {
   taosMemoryFreeClear(pMsg->pEpSet);
 
@@ -7430,6 +7446,7 @@ int32_t remoteFetchCallBack(void* param, SDataBuf* pMsg, int32_t code) {
   STaskSubJobCtx* ctx = taosAcquireRef(fetchObjRefPool, pParam->subJobRefId);
   if (ctx == NULL) {
     qWarn("failed to acquire subJobCtx, since it may have been released, refId:%" PRIu64, pParam->subJobRefId);
+    remoteFetchReleaseHandle(pParam, NULL);
     taosMemoryFree(pMsg->pData);
     return TSDB_CODE_SUCCESS;
   }
@@ -7442,13 +7459,7 @@ int32_t remoteFetchCallBack(void* param, SDataBuf* pMsg, int32_t code) {
 
   qDebug("%s subQIdx %d got rsp, blockIdx:%" PRId64 ", code:%d, rsp:%p", idStr, pParam->subQIdx, ctx->blockIdx, code, pMsg->pData);
 
-  if (ctx->transporterId > 0) {
-    int32_t ret = asyncFreeConnById(ctx->rpcHandle, ctx->transporterId);
-    if (ret != 0) {
-      qDebug("%s failed to free subQ rpc handle, code:%s, subQIdx:%d", idStr, tstrerror(ret), pParam->subQIdx);
-    }
-    ctx->transporterId = -1;
-  }
+  remoteFetchReleaseHandle(pParam, idStr);
 
   if (0 == code && (NULL == pMsg->pData || pMsg->len < (int32_t)sizeof(SRetrieveTableRsp))) {
     qError("%s invalid rsp msg, msgType:%d, len:%d", idStr, pMsg->msgType, pMsg->len);
@@ -7753,6 +7764,8 @@ int32_t sendFetchRemoteNodeReq(STaskSubJobCtx* ctx, int32_t subQIdx, SNode* pRes
   param->subQIdx = subQIdx;
   param->pRes = pRes;
   param->subJobRefId = ctx->subJobRefId;
+  param->transId = 0;
+  param->pTransporter = ctx->rpcHandle;
 
   pMsgSendInfo->param = param;
   pMsgSendInfo->paramFreeFp = taosAutoMemoryFree;
@@ -7762,7 +7775,9 @@ int32_t sendFetchRemoteNodeReq(STaskSubJobCtx* ctx, int32_t subQIdx, SNode* pRes
   pMsgSendInfo->fp = remoteFetchCallBack;
   pMsgSendInfo->requestId = ctx->queryId;
 
-  code = asyncSendMsgToServer(ctx->rpcHandle, &pSource->addr.epSet, &ctx->transporterId, pMsgSendInfo);
+  // The transport stores the handle of this request into param->transId before the message can be
+  // dispatched, so the response callback always releases the handle of the request it completes.
+  code = asyncSendMsgToServer(ctx->rpcHandle, &pSource->addr.epSet, &param->transId, pMsgSendInfo);
   QUERY_CHECK_CODE(code, lino, _end);
 
 _end:
