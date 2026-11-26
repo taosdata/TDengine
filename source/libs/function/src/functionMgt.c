@@ -1383,7 +1383,9 @@ int32_t fmSetStreamPseudoFuncParamVal(int32_t funcId, SNodeList* pParamNodes, co
         }
         taosMemoryFree(((SValueNode*)pFirstParam)->datum.p);
         ((SValueNode*)pFirstParam)->datum.p = tmp;
-        memcpy(varDataVal(((SValueNode*)pFirstParam)->datum.p), pValue->data.pData, pValue->data.nData);
+        if (pValue->data.nData > 0) {
+          memcpy(varDataVal(((SValueNode*)pFirstParam)->datum.p), pValue->data.pData, pValue->data.nData);
+        }
         varDataLen(((SValueNode*)pFirstParam)->datum.p) = pValue->data.nData;
       } else {
         code = nodesSetValueNodeValue((SValueNode*)pFirstParam, VALUE_GET_DATUM(&pValue->data, pValue->data.type));

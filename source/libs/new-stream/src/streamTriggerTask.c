@@ -1744,6 +1744,13 @@ static bool stTriggerTaskNeedGroupColVals(SStreamTriggerTask *pTask, bool create
          (pTask->placeHolderBitmap & PLACE_HOLDER_ROLLUP_TAG) || pTask->useDurationTagRuntime;
 }
 
+static bool stTriggerTaskPrecreateNeedsGroupValues(SStreamTriggerTask *pTask) {
+  if (pTask->isVirtualTable && BIT_FLAG_TEST_MASK(pTask->addOptions, STREAM_OPTION_PRECREATE_OUTPUT_ANALYZED)) {
+    return BIT_FLAG_TEST_MASK(pTask->addOptions, STREAM_OPTION_OUTPUT_NEEDS_GROUP_VALUES);
+  }
+  return stTriggerTaskNeedGroupColVals(pTask, true);
+}
+
 static int32_t stRealtimeGroupInit(SSTriggerRealtimeGroup *pGroup, SSTriggerRealtimeContext *pContext, int64_t gid,
                                    int32_t vgId);
 static void    stRealtimeGroupRestoreCheckpointPredecessor(SSTriggerRealtimeGroup *pGroup);
@@ -5078,11 +5085,13 @@ static bool stSameResultDispatch(const SStreamResultAdmission *a, const SStreamR
          a->triggerTaskId == b->triggerTaskId && a->triggerDnodeId == b->triggerDnodeId;
 }
 
-static bool stResultDispatchIsLive(SStreamTriggerTask *task, const SStreamResultAdmission *claim) {
+static bool stResultDispatchIsLive(SStreamTriggerTask *task, const SStreamResultAdmission *claim,
+                                   bool requireCreateOnly) {
   uint64_t token[] = {claim->calcToken, claim->calcTokenHi};
   taosRLockLatch(&task->calcPoolLock);
   const SResultDispatch *dispatch = tSimpleHashGet(task->resultDispatches, token, sizeof(token));
   bool                   found = dispatch && dispatch->slot->generation == dispatch->generation &&
+               (!requireCreateOnly || dispatch->slot->createTableOnly) &&
                stSameResultDispatch(&dispatch->slot->req.resultAdmission, claim);
   taosRUnLockLatch(&task->calcPoolLock);
   return found;
@@ -5110,6 +5119,10 @@ static void stClearResultChecks(STriggerResultChecks **checks) {
   taosMemoryFreeClear(*checks);
 }
 
+#if defined(BUILD_TEST)
+void stTestClearResultChecks(SSTriggerRealtimeContext *context) { stClearResultChecks(&context->resultChecks); }
+#endif
+
 static STriggerResultChecks **stFindResultRound(SStreamTriggerTask *task, int64_t session, uint64_t round,
                                                 SSHashObj **readers) {
   if (session == STREAM_TRIGGER_HISTORY_SESSIONID) {
@@ -5119,8 +5132,13 @@ static STriggerResultChecks **stFindResultRound(SStreamTriggerTask *task, int64_
     return &ctx->resultChecks;
   }
   SSTriggerRealtimeContext *ctx = task->pRealtimeContext;
-  if (!ctx || ctx->sessionId != session || ctx->timeAlignRound != round || ctx->timeAlignRestart ||
-      !ctx->boundDetermined)
+  if (!ctx || ctx->sessionId != session || ctx->timeAlignRound != round || ctx->timeAlignRestart)
+    return NULL;
+  // The initial aligned boundary is already published before virtual precreation starts.
+  // Its create-only writes still need reader validation while the queue waits for runner slots.
+  if (!ctx->boundDetermined &&
+      !(task->isVirtualTable && ctx->status == STRIGGER_CONTEXT_DETERMINE_BOUND && !ctx->timeAlignBoundsPending &&
+        taosArrayGetSize(ctx->pPendingCreateTableGids) > 0))
     return NULL;
   *readers = ctx->pReaderWalProgress;
   return &ctx->resultChecks;
@@ -5158,7 +5176,10 @@ int32_t stTriggerTaskValidateResult(SStreamTask *base, const SStreamResultAdmiss
     return TSDB_CODE_STREAM_EXEC_CANCELLED;
   SSHashObj             *readers = NULL;
   STriggerResultChecks **owner = stFindResultRound(task, claim->sessionId, claim->roundId, &readers);
-  if (!owner || !stResultDispatchIsLive(task, claim)) return TSDB_CODE_STREAM_EXEC_CANCELLED;
+  if (!owner) return TSDB_CODE_STREAM_EXEC_CANCELLED;
+  bool requireCreateOnly =
+      claim->sessionId != STREAM_TRIGGER_HISTORY_SESSIONID && !task->pRealtimeContext->boundDetermined;
+  if (!stResultDispatchIsLive(task, claim, requireCreateOnly)) return TSDB_CODE_STREAM_EXEC_CANCELLED;
   if (!*owner) {
     *owner = taosMemoryCalloc(1, sizeof(**owner));
     if (!*owner) return terrno;
@@ -5224,7 +5245,7 @@ static int32_t stResultReaderReply(SStreamTriggerTask *task, const SSTriggerAHan
   STriggerResultCheck *check = *owner ? tSimpleHashGet((*owner)->byOperation, op, sizeof(*op)) : NULL;
   if (!check || tSimpleHashRemove(check->pendingReaders, &route->requestGid, sizeof(route->requestGid))) return 0;
   if (!code && tSimpleHashGetSize(check->pendingReaders)) return 0;
-  if (!stResultDispatchIsLive(task, &check->claim)) {
+  if (!stResultDispatchIsLive(task, &check->claim, false)) {
     stFinishResultCheck(*owner, check, TSDB_CODE_STREAM_EXEC_CANCELLED);
   } else if (check->deadlineNs <= taosGetMonoTimestampNs()) {
     stFinishResultCheck(*owner, check, TSDB_CODE_NEED_RETRY);
@@ -9988,7 +10009,8 @@ _end:
 
 static int32_t stTriggerTaskAcquireRequests(SStreamTriggerTask *pTask, int64_t sessionId,
                                             SSTriggerRequestReservation *pReservations, int32_t numReservations,
-                                            bool batchExclusive, SSTriggerCalcRequest **ppRequest) {
+                                            bool batchExclusive, bool virtualPrecreate,
+                                            SSTriggerCalcRequest **ppRequest) {
   int32_t            code = TSDB_CODE_SUCCESS;
   int32_t            lino = 0;
   int32_t            nCalcNodes = 0;
@@ -10038,7 +10060,9 @@ static int32_t stTriggerTaskAcquireRequests(SStreamTriggerTask *pTask, int64_t s
     nIdleSlots += TD_DLIST_NELES(&pNode->idleSlots);
     nTotalSlots += TARRAY_SIZE(pNode->pSlots);
   }
-  if (nIdleSlots == 0 || (*pRunningCnt >= nTotalSlots - 1)) {
+  // A virtual output precreation request can use the only slot while it is idle.
+  int32_t reservedSlots = virtualPrecreate && nTotalSlots == 1 ? 0 : 1;
+  if (nIdleSlots == 0 || *pRunningCnt >= nTotalSlots - reservedSlots) {
     goto _end;
   }
 
@@ -10079,6 +10103,7 @@ static int32_t stTriggerTaskAcquireRequests(SStreamTriggerTask *pTask, int64_t s
   if (++pSlot->generation == 0) ++pSlot->generation;
   pSlot->vtableRetryAtMs = 0;
   pSlot->vtableRetryDelayMs = 0;
+  pSlot->createTableOnly = false;
 
   SSTriggerCalcRequest *pReq = &pSlot->req;
   pReq->assembledParamCount = 0;
@@ -10176,7 +10201,7 @@ _end:
 int32_t stTriggerTaskAcquireRequest(SStreamTriggerTask *pTask, int64_t sessionId, int64_t gid,
                                     SSTriggerCalcRequest **ppRequest) {
   SSTriggerRequestReservation reservation = {.gid = gid};
-  return stTriggerTaskAcquireRequests(pTask, sessionId, &reservation, 1, false, ppRequest);
+  return stTriggerTaskAcquireRequests(pTask, sessionId, &reservation, 1, false, false, ppRequest);
 }
 
 static int32_t stTriggerTaskInitCalcRequestGroup(SSTriggerCalcRequest *pReq, int64_t gid, bool createTable,
@@ -10482,6 +10507,7 @@ static int32_t stTriggerTaskReleaseRequests(SStreamTriggerTask *pTask, SSTrigger
   }
   pSlot->vtableRetryAtMs = 0;
   pSlot->vtableRetryDelayMs = 0;
+  pSlot->createTableOnly = false;
   if (++pSlot->generation == 0) ++pSlot->generation;
   TD_DLIST_APPEND(&pNode->idleSlots, pSlot);
 
@@ -15006,6 +15032,26 @@ int32_t stTriggerTaskUndeployImpl(SStreamTriggerTask **ppTask, const SStreamUnde
   ST_TASK_DLOG("undeploy trigger task, doCheckpoint: %d, doCleanup: %d", pMsg->doCheckpoint, pMsg->doCleanup);
 
   if (pMsg->doCheckpoint && pTask->pRealtimeContext) {
+    if (pTask->nodelayCreateSubtable && !pMsg->doCleanup) {
+      const SSTriggerRealtimeContext *pContext = pTask->pRealtimeContext;
+      size_t queued = taosArrayGetSize(pContext->pPendingCreateTableGids);
+      size_t waiting = queued > pContext->pendingCreateTableIndex ? queued - pContext->pendingCreateTableIndex : 0;
+      size_t unconfirmed = 0;
+      taosRLockLatch(&pTask->calcPoolLock);
+      for (size_t i = 0; i < taosArrayGetSize(pTask->pCalcNodes); ++i) {
+        const SSTriggerCalcNode *pNode = taosArrayGet(pTask->pCalcNodes, i);
+        for (size_t j = 0; j < taosArrayGetSize(pNode->pSlots); ++j) {
+          const SSTriggerCalcSlot *pSlot = taosArrayGet(pNode->pSlots, j);
+          if (pSlot->createTableOnly && pSlot->req.sessionId == pContext->sessionId) ++unconfirmed;
+        }
+      }
+      taosRUnLockLatch(&pTask->calcPoolLock);
+      if (waiting || unconfirmed) {
+        ST_TASK_WLOG("stream %s is stopping with output subtable creation requests queued:%zu, unconfirmed:%zu. "
+                     "Missing subtables can be created on the first result write after resume",
+                     pTask->streamName != NULL ? pTask->streamName : "", waiting, unconfirmed);
+      }
+    }
     SSTriggerCheckpointResult result = stTriggerTaskGenCheckpoint(pTask, true);
     if (result.status == STRIGGER_CHECKPOINT_ERROR) {
       ST_TASK_WLOG("failed to generate checkpoint since %s, continue to undeploy", tstrerror(result.code));
@@ -16203,7 +16249,11 @@ static int32_t stRealtimeContextProcExtPullRsp(SSTriggerRealtimeContext *pContex
     stDebug("ext: bound determined from LAST_TS_EXT reader task:%" PRIx64, pProgress->pTaskAddr->taskId);
     tDestroySSTriggerExtPullRsp(pExtRsp);
 
-    // Immediately issue the first meta pull for this reader.
+    // Keep the bootstrap watermark, but wait for virtual output precreation before reading rows.
+    if (pTask->isVirtualTable && pTask->nodelayCreateSubtable && pTask->triggerType != STREAM_TRIGGER_PERIOD &&
+        pContext->status == STRIGGER_CONTEXT_DETERMINE_BOUND && stRealtimeContextHasWalProgress(pContext)) {
+      goto _end;
+    }
     ESTriggerPullType metaType =
         (pContext->walMode == STRIGGER_WAL_META_WITH_DATA) ? STRIGGER_PULL_META_DATA_EXT : STRIGGER_PULL_META_EXT;
     code = stRealtimeContextSendExtPullReq(pContext, pProgress, metaType, 0);
@@ -22900,6 +22950,8 @@ static void stRealtimeContextDestroy(void *ptr) {
     taosArrayDestroy(pContext->pPendingCreateTableGids);
     pContext->pPendingCreateTableGids = NULL;
   }
+  taosArrayDestroyEx(pContext->pPendingCreateGroupColVals, tDestroySStreamGroupValue);
+  taosArrayDestroy(pContext->pPendingCreateFallbackVgIds);
 
   taosMemFreeClear(*ppContext);
   if (pTask != NULL) {
@@ -23587,6 +23639,123 @@ static int32_t stTriggerPendingCreateTableCompareGid(const void *pLeft, const vo
   return compareInt64Val(&pLeftEntry->gid, &pRightEntry->gid);
 }
 
+static int32_t stRealtimeContextQueueVirtualCreateTables(SSTriggerRealtimeContext *pContext) {
+  SStreamTriggerTask     *pTask = pContext->pTask;
+  SSHashObj              *pQueuedGids = NULL;
+  int32_t                 code = TSDB_CODE_SUCCESS;
+  int32_t                 lino = 0;
+  int32_t                 iter = 0;
+  SSTriggerVirtTableInfo *pInfo = NULL;
+
+  // Older deployments have no output analysis and keep the LAST_TS-based behavior.
+  bool canPrecreateEmpty = BIT_FLAG_TEST_MASK(pTask->addOptions, STREAM_OPTION_PRECREATE_OUTPUT_ANALYZED) &&
+                           !BIT_FLAG_TEST_MASK(pTask->addOptions, STREAM_OPTION_OUTPUT_NEEDS_TRIGGER_VALUES);
+  if (!canPrecreateEmpty && tSimpleHashGetSize(pTask->pHistoryCutoffTime) == 0) return TSDB_CODE_SUCCESS;
+  // Virtual groups exist even if no original table returns a LAST_TS row.
+  while ((pInfo = tSimpleHashIterate(pTask->pVirtTableInfos, pInfo, &iter)) != NULL) {
+    size_t nGroups = taosArrayGetSize(pInfo->tbGids);
+    if (nGroups == 0) continue;
+
+    // Partition values belong to the virtual table's vnode.
+    SSTriggerWalProgress *pProgress = tSimpleHashGet(pContext->pReaderWalProgress, &pInfo->vgId, sizeof(pInfo->vgId));
+    QUERY_CHECK_NULL(pProgress, code, lino, _end, TSDB_CODE_INTERNAL_ERROR);
+    for (size_t i = 0; i < nGroups; ++i) {
+      int64_t gid = *(int64_t *)taosArrayGet(pInfo->tbGids, i);
+      bool    emptyGroup = tSimpleHashGet(pTask->pHistoryCutoffTime, &gid, sizeof(gid)) == NULL;
+      if (emptyGroup && !canPrecreateEmpty) continue;
+      if (pQueuedGids == NULL) {
+        pQueuedGids = tSimpleHashInit(8, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT));
+        QUERY_CHECK_NULL(pQueuedGids, code, lino, _end, terrno);
+      }
+      if (pContext->pPendingCreateTableGids == NULL) {
+        pContext->pPendingCreateTableGids = taosArrayInit(nGroups, sizeof(SSTriggerPendingCreateTableEntry));
+        QUERY_CHECK_NULL(pContext->pPendingCreateTableGids, code, lino, _end, terrno);
+      }
+      size_t *pIndex = tSimpleHashGet(pQueuedGids, &gid, sizeof(gid));
+      if (pIndex != NULL) {
+        SSTriggerPendingCreateTableEntry *pEntry = taosArrayGet(pContext->pPendingCreateTableGids, *pIndex);
+        // Start at the lowest vnode so a missing value can fall back in vnode order.
+        int32_t firstVgId = pEntry->pProgress->pTaskAddr->nodeId;
+        pEntry->hasFallbackReader |= pInfo->vgId != firstVgId;
+        if (pInfo->vgId < firstVgId) pEntry->pProgress = pProgress;
+        continue;
+      }
+      size_t index = taosArrayGetSize(pContext->pPendingCreateTableGids);
+      code = tSimpleHashPut(pQueuedGids, &gid, sizeof(gid), &index, sizeof(index));
+      QUERY_CHECK_CODE(code, lino, _end);
+      SSTriggerPendingCreateTableEntry entry = {
+          .gid = gid,
+          .pProgress = pProgress,
+          .attemptCount = 1,
+          .transientGroupColVals = emptyGroup};
+      QUERY_CHECK_NULL(taosArrayPush(pContext->pPendingCreateTableGids, &entry), code, lino, _end, terrno);
+    }
+  }
+  if (taosArrayGetSize(pContext->pPendingCreateTableGids) > 1) {
+    taosArraySort(pContext->pPendingCreateTableGids, stTriggerPendingCreateTableCompareGid);
+  }
+
+_end:
+  tSimpleHashCleanup(pQueuedGids);
+  if (code != TSDB_CODE_SUCCESS) {
+    ST_TASK_ELOG("%s failed at line %d since %s", __func__, lino, tstrerror(code));
+  }
+  return code;
+}
+
+static int32_t stRealtimeContextCollectCreateTableFallbacks(SSTriggerRealtimeContext *pContext,
+                                                            const SSTriggerPendingCreateTableEntry *pEntry) {
+  SStreamTriggerTask *pTask = pContext->pTask;
+  int32_t             after = pEntry->pProgress->pTaskAddr->nodeId;
+  int32_t             code = TSDB_CODE_SUCCESS;
+  int32_t             lino = 0;
+  SSHashObj          *pSeen = NULL;
+  SArray             *pVgIds = NULL;
+  code = stTriggerTaskEnsureVirtTableGidIndex(pTask);
+  QUERY_CHECK_CODE(code, lino, _end);
+  const SArray *const *ppTables = tSimpleHashGet(pTask->pVirtTableGidIndex, &pEntry->gid, sizeof(pEntry->gid));
+  if (ppTables == NULL || taosArrayGetSize(*ppTables) <= 1) return TSDB_CODE_SUCCESS;
+
+  pVgIds = taosArrayInit(0, sizeof(int32_t));
+  QUERY_CHECK_NULL(pVgIds, code, lino, _end, terrno);
+  pSeen = tSimpleHashInit(8, taosGetDefaultHashFunction(TSDB_DATA_TYPE_INT));
+  QUERY_CHECK_NULL(pSeen, code, lino, _end, terrno);
+  for (size_t i = 0; i < taosArrayGetSize(*ppTables); ++i) {
+    const SSTriggerVirtTableInfo *pInfo = taosArrayGetP(*ppTables, i);
+    if (pInfo->vgId <= after || tSimpleHashGet(pSeen, &pInfo->vgId, sizeof(pInfo->vgId)) != NULL) continue;
+    code = tSimpleHashPut(pSeen, &pInfo->vgId, sizeof(pInfo->vgId), NULL, 0);
+    QUERY_CHECK_CODE(code, lino, _end);
+    QUERY_CHECK_NULL(taosArrayPush(pVgIds, &pInfo->vgId), code, lino, _end, terrno);
+  }
+  taosArraySort(pVgIds, compareInt32ValDesc);
+  pContext->pPendingCreateFallbackVgIds = pVgIds;
+  pVgIds = NULL;
+
+_end:
+  tSimpleHashCleanup(pSeen);
+  taosArrayDestroy(pVgIds);
+  if (code != TSDB_CODE_SUCCESS) {
+    ST_TASK_ELOG("%s failed at line %d since %s", __func__, lino, tstrerror(code));
+  }
+  return code;
+}
+
+// Release the head's transient group values once its request is dispatched or deferred.
+static SSTriggerPendingCreateTableEntry *stRealtimeContextAdvancePendingCreateTable(
+    SSTriggerRealtimeContext *pContext) {
+  taosArrayDestroyEx(pContext->pPendingCreateGroupColVals, tDestroySStreamGroupValue);
+  pContext->pPendingCreateGroupColVals = NULL;
+  taosArrayDestroy(pContext->pPendingCreateFallbackVgIds);
+  pContext->pPendingCreateFallbackVgIds = NULL;
+  if (++pContext->pendingCreateTableIndex < taosArrayGetSize(pContext->pPendingCreateTableGids)) {
+    return taosArrayGet(pContext->pPendingCreateTableGids, pContext->pendingCreateTableIndex);
+  }
+  taosArrayDestroy(pContext->pPendingCreateTableGids);
+  pContext->pPendingCreateTableGids = NULL;
+  pContext->pendingCreateTableIndex = 0;
+  return NULL;
+}
+
 // send STRIGGER_PULL_GROUP_COL_VALUE for given (pProgress, gid); used when pulling groupInfo for pending create-table
 static int32_t stRealtimeContextSendPullReqForGid(SSTriggerRealtimeContext *pContext, SSTriggerWalProgress *pProgress,
                                                   int64_t gid) {
@@ -23650,20 +23819,30 @@ _end:
 }
 
 // send one "create table only" calc request to runner for the given gid (uses reader response info)
-static int32_t stTriggerTaskSendCreateTableReq(SStreamTriggerTask *pTask, SSTriggerRealtimeContext *pContext,
-                                               int64_t sessionId, int64_t gid) {
+static int32_t stTriggerTaskSendCreateTableReq(SSTriggerRealtimeContext *pContext,
+                                               SSTriggerPendingCreateTableEntry *pEntry) {
+  SStreamTriggerTask   *pTask = pContext->pTask;
+  int64_t               sessionId = pContext->sessionId;
+  int64_t               gid = pEntry->gid;
   int32_t               code = TSDB_CODE_SUCCESS;
   int32_t               lino = 0;
   SSTriggerCalcRequest *pCalcReq = NULL;
   SStreamRunnerTarget  *pCalcRunner = NULL;
   SRpcMsg               msg = {.msgType = TDMT_STREAM_TRIGGER_CALC};
-  bool                  needTagValue = false;
   bool                  needDestroyAhandle = false;
 
-  code = stTriggerTaskAcquireRequest(pTask, sessionId, gid, &pCalcReq);
+  pEntry->retryAt = 0;
+  if (pTask->isVirtualTable) {
+    SSTriggerRequestReservation reservation = {.gid = gid};
+    code = stTriggerTaskAcquireRequests(pTask, sessionId, &reservation, 1, false, true, &pCalcReq);
+    QUERY_CHECK_CODE(code, lino, _end);
+  } else {
+    code = stTriggerTaskAcquireRequest(pTask, sessionId, gid, &pCalcReq);
+  }
   if (code != TSDB_CODE_SUCCESS || pCalcReq == NULL) {
     return TSDB_CODE_NEED_RETRY;  // no slot or busy, keep in queue and retry later
   }
+  ((SSTriggerCalcSlot *)pCalcReq)->createTableOnly = true;
   pCalcReq->isMultiGroupCalc = false;
   pCalcReq->createTable = 1;
   if (BIT_FLAG_TEST_MASK(pTask->addOptions, STREAM_OPTION_NESTED_WINDOW_PLAN)) {
@@ -23686,43 +23865,28 @@ static int32_t stTriggerTaskSendCreateTableReq(SStreamTriggerTask *pTask, SSTrig
     lino = __LINE__;
     goto _end;
   }
-  if (stTriggerTaskNeedGroupColVals(pTask, true)) {
-    needTagValue = true;
-  }
-  if (needTagValue && pContext != NULL && pContext->pGroupColVals != NULL &&
-      taosArrayGetSize(pCalcReq->groupColVals) == 0) {
-    void *px = tSimpleHashGet(pContext->pGroupColVals, &gid, sizeof(int64_t));
-    if (px != NULL) {
-      SArray *pGroupColVals = *(SArray **)px;
-      if (pGroupColVals != NULL) {
-        for (int32_t i = 0; i < TARRAY_SIZE(pGroupColVals); i++) {
-          SStreamGroupValue *pValue = TARRAY_GET_ELEM(pGroupColVals, i);
-          SStreamGroupValue *pDst = taosArrayPush(pCalcReq->groupColVals, pValue);
-          if (pDst == NULL) {
-            code = terrno;
-            lino = __LINE__;
-            goto _end;
-          }
-          if (IS_VAR_DATA_TYPE(pValue->data.type) || pValue->data.type == TSDB_DATA_TYPE_DECIMAL) {
-            pDst->data.pData = taosMemoryMalloc(pDst->data.nData);
-            if (pDst->data.pData == NULL) {
-              code = terrno;
-              lino = __LINE__;
-              goto _end;
-            }
-            TAOS_MEMCPY(pDst->data.pData, pValue->data.pData, pDst->data.nData);
-          }
+  if (stTriggerTaskPrecreateNeedsGroupValues(pTask) && taosArrayGetSize(pCalcReq->groupColVals) == 0) {
+    SArray *pValues = pContext->pPendingCreateGroupColVals;
+    if (!pEntry->transientGroupColVals) {
+      SArray **ppValues = tSimpleHashGet(pContext->pGroupColVals, &gid, sizeof(gid));
+      pValues = ppValues != NULL ? *ppValues : NULL;
+    }
+    for (size_t i = 0; i < taosArrayGetSize(pValues); i++) {
+      SStreamGroupValue *pValue = taosArrayGet(pValues, i);
+      SStreamGroupValue *pDst = taosArrayPush(pCalcReq->groupColVals, pValue);
+      QUERY_CHECK_NULL(pDst, code, lino, _end, terrno);
+      if (IS_VAR_DATA_TYPE(pValue->data.type) || pValue->data.type == TSDB_DATA_TYPE_DECIMAL) {
+        pDst->data.pData = NULL;
+        if (pDst->data.nData > 0) {
+          pDst->data.pData = taosMemoryMalloc(pDst->data.nData);
+          QUERY_CHECK_NULL(pDst->data.pData, code, lino, _end, terrno);
+          TAOS_MEMCPY(pDst->data.pData, pValue->data.pData, pDst->data.nData);
         }
       }
     }
   }
-  if (pContext != NULL) {
-    code = stTriggerTaskSetCalcReqRollupTbCount(pTask, pContext->pRollupTbCount, pCalcReq, gid);
-    if (code != TSDB_CODE_SUCCESS) {
-      lino = __LINE__;
-      goto _end;
-    }
-  }
+  code = stTriggerTaskSetCalcReqRollupTbCount(pTask, pContext->pRollupTbCount, pCalcReq, gid);
+  QUERY_CHECK_CODE(code, lino, _end);
   int32_t nRunners = taosArrayGetSize(pTask->runnerList);
   for (int32_t i = 0; i < nRunners; i++) {
     pCalcRunner = TARRAY_GET_ELEM(pTask->runnerList, i);
@@ -23803,7 +23967,38 @@ _end:
       }
     }
   }
+  if (pTask->isVirtualTable && code == TSDB_CODE_NEED_RETRY) {
+    // The request failed locally after acquiring a slot. There is no runner response to wake this queue.
+    pEntry->retryAt = taosGetTimestampNs() + STREAM_TRIGGER_IDLE_TIME_NS;
+    int32_t waitCode = stTriggerTaskAddWaitSession(pTask, sessionId, pEntry->retryAt);
+    if (waitCode != TSDB_CODE_SUCCESS) return waitCode;
+  }
   return code;
+}
+
+static int32_t stRealtimeContextContinueCreateTableQueue(SSTriggerRealtimeContext *pContext) {
+  SSTriggerPendingCreateTableEntry *pNext = stRealtimeContextAdvancePendingCreateTable(pContext);
+  if (pNext != NULL) {
+    return stRealtimeContextSendPullReqForGid(pContext, pNext->pProgress, pNext->gid);
+  }
+  pContext->boundDetermined = true;
+  pContext->status = STRIGGER_CONTEXT_IDLE;
+  return TSDB_CODE_SUCCESS;
+}
+
+static int32_t stRealtimeContextSubmitPendingCreateTable(SSTriggerRealtimeContext *pContext,
+                                                        SSTriggerPendingCreateTableEntry *pEntry) {
+  int32_t code = stTriggerTaskSendCreateTableReq(pContext, pEntry);
+  if (code == TSDB_CODE_NEED_RETRY) {
+    SStreamTriggerTask *pTask = pContext->pTask;
+    size_t waiting = taosArrayGetSize(pContext->pPendingCreateTableGids) - pContext->pendingCreateTableIndex;
+    ST_TASK_DLOG("retry nodelay create-table for gid:%" PRId64 " attempt:%d queued:%zu nextWake:%" PRId64,
+                 pEntry->gid, pEntry->attemptCount, waiting, pEntry->retryAt);
+    pEntry->attemptCount++;
+    return TSDB_CODE_SUCCESS;
+  }
+  TAOS_CHECK_RETURN(code);
+  return stRealtimeContextContinueCreateTableQueue(pContext);
 }
 
 static bool stRealtimeContextExtRecoveryCoversCalcRange(SSTriggerRealtimeContext *pContext,
@@ -27979,6 +28174,17 @@ static int32_t stRealtimeContextCheckAt(SSTriggerRealtimeContext *pContext, int6
 
   if (pContext->notifyGroupColValuePending) goto _end;
 
+  // Group-value replies and slot releases normally advance virtual output precreation.
+  if (pTask->isVirtualTable && pContext->status == STRIGGER_CONTEXT_DETERMINE_BOUND &&
+      taosArrayGetSize(pContext->pPendingCreateTableGids) > 0) {
+    SSTriggerPendingCreateTableEntry *pEntry =
+        taosArrayGet(pContext->pPendingCreateTableGids, pContext->pendingCreateTableIndex);
+    if (pEntry->retryAt == 0 || pEntry->retryAt > now) goto _end;
+    code = stRealtimeContextSubmitPendingCreateTable(pContext, pEntry);
+    QUERY_CHECK_CODE(code, lino, _end);
+    if (pContext->status == STRIGGER_CONTEXT_DETERMINE_BOUND) goto _end;
+  }
+
   // A matured deferred group owns local work that can be dispatched even when a
   // WAL pull is still in flight.  Allow this case to proceed; the tail of this
   // function guards against issuing a duplicate WAL pull.
@@ -29746,37 +29952,15 @@ static int32_t stRealtimeContextProcPullRsp(SSTriggerRealtimeContext *pContext, 
         }
       }
 
-      if (pTask->nodelayCreateSubtable && nrows > 0 && pGidData != NULL) {
+      if (pTask->nodelayCreateSubtable && !pTask->isVirtualTable && nrows > 0 && pGidData != NULL) {
         if (pContext->pPendingCreateTableGids == NULL) {
           pContext->pPendingCreateTableGids = taosArrayInit(0, sizeof(SSTriggerPendingCreateTableEntry));
           QUERY_CHECK_NULL(pContext->pPendingCreateTableGids, code, lino, _end, terrno);
         }
-        if (pTask->isVirtualTable) {
-          for (int32_t i = 0; i < nrows; i++) {
-            int64_t                 obtUid = pGidData[i];
-            SSTriggerOrigTableInfo *pOrigTableInfo = tSimpleHashGet(pTask->pOrigTableInfos, &obtUid, sizeof(int64_t));
-            if (pOrigTableInfo == NULL) continue;
-            for (int32_t j = 0; j < TARRAY_SIZE(pOrigTableInfo->pVtbUids); j++) {
-              int64_t                 vtbUid = *(int64_t *)TARRAY_GET_ELEM(pOrigTableInfo->pVtbUids, j);
-              SSTriggerVirtTableInfo *pVirtTableInfo = tSimpleHashGet(pTask->pVirtTableInfos, &vtbUid, sizeof(int64_t));
-              if (pVirtTableInfo == NULL) continue;
-              SSTriggerWalProgress *pGroupProgress =
-                  tSimpleHashGet(pContext->pReaderWalProgress, &pVirtTableInfo->vgId, sizeof(int32_t));
-              QUERY_CHECK_NULL(pGroupProgress, code, lino, _end, TSDB_CODE_INTERNAL_ERROR);
-              for (int32_t k = 0; k < TARRAY_SIZE(pVirtTableInfo->tbGids); k++) {
-                int64_t                          gid = *(int64_t *)TARRAY_GET_ELEM(pVirtTableInfo->tbGids, k);
-                SSTriggerPendingCreateTableEntry entry = {.gid = gid, .pProgress = pGroupProgress, .attemptCount = 1};
-                void                            *px = taosArrayPush(pContext->pPendingCreateTableGids, &entry);
-                QUERY_CHECK_NULL(px, code, lino, _end, terrno);
-              }
-            }
-          }
-        } else {
-          for (int32_t i = 0; i < nrows; i++) {
-            SSTriggerPendingCreateTableEntry entry = {.gid = pGidData[i], .pProgress = pProgress, .attemptCount = 1};
-            void                            *px = taosArrayPush(pContext->pPendingCreateTableGids, &entry);
-            QUERY_CHECK_NULL(px, code, lino, _end, terrno);
-          }
+        for (int32_t i = 0; i < nrows; i++) {
+          SSTriggerPendingCreateTableEntry entry = {.gid = pGidData[i], .pProgress = pProgress, .attemptCount = 1};
+          void                            *px = taosArrayPush(pContext->pPendingCreateTableGids, &entry);
+          QUERY_CHECK_NULL(px, code, lino, _end, terrno);
         }
       }
 
@@ -29787,15 +29971,14 @@ static int32_t stRealtimeContextProcPullRsp(SSTriggerRealtimeContext *pContext, 
       }
 
       // all readers responded; send first GROUP_COL_VALUE pull for nodelay create-table if any
+      if (pTask->nodelayCreateSubtable && pTask->isVirtualTable) {
+        code = stRealtimeContextQueueVirtualCreateTables(pContext);
+        QUERY_CHECK_CODE(code, lino, _end);
+      }
       if (pContext->pPendingCreateTableGids != NULL &&
           taosArrayGetSize(pContext->pPendingCreateTableGids) > 0) {
-        if (pTask->isVirtualTable) {
-          // Several physical sources can contribute the same virtual group.
-          taosArraySort(pContext->pPendingCreateTableGids, stTriggerPendingCreateTableCompareGid);
-          taosArrayRemoveDuplicate(pContext->pPendingCreateTableGids, stTriggerPendingCreateTableCompareGid, NULL);
-        }
         SSTriggerPendingCreateTableEntry *pFirst =
-            (SSTriggerPendingCreateTableEntry *)taosArrayGet(pContext->pPendingCreateTableGids, 0);
+            taosArrayGet(pContext->pPendingCreateTableGids, pContext->pendingCreateTableIndex);
         QUERY_CHECK_NULL(pFirst, code, lino, _end, TSDB_CODE_INTERNAL_ERROR);
         code = stRealtimeContextSendPullReqForGid(pContext, pFirst->pProgress, pFirst->gid);
         QUERY_CHECK_CODE(code, lino, _end);
@@ -30424,46 +30607,58 @@ static int32_t stRealtimeContextProcPullRsp(SSTriggerRealtimeContext *pContext, 
         break;
       }
       if (pContext->status == STRIGGER_CONTEXT_DETERMINE_BOUND && pContext->pPendingCreateTableGids != NULL) {
-        // pending create-table: LAST_TS needed tag, we pulled groupInfo for one gid; create table then continue or
-        // finish
-        SStreamGroupInfo groupInfo = {0};
-        if (pRsp->contLen > 0) {
-          code = tDeserializeSStreamGroupInfo(pRsp->pCont, pRsp->contLen, &groupInfo);
-          QUERY_CHECK_CODE(code, lino, _end);
+        SSTriggerPendingCreateTableEntry *pFirst =
+            taosArrayGet(pContext->pPendingCreateTableGids, pContext->pendingCreateTableIndex);
+        QUERY_CHECK_CONDITION(pFirst != NULL && pFirst->gid == pRequest->gid, code, lino, _end, TSDB_CODE_INVALID_MSG);
+        bool missingVirtualValues = pTask->isVirtualTable && pRsp->code == TSDB_CODE_STREAM_NO_CONTEXT;
+        bool needsGroupValues = stTriggerTaskPrecreateNeedsGroupValues(pTask);
+        if (missingVirtualValues && needsGroupValues && pFirst->hasFallbackReader) {
+          if (pContext->pPendingCreateFallbackVgIds == NULL) {
+            code = stRealtimeContextCollectCreateTableFallbacks(pContext, pFirst);
+            QUERY_CHECK_CODE(code, lino, _end);
+          }
+          if (taosArrayGetSize(pContext->pPendingCreateFallbackVgIds) > 0) {
+            const int32_t *pVgId = taosArrayPop(pContext->pPendingCreateFallbackVgIds);
+            SSTriggerWalProgress *pNextReader = tSimpleHashGet(pContext->pReaderWalProgress, pVgId, sizeof(*pVgId));
+            QUERY_CHECK_NULL(pNextReader, code, lino, _end, TSDB_CODE_INTERNAL_ERROR);
+            pFirst->pProgress = pNextReader;
+            code = stRealtimeContextSendPullReqForGid(pContext, pNextReader, pFirst->gid);
+            QUERY_CHECK_CODE(code, lino, _end);
+            break;
+          }
         }
-        code =
-            tSimpleHashPut(pContext->pGroupColVals, &pRequest->gid, sizeof(int64_t), &groupInfo.gInfo, POINTER_BYTES);
-        if (code != TSDB_CODE_SUCCESS) {
-          taosArrayDestroyEx(groupInfo.gInfo, tDestroySStreamGroupValue);
-          QUERY_CHECK_CODE(code, lino, _end);
-        }
-        code = stTriggerTaskSendCreateTableReq(pTask, pContext, pContext->sessionId, pRequest->gid);
-        if (code == TSDB_CODE_NEED_RETRY) {
-          SSTriggerPendingCreateTableEntry *pFirst =
-              (SSTriggerPendingCreateTableEntry *)taosArrayGet(pContext->pPendingCreateTableGids, 0);
-          int32_t total = (int32_t)taosArrayGetSize(pContext->pPendingCreateTableGids);
-          ST_TASK_DLOG("create-table failed no slot, stream:%s attempt#%d(retry#%d) total_waiting:%d keep in queue",
-                       pTask->streamName != NULL ? pTask->streamName : "", pFirst != NULL ? pFirst->attemptCount : 1,
-                       pFirst != NULL ? (pFirst->attemptCount - 1) : 0, total);
-          if (pFirst != NULL) pFirst->attemptCount++;
-          code = TSDB_CODE_SUCCESS;  // not a failure, will retry when calc response frees a slot
-          goto _end;
+        if (missingVirtualValues && BIT_FLAG_TEST_MASK(pTask->addOptions, STREAM_OPTION_PRECREATE_OUTPUT_ANALYZED)) {
+          if (needsGroupValues) {
+            ST_TASK_WLOG("defer nodelay create-table for virtual group:%" PRId64 " on vnode:%d: missing group values",
+                         pRequest->gid, pProgress->pTaskAddr->nodeId);
+            code = stRealtimeContextContinueCreateTableQueue(pContext);
+          } else {
+            // The output can be created without recording a missing value in the calculation cache.
+            code = stRealtimeContextSubmitPendingCreateTable(pContext, pFirst);
+          }
+        } else {
+          SStreamGroupInfo groupInfo = {0};
+          if (pRsp->contLen > 0) {
+            code = tDeserializeSStreamGroupInfo(pRsp->pCont, pRsp->contLen, &groupInfo);
+            if (code != TSDB_CODE_SUCCESS) {
+              taosArrayDestroyEx(groupInfo.gInfo, tDestroySStreamGroupValue);
+              QUERY_CHECK_CODE(code, lino, _end);
+            }
+          }
+          if (pFirst->transientGroupColVals) {
+            pContext->pPendingCreateGroupColVals = groupInfo.gInfo;
+          } else {
+            code =
+                tSimpleHashPut(pContext->pGroupColVals, &pRequest->gid, sizeof(int64_t), &groupInfo.gInfo, POINTER_BYTES);
+            if (code != TSDB_CODE_SUCCESS) {
+              taosArrayDestroyEx(groupInfo.gInfo, tDestroySStreamGroupValue);
+              QUERY_CHECK_CODE(code, lino, _end);
+            }
+          }
+          code = stRealtimeContextSubmitPendingCreateTable(pContext, pFirst);
         }
         QUERY_CHECK_CODE(code, lino, _end);
-        (void)taosArrayRemove(pContext->pPendingCreateTableGids, 0);
-        if (taosArrayGetSize(pContext->pPendingCreateTableGids) > 0) {
-          SSTriggerPendingCreateTableEntry *pNext =
-              (SSTriggerPendingCreateTableEntry *)taosArrayGet(pContext->pPendingCreateTableGids, 0);
-          QUERY_CHECK_NULL(pNext, code, lino, _end, TSDB_CODE_INTERNAL_ERROR);
-          code = stRealtimeContextSendPullReqForGid(pContext, pNext->pProgress, pNext->gid);
-          QUERY_CHECK_CODE(code, lino, _end);
-        } else {
-          taosArrayDestroy(pContext->pPendingCreateTableGids);
-          pContext->pPendingCreateTableGids = NULL;
-          ST_TASK_DLOG("finish pending nodelay create-table requests, resume realtime check, curReaderIdx:%d",
-                       pContext->curReaderIdx);
-          pContext->boundDetermined = true;
-          pContext->status = STRIGGER_CONTEXT_IDLE;
+        if (pContext->status == STRIGGER_CONTEXT_IDLE) {
           code = stTriggerTaskAttributeChildFailure(stRealtimeContextCheckForTurn(pContext, nowNs),
                                                     pFailureRecordedByChild);
           QUERY_CHECK_CODE(code, lino, _end);
@@ -31226,10 +31421,13 @@ static int32_t stRealtimeContextProcCalcRsp(SSTriggerRealtimeContext *pContext, 
 
   if (pRsp->code == TSDB_CODE_SUCCESS) {
     bool nestedRequest = pReq->pContextPolicy != NULL;
-    if (completed) {
+    // A virtual create-only request has a synthetic parameter and completes no data window.
+    bool virtualCreateOnly =
+        pTask->isVirtualTable && pReq->createTable && ((SSTriggerCalcSlot *)pReq)->createTableOnly;
+    if (completed && !virtualCreateOnly) {
       code = stRealtimeContextUpdateExtCompletedCutoff(pContext, pReq);
       QUERY_CHECK_CODE(code, lino, _end);
-    } else {
+    } else if (!completed) {
       ST_TASK_DLOG("ext: skip checkpoint-safe cutoff update for incomplete calc response, groupId:%" PRId64
                    ", runnerTaskId:%" PRIx64,
                    pReq->gid, pReq->runnerTaskId);
@@ -31255,19 +31453,19 @@ static int32_t stRealtimeContextProcCalcRsp(SSTriggerRealtimeContext *pContext, 
     // retry pending create-table when slot freed (previous attempt may have failed due to no slot)
     if (pContext->status == STRIGGER_CONTEXT_DETERMINE_BOUND && pContext->pPendingCreateTableGids != NULL &&
         taosArrayGetSize(pContext->pPendingCreateTableGids) > 0) {
-      // The pull response owns the queue head until it returns, even when this
-      // group's values are already cached. Advancing here can reuse its request
-      // for another gid or finish initialization before the response arrives.
-      if (stRealtimeContextHasPendingWalPulls(pContext)) {
-        goto _end;
-      }
       SSTriggerPendingCreateTableEntry *pFirst =
-          (SSTriggerPendingCreateTableEntry *)taosArrayGet(pContext->pPendingCreateTableGids, 0);
+          taosArrayGet(pContext->pPendingCreateTableGids, pContext->pendingCreateTableIndex);
       if (pFirst != NULL) {
+        // Virtual precreation starts after the LAST_TS barrier and pulls values for one group at a time.
+        bool pullPending = pTask->isVirtualTable
+                               ? pFirst->pProgress->groupColValuePullInFlight &&
+                                     pFirst->pProgress->groupColValuePullGid == pFirst->gid
+                               : stRealtimeContextHasPendingWalPulls(pContext);
+        if (pullPending || pFirst->retryAt != 0) goto _end;
         // Slot-freed retry path: STRIGGER_PULL_GROUP_COL_VALUE may not have run for this gid, so pGroupColVals
         // can lack an entry; stTriggerTaskSendCreateTableReq only fills from hash  -  pull first if missing.
-        bool needTagForCreate = stTriggerTaskNeedGroupColVals(pTask, true);
-        if (needTagForCreate && pContext->pGroupColVals != NULL) {
+        bool needTagForCreate = stTriggerTaskPrecreateNeedsGroupValues(pTask);
+        if (needTagForCreate && !pFirst->transientGroupColVals && pContext->pGroupColVals != NULL) {
           void *hx = tSimpleHashGet(pContext->pGroupColVals, &pFirst->gid, sizeof(int64_t));
           if (hx == NULL) {
             code = stRealtimeContextSendPullReqForGid(pContext, pFirst->pProgress, pFirst->gid);
@@ -31275,37 +31473,13 @@ static int32_t stRealtimeContextProcCalcRsp(SSTriggerRealtimeContext *pContext, 
             goto _end;
           }
         }
-        code = stTriggerTaskSendCreateTableReq(pTask, pContext, pContext->sessionId, pFirst->gid);
-        if (code == TSDB_CODE_SUCCESS) {
-          (void)taosArrayRemove(pContext->pPendingCreateTableGids, 0);
-          if (taosArrayGetSize(pContext->pPendingCreateTableGids) > 0) {
-            SSTriggerPendingCreateTableEntry *pNext =
-                (SSTriggerPendingCreateTableEntry *)taosArrayGet(pContext->pPendingCreateTableGids, 0);
-            QUERY_CHECK_NULL(pNext, code, lino, _end, TSDB_CODE_INTERNAL_ERROR);
-            code = stRealtimeContextSendPullReqForGid(pContext, pNext->pProgress, pNext->gid);
-            QUERY_CHECK_CODE(code, lino, _end);
-          } else {
-            taosArrayDestroy(pContext->pPendingCreateTableGids);
-            pContext->pPendingCreateTableGids = NULL;
-            pContext->boundDetermined = true;
-            pContext->status = STRIGGER_CONTEXT_IDLE;
-            code = stTriggerTaskAttributeChildFailure(stRealtimeContextCheck(pContext), &failureRecordedByChild);
-            QUERY_CHECK_CODE(code, lino, _end);
-          }
-          goto _end;
-        }
-        if (code != TSDB_CODE_NEED_RETRY) {
+        code = stRealtimeContextSubmitPendingCreateTable(pContext, pFirst);
+        QUERY_CHECK_CODE(code, lino, _end);
+        if (pContext->status == STRIGGER_CONTEXT_IDLE) {
+          code = stTriggerTaskAttributeChildFailure(stRealtimeContextCheck(pContext), &failureRecordedByChild);
           QUERY_CHECK_CODE(code, lino, _end);
         }
-        {
-          int32_t total = (int32_t)taosArrayGetSize(pContext->pPendingCreateTableGids);
-          ST_TASK_DLOG(
-              "create-table retry failed no slot, stream:%s attempt#%d(retry#%d) total_waiting:%d keep in queue",
-              pTask->streamName != NULL ? pTask->streamName : "", pFirst->attemptCount, pFirst->attemptCount - 1,
-              total);
-          pFirst->attemptCount++;
-        }
-        code = TSDB_CODE_SUCCESS;  // NEED_RETRY: keep in queue, retry when next slot frees
+        goto _end;
       }
     }
 
