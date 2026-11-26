@@ -6375,10 +6375,11 @@ static EFuncDataRequired topBotDynDataReq(void* pRes, SDataBlockInfo* pBlockInfo
   }
 
   if (pBlockInfo->pBlockAgg->colId == -1 || pBlockInfo->pBlockAgg->numOfNull == pBlockInfo->rows) {
-    // An all-null aggregate is synthesized for columns without persisted SMA
-    // (TSD_READER_BLOCK_SMA_MODE_LAST_NULL_ONLY) and cannot be used for
-    // pruning. TOP/BOTTOM always reject such stats; the block-SMA scheduler
-    // relies on this when MAX or LAST share the same SMA read.
+    // colId -1 marks a column without block SMA: the LAST_NULL_ONLY read leaves
+    // it unknown instead of synthesizing statistics. An all-null aggregate is
+    // either a real all-null block or the synthesized one for an SMA-enabled
+    // column absent from the block record. TOP/BOTTOM load the block for both
+    // rather than prune on statistics.
     return FUNC_DATA_REQUIRED_DATA_LOAD;
   }
 
