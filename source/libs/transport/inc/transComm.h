@@ -598,6 +598,8 @@ int64_t transAddExHandle(int32_t refMgt, void* p);
 void    transRemoveExHandle(int32_t refMgt, int64_t refId);
 void*   transAcquireExHandle(int32_t refMgt, int64_t refId);
 void    transReleaseExHandle(int32_t refMgt, int64_t refId);
+// Diagnostic hook: records client ref-set operations for a qid rid (TD_DIAG_QID_STATE=1).
+void    transDiagRefEvent(int32_t refMgt, int64_t refId, int32_t op);
 void    transDestroyExHandle(void* handle);
 
 int32_t transGetRefMgt();

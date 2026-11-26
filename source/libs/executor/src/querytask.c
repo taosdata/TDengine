@@ -392,14 +392,9 @@ void destroySubJobCtx(STaskSubJobCtx* pCtx) {
     return;
   }
 
-  if (pCtx->transporterId > 0) {
-    int32_t ret = asyncFreeConnById(pCtx->rpcHandle, pCtx->transporterId);
-    if (ret != 0) {
-      qDebug("%s failed to free subQ rpc handle, code:%s", pCtx->idStr, tstrerror(ret));
-    }
-    pCtx->transporterId = -1;
-  }
-
+  // Transport handles are owned by the individual fetch requests (see SScalarFetchParam), so the
+  // context no longer tracks or releases a shared handle here. Releasing whatever handle was the
+  // latest would risk dropping another in-flight fetch of the same sub-job.
   if (pCtx->subEndPoints != NULL) {
     size_t size = taosArrayGetSize(pCtx->subEndPoints);
     if (size > 0) {
