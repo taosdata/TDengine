@@ -1075,7 +1075,7 @@ int32_t doColsMerge(SOperatorInfo* pOperator, SSDataBlock** pResBlock) {
       pOperator->pDownstreamGetParams[i] = NULL;
       QUERY_CHECK_CODE(code, lino, _return);
       if (pBlock) {
-        printDataBlock(pBlock, __func__, "colsMerge", pTaskInfo->id.queryId);
+        printDataBlock(pBlock, __func__, "colsMerge", pTaskInfo->id.queryId, pTaskInfo->charsetCxt);
         if (mergeSameCols) {
           pSourceBlocks[i] = pBlock;
         } else {

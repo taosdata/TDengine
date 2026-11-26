@@ -2049,7 +2049,8 @@ static int32_t winFuncSetDefaultOrNull(SSDataBlock *pRes, const SExprInfo *pExpr
   if (pDefault->nType == TSDB_DATA_TYPE_NULL) {
     return colDataSetVal(pDstCol, dstRow, NULL, true);
   }
-  return setLagLeadDefaultValueToCol(pDstCol, dstRow, pDefaultParam);
+  return setLagLeadDefaultValueToCol(pDstCol, dstRow, pDefaultParam,
+                                       pExpr->pExpr->_function.pFunctNode->charsetCxt);
 }
 
 static int32_t winFuncSetBigint(SSDataBlock *pRes, const SExprInfo *pExpr, int32_t dstRow, int64_t value) {

@@ -130,6 +130,9 @@ IF(NOT TD_DARWIN)
     index
   )
 
+  if(TD_LINUX)
+    DEP_ext_cppstub(idxJsonUT)
+  endif()
   DEP_ext_gtest(idxJsonUT)
   target_link_libraries(idxJsonUT PRIVATE
     os

@@ -200,7 +200,7 @@ qTaskInfo_t qCreateQueueExecTaskInfo(void* msg, SReadHandle* pReaderHandle, int3
 
 int32_t qGetColumnsFromNodeList(void* data, bool isList, SArray** pColList);
 SSDataBlock* createDataBlockFromDescNode(void* pNode);
-void    printDataBlock(SSDataBlock* pBlock, const char* flag, const char* taskIdStr, int64_t qId);
+void    printDataBlock(SSDataBlock* pBlock, const char* flag, const char* taskIdStr, int64_t qId, void *charsetCxt);
 
 int32_t qGetTableList(int64_t suid, void* pVnode, void* node, SArray** tableList, void* pTaskInfo);
 int32_t qGetTableListByApi(int64_t suid, void* pVnode, void* node, SArray** tableList, SStorageAPI* pStorageAPI);

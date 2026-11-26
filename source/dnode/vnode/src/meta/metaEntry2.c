@@ -17,8 +17,8 @@ extern SDmNotifyHandle dmNotifyHdl;
 int32_t metaCloneEntry(const SMetaEntry *pEntry, SMetaEntry **ppEntry);
 void    metaCloneEntryFree(SMetaEntry **ppEntry);
 void    metaDestroyTagIdxKey(STagIdxKey *pTagIdxKey);
-int     metaSaveJsonVarToIdx(SMeta *pMeta, const SMetaEntry *pCtbEntry, const SSchema *pSchema);
-int     metaDelJsonVarFromIdx(SMeta *pMeta, const SMetaEntry *pCtbEntry, const SSchema *pSchema);
+int     metaSaveJsonVarToIdx(SMeta *pMeta, const SMetaEntry *pCtbEntry);
+int     metaDelJsonVarFromIdx(SMeta *pMeta, const SMetaEntry *pCtbEntry);
 int     tagIdxKeyCmpr(const void *pKey1, int kLen1, const void *pKey2, int kLen2);
 
 static void    metaTimeSeriesNotifyCheck(SMeta *pMeta);
@@ -1415,7 +1415,7 @@ static int32_t metaTagIdxInsert(SMeta *pMeta, const SMetaHandleParam *pParam) {
 
     const void *pTagData = pEntry->ctbEntry.pTags;
     int32_t     nTagData = ((const STag *)pEntry->ctbEntry.pTags)->len;
-    code = metaSaveJsonVarToIdx(pMeta, pEntry, pTagColumn);
+    code = metaSaveJsonVarToIdx(pMeta, pEntry);
     if (code) {
       metaErr(TD_VID(pMeta->pVnode), code);
     }
@@ -1462,13 +1462,13 @@ static int32_t metaTagIdxUpdate(SMeta *pMeta, const SMetaHandleParam *pParam) {
   }
 
   if (pTagSchema->nCols == 1 && pTagSchema->pSchema[0].type == TSDB_DATA_TYPE_JSON) {
-    code = metaDelJsonVarFromIdx(pMeta, pOldEntry, &pTagSchema->pSchema[0]);
+    code = metaDelJsonVarFromIdx(pMeta, pOldEntry);
     if (code) {
       metaErr(TD_VID(pMeta->pVnode), code);
       return code;
     }
 
-    code = metaSaveJsonVarToIdx(pMeta, pEntry, &pTagSchema->pSchema[0]);
+    code = metaSaveJsonVarToIdx(pMeta, pEntry);
     if (code) {
       metaErr(TD_VID(pMeta->pVnode), code);
       return code;
@@ -1536,7 +1536,7 @@ static int32_t metaTagIdxDelete(SMeta *pMeta, const SMetaHandleParam *pParam) {
 
   if (pTagSchema->nCols == 1 && pTagSchema->pSchema[0].type == TSDB_DATA_TYPE_JSON) {
     pTagColumn = &pTagSchema->pSchema[0];
-    code = metaDelJsonVarFromIdx(pMeta, pChild, pTagColumn);
+    code = metaDelJsonVarFromIdx(pMeta, pChild);
     if (code) {
       metaErr(TD_VID(pMeta->pVnode), code);
     }

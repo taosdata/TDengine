@@ -3603,7 +3603,7 @@ static int32_t doTimesliceMainFirstNext(SOperatorInfo* pOperator,
 
     printDataBlock(pBlock, "doTimesliceMainFirstNext",
                    GET_TASKID(pOperator->pTaskInfo),
-                   pOperator->pTaskInfo->id.queryId);
+                   pOperator->pTaskInfo->id.queryId, pOperator->pTaskInfo->charsetCxt);
     qDebug("%s TimeSlice MAIN_FIRST input phase=%d groupId=%" PRIu64
            " rows=%" PRId64,
            GET_TASKID(pOperator->pTaskInfo), pInfo->curPhase,
@@ -3701,7 +3701,7 @@ static int32_t doTimesliceNext(SOperatorInfo* pOperator, SSDataBlock** ppRes) {
       QUERY_CHECK_CODE(code, lino, _finished);
       printDataBlock(pBlock, "doTimesliceNext",
                     GET_TASKID(pOperator->pTaskInfo),
-                    pOperator->pTaskInfo->id.queryId);
+                    pOperator->pTaskInfo->id.queryId, pOperator->pTaskInfo->charsetCxt);
 
       pResBlock->info.scanFlag = pBlock->info.scanFlag;
       if (pState->groupId == 0 && pBlock->info.id.groupId != 0) {

@@ -162,12 +162,12 @@ __compar_fn_t gDataCompare[] = {
     compareFloatVal,       compareDoubleVal,       compareLenPrefixedStr,   comparestrPatternMatch,
     compareChkInString,    comparewcsPatternMatch, compareLenPrefixedWStr,  compareUint8Val,
     compareUint16Val,      compareUint32Val,       compareUint64Val,        setChkInBytes1,
-    setChkInBytes2,        setChkInBytes4,         setChkInBytes8,          comparestrRegexMatch,
-    comparestrRegexNMatch, setChkNotInBytes1,      setChkNotInBytes2,       setChkNotInBytes4,
+    setChkInBytes2,        setChkInBytes4,         setChkInBytes8,          NULL,
+    NULL, setChkNotInBytes1,      setChkNotInBytes2,       setChkNotInBytes4,
     setChkNotInBytes8,     compareChkNotInString,  comparestrPatternNMatch, comparewcsPatternNMatch,
-    comparewcsRegexMatch,  comparewcsRegexNMatch,  compareLenBinaryVal,     compareDecimal64,
+    NULL,  NULL,  compareLenBinaryVal,     compareDecimal64,
     compareDecimal128,     setChkInDecimalHash,    setChkNotInDecimalHash,  compareBlobVal,
-    compareBlobPatternMatch, compareBlobPatternNMatch, compareBlobRegexMatch, compareBlobRegexNMatch, compareChkInBlob,
+    compareBlobPatternMatch, compareBlobPatternNMatch, NULL, NULL, compareChkInBlob,
     compareChkNotInBlob,
 };
 
@@ -1470,6 +1470,9 @@ int32_t fltAddGroupUnitFromNode(void *pContext, SFilterInfo *info, SNode *tree, 
     FLT_ERR_RET(filterAddFieldFromNode(info, node->pRight, &right));
 
     FLT_ERR_RET(filterAddUnit(info, node->opType, &left, &right, &uidx));
+    if (nodesIsMatchRegularOp(node)) {
+      info->units[uidx].charsetCxt = node->charsetCxt;
+    }
     SFilterGroup fgroup = {0};
     FLT_ERR_RET(filterAddUnitToGroup(&fgroup, uidx));
 
@@ -1511,7 +1514,9 @@ int32_t filterAddUnitFromUnit(SFilterInfo *dst, SFilterInfo *src, SFilterUnit *u
     pright = NULL;
   }
 
-  return filterAddUnit(dst, FILTER_UNIT_OPTR(u), &left, pright, uidx);
+  FLT_ERR_RET(filterAddUnit(dst, FILTER_UNIT_OPTR(u), &left, pright, uidx));
+  dst->units[*uidx].charsetCxt = u->charsetCxt;
+  return TSDB_CODE_SUCCESS;
 }
 
 int32_t filterAddUnitRight(SFilterInfo *info, uint8_t optr, SFilterFieldId *right, uint32_t uidx) {
@@ -2456,23 +2461,6 @@ int32_t fltInitValFieldData(SFilterInfo *info) {
       taosMemoryFree(out.columnData);
     }
 
-    // match/nmatch for nchar type need convert from ucs4 to mbs
-    if (type == TSDB_DATA_TYPE_NCHAR && (unit->compare.optr == OP_TYPE_MATCH || unit->compare.optr == OP_TYPE_NMATCH)) {
-      int32_t inputLen = varDataLen(fi->data);
-      char   *newValData = taosMemoryCalloc(1, inputLen + VARSTR_HEADER_SIZE);
-      if (newValData == NULL) {
-        return terrno;
-      }
-      int32_t len = taosUcs4ToMbs((TdUcs4 *)varDataVal(fi->data), inputLen, varDataVal(newValData), NULL);
-      if (len < 0) {
-        taosMemoryFree(newValData);
-        qError("%s failed to convert NCHAR value to string, len:%d", __func__, inputLen);
-        return TSDB_CODE_SCALAR_CONVERT_NCHAR_ERROR;
-      }
-      varDataSetLen(newValData, len);
-      varDataCopy(fi->data, newValData);
-      taosMemoryFree(newValData);
-    }
   }
 
   return TSDB_CODE_SUCCESS;
@@ -3365,6 +3353,7 @@ int32_t filterGenerateComInfo(SFilterInfo *info) {
 
     info->cunits[i].dataSize = FILTER_UNIT_COL_SIZE(info, unit);
     info->cunits[i].dataType = FILTER_UNIT_DATA_TYPE(unit);
+    info->cunits[i].charsetCxt = unit->charsetCxt;
   }
 
   return TSDB_CODE_SUCCESS;
@@ -3439,7 +3428,7 @@ int32_t filterRmUnitByRange(SFilterInfo *info, SColumnDataAgg *pDataStatis, int3
     }
 
     if (cunit->optr == OP_TYPE_IS_NULL || cunit->optr == OP_TYPE_IS_NOT_NULL || cunit->optr == OP_TYPE_IN ||
-        cunit->optr == OP_TYPE_LIKE || cunit->optr == OP_TYPE_MATCH || cunit->optr == OP_TYPE_NOT_EQUAL) {
+        cunit->optr == OP_TYPE_LIKE || cunit->optr == OP_TYPE_MATCH || cunit->optr == OP_TYPE_NMATCH || cunit->optr == OP_TYPE_NOT_EQUAL) {
       continue;
     }
 
@@ -3579,10 +3568,10 @@ _return:
   return TSDB_CODE_SUCCESS;
 }
 
-bool filterExecuteBasedOnStatisImpl(void *pinfo, int32_t numOfRows, SColumnInfoData *pRes, SColumnDataAgg *statis,
-                                    int16_t numOfCols) {
+static int32_t filterExecuteBasedOnStatisImpl(void *pinfo, int32_t numOfRows, SColumnInfoData *pRes,
+                                             SColumnDataAgg *statis, int16_t numOfCols, bool *all) {
   SFilterInfo *info = (SFilterInfo *)pinfo;
-  bool         all = true;
+  *all = true;
   uint32_t    *unitIdx = NULL;
 
   int8_t *p = (int8_t *)pRes->pData;
@@ -3614,6 +3603,12 @@ bool filterExecuteBasedOnStatisImpl(void *pinfo, int32_t numOfRows, SColumnInfoD
             p[i] = (*gRangeCompare[cunit->rfunc])(colData, colData, cunit->valData, cunit->valData2,
                                                   gDataCompare[cunit->func]);
           } else {
+            if (cunit->optr == OP_TYPE_MATCH || cunit->optr == OP_TYPE_NMATCH) {
+              int32_t match = 1;
+              FLT_ERR_RET(taosCompareRegexCharset(colData, cunit->dataType, cunit->valData, cunit->dataType,
+                                                 cunit->charsetCxt, &match));
+              p[i] = cunit->optr == OP_TYPE_MATCH ? match == 0 : match != 0;
+            } else
             p[i] = filterDoCompare(gDataCompare[cunit->func], cunit->optr, colData, cunit->valData);
           }
 
@@ -3634,11 +3629,11 @@ bool filterExecuteBasedOnStatisImpl(void *pinfo, int32_t numOfRows, SColumnInfoD
     }
 
     if (p[i] == 0) {
-      all = false;
+      *all = false;
     }
   }
 
-  return all;
+  return TSDB_CODE_SUCCESS;
 }
 
 int32_t filterExecuteBasedOnStatis(SFilterInfo *info, int32_t numOfRows, SColumnInfoData *p, SColumnDataAgg *statis,
@@ -3664,7 +3659,7 @@ int32_t filterExecuteBasedOnStatis(SFilterInfo *info, int32_t numOfRows, SColumn
         FLT_ERR_JRET(TSDB_CODE_APP_ERROR);
       }
 
-      *all = filterExecuteBasedOnStatisImpl(info, numOfRows, p, statis, numOfCols);
+      FLT_ERR_JRET(filterExecuteBasedOnStatisImpl(info, numOfRows, p, statis, numOfCols, all));
       goto _return;
     }
   }
@@ -3811,26 +3806,12 @@ int32_t filterExecuteImplMisc(void *pinfo, int32_t numOfRows, SColumnInfoData *p
     }
 
     void *colData = colDataGetData((SColumnInfoData *)info->cunits[uidx].colData, i);
-    // match/nmatch for nchar type need convert from ucs4 to mbs
-    if (info->cunits[uidx].dataType == TSDB_DATA_TYPE_NCHAR &&
-        (info->cunits[uidx].optr == OP_TYPE_MATCH || info->cunits[uidx].optr == OP_TYPE_NMATCH)) {
-      int32_t inputLen = varDataLen(colData);
-      char *newColData = taosMemoryCalloc(1, inputLen + VARSTR_HEADER_SIZE);
-      if (newColData == NULL) {
-        FLT_ERR_RET(terrno);
-      }
-      int32_t len = taosUcs4ToMbs((TdUcs4 *)varDataVal(colData), inputLen, varDataVal(newColData), NULL);
-      if (len < 0) {
-        qError("%s failed to convert NCHAR column value to string for match/nmatch, len:%d", __func__,
-               (int32_t)varDataLen(colData));
-        taosMemoryFreeClear(newColData);
-        FLT_ERR_RET(TSDB_CODE_SCALAR_CONVERT_NCHAR_ERROR);
-      } else {
-        varDataSetLen(newColData, len);
-        p[i] = filterDoCompare(gDataCompare[info->cunits[uidx].func], info->cunits[uidx].optr, newColData,
-                               info->cunits[uidx].valData);
-      }
-      taosMemoryFreeClear(newColData);
+    SFilterComUnit *unit = &info->cunits[uidx];
+    if (unit->optr == OP_TYPE_MATCH || unit->optr == OP_TYPE_NMATCH) {
+      int32_t match = 1;
+      FLT_ERR_RET(taosCompareRegexCharset(colData, unit->dataType, unit->valData, unit->dataType,
+                                         unit->charsetCxt, &match));
+      p[i] = unit->optr == OP_TYPE_MATCH ? match == 0 : match != 0;
     } else {
       p[i] = filterDoCompare(gDataCompare[info->cunits[uidx].func], info->cunits[uidx].optr, colData,
                              info->cunits[uidx].valData);
@@ -3896,25 +3877,11 @@ int32_t filterExecuteImpl(void *pinfo, int32_t numOfRows, SColumnInfoData *pRes,
             p[i] = (*gRangeCompare[cunit->rfunc])(colData, colData, cunit->valData, cunit->valData2,
                                                   gDataCompare[cunit->func]);
           } else {
-            if (cunit->dataType == TSDB_DATA_TYPE_NCHAR &&
-                (cunit->optr == OP_TYPE_MATCH || cunit->optr == OP_TYPE_NMATCH)) {
-              int32_t inputLen = varDataLen(colData);
-              char *newColData = taosMemoryCalloc(1, inputLen + VARSTR_HEADER_SIZE);
-              if (newColData == NULL) {
-                FLT_ERR_RET(terrno);
-              }
-              int32_t len = taosUcs4ToMbs((TdUcs4 *)varDataVal(colData), inputLen,
-                                          varDataVal(newColData), NULL);
-              if (len < 0) {
-                qError("%s failed to convert NCHAR column value to string for match/nmatch, len:%d", __func__,
-                       (int32_t)varDataLen(colData));
-                taosMemoryFreeClear(newColData);
-                FLT_ERR_RET(TSDB_CODE_SCALAR_CONVERT_NCHAR_ERROR);
-              } else {
-                varDataSetLen(newColData, len);
-                p[i] = filterDoCompare(gDataCompare[cunit->func], cunit->optr, newColData, cunit->valData);
-              }
-              taosMemoryFreeClear(newColData);
+            if (cunit->optr == OP_TYPE_MATCH || cunit->optr == OP_TYPE_NMATCH) {
+              int32_t match = 1;
+              FLT_ERR_RET(taosCompareRegexCharset(colData, cunit->dataType, cunit->valData, cunit->dataType,
+                                                 cunit->charsetCxt, &match));
+              p[i] = cunit->optr == OP_TYPE_MATCH ? match == 0 : match != 0;
             } else {
               p[i] = filterDoCompare(gDataCompare[cunit->func], cunit->optr, colData, cunit->valData);
             }

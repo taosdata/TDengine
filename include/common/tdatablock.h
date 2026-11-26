@@ -472,7 +472,7 @@ int32_t blockDataValidateEncoding(const char* pData, size_t dataLen);
 int32_t blockDecodeBounded(SSDataBlock* pBlock, const char* pData, size_t dataLen, const char** pEndPos);
 
 // for debug
-int32_t dumpBlockData(SSDataBlock* pDataBlock, const char* flag, char** dumpBuf, const char* taskIdStr, int64_t qId);
+int32_t dumpBlockData(SSDataBlock* pDataBlock, const char* flag, char** dumpBuf, const char* taskIdStr, int64_t qId, void *charsetCxt);
 
 int32_t buildSubmitReqFromDataBlock(SSubmitReq2** pReq, const SSDataBlock* pDataBlocks, const STSchema* pTSchema,
                                     int64_t uid, int32_t vgId, tb_uid_t suid);

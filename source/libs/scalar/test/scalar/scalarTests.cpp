@@ -7763,3 +7763,64 @@ TEST(ScalarStreamPlaceholderTest, ordinaryRangePreservesNullPredecessor) {
   }
   tDestroyStRtFuncInfo(&runtime);
 }
+
+TEST(ScalarFunctionTest, defaultSetSeparatorUsesConnectionCharset) {
+  void *utf8 = taosConvInit("UTF-8");
+  void *utf16 = taosConvInit("UTF-16LE");
+  ASSERT_NE(nullptr, utf8);
+  ASSERT_NE(nullptr, utf16);
+  // A one-byte comma cannot be decoded by the process UTF-16LE converter.
+  CharsetCxtGuard guard(utf16);
+  const TdUcs4 pattern[] = {'b'};
+  const TdUcs4 values[] = {'a', ',', 'b'};
+  SScalarParam input[2] = {};
+  scltMakeRawStringParam(&input[0], TSDB_DATA_TYPE_NCHAR, pattern, sizeof(pattern));
+  scltMakeRawStringParam(&input[1], TSDB_DATA_TYPE_NCHAR, values, sizeof(values));
+  input[0].charsetCxt = utf8;
+  SColumnInfoData column = {};
+  column.info = createColumnInfo(0, TSDB_DATA_TYPE_BIGINT, sizeof(int64_t));
+  ASSERT_EQ(0, colInfoDataEnsureCapacity(&column, 1, true));
+  SScalarParam output = {};
+  output.columnData = &column;
+  EXPECT_EQ(0, findInSetFunction(input, 2, &output));
+  EXPECT_EQ(2, *(int64_t *)colDataGetData(&column, 0));
+  for (auto &param : input) {
+    colDataDestroy(param.columnData);
+    taosMemoryFree(param.columnData);
+  }
+  colDataDestroy(&column);
+}
+
+TEST(ScalarFunctionTest, stringBoundariesUseConnectionCharset) {
+  void *gbk = taosConvInit("GBK");
+  void *utf8 = taosConvInit("UTF-8");
+  ASSERT_NE(nullptr, gbk);
+  ASSERT_NE(nullptr, utf8);
+  CharsetCxtGuard guard(utf8);
+  const char text[] = {(char)0x81, '@', '@', 'x'};
+  SScalarParam input[2] = {};
+  scltMakeRawStringParam(&input[0], TSDB_DATA_TYPE_VARCHAR, "@", 1);
+  scltMakeRawStringParam(&input[1], TSDB_DATA_TYPE_VARCHAR, text, sizeof(text));
+  input[0].charsetCxt = gbk;
+  SColumnInfoData column = {};
+  column.info = createColumnInfo(0, TSDB_DATA_TYPE_BIGINT, sizeof(int64_t));
+  ASSERT_EQ(0, colInfoDataEnsureCapacity(&column, 1, true));
+  SScalarParam output = {};
+  output.columnData = &column;
+  EXPECT_EQ(0, positionFunction(input, 2, &output));
+  EXPECT_EQ(2, *(int64_t *)colDataGetData(&column, 0));
+  input[1].charsetCxt = gbk;
+  EXPECT_EQ(0, charLengthFunction(&input[1], 1, &output));
+  EXPECT_EQ(3, *(int64_t *)colDataGetData(&column, 0));
+  // The same bytes are invalid UTF-8; never silently fall back to byte mode.
+  input[1].charsetCxt = utf8;
+  EXPECT_NE(0, charLengthFunction(&input[1], 1, &output));
+  input[1].charsetCxt = gbk;
+  EXPECT_EQ(0, charLengthFunction(&input[1], 1, &output));
+  EXPECT_EQ(3, *(int64_t *)colDataGetData(&column, 0));
+  for (auto &param : input) {
+    colDataDestroy(param.columnData);
+    taosMemoryFree(param.columnData);
+  }
+  colDataDestroy(&column);
+}

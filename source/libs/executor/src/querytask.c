@@ -33,6 +33,7 @@
 #include "operator.h"
 #include "query.h"
 #include "querytask.h"
+#include "tconv.h"
 #include "storageapi.h"
 #include "thash.h"
 #include "ttypes.h"
@@ -190,6 +191,7 @@ int32_t createExecTaskInfo(SSubplan* pPlan, SExecTaskInfo** pTaskInfo, SReadHand
   }
 
   (*pTaskInfo)->pSubplan = pPlan;
+  (*pTaskInfo)->charsetCxt = pPlan->charsetName[0] ? taosConvInit(pPlan->charsetName) : NULL;
 
   if (NULL != sql) {
     (*pTaskInfo)->sql = taosStrdup(sql);

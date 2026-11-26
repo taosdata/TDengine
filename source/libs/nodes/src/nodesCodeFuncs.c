@@ -7377,6 +7377,9 @@ static int32_t subplanToJson(const void* pObj, SJson* pJson) {
       code = tjsonAddTArray(pJson, "SubqueryDependencies", subqueryDependencyToJson, pNode->pSubqueryDeps);
     }
   }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tjsonAddStringToObject(pJson, "CharsetName", pNode->charsetName);
+  }
   return code;
 }
 
@@ -7472,6 +7475,9 @@ static int32_t jsonToVtablesHash(const SJson* pJson, void* pObj) {
 }
 
 static int32_t jsonToSubplan(const SJson* pJson, void* pObj) {
+  if (tjsonGetObjectItem(pJson, "CharsetName") != NULL) {
+    TAOS_CHECK_RETURN(tjsonGetStringValue1(pJson, "CharsetName", ((SSubplan*)pObj)->charsetName, sizeof(((SSubplan*)pObj)->charsetName)));
+  }
   SSubplan* pNode = (SSubplan*)pObj;
 
   int32_t code = tjsonToObject(pJson, jkSubplanId, jsonToSubplanId, &pNode->id);

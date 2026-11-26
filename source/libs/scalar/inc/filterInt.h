@@ -204,6 +204,7 @@ typedef struct SFilterUnit {
   SFilterFieldId left;
   SFilterFieldId right;
   SFilterFieldId right2;
+  void          *charsetCxt;  // Borrowed process-cached context; never serialized or freed here. NULL uses the process default.
 } SFilterUnit;
 
 typedef struct SFilterComUnit {
@@ -216,6 +217,7 @@ typedef struct SFilterComUnit {
   uint8_t  optr;
   int8_t   func;
   int8_t   rfunc;
+  void    *charsetCxt;  // Borrowed process-cached context; never serialized or freed here. NULL uses the process default.
 } SFilterComUnit;
 
 typedef struct SFilterPCtx {
@@ -533,6 +535,7 @@ struct SFilterInfo {
 #define FILTER_EMPTY_RES(i) FILTER_GET_FLAG((i)->status, FI_STATUS_EMPTY)
 
 extern bool          filterDoCompare(__compar_fn_t func, uint8_t optr, void *left, void *right);
+// See filter.h for the MATCH/NMATCH success-with-NULL contract.
 extern int32_t       filterGetCompFunc(__compar_fn_t *func, int32_t type, int32_t optr);
 extern __compar_fn_t filterGetCompFuncEx(int32_t lType, int32_t rType, int32_t optr);
 

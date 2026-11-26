@@ -1539,6 +1539,7 @@ typedef struct SSubplan {
   bool           subqueryDepsKnown;
   SArray*        pSubqueryDeps;  // Direct reads of this task, indexed in the SQL-wide child job list.
   int16_t        userAppId;  // encoded from client user_app, propagated for server-side use
+  char charsetName[TD_CHARSET_LEN];
 } SSubplan;
 
 typedef enum EExplainMode {

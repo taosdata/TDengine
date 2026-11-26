@@ -16,6 +16,8 @@
  */
 
 #include "meta.h"
+#include "tcompare.h"
+#include "tconv.h"
 #include "osString.h"
 #include "querynodes.h"
 #include "scalar.h"
@@ -4351,12 +4353,10 @@ static int32_t regexReplaceBuildSubstitution(const char *pReplace, const regmatc
   return TSDB_CODE_SUCCESS;
 }
 
-static int32_t regexReplace(const char *pStr, const char *pPattern, const char *pReplace, char **ppResult) {
-  regex_t *regex = NULL;
-  int32_t  code = threadGetRegComp(&regex, pPattern);
-  if (code != 0) {
-    return code;
-  }
+static int32_t regexReplace(const char *pStr, const char *pPattern, const char *pReplace,
+                            char **ppResult, void *charsetCxt) {
+  int32_t code = taosCheckRegexCharset(pPattern, charsetCxt);
+  if (code != 0) return code;
 
   size_t strLen = strlen(pStr);
   size_t resultCap = strLen + 1;
@@ -4372,8 +4372,8 @@ static int32_t regexReplace(const char *pStr, const char *pPattern, const char *
   int32_t       execFlags = 0;
 
   while (*cursor != '\0') {
-    int ret = regexec(regex, cursor, nmatch, pmatch, execFlags);
-    if (ret == REG_NOMATCH) {
+    int ret = taosExecRegexCapturesCharset(cursor, pPattern, nmatch, pmatch, execFlags, charsetCxt);
+    if (ret == 1) {
       break;
     }
     if (ret != 0) {
@@ -4400,17 +4400,20 @@ static int32_t regexReplace(const char *pStr, const char *pPattern, const char *
     }
 
     if (pmatch[0].rm_so == pmatch[0].rm_eo) {
-      if (resultLen + 1 >= resultCap) {
-        resultCap = resultCap * 2 + 1;
+      const char *next = cursor + pmatch[0].rm_eo;
+      if (*next == 0) { cursor = next; break; }
+      int32_t bytes = 0;
+      code = taosMbsCharOffset(next, strlen(next), 1, charsetCxt, &bytes);
+      if (code != 0) { taosMemoryFree(result); return code; }
+      if (resultLen + bytes + 1 > resultCap) {
+        resultCap = (resultLen + bytes) * 2 + 1;
         char *tmp = taosMemoryRealloc(result, resultCap);
-        if (NULL == tmp) {
-          taosMemoryFree(result);
-          return TSDB_CODE_OUT_OF_MEMORY;
-        }
+        if (tmp == NULL) { taosMemoryFree(result); return TSDB_CODE_OUT_OF_MEMORY; }
         result = tmp;
       }
-      result[resultLen++] = cursor[pmatch[0].rm_eo];
-      cursor += pmatch[0].rm_eo + 1;
+      memcpy(result + resultLen, next, bytes);
+      resultLen += bytes;
+      cursor = next + bytes;
     } else {
       cursor += pmatch[0].rm_eo;
     }
@@ -4439,6 +4442,11 @@ static int32_t regexReplace(const char *pStr, const char *pPattern, const char *
 
 
 static int32_t computeNewTagValViaRegexReplace(const STag* pOldTag, SUpdatedTagVal* pNewVal) {
+  if (pNewVal->charset == NULL || pNewVal->charset[0] == 0) return TSDB_CODE_CHARSET_CONVERT_ERROR;
+  void *charsetCxt = taosConvInit(pNewVal->charset);
+  if (charsetCxt == NULL) return TSDB_CODE_CHARSET_CONVERT_ERROR;
+  int32_t localeCode = taosCheckRegexLocale(charsetCxt);
+  if (localeCode != 0) return localeCode;
   STagVal oldTagVal = {.cid = pNewVal->colId};
   if (!tTagGet(pOldTag, &oldTagVal)) {
     pNewVal->isNull = 1;
@@ -4457,8 +4465,8 @@ static int32_t computeNewTagValViaRegexReplace(const STag* pOldTag, SUpdatedTagV
     if (oldStr == NULL) {
       return TSDB_CODE_OUT_OF_MEMORY;
     }
-    // POSIX regex runs in the server locale, so both legs use the server charset.
-    int32_t ret = taosUcs4ToMbs((TdUcs4*)oldTagVal.pData, oldTagVal.nData, oldStr, tsCharsetCxt);
+    // Decode and encode tag text using the originating connection charset.
+    int32_t ret = taosUcs4ToMbs((TdUcs4*)oldTagVal.pData, oldTagVal.nData, oldStr, charsetCxt);
     if (ret < 0) {
       taosMemoryFree(oldStr);
       return ret;
@@ -4475,7 +4483,7 @@ static int32_t computeNewTagValViaRegexReplace(const STag* pOldTag, SUpdatedTagV
   }
 
   char* newStr = NULL;
-  int32_t code = regexReplace(oldStr, pNewVal->regexp, pNewVal->replacement, &newStr);
+  int32_t code = regexReplace(oldStr, pNewVal->regexp, pNewVal->replacement, &newStr, charsetCxt);
   taosMemoryFree(oldStr);
   if (code != TSDB_CODE_SUCCESS) {
     return code;
@@ -4492,7 +4500,7 @@ static int32_t computeNewTagValViaRegexReplace(const STag* pOldTag, SUpdatedTagV
     }
 
     int32_t ucs4Len = 0;
-    bool    cvtOk = taosMbsToUcs4(newStr, newStrLen, (TdUcs4*)ucs4Buf, ucs4BufLen, &ucs4Len, tsCharsetCxt);
+    bool    cvtOk = taosMbsToUcs4(newStr, newStrLen, (TdUcs4*)ucs4Buf, ucs4BufLen, &ucs4Len, charsetCxt);
     taosMemoryFree(newStr);
     if (!cvtOk) {
       taosMemoryFree(ucs4Buf);

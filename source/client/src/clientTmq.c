@@ -1817,6 +1817,7 @@ static int32_t processMqRsp(tmq_t* tmq, SMqRspWrapper* pRspWrapper, SMqRspObj** 
         goto END;
       }
       (*pRspObj)->resInfo.timezone = (void *)tmq->pTscObj->optionInfo.timezone;
+    (*pRspObj)->resInfo.charsetCxt = taosResolveCharsetCxt(tmq->pTscObj->optionInfo.charsetCxt);
       (*pRspObj)->resType = pRspWrapper->tmqRspType == TMQ_MSG_TYPE__POLL_RAW_DATA_RSP ? RES_TYPE__TMQ_RAWDATA :
                          (pRspWrapper->tmqRspType == TMQ_MSG_TYPE__POLL_DATA_RSP ? RES_TYPE__TMQ : RES_TYPE__TMQ_METADATA);
       int64_t numOfRows = 0;
@@ -1858,6 +1859,7 @@ static int32_t processMqRsp(tmq_t* tmq, SMqRspWrapper* pRspWrapper, SMqRspObj** 
       goto END;
     }
     (*pRspObj)->resInfo.timezone = (void *)tmq->pTscObj->optionInfo.timezone;
+    (*pRspObj)->resInfo.charsetCxt = taosResolveCharsetCxt(tmq->pTscObj->optionInfo.charsetCxt);
     (*pRspObj)->resType = pRspWrapper->tmqRspType == TMQ_MSG_TYPE__POLL_META_RSP ? RES_TYPE__TMQ_META : RES_TYPE__TMQ_BATCH_META;
   }
 
@@ -1925,6 +1927,7 @@ static void printResult(TAOS_RES* res) {
   tstrncpy(pRspObj->topic, msg->topic, TSDB_TOPIC_FNAME_LEN);
   tstrncpy(pRspObj->db, msg->db, TSDB_DB_FNAME_LEN);
   pRspObj->vgId = msg->vgId;
+  pRspObj->resInfo.charsetCxt = msg->resInfo.charsetCxt;
 
   const char* topicName = tmq_get_topic_name(pRspObj);
   const char* dbName = tmq_get_db_name(pRspObj);

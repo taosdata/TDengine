@@ -447,7 +447,7 @@ end:
   return code;
 }
 
-static int32_t buildChildElement(cJSON* json, SVCreateTbReq* pCreateReq) {
+static int32_t buildChildElement(cJSON* json, SVCreateTbReq* pCreateReq, void *charsetCxt) {
   if (json == NULL || pCreateReq == NULL) {
     uError("invalid parameter in %s", __func__);
     return TSDB_CODE_INVALID_PARA;
@@ -540,7 +540,7 @@ static int32_t buildChildElement(cJSON* json, SVCreateTbReq* pCreateReq) {
       }
       buf = taosMemoryCalloc(bufSize, 1);
       RAW_NULL_CHECK(buf);
-      code = dataConverToStr(buf, bufSize, pTagVal->type, pTagVal->pData, pTagVal->nData, NULL);
+      code = dataConverToStr(buf, bufSize, pTagVal->type, pTagVal->pData, pTagVal->nData, NULL, charsetCxt);
       if (code != TSDB_CODE_SUCCESS) {
         uError("convert tag value to string failed");
         goto end;
@@ -563,7 +563,7 @@ end:
   return code;
 }
 
-static int32_t buildCreateCTableJson(SVCreateTbReq* pCreateReq, int32_t nReqs, cJSON** pJson) {
+static int32_t buildCreateCTableJson(SVCreateTbReq* pCreateReq, int32_t nReqs, cJSON** pJson, void *charsetCxt) {
   if (pJson == NULL || pCreateReq == NULL) {
     uError("invalid parameter in %s", __func__);
     return TSDB_CODE_INVALID_PARA;
@@ -577,14 +577,14 @@ static int32_t buildCreateCTableJson(SVCreateTbReq* pCreateReq, int32_t nReqs, c
   ADD_TO_JSON_STRING(json, "type", "create");
   ADD_TO_JSON_STRING(json, "tableType", "child");
 
-  RAW_RETURN_CHECK(buildChildElement(json, pCreateReq));
+  RAW_RETURN_CHECK(buildChildElement(json, pCreateReq, charsetCxt));
   cJSON* createList = cJSON_AddArrayToObject(json, "createList");
   RAW_NULL_CHECK(createList);
 
   for (int i = 0; nReqs > 1 && i < nReqs; i++) {
     cJSON* create = tmqAddObjectToArray(createList);
     RAW_NULL_CHECK(create);
-    RAW_RETURN_CHECK(buildChildElement(create, pCreateReq + i));
+    RAW_RETURN_CHECK(buildChildElement(create, pCreateReq + i, charsetCxt));
   }
 
 end:
@@ -593,7 +593,7 @@ end:
   return code;
 }
 
-static int32_t processCreateTable(SMqMetaRsp* metaRsp, cJSON** pJson) {
+static int32_t processCreateTable(SMqMetaRsp* metaRsp, cJSON** pJson, void *charsetCxt) {
   if (pJson == NULL || metaRsp == NULL) {
     uError("invalid parameter in %s", __func__);
     return TSDB_CODE_INVALID_PARA;
@@ -619,7 +619,7 @@ static int32_t processCreateTable(SMqMetaRsp* metaRsp, cJSON** pJson) {
   if (req.nReqs > 0) {
     pCreateReq = req.pReqs;
     if (pCreateReq->type == TSDB_CHILD_TABLE || pCreateReq->type == TSDB_VIRTUAL_CHILD_TABLE) {
-      RAW_RETURN_CHECK(buildCreateCTableJson(req.pReqs, req.nReqs, pJson));
+      RAW_RETURN_CHECK(buildCreateCTableJson(req.pReqs, req.nReqs, pJson, charsetCxt));
     } else if (pCreateReq->type == TSDB_NORMAL_TABLE || pCreateReq->type == TSDB_VIRTUAL_NORMAL_TABLE) {
       RAW_RETURN_CHECK(buildCreateTableJson(&pCreateReq->ntb.schemaRow, NULL, pCreateReq->pExtSchemas, pCreateReq->name,
                                             pCreateReq->uid, pCreateReq->type, pCreateReq->type == TSDB_NORMAL_TABLE ? false : true, 
@@ -634,7 +634,7 @@ end:
   return code;
 }
 
-static int32_t processAutoCreateTable(SMqDataRsp* rsp, char** string) {
+static int32_t processAutoCreateTable(SMqDataRsp* rsp, char** string, void *charsetCxt) {
   int32_t lino = 0;
   int32_t code = TSDB_CODE_SUCCESS;
   RAW_LOG_START
@@ -669,7 +669,7 @@ static int32_t processAutoCreateTable(SMqDataRsp* rsp, char** string) {
     RAW_RETURN_CHECK(buildCreateTableJson(&pCreateReq->ntb.schemaRow, NULL, pCreateReq->pExtSchemas, pCreateReq->name,
                                           pCreateReq->uid, TSDB_NORMAL_TABLE, false, NULL, &pCreateReq->colCmpr, &pJson));
   } else if (pCreateReq->type == TSDB_CHILD_TABLE) {
-    RAW_RETURN_CHECK(buildCreateCTableJson(pCreateReq, rsp->createTableNum, &pJson));
+    RAW_RETURN_CHECK(buildCreateCTableJson(pCreateReq, rsp->createTableNum, &pJson, charsetCxt));
   }
 
   *string = cJSON_PrintUnformatted(pJson);
@@ -688,7 +688,7 @@ end:
   return code;
 }
 
-static int32_t addUpdatedTagValToJson(cJSON* tags, SUpdatedTagVal* pTagVal) {
+static int32_t addUpdatedTagValToJson(cJSON* tags, SUpdatedTagVal* pTagVal, void *charsetCxt) {
   if (tags == NULL || pTagVal == NULL) {
     uError("invalid parameter in %s", __func__);
     return TSDB_CODE_INVALID_PARA;
@@ -718,7 +718,7 @@ static int32_t addUpdatedTagValToJson(cJSON* tags, SUpdatedTagVal* pTagVal) {
       }
       buf = taosMemoryCalloc(bufSize, 1);
       RAW_NULL_CHECK(buf);
-      code = dataConverToStr(buf, bufSize, pTagVal->tagType, pTagVal->pTagVal, pTagVal->nTagVal, NULL);
+      code = dataConverToStr(buf, bufSize, pTagVal->tagType, pTagVal->pTagVal, pTagVal->nTagVal, NULL, charsetCxt);
       if (code != TSDB_CODE_SUCCESS) {
         uError("%s convert tag value to string failed, tagName:%s, tagType:%d, nTagVal:%d, code:%s",
                __func__, pTagVal->tagName, pTagVal->tagType, pTagVal->nTagVal, tstrerror(code));
@@ -735,7 +735,7 @@ end:
   return code;
 }
 
-static int32_t processAlterTable(SMqMetaRsp* metaRsp, cJSON** pJson) {
+static int32_t processAlterTable(SMqMetaRsp* metaRsp, cJSON** pJson, void *charsetCxt) {
   if (pJson == NULL || metaRsp == NULL) {
     uError("invalid parameter in %s", __func__);
     return TSDB_CODE_INVALID_PARA;
@@ -858,7 +858,7 @@ static int32_t processAlterTable(SMqMetaRsp* metaRsp, cJSON** pJson) {
 
         for (int32_t j = 0; j < nTags; j++) {
           SUpdatedTagVal* pTagVal = taosArrayGet(pTable->tags, j);
-          RAW_RETURN_CHECK(addUpdatedTagValToJson(tags, pTagVal));
+          RAW_RETURN_CHECK(addUpdatedTagValToJson(tags, pTagVal, charsetCxt));
         }
       }
       break;
@@ -877,7 +877,7 @@ static int32_t processAlterTable(SMqMetaRsp* metaRsp, cJSON** pJson) {
 
       for (int32_t i = 0; i < nTags; i++) {
         SUpdatedTagVal* pTagVal = taosArrayGet(vAlterTbReq.pMultiTag, i);
-        RAW_RETURN_CHECK(addUpdatedTagValToJson(tags, pTagVal));
+        RAW_RETURN_CHECK(addUpdatedTagValToJson(tags, pTagVal, charsetCxt));
       }
 
       if (vAlterTbReq.whereLen > 0) {
@@ -1046,7 +1046,7 @@ end:
   return code;
 }
 
-static int32_t processSimpleMeta(SMqMetaRsp* pMetaRsp, cJSON** meta) {
+static int32_t processSimpleMeta(SMqMetaRsp* pMetaRsp, cJSON** meta, void *charsetCxt) {
   if (pMetaRsp == NULL || meta == NULL) {
     uError("invalid parameter in %s", __func__);
     return TSDB_CODE_INVALID_PARA;
@@ -1066,10 +1066,10 @@ static int32_t processSimpleMeta(SMqMetaRsp* pMetaRsp, cJSON** meta) {
       RAW_RETURN_CHECK(processDropSTable(pMetaRsp, meta));
       break;
     case TDMT_VND_CREATE_TABLE:
-      RAW_RETURN_CHECK(processCreateTable(pMetaRsp, meta));
+      RAW_RETURN_CHECK(processCreateTable(pMetaRsp, meta, charsetCxt));
       break;
     case TDMT_VND_ALTER_TABLE:
-      RAW_RETURN_CHECK(processAlterTable(pMetaRsp, meta));
+      RAW_RETURN_CHECK(processAlterTable(pMetaRsp, meta, charsetCxt));
       break;
     case TDMT_VND_DROP_TABLE:
       RAW_RETURN_CHECK(processDropTable(pMetaRsp, meta));
@@ -1087,7 +1087,7 @@ end:
   return code;
 }
 
-static int32_t processBatchMetaToJson(SMqBatchMetaRsp* pMsgRsp, char** string) {
+static int32_t processBatchMetaToJson(SMqBatchMetaRsp* pMsgRsp, char** string, void *charsetCxt) {
   if (pMsgRsp == NULL || string == NULL) {
     uError("invalid parameter in %s", __func__);
     return TSDB_CODE_INVALID_PARA;
@@ -1128,7 +1128,7 @@ static int32_t processBatchMetaToJson(SMqBatchMetaRsp* pMsgRsp, char** string) {
     tDecoderInit(&metaCoder, POINTER_SHIFT(tmpBuf, sizeof(SMqRspHead)), *len - sizeof(SMqRspHead));
     RAW_RETURN_CHECK(tDecodeMqMetaRsp(&metaCoder, &metaRsp));
     cJSON* pItem = NULL;
-    code = processSimpleMeta(&metaRsp, &pItem);
+    code = processSimpleMeta(&metaRsp, &pItem, charsetCxt);
     tDeleteMqMetaRsp(&metaRsp);
     tDecoderClear(&metaCoder);
     if (code != TSDB_CODE_SUCCESS) {
@@ -1159,13 +1159,14 @@ char* tmq_get_json_meta(TAOS_RES* res) {
   RAW_FALSE_CHECK(TD_RES_TMQ_META(res) || TD_RES_TMQ_METADATA(res) || TD_RES_TMQ_BATCH_META(res));
 
   SMqRspObj* rspObj = (SMqRspObj*)res;
+  void *charsetCxt = rspObj->resInfo.charsetCxt;
   if (TD_RES_TMQ_METADATA(res)) {
-    RAW_RETURN_CHECK(processAutoCreateTable(&rspObj->dataRsp, &string));
+    RAW_RETURN_CHECK(processAutoCreateTable(&rspObj->dataRsp, &string, charsetCxt));
   } else if (TD_RES_TMQ_BATCH_META(res)) {
-    RAW_RETURN_CHECK(processBatchMetaToJson(&rspObj->batchMetaRsp, &string));
+    RAW_RETURN_CHECK(processBatchMetaToJson(&rspObj->batchMetaRsp, &string, charsetCxt));
   } else if (TD_RES_TMQ_META(res)) {
     cJSON* pJson = NULL;
-    RAW_RETURN_CHECK(processSimpleMeta(&rspObj->metaRsp, &pJson));
+    RAW_RETURN_CHECK(processSimpleMeta(&rspObj->metaRsp, &pJson, charsetCxt));
     string = cJSON_PrintUnformatted(pJson);
     cJSON_Delete(pJson);
   } else {

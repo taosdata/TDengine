@@ -23,6 +23,7 @@
 #include "nodes.h"
 #include "planner.h"
 #include "plannodes.h"
+#include "tconv.h"
 #include "tmsg.h"
 #include "types.h"
 
@@ -202,6 +203,28 @@ TEST(SubQueryMsgTest, TypedParametersOwnEmbeddedNulAndRejectInvalidPayload) {
   EXPECT_NE(TSDB_CODE_SUCCESS, tValidateCorrelationParams(pDefs, pValues));
   taosArrayDestroy(pDefs);
   taosArrayDestroy(pValues);
+}
+
+TEST(SubQueryMsgTest, RejectsInvalidConstantMatchPatternDuringPlanDecode) {
+  SSubplan* plan = nullptr;
+  ASSERT_EQ(0, nodesMakeNode(QUERY_NODE_PHYSICAL_SUBPLAN, (SNode**)&plan));
+  ASSERT_EQ(0, nodesMakeNode(QUERY_NODE_OPERATOR, &plan->pTagCond));
+  auto* op = (SOperatorNode*)plan->pTagCond;
+  op->opType = OP_TYPE_MATCH;
+  op->charsetCxt = taosConvInit("UTF-8");
+  ASSERT_NE(nullptr, op->charsetCxt);
+  ASSERT_EQ(0, nodesMakeNode(QUERY_NODE_COLUMN, &op->pLeft));
+  char pattern[] = "[\xe4\xb8\xad";
+  ASSERT_EQ(0, nodesMakeValueNodeFromString(pattern, (SValueNode**)&op->pRight));
+
+  char* wire = nullptr;
+  int32_t length = 0;
+  ASSERT_EQ(0, qSubPlanToMsg(plan, &wire, &length));
+  SSubplan* decoded = nullptr;
+  EXPECT_EQ(TSDB_CODE_PAR_REGULAR_EXPRESSION_ERROR, qMsgToSubplan(wire, length, &decoded));
+  nodesDestroyNode((SNode*)decoded);
+  taosMemoryFree(wire);
+  nodesDestroyNode((SNode*)plan);
 }
 
 TEST(SubQueryMsgTest, CorrelatedPlanRejectsDecoderWithoutCapability) {

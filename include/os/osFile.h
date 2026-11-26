@@ -187,6 +187,7 @@ int32_t taosEOFFile(TdFilePtr pFile);
 
 int32_t taosCloseFile(TdFilePtr *ppFile);
 
+int32_t taosRenameDir(const char *oldName, const char *newName);
 int32_t taosRenameFile(const char *oldName, const char *newName);
 /* Like taosRenameFile. For a source that this process may still hold open (e.g. a log file rotated while
  * its handle is open), allowFallback lets Windows redo a rename that failed with a transaction conflict
@@ -235,6 +236,7 @@ int64_t taosWritevFile(TdFilePtr pFile, const TaosIOVec *iov, int iovcnt);
 // APIs.
 TdFilePtr taosOpenFileW(const char *path, int32_t tdFileOptions);
 int32_t   taosRemoveFileW(const char *path);
+int32_t   taosRenameDirW(const char *oldName, const char *newName);
 int32_t   taosRenameFileW(const char *oldName, const char *newName);
 int32_t   taosStatFileW(const char *path, int64_t *size, int64_t *mtime, int64_t *atime);
 /* Same permission-only and failure-output contract as taosGetFileMode. */
@@ -261,6 +263,7 @@ bool      taosCheckExistFileW(const char *pathname);
 #if defined(TAOS_OS_WIDE_PATH) && defined(WINDOWS)
 #define taosOpenFile        taosOpenFileW
 #define taosRemoveFile      taosRemoveFileW
+#define taosRenameDir       taosRenameDirW
 #define taosRenameFile      taosRenameFileW
 #define taosStatFile        taosStatFileW
 #define taosGetFileMode     taosGetFileModeW

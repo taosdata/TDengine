@@ -349,7 +349,7 @@ int32_t resultrowComparAsc(const void* p1, const void* p2);
 int32_t isQualifiedTable(int64_t uid, SNode* pTagCond, void* vnode, bool* pQualified, SStorageAPI* pAPI);
 char*   getStreamOpName(uint16_t opType);
 
-void    printSpecDataBlock(SSDataBlock* pBlock, const char* flag, const char* opStr, const char* taskIdStr);
+void    printSpecDataBlock(SSDataBlock* pBlock, const char* flag, const char* opStr, const char* taskIdStr, void *charsetCxt);
 
 TSKEY getStartTsKey(STimeWindow* win, const TSKEY* tsCols);
 void  updateTimeWindowInfo(SColumnInfoData* pColData, const STimeWindow* pWin, int64_t delta);

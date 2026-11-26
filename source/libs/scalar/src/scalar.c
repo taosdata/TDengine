@@ -3695,7 +3695,21 @@ int32_t scalarGetCompOperatorResultType(SOperatorNode *pOp) {
     }
     SValueNode *node = (SValueNode *)(pOp->pRight);
     if (!node->placeholderNo && nodesIsMatchRegularOp(pOp)) {
-      if (checkRegexPattern(node->literal) != TSDB_CODE_SUCCESS) {
+      bool validate = node->literal != NULL;
+#ifndef WINDOWS
+      // A parsing client need not have the execution server's locale installed.
+      // Validate non-ASCII patterns authoritatively in the execution pool.
+      if (validate) {
+        const unsigned char *pattern = (const unsigned char *)node->literal;
+        for (; *pattern != '\0'; ++pattern) {
+          if (*pattern >= 0x80) {
+            validate = false;
+            break;
+          }
+        }
+      }
+#endif
+      if (validate && checkRegexPattern(node->literal, pOp->charsetCxt) != TSDB_CODE_SUCCESS) {
         return TSDB_CODE_PAR_REGULAR_EXPRESSION_ERROR;
       }
     }

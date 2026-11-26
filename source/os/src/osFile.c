@@ -287,6 +287,17 @@ int32_t taosRenameFileEx(const char *oldName, const char *newName, bool allowFal
 #endif
 }
 
+int32_t taosRenameDir(const char *oldName, const char *newName) {
+#ifdef WINDOWS
+  OS_PARAM_CHECK(oldName);
+  OS_PARAM_CHECK(newName);
+  if (!MoveFileExA(oldName, newName, 0)) return (terrno = TAOS_SYSTEM_WINAPI_ERROR(GetLastError()));
+  return 0;
+#else
+  return taosRenameFile(oldName, newName);
+#endif
+}
+
 int32_t taosRenameFile(const char *oldName, const char *newName) {
   return taosRenameFileEx(oldName, newName, false);
 }
@@ -2738,7 +2749,7 @@ int32_t taosRemoveFileW(const char *path) {
   return 0;
 }
 
-int32_t taosRenameFileW(const char *oldName, const char *newName) {
+static int32_t taosMovePathW(const char *oldName, const char *newName, DWORD flags) {
   if (oldName == NULL || newName == NULL) {
     terrno = TSDB_CODE_INVALID_PARA;
     return terrno;
@@ -2749,13 +2760,21 @@ int32_t taosRenameFileW(const char *oldName, const char *newName) {
     terrno = TSDB_CODE_INVALID_PARA;
     return terrno;
   }
-  if (!MoveFileExW(wOld, wNew, MOVEFILE_REPLACE_EXISTING)) {
+  if (!MoveFileExW(wOld, wNew, flags)) {
     DWORD dwError = GetLastError();
     ERRNO = dwError;
     terrno = TAOS_SYSTEM_WINAPI_ERROR(dwError);
     return terrno;
   }
   return TSDB_CODE_SUCCESS;
+}
+
+int32_t taosRenameFileW(const char *oldName, const char *newName) {
+  return taosMovePathW(oldName, newName, MOVEFILE_REPLACE_EXISTING);
+}
+
+int32_t taosRenameDirW(const char *oldName, const char *newName) {
+  return taosMovePathW(oldName, newName, 0);
 }
 
 int32_t taosStatFileW(const char *path, int64_t *size, int64_t *mtime, int64_t *atime) {

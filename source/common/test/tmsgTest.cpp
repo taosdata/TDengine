@@ -2006,9 +2006,29 @@ TEST(td_msg_test, scol_ref_wrapper_roundtrips_federated_fields_at_tail) {
   taosMemoryFree(in.pColRef);
 }
 
+TEST(td_msg_test, bounded_charset_wire_string) {
+  auto check = [](std::vector<uint8_t> field, bool valid, const char* expected) {
+    SDecoder decoder = {};
+    tDecoderInit(&decoder, field.data(), field.size());
+    char* value = nullptr;
+    int32_t code = tDecodeBoundedCStr(&decoder, &value, 4);
+    EXPECT_EQ(valid, code == 0);
+    if (valid) EXPECT_STREQ(expected, value);
+    tDecoderClear(&decoder);
+  };
+  check({0}, true, nullptr);
+  check({1, 0}, true, "");
+  check({4, 'G', 'B', 'K', 0}, true, "GBK");
+  check({1, 'x'}, false, nullptr);
+  check({3, 0, 'x', 0}, false, nullptr);
+  check({5, 'a', 'b', 'c', 'd', 0}, false, nullptr);
+  check({4, 'G'}, false, nullptr);
+}
+
 TEST(td_msg_test, alter_column_ref_roundtrips_filter_condition_at_tail) {
   SVAlterTbReq in = {0};
   in.tbName = (char*)"vt";
+  in.charset = "GBK";
   in.action = TSDB_ALTER_TABLE_ALTER_COLUMN_REF;
   in.colName = (char*)"value";
   in.refDbName = (char*)"db0";
@@ -2039,6 +2059,7 @@ TEST(td_msg_test, alter_column_ref_roundtrips_filter_condition_at_tail) {
 
   ASSERT_EQ(out.filterCondLen, (int32_t)strlen("FILTER_COND"));
   ASSERT_STREQ(out.filterCondJson, "FILTER_COND");
+  ASSERT_STREQ(out.charset, "GBK");
   destroyAlterTbReq(&out);
 }
 
@@ -4789,6 +4810,33 @@ int32_t decodeStreamHbRsp(std::vector<uint8_t>* pBuf, SMStreamHbRspMsg* pRsp) {
 }
 
 }  // namespace
+
+TEST(td_msg_test, reader_only_heartbeat_keeps_cloned_stream_charset) {
+  SCMCreateStreamReq creation = {};
+  tstrncpy(creation.charset, "GBK", sizeof(creation.charset));
+  SCMCreateStreamReq* status = nullptr;
+  ASSERT_EQ(0, tCloneStreamCreateDeployPointers(&creation, &status));
+  SMStreamHbRspMsg rsp = {};
+  rsp.deploy.streamList = streamHbDeployList(100, {{200, "metrics", nullptr}});
+  ASSERT_NE(nullptr, rsp.deploy.streamList);
+  auto* stream = (SStmStreamDeploy*)taosArrayGet(rsp.deploy.streamList, 0);
+  auto* reader = (SStmTaskDeploy*)taosArrayGet(stream->readerTasks, 0);
+  tstrncpy(reader->task.charset, status->charset, sizeof(reader->task.charset));
+  tFreeSCMCreateStreamReq(status);
+  taosMemoryFree(status);
+
+  std::vector<uint8_t> buf;
+  ASSERT_EQ(0, encodeStreamHbRsp(&rsp, &buf));
+  freeStreamHbDeployList(rsp.deploy.streamList);
+  SMStreamHbRspMsg received = {};
+  ASSERT_EQ(0, decodeStreamHbRsp(&buf, &received));
+  auto* deployed = (SStmStreamDeploy*)taosArrayGet(received.deploy.streamList, 0);
+  ASSERT_NE(nullptr, deployed);
+  auto* deployedReader = (SStmTaskDeploy*)taosArrayGet(deployed->readerTasks, 0);
+  ASSERT_NE(nullptr, deployedReader);
+  EXPECT_STREQ("GBK", deployedReader->task.charset);
+  tDeepFreeSMStreamHbRspMsg(&received);
+}
 
 // The 1.8 reader picks its PRE_FILTER AST up from a versioned tail frame, so a mixed-version
 // deployment keeps the deploy layout intact in both directions: a peer that predates the

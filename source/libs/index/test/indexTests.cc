@@ -63,7 +63,7 @@ class FstWriter {
     return ok;
   }
   ~FstWriter() {
-    // fstBuilderFinish(_b);
+    EXPECT_EQ(0, fstBuilderFinish(_b));
     fstBuilderDestroy(_b);
 
     idxFileCtxDestroy(_wc, false);

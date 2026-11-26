@@ -100,6 +100,7 @@ int32_t indexOpen(SIndexOpts* opt, const char* path, SIndex** index);
  * @return error code
  */
 void indexClose(SIndex* index);
+int32_t indexCloseChecked(SIndex* index);
 
 /*
  * insert terms into index

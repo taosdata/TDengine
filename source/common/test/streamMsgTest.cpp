@@ -550,6 +550,7 @@ TEST_F(StreamTimeAlignWire, TimeAlignLegacyAbsent) { checkHeartbeat(8, 8); }
 TEST(StreamMsgTest, CreateRequestTimeConfigJsonRoundTrip) {
   SCMCreateStreamReq src = {0};
   src.triggerType = WINDOW_TYPE_INTERVAL;
+  tstrncpy(src.charset, "GBK", sizeof(src.charset));
   tstrncpy(src.timeConfig.timezone, "Asia/Shanghai", sizeof(src.timeConfig.timezone));
   src.timeConfig.firstDayOfWeek = 1;
   char*   json = nullptr;
@@ -563,6 +564,7 @@ TEST(StreamMsgTest, CreateRequestTimeConfigJsonRoundTrip) {
   std::unique_ptr<SCMCreateStreamReq, CreateStreamReqCleanup> dstGuard(&dst);
   ASSERT_EQ(TSDB_CODE_SUCCESS, jsonToSCMCreateStreamReq(root, &dst));
   EXPECT_STREQ("Asia/Shanghai", dst.timeConfig.timezone);
+  EXPECT_STREQ("GBK", dst.charset);
   EXPECT_EQ(1, dst.timeConfig.firstDayOfWeek);
 }
 
@@ -1116,4 +1118,23 @@ TEST(StreamMsgTest, ResumeStreamReqCarriesTxnId) {
   EXPECT_EQ(1, dst.igUntreated);
   EXPECT_EQ(src.txnId, dst.txnId);
   tFreeMResumeStreamReq(&dst);
+}
+
+TEST(StreamMsgTest, CreateRequestRejectsExplicitInvalidCharset) {
+  SCMCreateStreamReq src = {0};
+  src.triggerType = WINDOW_TYPE_INTERVAL;
+  tstrncpy(src.charset, "invalid-charset", sizeof(src.charset));
+  char *json = nullptr;
+  int32_t length = 0;
+  ASSERT_EQ(TSDB_CODE_SUCCESS, scmCreateStreamReqToJson(&src, false, &json, &length));
+  std::unique_ptr<char, TaosMemoryCleanup> jsonGuard(json);
+  std::unique_ptr<SJson, decltype(&tjsonDelete)> root(tjsonParse(json), tjsonDelete);
+  ASSERT_NE(nullptr, root.get());
+  SCMCreateStreamReq dst = {0};
+  std::unique_ptr<SCMCreateStreamReq, CreateStreamReqCleanup> dstGuard(&dst);
+  EXPECT_EQ(TSDB_CODE_CHARSET_CONVERT_ERROR, jsonToSCMCreateStreamReq(root.get(), &dst));
+  tjsonDeleteItemFromObject(root.get(), "Charset");
+  dst = {};
+  EXPECT_EQ(TSDB_CODE_SUCCESS, jsonToSCMCreateStreamReq(root.get(), &dst));
+  EXPECT_STREQ("", dst.charset);
 }

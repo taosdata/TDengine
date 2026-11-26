@@ -18,6 +18,7 @@
 #include "planner.h"
 #include "functionMgt.h"
 #include "planInt.h"
+#include "tcompare.h"
 #include "tutil.h"
 
 static int32_t debugPrintNode(SNode* pNode) {
@@ -2275,6 +2276,45 @@ int32_t qSubPlanToMsg(const SSubplan* pSubplan, char** pStr, int32_t* pLen) {
   return TSDB_CODE_SUCCESS;
 }
 
+static int32_t validateRegexValuePattern(const SValueNode* value, void* charsetCxt) {
+  if (value->isNull || value->node.resType.type == TSDB_DATA_TYPE_NULL) return TSDB_CODE_SUCCESS;
+  if (value->translate && !IS_VAL_UNSET(value->flag) && value->datum.p != NULL) {
+    return taosCheckRegexValue(value->datum.p, value->node.resType.type, charsetCxt);
+  }
+  return value->literal != NULL ? taosCheckRegexCharset(value->literal, charsetCxt) : TSDB_CODE_SUCCESS;
+}
+
+static int32_t validateRegexNode(const SNode* pNode) {
+  if (nodeType(pNode) == QUERY_NODE_OPERATOR) {
+    const SOperatorNode* op = (const SOperatorNode*)pNode;
+    if (nodesIsMatchRegularOp(op)) {
+      int32_t code = taosCheckRegexLocale(op->charsetCxt);
+      if (code != 0 || op->pRight == NULL || nodeType(op->pRight) != QUERY_NODE_VALUE) return code;
+      return validateRegexValuePattern((const SValueNode*)op->pRight, op->charsetCxt);
+    }
+  } else if (nodeType(pNode) == QUERY_NODE_FUNCTION) {
+    const SFunctionNode* func = (const SFunctionNode*)pNode;
+    EFunctionType type = fmGetFuncTypeFromId(func->funcId);
+    // regexp_in_set(pattern, set [, sep]); regexp_extract(str, pattern [, group]).
+    int32_t patIdx = type == FUNCTION_TYPE_REGEXP_IN_SET ? 0 : type == FUNCTION_TYPE_REGEXP_EXTRACT ? 1 : -1;
+    if (patIdx < 0) return TSDB_CODE_SUCCESS;
+    if (type == FUNCTION_TYPE_REGEXP_EXTRACT) {
+      const SNode* group = nodesListGetNode(func->pParameterList, 2);
+      if (group != NULL && nodeType(group) == QUERY_NODE_VALUE) {
+        const SValueNode* value = (const SValueNode*)group;
+        // An explicit NULL group returns NULL without evaluating the pattern.
+        if (value->isNull || value->node.resType.type == TSDB_DATA_TYPE_NULL) return TSDB_CODE_SUCCESS;
+      }
+    }
+    int32_t code = taosCheckRegexLocale(func->charsetCxt);
+    if (code != 0) return code;
+    const SNode* patNode = nodesListGetNode(func->pParameterList, patIdx);
+    if (patNode == NULL || nodeType(patNode) != QUERY_NODE_VALUE) return TSDB_CODE_SUCCESS;
+    return validateRegexValuePattern((const SValueNode*)patNode, func->charsetCxt);
+  }
+  return TSDB_CODE_SUCCESS;
+}
+
 int32_t qMsgToSubplan(const char* pStr, int32_t len, SSubplan** pSubplan) {
   if (NULL == pStr || NULL == pSubplan || len <= 0) {
     return TSDB_CODE_QRY_INVALID_MSG;
@@ -2300,7 +2340,7 @@ int32_t qMsgToSubplan(const char* pStr, int32_t len, SSubplan** pSubplan) {
     len -= envelopeLen;
   }
 
-  int32_t code = nodesMsgToNode(pStr, len, (SNode**)pSubplan);
+  int32_t code = nodesMsgToNodeWithValidator(pStr, len, (SNode**)pSubplan, validateRegexNode);
   if (TSDB_CODE_SUCCESS != code) {
     return code;
   }

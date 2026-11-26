@@ -75,6 +75,7 @@ struct SIndex {
   TdThreadMutex mtx;
   tsem_t        sem;
   bool          quit;
+  int32_t       flushError;  // First asynchronous flush failure, sticky until close.
 };
 
 struct SIndexMultiTermQuery {
@@ -113,6 +114,7 @@ typedef struct Iterate {
   IterateValue val;
   bool (*next)(Iterate* iter);
   IterateValue* (*getValue)(Iterate* iter);
+  int32_t error;  // A failed advance must not be treated as end of input during flush.
 } Iterate;
 
 void iterateValueDestroy(IterateValue* iv, bool destroy);

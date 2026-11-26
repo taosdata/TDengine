@@ -978,6 +978,8 @@ Query OK, 1 row(s) in set
 
 ## String Functions
 
+For VARCHAR strings, `CHAR_LENGTH`, `SUBSTRING/SUBSTR`, `SUBSTRING_INDEX`, `POSITION`, `REPLACE`, and `TRIM` with an explicit removal string use the current connection charset when counting, extracting, or matching characters.
+
 The input parameters for string functions are of string type, and the return results are of numeric type or string type.
 
 ### CHAR_LENGTH
@@ -1004,7 +1006,7 @@ CHAR_LENGTH(expr)
 
 **Usage**:
 
-- Unlike the `LENGTH()` function, for multibyte characters, such as Chinese characters, the `CHAR_LENGTH()` function counts them as one character, length 1, while `LENGTH()` calculates their byte count, length 3. For example, `CHAR_LENGTH('你好') = 2`, `LENGTH('你好') = 6`.
+- `CHAR_LENGTH()` returns the character count, while `LENGTH()` returns the byte count. For the VARCHAR string `'你好'`, `CHAR_LENGTH()` returns 2; `LENGTH()` returns 6 in UTF-8 and 4 in GBK.
 - If `expr` is NULL, it returns NULL.
 
 **Example**:

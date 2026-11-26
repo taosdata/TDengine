@@ -2112,6 +2112,7 @@ static int32_t physiDeleterCopy(const SDataDeleterNode* pSrc, SDataDeleterNode* 
 }
 
 static int32_t physiSubplanCopy(const SSubplan* pSrc, SSubplan* pDst) {
+  COPY_OBJECT_FIELD(charsetName, sizeof(pSrc->charsetName));
   COPY_SCALAR_FIELD(type);
   COPY_OBJECT_FIELD(id, sizeof(SSubplanId));
   COPY_SCALAR_FIELD(subplanType);

@@ -2493,3 +2493,29 @@ TEST(NodesBroadcastReuseTest, DimensionBatchCloneJsonAndTlvRoundTrip) {
     taosMemoryFree(msg);
   }
 }
+
+TEST(NodesCodeTest, subplanConnectionCharsetSurvivesCloneAndCodecs) {
+  SNode* input = nullptr;
+  ASSERT_EQ(TSDB_CODE_SUCCESS, nodesMakeNode(QUERY_NODE_PHYSICAL_SUBPLAN, &input));
+  std::unique_ptr<SNode, void (*)(SNode*)> source(input, nodesDestroyNode);
+  tstrncpy(((SSubplan*)input)->charsetName, "GBK", TD_CHARSET_LEN);
+  for (int mode = 0; mode < 3; ++mode) {
+    SCOPED_TRACE(mode);
+    SNode* output = nullptr;
+    char* buffer = nullptr;
+    int32_t length = 0;
+    if (mode == 0) {
+      ASSERT_EQ(TSDB_CODE_SUCCESS, nodesCloneNode(input, &output));
+    } else if (mode == 1) {
+      ASSERT_EQ(TSDB_CODE_SUCCESS, nodesNodeToString(input, false, &buffer, &length));
+      ASSERT_EQ(TSDB_CODE_SUCCESS, nodesStringToNode(buffer, &output));
+    } else {
+      ASSERT_EQ(TSDB_CODE_SUCCESS, nodesNodeToMsg(input, &buffer, &length));
+      ASSERT_EQ(TSDB_CODE_SUCCESS, nodesMsgToNode(buffer, length, &output));
+    }
+    std::unique_ptr<char, void (*)(char*)> data(buffer, freeTestBuffer);
+    std::unique_ptr<SNode, void (*)(SNode*)> result(output, nodesDestroyNode);
+    ASSERT_NE(nullptr, output);
+    EXPECT_STREQ("GBK", ((SSubplan*)output)->charsetName);
+  }
+}

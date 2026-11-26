@@ -484,6 +484,18 @@ static FORCE_INLINE int32_t tDecodeCStrAndLen(SDecoder* pCoder, char** val, uint
   return 0;
 }
 
+// Return a borrowed string, bounded by both the encoded field and the destination capacity.
+static FORCE_INLINE int32_t tDecodeBoundedCStr(SDecoder* decoder, char** value, uint32_t capacity) {
+  uint8_t* data = NULL;
+  uint32_t len = 0;
+  TAOS_CHECK_RETURN(tDecodeBinary(decoder, &data, &len));
+  *value = NULL;
+  if (len == 0) return 0;  // tEncodeCStr(NULL)
+  if (len > capacity || memchr(data, 0, len) != data + len - 1) return TSDB_CODE_INVALID_MSG;
+  *value = (char*)data;
+  return 0;
+}
+
 static FORCE_INLINE int32_t tDecodeCStr(SDecoder* pCoder, char** val) {
   uint32_t len = 0;
   return tDecodeCStrAndLen(pCoder, val, &len);

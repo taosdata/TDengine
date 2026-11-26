@@ -1020,12 +1020,10 @@ int32_t putStreamDataCacheWithPath(void* pCache, int64_t groupId, TSKEY wstart, 
   }
   if (getCleanModeFromDSMgr(pCache) == DATA_CLEAN_IMMEDIATE) {
     SAlignTaskDSMgr* pStreamTaskMgr = (SAlignTaskDSMgr*)pCache;
-    printDataBlock(pBlock, __func__, "", pStreamTaskMgr->streamId);
     code =
         putDataToAlignTaskMgr(pStreamTaskMgr, groupId, wstart, wend, eventConditionPath, pBlock, startIndex, endIndex);
   } else {
     SSlidingTaskDSMgr* pStreamTaskMgr = (SSlidingTaskDSMgr*)pCache;
-    printDataBlock(pBlock, __func__, "", pStreamTaskMgr->streamId);
     code = putDataToSlidingTaskMgr(pStreamTaskMgr, groupId, eventConditionPath, pBlock, startIndex, endIndex);
   }
   (void)checkAndMoveMemCache(false);

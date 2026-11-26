@@ -370,6 +370,11 @@ TEST(osTest, system) {
 }
 
 TEST(osTest, cmdValidate) {
+#ifdef __linux__
+  EXPECT_TRUE(taosCmdIsValid("/usr/bin/env -u LD_PRELOAD /usr/bin/locale -a"));
+  EXPECT_FALSE(taosCmdIsValid("/usr/bin/env -u LD_PRELOAD /usr/bin/locale -a; id"));
+  EXPECT_FALSE(taosCmdIsValid("/usr/bin/env -u LD_PRELOAD /bin/sh"));
+#endif
   EXPECT_FALSE(taosCmdIsValid(NULL));
   EXPECT_FALSE(taosCmdIsValid(""));
 
