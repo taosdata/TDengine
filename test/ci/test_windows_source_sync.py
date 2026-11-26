@@ -79,6 +79,45 @@ class SourceSyncTest(unittest.TestCase):
             self.assertEqual(self.git(workspace, "rev-parse", "HEAD"), before)
             self.assertEqual(cache.read_text(), "cache")
 
+    def test_config_snapshot_overrides_source_identity(self):
+        with tempfile.TemporaryDirectory() as temporary, \
+             patch.object(ci, "stop_build_processes"), patch.object(ci, "stop_processes"), \
+             patch.object(ci, "stop_processes_under"):
+            base = Path(temporary)
+            runner, workspace = base / "runner", base / "workspace"
+            runner.mkdir()
+            self.git(runner, "init")
+            self.git(runner, "config", "user.name", "Fixture")
+            self.git(runner, "config", "user.email", "fixture@example.invalid")
+            (runner / "source.txt").write_text("source")
+            self.git(runner, "add", ".")
+            self.git(runner, "commit", "-m", "source")
+            source = self.git(runner, "rev-parse", "HEAD")
+            (runner / "source.txt").write_text("merged tree")
+            self.git(runner, "commit", "-am", "merge snapshot")
+            merge = self.git(runner, "rev-parse", "HEAD")
+            with patch.dict(os.environ, CI_PROJECT_DIR=str(runner), CI_COMMIT_SHA=source,
+                            TSDB_CI_CONFIG_SHA=merge, MR_MERGE_REF_SHA=merge):
+                ci.sync_source(workspace)
+                self.assertEqual(self.git(workspace, "rev-parse", "HEAD"), merge)
+                self.assertEqual((workspace / "source.txt").read_text(), "merged tree")
+                self.git(runner, "checkout", "--detach", "-f", source)
+                with self.assertRaisesRegex(RuntimeError, "runner checkout"):
+                    ci.sync_source(workspace)
+                self.assertEqual(self.git(workspace, "rev-parse", "HEAD"), merge)
+
+    def test_invalid_config_pin_fails_before_workspace_or_cleanup(self):
+        for config, merge in (("", ""), ("a" * 40, "b" * 40)):
+            with tempfile.TemporaryDirectory() as temporary, \
+                 patch.dict(os.environ, CI_PROJECT_DIR=temporary, CI_COMMIT_SHA="c" * 40,
+                            TSDB_CI_CONFIG_SHA=config, MR_MERGE_REF_SHA=merge), \
+                 patch.object(ci, "stop_build_processes") as stop:
+                workspace = Path(temporary) / "workspace"
+                with self.assertRaises(RuntimeError):
+                    ci.sync_source(workspace)
+                self.assertFalse(workspace.exists())
+                stop.assert_not_called()
+
     def test_preparation_failure_does_not_collect_old_reports(self):
         with patch.object(sys, "argv", ["run_windows_ci.py"]), \
              patch.object(ci, "print_host_identity"), \

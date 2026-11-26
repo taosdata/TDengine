@@ -190,7 +190,7 @@ cd source/taos-community/packaging/docker/v3/tsdb
 python3 -m unittest -v test_entrypoint test_image_build test_image_lifecycle_harness
 ```
 
-The `docker-entrypoint-regression` MR job runs this suite automatically. Docker-only MRs may opt into the `ci:docker-only` label to skip engine CI and SQL fuzz on pushes; remove it before adding other code changes. Set `RUN_DOCKER_ENTRYPOINT_TESTS_ONLY=true` in Run pipeline for focused validation, skipping full Linux/macOS CI and SQL fuzz while retaining applicable basic checks. It exercises the real entrypoint functions with isolated child processes, including service exits, startup failure, graceful/forced shutdown, preserved exit status, temporary registration helpers and disabled services.
+The `check-docker-entrypoint` MR job runs this suite automatically. Docker-only MRs may opt into the `ci:docker-only` label to skip engine CI and SQL fuzz on pushes; remove it before adding other code changes. Set `RUN_DOCKER_ENTRYPOINT_TESTS_ONLY=true` in Run pipeline for focused validation, skipping full Linux/macOS CI and SQL fuzz while retaining applicable basic checks. It exercises the real entrypoint functions with isolated child processes, including service exits, startup failure, graceful/forced shutdown, preserved exit status, temporary registration helpers and disabled services.
 
 After building an image from an actual installation package, run acceptance tests on an isolated Linux Docker host:
 

@@ -182,7 +182,7 @@ cd source/taos-community/packaging/docker/v3/tsdb
 python3 -m unittest -v test_entrypoint test_image_build test_image_lifecycle_harness
 ```
 
-MR 的 `docker-entrypoint-regression` job 自动执行上述测试。仅包含 Docker 镜像相关改动的 MR 可添加 `ci:docker-only` 标签，避免每次推送触发引擎全量 CI 和 SQL fuzz；后续加入其他代码改动前须移除此标签。专项验证也可在 Run pipeline 设置 `RUN_DOCKER_ENTRYPOINT_TESTS_ONLY=true`，只运行镜像回归及适用的基础检查，跳过 Linux/macOS 全量 CI 和 SQL fuzz。测试使用真实 entrypoint 函数和独立子进程，覆盖任一服务退出、启动阶段退出、优雅停止、停止超时、退出码保留、临时后台注册任务和全部服务禁用等情况。它们不能替代真实安装包的镜像验收。
+MR 的 `check-docker-entrypoint` job 自动执行上述测试。仅包含 Docker 镜像相关改动的 MR 可添加 `ci:docker-only` 标签，避免每次推送触发引擎全量 CI 和 SQL fuzz；后续加入其他代码改动前须移除此标签。专项验证也可在 Run pipeline 设置 `RUN_DOCKER_ENTRYPOINT_TESTS_ONLY=true`，只运行镜像回归及适用的基础检查，跳过 Linux/macOS 全量 CI 和 SQL fuzz。测试使用真实 entrypoint 函数和独立子进程，覆盖任一服务退出、启动阶段退出、优雅停止、停止超时、退出码保留、临时后台注册任务和全部服务禁用等情况。它们不能替代真实安装包的镜像验收。
 
 按本文构建镜像后，在有 Docker 的隔离 Linux 主机执行真实镜像验收：
 
