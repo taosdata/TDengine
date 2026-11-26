@@ -131,13 +131,29 @@ class TestSelectTopBottomSma:
         self.create_synthetic_table(
             "unsigned_vals", "bigint unsigned", 0, 18446744073709551615
         )
-        # val has no persisted SMA, so its block statistics are synthesized as
-        # all-null. TOP must reject those stats and read both blocks instead of
-        # pruning the second one.
+        # val has no persisted SMA and no other queried column has it either,
+        # so a block SMA read has nothing to offer: TOP reads both blocks
+        # instead of pruning the second one without touching the .sma file.
         stats = self.scan_stats("select top(val,3) from positive_vals_child")
         tdSql.checkEqual(stats["total_blocks"], 2)
         tdSql.checkEqual(stats["check_rows"], 2 * self.block_rows)
+        tdSql.checkEqual(stats["sma_load_blocks"], 0)
+
+        # Projecting sma_col makes the per-block LAST_NULL_ONLY read useful
+        # again. val has no persisted SMA there, so it must stay unknown rather
+        # than be synthesized as all-NULL, and TOP still reads both blocks.
+        stats = self.scan_stats("select top(val,3),sma_col from positive_vals_child")
+        tdSql.checkEqual(stats["check_rows"], 2 * self.block_rows)
         tdSql.checkEqual(stats["sma_load_blocks"], 2)
+
+        # MAX without a window takes the NORMAL SMA load, which refuses the
+        # block when a queried column has no SMA, so both blocks are read as
+        # data and the real maximum is returned instead of NULL.
+        tdSql.query("select max(val) from positive_vals_child")
+        tdSql.checkData(0, 0, 1000)
+        stats = self.scan_stats("select max(val) from positive_vals_child")
+        tdSql.checkEqual(stats["total_blocks"], 2)
+        tdSql.checkEqual(stats["check_rows"], 2 * self.block_rows)
 
     def create_block_table(self, table, blocks, column_type="int"):
         tdSql.execute(
@@ -255,6 +271,13 @@ class TestSelectTopBottomSma:
             tdSql.checkEqual(row_ts, ts)
         stats = self.scan_stats(f"select top(v,3) from {table}")
         tdSql.checkEqual(stats["check_rows"], 2 * self.block_rows)
+        # Projecting ts and w, which have no SMA, must not disable pruning: the
+        # shared LAST_NULL_ONLY read still carries v's real statistics and
+        # leaves the others unknown, so the middle block is still skipped.
+        stats = self.scan_stats(f"select top(v,3),ts,w from {table}")
+        tdSql.checkEqual(stats["total_blocks"], 3)
+        tdSql.checkEqual(stats["sma_load_blocks"], 3)
+        tdSql.checkEqual(stats["check_rows"], 2 * self.block_rows)
 
         table = "subsidiary_bottom"
         tdSql.execute(f"create table {table}(ts timestamp,v int,w bigint) sma(v)")
@@ -286,6 +309,10 @@ class TestSelectTopBottomSma:
             tdSql.checkEqual(row_w, collateral)
             tdSql.checkEqual(row_ts, ts)
         stats = self.scan_stats(f"select bottom(v,3) from {table}")
+        tdSql.checkEqual(stats["check_rows"], 2 * self.block_rows)
+        stats = self.scan_stats(f"select bottom(v,3),ts,w from {table}")
+        tdSql.checkEqual(stats["total_blocks"], 3)
+        tdSql.checkEqual(stats["sma_load_blocks"], 3)
         tdSql.checkEqual(stats["check_rows"], 2 * self.block_rows)
 
     def create_group_stable(self, stable, group_values):
@@ -416,9 +443,9 @@ class TestSelectTopBottomSma:
 
     def do_last_max_synthetic_no_prune(self):
         # v has persisted SMA, u does not. The older block holds the larger u
-        # but cannot update LAST. Sharing one LAST_NULL_ONLY SMA read would
-        # synthesize all-null stats for u and let MAX skip that block, so the
-        # mixed LAST+MAX query must not prune.
+        # but cannot update LAST. The mixed LAST+MAX query keeps the prune
+        # kinds apart (aggPruneKindsConflict) and stays on the data path, so no
+        # block SMA is read and neither block is skipped.
         table = "last_max_prune"
         tdSql.execute(f"create table {table}(ts timestamp,v int,u int) sma(v)")
         values = {
@@ -485,6 +512,9 @@ class TestSelectTopBottomSma:
             stats = self.scan_stats(f"select {function}(v,3) from {table}")
             tdSql.checkEqual(stats["total_blocks"], 2)
             tdSql.checkEqual(stats["check_rows"], 2 * self.large_block_rows)
+            # v has no persisted SMA and w is not queried, so the block SMA
+            # read is skipped and neither block may be pruned.
+            tdSql.checkEqual(stats["sma_load_blocks"], 0)
         tdSql.execute(f"use {self.dbname}")
         tdSql.execute(f"drop database {db}")
 
@@ -544,6 +574,10 @@ class TestSelectTopBottomSma:
         1. Create stables that persist SMA only for a separate column.
         2. Flush consecutive blocks whose values must update an existing heap.
         3. Compare TOP/BOTTOM with ORDER BY for positive, negative, and unsigned values.
+        4. Verify a column without SMA keeps unknown statistics so TOP loads both
+           blocks and MAX cannot prune away real values, that projecting such a
+           column does not disable pruning on an SMA column, and that the block
+           SMA read is skipped when no queried column has SMA.
 
         Catalog:
             - Function:Selection
@@ -556,6 +590,8 @@ class TestSelectTopBottomSma:
 
         History:
             - 2026-10-28 Yihao Deng Add regression for synthesized SMA pruning
+            - 2026-11-23 Yihao Deng Keep SMA-disabled columns unknown during LAST_NULL_ONLY reads
+            - 2026-11-23 Yihao Deng Skip the block SMA read when no queried column has SMA
 
         """
         self.do_synthetic_sma_fallback()
@@ -565,7 +601,8 @@ class TestSelectTopBottomSma:
 
         1. Fill the heap with the first block and skip a rejectable middle block.
         2. Keep reading later blocks that contain a better value.
-        3. Cover equal thresholds, subsidiary columns, group isolation and fallbacks.
+        3. Cover equal thresholds, subsidiary columns (which must not disable
+           pruning), group isolation and fallbacks.
         4. Verify a block rejected by two mixed TOP/BOTTOM functions is skipped
            for that block only, not for the whole table.
         5. Cover all-null synthesized SMA on blocks larger than INT16_MAX rows.

@@ -3546,9 +3546,16 @@ static int32_t getNextRowFromFS(void *iter, TSDBROW **ppRow, bool *pIgnoreEarlie
           conf.files[1].exist = true;
           filesName[1] = pFileObj[1]->fname;
 
-          conf.files[2].file = *pFileObj[2]->f;
-          conf.files[2].exist = true;
-          filesName[2] = pFileObj[2]->fname;
+          // The sma file is optional: a head-only repair drops it when unreadable.
+          // This iterator only reads block data; every block-SMA read goes through
+          // tsdbDataFileReadBlockSma(), which answers "unknown" when the record
+          // references a file that is not open, so an aggregate is never silently
+          // taken from a missing file.
+          if (pFileObj[2] != NULL) {
+            conf.files[2].file = *pFileObj[2]->f;
+            conf.files[2].exist = true;
+            filesName[2] = pFileObj[2]->fname;
+          }
         }
 
         if (pFileObj[3] != NULL) {

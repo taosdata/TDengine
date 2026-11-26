@@ -801,6 +801,10 @@ int32_t tsdbDataFileReadBlockDataByColumn(SDataFileReader *reader,
                                   ncid, false);
 }
 
+bool tsdbDataFileReaderHasSma(const SDataFileReader *reader) {
+  return reader != NULL && reader->fd[TSDB_FTYPE_SMA] != NULL;
+}
+
 int32_t tsdbDataFileReadBlockSma(SDataFileReader *reader, const SBrinRecord *record,
                                  TColumnDataAggArray *columnDataAggArray) {
   int32_t  code = 0;
@@ -808,6 +812,13 @@ int32_t tsdbDataFileReadBlockSma(SDataFileReader *reader, const SBrinRecord *rec
   SBuffer *buffer = reader->buffers + 0;
 
   TARRAY2_CLEAR(columnDataAggArray, NULL);
+  if (record->smaSize > 0 && reader->fd[TSDB_FTYPE_SMA] == NULL) {
+    // The record still references the sma file that a head-only repair removed. There are no
+    // statistics to return; the caller treats the empty array as "unknown".
+    tsdbWarn("vgId:%d block sma reference without sma file, smaOffset:%" PRId64 " smaSize:%d, treated as unknown",
+             TD_VID(reader->config->tsdb->pVnode), record->smaOffset, record->smaSize);
+    return code;
+  }
   if (record->smaSize > 0) {
     tBufferClear(buffer);
     SEncryptData *pEncryptData = &(reader->config->tsdb->pVnode->config.tsdbCfg.encryptData);
@@ -920,6 +931,11 @@ _exit:
 // SDataFileWriter =============================================
 struct SDataFileWriter {
   SDataFileWriterConfig config[1];
+
+  // True when this session created (or truncated) the sma file: the carried-over
+  // block records then point into content that no longer exists, so their blocks
+  // must be rewritten (and their sma recomputed) instead of copied.
+  bool smaRecreated;
 
   SSkmInfo skmTb[1];
   SSkmInfo skmRow[1];
@@ -1389,6 +1405,24 @@ _exit:
   return code;
 }
 
+// A writer session that recreates the sma file cannot keep the old block
+// statistics: the offsets in the carried brin records point into content that no
+// longer exists (or now belongs to another block). Rewrite the block through the
+// normal data path, which recomputes its sma for the new file, instead of copying
+// a record that would alias the new content.
+static int32_t tsdbDataFileRewriteCarriedBlock(SDataFileWriter *writer, const SBrinRecord *record) {
+  int32_t    code = 0;
+  // Zero-initialised so a failed read is still safe to destroy.
+  SBlockData blockData = {0};
+
+  code = tsdbDataFileReadBlockData(writer->ctx->reader, record, &blockData);
+  if (code == 0) {
+    code = tsdbDataFileDoWriteBlockData(writer, &blockData);
+  }
+  tBlockDataDestroy(&blockData);
+  return code;
+}
+
 static int32_t tsdbDataFileDoWriteTSRow(SDataFileWriter *writer, TSDBROW *row) {
   int32_t code = 0;
   int32_t lino = 0;
@@ -1482,7 +1516,11 @@ static int32_t tsdbDataFileDoWriteTableOldData(SDataFileWriter *writer, const ST
               TAOS_CHECK_GOTO(tsdbDataFileDoWriteBlockData(writer, writer->blockData), &lino, _exit);
             }
 
-            TAOS_CHECK_GOTO(tsdbDataFileWriteBrinRecord(writer, record), &lino, _exit);
+            if (writer->smaRecreated) {
+              TAOS_CHECK_GOTO(tsdbDataFileRewriteCarriedBlock(writer, record), &lino, _exit);
+            } else {
+              TAOS_CHECK_GOTO(tsdbDataFileWriteBrinRecord(writer, record), &lino, _exit);
+            }
           } else {
             TAOS_CHECK_GOTO(tsdbDataFileReadBlockData(writer->ctx->reader, record, writer->ctx->blockData), &lino,
                             _exit);
@@ -1599,7 +1637,11 @@ static int32_t tsdbDataFileWriteTableDataBegin(SDataFileWriter *writer, const TA
           }
         }
 
-        TAOS_CHECK_GOTO(tsdbDataFileWriteBrinRecord(writer, &record), &lino, _exit);
+        if (writer->smaRecreated) {
+          TAOS_CHECK_GOTO(tsdbDataFileRewriteCarriedBlock(writer, &record), &lino, _exit);
+        } else {
+          TAOS_CHECK_GOTO(tsdbDataFileWriteBrinRecord(writer, &record), &lino, _exit);
+        }
       }
     }
 
@@ -2060,6 +2102,14 @@ static int32_t tsdbDataFileWriterOpenDataFD(SDataFileWriter *writer) {
 
     if (writer->files[ftype].size == 0) {
       flag |= (TD_FILE_CREATE | TD_FILE_TRUNC);
+      if (ftype == TSDB_FTYPE_SMA) {
+        // size == 0 means the file set has no sma file object: either a brand-new
+        // file set (no carried records) or one whose sma file was dropped or
+        // truncated by a repair (its carried records have no usable statistics).
+        // Rewriting those blocks is correct in both cases; a committed file set
+        // always has at least the file header, so size cannot be 0 with records.
+        writer->smaRecreated = true;
+      }
     }
 
     int32_t lcn = writer->files[ftype].lcn;

@@ -78,6 +78,9 @@ int32_t tsdbDataFileReadBlockDataByColumn(SDataFileReader *reader, const SBrinRe
 // .sma
 int32_t tsdbDataFileReadBlockSma(SDataFileReader *reader, const SBrinRecord *record,
                                  TColumnDataAggArray *columnDataAggArray);
+// Whether the file set served by this reader still has its sma file. A head-only repair drops
+// the file when it cannot be read, and such a file set carries no block statistics at all.
+bool tsdbDataFileReaderHasSma(const SDataFileReader *reader);
 // .tomb
 int32_t tsdbDataFileReadTombBlk(SDataFileReader *reader, const TTombBlkArray **tombBlkArray);
 int32_t tsdbDataFileReadTombBlock(SDataFileReader *reader, const STombBlk *tombBlk, STombBlock *tData);

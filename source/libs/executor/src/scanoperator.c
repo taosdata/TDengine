@@ -393,11 +393,13 @@ static void getAggPruneExprKinds(const SExprSupp* pExprSup, bool* pHasMax, bool*
   }
 }
 
-// One LAST_NULL_ONLY SMA read serves every request in the block, and that mode
-// synthesizes all-null stats for columns without persisted SMA. MAX and LAST
-// treat an all-null aggregate as prunable, which is only valid for a real
-// all-null block, so they must never share the read with another prune kind.
-// TOP/BOTTOM already reject synthesized stats in topBotDynDataReq.
+// One LAST_NULL_ONLY SMA read serves every request in the block. In that mode
+// a column without block SMA stays unknown (colId -1) and never drives
+// pruning; the all-null aggregate it synthesizes only covers SMA-enabled
+// columns absent from the block record, which MAX and LAST may prune as a
+// real all-null block. TOP/BOTTOM reject every all-null aggregate in
+// topBotDynDataReq. Keeping the prune kinds apart is therefore a conservative
+// simplification, not a correctness requirement.
 static bool aggPruneKindsConflict(bool hasMax, bool hasTopBot, bool hasLast) {
   return (int32_t)hasMax + (int32_t)hasTopBot + (int32_t)hasLast >= 2;
 }
