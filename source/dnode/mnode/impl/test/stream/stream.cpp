@@ -2465,8 +2465,7 @@ class MndStreamRecalcTest : public ::testing::Test {
     if (progress < 0 || progress > 100 || status < STREAM_RECALC_STATUS_PENDING ||
         status > STREAM_RECALC_STATUS_FAILED || (status == STREAM_RECALC_STATUS_PENDING && progress != 0) ||
         (status == STREAM_RECALC_STATUS_RUNNING && progress >= 100) ||
-        (status == STREAM_RECALC_STATUS_FINISHED && progress != 100) ||
-        (status == STREAM_RECALC_STATUS_FAILED && progress >= 100)) {
+        (status == STREAM_RECALC_STATUS_FINISHED && progress != 100)) {
       taosArrayDestroy(entry.snapshot.pRecalculates);
       return TSDB_CODE_INVALID_PARA;
     }
@@ -6797,6 +6796,46 @@ TEST_F(MndStreamRecalcIntegrationTest, AcceptedRequestResendsUntilSnapshotThenPu
   EXPECT_FALSE(PersistedRequestExists(kStreamA, recalcId));
 }
 
+TEST_F(MndStreamRecalcIntegrationTest, FirstHeartbeatCanReportFailureAtFullCoverage) {
+  const STimeWindow range = {100, 200};
+  ASSERT_EQ(AcceptA(range), TSDB_CODE_SUCCESS);
+  const int64_t recalcId = FirstCapturedRecalcId();
+  CommitNext();
+  ASSERT_NE(InstallTriggerTask(), nullptr);
+
+  SStreamHbMsg heartbeat = {};
+  SArray      *snapshots = BuildTerminalHeartbeat(recalcId, &heartbeat);
+  ASSERT_NE(snapshots, nullptr);
+  static_cast<SStreamRecalcSnapshot *>(taosArrayGet(snapshots, 0))->status = STREAM_RECALC_STATUS_FAILED;
+  auto         *entry = static_cast<SStreamTaskMetricsEntry *>(taosArrayGet(heartbeat.pTaskMetrics, 0));
+  const int32_t error = TSDB_CODE_STREAM_VTABLE_NEED_REDEPLOY;
+  entry->recalcDetailState = STREAM_RECALC_DETAIL_RECOGNIZED_VALID;
+  entry->snapshot.pRecalcDetails = ErrorDetails(recalcId, 3, error);
+  ASSERT_NE(entry->snapshot.pRecalcDetails, nullptr);
+  ASSERT_EQ(HandleHeartbeat(&heartbeat), TSDB_CODE_SUCCESS);
+  tCleanupStreamHbMsg(&heartbeat, true);
+
+  const auto *record = Record(kStreamA, recalcId);
+  ASSERT_NE(record, nullptr);
+  EXPECT_TRUE(record->dispatchConfirmed);
+  ASSERT_TRUE(record->terminalPersisting);
+  EXPECT_EQ(record->snapshot.status, STREAM_RECALC_STATUS_RUNNING);
+  RunImmediateWake();
+  CommitNext();
+  EXPECT_FALSE(PersistedRequestExists(kStreamA, recalcId));
+
+  SSDataBlock *block = createSystemTableBlock(TSDB_INS_TABLE_STREAM_RECALCULATES, 128);
+  ASSERT_NE(block, nullptr);
+  SRpcMsg request = {};
+  request.info.node = &mnode_;
+  SShowObj show = {};
+  ASSERT_EQ(mnode_.showMgmt.retrieveFps[TSDB_MGMT_TABLE_STREAM_RECALCULATES](&request, &show, block, 128), 1);
+  EXPECT_EQ(getVarCharValue(block, 5, 0), "100%");
+  EXPECT_EQ(getVarCharValue(block, 6, 0), "Failed");
+  EXPECT_EQ(getVarCharValue(block, 8, 0), "[0x" + Hex8(static_cast<uint32_t>(error)) + "] " + tstrerror(error));
+  blockDataDestroy(block);
+}
+
 class MndStreamRecalcDispatchTest : public ::testing::Test {
  protected:
   enum class DetailWireMutation {
@@ -7526,6 +7565,24 @@ TEST_F(MndStreamRecalcDispatchTest, MatchingSnapshotConfirmsDispatch) {
   EXPECT_STREQ(Record()->errorText, tstrerror(TSDB_CODE_OUT_OF_MEMORY));
 }
 
+TEST_F(MndStreamRecalcDispatchTest, FullCoverageRunningHeartbeatConfirmsDispatch) {
+  const auto *record = AddRecord();
+  ASSERT_NE(record, nullptr);
+  SStreamRecalcSnapshot snapshot = record->snapshot;
+  snapshot.status = STREAM_RECALC_STATUS_RUNNING;
+  snapshot.progressPct = 100;
+  ASSERT_EQ(ApplySerializedHeartbeat(Snapshots(&snapshot), nullptr), TSDB_CODE_SUCCESS);
+
+  EXPECT_TRUE(Record()->dispatchConfirmed);
+  EXPECT_EQ(taosArrayGetSize(DispatchFromTriggerHeartbeat()), 0);
+  SSDataBlock *block = QueryRecalculates();
+  ASSERT_NE(block, nullptr);
+  ASSERT_EQ(block->info.rows, 1);
+  EXPECT_EQ(getVarCharValue(block, 5, 0), "99%");
+  EXPECT_EQ(getVarCharValue(block, 6, 0), "Running");
+  blockDataDestroy(block);
+}
+
 TEST_F(MndStreamRecalcDispatchTest, MatchingSnapshotRequiresCurrentTriggerIdentity) {
   ASSERT_NE(AddRecord(), nullptr);
   SStreamRecalcSnapshot snapshot = {};
@@ -7623,7 +7680,7 @@ TEST_F(MndStreamRecalcDispatchTest, IncompleteOrInvalidSnapshotCannotClearConfir
   invalid.recalcId = kRecalcId + 1;
   invalid.start = 100;
   invalid.end = 200;
-  invalid.progressPct = 100;
+  invalid.progressPct = 101;
   invalid.status = STREAM_RECALC_STATUS_RUNNING;
   SArray *pInvalid = Snapshots(&invalid);
   ASSERT_NE(pInvalid, nullptr);
@@ -16696,19 +16753,6 @@ TEST_F(MndStreamRecalcTest, TypedUpdateAllocationFailurePreservesOldRecordAndSna
   ASSERT_NE(record, nullptr);
   EXPECT_EQ(record->snapshot.progressPct, 25);
   EXPECT_EQ(record->snapshot.status, STREAM_RECALC_STATUS_RUNNING);
-}
-
-TEST_F(MndStreamRecalcTest, OneHundredPercentCannotRemainRunning) {
-  ASSERT_EQ(Apply(8, STREAM_RECALC_STATUS_RUNNING, 25), TSDB_CODE_SUCCESS);
-  EXPECT_EQ(Apply(8, STREAM_RECALC_STATUS_RUNNING, 100), TSDB_CODE_INVALID_PARA);
-
-  SSDataBlock *pBlock = QueryRecalculates();
-  ASSERT_NE(pBlock, nullptr);
-  const int32_t row = FindRecalcRow(pBlock, 8);
-  ASSERT_GE(row, 0);
-  EXPECT_EQ(getVarCharValue(pBlock, 5, row), "25%");
-  EXPECT_EQ(getVarCharValue(pBlock, 6, row), "Running");
-  blockDataDestroy(pBlock);
 }
 
 TEST_F(MndStreamRecalcTest, TerminalStateCannotRegressOrRefreshRetentionTime) {
