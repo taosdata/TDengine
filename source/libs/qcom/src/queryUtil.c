@@ -499,7 +499,7 @@ void destroyQueryExecRes(SExecResult* pRes) {
   pRes->res = NULL;
 }
 // clang-format on
-int32_t dataConverToStr(char* str, int64_t capacity, int type, void* buf, int32_t bufSize, int32_t* len) {
+int32_t dataConverToStr(char* str, int64_t capacity, int type, void* buf, int32_t bufSize, int32_t* len, void *charsetCxt) {
   QUERY_PARAM_CHECK(str);
   QUERY_PARAM_CHECK(buf);
   int32_t n = 0;
@@ -574,10 +574,8 @@ int32_t dataConverToStr(char* str, int64_t capacity, int type, void* buf, int32_
       }
 
       *str = '"';
-      // dataConverToStr has no query context; render with the process/server
-      // charset.
-      int32_t length = taosUcs4ToMbsCharsetInsensitive((TdUcs4*)buf, bufSize,
-                                                       str + 1);
+      int32_t length = taosUcs4ToMbs((TdUcs4*)buf, bufSize,
+                                                       str + 1, charsetCxt);
       if (length < 0) {
         return TSDB_CODE_TSC_INVALID_VALUE;
       }

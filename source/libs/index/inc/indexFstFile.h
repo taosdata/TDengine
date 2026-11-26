@@ -62,6 +62,7 @@ typedef struct IFileCtx {
   };
   int32_t offset;
   int32_t limit;
+  int32_t writeError;  // Sticky I/O failure; not serialized.
 } IFileCtx;
 
 static int idxFileCtxDoWrite(IFileCtx* ctx, uint8_t* buf, int len);

@@ -1876,6 +1876,7 @@ SNode* createPositionFunctionNode(SAstCreateContext* pCxt, SNode* pExpr, SNode* 
   CHECK_PARSER_STATUS(pCxt);
   pCxt->errCode = nodesListMakeAppend(&func->pParameterList, pExpr2);
   CHECK_PARSER_STATUS(pCxt);
+  func->charsetCxt = pCxt->pQueryCxt->charsetCxt;
   return (SNode*)func;
 _err:
   nodesDestroyNode((SNode*)func);
@@ -5288,7 +5289,7 @@ SNode* createAlterTagValueNodeWithExpression(SAstCreateContext* pCxt, SToken* pT
   }
   (void)trimString(pattern->z, pattern->n, pNode->regexp, pattern->n);
 
-  int32_t code = checkRegexPattern(pNode->regexp);
+  int32_t code = checkRegexPattern(pNode->regexp, pCxt->pQueryCxt->charsetCxt);
   if (code != 0) {
     pCxt->errCode = generateSyntaxErrMsgExt(&pCxt->msgBuf, code,
                                             "'%s' is not a valid regular expression", pNode->regexp);
@@ -10675,6 +10676,12 @@ SNode* createTimeAlignTableNode(SAstCreateContext* pCxt, SToken* pFuncName, STok
                                          "unsupported table function in TABLE(...)");
     return NULL;
   }
+  // An explicit database qualifier must go through checkDbName() like every
+  // other table reference: it strips the backtick escapes.  Copying the raw
+  // token makes a quoted qualifier such as `db`.`tbl` reach the catalog with
+  // its backticks still attached, and the metadata lookup then fails with
+  // "Database does not exist".
+  CHECK_NAME(checkDbName(pCxt, pDbName, true));
   CHECK_NAME(checkTableName(pCxt, pTableName));
   CHECK_NAME(checkTableName(pCxt, pTableAlias));
 

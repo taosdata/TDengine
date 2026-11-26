@@ -1074,6 +1074,15 @@ class TestFunScaStrTrimSubstr:
         tdSql.checkRows(1)
         tdSql.checkData(0, 0, None)
 
+        # A NULL group also short-circuits a pattern deferred to server-side validation.
+        for sql in (
+            f"SELECT REGEXP_EXTRACT(nc, '[中', NULL) FROM {dbname}.nt WHERE iv=42",
+            "SELECT REGEXP_EXTRACT('abc', '[中', NULL)",
+        ):
+            tdSql.query(sql)
+            tdSql.checkRows(1)
+            tdSql.checkData(0, 0, None)
+
         # RXE-NULL-006: non-participating group in alternation → NULL
         # pattern '(a)|(b)' matches 'b' via group 2; group 1 did not participate
         tdSql.query("SELECT REGEXP_EXTRACT('b', '(a)|(b)', 1)")
@@ -1358,6 +1367,7 @@ class TestFunScaStrTrimSubstr:
         10. regexp_extract POSIX ERE features: character class, anchors, case sensitivity
         11. regexp_extract invalid parameter error cases (including group_idx > 512)
         12. regexp_extract user-manual doc examples
+        13. Invalid non-ASCII patterns report the same syntax error on empty and populated tables
 
         Since: v3.4.2.0
 
@@ -1374,9 +1384,12 @@ class TestFunScaStrTrimSubstr:
 
         tdLog.printNoPrefix("==========step1:create table")
         self._create_tb_regexp(dbname)
+        invalid_pattern_sql = f"SELECT REGEXP_EXTRACT(nc, '[中', 1) FROM {dbname}.nt"
+        tdSql.error(invalid_pattern_sql, expectedErrno=0x2681)
 
         tdLog.printNoPrefix("==========step2:insert data")
         self._insert_data_regexp(dbname)
+        tdSql.error(invalid_pattern_sql, expectedErrno=0x2681)
 
         tdLog.printNoPrefix("==========step3:all check")
         self.all_test_regexp(dbname)

@@ -71,6 +71,7 @@ class FstWriter {
     return ok;
   }
   ~FstWriter() {
+    EXPECT_EQ(0, fstBuilderFinish(_b));
     fstBuilderDestroy(_b);
 
     idxFileCtxDestroy(_wc, false);

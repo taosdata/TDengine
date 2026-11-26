@@ -4,7 +4,7 @@ This directory contains agent skills published with TDgpt.
 
 | Skill | Description |
 | --- | --- |
-| [tdgpt-custom-algorithm](tdgpt-custom-algorithm/SKILL.md) | Deploy user-defined anomaly detection (`ad`), forecast (`fc`) and batch envelope (`batch`) algorithms. Generates an Adapter when the user model does not follow the TDgpt class hierarchy. |
+| [tdgpt-custom-algorithm](tdgpt-custom-algorithm/SKILL.md) | Deploy user-defined anomaly detection (`ad`), forecast (`fc`), classification, regression and batch envelope (`batch`) algorithms. Generates an Adapter when the user model does not follow the TDgpt class hierarchy. |
 
 ## Using a skill
 
@@ -24,7 +24,7 @@ the user's explicit confirmation.
 
 ## Requirements
 
-- `ad` / `fc` / `batch` user algorithms are supported.
+- `ad` / `fc` / `classification` / `regression` / `batch` user algorithms are supported.
 - Execution host: Linux/macOS. The deployment script relies on a POSIX shell
   (`sh`, `chmod`, `sha256sum`, `base64`). Windows native and local Docker
   deployments are rejected; a Windows host can only use

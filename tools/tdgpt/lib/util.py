@@ -40,6 +40,30 @@ def get_algo(json_obj, default):
     return algo.lower()
 
 
+def validate_columns(payload):
+    """return the row count of column-oriented data, rejecting ragged columns"""
+    if not isinstance(payload, list):
+        raise ValueError("invalid data format: data must be a list of columns")
+
+    for column in payload:
+        # A JSON object also has a length, so testing ``len`` alone accepts it
+        # and the caller's transpose then fails while indexing by row number.
+        if not isinstance(column, (list, tuple)):
+            raise ValueError("invalid data format: data must be a list of columns")
+
+    lengths = {len(column) for column in payload}
+    if len(lengths) != 1:
+        raise ValueError(
+            "data inconsistent, number of rows in different columns are not identical"
+        )
+    return lengths.pop()
+
+
+def normalize_json_values(values):
+    """convert numpy scalars so the response stays JSON serializable"""
+    return [value.item() if hasattr(value, "item") else value for value in values]
+
+
 def validate_pay_load(json_obj, check_rows=True):
     """validate the input payload"""
     if "data" not in json_obj:

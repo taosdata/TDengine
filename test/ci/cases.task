@@ -561,6 +561,7 @@
 ,,y,.,./ci/pytest.sh pytest cases/09-DataQuerying/07-SLimit/test_slimit.py
 ,,y,.,./ci/pytest.sh pytest cases/09-DataQuerying/07-SLimit/test_slimit_basic.py
 ## 08-SubQuery
+,,y,.,./ci/pytest.sh pytest cases/09-DataQuerying/08-SubQuery/test_scalar_subquery_fetch_concurrency.py
 ,,y,.,./ci/pytest.sh pytest cases/09-DataQuerying/08-SubQuery/test_query_sub.py
 ,,y,.,./ci/pytest.sh pytest cases/09-DataQuerying/08-SubQuery/test_query_sub_bugs.py -N 3
 ,,n,.,pytest cases/09-DataQuerying/08-SubQuery/test_scalar_sub2.py
@@ -1180,8 +1181,7 @@
 ,,y,.,./ci/pytest.sh pytest cases/18-StreamProcessing/07-SubQuery/test_direct_trows_join.py
 ,,y,.,CASE_TIMEOUT=1800 ./ci/pytest.sh pytest cases/18-StreamProcessing/03-TriggerMode/test_time_align.py
 ,,y,.,./ci/pytest.sh pytest cases/18-StreamProcessing/03-TriggerMode/test_time_align_manual.py
-# Temporarily disabled: taosd TIME_ALIGN leak (Defect 7179873301); restore after all 6 tests pass with ASAN.
-#,,y,.,./ci/pytest.sh pytest cases/18-StreamProcessing/07-SubQuery/test_subquery_time_align.py
+,,y,.,./ci/pytest.sh pytest cases/18-StreamProcessing/07-SubQuery/test_subquery_time_align.py
 ,,y,.,./ci/pytest.sh pytest cases/18-StreamProcessing/07-SubQuery/test_single_group_join_matrix.py
 ## 08-Recalc
 ,,y,.,./ci/pytest.sh pytest cases/18-StreamProcessing/08-Recalc/test_recalc_combined_options.py
@@ -1287,7 +1287,7 @@
 ,,y,.,./ci/pytest.sh pytest cases/21-MetaData/test_meta_batch_txn_basic_c.py
 ,,y,.,./ci/pytest.sh pytest cases/21-MetaData/test_meta_batch_txn_advanced.py
 ,,y,.,./ci/pytest.sh pytest cases/21-MetaData/test_meta_batch_txn_alter_tag.py
-,,y,.,./ci/pytest.sh pytest cases/21-MetaData/test_meta_batch_txn_ddl_visibility.py -N 3 -M 3
+,1,y,.,./ci/pytest.sh pytest cases/21-MetaData/test_meta_batch_txn_ddl_visibility.py -N 3 -M 3
 ,,y,.,./ci/pytest.sh pytest cases/21-MetaData/test_meta_batch_txn_stb_alter_child_schema.py
 ,,y,.,./ci/pytest.sh pytest cases/21-MetaData/test_meta_batch_txn_batch_ops.py
 ,,y,.,./ci/pytest.sh pytest cases/21-MetaData/test_meta_batch_txn_op_matrix.py

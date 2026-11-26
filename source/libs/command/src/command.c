@@ -1187,11 +1187,11 @@ static int32_t appendTagValues(char* buf, int32_t bufSize, int32_t* len, STableC
       if (IS_VAR_DATA_TYPE(type)) {
         code = checkTagValueSpace(type, pTagVal->nData, leftSize);
         TAOS_CHECK_ERRNO(code);
-        code = dataConverToStr(buf + VARSTR_HEADER_SIZE + *len, leftSize, type, pTagVal->pData, pTagVal->nData, &tlen);
+        code = dataConverToStr(buf + VARSTR_HEADER_SIZE + *len, leftSize, type, pTagVal->pData, pTagVal->nData, &tlen, charsetCxt);
         TAOS_CHECK_ERRNO(code);
       } else {
         code = dataConverToStr(buf + VARSTR_HEADER_SIZE + *len, leftSize, type, &pTagVal->i64, tDataTypes[type].bytes,
-                               &tlen);
+                               &tlen, charsetCxt);
         TAOS_CHECK_ERRNO(code);
       }
       if (tlen < 0 || tlen >= leftSize) {
@@ -1311,10 +1311,10 @@ static int32_t appendInlineTagFields(char* buf, int32_t bufSize, int32_t* len, S
       if (IS_VAR_DATA_TYPE(v->type)) {
         code = checkTagValueSpace(v->type, v->nData, leftSize);
         TAOS_CHECK_ERRNO(code);
-        code = dataConverToStr(buf + VARSTR_HEADER_SIZE + *len, leftSize, v->type, v->pData, v->nData, &tlen);
+        code = dataConverToStr(buf + VARSTR_HEADER_SIZE + *len, leftSize, v->type, v->pData, v->nData, &tlen, charsetCxt);
       } else {
         code = dataConverToStr(buf + VARSTR_HEADER_SIZE + *len, leftSize, v->type, &v->i64, tDataTypes[v->type].bytes,
-                               &tlen);
+                               &tlen, charsetCxt);
       }
       TAOS_CHECK_ERRNO(code);
       if (tlen < 0 || tlen >= leftSize) {

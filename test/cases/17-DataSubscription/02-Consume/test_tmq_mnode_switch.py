@@ -108,7 +108,21 @@ class TestCase:
         count=0
         while count < self.mnodeCheckCnt:
             time.sleep(1)
-            tdSql.query("select * from information_schema.ins_mnodes")
+
+            retryTimes = 5
+            for attempt in range(1, retryTimes + 1):
+                try:
+                    tdSql.query("select * from information_schema.ins_mnodes")
+                    break
+                except taos.error.ProgrammingError as error:
+                    tdLog.debug(
+                        "query mnodes failed on attempt %d/%d: %r"
+                        % (attempt, retryTimes, error)
+                    )
+                    if attempt == retryTimes:
+                        raise
+                    time.sleep(5)
+
             tdLog.debug(tdSql.queryResult)
             # if tdSql.checkRows(self.mnodes) :
             #     tdLog.debug("mnode is three nodes")

@@ -222,6 +222,13 @@ int32_t taosResetTerminalMode() {
 
 // Command allowlist to prevent command injection
 static bool isCommandAllowed(const char* cmd) {
+  // Regex locale discovery uses this exact, argument-free-of-client-data command.
+#ifndef WINDOWS
+  if (strcmp(cmd, "/usr/bin/locale -a") == 0) return true;
+#ifdef __linux__
+  if (strcmp(cmd, "/usr/bin/env -u LD_PRELOAD /usr/bin/locale -a") == 0) return true;
+#endif
+#endif
   static const char* allowedCmds[] = {"taos",        "taosd",      "taosdump",        "taosBenchmark",
                                       "taosAdapter", "taosKeeper", PLATFORM_SYS_CMDS, NULL};
 

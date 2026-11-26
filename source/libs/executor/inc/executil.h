@@ -87,7 +87,6 @@ typedef struct STaskSubJobCtx {
   char*              idStr;
   void*              pTaskInfo;
   void*              rpcHandle;
-  int64_t            transporterId;
   int32_t            code;
   int32_t            rspLen;
   tsem_t             ready;
@@ -102,6 +101,13 @@ typedef struct SScalarFetchParam {
   int32_t           subQIdx;
   SNode*            pRes;
   int64_t           subJobRefId;
+  // Transport handle of this very fetch request. The transport writes it before the request can
+  // be dispatched and the completion callback releases exactly this handle, so concurrent
+  // fetches of the same sub-job never release each other's in-flight requests.
+  int64_t           transId;
+  // Transport instance that owns transId. Kept here as a numeric handle so the completion
+  // callback can still release the request handle after the sub-job context was destroyed.
+  void*             pTransporter;
 } SScalarFetchParam;
 
 
@@ -343,7 +349,7 @@ int32_t resultrowComparAsc(const void* p1, const void* p2);
 int32_t isQualifiedTable(int64_t uid, SNode* pTagCond, void* vnode, bool* pQualified, SStorageAPI* pAPI);
 char*   getStreamOpName(uint16_t opType);
 
-void    printSpecDataBlock(SSDataBlock* pBlock, const char* flag, const char* opStr, const char* taskIdStr);
+void    printSpecDataBlock(SSDataBlock* pBlock, const char* flag, const char* opStr, const char* taskIdStr, void *charsetCxt);
 
 TSKEY getStartTsKey(STimeWindow* win, const TSKEY* tsCols);
 void  updateTimeWindowInfo(SColumnInfoData* pColData, const STimeWindow* pWin, int64_t delta);

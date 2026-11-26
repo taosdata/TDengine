@@ -1641,7 +1641,7 @@ static int32_t translateRegexpExtract(SFunctionNode* pFunc, char* pErrBuf, int32
 
     if (regPattern != NULL) {
       char    msgbuf[256] = {0};
-      int32_t code = checkRegexPatternEx(regPattern, msgbuf, sizeof(msgbuf));
+      int32_t code = checkRegexPatternEx(regPattern, msgbuf, sizeof(msgbuf), pFunc->charsetCxt);
       if (code != TSDB_CODE_SUCCESS) {
         taosMemoryFree(patternBuf);
         return buildFuncErrMsg(pErrBuf, len, code, "Invalid regex pattern for regexp_extract: %s", msgbuf);

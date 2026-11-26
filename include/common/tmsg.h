@@ -6641,6 +6641,7 @@ typedef struct SUpdatedTagVal {
   // support
   char*    regexp;
   char*    replacement;
+  const char* charset;  // Borrowed from the enclosing request.
 } SUpdatedTagVal;
 
 typedef struct SUpdateTableTagVal {
@@ -6716,6 +6717,7 @@ typedef struct SVAlterTbReq {
   SVtableReferenceExt referenceExt;
   bool hasExpectedRversion;
   int32_t expectedRversion;
+  const char* charset;  // Connection charset; optional trailing wire field.
 } SVAlterTbReq;
 
 int32_t tEncodeSVAlterTbReq(SEncoder* pEncoder, const SVAlterTbReq* pReq);

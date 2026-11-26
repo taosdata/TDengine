@@ -2325,7 +2325,9 @@ int32_t qwProcessDelete(QW_FPARAMS_DEF, SQWMsg *qwMsg, SDeleteRes *pRes) {
   code = qMsgToSubplan(qwMsg->msg, qwMsg->msgLen, &plan);
 
   if (TSDB_CODE_SUCCESS != code) {
-    code = TSDB_CODE_INVALID_MSG;
+    if (code != TSDB_CODE_CHARSET_CONVERT_ERROR) {
+      code = TSDB_CODE_INVALID_MSG;
+    }
     QW_TASK_ELOG("task physical plan to subplan failed, code:%x - %s", code, tstrerror(code));
     QW_ERR_JRET(code);
   }

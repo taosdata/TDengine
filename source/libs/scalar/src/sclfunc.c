@@ -43,7 +43,7 @@ typedef double (*_double_fn_2)(double, double);
 typedef int (*_conv_fn)(int);
 typedef void (*_trim_space_fn)(char *, char *, int32_t, int32_t, void *);
 typedef int32_t (*_trim_fn)(char *, char *, char *, int32_t, int32_t, void *);
-typedef int32_t (*_len_fn)(char *, int32_t, void *);
+typedef int32_t (*_len_fn)(char *, int32_t, void *, void *);
 
 enum { SCALAR_HISTOGRAM_MAX_BINS_NUM = 1000 };
 
@@ -904,7 +904,7 @@ static int32_t doScalarFunctionUnique(SScalarParam *pInput, int32_t inputNum, SS
       continue;
     }
     double tmp = 0;
-    SCL_ERR_RET(getValueFn(pInputData->pData, i, &tmp));
+    SCL_ERR_RET(getValueFn(pInputData->pData, i, &tmp, pInput[0].charsetCxt));
     double result = valFn(tmp);
     if (isinf(result) || isnan(result)) {
       colDataSetNULL(pOutputData, i);
@@ -942,8 +942,8 @@ static int32_t doScalarFunctionUnique2(SScalarParam *pInput, int32_t inputNum, S
       }
       double val1 = 0;
       double val2 = 0;
-      SCL_ERR_RET(getValueFn[0](pInputData[0]->pData, i, &val1));
-      SCL_ERR_RET(getValueFn[1](pInputData[1]->pData, i, &val2));
+      SCL_ERR_RET(getValueFn[0](pInputData[0]->pData, i, &val1, pInput[0].charsetCxt));
+      SCL_ERR_RET(getValueFn[1](pInputData[1]->pData, i, &val2, pInput[1].charsetCxt));
       result = valFn(val1, val2);
       if (isinf(result) || isnan(result)) {
         colDataSetNULL(pOutputData, i);
@@ -962,8 +962,8 @@ static int32_t doScalarFunctionUnique2(SScalarParam *pInput, int32_t inputNum, S
         }
         double val1 = 0;
         double val2 = 0;
-        SCL_ERR_RET(getValueFn[0](pInputData[0]->pData, 0, &val1));
-        SCL_ERR_RET(getValueFn[1](pInputData[1]->pData, i, &val2));
+        SCL_ERR_RET(getValueFn[0](pInputData[0]->pData, 0, &val1, pInput[0].charsetCxt));
+        SCL_ERR_RET(getValueFn[1](pInputData[1]->pData, i, &val2, pInput[1].charsetCxt));
         result = valFn(val1, val2);
         if (isinf(result) || isnan(result)) {
           colDataSetNULL(pOutputData, i);
@@ -984,8 +984,8 @@ static int32_t doScalarFunctionUnique2(SScalarParam *pInput, int32_t inputNum, S
         }
         double val1 = 0;
         double val2 = 0;
-        SCL_ERR_RET(getValueFn[0](pInputData[0]->pData, i, &val1));
-        SCL_ERR_RET(getValueFn[1](pInputData[1]->pData, 0, &val2));
+        SCL_ERR_RET(getValueFn[0](pInputData[0]->pData, i, &val1, pInput[0].charsetCxt));
+        SCL_ERR_RET(getValueFn[1](pInputData[1]->pData, 0, &val2, pInput[1].charsetCxt));
         result = valFn(val1, val2);
         if (isinf(result) || isnan(result)) {
           colDataSetNULL(pOutputData, i);
@@ -1054,7 +1054,7 @@ static int32_t doScalarFunction(SScalarParam *pInput, int32_t inputNum, SScalarP
 }
 
 /** String functions **/
-static int32_t tlength(char *input, int32_t type, void *len) {
+static int32_t tlength(char *input, int32_t type, void *len, void *charsetCxt) {
   if (IS_STR_DATA_BLOB(type)) {
     *(BlobDataLenT *)len = blobDataLen(input);
   } else {
@@ -1063,34 +1063,30 @@ static int32_t tlength(char *input, int32_t type, void *len) {
   return TSDB_CODE_SUCCESS;
 }
 
-uint8_t getCharLen(const unsigned char *str) {
-  if (strcasecmp(tsCharset, "UTF-8") != 0) {
-    return 1;
-  }
-  if ((str[0] & 0x80) == 0) {
-    return 1;
-  } else if ((str[0] & 0xE0) == 0xC0) {
-    return 2;
-  } else if ((str[0] & 0xF0) == 0xE0) {
-    return 3;
-  } else if ((str[0] & 0xF8) == 0xF0) {
-    return 4;
+// Byte offsets remain in the original encoding, including reverse searches.
+static int32_t scalarCharBoundaries(const char *str, int32_t len, bool isNchar,
+                                     void *charsetCxt, uint8_t **boundaries) {
+  *boundaries = taosMemoryCalloc((size_t)len + 1, 1);
+  if (*boundaries == NULL) return terrno;
+  int32_t code = TSDB_CODE_SUCCESS;
+  if (isNchar) {
+    for (int32_t i = 0; i <= len; i += TSDB_NCHAR_SIZE) (*boundaries)[i] = 1;
   } else {
-    return 1;
+    code = taosMbsCharBoundaries(str, len, charsetCxt, *boundaries);
   }
+  if (code != TSDB_CODE_SUCCESS) taosMemoryFreeClear(*boundaries);
+  return code;
 }
 
-static int32_t tcharlength(char *input, int32_t type, void *len) {
+static int32_t tcharlength(char *input, int32_t type, void *len, void *charsetCxt) {
   if (type == TSDB_DATA_TYPE_VARCHAR) {
-    // calculate the number of characters in the string considering the multi-byte character
-    char       *str = varDataVal(input);
-    VarDataLenT strLen = 0;
-    VarDataLenT pos = 0;
-    while (pos < varDataLen(input)) {
-      strLen++;
-      pos += getCharLen((unsigned char *)(str + pos));
-    }
-    *(VarDataLenT *)len = strLen;
+    uint8_t *boundaries = NULL;
+    SCL_ERR_RET(scalarCharBoundaries(varDataVal(input), varDataLen(input), false,
+                                     charsetCxt, &boundaries));
+    VarDataLenT count = 0;
+    for (int32_t i = 0; i < varDataLen(input); ++i) count += boundaries[i];
+    taosMemoryFree(boundaries);
+    *(VarDataLenT *)len = count;
     return TSDB_CODE_SUCCESS;
   } else if (type == TSDB_DATA_TYPE_GEOMETRY) {
     *(VarDataLenT *)len = varDataLen(input);
@@ -1193,40 +1189,21 @@ static void tlrtrimspace(char *input, char *output, int32_t type, int32_t charLe
   varDataSetLen(output, resLen);
 }
 
-static bool isCharStart(char c) { return strcasecmp(tsCharset, "UTF-8") == 0 ? ((c & 0xC0) != 0x80) : true; }
-
-static int32_t trimHelper(char *orgStr, char *remStr, int32_t orgLen, int32_t remLen, bool trimLeft, bool isNchar) {
+static int32_t trimHelper(char *orgStr, char *remStr, int32_t orgLen,
+                            int32_t remLen, bool trimLeft, bool isNchar,
+                            void *charsetCxt) {
+  uint8_t *boundaries = NULL;
+  SCL_ERR_RET(scalarCharBoundaries(orgStr, orgLen, isNchar, charsetCxt, &boundaries));
+  int32_t pos = trimLeft ? 0 : orgLen;
   if (trimLeft) {
-    int32_t pos = 0;
-    for (int32_t i = 0; i < orgLen - remLen; i += remLen) {
-      if (memcmp(orgStr + i, remStr, remLen) == 0) {
-        if (isCharStart(orgStr[i + remLen]) || isNchar) {
-          pos = i + remLen;
-          continue;
-        } else {
-          return pos;
-        }
-      } else {
-        return pos;
-      }
-    }
-    return pos;
+    while (pos <= orgLen - remLen && boundaries[pos + remLen] &&
+           memcmp(orgStr + pos, remStr, remLen) == 0) pos += remLen;
   } else {
-    int32_t pos = orgLen;
-    for (int32_t i = orgLen - remLen; i >= 0; i -= remLen) {
-      if (memcmp(orgStr + i, remStr, remLen) == 0) {
-        if (isCharStart(orgStr[i]) || isNchar) {
-          pos = i;
-          continue;
-        } else {
-          return pos;
-        }
-      } else {
-        return pos;
-      }
-    }
-    return pos;
+    while (pos >= remLen && boundaries[pos - remLen] &&
+           memcmp(orgStr + pos - remLen, remStr, remLen) == 0) pos -= remLen;
   }
+  taosMemoryFree(boundaries);
+  return pos;
 }
 
 static int32_t convVarcharToNchar(char *input, char **output, int32_t inputLen, int32_t *outputLen, void *charsetCxt) {
@@ -1251,20 +1228,6 @@ static int32_t convNcharToVarchar(char *input, char **output, int32_t inputLen, 
   *outputLen = taosUcs4ToMbs((TdUcs4 *)input, inputLen, *output, charsetCxt);
   if (*outputLen < 0) {
     taosMemoryFree(*output);
-    return TSDB_CODE_SCALAR_CONVERT_NCHAR_ERROR;
-  }
-  return TSDB_CODE_SUCCESS;
-}
-
-static int32_t convNcharToVarcharCharsetInsensitive(char *input, char **output, int32_t inputLen,
-                                                     int32_t *outputLen) {
-  *output = taosMemoryCalloc(inputLen > 0 ? inputLen : 1, 1);
-  if (NULL == *output) {
-    return terrno;
-  }
-  *outputLen = taosUcs4ToMbsCharsetInsensitive((TdUcs4 *)input, inputLen, *output);
-  if (*outputLen < 0) {
-    taosMemoryFreeClear(*output);
     return TSDB_CODE_SCALAR_CONVERT_NCHAR_ERROR;
   }
   return TSDB_CODE_SUCCESS;
@@ -1299,14 +1262,17 @@ static int32_t tltrim(char *input, char *remInput, char *output, int32_t inputTy
   if (remLen == 0 || remLen > orgLen) {
     (void)memcpy(varDataVal(output), orgStr, orgLen);
     varDataSetLen(output, orgLen);
+    if (needFree) taosMemoryFree(remStr);
     return TSDB_CODE_SUCCESS;
   }
 
-  pos = trimHelper(orgStr, remStr, orgLen, remLen, true, inputType == TSDB_DATA_TYPE_NCHAR);
+  pos = trimHelper(orgStr, remStr, orgLen, remLen, true, inputType == TSDB_DATA_TYPE_NCHAR, charsetCxt);
 
   if (needFree) {
     taosMemoryFree(remStr);
   }
+
+  if (pos < 0) return pos;
 
   int32_t resLen = orgLen - pos;
   (void)memcpy(varDataVal(output), orgStr + pos, resLen);
@@ -1364,14 +1330,17 @@ static int32_t trtrim(char *input, char *remInput, char *output, int32_t inputTy
   if (remLen == 0 || remLen > orgLen) {
     (void)memcpy(varDataVal(output), orgStr, orgLen);
     varDataSetLen(output, orgLen);
+    if (needFree) taosMemoryFree(remStr);
     return TSDB_CODE_SUCCESS;
   }
 
-  pos = trimHelper(orgStr, remStr, orgLen, remLen, false, inputType == TSDB_DATA_TYPE_NCHAR);
+  pos = trimHelper(orgStr, remStr, orgLen, remLen, false, inputType == TSDB_DATA_TYPE_NCHAR, charsetCxt);
 
   if (needFree) {
     taosMemoryFree(remStr);
   }
+
+  if (pos < 0) return pos;
 
   (void)memcpy(varDataVal(output), orgStr, pos);
   varDataSetLen(output, pos);
@@ -1406,12 +1375,15 @@ static int32_t tlrtrim(char *input, char *remInput, char *output, int32_t inputT
     return TSDB_CODE_SUCCESS;
   }
 
-  int32_t leftPos = trimHelper(orgStr, remStr, orgLen, remLen, true, inputType == TSDB_DATA_TYPE_NCHAR);
-  int32_t rightPos = trimHelper(orgStr, remStr, orgLen, remLen, false, inputType == TSDB_DATA_TYPE_NCHAR);
+  int32_t leftPos = trimHelper(orgStr, remStr, orgLen, remLen, true, inputType == TSDB_DATA_TYPE_NCHAR, charsetCxt);
+  int32_t rightPos = trimHelper(orgStr, remStr, orgLen, remLen, false, inputType == TSDB_DATA_TYPE_NCHAR, charsetCxt);
 
   if (needFree) {
     taosMemoryFree(remStr);
   }
+
+  if (leftPos < 0) return leftPos;
+  if (rightPos < 0) return rightPos;
 
   if (leftPos >= rightPos) {
     varDataSetLen(output, 0);
@@ -1438,9 +1410,9 @@ static int32_t doLengthFunction(SScalarParam *pInput, int32_t inputNum, SScalarP
 
     char *in = colDataGetData(pInputData, i);
     if (IS_STR_DATA_BLOB(type)) {
-      SCL_ERR_RET(lenFn(in, type, (BlobDataLenT *)&(out[i])));
+      SCL_ERR_RET(lenFn(in, type, (BlobDataLenT *)&(out[i]), pInput->charsetCxt));
     } else {
-      SCL_ERR_RET(lenFn(in, type, (VarDataLenT *)&(out[i])));
+      SCL_ERR_RET(lenFn(in, type, (VarDataLenT *)&(out[i]), pInput->charsetCxt));
     }
   }
 
@@ -1813,55 +1785,27 @@ _return:
   return code;
 }
 
-static int32_t findPosBytes(char *orgStr, char *delimStr, int32_t orgLen, int32_t delimLen, int32_t charNums,
-                            bool isNchar) {
-  int32_t charCount = 0;
-  if (charNums > 0) {
-    for (int32_t pos = 0; pos < orgLen; pos++) {
-      if (delimStr) {
-        if (pos + delimLen > orgLen) {
-          return orgLen;
-        }
-        if ((isCharStart(orgStr[pos]) || isNchar) && memcmp(orgStr + pos, delimStr, delimLen) == 0) {
-          charCount++;
-          if (charCount == charNums) {
-            return pos;
-          }
-          pos = pos + delimLen - 1;
-        }
-      } else {
-        if ((isCharStart(orgStr[pos]) || isNchar)) {
-          charCount++;
-          if (charCount == charNums) {
-            return pos;
-          }
-        }
-      }
+static int32_t findPosBytes(char *orgStr, char *delimStr, int32_t orgLen,
+                            int32_t delimLen, int32_t charNums, bool isNchar,
+                            void *charsetCxt) {
+  uint8_t *boundaries = NULL;
+  SCL_ERR_RET(scalarCharBoundaries(orgStr, orgLen, isNchar, charsetCxt, &boundaries));
+  int64_t count = charNums > 0 ? (int64_t)charNums : -(int64_t)charNums;
+  int32_t result = charNums > 0 ? orgLen : 0;
+  int32_t pos = charNums > 0 ? 0 : orgLen - (delimStr ? delimLen : 1);
+  int32_t step = charNums > 0 ? 1 : -1;
+  for (; pos >= 0 && pos < orgLen; pos += step) {
+    if (!boundaries[pos]) continue;
+    if (delimStr && (pos + delimLen > orgLen || !boundaries[pos + delimLen] ||
+                     memcmp(orgStr + pos, delimStr, delimLen) != 0)) continue;
+    if (--count == 0) {
+      result = pos + (charNums < 0 && delimStr ? delimLen : 0);
+      break;
     }
-    return orgLen;
-  } else {
-    if (delimStr) {
-      for (int32_t pos = orgLen - delimLen; pos >= 0; pos--) {
-        if ((isCharStart(orgStr[pos]) || isNchar) && memcmp(orgStr + pos, delimStr, delimLen) == 0) {
-          charCount++;
-          if (charCount == -charNums) {
-            return pos + delimLen;
-          }
-          pos = pos - delimLen + 1;
-        }
-      }
-    } else {
-      for (int32_t pos = orgLen - 1; pos >= 0; pos--) {
-        if ((isCharStart(orgStr[pos]) || isNchar)) {
-          charCount++;
-          if (charCount == -charNums) {
-            return pos;
-          }
-        }
-      }
-    }
-    return 0;
+    if (delimStr) pos += step * (delimLen - 1);
   }
+  taosMemoryFree(boundaries);
+  return result;
 }
 
 int32_t substrFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput) {
@@ -1970,20 +1914,27 @@ int32_t substrFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOu
       // VARCHAR/NCHAR character position logic
       if (subPos > 0) {
         startPosBytes = (inputType == TSDB_DATA_TYPE_VARCHAR)
-                            ? findPosBytes(dataStart, NULL, len, -1, subPos, false)
+                            ? findPosBytes(dataStart, NULL, len, -1, subPos, false, pInput->charsetCxt)
                             : (subPos - 1) * TSDB_NCHAR_SIZE;
+        if (startPosBytes < 0 && inputType == TSDB_DATA_TYPE_VARCHAR) SCL_ERR_JRET(startPosBytes);
         startPosBytes = TMIN(startPosBytes, len);
       } else {
         startPosBytes = (inputType == TSDB_DATA_TYPE_VARCHAR)
-                            ? findPosBytes(dataStart, NULL, len, -1, subPos, false)
+                            ? findPosBytes(dataStart, NULL, len, -1, subPos, false, pInput->charsetCxt)
                             : len + subPos * TSDB_NCHAR_SIZE;
+        if (startPosBytes < 0 && inputType == TSDB_DATA_TYPE_VARCHAR) SCL_ERR_JRET(startPosBytes);
         startPosBytes = TMAX(startPosBytes, 0);
       }
       if (inputNum == 3) {
-        endPosBytes = (inputType == TSDB_DATA_TYPE_VARCHAR)
-                          ? startPosBytes + findPosBytes(dataStart + startPosBytes, NULL,
-                                                         len - startPosBytes, -1, subLen + 1, false)
-                          : startPosBytes + subLen * TSDB_NCHAR_SIZE;
+        if (inputType == TSDB_DATA_TYPE_VARCHAR) {
+          int32_t bytes = findPosBytes(dataStart + startPosBytes, NULL,
+                                       len - startPosBytes, -1, subLen + 1,
+                                       false, pInput->charsetCxt);
+          if (bytes < 0) SCL_ERR_JRET(bytes);
+          endPosBytes = startPosBytes + bytes;
+        } else {
+          endPosBytes = startPosBytes + subLen * TSDB_NCHAR_SIZE;
+        }
         endPosBytes = TMIN(endPosBytes, len);
       }
     }
@@ -2086,7 +2037,7 @@ static int32_t matchInSetFunction(SScalarParam *pInput, int32_t inputNum, SScala
   if (sepNum == 0) {
     // use default seperator if was not provided, but we may need to convert it to nchar.
     if (setType == TSDB_DATA_TYPE_NCHAR) {
-      SCL_ERR_RET(convVarcharToNchar(sepstr, &sepstr, 1, &sepLen, NULL));
+      SCL_ERR_JRET(convVarcharToNchar(sepstr, &sepstr, 1, &sepLen, pInput->charsetCxt));
       needFreeSep = true;
     }
   } else if (sepNum > 1) {
@@ -2243,24 +2194,25 @@ int32_t likeInSetFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *
 
 // to improve performance, the implementation of regexp_in_set is a little different from
 // find_in_set & like_in_set.
-int32_t threadGetRegComp(regex_t **regex, const char *pPattern);
 
-static bool regexpInSetCompare(const char *a, int32_t aLen, const char *b, int32_t bLen) {
+static int32_t regexpInSetCompare(const char *a, int32_t aLen, const char *b, int32_t bLen, void *charsetCxt,
+                                  bool *matched) {
   // a = regex pattern, b = input string from set
-  char patBuf[256], strBuf[256], msgbuf[256];
+  char patBuf[256], strBuf[256];
+  *matched = false;
 
   // An empty pattern matches nothing. Linux returns the same result because the
   // shared regex cache refuses zero-length keys; without this guard engines
   // that accept "" (e.g. the MSVC build) report a match on the first element.
   if (aLen <= 0) {
-    return false;
+    return TSDB_CODE_SUCCESS;
   }
 
   char *pattern = patBuf, *str = strBuf;
   if (aLen >= sizeof(patBuf)) {
     pattern = taosMemoryMalloc(aLen + 1);
     if (NULL == pattern) {
-      return false;  // terrno has been set
+      return terrno;  // terrno has been set
     }
   }
   (void)memcpy(pattern, a, aLen);
@@ -2272,16 +2224,15 @@ static bool regexpInSetCompare(const char *a, int32_t aLen, const char *b, int32
       if (pattern != patBuf) {
         taosMemoryFree(pattern);
       }
-      return false;  // terrno has been set
+      return terrno;  // terrno has been set
     }
   }
   (void)memcpy(str, b, bLen);
   str[bLen] = 0;
 
-  // taosExecRegexMatch() picks the engine: PCRE2 in UTF mode on Windows (the CRT
+  // taosExecRegexMatchCharset() picks the engine: PCRE2 in UTF mode on Windows (the CRT
   // engine there is byte oriented) and the POSIX engine everywhere else.
-  (void)msgbuf;
-  int32_t ret = taosExecRegexMatch(str, pattern);
+  int32_t ret = taosExecRegexMatchCharset(str, pattern, charsetCxt);
 
 _return:
   if (str != strBuf) {
@@ -2291,7 +2242,12 @@ _return:
     taosMemoryFree(pattern);
   }
 
-  return ret == 0;
+  if (ret == 0) {
+    *matched = true;
+  } else if (ret != 1) {
+    return ret;  // regex error
+  }
+  return TSDB_CODE_SUCCESS;
 }
 
 static int32_t regexpInSetToUcs4(const SScalarParam *pParam, int32_t row,
@@ -2329,13 +2285,12 @@ static int32_t regexpInSetToUcs4(const SScalarParam *pParam, int32_t row,
 }
 
 static int32_t regexpInSetUcs4ToMbs(const char *pUcs4, int32_t ucs4Len,
-                                    char **ppMbs, int32_t *pMbsLen) {
-  *ppMbs = taosMemoryCalloc(ucs4Len > 0 ? ucs4Len : 1, 1);
+                                    char **ppMbs, int32_t *pMbsLen, void *charsetCxt) {
+  *ppMbs = taosMemoryCalloc((size_t)ucs4Len + 1, 1);
   if (*ppMbs == NULL) {
     return terrno;
   }
-  *pMbsLen = taosUcs4ToMbsCharsetInsensitive((TdUcs4 *)pUcs4, ucs4Len,
-                                              *ppMbs);
+  *pMbsLen = taosUcs4ToMbs((TdUcs4 *)pUcs4, ucs4Len, *ppMbs, charsetCxt);
   if (*pMbsLen < 0) {
     taosMemoryFreeClear(*ppMbs);
     return TSDB_CODE_SCALAR_CONVERT_NCHAR_ERROR;
@@ -2381,7 +2336,7 @@ static bool regexpInSetNextToken(const char* setUcs4, int32_t setLen,
 static int32_t regexpInSetMatchUcs4Tokens(const char* patMbs, int32_t patMbsLen,
                                           char* setUcs4, int32_t setLen,
                                           const char* sepUcs4, int32_t sepLen,
-                                          int64_t* pOffset) {
+                                          int64_t* pOffset, void *charsetCxt) {
   *pOffset = 0;
   if (sepLen != 0) {
     int32_t next = 0;
@@ -2403,13 +2358,16 @@ static int32_t regexpInSetMatchUcs4Tokens(const char* patMbs, int32_t patMbsLen,
 
   char* setMbs = NULL;
   int32_t setMbsLen = 0;
-  int32_t code = regexpInSetUcs4ToMbs(setUcs4, setLen, &setMbs, &setMbsLen);
+  int32_t code = regexpInSetUcs4ToMbs(setUcs4, setLen, &setMbs, &setMbsLen, charsetCxt);
   if (code != TSDB_CODE_SUCCESS) {
     return code;
   }
 
   if (sepLen == 0) {
-    *pOffset = regexpInSetCompare(patMbs, patMbsLen, setMbs, setMbsLen) ? 1 : 0;
+    bool matched = false;
+    int32_t ret = regexpInSetCompare(patMbs, patMbsLen, setMbs, setMbsLen, charsetCxt, &matched);
+    if (ret != TSDB_CODE_SUCCESS) code = ret;
+    *pOffset = matched ? 1 : 0;
   } else {
     int32_t start = 0;
     int32_t tokenIndex = 0;
@@ -2418,7 +2376,10 @@ static int32_t regexpInSetMatchUcs4Tokens(const char* patMbs, int32_t patMbsLen,
       while (end < setMbsLen && setMbs[end] != '\0') {
         ++end;
       }
-      if (regexpInSetCompare(patMbs, patMbsLen, setMbs + start, end - start)) {
+      bool matched = false;
+      int32_t ret = regexpInSetCompare(patMbs, patMbsLen, setMbs + start, end - start, charsetCxt, &matched);
+      if (ret != TSDB_CODE_SUCCESS) { code = ret; break; }
+      if (matched) {
         *pOffset = tokenIndex + 1;
         break;
       }
@@ -2428,10 +2389,12 @@ static int32_t regexpInSetMatchUcs4Tokens(const char* patMbs, int32_t patMbsLen,
   }
 
   taosMemoryFree(setMbs);
-  return TSDB_CODE_SUCCESS;
+  return code;
 }
 
 int32_t regexpInSetFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput) {
+  void *regexCharset = pInput[0].charsetCxt;
+
   int32_t code = TSDB_CODE_SUCCESS;
 
   SColumnInfoData *pats = pInput[0].columnData;
@@ -2474,7 +2437,7 @@ int32_t regexpInSetFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam
     if (code != TSDB_CODE_SUCCESS) {
       goto _row_return;
     }
-    code = regexpInSetUcs4ToMbs(patUcs4, patLen, &patMbs, &patMbsLen);
+    code = regexpInSetUcs4ToMbs(patUcs4, patLen, &patMbs, &patMbsLen, regexCharset);
     if (code != TSDB_CODE_SUCCESS) {
       goto _row_return;
     }
@@ -2493,7 +2456,7 @@ int32_t regexpInSetFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam
     // setUcs4 is private to this row, so token compaction cannot affect a
     // broadcast value used by another row.
     code = regexpInSetMatchUcs4Tokens(patMbs, patMbsLen, setUcs4, setLen,
-                                      sepUcs4, sepLen, &offset);
+                                      sepUcs4, sepLen, &offset, regexCharset);
 
     if (code == TSDB_CODE_SUCCESS) {
       colDataSetInt64(pOutput->columnData, i, &offset);
@@ -2542,6 +2505,8 @@ static int32_t base32Encode(const uint8_t *in, int32_t inLen, char *out) {
 }
 
 int32_t regexpExtractFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput) {
+  void *regexCharset = pInput[0].charsetCxt;
+
   int32_t code = TSDB_CODE_SUCCESS;
 
   int32_t          numOfRows  = pInput[0].numOfRows;
@@ -2587,8 +2552,7 @@ int32_t regexpExtractFunction(SScalarParam *pInput, int32_t inputNum, SScalarPar
   }
   int32_t groupIdx = (int32_t)groupIdxRaw;
 
-  // Build a null-terminated pattern in the process charset. regcomp() consumes
-  // bytes under the process locale, so the query client's charset is irrelevant.
+  // Build the pattern in the query charset used by the matching locale.
   char    patBuf[512];
   char   *patStr     = patBuf;
   int32_t patLen     = 0;
@@ -2603,12 +2567,12 @@ int32_t regexpExtractFunction(SScalarParam *pInput, int32_t inputNum, SScalarPar
         patStr[0] = '\0';
       } else {
         patStr = NULL;  // ensure the conversion helper always mallocs a fresh heap buffer
-        code = convNcharToVarcharCharsetInsensitive(rawPat, &patStr, rawPatLen, &patLen);
+        code = convNcharToVarchar(rawPat, &patStr, rawPatLen, &patLen, regexCharset);
         if (code != TSDB_CODE_SUCCESS) goto _exit;
         needFreePat = true;
         // The conversion helper allocates rawPatLen bytes (no +1 for NUL); when the
         // MBS output fills the buffer entirely there is no room for a terminator.
-        // threadGetRegComp requires a NUL-terminated string - grow by one byte.
+        // The regex engine requires a NUL-terminated string - grow by one byte.
         char *tmp = taosMemoryRealloc(patStr, patLen + 1);
         if (tmp == NULL) {
           taosMemoryFree(patStr);
@@ -2637,7 +2601,7 @@ int32_t regexpExtractFunction(SScalarParam *pInput, int32_t inputNum, SScalarPar
   // Validate the pattern once: it is constant, so a malformed pattern fails the
   // statement before any row is visited. The per-row matching goes through the
   // shared matcher below.
-  code = checkRegexPattern(patStr);
+  code = taosCheckRegexCharset(patStr, regexCharset);
   if (code != 0) {
     terrno = code;
     goto _exit;
@@ -2682,12 +2646,12 @@ int32_t regexpExtractFunction(SScalarParam *pInput, int32_t inputNum, SScalarPar
       strNtCap = strLen + 1;
     }
 
-    // Convert input into a NUL-terminated scratch buffer in the process charset.
+    // Convert input into a NUL-terminated scratch buffer in the query charset.
     // For NCHAR: convert UCS-4 directly into strNt - avoids per-row malloc/free.
     // For VARCHAR: preserve its raw byte semantics and just copy it.
     int32_t strMbsLen;
     if (isNchar) {
-      strMbsLen = taosUcs4ToMbsCharsetInsensitive((TdUcs4 *)strVal, strLen, strNt);
+      strMbsLen = taosUcs4ToMbs((TdUcs4 *)strVal, strLen, strNt, regexCharset);
       if (strMbsLen < 0) {
         code = TSDB_CODE_SCALAR_CONVERT_NCHAR_ERROR;
         terrno = code;
@@ -2699,12 +2663,12 @@ int32_t regexpExtractFunction(SScalarParam *pInput, int32_t inputNum, SScalarPar
     }
     strNt[strMbsLen] = '\0';
 
-    // taosExecRegexMatchGroups() keeps the code point semantics: on Windows the
+    // taosExecRegexGroupsCharset() keeps the code point semantics: on Windows the
     // CRT engine counts bytes, so a group like '(.)' would return a single byte
     // of a multi byte character and the UCS-4 conversion below would fail.
     int32_t matchStart = -1;
     int32_t matchLen   = 0;
-    int     ret        = taosExecRegexMatchGroups(strNt, patStr, groupIdx, &matchStart, &matchLen);
+    int     ret        = taosExecRegexGroupsCharset(strNt, patStr, groupIdx, &matchStart, &matchLen, regexCharset);
     if (ret == 1 || (ret == 0 && matchStart < 0)) {
       // no match, or the requested capture group did not participate
       colDataSetNULL(pOutputData, i);
@@ -2716,7 +2680,7 @@ int32_t regexpExtractFunction(SScalarParam *pInput, int32_t inputNum, SScalarPar
     } else {
 
       if (isNchar) {
-        // Convert matched process-charset bytes back to NCHAR (UCS-4) directly into outBuf
+        // Convert matched query-charset bytes back to NCHAR (UCS-4) directly into outBuf
         // to avoid a per-row malloc/free cycle.  The ucs4 output needs up to
         // matchLen * TSDB_NCHAR_SIZE bytes; outBuf is sized by the input column's declared
         // width, and a virtual table column may carry a value wider than declared (full
@@ -2732,10 +2696,10 @@ int32_t regexpExtractFunction(SScalarParam *pInput, int32_t inputNum, SScalarPar
           outBufLen = newLen;
         }
         int32_t matchedNcharLen = 0;
-        bool    ok = taosMbsToUcs4CharsetInsensitive(strNt + matchStart, matchLen,
+        bool    ok = taosMbsToUcs4(strNt + matchStart, matchLen,
                                                       (TdUcs4 *)(outBuf + VARSTR_HEADER_SIZE),
                                                       outBufLen - VARSTR_HEADER_SIZE,
-                                                      &matchedNcharLen);
+                                                      &matchedNcharLen, regexCharset);
         if (!ok) {
           code = TSDB_CODE_SCALAR_CONVERT_NCHAR_ERROR;
           terrno = code;
@@ -3236,21 +3200,22 @@ int32_t asciiFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOut
   return TSDB_CODE_SUCCESS;
 }
 
-static int32_t findPosChars(char *orgStr, char *delimStr, int32_t orgLen, int32_t delimLen, bool isNchar) {
+static int32_t findPosChars(char *orgStr, char *delimStr, int32_t orgLen,
+                            int32_t delimLen, bool isNchar, void *charsetCxt) {
+  uint8_t *boundaries = NULL;
+  SCL_ERR_RET(scalarCharBoundaries(orgStr, orgLen, isNchar, charsetCxt, &boundaries));
   int32_t charCount = 0;
-  for (int32_t pos = 0; pos < orgLen; pos += isNchar ? TSDB_NCHAR_SIZE : 1) {
-    if (isNchar || isCharStart(orgStr[pos])) {
-      if (pos + delimLen > orgLen) {
-        return 0;
-      }
-      if (memcmp(orgStr + pos, delimStr, delimLen) == 0) {
-        return charCount + 1;
-      } else {
-        charCount++;
-      }
+  int32_t result = 0;
+  for (int32_t pos = 0; pos + delimLen <= orgLen; ++pos) {
+    if (!boundaries[pos]) continue;
+    ++charCount;
+    if (boundaries[pos + delimLen] && memcmp(orgStr + pos, delimStr, delimLen) == 0) {
+      result = charCount;
+      break;
     }
   }
-  return 0;
+  taosMemoryFree(boundaries);
+  return result;
 }
 
 int32_t positionFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput) {
@@ -3296,10 +3261,11 @@ int32_t positionFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *p
       needFreeSub = true;
     }
 
-    offset = findPosChars(orgstr, substr, orgLen, subLen, GET_PARAM_TYPE(&pInput[1]) == TSDB_DATA_TYPE_NCHAR);
+    offset = findPosChars(orgstr, substr, orgLen, subLen, GET_PARAM_TYPE(&pInput[1]) == TSDB_DATA_TYPE_NCHAR, pInput->charsetCxt);
     if (needFreeSub) {
       taosMemoryFree(substr);
     }
+    if (offset < 0) return (int32_t)offset;
     colDataSetInt64(pOutput->columnData, i, &offset);
   }
 
@@ -3455,7 +3421,9 @@ int32_t replaceFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pO
     SCL_ERR_RET(terrno);
   }
 
+  uint8_t *boundaries = NULL;
   for (int32_t i = 0; i < numOfRows; ++i) {
+    taosMemoryFreeClear(boundaries);
     int32_t colIdx1 = (pInput[0].numOfRows == 1) ? 0 : i;
     int32_t colIdx2 = (pInput[1].numOfRows == 1) ? 0 : i;
     int32_t colIdx3 = (pInput[2].numOfRows == 1) ? 0 : i;
@@ -3491,6 +3459,8 @@ int32_t replaceFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pO
       continue;
     }
 
+    SCL_ERR_JRET(scalarCharBoundaries(orgStr, orgLen, orgType == TSDB_DATA_TYPE_NCHAR,
+                                      pInput->charsetCxt, &boundaries));
     if (GET_PARAM_TYPE(&pInput[1]) != GET_PARAM_TYPE(&pInput[0])) {
       SCL_ERR_JRET(convBetweenNcharAndVarchar(varDataVal(colDataGetData(pInputData[1], colIdx2)), &fromStr,
                                               varDataLen(colDataGetData(pInputData[1], colIdx2)), &fromLen,
@@ -3532,8 +3502,7 @@ int32_t replaceFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pO
         break;
       }
       if (memcmp(orgStr + pos, fromStr, fromLen) == 0 &&
-          (pos + fromLen == orgLen || isCharStart(orgStr[pos + fromLen]) ||
-           GET_PARAM_TYPE(&pInput[0]) == TSDB_DATA_TYPE_NCHAR)) {
+          boundaries[pos + fromLen]) {
         if (totalLen + toLen > outputLen) {
           qError("replace result needs %d bytes, buffer width is %d", totalLen + toLen, outputLen);
           if (needFreeTo) {
@@ -3549,8 +3518,8 @@ int32_t replaceFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pO
         pos += fromLen;
         totalLen += toLen;
       } else {
-        int32_t charLen =
-            GET_PARAM_TYPE(&pInput[0]) == TSDB_DATA_TYPE_NCHAR ? TSDB_NCHAR_SIZE : getCharLen(orgStr + pos);
+        int32_t charLen = 1;
+        while (pos + charLen < orgLen && !boundaries[pos + charLen]) ++charLen;
         if (totalLen + charLen > outputLen) {
           qError("replace result needs %d bytes, buffer width is %d", totalLen + charLen, outputLen);
           if (needFreeTo) {
@@ -3578,6 +3547,7 @@ int32_t replaceFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pO
   }
   pOutput->numOfRows = numOfRows;
 _return:
+  taosMemoryFree(boundaries);
   taosMemoryFree(outputBuf);
   return code;
 }
@@ -4322,13 +4292,18 @@ int32_t substrIdxFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *
     if (count > 0) {
       startPosBytes = 0;
       endPosBytes =
-          findPosBytes(orgStr, delimStr, orgLen, delimLen, count, GET_PARAM_TYPE(&pInput[0]) == TSDB_DATA_TYPE_NCHAR);
+          findPosBytes(orgStr, delimStr, orgLen, delimLen, count, GET_PARAM_TYPE(&pInput[0]) == TSDB_DATA_TYPE_NCHAR, pInput->charsetCxt);
     } else if (count < 0) {
       startPosBytes =
-          findPosBytes(orgStr, delimStr, orgLen, delimLen, count, GET_PARAM_TYPE(&pInput[0]) == TSDB_DATA_TYPE_NCHAR);
+          findPosBytes(orgStr, delimStr, orgLen, delimLen, count, GET_PARAM_TYPE(&pInput[0]) == TSDB_DATA_TYPE_NCHAR, pInput->charsetCxt);
       endPosBytes = orgLen;
     } else {
       startPosBytes = endPosBytes = 0;
+    }
+
+    if (startPosBytes < 0 || endPosBytes < 0) {
+      if (needFreeDelim) taosMemoryFree(delimStr);
+      SCL_ERR_JRET(startPosBytes < 0 ? startPosBytes : endPosBytes);
     }
 
     char   *output = outputBuf;

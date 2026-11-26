@@ -4215,7 +4215,7 @@ static int32_t doVstbBatchDynamicTableScanNext(SOperatorInfo* pOperator, SSDataB
     blockDataDestroy(result);
     (*ppRes) = res;
 
-    printDataBlock(res, __func__, pTaskInfo->id.str, pTaskInfo->id.queryId);
+    printDataBlock(res, __func__, pTaskInfo->id.str, pTaskInfo->id.queryId, pTaskInfo->charsetCxt);
   } else {
     clearVstbBatchDynamicTableScanInfo(pInfo);
     setOperatorCompleted(pOperator);

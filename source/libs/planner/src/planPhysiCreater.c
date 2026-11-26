@@ -8238,6 +8238,7 @@ static int32_t makeSubplan(SPhysiPlanContext* pCxt, SLogicSubplan* pLogicSubplan
   if (NULL == pSubplan) {
     return code;
   }
+  tstrncpy(pSubplan->charsetName, taosConvCharset(pCxt->pPlanCxt->charsetCxt), sizeof(pSubplan->charsetName));
   pSubplan->id = pLogicSubplan->id;
   pSubplan->subplanType = pLogicSubplan->subplanType;
   pSubplan->level = pLogicSubplan->level;

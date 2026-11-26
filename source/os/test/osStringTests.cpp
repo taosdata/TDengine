@@ -33,6 +33,16 @@
 #include "tconv.h"
 #include "tlog.h"
 
+TEST(osStringTests, zeroCharacterOffsetDoesNotRequireConversion) {
+  int32_t bytes = -1;
+  ASSERT_EQ(0, taosMbsCharOffset("", 0, 0, nullptr, &bytes));
+  EXPECT_EQ(0, bytes);
+  bytes = -1;
+  ASSERT_EQ(0, taosMbsCharOffset("x", 1, 0, nullptr, &bytes));
+  EXPECT_EQ(0, bytes);
+  EXPECT_EQ(TSDB_CODE_CHARSET_CONVERT_ERROR, taosMbsCharOffset("", 0, 1, nullptr, &bytes));
+}
+
 #ifdef WINDOWS
 TEST(osStringTests, strsepNormalInput) {
   char       str[] = "This is a test string.";
@@ -797,54 +807,6 @@ TEST(osStringTests, truncateTimezoneStringRemovesAllLeadingSlashes) {
   EXPECT_STREQ(tz, "Asia/Shanghai");
 }
 
-// taosUcs4ToMbsCharsetInsensitive is a thin pass-through of taosUcs4ToMbs with
-// a NULL charset context, sanctioned for ASCII-only content and for symmetric
-// process-locale regex conversion. For codepoints 0-127 every supported
-// charset is an ASCII superset, so the output bytes are the ASCII bytes
-// regardless of the (absent) charset. Pin both: the ASCII bytes come out
-// verbatim, and the wrapper is byte-for-byte identical to the NULL-context
-// conversion it documents.
-TEST(osStringTests, ucs4ToMbsCharsetInsensitiveAsciiMatchesNullContext) {
-  TdUcs4 ascii[] = {'P', 'O', 'I', 'N', 'T', '(', '1', ' ', '2', ')', 0};
-
-  char    viaWrapper[64] = {0};
-  int32_t nWrapper =
-      taosUcs4ToMbsCharsetInsensitive(ascii, sizeof(ascii), viaWrapper);
-  ASSERT_GT(nWrapper, 0);
-  EXPECT_STREQ(viaWrapper, "POINT(1 2)");
-
-  char    viaNull[64] = {0};
-  int32_t nNull = taosUcs4ToMbs(ascii, sizeof(ascii), viaNull, NULL);
-  EXPECT_EQ(nWrapper, nNull);
-  EXPECT_EQ(0, memcmp(viaWrapper, viaNull, nWrapper));
-}
-
-TEST(osStringTests, ucs4ToMbsCharsetInsensitiveNumericLiteral) {
-  TdUcs4 digits[] = {'-', '3', '.', '1', '4', 0};
-
-  char    out[32] = {0};
-  int32_t n = taosUcs4ToMbsCharsetInsensitive(digits, sizeof(digits), out);
-  ASSERT_GT(n, 0);
-  EXPECT_STREQ(out, "-3.14");
-}
-
-TEST(osStringTests, mbsToUcs4CharsetInsensitiveAsciiMatchesNullContext) {
-  const char ascii[] = "POINT(1 2)";
-
-  TdUcs4 viaWrapper[32] = {0};
-  int32_t wrapperLen = 0;
-  ASSERT_TRUE(taosMbsToUcs4CharsetInsensitive(ascii, strlen(ascii), viaWrapper,
-                                              sizeof(viaWrapper), &wrapperLen));
-
-  TdUcs4 viaNull[32] = {0};
-  int32_t nullLen = 0;
-  ASSERT_TRUE(taosMbsToUcs4(ascii, strlen(ascii), viaNull, sizeof(viaNull),
-                             &nullLen, NULL));
-
-  EXPECT_EQ(wrapperLen, nullLen);
-  EXPECT_EQ(0, memcmp(viaWrapper, viaNull, wrapperLen));
-}
-
 namespace {
 
 class ConvCacheGuard {
@@ -1010,4 +972,53 @@ TEST(osStringTests, ucs4ToMbsGbkNonAscii) {
   EXPECT_EQ((unsigned char)output[1], 0xD0);
   EXPECT_EQ((unsigned char)output[2], 0xCE);
   EXPECT_EQ((unsigned char)output[3], 0xC4);
+}
+
+TEST(osStringTests, explicitCharsetRoundTripIgnoresProcessCharset) {
+  ConvCacheGuard cacheGuard;
+  TsCharsetCxtGuard charsetGuard;
+  void *gbk = taosConvInit("GBK");
+  void *utf8 = taosConvInit("UTF-8");
+  ASSERT_NE(nullptr, gbk);
+  ASSERT_NE(nullptr, utf8);
+  tsCharsetCxt = utf8;
+  const char encoded[] = "\xd6\xd0\xce\xc4";
+  TdUcs4 decoded[4] = {0};
+  int32_t length = 0;
+  ASSERT_TRUE(taosMbsToUcs4(encoded, sizeof(encoded) - 1, decoded, sizeof(decoded), &length, gbk));
+  EXPECT_EQ(8, length);
+  EXPECT_EQ(0x4e2d, decoded[0]);
+  EXPECT_EQ(0x6587, decoded[1]);
+  char output[16] = {0};
+  ASSERT_EQ(4, taosUcs4ToMbs(decoded, length, output, gbk));
+  EXPECT_EQ(0, memcmp(encoded, output, 4));
+  ASSERT_EQ(6, taosUcs4ToMbs(decoded, length, output, utf8));
+}
+
+TEST(osStringTests, characterBoundariesUseExplicitCharsetAndResetAfterError) {
+  ConvCacheGuard cacheGuard;
+  TsCharsetCxtGuard charsetGuard;
+  void *gbk = taosConvInit("GBK");
+  void *utf8 = taosConvInit("UTF-8");
+  ASSERT_NE(nullptr, gbk);
+  ASSERT_NE(nullptr, utf8);
+  tsCharsetCxt = utf8;
+  const char gbkText[] = {(char)0x81, '@', '@', '\0', 'x'};
+  uint8_t boundaries[sizeof(gbkText) + 1] = {};
+  const uint8_t expected[] = {1, 0, 1, 1, 1, 1};
+  ASSERT_EQ(0, taosMbsCharBoundaries(gbkText, sizeof(gbkText), gbk, boundaries));
+  EXPECT_EQ(0, memcmp(expected, boundaries, sizeof(expected)));
+  EXPECT_NE(0, taosMbsCharBoundaries(gbkText, 1, gbk, boundaries));
+  ASSERT_EQ(0, taosMbsCharBoundaries(gbkText, sizeof(gbkText), gbk, boundaries));
+  EXPECT_EQ(0, memcmp(expected, boundaries, sizeof(expected)));
+  tsCharsetCxt = gbk;
+  const char utf8Text[] = "\xf0\x9f\x98\x80";
+  ASSERT_EQ(0, taosMbsCharBoundaries(utf8Text, 4, utf8, boundaries));
+  EXPECT_EQ(1, boundaries[0]);
+  EXPECT_EQ(0, boundaries[1]);
+  EXPECT_EQ(0, boundaries[2]);
+  EXPECT_EQ(0, boundaries[3]);
+  EXPECT_EQ(1, boundaries[4]);
+  ASSERT_EQ(0, taosMbsCharBoundaries("", 0, utf8, boundaries));
+  EXPECT_EQ(1, boundaries[0]);
 }

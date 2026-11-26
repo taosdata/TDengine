@@ -3614,7 +3614,7 @@ _fetchNext:
            pInfo->pFedScanNode->srcHost, pInfo->fetchBlockCount,
            (int)pBlock->info.rows, pInfo->fetchedRows);
     fedScanLogBlockSummary(pInfo->pFedScanNode, pBlock, "remote-fetch");
-    printDataBlock(pBlock, "FQ-ExtData", GET_TASKID(pTaskInfo), pTaskInfo->id.queryId);
+    printDataBlock(pBlock, "FQ-ExtData", GET_TASKID(pTaskInfo), pTaskInfo->id.queryId, pTaskInfo->charsetCxt);
 
     // Extend block with extra columns for pushed-down expression slots
     // (e.g., CASE WHEN results needed by the parent Aggregate operator).
@@ -3719,7 +3719,7 @@ _consumeReference:
       }
       qDebug("FQ-Fetch: after local filter rows=%d", (int)pBlock->info.rows);
       fedScanLogBlockSummary(pInfo->pFedScanNode, pBlock, "after-local-filter");
-      printDataBlock(pBlock, "FQ-Filtered", GET_TASKID(pTaskInfo), pTaskInfo->id.queryId);
+      printDataBlock(pBlock, "FQ-Filtered", GET_TASKID(pTaskInfo), pTaskInfo->id.queryId, pTaskInfo->charsetCxt);
     }
 
     SStreamRuntimeInfo* pStreamRuntimeInfo = pTaskInfo->pStreamRuntimeInfo;

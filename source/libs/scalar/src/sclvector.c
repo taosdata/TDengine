@@ -114,15 +114,14 @@ int32_t convertNumberToNumber(const void *inData, void *outData, int8_t inType, 
   return TSDB_CODE_SUCCESS;
 }
 
-int32_t convertNcharToDouble(const void *inData, void *outData) {
+int32_t convertNcharToDouble(const void *inData, void *outData, void *charsetCxt) {
   int32_t code = TSDB_CODE_SUCCESS;
   char   *tmp = taosMemoryMalloc(varDataTLen(inData));
   if (NULL == tmp) {
     SCL_ERR_RET(terrno);
   }
-  // NCHAR -> number: only ASCII digits are meaningful, so charset-insensitive.
-  int len = taosUcs4ToMbsCharsetInsensitive((TdUcs4 *)varDataVal(inData),
-                                            varDataLen(inData), tmp);
+  int len = taosUcs4ToMbs((TdUcs4 *)varDataVal(inData),
+                                            varDataLen(inData), tmp, charsetCxt);
   if (len < 0) {
     sclError("%s taosUcs4ToMbs failed to convert NCHAR value,"
              " len:%d", __func__, (int32_t)varDataLen(inData));
@@ -140,54 +139,54 @@ _return:
   SCL_RET(code);
 }
 
-typedef int32_t (*_getBigintValue_fn_t)(void *src, int32_t index, int64_t *res);
+typedef int32_t (*_getBigintValue_fn_t)(void *src, int32_t index, int64_t *res, void *charsetCxt);
 
-int32_t getVectorBigintValue_TINYINT(void *src, int32_t index, int64_t *res) {
+int32_t getVectorBigintValue_TINYINT(void *src, int32_t index, int64_t *res, void *charsetCxt) {
   *res = (int64_t) * ((int8_t *)src + index);
   SCL_RET(TSDB_CODE_SUCCESS);
 }
-int32_t getVectorBigintValue_UTINYINT(void *src, int32_t index, int64_t *res) {
+int32_t getVectorBigintValue_UTINYINT(void *src, int32_t index, int64_t *res, void *charsetCxt) {
   *res = (int64_t) * ((uint8_t *)src + index);
   SCL_RET(TSDB_CODE_SUCCESS);
 }
-int32_t getVectorBigintValue_SMALLINT(void *src, int32_t index, int64_t *res) {
+int32_t getVectorBigintValue_SMALLINT(void *src, int32_t index, int64_t *res, void *charsetCxt) {
   *res = (int64_t) * ((int16_t *)src + index);
   SCL_RET(TSDB_CODE_SUCCESS);
 }
-int32_t getVectorBigintValue_USMALLINT(void *src, int32_t index, int64_t *res) {
+int32_t getVectorBigintValue_USMALLINT(void *src, int32_t index, int64_t *res, void *charsetCxt) {
   *res = (int64_t) * ((uint16_t *)src + index);
   SCL_RET(TSDB_CODE_SUCCESS);
 }
-int32_t getVectorBigintValue_INT(void *src, int32_t index, int64_t *res) {
+int32_t getVectorBigintValue_INT(void *src, int32_t index, int64_t *res, void *charsetCxt) {
   *res = (int64_t) * ((int32_t *)src + index);
   SCL_RET(TSDB_CODE_SUCCESS);
 }
-int32_t getVectorBigintValue_UINT(void *src, int32_t index, int64_t *res) {
+int32_t getVectorBigintValue_UINT(void *src, int32_t index, int64_t *res, void *charsetCxt) {
   *res = (int64_t) * ((uint32_t *)src + index);
   SCL_RET(TSDB_CODE_SUCCESS);
 }
-int32_t getVectorBigintValue_BIGINT(void *src, int32_t index, int64_t *res) {
+int32_t getVectorBigintValue_BIGINT(void *src, int32_t index, int64_t *res, void *charsetCxt) {
   *res = (int64_t) * ((int64_t *)src + index);
   SCL_RET(TSDB_CODE_SUCCESS);
 }
-int32_t getVectorBigintValue_UBIGINT(void *src, int32_t index, int64_t *res) {
+int32_t getVectorBigintValue_UBIGINT(void *src, int32_t index, int64_t *res, void *charsetCxt) {
   *res = (int64_t) * ((uint64_t *)src + index);
   SCL_RET(TSDB_CODE_SUCCESS);
 }
-int32_t getVectorBigintValue_FLOAT(void *src, int32_t index, int64_t *res) {
+int32_t getVectorBigintValue_FLOAT(void *src, int32_t index, int64_t *res, void *charsetCxt) {
   *res = (int64_t) * ((float *)src + index);
   SCL_RET(TSDB_CODE_SUCCESS);
 }
-int32_t getVectorBigintValue_DOUBLE(void *src, int32_t index, int64_t *res) {
+int32_t getVectorBigintValue_DOUBLE(void *src, int32_t index, int64_t *res, void *charsetCxt) {
   *res = (int64_t) * ((double *)src + index);
   SCL_RET(TSDB_CODE_SUCCESS);
 }
-int32_t getVectorBigintValue_BOOL(void *src, int32_t index, int64_t *res) {
+int32_t getVectorBigintValue_BOOL(void *src, int32_t index, int64_t *res, void *charsetCxt) {
   *res = (int64_t) * ((bool *)src + index);
   SCL_RET(TSDB_CODE_SUCCESS);
 }
 
-int32_t getVectorBigintValue_JSON(void *src, int32_t index, int64_t *res) {
+int32_t getVectorBigintValue_JSON(void *src, int32_t index, int64_t *res, void *charsetCxt) {
   if (colDataIsNull_var(((SColumnInfoData *)src), index)) {
     sclError("getVectorBigintValue_JSON get json data null with index %d", index);
     SCL_ERR_RET(TSDB_CODE_SCALAR_CONVERT_ERROR);
@@ -198,7 +197,7 @@ int32_t getVectorBigintValue_JSON(void *src, int32_t index, int64_t *res) {
     *res = 0;
     SCL_RET(TSDB_CODE_SUCCESS);
   } else if (*data == TSDB_DATA_TYPE_NCHAR) {  // json inner type can not be BINARY
-    SCL_ERR_RET(convertNcharToDouble(data + CHAR_BYTES, &out));
+    SCL_ERR_RET(convertNcharToDouble(data + CHAR_BYTES, &out, charsetCxt));
   } else if (tTagIsJson(data)) {
     *res = 0;
     SCL_ERR_RET(TSDB_CODE_QRY_JSON_NOT_SUPPORT_ERROR);
@@ -653,13 +652,13 @@ _return:
   SCL_RET(code);
 }
 
-int32_t getVectorDoubleValue_JSON(void *src, int32_t index, double *out) {
+int32_t getVectorDoubleValue_JSON(void *src, int32_t index, double *out, void *charsetCxt) {
   char *data = colDataGetVarData((SColumnInfoData *)src, index);
   *out = 0;
   if (*data == TSDB_DATA_TYPE_NULL) {
     SCL_RET(TSDB_CODE_SUCCESS);
   } else if (*data == TSDB_DATA_TYPE_NCHAR) {  // json inner type can not be BINARY
-    SCL_ERR_RET(convertNcharToDouble(data + CHAR_BYTES, out));
+    SCL_ERR_RET(convertNcharToDouble(data + CHAR_BYTES, out, charsetCxt));
   } else if (tTagIsJson(data)) {
     SCL_ERR_RET(TSDB_CODE_QRY_JSON_NOT_SUPPORT_ERROR);
   } else {
@@ -1327,7 +1326,7 @@ enum {
 
 // TODO not correct for descending order scan
 static int32_t vectorMathAddHelper(SColumnInfoData *pLeftCol, SColumnInfoData *pRightCol, SColumnInfoData *pOutputCol,
-                                   int32_t numOfRows, int32_t step, int32_t i) {
+                                   int32_t numOfRows, int32_t step, int32_t i, void *leftCharset, void *rightCharset) {
   _getDoubleValue_fn_t getVectorDoubleValueFnLeft;
   _getDoubleValue_fn_t getVectorDoubleValueFnRight;
   SCL_ERR_RET(getVectorDoubleValueFn(pLeftCol->info.type, &getVectorDoubleValueFnLeft));
@@ -1345,8 +1344,8 @@ static int32_t vectorMathAddHelper(SColumnInfoData *pLeftCol, SColumnInfoData *p
       }
       double leftRes = 0;
       double rightRes = 0;
-      SCL_ERR_RET(getVectorDoubleValueFnLeft(LEFT_COL, i, &leftRes));
-      SCL_ERR_RET(getVectorDoubleValueFnRight(RIGHT_COL, 0, &rightRes));
+      SCL_ERR_RET(getVectorDoubleValueFnLeft(LEFT_COL, i, &leftRes, leftCharset));
+      SCL_ERR_RET(getVectorDoubleValueFnRight(RIGHT_COL, 0, &rightRes, rightCharset));
       *output = leftRes + rightRes;
     }
   }
@@ -1354,7 +1353,7 @@ static int32_t vectorMathAddHelper(SColumnInfoData *pLeftCol, SColumnInfoData *p
 }
 
 static int32_t vectorMathTsAddHelper(SColumnInfoData *pLeftCol, SColumnInfoData *pRightCol, SColumnInfoData *pOutputCol,
-                                     int32_t numOfRows, int32_t step, int32_t i, timezone_t tz) {
+                                     int32_t numOfRows, int32_t step, int32_t i, timezone_t tz, void *leftCharset, void *rightCharset) {
   _getBigintValue_fn_t getVectorBigintValueFnLeft;
   _getBigintValue_fn_t getVectorBigintValueFnRight;
   SCL_ERR_RET(getVectorBigintValueFn(pLeftCol->info.type, &getVectorBigintValueFnLeft));
@@ -1371,8 +1370,8 @@ static int32_t vectorMathTsAddHelper(SColumnInfoData *pLeftCol, SColumnInfoData 
       }
       int64_t leftRes = 0;
       int64_t rightRes = 0;
-      SCL_ERR_RET(getVectorBigintValueFnLeft(pLeftCol->pData, i, &leftRes));
-      SCL_ERR_RET(getVectorBigintValueFnRight(pRightCol->pData, 0, &rightRes));
+      SCL_ERR_RET(getVectorBigintValueFnLeft(pLeftCol->pData, i, &leftRes, leftCharset));
+      SCL_ERR_RET(getVectorBigintValueFnRight(pRightCol->pData, 0, &rightRes, rightCharset));
       *output = taosTimeAdd(leftRes, rightRes, pRightCol->info.scale, pRightCol->info.precision, tz);
     }
   }
@@ -1426,14 +1425,14 @@ int32_t vectorMathAdd(SScalarParam *pLeft, SScalarParam *pRight, SScalarParam *p
 
     if (pLeft->numOfRows == 1 && pRight->numOfRows == 1) {
       if (GET_PARAM_TYPE(pLeft) == TSDB_DATA_TYPE_TIMESTAMP) {
-        SCL_ERR_JRET(vectorMathTsAddHelper(pLeftCol, pRightCol, pOutputCol, pRight->numOfRows, step, i, pLeft->tz));
+        SCL_ERR_JRET(vectorMathTsAddHelper(pLeftCol, pRightCol, pOutputCol, pRight->numOfRows, step, i, pLeft->tz, pLeft->charsetCxt, pRight->charsetCxt));
       } else {
-        SCL_ERR_JRET(vectorMathTsAddHelper(pRightCol, pLeftCol, pOutputCol, pRight->numOfRows, step, i, pLeft->tz));
+        SCL_ERR_JRET(vectorMathTsAddHelper(pRightCol, pLeftCol, pOutputCol, pRight->numOfRows, step, i, pLeft->tz, pRight->charsetCxt, pLeft->charsetCxt));
       }
     } else if (pLeft->numOfRows == 1) {
-      SCL_ERR_JRET(vectorMathTsAddHelper(pRightCol, pLeftCol, pOutputCol, pRight->numOfRows, step, i, pLeft->tz));
+      SCL_ERR_JRET(vectorMathTsAddHelper(pRightCol, pLeftCol, pOutputCol, pRight->numOfRows, step, i, pLeft->tz, pRight->charsetCxt, pLeft->charsetCxt));
     } else if (pRight->numOfRows == 1) {
-      SCL_ERR_JRET(vectorMathTsAddHelper(pLeftCol, pRightCol, pOutputCol, pLeft->numOfRows, step, i, pLeft->tz));
+      SCL_ERR_JRET(vectorMathTsAddHelper(pLeftCol, pRightCol, pOutputCol, pLeft->numOfRows, step, i, pLeft->tz, pLeft->charsetCxt, pRight->charsetCxt));
     } else if (pLeft->numOfRows == pRight->numOfRows) {
       for (; i < pRight->numOfRows && i >= 0; i += step, output += 1) {
         if (IS_NULL) {
@@ -1442,8 +1441,8 @@ int32_t vectorMathAdd(SScalarParam *pLeft, SScalarParam *pRight, SScalarParam *p
         }
         int64_t leftRes = 0;
         int64_t rightRes = 0;
-        SCL_ERR_JRET(getVectorBigintValueFnLeft(pLeftCol->pData, i, &leftRes));
-        SCL_ERR_JRET(getVectorBigintValueFnRight(pRightCol->pData, i, &rightRes));
+        SCL_ERR_JRET(getVectorBigintValueFnLeft(pLeftCol->pData, i, &leftRes, pLeft->charsetCxt));
+        SCL_ERR_JRET(getVectorBigintValueFnRight(pRightCol->pData, i, &rightRes, pRight->charsetCxt));
         *output = leftRes + rightRes;
       }
     }
@@ -1465,14 +1464,14 @@ int32_t vectorMathAdd(SScalarParam *pLeft, SScalarParam *pRight, SScalarParam *p
         }
         double leftRes = 0;
         double rightRes = 0;
-        SCL_ERR_JRET(getVectorDoubleValueFnLeft(LEFT_COL, i, &leftRes));
-        SCL_ERR_JRET(getVectorDoubleValueFnRight(RIGHT_COL, i, &rightRes));
+        SCL_ERR_JRET(getVectorDoubleValueFnLeft(LEFT_COL, i, &leftRes, pLeft->charsetCxt));
+        SCL_ERR_JRET(getVectorDoubleValueFnRight(RIGHT_COL, i, &rightRes, pRight->charsetCxt));
         *output = leftRes + rightRes;
       }
     } else if (pLeft->numOfRows == 1) {
-      SCL_ERR_JRET(vectorMathAddHelper(pRightCol, pLeftCol, pOutputCol, pRight->numOfRows, step, i));
+      SCL_ERR_JRET(vectorMathAddHelper(pRightCol, pLeftCol, pOutputCol, pRight->numOfRows, step, i, pRight->charsetCxt, pLeft->charsetCxt));
     } else if (pRight->numOfRows == 1) {
-      SCL_ERR_JRET(vectorMathAddHelper(pLeftCol, pRightCol, pOutputCol, pLeft->numOfRows, step, i));
+      SCL_ERR_JRET(vectorMathAddHelper(pLeftCol, pRightCol, pOutputCol, pLeft->numOfRows, step, i, pLeft->charsetCxt, pRight->charsetCxt));
     }
   }
 
@@ -1484,7 +1483,7 @@ _return:
 
 // TODO not correct for descending order scan
 static int32_t vectorMathSubHelper(SColumnInfoData *pLeftCol, SColumnInfoData *pRightCol, SColumnInfoData *pOutputCol,
-                                   int32_t numOfRows, int32_t step, int32_t factor, int32_t i) {
+                                   int32_t numOfRows, int32_t step, int32_t factor, int32_t i, void *leftCharset, void *rightCharset) {
   _getDoubleValue_fn_t getVectorDoubleValueFnLeft;
   _getDoubleValue_fn_t getVectorDoubleValueFnRight;
   SCL_ERR_RET(getVectorDoubleValueFn(pLeftCol->info.type, &getVectorDoubleValueFnLeft));
@@ -1502,8 +1501,8 @@ static int32_t vectorMathSubHelper(SColumnInfoData *pLeftCol, SColumnInfoData *p
       }
       double leftRes = 0;
       double rightRes = 0;
-      SCL_ERR_RET(getVectorDoubleValueFnLeft(LEFT_COL, i, &leftRes));
-      SCL_ERR_RET(getVectorDoubleValueFnRight(RIGHT_COL, 0, &rightRes));
+      SCL_ERR_RET(getVectorDoubleValueFnLeft(LEFT_COL, i, &leftRes, leftCharset));
+      SCL_ERR_RET(getVectorDoubleValueFnRight(RIGHT_COL, 0, &rightRes, rightCharset));
       *output = (leftRes - rightRes) * factor;
     }
   }
@@ -1511,7 +1510,7 @@ static int32_t vectorMathSubHelper(SColumnInfoData *pLeftCol, SColumnInfoData *p
 }
 
 static int32_t vectorMathTsSubHelper(SColumnInfoData *pLeftCol, SColumnInfoData *pRightCol, SColumnInfoData *pOutputCol,
-                                     int32_t numOfRows, int32_t step, int32_t factor, int32_t i, timezone_t tz) {
+                                     int32_t numOfRows, int32_t step, int32_t factor, int32_t i, timezone_t tz, void *leftCharset, void *rightCharset) {
   _getBigintValue_fn_t getVectorBigintValueFnLeft;
   _getBigintValue_fn_t getVectorBigintValueFnRight;
   SCL_ERR_RET(getVectorBigintValueFn(pLeftCol->info.type, &getVectorBigintValueFnLeft));
@@ -1529,8 +1528,8 @@ static int32_t vectorMathTsSubHelper(SColumnInfoData *pLeftCol, SColumnInfoData 
       }
       int64_t leftRes = 0;
       int64_t rightRes = 0;
-      SCL_ERR_RET(getVectorBigintValueFnLeft(pLeftCol->pData, i, &leftRes));
-      SCL_ERR_RET(getVectorBigintValueFnRight(pRightCol->pData, 0, &rightRes));
+      SCL_ERR_RET(getVectorBigintValueFnLeft(pLeftCol->pData, i, &leftRes, leftCharset));
+      SCL_ERR_RET(getVectorBigintValueFnRight(pRightCol->pData, 0, &rightRes, rightCharset));
       *output = taosTimeAdd(leftRes, -rightRes, pRightCol->info.scale, pRightCol->info.precision, tz) * factor;
     }
   }
@@ -1560,11 +1559,11 @@ int32_t vectorMathSub(SScalarParam *pLeft, SScalarParam *pRight, SScalarParam *p
     SCL_ERR_JRET(getVectorBigintValueFn(pRightCol->info.type, &getVectorBigintValueFnRight));
 
     if (pLeft->numOfRows == 1 && pRight->numOfRows == 1) {
-      SCL_ERR_JRET(vectorMathTsSubHelper(pLeftCol, pRightCol, pOutputCol, pLeft->numOfRows, step, 1, i, pLeft->tz));
+      SCL_ERR_JRET(vectorMathTsSubHelper(pLeftCol, pRightCol, pOutputCol, pLeft->numOfRows, step, 1, i, pLeft->tz, pLeft->charsetCxt, pRight->charsetCxt));
     } else if (pLeft->numOfRows == 1) {
-      SCL_ERR_JRET(vectorMathTsSubHelper(pRightCol, pLeftCol, pOutputCol, pRight->numOfRows, step, -1, i, pLeft->tz));
+      SCL_ERR_JRET(vectorMathTsSubHelper(pRightCol, pLeftCol, pOutputCol, pRight->numOfRows, step, -1, i, pLeft->tz, pRight->charsetCxt, pLeft->charsetCxt));
     } else if (pRight->numOfRows == 1) {
-      SCL_ERR_JRET(vectorMathTsSubHelper(pLeftCol, pRightCol, pOutputCol, pLeft->numOfRows, step, 1, i, pLeft->tz));
+      SCL_ERR_JRET(vectorMathTsSubHelper(pLeftCol, pRightCol, pOutputCol, pLeft->numOfRows, step, 1, i, pLeft->tz, pLeft->charsetCxt, pRight->charsetCxt));
     } else if (pLeft->numOfRows == pRight->numOfRows) {
       for (; i < pRight->numOfRows && i >= 0; i += step, output += 1) {
         if (IS_NULL) {
@@ -1573,8 +1572,8 @@ int32_t vectorMathSub(SScalarParam *pLeft, SScalarParam *pRight, SScalarParam *p
         }
         int64_t leftRes = 0;
         int64_t rightRes = 0;
-        SCL_ERR_JRET(getVectorBigintValueFnLeft(pLeftCol->pData, i, &leftRes));
-        SCL_ERR_JRET(getVectorBigintValueFnRight(pRightCol->pData, i, &rightRes));
+        SCL_ERR_JRET(getVectorBigintValueFnLeft(pLeftCol->pData, i, &leftRes, pLeft->charsetCxt));
+        SCL_ERR_JRET(getVectorBigintValueFnRight(pRightCol->pData, i, &rightRes, pRight->charsetCxt));
         *output = leftRes - rightRes;
       }
     }
@@ -1597,14 +1596,14 @@ int32_t vectorMathSub(SScalarParam *pLeft, SScalarParam *pRight, SScalarParam *p
         }
         double leftRes = 0;
         double rightRes = 0;
-        SCL_ERR_JRET(getVectorDoubleValueFnLeft(LEFT_COL, i, &leftRes));
-        SCL_ERR_JRET(getVectorDoubleValueFnRight(RIGHT_COL, i, &rightRes));
+        SCL_ERR_JRET(getVectorDoubleValueFnLeft(LEFT_COL, i, &leftRes, pLeft->charsetCxt));
+        SCL_ERR_JRET(getVectorDoubleValueFnRight(RIGHT_COL, i, &rightRes, pRight->charsetCxt));
         *output = leftRes - rightRes;
       }
     } else if (pLeft->numOfRows == 1) {
-      SCL_ERR_JRET(vectorMathSubHelper(pRightCol, pLeftCol, pOutputCol, pRight->numOfRows, step, -1, i));
+      SCL_ERR_JRET(vectorMathSubHelper(pRightCol, pLeftCol, pOutputCol, pRight->numOfRows, step, -1, i, pRight->charsetCxt, pLeft->charsetCxt));
     } else if (pRight->numOfRows == 1) {
-      SCL_ERR_JRET(vectorMathSubHelper(pLeftCol, pRightCol, pOutputCol, pLeft->numOfRows, step, 1, i));
+      SCL_ERR_JRET(vectorMathSubHelper(pLeftCol, pRightCol, pOutputCol, pLeft->numOfRows, step, 1, i, pLeft->charsetCxt, pRight->charsetCxt));
     }
   }
 
@@ -1616,7 +1615,7 @@ _return:
 
 // TODO not correct for descending order scan
 static int32_t vectorMathMultiplyHelper(SColumnInfoData *pLeftCol, SColumnInfoData *pRightCol,
-                                        SColumnInfoData *pOutputCol, int32_t numOfRows, int32_t step, int32_t i) {
+                                        SColumnInfoData *pOutputCol, int32_t numOfRows, int32_t step, int32_t i, void *leftCharset, void *rightCharset) {
   _getDoubleValue_fn_t getVectorDoubleValueFnLeft;
   _getDoubleValue_fn_t getVectorDoubleValueFnRight;
   SCL_ERR_RET(getVectorDoubleValueFn(pLeftCol->info.type, &getVectorDoubleValueFnLeft));
@@ -1634,8 +1633,8 @@ static int32_t vectorMathMultiplyHelper(SColumnInfoData *pLeftCol, SColumnInfoDa
       }
       double leftRes = 0;
       double rightRes = 0;
-      SCL_ERR_RET(getVectorDoubleValueFnLeft(LEFT_COL, i, &leftRes));
-      SCL_ERR_RET(getVectorDoubleValueFnRight(RIGHT_COL, 0, &rightRes));
+      SCL_ERR_RET(getVectorDoubleValueFnLeft(LEFT_COL, i, &leftRes, leftCharset));
+      SCL_ERR_RET(getVectorDoubleValueFnRight(RIGHT_COL, 0, &rightRes, rightCharset));
       *output = leftRes * rightRes;
     }
   }
@@ -1673,14 +1672,14 @@ int32_t vectorMathMultiply(SScalarParam *pLeft, SScalarParam *pRight, SScalarPar
         }
         double leftRes = 0;
         double rightRes = 0;
-        SCL_ERR_JRET(getVectorDoubleValueFnLeft(LEFT_COL, i, &leftRes));
-        SCL_ERR_JRET(getVectorDoubleValueFnRight(RIGHT_COL, i, &rightRes));
+        SCL_ERR_JRET(getVectorDoubleValueFnLeft(LEFT_COL, i, &leftRes, pLeft->charsetCxt));
+        SCL_ERR_JRET(getVectorDoubleValueFnRight(RIGHT_COL, i, &rightRes, pRight->charsetCxt));
         *output = leftRes * rightRes;
       }
     } else if (pLeft->numOfRows == 1) {
-      SCL_ERR_JRET(vectorMathMultiplyHelper(pRightCol, pLeftCol, pOutputCol, pRight->numOfRows, step, i));
+      SCL_ERR_JRET(vectorMathMultiplyHelper(pRightCol, pLeftCol, pOutputCol, pRight->numOfRows, step, i, pRight->charsetCxt, pLeft->charsetCxt));
     } else if (pRight->numOfRows == 1) {
-      SCL_ERR_JRET(vectorMathMultiplyHelper(pLeftCol, pRightCol, pOutputCol, pLeft->numOfRows, step, i));
+      SCL_ERR_JRET(vectorMathMultiplyHelper(pLeftCol, pRightCol, pOutputCol, pLeft->numOfRows, step, i, pLeft->charsetCxt, pRight->charsetCxt));
     }
   }
 
@@ -1720,13 +1719,13 @@ int32_t vectorMathDivide(SScalarParam *pLeft, SScalarParam *pRight, SScalarParam
           continue;
         }
         double rightRes = 0;
-        SCL_ERR_JRET((getVectorDoubleValueFnRight(RIGHT_COL, i, &rightRes)));
+        SCL_ERR_JRET((getVectorDoubleValueFnRight(RIGHT_COL, i, &rightRes, pRight->charsetCxt)));
         if (rightRes == 0) {
           colDataSetNULL(pOutputCol, i);
           continue;
         }
         double leftRes = 0;
-        SCL_ERR_JRET(getVectorDoubleValueFnLeft(LEFT_COL, i, &leftRes));
+        SCL_ERR_JRET(getVectorDoubleValueFnLeft(LEFT_COL, i, &leftRes, pLeft->charsetCxt));
         *output = leftRes / rightRes;
       }
     } else if (pLeft->numOfRows == 1) {
@@ -1739,13 +1738,13 @@ int32_t vectorMathDivide(SScalarParam *pLeft, SScalarParam *pRight, SScalarParam
             continue;
           }
           double rightRes = 0;
-          SCL_ERR_JRET((getVectorDoubleValueFnRight(RIGHT_COL, i, &rightRes)));
+          SCL_ERR_JRET((getVectorDoubleValueFnRight(RIGHT_COL, i, &rightRes, pRight->charsetCxt)));
           if (rightRes == 0) {
             colDataSetNULL(pOutputCol, i);
             continue;
           }
           double leftRes = 0;
-          SCL_ERR_JRET(getVectorDoubleValueFnLeft(LEFT_COL, 0, &leftRes));
+          SCL_ERR_JRET(getVectorDoubleValueFnLeft(LEFT_COL, 0, &leftRes, pLeft->charsetCxt));
           *output = leftRes / rightRes;
         }
       }
@@ -1754,7 +1753,7 @@ int32_t vectorMathDivide(SScalarParam *pLeft, SScalarParam *pRight, SScalarParam
         colDataSetNNULL(pOutputCol, 0, pLeft->numOfRows);
       } else {
         double rightRes = 0;
-        SCL_ERR_JRET((getVectorDoubleValueFnRight(RIGHT_COL, 0, &rightRes)));
+        SCL_ERR_JRET((getVectorDoubleValueFnRight(RIGHT_COL, 0, &rightRes, pRight->charsetCxt)));
         if (rightRes == 0) {
           colDataSetNNULL(pOutputCol, 0, pLeft->numOfRows);
         } else {
@@ -1764,7 +1763,7 @@ int32_t vectorMathDivide(SScalarParam *pLeft, SScalarParam *pRight, SScalarParam
               continue;
             }
             double leftRes = 0;
-            SCL_ERR_JRET(getVectorDoubleValueFnLeft(LEFT_COL, i, &leftRes));
+            SCL_ERR_JRET(getVectorDoubleValueFnLeft(LEFT_COL, i, &leftRes, pLeft->charsetCxt));
             *output = leftRes / rightRes;
           }
         }
@@ -1813,8 +1812,8 @@ int32_t vectorMathRemainder(SScalarParam *pLeft, SScalarParam *pRight, SScalarPa
 
       double lx = 0;
       double rx = 0;
-      SCL_ERR_JRET(getVectorDoubleValueFnLeft(LEFT_COL, leftidx, &lx));
-      SCL_ERR_JRET(getVectorDoubleValueFnRight(RIGHT_COL, rightidx, &rx));
+      SCL_ERR_JRET(getVectorDoubleValueFnLeft(LEFT_COL, leftidx, &lx, pLeft->charsetCxt));
+      SCL_ERR_JRET(getVectorDoubleValueFnRight(RIGHT_COL, rightidx, &rx, pRight->charsetCxt));
       if (isnan(lx) || isinf(lx) || isnan(rx) || isinf(rx) || FLT_EQUAL(rx, 0)) {
         colDataSetNULL(pOutputCol, i);
         continue;
@@ -1855,7 +1854,7 @@ int32_t vectorMathMinus(SScalarParam *pLeft, SScalarParam *pRight, SScalarParam 
         continue;
       }
       double result = 0;
-      SCL_ERR_JRET(getVectorDoubleValueFnLeft(LEFT_COL, i, &result));
+      SCL_ERR_JRET(getVectorDoubleValueFnLeft(LEFT_COL, i, &result, pLeft->charsetCxt));
       *output = (result == 0) ? 0 : -result;
     }
   }
@@ -1937,8 +1936,8 @@ int32_t vectorBitAnd(SScalarParam *pLeft, SScalarParam *pRight, SScalarParam *pO
     }
     int64_t leftRes = 0;
     int64_t rightRes = 0;
-    SCL_ERR_JRET(getVectorBigintValueFnLeft(LEFT_COL, leftidx, &leftRes));
-    SCL_ERR_JRET(getVectorBigintValueFnRight(RIGHT_COL, rightidx, &rightRes));
+    SCL_ERR_JRET(getVectorBigintValueFnLeft(LEFT_COL, leftidx, &leftRes, pLeft->charsetCxt));
+    SCL_ERR_JRET(getVectorBigintValueFnRight(RIGHT_COL, rightidx, &rightRes, pRight->charsetCxt));
     *output = leftRes & rightRes;
   }
 
@@ -1979,8 +1978,8 @@ int32_t vectorBitOr(SScalarParam *pLeft, SScalarParam *pRight, SScalarParam *pOu
 
     int64_t leftRes = 0;
     int64_t rightRes = 0;
-    SCL_ERR_JRET(getVectorBigintValueFnLeft(LEFT_COL, leftidx, &leftRes));
-    SCL_ERR_JRET(getVectorBigintValueFnRight(RIGHT_COL, rightidx, &rightRes));
+    SCL_ERR_JRET(getVectorBigintValueFnLeft(LEFT_COL, leftidx, &leftRes, pLeft->charsetCxt));
+    SCL_ERR_JRET(getVectorBigintValueFnRight(RIGHT_COL, rightidx, &rightRes, pRight->charsetCxt));
     *output = leftRes | rightRes;
   }
 
@@ -2184,6 +2183,10 @@ int32_t vectorCompareIncludeVarTypes(SSclCompareCtx *pCtx) {
     bool    freeRight = false;
     bool    isJsonnull = false;
     bool    result = false;
+    int32_t regexLeftType = GET_PARAM_TYPE(pCtx->pLeft);
+    int32_t regexRightType = GET_PARAM_TYPE(pCtx->pRight);
+    if (regexLeftType == TSDB_DATA_TYPE_JSON) regexLeftType = (uint8_t)*pLeftData;
+    if (regexRightType == TSDB_DATA_TYPE_JSON) regexRightType = (uint8_t)*pRightData;
 
     SCL_ERR_RET(convertJsonValue(&pCtx->fp, pCtx->optr, GET_PARAM_TYPE(pCtx->pLeft), GET_PARAM_TYPE(pCtx->pRight),
                                  &pLeftData, &pRightData, &leftOut, &rightOut, &isJsonnull, &freeLeft, &freeRight,
@@ -2200,10 +2203,23 @@ int32_t vectorCompareIncludeVarTypes(SSclCompareCtx *pCtx) {
     if (!result) {
       colDataSetInt8(pCtx->pOut->columnData, i, (int8_t *)&result);
     } else {
-      if (pCtx->fp == NULL) {
+      if (pCtx->fp == NULL && pCtx->optr != OP_TYPE_MATCH && pCtx->optr != OP_TYPE_NMATCH) {
         SCL_ERR_RET(TSDB_CODE_QRY_INVALID_INPUT);
       }
-      bool res = filterDoCompare(pCtx->fp, pCtx->optr, pLeftData, pRightData);
+      bool res;
+      if (pCtx->optr == OP_TYPE_MATCH || pCtx->optr == OP_TYPE_NMATCH) {
+        int32_t match = 1;
+        int32_t matchCode = taosCompareRegexCharset(pLeftData, freeLeft ? TSDB_DATA_TYPE_VARCHAR : regexLeftType,
+                                                   pRightData, freeRight ? TSDB_DATA_TYPE_VARCHAR : regexRightType,
+                                                   pCtx->pLeft->charsetCxt, &match);
+        if (matchCode != TSDB_CODE_SUCCESS) {
+          if (freeLeft) taosMemoryFree(pLeftData);
+          if (freeRight) taosMemoryFree(pRightData);
+          return matchCode;
+        }
+        res = pCtx->optr == OP_TYPE_MATCH ? match == 0 : match != 0;
+      } else
+      res = filterDoCompare(pCtx->fp, pCtx->optr, pLeftData, pRightData);
       colDataSetInt8(pCtx->pOut->columnData, i, (int8_t *)&res);
       if (res) {
         if (chkTrue && hasNull) {
@@ -2331,7 +2347,8 @@ int32_t vectorCompareImpl(SScalarParam *pLeft, SScalarParam *pRight, SScalarPara
     SCL_ERR_JRET(filterGetCompFunc(&ctx.fp, lType, optr));
   } else {
     ctx.fp = filterGetCompFuncEx(lType, rType, optr);
-    if (ctx.fp == NULL && lType != TSDB_DATA_TYPE_JSON && rType != TSDB_DATA_TYPE_JSON) {
+    if (ctx.fp == NULL && optr != OP_TYPE_MATCH && optr != OP_TYPE_NMATCH &&
+        lType != TSDB_DATA_TYPE_JSON && rType != TSDB_DATA_TYPE_JSON) {
       code = TSDB_CODE_QRY_INVALID_INPUT;
       goto _return;
     }

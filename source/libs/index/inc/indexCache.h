@@ -73,7 +73,7 @@ void idxCacheDestroy(void* cache);
 void idxCacheBroadcast(void* cache);
 void idxCacheWait(void* cache);
 
-Iterate* idxCacheIteratorCreate(IndexCache* cache);
+int32_t idxCacheIteratorCreate(IndexCache* cache, Iterate** out);
 void     idxCacheIteratorDestroy(Iterate* iiter);
 
 int idxCachePut(void* cache, SIndexTerm* term, uint64_t uid);

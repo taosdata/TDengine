@@ -3825,8 +3825,10 @@ int32_t createExprInfo(SNodeList* pNodeList, SNodeList* pGroupKeys, SExprInfo** 
 
 _return:
   qError("%s failed at line %d since %s", __func__, __LINE__, tstrerror(code));
-  destroyExprInfo(pExprs, *numOfExprs);
-  taosMemoryFreeClear(pExprs);
+  if (pExprs != NULL) {
+    destroyExprInfo(pExprs, *numOfExprs);
+    taosMemoryFreeClear(pExprs);
+  }
   return code;
 }
 
@@ -6545,7 +6547,7 @@ char* getStreamOpName(uint16_t opType) {
   return "error name";
 }
 
-void printDataBlock(SSDataBlock* pBlock, const char* flag, const char* taskIdStr, int64_t qId) {
+void printDataBlock(SSDataBlock* pBlock, const char* flag, const char* taskIdStr, int64_t qId, void *charsetCxt) {
   if (qDebugFlag & DEBUG_TRACE) {
     if (!pBlock) {
       qDebug("%" PRIx64 " %s %s %s: Block is Null", qId, taskIdStr, flag, __func__);
@@ -6556,7 +6558,7 @@ void printDataBlock(SSDataBlock* pBlock, const char* flag, const char* taskIdStr
     }
     
     char*   pBuf = NULL;
-    int32_t code = dumpBlockData(pBlock, flag, &pBuf, taskIdStr, qId);
+    int32_t code = dumpBlockData(pBlock, flag, &pBuf, taskIdStr, qId, charsetCxt);
     if (code == 0) {
       qDebugL("%" PRIx64 " %s %s", qId, __func__, pBuf);
       taosMemoryFree(pBuf);
@@ -6564,7 +6566,7 @@ void printDataBlock(SSDataBlock* pBlock, const char* flag, const char* taskIdStr
   }
 }
 
-void printSpecDataBlock(SSDataBlock* pBlock, const char* flag, const char* opStr, const char* taskIdStr) {
+void printSpecDataBlock(SSDataBlock* pBlock, const char* flag, const char* opStr, const char* taskIdStr, void *charsetCxt) {
   if (!pBlock) {
     qDebug("%s===stream===%s %s: Block is Null", taskIdStr, flag, opStr);
     return;
@@ -6578,7 +6580,7 @@ void printSpecDataBlock(SSDataBlock* pBlock, const char* flag, const char* opStr
     char* pBuf = NULL;
     char  flagBuf[64];
     snprintf(flagBuf, sizeof(flagBuf), "%s %s", flag, opStr);
-    int32_t code = dumpBlockData(pBlock, flagBuf, &pBuf, taskIdStr, 0);
+    int32_t code = dumpBlockData(pBlock, flagBuf, &pBuf, taskIdStr, 0, charsetCxt);
     if (code == 0) {
       qDebug("%s", pBuf);
       taosMemoryFree(pBuf);
@@ -7421,6 +7423,22 @@ void handleRemoteTableRes(SScalarFetchParam* pParam, STaskSubJobCtx* ctx, SRetri
 }
 
 
+// Releases the transport handle of the fetch request that this response completes. Every request
+// owns exactly one handle (see SScalarFetchParam), so the handle is released even when the sub-job
+// context has already been destroyed.
+static void remoteFetchReleaseHandle(SScalarFetchParam* pParam, const char* idStr) {
+  if (pParam->transId <= 0) {
+    return;
+  }
+
+  int32_t ret = asyncFreeConnById(pParam->pTransporter, pParam->transId);
+  if (ret != 0) {
+    qWarn("%s failed to free subQ rpc handle, code:%s, subQIdx:%d, sid:%" PRId64, idStr != NULL ? idStr : "remote fetch",
+          tstrerror(ret), pParam->subQIdx, pParam->transId);
+  }
+  pParam->transId = 0;
+}
+
 int32_t remoteFetchCallBack(void* param, SDataBuf* pMsg, int32_t code) {
   taosMemoryFreeClear(pMsg->pEpSet);
 
@@ -7428,6 +7446,7 @@ int32_t remoteFetchCallBack(void* param, SDataBuf* pMsg, int32_t code) {
   STaskSubJobCtx* ctx = taosAcquireRef(fetchObjRefPool, pParam->subJobRefId);
   if (ctx == NULL) {
     qWarn("failed to acquire subJobCtx, since it may have been released, refId:%" PRIu64, pParam->subJobRefId);
+    remoteFetchReleaseHandle(pParam, NULL);
     taosMemoryFree(pMsg->pData);
     return TSDB_CODE_SUCCESS;
   }
@@ -7440,13 +7459,7 @@ int32_t remoteFetchCallBack(void* param, SDataBuf* pMsg, int32_t code) {
 
   qDebug("%s subQIdx %d got rsp, blockIdx:%" PRId64 ", code:%d, rsp:%p", idStr, pParam->subQIdx, ctx->blockIdx, code, pMsg->pData);
 
-  if (ctx->transporterId > 0) {
-    int32_t ret = asyncFreeConnById(ctx->rpcHandle, ctx->transporterId);
-    if (ret != 0) {
-      qDebug("%s failed to free subQ rpc handle, code:%s, subQIdx:%d", idStr, tstrerror(ret), pParam->subQIdx);
-    }
-    ctx->transporterId = -1;
-  }
+  remoteFetchReleaseHandle(pParam, idStr);
 
   if (0 == code && (NULL == pMsg->pData || pMsg->len < (int32_t)sizeof(SRetrieveTableRsp))) {
     qError("%s invalid rsp msg, msgType:%d, len:%d", idStr, pMsg->msgType, pMsg->len);
@@ -7751,6 +7764,8 @@ int32_t sendFetchRemoteNodeReq(STaskSubJobCtx* ctx, int32_t subQIdx, SNode* pRes
   param->subQIdx = subQIdx;
   param->pRes = pRes;
   param->subJobRefId = ctx->subJobRefId;
+  param->transId = 0;
+  param->pTransporter = ctx->rpcHandle;
 
   pMsgSendInfo->param = param;
   pMsgSendInfo->paramFreeFp = taosAutoMemoryFree;
@@ -7760,7 +7775,9 @@ int32_t sendFetchRemoteNodeReq(STaskSubJobCtx* ctx, int32_t subQIdx, SNode* pRes
   pMsgSendInfo->fp = remoteFetchCallBack;
   pMsgSendInfo->requestId = ctx->queryId;
 
-  code = asyncSendMsgToServer(ctx->rpcHandle, &pSource->addr.epSet, &ctx->transporterId, pMsgSendInfo);
+  // The transport stores the handle of this request into param->transId before the message can be
+  // dispatched, so the response callback always releases the handle of the request it completes.
+  code = asyncSendMsgToServer(ctx->rpcHandle, &pSource->addr.epSet, &param->transId, pMsgSendInfo);
   QUERY_CHECK_CODE(code, lino, _end);
 
 _end:

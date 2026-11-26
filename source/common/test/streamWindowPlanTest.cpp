@@ -1159,6 +1159,20 @@ TEST(StreamWindowPlanTest, createRequestJsonLegacyWindowPlanOmissionIsByteStable
   EXPECT_EQ(legacy, encodeCreateStreamRequestJson(&decoded));
 }
 
+TEST(StreamWindowPlanTest, createRequestJsonConnectionCharsetRoundTrip) {
+  SCMCreateStreamReq source = makeLegacyCountRequest();
+  RequestPtr         sourceGuard(&source);
+  tstrncpy(source.charset, "GBK", sizeof(source.charset));
+  const std::string encoded = encodeCreateStreamRequestJson(&source);
+  std::unique_ptr<SJson, decltype(&tjsonDelete)> json(tjsonParse(encoded.c_str()), tjsonDelete);
+  ASSERT_NE(nullptr, json);
+  SCMCreateStreamReq decoded = {};
+  RequestPtr         decodedGuard(&decoded);
+  ASSERT_EQ(TSDB_CODE_SUCCESS, jsonToSCMCreateStreamReq(json.get(), &decoded));
+  EXPECT_STREQ("GBK", decoded.charset);
+  EXPECT_EQ(encoded, encodeCreateStreamRequestJson(&decoded));
+}
+
 TEST(StreamWindowPlanTest, createRequestLegacySerializationMatchesGoldenBytes) {
   SCMCreateStreamReq source = makeLegacyCountRequest();
   RequestPtr         sourceGuard(&source);
@@ -8186,3 +8200,31 @@ TEST_F(StreamWalDataCodecTest, EmptyResponseDoesNotRequireSchemaOrSlices) {
 }
 
 }  // namespace
+
+TEST(StreamWindowPlanTest, heartbeatConnectionCharsetRoundTripAndLegacy) {
+  SMStreamHbRspMsg source = makeHeartbeatWithNestedTrigger();
+  auto *stream = static_cast<SStmStreamDeploy*>(taosArrayGet(source.deploy.streamList, 0));
+  const auto legacy = encodeHeartbeat(source);
+  tstrncpy(stream->triggerTask->task.charset, "GBK", TD_CHARSET_LEN);
+  const auto bytes = encodeHeartbeat(source);
+  SMStreamHbRspMsg decoded = {};
+  ASSERT_EQ(TSDB_CODE_SUCCESS, decodeHeartbeat(bytes, &decoded));
+  auto *out = static_cast<SStmStreamDeploy*>(taosArrayGet(decoded.deploy.streamList, 0));
+  EXPECT_STREQ("GBK", out->triggerTask->task.charset);
+  EXPECT_EQ(nullptr, out->triggerTask->task.charsetCxt);
+  tDeepFreeSMStreamHbRspMsg(&decoded);
+  decoded = {};
+  ASSERT_EQ(TSDB_CODE_SUCCESS, decodeHeartbeat(legacy, &decoded));
+  out = static_cast<SStmStreamDeploy*>(taosArrayGet(decoded.deploy.streamList, 0));
+  EXPECT_STREQ("", out->triggerTask->task.charset);
+  tDeepFreeSMStreamHbRspMsg(&decoded);
+  auto duplicate = bytes;
+  duplicate.insert(duplicate.end(), bytes.begin() + legacy.size(), bytes.end());
+  rewriteHeartbeatLength(&duplicate);
+  expectHeartbeatDecodeFailure(duplicate);
+  tstrncpy(stream->triggerTask->task.charset, "invalid-charset", TD_CHARSET_LEN);
+  decoded = {};
+  EXPECT_EQ(TSDB_CODE_CHARSET_CONVERT_ERROR, decodeHeartbeat(encodeHeartbeat(source), &decoded));
+  tDeepFreeSMStreamHbRspMsg(&decoded);
+  tDeepFreeSMStreamHbRspMsg(&source);
+}

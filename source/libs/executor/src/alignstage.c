@@ -45,6 +45,7 @@ typedef struct SAlignSeriesState {
 } SAlignSeriesState;
 
 struct SAlignStage {
+  SNodeList* pTargets;  // Owns the AST borrowed by pExprInfo.
   SExprInfo* pExprInfo;
   int32_t    numOfExprs;
   SAlignStageCol* pCols;
@@ -99,7 +100,6 @@ static int32_t appendTimeAlignSpanParams(SAlignStage* pStage, SFunctionNode* pFu
   pTs->colId = 0;
   code = nodesListMakeStrictAppend(&pFunc->pParameterList, (SNode*)pTs);
   if (TSDB_CODE_SUCCESS != code) {
-    nodesDestroyNode((SNode*)pTs);
     return code;
   }
 
@@ -108,7 +108,6 @@ static int32_t appendTimeAlignSpanParams(SAlignStage* pStage, SFunctionNode* pFu
   if (TSDB_CODE_SUCCESS != code) return code;
   code = nodesListMakeStrictAppend(&pFunc->pParameterList, pNode);
   if (TSDB_CODE_SUCCESS != code) {
-    nodesDestroyNode(pNode);
     return code;
   }
 
@@ -116,7 +115,6 @@ static int32_t appendTimeAlignSpanParams(SAlignStage* pStage, SFunctionNode* pFu
   if (pNode == NULL) return terrno;
   code = nodesListMakeStrictAppend(&pFunc->pParameterList, pNode);
   if (TSDB_CODE_SUCCESS != code) {
-    nodesDestroyNode(pNode);
     return code;
   }
 
@@ -125,7 +123,6 @@ static int32_t appendTimeAlignSpanParams(SAlignStage* pStage, SFunctionNode* pFu
   if (TSDB_CODE_SUCCESS != code) return code;
   code = nodesListMakeStrictAppend(&pFunc->pParameterList, (SNode*)pTz);
   if (TSDB_CODE_SUCCESS != code) {
-    nodesDestroyNode((SNode*)pTz);
     return code;
   }
 
@@ -134,7 +131,6 @@ static int32_t appendTimeAlignSpanParams(SAlignStage* pStage, SFunctionNode* pFu
   if (pNode == NULL) return terrno;
   code = nodesListMakeStrictAppend(&pFunc->pParameterList, pNode);
   if (TSDB_CODE_SUCCESS != code) {
-    nodesDestroyNode(pNode);
     return code;
   }
   return TSDB_CODE_SUCCESS;
@@ -174,7 +170,6 @@ static int32_t buildTimeAlignExprInfo(SAlignStage* pStage) {
              TSDB_FUNC_NAME_LEN);
     code = nodesListMakeStrictAppend(&pFunc->pParameterList, (SNode*)pParam);
     if (TSDB_CODE_SUCCESS != code) {
-      nodesDestroyNode((SNode*)pParam);
       nodesDestroyNode((SNode*)pFunc);
       goto _return;
     }
@@ -202,8 +197,6 @@ static int32_t buildTimeAlignExprInfo(SAlignStage* pStage) {
     pTarget->slotId = pCol->outSlotId;
     code = nodesListMakeStrictAppend(&pTargets, (SNode*)pTarget);
     if (TSDB_CODE_SUCCESS != code) {
-      nodesDestroyNode((SNode*)pFunc);
-      nodesDestroyNode((SNode*)pTarget);
       goto _return;
     }
   }
@@ -211,10 +204,8 @@ static int32_t buildTimeAlignExprInfo(SAlignStage* pStage) {
   code = createExprInfo(pTargets, NULL, &pStage->pExprInfo, &pStage->numOfExprs);
   if (TSDB_CODE_SUCCESS != code) goto _return;
 
-  // The expression infos now own the function nodes; detach them from the
-  // target wrappers before dropping the wrappers.
-  SNode* pNode = NULL;
-  FOREACH(pNode, pTargets) { ((STargetNode*)pNode)->pExpr = NULL; }
+  pStage->pTargets = pTargets;
+  return TSDB_CODE_SUCCESS;
 
 _return:
   nodesDestroyList(pTargets);
@@ -541,6 +532,7 @@ void alignStageDestroy(SAlignStage* pStage) {
     destroyExprInfo(pStage->pExprInfo, pStage->numOfExprs);
     taosMemoryFreeClear(pStage->pExprInfo);
   }
+  nodesDestroyList(pStage->pTargets);
   taosMemoryFreeClear(pStage->pCols);
   taosMemoryFree(pStage);
 }

@@ -569,6 +569,7 @@ typedef struct {
   // CREATE STREAM would fail with TABLE_ALREADY_EXIST inside a txn while succeeding
   // outside one. Encoded in the outer frame, same reasoning as txnId above.
   int8_t outTblExists;
+  char charset[TD_CHARSET_LEN];
 } SCMCreateStreamReq;
 
 typedef enum SStreamMsgType {
@@ -967,6 +968,8 @@ typedef struct SStreamTask {
   taskUndeplyCallback    undeployCb;
   
   int8_t          deployed;      // concurrent undeloy
+  char charset[TD_CHARSET_LEN];  // Creator connection; transported in the heartbeat tail frame.
+  void *charsetCxt;  // Runtime-only converter owned by the process converter cache.
 } SStreamTask;
 
 typedef struct SStreamMgmtRspCont {

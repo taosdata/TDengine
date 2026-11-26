@@ -45,7 +45,7 @@ jobs:
         os:
           - ubuntu-22.04
           - ubuntu-24.04
-          - macos-14
+          - macos-15-intel
           - macos-15
     env:
       TD_CONFIG: Release
@@ -73,7 +73,7 @@ jobs:
           sudo mkdir -p /usr/local/include
 
       - name: Checkout the repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
 
       - name: Cache Go modules on Linux and macOS
         uses: actions/cache@v4
@@ -95,7 +95,7 @@ jobs:
             ${{ runner.os }}-brew-
 
       - name: Set up Go
-        uses: actions/setup-go@v5
+        uses: actions/setup-go@v7
         with:
           go-version: 'stable'
 

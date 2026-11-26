@@ -19,6 +19,7 @@
 #include <cstring>
 #include <time.h>
 #include <vector>
+#include "tconv.h"
 #include "cJSON.h"
 
 #include <algorithm>
@@ -48093,4 +48094,43 @@ TEST(StreamTriggerTaskRecalcTest, QueuedAlignmentTracksTheOriginalChanges) {
   EXPECT_EQ(0, stTriggerTaskAddRecalcRequest(&fixture.task_, &fixture.group_, &third, false, false, false, 0));
   EXPECT_EQ(45, running->timeAlignChange.ekey);
   stTriggerTaskDestroyRecalcRequest(&running);
+}
+
+TEST(StreamDurationTagTest, NcharDurationIndependentOfCreatorCharset) {
+  struct Owner {
+    void *previous = tsCharsetCxt;
+    SStreamTriggerTask task = {};
+    SArray *values = nullptr;
+    ~Owner() {
+      tsCharsetCxt = previous;
+      nodesDestroyList(task.pPartitionCols);
+      taosArrayDestroy(values);
+    }
+  } owner;
+  tsCharsetCxt = taosConvInit("UTF-16LE");
+  ASSERT_NE(nullptr, tsCharsetCxt);
+  owner.task.useDurationTagRuntime = true;
+  owner.task.precision = TSDB_TIME_PRECISION_MILLI;
+  owner.task.triggerType = STREAM_TRIGGER_STATE;
+  owner.task.maxDelayTagColId = 3;
+  SNode *node = nullptr;
+  ASSERT_EQ(TSDB_CODE_SUCCESS, nodesMakeNode(QUERY_NODE_COLUMN, &node));
+  ASSERT_EQ(TSDB_CODE_SUCCESS, nodesListMakeStrictAppend(&owner.task.pPartitionCols, node));
+  reinterpret_cast<SColumnNode*>(node)->colId = 3;
+  reinterpret_cast<SColumnNode*>(node)->colType = COLUMN_TYPE_TAG;
+  TdUcs4 text[] = {'3', 's'};
+  SStreamGroupValue value = {};
+  value.data.type = TSDB_DATA_TYPE_NCHAR;
+  value.data.pData = reinterpret_cast<uint8_t*>(text);
+  value.data.nData = sizeof(text);
+  owner.values = taosArrayInit(1, sizeof(value));
+  ASSERT_NE(nullptr, owner.values);
+  ASSERT_NE(nullptr, taosArrayPush(owner.values, &value));
+  for (const char* charset : {"UTF-8", "UTF-16LE"}) {
+    owner.task.task.charsetCxt = taosConvInit(charset);
+    ASSERT_NE(nullptr, owner.task.task.charsetCxt);
+    SSTriggerGroupDurationState frozen = {};
+    ASSERT_EQ(TSDB_CODE_SUCCESS, stTestFreezeDurationTags(&owner.task, &frozen, owner.values));
+    EXPECT_EQ(3 * NANOSECOND_PER_SEC, frozen.frozenMaxDelayNs) << charset;
+  }
 }

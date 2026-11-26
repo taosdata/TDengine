@@ -1188,6 +1188,8 @@ WHERE (column|tbname) match/MATCH/nmatch/NMATCH _regex_
 
 正则匹配字符串长度不能超过 128 字节。可通过客户端配置参数 `maxRegexStringLen` 调整上限，修改后需要重启客户端才能生效。
 
+正则匹配使用连接字符集。Linux 和 macOS 服务端需要安装与连接字符集对应的 locale，否则查询会报错。Windows 按连接字符集解码，遇到无效编码时查询会报错。
+
 ## CASE 表达式
 
 ### 语法

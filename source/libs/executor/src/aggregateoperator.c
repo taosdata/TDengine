@@ -530,7 +530,7 @@ static bool nextGroupedResult(SOperatorInfo* pOperator) {
            GET_TASKID(pTaskInfo), pBlock->info.id.groupId, pAggInfo->groupId, pOperator->blocking,
            pAggInfo->groupKeyOptimized, pBlock->info.rows);
 
-    printDataBlock(pBlock, __func__, pTaskInfo->id.str, pTaskInfo->id.queryId);
+    printDataBlock(pBlock, __func__, pTaskInfo->id.str, pTaskInfo->id.queryId, pTaskInfo->charsetCxt);
 
     // there is an scalar expression that needs to be calculated before apply the group aggregation.
     if (pAggInfo->scalarExprSup.pExprInfo != NULL && !blockAllocated) {
@@ -644,7 +644,7 @@ _end:
     T_LONG_JMP(pTaskInfo->env, code);
   }
 
-  printDataBlock(pInfo->pRes, __func__, pTaskInfo->id.str, pTaskInfo->id.queryId);
+  printDataBlock(pInfo->pRes, __func__, pTaskInfo->id.str, pTaskInfo->id.queryId, pTaskInfo->charsetCxt);
 
   (*ppRes) = (pInfo->pRes->info.rows == 0) ? NULL : pInfo->pRes;
   return code;

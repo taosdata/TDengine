@@ -542,8 +542,8 @@ TEST(columnTest, blob_column_comparator_scope) {
       {OP_TYPE_IS_NOT_NULL, compareBlobVal},
       {OP_TYPE_LIKE, compareBlobPatternMatch},
       {OP_TYPE_NOT_LIKE, compareBlobPatternNMatch},
-      {OP_TYPE_MATCH, compareBlobRegexMatch},
-      {OP_TYPE_NMATCH, compareBlobRegexNMatch},
+      {OP_TYPE_MATCH, nullptr},
+      {OP_TYPE_NMATCH, nullptr},
       {OP_TYPE_IN, compareChkInBlob},
       {OP_TYPE_NOT_IN, compareChkNotInBlob},
   };

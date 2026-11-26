@@ -1964,25 +1964,20 @@ int32_t getVStbRefDbsFromCache(SParseMetaCache* pMetaCache, const SName* pName, 
     return code;
   }
 
-  if (NULL == pMetaCache || NULL == pMetaCache->pVStbRefDbs) {
-    return TSDB_CODE_PAR_TABLE_NOT_EXIST;
+  // Each expansion adds entries for its leaves. A missing or unfilled slot can use an enclosing cache.
+  size_t len = strlen(fullName);
+  for (const SParseMetaCache* cache = pMetaCache; cache != NULL; cache = cache->pVStbRefParent) {
+    if (cache->pVStbRefDbs == NULL) continue;
+    SMetaRes** slot = taosHashGet(cache->pVStbRefDbs, fullName, len);
+    if (slot != NULL && *slot != NULL) {
+      const SMetaRes* res = *slot;
+      if (res->code == TSDB_CODE_SUCCESS) {
+        *pOutput = res->pRes;
+      }
+      return res->code;
+    }
   }
-
-  SArray* pRefs = NULL;
-  code = getMetaDataFromHash(fullName, strlen(fullName), pMetaCache->pVStbRefDbs, (void**)&pRefs);
-
-  // Special handling for stmt scenario where slot is reserved but data is not filled
-  // In this case, getMetaDataFromHash returns INTERNAL_ERROR because value is nullPointer
-  if (TSDB_CODE_PAR_INTERNAL_ERROR == code) {
-    // Data not filled in cache (stmt scenario without putMetaDataToCache)
-    // Return table not exist to indicate VStbRefDbs is not available
-    return TSDB_CODE_PAR_TABLE_NOT_EXIST;
-  }
-
-  if (TSDB_CODE_SUCCESS == code && NULL != pRefs) {
-    *pOutput = pRefs;
-  }
-  return code;
+  return TSDB_CODE_PAR_TABLE_NOT_EXIST;
 }
 
 int32_t reserveDnodeRequiredInCache(SParseMetaCache* pMetaCache) {

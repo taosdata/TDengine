@@ -981,6 +981,8 @@ Query OK, 1 row(s) in set
 
 ## 字符串函数
 
+处理 VARCHAR 字符串时，`CHAR_LENGTH`、`SUBSTRING/SUBSTR`、`SUBSTRING_INDEX`、`POSITION`、`REPLACE` 和指定移除字符串的 `TRIM` 使用当前连接的字符集进行字符计数、截取或匹配。
+
 字符串函数均为 **标量函数**。
 字符串函数的输入参数为字符串类型，返回结果为数值类型或字符串类型。
 
@@ -1133,7 +1135,7 @@ CHAR_LENGTH(expr)
 
 **使用说明**
 
-- 与 `LENGTH()` 函数不同在于，对于多字节字符，比如中文字符，`CHAR_LENGTH()` 函数会将其算做一个字符，长度为 1，而 `LENGTH()` 会计算其字节数，长度为 3。比如 `CHAR_LENGTH('你好') = 2`，`LENGTH('你好') = 6`。
+- `CHAR_LENGTH()` 返回字符数，`LENGTH()` 返回字节数。例如，对于 VARCHAR 字符串 `'你好'`，`CHAR_LENGTH()` 返回 2；`LENGTH()` 在 UTF-8 编码下返回 6，在 GBK 编码下返回 4。
 - 如果 `expr` 为 NULL，返回 NULL。
 
 **示例**

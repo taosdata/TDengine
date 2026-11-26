@@ -185,6 +185,13 @@ int32_t nodesStringToList(const char* pStr, SNodeList** pList);
 
 int32_t nodesNodeToMsg(const SNode* pNode, char** pMsg, int32_t* pLen);
 int32_t nodesMsgToNode(const char* pStr, int32_t len, SNode** pNode);
+// Validate decoded nodes, including nodes nested inside a plan; NULL disables validation.
+// A validator returns TSDB_CODE_SUCCESS or a TSDB error code. After its first error,
+// decoding continues without further validation so ownership of the tree is preserved.
+// A decoding error takes precedence over the first validation error. On any error,
+// the decoded tree is destroyed and *pNode is NULL; on success the caller owns *pNode.
+int32_t nodesMsgToNodeWithValidator(const char* pStr, int32_t len, SNode** pNode,
+                                    int32_t (*validator)(const SNode*));
 
 // Restore a borrowed charset context (SConvInfo*, process-cached, never freed by
 // the caller) from a serialized charset name. An empty name, or a name equal to

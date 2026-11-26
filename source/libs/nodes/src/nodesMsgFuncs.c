@@ -93,6 +93,14 @@ typedef int32_t (*FToObject)(STlvDecoder* pDecoder, void* pObj);
 typedef int32_t (*FMakeObject)(int16_t type, SNode** ppNode);
 typedef int32_t (*FSetObject)(STlv* pTlv, void* pObj);
 
+typedef struct SNodeMsgValidation {
+  int32_t (*validate)(const SNode*);
+  int32_t code;
+} SNodeMsgValidation;
+
+// Child TLV decoders share the validation state of the top-level decode.
+static threadlocal SNodeMsgValidation* nodeMsgValidation;
+
 static int32_t nodeToMsg(const void* pObj, STlvEncoder* pEncoder);
 static int32_t msgToSpecificNode(STlvDecoder* pDecoder, void* pObj);
 static int32_t nodeListToMsg(const void* pObj, STlvEncoder* pEncoder);
@@ -640,6 +648,8 @@ static int32_t tlvDecodeDynObjFromTlv(STlv* pTlv, FMakeObject makeFunc, FToObjec
   if (TSDB_CODE_SUCCESS != code) {
     nodesError("tlvDecodeDynObjFromTlv decode failed, type=%d(%s), code:%x", pTlv->type,
                nodesNodeName(nodeType(*pObj)), code);
+  } else if (nodeMsgValidation != NULL && nodeMsgValidation->code == TSDB_CODE_SUCCESS) {
+    nodeMsgValidation->code = nodeMsgValidation->validate(*pObj);
   }
   return code;
 }
@@ -7406,6 +7416,7 @@ enum {
   SUBPLAN_CODE_EXEC_ON_CHILD_NODE,
   SUBPLAN_CODE_SUBQUERY_DEPS,
   SUBPLAN_CODE_SUBQUERY_DEPS_KNOWN,
+  SUBPLAN_CODE_CHARSET,
 };
 
 typedef struct SSubplanInlineAttrs {
@@ -7503,6 +7514,9 @@ static int32_t encodeSubplanBody(const SSubplan* pNode, STlvEncoder* pEncoder, b
     if (TSDB_CODE_SUCCESS == code && pNode->pSubqueryDeps) {
       code = tlvEncodeObj(pEncoder, SUBPLAN_CODE_SUBQUERY_DEPS, subqueryDependenciesToMsg, pNode->pSubqueryDeps);
     }
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tlvEncodeCStr(pEncoder, SUBPLAN_CODE_CHARSET, pNode->charsetName);
   }
   return code;
 }
@@ -7647,6 +7661,9 @@ static int32_t msgToSubplan(STlvDecoder* pDecoder, void* pObj) {
         break;
       case SUBPLAN_CODE_SUBQUERY_DEPS:
         code = msgToSubqueryDependencies(pTlv, &pNode->pSubqueryDeps);
+        break;
+      case SUBPLAN_CODE_CHARSET:
+        code = tlvDecodeCStr(pTlv, pNode->charsetName, sizeof(pNode->charsetName));
         break;
       case SUBPLAN_CODE_EXEC_ON_CHILD_NODE:
         code = tlvDecodeBool(pTlv, &pNode->execOnChildNode);
@@ -9860,13 +9877,22 @@ int32_t nodesNodeToMsg(const SNode* pNode, char** pMsg, int32_t* pLen) {
   return code;
 }
 
-int32_t nodesMsgToNode(const char* pMsg, int32_t len, SNode** pNode) {
+int32_t nodesMsgToNodeWithValidator(const char* pMsg, int32_t len, SNode** pNode,
+                                    int32_t (*validator)(const SNode*)) {
   if (NULL == pNode) return TSDB_CODE_INVALID_MSG_LEN;
   *pNode = NULL;
   if (NULL == pMsg || len <= 0) return TSDB_CODE_INVALID_MSG_LEN;
 
   STlvDecoder decoder = {.bufSize = len, .offset = 0, .pBuf = pMsg};
-  int32_t     code = msgToNode(&decoder, (void**)pNode);
+  SNodeMsgValidation validation = {.validate = validator, .code = TSDB_CODE_SUCCESS};
+  SNodeMsgValidation* previousValidation = nodeMsgValidation;
+  nodeMsgValidation = validator != NULL ? &validation : NULL;
+  // Keep decoding after validation fails so normal tree ownership handles cleanup.
+  int32_t code = msgToNode(&decoder, (void**)pNode);
+  nodeMsgValidation = previousValidation;
+  if (code == TSDB_CODE_SUCCESS) {
+    code = validation.code;
+  }
   if (TSDB_CODE_SUCCESS != code) {
     nodesDestroyNode(*pNode);
     *pNode = NULL;
@@ -9874,4 +9900,8 @@ int32_t nodesMsgToNode(const char* pMsg, int32_t len, SNode** pNode) {
 
   terrno = code;
   return code;
+}
+
+int32_t nodesMsgToNode(const char* pMsg, int32_t len, SNode** pNode) {
+  return nodesMsgToNodeWithValidator(pMsg, len, pNode, NULL);
 }

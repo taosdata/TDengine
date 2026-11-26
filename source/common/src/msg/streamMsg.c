@@ -16,6 +16,7 @@
  */
 
 #include "streamMsg.h"
+#include "tconv.h"
 #include <limits.h>
 #include "os.h"
 #include "taos.h"
@@ -3479,6 +3480,66 @@ static int32_t tEncodeStreamHbExtPrefilterAstFrame(SEncoder* pEncoder, const SMS
   return code;
 }
 
+// Task deploys are unframed. Keep charset metadata in a skippable outer frame
+// so older readers can still parse every task and ignore this extension.
+enum { STREAM_CHARSET_FRAME_MAGIC = 0x53435331 };
+
+static const char *streamDeployCharset(const SStmStreamDeploy *stream) {
+  if (stream->triggerTask != NULL) return stream->triggerTask->task.charset;
+  if (taosArrayGetSize(stream->readerTasks) > 0)
+    return ((SStmTaskDeploy *)taosArrayGet(stream->readerTasks, 0))->task.charset;
+  if (taosArrayGetSize(stream->runnerTasks) > 0)
+    return ((SStmTaskDeploy *)taosArrayGet(stream->runnerTasks, 0))->task.charset;
+  return "";
+}
+
+static int32_t tEncodeStreamCharsets(SEncoder *encoder, const SMStreamHbRspMsg *rsp) {
+  int32_t count = taosArrayGetSize(rsp->deploy.streamList);
+  bool hasCharset = false;
+  for (int32_t i = 0; i < count; ++i) {
+    const SStmStreamDeploy *stream = taosArrayGet(rsp->deploy.streamList, i);
+    if (streamDeployCharset(stream)[0] != 0) hasCharset = true;
+  }
+  if (!hasCharset) return 0;
+  TAOS_CHECK_RETURN(tStartEncodeStreamTailFrame(encoder, STREAM_CHARSET_FRAME_MAGIC, 1, 0));
+  TAOS_CHECK_RETURN(tEncodeI32(encoder, count));
+  for (int32_t i = 0; i < count; ++i) {
+    const SStmStreamDeploy *stream = taosArrayGet(rsp->deploy.streamList, i);
+    TAOS_CHECK_RETURN(tEncodeI64(encoder, stream->streamId));
+    TAOS_CHECK_RETURN(tEncodeCStr(encoder, streamDeployCharset(stream)));
+  }
+  tEndEncodeStreamTailFrame(encoder);
+  return 0;
+}
+
+static int32_t tDecodeStreamCharsets(SStreamTailFrameDecoder *frame, SMStreamHbRspMsg *rsp) {
+  if (frame->version != 1 || frame->flags != 0) return TSDB_CODE_INVALID_MSG;
+  SDecoder *decoder = &frame->payloadDecoder;
+  int32_t count = 0;
+  TAOS_CHECK_RETURN(tDecodeI32(decoder, &count));
+  if (count != taosArrayGetSize(rsp->deploy.streamList)) return TSDB_CODE_INVALID_MSG;
+  for (int32_t i = 0; i < count; ++i) {
+    SStmStreamDeploy *stream = taosArrayGet(rsp->deploy.streamList, i);
+    int64_t id = 0;
+    char *charset = NULL;
+    TAOS_CHECK_RETURN(tDecodeI64(decoder, &id));
+    TAOS_CHECK_RETURN(tDecodeBoundedCStr(decoder, &charset, TD_CHARSET_LEN));
+    if (id != stream->streamId) return TSDB_CODE_INVALID_MSG;
+    if (charset == NULL) charset = "";
+    if (charset[0] != 0 && taosConvInit(charset) == NULL) return TSDB_CODE_CHARSET_CONVERT_ERROR;
+    if (stream->triggerTask != NULL)
+      tstrncpy(stream->triggerTask->task.charset, charset, TD_CHARSET_LEN);
+    SArray *arrays[] = {stream->readerTasks, stream->runnerTasks};
+    for (int32_t j = 0; j < 2; ++j) {
+      for (int32_t k = 0; k < taosArrayGetSize(arrays[j]); ++k) {
+        SStmTaskDeploy *task = taosArrayGet(arrays[j], k);
+        tstrncpy(task->task.charset, charset, TD_CHARSET_LEN);
+      }
+    }
+  }
+  return 0;
+}
+
 int32_t tEncodeStreamHbRsp(SEncoder* pEncoder, const SMStreamHbRspMsg* pRsp) {
   int32_t code = 0;
   int32_t lino;
@@ -3520,6 +3581,7 @@ int32_t tEncodeStreamHbRsp(SEncoder* pEncoder, const SMStreamHbRspMsg* pRsp) {
   TAOS_CHECK_EXIT(tEncodeStreamHbExtPrefilterAstFrame(pEncoder, pRsp));
   TAOS_CHECK_EXIT(tEncodeReaderRuntime(pEncoder, &pRsp->readerRuntime));
   TAOS_CHECK_EXIT(tEncodeReaderDeployEpoch(pEncoder, pRsp->readerDeployEpoch));
+  TAOS_CHECK_EXIT(tEncodeStreamCharsets(pEncoder, pRsp));
 
 _exit:
 
@@ -3628,11 +3690,15 @@ int32_t tDecodeSStreamReaderDeployMsg(SDecoder* pDecoder, SStreamReaderDeployMsg
     TAOS_CHECK_EXIT(tDecodeI8(pDecoder, &pSpec->partitionByTag));
     TAOS_CHECK_EXIT(tDecodeI8(pDecoder, &pSpec->partitionByTbname));
     /* Decode prefilter / triggerPrefilter as nullable, null-terminated C strings
-     * (mirror of the tEncodeCStr calls above; empty entry decodes back to NULL). */
-    TAOS_CHECK_EXIT(tDecodeCStrAlloc(pDecoder, &pSpec->prefilter));
-    TAOS_CHECK_EXIT(tDecodeCStrAlloc(pDecoder, &pSpec->triggerPrefilter));
-    TAOS_CHECK_EXIT(tDecodeCStrAlloc(pDecoder, &pSpec->tagCondJson));
-    pSpec->tagCondLen = pSpec->tagCondJson == NULL ? 0 : (int32_t)strlen(pSpec->tagCondJson);
+     * (mirror of the tEncodeCStr calls above; empty entry decodes back to NULL).
+     * Use the checked decoder so a blob whose last byte is not '\0' is refused here
+     * instead of being read past the exact-size allocation by the strlen/%s consumers
+     * below and downstream (tEncodeCStr always writes the terminator on the wire). */
+    uint64_t tagCondBlobLen = 0;
+    TAOS_CHECK_EXIT(tDecodeCStrAllocChecked(pDecoder, (void**)&pSpec->prefilter, NULL));
+    TAOS_CHECK_EXIT(tDecodeCStrAllocChecked(pDecoder, (void**)&pSpec->triggerPrefilter, NULL));
+    TAOS_CHECK_EXIT(tDecodeCStrAllocChecked(pDecoder, (void**)&pSpec->tagCondJson, &tagCondBlobLen));
+    pSpec->tagCondLen = tagCondBlobLen > 0 ? (int32_t)(tagCondBlobLen - 1) : 0;  /* exclude NUL */
     /* Column lists and type mappings are produced by mnode and consumed by the
      * snode stream reader when building trigger/calc external SELECT lists. */
     TAOS_CHECK_EXIT(tDecodeSStreamExtFixedStringArray(pDecoder, &pSpec->triggerColumns, TSDB_COL_NAME_LEN));
@@ -3665,7 +3731,8 @@ int32_t tDecodeSStreamReaderDeployMsg(SDecoder* pDecoder, SStreamReaderDeployMsg
       }
       for (int32_t j = 0; j < numPartExprs; ++j) {
         char **pExpr = taosArrayGet(pSpec->partitionTagExprs, j);
-        TAOS_CHECK_EXIT(tDecodeCStrAlloc(pDecoder, pExpr));
+        /* Same NUL-termination requirement: elements are later read with taosStrdup/%s. */
+        TAOS_CHECK_EXIT(tDecodeCStrAllocChecked(pDecoder, (void**)pExpr, NULL));
       }
     }
     /* pSpec->triggerPrefilterAst is not on the wire here; tDecodeStreamHbRsp binds it from
@@ -4872,6 +4939,7 @@ int32_t tDecodeStreamHbRsp(SDecoder* pDecoder, SMStreamHbRspMsg* pRsp) {
   bool    timeAlignFrameSeen = false;
   SArray* pTimeAlignEntries = NULL;
   bool    windowPlanFrameSeen = false;
+  bool    charsetFrameSeen = false;
   bool    extPrefilterAstFrameSeen = false;
   SArray* pWindowPlanEntries = NULL;
   SArray* pExtPrefilterAstEntries = NULL;
@@ -4942,6 +5010,16 @@ int32_t tDecodeStreamHbRsp(SDecoder* pDecoder, SMStreamHbRspMsg* pRsp) {
       else
         tFinishDecodeStreamTailFrame(&frame, false);
       TAOS_CHECK_EXIT(code);
+    } else if (frame.magic == STREAM_CHARSET_FRAME_MAGIC) {
+      if (charsetFrameSeen) {
+        tFinishDecodeStreamTailFrame(&frame, false);
+        TAOS_CHECK_EXIT(TSDB_CODE_INVALID_MSG);
+      }
+      charsetFrameSeen = true;
+      code = tDecodeStreamCharsets(&frame, pRsp);
+      int32_t finishCode = tFinishDecodeStreamTailFrame(&frame, code == 0);
+      TAOS_CHECK_EXIT(code);
+      TAOS_CHECK_EXIT(finishCode);
     } else if (frame.magic == STREAM_WINDOW_PLAN_FRAME_MAGIC) {
       if (windowPlanFrameSeen || frame.version != STREAM_WINDOW_PLAN_FRAME_VERSION || frame.flags != 0) {
         tFinishDecodeStreamTailFrame(&frame, false);
@@ -5712,6 +5790,7 @@ int32_t tCloneStreamCreateDeployPointers(SCMCreateStreamReq *pSrc, SCMCreateStre
   TSDB_CHECK_NULL(*ppDst, code, lino, _exit, terrno);
 
   SCMCreateStreamReq* pDst = *ppDst;
+  tstrncpy(pDst->charset, pSrc->charset, sizeof(pDst->charset));
 
   TAOS_CHECK_EXIT(tCloneStreamTimeAlignSpec(pSrc->pTimeAlign, &pDst->pTimeAlign));
   if (pSrc->pWindowPlan != NULL) {

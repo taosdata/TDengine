@@ -18,9 +18,11 @@
 
 Supported algorithm types:
 
-  ad     - anomaly detection under <custom_algo_dir>/ad
-  fc     - forecast under <custom_algo_dir>/fc
-  batch  - batch envelope plugin under <custom_algo_dir>/batch
+  ad             - anomaly detection under <custom_algo_dir>/ad
+  fc             - forecast under <custom_algo_dir>/fc
+  classification - classification under <custom_algo_dir>/classification
+  regression     - regression under <custom_algo_dir>/regression
+  batch          - batch envelope plugin under <custom_algo_dir>/batch
 
 Supported deployment forms:
 
@@ -58,8 +60,13 @@ EXIT_VERIFY = 1
 EXIT_DEPS = 2
 EXIT_PREFLIGHT = 3
 
-ALGORITHM_TYPES = ("ad", "fc", "batch")
-SERVICE_TYPES = {"ad": "anomaly-detection", "fc": "forecast"}
+ALGORITHM_TYPES = ("ad", "fc", "classification", "regression", "batch")
+SERVICE_TYPES = {
+    "ad": "anomaly-detection",
+    "fc": "forecast",
+    "classification": "classification",
+    "regression": "regression",
+}
 DEFAULT_SCHEMA = [["ts", "TIMESTAMP", 8], ["val", "DOUBLE", 8]]
 DEFAULT_CUSTOM_DIR = "/var/lib/taos/taosanode/custom"
 PYTHON_CANDIDATES = [
@@ -598,6 +605,10 @@ def detect_algorithm_type(tree):
             return "ad"
         if any("ForecastService" in name for name in bases):
             return "fc"
+        if any("ClassificationService" in name for name in bases):
+            return "classification"
+        if any("RegressionService" in name for name in bases):
+            return "regression"
         if "build" in method_names(node) and node_name(node):
             return "batch"
     return None
@@ -615,6 +626,12 @@ def protocol_classes(tree, algorithm_type):
                 result.append((node, bases, methods))
         elif algorithm_type == "fc":
             if any("ForecastService" in name for name in bases):
+                result.append((node, bases, methods))
+        elif algorithm_type == "classification":
+            if any("ClassificationService" in name for name in bases):
+                result.append((node, bases, methods))
+        elif algorithm_type == "regression":
+            if any("RegressionService" in name for name in bases):
                 result.append((node, bases, methods))
         elif algorithm_type == "batch":
             if "build" in methods and node_name(node):
@@ -649,7 +666,8 @@ def validate_source(path, model_name, requested_type):
         if detected is None:
             raise DeployError(
                 "cannot detect the algorithm type. Expected a class inheriting "
-                "AbstractAnomalyDetectionService or AbstractForecastService, or a "
+                "AbstractAnomalyDetectionService, AbstractForecastService, "
+                "AbstractClassificationService or AbstractRegressionService, or a "
                 "class with build(ts, values, windows, params) for batch. "
                 "Pass --algorithm-type explicitly."
             )
@@ -666,6 +684,8 @@ def validate_source(path, model_name, requested_type):
         expectations = {
             "ad": "a module-level class subclassing AbstractAnomalyDetectionService",
             "fc": "a module-level class subclassing AbstractForecastService",
+            "classification": "a module-level class subclassing AbstractClassificationService",
+            "regression": "a module-level class subclassing AbstractRegressionService",
             "batch": "a module-level class with a name attribute and build(ts, values, windows, params)",
         }
         raise DeployError(
@@ -686,7 +706,7 @@ def validate_source(path, model_name, requested_type):
                 % (node.name, declared, model_name)
             )
 
-        if algorithm_type == "ad" and "execute" not in methods:
+        if algorithm_type in ("ad", "classification", "regression") and "execute" not in methods:
             problems.append("class %s must define execute()" % node.name)
         if algorithm_type == "fc" and not ({"execute", "_fit_model"} & methods):
             problems.append(
@@ -1162,6 +1182,19 @@ def timestamps(count):
     return [1577808000000 + index * 1000 for index in range(count)]
 
 
+def payload_rows(payload):
+    """Return the input record count of a column-oriented request payload.
+
+    A classification or regression response derives ``rows`` from the
+    prediction list itself, so comparing the two proves nothing. The request
+    is the only source of the expected sample count.
+    """
+    columns = payload.get("data")
+    if isinstance(columns, list) and columns and isinstance(columns[0], list):
+        return len(columns[0])
+    return None
+
+
 def find_service(listing, group_type, model_name):
     for group in listing.get("details", []):
         if group.get("type") != group_type:
@@ -1175,27 +1208,117 @@ def find_service(listing, group_type, model_name):
 def load_sample(args):
     if not args.sample_file:
         return None
-    return json.loads(Path(args.sample_file).read_text(encoding="utf-8"))
+    path = Path(args.sample_file)
+    try:
+        text = path.read_text(encoding="utf-8")
+    except OSError as exc:
+        raise DeployError("cannot read --sample-file %s: %s" % (path, exc))
+    try:
+        sample = json.loads(text)
+    except ValueError as exc:
+        raise DeployError("--sample-file is not valid JSON (%s): %s" % (path, exc))
+    if not isinstance(sample, (dict, list)):
+        raise DeployError(
+            "--sample-file must contain a JSON object or a value list: %s" % path
+        )
+    return sample
 
 
 def values_from_args(args):
     if not args.values:
         return None
-    return [float(item) for item in args.values.split(",") if item.strip()]
+    values = []
+    for item in args.values.split(","):
+        if not item.strip():
+            continue
+        try:
+            values.append(float(item))
+        except ValueError:
+            raise DeployError("--values contains a non-numeric item: %r" % item)
+    return values
+
+
+def binary_labels(values):
+    """Split values at their median so both classes appear in the payload.
+
+    A median split only works when the series has two distinct sides. A
+    constant series, and a series whose median equals its maximum, would label
+    every row 1, and several classifiers then fail to fit. Fall back to
+    alternating labels by position so the verification data always carries two
+    classes.
+    """
+    if not values:
+        return []
+    ordered = sorted(values)
+    middle = len(ordered) // 2
+    if len(ordered) % 2:
+        threshold = ordered[middle]
+    else:
+        threshold = (ordered[middle - 1] + ordered[middle]) / 2.0
+    labels = [1 if value >= threshold else 0 for value in values]
+    if len(set(labels)) == 1:
+        return [index % 2 for index in range(len(values))]
+    return labels
+
+
+def sample_numbers(values, label):
+    """Convert a JSON value list to floats, reporting failures as deploy errors."""
+    if not isinstance(values, list) or not values:
+        raise DeployError("%s must be a non-empty list of numbers" % label)
+    converted = []
+    for item in values:
+        try:
+            converted.append(float(item))
+        except (TypeError, ValueError):
+            raise DeployError("%s contains a non-numeric item: %r" % (label, item))
+    return converted
+
+
+def sample_columns(sample, path, minimum):
+    """Return numeric columns from a sample payload after shape checks.
+
+    Every column-based builder reads the row count from the first column, so a
+    missing, empty, ragged or non-numeric column must fail here instead of
+    during payload assembly. ``minimum`` follows the request contract of each
+    algorithm type, not the example template: anomaly detection needs its
+    timestamp column, forecast needs a timestamp and a target, while
+    classification and regression accept a single feature column.
+    """
+    data = sample.get("data")
+    if not isinstance(data, list) or len(data) < minimum:
+        raise DeployError(
+            "--sample-file data must hold at least %d columns: %s" % (minimum, path)
+        )
+    columns = []
+    for index, column in enumerate(data):
+        columns.append(sample_numbers(column, "--sample-file column %d" % index))
+    lengths = {len(column) for column in columns}
+    if len(lengths) != 1:
+        raise DeployError("--sample-file columns must have the same length: %s" % path)
+    return columns
+
+
+def sample_schema(columns, template):
+    """Describe the sample columns, keeping template names when the width matches."""
+    if len(columns) == len(template):
+        return template
+    return [["col_%d" % (index + 1), "DOUBLE", 8] for index in range(len(columns))]
 
 
 def build_ad_payload(args, model_name):
     sample = load_sample(args)
     if sample is not None:
         if isinstance(sample, list):
-            values = [float(item) for item in sample]
+            values = sample_numbers(sample, "--sample-file values")
             sample = {
                 "schema": DEFAULT_SCHEMA,
                 "data": [timestamps(len(values)), values],
                 "rows": len(values),
             }
+        columns = sample_columns(sample, args.sample_file, 2)
+        sample["data"] = columns
         sample.setdefault("schema", DEFAULT_SCHEMA)
-        sample.setdefault("rows", len(sample.get("data", [[]])[0]))
+        sample.setdefault("rows", len(columns[0]))
         sample["algo"] = model_name
         sample.setdefault("wncheck", 0)
         if args.option:
@@ -1225,14 +1348,18 @@ def build_fc_payload(args, model_name):
     sample = load_sample(args)
     if sample is not None:
         if isinstance(sample, list):
-            values = [float(item) for item in sample]
+            values = sample_numbers(sample, "--sample-file values")
             sample = {
                 "schema": DEFAULT_SCHEMA,
                 "data": [timestamps(len(values)), values],
                 "rows": len(values),
             }
-        data = sample.get("data") or [[], []]
-        series = data[0] or timestamps(len(data[1]))
+        columns = sample_columns(sample, args.sample_file, 2)
+        # Keep every supplied column: a forecast request may carry
+        # past_dynamic_real / dynamic_real columns that the schema indexes by
+        # position, so rewriting data to two columns breaks the call.
+        series = columns[0]
+        sample["data"] = columns
         sample.setdefault("schema", DEFAULT_SCHEMA)
         sample["algo"] = model_name
         sample.setdefault("wncheck", 0)
@@ -1273,6 +1400,84 @@ def build_fc_payload(args, model_name):
     return payload
 
 
+def build_classification_payload(args, model_name):
+    schema = [["feature", "DOUBLE", 8], ["label", "TINYINT", 1]]
+    sample = load_sample(args)
+    if sample is not None:
+        if isinstance(sample, list):
+            features = sample_numbers(sample, "--sample-file values")
+            labels = binary_labels(features)
+            sample = {
+                "schema": schema,
+                "data": [features, labels],
+                "rows": len(features),
+            }
+        columns = sample_columns(sample, args.sample_file, 1)
+        sample["data"] = columns
+        sample.setdefault("schema", sample_schema(columns, schema))
+        sample.setdefault("rows", len(columns[0]))
+        sample["algo"] = model_name
+        if args.option:
+            sample["option"] = args.option
+        return sample
+
+    values = values_from_args(args)
+    if values is None:
+        values = [float(index) for index in range(60)]
+    if len(values) < 10:
+        raise DeployError("verification data needs at least 10 points")
+
+    labels = binary_labels(values)
+    payload = {
+        "schema": schema,
+        "data": [values, labels],
+        "rows": len(values),
+        "algo": model_name,
+    }
+    if args.option:
+        payload["option"] = args.option
+    return payload
+
+
+def build_regression_payload(args, model_name):
+    schema = [["x", "DOUBLE", 8], ["y", "DOUBLE", 8]]
+    sample = load_sample(args)
+    if sample is not None:
+        if isinstance(sample, list):
+            features = sample_numbers(sample, "--sample-file values")
+            targets = [2.0 * value + 1.0 for value in features]
+            sample = {
+                "schema": schema,
+                "data": [features, targets],
+                "rows": len(features),
+            }
+        columns = sample_columns(sample, args.sample_file, 1)
+        sample["data"] = columns
+        sample.setdefault("schema", sample_schema(columns, schema))
+        sample.setdefault("rows", len(columns[0]))
+        sample["algo"] = model_name
+        if args.option:
+            sample["option"] = args.option
+        return sample
+
+    values = values_from_args(args)
+    if values is None:
+        values = [float(index) for index in range(60)]
+    if len(values) < 10:
+        raise DeployError("verification data needs at least 10 points")
+
+    targets = [2.0 * value + 1.0 for value in values]
+    payload = {
+        "schema": schema,
+        "data": [values, targets],
+        "rows": len(values),
+        "algo": model_name,
+    }
+    if args.option:
+        payload["option"] = args.option
+    return payload
+
+
 def build_batch_payload(args, model_name):
     config = None
     if args.config_json:
@@ -1284,13 +1489,16 @@ def build_batch_payload(args, model_name):
     sample = load_sample(args)
     if sample is not None:
         if isinstance(sample, list):
-            data = [float(item) for item in sample]
+            data = sample_numbers(sample, "--sample-file values")
             series = timestamps(len(data))
             sample = {
                 "ts": series,
                 "data": data,
                 "window": [[series[0], series[-1]]],
             }
+        sample["data"] = sample_numbers(
+            sample.get("data"), "--sample-file data"
+        )
         sample["algo"] = model_name
         sample.setdefault("prec", "ms")
         sample.setdefault("protocol", 1.0)
@@ -1323,6 +1531,10 @@ def build_payload(args, model_name, algorithm_type):
         return build_ad_payload(args, model_name)
     if algorithm_type == "fc":
         return build_fc_payload(args, model_name)
+    if algorithm_type == "classification":
+        return build_classification_payload(args, model_name)
+    if algorithm_type == "regression":
+        return build_regression_payload(args, model_name)
     return build_batch_payload(args, model_name)
 
 
@@ -1341,7 +1553,12 @@ def verify(base, algorithm_type, model_name, payload, timeout, insecure):
         listing = http_json(base, "/list", timeout=timeout, insecure=insecure)
         info = find_service(listing, SERVICE_TYPES[algorithm_type], model_name)
         builtin_key = "builtins"
-        endpoint = "/anomaly-detect" if algorithm_type == "ad" else "/forecast"
+        endpoint = {
+            "ad": "/anomaly-detect",
+            "fc": "/forecast",
+            "classification": "/classification",
+            "regression": "/regression",
+        }[algorithm_type]
 
     if info is None:
         print(
@@ -1391,16 +1608,33 @@ def verify(base, algorithm_type, model_name, payload, timeout, insecure):
                 % json.dumps(response, ensure_ascii=False)
             )
             return False
+    if algorithm_type in ("classification", "regression"):
+        result = response.get("res")
+        expected = payload_rows(payload)
+        if (
+            not isinstance(result, list)
+            or len(result) != rows
+            or (expected is not None and len(result) != expected)
+        ):
+            print(
+                "[verify] FAILED: %s returned %s predictions, expected %s input rows: %s"
+                % (
+                    algorithm_type,
+                    len(result) if isinstance(result, list) else None,
+                    expected if expected is not None else rows,
+                    json.dumps(response, ensure_ascii=False),
+                )
+            )
+            return False
 
+    detail = ""
+    if algorithm_type == "fc":
+        detail = " res_lists=%d" % len(response.get("res") or [])
+    elif algorithm_type in ("classification", "regression"):
+        detail = " predictions=%d" % len(response.get("res") or [])
     print(
         "[verify] call ok: algo=%s rows=%s%s"
-        % (
-            response.get("algo"),
-            rows,
-            " res_lists=%d" % len(response.get("res") or [])
-            if algorithm_type == "fc"
-            else "",
-        )
+        % (response.get("algo"), rows, detail)
     )
     if rows == 0:
         print(
@@ -1412,7 +1646,7 @@ def verify(base, algorithm_type, model_name, payload, timeout, insecure):
 
 def parse_args(argv=None):
     parser = argparse.ArgumentParser(
-        description="Deploy a user-defined TDgpt algorithm (ad, fc or batch)."
+        description="Deploy a user-defined TDgpt algorithm (ad, fc, classification, regression or batch)."
     )
     parser.add_argument("--tdgpt-url", required=True, help="TDgpt base URL, e.g. http://127.0.0.1:6035")
     parser.add_argument("--model-name", required=True, help="algorithm name, must match class attribute name")
@@ -1427,6 +1661,7 @@ def parse_args(argv=None):
         "--deploy-mode",
         choices=["auto", "local", "docker", "remote"],
         default="auto",
+        help="how TDgpt runs; auto probes --ssh, --container, then docker ps",
     )
     parser.add_argument("--container", help="TDgpt container name")
     parser.add_argument("--ssh", help="SSH target, e.g. root@192.168.1.20")
@@ -1460,7 +1695,11 @@ def parse_args(argv=None):
         default=[],
         help="additional file or directory to deploy next to the entry (repeatable)",
     )
-    parser.add_argument("--option", default="", help="option string for ad/fc, e.g. window=20")
+    parser.add_argument(
+        "--option",
+        default="",
+        help="option string for ad/fc/classification/regression, e.g. window=20",
+    )
     parser.add_argument("--config-json", help="batch config object as JSON, e.g. '{\"factor\":3}'")
     parser.add_argument("--forecast-rows", type=int, default=5, help="fc verification forecast rows")
     parser.add_argument("--every", type=int, default=1000, help="fc verification time step")

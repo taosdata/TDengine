@@ -28,6 +28,7 @@
 
 #include <taoserror.h>
 #include <tdataformat.h>
+#include "tconv.h"
 #include <tglobal.h>
 #include <tmsg.h>
 #include <tdatablock.h>
@@ -2464,4 +2465,25 @@ TEST(testCase, secRowValidateKvColumnLookupAndBlob) {
     secKvRowValidate(pTSchema, tsCol, sizeof(tsCol), TSDB_CODE_INVALID_MSG, "primary timestamp is never a KV cell");
   }
   taosMemoryFree(pTSchema);
+}
+
+TEST(testCase, RawBlockNcharValidationIgnoresProcessCharset) {
+  struct CharsetGuard {
+    void *previous = tsCharsetCxt;
+    ~CharsetGuard() { tsCharsetCxt = previous; }
+  } guard;
+  tsCharsetCxt = taosConvInit("GBK");
+  ASSERT_NE(nullptr, tsCharsetCxt);
+  for (uint32_t cp : {0x1f600U, 0xd800U, 0x110000U}) {
+    SColData col = {};
+    tColDataInit(&col, 1, TSDB_DATA_TYPE_NCHAR, 0);
+    char value[VARSTR_HEADER_SIZE + sizeof(cp)] = {};
+    memcpy(varDataVal(value), &cp, sizeof(cp));
+    varDataSetLen(value, sizeof(cp));
+    int32_t offset = 0;
+    int32_t code = tColDataAddValueByDataBlock(&col, TSDB_DATA_TYPE_NCHAR, sizeof(value), 1,
+                                             reinterpret_cast<char*>(&offset), value);
+    EXPECT_EQ(cp == 0x1f600U ? TSDB_CODE_SUCCESS : TSDB_CODE_SCALAR_CONVERT_NCHAR_ERROR, code);
+    tColDataDestroy(&col);
+  }
 }

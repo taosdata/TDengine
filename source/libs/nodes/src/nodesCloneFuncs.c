@@ -2129,6 +2129,7 @@ static int32_t physiSubplanCopy(const SSubplan* pSrc, SSubplan* pDst) {
     if (!pDst->pExecTargets) return terrno;
   }
   CLONE_NODE_LIST_FIELD(pSubQ);
+  COPY_OBJECT_FIELD(charsetName, sizeof(pSrc->charsetName));
   COPY_SCALAR_FIELD(type);
   COPY_OBJECT_FIELD(id, sizeof(SSubplanId));
   COPY_SCALAR_FIELD(subplanType);

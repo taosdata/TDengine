@@ -98,6 +98,11 @@ class CustomAlgorithmsTest(unittest.TestCase):
         self.assertNotIn("custom_algo_dir =", self.config.read_text())
         self.assertEqual(self.config.read_text().count("data_dir ="), 1)
 
+    def test_upgrade_creates_all_user_algorithm_directories(self):
+        self.upgrade()
+        for kind in ("ad", "fc", "classification", "regression", "batch"):
+            self.assertTrue((self.default / kind).is_dir(), kind)
+
     def test_retirement_preserves_backup_and_records_verified_files(self):
         result = self.upgrade()
         self.assertFalse(self.legacy.exists())
