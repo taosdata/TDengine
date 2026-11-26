@@ -1840,8 +1840,14 @@ static void mndTransSendRpcRsp(SMnode *pMnode, STrans *pTrans) {
           for (int32_t g = 0; g < pVg->replica; ++g) {
             if (pVg->vnodeGid[g].dnodeId == pAct->leaderDnodeId) {
               pVg->vnodeGid[g].syncState = TAOS_SYNC_STATE_LEADER;
-              mInfo("trans:%d, vgId:%d stamp leader dnode:%d (alter-confirm) to avoid show cluster alive = 2",
-                    pTrans->id, pAct->groupId, pAct->leaderDnodeId);
+              // Record when the stamp happened. mndUpdateVnodeState() checks this to reject a
+              // stale status report (generated before the election, arriving after the stamp)
+              // that would otherwise downgrade this gid to FOLLOWER and re-open the
+              // `show cluster alive = 2` window. This field is runtime-only, like lastSeenMs.
+              pVg->vnodeGid[g].stampedLeaderMs = taosGetTimestampMs();
+              mInfo("trans:%d, vgId:%d stamp leader dnode:%d (alter-confirm) at %" PRId64
+                    " ms to avoid show cluster alive = 2",
+                    pTrans->id, pAct->groupId, pAct->leaderDnodeId, pVg->vnodeGid[g].stampedLeaderMs);
               break;
             }
           }

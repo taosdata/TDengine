@@ -901,6 +901,23 @@ static bool mndUpdateVnodeState(int32_t vgId, SVnodeGid *pGid, SVnodeLoad *pVloa
           pVload->syncTotalIndex, pVload->learnerProgress, pVload->snapSeq);
   }
 
+  // A create-db transaction stamps each new vgroup's leader from the alter-confirm response
+  // (mndTransSendRpcRsp). Status reports are built asynchronously on the dnode, so a report
+  // sampled while the vnode was still a follower can arrive at the mnode AFTER that stamp and
+  // carry an old FOLLOWER state. Applying it would downgrade the freshly stamped leader, leaving
+  // a committed (visible in ins_vgroups) but leaderless vgroup in the mnode cache; `show cluster
+  // alive` then returns 2 until the next heartbeat. Ignore non-leader reports for a short grace
+  // window after the stamp. Reports that do carry a leader state are still applied normally, so
+  // a real election or leader change is not delayed.
+  int64_t nowMs = taosGetTimestampMs();
+  if (pGid->stampedLeaderMs > 0 && nowMs > pGid->stampedLeaderMs &&
+      nowMs - pGid->stampedLeaderMs < 3000 && pVload->syncState != TAOS_SYNC_STATE_LEADER &&
+      pVload->syncState != TAOS_SYNC_STATE_ASSIGNED_LEADER) {
+    mInfo("vgId:%d, ignore stale %s report from dnode:%d, stamped leader at %" PRId64 " ms, report roleTime:%" PRId64,
+          vgId, syncStr(pVload->syncState), pGid->dnodeId, pGid->stampedLeaderMs, pVload->roleTimeMs);
+    return false;
+  }
+
   if (roleChanged || pGid->syncRestore != pVload->syncRestore || pGid->syncCanRead != pVload->syncCanRead ||
       pGid->startTimeMs != pVload->startTimeMs) {
     mInfo(
