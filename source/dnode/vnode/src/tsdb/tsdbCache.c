@@ -754,7 +754,7 @@ static bool tsdbKeyDeleted(TSDBKEY *key, SArray *pSkyline, int64_t *iSkyline) {
 static TSDBROW *tsdbImemGetNextRow(STbDataIter *pTbIter, SArray *pSkyline, int64_t *piSkyline) {
   int32_t code = 0;
 
-  if (tsdbTbDataIterNext(pTbIter)) {
+  while (tsdbTbDataIterNext(pTbIter)) {
     TSDBROW *pMemRow = tsdbTbDataIterGet(pTbIter);
     TSDBKEY  rowKey = TSDBROW_KEY(pMemRow);
     bool     deleted = tsdbKeyDeleted(&rowKey, pSkyline, piSkyline);
@@ -820,9 +820,54 @@ static int32_t tsdbUpdateSkm(STsdb *pTsdb, tb_uid_t suid, tb_uid_t uid, int32_t 
   return metaGetTbTSchemaEx(pTsdb->pVnode->pMeta, suid, uid, sver, &pRCache->pTSchema);
 }
 
+static int32_t tsdbCacheUpdateNoLock(STsdb *pTsdb, tb_uid_t suid, tb_uid_t uid, SArray *updCtxArray);
 static int32_t tsdbCacheUpdate(STsdb *pTsdb, tb_uid_t suid, tb_uid_t uid, SArray *updCtxArray);
 
-int32_t tsdbLoadFromImem(SMemTable *imem, int64_t suid, int64_t uid) {
+// Snapshot of the current mem table's tombstone state for one table.
+typedef struct {
+  SMemTable *mem;
+  STbData   *pTbData;
+  SDelData  *pTail;
+} SMemDelSnap;
+
+static void tsdbSnapMemDel(STsdb *pTsdb, int64_t suid, int64_t uid, SMemDelSnap *pSnap) {
+  pSnap->mem = NULL;
+  pSnap->pTbData = NULL;
+  pSnap->pTail = NULL;
+
+  (void)taosThreadMutexLock(&pTsdb->mutex);
+  pSnap->mem = pTsdb->mem;
+  // Pin the mem table while still under pTsdb->mutex so the commit thread cannot free it (and its tbdata/tombstones)
+  // once the mutex is released.  Released by tsdbSnapMemDelRelease().
+  if (pSnap->mem) {
+    (void)atomic_add_fetch_32(&pSnap->mem->nRef, 1);
+  }
+  (void)taosThreadMutexUnlock(&pTsdb->mutex);
+
+  if (pSnap->mem) {
+    pSnap->pTbData = tsdbGetTbDataFromMemTable(pSnap->mem, suid, uid);
+  }
+  if (pSnap->pTbData) {
+    taosRLockLatch(&pSnap->pTbData->lock);
+    pSnap->pTail = pSnap->pTbData->pTail;
+    taosRUnLockLatch(&pSnap->pTbData->lock);
+  }
+}
+
+static void tsdbSnapMemDelRelease(SMemDelSnap *pSnap) {
+  if (pSnap->mem) {
+    tsdbUnrefMemTable(pSnap->mem, NULL, true);
+    pSnap->mem = NULL;
+  }
+}
+
+static bool tsdbMemDelSnapEqual(const SMemDelSnap *a, const SMemDelSnap *b) {
+  return a->mem == b->mem && a->pTbData == b->pTbData && a->pTail == b->pTail;
+}
+
+// *pRetry is set when the current mem's tombstones changed while the cache rows were being computed; the caller must
+// recompute.
+static int32_t tsdbLoadFromImemOnce(SMemTable *imem, int64_t suid, int64_t uid, bool *pRetry) {
   int32_t      code = 0;
   int32_t      lino = 0;
   STsdb       *pTsdb = imem->pTsdb;
@@ -841,8 +886,22 @@ int32_t tsdbLoadFromImem(SMemTable *imem, int64_t suid, int64_t uid) {
 
   STbData *pIMem = tsdbGetTbDataFromMemTable(imem, suid, uid);
 
-  // load imem tomb data and build skyline
-  TAOS_CHECK_GOTO(loadMemTombData(&pMemDelData, NULL, pIMem, INT64_MAX), &lino, _exit);
+  // The imem rows are immutable, but a delete may race ahead of this async
+  // commit: the delete marker is appended to the current mem table while the
+  // last cache is populated here.  Load the current mem's tombstones as well,
+  // otherwise a deleted row could be cached back and returned by last_row.
+  //
+  // lruMutex must NOT be held while computing the rows: tsdbUpdateSkm() may take
+  // the meta read lock, while the drop-table path holds the meta write lock and
+  // then takes lruMutex (tsdbCacheDropTable), which would be an AB-BA deadlock.
+  // Instead snapshot the mem tombstone state here, and re-validate it under
+  // lruMutex right before publishing (see below).
+  SMemDelSnap snap = {0};
+  tsdbSnapMemDel(pTsdb, suid, uid, &snap);
+  STbData *pMem = snap.pTbData;
+
+  // load mem + imem tomb data and build skyline
+  TAOS_CHECK_GOTO(loadMemTombData(&pMemDelData, pMem, pIMem, INT64_MAX), &lino, _exit);
 
   // tsdbBuildDeleteSkyline
   size_t delSize = TARRAY_SIZE(pMemDelData);
@@ -930,7 +989,23 @@ int32_t tsdbLoadFromImem(SMemTable *imem, int64_t suid, int64_t uid) {
     pMemRow = tsdbImemGetNextRow(&tbIter, pSkyline, &iSkyline);
   }
 
-  TAOS_CHECK_GOTO(tsdbCacheUpdate(pTsdb, suid, uid, ctxArray), &lino, _exit);
+  // Publish under lruMutex.  A concurrent delete appends its tombstone to the
+  // current mem and only then calls tsdbCacheDel(), which needs lruMutex.  So if
+  // the tombstone state is unchanged here, any later delete's tsdbCacheDel() runs
+  // after this publish and marks the cached row NO_CACHE; if it changed, the
+  // delete is already visible and the rows are recomputed with it.
+  (void)taosThreadMutexLock(&pTsdb->lruMutex);
+  SMemDelSnap cur = {0};
+  tsdbSnapMemDel(pTsdb, suid, uid, &cur);
+  if (tsdbMemDelSnapEqual(&snap, &cur)) {
+    code = tsdbCacheUpdateNoLock(pTsdb, suid, uid, ctxArray);
+    lino = __LINE__;
+  } else {
+    *pRetry = true;
+  }
+  (void)taosThreadMutexUnlock(&pTsdb->lruMutex);
+  tsdbSnapMemDelRelease(&cur);
+  TAOS_CHECK_GOTO(code, &lino, _exit);
 
 _exit:
   if (code) {
@@ -938,6 +1013,9 @@ _exit:
 
     tsdbRowClose(&iter);
   }
+
+  // snap.mem stays pinned until here since pMem/pMemDelData reference it
+  tsdbSnapMemDelRelease(&snap);
 
   taosArrayClear(ctxArray);
   // destroy any allocated resource
@@ -950,6 +1028,18 @@ _exit:
   }
 
   TAOS_RETURN(code);
+}
+
+int32_t tsdbLoadFromImem(SMemTable *imem, int64_t suid, int64_t uid) {
+  int32_t code = 0;
+  bool    retry = false;
+
+  do {
+    retry = false;
+    code = tsdbLoadFromImemOnce(imem, suid, uid, &retry);
+  } while (code == 0 && retry);
+
+  return code;
 }
 
 static int32_t tsdbCacheUpdateFromIMem(STsdb *pTsdb) {
@@ -1676,7 +1766,7 @@ _exit:
   TAOS_RETURN(code);
 }
 
-static int32_t tsdbCacheUpdate(STsdb *pTsdb, tb_uid_t suid, tb_uid_t uid, SArray *updCtxArray) {
+static int32_t tsdbCacheUpdateNoLock(STsdb *pTsdb, tb_uid_t suid, tb_uid_t uid, SArray *updCtxArray) {
   if (!updCtxArray || TARRAY_SIZE(updCtxArray) == 0) {
     TAOS_RETURN(TSDB_CODE_SUCCESS);
   }
@@ -1687,7 +1777,6 @@ static int32_t tsdbCacheUpdate(STsdb *pTsdb, tb_uid_t suid, tb_uid_t uid, SArray
   SArray    *remainCols = NULL;
   SLRUCache *pCache = pTsdb->lruCache;
 
-  (void)taosThreadMutexLock(&pTsdb->lruMutex);
   for (int i = 0; i < num_keys; ++i) {
     SLastUpdateCtx *updCtx = &((SLastUpdateCtx *)TARRAY_DATA(updCtxArray))[i];
     int8_t          lflag = updCtx->lflag;
@@ -1737,13 +1826,11 @@ static int32_t tsdbCacheUpdate(STsdb *pTsdb, tb_uid_t suid, tb_uid_t uid, SArray
     char  **errs = NULL;
     keys_list = taosMemoryCalloc(num_keys, sizeof(char *));
     if (!keys_list) {
-      (void)taosThreadMutexUnlock(&pTsdb->lruMutex);
       return terrno;
     }
     keys_list_sizes = taosMemoryCalloc(num_keys, sizeof(size_t));
     if (!keys_list_sizes) {
       taosMemoryFree(keys_list);
-      (void)taosThreadMutexUnlock(&pTsdb->lruMutex);
       return terrno;
     }
     for (int i = 0; i < num_keys; ++i) {
@@ -1845,13 +1932,22 @@ static int32_t tsdbCacheUpdate(STsdb *pTsdb, tb_uid_t suid, tb_uid_t uid, SArray
   }
 
 _exit:
-  (void)taosThreadMutexUnlock(&pTsdb->lruMutex);
   taosArrayDestroy(remainCols);
 
   if (code) {
     tsdbError("tsdb/cache: vgId:%d, update failed at line %d since %s.", TD_VID(pTsdb->pVnode), __LINE__,
               tstrerror(code));
   }
+
+  TAOS_RETURN(code);
+}
+
+static int32_t tsdbCacheUpdate(STsdb *pTsdb, tb_uid_t suid, tb_uid_t uid, SArray *updCtxArray) {
+  int32_t code = 0;
+
+  (void)taosThreadMutexLock(&pTsdb->lruMutex);
+  code = tsdbCacheUpdateNoLock(pTsdb, suid, uid, updCtxArray);
+  (void)taosThreadMutexUnlock(&pTsdb->lruMutex);
 
   TAOS_RETURN(code);
 }
