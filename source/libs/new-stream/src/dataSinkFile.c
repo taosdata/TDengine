@@ -100,8 +100,14 @@ static int32_t createStreamDataSinkFileMgr(SDataSinkFileMgr** ppDaSinkFileMgr) {
   if (pFileMgr == NULL) {
     return terrno;
   }
-  int32_t code = createStreamDataSinkFile(pFileMgr->fileName, sizeof(pFileMgr->fileName), &pFileMgr->writeFilePtr);
+  int32_t code = taosThreadMutexInit(&pFileMgr->freeBlockLock, NULL);
   if (code != 0) {
+    taosMemoryFree(pFileMgr);
+    return code;
+  }
+  code = createStreamDataSinkFile(pFileMgr->fileName, sizeof(pFileMgr->fileName), &pFileMgr->writeFilePtr);
+  if (code != 0) {
+    (void)taosThreadMutexDestroy(&pFileMgr->freeBlockLock);
     taosMemoryFree(pFileMgr);
     return code;
   }
@@ -144,6 +150,7 @@ void destroyStreamDataSinkFile(SDataSinkFileMgr** ppDaSinkFileMgr) {
     }
 
     clearAllFreeBlocks(&(*ppDaSinkFileMgr)->pFreeFileBlockList);
+    (void)taosThreadMutexDestroy(&(*ppDaSinkFileMgr)->freeBlockLock);
     taosMemoryFreeClear((*ppDaSinkFileMgr));
   }
 }
@@ -185,21 +192,24 @@ static int32_t openFileForRead(SDataSinkFileMgr* pFileMgr) {
   return TSDB_CODE_SUCCESS;
 }
 
-static void getFreeBlock(SDataSinkFileMgr* pFileMgr, int32_t needSize, SFileBlockInfo* pGroupBlockOffset) {
+static int32_t getFreeBlock(SDataSinkFileMgr* pFileMgr, int32_t needSize, SFileBlockInfo* pGroupBlockOffset) {
+  int32_t code = taosThreadMutexLock(&pFileMgr->freeBlockLock);
+  if (code != 0) return code;
   FreeBlock* pFreeBlock = popBestFitBlock(&pFileMgr->pFreeFileBlockList, needSize);
   if (pFreeBlock != NULL) {
     pGroupBlockOffset->size = pFreeBlock->length;
     pGroupBlockOffset->offset = pFreeBlock->start;
+    (void)taosThreadMutexUnlock(&pFileMgr->freeBlockLock);
     destroyFreeBlock(pFreeBlock);
-    return;
+    return TSDB_CODE_SUCCESS;
   }
   pGroupBlockOffset->offset = pFileMgr->fileSize;
   pGroupBlockOffset->size = needSize;
   pFileMgr->fileBlockCount++;
   pFileMgr->fileBlockUsedCount++;
   pFileMgr->fileSize += needSize;
-  destroyFreeBlock(pFreeBlock);
-  return;
+  (void)taosThreadMutexUnlock(&pFileMgr->freeBlockLock);
+  return TSDB_CODE_SUCCESS;
 }
 
 static int32_t addToFreeBlock(SDataSinkFileMgr* pFileMgr, const SFileBlockInfo* pBlockInfo) {
@@ -209,7 +219,13 @@ static int32_t addToFreeBlock(SDataSinkFileMgr* pFileMgr, const SFileBlockInfo* 
     stError("failed to create free block, err: %s", terrMsg);
     return terrno;
   }
+  int32_t code = taosThreadMutexLock(&pFileMgr->freeBlockLock);
+  if (code != 0) {
+    destroyFreeBlock(pFreeBlock);
+    return code;
+  }
   insertFreeBlock(&pFileMgr->pFreeFileBlockList, pFreeBlock);
+  (void)taosThreadMutexUnlock(&pFileMgr->freeBlockLock);
   return TSDB_CODE_SUCCESS;
 }
 
@@ -434,7 +450,8 @@ int32_t moveSlidingGrpMemCache(SSlidingTaskDSMgr* pSlidingTaskMgr, SSlidingGrpMg
   }
   code = taosArrayEnsureCap(pSlidingGrp->blocksInFile, taosArrayGetSize(pSlidingGrp->blocksInFile) + 1);
   QUERY_CHECK_CODE(code, lino, _exit);
-  getFreeBlock(pFileMgr, needSize, &groupBlockOffset);
+  code = getFreeBlock(pFileMgr, needSize, &groupBlockOffset);
+  QUERY_CHECK_CODE(code, lino, _exit);
   acquiredRange = true;
   SBlocksInfoFile fileBlockInfo = {
       .groupOffset = groupBlockOffset.offset, .dataLen = needSize, .capacity = groupBlockOffset.size};
