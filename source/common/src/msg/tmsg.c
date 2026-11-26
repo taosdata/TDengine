@@ -1783,7 +1783,17 @@ int32_t tDeserializeSMCreateRsmaReq(void *buf, int32_t bufLen, SMCreateRsmaReq *
     if (pReq->sql == NULL) {
       TAOS_CHECK_EXIT(terrno);
     }
-    TAOS_CHECK_EXIT(tDecodeCStrToN(&decoder, pReq->sql, pReq->sqlLen));
+    // sql is the trailing field and sqlLen is the declared capacity: require a non-empty wire
+    // payload of exactly the declared length whose last byte is the NUL terminator. A zero wire
+    // length yields a one-past-end pointer when the field ends the message, and tDecodeCStrToN()
+    // would then read one byte past the RPC buffer (CWE-125).
+    char    *sqlStr = NULL;
+    uint32_t sqlWireLen = 0;
+    TAOS_CHECK_EXIT(tDecodeBinary(&decoder, (uint8_t **)&sqlStr, &sqlWireLen));
+    if (sqlWireLen == 0 || sqlWireLen != (uint32_t)pReq->sqlLen || sqlStr[sqlWireLen - 1] != '\0') {
+      TAOS_CHECK_EXIT(TSDB_CODE_INVALID_MSG);
+    }
+    TAOS_MEMCPY(pReq->sql, sqlStr, sqlWireLen);
   }
 
   tEndDecode(&decoder);
