@@ -11,7 +11,10 @@ The command line parameters for taosd are as follows:
 
 - -a `<json file>`: Specifies a JSON file containing various configuration parameters for service startup, formatted like `{"fqdn":"td1"}`. For details on configuration parameters, please refer to the next section.
 - -c `<directory>`: Specifies the directory where the configuration file is located.
-- -s: Prints SDB information.
+- -s: Exports mnode metadata (SDB) to `sdb.json` in the current working directory. See [Exporting and Importing Metadata](#exporting-and-importing-metadata).
+- -mSdb `<json file>`: Imports an edited `sdb.json` and writes it back to the mnode metadata file. See [Exporting and Importing Metadata](#exporting-and-importing-metadata).
+- -fMnode: Writes mnode metadata to disk offline and truncates the mnode WAL. See [Exporting and Importing Metadata](#exporting-and-importing-metadata).
+- -dTxn: Deletes every transaction record in the mnode offline. See [Exporting and Importing Metadata](#exporting-and-importing-metadata).
 - -C: Prints configuration information.
 - -e: Specifies environment variables, formatted like `-e 'TAOS_FQDN=td1'`.
 - -r: Starts repair mode. Two modes are supported: `--mode force` (in-place local repair) and `--mode copy` (copy vnode data from a healthy source node).
@@ -169,6 +172,126 @@ taosd -r --mode copy --node-type vnode \
   --vnode 3,5
 ```
 
+## Exporting and Importing Metadata
+
+mnode metadata (SDB, including dnodes, vgroups, databases, users, and global configuration) is stored in binary form in `<dataDir>/mnode/data/sdb.data`. When a cluster failure or incorrect metadata cannot be repaired with SQL, you can export it to a JSON file, edit it, and import it back. This is supported starting from `v3.4.2.8`. For the procedure, see [Editing mnode Metadata Offline](../02-operations/04-maintenance.md#editing-mnode-metadata-offline).
+
+:::warning
+
+Editing metadata offline is a high-risk operation. An incorrect change can make cluster metadata inconsistent or prevent the cluster from starting. Back up the `<dataDir>/mnode` directory first, and use this only when you understand the effect of the change.
+
+:::
+
+### Related Commands
+
+| Command | When to run | Description |
+| --- | --- | --- |
+| `FLUSH MNODE;` | The cluster is running | SQL statement. Writes the in-memory metadata of the mnode leader to `sdb.data` and truncates the WAL. taosd keeps running. See [Flush Management Node](../../05-tdengine-sql/08-cluster-management/01-node.md#flush-management-node). |
+| `taosd -fMnode` | taosd on this node is stopped. For a multi-replica mnode, every mnode is stopped | Reads `sdb.data`, replays the WAL after it, writes `sdb.data` again, truncates the WAL, and exits |
+| `taosd -s` | taosd on this node is stopped, and `FLUSH MNODE` or `taosd -fMnode` has already been run | Exports metadata to `sdb.json` in the current working directory and exits |
+| `taosd -mSdb <json file>` | Same as above | Rebuilds all metadata from the JSON file, writes it to `sdb.data`, and exits |
+| `taosd -dTxn` | Same as above | Rewrites `sdb.data` without transaction records, which deletes every unfinished transaction in the mnode, and exits |
+
+Notes:
+
+- These commands locate the data directory from `dataDir` in the configuration file. If the configuration file is not in the default path, add `-c`, for example `taosd -c /etc/taos -fMnode`.
+- `taosd -s`, `taosd -mSdb`, and `taosd -dTxn` read `sdb.data` only and do not replay the WAL. If you skip `FLUSH MNODE` or `taosd -fMnode`, the export can miss recent changes. After import, changes still in the WAL are replayed on the next start and overwrite the manual edits.
+- If a transaction was running when taosd stopped, `taosd -fMnode` neither continues nor rolls back that transaction. It keeps the transaction as it was. The next normal mnode start continues it.
+
+### sdb.json Format
+
+`taosd -s` writes a file with the following structure (content shortened):
+
+```json
+{
+  "sver": "1",
+  "applyIndex": "12345",
+  "applyTerm": "1",
+  "applyConfig": "1",
+  "maxIds": { "cluster": "0", "dnode": "3", "vgroup": "10" },
+  "tableVers": { "cluster": "1", "dnode": "5", "vgroup": "20" },
+  "records": [
+    {
+      "type": "dnode",
+      "status": "4",
+      "sver": "2",
+      "fields": {
+        "id": "1",
+        "createdTime": "1700000000000",
+        "updateTime": "1700000001000",
+        "port": "6030",
+        "fqdn": "node1.example.com"
+      },
+      "rawData": "AQIDBA=="
+    }
+  ]
+}
+```
+
+Top-level fields:
+
+- `applyIndex`, `applyTerm`, and `applyConfig`: the Raft apply position of the metadata.
+- `maxIds`: the largest ID already allocated for each metadata type.
+- `tableVers`: the version of each metadata type.
+- `records`: the metadata records. Each record contains:
+  - `type`: the record type, such as `dnode`, `vgroup`, `db`, `config`, `arb_group`, or `trans`.
+  - `status` and `sver`: the record status and record format version. Do not change them.
+  - `fields`: a readable view of the record. For some types, some of these fields take effect on import, as described below. The other fields are for inspection only.
+  - `rawData`: the base64 encoding of the original binary record. Import restores the record from this value. Do not edit it by hand.
+
+:::note
+
+Every value in `sdb.json`, including numbers, is a quoted string. Keep that form when editing, for example `"port": "6031"`. If you write an unquoted number, such as `"port": 6031`, the field is stored as 0.
+
+:::
+
+### Import Rules
+
+`taosd -mSdb` imports a file with these rules:
+
+1. **Full replacement**: Existing metadata is cleared, then every record in `records` is imported. A record removed from `records` is not written back to `sdb.data`. Omitting a record deletes it.
+2. **`rawData` is authoritative**: Each record is restored from `rawData`. For the types in the table below, a field that appears in `fields` then overwrites the restored value. A field that does not appear keeps the restored value.
+3. **Top-level fields take effect**: `applyIndex`, `applyTerm`, `applyConfig`, `maxIds`, and `tableVers` are written back from the JSON file.
+4. **No consistency check**: Import does not check consistency across records, for example whether a database referenced by a vgroup exists. You must keep the file consistent.
+
+Record types and fields that can be changed through `fields`:
+
+| `type` | Editable fields | Description |
+| --- | --- | --- |
+| `dnode` | `fqdn`, `port` | Correct the node address after a node is moved |
+| `vgroup` | `replica`, `replicas[].dnodeId` | Correct the dnode that holds a vgroup replica |
+| `db` | `replications`, `buffer`, `walLevel` | |
+| `cluster` | `name` | |
+| `config` | `value` | Applies only when `dtype` is Boolean, integer, or floating point. A string configuration cannot be changed through `fields`. After the change, also increase `tsmmConfigVersion`. See below. |
+| `compact` | `compactId`, `startTime`, `dbname` | The nested `compactDetail` array is for inspection only |
+| `arb_group` | See [Arbitration Group Fields](#arbitration-group-fields) | Supported starting from `v3.4.3.12` |
+
+For every other type, including `mnode`, `user`, and `trans`, `fields` is for inspection only. On import you can keep the record unchanged or delete the whole record.
+
+**Increase `tsmmConfigVersion` after changing global configuration**
+
+The record whose `type` is `config` and whose `fields.name` is `tsmmConfigVersion` is the version of the global configuration. A dnode or client fetches the configuration again only after it sees a new version. After you change `value` on any `config` record, set `value` on the `tsmmConfigVersion` record to a larger number in the same import. Adding 1 is recommended. Otherwise the change does not take effect.
+
+#### Arbitration Group Fields
+
+An `arb_group` record is the arbitration group of a two-replica database. You can view it online with [`SHOW ARBGROUPS`](../../05-tdengine-sql/09-system-info/03-show.md#show-arbgroups). The exported `fields` are:
+
+| Field | Editable | Description |
+| --- | --- | --- |
+| `vgId` | No | vgroup ID of the arbitration group. This is the record key and is for inspection only |
+| `dbUid` | Yes | UID of the database |
+| `member0.dnodeId`, `member1.dnodeId` | Yes | dnode ID of each replica |
+| `member0.token`, `member1.token` | Yes | Token of each replica, at most 31 characters |
+| `isSync` | Yes | Whether the two replicas are synchronized. The value is 0 or 1 |
+| `code` | Yes | The most recent error code of the arbitration group |
+| `updateTimeMs` | Yes | Time when the arbitration group state was updated |
+| `assignedLeader.assignedDnodeId` | Yes | dnode ID assigned as leader |
+| `assignedLeader.token` | Yes | Token of the assigned leader, at most 31 characters |
+| `assignedLeader.assignAcked` | Yes | Whether the leader assignment has been acknowledged. The value is 0 or 1 |
+| `version` | Yes | Arbitration group version |
+
+`isSync` and `assignedLeader.assignAcked` must be 0 or 1. If a token is longer than 31 characters, or a 0/1 field has another value, that field change is ignored and an error is written to the log.
+
 ## Configuration Parameters
 
 Configuration parameters are divided into two categories:
@@ -242,6 +365,8 @@ Additional Notes:
 | countAlwaysReturnValue   |                   | Supported, effective immediately   | Whether count/hyperloglog functions return a value when input data is empty or NULL; 0: return empty row, 1: return; default value 1; When this parameter is set to 1, if the query contains an INTERVAL clause or the query uses TSMA, and the corresponding group or window has empty or NULL data, the corresponding group or window will not return a query result; Note that this parameter should be consistent between client and server |
 | tagFilterCache           |                   | Supported, effective immediately   | Whether to cache tag filter results                          |
 | stableTagFilterCache     | since 3.3.8.6     | Supported, effective immediately   | In stream computing, whether to cache filter results of equal condition of tags. It will not become invalid due to adding or deleting child tables or updating the tag values or modifying super table tags. |
+| streamVcColsCache        | since v3.4.3.12   | Supported, effective immediately   | Whether to cache the full `ins_virtual_child_columns` scan result used by virtual super table stream calculations; 0: disable, 1: enable; default value 1 |
+| streamVcColsCacheSize    | since v3.4.3.12   | Supported, effective immediately   | Process-wide memory limit per dnode for cached `ins_virtual_child_columns` scan results used by virtual super table stream calculations, in bytes; range 0-9223372036854775807, default value 2147483648; 0 disables the cache and releases cached blocks |
 | metaEntryCacheSize       | since  3.3.6.35   | Supported, effective immediately   | The reserved memory size to cache meta tags                  |
 | queryRspPolicy           |                   | Supported, effective immediately   | Query response strategy                                      |
 | queryUseMemoryPool       |                   | Supported, effective after restart | Whether query will use memory pool to manage memory, default value: 1 (on); 0: off, 1: on |
@@ -292,7 +417,7 @@ The following parameters control server-side federated query behavior. Parameter
 
 1. To address the issue of data writing and querying across multiple time zones, TDengine uses Unix Timestamps to record and store timestamps. The nature of Unix Timestamps ensures that the timestamps generated are consistent at any given moment across any time zone. It is important to note that the conversion to Unix Timestamps is done on the client side. To ensure that other forms of time on the client are correctly converted to Unix Timestamps, it is necessary to set the correct time zone.
 
-On Linux/macOS, the client automatically reads the time zone information set by the system. Users can also set the time zone in the configuration file in various ways. For example:
+The client reads the system timezone at initialization when no timezone is configured. New connections capture the client default. Windows supports IANA names and historical / DST rules from `v3.5.0`. You can also configure the timezone explicitly, for example:
 
 ```text
 timezone UTC-8
@@ -301,22 +426,28 @@ timezone Asia/Shanghai
 
 Both are valid settings for the east-8 (Beijing) time zone. Note that under the POSIX sign convention, `UTC-8` means 8 hours east of UTC — the sign is counterintuitive. When in doubt, use an IANA name such as `Asia/Shanghai` to avoid confusion. For the full list of accepted timezone formats, see [Supported Timezone Formats](../../05-tdengine-sql/10-time/01-timezone.md#supported-timezone-formats).
 
-The setting of the time zone affects the querying and writing of SQL statements involving non-Unix timestamp content (timestamp strings, interpretation of the keyword now). For example:
+The connection timezone affects parsing of strings without an explicit offset and local calendar boundaries. It does not change the absolute timestamp returned by `NOW()`. For example:
 
 ```sql
-SELECT count(*) FROM table_name WHERE TS<'2019-04-11 12:01:08';
+SELECT COUNT(*)
+FROM table_name
+WHERE TS < '2019-04-11 12:01:08';
 ```
 
 In GMT+8, the SQL statement is equivalent to:
 
 ```sql
-SELECT count(*) FROM table_name WHERE TS<1554955268000;
+SELECT COUNT(*)
+FROM table_name
+WHERE TS < 1554955268000;
 ```
 
 In the UTC time zone, the SQL statement is equivalent to:
 
 ```sql
-SELECT count(*) FROM table_name WHERE TS<1554984068000;
+SELECT COUNT(*)
+FROM table_name
+WHERE TS < 1554984068000;
 ```
 
 To avoid the uncertainties brought by using string time formats, you can also directly use Unix Timestamps. Additionally, you can use timestamp strings with time zones in SQL statements, such as RFC3339 formatted timestamp strings, 2013-04-12T15:52:01.123+08:00 or ISO-8601 formatted timestamp strings 2013-04-12T15:52:01.123+0800. The conversion of these two strings to Unix Timestamps is not affected by the system's local time zone.
@@ -448,7 +579,9 @@ When `CACHEMODEL` is not `none`, in addition to the in-memory LRU cache, each `v
 | syncHeartbeatTimeout       |                   | Not supported                      | Internal parameter, for debugging synchronization module                                                                                                                                                                                                                       |
 | syncSnapReplMaxWaitN       |                   | Supported, effective immediately   | Internal parameter, for debugging synchronization module                                                                                                                                                                                                                       |
 | snapshotRateLimit          | After 3.4.2.0     | Supported, effective immediately   | Controls the total snapshot sending bandwidth per dnode (MB/s). When multiple vgroups perform snapshot replication concurrently, this parameter limits the sending rate to avoid IO bottlenecks on follower nodes. 0 means no rate limit. Range: 0-10240, default: 0             |
-| snapshotMediumOnLag        | After 3.4.3.0     | Supported, effective immediately   | Controls the replication mode used by snapshot synchronization when a replica (follower) that has been stopped for a long time restarts while it already owns data but lags behind the other replicas of the same vgroup. 0 means the row-by-row (normal) mode, 1 means the file-level delta (medium) mode so that only the files that differ from the leader are transferred, which reduces the transferred volume and shortens the catch-up time. It only takes effect for replicas that own committed data (`lastApplyIndex >= 0`); a new empty replica still uses the full (raw) mode, and a replica whose FSM is incomplete is not affected by this parameter and always uses the medium mode. Range: 0-1, default: 0. Example: `ALTER ALL DNODES 'snapshotMediumOnLag' '1';` / `SHOW DNODE VARIABLES LIKE 'snapshotMediumOnLag';` |
+| snapshotMediumOnLag        | After 3.4.3.0     | Supported, effective immediately   | Controls the replication mode used by snapshot synchronization when a replica (follower) that has been stopped for a long time restarts while it already owns data but lags behind the other replicas of the same vgroup. 0 means the row-by-row (normal) mode, 1 means the file-level delta (medium) mode so that only the files that differ from the leader are transferred, which reduces the transferred volume and shortens the catch-up time. It only takes effect for replicas that own committed data (`lastApplyIndex >= 0`); a new empty replica still uses the full (raw) mode, and a replica whose FSM is incomplete is controlled by `snapshotMediumOnIncomplete`. Range: 0-1, default: 0. Example: `ALTER ALL DNODES 'snapshotMediumOnLag' '1';` / `SHOW DNODE VARIABLES LIKE 'snapshotMediumOnLag';` |
+| snapshotMediumOnIncomplete |                   | Supported, effective immediately   | Controls snapshot replication when a replica's FSM is incomplete. 1 selects file-level delta (medium) mode and 0 selects row-by-row (normal) mode. If the file list required for medium mode is empty, the negotiated format is used. Range: 0-1, default: 1. Changes apply to subsequent snapshots. Example: `ALTER ALL DNODES 'snapshotMediumOnIncomplete' '0';` |
+| snapshotMediumDiskStrategy |                   | Supported, effective immediately   | Selects the disk allocation policy for medium snapshot files on the receiving node. 0 uses round-robin; 1 selects the lowest used capacity ratio from the most recently refreshed disk statistics, using round-robin for ties. If multiple files are created before the statistics are refreshed, they may be written to the same disk, so an even distribution is not guaranteed. Disabled disks and disks with insufficient free space are skipped. Allocation starts at the original tier and proceeds to lower tiers. Local setting, range: 0-1, default: 0. |
 | arbHeartBeatIntervalSec    |                   | Supported, effective immediately   | Internal parameter, for debugging synchronization module                                                                                                                                                                                                                       |
 | arbCheckSyncIntervalSec    |                   | Supported, effective immediately   | Internal parameter, for debugging synchronization module                                                                                                                                                                                                                       |
 | arbSetAssignedTimeoutSec   |                   | Supported, effective immediately   | Internal parameter, for debugging synchronization module                                                                                                                                                                                                                       |

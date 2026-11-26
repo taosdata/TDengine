@@ -1,0 +1,11 @@
+set max_binary_display_width 1024;
+alter local "timezone" "UTC";
+
+SELECT CAST(time AS BIGINT), i FROM fq24_influx18_pushdown_gate.fq24_influx18_pushdown.rows WHERE site = 'a' AND abs(i) > 2 ORDER BY time;
+EXPLAIN VERBOSE TRUE SELECT CAST(time AS BIGINT), i FROM fq24_influx18_pushdown_gate.fq24_influx18_pushdown.rows WHERE site = 'a' AND abs(i) > 2 ORDER BY time;
+
+SELECT sum(i) FROM fq24_influx18_pushdown_gate.fq24_influx18_pushdown.rows WHERE i >= 3 AND abs(i) > 2;
+EXPLAIN VERBOSE TRUE SELECT sum(i) FROM fq24_influx18_pushdown_gate.fq24_influx18_pushdown.rows WHERE i >= 3 AND abs(i) > 2;
+
+SELECT i, d FROM fq24_influx18_pushdown_gate.fq24_influx18_pushdown.rows WHERE i >= 3 AND abs(i) > 2 ORDER BY time DESC LIMIT 2 OFFSET 1;
+EXPLAIN VERBOSE TRUE SELECT i, d FROM fq24_influx18_pushdown_gate.fq24_influx18_pushdown.rows WHERE i >= 3 AND abs(i) > 2 ORDER BY time DESC LIMIT 2 OFFSET 1;

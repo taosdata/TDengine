@@ -63,6 +63,44 @@ class EntrypointTests(unittest.TestCase):
                 pass
             process.wait()
 
+    def test_qnode_bootstrap_uses_ready_dnode_and_is_idempotent(self):
+        self.run_script(r'''taosd() { echo 'TDengine version: 3.4.3.11.enterprise'; }
+        qnode_cli() {
+            case "$*" in
+              *"SHOW QNODES;"*) if [ -f created ]; then echo 'Query OK, 1 row(s) in set'; else echo 'Query OK, 0 row(s) in set'; fi ;;
+              *"SELECT id FROM"*) printf ' 7 |\nQuery OK, 1 row(s) in set\n' ;;
+              *"CREATE QNODE ON DNODE 7;"*) echo create >> calls; touch created ;;
+              *) return 9 ;;
+            esac
+        }
+        create_qnode_if_needed
+        create_qnode_if_needed
+        [ "$(wc -l < calls)" -eq 1 ]''')
+
+    def test_qnode_bootstrap_rejects_failed_creation_and_unknown_metadata(self):
+        for output in ('Query OK, 0 row(s) in set', 'authentication failed'):
+            with self.subTest(output=output):
+                self.run_script("taosd() { echo 'TDengine version: 3.4.3.11.enterprise'; }\n"
+                                'qnode_cli() { case "$*" in *"SELECT id FROM"*) '
+                                "printf ' 7 |\\nQuery OK, 1 row(s) in set\\n' ;; "
+                                '*"CREATE QNODE"*) return 1 ;; *) echo "' + output + '" ;; esac; }\n'
+                                'create_qnode_if_needed', expected=1)
+
+    def test_community_skips_qnode_queries(self):
+        self.run_script("taosd() { echo 'TDengine version: 3.4.3.11.community'; }\n"
+                        'qnode_cli() { echo unexpected-query; return 99; }\n'
+                        'create_qnode_if_needed')
+
+    def test_unknown_edition_failure_is_reported(self):
+        self.run_script('taosd() { return 1; }\ncreate_qnode_if_needed', expected=1)
+        for version in ('', 'unknown enterprise build'):
+            self.run_script(f"taosd() {{ echo '{version}'; }}\ncreate_qnode_if_needed", expected=1)
+
+    def test_edition_on_stderr_is_recognized(self):
+        for version in ('3.4.3.11', '3.4.3.11-rc1'):
+            self.run_script(f"taosd() {{ echo 'TDengine version: {version}.community' >&2; }}\n"
+                            'qnode_cli() { return 99; }\ncreate_qnode_if_needed')
+
     def test_running_children_are_healthy(self):
         self.run_script('sleep 30 &\nPIDS="$!"\ncheck_managed_processes\ncleanup_children')
 

@@ -19,6 +19,7 @@ import os
 import re
 import shutil
 import subprocess
+import sys
 import tempfile
 
 from new_test_framework.utils import tdLog, tdSql, tdCom, tdDnodes
@@ -28,16 +29,10 @@ class TestQueryClientCharset:
     """Per-query client charset pass-down for regular queries.
 
     The server runs one charset (UTF-8); a client declares its own charset per
-    connection. NCHAR is stored as charset-independent UCS-4, so a GBK client
-    and a UTF-8 client MUST get identical results for every NCHAR predicate
-    over the same data — proving the querying client's charset (not the
-    server's) drives NCHAR<->MBS conversion at every site: literal compare,
-    range/BETWEEN, LIKE/MATCH, string funcs, CAST, CASE WHEN (searched &
-    simple), tag-index equality & range probe, const folding, and regex
-    functions that intentionally use the executing process charset.
-
-    The cross-charset assertion is `gbk == utf8 == expected`: any site that fell
-    back to the server charset would diverge for one client.
+    connection. NCHAR is stored as charset-independent UCS-4. GBK and UTF-8
+    clients must agree on NCHAR predicates over characters representable in
+    both encodings. For POSIX regex, also check VARCHAR bytes that have
+    different character boundaries in the two encodings.
 
     Queries run through the `taos` CLI, NOT taospy: taospy's taos_query()
     always encodes the SQL as UTF-8 regardless of the connection charset, so it
@@ -45,9 +40,8 @@ class TestQueryClientCharset:
     encoded in the client's charset, i.e. sends the literal bytes in that
     charset, which is exactly what a genuine GBK client does.
 
-    VARCHAR stores the writer's raw bytes, so VARCHAR/JSON cases are asserted
-    only for a client whose charset matches the write charset (UTF-8, via
-    tdSql here).
+    The VARCHAR/JSON conversion tests use the UTF-8 write charset. The POSIX
+    regex test uses a VARCHAR value that is valid under both client charsets.
     """
 
     updatecfgDict = {"charset": "UTF-8"}
@@ -69,7 +63,10 @@ class TestQueryClientCharset:
                 if not ln.strip().lower().startswith(("charset", "locale"))
             ]
         self.cfg = {}
-        for cs in ("UTF-8", "GBK"):
+        charsets = ("UTF-8", "GBK")
+        if sys.platform.startswith("linux"):
+            charsets += ("CP936",)
+        for cs in charsets:
             d = os.path.join(self.workdir, f"cfg_{cs}")
             os.makedirs(d, exist_ok=True)
             with open(os.path.join(d, "taos.cfg"), "w") as f:
@@ -291,72 +288,6 @@ class TestQueryClientCharset:
             2,
         )
         c("like_pre", "select count(*) from cst.nt where nc like '中文%'", 2)
-        c("match",    "select count(*) from cst.nt where nc match '中文'", 2)
-        # Char-boundary regex exposes the NCHAR-MATCH charset bug. '.' matches
-        # one CHARACTER and ^...$ anchors the length, so the result depends on
-        # how many characters the server's regex engine (its own locale) sees.
-        # NCHAR is UCS-4; converting it to MBS by the *server* charset keeps a
-        # 中-family char at its real width, but converting by the *querying
-        # client's* charset (the filter.c bug) hands the engine bytes in the
-        # wrong encoding. A literal like '中文' can't catch this — both operands
-        # mis-encode consistently and still match byte-for-byte; only a
-        # '.'-counting / anchored pattern does.
-        #
-        # match_charlen: pure-ASCII pattern -> encodes identically in every
-        #   client charset, so the divergence is the COLUMN conversion alone
-        #   (filter.c filterExecuteImpl/Misc). 中文测试/你好世界 are 4 chars.
-        c("match_charlen",
-          "select count(*) from cst.nt where nc match '^....$'", 2)
-        # match_cn_anchor: the pattern itself contains NCHAR (中文), so it also
-        #   exercises the PATTERN conversion (fltInitValFieldData). A GBK client
-        #   encodes 中文 to 2 bytes/char -> under the UTF-8 server locale the
-        #   anchored length no longer matches. Catches the bug even if only the
-        #   pattern site were left unfixed. Only 中文测试 is 中文 + exactly 2
-        #   more.
-        c("match_cn_anchor",
-          "select count(*) from cst.nt where nc match '^中文..$'", 1)
-        c(
-            "nmatch",
-            """select count(*) from cst.nt where nc nmatch '中文'
-               and nc is not null""",
-            2,
-        )
-        # POSIX regex consumes MBS in the executing process locale. NCHAR
-        # operands must therefore use process-charset conversion consistently,
-        # independent of the querying client's charset.
-        c(
-            "regexp_in_set_charlen",
-            """select count(*) from cst.nt
-               where regexp_in_set('^....$', nc)=1""",
-            2,
-        )
-        c(
-            "regexp_in_set_dynamic_nchar_separator",
-            """select count(*) from cst.ris
-               where regexp_in_set(pat, vals, nsep)=expected""",
-            2,
-        )
-        # The dynamic separator branch previously inverted its type check and
-        # tried to decode VARCHAR bytes as UCS-4. This case is independent of
-        # the cross-client mismatch but belongs to the same conversion path.
-        c(
-            "regexp_in_set_dynamic_varchar_separator",
-            """select count(*) from cst.ris
-               where regexp_in_set(pat, vals, vsep)=expected""",
-            2,
-        )
-        c(
-            "regexp_in_set_broadcast_set_dynamic_separator",
-            """select count(*) from cst.ris_broadcast
-               where regexp_in_set('^b$','a,b',sep)=expected""",
-            2,
-        )
-        c(
-            "regexp_extract_nchar_roundtrip",
-            """select count(*) from cst.nt where num=1 and
-               regexp_extract(nc, '^(.).*$')=substr(nc,1,1)""",
-            1,
-        )
         c(
             "concat",
             """select count(*) from cst.nt
@@ -442,7 +373,6 @@ class TestQueryClientCharset:
             2,
         )
         c("tag_like",  "select count(*) from cst.stb where tnc like '标签%'", 2)
-        c("tag_match", "select count(*) from cst.stb where tnc match '标签'", 2)
         # Constant folding of NCHAR literals (client-side and pushed-down).
         c(
             "cfold",
@@ -450,6 +380,145 @@ class TestQueryClientCharset:
                where cast('中文' as nchar(8)) < cast('你好' as nchar(8))""",
             5,
         )
+
+    def _has_gbk_locale(self):
+        names = {"zh_CN.GBK", "GBK"}
+        installed = subprocess.run(["locale", "-a"], capture_output=True, text=True, timeout=10)
+        for name in installed.stdout.splitlines():
+            if name.lower().endswith((".gbk", ".cp936")):
+                names.add(name)
+        for name in names:
+            # Checking the conventional name also works with a private LOCPATH.
+            result = subprocess.run(
+                ["locale", "charmap"], env={**os.environ, "LC_ALL": name},
+                capture_output=True, text=True, timeout=10,
+            )
+            if result.returncode == 0 and result.stdout.strip().upper() in {"GBK", "CP936"}:
+                return True
+        return False
+
+    def _assert_regex_error(self, sql, message):
+        _, out, err = self._exec_cli("GBK", sql)
+        assert message in out or message in err, f"sql={sql} stdout={out} stderr={err}"
+
+    def do_regex_charset(self):
+        tdSql.execute("create table cst.regex_validation (ts timestamp, nc nchar(8))")
+        for insert in (None, "(1751600020000, NULL)", "(1751600020001, '中')"):
+            if insert:
+                tdSql.execute(f"insert into cst.regex_validation values {insert}")
+            for operator in ("match", "nmatch"):
+                sql = f"select count(*) from cst.regex_validation where nc {operator} '[中'"
+                _, out, err = self._exec_cli("UTF-8", sql)
+                assert "Syntax error in regular expression" in out + err, (sql, out, err)
+        if os.name != "nt" and not self._has_gbk_locale():
+            self._assert_regex_error(
+                "select count(*) from cst.nt where nc match '^....$'",
+                "Charset conversion failed",
+            )
+            if sys.platform.startswith("linux"):
+                tdSql.execute("create table cst.regex_empty (ts timestamp, vc varchar(32))")
+                self._assert_regex_error(
+                    "select count(*) from cst.regex_empty where vc match '^.$'",
+                    "Charset conversion failed",
+                )
+            null_group = "select count(*) from cst.nt where regexp_extract(vc, '(b)', NULL) is null"
+            assert self._count("GBK", null_group) == 5
+            self._assert_regex_error("select regexp_extract(vc, '(b)', 1) from cst.nt", "Charset conversion failed")
+            assert self._count("GBK", "select count(*) from cst.nt") == 5
+            tdLog.info("PASS regex: missing GBK locale produces a query error")
+            return
+
+        c = self._chk_same
+        c("match", "select count(*) from cst.nt where nc match '中文'", 2)
+        c("match_charlen", "select count(*) from cst.nt where nc match '^....$'", 2)
+        c("match_cn_anchor", "select count(*) from cst.nt where nc match '^中文..$'", 1)
+        c(
+            "nmatch",
+            "select count(*) from cst.nt where nc nmatch '中文' and nc is not null",
+            2,
+        )
+        c("tag_match", "select count(*) from cst.stb where tnc match '标签'", 2)
+        c(
+            "regexp_in_set_charlen",
+            "select count(*) from cst.nt where regexp_in_set('^....$', nc)=1",
+            2,
+        )
+        for sep in ("nsep", "vsep"):
+            c(
+                f"regexp_in_set_dynamic_{sep}",
+                f"select count(*) from cst.ris where regexp_in_set(pat, vals, {sep})=expected",
+                2,
+            )
+        c(
+            "regexp_in_set_broadcast_set_dynamic_separator",
+            """select count(*) from cst.ris_broadcast
+               where regexp_in_set('^b$','a,b',sep)=expected""",
+            2,
+        )
+        c(
+            "regexp_extract_nchar_roundtrip",
+            """select count(*) from cst.nt where num=1 and
+               regexp_extract(nc, '^(.).*$')=substr(nc,1,1)""",
+            1,
+        )
+
+        self._regex_connection()
+        self._regex_tag_replace()
+
+    def _regex_connection(self):
+        # The UTF-8 bytes of 文中 are also valid GBK: three GBK characters or
+        # two UTF-8 characters. A three-character regex reveals the charset.
+        tdSql.execute("create table cst.regex_cs (ts timestamp, vc varchar(32), num int)")
+        tdSql.execute(
+            """insert into cst.regex_cs values
+               (1751600020000,'x',0) (1751600021000,'文中',1)
+               (1751600022000,'abc',2) (1751600023000,'文中',20)"""
+        )
+
+        # Two bounds on the same integer column trigger the filter rewrite.
+        rewritten = "num > 0 and num < 3 and vc match '^...$'"
+        for predicate, gbk, utf8 in (
+            ("vc match '^...$'", 3, 1),
+            ("vc nmatch '^...$'", 1, 3),
+            (rewritten, 2, 1),
+            ("regexp_in_set('^...$', vc) = 1", 3, 1),
+            ("regexp_extract(vc, '^(.{3})$') is not null", 3, 1),
+        ):
+            sql = f"select count(*) from cst.regex_cs where {predicate}"
+            assert self._count("GBK", sql) == gbk, sql
+            assert self._count("UTF-8", sql) == utf8, sql
+
+        sql = f"select count(*) from cst.regex_cs where {rewritten}"
+        if "CP936" in self.cfg:
+            assert self._count("CP936", sql) == 2, sql
+
+        # Evaluate MATCH as a projected scalar expression.
+        sql = """select case when vc match '^...$' then 1 else 0 end matched
+                 from cst.regex_cs where num = 1"""
+        assert self._value("GBK", sql, {"matched"}) == "1", sql
+        assert self._value("UTF-8", sql, {"matched"}) == "0", sql
+
+        self._assert_regex_error(
+            "select count(*) from cst.nt where nc match '(中'",
+            "Syntax error in regular expression",
+        )
+        assert self._count("GBK", "select count(*) from cst.nt where nc match '^....$'") == 2
+        tdLog.info("PASS regex: connection charset in filter, rewrite and scalar paths")
+
+    def _regex_tag_replace(self):
+        tdSql.execute("create stable cst.regex_tags (ts timestamp, v int) tags (id int, nc nchar(32), vc varchar(32))")
+        tdSql.execute("create table cst.regex_tag1 using cst.regex_tags tags (1, '中文', '文中')")
+        tdSql.execute("insert into cst.regex_tag1 values (1751600020000, 1)")
+        # GBK sees three characters in these VARCHAR bytes, UTF-8 sees two.
+        self._run_cli("GBK", "alter table using cst.regex_tags set tag nc=regexp_replace(nc, '^(.)(.)$', '$2$1'), vc=regexp_replace(vc, '^...$', 'ok') where id=1")
+        assert self._value("UTF-8", "select nc from cst.regex_tag1", {"nc"}) == "文中"
+        assert self._value("UTF-8", "select vc from cst.regex_tag1", {"vc"}) == "ok"
+        # Empty matches must advance one character, never one byte.
+        self._run_cli("GBK", "alter table using cst.regex_tags set tag nc=regexp_replace(nc, 'x*', '-') where id=1")
+        assert self._value("UTF-8", "select nc from cst.regex_tag1", {"nc"}) == "-文-中"
+        self._run_cli("GBK", "alter table using cst.regex_tags set tag vc=regexp_replace(vc, '', '-') where id=1")
+        assert self._value("UTF-8", "select vc from cst.regex_tag1", {"vc"}) == "-o-k"
+        tdLog.info("PASS regex: tag replacement captures and multibyte empty matches")
 
     def _nchar_range(self):
         # Range/BETWEEN/simple-CASE and NCHAR tag-range over the
@@ -562,6 +631,40 @@ class TestQueryClientCharset:
             1,
         )
 
+    def do_string_charset(self):
+        # GBK U+4E02 is 0x81 0x40: its trail byte must not match ASCII '@'.
+        predicates = [
+            "char_length(vc)=4",
+            "substr(vc,2,2)='@中'",
+            "substr(vc,-2)='中文'",
+            "position('@' in vc)=2",
+            "substring_index(vc,'@',1)='丂'",
+            "substring_index(vc,'@',-1)='中文'",
+            "replace(vc,'@','X')='丂X中文'",
+            "trim(leading '丂' from vc)='@中文'",
+            "char_length(trim(leading vc from vc))=0",
+            "char_length(trim(leading substr(nc,1,1) from nc))=0",
+            "trim(trailing '文' from vc)='丂@中'",
+            "trim(trailing '@' from substr(vc,1,1))='丂'",
+            "position('@' in substr(vc,1,1))=0",
+            "replace(substr(vc,1,1),'@','X')='丂'",
+            "find_in_set(cast('中' as nchar(4)),cast('丂,中' as nchar(16)))=2",
+            "char_length('中文')=2",
+            "char_length('')=0",
+            "char_length(cast(null as varchar(8))) is null",
+        ]
+        for charset in self.cfg:
+            table = "cst.str_" + charset.lower().replace("-", "")
+            self._run_cli(charset, f"create table {table}(ts timestamp,vc varchar(64),nc nchar(3))")
+            self._run_cli(charset, f"insert into {table} values(1751600030000,'丂@中文','中中中')")
+            for predicate in predicates:
+                sql = f"select count(*) from {table} where {predicate}"
+                assert self._count(charset, sql) == 1, (charset, predicate)
+                # Exercise scalar projection as well as filter evaluation.
+                sql = f"select sum(case when {predicate} then 1 else 0 end) from {table}"
+                assert self._count(charset, sql) == 1, (charset, predicate)
+        print("string connection charset ......................... [ passed ]")
+
     def test_query_client_charset(self):
         """Regular-query results are driven by the per-query client charset.
 
@@ -572,6 +675,10 @@ class TestQueryClientCharset:
            dataset.
         3. NCHAR<->VARCHAR mixed comparison and JSON tag for the write charset.
         4. System-table tag rendering in the query charset.
+        5. POSIX regex behavior when the GBK locale is absent and connection regex
+           character boundaries in filter, rewritten filter and scalar paths.
+
+        6. String character boundaries and default set separators use the connection charset.
 
         Since: v3.4.3.0
 
@@ -592,9 +699,16 @@ class TestQueryClientCharset:
         if not os.path.isfile(self.taos):
             tdLog.exit(f"taos CLI not found at {self.taos}")
 
+        self.do_string_charset()
         self._nchar_cross()
+        self.do_regex_charset()
         self._nchar_range()
         self._varchar_same_charset()
         self._pass_down_cross()
+        for charset in ("GBK", "UTF-8"):
+            sql = "select count(*) from cst.nt where cast(cast('3.14' as nchar(16)) as double)>3"
+            assert self._count(charset, sql) == 5
+            sql = "select count(*) from cst.nt where st_equals(st_geomfromtext(cast('POINT(1 2)' as nchar(32))), st_geomfromtext('POINT(1 2)'))=1"
+            assert self._count(charset, sql) == 5
 
         tdLog.success(f"{__file__} passed")

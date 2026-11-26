@@ -397,7 +397,7 @@ taos> explain verbose true select _wstart, _wend, state_col, sum(remote_v) from 
        -> Federated Scan on vt_window_plan_oracle_src.TAOSDATA.vt_window_plan_ora_values (oracle) (width=24)                                                                                                                                      |
              Output: columns=3 width=24                                                                                                                                                                                                           |
              Source: 127.0.0.1:18322 user=taosdata                                                                                                                                                                                                |
-             Remote SQL: SELECT TS, STATE_COL, V FROM TAOSDATA.VT_WINDOW_PLAN_ORA_VALUES ORDER BY TS ASC NULLS FIRST                                                                                                                              |
+             Remote SQL: SELECT "ts", "state_col", "v" FROM TAOSDATA."vt_window_plan_ora_values" ORDER BY "ts" ASC NULLS FIRST                                                                                                                              |
 
 taos> select _wstart, _wend, state_col, sum(remote_v) from vt_window_plan.vt_window_oracle state_window(state_col, 1) order by _wstart;
             _wstart            |             _wend             |       state_col       |     sum(remote_v)     |
@@ -427,7 +427,7 @@ taos> explain verbose true select _wstart, _wend, sum(remote_v) from vt_window_p
           -> Federated Scan on vt_window_plan_oracle_src.TAOSDATA.vt_window_plan_ora_values (oracle) (width=16)                                                                                                                                   |
                 Output: columns=2 width=16                                                                                                                                                                                                        |
                 Source: 127.0.0.1:18322 user=taosdata                                                                                                                                                                                             |
-                Remote SQL: SELECT TS, V FROM TAOSDATA.VT_WINDOW_PLAN_ORA_VALUES ORDER BY TS ASC NULLS FIRST                                                                                                                                      |
+                Remote SQL: SELECT "ts", "v" FROM TAOSDATA."vt_window_plan_ora_values" ORDER BY "ts" ASC NULLS FIRST                                                                                                                                      |
 
 taos> select _wstart, _wend, sum(remote_v) from vt_window_plan.vt_window_local_oracle state_window(state_col, 1) order by _wstart;
             _wstart            |             _wend             |     sum(remote_v)     |
@@ -490,7 +490,7 @@ taos> explain verbose true select _wstart, _wend, _wduration, state_col, sum(loc
           -> Federated Scan on vt_window_plan_oracle_src.TAOSDATA.vt_window_plan_ora_values (oracle) (width=16)                                                                                                                                   |
                 Output: columns=2 width=16                                                                                                                                                                                                        |
                 Source: 127.0.0.1:18322 user=taosdata                                                                                                                                                                                             |
-                Remote SQL: SELECT TS, V FROM TAOSDATA.VT_WINDOW_PLAN_ORA_VALUES ORDER BY TS ASC NULLS FIRST                                                                                                                                      |
+                Remote SQL: SELECT "ts", "v" FROM TAOSDATA."vt_window_plan_ora_values" ORDER BY "ts" ASC NULLS FIRST                                                                                                                                      |
 
 taos> select _wstart, _wend, _wduration, state_col, sum(local_v), sum(mysql_v), sum(postgres_v), sum(influx_v), sum(oracle_v) from vt_window_plan.vt_window_all_mixed_oracle state_window(state_col, 1) order by _wstart;
             _wstart            |             _wend             |      _wduration       |  state_col  |     sum(local_v)      |     sum(mysql_v)      |    sum(postgres_v)    |     sum(influx_v)     |     sum(oracle_v)     |

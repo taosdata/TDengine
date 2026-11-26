@@ -53,15 +53,14 @@ SHOW BACKUPS;
 
 例如：
 
-```shell
-taos> show backups;
+```sql
+taos> SHOW backups;
        id       |  status   |     chain      | database | full | encrypted |    size    | vgroups |       start_time        |       update_time       |
 =======================================================================================================================================================
  20260824094003 | succeeded | 20260824094003 | *        |    1 |         1 |  136760311 |   4/4   | 2026-08-24 09:40:03.324 | 2026-08-24 09:42:50.061 |
  20260819153410 | succeeded | 20260819153410 | *        |    1 |         0 |      11592 |   0/0   | 2026-08-19 15:34:10.340 | 2026-08-19 15:34:20.007 |
  20260819153420 | cancelled | 20260819153420 | *        |    1 |         0 |          0 |   0/0   | 2026-08-19 15:34:20.498 | 2026-08-19 15:34:20.498 |
-Query OK, 3 row(s) in set (0.007715s)
-
+Query OK, 3 row(s) in set
 ```
 
 各列含义为：
@@ -313,6 +312,62 @@ taosExplorer 服务页面中，进入“系统管理 - 备份”页面，在“�
 
 如果布局标记和显式 `layout` 都不存在，`taosx` 会执行历史兼容探测，并记录 `backup layout marker is missing; using legacy layout detection` warning。仅在这种情况下，如果任务目录直属位置和历史 `-1` 子目录中同时存在备份文件，恢复程序才会报告目录布局冲突。请先核对两处文件并将完整备份链整理到独立的恢复目录；同名文件内容不一致时不要直接覆盖。
 
+## 使用 taosX 备份和恢复指定表
+
+除了整库、超级表粒度的备份外，还可以使用 taosX 命令行按 **表名清单** 备份数据库中的部分子表或普通表，并将生成的备份文件恢复到其他集群。taosX 命令行及 DSN 的通用说明见 [taosX 参考手册](../03-components/06-taosx.md)。
+
+### 备份指定表
+
+使用 `taosx run` 命令，在源 DSN 中通过 `tables` 参数指定要备份的表：
+
+```shell
+taosx run \
+  -f 'taos://root:taosdata@localhost:6030/db01?tables=d0,d1,table1' \
+  -t 'local:/tmp/dump/' \
+  -v
+```
+
+`tables` 参数取值为逗号分隔的表名清单，清单中的表可以是 **子表** 或 **普通表**，但不能包含超级表（按超级表备份请使用 `stables` 参数）。除直接内联表名外，还可以使用 `@文件路径` 的形式从清单文件读取表名（文件内每行一个表名），二者可以混用：
+
+```shell
+taosx run \
+  -f 'taos://root:taosdata@localhost:6030/db01?tables=@/home/taos/tblist.txt,d0' \
+  -t 'local:/tmp/dump/' \
+  -v
+```
+
+**说明**
+
+1. 若清单中包含子表，备份会自动包含其父超级表的建表语句，恢复时会先创建超级表，再创建子表；父超级表下的其它子表不会被备份。
+2. `tables` 与 `stables`、`select` 参数同时指定时，按 `stables` > `tables` > `select` 的优先级生效，低优先级参数被忽略，`taosx` 日志中会输出相应警告。
+3. 清单文件每行一个表名。空行（含纯空白行）会被忽略，重复表名只保留第一次出现（`taosx` 日志会输出 `duplicate_or_trim_empty_table_names` 计数）。非空行的首尾空白不会被去除，` t1 ` 这类行会作为带空白的表名查询并报错；以 `#` 开头的行不是注释，会作为表名处理并报错。文件必须为 UTF-8 编码，请确保清单文件内容干净。
+4. `@文件路径` 中的相对路径以执行 `taosx` 命令时的目录（进程工作目录）为基准，建议使用绝对路径。
+5. `tables` 参数可与 `start`、`end`（仅备份时间范围内的数据）、`schema_only`（仅备份表结构）、`workers`（任务并发数，也可写作别名 `concurrency`）等参数组合使用。例如，仅备份指定表中 2025-09-02 一天的数据：
+
+   ```shell
+   taosx run \
+     -f 'taos://root:taosdata@localhost:6030/db01?tables=d0,d1&start=2025-09-02T00:00:00Z&end=2025-09-03T00:00:00Z' \
+     -t 'local:/tmp/dump/' \
+     -v
+   ```
+
+6. 备份场景请使用纯表名：`tables` 参数按 `information_schema.ins_tables.table_name` 精确匹配，不支持 [taosX 参考手册](../03-components/06-taosx.md) 中同步任务的 `{stable}.{table}` 写法；若写成 `meters.d0`，会被当作字面表名并报表不存在错误（`table 'meters.d0' not exists in database '<db>'`）。
+
+备份完成后，备份目录下会生成 `schema.meta` 元数据文件和 `.z` 数据文件。
+
+### 恢复指定表的备份
+
+恢复命令与 [使用 taosx 命令行进行异地恢复](#使用-taosx-命令行进行异地恢复) 中的恢复命令相同，但指定表备份目录只包含 `schema.meta` 元数据文件和 `.z` 数据文件，不涉及 `.taosx-backup-layout` 布局标记和 `.mz` 增量文件，无需执行上文恢复流程中处理这两类文件的步骤。将备份目录复制到目标集群后直接执行恢复即可：
+
+```shell
+taosx run \
+  -f 'local:/tmp/dump?to=now&watch=false' \
+  -t 'taos:///db01' \
+  -v
+```
+
+恢复完成后，检查 `taosx` 日志中的实际处理文件数和数据行数，并在目标集群执行查询核对恢复结果。
+
 ## 常见错误排查
 
 ### 端口访问异常
@@ -366,6 +421,5 @@ Caused by:
 修改数据 WAL 配置：
 
 ```sql
-alter
-database test wal_retention_period 3600;
+ALTER DATABASE test wal_retention_period 3600;
 ```

@@ -63,9 +63,18 @@ In the stream status display (query the table information_schema.ins_streams), s
 Before running the examples, ensure that an snode is available and start a WebSocket receiver at `ws://localhost:8080/notify`. Here, `localhost` refers to the host running taosd. The examples use `Asia/Shanghai` (UTC+8) for both the client and server timezones and millisecond database precision. Create the empty table and both streams first, wait until the streams are ready, and then insert the sample data.
 
 ```sql
-CREATE DATABASE notify_demo VGROUPS 1 PRECISION 'ms' KEEP 3650;
+CREATE DATABASE notify_demo
+  VGROUPS 1
+  PRECISION 'ms'
+  KEEP 3650;
+
 USE notify_demo;
-CREATE TABLE measurements (ts TIMESTAMP, current DOUBLE, quality INT);
+
+CREATE TABLE measurements (
+  ts      TIMESTAMP,
+  current DOUBLE,
+  quality INT
+);
 ```
 
 **Example 1: Filter notifications by computation results**
@@ -74,13 +83,15 @@ Compute the average current when each 10-second window closes and send a result 
 
 ```sql
 CREATE STREAM avg_alarm
-  INTERVAL(10s) SLIDING(10s) FROM measurements
-  NOTIFY('ws://localhost:8080/notify')
-    ON(WINDOW_CLOSE) WHERE avg_current > 20
+  INTERVAL(10s) SLIDING(10s)
+  FROM measurements
+  NOTIFY('ws://localhost:8080/notify') ON (WINDOW_CLOSE) WHERE avg_current > 20
   INTO avg_results
-  AS SELECT _twstart AS window_start,
-            AVG(current) AS avg_current
-     FROM %%trows;
+  AS
+    SELECT
+      _twstart AS window_start,
+      AVG(current) AS avg_current
+    FROM %%trows;
 ```
 
 `avg_current` is an output alias in the computation query. Results whose average does not exceed 20 are still written to `avg_results`; they are simply excluded from result notifications.
@@ -91,14 +102,20 @@ Suppose `quality = 0` marks an abnormal reading. Send a notification if a window
 
 ```sql
 CREATE STREAM quality_alarm
-  INTERVAL(10s) SLIDING(10s) FROM measurements
-  NOTIFY('ws://localhost:8080/notify')
-    ON(WINDOW_CLOSE) WHERE bad_rows > 0
+  INTERVAL(10s) SLIDING(10s)
+  FROM measurements
+  NOTIFY('ws://localhost:8080/notify') ON (WINDOW_CLOSE) WHERE bad_rows > 0
   INTO quality_results
-  AS SELECT _twstart AS window_start,
-            AVG(current) AS avg_current,
-            SUM(CASE WHEN quality = 0 THEN 1 ELSE 0 END) AS bad_rows
-     FROM %%trows;
+  AS
+    SELECT
+      _twstart AS window_start,
+      AVG(current) AS avg_current,
+      SUM(
+        CASE
+          WHEN quality = 0 THEN 1
+          ELSE 0
+        END) AS bad_rows
+    FROM %%trows;
 ```
 
 This condition means that at least one row in the window is abnormal. It does not mean that the last row, or every row, is abnormal. `bad_rows` is an explicit output column, so it appears in both `quality_results` and matching notification results. If the computation query does not output `quality`, directly specifying `NOTIFY ... WHERE quality = 0` is rejected.
@@ -108,15 +125,18 @@ This condition means that at least one row in the window is abnormal. It does no
 Query the task status and confirm that the `Trigger` tasks for both streams are `Running` before inserting data:
 
 ```sql
-SELECT stream_name, status FROM information_schema.ins_stream_tasks
+SELECT
+  stream_name,
+  status
+FROM information_schema.ins_stream_tasks
 WHERE type = 'Trigger';
 
-INSERT INTO measurements VALUES
-    ('2025-12-09 00:00:00', 10, 0)
-    ('2025-12-09 00:00:01', 20, 1)
-    ('2025-12-09 00:00:10', 30, 1)
-    ('2025-12-09 00:00:11', 50, 1)
-    ('2025-12-09 00:00:20', 0, 1);
+INSERT INTO measurements
+VALUES ('2025-12-09 00:00:00', 10, 0)
+       ('2025-12-09 00:00:01', 20, 1)
+       ('2025-12-09 00:00:10', 30, 1)
+       ('2025-12-09 00:00:11', 50, 1)
+       ('2025-12-09 00:00:20', 0, 1);
 ```
 
 The last row advances event time to `00:00:20`, closing the first two 10-second windows. The row itself belongs to the third window, which remains open. The first two windows produce the following results and notifications:
@@ -129,31 +149,159 @@ The last row advances event time to `00:00:20`, closing the first two 10-second 
 Both output tables store the results for both windows; only `quality_alarm` outputs `bad_rows`. Query the output tables and compare them with the notifications received over WebSocket for each stream:
 
 ```sql
-SELECT * FROM avg_results ORDER BY window_start;
-SELECT * FROM quality_results ORDER BY window_start;
+SELECT *
+FROM avg_results
+ORDER BY window_start;
+
+SELECT *
+FROM quality_results
+ORDER BY window_start;
 ```
 
 The first window's `avg_current = 15` shows that the row with `quality = 1` still contributes to the average. `NOTIFY ... WHERE` is not equivalent to `PRE_FILTER` or a `WHERE` clause in the computation query: those filter trigger data or computation input, respectively, while the notification condition filters only result notifications.
+
+#### Use a Tag as a Runtime-Modifiable Threshold {#dynamic-threshold}
+
+The following example stores the upper limit `hi` of device `d1` in a tag of the configuration table `cfg_d1`. Virtual child table `v1` reads that limit through a tag reference. After `cfg_d1`'s tag value changes while the stream is running, later calculations use the new limit. For the applicable conditions and notes, see [Update a Calculation Threshold at Runtime](./02-instructions.md#update-threshold).
+
+An snode must be available before you run the example. Create the tables and the stream first:
+
+```sql
+CREATE DATABASE thresh_demo
+  VGROUPS 1
+  PRECISION 'ms';
+
+USE thresh_demo;
+
+CREATE STABLE src (
+  ts  TIMESTAMP,
+  vol DOUBLE
+) TAGS (
+  device VARCHAR(32)
+);
+
+CREATE TABLE d1
+  USING src
+  TAGS ('d1');
+
+CREATE STABLE cfg (
+  ts    TIMESTAMP,
+  dummy INT
+) TAGS (
+  hi DOUBLE
+);
+
+CREATE TABLE cfg_d1
+  USING cfg
+  TAGS (80.0);
+
+INSERT INTO cfg_d1
+VALUES (NOW, 0);
+
+CREATE STABLE vst (
+  ts  TIMESTAMP,
+  vol DOUBLE
+) TAGS (
+  device VARCHAR(32),
+  hi     DOUBLE
+)
+  VIRTUAL 1;
+
+CREATE VTABLE v1 (
+  vol FROM d1.vol
+)
+  USING vst
+  TAGS ('d1', cfg_d1.hi);
+
+CREATE STREAM s_hi
+  COUNT_WINDOW(1)
+  FROM vst
+  PARTITION BY tbname
+  INTO thresh_alarm
+  AS
+    SELECT
+      _twend AS ts,
+      LAST(vol) AS vol,
+      LAST(hi) AS hi,
+      CASE
+        WHEN LAST(vol) > LAST(hi) THEN 1
+        ELSE 0
+      END AS over_limit
+    FROM %%tbname;
+```
+
+The stream is grouped by virtual child table. `hi` is used only in the calculation query and is not a grouping column. After the stream's `Trigger` task is `Running`, insert the first row:
+
+```sql
+SELECT
+  stream_name,
+  status
+FROM information_schema.ins_stream_tasks
+WHERE type = 'Trigger';
+
+INSERT INTO d1
+VALUES ('2026-01-01 00:00:00', 90);
+```
+
+Change the upper limit to 100, then insert the same value again:
+
+```sql
+ALTER TABLE cfg_d1 SET TAG hi = 100.0;
+
+INSERT INTO d1
+VALUES ('2026-01-01 00:00:01', 90);
+```
+
+Query the result:
+
+```sql
+SELECT
+  ts,
+  vol,
+  hi,
+  over_limit
+FROM thresh_alarm
+ORDER BY ts;
+```
+
+| ts | vol | hi | over_limit |
+| --- | --- | --- | --- |
+| 2026-01-01 00:00:00.000 | 90 | 80 | 1 |
+| 2026-01-01 00:00:01.000 | 90 | 100 | 0 |
+
+The first row was calculated before the change and keeps its original result. The second row uses the new upper limit.
+
+If the threshold is a tag of the trigger child table itself, for example a `hi` tag defined on `src`, and the stream is grouped by `tbname` with `src` as the trigger table, change it with `ALTER TABLE d1 SET TAG hi = 100.0`. The same rules apply. If the stream is written as `PARTITION BY hi`, that change is rejected.
 
 #### Count Window Trigger
 
 - Each time one row is written into table tb1, compute the average value of column col1 in table tb2 over the past 5 minutes up to that moment, and write the result into table tb3.
 
 ```SQL
-CREATE stream sm1 count_window(1) FROM tb1 
-  INTO tb3 AS
-    SELECT _twstart, avg(col1) FROM tb2 
-    WHERE _c0 >= _twend - 5m AND _c0 <= _twend;
+CREATE STREAM sm1
+  COUNT_WINDOW(1)
+  FROM tb1
+  INTO tb3
+  AS
+    SELECT
+      _twstart,
+      AVG(col1)
+    FROM tb2
+    WHERE _c0 >= _twend - 5m
+      AND _c0 <= _twend;
 ```
 
 - Each time 10 rows are written into table tb1 where column col1 is greater than 0, compute the average of column col1 for those 10 rows. The result does not need to be saved but must be sent as a notification to ws://localhost:8080/notify.
 
 ```SQL
-CREATE stream sm2 count_window(10, 1, col1) FROM tb1 
-  STREAM_OPTIONS(CALC_NOTIFY_ONLY | PRE_FILTER(col1 > 0)) 
-  NOTIFY("ws://localhost:8080/notify") ON (WINDOW_CLOSE) 
-  AS 
-    SELECT avg(col1) FROM %%trows;
+CREATE STREAM sm2
+  COUNT_WINDOW(10, 1, col1)
+  FROM tb1
+  STREAM_OPTIONS(CALC_NOTIFY_ONLY | PRE_FILTER(col1 > 0))
+  NOTIFY("ws://localhost:8080/notify") ON (WINDOW_CLOSE)
+  AS
+    SELECT avg(col1)
+    FROM %%trows;
 ```
 
 #### Event Window Trigger
@@ -161,11 +309,18 @@ CREATE stream sm2 count_window(10, 1, col1) FROM tb1
 - When the ambient temperature exceeds 80° and remains above that threshold for more than 10 minutes, compute the average ambient temperature.
 
 ```SQL
-CREATE STREAM `idmp`.`ana_temp` EVENT_WINDOW(start with `temp` > 80 end with `temp` <= 80 ) TRUE_FOR(10m) FROM `idmp`.`vt_envsens02_471544` 
-  STREAM_OPTIONS( IGNORE_DISORDER)
-  INTO `idmp`.`ana_temp` 
-  AS 
-    SELECT _twstart+0s as output_timestamp, avg(`temp`) as `avgtemp` FROM idmp.`vt_engsens02_471544` where ts >= _twstart and ts <= _twend;
+CREATE STREAM `idmp`.`ana_temp`
+  EVENT_WINDOW(START WITH `temp` > 80 END WITH `temp` <= 80) TRUE_FOR(10m)
+  FROM `idmp`.`vt_envsens02_471544`
+  STREAM_OPTIONS(IGNORE_DISORDER)
+  INTO `idmp`.`ana_temp`
+  AS
+    SELECT
+      _twstart + 0s AS output_timestamp,
+      AVG(`temp`) AS `avgtemp`
+    FROM idmp.`vt_engsens02_471544`
+    WHERE ts >= _twstart
+      AND ts <= _twend;
 ```
 
 #### Sliding Trigger
@@ -173,11 +328,18 @@ CREATE STREAM `idmp`.`ana_temp` EVENT_WINDOW(start with `temp` > 80 end with `te
 - For each subtable of supertable stb1, at the end of every 5-minute time window, compute the average of column col1 over that interval. The results for each subtable are written separately into different subtables of supertable stb2.
 
 ```SQL
-CREATE stream sm1 INTERVAL(5m) SLIDING(5m) FROM stb1 PARTITION BY tbname 
-  INTO stb2 
-  AS 
-    SELECT _twstart, avg(col1) FROM %%tbname 
-    WHERE _c0 >= _twstart AND _c0 <= _twend;
+CREATE STREAM sm1
+  INTERVAL(5m) SLIDING(5m)
+  FROM stb1
+  PARTITION BY tbname
+  INTO stb2
+  AS
+    SELECT
+      _twstart,
+      AVG(col1)
+    FROM %%tbname
+    WHERE _c0 >= _twstart
+      AND _c0 <= _twend;
 ```
 
 In the SQL above, `FROM %%tbname WHERE _c0 >= _twstart AND _c0 <= _twend` and `FROM %%trows` are not equivalent. The former means the computation uses data from the trigger group’s corresponding table within the window’s time range; those in-window rows may differ from what `%%trows` saw at trigger time. The latter means the computation uses only the window data captured at the moment of triggering.
@@ -185,21 +347,35 @@ In the SQL above, `FROM %%tbname WHERE _c0 >= _twstart AND _c0 <= _twend` and `F
 - For each subtable of supertable stb1, starting from the earliest data, compute the average of col1 for each 5-minute time window either when the window closes or when 1 minute has elapsed since the window opened and it is still not closed. Write each subtable’s result to a separate subtable under supertable stb2.
 
 ```SQL
-CREATE stream sm2 INTERVAL(5m) SLIDING(5m) FROM stb1 PARTITION BY tbname 
-  STREAM_OPTIONS(MAX_DELAY(1m) | FILL_HISTORY_FIRST) 
-  INTO stb2 
-  AS 
-    SELECT _twstart, avg(col1) FROM %%tbname WHERE _c0 >= _twstart AND _c0 <= _twend;
+CREATE STREAM sm2
+  INTERVAL(5m) SLIDING(5m)
+  FROM stb1
+  PARTITION BY tbname
+  STREAM_OPTIONS(MAX_DELAY(1m) | FILL_HISTORY_FIRST)
+  INTO stb2
+  AS
+    SELECT
+      _twstart,
+      avg(col1)
+    FROM %%tbname
+    WHERE _c0 >= _twstart
+      AND _c0 <= _twend;
 ```
 
 - Compute the per-minute average of the meter current, and send notifications to two target addresses when the window opens and closes. Also send notifications during historical computation (`NOTIFY_HISTORY`).
 
 ```sql
-CREATE STREAM avg_stream INTERVAL(1m) SLIDING(1m) FROM meters 
-  NOTIFY ('ws://localhost:8080/notify', 'wss://192.168.1.1:8080/notify?key=foo') ON (WINDOW_OPEN | WINDOW_CLOSE) NOTIFY_OPTIONS(NOTIFY_HISTORY)
+CREATE STREAM avg_stream
+  INTERVAL(1m) SLIDING(1m)
+  FROM meters
+  NOTIFY('ws://localhost:8080/notify', 'wss://192.168.1.1:8080/notify?key=foo') ON (WINDOW_OPEN | WINDOW_CLOSE) NOTIFY_OPTIONS(NOTIFY_HISTORY)
   INTO avg_stb
-  AS 
-    SELECT _twstart, _twend, AVG(current) FROM %%trows;
+  AS
+    SELECT
+      _twstart,
+      _twend,
+      AVG(current)
+    FROM %%trows;
 ```
 
 - The `location` tag of the `meters` supertable uses `.` to represent a location hierarchy. Compute the average current for each hierarchy node every hour. If a child table has `location = 'California.SanFrancisco.Soma'`, its data participates in three groups: `California`, `California.SanFrancisco`, and `California.SanFrancisco.Soma`.
@@ -207,15 +383,16 @@ CREATE STREAM avg_stream INTERVAL(1m) SLIDING(1m) FROM meters
 ```SQL
 CREATE STREAM rollup_avg_current
   INTERVAL(1h) SLIDING(1h)
-  FROM meters ROLLUP BY location
+  FROM meters
+  ROLLUP BY location
   INTO rollup_avg
-  OUTPUT_SUBTABLE(concat(%%1, '_avg'))
-  TAGS (
-    location VARCHAR(256) AS %%1,
-    node_name VARCHAR(64) AS %%rollup_tag
-  )
+    OUTPUT_SUBTABLE(CONCAT(%%1, '_avg'))
+    TAGS (location VARCHAR(256) AS %%1, node_name VARCHAR(64) AS %%rollup_tag)
   AS
-    SELECT _twstart, avg(current), _trollup_tbcount
+    SELECT
+      _twstart,
+      AVG(current),
+      _trollup_tbcount
     FROM %%trows;
 ```
 
@@ -224,31 +401,40 @@ CREATE STREAM rollup_avg_current
 - Every hour, compute the total number of rows in table tb1 and write the result to table tb2 (in a millisecond-precision database).
 
 ```SQL
-CREATE stream sm1 PERIOD(1h) 
-  INTO tb2 
+CREATE STREAM sm1
+  PERIOD(1h)
+  INTO tb2
   AS
-    SELECT cast(_tlocaltime/1000000 AS TIMESTAMP), count(*) FROM tb1;
+    SELECT
+      CAST(_tlocaltime / 1000000 AS TIMESTAMP),
+      COUNT(*)
+    FROM tb1;
 ```
 
 - Every hour, send a notification with the current system time to `ws://localhost:8080/notify`.
 
 ```SQL
-CREATE stream sm1 PERIOD(1h) 
+CREATE STREAM sm1
+  PERIOD(1h)
   NOTIFY("ws://localhost:8080/notify");
 ```
 
 - Calculate the sum of power consumption for each subtable in the smart meter supertable meters every day, write the calculation results into the downsampled supertable meters_1d, and carry over the TAG values from each subtable.
 
 ```SQL
-CREATE stream stream_consumer_energy 
-  PERIOD(1d) 
-  FROM meters PARTITION BY tbname, groupid, location
-  INTO meters_1d (ts, sum_power)
-     TAGS (groupid INT AS groupid , location VARCHAR(24) AS location)
-  AS 
-     SELECT cast(_tlocaltime/1000000 AS timestamp) ,sum(current*voltage) AS sum_power
-          FROM meters
-          WHERE ts >= cast(_tprev_localtime/1000000 AS timestamp) AND ts <= cast(_tlocaltime/1000000 AS timestamp);
+CREATE STREAM stream_consumer_energy
+  PERIOD(1d)
+  FROM meters
+  PARTITION BY tbname, groupid, location
+  INTO meters_1d(ts, sum_power)
+    TAGS (groupid INT AS groupid, location VARCHAR(24) AS location)
+  AS
+    SELECT
+      CAST(_tlocaltime / 1000000 AS TIMESTAMP),
+      SUM(current * voltage) AS sum_power
+    FROM meters
+    WHERE ts >= CAST(_tprev_localtime / 1000000 AS TIMESTAMP)
+      AND ts <= CAST(_tlocaltime / 1000000 AS TIMESTAMP);
 ```
 
 - Every Monday at 00:00:00, compute the weekly device operation summary for the previous week and write the results to the weekly_summary table.
@@ -256,14 +442,16 @@ CREATE stream stream_consumer_energy
 ```SQL
 CREATE STREAM weekly_device_summary
   PERIOD(1w)
-  FROM meters PARTITION BY location
+  FROM meters
+  PARTITION BY location
   INTO weekly_summary
   AS
-    SELECT _wstart AS week_start,
-           location,
-           AVG(current) AS avg_current,
-           MAX(voltage) AS max_voltage,
-           COUNT(*) AS record_count
+    SELECT
+      _wstart AS week_start,
+      location,
+      AVG(current) AS avg_current,
+      MAX(voltage) AS max_voltage,
+      COUNT(*) AS record_count
     FROM meters
     INTERVAL(1w)
     PARTITION BY location;
@@ -274,13 +462,15 @@ CREATE STREAM weekly_device_summary
 ```SQL
 CREATE STREAM monthly_energy_bill
   PERIOD(1n)
-  FROM meters PARTITION BY location, groupId
+  FROM meters
+  PARTITION BY location, groupId
   INTO monthly_bill
   AS
-    SELECT _wstart AS month_start,
-           location,
-           groupId,
-           SUM(current * voltage) AS total_energy
+    SELECT
+      _wstart AS month_start,
+      location,
+      groupId,
+      SUM(current * voltage) AS total_energy
     FROM meters
     INTERVAL(1n)
     PARTITION BY location, groupId;
@@ -291,12 +481,14 @@ CREATE STREAM monthly_energy_bill
 ```SQL
 CREATE STREAM mid_month_settlement
   PERIOD(1n, 14d)
-  FROM meters PARTITION BY location
+  FROM meters
+  PARTITION BY location
   INTO mid_month_settlement_table
   AS
-    SELECT _wstart AS period_start,
-           location,
-           SUM(current * voltage) AS total_energy
+    SELECT
+      _wstart AS period_start,
+      location,
+      SUM(current * voltage) AS total_energy
     FROM meters
     INTERVAL(1n)
     PARTITION BY location;
@@ -307,15 +499,121 @@ CREATE STREAM mid_month_settlement
 ```SQL
 CREATE STREAM yearly_archive
   PERIOD(1y)
-  FROM meters PARTITION BY location, groupId
+  FROM meters
+  PARTITION BY location, groupId
   INTO yearly_archive_table
   AS
-    SELECT _wstart AS year_start,
-           location,
-           groupId,
-           AVG(current) AS avg_current,
-           SUM(current * voltage) AS total_energy
+    SELECT
+      _wstart AS year_start,
+      location,
+      groupId,
+      AVG(current) AS avg_current,
+      SUM(current * voltage) AS total_energy
     FROM meters
     INTERVAL(1y)
     PARTITION BY location, groupId;
 ```
+
+### Average power from asynchronous readings
+
+Use a database with millisecond precision and a running stream node. The Unix timestamps below start at 2026-01-01 00:00:00 UTC. Set retention to cover the example data.
+
+```sql
+CREATE DATABASE manual_align_power PRECISION 'ms' KEEP 3650;
+USE manual_align_power;
+CREATE TABLE volts (ts TIMESTAMP, value DOUBLE);
+CREATE TABLE amps (ts TIMESTAMP, value DOUBLE);
+CREATE VTABLE meter (ts TIMESTAMP, voltage DOUBLE FROM volts.value,
+                     current_a DOUBLE FROM amps.value);
+
+CREATE STREAM power_10s INTERVAL(10s) SLIDING(10s)
+FROM TABLE(TIME_ALIGN(TABLE meter, TRUE, 'voltage:PREV:_p;current_a:PREV:_p'))
+PARTITION BY tbname INTO power_10s_out AS
+SELECT _twstart AS ws, COUNT(voltage_p * current_a_p) AS samples,
+       AVG(voltage_p * current_a_p) AS power_avg
+FROM TABLE(TIME_ALIGN(TABLE %%tbname, TRUE, 'voltage:PREV:_p;current_a:PREV:_p'))
+WHERE ts >= _twstart AND ts < _twend;
+
+SELECT status FROM information_schema.ins_stream_tasks
+WHERE stream_name = 'power_10s' AND type = 'Trigger';
+```
+
+When the trigger reports `Running`, write the readings and query the first window after it closes.
+
+```sql
+INSERT INTO volts VALUES (1767225600000, 220);
+INSERT INTO amps VALUES (1767225601000, 2) (1767225602000, 3);
+INSERT INTO amps VALUES (1767225611000, 4);
+SELECT CAST(ws AS BIGINT) AS start_ms, samples, power_avg
+FROM power_10s_out WHERE ws = 1767225600000;
+```
+
+The reading at 11 seconds closes the first ten-second window. The voltage at second zero has no matching current yet. The two later currents yield 220 × 2 and 220 × 3, giving `1767225600000 | 2 | 550` for the first window.
+
+#### Limit the age of a voltage reading
+
+Continue in the same database. The trigger requires a current reading and an aligned voltage of 220. The calculation also specifies `current_a IS NOT NULL` so a voltage-only row carrying an earlier current does not count as a new power sample.
+
+```sql
+DROP STREAM power_10s;
+CREATE STREAM bounded_power INTERVAL(10s) SLIDING(10s)
+FROM TABLE(TIME_ALIGN(TABLE meter, TRUE, 'voltage:PREV(2s):_p;current_a:PREV:_p'))
+PARTITION BY tbname
+STREAM_OPTIONS(PRE_FILTER(voltage_p = 220 AND current_a IS NOT NULL))
+INTO bounded_power_out AS
+SELECT _twstart AS ws, COUNT(voltage_p * current_a_p) AS samples,
+       AVG(voltage_p * current_a_p) AS power_avg
+FROM TABLE(TIME_ALIGN(TABLE %%tbname, TRUE, 'voltage:PREV(2s):_p;current_a:PREV:_p'))
+WHERE ts >= _twstart AND ts < _twend AND current_a IS NOT NULL;
+SELECT status FROM information_schema.ins_stream_tasks
+WHERE stream_name = 'bounded_power' AND type = 'Trigger';
+```
+
+Once the trigger reports `Running`, write one current reading exactly two seconds after the voltage and another one millisecond later.
+
+```sql
+INSERT INTO volts VALUES (1767225660000, 220);
+INSERT INTO amps VALUES (1767225662000, 2) (1767225662001, 3);
+INSERT INTO volts VALUES (1767225671000, 220);
+INSERT INTO amps VALUES (1767225672000, 4);
+SELECT CAST(ws AS BIGINT) AS start_ms, samples, power_avg
+FROM bounded_power_out WHERE ws = 1767225660000;
+```
+
+The voltage-only row seeds the next current reading even though the trigger filter excludes it. At exactly two seconds the voltage still applies. At 2.001 seconds it has expired. The query returns `1767225660000 | 1 | 440`.
+
+#### Switch the voltage source
+
+The replacement table already contains a 100-volt reading. The following stream selects current readings whose aligned voltage is 100.
+
+```sql
+DROP STREAM bounded_power;
+CREATE TABLE replacement (ts TIMESTAMP, value DOUBLE);
+INSERT INTO replacement VALUES (1767225700000, 100);
+CREATE STREAM rebound_power INTERVAL(10s) SLIDING(10s)
+FROM TABLE(TIME_ALIGN(TABLE meter, TRUE, 'voltage:PREV:_p;current_a:PREV:_p'))
+PARTITION BY tbname
+STREAM_OPTIONS(PRE_FILTER(voltage_p = 100 AND current_a IS NOT NULL))
+INTO rebound_power_out AS
+SELECT _twstart AS ws, COUNT(voltage_p * current_a_p) AS samples,
+       AVG(voltage_p * current_a_p) AS power_avg
+FROM TABLE(TIME_ALIGN(TABLE %%tbname, TRUE, 'voltage:PREV:_p;current_a:PREV:_p'))
+WHERE ts >= _twstart AND ts < _twend AND voltage_p = 100 AND current_a IS NOT NULL;
+SELECT status FROM information_schema.ins_stream_tasks
+WHERE stream_name = 'rebound_power' AND type = 'Trigger';
+```
+
+Once the trigger reports `Running`, write to the original source, switch the voltage reference and send two more current readings.
+
+```sql
+INSERT INTO volts VALUES (1767225701000, 220);
+INSERT INTO amps VALUES (1767225702000, 2);
+ALTER VTABLE meter ALTER COLUMN voltage SET replacement.value;
+INSERT INTO amps VALUES (1767225721000, 3);
+INSERT INTO replacement VALUES (1767225722000, 100);
+INSERT INTO amps VALUES (1767225731000, 4);
+SELECT CAST(ws AS BIGINT) AS start_ms, samples, power_avg
+FROM rebound_power_out WHERE ws = 1767225720000;
+```
+
+The current at 121 seconds uses the replacement voltage. The calculation excludes the voltage-only update at 122 seconds. The current at 131 seconds closes the window. The query returns `1767225720000 | 1 | 300`.

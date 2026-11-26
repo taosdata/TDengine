@@ -31,7 +31,7 @@ pip_extra_args=""
 bundle="all"
 patchelf_exe="patchelf"
 lite=0
-venv_version="1.0.2"
+venv_version="1.0.4"
 
 usage() {
   cat <<'EOF'
@@ -51,7 +51,7 @@ Options:
   --bundle all|main|model      Build all venvs (default), only the TDgpt main venv,
                                or only the complete model venv.
   --lite                       Build Lite main venv and use Lite archive names.
-  --venv-version VERSION      Version used in venv archive names. Default: 1.0.2.
+  --venv-version VERSION      Version used in venv archive names. Default: 1.0.4.
   --patchelf PATH              patchelf executable for the ARM64 Moirai fix.
                                Version 0.14.0 or newer is required.
   --pip-extra-args STRING      Extra pip arguments, such as --index-url <url>.
@@ -115,7 +115,7 @@ exec 9>"$lock_file"
 flock -n 9 || { echo "Another ${arch} offline asset build is running" >&2; exit 1; }
 
 cleanup_paths=()
-cleanup() { rm -rf "${cleanup_paths[@]}"; }
+cleanup() { rm -rf ${cleanup_paths[@]+"${cleanup_paths[@]}"}; }
 trap cleanup EXIT
 
 prepare_requirements() {
@@ -158,12 +158,20 @@ rewrite_runtime_refs() {
   ln -s python3 "${venv_dir}/bin/python"
 }
 
+lite_pyarrow_wheel() {
+  case "$arch" in
+    x64) printf '%s\n' 'https://files.pythonhosted.org/packages/6e/f6/19360dae44200e35753c5c2889dc478154cd78e61b1f738514c9f131734d/pyarrow-18.1.0-cp312-cp312-manylinux_2_17_x86_64.manylinux2014_x86_64.whl#sha256=0743e503c55be0fdb5c08e7d44853da27f19dc854531c0570f9f394ec9671d54' ;;
+    arm64) printf '%s\n' 'https://files.pythonhosted.org/packages/68/f9/29fb659b390312a7345aeb858a9d9c157552a8852522f2c8bad437c29c0a/pyarrow-18.1.0-cp312-cp312-manylinux_2_17_aarch64.manylinux2014_aarch64.whl#sha256=543ad8459bc438efc46d29a759e1079436290bd583141384c6f7a1068ed6f992' ;;
+  esac
+}
+
 create_venv() {
   local requirements="$1"
   local venv_dir="$2"
+  shift 2
   "$build_python" -m venv "$venv_dir"
   "${venv_dir}/bin/pip3" install --upgrade pip setuptools wheel
-  PATH="${venv_dir}/bin:${PATH}" "${venv_dir}/bin/pip3" install "${pip_args[@]}" -r "$requirements"
+  PATH="${venv_dir}/bin:${PATH}" "${venv_dir}/bin/pip3" install ${pip_args[@]+"${pip_args[@]}"} "$@" -r "$requirements"
 }
 
 prune_venv() {
@@ -173,7 +181,7 @@ prune_venv() {
   # Keep .a libraries: user C/Cython extensions may link against NumPy
   # libnpymath.a or other package libraries. Imports alone do not test linking.
   # Any removal needs a package-specific audit and compilation/linking test.
-  find "$venv_dir" -depth -type d \( -name '__pycache__' -o \( \( -name 'test' -o -name 'tests' \) ! -path '*/include/*' \) \) \
+  find "$venv_dir" -depth -type d \( -name '__pycache__' -o \( \( -iname 'test' -o -iname 'tests' \) ! -path '*/include/*' \) \) \
     -exec rm -rf {} + 2>/dev/null || true
   # Keep .pyi stubs for type checking and user model development.
   # Preserve legal notices; drop other docs and manuals.
@@ -246,9 +254,38 @@ if [[ "$bundle" == "all" || "$bundle" == "main" ]]; then
   main_stage=$(mktemp -d "${work_dir}/main.XXXXXX")
   cleanup_paths+=("$main_stage")
   main_venv="${main_stage}/venv"
-  create_venv "$main_requirements" "$main_venv"
+  if [[ "$lite" == "1" ]]; then
+    create_venv "$main_requirements" "$main_venv" "$(lite_pyarrow_wheel)"
+  else
+    create_venv "$main_requirements" "$main_venv"
+  fi
   prune_venv "$main_venv"
+  "${main_venv}/bin/python3" -B -m pip check
   "${main_venv}/bin/python3" -B -c 'import flask; print("tdgpt-venv-ok")'
+  if [[ "$lite" == "1" ]]; then
+    "${main_venv}/bin/python3" -B "$tdgpt_root/packaging/validate_lite_venv.py"
+    "${main_venv}/bin/python3" -B -m pip freeze --all > "${main_venv}/requirements.lock"
+    "${main_venv}/bin/python3" -B - "$main_venv" "$main_requirements" "$venv_version" "$arch" <<'PYMETA'
+import hashlib
+import json
+from pathlib import Path
+import platform
+import sys
+root, requirements, version, arch = sys.argv[1:]
+root = Path(root)
+effective_requirements = Path(requirements).read_bytes()
+(root / "requirements.in").write_bytes(effective_requirements)
+manifest = {
+    "schema_version": 1, "kind": "tdgpt-lite-main-venv", "version": version,
+    "python_version": platform.python_version(), "platform": "linux", "arch": arch,
+    "requirements_file": "requirements.in",
+    "requirements_source": Path(requirements).name,
+    "requirements_sha256": hashlib.sha256(effective_requirements).hexdigest(),
+    "lock_sha256": hashlib.sha256((root / "requirements.lock").read_bytes()).hexdigest(),
+}
+(root / "manifest.json").write_text(json.dumps(manifest, indent=2) + "\n", encoding="utf-8")
+PYMETA
+  fi
   prune_venv "$main_venv"
   rewrite_runtime_refs "$main_venv"
   main_archive="${output_dir}/${archive_prefix}-venv-${venv_version}-linux-${arch}.tar.xz"

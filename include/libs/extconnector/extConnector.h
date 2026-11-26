@@ -35,7 +35,9 @@ extern "C" {
 // ---------------------------------------------------------------------------
 typedef struct SExtTableNode         SExtTableNode;         // querynodes.h
 typedef struct SFederatedScanPhysiNode SFederatedScanPhysiNode;  // plannodes.h
+typedef struct SInfluxQLRender       SInfluxQLRender;
 typedef struct SExtColTypeMapping    SExtColTypeMapping;    // plannodes.h
+typedef struct SNode                 SNode;
 
 // ---------------------------------------------------------------------------
 // Opaque handle types
@@ -99,6 +101,91 @@ typedef struct SExtSourceCfg {
   int32_t        conn_timeout_ms;
   int32_t        query_timeout_ms;
 } SExtSourceCfg;
+
+// Validate a complete configuration after applying ALTER option deletions.
+// This performs no network access and is also available in community builds.
+// pDialect is optional and receives the selected dialect only on success.
+int32_t extConnectorValidateInfluxOptions(const char *options, const char *schema, EExtSQLDialect *pDialect);
+
+// One tag equality of a complete InfluxDB 1.8 series binding.  Both strings are
+// borrowed for the duration of the call; the provider quotes and escapes the
+// value before it reaches InfluxQL.
+typedef struct SExtInfluxTagValue {
+  const char *pName;
+  const char *pValue;
+} SExtInfluxTagValue;
+
+// Borrowed inputs to a single prepared 1.8 scan. SERIES positioning belongs
+// to virtual references. The render and its outputs are copied during prepare.
+typedef struct SExtInfluxScanSpec {
+  const SExtTableNode      *pTable;
+  const SInfluxQLRender    *pRender; // optional, borrowed only during prepare
+  int64_t                  rowLimit; // auxiliary virtual input limit, never OFFSET
+  const SExtTableMeta      *pCurrentMeta; // optional schema fetched during this execution attempt
+  const SExtColTypeMapping *pColMappings;
+  int32_t                  numColMappings;
+  const SNode             *pSeriesCondition;
+  // SERIES identity constraint attached to a virtual external table.  It is
+  // independent from the trigger PRE_FILTER carried by pExtraFilter.
+  const SNode             *pSeriesFilter;
+  // Complete series binding as tag equalities (stream readers build one from the
+  // tag values of the series they fetch).  When virtualScan+hasSeriesBinding are
+  // set, every tag column not listed here is bound to '' - the same contract the
+  // SNode form implements.  Ignored when numTagBindings is 0.
+  const SExtInfluxTagValue *pTagBindings;
+  int32_t                   numTagBindings;
+  // Optional row predicate (e.g. the stream PRE_FILTER AST) AND-ed into the
+  // scan.  Only the comparison/logic subset the 1.8 provider can render to
+  // InfluxQL is accepted; anything else is reported as unsupported.
+  const SNode             *pExtraFilter;
+  bool                     virtualScan;
+  bool                     hasSeriesBinding;
+  bool                     timeAscending;
+  STimeWindow              scanRange;
+  int8_t                   rangePrecision;
+  bool                     hasRuntimeRange;
+  STimeWindow              runtimeRange;  // half-open; scanRange is inclusive
+  int32_t                (*fpGetCancelCode)(void *context);
+  void                    *pCancelContext; // borrowed until the prepared scan/result is closed
+} SExtInfluxScanSpec;
+
+int32_t extConnectorPrepareInfluxV1Scan(SExtConnectorHandle *pHandle, const SExtInfluxScanSpec *pSpec, char **ppSQL);
+
+// Output block: one NCHAR column per pTagNames entry (NULL when the series omits
+// that tag), followed by a TIMESTAMP(ns) column named "time" holding the first
+// or latest point time selected by `first`.  A measurement without tag keys
+// produces one row and no tag columns.  precision is the stream precision used
+// for integer literals
+// compared with the primary time column.  When no series matches, *ppOut may be
+// NULL or an empty block.
+int32_t extConnectorInfluxV1SeriesSnapshot(SExtConnectorHandle *pHandle,
+                                           const SExtTableNode *pTable,
+                                           const SExtTableMeta *pCurrentMeta,
+                                           const char *const   *pTagNames,
+                                           int32_t              numTags,
+                                           const SNode         *pSeriesFilter,
+                                           const SNode         *pRowFilter,
+                                           bool                 first,
+                                           int8_t               precision,
+                                           SSDataBlock        **ppOut);
+// Same as extConnectorInfluxV1SeriesSnapshot, with an inclusive lower time
+// bound in the stream precision.  The batch first-point probe uses this to ask
+// once for every series' first point after the common watermark.
+int32_t extConnectorInfluxV1SeriesSnapshotAfter(SExtConnectorHandle *pHandle,
+                                                const SExtTableNode *pTable,
+                                                const SExtTableMeta *pCurrentMeta,
+                                                const char *const   *pTagNames,
+                                                int32_t              numTags,
+                                                const SNode         *pSeriesFilter,
+                                                const SNode         *pRowFilter,
+                                                bool                 first,
+                                                int8_t               precision,
+                                                int64_t              timeLower,
+                                                SSDataBlock        **ppOut);
+
+// Render from known metadata without opening a connection. The caller owns the returned SQL.
+int32_t extConnectorRenderInfluxV1SQL(const SExtInfluxScanSpec *pSpec, const SExtTableMeta *pMeta,
+                                     const char *database, const char *rp, bool *pEmpty, char **ppSQL);
 
 // ---------------------------------------------------------------------------
 // SExtConnectorModuleCfg  [DS section 6.2.6.1]

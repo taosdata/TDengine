@@ -64,9 +64,18 @@ extern "C" {
 
 /* Bump major only for an incompatible change; parsers reject unknown majors. */
 #define WLR_FORMAT_MAJOR 1
-/* Version 1.1 appends the monotonic clock-domain identity to segment headers.
- * Readers accept future minors of the same major; incompatible changes bump MAJOR. */
-#define WLR_FORMAT_MINOR 1
+/*
+ * Version history:
+ *   1.1  appends the monotonic clock-domain identity to segment headers.
+ *   1.2  adds the optional FETCH_CALLS tag: the recorder folds every fetch call
+ *        on one result into a single BEGIN/RETURN pair, and FETCH_CALLS says how
+ *        many original calls that pair represents. Optional, so a 1.1 reader
+ *        skips it by length; such a reader then sees FETCH_ROWS > 1 on a fetch
+ *        RETURN and reports a count mismatch rather than misreading the file.
+ *
+ * Readers accept future minors of the same major; incompatible changes bump MAJOR.
+ */
+#define WLR_FORMAT_MINOR 2
 
 /* Written as a u16; a reader seeing 0x0201 is looking at a foreign-endian file
  * produced by a non-conforming writer and must reject it rather than swap. */
@@ -354,6 +363,21 @@ typedef enum {
   WLR_TAG_AFFECTED_ROWS = 141,
   WLR_TAG_FETCH_ROWS = 142,
   WLR_TAG_DURATION_NS = 143,
+  /*
+   * How many original fetch calls one recorded fetch event pair represents.
+   *
+   * Fetch calls are folded per result: the first fetch on a result opens a call,
+   * the remaining fetches only increment counters, and the RETURN is emitted when
+   * the result is exhausted, fails, or is freed. Without this tag a folded RETURN
+   * is indistinguishable from a single call that returned N rows, and replay
+   * would issue one fetch and report a count mismatch on every projection query.
+   *
+   * Absent means "one call", which is what format 1.1 files always carry, so this
+   * is OPTIONAL and replay drivers must treat a missing tag as 1. The value counts
+   * calls, not rows: for a row-mode fetch it is one more than FETCH_ROWS, since
+   * the call that returns NULL is a call too.
+   */
+  WLR_TAG_FETCH_CALLS = 144,
 
   /* chunking */
   WLR_TAG_CHUNK_INDEX = 150,
@@ -473,6 +497,7 @@ typedef enum {
   WLR_E_WRITE = 3,          /* segment write/flush/fsync permanently failed */
   WLR_E_PAYLOAD_LIMIT = 4,  /* logical payload above WLR_MAX_LOGICAL_PAYLOAD */
   WLR_E_CONFIG = 5,         /* invalid or reserved startup parameter */
+  WLR_E_STATE = 6,          /* a previous session still owns the recorder; nothing started */
 } EWlrError;
 
 /* ---------------------------------------------------------- decode results */

@@ -36,8 +36,8 @@
 #include "stub.h"
 #include "tarray.h"
 #include "thash.h"
-#include "vnodeStreamVTable.h"
 #include "vnodeInt.h"
+#include "vnodeStreamVTable.h"
 
 // Stub: dmNotifyHdl is defined in mgmt_dnode which is not linked in this unit
 // test binary. Provide a minimal definition so the vnode object files resolve.
@@ -273,6 +273,47 @@ class VnodeStreamVTableMetadataTest : public testing::Test {
   SArray *cids_ = nullptr;
   SArray *infos_ = nullptr;
 };
+
+TEST_F(VnodeStreamVTableMetadataTest, TimeAlignRejectsUnprojectedColumnOwnColumnAndTagBeforeReply) {
+  readerInfo_.timeAlignConsumer = true;
+  readerInfo_.requireLocalVtableRefs = true;
+  item_.refType = 0;
+  readerInfo_.storageApi.metaReaderFn.getTableEntryByVersionUid = [](SMetaReader *reader, int64_t, tb_uid_t uid) {
+    reader->me = {};
+    reader->me.name = const_cast<char *>("child");
+    reader->me.type = TSDB_VIRTUAL_CHILD_TABLE;
+    auto *ref = static_cast<SColRef *>(tDecoderMalloc(&reader->coder, sizeof(SColRef)));
+    if (!ref) return TSDB_CODE_OUT_OF_MEMORY;
+    *ref = {};
+    ref->id = 3;
+    ref->hasRef = true;
+    tstrncpy(ref->refSourceName, "external", sizeof(ref->refSourceName));
+    if (uid == 1) {
+      reader->me.colRef.nCols = 1;
+      reader->me.colRef.pColRef = ref;
+    } else if (uid == 2) {
+      reader->me.own.nOwnCols = 1;
+      reader->me.own.pOwnColRefs = ref;
+    } else {
+      reader->me.colRef.nTagRefs = 1;
+      reader->me.colRef.pTagRef = ref;
+    }
+    return TSDB_CODE_SUCCESS;
+  };
+  // This stream only requested cid 2; none of the three external references is projected.
+  for (tb_uid_t uid : {1, 2, 3}) EXPECT_EQ(TSDB_CODE_STREAM_INVALID_TRIGGER, fill(uid, cids_));
+  readerInfo_.tableType = TSDB_SUPER_TABLE;
+  EXPECT_EQ(TSDB_CODE_SUCCESS, fill(2, cids_));  // A supertable cannot see the child's private column.
+}
+
+TEST_F(VnodeStreamVTableMetadataTest, TimeAlignPeriodChecksUnprojectedResolvedTerminal) {
+  readerInfo_.requireLocalVtableRefs = true;
+  *static_cast<col_id_t *>(taosArrayGet(cids_, 0)) = 3;
+  // The local view resolves cid 2 to an external terminal; cid 3 stays local.
+  EXPECT_EQ(TSDB_CODE_STREAM_INVALID_TRIGGER, fill(3, cids_));
+  item_.refType = 0;
+  EXPECT_EQ(TSDB_CODE_SUCCESS, fill(3, cids_));
+}
 
 TEST_F(VnodeStreamVTableMetadataTest, MissingMetadataAfterDecoderReleaseUsesOwnedResolvedCondition) {
   ASSERT_EQ(TSDB_CODE_SUCCESS, fill(1, cids_));
@@ -778,6 +819,19 @@ TEST(VnodeStreamVTableHelpers, tagValueEqual_ZeroLenEqual) {
   EXPECT_TRUE(tagValueEqual(&a, &b));
 }
 
+TEST(VnodeStreamVTableHelpers, tagValueEqual_EmptyStringDiffersFromNull) {
+  char      empty = 0;
+  STagValue a{};
+  a.type = TSDB_DATA_TYPE_BINARY;
+  a.pData = &empty;
+  STagValue b{};
+  b.type = TSDB_DATA_TYPE_BINARY;
+  EXPECT_FALSE(tagValueEqual(&a, &b));
+  EXPECT_FALSE(tagValueEqual(&b, &a));
+  b.pData = &empty;
+  EXPECT_TRUE(tagValueEqual(&a, &b));
+}
+
 TEST(VnodeStreamVTableHelpers, tagValueEqual_NullDataPointerCompare) {
   STagValue a{}; a.type = 1; a.nLen = 4; a.pData = nullptr;
   STagValue b{}; b.type = 1; b.nLen = 4; b.pData = nullptr;
@@ -884,6 +938,21 @@ TEST(VnodeStreamVTableHelpers, streamWriteRspItemDeepCopy_WithTagData) {
   taosMemoryFree(dst.tagData);
 }
 
+TEST(VnodeStreamVTableHelpers, streamWriteRspItemDeepCopy_EmptyString) {
+  char                     empty = 0;
+  SVTableRefResolveRspItem src{};
+  src.terminated = true;
+  src.nextRef.kind = STREAM_VREF_KIND_TAG;
+  src.tagType = TSDB_DATA_TYPE_NCHAR;
+  src.tagData = &empty;
+  SVTableRefResolveRspItem dst{};
+  ASSERT_EQ(0, streamWriteRspItemDeepCopy(&src, &dst));
+  EXPECT_NE(dst.tagData, nullptr);
+  EXPECT_NE(dst.tagData, src.tagData);
+  EXPECT_EQ(dst.tagLen, 0);
+  taosMemoryFree(dst.tagData);
+}
+
 TEST(VnodeStreamVTableHelpers, streamWriteRspItemDeepCopy_NullDataNonZeroLenSkipsCopy) {
   SVTableRefResolveRspItem src{};
   src.tagLen  = 8;
@@ -982,6 +1051,30 @@ TEST(VnodeStreamVTableHelpers, streamTblRefCache_InsertDeepCopiesTagData) {
   EXPECT_EQ((unsigned char)got->tagData[0], 9);
   EXPECT_EQ((unsigned char)got->tagData[4], 5);
   freeCache(pCache);
+}
+
+TEST(VnodeStreamVTableHelpers, streamTblRefCache_PreservesEmptyStringAndNull) {
+  SStreamVTableInfoCache *cache = makeEmptyCache();
+  ASSERT_NE(cache, nullptr);
+  char                     empty = 0;
+  SVTableRefResolveRspItem item{};
+  item.terminated = true;
+  item.nextRef.kind = STREAM_VREF_KIND_TAG;
+  item.tagType = TSDB_DATA_TYPE_BINARY;
+  item.tagData = &empty;
+  streamTblRefCacheInsert(cache, "db", "t", "empty", STREAM_VREF_KIND_TAG, &item);
+  item.tagData = nullptr;
+  streamTblRefCacheInsert(cache, "db", "t", "null", STREAM_VREF_KIND_TAG, &item);
+  auto *emptyValue = streamTblRefCacheLookup(cache, "db", "t", "empty", STREAM_VREF_KIND_TAG);
+  auto *nullValue = streamTblRefCacheLookup(cache, "db", "t", "null", STREAM_VREF_KIND_TAG);
+  ASSERT_NE(emptyValue, nullptr);
+  ASSERT_NE(nullValue, nullptr);
+  EXPECT_EQ(emptyValue->tagLen, 0);
+  EXPECT_NE(emptyValue->tagData, nullptr);
+  EXPECT_NE(emptyValue->tagData, &empty);
+  EXPECT_EQ(nullValue->tagLen, 0);
+  EXPECT_EQ(nullValue->tagData, nullptr);
+  freeCache(cache);
 }
 
 TEST(VnodeStreamVTableHelpers, streamTblRefCache_TagAndColShareKey_FirstWriterWins) {
@@ -1297,6 +1390,9 @@ class VnodeStreamSetTableTest : public ::testing::Test {
     request.base.type = static_cast<decltype(request.base.type)>(type);
     request.base.streamId = task_.task.streamId;
     request.base.readerTaskId = task_.task.taskId;
+    if (type == STRIGGER_PULL_TSDB_META || type == STRIGGER_PULL_TSDB_META_NEXT) {
+      request.tsdbMetaReq.order = TSDB_ORDER_ASC;
+    }
     int32_t length = tSerializeSTriggerPullRequest(nullptr, 0, &request.base);
     EXPECT_GT(length, 0);
     if (length <= 0) return TSDB_CODE_INVALID_MSG;
@@ -1366,10 +1462,219 @@ TEST_F(VnodeStreamSetTableTest, GroupColumnsDoNotRequireSetTable) {
   EXPECT_EQ(TSDB_CODE_STREAM_NO_CONTEXT, pull(STRIGGER_PULL_GROUP_COL_VALUE));
 }
 
+// Drive the real metadata request/session code; replace only the storage boundary.
+// A TSDB reader accepts one schema identity, even when all schemas have version 1.
+class VnodeStreamMetaSchemaTest : public VnodeStreamSetTableTest {
+ protected:
+  static VnodeStreamMetaSchemaTest *active_;
+  struct Reader {
+    SSDataBlock               *block;
+    std::vector<STableKeyInfo> tables;
+    size_t                     position = 0;
+    int32_t                    repeats = 0;
+  };
+
+  void SetUp() override {
+    VnodeStreamSetTableTest::SetUp();
+    active_ = this;
+    reader_.vTableReady = true;
+    ASSERT_EQ(0, initStreamTableListInfo(&reader_.vSetTableList, UIDMAP_SINGLE));
+    reader_.tsSchemas = taosArrayInit(1, sizeof(SSchema));
+    ASSERT_NE(nullptr, reader_.tsSchemas);
+    ASSERT_EQ(0, qStreamBuildSchema(reader_.tsSchemas, TSDB_DATA_TYPE_TIMESTAMP, sizeof(int64_t), 1));
+    reader_.streamTaskMap = taosHashInit(8, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT), false, HASH_NO_LOCK);
+    ASSERT_NE(nullptr, reader_.streamTaskMap);
+    taosHashSetFreeFp(reader_.streamTaskMap, releaseStreamTask);
+    reader_.storageApi.tsdReader.tsdReaderOpen = openReader;
+    reader_.storageApi.tsdReader.tsdReaderClose = closeReader;
+    reader_.storageApi.tsdReader.tsdNextDataBlock = nextBlock;
+    reader_.storageApi.tsdReader.tsdReaderReleaseDataBlock = [](void *) {};
+    stub_.set(tmsgSendRsp, captureResponse);
+  }
+
+  void TearDown() override {
+    taosHashCleanup(reader_.streamTaskMap);
+    EXPECT_EQ(opens_, closes_);
+    taosArrayDestroy(reader_.tsSchemas);
+    active_ = nullptr;
+    VnodeStreamSetTableTest::TearDown();
+  }
+
+  void addTable(uint64_t uid, uint64_t suid) { ASSERT_EQ(0, qStreamSetTableList(&reader_.vSetTableList, uid, suid)); }
+
+  static int32_t openReader(void *, SQueryTableDataCond *cond, void *list, int32_t count, SSDataBlock *block,
+                            void **out, const char *, SHashObj **) {
+    auto *self = active_;
+    *out = nullptr;
+    if (self->failOpen_ == self->opens_ + 1) return TSDB_CODE_OUT_OF_MEMORY;
+    auto *tables = static_cast<STableKeyInfo *>(list);
+    for (int32_t i = 0; i < count; ++i) {
+      EXPECT_EQ(tables[i].groupId, cond->suid);
+      EXPECT_NE(0, tables[i].uid);
+      if (cond->suid == 0) EXPECT_EQ(1, count);
+    }
+    EXPECT_EQ(TSDB_ORDER_ASC, cond->order);
+    EXPECT_EQ(0, cond->endVersion);
+    EXPECT_EQ(self->opens_, self->closes_);
+    auto *reader = &self->currentReader_;
+    *reader = Reader{};
+    reader->block = block;
+    if (count > 0) reader->tables.assign(tables, tables + count);
+    *out = reader;
+    ++self->opens_;
+    return 0;
+  }
+
+  static void closeReader(void *handle) {
+    if (handle == nullptr) return;
+    EXPECT_EQ(&active_->currentReader_, handle);
+    active_->currentReader_.tables.clear();
+    ++active_->closes_;
+  }
+
+  static int32_t nextBlock(void *handle, bool *hasNext) {
+    auto *reader = static_cast<Reader *>(handle);
+    if (active_->failRead_) return TSDB_CODE_OUT_OF_MEMORY;
+    *hasNext = reader->position < reader->tables.size();
+    if (!*hasNext) return 0;
+    reader->block->info.id.uid = reader->tables[reader->position].uid;
+    reader->block->info.rows = 2;
+    reader->block->info.window.skey = 10;
+    reader->block->info.window.ekey = 20;
+    if (++reader->repeats >= active_->blocksPerTable_) {
+      ++reader->position;
+      reader->repeats = 0;
+    }
+    return 0;
+  }
+
+  static void captureResponse(SRpcMsg *response) {
+    gPullResponseCode = response->code;
+    ++gPullResponseCount;
+    if (response->code == 0 && response->contLen > 0) {
+      SSDataBlock block = {};
+      const char *end = nullptr;
+      EXPECT_EQ(0, blockDecodeBounded(&block, static_cast<const char *>(response->pCont), response->contLen, &end));
+      auto *uids = static_cast<SColumnInfoData *>(taosArrayGet(block.pDataBlock, 2));
+      for (int32_t i = 0; i < block.info.rows; ++i) {
+        active_->uids_.push_back(*reinterpret_cast<uint64_t *>(colDataGetData(uids, i)));
+      }
+      blockDataFreeRes(&block);
+    }
+    rpcFreeCont(response->pCont);
+  }
+
+  void mockEmptyFirstLastScan() {
+    stub_.set(tmsgSendRsp, capturePullResponse);
+    reader_.storageApi.tsdReader.tsdCreateFirstLastTsIter = [](void *, STimeWindow *, SVersionRange *, uint64_t suid,
+                                                               void *, int32_t count, int32_t, void **out,
+                                                               const char *) -> int32_t {
+      EXPECT_EQ(0, suid);
+      EXPECT_EQ(1, count);
+      *out = active_;
+      ++active_->opens_;
+      return 0;
+    };
+    reader_.storageApi.tsdReader.tsdNextFirstLastTsBlock = [](void *, SSDataBlock *, bool *hasNext) -> int32_t {
+      *hasNext = false;
+      return 0;
+    };
+    reader_.storageApi.tsdReader.tsdDestroyFirstLastTsIter = [](void *) { ++active_->closes_; };
+  }
+
+  int32_t               opens_ = 0;
+  int32_t               closes_ = 0;
+  int32_t               failOpen_ = 0;
+  int32_t               blocksPerTable_ = 1;
+  bool                  failRead_ = false;
+  Reader                currentReader_;
+  std::vector<uint64_t> uids_;
+};
+
+VnodeStreamMetaSchemaTest *VnodeStreamMetaSchemaTest::active_ = nullptr;
+
+TEST_F(VnodeStreamMetaSchemaTest, SeparatesSchemasAndKeepsSiblingTablesTogether) {
+  addTable(101, 1000);
+  addTable(201, 2000);
+  addTable(102, 1000);
+  ASSERT_EQ(0, pull(STRIGGER_PULL_TSDB_META));
+  std::sort(uids_.begin(), uids_.end());
+  EXPECT_EQ((std::vector<uint64_t>{101, 102, 201}), uids_);
+  EXPECT_EQ(2, opens_);
+  EXPECT_EQ(0, taosHashGetSize(reader_.streamTaskMap));
+}
+
+TEST_F(VnodeStreamMetaSchemaTest, IsolatesOrdinaryTablesWithZeroSuid) {
+  addTable(101, 0);
+  addTable(102, 0);
+  ASSERT_EQ(0, pull(STRIGGER_PULL_TSDB_META));
+  EXPECT_EQ((std::vector<uint64_t>{101, 102}), uids_);
+  EXPECT_EQ(2, opens_);
+}
+
+TEST_F(VnodeStreamMetaSchemaTest, ContinuationRetainsOriginalTableSnapshot) {
+  addTable(101, 1000);
+  addTable(201, 2000);
+  blocksPerTable_ = STREAM_RETURN_ROWS_NUM;
+  ASSERT_EQ(0, pull(STRIGGER_PULL_TSDB_META));
+  ASSERT_EQ(STREAM_RETURN_ROWS_NUM, uids_.size());
+  EXPECT_EQ(1, taosHashGetSize(reader_.streamTaskMap));
+  qStreamClearTableInfo(&reader_.vSetTableList);
+  addTable(301, 3000);
+  ASSERT_EQ(0, pull(STRIGGER_PULL_TSDB_META_NEXT));
+  ASSERT_EQ(2 * STREAM_RETURN_ROWS_NUM, uids_.size());
+  EXPECT_EQ(101, uids_.front());
+  EXPECT_EQ(201, uids_.back());
+  ASSERT_EQ(0, pull(STRIGGER_PULL_TSDB_META_NEXT));
+  EXPECT_EQ(0, taosHashGetSize(reader_.streamTaskMap));
+  EXPECT_EQ(2, opens_);
+}
+
+TEST_F(VnodeStreamMetaSchemaTest, EmptySnapshotFinishesWithoutRows) {
+  ASSERT_EQ(0, pull(STRIGGER_PULL_TSDB_META));
+  EXPECT_TRUE(uids_.empty());
+  EXPECT_EQ(0, taosHashGetSize(reader_.streamTaskMap));
+}
+
+TEST_F(VnodeStreamMetaSchemaTest, LaterGroupOpenFailureReleasesSession) {
+  addTable(101, 1000);
+  addTable(201, 2000);
+  failOpen_ = 2;
+  EXPECT_EQ(TSDB_CODE_OUT_OF_MEMORY, pull(STRIGGER_PULL_TSDB_META));
+  EXPECT_EQ(0, taosHashGetSize(reader_.streamTaskMap));
+  EXPECT_EQ(opens_, closes_);
+}
+
+TEST_F(VnodeStreamMetaSchemaTest, ReadFailureReleasesSession) {
+  addTable(101, 1000);
+  failRead_ = true;
+  EXPECT_EQ(TSDB_CODE_OUT_OF_MEMORY, pull(STRIGGER_PULL_TSDB_META));
+  EXPECT_EQ(0, taosHashGetSize(reader_.streamTaskMap));
+  EXPECT_EQ(opens_, closes_);
+}
+
+TEST_F(VnodeStreamMetaSchemaTest, DeletedSnapshotEntriesAreNotRead) {
+  addTable(101, 1000);
+  addTable(201, 2000);
+  ASSERT_EQ(0, qStreamRemoveTableList(&reader_.vSetTableList, 101));
+  ASSERT_EQ(0, pull(STRIGGER_PULL_TSDB_META));
+  EXPECT_EQ((std::vector<uint64_t>{201}), uids_);
+  EXPECT_EQ(1, opens_);
+}
+
+TEST_F(VnodeStreamMetaSchemaTest, LastTimestampAlsoIsolatesOrdinarySchemas) {
+  addTable(101, 0);
+  addTable(102, 0);
+  mockEmptyFirstLastScan();
+  ASSERT_EQ(0, pull(STRIGGER_PULL_LAST_TS));
+  EXPECT_EQ(2, opens_);
+}
+
 // Exercise serialized Reader requests against real WAL segments, including
 // retention between the index and data passes.
 class VnodeStreamWalRecoveryTest : public VnodeStreamSetTableTest {
  protected:
+  virtual bool txnFiles() const { return false; }
   static void SetUpTestCase() { ASSERT_EQ(0, walInit(nullptr)); }
   static void TearDownTestCase() { walCleanUp(); }
 
@@ -1377,9 +1682,11 @@ class VnodeStreamWalRecoveryTest : public VnodeStreamSetTableTest {
     VnodeStreamSetTableTest::SetUp();
     active_ = this;
     reader_.vTableReady = true;
+    vnode_.config.tsdbCfg.keep2 = 100 * 365 * 24 * 60;
     path_ = std::string(TD_TMP_DIR_PATH) + "stream-wal-recovery-" + std::to_string(taosGetTimestampUs());
     SWalCfg cfg = {};
     cfg.vgId = 7;
+    cfg.enableTxnFile = txnFiles();
     cfg.committed = -1;
     cfg.rollPeriod = -1;
     cfg.segSize = 1;
@@ -1428,6 +1735,10 @@ class VnodeStreamWalRecoveryTest : public VnodeStreamSetTableTest {
 
   void TearDown() override {
     stub_.reset(walFetchHead);
+    stub_.reset(walNextValidMsg);
+    stub_.reset(walReaderSeekVer);
+    stub_.reset(taosClockGetTime);
+    blockDataDestroy(static_cast<SSDataBlock *>(reader_.metaBlock));
     blockDataDestroy(reader_.triggerBlock);
     taosHashCleanup(reader_.triggerTableSchemaMapVTable);
     taosMemoryFree(schema_);
@@ -1438,9 +1749,8 @@ class VnodeStreamWalRecoveryTest : public VnodeStreamSetTableTest {
     VnodeStreamSetTableTest::TearDown();
   }
 
-  void append(int64_t ver, int64_t uid = 101) {
-    SSubmitReq2 submit = {};
-    submit.aSubmitTbData = taosArrayInit(1, sizeof(SSubmitTbData));
+  void append(int64_t ver, int64_t uid = 101, std::initializer_list<int64_t> offsets = {0},
+              int8_t dataFlag = CV_FLAG_VALUE) {
     SSubmitTbData table = {};
     table.uid = uid;
     table.sver = 1;
@@ -1451,12 +1761,49 @@ class VnodeStreamWalRecoveryTest : public VnodeStreamSetTableTest {
       tColDataInit(&column, cid, cid == 1 ? TSDB_DATA_TYPE_TIMESTAMP : TSDB_DATA_TYPE_BIGINT, 0);
       SColVal value = {};
       value.cid = cid;
-      value.flag = CV_FLAG_VALUE;
+      value.flag = cid == 1 ? CV_FLAG_VALUE : dataFlag;
       value.value.type = column.type;
-      value.value.val = (cid == 1 ? 1000 : 2000) + ver;
-      ASSERT_EQ(0, tColDataAppendValue(&column, &value));
+      for (int64_t offset : offsets) {
+        value.value.val = (cid == 1 ? 1000 : 2000) + ver + offset;
+        ASSERT_EQ(0, tColDataAppendValue(&column, &value));
+      }
       ASSERT_NE(nullptr, taosArrayPush(table.aCol, &column));
     }
+    appendSubmit(ver, table);
+  }
+
+  void appendRows(int64_t ver, int64_t uid, std::initializer_list<int64_t> timestamps,
+                  std::initializer_list<int8_t> flags = {}) {
+    SSubmitTbData table{};
+    table.uid = uid;
+    table.sver = 1;
+    table.aRowP = taosArrayInit(timestamps.size(), sizeof(SRow *));
+    ASSERT_TRUE(flags.size() == 0 || flags.size() == timestamps.size());
+    auto flag = flags.begin();
+    for (int64_t ts : timestamps) {
+      SColVal vals[2]{};
+      vals[0].cid = PRIMARYKEY_TIMESTAMP_COL_ID;
+      vals[0].value.type = TSDB_DATA_TYPE_TIMESTAMP;
+      vals[0].value.val = ts;
+      vals[1].cid = 2;
+      if (flag != flags.end()) vals[1].flag = *flag++;
+      vals[1].value.type = TSDB_DATA_TYPE_BIGINT;
+      vals[1].value.val = ts + 1000;
+      SArray cells{};
+      cells.size = cells.capacity = 2;
+      cells.elemSize = sizeof(SColVal);
+      cells.pData = vals;
+      SRowBuildScanInfo scan{};
+      SRow             *row = nullptr;
+      ASSERT_EQ(0, tRowBuild(&cells, schema_, &row, &scan));
+      ASSERT_NE(nullptr, taosArrayPush(table.aRowP, &row));
+    }
+    appendSubmit(ver, table);
+  }
+
+  void appendSubmit(int64_t ver, SSubmitTbData &table) {
+    SSubmitReq2 submit{};
+    submit.aSubmitTbData = taosArrayInit(1, sizeof(SSubmitTbData));
     ASSERT_NE(nullptr, taosArrayPush(submit.aSubmitTbData, &table));
     int32_t length = 0;
     int32_t code = 0;
@@ -1478,6 +1825,75 @@ class VnodeStreamWalRecoveryTest : public VnodeStreamSetTableTest {
     ASSERT_EQ(0, walBeginSnapshot(vnode_.pWal, ver - 1, 0));
     ASSERT_EQ(0, walEndSnapshot(vnode_.pWal, false));
     ASSERT_EQ(ver, walGetFirstVer(vnode_.pWal));
+  }
+
+  void appendAt(int64_t ver, int64_t ingestUs) {
+    ingestUs_ = ingestUs;
+    stub_.set(taosClockGetTime, ingestTime);
+    append(ver);
+    stub_.reset(taosClockGetTime);
+    ASSERT_EQ(ingestUs, vnode_.pWal->writeHead.head.ingestTs);
+  }
+
+  void requestMeta(int64_t cursor, int64_t cutoffNs, int32_t expectedCode, int64_t expectedCursor,
+                   std::initializer_list<int64_t> expectedVersions, int64_t widthRefreshVer = -1) {
+    SSTriggerPullRequestUnion req = {};
+    req.base.type = STRIGGER_PULL_WAL_META_NEW;
+    req.base.streamId = task_.task.streamId;
+    req.base.readerTaskId = task_.task.taskId;
+    req.walMetaNewReq.lastVer = cursor;
+    req.walMetaNewReq.ctime = cutoffNs;
+    int32_t length = tSerializeSTriggerPullRequest(nullptr, 0, &req.base);
+    ASSERT_GT(length, 0);
+    std::vector<char> content(sizeof(SMsgHead) + length);
+    ASSERT_EQ(length, tSerializeSTriggerPullRequest(content.data() + sizeof(SMsgHead), length, &req.base));
+    SRpcMsg msg = {};
+    msg.msgType = TDMT_STREAM_TRIGGER_PULL;
+    msg.pCont = content.data();
+    msg.contLen = static_cast<int32_t>(content.size());
+    response_.clear();
+    gPullResponseCount = 0;
+    const int32_t code = vnodeProcessStreamReaderMsg(&vnode_, &msg, nullptr);
+    ASSERT_EQ(expectedCode == TSDB_CODE_STREAM_NO_DATA ? 0 : expectedCode, code);
+    ASSERT_EQ(1, gPullResponseCount);
+    ASSERT_EQ(expectedCode, gPullResponseCode);
+    if (expectedCode == TSDB_CODE_STREAM_NO_DATA) {
+      ASSERT_EQ(2 * sizeof(int64_t), response_.size());
+      int64_t nextVer = -1;
+      memcpy(&nextVer, response_.data(), sizeof(nextVer));
+      EXPECT_EQ(expectedCursor, nextVer);
+    } else if (expectedCode == 0) {
+      SSDataBlock        meta = {};
+      SSDataBlock        deleted = {};
+      SSDataBlock        tables = {};
+      SSTriggerWalNewRsp rsp = {};
+      rsp.metaBlock = &meta;
+      rsp.deleteBlock = &deleted;
+      rsp.tableBlock = &tables;
+      EXPECT_EQ(0, tDeserializeSStreamWalDataResponse(response_.data(), response_.size(), &rsp, nullptr));
+      EXPECT_EQ(expectedCursor, rsp.ver);
+      if (widthRefreshVer >= 0) {
+        EXPECT_EQ(1, tables.info.rows);
+        if (tables.info.rows == 1) {
+          auto *version = static_cast<SColumnInfoData *>(taosArrayGet(tables.pDataBlock, 1));
+          auto *kind = static_cast<SColumnInfoData *>(taosArrayGet(tables.pDataBlock, 2));
+          EXPECT_EQ(widthRefreshVer, *reinterpret_cast<int64_t *>(colDataGetData(version, 0)));
+          EXPECT_EQ(TABLE_BLOCK_REFRESH_WIDTH, *reinterpret_cast<int8_t *>(colDataGetData(kind, 0)));
+        }
+      }
+      EXPECT_EQ(expectedVersions.size(), meta.info.rows);
+      std::vector<int64_t> actual;
+      if (meta.info.rows > 0) {
+        auto *versions = static_cast<SColumnInfoData *>(taosArrayGet(meta.pDataBlock, 3));
+        for (int32_t i = 0; i < meta.info.rows; ++i) {
+          actual.push_back(*reinterpret_cast<int64_t *>(colDataGetData(versions, i)));
+        }
+      }
+      EXPECT_EQ(std::vector<int64_t>(expectedVersions), actual);
+      blockDataFreeRes(&meta);
+      blockDataFreeRes(&deleted);
+      blockDataFreeRes(&tables);
+    }
   }
 
   void request(int32_t type, std::initializer_list<int64_t> versions, int32_t expectedCode,
@@ -1568,7 +1984,43 @@ class VnodeStreamWalRecoveryTest : public VnodeStreamSetTableTest {
     return code;
   }
 
+  static int32_t checkReadBeforeEnd(SWalReader *reader, bool meta) {
+    if (reader->curVersion >= 1) return TSDB_CODE_WAL_FILE_CORRUPTED;
+    active_->stub_.reset(walNextValidMsg);
+    int32_t code = walNextValidMsg(reader, meta);
+    active_->stub_.set(walNextValidMsg, checkReadBeforeEnd);
+    return code;
+  }
+
+  static STSchema *replaySchema(SMeta *, tb_uid_t uid, int32_t version, int) {
+    if (uid != 101 || version != active_->schema_->version) return nullptr;
+    size_t size = sizeof(STSchema) + active_->schema_->numOfCols * sizeof(STColumn);
+    auto  *schema = static_cast<STSchema *>(taosMemoryMalloc(size));
+    if (schema) memcpy(schema, active_->schema_, size);
+    return schema;
+  }
+
   static int32_t failedHead(SWalReader *, int64_t) { return active_->headError_; }
+  static int32_t advanceAfterCaughtUp(SWalReader *reader, bool scanMeta) {
+    active_->stub_.reset(walNextValidMsg);
+    int32_t code = walNextValidMsg(reader, scanMeta);
+    if (code == TSDB_CODE_WAL_LOG_NOT_EXIST) walApplyVer(reader->pWal, 1);
+    active_->stub_.set(walNextValidMsg, advanceAfterCaughtUp);
+    return code;
+  }
+
+  static int32_t appendAfterSeekEnd(SWalReader *reader, int64_t ver) {
+    active_->stub_.reset(walReaderSeekVer);
+    int32_t code = walReaderSeekVer(reader, ver);
+    if (code == TSDB_CODE_WAL_LOG_NOT_EXIST) active_->append(0);
+    return code;
+  }
+
+  static int32_t ingestTime(int, struct timespec *time) {
+    time->tv_sec = active_->ingestUs_ / 1000000;
+    time->tv_nsec = (active_->ingestUs_ % 1000000) * 1000;
+    return 0;
+  }
 
   static VnodeStreamWalRecoveryTest *active_;
   std::string                        path_;
@@ -1578,9 +2030,743 @@ class VnodeStreamWalRecoveryTest : public VnodeStreamSetTableTest {
   int32_t                            headCalls_ = 0;
   int32_t                            recycleAt_ = 0;
   int32_t                            headError_ = 0;
+  int64_t                            ingestUs_ = 0;
 };
 
 VnodeStreamWalRecoveryTest *VnodeStreamWalRecoveryTest::active_ = nullptr;
+
+class VnodeStreamWidthTxnTest : public VnodeStreamWalRecoveryTest {
+ protected:
+  bool txnFiles() const override { return true; }
+  void TearDown() override {
+    RecordProperty("schema_reads", static_cast<int>(schemaUids.size()));
+    RecordProperty("name_index_reads", nameReads);
+    taosArrayDestroy(reader_.timeAlignWidthTxns);
+    VnodeStreamWalRecoveryTest::TearDown();
+  }
+  void SetUp() override {
+    VnodeStreamWalRecoveryTest::SetUp();
+    reader_.pVnode = &vnode_;
+    reader_.timeAlignConsumer = true;
+    reader_.tableType = TSDB_VIRTUAL_NORMAL_TABLE;
+    auto *value = static_cast<SColumnInfoData *>(taosArrayGet(reader_.triggerBlock->pDataBlock, 1));
+    value->info.type = TSDB_DATA_TYPE_VARCHAR;
+    value->info.bytes = 16;
+    stub_.set(
+        metaGetTbTSchema, +[](SMeta *, tb_uid_t uid, int32_t, int) -> STSchema * {
+          auto *self = static_cast<VnodeStreamWidthTxnTest *>(active_);
+          self->schemaUids.push_back(uid);
+          SSchema cols[2] = {};
+          cols[0].colId = 1;
+          cols[0].type = TSDB_DATA_TYPE_TIMESTAMP;
+          cols[0].bytes = sizeof(int64_t);
+          cols[1].colId = 2;
+          cols[1].type = TSDB_DATA_TYPE_VARCHAR;
+          cols[1].bytes = self->wider && (uid == 102 || uid == 204) ? 64 : 16;
+          return tBuildTSchema(cols, 2, 1);
+        });
+    stub_.set(
+        metaGetTableUidByName, +[](void *, char *name, uint64_t *uid, int64_t) -> int {
+          auto *self = static_cast<VnodeStreamWidthTxnTest *>(active_);
+          ++self->nameReads;
+          *uid = strcmp(name, "installed") == 0 ? 102 : 901;
+          return 0;
+        });
+  }
+
+  void appendTxn(int64_t ver, txn_id_t txn, tmsg_t type, const char *name = nullptr, tb_uid_t suid = 204) {
+    std::vector<char> body(sizeof(SMsgHead) + 512);
+    auto             *payload = reinterpret_cast<uint8_t *>(body.data()) + sizeof(SMsgHead);
+    int32_t           length = 0;
+    if (type == TDMT_VND_ALTER_TABLE) {
+      SVAlterTbReq alter{};
+      alter.tbName = const_cast<char *>(name);
+      alter.action = TSDB_ALTER_TABLE_UPDATE_COLUMN_BYTES;
+      alter.colName = const_cast<char *>("v");
+      alter.colModType = TSDB_DATA_TYPE_VARCHAR;
+      alter.colModBytes = 64;
+      alter.txnId = txn;
+      SEncoder encoder{};
+      tEncoderInit(&encoder, payload, 512);
+      ASSERT_EQ(0, tEncodeSVAlterTbReq(&encoder, &alter));
+      length = encoder.pos;
+      tEncoderClear(&encoder);
+    } else if (type == TDMT_VND_TXN_COMMIT) {
+      SVTxnCommitReq req{};
+      req.txnId = txn;
+      length = tSerializeSVTxnCommitReq(payload, 512, &req);
+    } else if (type == TDMT_VND_TXN_ROLLBACK) {
+      SVTxnRollbackReq req{};
+      req.txnId = txn;
+      length = tSerializeSVTxnRollbackReq(payload, 512, &req);
+    } else {
+      ASSERT_TRUE(type == TDMT_VND_CREATE_STB || type == TDMT_VND_ALTER_STB);
+      SVCreateStbReq stable{};
+      stable.name = const_cast<char *>("source");
+      stable.suid = suid;
+      stable.txnId = txn;
+      SEncoder encoder{};
+      tEncoderInit(&encoder, payload, 512);
+      ASSERT_EQ(0, tEncodeSVCreateStbReq(&encoder, &stable));
+      length = encoder.pos;
+      tEncoderClear(&encoder);
+    }
+    ASSERT_GE(length, 0);
+    SWalSyncInfo sync{};
+    ASSERT_EQ(0, walAppendLog(vnode_.pWal, ver, type, sync, body.data(), sizeof(SMsgHead) + length, txn, nullptr));
+    ASSERT_EQ(0, walCommit(vnode_.pWal, ver));
+    walApplyVer(vnode_.pWal, ver);
+  }
+
+  bool                  wider = false;
+  int                   nameReads = 0;
+  std::vector<tb_uid_t> schemaUids;
+};
+
+TEST_F(VnodeStreamWidthTxnTest, UnrelatedCommitAndRollbackDoNotReadInstalledSchemas) {
+  appendTxn(0, 10, TDMT_VND_CREATE_STB);
+  appendTxn(1, 10, TDMT_VND_TXN_COMMIT);
+  requestMeta(0, INT64_MAX, TSDB_CODE_STREAM_NO_DATA, 2, {});
+  EXPECT_EQ(0, nameReads);
+  EXPECT_TRUE(schemaUids.empty());
+  RecordProperty("unrelated_commit_full_schema_reads", static_cast<int>(schemaUids.size()));
+  RecordProperty("unrelated_commit_name_index_reads", nameReads);
+  appendTxn(2, 11, TDMT_VND_ALTER_TABLE, "installed");
+  appendTxn(3, 11, TDMT_VND_TXN_ROLLBACK);
+  requestMeta(2, INT64_MAX, TSDB_CODE_STREAM_NO_DATA, 4, {});
+  EXPECT_EQ(1, nameReads);
+  EXPECT_TRUE(schemaUids.empty());
+}
+
+TEST_F(VnodeStreamWidthTxnTest, ResumeChecksOnlyCommittedSourceAgainstCurrentBinding) {
+  int64_t key[2] = {0, 102};
+  ASSERT_EQ(0, tSimpleHashRemove(reader_.uidHashTrigger, key, sizeof(key)));
+  appendTxn(0, 10, TDMT_VND_ALTER_TABLE, "outside");
+  appendTxn(1, 11, TDMT_VND_ALTER_TABLE, "installed");
+  appendTxn(2, 10, TDMT_VND_TXN_COMMIT);
+  requestMeta(0, INT64_MAX, TSDB_CODE_STREAM_NO_DATA, 3, {});
+  EXPECT_TRUE(schemaUids.empty());
+  EXPECT_EQ(2, nameReads);
+  RecordProperty("unbound_widen_commit_full_schema_reads", static_cast<int>(schemaUids.size()));
+  wider = true;
+  ASSERT_EQ(0, tSimpleHashPut(reader_.uidHashTrigger, key, sizeof(key), &columns_, sizeof(columns_)));
+  appendTxn(3, 11, TDMT_VND_TXN_COMMIT);
+  requestMeta(3, INT64_MAX, 0, 4, {}, 3);
+  EXPECT_EQ(std::vector<tb_uid_t>({102}), schemaUids);
+}
+
+TEST_F(VnodeStreamWidthTxnTest, StartingAtCommitReconcilesMissingPrepare) {
+  appendTxn(0, 11, TDMT_VND_ALTER_TABLE, "installed");
+  appendTxn(1, 11, TDMT_VND_TXN_COMMIT);
+  wider = true;
+  requestMeta(1, INT64_MAX, 0, 2, {}, 1);
+  EXPECT_EQ(std::vector<tb_uid_t>({101, 102}), schemaUids);
+}
+
+TEST_F(VnodeStreamWidthTxnTest, GapDropsPreviouslyObservedBegin) {
+  appendTxn(0, 10, TDMT_VND_CREATE_STB);
+  requestMeta(0, INT64_MAX, TSDB_CODE_STREAM_NO_DATA, 1, {});
+  appendTxn(1, 10, TDMT_VND_ALTER_TABLE, "installed");
+  appendTxn(2, 10, TDMT_VND_TXN_COMMIT);
+  wider = true;
+  requestMeta(2, INT64_MAX, 0, 3, {}, 2);
+  EXPECT_EQ(std::vector<tb_uid_t>({101, 102}), schemaUids);
+}
+
+TEST_F(VnodeStreamWidthTxnTest, ParentSchemaForSeveralChildrenIsReadOnce) {
+  ASSERT_EQ(0, initStreamTableListInfo(&reader_.vSetTableList, UIDMAP_SINGLE));
+  for (int64_t child : {301LL, 302LL}) {
+    int64_t key[2] = {204, child};
+    ASSERT_EQ(0, tSimpleHashPut(reader_.uidHashTrigger, key, sizeof(key), &columns_, sizeof(columns_)));
+  }
+  ASSERT_EQ(0, qBuildVTableList(&reader_));
+  appendTxn(0, 11, TDMT_VND_ALTER_STB);
+  appendTxn(1, 11, TDMT_VND_ALTER_STB);
+  appendTxn(2, 11, TDMT_VND_TXN_COMMIT);
+  wider = true;
+  requestMeta(0, INT64_MAX, 0, 3, {}, 2);
+  EXPECT_EQ(0, nameReads);
+  EXPECT_EQ(std::vector<tb_uid_t>({204}), schemaUids);
+}
+
+TEST_F(VnodeStreamWidthTxnTest, ReconcilesWhenTransactionExceedsCandidateCapacity) {
+  // Greater than the eight distinct schemas retained per transaction.
+  for (int i = 0; i < 9; ++i) appendTxn(i, 11, TDMT_VND_ALTER_STB, nullptr, 400 + i);
+  appendTxn(9, 11, TDMT_VND_ALTER_TABLE, "installed");
+  appendTxn(10, 11, TDMT_VND_TXN_COMMIT);
+  wider = true;
+  requestMeta(0, INT64_MAX, 0, 11, {}, 10);
+  EXPECT_EQ(std::vector<tb_uid_t>({101, 102}), schemaUids);
+}
+
+class VnodeStreamTimeAlignWalTest : public VnodeStreamWalRecoveryTest {
+ protected:
+  void SetUp() override {
+    VnodeStreamWalRecoveryTest::SetUp();
+    vnode_.pWal->cfg.segSize = 1024 * 1024;
+    reader_.timeAlignConsumer = true;
+  }
+
+  void TearDown() override {
+    taosHashCleanup(reader_.pTimeAlignRounds);
+    EXPECT_EQ(0, taosHashGetSize(vnode_.pWal->pRefHash));
+    VnodeStreamWalRecoveryTest::TearDown();
+  }
+
+  void appendDelete(int64_t ver, std::vector<int64_t> targets, int64_t firstTs, int64_t lastTs) {
+    SDeleteRes erased{};
+    SArray     uids{};
+    uids.size = uids.capacity = targets.size();
+    uids.elemSize = sizeof(int64_t);
+    uids.pData = targets.data();
+    erased.uidList = &uids;
+    erased.skey = firstTs;
+    erased.ekey = lastTs;
+    int32_t len = 0, code = 0;
+    tEncodeSize(tEncodeDeleteRes, &erased, len, code);
+    ASSERT_EQ(0, code);
+    std::vector<char> body(sizeof(SMsgHead) + len);
+    SEncoder          enc{};
+    tEncoderInit(&enc, reinterpret_cast<uint8_t *>(body.data()) + sizeof(SMsgHead), len);
+    ASSERT_EQ(0, tEncodeDeleteRes(&enc, &erased));
+    tEncoderClear(&enc);
+    SWalSyncInfo sync{};
+    ASSERT_EQ(0, walAppendLog(vnode_.pWal, ver, TDMT_VND_DELETE, sync, body.data(), body.size(), 0, nullptr));
+    ASSERT_EQ(0, walCommit(vnode_.pWal, ver));
+    walApplyVer(vnode_.pWal, ver);
+  }
+
+  int32_t request(SSTriggerPullRequestUnion &req) {
+    req.base.streamId = task_.task.streamId;
+    req.base.readerTaskId = task_.task.taskId;
+    if (!req.base.sessionId) req.base.sessionId = STREAM_TRIGGER_HISTORY_SESSIONID;
+    int32_t len = tSerializeSTriggerPullRequest(nullptr, 0, &req.base);
+    if (len <= 0) return len;
+    std::vector<char> wire(sizeof(SMsgHead) + len);
+    EXPECT_EQ(len, tSerializeSTriggerPullRequest(wire.data() + sizeof(SMsgHead), len, &req.base));
+    SRpcMsg msg{};
+    msg.msgType = TDMT_STREAM_TRIGGER_PULL;
+    msg.pCont = wire.data();
+    msg.contLen = wire.size();
+    response_.clear();
+    return vnodeProcessStreamReaderMsg(&vnode_, &msg, nullptr);
+  }
+};
+
+TEST_F(VnodeStreamTimeAlignWalTest, ForeignSubmitsDeletesAndLaterRowsDoNotChangeTheFrozenPrefix) {
+  for (int64_t ver = 0; ver < 255; ++ver) append(ver, 102);
+  appendDelete(255, {101}, 500, 500);
+  int64_t uid = 101;
+  SArray  uids{};
+  uids.size = uids.capacity = 1;
+  uids.elemSize = sizeof(uid);
+  uids.pData = &uid;
+  append(256, 101);
+  vnode_.state.applied = 256;
+  SSTriggerPullRequestUnion bound{};
+  bound.base.type = STRIGGER_PULL_TIME_ALIGN_BOUND;
+  bound.timeAlignRoundReq.roundId = 12;
+  bound.timeAlignRoundReq.window = {INT64_MIN, INT64_MAX};
+  ASSERT_EQ(0, request(bound));
+  // A later submit must stay beyond the captured cut even across retries.
+  append(257, 101);
+  SSTriggerPullRequestUnion probe{};
+  probe.base.type = STRIGGER_PULL_TIME_ALIGN_WAL_RANGE;
+  probe.walRangeReq.roundId = 12;
+  probe.walRangeReq.uids = &uids;
+  probe.walRangeReq.throughTs = 1256;
+  probe.walRangeReq.selectionId = 17;
+  ASSERT_EQ(0, request(probe));
+  SSTriggerTimeAlignWalRangeRsp reply{};
+  ASSERT_EQ(0, tDeserializeSTriggerTimeAlignWalRangeRsp(response_.data(), response_.size(), &reply));
+  EXPECT_FALSE(reply.changed);
+  ASSERT_EQ(256, reply.nextVer);
+  auto first = response_;
+  ASSERT_EQ(0, request(probe));
+  EXPECT_EQ(first, response_);
+  probe.walRangeReq.uids = nullptr;
+  probe.walRangeReq.firstVer = 10;
+  EXPECT_EQ(TSDB_CODE_STREAM_EXEC_CANCELLED, request(probe));
+  probe.walRangeReq.firstVer = reply.nextVer;
+  ASSERT_EQ(0, request(probe));
+  ASSERT_EQ(0, tDeserializeSTriggerTimeAlignWalRangeRsp(response_.data(), response_.size(), &reply));
+  EXPECT_TRUE(reply.changed);
+  EXPECT_EQ(257, reply.nextVer);
+  --probe.walRangeReq.throughTs;
+  EXPECT_EQ(TSDB_CODE_STREAM_EXEC_CANCELLED, request(probe));
+  probe.walRangeReq.uids = &uids;
+  probe.walRangeReq.selectionId = 0;
+  ASSERT_EQ(0, request(probe));
+  ASSERT_EQ(0, tDeserializeSTriggerTimeAlignWalRangeRsp(response_.data(), response_.size(), &reply));
+  EXPECT_FALSE(reply.changed);
+  EXPECT_EQ(257, reply.nextVer);
+  reader_.deleteReCalc = 1;
+  probe.walRangeReq.firstVer = 255;
+  probe.walRangeReq.hasFromTs = true;
+  probe.walRangeReq.fromTs = probe.walRangeReq.throughTs + 1;
+  ASSERT_EQ(0, request(probe));
+  ASSERT_EQ(0, tDeserializeSTriggerTimeAlignWalRangeRsp(response_.data(), response_.size(), &reply));
+  EXPECT_TRUE(reply.changed);
+  EXPECT_EQ(256, reply.nextVer);
+  uid = 103;
+  EXPECT_EQ(TSDB_CODE_STREAM_NO_CONTEXT, request(probe));
+  bound.base.type = STRIGGER_PULL_TIME_ALIGN_RELEASE;
+  ASSERT_EQ(0, request(bound));
+  EXPECT_EQ(TSDB_CODE_STREAM_EXEC_CANCELLED, request(probe));
+}
+
+TEST_F(VnodeStreamTimeAlignWalTest, OrdinaryDeleteReportsBoundTablesAfterForeignTargets) {
+  appendDelete(0, {104, 102, 103, 101}, 500, 520);
+  SSTriggerPullRequestUnion page{};
+  page.base.type = STRIGGER_PULL_WAL_META_NEW;
+  page.walMetaNewReq.ctime = INT64_MAX;
+  ASSERT_EQ(0, request(page));
+  ASSERT_EQ(TSDB_CODE_STREAM_NO_DATA, gPullResponseCode);
+  reader_.deleteReCalc = 1;
+  ASSERT_EQ(0, request(page));
+  ASSERT_EQ(0, gPullResponseCode);
+  SSDataBlock        meta{}, deleted{}, tables{};
+  SSTriggerWalNewRsp rsp{};
+  rsp.metaBlock = &meta;
+  rsp.deleteBlock = &deleted;
+  rsp.tableBlock = &tables;
+  ASSERT_EQ(0, tDeserializeSStreamWalDataResponse(response_.data(), response_.size(), &rsp, nullptr));
+  std::vector<int64_t> actual;
+  for (int32_t r = 0; r < deleted.info.rows; ++r) {
+    for (int32_t c = STREAM_WAL_META_GID_COL; c <= STREAM_WAL_META_VER_COL; ++c) {
+      const auto *col = static_cast<const SColumnInfoData *>(taosArrayGet(deleted.pDataBlock, c));
+      actual.push_back(*reinterpret_cast<const int64_t *>(colDataGetData(col, r)));
+    }
+  }
+  blockDataFreeRes(&meta);
+  blockDataFreeRes(&deleted);
+  blockDataFreeRes(&tables);
+  EXPECT_EQ((std::vector<int64_t>{102, 500, 520, 0, 101, 500, 520, 0}), actual);
+}
+
+TEST_F(VnodeStreamTimeAlignWalTest, SubmitRangeChecksActualRowsAtBothEndpoints) {
+  append(0, 101, {0, 10, 20});
+  appendRows(1, 102, {1000, 1010, 1020});
+  vnode_.state.applied = 1;
+  SSTriggerPullRequestUnion bound{};
+  bound.base.type = STRIGGER_PULL_TIME_ALIGN_BOUND;
+  bound.timeAlignRoundReq.roundId = 12;
+  bound.timeAlignRoundReq.window = {INT64_MIN, INT64_MAX};
+  ASSERT_EQ(0, request(bound));
+
+  int64_t uid = 101;
+  SArray  uids{};
+  uids.size = uids.capacity = 1;
+  uids.elemSize = sizeof(uid);
+  uids.pData = &uid;
+  SSTriggerPullRequestUnion probe{};
+  probe.base.type = STRIGGER_PULL_TIME_ALIGN_WAL_RANGE;
+  probe.walRangeReq.roundId = 12;
+  probe.walRangeReq.uids = &uids;
+  probe.walRangeReq.hasFromTs = true;
+  auto expect = [&](int64_t from, int64_t through, bool changed) {
+    probe.walRangeReq.fromTs = from;
+    probe.walRangeReq.throughTs = through;
+    ASSERT_EQ(0, request(probe));
+    SSTriggerTimeAlignWalRangeRsp reply{};
+    ASSERT_EQ(0, tDeserializeSTriggerTimeAlignWalRangeRsp(response_.data(), response_.size(), &reply));
+    EXPECT_EQ(changed, reply.changed) << from << " through " << through;
+  };
+  for (int64_t target : {101, 102}) {
+    uid = target;
+    expect(1001, 1009, false);
+    expect(1000, 1000, true);
+    expect(1001, 1010, true);
+    expect(1010, 1019, true);
+    expect(1021, 1030, false);
+    expect(1005, 1004, false);
+  }
+  bound.base.type = STRIGGER_PULL_TIME_ALIGN_RELEASE;
+  EXPECT_EQ(0, request(bound));
+}
+
+TEST_F(VnodeStreamTimeAlignWalTest, LiveCheckReadsSparseCellsAndReportsExpiredVersions) {
+  vnode_.state.applied = -1;
+  vnode_.pWal->cfg.segSize = 1;
+  SSTriggerPullRequestUnion bound{};
+  bound.base.type = STRIGGER_PULL_TIME_ALIGN_BOUND;
+  bound.base.sessionId = STREAM_TRIGGER_REALTIME_SESSIONID;
+  bound.timeAlignRoundReq.roundId = 31;
+  bound.timeAlignRoundReq.window = {INT64_MIN, INT64_MAX};
+  ASSERT_EQ(0, request(bound));
+  append(0, 101, {0, 2, 4});
+  appendRows(1, 101, {1000, 1002, 1004}, {CV_FLAG_NONE, CV_FLAG_NULL, CV_FLAG_VALUE});
+
+  SSTriggerPullRequestUnion meta{};
+  meta.base.type = STRIGGER_PULL_WAL_META_NEW;
+  meta.base.sessionId = STREAM_TRIGGER_REALTIME_SESSIONID;
+  meta.base.timeAlignWalRound = 31;
+  meta.base.timeAlignWalRequest = 1;
+  meta.walMetaNewReq.ctime = INT64_MAX;
+  ASSERT_EQ(0, request(meta));
+  ASSERT_EQ(0, gPullResponseCode);
+
+  STimeAlignWalProbe probes[] = {{0, 101, 999, 2},  {0, 101, 1000, 2}, {0, 101, 1001, 2}, {0, 101, 1004, 2},
+                                 {0, 101, 1005, 2}, {1, 101, 1000, 2}, {1, 101, 1002, 2}, {1, 101, 1004, 2}};
+  SArray             cells{};
+  cells.size = cells.capacity = sizeof(probes) / sizeof(probes[0]);
+  cells.elemSize = sizeof(probes[0]);
+  cells.pData = probes;
+  SSTriggerPullRequestUnion check{};
+  check.base = meta.base;
+  check.base.type = STRIGGER_PULL_TIME_ALIGN_WAL_CHECK;
+  check.base.timeAlignWalRequest = 2;
+  check.walCheckReq.metaRequest = 1;
+  check.walCheckReq.cells = &cells;
+  stub_.set(metaGetTbTSchema, replaySchema);
+  ASSERT_EQ(0, request(check));
+  ASSERT_EQ(0, tDecodeTimeAlignWalCheckRsp(response_.data(), response_.size(), 2, probes, cells.size));
+  const bool expected[] = {false, true, false, true, false, false, true, true};
+  for (size_t i = 0; i < cells.size; ++i) EXPECT_EQ(expected[i], probes[i].written) << i;
+
+  // All eight source row keys round to the same millisecond. Check each exact
+  // nanosecond using both submit layouts, including an omitted and a NULL cell.
+  vnode_.config.tsdbCfg.precision = TSDB_TIME_PRECISION_NANO;
+  reader_.timeAlignPrecision = TSDB_TIME_PRECISION_MILLI + 1;
+  for (auto &probe : probes) {
+    probe.physical = true;
+    probe.written = false;
+  }
+  check.base.timeAlignWalRequest = 3;
+  ASSERT_EQ(0, request(check));
+  ASSERT_EQ(0, tDecodeTimeAlignWalCheckRsp(response_.data(), response_.size(), 3, probes, cells.size));
+  for (size_t i = 0; i < cells.size; ++i) EXPECT_EQ(expected[i], probes[i].written) << i;
+  append(2);
+  headError_ = TSDB_CODE_WAL_LOG_NOT_EXIST;
+  stub_.set(walFetchHead, failedHead);
+  EXPECT_EQ(headError_, request(check));  // Failure within retained WAL must surface.
+  stub_.reset(walFetchHead);
+  headCalls_ = 0;
+  recycleAt_ = 1;
+  stub_.set(walFetchHead, fetchWithRetention);
+  ASSERT_EQ(0, request(check));
+  EXPECT_EQ(TSDB_CODE_STREAM_NO_DATA, gPullResponseCode);
+  EXPECT_TRUE(response_.empty());
+  stub_.reset(walFetchHead);
+  ASSERT_EQ(0, request(check));
+  EXPECT_EQ(TSDB_CODE_STREAM_NO_DATA, gPullResponseCode);
+  EXPECT_TRUE(response_.empty());
+  bound.base.type = STRIGGER_PULL_TIME_ALIGN_RELEASE;
+  EXPECT_EQ(0, request(bound));
+}
+
+class VnodeLocalWalLayoutTest : public VnodeStreamTimeAlignWalTest, public ::testing::WithParamInterface<bool> {
+ protected:
+  void TearDown() override {
+    blockDataDestroy(reader_.extendedWalBlock[0]);
+    blockDataDestroy(reader_.extendedWalBlock[1]);
+    VnodeStreamTimeAlignWalTest::TearDown();
+  }
+};
+
+TEST_P(VnodeLocalWalLayoutTest, SetTableAndWalResponsesUseTheLocalLayout) {
+  const bool wide = GetParam();
+  vnode_.config.vgId = wide ? 7 : 8;
+  const int64_t uid = 101;
+  int64_t       table[2] = {0, uid};
+  SSchema       schema[4] = {};
+  for (int i = 0; i < 4; ++i) {
+    schema[i].colId = static_cast<col_id_t>(i + 1);
+    schema[i].type = i ? TSDB_DATA_TYPE_BIGINT : TSDB_DATA_TYPE_TIMESTAMP;
+    schema[i].bytes = sizeof(int64_t);
+  }
+  taosHashClear(reader_.triggerTableSchemaMapVTable);
+  taosMemoryFree(schema_);
+  schema_ = tBuildTSchema(schema, 4, 1);
+  ASSERT_NE(nullptr, schema_);
+  for (int64_t tableUid : {101, 102})
+    ASSERT_EQ(0,
+              taosHashPut(reader_.triggerTableSchemaMapVTable, &tableUid, sizeof(tableUid), &schema_, sizeof(schema_)));
+  SSTriggerPullRequestUnion install{};
+  install.base.type = STRIGGER_PULL_SET_TABLE;
+  install.setTableReq.timeAlignPrecision = 1;
+  SSHashObj *maps[2]{}, *columns[2]{};
+  int16_t    templates[] = {1, 1};
+  SArray     aliases{};
+  aliases.pData = templates;
+  aliases.size = aliases.capacity = 2;
+  aliases.elemSize = sizeof(int16_t);
+  for (int side = 0; side < 2; ++side) {
+    const bool extended = side ? !wide : wide;
+    maps[side] = tSimpleHashInit(2, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY));
+    columns[side] = tSimpleHashInit(4, taosGetDefaultHashFunction(TSDB_DATA_TYPE_SMALLINT));
+    for (int16_t i = 0; i < (extended ? 4 : 2); ++i) {
+      const int16_t cid = extended && i ? static_cast<int16_t>(2 + i % 3) : static_cast<int16_t>(i + 1);
+      ASSERT_EQ(0, tSimpleHashPut(columns[side], &i, sizeof(i), &cid, sizeof(cid)));
+    }
+    ASSERT_EQ(0, tSimpleHashPut(maps[side], table, sizeof(table), &columns[side], sizeof(columns[side])));
+    install.setTableReq.physicalAliases[side] = extended ? &aliases : nullptr;
+  }
+  install.setTableReq.uidInfoTrigger = maps[0];
+  install.setTableReq.uidInfoCalc = maps[1];
+  ASSERT_EQ(0, request(install));
+  for (int side = 0; side < 2; ++side) {
+    tSimpleHashCleanup(maps[side]);
+    tSimpleHashCleanup(columns[side]);
+  }
+
+  append(0, uid);
+  int64_t version = 0;
+  SArray  versions{};
+  versions.pData = &version;
+  versions.size = versions.capacity = 1;
+  versions.elemSize = sizeof(version);
+  SSTriggerPullRequestUnion pull{};
+  pull.walDataNewReq.versions = &versions;
+  pull.walDataNewReq.ranges = tSimpleHashInit(1, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT));
+  const int64_t range[] = {INT64_MIN, INT64_MAX};
+  ASSERT_EQ(0, tSimpleHashPut(pull.walDataNewReq.ranges, &uid, sizeof(uid), range, sizeof(range)));
+  for (int side = 0; side < 2; ++side) {
+    pull.base.type = side ? STRIGGER_PULL_WAL_CALC_DATA_NEW : STRIGGER_PULL_WAL_DATA_NEW;
+    ASSERT_EQ(0, request(pull));
+    ASSERT_EQ(0, gPullResponseCode);
+    SSDataBlock        block{};
+    SSTriggerWalNewRsp reply{};
+    reply.dataBlock = &block;
+    SArray *slices = taosArrayInit(1, sizeof(int64_t) * 3);
+    ASSERT_EQ(0, tDeserializeSStreamWalDataResponse(response_.data(), response_.size(), &reply, slices));
+    const int expected = (side ? !wide : wide) ? 5 : 3;
+    ASSERT_EQ(expected, blockDataGetNumOfCols(&block));
+    ASSERT_EQ(1, block.info.rows);
+    EXPECT_EQ(1U, taosArrayGetSize(slices));
+    for (int index : {0, expected - 2, expected - 1}) {
+      const auto *col = static_cast<SColumnInfoData *>(taosArrayGet(block.pDataBlock, index));
+      ASSERT_FALSE(colDataIsNull_s(col, 0));
+      EXPECT_EQ(index == 0              ? 1000
+                : index == expected - 2 ? 2000
+                                        : 0,
+                *reinterpret_cast<const int64_t *>(colDataGetData(col, 0)));
+    }
+    blockDataFreeRes(&block);
+    taosArrayDestroy(slices);
+  }
+  tSimpleHashCleanup(pull.walDataNewReq.ranges);
+}
+
+TEST_P(VnodeLocalWalLayoutTest, MixedPrecisionRowAndColumnSubmitsKeepPhysicalKeysWhenRequested) {
+  vnode_.config.tsdbCfg.precision = TSDB_TIME_PRECISION_NANO;
+  const int16_t tsSlot = 0, tsCid = PRIMARYKEY_TIMESTAMP_COL_ID;
+  ASSERT_EQ(0, tSimpleHashPut(columns_, &tsSlot, sizeof(tsSlot), &tsCid, sizeof(tsCid)));
+  append(0, 101, {1000001}, CV_FLAG_NULL);
+  appendRows(1, 101, {1001002, 1001003}, {CV_FLAG_NULL, CV_FLAG_NONE});
+  appendRows(2, 101, {1001002});
+  int64_t versions[] = {0, 1, 2};
+  SArray  sequence{};
+  sequence.pData = versions;
+  sequence.elemSize = sizeof(int64_t);
+  sequence.size = sequence.capacity = 3;
+  const int64_t             uid = 101, range[] = {1, 1};
+  SSTriggerPullRequestUnion pull{};
+  pull.base.type = STRIGGER_PULL_WAL_DATA_NEW;
+  pull.walDataNewReq.versions = &sequence;
+  pull.walDataNewReq.ranges = tSimpleHashInit(1, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT));
+  ASSERT_EQ(0, tSimpleHashPut(pull.walDataNewReq.ranges, &uid, sizeof(uid), range, sizeof(range)));
+  SArray *slices = taosArrayInit(1, 3 * sizeof(int64_t));
+  ASSERT_NE(nullptr, slices);
+  SSDataBlock block{};
+  for (int layout : {GetParam() ? 1 : 0, GetParam() ? 0 : 1, 2}) {
+    bool                      keys = layout != 0;
+    bool                      masks = layout == 2;
+    SSTriggerPullRequestUnion install{};
+    install.base.type = STRIGGER_PULL_SET_TABLE;
+    install.setTableReq.timeAlignPrecision = TSDB_TIME_PRECISION_MILLI + 1;
+    install.setTableReq.physicalWalKeys = keys;
+    install.setTableReq.physicalWalCells = masks;
+    install.setTableReq.uidInfoTrigger = reader_.uidHashTrigger;
+    install.setTableReq.uidInfoCalc = reader_.uidHashCalc;
+    ASSERT_EQ(0, request(install));
+    ASSERT_EQ(0, request(pull));
+    ASSERT_EQ(0, gPullResponseCode);
+    SSTriggerWalNewRsp response{};
+    response.dataBlock = &block;
+    ASSERT_EQ(0, tDeserializeSStreamWalDataResponse(response_.data(), response_.size(), &response, slices));
+    ASSERT_EQ(4, block.info.rows);
+    const int keySlot = tStreamWalPhysicalTsSlot(&block);
+    ASSERT_EQ(masks ? 3 : keys ? 2 : -1, keySlot);
+    ASSERT_EQ(masks ? 2 : -1, tStreamWalNullMaskSlot(&block));
+    for (int row = 0; row < 4; ++row) {
+      const auto *ts = static_cast<const SColumnInfoData *>(taosArrayGet(block.pDataBlock, 0));
+      ASSERT_FALSE(colDataIsNull_s(ts, row));
+      EXPECT_EQ(1, *reinterpret_cast<const int64_t *>(colDataGetData(ts, row)));
+      if (masks) {
+        const auto *mask = static_cast<const SColumnInfoData *>(taosArrayGet(block.pDataBlock, 2));
+        EXPECT_EQ(row < 2 ? 2U : 0U, *reinterpret_cast<const uint64_t *>(colDataGetData(mask, row)));
+      }
+      if (keys) {
+        const int64_t raw[] = {1001001, 1001002, 1001003, 1001002};
+        const auto   *key = static_cast<const SColumnInfoData *>(taosArrayGet(block.pDataBlock, keySlot));
+        ASSERT_FALSE(colDataIsNull_s(key, row));
+        EXPECT_EQ(raw[row], *reinterpret_cast<const int64_t *>(colDataGetData(key, row)));
+      }
+    }
+  }
+  blockDataFreeRes(&block);
+  taosArrayDestroy(slices);
+  tSimpleHashCleanup(pull.walDataNewReq.ranges);
+}
+
+INSTANTIATE_TEST_SUITE_P(ReaderWidths, VnodeLocalWalLayoutTest, ::testing::Bool());
+
+TEST_F(VnodeStreamTimeAlignWalTest, BoundedBodyNeverReadsTheNextRecord) {
+  append(0, 101);
+  append(1, 101);
+  stub_.set(walNextValidMsg, checkReadBeforeEnd);
+  SSTriggerPullRequestUnion page{};
+  page.base.type = STRIGGER_PULL_WAL_META_DATA_NEW;
+  page.walMetaDataNewReq.lastVer = 0;
+  page.walMetaDataNewReq.endVer = 1;
+  ASSERT_EQ(0, request(page));
+  EXPECT_EQ(0, gPullResponseCode);
+}
+
+TEST_F(VnodeStreamTimeAlignWalTest, BoundedBodyStopsAtEndWhenRetentionPassesIt) {
+  vnode_.pWal->cfg.segSize = 1;
+  for (int64_t ver = 0; ver < 4; ++ver) append(ver);
+  recycleBefore(3);
+  SSTriggerPullRequestUnion page{};
+  page.base.type = STRIGGER_PULL_WAL_META_DATA_NEW;
+  page.walMetaDataNewReq.lastVer = 0;
+  page.walMetaDataNewReq.endVer = 2;
+  ASSERT_EQ(0, request(page));
+  EXPECT_EQ(TSDB_CODE_STREAM_NO_DATA, gPullResponseCode);
+  ASSERT_GE(response_.size(), sizeof(int64_t));
+  int64_t next = 0;
+  memcpy(&next, response_.data(), sizeof(next));
+  EXPECT_EQ(2, next);
+  page.walMetaDataNewReq.lastVer = 3;
+  page.walMetaDataNewReq.endVer = 4;
+  headError_ = TSDB_CODE_WAL_LOG_NOT_EXIST;
+  stub_.set(walFetchHead, failedHead);
+  EXPECT_EQ(headError_, request(page));
+}
+
+TEST_F(VnodeStreamTimeAlignWalTest, RangeReportsPossibleChangeWhenItsWalWasReclaimed) {
+  vnode_.pWal->cfg.segSize = 1;
+  for (int64_t ver = 0; ver < 4; ++ver) append(ver);
+  vnode_.state.applied = 3;
+  SSTriggerPullRequestUnion bound{};
+  bound.base.type = STRIGGER_PULL_TIME_ALIGN_BOUND;
+  bound.timeAlignRoundReq.roundId = 12;
+  bound.timeAlignRoundReq.window = {INT64_MIN, INT64_MAX};
+  ASSERT_EQ(0, request(bound));
+  SSTriggerPullRequestUnion probe{};
+  probe.base.type = STRIGGER_PULL_TIME_ALIGN_WAL_RANGE;
+  probe.walRangeReq.roundId = 12;
+  probe.walRangeReq.firstVer = 4;
+  int64_t uid = 101;
+  SArray  uids{};
+  uids.size = uids.capacity = 1;
+  uids.elemSize = sizeof(uid);
+  uids.pData = &uid;
+  probe.walRangeReq.uids = &uids;
+  ASSERT_EQ(0, request(probe));
+  ASSERT_EQ(0, walBeginSnapshot(vnode_.pWal, 2, 0));
+  ASSERT_EQ(0, walEndSnapshot(vnode_.pWal, false));
+  ASSERT_EQ(3, walGetFirstVer(vnode_.pWal));
+  probe.walRangeReq.firstVer = 1;
+  ASSERT_EQ(0, request(probe));
+  SSTriggerTimeAlignWalRangeRsp reply{};
+  ASSERT_EQ(0, tDeserializeSTriggerTimeAlignWalRangeRsp(response_.data(), response_.size(), &reply));
+  EXPECT_TRUE(reply.changed);
+  EXPECT_EQ(3, reply.nextVer);
+  bound.base.type = STRIGGER_PULL_TIME_ALIGN_RELEASE;
+  ASSERT_EQ(0, request(bound));
+}
+
+TEST_F(VnodeStreamWalRecoveryTest, MetaExpiredCursorReadsFirstRetainedVersionImmediately) {
+  append(0);
+  append(1);
+  append(2);
+  recycleBefore(2);
+  requestMeta(0, INT64_MAX, 0, 3, {2});
+}
+
+TEST_F(VnodeStreamWalRecoveryTest, MetaCutoffKeepsFirstLaterRecordForNextRequest) {
+  appendAt(0, 1000001);
+  appendAt(1, 1000002);
+  appendAt(2, 1000003);
+  requestMeta(0, 1000002000LL, 0, 2, {0, 1});
+  requestMeta(2, 1000003000LL, 0, 3, {2});
+  requestMeta(3, INT64_MAX, TSDB_CODE_STREAM_NO_DATA, 3, {});
+}
+
+TEST_F(VnodeStreamWalRecoveryTest, MetaCutoffBeforeFirstRecordDoesNotAdvanceCursor) {
+  appendAt(0, 1000001);
+  requestMeta(0, 1000000999LL, TSDB_CODE_STREAM_NO_DATA, 0, {});
+  requestMeta(0, 1000001000LL, 0, 1, {0});
+}
+
+TEST_F(VnodeStreamWalRecoveryTest, MetaRetentionDuringScanContinuesAtNewFirstVersion) {
+  append(0);
+  append(1);
+  append(2);
+  recycleAt_ = 2;
+  headError_ = TSDB_CODE_WAL_LOG_NOT_EXIST;
+  stub_.set(walFetchHead, fetchWithRetention);
+  requestMeta(0, INT64_MAX, 0, 3, {0, 2});
+}
+
+TEST_F(VnodeStreamWalRecoveryTest, MetaRetainedReadErrorIsNotReportedAsNoData) {
+  append(0);
+  stub_.set(walFetchHead, failedHead);
+  const int32_t errors[] = {TSDB_CODE_WAL_LOG_NOT_EXIST, TSDB_CODE_WAL_INVALID_VER,
+                            static_cast<int32_t>(TAOS_SYSTEM_ERROR(ENOENT)), TSDB_CODE_WAL_FILE_CORRUPTED};
+  for (int32_t error : errors) {
+    headError_ = error;
+    requestMeta(0, INT64_MAX, error, 0, {});
+  }
+}
+
+TEST_F(VnodeStreamWalRecoveryTest, MetaCutoffDoesNotDependOnDatabasePrecision) {
+  appendAt(0, 1000001);
+  appendAt(1, 1000002);
+  for (int8_t precision : {TSDB_TIME_PRECISION_MILLI, TSDB_TIME_PRECISION_MICRO, TSDB_TIME_PRECISION_NANO}) {
+    vnode_.config.tsdbCfg.precision = precision;
+    requestMeta(0, 1000001000LL, 0, 1, {0});
+  }
+}
+
+TEST_F(VnodeStreamWalRecoveryTest, MetaExpiredCursorDoesNotPreventLaterInput) {
+  append(0);
+  append(1);
+  recycleBefore(2);
+  requestMeta(0, INT64_MAX, TSDB_CODE_STREAM_NO_DATA, 2, {});
+  append(2);
+  requestMeta(2, INT64_MAX, 0, 3, {2});
+}
+
+TEST_F(VnodeStreamWalRecoveryTest, MetaEmptyWalReturnsUnchangedNextCursor) {
+  requestMeta(0, INT64_MAX, TSDB_CODE_STREAM_NO_DATA, 0, {});
+}
+
+TEST_F(VnodeStreamWalRecoveryTest, MetaFutureCursorIsNotTreatedAsCaughtUp) {
+  append(0);
+  requestMeta(2, INT64_MAX, TSDB_CODE_WAL_LOG_NOT_EXIST, 2, {});
+}
+
+TEST_F(VnodeStreamWalRecoveryTest, MetaAppliedVersionAdvanceAfterCaughtUpDoesNotFailRequest) {
+  append(0);
+  append(1);
+  vnode_.pWal->vers.appliedVer = 0;
+  stub_.set(walNextValidMsg, advanceAfterCaughtUp);
+  requestMeta(0, INT64_MAX, 0, 1, {0});
+  stub_.reset(walNextValidMsg);
+  walApplyVer(vnode_.pWal, 1);
+  requestMeta(1, INT64_MAX, 0, 2, {1});
+}
+
+TEST_F(VnodeStreamWalRecoveryTest, MetaAppendAfterSeekingEndDoesNotFailRequest) {
+  stub_.set(walReaderSeekVer, appendAfterSeekEnd);
+  requestMeta(0, INT64_MAX, TSDB_CODE_STREAM_NO_DATA, 0, {});
+  stub_.reset(walReaderSeekVer);
+  if (walGetLastVer(vnode_.pWal) < 0) append(0);
+  requestMeta(0, INT64_MAX, 0, 1, {0});
+}
 
 TEST_F(VnodeStreamWalRecoveryTest, RetainedVersionsRemainReadable) {
   append(0);
@@ -2082,6 +3268,8 @@ class VnodeSparseRefResolveTest : public ::testing::Test {
     } else {
       reader->me.type = TSDB_VIRTUAL_CHILD_TABLE;
       reader->me.ctbEntry.suid = kStableUid;
+      reader->me.colRef.nCols = self->columnCount_;
+      reader->me.colRef.pColRef = &self->column_;
       reader->me.ctbEntry.pTags = reinterpret_cast<uint8_t *>(self->literal_);
       if (self->isRemote(uid)) {
         reader->me.colRef.nTagRefs = 1;
@@ -2133,6 +3321,10 @@ class VnodeSparseRefResolveTest : public ::testing::Test {
       item.tagType = TSDB_DATA_TYPE_INT;
       item.tagLen = self->nullTag_ ? 0 : sizeof(value);
       item.tagData = self->nullTag_ ? nullptr : reinterpret_cast<char *>(&value);
+      if (self->emptyTag_) {
+        item.tagType = TSDB_DATA_TYPE_BINARY;
+        item.tagLen = 0;
+      }
       taosArrayPush(reply.items, &item);
       response.len = tSerializeSVTableRefResolveRsp(nullptr, 0, &reply);
       response.pData = taosMemoryMalloc(response.len);
@@ -2256,6 +3448,8 @@ class VnodeSparseRefResolveTest : public ::testing::Test {
   SVnode vnode_ = {};
   SSchema schema_ = {};
   SColRef ref_ = {};
+  SColRef                column_ = {};
+  int32_t                columnCount_ = 0;
   STag *literal_ = nullptr;
   SArray *uids_ = nullptr;
   SArray *cols_ = nullptr;
@@ -2269,11 +3463,55 @@ class VnodeSparseRefResolveTest : public ::testing::Test {
   int32_t rpcError_ = TSDB_CODE_SUCCESS;
   int32_t itemError_ = TSDB_CODE_SUCCESS;
   bool nullTag_ = false;
+  bool                   emptyTag_ = false;
   tb_uid_t extraRemoteUid_ = 0;
   tb_uid_t metaMissingUid_ = 0;
 };
 
 VnodeSparseRefResolveTest *VnodeSparseRefResolveTest::active_ = nullptr;
+
+TEST_F(VnodeSparseRefResolveTest, TimeAlignRechecksAddedAndReplacedUnprojectedChildColumns) {
+  SStreamTriggerReaderInfo reader{};
+  reader.requireLocalVtableRefs = true;
+  reader.tableType = TSDB_SUPER_TABLE;
+  reader.vtbCache = &shared_;
+  SStreamTableKeyInfo key{};
+  key.uid = 2;
+  auto *pKey = &key;
+  reader.tableList.pTableList = taosArrayInit(1, sizeof(pKey));
+  ASSERT_NE(nullptr, reader.tableList.pTableList);
+  ASSERT_NE(nullptr, taosArrayPush(reader.tableList.pTableList, &pKey));
+  ASSERT_NE(nullptr, taosArrayPush(uids_, &key.uid));
+  ASSERT_EQ(TSDB_CODE_SUCCESS,
+            streamResolveVTableRefChain(&vnode_, &shared_, &reader, -1, uids_, nullptr, nullptr, &results_, 0));
+  ASSERT_EQ(TSDB_CODE_SUCCESS, streamCacheCommitResolved(&shared_, true, nullptr, nullptr, &results_));
+
+  auto recheck = [&](int32_t expectedRows) {
+    shared_.lastCheckMs = 0;
+    SSTriggerWalNewRsp rsp{};
+    EXPECT_EQ(TSDB_CODE_SUCCESS, streamMaybeRecheckVTableCache(&vnode_, &reader, 1, &rsp));
+    EXPECT_EQ(expectedRows, rsp.totalRows);
+    blockDataDestroy(static_cast<SSDataBlock *>(rsp.tableBlock));
+  };
+  recheck(0);
+  columnCount_ = 1;
+  column_.id = 3;
+  column_.hasRef = true;
+  column_.refType = 1;
+  tstrncpy(column_.refSourceName, "external", sizeof(column_.refSourceName));
+  tstrncpy(column_.refTableName, "table", sizeof(column_.refTableName));
+  tstrncpy(column_.refColName, "value", sizeof(column_.refColName));
+  recheck(1);
+  recheck(0);
+  column_.id = 4;
+  recheck(1);
+  column_.hasRef = false;
+  recheck(1);
+  columnCount_ = 0;
+  recheck(1);
+  recheck(0);
+  taosArrayDestroy(reader.tableList.pTableList);
+}
 
 TEST_F(VnodeSparseRefResolveTest, SparseTagOnlyChunksReuseRemoteResult) {
   resolve(2 * STREAM_VTB_RESOLVE_UID_CHUNK, false);
@@ -2352,6 +3590,92 @@ TEST_F(VnodeSparseRefResolveTest, TagChainRebuildsResolvedValue) {
   int32_t rebuilt = 0;
   memcpy(&rebuilt, &value.i64, sizeof(rebuilt));
   EXPECT_EQ(42, rebuilt);
+}
+
+TEST_F(VnodeSparseRefResolveTest, TagChainRebuildsEmptyString) {
+  prepareTagChain();
+  schema_.type = TSDB_DATA_TYPE_BINARY;
+  schema_.bytes = 16;
+  emptyTag_ = true;
+  ASSERT_EQ(TSDB_CODE_SUCCESS, vnodeResolveVTableTagChain(&vnode_, kStableUid, uidTags_, tags_, 0));
+  auto *entry = static_cast<STUidTagInfo *>(taosArrayGet(uidTags_, 0));
+  ASSERT_NE(nullptr, entry->pTagVal);
+  STagVal value = {};
+  value.cid = kTagCid;
+  ASSERT_TRUE(tTagGet(static_cast<const STag *>(entry->pTagVal), &value));
+  EXPECT_EQ(TSDB_DATA_TYPE_BINARY, value.type);
+  EXPECT_EQ(0, value.nData);
+}
+
+TEST_F(VnodeSparseRefResolveTest, TagChainPreservesUnrequestedOwnedLiterals) {
+  prepareTagChain();
+  SArray *values = nullptr;
+  ASSERT_EQ(TSDB_CODE_SUCCESS, tTagToValArray(literal_, &values));
+  STagVal owned = {};
+  owned.cid = 30833;
+  owned.type = TSDB_DATA_TYPE_INT;
+  owned.i64 = 77;
+  ASSERT_NE(nullptr, taosArrayPush(values, &owned));
+  STagVal empty = {};
+  empty.cid = 30834;
+  empty.type = TSDB_DATA_TYPE_BINARY;
+  uint8_t emptyData = 0;
+  empty.pData = &emptyData;
+  ASSERT_NE(nullptr, taosArrayPush(values, &empty));
+  STag   *original = nullptr;
+  int32_t code = tTagNew(values, 1, false, &original);
+  taosArrayDestroy(values);
+  ASSERT_EQ(TSDB_CODE_SUCCESS, code);
+  auto *entry = static_cast<STUidTagInfo *>(taosArrayGet(uidTags_, 0));
+  entry->pTagVal = original;
+
+  ASSERT_EQ(TSDB_CODE_SUCCESS, vnodeResolveVTableTagChain(&vnode_, kStableUid, uidTags_, tags_, 0));
+  const auto *rebuilt = static_cast<const STag *>(entry->pTagVal);
+  ASSERT_NE(nullptr, rebuilt);
+  EXPECT_EQ(3, rebuilt->nTag);
+  ASSERT_TRUE(tTagGet(rebuilt, &owned));
+  ASSERT_EQ(TSDB_DATA_TYPE_INT, owned.type);
+  int32_t rebuiltValue = 0;
+  memcpy(&rebuiltValue, &owned.i64, sizeof(rebuiltValue));
+  EXPECT_EQ(77, rebuiltValue);
+  ASSERT_TRUE(tTagGet(rebuilt, &empty));
+  EXPECT_EQ(0, empty.nData);
+  STagVal inherited = {};
+  inherited.cid = kTagCid;
+  ASSERT_TRUE(tTagGet(rebuilt, &inherited));
+  ASSERT_EQ(TSDB_DATA_TYPE_INT, inherited.type);
+  memcpy(&rebuiltValue, &inherited.i64, sizeof(rebuiltValue));
+  EXPECT_EQ(42, rebuiltValue);
+}
+
+TEST_F(VnodeSparseRefResolveTest, TagChainRebuildsOwnedReferenceWithoutInheritedRequest) {
+  prepareTagChain();
+  col_id_t ownedCid = 30833;
+  ref_.id = ownedCid;
+  taosArrayClear(tags_);
+  ASSERT_NE(nullptr, taosArrayPush(tags_, &ownedCid));
+  ASSERT_EQ(TSDB_CODE_SUCCESS, vnodeResolveVTableTagChain(&vnode_, kStableUid, uidTags_, tags_, 0));
+  auto   *entry = static_cast<STUidTagInfo *>(taosArrayGet(uidTags_, 0));
+  STagVal value = {};
+  value.cid = ownedCid;
+  ASSERT_TRUE(tTagGet(static_cast<const STag *>(entry->pTagVal), &value));
+  ASSERT_EQ(TSDB_DATA_TYPE_INT, value.type);
+  int32_t rebuilt = 0;
+  memcpy(&rebuilt, &value.i64, sizeof(rebuilt));
+  EXPECT_EQ(42, rebuilt);
+}
+
+TEST_F(VnodeSparseRefResolveTest, TagChainResolvedNullReplacesStaleLiteral) {
+  prepareTagChain();
+  auto *entry = static_cast<STUidTagInfo *>(taosArrayGet(uidTags_, 0));
+  entry->pTagVal = taosMemoryMalloc(literal_->len);
+  ASSERT_NE(nullptr, entry->pTagVal);
+  memcpy(entry->pTagVal, literal_, literal_->len);
+  nullTag_ = true;
+  ASSERT_EQ(TSDB_CODE_SUCCESS, vnodeResolveVTableTagChain(&vnode_, kStableUid, uidTags_, tags_, 0));
+  STagVal value = {};
+  value.cid = kTagCid;
+  EXPECT_FALSE(tTagGet(static_cast<const STag *>(entry->pTagVal), &value));
 }
 
 TEST_F(VnodeSparseRefResolveTest, TagChainKeepsRebuildingAfterEarlierUidFails) {

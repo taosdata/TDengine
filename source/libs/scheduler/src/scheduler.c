@@ -93,111 +93,160 @@ int32_t schedulerFetchRows(int64_t jobId, SSchedulerReq *pReq) {
   SSchJob *pJob = NULL;
 
   SCH_ERR_JRET(schHandleOpBeginEvent(jobId, &pJob, SCH_OP_FETCH, pReq));
-  // Set to IN_PROGRESS when starting fetch
-  SCH_UPDATE_JOB_PHASE_IF_CHANGED(pJob, QUERY_PHASE_FETCH_IN_PROGRESS);
-
   SCH_ERR_JRET(schSwitchJobStatus(pJob, JOB_TASK_STATUS_FETCH, pReq));
+
+  // Enter the fetch stage only after the status switch succeeded. If the job
+  // was killed or dropped the switch fails, and stamping the phase first would
+  // leave show queries reporting a fetch that never started.
+  schEnterFetchPhase(pJob);
 
 _return:
   SCH_RET(schHandleOpEndEvent(pJob, SCH_OP_FETCH, pReq, code));
 }
 
-int32_t schedulerGetTasksStatus(int64_t jobId, SArray *pSub) {
-  int32_t  code = 0;
-  SSchJob *pJob = NULL;
+static int32_t schAppendTaskStatus(SSchJob* pJob, SSchTask* pTask, SArray* pSub) {
+  SQuerySubDesc subDesc = {0};
+  subDesc.tid = pTask->taskId;
+  subDesc.startTs = pTask->profile.startTs;
 
-  SCH_ERR_JRET(schHandleOpBeginEvent(jobId, &pJob, SCH_OP_GET_STATUS, NULL));
-
-  for (int32_t i = pJob->levelNum - 1; i >= 0; --i) {
-    SSchLevel *pLevel = taosArrayGet(pJob->levels, i);
-    if (NULL == pLevel) {
-      qError("failed to get level %d", i);
-      SCH_ERR_JRET(TSDB_CODE_SCH_INTERNAL_ERROR);
-    }
-
-    for (int32_t m = 0; m < pLevel->taskNum; ++m) {
-      SSchTask     *pTask = taosArrayGet(pLevel->subTasks, m);
-      if (NULL == pTask) {
-        qError("failed to get task %d, total:%d", m, pLevel->taskNum);
-        SCH_ERR_JRET(TSDB_CODE_SCH_INTERNAL_ERROR);
-      }
-
-      SQuerySubDesc subDesc = {0};
-      subDesc.tid = pTask->taskId;
-      subDesc.startTs = pTask->profile.startTs;
-
-      const char *typePrefix = "task";
-      if (pTask->plan) {
-        switch (pTask->plan->subplanType) {
-          case SUBPLAN_TYPE_SCAN:
-          case SUBPLAN_TYPE_HSYSSCAN:
-            typePrefix = "scan";
-            break;
-          case SUBPLAN_TYPE_MERGE:
-            typePrefix = "merge";
-            break;
-          case SUBPLAN_TYPE_MODIFY:
-            typePrefix = "modify";
-            break;
-          case SUBPLAN_TYPE_COMPUTE:
-            typePrefix = "compute";
-            break;
-          case SUBPLAN_TYPE_PARTIAL:
-            typePrefix = "partial";
-            break;
-          default:
-            break;
-        }
-      }
-
-      int8_t taskStatus = SCH_GET_TASK_STATUS(pTask);
-      switch (taskStatus) {
-        case JOB_TASK_STATUS_INIT:
-          if (pTask->waitRetry) {
-            tsnprintf(subDesc.status, sizeof(subDesc.status), "%s/wait_retry", typePrefix);
-          } else if (pTask->plan && SCH_TASK_NEED_FLOW_CTRL(pJob, pTask)) {
-            tsnprintf(subDesc.status, sizeof(subDesc.status), "%s/waiting_flow", typePrefix);
-          } else {
-            tsnprintf(subDesc.status, sizeof(subDesc.status), "%s/init", typePrefix);
-          }
-          break;
-        case JOB_TASK_STATUS_EXEC:
-          if (pTask->retryTimes > 0) {
-            tsnprintf(subDesc.status, sizeof(subDesc.status), "%s/retry(%d)", typePrefix, pTask->retryTimes);
-          } else {
-            tsnprintf(subDesc.status, sizeof(subDesc.status), "%s/executing", typePrefix);
-          }
-          break;
-        case JOB_TASK_STATUS_PART_SUCC:
-          tsnprintf(subDesc.status, sizeof(subDesc.status), "%s/partial_succeed", typePrefix);
-          break;
-        case JOB_TASK_STATUS_FETCH:
-          tsnprintf(subDesc.status, sizeof(subDesc.status), "%s/fetching", typePrefix);
-          break;
-        case JOB_TASK_STATUS_SUCC:
-          tsnprintf(subDesc.status, sizeof(subDesc.status), "%s/succeed", typePrefix);
-          break;
-        case JOB_TASK_STATUS_FAIL:
-          tsnprintf(subDesc.status, sizeof(subDesc.status), "%s/failed", typePrefix);
-          break;
-        case JOB_TASK_STATUS_DROP:
-          tsnprintf(subDesc.status, sizeof(subDesc.status), "%s/dropping", typePrefix);
-          break;
-        default:
-          tsnprintf(subDesc.status, sizeof(subDesc.status), "%s/unknown", typePrefix);
-          break;
-      }
-
-      if (NULL == taosArrayPush(pSub, &subDesc)) {
-        qError("taosArrayPush task %d failed, error:0x%x", m, terrno);
-        SCH_ERR_JRET(terrno);
-      }
+  const char *typePrefix = "task";
+  if (pTask->plan) {
+    switch (pTask->plan->subplanType) {
+      case SUBPLAN_TYPE_SCAN:
+      case SUBPLAN_TYPE_HSYSSCAN:
+        typePrefix = "scan";
+        break;
+      case SUBPLAN_TYPE_MERGE:
+        typePrefix = "merge";
+        break;
+      case SUBPLAN_TYPE_MODIFY:
+        typePrefix = "modify";
+        break;
+      case SUBPLAN_TYPE_COMPUTE:
+        typePrefix = "compute";
+        break;
+      case SUBPLAN_TYPE_PARTIAL:
+        typePrefix = "partial";
+        break;
+      default:
+        break;
     }
   }
 
-_return:
+  char jobType[TSDB_JOB_STATUS_LEN] = {0};
+  if (SCH_JOB_GOT_SUB_JOBS(SCH_PARENT_JOB(pJob))) {
+    if (SCH_IS_SUBQ_JOB(pJob)) {
+      tsnprintf(jobType, sizeof(jobType), "j%d/%s", pJob->subJobId, typePrefix);
+    } else {
+      tsnprintf(jobType, sizeof(jobType), "main/%s", typePrefix);
+    }
+    typePrefix = jobType;
+  }
 
-  SCH_RET(schHandleOpEndEvent(pJob, SCH_OP_GET_STATUS, NULL, code));
+  int8_t taskStatus = SCH_GET_TASK_STATUS(pTask);
+  switch (taskStatus) {
+    case JOB_TASK_STATUS_EXEC:
+    case JOB_TASK_STATUS_INIT: {
+      if (atomic_load_8(&pTask->flowQueued)) {
+        tsnprintf(subDesc.status, sizeof(subDesc.status), "%s/waiting_flow", typePrefix);
+        break;
+      }
+      if (taskStatus == JOB_TASK_STATUS_EXEC) {
+        if (pTask->execId > 0) {
+          tsnprintf(subDesc.status, sizeof(subDesc.status), "%s/retry(%d)", typePrefix, pTask->execId);
+        } else {
+          tsnprintf(subDesc.status, sizeof(subDesc.status), "%s/executing", typePrefix);
+        }
+        break;
+      }
+
+      SSchJob* pParent = SCH_PARENT_JOB(pJob);
+      SCH_LOCK(SCH_READ, &pParent->subJobLock);
+      bool waiting = pParent->concurrentSubJobs &&
+          (SCH_IS_SUBQ_JOB(pJob) ? !pJob->subJobStarted :
+           (pParent->earlyMainTasks ? pTask->waitingSubquery :
+            pParent->subJobDoneNum < taosArrayGetSize(pParent->subJobs)));
+      SCH_UNLOCK(SCH_READ, &pParent->subJobLock);
+      if (waiting) {
+        tsnprintf(subDesc.status, sizeof(subDesc.status), "%s/wait_dep", typePrefix);
+      } else if (pTask->waitRetry) {
+        tsnprintf(subDesc.status, sizeof(subDesc.status), "%s/wait_retry", typePrefix);
+      } else {
+        tsnprintf(subDesc.status, sizeof(subDesc.status), "%s/init", typePrefix);
+      }
+      break;
+    }
+    case JOB_TASK_STATUS_PART_SUCC:
+      tsnprintf(subDesc.status, sizeof(subDesc.status), "%s/ready", typePrefix);
+      break;
+    case JOB_TASK_STATUS_FETCH:
+      tsnprintf(subDesc.status, sizeof(subDesc.status), "%s/fetching", typePrefix);
+      break;
+    case JOB_TASK_STATUS_SUCC:
+      tsnprintf(subDesc.status, sizeof(subDesc.status), "%s/succeed", typePrefix);
+      break;
+    case JOB_TASK_STATUS_FAIL:
+      tsnprintf(subDesc.status, sizeof(subDesc.status), "%s/failed", typePrefix);
+      break;
+    case JOB_TASK_STATUS_DROP:
+      tsnprintf(subDesc.status, sizeof(subDesc.status), "%s/dropping", typePrefix);
+      break;
+    default:
+      tsnprintf(subDesc.status, sizeof(subDesc.status), "%s/unknown", typePrefix);
+      break;
+  }
+  return NULL != taosArrayPush(pSub, &subDesc) ? TSDB_CODE_SUCCESS : terrno;
+}
+
+typedef struct SSchStatusCursor {
+  SSchJob* pJob;
+  int32_t level;
+  int32_t task;
+} SSchStatusCursor;
+
+int32_t schedulerGetTasksStatus(int64_t jobId, SArray* pSub) {
+  int32_t code = TSDB_CODE_SUCCESS;
+  SSchJob* pJob = NULL;
+  SArray* cursors = NULL;
+  SCH_ERR_JRET(schHandleOpBeginEvent(jobId, &pJob, SCH_OP_GET_STATUS, NULL));
+  int32_t children = taosArrayGetSize(pJob->subJobs);
+  cursors = taosArrayInit(children + 1, sizeof(SSchStatusCursor));
+  if (NULL == cursors) SCH_ERR_JRET(terrno);
+  for (int32_t i = -1; i < children; ++i) {
+    SSchJob* pCurrent = i < 0 ? pJob : taosArrayGetP(pJob->subJobs, i);
+    SSchStatusCursor cursor = {.pJob = pCurrent, .level = pCurrent->levelNum - 1};
+    if (NULL == taosArrayPush(cursors, &cursor)) SCH_ERR_JRET(terrno);
+  }
+  // Interleave jobs so a large first job cannot hide every sibling in the
+  // bounded SHOW QUERIES status column. The heartbeat wire format is stable.
+  int32_t active = taosArrayGetSize(cursors);
+  while (active > 0) {
+    int32_t remaining = 0;
+    for (int32_t i = 0; i < active; ++i) {
+      SSchStatusCursor* cursor = taosArrayGet(cursors, i);
+      while (cursor->level >= 0) {
+        SSchLevel* level = taosArrayGet(cursor->pJob->levels, cursor->level);
+        if (cursor->task >= level->taskNum) {
+          --cursor->level;
+          cursor->task = 0;
+          continue;
+        }
+        SSchTask* task = taosArrayGet(level->subTasks, cursor->task++);
+        SCH_ERR_JRET(schAppendTaskStatus(cursor->pJob, task, pSub));
+        // Compact survivors in place, preserving their round-robin order.
+        if (remaining != i) {
+          SSchStatusCursor* next = taosArrayGet(cursors, remaining);
+          *next = *cursor;
+        }
+        ++remaining;
+        break;
+      }
+    }
+    active = remaining;
+  }
+_return:
+  taosArrayDestroy(cursors);
+  return schHandleOpEndEvent(pJob, SCH_OP_GET_STATUS, NULL, code);
 }
 
 int32_t schedulerGetJobPhase(int64_t jobId, int32_t *pPhase, int64_t *pPhaseStartTime) {
@@ -210,8 +259,10 @@ int32_t schedulerGetJobPhase(int64_t jobId, int32_t *pPhase, int64_t *pPhaseStar
     SCH_ERR_RET(TSDB_CODE_SCH_JOB_NOT_EXISTS);
   }
 
-  *pPhase = SCH_GET_JOB_PHASE(pJob);
-  *pPhaseStartTime = SCH_GET_JOB_PHASE_START_TIME(pJob);
+  // Writers publish (phase, startTime) as one seqlock-guarded snapshot; the
+  // reader retries while a writer is updating, so show queries never pairs a
+  // new phase with the previous stage's start time.
+  schReadJobPhase(pJob, pPhase, pPhaseStartTime);
 
   (void)schReleaseJob(pJob->refId);
 

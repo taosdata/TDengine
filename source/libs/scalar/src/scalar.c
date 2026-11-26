@@ -35,8 +35,8 @@ threadlocal SScalarExtraInfo gTaskScalarExtra = {0};
 int32_t scalarGetOperatorParamNum(EOperatorType type) {
   if (OP_TYPE_IS_NULL == type || OP_TYPE_IS_NOT_NULL == type || OP_TYPE_IS_TRUE == type ||
       OP_TYPE_IS_NOT_TRUE == type || OP_TYPE_IS_FALSE == type || OP_TYPE_IS_NOT_FALSE == type ||
-      OP_TYPE_IS_UNKNOWN == type || OP_TYPE_IS_NOT_UNKNOWN == type || OP_TYPE_MINUS == type ||
-      OP_TYPE_EXISTS == type || OP_TYPE_NOT_EXISTS == type) {
+      OP_TYPE_IS_UNKNOWN == type || OP_TYPE_IS_NOT_UNKNOWN == type || OP_TYPE_MINUS == type || OP_TYPE_EXISTS == type ||
+      OP_TYPE_NOT_EXISTS == type) {
     return 1;
   }
 
@@ -188,8 +188,9 @@ int32_t sclExtendResRows(SScalarParam *pDst, SScalarParam *pSrc, SArray *pBlockL
 }
 
 // processType = 0 means all type. 1 means number, 2 means var, 3 means float, 4 means var&integer
-int32_t scalarGenerateSetFromCol(void **data, SColumnInfoData *pCol, uint32_t type, STypeMod typeMod, 
-                                         int8_t processType, uint32_t rows, bool* hasNull, bool* hasNotNull) {
+static int32_t scalarGenerateSetFromCol(void **data, SColumnInfoData *pCol, uint32_t type, STypeMod typeMod,
+                                        int8_t processType, uint32_t rows, bool* hasNull, bool* hasNotNull,
+                                        bool* droppedKey, SRemoteListBounds* bounds) {
   if ((IS_VAR_DATA_TYPE(pCol->info.type) && (processType == 1 || processType == 3)) ||
       (IS_INTEGER_TYPE(pCol->info.type) && (processType == 2 || processType == 3)) ||
       (IS_FLOAT_TYPE(pCol->info.type) && (processType == 2 || processType == 4))) {
@@ -245,10 +246,12 @@ int32_t scalarGenerateSetFromCol(void **data, SColumnInfoData *pCol, uint32_t ty
     SCL_ERR_JRET(vectorConvertSingleColImpl(&in, &out, overflow, -1, -1));
 
     pRes = out.columnData;
-  } 
+  }
 
+  __compar_fn_t compare = bounds ? getKeyComparFunc(type, TSDB_ORDER_ASC) : NULL;
   for (uint32_t i = 0; i < rows; ++i) {
     if (overflow && overflow[i]) {
+      *droppedKey = true;
       *hasNotNull = true;
       continue;
     }
@@ -272,6 +275,17 @@ int32_t scalarGenerateSetFromCol(void **data, SColumnInfoData *pCol, uint32_t ty
 
     *hasNotNull = true;
     SCL_ERR_JRET(taosHashPut(pObj, buf, (size_t)len, NULL, 0));
+    if (compare) {
+      if (bounds->type == TSDB_DATA_TYPE_NULL) {
+        memcpy(bounds->min, buf, len);
+        memcpy(bounds->max, buf, len);
+        bounds->type = type;
+      } else if (compare(buf, bounds->min) < 0) {
+        memcpy(bounds->min, buf, len);
+      } else if (compare(buf, bounds->max) > 0) {
+        memcpy(bounds->max, buf, len);
+      }
+    }
   }
 
   *data = pObj;
@@ -611,19 +625,37 @@ int32_t scalarBuildRemoteListHash(char* idStr, SRemoteValueListNode* pRemote, SC
 
   sclDebug("%s %s compare type:%d, targetType:%d, valType:%d, rows:%" PRId64, idStr, __func__, type, pRemote->targetType, pRemote->node.resType.type, rows);
 
-  bool hasNull1 = false, hasNull2 = false, hasNotNull = false;
+  bool hasNull1 = false, hasNull2 = false, hasNotNull = false, droppedKey = false;
   
   if (rows > 0 && TSDB_DATA_TYPE_NULL != type) {
+    SRemoteListBounds* bounds = NULL;
+    if ((IS_INTEGER_TYPE(type) || type == TSDB_DATA_TYPE_TIMESTAMP || IS_DECIMAL_TYPE(type)) &&
+        !IS_VAR_DATA_TYPE(pRemote->targetType)) {
+      // Only extend bounds that describe every earlier batch in this hash.
+      if (taosHashGetSize(pRemote->pHashFilter) == 0) {
+        pRemote->bounds.type = TSDB_DATA_TYPE_NULL;
+        bounds = &pRemote->bounds;
+      } else if (pRemote->bounds.type == type && pRemote->filterValueTypeMod == typeMod) {
+        bounds = &pRemote->bounds;
+      }
+    }
+    if (!bounds) pRemote->bounds.type = TSDB_DATA_TYPE_NULL;
     if (IS_VAR_DATA_TYPE(pRemote->targetType) && IS_NUMERIC_TYPE(type)) {
-      SCL_ERR_RET(scalarGenerateSetFromCol((void **)&pRemote->pHashFilter, pCol, type, typeMod, 1, rows, &hasNull1, &hasNotNull));
+      SCL_ERR_RET(scalarGenerateSetFromCol((void **)&pRemote->pHashFilter, pCol, type, typeMod, 1, rows,
+                                           &hasNull1, &hasNotNull, &droppedKey, NULL));
     } else if (IS_INTEGER_TYPE(pRemote->targetType) && IS_FLOAT_TYPE(type)) {
-      SCL_ERR_RET(scalarGenerateSetFromCol((void **)&pRemote->pHashFilter, pCol, type, typeMod, 3, rows, &hasNull1, &hasNotNull));
-      SCL_ERR_RET(scalarGenerateSetFromCol((void **)&pRemote->pHashFilterOthers, pCol, pRemote->targetType, typeMod, 4, rows, &hasNull2, &hasNotNull));
+      SCL_ERR_RET(scalarGenerateSetFromCol((void **)&pRemote->pHashFilter, pCol, type, typeMod, 3, rows,
+                                           &hasNull1, &hasNotNull, &droppedKey, NULL));
+      SCL_ERR_RET(scalarGenerateSetFromCol((void **)&pRemote->pHashFilterOthers, pCol, pRemote->targetType, typeMod,
+                                           4, rows, &hasNull2, &hasNotNull, &droppedKey, NULL));
     } else {
-      SCL_ERR_RET(scalarGenerateSetFromCol((void **)&pRemote->pHashFilter, pCol, type, typeMod, 0, rows, &hasNull1, &hasNotNull));
+      SCL_ERR_RET(scalarGenerateSetFromCol((void **)&pRemote->pHashFilter, pCol, type, typeMod, 0, rows,
+                                           &hasNull1, &hasNotNull, &droppedKey, bounds));
     }
   }
 
+  pRemote->otherKeyType = pRemote->pHashFilterOthers ? pRemote->targetType : TSDB_DATA_TYPE_NULL;
+  pRemote->droppedKey |= droppedKey;
   pRemote->hashAllocated = true;
   pRemote->hasNull = pRemote->hasNull || hasNull1 || hasNull2 || (rows > 0 && TSDB_DATA_TYPE_NULL == type);
   pRemote->hasNotNull = pRemote->hasNotNull || hasNotNull;
@@ -870,6 +902,8 @@ int32_t sclInitParam(SNode *node, SScalarParam *param, SScalarCtx *ctx, int32_t 
         }
         pRemote->hasNull = false;
         pRemote->hasNotNull = false;
+        pRemote->droppedKey = false;
+        pRemote->bounds.type = TSDB_DATA_TYPE_NULL;
         pRemote->hasValue = false;
         needFetch = true;
       }
@@ -918,6 +952,7 @@ int32_t sclInitParam(SNode *node, SScalarParam *param, SScalarCtx *ctx, int32_t 
           if (pNewHash != NULL) {
             pRemote->pHashFilter    = pNewHash;
             pRemote->filterValueType = convertType;
+            pRemote->bounds.type = TSDB_DATA_TYPE_NULL;
             pRemote->hashAllocated  = true;
           }
         }
@@ -939,6 +974,7 @@ int32_t sclInitParam(SNode *node, SScalarParam *param, SScalarCtx *ctx, int32_t 
           if (pNewHash != NULL) {
             pRemote->pHashFilter    = pNewHash;
             pRemote->filterValueType = convertType;
+            pRemote->bounds.type = TSDB_DATA_TYPE_NULL;
             pRemote->hashAllocated  = true;
           }
         }
@@ -1103,7 +1139,11 @@ int32_t sclSetStreamExtWinParam(int32_t funcId, SNodeList* pParamNodes, SScalarP
       sclFreeParam(res);
       return code;
     }
-    ((int64_t *)res->columnData->pData)[i] = ((SValueNode *)pFirstParam)->datum.i;
+    if (((SValueNode *)pFirstParam)->isNull) {
+      colDataSetNULL(res->columnData, i);
+    } else {
+      ((int64_t *)res->columnData->pData)[i] = ((SValueNode *)pFirstParam)->datum.i;
+    }
   }
 
   return code;
@@ -1216,6 +1256,20 @@ int32_t scalarAssignPlaceHolderRes(SColumnInfoData* pResColData, int64_t offset,
       break;
     case FUNCTION_TYPE_TWEND:
       pData = &pParams->wend;
+      break;
+    case FUNCTION_TYPE_TPREV_WSTART:
+      if (!pParams->hasPrevWindow) {
+        colDataSetNNULL(pResColData, offset, rows);
+        return TSDB_CODE_SUCCESS;
+      }
+      pData = &pParams->prevWstart;
+      break;
+    case FUNCTION_TYPE_TPREV_WEND:
+      if (!pParams->hasPrevWindow) {
+        colDataSetNNULL(pResColData, offset, rows);
+        return TSDB_CODE_SUCCESS;
+      }
+      pData = &pParams->prevWend;
       break;
     case FUNCTION_TYPE_TWDURATION:
       pData = &pParams->wduration;
@@ -1783,6 +1837,9 @@ int32_t sclExecFunction(SFunctionNode *node, SScalarCtx *ctx, SScalarParam *outp
       goto _return;
     }
 
+    if (node->funcType == FUNCTION_TYPE_STREAM_DERIVATIVE_FACTOR) {
+      params[0].param = (void*)ctx->stream.pStreamRuntimeFuncInfo;
+    }
     code = (*ffpSet.process)(params, paramNum, output);
     if (code) {
       sclError("scalar function exec failed, funcId:%d, code:%s", node->funcId, tstrerror(code));
@@ -1900,11 +1957,15 @@ _return:
   SCL_RET(code);
 }
 
-static int32_t sclGetFirstTsFromParam(SScalarParam* param, int64_t* ts){
+static int32_t sclGetFirstTsFromParam(SScalarParam* param, int64_t* ts,
+                                      bool* isNull) {
   int32_t code = 0, lino = 0;
   int64_t skey = 0;
   char* buf = NULL;
   
+  *isNull = colDataIsNull_s(param->columnData, 0);
+  if (*isNull) return TSDB_CODE_SUCCESS;
+
   void* p = colDataGetData(param->columnData, 0);
   if (IS_VAR_DATA_TYPE(param->columnData->info.type)){
     buf = taosMemoryCalloc(1, varDataTLen(p));
@@ -1954,7 +2015,8 @@ static bool sclIsStreamRangeReq(SOperatorNode *node) {
   return false;
 }
 
-static int32_t sclGetExprTSValue(SScalarCtx *ctx, SNode *pNode, int64_t *tsValue) {
+static int32_t sclGetExprTSValue(SScalarCtx *ctx, SNode *pNode,
+                                 int64_t *tsValue, bool *isNull) {
   int32_t code = TSDB_CODE_SUCCESS, lino = 0;
   if (nodeType(pNode) == QUERY_NODE_OPERATOR || nodeType(pNode) == QUERY_NODE_FUNCTION) {
     SScalarParam *res = (SScalarParam *)taosHashGet(ctx->pRes, (void *)&pNode, POINTER_BYTES);
@@ -1967,13 +2029,15 @@ static int32_t sclGetExprTSValue(SScalarCtx *ctx, SNode *pNode, int64_t *tsValue
       return TSDB_CODE_QRY_INVALID_INPUT;
     }
     if (res->columnData->info.type == TSDB_DATA_TYPE_TIMESTAMP) {
-      TAOS_CHECK_EXIT(sclGetFirstTsFromParam(res, tsValue));
+      TAOS_CHECK_EXIT(sclGetFirstTsFromParam(res, tsValue, isNull));
     } else {
       sclError("invalid type for ts range expr, type:%d, node:%p", res->columnData->info.type, pNode);
       return TSDB_CODE_QRY_INVALID_INPUT;
     }
   } else if (nodeType(pNode) == QUERY_NODE_VALUE) {
     SValueNode *valueNode = (SValueNode *)pNode;
+    *isNull = valueNode->isNull;
+    if (*isNull) return TSDB_CODE_SUCCESS;
     if (IS_INTEGER_TYPE(valueNode->node.resType.type) || IS_TIMESTAMP_TYPE(valueNode->node.resType.type)) {
       *tsValue = valueNode->datum.i;
     } else {
@@ -2003,17 +2067,22 @@ static int32_t sclCalcStreamCurrWinTimeRange(SScalarCtx *ctx, SStreamTSRangePara
                                                 SOperatorNode *node, SScalarParam *params) {
   int32_t code = 0;
   int64_t timeValue = 0;
+  bool    isNull = false;
 
   if (sclIsPrimTimeStampCol(node->pRight)) {
-    code = sclGetExprTSValue(ctx, node->pLeft, &timeValue);
+    code = sclGetExprTSValue(ctx, node->pLeft, &timeValue, &isNull);
   } else if (sclIsPrimTimeStampCol(node->pLeft)) {
-    code = sclGetExprTSValue(ctx, node->pRight, &timeValue);
+    code = sclGetExprTSValue(ctx, node->pRight, &timeValue, &isNull);
 
   } else {
     sclError("invalid stream timerange start expr, opType:%d, nodeType left:%d, nodeType right:%d", node->opType,
              nodeType(node->pLeft), nodeType(node->pRight));
     return TSDB_CODE_STREAM_INTERNAL_ERROR;         
   }
+
+  if (code != TSDB_CODE_SUCCESS) return code;
+  streamTsRange->isNull = streamTsRange->isNull || isNull;
+  if (streamTsRange->isNull) return TSDB_CODE_SUCCESS;
 
   /*
    * One bound (start or end) may be constrained by more than one condition, e.g.
@@ -2049,9 +2118,6 @@ static int32_t sclCalcStreamCurrWinTimeRange(SScalarCtx *ctx, SStreamTSRangePara
       streamTsRange->timeValue = timeValue;
       streamTsRange->opType = node->opType;
     }
-  }
-  if (code != TSDB_CODE_SUCCESS) {
-    sclError("get ts value for stream timerange failed, code:%d", code);
   }
   return TSDB_CODE_SUCCESS;
 }
@@ -3629,7 +3695,21 @@ int32_t scalarGetCompOperatorResultType(SOperatorNode *pOp) {
     }
     SValueNode *node = (SValueNode *)(pOp->pRight);
     if (!node->placeholderNo && nodesIsMatchRegularOp(pOp)) {
-      if (checkRegexPattern(node->literal) != TSDB_CODE_SUCCESS) {
+      bool validate = node->literal != NULL;
+#ifndef WINDOWS
+      // A parsing client need not have the execution server's locale installed.
+      // Validate non-ASCII patterns authoritatively in the execution pool.
+      if (validate) {
+        const unsigned char *pattern = (const unsigned char *)node->literal;
+        for (; *pattern != '\0'; ++pattern) {
+          if (*pattern >= 0x80) {
+            validate = false;
+            break;
+          }
+        }
+      }
+#endif
+      if (validate && checkRegexPattern(node->literal, pOp->charsetCxt) != TSDB_CODE_SUCCESS) {
         return TSDB_CODE_PAR_REGULAR_EXPRESSION_ERROR;
       }
     }

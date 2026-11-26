@@ -10,6 +10,7 @@
 83-DocTest/rust.sh
 83-DocTest/go.sh
 83-DocTest/test_R.sh
+83-DocTest/taosx.sh
 
 # Valgrind not supported in Windows CI
 cases/81-Tools/05-Valgrind/test_valgrind_basic1.py
@@ -30,19 +31,9 @@ cases/81-Tools/05-Valgrind/test_valgrind_udf.py
 # copy-mode repair not supported in Windows
 cases/50-Others/02-Repair/test_copy_repair.py
 
-# Federated queries and xnode are unavailable on Windows.
+# Xnode and the following suites are unavailable on Windows.
+# Supported FQ providers are provisioned locally: InfluxDB 3.0 and Oracle 26ai.
 # Patterns also match pytest node IDs (file.py::Class::test).
-FQ_REQUIRED_SERVICES=*
-cases/09-DataQuerying/19-FederatedQuery/
 cases/42-Xnode/
-cases/05-VirtualTables/01-DDL/03-ExtSource/
-cases/05-VirtualTables/02-Auth/test_vtable_auth_ext_source.py
-cases/05-VirtualTables/04-Query/03-ExtSource/
-cases/05-VirtualTables/05-Plan/*ext_source*.py
-cases/05-VirtualTables/05-Plan/*federated*.py
-cases/05-VirtualTables/06-Meta/02-Series/
-cases/18-StreamProcessing/20-UseCase/test_virtual_stream_mixed_external.py
-cases/18-StreamProcessing/20-UseCase/test_virtual_stream_ext_recovery.py
-cases/18-StreamProcessing/22-Performance/test_virtual_stream_mixed_external_perf.py
-cases/18-StreamProcessing/99-Others/test_fs_*.py
-cases/21-MetaData/test_meta_batch_txn_series.py
+# The four-backend REFERENCE suite has pending Windows validation.
+cases/05-VirtualTables/01-DDL/03-ExtSource/test_vtable_reference_ext_source.py

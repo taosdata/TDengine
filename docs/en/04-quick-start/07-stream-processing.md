@@ -21,7 +21,7 @@ Compared with traditional stream processing, TDengine separates **trigger** from
   Supports periodic (`PERIOD`), sliding (`SLIDING`), time-window (`INTERVAL`), session / state / event / count windows, and more. Triggers can be partitioned, and trigger data can be pre-filtered. See [Stream Syntax](../07-stream-processing/01-syntax.md).
 
 - **Compute and result output**
-  Compute can be any query. Results can be written to an output table (`INTO`), sent as notifications (`NOTIFY`), or both. See [Stream Syntax](../07-stream-processing/01-syntax.md).
+  Compute supports common query statements; table functions (`TABLE(...)`) are not supported. Results can be written to an output table (`INTO`), sent as notifications (`NOTIFY`), or both. See [Stream Syntax](../07-stream-processing/01-syntax.md).
 
 - **Control options**
   Use `STREAM_OPTIONS` for history replay, out-of-order watermarks, max delay, low-latency compute, and more, balancing result freshness against resource load. See [Stream Syntax](../07-stream-processing/01-syntax.md).
@@ -52,6 +52,7 @@ If there is no snode, list dnodes and create an snode on one of them. Replace `1
 
 ```sql
 SHOW DNODES;
+
 CREATE SNODE ON DNODE 1;
 ```
 
@@ -68,9 +69,14 @@ USE test;
 Confirm that the `meters` supertable already has data.
 
 ```sql
-SELECT tbname, ts, current, voltage
+SELECT
+  tbname,
+  ts,
+  current,
+  voltage
 FROM meters
-WHERE voltage > 250 and tbname = 'd1'
+WHERE voltage > 250
+  AND tbname = 'd1'
 ORDER BY ts DESC
 LIMIT 5;
 ```
@@ -85,7 +91,6 @@ The result looks similar to the following. Subtable names and values may vary sl
  d1     | 2017-07-14 10:40:09.998 |  11.7984 |     253 |
  d1     | 2017-07-14 10:40:09.998 |  11.7984 |     253 |
  d1     | 2017-07-14 10:40:09.998 |  11.7984 |     253 |
-
 Query OK, 5 row(s) in set
 ```
 
@@ -97,6 +102,7 @@ To make the example easy to re-run, clean up any stream and output table with th
 
 ```sql
 DROP STREAM IF EXISTS avg_current_stream;
+
 DROP STABLE IF EXISTS avg_current_stb;
 ```
 
@@ -105,17 +111,17 @@ Run the following SQL to create a stream: one window every 1 minute, average cur
 ```sql
 CREATE STREAM avg_current_stream
   INTERVAL(1m) SLIDING(1m)
-  FROM meters PARTITION BY tbname, groupId
+  FROM meters
+  PARTITION BY tbname, groupId
   STREAM_OPTIONS(FILL_HISTORY_FIRST | MAX_DELAY(3s))
   INTO avg_current_stb
-  OUTPUT_SUBTABLE(CONCAT("avg_", tbname))
-  TAGS (
-      groupId INT AS groupId
-  )
+    OUTPUT_SUBTABLE(CONCAT("avg_", tbname))
+    TAGS (groupId INT AS groupId)
   AS
-    SELECT _twstart AS ts,
-           _twend AS window_end,
-           AVG(current) AS avg_current
+    SELECT
+      _twstart AS ts,
+      _twend AS window_end,
+      AVG(current) AS avg_current
     FROM %%trows;
 ```
 
@@ -143,7 +149,6 @@ The result looks similar to:
       stream_name     | status |         message         | db_name |
 ====================================================================
  avg_current_stream   | Idle   | Current deploy times: 0 | test    |
-
 Query OK, 1 row(s) in set
 ```
 
@@ -162,7 +167,12 @@ Streams are scheduled asynchronously. Wait a few seconds after creation before q
 Query the output supertable `avg_current_stb`.
 
 ```sql
-SELECT tbname, groupId, ts, window_end, avg_current
+SELECT
+  tbname,
+  groupId,
+  ts,
+  window_end,
+  avg_current
 FROM avg_current_stb
 ORDER BY ts, tbname
 LIMIT 5;
@@ -189,19 +199,26 @@ Windows trigger by default when they close. If you only write data in the `10:41
 Insert one row for `d0` inside that window.
 
 ```sql
-INSERT INTO d0 VALUES ("2017-07-14 10:41:30", 12.4, 221, 147);
+INSERT INTO d0
+VALUES ("2017-07-14 10:41:30", 12.4, 221, 147);
 ```
 
 You can also write a row at the next window start so event time closes the window (this triggers even without `MAX_DELAY`):
 
 ```sql
-INSERT INTO d0 VALUES ("2017-07-14 10:42:00", 12.5, 220, 147);
+INSERT INTO d0
+VALUES ("2017-07-14 10:42:00", 12.5, 220, 147);
 ```
 
 After a few seconds, query recent stream results for `d0`’s output subtable `avg_d0`.
 
 ```sql
-SELECT tbname, groupId, ts, window_end, avg_current
+SELECT
+  tbname,
+  groupId,
+  ts,
+  window_end,
+  avg_current
 FROM avg_current_stb
 WHERE tbname = "avg_d0"
 ORDER BY ts DESC
@@ -225,6 +242,7 @@ If you no longer need the stream and output table from this chapter, run:
 
 ```sql
 DROP STREAM IF EXISTS avg_current_stream;
+
 DROP STABLE IF EXISTS avg_current_stb;
 ```
 

@@ -57,6 +57,45 @@ def test_private_runpath_resolves_transitive_dependencies_after_relocation(tmp_p
         assert subprocess.check_output(["patchelf", "--print-rpath", str(lib)], text=True).strip() == "$ORIGIN"
 
 
+def test_private_runtime_resolves_dependency_from_shared_runtime_dir(tmp_path):
+    if sys.platform != "linux" or not shutil.which("cc"):
+        pytest.skip("native Linux compiler required")
+    source = tmp_path / "source"
+    shared = tmp_path / "shared"
+    private = tmp_path / "private"
+    source.mkdir()
+    shared.mkdir()
+    private.mkdir()
+    (source / "manager.c").write_text("int fq_manager(void) { return 42; }\n")
+    (source / "provider.c").write_text(
+        "extern int fq_manager(void); int fq_provider(void) { return fq_manager(); }\n"
+    )
+    subprocess.run(
+        [
+            "cc", "-shared", "-fPIC", str(source / "manager.c"),
+            "-Wl,-soname,libfq_manager.so.2", "-o", str(shared / "libfq_manager.so.2"),
+        ],
+        check=True,
+    )
+    (shared / "libfq_manager.so").symlink_to("libfq_manager.so.2")
+    subprocess.run(
+        [
+            "cc", "-shared", "-fPIC", str(source / "provider.c"),
+            "-L" + str(shared), "-lfq_manager", "-o", str(source / "libfq_provider.so"),
+        ],
+        check=True,
+    )
+
+    env = dict(os.environ, FQ_RUNTIME_SEARCH_PATH=str(shared))
+    subprocess.run(
+        ["bash", str(STAGER), "copy-ldd-glob", str(source), str(private), "libfq_provider.so"],
+        env=env,
+        check=True,
+    )
+
+    assert (private / "libfq_manager.so.2").is_file()
+
+
 def test_installer_copies_driver_resources_only_inside_installation(tmp_path):
     script = (COMMUNITY / "packaging/tools/install.sh").read_text()
     helper = script.split("function cleanup_legacy_fq_runtime() {", 1)[1].split("function get_config_file()", 1)[0]
@@ -179,7 +218,7 @@ case "$*" in
 esac
 """)
     (mock / "rpm").chmod(0o755)
-    for command in ("awk", "readlink", "dirname", "rm", "ln", "cat"):
+    for command in ("awk", "readlink", "dirname", "rm", "ln", "cat", "bash"):
         (mock / command).symlink_to(shutil.which(command))
     (mock / "id").write_text("#!/bin/sh\necho 0\n")
     (mock / "id").chmod(0o755)
@@ -188,7 +227,7 @@ esac
     (mock / "ldconfig").chmod(0o755)
     env = dict(os.environ, PATH=str(mock), RPM_LINK=str(link), CACHE_LOG=str(log))
     command = helper + '\ncleanup_legacy_fq_runtime "$1" "" "" "$2"\n'
-    subprocess.run(["bash", "-euc", command, "test", str(driver), str(system)], env=env, check=True)
+    subprocess.run([shutil.which("bash"), "-euc", command, "test", str(driver), str(system)], env=env, check=True)
     assert link.is_symlink()
     assert os.readlink(link) == "libssl.so.3.5.8"
     assert log.read_text().splitlines() == ["refresh"]
@@ -225,3 +264,83 @@ def test_private_runpath_rejects_uninspectable_libraries(tmp_path, scenario):
         assert "readelf is required" in result.stderr
     else:
         assert str(lib) in result.stderr and "invalid-elf" in result.stderr
+
+
+def _top_level_function(text: str, name: str) -> str:
+    start = text.index("function " + name + "() {")
+    end = text.index("\n}\n", start) + len("\n}\n")
+    return text[start:end]
+
+
+def _nested_function(text: str, name: str) -> str:
+    # Functions that live inside install_lib() are indented by two spaces and
+    # close with a two-space brace.  Both the `function name()` and `name()`
+    # forms are used in the script.
+    for marker in ("  function " + name + "() {", "  " + name + "() {"):
+        if marker in text:
+            start = text.index(marker)
+            break
+    else:
+        raise ValueError(f"{name} not found in make_install.sh")
+    end = text.index("\n  }\n", start) + len("\n  }\n")
+    return text[start:end]
+
+
+def test_make_install_stages_mysql_auth_plugins(tmp_path):
+    """The Linux installer must ship the MySQL client auth plugins.
+
+    MySQL 8 accounts default to caching_sha2_password, which MariaDB
+    Connector/C loads as a client plugin next to libmariadb.  The runtime
+    points MYSQL_PLUGIN_DIR at that directory, so the dependency package (the
+    installer's driver/ directory) has to carry the plugin files; staging only
+    libmariadb makes every such account fail with a client-synthesized 1045.
+
+    Exercises the real copy/remove functions from make_install.sh so a future
+    edit to the pattern lists cannot silently drop the plugins again.
+    """
+    if sys.platform == "win32":
+        pytest.skip("make_install.sh is the Linux/macOS installer")
+    text = (COMMUNITY / "packaging/tools/make_install.sh").read_text()
+    harness = "".join([
+        _top_level_function(text, "is_true"),
+        _nested_function(text, "copy_fq_runtime_lib"),
+        _nested_function(text, "copy_fq_runtime_libs"),
+        _nested_function(text, "remove_fq_runtime_libs"),
+    ])
+    build_lib = tmp_path / "build/lib"
+    build_lib.mkdir(parents=True)
+    auth_plugins = [
+        "caching_sha2_password.so",
+        "sha256_password.so",
+        "mysql_clear_password.so",
+        "dialog.so",
+        "client_ed25519.so",
+    ]
+    for name in ["libmariadb.so.3", "libpq.so.5", *auth_plugins]:
+        (build_lib / name).write_bytes(name.encode())
+    (build_lib / "unrelated.so").write_bytes(b"unrelated")
+    install_dir = tmp_path / "installation"
+    (install_dir / "driver").mkdir(parents=True)
+    # install_lib() copies the client library before the FQ step; the cleanup
+    # below must never touch it.
+    (install_dir / "driver/libtaos.so.3").write_bytes(b"libtaos")
+
+    # First pass: copy with INSTALL_FQ_RUNTIME_LIBS=ON.
+    subprocess.run(["bash", "-euc", harness + r'''
+binary_dir="$1"; install_main_dir="$2"; csudo=""; install_fq_runtime_libs=ON
+copy_fq_runtime_libs''',
+                    "test", str(tmp_path), str(install_dir)], check=True)
+    driver = install_dir / "driver"
+    for name in ["libmariadb.so.3", "libpq.so.5", *auth_plugins]:
+        assert (driver / name).is_file(), f"{name} was not staged into driver/"
+    assert not (driver / "unrelated.so").exists()
+
+    # Second pass: OFF must clean the provider runtime back out, and leave the
+    # client library links alone.
+    subprocess.run(["bash", "-euc", harness + r'''
+binary_dir="$1"; install_main_dir="$2"; csudo=""; install_fq_runtime_libs=OFF
+remove_fq_runtime_libs''',
+                    "test", str(tmp_path), str(install_dir)], check=True)
+    for name in ["libmariadb.so.3", "libpq.so.5", *auth_plugins]:
+        assert not (driver / name).exists(), f"{name} survived INSTALL_FQ_RUNTIME_LIBS=OFF"
+    assert (driver / "libtaos.so.3").is_file(), "client library links must survive cleanup"

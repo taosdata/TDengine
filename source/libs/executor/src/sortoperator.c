@@ -21,6 +21,15 @@
 #include "querytask.h"
 #include "tdatablock.h"
 
+// Values of swapColumnData in SSortOperatorInfo and SGroupSortOperatorInfo:
+// whether the tuple block's payload buffers may be exchanged with the output
+// block's instead of copied. Both operators cache the verdict per handle.
+typedef enum ESortColDataSwap {
+  SORT_COLDATA_UNKNOWN = 0,  // shape not compared yet
+  SORT_COLDATA_SWAP = 1,     // payload buffers can be exchanged
+  SORT_COLDATA_COPY = 2,     // payload must be copied
+} ESortColDataSwap;
+
 typedef struct SSortOpGroupIdCalc {
   STupleHandle* pSavedTuple;
   SArray*       pSortColsArr;
@@ -42,7 +51,13 @@ typedef struct SSortOperatorInfo {
   SLimitInfo          limitInfo;
   uint64_t            maxTupleLength;
   int64_t             maxRows;
+  bool                tsPkSort;
+  bool                inputOrderedBySortKeys;
   SSortOpGroupIdCalc* pGroupIdCalc;
+  // Tuple block reused across calls so its buffers cycle with the output block
+  // instead of being allocated and freed for every output block.
+  SSDataBlock*        pInterBlock;
+  int8_t              swapColumnData;  // ESortColDataSwap value
 } SSortOperatorInfo;
 
 static int32_t doSort(SOperatorInfo* pOperator, SSDataBlock** pResBlock);
@@ -52,6 +67,13 @@ static int32_t doGroupSort(SOperatorInfo* pOperator, SSDataBlock** pResBlock);
 
 static void destroySortOperatorInfo(void* param);
 static void calcSortOperMaxTupleLength(SSortOperatorInfo* pSortOperInfo, SNodeList* pSortKeys);
+
+// Composite primary keys are stored in (ts, pk) lexicographic order. Only this exact key shape is eligible for
+// ordered-suffix validation in PQ sort; mixed directions and ordinary multi-column sorts retain the row-wise path.
+// The predicate is shared with the planner's sortInputProvesFullOrder so the two decisions cannot drift.
+static bool sortHasTsPkStorageOrder(SNodeList* pSortKeys) {
+  return queryNodeSortKeysAreAscPrimTsPk(pSortKeys);
+}
 
 // Check whether the given slotId is the output of a Sort scalar pre-calculation expression.
 // The planner's rewritePrecalcExprs pushes expression results (e.g. ts+1000) into extra slots
@@ -102,6 +124,13 @@ static int32_t resetSortOperState(SOperatorInfo* pOper) {
 
   tsortDestroySortHandle(pInfo->pSortHandle);
   pInfo->pSortHandle = NULL;
+
+  // The cached tuple block was created from the old handle's output block, so a
+  // new handle may describe a different tuple layout. Drop it so the next fill
+  // rebuilds it from the handle actually in use.
+  blockDataDestroy(pInfo->pInterBlock);
+  pInfo->pInterBlock = NULL;
+  pInfo->swapColumnData = SORT_COLDATA_UNKNOWN;
 
   if (pInfo->pGroupIdCalc) {
     pInfo->pGroupIdCalc->lastGroupId = 0;
@@ -163,8 +192,10 @@ int32_t createSortOperatorInfo(SOperatorInfo* downstream, SSortPhysiNode* pSortN
   pInfo->binfo.pRes = createDataBlockFromDescNode(pDescNode);
   QUERY_CHECK_NULL(pInfo->binfo.pRes, code, lino, _error, terrno);
 
-  pInfo->pSortInfo = createSortInfo(pSortNode->pSortKeys);
+  pInfo->pSortInfo = createSortInfo(pSortNode->pSortKeys, false);
   TSDB_CHECK_NULL(pInfo->pSortInfo, code, lino, _error, terrno);
+  pInfo->tsPkSort = sortHasTsPkStorageOrder(pSortNode->pSortKeys);
+  pInfo->inputOrderedBySortKeys = pSortNode->inputOrderedBySortKeys;
 
   if (pSortNode->calcGroupId) {
     int32_t keyLen;
@@ -243,11 +274,62 @@ _error:
 }
 
 int32_t appendOneRowToDataBlock(SSDataBlock* pBlock, STupleHandle* pTupleHandle) {
-  int32_t code = 0;
-  for (int32_t i = 0; i < taosArrayGetSize(pBlock->pDataBlock); ++i) {
+  int32_t      code = 0;
+  int32_t      rows = pBlock->info.rows;
+  const SSDataBlock* pSrcBlock = NULL;
+  int32_t            srcRow = 0;
+  tsortGetTuplePos(pTupleHandle, &pSrcBlock, &srcRow);
+  if (pSrcBlock == NULL) {
+    // A tuple handle always owns a source block; without one no value can be read.
+    return TSDB_CODE_INVALID_PARA;
+  }
+
+  // This is an exported entry point, so it defends itself instead of trusting
+  // every caller to have sized the destination first: one row is cheap to add
+  // and the call is a no-op when the capacity already covers it.
+  if (UNLIKELY(rows >= (int32_t)pBlock->info.capacity)) {
+    code = blockDataEnsureCapacity(pBlock, (uint32_t)rows + 1);
+    if (code) {
+      return code;
+    }
+  }
+
+  // No path can produce a value from a row outside the source block: both the
+  // fast path and the tuple slow path address the block by this index, so an
+  // out-of-range row is an error rather than something to hand downstream.
+  if (srcRow < 0 || srcRow >= (int32_t)pSrcBlock->info.rows) {
+    return TSDB_CODE_QRY_EXECUTOR_INTERNAL_ERROR;
+  }
+
+  size_t numOfCols = taosArrayGetSize(pBlock->pDataBlock);
+  // The fast path addresses the source by row index and column position, so it
+  // is only valid while both blocks share the schema.
+  bool fastRowOk = taosArrayGetSize(pSrcBlock->pDataBlock) == numOfCols;
+  for (int32_t i = 0; i < numOfCols; ++i) {
     SColumnInfoData* pColInfo = taosArrayGet(pBlock->pDataBlock, i);
     if (pColInfo == NULL) {
       return terrno;
+    }
+
+    // Same fixed-width / no-NULL fast path as the merge output: one memcpy per
+    // value instead of the null lookup, tuple value fetch and type dispatch.
+    SColumnInfoData* pSrcCol =
+        fastRowOk ? (SColumnInfoData*)taosArrayGet(pSrcBlock->pDataBlock, i) : NULL;
+    if (colDataCanCopyFixed(pColInfo, pSrcCol)) {
+      // Invariant for the block handed to the caller: hasNull may stay
+      // conservatively set, but every row this path writes has its NULL bit
+      // cleared, which is what the source predicate promised.
+      if (pColInfo->nullbitmap != NULL) {
+        colDataClearNull_f(pColInfo->nullbitmap, rows);
+      } else {
+        // No bitmap means no row ever carried a NULL bit (setting one needs a
+        // bitmap), so a set flag is stale: drop it instead of leaving hasNull
+        // out of step with the bitmap the column actually has.
+        pColInfo->hasNull = false;
+      }
+      memcpy(pColInfo->pData + (size_t)rows * pColInfo->info.bytes,
+             pSrcCol->pData + (size_t)srcRow * pColInfo->info.bytes, pColInfo->info.bytes);
+      continue;
     }
 
     bool isNull = tsortIsNullVal(pTupleHandle, i);
@@ -267,13 +349,158 @@ int32_t appendOneRowToDataBlock(SSDataBlock* pBlock, STupleHandle* pTupleHandle)
   }
 
   pBlock->info.dataLoad = 1;
-
-  SDataBlockInfo info = {0};
-  tsortGetBlockInfo(pTupleHandle, &info);
-
-  pBlock->info.scanFlag = info.scanFlag;
+  pBlock->info.scanFlag = pSrcBlock->info.scanFlag;
   pBlock->info.rows += 1;
   return code;
+}
+
+// colDataAssign copies the payload of every column into the output block.  When
+// the tuple block and the output block agree on the schema of every mapped
+// column, the payload can be handed over by exchanging the column buffers
+// instead: the tuple block keeps the previous output buffers, and because that
+// block is reused across calls a steady-state sort neither copies the payload
+// nor allocates new buffers.
+static bool sortColumnDataSwappable(const SSDataBlock* pSrcBlock, const SSDataBlock* pDstBlock,
+                                    const SArray* pColMatchInfo) {
+  int32_t srcCols = (int32_t)taosArrayGetSize(pSrcBlock->pDataBlock);
+  int32_t dstCols = (int32_t)taosArrayGetSize(pDstBlock->pDataBlock);
+  int32_t numOfCols = (int32_t)taosArrayGetSize(pColMatchInfo);
+
+  // Bitmaps of the slots already used on each side: an O(n) duplicate check
+  // instead of rescanning every predecessor for each column. Both sides must
+  // fit their stack arrays: srcBytes and dstBytes are sized independently, so
+  // checking only one of them can overflow the other array.
+  size_t  srcBytes = BitmapLen(TMAX(srcCols, 1));
+  size_t  dstBytes = BitmapLen(TMAX(dstCols, 1));
+  uint8_t srcUsed[64];
+  uint8_t dstUsed[64];
+  bool    onStack = srcBytes <= sizeof(srcUsed) && dstBytes <= sizeof(dstUsed);
+  uint8_t* pAlloc = onStack ? NULL : taosMemoryCalloc(1, srcBytes + dstBytes);
+  if (!onStack && pAlloc == NULL) {
+    return false;
+  }
+  uint8_t* pSrcUsed = onStack ? srcUsed : pAlloc;
+  uint8_t* pDstUsed = onStack ? dstUsed : pAlloc + srcBytes;
+  if (onStack) {
+    memset(srcUsed, 0, sizeof(srcUsed));
+    memset(dstUsed, 0, sizeof(dstUsed));
+  }
+
+  bool swappable = true;
+  for (int32_t i = 0; i < numOfCols; ++i) {
+    const SColMatchItem* pmInfo = taosArrayGet(pColMatchInfo, i);
+    if (pmInfo == NULL || pmInfo->srcSlotId < 0 || pmInfo->srcSlotId >= srcCols || pmInfo->dstSlotId < 0 ||
+        pmInfo->dstSlotId >= dstCols) {
+      swappable = false;
+      break;
+    }
+
+    const SColumnInfoData* pSrc = taosArrayGet(pSrcBlock->pDataBlock, pmInfo->srcSlotId);
+    const SColumnInfoData* pDst = taosArrayGet(pDstBlock->pDataBlock, pmInfo->dstSlotId);
+    if (pSrc == NULL || pDst == NULL) {
+      swappable = false;
+      break;
+    }
+    // DECIMAL keeps an unscaled integer plus a scale: same type and width with
+    // a different scale is a different value, so the buffers cannot be swapped
+    // (the same rule colDataCanCopyFixed applies).
+    if (pSrc->info.type != pDst->info.type || pSrc->info.bytes != pDst->info.bytes ||
+        pSrc->info.scale != pDst->info.scale) {
+      swappable = false;
+      break;
+    }
+    // A var column lives in two parts (offset/length/allocLen + payload) and the
+    // exchange moves both, so each part must describe the other: a length that
+    // exceeds its allocated payload would hand the receiving column a payload
+    // it cannot address. Copying is always valid, so fall back to it.
+    if (IS_VAR_DATA_TYPE(pSrc->info.type) &&
+        (pSrc->varmeta.allocLen < pSrc->varmeta.length || pDst->varmeta.allocLen < pDst->varmeta.length)) {
+      swappable = false;
+      break;
+    }
+
+    if (BMIsNull(pSrcUsed, pmInfo->srcSlotId) || BMIsNull(pDstUsed, pmInfo->dstSlotId)) {
+      // one source buffer cannot feed two output columns, and two sources
+      // cannot feed one output column
+      swappable = false;
+      break;
+    }
+    BMCharPos(pSrcUsed, pmInfo->srcSlotId) |= (uint8_t)(1u << (7u - BitPos(pmInfo->srcSlotId)));
+    BMCharPos(pDstUsed, pmInfo->dstSlotId) |= (uint8_t)(1u << (7u - BitPos(pmInfo->dstSlotId)));
+  }
+
+  if (!onStack) {
+    taosMemoryFree(pAlloc);
+  }
+  return swappable;
+}
+
+// Re-validate a cached exchange verdict against the current pair of blocks.
+// The verdict is computed from the handle's first output block; if the two
+// layouts ever stop lining up (a rebuilt handle whose output block has another
+// shape), a cached SWAP would hand mismatched columns to the output block.
+// Demote to COPY, which is always correct and only slower, instead of trusting
+// the stale verdict.
+static int8_t sortRecheckSwapPlan(int8_t plan, const SSDataBlock* pSrc, const SSDataBlock* pDst,
+                                  const SArray* pColMatchInfo) {
+  if (plan == SORT_COLDATA_SWAP && !sortColumnDataSwappable(pSrc, pDst, pColMatchInfo)) {
+    return SORT_COLDATA_COPY;
+  }
+  return plan;
+}
+
+// Hand the payload of pSrc over to pDst, leaving pSrc with the buffers pDst
+// held before.  The observable state matches colDataAssign; only the copy of
+// the payload is skipped.
+static void sortSwapColumnData(SColumnInfoData* pDst, SColumnInfoData* pSrc) {
+  char* pTmpData = pDst->pData;
+  pDst->pData = pSrc->pData;
+  pSrc->pData = pTmpData;
+
+  if (IS_VAR_DATA_TYPE(pDst->info.type)) {
+    // nullbitmap and varmeta are one union, and a var column stores NULL in
+    // its offset array (-1 per NULL row), never in the bitmap bits. Swapping
+    // varmeta therefore already moves the whole NULL state: swapping
+    // nullbitmap as well would alias the offset pointer a second time and
+    // leave length/allocLen describing the other block's payload.
+    SVarColAttr tmpMeta = pDst->varmeta;
+    pDst->varmeta = pSrc->varmeta;
+    pSrc->varmeta = tmpMeta;
+  } else {
+    char* pTmpBitmap = pDst->nullbitmap;
+    pDst->nullbitmap = pSrc->nullbitmap;
+    pSrc->nullbitmap = pTmpBitmap;
+  }
+
+  int16_t slotId = pDst->info.slotId;
+  pDst->info = pSrc->info;
+  pDst->info.slotId = slotId;
+
+  // The two columns traded their buffers, so they trade the flags describing
+  // those buffers as well. Leaving pSrc with its old flag would describe a
+  // bitmap/payload it no longer owns when the tuple block is reused.
+  bool        tmpHasNull = pDst->hasNull;
+  bool        tmpReassigned = pDst->reassigned;
+  pDst->hasNull = pSrc->hasNull;
+  pDst->reassigned = pSrc->reassigned;
+  pSrc->hasNull = tmpHasNull;
+  pSrc->reassigned = tmpReassigned;
+}
+
+// Reset the per-column state of a reused tuple block. blockDataCleanup() skips
+// the columns when info.capacity is still 0 (a block that never got a fill),
+// so the flags are cleared explicitly here; capacity is pinned before the block
+// is filled again, which makes this the authoritative reset point.
+static void sortResetInterBlockColumns(SSDataBlock* p) {
+  size_t numOfCols = taosArrayGetSize(p->pDataBlock);
+  for (size_t i = 0; i < numOfCols; ++i) {
+    SColumnInfoData* pCol = taosArrayGet(p->pDataBlock, i);
+    if (pCol == NULL) {
+      continue;
+    }
+    pCol->hasNull = false;
+    pCol->reassigned = false;
+  }
 }
 
 /**
@@ -344,15 +571,43 @@ static int32_t getSortedBlockData(SSortHandle* pHandle, SSDataBlock* pDataBlock,
   int32_t       lino = 0;
   int32_t       code = 0;
   STupleHandle* pTupleHandle = NULL;
-  SSDataBlock*  p = NULL;
+  SSDataBlock*  p = pInfo->pInterBlock;
 
-  code = tsortGetSortedDataBlock(pHandle, &p);
-  if (p == NULL || (code != 0)) {
-    return code;
+  if (p == NULL) {
+    code = tsortGetSortedDataBlock(pHandle, &p);
+    if (p == NULL || (code != 0)) {
+      return code;
+    }
+    pInfo->pInterBlock = p;
+    pInfo->swapColumnData = sortColumnDataSwappable(p, pDataBlock, pColMatchInfo) ? SORT_COLDATA_SWAP
+                                                                                : SORT_COLDATA_COPY;
+  } else {
+    blockDataCleanup(p);
+    // The cached verdict only describes the pair it was computed from. Re-check
+    // it so a layout change in either block degrades to COPY instead of
+    // exchanging mismatched columns.
+    pInfo->swapColumnData = sortRecheckSwapPlan(pInfo->swapColumnData, p, pDataBlock, pColMatchInfo);
   }
 
   code = blockDataEnsureCapacity(p, capacity);
   QUERY_CHECK_CODE(code, lino, _error);
+  // blockDataEnsureCapacity reallocates every column to numOfRows and only then
+  // raises info.capacity, so the field read here is the bound the buffers were
+  // actually ensured to. Keep it in a local: the exchange guard below must not
+  // read back a value this function wrote itself.
+  int32_t pEnsuredCap = (int32_t)p->info.capacity;
+  // Pin the accounting fields to the capacity both blocks are guaranteed to
+  // hold. blockDataEnsureCapacity() set pEnsuredCap >= capacity (or returned
+  // an error), and the exchange below is guarded by both ensured capacities,
+  // so each block leaves this function owning a buffer sized for at least
+  // `capacity` rows. Do not write pEnsuredCap here: it may be larger than the
+  // buffer the partner block was ensured to, and appendOneRowToDataBlock()
+  // trusts this field as the real buffer bound.
+  p->info.capacity = capacity;
+  // blockDataCleanup() leaves the column flags alone when it sees capacity 0,
+  // so clear them explicitly: the fill below starts from row 0 and must not
+  // inherit NULL flags from the previous round.
+  sortResetInterBlockColumns(p);
 
   while (1) {
     if (pInfo->pGroupIdCalc) {
@@ -379,6 +634,13 @@ static int32_t getSortedBlockData(SSortHandle* pHandle, SSDataBlock* pDataBlock,
   if (p->info.rows > 0) {
     code = blockDataEnsureCapacity(pDataBlock, capacity);
     QUERY_CHECK_CODE(code, lino, _error);
+    int32_t dstEnsuredCap = (int32_t)pDataBlock->info.capacity;
+    // Report the common guaranteed bound, not dstEnsuredCap: the buffers the
+    // exchange below may bring in from pInterBlock are only guaranteed to hold
+    // `capacity` rows, which both ensured capacities cover.
+    pDataBlock->info.capacity = capacity;
+
+    bool swapThisCall = (pInfo->swapColumnData == SORT_COLDATA_SWAP);
 
     // todo extract function to handle this
     int32_t numOfCols = taosArrayGetSize(pColMatchInfo);
@@ -400,6 +662,15 @@ static int32_t getSortedBlockData(SSortHandle* pHandle, SSDataBlock* pDataBlock,
         int32_t origSlot = sortFindOrigTsSlot(pOperator, p);
         if (origSlot >= 0 && origSlot != srcSlotId) {
           srcSlotId = origSlot;
+          // A remapped slot means the exchange plan computed from
+          // pmInfo->srcSlotId no longer describes this column set. Copy every
+          // column of this block instead, so the tuple block never ends up
+          // with a mix of exchanged and assigned buffers. Persist the decision
+          // on the operator state as well: the slots stay remapped for every
+          // later block, so re-entering the exchange path would compare the
+          // wrong columns again.
+          swapThisCall = false;
+          pInfo->swapColumnData = SORT_COLDATA_COPY;
         }
       }
 
@@ -409,26 +680,47 @@ static int32_t getSortedBlockData(SSortHandle* pHandle, SSDataBlock* pDataBlock,
       SColumnInfoData* pDst = taosArrayGet(pDataBlock->pDataBlock, pmInfo->dstSlotId);
       QUERY_CHECK_NULL(pDst, code, lino, _error, terrno);
 
-      code = colDataAssign(pDst, pSrc, p->info.rows, &pDataBlock->info);
+      // The guard uses the capacities captured right after each block was
+      // ensured, not the fields written below: both blocks were ensured to
+      // `capacity` rows, and the exchange hands buffers of that size to the
+      // other block.
+      if (swapThisCall && srcSlotId == pmInfo->srcSlotId && pEnsuredCap >= capacity &&
+          dstEnsuredCap >= capacity) {
+        sortSwapColumnData(pDst, pSrc);
+        code = TSDB_CODE_SUCCESS;
+      } else {
+        code = colDataAssign(pDst, pSrc, p->info.rows, &pDataBlock->info);
+      }
       QUERY_CHECK_CODE(code, lino, _error);
     }
 
     pDataBlock->info.dataLoad = 1;
     pDataBlock->info.rows = p->info.rows;
     pDataBlock->info.scanFlag = p->info.scanFlag;
-    // propagate both C-group id and baseGId from upstream
+    // Propagate both C-group id and baseGId from upstream. blockDataCleanup()
+    // zeroes groupId before every fill, and when the group-id calculator is
+    // active nextTupleWithGroupId() writes the id of the group being emitted, so
+    // the value read here is the current one and not a leftover from an earlier
+    // fill. Without a calculator groupId stays 0, which downstream treats as
+    // informational for a plain Sort.
     pDataBlock->info.id.groupId = p->info.id.groupId;
     pDataBlock->info.id.baseGId = p->info.id.baseGId;
   }
 
-  blockDataDestroy(p);
   *pResBlock = (pDataBlock->info.rows > 0) ? pDataBlock : NULL;
   return code;
 
   _error:
+  // A failure can leave the cached block half filled or holding a mix of
+  // exchanged and copied columns. Every buffer is still owned by exactly one
+  // block (the exchange moves buffers, it never frees), so dropping the block
+  // releases only what it owns; the next call then rebuilds it from the
+  // handle instead of reusing state no query path validated.
+  blockDataDestroy(pInfo->pInterBlock);
+  pInfo->pInterBlock = NULL;
+  pInfo->swapColumnData = SORT_COLDATA_UNKNOWN;
   qError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
 
-  blockDataDestroy(p);
   return code;
 }
 
@@ -491,6 +783,20 @@ int32_t doOpenSortOperator(SOperatorInfo* pOperator) {
       tsortCreateSortHandle(pInfo->pSortInfo, SORT_SINGLESOURCE_SORT, -1, -1, NULL, pTaskInfo->id.str, pInfo->maxRows,
                             pInfo->maxTupleLength, tsPQSortMemThreshold * 1024 * 1024, &pInfo->pSortHandle);
   QUERY_CHECK_CODE(code, lino, _end);
+
+  // Both flags are derived from the plan-time sort keys. Slot rewriting can
+  // change the runtime column behind a sort slot, so the sort handle re-checks
+  // the actual block columns before short-circuiting: tsortPlanOrderStillValid
+  // for the plan-proven path and tsortShortCircuitEligible for the threshold
+  // path. Trace the decision here so a lost optimization is diagnosable.
+  if (pInfo->tsPkSort) {
+    tsortSetTsPkSort(pInfo->pSortHandle);
+  }
+  if (pInfo->inputOrderedBySortKeys) {
+    tsortSetInputOrdered(pInfo->pSortHandle);
+  }
+  qTrace("%s sort flags, tsPkSort:%d inputOrderedBySortKeys:%d", pTaskInfo->id.str, pInfo->tsPkSort,
+         pInfo->inputOrderedBySortKeys);
 
   tsortSetFetchRawDataFp(pInfo->pSortHandle, loadNextDataBlock, applyScalarFunction, pOperator);
 
@@ -587,6 +893,9 @@ void destroySortOperatorInfo(void* param) {
   blockDataDestroy(pInfo->binfo.pRes);
   pInfo->binfo.pRes = NULL;
 
+  blockDataDestroy(pInfo->pInterBlock);
+  pInfo->pInterBlock = NULL;
+
   tsortDestroySortHandle(pInfo->pSortHandle);
   taosArrayDestroy(pInfo->pSortInfo);
   taosArrayDestroy(pInfo->matchInfo.pList);
@@ -653,8 +962,15 @@ typedef struct SGroupSortOperatorInfo {
   EChildOperatorStatus childOpStatus;
   SLimitInfo           limitInfo;
   SSortExecInfo        sortExecInfo;
+  // Tuple block reused across calls (see SSortOperatorInfo.pInterBlock).
+  SSDataBlock*         pInterBlock;
+  int8_t               swapColumnData;  // ESortColDataSwap value
 } SGroupSortOperatorInfo;
 
+// Contract of the returned block: info.rows is the number of valid rows and
+// info.capacity is the row bound both the output block and the reused tuple
+// block are guaranteed to hold (both were ensured to `capacity`). capacity is a
+// buffer upper bound, never the row count reported downstream.
 int32_t getGroupSortedBlockData(SSortHandle* pHandle, SSDataBlock* pDataBlock, int32_t capacity, SArray* pColMatchInfo,
                                 SGroupSortOperatorInfo* pInfo, SSDataBlock** pResBlock) {
   QRY_PARAM_CHECK(pResBlock);
@@ -664,17 +980,33 @@ int32_t getGroupSortedBlockData(SSortHandle* pHandle, SSDataBlock* pDataBlock, i
   if (code) {
     return code;
   }
+  int32_t dstEnsuredCap = (int32_t)pDataBlock->info.capacity;
 
-  SSDataBlock* p = NULL;
-  code = tsortGetSortedDataBlock(pHandle, &p);
-  if (p == NULL || (code != 0)) {
-    return code;
+  SSDataBlock* p = pInfo->pInterBlock;
+  if (p == NULL) {
+    code = tsortGetSortedDataBlock(pHandle, &p);
+    if (p == NULL || (code != 0)) {
+      return code;
+    }
+    pInfo->pInterBlock = p;
+    pInfo->swapColumnData = sortColumnDataSwappable(p, pDataBlock, pColMatchInfo) ? SORT_COLDATA_SWAP
+                                                                                : SORT_COLDATA_COPY;
+  } else {
+    blockDataCleanup(p);
+    // Same stale-verdict guard as the plain Sort path.
+    pInfo->swapColumnData = sortRecheckSwapPlan(pInfo->swapColumnData, p, pDataBlock, pColMatchInfo);
   }
 
   code = blockDataEnsureCapacity(p, capacity);
   if (code) {
     return code;
   }
+  int32_t pEnsuredCap = (int32_t)p->info.capacity;
+  p->info.capacity = capacity;
+  // Same explicit column reset as the plain Sort path above.
+  sortResetInterBlockColumns(p);
+
+  bool swapThisCall = (pInfo->swapColumnData == SORT_COLDATA_SWAP);
 
   while (1) {
     STupleHandle* pTupleHandle = NULL;
@@ -711,21 +1043,32 @@ int32_t getGroupSortedBlockData(SSortHandle* pHandle, SSDataBlock* pDataBlock, i
         return terrno;
       }
 
-      code = colDataAssign(pDst, pSrc, p->info.rows, &pDataBlock->info);
+      // Same capacity invariant and reasoning as the plain Sort path; the
+      // group path has no timestamp-slot remap, so no extra slot guard. The
+      // bound comes from the ensure call above, not from the fields pinned
+      // afterwards.
+      if (swapThisCall && pEnsuredCap >= capacity && dstEnsuredCap >= capacity) {
+        sortSwapColumnData(pDst, pSrc);
+        code = TSDB_CODE_SUCCESS;
+      } else {
+        code = colDataAssign(pDst, pSrc, p->info.rows, &pDataBlock->info);
+      }
       if (code) {
         return code;
       }
     }
 
     pDataBlock->info.rows = p->info.rows;
-    pDataBlock->info.capacity = p->info.rows;
+    // The column buffers were ensured to `capacity` at entry, so report that
+    // bound rather than the row count: reporting rows here would make the next
+    // call reallocate every column and fail the buffer-exchange guard.
+    pDataBlock->info.capacity = capacity;
     pDataBlock->info.scanFlag = p->info.scanFlag;
     // propagate ids for the current group
     pDataBlock->info.id.groupId = pInfo->currGroupId;
     pDataBlock->info.id.baseGId = pInfo->currBaseGId;
   }
 
-  blockDataDestroy(p);
   *pResBlock = (pDataBlock->info.rows > 0) ? pDataBlock : NULL;
   return code;
 }
@@ -782,6 +1125,13 @@ int32_t beginSortGroup(SOperatorInfo* pOperator) {
 
   //  pInfo->binfo.pRes is not equalled to the input datablock.
   pInfo->pCurrSortHandle = NULL;
+
+  // Each group gets a new sort handle, whose output block may describe a
+  // different tuple layout than the one the cached block was created from.
+  // Drop the cache so it is rebuilt from this handle on first use.
+  blockDataDestroy(pInfo->pInterBlock);
+  pInfo->pInterBlock = NULL;
+  pInfo->swapColumnData = SORT_COLDATA_UNKNOWN;
 
   int32_t code = tsortCreateSortHandle(pInfo->pSortInfo, SORT_SINGLESOURCE_SORT, -1, -1, NULL, pTaskInfo->id.str, 0, 0,
                                        0, &pInfo->pCurrSortHandle);
@@ -957,6 +1307,9 @@ void destroyGroupSortOperatorInfo(void* param) {
   blockDataDestroy(pInfo->binfo.pRes);
   pInfo->binfo.pRes = NULL;
 
+  blockDataDestroy(pInfo->pInterBlock);
+  pInfo->pInterBlock = NULL;
+
   taosArrayDestroy(pInfo->pSortInfo);
   taosArrayDestroy(pInfo->matchInfo.pList);
 
@@ -986,6 +1339,12 @@ static int32_t resetGroupSortOperState(SOperatorInfo* pOper) {
 
   tsortDestroySortHandle(pInfo->pCurrSortHandle);
   pInfo->pCurrSortHandle = NULL;
+
+  // Same reason as resetSortOperState: the next open builds a new handle, so
+  // the cached tuple block must not outlive the handle it came from.
+  blockDataDestroy(pInfo->pInterBlock);
+  pInfo->pInterBlock = NULL;
+  pInfo->swapColumnData = SORT_COLDATA_UNKNOWN;
 
   return 0;
 }
@@ -1033,7 +1392,7 @@ int32_t createGroupSortOperatorInfo(SOperatorInfo* downstream, SGroupSortPhysiNo
                              &pInfo->matchInfo);
   TSDB_CHECK_CODE(code, lino, _error);
 
-  pInfo->pSortInfo = createSortInfo(pSortPhyNode->pSortKeys);
+  pInfo->pSortInfo = createSortInfo(pSortPhyNode->pSortKeys, false);
   initLimitInfo(pSortPhyNode->node.pLimit, pSortPhyNode->node.pSlimit, &pInfo->limitInfo);
   setOperatorInfo(pOperator, "GroupSortOperator", QUERY_NODE_PHYSICAL_PLAN_GROUP_SORT, false, OP_NOT_OPENED, pInfo,
                   pTaskInfo);

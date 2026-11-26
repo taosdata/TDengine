@@ -50,7 +50,9 @@ from federated_query_common import (  # noqa: E402
 
 sys.path.insert(0, "cases/18-StreamProcessing/99-Others")
 from fs_common import (  # noqa: E402
+    StreamWindowNotClosed,
     ensure_snode,
+    oracle_insert_all_sql,
     wait_stream_window_closed,
     verify_sink_data,
 )
@@ -135,6 +137,20 @@ class TestFsTriggerMatrix(FederatedQueryTestMixin):
             ]
             ExtSrcEnv.influx_write_cfg(self._influx_cfg(), db_or_bucket, lines)
             tdLog.info(f"[{src_name}] wrote {len(rows)} InfluxDB trigger points")
+        elif suffix == "o":
+            # Oracle has one namespace level (the login schema), so there is no
+            # per-test database to target.  11g also has no multi-row VALUES
+            # list, so the batch goes through INSERT ALL.
+            insert_sql = oracle_insert_all_sql(rows, self._dt_str)
+            # *_exec_cfg(self._*_cfg()) keeps the write on the instance this
+            # run selected; the version-agnostic variant always takes the first
+            # configured generation, which is a different instance once two are
+            # deployed side by side.
+            ExtSrcEnv.oracle_exec_cfg(self._oracle_cfg(), [insert_sql, "COMMIT"])
+            tdLog.info(f"[{src_name}] inserted {len(rows)} Oracle trigger rows")
+        else:
+            raise RuntimeError(
+                f"_insert_ext_rows: unsupported source suffix '{suffix}' ({src_name})")
 
     def test_nested_external_trigger_rejected(self):
         """Nested WINDOW: a real external trigger catalog is rejected.
@@ -156,14 +172,20 @@ class TestFsTriggerMatrix(FederatedQueryTestMixin):
         prefix = "nwext"
 
         def body(src_name: str):
-            # source.mid.table — mid is the schema for PG ("public") and SQL
-            # Server ("dbo"); the database comes from the source default
-            # (DS §5.3.3: a 3-segment SQL Server path fixes the middle
-            # segment as schema).  MySQL/InfluxDB take the db/bucket.
+            # source.mid.table — mid is the schema for PG ("public"), SQL
+            # Server ("dbo") and Oracle (the login schema; Oracle has a single
+            # namespace level, so there is no per-test database to name); the
+            # database comes from the source default (DS §5.3.3: a 3-segment
+            # path fixes the middle segment as schema).  MySQL/InfluxDB take
+            # the db/bucket.
             if src_name.endswith("_p"):
                 mid = "public"
             elif src_name.endswith("_s"):
                 mid = "dbo"
+            elif src_name.endswith("_o"):
+                # TDengine lower-cases an unquoted identifier; the upper-case
+                # account name is spelled between backticks.
+                mid = "`%s`" % ExtSrcEnv.ORACLE_USER.upper()
             else:
                 mid = f"{prefix}_{src_name[-1]}db"
             stream = f"s_{src_name}_nested"
@@ -183,13 +205,56 @@ class TestFsTriggerMatrix(FederatedQueryTestMixin):
                 tdSql.execute(f"DROP STREAM IF EXISTS {stream}")
                 tdSql.execute(f"DROP TABLE IF EXISTS {sink}")
 
-        # Streams reject Oracle external tables (streamTriggerTask's identity
-        # check is fail-closed for types past SQL Server), so the stream
-        # matrices never provision an Oracle leg.
+        # The nested-window rejection is a plan-level rule, so it applies to
+        # every external source type including Oracle.
         self._with_std_sources(
-            prefix, body, skip_pg=True, skip_influx=True, skip_sqlserver=True,
-            skip_oracle=True
+            prefix, body, skip_pg=True, skip_influx=True, skip_sqlserver=True
         )
+
+    def _delete_ext_rows(self, prefix: str, src_name: str, rows: list) -> None:
+        """Delete rows written by _insert_ext_rows.
+
+        Only used to undo a batch whose window never closed because the reader
+        sampled its history cutoff after the batch was written (see the bootstrap
+        note in _run_trigger_case): removing the rows restores the source state
+        the retried attempt expects, and keeps the same timestamps so the
+        per-case expectations stay valid.  InfluxDB has no delete path in this
+        harness, so its cases never retry.
+        """
+        suffix = src_name[-1]
+        db_or_bucket = f"{prefix}_{suffix}db"
+        if suffix == "m":
+            ExtSrcEnv.mysql_exec_cfg(
+                self._mysql_cfg(), db_or_bucket,
+                [f"DELETE FROM `src_t` WHERE ts = '{self._dt_str(ts)}'"
+                 for ts, *_ in rows]
+            )
+            tdLog.info(f"[{src_name}] deleted {len(rows)} MySQL trigger rows")
+        elif suffix == "p":
+            ExtSrcEnv.pg_exec_cfg(
+                self._pg_cfg(), db_or_bucket,
+                [f"DELETE FROM public.src_t WHERE ts = '{self._dt_str(ts)}'"
+                 for ts, *_ in rows]
+            )
+            tdLog.info(f"[{src_name}] deleted {len(rows)} PG trigger rows")
+        elif suffix == "s":
+            ExtSrcEnv.sqlserver_exec(
+                db_or_bucket,
+                [f"DELETE FROM dbo.src_t WHERE ts = '{self._dt_str(ts)}'"
+                 for ts, *_ in rows]
+            )
+            tdLog.info(f"[{src_name}] deleted {len(rows)} SQL Server trigger rows")
+        elif suffix == "o":
+            ExtSrcEnv.oracle_exec_cfg(
+                self._oracle_cfg(),
+                [f"DELETE FROM SRC_T WHERE ts = "
+                 f"TO_TIMESTAMP('{self._dt_str(ts)}', 'YYYY-MM-DD HH24:MI:SS.FF3')"
+                 for ts, *_ in rows] + ["COMMIT"]
+            )
+            tdLog.info(f"[{src_name}] deleted {len(rows)} Oracle trigger rows")
+        else:
+            raise RuntimeError(
+                f"_delete_ext_rows: source suffix '{suffix}' has no delete path ({src_name})")
 
     # ------------------------------------------------------------------
     # Helper: run one CREATE STREAM with given trigger header, verify
@@ -213,7 +278,10 @@ class TestFsTriggerMatrix(FederatedQueryTestMixin):
         When `post_create_rows` is given, those (ts_ms, val, score, name, flag)
         rows are written into the ext source *after* the stream reaches Running,
         guaranteeing the trigger observes new data crossing a window/slide
-        boundary instead of relying on pre-existing (non-backfilled) rows.
+        boundary instead of relying on pre-existing (non-backfilled) rows.  Those
+        rows are also the only ones a bootstrap race can swallow: see the retry
+        note in the body, which recreates the reader and deletes the batch
+        instead of adding any canary that would change the window composition.
 
         `calc_from` selects the calc SELECT's FROM clause:
           "ext"   : FROM the ext table directly (default, raw passthrough).
@@ -227,13 +295,16 @@ class TestFsTriggerMatrix(FederatedQueryTestMixin):
                 mid = "public"
             elif src_name.endswith("_s"):
                 mid = "dbo"
+            elif src_name.endswith("_o"):
+                # Oracle has a single namespace level - the login schema - so a
+                # per-test "<prefix>_odb" would name a schema that does not exist.
+                # The upper-case account name needs backticks: an unquoted
+                # identifier is lower-cased by TDengine.
+                mid = "`%s`" % ExtSrcEnv.ORACLE_USER.upper()
             else:
                 mid = f"{prefix}_{src_name[-1]}db"
             stream = f"s_{src_name}"
             sink = f"sink_{src_name}"
-            tdSql.execute(f"USE {self.DB}")
-            tdSql.execute(f"DROP STREAM IF EXISTS {stream}")
-            tdSql.execute(f"DROP TABLE IF EXISTS {self.DB}.{sink}")
             # src_name ends with '_m' (MySQL), '_p' (PG), or '_i' (InfluxDB)
             twstart_divisor = 1_000_000 if src_name.endswith("_i") else 1_000
             # InfluxDB's implicit timestamp column is named "time"; MySQL/PG use "ts".
@@ -251,12 +322,51 @@ class TestFsTriggerMatrix(FederatedQueryTestMixin):
                 f"SELECT cast({ts_col}/{twstart_divisor} as timestamp), val FROM {calc_source}"
             )
             tdLog.info(f"trigger SQL: {sql}")
-            tdSql.execute(sql)
-            if post_create_rows is not None:
-                tdStream.checkStreamStatus(stream)
-                self._insert_ext_rows(prefix, src_name, post_create_rows)
-            wait_stream_window_closed(stream, self.DB, sink,
-                                      expected_rows=expected_rows, timeout=wait_timeout)
+            # The external reader samples its history cutoff - the source's
+            # MAX(ts) - once, when its trigger task starts, and
+            # checkStreamStatus() only proves the START request was queued.  A
+            # batch written in between is consumed as history and never emitted,
+            # so the case would sit in its timeout instead of reporting anything.
+            # That race cannot be observed from outside, so the only recovery is
+            # to build a fresh reader: recreate the stream, and delete the batch
+            # again so the retried attempt starts from the state a first attempt
+            # expects (same timestamps, so the expectations stay valid).  InfluxDB
+            # has no delete path in this harness, so its cases stay single-shot.
+            #
+            # Only an *empty* sink is ambiguous.  A cutoff sample taken late can
+            # swallow the whole batch, but it cannot consume one row of a window
+            # that already emitted, so a sink holding part of the expected output
+            # is a real result mismatch: rebuilding the stream there would throw
+            # the evidence away and let the second attempt pass on a shorter
+            # result.  wait_stream_window_closed() reports how many rows it saw
+            # for exactly this decision.
+            attempts = 2 if (post_create_rows is not None and src_name[-1] != "i") else 1
+            for attempt in range(attempts):
+                tdSql.execute(f"USE {self.DB}")
+                tdSql.execute(f"DROP STREAM IF EXISTS {stream}")
+                tdSql.execute(f"DROP TABLE IF EXISTS {self.DB}.{sink}")
+                tdSql.execute(sql)
+                if post_create_rows is not None:
+                    tdStream.checkStreamStatus(stream)
+                    self._insert_ext_rows(prefix, src_name, post_create_rows)
+                try:
+                    wait_stream_window_closed(stream, self.DB, sink,
+                                              expected_rows=expected_rows, timeout=wait_timeout)
+                    break
+                except StreamWindowNotClosed as exc:
+                    if exc.observed_rows > 0:
+                        raise AssertionError(
+                            f"[{stream}] {exc}; {exc.observed_rows} sink row(s) were "
+                            f"emitted already, so this is a partial result, not the "
+                            f"history-cutoff race") from exc
+                    if attempt + 1 >= attempts:
+                        raise
+                    tdLog.info(
+                        f"[{stream}] no window closed in {wait_timeout}s: retrying with a "
+                        f"fresh reader after deleting the batch (history-cutoff race)")
+                    tdSql.execute(f"DROP STREAM IF EXISTS {stream}")
+                    tdSql.execute(f"DROP TABLE IF EXISTS {self.DB}.{sink}")
+                    self._delete_ext_rows(prefix, src_name, post_create_rows)
             if expected is not None:
                 res = tdSql.getResult(f"SELECT _c0,val FROM {self.DB}.{sink} ORDER BY 1")
                 tdSql.checkEqual(res, expected)
@@ -268,10 +378,9 @@ class TestFsTriggerMatrix(FederatedQueryTestMixin):
             tdSql.execute(f"DROP STREAM {stream}")
             tdSql.execute(f"DROP TABLE IF EXISTS {self.DB}.{sink}")
 
-        # Streams reject Oracle external tables (streamTriggerTask's identity
-        # check is fail-closed for types past SQL Server), so the stream
-        # matrices never provision an Oracle leg.
-        self._with_std_sources(prefix, body, skip_oracle=True)
+        # Streams over external sources include Oracle; every standard source
+        # is provisioned for this matrix.
+        self._with_std_sources(prefix, body)
 
     # FS-TM-001 PERIOD ----------------------------------------------------
     def test_tm_001_period(self):

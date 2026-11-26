@@ -54,9 +54,10 @@ extern "C" {
 
 #define TAOS_UV_CHECK_ERRNO(CODE) \
   do {                            \
-    if (0 != CODE) {              \
+    int32_t _uvCode = (CODE);     \
+    if (0 != _uvCode) {           \
       terrln = __LINE__;          \
-      terrno = (CODE);            \
+      terrno = _uvCode;           \
       goto _exit;                 \
     }                             \
   } while (0)

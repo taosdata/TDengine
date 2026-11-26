@@ -345,6 +345,10 @@ typedef struct SColumnOptions {
   char      compressLevel[TSDB_CL_COMPRESS_OPTION_LEN];
   bool      bPrimaryKey;
   bool      hasRef;
+  int8_t    refPathParts;
+  int8_t    bindingKind;
+  char      referenceAlias[TSDB_COL_NAME_LEN];
+  char      timeColumn[TSDB_COL_NAME_LEN];
   int8_t    refType;                              // 0=internal, 1=external (DS section 6.2.8)
   char      refSourceName[TSDB_EXT_SOURCE_NAME_LEN]; // non-empty = external source 4-part ref
   char      refSchema[TSDB_EXT_SOURCE_SCHEMA_LEN];   // external schema: from the path (5-part field, or the
@@ -404,6 +408,11 @@ typedef struct SCreateVSubTableStmt {
   SNodeList* pSeriesList;       // list of SSeriesDeclNode (nullable)
   SNodeList* pColDefs;          // column_def_list (name + type + FROM ext_src.db.table.col)
 } SCreateVSubTableStmt;
+
+typedef struct SReferenceDeclNode {
+  ENodeType type;
+  SReferenceEntry entry;
+} SReferenceDeclNode;
 
 // Series declaration: SERIES alias AS source.db.measurement (tag1='v1', ...)
 typedef struct SSeriesDeclNode {
@@ -502,6 +511,10 @@ typedef struct SAlterTableStmt {
   char            refDbName[TSDB_DB_NAME_LEN];
   char            refTableName[TSDB_TABLE_NAME_LEN];
   char            refColName[TSDB_COL_NAME_LEN];
+  int8_t          refPathParts;
+  int8_t          bindingKind;
+  char            referenceAlias[TSDB_COL_NAME_LEN];
+  char            timeColumn[TSDB_COL_NAME_LEN];
   int8_t          refType;  // 0=local, 1=external
   SNode*          pWhere;
   SNode*          pFilterCond;  // MySQL/PostgreSQL external-column filter, or NULL
@@ -1059,9 +1072,13 @@ typedef struct SShowTokensStmt {
   ENodeType type;
 } SShowTokensStmt;
 
+// STransStmt.flags bits (BEGIN options); add new options here instead of new fields.
+#define TRANS_STMT_FLAG_ALLOW_NONTXN (1 << 0)  // BEGIN ALLOW_NONTRANSACTIONAL
+
 typedef struct STransStmt {
   ENodeType type;
   int32_t   transType;
+  uint8_t   flags;  // TRANS_STMT_FLAG_*
   txn_id_t  transId;
 } STransStmt;
 

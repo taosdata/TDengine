@@ -56,9 +56,10 @@ typedef TSKEY (*GetTsFun)(void*);
 // when SMetaEntry.type == TSDB_VIRTUAL_CHILD_TABLE. Own colIds are allocated from
 // TSDB_VCHILD_OWN_COL_ID_BASE upwards (see tdef.h) so they never collide with vstb colIds.
 typedef struct SVChildOwnSchema {
-  int32_t    nOwnCols;         // own data columns; each carries a mandatory origin reference
+  int32_t    nOwnCols;         // own data columns; may carry an origin reference or be unbound
   SSchema   *pOwnColSchemas;   // nOwnCols entries, appended after the vstb row schema
-  SColRef   *pOwnColRefs;      // 1:1 position-aligned with pOwnColSchemas, hasRef always true
+  SColRef   *pOwnColRefs;      // 1:1 position-aligned with pOwnColSchemas; hasRef = false marks an
+                               // unbound own column (bare `name TYPE` at CREATE, or after SET NULL)
   SExtSchema *pOwnColExtSchemas;  // nOwnCols entries, 1:1 with pOwnColSchemas; carries typeMod
                                   // (decimal precision/scale). NULL when no own column has
                                   // COL_HAS_TYPE_MOD (incl. older persisted entries).
@@ -128,6 +129,10 @@ typedef struct SMetaEntry {
   SExtSchema*      pExtSchemas;
   SColRefWrapper   colRef;   // col reference for virtual table
   SSeriesWrapper   series;   // series declarations for virtual table
+  SVtableReferenceExt referenceExt;
+  // Write-side precondition, checked under the metadata write lock and never persisted.
+  bool hasExpectedRversion;
+  int32_t expectedRversion;
   SVChildOwnSchema own;      // vchild own (extension) columns/tags, TSDB_VIRTUAL_CHILD_TABLE only
 } SMetaEntry;
 
@@ -161,6 +166,8 @@ typedef struct SMTbCursor {
   SMetaReader mr;
   int8_t      paused;
   int64_t     txnId;  // batch meta txn: same-txn visibility bypass
+  int32_t     typeMask;  // 0 = no pre-filter; bit(ETableType) keeps wanted types, others are
+                         // skipped via a cheap header-only decode in metaTbCursorNext
 } SMTbCursor;
 
 typedef struct SMCtbCursor {
@@ -199,6 +206,7 @@ typedef struct SMetaTableInfo {
 static FORCE_INLINE void destroyMetaTableInfo(SMetaTableInfo* mtInfo){
   if (mtInfo == NULL) return;
   tDeleteSchemaWrapper(mtInfo->schema);
+  mtInfo->schema = NULL;
   taosMemoryFreeClear(mtInfo->pExtSchemas);
 }
 
@@ -245,6 +253,7 @@ typedef enum {
   TSD_READER_BLOCK_SMA_MODE_NUM_OF_NULL_ONLY = 1,
   TSD_READER_BLOCK_SMA_MODE_LAST_NULL_ONLY = 2,
   TSD_READER_BLOCK_SMA_MODE_MAX_ONLY = 3,
+  TSD_READER_BLOCK_SMA_MODE_REMOTE_FILTER = 4,  // Return available statistics and leave missing columns unknown.
 } ETsdReaderBlockSmaMode;
 
 struct SFileSetReader;
@@ -261,7 +270,16 @@ typedef struct TsdReader {
   int32_t      (*tsdSetQueryTableList)(void* p, const void* pTableList, int32_t num);
   int32_t      (*tsdNextDataBlock)(void* pReader, bool* hasNext);
 
-  int32_t      (*tsdReaderRetrieveBlockSMAInfo)();
+  int32_t (*tsdReaderRetrieveBlockSMAInfo)(void* reader, SSDataBlock* block,
+                                          bool* allHave, bool* hasNullSma,
+                                          int64_t* sourceRows);
+  int32_t (*tsdReaderGetFilterBlock)(void* reader, SSDataBlock** view,
+                                     const int32_t** rowMap);
+  int32_t (*tsdReaderSetLastScanCandidate)(void* reader, int32_t row);
+  int32_t (*tsdReaderRetrieveSelectedDataBlock)(void* reader,
+                                               const int32_t* rows,
+                                               int32_t count,
+                                               SSDataBlock** block);
   int32_t      (*tsdReaderRetrieveDataBlock)(void* p, SSDataBlock** pBlock);
   int32_t      (*tsdReaderSetBlockSmaMode)(void* pReader, ETsdReaderBlockSmaMode mode);
 
@@ -270,7 +288,7 @@ typedef struct TsdReader {
   int32_t      (*tsdReaderResetStatus)(void* p, SQueryTableDataCond* pCond);
   int32_t      (*tsdReaderGetDataBlockDistInfo)();
   void         (*tsdReaderGetDatablock)();
-  void         (*tsdReaderSetDatablock)();
+  int32_t      (*tsdReaderSetDatablock)();
   int64_t      (*tsdReaderGetNumOfInMemRows)();
   void         (*tsdReaderNotifyClosing)(void* pReader);
 
@@ -389,7 +407,7 @@ typedef struct SStoreMeta {
   int32_t (*cursorPrev)(SMTbCursor* pTbCur, ETableType jumpTableType);              // metaTbCursorPrev
 
   int32_t (*getTableTags)(void* pVnode, uint64_t suid, SArray* uidList, int64_t txnId);
-  int32_t (*getTableTagsByUidVersion)(void* pVnode, int64_t suid, SArray* uidList, int64_t version);
+  int32_t (*getTableTagsByUidVersion)(void* pVnode, int64_t suid, SArray* uidList, int64_t version, int64_t txnId);
   // For triggers whose source is a virtual super table, child tags may be col-refs that
   // chain across one or more vtables. This API walks that chain (single or multi-hop,
   // possibly cross-vnode) and rebuilds STUidTagInfo.pTagVal as a fresh STag carrying
@@ -447,6 +465,9 @@ typedef struct SStoreMeta {
   int32_t (*storeGetTableList)(void* pVnode, int8_t type, SArray* pList);
   int32_t (*getTableSchema)(void* pVnode, int64_t uid, STSchema** pSchema, int64_t* suid, SSchemaWrapper** pTagSchema);
   int32_t (*getNumOfChildTables)(void* pVnode, int64_t uid, int64_t* numOfTables, int32_t* numOfCols, int8_t* flags);
+  // vnode-wide virtual-table metadata generation counter, bumped on every virtual
+  // table entry create/update/drop. Used by the vc_cols scan cache to detect staleness.
+  int64_t (*getVtableGen)(void* pVnode);
   void (*getBasicInfo)(void* pVnode, const char** dbname, int32_t* vgId, SVnodeTableNums* pNums);
   // true when this vnode's [hashBegin, hashEnd] can own tbName under the
   // table-placement hash; false means the meta name lookup can be skipped

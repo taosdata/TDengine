@@ -213,6 +213,12 @@ function install_bin() {
     [ -f ${binary_dir}/build/bin/taosmqtt ] && ${csudo}cp -r ${binary_dir}/build/bin/taosmqtt ${install_main_dir}/bin || :
     [ -f ${binary_dir}/build/bin/taosx ] && ${csudo}cp -r ${binary_dir}/build/bin/taosx ${install_main_dir}/bin || :
     ${csudo}cp -r ${binary_dir}/build/bin/${serverName} ${install_main_dir}/bin || :
+    # Custom cipher provider (BUILD_TEST only): on Linux the module is
+    # libcustomcrypt.so, on macOS it is .dylib (matches the MODULE build output,
+    # e.g. libtaospyudf.dylib). It is placed next to taosd so the
+    # transparent-encryption test can load it via the encryptExtDir config.
+    _crypt_lib="${binary_dir}/build/bin/libcustomcrypt.so"
+    [ -f "$_crypt_lib" ] && ${csudo}cp -r "$_crypt_lib" ${install_main_dir}/bin || :
 
     ${csudo}cp -r ${script_dir}/taosd-dump-cfg.gdb ${install_main_dir}/bin || :
     ${csudo}cp -r ${script_dir}/remove.sh ${install_main_dir}/bin || :
@@ -220,6 +226,15 @@ function install_bin() {
     ${csudo}cp -r ${script_dir}/startPre.sh ${install_main_dir}/bin || :
 
     ${csudo}chmod 0555 ${install_main_dir}/bin/*
+    # The custom cipher provider is an OpenSSL provider module that taosd must be
+    # able to READ (and, on macOS/hardened mounts, EXEC) at runtime. The chmod
+    # 0555 above would otherwise drop read permission for non-owner/non-root
+    # users, causing OSSL_PROVIDER_load to fail silently, and would also strip
+    # the exec bit that dlopen/mmap(PROT_EXEC) needs on some platforms. Restore
+    # 0755 (read+exec for all) for the module (both extensions).
+    for _f in libcustomcrypt.so libcustomcrypt.dylib; do
+      [ -f ${install_main_dir}/bin/$_f ] && ${csudo}chmod 0755 ${install_main_dir}/bin/$_f || :
+    done
     #Make link
     [ -x ${install_main_dir}/bin/${clientName} ] && ${csudo}ln -s ${install_main_dir}/bin/${clientName} ${bin_link_dir}/${clientName} > /dev/null 2>&1 || :
     [ -x ${install_main_dir}/bin/${serverName} ] && ${csudo}ln -s ${install_main_dir}/bin/${serverName} ${bin_link_dir}/${serverName} > /dev/null 2>&1 || :
@@ -250,9 +265,21 @@ function install_bin() {
         ${csudo}cp -r ${binary_dir}/build/bin/*explorer ${install_main_dir}/bin
       fi
       ${csudo}cp -r ${binary_dir}/build/bin/${serverName} ${install_main_dir}/bin || :
+      # Custom cipher provider (BUILD_TEST only): module is .dylib on macOS.
+    _crypt_lib="${binary_dir}/build/bin/libcustomcrypt.dylib"
+    [ -f "$_crypt_lib" ] && ${csudo}cp -r "$_crypt_lib" ${install_main_dir}/bin || :
 
     ${csudo}cp -r ${script_dir}/remove.sh ${install_main_dir}/bin || :
     ${csudo}chmod 0555 ${install_main_dir}/bin/*
+    # The custom cipher provider is an OpenSSL provider module that taosd must be
+    # able to READ (and, on macOS/hardened mounts, EXEC) at runtime. The chmod
+    # 0555 above would otherwise drop read permission for non-owner/non-root
+    # users, causing OSSL_PROVIDER_load to fail silently, and would also strip
+    # the exec bit that dlopen/mmap(PROT_EXEC) needs on some platforms. Restore
+    # 0755 (read+exec for all) for the module (both extensions).
+    for _f in libcustomcrypt.so libcustomcrypt.dylib; do
+      [ -f ${install_main_dir}/bin/$_f ] && ${csudo}chmod 0755 ${install_main_dir}/bin/$_f || :
+    done
     #Make link
     [ -x ${install_main_dir}/bin/${clientName} ] && ${csudo}ln -s ${install_main_dir}/bin/${clientName} ${bin_link_dir}/${clientName} > /dev/null 2>&1 || :
     [ -x ${install_main_dir}/bin/${serverName} ] && ${csudo}ln -s ${install_main_dir}/bin/${serverName} ${bin_link_dir}/${serverName} > /dev/null 2>&1 || :
@@ -478,6 +505,10 @@ function install_lib() {
     ${csudo}rm -rf "${install_main_dir}/driver/oracle" || :
 
     for pattern in \
+      "caching_sha2_password.so" "sha256_password.so" "mysql_clear_password.so" \
+      "dialog.so" "client_ed25519.so" \
+      "caching_sha2_password.dylib" "sha256_password.dylib" "mysql_clear_password.dylib" \
+      "dialog.dylib" "client_ed25519.dylib" \
       "libmariadb.so*" "libmysqlclient.so*" "libpq.so*" "libarrow*.so*" "libparquet.so*" "libtaos_ext_influx_arrow.so*" \
       "libodbc.so*" "libodbcinst.so*" "libmsodbcsql*.so*" \
       "libsqora*.so*" "libclntsh*.so*" "libclntshcore*.so*" "libnnz*.so*" "libociei*.so*" \
@@ -574,6 +605,20 @@ function install_lib() {
       for src in "${binary_dir}/build/lib"/${pattern}; do
         [ -e "${src}" ] || continue
         [ -L "${src}" ] || continue
+        copy_fq_runtime_lib "${src}"
+      done
+    done
+    # MySQL 8 accounts default to caching_sha2_password, which MariaDB
+    # Connector/C loads as a client plugin.  The provider points
+    # MYSQL_PLUGIN_DIR at the client library's directory, so these files must
+    # sit next to libmariadb in driver/ (same build, same version).
+    for pattern in \
+      "caching_sha2_password.so" "sha256_password.so" "mysql_clear_password.so" \
+      "dialog.so" "client_ed25519.so" \
+      "caching_sha2_password.dylib" "sha256_password.dylib" "mysql_clear_password.dylib" \
+      "dialog.dylib" "client_ed25519.dylib"; do
+      for src in "${binary_dir}/build/lib"/${pattern}; do
+        [ -e "${src}" ] || continue
         copy_fq_runtime_lib "${src}"
       done
     done

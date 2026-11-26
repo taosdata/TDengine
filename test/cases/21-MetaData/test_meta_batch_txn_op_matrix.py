@@ -41,11 +41,15 @@ three states that matter for a transaction:
   m10 - Tag index DDL (CREATE INDEX / DROP INDEX) is rejected inside a txn
   m11 - DROP TAG / RENAME TAG cascade onto an existing tag index inside a txn
   m12 - ADD/DROP BASE ON (virtual super table inheritance) inside a txn
+
+m13 (every virtual-table DDL seen through every view, compared with the state after COMMIT), m14 (rejected
+virtual-table options) and m15 (re-creating a dropped virtual table name) are in test_meta_batch_txn_op_matrix_vstb.py
+/ _vchild.py / _new.py: their scenarios are independent of each other, so they run as separate files in parallel.
 """
 
 from new_test_framework.utils import tdLog, tdSql, tdCom
 
-ERR_TXN_INVALID_OP = "Only table DDL (CREATE/DROP/ALTER TABLE) allowed in transaction"
+ERR_TXN_INVALID_OP = "Statement is not supported in transaction"
 ERR_VST_HAS_CHILD = "VST has child VSTs, cannot drop or alter"
 
 
@@ -272,8 +276,8 @@ class TestBatchMetaTxnOpMatrix:
         tdSql.execute("alter stable stb modify column w compress 'zstd'")
         assert self._codec("stb", "w")[1] == "zstd", self._codec("stb", "w")
         # Not visible to another session while uncommitted.
-        assert self._codec("stb", "w", session=s2)[1] == "lz4", \
-            self._codec("stb", "w", session=s2)
+        outside = self._codec("stb", "w", session=s2)
+        assert outside[1] == "lz4", outside
         tdSql.execute("ROLLBACK")
         assert self._codec("stb", "w") == before, \
             f"ROLLBACK did not restore codec: {self._codec('stb', 'w')} != {before}"
@@ -285,8 +289,8 @@ class TestBatchMetaTxnOpMatrix:
         tdSql.execute("COMMIT")
         after = self._codec("stb", "w")
         assert after[1] == "zstd" and after[2] == "high", after
-        assert self._codec("stb", "w", session=s2) == after, \
-            self._codec("stb", "w", session=s2)
+        outside = self._codec("stb", "w", session=s2)
+        assert outside == after, outside
 
         # Data written before the codec change is still readable afterwards.
         tdSql.query("select w from stb")
@@ -632,7 +636,9 @@ class TestBatchMetaTxnOpMatrix:
         tdSql.execute("BEGIN")
         tdSql.execute("alter stable cvst add base on txn_mx_db.pvst2")
         assert {"pw", "pt2"} <= self._cols("cvst"), self._cols("cvst")
-        assert "pw" not in self._cols("cvst", session=s2), self._cols("cvst", session=s2)
+        # One DESCRIBE, one verdict: the message must show what the assertion saw, not a second query.
+        outside = self._cols("cvst", session=s2)
+        assert outside == base_cols, outside
         tdSql.execute("ROLLBACK")
         assert self._cols("cvst") == base_cols, self._cols("cvst")
 
@@ -641,7 +647,8 @@ class TestBatchMetaTxnOpMatrix:
         tdSql.execute("alter stable cvst add base on txn_mx_db.pvst2")
         tdSql.execute("COMMIT")
         assert {"pw", "pt2"} <= self._cols("cvst"), self._cols("cvst")
-        assert {"pw", "pt2"} <= self._cols("cvst", session=s2), self._cols("cvst", session=s2)
+        outside = self._cols("cvst", session=s2)
+        assert {"pw", "pt2"} <= outside, outside
 
         # --- DROP BASE ON: ROLLBACK keeps the inheritance.
         tdSql.execute("BEGIN")
@@ -655,7 +662,8 @@ class TestBatchMetaTxnOpMatrix:
         tdSql.execute("alter stable cvst drop base on txn_mx_db.pvst2")
         tdSql.execute("COMMIT")
         assert "pw" not in self._cols("cvst"), self._cols("cvst")
-        assert "pw" not in self._cols("cvst", session=s2), self._cols("cvst", session=s2)
+        outside = self._cols("cvst", session=s2)
+        assert outside == base_cols, outside
 
         # --- A parent that has children cannot be reshaped, inside a txn as well as
         #     outside. The statement fails; the txn is then only good for ROLLBACK.
@@ -721,6 +729,9 @@ class TestBatchMetaTxnOpMatrix:
         m12. ADD/DROP BASE ON virtual super table inheritance in a txn (regression — a
              groupId-0 redo action broke COMMIT under TRN_EXEC_GROUP_PARALLEL), plus the
              parent-with-children guard inside a txn
+
+        m13 - m15 (virtual-table views, refused options, same-name re-create): see the
+        test_meta_batch_txn_op_matrix_{vstb,vchild,new}.py files.
 
         Since: v3.3.6.0
 

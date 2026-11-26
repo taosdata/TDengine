@@ -232,6 +232,8 @@ typedef struct {
   int32_t volatile finalizing;
   int32_t volatile stallFinalIo;
   int32_t volatile finalIoStalled;
+  /* Join budget a blocked-I/O test asks for; 0 keeps the production budget. */
+  int32_t volatile joinTimeoutMs;
 #endif
 } SWlrManager;
 
@@ -287,6 +289,7 @@ void wlrTestWaitFinalIo(SWlrManager *mgr, int32_t stage);
 int32_t wlrTestStallWrite(void);
 int32_t wlrTestResumeWrite(void);
 int32_t wlrTestWriteStalled(void);
+int32_t wlrTestSetJoinTimeout(int32_t ms);
 int32_t wlrTestEncodeSingleMultiBind(void *bind, uint8_t *buf, size_t bufLen);
 int32_t wlrTestEncodeStmt2ColumnBindv(void *bindv, uint8_t *buf, size_t bufLen);
 uint32_t wlrTestSingleMultiBindSize(void *bind);

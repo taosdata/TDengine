@@ -229,8 +229,8 @@ def main():
     parser.add_argument(
         "--host",
         type=str,
-        default="0.0.0.0",
-        help="Host address the server listens on (default: 0.0.0.0).",
+        default="127.0.0.1",
+        help="Host address the server listens on (default: 127.0.0.1).",
     )
     parser.add_argument(
         "--port",

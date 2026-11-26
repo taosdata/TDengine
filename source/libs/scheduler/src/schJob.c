@@ -20,6 +20,7 @@
 #include "plannodes.h"
 #include "query.h"
 #include "schInt.h"
+#include "schPhase.h"
 #include "tmsg.h"
 #include "tref.h"
 #include "trpc.h"
@@ -695,6 +696,50 @@ int32_t schNotifyUserExecRes(SSchJob *pJob) {
   return TSDB_CODE_SUCCESS;
 }
 
+// Defined below with the other phase helpers.
+static void schPhaseWriteBegin(SSchJob *pJob);
+static void schPhaseWriteEnd(SSchJob *pJob);
+
+// Enter the fetch main phase and stamp its start time once. Every path that
+// resumes or starts fetching must go through here: the client-driven fetch
+// entry and the retry recovery path (a job that failed before its first block
+// is re-executed, and fetching resumes from schLaunchFetchTask without a new
+// fetch request). Without the latter, the resumed fetch keeps the re-execution
+// phase and its start time, so show queries attributes the fetch window to
+// execute.
+//
+// The phase is refreshed only when the job is not already in the fetch stage:
+// one large result is fetched block by block and re-entering IN_PROGRESS would
+// keep resetting phaseStartTime although the reported phase never changed.
+//
+// The phase is read and updated inside one phaseWriteLock critical section.
+// Sampling it first and CAS-ing afterwards would leave a window in which a
+// concurrent transition (a retry re-executing the query, or the previous fetch
+// moving to RETURNED/DONE) makes the CAS fail silently and the fetch stage
+// never gets stamped.
+void schEnterFetchPhase(SSchJob *pJob) {
+  if (pJob == NULL) {
+    return;
+  }
+  schPhaseWriteBegin(pJob);
+  int32_t curPhase = atomic_load_32(&pJob->execPhase);
+  if (curPhase == QUERY_PHASE_DONE) {
+    // DONE is terminal: a finished query must not be resurrected to fetch.
+  } else if (curPhase == QUERY_PHASE_FETCH_RETURNED) {
+    // A later block arrives after the previous one was reported as returned:
+    // move back to in_progress but keep the single fetch stage timer, so the
+    // request does not stay in returned while it is fetching again.
+    atomic_store_32(&pJob->execPhase, QUERY_PHASE_FETCH_IN_PROGRESS);
+  } else if (!QUERY_PHASE_IS_FETCH_STAGE(curPhase)) {
+    // Entering the stage from a non-fetch phase stamps a new start time; a
+    // retry that resumes fetching keeps the original fetch start time because
+    // the whole fetch stage is reported as one main phase.
+    atomic_store_32(&pJob->execPhase, QUERY_PHASE_FETCH_IN_PROGRESS);
+    atomic_store_64(&pJob->phaseStartTime, taosGetTimestampMs());
+  }
+  schPhaseWriteEnd(pJob);
+}
+
 int32_t schNotifyUserFetchRes(SSchJob *pJob) {
   void *pRes = NULL;
 
@@ -702,8 +747,25 @@ int32_t schNotifyUserFetchRes(SSchJob *pJob) {
   if (TSDB_CODE_SUCCESS != code && TSDB_CODE_SUCCESS == atomic_load_32(&pJob->errCode)) {
     atomic_store_32(&pJob->errCode, code);
   }
-  // Fetch response received, transition to RETURNED state
-  SCH_UPDATE_JOB_PHASE_IF_CHANGED(pJob, QUERY_PHASE_FETCH_RETURNED);
+  // Fetch response received, transition to RETURNED state. Keep the fetch stage
+  // timer: show queries reports the whole fetch stage as one main phase, so the
+  // sub-state switch must not restart phaseStartTime. Do not overwrite the
+  // terminal DONE phase when this response completed the last fetch; otherwise
+  // a finished query would report fetch/returned forever. When the phase is
+  // already DONE the fetch timer is final and is not touched again.
+  //
+  // A failed fetch response is not reported as returned: the phase is only
+  // advanced when the result was actually handed over (code == SUCCESS).
+  // The read and the update happen in one critical section so a phase sampled
+  // before a concurrent DONE transition cannot overwrite it.
+  if (TSDB_CODE_SUCCESS == code) {
+    schPhaseWriteBegin(pJob);
+    int32_t curPhase = atomic_load_32(&pJob->execPhase);
+    if (QUERY_PHASE_IS_FETCH_STAGE(curPhase) && curPhase != QUERY_PHASE_FETCH_RETURNED) {
+      atomic_store_32(&pJob->execPhase, QUERY_PHASE_FETCH_RETURNED);
+    }
+    schPhaseWriteEnd(pJob);
+  }
 
   SCH_JOB_DLOG("sch start to invoke fetch cb, code:%s", tstrerror(pJob->errCode));
   (*pJob->userRes.fetchFp)(pRes, pJob->userRes.cbParam, atomic_load_32(&pJob->errCode));
@@ -767,6 +829,9 @@ int32_t schProcessOnJobFailure(SSchJob *pJob, int32_t errCode) {
     SCH_JOB_DLOG("job failed with error %s", tstrerror(code));
   }
 
+  // A user callback can remove the job from the reference registry.
+  // Retain the cleanup reference before publishing the terminal result.
+  schStopQueryTasks(pJob);
   schPostJobRes(pJob, 0);
 
   SCH_RET(TSDB_CODE_SCH_IGNORE_ERROR);
@@ -783,6 +848,8 @@ int32_t schHandleJobFailure(SSchJob *pJob, int32_t errCode) {
     (void)schSwitchJobStatus((SSchJob*)pJob->parent, JOB_TASK_STATUS_FAIL, &errCode);  // ignore error
   }
 
+  schStopQueryTasks(pJob);
+
   return TSDB_CODE_SCH_IGNORE_ERROR;
 }
 
@@ -794,6 +861,7 @@ int32_t schHandleJobDrop(SSchJob *pJob, int32_t errCode) {
   }
 
   (void)schSwitchJobStatus(pJob, JOB_TASK_STATUS_DROP, &errCode);  // ignore error
+  schStopQueryTasks(pJob);
 
   return TSDB_CODE_SCH_IGNORE_ERROR;
 }
@@ -923,16 +991,442 @@ int32_t schGetTaskInJob(SSchJob *pJob, uint64_t taskId, SSchTask **pTask) {
   return TSDB_CODE_SUCCESS;
 }
 
+// Serialize phase writers and publish (execPhase, phaseStartTime) through a
+// seqlock: phaseSeq is odd while a writer updates the pair and even when it is
+// stable. Readers never observe a new phase paired with an old start time.
+//
+// The critical section only performs atomics (no allocation, callback or other
+// lock), so waiting writers make progress as soon as the holder finishes its
+// few instructions. Writers must not call another phase writer from inside the
+// critical section (all helpers below are non-reentrant), and readers must not
+// call schReadJobPhase() from a critical section either.
+static void schPhaseLockAcquire(SSchJob *pJob) {
+  int32_t spins = 0;
+  while (atomic_val_compare_exchange_32(&pJob->phaseWriteLock, 0, 1) != 0) {
+    ++spins;
+    if (spins > SCH_PHASE_LOCK_SPIN_TIMES) {
+      // The holder is not making progress within the expected window, so it
+      // was most likely preempted. Back off instead of hammering the CPU and
+      // report the stall once per acquisition; the lock is not abandoned
+      // because a reader still needs a consistent pair to return.
+      if (spins == SCH_PHASE_LOCK_SPIN_TIMES + 1) {
+        qError("jobId:0x%" PRIx64 ", phase write lock still held after %d attempts, the holder was likely "
+               "preempted",
+               pJob->refId, SCH_PHASE_LOCK_SPIN_TIMES);
+      }
+      taosMsleep(10);
+    } else {
+      // Yield the CPU instead of a no-op sleep: taosMsleep(0) does not reliably
+      // give the writer holding the lock a chance to run.
+      taosMsleep(1);
+    }
+  }
+}
+
+static void schPhaseWriteBegin(SSchJob *pJob) {
+  schPhaseLockAcquire(pJob);
+  // Increment immediately after acquiring the lock: from here on phaseSeq is
+  // odd and readers retry. The few instructions between the CAS and this add
+  // are safe because no data store has happened yet, so a reader that passes
+  // the check reads the previous fully published pair. Each write performs two
+  // increments, so a reader that observes a writer at all sees a different
+  // sequence value and retries.
+  //
+  // The field is int32_t (the type of the atomic API). It is only compared for
+  // equality/parity, and casting to uint32_t for those comparisons makes a
+  // wrap-around harmless.
+  (void)atomic_add_fetch_32(&pJob->phaseSeq, 1);
+}
+
+static void schPhaseWriteEnd(SSchJob *pJob) {
+  (void)atomic_add_fetch_32(&pJob->phaseSeq, 1);
+  atomic_store_32(&pJob->phaseWriteLock, 0);
+}
+
+void schPublishJobPhase(SSchJob *pJob, int32_t phase) {
+  if (pJob == NULL) {
+    return;
+  }
+  schPhaseWriteBegin(pJob);
+  atomic_store_32(&pJob->execPhase, phase);
+  atomic_store_64(&pJob->phaseStartTime, taosGetTimestampMs());
+  schPhaseWriteEnd(pJob);
+}
+
+void schPublishJobPhaseIfChanged(SSchJob *pJob, int32_t newPhase, bool keepTime) {
+  if (pJob == NULL) {
+    return;
+  }
+  schPhaseWriteBegin(pJob);
+  if (atomic_load_32(&pJob->execPhase) != newPhase) {
+    atomic_store_32(&pJob->execPhase, newPhase);
+    if (!keepTime) {
+      atomic_store_64(&pJob->phaseStartTime, taosGetTimestampMs());
+    }
+  }
+  schPhaseWriteEnd(pJob);
+}
+
+bool schCasJobPhase(SSchJob *pJob, int32_t expected, int32_t newPhase, bool keepTime) {
+  if (pJob == NULL) {
+    return false;
+  }
+  bool swapped = false;
+  schPhaseWriteBegin(pJob);
+  if (atomic_val_compare_exchange_32(&pJob->execPhase, expected, newPhase) == expected) {
+    if (!keepTime) {
+      atomic_store_64(&pJob->phaseStartTime, taosGetTimestampMs());
+    }
+    swapped = true;
+  }
+  schPhaseWriteEnd(pJob);
+  return swapped;
+}
+
+void schReadJobPhase(SSchJob *pJob, int32_t *pPhase, int64_t *pStartTime) {
+  if (pJob == NULL || pPhase == NULL || pStartTime == NULL) {
+    return;
+  }
+  for (int32_t i = 0; i < SCH_PHASE_READ_RETRY_TIMES; ++i) {
+    uint32_t seq1 = (uint32_t)atomic_load_32(&pJob->phaseSeq);
+    if (seq1 & 1U) {
+      taosMsleep(1);
+      continue;
+    }
+    int32_t phase = atomic_load_32(&pJob->execPhase);
+    int64_t start = atomic_load_64(&pJob->phaseStartTime);
+    uint32_t seq2 = (uint32_t)atomic_load_32(&pJob->phaseSeq);
+    if (seq1 == seq2) {
+      *pPhase = phase;
+      *pStartTime = start;
+      return;
+    }
+    // A writer was active while the pair was read: yield before retrying.
+    taosMsleep(1);
+  }
+  // Retries exhausted (a writer stayed active for the whole window). Reading
+  // the pair while holding the writer lock still returns a consistent
+  // snapshot; two independent lock-free loads could return a new phase paired
+  // with an old start time, which is exactly what this reader exists to avoid.
+  // Readers must never be invoked from inside a phase write critical section:
+  // phaseWriteLock is not recursive, so the acquisition below would wait on
+  // the lock the caller already holds.
+  qWarn("jobId:0x%" PRIx64 ", phase snapshot unstable after %d retries, read it under the writer lock",
+        pJob->refId, SCH_PHASE_READ_RETRY_TIMES);
+  schPhaseLockAcquire(pJob);
+  // Follow the writer protocol on this fallback path as well: phaseSeq is odd
+  // while the pair is read under the lock and even again afterwards, so the
+  // degraded read is indistinguishable from a regular publication.
+  (void)atomic_add_fetch_32(&pJob->phaseSeq, 1);
+  *pPhase = atomic_load_32(&pJob->execPhase);
+  *pStartTime = atomic_load_64(&pJob->phaseStartTime);
+  (void)atomic_add_fetch_32(&pJob->phaseSeq, 1);
+  atomic_store_32(&pJob->phaseWriteLock, 0);
+}
+
+/* Main phase of a phase code. Sub-phases (4x/5x/6x) belong to their parent.
+ *
+ * This mapping relies on the sub-phase values of one main phase being
+ * contiguous and on the three ranges not overlapping. The static assertions
+ * below pin the boundary ordering so a future enum change cannot silently
+ * route a sub-phase to the wrong main phase.
+ */
+// Compile-time checks. Adding or reordering a sub-phase in EQueryExecPhase
+// requires updating these assertions and schGetMainPhase() together; the build
+// fails otherwise.
+//
+// NOTE: SCH_PHASE_CHECK is for this C file only. Do not move it into a public
+// header: the fallback form is a negative-size array, which in C++ becomes a
+// variable-length array extension instead of a hard error, and it relies on C
+// enum constants.
+#if defined(__GNUC__) || defined(__clang__)
+// GCC/Clang provide _Static_assert as an extension in gnu99, and this form
+// makes the checks participate in the build instead of being an unused type.
+#define SCH_PHASE_CHECK(_name, _cond) _Static_assert((_cond), #_name)
+#else
+#define SCH_PHASE_CHECK(_name, _cond) typedef char schPhaseCheck##_name[(_cond) ? 1 : -1]
+#endif
+
+// The whole schedule range ends before the execute range starts, the execute
+// range ends before fetch starts, and the fetch range stays below DONE. These
+// three pairs pin the ranges that schGetMainPhase() routes on as disjoint.
+SCH_PHASE_CHECK(ScheduleEndExecOrder, QUERY_PHASE_SCHEDULE_NODE_SELECTION < QUERY_PHASE_EXEC_DATA_QUERY);
+SCH_PHASE_CHECK(ExecEndFetchOrder, QUERY_PHASE_EXEC_WAITING_CHILDREN < QUERY_PHASE_FETCH_IN_PROGRESS);
+// Main phases must stay ordered, schGetMainPhase relies on it.
+SCH_PHASE_CHECK(MainOrder, QUERY_PHASE_SCHEDULE < QUERY_PHASE_EXECUTE && QUERY_PHASE_EXECUTE < QUERY_PHASE_FETCH &&
+                               QUERY_PHASE_FETCH < QUERY_PHASE_DONE);
+// Sub-phases must not fall below their own main phase.
+SCH_PHASE_CHECK(ScheduleInnerOrder, QUERY_PHASE_SCHEDULE_ANALYSIS > QUERY_PHASE_SCHEDULE &&
+                                        QUERY_PHASE_SCHEDULE_ANALYSIS <= QUERY_PHASE_SCHEDULE_NODE_SELECTION);
+SCH_PHASE_CHECK(ExecInnerOrder, QUERY_PHASE_EXEC_DATA_QUERY <= QUERY_PHASE_EXEC_WAITING_CHILDREN);
+SCH_PHASE_CHECK(FetchInnerOrder, QUERY_PHASE_FETCH_IN_PROGRESS <= QUERY_PHASE_FETCH_RETURNED);
+// schGetMainPhase routes by range, so the sub-phases of one main phase must be
+// contiguous: a gap would silently leave the missing value unmapped.
+SCH_PHASE_CHECK(ScheduleInnerContiguous, QUERY_PHASE_SCHEDULE_PLANNING == QUERY_PHASE_SCHEDULE_ANALYSIS + 1 &&
+                                             QUERY_PHASE_SCHEDULE_NODE_SELECTION == QUERY_PHASE_SCHEDULE_PLANNING + 1);
+SCH_PHASE_CHECK(ExecInnerContiguous, QUERY_PHASE_EXEC_MERGE_QUERY == QUERY_PHASE_EXEC_DATA_QUERY + 1 &&
+                                         QUERY_PHASE_EXEC_WAITING_CHILDREN == QUERY_PHASE_EXEC_MERGE_QUERY + 1);
+SCH_PHASE_CHECK(FetchInnerContiguous, QUERY_PHASE_FETCH_RETURNED == QUERY_PHASE_FETCH_IN_PROGRESS + 1);
+
+int32_t schGetMainPhase(int32_t phase) {
+  // The fetch main phase value itself must map to fetch as well, so this
+  // routing stays consistent with QUERY_PHASE_IS_FETCH_STAGE().
+  if (phase == QUERY_PHASE_FETCH) {
+    return QUERY_PHASE_FETCH;
+  }
+  if (phase >= QUERY_PHASE_SCHEDULE_ANALYSIS && phase <= QUERY_PHASE_SCHEDULE_NODE_SELECTION) {
+    return QUERY_PHASE_SCHEDULE;
+  }
+  if (phase >= QUERY_PHASE_EXEC_DATA_QUERY && phase <= QUERY_PHASE_EXEC_WAITING_CHILDREN) {
+    return QUERY_PHASE_EXECUTE;
+  }
+  if (phase >= QUERY_PHASE_FETCH_IN_PROGRESS && phase <= QUERY_PHASE_FETCH_RETURNED) {
+    return QUERY_PHASE_FETCH;
+  }
+  return phase;
+}
+
+/* Subjobs are not registered in jobRef: their phases are stamped on the subjob
+ * object, while heartbeat reads the parent job. Without this promotion the
+ * parent would keep reporting schedule/planning for the whole subjob execution.
+ *
+ * Priority rule: while a subjob runs the parent only reports the coarse
+ * execute/waiting_children phase. A subjob phase is never copied into the
+ * parent, and the parent phase never moves back to an earlier main phase
+ * (e.g. from execute back to schedule) when the subjobs finish.
+ */
+void schPromoteParentForSubJobs(SSchJob *pParent) {
+  if (pParent == NULL) {
+    return;
+  }
+  // Only a parent that actually reached a schedule sub-phase is promoted: NONE,
+  // PARSE/CATALOG/PLAN (not yet scheduled), the coarse SCHEDULE main-phase value
+  // itself and DONE must keep their phase. The explicit sub-phase range matches
+  // the schedule range used by schLaunchJobImpl(), so the two places cannot
+  // disagree on what "still scheduling" means.
+  // The promotion happens when the first subjob query message is actually
+  // dispatched, not when its tasks are merely queued, so the phase means
+  // "a subjob is running". Later subjobs find the parent already in execute
+  // and do not restart the timer: the phase is a coarse marker for the whole
+  // subjob chain, stamped once.
+  //
+  // Compare-and-swap so concurrent dispatches cannot move the parent backwards
+  // or clobber a phase another thread already advanced. Sampling and CAS are
+  // not atomic: a CAS failure is retried with a fresh sample so the promotion
+  // is not lost when another path merely moved the parent inside the execute
+  // main phase (e.g. to EXEC_DATA_QUERY) between the two steps. Retrying from
+  // that sample still never moves the parent to an earlier main phase.
+  for (int32_t attempt = 0; attempt < SCH_PHASE_PROMOTE_RETRY_TIMES; ++attempt) {
+    int32_t curPhase = SCH_GET_JOB_PHASE(pParent);
+    if (curPhase == QUERY_PHASE_EXEC_WAITING_CHILDREN) {
+      return;
+    }
+    bool promoting = curPhase >= QUERY_PHASE_SCHEDULE_ANALYSIS && curPhase <= QUERY_PHASE_SCHEDULE_NODE_SELECTION;
+    // A sample that already left the schedule main phase is authoritative and
+    // must not be overwritten. An execute sub-phase however is exactly the
+    // "stuck between execute sub-phases" case: promotion within the same main
+    // phase is still monotonic, so it is retried from the fresh sample.
+    bool retryExecute = !pParent->earlyMainTasks && !promoting && schGetMainPhase(curPhase) == QUERY_PHASE_EXECUTE;
+    if (!promoting && !retryExecute) {
+      qDebug("QID:0x%" PRIx64 ", parent phase %d is not in schedule/execute, skip promotion", pParent->queryId,
+             curPhase);
+      return;
+    }
+    if (schCasJobPhase(pParent, curPhase, QUERY_PHASE_EXEC_WAITING_CHILDREN, false)) {
+      return;
+    }
+    qDebug("QID:0x%" PRIx64 ", parent promotion retry, phase %d changed concurrently", pParent->queryId, curPhase);
+  }
+  qDebug("QID:0x%" PRIx64 ", parent promotion skipped after %d retries", pParent->queryId,
+         SCH_PHASE_PROMOTE_RETRY_TIMES);
+}
+
+int32_t schInitJobDependencies(SSchJob *pJob) {
+  if (pJob->attr.inlineTaskLaunch || !pJob->pDag->subqueryDepsKnown || !SCH_JOB_GOT_SUB_JOBS(pJob)) {
+    return TSDB_CODE_SUCCESS;
+  }
+  int32_t count = taosArrayGetSize(pJob->subJobs);
+  for (int32_t i = 0; i < count; ++i) {
+    SSchJob* pSub = taosArrayGetP(pJob->subJobs, i);
+    if (!pSub->pDag->subqueryDepsKnown) return TSDB_CODE_SUCCESS;
+  }
+  for (int32_t i = 0; i <= count; ++i) {
+    SSchJob* pSub = i == count ? pJob : taosArrayGetP(pJob->subJobs, i);
+    SArray* pDeps = pSub->pDag->pSubqueryDeps;
+    pSub->pendingDependencies = taosArrayGetSize(pDeps);
+    for (int32_t j = 0; j < taosArrayGetSize(pDeps); ++j) {
+      int32_t producer = *(int32_t*)taosArrayGet(pDeps, j);
+      if (producer < 0 || producer >= i) return TSDB_CODE_PLAN_INTERNAL_ERROR;
+      for (int32_t k = 0; k < j; ++k) {
+        if (producer == *(int32_t*)taosArrayGet(pDeps, k)) return TSDB_CODE_PLAN_INTERNAL_ERROR;
+      }
+      if (i == count) continue;
+      SSchJob* pProducer = taosArrayGetP(pJob->subJobs, producer);
+      if (NULL == pProducer->dependentJobs) {
+        pProducer->dependentJobs = taosArrayInit(4, sizeof(int32_t));
+        if (NULL == pProducer->dependentJobs) return terrno;
+      }
+      if (NULL == taosArrayPush(pProducer->dependentJobs, &i)) return terrno;
+    }
+  }
+  if (SCH_IS_QUERY_JOB(pJob) && pJob->attr.explainMode == EXPLAIN_MODE_DISABLE) {
+    for (int32_t i = 0; i < taosArrayGetSize(pJob->levels); ++i) {
+      SSchLevel* level = taosArrayGet(pJob->levels, i);
+      for (int32_t j = 0; j < level->taskNum; ++j) {
+        SSchTask* task = taosArrayGet(level->subTasks, j);
+        if (!task->plan->subqueryDepsKnown) continue;
+        for (int32_t k = 0; k < taosArrayGetSize(task->plan->pSubqueryDeps); ++k) {
+          int32_t index = *(int32_t*)taosArrayGet(task->plan->pSubqueryDeps, k);
+          if (index < 0 || index >= count) return TSDB_CODE_PLAN_INTERNAL_ERROR;
+        }
+        pJob->earlyMainTasks = true;
+      }
+    }
+  }
+  pJob->concurrentSubJobs = true;
+  return TSDB_CODE_SUCCESS;
+}
+
+int32_t schLaunchReadySubJobs(SSchJob *pJob) {
+  SSchJob* pParent = SCH_PARENT_JOB(pJob);
+  int32_t count = taosArrayGetSize(pParent->subJobs);
+  int32_t candidates = pJob == pParent ? count : taosArrayGetSize(pJob->dependentJobs);
+  SArray* pReady = taosArrayInit(candidates + 1, POINTER_BYTES);
+  if (NULL == pReady) return terrno;
+  int32_t code = TSDB_CODE_SUCCESS;
+
+  SCH_LOCK(SCH_WRITE, &pParent->subJobLock);
+  if (!schJobNeedToStop(pParent, NULL)) {
+    // Reserve the whole batch before calling any launcher. An inline success
+    // callback can otherwise select the same sibling a second time.
+    for (int32_t i = 0; i < candidates; ++i) {
+      int32_t index = pJob == pParent ? i : *(int32_t*)taosArrayGet(pJob->dependentJobs, i);
+      SSchJob* pSub = taosArrayGetP(pParent->subJobs, index);
+      if (!pSub->subJobStarted && 0 == pSub->pendingDependencies) {
+        if (NULL == taosArrayPush(pReady, &pSub)) {
+          code = terrno;
+          goto _unlock;
+        }
+      }
+    }
+    if ((pParent->earlyMainTasks || pParent->subJobDoneNum == count) && !pParent->subJobStarted) {
+      if (NULL == taosArrayPush(pReady, &pParent)) {
+        code = terrno;
+        goto _unlock;
+      }
+    }
+    // Commit launch flags only after every ready job has been added.
+    for (int32_t i = 0; i < taosArrayGetSize(pReady); ++i) {
+      SSchJob* pReadyJob = taosArrayGetP(pReady, i);
+      pReadyJob->subJobStarted = true;
+      if (pReadyJob == pParent) {
+        pParent->launchedSeriesId = pParent->seriesId;
+      }
+    }
+  }
+
+_unlock:
+  SCH_UNLOCK(SCH_WRITE, &pParent->subJobLock);
+  SCH_ERR_JRET(code);
+
+  for (int32_t i = 0; i < taosArrayGetSize(pReady); ++i) {
+    SSchJob* pReadyJob = taosArrayGetP(pReady, i);
+    if (schJobNeedToStop(pParent, NULL)) break;
+    code = schLaunchJobImpl(pReadyJob);
+    if (TSDB_CODE_SUCCESS != code) {
+      (void)schHandleJobFailure(pReadyJob, code);
+      break;
+    }
+  }
+
+_return:
+  taosArrayDestroy(pReady);
+  return code;
+}
+
+static int32_t schStopQueryTasksImpl(void* param) {
+  SSchJob* pParent = param;
+  schDropJobAllTasks(pParent);
+  for (int32_t i = 0; i < taosArrayGetSize(pParent->subJobs); ++i) {
+    SSchJob* pSub = taosArrayGetP(pParent->subJobs, i);
+    schDropJobAllTasks(pSub);
+  }
+  (void)schReleaseJob(pParent->refId);
+  return TSDB_CODE_SUCCESS;
+}
+
+void schStopQueryTasks(SSchJob* pJob) {
+  SSchJob* pParent = SCH_PARENT_JOB(pJob);
+  if (!pParent->concurrentSubJobs || !schJobDone(pParent) ||
+      0 != atomic_val_compare_exchange_8(&pParent->stopScheduled, 0, 1)) return;
+  SSchJob* pRef = NULL;
+  if (TSDB_CODE_SUCCESS != schAcquireJob(pParent->refId, &pRef)) {
+    atomic_store_8(&pParent->stopScheduled, 0);
+    return;
+  }
+  // Failures also arrive with task locks held. Drop tasks on the worker pool
+  // so no callback waits for another task while holding its own task lock.
+  int32_t code = taosAsyncExec(schStopQueryTasksImpl, pRef, NULL);
+  if (TSDB_CODE_SUCCESS != code) {
+    atomic_store_8(&pParent->stopScheduled, 0);
+    (void)schReleaseJob(pParent->refId);
+    SCH_JOB_ELOG("schedule query task cleanup failed, code:%s", tstrerror(code));
+  }
+}
+
 int32_t schLaunchJobImpl(SSchJob *pJob) {
+  if (schJobNeedToStop(pJob, NULL)) return TSDB_CODE_SCH_IGNORE_ERROR;
   SSchLevel *level = taosArrayGet(pJob->levels, pJob->levelIdx);
   if (NULL == level) {
     SCH_JOB_ELOG("fail to get the %dth level, levelNum:%d", pJob->levelIdx, (int32_t)taosArrayGetSize(pJob->levels));
     SCH_ERR_RET(TSDB_CODE_SCH_INTERNAL_ERROR);
   }
 
-  SCH_UPDATE_JOB_PHASE_IF_CHANGED(pJob, QUERY_PHASE_SCHEDULE_NODE_SELECTION);
+  // Do not move the phase back to node selection once the job has already
+  // entered the execute stage (e.g. the parent job resumes after its subjobs).
+  // CAS on the sampled value: a plain load-then-store could write node
+  // selection over a phase another thread advanced in between. If the CAS
+  // fails, the newer phase is authoritative and is kept, which is intended.
+  // schGetMainPhase() also maps the coarse SCHEDULE main-phase value to
+  // SCHEDULE; that value is never stored in execPhase, so only NONE,
+  // PARSE/CATALOG/PLAN and the schedule sub-phases match here.
+  // Note on retry: schHandleJobRetry re-enters here with the job already in
+  // EXECUTE, so the condition below is false and the schedule timer is kept;
+  // a retried job is not counted as a new schedule round.
+  int32_t curPhase = SCH_GET_JOB_PHASE(pJob);
+  if (curPhase != QUERY_PHASE_SCHEDULE_NODE_SELECTION && schGetMainPhase(curPhase) <= QUERY_PHASE_SCHEDULE) {
+    if (!schCasJobPhase(pJob, curPhase, QUERY_PHASE_SCHEDULE_NODE_SELECTION, false)) {
+      SCH_JOB_DLOG("schedule phase stamp skipped, phase %d changed concurrently", curPhase);
+    }
+  }
 
-  SCH_ERR_RET(schLaunchLevelTasks(pJob, level));
+  if (pJob->earlyMainTasks) {
+    // Each leaf has its own exchange and subquery prerequisites. Internal tasks are
+    // launched by their last child and do not need the legacy level-by-level walk.
+    uint64_t series = atomic_load_64(&pJob->seriesId);
+    for (int32_t i = pJob->levelNum - 1; i >= 0; --i) {
+      SSchLevel* leafLevel = taosArrayGet(pJob->levels, i);
+      for (int32_t j = 0; j < leafLevel->taskNum; ++j) {
+        SSchTask* task = taosArrayGet(leafLevel->subTasks, j);
+        if (taosArrayGetSize(task->children)) continue;
+        SCH_LOCK_TASK(task);
+        if (series != atomic_load_64(&pJob->seriesId) || schJobNeedToStop(pJob, NULL)) {
+          SCH_UNLOCK_TASK(task);
+          return TSDB_CODE_SUCCESS;
+        }
+        task->failedSeriesId = series - 1;
+        task->seriesId = series;
+        int32_t code = schDelayLaunchTask(pJob, task);
+        SCH_UNLOCK_TASK(task);
+        SCH_ERR_RET(code);
+      }
+    }
+  } else {
+    SCH_ERR_RET(schLaunchLevelTasks(pJob, level));
+  }
+
+  // The parent is promoted when a subjob query message is actually dispatched
+  // (schBuildAndSendMsg), not when its tasks are queued here.
 
   // Note: We don't set RESOURCE_ALLOC phase here because tasks may still be
   // in flow control queue and not actually launched yet. The EXEC phase will
@@ -947,6 +1441,21 @@ int32_t schLaunchJob(SSchJob *pJob) {
     SCH_ERR_RET(schSwitchJobStatus(pJob, JOB_TASK_STATUS_PART_SUCC, NULL));
 
     return TSDB_CODE_SUCCESS;
+  }
+
+  if (SCH_IS_PARENT_JOB(pJob) && pJob->concurrentSubJobs) {
+    // Child callbacks select the first main-job launch. Only this entry,
+    // called after retry reset, may select another execution series.
+    SCH_LOCK(SCH_WRITE, &pJob->subJobLock);
+    bool restart = pJob->subJobStarted && pJob->launchedSeriesId != pJob->seriesId;
+    if (restart) {
+      pJob->launchedSeriesId = pJob->seriesId;
+    }
+    SCH_UNLOCK(SCH_WRITE, &pJob->subJobLock);
+    if (restart) {
+      return schLaunchJobImpl(pJob);
+    }
+    return schLaunchReadySubJobs(pJob);
   }
 
   if (SCH_IS_PARENT_JOB(pJob) && SCH_JOB_GOT_SUB_JOBS(pJob) && pJob->subJobExecIdx < taosArrayGetSize(pJob->subJobs)) {
@@ -1028,6 +1537,8 @@ void schFreeJobImpl(void *job) {
   }
 
   schFreeFlowCtrl(pJob);
+  taosArrayDestroy(pJob->dependentJobs);
+  taosArrayDestroy(pJob->waitingMainTasks);
 
   taosHashCleanup(pJob->execTasks);
   //  taosHashCleanup(pJob->failTasks);
@@ -1342,6 +1853,11 @@ int32_t schInitJob(int64_t *pJobId, SSchedulerReq *pReq) {
   
   SCH_ERR_JRET(schValidateAndBuildJob(pReq->pDag, pJob));
 
+  SCH_ERR_JRET(schInitJobDependencies(pJob));
+  if (pJob->concurrentSubJobs) {
+    SCH_ERR_JRET(schInitJobFlowCtrl(pJob));
+  }
+
   if (SCH_IS_EXPLAIN_JOB(pJob)) {
     SCH_ERR_JRET(qExecExplainBegin(pReq->pDag, &pJob->explainCtx, pReq->startTs));
   }
@@ -1388,7 +1904,9 @@ int32_t schExecJob(SSchJob *pJob, SSchedulerReq *pReq) {
   int32_t code = 0;
   qTrace("QID:0x%" PRIx64 ", jobId:0x%" PRIx64 ", sch job started", pReq->pDag->queryId, pJob->refId);
 
-  SCH_ERR_RET(schLaunchJob(pJob));
+  code = schLaunchJob(pJob);
+  schDrainInlineFlowTasks(pJob);
+  SCH_ERR_RET(code);
 
   if (pReq->syncReq) {
     SCH_JOB_DLOG("sync wait for rsp now, job status:%s", SCH_GET_JOB_STATUS_STR(pJob));
@@ -1433,35 +1951,51 @@ int32_t schChkResetJobRetry(SSchJob *pJob, int32_t rspCode) {
   return TSDB_CODE_SUCCESS;
 }
 
-int32_t schResetJobForRetry(SSchJob *pJob, SSchTask *pTask, int32_t rspCode, bool *inRetry) {
+// Called with the task locked. A different retry can replace its execution while we wait.
+static bool schClaimJobRetry(SSchJob* pJob, SSchTask* pTask) {
+  uint64_t seriesId = pTask->seriesId;
+  int32_t execId = pTask->execId;
+  while (atomic_val_compare_exchange_8(&pJob->inRetry, 0, 1) != 0) {
+    if (seriesId != atomic_load_64(&pJob->seriesId)) return false;
+    SCH_UNLOCK_TASK(pTask);
+    taosUsleep(1);
+    SCH_LOCK_TASK(pTask);
+  }
+  if (seriesId == atomic_load_64(&pJob->seriesId) && seriesId == pTask->seriesId && execId == pTask->execId) {
+    if (pJob->earlyMainTasks) {
+      SCH_LOCK(SCH_WRITE, &pJob->subJobLock);
+      pJob->invalidatedMainSeries = seriesId;
+      pJob->pendingMainResult.task = NULL;
+      SCH_UNLOCK(SCH_WRITE, &pJob->subJobLock);
+    }
+    return true;
+  }
+  atomic_store_8(&pJob->inRetry, 0);
+  return false;
+}
+
+static int32_t schResetJobForRetry(SSchJob *pJob, SSchTask *pTask, int32_t rspCode) {
   int32_t code = 0;
   int32_t numOfLevels = taosArrayGetSize(pJob->levels);
-
-  while (true) {
-    if (pTask->seriesId < atomic_load_64(&pJob->seriesId)) {
-      SCH_TASK_DLOG("task sId %" PRId64 " is smaller than current job sId %" PRId64, pTask->seriesId, pJob->seriesId);
-      return TSDB_CODE_SCH_IGNORE_ERROR;
-    }
-
-    int8_t origInRetry = atomic_val_compare_exchange_8(&pJob->inRetry, 0, 1);
-    if (0 != origInRetry) {
-      SCH_JOB_DLOG("job already in retry, origInRetry: %d", pJob->inRetry);
-      taosUsleep(1);
-      continue;
-    }
-
-    if (pTask->seriesId < atomic_load_64(&pJob->seriesId)) {
-      SCH_TASK_DLOG("task sId:%" PRId64 " is smaller than current job sId:%" PRId64, pTask->seriesId, pJob->seriesId);
-      return TSDB_CODE_SCH_IGNORE_ERROR;
-    }
-
-    break;
+  SSchJob* pParent = SCH_PARENT_JOB(pJob);
+  // Early execution can publish from a deferred child callback. Hold the same
+  // root-task lock for status reset and invalidation as for result delivery.
+  SSchTask* root = NULL;
+  if (pJob->earlyMainTasks) {
+    SSchLevel* top = taosArrayGet(pJob->levels, 0);
+    root = top ? taosArrayGet(top->subTasks, 0) : NULL;
+    if (!root) return TSDB_CODE_SCH_INTERNAL_ERROR;
+    SCH_LOCK_TASK(root);
   }
-
-  *inRetry = true;
-  SCH_ERR_RET(schChkResetJobRetry(pJob, rspCode));
-
-  (void)atomic_add_fetch_64(&pJob->seriesId, 1);
+  code = schChkResetJobRetry(pJob, rspCode);
+  if (TSDB_CODE_SUCCESS == code) {
+    SCH_LOCK(SCH_WRITE, &pParent->subJobLock);
+    (void)atomic_add_fetch_64(&pJob->seriesId, 1);
+    pJob->pendingMainResult.task = NULL;
+    SCH_UNLOCK(SCH_WRITE, &pParent->subJobLock);
+  }
+  if (root) SCH_UNLOCK_TASK(root);
+  SCH_ERR_RET(code);
 
   // Every task in every level is reset and re-launched below, so the per-vgroup results already
   // summed into this job are stale by definition - the re-run reports them again. Without this
@@ -1509,6 +2043,11 @@ int32_t schResetJobForRetry(SSchJob *pJob, SSchTask *pTask, int32_t rspCode, boo
   }
 
   SCH_RESET_JOB_LEVEL_IDX(pJob);
+  if (pParent->concurrentSubJobs && SCH_IS_SUBQ_JOB(pJob)) {
+    SCH_LOCK(SCH_WRITE, &pParent->subJobLock);
+    pJob->subJobRestarting = false;
+    SCH_UNLOCK(SCH_WRITE, &pParent->subJobLock);
+  }
   
   SCH_JOB_DLOG("update job sId:%" PRId64 ", levelIdx:%d", pJob->seriesId, pJob->levelIdx);
 
@@ -1516,33 +2055,35 @@ int32_t schResetJobForRetry(SSchJob *pJob, SSchTask *pTask, int32_t rspCode, boo
 }
 
 int32_t schHandleJobRetry(SSchJob *pJob, SSchTask *pTask, SDataBuf *pMsg, int32_t rspCode) {
-  int32_t code = 0;
-  bool    inRetry = false;
-
   taosMemoryFreeClear(pMsg->pData);
   taosMemoryFreeClear(pMsg->pEpSet);
+  if (!schClaimJobRetry(pJob, pTask)) return TSDB_CODE_SCH_IGNORE_ERROR;
 
-  SCH_UNLOCK_TASK(pTask);
-  SCH_TASK_DLOG("start to restart all tasks by error:%s from TID:0x%" PRIx64, tstrerror(rspCode), pTask->taskId);
-
-  SCH_ERR_JRET(schFailedTaskNeedRetry(pTask, pJob, rspCode));
-  SCH_ERR_JRET(schResetJobForRetry(pJob, pTask, rspCode, &inRetry));
-
-  SCH_ERR_JRET(schLaunchJob(pJob));
-
-  SCH_LOCK_TASK(pTask);
-  atomic_store_8(&pJob->inRetry, 0);
-
-  SCH_RET(code);
-
-_return:
-  SCH_LOCK_TASK(pTask);
-  code = schProcessOnTaskFailure(pJob, pTask, code);
-
-  if (inRetry) {
-    atomic_store_8(&pJob->inRetry, 0);
+  int32_t code = schFailedTaskNeedRetry(pTask, pJob, rspCode);
+  SSchJob* pParent = SCH_PARENT_JOB(pJob);
+  bool published = false;
+  if (pParent->concurrentSubJobs && SCH_IS_SUBQ_JOB(pJob)) {
+    SCH_LOCK(SCH_WRITE, &pParent->subJobLock);
+    published = pJob->resultReady;
+    if (!published && TSDB_CODE_SUCCESS == code) pJob->subJobRestarting = true;
+    SCH_UNLOCK(SCH_WRITE, &pParent->subJobLock);
   }
-  
+
+  if (published) {
+    SCH_UNLOCK_TASK(pTask);
+    code = schHandleJobFailure(pJob, rspCode);
+    SCH_LOCK_TASK(pTask);
+  } else {
+    if (TSDB_CODE_SUCCESS == code) {
+      SCH_TASK_DLOG("start to restart all tasks by error:%s from TID:0x%" PRIx64, tstrerror(rspCode), pTask->taskId);
+      SCH_UNLOCK_TASK(pTask);
+      code = schResetJobForRetry(pJob, pTask, rspCode);
+      if (TSDB_CODE_SUCCESS == code) code = schLaunchJob(pJob);
+      SCH_LOCK_TASK(pTask);
+    }
+    if (TSDB_CODE_SUCCESS != code) code = schProcessOnTaskFailure(pJob, pTask, code);
+  }
+  atomic_store_8(&pJob->inRetry, 0);
   SCH_RET(code);
 }
 
@@ -1677,6 +2218,7 @@ void schProcessOnCbEnd(SSchJob *pJob, SSchTask *pTask, int32_t errCode) {
   }
 
   if (pJob) {
+    schDrainInlineFlowTasks(pJob);
     (void)schReleaseJob(pJob->refId);  // ignore error
   }
 }
@@ -1694,7 +2236,7 @@ int32_t schProcessOnCbBegin(SSchJob **job, SSchTask **task, uint64_t qId, int64_
     SCH_ERR_RET(TSDB_CODE_QRY_JOB_NOT_EXIST);
   }
 
-  if (schJobNeedToStop(pJob, &status)) {
+  if (!pJob->concurrentSubJobs && schJobNeedToStop(pJob, &status)) {
     SCH_TASK_DLOG("will not do further processing cause of job status %s", jobTaskStatusStr(status));
     SCH_ERR_JRET(TSDB_CODE_SCH_IGNORE_ERROR);
   }
@@ -1706,7 +2248,7 @@ int32_t schProcessOnCbBegin(SSchJob **job, SSchTask **task, uint64_t qId, int64_
       SCH_ERR_JRET(TSDB_CODE_QRY_JOB_NOT_EXIST);
     }
 
-    if (schJobNeedToStop(pJob, &status)) {
+    if (!SCH_PARENT_JOB(pJob)->concurrentSubJobs && schJobNeedToStop(pJob, &status)) {
       SCH_TASK_DLOG("will not do further processing cause of sub job status %s", jobTaskStatusStr(status));
       SCH_ERR_JRET(TSDB_CODE_SCH_IGNORE_ERROR);
     }
@@ -1715,6 +2257,11 @@ int32_t schProcessOnCbBegin(SSchJob **job, SSchTask **task, uint64_t qId, int64_
   SCH_ERR_JRET(schGetTaskInJob(pJob, tId, &pTask));
 
   SCH_LOCK_TASK(pTask);
+
+  if (SCH_PARENT_JOB(pJob)->concurrentSubJobs && schJobNeedToStop(pJob, &status)) {
+    schDropTaskOnExecNode(pJob, pTask);
+    SCH_ERR_JRET(TSDB_CODE_SCH_IGNORE_ERROR);
+  }
 
   *job = pJob;
   *task = pTask;

@@ -34,6 +34,7 @@ import uuid
 from new_test_framework.utils import tdDnodes, tdLog, tdSql
 
 TSDB_CODE_MND_NO_RIGHTS = 0x0303
+TSDB_CODE_MND_INVALID_TOKEN_NAME = 0x034C
 TSDB_CODE_MND_XNODE_OWNED_BY_OTHER_CLUSTER = 0x8028
 XNODED_CI_MOCK_MODE = "priv"
 
@@ -83,6 +84,8 @@ class XnodedMockHandler(http.server.BaseHTTPRequestHandler):
             return
         if self.path == "/xnode" and b"mock-owner-conflict" in body:
             self._send_json(b"Xnode is already owned by another cluster", 409, False)
+        elif self.path.startswith("/task/drop/"):
+            self._send_json(b'{"cleanup_required":true}', read_body=False)
         else:
             self._send_json(b"{}", read_body=False)
 
@@ -1058,8 +1061,9 @@ class TestXnodePriv:
 
         1. Create test databases
         2. Grant CREATE XNODE TASK to test user
-        3. Create xnode task as test user
-        4. Verify success
+        3. Create a database sink task without TOKEN CREATE
+        4. Verify the task reuses one user-owned default token
+        5. Alter the database sink as the task owner
 
         Since: v3.4.1.0
 
@@ -1087,10 +1091,61 @@ class TestXnodePriv:
         # Try to create task with privilege
         result = self._expect_success(
             f"CREATE XNODE TASK 'task_{self.suffix}' FROM 'taos://root:taosdata@localhost:6030/{test_db}' "
-            f"TO 'taos://root:taosdata@localhost:6030/{zgc_db}' WITH STATUS 'created' xnode_id {xnode_id}",
+            f"TO DATABASE {zgc_db} WITH STATUS 'created' xnode_id {xnode_id}",
             user=self.test_user,
             passwd=self.test_pass
         )
+        assert result, "Database sink creation should not require TOKEN CREATE for its owner"
+
+        task_rows = tdSql.query(
+            f"SHOW XNODE TASKS WHERE name = 'task_{self.suffix}'", row_tag=True
+        )
+        assert len(task_rows) == 1
+        assert task_rows[0][3].startswith(f"taos:///{zgc_db}?bearer_token=")
+        assert task_rows[0][3].endswith("&subject_encoded=true")
+
+        token_rows = tdSql.query(
+            "SELECT name, `user` FROM information_schema.ins_tokens "
+            f"WHERE `user` = '{self.test_user}' AND name LIKE '__xnode_%__'",
+            row_tag=True,
+        )
+        assert len(token_rows) == 1
+        assert token_rows[0][1] == self.test_user
+
+        result = self._expect_success(
+            f"ALTER XNODE TASK 'task_{self.suffix}' TO DATABASE {test_db}",
+            user=self.test_user,
+            passwd=self.test_pass,
+        )
+        assert result, "Task owner should reuse its default token on ALTER"
+        task_rows = tdSql.query(
+            f"SHOW XNODE TASKS WHERE name = 'task_{self.suffix}'", row_tag=True
+        )
+        assert task_rows[0][3].startswith(f"taos:///{test_db}?bearer_token=")
+        assert task_rows[0][3].endswith("&subject_encoded=true")
+        token_rows = tdSql.query(
+            "SELECT name FROM information_schema.ins_tokens "
+            f"WHERE `user` = '{self.test_user}' AND name LIKE '__xnode_%__'",
+            row_tag=True,
+        )
+        assert len(token_rows) == 1
+
+        # A literal % in the database name is escaped in the marked DSN subject.
+        percent_db = f"pct%41_{self.suffix}"
+        tdSql.execute(f"CREATE DATABASE `{percent_db}`", queryTimes=1)
+        result = self._expect_success(
+            f"ALTER XNODE TASK 'task_{self.suffix}' TO DATABASE `{percent_db}`",
+            user=self.test_user,
+            passwd=self.test_pass,
+        )
+        assert result, "Database sink should accept a database name containing %"
+        task_rows = tdSql.query(
+            f"SHOW XNODE TASKS WHERE name = 'task_{self.suffix}'", row_tag=True
+        )
+        assert task_rows[0][3].startswith(
+            f"taos:///pct%2541_{self.suffix}?bearer_token="
+        )
+        assert task_rows[0][3].endswith("&subject_encoded=true")
 
         # Cleanup
         try:
@@ -1100,6 +1155,7 @@ class TestXnodePriv:
         tdSql.execute(f"REVOKE CREATE XNODE TASK FROM {self.test_user}", queryTimes=1)
         tdSql.execute(f"DROP DATABASE {test_db}", queryTimes=1)
         tdSql.execute(f"DROP DATABASE {zgc_db}", queryTimes=1)
+        tdSql.execute(f"DROP DATABASE `{percent_db}`", queryTimes=1)
 
         tdLog.success("Test 3.2 passed: GRANT CREATE XNODE TASK works correctly")
 
@@ -1148,6 +1204,158 @@ class TestXnodePriv:
         tdSql.execute(f"DROP DATABASE {zgc_db}", queryTimes=1)
 
         tdLog.success("Test 3.3 passed: REVOKE CREATE XNODE TASK works correctly")
+
+    def test_database_sink_token_name_is_reserved(self):
+        """Database sink default token names are reserved
+
+        1. Create a database sink task so its owner gets a default token
+        2. Drop the task and the default token
+        3. Verify another user cannot create a token with that name
+        4. Verify root cannot create that token for another user either
+        5. Create the database sink task again and verify the token owner
+
+        Since: v3.5.0.0
+
+        Labels: common,ci,integration,functional
+
+        Jira: 6755732199
+
+        History:
+            - 2026-11-12 Created
+            - 2026-11-12 Reserved the default token name prefix
+        """
+        owner = f"owner{self.suffix}"
+        other = f"other{self.suffix}"
+        target_db = f"reserved_token_{self.suffix}"
+        task = f"reserved_token_{self.suffix}"
+
+        tdSql.execute(f"CREATE USER `{owner}` PASS '{self.test_pass}'", queryTimes=1)
+        tdSql.execute(f"CREATE USER `{other}` PASS '{self.test_pass}'", queryTimes=1)
+        tdSql.execute(f"CREATE DATABASE `{target_db}`", queryTimes=1)
+        tdSql.execute(f"GRANT CREATE XNODE TASK TO `{owner}`", queryTimes=1)
+        xnode_id = self._get_xnode_id()
+        create_task = (
+            f"CREATE XNODE TASK '{task}' "
+            f"FROM 'taos://root:taosdata@localhost:6030/{target_db}' "
+            f"TO DATABASE `{target_db}` WITH STATUS 'created' XNODE_ID {xnode_id}"
+        )
+        token_query = (
+            "SELECT name, `user` FROM information_schema.ins_tokens "
+            f"WHERE name LIKE '__xnode_%__' AND `user` IN ('{owner}', '{other}')"
+        )
+
+        assert self._expect_success(create_task, user=owner, passwd=self.test_pass)
+        token_rows = tdSql.query(token_query, row_tag=True)
+        assert len(token_rows) == 1
+        token_name, token_owner = token_rows[0]
+        assert token_owner == owner
+        tdSql.execute(f"DROP XNODE TASK '{task}'", queryTimes=1)
+        tdSql.execute(f"DROP TOKEN {token_name}", queryTimes=1)
+
+        tdSql.connect(user=other, password=self.test_pass)
+        try:
+            tdSql.error(
+                f"CREATE TOKEN {token_name} FROM USER `{other}`",
+                expectedErrno=TSDB_CODE_MND_INVALID_TOKEN_NAME,
+            )
+        finally:
+            tdSql.connect(user=self.super_user, password=self.super_pass)
+        tdSql.error(
+            f"CREATE TOKEN {token_name} FROM USER `{other}`",
+            expectedErrno=TSDB_CODE_MND_INVALID_TOKEN_NAME,
+        )
+        assert len(tdSql.query(token_query, row_tag=True)) == 0
+
+        assert self._expect_success(create_task, user=owner, passwd=self.test_pass)
+        token_rows = tdSql.query(token_query, row_tag=True)
+        assert len(token_rows) == 1
+        assert tuple(token_rows[0]) == (token_name, owner)
+
+        tdSql.execute(f"DROP XNODE TASK '{task}'", queryTimes=1)
+        tdSql.execute(f"DROP TOKEN {token_name}", queryTimes=1)
+        tdSql.execute(f"DROP USER `{owner}`", queryTimes=1)
+        tdSql.execute(f"DROP USER `{other}`", queryTimes=1)
+        tdSql.execute(f"DROP DATABASE `{target_db}`", queryTimes=1)
+
+    def test_start_legacy_bare_database_sink(self):
+        """START completes a legacy task whose sink is a bare database name
+
+        1. Create a task whose sink text is a bare database name
+        2. Verify a non-owner with ALTER on the task cannot START it without CREATE TOKEN
+        3. START the task as its owner
+        4. Verify the sink became a token DSN owned by the task owner
+        5. START again and verify the sink is not rewritten
+
+        Since: v3.5.0.0
+
+        Labels: common,ci,integration,functional
+
+        Jira: 6755732199
+
+        History:
+            - 2026-11-13 Created
+        """
+        self._create_test_user()
+        self._cleanup_xnode_resources()
+        tdSql.execute("CREATE XNODE 'localhost:6055'", queryTimes=1)
+
+        owner = f"legacy{self.suffix}"
+        target_db = f"legacy_sink_{self.suffix}"
+        task = f"legacy_sink_{self.suffix}"
+        tdSql.execute(f"CREATE USER `{owner}` PASS '{self.test_pass}'", queryTimes=1)
+        tdSql.execute(f"CREATE DATABASE `{target_db}`", queryTimes=1)
+        tdSql.execute(f"GRANT CREATE XNODE TASK TO `{owner}`", queryTimes=1)
+        xnode_id = self._get_xnode_id()
+        task_query = f"SHOW XNODE TASKS WHERE name = '{task}'"
+        token_query = (
+            "SELECT `user` FROM information_schema.ins_tokens "
+            f"WHERE `user` = '{owner}' AND name LIKE '__xnode_%__'"
+        )
+
+        # A sink without a scheme is what releases before database sink tokens stored.
+        assert self._expect_success(
+            f"CREATE XNODE TASK '{task}' "
+            f"FROM 'taos://root:taosdata@localhost:6030/{target_db}' "
+            f"TO '{target_db}' WITH STATUS 'created' XNODE_ID {xnode_id}",
+            user=owner,
+            passwd=self.test_pass,
+        )
+        rows = tdSql.query(task_query, row_tag=True)
+        assert len(rows) == 1
+        task_id = rows[0][0]
+        assert rows[0][3] == target_db
+        assert len(tdSql.query(token_query, row_tag=True)) == 0
+
+        tdSql.execute(
+            f"GRANT ALTER ON XNODE TASK `{task_id}` TO {self.test_user}", queryTimes=1
+        )
+        tdSql.connect(user=self.test_user, password=self.test_pass)
+        try:
+            tdSql.error(
+                f"START XNODE TASK '{task}'", expectedErrno=TSDB_CODE_MND_NO_RIGHTS
+            )
+        finally:
+            tdSql.connect(user=self.super_user, password=self.super_pass)
+        assert tdSql.query(task_query, row_tag=True)[0][3] == target_db
+        assert len(tdSql.query(token_query, row_tag=True)) == 0
+
+        assert self._expect_success(
+            f"START XNODE TASK '{task}'", user=owner, passwd=self.test_pass
+        )
+        sink = tdSql.query(task_query, row_tag=True)[0][3]
+        assert sink.startswith(f"taos:///{target_db}?bearer_token=")
+        assert sink.endswith("&subject_encoded=true")
+        assert len(tdSql.query(token_query, row_tag=True)) == 1
+
+        assert self._expect_success(
+            f"START XNODE TASK '{task}'", user=owner, passwd=self.test_pass
+        )
+        assert tdSql.query(task_query, row_tag=True)[0][3] == sink
+        assert len(tdSql.query(token_query, row_tag=True)) == 1
+
+        self._cleanup_xnode_resources()
+        tdSql.execute(f"DROP USER `{owner}`", queryTimes=1)
+        tdSql.execute(f"DROP DATABASE `{target_db}`", queryTimes=1)
 
     def test_grant_create_task_allows_job(self):
         """Test case 3.4: CREATE XNODE TASK privilege allows creating job with ALTER on task
@@ -1718,8 +1926,10 @@ class TestXnodePriv:
 
         1. Create test databases and task as superuser
         2. Grant ALTER ON XNODE TASK <id> to test user
-        3. ALTER task as test user
-        4. Verify success
+        3. Verify a non-sink ALTER succeeds with the ALTER privilege alone
+        4. Verify database sink ALTER requires CREATE TOKEN for a non-owner
+        5. Grant CREATE TOKEN and ALTER task as test user
+        6. Verify the generated token still belongs to the task owner
 
         Since: v3.4.1.0
 
@@ -1756,15 +1966,50 @@ class TestXnodePriv:
         # Grant ALTER privilege
         tdSql.execute(f"GRANT ALTER ON XNODE TASK `{task_id}` TO {self.test_user}", queryTimes=1)
 
-        # Try to ALTER task with privilege
+        # ALTER privilege alone is enough for a change that leaves the sink untouched.
         result = self._expect_success(
             f"ALTER XNODE TASK 'task_{self.suffix}' WITH status 'running'",
             user=self.test_user,
-            passwd=self.test_pass
+            passwd=self.test_pass,
         )
+        assert result, "ALTER privilege should allow a non-sink ALTER"
+
+        # ALTER privilege alone cannot create a token for the task owner.
+        tdSql.connect(user=self.test_user, password=self.test_pass)
+        try:
+            tdSql.error(
+                f"ALTER XNODE TASK 'task_{self.suffix}' TO DATABASE {test_db}",
+                expectedErrno=TSDB_CODE_MND_NO_RIGHTS,
+            )
+        finally:
+            tdSql.connect(user=self.super_user, password=self.super_pass)
+
+        tdSql.execute(f"GRANT CREATE TOKEN TO {self.test_user}", queryTimes=1)
+
+        result = self._expect_success(
+            f"ALTER XNODE TASK 'task_{self.suffix}' TO DATABASE {test_db}",
+            user=self.test_user,
+            passwd=self.test_pass,
+        )
+        assert result, "Non-owner database sink ALTER should succeed with CREATE TOKEN"
+
+        task_rows = tdSql.query(
+            f"SHOW XNODE TASKS WHERE name = 'task_{self.suffix}'", row_tag=True
+        )
+        assert len(task_rows) == 1
+        assert task_rows[0][3].startswith(f"taos:///{test_db}?bearer_token=")
+
+        token_rows = tdSql.query(
+            "SELECT name, `user` FROM information_schema.ins_tokens "
+            "WHERE `user` = 'root' AND name LIKE '__xnode_%__'",
+            row_tag=True,
+        )
+        assert len(token_rows) == 1
+        assert token_rows[0][1] == "root"
 
         # Cleanup
         self._cleanup_xnode_resources()
+        tdSql.execute(f"REVOKE CREATE TOKEN FROM {self.test_user}", queryTimes=1)
         tdSql.execute(f"REVOKE ALTER ON XNODE TASK `{task_id}` FROM {self.test_user}", queryTimes=1)
         tdSql.execute(f"DROP DATABASE {test_db}", queryTimes=1)
         tdSql.execute(f"DROP DATABASE {zgc_db}", queryTimes=1)
@@ -2861,7 +3106,10 @@ class TestXnodePriv:
         """
         self._create_test_user()
         self._cleanup_xnode_resources()
-        tdSql.execute("CREATE XNODE 'localhost:6055'", queryTimes=1)
+        tdSql.execute(
+            "CREATE XNODE 'localhost:6055' USER root PASS 'taosdata'",
+            queryTimes=1,
+        )
 
         test_db = f"test_{self.suffix}"
         zgc_db = f"zgc_{self.suffix}"

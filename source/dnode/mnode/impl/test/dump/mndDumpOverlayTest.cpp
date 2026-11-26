@@ -46,8 +46,8 @@ TEST(mndDumpOverlay, sdbTypeFromName_roundtrip) {
 }
 
 // isOverlayType: locks in the FS 4.4 table-type classification. dnode/vgroup/
-// db/cluster/config/compact support scalar overlay; mnode/user are rawData-only
-// (privileges and sync-managed role must never be settable via `fields`).
+// db/cluster/config/compact/arbgroup support scalar overlay; mnode/user are
+// rawData-only (privileges and sync-managed role must never be settable via `fields`).
 TEST(mndDumpOverlay, isOverlayType_classification) {
   EXPECT_TRUE(isOverlayType(SDB_DNODE));
   EXPECT_TRUE(isOverlayType(SDB_VGROUP));
@@ -55,6 +55,7 @@ TEST(mndDumpOverlay, isOverlayType_classification) {
   EXPECT_TRUE(isOverlayType(SDB_CLUSTER));
   EXPECT_TRUE(isOverlayType(SDB_CFG));
   EXPECT_TRUE(isOverlayType(SDB_COMPACT));
+  EXPECT_TRUE(isOverlayType(SDB_ARBGROUP));
 
   EXPECT_FALSE(isOverlayType(SDB_MNODE));
   EXPECT_FALSE(isOverlayType(SDB_USER));
@@ -234,4 +235,70 @@ TEST(mndDumpOverlay, overlayCompact_compactIdStartTimeDbname) {
   // array does not participate in scalar overlay and stays as decoded.
   EXPECT_EQ(obj.compactDetail, nullptr);
   tjsonDelete(f);
+}
+
+// overlayArbGroup: the persistable arbgroup state fields (dnodeId/token per member,
+// isSync, code, dbUid, and the assignedLeader fields) map through `fields`.
+// Runtime-only heartbeat state (nextHbSeq/responsedHbSeq/lastHbMs) is intentionally
+// excluded: decode resets it and encode never writes it, so it cannot be edited
+// offline. vgId is the sdb primary key and must NEVER be overlaid (even if present
+// in `fields`), so an operator cannot re-key the record by accident. A field absent
+// from `fields` keeps its decoded value (idempotent re-import of an unmodified record).
+TEST(mndDumpOverlay, overlayArbGroup_allStateFields) {
+  SArbGroup obj = {0};
+  obj.vgId = 100;
+  obj.dbUid = 200;
+  obj.members[0].info.dnodeId = 1;
+  snprintf(obj.members[0].state.token, TSDB_ARB_TOKEN_SIZE, "old0");
+  obj.members[1].info.dnodeId = 2;
+  snprintf(obj.members[1].state.token, TSDB_ARB_TOKEN_SIZE, "old1");
+  obj.isSync = 0;
+  obj.code = 0;
+  obj.updateTimeMs = 5000;
+  obj.assignedLeader.assignedDnodeId = 1;
+  snprintf(obj.assignedLeader.token, TSDB_ARB_TOKEN_SIZE, "leader");
+  obj.assignedLeader.assignAcked = 0;
+  obj.version = 1;
+
+  SJson *f = tjsonCreateObject();
+  ASSERT_EQ(tjsonAddStringToObject(f, "dbUid", "300"), 0);
+  ASSERT_EQ(tjsonAddStringToObject(f, "member0.dnodeId", "5"), 0);
+  ASSERT_EQ(tjsonAddStringToObject(f, "member0.token", "new0"), 0);
+  ASSERT_EQ(tjsonAddStringToObject(f, "member1.dnodeId", "6"), 0);
+  ASSERT_EQ(tjsonAddStringToObject(f, "member1.token", "new1"), 0);
+  ASSERT_EQ(tjsonAddStringToObject(f, "isSync", "1"), 0);
+  ASSERT_EQ(tjsonAddStringToObject(f, "code", "7"), 0);
+  ASSERT_EQ(tjsonAddStringToObject(f, "updateTimeMs", "8888"), 0);
+  ASSERT_EQ(tjsonAddStringToObject(f, "assignedLeader.assignedDnodeId", "9"), 0);
+  ASSERT_EQ(tjsonAddStringToObject(f, "assignedLeader.token", "newleader"), 0);
+  ASSERT_EQ(tjsonAddStringToObject(f, "assignedLeader.assignAcked", "1"), 0);
+  ASSERT_EQ(tjsonAddStringToObject(f, "version", "42"), 0);
+  // vgId is intentionally present in fields to prove it is NOT overlaid.
+  ASSERT_EQ(tjsonAddStringToObject(f, "vgId", "777"), 0);
+
+  overlayArbGroup(&obj, f);
+  EXPECT_EQ(obj.vgId, 100);  // unchanged: primary key must not be overlaid
+  EXPECT_EQ(obj.dbUid, 300);
+  EXPECT_EQ(obj.members[0].info.dnodeId, 5);
+  EXPECT_EQ(0, strncmp(obj.members[0].state.token, "new0", TSDB_ARB_TOKEN_SIZE));
+  EXPECT_EQ(obj.members[1].info.dnodeId, 6);
+  EXPECT_STREQ(obj.members[1].state.token, "new1");
+  EXPECT_EQ(obj.isSync, 1);
+  EXPECT_EQ(obj.code, 7);
+  EXPECT_EQ(obj.updateTimeMs, 8888);
+  EXPECT_EQ(obj.assignedLeader.assignedDnodeId, 9);
+  EXPECT_EQ(0, strncmp(obj.assignedLeader.token, "newleader", TSDB_ARB_TOKEN_SIZE));
+  EXPECT_EQ(obj.assignedLeader.assignAcked, 1);
+  EXPECT_EQ(obj.version, 42);
+  tjsonDelete(f);
+
+  // Absent keys must leave decoded values untouched (idempotent re-import).
+  SJson *f2 = tjsonCreateObject();
+  overlayArbGroup(&obj, f2);
+  EXPECT_EQ(obj.dbUid, 300);
+  EXPECT_EQ(obj.members[0].info.dnodeId, 5);
+  EXPECT_EQ(0, strncmp(obj.members[0].state.token, "new0", TSDB_ARB_TOKEN_SIZE));
+  EXPECT_EQ(obj.isSync, 1);
+  EXPECT_EQ(obj.version, 42);
+  tjsonDelete(f2);
 }

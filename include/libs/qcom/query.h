@@ -236,6 +236,7 @@ typedef struct SVCTableMeta {
   SColRef* tagRef;
   int32_t       numOfSeries;
   SSeriesEntry* seriesEntries;
+  SVtableReferenceExt referenceExt;
   // vchild own (extension) columns/tags, colId >= TSDB_VCHILD_OWN_COL_ID_BASE; packed
   // behind colRef/tagRef in the same memory block, own columns first then own tags.
   int32_t  numOfOwnCols;
@@ -265,6 +266,7 @@ typedef struct STableMeta {
   SColRef*      tagRef;
   int32_t       numOfSeries;
   SSeriesEntry* seriesEntries;
+  SVtableReferenceExt referenceExt;
   // Same layout as the tail of SVCTableMeta. For a merged per-child meta (vstb schema +
   // vchild own columns/tags) these stay 0/NULL: own columns/tags are inserted into
   // schema[] during the catalog merge, which keeps cloneTableMeta()/TABLE_META_FULL_SIZE()
@@ -557,6 +559,12 @@ typedef struct SRequestConnInfo {
   int64_t  requestObjRefId;
   SEpSet   mgmtEps;
   int64_t  txnId;  // batch meta txn: same-txn visibility for PRE_CREATE entries
+  // Batch meta txn: borrowed refs to the connection's txn-local state (NULL when the txn has not
+  // touched anything yet). They let the catalog tell which tables this txn has modified, so responses
+  // for untouched tables can still be cached. Whoever sets txnId must fill these too: use
+  // parseCxtToConnInfo(), otherwise txn-touched tables would look untouched and be cached.
+  SHashObj* pTxnTableMeta;  // "db.table" -> STableMeta* (NULL value = dropped in txn)
+  SHashObj* pTxnSuidMap;    // stb suid -> stb full name, for stbs touched in txn
 } SRequestConnInfo;
 
 typedef void (*__freeFunc)(void* param);
@@ -594,6 +602,7 @@ int32_t cleanupTaskQueue();
  * @return
  */
 int32_t taosAsyncExec(__async_exec_fn_t execFn, void* execParam, int32_t* code);
+bool    taosInAsyncTask(void);
 int32_t taosAsyncWait();
 int32_t taosAsyncRecover();
 int32_t taosStmt2AsyncBind(__async_exec_fn_t execFn, void* execParam);
@@ -635,6 +644,29 @@ int32_t        getNormalColSchemaIndex(const STableMeta* pTableMeta, const char*
 int32_t queryCreateCTableMetaFromMsg(STableMetaRsp* msg, SCTableMeta* pMeta);
 int32_t queryCreateVCTableMetaFromMsg(STableMetaRsp *msg, SVCTableMeta **pMeta);
 int32_t queryCreateTableMetaFromMsg(STableMetaRsp* msg, bool isSuperTable, STableMeta** pMeta);
+// Batch meta txn: schema of a super table as seen by the txn that altered it (ALTER STB is applied to the
+// vnodes only at COMMIT). The client ships these with the system table scans listed by qSysTableNeedsTxnStbSchemas() so that
+// the vnode renders child-table rows with the txn's tag/column names and types. Display only: tag values are
+// still read by colId from the vnode, ALTER never changes a colId.
+// Upper bound of the encoded blob. One super table is at most (TSDB_MAX_COLUMNS + TSDB_MAX_TAGS) schemas of well
+// under 64 bytes each (about 2 MB), and a txn alters a handful of them. The bound only exists so that a forged
+// length in a plan cannot turn into a huge allocation: every decoder of the blob must reject anything above it.
+#define TXN_STB_SCHEMAS_MAX_LEN (64 * 1024 * 1024)
+
+typedef struct STxnStbSchema {
+  int64_t        suid;
+  SSchemaWrapper schemaRow;
+  SSchemaWrapper schemaTag;
+  SExtSchema*    pExtSchemas;  // schemaRow.nCols entries (typeMod), never NULL after decode
+} STxnStbSchema;
+
+// Encode the super tables in pStbMetas (element: const STableMeta*, tableType must be TSDB_SUPER_TABLE).
+// *ppBuf is taosMemoryMalloc'd, *ppBuf == NULL / *pLen == 0 when the array is empty.
+int32_t queryEncodeTxnStbSchemas(const SArray* pStbMetas, char** ppBuf, int32_t* pLen);
+// Decode into a hash suid(int64) -> STxnStbSchema (release with queryDestroyTxnStbSchemas).
+int32_t queryDecodeTxnStbSchemas(const char* pBuf, int32_t len, SHashObj** ppHash);
+void    queryDestroyTxnStbSchemas(SHashObj* pHash);
+
 int32_t queryCreateTableMetaExFromMsg(STableMetaRsp* msg, bool isSuperTable, STableMeta** pMeta);
 void    queryFreeSeriesEntries(SSeriesEntry* pSeries, int32_t nSeries);
 // Legacy names: both helpers handle every owned condition string in SColRef.
@@ -647,7 +679,7 @@ char*   jobTaskStatusStr(int32_t status);
 SSchema createSchema(int8_t type, int32_t bytes, col_id_t colId, const char* name);
 
 void    destroyQueryExecRes(SExecResult* pRes);
-int32_t dataConverToStr(char* str, int64_t capacity, int type, void* buf, int32_t bufSize, int32_t* len);
+int32_t dataConverToStr(char* str, int64_t capacity, int type, void* buf, int32_t bufSize, int32_t* len, void *charsetCxt);
 void    parseTagDatatoJson(void* p, char** jsonStr, void *charsetCxt);
 int32_t setColRef(SColRef* colRef, col_id_t colId, const char* colName, char* refColName, char* refTableName,
                   char* refDbName, const char* refSchemaName, int8_t refType, const char* refSourceName,
@@ -686,6 +718,7 @@ void* getTaskPoolWorkerCb();
   ((_code) == TSDB_CODE_VND_HASH_MISMATCH || (_code) == TSDB_CODE_VND_INVALID_VGROUP_ID)
 #define NEED_CLIENT_REFRESH_TBLMETA_ERROR(_code)                  \
   ((_code) == TSDB_CODE_TDB_INVALID_TABLE_SCHEMA_VER ||           \
+   (_code) == TSDB_CODE_VTABLE_REFERENCE_VERSION_CONFLICT ||      \
    (_code) == TSDB_CODE_MND_INVALID_SCHEMA_VER ||                  \
    (_code) == TSDB_CODE_SCH_DATA_SRC_EP_MISS ||                    \
    (_code) == TSDB_CODE_VTABLE_DATA_SRC_EP_MISS)
@@ -749,6 +782,10 @@ void* getTaskPoolWorkerCb();
    (_type) == TDMT_MND_DROP_VIEW ||                                                                             \
    (_type) == TDMT_MND_CREATE_TSMA || (_type) == TDMT_MND_DROP_TSMA || (_type) == TDMT_MND_DROP_TB_WITH_TSMA || \
    (_type) == TDMT_MND_CREATE_STREAM || (_type) == TDMT_MND_DROP_STREAM)
+
+// A CREATE TABLE / CREATE STABLE that succeeded returns the meta of what it really created. A success without meta
+// means nothing was created (IF NOT EXISTS on an existing object), so the cached meta is still valid.
+#define IS_CREATE_TBL_REQUEST(_type) ((_type) == TDMT_VND_CREATE_TABLE || (_type) == TDMT_MND_CREATE_STB)
 
 #define NEED_SCHEDULER_REDIRECT_ERROR(_code)                                              \
   (SYNC_UNKNOWN_LEADER_REDIRECT_ERROR(_code) || SYNC_SELF_LEADER_REDIRECT_ERROR(_code) || \

@@ -5,15 +5,31 @@ toc_max_heading_level: 4
 
 ## Function Classification
 
-### Three Types of Functions: Scalar, Aggregate, and Set
+### Three Types of Expression Functions: Scalar, Aggregate, and Set
 
-Functions are divided into three categories based on the **input-to-output row relationship**, which is the primary classification dimension:
+Expression functions are divided into three categories based on the **input-to-output row relationship**, which is the primary classification dimension:
 
 1. **Scalar Functions**: Each input row produces one output row (1 → 1). Each row's calculation depends only on the current row's input values.
 
 2. **Aggregate Functions**: Multiple input rows produce a single result value (N → 1). The result can only be produced after seeing all input rows.
 
 3. **Set Functions**: Multiple input rows produce one or more result rows (N → M, where M ≥ 1). The number of output rows is determined by the function semantics, parameters, or data. M=1 is a degenerate case (e.g., `TOP(col,1)`); the difference from aggregate functions is that aggregate functions always output exactly 1 row while set functions may output more than 1. The difference from scalar functions is that each output row of a set function may depend on multiple input rows (e.g., neighboring row context), whereas scalar functions depend only on the current row.
+
+### Table Function Classification
+
+In addition to the three expression function types above, functions also include **table functions**. A table function returns a row set and is used as a query table source; its parameters (including whether it accepts a table) are defined by the specific function. It is independent of the scalar, aggregate, and set classification based on the input-to-output row relationship.
+
+| Function Type | Output | Usage Position | Representative Function |
+| --- | --- | --- | --- |
+| Table function | Row set | `TABLE(...)` in the `FROM` clause | `TIME_ALIGN` |
+
+Table functions have the following characteristics:
+
+- They can be called only in the `FROM` clause through `TABLE(...)`. They cannot appear in the `SELECT` list, `WHERE`, `GROUP BY`, `HAVING`, `ORDER BY`, or other expressions, and cannot be used as parameters of scalar, aggregate, or set functions.
+- The returned row set can participate in `JOIN`, subqueries, `UNION`, aggregation, windows, sorting, `LIMIT`, and other query operations like a table.
+- The nesting rules and co-location rules below do not apply to table functions.
+
+For the list, parameters, and output columns of table functions, see [Table Functions](#table-functions).
 
 ### Pipeline Function Description
 
@@ -52,7 +68,11 @@ Co-located scalar functions do not participate in Phase 1. Instead, after Phase 
 3. **Complete Example**
 
 ```sql
-SELECT abs(voltage), CSUM(current), LAG(voltage, 1) FROM meters;
+SELECT
+  ABS(voltage),
+  CSUM(current),
+  LAG(voltage, 1)
+FROM meters;
 ```
 
 Assume 4 input rows:
@@ -84,9 +104,11 @@ Assume 4 input rows:
 
 ## Function Usage Rules
 
+The nesting and co-location rules below apply to scalar, aggregate, and set functions used in expressions, not to table functions.
+
 ### Nesting Rules
 
-1. **Scalar functions can nest with any type of function** as long as parameter requirements are satisfied:
+1. **Scalar functions can nest with any expression function** as long as parameter requirements are satisfied:
    - Scalar functions can be used as arguments to aggregate, set, or other scalar functions (scalar as inner layer): `SUM(abs(voltage))`
    - Results of aggregate, set, or other scalar functions can be used as arguments to scalar functions (scalar as outer layer): `abs(SUM(voltage))`, `ROUND(AVG(voltage), 2)`, `abs(TOP(voltage, 1))`
 2. **Aggregate and set functions cannot nest with each other**: Aggregate functions and set functions cannot be directly or indirectly nested with each other, with no exceptions.
@@ -195,6 +217,99 @@ ATAN(expr)
 
 **Usage Notes**: Can only be used with normal columns, selection, and projection functions, not with aggregation functions.
 
+### BIT_COUNT
+
+```sql
+BIT_COUNT(expr)
+```
+
+**Function Classification**: Scalar function.
+
+**Function Description**: Returns the number of bits set to 1 in the binary representation of `expr` (population count). Numeric, temporal and textual arguments are counted as 64-bit integers; binary arguments are counted byte by byte.
+
+**Version**: v3.5.0.0
+
+**Return Type**: BIGINT. Numeric, temporal and textual arguments return 0 to 64; `VARBINARY`, `BLOB` and `MEDIUMBLOB` arguments return 0 to 8 × byte length, which may exceed 64.
+
+**Applicable Data Types**
+
+- `expr`: TINYINT, SMALLINT, INT, BIGINT and their unsigned variants, BOOL, FLOAT, DOUBLE, DECIMAL, VARCHAR, NCHAR, VARBINARY, BLOB, MEDIUMBLOB, TIMESTAMP.
+- JSON and GEOMETRY are not supported.
+
+**Nested Subquery Support**: Applicable to both inner and outer queries.
+
+**Applicable to**: Tables and supertables.
+
+**Usage Notes**
+
+- Returns NULL when `expr` is NULL.
+- Signed integers are counted in 64-bit two's complement, so `BIT_COUNT(-1)` returns 64 and `BIT_COUNT(-2)` returns 63.
+- Unsigned integers are zero-extended to 64 bits before counting.
+- BOOL TRUE is treated as 1 and FALSE as 0.
+- FLOAT, DOUBLE and DECIMAL are rounded to the nearest integer (half away from zero) first. NaN, positive or negative infinity, and values outside the BIGINT range after rounding return NULL. For example, `BIT_COUNT(2.9)` returns 2 (2.9 rounds to 3, which has two bits set) and `BIT_COUNT(-2.9)` returns 63 (rounded to -3).
+- VARCHAR and NCHAR are parsed as a decimal integer prefix: leading blanks are skipped, an optional sign is accepted, and parsing stops at the first non-digit character. Text that cannot be parsed returns 0; an integer prefix beyond the BIGINT range saturates at the BIGINT boundary without a warning.
+- VARBINARY, BLOB and MEDIUMBLOB are counted bit by bit over the raw bytes without numeric parsing or charset conversion. An empty value returns 0, and the result may exceed 64.
+- TIMESTAMP is formatted in the connection time zone as the decimal value `YYYYMMDDHHMMSS` (the MySQL `+0` numeric context), with the fractional second rounded to the nearest second and `.5` or above carrying into the next second. The resulting value is counted in 64-bit two's complement. The same timestamp text produces the same result in any session time zone; the same epoch value may produce different results in different session time zones.
+
+**Compatibility Differences from MySQL 8.0**
+
+- Return type: the MySQL documentation describes an unsigned 64-bit integer; TDengine returns `BIGINT`. The numeric semantics are the same.
+- Floating point and fixed point arguments: both round to the nearest integer (half away from zero) and produce the same result.
+- TIMESTAMP: both use the `+0` `YYYYMMDDHHMMSS` numeric context. MySQL `DATETIME` covers years 1000 to 9999, while the TDengine `TIMESTAMP` range is engine-defined; text outside that range fails at the `CAST` stage.
+- Floating point special and out-of-range values: NaN, +/-Infinity and values outside the 64-bit integer range after rounding return NULL in TDengine, whereas MySQL results vary by version and conversion rule.
+- Text arguments: TDengine emits no per-row warning and saturates an overflowing integer prefix to the signed 64-bit boundary; MySQL follows its unsigned 64-bit and warning rules.
+- Binary arguments: both count bits in the binary value and the result may exceed 64. TDengine does not support the `b'...'` bit literal; use `CAST(... AS VARBINARY)` instead.
+- Other types: TDengine rejects JSON and GEOMETRY arguments at translation time.
+
+**Example**
+
+```sql
+taos> select bit_count(29);
+ bit_count(29) |
+================
+             4 |
+
+taos> select bit_count(0), bit_count(-1), bit_count(-2);
+ bit_count(0) | bit_count(-1) | bit_count(-2) |
+==============================================
+            0 |            64 |            63 |
+
+taos> select bit_count(2.9), bit_count(2.5), bit_count(-2.9);
+ bit_count(2.9) | bit_count(2.5) | bit_count(-2.9) |
+===================================================
+              2 |              2 |               63 |
+
+taos> select bit_count(cast(2.9 as decimal(5,1)));
+ bit_count(cast(2.9 as decimal(5,1))) |
+=======================================
+                                     2 |
+
+taos> select bit_count(cast('ABCD' as varbinary));
+ bit_count(cast('ABCD' as varbinary)) |
+=======================================
+                                     9 |
+
+taos> select bit_count(cast('2026-11-23 15:45:22' as timestamp));
+ bit_count(cast('2026-11-23 15:45:22' as timestamp)) |
+======================================================
+                                                   20 |
+
+taos> select bit_count(cast(2.9 as double)), bit_count('12abc'), bit_count('abc');
+ bit_count(cast(2.9 as double)) | bit_count('12abc') | bit_count('abc') |
+=========================================================================
+                              2 |                  2 |                0 |
+
+taos> select bit_count(null);
+ bit_count(null) |
+==================
+ NULL            |
+
+taos> select bit_count(1e308);
+ bit_count(1e308) |
+===================
+ NULL             |
+```
+
 ### CEIL
 
 ```sql
@@ -245,7 +360,10 @@ CORR(expr1, expr2)
 **Example**:
 
 ```sql
-taos> select k, j from test_corr;
+taos> SELECT
+        k,
+        j
+      FROM test_corr;
       k      |      j      |
 ============================
            1 |           2 |
@@ -253,11 +371,14 @@ taos> select k, j from test_corr;
            3 |           5 |
            4 |           7 |
            5 |           8 |
+Query OK, 5 row(s) in set
 
-taos> select corr(k, j) from test_corr;
+taos> SELECT CORR(k, j)
+      FROM test_corr;
          corr(k,j)         |
 ============================
          0.992277876713668 |
+Query OK, 1 row(s) in set
 ```
 
 ### COS
@@ -321,7 +442,7 @@ GREATEST(expr1, expr2[, expr]...)
 **Related configuration items**:
 
 - `compareAsStrInGreatest` (client configuration): `1` means that when both string types and numeric types are present they are uniformly compared as strings; `0` means they are uniformly compared as numeric values. The default is `1`.
-- `ignoreNullInGreatest` (client configuration, available since ver-3.4.2.0): `0` (default) keeps the MySQL-compatible behavior — any NULL argument makes the result NULL. `1` skips NULL arguments and compares only the non-NULL values; if every argument is NULL, the result is still NULL. This option is orthogonal to `compareAsStrInGreatest`: it only controls NULL handling, the comparison rules above for non-NULL values are unchanged.
+- `ignoreNullInGreatest` (client configuration, available since ver-3.4.2.0): `0` (default) makes the result NULL when any argument is NULL. `1` skips NULL arguments and compares only the non-NULL values; if every argument is NULL, the result is still NULL. This option is orthogonal to `compareAsStrInGreatest`: it only controls NULL handling, the comparison rules above for non-NULL values are unchanged.
 
 ### LEAST
 
@@ -408,15 +529,17 @@ ROUND(expr[, digits])
 **Example**:
 
 ```sql
-taos> select round(8888.88);
+taos> SELECT ROUND(8888.88);
       round(8888.88)       |
 ============================
       8889.000000000000000 |
+Query OK, 1 row(s) in set
 
-taos> select round(8888.88,-1);
+taos> SELECT ROUND(8888.88, -1);
      round(8888.88,-1)     |
 ============================
       8890.000000000000000 |
+Query OK, 1 row(s) in set
 ```
 
 ### SIN
@@ -507,10 +630,11 @@ PI()
 **Example**:
 
 ```sql
-taos> select pi();
+taos> SELECT PI();
            pi()            |
 ============================
          3.141592653589793 |
+Query OK, 1 row(s) in set
 ```
 
 ### TRUNCATE
@@ -549,15 +673,17 @@ TRUNCATE(expr, digits)
 **Example**:
 
 ```sql
-taos> select truncate(8888.88, 0);
+taos> SELECT TRUNCATE(8888.88, 0);
  truncate(8888.88, 0)    |
 ============================
     8888.000000000000000 |
-     
-taos> select truncate(8888.88, -1);
+Query OK, 1 row(s) in set
+
+taos> SELECT TRUNCATE(8888.88, -1);
  truncate(8888.88, -1)   |
 ============================
     8880.000000000000000 |
+Query OK, 1 row(s) in set
 ```
 
 ### EXP
@@ -588,10 +714,11 @@ EXP(expr)
 **Example**:
 
 ```sql
-taos> select exp(2);
+taos> SELECT EXP(2);
           exp(2)           |
 ============================
          7.389056098930650 |
+Query OK, 1 row(s) in set
 ```
 
 ### LN
@@ -623,10 +750,11 @@ LN(expr)
 **Example**:
 
 ```sql
-taos> select ln(10);
+taos> SELECT LN(10);
           ln(10)           |
 ============================
          2.302585092994046 |
+Query OK, 1 row(s) in set
 ```
 
 ### MOD
@@ -658,15 +786,17 @@ MOD(expr1, expr2)
 **Example**:
 
 ```sql
-taos> select mod(10,3);
+taos> SELECT MOD(10, 3);
          mod(10,3)         |
 ============================
          1.000000000000000 |
+Query OK, 1 row(s) in set
 
-taos> select mod(1,0);
+taos> SELECT MOD(1, 0);
          mod(1,0)          |
 ============================
  NULL                      |
+Query OK, 1 row(s) in set
 ```
 
 ### RAND
@@ -699,25 +829,29 @@ RAND([seed])
 **Example**:
 
 ```sql
-taos> select rand();
+taos> SELECT RAND();
           rand()           |
 ============================
          0.202092426923147 |
-         
-taos> select rand();
+Query OK, 1 row(s) in set
+
+taos> SELECT RAND();
           rand()           |
 ============================
          0.131537788143166 |
-         
-taos> select rand(1);
+Query OK, 1 row(s) in set
+
+taos> SELECT RAND(1);
           rand(1)          |
 ============================
          0.000007826369259 |
-         
-taos> select rand(1);
+Query OK, 1 row(s) in set
+
+taos> SELECT RAND(1);
           rand(1)          |
 ============================
          0.000007826369259 |
+Query OK, 1 row(s) in set
 ```
 
 ### SIGN
@@ -751,20 +885,23 @@ SIGN(expr)
 **Example**:
 
 ```sql
-taos> select sign(-1);
+taos> SELECT SIGN(-1);
        sign(-1)        |
 ========================
                     -1 |
+Query OK, 1 row(s) in set
 
-taos> select sign(1);
+taos> SELECT SIGN(1);
         sign(1)        |
 ========================
                      1 |
+Query OK, 1 row(s) in set
 
-taos> select sign(0);
+taos> SELECT SIGN(0);
         sign(0)        |
 ========================
                      0 |
+Query OK, 1 row(s) in set
 ```
 
 ### DEGREES
@@ -796,10 +933,11 @@ DEGREES(expr)
 **Example**:
 
 ```sql
-taos> select degrees(PI());
+taos> SELECT DEGREES(PI());
        degrees(pi())       |
 ============================
        180.000000000000000 |
+Query OK, 1 row(s) in set
 ```
 
 ### RADIANS
@@ -831,13 +969,16 @@ RADIANS(expr)
 **Example**:
 
 ```sql
-taos> select radians(180);
+taos> SELECT RADIANS(180);
        radians(180)        |
 ============================
          3.141592653589793 |
+Query OK, 1 row(s) in set
 ```
 
 ## String Functions
+
+For VARCHAR strings, `CHAR_LENGTH`, `SUBSTRING/SUBSTR`, `SUBSTRING_INDEX`, `POSITION`, `REPLACE`, and `TRIM` with an explicit removal string use the current connection charset when counting, extracting, or matching characters.
 
 The input parameters for string functions are of string type, and the return results are of numeric type or string type.
 
@@ -865,21 +1006,23 @@ CHAR_LENGTH(expr)
 
 **Usage**:
 
-- Unlike the `LENGTH()` function, for multibyte characters, such as Chinese characters, the `CHAR_LENGTH()` function counts them as one character, length 1, while `LENGTH()` calculates their byte count, length 3. For example, `CHAR_LENGTH('你好') = 2`, `LENGTH('你好') = 6`.
+- `CHAR_LENGTH()` returns the character count, while `LENGTH()` returns the byte count. For the VARCHAR string `'你好'`, `CHAR_LENGTH()` returns 2; `LENGTH()` returns 6 in UTF-8 and 4 in GBK.
 - If `expr` is NULL, it returns NULL.
 
 **Example**:
 
 ```sql
-taos> select char_length('Hello world');
+taos> SELECT CHAR_LENGTH('Hello world');
  char_length('Hello world') |
 =============================
                          11 |
- 
-taos> select char_length('你好 世界');
+Query OK, 1 row(s) in set
+
+taos> SELECT CHAR_LENGTH('你好 世界');
       char_length('你好 世界') |
 ===============================
                             5 |
+Query OK, 1 row(s) in set
 ```
 
 ### CONCAT
@@ -1041,16 +1184,19 @@ taos> SELECT REGEXP_EXTRACT('2026-04-22', '([0-9]{4})-([0-9]{2})-([0-9]{2})', 1)
  regexp_extract('2026-04-22', '([0-9]{4})-([0-9]{2})-([0-9]{2})', 1) |
 =======================================================================
  2026                                                                  |
+Query OK, 1 row(s) in set
 
 taos> SELECT REGEXP_EXTRACT('2026-04-22', '([0-9]{4})-([0-9]{2})-([0-9]{2})', 0);
  regexp_extract('2026-04-22', '([0-9]{4})-([0-9]{2})-([0-9]{2})', 0) |
 =======================================================================
  2026-04-22                                                            |
+Query OK, 1 row(s) in set
 
 taos> SELECT REGEXP_EXTRACT('no-digits-here', '[0-9]+', 1);
  regexp_extract('no-digits-here', '[0-9]+', 1) |
 ===============================================
  NULL                                          |
+Query OK, 1 row(s) in set
 ```
 
 ### REGEXP_IN_SET
@@ -1128,26 +1274,29 @@ TRIM([remstr FROM] expr)
 **Examples**:
 
 ```sql
-taos> select trim('        a         ');
+taos> SELECT TRIM('        a         ');
  trim('        a         ') |
 =============================
  a                          |
- 
-taos> select trim(leading from '        a         ');
+Query OK, 1 row(s) in set
+
+taos> SELECT TRIM(leading FROM '        a         ');
  trim(leading from '        a         ') |
 ==========================================
  a                                       |
- 
+Query OK, 1 row(s) in set
 
-taos> select trim(leading 'b' from 'bbbbbbbba         ');
+taos> SELECT TRIM(leading 'b' FROM 'bbbbbbbba         ');
  trim(leading 'b' from 'bbbbbbbba         ') |
 ==============================================
  a                                           |
- 
-taos> select trim(both 'b' from 'bbbbbabbbbbb');
+Query OK, 1 row(s) in set
+
+taos> SELECT TRIM(both 'b' FROM 'bbbbbabbbbbb');
  trim(both 'b' from 'bbbbbabbbbbb') |
 =====================================
  a                                  |
+Query OK, 1 row(s) in set
 ```
 
 ### SUBSTRING/SUBSTR
@@ -1188,30 +1337,35 @@ SUBSTRING/SUBSTR(expr FROM pos [FOR len])
 **Examples**:
 
 ```sql
-taos> select substring('tdengine', 0);
+taos> SELECT SUBSTRING('tdengine', 0);
  substring('tdengine', 0) |
 ===========================
                           |
+Query OK, 1 row(s) in set
 
-taos> select substring('tdengine', 3);
+taos> SELECT SUBSTRING('tdengine', 3);
  substring('tdengine', 3) |
 ===========================
  engine                   |
+Query OK, 1 row(s) in set
 
-taos> select substring('tdengine', 3,3);
+taos> SELECT SUBSTRING('tdengine', 3, 3);
  substring('tdengine', 3,3) |
 =============================
  eng                        |
+Query OK, 1 row(s) in set
 
-taos> select substring('tdengine', -3,3);
+taos> SELECT SUBSTRING('tdengine', -3, 3);
  substring('tdengine', -3,3) |
 ==============================
  ine                         |
+Query OK, 1 row(s) in set
 
-taos> select substring('tdengine', -3,-3);
+taos> SELECT SUBSTRING('tdengine', -3, -3);
  substring('tdengine', -3,-3) |
 ===============================
                               |
+Query OK, 1 row(s) in set
 ```
 
 ### SUBSTRING_INDEX
@@ -1248,15 +1402,17 @@ SUBSTRING_INDEX(expr, delim, count)
 **Examples**:
 
 ```sql
-taos> select substring_index('www.tdengine.com','.',2);
+taos> SELECT SUBSTRING_INDEX('www.tdengine.com', '.', 2);
  substring_index('www.tdengine.com','.',2) |
 ============================================
  www.tdengine                              |
+Query OK, 1 row(s) in set
 
-taos> select substring_index('www.tdengine.com','.',-2);
+taos> SELECT SUBSTRING_INDEX('www.tdengine.com', '.', -2);
  substring_index('www.tdengine.com','.',-2) |
 =============================================
  tdengine.com                               |
+Query OK, 1 row(s) in set
 ```
 
 ### UPPER
@@ -1308,25 +1464,29 @@ CHAR(expr1 [, expr2] [, expr3] ...)
 **Examples**:
 
 ```sql
-taos> select char(77);
+taos> SELECT CHAR(77);
  char(77) |
 ===========
  M        |
- 
-taos> select char(77,77);
+Query OK, 1 row(s) in set
+
+taos> SELECT CHAR(77, 77);
  char(77,77) |
 ==============
  MM          |
- 
-taos> select char(77 * 256 + 77);
+Query OK, 1 row(s) in set
+
+taos> SELECT CHAR(77 * 256 + 77);
  char(77 * 256 + 77) |
 ======================
  MM                  |
- 
-taos> select char(77,NULL,77);
+Query OK, 1 row(s) in set
+
+taos> SELECT CHAR(77, NULL, 77);
  char(77,null,77) |
 ===================
  MM               |
+Query OK, 1 row(s) in set
 ```
 
 ### ASCII
@@ -1357,10 +1517,11 @@ ASCII(expr)
 **Examples**:
 
 ```sql
-taos> select ascii('testascii');
+taos> SELECT ASCII('testascii');
  ascii('testascii') |
 =====================
                 116 |
+Query OK, 1 row(s) in set
 ```
 
 ### POSITION
@@ -1397,21 +1558,23 @@ POSITION(expr1 IN expr2)
 **Examples**:
 
 ```sql
-taos> select position('a' in 'cba');
+taos> SELECT POSITION('a' IN 'cba');
  position('a' in 'cba') |
 =========================
                       3 |
- 
- 
-taos> select position('' in 'cba');
+Query OK, 1 row(s) in set
+
+taos> SELECT POSITION('' IN 'cba');
  position('' in 'cba') |
 ========================
                      1 |
- 
-taos> select position('d' in 'cba');
+Query OK, 1 row(s) in set
+
+taos> SELECT POSITION('d' IN 'cba');
  position('d' in 'cba') |
 =========================
                       0 |
+Query OK, 1 row(s) in set
 ```
 
 ### REPLACE
@@ -1447,10 +1610,11 @@ REPLACE(expr, from_str, to_str)
 **Example**:
 
 ```sql
-taos> select replace('aabbccAABBCC', 'AA', 'DD');
+taos> SELECT REPLACE('aabbccAABBCC', 'AA', 'DD');
  replace('aabbccAABBCC', 'AA', 'DD') |
 ======================================
  aabbccDDBBCC                        |
+Query OK, 1 row(s) in set
 ```
 
 ### REPEAT
@@ -1484,15 +1648,17 @@ REPEAT(expr, count)
 **Example**:
 
 ```sql
-taos> select repeat('abc',5);
+taos> SELECT REPEAT('abc', 5);
       repeat('abc',5)      |
 ============================
  abcabcabcabcabc           |
-            
-taos> select repeat('abc',-1);
+Query OK, 1 row(s) in set
+
+taos> SELECT REPEAT('abc', -1);
  repeat('abc',-1) |
 ===================
                   |
+Query OK, 1 row(s) in set
 ```
 
 ## Data Security and Codec Functions
@@ -1529,35 +1695,41 @@ TO_BASE64(expr)
 **Example**:
 
 ```sql
-taos> select to_base64(NULL);
+taos> SELECT TO_BASE64(NULL);
  to_base64(null) |
 ==================
  NULL            |
+Query OK, 1 row(s) in set
 
-taos> select to_base64("");
+taos> SELECT TO_BASE64("");
  to_base64("") |
 ================
                |
+Query OK, 1 row(s) in set
 
-taos> select to_base64(14324);
+taos> SELECT TO_BASE64(14324);
  to_base64(14324) |
 ====================
  MTQzMjQ=         |
+Query OK, 1 row(s) in set
 
-taos> select to_base64("14324");
+taos> SELECT TO_BASE64("14324");
  to_base64("14324") |
 ====================
  MTQzMjQ=         |
+Query OK, 1 row(s) in set
 
-taos> select to_base64("Hello, world!");
+taos> SELECT TO_BASE64("Hello, world!");
  to_base64("Hello, world!") |
 =============================
  SGVsbG8sIHdvcmxkIQ==       |
+Query OK, 1 row(s) in set
 
-taos> select to_base64("你好 世界");
+taos> SELECT TO_BASE64("你好 世界");
  to_base64("你好 世界")      |
 ==============================
  5L2g5aW9IOS4lueVjA==        |
+Query OK, 1 row(s) in set
 ```
 
 #### FROM_BASE64
@@ -1587,11 +1759,11 @@ FROM_BASE64(expr)
 **Example**:
 
 ```sql
-taos> select from_base64("SGVsbG8sIHdvcmxkIQ==");
+taos> SELECT FROM_BASE64("SGVsbG8sIHdvcmxkIQ==");
  from_base64("SGVsbG8sIHdvcmxkIQ==") |
 ======================================
  Hello, world!                       |
-Query OK, 1 row(s) in set (0.000786s)
+Query OK, 1 row(s) in set
 ```
 
 ### Hashing Functions
@@ -1626,10 +1798,10 @@ MD5(expr)
 taos> select md5('mytext')\G;
 *************************** 1.row ***************************
 md5('mytext'): 947ef8c8db156a568d5974d71f7638f4
-Query OK, 1 row(s) in set (0.000522s)
+Query OK, 1 row(s) in set
 
 taos> insert into db.tb values(now, md5('mytext'));
-Insert OK, 1 row(s) affected (0.005111s)
+Insert OK, 1 row(s) affected
 ```
 
 #### SHA1 / SHA
@@ -1660,10 +1832,10 @@ SHA1(expr)
 **Example**:
 
 ```sql
-taos> select sha('mytext')\G;
+taos> SELECT SHA('mytext') \G;
 *************************** 1.row ***************************
 sha('mytext'): 65d922aad93c7e165ed888a2ab85befe9841fd39
-Query OK, 1 row(s) in set (0.000658s)
+Query OK, 1 row(s) in set
 ```
 
 #### SHA2
@@ -1694,10 +1866,45 @@ SHA2(expr, hash_length)
 **Example**:
 
 ```sql
-taos> select sha2('mytext', 224)\G;
+taos> SELECT SHA2('mytext', 224) \G;
 *************************** 1.row ***************************
 sha2('mytext', 224): 576e8f2cf59ebc59dd7659c48916f162ae0cf35937563999d5a7800e
-Query OK, 1 row(s) in set (0.000569s)
+Query OK, 1 row(s) in set
+```
+
+#### SM3
+
+```sql
+SM3(expr)
+```
+
+**Function Classification**: Scalar function.
+
+**Function Description**: Calculates a digest of `expr` with the SM3 hash algorithm (GB/T 32905-2016) and returns the 256-bit digest as a 64-character lowercase hexadecimal string.
+
+**Return Type**: VARCHAR.
+
+**Applicable Data Types**:
+
+- `expr`: VARCHAR, NCHAR, VARBINARY.
+
+**Nested Subquery Support**: Applicable to both inner and outer queries.
+
+**Applicable to**: Tables and supertables.
+
+**Usage Notes**:
+
+- If `expr` is NULL, returns NULL.
+- An `NCHAR` value is encoded as UTF-8 before the digest is calculated.
+- Use it to compare data or check integrity, for example by calculating the digest of the same field in the source database and in TDengine.
+
+**Example**:
+
+```sql
+taos> SELECT sm3('abc') \G;
+*************************** 1.row ***************************
+sm3('abc'): 66c7f0f462eeedd9d1f2d46bdc10e4e24167c4875cf2f7a2297da02b8f4ba8e0
+Query OK, 1 row(s) in set
 ```
 
 #### CRC32
@@ -1728,42 +1935,51 @@ CRC32(expr)
 **Example**:
 
 ```sql
-taos> select crc32(NULL);
+taos> SELECT CRC32(NULL);
  crc32(null) |
 ==============
  NULL        |
+Query OK, 1 row(s) in set
 
-taos> select crc32("");
+taos> SELECT CRC32("");
   crc32("")  |
 ==============
            0 |
+Query OK, 1 row(s) in set
 
-taos> select crc32(123);
+taos> SELECT CRC32(123);
  crc32(123)  |
 ==============
   2286445522 |
+Query OK, 1 row(s) in set
 
-taos> select crc32(123.456);
+taos> SELECT CRC32(123.456);
  crc32(123.456) |
 =================
       844093190 |
+Query OK, 1 row(s) in set
 
-taos> select crc32(TO_TIMESTAMP("2000-01-01", "yyyy-mm-dd hh24:mi:ss"));
+taos> SELECT CRC32(TO_TIMESTAMP("2000-01-01", "yyyy-mm-dd hh24:mi:ss"));
  crc32(to_timestamp("2000-01-01", "yyyy-mm-dd hh24:mi:ss")) |
 =============================================================
                                                  2274736693 |
+Query OK, 1 row(s) in set
 
-taos> select crc32("This is a string");
+taos> SELECT CRC32("This is a string");
  crc32("This is a string") |
 ============================
                  141976383 |
+Query OK, 1 row(s) in set
 
-taos> select crc32("这是一个字符串");
+taos> SELECT CRC32("这是一个字符串");
  crc32("这是一个字符串") |
 ========================
             1902862441 |
+Query OK, 1 row(s) in set
 
-taos> select crc32(col_name) from ins_columns limit 10;
+taos> SELECT CRC32(col_name)
+      FROM ins_columns
+      LIMIT 10;
  crc32(col_name) |
 ==================
       3208210256 |
@@ -1776,6 +1992,7 @@ taos> select crc32(col_name) from ins_columns limit 10;
       3485334036 |
       3208210256 |
       3292663675 |
+Query OK, 10 row(s) in set
 ```
 
 ### Data Masking Functions
@@ -1817,7 +2034,7 @@ taos> SELECT MASK_FULL('mytext', 'CONFIDENTIAL');
  mask_full('mytext', 'CONFIDENTIAL') |
 ======================================
  CONFIDENTIAL                        |
-Query OK, 1 row(s) in set (0.002790s)
+Query OK, 1 row(s) in set
 ```
 
 #### MASK_PARTIAL
@@ -1846,11 +2063,11 @@ MASK_PARTIAL(str, prefix_length, suffix_length, mask_char)
 **Example**:
 
 ```sql
-taos> SELECT MASK_partial('mytext', 1, 2, '*');
+taos> SELECT MASK_PARTIAL('mytext', 1, 2, '*');
  mask_partial('mytext', 1, 2, '*') |
 ====================================
  *yte**                            |
-Query OK, 1 row(s) in set (0.002787s)
+Query OK, 1 row(s) in set
 ```
 
 #### MASK_NONE
@@ -1880,7 +2097,7 @@ taos> SELECT MASK_NONE('mytext');
  mask_none('mytext') |
 ======================
  mytext              |
-Query OK, 1 row(s) in set (0.001474s)
+Query OK, 1 row(s) in set
 ```
 
 ### Encryption Functions
@@ -1914,11 +2131,11 @@ SM4_ENCRYPT(str, key_str)
 **Example**:
 
 ```sql
-taos> SELECT sm4_decrypt(sm4_encrypt('mytext', 'mykeystring'), 'mykeystring');
+taos> SELECT SM4_DECRYPT(SM4_ENCRYPT('mytext', 'mykeystring'), 'mykeystring');
  sm4_decrypt(sm4_encrypt('mytext', 'mykeystring'), 'mykeystring') |
 ===================================================================
  mytext                                                           |
-Query OK, 1 row(s) in set (0.003432s)
+Query OK, 1 row(s) in set
 ```
 
 #### SM4_DECRYPT
@@ -1980,11 +2197,11 @@ AES_ENCRYPT(str, key_str[, init_vector])
 **Example**:
 
 ```sql
-taos> SELECT aes_decrypt(aes_encrypt('mytext', 'mykeystring'), 'mykeystring');
+taos> SELECT AES_DECRYPT(AES_ENCRYPT('mytext', 'mykeystring'), 'mykeystring');
  aes_decrypt(aes_encrypt('mytext', 'mykeystring'), 'mykeystring') |
 ===================================================================
  mytext                                                           |
-Query OK, 1 row(s) in set (0.000514s)
+Query OK, 1 row(s) in set
 ```
 
 #### AES_DECRYPT
@@ -2019,9 +2236,7 @@ AES_DECRYPT(str, key_str[, init_vector[, iv_mode]])
 Before the scalar IV correction, `AES_ENCRYPT` in a SELECT expression used the two-byte string length header followed by the first 14 bytes of `init_vector`. This also affected `INSERT INTO ... SELECT ...`. To read ciphertext saved through that path, pass the original key and 16-byte IV to `AES_DECRYPT` with `'legacy'`:
 
 ```sql
-SELECT AES_DECRYPT(
-  FROM_BASE64('0vM8V2C54mB2YM8inkTVhaTDob2wkxRfXkptoX7n6FwOM6NY0jQclzGL1FLq4FYm'),
-  '0123456789abcdef', '0123456789abcdef', 'legacy');
+SELECT AES_DECRYPT(FROM_BASE64('0vM8V2C54mB2YM8inkTVhaTDob2wkxRfXkptoX7n6FwOM6NY0jQclzGL1FLq4FYm'), '0123456789abcdef', '0123456789abcdef', 'legacy');
 ```
 
 This example returns `0123456789abcdef0123456789abcdef`. Legacy mode reproduces the string header representation of the host that performs decryption; the example was generated on a little-endian host.
@@ -2032,9 +2247,9 @@ Before upgrading applications that read saved scalar CBC results, identify those
 
 ```sql
 INSERT INTO migrated_data
-SELECT ts, AES_ENCRYPT(
-  AES_DECRYPT(cipher, '0123456789abcdef', '0123456789abcdef', 'legacy'),
-  '0123456789abcdef', '0123456789abcdef')
+SELECT
+  ts,
+  AES_ENCRYPT(AES_DECRYPT(cipher, '0123456789abcdef', '0123456789abcdef', 'legacy'), '0123456789abcdef', '0123456789abcdef')
 FROM legacy_data;
 ```
 
@@ -2073,6 +2288,7 @@ CAST(expr AS type_name)
         1) Invalid character situations when converting string types to numeric types, e.g., "a" might convert to 0, but will not throw an error.
         2) When converting to numeric types, if the value exceeds the range that `type_name` can represent, it will overflow, but will not throw an error.
         3) When converting to string types, if the converted length exceeds the length specified in `type_name`, it will be truncated, but will not throw an error.
+- Casting `VARCHAR` to `NCHAR(n)` keeps up to `n` decoded characters. Invalid bytes encountered before decoding `n` characters cause a conversion error. The remaining bytes are discarded once the result reaches `n` characters.
 - The DECIMAL type does not support conversion to or from JSON, VARBINARY, or GEOMETRY types.
 
 ### TO_ISO8601
@@ -2174,10 +2390,10 @@ Supported Formats:
 | ------------------- | ----------------------------------------- | ------------------------- |
 | AM,am,PM,pm         | AM/PM without dots                        | 07:00:00am                |
 | A.M.,a.m.,P.M.,p.m. | AM/PM with dots                           | 07:00:00a.m.              |
-| YYYY,yyyy           | Year, 4 or more digits                    | 2023-10-10                |
-| YYY,yyy             | Year, last 3 digits                       | 023-10-10                 |
-| YY,yy               | Year, last 2 digits                       | 23-10-10                  |
-| Y,y                 | Year, last digit                          | 3-10-10                   |
+| YYYY,yyyy           | Year, 4 or more digits                    | 2023                      |
+| YYY,yyy             | Year, last 3 digits                       | 023                       |
+| YY,yy               | Year, last 2 digits                       | 23                        |
+| Y,y                 | Year, last digit                          | 3                         |
 | MONTH               | Month, uppercase                          | 2023-JANUARY-01           |
 | Month               | Month, first letter uppercase             | 2023-January-01           |
 | month               | Month, lowercase                          | 2023-january-01           |
@@ -2206,6 +2422,7 @@ Supported Formats:
 
 **Usage Instructions**:
 
+- In format strings, `MM` and `mm` represent months, and `MI` and `mi` represent minutes.
 - The output format for `Month`, `Day`, etc., is left-aligned with spaces added to the right, such as `2023-OCTOBER  -01`, `2023-SEPTEMBER-01`. September has the longest number of letters among the months, so there is no space for September. Weeks are similar.
 - When using `ms`, `us`, `ns`, the output of the above three formats only differs in precision, for example, if ts is `1697182085123`, the output for `ms` is `123`, for `us` is `123000`, and for `ns` is `123000000`.
 - Content in the time format that does not match the rules will be output directly. If you want to specify parts of the format string that can match rules not to be converted, you can use double quotes, like `to_char(ts, 'yyyy-mm-dd "is formatted by yyyy-mm-dd"')`. If you want to output double quotes, then add a backslash before the double quotes, like `to_char(ts, '\"yyyy-mm-dd\"')` will output `"2023-10-10"`.
@@ -2250,9 +2467,867 @@ TO_TIMESTAMP(ts_str_literal, format_str_literal)
 
 ## Time and Date Functions
 
-Time and date functions operate on timestamp types.
+Time and date functions operate on timestamp types and are all **scalar functions**.
 
-All functions that return the current time, such as NOW, TODAY, and TIMEZONE, are calculated only once in a SQL statement, no matter how many times they appear.
+All functions that return the current time, such as NOW, TODAY, TIMEZONE, CURDATE, CURTIME, CURRENT_TIMESTAMP, and UNIX_TIMESTAMP without arguments, are calculated only once in a SQL statement, no matter how many times they appear.
+
+### CURDATE
+
+```sql
+CURDATE()
+```
+
+**Function Classification**: Scalar function.
+
+**Function Description**: Returns the current date in the current connection timezone, in the `YYYY-MM-DD` format.
+
+**Version**: `v3.4.3.12`
+
+**Return Type**: `VARCHAR`.
+
+**Applicable Data Types**: No arguments.
+
+**Nested Subquery Support**: Applicable to both inner and outer queries.
+
+**Applicable to**: Tables and supertables.
+
+**Usage**:
+
+- No matter how many times it appears in one SQL statement, it uses the time when the statement starts.
+- The current date is determined in the current connection timezone. See [TIMEZONE](#timezone) for the timezone setting.
+- TDengine has no separate date or time data type, so the result is returned as `VARCHAR` text. It cannot be used directly as a `TIMESTAMP`, but it can be passed to other functions as date and time text.
+
+**Example**:
+
+(note: the output depends on the execution time and the connection timezone)
+
+```sql
+taos> SELECT curdate();
+  curdate()   |
+===============
+ 2026-11-16   |
+```
+
+### CURRENT_DATE
+
+```sql
+CURRENT_DATE()
+CURRENT_DATE
+```
+
+**Function Classification**: Scalar function.
+
+Behaves the same as [CURDATE](#curdate), and the parentheses may be omitted. Supported since `v3.4.3.12`.
+
+### CURRENT_TIME
+
+```sql
+CURRENT_TIME([fsp])
+CURRENT_TIME
+```
+
+**Function Classification**: Scalar function.
+
+Behaves the same as [CURTIME](#curtime), and the parentheses may be omitted. Supported since `v3.4.3.12`.
+
+### CURRENT_TIMESTAMP
+
+```sql
+CURRENT_TIMESTAMP([fsp])
+CURRENT_TIMESTAMP
+```
+
+**Function Classification**: Scalar function.
+
+**Function Description**: Returns the timestamp at the start of the statement, keeping `fsp` fractional-second digits.
+
+**Version**: `v3.4.3.12`
+
+**Return Type**: `TIMESTAMP`.
+
+**Applicable Data Types**
+
+- `fsp`: number of fractional-second digits. It must be an integer constant from `0` through `6`, and the default is `0`.
+
+**Nested Subquery Support**: Applicable to both inner and outer queries.
+
+**Applicable to**: Tables and supertables.
+
+**Usage**:
+
+- The parentheses may be omitted. `CURRENT_TIMESTAMP` is equivalent to `CURRENT_TIMESTAMP(0)`.
+- Digits beyond `fsp` are truncated. For example, when `fsp` is `0`, the result is precise to the second. This differs from [NOW](#now), which keeps the full precision.
+- The available fractional digits are limited by the database time precision. A millisecond-precision database keeps at most 3 digits. When no table is specified, the precision is milliseconds.
+- No matter how many times it appears in one SQL statement, it uses the time when the statement starts.
+- An `fsp` outside the range, or an `fsp` that is not a constant, raises an error.
+
+**Example**:
+
+(note: the output depends on the execution time and the connection timezone, and the precision is milliseconds)
+
+```sql
+taos> SELECT
+        current_timestamp,
+        current_timestamp(3);
+    current_timestamp    |  current_timestamp(3)   |
+====================================================
+ 2026-11-16 18:30:15.000 | 2026-11-16 18:30:15.123 |
+```
+
+### CURTIME
+
+```sql
+CURTIME([fsp])
+```
+
+**Function Classification**: Scalar function.
+
+**Function Description**: Returns the current time in the current connection timezone, in the `HH:MM:SS[.fraction]` format, keeping `fsp` fractional-second digits.
+
+**Version**: `v3.4.3.12`
+
+**Return Type**: `VARCHAR`.
+
+**Applicable Data Types**
+
+- `fsp`: number of fractional-second digits. It must be an integer constant from `0` through `6`, and the default is `0`.
+
+**Nested Subquery Support**: Applicable to both inner and outer queries.
+
+**Applicable to**: Tables and supertables.
+
+**Usage**:
+
+- When `fsp` is `0`, the decimal point and the fractional part are omitted.
+- No matter how many times it appears in one SQL statement, it uses the time when the statement starts.
+- The current time is determined in the current connection timezone.
+- An `fsp` outside the range, or an `fsp` that is not a constant, raises an error.
+- TDengine has no separate date or time data type, so the result is returned as `VARCHAR` text. It cannot be used directly as a `TIMESTAMP`, but it can be passed to other functions as date and time text.
+
+**Example**:
+
+(note: the output depends on the execution time and the connection timezone)
+
+```sql
+taos> SELECT
+        curtime(),
+        curtime(3);
+     curtime()     |    curtime(3)     |
+========================================
+ 18:30:15          | 18:30:15.123      |
+```
+
+### DATE
+
+```sql
+DATE(expr)
+```
+
+**Function Classification**: Scalar function.
+
+**Function Description**: Returns date of the input time expression.
+
+**Version**: ver-3.3.8.0
+
+**Return Type**: VARCHAR.
+
+**Applicable Data Types**: BIGINT, TIMESTAMP types representing timestamps, or VARCHAR, NCHAR types in ISO8601/RFC3339 date-time format.
+
+**Nested Subquery Support**: Applicable to both inner and outer queries.
+
+**Applicable to**: Tables and supertables.
+
+**Usage**:
+
+- The return value is of `yyyy-mm-dd` format.
+- If `expr` is NULL, returns NULL.
+- If `expr` is of type VARCHAR or NCHAR but does not conform to the ISO8601/RFC3339 standard, returns NULL.
+- The precision of the input timestamp is determined by the precision of the table queried; if no table is specified, the precision is milliseconds.
+- If the input string carries a timezone, that timezone determines the corresponding absolute instant; otherwise it is parsed in the connection-level timezone. Regardless of whether the input carries a timezone, the returned date is always computed using the connection-level timezone.
+
+**Example**:
+
+(note: the following statements are executed in the UTC+0800 timezone, and the precision is milliseconds)
+
+```sql
+taos> SELECT DATE(946656000000);
+       date(946656000000)       |
+=================================
+ 2000-01-01                     |
+Query OK, 1 row(s) in set
+
+taos> SELECT DATE('2000-01-01 12:00:00.000');
+ date('2000-01-01 12:00:00.000') |
+==================================
+ 2000-01-01                      |
+Query OK, 1 row(s) in set
+```
+
+### DATE_FORMAT
+
+```sql
+DATE_FORMAT(date, format)
+```
+
+**Function Classification**: Scalar function.
+
+**Function Description**: Formats the date and time `date` as text using `%` specifiers.
+
+**Version**: `v3.4.3.12`
+
+**Return Type**: `VARCHAR`.
+
+**Applicable Data Types**
+
+- `date`: TIMESTAMP, or VARCHAR and NCHAR in a date and time format.
+- `format`: a VARCHAR or NCHAR format string.
+
+**Nested Subquery Support**: Applicable to both inner and outer queries.
+
+**Applicable to**: Tables and supertables.
+
+**Usage**:
+
+- `format` uses `%` specifiers, which are different from the `yyyy-mm-dd` format rules of [TO_CHAR](#to_char). The supported specifiers are:
+
+| Specifier | Meaning |
+| --- | --- |
+| `%a` | Abbreviated English weekday name (`Sun` through `Sat`) |
+| `%b` | Abbreviated English month name (`Jan` through `Dec`) |
+| `%c` | Month number, not zero-padded (`0` through `12`) |
+| `%D` | Day of the month with an English ordinal suffix (`0th`, `1st`, `2nd`, `3rd`, ...) |
+| `%d` | Day of the month, two digits (`00` through `31`) |
+| `%e` | Day of the month, not zero-padded (`0` through `31`) |
+| `%f` | Microseconds, six digits (`000000` through `999999`) |
+| `%H` | Hour in 24-hour form, two digits (`00` through `23`) |
+| `%h` | Hour in 12-hour form, two digits (`01` through `12`) |
+| `%I` | Hour in 12-hour form, two digits (`01` through `12`) |
+| `%i` | Minute, two digits (`00` through `59`) |
+| `%j` | Day of the year, three digits (`001` through `366`) |
+| `%k` | Hour in 24-hour form, not zero-padded (`0` through `23`) |
+| `%l` | Hour in 12-hour form, not zero-padded (`1` through `12`) |
+| `%M` | Full English month name (`January` through `December`) |
+| `%m` | Month, two digits (`00` through `12`) |
+| `%p` | `AM` or `PM` |
+| `%r` | Time in 12-hour form, `hh:mm:ss` followed by `AM` or `PM` |
+| `%S` | Second, two digits (`00` through `59`) |
+| `%s` | Second, two digits (`00` through `59`) |
+| `%T` | Time in 24-hour form, `hh:mm:ss` |
+| `%U` | Week number (`00` through `53`), Sunday as the first day, same as `WEEK` `mode` 0 |
+| `%u` | Week number (`00` through `53`), Monday as the first day, same as `WEEK` `mode` 1 |
+| `%V` | Week number (`01` through `53`), Sunday as the first day, same as `WEEK` `mode` 2; use with `%X` |
+| `%v` | Week number (`01` through `53`), Monday as the first day, same as `WEEK` `mode` 3; use with `%x` |
+| `%W` | Full English weekday name (`Sunday` through `Saturday`) |
+| `%w` | Weekday number (`0` is Sunday, `6` is Saturday) |
+| `%X` | Four-digit year of the week, Sunday as the first day; use with `%V` |
+| `%x` | Four-digit year of the week, Monday as the first day; use with `%v` |
+| `%Y` | Year, four digits |
+| `%y` | Year, two digits |
+| `%%` | A literal `%` |
+
+- When `%` is followed by a character that is not in the table above, that character is output as itself. For example, `%q` outputs `q`.
+- Weekday and month names are always English.
+- An empty `format` string returns NULL.
+- When the month is `0`, `%M` and `%b` return NULL. For a zero date such as `0000-00-00`, weekday specifiers such as `%W`, `%a`, and `%w` return NULL.
+- If `date` or `format` is NULL, the function returns NULL.
+- Text arguments accept the `YYYY-MM-DD[ HH:MM:SS[.ffffff]]` format. Two-digit years are also accepted (`00` through `69` map to 2000 through 2069, and `70` through `99` map to 1970 through 1999), as are separators such as `/`, `^`, and `@`. Fractional seconds with more than six digits are rounded to microseconds.
+- Text without a timezone is parsed in the current connection timezone. Text with `Z` or an offset is resolved to an absolute instant first, and then calculated in the current connection timezone. A `TIMESTAMP` input uses the current connection timezone to determine the local date and time.
+
+**Example**:
+
+```sql
+taos> SELECT date_format('2009-10-04 22:23:00', '%W %M %Y');
+ date_format('2009-10-04 22:23:00', '%W %M %Y') |
+=================================================
+ Sunday October 2009                            |
+
+taos> SELECT date_format('2024-02-29 23:04:05', '%r');
+ date_format('2024-02-29 23:04:05', '%r') |
+===========================================
+ 11:04:05 PM                              |
+
+taos> SELECT date_format('2024-02-29', '%D %j %%');
+ date_format('2024-02-29', '%D %j %%') |
+========================================
+ 29th 060 %                            |
+```
+
+### DATEDIFF
+
+```sql
+DATEDIFF(expr1, expr2)
+```
+
+**Function Classification**: Scalar function.
+
+**Function Description**: Returns the number of days between the dates `expr1` and `expr2` (`expr1` - `expr2`). The result may be negative.
+
+**Version**: `v3.4.3.12`
+
+**Return Type**: `BIGINT`.
+
+**Applicable Data Types**
+
+- `expr1`: TIMESTAMP, or VARCHAR and NCHAR in a date and time format.
+- `expr2`: TIMESTAMP, or VARCHAR and NCHAR in a date and time format.
+
+**Nested Subquery Support**: Applicable to both inner and outer queries.
+
+**Applicable to**: Tables and supertables.
+
+**Usage**:
+
+- Only the date part is compared. Hours, minutes, and seconds are ignored, so two instants that cross midnight but are less than 24 hours apart still differ by 1 day.
+- Unlike [TIMEDIFF](#timediff), `DATEDIFF` does not accept a time unit. The result is always in days.
+- If either argument is NULL, cannot be parsed, or is an invalid date (for example, `2023-02-29`), the function returns NULL.
+- Text arguments accept the `YYYY-MM-DD[ HH:MM:SS[.ffffff]]` format. Two-digit years are also accepted (`00` through `69` map to 2000 through 2069, and `70` through `99` map to 1970 through 1999), as are separators such as `/`, `^`, and `@`. Fractional seconds with more than six digits are rounded to microseconds.
+- Text without a timezone is parsed in the current connection timezone. Text with `Z` or an offset is resolved to an absolute instant first, and then calculated in the current connection timezone. A `TIMESTAMP` input uses the current connection timezone to determine the local date and time.
+
+**Example**:
+
+```sql
+taos> SELECT datediff('2007-12-31 23:59:59', '2007-12-30');
+ datediff('2007-12-31 23:59:59', '2007-12-30') |
+================================================
+                                             1 |
+
+taos> SELECT datediff('2010-11-30 23:59:59', '2010-12-31');
+ datediff('2010-11-30 23:59:59', '2010-12-31') |
+================================================
+                                           -31 |
+```
+
+### DAY
+
+```sql
+DAY(date)
+```
+
+**Function Classification**: Scalar function.
+
+**Function Description**: Returns the day of the month.
+
+**Version**: `v3.4.3.12`
+
+**Return Type**: `BIGINT`.
+
+**Applicable Data Types**: TIMESTAMP, or VARCHAR and NCHAR in a date and time format.
+
+**Nested Subquery Support**: Applicable to both inner and outer queries.
+
+**Applicable to**: Tables and supertables.
+
+**Usage**:
+
+- For a valid date, the result is from `1` through `31`. A date whose day is `0`, such as `0000-00-00`, returns `0`.
+- If `date` is NULL, cannot be parsed, or is an invalid date (for example, `2023-02-29`), the function returns NULL.
+- Text arguments accept the `YYYY-MM-DD[ HH:MM:SS[.ffffff]]` format. Two-digit years are also accepted (`00` through `69` map to 2000 through 2069, and `70` through `99` map to 1970 through 1999), as are separators such as `/`, `^`, and `@`. Fractional seconds with more than six digits are rounded to microseconds.
+- Text without a timezone is parsed in the current connection timezone. Text with `Z` or an offset is resolved to an absolute instant first, and then calculated in the current connection timezone. A `TIMESTAMP` input uses the current connection timezone to determine the local date and time.
+
+**Example**:
+
+```sql
+taos> SELECT day('2024-02-29');
+   day('2024-02-29')   |
+========================
+                    29 |
+```
+
+### DAYNAME
+
+```sql
+DAYNAME(date)
+```
+
+**Function Classification**: Scalar function.
+
+**Function Description**: Returns the full English weekday name of the date.
+
+**Version**: `v3.4.3.12`
+
+**Return Type**: `VARCHAR`.
+
+**Applicable Data Types**: TIMESTAMP, or VARCHAR and NCHAR in a date and time format.
+
+**Nested Subquery Support**: Applicable to both inner and outer queries.
+
+**Applicable to**: Tables and supertables.
+
+**Usage**:
+
+- The result is one of `Sunday` through `Saturday`, always in English.
+- If `date` is NULL, cannot be parsed, or is an invalid date (for example, `2023-02-29`), the function returns NULL.
+- Text arguments accept the `YYYY-MM-DD[ HH:MM:SS[.ffffff]]` format. Two-digit years are also accepted (`00` through `69` map to 2000 through 2069, and `70` through `99` map to 1970 through 1999), as are separators such as `/`, `^`, and `@`. Fractional seconds with more than six digits are rounded to microseconds.
+- Text without a timezone is parsed in the current connection timezone. Text with `Z` or an offset is resolved to an absolute instant first, and then calculated in the current connection timezone. A `TIMESTAMP` input uses the current connection timezone to determine the local date and time.
+
+**Example**:
+
+```sql
+taos> SELECT dayname('2024-02-29');
+ dayname('2024-02-29') |
+========================
+ Thursday              |
+```
+
+### DAYOFMONTH
+
+```sql
+DAYOFMONTH(date)
+```
+
+**Function Classification**: Scalar function.
+
+Behaves the same as [DAY](#day). Supported since `v3.4.3.12`.
+
+### DAYOFWEEK
+
+```sql
+DAYOFWEEK(expr)
+```
+
+**Function Classification**: Scalar function.
+
+**Function Description**: Returns the weekday of the input date.
+
+**Version**: ver-3.3.3.0
+
+**Return Type**: BIGINT.
+
+**Applicable Data Types**: BIGINT, TIMESTAMP types representing timestamps, or VARCHAR, NCHAR types in ISO8601/RFC3339 date-time format.
+
+**Nested Subquery Support**: Applicable to both inner and outer queries.
+
+**Applicable to**: Tables and supertables.
+
+**Usage**:
+
+- Return value 1 represents Sunday, 2 represents Monday ... 7 represents Saturday.
+- If `expr` is NULL, returns NULL.
+- The precision of the input timestamp is determined by the precision of the table queried; if no table is specified, the precision is milliseconds.
+- For a BIGINT or TIMESTAMP input representing a fixed instant, the local calendar date is determined in the current connection timezone before computing; for a string input, a carried timezone only determines the corresponding absolute instant, while a timezone-less string is parsed in the connection timezone and the result is timezone-independent. Regardless of whether the input carries a timezone, the local calendar date is always determined in the connection-level timezone before computing.
+
+**Example**:
+
+```sql
+taos> SELECT DAYOFWEEK('2000-01-01');
+ dayofweek('2000-01-01') |
+==========================
+                       7 |
+Query OK, 1 row(s) in set
+```
+
+### DAYOFYEAR
+
+```sql
+DAYOFYEAR(date)
+```
+
+**Function Classification**: Scalar function.
+
+**Function Description**: Returns the day of the year.
+
+**Version**: `v3.4.3.12`
+
+**Return Type**: `BIGINT`.
+
+**Applicable Data Types**: TIMESTAMP, or VARCHAR and NCHAR in a date and time format.
+
+**Nested Subquery Support**: Applicable to both inner and outer queries.
+
+**Applicable to**: Tables and supertables.
+
+**Usage**:
+
+- The result is from `1` through `366`.
+- If `date` is NULL, cannot be parsed, or is an invalid date (for example, `2023-02-29`), the function returns NULL.
+- Text arguments accept the `YYYY-MM-DD[ HH:MM:SS[.ffffff]]` format. Two-digit years are also accepted (`00` through `69` map to 2000 through 2069, and `70` through `99` map to 1970 through 1999), as are separators such as `/`, `^`, and `@`. Fractional seconds with more than six digits are rounded to microseconds.
+- Text without a timezone is parsed in the current connection timezone. Text with `Z` or an offset is resolved to an absolute instant first, and then calculated in the current connection timezone. A `TIMESTAMP` input uses the current connection timezone to determine the local date and time.
+
+**Example**:
+
+```sql
+taos> SELECT dayofyear('2024-02-29');
+ dayofyear('2024-02-29') |
+==========================
+                      60 |
+```
+
+### EXTRACT
+
+```sql
+EXTRACT(unit FROM date)
+```
+
+**Function Classification**: Scalar function.
+
+**Function Description**: Extracts one field, or a combination of fields, from a date and time according to `unit`.
+
+**Version**: `v3.4.3.12`
+
+**Return Type**: `BIGINT`.
+
+**Applicable Data Types**
+
+- `unit`: a time-unit keyword. See Usage for the values.
+- `date`: TIMESTAMP, or VARCHAR and NCHAR in a date and time format. Time text in the `[-]HH:MM:SS[.ffffff]` format is also accepted.
+
+**Nested Subquery Support**: Applicable to both inner and outer queries.
+
+**Applicable to**: Tables and supertables.
+
+**Usage**:
+
+- `unit` is a keyword. Do not quote it, and it is not case-sensitive. The supported units are:
+
+| `unit` | Field extracted | Result for `'2019-07-02 01:02:03.123456'` |
+| --- | --- | --- |
+| `MICROSECOND` | Microseconds | `123456` |
+| `SECOND` | Seconds | `3` |
+| `MINUTE` | Minutes | `2` |
+| `HOUR` | Hours | `1` |
+| `DAY` | Day of the month | `2` |
+| `WEEK` | Week number, using the same rules as `WEEK(date, 0)` | `26` |
+| `MONTH` | Month | `7` |
+| `QUARTER` | Quarter | `3` |
+| `YEAR` | Year | `2019` |
+| `SECOND_MICROSECOND` | Seconds and microseconds | `3123456` |
+| `MINUTE_MICROSECOND` | Minutes, seconds, and microseconds | `203123456` |
+| `MINUTE_SECOND` | Minutes and seconds | `203` |
+| `HOUR_MICROSECOND` | Hours, minutes, seconds, and microseconds | `10203123456` |
+| `HOUR_SECOND` | Hours, minutes, and seconds | `10203` |
+| `HOUR_MINUTE` | Hours and minutes | `102` |
+| `DAY_MICROSECOND` | Day, hours, minutes, seconds, and microseconds | `2010203123456` |
+| `DAY_SECOND` | Day, hours, minutes, and seconds | `2010203` |
+| `DAY_MINUTE` | Day, hours, and minutes | `20102` |
+| `DAY_HOUR` | Day and hours | `201` |
+| `YEAR_MONTH` | Year and month | `201907` |
+
+- A composite unit concatenates the fields by their decimal widths. For example, the minutes in `HOUR_MINUTE` take two digits.
+- When `date` is date-only text, the hour, minute, second, and microsecond are treated as `0`. When it is time-only text, date units such as `DAY`, `WEEK`, `MONTH`, `QUARTER`, `YEAR`, and `YEAR_MONTH` return NULL.
+- Negative time text is concatenated as a negative value. For example, `EXTRACT(HOUR_MINUTE FROM '-25:34:56')` returns `-2534`. See [HOUR](#hour) for the range of time text.
+- A `unit` that is not in the table raises an error. If `date` is NULL or invalid, the function returns NULL.
+- Text arguments accept the `YYYY-MM-DD[ HH:MM:SS[.ffffff]]` format. Two-digit years are also accepted (`00` through `69` map to 2000 through 2069, and `70` through `99` map to 1970 through 1999), as are separators such as `/`, `^`, and `@`. Fractional seconds with more than six digits are rounded to microseconds.
+- Text without a timezone is parsed in the current connection timezone. Text with `Z` or an offset is resolved to an absolute instant first, and then calculated in the current connection timezone. A `TIMESTAMP` input uses the current connection timezone to determine the local date and time.
+
+**Example**:
+
+```sql
+taos> SELECT extract(year_month FROM '2019-07-02 01:02:03');
+ extract(year_month from '2019-07-02 01:02:03') |
+=================================================
+                                         201907 |
+
+taos> SELECT extract(day_minute FROM '2019-07-02 01:02:03');
+ extract(day_minute from '2019-07-02 01:02:03') |
+=================================================
+                                          20102 |
+```
+
+### FROM_DAYS
+
+```sql
+FROM_DAYS(N)
+```
+
+**Function Classification**: Scalar function.
+
+**Function Description**: Converts the day number `N` to a date in the `YYYY-MM-DD` format. This is the inverse of [TO_DAYS](#to_days).
+
+**Version**: `v3.4.3.12`
+
+**Return Type**: `VARCHAR`.
+
+**Applicable Data Types**: Numeric types: integers, floating-point numbers, and DECIMAL.
+
+**Nested Subquery Support**: Applicable to both inner and outer queries.
+
+**Applicable to**: Tables and supertables.
+
+**Usage**:
+
+- The day number is counted from year 0.
+- A fractional `N` is rounded to an integer.
+- TDengine has no separate date or time data type, so the result is returned as `VARCHAR` text. It cannot be used directly as a `TIMESTAMP`, but it can be passed to other functions as date and time text.
+- When `N` is less than `366`, the function returns `0000-00-00`. `366` corresponds to `0001-01-01`. The largest supported value is `3652424` (`9999-12-31`); a larger value returns NULL.
+- If `N` is NULL, the function returns NULL.
+
+**Example**:
+
+```sql
+taos> SELECT from_days(730669);
+ from_days(730669) |
+====================
+ 2000-07-03        |
+
+taos> SELECT from_days(365);
+ from_days(365) |
+=================
+ 0000-00-00     |
+```
+
+### FROM_UNIXTIME
+
+```sql
+FROM_UNIXTIME(unix_timestamp [, format])
+```
+
+**Function Classification**: Scalar function.
+
+**Function Description**: Converts a Unix timestamp in seconds to date and time text in the current connection timezone.
+
+**Version**: `v3.4.3.12`
+
+**Return Type**: `VARCHAR`.
+
+**Applicable Data Types**
+
+- `unix_timestamp`: a numeric value (integer, floating-point number, or DECIMAL), in seconds. It may include a fraction.
+- `format`: a VARCHAR or NCHAR format string. The specifiers are the same as [DATE_FORMAT](#date_format).
+
+**Nested Subquery Support**: Applicable to both inner and outer queries.
+
+**Applicable to**: Tables and supertables.
+
+**Usage**:
+
+- When `format` is omitted, the result is `YYYY-MM-DD HH:MM:SS`. When `unix_timestamp` has a fraction, six fractional-second digits are appended.
+- The unit of `unix_timestamp` is always seconds. A 13-digit millisecond timestamp is not interpreted as milliseconds. Divide it by 1000 first.
+- A negative `unix_timestamp`, or one outside the supported range, returns NULL.
+- An empty `format` string returns NULL.
+- If either argument is NULL, the function returns NULL.
+- TDengine has no separate date or time data type, so the result is returned as `VARCHAR` text. It cannot be used directly as a `TIMESTAMP`, but it can be passed to other functions as date and time text.
+
+**Example**:
+
+(note: the statements in this example are executed in the UTC timezone)
+
+```sql
+taos> SELECT from_unixtime(0);
+       from_unixtime(0)       |
+===============================
+ 1970-01-01 00:00:00          |
+
+taos> SELECT from_unixtime(1.123456);
+   from_unixtime(1.123456)    |
+===============================
+ 1970-01-01 00:00:01.123456   |
+
+taos> SELECT from_unixtime(1, '%Y-%m-%d %H:%i:%s');
+ from_unixtime(1, '%Y-%m-%d %H:%i:%s') |
+========================================
+ 1970-01-01 00:00:01                   |
+```
+
+### HOUR
+
+```sql
+HOUR(time)
+```
+
+**Function Classification**: Scalar function.
+
+**Function Description**: Returns the hour part of the time.
+
+**Version**: `v3.4.3.12`
+
+**Return Type**: `BIGINT`.
+
+**Applicable Data Types**: TIMESTAMP, or VARCHAR and NCHAR in a date and time format. Time text in the `[-]HH:MM:SS[.ffffff]` and `[-]D HH:MM:SS[.ffffff]` formats is also accepted.
+
+**Nested Subquery Support**: Applicable to both inner and outer queries.
+
+**Applicable to**: Tables and supertables.
+
+**Usage**:
+
+- For a date and time input, the result is from `0` through `23`. The hour in time text may be greater than 23. For example, `HOUR('272:59:59')` returns `272`.
+- Negative time text returns the absolute value of the hour.
+- Legal time text outside `-838:59:59` through `838:59:59` is clipped to the boundary with the same sign, and the microseconds are set to `0`. For example, `839:00:00` is treated as `838:59:59`.
+- A minute or second greater than `59` is invalid and returns NULL. It is not clipped.
+- When the input is date-only text, the hour, minute, second, and microsecond are treated as `0`. For example, `MINUTE('2024-02-29')` returns `0`.
+- If `time` is NULL or invalid, the function returns NULL.
+- Text arguments accept the `YYYY-MM-DD[ HH:MM:SS[.ffffff]]` format. Two-digit years are also accepted (`00` through `69` map to 2000 through 2069, and `70` through `99` map to 1970 through 1999), as are separators such as `/`, `^`, and `@`. Fractional seconds with more than six digits are rounded to microseconds.
+- Text without a timezone is parsed in the current connection timezone. Text with `Z` or an offset is resolved to an absolute instant first, and then calculated in the current connection timezone. A `TIMESTAMP` input uses the current connection timezone to determine the local date and time.
+
+**Example**:
+
+```sql
+taos> SELECT hour('10:05:03');
+   hour('10:05:03')    |
+========================
+                    10 |
+
+taos> SELECT hour('272:59:59');
+   hour('272:59:59')   |
+========================
+                   272 |
+
+taos> SELECT hour('839:00:00');
+   hour('839:00:00')   |
+========================
+                   838 |
+```
+
+### MICROSECOND
+
+```sql
+MICROSECOND(expr)
+```
+
+**Function Classification**: Scalar function.
+
+**Function Description**: Returns the microsecond part of the time.
+
+**Version**: `v3.4.3.12`
+
+**Return Type**: `BIGINT`.
+
+**Applicable Data Types**: TIMESTAMP, or VARCHAR and NCHAR in a date and time format. Time text in the `[-]HH:MM:SS[.ffffff]` and `[-]D HH:MM:SS[.ffffff]` formats is also accepted.
+
+**Nested Subquery Support**: Applicable to both inner and outer queries.
+
+**Applicable to**: Tables and supertables.
+
+**Usage**:
+
+- The result is from `0` through `999999`.
+- The fractional seconds of a TIMESTAMP input are limited by the database precision. A millisecond-precision database returns a multiple of 1000. A nanosecond-precision database is truncated to microseconds.
+- Legal time text outside `-838:59:59` through `838:59:59` is clipped to the boundary with the same sign, and the microseconds are set to `0`. For example, `839:00:00` is treated as `838:59:59`.
+- A minute or second greater than `59` is invalid and returns NULL. It is not clipped.
+- When the input is date-only text, the hour, minute, second, and microsecond are treated as `0`. For example, `MINUTE('2024-02-29')` returns `0`.
+- If `expr` is NULL or invalid, the function returns NULL.
+- Text arguments accept the `YYYY-MM-DD[ HH:MM:SS[.ffffff]]` format. Two-digit years are also accepted (`00` through `69` map to 2000 through 2069, and `70` through `99` map to 1970 through 1999), as are separators such as `/`, `^`, and `@`. Fractional seconds with more than six digits are rounded to microseconds.
+- Text without a timezone is parsed in the current connection timezone. Text with `Z` or an offset is resolved to an absolute instant first, and then calculated in the current connection timezone. A `TIMESTAMP` input uses the current connection timezone to determine the local date and time.
+
+**Example**:
+
+```sql
+taos> SELECT microsecond('12:00:00.123456');
+ microsecond('12:00:00.123456') |
+=================================
+                         123456 |
+
+taos> SELECT microsecond('2019-12-31 23:59:59.000010');
+ microsecond('2019-12-31 23:59:59.000010') |
+============================================
+                                        10 |
+```
+
+### MINUTE
+
+```sql
+MINUTE(time)
+```
+
+**Function Classification**: Scalar function.
+
+**Function Description**: Returns the minute part of the time.
+
+**Version**: `v3.4.3.12`
+
+**Return Type**: `BIGINT`.
+
+**Applicable Data Types**: TIMESTAMP, or VARCHAR and NCHAR in a date and time format. Time text in the `[-]HH:MM:SS[.ffffff]` and `[-]D HH:MM:SS[.ffffff]` formats is also accepted.
+
+**Nested Subquery Support**: Applicable to both inner and outer queries.
+
+**Applicable to**: Tables and supertables.
+
+**Usage**:
+
+- The result is from `0` through `59`.
+- Legal time text outside `-838:59:59` through `838:59:59` is clipped to the boundary with the same sign, and the microseconds are set to `0`. For example, `839:00:00` is treated as `838:59:59`.
+- A minute or second greater than `59` is invalid and returns NULL. It is not clipped.
+- When the input is date-only text, the hour, minute, second, and microsecond are treated as `0`. For example, `MINUTE('2024-02-29')` returns `0`.
+- If `time` is NULL or invalid, the function returns NULL.
+- Text arguments accept the `YYYY-MM-DD[ HH:MM:SS[.ffffff]]` format. Two-digit years are also accepted (`00` through `69` map to 2000 through 2069, and `70` through `99` map to 1970 through 1999), as are separators such as `/`, `^`, and `@`. Fractional seconds with more than six digits are rounded to microseconds.
+- Text without a timezone is parsed in the current connection timezone. Text with `Z` or an offset is resolved to an absolute instant first, and then calculated in the current connection timezone. A `TIMESTAMP` input uses the current connection timezone to determine the local date and time.
+
+**Example**:
+
+```sql
+taos> SELECT minute('10:05:03');
+  minute('10:05:03')   |
+========================
+                     5 |
+
+taos> SELECT minute('839:00:00');
+  minute('839:00:00')  |
+========================
+                    59 |
+```
+
+### MONTH
+
+```sql
+MONTH(date)
+```
+
+**Function Classification**: Scalar function.
+
+**Function Description**: Returns the month of the date.
+
+**Version**: `v3.4.3.12`
+
+**Return Type**: `BIGINT`.
+
+**Applicable Data Types**: TIMESTAMP, or VARCHAR and NCHAR in a date and time format.
+
+**Nested Subquery Support**: Applicable to both inner and outer queries.
+
+**Applicable to**: Tables and supertables.
+
+**Usage**:
+
+- For a valid date, the result is from `1` through `12`. A date whose month is `0`, such as `0000-00-00`, returns `0`.
+- If `date` is NULL, cannot be parsed, or is an invalid date (for example, `2023-02-29`), the function returns NULL.
+- Text arguments accept the `YYYY-MM-DD[ HH:MM:SS[.ffffff]]` format. Two-digit years are also accepted (`00` through `69` map to 2000 through 2069, and `70` through `99` map to 1970 through 1999), as are separators such as `/`, `^`, and `@`. Fractional seconds with more than six digits are rounded to microseconds.
+- Text without a timezone is parsed in the current connection timezone. Text with `Z` or an offset is resolved to an absolute instant first, and then calculated in the current connection timezone. A `TIMESTAMP` input uses the current connection timezone to determine the local date and time.
+
+**Example**:
+
+```sql
+taos> SELECT month('2008-02-03');
+  month('2008-02-03')  |
+========================
+                     2 |
+```
+
+### MONTHNAME
+
+```sql
+MONTHNAME(date)
+```
+
+**Function Classification**: Scalar function.
+
+**Function Description**: Returns the full English month name of the date.
+
+**Version**: `v3.4.3.12`
+
+**Return Type**: `VARCHAR`.
+
+**Applicable Data Types**: TIMESTAMP, or VARCHAR and NCHAR in a date and time format.
+
+**Nested Subquery Support**: Applicable to both inner and outer queries.
+
+**Applicable to**: Tables and supertables.
+
+**Usage**:
+
+- The result is one of `January` through `December`, always in English.
+- If `date` is NULL, cannot be parsed, or is an invalid date (for example, `2023-02-29`), the function returns NULL.
+- Text arguments accept the `YYYY-MM-DD[ HH:MM:SS[.ffffff]]` format. Two-digit years are also accepted (`00` through `69` map to 2000 through 2069, and `70` through `99` map to 1970 through 1999), as are separators such as `/`, `^`, and `@`. Fractional seconds with more than six digits are rounded to microseconds.
+- Text without a timezone is parsed in the current connection timezone. Text with `Z` or an offset is resolved to an absolute instant first, and then calculated in the current connection timezone. A `TIMESTAMP` input uses the current connection timezone to determine the local date and time.
+
+**Example**:
+
+```sql
+taos> SELECT monthname('2008-02-03');
+ monthname('2008-02-03') |
+==========================
+ February                |
+```
 
 ### NOW
 
@@ -2279,6 +3354,139 @@ NOW()
 - `NOW()` and `NOW` both follow the current connection timezone set by `SET TIMEZONE`.
 - When using fixed-offset values with `SET TIMEZONE`, the sign is counterintuitive: `SET TIMEZONE '+08:00'` displays time 8 hours **behind** UTC, not ahead. Use `SET TIMEZONE 'Asia/Shanghai'` to get Beijing time reliably.
 - To verify which timezone a connection is using, run `SELECT TIMEZONE()`. To see the current time with timezone offset, run `SELECT TO_ISO8601(NOW())`.
+
+### QUARTER
+
+```sql
+QUARTER(date)
+```
+
+**Function Classification**: Scalar function.
+
+**Function Description**: Returns the quarter of the date.
+
+**Version**: `v3.4.3.12`
+
+**Return Type**: `BIGINT`.
+
+**Applicable Data Types**: TIMESTAMP, or VARCHAR and NCHAR in a date and time format.
+
+**Nested Subquery Support**: Applicable to both inner and outer queries.
+
+**Applicable to**: Tables and supertables.
+
+**Usage**:
+
+- The result is from `1` through `4`.
+- If `date` is NULL, cannot be parsed, or is an invalid date (for example, `2023-02-29`), the function returns NULL.
+- Text arguments accept the `YYYY-MM-DD[ HH:MM:SS[.ffffff]]` format. Two-digit years are also accepted (`00` through `69` map to 2000 through 2069, and `70` through `99` map to 1970 through 1999), as are separators such as `/`, `^`, and `@`. Fractional seconds with more than six digits are rounded to microseconds.
+- Text without a timezone is parsed in the current connection timezone. Text with `Z` or an offset is resolved to an absolute instant first, and then calculated in the current connection timezone. A `TIMESTAMP` input uses the current connection timezone to determine the local date and time.
+
+**Example**:
+
+```sql
+taos> SELECT quarter('2008-04-01');
+ quarter('2008-04-01') |
+========================
+                     2 |
+```
+
+### SECOND
+
+```sql
+SECOND(time)
+```
+
+**Function Classification**: Scalar function.
+
+**Function Description**: Returns the second part of the time.
+
+**Version**: `v3.4.3.12`
+
+**Return Type**: `BIGINT`.
+
+**Applicable Data Types**: TIMESTAMP, or VARCHAR and NCHAR in a date and time format. Time text in the `[-]HH:MM:SS[.ffffff]` and `[-]D HH:MM:SS[.ffffff]` formats is also accepted.
+
+**Nested Subquery Support**: Applicable to both inner and outer queries.
+
+**Applicable to**: Tables and supertables.
+
+**Usage**:
+
+- The result is from `0` through `59`.
+- Legal time text outside `-838:59:59` through `838:59:59` is clipped to the boundary with the same sign, and the microseconds are set to `0`. For example, `839:00:00` is treated as `838:59:59`.
+- A minute or second greater than `59` is invalid and returns NULL. It is not clipped.
+- When the input is date-only text, the hour, minute, second, and microsecond are treated as `0`. For example, `MINUTE('2024-02-29')` returns `0`.
+- If `time` is NULL or invalid, the function returns NULL.
+- Text arguments accept the `YYYY-MM-DD[ HH:MM:SS[.ffffff]]` format. Two-digit years are also accepted (`00` through `69` map to 2000 through 2069, and `70` through `99` map to 1970 through 1999), as are separators such as `/`, `^`, and `@`. Fractional seconds with more than six digits are rounded to microseconds.
+- Text without a timezone is parsed in the current connection timezone. Text with `Z` or an offset is resolved to an absolute instant first, and then calculated in the current connection timezone. A `TIMESTAMP` input uses the current connection timezone to determine the local date and time.
+
+**Example**:
+
+```sql
+taos> SELECT second('10:05:03');
+  second('10:05:03')   |
+========================
+                     3 |
+```
+
+### STR_TO_DATE
+
+```sql
+STR_TO_DATE(str, format)
+```
+
+**Function Classification**: Scalar function.
+
+**Function Description**: Parses the text `str` into a date, a time, or a date and time using `%` specifiers. This is the inverse of [DATE_FORMAT](#date_format).
+
+**Version**: `v3.4.3.12`
+
+**Return Type**: `VARCHAR`.
+
+**Applicable Data Types**
+
+- `str`: VARCHAR or NCHAR.
+- `format`: a VARCHAR or NCHAR format string. The specifiers are the same as [DATE_FORMAT](#date_format).
+
+**Nested Subquery Support**: Applicable to both inner and outer queries.
+
+**Applicable to**: Tables and supertables.
+
+**Usage**:
+
+- The form of the result depends on `format`. Date specifiers alone return `YYYY-MM-DD`. Time specifiers alone return `HH:MM:SS`. Both together return `YYYY-MM-DD HH:MM:SS`. When `format` contains `%f`, six fractional-second digits are appended.
+- `str` is parsed from left to right against `format`. The start of `str` must match `format`, or the function returns NULL. Characters left in `str` after `format` is consumed are ignored.
+- When `str` is consumed and `format` still has a remainder, the remaining format is ignored and unspecified fields are treated as `0`. For example, `STR_TO_DATE('2024-02-29', '%Y-%m-%d %H:%i:%s')` returns `2024-02-29 00:00:00`. A leftover `%p` does not add a time part. For example, `STR_TO_DATE('2024-02-29', '%Y-%m-%d %p')` returns `2024-02-29`.
+- Date fields that `format` does not include are treated as `0`. For example, `STR_TO_DATE('abc', 'abc')` returns `0000-00-00`.
+- `%%` is only for output in DATE_FORMAT. STR_TO_DATE returns NULL when parsing reaches `%%`.
+- An invalid fully parsed date returns NULL. For example, `STR_TO_DATE('2021-11-31', '%Y-%m-%d')` returns NULL.
+- TDengine has no separate date or time data type, so the result is returned as `VARCHAR` text. It cannot be used directly as a `TIMESTAMP`, but it can be passed to other functions as date and time text.
+- If either argument is NULL, the function returns NULL.
+
+**Example**:
+
+```sql
+taos> SELECT str_to_date('May 1, 2013', '%M %d, %Y');
+ str_to_date('May 1, 2013', '%M %d, %Y') |
+==========================================
+ 2013-05-01                              |
+
+taos> SELECT str_to_date('2024 060', '%Y %j');
+ str_to_date('2024 060', '%Y %j') |
+===================================
+ 2024-02-29                       |
+
+taos> SELECT str_to_date('12:34:56.123456', '%T.%f');
+ str_to_date('12:34:56.123456', '%T.%f') |
+==========================================
+ 12:34:56.123456                         |
+
+taos> SELECT str_to_date('2021-11-31', '%Y-%m-%d');
+ str_to_date('2021-11-31', '%Y-%m-%d') |
+========================================
+ NULL                                  |
+```
 
 ### TIMEDIFF
 
@@ -2314,15 +3522,17 @@ TIMEDIFF(expr1, expr2 [, time_unit])
 **Example**:
 
 ```sql
-taos> select timediff('2022-01-01 08:00:00', '2022-01-01 08:00:01',1s);
+taos> SELECT TIMEDIFF('2022-01-01 08:00:00', '2022-01-01 08:00:01', 1s);
  timediff('2022-01-01 08:00:00', '2022-01-01 08:00:01',1s) |
 ============================================================
                                                         -1 |
+Query OK, 1 row(s) in set
 
-taos> select timediff('2022-01-01 08:00:01', '2022-01-01 08:00:00',1s);
+taos> SELECT TIMEDIFF('2022-01-01 08:00:01', '2022-01-01 08:00:00', 1s);
  timediff('2022-01-01 08:00:01', '2022-01-01 08:00:00',1s) |
 ============================================================
                                                          1 |
+Query OK, 1 row(s) in set
 ```
 
 ### TIMETRUNCATE
@@ -2371,6 +3581,91 @@ TIMEZONE()
 
 **Applicable to**: Tables and supertables.
 
+### TO_DAYS
+
+```sql
+TO_DAYS(date)
+```
+
+**Function Classification**: Scalar function.
+
+**Function Description**: Returns the day number of the date, counted from year 0.
+
+**Version**: `v3.4.3.12`
+
+**Return Type**: `BIGINT`.
+
+**Applicable Data Types**: TIMESTAMP, or VARCHAR and NCHAR in a date and time format.
+
+**Nested Subquery Support**: Applicable to both inner and outer queries.
+
+**Applicable to**: Tables and supertables.
+
+**Usage**:
+
+- The day number of `0000-01-01` is `1`, and the day number of `9999-12-31` is `3652424`.
+- Only the date part is used. Hours, minutes, and seconds are ignored.
+- Year 0 is not a leap year, so `0000-02-29` returns NULL. The zero date `0000-00-00` also returns NULL.
+- If `date` is NULL, cannot be parsed, or is an invalid date (for example, `2023-02-29`), the function returns NULL.
+- Text arguments accept the `YYYY-MM-DD[ HH:MM:SS[.ffffff]]` format. Two-digit years are also accepted (`00` through `69` map to 2000 through 2069, and `70` through `99` map to 1970 through 1999), as are separators such as `/`, `^`, and `@`. Fractional seconds with more than six digits are rounded to microseconds.
+- Text without a timezone is parsed in the current connection timezone. Text with `Z` or an offset is resolved to an absolute instant first, and then calculated in the current connection timezone. A `TIMESTAMP` input uses the current connection timezone to determine the local date and time.
+
+**Example**:
+
+```sql
+taos> SELECT to_days('1970-01-01');
+ to_days('1970-01-01') |
+========================
+                719528 |
+
+taos> SELECT to_days('0000-01-01');
+ to_days('0000-01-01') |
+========================
+                     1 |
+```
+
+### TO_SECONDS
+
+```sql
+TO_SECONDS(expr)
+```
+
+**Function Classification**: Scalar function.
+
+**Function Description**: Returns the second number of the date and time, counted from year 0.
+
+**Version**: `v3.4.3.12`
+
+**Return Type**: `BIGINT`.
+
+**Applicable Data Types**: TIMESTAMP, or VARCHAR and NCHAR in a date and time format.
+
+**Nested Subquery Support**: Applicable to both inner and outer queries.
+
+**Applicable to**: Tables and supertables.
+
+**Usage**:
+
+- The second number of `0000-01-01 00:00:00` is `86400`, which is `TO_DAYS(expr) * 86400` plus the seconds elapsed on that day.
+- Fractional seconds are discarded.
+- If `expr` is NULL, cannot be parsed, or is an invalid date (for example, `2023-02-29`), the function returns NULL.
+- Text arguments accept the `YYYY-MM-DD[ HH:MM:SS[.ffffff]]` format. Two-digit years are also accepted (`00` through `69` map to 2000 through 2069, and `70` through `99` map to 1970 through 1999), as are separators such as `/`, `^`, and `@`. Fractional seconds with more than six digits are rounded to microseconds.
+- Text without a timezone is parsed in the current connection timezone. Text with `Z` or an offset is resolved to an absolute instant first, and then calculated in the current connection timezone. A `TIMESTAMP` input uses the current connection timezone to determine the local date and time.
+
+**Example**:
+
+```sql
+taos> SELECT to_seconds('1970-01-01 00:00:01');
+ to_seconds('1970-01-01 00:00:01') |
+====================================
+                       62167219201 |
+
+taos> SELECT to_seconds('0000-01-01');
+ to_seconds('0000-01-01') |
+===========================
+                    86400 |
+```
+
 ### TODAY
 
 ```sql
@@ -2392,6 +3687,58 @@ TODAY()
 - Supports time addition and subtraction operations, such as TODAY() + 1s. Supported time units are listed in [Time Units](../01-datatype.md#time-units) (milliseconds through weeks only).
 - The precision of the returned timestamp is consistent with the time precision set for the current DATABASE.
 - Timezone resolution uses the current connection timezone first; if not set, it uses the client timezone; if still unavailable, it falls back to the system default timezone.
+
+### UNIX_TIMESTAMP
+
+```sql
+UNIX_TIMESTAMP([date])
+```
+
+**Function Classification**: Scalar function.
+
+**Function Description**: With no argument, returns the Unix timestamp of the current time. With `date`, returns the Unix timestamp of that date and time. The unit is seconds in both cases.
+
+**Version**: `v3.4.3.12`
+
+**Return Type**: `BIGINT` with no argument, and `DECIMAL(17,6)` when `date` is specified.
+
+**Applicable Data Types**: TIMESTAMP, or VARCHAR and NCHAR in a date and time format.
+
+**Nested Subquery Support**: Applicable to both inner and outer queries.
+
+**Applicable to**: Tables and supertables.
+
+**Usage**:
+
+- With no argument, no matter how many times it appears in one SQL statement, it uses the time when the statement starts.
+- When `date` is specified, the result keeps six decimal places, that is, microseconds. A TIMESTAMP value or a text column also returns `DECIMAL(17,6)`.
+- When the text falls in a local time that does not exist because daylight saving time springs forward, the function returns the Unix timestamp of the first valid instant after the gap and keeps the input microseconds.
+- A date and time earlier than `1970-01-01 00:00:00 UTC` returns NULL.
+- Unlike [TO_UNIXTIMESTAMP](#to_unixtimestamp), the unit of UNIX_TIMESTAMP is always seconds and does not follow the database precision.
+- If `date` is NULL, cannot be parsed, or is an invalid date (for example, `2023-02-29`), the function returns NULL.
+- Text arguments accept the `YYYY-MM-DD[ HH:MM:SS[.ffffff]]` format. Two-digit years are also accepted (`00` through `69` map to 2000 through 2069, and `70` through `99` map to 1970 through 1999), as are separators such as `/`, `^`, and `@`. Fractional seconds with more than six digits are rounded to microseconds.
+- Text without a timezone is parsed in the current connection timezone. Text with `Z` or an offset is resolved to an absolute instant first, and then calculated in the current connection timezone. A `TIMESTAMP` input uses the current connection timezone to determine the local date and time.
+
+**Example**:
+
+(note: the statements in this example are executed in the UTC timezone)
+
+```sql
+taos> SELECT unix_timestamp('1970-01-01 00:00:01');
+  unix_timestamp('1970-01-01 00:00:01')   |
+===========================================
+                                 1.000000 |
+
+taos> SELECT unix_timestamp('1970-01-01 00:00:01.123456');
+ unix_timestamp('1970-01-01 00:00:01.123456') |
+===============================================
+                                     1.123456 |
+
+taos> SELECT unix_timestamp('2024-03-10T02:30:00-05:00');
+ unix_timestamp('2024-03-10T02:30:00-05:00') |
+==============================================
+                           1710055800.000000 |
+```
 
 ### WEEK
 
@@ -2444,61 +3791,29 @@ WEEK(expr [, mode])
 **Example**:
 
 ```sql
-taos> select week('2000-01-01',0);
+taos> SELECT WEEK('2000-01-01', 0);
  week('2000-01-01',0)  |
 ========================
                      0 |
+Query OK, 1 row(s) in set
 
-taos> select week('2000-01-01',1);
+taos> SELECT WEEK('2000-01-01', 1);
  week('2000-01-01',1)  |
 ========================
                      0 |
+Query OK, 1 row(s) in set
 
-taos> select week('2000-01-01',2);
+taos> SELECT WEEK('2000-01-01', 2);
  week('2000-01-01',2)  |
 ========================
                     52 |
+Query OK, 1 row(s) in set
 
-taos> select week('2000-01-01',3);
+taos> SELECT WEEK('2000-01-01', 3);
  week('2000-01-01',3)  |
 ========================
                     52 |
-```
-
-### WEEKOFYEAR
-
-```sql
-WEEKOFYEAR(expr)
-```
-
-**Function Classification**: Scalar function.
-
-**Function Description**: Returns the week number of the input date.
-
-**Version**: ver-3.3.3.0
-
-**Return Type**: BIGINT.
-
-**Applicable Data Types**: BIGINT, TIMESTAMP types representing timestamps, or VARCHAR, NCHAR types in ISO8601/RFC3339 date-time format.
-
-**Nested Subquery Support**: Applicable to both inner and outer queries.
-
-**Applicable to**: Tables and supertables.
-
-**Usage**:
-
-- Equivalent to `WEEK(expr, 3)`, where the first day of the week is Monday, and the return value ranges from 1 to 53, with the first week containing four or more days being week 1.
-- If `expr` is NULL, returns NULL.
-- The precision of the input timestamp is determined by the precision of the table queried; if no table is specified, the precision is milliseconds.
-- For a BIGINT or TIMESTAMP input representing a fixed instant, the local calendar date is determined in the current connection timezone before computing; for a string input, a carried timezone only determines the corresponding absolute instant, while a timezone-less string is parsed in the connection timezone and the result is timezone-independent. Regardless of whether the input carries a timezone, the local calendar date is always determined in the connection-level timezone before computing.
-
-**Example**:
-
-```sql
-taos> select weekofyear('2000-01-01');
- weekofyear('2000-01-01') |
-===========================
-                       52 |
+Query OK, 1 row(s) in set
 ```
 
 ### WEEKDAY
@@ -2531,21 +3846,22 @@ WEEKDAY(expr)
 **Example**:
 
 ```sql
-taos> select weekday('2000-01-01');
+taos> SELECT WEEKDAY('2000-01-01');
  weekday('2000-01-01') |
 ========================
                      5 |
+Query OK, 1 row(s) in set
 ```
 
-### DAYOFWEEK
+### WEEKOFYEAR
 
 ```sql
-DAYOFWEEK(expr)
+WEEKOFYEAR(expr)
 ```
 
 **Function Classification**: Scalar function.
 
-**Function Description**: Returns the weekday of the input date.
+**Function Description**: Returns the week number of the input date.
 
 **Version**: ver-3.3.3.0
 
@@ -2559,7 +3875,7 @@ DAYOFWEEK(expr)
 
 **Usage**:
 
-- Return value 1 represents Sunday, 2 represents Monday ... 7 represents Saturday.
+- Equivalent to `WEEK(expr, 3)`, where the first day of the week is Monday, and the return value ranges from 1 to 53, with the first week containing four or more days being week 1.
 - If `expr` is NULL, returns NULL.
 - The precision of the input timestamp is determined by the precision of the table queried; if no table is specified, the precision is milliseconds.
 - For a BIGINT or TIMESTAMP input representing a fixed instant, the local calendar date is determined in the current connection timezone before computing; for a string input, a carried timezone only determines the corresponding absolute instant, while a timezone-less string is parsed in the connection timezone and the result is timezone-independent. Regardless of whether the input carries a timezone, the local calendar date is always determined in the connection-level timezone before computing.
@@ -2567,27 +3883,28 @@ DAYOFWEEK(expr)
 **Example**:
 
 ```sql
-taos> select dayofweek('2000-01-01');
- dayofweek('2000-01-01') |
-==========================
-                       7 |
+taos> SELECT WEEKOFYEAR('2000-01-01');
+ weekofyear('2000-01-01') |
+===========================
+                       52 |
+Query OK, 1 row(s) in set
 ```
 
-### DATE
+### YEAR
 
 ```sql
-DATE(expr)
+YEAR(date)
 ```
 
 **Function Classification**: Scalar function.
 
-**Function Description**: Returns date of the input time expression.
+**Function Description**: Returns the year of the date.
 
-**Version**: ver-3.3.8.0
+**Version**: `v3.4.3.12`
 
-**Return Type**: VARCHAR.
+**Return Type**: `BIGINT`.
 
-**Applicable Data Types**: BIGINT, TIMESTAMP types representing timestamps, or VARCHAR, NCHAR types in ISO8601/RFC3339 date-time format.
+**Applicable Data Types**: TIMESTAMP, or VARCHAR and NCHAR in a date and time format.
 
 **Nested Subquery Support**: Applicable to both inner and outer queries.
 
@@ -2595,26 +3912,63 @@ DATE(expr)
 
 **Usage**:
 
-- The return value is of `yyyy-mm-dd` format.
-- If `expr` is NULL, returns NULL.
-- If `expr` is of type VARCHAR or NCHAR but does not conform to the ISO8601/RFC3339 standard, returns NULL.
-- The precision of the input timestamp is determined by the precision of the table queried; if no table is specified, the precision is milliseconds.
-- If the input string carries a timezone, that timezone determines the corresponding absolute instant; otherwise it is parsed in the connection-level timezone. Regardless of whether the input carries a timezone, the returned date is always computed using the connection-level timezone.
+- The result is from `0` through `9999`.
+- If `date` is NULL, cannot be parsed, or is an invalid date (for example, `2023-02-29`), the function returns NULL.
+- Text arguments accept the `YYYY-MM-DD[ HH:MM:SS[.ffffff]]` format. Two-digit years are also accepted (`00` through `69` map to 2000 through 2069, and `70` through `99` map to 1970 through 1999), as are separators such as `/`, `^`, and `@`. Fractional seconds with more than six digits are rounded to microseconds.
+- Text without a timezone is parsed in the current connection timezone. Text with `Z` or an offset is resolved to an absolute instant first, and then calculated in the current connection timezone. A `TIMESTAMP` input uses the current connection timezone to determine the local date and time.
 
 **Example**:
 
-(note: the following statements are executed in the UTC+0800 timezone, and the precision is milliseconds)
+```sql
+taos> SELECT year('1987-01-01');
+  year('1987-01-01')   |
+========================
+                  1987 |
+```
+
+### YEARWEEK
 
 ```sql
-taos> select date(946656000000);
-       date(946656000000)       |
-=================================
- 2000-01-01                     |
+YEARWEEK(date [, mode])
+```
 
-taos> select date('2000-01-01 12:00:00.000');
- date('2000-01-01 12:00:00.000') |
-==================================
- 2000-01-01                      |
+**Function Classification**: Scalar function.
+
+**Function Description**: Returns the year of the week and the week number of the date. The result is `year of the week * 100 + week number`.
+
+**Version**: `v3.4.3.12`
+
+**Return Type**: `BIGINT`.
+
+**Applicable Data Types**
+
+- `date`: TIMESTAMP, or VARCHAR and NCHAR in a date and time format.
+- `mode`: an integer from `0` through `7`. The default is `0`.
+
+**Nested Subquery Support**: Applicable to both inner and outer queries.
+
+**Applicable to**: Tables and supertables.
+
+**Usage**:
+
+- `mode` has the same meaning as in [WEEK](#week). It specifies the first day of the week and how week 1 is determined.
+- The week number is always from `1` through `53`. A date at the start of the year that is not in week 1 of that year belongs to the last week of the previous year, so the year of the week can differ from the calendar year of the date.
+- If `date` is NULL, cannot be parsed, or is an invalid date (for example, `2023-02-29`), the function returns NULL.
+- Text arguments accept the `YYYY-MM-DD[ HH:MM:SS[.ffffff]]` format. Two-digit years are also accepted (`00` through `69` map to 2000 through 2069, and `70` through `99` map to 1970 through 1999), as are separators such as `/`, `^`, and `@`. Fractional seconds with more than six digits are rounded to microseconds.
+- Text without a timezone is parsed in the current connection timezone. Text with `Z` or an offset is resolved to an absolute instant first, and then calculated in the current connection timezone. A `TIMESTAMP` input uses the current connection timezone to determine the local date and time.
+
+**Example**:
+
+```sql
+taos> SELECT yearweek('2000-01-01');
+ yearweek('2000-01-01') |
+=========================
+                 199952 |
+
+taos> SELECT yearweek('2021-01-01', 1);
+ yearweek('2021-01-01', 1) |
+============================
+                    202053 |
 ```
 
 ## Statistical Aggregate Functions
@@ -2642,11 +3996,14 @@ AGG_FUNC(DISTINCT expr)
 - `COUNT(DISTINCT expr)` returns the number of distinct non-NULL values.
 - `SUM(DISTINCT expr)` computes the sum of distinct values.
 - Can be combined with `GROUP BY`, `PARTITION BY`, and window clauses.
-- Supports `INTERVAL` windows — deduplication is performed independently within each time window.
+- Supports `INTERVAL`, `SESSION`, `STATE_WINDOW`, `EVENT_WINDOW`, `COUNT_WINDOW`, and `EXTERNAL_WINDOW`. Deduplication is performed independently within each window.
 - A single query may mix DISTINCT and non-DISTINCT aggregates, for example:
 
   ```sql
-  SELECT COUNT(DISTINCT voltage), AVG(current) FROM meters;
+  SELECT
+    COUNT(DISTINCT voltage),
+    AVG(current)
+  FROM meters;
   ```
 
 - When the deduplicated data exceeds the memory threshold (`pqSortMemThreshold`, default 16 MB), the engine automatically switches to a sort-based deduplication mode using disk-backed buffers. No user intervention is required.
@@ -2659,13 +4016,22 @@ AGG_FUNC(DISTINCT expr)
 
 ```sql
 -- Count distinct voltage values
-SELECT COUNT(DISTINCT voltage) FROM meters;
+SELECT COUNT(DISTINCT voltage)
+FROM meters;
 
 -- Distinct count per 10-minute window
-SELECT _wstart, COUNT(DISTINCT voltage) FROM meters INTERVAL(10m);
+SELECT
+  _wstart,
+  COUNT(DISTINCT voltage)
+FROM meters
+INTERVAL(10m);
 
 -- Sum of distinct voltages grouped by location
-SELECT location, SUM(DISTINCT voltage) FROM meters GROUP BY location;
+SELECT
+  location,
+  SUM(DISTINCT voltage)
+FROM meters
+GROUP BY location;
 ```
 
 ### Basic Numeric Aggregation
@@ -2748,7 +4114,7 @@ LEASTSQUARES(expr, start_val, step_val)
 #### STDDEV/STDDEV_POP/STD
 
 ```sql
-STDDEV/STDDEV_POP/STD(expr)
+STDDEV / STDDEV_POP / STD(expr)
 ```
 
 **Function Classification**: Aggregate function.
@@ -2769,7 +4135,8 @@ STDDEV/STDDEV_POP/STD(expr)
 **Example**:
 
 ```sql
-taos> select id from test_stddev;
+taos> SELECT id
+      FROM test_stddev;
      id      |
 ==============
            1 |
@@ -2777,11 +4144,14 @@ taos> select id from test_stddev;
            3 |
            4 |
            5 |
+Query OK, 5 row(s) in set
 
-taos> select stddev_pop(id) from test_stddev;
+taos> SELECT STDDEV_POP(id)
+      FROM test_stddev;
       stddev_pop(id)       |
 ============================
          1.414213562373095 |
+Query OK, 1 row(s) in set
 ```
 
 #### STDDEV_SAMP
@@ -2805,7 +4175,8 @@ STDDEV_SAMP
 **Example**:
 
 ```sql
-taos> select id from test_stddev;
+taos> SELECT id
+      FROM test_stddev;
      id      |
 ==============
            1 |
@@ -2813,17 +4184,20 @@ taos> select id from test_stddev;
            3 |
            4 |
            5 |
+Query OK, 5 row(s) in set
 
-taos> select stddev_samp(id) from test_stddev;
+taos> SELECT STDDEV_SAMP(id)
+      FROM test_stddev;
       stddev_samp(id)       |
 ============================
          1.58113883008419   |
+Query OK, 1 row(s) in set
 ```
 
 #### VARIANCE/VAR_POP
 
 ```sql
-VARIANCE/VAR_POP(expr)
+VARIANCE / VAR_POP(expr)
 ```
 
 **Function Classification**: Aggregate function.
@@ -2845,7 +4219,8 @@ VARIANCE/VAR_POP(expr)
 **Example**:
 
 ```sql
-taos> select id from test_var;
+taos> SELECT id
+      FROM test_var;
      id      |
 ==============
            3 |
@@ -2853,11 +4228,14 @@ taos> select id from test_var;
            2 |
            4 |
            5 |
+Query OK, 5 row(s) in set
 
-taos> select var_pop(id) from test_var;
+taos> SELECT VAR_POP(id)
+      FROM test_var;
         var_pop(id)        |
 ============================
          2.000000000000000 |
+Query OK, 1 row(s) in set
 ```
 
 #### VAR_SAMP
@@ -2881,7 +4259,8 @@ VAR_SAMP(expr)
 **Example**:
 
 ```sql
-taos> select id from test_var;
+taos> SELECT id
+      FROM test_var;
      id      |
 ==============
            3 |
@@ -2889,11 +4268,14 @@ taos> select id from test_var;
            2 |
            4 |
            5 |
+Query OK, 5 row(s) in set
 
-taos> select var_samp(id) from test_var;
+taos> SELECT VAR_SAMP(id)
+      FROM test_var;
         var_samp(id)        |
 ============================
          2.500000000000000 |
+Query OK, 1 row(s) in set
 ```
 
 #### SPREAD
@@ -3006,17 +4388,23 @@ GROUP_CONCAT(expr)
 **Example**:
 
 ```sql
-taos> select str1, str2 from test_var;
+taos> SELECT
+        str1,
+        str2
+      FROM test_var;
      id      |      id      |
 =============================
           a1 |       b1     |
           a2 |       b2     |
           a3 |       b3     |
+Query OK, 3 row(s) in set
 
-taos> select group_concat(str1, str2, ':') from test_var;
+taos> SELECT GROUP_CONCAT(str1, str2, ':')
+      FROM test_var;
          group_concat(str1, str2, ':')   |
 ==========================================
          a1b1:a2b2:a3b3                  |
+Query OK, 1 row(s) in set
 ```
 
 ### Distribution Statistics
@@ -3076,10 +4464,11 @@ IF(expr1, expr2, expr3)
 **Example**:
 
 ```sql
-taos> SELECT IF(1>2,2,3);
+taos> SELECT IF(1 > 2, 2, 3);
       if(1>2,2,3)      |
 ========================
                      3 |
+Query OK, 1 row(s) in set
 ```
 
 ### IFNULL
@@ -3099,10 +4488,11 @@ IFNULL(expr1, expr2)
 **Example**:
 
 ```sql
-taos> SELECT IFNULL(1,0);
+taos> SELECT IFNULL(1, 0);
       ifnull(1,0)      |
 ========================
                     1 |
+Query OK, 1 row(s) in set
 ```
 
 ### NVL
@@ -3128,10 +4518,11 @@ NULLIF(expr1, expr2)
 **Example**:
 
 ```sql
-taos> SELECT NULLIF(1,1);
+taos> SELECT NULLIF(1, 1);
       nullif(1,1)      |
 ========================
  NULL                  |
+Query OK, 1 row(s) in set
 ```
 
 ### NVL2
@@ -3151,9 +4542,10 @@ NVL2(expr1, expr2, expr3)
 **Example**:
 
 ```sql
-taos> SELECT NVL2(NULL,1,2);
+taos> SELECT NVL2(NULL, 1, 2);
 ========================
                      2 |
+Query OK, 1 row(s) in set
 ```
 
 ## Selection Functions
@@ -3212,27 +4604,41 @@ FIRST(expr)
 The primary key of table `t` is `ts`. `pub_ts` is an ordinary timestamp column:
 
 ```sql
-taos> SELECT ts, pub_ts, val FROM t;
+taos> SELECT
+        ts,
+        pub_ts,
+        val
+      FROM t;
            ts            |         pub_ts          | val |
 ==========================================================
  2026-01-01 00:00:00.000 | 2026-01-03 00:00:00.000 | a   |
  2026-01-02 00:00:00.000 | 2026-01-01 00:00:00.000 | b   |
+Query OK, 2 row(s) in set
 
-taos> SELECT FIRST(ts) FROM t;
+taos> SELECT FIRST(ts)
+      FROM t;
         first(ts)        |
 ==========================
  2026-01-01 00:00:00.000 |
+Query OK, 1 row(s) in set
 
-taos> SELECT FIRST(pub_ts) FROM t;
+taos> SELECT FIRST(pub_ts)
+      FROM t;
       first(pub_ts)      |
 ==========================
  2026-01-03 00:00:00.000 |
+Query OK, 1 row(s) in set
 ```
 
 `FIRST(ts)` returns the earliest primary-key timestamp, `2026-01-01 00:00:00.000`. `FIRST(pub_ts)` returns `pub_ts` on that row, which is `2026-01-03 00:00:00.000`. To select the earliest row by `pub_ts` itself, use:
 
 ```sql
-SELECT pub_ts, val FROM t ORDER BY pub_ts ASC LIMIT 1;
+SELECT
+  pub_ts,
+  val
+FROM t
+ORDER BY pub_ts ASC
+LIMIT 1;
 ```
 
 This statement returns the row whose `pub_ts` is `2026-01-01 00:00:00.000` and whose `val` is `b`.
@@ -3465,7 +4871,10 @@ When used with `PARTITION BY`, `CSUM` starts an independent cumulative sum for e
 For example, the following query calculates an independent cumulative current for each subtable. The partition expression can also be a tag or ordinary column when valid in the query.
 
 ```sql
-SELECT tbname, ts, CSUM(current) AS cumulative_current
+SELECT
+  tbname,
+  ts,
+  CSUM(current) AS cumulative_current
 FROM meters
 PARTITION BY tbname
 ORDER BY tbname, ts;
@@ -3512,6 +4921,9 @@ ignore_negative: {
 - Can be used with the columns associated with the selection. For example: select _rowts, DERIVATIVE(col1, 1s, 1) from tb1.
 - With a degraded timeline, duplicate timestamp rows output NULL (avoiding division by zero) without updating the previous value; NULL time rows also output NULL. Output row count is always N-1.
 - With a disordered degraded timeline, derivative can still execute but time differences alternate between positive and negative, producing physically meaningless slope values. Use `ORDER BY` in the subquery to ensure ordering.
+- In `CREATE STREAM ... AS SELECT`, `time_interval` can directly reference a native point's tag, for example `DERIVATIVE(current, rate_interval, 0)`. A supertable trigger requires `PARTITION BY tbname`; a fixed child table can omit partitioning. Supported inputs are `%%tbname`, `%%trows`, and single-source subqueries that project the tag unchanged. Ordinary `SELECT` does not support tag arguments. Ordinary columns and expressions over tags are not accepted as the second argument; `ignore_negative` remains a literal `0` or `1`.
+- String tags (`VARCHAR`, `BINARY`, `NCHAR`) contain a positive integer duration with a fixed unit: `b`, `u`, `a`, `s`, `m`, `h`, `d`, or `w`. Integer tags contain ticks at the source database precision. The duration must be at least one second, exactly representable at that precision, and no greater than `INT64_MAX` ticks. This unit does not change the window width: the same input produces twice the numerical rate with `'2s'` as with `'1s'`.
+- Tag arguments support single-level `INTERVAL`, `SESSION`, `COUNT_WINDOW`, `STATE_WINDOW`, and `EVENT_WINDOW` triggers. Nested windows, multiple START conditions, `PERIOD`, and standalone `SLIDING` are excluded. An invalid tag value produces NULL rates for that call while other valid result columns and points continue computing. A unit tag that is not an explicit partition key can be changed with `SET TAG`; subsequent calculations use the effective value. The update alone does not recalculate historical results. A unit tag referenced by an active stream cannot be dropped.
 
 ### DIFF
 
@@ -3580,14 +4992,21 @@ FILL_FORWARD(expr)
 **Example**:
 
 ```sql
-taos> select _rowts,f1,f2,fill_forward(f1),fill_forward(f2),fill_forward(f1)*fill_forward(f2) from db.tb;
+taos> SELECT
+        _rowts,
+        f1,
+        f2,
+        FILL_FORWARD(f1),
+        FILL_FORWARD(f2),
+        FILL_FORWARD(f1) * FILL_FORWARD(f2)
+      FROM db.tb;
          _rowts          |     f1      |       f2       |   fill_forward(f1)   |   fill_forward(f2)     | fill_forward(f1)*fill_forward(f2) |
 ============================================================================================================================================
  2025-12-02 01:01:01.000 |           1 |       2.000000 |                    1 |               2.000000 |                          2.000000 |
  2025-12-02 01:01:02.000 |        NULL |       4.000000 |                    1 |               4.000000 |                          4.000000 |
  2025-12-02 01:01:03.000 |           5 |           NULL |                    5 |               4.000000 |                         20.000000 |
  2025-12-02 01:01:04.000 |           7 |       8.000000 |                    7 |               8.000000 |                         56.000000 |
-Query OK, 4 row(s) in set (56.155269s)
+Query OK, 4 row(s) in set
 ```
 
 ### MAVG
@@ -3906,7 +5325,6 @@ BIT_DURATION(expr [, mask [, flag]])
 - In interval windows with a right-side boundary record, the final state is carried to the window end using LOCF. Boundary masks are evaluated on the original integer value without floating-point conversion. Windows, groups, and supertable subtables do not share state.
 - NULL rows are skipped without changing the previous valid state. An empty table produces no result row; a non-window aggregate with input rows that are all NULL returns 0. A window with a valid predecessor follows the boundary state-carrying rules above.
 - With `flag=2`, `mask` is accepted for signature consistency but does not affect the first-to-last timestamp difference; fewer than two valid records return 0.
-- Supports `INTERVAL`, `STATE_WINDOW`, `SESSION`, `EVENT_WINDOW`, `COUNT_WINDOW`, and stream calculations.
 - `mask` and `flag` must be constants; `mask` cannot be 0, and `flag` must be 0, 1, or 2. Floating-point, string, binary, JSON, and timestamp inputs are not supported.
 - Input must be in ascending timestamp order; descending or otherwise invalid timelines are rejected.
 
@@ -3945,17 +5363,18 @@ ignore_null: {
 - For tables with a composite primary key, when multiple rows share the same timestamp only the row with the smallest composite key participates; without a composite key, duplicate timestamps raise "Duplicate timestamps not allowed".
 - An out-of-order effective timeline raises an error; use `ORDER BY ts` in a subquery to enforce ordering before counting.
 - Cannot be used on system tables.
-- Supported as a window aggregate in stream computing; incremental results match the equivalent batch query.
 
 **Examples**:
 
 ```sql
-taos> select value_changes(current) from meters;
+taos> SELECT VALUE_CHANGES(current)
+      FROM meters;
  value_changes(current) |
 =========================
                       2 |
 
-taos> select value_changes(current, 0) from meters;
+taos> SELECT VALUE_CHANGES(current, 0)
+      FROM meters;
  value_changes(current, 0) |
 ============================
                          4 |
@@ -3992,7 +5411,7 @@ flag: {
 
 **Return Data Type**: BIGINT.
 
-**Applicable to**: Tables, supertables, window queries, and stream computations. Supported windows include `INTERVAL`, `STATE_WINDOW`, `SESSION`, `EVENT_WINDOW`, and `COUNT_WINDOW`.
+**Applicable to**: Tables and supertables.
 
 **Usage Instructions**:
 
@@ -4009,18 +5428,26 @@ Assume that `status_bits` contains `0, 1, 3, 2, 0` in timestamp order:
 
 ```sql
 -- Check the least significant bit and count 0 -> non-zero transitions
-taos> select bit_changes(status_bits) from device_status;
+SELECT BIT_CHANGES(status_bits)
+FROM device_status;
 
 -- Check the low four bits and count both directions
-taos> select bit_changes(status_bits, 15, 2) from device_status;
+SELECT BIT_CHANGES(status_bits, 15, 2)
+FROM device_status;
 
 -- Count alarm-bit clears independently for each subtable
-taos> select tbname, bit_changes(status_bits, 4, 1)
-      from meters partition by tbname;
+SELECT
+  tbname,
+  BIT_CHANGES(status_bits, 4, 1)
+FROM meters
+PARTITION BY tbname;
 
 -- Count both directions independently in each 10-minute window
-taos> select _wstart, bit_changes(status_bits, 1, 2)
-      from device_status interval(10m);
+SELECT
+  _wstart,
+  BIT_CHANGES(status_bits, 1, 2)
+FROM device_status
+INTERVAL(10m);
 ```
 
 ## Interpolation Functions
@@ -4059,6 +5486,295 @@ Usage Instructions:
 - INTERP can only use the pseudocolumn `_irowts_origin` when using FILL PREV/NEXT/NEAR modes. `_irowts_origin` is supported from version 3.3.4.9.
 - For queries on tables with composite primary keys, if there are data with the same timestamp, only the data with the smallest composite primary key participates in the calculation.
 - With a degraded timeline, NULL time rows are skipped; interpolation uses non-NULL time rows only. With a disordered degraded timeline, interp can still execute but adjacent points have non-contiguous time values, making linear interpolation results physically meaningless. Use `ORDER BY` in the subquery to ensure ordering.
+
+## Table Functions
+
+A table function returns a row set. It is called through `TABLE(...)` in the `FROM` clause. The result of a table function can participate in `JOIN`, subqueries, aggregation, windows, sorting, `LIMIT`, and other queries like a table.
+
+A table function is not an expression function: it cannot appear in the `SELECT` list, `WHERE`, `GROUP BY`, `HAVING`, `ORDER BY`, or other expressions, and cannot be used as a parameter of a scalar, aggregate, or set function. Table function results are read-only and do not support subscriptions. A stream can use TIME_ALIGN on a local virtual trigger table.
+
+### TIME_ALIGN
+
+The function parameter form is `TIME_ALIGN([db_name.]table_name [, output_raw] [, 'column_list'])`; in a query, call it through `TABLE(...)` in the `FROM` clause.
+
+```sql
+TABLE(TIME_ALIGN([db_name.]table_name [, output_raw] [, 'column_list']))
+
+output_raw: {
+    TRUE
+  | FALSE
+}
+
+column_list:
+  column_def [';' column_def ...]
+
+column_def:
+  column_name [':' [method]] [':' suffix]
+
+method:
+  (PREV | NEXT) ['(' duration ')']
+
+duration:
+  non_negative_integer time_unit
+
+time_unit:
+  b | u | a | s | m | h | d | w | n | q | y
+```
+
+**Function Classification**: Table function.
+
+**Function Description**: `TIME_ALIGN` is a table function that fills NULL values for one, several, or all columns of an input table (virtual tables, non-virtual tables, and views). It currently supports forward and backward filling, optionally outputs the original columns, optionally adds a suffix to the filled column names, and optionally limits the time distance to the source value used for interpolation.
+
+**Version**: `v3.4.3.12`.
+
+**Return Data Type**: Row set.
+
+**Nested Subquery Support**: Can be used as the `FROM` table source of a subquery.
+
+**Applicable to**: Basic tables, subtables, supertables, virtual tables, virtual subtables, virtual supertables, external tables, and views.
+
+#### Parameters
+
+| Parameter | Required | Type | Default | Description |
+| --- | --- | --- | --- | --- |
+| `table_name` | Yes | `[db_name.]table_name` | None | Input table. Write the table name directly, optionally qualified by a database name or an external table reference path. |
+| `output_raw` | No | `TRUE` / `FALSE` | `FALSE` | Whether to output the original data columns. |
+| `column_list` | No | String | `*:PREV:` | Column definition list. Multiple definitions are separated by `;`. |
+
+- Parameter order is fixed: `output_raw`, then `column_list`.
+- If `output_raw` is omitted, the column definition string can be passed directly as the second argument. When a third argument is present, the second argument must be `output_raw` and must be `TRUE` or `FALSE`.
+- Omitting both `output_raw` and `column_list` is equivalent to `TIME_ALIGN(t, FALSE, '*:PREV:')`.
+- With `output_raw=TRUE` and an omitted column definition, the default definition has empty suffixes and conflicts with the original columns. Provide explicit definitions with non-empty suffixes in that case.
+
+Examples:
+
+```sql
+TIME_ALIGN(t)
+TIME_ALIGN(t, FALSE)
+TIME_ALIGN(t, 'v:PREV:_p')
+TIME_ALIGN(t, TRUE, 'v:PREV:_p')
+TIME_ALIGN(power.t, FALSE, '*::_a')
+```
+
+#### Column Definitions
+
+Column definitions are written in the string argument. Multiple definitions are separated by `;`, and at least one is required.
+
+```sql
+column_def:
+  column_name [':' [method]] [':' suffix]
+```
+
+| Form | Method | Suffix | Equivalent Form |
+| --- | --- | --- | --- |
+| `col` | `PREV` | Empty | `col:PREV:` |
+| `col:` | `PREV` | Empty | `col:PREV:` |
+| `col::` | `PREV` | Empty | `col:PREV:` |
+| `col:METHOD` | `METHOD` | Empty | `col:METHOD:` |
+| `col::suffix` | `PREV` | `suffix` | `col:PREV:suffix` |
+| `col:METHOD:suffix` | `METHOD` | `suffix` | Same as left |
+| `col:PREV(duration)` | `PREV`, with time range | Empty | `col:PREV(duration):` |
+| `col:METHOD(duration):suffix` | `METHOD`, with time range | `suffix` | Same as left |
+
+- `METHOD` can be only `PREV` or `NEXT`, case-insensitive.
+- An omitted method defaults to `PREV`; an omitted suffix is empty.
+- To specify only a suffix, use `::`, for example `*::_a`. Writing `*:_a` treats `_a` as the method name and reports an error.
+- `col` can be a column name or `*`. For table input, `*` expands to all data columns and excludes the primary timestamp column and tag columns. For view input, `*` expands to all view output columns, including timestamp and tag columns. An external table without a primary key is treated as view input, so `*` expands to all of its output columns. `*` can appear multiple times and can coexist with other column definitions.
+- Column names support backtick-quoted identifiers. Separator scanning ignores `:` and `;` inside backticks. A suffix cannot contain `:` or `;`.
+- Whitespace around the column name, method, and suffix in a column definition is ignored. Whitespace between the method name and the opening parenthesis, and inside the parentheses, is also ignored.
+- A column definition has at most three segments; a fourth segment or later reports an error.
+- The same source column can be defined multiple times, but every output column name must be unique.
+- For table input, the primary timestamp column and tag columns cannot be used as aligned columns. For view input, every output column can be used as an aligned column. An external table without a primary key is treated as view input, so every output column can be used.
+- For table input, output column names cannot conflict with original columns (when `output_raw=TRUE`), tag columns, or the primary timestamp column. For view input and an external table without a primary key, output column names cannot conflict with the original output columns (when `output_raw=TRUE`).
+
+#### Output Columns
+
+For table input, the output columns are ordered as follows:
+
+1. Primary timestamp column: always output exactly once, as the first column. Its name and type match the input table. It is not aligned or suffixed.
+2. Original columns: when `output_raw=TRUE`, all data columns of the input table are output in input-table order. Columns not named in the column definitions are also output, without renaming or suffixing.
+3. Aligned columns: output in column-definition order. `*` expands in input-table column order. The same source column can produce multiple aligned columns.
+4. Tag columns: when `output_raw=TRUE` and the input is a supertable, tag columns are output at the end. When the input is a subtable, tag columns are not output.
+
+An external table without a primary key is treated as view input: no timestamp column is forced; `output_raw=TRUE` outputs all external columns followed by the aligned columns, and `output_raw=FALSE` outputs only the aligned columns. See "View Input" below.
+
+Tag columns in table input are not aligned and cannot be referenced by column definitions. Regardless of `output_raw`, table-input tag columns can be queried, filtered, and grouped by name on the table function result. When `output_raw=FALSE`, `SELECT *` does not include table-input tag columns. The `tbname` pseudocolumn of a supertable can be used for grouping (for example, `PARTITION BY tbname`).
+
+#### Alignment Rules
+
+For table input, for each output row (let its timestamp be t) and each aligned column:
+
+- `PREV`: returns the non-`NULL` value with the largest timestamp less than or equal to t in the same series. If there is no candidate, returns `NULL`.
+- `NEXT`: returns the non-`NULL` value with the smallest timestamp greater than or equal to t in the same series. If there is no candidate, returns `NULL`.
+- If the current row has a non-`NULL` value for the column, that value is returned directly without alignment.
+- A source `NULL` is treated as no value and skipped. The row itself remains in the output row set.
+- Alignment is performed independently per series and never propagates values across series. A supertable is divided into series by subtable, a virtual supertable by virtual subtable, and a tagged basic table by tag combination.
+- The same source column can define multiple aligned columns. Each aligned column is computed independently with its own method and time range.
+
+#### Time Range Parameter
+
+The method can carry an optional time range parameter, written as `PREV(duration)` or `NEXT(duration)`. It takes effect for table input as described below; it does not take effect for view input or an external table without a primary key, as described in "View Input".
+
+- `duration` is a non-negative integer followed by a time unit. Supported units are `b` (nanosecond), `u` (microsecond), `a` (millisecond), `s` (second), `m` (minute), `h` (hour), `d` (day), `w` (week), `n` (month), `q` (quarter), and `y` (year), case-insensitive.
+- Negative values, fractions, compound durations, and omitted units are not supported. For example, `PREV(8)`, `PREV(-8s)`, `PREV(1.5s)`, `PREV(8x)`, `PREV()`, and `PREV(8s,1h)` all report errors.
+- `PREV(0s)` and `NEXT(0s)` are valid and accept only candidates at the same timestamp.
+- Omitting the parentheses means the time distance is unlimited.
+- The time range applies only to `NULL` rows that need alignment. A row with a non-`NULL` value returns that value directly.
+- The distance is checked as a closed interval: a candidate whose distance equals `duration` is still used.
+- Only the nearest candidate is considered. If the nearest candidate is outside the range, `NULL` is returned and farther candidates are not used.
+- Fixed units `b`, `u`, `a`, `s`, `m`, `h`, `d`, and `w` are converted using the precision of the input timeline. If a unit is smaller than the timeline precision, the converted value is rounded at that precision and may become 0.
+- Calendar units `n`, `q`, and `y` advance by calendar rules, with `q` treated as 3 months. `PREV` uses the candidate value's timestamp as the base, and `NEXT` uses the current row's timestamp as the base.
+- Each column definition carries its own time range. The same source column can define different directions and ranges at the same time.
+
+#### Row Set
+
+For table input, the output row set is determined by the referenced source columns; for view input, all view output rows are used; an external table without a primary key follows view input. Projecting only some columns in the outer `SELECT` does not change the row set or the alignment results.
+
+Table input:
+
+| Configuration | Columns That Contribute to the Row Set |
+| --- | --- |
+| `output_raw=TRUE` | All data columns; for a virtual table, the union of the source timestamps of all original data columns |
+| `output_raw=FALSE` | Source columns referenced by column definitions; repeated definitions of the same source column count once |
+| `output_raw=FALSE` with `*` in the column definitions | All data columns, that is, the complete input row set |
+
+- For a basic table, all data columns share the same timeline, so `output_raw` does not change the row set.
+- For a virtual table, the timeline is the union of referenced columns, so different `output_raw` values or column definitions may produce different row counts.
+- If a column referenced by a column definition has no data in the input table, the output is an empty set.
+- With the default arguments, `*` covers all data columns, so the complete input row set is output.
+- Output row order is not guaranteed to follow timestamp order. Use `ORDER BY` when a stable order is required.
+
+#### View Input
+
+A view does not distinguish column types. Every output column can be used as an aligned column, including `TIMESTAMP` and tag columns. `TIME_ALIGN` interpolates in the view output row order and does not reorder by timestamp or primary-key columns.
+
+An external table without a primary key follows the same rules as view input: a `TIMESTAMP` column is not required, interpolation follows the external scan output row order, and the time range parameter is ignored.
+
+- `PREV` uses the previous output row (skipping `NULL`), and `NEXT` uses the next output row (skipping `NULL`). A timestamp-descending view output is also processed in that descending row order, with no direction compensation.
+- When `output_raw=TRUE`, all view output columns (including tag columns) are output first in view output order, followed by the aligned columns.
+- When `output_raw=FALSE`, only the aligned columns produced by the column definitions are output. `*` expands to all view output columns (including timestamp and tag columns); explicit definitions expose only the referenced columns.
+- The view's own filtering, `LIMIT`, `ORDER BY`, aggregation, and windows execute first. `TIME_ALIGN` runs on the view output rows, and a view `LIMIT` limits the rows that participate in alignment.
+- If the view declares `PARTITION BY` or `GROUP BY` and the view itself has no `ORDER BY` or `DISTINCT`, each group is an independent series, and `PREV` and `NEXT` do not take values across groups.
+- If the view itself has `ORDER BY` or `DISTINCT`, the entire view output is treated as one series.
+- If the view has no grouping, the entire output is treated as one series.
+- The time range parameter has no effect for view input (ignored).
+
+#### Interaction with Query Clauses
+
+- `TIME_ALIGN` is evaluated before the outer `WHERE`. The `WHERE` clause only filters output rows; it does not change the input rows used for alignment or the alignment results.
+- Outer `GROUP BY`, aggregate functions, windows, `ORDER BY`, and `LIMIT` operate on the table function output row set.
+- `COUNT(*)` counts the number of table function output rows. `COUNT(col)` counts the non-`NULL` rows after alignment.
+- `LIMIT` applies to table function output rows and does not truncate the alignment input.
+- To limit the data used for alignment, use an input view with a filter condition. The outer `WHERE` does not change the alignment input.
+- A `TIME_ALIGN` result can be used as one side of a `JOIN`, the `FROM` table source of a subquery, or one side of a `UNION`, and can be wrapped in a view and used again as the input of `TIME_ALIGN`.
+- `TIME_ALIGN` cannot be nested directly as the table argument of another `TIME_ALIGN`. Create a view first when nesting is required.
+
+#### Descending Order and Composite Primary Keys
+
+- For table input, when a query outputs rows in descending timestamp order (for example, `ORDER BY ts DESC`), the `PREV` and `NEXT` values are the same as in the ascending query; only the output row order differs.
+- For table input with a composite primary key, ascending scans are ordered by timestamp and then by the composite primary key. For multiple rows at the same timestamp, `PREV` uses the row earlier in primary-key order and `NEXT` uses the row later in primary-key order. In descending scans this order is reversed together with the timestamp, while the timestamp semantics above are preserved.
+- A virtual table reference to a composite-primary-key source is restricted by the engine and cannot reference such a source.
+
+#### Supported Inputs and Limitations
+
+Supported inputs:
+
+- Basic tables, subtables, and supertables.
+- Virtual tables, virtual subtables, and virtual supertables.
+- External tables.
+- Views.
+
+Limitations:
+
+- Except for an external table without a primary key, table input must have exactly one primary timestamp column (when a composite primary key is used, only one primary-key column can be a timestamp).
+- An external table without a primary key follows view input: a `TIMESTAMP` column is not required, interpolation follows output row order, and the time range parameter is ignored. An external table with a primary key follows table input.
+- View input does not distinguish column types and does not require a `TIMESTAMP` column. The time range parameter is ignored.
+- System tables, streams, and topics cannot be used as input.
+- For table input, tag columns and the primary timestamp column cannot be used as aligned columns. For view input and an external table without a primary key, every output column can be used as an aligned column.
+- A virtual table cannot reference a composite-primary-key source, so such a source can use time alignment only through a basic table or supertable.
+- For stream triggers, local virtual tables support `PREV` and `PREV(duration)`. A calculation query can specify TIME_ALIGN independently. See [stream syntax](../../07-stream-processing/01-syntax.md).
+- The following positions are not supported: `INSERT INTO ... SELECT`, `CREATE TOPIC`, column references in `CREATE VTABLE` or `ALTER VTABLE`, `DELETE`, and `CREATE TABLE ... AS`.
+- The default column definition `*:PREV:` references many columns. To reduce scanned columns, explicitly provide column definitions containing only the required columns.
+
+#### Privileges
+
+Executing `TIME_ALIGN` requires `SELECT` privilege on the input table or view. The privilege model is the same as querying that table or view directly, with no privilege escalation.
+
+#### Examples
+
+```sql
+-- Input table: meters(ts TIMESTAMP, voltage INT, current FLOAT)
+-- Default arguments: output the timestamp and PREV-aligned columns for all data columns
+SELECT *
+FROM TABLE (TIME_ALIGN(meters))
+ORDER BY ts;
+
+-- Output original columns and use different methods and suffixes for different columns
+SELECT
+  ts,
+  voltage,
+  current,
+  voltage_p,
+  current_n
+FROM TABLE (TIME_ALIGN(meters, TRUE, 'voltage:PREV:_p;current:NEXT:_n')) t
+ORDER BY ts;
+
+-- Time range: use only candidates within 5 seconds
+SELECT
+  ts,
+  voltage_p,
+  voltage_n
+FROM TABLE (TIME_ALIGN(meters, 'voltage:PREV(5s):_p;voltage:NEXT(5s):_n')) t
+ORDER BY ts;
+
+-- Supertable meters_st(ts TIMESTAMP, voltage INT, current FLOAT) TAGS(site INT):
+-- align each subtable independently and group by tag
+SELECT
+  site,
+  ts,
+  voltage_p
+FROM TABLE (TIME_ALIGN(meters_st, 'voltage:PREV:_p')) t
+PARTITION BY site
+ORDER BY site, ts;
+
+-- View: the view filter runs first, and the outer WHERE does not affect the alignment input
+CREATE VIEW v_meters
+  AS
+    SELECT
+      ts,
+      voltage
+    FROM meters
+    WHERE voltage IS NOT NULL;
+
+SELECT
+  ts,
+  voltage_p
+FROM TABLE (TIME_ALIGN(v_meters, TRUE, 'voltage:PREV:_p')) t
+ORDER BY ts;
+
+-- Every view output column can be aligned, including tag columns; the time range is ignored
+CREATE VIEW v_meters_tag
+  AS
+    SELECT
+      site,
+      ts,
+      voltage
+    FROM meters_st;
+
+SELECT
+  site_p,
+  ts_tp,
+  voltage_p
+FROM TABLE (TIME_ALIGN(v_meters_tag, 'site:PREV:_p;ts:PREV:_tp;voltage:PREV(5s):_p')) t
+ORDER BY ts_tp;
+
+-- Descending output: alignment values match ascending order; only the output order differs
+SELECT
+  ts,
+  voltage_p
+FROM TABLE (TIME_ALIGN(meters, 'voltage:PREV:_p')) t
+ORDER BY ts DESC;
+```
 
 ## System and Metadata Functions
 
@@ -4120,7 +5836,7 @@ SELECT SLEEP(seconds);
 
 **Function Classification**: Scalar function.
 
-**Description**: Pauses execution for the specified number of seconds. When used in a table query, `SLEEP` is evaluated once per row (MySQL-compatible); total wait time equals the sum of each row's duration.
+**Description**: Pauses execution for the specified number of seconds. When used in a table query, `SLEEP` is evaluated once per row; total wait time equals the sum of each row's duration.
 
 **Parameters**:
 
@@ -4143,9 +5859,12 @@ SELECT SLEEP(-1);
 -- NULL argument returns 0 immediately
 SELECT SLEEP(NULL);
 
--- Used with a table query: SLEEP is evaluated once per row (MySQL-compatible);
+-- Used with a table query: SLEEP is evaluated once per row;
 -- total wait time equals the sum of each row's duration
-SELECT SLEEP(1), col1 FROM table1;
+SELECT
+  SLEEP(1),
+  col1
+FROM table1;
 ```
 
 ## Geometry Functions

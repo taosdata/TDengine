@@ -28,25 +28,27 @@ After restarting Prometheus, you can refer to the following example to verify th
 
 #### Querying Written Data Using TDengine CLI
 
-```text
-taos> show databases;
+```sql
+taos> SHOW databases;
               name              |
 =================================
  information_schema             |
  performance_schema             |
  prometheus_data                |
-Query OK, 3 row(s) in set (0.000585s)
+Query OK, 3 row(s) in set
 
-taos> use prometheus_data;
+taos> USE prometheus_data;
 Database changed.
 
-taos> show stables;
+taos> SHOW stables;
               name              |
 =================================
  metrics                        |
-Query OK, 1 row(s) in set (0.000487s)
+Query OK, 1 row(s) in set
 
-taos> select * from metrics limit 10;
+taos> SELECT *
+      FROM metrics
+      LIMIT 10;
               ts               |    value    |             labels             |
 ===============================================================================
  2022-04-20 07:21:09.193000000 | 0.000024996 | {"__name__":"go_gc_duration... |
@@ -59,7 +61,7 @@ taos> select * from metrics limit 10;
  2022-04-20 07:21:19.193000000 | 0.000054249 | {"__name__":"go_gc_duration... |
  2022-04-20 07:21:24.193000000 | 0.000054249 | {"__name__":"go_gc_duration... |
  2022-04-20 07:21:29.193000000 | 0.000054249 | {"__name__":"go_gc_duration... |
-Query OK, 10 row(s) in set (0.011146s)
+Query OK, 10 row(s) in set
 ```
 
 #### Using promql-cli to Read Data from TDengine via remote_read

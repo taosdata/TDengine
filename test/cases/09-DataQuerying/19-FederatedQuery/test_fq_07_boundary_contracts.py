@@ -27,7 +27,9 @@ import os
 import re
 import threading
 import time
-from typing import Iterable, List, Sequence, Tuple
+
+import pytest
+from typing import Iterable, List, Optional, Sequence, Tuple
 
 import taos.field as _taos_field
 from taos.cinterface import taos_fetch_fields_e
@@ -38,9 +40,10 @@ from new_test_framework.utils import tdLog, tdSql
 from federated_query_common import (
     ExtSrcEnv,
     FederatedQueryCaseHelper,
-    FederatedQueryTestMixin,
+    FederatedQueryVersionedMixin,
     TSDB_CODE_EXT_TYPE_NOT_MAPPABLE,
     _code,
+    influx_versions,
 )
 
 
@@ -56,6 +59,21 @@ TSDB_CODE_EXT_SYNTAX_UNSUPPORTED = _code("TSDB_CODE_EXT_SYNTAX_UNSUPPORTED")
 TSDB_CODE_PAR_NAME_OR_PASSWD_TOO_LONG = _code(
     "TSDB_CODE_PAR_NAME_OR_PASSWD_TOO_LONG"
 )
+TSDB_CODE_PAR_SYNTAX_ERROR = _code("TSDB_CODE_PAR_SYNTAX_ERROR")
+
+# MySQL caps identifiers at 64 characters while TDengine caps the encoded
+# name at 64 bytes, so multi-byte names are the only way a provider accepts
+# both sides of TDengine's column-name byte boundary.
+_MYSQL_COL_NAME_64B = "中" * 21 + "a"     # 22 characters, 64 UTF-8 bytes
+_MYSQL_COL_NAME_65B = "中" * 21 + "ab"    # 23 characters, 65 UTF-8 bytes
+
+# Twenty 30-byte column entries plus the 3-byte ts entry put the scan list at
+# 603 bytes, safely past the planner's 512-byte diagnostic buffer.
+_MYSQL_WIDE_ATTR_COUNT = 20
+
+
+def _mysql_wide_attr(idx: int) -> str:
+    return f"w{idx:02d}_" + "x" * 25
 
 
 _MYSQL = "mysql"
@@ -169,7 +187,12 @@ class SourceSpec:
 
     @property
     def explicit_table(self) -> str:
-        return f"{self.source}.{self.namespace}.boundary_t"
+        # TDengine lower-cases an unquoted path segment, so an upper-case
+        # namespace (Oracle's account schema) has to be backticked.
+        namespace = self.namespace
+        if namespace != namespace.lower():
+            namespace = "`" + namespace.replace("`", "``") + "`"
+        return f"{self.source}.{namespace}.boundary_t"
 
 
 @dataclass(frozen=True)
@@ -529,8 +552,22 @@ _ORACLE_ROW_OVERRIDES = {
 }
 
 
-class TestFq07BoundaryContracts(FederatedQueryTestMixin):
+class TestFq07BoundaryContracts(FederatedQueryVersionedMixin):
     """Boundary contract coverage for the five real external libraries."""
+
+
+    def _source_spec_variants(self, key=None):
+        specs = [self.specs[key]] if key is not None else self.specs.values()
+        for spec in specs:
+            if spec.key != _INFLUX:
+                yield None, spec
+                continue
+            for cfg, source in self._influx_source_specs(spec.source):
+                yield cfg, SourceSpec(spec.key, source, spec.database, spec.namespace, spec.timestamp_column)
+
+    def _influx_spec(self):
+        return next(spec for cfg, spec in self._source_spec_variants(_INFLUX)
+                    if cfg.version == self._influx_cfg().version)
 
     updatecfgDict = {
         "federatedQueryEnable": 1,
@@ -553,7 +590,7 @@ class TestFq07BoundaryContracts(FederatedQueryTestMixin):
                                 _ORACLE_SCHEMA, "ts"),
         }
 
-    def setup_method(self, method):
+    def _setup_version_data(self, method):
         if TestFq07BoundaryContracts._remote_prepared:
             return
         _pin_process_timezone_utc()
@@ -654,15 +691,16 @@ class TestFq07BoundaryContracts(FederatedQueryTestMixin):
         """
         oracle_cfg = self._oracle_cfg()
         for table in _ORACLE_FIXTURE_TABLES:
-            ExtSrcEnv.oracle_drop_table_cfg(oracle_cfg, table.upper())
+            ExtSrcEnv.oracle_drop_table_cfg(oracle_cfg, table)
 
     def _cleanup_runtime_data(self):
-        for spec in self.specs.values():
-            self._drop_source(spec.source)
+        for cfg, spec in self._source_spec_variants():
+            with self._using_influx(cfg):
+                self._drop_source(spec.source)
         for cleanup in (
             lambda: ExtSrcEnv.mysql_drop_db_cfg(self._mysql_cfg(), _MYSQL_DB),
             lambda: ExtSrcEnv.pg_drop_db_cfg(self._pg_cfg(), _PG_DB),
-            lambda: ExtSrcEnv.influx_drop_db_cfg(self._influx_cfg(), _INFLUX_DB),
+            self.do_cleanup_influx_data,
             lambda: ExtSrcEnv.sqlserver_drop_db(_SQLSERVER_DB),
             self._drop_oracle_fixtures,
         ):
@@ -676,6 +714,11 @@ class TestFq07BoundaryContracts(FederatedQueryTestMixin):
             f"where name = '{_LOCAL_DB}'",
             (),
         )
+        TestFq07BoundaryContracts._remote_prepared = False
+
+    @influx_versions()
+    def do_cleanup_influx_data(self):
+        ExtSrcEnv.influx_drop_db_cfg(self._influx_cfg(), _INFLUX_DB)
 
     def _assert_source_config_value(self, name: str, field: str, expected: str):
         assert field in {"database", "schema"}, f"unsupported source config field: {field}"
@@ -694,7 +737,7 @@ class TestFq07BoundaryContracts(FederatedQueryTestMixin):
     # --- source and remote-data setup ---
 
     def _source_sql(self, spec: SourceSpec, name: str = "", database: str = "",
-                    schema: str = "", options: str = "") -> str:
+                    schema: str = "", options: str = "", password: Optional[str] = None) -> str:
         name = name or spec.source
         database = spec.database if database == "" else database
         if spec.key == _MYSQL:
@@ -715,9 +758,15 @@ class TestFq07BoundaryContracts(FederatedQueryTestMixin):
                    f"port={cfg.port} user='{cfg.user}' password='{cfg.password}'")
         else:
             cfg = self._influx_cfg()
+            user, source_password = (ExtSrcEnv.influx_source_credentials(cfg.version)
+                                     if cfg.version == "1.8" else ("fq07", ""))
+            if password is not None:
+                source_password = password
             sql = (f"create external source {self._source_ref(name)} type='influxdb' host='{cfg.host}' "
-                   f"port={cfg.port} user='fq07' password=''" )
+                   f"port={cfg.port} user='{user}' password='{source_password}'")
             options = options or self._fmt_influx_options(cfg.token)
+            if cfg.version == "1.8" and not re.search(r"'version'\s*=", options, re.I):
+                options = "'version'='1.8'," + options
         if database:
             sql += f" database='{database}'"
         if spec.key == _PG and schema:
@@ -736,30 +785,35 @@ class TestFq07BoundaryContracts(FederatedQueryTestMixin):
         return sql
 
     def _create_primary_sources(self):
-        for spec in self.specs.values():
-            self._drop_source(spec.source)
-            if spec.key == _PG:
-                tdSql.execute(self._source_sql(spec, schema="public"))
-            elif spec.key == _SQLSERVER:
-                tdSql.execute(self._source_sql(spec, schema="dbo"))
-            elif spec.key == _ORACLE:
-                tdSql.execute(self._source_sql(spec, schema=_ORACLE_SCHEMA))
-            else:
-                tdSql.execute(self._source_sql(spec))
-            self._assert_source_exists(spec.source)
-            self._assert_describe_source_summary(spec.source, spec.key)
-            self._assert_source_config_value(spec.source, "database", spec.database)
-            if spec.key == _PG:
-                self._assert_source_config_value(spec.source, "schema", "public")
-            if spec.key == _SQLSERVER:
-                self._assert_source_config_value(spec.source, "schema", "dbo")
-            if spec.key == _ORACLE:
-                self._assert_source_config_value(spec.source, "schema", _ORACLE_SCHEMA)
+        for cfg, spec in self._source_spec_variants():
+            with self._using_influx(cfg):
+                self._drop_source(spec.source)
+                if spec.key == _PG:
+                    tdSql.execute(self._source_sql(spec, schema="public"))
+                elif spec.key == _SQLSERVER:
+                    tdSql.execute(self._source_sql(spec, schema="dbo"))
+                elif spec.key == _ORACLE:
+                    tdSql.execute(self._source_sql(spec, schema=_ORACLE_SCHEMA))
+                else:
+                    tdSql.execute(self._source_sql(spec))
+                self._assert_source_exists(spec.source)
+                self._assert_describe_source_summary(spec.source, spec.key)
+                self._assert_source_config_value(spec.source, "database", spec.database)
+                if spec.key == _PG:
+                    self._assert_source_config_value(spec.source, "schema", "public")
+                if spec.key == _SQLSERVER:
+                    self._assert_source_config_value(spec.source, "schema", "dbo")
+                if spec.key == _ORACLE:
+                    self._assert_source_config_value(spec.source, "schema", _ORACLE_SCHEMA)
+
+        type(self)._influx_aliases = {cfg.version: {self.specs[_INFLUX].source: source}
+                                          for cfg, source in self._influx_source_specs(self.specs[_INFLUX].source)}
 
     def _prepare_remote_data(self):
         first_dt, second_dt, third_dt = (
             _utc_datetime_literal(epoch_ms) for epoch_ms in _BOUNDARY_EPOCH_MS
         )
+
         mysql_cfg = self._mysql_cfg()
         ExtSrcEnv.mysql_create_db_cfg(mysql_cfg, _MYSQL_DB)
         ExtSrcEnv.mysql_exec_cfg(mysql_cfg, _MYSQL_DB, [
@@ -771,6 +825,8 @@ class TestFq07BoundaryContracts(FederatedQueryTestMixin):
             "drop table if exists interp_t",
             "drop table if exists fetch_t",
             "drop table if exists structured_t",
+            "drop table if exists col_len_t",
+            "drop table if exists col_len_long_t",
             "create table boundary_t ("
             "ts datetime(3) primary key, id int, val int, score double, "
             "name varchar(32), category varchar(8), note varchar(32), "
@@ -811,6 +867,21 @@ class TestFq07BoundaryContracts(FederatedQueryTestMixin):
             "create table structured_t (id int primary key, doc json)",
             "insert into structured_t values "
             "(1, json_object('a', json_array(1, 2), 'flag', true, 'name', 'v'))",
+            f"create table col_len_t (ts datetime(3) primary key, "
+            f"`{_MYSQL_COL_NAME_64B}` int)",
+            f"insert into col_len_t values ('{first_dt}', 64)",
+            f"create table col_len_long_t (ts datetime(3) primary key, "
+            f"`{_MYSQL_COL_NAME_65B}` int)",
+            f"insert into col_len_long_t values ('{first_dt}', 65)",
+            "drop table if exists scan_cols_wide",
+            "create table scan_cols_wide (ts datetime(3) primary key, "
+            + ", ".join(f"`{_mysql_wide_attr(i)}` int"
+                        for i in range(1, _MYSQL_WIDE_ATTR_COUNT + 1))
+            + ")",
+            "insert into scan_cols_wide values ('"
+            + first_dt + "', "
+            + ", ".join(str(i) for i in range(1, _MYSQL_WIDE_ATTR_COUNT + 1))
+            + ")",
         ])
         assert ExtSrcEnv.mysql_query_cfg(mysql_cfg, _MYSQL_DB,
                                          "select count(*) from boundary_t") == 3
@@ -930,31 +1001,34 @@ class TestFq07BoundaryContracts(FederatedQueryTestMixin):
         # A schema is a login user (DS 5.3.2): the fixtures live in the login
         # schema and the source's SCHEMA default names it.  Oracle stores '' as
         # NULL, so the shared data set's empty strings are inserted as '' and
-        # read back as NULL - the row overrides state that explicitly.
+        # read back as NULL - the row overrides state that explicitly.  The
+        # names are quoted lower-case: TDengine's unquoted identifiers are
+        # lower-cased, so the shared SQL below resolves to these exact names.
         oracle_cfg = self._oracle_cfg()
         for table in _ORACLE_FIXTURE_TABLES:
-            ExtSrcEnv.oracle_drop_table_cfg(oracle_cfg, table.upper())
+            ExtSrcEnv.oracle_drop_table_cfg(oracle_cfg, table)
         ExtSrcEnv.oracle_exec_cfg(oracle_cfg, [
             (
-                "CREATE TABLE boundary_t ("
-                "ts TIMESTAMP(3), id NUMBER(10,0), val NUMBER(10,0), "
-                "score BINARY_DOUBLE, name VARCHAR2(32), category VARCHAR2(8), "
-                "note VARCHAR2(32), dec_ok NUMBER(18,4), flag NUMBER(1,0))"
+                'CREATE TABLE "boundary_t" ('
+                '"ts" TIMESTAMP(3), "id" NUMBER(10,0), "val" NUMBER(10,0), '
+                '"score" BINARY_DOUBLE, "name" VARCHAR2(32), '
+                '"category" VARCHAR2(8), "note" VARCHAR2(32), '
+                '"dec_ok" NUMBER(18,4), "flag" NUMBER(1,0))'
             ),
             # 11g has no multi-row VALUES clause: INSERT ALL is the portable
             # form for the three boundary rows.
             (
                 "INSERT ALL "
-                "INTO boundary_t (ts, id, val, score, name, category, note, "
-                "dec_ok, flag) VALUES "
+                'INTO "boundary_t" ("ts", "id", "val", "score", "name", '
+                '"category", "note", "dec_ok", "flag") VALUES '
                 f"(TO_TIMESTAMP('{first_dt}', 'YYYY-MM-DD HH24:MI:SS.FF3'),"
                 " 1, 10, 1.5, 'alpha', 'a', '', 123.4567, 1) "
-                "INTO boundary_t (ts, id, val, score, name, category, note, "
-                "dec_ok, flag) VALUES "
+                'INTO "boundary_t" ("ts", "id", "val", "score", "name", '
+                '"category", "note", "dec_ok", "flag") VALUES '
                 f"(TO_TIMESTAMP('{second_dt}', 'YYYY-MM-DD HH24:MI:SS.FF3'),"
                 " 2, 20, 2.5, 'beta', 'b', '中文', -1.0000, 0) "
-                "INTO boundary_t (ts, id, val, score, name, category, note, "
-                "dec_ok, flag) VALUES "
+                'INTO "boundary_t" ("ts", "id", "val", "score", "name", '
+                '"category", "note", "dec_ok", "flag") VALUES '
                 f"(TO_TIMESTAMP('{third_dt}', 'YYYY-MM-DD HH24:MI:SS.FF3'),"
                 " 3, NULL, NULL, '', 'a', 'emoji🙂', NULL, NULL) "
                 "SELECT 1 FROM dual"
@@ -963,50 +1037,63 @@ class TestFq07BoundaryContracts(FederatedQueryTestMixin):
             # mappable (DS 5.3.2.1), so one here would make the whole table
             # undescribable.  The unmappable family is exercised by unknown_t.
             (
-                "CREATE TABLE schema_t ("
-                "ts TIMESTAMP(3), c_char CHAR(4), c_varchar VARCHAR2(8), "
-                "c_bin RAW(8), c_clob CLOB, c_dec NUMBER(18,4))"
+                'CREATE TABLE "schema_t" ('
+                '"ts" TIMESTAMP(3), "c_char" CHAR(4), "c_varchar" VARCHAR2(8), '
+                '"c_bin" RAW(8), "c_clob" CLOB, "c_dec" NUMBER(18,4))'
             ),
             (
-                "INSERT INTO schema_t VALUES ("
+                'INSERT INTO "schema_t" VALUES ('
                 "TIMESTAMP '2024-01-01 00:00:00.000', 'ab', 'text', "
                 "HEXTORAW('00FF'), '{\"k\":1}', 123.4567)"
             ),
             (
-                "CREATE TABLE unknown_t ("
-                "ts TIMESTAMP(3), id NUMBER(10,0), shape INTERVAL DAY TO SECOND)"
+                'CREATE TABLE "unknown_t" ('
+                '"ts" TIMESTAMP(3), "id" NUMBER(10,0), '
+                '"shape" INTERVAL DAY TO SECOND)'
             ),
             (
-                "INSERT INTO unknown_t VALUES ("
+                'INSERT INTO "unknown_t" VALUES ('
                 "TIMESTAMP '2024-01-01 00:00:00.000', 1, "
                 "INTERVAL '1 02:03:04' DAY TO SECOND)"
             ),
-            "CREATE TABLE value_t (id NUMBER(10,0), note CLOB)",
-            "CREATE TABLE quoted_t (ts TIMESTAMP(3), \"SELECT\" NUMBER(10,0))",
+            'CREATE TABLE "value_t" ("id" NUMBER(10,0), "note" CLOB)',
+            'CREATE TABLE "quoted_t" ("ts" TIMESTAMP(3), "select" NUMBER(10,0))',
             (
                 "INSERT ALL "
-                "INTO quoted_t VALUES "
+                'INTO "quoted_t" VALUES '
                 f"(TO_TIMESTAMP('{first_dt}', 'YYYY-MM-DD HH24:MI:SS.FF3'), 10) "
-                "INTO quoted_t VALUES "
+                'INTO "quoted_t" VALUES '
                 f"(TO_TIMESTAMP('{second_dt}', 'YYYY-MM-DD HH24:MI:SS.FF3'), 20) "
                 "SELECT 1 FROM dual"
             ),
-            "CREATE TABLE interp_t (ts TIMESTAMP(3), val NUMBER(10,0))",
+            (
+                'CREATE TABLE "interp_t" ('
+                '"ts" TIMESTAMP(3), "val" NUMBER(10,0))'
+            ),
             (
                 "INSERT ALL "
-                "INTO interp_t VALUES (TIMESTAMP '2024-01-01 00:00:00.000', 10) "
-                "INTO interp_t VALUES (TIMESTAMP '2024-01-01 00:02:00.000', 30) "
+                'INTO "interp_t" VALUES '
+                "(TIMESTAMP '2024-01-01 00:00:00.000', 10) "
+                'INTO "interp_t" VALUES '
+                "(TIMESTAMP '2024-01-01 00:02:00.000', 30) "
                 "SELECT 1 FROM dual"
             ),
-            "CREATE TABLE fetch_t (ts TIMESTAMP(3), id NUMBER(10,0), val NUMBER(10,0))",
             (
-                "INSERT INTO fetch_t (ts, id, val) "
-                "SELECT TIMESTAMP '2024-02-01 00:00:00' + NUMTODSINTERVAL(level - 1, 'SECOND'), "
+                'CREATE TABLE "fetch_t" ('
+                '"ts" TIMESTAMP(3), "id" NUMBER(10,0), "val" NUMBER(10,0))'
+            ),
+            (
+                'INSERT INTO "fetch_t" ("ts", "id", "val") '
+                "SELECT TIMESTAMP '2024-02-01 00:00:00' + "
+                "NUMTODSINTERVAL(level - 1, 'SECOND'), "
                 f"level, level * 3 FROM dual CONNECT BY level <= {_FETCH_BOUNDARY_ROWS}"
             ),
-            "CREATE TABLE structured_t (id NUMBER(10,0), doc VARCHAR2(4000))",
             (
-                "INSERT INTO structured_t VALUES "
+                'CREATE TABLE "structured_t" ('
+                '"id" NUMBER(10,0), "doc" VARCHAR2(4000))'
+            ),
+            (
+                'INSERT INTO "structured_t" VALUES '
                 "(1, '{\"a\": [1, 2], \"flag\": true, \"name\": \"v\"}')"
             ),
             "COMMIT",
@@ -1015,25 +1102,30 @@ class TestFq07BoundaryContracts(FederatedQueryTestMixin):
         # so the NCHAR boundary values are built as CLOBs: RPAD over a CLOB
         # returns a CLOB and is not subject to the VARCHAR2 limit.
         ExtSrcEnv.oracle_exec_cfg(oracle_cfg, [
-            "INSERT INTO value_t (id, note) SELECT 1, "
+            'INSERT INTO "value_t" ("id", "note") SELECT 1, '
             f"RPAD(TO_CLOB('x'), {_NCHAR_LIMIT_CHARS - 1}, TO_CLOB('x')) FROM dual",
-            "INSERT INTO value_t (id, note) SELECT 2, "
+            'INSERT INTO "value_t" ("id", "note") SELECT 2, '
             f"RPAD(TO_CLOB('y'), {_NCHAR_LIMIT_CHARS}, TO_CLOB('y')) FROM dual",
-            "INSERT INTO value_t (id, note) SELECT 3, "
+            'INSERT INTO "value_t" ("id", "note") SELECT 3, '
             f"RPAD(TO_CLOB('z'), {_NCHAR_LIMIT_CHARS + 1}, TO_CLOB('z')) FROM dual",
         ])
         assert ExtSrcEnv.oracle_query_cfg(
-            oracle_cfg, "SELECT COUNT(*) FROM boundary_t") == "3"
+            oracle_cfg, 'SELECT COUNT(*) FROM "boundary_t"') == "3"
         assert ExtSrcEnv.oracle_query_cfg(
-            oracle_cfg, "SELECT COUNT(*) FROM fetch_t") == str(_FETCH_BOUNDARY_ROWS)
+            oracle_cfg, 'SELECT COUNT(*) FROM "fetch_t"'
+        ) == str(_FETCH_BOUNDARY_ROWS)
         assert ExtSrcEnv.oracle_query_cfg(
-            oracle_cfg, "SELECT MAX(LENGTH(note)) FROM value_t"
+            oracle_cfg, 'SELECT MAX(LENGTH("note")) FROM "value_t"'
         ) == str(_NCHAR_LIMIT_CHARS + 1)
         assert ExtSrcEnv.oracle_query_cfg(
-            oracle_cfg, "SELECT COUNT(*) FROM value_t WHERE LENGTH(note) IN "
+            oracle_cfg, 'SELECT COUNT(*) FROM "value_t" WHERE LENGTH("note") IN '
             f"({_NCHAR_LIMIT_CHARS - 1}, {_NCHAR_LIMIT_CHARS})"
         ) == "2"
 
+        self._prepare_influx_data()
+
+    @influx_versions()
+    def _prepare_influx_data(self):
         influx_cfg = self._influx_cfg()
         ExtSrcEnv.influx_create_db_cfg(influx_cfg, _INFLUX_DB)
         ExtSrcEnv.influx_write_cfg(influx_cfg, _INFLUX_DB, [
@@ -1052,6 +1144,12 @@ class TestFq07BoundaryContracts(FederatedQueryTestMixin):
             "http_sparse_t id=3i,name=\"missing\" 1704067320000000000",
             "http_sparse_t id=4i,val=0i,name=\"zero\" 1704067380000000000",
             "structured_t id=1i,doc=\"{\\\"a\\\":[1,2],\\\"flag\\\":true,\\\"name\\\":\\\"v\\\"}\" 1704067200000000000",
+            "tag_ok," + ",".join(f"k{i:03d}=v" for i in range(1, 9))
+            + " v=1i 1704067200000000000",
+            "tag_boundary," + ",".join(f"k{i:03d}=v" for i in range(1, 129))
+            + " v=1i 1704067200000000000",
+            "tag_over," + ",".join(f"k{i:03d}=v" for i in range(1, 130))
+            + " v=1i 1704067200000000000",
             *(
                 "fetch_t id=%di,val=%di %d" % (
                     index, index * 3, 1706745600000000000 + index * 1000000000
@@ -1092,24 +1190,26 @@ class TestFq07BoundaryContracts(FederatedQueryTestMixin):
         assert case.expected_rows is not None, f"{case.case_id} has no expected rows"
         assert case.expected_columns, f"{case.case_id} has no result-schema assertion"
         for source_key in case.sources:
-            spec = self.specs[source_key]
-            sql = case.sql_template.format(
-                table=spec.table, source=spec.source, timestamp=spec.timestamp_column
-            )
-            expected_rows = case.expected_rows
-            if source_key == _ORACLE:
-                expected_rows = _ORACLE_ROW_OVERRIDES.get(case.case_id, expected_rows)
-            self._assert_rows(sql, expected_rows)
-            self._assert_result_columns(sql, case.expected_columns)
+            for cfg, spec in self._source_spec_variants(source_key):
+                with self._using_influx(cfg):
+                    sql = case.sql_template.format(
+                        table=spec.table, source=spec.source, timestamp=spec.timestamp_column
+                    )
+                    expected_rows = case.expected_rows
+                    if source_key == _ORACLE:
+                        expected_rows = _ORACLE_ROW_OVERRIDES.get(case.case_id, expected_rows)
+                    self._assert_rows(sql, expected_rows)
+                    self._assert_result_columns(sql, case.expected_columns)
 
     def do_query_result_matrix(self):
         for case in _QUERY_CASES:
             self._run_query_case(case)
         print("FQ07 query result matrix ......................... [ passed ]")
 
+    @influx_versions()
     def do_influx_http_parity(self):
         source = "fq07_src_i_http"
-        flight = self.specs[_INFLUX]
+        flight = self._influx_spec()
         cfg = self._influx_cfg()
         sql = "select id as id, val as val, name as name from {}.http_sparse_t order by id"
         expected = ((1, 10, "alpha"), (2, 20, "beta"),
@@ -1138,38 +1238,40 @@ class TestFq07BoundaryContracts(FederatedQueryTestMixin):
             self._drop_source(source)
         print("FQ07 Influx HTTP/Flight parity .................. [ passed ]")
 
+    def _check_fetch_source(self, source, timestamp_column, expected):
+        sql = (
+            "select e.id as id, e.val as val "
+            f"from {source}.fetch_t e left join {_LOCAL_DB}.dim d "
+            f"on e.{timestamp_column} = d.ts order by e.id"
+        )
+        self._assert_rows(sql, expected)
+        self._assert_result_columns(sql, ("id", "val"))
+        self._assert_remote_sql(sql, ("select",), ("federated", "join"))
+        self._assert_rows("select 1", ((1,),))
+
     def do_native_fetch_batch_matrix(self):
         """Read more than two native provider batches with an exact row oracle."""
-        flight = self.specs[_INFLUX]
+        expected = tuple((index, index * 3) for index in range(1, _FETCH_BOUNDARY_ROWS + 1))
+        for key in (_MYSQL, _PG, _SQLSERVER, _ORACLE):
+            spec = self.specs[key]
+            self._check_fetch_source(spec.source, spec.timestamp_column, expected)
+        self.do_influx_fetch_batches(expected)
+        print("FQ07 native fetch batch matrix .................. [ passed ]")
+
+    @influx_versions()
+    def do_influx_fetch_batches(self, expected):
+        flight = self._influx_spec()
         http_source = "fq07_src_i_http_batch"
         cfg = self._influx_cfg()
-        expected = tuple((index, index * 3) for index in range(1, _FETCH_BOUNDARY_ROWS + 1))
         self._drop_source(http_source)
         try:
             tdSql.execute(self._source_sql(
                 flight, name=http_source,
                 options=self._fmt_influx_options(cfg.token, protocol="http")))
-            source_specs = (
-                (self.specs[_MYSQL].source, self.specs[_MYSQL].timestamp_column),
-                (self.specs[_PG].source, self.specs[_PG].timestamp_column),
-                (self.specs[_SQLSERVER].source, self.specs[_SQLSERVER].timestamp_column),
-                (self.specs[_ORACLE].source, self.specs[_ORACLE].timestamp_column),
-                (flight.source, flight.timestamp_column),
-                (http_source, flight.timestamp_column),
-            )
-            for source, timestamp_column in source_specs:
-                sql = (
-                    "select e.id as id, e.val as val "
-                    f"from {source}.fetch_t e left join {_LOCAL_DB}.dim d "
-                    f"on e.{timestamp_column} = d.ts order by e.id"
-                )
-                self._assert_rows(sql, expected)
-                self._assert_result_columns(sql, ("id", "val"))
-                self._assert_remote_sql(sql, ("select",), ("federated", "join"))
-                self._assert_rows("select 1", ((1,),))
+            for source in (flight.source, http_source):
+                self._check_fetch_source(source, flight.timestamp_column, expected)
         finally:
             self._drop_source(http_source)
-        print("FQ07 native fetch batch matrix .................. [ passed ]")
 
     def do_native_structured_and_decimal_matrix(self):
         structured_expected = {
@@ -1186,67 +1288,75 @@ class TestFq07BoundaryContracts(FederatedQueryTestMixin):
             _ORACLE: ((1, Decimal("123.4567")), (2, Decimal("-1.0000")), (3, None)),
             _INFLUX: ((1, 123.4567), (2, -1.0), (3, None)),
         }
-        for spec in self.specs.values():
-            structured_sql = (
-                f"select id as id, doc as doc from {spec.source}.structured_t order by id"
-            )
-            self._assert_rows(structured_sql, structured_expected[spec.key])
-            self._assert_result_columns(structured_sql, ("id", "doc"))
-            self._assert_remote_sql(structured_sql, ("select", "structured_t"), ("federated",))
+        for cfg, spec in self._source_spec_variants():
+            with self._using_influx(cfg):
+                structured_sql = (
+                    f"select id as id, doc as doc from {spec.source}.structured_t order by id"
+                )
+                self._assert_rows(structured_sql, structured_expected[spec.key])
+                self._assert_result_columns(structured_sql, ("id", "doc"))
+                self._assert_remote_sql(structured_sql, ("select", "structured_t"), ("federated",))
 
-            decimal_sql = f"select id as id, dec_ok as dec_ok from {spec.table} order by id"
-            self._assert_rows(decimal_sql, decimal_expected[spec.key])
-            self._assert_result_columns(decimal_sql, ("id", "dec_ok"))
-            self._assert_remote_sql(decimal_sql, ("select", "dec_ok"), ("federated",))
-            self._assert_rows("select 1", ((1,),))
+                decimal_sql = f"select id as id, dec_ok as dec_ok from {spec.table} order by id"
+                self._assert_rows(decimal_sql, decimal_expected[spec.key])
+                self._assert_result_columns(decimal_sql, ("id", "dec_ok"))
+                self._assert_remote_sql(decimal_sql, ("select", "dec_ok"), ("federated",))
+                self._assert_rows("select 1", ((1,),))
         print("FQ07 native structured and decimal matrix ....... [ passed ]")
 
     def do_path_and_explain_matrix(self):
         expected = ((1, "alpha"), (2, "beta"), (3, ""))
         oracle_expected = ((1, "alpha"), (2, "beta"), (3, None))
-        for spec in self.specs.values():
-            self._assert_rows(
-                f"select id, name from {spec.explicit_table} order by id",
-                oracle_expected if spec.key == _ORACLE else expected,
-            )
-            self._assert_explain_has_federated_scan(
-                f"select id, name from {spec.table} where id >= 1 order by id"
-            )
-            self._assert_plan_has_federated_scan(
-                f"select id, name from {spec.table} where id >= 1 order by id"
-            )
-            self._assert_explain_analyze_has_federated_scan(
-                f"select id, name from {spec.table} where id >= 1 order by id"
-            )
+        for cfg, spec in self._source_spec_variants():
+            with self._using_influx(cfg):
+                self._assert_rows(
+                    f"select id, name from {spec.explicit_table} order by id",
+                    oracle_expected if spec.key == _ORACLE else expected,
+                )
+                self._assert_explain_has_federated_scan(
+                    f"select id, name from {spec.table} where id >= 1 order by id"
+                )
+                self._assert_plan_has_federated_scan(
+                    f"select id, name from {spec.table} where id >= 1 order by id"
+                )
+                self._assert_explain_analyze_has_federated_scan(
+                    f"select id, name from {spec.table} where id >= 1 order by id"
+                )
         print("FQ07 path and explain matrix ..................... [ passed ]")
 
     def do_use_context_matrix(self):
         expected_external = ((1, "alpha"), (2, "beta"), (3, ""))
         oracle_expected_external = ((1, "alpha"), (2, "beta"), (3, None))
-        for spec in self.specs.values():
-            expected = (oracle_expected_external if spec.key == _ORACLE
-                        else expected_external)
-            tdSql.execute(f"use {self._source_ref(spec.source)}")
-            self._assert_rows(
-                "select id, name from boundary_t order by id", expected
-            )
+        for cfg, spec in self._source_spec_variants():
+            with self._using_influx(cfg):
+                expected = (oracle_expected_external if spec.key == _ORACLE
+                            else expected_external)
+                tdSql.execute(f"use {self._source_ref(spec.source)}")
+                self._assert_rows(
+                    "select id, name from boundary_t order by id", expected
+                )
 
-            if spec.key == _SQLSERVER:
-                # Two-segment USE switches the database for SQL Server; the schema
-                # comes from the source default (DS 5.3.4).
-                tdSql.execute(
-                    f"use {self._source_ref(spec.source)}.{self._source_ref(spec.database)}")
-            else:
-                # For Oracle the second segment is the schema, exactly as in a
-                # three-segment path (DS 5.3.4).
-                tdSql.execute(
-                    f"use {self._source_ref(spec.source)}.{self._source_ref(spec.namespace)}")
-            self._assert_rows(
-                "select id, name from boundary_t order by id", expected
-            )
+                if spec.key == _SQLSERVER:
+                    # Two-segment USE switches the database for SQL Server; the schema
+                    # comes from the source default (DS 5.3.4).
+                    tdSql.execute(
+                        f"use {self._source_ref(spec.source)}.{self._source_ref(spec.database)}")
+                else:
+                    # For Oracle the second segment is the schema, exactly as in a
+                    # three-segment path (DS 5.3.4).  An upper-case schema needs
+                    # backticks: TDengine lower-cases an unquoted identifier.
+                    ns = spec.namespace
+                    if ns != ns.lower():
+                        ns = "`" + ns.replace("`", "``") + "`"
+                    else:
+                        ns = self._source_ref(ns)
+                    tdSql.execute(f"use {self._source_ref(spec.source)}.{ns}")
+                self._assert_rows(
+                    "select id, name from boundary_t order by id", expected
+                )
 
-            tdSql.execute(f"use {_LOCAL_DB}")
-            self._assert_rows("select id, weight from dim order by id", ((1, 100), (2, 200)))
+                tdSql.execute(f"use {_LOCAL_DB}")
+                self._assert_rows("select id, weight from dim order by id", ((1, 100), (2, 200)))
         print("FQ07 USE context matrix .......................... [ passed ]")
 
     def _assert_explain_has_federated_scan(self, sql: str):
@@ -1273,7 +1383,9 @@ class TestFq07BoundaryContracts(FederatedQueryTestMixin):
     def _assert_remote_sql(self, sql: str, required_fragments: Sequence[str],
                            required_plan_fragments: Sequence[str] = (),
                            forbidden_remote_fragments: Sequence[str] = ()):
-        tdSql.query(f"explain verbose true {sql}")
+        native = self._influx_cfg().version == "1.8" and self.specs[_INFLUX].source in sql
+        mode = "explain analyze verbose true" if native else "explain verbose true"
+        tdSql.query(f"{mode} {sql}")
         lines = tuple(
             str(cell) for row in (tdSql.queryResult or ()) for cell in row if cell is not None
         )
@@ -1281,6 +1393,11 @@ class TestFq07BoundaryContracts(FederatedQueryTestMixin):
         remote_lines = tuple(line for line in lines if "remote sql:" in line.lower())
         assert remote_lines, f"plan has no remote SQL: sql={sql!r}, plan={lines!r}"
         remote_sql = "\n".join(remote_lines).lower()
+        if native:
+            assert not re.search(r"\b(join|union|having)\b|\(\s*select\b", remote_sql), remote_lines
+            # Non-time ordering and its dependent LIMIT remain local.
+            required_fragments = tuple(fragment for fragment in required_fragments
+                                       if fragment.lower() not in ("order by", "limit"))
         for fragment in required_fragments:
             assert fragment.lower() in remote_sql, (
                 f"remote SQL misses {fragment!r}: sql={sql!r}, remote={remote_lines!r}"
@@ -1313,26 +1430,27 @@ class TestFq07BoundaryContracts(FederatedQueryTestMixin):
         variants = (
             (63, ""), (64, ""), (64, "é"), (64, "中"), (64, "🙂"), (65, ""),
         )
-        for spec in self.specs.values():
-            for length, suffix in variants:
-                name = self._utf8_exact_bytes(length, suffix)
-                self._drop_source(name)
-                sql = self._source_sql(spec, name=name, schema="public")
-                if length <= 64:
-                    tdSql.execute(sql)
-                    self._assert_source_exists(name)
+        for cfg, spec in self._source_spec_variants():
+            with self._using_influx(cfg):
+                for length, suffix in variants:
+                    name = self._utf8_exact_bytes(length, suffix)
                     self._drop_source(name)
-                else:
-                    self._assert_error(
-                        sql, TSDB_CODE_EXT_IDENTIFIER_TOO_LONG, "too long"
-                    )
-                    self._assert_no_partial_source(name)
+                    sql = self._source_sql(spec, name=name, schema="public")
+                    if length <= 64:
+                        tdSql.execute(sql)
+                        self._assert_source_exists(name)
+                        self._drop_source(name)
+                    else:
+                        self._assert_error(
+                            sql, TSDB_CODE_EXT_IDENTIFIER_TOO_LONG, "too long"
+                        )
+                        self._assert_no_partial_source(name)
 
-            reserved = "select"
-            self._drop_source(reserved)
-            tdSql.execute(self._source_sql(spec, name=reserved, schema="public"))
-            self._assert_source_exists(reserved)
-            self._drop_source(reserved)
+                reserved = "select"
+                self._drop_source(reserved)
+                tdSql.execute(self._source_sql(spec, name=reserved, schema="public"))
+                self._assert_source_exists(reserved)
+                self._drop_source(reserved)
         print("FQ07 source identifier boundaries ................ [ passed ]")
 
     def do_database_schema_alter_boundaries(self):
@@ -1341,33 +1459,34 @@ class TestFq07BoundaryContracts(FederatedQueryTestMixin):
             (64, self._utf8_exact_bytes(64, "中")),
             (65, self._utf8_exact_bytes(65, "🙂")),
         )
-        for spec in self.specs.values():
-            name = f"fq07_ddl_{spec.key[0]}"
-            self._drop_source(name)
-            for length, database in values:
-                sql = self._source_sql(spec, name=name, database=database, schema="public")
-                if length <= 64:
-                    tdSql.execute(sql)
-                    self._assert_source_exists(name)
-                    self._assert_source_config_value(name, "database", database)
-                    self._drop_source(name)
-                else:
-                    self._assert_error(sql, TSDB_CODE_EXT_IDENTIFIER_TOO_LONG, "too long")
-                    self._assert_no_partial_source(name)
+        for cfg, spec in self._source_spec_variants():
+            with self._using_influx(cfg):
+                name = f"fq07_ddl_{spec.key[0]}"
+                self._drop_source(name)
+                for length, database in values:
+                    sql = self._source_sql(spec, name=name, database=database, schema="public")
+                    if length <= 64:
+                        tdSql.execute(sql)
+                        self._assert_source_exists(name)
+                        self._assert_source_config_value(name, "database", database)
+                        self._drop_source(name)
+                    else:
+                        self._assert_error(sql, TSDB_CODE_EXT_IDENTIFIER_TOO_LONG, "too long")
+                        self._assert_no_partial_source(name)
 
-            tdSql.execute(self._source_sql(spec, name=name, schema="public"))
-            self._assert_source_exists(name)
-            for length, database in values:
-                alter = (f"alter external source {self._source_ref(name)} "
-                         f"set database='{database}'")
-                if length <= 64:
-                    tdSql.execute(alter)
-                    self._assert_source_config_value(name, "database", database)
-                else:
-                    before = self._rows_after_describe(name)
-                    self._assert_error(alter, TSDB_CODE_EXT_IDENTIFIER_TOO_LONG, "too long")
-                    assert self._rows_after_describe(name) == before, "failed ALTER changed source"
-            self._drop_source(name)
+                tdSql.execute(self._source_sql(spec, name=name, schema="public"))
+                self._assert_source_exists(name)
+                for length, database in values:
+                    alter = (f"alter external source {self._source_ref(name)} "
+                             f"set database='{database}'")
+                    if length <= 64:
+                        tdSql.execute(alter)
+                        self._assert_source_config_value(name, "database", database)
+                    else:
+                        before = self._rows_after_describe(name)
+                        self._assert_error(alter, TSDB_CODE_EXT_IDENTIFIER_TOO_LONG, "too long")
+                        assert self._rows_after_describe(name) == before, "failed ALTER changed source"
+                self._drop_source(name)
 
         pg = self.specs[_PG]
         name = "fq07_ddl_schema"
@@ -1397,31 +1516,180 @@ class TestFq07BoundaryContracts(FederatedQueryTestMixin):
         assert rows, f"DESCRIBE returned no rows for {name}"
         return rows
 
+    def do_source_field_length_boundaries(self):
+        """Last accepted and first rejected external-source field lengths.
+
+        Source creation is DDL only and never opens a connection, so the long
+        host, user, password and port values only need to pass the validator.
+        The option value and total-budget cases use MySQL's free-form charset
+        option, which has no semantic validation beyond its length.
+        """
+        cfg = self._mysql_cfg()
+
+        def ddl(name, host=None, port=None, user=None, password=None, options=""):
+            sql = (f"create external source {name} type='mysql' "
+                   f"host='{cfg.host if host is None else host}' "
+                   f"port={cfg.port if port is None else port} "
+                   f"user='{cfg.user if user is None else user}' "
+                   f"password='{cfg.password if password is None else password}'")
+            if options:
+                sql += f" options({options})"
+            return sql
+
+        def accepted(name, sql):
+            self._drop_source(name)
+            tdSql.execute(sql)
+            self._assert_source_exists(name)
+            self._drop_source(name)
+
+        def rejected(name, sql, errno, message):
+            self._drop_source(name)
+            self._assert_error(sql, errno, message)
+            self._assert_source_absent(name)
+
+        accepted("fq07_len_host", ddl("fq07_len_host", host="h" * 256))
+        rejected("fq07_len_host", ddl("fq07_len_host", host="h" * 257),
+                 TSDB_CODE_PAR_NAME_OR_PASSWD_TOO_LONG, "HOST is too long")
+
+        accepted("fq07_len_user", ddl("fq07_len_user", user="u" * 128))
+        rejected("fq07_len_user", ddl("fq07_len_user", user="u" * 129),
+                 TSDB_CODE_PAR_NAME_OR_PASSWD_TOO_LONG, "USER is too long")
+
+        accepted("fq07_len_pass", ddl("fq07_len_pass", password="p" * 128))
+        rejected("fq07_len_pass", ddl("fq07_len_pass", password="p" * 129),
+                 TSDB_CODE_PAR_NAME_OR_PASSWD_TOO_LONG, "PASSWORD is too long")
+
+        accepted("fq07_len_port_lo", ddl("fq07_len_port_lo", port=1))
+        accepted("fq07_len_port_hi", ddl("fq07_len_port_hi", port=65535))
+        for port in (0, 65536):
+            name = f"fq07_len_port_{port}"
+            rejected(name, ddl(name, port=port), TSDB_CODE_PAR_SYNTAX_ERROR,
+                     "PORT must be in range [1, 65535]")
+
+        accepted("fq07_len_opt",
+                 ddl("fq07_len_opt", options=f"'charset'='{'c' * 4095}'"))
+        rejected("fq07_len_opt",
+                 ddl("fq07_len_opt", options=f"'charset'='{'c' * 4096}'"),
+                 TSDB_CODE_PAR_NAME_OR_PASSWD_TOO_LONG,
+                 "Name or password too long")
+        rejected("fq07_len_opt",
+                 ddl("fq07_len_opt",
+                     options=f"'charset'='{'c' * 4090}','ssl_mode'='preferred'"),
+                 TSDB_CODE_PAR_NAME_OR_PASSWD_TOO_LONG,
+                 "OPTIONS values total too long")
+
+        print("FQ07 source field length boundaries ............. [ passed ]")
+
+    def do_column_identifier_boundaries(self):
+        """External column names at TDengine's 64-byte identifier boundary.
+
+        MySQL accepts both fixture names (22 and 23 characters), but TDengine
+        rejects the 65-byte one during metadata ingest.  The accepted table
+        must remain queryable after the rejected one fails.
+        """
+        source = self.specs[_MYSQL].source
+        tdSql.query(f"select `{_MYSQL_COL_NAME_64B}` from {source}.col_len_t")
+        tdSql.checkRows(1)
+        tdSql.checkData(0, 0, 64)
+
+        self._assert_error(f"select * from {source}.col_len_long_t",
+                           TSDB_CODE_EXT_IDENTIFIER_TOO_LONG,
+                           "identifier is too long")
+        tdSql.query(f"select `{_MYSQL_COL_NAME_64B}` from {source}.col_len_t")
+        tdSql.checkRows(1)
+        tdSql.checkData(0, 0, 64)
+        print("FQ07 column identifier boundaries .............. [ passed ]")
+
+    def do_scan_column_list_length_boundaries(self):
+        """Scan column lists past the planner's 512-byte diagnostic buffer.
+
+        The 512 is only the local log buffer, not a query limit: the table is
+        well under the 4096 referenced-column limit, so select * must return
+        the full row with no crash and the session must stay healthy.
+        """
+        source = self.specs[_MYSQL].source
+        tdSql.query(f"describe {source}.scan_cols_wide")
+        fields = [str(row[0]).lower() for row in tdSql.queryResult]
+        assert len(fields) == _MYSQL_WIDE_ATTR_COUNT + 1, fields
+        for idx in (1, _MYSQL_WIDE_ATTR_COUNT):
+            assert _mysql_wide_attr(idx).lower() in fields
+
+        tdSql.query(f"select * from {source}.scan_cols_wide limit 1")
+        tdSql.checkRows(1)
+        for idx in (1, _MYSQL_WIDE_ATTR_COUNT):
+            tdSql.checkData(0, fields.index(_mysql_wide_attr(idx).lower()), idx)
+
+        tdSql.query("select 1")
+        tdSql.checkRows(1)
+        tdSql.checkData(0, 0, 1)
+        print("FQ07 scan column list length boundaries ......... [ passed ]")
+
+    def do_influx_tag_count_boundaries(self):
+        """InfluxDB tag counts around the 128-tag external limit.
+
+        129 tags must be rejected while planning with
+        TSDB_CODE_EXT_REQUIRED_TAGS_TOO_MANY.  The 128-tag and small-tag
+        fixtures must execute when InfluxDB execution is healthy; some local
+        development stores cannot execute any FQ Influx query, so those two
+        checks are skipped when a baseline query already fails with the
+        executor-internal error.
+        """
+        for cfg, spec in self._source_spec_variants(_INFLUX):
+            with self._using_influx(cfg):
+                execution_ok = True
+                try:
+                    tdSql.query(f"select * from {spec.source}.boundary_t limit 1")
+                except Exception:
+                    execution_ok = False
+                    tdLog.info(
+                        f"FQ07 Influx {cfg.version} execution unavailable: "
+                        f"{getattr(tdSql, 'error_info', '')}")
+                if execution_ok:
+                    tdSql.query(f"select * from {spec.source}.tag_ok limit 1")
+                    tdSql.checkRows(1)
+                    tdSql.query(f"select * from {spec.source}.tag_boundary limit 1")
+                    tdSql.checkRows(1)
+                else:
+                    tdLog.info("FQ07 skipping in-boundary Influx tag execution checks")
+
+                self._assert_error(
+                    f"select * from {spec.source}.tag_over",
+                    TSDB_CODE_EXT_REQUIRED_TAGS_TOO_MANY,
+                    "Too many external tags required by query")
+        print("FQ07 Influx tag count boundaries ................ [ passed ]")
+
     def do_options_and_masking_boundaries(self):
         long_key = "k" * 65
         secret = "fq07_secret_must_not_escape"
-        for spec in self.specs.values():
-            name = f"fq07_opts_{spec.key[0]}"
-            self._drop_source(name)
-            if spec.key == _INFLUX:
-                options = f"'api_token'='{secret}','protocol'='flight_sql'"
-            else:
-                options = "'connect_timeout_ms'='1000'"
-            source_schema = "dbo" if spec.key == _SQLSERVER else "public"
-            tdSql.execute(self._source_sql(spec, name=name, schema=source_schema, options=options))
-            self._assert_source_exists(name)
-            self._assert_error(
-                f"alter external source {self._source_ref(name)} "
-                f"set options('{long_key}'='x')",
-                TSDB_CODE_PAR_NAME_OR_PASSWD_TOO_LONG,
-                "too long",
-                (secret,),
-            )
-            described = self._rows_after_describe(name)
-            described_text = "\n".join(str(cell) for row in described for cell in row)
-            assert long_key not in described_text
-            assert secret not in described_text, "sensitive option leaked by DESCRIBE"
-            self._drop_source(name)
+        for cfg, spec in self._source_spec_variants():
+            with self._using_influx(cfg):
+                name = f"fq07_opts_{spec.key[0]}"
+                self._drop_source(name)
+                password = None
+                if spec.key == _INFLUX:
+                    if self._influx_cfg().version == "1.8":
+                        options = self._fmt_influx_options("", protocol="http")
+                        password = secret
+                    else:
+                        options = f"'api_token'='{secret}','protocol'='flight_sql'"
+                else:
+                    options = "'connect_timeout_ms'='1000'"
+                source_schema = "dbo" if spec.key == _SQLSERVER else "public"
+                tdSql.execute(self._source_sql(spec, name=name, schema=source_schema,
+                                              options=options, password=password))
+                self._assert_source_exists(name)
+                self._assert_error(
+                    f"alter external source {self._source_ref(name)} "
+                    f"set options('{long_key}'='x')",
+                    TSDB_CODE_PAR_NAME_OR_PASSWD_TOO_LONG,
+                    "too long",
+                    (secret,),
+                )
+                described = self._rows_after_describe(name)
+                described_text = "\n".join(str(cell) for row in described for cell in row)
+                assert long_key not in described_text
+                assert secret not in described_text, "sensitive option leaked by DESCRIBE"
+                self._drop_source(name)
         print("FQ07 options and masking boundaries ............. [ passed ]")
 
     # --- schema, delayed type errors, and recovery ---
@@ -1451,11 +1719,12 @@ class TestFq07BoundaryContracts(FederatedQueryTestMixin):
             ),
             _ORACLE: (
                 # Oracle reports object names exactly as stored in the data
-                # dictionary (upper case for unquoted DDL), and VARCHAR2/CHAR
-                # map to VARCHAR while CLOB maps to NCHAR (DS 5.3.2.1).
-                ("TS", "TIMESTAMP", 8, ""), ("C_CHAR", "VARCHAR", 4, ""),
-                ("C_VARCHAR", "VARCHAR", 8, ""), ("C_BIN", "VARBINARY", 8, ""),
-                ("C_CLOB", "NCHAR", 16379, ""), ("C_DEC", "DECIMAL(18, 4)", 8, ""),
+                # dictionary; this fixture uses quoted lower-case names, and
+                # VARCHAR2/CHAR map to VARCHAR while CLOB maps to NCHAR
+                # (DS 5.3.2.1).
+                ("ts", "TIMESTAMP", 8, ""), ("c_char", "VARCHAR", 4, ""),
+                ("c_varchar", "VARCHAR", 8, ""), ("c_bin", "VARBINARY", 8, ""),
+                ("c_clob", "NCHAR", 16379, ""), ("c_dec", "DECIMAL(18, 4)", 8, ""),
             ),
             _INFLUX: (
                 ("time", "TIMESTAMP", 8, ""), ("c_float", "DOUBLE", 8, ""),
@@ -1464,8 +1733,16 @@ class TestFq07BoundaryContracts(FederatedQueryTestMixin):
             ),
         }
         for source_key, schema in expected.items():
-            spec = self.specs[source_key]
-            self._assert_rows(f"describe {spec.source}.schema_t", schema)
+            for cfg, spec in self._source_spec_variants(source_key):
+                with self._using_influx(cfg):
+                    columns = schema
+                    if source_key == _INFLUX and cfg.version == "1.8":
+                        columns = (
+                            ("time", "TIMESTAMP", 8, ""), ("c_bool", "BOOL", 1, ""),
+                            ("c_float", "DOUBLE", 8, ""), ("c_int", "BIGINT", 8, ""),
+                            ("c_str", "NCHAR", 16379, ""),
+                        )
+                    self._assert_rows(f"describe {spec.source}.schema_t", columns)
         print("FQ07 schema normalization ....................... [ passed ]")
 
     def do_client_field_metadata(self):
@@ -1500,12 +1777,13 @@ class TestFq07BoundaryContracts(FederatedQueryTestMixin):
         }
         oracle_rows = ((1, 1.5, "alpha", 1, None),)
         for source_key, fields in expected.items():
-            spec = self.specs[source_key]
-            self._assert_field_schema(
-                f"select id, score, name, flag, note from {spec.table} where id = 1",
-                fields,
-                oracle_rows if source_key == _ORACLE else ((1, 1.5, "alpha", True, ""),),
-            )
+            for cfg, spec in self._source_spec_variants(source_key):
+                with self._using_influx(cfg):
+                    self._assert_field_schema(
+                        f"select id, score, name, flag, note from {spec.table} where id = 1",
+                        fields,
+                        oracle_rows if source_key == _ORACLE else ((1, 1.5, "alpha", True, ""),),
+                    )
 
         decimal_fields = {
             _MYSQL: (FieldSchema("dec_ok", FieldType.C_DECIMAL64, 18, 4, 64),),
@@ -1514,47 +1792,49 @@ class TestFq07BoundaryContracts(FederatedQueryTestMixin):
             _INFLUX: (FieldSchema("dec_ok", FieldType.C_DOUBLE, 0, 0, 8),),
         }
         for source_key, fields in decimal_fields.items():
-            spec = self.specs[source_key]
-            self._assert_field_schema(
-                f"select dec_ok from {spec.table} where id = 1",
-                fields,
-                (
-                    ((Decimal("123.4567"),),)
-                    if source_key != _INFLUX
-                    else ((123.4567,),)
-                ),
-            )
+            for cfg, spec in self._source_spec_variants(source_key):
+                with self._using_influx(cfg):
+                    self._assert_field_schema(
+                        f"select dec_ok from {spec.table} where id = 1",
+                        fields,
+                        (
+                            ((Decimal("123.4567"),),)
+                            if source_key != _INFLUX
+                            else ((123.4567,),)
+                        ),
+                    )
         print("FQ07 TAOS_FIELD_E metadata ...................... [ passed ]")
 
     def do_value_conversion_boundaries(self):
         expected_by_source = {
             _SQLSERVER: ((1, _SQLSERVER_NCHAR_VALUES[0]), (2, _SQLSERVER_NCHAR_VALUES[1])),
         }
-        for spec in self.specs.values():
-            expected = expected_by_source.get(
-                spec.key, ((1, _NCHAR_VALUES[0]), (2, _NCHAR_VALUES[1])))
-            table = f"{spec.source}.value_t"
-            sql = f"select id as id, note as note from {table} where id < 3 order by id"
-            self._assert_rows(sql, expected)
-            self._assert_result_columns(sql, ("id", "note"))
-            if spec.key == _INFLUX:
-                # InfluxDB strings are unbounded, so there is no fixed-width
-                # overflow to detect.
-                self._assert_rows("select 1", ((1,),))
-                continue
-            # SQL Server keeps the over-budget value in value_big_t: it is
-            # zero-pushdown, so the scan converts the whole block before the
-            # local filter runs and a single over-budget row would fail every
-            # query on value_t (not just the one selecting that row).
-            overflow_table = (f"{spec.source}.value_big_t"
-                              if spec.key == _SQLSERVER else table)
-            self._assert_error(
-                f"select id, note from {overflow_table} where id = 3",
-                TSDB_CODE_EXT_TYPE_CONVERT_FAILED,
-                "conversion failed",
-            )
-            self._assert_rows(sql, expected)
-            self._assert_result_columns(sql, ("id", "note"))
+        for cfg, spec in self._source_spec_variants():
+            with self._using_influx(cfg):
+                expected = expected_by_source.get(
+                    spec.key, ((1, _NCHAR_VALUES[0]), (2, _NCHAR_VALUES[1])))
+                table = f"{spec.source}.value_t"
+                sql = f"select id as id, note as note from {table} where id < 3 order by id"
+                self._assert_rows(sql, expected)
+                self._assert_result_columns(sql, ("id", "note"))
+                if spec.key == _INFLUX:
+                    # InfluxDB strings are unbounded, so there is no fixed-width
+                    # overflow to detect.
+                    self._assert_rows("select 1", ((1,),))
+                    continue
+                # SQL Server keeps the over-budget value in value_big_t: it is
+                # zero-pushdown, so the scan converts the whole block before the
+                # local filter runs and a single over-budget row would fail every
+                # query on value_t (not just the one selecting that row).
+                overflow_table = (f"{spec.source}.value_big_t"
+                                  if spec.key == _SQLSERVER else table)
+                self._assert_error(
+                    f"select id, note from {overflow_table} where id = 3",
+                    TSDB_CODE_EXT_TYPE_CONVERT_FAILED,
+                    "conversion failed",
+                )
+                self._assert_rows(sql, expected)
+                self._assert_result_columns(sql, ("id", "note"))
         print("FQ07 value conversion boundaries ............... [ passed ]")
 
     def do_unknown_type_delayed_errors(self):
@@ -1570,155 +1850,162 @@ class TestFq07BoundaryContracts(FederatedQueryTestMixin):
             "select id from {table} union all select id from {table} where shape is null",
         )
         for source_key in (_MYSQL, _PG, _SQLSERVER, _ORACLE):
-            spec = self.specs[source_key]
-            table = f"{spec.source}.unknown_t"
-            self._assert_rows(f"select id from {table} order by id", ((1,),))
-            for query in queries:
-                self._assert_error(
-                    query.format(table=table), TSDB_CODE_EXT_TYPE_NOT_MAPPABLE,
-                    "cannot be mapped",
-                )
+            for cfg, spec in self._source_spec_variants(source_key):
+                with self._using_influx(cfg):
+                    table = f"{spec.source}.unknown_t"
+                    self._assert_rows(f"select id from {table} order by id", ((1,),))
+                    for query in queries:
+                        self._assert_error(
+                            query.format(table=table), TSDB_CODE_EXT_TYPE_NOT_MAPPABLE,
+                            "cannot be mapped",
+                        )
         print("FQ07 delayed unknown-type errors ............... [ passed ]")
 
     def do_error_recovery_and_metadata_refresh(self):
-        for spec in self.specs.values():
-            self._assert_error(
-                f"select no_such_column from {spec.table}",
-                _code("TSDB_CODE_PAR_INVALID_COLUMN"),
-            )
-            tdSql.execute(f"refresh external source {self._source_ref(spec.source)}")
-            self._assert_rows(
-                f"select count(*) from {spec.table}", ((3,),)
-            )
+        for cfg, spec in self._source_spec_variants():
+            with self._using_influx(cfg):
+                self._assert_error(
+                    f"select no_such_column from {spec.table}",
+                    _code("TSDB_CODE_PAR_INVALID_COLUMN"),
+                )
+                tdSql.execute(f"refresh external source {self._source_ref(spec.source)}")
+                self._assert_rows(
+                    f"select count(*) from {spec.table}", ((3,),)
+                )
         print("FQ07 recovery and metadata refresh ............. [ passed ]")
 
     def do_pool_reuse_and_refresh_matrix(self):
         expected = ((1, 10), (2, 20), (3, None))
-        for spec in self.specs.values():
-            sql = f"select id, val from {spec.table} order by id"
-            for _ in range(3):
-                self._assert_rows(sql, expected)
-                self._assert_result_columns(sql, ("id", "val"))
-                tdSql.execute(f"refresh external source {self._source_ref(spec.source)}")
-                self._assert_rows(sql, expected)
-                self._assert_result_columns(sql, ("id", "val"))
-                self._assert_rows("select 1", ((1,),))
+        for cfg, spec in self._source_spec_variants():
+            with self._using_influx(cfg):
+                sql = f"select id, val from {spec.table} order by id"
+                for _ in range(3):
+                    self._assert_rows(sql, expected)
+                    self._assert_result_columns(sql, ("id", "val"))
+                    tdSql.execute(f"refresh external source {self._source_ref(spec.source)}")
+                    self._assert_rows(sql, expected)
+                    self._assert_result_columns(sql, ("id", "val"))
+                    self._assert_rows("select 1", ((1,),))
         print("FQ07 pool reuse and repeated refresh ........... [ passed ]")
 
     def do_concurrent_metadata_refresh_matrix(self):
         expected = ((1, 10), (2, 20), (3, None))
-        for spec in self.specs.values():
-            sql = f"select id, val from {spec.table} order by id"
-            barrier = threading.Barrier(3)
-            errors = []
-            errors_lock = threading.Lock()
+        for cfg, spec in self._source_spec_variants():
+            with self._using_influx(cfg):
+                sql = f"select id, val from {spec.table} order by id"
+                barrier = threading.Barrier(3)
+                errors = []
+                errors_lock = threading.Lock()
 
-            def query_worker():
-                import taos
+                def query_worker():
+                    import taos
 
-                conn = None
-                cursor = None
+                    conn = None
+                    cursor = None
+                    try:
+                        conn = taos.connect()
+                        cursor = conn.cursor()
+                        barrier.wait(timeout=15)
+                        for _ in range(3):
+                            cursor.execute(sql)
+                            rows = tuple(tuple(row) for row in cursor.fetchall())
+                            if rows != expected:
+                                raise AssertionError(
+                                    f"concurrent query result mismatch: expected={expected!r}, actual={rows!r}"
+                                )
+                    except Exception as exc:
+                        with errors_lock:
+                            errors.append(repr(exc))
+                    finally:
+                        if cursor is not None:
+                            cursor.close()
+                        if conn is not None:
+                            conn.close()
+
+                workers = [threading.Thread(target=query_worker, daemon=True) for _ in range(2)]
+                for worker in workers:
+                    worker.start()
                 try:
-                    conn = taos.connect()
-                    cursor = conn.cursor()
                     barrier.wait(timeout=15)
                     for _ in range(3):
-                        cursor.execute(sql)
-                        rows = tuple(tuple(row) for row in cursor.fetchall())
-                        if rows != expected:
-                            raise AssertionError(
-                                f"concurrent query result mismatch: expected={expected!r}, actual={rows!r}"
-                            )
-                except Exception as exc:
-                    with errors_lock:
-                        errors.append(repr(exc))
+                        tdSql.execute(f"refresh external source {self._source_ref(spec.source)}")
+                        self._assert_rows(sql, expected)
+                        self._assert_result_columns(sql, ("id", "val"))
                 finally:
-                    if cursor is not None:
-                        cursor.close()
-                    if conn is not None:
-                        conn.close()
-
-            workers = [threading.Thread(target=query_worker, daemon=True) for _ in range(2)]
-            for worker in workers:
-                worker.start()
-            try:
-                barrier.wait(timeout=15)
-                for _ in range(3):
-                    tdSql.execute(f"refresh external source {self._source_ref(spec.source)}")
-                    self._assert_rows(sql, expected)
-                    self._assert_result_columns(sql, ("id", "val"))
-            finally:
-                for worker in workers:
-                    worker.join(timeout=30)
-            assert all(not worker.is_alive() for worker in workers), (
-                f"concurrent refresh workers did not exit for {spec.key}"
-            )
-            assert not errors, f"concurrent refresh/query failures for {spec.key}: {errors!r}"
-            self._assert_rows("select 1", ((1,),))
+                    for worker in workers:
+                        worker.join(timeout=30)
+                assert all(not worker.is_alive() for worker in workers), (
+                    f"concurrent refresh workers did not exit for {spec.key}"
+                )
+                assert not errors, f"concurrent refresh/query failures for {spec.key}: {errors!r}"
+                self._assert_rows("select 1", ((1,),))
         print("FQ07 concurrent metadata refresh matrix ........ [ passed ]")
 
     def do_partition_by_tbname_matrix(self):
-        for source_key, spec in self.specs.items():
-            sql = f"select count(*) as total from {spec.table} partition by tbname order by total"
-            if source_key == _INFLUX:
-                self._assert_rows(sql, ((1,), (2,)))
-                self._assert_result_columns(sql, ("total",))
-            else:
-                self._assert_error(sql, TSDB_CODE_EXT_SYNTAX_UNSUPPORTED)
+        for cfg, spec in self._source_spec_variants():
+            with self._using_influx(cfg):
+                source_key = spec.key
+                sql = f"select count(*) as total from {spec.table} partition by tbname order by total"
+                if source_key == _INFLUX:
+                    self._assert_rows(sql, ((1,), (2,)))
+                    self._assert_result_columns(sql, ("total",))
+                else:
+                    self._assert_error(sql, TSDB_CODE_EXT_SYNTAX_UNSUPPORTED)
         print("FQ07 partition-by-tbname matrix ............... [ passed ]")
 
     def do_execution_mode_and_remote_sql_matrix(self):
-        for spec in self.specs.values():
-            direct_sql = (
-                f"select id as id, val as val from {spec.table} "
-                "where val >= 10 order by id limit 2"
-            )
-            self._assert_rows(direct_sql, ((1, 10), (2, 20)))
-            self._assert_result_columns(direct_sql, ("id", "val"))
-            # T-SQL renders LIMIT as OFFSET/FETCH and Oracle renders it as
-            # FETCH FIRST ... ROWS ONLY (neither emits the "limit" keyword).
-            if spec.key == _SQLSERVER:
-                limit_fragment = ("offset", "fetch next")
-            elif spec.key == _ORACLE:
-                limit_fragment = ("fetch first", "rows only")
-            else:
-                limit_fragment = ("limit",)
-            self._assert_remote_sql(
-                direct_sql,
-                ("select", "where", "order by", *limit_fragment),
-                ("federated",),
-            )
+        for cfg, spec in self._source_spec_variants():
+            with self._using_influx(cfg):
+                direct_sql = (
+                    f"select id as id, val as val from {spec.table} "
+                    "where val >= 10 order by id limit 2"
+                )
+                self._assert_rows(direct_sql, ((1, 10), (2, 20)))
+                self._assert_result_columns(direct_sql, ("id", "val"))
+                # T-SQL renders LIMIT as OFFSET/FETCH and Oracle renders it as
+                # FETCH FIRST ... ROWS ONLY (neither emits the "limit" keyword).
+                if spec.key == _SQLSERVER:
+                    limit_fragment = ("offset", "fetch next")
+                elif spec.key == _ORACLE:
+                    limit_fragment = ("fetch first", "rows only")
+                else:
+                    limit_fragment = ("limit",)
+                self._assert_remote_sql(
+                    direct_sql,
+                    ("select", "where", "order by", *limit_fragment),
+                    ("federated",),
+                )
 
-            partial_sql = (
-                f"select e.id as id, d.weight as weight from {spec.table} e "
-                f"join {_LOCAL_DB}.dim d on e.{spec.timestamp_column} = d.ts "
-                "order by e.id"
-            )
-            self._assert_rows(partial_sql, ((1, 100), (2, 200)))
-            self._assert_result_columns(partial_sql, ("id", "weight"))
-            self._assert_remote_sql(partial_sql, ("select",), ("federated", "join"))
+                partial_sql = (
+                    f"select e.id as id, d.weight as weight from {spec.table} e "
+                    f"join {_LOCAL_DB}.dim d on e.{spec.timestamp_column} = d.ts "
+                    "order by e.id"
+                )
+                self._assert_rows(partial_sql, ((1, 100), (2, 200)))
+                self._assert_result_columns(partial_sql, ("id", "weight"))
+                self._assert_remote_sql(partial_sql, ("select",), ("federated", "join"))
 
-            remote_filter_join_sql = (
-                f"select e.id as id, d.weight as weight from {spec.table} e "
-                f"join {_LOCAL_DB}.dim d on e.{spec.timestamp_column} = d.ts "
-                "where e.val >= 10 order by e.id"
-            )
-            self._assert_rows(remote_filter_join_sql, ((1, 100), (2, 200)))
-            self._assert_result_columns(remote_filter_join_sql, ("id", "weight"))
-            self._assert_remote_sql(
-                remote_filter_join_sql, ("select", "where"), ("federated", "join")
-            )
+                remote_filter_join_sql = (
+                    f"select e.id as id, d.weight as weight from {spec.table} e "
+                    f"join {_LOCAL_DB}.dim d on e.{spec.timestamp_column} = d.ts "
+                    "where e.val >= 10 order by e.id"
+                )
+                self._assert_rows(remote_filter_join_sql, ((1, 100), (2, 200)))
+                self._assert_result_columns(remote_filter_join_sql, ("id", "weight"))
+                self._assert_remote_sql(
+                    remote_filter_join_sql, ("select", "where"), ("federated", "join")
+                )
 
-            local_filter_join_sql = (
-                f"select e.id as id, d.weight as weight from {spec.table} e "
-                f"join {_LOCAL_DB}.dim d on e.{spec.timestamp_column} = d.ts "
-                "where d.weight >= 100 order by e.id"
-            )
-            self._assert_rows(local_filter_join_sql, ((1, 100), (2, 200)))
-            self._assert_result_columns(local_filter_join_sql, ("id", "weight"))
-            self._assert_remote_sql(local_filter_join_sql, ("select",), ("federated", "join"))
+                local_filter_join_sql = (
+                    f"select e.id as id, d.weight as weight from {spec.table} e "
+                    f"join {_LOCAL_DB}.dim d on e.{spec.timestamp_column} = d.ts "
+                    "where d.weight >= 100 order by e.id"
+                )
+                self._assert_rows(local_filter_join_sql, ((1, 100), (2, 200)))
+                self._assert_result_columns(local_filter_join_sql, ("id", "weight"))
+                self._assert_remote_sql(local_filter_join_sql, ("select",), ("federated", "join"))
 
-            self._assert_rows("select 1", ((1,),))
+                self._assert_rows("select 1", ((1,),))
         print("FQ07 execution mode and remote SQL matrix ...... [ passed ]")
 
     # --- coverage and assertion audit ---
@@ -1744,7 +2031,7 @@ class TestFq07BoundaryContracts(FederatedQueryTestMixin):
     def test_fq_07_boundary_contracts(self):
         """Federated query boundary contracts.
 
-        1. Validate external-source DDL identifiers, ALTER rollback, options and masking.
+        1. Validate external-source DDL identifiers, field lengths, ALTER rollback, options and masking.
         2. Validate five-library path, result, schema, EXPLAIN and SQL-shape matrices.
         3. Validate delayed unknown-type errors, recovery and assertion coverage.
 
@@ -1764,6 +2051,10 @@ class TestFq07BoundaryContracts(FederatedQueryTestMixin):
         try:
             self.do_source_identifier_boundaries()
             self.do_database_schema_alter_boundaries()
+            self.do_source_field_length_boundaries()
+            self.do_column_identifier_boundaries()
+            self.do_scan_column_list_length_boundaries()
+            self.do_influx_tag_count_boundaries()
             self.do_options_and_masking_boundaries()
             self.do_query_result_matrix()
             self.do_influx_http_parity()

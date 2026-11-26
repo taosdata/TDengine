@@ -87,13 +87,13 @@ typedef struct STaskSubJobCtx {
   char*              idStr;
   void*              pTaskInfo;
   void*              rpcHandle;
-  int64_t            transporterId;
   int32_t            code;
   int32_t            rspLen;
   tsem_t             ready;
   uint64_t           blockIdx;
   SArray*            subEndPoints;  // SArray<SDownstreamSourceNode*>
-  SArray*            subResNodes;  // SArray<SNode*>
+  SArray*            subResNodes;  // Borrowed response-handler nodes; never owned by this context.
+  SArray*            subResCache;  // Owned ordinary-query result snapshots; handlers never write here.
   uint64_t           streamGen;    // incremented per runner invocation for cache invalidation
 } STaskSubJobCtx;
 
@@ -101,6 +101,13 @@ typedef struct SScalarFetchParam {
   int32_t           subQIdx;
   SNode*            pRes;
   int64_t           subJobRefId;
+  // Transport handle of this very fetch request. The transport writes it before the request can
+  // be dispatched and the completion callback releases exactly this handle, so concurrent
+  // fetches of the same sub-job never release each other's in-flight requests.
+  int64_t           transId;
+  // Transport instance that owns transId. Kept here as a numeric handle so the completion
+  // callback can still release the request handle after the sub-job context was destroyed.
+  void*             pTransporter;
 } SScalarFetchParam;
 
 
@@ -193,6 +200,11 @@ typedef struct STableListInfo {
   SHashObj*        pTbnameMap;    // key: uid, value: an owned name resolved from a tbname condition
   SHashObj*        remainGroups;  // remaining group has not yet processed the empty group
   STableListIdInfo idInfo;        // this maybe the super table or ordinary table
+  // 128-bit fingerprint of the qualified child-table set (the de-duplicated map
+  // uids), computed after the table list is built. Scans over the same virtual stable
+  // under different tag conditions produce different sets and therefore must not
+  // share a vc_cols cache entry.
+  uint64_t         mapFingerprint[2];
 } STableListInfo;
 typedef struct SDBVgInfoReq {
   tsem_t     ready;
@@ -288,7 +300,7 @@ int32_t  getGroupIdFromTagsVal(void* pVnode, uint64_t uid, SNodeList* pGroupNode
                                SStorageAPI* pAPI);
 size_t   getTableTagsBufLen(const SNodeList* pGroups);
 
-SArray* createSortInfo(SNodeList* pNodeList);
+SArray* createSortInfo(SNodeList* pNodeList, bool forceDescending);
 SArray* makeColumnArrayFromList(SNodeList* pNodeList);
 int32_t extractColMatchInfo(SNodeList* pNodeList, SDataBlockDescNode* pOutputNodeList, int32_t* numOfOutputCols,
                             int32_t type, SColMatchInfo* pMatchInfo);
@@ -328,12 +340,16 @@ const char* interpNotifyTargetOpName(int32_t operatorType);
 int32_t initQueryTableDataCondWithColArray(SQueryTableDataCond* pCond, SQueryTableDataCond* pOrgCond,
                                      const SReadHandle* readHandle, SArray* colArray);
 
+#if defined(BUILD_TEST)
+void execTestComputeTableListFingerprint(STableListInfo* pTableListInfo);
+#endif
+
 int32_t convertFillType(int32_t mode);
 int32_t resultrowComparAsc(const void* p1, const void* p2);
 int32_t isQualifiedTable(int64_t uid, SNode* pTagCond, void* vnode, bool* pQualified, SStorageAPI* pAPI);
 char*   getStreamOpName(uint16_t opType);
 
-void    printSpecDataBlock(SSDataBlock* pBlock, const char* flag, const char* opStr, const char* taskIdStr);
+void    printSpecDataBlock(SSDataBlock* pBlock, const char* flag, const char* opStr, const char* taskIdStr, void *charsetCxt);
 
 TSKEY getStartTsKey(STimeWindow* win, const TSKEY* tsCols);
 void  updateTimeWindowInfo(SColumnInfoData* pColData, const STimeWindow* pWin, int64_t delta);
@@ -369,12 +385,18 @@ int32_t doDropStreamTable(SMsgCb* pMsgCb, void* pOutput, SSTriggerDropRequest* p
 int32_t doDropStreamTableByTbName(SMsgCb* pMsgCb, void* pOutput, SSTriggerDropRequest* pReq, char* tbName);
 
 int32_t parseErrorMsgFromAnalyticServer(SJson* pJson, const char* typeStr, const char* pId);
+/** Cache one group's keys in an owned, output-shaped block; callers destroy *ppKeys. */
+int32_t cacheAnalysisGroupKeys(SExprInfo* pExprs, int32_t numOfExprs, SSDataBlock* pInput, SSDataBlock* pOutput,
+                               SSDataBlock** ppKeys);
+/** Copy cached keys to every analysis result row after the output capacity is ensured. */
+int32_t fillAnalysisGroupKeys(SExprInfo* pExprs, int32_t numOfExprs, SSDataBlock* pKeys, SSDataBlock* pOutput);
 /* Structural provenance only; the common builder performs fallible validation. */
 bool    streamCanForwardRunnerContext(const SStreamRuntimeInfo* pRuntime, const SStreamRuntimeFuncInfo* pInfo,
                                       int32_t msgType, bool reset);
 int32_t buildStreamRunnerFetchRtInfo(const SStreamRuntimeFuncInfo* pSrc, SStreamRuntimeFuncInfo* pDst);
 void    cleanupStreamRunnerFetchRtInfo(SStreamRuntimeFuncInfo* pInfo);
 int32_t remoteNodeCopy(SNode* pSrc, SNode* pDst);
+const SNode* qPeekRemoteResult(void* pCtx, int32_t subQIdx);
 int32_t qFetchRemoteNode(void* pCtx, int32_t subQIdx, SNode* pRes);
 bool    isStaticMultiGroupJoinQualified(const struct SOperatorInfo* pOperator);
 /** Request after each execution reset, before the first fetch. Mode resolves before its first return. */

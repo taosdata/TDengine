@@ -31,6 +31,7 @@ The data sources currently supported by TDengine are listed below. The hundreds 
 | InfluxDB | 1.7, 1.8, 2.0-2.7 | A popular open-source time-series database optimized for handling large volumes of time-series data.|
 | OpenTSDB | 2.4.1 | A distributed, scalable time-series database based on HBase. It is primarily used for storing, indexing, and providing access to metric data collected from large-scale clusters (including network devices, operating systems, applications, etc.), making this data more accessible and graphically presentable. |
 | MySQL | 5.6,5.7,8.0+ | One of the most popular relational database management systems, known for its small size, fast speed, low overall ownership cost, and particularly its open-source nature, making it the choice for website database development for both medium-sized and large websites. |
+| Dameng | DM8 | Dameng is a domestic relational database widely used in power, energy, and government systems. See [Dameng](./24-dameng.md). |
 | Oracle | 11G/12c/19c | Oracle Database System is one of the world's popular relational database management systems, known for its good portability, ease of use, powerful features, suitable for various large, medium, and small computer environments. It is an efficient, reliable, and high-throughput database solution. |
 | PostgreSQL | v15.0+  | PostgreSQL is a very powerful open-source client/server relational database management system, with many features found in large commercial RDBMS, including transactions, sub-selects, triggers, views, foreign key referential integrity, and complex locking capabilities.|
 | SQL Server | 2012/2022 | Microsoft SQL Server is a relational database management system developed by Microsoft, known for its ease of use, good scalability, and high integration with related software. |
@@ -38,6 +39,8 @@ The data sources currently supported by TDengine are listed below. The hundreds 
 | CSV | -  | Abbreviation for Comma Separated Values, a plain text file format separated by commas, commonly used in spreadsheet or database software. |
 | TDengine Query | 2.4+, 3.0+ | Query from older version of TDengine and write into new cluster. |
 | TDengine Data Subscription | 3.0+ | Use TMQ for subscribing to specified databases or supertables from TDengine. |
+
+Dameng, MySQL, Oracle, PostgreSQL, and SQL Server share one ingestion design. It supports full migration, incremental synchronization, and scheduled synchronization, and provides field mapping, type conversion, and data verification. See [Relational Database Integration](./23-rdb-integration.md).
 
 ## More Industrial Protocols {#more-industrial-protocols}
 
@@ -330,11 +333,15 @@ The task list can display the following states:
 
 An empty health status means that no data has entered the task yet.
 
+## Resource Usage Control
+
+If a task drives taosX or taosX-Agent memory, CPU, or network usage too high, configure `[resource]` in `taosx.toml` or `agent.toml` to set bandwidth, memory, and CPU limits for the data plane. See [Resource Usage Control](../06-resource-control.md) for configuration, recommended settings, and limitations.
+
 ## Resume Tasks from Checkpoints
 
 Most taosX data sources can resume from the last persisted checkpoint:
 
-- **TDengine Query**, **MySQL**, **PostgreSQL**, **Oracle**, **Microsoft SQL Server**, and **MongoDB** persist the timestamp of the last query and resume from it.
+- **TDengine Query**, **MySQL**, **PostgreSQL**, **Oracle**, **Dameng**, **Microsoft SQL Server**, and **MongoDB** persist the timestamp of the last query and resume from it.
 - **TDengine Data Subscription** relies on TDengine subscription progress.
 - **PI**, **InfluxDB**, and **OpenTSDB** persist message timestamps and resume from them.
 - **OPC UA**, **OPC DA**, and **MQTT** persist messages to disk when **Cache Realtime Data** is enabled.

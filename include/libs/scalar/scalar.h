@@ -30,6 +30,15 @@ typedef int32_t (*sclFetchFromRemote)(void*, int32_t, SNode*);
 typedef bool    (*sclIsTaskKilled)(void*);
 
 typedef struct SFilterInfo SFilterInfo;
+typedef struct SStreamDerivativeLogState SStreamDerivativeLogState;
+
+// Parse a validated integer/VARCHAR/NCHAR unit into source-precision ticks.
+// NULL denotes success. The returned error text is static.
+const char* scalarStreamDerivativeDuration(const char* data, int8_t type, int32_t precision, int64_t* ticks);
+
+// Runner-owned diagnostic state; shared by its calculations and freed on undeploy.
+int32_t scalarCreateStreamDerivativeLogState(SStreamDerivativeLogState** ppState);
+void scalarDestroyStreamDerivativeLogState(SStreamDerivativeLogState* pState);
 typedef struct SCorrelationTaskSession SCorrelationTaskSession;
 typedef struct SCorrelationRuntimeOps SCorrelationRuntimeOps;
 typedef struct SCorrelationWaitHooks SCorrelationWaitHooks;
@@ -103,6 +112,7 @@ int32_t  scalarBuildRemoteListHash(char* idStr, SRemoteValueListNode* pRemote, S
 
 /* Math functions */
 int32_t absFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput);
+int32_t bitCountFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput);
 int32_t logFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput);
 int32_t powFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput);
 int32_t sqrtFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput);
@@ -193,6 +203,7 @@ int32_t dayofweekFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *
 int32_t weekFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput);
 int32_t weekofyearFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput);
 int32_t dateFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput);
+int32_t mysqlTimeFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput);
 
 bool getTimePseudoFuncEnv(struct SFunctionNode *pFunc, SFuncExecEnv *pEnv);
 bool getMarkPseudoFuncEnv(SFunctionNode *UNUSED_PARAM(pFunc), SFuncExecEnv *pEnv);
@@ -219,6 +230,7 @@ int32_t percentileScalarFunction(SScalarParam *pInput, int32_t inputNum, SScalar
 int32_t apercentileScalarFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput);
 int32_t spreadScalarFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput);
 int32_t derivativeScalarFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput);
+int32_t streamDerivativeFactorFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput);
 int32_t irateScalarFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput);
 int32_t twaScalarFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput);
 int32_t mavgScalarFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput);

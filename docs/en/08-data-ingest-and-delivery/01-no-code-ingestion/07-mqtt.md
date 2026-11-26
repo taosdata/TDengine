@@ -57,6 +57,8 @@ In **Clean Session**, choose whether to clear the session. The default value is 
 
 When MQTT `5.0` is selected, you can configure custom **Connection User Properties** and **Subscription User Properties**. When using a TDengine Bnode as the MQTT broker, you can also specify the initial subscription position.
 
+An MQTT 5.0 PUBLISH message can provide its collection time through a single, case-sensitive `Timestamp` user property. taosX parses the value in the `yyyy-MM-dd HH:mm:ss:SSS` format (UTC+8), for example `2026-10-20 13:46:30:103`, and uses the parsed time as the source `ts` field. When the table mapping uses this field as the primary timestamp column, the parsed time is written to TDengine. If the property is missing, invalid, outside the nanosecond timestamp range, or repeated, taosX uses the message reception time. Other user properties are ignored. MQTT 3.1.1 continues to use the message reception time.
+
 In the **Topics Qos Config**, fill in the topic name and QoS to subscribe. Use the following format: `{topic_name}::{qos}` (e.g., `my_topic::0`). MQTT protocol 5.0 supports shared subscriptions, allowing multiple clients to subscribe to the same topic for load balancing. Use the following format: `$share/{group_name}/{topic_name}::{qos}`, where `$share` is a fixed prefix indicating the enablement of shared subscription, and `group_name` is the client group name, similar to Kafka's consumer group.
 
 In the **Topic Analysis**, fill in the MQTT topic parsing rules. The format is the same as the MQTT Topic, parsing each level of the MQTT Topic into corresponding variable names, with `_` indicating that the current level is ignored during parsing. For example: if the MQTT Topic `a/+/c` corresponds to the parsing rule `v1/v2/_`, it means assigning the first level `a` to variable `v1`, the value of the second level (where the wildcard `+` represents any value) to variable `v2`, and ignoring the value of the third level `c`, which will not be assigned to any variable. In the `payload parsing` below, the variables obtained from Topic parsing can also participate in various transformations and calculations.
@@ -136,7 +138,7 @@ Click the **magnifying glass icon** to view the preview of the filtering results
 
 In the **Target Supertable** dropdown, select a target supertable, or click the **Create Supertable** button on the right.
 
-If the supertable must be generated dynamically from each message, select **Create Template**. The supertable name, column names, and column types can contain template variables. When data arrives, taosX evaluates the variables, creates a missing supertable, and adds missing columns to an existing supertable.
+If the supertable must be generated dynamically from each message, select **Create Template**. The supertable name, column names, and column types can contain template variables. When data arrives, taosX evaluates the variables and adds missing columns to an existing supertable. By default, it creates a missing supertable; you can choose another response in the exception handling strategy.
 
 In **Mapping**, fill in the subtable name in the target supertable, for example: `t_{id}`. Fill in the mapping rules according to the requirements, where mapping supports setting default values.
 

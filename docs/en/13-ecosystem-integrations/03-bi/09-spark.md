@@ -338,17 +338,24 @@ The LAG() function in Spark is used to obtain data from a previous row relative 
 1. Obtain data through TDengine SQL and create a Spark View. See createSparkView() for details.
 
     ```sql
-    SELECT tbname,* FROM test.meters WHERE tbname='d0'
+    SELECT
+      tbname,
+      *
+    FROM test.meters
+    WHERE tbname = 'd0'
     ```
 
 2. Use Spark SQL to query the data in the Spark View and calculate the weekly voltage change rate. The SQL is as follows:
 
     ```sql
-    SELECT tbname, ts, voltage,
-        (LAG(voltage, 7) OVER (ORDER BY tbname)) AS voltage_last_week, 
-        "CONCAT(ROUND(((voltage - (LAG(voltage, 7) OVER (ORDER BY tbname))) / (LAG(voltage, 7)
+    SELECT
+      tbname,
+      ts,
+      voltage,
+      (LAG(voltage, 7) OVER(ORDER BY tbname)) AS voltage_last_week,
+      "CONCAT(ROUND(((voltage - (LAG(voltage, 7) OVER (ORDER BY tbname))) / (LAG(voltage, 7)
         OVER (ORDER BY tbname)) * 100), 1),'%') AS weekly_growth_rate ",
-        FROM sparkMeters
+    FROM sparkMeters
     ```
 
 3. Output the analysis results, as shown in the following table:

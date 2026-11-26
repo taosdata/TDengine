@@ -76,12 +76,15 @@ typedef struct {
 
 typedef struct SForecastOperatorInfo {
   SSDataBlock*  pRes;
+  SSDataBlock*  pGroupKeys;
   SExprSupp     scalarSup;  // scalar calculation
   SForecastSupp forecastSupp;
 } SForecastOperatorInfo;
 
 static void    destroyForecastInfo(void* param);
+static void    destroyColFutureData(void* param);
 static int32_t forecastParseOpt(SForecastSupp* pSupp, const char* id);
+static int32_t forecastCreateBuf(SForecastSupp* pSupp, const char* pId);
 
 static FORCE_INLINE int32_t forecastEnsureBlockCapacity(SSDataBlock* pBlock, int32_t newRowsNum) {
   if (pBlock->info.rows < pBlock->info.capacity) {
@@ -219,13 +222,13 @@ static int32_t forecastCloseBuf(SForecastSupp* pSupp, const char* id) {
 
   if (pSupp->cachedRows < ANALY_FORECAST_MIN_ROWS) {
     qError("%s history rows for forecasting not enough, min required:%d, current:%" PRId64, id, ANALY_FORECAST_MIN_ROWS,
-           pSupp->forecastRows);
+           pSupp->cachedRows);
     return TSDB_CODE_ANA_ANODE_NOT_ENOUGH_ROWS;
   }
 
   if (pSupp->cachedRows < ANALY_TDTSFM_FORECAST_MIN_ROWS && strcmp(pSupp->algoName, "tdtsfm_1") == 0) {
     qError("%s history rows for forecasting when using tdtsfm model not enough, min required:%d, current:%" PRId64, id,
-           ANALY_TDTSFM_FORECAST_MIN_ROWS, pSupp->forecastRows);
+           ANALY_TDTSFM_FORECAST_MIN_ROWS, pSupp->cachedRows);
     return TSDB_CODE_ANA_ANODE_NOT_ENOUGH_ROWS;
   }
 
@@ -404,6 +407,8 @@ static int32_t forecastAggregateBlocks(SForecastSupp* pSupp, SSDataBlock* pResBl
   int32_t       lino = 0;
   SAnalyticBuf* pBuf = &pSupp->analyBuf;
 
+  pResBlock->info.id.groupId = pSupp->groupId;
+
   code = forecastCloseBuf(pSupp, pId);
   QUERY_CHECK_CODE(code, lino, _end);
 
@@ -429,10 +434,16 @@ static int32_t forecastNext(SOperatorInfo* pOperator, SSDataBlock** ppRes) {
   SSDataBlock*           pResBlock = pInfo->pRes;
   SForecastSupp*         pSupp = &pInfo->forecastSupp;
   SExprSupp*             pScalarSupp = &pInfo->scalarSup;
+  SExprSupp*             pExprSupp = &pOperator->exprSupp;
   SAnalyticBuf*          pBuf = &pSupp->analyBuf;
   int64_t                st = taosGetTimestampUs();
   int32_t                numOfBlocks = pSupp->numOfBlocks;
   const char*            pId = GET_TASKID(pOperator->pTaskInfo);
+
+  *ppRes = NULL;
+  if (pOperator->status == OP_EXEC_DONE) {
+    return TSDB_CODE_SUCCESS;
+  }
 
   blockDataCleanup(pResBlock);
 
@@ -450,7 +461,12 @@ static int32_t forecastNext(SOperatorInfo* pOperator, SSDataBlock** ppRes) {
       }
     }
 
-    if (pSupp->groupId == 0 || pSupp->groupId == pBlock->info.id.groupId) {
+    if (numOfBlocks == 0 || pSupp->groupId == pBlock->info.id.groupId) {
+      if (numOfBlocks == 0) {
+        code =
+            cacheAnalysisGroupKeys(pExprSupp->pExprInfo, pExprSupp->numOfExprs, pBlock, pResBlock, &pInfo->pGroupKeys);
+        QUERY_CHECK_CODE(code, lino, _end);
+      }
       pSupp->groupId = pBlock->info.id.groupId;
       numOfBlocks++;
       pSupp->cachedRows += pBlock->info.rows;
@@ -461,6 +477,15 @@ static int32_t forecastNext(SOperatorInfo* pOperator, SSDataBlock** ppRes) {
     } else {
       qDebug("%s group:%" PRId64 ", read finish for new group coming, blocks:%d", pId, pSupp->groupId, numOfBlocks);
       code = forecastAggregateBlocks(pSupp, pResBlock, pId);
+      QUERY_CHECK_CODE(code, lino, _end);
+      code = fillAnalysisGroupKeys(pExprSupp->pExprInfo, pExprSupp->numOfExprs, pInfo->pGroupKeys, pResBlock);
+      QUERY_CHECK_CODE(code, lino, _end);
+      pSupp->numOfRows = 0;
+      pSupp->minTs = INT64_MAX;
+      pSupp->maxTs = INT64_MIN;
+      code = forecastCreateBuf(pSupp, pId);
+      QUERY_CHECK_CODE(code, lino, _end);
+      code = cacheAnalysisGroupKeys(pExprSupp->pExprInfo, pExprSupp->numOfExprs, pBlock, pResBlock, &pInfo->pGroupKeys);
       QUERY_CHECK_CODE(code, lino, _end);
       pSupp->groupId = pBlock->info.id.groupId;
       numOfBlocks = 1;
@@ -482,7 +507,10 @@ static int32_t forecastNext(SOperatorInfo* pOperator, SSDataBlock** ppRes) {
     qDebug("%s group:%" PRId64 ", read finish, blocks:%d", pId, pSupp->groupId, numOfBlocks);
     code = forecastAggregateBlocks(pSupp, pResBlock, pId);
     QUERY_CHECK_CODE(code, lino, _end);
+    code = fillAnalysisGroupKeys(pExprSupp->pExprInfo, pExprSupp->numOfExprs, pInfo->pGroupKeys, pResBlock);
+    QUERY_CHECK_CODE(code, lino, _end);
   }
+  setOperatorCompleted(pOperator);
 
   int64_t cost = taosGetTimestampUs() - st;
   qDebug("%s all groups finished, cost:%" PRId64 "us", pId, cost);
@@ -658,6 +686,9 @@ static int32_t forecastParseInput(SForecastSupp* pSupp, SNodeList* pFuncs, const
               if (!assignOpt) {
                 SValueNode* pOptNode = (SValueNode*)pNode;
                 pSupp->pOptions = taosStrdup(pOptNode->literal);
+                if (pSupp->pOptions == NULL) {
+                  return terrno;
+                }
                 assignOpt = true;
                 continue;
               }
@@ -674,14 +705,20 @@ static int32_t forecastParseInput(SForecastSupp* pSupp, SNodeList* pFuncs, const
           }
 
           pSupp->pCovariateSlotList = taosArrayInit(4, sizeof(SColumn));
+          if (pSupp->pCovariateSlotList == NULL) {
+            return terrno;
+          }
           pSupp->pDynamicRealList = taosArrayInit(4, sizeof(SColFutureData));
+          if (pSupp->pDynamicRealList == NULL) {
+            return terrno;
+          }
 
           // the first is the target column
           SListCell* pParameterCell = nodesListGetCell(pFunc->pParameterList, 1);
           for (int32_t i = 1; i < numOfParam;
                ++i, pParameterCell = (NULL != pParameterCell ? pParameterCell->pNext : NULL)) {
             SColumnNode* p = (SColumnNode*)(NULL != pParameterCell ? pParameterCell->pNode : NULL);
-            if ((nodeType(p) != QUERY_NODE_COLUMN) || (nodeType(p) == QUERY_NODE_COLUMN && p->isPrimTs)) {
+            if (p == NULL || nodeType(p) != QUERY_NODE_COLUMN || p->isPrimTs) {
               break;
             }
 
@@ -709,6 +746,7 @@ static int32_t forecastParseInput(SForecastSupp* pSupp, SNodeList* pFuncs, const
             if (pRet == NULL) {
               code = terrno;
               qError("failed to record the covariate slot index, since %s", tstrerror(code));
+              return code;
             }
           }
 
@@ -1054,7 +1092,7 @@ static int32_t forecastCreateBuf(SForecastSupp* pSupp, const char* pId) {
   pBuf->bufType = ANALYTICS_BUF_TYPE_JSON_COL;
   snprintf(pBuf->fileName, sizeof(pBuf->fileName), "%s/tdengine-forecast-%p-%" PRId64, tsTempDir, pSupp, ts);
 
-  int32_t numOfCols = taosArrayGetSize(pSupp->pCovariateSlotList) + 2;
+  int32_t numOfCols = pSupp->numOfInputCols;
 
   int32_t code = tsosAnalyBufOpen(pBuf, numOfCols, pId);
   if (code != 0) goto _OVER;
@@ -1066,40 +1104,34 @@ static int32_t forecastCreateBuf(SForecastSupp* pSupp, const char* pId) {
   if (code != 0) goto _OVER;
 
   int32_t numOfDynamicReal = taosArrayGetSize(pSupp->pDynamicRealList);
-  int32_t numOfPastDynamicReal = taosArrayGetSize(pSupp->pCovariateSlotList);
+  for (int32_t i = 0; i < numOfDynamicReal; ++i) {
+    SColFutureData* pData = taosArrayGet(pSupp->pDynamicRealList, i);
 
-  if (numOfPastDynamicReal >= numOfDynamicReal) {
-    for(int32_t i = 0; i < numOfDynamicReal; ++i) {
-      SColFutureData* pData = taosArrayGet(pSupp->pDynamicRealList, i);
-
-      for(int32_t k = 0; k < taosArrayGetSize(pSupp->pCovariateSlotList); ++k) {
-        SColumn* pCol = taosArrayGet(pSupp->pCovariateSlotList, k);
-        if (strcmp(pCol->name, pData->pName) == 0) {
-          char name[128] = {0};
-          (void)snprintf(name, tListLen(name), "dynamic_real_%d", i + 1);
-          code = taosAnalyBufWriteColMeta(pBuf, index++, pCol->type, name);
-          if (code != 0) {
-            goto _OVER;
-          }
-
-          memcpy(&pData->col, pCol, sizeof(SColumn));
-          taosArrayRemove(pSupp->pCovariateSlotList, k);
-          break;
-        }
+    for (int32_t k = 0; k < taosArrayGetSize(pSupp->pCovariateSlotList); ++k) {
+      SColumn* pCol = taosArrayGet(pSupp->pCovariateSlotList, k);
+      if (strcmp(pCol->name, pData->pName) == 0) {
+        memcpy(&pData->col, pCol, sizeof(SColumn));
+        taosArrayRemove(pSupp->pCovariateSlotList, k);
+        break;
       }
     }
+    // The first group separates future covariates; later groups reuse that mapping.
+    char name[128] = {0};
+    (void)snprintf(name, tListLen(name), "dynamic_real_%d", i + 1);
+    code = taosAnalyBufWriteColMeta(pBuf, index++, pData->col.type, name);
+    if (code != 0) goto _OVER;
+  }
 
-    numOfPastDynamicReal = taosArrayGetSize(pSupp->pCovariateSlotList);
-    for (int32_t j = 0; j < numOfPastDynamicReal; ++j) {
-      SColumn* pCol = taosArrayGet(pSupp->pCovariateSlotList, j);
+  int32_t numOfPastDynamicReal = taosArrayGetSize(pSupp->pCovariateSlotList);
+  for (int32_t j = 0; j < numOfPastDynamicReal; ++j) {
+    SColumn* pCol = taosArrayGet(pSupp->pCovariateSlotList, j);
 
-      char name[128] = {0};
-      (void)snprintf(name, tListLen(name), "past_dynamic_real_%d", j + 1);
+    char name[128] = {0};
+    (void)snprintf(name, tListLen(name), "past_dynamic_real_%d", j + 1);
 
-      code = taosAnalyBufWriteColMeta(pBuf, index++, pCol->type, name);
-      if (code) {
-        goto _OVER;
-      }
+    code = taosAnalyBufWriteColMeta(pBuf, index++, pCol->type, name);
+    if (code) {
+      goto _OVER;
     }
   }
 
@@ -1119,21 +1151,29 @@ _OVER:
   return code;
 }
 
+static void cleanupForecastSupp(SForecastSupp* pSupp) {
+  taosAnalyBufDestroy(&pSupp->analyBuf);
+  taosArrayDestroy(pSupp->pCovariateSlotList);
+  taosArrayDestroyEx(pSupp->pDynamicRealList, destroyColFutureData);
+  taosMemoryFree(pSupp->pOptions);
+  memset(pSupp, 0, sizeof(*pSupp));
+}
+
 static int32_t resetForecastOperState(SOperatorInfo* pOper) {
-  int32_t code = 0, lino = 0;
-  SForecastOperatorInfo* pInfo = pOper->info;
-  const char*            pId = pOper->pTaskInfo->id.str;
+  int32_t                 code = 0, lino = 0;
+  SForecastOperatorInfo*  pInfo = pOper->info;
+  const char*             pId = pOper->pTaskInfo->id.str;
   SForecastFuncPhysiNode* pForecastPhyNode = (SForecastFuncPhysiNode*)pOper->pPhyNode;
   SExecTaskInfo* pTaskInfo = pOper->pTaskInfo;
 
   pOper->status = OP_NOT_OPENED;
 
   blockDataCleanup(pInfo->pRes);
+  blockDataDestroy(pInfo->pGroupKeys);
+  pInfo->pGroupKeys = NULL;
 
-  taosArrayDestroy(pInfo->forecastSupp.pCovariateSlotList);
-  pInfo->forecastSupp.pCovariateSlotList = NULL;
-
-  taosAnalyBufDestroy(&pInfo->forecastSupp.analyBuf);
+  // Each stream window owns its input counters, options and covariate buffers.
+  cleanupForecastSupp(&pInfo->forecastSupp);
 
   cleanupExprSupp(&pOper->exprSupp);
   cleanupExprSupp(&pInfo->scalarSup);
@@ -1171,11 +1211,8 @@ _exit:
     qError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
   }
 
-  return code;  
+  return code;
 }
-
-
-
 
 int32_t createForecastOperatorInfo(SOperatorInfo* downstream, SPhysiNode* pPhyNode, SExecTaskInfo* pTaskInfo,
                                    SOperatorInfo** pOptrInfo) {
@@ -1183,6 +1220,7 @@ int32_t createForecastOperatorInfo(SOperatorInfo* downstream, SPhysiNode* pPhyNo
 
   int32_t                code = 0;
   int32_t                lino = 0;
+  const char*             pId = pTaskInfo->id.str;
   SForecastOperatorInfo* pInfo = taosMemoryCalloc(1, sizeof(SForecastOperatorInfo));
   SOperatorInfo*         pOperator = taosMemoryCalloc(1, sizeof(SOperatorInfo));
   if (pOperator == NULL || pInfo == NULL) {
@@ -1192,7 +1230,6 @@ int32_t createForecastOperatorInfo(SOperatorInfo* downstream, SPhysiNode* pPhyNo
   initOperatorCostInfo(pOperator);
   pOperator->pPhyNode = pPhyNode;
 
-  const char*             pId = pTaskInfo->id.str;
   SForecastSupp*          pSupp = &pInfo->forecastSupp;
   SForecastFuncPhysiNode* pForecastPhyNode = (SForecastFuncPhysiNode*)pPhyNode;
   SExprSupp*              pExprSup = &pOperator->exprSupp;
@@ -1276,17 +1313,10 @@ static void destroyForecastInfo(void* param) {
 
   blockDataDestroy(pInfo->pRes);
   pInfo->pRes = NULL;
+  blockDataDestroy(pInfo->pGroupKeys);
 
-  taosArrayDestroy(pInfo->forecastSupp.pCovariateSlotList);
-  pInfo->forecastSupp.pCovariateSlotList = NULL;
-
-  taosArrayDestroyEx(pInfo->forecastSupp.pDynamicRealList, destroyColFutureData);
-  pInfo->forecastSupp.pDynamicRealList = NULL;
-
-  taosMemoryFree(pInfo->forecastSupp.pOptions);
-
+  cleanupForecastSupp(&pInfo->forecastSupp);
   cleanupExprSupp(&pInfo->scalarSup);
-  taosAnalyBufDestroy(&pInfo->forecastSupp.analyBuf);
   taosMemoryFreeClear(param);
 }
 

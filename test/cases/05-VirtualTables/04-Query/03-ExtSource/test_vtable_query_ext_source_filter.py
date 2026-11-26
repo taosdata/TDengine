@@ -48,6 +48,7 @@ _COLUMNS = ("a", "b", "c", "bounded", "empty_v")
 # Oracle has one namespace level - the login schema - and no per-source
 # database, so its remote objects are qualified as source.schema.table.
 _ORACLE_SCHEMA = ExtSrcEnv.ORACLE_USER.upper()
+_ORACLE_SCHEMA_REF = "`" + _ORACLE_SCHEMA + "`"
 # Oracle tables live in the shared login schema; prefixing their names keeps
 # them apart from the fixtures of the other ext-source test files.
 _ORACLE_TABLE_PREFIX = "oracle_"
@@ -90,8 +91,6 @@ class TestVTableQueryExtSourceFilter:
 
     @pytest.fixture(autouse=True)
     def prepare_backend(self, backend):
-        if os.name == "nt" and backend == "oracle":
-            pytest.skip("Windows federated-query Oracle support is deferred")
         VtableQueryUtil._EXT_SOURCE_ADAPTERS[backend]().ensure_running()
         ExtSrcEnv.ensure_qnode()
         source = f"vfilter_query_{backend}"
@@ -143,7 +142,7 @@ class TestVTableQueryExtSourceFilter:
         if backend == "sqlserver":
             return f"{source}.{_REMOTE_DB}.dbo.{table}"
         if backend == "oracle":
-            return f"{source}.{_ORACLE_SCHEMA}.{_ORACLE_TABLE_PREFIX}{table}"
+            return f"{source}.{_ORACLE_SCHEMA_REF}.{_ORACLE_TABLE_PREFIX}{table}"
         return f"{source}.{_REMOTE_DB}.{table}"
 
     @staticmethod

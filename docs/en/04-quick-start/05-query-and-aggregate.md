@@ -20,7 +20,7 @@ On top of standard SQL, TDengine extends querying for time-series and IoT scenar
   Arithmetic, comparison, logical, bitwise, JSON, and set operators. See [Operators](../05-tdengine-sql/04-data-query/02-operators.md).
 
 - **Aggregation and functions**
-  Statistical aggregates such as `COUNT` / `AVG` / `MAX`, plus selection, math, time, and time-series–specific built-ins. See [Functions](../05-tdengine-sql/04-data-query/03-function.md).
+  Statistical aggregates such as `COUNT` / `AVG` / `MAX`, plus selection, math, time, and time-series–specific built-ins, as well as table functions. See [Functions](../05-tdengine-sql/04-data-query/03-function.md).
 
 - **Tags and partitioning**
   Filter by tags; use `GROUP BY` / `PARTITION BY` / `tbname` / `SLIMIT` to aggregate and limit by device or tag. See [Data Querying](../05-tdengine-sql/04-data-query/01-query.md).
@@ -65,9 +65,14 @@ USE test;
 Run the following SQL to query rows in the supertable `meters` where voltage is greater than 250V, and return the first 5 rows in descending time order.
 
 ```sql
-SELECT tbname, ts, current, voltage
+SELECT
+  tbname,
+  ts,
+  current,
+  voltage
 FROM meters
-WHERE voltage > 250 and tbname = 'd1'
+WHERE voltage > 250
+  AND tbname = 'd1'
 ORDER BY ts DESC
 LIMIT 5;
 ```
@@ -89,7 +94,6 @@ The result looks like the following; exact subtable names and values may vary sl
  d1     | 2017-07-14 10:40:09.998 |  11.7984 |     253 |
  d1     | 2017-07-14 10:40:09.998 |  11.7984 |     253 |
  d1     | 2017-07-14 10:40:09.998 |  11.7984 |     253 |
-
 Query OK, 5 row(s) in set
 ```
 
@@ -98,7 +102,12 @@ Query OK, 5 row(s) in set
 Tags describe static attributes of a device, such as location and group. The following SQL queries meter data in `California.SanFrancisco`.
 
 ```sql
-SELECT tbname, ts, current, voltage, phase
+SELECT
+  tbname,
+  ts,
+  current,
+  voltage,
+  phase
 FROM meters
 WHERE location = "California.SanFrancisco"
 ORDER BY ts DESC
@@ -108,9 +117,15 @@ LIMIT 5;
 You can combine tag conditions with ordinary column conditions.
 
 ```sql
-SELECT tbname, ts, current, voltage, phase
+SELECT
+  tbname,
+  ts,
+  current,
+  voltage,
+  phase
 FROM meters
-WHERE location = "California.SanFrancisco" AND voltage > 250
+WHERE location = "California.SanFrancisco"
+  AND voltage > 250
 ORDER BY ts DESC
 LIMIT 5;
 ```
@@ -125,7 +140,6 @@ A representative result:
  d8745  | 2017-07-14 10:40:09.998 |  11.7984 |     253 |   147 |
  d6259  | 2017-07-14 10:40:09.998 |  11.7984 |     253 |   147 |
  d6252  | 2017-07-14 10:40:09.998 |  11.7984 |     253 |   147 |
-
 Query OK, 5 row(s) in set
 ```
 
@@ -134,7 +148,10 @@ Query OK, 5 row(s) in set
 Aggregate functions help you compute statistics quickly. The following SQL returns the average voltage, maximum voltage, and total row count across all meters.
 
 ```sql
-SELECT AVG(voltage), MAX(voltage), COUNT(*)
+SELECT
+  AVG(voltage),
+  MAX(voltage),
+  COUNT(*)
 FROM meters;
 ```
 
@@ -144,14 +161,16 @@ The result is a single summary row over the full dataset.
  avg(voltage) | max(voltage) |  count(*)  |
 ===========================================
      243.9314 |          258 |  100000000 |
-
 Query OK, 1 row(s) in set
 ```
 
 To group statistics, use `GROUP BY`. In the quick-start sample data, the group tag column is `groupId`.
 
 ```sql
-SELECT groupId, AVG(voltage), COUNT(*)
+SELECT
+  groupId,
+  AVG(voltage),
+  COUNT(*)
 FROM meters
 GROUP BY groupId
 ORDER BY groupId;
@@ -174,7 +193,9 @@ Query OK, 10 row(s) in set
 `GROUP BY` does not guarantee a fixed order unless you sort. To order by a statistic, use `ORDER BY`.
 
 ```sql
-SELECT groupId, AVG(voltage) AS avg_voltage
+SELECT
+  groupId,
+  AVG(voltage) AS avg_voltage
 FROM meters
 GROUP BY groupId
 ORDER BY avg_voltage DESC;
@@ -185,7 +206,10 @@ ORDER BY avg_voltage DESC;
 To compute per meter, use `PARTITION BY tbname`. The following SQL averages voltage per subtable and uses `SLIMIT` to return only the first few partitions, avoiding 10,000 rows of output.
 
 ```sql
-SELECT tbname, AVG(voltage), COUNT(*)
+SELECT
+  tbname,
+  AVG(voltage),
+  COUNT(*)
 FROM meters
 PARTITION BY tbname
 SLIMIT 3;
@@ -199,7 +223,6 @@ The result is split by subtable. Partition order may vary slightly by environmen
  d0     |     243.9314 |    10000 |
  d1     |     243.9314 |    10000 |
  d2     |     243.9314 |    10000 |
-
 Query OK, 3 row(s) in set
 ```
 
@@ -226,9 +249,14 @@ The examples below cover the full time range of `test.meters`.
 The following SQL computes average voltage per meter in 1-second windows.
 
 ```sql
-SELECT tbname, _wstart, _wend, AVG(voltage)
+SELECT
+  tbname,
+  _wstart,
+  _wend,
+  AVG(voltage)
 FROM meters
-WHERE ts >= "2017-07-14 10:40:00" AND ts < "2017-07-14 10:40:10"
+WHERE ts >= "2017-07-14 10:40:00"
+  AND ts < "2017-07-14 10:40:10"
 PARTITION BY tbname
 INTERVAL(1s)
 SLIMIT 2;
@@ -259,9 +287,13 @@ Each result row is one time window. A sample:
 To slide the window by a shorter step, add `SLIDING`. The following SQL uses a 1-second window that slides every 500 milliseconds.
 
 ```sql
-SELECT tbname, _wstart, AVG(voltage)
+SELECT
+  tbname,
+  _wstart,
+  AVG(voltage)
 FROM meters
-WHERE ts >= "2017-07-14 10:40:00" AND ts < "2017-07-14 10:40:10"
+WHERE ts >= "2017-07-14 10:40:00"
+  AND ts < "2017-07-14 10:40:10"
 PARTITION BY tbname
 INTERVAL(1s)
 SLIDING(500a)
@@ -286,9 +318,13 @@ In the result, `_wstart` advances by 500 milliseconds, showing the 1-second wind
 When a window has no data, use `FILL` to specify how to fill it. The following SQL fills missing windows with the previous non-NULL value.
 
 ```sql
-SELECT _wstart, _wend, AVG(voltage)
+SELECT
+  _wstart,
+  _wend,
+  AVG(voltage)
 FROM d0
-WHERE ts >= "2017-07-14 10:40:00" AND ts < "2017-07-14 10:40:10"
+WHERE ts >= "2017-07-14 10:40:00"
+  AND ts < "2017-07-14 10:40:10"
 INTERVAL(1s)
 FILL(prev);
 ```
@@ -311,13 +347,22 @@ Sample data in this chapter is fairly continuous, so the result mainly shows the
 State windows split data when state changes. The following SQL windows by whether voltage is in the 240V–250V range.
 
 ```sql
-SELECT _wstart, _wend, COUNT(*),
-    CASE WHEN voltage >= 240 AND voltage <= 250 THEN 1 ELSE 0 END AS status
+SELECT
+  _wstart,
+  _wend,
+  COUNT(*),
+  CASE
+    WHEN voltage >= 240 AND voltage <= 250 THEN 1
+    ELSE 0
+  END AS status
 FROM d0
-WHERE ts >= "2017-07-14 10:40:00" AND ts < "2017-07-14 10:40:03"
+WHERE ts >= "2017-07-14 10:40:00"
+  AND ts < "2017-07-14 10:40:03"
 STATE_WINDOW(
-    CASE WHEN voltage >= 240 AND voltage <= 250 THEN 1 ELSE 0 END
-)
+  CASE
+    WHEN voltage >= 240 AND voltage <= 250 THEN 1
+    ELSE 0
+  END)
 LIMIT 4;
 ```
 
@@ -330,7 +375,6 @@ Adjacent windows have different `status` values when the state changes.
  2017-07-14 10:40:00.002 | 2017-07-14 10:40:00.002 |        1 |      1 |
  2017-07-14 10:40:00.003 | 2017-07-14 10:40:00.006 |        4 |      0 |
  2017-07-14 10:40:00.007 | 2017-07-14 10:40:00.014 |        8 |      1 |
-
 Query OK, 4 row(s) in set
 ```
 
@@ -339,9 +383,13 @@ Query OK, 4 row(s) in set
 Session windows split data by the gap between adjacent timestamps. The following SQL groups rows whose gap is at most 30 seconds into one session. Because adjacent points in `d0` are 1 ms apart, the whole range falls into a single session window.
 
 ```sql
-SELECT _wstart, _wend, COUNT(*)
+SELECT
+  _wstart,
+  _wend,
+  COUNT(*)
 FROM d0
-WHERE ts >= "2017-07-14 10:40:00" AND ts < "2017-07-14 10:40:10"
+WHERE ts >= "2017-07-14 10:40:00"
+  AND ts < "2017-07-14 10:40:10"
 SESSION(ts, 30s);
 ```
 
@@ -351,7 +399,6 @@ Result:
         _wstart         |         _wend          | count(*) |
 =============================================================
  2017-07-14 10:40:00.000 | 2017-07-14 10:40:09.999 |    10000 |
-
 Query OK, 1 row(s) in set
 ```
 
@@ -360,9 +407,13 @@ Query OK, 1 row(s) in set
 Event windows open when a start condition is met and close when an end condition is met. For example, start observing when voltage rises above a threshold, and stop when it falls below another.
 
 ```sql
-SELECT _wstart, _wend, COUNT(*)
+SELECT
+  _wstart,
+  _wend,
+  COUNT(*)
 FROM d0
-WHERE ts >= "2017-07-14 10:40:00" AND ts < "2017-07-14 10:40:10"
+WHERE ts >= "2017-07-14 10:40:00"
+  AND ts < "2017-07-14 10:40:10"
 EVENT_WINDOW START WITH voltage >= 250 END WITH voltage < 245
 LIMIT 4;
 ```
@@ -376,7 +427,6 @@ Each result row is one event interval from open to close.
  2017-07-14 10:40:00.004 | 2017-07-14 10:40:00.005 |        2 |
  2017-07-14 10:40:00.006 | 2017-07-14 10:40:00.011 |        6 |
  2017-07-14 10:40:00.016 | 2017-07-14 10:40:00.017 |        2 |
-
 Query OK, 4 row(s) in set
 ```
 
@@ -385,9 +435,13 @@ Query OK, 4 row(s) in set
 Count windows group by a fixed number of rows. The following SQL creates a window every 100 rows.
 
 ```sql
-SELECT _wstart, _wend, COUNT(*)
+SELECT
+  _wstart,
+  _wend,
+  COUNT(*)
 FROM d0
-WHERE ts >= "2017-07-14 10:40:00" AND ts < "2017-07-14 10:40:10"
+WHERE ts >= "2017-07-14 10:40:00"
+  AND ts < "2017-07-14 10:40:10"
 COUNT_WINDOW(100)
 LIMIT 5;
 ```
@@ -402,7 +456,6 @@ Each window contains at most 100 rows.
  2017-07-14 10:40:00.200 | 2017-07-14 10:40:00.299 |      100 |
  2017-07-14 10:40:00.300 | 2017-07-14 10:40:00.399 |      100 |
  2017-07-14 10:40:00.400 | 2017-07-14 10:40:00.499 |      100 |
-
 Query OK, 5 row(s) in set
 ```
 
@@ -411,16 +464,21 @@ Query OK, 5 row(s) in set
 External windows are useful when an event table, schedule, or maintenance plan already defines the window ranges. The following SQL uses a subquery to define two window boundaries, then computes average voltage in `d0` for each window.
 
 ```sql
-SELECT _wstart, _wend, AVG(voltage)
+SELECT
+  _wstart,
+  _wend,
+  AVG(voltage)
 FROM d0
-EXTERNAL_WINDOW (
-    (SELECT CAST("2017-07-14 10:40:00" AS TIMESTAMP) AS ws,
-            CAST("2017-07-14 10:40:01" AS TIMESTAMP) AS we
-     UNION ALL
-     SELECT CAST("2017-07-14 10:40:01" AS TIMESTAMP),
-            CAST("2017-07-14 10:40:02" AS TIMESTAMP)
-     ORDER BY ws) w
-);
+  EXTERNAL_WINDOW((
+    SELECT
+      CAST("2017-07-14 10:40:00" AS TIMESTAMP) AS ws,
+      CAST("2017-07-14 10:40:01" AS TIMESTAMP) AS we
+    UNION ALL
+    SELECT
+      CAST("2017-07-14 10:40:01" AS TIMESTAMP),
+      CAST("2017-07-14 10:40:02" AS TIMESTAMP)
+    ORDER BY ws
+  ) w);
 ```
 
 In the result, window boundaries come from the subquery rather than automatic `INTERVAL` splitting.
@@ -430,21 +488,26 @@ In the result, window boundaries come from the subquery rather than automatic `I
 =================================================================
  2017-07-14 10:40:00.000 | 2017-07-14 10:40:01.000 |  244.206793 |
  2017-07-14 10:40:01.000 | 2017-07-14 10:40:02.000 |  244.367632 |
-
 Query OK, 2 row(s) in set
 ```
 
 You can also generate ordered windows with an `INTERVAL` subquery:
 
 ```sql
-SELECT _wstart, _wend, AVG(voltage)
+SELECT
+  _wstart,
+  _wend,
+  AVG(voltage)
 FROM d0
-EXTERNAL_WINDOW (
-    (SELECT _wstart, _wend
-     FROM d0
-     WHERE ts >= "2017-07-14 10:40:00" AND ts < "2017-07-14 10:40:02"
-     INTERVAL(1s)) w
-);
+  EXTERNAL_WINDOW((
+    SELECT
+      _wstart,
+      _wend
+    FROM d0
+    WHERE ts >= "2017-07-14 10:40:00"
+      AND ts < "2017-07-14 10:40:02"
+    INTERVAL(1s)
+  ) w);
 ```
 
 ## Common Query Patterns
@@ -454,13 +517,18 @@ Here are a few patterns that are useful in the quick-start stage.
 Latest row of a subtable:
 
 ```sql
-SELECT * FROM d0 ORDER BY ts DESC LIMIT 1;
+SELECT *
+FROM d0
+ORDER BY ts DESC
+LIMIT 1;
 ```
 
 Row count by location:
 
 ```sql
-SELECT location, COUNT(*)
+SELECT
+  location,
+  COUNT(*)
 FROM meters
 GROUP BY location
 ORDER BY location;
@@ -469,7 +537,9 @@ ORDER BY location;
 Maximum voltage per meter (`SLIMIT` limits how many partitions are returned):
 
 ```sql
-SELECT tbname, MAX(voltage)
+SELECT
+  tbname,
+  MAX(voltage)
 FROM meters
 PARTITION BY tbname
 SLIMIT 3;
@@ -480,7 +550,8 @@ Average current over a time range:
 ```sql
 SELECT AVG(current)
 FROM meters
-WHERE ts >= "2017-07-14 10:40:00" AND ts < "2017-07-14 10:40:10";
+WHERE ts >= "2017-07-14 10:40:00"
+  AND ts < "2017-07-14 10:40:10";
 ```
 
 ## Continue Reading

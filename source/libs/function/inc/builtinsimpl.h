@@ -27,6 +27,12 @@ extern "C" {
 #include "functionResInfoInt.h"
 
 int32_t doMinMaxHelper(SqlFunctionCtx* pCtx, int32_t isMinFunc, int32_t* nElems);
+// Call only after a capacity failure. Physical schema-bound values exceeding
+// planned widths return TSDB_CODE_TDB_INVALID_TABLE_SCHEMA_VER; all other
+// cases return TSDB_CODE_QRY_NOT_ENOUGH_BUFFER. NULL context is allowed for
+// merged states without column provenance and keeps the latter error.
+int32_t getFuncInputBufferError(SqlFunctionCtx* pCtx, int32_t valueBytes,
+                                int32_t pkBytes);
 int32_t i8VectorCmpAVX2(const void* pData, int32_t numOfRows, bool isMinFunc, bool signVal, int64_t* res);
 int32_t i16VectorCmpAVX2(const void* pData, int32_t numOfRows, bool isMinFunc, bool signVal, int64_t* res);
 int32_t i32VectorCmpAVX2(const void* pData, int32_t numOfRows, bool isMinFunc, bool signVal, int64_t* res);
@@ -207,6 +213,13 @@ int32_t fillforwardFunction(SqlFunctionCtx* pCtx);
 int32_t fillforwardFunctionByRow(SArray* pCtx);
 void    fillforwardFunctionCleanupExt(SqlFunctionCtx* pCtx);
 
+bool    getFillnextFuncEnv(SFunctionNode* pFunc, SFuncExecEnv* pEnv);
+int32_t fillnextFunctionSetup(SqlFunctionCtx* pCtx, SResultRowEntryInfo* pResInfo);
+int32_t fillnextFunction(SqlFunctionCtx* pCtx);
+int32_t fillnextFunctionByRow(SArray* pCtx);
+void    fillnextFunctionCleanupExt(SqlFunctionCtx* pCtx);
+bool    fillnextHasPending(SqlFunctionCtx* pCtx);
+
 bool    getForecastConfEnv(SFunctionNode* UNUSED_PARAM(pFunc), SFuncExecEnv* pEnv);
 bool    getCorrFuncEnv(struct SFunctionNode* pFunc, SFuncExecEnv* pEnv);
 int32_t corrFuncSetup(SqlFunctionCtx* pCtx, SResultRowEntryInfo* pResInfo);
@@ -222,6 +235,7 @@ bool    getDerivativeFuncEnv(struct SFunctionNode* pFunc, SFuncExecEnv* pEnv);
 int32_t derivativeFuncSetup(SqlFunctionCtx* pCtx, SResultRowEntryInfo* pResInfo);
 int32_t derivativeFunction(SqlFunctionCtx* pCtx);
 int32_t derivativeFunctionByRow(SArray* pCtxArray);
+int32_t streamDerivativeFunctionByRow(SArray* pCtxArray);
 
 bool    getIrateFuncEnv(struct SFunctionNode* pFunc, SFuncExecEnv* pEnv);
 int32_t irateFuncSetup(SqlFunctionCtx* pCtx, SResultRowEntryInfo* pResInfo);
@@ -248,11 +262,16 @@ int32_t           getMaxValueBytes(int32_t type, int32_t bytes);
 EFuncDataRequired maxDynDataReq(void* pRes, SDataBlockInfo* pBlockInfo);
 EFuncDataRequired firstDynDataReq(void* pRes, SDataBlockInfo* pBlockInfo);
 EFuncDataRequired lastDynDataReq(void* pRes, SDataBlockInfo* pBlockInfo);
+// Equal-ts skipping without a PK requires lastScanCandidate proof.
+// Unknown metadata and virtual-column NULL ties conservatively require data.
+EFuncDataRequired lastRowDynDataReq(void* pRes, SDataBlockInfo* pBlockInfo);
 
 int32_t lastRowFunction(SqlFunctionCtx* pCtx);
 
 bool    getTopBotFuncEnv(SFunctionNode* UNUSED_PARAM(pFunc), SFuncExecEnv* pEnv);
 int32_t topBotFunctionSetup(SqlFunctionCtx* pCtx, SResultRowEntryInfo* pResultInfo);
+EFuncDataRequired topDynDataReq(void* pRes, SDataBlockInfo* pBlockInfo);
+EFuncDataRequired bottomDynDataReq(void* pRes, SDataBlockInfo* pBlockInfo);
 int32_t topFunction(SqlFunctionCtx* pCtx);
 int32_t bottomFunction(SqlFunctionCtx* pCtx);
 int32_t topBotFinalize(SqlFunctionCtx* pCtx, SSDataBlock* pBlock);

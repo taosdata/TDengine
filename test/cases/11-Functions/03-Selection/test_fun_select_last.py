@@ -1384,7 +1384,9 @@ class TestFunLast:
         tdSql.query(
             f"explain select count(*), last_row(f1), min(f1),tbname from sta partition by tbname;"
         )
-        tdSql.checkData(0, 0, "-> Data Exchange 2:1 (width=296)")
+        tdSql.checkData(0, 0,
+                       "-> GroupAggregate (functions=4 width=296 groups=1 "
+                       "input_order=unknown)")
 
         tdSql.query(f"explain select count(*), last_row(f1), min(f1) from sta;")
         tdSql.checkData(
@@ -1396,17 +1398,23 @@ class TestFunLast:
         tdSql.query(
             f"explain select count(*), last_row(f1), min(f1),tbname from sta group by tbname;"
         )
-        tdSql.checkData(0, 0, "-> Data Exchange 2:1 (width=296)")
+        tdSql.checkData(0, 0,
+                       "-> GroupAggregate (functions=4 width=296 groups=1 "
+                       "input_order=unknown)")
 
         tdSql.query(
             f"explain select count(*), last_row(f1), min(f1),t1 from sta partition by t1;"
         )
-        tdSql.checkData(0, 0, "-> Aggregate (functions=4 width=28 input_order=desc)")
+        tdSql.checkData(0, 0,
+                       "-> GroupAggregate (functions=4 width=28 groups=1 "
+                       "input_order=unknown)")
 
         tdSql.query(
             f"explain select count(*), last_row(f1), min(f1),t1 from sta group by t1;"
         )
-        tdSql.checkData(0, 0, "-> Aggregate (functions=4 width=28 input_order=desc)")
+        tdSql.checkData(0, 0,
+                       "-> GroupAggregate (functions=4 width=28 groups=1 "
+                       "input_order=unknown)")
 
         tdSql.query(
             f"explain select distinct count(*), last_row(f1), min(f1) from sta;"
@@ -2453,6 +2461,7 @@ class TestFunLast:
         Since: v3.0.0.0
 
         Labels: common,ci,integration,functional
+
         Jira: None
 
         History:

@@ -1,0 +1,21 @@
+set max_binary_display_width 1024;
+
+select sum(local_v),sum(remote_v) from vt_pushdown_agg.vt_influx18;
+explain verbose true select sum(local_v),sum(remote_v) from vt_pushdown_agg.vt_influx18;
+explain analyze verbose true select sum(local_v),sum(remote_v) from vt_pushdown_agg.vt_influx18;
+
+select sum(local_v),sum(remote_v) from vt_pushdown_agg.vt_influx18 where local_v>1;
+explain verbose true select sum(local_v),sum(remote_v) from vt_pushdown_agg.vt_influx18 where local_v>1;
+explain analyze verbose true select sum(local_v),sum(remote_v) from vt_pushdown_agg.vt_influx18 where local_v>1;
+
+select sum(remote_v) from vt_pushdown_agg.vt_influx18 where local_v>1;
+explain verbose true select sum(remote_v) from vt_pushdown_agg.vt_influx18 where local_v>1;
+explain analyze verbose true select sum(remote_v) from vt_pushdown_agg.vt_influx18 where local_v>1;
+
+select cast(ts as bigint),local_v,remote_v from vt_pushdown_agg.vt_influx18 order by ts asc limit 1 offset 1;
+explain verbose true select cast(ts as bigint),local_v,remote_v from vt_pushdown_agg.vt_influx18 order by ts asc limit 1 offset 1;
+explain analyze verbose true select cast(ts as bigint),local_v,remote_v from vt_pushdown_agg.vt_influx18 order by ts asc limit 1 offset 1;
+
+select cast(ts as bigint),local_v,remote_v from vt_pushdown_agg.vst_influx18 order by ts asc limit 1 offset 1;
+explain verbose true select cast(ts as bigint),local_v,remote_v from vt_pushdown_agg.vst_influx18 order by ts asc limit 1 offset 1;
+explain analyze verbose true select cast(ts as bigint),local_v,remote_v from vt_pushdown_agg.vst_influx18 order by ts asc limit 1 offset 1;

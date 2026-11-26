@@ -25,6 +25,7 @@
 #include <gtest/gtest.h>
 #include <atomic>
 #include <iostream>
+#include <string>
 #include <thread>
 
 #pragma GCC diagnostic push
@@ -45,6 +46,7 @@
 #include "planner.h"
 #include "qworker.h"
 #include "qwInt.h"
+#include "qwMsg.h"
 #include "stub.h"
 #include "taos.h"
 #include "tdatablock.h"
@@ -56,6 +58,12 @@
 #include "tvariant.h"
 
 extern "C" int32_t qwDropTaskCtx(QW_FPARAMS_DEF);
+extern "C" int32_t qwIdleTestCheckInterval(SQWorker* mgmt);
+extern "C" int32_t qwQuickRspFetchReq(QW_FPARAMS_DEF, SQWMsg* qwMsg,
+                                      int32_t code);
+extern "C" int32_t qwGetQueryResFromSink(QW_FPARAMS_DEF, SQWTaskCtx* ctx,
+                                         int32_t* dataLen, int32_t* rawLen,
+                                         void** rsp, SOutputData* output);
 
 namespace {
 
@@ -102,6 +110,9 @@ int32_t  qwtTestPutDataBlockCount = 0;
 int32_t  qwtCorrelationCloseCount = 0;
 int32_t  qwtCorrelationCloseCode = TSDB_CODE_SUCCESS;
 int32_t  qwtTestStreamExecTaskOptCount = 0;
+int32_t  qwtQuickFetchReplyCount = 0;
+int32_t  qwtQuickFetchSinkReadCount = 0;
+SRpcMsg  qwtQuickFetchReply = {0};
 
 SSubQueryMsg       qwtqueryMsg = {0};
 SRpcMsg            qwtfetchRpc = {0};
@@ -1119,7 +1130,225 @@ void *fetchQueueThread(void *param) {
   return NULL;
 }
 
+int32_t qwtQuickFetchEmptySink(QW_FPARAMS_DEF, SQWTaskCtx* ctx,
+                               int32_t* dataLen, int32_t* rawLen, void** rsp,
+                               SOutputData* output) {
+  ++qwtQuickFetchSinkReadCount;
+  *dataLen = 0;
+  *rawLen = 0;
+  *rsp = nullptr;
+  *output = {};
+  return TSDB_CODE_SUCCESS;
+}
+
+int32_t qwtCaptureQuickFetchReply(const SRpcMsg* rsp) {
+  ++qwtQuickFetchReplyCount;
+  qwtQuickFetchReply = *rsp;
+  rpcFreeCont(rsp->pCont);
+  qwtQuickFetchReply.pCont = nullptr;
+  return TSDB_CODE_SUCCESS;
+}
+
+void qwtCheckQuickFetchExecutionError(bool pending) {
+  SQWorker mgmt = {0};
+  mgmt.ctxHash = taosHashInit(1,
+                              taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY),
+                              false, HASH_NO_LOCK);
+  ASSERT_NE(nullptr, mgmt.ctxHash);
+  uint64_t qId = 1, cId = 2, tId = 3;
+  int32_t eId = 4;
+  char key[sizeof(qId) + sizeof(cId) + sizeof(tId) + sizeof(eId)] = {0};
+  QW_SET_QTID(key, qId, cId, tId, eId);
+  SQWTaskCtx ctx = {0};
+  ctx.sinkHandle = (DataSinkHandle)0x1;
+  ctx.fetchMsgType = TDMT_SCH_MERGE_FETCH;
+  ctx.dataConnInfo.handle = (void*)0x2;
+  if (pending) {
+    QW_SET_EVENT_RECEIVED(&ctx, QW_EVENT_FETCH);
+  }
+  ASSERT_EQ(TSDB_CODE_SUCCESS,
+            taosHashPut(mgmt.ctxHash, key, sizeof(key), &ctx, sizeof(ctx)));
+
+  Stub stub;
+  stub.set(qwGetQueryResFromSink, qwtQuickFetchEmptySink);
+  stub.set(rpcSendResponse, qwtCaptureQuickFetchReply);
+  qwtQuickFetchReplyCount = 0;
+  qwtQuickFetchSinkReadCount = 0;
+  qwtQuickFetchReply = {};
+  int32_t savedPolicy = tsQueryRspPolicy;
+  tsQueryRspPolicy = QUERY_RSP_POLICY_QUICK;
+  SQWMsg msg = {0};
+  EXPECT_EQ(pending ? TSDB_CODE_SUCCESS : TSDB_CODE_QRY_EXECUTOR_INTERNAL_ERROR,
+            qwQuickRspFetchReq(&mgmt, 5, qId, cId, tId, 0, eId, &msg,
+                               TSDB_CODE_QRY_EXECUTOR_INTERNAL_ERROR));
+  EXPECT_EQ(0, qwtQuickFetchSinkReadCount);
+  EXPECT_EQ(pending ? 1 : 0, qwtQuickFetchReplyCount);
+  if (pending) {
+    EXPECT_EQ(TSDB_CODE_QRY_EXECUTOR_INTERNAL_ERROR, qwtQuickFetchReply.code);
+    EXPECT_EQ(TDMT_SCH_MERGE_FETCH_RSP, qwtQuickFetchReply.msgType);
+    EXPECT_EQ(ctx.dataConnInfo.handle, qwtQuickFetchReply.info.handle);
+    auto* stored = static_cast<SQWTaskCtx*>(
+        taosHashGet(mgmt.ctxHash, key, sizeof(key)));
+    EXPECT_TRUE(QW_EVENT_PROCESSED(stored, QW_EVENT_FETCH));
+    EXPECT_EQ(0, stored->inQuickFetch);
+  }
+  tsQueryRspPolicy = savedPolicy;
+  taosHashCleanup(mgmt.ctxHash);
+}
+
 }  // namespace
+
+namespace {
+struct SubquerySink {
+  int blocksRead = 0;
+  bool available = true;
+};
+
+struct SubqueryReply {
+  int calls = 0;
+  int code = 0;
+  int value = 0;
+  bool completed = false;
+};
+
+class SubqueryFetchTest : public testing::Test {
+ protected:
+  void SetUp() override {
+    stub.set(dsGetDataLength, +[](DataSinkHandle handle, int64_t* len, int64_t* rawLen, bool* end) {
+      auto* sink = static_cast<SubquerySink*>(handle);
+      *len = *rawLen = sink->available ? 1 : 0;
+      *end = false;
+    });
+    stub.set(dsGetDataBlock, +[](DataSinkHandle handle, SOutputData* output) -> int32_t {
+      auto* sink = static_cast<SubquerySink*>(handle);
+      output->pData[0] = ++sink->blocksRead;
+      output->queryEnd = sink->blocksRead == 2;
+      output->bufStatus = output->queryEnd ? DS_BUF_EMPTY : DS_BUF_FULL;
+      output->numOfRows = 1;
+      return 0;
+    });
+    stub.set(dsDestroyDataSinker, qwtDestroyDataSinker);
+    stub.set(qwUpdateTaskStatus, +[](QW_FPARAMS_DEF, int8_t, bool) -> int32_t { return 0; });
+    stub.set(qwBuildAndSendFetchRsp, +[](SQWTaskCtx* ctx, int32_t, SRpcHandleInfo* conn, void* msg,
+                                          int32_t len, int32_t code) -> int32_t {
+      auto* reply = static_cast<SubqueryReply*>(conn->handle);
+      ++reply->calls;
+      reply->code = code;
+      if (msg && len > 0) {
+        auto* rsp = static_cast<SRetrieveTableRsp*>(msg);
+        reply->value = rsp->data[len - 1];
+        reply->completed = rsp->completed;
+      }
+      qwFreeFetchRsp(ctx, msg);
+      return 0;
+    });
+    savedPolicy = tsQueryRspPolicy;
+    tsQueryRspPolicy = QUERY_RSP_POLICY_QUICK;
+    mgmt.ctxHash = taosHashInit(1, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), false, HASH_ENTRY_LOCK);
+    ASSERT_NE(nullptr, mgmt.ctxHash);
+    ASSERT_EQ(0, qwAddTaskCtx(&mgmt, 0, 1, 2, 3, 0, 4));
+    ASSERT_EQ(0, qwGetTaskCtx(&mgmt, 0, 1, 2, 3, 0, 4, &ctx));
+    ctx->subQuery = ctx->queryRsped = true;
+    ctx->subQType = E_SUB_QUERY_COLUMN;
+    ctx->sinkHandle = &sink;
+  }
+
+  void TearDown() override {
+    if (ctx) qwFreeTaskCtx(&mgmt, 0, 1, 2, 3, 0, 4, ctx);
+    taosHashCleanup(mgmt.ctxHash);
+    tsQueryRspPolicy = savedPolicy;
+  }
+
+  void fetch(uint64_t task, uint64_t index, SubqueryReply& reply) {
+    SResFetchReq req = {};
+    req.srcTaskId = task;
+    req.blockIdx = index;
+    SQWMsg msg = {};
+    msg.msgType = TDMT_SCH_FETCH;
+    msg.req = &req;
+    msg.connInfo.handle = &reply;
+    ASSERT_EQ(0, qwProcessFetch(&mgmt, 0, 1, 2, 3, 0, 4, &msg));
+  }
+
+  SQWorker mgmt = {};
+  SQWTaskCtx* ctx = nullptr;
+  Stub stub;
+  SubquerySink sink;
+  int32_t savedPolicy = 0;
+};
+
+TEST_F(SubqueryFetchTest, sameConsumerReplaysEachBlockAfterRetry) {
+  SubqueryReply original, retry, terminal;
+  fetch(11, 0, original);
+  ASSERT_EQ(1, original.value);
+  fetch(11, 0, retry);
+  EXPECT_EQ(1, retry.value);
+  EXPECT_FALSE(retry.completed);
+  fetch(11, 1, terminal);
+  EXPECT_EQ(2, terminal.value);
+  EXPECT_TRUE(terminal.completed);
+  ASSERT_EQ(nullptr, ctx->sinkHandle);
+
+  for (uint64_t task : {11, 22}) {
+    SubqueryReply first, last;
+    fetch(task, 0, first);
+    fetch(task, 1, last);
+    EXPECT_EQ(1, first.calls);
+    EXPECT_EQ(1, first.value);
+    EXPECT_FALSE(first.completed);
+    EXPECT_EQ(1, last.calls);
+    EXPECT_EQ(2, last.value);
+    EXPECT_TRUE(last.completed);
+  }
+  EXPECT_EQ(2, sink.blocksRead);
+  EXPECT_EQ(2, taosArrayGetSize(ctx->subQRes.rspList));
+  SubqueryReply pastEnd;
+  fetch(11, 2, pastEnd);
+  EXPECT_EQ(1, pastEnd.calls);
+  EXPECT_EQ(TSDB_CODE_QRY_INVALID_INPUT, pastEnd.code);
+}
+
+TEST_F(SubqueryFetchTest, pendingBlockAnswersOriginalRetryAndOtherConsumer) {
+  sink.available = false;
+  SubqueryReply first, retry, other;
+  fetch(11, 0, first);
+  fetch(11, 0, retry);
+  fetch(22, 0, other);
+  SQWMsg msg = {};
+  sink.available = true;
+  ASSERT_EQ(0, qwQuickRspFetchReq(&mgmt, 0, 1, 2, 3, 0, 4, &msg, 0));
+  for (auto* reply : {&first, &retry, &other}) {
+    EXPECT_EQ(1, reply->calls);
+    EXPECT_EQ(1, reply->value);
+  }
+  EXPECT_EQ(1, sink.blocksRead);
+  SubqueryReply next;
+  fetch(22, 1, next);
+  EXPECT_EQ(2, next.value);
+  EXPECT_TRUE(next.completed);
+}
+
+TEST_F(SubqueryFetchTest, pendingReadersReceiveProducerError) {
+  sink.available = false;
+  SubqueryReply first, other;
+  fetch(11, 0, first);
+  fetch(22, 0, other);
+  SQWMsg msg = {};
+  ASSERT_EQ(0, qwQuickRspFetchReq(&mgmt, 0, 1, 2, 3, 0, 4, &msg, TSDB_CODE_OUT_OF_MEMORY));
+  EXPECT_EQ(1, first.calls);
+  EXPECT_EQ(TSDB_CODE_OUT_OF_MEMORY, first.code);
+  EXPECT_EQ(1, other.calls);
+  EXPECT_EQ(TSDB_CODE_OUT_OF_MEMORY, other.code);
+}
+}  // namespace
+
+TEST(qwTaskLifecycleTest, quickFetchRepliesWithOriginalExecutionError) {
+  qwtCheckQuickFetchExecutionError(true);
+}
+
+TEST(qwTaskLifecycleTest, quickFetchErrorWithoutPendingRequestSendsNoReply) {
+  qwtCheckQuickFetchExecutionError(false);
+}
 
 TEST(qwTaskLifecycleTest, delayFreeTaskKeepsCompletedHandleUntilContextCleanup) {
   SQWorker    mgmt = {0};
@@ -1192,6 +1421,62 @@ TEST(qwTaskLifecycleTest, delayFreeTaskReleasesHandleAfterSinkError) {
   ASSERT_EQ(nullptr, ctx.taskHandle);
   ASSERT_EQ(1, qwtTestDestroyTaskCount);
   ASSERT_EQ(1, qwtTestPutDataBlockCount);
+}
+
+TEST(qwTaskLifecycleTest, idleSweepRequiresAnArmedLiveQuery) {
+  struct Cleanup {
+    SQWorker worker = {};
+    char root[PATH_MAX] = {};
+    char saved[PATH_MAX] = {};
+    Cleanup() {
+      (void)taosGetEnv("TD_JOIN_TEST_IDLE_GATE_DIR", saved, sizeof(saved));
+    }
+    ~Cleanup() {
+      (void)taosSetEnv("TD_JOIN_TEST_IDLE_GATE_DIR", saved);
+      taosRemoveDir(root);
+      taosHashCleanup(worker.ctxHash);
+    }
+  } cleanup;
+  auto* mgmt = &cleanup.worker;
+  mgmt->ctxHash =
+      taosHashInit(1, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), false,
+                   HASH_NO_LOCK);
+  ASSERT_NE(nullptr, mgmt->ctxHash);
+  uint64_t qId = 101, cId = 2, tId = 3;
+  int32_t eId = 0;
+  char key[sizeof(qId) + sizeof(cId) + sizeof(tId) + sizeof(eId)] = {};
+  QW_SET_QTID(key, qId, cId, tId, eId);
+  SQWTaskCtx ctx = {};
+  ASSERT_EQ(TSDB_CODE_SUCCESS,
+            taosHashPut(mgmt->ctxHash, key, sizeof(key), &ctx, sizeof(ctx)));
+  ASSERT_EQ(0, taosSetEnv("TD_JOIN_TEST_IDLE_GATE_DIR", ""));
+  EXPECT_EQ(600, qwIdleTestCheckInterval(mgmt));
+  if (tsTempDir[0] == 0) {
+    ASSERT_EQ(0, osDefaultInit());
+  }
+  taosGetTmpfilePath(tsTempDir, "qw-idle-test", cleanup.root);
+  ASSERT_EQ(0, taosMkDir(cleanup.root));
+  ASSERT_EQ(0, taosSetEnv("TD_JOIN_TEST_IDLE_GATE_DIR", cleanup.root));
+  EXPECT_EQ(600, qwIdleTestCheckInterval(mgmt));
+  std::string directory = std::string(cleanup.root) + "/101";
+  ASSERT_EQ(0, taosMkDir(directory.c_str()));
+  std::string arm = directory + "/arm";
+  for (const char* value : {"102\n", "101\n"}) {
+    TdFilePtr file = taosOpenPrivateFile(arm.c_str(),
+                                        TD_FILE_CREATE | TD_FILE_WRITE |
+                                        TD_FILE_EXCL);
+    ASSERT_NE(nullptr, file);
+    EXPECT_EQ(4, taosWriteFile(file, value, 4));
+    EXPECT_EQ(0, taosCloseFile(&file));
+    terrno = TSDB_CODE_QRY_EXECUTOR_INTERNAL_ERROR;
+    EXPECT_EQ(value[2] == '1' ? 1 : 600, qwIdleTestCheckInterval(mgmt));
+    EXPECT_EQ(TSDB_CODE_QRY_EXECUTOR_INTERNAL_ERROR, terrno);
+    if (value[2] != '1') {
+      EXPECT_EQ(0, taosRemoveFile(arm.c_str()));
+    }
+  }
+  EXPECT_EQ(0, taosHashRemove(mgmt->ctxHash, key, sizeof(key)));
+  EXPECT_EQ(600, qwIdleTestCheckInterval(mgmt));
 }
 
 TEST(qwTaskLifecycleTest, noFetchTimeoutClosesCorrelationSession) {

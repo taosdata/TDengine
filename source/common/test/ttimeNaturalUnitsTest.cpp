@@ -157,43 +157,35 @@ TEST_F(TimeNaturalUnitsTest, MultiPeriodWeekAlignmentExactBoundary) {
 }
 
 TEST_F(TimeNaturalUnitsTest, WeeklyAlignmentMatchesTruncateForEveryFirstDayOfWeekInUtc) {
-#ifndef WINDOWS
   timezone_t utc = tzalloc("UTC");
   ASSERT_NE(utc, nullptr);
 
   expectWeekAlignmentMatchesTruncate(makeTimestampAt(2026, 3, 10, 15, 30, 0, utc), 1, utc);
   tzfree(utc);
-#endif
 }
 
 TEST_F(TimeNaturalUnitsTest, WeeklyAlignmentMatchesTruncateForEveryFirstDayOfWeekNearDst) {
-#ifndef WINDOWS
   timezone_t ny = tzalloc("America/New_York");
   ASSERT_NE(ny, nullptr);
 
   expectWeekAlignmentMatchesTruncate(makeTimestampAt(2024, 3, 12, 15, 30, 0, ny), 1, ny);
   tzfree(ny);
-#endif
 }
 
 TEST_F(TimeNaturalUnitsTest, MultiWeekAlignmentMatchesTruncateAcrossSpringDst) {
-#ifndef WINDOWS
   timezone_t ny = tzalloc("America/New_York");
   ASSERT_NE(ny, nullptr);
 
   expectWeekAlignmentMatchesTruncate(makeTimestampAt(2024, 3, 19, 15, 30, 0, ny), 2, ny);
   tzfree(ny);
-#endif
 }
 
 TEST_F(TimeNaturalUnitsTest, MultiWeekAlignmentMatchesTruncateAcrossFallDst) {
-#ifndef WINDOWS
   timezone_t ny = tzalloc("America/New_York");
   ASSERT_NE(ny, nullptr);
 
   expectWeekAlignmentMatchesTruncate(makeTimestampAt(2024, 11, 12, 15, 30, 0, ny), 3, ny);
   tzfree(ny);
-#endif
 }
 
 TEST_F(TimeNaturalUnitsTest, WeeklyAlignmentRejectsInvalidFirstDayOfWeek) {
@@ -210,13 +202,11 @@ TEST_F(TimeNaturalUnitsTest, WeeklyAlignmentRejectsUnrepresentablePeriod) {
 }
 
 TEST_F(TimeNaturalUnitsTest, WeeklyAlignmentRejectsNanosecondUnderflow) {
-#ifndef WINDOWS
   timezone_t utc = tzalloc("UTC");
   ASSERT_NE(utc, nullptr);
 
   EXPECT_EQ(alignToNaturalBoundary(INT64_MIN, 'w', 1, 0, TSDB_TIME_PRECISION_NANO, 1, utc), INT64_MIN);
   tzfree(utc);
-#endif
 }
 
 TEST_F(TimeNaturalUnitsTest, TruncateMultiWeekSlidingKeepsEpochPhase) {
@@ -268,7 +258,6 @@ TEST_F(TimeNaturalUnitsTest, TruncateMultiWeekSlidingRespectsEveryFirstDayOfWeek
 }
 
 TEST_F(TimeNaturalUnitsTest, TruncateWeekFixedSlidingStopsAtDstFoldGap) {
-#ifndef WINDOWS
   timezone_t ny = tzalloc("America/New_York");
   ASSERT_NE(ny, nullptr);
 
@@ -287,11 +276,9 @@ TEST_F(TimeNaturalUnitsTest, TruncateWeekFixedSlidingStopsAtDstFoldGap) {
   EXPECT_EQ(taosTimeTruncate(repeatedHourTs, &interval), 1730613602000LL);  // 2024-11-03 01:00:02 EST
 
   tzfree(ny);
-#endif
 }
 
 TEST_F(TimeNaturalUnitsTest, TruncateWeekCalendarSlidingStopsAtDstGap) {
-#ifndef WINDOWS
   timezone_t ny = tzalloc("America/New_York");
   ASSERT_NE(ny, nullptr);
 
@@ -312,11 +299,9 @@ TEST_F(TimeNaturalUnitsTest, TruncateWeekCalendarSlidingStopsAtDstGap) {
             makeTimestampAt(2024, 3, 17, 2, 30, 0, ny));
 
   tzfree(ny);
-#endif
 }
 
 TEST_F(TimeNaturalUnitsTest, TruncateWeekChecksPreviousWindowAfterDstGap) {
-#ifndef WINDOWS
   timezone_t ny = tzalloc("America/New_York");
   ASSERT_NE(ny, nullptr);
 
@@ -337,7 +322,6 @@ TEST_F(TimeNaturalUnitsTest, TruncateWeekChecksPreviousWindowAfterDstGap) {
             makeTimestampAt(2023, 12, 24, 2, 30, 0, ny));
 
   tzfree(ny);
-#endif
 }
 
 TEST_F(TimeNaturalUnitsTest, TruncateMultiWeekSlidingWithoutOffsetFindsEarliestWindow) {
@@ -369,7 +353,6 @@ TEST_F(TimeNaturalUnitsTest, TruncateWeekIntervalKeepsCalendarDaySlidingPhase) {
 }
 
 TEST_F(TimeNaturalUnitsTest, TruncateWeekIntervalKeepsFixedHourSlidingAcrossDst) {
-#ifndef WINDOWS
   timezone_t ny = tzalloc("America/New_York");
   ASSERT_NE(ny, nullptr);
 
@@ -385,11 +368,9 @@ TEST_F(TimeNaturalUnitsTest, TruncateWeekIntervalKeepsFixedHourSlidingAcrossDst)
 
   EXPECT_EQ(taosTimeTruncate(makeTimestampAt(2024, 11, 9, 12, 0, 0, ny), &interval), 1730610000000LL);
   tzfree(ny);
-#endif
 }
 
 TEST_F(TimeNaturalUnitsTest, TruncateWeekOffsetKeepsCalendarSlidingPhaseAcrossDst) {
-#ifndef WINDOWS
   timezone_t ny = tzalloc("America/New_York");
   ASSERT_NE(ny, nullptr);
 
@@ -410,11 +391,9 @@ TEST_F(TimeNaturalUnitsTest, TruncateWeekOffsetKeepsCalendarSlidingPhaseAcrossDs
   EXPECT_EQ(second, makeTimestampAt(2024, 3, 18, 0, 0, 0, ny));
   EXPECT_EQ(getNextTimeWindowStart(&interval, first, TSDB_ORDER_ASC), second);
   tzfree(ny);
-#endif
 }
 
 TEST_F(TimeNaturalUnitsTest, TruncateWeekBeforeEpochUsesFloorPhase) {
-#ifndef WINDOWS
   timezone_t utc = tzalloc("UTC");
   ASSERT_NE(utc, nullptr);
 
@@ -430,11 +409,9 @@ TEST_F(TimeNaturalUnitsTest, TruncateWeekBeforeEpochUsesFloorPhase) {
 
   EXPECT_EQ(taosTimeTruncate(-1, &interval), makeTimestampAt(1969, 12, 25, 0, 0, 0, utc));
   tzfree(utc);
-#endif
 }
 
 TEST_F(TimeNaturalUnitsTest, CalendarDayAddRejectsNanosecondOverflow) {
-#ifndef WINDOWS
   timezone_t utc = tzalloc("UTC");
   ASSERT_NE(utc, nullptr);
 
@@ -445,11 +422,9 @@ TEST_F(TimeNaturalUnitsTest, CalendarDayAddRejectsNanosecondOverflow) {
   EXPECT_EQ(taosTimeAdd(nearMin, -day, 'd', TSDB_TIME_PRECISION_NANO, utc), nearMin);
 
   tzfree(utc);
-#endif
 }
 
 TEST_F(TimeNaturalUnitsTest, CalendarTimeAddRejectsUnrepresentableDuration) {
-#ifndef WINDOWS
   timezone_t utc = tzalloc("UTC");
   ASSERT_NE(utc, nullptr);
 
@@ -460,7 +435,6 @@ TEST_F(TimeNaturalUnitsTest, CalendarTimeAddRejectsUnrepresentableDuration) {
   EXPECT_EQ(taosTimeAdd(timestamp, INT64_MIN, 'y', TSDB_TIME_PRECISION_MILLI, utc), timestamp);
 
   tzfree(utc);
-#endif
 }
 
 TEST_F(TimeNaturalUnitsTest, CalendarDurationConversionRejectsNanosecondOverflow) {

@@ -194,7 +194,8 @@ TAOS_DEFINE_ERROR(TSDB_CODE_PAR_INVALID_PERIOD_RANGE,     "Invalid period range"
 TAOS_DEFINE_ERROR(TSDB_CODE_PAR_INVALID_OFFSET_UNIT,      "Invalid offset unit")
 TAOS_DEFINE_ERROR(TSDB_CODE_PAR_INVALID_OFFSET_VALUE,     "Invalid offset value")
 TAOS_DEFINE_ERROR(TSDB_CODE_PAR_EXT_WIN_COL_IN_WHERE,     "WHERE clause cannot reference EXTERNAL_WINDOW columns")
-TAOS_DEFINE_ERROR(TSDB_CODE_PAR_INVALID_TIMEZONE,         "Invalid timezone")
+TAOS_DEFINE_ERROR(TSDB_CODE_PAR_INVALID_TIMEZONE,
+                  "Invalid or unsupported timezone")
 TAOS_DEFINE_ERROR(TSDB_CODE_PAR_INVALID_FIRST_DAY_OF_WEEK,"Invalid firstDayOfWeek %d, must be 0-6")
 TAOS_DEFINE_ERROR(TSDB_CODE_PAR_FUNC_NOT_SUPPORT_DISTINCT, "Function does not support DISTINCT")
 TAOS_DEFINE_ERROR(TSDB_CODE_PAR_TOO_LESS_TAG_COLUMN,      "The only tag cannot be dropped")
@@ -888,6 +889,7 @@ TAOS_DEFINE_ERROR(TSDB_CODE_PAR_ONLY_ONE_JSON_TAG,         "Only one tag if ther
 TAOS_DEFINE_ERROR(TSDB_CODE_PAR_INCORRECT_NUM_OF_COL,      "Query block has incorrect number of result columns")
 TAOS_DEFINE_ERROR(TSDB_CODE_PAR_INCORRECT_TIMESTAMP_VAL,   "Incorrect TIMESTAMP value")
 TAOS_DEFINE_ERROR(TSDB_CODE_PAR_OFFSET_LESS_ZERO,          "soffset/offset cannot be less than 0")
+TAOS_DEFINE_ERROR(TSDB_CODE_PAR_LIMIT_LESS_ZERO,           "limit cannot be less than 0")
 TAOS_DEFINE_ERROR(TSDB_CODE_PAR_SLIMIT_LEAK_PARTITION_GROUP_BY,  "slimit/soffset are only available for PARTITION/GROUP BY query")
 TAOS_DEFINE_ERROR(TSDB_CODE_PAR_INVALID_TOPIC_QUERY,        "Invalid topic query")
 TAOS_DEFINE_ERROR(TSDB_CODE_PAR_INVALID_DROP_STABLE,        "Cannot drop super table in batch")
@@ -1129,11 +1131,12 @@ TAOS_DEFINE_ERROR(TSDB_CODE_TXN_PREPARED_CREATE,            "Table is being crea
 TAOS_DEFINE_ERROR(TSDB_CODE_TXN_PREPARED_ALTER,             "Table is being altered in a transaction")
 TAOS_DEFINE_ERROR(TSDB_CODE_TXN_PREPARED_DROP,              "Table is being dropped in a transaction")
 TAOS_DEFINE_ERROR(TSDB_CODE_TXN_DELETE_ON_DROPPING,         "Cannot DELETE on a table being dropped")
-TAOS_DEFINE_ERROR(TSDB_CODE_TXN_INVALID_OPERATION,           "Only table DDL (CREATE/DROP/ALTER TABLE) allowed in transaction")
+TAOS_DEFINE_ERROR(TSDB_CODE_TXN_INVALID_OPERATION,           "Statement is not supported in transaction")
 TAOS_DEFINE_ERROR(TSDB_CODE_TXN_TOO_MANY_DDL_OPS,           "Transaction DDL operation count exceeds per-transaction limit; ROLLBACK and split into smaller transactions, or run the statement outside a transaction")
 TAOS_DEFINE_ERROR(TSDB_CODE_TXN_EXCEEDED_LIFETIME,          "Transaction exceeded maximum lifetime")
 TAOS_DEFINE_ERROR(TSDB_CODE_TXN_TIMEOUT_KILLED,             "Transaction killed by server due to inactivity timeout; execute ROLLBACK to clean up")
 TAOS_DEFINE_ERROR(TSDB_CODE_TXN_RECREATE_NOT_SUPPORTED,     "Object dropped in this transaction cannot be recreated with the same name; use a different name or COMMIT/ROLLBACK first")
+TAOS_DEFINE_ERROR(TSDB_CODE_TXN_CONCURRENT_STMT,            "Another statement of this transaction is still executing on the connection; statements of a transaction must run one at a time")
 
 //tmq
 TAOS_DEFINE_ERROR(TSDB_CODE_TMQ_INVALID_MSG,                "Invalid message")
@@ -1244,6 +1247,11 @@ TAOS_DEFINE_ERROR(TSDB_CODE_VTABLE_EXT_FILTER_SQL_FAILED, "Cannot generate or ex
 TAOS_DEFINE_ERROR(TSDB_CODE_VTABLE_INVALID_EXT_FILTER,     "Invalid external column filter expression")
 TAOS_DEFINE_ERROR(TSDB_CODE_VTABLE_DUPLICATE_EXT_FILTER_COLUMN, "Duplicate column in external column filter")
 TAOS_DEFINE_ERROR(TSDB_CODE_VTABLE_INCOMPLETE_EXT_PK_FILTER, "External column filter must constrain every business primary key column with an equality literal")
+TAOS_DEFINE_ERROR(TSDB_CODE_VTABLE_REFERENCE_AMBIGUOUS_NAME, "Ambiguous virtual table reference name")
+TAOS_DEFINE_ERROR(TSDB_CODE_VTABLE_REFERENCE_NULL_TIMESTAMP, "Virtual table reference contains a null timestamp")
+TAOS_DEFINE_ERROR(TSDB_CODE_VTABLE_REFERENCE_DUPLICATE_TIMESTAMP, "Virtual table reference contains duplicate timestamps")
+TAOS_DEFINE_ERROR(TSDB_CODE_VTABLE_REFERENCE_TIMESTAMP_OUT_OF_ORDER, "Virtual table reference timestamps are out of order")
+TAOS_DEFINE_ERROR(TSDB_CODE_VTABLE_REFERENCE_VERSION_CONFLICT, "Virtual table reference version conflict")
 
 TAOS_DEFINE_ERROR(TSDB_CODE_BLOB_SEQ_NOT_FOUND, "Blob seq not found")
 TAOS_DEFINE_ERROR(TSDB_CODE_BLOB_NOT_SUPPORT_TAG, "Blob type is not supported on tag")
@@ -1295,6 +1303,8 @@ TAOS_DEFINE_ERROR(TSDB_CODE_EXT_TAG_REF_NOT_ALLOWED,       "InfluxDB tag columns
 TAOS_DEFINE_ERROR(TSDB_CODE_EXT_IDENTIFIER_TOO_LONG,        "External object identifier is too long")
 TAOS_DEFINE_ERROR(TSDB_CODE_EXT_REQUIRED_COLUMNS_TOO_MANY,  "Too many external columns required by query")
 TAOS_DEFINE_ERROR(TSDB_CODE_EXT_REQUIRED_TAGS_TOO_MANY,     "Too many external tags required by query")
+TAOS_DEFINE_ERROR(TSDB_CODE_EXT_SCHEMA_CONFLICT,            "External column type or Field/Tag role conflict")
+TAOS_DEFINE_ERROR(TSDB_CODE_EXT_CLIENT_PLUGIN_MISSING,      "External source client authentication plugin is missing")
 
 // NEW-STREAM
 TAOS_DEFINE_ERROR(TSDB_CODE_MND_STREAM_INTERNAL_ERROR,      "Mnode stream internal error")
@@ -1343,6 +1353,9 @@ TAOS_DEFINE_ERROR(TSDB_CODE_XNODE_UV_EXEC_FAILURE,              "Xnode xnoded ex
 TAOS_DEFINE_ERROR(TSDB_CODE_MND_XNODE_URL_CANT_ACCESS,          "Xnode xnoded URL is not accessible")
 TAOS_DEFINE_ERROR(TSDB_CODE_MND_XNODE_URL_RESP_IS_NULL,         "Xnode xnoded response is null")
 TAOS_DEFINE_ERROR(TSDB_CODE_MND_XNODE_OWNED_BY_OTHER_CLUSTER,  "Xnode is already owned by another cluster")
+TAOS_DEFINE_ERROR(TSDB_CODE_MND_XNODE_INVALID_TASK_TYPE,       "Invalid xnode task type")
+TAOS_DEFINE_ERROR(TSDB_CODE_MND_XNODE_REPLICA_TASK_OPTION,     "Option not supported by replica xnode task")
+TAOS_DEFINE_ERROR(TSDB_CODE_MND_XNODE_REPLICA_PARAM_RESERVED,  "DSN parameter is reserved for replica xnode task")
 TAOS_DEFINE_ERROR(TSDB_CODE_MND_XNODE_HTTP_CODE_ERROR,          "Xnode request action response not success code")
 TAOS_DEFINE_ERROR(TSDB_CODE_MND_XNODE_NEED_USER_PASS,           "Xnode first-time setup requires username and password")
 TAOS_DEFINE_ERROR(TSDB_CODE_MND_XNODE_USER_PASS_NOT_EXIST,      "Xnode username or password error when setup")

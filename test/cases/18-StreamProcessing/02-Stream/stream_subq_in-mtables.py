@@ -135,14 +135,16 @@ class TestStreamSubquery:
 
     def checkResult(self):
         tdLog.info(f"check stb result start")
+        expect_rows = (self.ts_total / self.ts_step - 1) * self.tb_count
 
         while True:
             tdSql.query(f"select count(*) from db.`stream_meters`;")
-            if tdSql.getData(0,0) >= (self.ts_total / self.ts_step - 1) * self.tb_count:
-                tdLog.info(f"get {tdSql.getData(0,0)} rows")
+            cnt = tdSql.getData(0, 0)
+            if cnt >= expect_rows:
+                tdLog.info(f"get {cnt} rows")
                 break
 
-            tdLog.debug(f"current row count: {tdSql.getData(0,0)}")
+            tdLog.info(f"current row count: {cnt}, expect: >= {expect_rows}")
             time.sleep(1)
 
         tdSql.query(f"select * from db.`sm#d0` order by ts;")

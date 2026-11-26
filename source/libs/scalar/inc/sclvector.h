@@ -31,54 +31,54 @@ typedef struct SSclVectorConvCtx {
   int16_t outType;
 } SSclVectorConvCtx;
 
-typedef int32_t (*_getDoubleValue_fn_t)(void *src, int32_t index, double *out);
+typedef int32_t (*_getDoubleValue_fn_t)(void *src, int32_t index, double *out, void *charsetCxt);
 
-static FORCE_INLINE int32_t getVectorDoubleValue_TINYINT(void *src, int32_t index, double *out) {
+static FORCE_INLINE int32_t getVectorDoubleValue_TINYINT(void *src, int32_t index, double *out, void *charsetCxt) {
   *out = (double)*((int8_t *)src + index);
   return TSDB_CODE_SUCCESS;
 }
-static FORCE_INLINE int32_t getVectorDoubleValue_UTINYINT(void *src, int32_t index, double *out) {
+static FORCE_INLINE int32_t getVectorDoubleValue_UTINYINT(void *src, int32_t index, double *out, void *charsetCxt) {
   *out = (double)*((uint8_t *)src + index);
   return TSDB_CODE_SUCCESS;
 }
-static FORCE_INLINE int32_t getVectorDoubleValue_SMALLINT(void *src, int32_t index, double *out) {
+static FORCE_INLINE int32_t getVectorDoubleValue_SMALLINT(void *src, int32_t index, double *out, void *charsetCxt) {
   *out = (double)*((int16_t *)src + index);
   return TSDB_CODE_SUCCESS;
 }
-static FORCE_INLINE int32_t getVectorDoubleValue_USMALLINT(void *src, int32_t index, double *out) {
+static FORCE_INLINE int32_t getVectorDoubleValue_USMALLINT(void *src, int32_t index, double *out, void *charsetCxt) {
   *out = (double)*((uint16_t *)src + index);
   return TSDB_CODE_SUCCESS;
 }
-static FORCE_INLINE int32_t getVectorDoubleValue_INT(void *src, int32_t index, double *out) {
+static FORCE_INLINE int32_t getVectorDoubleValue_INT(void *src, int32_t index, double *out, void *charsetCxt) {
   *out = (double)*((int32_t *)src + index);
   return TSDB_CODE_SUCCESS;
 }
-static FORCE_INLINE int32_t getVectorDoubleValue_UINT(void *src, int32_t index, double *out) {
+static FORCE_INLINE int32_t getVectorDoubleValue_UINT(void *src, int32_t index, double *out, void *charsetCxt) {
   *out = (double)*((uint32_t *)src + index);
   return TSDB_CODE_SUCCESS;
 }
-static FORCE_INLINE int32_t getVectorDoubleValue_BIGINT(void *src, int32_t index, double *out) {
+static FORCE_INLINE int32_t getVectorDoubleValue_BIGINT(void *src, int32_t index, double *out, void *charsetCxt) {
   *out = (double)*((int64_t *)src + index);
   return TSDB_CODE_SUCCESS;
 }
-static FORCE_INLINE int32_t getVectorDoubleValue_UBIGINT(void *src, int32_t index, double *out) {
+static FORCE_INLINE int32_t getVectorDoubleValue_UBIGINT(void *src, int32_t index, double *out, void *charsetCxt) {
   *out = (double)*((uint64_t *)src + index);
   return TSDB_CODE_SUCCESS;
 }
-static FORCE_INLINE int32_t getVectorDoubleValue_FLOAT(void *src, int32_t index, double *out) {
+static FORCE_INLINE int32_t getVectorDoubleValue_FLOAT(void *src, int32_t index, double *out, void *charsetCxt) {
   *out = (double)*((float *)src + index);
   return TSDB_CODE_SUCCESS;
 }
-static FORCE_INLINE int32_t getVectorDoubleValue_DOUBLE(void *src, int32_t index, double *out) {
+static FORCE_INLINE int32_t getVectorDoubleValue_DOUBLE(void *src, int32_t index, double *out, void *charsetCxt) {
   *out = (double)*((double *)src + index);
   return TSDB_CODE_SUCCESS;
 }
-static FORCE_INLINE int32_t getVectorDoubleValue_BOOL(void *src, int32_t index, double *out) {
+static FORCE_INLINE int32_t getVectorDoubleValue_BOOL(void *src, int32_t index, double *out, void *charsetCxt) {
   *out = (double)*((bool *)src + index);
   return TSDB_CODE_SUCCESS;
 }
 
-int32_t getVectorDoubleValue_JSON(void *src, int32_t index, double *out);
+int32_t getVectorDoubleValue_JSON(void *src, int32_t index, double *out, void *charsetCxt);
 
 static FORCE_INLINE int32_t getVectorDoubleValueFn(int32_t srcType, _getDoubleValue_fn_t *p) {
   *p = NULL;

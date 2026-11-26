@@ -176,7 +176,7 @@ typedef struct SQWSubQRes {
 
   // for non-scalar subQ
   SRWLatch lock;
-  uint64_t firstSrcTaskId;
+  bool     fetchPending;  // One live fetch for the next uncached block.
   SArray*  rspList;  // SArray<SQWRspItem>
   SArray*  waitList;  // SArray<SQWWaitItem>
 } SQWSubQRes;

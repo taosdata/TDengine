@@ -168,8 +168,26 @@ static char** getAllDatabases(int *count, int *retCode) {
     }
     names[*count] = NULL;
 
+    // taos_fetch_row() returns NULL both at the end of the result and on a fetch
+    // error (e.g. a connection that dropped mid-stream): only a clean end means
+    // every database was enumerated
+    int fetchCode = taos_errno(res);
+    char fetchErr[512] = {0};
+    if (fetchCode != TSDB_CODE_SUCCESS) {
+        // copy before the result is released: taos_errstr(NULL) only reports the
+        // thread-local error, which may already have moved on
+        const char *errStr = taos_errstr(res);
+        snprintf(fetchErr, sizeof(fetchErr), "%s", errStr ? errStr : "");
+    }
     taos_free_result(res);
     releaseConnection(conn);
+    if (fetchCode != TSDB_CODE_SUCCESS) {
+        logError("fetch databases failed(0x%08X %s): SHOW DATABASES", fetchCode, fetchErr);
+        freeArrayPtr(names);
+        *count = 0;
+        *retCode = fetchCode;
+        return NULL;
+    }
     return names;
 }
 

@@ -34,6 +34,11 @@ typedef struct SPhysiPlanContext {
   SArray*       pLocationHelper;
   SArray*       pProjIdxLocHelper;
   bool          hasFederatedScan;  // set when SCAN_TYPE_EXTERNAL subplan is built
+  // Batch meta txn: txn-local super table schemas, fetched lazily by the first system table scan that needs them
+  // (see SPlanContext.getTxnStbSchemas) and shared by every such scan of this plan. Owned by this context.
+  char*         pTxnStbSchemas;
+  int32_t       txnStbSchemasLen;
+  bool          txnStbSchemasLoaded;
 } SPhysiPlanContext;
 
 // Stable-table join rewrites keep the two logical inputs below a single
@@ -144,28 +149,61 @@ typedef struct SJoinInputProps {
 int32_t generateUsageErrMsg(char* pBuf, int32_t len, int32_t errCode, ...);
 int32_t createColumnByRewriteExprs(SNodeList* pExprs, SNodeList** pList);
 int32_t createColumnByRewriteExpr(SNode* pExpr, SNodeList** pList);
-int32_t createColumnByRemoteOutputExprs(SNodeList* pExprs, SNodeList** pList);
+int32_t            createRemoteOutputTargets(const SNodesRemoteSelectOutputs* pOutputs, SNodeList** pList);
 int32_t replaceProjectLogicProjections(SLogicNode* pNode, const SNodeList* pExprs);
 int32_t replaceLogicNode(SLogicSubplan* pSubplan, SLogicNode* pOld, SLogicNode* pNew);
 int32_t adjustLogicNodeDataRequirement(SLogicNode* pNode, EDataOrderLevel requirement);
 SLogicNode*    planGetSubqueryRenderLogic(const SPlanContext* pCxt, int32_t subQIdx, ENodeType remoteNodeType);
 bool           planIsSubqueryPushedDown(const SPlanContext* pCxt, int32_t subQIdx);
+bool           planIsSharedSubquery(const SPlanContext* pCxt, int32_t subQIdx);
+bool           planSubqueryCanShare(const SNode* pLeft, const SNode* pRight);
+static inline bool planSubqueryTypeEqual(SDataType a, SDataType b) {
+  return a.type == b.type && a.bytes == b.bytes && a.precision == b.precision && a.scale == b.scale;
+}
 bool           planIsExternalWindowSubquery(const SPlanContext* pCxt, int32_t subQIdx);
 int32_t        planMarkSubqueryPushedDown(SPlanContext* pCxt, int32_t subQIdx);
 
 int32_t createLogicPlan(SPlanContext* pCxt, SLogicSubplan** pLogicSubplan);
+int32_t planCollectTaskSubqueryDeps(SPlanContext* pCxt, SLogicNode* pRoot, SSubplan* pSubplan);
 void planWalkLogicExprFields(SLogicNode* pNode, FNodeWalker walker,
                              void* pContext);
 int32_t planCreateJoinPropsStore(SPlanContext* pCxt);
 void    planDestroyJoinPropsStore(SPlanContext* pCxt);
 int32_t planRebuildJoinInputProps(SPlanContext* pCxt, SLogicNode* pRoot);
+int32_t planRefreshJoinRewriteInputs(SPlanContext* pCxt, SLogicNode* pRoot);
+int32_t planCheckJoinRewriteConditions(SPlanContext* pCxt, SLogicNode* pRoot,
+                                       bool* pSupported);
+void    planResetJoinRewriteFlags(SLogicNode* pNode);
 int32_t planFinalizeTemporalJoins(SPlanContext* pCxt, SLogicNode* pRoot);
+int32_t planBindTemporalJoinTimeKeys(SPlanContext* pCxt,
+                                     SJoinLogicNode* pJoin);
+int32_t planRewriteJoinParallel(SPlanContext* pCxt, SLogicSubplan* pSubplan,
+                                bool* pChanged);
+bool planJoinParallelQuerySupported(const SPlanContext* pCxt);
+// Only common expression dependencies; callers own traversal boundaries.
+bool planExprIsRuntimeDependent(const SNode* pNode);
+bool planJoinColumnNamesEqual(const SColumnNode* pLeft,
+                              const SColumnNode* pRight);
+// True if StableJoin may still convert the JOIN.
+bool    planJoinMayBeStableJoin(const SJoinLogicNode* pJoin);
 // Valid until the next property rebuild or query-context cleanup.
 const SJoinInputProps* planGetJoinInputProps(
     const SPlanContext* pCxt, const SLogicNode* pNode);
+// Resolver bits identify NULL extensions that make the column NULL.
+// Return zero when the column's ownership is unknown.
+typedef uint64_t (*FPlanNullColumnResolver)(const SColumnNode* pColumn,
+                                            const void* pContext);
+// Returns bits proving the condition cannot be TRUE after that extension.
+// Borrows the expression/context; unknown expressions contribute no proof.
+uint64_t planCondRejectsNull(const SNode* pCondition, uint64_t inputs,
+                             FPlanNullColumnResolver resolver,
+                             const void* pContext);
+// Call after classifying conditions and refreshing rewritten children.
+void    planRefreshJoinRewriteOrder(SJoinLogicNode* pJoin);
 int32_t planPrepareAsofJoinTimeCondition(SJoinLogicNode* pJoin);
 int32_t planRetainJoinTimeKeyTarget(SLogicNode* pChild, SNode* pKey);
 int32_t optimizeLogicPlan(SPlanContext* pCxt, SLogicSubplan* pLogicSubplan);
+int32_t planPushDownReferenceLimit(SLogicSubplan* pLogicSubplan, bool* pOptimized);
 int32_t planEliminateTemporalInputSort(SLogicSubplan* pSubplan,
                                        bool* pOptimized);
 int32_t splitLogicPlan(SPlanContext* pCxt, SLogicSubplan* pLogicSubplan);
@@ -175,6 +213,8 @@ int32_t createPhysiPlan(SPlanContext* pCxt, SQueryLogicPlan* pLogicPlan, SQueryP
 int32_t validateQueryPlan(SPlanContext* pCxt, SQueryPlan* pPlan);
 int32_t planCheckRequiredExtColumns(const SExtTableNode* pExtNode, const SNodeList* pScanCols);
 bool    planFqOuterJoinNeedsNestedFallback(const SJoinLogicNode* pJoin);
+bool    planFqInflux18ExprIsPushable(SNode* pExpr, SScanLogicNode* pScan,
+                                    const SExtSourceCapability* pCap, const SExtCapSessionOverlay* pOverlay);
 
 bool        getBatchScanOptionFromHint(SNodeList* pList);
 bool        getSortForGroupOptHint(SNodeList* pList);
@@ -221,7 +261,7 @@ bool        partitionKeysAreOrdinaryColumns(SNodeList* pKeys);
 bool        keysHasTbname(SNodeList* pKeys);
 bool        planAggFuncsHasFirst(SNodeList* pFuncs);
 bool        projectCouldMergeUnsortDataBlock(SProjectLogicNode* pProject);
-SFunctionNode* createGroupKeyAggFunc(SColumnNode* pGroupCol);
+SFunctionNode* createGroupKeyAggFunc(SExprNode* pGroupExpr);
 int32_t getTimeRangeFromNode(SNode** pPrimaryKeyCond, STimeWindow* pTimeRange, bool* pIsStrict);
 int32_t tagScanSetExecutionMode(SScanLogicNode* pScan);
 

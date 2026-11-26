@@ -31,10 +31,29 @@ Apache Kafka 是一个高吞吐、可扩展的分布式消息队列系统，常�
 通过命令行工具 `taos` 或管理界面 taosExplorer 执行 SQL 语句，创建数据库、超级表、主题，并写入数据，供后续发布任务使用。以下为简单示例：
 
 ```sql
-CREATE DATABASE db VGROUPS 1;
-CREATE TABLE db.meters (ts TIMESTAMP, f1 INT) TAGS (t1 INT);
-CREATE TOPIC topic_meters AS SELECT ts, tbname, f1, t1 FROM db.meters;
-INSERT INTO db.tb USING db.meters TAGS (1) VALUES (now, 1);
+CREATE DATABASE db
+  VGROUPS 1;
+
+CREATE TABLE db.meters (
+  ts TIMESTAMP,
+  f1 INT
+) TAGS (
+  t1 INT
+);
+
+CREATE TOPIC topic_meters
+  AS
+    SELECT
+      ts,
+      tbname,
+      f1,
+      t1
+    FROM db.meters;
+
+INSERT INTO db.tb
+USING db.meters
+TAGS (1)
+VALUES (now, 1);
 ```
 
 关于主题定义、消费位点和订阅参数的更多说明，请参考 [数据订阅](../../06-data-subscription/index.md)。

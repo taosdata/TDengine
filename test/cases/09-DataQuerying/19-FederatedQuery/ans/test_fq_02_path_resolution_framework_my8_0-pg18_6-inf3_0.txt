@@ -1102,7 +1102,7 @@ ERROR: [0x2616]: Database not specified
 ### DIM-01[ORA] STEP-004.010 QUERY
 SQL: select * from fq02_dim01.path_t order by val limit 5
 RESULT:
-TS|VAL|SCORE|NAME
+ts|val|score|name
 2024-01-01 00:00:00+08:00|1|1.5|alpha
 2024-01-01 00:01:00+08:00|2|2.5|beta
 2024-01-01 00:02:00+08:00|3|3.5|gamma
@@ -1111,10 +1111,10 @@ TS|VAL|SCORE|NAME
 SQL: describe fq02_dim01.path_t
 RESULT:
 field|type|length|note
-TS|TIMESTAMP|8|
-VAL|BIGINT|8|
-SCORE|DOUBLE|8|
-NAME|VARCHAR|32|
+ts|TIMESTAMP|8|
+val|BIGINT|8|
+score|DOUBLE|8|
+name|VARCHAR|32|
 ---
 ### DIM-01[ORA] STEP-004.012 EXEC
 SQL: insert into fq02_dim01.path_t values (now, 999, 9.9, 'test')
@@ -1132,93 +1132,93 @@ RESULT:
 ERROR: [0x6419]: Write operation not supported on external source table
 ---
 ### DIM-01[ORA] STEP-004.015 COMMENT
--- [3-seg FROM] path=fq02_dim01.TAOSDATA.path_t
+-- [3-seg FROM] path=fq02_dim01.`TAOSDATA`.path_t
 ---
 ### DIM-01[ORA] STEP-004.016 QUERY
-SQL: select * from fq02_dim01.TAOSDATA.path_t order by val limit 5
+SQL: select * from fq02_dim01.`TAOSDATA`.path_t order by val limit 5
 RESULT:
-TS|VAL|SCORE|NAME
+ts|val|score|name
 2024-01-01 00:00:00+08:00|1|1.5|alpha
 2024-01-01 00:01:00+08:00|2|2.5|beta
 2024-01-01 00:02:00+08:00|3|3.5|gamma
 ---
 ### DIM-01[ORA] STEP-004.017 QUERY
-SQL: describe fq02_dim01.TAOSDATA.path_t
+SQL: describe fq02_dim01.`TAOSDATA`.path_t
 RESULT:
 field|type|length|note
-TS|TIMESTAMP|8|
-VAL|BIGINT|8|
-SCORE|DOUBLE|8|
-NAME|VARCHAR|32|
+ts|TIMESTAMP|8|
+val|BIGINT|8|
+score|DOUBLE|8|
+name|VARCHAR|32|
 ---
 ### DIM-01[ORA] STEP-004.018 EXEC
-SQL: insert into fq02_dim01.TAOSDATA.path_t values (now, 999, 9.9, 'test')
+SQL: insert into fq02_dim01.`TAOSDATA`.path_t values (now, 999, 9.9, 'test')
 RESULT:
 ERROR: [0x6419]: Write operation not supported on external source table
 ---
 ### DIM-01[ORA] STEP-004.019 EXEC
-SQL: drop table fq02_dim01.TAOSDATA.path_t
+SQL: drop table fq02_dim01.`TAOSDATA`.path_t
 RESULT:
 ERROR: [0x6419]: Write operation not supported on external source table
 ---
 ### DIM-01[ORA] STEP-004.020 EXEC
-SQL: alter table fq02_dim01.TAOSDATA.path_t comment 'test'
+SQL: alter table fq02_dim01.`TAOSDATA`.path_t comment 'test'
 RESULT:
 ERROR: [0x6419]: Write operation not supported on external source table
 ---
 ### DIM-01[ORA] STEP-004.021 COMMENT
--- [4-seg FROM] path=fq02_dim01.TAOSDATA.path_t.extra
+-- [4-seg FROM] path=fq02_dim01.`TAOSDATA`.path_t.extra
 ---
 ### DIM-01[ORA] STEP-004.022 QUERY
-SQL: select * from fq02_dim01.TAOSDATA.path_t.extra order by val limit 5
+SQL: select * from fq02_dim01.`TAOSDATA`.path_t.extra order by val limit 5
 RESULT:
 ERROR: [0x2600]: too many path segments for source 'fq02_dim01': at most 3 are supported
 ---
 ### DIM-01[ORA] STEP-004.023 QUERY
-SQL: describe fq02_dim01.TAOSDATA.path_t.extra
+SQL: describe fq02_dim01.`TAOSDATA`.path_t.extra
 RESULT:
 ERROR: [0x2600]: too many path segments for source 'fq02_dim01': at most 3 are supported
 ---
 ### DIM-01[ORA] STEP-004.024 EXEC
-SQL: insert into fq02_dim01.TAOSDATA.path_t.extra values (now, 999, 9.9, 'test')
+SQL: insert into fq02_dim01.`TAOSDATA`.path_t.extra values (now, 999, 9.9, 'test')
 RESULT:
 ERROR: [0x6419]: Write operation not supported on external source table
 ---
 ### DIM-01[ORA] STEP-004.025 EXEC
-SQL: drop table fq02_dim01.TAOSDATA.path_t.extra
+SQL: drop table fq02_dim01.`TAOSDATA`.path_t.extra
 RESULT:
 ERROR: [0x6419]: Write operation not supported on external source table
 ---
 ### DIM-01[ORA] STEP-004.026 EXEC
-SQL: alter table fq02_dim01.TAOSDATA.path_t.extra comment 'test'
+SQL: alter table fq02_dim01.`TAOSDATA`.path_t.extra comment 'test'
 RESULT:
 ERROR: [0x6419]: Write operation not supported on external source table
 ---
 ### DIM-01[ORA] STEP-004.027 COMMENT
--- [5-seg FROM] path=fq02_dim01.TAOSDATA.path_t.extra.more
+-- [5-seg FROM] path=fq02_dim01.`TAOSDATA`.path_t.extra.more
 ---
 ### DIM-01[ORA] STEP-004.028 QUERY
-SQL: select * from fq02_dim01.TAOSDATA.path_t.extra.more order by val limit 5
+SQL: select * from fq02_dim01.`TAOSDATA`.path_t.extra.more order by val limit 5
 RESULT:
 ERROR: [0x2600]: syntax error near ".more order by val limit 5"
 ---
 ### DIM-01[ORA] STEP-004.029 QUERY
-SQL: describe fq02_dim01.TAOSDATA.path_t.extra.more
+SQL: describe fq02_dim01.`TAOSDATA`.path_t.extra.more
 RESULT:
 ERROR: [0x2600]: syntax error near ".more"
 ---
 ### DIM-01[ORA] STEP-004.030 EXEC
-SQL: insert into fq02_dim01.TAOSDATA.path_t.extra.more values (now, 999, 9.9, 'test')
+SQL: insert into fq02_dim01.`TAOSDATA`.path_t.extra.more values (now, 999, 9.9, 'test')
 RESULT:
 ERROR: [0x6419]: Write operation not supported on external source table
 ---
 ### DIM-01[ORA] STEP-004.031 EXEC
-SQL: drop table fq02_dim01.TAOSDATA.path_t.extra.more
+SQL: drop table fq02_dim01.`TAOSDATA`.path_t.extra.more
 RESULT:
 ERROR: [0x6419]: Write operation not supported on external source table
 ---
 ### DIM-01[ORA] STEP-004.032 EXEC
-SQL: alter table fq02_dim01.TAOSDATA.path_t.extra.more comment 'test'
+SQL: alter table fq02_dim01.`TAOSDATA`.path_t.extra.more comment 'test'
 RESULT:
 ERROR: [0x2600]: syntax error near ".more comment 'test'"
 ---
@@ -1247,14 +1247,14 @@ OK
 ### DIM-01[ORA] STEP-004.039 QUERY
 SQL: select * from path_t order by val limit 1
 RESULT:
-TS|VAL|SCORE|NAME
+ts|val|score|name
 2024-01-01 00:00:00+08:00|1|1.5|alpha
 ---
 ### DIM-01[ORA] STEP-004.040 COMMENT
--- [2-seg USE] sql=use fq02_dim01.TAOSDATA
+-- [2-seg USE] sql=use fq02_dim01.`TAOSDATA`
 ---
 ### DIM-01[ORA] STEP-004.041 EXEC
-SQL: use fq02_dim01.TAOSDATA
+SQL: use fq02_dim01.`TAOSDATA`
 RESULT:
 OK
 ---
@@ -1264,30 +1264,30 @@ OK
 ### DIM-01[ORA] STEP-004.043 QUERY
 SQL: select * from path_t order by val limit 1
 RESULT:
-TS|VAL|SCORE|NAME
+ts|val|score|name
 2024-01-01 00:00:00+08:00|1|1.5|alpha
 ---
 ### DIM-01[ORA] STEP-004.044 COMMENT
--- [3-seg USE] sql=use fq02_dim01.TAOSDATA.extra
+-- [3-seg USE] sql=use fq02_dim01.`TAOSDATA`.extra
 ---
 ### DIM-01[ORA] STEP-004.045 EXEC
-SQL: use fq02_dim01.TAOSDATA.extra
+SQL: use fq02_dim01.`TAOSDATA`.extra
 RESULT:
 ERROR: [0x2600]: 3-segment USE (source.db.schema) is not supported; use 2-segment: USE source.schema
 ---
 ### DIM-01[ORA] STEP-004.046 COMMENT
--- [4-seg USE] sql=use fq02_dim01.TAOSDATA.extra.more
+-- [4-seg USE] sql=use fq02_dim01.`TAOSDATA`.extra.more
 ---
 ### DIM-01[ORA] STEP-004.047 EXEC
-SQL: use fq02_dim01.TAOSDATA.extra.more
+SQL: use fq02_dim01.`TAOSDATA`.extra.more
 RESULT:
 ERROR: [0x2600]: syntax error near ".more"
 ---
 ### DIM-01[ORA] STEP-004.048 COMMENT
--- [5-seg USE] sql=use fq02_dim01.TAOSDATA.extra.more.deep
+-- [5-seg USE] sql=use fq02_dim01.`TAOSDATA`.extra.more.deep
 ---
 ### DIM-01[ORA] STEP-004.049 EXEC
-SQL: use fq02_dim01.TAOSDATA.extra.more.deep
+SQL: use fq02_dim01.`TAOSDATA`.extra.more.deep
 RESULT:
 ERROR: [0x2600]: syntax error near ".more.deep"
 ---
@@ -2410,93 +2410,93 @@ RESULT:
 ERROR: [0x6419]: Write operation not supported on external source table
 ---
 ### DIM-02[ORA] STEP-004.015 COMMENT
--- [3-seg FROM] path=fq02_dim02.TAOSDATA.path_t
+-- [3-seg FROM] path=fq02_dim02.`TAOSDATA`.path_t
 ---
 ### DIM-02[ORA] STEP-004.016 QUERY
-SQL: select * from fq02_dim02.TAOSDATA.path_t order by val limit 5
+SQL: select * from fq02_dim02.`TAOSDATA`.path_t order by val limit 5
 RESULT:
-TS|VAL|SCORE|NAME
+ts|val|score|name
 2024-01-01 00:00:00+08:00|1|1.5|alpha
 2024-01-01 00:01:00+08:00|2|2.5|beta
 2024-01-01 00:02:00+08:00|3|3.5|gamma
 ---
 ### DIM-02[ORA] STEP-004.017 QUERY
-SQL: describe fq02_dim02.TAOSDATA.path_t
+SQL: describe fq02_dim02.`TAOSDATA`.path_t
 RESULT:
 field|type|length|note
-TS|TIMESTAMP|8|
-VAL|BIGINT|8|
-SCORE|DOUBLE|8|
-NAME|VARCHAR|32|
+ts|TIMESTAMP|8|
+val|BIGINT|8|
+score|DOUBLE|8|
+name|VARCHAR|32|
 ---
 ### DIM-02[ORA] STEP-004.018 EXEC
-SQL: insert into fq02_dim02.TAOSDATA.path_t values (now, 999, 9.9, 'test')
+SQL: insert into fq02_dim02.`TAOSDATA`.path_t values (now, 999, 9.9, 'test')
 RESULT:
 ERROR: [0x6419]: Write operation not supported on external source table
 ---
 ### DIM-02[ORA] STEP-004.019 EXEC
-SQL: drop table fq02_dim02.TAOSDATA.path_t
+SQL: drop table fq02_dim02.`TAOSDATA`.path_t
 RESULT:
 ERROR: [0x6419]: Write operation not supported on external source table
 ---
 ### DIM-02[ORA] STEP-004.020 EXEC
-SQL: alter table fq02_dim02.TAOSDATA.path_t comment 'test'
+SQL: alter table fq02_dim02.`TAOSDATA`.path_t comment 'test'
 RESULT:
 ERROR: [0x6419]: Write operation not supported on external source table
 ---
 ### DIM-02[ORA] STEP-004.021 COMMENT
--- [4-seg FROM] path=fq02_dim02.TAOSDATA.path_t.extra
+-- [4-seg FROM] path=fq02_dim02.`TAOSDATA`.path_t.extra
 ---
 ### DIM-02[ORA] STEP-004.022 QUERY
-SQL: select * from fq02_dim02.TAOSDATA.path_t.extra order by val limit 5
+SQL: select * from fq02_dim02.`TAOSDATA`.path_t.extra order by val limit 5
 RESULT:
 ERROR: [0x2600]: too many path segments for source 'fq02_dim02': at most 3 are supported
 ---
 ### DIM-02[ORA] STEP-004.023 QUERY
-SQL: describe fq02_dim02.TAOSDATA.path_t.extra
+SQL: describe fq02_dim02.`TAOSDATA`.path_t.extra
 RESULT:
 ERROR: [0x2600]: too many path segments for source 'fq02_dim02': at most 3 are supported
 ---
 ### DIM-02[ORA] STEP-004.024 EXEC
-SQL: insert into fq02_dim02.TAOSDATA.path_t.extra values (now, 999, 9.9, 'test')
+SQL: insert into fq02_dim02.`TAOSDATA`.path_t.extra values (now, 999, 9.9, 'test')
 RESULT:
 ERROR: [0x6419]: Write operation not supported on external source table
 ---
 ### DIM-02[ORA] STEP-004.025 EXEC
-SQL: drop table fq02_dim02.TAOSDATA.path_t.extra
+SQL: drop table fq02_dim02.`TAOSDATA`.path_t.extra
 RESULT:
 ERROR: [0x6419]: Write operation not supported on external source table
 ---
 ### DIM-02[ORA] STEP-004.026 EXEC
-SQL: alter table fq02_dim02.TAOSDATA.path_t.extra comment 'test'
+SQL: alter table fq02_dim02.`TAOSDATA`.path_t.extra comment 'test'
 RESULT:
 ERROR: [0x6419]: Write operation not supported on external source table
 ---
 ### DIM-02[ORA] STEP-004.027 COMMENT
--- [5-seg FROM] path=fq02_dim02.TAOSDATA.path_t.extra.more
+-- [5-seg FROM] path=fq02_dim02.`TAOSDATA`.path_t.extra.more
 ---
 ### DIM-02[ORA] STEP-004.028 QUERY
-SQL: select * from fq02_dim02.TAOSDATA.path_t.extra.more order by val limit 5
+SQL: select * from fq02_dim02.`TAOSDATA`.path_t.extra.more order by val limit 5
 RESULT:
 ERROR: [0x2600]: syntax error near ".more order by val limit 5"
 ---
 ### DIM-02[ORA] STEP-004.029 QUERY
-SQL: describe fq02_dim02.TAOSDATA.path_t.extra.more
+SQL: describe fq02_dim02.`TAOSDATA`.path_t.extra.more
 RESULT:
 ERROR: [0x2600]: syntax error near ".more"
 ---
 ### DIM-02[ORA] STEP-004.030 EXEC
-SQL: insert into fq02_dim02.TAOSDATA.path_t.extra.more values (now, 999, 9.9, 'test')
+SQL: insert into fq02_dim02.`TAOSDATA`.path_t.extra.more values (now, 999, 9.9, 'test')
 RESULT:
 ERROR: [0x6419]: Write operation not supported on external source table
 ---
 ### DIM-02[ORA] STEP-004.031 EXEC
-SQL: drop table fq02_dim02.TAOSDATA.path_t.extra.more
+SQL: drop table fq02_dim02.`TAOSDATA`.path_t.extra.more
 RESULT:
 ERROR: [0x6419]: Write operation not supported on external source table
 ---
 ### DIM-02[ORA] STEP-004.032 EXEC
-SQL: alter table fq02_dim02.TAOSDATA.path_t.extra.more comment 'test'
+SQL: alter table fq02_dim02.`TAOSDATA`.path_t.extra.more comment 'test'
 RESULT:
 ERROR: [0x2600]: syntax error near ".more comment 'test'"
 ---
@@ -2520,10 +2520,10 @@ RESULT:
 ERROR: [0x640c]: No default schema configured for external source 'fq02_dim02'; specify: USE fq02_dim02.<schema>
 ---
 ### DIM-02[ORA] STEP-004.038 COMMENT
--- [2-seg USE] sql=use fq02_dim02.TAOSDATA
+-- [2-seg USE] sql=use fq02_dim02.`TAOSDATA`
 ---
 ### DIM-02[ORA] STEP-004.039 EXEC
-SQL: use fq02_dim02.TAOSDATA
+SQL: use fq02_dim02.`TAOSDATA`
 RESULT:
 OK
 ---
@@ -2533,30 +2533,30 @@ OK
 ### DIM-02[ORA] STEP-004.041 QUERY
 SQL: select * from path_t order by val limit 1
 RESULT:
-TS|VAL|SCORE|NAME
+ts|val|score|name
 2024-01-01 00:00:00+08:00|1|1.5|alpha
 ---
 ### DIM-02[ORA] STEP-004.042 COMMENT
--- [3-seg USE] sql=use fq02_dim02.TAOSDATA.extra
+-- [3-seg USE] sql=use fq02_dim02.`TAOSDATA`.extra
 ---
 ### DIM-02[ORA] STEP-004.043 EXEC
-SQL: use fq02_dim02.TAOSDATA.extra
+SQL: use fq02_dim02.`TAOSDATA`.extra
 RESULT:
 ERROR: [0x2600]: 3-segment USE (source.db.schema) is not supported; use 2-segment: USE source.schema
 ---
 ### DIM-02[ORA] STEP-004.044 COMMENT
--- [4-seg USE] sql=use fq02_dim02.TAOSDATA.extra.more
+-- [4-seg USE] sql=use fq02_dim02.`TAOSDATA`.extra.more
 ---
 ### DIM-02[ORA] STEP-004.045 EXEC
-SQL: use fq02_dim02.TAOSDATA.extra.more
+SQL: use fq02_dim02.`TAOSDATA`.extra.more
 RESULT:
 ERROR: [0x2600]: syntax error near ".more"
 ---
 ### DIM-02[ORA] STEP-004.046 COMMENT
--- [5-seg USE] sql=use fq02_dim02.TAOSDATA.extra.more.deep
+-- [5-seg USE] sql=use fq02_dim02.`TAOSDATA`.extra.more.deep
 ---
 ### DIM-02[ORA] STEP-004.047 EXEC
-SQL: use fq02_dim02.TAOSDATA.extra.more.deep
+SQL: use fq02_dim02.`TAOSDATA`.extra.more.deep
 RESULT:
 ERROR: [0x2600]: syntax error near ".more.deep"
 ---
@@ -2564,14 +2564,14 @@ ERROR: [0x2600]: syntax error near ".more.deep"
 -- [2-seg after USE source.ns] should succeed — USE provides the ns
 ---
 ### DIM-02[ORA] STEP-004.049 EXEC
-SQL: use fq02_dim02.TAOSDATA
+SQL: use fq02_dim02.`TAOSDATA`
 RESULT:
 OK
 ---
 ### DIM-02[ORA] STEP-004.050 QUERY
 SQL: select * from fq02_dim02.path_t order by val limit 1
 RESULT:
-TS|VAL|SCORE|NAME
+ts|val|score|name
 2024-01-01 00:00:00+08:00|1|1.5|alpha
 ---
 ### DIM-02[ORA] STEP-005 CLEANUP
@@ -3740,7 +3740,7 @@ ERROR: [0x2601]: Incomplete SQL statement
 ### DIM-03[ORA] STEP-004.005 QUERY
 SQL: select * from path_t order by val limit 5
 RESULT:
-TS|VAL|SCORE|NAME
+ts|val|score|name
 2024-01-01 00:00:00+08:00|1|1.5|alpha
 2024-01-01 00:01:00+08:00|2|2.5|beta
 2024-01-01 00:02:00+08:00|3|3.5|gamma
@@ -3771,7 +3771,7 @@ ERROR: [0x0118]: Invalid parameters
 ### DIM-03[ORA] STEP-004.011 QUERY
 SQL: select * from fq02_dim03.path_t order by val limit 5
 RESULT:
-TS|VAL|SCORE|NAME
+ts|val|score|name
 2024-01-01 00:00:00+08:00|1|1.5|alpha
 2024-01-01 00:01:00+08:00|2|2.5|beta
 2024-01-01 00:02:00+08:00|3|3.5|gamma
@@ -3780,10 +3780,10 @@ TS|VAL|SCORE|NAME
 SQL: describe fq02_dim03.path_t
 RESULT:
 field|type|length|note
-TS|TIMESTAMP|8|
-VAL|BIGINT|8|
-SCORE|DOUBLE|8|
-NAME|VARCHAR|32|
+ts|TIMESTAMP|8|
+val|BIGINT|8|
+score|DOUBLE|8|
+name|VARCHAR|32|
 ---
 ### DIM-03[ORA] STEP-004.013 EXEC
 SQL: insert into fq02_dim03.path_t values (now, 999, 9.9, 'test')
@@ -3801,93 +3801,93 @@ RESULT:
 ERROR: [0x6409]: DDL is not allowed while an external source is active (USE 'fq02_dim03'); switch back to a local database first
 ---
 ### DIM-03[ORA] STEP-004.016 COMMENT
--- [3-seg FROM] path=fq02_dim03.TAOSDATA.path_t
+-- [3-seg FROM] path=fq02_dim03.`TAOSDATA`.path_t
 ---
 ### DIM-03[ORA] STEP-004.017 QUERY
-SQL: select * from fq02_dim03.TAOSDATA.path_t order by val limit 5
+SQL: select * from fq02_dim03.`TAOSDATA`.path_t order by val limit 5
 RESULT:
-TS|VAL|SCORE|NAME
+ts|val|score|name
 2024-01-01 00:00:00+08:00|1|1.5|alpha
 2024-01-01 00:01:00+08:00|2|2.5|beta
 2024-01-01 00:02:00+08:00|3|3.5|gamma
 ---
 ### DIM-03[ORA] STEP-004.018 QUERY
-SQL: describe fq02_dim03.TAOSDATA.path_t
+SQL: describe fq02_dim03.`TAOSDATA`.path_t
 RESULT:
 field|type|length|note
-TS|TIMESTAMP|8|
-VAL|BIGINT|8|
-SCORE|DOUBLE|8|
-NAME|VARCHAR|32|
+ts|TIMESTAMP|8|
+val|BIGINT|8|
+score|DOUBLE|8|
+name|VARCHAR|32|
 ---
 ### DIM-03[ORA] STEP-004.019 EXEC
-SQL: insert into fq02_dim03.TAOSDATA.path_t values (now, 999, 9.9, 'test')
+SQL: insert into fq02_dim03.`TAOSDATA`.path_t values (now, 999, 9.9, 'test')
 RESULT:
 ERROR: [0x6419]: Write operation not supported on external source table
 ---
 ### DIM-03[ORA] STEP-004.020 EXEC
-SQL: drop table fq02_dim03.TAOSDATA.path_t
+SQL: drop table fq02_dim03.`TAOSDATA`.path_t
 RESULT:
 ERROR: [0x6419]: Write operation not supported on external source table
 ---
 ### DIM-03[ORA] STEP-004.021 EXEC
-SQL: alter table fq02_dim03.TAOSDATA.path_t comment 'test'
+SQL: alter table fq02_dim03.`TAOSDATA`.path_t comment 'test'
 RESULT:
 ERROR: [0x6419]: Write operation not supported on external source table
 ---
 ### DIM-03[ORA] STEP-004.022 COMMENT
--- [4-seg FROM] path=fq02_dim03.TAOSDATA.path_t.extra
+-- [4-seg FROM] path=fq02_dim03.`TAOSDATA`.path_t.extra
 ---
 ### DIM-03[ORA] STEP-004.023 QUERY
-SQL: select * from fq02_dim03.TAOSDATA.path_t.extra order by val limit 5
+SQL: select * from fq02_dim03.`TAOSDATA`.path_t.extra order by val limit 5
 RESULT:
 ERROR: [0x2600]: too many path segments for source 'fq02_dim03': at most 3 are supported
 ---
 ### DIM-03[ORA] STEP-004.024 QUERY
-SQL: describe fq02_dim03.TAOSDATA.path_t.extra
+SQL: describe fq02_dim03.`TAOSDATA`.path_t.extra
 RESULT:
 ERROR: [0x2600]: too many path segments for source 'fq02_dim03': at most 3 are supported
 ---
 ### DIM-03[ORA] STEP-004.025 EXEC
-SQL: insert into fq02_dim03.TAOSDATA.path_t.extra values (now, 999, 9.9, 'test')
+SQL: insert into fq02_dim03.`TAOSDATA`.path_t.extra values (now, 999, 9.9, 'test')
 RESULT:
 ERROR: [0x6419]: Write operation not supported on external source table
 ---
 ### DIM-03[ORA] STEP-004.026 EXEC
-SQL: drop table fq02_dim03.TAOSDATA.path_t.extra
+SQL: drop table fq02_dim03.`TAOSDATA`.path_t.extra
 RESULT:
 ERROR: [0x6419]: Write operation not supported on external source table
 ---
 ### DIM-03[ORA] STEP-004.027 EXEC
-SQL: alter table fq02_dim03.TAOSDATA.path_t.extra comment 'test'
+SQL: alter table fq02_dim03.`TAOSDATA`.path_t.extra comment 'test'
 RESULT:
 ERROR: [0x6419]: Write operation not supported on external source table
 ---
 ### DIM-03[ORA] STEP-004.028 COMMENT
--- [5-seg FROM] path=fq02_dim03.TAOSDATA.path_t.extra.more
+-- [5-seg FROM] path=fq02_dim03.`TAOSDATA`.path_t.extra.more
 ---
 ### DIM-03[ORA] STEP-004.029 QUERY
-SQL: select * from fq02_dim03.TAOSDATA.path_t.extra.more order by val limit 5
+SQL: select * from fq02_dim03.`TAOSDATA`.path_t.extra.more order by val limit 5
 RESULT:
 ERROR: [0x2600]: syntax error near ".more order by val limit 5"
 ---
 ### DIM-03[ORA] STEP-004.030 QUERY
-SQL: describe fq02_dim03.TAOSDATA.path_t.extra.more
+SQL: describe fq02_dim03.`TAOSDATA`.path_t.extra.more
 RESULT:
 ERROR: [0x2600]: syntax error near ".more"
 ---
 ### DIM-03[ORA] STEP-004.031 EXEC
-SQL: insert into fq02_dim03.TAOSDATA.path_t.extra.more values (now, 999, 9.9, 'test')
+SQL: insert into fq02_dim03.`TAOSDATA`.path_t.extra.more values (now, 999, 9.9, 'test')
 RESULT:
 ERROR: [0x6419]: Write operation not supported on external source table
 ---
 ### DIM-03[ORA] STEP-004.032 EXEC
-SQL: drop table fq02_dim03.TAOSDATA.path_t.extra.more
+SQL: drop table fq02_dim03.`TAOSDATA`.path_t.extra.more
 RESULT:
 ERROR: [0x6419]: Write operation not supported on external source table
 ---
 ### DIM-03[ORA] STEP-004.033 EXEC
-SQL: alter table fq02_dim03.TAOSDATA.path_t.extra.more comment 'test'
+SQL: alter table fq02_dim03.`TAOSDATA`.path_t.extra.more comment 'test'
 RESULT:
 ERROR: [0x2600]: syntax error near ".more comment 'test'"
 ---
@@ -3897,7 +3897,7 @@ ERROR: [0x2600]: syntax error near ".more comment 'test'"
 ### DIM-03[ORA] STEP-004.035 QUERY
 SQL: select * from path_t order by val limit 5
 RESULT:
-TS|VAL|SCORE|NAME
+ts|val|score|name
 2024-01-01 00:00:00+08:00|1|1.5|alpha
 2024-01-01 00:01:00+08:00|2|2.5|beta
 2024-01-01 00:02:00+08:00|3|3.5|gamma
@@ -3927,14 +3927,14 @@ OK
 ### DIM-03[ORA] STEP-004.042 QUERY
 SQL: select * from path_t order by val limit 1
 RESULT:
-TS|VAL|SCORE|NAME
+ts|val|score|name
 2024-01-01 00:00:00+08:00|1|1.5|alpha
 ---
 ### DIM-03[ORA] STEP-004.043 COMMENT
--- [2-seg USE] sql=use fq02_dim03.TAOSDATA
+-- [2-seg USE] sql=use fq02_dim03.`TAOSDATA`
 ---
 ### DIM-03[ORA] STEP-004.044 EXEC
-SQL: use fq02_dim03.TAOSDATA
+SQL: use fq02_dim03.`TAOSDATA`
 RESULT:
 OK
 ---
@@ -3944,30 +3944,30 @@ OK
 ### DIM-03[ORA] STEP-004.046 QUERY
 SQL: select * from path_t order by val limit 1
 RESULT:
-TS|VAL|SCORE|NAME
+ts|val|score|name
 2024-01-01 00:00:00+08:00|1|1.5|alpha
 ---
 ### DIM-03[ORA] STEP-004.047 COMMENT
--- [3-seg USE] sql=use fq02_dim03.TAOSDATA.extra
+-- [3-seg USE] sql=use fq02_dim03.`TAOSDATA`.extra
 ---
 ### DIM-03[ORA] STEP-004.048 EXEC
-SQL: use fq02_dim03.TAOSDATA.extra
+SQL: use fq02_dim03.`TAOSDATA`.extra
 RESULT:
 ERROR: [0x2600]: 3-segment USE (source.db.schema) is not supported; use 2-segment: USE source.schema
 ---
 ### DIM-03[ORA] STEP-004.049 COMMENT
--- [4-seg USE] sql=use fq02_dim03.TAOSDATA.extra.more
+-- [4-seg USE] sql=use fq02_dim03.`TAOSDATA`.extra.more
 ---
 ### DIM-03[ORA] STEP-004.050 EXEC
-SQL: use fq02_dim03.TAOSDATA.extra.more
+SQL: use fq02_dim03.`TAOSDATA`.extra.more
 RESULT:
 ERROR: [0x2600]: syntax error near ".more"
 ---
 ### DIM-03[ORA] STEP-004.051 COMMENT
--- [5-seg USE] sql=use fq02_dim03.TAOSDATA.extra.more.deep
+-- [5-seg USE] sql=use fq02_dim03.`TAOSDATA`.extra.more.deep
 ---
 ### DIM-03[ORA] STEP-004.052 EXEC
-SQL: use fq02_dim03.TAOSDATA.extra.more.deep
+SQL: use fq02_dim03.`TAOSDATA`.extra.more.deep
 RESULT:
 ERROR: [0x2600]: syntax error near ".more.deep"
 ---
@@ -5113,7 +5113,7 @@ RESULT:
 OK
 ---
 ### DIM-04[ORA] STEP-004.001 EXEC
-SQL: use fq02_dim04.TAOSDATA
+SQL: use fq02_dim04.`TAOSDATA`
 RESULT:
 OK
 ---
@@ -5131,7 +5131,7 @@ ERROR: [0x2601]: Incomplete SQL statement
 ### DIM-04[ORA] STEP-004.005 QUERY
 SQL: select * from path_t order by val limit 5
 RESULT:
-TS|VAL|SCORE|NAME
+ts|val|score|name
 2024-01-01 00:00:00+08:00|1|1.5|alpha
 2024-01-01 00:01:00+08:00|2|2.5|beta
 2024-01-01 00:02:00+08:00|3|3.5|gamma
@@ -5162,7 +5162,7 @@ ERROR: [0x0118]: Invalid parameters
 ### DIM-04[ORA] STEP-004.011 QUERY
 SQL: select * from fq02_dim04.path_t order by val limit 5
 RESULT:
-TS|VAL|SCORE|NAME
+ts|val|score|name
 2024-01-01 00:00:00+08:00|1|1.5|alpha
 2024-01-01 00:01:00+08:00|2|2.5|beta
 2024-01-01 00:02:00+08:00|3|3.5|gamma
@@ -5171,10 +5171,10 @@ TS|VAL|SCORE|NAME
 SQL: describe fq02_dim04.path_t
 RESULT:
 field|type|length|note
-TS|TIMESTAMP|8|
-VAL|BIGINT|8|
-SCORE|DOUBLE|8|
-NAME|VARCHAR|32|
+ts|TIMESTAMP|8|
+val|BIGINT|8|
+score|DOUBLE|8|
+name|VARCHAR|32|
 ---
 ### DIM-04[ORA] STEP-004.013 EXEC
 SQL: insert into fq02_dim04.path_t values (now, 999, 9.9, 'test')
@@ -5192,93 +5192,93 @@ RESULT:
 ERROR: [0x6409]: DDL is not allowed while an external source is active (USE 'fq02_dim04'); switch back to a local database first
 ---
 ### DIM-04[ORA] STEP-004.016 COMMENT
--- [3-seg FROM] path=fq02_dim04.TAOSDATA.path_t
+-- [3-seg FROM] path=fq02_dim04.`TAOSDATA`.path_t
 ---
 ### DIM-04[ORA] STEP-004.017 QUERY
-SQL: select * from fq02_dim04.TAOSDATA.path_t order by val limit 5
+SQL: select * from fq02_dim04.`TAOSDATA`.path_t order by val limit 5
 RESULT:
-TS|VAL|SCORE|NAME
+ts|val|score|name
 2024-01-01 00:00:00+08:00|1|1.5|alpha
 2024-01-01 00:01:00+08:00|2|2.5|beta
 2024-01-01 00:02:00+08:00|3|3.5|gamma
 ---
 ### DIM-04[ORA] STEP-004.018 QUERY
-SQL: describe fq02_dim04.TAOSDATA.path_t
+SQL: describe fq02_dim04.`TAOSDATA`.path_t
 RESULT:
 field|type|length|note
-TS|TIMESTAMP|8|
-VAL|BIGINT|8|
-SCORE|DOUBLE|8|
-NAME|VARCHAR|32|
+ts|TIMESTAMP|8|
+val|BIGINT|8|
+score|DOUBLE|8|
+name|VARCHAR|32|
 ---
 ### DIM-04[ORA] STEP-004.019 EXEC
-SQL: insert into fq02_dim04.TAOSDATA.path_t values (now, 999, 9.9, 'test')
+SQL: insert into fq02_dim04.`TAOSDATA`.path_t values (now, 999, 9.9, 'test')
 RESULT:
 ERROR: [0x6419]: Write operation not supported on external source table
 ---
 ### DIM-04[ORA] STEP-004.020 EXEC
-SQL: drop table fq02_dim04.TAOSDATA.path_t
+SQL: drop table fq02_dim04.`TAOSDATA`.path_t
 RESULT:
 ERROR: [0x6419]: Write operation not supported on external source table
 ---
 ### DIM-04[ORA] STEP-004.021 EXEC
-SQL: alter table fq02_dim04.TAOSDATA.path_t comment 'test'
+SQL: alter table fq02_dim04.`TAOSDATA`.path_t comment 'test'
 RESULT:
 ERROR: [0x6419]: Write operation not supported on external source table
 ---
 ### DIM-04[ORA] STEP-004.022 COMMENT
--- [4-seg FROM] path=fq02_dim04.TAOSDATA.path_t.extra
+-- [4-seg FROM] path=fq02_dim04.`TAOSDATA`.path_t.extra
 ---
 ### DIM-04[ORA] STEP-004.023 QUERY
-SQL: select * from fq02_dim04.TAOSDATA.path_t.extra order by val limit 5
+SQL: select * from fq02_dim04.`TAOSDATA`.path_t.extra order by val limit 5
 RESULT:
 ERROR: [0x2600]: too many path segments for source 'fq02_dim04': at most 3 are supported
 ---
 ### DIM-04[ORA] STEP-004.024 QUERY
-SQL: describe fq02_dim04.TAOSDATA.path_t.extra
+SQL: describe fq02_dim04.`TAOSDATA`.path_t.extra
 RESULT:
 ERROR: [0x2600]: too many path segments for source 'fq02_dim04': at most 3 are supported
 ---
 ### DIM-04[ORA] STEP-004.025 EXEC
-SQL: insert into fq02_dim04.TAOSDATA.path_t.extra values (now, 999, 9.9, 'test')
+SQL: insert into fq02_dim04.`TAOSDATA`.path_t.extra values (now, 999, 9.9, 'test')
 RESULT:
 ERROR: [0x6419]: Write operation not supported on external source table
 ---
 ### DIM-04[ORA] STEP-004.026 EXEC
-SQL: drop table fq02_dim04.TAOSDATA.path_t.extra
+SQL: drop table fq02_dim04.`TAOSDATA`.path_t.extra
 RESULT:
 ERROR: [0x6419]: Write operation not supported on external source table
 ---
 ### DIM-04[ORA] STEP-004.027 EXEC
-SQL: alter table fq02_dim04.TAOSDATA.path_t.extra comment 'test'
+SQL: alter table fq02_dim04.`TAOSDATA`.path_t.extra comment 'test'
 RESULT:
 ERROR: [0x6419]: Write operation not supported on external source table
 ---
 ### DIM-04[ORA] STEP-004.028 COMMENT
--- [5-seg FROM] path=fq02_dim04.TAOSDATA.path_t.extra.more
+-- [5-seg FROM] path=fq02_dim04.`TAOSDATA`.path_t.extra.more
 ---
 ### DIM-04[ORA] STEP-004.029 QUERY
-SQL: select * from fq02_dim04.TAOSDATA.path_t.extra.more order by val limit 5
+SQL: select * from fq02_dim04.`TAOSDATA`.path_t.extra.more order by val limit 5
 RESULT:
 ERROR: [0x2600]: syntax error near ".more order by val limit 5"
 ---
 ### DIM-04[ORA] STEP-004.030 QUERY
-SQL: describe fq02_dim04.TAOSDATA.path_t.extra.more
+SQL: describe fq02_dim04.`TAOSDATA`.path_t.extra.more
 RESULT:
 ERROR: [0x2600]: syntax error near ".more"
 ---
 ### DIM-04[ORA] STEP-004.031 EXEC
-SQL: insert into fq02_dim04.TAOSDATA.path_t.extra.more values (now, 999, 9.9, 'test')
+SQL: insert into fq02_dim04.`TAOSDATA`.path_t.extra.more values (now, 999, 9.9, 'test')
 RESULT:
 ERROR: [0x6419]: Write operation not supported on external source table
 ---
 ### DIM-04[ORA] STEP-004.032 EXEC
-SQL: drop table fq02_dim04.TAOSDATA.path_t.extra.more
+SQL: drop table fq02_dim04.`TAOSDATA`.path_t.extra.more
 RESULT:
 ERROR: [0x6419]: Write operation not supported on external source table
 ---
 ### DIM-04[ORA] STEP-004.033 EXEC
-SQL: alter table fq02_dim04.TAOSDATA.path_t.extra.more comment 'test'
+SQL: alter table fq02_dim04.`TAOSDATA`.path_t.extra.more comment 'test'
 RESULT:
 ERROR: [0x2600]: syntax error near ".more comment 'test'"
 ---
@@ -5288,7 +5288,7 @@ ERROR: [0x2600]: syntax error near ".more comment 'test'"
 ### DIM-04[ORA] STEP-004.035 QUERY
 SQL: select * from path_t order by val limit 5
 RESULT:
-TS|VAL|SCORE|NAME
+ts|val|score|name
 2024-01-01 00:00:00+08:00|1|1.5|alpha
 2024-01-01 00:01:00+08:00|2|2.5|beta
 2024-01-01 00:02:00+08:00|3|3.5|gamma
@@ -5318,14 +5318,14 @@ OK
 ### DIM-04[ORA] STEP-004.042 QUERY
 SQL: select * from path_t order by val limit 1
 RESULT:
-TS|VAL|SCORE|NAME
+ts|val|score|name
 2024-01-01 00:00:00+08:00|1|1.5|alpha
 ---
 ### DIM-04[ORA] STEP-004.043 COMMENT
--- [2-seg USE] sql=use fq02_dim04.TAOSDATA
+-- [2-seg USE] sql=use fq02_dim04.`TAOSDATA`
 ---
 ### DIM-04[ORA] STEP-004.044 EXEC
-SQL: use fq02_dim04.TAOSDATA
+SQL: use fq02_dim04.`TAOSDATA`
 RESULT:
 OK
 ---
@@ -5335,30 +5335,30 @@ OK
 ### DIM-04[ORA] STEP-004.046 QUERY
 SQL: select * from path_t order by val limit 1
 RESULT:
-TS|VAL|SCORE|NAME
+ts|val|score|name
 2024-01-01 00:00:00+08:00|1|1.5|alpha
 ---
 ### DIM-04[ORA] STEP-004.047 COMMENT
--- [3-seg USE] sql=use fq02_dim04.TAOSDATA.extra
+-- [3-seg USE] sql=use fq02_dim04.`TAOSDATA`.extra
 ---
 ### DIM-04[ORA] STEP-004.048 EXEC
-SQL: use fq02_dim04.TAOSDATA.extra
+SQL: use fq02_dim04.`TAOSDATA`.extra
 RESULT:
 ERROR: [0x2600]: 3-segment USE (source.db.schema) is not supported; use 2-segment: USE source.schema
 ---
 ### DIM-04[ORA] STEP-004.049 COMMENT
--- [4-seg USE] sql=use fq02_dim04.TAOSDATA.extra.more
+-- [4-seg USE] sql=use fq02_dim04.`TAOSDATA`.extra.more
 ---
 ### DIM-04[ORA] STEP-004.050 EXEC
-SQL: use fq02_dim04.TAOSDATA.extra.more
+SQL: use fq02_dim04.`TAOSDATA`.extra.more
 RESULT:
 ERROR: [0x2600]: syntax error near ".more"
 ---
 ### DIM-04[ORA] STEP-004.051 COMMENT
--- [5-seg USE] sql=use fq02_dim04.TAOSDATA.extra.more.deep
+-- [5-seg USE] sql=use fq02_dim04.`TAOSDATA`.extra.more.deep
 ---
 ### DIM-04[ORA] STEP-004.052 EXEC
-SQL: use fq02_dim04.TAOSDATA.extra.more.deep
+SQL: use fq02_dim04.`TAOSDATA`.extra.more.deep
 RESULT:
 ERROR: [0x2600]: syntax error near ".more.deep"
 ---
@@ -6622,7 +6622,7 @@ ERROR: [0x2603]: Table does not exist
 ### DIM-05[ORA] STEP-004.013 QUERY
 SQL: select * from fq02_dim05.path_t order by val limit 5
 RESULT:
-TS|VAL|SCORE|NAME
+ts|val|score|name
 2024-01-01 00:00:00+08:00|1|1.5|alpha
 2024-01-01 00:01:00+08:00|2|2.5|beta
 2024-01-01 00:02:00+08:00|3|3.5|gamma
@@ -6631,10 +6631,10 @@ TS|VAL|SCORE|NAME
 SQL: describe fq02_dim05.path_t
 RESULT:
 field|type|length|note
-TS|TIMESTAMP|8|
-VAL|BIGINT|8|
-SCORE|DOUBLE|8|
-NAME|VARCHAR|32|
+ts|TIMESTAMP|8|
+val|BIGINT|8|
+score|DOUBLE|8|
+name|VARCHAR|32|
 ---
 ### DIM-05[ORA] STEP-004.015 EXEC
 SQL: insert into fq02_dim05.path_t values (now, 999, 9.9, 'test')
@@ -6652,93 +6652,93 @@ RESULT:
 ERROR: [0x6419]: Write operation not supported on external source table
 ---
 ### DIM-05[ORA] STEP-004.018 COMMENT
--- [3-seg FROM] path=fq02_dim05.TAOSDATA.path_t
+-- [3-seg FROM] path=fq02_dim05.`TAOSDATA`.path_t
 ---
 ### DIM-05[ORA] STEP-004.019 QUERY
-SQL: select * from fq02_dim05.TAOSDATA.path_t order by val limit 5
+SQL: select * from fq02_dim05.`TAOSDATA`.path_t order by val limit 5
 RESULT:
-TS|VAL|SCORE|NAME
+ts|val|score|name
 2024-01-01 00:00:00+08:00|1|1.5|alpha
 2024-01-01 00:01:00+08:00|2|2.5|beta
 2024-01-01 00:02:00+08:00|3|3.5|gamma
 ---
 ### DIM-05[ORA] STEP-004.020 QUERY
-SQL: describe fq02_dim05.TAOSDATA.path_t
+SQL: describe fq02_dim05.`TAOSDATA`.path_t
 RESULT:
 field|type|length|note
-TS|TIMESTAMP|8|
-VAL|BIGINT|8|
-SCORE|DOUBLE|8|
-NAME|VARCHAR|32|
+ts|TIMESTAMP|8|
+val|BIGINT|8|
+score|DOUBLE|8|
+name|VARCHAR|32|
 ---
 ### DIM-05[ORA] STEP-004.021 EXEC
-SQL: insert into fq02_dim05.TAOSDATA.path_t values (now, 999, 9.9, 'test')
+SQL: insert into fq02_dim05.`TAOSDATA`.path_t values (now, 999, 9.9, 'test')
 RESULT:
 ERROR: [0x6419]: Write operation not supported on external source table
 ---
 ### DIM-05[ORA] STEP-004.022 EXEC
-SQL: drop table fq02_dim05.TAOSDATA.path_t
+SQL: drop table fq02_dim05.`TAOSDATA`.path_t
 RESULT:
 ERROR: [0x6419]: Write operation not supported on external source table
 ---
 ### DIM-05[ORA] STEP-004.023 EXEC
-SQL: alter table fq02_dim05.TAOSDATA.path_t comment 'test'
+SQL: alter table fq02_dim05.`TAOSDATA`.path_t comment 'test'
 RESULT:
 ERROR: [0x6419]: Write operation not supported on external source table
 ---
 ### DIM-05[ORA] STEP-004.024 COMMENT
--- [4-seg FROM] path=fq02_dim05.TAOSDATA.path_t.extra
+-- [4-seg FROM] path=fq02_dim05.`TAOSDATA`.path_t.extra
 ---
 ### DIM-05[ORA] STEP-004.025 QUERY
-SQL: select * from fq02_dim05.TAOSDATA.path_t.extra order by val limit 5
+SQL: select * from fq02_dim05.`TAOSDATA`.path_t.extra order by val limit 5
 RESULT:
 ERROR: [0x2600]: too many path segments for source 'fq02_dim05': at most 3 are supported
 ---
 ### DIM-05[ORA] STEP-004.026 QUERY
-SQL: describe fq02_dim05.TAOSDATA.path_t.extra
+SQL: describe fq02_dim05.`TAOSDATA`.path_t.extra
 RESULT:
 ERROR: [0x2600]: too many path segments for source 'fq02_dim05': at most 3 are supported
 ---
 ### DIM-05[ORA] STEP-004.027 EXEC
-SQL: insert into fq02_dim05.TAOSDATA.path_t.extra values (now, 999, 9.9, 'test')
+SQL: insert into fq02_dim05.`TAOSDATA`.path_t.extra values (now, 999, 9.9, 'test')
 RESULT:
 ERROR: [0x6419]: Write operation not supported on external source table
 ---
 ### DIM-05[ORA] STEP-004.028 EXEC
-SQL: drop table fq02_dim05.TAOSDATA.path_t.extra
+SQL: drop table fq02_dim05.`TAOSDATA`.path_t.extra
 RESULT:
 ERROR: [0x6419]: Write operation not supported on external source table
 ---
 ### DIM-05[ORA] STEP-004.029 EXEC
-SQL: alter table fq02_dim05.TAOSDATA.path_t.extra comment 'test'
+SQL: alter table fq02_dim05.`TAOSDATA`.path_t.extra comment 'test'
 RESULT:
 ERROR: [0x6419]: Write operation not supported on external source table
 ---
 ### DIM-05[ORA] STEP-004.030 COMMENT
--- [5-seg FROM] path=fq02_dim05.TAOSDATA.path_t.extra.more
+-- [5-seg FROM] path=fq02_dim05.`TAOSDATA`.path_t.extra.more
 ---
 ### DIM-05[ORA] STEP-004.031 QUERY
-SQL: select * from fq02_dim05.TAOSDATA.path_t.extra.more order by val limit 5
+SQL: select * from fq02_dim05.`TAOSDATA`.path_t.extra.more order by val limit 5
 RESULT:
 ERROR: [0x2600]: syntax error near ".more order by val limit 5"
 ---
 ### DIM-05[ORA] STEP-004.032 QUERY
-SQL: describe fq02_dim05.TAOSDATA.path_t.extra.more
+SQL: describe fq02_dim05.`TAOSDATA`.path_t.extra.more
 RESULT:
 ERROR: [0x2600]: syntax error near ".more"
 ---
 ### DIM-05[ORA] STEP-004.033 EXEC
-SQL: insert into fq02_dim05.TAOSDATA.path_t.extra.more values (now, 999, 9.9, 'test')
+SQL: insert into fq02_dim05.`TAOSDATA`.path_t.extra.more values (now, 999, 9.9, 'test')
 RESULT:
 ERROR: [0x6419]: Write operation not supported on external source table
 ---
 ### DIM-05[ORA] STEP-004.034 EXEC
-SQL: drop table fq02_dim05.TAOSDATA.path_t.extra.more
+SQL: drop table fq02_dim05.`TAOSDATA`.path_t.extra.more
 RESULT:
 ERROR: [0x6419]: Write operation not supported on external source table
 ---
 ### DIM-05[ORA] STEP-004.035 EXEC
-SQL: alter table fq02_dim05.TAOSDATA.path_t.extra.more comment 'test'
+SQL: alter table fq02_dim05.`TAOSDATA`.path_t.extra.more comment 'test'
 RESULT:
 ERROR: [0x2600]: syntax error near ".more comment 'test'"
 ---
@@ -6775,14 +6775,14 @@ OK
 ### DIM-05[ORA] STEP-004.044 QUERY
 SQL: select * from path_t order by val limit 1
 RESULT:
-TS|VAL|SCORE|NAME
+ts|val|score|name
 2024-01-01 00:00:00+08:00|1|1.5|alpha
 ---
 ### DIM-05[ORA] STEP-004.045 COMMENT
--- [2-seg USE] sql=use fq02_dim05.TAOSDATA
+-- [2-seg USE] sql=use fq02_dim05.`TAOSDATA`
 ---
 ### DIM-05[ORA] STEP-004.046 EXEC
-SQL: use fq02_dim05.TAOSDATA
+SQL: use fq02_dim05.`TAOSDATA`
 RESULT:
 OK
 ---
@@ -6792,30 +6792,30 @@ OK
 ### DIM-05[ORA] STEP-004.048 QUERY
 SQL: select * from path_t order by val limit 1
 RESULT:
-TS|VAL|SCORE|NAME
+ts|val|score|name
 2024-01-01 00:00:00+08:00|1|1.5|alpha
 ---
 ### DIM-05[ORA] STEP-004.049 COMMENT
--- [3-seg USE] sql=use fq02_dim05.TAOSDATA.extra
+-- [3-seg USE] sql=use fq02_dim05.`TAOSDATA`.extra
 ---
 ### DIM-05[ORA] STEP-004.050 EXEC
-SQL: use fq02_dim05.TAOSDATA.extra
+SQL: use fq02_dim05.`TAOSDATA`.extra
 RESULT:
 ERROR: [0x2600]: 3-segment USE (source.db.schema) is not supported; use 2-segment: USE source.schema
 ---
 ### DIM-05[ORA] STEP-004.051 COMMENT
--- [4-seg USE] sql=use fq02_dim05.TAOSDATA.extra.more
+-- [4-seg USE] sql=use fq02_dim05.`TAOSDATA`.extra.more
 ---
 ### DIM-05[ORA] STEP-004.052 EXEC
-SQL: use fq02_dim05.TAOSDATA.extra.more
+SQL: use fq02_dim05.`TAOSDATA`.extra.more
 RESULT:
 ERROR: [0x2600]: syntax error near ".more"
 ---
 ### DIM-05[ORA] STEP-004.053 COMMENT
--- [5-seg USE] sql=use fq02_dim05.TAOSDATA.extra.more.deep
+-- [5-seg USE] sql=use fq02_dim05.`TAOSDATA`.extra.more.deep
 ---
 ### DIM-05[ORA] STEP-004.054 EXEC
-SQL: use fq02_dim05.TAOSDATA.extra.more.deep
+SQL: use fq02_dim05.`TAOSDATA`.extra.more.deep
 RESULT:
 ERROR: [0x2600]: syntax error near ".more.deep"
 ---
@@ -7502,9 +7502,9 @@ ERROR: [0x2616]: Database not specified
 -- [3-seg disambiguation] source_name.ns.table → external
 ---
 ### DIM-06[ORA] STEP-004.007 QUERY
-SQL: select * from fq02_dim06.TAOSDATA.path_t order by val limit 5
+SQL: select * from fq02_dim06.`TAOSDATA`.path_t order by val limit 5
 RESULT:
-TS|VAL|SCORE|NAME
+ts|val|score|name
 2024-01-01 00:00:00+08:00|1|1.5|alpha
 2024-01-01 00:01:00+08:00|2|2.5|beta
 2024-01-01 00:02:00+08:00|3|3.5|gamma
@@ -7515,7 +7515,7 @@ TS|VAL|SCORE|NAME
 ### DIM-06[ORA] STEP-004.009 QUERY
 SQL: select * from fq02_dim06.path_t order by val limit 5
 RESULT:
-TS|VAL|SCORE|NAME
+ts|val|score|name
 2024-01-01 00:00:00+08:00|1|1.5|alpha
 2024-01-01 00:01:00+08:00|2|2.5|beta
 2024-01-01 00:02:00+08:00|3|3.5|gamma
@@ -7545,14 +7545,14 @@ OK
 ### DIM-06[ORA] STEP-004.016 QUERY
 SQL: select * from path_t order by val limit 1
 RESULT:
-TS|VAL|SCORE|NAME
+ts|val|score|name
 2024-01-01 00:00:00+08:00|1|1.5|alpha
 ---
 ### DIM-06[ORA] STEP-004.017 COMMENT
--- [2-seg USE] sql=use fq02_dim06.TAOSDATA
+-- [2-seg USE] sql=use fq02_dim06.`TAOSDATA`
 ---
 ### DIM-06[ORA] STEP-004.018 EXEC
-SQL: use fq02_dim06.TAOSDATA
+SQL: use fq02_dim06.`TAOSDATA`
 RESULT:
 OK
 ---
@@ -7562,30 +7562,30 @@ OK
 ### DIM-06[ORA] STEP-004.020 QUERY
 SQL: select * from path_t order by val limit 1
 RESULT:
-TS|VAL|SCORE|NAME
+ts|val|score|name
 2024-01-01 00:00:00+08:00|1|1.5|alpha
 ---
 ### DIM-06[ORA] STEP-004.021 COMMENT
--- [3-seg USE] sql=use fq02_dim06.TAOSDATA.extra
+-- [3-seg USE] sql=use fq02_dim06.`TAOSDATA`.extra
 ---
 ### DIM-06[ORA] STEP-004.022 EXEC
-SQL: use fq02_dim06.TAOSDATA.extra
+SQL: use fq02_dim06.`TAOSDATA`.extra
 RESULT:
 ERROR: [0x2600]: 3-segment USE (source.db.schema) is not supported; use 2-segment: USE source.schema
 ---
 ### DIM-06[ORA] STEP-004.023 COMMENT
--- [4-seg USE] sql=use fq02_dim06.TAOSDATA.extra.more
+-- [4-seg USE] sql=use fq02_dim06.`TAOSDATA`.extra.more
 ---
 ### DIM-06[ORA] STEP-004.024 EXEC
-SQL: use fq02_dim06.TAOSDATA.extra.more
+SQL: use fq02_dim06.`TAOSDATA`.extra.more
 RESULT:
 ERROR: [0x2600]: syntax error near ".more"
 ---
 ### DIM-06[ORA] STEP-004.025 COMMENT
--- [5-seg USE] sql=use fq02_dim06.TAOSDATA.extra.more.deep
+-- [5-seg USE] sql=use fq02_dim06.`TAOSDATA`.extra.more.deep
 ---
 ### DIM-06[ORA] STEP-004.026 EXEC
-SQL: use fq02_dim06.TAOSDATA.extra.more.deep
+SQL: use fq02_dim06.`TAOSDATA`.extra.more.deep
 RESULT:
 ERROR: [0x2600]: syntax error near ".more.deep"
 ---
@@ -7951,73 +7951,87 @@ RESULT:
 OK
 ---
 ### DIM-07[ORA] STEP-004.001 COMMENT
--- Oracle fold: unquoted segments are upper-cased before matching
+-- Oracle: unquoted lower-case names resolve exactly
 ---
 ### DIM-07[ORA] STEP-004.002 QUERY
-SQL: select * from fq02_dim07.TAOSDATA.path_t limit 1
+SQL: select * from fq02_dim07.path_t limit 1
 RESULT:
-TS|VAL|SCORE|NAME
+ts|val|score|name
 2024-01-01 00:00:00+08:00|1|1.5|alpha
 ---
 ### DIM-07[ORA] STEP-004.003 QUERY
-SQL: select * from FQ02_DIM07.TAOSDATA.PATH_T limit 1
+SQL: select * from `fq02_dim07`.`path_t` limit 1
 RESULT:
-TS|VAL|SCORE|NAME
+ts|val|score|name
 2024-01-01 00:00:00+08:00|1|1.5|alpha
 ---
 ### DIM-07[ORA] STEP-004.004 COMMENT
--- Oracle: TDengine backticks are not an Oracle quoting form, so the fold still applies
+-- Oracle: the upper-case spelling is a different (absent) object
 ---
 ### DIM-07[ORA] STEP-004.005 QUERY
-SQL: select * from `fq02_dim07`.`TAOSDATA`.`path_t` limit 1
+SQL: select * from fq02_dim07.PATH_T limit 1
 RESULT:
-TS|VAL|SCORE|NAME
+ts|val|score|name
 2024-01-01 00:00:00+08:00|1|1.5|alpha
 ---
-### DIM-07[ORA] STEP-004.006 COMMENT
--- Oracle: a lower-case unquoted table folds to upper, so it resolves
----
-### DIM-07[ORA] STEP-004.007 QUERY
-SQL: select * from fq02_dim07.path_t limit 1
+### DIM-07[ORA] STEP-004.006 QUERY
+SQL: select * from fq02_dim07.`PATH_T` limit 1
 RESULT:
-TS|VAL|SCORE|NAME
-2024-01-01 00:00:00+08:00|1|1.5|alpha
+ERROR: [0x6410]: External table not found on remote source
+---
+### DIM-07[ORA] STEP-004.007 COMMENT
+-- Oracle: three-part path needs the upper-case schema backticked
 ---
 ### DIM-07[ORA] STEP-004.008 QUERY
-SQL: select * from fq02_dim07.`path_t` limit 1
+SQL: select * from fq02_dim07.TAOSDATA.path_t limit 1
 RESULT:
-TS|VAL|SCORE|NAME
-2024-01-01 00:00:00+08:00|1|1.5|alpha
+ERROR: [0x6410]: External table not found on remote source
 ---
 ### DIM-07[ORA] STEP-004.009 QUERY
-SQL: select * from fq02_dim07.TAOSDATA.`path_t` limit 1
+SQL: select * from fq02_dim07.`TAOSDATA`.path_t limit 1
 RESULT:
-TS|VAL|SCORE|NAME
+ts|val|score|name
 2024-01-01 00:00:00+08:00|1|1.5|alpha
 ---
-### DIM-07[ORA] STEP-004.010 COMMENT
--- Oracle USE with case variants
+### DIM-07[ORA] STEP-004.010 QUERY
+SQL: select * from fq02_dim07.`TAOSDATA`.`PATH_T` limit 1
+RESULT:
+ERROR: [0x6410]: External table not found on remote source
 ---
-### DIM-07[ORA] STEP-004.011 EXEC
-SQL: use FQ02_DIM07
+### DIM-07[ORA] STEP-004.011 COMMENT
+-- Oracle USE: the bare schema is lower-cased; backticks keep it
+---
+### DIM-07[ORA] STEP-004.012 EXEC
+SQL: use fq02_dim07
 RESULT:
 OK
 ---
-### DIM-07[ORA] STEP-004.012 QUERY
-SQL: select * from path_t limit 1
+### DIM-07[ORA] STEP-004.013 QUERY
+SQL: select * from `path_t` limit 1
 RESULT:
-TS|VAL|SCORE|NAME
+ts|val|score|name
 2024-01-01 00:00:00+08:00|1|1.5|alpha
 ---
-### DIM-07[ORA] STEP-004.013 EXEC
-SQL: use FQ02_DIM07.TAOSDATA
+### DIM-07[ORA] STEP-004.014 EXEC
+SQL: use fq02_dim07.TAOSDATA
+RESULT:
+ERROR: [0x6417]: External source database or schema not found
+---
+### DIM-07[ORA] STEP-004.015 QUERY
+SQL: select * from `path_t` limit 1
+RESULT:
+ts|val|score|name
+2024-01-01 00:00:00+08:00|1|1.5|alpha
+---
+### DIM-07[ORA] STEP-004.016 EXEC
+SQL: use fq02_dim07.`TAOSDATA`
 RESULT:
 OK
 ---
-### DIM-07[ORA] STEP-004.014 QUERY
-SQL: select * from path_t limit 1
+### DIM-07[ORA] STEP-004.017 QUERY
+SQL: select * from `path_t` limit 1
 RESULT:
-TS|VAL|SCORE|NAME
+ts|val|score|name
 2024-01-01 00:00:00+08:00|1|1.5|alpha
 ---
 ### DIM-07[ORA] STEP-005 CLEANUP
@@ -8143,7 +8157,7 @@ ts|val|score|name
 ### DIM-08[MYS] STEP-004.018 EXEC
 SQL: use `fq02_dim08`.`fq02_path_mdb`
 RESULT:
-ERROR: [0x6407]: External source '`fq02_dim08`' not found
+OK
 ---
 ### DIM-08[MYS] STEP-004.019 QUERY
 SQL: select * from path_t limit 1
@@ -8157,7 +8171,7 @@ ts|val|score|name
 ### DIM-08[MYS] STEP-004.021 EXEC
 SQL: use `fq02_dim08`.`fq02_path_mdb`.`path_t`
 RESULT:
-ERROR: [0x6407]: External source '`fq02_dim08`' not found
+ERROR: [0x2600]: 3-segment USE (source.db.schema) is not supported; use 2-segment: USE source.schema
 ---
 ### DIM-08[MYS] STEP-004.022 COMMENT
 -- [Special: SQL reserved word as table name (backtick required)]
@@ -8168,7 +8182,7 @@ RESULT:
 ERROR: [0x6410]: External table not found on remote source
 ---
 ### DIM-08[MYS] STEP-004.024 QUERY
-SQL: select * from fq02_dim08.fq02_path_mdb.`select` limit 1
+SQL: select * from fq02_dim08.`fq02_path_mdb`.`select` limit 1
 RESULT:
 ERROR: [0x6410]: External table not found on remote source
 ---
@@ -8181,7 +8195,7 @@ RESULT:
 ERROR: [0x6410]: External table not found on remote source
 ---
 ### DIM-08[MYS] STEP-004.027 QUERY
-SQL: select * from fq02_dim08.fq02_path_mdb.`测试表` limit 1
+SQL: select * from fq02_dim08.`fq02_path_mdb`.`测试表` limit 1
 RESULT:
 ERROR: [0x6410]: External table not found on remote source
 ---
@@ -8194,7 +8208,7 @@ RESULT:
 ERROR: [0x6410]: External table not found on remote source
 ---
 ### DIM-08[MYS] STEP-004.030 QUERY
-SQL: select * from fq02_dim08.fq02_path_mdb.`123table` limit 1
+SQL: select * from fq02_dim08.`fq02_path_mdb`.`123table` limit 1
 RESULT:
 ERROR: [0x6410]: External table not found on remote source
 ---
@@ -8207,7 +8221,7 @@ RESULT:
 ERROR: [0x6410]: External table not found on remote source
 ---
 ### DIM-08[MYS] STEP-004.033 QUERY
-SQL: select * from fq02_dim08.fq02_path_mdb.`a.b` limit 1
+SQL: select * from fq02_dim08.`fq02_path_mdb`.`a.b` limit 1
 RESULT:
 ERROR: [0x6410]: External table not found on remote source
 ---
@@ -8220,7 +8234,7 @@ RESULT:
 ERROR: [0x6410]: External table not found on remote source
 ---
 ### DIM-08[MYS] STEP-004.036 QUERY
-SQL: select * from fq02_dim08.fq02_path_mdb.`my table` limit 1
+SQL: select * from fq02_dim08.`fq02_path_mdb`.`my table` limit 1
 RESULT:
 ERROR: [0x6410]: External table not found on remote source
 ---
@@ -8361,7 +8375,7 @@ ts|val|score|name
 ### DIM-08[POS] STEP-004.018 EXEC
 SQL: use `fq02_dim08`.`public`
 RESULT:
-ERROR: [0x6407]: External source '`fq02_dim08`' not found
+OK
 ---
 ### DIM-08[POS] STEP-004.019 QUERY
 SQL: select * from path_t limit 1
@@ -8375,7 +8389,7 @@ ts|val|score|name
 ### DIM-08[POS] STEP-004.021 EXEC
 SQL: use `fq02_dim08`.`public`.`path_t`
 RESULT:
-ERROR: [0x6407]: External source '`fq02_dim08`' not found
+ERROR: [0x2600]: 3-segment USE (source.db.schema) is not supported; use 2-segment: USE source.schema
 ---
 ### DIM-08[POS] STEP-004.022 COMMENT
 -- [Special: SQL reserved word as table name (backtick required)]
@@ -8386,7 +8400,7 @@ RESULT:
 ERROR: [0x6410]: External table not found on remote source
 ---
 ### DIM-08[POS] STEP-004.024 QUERY
-SQL: select * from fq02_dim08.public.`select` limit 1
+SQL: select * from fq02_dim08.`public`.`select` limit 1
 RESULT:
 ERROR: [0x6410]: External table not found on remote source
 ---
@@ -8399,7 +8413,7 @@ RESULT:
 ERROR: [0x6410]: External table not found on remote source
 ---
 ### DIM-08[POS] STEP-004.027 QUERY
-SQL: select * from fq02_dim08.public.`测试表` limit 1
+SQL: select * from fq02_dim08.`public`.`测试表` limit 1
 RESULT:
 ERROR: [0x6410]: External table not found on remote source
 ---
@@ -8412,7 +8426,7 @@ RESULT:
 ERROR: [0x6410]: External table not found on remote source
 ---
 ### DIM-08[POS] STEP-004.030 QUERY
-SQL: select * from fq02_dim08.public.`123table` limit 1
+SQL: select * from fq02_dim08.`public`.`123table` limit 1
 RESULT:
 ERROR: [0x6410]: External table not found on remote source
 ---
@@ -8425,7 +8439,7 @@ RESULT:
 ERROR: [0x6410]: External table not found on remote source
 ---
 ### DIM-08[POS] STEP-004.033 QUERY
-SQL: select * from fq02_dim08.public.`a.b` limit 1
+SQL: select * from fq02_dim08.`public`.`a.b` limit 1
 RESULT:
 ERROR: [0x6410]: External table not found on remote source
 ---
@@ -8438,7 +8452,7 @@ RESULT:
 ERROR: [0x6410]: External table not found on remote source
 ---
 ### DIM-08[POS] STEP-004.036 QUERY
-SQL: select * from fq02_dim08.public.`my table` limit 1
+SQL: select * from fq02_dim08.`public`.`my table` limit 1
 RESULT:
 ERROR: [0x6410]: External table not found on remote source
 ---
@@ -8579,7 +8593,7 @@ time|score|name|val
 ### DIM-08[INF] STEP-004.018 EXEC
 SQL: use `fq02_dim08`.`fq02_path_idb`
 RESULT:
-ERROR: [0x6407]: External source '`fq02_dim08`' not found
+OK
 ---
 ### DIM-08[INF] STEP-004.019 QUERY
 SQL: select * from path_t limit 1
@@ -8593,7 +8607,7 @@ time|score|name|val
 ### DIM-08[INF] STEP-004.021 EXEC
 SQL: use `fq02_dim08`.`fq02_path_idb`.`path_t`
 RESULT:
-ERROR: [0x6407]: External source '`fq02_dim08`' not found
+ERROR: [0x2600]: 3-segment USE (source.db.schema) is not supported; use 2-segment: USE source.schema
 ---
 ### DIM-08[INF] STEP-004.022 COMMENT
 -- [Special: SQL reserved word as table name (backtick required)]
@@ -8604,7 +8618,7 @@ RESULT:
 ERROR: [0x6410]: External table not found on remote source
 ---
 ### DIM-08[INF] STEP-004.024 QUERY
-SQL: select * from fq02_dim08.fq02_path_idb.`select` limit 1
+SQL: select * from fq02_dim08.`fq02_path_idb`.`select` limit 1
 RESULT:
 ERROR: [0x6410]: External table not found on remote source
 ---
@@ -8617,7 +8631,7 @@ RESULT:
 ERROR: [0x6410]: External table not found on remote source
 ---
 ### DIM-08[INF] STEP-004.027 QUERY
-SQL: select * from fq02_dim08.fq02_path_idb.`测试表` limit 1
+SQL: select * from fq02_dim08.`fq02_path_idb`.`测试表` limit 1
 RESULT:
 ERROR: [0x6410]: External table not found on remote source
 ---
@@ -8630,7 +8644,7 @@ RESULT:
 ERROR: [0x6410]: External table not found on remote source
 ---
 ### DIM-08[INF] STEP-004.030 QUERY
-SQL: select * from fq02_dim08.fq02_path_idb.`123table` limit 1
+SQL: select * from fq02_dim08.`fq02_path_idb`.`123table` limit 1
 RESULT:
 ERROR: [0x6410]: External table not found on remote source
 ---
@@ -8643,7 +8657,7 @@ RESULT:
 ERROR: [0x6410]: External table not found on remote source
 ---
 ### DIM-08[INF] STEP-004.033 QUERY
-SQL: select * from fq02_dim08.fq02_path_idb.`a.b` limit 1
+SQL: select * from fq02_dim08.`fq02_path_idb`.`a.b` limit 1
 RESULT:
 ERROR: [0x6410]: External table not found on remote source
 ---
@@ -8656,7 +8670,7 @@ RESULT:
 ERROR: [0x6410]: External table not found on remote source
 ---
 ### DIM-08[INF] STEP-004.036 QUERY
-SQL: select * from fq02_dim08.fq02_path_idb.`my table` limit 1
+SQL: select * from fq02_dim08.`fq02_path_idb`.`my table` limit 1
 RESULT:
 ERROR: [0x6410]: External table not found on remote source
 ---
@@ -8797,7 +8811,7 @@ ts|val|score|name
 ### DIM-08[SQL] STEP-004.018 EXEC
 SQL: use `fq02_dim08`.`dbo`
 RESULT:
-ERROR: [0x6407]: External source '`fq02_dim08`' not found
+ERROR: [0x6417]: External source database or schema not found
 ---
 ### DIM-08[SQL] STEP-004.019 QUERY
 SQL: select * from path_t limit 1
@@ -8811,7 +8825,7 @@ ts|val|score|name
 ### DIM-08[SQL] STEP-004.021 EXEC
 SQL: use `fq02_dim08`.`dbo`.`path_t`
 RESULT:
-ERROR: [0x6407]: External source '`fq02_dim08`' not found
+ERROR: [0x6417]: External source database or schema not found
 ---
 ### DIM-08[SQL] STEP-004.022 COMMENT
 -- [Special: SQL reserved word as table name (backtick required)]
@@ -8822,7 +8836,7 @@ RESULT:
 ERROR: [0x6410]: External table not found on remote source
 ---
 ### DIM-08[SQL] STEP-004.024 QUERY
-SQL: select * from fq02_dim08.dbo.`select` limit 1
+SQL: select * from fq02_dim08.`dbo`.`select` limit 1
 RESULT:
 ERROR: [0x6410]: External table not found on remote source
 ---
@@ -8835,7 +8849,7 @@ RESULT:
 ERROR: [0x6410]: External table not found on remote source
 ---
 ### DIM-08[SQL] STEP-004.027 QUERY
-SQL: select * from fq02_dim08.dbo.`测试表` limit 1
+SQL: select * from fq02_dim08.`dbo`.`测试表` limit 1
 RESULT:
 ERROR: [0x6410]: External table not found on remote source
 ---
@@ -8848,7 +8862,7 @@ RESULT:
 ERROR: [0x6410]: External table not found on remote source
 ---
 ### DIM-08[SQL] STEP-004.030 QUERY
-SQL: select * from fq02_dim08.dbo.`123table` limit 1
+SQL: select * from fq02_dim08.`dbo`.`123table` limit 1
 RESULT:
 ERROR: [0x6410]: External table not found on remote source
 ---
@@ -8861,7 +8875,7 @@ RESULT:
 ERROR: [0x6410]: External table not found on remote source
 ---
 ### DIM-08[SQL] STEP-004.033 QUERY
-SQL: select * from fq02_dim08.dbo.`a.b` limit 1
+SQL: select * from fq02_dim08.`dbo`.`a.b` limit 1
 RESULT:
 ERROR: [0x6410]: External table not found on remote source
 ---
@@ -8874,7 +8888,7 @@ RESULT:
 ERROR: [0x6410]: External table not found on remote source
 ---
 ### DIM-08[SQL] STEP-004.036 QUERY
-SQL: select * from fq02_dim08.dbo.`my table` limit 1
+SQL: select * from fq02_dim08.`dbo`.`my table` limit 1
 RESULT:
 ERROR: [0x6410]: External table not found on remote source
 ---
@@ -8926,25 +8940,25 @@ OK
 ### DIM-08[ORA] STEP-004.002 QUERY
 SQL: select * from fq02_dim08.path_t limit 1
 RESULT:
-TS|VAL|SCORE|NAME
+ts|val|score|name
 2024-01-01 00:00:00+08:00|1|1.5|alpha
 ---
 ### DIM-08[ORA] STEP-004.003 QUERY
 SQL: select * from `fq02_dim08`.path_t limit 1
 RESULT:
-TS|VAL|SCORE|NAME
+ts|val|score|name
 2024-01-01 00:00:00+08:00|1|1.5|alpha
 ---
 ### DIM-08[ORA] STEP-004.004 QUERY
 SQL: select * from fq02_dim08.`path_t` limit 1
 RESULT:
-TS|VAL|SCORE|NAME
+ts|val|score|name
 2024-01-01 00:00:00+08:00|1|1.5|alpha
 ---
 ### DIM-08[ORA] STEP-004.005 QUERY
 SQL: select * from `fq02_dim08`.`path_t` limit 1
 RESULT:
-TS|VAL|SCORE|NAME
+ts|val|score|name
 2024-01-01 00:00:00+08:00|1|1.5|alpha
 ---
 ### DIM-08[ORA] STEP-004.006 COMMENT
@@ -8953,49 +8967,45 @@ TS|VAL|SCORE|NAME
 ### DIM-08[ORA] STEP-004.007 QUERY
 SQL: select * from fq02_dim08.TAOSDATA.path_t limit 1
 RESULT:
-TS|VAL|SCORE|NAME
-2024-01-01 00:00:00+08:00|1|1.5|alpha
+ERROR: [0x6410]: External table not found on remote source
 ---
 ### DIM-08[ORA] STEP-004.008 QUERY
 SQL: select * from fq02_dim08.TAOSDATA.`path_t` limit 1
 RESULT:
-TS|VAL|SCORE|NAME
-2024-01-01 00:00:00+08:00|1|1.5|alpha
+ERROR: [0x6410]: External table not found on remote source
 ---
 ### DIM-08[ORA] STEP-004.009 QUERY
 SQL: select * from fq02_dim08.`TAOSDATA`.path_t limit 1
 RESULT:
-TS|VAL|SCORE|NAME
+ts|val|score|name
 2024-01-01 00:00:00+08:00|1|1.5|alpha
 ---
 ### DIM-08[ORA] STEP-004.010 QUERY
 SQL: select * from fq02_dim08.`TAOSDATA`.`path_t` limit 1
 RESULT:
-TS|VAL|SCORE|NAME
+ts|val|score|name
 2024-01-01 00:00:00+08:00|1|1.5|alpha
 ---
 ### DIM-08[ORA] STEP-004.011 QUERY
 SQL: select * from `fq02_dim08`.TAOSDATA.path_t limit 1
 RESULT:
-TS|VAL|SCORE|NAME
-2024-01-01 00:00:00+08:00|1|1.5|alpha
+ERROR: [0x6410]: External table not found on remote source
 ---
 ### DIM-08[ORA] STEP-004.012 QUERY
 SQL: select * from `fq02_dim08`.TAOSDATA.`path_t` limit 1
 RESULT:
-TS|VAL|SCORE|NAME
-2024-01-01 00:00:00+08:00|1|1.5|alpha
+ERROR: [0x6410]: External table not found on remote source
 ---
 ### DIM-08[ORA] STEP-004.013 QUERY
 SQL: select * from `fq02_dim08`.`TAOSDATA`.path_t limit 1
 RESULT:
-TS|VAL|SCORE|NAME
+ts|val|score|name
 2024-01-01 00:00:00+08:00|1|1.5|alpha
 ---
 ### DIM-08[ORA] STEP-004.014 QUERY
 SQL: select * from `fq02_dim08`.`TAOSDATA`.`path_t` limit 1
 RESULT:
-TS|VAL|SCORE|NAME
+ts|val|score|name
 2024-01-01 00:00:00+08:00|1|1.5|alpha
 ---
 ### DIM-08[ORA] STEP-004.015 COMMENT
@@ -9009,18 +9019,18 @@ OK
 ### DIM-08[ORA] STEP-004.017 QUERY
 SQL: select * from path_t limit 1
 RESULT:
-TS|VAL|SCORE|NAME
+ts|val|score|name
 2024-01-01 00:00:00+08:00|1|1.5|alpha
 ---
 ### DIM-08[ORA] STEP-004.018 EXEC
 SQL: use `fq02_dim08`.`TAOSDATA`
 RESULT:
-ERROR: [0x6407]: External source '`fq02_dim08`' not found
+OK
 ---
 ### DIM-08[ORA] STEP-004.019 QUERY
 SQL: select * from path_t limit 1
 RESULT:
-TS|VAL|SCORE|NAME
+ts|val|score|name
 2024-01-01 00:00:00+08:00|1|1.5|alpha
 ---
 ### DIM-08[ORA] STEP-004.020 COMMENT
@@ -9029,7 +9039,7 @@ TS|VAL|SCORE|NAME
 ### DIM-08[ORA] STEP-004.021 EXEC
 SQL: use `fq02_dim08`.`TAOSDATA`.`path_t`
 RESULT:
-ERROR: [0x6407]: External source '`fq02_dim08`' not found
+ERROR: [0x2600]: 3-segment USE (source.db.schema) is not supported; use 2-segment: USE source.schema
 ---
 ### DIM-08[ORA] STEP-004.022 COMMENT
 -- [Special: SQL reserved word as table name (backtick required)]
@@ -9040,7 +9050,7 @@ RESULT:
 ERROR: [0x6410]: External table not found on remote source
 ---
 ### DIM-08[ORA] STEP-004.024 QUERY
-SQL: select * from fq02_dim08.TAOSDATA.`select` limit 1
+SQL: select * from fq02_dim08.`TAOSDATA`.`select` limit 1
 RESULT:
 ERROR: [0x6410]: External table not found on remote source
 ---
@@ -9053,7 +9063,7 @@ RESULT:
 ERROR: [0x6410]: External table not found on remote source
 ---
 ### DIM-08[ORA] STEP-004.027 QUERY
-SQL: select * from fq02_dim08.TAOSDATA.`测试表` limit 1
+SQL: select * from fq02_dim08.`TAOSDATA`.`测试表` limit 1
 RESULT:
 ERROR: [0x6410]: External table not found on remote source
 ---
@@ -9066,7 +9076,7 @@ RESULT:
 ERROR: [0x6410]: External table not found on remote source
 ---
 ### DIM-08[ORA] STEP-004.030 QUERY
-SQL: select * from fq02_dim08.TAOSDATA.`123table` limit 1
+SQL: select * from fq02_dim08.`TAOSDATA`.`123table` limit 1
 RESULT:
 ERROR: [0x6410]: External table not found on remote source
 ---
@@ -9079,7 +9089,7 @@ RESULT:
 ERROR: [0x6410]: External table not found on remote source
 ---
 ### DIM-08[ORA] STEP-004.033 QUERY
-SQL: select * from fq02_dim08.TAOSDATA.`a.b` limit 1
+SQL: select * from fq02_dim08.`TAOSDATA`.`a.b` limit 1
 RESULT:
 ERROR: [0x6410]: External table not found on remote source
 ---
@@ -9092,7 +9102,7 @@ RESULT:
 ERROR: [0x6410]: External table not found on remote source
 ---
 ### DIM-08[ORA] STEP-004.036 QUERY
-SQL: select * from fq02_dim08.TAOSDATA.`my table` limit 1
+SQL: select * from fq02_dim08.`TAOSDATA`.`my table` limit 1
 RESULT:
 ERROR: [0x6410]: External table not found on remote source
 ---
@@ -9107,8 +9117,38 @@ OK
 ### DIM-08[ORA] STEP-004.039 QUERY
 SQL: select * from `path_t` limit 1
 RESULT:
-TS|VAL|SCORE|NAME
+ts|val|score|name
 2024-01-01 00:00:00+08:00|1|1.5|alpha
+---
+### DIM-08[ORA] STEP-004.040 COMMENT
+-- [Oracle exact spelling: quoted lower-case names match]
+---
+### DIM-08[ORA] STEP-004.041 QUERY
+SQL: select * from fq02_dim08.`TAOSDATA`.`path_t` limit 1
+RESULT:
+ts|val|score|name
+2024-01-01 00:00:00+08:00|1|1.5|alpha
+---
+### DIM-08[ORA] STEP-004.042 QUERY
+SQL: select * from fq02_dim08.`TAOSDATA`.`PATH_T` limit 1
+RESULT:
+ERROR: [0x6410]: External table not found on remote source
+---
+### DIM-08[ORA] STEP-004.043 EXEC
+SQL: use fq02_dim08.`TAOSDATA`
+RESULT:
+OK
+---
+### DIM-08[ORA] STEP-004.044 QUERY
+SQL: select * from `path_t` limit 1
+RESULT:
+ts|val|score|name
+2024-01-01 00:00:00+08:00|1|1.5|alpha
+---
+### DIM-08[ORA] STEP-004.045 QUERY
+SQL: select * from `PATH_T` limit 1
+RESULT:
+ERROR: [0x6410]: External table not found on remote source
 ---
 ### DIM-08[ORA] STEP-005 CLEANUP
 SQL: drop external source if exists fq02_dim08
@@ -9612,7 +9652,7 @@ OK
 ### DIM-09[ORA] STEP-004.002 QUERY
 SQL: select * from fq02_dim09.path_t order by val limit 5
 RESULT:
-TS|VAL|SCORE|NAME
+ts|val|score|name
 2024-01-01 00:00:00+08:00|1|1.5|alpha
 2024-01-01 00:01:00+08:00|2|2.5|beta
 2024-01-01 00:02:00+08:00|3|3.5|gamma
@@ -9631,7 +9671,7 @@ OK
 ### DIM-09[ORA] STEP-004.006 QUERY
 SQL: select * from fq02_dim09.path_t order by val limit 5
 RESULT:
-TS|VAL|SCORE|NAME
+ts|val|score|name
 2024-01-01 00:10:00+08:00|101|10.5|alt-alpha
 2024-01-01 00:11:00+08:00|102|20.5|alt-beta
 2024-01-01 00:12:00+08:00|103|30.5|alt-gamma
@@ -9640,9 +9680,9 @@ TS|VAL|SCORE|NAME
 -- 3-seg explicit still works for original ns
 ---
 ### DIM-09[ORA] STEP-004.008 QUERY
-SQL: select * from fq02_dim09.TAOSDATA.path_t order by val limit 5
+SQL: select * from fq02_dim09.`TAOSDATA`.path_t order by val limit 5
 RESULT:
-TS|VAL|SCORE|NAME
+ts|val|score|name
 2024-01-01 00:00:00+08:00|1|1.5|alpha
 2024-01-01 00:01:00+08:00|2|2.5|beta
 2024-01-01 00:02:00+08:00|3|3.5|gamma
@@ -9658,7 +9698,7 @@ OK
 ### DIM-09[ORA] STEP-004.011 QUERY
 SQL: select * from path_t limit 3
 RESULT:
-TS|VAL|SCORE|NAME
+ts|val|score|name
 2024-01-01 00:10:00+08:00|101|10.5|alt-alpha
 2024-01-01 00:11:00+08:00|102|20.5|alt-beta
 2024-01-01 00:12:00+08:00|103|30.5|alt-gamma
@@ -9667,14 +9707,14 @@ TS|VAL|SCORE|NAME
 -- USE source.ns with old ns still explicit
 ---
 ### DIM-09[ORA] STEP-004.013 EXEC
-SQL: use fq02_dim09.TAOSDATA
+SQL: use fq02_dim09.`TAOSDATA`
 RESULT:
 OK
 ---
 ### DIM-09[ORA] STEP-004.014 QUERY
 SQL: select * from path_t limit 3
 RESULT:
-TS|VAL|SCORE|NAME
+ts|val|score|name
 2024-01-01 00:00:00+08:00|1|1.5|alpha
 2024-01-01 00:01:00+08:00|2|2.5|beta
 2024-01-01 00:02:00+08:00|3|3.5|gamma
@@ -9690,7 +9730,7 @@ OK
 ### DIM-09[ORA] STEP-004.017 QUERY
 SQL: select * from fq02_dim09.path_t order by val limit 5
 RESULT:
-TS|VAL|SCORE|NAME
+ts|val|score|name
 2024-01-01 00:00:00+08:00|1|1.5|alpha
 2024-01-01 00:01:00+08:00|2|2.5|beta
 2024-01-01 00:02:00+08:00|3|3.5|gamma
@@ -9762,11 +9802,11 @@ OK
 -- JOIN local + external (3-seg)
 ---
 ### DIM-10[MYS] STEP-004.008 QUERY
-SQL: select a.val, b.val from local_t a, fq02_dim10.fq02_path_mdb.path_t b where a.val = b.val limit 5
+SQL: select a.val, b.val from local_t a, fq02_dim10.fq02_path_mdb.path_t b where a.val = b.val order by a.val, b.val limit 5
 RESULT:
 val|val
-2|2
 1|1
+2|2
 ---
 ### DIM-10[MYS] STEP-004.009 COMMENT
 -- Subquery with external (3-seg)
@@ -9796,11 +9836,11 @@ val
 -- JOIN with 2-seg path
 ---
 ### DIM-10[MYS] STEP-004.014 QUERY
-SQL: select a.val, b.val from local_t a, fq02_dim10.path_t b where a.val = b.val limit 5
+SQL: select a.val, b.val from local_t a, fq02_dim10.path_t b where a.val = b.val order by a.val, b.val limit 5
 RESULT:
 val|val
-2|2
 1|1
+2|2
 ---
 ### DIM-10[MYS] STEP-004.015 COMMENT
 -- [Cross-source JOIN] create secondary source
@@ -9819,12 +9859,12 @@ OK
 -- Cross-source JOIN: primary(mysql) + secondary
 ---
 ### DIM-10[MYS] STEP-004.019 QUERY
-SQL: select a.val, b.val from fq02_dim10.fq02_path_mdb.path_t a, fq02_dim10_sec.public.path_t b where a.val = b.val limit 5
+SQL: select a.val, b.val from fq02_dim10.fq02_path_mdb.path_t a, fq02_dim10_sec.public.path_t b where a.val = b.val order by a.val, b.val limit 5
 RESULT:
 val|val
+1|1
 2|2
 3|3
-1|1
 ---
 ### DIM-10[MYS] STEP-004.020 COMMENT
 -- Cross-source in subquery
@@ -9969,11 +10009,11 @@ OK
 -- JOIN local + external (3-seg)
 ---
 ### DIM-10[POS] STEP-004.008 QUERY
-SQL: select a.val, b.val from local_t a, fq02_dim10.public.path_t b where a.val = b.val limit 5
+SQL: select a.val, b.val from local_t a, fq02_dim10.public.path_t b where a.val = b.val order by a.val, b.val limit 5
 RESULT:
 val|val
-2|2
 1|1
+2|2
 ---
 ### DIM-10[POS] STEP-004.009 COMMENT
 -- Subquery with external (3-seg)
@@ -10003,11 +10043,11 @@ val
 -- JOIN with 2-seg path
 ---
 ### DIM-10[POS] STEP-004.014 QUERY
-SQL: select a.val, b.val from local_t a, fq02_dim10.path_t b where a.val = b.val limit 5
+SQL: select a.val, b.val from local_t a, fq02_dim10.path_t b where a.val = b.val order by a.val, b.val limit 5
 RESULT:
 val|val
-2|2
 1|1
+2|2
 ---
 ### DIM-10[POS] STEP-004.015 COMMENT
 -- [Cross-source JOIN] create secondary source
@@ -10026,12 +10066,12 @@ OK
 -- Cross-source JOIN: primary(postgresql) + secondary
 ---
 ### DIM-10[POS] STEP-004.019 QUERY
-SQL: select a.val, b.val from fq02_dim10.public.path_t a, fq02_dim10_sec.fq02_path_mdb.path_t b where a.val = b.val limit 5
+SQL: select a.val, b.val from fq02_dim10.public.path_t a, fq02_dim10_sec.fq02_path_mdb.path_t b where a.val = b.val order by a.val, b.val limit 5
 RESULT:
 val|val
+1|1
 2|2
 3|3
-1|1
 ---
 ### DIM-10[POS] STEP-004.020 COMMENT
 -- Cross-source in subquery
@@ -10176,7 +10216,7 @@ OK
 -- JOIN local + external (3-seg)
 ---
 ### DIM-10[INF] STEP-004.008 QUERY
-SQL: select a.val, b.val from local_t a, fq02_dim10.fq02_path_idb.path_t b where a.val = b.val limit 5
+SQL: select a.val, b.val from local_t a, fq02_dim10.fq02_path_idb.path_t b where a.val = b.val order by a.val, b.val limit 5
 RESULT:
 val|val
 1|1
@@ -10210,7 +10250,7 @@ val
 -- JOIN with 2-seg path
 ---
 ### DIM-10[INF] STEP-004.014 QUERY
-SQL: select a.val, b.val from local_t a, fq02_dim10.path_t b where a.val = b.val limit 5
+SQL: select a.val, b.val from local_t a, fq02_dim10.path_t b where a.val = b.val order by a.val, b.val limit 5
 RESULT:
 val|val
 1|1
@@ -10233,12 +10273,12 @@ OK
 -- Cross-source JOIN: primary(influxdb) + secondary
 ---
 ### DIM-10[INF] STEP-004.019 QUERY
-SQL: select a.val, b.val from fq02_dim10.fq02_path_idb.path_t a, fq02_dim10_sec.fq02_path_mdb.path_t b where a.val = b.val limit 5
+SQL: select a.val, b.val from fq02_dim10.fq02_path_idb.path_t a, fq02_dim10_sec.fq02_path_mdb.path_t b where a.val = b.val order by a.val, b.val limit 5
 RESULT:
 val|val
+1|1
 2|2
 3|3
-1|1
 ---
 ### DIM-10[INF] STEP-004.020 COMMENT
 -- Cross-source in subquery
@@ -10383,11 +10423,11 @@ OK
 -- JOIN local + external (3-seg)
 ---
 ### DIM-10[SQL] STEP-004.008 QUERY
-SQL: select a.val, b.val from local_t a, fq02_dim10.dbo.path_t b where a.val = b.val limit 5
+SQL: select a.val, b.val from local_t a, fq02_dim10.dbo.path_t b where a.val = b.val order by a.val, b.val limit 5
 RESULT:
 val|val
-2|2
 1|1
+2|2
 ---
 ### DIM-10[SQL] STEP-004.009 COMMENT
 -- Subquery with external (3-seg)
@@ -10417,11 +10457,11 @@ val
 -- JOIN with 2-seg path
 ---
 ### DIM-10[SQL] STEP-004.014 QUERY
-SQL: select a.val, b.val from local_t a, fq02_dim10.path_t b where a.val = b.val limit 5
+SQL: select a.val, b.val from local_t a, fq02_dim10.path_t b where a.val = b.val order by a.val, b.val limit 5
 RESULT:
 val|val
-2|2
 1|1
+2|2
 ---
 ### DIM-10[SQL] STEP-004.015 COMMENT
 -- [Cross-source JOIN] create secondary source
@@ -10440,12 +10480,12 @@ OK
 -- Cross-source JOIN: primary(sqlserver) + secondary
 ---
 ### DIM-10[SQL] STEP-004.019 QUERY
-SQL: select a.val, b.val from fq02_dim10.dbo.path_t a, fq02_dim10_sec.fq02_path_mdb.path_t b where a.val = b.val limit 5
+SQL: select a.val, b.val from fq02_dim10.dbo.path_t a, fq02_dim10_sec.fq02_path_mdb.path_t b where a.val = b.val order by a.val, b.val limit 5
 RESULT:
 val|val
+1|1
 2|2
 3|3
-1|1
 ---
 ### DIM-10[SQL] STEP-004.020 COMMENT
 -- Cross-source in subquery
@@ -10590,7 +10630,7 @@ OK
 -- JOIN local + external (3-seg)
 ---
 ### DIM-10[ORA] STEP-004.008 QUERY
-SQL: select a.val, b.val from local_t a, fq02_dim10.TAOSDATA.path_t b where a.val = b.val limit 5
+SQL: select a.val, b.val from local_t a, fq02_dim10.`TAOSDATA`.path_t b where a.val = b.val order by a.val, b.val limit 5
 RESULT:
 val|val
 1|1
@@ -10600,7 +10640,7 @@ val|val
 -- Subquery with external (3-seg)
 ---
 ### DIM-10[ORA] STEP-004.010 QUERY
-SQL: select * from (select val from fq02_dim10.TAOSDATA.path_t order by val limit 3)
+SQL: select * from (select val from fq02_dim10.`TAOSDATA`.path_t order by val limit 3)
 RESULT:
 val
 1
@@ -10611,7 +10651,7 @@ val
 -- UNION external + local
 ---
 ### DIM-10[ORA] STEP-004.012 QUERY
-SQL: select val from fq02_dim10.TAOSDATA.path_t union all select val from local_t order by val limit 5
+SQL: select val from fq02_dim10.`TAOSDATA`.path_t union all select val from local_t order by val limit 5
 RESULT:
 val
 1
@@ -10624,7 +10664,7 @@ val
 -- JOIN with 2-seg path
 ---
 ### DIM-10[ORA] STEP-004.014 QUERY
-SQL: select a.val, b.val from local_t a, fq02_dim10.path_t b where a.val = b.val limit 5
+SQL: select a.val, b.val from local_t a, fq02_dim10.path_t b where a.val = b.val order by a.val, b.val limit 5
 RESULT:
 val|val
 1|1
@@ -10647,12 +10687,12 @@ OK
 -- Cross-source JOIN: primary(oracle) + secondary
 ---
 ### DIM-10[ORA] STEP-004.019 QUERY
-SQL: select a.val, b.val from fq02_dim10.TAOSDATA.path_t a, fq02_dim10_sec.fq02_path_mdb.path_t b where a.val = b.val limit 5
+SQL: select a.val, b.val from fq02_dim10.`TAOSDATA`.path_t a, fq02_dim10_sec.fq02_path_mdb.path_t b where a.val = b.val order by a.val, b.val limit 5
 RESULT:
 val|val
+1|1
 2|2
 3|3
-1|1
 ---
 ### DIM-10[ORA] STEP-004.020 COMMENT
 -- Cross-source in subquery
@@ -10669,7 +10709,7 @@ val
 -- Cross-source UNION
 ---
 ### DIM-10[ORA] STEP-004.023 QUERY
-SQL: select val from fq02_dim10.TAOSDATA.path_t union all select val from fq02_dim10_sec.fq02_path_mdb.path_t order by val limit 5
+SQL: select val from fq02_dim10.`TAOSDATA`.path_t union all select val from fq02_dim10_sec.fq02_path_mdb.path_t order by val limit 5
 RESULT:
 val
 1
@@ -10682,7 +10722,7 @@ val
 -- [EXT-010] WHERE IN subquery with external path
 ---
 ### DIM-10[ORA] STEP-004.025 QUERY
-SQL: select val from local_t where val in (select val from fq02_dim10.TAOSDATA.path_t)
+SQL: select val from local_t where val in (select val from fq02_dim10.`TAOSDATA`.path_t)
 RESULT:
 val
 1
@@ -10692,7 +10732,7 @@ val
 -- [EXT-010] WHERE EXISTS subquery with external path
 ---
 ### DIM-10[ORA] STEP-004.027 QUERY
-SQL: select val from local_t a where exists (select 1 from fq02_dim10.TAOSDATA.path_t b where b.val = a.val)
+SQL: select val from local_t a where exists (select 1 from fq02_dim10.`TAOSDATA`.path_t b where b.val = a.val)
 RESULT:
 ERROR: [0x26a6]: Not supported subquery as expr
 ---
@@ -10700,7 +10740,7 @@ ERROR: [0x26a6]: Not supported subquery as expr
 -- [EXT-010] Nested subquery with external path
 ---
 ### DIM-10[ORA] STEP-004.029 QUERY
-SQL: select * from (select * from (select val from fq02_dim10.TAOSDATA.path_t order by val limit 3))
+SQL: select * from (select * from (select val from fq02_dim10.`TAOSDATA`.path_t order by val limit 3))
 RESULT:
 val
 1
@@ -11838,7 +11878,7 @@ OK
 ### DIM-11[ORA] STEP-004.007 QUERY
 SQL: select * from path_t order by val limit 3
 RESULT:
-TS|VAL|SCORE|NAME
+ts|val|score|name
 2024-01-01 00:00:00+08:00|1|1.5|alpha
 2024-01-01 00:01:00+08:00|2|2.5|beta
 2024-01-01 00:02:00+08:00|3|3.5|gamma
@@ -11871,7 +11911,7 @@ ERROR: [0x2603]: Table does not exist
 ### DIM-11[ORA] STEP-004.014 QUERY
 SQL: select * from fq02_dim11.path_t order by val limit 3
 RESULT:
-TS|VAL|SCORE|NAME
+ts|val|score|name
 2024-01-01 00:00:00+08:00|1|1.5|alpha
 2024-01-01 00:01:00+08:00|2|2.5|beta
 2024-01-01 00:02:00+08:00|3|3.5|gamma
@@ -11880,14 +11920,14 @@ TS|VAL|SCORE|NAME
 -- Switch to external with explicit ns (2-seg USE)
 ---
 ### DIM-11[ORA] STEP-004.016 EXEC
-SQL: use fq02_dim11.TAOSDATA
+SQL: use fq02_dim11.`TAOSDATA`
 RESULT:
 OK
 ---
 ### DIM-11[ORA] STEP-004.017 QUERY
 SQL: select * from path_t order by val limit 3
 RESULT:
-TS|VAL|SCORE|NAME
+ts|val|score|name
 2024-01-01 00:00:00+08:00|1|1.5|alpha
 2024-01-01 00:01:00+08:00|2|2.5|beta
 2024-01-01 00:02:00+08:00|3|3.5|gamma
@@ -11948,7 +11988,7 @@ RESULT:
 ERROR: [0x2603]: Table does not exist
 ---
 ### DIM-11[ORA] STEP-004.030 EXEC
-SQL: use fq02_dim11.TAOSDATA
+SQL: use fq02_dim11.`TAOSDATA`
 RESULT:
 OK
 ---
@@ -11982,7 +12022,7 @@ OK
 ### DIM-11[ORA] STEP-004.037 QUERY
 SQL: select * from path_t order by val limit 1
 RESULT:
-TS|VAL|SCORE|NAME
+ts|val|score|name
 2024-01-01 00:00:00+08:00|1|1.5|alpha
 ---
 ### DIM-11[ORA] STEP-004.038 COMMENT
@@ -11996,7 +12036,7 @@ OK
 ### DIM-11[ORA] STEP-004.040 QUERY
 SQL: select * from path_t order by val limit 1
 RESULT:
-TS|VAL|SCORE|NAME
+ts|val|score|name
 2024-01-01 00:10:00+08:00|101|10.5|alt-alpha
 ---
 ### DIM-11[ORA] STEP-004.041 COMMENT
@@ -12010,7 +12050,7 @@ OK
 ### DIM-11[ORA] STEP-004.043 QUERY
 SQL: select * from path_t order by val limit 1
 RESULT:
-TS|VAL|SCORE|NAME
+ts|val|score|name
 2024-01-01 00:00:00+08:00|1|1.5|alpha
 ---
 ### DIM-11[ORA] STEP-004.044 COMMENT
@@ -12492,9 +12532,9 @@ ERROR: [0x641a]: Database name conflicts with an existing external source
 -- Verify source still works after conflict attempt
 ---
 ### DIM-12[ORA] STEP-004.004 QUERY
-SQL: select * from fq02_dim12.TAOSDATA.path_t order by val limit 1
+SQL: select * from fq02_dim12.`TAOSDATA`.path_t order by val limit 1
 RESULT:
-TS|VAL|SCORE|NAME
+ts|val|score|name
 2024-01-01 00:00:00+08:00|1|1.5|alpha
 ---
 ### DIM-12[ORA] STEP-004.005 COMMENT
@@ -12508,7 +12548,7 @@ OK
 ### DIM-12[ORA] STEP-004.007 QUERY
 SQL: select * from path_t limit 1
 RESULT:
-TS|VAL|SCORE|NAME
+ts|val|score|name
 2024-01-01 00:00:00+08:00|1|1.5|alpha
 ---
 ### DIM-12[ORA] STEP-004.008 COMMENT
@@ -13652,7 +13692,7 @@ OK
 -- INSERT into external (3-seg) → should fail
 ---
 ### DIM-13[ORA] STEP-004.002 EXEC
-SQL: insert into fq02_dim13.TAOSDATA.path_t values (now, 999, 9.9, 'test')
+SQL: insert into fq02_dim13.`TAOSDATA`.path_t values (now, 999, 9.9, 'test')
 RESULT:
 ERROR: [0x6419]: Write operation not supported on external source table
 ---
@@ -13668,7 +13708,7 @@ ERROR: [0x6419]: Write operation not supported on external source table
 -- DELETE from external (3-seg) → should fail
 ---
 ### DIM-13[ORA] STEP-004.006 EXEC
-SQL: delete from fq02_dim13.TAOSDATA.path_t where ts < now
+SQL: delete from fq02_dim13.`TAOSDATA`.path_t where ts < now
 RESULT:
 ERROR: [0x0118]: Invalid parameters
 ---
@@ -13684,7 +13724,7 @@ ERROR: [0x6419]: Write operation not supported on external source table
 -- DROP external table (3-seg) → should fail
 ---
 ### DIM-13[ORA] STEP-004.010 EXEC
-SQL: drop table fq02_dim13.TAOSDATA.path_t
+SQL: drop table fq02_dim13.`TAOSDATA`.path_t
 RESULT:
 ERROR: [0x6419]: Write operation not supported on external source table
 ---
@@ -13700,7 +13740,7 @@ ERROR: [0x6419]: Write operation not supported on external source table
 -- DROP STABLE on external (3-seg) → should fail
 ---
 ### DIM-13[ORA] STEP-004.014 EXEC
-SQL: drop stable fq02_dim13.TAOSDATA.path_t
+SQL: drop stable fq02_dim13.`TAOSDATA`.path_t
 RESULT:
 ERROR: [0x6419]: Write operation not supported on external source table
 ---
@@ -13716,7 +13756,7 @@ ERROR: [0x6419]: Write operation not supported on external source table
 -- ALTER external table (3-seg) → should fail
 ---
 ### DIM-13[ORA] STEP-004.018 EXEC
-SQL: alter table fq02_dim13.TAOSDATA.path_t comment 'test'
+SQL: alter table fq02_dim13.`TAOSDATA`.path_t comment 'test'
 RESULT:
 ERROR: [0x6419]: Write operation not supported on external source table
 ---
@@ -13732,7 +13772,7 @@ ERROR: [0x6419]: Write operation not supported on external source table
 -- CREATE TABLE on external path (3-seg) → should fail
 ---
 ### DIM-13[ORA] STEP-004.022 EXEC
-SQL: create table fq02_dim13.TAOSDATA.path_t (ts timestamp, v int)
+SQL: create table fq02_dim13.`TAOSDATA`.path_t (ts timestamp, v int)
 RESULT:
 ERROR: [0x6419]: Write operation not supported on external source table
 ---
@@ -13748,7 +13788,7 @@ ERROR: [0x6419]: Write operation not supported on external source table
 -- CREATE STABLE on external path (3-seg) → should fail
 ---
 ### DIM-13[ORA] STEP-004.026 EXEC
-SQL: create stable fq02_dim13.TAOSDATA.path_t (ts timestamp, v int) tags (t1 int)
+SQL: create stable fq02_dim13.`TAOSDATA`.path_t (ts timestamp, v int) tags (t1 int)
 RESULT:
 ERROR: [0x6419]: Write operation not supported on external source table
 ---
@@ -13764,7 +13804,7 @@ ERROR: [0x6419]: Write operation not supported on external source table
 -- CREATE INDEX on external table (3-seg) → should fail
 ---
 ### DIM-13[ORA] STEP-004.030 EXEC
-SQL: create index idx1 on fq02_dim13.TAOSDATA.path_t (v)
+SQL: create index idx1 on fq02_dim13.`TAOSDATA`.path_t (v)
 RESULT:
 ERROR: [0x6419]: Write operation not supported on external source table
 ---
@@ -13780,13 +13820,13 @@ ERROR: [0x6419]: Write operation not supported on external source table
 -- DESCRIBE external table (3-seg) → should succeed
 ---
 ### DIM-13[ORA] STEP-004.034 QUERY
-SQL: describe fq02_dim13.TAOSDATA.path_t
+SQL: describe fq02_dim13.`TAOSDATA`.path_t
 RESULT:
 field|type|length|note
-TS|TIMESTAMP|8|
-VAL|BIGINT|8|
-SCORE|DOUBLE|8|
-NAME|VARCHAR|32|
+ts|TIMESTAMP|8|
+val|BIGINT|8|
+score|DOUBLE|8|
+name|VARCHAR|32|
 ---
 ### DIM-13[ORA] STEP-004.035 COMMENT
 -- DESCRIBE external table (2-seg) → should succeed
@@ -13795,10 +13835,10 @@ NAME|VARCHAR|32|
 SQL: describe fq02_dim13.path_t
 RESULT:
 field|type|length|note
-TS|TIMESTAMP|8|
-VAL|BIGINT|8|
-SCORE|DOUBLE|8|
-NAME|VARCHAR|32|
+ts|TIMESTAMP|8|
+val|BIGINT|8|
+score|DOUBLE|8|
+name|VARCHAR|32|
 ---
 ### DIM-13[ORA] STEP-004.037 COMMENT
 -- REFRESH source → should succeed
@@ -13812,9 +13852,9 @@ OK
 -- SHOW tables in external ns
 ---
 ### DIM-13[ORA] STEP-004.040 QUERY
-SQL: show fq02_dim13.TAOSDATA.tables
+SQL: show fq02_dim13.`TAOSDATA`.tables
 RESULT:
-ERROR: [0x2600]: syntax error near "taosdata.tables"
+ERROR: [0x2600]: syntax error near "`TAOSDATA`.tables"
 ---
 ### DIM-13[ORA] STEP-004.041 COMMENT
 -- [Non-existent source] SELECT → should return EXT_SOURCE_NOT_FOUND
@@ -13872,7 +13912,7 @@ ERROR: [0x0118]: Invalid parameters
 -- [EXT-011] USE source.ns then SHOW/DESCRIBE
 ---
 ### DIM-13[ORA] STEP-004.054 EXEC
-SQL: use fq02_dim13.TAOSDATA
+SQL: use fq02_dim13.`TAOSDATA`
 RESULT:
 OK
 ---
@@ -14964,14 +15004,14 @@ OK
 ### DIM-14[ORA] STEP-004.006 QUERY
 SQL: select * from path_t order by val limit 1
 RESULT:
-TS|VAL|SCORE|NAME
+ts|val|score|name
 2024-01-01 00:00:00+08:00|1|1.5|alpha
 ---
 ### DIM-14[ORA] STEP-004.007 COMMENT
--- [2-seg USE] sql=use fq02_dim14.TAOSDATA
+-- [2-seg USE] sql=use fq02_dim14.`TAOSDATA`
 ---
 ### DIM-14[ORA] STEP-004.008 EXEC
-SQL: use fq02_dim14.TAOSDATA
+SQL: use fq02_dim14.`TAOSDATA`
 RESULT:
 OK
 ---
@@ -14981,30 +15021,30 @@ OK
 ### DIM-14[ORA] STEP-004.010 QUERY
 SQL: select * from path_t order by val limit 1
 RESULT:
-TS|VAL|SCORE|NAME
+ts|val|score|name
 2024-01-01 00:00:00+08:00|1|1.5|alpha
 ---
 ### DIM-14[ORA] STEP-004.011 COMMENT
--- [3-seg USE] sql=use fq02_dim14.TAOSDATA.extra
+-- [3-seg USE] sql=use fq02_dim14.`TAOSDATA`.extra
 ---
 ### DIM-14[ORA] STEP-004.012 EXEC
-SQL: use fq02_dim14.TAOSDATA.extra
+SQL: use fq02_dim14.`TAOSDATA`.extra
 RESULT:
 ERROR: [0x2600]: 3-segment USE (source.db.schema) is not supported; use 2-segment: USE source.schema
 ---
 ### DIM-14[ORA] STEP-004.013 COMMENT
--- [4-seg USE] sql=use fq02_dim14.TAOSDATA.extra.more
+-- [4-seg USE] sql=use fq02_dim14.`TAOSDATA`.extra.more
 ---
 ### DIM-14[ORA] STEP-004.014 EXEC
-SQL: use fq02_dim14.TAOSDATA.extra.more
+SQL: use fq02_dim14.`TAOSDATA`.extra.more
 RESULT:
 ERROR: [0x2600]: syntax error near ".more"
 ---
 ### DIM-14[ORA] STEP-004.015 COMMENT
--- [5-seg USE] sql=use fq02_dim14.TAOSDATA.extra.more.deep
+-- [5-seg USE] sql=use fq02_dim14.`TAOSDATA`.extra.more.deep
 ---
 ### DIM-14[ORA] STEP-004.016 EXEC
-SQL: use fq02_dim14.TAOSDATA.extra.more.deep
+SQL: use fq02_dim14.`TAOSDATA`.extra.more.deep
 RESULT:
 ERROR: [0x2600]: syntax error near ".more.deep"
 ---
@@ -15038,7 +15078,7 @@ ERROR: [0x6417]: External source database or schema not found
 ### DIM-14[ORA] STEP-004.024 QUERY
 SQL: select * from path_t order by val limit 1
 RESULT:
-TS|VAL|SCORE|NAME
+ts|val|score|name
 2024-01-01 00:00:00+08:00|1|1.5|alpha
 ---
 ### DIM-14[ORA] STEP-004.025 COMMENT
@@ -15092,35 +15132,35 @@ OK
 ### DIM-14[ORA] STEP-004.035 QUERY
 SQL: select * from path_t order by val limit 1
 RESULT:
-TS|VAL|SCORE|NAME
+ts|val|score|name
 2024-01-01 00:00:00+08:00|1|1.5|alpha
 ---
 ### DIM-14[ORA] STEP-004.036 COMMENT
 -- USE source.ns then 1-seg query → explicit default namespace row should return
 ---
 ### DIM-14[ORA] STEP-004.037 EXEC
-SQL: use fq02_dim14.TAOSDATA
+SQL: use fq02_dim14.`TAOSDATA`
 RESULT:
 OK
 ---
 ### DIM-14[ORA] STEP-004.038 QUERY
 SQL: select * from path_t order by val limit 1
 RESULT:
-TS|VAL|SCORE|NAME
+ts|val|score|name
 2024-01-01 00:00:00+08:00|1|1.5|alpha
 ---
 ### DIM-14[ORA] STEP-004.039 COMMENT
 -- [USE override/reset] USE source.ns2 overrides to alt namespace row
 ---
 ### DIM-14[ORA] STEP-004.040 EXEC
-SQL: use fq02_dim14.FQ_ALT_SCHEMA
+SQL: use fq02_dim14.`FQ_ALT_SCHEMA`
 RESULT:
 OK
 ---
 ### DIM-14[ORA] STEP-004.041 QUERY
 SQL: select * from path_t order by val limit 1
 RESULT:
-TS|VAL|SCORE|NAME
+ts|val|score|name
 2024-01-01 00:10:00+08:00|101|10.5|alt-alpha
 ---
 ### DIM-14[ORA] STEP-004.042 COMMENT
@@ -15134,7 +15174,7 @@ OK
 ### DIM-14[ORA] STEP-004.044 QUERY
 SQL: select * from path_t order by val limit 1
 RESULT:
-TS|VAL|SCORE|NAME
+ts|val|score|name
 2024-01-01 00:00:00+08:00|1|1.5|alpha
 ---
 ### DIM-14[ORA] STEP-004.045 EXEC
@@ -15162,9 +15202,9 @@ ERROR: [0x2601]: Incomplete SQL statement
 -- [EXT-013] USE with double dot → should fail
 ---
 ### DIM-14[ORA] STEP-004.051 EXEC
-SQL: use fq02_dim14..TAOSDATA
+SQL: use fq02_dim14..`TAOSDATA`
 RESULT:
-ERROR: [0x2600]: syntax error near ".taosdata"
+ERROR: [0x2600]: syntax error near ".`TAOSDATA`"
 ---
 ### DIM-14[ORA] STEP-005 EXEC
 SQL: drop database if exists fq02_use_db
@@ -15793,28 +15833,28 @@ ts|val|score|name
 -- USE source.ns should switch to explicit namespace row
 ---
 ### DIM-19[ORA] STEP-004.013 EXEC
-SQL: use fq02_dim19.TAOSDATA
+SQL: use fq02_dim19.`TAOSDATA`
 RESULT:
 OK
 ---
 ### DIM-19[ORA] STEP-004.014 QUERY
 SQL: select * from path_t order by val limit 1
 RESULT:
-TS|VAL|SCORE|NAME
+ts|val|score|name
 2024-01-01 00:00:00+08:00|1|1.5|alpha
 ---
 ### DIM-19[ORA] STEP-004.015 COMMENT
 -- USE source.ns2 should switch to alternate namespace row
 ---
 ### DIM-19[ORA] STEP-004.016 EXEC
-SQL: use fq02_dim19.FQ_ALT_SCHEMA
+SQL: use fq02_dim19.`FQ_ALT_SCHEMA`
 RESULT:
 OK
 ---
 ### DIM-19[ORA] STEP-004.017 QUERY
 SQL: select * from path_t order by val limit 1
 RESULT:
-TS|VAL|SCORE|NAME
+ts|val|score|name
 2024-01-01 00:10:00+08:00|101|10.5|alt-alpha
 ---
 ### DIM-19[ORA] STEP-004.018 COMMENT
@@ -16686,7 +16726,7 @@ OK
 ### DIM-16[ORA] STEP-004.002 QUERY
 SQL: select * from fq02_dim16.v_path_t order by val limit 5
 RESULT:
-TS|VAL|SCORE|NAME
+ts|val|score|name
 2024-01-01 00:00:00+08:00|1|1.5|alpha
 2024-01-01 00:01:00+08:00|2|2.5|beta
 2024-01-01 00:02:00+08:00|3|3.5|gamma
@@ -16695,9 +16735,9 @@ TS|VAL|SCORE|NAME
 -- [EXT-004] View with ts PK: 3-seg path
 ---
 ### DIM-16[ORA] STEP-004.004 QUERY
-SQL: select * from fq02_dim16.TAOSDATA.v_path_t order by val limit 5
+SQL: select * from fq02_dim16.`TAOSDATA`.v_path_t order by val limit 5
 RESULT:
-TS|VAL|SCORE|NAME
+ts|val|score|name
 2024-01-01 00:00:00+08:00|1|1.5|alpha
 2024-01-01 00:01:00+08:00|2|2.5|beta
 2024-01-01 00:02:00+08:00|3|3.5|gamma
@@ -16708,7 +16748,7 @@ TS|VAL|SCORE|NAME
 ### DIM-16[ORA] STEP-004.006 QUERY
 SQL: select * from fq02_dim16.v_no_ts limit 5
 RESULT:
-VAL|NAME
+val|name
 1|alpha
 2|beta
 3|gamma
@@ -16717,9 +16757,9 @@ VAL|NAME
 -- [EXT-004] View without ts PK (no_ts): 3-seg
 ---
 ### DIM-16[ORA] STEP-004.008 QUERY
-SQL: select * from fq02_dim16.TAOSDATA.v_no_ts limit 5
+SQL: select * from fq02_dim16.`TAOSDATA`.v_no_ts limit 5
 RESULT:
-VAL|NAME
+val|name
 1|alpha
 2|beta
 3|gamma
@@ -16731,22 +16771,22 @@ VAL|NAME
 SQL: describe fq02_dim16.v_path_t
 RESULT:
 field|type|length|note
-TS|TIMESTAMP|8|
-VAL|BIGINT|8|
-SCORE|DOUBLE|8|
-NAME|VARCHAR|32|
+ts|TIMESTAMP|8|
+val|BIGINT|8|
+score|DOUBLE|8|
+name|VARCHAR|32|
 ---
 ### DIM-16[ORA] STEP-004.011 COMMENT
 -- [EXT-004] DESCRIBE view: 3-seg
 ---
 ### DIM-16[ORA] STEP-004.012 QUERY
-SQL: describe fq02_dim16.TAOSDATA.v_path_t
+SQL: describe fq02_dim16.`TAOSDATA`.v_path_t
 RESULT:
 field|type|length|note
-TS|TIMESTAMP|8|
-VAL|BIGINT|8|
-SCORE|DOUBLE|8|
-NAME|VARCHAR|32|
+ts|TIMESTAMP|8|
+val|BIGINT|8|
+score|DOUBLE|8|
+name|VARCHAR|32|
 ---
 ### DIM-16[ORA] STEP-004.013 COMMENT
 -- [EXT-004] USE source then 1-seg view query
@@ -16759,7 +16799,7 @@ OK
 ### DIM-16[ORA] STEP-004.015 QUERY
 SQL: select * from v_path_t order by val limit 3
 RESULT:
-TS|VAL|SCORE|NAME
+ts|val|score|name
 2024-01-01 00:00:00+08:00|1|1.5|alpha
 2024-01-01 00:01:00+08:00|2|2.5|beta
 2024-01-01 00:02:00+08:00|3|3.5|gamma
@@ -16768,14 +16808,14 @@ TS|VAL|SCORE|NAME
 -- [EXT-004] USE source.ns then 1-seg view query
 ---
 ### DIM-16[ORA] STEP-004.017 EXEC
-SQL: use fq02_dim16.TAOSDATA
+SQL: use fq02_dim16.`TAOSDATA`
 RESULT:
 OK
 ---
 ### DIM-16[ORA] STEP-004.018 QUERY
 SQL: select * from v_path_t order by val limit 3
 RESULT:
-TS|VAL|SCORE|NAME
+ts|val|score|name
 2024-01-01 00:00:00+08:00|1|1.5|alpha
 2024-01-01 00:01:00+08:00|2|2.5|beta
 2024-01-01 00:02:00+08:00|3|3.5|gamma
@@ -17090,7 +17130,7 @@ OK
 ### DIM-17[ORA] STEP-003.003 QUERY
 SQL: select * from path_t order by val limit 1
 RESULT:
-TS|VAL|SCORE|NAME
+ts|val|score|name
 2024-01-01 00:00:00+08:00|1|1.5|alpha
 ---
 ### DIM-17[ORA] STEP-003.004 COMMENT
@@ -17436,7 +17476,7 @@ OK
 ### DIM-18[ORA] STEP-004.003 QUERY
 SQL: select * from path_t order by val limit 1
 RESULT:
-TS|VAL|SCORE|NAME
+ts|val|score|name
 2024-01-01 00:00:00+08:00|1|1.5|alpha
 ---
 ### DIM-18[ORA] STEP-004.004 COMMENT
@@ -17453,16 +17493,16 @@ OK
 ### DIM-18[ORA] STEP-004.007 QUERY
 SQL: select * from path_t order by val limit 1
 RESULT:
-TS|VAL|SCORE|NAME
+ts|val|score|name
 2024-01-01 00:00:00+08:00|1|1.5|alpha
 ---
 ### DIM-18[ORA] STEP-004.008 COMMENT
 -- [EXT-015] Explicit 3-seg with old ns still works
 ---
 ### DIM-18[ORA] STEP-004.009 QUERY
-SQL: select * from fq02_dim18.TAOSDATA.path_t order by val limit 1
+SQL: select * from fq02_dim18.`TAOSDATA`.path_t order by val limit 1
 RESULT:
-TS|VAL|SCORE|NAME
+ts|val|score|name
 2024-01-01 00:00:00+08:00|1|1.5|alpha
 ---
 ### DIM-18[ORA] STEP-005 CLEANUP

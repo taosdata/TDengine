@@ -63,6 +63,46 @@ void getExprSubQueryResCols(SNode* pNode, int32_t* cols);
 
 EPrivType getAlterUserPrivType(const char* pCurrentUser, const SAlterUserStmt* pStmt);
 
+// True when a CREATE VTABLE column entry declares no binding at all: the ref type is local,
+// every reference field is empty and neither condition node is set, so there is no source
+// table to validate, authorize or reserve meta for (a bare `name TYPE` own column, the state
+// ALTER ... SET NULL produces). One predicate shared by the meta-key collector, the
+// authenticator and the translator: a partial-ref shape (a source name without a table name,
+// or a filter/tag condition without a reference) must never match any of the skips, it has
+// to run the full validation path instead.
+// Scope: column declarations (SColumnRefNode in the CREATE VTABLE column list) only; the
+// USING tag list (pSpecificTags) resolves through its own tag paths and never passes here.
+static inline bool vtableColRefWithoutBinding(const SColumnRefNode* pColRef) {
+  if (NULL == pColRef) {
+    return false;
+  }
+  return pColRef->refType == 0 /* internal */ && pColRef->refSourceName[0] == '\0' &&
+         pColRef->refSchemaName[0] == '\0' && pColRef->refDbName[0] == '\0' &&
+         pColRef->refTableName[0] == '\0' && pColRef->refColName[0] == '\0' &&
+         NULL == pColRef->pTagCond && NULL == pColRef->pFilterCond;
+}
+
+// True when a CREATE VTABLE column entry carries binding artifacts (any reference name or a
+// filter/tag condition) without a complete reference: refTableName or refColName is empty
+// while something is set. Never true for a bare declaration (vtableColRefWithoutBinding)
+// or a well-formed ref. Shared by the meta-key collector, the authenticator and the
+// translator so the three layers reject the same partial shapes instead of drifting apart
+// (e.g. a source name without a table name must not slip past one layer into another's
+// skip). Same scope as vtableColRefWithoutBinding: column declarations only.
+static inline bool vtableColRefIncomplete(const SColumnRefNode* pColRef) {
+  if (NULL == pColRef) {
+    return false;
+  }
+  bool anyName = pColRef->refSourceName[0] != '\0' || pColRef->refSchemaName[0] != '\0' ||
+                 pColRef->refDbName[0] != '\0' || pColRef->refTableName[0] != '\0' ||
+                 pColRef->refColName[0] != '\0';
+  bool anyCond = (NULL != pColRef->pTagCond) || (NULL != pColRef->pFilterCond);
+  if (!anyName && !anyCond) {
+    return false;  // nothing set: a bare declaration, not an incomplete reference
+  }
+  return pColRef->refTableName[0] == '\0' || pColRef->refColName[0] == '\0';
+}
+
 #ifdef TD_ENTERPRISE
 int32_t getExternalSourceInfoImpl(SParseContext* pParseCxt, SParseMetaCache* pMetaCache,
                                  const char* sourceName, SExtSourceInfo** pExtInfo);

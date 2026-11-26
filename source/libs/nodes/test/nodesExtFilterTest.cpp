@@ -413,6 +413,69 @@ TEST_P(ExternalFilterTest, PreservesInvalidParameterError) {
             TSDB_CODE_INVALID_PARA);
 }
 
+TEST(ExternalFilterOracleTest, RendersResolvedIdentifiersLiterally) {
+  auto render = [](const char* column) -> std::string {
+    auto filter = makeComparison(column, "1");
+    if (!filter) {
+      return "<null>";
+    }
+    char    sql[256] = {};
+    int32_t length = 0;
+    if (nodesExprToExtSQL(filter.get(), EXT_SQL_DIALECT_ORACLE, sql, sizeof(sql), &length) !=
+        TSDB_CODE_SUCCESS) {
+      return "<error>";
+    }
+    return std::string(sql);
+  };
+
+  // A resolved uppercase spelling is a legal bare Oracle identifier.
+  EXPECT_NE(render("EMP").find("EMP"), std::string::npos);
+  EXPECT_EQ(render("EMP").find("\"EMP\""), std::string::npos);
+  // Lower-case and mixed-case spellings must be quoted to survive Oracle's
+  // upper-case folding of unquoted names.
+  EXPECT_NE(render("emp").find("\"emp\""), std::string::npos);
+  EXPECT_NE(render("MiXeDCol").find("\"MiXeDCol\""), std::string::npos);
+  // A reserved word is always quoted.
+  EXPECT_NE(render("DATE").find("\"DATE\""), std::string::npos);
+  // A literal double quote in the name is doubled, never treated as syntax.
+  EXPECT_NE(render("a\"b").find("\"a\"\"b\""), std::string::npos);
+  EXPECT_NE(render("\"emp\"").find("\"\"\"emp\"\"\""), std::string::npos);
+}
+
+TEST_P(ExternalFilterTest, ReferenceAcceptsViewAndOrdinaryTimeWithoutPrimaryKey) {
+  for (auto& column : columns_) column.isRemotePrimaryKey = false;
+  meta_.objectKind = EXT_OBJECT_VIEW;
+  SExternalBindingContext binding = {VTABLE_BINDING_REFERENCE, "ts"};
+  EXPECT_EQ(nodesValidateExternalFilterEx(GetParam(), &meta_, nullptr, nullptr, nullptr,
+                                          message_, sizeof(message_), &tsIndex_, &binding),
+            TSDB_CODE_SUCCESS);
+  EXPECT_EQ(tsIndex_, 0);
+  EXPECT_EQ(validate(nullptr), TSDB_CODE_EXT_NO_TS_PRIMARY_KEY);
+  auto filter = makeComparison("value", "3", OP_TYPE_GREATER_THAN, TSDB_DATA_TYPE_INT);
+  ASSERT_NE(filter, nullptr);
+  ASSERT_EQ(nodesValidateExternalFilterEx(GetParam(), &meta_, filter.get(), nullptr, nullptr,
+                                          message_, sizeof(message_), &tsIndex_, &binding),
+            TSDB_CODE_SUCCESS);
+  const auto json = save(filter.get());
+  EXPECT_EQ(nodesValidateExternalFilterCurrentMetaEx(GetParam(), &meta_, json.c_str(), json.size(),
+                                                     nullptr, nullptr, message_, sizeof(message_),
+                                                     &tsIndex_, &binding), TSDB_CODE_SUCCESS);
+}
+
+TEST_P(ExternalFilterTest, ReferenceValidatesSelectedTimeAndReportsSchemaChange) {
+  SExternalBindingContext binding = {VTABLE_BINDING_REFERENCE, "missing"};
+  EXPECT_EQ(nodesValidateExternalFilterEx(GetParam(), &meta_, nullptr, nullptr, nullptr,
+                                          message_, sizeof(message_), &tsIndex_, &binding),
+            TSDB_CODE_EXT_COLUMN_NOT_EXIST);
+  EXPECT_EQ(nodesValidateExternalFilterCurrentMetaEx(GetParam(), &meta_, nullptr, 0, nullptr,
+                                                     nullptr, message_, sizeof(message_),
+                                                     &tsIndex_, &binding), TSDB_CODE_EXT_SCHEMA_CHANGED);
+  binding.timeColumn = "value";
+  EXPECT_EQ(nodesValidateExternalFilterEx(GetParam(), &meta_, nullptr, nullptr, nullptr,
+                                          message_, sizeof(message_), &tsIndex_, &binding),
+            TSDB_CODE_EXT_TYPE_NOT_MAPPABLE);
+}
+
 INSTANTIATE_TEST_SUITE_P(RelationalSources, ExternalFilterTest,
                          testing::Values(EXT_SOURCE_MYSQL, EXT_SOURCE_POSTGRESQL));
 

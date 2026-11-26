@@ -51,8 +51,11 @@ class Test_IDMP_Meters:
         
         Jira: None
 
+        Feishu: https://project.feishu.cn/taosdata_td/defect/detail/7164773472
+
         History:
             - 2025-7-10 Alex Duan Created
+            - 2026-11-11 Kane Kuang Check merged PERIOD boundaries
         """
 
         #
@@ -987,7 +990,7 @@ class Test_IDMP_Meters:
     def verify_stream1(self):
         # result_stream1
         result_sql = f"select * from tdasset.`result_stream1` "
-        result_sql_sub1 = f"select * from tdasset.`result_stream1_sub1` "
+        result_sql_sub1 = "select * from tdasset.`result_stream1_sub1` order by ts"
         result_sql_sub2 = f"select * from tdasset.`result_stream1_sub2` "
 
         # result_stream1
@@ -1003,12 +1006,7 @@ class Test_IDMP_Meters:
         )
 
         # result_stream_sub1
-        tdSql.checkResultsByFunc(
-            sql=result_sql_sub1,
-            func=lambda: tdSql.checkRows(2, show=True)
-            and tdSql.compareData(0, 0, 1752563060000)
-            and tdSql.compareData(0, 1, 0),  # cnt
-        )
+        tdSql.checkResultsByArray(result_sql_sub1, [[1752563060000, 10, 300], [1752564380000, 10, 400]])
 
         # result_stream1_sub2
         tdSql.checkResultsBySql(sql=result_sql, exp_sql=result_sql_sub2)
@@ -1766,23 +1764,22 @@ class Test_IDMP_Meters:
 
     # verify stream8_sub2
     def verify_stream8_sub2(self):
-        # ts - ts_prev = 1000
         tdSql.checkResultsByFunc(
-            sql="select (cast(ts as bigint) - cast(ts_prev as bigint) ) as dif from tdasset.result_stream8_sub2",
+            sql="select cast(ts as bigint), cast(ts_prev as bigint), cast(ts_next as bigint) "
+                "from tdasset.result_stream8_sub2 order by ts",
             func=lambda: tdSql.getRows() > 1,
         )
         for i in range(tdSql.getRows()):
-            tdSql.checkData(i, 0, 1000)
+            ts = tdSql.getData(i, 0)
+            ts_prev = tdSql.getData(i, 1)
+            # Pending PERIOD cycles can merge, but must cover whole periods.
+            tdSql.checkEqual(ts - ts_prev >= 1000, True)
+            tdSql.checkEqual((ts - ts_prev) % 1000, 0)
+            if i > 0:
+                tdSql.checkData(i, 1, tdSql.getData(i - 1, 0))
+            tdSql.checkData(i, 2, ts + 1000)
 
-        # ts_next - ts = 1000
-        tdSql.checkResultsByFunc(
-            sql="select (cast(ts_next as bigint) - cast(ts as bigint) ) as dif from tdasset.result_stream8_sub2",
-            func=lambda: tdSql.getRows() > 1,
-        )
-        for i in range(tdSql.getRows()):
-            tdSql.checkData(i, 0, 1000)
-
-        print("verify stream8_sub2 ............................ successfully.")
+        tdLog.info("verify stream8_sub2 ............................ successfully.")
 
     # verify stream8_sub3
     def verify_stream8_sub3(self):

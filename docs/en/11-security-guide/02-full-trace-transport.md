@@ -322,7 +322,7 @@ By default, the taosAdapter server accepts client permessage-deflate negotiation
 
 > Compression increases CPU load. Enable it only in bandwidth-constrained scenarios, such as cross-WAN or cloud connections.
 
-#### 2.1.3 Nginx Reverse-Proxy TLS Offloading
+#### 2.1.3 Nginx Reverse-Proxy TLS Offloading {#213-nginx-tls-offload}
 
 ```nginx
 server {
@@ -358,6 +358,7 @@ As a standalone native client library, taosc communicates with taosd over the TD
 |---------|-------------|------|
 | RSA | 2048 bits | 4096 bits recommended |
 | ECC | 256 bits | P-256 / P-384 recommended |
+| SM2 | 256 bits | SM2 certificate. See [SM2 TLS](#gm-tls). |
 | CA | - | Only PEM format is supported |
 
 #### 2.2.2 Mutual TLS (mTLS)
@@ -383,6 +384,52 @@ tlsCaPath   /etc/taos/certs/ca.pem
 # tlsCliKeyPath  /etc/taos/certs/client-key.pem
 ```
 
+#### SM2 TLS {#gm-tls}
+
+TLS between taosc and taosd supports the Chinese commercial cryptography algorithms: SM2 certificates for authentication and key exchange, SM4 for data encryption, and SM3 for integrity. The protocol follows the TLS 1.3 cipher suites in RFC 8998. The available cipher suites are `TLS_SM4_GCM_SM3` and `TLS_SM4_CCM_SM3`.
+
+Configuration is the same as for ordinary TLS. Replace the certificate and private key with SM2 materials. When the server certificate is an SM2 certificate, taosd negotiates only an SM2 cipher suite. The client must trust the SM2 CA that issued the certificate, or the handshake fails.
+
+**Generate an SM2 certificate** (OpenSSL 3.0 or later with SM2 support):
+
+```shell
+# CA
+openssl genpkey -algorithm SM2 -out ca-key.pem
+openssl req -new -x509 -key ca-key.pem -sm3 -days 3650 -subj "/CN=TDengine SM2 CA" -out ca.pem
+
+# Server certificate
+openssl genpkey -algorithm SM2 -out server-key.pem
+openssl req -new -key server-key.pem -sm3 -subj "/CN=taosd.example.com" -out server.csr
+openssl x509 -req -in server.csr -CA ca.pem -CAkey ca-key.pem -CAcreateserial -sm3 -days 825 -out server.pem
+```
+
+**taosd server** (`/etc/taos/taos.cfg`):
+
+```ini
+enableTLS         1
+tlsCaPath         /etc/taos/certs/ca.pem
+tlsSvrCertPath    /etc/taos/certs/server.pem
+tlsSvrKeyPath     /etc/taos/certs/server-key.pem
+```
+
+**taosc client** (`/etc/taos/taos.cfg`):
+
+```ini
+enableTLS   1
+tlsCaPath   /etc/taos/certs/ca.pem
+# Use an SM2 client certificate for mutual authentication
+# tlsCliCertPath /etc/taos/certs/client.pem
+# tlsCliKeyPath  /etc/taos/certs/client-key.pem
+```
+
+**Verification**: after a successful connection, the taosd log shows the negotiation result, for example `TLS handshake done, version:TLSv1.3, cipher:TLS_SM4_GCM_SM3`.
+
+**Scope**
+
+- This applies to taosc to taosd and to communication between dnodes.
+- HTTPS and WSS on taosAdapter do not support SM2 certificates. When a WebSocket or REST connection needs SM2 transport, place a reverse proxy that supports SM2, such as an SM2-capable Nginx, in front of taosAdapter and offload TLS there. See [Nginx Reverse-Proxy TLS Offloading](#213-nginx-tls-offload).
+- Do not mix certificate types. Every dnode in one cluster should use SM2 certificates, or every dnode should use RSA or ECC certificates.
+
 #### 2.2.3 SASL/SCRAM-SHA-256 Hardening
 
 Add SASL/SCRAM-SHA-256 on top of the TLS channel:
@@ -395,8 +442,8 @@ Add SASL/SCRAM-SHA-256 on top of the TLS channel:
 
 ```sql
 ALTER DNODES RELOAD TLS;
-ALTER DNODE <dnode_id> RELOAD TLS;
 
+ALTER DNODE <dnode_id> RELOAD TLS;
 ```
 
 Deploy the new certificate, run `RELOAD`, and new connections automatically use the new certificate without stopping the service.
@@ -620,16 +667,22 @@ usessl   = true
 
 ```sql
 CREATE STABLE meters (
-    ts        TIMESTAMP ENCODE 'delta-i'  COMPRESS 'lz4'  LEVEL 'medium',
-    current   FLOAT     ENCODE 'delta-d'  COMPRESS 'zstd' LEVEL 'high',
-    voltage   INT       ENCODE 'simple8b' COMPRESS 'lz4'  LEVEL 'low',
-    note      VARCHAR(64)                 COMPRESS 'lz4'
-) TAGS (location VARCHAR(64), groupId INT);
+  ts      TIMESTAMP ENCODE 'delta-i' COMPRESS 'lz4' LEVEL 'medium',
+  current FLOAT ENCODE 'delta-d' COMPRESS 'zstd' LEVEL 'high',
+  voltage INT ENCODE 'simple8b' COMPRESS 'lz4' LEVEL 'low',
+  note    VARCHAR(64) COMPRESS 'lz4'
+) TAGS (
+  location VARCHAR(64),
+  groupId  INT
+);
 
 ALTER TABLE meters MODIFY COLUMN current COMPRESS 'zstd' LEVEL 'high';
 
-CREATE DATABASE sensor_db COMP 2;     -- 0 = off  1 = level 1  2 = two levels (default)
-COMPACT DATABASE sensor_db;            -- Triggers level-3 compression.
+CREATE DATABASE sensor_db
+  COMP 2;
+
+-- 0 = off  1 = level 1  2 = two levels (default)
+COMPACT DATABASE sensor_db;  -- Triggers level-3 compression.
 ```
 
 ### 6.5 Choosing By Data Characteristics
@@ -685,6 +738,7 @@ ALTER USER alice SESSIONS 5 CONNECTIONS 20 QUERIES 5;
 
 ```sql
 SHOW TABLE DISTRIBUTED <db_name>.<table_name>;
+
 SHOW DATABASES;
 ```
 

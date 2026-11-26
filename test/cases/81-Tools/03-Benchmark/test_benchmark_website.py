@@ -70,7 +70,7 @@ class TestBenchmarkWebsite:
         dbRows = tdSql.getData(0, 0)
         return dbRows
 
-    def checkItem(self, output, key, end, expect, equal):
+    def checkItem(self, output, key, end, expect, equal, allow_zero=False):
         ret, value = self.getKeyValue(output, key, end)
         if ret == False:
             tdLog.exit(f"not found key:{key}. end:{end} output:\n{output}")
@@ -86,7 +86,7 @@ class TestBenchmarkWebsite:
         # compare
         if equal and fval != expect:
             tdLog.exit(f"check not expect. expect:{expect} real:{fval}, key:'{key}' end:'{end}' output:\n{output}")
-        elif equal == False and fval <= expect:
+        elif equal == False and (fval < expect if allow_zero else fval <= expect):
             tdLog.error(f"value:'{value}' < expect, key:'{key}' end:'{end}' output:\n{output}")
             tdLog.exit(f"failed because {fval} <= {expect}, key:'{key}' end:'{end}' output:\n{output}")
         else:
@@ -201,7 +201,11 @@ class TestBenchmarkWebsite:
         # check
         for item in items:
             if len(item[0]) > 0:
-                self.checkItem(output, item[0], item[1], item[2], item[3])
+                # Windows GetSystemTimeAsFileTime can report the same clock
+                # tick around a fast query. Keep query counts, QPS, and other
+                # latency checks strict; only its minimum may be zero.
+                self.checkItem(output, item[0], item[1], item[2], item[3],
+                               allow_zero=os.name == "nt" and item[0] == minKey)
 
 
 

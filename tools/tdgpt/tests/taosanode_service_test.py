@@ -16,8 +16,12 @@
 """Tests for TaosanodeService Windows startup behavior."""
 
 import errno
-from unittest.mock import MagicMock, patch
+import subprocess
+import sys
+from pathlib import Path
+from unittest.mock import MagicMock, Mock, patch
 
+import pytest
 import taosanode_service as service_module
 
 
@@ -28,6 +32,72 @@ class TestTaosanodeService:
         assert taosanode_service.config == mock_config
         assert taosanode_service.process_mgr is not None
         assert taosanode_service.logger is not None
+
+    def test_runtime_uses_current_install_config_over_inherited_config(self, taosanode_service, monkeypatch):
+        monkeypatch.setenv("TDGPT_CONF", "C:/another-install/cfg/taosanode.config.py")
+        env = taosanode_service._build_runtime_env()
+        assert env["TDGPT_CONF"] == str(Path(taosanode_service.config.cfg_dir) / "taosanode.config.py")
+
+    def test_explicit_config_is_used_by_controller_app_and_gunicorn(self, tmp_path, monkeypatch, mock_config):
+        config_path = tmp_path / "external config" / "custom.py"
+        config_path.parent.mkdir()
+        custom = tmp_path / "user algorithms"
+        config_path.write_text(
+            "bind = '127.0.0.1:16035'\n"
+            f"custom_algo_dir = {str(custom)!r}\n"
+        )
+        config = mock_config
+        config._load_config(str(config_path))
+        service = service_module.TaosanodeService(config, service_module.ProcessManager(config))
+        monkeypatch.setenv("TDGPT_CONF", "C:/wrong-install/default.py")
+        env = service._build_runtime_env()
+        assert config.bind == "127.0.0.1:16035"
+        # Read exactly what the application receives, independently of controller parsing.
+        result = subprocess.run(
+            [sys.executable, "-c",
+             "import os,runpy; print(runpy.run_path(os.environ['TDGPT_CONF'])['custom_algo_dir'])"],
+            env=env, capture_output=True, text=True, check=True,
+        )
+        assert result.stdout.strip() == str(custom)
+        with patch.object(service, "_run_preflight", return_value=True), \
+                patch.object(service.process_mgr, "_get_python_exe", return_value=sys.executable), \
+                patch.object(service.process_mgr, "write_pid"), \
+                patch.object(service_module.os, "chdir"), \
+                patch.object(service_module.os, "execvpe") as execute:
+            service._run_linux_foreground()
+        args = execute.call_args.args[1]
+        assert args[args.index("-c") + 1] == str(config_path)
+
+    def test_runtime_imports_packaged_lib_from_unrelated_directory(self, taosanode_service, tmp_path):
+        install = Path(taosanode_service.config.install_dir)
+        (install / "lib").mkdir(parents=True, exist_ok=True)
+        (install / "lib/app.py").write_text("app = 'packaged-runtime'\n")
+        unrelated = tmp_path / "unrelated"
+        unrelated.mkdir()
+        result = subprocess.run(
+            [sys.executable, "-c", "from lib.app import app; print(app)"],
+            cwd=unrelated, env=taosanode_service._build_runtime_env(),
+            capture_output=True, text=True, check=True,
+        )
+        assert result.stdout.strip() == "packaged-runtime"
+
+    def test_linux_foreground_overrides_legacy_wsgi_configuration(self, taosanode_service):
+        with patch.object(taosanode_service, "_run_preflight", return_value=True), \
+                patch.object(taosanode_service.process_mgr, "_get_python_exe", return_value=sys.executable), \
+                patch.object(taosanode_service.process_mgr, "write_pid"), \
+                patch.object(service_module.os, "chdir"), \
+                patch.object(service_module.os, "execvpe") as execute:
+            taosanode_service._run_linux_foreground()
+        args = execute.call_args.args[1]
+        assert "lib.app:app" in args
+        assert args[args.index("--pythonpath") + 1] == taosanode_service.config.install_dir
+
+    def test_dependency_diagnostics_follow_relocated_relative_imports(self, taosanode_service):
+        library = Path(taosanode_service.config.install_dir) / "lib"
+        library.mkdir(parents=True, exist_ok=True)
+        (library / "app.py").write_text("from .helper import VALUE\nimport sys\n")
+        (library / "helper.py").write_text("import numpy\nVALUE = 1\n")
+        assert taosanode_service._discover_runtime_dependencies() == ["numpy"]
 
     def test_linux_start_uses_daemon_pid_not_launcher_pid(self, taosanode_service, monkeypatch):
         monkeypatch.setattr(service_module, "IS_WINDOWS", False)
@@ -290,3 +360,18 @@ class TestResourceVersionDisplay:
                 row = dict(zip(headers, lines[-1].split("  ")))
                 assert row["MODEL_VERSION"] == "unknown"
                 assert row["RESOURCE_VERSION"] == "1.0.0"
+
+
+@pytest.mark.parametrize("release", [None, "1.0.0"])
+def test_resource_service_release_default_and_explicit_rollback(monkeypatch, release):
+    argv = ["taosanode_service.py", "resource-check"]
+    if release is not None:
+        argv.extend(["--release", release])
+    monkeypatch.setattr(service_module.sys, "argv", argv)
+    monkeypatch.setattr(service_module, "Config", Mock())
+    execute = Mock()
+    monkeypatch.setattr(service_module, "execute_command", execute)
+    monkeypatch.setattr(service_module, "get_logger", Mock())
+    monkeypatch.setattr(service_module, "_set_log_level", Mock())
+    service_module.main()
+    assert execute.call_args.args[0].release == release

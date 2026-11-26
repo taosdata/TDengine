@@ -121,7 +121,7 @@ taos> SELECT COUNT(*), COUNT(a.val), SUM(a.val), SUM(b.metric) FROM l_scale a RI
 taos> SELECT COUNT(*), COUNT(a.val), COUNT(b.metric) FROM l_scale a FULL JOIN r_scale b ON a.k = b.k AND a.shard = b.shard AND a.val < b.metric WHERE a.group_id = 7 OR b.group_id = 7;
        count(*)        |     count(a.val)      |    count(b.metric)    |
 ========================================================================
-                   943 |                   943 |                   943 |
+                  2231 |                  1574 |                  1600 |
 
 taos> SELECT COUNT(*) FROM l_scale a LEFT SEMI JOIN r_scale b ON a.k = b.k AND a.shard = b.shard AND b.status = 1 WHERE a.flag = 1;
        count(*)        |

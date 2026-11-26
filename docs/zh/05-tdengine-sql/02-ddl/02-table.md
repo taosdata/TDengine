@@ -39,7 +39,6 @@ table_option: {
   | SMA(col_name [, col_name] ...)
   | TTL value
 }
-
 ```
 
 **使用说明**
@@ -69,13 +68,19 @@ CREATE TABLE [IF NOT EXISTS] tb_name (create_definition [, create_definition] ..
 
 ```sql
 CREATE TABLE [IF NOT EXISTS] tb_name (create_definition [, create_definition] ...)
-    TAGS (tag_name1 tag_type1 = const_value1 [, ...]);
+  TAGS (tag_name1 tag_type1 = const_value1 [, ...]);
 ```
 
 `TAGS` 子句中全部标签都带 `= const_value` 显式值时，创建的是带自有标签的普通表，例如：
 
 ```sql
-CREATE TABLE ntb (ts TIMESTAMP, v INT) TAGS (loc INT = 5, dept VARCHAR(16) = 'rd');
+CREATE TABLE ntb (
+  ts TIMESTAMP,
+  v  INT
+) TAGS (
+  loc  INT = 5,
+  dept VARCHAR(16) = 'rd'
+);
 ```
 
 普通表的自有标签是表级常量：投影时对每行返回该常量，用于 `WHERE` 过滤时按常量语义求值；`DESC` 输出中标签行带 `TAG` 标记。`SHOW CREATE TABLE` 输出单条 `CREATE TABLE ... TAGS(...)` 语句，自有标签内联输出 `= value`（`NULL` 值输出 `= NULL`），可直接回放重建。
@@ -141,7 +146,6 @@ alter_table_option: {
     TTL value
   | COMMENT 'string_value'
 }
-
 ```
 
 **使用说明**

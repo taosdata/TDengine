@@ -68,7 +68,9 @@ TDengine SQL 中凡需要指定时间长度的场合（时间运算、INTERVAL�
 
 时间戳是 TDengine 中时序数据的主键。创建表、写入数据和查询历史数据时，通常都需要指定时间戳。
 
-- 时间字符串格式为 `YYYY-MM-DD HH:mm:ss.MS`，默认时间分辨率为毫秒，例如 `2017-08-12 18:25:58.128`。
+下文采用 TDengine 的时间格式符描述时间字符串，其中 `HH24` 表示 24 小时制的小时，`MI` 表示分钟，`MM` 表示月份。
+
+- 时间字符串格式为 `YYYY-MM-DD HH24:MI:SS.MS`，默认时间分辨率为毫秒，例如 `2017-08-12 18:25:58.128`。
 - `NOW` 表示客户端当前时间。写入数据时，如果时间戳为 `NOW`，则使用提交该记录的客户端当前时间。
 - 时间戳也可以写成长整数，表示从 UTC 时间 `1970-01-01 00:00:00` 开始经过的时间。长整数的单位由数据库时间精度决定：毫秒精度表示毫秒数，微秒精度表示微秒数，纳秒精度表示纳秒数。
 - 时间表达式支持加减运算，例如 `NOW - 2h` 表示当前时间向前推 2 小时。时间单位参见 [时间单位](#时间单位)。
@@ -76,7 +78,8 @@ TDengine SQL 中凡需要指定时间长度的场合（时间运算、INTERVAL�
 TDengine 默认时间戳精度为毫秒。创建数据库时，可以通过 `PRECISION` 参数设置为微秒或纳秒。
 
 ```sql
-CREATE DATABASE db_name PRECISION 'ns';
+CREATE DATABASE db_name
+  PRECISION 'ns';
 ```
 
 `PRECISION` 参数的完整说明参见 [创建数据库](./02-ddl/01-database.md#precision)。
@@ -153,17 +156,24 @@ CREATE DATABASE db_name PRECISION 'ns';
 2. 使用 JSON 取值操作符 `->`。
 
    ```sql
-   SELECT * FROM s1 WHERE info->'k1' = 'v1';
+   SELECT *
+   FROM s1
+   WHERE info->'k1' = 'v1';
 
-   SELECT info->'k1' FROM s1;
+   SELECT info->'k1'
+   FROM s1;
    ```
 
 3. 使用 `CONTAINS` 判断 JSON key 是否存在。
 
    ```sql
-   SELECT * FROM s1 WHERE info CONTAINS 'k2';
+   SELECT *
+   FROM s1
+   WHERE info CONTAINS 'k2';
 
-   SELECT * FROM s1 WHERE info CONTAINS 'k1';
+   SELECT *
+   FROM s1
+   WHERE info CONTAINS 'k1';
    ```
 
 ### 支持的操作
@@ -171,13 +181,22 @@ CREATE DATABASE db_name PRECISION 'ns';
 - 在 `WHERE` 条件中，支持 `MATCH`、`NMATCH`、`BETWEEN ... AND`、`LIKE`、`AND`、`OR`、`IS NULL`、`IS NOT NULL`，不支持 `IN`。
 
   ```sql
-  SELECT * FROM s1 WHERE info->'k1' MATCH 'v*';
+  SELECT *
+  FROM s1
+  WHERE info->'k1' MATCH 'v*';
 
-  SELECT * FROM s1 WHERE info->'k1' LIKE 'v%' AND info CONTAINS 'k2';
+  SELECT *
+  FROM s1
+  WHERE info->'k1' LIKE 'v%'
+    AND info CONTAINS 'k2';
 
-  SELECT * FROM s1 WHERE info IS NULL;
+  SELECT *
+  FROM s1
+  WHERE info IS NULL;
 
-  SELECT * FROM s1 WHERE info->'k1' IS NOT NULL;
+  SELECT *
+  FROM s1
+  WHERE info->'k1' IS NOT NULL;
   ```
 
 - 支持 JSON 标签放在 `GROUP BY`、`ORDER BY`、`JOIN` 子句、`UNION ALL` 以及子查询中，例如 `GROUP BY info->'key'`。
@@ -200,9 +219,18 @@ CREATE DATABASE db_name PRECISION 'ns';
 例如暂不支持以下写法：
 
 ```sql
-SELECT jtag->'key' FROM (SELECT jtag FROM stable);
+SELECT jtag->'key'
+FROM (
+  SELECT jtag
+  FROM STABLE
+);
 
-SELECT jtag->'key' FROM (SELECT jtag FROM stable) WHERE jtag->'key' > 0;
+SELECT jtag->'key'
+FROM (
+  SELECT jtag
+  FROM STABLE
+)
+WHERE jtag->'key' > 0;
 ```
 
 ## 常量
@@ -213,7 +241,7 @@ TDengine 支持以下常量写法。
 - 浮点数字面量：例如 `123.45`，类型为 `DOUBLE`。
 - 科学计数法字面量：例如 `1.2E3`，类型为 `DOUBLE`。
 - 字符串字面量：例如 `'abc'` 或 `"abc"`，类型为 `BINARY`，长度为实际字符个数。字符串内的单引号可以用 `\'` 表示，双引号可以用 `\"` 表示。
-- 时间戳字面量：例如 `TIMESTAMP '2017-08-12 18:25:58.128'`，类型为 `TIMESTAMP`。字符串需要满足 `YYYY-MM-DD HH:mm:ss.MS` 格式，时间分辨率为当前数据库的时间分辨率。
+- 时间戳字面量：例如 `TIMESTAMP '2017-08-12 18:25:58.128'`，类型为 `TIMESTAMP`。字符串需要满足 `YYYY-MM-DD HH24:MI:SS.MS` 格式，时间分辨率为当前数据库的时间分辨率。
 - 布尔字面量：`TRUE` 或 `FALSE`，类型为 `BOOL`。
 - 空值字面量：空字符串、制表符、空格或 `NULL`，可以用于任意类型。
 

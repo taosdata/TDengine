@@ -883,13 +883,24 @@ int32_t recordToBlockInfo(SFileDataBlockInfo* pBlockInfo, SBrinRecord* record) {
   pFirstKey = &record->firstKey.key;
   pLastKey = &record->lastKey.key;
   TSDB_CHECK_CONDITION((pFirstKey->numOfPKs == pLastKey->numOfPKs), code, lino, _end, TSDB_CODE_INVALID_PARA);
+  // brin record fields come from the file: reject anything that would make the pk union or the
+  // block-distribution histogram index inconsistent.
+  TSDB_CHECK_CONDITION((record->numRow >= 0), code, lino, _end, TSDB_CODE_FILE_CORRUPTED);
   if (pFirstKey->numOfPKs > 0) {
+    TSDB_CHECK_CONDITION((pFirstKey->pks[0].type == pLastKey->pks[0].type && !IS_INVALID_TYPE(pFirstKey->pks[0].type)),
+                         code, lino, _end, TSDB_CODE_FILE_CORRUPTED);
     if (IS_SCALAR_PRIMARY_KEY_TYPE(pFirstKey->pks[0].type)) {
       pBlockInfo->firstPk.val = VALUE_GET_TRIVIAL_DATUM(pFirstKey->pks);
       pBlockInfo->lastPk.val = VALUE_GET_TRIVIAL_DATUM(pLastKey->pks);
     } else {
       int32_t keyLen = pFirstKey->pks[0].nData;
-      char*   p = taosMemoryMalloc(keyLen + VARSTR_HEADER_SIZE);
+      TSDB_CHECK_CONDITION(
+          (keyLen >= 0 && keyLen <= TSDB_MAX_BINARY_LEN && (keyLen == 0 || pFirstKey->pks[0].pData != NULL)),
+          code, lino, _end, TSDB_CODE_FILE_CORRUPTED);
+      TSDB_CHECK_CONDITION((pLastKey->pks[0].nData <= (uint32_t)TSDB_MAX_BINARY_LEN &&
+                            (pLastKey->pks[0].nData == 0 || pLastKey->pks[0].pData != NULL)),
+                           code, lino, _end, TSDB_CODE_FILE_CORRUPTED);
+      char* p = taosMemoryMalloc(keyLen + VARSTR_HEADER_SIZE);
       TSDB_CHECK_NULL(p, code, lino, _end, terrno);
       memcpy(varDataVal(p), pFirstKey->pks[0].pData, keyLen);
       varDataSetLen(p, keyLen);
@@ -897,7 +908,11 @@ int32_t recordToBlockInfo(SFileDataBlockInfo* pBlockInfo, SBrinRecord* record) {
 
       keyLen = pLastKey->pks[0].nData;
       p = taosMemoryMalloc(keyLen + VARSTR_HEADER_SIZE);
-      TSDB_CHECK_NULL(p, code, lino, _end, terrno);
+      if (p == NULL) {
+        // do not leak the first copy; clear so freePkItem cannot double free
+        taosMemoryFreeClear(pBlockInfo->firstPk.pData);
+        TSDB_CHECK_NULL(p, code, lino, _end, terrno);
+      }
       memcpy(varDataVal(p), pLastKey->pks[0].pData, keyLen);
       varDataSetLen(p, keyLen);
       pBlockInfo->lastPk.pData = (uint8_t*)p;

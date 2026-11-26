@@ -26,13 +26,18 @@ import os
 import platform
 import re
 import subprocess
-from pathlib import Path
+from pathlib import Path, PurePosixPath
 from typing import Any, Dict, Tuple
 
 # Module-level logger only. This module is imported by resource_manager.py and
 # taosanode_service.py, so where these records go (CLI stderr vs service log)
 # stays a decision of whichever entry point is running.
 logger = logging.getLogger(__name__)
+
+# CLI scripts and the application library are separate deployment units.
+# Keep this release aligned with response_event.DEFAULT_RESOURCE_RELEASE;
+# test_resource_release_contract checks both units and every fallback entry point.
+DEFAULT_RESOURCE_RELEASE = "1.0.1"
 
 SCHEMA_VERSION = 1
 COMPLETION_FILE = ".tdgpt-install-complete.json"
@@ -101,6 +106,37 @@ def sha256_file(path: Path) -> str:
         for chunk in iter(lambda: file_obj.read(1024 * 1024), b""):
             digest.update(chunk)
     return digest.hexdigest()
+
+
+def release_resource_file(item: Dict[str, Any], schema_version: int = 1) -> str:
+    """Resolve a release entry relative to its manifest directory."""
+    if type(schema_version) is not int or schema_version not in (1, 2):
+        raise ValueError("unsupported resource release manifest")
+    filename = item.get("file")
+    if not isinstance(filename, str) or not filename:
+        raise ValueError("resource file must be a non-empty string")
+    normalized = filename.replace("\\", "/")
+    relative = PurePosixPath(normalized)
+    if (
+        relative.is_absolute()
+        or ".." in relative.parts
+        or relative.as_posix() != normalized
+        or any(character in normalized for character in (":", "?", "#", "%"))
+    ):
+        raise ValueError(f"invalid resource file path: {filename}")
+    if schema_version == 1:
+        if "path" in item:
+            raise ValueError("shared resource paths require release schema_version 2")
+        return relative.as_posix()
+    if not re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9._-]*", filename):
+        raise ValueError(f"invalid resource file name: {filename}")
+    if item.get("kind", "model") == "model":
+        if item.get("path") != f"models/{filename}":
+            raise ValueError("schema 2 model path must be models/<file>")
+        return f"../models/{filename}"
+    if "path" in item:
+        raise ValueError("only model resources may use a shared path")
+    return filename
 
 
 def load_manifest(path: Path) -> Dict[str, Any]:
@@ -233,24 +269,26 @@ def validate_tsfm_runtime(
             f"runtime Python interpreter is not runnable: {python_exe}: {exc}"
         ) from exc
 
-    # Record what the probe actually returned: while the comparison below stays
-    # disabled this is the only evidence of interpreter/manifest version drift.
-    logger.debug(
-        "TSFM runtime Python probe: %s exit=%s reported=%r manifest=%r",
-        python_exe,
-        result.returncode,
-        (result.stdout or "").strip(),
-        manifest.get("python_version"),
-    )
-
-    if result.returncode or result.stdout.strip() != _required_string(manifest, "python_version"):
-        logger.error(
-            "TSFM runtime Python version mismatch in %s: manifest=%r reported=%r",
-            runtime_dir,
-            manifest.get("python_version"),
-            (result.stdout or "").strip(),
+    # The manifest records the build interpreter, not an exact patch-level ABI.
+    # Keep minor-version changes and patch downgrades explicit; verified forward
+    # patch updates reuse installed dependencies without downloading resources.
+    built = _required_string(manifest, "python_version")
+    actual = (result.stdout or "").strip()
+    built_match = re.fullmatch(r"(\d+)\.(\d+)\.(\d+)", built)
+    actual_match = re.fullmatch(r"(\d+)\.(\d+)\.(\d+)", actual)
+    expected = tuple(map(int, built_match.groups())) if built_match else ()
+    reported = tuple(map(int, actual_match.groups())) if actual_match else ()
+    if (result.returncode or not expected or not reported
+            or expected[:2] != reported[:2] or reported[2] < expected[2]):
+        raise ValueError(
+            f"TSFM runtime Python is incompatible: built={built!r}, actual={actual!r}. "
+            "Use the matching Python or prepare a matching TSFM runtime archive; "
+            "with model workers stopped, explicitly run taosanodectl resource import "
+            "--package <archive> --expected-sha256 <digest> --replace. "
+            "This validation does not initiate downloads or replacement."
         )
-        raise ValueError("runtime Python version does not match its manifest")
+    if actual != built:
+        logger.info("TSFM runtime uses a newer Python patch: built=%s actual=%s", built, actual)
 
     logger.debug(
         "TSFM runtime validated: %s (runtime_id=%s)", runtime_dir, manifest.get("runtime_id")

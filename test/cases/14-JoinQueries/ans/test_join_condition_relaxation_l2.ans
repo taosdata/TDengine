@@ -355,6 +355,11 @@ taos> SELECT a.id, b.id FROM l_expr a JOIN r_expr b ON ABS(a.x) + b.y = b.k ORDE
            3 |          15 |
 
 taos> SELECT a.id, b.id FROM l_expr a JOIN r_expr b ON CAST(a.x AS BIGINT) + CAST(b.k AS BIGINT) = CAST(b.x AS BIGINT) ORDER BY 1, 2;
+     id      |     id      |
+============================
+           2 |          11 |
+           3 |          12 |
+           3 |          13 |
 
 taos> SELECT a.id, b.id FROM l_expr a LEFT JOIN r_expr b ON a.x + b.y = b.k ORDER BY 1, 2;
      id      |     id      |
@@ -432,6 +437,8 @@ taos> SELECT a.id, b.id FROM l_expr a RIGHT JOIN r_expr b ON a.x + b.k = b.x AND
 taos> SELECT a.id, b.id FROM l_expr a FULL JOIN r_expr b ON a.x + b.k = b.x AND a.name IS NOT NULL WHERE COALESCE(a.id, 0) + COALESCE(b.id, 0) > 10 ORDER BY 1, 2;
      id      |     id      |
 ============================
+ NULL        |          14 |
+ NULL        |          15 |
            2 |          11 |
            3 |          12 |
            3 |          13 |

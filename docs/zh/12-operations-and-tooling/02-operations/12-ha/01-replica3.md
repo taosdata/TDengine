@@ -30,14 +30,16 @@ TDengine 的三副本方案采用 RAFT 算法来实现数据的一致性，包�
 
 ```sql
 CREATE dnode <dnode_ep> port <dnode_port>;
+
 CREATE dnode <dnode_ep> port <dnode_port>;
 ```
 
 创建三副本的 Mnode，保证 Mnode 高可用
 
 ```sql
-CREATE mnode on dnode <dnode_id>;
-CREATE mnode on dnode <dnode_id>;
+CREATE mnode ON dnode <dnode_id>;
+
+CREATE mnode ON dnode <dnode_id>;
 ```
 
 ### 数据库创建

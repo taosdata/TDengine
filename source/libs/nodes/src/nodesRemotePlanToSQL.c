@@ -346,9 +346,9 @@ static char* dynSQLDetach(SDynSQL* s) {
 // Internal rendering helpers  -  all write to SDynSQL*
 // ---------------------------------------------------------------------------
 
-// Oracle reserved words (19c V$RESERVED_WORDS, RESERVED='Y').  An unquoted
-// path segment that folds onto one of these cannot be emitted bare - Oracle
-// would read it as the keyword - so it must be double-quoted (DS 5.3.6 R1).
+// Oracle reserved words (19c V$RESERVED_WORDS, RESERVED='Y').  A resolved
+// identifier that is one of these cannot be emitted bare - Oracle would read it
+// as the keyword - so it must be double-quoted (DS 5.3.6 R1).
 static bool dynOracleReservedWord(const char* upperName) {
   static const char* const kReserved[] = {
       "ACCESS", "ADD", "ALL", "ALTER", "AND", "ANY", "AS", "ASC", "AUDIT", "BETWEEN",
@@ -374,7 +374,7 @@ static bool dynOracleReservedWord(const char* upperName) {
   return false;
 }
 
-// Does the folded name satisfy Oracle's unquoted-identifier grammar?
+// Does the resolved name satisfy Oracle's unquoted-identifier grammar?
 // A quoted identifier may hold any character, but only this shape may be
 // written bare without changing which object it names.
 static bool dynOracleBareIdentifiable(const char* upperName) {
@@ -405,48 +405,27 @@ static void dynAppendQuotedId(SDynSQL* s, const char* name, EExtSQLDialect diale
   size_t      len = strlen(name);
   char        inputQuote = '\0';
 
-  // Strip surrounding backticks or double-quotes if the identifier is already quoted,
-  // then decode its doubled input quotes before applying the target dialect's
-  // identifier escaping. This preserves a parser-provided quoted identifier
-  // without double-escaping it in the remote SQL.
-  if (len >= 2 && (name[0] == '`' || name[0] == '"') && name[len-1] == name[0]) {
+  // Strip surrounding backticks or double-quotes if a parser-provided
+  // identifier is still quoted, then decode its doubled input quotes before
+  // applying the target dialect's identifier escaping.  Oracle is excluded:
+  // TDengine's parser already resolved its identifiers (backticks are stripped
+  // by trimEscape, while double quotes are string literals), so the text that
+  // reaches the renderer is the literal remote name and a leading/trailing
+  // quote character is part of that name, not syntax (DS 5.3.6 R1).
+  if (dialect != EXT_SQL_DIALECT_ORACLE && len >= 2 && (name[0] == '`' || name[0] == '"') &&
+      name[len - 1] == name[0]) {
     inputQuote = name[0];
     value = name + 1;
     len -= 2;
   }
 
   if (dialect == EXT_SQL_DIALECT_ORACLE) {
-    // DS 5.3.6 R1 / DS 9.5.  Quoting is semantic on Oracle: an unquoted name
-    // folds to upper case and matches only that upper-case entry, while a
-    // double-quoted one keeps its case and names a different object ("emp" and
-    // EMP are not the same table).  Folding therefore happens exactly once, at
-    // resolution time - the connector folds a table/schema segment and the
-    // parser folds a column reference - and what reaches this function is
-    // already the exact remote spelling.  Folding again here would undo that
-    // work: a stored column "MiXeDCol" would be emitted as MIXEDCOL, which
-    // names nothing, and the metadata/statement mismatch is the failure DS 9.5
-    // calls out.  So the name is emitted as given, quoted only when Oracle
-    // would not read it back as the same name.
-    if ('"' == inputQuote) {
-      dynSQLAppendChar(s, '"');
-      for (size_t i = 0; i < len; ++i) {
-        char ch = value[i];
-        // A doubled quote in the input is the parser's spelling of one literal
-        // quote (same rule the generic branch below applies).  Skipping the
-        // second character and re-doubling below keeps "a""b" as the identifier
-        // a"b instead of turning it into a""b, which names a different object.
-        if (ch == '"' && i + 1 < len && value[i + 1] == '"') {
-          ++i;
-        }
-        if (ch == '"') {
-          dynSQLAppendChar(s, '"');
-        }
-        dynSQLAppendChar(s, ch);
-      }
-      dynSQLAppendChar(s, '"');
-      return;
-    }
-
+    // DS 5.3.6 R1 / DS 9.5.  The name reaching this function is the exact
+    // remote spelling that TDengine resolved (unquoted input was lower-cased
+    // by the client, backticked input kept its spelling) and that the
+    // connector matched against the Oracle data dictionary.  Quote it only
+    // when Oracle would not read it back as the same name; a literal double
+    // quote in the name is doubled, never interpreted as syntax.
     if (dynOracleBareIdentifiable(value) && !dynOracleReservedWord(value)) {
       dynSQLAppendStr(s, value);
       return;
@@ -1363,7 +1342,9 @@ static const SExtColumnDef* findExtColByTdName(const SExtTableMeta* pExtMeta, co
   }
 
   for (int32_t i = 0; i < pExtMeta->numOfCols; ++i) {
-    if (0 == strcasecmp(pExtMeta->pCols[i].colName, tdColName)) {
+    // tdColName is the planner's copy of the catalog spelling; a case-folding
+    // match would pick the wrong column when VAL and val both exist (Oracle).
+    if (0 == strcmp(pExtMeta->pCols[i].colName, tdColName)) {
       return &pExtMeta->pCols[i];
     }
   }
@@ -1386,7 +1367,7 @@ static bool fqColumnHasRenderRewrite(const SNodesRemoteSQLCtx* pCtx, const char*
   }
   for (int32_t i = 0; i < pCtx->numColumnRenderHints; ++i) {
     if (pCtx->pColumnRenderHints[i].rewrite == rewrite &&
-        0 == strcasecmp(pCtx->pColumnRenderHints[i].colName, tdColName)) {
+        0 == strcmp(pCtx->pColumnRenderHints[i].colName, tdColName)) {
       return true;
     }
   }
@@ -1405,7 +1386,7 @@ static const SExtTimestampTypeHint* fqFindTimestampTypeHint(const SNodesRemoteSQ
   }
 
   for (int32_t i = 0; i < pCtx->numTimestampTypeHints; ++i) {
-    if (0 == strcasecmp(pCtx->pTimestampTypeHints[i].colName, pColName)) {
+    if (0 == strcmp(pCtx->pTimestampTypeHints[i].colName, pColName)) {
       return &pCtx->pTimestampTypeHints[i];
     }
   }
@@ -6473,7 +6454,7 @@ static int32_t dynAppendFunctionExpr(SDynSQL* s, const SFunctionNode* pFunc,
         const SColumnNode* pCol = (const SColumnNode*)nodesListGetNode(pFunc->pParameterList, 0);
         for (int32_t ci = 0; ci < pExtMeta->numOfCols; ci++) {
           if (pExtMeta->pCols[ci].isPrimaryKey &&
-              strcasecmp(pExtMeta->pCols[ci].colName, pCol->colName) == 0) {
+              strcmp(pExtMeta->pCols[ci].colName, pCol->colName) == 0) {
             isCountStar = true;
             break;
           }
@@ -7570,9 +7551,9 @@ static int32_t dynAppendExprImpl(SDynSQL* s, const SNode* pExpr, EExtSQLDialect 
         return s->err ? s->err : TSDB_CODE_SUCCESS;
       }
       // A scan column can carry the source's own spelling separately when the
-      // TDengine-side reference differs from it (Oracle upper-cases unquoted
-      // names while TDengine lower-cases the reference).  Emit the spelling the
-      // remote catalog reported, otherwise the quoted identifier names nothing.
+      // TDengine-side reference differs from it (for example a MySQL reference
+      // that differs in case).  Emit the spelling the remote catalog reported,
+      // otherwise the quoted identifier names nothing.
       const char* pEmitName =
           (pCol->refColName[0] != '\0' && 0 != strcmp(pCol->refColName, pCol->colName))
               ? pCol->refColName
@@ -11813,6 +11794,10 @@ int32_t nodesCollectRemoteQuerySelectOutputs(const SLogicNode* pQueryRoot,
     if (TSDB_CODE_SUCCESS == code) {
       outputIdx = pOutputs->pSelectExprs ? LIST_LENGTH(pOutputs->pSelectExprs) : 0;
     }
+  } else if (group.pFromSource != NULL && nodeType(group.pFromSource) == QUERY_NODE_LOGIC_PLAN_JOIN &&
+             group.pFromSource != pQueryRoot) {
+    // A sort over an inline JOIN returns the same qualified columns as the JOIN.
+    return nodesCollectRemoteQuerySelectOutputs(group.pFromSource, pOutputs);
   } else {
     pOutputs->source = NODES_REMOTE_SELECT_SOURCE_UNKNOWN;
     qDebug("FQ-SELECT: no explicit select-output source resolved rootType=%s root=%p",

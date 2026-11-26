@@ -50,6 +50,12 @@ TEST_F(PlanTest, sqlWindowComplexArgumentPlan) {
   ASSERT_TRUE(planContains("\"Parameters\":[{\"NodeType\":\"1\",\"Name\":\"Column\""));
 }
 
+TEST_F(PlanTest, sqlWindowEvaluatesOrderKeyOnce) {
+  useDb("root", "test");
+  run("SELECT dense_rank() OVER (ORDER BY length(tbname) + floor(2 * rand(c1)) DESC NULLS FIRST) FROM meters");
+  EXPECT_EQ(1, countPhysiPlanText("\"Name\":\"rand\""));
+}
+
 TEST_F(PlanTest, sqlWindowStaysAboveExchange) {
   useDb("root", "test");
   run("SELECT avg(c1) OVER (PARTITION BY c2 ORDER BY ts) FROM meters");
@@ -57,4 +63,16 @@ TEST_F(PlanTest, sqlWindowStaysAboveExchange) {
   ASSERT_TRUE(planNodeAppearsAbove("Sort", "Exchange"));
   ASSERT_FALSE(exchangeSubplansContain("WindowFunc"));
   ASSERT_FALSE(exchangeSubplansContain("Sort"));
+}
+
+TEST_F(PlanTest, sqlWindowOrderByAggregate) {
+  useDb("root", "test");
+  run("SELECT c2, rank() OVER (ORDER BY sum(c1) DESC) FROM t1 GROUP BY c2");
+  ASSERT_TRUE(planNodeAppearsAbove("WindowFunc", "Agg"));
+  run("SELECT c2, count(c2) OVER (ORDER BY sum(c1) DESC) FROM t1 GROUP BY c2");
+  ASSERT_TRUE(planNodeAppearsAbove("WindowFunc", "Agg"));
+  run("SELECT c2, count(*) OVER (ORDER BY sum(c1) DESC) FROM t1 GROUP BY c2");
+  ASSERT_TRUE(planNodeAppearsAbove("WindowFunc", "Agg"));
+  run("SELECT count(1) OVER (ORDER BY sum(c1) DESC) FROM t1");
+  ASSERT_TRUE(planNodeAppearsAbove("WindowFunc", "Agg"));
 }

@@ -1,0 +1,11 @@
+USE vt_tag_filter_idmp;
+
+SELECT DISTINCT tbname, `手机`, local_tag FROM vst ORDER BY tbname;
+SELECT DISTINCT tbname, t0, t1 FROM vst ORDER BY tbname;
+SELECT table_name FROM information_schema.ins_tags WHERE db_name='vt_tag_filter_idmp' AND stable_name='vst' AND tag_name='手机' AND tag_value LIKE '1380%' ORDER BY table_name;
+
+# Read the latest source tag on each query.
+ALTER TABLE vt_tag_filter_source.tag_0 SET TAG phone='13700000';
+SELECT DISTINCT tbname FROM vst WHERE `手机` = '13800000' ORDER BY tbname;
+ALTER TABLE vt_tag_filter_source.tag_0 SET TAG phone='13800000';
+SELECT DISTINCT tbname FROM vst WHERE `手机` = '13800000' ORDER BY tbname;

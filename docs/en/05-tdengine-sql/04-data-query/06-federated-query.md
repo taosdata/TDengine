@@ -10,7 +10,7 @@ External access is defined through External Source objects. These objects store 
 
 ## Feature Scope
 
-Federated Query is available only for standalone `SELECT` queries and supports MySQL, PostgreSQL, InfluxDB v3, SQL Server (2019 / 2022), and Oracle (11g Release 2 and later) as external data sources. Except where there is no corresponding concept or types cannot be mapped, external tables support the full range of TDengine query capabilities and can be combined with local tables or tables from other external sources.
+Federated Query is available only for standalone `SELECT` queries and supports MySQL, PostgreSQL, InfluxDB 1.8.x (OSS) and 3.x, SQL Server (2019 / 2022), and Oracle (11g Release 2 and later) as external data sources. Except where there is no corresponding concept or types cannot be mapped, external tables support the full range of TDengine query capabilities and can be combined with local tables or tables from other external sources.
 
 ### Supported Capabilities
 
@@ -30,6 +30,24 @@ The following scenarios cannot reference external tables:
 - Writes to external systems, DDL operations on external objects, and cross-source strongly consistent transactions.
 - Features available in external systems but not in TDengine.
 
+### Supported Platforms
+
+MySQL, PostgreSQL, InfluxDB, SQL Server, and Oracle can be queried on Linux x64, Linux ARM64, and Windows x64. The Windows x64 runtime libraries are:
+
+| External source | Windows x64 |
+| --- | --- |
+| MySQL | The client library `libmariadb.dll` is placed in the same directory as `taosd`. |
+| PostgreSQL | The client library `libpq.dll` is placed in the same directory as `taosd`. |
+| InfluxDB | 1.8 uses the HTTP connector built into `taosd` and requires no extra runtime libraries. 3.x uses `taos_ext_influx_arrow.dll`, supports only the HTTP API, does not support Arrow Flight SQL, and does not require Arrow runtime libraries. When `protocol` is unset or set to `flight_sql`, it falls back to the HTTP API. |
+| SQL Server | Uses ODBC. |
+| Oracle | Uses ODBC. The Instant Client and ODBC driver DLLs are placed in the same directory as `taosd`. 11g, 12c, and 18c use the 19c client. 19c and later use the 23ai client. |
+
+Installation steps for the Windows plugin package are not yet described in this document. SQL Server still does not support Windows integrated authentication; only SQL Server account and password authentication is supported.
+
+### Stream Processing
+
+Stream processing can use MySQL, PostgreSQL, InfluxDB 3.x, InfluxDB 1.8, SQL Server, and Oracle external sources in triggers and calculations. Limits for InfluxDB 1.8 are described in [Use InfluxDB 1.8 as a Trigger Source](../../07-stream-processing/01-syntax.md#use-influxdb-18-as-a-trigger-source). Historical calculation does not yet support external sources. Limits on grouping, options, and tags are described in [External Sources in Stream Processing](../../07-stream-processing/01-syntax.md#external-sources-in-stream-processing).
+
 ### Compatibility
 
 This feature is available in the Enterprise Edition. When disabled by default, existing local query behavior is unchanged; when enabled, only external data source objects and federated query behavior are added. Unsupported semantics return explicit errors rather than indeterminate results. The current version provides external data source management and federated query capabilities through SQL statements and does not introduce separate programming interfaces.
@@ -45,9 +63,11 @@ Before use, enable `federatedQueryEnable` on both the client and server. Connect
 
 ### Federated Query Runtime Libraries
 
-Before using Federated Query, you must install the federated query runtime library package that matches your TDengine version on every server that actually executes federated queries. This package provides the runtime libraries required by external connectors: MariaDB Connector/C for MySQL, `libpq` for PostgreSQL, Apache Arrow Flight SQL runtime libraries for InfluxDB, unixODBC plus Microsoft ODBC Driver 18 for SQL Server for SQL Server, and unixODBC plus Oracle Instant Client for Oracle (two client generations, 19c and 23ai; the installer selects the active one for the server version, see [Version and Compatibility](#external-database-versions)).
+Before using Federated Query, install the runtime library package required by your external source types on every server that executes federated queries. The package must match your TDengine version. This package provides the runtime libraries required by external connectors: MariaDB Connector/C for MySQL, `libpq` for PostgreSQL, and, for InfluxDB 3.x, `libtaos_ext_influx_arrow.so` together with the Apache Arrow Flight SQL runtime libraries on Linux, and `taos_ext_influx_arrow.dll` on Windows x64 (HTTP API only; Arrow runtime libraries are not required). SQL Server uses unixODBC and Microsoft ODBC Driver 18 for SQL Server on Linux, and ODBC on Windows x64. Oracle uses unixODBC and Oracle Instant Client on Linux (two client generations, 19c and 23ai; the installer selects the active one for the server version, see [Version and Compatibility](#external-database-versions)). On Windows x64, Oracle uses ODBC, and the Instant Client and ODBC driver DLLs are placed in the same directory as `taosd`.
 
-**Note**: Without the corresponding runtime libraries, you cannot create or query external data sources of the respective types. When upgrading TDengine, upgrade the federated query runtime library package to a matching version as well.
+The InfluxDB 1.8 connector is built into Enterprise Edition `taosd`. On Linux x64, Linux ARM64, and Windows x64 it uses HTTP only, and does not require the Federated Query runtime package, Arrow runtime libraries, or InfluxDB client libraries.
+
+**Note**: For source types that require third-party runtime libraries, you cannot create or query them without the corresponding libraries. When upgrading TDengine, upgrade the federated query runtime library package to a matching version as well.
 
 ### Federated Query Plugin Package (Third-Party Runtime Libraries)
 
@@ -75,11 +95,11 @@ The plugin package typically has the following structure after extraction:
 
 **Notes**
 
-- `libmariadb.so`, `libpq.so`, and Arrow/Parquet related libraries are runtime dependencies for external connectors.
-- SQL Server requires unixODBC and Microsoft ODBC Driver 18 for SQL Server, which are shipped with the federated query runtime package. They do not need to be installed separately or registered with the system. If they are missing, creating or querying an external source with `TYPE = 'sqlserver'` returns an external source type unsupported error.
-- Oracle requires unixODBC and Oracle Instant Client (19c / 23ai), which are shipped with the federated query runtime package. They do not need to be installed separately or registered with the system. If they are missing, creating or querying an external source with `TYPE = 'oracle'` returns an external source type unsupported error.
+- `libmariadb.so` and `libpq.so` are used for MySQL and PostgreSQL. `libtaos_ext_influx_arrow.so` and the Arrow/Parquet libraries are used for InfluxDB 3.x. InfluxDB 1.8 depends on none of these libraries.
+- On Linux, SQL Server uses unixODBC and Microsoft ODBC Driver 18 for SQL Server shipped with the federated query runtime package. They do not need to be installed separately or registered with the system. On Windows x64, SQL Server uses ODBC. If they are missing, creating or querying an external source with `TYPE = 'sqlserver'` returns an external source type unsupported error.
+- On Linux, Oracle uses unixODBC and Oracle Instant Client (19c / 23ai) shipped with the federated query runtime package. They do not need to be installed separately or registered with the system. On Windows x64, Oracle uses ODBC, and the Instant Client and ODBC driver DLLs are placed in the same directory as `taosd`. If they are missing, creating or querying an external source with `TYPE = 'oracle'` returns an external source type unsupported error.
 - After installation, ensure the dynamic library path can be loaded by `taosd` and `taosc` processes.
-- On Windows x64, the MySQL and PostgreSQL client libraries `libmariadb.dll` and `libpq.dll` are placed in the same directory as `taosd`. InfluxDB uses HTTP and does not depend on Arrow Flight SQL. SQL Server uses ODBC. Installation steps for the Windows plugin package are not yet described in this document.
+- All five external sources can be queried on Windows x64. The MySQL and PostgreSQL client libraries `libmariadb.dll` and `libpq.dll` are placed in the same directory as `taosd`. InfluxDB 1.8 uses the built-in HTTP connector and requires no extra runtime libraries. InfluxDB 3.x uses `taos_ext_influx_arrow.dll` and, on Windows, supports only the HTTP API and does not support Arrow Flight SQL. SQL Server and Oracle use ODBC, and the Oracle Instant Client DLLs are also placed in the same directory as `taosd`. Installation steps for the Windows plugin package are not yet described in this document.
 - Appendix: The current internal download URL (intranet) is `http://192.168.1.131/data/nas/TDengine/smoking/v3.4.2.4.0805/enterprise/tdengine-tsdb-enterprise-fq-runtime-3.4.2.4.0805-linux-x64.tar.gz`.
 - This URL is a temporary intranet address; after `v3.4.3.0` is released, use the official link provided by the download center.
 - Detailed installation and startup steps will be added later.
@@ -111,8 +131,8 @@ PASSWORD = 'password'
 [DATABASE = database_name]
 [SCHEMA = schema_name]
 [OPTIONS (
-    'option_key' = 'option_value'
-    [, ...]
+  'option_key' = 'option_value'
+  [, ...]
 )];
 ```
 
@@ -185,12 +205,22 @@ PostgreSQL-specific parameters are as follows:
 
 #### InfluxDB Parameters
 
-InfluxDB-specific parameters are as follows:
+InfluxDB 1.8 and 3.x both use `TYPE = 'influxdb'`. Select the version with `version`:
 
-| Parameter   | Value | Default | Description |
-| ----------- | ----- | ------- | ----------- |
-| `api_token` | String | Empty | Required InfluxDB authentication token. When this parameter is set, `USER` and `PASSWORD` may be empty. Masked when displayed. |
-| `protocol`  | `flight_sql` or `http` | `flight_sql` | Protocol for communicating with InfluxDB. `flight_sql` uses Arrow Flight SQL (gRPC); `http` uses the HTTP API. Both protocols support common TLS parameters. |
+| Parameter | Value | Default | Description |
+| --- | --- | --- | --- |
+| `version` | `3` or `1.8` | `3` | Set explicitly to `1.8` to access InfluxDB 1.8. Omitting it preserves 3.x behavior. |
+| `protocol` | `flight_sql` or `http` | `flight_sql` for 3.x; `http` for 1.8 | 1.8 supports HTTP only. On Linux, 3.x supports Arrow Flight SQL (gRPC) and the HTTP API. On Windows x64, 3.x supports only the HTTP API; when `protocol` is unset or set to `flight_sql`, it falls back to the HTTP API. |
+| `api_token` | String | Empty | Authentication token for 3.x; `USER` and `PASSWORD` may be empty when it is set. Masked when displayed. 1.8 rejects nonempty values and uses `USER` and `PASSWORD` for HTTP Basic authentication. |
+| `retention_policy` | Nonempty, case-sensitive RP name | Default RP of the target database | For 1.8 only. Selects the Retention Policy (RP) to read. 3.x rejects this option. |
+
+InfluxDB 1.8 rejects nonempty `SCHEMA`, `tls_client_cert`, and `tls_client_key` values. It supports `tls_enabled`, `tls_ca_cert`, and the common timeout options. `tls_ca_cert` accepts a CA certificate file path or PEM text. `USER` and `PASSWORD` may be empty when authentication is disabled on the server.
+
+An RP selects which data is read for a Measurement. An explicit `retention_policy` selects that RP; a missing RP returns an error instead of falling back to another RP. Otherwise, the default RP of the database being accessed is used. Accessing another database does not reuse the default RP of the source's default database. Direct queries and virtual table references follow the same rule. RP does not add a segment to table paths, column references, or `SERIES` targets. Create separate external sources to access different RPs.
+
+Use `ALTER EXTERNAL SOURCE influx18_prod SET OPTIONS ('retention_policy' = '')` to remove an explicit RP and resume using the target database's default RP. After changing the default RP on InfluxDB, run `REFRESH EXTERNAL SOURCE influx18_prod` to refresh cached metadata.
+
+Creating or altering a source validates configuration syntax and option combinations, without checking whether the remote database, RP, or Measurement exists. Those checks occur when querying or describing an external table. Connections check the version reported by the server and report a mismatch instead of automatically switching versions.
 
 #### SQL Server Parameters
 
@@ -222,101 +252,117 @@ The following examples create five external data sources:
 
 ```sql
 CREATE EXTERNAL SOURCE mysql_prod
-TYPE = 'mysql'
-HOST = 'mysql.example.com'
-PORT = 3306
-USER = 'reader'
-PASSWORD = 'your_password'
-DATABASE = power
-OPTIONS (
+  TYPE = 'mysql'
+  HOST = 'mysql.example.com'
+  PORT = 3306
+  USER = 'reader'
+  PASSWORD = 'your_password'
+  DATABASE = power
+  OPTIONS(
     'connect_timeout_ms' = '5000',
     'read_timeout_ms' = '30000'
-);
+  );
 
 CREATE EXTERNAL SOURCE pg_prod
-TYPE = 'postgresql'
-HOST = 'pg.example.com'
-PORT = 5432
-USER = 'readonly'
-PASSWORD = 'your_password'
-DATABASE = iot
-SCHEMA = public
-OPTIONS ('sslmode' = 'require');
+  TYPE = 'postgresql'
+  HOST = 'pg.example.com'
+  PORT = 5432
+  USER = 'readonly'
+  PASSWORD = 'your_password'
+  DATABASE = iot
+  SCHEMA = public
+  OPTIONS('sslmode' = 'require');
 
 CREATE EXTERNAL SOURCE IF NOT EXISTS influx_prod
-TYPE = 'influxdb'
-HOST = 'influx.example.com'
-PORT = 8086
-USER = ''
-PASSWORD = ''
-DATABASE = telegraf
-OPTIONS (
+  TYPE = 'influxdb'
+  HOST = 'influx.example.com'
+  PORT = 8086
+  USER = ''
+  PASSWORD = ''
+  DATABASE = telegraf
+  OPTIONS(
     'api_token' = 'your_token',
     'protocol' = 'flight_sql',
     'tls_enabled' = 'true'
-);
+  );
+
+-- InfluxDB 1.8: HTTP Basic authentication with an explicit RP
+CREATE EXTERNAL SOURCE influx18_prod
+  TYPE = 'influxdb'
+  HOST = 'influx18.example.com'
+  PORT = 8086
+  USER = 'readonly'
+  PASSWORD = 'your_password'
+  DATABASE = telegraf
+  OPTIONS(
+    'version' = '1.8',
+    'protocol' = 'http',
+    'retention_policy' = 'autogen'
+  );
+
+-- Direct query: the table path does not include the RP
+SELECT
+  time,
+  value
+FROM influx18_prod.telegraf.meters;
 
 -- SQL Server 2022: default database and schema, TLS with server certificate verification
 CREATE EXTERNAL SOURCE sqlserver_prod
-TYPE = 'sqlserver'
-HOST = 'sqlserver.example.com'
-PORT = 1433
-USER = 'td_reader'
-PASSWORD = 'your_password'
-DATABASE = Telemetry
-SCHEMA = dbo
-OPTIONS (
+  TYPE = 'sqlserver'
+  HOST = 'sqlserver.example.com'
+  PORT = 1433
+  USER = 'td_reader'
+  PASSWORD = 'your_password'
+  DATABASE = Telemetry
+  SCHEMA = dbo
+  OPTIONS(
     'tls_enabled' = 'true',
     'connect_timeout_ms' = '5000',
     'read_timeout_ms' = '60000'
-);
+  );
 
 -- Test environment: encrypted but without certificate verification
 CREATE EXTERNAL SOURCE sqlserver_test
-TYPE = 'sqlserver'
-HOST = '192.0.2.10'
-PORT = 1433
-USER = 'readonly'
-PASSWORD = 'your_password'
-DATABASE = Telemetry
-OPTIONS (
+  TYPE = 'sqlserver'
+  HOST = '192.0.2.10'
+  PORT = 1433
+  USER = 'readonly'
+  PASSWORD = 'your_password'
+  DATABASE = Telemetry
+  OPTIONS(
     'tls_enabled' = 'true',
     'trust_server_certificate' = 'true'
-);
+  );
 
 -- Oracle: DATABASE is the service name and SCHEMA is the default schema
 CREATE EXTERNAL SOURCE oracle_prod
-TYPE = 'oracle'
-HOST = 'oracle.example.com'
-PORT = 1521
-USER = 'td_reader'
-PASSWORD = 'your_password'
-DATABASE = ORCLPDB1
-SCHEMA = TELEMETRY
-OPTIONS (
+  TYPE = 'oracle'
+  HOST = 'oracle.example.com'
+  PORT = 1521
+  USER = 'td_reader'
+  PASSWORD = 'your_password'
+  DATABASE = 'ORCLPDB1'
+  SCHEMA = 'TELEMETRY'
+  OPTIONS(
     'connect_timeout_ms' = '5000',
     'read_timeout_ms' = '60000'
-);
+  );
 ```
 
 The following examples illustrate timeout, unknown parameter, and parameter deletion behavior:
 
 ```sql
 -- Valid: explicitly set to wait indefinitely
-ALTER EXTERNAL SOURCE pg_prod
-SET OPTIONS('read_timeout_ms' = '0');
+ALTER EXTERNAL SOURCE pg_prod SET OPTIONS('read_timeout_ms' = '0');
 
 -- Invalid: 1 to 99 are not in the allowed range
-ALTER EXTERNAL SOURCE pg_prod
-SET OPTIONS('read_timeout_ms' = '99');
+ALTER EXTERNAL SOURCE pg_prod SET OPTIONS('read_timeout_ms' = '99');
 
 -- Invalid: unknown parameters return TSDB_CODE_PAR_SYNTAX_ERROR
-ALTER EXTERNAL SOURCE mysql_prod
-SET OPTIONS('unknown_opt' = 'x');
+ALTER EXTERNAL SOURCE mysql_prod SET OPTIONS('unknown_opt' = 'x');
 
 -- Valid: delete an existing parameter
-ALTER EXTERNAL SOURCE mysql_prod
-SET OPTIONS('ssl_mode' = '');
+ALTER EXTERNAL SOURCE mysql_prod SET OPTIONS('ssl_mode' = '');
 ```
 
 ## Managing External Data Sources
@@ -371,7 +417,14 @@ External data source definitions can also be queried from `information_schema.in
 #### Example
 
 ```sql
-SELECT source_name, type, host, port, database, schema, create_time
+SELECT
+  source_name,
+  type,
+  host,
+  port,
+  DATABASE,
+  schema,
+  create_time
 FROM information_schema.ins_ext_sources
 WHERE type = 'mysql';
 ```
@@ -400,9 +453,7 @@ Use `ALTER EXTERNAL SOURCE` to modify connection information:
 #### Syntax
 
 ```sql
-ALTER EXTERNAL SOURCE source_name
-SET HOST = 'hostname',
-    PORT = port_number;
+ALTER EXTERNAL SOURCE source_name SET HOST = 'hostname', PORT = port_number;
 ```
 
 #### Modifiable Fields
@@ -424,22 +475,16 @@ SET HOST = 'hostname',
 
 ```sql
 -- Switch to a read-only replica
-ALTER EXTERNAL SOURCE mysql_prod
-SET HOST = 'mysql-ro.example.com',
-    PORT = 3307;
+ALTER EXTERNAL SOURCE mysql_prod SET HOST = 'mysql-ro.example.com', PORT = 3307;
 
 -- Modify PostgreSQL account and password
-ALTER EXTERNAL SOURCE pg_prod
-SET USER = 'new_reader',
-    PASSWORD = 'new_password';
+ALTER EXTERNAL SOURCE pg_prod SET USER = 'new_reader', PASSWORD = 'new_password';
 
 -- Modify the default database
-ALTER EXTERNAL SOURCE mysql_prod
-SET DATABASE = power_v2;
+ALTER EXTERNAL SOURCE mysql_prod SET DATABASE = power_v2;
 
 -- Incrementally add read timeout; existing parameters are retained
-ALTER EXTERNAL SOURCE mysql_prod
-SET OPTIONS('read_timeout_ms' = '3000');
+ALTER EXTERNAL SOURCE mysql_prod SET OPTIONS('read_timeout_ms' = '3000');
 ```
 
 ### Refreshing External Data Sources
@@ -487,13 +532,13 @@ DROP EXTERNAL SOURCE IF EXISTS mysql_prod;
 | Oracle          | Schema          | A single query namespace. |
 | Oracle          | Table, View, Materialized View | Regular table. Views are not required to contain a timestamp column; see [External Tables Without a Timeline](#external-tables-without-a-timeline) for rules when no timeline is present. |
 
-Indexes, stored procedures, and triggers in MySQL, indexes, sequences, and triggers in PostgreSQL, and synonyms, stored procedures, triggers, indexes, constraints, and SQL Server Agent objects in SQL Server, do not participate in federated query. InfluxDB Buckets and Retention Policies are storage policies and do not affect federated query. Oracle synonyms, sequences, PL/SQL packages/procedures/functions, triggers, indexes, constraints, and scheduler objects do not participate in federated query; a synonym in a path is treated as a missing object.
+Indexes, stored procedures, and triggers in MySQL, indexes, sequences, and triggers in PostgreSQL, and synonyms, stored procedures, triggers, indexes, constraints, and SQL Server Agent objects in SQL Server, do not participate in federated query. For InfluxDB 1.8, the RP determines which data is read: `retention_policy` on the external source selects it explicitly, or the target database's default RP is used when the option is omitted. InfluxDB 3.x is accessed by database and Measurement, with data retention managed by InfluxDB; this option does not apply. Neither version adds a separate RP segment to federated query paths. Oracle synonyms, sequences, PL/SQL packages/procedures/functions, triggers, indexes, constraints, and scheduler objects do not participate in federated query; a synonym in a path is treated as a missing object.
 
-**Note**: Identifier case follows external database rules: MySQL is case-insensitive by default; PostgreSQL folds to lowercase by default and preserves original case when quoted; InfluxDB is case-sensitive; SQL Server follows the collation of the database containing the object, which may differ across databases, and identifiers quoted with brackets or double quotes preserve their original names; Oracle folds unquoted identifiers to upper case and preserves the original case when double quotes are used.
+**Note**: Identifier case follows external database rules: MySQL is case-insensitive by default; PostgreSQL folds to lowercase by default and preserves original case when quoted; InfluxDB is case-sensitive; SQL Server follows the collation of the database containing the object, which may differ across databases, and identifiers quoted with brackets or double quotes preserve their original names; Oracle is case-sensitive and matches exact spelling: objects created unquoted are stored in upper case in Oracle, so reference them with backticks to preserve the original spelling.
 
 ### Timestamp Primary Key Requirements
 
-When participating in federated query and performing **timeline-dependent** operations, external tables (Table / Measurement) must have a primary key time column mappable to TDengine `TIMESTAMP`. This column is used for time range filtering, sorting, windows, and time-series functions.
+When querying external tables (Table / Measurement) directly through federated query and performing **timeline-dependent** operations, the external tables must have a primary key time column mappable to TDengine `TIMESTAMP`. This column is used for time range filtering, sorting, windows, and time-series functions. Virtual tables that explicitly select a time column through `REFERENCE` establish their timeline from that declaration.
 
 - MySQL timestamp primary key columns must be of type `DATETIME` or `TIMESTAMP`.
 - PostgreSQL timestamp primary key columns must be of type `TIMESTAMP` or `TIMESTAMPTZ`.
@@ -510,26 +555,33 @@ Refers to regular tables in MySQL / PostgreSQL / SQL Server / Oracle that lack a
 | Scenario | Supported | Description |
 | -------- | --------- | ----------- |
 | Single-table query | **Partially supported** | Supports queries that do not depend on a timeline, such as `COUNT`; external views can be queried directly |
-| Used in virtual tables | **Not a supported usage** | Virtual tables with external column references sort by the external table's primary time column and merge by timestamp; external regular tables must have a primary key time column mappable to `TIMESTAMP`; external views cannot be referenced as virtual table columns |
+| Used in virtual tables | **Supports explicit time selection** | When a source object has a column mapped to `TIMESTAMP`, use [`REFERENCE`](../02-ddl/04-virtualtable.md#select-an-external-time-column) to select a time column from an external table or view. Direct external column paths retain the primary-key time column requirement |
 | `JOIN` with timeline tables | **Not supported** | `ON` conditions for external table `JOIN` must include the primary timestamp column; external tables without a timeline have no usable primary timestamp column and cannot be joined on business keys alone |
+
+When an external table without a primary key is used as input to [TIME_ALIGN](./03-function.md#time_align), it follows view input: interpolation uses the output row order, a `TIMESTAMP` column is not required, and the time range parameter has no effect. An external table with a primary key follows table input.
 
 Examples of **queries that do not depend on a timeline**:
 
 ```sql
 -- Count rows in an external table without a timestamp primary key
-SELECT COUNT(*) FROM pg_prod.public.device_info;
+SELECT COUNT(*)
+FROM pg_prod.public.device_info;
 
 -- Query an external view that contains no timestamp column
-SELECT * FROM mysql_prod.v_device_dim LIMIT 100;
+SELECT *
+FROM mysql_prod.v_device_dim
+LIMIT 100;
 
 -- SQL Server dimension table without a timestamp primary key
-SELECT * FROM sqlserver_prod.dbo.device_info;
+SELECT *
+FROM sqlserver_prod.dbo.device_info;
 
 -- Oracle dimension table without a timestamp primary key
-SELECT * FROM oracle_prod.TELEMETRY.device_info;
+SELECT *
+FROM oracle_prod.`TELEMETRY`.device_info;
 ```
 
-External tables without a timeline cannot be used with `INTERVAL`, state/session/event/count windows, `FILL`, `INTERP`, time-series difference/integral functions, ASOF JOIN, Window JOIN, or virtual table column references. In the current version, external regular tables with non-timestamp primary keys may pass virtual table DDL validation, but that path does not have tested time-merge semantics and should not be used in production. To associate external dimension data with TDengine time-series data, first provide join results with a timestamp primary key in the external system, or synchronize dimension data into TDengine before joining.
+External tables without a timeline cannot be used directly with `INTERVAL`, state/session/event/count windows, `FILL`, `INTERP`, time-series difference/integral functions, ASOF JOIN, or Window JOIN. When an object has a suitable time column, `REFERENCE` can first establish a virtual-table timeline for queries. Direct external column paths retain their source primary-key time column and filter validation rules.
 
 ### Type Mapping
 
@@ -555,7 +607,7 @@ Timezone and precision rules for external timestamp columns are as follows:
 - Oracle `TIMESTAMP(n) WITH TIME ZONE` and `TIMESTAMP(n) WITH LOCAL TIME ZONE` are timezone-aware and are interpreted by their own offset or absolute instant.
 - In single-database queries, TDengine databases use their `PRECISION`; MySQL, PostgreSQL, and SQL Server use microsecond precision; InfluxDB uses nanosecond precision; Oracle uses microsecond or nanosecond precision according to the maximum precision of the time columns in the table (nanosecond when a `TIMESTAMP(7-9)` column exists; the second precision of `DATE` is zero-padded to milliseconds).
 - In multi-database queries, result timestamps use the highest precision among participating databases; lower-precision values are zero-padded. For example, a TDengine millisecond database joined with MySQL yields microsecond precision; joined with InfluxDB, nanosecond precision.
-- SQL Server external timestamps have microsecond precision. When creating a virtual table that references SQL Server external columns, the virtual table's database precision must not be lower than microseconds (for example, `CREATE DATABASE ... PRECISION 'us'`).
+- When creating a virtual table that references SQL Server external columns, the required database precision follows the type declaration of the time column used. `date`, `smalldatetime`, `datetime2(0-3)`, and `datetimeoffset(0-3)` can use millisecond databases. `datetime` and `datetime2` / `datetimeoffset` with finer or omitted precision require microsecond or higher precision. `REFERENCE` applies this check to its explicitly selected time column.
 - Oracle `DATE` has second precision (zero-padded to milliseconds) and `TIMESTAMP` defaults to `TIMESTAMP(6)`. When creating a virtual table that references Oracle external columns, the virtual table's database precision must not be lower than the declared precision of that timestamp column: `DATE` and `TIMESTAMP(0-3)` are milliseconds, `TIMESTAMP(4-6)` is microseconds, and `TIMESTAMP(7-9)` is nanoseconds; otherwise the statement returns `TSDB_CODE_EXT_SCHEMA_CHANGED`.
 
 ## External Paths and USE
@@ -575,6 +627,8 @@ In the `FROM` clause of a query, external table paths resolve to the table level
 | Oracle          | `source_name.table`     | `source_name.schema.table` |
 
 Two-part paths use the default `DATABASE` or `SCHEMA` specified when creating the external data source; when no default is set, the full path must be used.
+
+**InfluxDB 1.8 path notes**: `influx18_prod.telegraf.meters` remains a three-part table path, without an RP segment. The RP comes from the source configuration or the target database default.
 
 **SQL Server path notes**: In a three-part path `source_name.schema.table`, the middle segment is the schema and the database comes from the default value; a four-part path `source_name.database.schema.table` specifies the database and schema in order. Four-part paths can only access other databases on the same SQL Server instance that the login can access; cross-instance access is not supported.
 
@@ -612,30 +666,52 @@ All three forms work in `CREATE VTABLE` column definitions, `ALTER VTABLE ... AD
 
 ```sql
 -- Query external tables
-SELECT * FROM mysql_prod.meters;
-SELECT * FROM mysql_prod.power.meters;
-SELECT * FROM pg_prod.devices;
-SELECT * FROM pg_prod.public.devices;
-SELECT * FROM sqlserver_prod.sensor_data;
-SELECT * FROM sqlserver_prod.telemetry.sensor_data;
-SELECT * FROM sqlserver_prod.Archive.telemetry.sensor_data;
-SELECT * FROM oracle_prod.sensor_data;
-SELECT * FROM oracle_prod.TELEMETRY.sensor_data;
+SELECT *
+FROM mysql_prod.meters;
+
+SELECT *
+FROM mysql_prod.power.meters;
+
+SELECT *
+FROM pg_prod.devices;
+
+SELECT *
+FROM pg_prod.public.devices;
+
+SELECT *
+FROM sqlserver_prod.sensor_data;
+
+SELECT *
+FROM sqlserver_prod.telemetry.sensor_data;
+
+SELECT *
+FROM sqlserver_prod.Archive.telemetry.sensor_data;
+
+SELECT *
+FROM oracle_prod.sensor_data;
+
+SELECT *
+FROM oracle_prod.`TELEMETRY`.sensor_data;
 
 -- Reference external columns in virtual table DDL
 current FLOAT FROM mysql_prod.meters.current
 current FLOAT FROM mysql_prod.power.meters.current
 owner VARCHAR(64) FROM pg_prod.public.meter_asset.owner
+
 -- SQL Server three-part (source requires default database and schema)
 value FLOAT FROM sqlserver_prod.sensor_data.value
+
 -- SQL Server four-part (source requires a default database; schema from the path)
 value FLOAT FROM sqlserver_prod.telemetry.sensor_data.value
+
 -- SQL Server five-part (full namespace)
 value FLOAT FROM sqlserver_prod.Archive.telemetry.sensor_data.value
+
 -- Oracle three-part (source requires a default schema)
 value FLOAT FROM oracle_prod.sensor_data.value
+
 -- Oracle four-part (explicit schema)
-value FLOAT FROM oracle_prod.TELEMETRY.sensor_data.value
+value FLOAT FROM oracle_prod.`TELEMETRY`.sensor_data.value
 ```
 
 ### Using USE to Switch External Namespaces
@@ -646,7 +722,9 @@ value FLOAT FROM oracle_prod.TELEMETRY.sensor_data.value
 
 ```sql
 USE source_name;
+
 USE source_name.database;
+
 USE source_name.schema;
 ```
 
@@ -665,39 +743,66 @@ Oracle `USE` semantics: `USE source_name` uses the default schema, and `USE sour
 ```sql
 -- Use the MySQL default database
 USE mysql_prod;
-SELECT * FROM meters LIMIT 10;
+
+SELECT *
+FROM meters
+LIMIT 10;
 
 -- Explicitly select a MySQL database
 USE mysql_prod.power;
-SELECT * FROM meters LIMIT 10;
+
+SELECT *
+FROM meters
+LIMIT 10;
 
 -- Explicitly select a PostgreSQL schema
 USE pg_prod.public;
-SELECT * FROM devices LIMIT 10;
+
+SELECT *
+FROM devices
+LIMIT 10;
 
 -- Use the SQL Server default namespace
 USE sqlserver_prod;
-SELECT * FROM sensor_data LIMIT 10;
+
+SELECT *
+FROM sensor_data
+LIMIT 10;
 
 -- Explicitly switch the SQL Server database (default schema retained)
 USE sqlserver_prod.Archive;
-SELECT * FROM sensor_data LIMIT 10;
+
+SELECT *
+FROM sensor_data
+LIMIT 10;
 
 -- Switch both the SQL Server database and schema
 USE sqlserver_prod.Archive.telemetry;
-SELECT * FROM sensor_data LIMIT 10;
+
+SELECT *
+FROM sensor_data
+LIMIT 10;
 
 -- Use the Oracle default schema
 USE oracle_prod;
-SELECT * FROM sensor_data LIMIT 10;
+
+SELECT *
+FROM sensor_data
+LIMIT 10;
 
 -- Explicitly select an Oracle schema
-USE oracle_prod.TELEMETRY;
-SELECT * FROM sensor_data LIMIT 10;
+USE oracle_prod.`TELEMETRY`;
+
+SELECT *
+FROM sensor_data
+LIMIT 10;
 
 -- Switch back to a local database and clear external context
 USE power;
-SELECT * FROM meters LIMIT 10;
+
+SELECT *
+FROM meters
+LIMIT 10;
 ```
 
 ## Querying External Data
@@ -718,7 +823,8 @@ LIMIT 1000;
 SELECT m.ts, m.current, a.voltage
 FROM mysql_prod.meters m
 JOIN pg_prod.public.archive_meters a
-  ON m.ts = a.ts AND m.meter_id = a.meter_id
+  ON m.ts = a.ts
+ AND m.meter_id = a.meter_id
 WHERE m.ts ≥ '2026-04-01 00:00:00'
   AND m.ts < '2026-04-02 00:00:00';
 
@@ -731,7 +837,7 @@ ORDER BY ts;
 
 -- Oracle external table range query
 SELECT ts, value
-FROM oracle_prod.TELEMETRY.sensor_data
+FROM oracle_prod.`TELEMETRY`.sensor_data
 WHERE ts ≥ '2026-01-01 00:00:00'
   AND ts < '2026-01-02 00:00:00'
 ORDER BY ts;
@@ -774,7 +880,7 @@ WHERE ts ≥ '2026-03-01 00:00:00'
 ORDER BY ts;
 ```
 
-When the external source supports equivalent semantics, the system prefers to execute equivalent computations at the source to reduce data transfer. When the external source lacks equivalent semantics or source-side execution fails, the system reads the necessary raw data and completes computation locally. Execution location affects performance only and does not change the results of successfully completed queries.
+When the external source supports equivalent semantics and the connector supports the corresponding pushdown, the system prefers to execute equivalent computations at the source to reduce data transfer. When the external source lacks equivalent semantics or source-side execution fails, the system reads the necessary raw data and completes computation locally. Execution location affects performance only and does not change the results of successfully completed queries.
 
 ### Feature Limitations
 
@@ -796,6 +902,10 @@ The total number of columns and Tags on an external table or Measurement may exc
 
 External access must go through external data source objects; paths must follow data source type constraints; existing TDengine feature limitations apply equally to federated query.
 
+#### InfluxDB 1.8 Schema Conflicts
+
+Queries return `TSDB_CODE_EXT_SCHEMA_CONFLICT` if a Measurement has different types for the same Field across shards, a Field/Tag name collision, or column names that differ only by case and cannot be distinguished locally. A Field type conflict in another RP of the same Measurement may also cause rejection. Unify the types or split the Measurement, resolve name conflicts, then run `REFRESH EXTERNAL SOURCE`.
+
 ### Performance Degradation Scenarios
 
 The following queries are supported but may read more raw data and compute locally when the external source lacks equivalent semantics, which can cause performance degradation at large data volumes:
@@ -806,23 +916,22 @@ The following queries are supported but may read more raw data and compute local
 - Scalar and aggregate UDFs.
 - Other functions, operators, and features without direct equivalents in the external source.
 
-**Note**: Reduce external read volume by narrowing time ranges, adding filter conditions, and reducing returned columns; also check slow queries and index status on the external database.
+**Note**: For sources that support the corresponding remote execution, narrow time ranges, add filters, and reduce returned columns to lower external read volume. Also check slow queries and index status on the external database.
 
 ## Virtual Tables Referencing External Columns
 
 ### Usage
 
-Virtual table column references can point to table columns in external data sources. Virtual tables themselves must be created in TDengine internal databases; even when all data columns come from external sources, you must first create or `USE` a local database.
+Virtual table column references can point to table or view columns in external data sources. Virtual tables themselves must be created in TDengine internal databases. Even when all data columns come from external sources, you must first create or `USE` a local database.
 
-When querying a virtual table with external references, the system reads external columns and merges them with local columns by timestamp into a unified result. External tables must have a primary key time column mappable to `TIMESTAMP`; external views cannot be referenced as virtual table columns.
+When querying a virtual table with external references, the system reads external columns and merges them with local columns by timestamp into a unified result. Direct external column paths require a source table with a timestamp primary key. With `REFERENCE`, you can explicitly select a time column mappable to `TIMESTAMP` from a SQL Server, MySQL, PostgreSQL, or Oracle table or view.
 
 ### Creating Virtual Regular Tables
 
 When creating virtual regular tables, external column reference syntax is as follows:
 
 ```sql
-CREATE VTABLE [IF NOT EXISTS] [db_name.]vtb_name
-    (create_definition [, create_definition] ...)
+CREATE VTABLE [IF NOT EXISTS] [db_name.]vtb_name (create_definition [, create_definition] ...)
 
 create_definition:
     ts_col_name TIMESTAMP
@@ -839,26 +948,25 @@ column_reference:
 When creating virtual subtables, the same external paths can be used in column references:
 
 ```sql
-CREATE VTABLE [IF NOT EXISTS] [db_name.]vtb_name
-    (create_definition [, create_definition] ...)
-    USING [db_name.]stb_name
-    [(tag_name [, tag_name] ...)]
-    TAGS (tag_value [, tag_value] ...)
+CREATE VTABLE [IF NOT EXISTS] [db_name.]vtb_name (create_definition [, create_definition] ...)
+  USING [db_name.]stb_name
+  [(tag_name [, tag_name] ...)]
+  TAGS (tag_value [, tag_value] ...)
 
 create_definition:
-    [stb_col_name FROM] column_reference
+  [stb_col_name FROM] column_reference
 
 tag_value:
-    const_value | table_name.tag_name
+  const_value | table_name.tag_name
 ```
 
 ### InfluxDB SERIES Column References
 
-For InfluxDB, a `SERIES` declaration can be appended when creating a virtual regular table or virtual subtable. It binds an alias to a specific series selected by tag conditions:
+For both InfluxDB 1.8 and 3.x, a `SERIES` declaration can be appended when creating a virtual regular table or virtual subtable. It binds an alias to a specific series selected by tag conditions:
 
 ```sql
 SERIES series_alias AS source_name.database_name.measurement_name
-    (tag_name = 'tag_value' [, tag_name = 'tag_value'] ...)
+  (tag_name = 'tag_value' [, tag_name = 'tag_value'] ...)
 ```
 
 This syntax has the following constraints:
@@ -872,26 +980,70 @@ The following example binds `s1` to the series where `device = 'd1'`. `s1.value`
 
 ```sql
 CREATE VTABLE v_a1 (
-  ts TIMESTAMP,
+  ts    TIMESTAMP,
   value DOUBLE FROM s1.value
 )
-SERIES s1 AS influx_source.metrics.meters (device = 'd1');
+  SERIES s1 AS influx_source.metrics.meters(device = 'd1');
 ```
+
+The `influx18_prod` source above selects RP `autogen`, while its `SERIES` target remains `influx18_prod.telegraf.meters`. Assuming `meters` has only the `device` Tag and a floating-point Field named `value`, the following example creates a virtual regular table, a virtual supertable, and a virtual subtable:
+
+```sql
+CREATE DATABASE IF NOT EXISTS influx18_demo
+  PRECISION 'ns';
+
+USE influx18_demo;
+
+CREATE VTABLE v_influx18 (
+  ts    TIMESTAMP,
+  value DOUBLE FROM s1.value
+)
+  SERIES s1 AS influx18_prod.telegraf.meters(device = 'd1');
+
+CREATE STABLE vst_influx18 (
+  ts    TIMESTAMP,
+  value DOUBLE
+) TAGS (
+  device BINARY(32)
+)
+  VIRTUAL 1;
+
+CREATE VTABLE vc_influx18 (
+  value FROM s1.value
+)
+  USING vst_influx18
+  TAGS ('d1')
+  SERIES s1 AS influx18_prod.telegraf.meters(device = 'd1');
+
+SELECT
+  ts,
+  value
+FROM v_influx18
+ORDER BY ts;
+
+SELECT
+  ts,
+  value
+FROM vst_influx18
+ORDER BY ts;
+```
+
+The local database uses nanosecond precision to preserve InfluxDB timestamp precision. `device = 'd1'` identifies the referenced Series even when the query has no `WHERE` clause. The virtual subtable's local `TAGS ('d1')` does not replace the Tag conditions in the `SERIES` declaration.
 
 Use `ALTER VTABLE` to add a `SERIES` to an existing virtual table, bind a column to it, remove the binding, and then remove the `SERIES`:
 
 ```sql
 CREATE VTABLE v_a2 (
-  ts TIMESTAMP,
+  ts    TIMESTAMP,
   value DOUBLE
 );
 
-ALTER VTABLE v_a2
-  ADD SERIES s1 AS influx_source.metrics.meters (device = 'd1');
+ALTER VTABLE v_a2 ADD SERIES s1 AS influx_source.metrics.meters(device = 'd1');
 
 ALTER VTABLE v_a2 ALTER COLUMN value SET s1.value;
 
 ALTER VTABLE v_a2 ALTER COLUMN value SET NULL;
+
 ALTER VTABLE v_a2 REMOVE SERIES s1;
 ```
 
@@ -902,10 +1054,9 @@ ALTER VTABLE v_a2 REMOVE SERIES s1;
 Virtual supertable syntax is unchanged; it defines schema only and does not include external column references:
 
 ```sql
-CREATE STABLE [IF NOT EXISTS] stb_name
-    (create_definition [, create_definition] ...)
-    TAGS (create_definition [, create_definition] ...)
-    VIRTUAL 1;
+CREATE STABLE [IF NOT EXISTS] stb_name (create_definition [, create_definition] ...)
+  TAGS (create_definition [, create_definition] ...)
+  VIRTUAL 1;
 ```
 
 ### Examples
@@ -914,18 +1065,18 @@ The following example merges local time-series data and external MySQL time-seri
 
 ```sql
 CREATE EXTERNAL SOURCE meter_mysql
-TYPE = 'mysql'
-HOST = '10.0.0.1'
-PORT = 3306
-USER = 'reader'
-PASSWORD = 'your_password';
+  TYPE = 'mysql'
+  HOST = '10.0.0.1'
+  PORT = 3306
+  USER = 'reader'
+  PASSWORD = 'your_password';
 
 CREATE VTABLE v_d1001 (
-  ts TIMESTAMP,
-  current FLOAT FROM power.d1001.current,
-  voltage INT FROM power.d1001.voltage,
+  ts          TIMESTAMP,
+  current     FLOAT FROM power.d1001.current,
+  voltage     INT FROM power.d1001.voltage,
   temperature FLOAT FROM meter_mysql.asset_db.meter_samples.temperature,
-  humidity FLOAT FROM meter_mysql.asset_db.meter_samples.humidity
+  humidity    FLOAT FROM meter_mysql.asset_db.meter_samples.humidity
 );
 ```
 
@@ -934,10 +1085,11 @@ CREATE VTABLE v_d1001 (
 Virtual tables merge internal and external data by timestamp:
 
 - The virtual table itself must declare a `TIMESTAMP` column (for example, `ts TIMESTAMP`); this column cannot directly reference an external column using `FROM`.
-- Referenced **external time-series tables** must satisfy the [Timestamp Primary Key Requirements](#timestamp-primary-key-requirements).
-- External views and external dimension/registry tables without a timestamp primary key cannot be referenced as virtual table columns.
+- **External time-series tables** referenced directly through fully qualified external column paths must satisfy the [Timestamp Primary Key Requirements](#timestamp-primary-key-requirements). This direct reference form requires a source table.
+- When using `REFERENCE` with SQL Server, MySQL, PostgreSQL, or Oracle tables and views, select the time column explicitly with `TIMESTAMP time_column`. The selected column must map to TDengine `TIMESTAMP` and can be an ordinary time column. The source object can have no timestamp primary key.
+- `REFERENCE` queries align data using the selected time column and validate converted timestamps within the input actually consumed. A `NULL`, duplicate, or decreasing timestamp causes an error.
 
-If a virtual table lacks a valid primary time column, or referenced external tables do not satisfy timestamp primary key requirements, data cannot be correctly aligned with TDengine time-series data.
+The virtual table's primary time column and the time column selected by each source binding determine timestamp alignment. Direct external column paths follow the timestamp primary key and business-primary-key filter coverage rules. `REFERENCE` uses the explicitly selected time column and each column's saved filter.
 
 ### Query Behavior
 
@@ -963,6 +1115,8 @@ INTERVAL(1h);
 ## EXPLAIN
 
 Federated Query supports the `EXPLAIN` command for plan display and execution analysis.
+
+For InfluxDB 1.8, the scan displays `InfluxDB version=1.8 RP=...`. If the RP is resolved during execution, `EXPLAIN` may show `RP=(runtime)`; use `EXPLAIN ANALYZE` to see the RP used by the scan.
 
 ```sql
 EXPLAIN
@@ -996,6 +1150,7 @@ External source runtime errors are as follows:
 | `TSDB_CODE_EXT_OBJECT_NOT_FOUND`   | External database, schema, table, or column does not exist. |
 | `TSDB_CODE_EXT_SYNTAX_UNSUPPORTED` | Query syntax error, dialect incompatibility, or use of pseudo-columns not supported on external tables. |
 | `TSDB_CODE_EXT_TYPE_NOT_MAPPABLE`  | External column type cannot be mapped. |
+| `TSDB_CODE_EXT_SCHEMA_CONFLICT` | InfluxDB 1.8 has conflicting Field types, Field/Tag roles, or column names. |
 | `TSDB_CODE_EXT_RESOURCE_EXHAUSTED` | External source limited by concurrency, quota, memory, throttling, or other resource constraints. |
 | `TSDB_CODE_EXT_TXN_CONFLICT`       | External source transaction or lock conflict. |
 | `TSDB_CODE_EXT_REMOTE_INTERNAL`    | Internal or uncategorized error on the external source. |
@@ -1038,17 +1193,21 @@ Supported and tested external database versions are as follows:
 | ---------- | ------------------ | -------------- | ----- |
 | MySQL      | 5.7, 8.x           | 8.0            | Version 8.0 and above recommended. MariaDB 10.x is compatible but not specifically tested. |
 | PostgreSQL | 14 and above       | 16, 18.6       | Requires support for the standard SQL feature set. |
-| InfluxDB   | v3.x               | v3.0           | v1.x and v2.x are not supported. |
+| InfluxDB | 1.8.x (OSS) and 3.x | 1.8.10, 3.0 | 1.8 requires `version='1.8'`. Other 1.x versions, 2.x, and 1.8 Enterprise or cloud-compatible interfaces are outside the support scope. The 1.8 platform scope is described below. |
 | SQL Server | 2019 (15.x), 2022 (16.x) | 2022 | Requires Microsoft ODBC Driver 18 for SQL Server; only on-premises deployments and self-managed IaaS instances are supported. |
 | Oracle     | 11.2.0.3 / 11.2.0.4, 12c, 18c, 19c, 21c, 23ai, 26ai | 11.2.0.4, 26ai | The runtime package ships both Instant Client 19c and 23ai; the installer selects the active client for the server version, and only one client is active per deployment at a time. |
 
-**SQL Server support scope**: Only SQL Server Authentication is supported; Windows integrated authentication, Kerberos, NTLM, and Microsoft Entra ID are not supported. Azure SQL Database, Azure SQL Managed Instance, Azure Synapse Analytics, SQL Server Analysis Services, SQL Server 2017 and earlier, SQL Server Compact, and SQL Server 2025 are outside the support scope of this version. SQL Server installed on a cloud virtual machine (IaaS) is treated as an on-premises deployment. When using a named instance, configure a fixed port for that instance and specify it in `PORT`; SQL Browser discovery is not used.
+**InfluxDB 1.8 support scope**: Queries are supported on Linux x64, Linux ARM64, and Windows x64. All of them use HTTP only and do not require the Federated Query runtime package. Stream processing is supported starting in `v3.4.3.12`. Limits are described in [Use InfluxDB 1.8 as a Trigger Source](../../07-stream-processing/01-syntax.md#use-influxdb-18-as-a-trigger-source).
 
-**Oracle support scope**: Oracle 11g Release 1 (11.1) and earlier are not supported. Only database account and password authentication is supported; operating-system authentication, Kerberos, and other external authentication methods are not supported. An instance that listens on TCPS only is outside the support scope. To access 11g and 26ai from the same deployment, split them into two deployments with different active clients.
+**SQL Server support scope**: Queries are supported on Linux x64, Linux ARM64, and Windows x64. Only SQL Server Authentication is supported; Windows integrated authentication, Kerberos, NTLM, and Microsoft Entra ID are not supported. Azure SQL Database, Azure SQL Managed Instance, Azure Synapse Analytics, SQL Server Analysis Services, SQL Server 2017 and earlier, SQL Server Compact, and SQL Server 2025 are outside the support scope of this version. SQL Server installed on a cloud virtual machine (IaaS) is treated as an on-premises deployment. When using a named instance, configure a fixed port for that instance and specify it in `PORT`; SQL Browser discovery is not used.
+
+**Oracle support scope**: Queries are supported on Linux x64, Linux ARM64, and Windows x64. Oracle 11g Release 1 (11.1) and earlier are not supported. Only database account and password authentication is supported; operating-system authentication, Kerberos, and other external authentication methods are not supported. An instance that listens on TCPS only is outside the support scope. To access 11g and 26ai from the same deployment, split them into two deployments with different active clients.
 
 ### Installation, Upgrade, and Uninstall
 
-**Note**: In addition to the main TDengine installation package, you must install the federated query runtime library package (or the Federated Query plugin package from the download center) that matches your TDengine version. This package provides runtime libraries for external connectors (unixODBC and Microsoft ODBC Driver 18 for SQL Server are also shipped in the package and do not need separate registration; the Oracle Instant Client 19c / 23ai is shipped in the package as well) and should be installed on every machine that executes federated queries and hosts `taosc`; upgrade it in sync with TDengine.
+**Note**: For external source types that require third-party runtime libraries, install a federated query runtime library package that matches your TDengine version (or the Federated Query plugin package from the download center), in addition to the main TDengine installation package. This package provides runtime libraries for external connectors. On Linux, unixODBC and Microsoft ODBC Driver 18 for SQL Server are shipped in the package and do not need separate registration, and Oracle Instant Client 19c / 23ai is shipped in the package as well. On Windows x64, SQL Server and Oracle use ODBC, and the Oracle Instant Client DLLs are placed in the same directory as `taosd`. Install the package on every machine that executes federated queries and hosts `taosc`, and upgrade it in sync with TDengine.
+
+For InfluxDB 1.8, all `taosc` clients and `taosd` nodes involved in parsing and execution must use an Enterprise Edition version that includes 1.8 support. Queries are supported on Linux x64, Linux ARM64, and Windows x64. The 1.8 connector is built into `taosd` and does not require the Federated Query runtime package, Arrow runtime libraries, or InfluxDB client libraries.
 
 Verify the following in order:
 
@@ -1100,7 +1259,8 @@ SELECT l.meter_id,
        AVG(l.current * a.voltage) AS avg_power
 FROM power.meters l
 JOIN pg_prod.public.archive_meters a
-  ON l.ts = a.ts AND l.meter_id = a.meter_id
+  ON l.ts = a.ts
+ AND l.meter_id = a.meter_id
 WHERE l.ts ≥ '2026-04-01' AND l.ts < '2026-04-02'
 GROUP BY l.meter_id
 ORDER BY avg_power DESC

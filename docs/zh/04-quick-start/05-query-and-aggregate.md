@@ -20,7 +20,7 @@ TDengine 在标准 SQL 之上，针对时序与物联网场景扩展了标签过
   算术、比较、逻辑、位运算、JSON 与集合运算等。详见 [运算符](../05-tdengine-sql/04-data-query/02-operators.md)。
 
 - **聚合与函数**
-  `COUNT` / `AVG` / `MAX` 等统计聚合，以及选择、数学、时间、时序专用等内置函数。详见 [内置函数](../05-tdengine-sql/04-data-query/03-function.md)。
+  `COUNT` / `AVG` / `MAX` 等统计聚合，选择、数学、时间、时序专用等内置函数，以及表函数。详见 [内置函数](../05-tdengine-sql/04-data-query/03-function.md)。
 
 - **标签与分片**
   按标签过滤；`GROUP BY` / `PARTITION BY` / `tbname` / `SLIMIT` 按设备或标签聚合与限流。详见 [基础查询](../05-tdengine-sql/04-data-query/01-query.md)。
@@ -65,9 +65,14 @@ USE test;
 执行下面的 SQL，从超级表 `meters` 中查询电压大于 250V 的数据，并按时间倒序返回前 5 行。
 
 ```sql
-SELECT tbname, ts, current, voltage
+SELECT
+  tbname,
+  ts,
+  current,
+  voltage
 FROM meters
-WHERE voltage > 250 and tbname = 'd1'
+WHERE voltage > 250
+  AND tbname = 'd1'
 ORDER BY ts DESC
 LIMIT 5;
 ```
@@ -89,7 +94,6 @@ LIMIT 5;
  d1     | 2017-07-14 10:40:09.998 |  11.7984 |     253 |
  d1     | 2017-07-14 10:40:09.998 |  11.7984 |     253 |
  d1     | 2017-07-14 10:40:09.998 |  11.7984 |     253 |
-
 Query OK, 5 row(s) in set
 ```
 
@@ -98,7 +102,12 @@ Query OK, 5 row(s) in set
 标签适合用来描述设备的静态属性，例如位置和分组。下面的 SQL 查询位于 `California.SanFrancisco` 的电表数据。
 
 ```sql
-SELECT tbname, ts, current, voltage, phase
+SELECT
+  tbname,
+  ts,
+  current,
+  voltage,
+  phase
 FROM meters
 WHERE location = "California.SanFrancisco"
 ORDER BY ts DESC
@@ -108,9 +117,15 @@ LIMIT 5;
 也可以同时使用标签条件和普通列条件。
 
 ```sql
-SELECT tbname, ts, current, voltage, phase
+SELECT
+  tbname,
+  ts,
+  current,
+  voltage,
+  phase
 FROM meters
-WHERE location = "California.SanFrancisco" AND voltage > 250
+WHERE location = "California.SanFrancisco"
+  AND voltage > 250
 ORDER BY ts DESC
 LIMIT 5;
 ```
@@ -125,7 +140,6 @@ LIMIT 5;
  d8745  | 2017-07-14 10:40:09.998 |  11.7984 |     253 |   147 |
  d6259  | 2017-07-14 10:40:09.998 |  11.7984 |     253 |   147 |
  d6252  | 2017-07-14 10:40:09.998 |  11.7984 |     253 |   147 |
-
 Query OK, 5 row(s) in set
 ```
 
@@ -134,7 +148,10 @@ Query OK, 5 row(s) in set
 聚合函数可以帮助你快速计算统计值。下面的 SQL 统计所有电表的平均电压、最大电压和总记录数。
 
 ```sql
-SELECT AVG(voltage), MAX(voltage), COUNT(*)
+SELECT
+  AVG(voltage),
+  MAX(voltage),
+  COUNT(*)
 FROM meters;
 ```
 
@@ -144,14 +161,16 @@ FROM meters;
  avg(voltage) | max(voltage) |  count(*)  |
 ===========================================
      243.9314 |          258 |  100000000 |
-
 Query OK, 1 row(s) in set
 ```
 
 如果需要按分组统计，可以使用 `GROUP BY`。快速体验数据中的分组标签列为 `groupId`。
 
 ```sql
-SELECT groupId, AVG(voltage), COUNT(*)
+SELECT
+  groupId,
+  AVG(voltage),
+  COUNT(*)
 FROM meters
 GROUP BY groupId
 ORDER BY groupId;
@@ -174,7 +193,9 @@ Query OK, 10 row(s) in set
 `GROUP BY` 的结果在未排序时不保证固定顺序。如需按统计值排序，可以继续使用 `ORDER BY`。
 
 ```sql
-SELECT groupId, AVG(voltage) AS avg_voltage
+SELECT
+  groupId,
+  AVG(voltage) AS avg_voltage
 FROM meters
 GROUP BY groupId
 ORDER BY avg_voltage DESC;
@@ -185,7 +206,10 @@ ORDER BY avg_voltage DESC;
 如果需要分别统计每个电表，可以使用 `PARTITION BY tbname`。下面的 SQL 按子表统计平均电压，并用 `SLIMIT` 只取前几个分片，避免一次返回 10,000 行。
 
 ```sql
-SELECT tbname, AVG(voltage), COUNT(*)
+SELECT
+  tbname,
+  AVG(voltage),
+  COUNT(*)
 FROM meters
 PARTITION BY tbname
 SLIMIT 3;
@@ -199,7 +223,6 @@ SLIMIT 3;
  d0     |     243.9314 |    10000 |
  d1     |     243.9314 |    10000 |
  d2     |     243.9314 |    10000 |
-
 Query OK, 3 row(s) in set
 ```
 
@@ -226,9 +249,14 @@ Query OK, 3 row(s) in set
 下面的 SQL 按 1 秒窗口计算每个电表的平均电压。
 
 ```sql
-SELECT tbname, _wstart, _wend, AVG(voltage)
+SELECT
+  tbname,
+  _wstart,
+  _wend,
+  AVG(voltage)
 FROM meters
-WHERE ts >= "2017-07-14 10:40:00" AND ts < "2017-07-14 10:40:10"
+WHERE ts >= "2017-07-14 10:40:00"
+  AND ts < "2017-07-14 10:40:10"
 PARTITION BY tbname
 INTERVAL(1s)
 SLIMIT 2;
@@ -259,9 +287,13 @@ SLIMIT 2;
 如果希望窗口按更短步长滑动，可以加上 `SLIDING`。下面的 SQL 使用 1 秒窗口，并每 500 毫秒滑动一次。
 
 ```sql
-SELECT tbname, _wstart, AVG(voltage)
+SELECT
+  tbname,
+  _wstart,
+  AVG(voltage)
 FROM meters
-WHERE ts >= "2017-07-14 10:40:00" AND ts < "2017-07-14 10:40:10"
+WHERE ts >= "2017-07-14 10:40:00"
+  AND ts < "2017-07-14 10:40:10"
 PARTITION BY tbname
 INTERVAL(1s)
 SLIDING(500a)
@@ -286,9 +318,13 @@ SLIMIT 1;
 窗口中没有数据时，可以使用 `FILL` 指定填充方式。下面的 SQL 使用前一个非空值填充缺失窗口。
 
 ```sql
-SELECT _wstart, _wend, AVG(voltage)
+SELECT
+  _wstart,
+  _wend,
+  AVG(voltage)
 FROM d0
-WHERE ts >= "2017-07-14 10:40:00" AND ts < "2017-07-14 10:40:10"
+WHERE ts >= "2017-07-14 10:40:00"
+  AND ts < "2017-07-14 10:40:10"
 INTERVAL(1s)
 FILL(prev);
 ```
@@ -311,13 +347,22 @@ FILL(prev);
 状态窗口适合按状态变化切分数据。下面的 SQL 根据电压是否处于 240V 到 250V 的范围划分窗口。
 
 ```sql
-SELECT _wstart, _wend, COUNT(*),
-    CASE WHEN voltage >= 240 AND voltage <= 250 THEN 1 ELSE 0 END AS status
+SELECT
+  _wstart,
+  _wend,
+  COUNT(*),
+  CASE
+    WHEN voltage >= 240 AND voltage <= 250 THEN 1
+    ELSE 0
+  END AS status
 FROM d0
-WHERE ts >= "2017-07-14 10:40:00" AND ts < "2017-07-14 10:40:03"
+WHERE ts >= "2017-07-14 10:40:00"
+  AND ts < "2017-07-14 10:40:03"
 STATE_WINDOW(
-    CASE WHEN voltage >= 240 AND voltage <= 250 THEN 1 ELSE 0 END
-)
+  CASE
+    WHEN voltage >= 240 AND voltage <= 250 THEN 1
+    ELSE 0
+  END)
 LIMIT 4;
 ```
 
@@ -330,7 +375,6 @@ LIMIT 4;
  2017-07-14 10:40:00.002 | 2017-07-14 10:40:00.002 |        1 |      1 |
  2017-07-14 10:40:00.003 | 2017-07-14 10:40:00.006 |        4 |      0 |
  2017-07-14 10:40:00.007 | 2017-07-14 10:40:00.014 |        8 |      1 |
-
 Query OK, 4 row(s) in set
 ```
 
@@ -339,9 +383,13 @@ Query OK, 4 row(s) in set
 会话窗口适合按相邻记录的时间间隔切分数据。下面的 SQL 将间隔不超过 30 秒的数据归为同一个会话。由于 `d0` 中相邻点间隔为 1 ms，整段数据会落在同一个会话窗口中。
 
 ```sql
-SELECT _wstart, _wend, COUNT(*)
+SELECT
+  _wstart,
+  _wend,
+  COUNT(*)
 FROM d0
-WHERE ts >= "2017-07-14 10:40:00" AND ts < "2017-07-14 10:40:10"
+WHERE ts >= "2017-07-14 10:40:00"
+  AND ts < "2017-07-14 10:40:10"
 SESSION(ts, 30s);
 ```
 
@@ -351,7 +399,6 @@ SESSION(ts, 30s);
         _wstart         |         _wend          | count(*) |
 =============================================================
  2017-07-14 10:40:00.000 | 2017-07-14 10:40:09.999 |    10000 |
-
 Query OK, 1 row(s) in set
 ```
 
@@ -360,9 +407,13 @@ Query OK, 1 row(s) in set
 事件窗口适合“满足开始条件后开窗，满足结束条件后关窗”的场景。例如电压升高到某个阈值后开始观察，降回另一个阈值后结束观察。
 
 ```sql
-SELECT _wstart, _wend, COUNT(*)
+SELECT
+  _wstart,
+  _wend,
+  COUNT(*)
 FROM d0
-WHERE ts >= "2017-07-14 10:40:00" AND ts < "2017-07-14 10:40:10"
+WHERE ts >= "2017-07-14 10:40:00"
+  AND ts < "2017-07-14 10:40:10"
 EVENT_WINDOW START WITH voltage >= 250 END WITH voltage < 245
 LIMIT 4;
 ```
@@ -376,7 +427,6 @@ LIMIT 4;
  2017-07-14 10:40:00.004 | 2017-07-14 10:40:00.005 |        2 |
  2017-07-14 10:40:00.006 | 2017-07-14 10:40:00.011 |        6 |
  2017-07-14 10:40:00.016 | 2017-07-14 10:40:00.017 |        2 |
-
 Query OK, 4 row(s) in set
 ```
 
@@ -385,9 +435,13 @@ Query OK, 4 row(s) in set
 计数窗口适合按固定行数分组。下面的 SQL 每 100 行切分一个窗口。
 
 ```sql
-SELECT _wstart, _wend, COUNT(*)
+SELECT
+  _wstart,
+  _wend,
+  COUNT(*)
 FROM d0
-WHERE ts >= "2017-07-14 10:40:00" AND ts < "2017-07-14 10:40:10"
+WHERE ts >= "2017-07-14 10:40:00"
+  AND ts < "2017-07-14 10:40:10"
 COUNT_WINDOW(100)
 LIMIT 5;
 ```
@@ -402,7 +456,6 @@ LIMIT 5;
  2017-07-14 10:40:00.200 | 2017-07-14 10:40:00.299 |      100 |
  2017-07-14 10:40:00.300 | 2017-07-14 10:40:00.399 |      100 |
  2017-07-14 10:40:00.400 | 2017-07-14 10:40:00.499 |      100 |
-
 Query OK, 5 row(s) in set
 ```
 
@@ -411,16 +464,21 @@ Query OK, 5 row(s) in set
 外部窗口更适合用已有事件表、排班表或维护计划定义窗口范围。下面的 SQL 先用子查询显式给出两个窗口边界，再在 `d0` 表中分别计算每个窗口内的平均电压。
 
 ```sql
-SELECT _wstart, _wend, AVG(voltage)
+SELECT
+  _wstart,
+  _wend,
+  AVG(voltage)
 FROM d0
-EXTERNAL_WINDOW (
-    (SELECT CAST("2017-07-14 10:40:00" AS TIMESTAMP) AS ws,
-            CAST("2017-07-14 10:40:01" AS TIMESTAMP) AS we
-     UNION ALL
-     SELECT CAST("2017-07-14 10:40:01" AS TIMESTAMP),
-            CAST("2017-07-14 10:40:02" AS TIMESTAMP)
-     ORDER BY ws) w
-);
+  EXTERNAL_WINDOW((
+    SELECT
+      CAST("2017-07-14 10:40:00" AS TIMESTAMP) AS ws,
+      CAST("2017-07-14 10:40:01" AS TIMESTAMP) AS we
+    UNION ALL
+    SELECT
+      CAST("2017-07-14 10:40:01" AS TIMESTAMP),
+      CAST("2017-07-14 10:40:02" AS TIMESTAMP)
+    ORDER BY ws
+  ) w);
 ```
 
 返回结果中，窗口边界来自子查询，而不是由 `INTERVAL` 自动切分。
@@ -430,21 +488,26 @@ EXTERNAL_WINDOW (
 =================================================================
  2017-07-14 10:40:00.000 | 2017-07-14 10:40:01.000 |  244.206793 |
  2017-07-14 10:40:01.000 | 2017-07-14 10:40:02.000 |  244.367632 |
-
 Query OK, 2 row(s) in set
 ```
 
 也可以用 `INTERVAL` 子查询生成有序窗口，效果类似：
 
 ```sql
-SELECT _wstart, _wend, AVG(voltage)
+SELECT
+  _wstart,
+  _wend,
+  AVG(voltage)
 FROM d0
-EXTERNAL_WINDOW (
-    (SELECT _wstart, _wend
-     FROM d0
-     WHERE ts >= "2017-07-14 10:40:00" AND ts < "2017-07-14 10:40:02"
-     INTERVAL(1s)) w
-);
+  EXTERNAL_WINDOW((
+    SELECT
+      _wstart,
+      _wend
+    FROM d0
+    WHERE ts >= "2017-07-14 10:40:00"
+      AND ts < "2017-07-14 10:40:02"
+    INTERVAL(1s)
+  ) w);
 ```
 
 ## 常用查询模式
@@ -454,13 +517,18 @@ EXTERNAL_WINDOW (
 查看某张子表的最新数据：
 
 ```sql
-SELECT * FROM d0 ORDER BY ts DESC LIMIT 1;
+SELECT *
+FROM d0
+ORDER BY ts DESC
+LIMIT 1;
 ```
 
 查看某个位置的电表记录数：
 
 ```sql
-SELECT location, COUNT(*)
+SELECT
+  location,
+  COUNT(*)
 FROM meters
 GROUP BY location
 ORDER BY location;
@@ -469,7 +537,9 @@ ORDER BY location;
 查看每个电表的最大电压（用 `SLIMIT` 限制返回分片数）：
 
 ```sql
-SELECT tbname, MAX(voltage)
+SELECT
+  tbname,
+  MAX(voltage)
 FROM meters
 PARTITION BY tbname
 SLIMIT 3;
@@ -480,7 +550,8 @@ SLIMIT 3;
 ```sql
 SELECT AVG(current)
 FROM meters
-WHERE ts >= "2017-07-14 10:40:00" AND ts < "2017-07-14 10:40:10";
+WHERE ts >= "2017-07-14 10:40:00"
+  AND ts < "2017-07-14 10:40:10";
 ```
 
 ## 继续阅读

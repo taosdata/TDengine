@@ -19,26 +19,889 @@ import os
 import re
 import shlex
 import shutil
+import stat
+import subprocess
+import sys
 import tempfile
 import unittest
 from pathlib import Path
 from types import SimpleNamespace
-from unittest.mock import Mock
+from unittest.mock import Mock, patch
 
 from windows_case_utils import (
-    is_excluded_command, parse_case_line, pytest_command_args, pytest_log_name,
-    resume_task_manifest, FQ_SMOKE_CASES, windows_task_manifest,
+    is_excluded_command, is_fq_command, is_federated_query_command, is_related_command, parse_case_line,
+    pytest_command_args, pytest_log_name, resume_task_manifest,
+    selection_contains_fq, FQ_SMOKE_CASES, windows_task_manifest, windows_fq_task_manifest,
     is_pytest_collection_skip,
     is_pytest_only_skip,
 )
 
 
-class TestWindowsOracleDeferral(unittest.TestCase):
+
+
+class TestGrantDropTargetTopology(unittest.TestCase):
+    def helper(self, snapshots, clock=None):
+        source = Path(__file__).parents[1] / "cases/32-Grants/test_grant_basic.py"
+        case = next(node for node in ast.parse(source.read_text()).body
+                    if isinstance(node, ast.ClassDef) and node.name == "TestCase")
+        method = next(node for node in case.body if isinstance(node, ast.FunctionDef)
+                      and node.name == "_prepare_dual_replica_drop_target")
+        nodes = Mock()
+        sql = SimpleNamespace(query=Mock(side_effect=snapshots))
+        timer = SimpleNamespace(monotonic=clock or Mock(return_value=0), sleep=Mock())
+        namespace = {"tdSql": sql, "tdDnodes": nodes, "tdLog": Mock(), "time": timer}
+        exec(compile(ast.Module(body=[method], type_ignores=[]), str(source), "exec"), namespace)
+        return namespace[method.name], nodes
+
+    def test_existing_follower_does_not_restart_nodes(self):
+        prepare, nodes = self.helper([[(1, "leader", "ready"), (2, "follower", "ready"),
+                                      (3, "follower", "ready")]])
+        prepare(None)
+        nodes.stop.assert_not_called()
+        nodes.start.assert_not_called()
+        nodes.startWithoutSleep.assert_not_called()
+
+    def test_leader_target_is_restored_before_grant_check(self):
+        prepare, nodes = self.helper([
+            [(1, "follower", "ready"), (2, "follower", "ready"), (3, "leader", "ready")],
+            [(1, "leader", "ready"), (2, "follower", "ready"), (3, "offline", "offline")],
+            [(1, "leader", "ready"), (2, "follower", "ready"), (3, "follower", "ready")],
+        ])
+        prepare(None)
+        nodes.stop.assert_called_once_with(3)
+        nodes.startWithoutSleep.assert_called_once_with(3)
+        nodes.start.assert_not_called()
+
+    def test_failed_election_restores_node_and_blocks_grant_check(self):
+        initial = [(1, "follower", "ready"), (2, "follower", "ready"), (3, "leader", "ready")]
+        prepare, nodes = self.helper([initial, initial], Mock(side_effect=[0, 0, 61]))
+        with self.assertRaisesRegex(TimeoutError, "topology did not become ready"):
+            prepare(None)
+        nodes.startWithoutSleep.assert_called_once_with(3)
+        nodes.start.assert_not_called()
+
+    def test_failed_stop_still_attempts_to_restore_node(self):
+        prepare, nodes = self.helper([
+            [(1, "follower", "ready"), (2, "follower", "ready"), (3, "leader", "ready")],
+        ])
+        nodes.stop.side_effect = RuntimeError("node stop failed")
+        with self.assertRaisesRegex(RuntimeError, "node stop failed"):
+            prepare(None)
+        nodes.startWithoutSleep.assert_called_once_with(3)
+        nodes.start.assert_not_called()
+
+    def test_missing_restored_member_does_not_accept_smaller_topology(self):
+        prepare, nodes = self.helper([
+            [(1, "follower", "ready"), (2, "follower", "ready"), (3, "leader", "ready")],
+            [(1, "leader", "ready"), (2, "follower", "ready"), (3, "offline", "offline")],
+            [(1, "leader", "ready"), (2, "follower", "ready")],
+        ], Mock(side_effect=[0, 0, 0, 0, 61]))
+        with self.assertRaisesRegex(TimeoutError, "topology did not become ready"):
+            prepare(None)
+        nodes.startWithoutSleep.assert_called_once_with(3)
+        nodes.start.assert_not_called()
+
+
+class TestWindowsOracleInstallerPreflight(unittest.TestCase):
+    @unittest.skipUnless(shutil.which("powershell.exe") or shutil.which("pwsh"), "PowerShell is required")
+    def test_service_api_failure_prevents_media_preparation(self):
+        source = (Path(__file__).parents[1] /
+                  "cases/09-DataQuerying/19-FederatedQuery/ensure_ext_env.ps1")
+        script = r'''
+param([string]$Source)
+$ErrorActionPreference = 'Stop'
+$tokens = $null
+$parseErrors = $null
+$ast = [System.Management.Automation.Language.Parser]::ParseFile($Source, [ref]$tokens, [ref]$parseErrors)
+if ($parseErrors.Count) { throw ($parseErrors | Out-String) }
+foreach ($name in @('Assert-OracleInstallerServiceEnumeration', 'Install-OracleFree')) {
+    $definition = $ast.Find({param($node)
+        $node -is [System.Management.Automation.Language.FunctionDefinitionAst] -and $node.Name -eq $name
+    }, $true)
+    if (-not $definition) { throw "Missing function $name" }
+    Invoke-Expression $definition.Extent.Text
+}
+Add-Type -TypeDefinition @'
+public static class TdengineOracleServiceProbe {
+    public static int Result;
+    public static int Check() { return Result; }
+    public static uint GetACP() { return 65001; }
+}
+'@
+function Test-Admin { return $true }
+function Get-Service { return $null }
+function Warn {}
+function Get-OracleMedia {
+    $script:downloadStarted = $true
+    throw 'MEDIA_SENTINEL'
+}
+$OracleFreeUrl = 'unused'
+$OracleFreeSha256 = 'unused'
+foreach ($result in @(8, 5, 0)) {
+    [TdengineOracleServiceProbe]::Result = $result
+    $script:downloadStarted = $false
+    $message = ''
+    try { Install-OracleFree '26ai' 18322 'C:\oracle-preflight-test' }
+    catch { $message = $_.Exception.Message }
+    if ($result -eq 0) {
+        if (-not $script:downloadStarted -or $message -ne 'MEDIA_SENTINEL') {
+            throw "Healthy API was rejected merely because ACP is UTF-8: $message"
+        }
+    } elseif ($script:downloadStarted -or $message -notmatch "Win32 error $result, ACP=65001") {
+        throw "API failure reached media preparation or lost its diagnostic: $message"
+    }
+}
+Write-Output 'PASS oracle installer preflight'
+'''
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "oracle-preflight-test.ps1"
+            path.write_text(script)
+            result = subprocess.run(
+                [shutil.which("powershell.exe") or shutil.which("pwsh"), "-NoProfile",
+                 "-ExecutionPolicy", "Bypass", "-File", str(path), str(source)],
+                capture_output=True, text=True, timeout=60)
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        self.assertIn("PASS oracle installer preflight", result.stdout)
+
+
+class TestWindowsReviewOwnership(unittest.TestCase):
+    def test_selected_services_reach_provisioner_after_filtering(self):
+        source = Path(__file__).with_name("run_windows_ci.py")
+        tree = ast.parse(source.read_text())
+        functions = [node for node in tree.body if isinstance(node, ast.FunctionDef)
+                     and node.name in ("federated_query_services", "selected_federated_query_services",
+                                       "federated_query_influx_versions", "run_pytest_cases")]
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            ci = root / "source/taos-community/test/ci"
+            ci.mkdir(parents=True)
+            mysql = ",,y,.,env FQ_REQUIRED_SERVICES=mysql pytest cases/mysql_only.py\n"
+            oracle = ",,y,.,env FQ_REQUIRED_SERVICES=oracle pytest cases/oracle_only.py\n"
+            none = ",,y,.,env FQ_REQUIRED_SERVICES=none pytest cases/no_service.py\n"
+            (ci / "win_cases.task").write_text(mysql + oracle + none)
+            provision = Mock()
+            ns = {"Path": Path, "os": SimpleNamespace(environ={}),
+                  "FQ_ENGINE_VERSION_VARS": dict.fromkeys(("mysql", "pg", "influx", "sqlserver", "oracle")),
+                  "is_federated_query_command": is_federated_query_command,
+                  "windows_task_manifest": windows_task_manifest,
+                  "windows_fq_task_manifest": windows_fq_task_manifest,
+                  "federated_query_base_dir": lambda: root / "fq",
+                  "ensure_fq_pytest_dependencies": Mock(), "provision_federated_query_env": provision,
+                  "run": Mock(return_value=SimpleNamespace(returncode=0)),
+                  "sys": SimpleNamespace(executable="python.exe")}
+            exec(compile(ast.Module(body=functions, type_ignores=[]), str(source), "exec"), ns)
+            env = {"FQ_REQUIRED_SERVICES": "mysql,pg,influx,sqlserver,oracle"}
+            ns["run_pytest_cases"](root, env, root, False, "mysql_only.py")
+            self.assertEqual(provision.call_args.args[1]["FQ_REQUIRED_SERVICES"], "mysql")
+            self.assertEqual(env["FQ_REQUIRED_SERVICES"], "mysql,pg,influx,sqlserver,oracle")
+            provision.reset_mock()
+            ns["run_pytest_cases"](root, env, root, False, "no_service.py")
+            provision.assert_not_called()
+
+    def test_listener_discovery_fails_closed_for_unknown_or_unreadable_owner(self):
+        source = (Path(__file__).parents[1] /
+                  "cases/09-DataQuerying/19-FederatedQuery/federated_query_common.py")
+        helper = next(node for node in ast.parse(source.read_text()).body
+                      if isinstance(node, ast.FunctionDef) and node.name == "_windows_service_process")
+        proc = Mock()
+        proc.name.return_value = "postgres.exe"
+        psutil = SimpleNamespace(CONN_LISTEN="LISTEN", Process=Mock(return_value=proc),
+                                 net_connections=Mock(return_value=[SimpleNamespace(
+                                     status="LISTEN", laddr=SimpleNamespace(port=15437), pid=123)]))
+        ns = {"sys": SimpleNamespace(platform="win32")}
+        exec(compile(ast.Module(body=[helper], type_ignores=[]), str(source), "exec"), ns)
+        with patch.dict(sys.modules, {"psutil": psutil}):
+            self.assertIs(ns["_windows_service_process"](15437, ("postgres.exe",)), proc)
+            proc.name.return_value = "other.exe"
+            with self.assertRaisesRegex(RuntimeError, "Unexpected listener"):
+                ns["_windows_service_process"](15437, ("postgres.exe",))
+            psutil.net_connections.side_effect = PermissionError("denied")
+            with self.assertRaises(PermissionError):
+                ns["_windows_service_process"](15437, ("postgres.exe",))
+
+    def owned_namespace(self, directory, listener=True):
+        source = (Path(__file__).parents[1] /
+                  "cases/09-DataQuerying/19-FederatedQuery/federated_query_common.py")
+        tree = ast.parse(source.read_text())
+        helper = next(node for node in tree.body if isinstance(node, ast.FunctionDef)
+                      and node.name == "_windows_owned_pg_instance")
+        root = Path(directory)
+        base = root / "pg" / "18.6"
+        (base / "bin").mkdir(parents=True)
+        (base / "data").mkdir()
+        for name in ("postgres.exe", "pg_ctl.exe", "psql.exe"):
+            (base / "bin" / name).touch()
+        (base / "data" / "PG_VERSION").write_text("18")
+        pidfile = base / "data" / "postmaster.pid"
+        pidfile.write_text(f"123\n{base / 'data'}\n1700000000\n")
+        master = Mock(pid=123)
+        master.exe.return_value = str(base / "bin" / "postgres.exe")
+        master.create_time.return_value = 1700000000.5
+        master.parents.return_value = []
+        psutil = SimpleNamespace(Process=Mock(return_value=master), NoSuchProcess=ProcessLookupError)
+        namespace = {"os": os, "_fq_base_dir": lambda: directory,
+                     "_windows_service_process": Mock(return_value=master if listener else None),
+                     "_windows_process_base": Mock(return_value=str(base))}
+        exec(compile(ast.Module(body=[helper], type_ignores=[]), str(source), "exec"), namespace)
+        cfg = SimpleNamespace(host="127.0.0.1", port=15437, version="18.6")
+        return namespace, cfg, psutil, master, base, pidfile
+
+    def test_owned_pg_accepts_running_and_stopped_test_instances(self):
+        with tempfile.TemporaryDirectory() as directory:
+            ns, cfg, psutil, master, base, pidfile = self.owned_namespace(directory)
+            with patch.dict(sys.modules, {"psutil": psutil}):
+                self.assertEqual(ns["_windows_owned_pg_instance"](cfg), (str(base), master))
+                ns["_windows_service_process"].return_value = None
+                psutil.Process.side_effect = ProcessLookupError()
+                self.assertEqual(ns["_windows_owned_pg_instance"](cfg, str(base)), (str(base), None))
+                pidfile.unlink()
+                self.assertEqual(ns["_windows_owned_pg_instance"](cfg, str(base)), (str(base), None))
+            master.kill.assert_not_called()
+
+    def test_owned_pg_rejects_unknown_unreadable_and_reused_processes(self):
+        for mode in ("remote", "foreign", "unreadable", "missing-file", "data", "exe", "lifetime", "pid", "missing-pid"):
+            with self.subTest(mode=mode), tempfile.TemporaryDirectory() as directory:
+                ns, cfg, psutil, master, base, pidfile = self.owned_namespace(directory)
+                if mode == "remote": cfg.host = "remote.example"
+                if mode == "foreign": ns["_windows_process_base"].return_value = r"C:\other\pg\18.6"
+                if mode == "unreadable": ns["_windows_process_base"].return_value = None
+                if mode == "missing-file": (base / "bin" / "pg_ctl.exe").unlink()
+                if mode == "data": pidfile.write_text("123\nC:\\other\\data\n1700000000\n")
+                if mode == "exe": master.exe.return_value = r"C:\other\postgres.exe"
+                if mode == "lifetime": master.create_time.return_value = 1700000100
+                if mode == "pid":
+                    ns["_windows_service_process"].return_value = Mock(pid=456)
+                    ns["_windows_service_process"].return_value.parents.return_value = []
+                if mode == "missing-pid": pidfile.unlink()
+                with patch.dict(sys.modules, {"psutil": psutil}), self.assertRaises(RuntimeError):
+                    ns["_windows_owned_pg_instance"](cfg)
+                master.kill.assert_not_called()
+
+    def test_pg_lifecycle_rejects_unowned_before_signals_or_launch(self):
+        source = (Path(__file__).parents[1] /
+                  "cases/09-DataQuerying/19-FederatedQuery/federated_query_common.py")
+        tree = ast.parse(source.read_text())
+        original = next(node for node in tree.body if isinstance(node, ast.ClassDef) and node.name == "ExtSrcEnv")
+        methods = [node for node in original.body if isinstance(node, ast.FunctionDef)
+                   and node.name in ("kill_pg_instance", "stop_pg_instance", "start_pg_instance")]
+        cls = ast.ClassDef(name="Env", bases=[], keywords=[], body=methods, decorator_list=[])
+        ns = {"os": os, "sys": SimpleNamespace(platform="win32"), "__file__": str(source),
+              "_fq_base_dir": lambda: r"C:\fixture\fq", "_fq_subprocess_env": lambda: {},
+              "_windows_owned_pg_instance": Mock(side_effect=RuntimeError("unowned"))}
+        exec(compile(ast.fix_missing_locations(ast.Module(body=[cls], type_ignores=[])), str(source), "exec"), ns)
+        env = ns["Env"]
+        env._external_service_action = Mock(return_value=False)
+        env.pg_version_configs = lambda: iter([SimpleNamespace(version="18.6")])
+        with patch.dict(sys.modules, {"psutil": SimpleNamespace(NoSuchProcess=ProcessLookupError)}), \
+                patch.object(subprocess, "run") as launch:
+            for method in (env.kill_pg_instance, env.stop_pg_instance, env.start_pg_instance):
+                with self.assertRaisesRegex(RuntimeError, "unowned"):
+                    method("18.6")
+            launch.assert_not_called()
+
+    def test_selected_services_use_declared_union_and_ignore_comments(self):
+        source = Path(__file__).with_name("run_windows_ci.py")
+        tree = ast.parse(source.read_text())
+        functions = [node for node in tree.body if isinstance(node, ast.FunctionDef)
+                     and node.name in ("federated_query_services", "selected_federated_query_services")]
+        ns = {"FQ_ENGINE_VERSION_VARS": dict.fromkeys(("mysql", "pg", "influx", "sqlserver", "oracle")),
+              "is_federated_query_command": is_federated_query_command}
+        exec(compile(ast.Module(body=functions, type_ignores=[]), str(source), "exec"), ns)
+        select = ns["selected_federated_query_services"]
+        environment = {"FQ_REQUIRED_SERVICES": "mysql,pg,influx,sqlserver,oracle"}
+        mysql = ",,y,.,env FQ_REQUIRED_SERVICES=mysql pytest cases/18-StreamProcessing/20-UseCase/test_virtual_stream_ext_recovery.py\n"
+        none = ",,n,.,env FQ_REQUIRED_SERVICES='none' pytest cases/09-DataQuerying/19-FederatedQuery/test_fq_01_external_source.py\n"
+        pg = ",,n,.,env FQ_REQUIRED_SERVICES=pg pytest cases/fake.py\n"
+        self.assertEqual(select(mysql, environment), {"mysql"})
+        self.assertEqual(select(none, environment), set())
+        self.assertEqual(select(mysql + pg + none, environment), {"mysql", "pg"})
+        self.assertEqual(select("#" + mysql + none, environment), set())
+        self.assertEqual(select(",,n,.,pytest cases/09-DataQuerying/19-FederatedQuery/test_fq_01_external_source.py\n", environment),
+                         set(environment["FQ_REQUIRED_SERVICES"].split(",")))
+
+class TestWindowsInflux18Reset(unittest.TestCase):
+    @unittest.skipUnless(shutil.which("powershell.exe") or shutil.which("pwsh"), "PowerShell is required")
+    def test_strict_mode_empty_databases_and_query_errors(self):
+        source = (Path(__file__).parents[1] /
+                  "cases/09-DataQuerying/19-FederatedQuery/ensure_ext_env.ps1")
+        program = r'''
+param([string]$Source)
+Set-StrictMode -Version Latest
+$ErrorActionPreference = 'Stop'
+$tokens = $null
+$parseErrors = $null
+$ast = [System.Management.Automation.Language.Parser]::ParseFile($Source, [ref]$tokens, [ref]$parseErrors)
+if ($parseErrors.Count) { throw ($parseErrors | Out-String) }
+$names = @('Invoke-Influx18Query', 'Test-InfluxResponsive', 'Reset-InfluxEnv')
+$functions = $ast.FindAll({ param($node)
+    $node -is [System.Management.Automation.Language.FunctionDefinitionAst] -and $node.Name -in $names
+}, $false)
+if ($functions.Count -ne 3) { throw 'Missing InfluxDB setup functions' }
+foreach ($definition in $functions) { Invoke-Expression $definition.Extent.Text }
+function Info { param($Message) }
+$script:Queries = @()
+$script:DropResponse = '{"results":[{"statement_id":0}]}'
+function Invoke-RestMethod {
+    param($Method, $Uri, $Body, $TimeoutSec, $ErrorAction)
+    if ($Method -ne 'POST' -or $TimeoutSec -ne 10 -or $ErrorAction -ne 'Stop') {
+        throw 'Query lost its method, timeout or error handling'
+    }
+    $script:Queries += $Body.q
+    if ($Body.q -eq 'SHOW DATABASES') { return ConvertFrom-Json $script:Response }
+    return ConvertFrom-Json $script:DropResponse
+}
+foreach ($response in @(
+    '{"results":[{"statement_id":0}]}',
+    '{"results":[{"statement_id":0,"series":[]}]}',
+    '{"results":[{"statement_id":0,"series":[{"name":"databases","columns":["name"]}]}]}'
+)) {
+    $script:Response = $response
+    $script:Queries = @()
+    Reset-InfluxEnv '1.8' 18085
+    if ($script:Queries.Count -ne 1) { throw 'Empty catalog attempted a drop' }
+    if (-not (Test-InfluxResponsive '1.8' 18085)) { throw 'Empty catalog failed readiness' }
+}
+$script:Response = '{"results":[{"series":[{"values":[["_internal"],["test\"db\\name"],["fixture"]]}]}]}'
+$script:Queries = @()
+Reset-InfluxEnv '1.8' 18085
+if ($script:Queries.Count -ne 3 -or $script:Queries[1] -ne 'DROP DATABASE "test\"db\\name"' -or
+    $script:Queries[2] -ne 'DROP DATABASE "fixture"') { throw 'Database reset lost quoting or _internal exclusion' }
+foreach ($response in @(
+    '{"error":"top-level error"}', '{"results":[{"error":"statement error"}]}',
+    '{}', '{"results":[]}', '{"results":[null]}', 'null'
+)) {
+    $script:Response = $response
+    $script:Queries = @()
+    $failed = $false
+    try { Reset-InfluxEnv '1.8' 18085 } catch { $failed = $true }
+    if (-not $failed -or $script:Queries.Count -ne 1) { throw 'Invalid catalog response was accepted' }
+    if (Test-InfluxResponsive '1.8' 18085) { throw 'Invalid catalog passed readiness' }
+}
+$script:Response = '{"results":[{"series":[{"values":[["fixture"]]}]}]}'
+$script:DropResponse = '{"results":[{"error":"drop denied"}]}'
+$failed = $false
+try { Reset-InfluxEnv '1.8' 18085 } catch { $failed = $_.Exception.Message -like '*drop denied*' }
+if (-not $failed) { throw 'DROP DATABASE error was ignored' }
+Write-Output 'InfluxDB 1.8 reset regressions passed'
+'''
+        with tempfile.TemporaryDirectory() as directory:
+            script = Path(directory) / "test-influx18-reset.ps1"
+            script.write_text(program, encoding="utf-8")
+            result = subprocess.run(
+                [shutil.which("powershell.exe") or shutil.which("pwsh"), "-NoProfile",
+                 "-ExecutionPolicy", "Bypass", "-File", str(script), str(source)],
+                stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True, timeout=60)
+        self.assertEqual(result.returncode, 0, result.stdout)
+        self.assertIn("InfluxDB 1.8 reset regressions passed", result.stdout)
+
+class TestWindowsOracleDriverRestoration(unittest.TestCase):
+    def test_partial_setup_and_body_failures_restore_all_changed_entries(self):
+        from contextlib import contextmanager
+        from types import SimpleNamespace
+
+        source = (Path(__file__).parents[1] /
+                  "cases/09-DataQuerying/19-FederatedQuery/test_fq_23_runtime_missing_windows.py")
+        tree = ast.parse(source.read_text(encoding="utf-8"))
+        function = next(node for node in tree.body if isinstance(node, ast.FunctionDef)
+                        and node.name == "_without_registered_oracle_driver")
+        registrations = [(str(i), f"driver{i}", f"original{i}", 1) for i in range(3)]
+        missing = "missing-driver"
+        for mode in ("success", "body-error", "setup-error", "restore-error"):
+            with self.subTest(mode=mode):
+                values = {row[0]: row[2] for row in registrations}
+                restored = []
+
+                @contextmanager
+                def open_key(root, path, reserved, flags):
+                    yield path
+
+                def set_value(key, name, reserved, kind, value):
+                    if value == missing:
+                        values[key] = value
+                        if mode == "setup-error" and key == "1":
+                            raise PermissionError("partial setup")
+                    else:
+                        restored.append(key)
+                        if mode == "restore-error" and key == "1":
+                            raise PermissionError("restore denied")
+                        values[key] = value
+
+                registry = SimpleNamespace(
+                    HKEY_LOCAL_MACHINE=1, KEY_SET_VALUE=2, KEY_READ=4,
+                    OpenKey=open_key, SetValueEx=set_value,
+                    QueryValueEx=lambda key, name: (values[key], 1))
+                namespace = {"contextmanager": contextmanager,
+                             "_oracle_driver_registrations": lambda: registrations,
+                             "_MISSING_ORACLE_DRIVER_PATH": missing}
+                exec(compile(ast.Module(body=[function], type_ignores=[]), str(source), "exec"), namespace)
+                with patch.dict(sys.modules, {"winreg": registry}):
+                    if mode == "success":
+                        with namespace["_without_registered_oracle_driver"]():
+                            self.assertEqual(set(values.values()), {missing})
+                    elif mode == "body-error":
+                        with self.assertRaisesRegex(ValueError, "body failed"):
+                            with namespace["_without_registered_oracle_driver"]():
+                                raise ValueError("body failed")
+                    elif mode == "setup-error":
+                        with self.assertRaisesRegex(PermissionError, "partial setup"):
+                            with namespace["_without_registered_oracle_driver"]():
+                                self.fail("partial setup reached body")
+                    else:
+                        with self.assertRaisesRegex(RuntimeError, "driver1.*restore denied"):
+                            with namespace["_without_registered_oracle_driver"]():
+                                pass
+                if mode == "restore-error":
+                    self.assertEqual(restored, ["2", "1", "0"])
+                    self.assertEqual(values["0"], "original0")
+                    self.assertEqual(values["2"], "original2")
+                else:
+                    self.assertEqual(values, {row[0]: row[2] for row in registrations})
+
+
+class TestWindowsPgProvisioning(unittest.TestCase):
+    @unittest.skipUnless(shutil.which("powershell.exe") or shutil.which("pwsh"), "PowerShell is required")
+    def test_orphan_identity_and_remaining_processes_prevent_data_rebuild(self):
+        source = (Path(__file__).parents[1] /
+                  "cases/09-DataQuerying/19-FederatedQuery/ensure_ext_env.ps1")
+        program = r'''
+param([string]$Source)
+$ErrorActionPreference = 'Stop'
+$tokens = $null; $parseErrors = $null
+$ast = [System.Management.Automation.Language.Parser]::ParseFile($Source, [ref]$tokens, [ref]$parseErrors)
+if ($parseErrors.Count) { throw ($parseErrors | Out-String) }
+foreach ($name in @('Test-PgProcessBase', 'Stop-Pg')) {
+    $f = $ast.FindAll({ param($node)
+        $node -is [System.Management.Automation.Language.FunctionDefinitionAst] -and $node.Name -eq $name
+    }, $false)
+    Invoke-Expression $f[0].Extent.Text
+}
+$base = 'C:\fixture\pg\18.6'
+$owned = [pscustomobject]@{ ProcessId = 101; ExecutablePath = $null;
+    CommandLine = '"C:/fixture/pg/18.6/bin/postgres.exe" --forkchild="io_worker" 6012' }
+$foreign = [pscustomobject]@{ ProcessId = 102; ExecutablePath = 'C:\other\bin\postgres.exe';
+    CommandLine = '"C:/fixture/pg/18.6/bin/postgres.exe"' }
+foreach ($row in @(
+    @($owned, $true), @($foreign, $false),
+    @([pscustomobject]@{ExecutablePath=$null;CommandLine='C:/fixture/pg/18.6/bin/postgres.exe.backup'}, $false),
+    @([pscustomobject]@{ExecutablePath=$null;CommandLine=$null}, $false),
+    @([pscustomobject]@{ExecutablePath='C:\fixture\pg\18.6\bin\postgres.exe';CommandLine=$null}, $true)
+)) { if ((Test-PgProcessBase $row[0] $base) -ne $row[1]) { throw 'Wrong installation match' } }
+function Info { param($Message) }
+function Warn { param($Message) }
+function Test-Path { param($Path) return $false }
+function Test-PortOpen { param($Port) return $script:PortBusy }
+function Start-Sleep { param($Seconds) }
+function Get-CimInstance { param($ClassName, $Filter, $ErrorAction) return $script:Processes }
+function Stop-Process {
+    param($Id, [switch]$Force, $ErrorAction)
+    $script:Stopped += $Id
+    if ($script:StopDenied) { throw 'Access denied' }
+    $script:Processes = @($script:Processes | Where-Object { $_.ProcessId -ne $Id })
+}
+function Get-NetTCPConnection { param($LocalPort, $State, $ErrorAction) return @() }
+foreach ($denied in @($false, $true)) {
+    $script:Processes = @($owned, $foreign); $script:Stopped = @()
+    $script:StopDenied = $denied; $script:PortBusy = $false
+    $ok = Stop-Pg '18.6' 15437 $base
+    if ($ok -eq $denied -or $script:Stopped.Count -ne 1 -or $script:Stopped[0] -ne 101) {
+        throw 'Owned orphan cleanup/remaining process guard failed'
+    }
+}
+$script:Processes = @(); $script:PortBusy = $true
+if (Stop-Pg '18.6' 15437 $base) { throw 'Remaining listener accepted' }
+Write-Output 'PostgreSQL orphan regressions passed'
+'''
+        with tempfile.TemporaryDirectory() as directory:
+            script = Path(directory) / "test-pg-orphan.ps1"
+            script.write_text(program, encoding="utf-8")
+            result = subprocess.run(
+                [shutil.which("powershell.exe") or shutil.which("pwsh"), "-NoProfile",
+                 "-ExecutionPolicy", "Bypass", "-File", str(script), str(source)],
+                stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True, timeout=60)
+        self.assertEqual(result.returncode, 0, result.stdout)
+        self.assertIn("PostgreSQL orphan regressions passed", result.stdout)
+
+    @unittest.skipUnless(shutil.which("powershell.exe") or shutil.which("pwsh"), "PowerShell is required")
+    def test_init_deadline_cleanup_and_fresh_start_log(self):
+        source = (Path(__file__).parents[1] /
+                  "cases/09-DataQuerying/19-FederatedQuery/ensure_ext_env.ps1")
+        program = r'''
+param([string]$Source)
+Set-StrictMode -Version Latest
+$ErrorActionPreference = 'Stop'
+$tokens = $null; $parseErrors = $null
+$ast = [System.Management.Automation.Language.Parser]::ParseFile($Source, [ref]$tokens, [ref]$parseErrors)
+if ($parseErrors.Count) { throw ($parseErrors | Out-String) }
+foreach ($name in @('Initialize-Pg', 'Start-Pg')) {
+    $definition = $ast.FindAll({ param($node)
+        $node -is [System.Management.Automation.Language.FunctionDefinitionAst] -and $node.Name -eq $name
+    }, $false)
+    if ($definition.Count -ne 1) { throw "Missing $name" }
+    Invoke-Expression $definition[0].Extent.Text
+}
+function Info { param($Message) }
+function Warn { param($Message) $script:Warnings += $Message }
+function taskkill.exe {
+    $script:Killed = $true
+    if ($script:Mode -in @('timeout-stderr', 'timeout-still-alive')) {
+        $global:LASTEXITCODE = 128
+        Write-Error 'fixture taskkill failed'
+    } else { $global:LASTEXITCODE = 0 }
+}
+function Start-Process {
+    param($FilePath, $ArgumentList, [switch]$NoNewWindow, [switch]$PassThru,
+          $RedirectStandardOutput, $RedirectStandardError)
+    $script:Arguments = $ArgumentList
+    $script:OutputFile = $RedirectStandardOutput
+    if (-not $RedirectStandardOutput -or -not $RedirectStandardError) { throw 'Missing redirected logs' }
+    if ($script:Mode -eq 'launch-error') { throw 'Launch failed' }
+    $p = [pscustomobject]@{ Id = 12345; ExitCode = 0; Handle = 1 }
+    if ($script:Mode -eq 'exit-error') { $p.ExitCode = 1 }
+    $p | Add-Member ScriptMethod WaitForExit { param($Milliseconds)
+        $script:Waits += $Milliseconds
+        if ($Milliseconds -eq 180000) { return ($script:Mode -notlike 'timeout*') }
+        if ($Milliseconds -eq 10000) { return ($script:Mode -ne 'timeout-still-alive') }
+        return $true
+    }
+    return $p
+}
+$originalTemp = $env:TEMP
+$root = Join-Path $originalTemp ('pg-init-regression-' + [guid]::NewGuid())
+New-Item -ItemType Directory $root | Out-Null
+$env:TEMP = $root
+$PgUser = 'fixture'; $PgPass = 'fixture'
+try {
+    foreach ($mode in @('success', 'exit-error', 'timeout', 'timeout-stderr', 'timeout-still-alive', 'launch-error')) {
+        $script:Mode = $mode; $script:Killed = $false; $script:Waits = @()
+        $message = ''
+        try { Initialize-Pg '18.6' $root } catch { $message = $_.Exception.Message }
+        if (Test-Path (Join-Path $root 'fq-pg-pwfile.tmp')) { throw 'Password file retained' }
+        if ($mode -eq 'success' -and $message) { throw $message }
+        if ($mode -ne 'success' -and -not $message) { throw "$mode accepted" }
+        if ($mode -like 'timeout*' -and (-not $script:Killed -or $message -notlike '*180s*')) {
+            throw 'Timeout did not stop the invocation tree or report deadline'
+        }
+        if ($mode -in @('timeout-stderr', 'timeout-still-alive') -and
+            ($message -notlike '*taskkill exit=128*fixture taskkill failed*' -or
+             $script:Waits[-1] -ne 10000)) { throw 'Lost taskkill failure or final exit check' }
+        if ($mode -eq 'timeout-still-alive' -and $message -notlike '*did not stop*') {
+            throw 'Missing surviving process diagnosis'
+        }
+        if ($ErrorActionPreference -ne 'Stop') { throw 'Error preference was not restored' }
+        if ($mode -notlike 'timeout*' -and $script:Killed) { throw 'Killed successful or failed launch' }
+        if ($mode -ne 'launch-error' -and $script:Waits[0] -ne 180000) { throw 'Wrong init deadline' }
+    }
+    $script:Mode = 'exit-error'; $script:Warnings = @()
+    Start-Pg '18.6' 15437 $root
+    $first = $script:Arguments -join ' '
+    Start-Pg '18.6' 15437 $root
+    if ($first -eq ($script:Arguments -join ' ') -or $first -notmatch 'pg-[0-9a-f]+\.log') {
+        throw 'Server log is not unique per invocation'
+    }
+    if (-not ($script:Warnings -match 'pg_ctl exited 1')) { throw 'Missing start failure diagnosis' }
+    Write-Output 'PostgreSQL provisioning regressions passed'
+} finally {
+    $env:TEMP = $originalTemp
+    Remove-Item $root -Recurse -Force -ErrorAction SilentlyContinue
+}
+'''
+        with tempfile.TemporaryDirectory() as directory:
+            script = Path(directory) / "test-pg-provisioning.ps1"
+            script.write_text(program, encoding="utf-8")
+            result = subprocess.run(
+                [shutil.which("powershell.exe") or shutil.which("pwsh"), "-NoProfile",
+                 "-ExecutionPolicy", "Bypass", "-File", str(script), str(source)],
+                stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True, timeout=60)
+        self.assertEqual(result.returncode, 0, result.stdout)
+        self.assertIn("PostgreSQL provisioning regressions passed", result.stdout)
+
+
+class TestWindowsFqProcessStop(unittest.TestCase):
+    @unittest.skipUnless(os.name == "nt" and shutil.which("powershell.exe"), "Windows PowerShell is required")
+    def test_reused_listeners_require_test_roots_before_any_reset(self):
+        source = (Path(__file__).parents[1] /
+                  "cases/09-DataQuerying/19-FederatedQuery/ensure_ext_env.ps1")
+        program = r'''
+param([string]$Source)
+Set-StrictMode -Version Latest
+$ErrorActionPreference = 'Stop'
+$tokens = $null; $parseErrors = $null
+$ast = [System.Management.Automation.Language.Parser]::ParseFile($Source, [ref]$tokens, [ref]$parseErrors)
+if ($parseErrors.Count) { throw ($parseErrors | Out-String) }
+foreach ($name in @('Get-OwnedListeningInstallBase', 'Ensure-Mysql', 'Ensure-Pg')) {
+    $definition = $ast.FindAll({ param($node)
+        $node -is [System.Management.Automation.Language.FunctionDefinitionAst] -and $node.Name -eq $name
+    }, $false)
+    if ($definition.Count -ne 1) { throw "Missing $name" }
+    Invoke-Expression $definition[0].Extent.Text
+}
+$FqBase = 'C:\fixture\fq'
+$env:PROGRAMDATA = 'C:\ProgramData'
+$env:LOCALAPPDATA = 'C:\fixture\local'
+$env:SystemDrive = 'C:'
+function Info { param($Message) }
+function Test-PortOpen { param($Port) return $true }
+function Get-MysqlPort { param($Ver) return 13306 }
+function Get-PgPort { param($Ver) return 15437 }
+function Get-ListeningInstallBase { param($Port, $ProcessName) return $script:Candidate }
+function Test-Path { param($LiteralPath, $PathType) return (-not $script:MissingFile) }
+function Reset-MysqlEnv { param($Ver, $Port, $Base) $script:Mutations += 'mysql-reset' }
+function Install-MysqlTimeZones { param($Ver, $Port, $Base) $script:Mutations += 'mysql-timezones' }
+function Install-Postgis { param($Ver, $Base) $script:Mutations += 'postgis' }
+function Wait-PgReady { param($Port, $Base, $MaxSec) return $true }
+function Reset-PgEnv { param($Ver, $Port, $Base) $script:Mutations += 'pg-reset' }
+foreach ($engine in @('mysql', 'pg')) {
+    $ver = if ($engine -eq 'mysql') { '8.0' } else { '18.6' }
+    foreach ($root in @($FqBase, 'c:/FIXTURE/fq', 'C:\ProgramData\taostest\fq',
+                        'C:\fixture\local\taostest\fq', 'C:\ci-tools\windows-ci-runtime\fq')) {
+        $script:Candidate = Join-Path $root "$engine\$ver"
+        $script:MissingFile = $false; $script:Mutations = @()
+        if ($engine -eq 'mysql') { Ensure-Mysql $ver } else { Ensure-Pg $ver }
+        if ($script:Mutations.Count -ne 2) { throw 'Owned service was not reused' }
+    }
+    foreach ($candidate in @($null, 'C:\production\database',
+                             "C:\fixture\fq-other\$engine\$ver",
+                             "C:\fixture\fq\..\production\$engine\$ver",
+                             "C:\fixture\fq\$engine\wrong-version")) {
+        $script:Candidate = $candidate
+        $script:MissingFile = $false; $script:Mutations = @(); $message = ''
+        try { if ($engine -eq 'mysql') { Ensure-Mysql $ver } else { Ensure-Pg $ver } }
+        catch { $message = $_.Exception.Message }
+        if ($message -notlike '*refusing to reset or restart*' -or $script:Mutations.Count) {
+            throw 'Unknown listener reached destructive provisioning'
+        }
+    }
+    $script:Candidate = Join-Path $FqBase "$engine\$ver"
+    $script:MissingFile = $true; $script:Mutations = @(); $message = ''
+    try { if ($engine -eq 'mysql') { Ensure-Mysql $ver } else { Ensure-Pg $ver } }
+    catch { $message = $_.Exception.Message }
+    if ($message -notlike '*incomplete*' -or $script:Mutations.Count) {
+        throw 'Incomplete installation reached destructive provisioning'
+    }
+}
+Write-Output 'Listener ownership regressions passed'
+'''
+        with tempfile.TemporaryDirectory() as directory:
+            script = Path(directory) / "test-fq-listener-ownership.ps1"
+            script.write_text(program, encoding="utf-8")
+            result = subprocess.run(
+                [shutil.which("powershell.exe"), "-NoProfile", "-ExecutionPolicy", "Bypass",
+                 "-File", str(script), str(source)], stdout=subprocess.PIPE,
+                stderr=subprocess.STDOUT, text=True, timeout=60)
+        self.assertEqual(result.returncode, 0, result.stdout)
+        self.assertIn("Listener ownership regressions passed", result.stdout)
+
+    @unittest.skipUnless(shutil.which("powershell.exe") or shutil.which("pwsh"), "PowerShell is required")
+    def test_exited_process_race_is_benign_but_stop_failures_propagate(self):
+        source = (Path(__file__).parents[1] /
+                  "cases/09-DataQuerying/19-FederatedQuery/ensure_ext_env.ps1")
+        program = r'''
+param([string]$Source)
+Set-StrictMode -Version Latest
+$ErrorActionPreference = 'Stop'
+$tokens = $null; $parseErrors = $null
+$ast = [System.Management.Automation.Language.Parser]::ParseFile($Source, [ref]$tokens, [ref]$parseErrors)
+if ($parseErrors.Count) { throw ($parseErrors | Out-String) }
+$definition = $ast.FindAll({ param($node)
+    $node -is [System.Management.Automation.Language.FunctionDefinitionAst] -and $node.Name -eq 'Stop-ByPidFile'
+}, $false)
+if ($definition.Count -ne 1) { throw 'Missing Stop-ByPidFile' }
+Invoke-Expression $definition[0].Extent.Text
+function taskkill.exe { $global:LASTEXITCODE = 1 }
+function Get-Process { param($Id, $ErrorAction) return $script:FakeProcess }
+$pidFile = Join-Path $env:TEMP ('fq-stop-regression-' + [guid]::NewGuid() + '.pid')
+try {
+    foreach ($mode in @('race', 'denied', 'timeout', 'normal')) {
+        $script:Mode = $mode
+        $script:FakeProcess = [pscustomobject]@{ HasExited = ($mode -eq 'race') }
+        $script:FakeProcess | Add-Member ScriptMethod Kill {
+            if ($script:Mode -eq 'race') { throw [System.InvalidOperationException]::new('already exited') }
+            if ($script:Mode -eq 'denied') { throw [System.ComponentModel.Win32Exception]::new(5) }
+        }
+        $script:FakeProcess | Add-Member ScriptMethod WaitForExit { param($Milliseconds)
+            if ($Milliseconds -ne 1000) { throw 'Wait budget changed' }
+            return ($script:Mode -ne 'timeout')
+        }
+        Set-Content $pidFile '12345'
+        $caught = $false
+        try { Stop-ByPidFile $pidFile 1 } catch { $caught = $true }
+        if ($mode -in @('race', 'normal')) {
+            if ($caught -or (Test-Path $pidFile)) { throw "$mode failed benign stop or retained pidfile" }
+        } else {
+            if (-not $caught -or -not (Test-Path $pidFile)) { throw "$mode was silently accepted" }
+        }
+    }
+} finally { Remove-Item $pidFile -Force -ErrorAction SilentlyContinue }
+Write-Output 'FQ process stop regressions passed'
+'''
+        with tempfile.TemporaryDirectory() as directory:
+            script = Path(directory) / "test-fq-process-stop.ps1"
+            script.write_text(program, encoding="utf-8")
+            result = subprocess.run(
+                [shutil.which("powershell.exe") or shutil.which("pwsh"), "-NoProfile",
+                 "-ExecutionPolicy", "Bypass", "-File", str(script), str(source)],
+                stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True,
+                errors="backslashreplace", timeout=60)
+        self.assertEqual(result.returncode, 0, result.stdout)
+        self.assertIn("FQ process stop regressions passed", result.stdout)
+
+
+class TestWindowsOracleParity(unittest.TestCase):
     fq_dir = (Path(__file__).parents[1] /
               "cases/09-DataQuerying/19-FederatedQuery")
 
-    def test_provisioning_defaults_keep_four_supported_providers(self):
-        tree = ast.parse(Path(__file__).with_name("run_windows_ci.py").read_text())
+    def test_stb_journal_requires_opt_in_and_matches_commit_and_versions(self):
+        source = (Path(__file__).parents[1] /
+                  "cases/05-VirtualTables/04-Query/03-ExtSource/conftest.py")
+        namespace = {}
+        exec(compile(source.read_text(), str(source), "exec"), namespace)
+        item = SimpleNamespace(nodeid="cases/test_vtable_query_ext_source_stb.py::test_agg")
+        config = Mock()
+        with tempfile.TemporaryDirectory() as directory:
+            journal = str(Path(directory) / "progress.json")
+            namespace["_save_progress"](journal, {item.nodeid})
+            with patch.dict(os.environ, {"FQ_STB_PROGRESS_FILE": journal}, clear=True):
+                items = [item]
+                namespace["pytest_collection_modifyitems"](config, items)
+                self.assertEqual(items, [item])
+                config.hook.pytest_deselected.assert_not_called()
+                os.environ["FQ_STB_RESUME"] = "1"
+                namespace["pytest_collection_modifyitems"](config, items)
+                self.assertEqual(items, [])
+                config.hook.pytest_deselected.assert_called_once_with(items=[item])
+            with patch.dict(os.environ, {"CI_COMMIT_SHA": "commit-a"}, clear=True):
+                original = namespace["_journal_path"]()
+                os.environ["CI_COMMIT_SHA"] = "commit-b"
+                self.assertNotEqual(original, namespace["_journal_path"]())
+                os.environ["CI_COMMIT_SHA"] = "commit-a"
+                os.environ["FQ_INFLUX_VERSIONS"] = "3.0"
+                self.assertNotEqual(original, namespace["_journal_path"]())
+
+    def test_mysql_restart_keeps_discovered_instance_paths(self):
+        tree = ast.parse((self.fq_dir / "federated_query_common.py").read_text())
+        original = next(node for node in tree.body
+                        if isinstance(node, ast.ClassDef) and node.name == "ExtSrcEnv")
+        method = next(node for node in original.body
+                      if isinstance(node, ast.FunctionDef) and node.name == "_mysql_lifecycle_paths")
+        cls = ast.ClassDef(name="Env", bases=[], keywords=[], body=[method], decorator_list=[])
+        namespace = {"os": SimpleNamespace(path=SimpleNamespace(
+            join=ntpath.join, normpath=ntpath.normpath, isfile=lambda path: True)),
+            "sys": SimpleNamespace(platform="win32"),
+            "_fq_base_dir": lambda: r"C:\ci-runtime\fq"}
+        namespace["pymysql"] = SimpleNamespace(err=SimpleNamespace(OperationalError=ConnectionError))
+        namespace["tdLog"] = Mock()
+        exec(compile(ast.fix_missing_locations(ast.Module(body=[cls], type_ignores=[])),
+                     "lifecycle", "exec"), namespace)
+        env = namespace["Env"]
+        env.mysql_version_configs = lambda: iter([SimpleNamespace(version="8.0", host="127.0.0.1")])
+        query = Mock(side_effect=[r"C:\old-root\mysql\8.0", r"C:\old-root\mysql\8.0\run\mysqld.pid"])
+        env.mysql_query_cfg = query
+        paths = env._mysql_lifecycle_paths("8.0", discover=True)
+        self.assertEqual(paths[0], r"C:\old-root\mysql\8.0")
+        self.assertEqual(paths, env._mysql_lifecycle_paths("8.0"))
+        self.assertEqual(query.call_count, 2)  # Restart works while the server is stopped.
+        query.side_effect = ConnectionError("server already stopped")
+        self.assertEqual(paths, env._mysql_lifecycle_paths("8.0", discover=True))
+        env._mysql_runtime_paths = {}
+        self.assertEqual(env._mysql_lifecycle_paths("8.0", discover=True), (
+            r"C:\ci-runtime\fq\mysql\8.0",
+            r"C:\ci-runtime\fq\mysql\8.0\run\mysqld.pid"))
+        query.side_effect = RuntimeError("unexpected query failure")
+        with self.assertRaisesRegex(RuntimeError, "unexpected query failure"):
+            env._mysql_lifecycle_paths("8.0", discover=True)
+        env.mysql_version_configs = lambda: iter([SimpleNamespace(version="8.0", host="remote-host")])
+        with self.assertRaisesRegex(RuntimeError, "loopback"):
+            env._mysql_lifecycle_paths("8.0", discover=True)
+
+    def test_pg_kill_tolerates_exit_race_and_reports_access_denied(self):
+        tree = ast.parse((self.fq_dir / "federated_query_common.py").read_text())
+        original = next(node for node in tree.body
+                        if isinstance(node, ast.ClassDef) and node.name == "ExtSrcEnv")
+        method = next(node for node in original.body
+                      if isinstance(node, ast.FunctionDef) and node.name == "kill_pg_instance")
+        cls = ast.ClassDef(name="Env", bases=[], keywords=[], body=[method], decorator_list=[])
+        process = Mock()
+        namespace = {"os": os, "sys": SimpleNamespace(platform="win32"),
+                     "_windows_owned_pg_instance": Mock(return_value=(r"C:\fixture\pg\18.6", process))}
+        exec(compile(ast.fix_missing_locations(ast.Module(body=[cls], type_ignores=[])),
+                     "pg_kill", "exec"), namespace)
+        env = namespace["Env"]
+        env._external_service_action = Mock(return_value=False)
+        env.pg_version_configs = lambda: iter([SimpleNamespace(version="18.6", port=15437)])
+        process.kill.side_effect = ProcessLookupError("already exited")
+        with patch.dict(sys.modules, {"psutil": SimpleNamespace(NoSuchProcess=ProcessLookupError)}):
+            env.kill_pg_instance("18.6")
+            process.kill.side_effect = PermissionError("access denied")
+            with self.assertRaisesRegex(PermissionError, "access denied"):
+                env.kill_pg_instance("18.6")
+
+    def test_mysql_restart_uses_platform_executable_and_preserves_windows_data(self):
+        tree = ast.parse((self.fq_dir / "federated_query_common.py").read_text())
+        original = next(node for node in tree.body
+                        if isinstance(node, ast.ClassDef) and node.name == "ExtSrcEnv")
+        method = next(node for node in original.body
+                      if isinstance(node, ast.FunctionDef) and node.name == "start_mysql_instance")
+        cls = ast.ClassDef(name="Env", bases=[], keywords=[], body=[method], decorator_list=[])
+        for platform, executable in (("win32", "mysqld.exe"), ("linux", "mysqld")):
+            with self.subTest(platform=platform), tempfile.TemporaryDirectory() as directory:
+                base = Path(directory)
+                (base / "bin").mkdir()
+                (base / "bin" / executable).touch()
+                (base / "data" / "mysql").mkdir(parents=True)
+                pidfile = base / "run" / "mysqld.pid"
+                namespace = {"os": os, "sys": SimpleNamespace(platform=platform),
+                             "__file__": str(self.fq_dir / "federated_query_common.py"),
+                             "_fq_base_dir": lambda: directory,
+                             "_fq_subprocess_env": lambda: {}}
+                exec(compile(ast.fix_missing_locations(ast.Module(body=[cls], type_ignores=[])),
+                             "mysql_restart", "exec"), namespace)
+                env = namespace["Env"]
+                env._external_service_action = Mock(return_value=False)
+                env._mysql_lifecycle_paths = Mock(return_value=(directory, str(pidfile)))
+                env.mysql_version_configs = lambda: iter([SimpleNamespace(
+                    version="8.0", host="127.0.0.1", port=13306, user="root", password="test")])
+                env._ext_env_script_cmd = Mock(return_value=["setup"])
+                connection = Mock()
+                with patch.dict(sys.modules, {"pymysql": SimpleNamespace(
+                        connect=Mock(return_value=connection))}), \
+                        patch.object(subprocess, "run") as setup, \
+                        patch.object(subprocess, "Popen", return_value=SimpleNamespace(pid=123)) as launch, \
+                        patch.object(subprocess, "CREATE_NEW_PROCESS_GROUP", 512, create=True), \
+                        patch.object(subprocess, "DETACHED_PROCESS", 8, create=True):
+                    env.start_mysql_instance("8.0", wait_s=1)
+                connection.close.assert_called_once()
+                if platform == "win32":
+                    setup.assert_not_called()
+                    self.assertEqual(launch.call_args.args[0][0], str(base / "bin" / executable))
+                    self.assertEqual(pidfile.read_text(), "123")
+                else:
+                    launch.assert_not_called()
+                    self.assertEqual(setup.call_args.kwargs["env"]["FQ_MYSQL_QUICK_RESTART"], "1")
+                    self.assertEqual(setup.call_args.kwargs["env"]["FQ_SERVICES_TO_RESET"], "mysql")
+
+    def test_mixed_vtable_source_cycle_respects_windows_support(self):
+        source = (Path(__file__).parents[1] /
+                  "cases/05-VirtualTables/vtable_util.py").read_text()
+        tree = ast.parse(source)
+        nodes = [node for node in tree.body
+                 if (isinstance(node, ast.Assign) and any(
+                     isinstance(target, ast.Name) and target.id == "_ALL_SOURCE_CYCLE"
+                     for target in node.targets))
+                 or (isinstance(node, ast.If) and
+                     "_ALL_SOURCE_CYCLE = tuple" in ast.get_source_segment(source, node))]
+        for platform, count in (("win32", 11), ("linux", 13)):
+            namespace = {"sys": SimpleNamespace(platform=platform)}
+            exec(compile(ast.Module(body=nodes, type_ignores=[]), "sources", "exec"), namespace)
+            cycle = namespace["_ALL_SOURCE_CYCLE"]
+            self.assertEqual(len(cycle), count)
+            self.assertEqual(len(set(cycle)), count)
+            backends = {backend for backend, _ in cycle}
+            self.assertTrue({"internal", "pg", "mysql", "influx", "sqlserver", "oracle"}
+                            <= backends)
+            self.assertEqual("influx18" in backends, platform != "win32")
+
+    def test_provisioning_defaults_include_oracle(self):
+        tree = ast.parse(Path(__file__).with_name("run_windows_ci.py").read_text(encoding="utf-8"))
         nodes = [node for node in tree.body if isinstance(node, (ast.Assign, ast.FunctionDef))
                  and ((isinstance(node, ast.FunctionDef) and node.name == "federated_query_services")
                       or (isinstance(node, ast.Assign) and any(
@@ -47,11 +910,15 @@ class TestWindowsOracleDeferral(unittest.TestCase):
         namespace = {}
         exec(compile(ast.Module(body=nodes, type_ignores=[]), "services", "exec"), namespace)
         services = namespace["federated_query_services"]
-        self.assertEqual(services({}), {"mysql", "pg", "influx", "sqlserver"})
+        self.assertEqual(services({}), {"mysql", "pg", "influx", "sqlserver", "oracle"})
         self.assertEqual(services({"FQ_REQUIRED_SERVICES": "none"}), set())
+        windows_job = (Path(__file__).parents[4] / ".gitlab/.tsdb-test-windows.yml").read_text()
+        declared = re.search(r"FQ_REQUIRED_SERVICES:\s*'([^']+)'", windows_job)
+        self.assertIsNotNone(declared)
+        self.assertEqual(set(declared.group(1).split(",")), services({}))
 
-    def test_shared_service_default_preserves_linux_oracle(self):
-        tree = ast.parse((self.fq_dir / "federated_query_common.py").read_text())
+    def test_shared_service_default_includes_oracle_on_every_platform(self):
+        tree = ast.parse((self.fq_dir / "federated_query_common.py").read_text(encoding="utf-8"))
         original = next(node for node in tree.body
                         if isinstance(node, ast.ClassDef) and node.name == "ExtSrcEnv")
         method = next(node for node in original.body
@@ -62,46 +929,75 @@ class TestWindowsOracleDeferral(unittest.TestCase):
             code = ast.fix_missing_locations(ast.Module(body=[cls], type_ignores=[]))
             exec(compile(code, "services", "exec"), namespace)
             actual = namespace["Env"].required_services()
-            self.assertEqual("oracle" in actual, platform != "nt")
+            self.assertIn("oracle", actual)
             self.assertTrue({"mysql", "pg", "influx", "sqlserver"} <= actual)
 
-    def test_baseline_projection_removes_only_complete_oracle_cases(self):
-        tree = ast.parse((self.fq_dir / "test_fq_01_external_source.py").read_text())
-        method = next(node for node in ast.walk(tree) if isinstance(node, ast.FunctionDef)
-                      and node.name == "_fw_without_oracle_baseline")
-        method.decorator_list = []
-        namespace = {"re": re}
-        exec(compile(ast.Module(body=[method], type_ignores=[]), "baseline", "exec"), namespace)
-        project = namespace[method.name]
-        separator = "=" * 96
-        def block(label):
-            return f"{separator}\nCASE START: {label}\n{separator}\nSQL\n{separator}\nCASE END: {label}\n{separator}\n"
-        mysql, oracle, pg = block("CASE-001[MYS]"), block("CASE-OREXT001[ORA]"), block("CASE-002[POS]")
-        self.assertEqual(project(mysql + oracle + pg), mysql + pg)
-        self.assertEqual(project(mysql + pg), mysql + pg)
-        golden = next((self.fq_dir / "ans").glob("test_fq_01_external_source_framework_*.txt")).read_text()
-        projected = project(golden)
-        self.assertIn("CASE-OREXT001[ORA]", golden)
-        self.assertNotIn("[ORA]", projected)
-        for label in re.findall(r"^CASE START: ([^\n]+)$", golden, re.MULTILINE):
-            if not label.endswith("[ORA]"):
-                self.assertIn(f"CASE START: {label}\n", projected)
-
-    def test_oracle_filter_skip_precedes_backend_start(self):
+    def test_oracle_filter_starts_backend_on_windows(self):
         source = (Path(__file__).parents[1] /
                   "cases/05-VirtualTables/04-Query/03-ExtSource/test_vtable_query_ext_source_filter.py")
         tree = ast.parse(source.read_text())
         method = next(node for node in ast.walk(tree) if isinstance(node, ast.FunctionDef)
                       and node.name == "prepare_backend")
         method.decorator_list = []
-        adapters = Mock()
+        adapter = Mock()
+        adapter.ensure_running.side_effect = RuntimeError("backend startup reached")
         namespace = {"os": SimpleNamespace(name="nt"),
-                     "pytest": SimpleNamespace(skip=Mock(side_effect=unittest.SkipTest("deferred"))),
-                     "VtableQueryUtil": SimpleNamespace(_EXT_SOURCE_ADAPTERS=adapters)}
+                     "pytest": SimpleNamespace(skip=Mock(side_effect=unittest.SkipTest("unexpected skip"))),
+                     "VtableQueryUtil": SimpleNamespace(_EXT_SOURCE_ADAPTERS={"oracle": lambda: adapter})}
         exec(compile(ast.Module(body=[method], type_ignores=[]), "fixture", "exec"), namespace)
-        with self.assertRaises(unittest.SkipTest):
+        with self.assertRaisesRegex(RuntimeError, "backend startup reached"):
             next(namespace[method.name](None, "oracle"))
-        adapters.assert_not_called()
+        adapter.ensure_running.assert_called_once()
+    def test_no_windows_oracle_deferral_survives_in_the_fq_tests(self):
+        # Oracle gating is driven by FQ_REQUIRED_SERVICES, never by the host
+        # platform: a stray os.name == "nt" skip would silently drop Oracle
+        # coverage again.  A run that leaves oracle out of the service list
+        # also projects the [ORA] blocks out of the fq_01 baseline.
+        fq01 = (self.fq_dir / "test_fq_01_external_source.py").read_text(encoding="utf-8")
+        self.assertNotIn("Windows FQ Oracle support is deferred", fq01)
+        self.assertIn('if "oracle" in ExtSrcEnv.required_services():', fq01)
+        self.assertIn('if "oracle" not in ExtSrcEnv.required_services():', fq01)
+        self.assertIn("_fw_without_oracle_baseline", fq01)
+        filter_case = (Path(__file__).parents[1] /
+                       "cases/05-VirtualTables/04-Query/03-ExtSource/test_vtable_query_ext_source_filter.py")
+        self.assertNotIn("Windows federated-query Oracle support is deferred",
+                         filter_case.read_text(encoding="utf-8"))
+
+
+class TestWorkspaceRecovery(unittest.TestCase):
+    def test_workspace_processes_are_killed_by_working_directory(self):
+        # A python test driver keeps the workspace test directory alive even
+        # though its image lives in the CI venv (WinError 32 on removal):
+        # stop_processes_under must match the working directory too.
+        try:
+            import psutil  # noqa: F401 - availability gate for the psutil path
+        except ImportError:
+            self.skipTest("psutil is not installed")
+        import subprocess
+        import time
+        source = Path(__file__).with_name("run_windows_ci.py")
+        tree = ast.parse(source.read_text(encoding="utf-8"))
+        function = next(node for node in tree.body
+                        if isinstance(node, ast.FunctionDef) and node.name == "stop_processes_under")
+        namespace = {"os": os, "subprocess": subprocess,
+                     "print": lambda *args, **kwargs: None}
+        exec(compile(ast.Module(body=[function], type_ignores=[]), str(source), "exec"), namespace)
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory) / "workspace"
+            workdir = root / "source" / "taos-community" / "test"
+            workdir.mkdir(parents=True)
+            child = subprocess.Popen(
+                [sys.executable, "-I", "-c", "import time; time.sleep(60)"],
+                cwd=str(workdir))
+            try:
+                time.sleep(0.5)
+                namespace["stop_processes_under"](str(root))
+                child.wait(timeout=10)
+                self.assertIsNotNone(child.poll())
+            finally:
+                if child.poll() is None:
+                    child.kill()
+                    child.wait()
 
 
 class TestVisualStudioEnvironment(unittest.TestCase):
@@ -119,6 +1015,7 @@ class TestVisualStudioEnvironment(unittest.TestCase):
             vcvars = Path(directory) / "vcvarsall.bat"
             vcvars.touch()
             namespace = {"Path": Path, "os": SimpleNamespace(environ={"WIN_VCVARS": str(vcvars)}),
+                         "find_visual_studio_vcvars": lambda: vcvars,
                          "sys": SimpleNamespace(executable="python.exe"), "tempfile": tempfile,
                          "json": json, "subprocess": SimpleNamespace(run=Mock(return_value=result), PIPE=-1, STDOUT=-2),
                          "fail": Mock(side_effect=RuntimeError("missing environment"))}
@@ -161,7 +1058,8 @@ class TestCompatibilityReadiness(unittest.TestCase):
                          ["stop stream s_count", "stop stream s_state", "stop stream s_inter"])
         self.assertTrue(all(call.kwargs == {"database": "fixture"} for call in cli.call_args_list
                             if call.args[0].startswith("stop")))
-        clock.monotonic.side_effect = [0, 31]
+        # Each metadata read now also establishes its own bounded CLI deadline.
+        clock.monotonic.side_effect = [0, 0, 0, 0, 0, 31]
         cli.side_effect = lambda sql, **kwargs: output() if sql.startswith("select") else "Query OK"
         with self.assertRaisesRegex(RuntimeError, "did not stop"):
             namespace["stop_old_streams"](case)
@@ -439,6 +1337,34 @@ class TestCompatibilityReadiness(unittest.TestCase):
                 self.assertEqual(sorted(results.get(timeout=2) for _ in writers),
                                  [(False, "complete baseline", True), (True, "complete baseline", True)])
                 self.assertTrue(all(process.exitcode == 0 for process in writers))
+
+    def test_rbac_upgrade_peer_monitor_matches_first_node(self):
+        source = Path(__file__).parents[1] / "cases/25-Privileges/test_priv_upgrade.py"
+        method = next(node for node in ast.walk(ast.parse(source.read_text(encoding="utf-8")))
+                      if isinstance(node, ast.FunctionDef) and node.name == "ensureDnodeConfig")
+        namespace = {"os": SimpleNamespace(name="nt", path=os.path, makedirs=os.makedirs),
+                     "tdLog": Mock()}
+        exec(compile(ast.Module(body=[method], type_ignores=[]), str(source), "exec"), namespace)
+        for configured in ("0", "1", None):
+            for existing in (False, True):
+                with self.subTest(configured=configured, existing=existing), tempfile.TemporaryDirectory() as tmp:
+                    first = Path(tmp) / "node1"
+                    (first / "cfg").mkdir(parents=True)
+                    (first / "cfg/taos.cfg").write_text(
+                        f"monitor {configured}\n" if configured else "# default monitor\n")
+                    peer = Path(tmp) / "node2"
+                    if existing:
+                        (peer / "cfg").mkdir(parents=True)
+                        (peer / "cfg/taos.cfg").write_text("monitor 9\n# preserve\nserverPort 6130\n")
+                    case = SimpleNamespace(getDnodePath=lambda: [str(first)])
+                    namespace[method.name](case, str(peer) + os.sep, 2)
+                    text = (peer / "cfg/taos.cfg").read_text()
+                    self.assertIn(f"monitor {configured or '1'}\n", text)
+                    self.assertNotIn("monitor 9", text)
+                    if existing:
+                        self.assertIn("# preserve\nserverPort 6130\n", text)
+                    namespace[method.name](case, str(peer) + os.sep, 2)
+                    self.assertEqual((peer / "cfg/taos.cfg").read_text(), text)
 
     def test_rbac_upgrade_cli_preserves_sql_and_rejects_reported_errors(self):
         source = Path(__file__).parents[1] / "cases/25-Privileges/test_priv_upgrade.py"
@@ -791,24 +1717,69 @@ class TestWindowsCaseUtils(unittest.TestCase):
                     namespace["stop_owned_fq_mysql"]({}, root)
                 execute.assert_not_called()
 
+    def test_related_subset_selects_only_the_changed_cases(self):
+        # WIN_CASE_SUBSET=related is the focused verification run for the
+        # Oracle-on-Windows work; it must not fall back to the whole matrix.
+        self.assertTrue(is_related_command(
+            "pytest cases/09-DataQuerying/19-FederatedQuery/test_fq_19_runtime_libs.py"))
+        self.assertTrue(is_related_command(
+            "pytest cases/05-VirtualTables/04-Query/03-ExtSource/test_vtable_query_ext_source_runtime_libs.py"))
+        self.assertTrue(is_related_command("pytest ../packaging/test_fq_oracle_install_windows.py"))
+        self.assertTrue(is_related_command("pytest cases/81-Tools/04-Taosdump/test_taosdump_basic.py -B"))
+        self.assertFalse(is_related_command(
+            "pytest cases/09-DataQuerying/19-FederatedQuery/test_fq_20_sqlserver_semantics.py"))
+        self.assertFalse(is_related_command("pytest cases/02-Databases/04-Query/test_db_show_create_db.py"))
+        # A commented-out row is prose, not a selection.
+        self.assertFalse(is_related_command(
+            "#,,n,.,./ci/pytest.sh pytest cases/09-DataQuerying/19-FederatedQuery/test_fq_19_runtime_libs.py"))
+        self.assertFalse(is_fq_command(
+            "#,,n,.,./ci/pytest.sh pytest cases/09-DataQuerying/19-FederatedQuery/test_fq_01_external_source.py"))
+
+    def test_focused_fq_manifest_uses_existing_cases(self):
+        # fq_related.task is the Linux counterpart (CASES_TASK) of
+        # WIN_CASE_SUBSET=related; every entry must point at a real file.
+        ci_dir = Path(__file__).parent
+        rows = [line for line in (ci_dir / "fq_related.task").read_text(encoding="utf-8").splitlines()
+                if line.strip() and not line.startswith("#")]
+        self.assertTrue(rows)
+        for line in rows:
+            command, timeout = parse_case_line(line)
+            self.assertTrue((ci_dir.parent / shlex.split(command)[1].split("::")[0]).is_file(), command)
+            self.assertGreater(timeout, 0)
+
     def test_smoke_and_full_use_separate_real_inventories(self):
         ci_dir = Path(__file__).parent
         exclusions = [line.strip() for line in (ci_dir / "win_ignore_cases").read_text().splitlines()
                       if line.strip() and not line.lstrip().startswith("#")]
         smoke = windows_task_manifest(ci_dir)
         rows = [line for line in smoke.splitlines() if line.strip() and not line.startswith("#")]
-        self.assertEqual(len(rows), 25)
+        registered_rows = [line for line in (ci_dir / "win_cases.task").read_text().splitlines()
+                           if line.strip() and not line.lstrip().startswith("#")]
+        self.assertEqual(rows, registered_rows)
         for line in rows:
             command, timeout = parse_case_line(line)
-            self.assertTrue((ci_dir.parent / shlex.split(command)[1]).is_file(), command)
-            if any(case in command for case in FQ_SMOKE_CASES):
-                self.assertFalse(is_excluded_command(command, exclusions, "smoke"))
-                self.assertTrue(is_excluded_command(command, exclusions, "full"))
-                self.assertIn(timeout, (3600, 7200))
-        self.assertTrue(all(case in smoke for case in FQ_SMOKE_CASES))
+            self.assertTrue((ci_dir.parent / shlex.split(command)[1].split("::")[0]).is_file(), command)
+        # The Windows smoke gate no longer runs federated-query cases: every
+        # FQ row is commented out and a commented row never counts as FQ.
+        self.assertFalse(any(is_fq_command(line) for line in smoke.splitlines()))
+        for case in FQ_SMOKE_CASES:
+            matches = [line for line in smoke.splitlines() if case in line]
+            self.assertTrue(matches, case)
+            self.assertTrue(all(line.lstrip().startswith("#") for line in matches), case)
         full = windows_task_manifest(ci_dir, "full")
         self.assertGreater(len(full.splitlines()), 1000)
-        self.assertTrue(is_excluded_command(
+        native_rows = [line for line in (ci_dir / "win_full_cases.task").read_text().splitlines()
+                       if line.strip() and not line.startswith("#")]
+        self.assertEqual(len(native_rows), 4)
+        for line in native_rows:
+            self.assertIn(line, full)
+            self.assertNotIn(line, smoke)
+            command, timeout = parse_case_line(line)
+            self.assertFalse(is_excluded_command(command, exclusions, "full"))
+            self.assertTrue((ci_dir.parent / shlex.split(command)[1].split("::")[0]).is_file())
+        self.assertIn("FQ_SQLSERVER_DRIVER_MISSING_TEST=1", "\n".join(native_rows))
+        self.assertIn("FQ_ORACLE_DRIVER_MISSING_TEST=1", "\n".join(native_rows))
+        self.assertFalse(is_excluded_command(
             "pytest cases/09-DataQuerying/19-FederatedQuery/test_other.py", exclusions, "smoke"))
         with self.assertRaises(ValueError):
             windows_task_manifest(ci_dir, "invalid")
@@ -819,30 +1790,266 @@ class TestWindowsCaseUtils(unittest.TestCase):
         tree = ast.parse(source.read_text(encoding="utf-8"))
         function = next(node for node in tree.body
                         if isinstance(node, ast.FunctionDef) and node.name == "run_pytest_cases")
-        for suite, case_filter, requires_fq in (("smoke", "", True),
-                                                ("smoke", "local.py", False),
-                                                ("full", "", False)):
-            with self.subTest(suite=suite, case_filter=case_filter), tempfile.TemporaryDirectory() as directory:
+        influx_versions = next(node for node in tree.body
+                               if isinstance(node, ast.FunctionDef) and node.name == "federated_query_influx_versions")
+        for suite, case_filter, only_fq, requires_fq, wal_interval in (("smoke", "", False, True, None),
+                                                         ("smoke", "local.py", False, False, None),
+                                                         ("full", "", False, True, None),
+                                                         ("smoke", "", True, True, "250ms")):
+            with self.subTest(suite=suite, case_filter=case_filter, only_fq=only_fq), \
+                    tempfile.TemporaryDirectory() as directory:
                 root = Path(directory)
                 ci = root / "source/taos-community/test/ci"
                 ci.mkdir(parents=True)
                 local = ",,y,.,pytest cases/local.py\n"
                 (ci / "cases.task").write_text(local)
-                (ci / "win_cases.task").write_text(local + ",,n,.,pytest " + FQ_SMOKE_CASES[0] + ",7200\n")
+                (ci / "win_full_cases.task").write_text("# Windows-only additions\n")
+                (ci / "win_cases.task").write_text(
+                    local + ",,n,.,pytest cases/09-DataQuerying/19-FederatedQuery/test_fq_01_external_source.py,7200\n"
+                    + ",,n,.,env FQ_INFLUX_VERSIONS=1.8 ./ci/pytest.sh pytest "
+                    + "cases/09-DataQuerying/19-FederatedQuery/test_fq_01_external_source.py,7200\n")
                 provision, dependencies = Mock(), Mock()
                 execute = Mock(return_value=SimpleNamespace(returncode=0))
-                namespace = {"Path": Path, "os": SimpleNamespace(environ={}), "json": json,
-                             "windows_task_manifest": windows_task_manifest, "FQ_SMOKE_CASES": FQ_SMOKE_CASES,
+                namespace = {"Path": Path, "os": SimpleNamespace(environ={}), "json": json, "re": re,
+                             "federated_query_base_dir": lambda: Path(r"C:\ci-tools\windows-ci-runtime\fq"),
+                             "windows_task_manifest": windows_task_manifest,
+                             "windows_fq_task_manifest": windows_fq_task_manifest,
+                             "is_fq_command": is_fq_command,
+                             "is_federated_query_command": is_federated_query_command,
+                             "FQ_ENGINE_VERSION_VARS": dict.fromkeys(("mysql", "pg", "influx", "sqlserver", "oracle")),
+                             "selection_contains_fq": selection_contains_fq,
                              "ensure_fq_pytest_dependencies": dependencies,
                              "provision_federated_query_env": provision,
                              "run": execute, "sys": SimpleNamespace(executable="python.exe")}
-                exec(compile(ast.Module(body=[function], type_ignores=[]), str(source), "exec"), namespace)
-                self.assertEqual(namespace["run_pytest_cases"](root, {}, root, False, case_filter, suite), 0)
+                exec(compile(ast.Module(body=[influx_versions, *[node for node in tree.body
+                    if isinstance(node, ast.FunctionDef) and node.name in (
+                        "selected_federated_query_services", "federated_query_services")], function], type_ignores=[]), str(source), "exec"), namespace)
+                environment = {} if wal_interval is None else {"INFLUXDB3_WAL_FLUSH_INTERVAL": wal_interval}
+                self.assertEqual(namespace["run_pytest_cases"](
+                    root, environment, root, only_fq, case_filter, suite), 0)
                 self.assertEqual(provision.called, requires_fq)
+                if requires_fq:
+                    self.assertEqual(provision.call_args.args[1]["FQ_INFLUX_VERSIONS"], "3.0")
+                    self.assertEqual(provision.call_args.args[1]["FQ_ORACLE_VERSIONS"], "26ai")
+                    self.assertEqual(provision.call_args.args[1]["INFLUXDB3_WAL_FLUSH_INTERVAL"],
+                                     wal_interval or "100ms")
                 self.assertEqual(dependencies.called, requires_fq)
                 self.assertTrue((root / "windows-cases.task").is_file())
                 if case_filter:
-                    self.assertNotIn(FQ_SMOKE_CASES[0], (root / "windows-cases.task").read_text())
+                    self.assertNotIn("test_fq_01_external_source.py", (root / "windows-cases.task").read_text())
+                if only_fq:
+                    selected = (root / "windows-cases.task").read_text()
+                    self.assertIn("test_fq_01_external_source.py", selected)
+                    self.assertNotIn("cases/local.py", selected)
+
+    def test_uncovered_subset_uses_supported_windows_versions(self):
+        import json
+        source = Path(__file__).with_name("run_windows_ci.py")
+        tree = ast.parse(source.read_text(encoding="utf-8"))
+        function = next(node for node in tree.body
+                        if isinstance(node, ast.FunctionDef) and node.name == "run_pytest_cases")
+        influx_versions = next(node for node in tree.body
+                               if isinstance(node, ast.FunctionDef) and node.name == "federated_query_influx_versions")
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            ci = root / "source/taos-community/test/ci"
+            ci.mkdir(parents=True)
+            (ci / "cases.task").write_text(",,y,.,pytest cases/local.py\n")
+            (ci / "win_cases.task").write_text(
+                ",,n,.,env FQ_INFLUX_VERSIONS=3.0,1.8 ./ci/pytest.sh pytest "
+                + "cases/09-DataQuerying/19-FederatedQuery/test_fq_01_external_source.py,7200\n"
+                + ",,n,.,./ci/pytest.sh pytest cases/09-DataQuerying/19-FederatedQuery/test_fq_20_sqlserver_semantics.py,3600\n")
+            provision, dependencies = Mock(), Mock()
+            execute = Mock(return_value=SimpleNamespace(returncode=0))
+            namespace = {"Path": Path, "os": SimpleNamespace(environ={"WIN_CASE_SUBSET": "uncovered"}),
+                         "federated_query_base_dir": lambda: Path(r"C:\ci-tools\windows-ci-runtime\fq"),
+                         "json": json, "re": re,
+                         "windows_task_manifest": windows_task_manifest,
+                         "windows_fq_task_manifest": windows_fq_task_manifest,
+                         "is_fq_command": is_fq_command,
+                         "is_federated_query_command": is_federated_query_command,
+                             "FQ_ENGINE_VERSION_VARS": dict.fromkeys(("mysql", "pg", "influx", "sqlserver", "oracle")),
+                         "is_related_command": is_related_command,
+                         "selection_contains_fq": selection_contains_fq,
+                         "ensure_fq_pytest_dependencies": dependencies,
+                         "provision_federated_query_env": provision,
+                         "run": execute, "sys": SimpleNamespace(executable="python.exe")}
+            exec(compile(ast.Module(body=[influx_versions, *[node for node in tree.body
+                    if isinstance(node, ast.FunctionDef) and node.name in (
+                        "selected_federated_query_services", "federated_query_services")], function], type_ignores=[]), str(source), "exec"), namespace)
+            self.assertEqual(namespace["run_pytest_cases"](root, {}, root, True, "", "smoke"), 0)
+            self.assertEqual(provision.call_args.args[1]["FQ_INFLUX_VERSIONS"], "3.0")
+            self.assertEqual(provision.call_args.args[1]["FQ_ORACLE_VERSIONS"], "26ai")
+            selected = (root / "windows-cases.task").read_text()
+            self.assertIn("test_fq_20_sqlserver_semantics.py", selected)
+            self.assertNotIn("test_fq_01_external_source.py", selected)
+
+    def test_windows_matrix_filters_versions_without_claiming_unsupported_passes(self):
+        rows = windows_fq_task_manifest(
+            ",,n,.,env FQ_INFLUX_VERSIONS=3.0,1.8 FQ_ORACLE_VERSIONS='11g,26ai' pytest mixed.py\n"
+            ",,n,.,env FQ_ORACLE_VERSIONS=11g pytest oracle11.py\n"
+            ",,n,.,env FQ_INFLUX_VERSIONS=1.8 pytest influx18.py\n"
+            ",,n,.,env FQ_ORACLE_VERSIONS= FQ_INFLUX_VERSIONS= pytest disabled.py\n")
+        active = [line for line in rows.splitlines() if line and not line.startswith("#")]
+        self.assertEqual(active, [
+            ",,n,.,env FQ_INFLUX_VERSIONS=3.0 FQ_ORACLE_VERSIONS=26ai pytest mixed.py",
+            ",,n,.,env FQ_ORACLE_VERSIONS= FQ_INFLUX_VERSIONS= pytest disabled.py"])
+        self.assertIn("Windows CI unavailable: FQ_ORACLE_VERSIONS=11g", rows)
+        self.assertIn("Windows CI unavailable: FQ_INFLUX_VERSIONS=1.8", rows)
+
+    def test_windows_fq_base_dir_does_not_follow_service_profile(self):
+        source = Path(__file__).with_name("run_windows_ci.py")
+        tree = ast.parse(source.read_text(encoding="utf-8"))
+        function = next(node for node in tree.body
+                        if isinstance(node, ast.FunctionDef) and node.name == "federated_query_base_dir")
+        namespace = {"os": SimpleNamespace(name="nt", environ={"LOCALAPPDATA": r"C:\\Windows\\system32\\config\\systemprofile\\AppData\\Local"}),
+                     "Path": Path}
+        exec(compile(ast.Module(body=[function], type_ignores=[]), "base-dir", "exec"), namespace)
+        self.assertEqual(namespace["federated_query_base_dir"](), Path(r"C:\ci-tools\windows-ci-runtime\fq"))
+
+    def test_fq_test_environment_exports_stable_base_dir(self):
+        source = Path(__file__).with_name("run_windows_ci.py")
+        tree = ast.parse(source.read_text(encoding="utf-8"))
+        function = next(node for node in tree.body
+                        if isinstance(node, ast.FunctionDef) and node.name == "run_pytest_cases")
+        self.assertIn("FQ_BASE_DIR", ast.unparse(function))
+
+    def test_windows_fq_allowlist_tracks_active_registrations(self):
+        from windows_case_utils import registered_windows_fq_cases
+        active = "cases/09-DataQuerying/19-FederatedQuery/test_added.py"
+        disabled = "cases/05-VirtualTables/04-Query/03-ExtSource/test_disabled.py"
+        task = (f",,n,.,env FQ_INFLUX_VERSIONS=3.0 pytest {active},3600\n"
+                f"#,,n,.,pytest {disabled}\n"
+                f",,n,.,pytest {active}::TestA::test_a,1800\n")
+        self.assertEqual(registered_windows_fq_cases(task), (active,))
+        ci_dir = Path(__file__).parent
+        ignore = [line for line in (ci_dir / "win_ignore_cases").read_text().splitlines()
+                  if line.strip() and not line.lstrip().startswith("#")]
+        for case in FQ_SMOKE_CASES:
+            self.assertFalse(is_excluded_command("pytest " + case, ignore, "smoke"))
+            self.assertFalse(is_excluded_command("pytest " + case, ignore, "full"))
+        self.assertNotIn(disabled, registered_windows_fq_cases(task))
+
+    def test_runtime_readonly_probe_uses_windows_directory_permissions(self):
+        source = Path(__file__).parents[1] / "cases/09-DataQuerying/19-FederatedQuery/test_fq_19_runtime_libs.py"
+        tree = ast.parse(source.read_text())
+        function = next(node for node in ast.walk(tree)
+                        if isinstance(node, ast.FunctionDef) and node.name == "_dir_is_readonly")
+        function.decorator_list = []
+        namespace = {"os": SimpleNamespace(name="nt"), "tempfile": tempfile}
+        exec(compile(ast.Module(body=[function], type_ignores=[]), str(source), "exec"), namespace)
+        with tempfile.TemporaryDirectory() as directory:
+            self.assertFalse(namespace["_dir_is_readonly"](directory))
+            self.assertEqual(list(Path(directory).iterdir()), [])
+            self.assertTrue(namespace["_dir_is_readonly"](str(Path(directory) / "missing")))
+        from unittest.mock import patch
+        with patch.object(tempfile, "TemporaryFile", side_effect=PermissionError("read-only")):
+            self.assertTrue(namespace["_dir_is_readonly"]("denied"))
+
+    def test_windows_subprocess_resolves_tools_from_visual_studio_path(self):
+        source = Path(__file__).with_name("run_windows_ci.py")
+        tree = ast.parse(source.read_text())
+        function = next(node for node in tree.body
+                        if isinstance(node, ast.FunctionDef) and node.name == "run")
+        execute, which = Mock(), Mock(return_value=r"C:\VS\CMake\bin\cmake.exe")
+        namespace = {"os": SimpleNamespace(name="nt"),
+                     "shutil": SimpleNamespace(which=which),
+                     "subprocess": SimpleNamespace(run=execute)}
+        exec(compile(ast.Module(body=[function], type_ignores=[]), str(source), "exec"), namespace)
+        environment = {"PATH": r"C:\VS\CMake\bin"}
+        namespace["run"](["cmake", ".."], env=environment)
+        which.assert_called_once_with("cmake", path=environment["PATH"])
+        self.assertEqual(execute.call_args.args[0], [r"C:\VS\CMake\bin\cmake.exe", ".."])
+        self.assertEqual(execute.call_args.kwargs["env"], environment)
+
+    def test_postgres_runtime_omits_pgadmin_long_paths_and_reuses_cached_zip(self):
+        import zipfile
+        source = Path(__file__).with_name("run_windows_ci.py")
+        tree = ast.parse(source.read_text())
+        function = next(node for node in tree.body
+                        if isinstance(node, ast.FunctionDef) and node.name == "ensure_libpq_runtime")
+        extraction = next(node for node in tree.body
+                          if isinstance(node, ast.FunctionDef) and node.name == "extract_libpq_runtime")
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            (root / "pg").mkdir()
+            (root / "pg/18.6/bin").mkdir(parents=True)
+            server_binary = root / "pg/18.6/bin/libpq.dll"
+            server_binary.write_text("in-use server DLL")
+            archive = root / "pg/postgresql-18.6-binaries.zip"
+            with zipfile.ZipFile(archive, "w") as bundle:
+                for name in ("include/libpq-fe.h", "lib/libpq.lib", "bin/libpq.dll", "bin/pg_ctl.exe", "share/postgres.bki", "share/postgresql.conf.sample"):
+                    bundle.writestr("pgsql/" + name, name)
+                bundle.writestr("pgsql/pgAdmin 4/" + "deep/" * 60 + "template.sql", "unused")
+            download = Mock(side_effect=AssertionError("valid cached ZIP should be reused"))
+            namespace = {"Path": Path, "PurePosixPath": __import__("pathlib").PurePosixPath, "os": SimpleNamespace(environ={}), "shutil": shutil,
+                         "zipfile": zipfile, "urllib": SimpleNamespace(request=SimpleNamespace(urlretrieve=download)),
+                         "federated_query_base_dir": lambda: root,
+                         "fail": Mock(side_effect=RuntimeError("runtime validation failed"))}
+            exec(compile(ast.Module(body=[extraction, function], type_ignores=[]), str(source), "exec"), namespace)
+            environment = {"WIN_LIBPQ_CLIENT_CACHE": str(root / "pg-client")}
+            namespace["ensure_libpq_runtime"](environment)
+            target = Path(environment["EXT_LIBPQ_ROOT"])
+            self.assertEqual(target, root / "pg-client/18.6")
+            self.assertEqual(server_binary.read_text(), "in-use server DLL")
+            for name in ("include/libpq-fe.h", "lib/libpq.lib", "bin/libpq.dll", "share/postgresql.conf.sample"):
+                self.assertTrue((target / name).is_file(), name)
+            self.assertFalse((target / "pgAdmin 4").exists())
+            download.assert_not_called()
+
+    def test_full_fq_registration_dependencies_and_platform_exclusions(self):
+        from windows_case_utils import is_federated_query_command
+        ci_dir = Path(__file__).parent
+        exclusions = [line.strip() for line in (ci_dir / "win_ignore_cases").read_text().splitlines()
+                      if line.strip() and not line.lstrip().startswith("#")]
+        paths = (
+            "cases/09-DataQuerying/19-FederatedQuery/test_fq_01_external_source.py",
+            "cases/05-VirtualTables/04-Query/03-ExtSource/test_vtable_query_ext_source_stb.py::TestA::test_a",
+            "cases/05-VirtualTables/02-Auth/test_vtable_auth_ext_source.py",
+            "cases/18-StreamProcessing/99-Others/test_fs_01_use_cases.py::TestFsUseCases::test_uc_001",
+            "cases/18-StreamProcessing/20-UseCase/test_virtual_stream_mixed_external.py",
+            "cases/18-StreamProcessing/22-Performance/test_virtual_stream_mixed_external_perf.py",
+            "cases/21-MetaData/test_meta_batch_txn_series.py",
+        )
+        for path in paths:
+            with self.subTest(path=path):
+                command = "pytest cases/local.py " + path
+                self.assertTrue(is_federated_query_command(command))
+                self.assertFalse(is_excluded_command(command, exclusions, "full"))
+        self.assertTrue(is_federated_query_command("env FQ_REQUIRED_SERVICES=mysql pytest cases/custom.py"))
+        self.assertFalse(is_federated_query_command("pytest cases/local.py"))
+        for path in (
+            "cases/18-StreamProcessing/05-Notify/test_external_window_multigroup_notify.py",
+            "cases/18-StreamProcessing/07-SubQuery/test_external_window_empty_group_order.py",
+            "cases/18-StreamProcessing/07-SubQuery/test_external_window_multigroup.py",
+            "cases/18-StreamProcessing/07-SubQuery/test_external_window_output_filter.py",
+            "cases/18-StreamProcessing/07-SubQuery/test_stream_distinct_external_window.py",
+            "cases/18-StreamProcessing/07-SubQuery/test_subquery_external_window.py",
+            "cases/18-StreamProcessing/07-SubQuery/test_subquery_external_window_join.py",
+            "cases/18-StreamProcessing/07-SubQuery/test_subquery_external_window_trigger_types.py",
+        ):
+            with self.subTest(native_stream=path):
+                self.assertFalse(is_federated_query_command("pytest " + path))
+                self.assertTrue(is_federated_query_command(
+                    "env FQ_REQUIRED_SERVICES=mysql pytest " + path))
+        for path in ("cases/42-Xnode/test_xnode.py", "cases/81-Tools/05-Valgrind/test_valgrind_basic1.py"):
+            self.assertTrue(is_excluded_command("pytest " + path, exclusions, "full"))
+
+    def test_explicit_windows_task_file_is_bounded_to_ci(self):
+        with tempfile.TemporaryDirectory() as directory:
+            ci_dir = Path(directory)
+            (ci_dir / "regression.task").write_text(
+                ",,y,.,pytest cases/a.py\n", encoding="utf-8")
+            self.assertEqual(
+                windows_task_manifest(ci_dir, "full", "regression.task"),
+                ",,y,.,pytest cases/a.py\n")
+            for invalid in ("../outside.task", "regression.txt"):
+                with self.assertRaisesRegex(ValueError, "WIN_TASK_FILE"):
+                    windows_task_manifest(ci_dir, "full", invalid)
+            with self.assertRaises(ValueError):
+                windows_task_manifest(ci_dir, "invalid", "regression.task")
+            with self.assertRaises(FileNotFoundError):
+                windows_task_manifest(ci_dir, "full", "missing.task")
 
     def test_legacy_timeout_column_preserves_command_and_env_commas(self):
         line = ",,n,.,FQ_REQUIRED_SERVICES=postgres,mysql CASE_TIMEOUT=5400 ./ci/pytest.sh pytest cases/a.py,7200"
@@ -850,6 +2057,14 @@ class TestWindowsCaseUtils(unittest.TestCase):
         self.assertEqual(parse_case_line(",,n,.,./ci/pytest.sh pytest cases/a.py,7200"), ("pytest cases/a.py", 7200))
         self.assertEqual(parse_case_line(",,n,.,pytest cases/a.py -k 'first,second'"),
                          ("pytest cases/a.py -k 'first,second'", 1800))
+
+    def test_influx_versions_keep_distinct_case_logs(self):
+        command = "pytest cases/example.py"
+        native = {"FQ_INFLUX_VERSIONS": "1.8", "FQ_REQUIRED_SERVICES": "influx"}
+        current = {**native, "FQ_INFLUX_VERSIONS": "3.0"}
+        self.assertNotEqual(pytest_log_name(command, native), pytest_log_name(command, current))
+        self.assertEqual(pytest_log_name(command, native),
+                         pytest_log_name(command, dict(reversed(list(native.items())))))
 
     def test_all_skipped_commands_are_not_successful_coverage(self):
         self.assertTrue(is_pytest_only_skip(0, "=== 2 skipped in 0.04s ===\n"))
@@ -943,6 +2158,24 @@ class TestWindowsCaseUtils(unittest.TestCase):
         self.assertEqual(arguments[1:],
                          ["-m", "pytest", "cases/a.py", "-k", "not test_other", "--clean"])
 
+    def test_clean_option_is_skipped_outside_the_test_tree(self):
+        # --clean comes from test/conftest.py; the packaging installer check
+        # is collected with rootdir=source/taos-community, where pytest would
+        # reject it ("unrecognized arguments: --clean").
+        outside = pytest_command_args("pytest ../packaging/test_fq_oracle_install_windows.py", timeout=600)
+        self.assertNotIn("--clean", outside)
+        inside = pytest_command_args("pytest cases/a.py", timeout=3600)
+        self.assertIn("--clean", inside)
+
+    def test_case_log_lookup_tolerates_the_environment_hash(self):
+        from run_windows_ci import match_pytest_log_name
+        command = "pytest ../packaging/test_fq_oracle_install_windows.py"
+        hashed = "test_fq_oracle_install_windows.py-ab6679e5e1049a9e.log"
+        self.assertEqual(match_pytest_log_name({hashed}, command), hashed)
+        exact = pytest_log_name(command)
+        self.assertEqual(match_pytest_log_name({exact, hashed}, command), exact)
+        self.assertIsNone(match_pytest_log_name({"other.py-0123.log"}, command))
+
     def test_windows_deadline_overrides_pytest_ini_default(self):
         for timeout in (1800, 7200):
             with self.subTest(timeout=timeout):
@@ -950,6 +2183,19 @@ class TestWindowsCaseUtils(unittest.TestCase):
                     f",,y,.,CASE_TIMEOUT={timeout} ./ci/pytest.sh pytest cases/a.py")
                 arguments = pytest_command_args(command, timeout=deadline)
                 self.assertIn(f"--timeout={timeout}", arguments)
+
+    def test_outer_deadline_honors_long_pytest_timeout(self):
+        for option in ("--timeout=3600", "--timeout 3600"):
+            command = f"pytest cases/a.py {option}"
+            self.assertEqual(parse_case_line(",,y,.," + command), (command, 3600))
+        for option in ("--timeout=60", "--timeout=0"):
+            command = f"pytest cases/a.py {option}"
+            self.assertEqual(parse_case_line(",,y,.," + command), (command, 1800))
+        command = "pytest cases/a.py --timeout=3600"
+        self.assertEqual(parse_case_line(",,y,.,CASE_TIMEOUT=2400 " + command),
+                         (command, 2400))
+        self.assertEqual(parse_case_line(",,y,.," + command + ",2400"),
+                         (command, 2400))
 
     def test_explicit_pytest_timeout_is_preserved(self):
         for option in ("--timeout=3600", "--timeout 3600"):
@@ -984,10 +2230,10 @@ class TestWindowsCaseUtils(unittest.TestCase):
         self.assertGreater(len(selected), 1000)
         self.assertTrue(any("18-StreamProcessing/" in command for command in selected))
         self.assertTrue(any("test_stream_vtable_agg_optimize.py" in command for command in selected))
-        for command in selected:
-            self.assertNotIn("19-FederatedQuery/", command)
-            self.assertNotIn("/test_fs_", command)
-            self.assertNotIn("/03-ExtSource/", command)
+        # Federated queries are part of the Windows inventory now.
+        self.assertTrue(any("19-FederatedQuery/" in command for command in selected))
+        self.assertTrue(any("/03-ExtSource/" in command for command in selected))
+        self.assertTrue(any("/test_fs_" in command for command in selected))
 
 
 class TestWindowsFrameworkPortability(unittest.TestCase):
@@ -1458,6 +2704,117 @@ class TestWindowsForceStop(unittest.TestCase):
                     self.stop_node(node)
                     self.assertEqual(node.running, 0)
 
+
+
+class TestWindowsFinalization(unittest.TestCase):
+    def test_packaging_checks_receive_visual_studio_tools_and_allocator_paths(self):
+        import run_windows_ci as ci
+
+        environment = {"PATH": "visual-studio-tools", "INCLUDE": "visual-studio-headers"}
+        with patch.dict(os.environ, {}, clear=True), \
+             patch.object(sys, "argv", ["run_windows_ci.py", "--skip-build", "--skip-ctest", "--skip-pytest",
+                                        "--debug-dir", "build-output"]), \
+             patch.object(ci, "print_host_identity"), \
+             patch.object(ci, "visual_studio_environment", return_value=environment), \
+             patch.object(ci, "require_command") as require, \
+             patch.object(ci, "run", return_value=SimpleNamespace(returncode=0)) as run, \
+             patch.object(ci, "stop_processes"), \
+             patch.object(ci, "stop_build_processes"), \
+             patch.object(ci, "collect_artifacts"):
+            self.assertEqual(ci.main(), 0)
+        self.assertEqual([call.args[0] for call in require.call_args_list], ["cmake", "jom"])
+        for call in require.call_args_list:
+            self.assertIs(call.args[1], environment)
+        run.assert_called_once()
+        self.assertIs(run.call_args.kwargs["env"], environment)
+        self.assertEqual(environment["INCLUDE"], "visual-studio-headers")
+        self.assertEqual(environment["TD_ALLOCATOR_BIN"], str(Path("build-output/build/bin")))
+        self.assertEqual(environment["TD_ALLOCATOR_CACHE"], str(Path("build-output/CMakeCache.txt")))
+
+    def test_taskkill_timeout_is_bounded_and_reported(self):
+        import run_windows_ci as ci
+        import subprocess
+        from unittest.mock import patch
+
+        with patch.object(ci.subprocess, "run", side_effect=subprocess.TimeoutExpired("taskkill", 15)) as run:
+            with self.assertRaisesRegex(RuntimeError, "timed out.*taosd"):
+                ci.stop_process_images(("taosd",))
+            self.assertEqual(run.call_args.kwargs["timeout"], 15)
+
+    def test_cleanup_failure_still_collects_artifacts_and_fails_job(self):
+        import run_windows_ci as ci
+        import sys
+        from unittest.mock import patch
+
+        with patch.dict(os.environ, {}, clear=True), \
+             patch.object(sys, "argv", ["run_windows_ci.py", "--skip-build", "--skip-ctest", "--skip-pytest"]), \
+             patch.object(ci, "print_host_identity"), \
+             patch.object(ci, "visual_studio_environment", return_value={"PATH": "tools"}), \
+             patch.object(ci, "require_command"), \
+             patch.object(ci, "run", return_value=SimpleNamespace(returncode=0)), \
+             patch.object(ci, "stop_processes", side_effect=RuntimeError("cleanup timeout")), \
+             patch.object(ci, "stop_build_processes") as stop_build, \
+             patch.object(ci, "collect_artifacts") as collect:
+            self.assertEqual(ci.main(), 1)
+            stop_build.assert_called_once()
+            collect.assert_called_once()
+
+    def test_influx_cleanup_preserves_existing_instances_and_reused_pids(self):
+        import run_windows_ci as ci
+        import sys
+        from unittest.mock import patch
+
+        binary = Path("influxdb/3.0/bin/influxdb3.exe")
+        process = Mock()
+        process.create_time.return_value = 20.0
+        psutil = SimpleNamespace(Process=Mock(return_value=process), NoSuchProcess=ProcessLookupError)
+        with patch.dict(sys.modules, {"psutil": psutil}), \
+             patch.object(ci, "running_fq_influx", return_value={(10, 20.0): binary}):
+            ci.stop_owned_fq_influx({(10, 20.0): binary})
+            process.kill.assert_not_called()
+            ci.stop_owned_fq_influx({(9, 10.0): binary})
+            process.kill.assert_called_once()
+            process.reset_mock()
+            ci.stop_owned_fq_influx({})
+            process.kill.assert_called_once()
+            process.wait.assert_called_once_with(timeout=30)
+            process.reset_mock()
+            process.create_time.return_value = 30.0
+            ci.stop_owned_fq_influx({})
+            process.kill.assert_not_called()
+
+    def test_postgres_cleanup_closes_restarted_instance_at_existing_path(self):
+        import run_windows_ci as ci
+        from unittest.mock import patch
+
+        data_dir = Path("fq/pg/18.6/data")
+        with patch.object(ci, "running_fq_postgres", side_effect=[
+                 {data_dir: (10, 1.0)}, {data_dir: (11, 2.0)}]), \
+             patch.object(ci, "running_fq_mysql", return_value={}), \
+             patch.object(ci, "running_fq_influx", return_value={}), \
+             patch.object(ci, "stop_owned_fq_mysql"), \
+             patch.object(ci, "stop_owned_fq_influx"), \
+             patch.object(ci.subprocess, "run", return_value=SimpleNamespace(
+                 returncode=0, stdout="", stderr="")) as shutdown:
+            with ci.managed_fq_services(Path("source")):
+                pass
+            shutdown.assert_called_once()
+            self.assertEqual(shutdown.call_args.args[0][1:3], ["-D", str(data_dir)])
+
+    def test_influx_cleanup_runs_even_if_mysql_cleanup_fails(self):
+        import run_windows_ci as ci
+        from unittest.mock import patch
+
+        existing = {(10, 20.0): Path("influxdb/3.0/bin/influxdb3.exe")}
+        with patch.object(ci, "running_fq_postgres", return_value={}), \
+             patch.object(ci, "running_fq_mysql", return_value={}), \
+             patch.object(ci, "running_fq_influx", return_value=existing), \
+             patch.object(ci, "stop_owned_fq_mysql", side_effect=RuntimeError("mysql timeout")), \
+             patch.object(ci, "stop_owned_fq_influx") as stop_influx:
+            with self.assertRaisesRegex(RuntimeError, "mysql timeout"):
+                with ci.managed_fq_services(Path("source")):
+                    pass
+            stop_influx.assert_called_once_with(existing)
 
 if __name__ == "__main__":
     unittest.main()

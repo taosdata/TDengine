@@ -26,8 +26,9 @@ The model consists of:
 Forecast the daily `passengers` series with yearly and weekly seasonality and a changepoint prior scale of `0.1`:
 
 ```sql
-SELECT _frowts,
-       FORECAST(passengers, "algo=prophet,growth=linear,yearly_seasonality=true,weekly_seasonality=true,changepoint_prior_scale=0.1")
+SELECT
+  _frowts,
+  FORECAST(passengers, "algo=prophet,growth=linear,yearly_seasonality=true,weekly_seasonality=true,changepoint_prior_scale=0.1")
 FROM air;
 ```
 

@@ -17,6 +17,62 @@ taosX-Agent 的配置文件默认路径为 `/etc/taos/agent.toml`（Linux）或 
 | `in_memory_cache_capacity` | 否 | `64` | 内存中可缓存的最大消息批次数，必须大于 0 |
 | `keep_online` | 否 | `true` | taosX 服务不可用或连接断开时，是否保持 Agent 运行并尝试重连 |
 
+## 交付窗口与超时
+
+taosX-Agent 已发送给 taosX、但尚未确认写入的数据，受发送窗口和交付超时的限制。可通过以下环境变量调整：
+
+| 环境变量 | 默认值 | 说明 |
+| --- | --- | --- |
+| `TAOSX_AGENT_DELIVERY_MAX_BATCHES` | 与 `in_memory_cache_capacity` 相同（默认 `64`） | 等待确认的最大批次数，取值为正整数 |
+| `TAOSX_AGENT_DELIVERY_MAX_BYTES` | `67108864`（64 MiB） | 等待确认的数据量上限（估算值），单位为字节，取值为正整数。该值不限制进程的总内存占用 |
+| `TAOSX_AGENT_DELIVERY_TIMEOUT_SECS` | `120` | 一批数据从发出到确认的最长等待时间，单位为秒，取值为正整数 |
+
+这些参数需要设置在 taosX-Agent 服务的运行环境中，不能写在 `agent.toml` 或数据接入任务的配置中。修改后需重启 taosX-Agent 服务；任务启动时会在日志中记录实际生效的值。
+
+例如，在 Linux 上通过 systemd 设置：
+
+```bash
+systemctl edit taosx-agent
+```
+
+在打开的编辑器中加入以下内容，保存后重启服务：
+
+```ini
+[Service]
+Environment="TAOSX_AGENT_DELIVERY_TIMEOUT_SECS=300"
+```
+
+```bash
+systemctl restart taosx-agent
+```
+
+使用说明：
+
+- 等待确认的批次数或数据量达到上限时，taosX-Agent 暂停发送新数据，待已发送的数据确认后继续发送。
+- 单批数据超过 `TAOSX_AGENT_DELIVERY_MAX_BYTES` 时，任务报错，不会自动拆分该批数据。此时可适当调大该参数。
+- 交付超时只针对已发送、尚未确认的数据。数据源长时间没有新数据时，不会触发超时。
+- TDengine 写入较慢，或配置了 [资源限制](#资源限制) 时，建议适当调大 `TAOSX_AGENT_DELIVERY_TIMEOUT_SECS`。
+
+交付超时或网络中断时，taosX-Agent 保留未确认的数据并自动重连；认证失败、配置错误等无法自动恢复的错误会停止任务。各类情况的处理方式详见 [存储转发](./02-store-and-forward.md#确认与失败处理)。
+
+## 资源限制
+
+Agent 可以使用与 taosX 相同的 `[resource]` 配置，限制本进程及其已注册连接器子进程的数据面资源占用。资源限制按 Agent 进程独立生效，修改后需重启 Agent。未配置 `[resource]` 时不启用治理器；设置 `resource.enabled = false` 可完整关闭。
+
+| 参数 | 必填 | 默认值 | 说明 |
+| --- | --- | --- | --- |
+| `resource.enabled` | 否 | `true`（存在 `[resource]` 时） | 是否启用资源治理器；`false` 可完整回滚 |
+| `resource.maxWriteMBps` | 否 | `0` | 数据面写入带宽上限，单位 MB/s；`0` 表示不限制 |
+| `resource.maxMemoryMB` | 否 | `0` | 进程及子进程的 RSS 软预算，单位 MiB；`0` 表示自动读取 cgroup 限制，无 cgroup 限制时不启用 |
+| `resource.maxPauseSecs` | 否 | `10` | 任意资源限制单次暂停的上限，单位秒；到点强制放行并告警 |
+| `resource.maxCpuPercent` | 否 | `0` | CPU 高水位，占全部核数的百分比；超过后暂停数据面写入；`0` 表示不限制 |
+| `resource.cpuResumePercent` | 否 | `0` | CPU 恢复水位；`0` 表示 `maxCpuPercent * 0.8`，必须小于 `maxCpuPercent` |
+| `resource.maxCpuCores` | 否 | `0` | Agent 运行时 worker 线程数上限；`0` 表示不限制。该参数不限制实际 CPU 使用率 |
+| `resource.cgroupPath` | 否 | — | 可选的 cgroup 目录；默认从 `/proc/self/cgroup` 解析 |
+| `resource.cpuPriority` | 否 | `0` | Linux 可选 nice 值 `1` 到 `19`；其他平台告警并忽略 |
+
+资源和数据平面行为的完整说明见 [资源占用控制](../../../08-data-ingest-and-delivery/06-resource-control.md)。Agent 不导出 `resource_*` 指标，也不提供本地 metrics 接口；可通过 Agent 日志观察 `resource ... armed`、暂停/恢复和 max-pause 事件。连接器子进程指标使用其连接 endpoint 的真实 `taosx_id`。
+
 ## 客户端端口范围
 
 当 Agent 向 taosX 创建连接时，客户端会随机使用一个端口。可通过 `[client_port_range]` 配置限制端口范围：
@@ -64,6 +120,17 @@ token = "your-agent-token-here"
 
 # taosX 不可用时保持运行并重连
 keep_online = true
+
+# 资源限制（按需启用）
+[resource]
+# maxWriteMBps = 0
+# maxMemoryMB = 0
+# maxPauseSecs = 10
+# maxCpuPercent = 0
+# cpuResumePercent = 0
+# maxCpuCores = 0
+# cgroupPath = "/sys/fs/cgroup"
+# cpuPriority = 0
 
 # 客户端端口范围
 [client_port_range]

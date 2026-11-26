@@ -40,10 +40,13 @@ from typing import Any, List, Optional, Sequence, Union
 
 from taos.constants import FieldType
 
+import pytest
+
 from new_test_framework.utils import tdLog, tdSql
 
 from federated_query_common import (
     ExtSrcEnv,
+    TSDB_CODE_EXT_SCHEMA_CONFLICT,
     FederatedQueryCaseHelper,
     FederatedQueryVersionedMixin,
     TSDB_CODE_PAR_SYNTAX_ERROR,
@@ -52,6 +55,7 @@ from federated_query_common import (
     TSDB_CODE_EXT_TABLE_NOT_EXIST,
     TSDB_CODE_EXT_SOURCE_NOT_FOUND,
     TSDB_CODE_PAR_INVALID_COL_JSON,
+    influx_versions,
 )
 
 # ── Connection globals ─────────────────────────────────────────────────────
@@ -798,7 +802,7 @@ def _pg_setup_sqls():
     return sqls
 
 
-def _influx_setup_lines():
+def _influx_setup_lines(version="3.0"):
     """Return (lines, precision) tuples for InfluxDB test data."""
     ns_lines = [
         # scalar_types: int, float, bool, string + tags (Dictionary-encoded)
@@ -813,9 +817,14 @@ def _influx_setup_lines():
         # bool_test: Boolean exact mapping (S09)
         'bool_test,host=s1 flag=true 1704067200000000000',
         'bool_test,host=s2 flag=false 1704067260000000000',
+    ]
+    if version != "1.8":
         # uint_test: UInt64 exact mapping (S10) — note 'u' suffix for unsigned
-        'uint_test,host=s1 counter=100u 1704067200000000000',
-        'uint_test,host=s2 counter=0u 1704067260000000000',
+        ns_lines.extend([
+            'uint_test,host=s1 counter=100u 1704067200000000000',
+            'uint_test,host=s2 counter=0u 1704067260000000000',
+        ])
+    ns_lines.extend([
         # str_test: String + UTF-8 encoding (S15)
         'str_test,host=s1 msg="hello world",code="UTF-8\u4e2d\u6587" 1704067200000000000',
         # duration_test: Duration/Interval → BIGINT ns (034)
@@ -829,7 +838,7 @@ def _influx_setup_lines():
         'dict_test,category=electronics name="phone" 1704067320000000000',
         # struct_test: Struct/Map → JSON string (058)
         'struct_test,host=s1 config="{\\\"timeout\\\":30,\\\"retries\\\":3}" 1704067200000000000',
-    ]
+    ])
     ms_lines = [
         # date_test: Date32/64 midnight zero-fill (059)
         'date_test,host=s1 value=1i 1705276800000',
@@ -839,6 +848,13 @@ def _influx_setup_lines():
         'cpu,host=server02,region=west usage_idle=88.1,usage_system=5.0 1704067260000',
     ]
     return ns_lines, ms_lines
+
+
+def _influx_type_steps(version, steps):
+    if version == "1.8":
+        # The 1.8 fixture cannot write UInt64, so it has no UInt64 mapping scenario.
+        return [step for step in steps if not isinstance(step, str) or ".uint_test" not in step]
+    return steps
 
 
 # ══════════════════════════════════════════════════════════════════════════
@@ -1092,6 +1108,76 @@ _ORACLE_INSERT_ALL_TYPES_2 = (
 )
 
 
+def _oracle_quote_col_defs(col_defs):
+    """Quote the leading identifier of each Oracle column definition."""
+    keyword_prefixes = ("primary", "unique", "constraint", "foreign", "check", "key")
+    out = []
+    depth = 0
+    start = 0
+    text = col_defs + ","
+    for i, ch in enumerate(text):
+        if ch == "(":
+            depth += 1
+        elif ch == ")":
+            depth -= 1
+        elif ch == "," and depth == 0:
+            part = text[start:i].strip()
+            start = i + 1
+            if not part:
+                continue
+            name, sep, rest = part.partition(" ")
+            if name.startswith('"') or name.lower() in keyword_prefixes:
+                part = re.sub(
+                    r'([(,])(\s*)([A-Za-z_][A-Za-z0-9_$#]*)(?=\s*[,)])',
+                    lambda m: f'{m.group(1)}{m.group(2)}"{m.group(3).lower()}"', part)
+                out.append(part)
+            else:
+                out.append(f'"{name.lower()}"{sep}{rest}'.rstrip())
+    return ", ".join(out)
+
+
+def _oracle_quote_fixture_sqls(sqls):
+    """Store the Oracle fixture objects quoted lower-case.
+
+    The type-mapping steps reference the same names with TDengine's unquoted
+    (lower-cased) grammar, so the stored spelling must match exactly.
+    """
+    out = []
+    for sql in sqls:
+        m = re.match(r'^(CREATE TABLE)\s+([A-Za-z_][\w$#]*)\s*\((.*)\)\s*$', sql, re.I | re.S)
+        if m:
+            out.append(f'CREATE TABLE "{m.group(2).lower()}" '
+                       f'({_oracle_quote_col_defs(m.group(3))})')
+            continue
+        m = re.match(r'^(INSERT INTO)\s+([A-Za-z_][\w$#]*)(\s*\(([^)]*)\))?(\s+VALUES.*)$',
+                     sql, re.I | re.S)
+        if m:
+            collist = ""
+            if m.group(4) is not None:
+                cols = [c.strip().lower() for c in m.group(4).split(",")]
+                collist = " (" + ", ".join(f'"{c}"' for c in cols) + ")"
+            out.append(f'INSERT INTO "{m.group(2).lower()}"{collist}{m.group(5)}')
+            continue
+        m = re.match(r'^(DROP (?:TABLE|VIEW|SYNONYM))\s+([A-Za-z_][\w$#]*)(.*)$', sql, re.I | re.S)
+        if m:
+            out.append(f'{m.group(1)} "{m.group(2).lower()}"{m.group(3)}')
+            continue
+        m = re.match(r'^(CREATE OR REPLACE VIEW|CREATE VIEW)\s+([A-Za-z_][\w$#]*)\s+AS\s+'
+                     r'SELECT\s+(.*?)\s+FROM\s+([A-Za-z_][\w$#]*)(.*)$', sql, re.I | re.S)
+        if m:
+            cols = ", ".join(f'"{c.strip().lower()}"' for c in m.group(3).split(","))
+            out.append(f'{m.group(1)} "{m.group(2).lower()}" AS SELECT {cols} '
+                       f'FROM "{m.group(4).lower()}"{m.group(5)}')
+            continue
+        m = re.match(r'^(CREATE SYNONYM)\s+([A-Za-z_][\w$#]*)\s+FOR\s+([A-Za-z_][\w$#]*)$',
+                     sql, re.I | re.S)
+        if m:
+            out.append(f'{m.group(1)} "{m.group(2).lower()}" FOR "{m.group(3).lower()}"')
+            continue
+        out.append(sql)
+    return out
+
+
 def _oracle_setup_sqls():
     """Statements that build the Oracle type-mapping fixtures.
 
@@ -1202,7 +1288,7 @@ def _oracle_setup_sqls():
     sqls.append("DROP SYNONYM all_types_syn_ora")
     sqls.append(f"CREATE SYNONYM all_types_syn_ora FOR {_ORACLE_ALL_TYPES}")
     sqls.append("COMMIT")
-    return sqls
+    return _oracle_quote_fixture_sqls(sqls)
 
 
 def _oracle_case_steps():
@@ -1265,8 +1351,8 @@ def _oracle_case_steps():
                       TSDB_CODE_EXT_TYPE_NOT_MAPPABLE),
         # A mappable column in the same table still works (no whole-table block).
         f"select ts, c_v from {src}.unmappable_obj_ora order by ts",
-        # ── path forms: two-part, and three-part with the service name ──
-        f"select ts, c_num_dec from {src}.{_O_SERVICE}.{tbl} order by ts",
+        # ── path forms: two-part, and three-part with the exact schema ──
+        f"select ts, c_num_dec from {src}.`{_O_SCHEMA}`.{tbl} order by ts",
         _clear_source_step(),
     ]
     return steps
@@ -1656,6 +1742,7 @@ _CASES = [
 class TestFq03TypeMapping(FederatedQueryVersionedMixin):
     """FQ-TYPE-001~060 + S01~S32: concept and type mapping."""
 
+
     _fw_data_prepared = False
 
     # Force UTC timezone so TIMESTAMPTZ columns from PostgreSQL (which are stored
@@ -1685,7 +1772,7 @@ class TestFq03TypeMapping(FederatedQueryVersionedMixin):
         self.helper.require_external_source_feature()
         ExtSrcEnv.ensure_env()
 
-    def setup_method(self, method):
+    def _setup_version_data(self, method):
         if TestFq03TypeMapping._fw_data_prepared:
             return
         self._fw_prepare_shared_data()
@@ -1716,7 +1803,6 @@ class TestFq03TypeMapping(FederatedQueryVersionedMixin):
     def _fw_prepare_shared_data(self):
         mysql_cfg  = self._mysql_cfg()
         pg_cfg     = self._pg_cfg()
-        influx_cfg = self._influx_cfg()
 
         # ── MySQL ──
         ExtSrcEnv.mysql_create_db_cfg(mysql_cfg, _M_DB)
@@ -1748,11 +1834,12 @@ class TestFq03TypeMapping(FederatedQueryVersionedMixin):
                 raise
 
         # ── InfluxDB ──
-        ExtSrcEnv.influx_create_db_cfg(influx_cfg, _I_DB)
-        ns_lines, ms_lines = _influx_setup_lines()
-        ExtSrcEnv.influx_write_cfg(influx_cfg, _I_DB, ns_lines)
-        if ms_lines:
-            ExtSrcEnv.influx_write_cfg(influx_cfg, _I_DB, ms_lines, precision='ms')
+        for influx_cfg in ExtSrcEnv.influx_version_configs():
+            ExtSrcEnv.influx_create_db_cfg(influx_cfg, _I_DB)
+            ns_lines, ms_lines = _influx_setup_lines(influx_cfg.version)
+            ExtSrcEnv.influx_write_cfg(influx_cfg, _I_DB, ns_lines)
+            if ms_lines:
+                ExtSrcEnv.influx_write_cfg(influx_cfg, _I_DB, ms_lines, precision='ms')
 
     # ──────────────────────────────────────────────────────────────────────
     # Framework helpers
@@ -2026,7 +2113,7 @@ class TestFq03TypeMapping(FederatedQueryVersionedMixin):
     # ──────────────────────────────────────────────────────────────────────
 
     def _fw_baseline_file(self) -> str:
-        label = self._version_label().replace(".", "_").replace("/", "_")
+        label = self._framework_baseline_label()
         return os.path.join(
             os.path.dirname(__file__),
             "ans",
@@ -2178,29 +2265,97 @@ class TestFq03TypeMapping(FederatedQueryVersionedMixin):
         """
         _only = os.environ.get("FQ_CASES", "").strip()
         _only_set = set(_only.split(",")) if _only else None
-        blocks: List[str] = []
+        configs = self._influx_configs()
+        version_blocks = {cfg.version: [] for cfg in configs}
         timings: List[str] = []
+
         for case in _CASES:
             case_id, types, source_names, desc, steps = case
             if _only_set and case_id not in _only_set:
                 continue
             for src_type in types:
-                label = f"CASE-{case_id}[{src_type[:3].upper()}]"
-                tdLog.info(f"Running {label}: {desc}")
-                self._fw_append_case_boundary(blocks, label, desc, is_start=True)
-                _t0 = time.monotonic()
-                for step_no, step in enumerate(steps, start=1):
-                    step_tag = f"STEP-{step_no:03d}"
-                    self._fw_exec_step(step, src_type, source_names, blocks, label, step_tag)
-                elapsed = time.monotonic() - _t0
-                self._fw_append_case_boundary(blocks, label, desc, is_start=False)
-                timing_line = f"{label}: {elapsed:.2f}s"
-                print(f"[TIMING] {timing_line}", flush=True)
-                timings.append(timing_line)
+                for cfg in (configs if src_type == _influxdb else [None]):
+                    with self._using_influx(cfg):
+                        blocks = []
+                        desc, steps = case[3], case[4]
+                        label = f"CASE-{case_id}[{src_type[:3].upper()}]"
+                        tdLog.info(f"Running {label}: {desc}")
+                        self._fw_append_case_boundary(blocks, label, desc, is_start=True)
+                        _t0 = time.monotonic()
+                        case_steps = (_influx_type_steps(self._influx_cfg().version, steps)
+                                      if src_type == _influxdb else steps)
+                        for step_no, step in enumerate(case_steps, start=1):
+                            step_tag = f"STEP-{step_no:03d}"
+                            self._fw_exec_step(step, src_type, source_names, blocks, label, step_tag)
+                        elapsed = time.monotonic() - _t0
+                        self._fw_append_case_boundary(blocks, label, desc, is_start=False)
+                        timing_line = f"{label}: {elapsed:.2f}s"
+                        print(f"[TIMING] {timing_line}", flush=True)
+                        timings.append(timing_line)
+                        targets = version_blocks.values() if cfg is None else [version_blocks[cfg.version]]
+                        for target in targets:
+                            target.extend(blocks)
         print("[TIMING SUMMARY]", flush=True)
         for t in timings:
             print(f"  {t}", flush=True)
         if _only_set:
             tdLog.info(f"FQ_CASES={_only} — skipping baseline comparison")
         else:
-            self._fw_compare_baseline(blocks)
+            for cfg in configs:
+                with self._using_influx(cfg):
+                    self._fw_compare_baseline(version_blocks[cfg.version])
+
+    def do_influx18_schema_conflicts(self):
+        if self._influx_cfg().version != "1.8":
+            pytest.skip("This case verifies the native InfluxDB 1.8 contract")
+        timestamp = 1700000000000000001
+        database = "fq03_influx18_schema_conflicts"
+        lines = [
+            f"sparse,site=a value=1i {timestamp}",
+            f"sparse,site=b other=2i {timestamp + 1}",
+            f"sparse,site=a value=3i {timestamp + 2}",
+        ]
+        with self._influx_fixture(database, lines) as (cfg, source):
+            try:
+                self._mk_influx_real(database, database=database)
+                self._check_query_rows(f"SELECT COUNT(*) FROM {database}.{database}.sparse", [(3,)])
+                ExtSrcEnv.influx_write_cfg(cfg, database, [f'role_change flag="field",other=1i {timestamp}'])
+                self._check_query_rows(f"SELECT flag FROM {source}.{database}.role_change", [("field",)])
+                ExtSrcEnv.influx_query_sql_cfg(cfg, database, "DROP MEASUREMENT role_change")
+                ExtSrcEnv.influx_write_cfg(cfg, database, [f'role_change,flag=tag other=1i {timestamp}'])
+                tdSql.execute(f"REFRESH EXTERNAL SOURCE {source}")
+                self._check_query_rows(f"SELECT flag FROM {source}.{database}.role_change", [("tag",)])
+                ExtSrcEnv.influx_write_cfg(cfg, database, [
+                    f"conflicting_field value=1i {timestamp}",
+                    f'conflicting_field value="changed" {timestamp + 365 * 86400 * 1000000000}',
+                    f'conflicting_role,role=tag other=1i {timestamp}',
+                    f'conflicting_role role="field" {timestamp + 1}',
+                ])
+                for measurement in ["conflicting_field", "conflicting_role"]:
+                    tdSql.error(f"SELECT * FROM {source}.{database}.{measurement}",
+                                expectedErrno=TSDB_CODE_EXT_SCHEMA_CONFLICT)
+            finally:
+                self._cleanup_src(database)
+        print("InfluxDB 1.8 schema_conflicts ................ [ passed ]")
+
+    @influx_versions("1.8")
+    def test_influx18_schema_conflicts(self):
+        """Reject ambiguous Field types and Tag/Field role collisions explicitly.
+
+        1. Refresh metadata after a column changes between Field and Tag roles.
+        2. Reject cross-shard Field type conflicts and Tag/Field name collisions.
+
+        Catalog:
+            - FederatedQuery
+
+        Since: v3.5.0.0
+
+        Labels: common, ci, influx18
+
+        Jira: None
+
+        History:
+            - 2026-10-29 Cover cross-shard type and column-role conflicts
+
+        """
+        self.do_influx18_schema_conflicts()

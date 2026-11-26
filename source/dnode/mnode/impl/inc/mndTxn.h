@@ -66,6 +66,9 @@ void             mndTxnRefreshKeepalive(SMnode* pMnode, txn_id_t txnId);  // cli
 // Returns true if txnId was forcibly rolled back by the MNode due to inactivity or lifetime timeout.
 // Used by the HB handler to notify the client via HEARTBEAT_KEY_TXN_KILLED.
 bool    mndTxnIsTimeoutKilled(SMnode* pMnode, txn_id_t txnId);
+// The answer to a COMMIT / ROLLBACK for a txn no longer in SDB_TXN, from its compact record in SDB_TXN_LOG (see the
+// definition). *pFound: the log has a record; the return code is meaningful only then. Exported for the unit test.
+int32_t mndTxnAnswerFromLog(SMnode* pMnode, SRpcMsg* pReq, txn_id_t txnId, bool isCommit, bool* pFound);
 int32_t mndRollbackOrphanTxnOnVnode(SMnode* pMnode, txn_id_t txnId, int32_t vgId);  // Raft-safe orphan rollback
 int32_t mndCommitOrphanTxnOnVnode(SMnode* pMnode, txn_id_t txnId, int32_t vgId);    // Raft-safe orphan commit
 
@@ -103,6 +106,8 @@ typedef enum {
       4,                          // In-place: stream marked PRE_CREATE; COMMIT clears the marker then async-deploys
                                   // (mndApplyTxnStreamActions, after the commit trans is prepared), ROLLBACK removes it
   MND_SHADOW_OP_DROP_STREAM = 5,  // In-place: stream marked PRE_DROP; undeploy+remove on COMMIT, unmark on ROLLBACK
+  MND_SHADOW_OP_ALTER_STREAM_STATE = 6,  // Pre-existing stream locked (PRE_ALTER) with a pending START/STOP intent;
+                                         // COMMIT applies userStopped then (un)deploys, ROLLBACK unmarks
 } EMndShadowOpType;
 
 typedef struct SMndShadowOp {
@@ -143,6 +148,10 @@ typedef struct {
 
 // Return MND_TRANS_CONFLICT while this txn has a pending internal CREATE_STREAM transaction.
 int32_t mndTxnCheckPendingStreamCreate(SMnode* pMnode, txn_id_t txnId);
+
+// Drop the runtime shadow ops of ACTIVE txns when this mnode becomes leader; the restore of
+// the new term rebuilds them from SDB.
+void mndTxnHandleBecomeLeader(SMnode* pMnode);
 
 // Merge a single vgId into the txn's participant set, so it receives TDMT_VND_TXN_COMMIT /
 // TDMT_VND_TXN_ROLLBACK at the end of the txn. Needed when the mnode issues a vnode DDL on

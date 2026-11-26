@@ -48,6 +48,7 @@ _SS_DB    = "valter_ss"
 _SS_SRC   = "valter_ss_src"
 _OR_SVC    = ExtSrcEnv.ORACLE_SERVICE
 _OR_SCHEMA = ExtSrcEnv.ORACLE_USER.upper()
+_OR_SCHEMA_REF = "`" + _OR_SCHEMA + "`"
 _OR_SRC    = "valter_or_src"
 _OR_ALT_DB = "valter_or_other"
 
@@ -432,10 +433,10 @@ class TestVtableAlterExtSource:
         tdSql.execute("DROP VTABLE IF EXISTS v_or_alter")
         tdSql.execute(
             "CREATE VTABLE v_or_alter (ts timestamp, "
-            f"v bigint FROM {_OR_SRC}.{_OR_SCHEMA}.r1.v)")
+            f"v bigint FROM {_OR_SRC}.{_OR_SCHEMA_REF}.r1.v)")
         tdSql.execute(
             f"ALTER VTABLE v_or_alter ADD COLUMN w bigint "
-            f"FROM {_OR_SRC}.{_OR_SCHEMA}.r1.w")
+            f"FROM {_OR_SRC}.{_OR_SCHEMA_REF}.r1.w")
         _check_describe_layout("v_or_alter", [
             ("ts", "TIMESTAMP", ""),
             ("v", "BIGINT", f"{_OR_SRC}.{_OR_SCHEMA}.r1.v"),
@@ -507,7 +508,7 @@ class TestVtableAlterExtSource:
         tdSql.execute("DROP VTABLE IF EXISTS v_or_mod")
         tdSql.execute(
             "CREATE VTABLE v_or_mod (ts timestamp, "
-            f"s varchar(16) FROM {_OR_SRC}.{_OR_SCHEMA}.r_mod.s)")
+            f"s varchar(16) FROM {_OR_SRC}.{_OR_SCHEMA_REF}.r_mod.s)")
         tdSql.error("ALTER VTABLE v_or_mod MODIFY COLUMN s varchar(64)")
         tdSql.error("ALTER VTABLE v_or_mod MODIFY COLUMN s varchar(4)")
         tdSql.execute("DROP VTABLE IF EXISTS v_or_mod")
@@ -516,11 +517,11 @@ class TestVtableAlterExtSource:
         tdSql.execute("DROP VTABLE IF EXISTS v_or_dropsrc")
         tdSql.execute(
             "CREATE VTABLE v_or_dropsrc (ts timestamp, "
-            f"v bigint FROM {_OR_SRC}.{_OR_SCHEMA}.r1.v)")
+            f"v bigint FROM {_OR_SRC}.{_OR_SCHEMA_REF}.r1.v)")
         tdSql.execute(f"DROP EXTERNAL SOURCE IF EXISTS {_OR_SRC}")
         tdSql.error(
             f"ALTER VTABLE v_or_dropsrc ADD COLUMN x bigint "
-            f"FROM {_OR_SRC}.{_OR_SCHEMA}.r1.w")
+            f"FROM {_OR_SRC}.{_OR_SCHEMA_REF}.r1.w")
         _ensure_oracle_source_and_tables()
         tdSql.execute(f"USE {_LOCAL_DB}")
         tdSql.execute("DROP VTABLE IF EXISTS v_or_dropsrc")
@@ -530,7 +531,7 @@ class TestVtableAlterExtSource:
         tdSql.execute("DROP VTABLE IF EXISTS v_or_use")
         tdSql.execute(
             "CREATE VTABLE v_or_use (ts timestamp, "
-            f"v bigint FROM {_OR_SRC}.{_OR_SCHEMA}.r1.v)")
+            f"v bigint FROM {_OR_SRC}.{_OR_SCHEMA_REF}.r1.v)")
         tdSql.query(
             "SELECT col_source FROM information_schema.ins_columns "
             f"WHERE db_name='{_LOCAL_DB}' AND table_name='v_or_use' "

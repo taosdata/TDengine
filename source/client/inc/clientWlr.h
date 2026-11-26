@@ -83,6 +83,16 @@ typedef struct {
  * a recording problem may not prevent the driver from working (FS 4.8). Log it
  * and continue.
  *
+ * WLR_E_OK means a session is recording: either this call started it, or one was
+ * already STARTING/RUNNING.
+ *
+ * WLR_E_STATE means a previous session still owns the manager and nothing was
+ * started, so a caller that retries must not assume success:
+ *   - STOPPING: a bounded close is finishing asynchronously; wait for
+ *     WLR_STATE_OFF and try again.
+ *   - FAILED_OPEN: terminal until cleanup, because only close publishes OFF;
+ *     the recorder has to be closed before a new session can start.
+ *
  * mode 0 and reserved modes 2..255 allocate nothing at all -- no queue, no
  * pool, no writer thread, no directory (DS 6.1).
  */
@@ -301,6 +311,110 @@ WLR_INTERNAL_HIDDEN void wlrResultFree(uint64_t logicalResultId);
 /* Mint a successful connection's logical ID when needed and emit its RETURN. */
 WLR_INTERNAL_HIDDEN void wlrConnectComplete(SWorkloadCallToken *token, uint64_t *logicalConnId);
 
+/* -------------------------------------------------- folded fetch sessions */
+
+/* Session lifecycle. IDLE is also the value a calloc'd request object starts at,
+ * so "never fetched" and "ready to open" are the same state. */
+typedef enum {
+  WLR_FETCH_FOLD_IDLE = 0,    /* no session; a fetch may try to open one */
+  WLR_FETCH_FOLD_OPENING = 1, /* a thread is emitting this result's BEGIN */
+  WLR_FETCH_FOLD_OPEN = 2,    /* BEGIN written; Account/Finish may act */
+  WLR_FETCH_FOLD_DONE = 3,    /* finished, or BEGIN was not recordable: no retry */
+} EWlrFetchFoldState;
+
+/*
+ * Fetch calls are folded per result.
+ *
+ * Why: a fetch event carries no row data, only the result it belongs to and how
+ * many rows came back (DS 6.11). Recording one event pair per row therefore adds
+ * information the format cannot carry -- and it costs the application a full
+ * BEGIN ack round trip plus two events for every row it consumes. Measured on a
+ * 5-million-row projection that turned a 4.97 s query into 58.4 s.
+ *
+ * What is recorded instead: one BEGIN when the first fetch on a result runs, a
+ * counter for every later fetch, and one RETURN -- carrying FETCH_ROWS and
+ * FETCH_CALLS -- when the result is exhausted, fails, or is freed. Replay needs
+ * FETCH_CALLS because the folded pair represents N calls, not one.
+ *
+ * What is preserved:
+ *  - BEGIN-before-call still holds for the first fetch, so a result whose first
+ *    fetch hangs is still visible in SESSION_STOP (DS 6.14).
+ *  - The call stays in the active-call list for the whole result, so a client
+ *    that stops consuming without freeing is reported rather than hidden.
+ *  - Only the driving thread's API depth is released between fetches: the
+ *    application may issue unrelated public calls while a result is half
+ *    consumed, and a held depth would silently stop those from being recorded.
+ *
+ * The struct lives on the result object (SRequestObj), not in thread-local
+ * storage, so two results consumed alternately on one thread keep independent
+ * sessions. Zeroed storage is a closed session, which is what a calloc'd request
+ * object gives.
+ *
+ * Threading: the state field is the only authority and is moved with atomics, so
+ * concurrent fetches on one result cannot emit two BEGINs (which would strand an
+ * active-call entry) or lose row counts through a read-modify-write race. The
+ * token is written only by the thread that wins the IDLE -> OPENING transition,
+ * with a barrier before the state becomes OPEN, so a thread that observes OPEN
+ * also sees a published token. What remains unsupported is freeing the result
+ * while another thread is fetching it -- that is a use-after-free in the caller,
+ * not something the recorder can make safe.
+ */
+typedef struct {
+  SWorkloadCallToken token;    /* BEGIN of the open session; valid in state OPEN */
+  /* Result this session belongs to. Accessed through the os atomic helpers, not
+   * plain reads: it doubles as the rollover claim, so a CAS on it is what lets a
+   * single thread reset the session when a request object is reused. */
+  int64_t volatile   resultId;
+  int64_t volatile   rows;     /* rows returned across the folded calls */
+  int64_t volatile   calls;    /* calls folded into this session, including the final one */
+  int32_t volatile   code;     /* first non-zero result code seen in the session */
+  uint16_t           apiType;  /* API type of the call that opened the session */
+  int32_t volatile   state;    /* EWlrFetchFoldState */
+} SWlrFetchFold;
+
+/*
+ * Open the folded session for a result, if it has none.
+ *
+ * Called BEFORE the real fetch, so BEGIN-before-call still holds for the first
+ * fetch of a result: a query whose first fetch hangs is still visible in
+ * SESSION_STOP (DS 6.14). Cheap once a session is open -- one load and a branch.
+ *
+ * A call that is not being recorded (recorder off, result not user-visible,
+ * nested, or fail-open) leaves the fold closed; Account/Finish then do nothing.
+ */
+WLR_INTERNAL_HIDDEN void wlrFetchFoldOpen(SWlrFetchFold *fold, uint16_t apiType, uint64_t resultId);
+
+/*
+ * Account for one completed fetch call: add its rows, remember its first non-zero
+ * code, and close the session when terminal is set (the call ended the result or
+ * failed).
+ *
+ * The session also closes and reopens if a different result ID arrives, which is
+ * what a request object reused by a later execution looks like. That path emits
+ * the previous session's RETURN first, so no active-call entry is stranded.
+ */
+WLR_INTERNAL_HIDDEN void wlrFetchFoldAccount(SWlrFetchFold *fold, int32_t code, int64_t rows,
+                                             bool terminal);
+/* Emit the session RETURN (if a session is open) and close it. Idempotent. */
+WLR_INTERNAL_HIDDEN void wlrFetchFoldFinish(SWlrFetchFold *fold);
+
+/*
+ * Hold and release the calling thread's public-API depth around a fetch's REAL
+ * work (the impl between Open and Account).
+ *
+ * This is not about the fold: the sync fetch implementations reach the PUBLIC
+ * taos_fetch_rows_a when they need another block (doAsyncFetchRows), and only the
+ * depth rule keeps that internal call from being recorded as a separate user
+ * call. Folding moved the BEGIN outside the call, so the wrappers must re-arm the
+ * guard themselves. Leaving it out would add a phantom fetch_rows_a event pair
+ * per block, on top of the folded one.
+ *
+ * Enter/Leave are paired on every path, including when the call is not recorded,
+ * so the depth never drifts; callers use the same condition for both.
+ */
+WLR_INTERNAL_HIDDEN void wlrFetchEnter(void);
+WLR_INTERNAL_HIDDEN void wlrFetchLeave(void);
+
 /* -------------------------------------------------------------- ID minting */
 
 WLR_INTERNAL_HIDDEN uint64_t wlrNextConnId(void);
@@ -449,6 +563,12 @@ WLR_TEST_HIDDEN void     wlrTestCloseLifecycleAdmission(void);
  *
  * A zero result ID means the result was never handed to the user (an internal
  * request), so nothing is recorded.
+ *
+ * These macros are used only by the ASYNCHRONOUS fetch APIs, each callback of
+ * which already returns a whole block of rows. The synchronous fetch group does
+ * not use them: it folds every call on one result into a single recorded session
+ * through wlrFetchFoldOpen/wlrFetchFoldAccount, because there the call granularity
+ * is one row.
  */
 #define WLR_API_BEGIN_FETCH(_tok, _api, _resId)             \
   do {                                                      \

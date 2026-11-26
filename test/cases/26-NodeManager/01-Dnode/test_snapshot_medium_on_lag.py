@@ -18,6 +18,7 @@ import time
 from new_test_framework.utils import tdLog, tdSql
 
 PARAM = "snapshotMediumOnLag"
+INCOMPLETE_PARAM = "snapshotMediumOnIncomplete"
 
 
 class TestSnapshotMediumOnLag:
@@ -35,6 +36,12 @@ class TestSnapshotMediumOnLag:
     def _param_value(self, dnode_id):
         """Return the value of snapshotMediumOnLag as reported by the given dnode."""
         tdSql.query(f"show dnode {dnode_id} variables like '{PARAM}'")
+        tdSql.checkRows(1)
+        return str(tdSql.queryResult[0][2])
+
+    def _incomplete_param_value(self, dnode_id):
+        """Return the FSM-incomplete snapshot mode switch for a dnode."""
+        tdSql.query(f"show dnode {dnode_id} variables like '{INCOMPLETE_PARAM}'")
         tdSql.checkRows(1)
         return str(tdSql.queryResult[0][2])
 
@@ -102,3 +109,43 @@ class TestSnapshotMediumOnLag:
         self._check_param_on_all_dnodes("0")
 
         print("snapshotMediumOnLag parameter ................... [ passed ]")
+
+    def test_snapshot_medium_on_incomplete_param(self):
+        """snapshotMediumOnIncomplete controls FSM-incomplete snapshot format
+
+        1. Verify the parameter defaults to MEDIUM mode enabled
+        2. Verify ALTER updates the global parameter
+
+        Catalog:
+            - ManageNodes:Dnode
+
+        Since: v3.5.0.0
+
+        Labels: common,ci,integration,functional
+
+        Jira: None
+
+        History:
+            - 2026-11-17 Codex Added FSM-incomplete snapshot format coverage.
+
+        """
+        tdLog.info(f"======== verify {INCOMPLETE_PARAM} default")
+        assert self._incomplete_param_value(1) == "1"
+
+        try:
+            tdLog.info(f"======== disable {INCOMPLETE_PARAM} for row-scan snapshots")
+            tdSql.execute(f"alter all dnodes '{INCOMPLETE_PARAM}' '0'")
+            for _ in range(30):
+                if self._incomplete_param_value(1) == "0":
+                    break
+                time.sleep(1)
+            assert self._incomplete_param_value(1) == "0"
+        finally:
+            tdLog.info(f"======== restore {INCOMPLETE_PARAM}")
+            tdSql.execute(f"alter all dnodes '{INCOMPLETE_PARAM}' '1'")
+        for _ in range(30):
+            if self._incomplete_param_value(1) == "1":
+                break
+            time.sleep(1)
+        assert self._incomplete_param_value(1) == "1"
+        print("snapshotMediumOnIncomplete parameter .......... [ passed ]")

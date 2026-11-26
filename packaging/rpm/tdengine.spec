@@ -122,6 +122,7 @@ cp %{_compiledir}/build/bin/taosmqtt                %{buildroot}%{homepath}/bin
 cp %{_compiledir}/build/bin/taosgen                 %{buildroot}%{homepath}/bin
 
 cp %{_internalpackagingdir}/start-all.sh  %{buildroot}%{homepath}/bin
+cp %{_internalpackagingdir}/reconcile-tsdb-nodes.sh  %{buildroot}%{homepath}/bin
 cp %{_internalpackagingdir}/stop-all.sh  %{buildroot}%{homepath}/bin
 sed -i "s/versionType=\"enterprise\"/versionType=\"community\"/g" %{buildroot}%{homepath}/bin/start-all.sh
 sed -i "s/versionType=\"enterprise\"/versionType=\"community\"/g" %{buildroot}%{homepath}/bin/stop-all.sh

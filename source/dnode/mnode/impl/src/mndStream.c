@@ -36,6 +36,7 @@
 #include "tmisce.h"
 #include "tname.h"
 #include "tref.h"
+#include "trpc.h"
 #include "ttimer.h"
 
 #define MND_STREAM_MAX_NUM 100000
@@ -116,6 +117,7 @@ static int32_t mndRetrieveStream(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pB
 static void    mndCancelGetNextStream(SMnode *pMnode, void *pIter);
 static int32_t mndRetrieveStreamTask(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBlock, int32_t rows);
 static void    mndCancelGetNextStreamTask(SMnode *pMnode, void *pIter);
+static int32_t mndStreamTagPendingMarker(STrans *pTrans, txn_id_t txnId, const char *streamName);
 static int32_t mndProcessStopStreamReq(SRpcMsg *pReq);
 static int32_t mndProcessStartStreamReq(SRpcMsg *pReq);
 
@@ -604,6 +606,9 @@ static int32_t mndStreamActionUpdate(SSdb *pSdb, SStreamObj *pOldStream, SStream
   // pNew->txnId in mndStbActionUpdate.
   pOldStream->txnId = pNewStream->txnId;
   pOldStream->txnStatus = pNewStream->txnStatus;
+  // flags are otherwise immutable after create; only the txn target bit is updated here.
+  pOldStream->flags = (pOldStream->flags & ~STREAM_FLAG_TXN_TARGET_STOPPED) |
+                      (pNewStream->flags & STREAM_FLAG_TXN_TARGET_STOPPED);
   taosWUnLockLatch(&pOldStream->lock);
 
   taosArrayDestroy(pOldRequests);
@@ -680,7 +685,7 @@ static void mndStreamBuildObj(SMnode *pMnode, SStreamObj *pObj, SCMCreateStreamR
   // (set in buildCreateStreamReq when the stream references any EXTERNAL
   // SOURCE table) into the SStreamObj flag STREAM_FLAG_REF_EXT_SOURCE.
   // Downstream:
-  //   - msmAssignTaskSnodeId (P1 B4) picks the snode with the least EXT
+  //   - msmSelectBuildSnode picks the snode with the least EXT
   //     reader count when this bit is set.
   //   - msmTDAdd*ReaderTasks (P1 B5) attach the matching extSpec to the
   //     STREAM_TASK_DEPLOY message.
@@ -1985,8 +1990,8 @@ static int32_t mndRetrieveStreamTask(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock
     }
 
     code = mstSetStreamTasksResBlock(pStream, pBlock, &numOfRows, rowsCapacity);
-
     sdbRelease(pSdb, pStream);
+    if (code != TSDB_CODE_SUCCESS) return code;
   }
 
   pShow->numOfRows += numOfRows;
@@ -2025,35 +2030,142 @@ static void mndCancelGetNextStreamRecalculates(SMnode *pMnode, void *pIter) {
   sdbCancelFetchByType(pSdb, pIter, SDB_STREAM);
 }
 
-static void mndStreamMarkTagsFlag(void *pCols, const char *colName, SSchema *pTags, int32_t tagNum) {
+typedef struct SStreamTagRefContext {
+  SSchema   *pTags;
+  int32_t    tagNum;
+} SStreamTagRefContext;
+
+static bool mndStreamTagRefSkipped(const SColumnNode *pCol, SNodeList *pSkip) {
+  if (pSkip == NULL) {
+    return false;
+  }
+  SNode *pSkipNode = NULL;
+  FOREACH(pSkipNode, pSkip) {
+    if (nodeType(pSkipNode) == QUERY_NODE_COLUMN && ((SColumnNode *)pSkipNode)->colId == pCol->colId) {
+      return true;
+    }
+  }
+  return false;
+}
+
+static EDealRes mndStreamMarkTagRef(SNode *pNode, void *pContext) {
+  if (nodeType(pNode) != QUERY_NODE_COLUMN) {
+    return DEAL_RES_CONTINUE;
+  }
+
+  SStreamTagRefContext *pCxt = pContext;
+  SColumnNode          *pCol = (SColumnNode *)pNode;
+  for (int32_t i = 0; i < pCxt->tagNum; ++i) {
+    if (pCol->colId == pCxt->pTags[i].colId) {
+      pCxt->pTags[i].flags |= COL_REF_BY_STM;
+      break;
+    }
+  }
+  return DEAL_RES_CONTINUE;
+}
+
+static void mndStreamMarkTagsFlag(void *pCols, const char *colName, SSchema *pTags, int32_t tagNum,
+                                  void *pSkipCols) {
   if (pCols == NULL) {
     return;
   }
 
   SNodeList *pList = NULL;
+  SNodeList *pSkip = NULL;
   int32_t    code = nodesStringToList(pCols, &pList);
   if (code) {
     nodesDestroyList(pList);
     mstError("%s [%s] nodesStringToList failed with error:%s", colName, (char *)pCols, tstrerror(code));
     return;
   }
-
-  SNode *pNode = NULL;
-  FOREACH(pNode, pList) {
-    if (nodeType(pNode) != QUERY_NODE_COLUMN) {
-      continue;
-    }
-
-    SColumnNode *pCol = (SColumnNode *)pNode;
-    for (int32_t i = 0; i < tagNum; ++i) {
-      if (pCol->colId == pTags[i].colId) {
-        pTags[i].flags |= COL_REF_BY_STM;
-        break;
-      }
+  if (pSkipCols != NULL) {
+    code = nodesStringToList(pSkipCols, &pSkip);
+    if (code) {
+      nodesDestroyList(pList);
+      nodesDestroyList(pSkip);
+      mstError("durationTagCols [%s] nodesStringToList failed with error:%s", (char *)pSkipCols, tstrerror(code));
+      return;
     }
   }
 
+  SStreamTagRefContext cxt = {.pTags = pTags, .tagNum = tagNum};
+  SNode              *pNode = NULL;
+  FOREACH(pNode, pList) {
+    // Only injected top-level columns are SET-able, not user expressions.
+    if (nodeType(pNode) == QUERY_NODE_COLUMN && mndStreamTagRefSkipped((SColumnNode *)pNode, pSkip)) {
+      continue;
+    }
+    nodesWalkExpr(pNode, mndStreamMarkTagRef, &cxt);
+  }
+
   nodesDestroyList(pList);
+  nodesDestroyList(pSkip);
+}
+
+static bool mndStreamCreateUsesDurationTagColId(SCMCreateStreamReq *pCreate, col_id_t colId) {
+  if (pCreate == NULL || colId == 0) {
+    return false;
+  }
+  // DERIVATIVE references protect the schema without marking SET-able tags as
+  // partition keys. The optional JSON field is absent on existing streams.
+  if (pCreate->derivativeTagCols != NULL) {
+    SNodeList *pRefs = NULL;
+    int32_t    code = nodesStringToList((const char *)pCreate->derivativeTagCols, &pRefs);
+    if (code != TSDB_CODE_SUCCESS) {
+      nodesDestroyList(pRefs);
+      return true;
+    }
+    SNode *pRef = NULL;
+    bool   found = false;
+    FOREACH(pRef, pRefs) {
+      if (nodeType(pRef) == QUERY_NODE_COLUMN && ((SColumnNode *)pRef)->colId == colId) {
+        found = true;
+        break;
+      }
+    }
+    nodesDestroyList(pRefs);
+    if (found) return true;
+  }
+  if (pCreate->maxDelayTagColId == colId) {
+    return true;
+  }
+  if (pCreate->triggerType == WINDOW_TYPE_EVENT) {
+    return pCreate->trigger.event.trueForDurationTagColId == colId ||
+           pCreate->trigger.event.startTrueForDurationTagColId == colId ||
+           pCreate->trigger.event.endTrueForDurationTagColId == colId ||
+           pCreate->trigger.event.trueForCountTagColId == colId ||
+           pCreate->trigger.event.startTrueForCountTagColId == colId ||
+           pCreate->trigger.event.endTrueForCountTagColId == colId;
+  }
+  if (pCreate->triggerType == WINDOW_TYPE_STATE) {
+    return pCreate->trigger.stateWin.trueForDurationTagColId == colId ||
+           pCreate->trigger.stateWin.trueForCountTagColId == colId;
+  }
+  return false;
+}
+
+static bool mndStreamDurationTagRefCheck(SMnode *pMnode, void *pObj, void *p1, void *p2, void *p3) {
+  SStreamObj *pStream = pObj;
+  if (atomic_load_8(&pStream->userDropped) || pStream->pCreate == NULL) {
+    return true;
+  }
+  if (pStream->pCreate->triggerTblSuid != *(int64_t *)p1) {
+    return true;
+  }
+  if (mndStreamCreateUsesDurationTagColId(pStream->pCreate, *(col_id_t *)p2)) {
+    *(bool *)p3 = true;
+    return false;
+  }
+  return true;
+}
+
+bool mndStreamTagReferencedByDuration(SMnode *pMnode, int64_t suid, col_id_t colId) {
+  if (pMnode == NULL || colId == 0 || sdbGetSize(pMnode->pSdb, SDB_STREAM) <= 0) {
+    return false;
+  }
+  bool found = false;
+  sdbTraverse(pMnode->pSdb, SDB_STREAM, mndStreamDurationTagRefCheck, &suid, &colId, &found);
+  return found;
 }
 
 static bool mndStreamUpdateTagsFlag(SMnode *pMnode, void *pObj, void *p1, void *p2, void *p3) {
@@ -2075,8 +2187,12 @@ static bool mndStreamUpdateTagsFlag(SMnode *pMnode, void *pObj, void *p1, void *
   SSchema* pTags = (SSchema*)p2;
   int32_t* tagNum = (int32_t*)p3;
 
-  mndStreamMarkTagsFlag(pStream->pCreate->partitionCols, "partitionCols", pTags, *tagNum);
-  mndStreamMarkTagsFlag(pStream->pCreate->rollupTagCols, "rollupTagCols", pTags, *tagNum);
+  /* Skip durationTagCols: injected-only tags must remain SET-able. DROP of those
+   * tags is rejected via mndStreamTagReferencedByDuration. Tags that also appear
+   * in the user PARTITION BY are still marked below and block SET. */
+  mndStreamMarkTagsFlag(pStream->pCreate->partitionCols, "partitionCols", pTags, *tagNum,
+                        pStream->pCreate->durationTagCols);
+  mndStreamMarkTagsFlag(pStream->pCreate->rollupTagCols, "rollupTagCols", pTags, *tagNum, NULL);
 
   return true;
 }
@@ -2089,6 +2205,110 @@ void mndStreamUpdateTagsRefFlag(SMnode *pMnode, int64_t suid, SSchema* pTags, in
   }
 
   sdbTraverse(pMnode->pSdb, SDB_STREAM, mndStreamUpdateTagsFlag, &suid, pTags, &tagNum);
+}
+
+/* Batch meta txn: START / STOP STREAM inside a transaction.
+ *
+ * - Stream created by this txn (PRE_CREATE): only the persisted userStopped flag changes. COMMIT
+ *   clears the marker and deploys; deploy is skipped for a stopped stream. ROLLBACK deletes it.
+ * - Pre-existing stream: first START/STOP takes the lock (txnId + PRE_ALTER + intent, shadow op
+ *   registered); other txns and non-txn START/STOP/DROP get TSDB_CODE_TXN_RESOURCE_BUSY. The
+ *   intent is applied at COMMIT only; ROLLBACK unlocks with no runtime effect.
+ * Returns 0 once the marker trans is prepared (caller answers ACTION_IN_PROGRESS). */
+static int32_t mndStreamTxnSetStopped(SMnode *pMnode, SRpcMsg *pReq, SStreamObj *pStream, txn_id_t txnId,
+                                      bool isStop, bool igNotExists, bool *pNoop) {
+  int32_t     code = 0, lino = 0;
+  STrans     *pTrans = NULL;
+  SDbObj     *pDb = NULL;
+  bool        addedOp = false, syncStarted = false;
+  const char *name = pStream->pCreate->name;
+  SStreamObj  marker = {0};
+  *pNoop = false;
+  int64_t     streamId = pStream->pCreate->streamId;  // used by the msts* log macros
+
+  // Take one consistent snapshot of the txn fields under the read lock and decide only from it.
+  // mndStreamActionUpdate rewrites txnId / txnStatus / flags together under the write lock, so
+  // reading them one by one outside the lock could pair an old txnStatus with a new flags. The
+  // mnode-write queue is single-threaded today, which would hide that; the snapshot keeps the
+  // decision correct without relying on it.
+  taosRLockLatch(&pStream->lock);
+  memcpy(&marker, pStream, sizeof(SStreamObj));
+  taosRUnLockLatch(&pStream->lock);
+  marker.lock = 0;
+
+  if (marker.txnId != 0 && marker.txnId != txnId) {
+    mstsError("stream:%s is owned by txn:%" PRId64 ", cannot %s in txn:%" PRId64, name, marker.txnId,
+       isStop ? "stop" : "start", txnId);
+    TAOS_RETURN(TSDB_CODE_TXN_RESOURCE_BUSY);
+  }
+  TAOS_CHECK_RETURN(mndTxnCheckStreamConflict(pMnode, name, txnId));
+
+  bool ownedByTxn = marker.txnId == txnId;
+  if (ownedByTxn && (marker.txnStatus == META_TXN_PRE_DROP || marker.txnStatus == META_TXN_PRE_CREATE_DROP)) {
+    if (igNotExists) {  // already dropped in this txn (read-your-own-writes): IF EXISTS is a no-op
+      *pNoop = true;
+      return TSDB_CODE_SUCCESS;
+    }
+    TAOS_RETURN(TSDB_CODE_MND_STREAM_NOT_EXIST);
+  }
+  if (atomic_load_8(&pStream->userDropped)) TAOS_RETURN(TSDB_CODE_MND_STREAM_DROPPING);
+
+  // Effective state as seen by this txn.
+  bool pendingAlter = ownedByTxn && marker.txnStatus == META_TXN_PRE_ALTER;
+  bool effStopped = pendingAlter ? STREAM_IS_TXN_TARGET_STOPPED(marker.flags) : marker.userStopped != 0;
+  if (!isStop && !effStopped) TAOS_RETURN(TSDB_CODE_MND_STREAM_NOT_STOPPED);
+
+  pDb = mndAcquireDb(pMnode, pStream->pCreate->streamDB);
+  if (pDb == NULL) TAOS_CHECK_EXIT(terrno ? terrno : TSDB_CODE_MND_DB_NOT_SELECTED);
+
+  marker.updateTime = taosGetTimestampMs();
+  if (ownedByTxn && marker.txnStatus == META_TXN_PRE_CREATE) {
+    marker.userStopped = isStop ? 1 : 0;
+  } else {
+    marker.txnId = txnId;
+    marker.txnStatus = META_TXN_PRE_ALTER;
+    marker.flags = isStop ? (marker.flags | STREAM_FLAG_TXN_TARGET_STOPPED)
+                          : (marker.flags & ~STREAM_FLAG_TXN_TARGET_STOPPED);
+  }
+
+  TSDB_CHECK_NULL((pTrans = mndTransCreate(pMnode, TRN_POLICY_RETRY, TRN_CONFLICT_NOTHING, pReq, "mark-stream-state")),
+                  code, lino, _exit, terrno);
+  mndTransSetChangeless(pTrans);
+  // Tagged like the DROP marker so COMMIT / ROLLBACK wait for it to finish (they scan with
+  // includeDrop=true). Reusing DROP_STREAM is deliberate: originRpcType is persisted, so a new value
+  // would be unknown to an older mnode in a rolling upgrade. DDL / name checks scan with
+  // includeDrop=false and ignore this marker, as they do for DROP; non-txn START/STOP is fenced by
+  // the ALTER_STREAM_STATE shadow op in mndTxnCheckStreamConflict instead.
+  TAOS_CHECK_EXIT(mndStreamTagPendingMarker(pTrans, txnId, name));
+  pTrans->originRpcType = TDMT_MND_DROP_STREAM;
+
+  code = mndStreamTransAppend(&marker, pTrans, SDB_STATUS_READY);
+  if (code != 0 && code != TSDB_CODE_ACTION_IN_PROGRESS) goto _exit;
+
+  if (!ownedByTxn) {
+    code = mndTxnAddShadowOp(pMnode, txnId, MND_SHADOW_OP_ALTER_STREAM_STATE, name, pStream->pCreate->streamId,
+                             pDb->name, NULL, 0);
+    if (code != 0) goto _exit;
+    addedOp = true;
+  }
+  // A sync error can have an uncertain outcome: once the proposal started, the marker may
+  // already be committed (and the RETRY trans will finish it later). Only undo the shadow op
+  // when no proposal could have started; otherwise the stream would be left PRE_ALTER(txnId)
+  // with no shadow op, which neither COMMIT nor ROLLBACK would ever clear. Keeping the op
+  // when the marker did not land is harmless: COMMIT / ROLLBACK skip a stream that is not
+  // PRE_ALTER(txnId). Same rule as mndMarkStreamTxnCreate.
+  code = mndTransPrepareWithSyncStatus(pMnode, pTrans, &syncStarted);
+  if (code != 0 && addedOp && !syncStarted) {
+    mndTxnRemoveShadowOp(pMnode, txnId, MND_SHADOW_OP_ALTER_STREAM_STATE, name, pStream->pCreate->streamId);
+  }
+  TAOS_CHECK_EXIT(code);
+  mstsInfo("stream:%s txn:%" PRId64 " %s recorded (status=%d)", name, txnId, isStop ? "STOP" : "START",
+           marker.txnStatus);
+
+_exit:
+  mndReleaseDb(pMnode, pDb);
+  mndTransDrop(pTrans);
+  TAOS_RETURN(code);
 }
 
 static int32_t mndProcessStopStreamReq(SRpcMsg *pReq) {
@@ -2148,7 +2368,13 @@ static int32_t mndProcessStopStreamReq(SRpcMsg *pReq) {
   // stream returns TSDB_CODE_TXN_RESOURCE_BUSY). The client rejects these inside
   // a txn; this is the server-side guard for other sessions (non-owning session
   // or hand-crafted RPC).
-  if (pStream->txnId != 0) {
+  if (pauseReq.txnId != 0) {
+    bool noop = false;
+    code = mndStreamTxnSetStopped(pMnode, pReq, pStream, (txn_id_t)pauseReq.txnId, true, pauseReq.igNotExists, &noop);
+    sdbRelease(pMnode->pSdb, pStream);
+    return code == 0 ? (noop ? 0 : TSDB_CODE_ACTION_IN_PROGRESS) : code;
+  }
+  if (pStream->txnId != 0 || mndTxnCheckStreamConflict(pMnode, pStream->pCreate->name, 0) != 0) {
     mstsError("stream:%s is owned by uncommitted txn:%" PRId64 ", cannot stop stream from a non-owning session",
               pStream->name, pStream->txnId);
     sdbRelease(pMnode->pSdb, pStream);
@@ -2269,7 +2495,13 @@ static int32_t mndProcessStartStreamReq(SRpcMsg *pReq) {
   // stream until COMMIT/ROLLBACK (FS Sec.4.6). The client rejects START inside a
   // txn; this is the server-side guard for other sessions (non-owning session
   // or hand-crafted RPC).
-  if (pStream->txnId != 0) {
+  if (resumeReq.txnId != 0) {
+    bool noop = false;
+    code = mndStreamTxnSetStopped(pMnode, pReq, pStream, (txn_id_t)resumeReq.txnId, false, resumeReq.igNotExists, &noop);
+    sdbRelease(pMnode->pSdb, pStream);
+    return code == 0 ? (noop ? 0 : TSDB_CODE_ACTION_IN_PROGRESS) : code;
+  }
+  if (pStream->txnId != 0 || mndTxnCheckStreamConflict(pMnode, pStream->pCreate->name, 0) != 0) {
     mstsError("stream:%s is owned by uncommitted txn:%" PRId64 ", cannot start stream from a non-owning session",
               pStream->name, pStream->txnId);
     sdbRelease(pMnode->pSdb, pStream);
@@ -2450,6 +2682,22 @@ static int32_t mndProcessDropStreamReq(SRpcMsg *pReq) {
     }
 
     // Batch meta txn (phase 2): conflict detection and txn branch.
+    // Shadow ops are registered before their marker is applied (the commit stage of a marker
+    // trans can be left to the RETRY timer, and DROP markers never own the request), so
+    // pStream->txnId alone misses a lock another txn has taken but not yet persisted. Check
+    // the shadow ops too, for both the txn and the non-txn path: otherwise a non-txn DROP
+    // could be followed by that marker writing the dropped stream back. Same check as
+    // CREATE / STOP / START.
+    code = mndTxnCheckStreamConflict(pMnode, streamName, (txn_id_t)dropReq.txnId);
+    if (code != 0) {
+      mstsError("stream:%s has a pending op in another txn, cannot drop in txn:%" PRId64 " since %s", streamName,
+                dropReq.txnId, tstrerror(code));
+      sdbRelease(pMnode->pSdb, pStream);
+      pStream = NULL;
+      mndTransDrop(pTrans);
+      pTrans = NULL;
+      goto _OVER;
+    }
     // Block if another txn owns this stream.
     if (pStream->txnId != 0 && pStream->txnId != (txn_id_t)dropReq.txnId) {
       code = TSDB_CODE_TXN_RESOURCE_BUSY;
@@ -2700,6 +2948,18 @@ static int32_t mndCheckStreamOutTableConflict(SMnode *pMnode, const SStreamObj *
   return code;
 }
 
+// Tag a stream marker trans (persisted via userData) as an unfinished marker of txnId, so
+// COMMIT / ROLLBACK and shadow-op rebuild can see it. On success pTrans owns the payload
+// (mndTransSetUserData takes the pointer, no copy) and frees it in mndTransDrop.
+static int32_t mndStreamTagPendingMarker(STrans *pTrans, txn_id_t txnId, const char *streamName) {
+  SMndTxnStreamCreate *pPending = taosMemoryCalloc(1, sizeof(*pPending));
+  if (pPending == NULL) return terrno != 0 ? terrno : TSDB_CODE_OUT_OF_MEMORY;
+  pPending->txnId = txnId;
+  tstrncpy(pPending->name, streamName, sizeof(pPending->name));
+  mndTransSetUserData(pTrans, pPending, sizeof(*pPending));
+  return TSDB_CODE_SUCCESS;
+}
+
 /* Batch meta txn (phase 2): persist PRE_CREATE marker for a stream being created
  * in a transaction. Conflict detection and shadow-op registration happen here.
  * Returns 0 on success, error code otherwise. Caller wraps 0 -> ACTION_IN_PROGRESS. */
@@ -2828,14 +3088,7 @@ static int32_t mndMarkStreamTxnCreate(SMnode *pMnode, SRpcMsg *pReq, const SCMCr
   // all actions are built, but before prepare can persist or execute them.
   // Keep the reservation with the durable internal transaction. User COMMIT or
   // ROLLBACK must wait until its output actions and stream marker have finished.
-  SMndTxnStreamCreate *pPending = taosMemoryCalloc(1, sizeof(*pPending));
-  if (pPending == NULL) {
-    code = terrno;
-    goto _exit;
-  }
-  pPending->txnId = txnId;
-  tstrncpy(pPending->name, pCreate->name, sizeof(pPending->name));
-  mndTransSetUserData(pTrans, pPending, sizeof(*pPending));
+  TAOS_CHECK_EXIT(mndStreamTagPendingMarker(pTrans, txnId, pCreate->name));
 
   if (outStbFName[0] != 0) {
     code =
@@ -2921,6 +3174,13 @@ static int32_t mndMarkStreamTxnDrop(SMnode *pMnode, SRpcMsg *pReq, SStreamObj *p
       (pTrans = mndTransCreate(pMnode, TRN_POLICY_RETRY, TRN_CONFLICT_NOTHING, pReq, "mark-stream-predrop")),
       code, lino, _exit, terrno);
   mndTransSetChangeless(pTrans);
+
+  // Tag this marker trans (persisted: originRpcType + userData) so that COMMIT/ROLLBACK and
+  // shadow-op rebuild after a leader restore can see it is still pending. Without the tag
+  // a rebuild could run before this marker is applied, observe PRE_CREATE instead of
+  // PRE_CREATE_DROP, and silently lose the DROP shadow op.
+  TAOS_CHECK_EXIT(mndStreamTagPendingMarker(pTrans, txnId, pStream->pCreate->name));
+  pTrans->originRpcType = TDMT_MND_DROP_STREAM;
 
   // Encode and append marker.
   code = mndStreamTransAppend(&markerStream, pTrans, SDB_STATUS_READY);
@@ -3366,7 +3626,7 @@ static int32_t mndProcessCreateStreamFinal(SRpcMsg *pReq, SCMCreateStreamReq *pC
 
   MND_STREAM_SET_LAST_TS(STM_EVENT_CREATE_STREAM, taosGetTimestampMs());
 
-  mstPostStreamAction(mStreamMgmt.actionQ, streamId, pStream->pCreate->name, NULL, true, STREAM_ACT_DEPLOY);
+  (void)mstPostStreamCreate(streamId, pStream->pCreate->name);
 
 _OVER:
 
@@ -3556,6 +3816,7 @@ static int32_t mndProcessRecalcStreamReq(SRpcMsg *pReq) {
 
 int32_t mndInitStream(SMnode *pMnode) {
   int32_t   code = TSDB_CODE_SUCCESS;
+
   SSdbTable table = {
       .sdbType = SDB_STREAM,
       .keyType = SDB_KEY_BINARY,
@@ -3582,12 +3843,15 @@ int32_t mndInitStream(SMnode *pMnode) {
     (void)taosThreadMutexUnlock(&mndStreamPreflightAdmissionMutex);
     mndSetMsgHandle(pMnode, TDMT_MND_CREATE_STREAM, mndProcessCreateStreamReq);
     mndSetMsgHandle(pMnode, TDMT_MND_UNUSED1, mndProcessCreateStreamContinuation);
-    mndSetMsgHandle(pMnode, TDMT_MND_DROP_STREAM, mndProcessDropStreamReq);
     mndSetMsgHandle(pMnode, TDMT_MND_START_STREAM, mndProcessStartStreamReq);
-    mndSetMsgHandle(pMnode, TDMT_MND_STOP_STREAM, mndProcessStopStreamReq);
     mndSetMsgHandle(pMnode, TDMT_MND_STREAM_HEARTBEAT, mndProcessStreamHb);  
     mndSetMsgHandle(pMnode, TDMT_MND_RECALC_STREAM, mndProcessRecalcStreamReq);
   }
+  // STOP/DROP must stay registered even when disableStream is set: streams created before the
+  // config was turned on still need to be stopped and dropped. CREATE/START/RECALC/HB remain
+  // gated above because they are the handlers that (re)deploy stream tasks.
+  mndSetMsgHandle(pMnode, TDMT_MND_STOP_STREAM, mndProcessStopStreamReq);
+  mndSetMsgHandle(pMnode, TDMT_MND_DROP_STREAM, mndProcessDropStreamReq);
   mndSetMsgHandle(pMnode, TDMT_MND_GET_STREAM_CREATE_SQL, mndProcessGetStreamCreateSqlReq);
   
   mndAddShowRetrieveHandle(pMnode, TSDB_MGMT_TABLE_STREAMS, mndRetrieveStream);

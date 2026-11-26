@@ -16,13 +16,7 @@
  */
 
 #include "meta.h"
-
-#ifdef TD_ENTERPRISE
-extern const char* tkLogStb[];
-extern const char* tkAuditStb[];
-extern const int   tkLogStbNum;
-extern const int   tkAuditStbNum;
-#endif
+#include "tdTestSeam.h"
 
 #define TAG_FILTER_RES_KEY_LEN  32
 #define META_CACHE_BASE_BUCKET  1024
@@ -57,6 +51,8 @@ typedef struct STagCondFilterEntry {
 } STagCondFilterEntry;
 
 #define STABLE_TAG_FILTER_WARMUP_MAX_BYTES (2 * 1024 * 1024)
+// Yield the vnode meta read lock periodically while rebuilding large maps.
+#define STABLE_TAG_FILTER_WARMUP_BATCH_TABLES (8 * 1024)
 
 typedef struct STagConds {
   SHashObj* set;       // SHashObj<tagColIdStr, STagCondFilterEntry>
@@ -106,11 +102,6 @@ struct SMetaCache {
     SHashObj*     pTableEntry;
     SLRUCache*    pResCache;
   } STbGroupResCache;
-
-  struct STbFilterCache {
-    SHashObj* pStb;
-    SHashObj* pStbName;
-  } STbFilterCache;
 
   struct STbRefDbCache {
     TdThreadMutex lock;
@@ -254,19 +245,6 @@ int32_t metaCacheOpen(SMeta* pMeta) {
   taosHashSetFreeFp(pMeta->pCache->STbGroupResCache.pTableEntry, freeCacheEntryFp);
   (void)taosThreadMutexInit(&pMeta->pCache->STbGroupResCache.lock, NULL);
 
-  // open filter cache
-  pMeta->pCache->STbFilterCache.pStb =
-      taosHashInit(0, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT), false, HASH_NO_LOCK);
-  if (pMeta->pCache->STbFilterCache.pStb == NULL) {
-    TSDB_CHECK_CODE(code = terrno, lino, _exit);
-  }
-
-  pMeta->pCache->STbFilterCache.pStbName =
-      taosHashInit(0, taosGetDefaultHashFunction(TSDB_DATA_TYPE_VARCHAR), false, HASH_NO_LOCK);
-  if (pMeta->pCache->STbFilterCache.pStbName == NULL) {
-    TSDB_CHECK_CODE(code = terrno, lino, _exit);
-  }
-
   // open ref db cache
   pMeta->pCache->STbRefDbCache.pStbRefs =
       taosHashInit(1024, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT), false, HASH_NO_LOCK);
@@ -309,9 +287,6 @@ void metaCacheClose(SMeta* pMeta) {
     taosLRUCacheCleanup(pMeta->pCache->STbGroupResCache.pResCache);
     (void)taosThreadMutexDestroy(&pMeta->pCache->STbGroupResCache.lock);
     taosHashCleanup(pMeta->pCache->STbGroupResCache.pTableEntry);
-
-    taosHashCleanup(pMeta->pCache->STbFilterCache.pStb);
-    taosHashCleanup(pMeta->pCache->STbFilterCache.pStbName);
 
     taosHashClear(pMeta->pCache->STbRefDbCache.pStbRefs);
     taosHashClear(pMeta->pCache->STbRefDbCache.pStbExtSources);
@@ -1025,6 +1000,8 @@ static int32_t rebuildTagDigestUidMap(void* pVnode, uint64_t suid, const SArray*
   SMetaReader  mr = {0};
   SMCtbCursor* pCur = NULL;
   SHashObj*    pDigestUidMap = NULL;
+  SMeta*       pMeta = ((SVnode*)pVnode)->pMeta;
+  int32_t      batchTables = 0;
 
   TSDB_CHECK_NULL(pTagColIds, code, lino, _end, TSDB_CODE_INVALID_PARA);
 
@@ -1032,7 +1009,7 @@ static int32_t rebuildTagDigestUidMap(void* pVnode, uint64_t suid, const SArray*
   TSDB_CHECK_NULL(pDigestUidMap, code, lino, _end, terrno);
   taosHashSetFreeFp(pDigestUidMap, freeSArrayPtr);
 
-  // The caller holds the metadata read lock through publication of this snapshot.
+  // The caller holds the metadata read lock when entering this function.
   _metaReaderInit(&mr, pVnode, META_READER_NOLOCK, NULL, 0);
   code = metaReaderGetTableEntryByUid(&mr, suid);
   TSDB_CHECK_CODE(code, lino, _end);
@@ -1047,11 +1024,31 @@ static int32_t rebuildTagDigestUidMap(void* pVnode, uint64_t suid, const SArray*
     if (uid == 0) {
       break;
     }
+    ++batchTables;
 
     T_MD5_CTX context = {0};
     bool      hasNull = false;
     code = buildTagDataEntryKey(pTagColIds, (STag*)pCur->pVal, &mr.me.stbEntry.schemaTag, &context, &hasNull);
     TSDB_CHECK_CODE(code, lino, _end);
+
+    // The resulting map may mix batches. This stale snapshot is accepted in exchange for bounded lock hold time.
+    if (batchTables >= STABLE_TAG_FILTER_WARMUP_BATCH_TABLES) {
+      metaPauseCtbCursor(pCur);
+      metaULock(pMeta);
+      metaRLock(pMeta);
+      if (metaHasPendingTxnEntries(pMeta)) {
+        metaDebug("vgId:%d, suid:%" PRIu64
+                  " abort stable tag filter cache warmup because pending transaction appeared",
+                  TD_VID(pMeta->pVnode), suid);
+        goto _end;
+      }
+      code = metaResumeCtbCursor(pCur, 0);
+      TSDB_CHECK_CODE(code, lino, _end);
+      batchTables = 0;
+      metaDebug("vgId:%d, suid:%" PRIu64 " stable tag filter cache warmup yielded meta read lock",
+                TD_VID(pMeta->pVnode), suid);
+    }
+
     if (hasNull) {
       continue;
     }
@@ -1147,6 +1144,9 @@ _end_unlock:
 
   code = rebuildTagDigestUidMap(pVnode, suid, pTagColIds, &pDigestUidMap);
   TSDB_CHECK_CODE(code, lino, _end);
+  if (pDigestUidMap == NULL) {
+    goto _end;
+  }
 
   int64_t payloadLen = 0;
   code = calcDigestUidMapPayloadLen(pDigestUidMap, &payloadLen);
@@ -1806,59 +1806,108 @@ int32_t metaTbGroupCacheClear(SMeta* pMeta, uint64_t suid) {
   return TSDB_CODE_SUCCESS;
 }
 
-bool metaTbInFilterCache(SMeta* pMeta, const void* key, int8_t type) {
-  if (type == 0 && taosHashGet(pMeta->pCache->STbFilterCache.pStb, key, sizeof(tb_uid_t))) {
-    return true;
-  }
+#define META_CACHED_SUID_IN_UID_OR_GROUP 0x1
+#define META_CACHED_SUID_IN_STABLE       0x2
 
-  if (type == 1 && taosHashGet(pMeta->pCache->STbFilterCache.pStbName, key, strlen(key))) {
-    return true;
+// Collect the super table uids that hold entries in one of the per-suid tag caches (keys of pTableEntry), each
+// with the set of caches it was found in (flag bits).
+static int32_t metaCollectCachedSuids(SHashObj* pTableEntry, SSHashObj* pSuids, int8_t flag) {
+  void* pIter = taosHashIterate(pTableEntry, NULL);
+  while (pIter != NULL) {
+    size_t   keyLen = 0;
+    uint64_t suid = *(uint64_t*)taosHashGetKey(pIter, &keyLen);
+    int8_t*  pOld = tSimpleHashGet(pSuids, &suid, sizeof(suid));
+    int8_t   flags = (int8_t)((pOld != NULL ? *pOld : 0) | flag);
+    int32_t  code = tSimpleHashPut(pSuids, &suid, sizeof(suid), &flags, sizeof(flags));
+    if (code != TSDB_CODE_SUCCESS) {
+      taosHashCancelIterate(pTableEntry, pIter);
+      return code;
+    }
+    pIter = taosHashIterate(pTableEntry, pIter);
   }
-
-  return false;
+  return TSDB_CODE_SUCCESS;
 }
 
-int32_t metaPutTbToFilterCache(SMeta* pMeta, const void* key, int8_t type) {
-  if (type == 0) {
-    return taosHashPut(pMeta->pCache->STbFilterCache.pStb, key, sizeof(tb_uid_t), NULL, 0);
+// Batch meta txn: drop every cached tag filter result of this vnode (uid lists, table groups, stable tag filter
+// results). A finalized txn flips what every reader sees at once (its PRE_* entries become committed / rolled back
+// for all of them), while the B+ tree work, and the per-table cache maintenance that comes with it, is left to the
+// vacuum. Results cached before the flip must not outlive it. The cost depends on the number of super tables with
+// cached results, not on the size of the txn.
+int32_t metaTagFilterCachesClearAll(SMeta* pMeta) {
+  TD_SEAM_RET(metaTagFilterCachesClearAll, int32_t (*)(SMeta*), (pMeta));  // the vnode txn unit test runs on a dummy pMeta
+  if (pMeta == NULL || pMeta->pCache == NULL) return TSDB_CODE_SUCCESS;
+  SSHashObj* pSuids = tSimpleHashInit(16, taosGetDefaultHashFunction(TSDB_DATA_TYPE_UBIGINT));
+  if (pSuids == NULL) return terrno;
+
+  int32_t code = TSDB_CODE_SUCCESS;
+  (void)taosThreadMutexLock(&pMeta->pCache->sTagFilterResCache.lock);
+  code = metaCollectCachedSuids(pMeta->pCache->sTagFilterResCache.pTableEntry, pSuids, META_CACHED_SUID_IN_UID_OR_GROUP);
+  (void)taosThreadMutexUnlock(&pMeta->pCache->sTagFilterResCache.lock);
+  if (code == TSDB_CODE_SUCCESS) {
+    (void)taosThreadMutexLock(&pMeta->pCache->STbGroupResCache.lock);
+    code = metaCollectCachedSuids(pMeta->pCache->STbGroupResCache.pTableEntry, pSuids,
+                                  META_CACHED_SUID_IN_UID_OR_GROUP);
+    (void)taosThreadMutexUnlock(&pMeta->pCache->STbGroupResCache.lock);
   }
-
-  if (type == 1) {
-    return taosHashPut(pMeta->pCache->STbFilterCache.pStbName, key, strlen(key), NULL, 0);
-  }
-
-  return 0;
-}
-
-int32_t metaSizeOfTbFilterCache(SMeta* pMeta, int8_t type) {
-  if (type == 0) {
-    return taosHashGetSize(pMeta->pCache->STbFilterCache.pStb);
-  }
-  return 0;
-}
-
-int32_t metaInitTbFilterCache(SMeta* pMeta) {
-#ifdef TD_ENTERPRISE
-  int32_t      tbNum = 0;
-  const char** pTbArr = NULL;
-  const char*  dbName = NULL;
-
-  if (!(dbName = strchr(pMeta->pVnode->config.dbname, '.'))) return 0;
-  if (0 == strncmp(++dbName, "log", TSDB_DB_NAME_LEN)) {
-    tbNum = tkLogStbNum;
-    pTbArr = (const char**)&tkLogStb;
-  } else if (0 == strncmp(dbName, "audit", TSDB_DB_NAME_LEN) || pMeta->pVnode->config.isAudit) {
-    tbNum = tkAuditStbNum;
-    pTbArr = (const char**)&tkAuditStb;
-  }
-  if (tbNum && pTbArr) {
-    for (int32_t i = 0; i < tbNum; ++i) {
-      TAOS_CHECK_RETURN(metaPutTbToFilterCache(pMeta, pTbArr[i], 1));
+  if (code == TSDB_CODE_SUCCESS) {
+    code = taosThreadRwlockRdlock(&pMeta->pCache->sStableTagFilterResCache.rwlock);
+    if (code == TSDB_CODE_SUCCESS) {
+      code = metaCollectCachedSuids(pMeta->pCache->sStableTagFilterResCache.pTableEntry, pSuids,
+                                    META_CACHED_SUID_IN_STABLE);
+      (void)taosThreadRwlockUnlock(&pMeta->pCache->sStableTagFilterResCache.rwlock);
     }
   }
-#else
-#endif
-  return 0;
+  if (code != TSDB_CODE_SUCCESS) {
+    tSimpleHashCleanup(pSuids);
+    return code;
+  }
+
+  int32_t iter = 0;
+  void*   pData = NULL;
+  while ((pData = tSimpleHashIterate(pSuids, pData, &iter)) != NULL) {
+    size_t   keyLen = 0;
+    uint64_t suid = *(uint64_t*)tSimpleHashGetKey(pData, &keyLen);
+    int8_t   flags = *(int8_t*)pData;
+    int32_t  ret = TSDB_CODE_SUCCESS;
+    if (flags & META_CACHED_SUID_IN_UID_OR_GROUP) {
+      ret = metaUidCacheClear(pMeta, suid);
+      if (ret < 0) code = ret;
+      ret = metaTbGroupCacheClear(pMeta, suid);
+      if (ret < 0) code = ret;
+    }
+    if (flags & META_CACHED_SUID_IN_STABLE) {  // dropping an absent entry would be reported as a failure
+      ret = metaStableTagFilterCacheDropSTable(pMeta, (tb_uid_t)suid);
+      if (ret < 0) code = ret;
+    }
+  }
+  metaDebug("vgId:%d, all tag filter caches cleared, %d super tables", TD_VID(pMeta->pVnode),
+            tSimpleHashGetSize(pSuids));
+  tSimpleHashCleanup(pSuids);
+  return code;
+}
+
+// Batch meta txn: drop the cached tag filter results of one super table, in all three caches (an absent entry is
+// fine). Used when a txn's change of its child tables becomes (or stops being) what other readers see.
+int32_t metaTagFilterCachesClearSuid(SMeta* pMeta, uint64_t suid) {
+  TD_SEAM_RET(metaTagFilterCachesClearSuid, int32_t (*)(SMeta*, uint64_t), (pMeta, suid));
+  if (pMeta == NULL || pMeta->pCache == NULL) return TSDB_CODE_SUCCESS;
+  int32_t code = TSDB_CODE_SUCCESS;
+  int32_t ret = metaUidCacheClear(pMeta, suid);
+  if (ret < 0) code = ret;
+  ret = metaTbGroupCacheClear(pMeta, suid);
+  if (ret < 0) code = ret;
+
+  bool cached = false;
+  if (taosThreadRwlockRdlock(&pMeta->pCache->sStableTagFilterResCache.rwlock) == 0) {
+    cached = taosHashGet(pMeta->pCache->sStableTagFilterResCache.pTableEntry, &suid, sizeof(tb_uid_t)) != NULL;
+    (void)taosThreadRwlockUnlock(&pMeta->pCache->sStableTagFilterResCache.rwlock);
+  }
+  if (cached) {
+    ret = metaStableTagFilterCacheDropSTable(pMeta, (tb_uid_t)suid);
+    // an entry removed concurrently between the check and the drop is gone anyway
+    if (ret < 0 && ret != TSDB_CODE_NOT_FOUND) code = ret;
+  }
+  return code;
 }
 
 int64_t metaGetStbKeep(SMeta* pMeta, int64_t uid) {

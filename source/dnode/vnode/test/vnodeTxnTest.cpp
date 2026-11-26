@@ -21,6 +21,7 @@
 
 #include "gtest/gtest.h"
 
+
 extern "C" {
 #include "monitor.h"
 #include "storageapi.h"
@@ -28,6 +29,17 @@ extern "C" {
 #include "taoserror.h"
 #include "tarray.h"
 #include "tdef.h"
+#include "tdTestSeam.h"
+
+namespace {
+
+// The engine that runs from libtaosd_shared.so reads its own copy of the seam
+// pointers, so the test assigns that copy explicitly instead of the one linked
+// into this binary.
+using tdtestseam::seamSlot;
+
+}  // namespace
+
 #include "thash.h"
 #include "tmsg.h"
 #include "vnd.h"
@@ -70,7 +82,15 @@ struct MockMetaContext {
 
 MockMetaContext g_ctx;
 
-void resetMockContext() { g_ctx = MockMetaContext{}; }
+// Calls of the mocked tag filter cache clears, see seamMetaTagFilterCachesClearAll below.
+int32_t g_tagCachesClearAllCalls = 0;
+int32_t g_tagCachesClearSuidCalls = 0;
+
+void resetMockContext() {
+  g_ctx = MockMetaContext{};
+  g_tagCachesClearAllCalls = 0;
+  g_tagCachesClearSuidCalls = 0;
+}
 
 SMetaEntry* cloneMetaEntry(const MockMetaEntrySpec& spec) {
   SMetaEntry* pEntry = static_cast<SMetaEntry*>(taosMemoryCalloc(1, sizeof(SMetaEntry)));
@@ -96,24 +116,26 @@ void initTestVnode(SVnode* pVnode, int64_t term = 1) {
 
 extern "C" {
 
-// ── Mock functions (GNU ld --wrap) ──
-// These intercept real implementations to inject faults and track calls.
-// Each __wrap_XXX delegates to __real_XXX unless a fault flag is set.
-
-void* __real_taosArrayAddBatch(SArray* pArray, const void* pData, int32_t nEles);
+// ── Mock functions (unit-test seams, see util/tdTestSeam.h) ──
+// These replace real implementations to inject faults and track calls.
+// Each seam hook delegates to the real function unless a fault flag is set.
 
 // Mock taosArrayAddBatch: fails once when g_ctx.failNextArrayAddBatch is set
-void* __wrap_taosArrayAddBatch(SArray* pArray, const void* pData, int32_t nEles) {
+void* seamTaosArrayAddBatch(SArray* pArray, const void* pData, int32_t nEles) {
   if (g_ctx.failNextArrayAddBatch) {
     g_ctx.failNextArrayAddBatch = false;
     return nullptr;
   }
-  return __real_taosArrayAddBatch(pArray, pData, nEles);
+  void* saved = gTdSeam_taosArrayAddBatch;
+  *seamSlot(gTdSeam_taosArrayAddBatch, "gTdSeam_taosArrayAddBatch") = nullptr;
+  void* result = taosArrayAddBatch(pArray, pData, nEles);
+  *seamSlot(gTdSeam_taosArrayAddBatch, "gTdSeam_taosArrayAddBatch") = saved;
+  return result;
 }
 
 // Mock metaFetchEntryByUid: returns entries from g_ctx.fetchEntries in order,
 // simulating B+ tree lookups for specific UIDs during fencing/undo operations
-int32_t __wrap_metaFetchEntryByUid(SMeta* pMeta, int64_t uid, SMetaEntry** ppEntry) {
+int32_t seamMetaFetchEntryByUid(SMeta* pMeta, int64_t uid, SMetaEntry** ppEntry) {
   (void)pMeta;
   if (g_ctx.fetchIndex >= g_ctx.fetchEntries.size()) {
     *ppEntry = nullptr;
@@ -130,8 +152,8 @@ int32_t __wrap_metaFetchEntryByUid(SMeta* pMeta, int64_t uid, SMetaEntry** ppEnt
   return TSDB_CODE_SUCCESS;
 }
 
-// Mock metaFetchEntryFree: frees the cloned SMetaEntry allocated by __wrap_metaFetchEntryByUid
-void __wrap_metaFetchEntryFree(SMetaEntry** ppEntry) {
+// Mock metaFetchEntryFree: frees the cloned SMetaEntry allocated by seamMetaFetchEntryByUid
+void seamMetaFetchEntryFree(SMetaEntry** ppEntry) {
   if (ppEntry == nullptr || *ppEntry == nullptr) {
     return;
   }
@@ -141,7 +163,7 @@ void __wrap_metaFetchEntryFree(SMetaEntry** ppEntry) {
 }
 
 // Mock metaDropTable2: tracks drop call count, returns configurable error code
-int32_t __wrap_metaDropTable2(SMeta* pMeta, int64_t version, SVDropTbReq* pReq) {
+int32_t seamMetaDropTable2(SMeta* pMeta, int64_t version, SVDropTbReq* pReq) {
   (void)pMeta;
   (void)version;
   (void)pReq;
@@ -150,7 +172,7 @@ int32_t __wrap_metaDropTable2(SMeta* pMeta, int64_t version, SVDropTbReq* pReq) 
 }
 
 // Mock metaRollbackAlterTable: tracks rollback call count for ALTER undo verification
-int32_t __wrap_metaRollbackAlterTable(SMeta* pMeta, int64_t uid, int64_t prevVersion) {
+int32_t seamMetaRollbackAlterTable(SMeta* pMeta, int64_t uid, int64_t prevVersion) {
   (void)pMeta;
   (void)uid;
   (void)prevVersion;
@@ -159,7 +181,7 @@ int32_t __wrap_metaRollbackAlterTable(SMeta* pMeta, int64_t uid, int64_t prevVer
 }
 
 // Mock metaTxnIdxDelete: tracks index delete calls, supports NOT_FOUND tolerance
-int32_t __wrap_metaTxnIdxDelete(SMeta* pMeta, tb_uid_t uid) {
+int32_t seamMetaTxnIdxDelete(SMeta* pMeta, tb_uid_t uid) {
   (void)pMeta;
   (void)uid;
   ++g_ctx.txnIdxDeleteCalls;
@@ -170,7 +192,7 @@ int32_t __wrap_metaTxnIdxDelete(SMeta* pMeta, tb_uid_t uid) {
 }
 
 // Mock metaScanTxnEntries: returns g_ctx.scanEntries for txn rebuild testing
-int32_t __wrap_metaScanTxnEntries(SMeta* pMeta, SArray** ppResult) {
+int32_t seamMetaScanTxnEntries(SMeta* pMeta, SArray** ppResult) {
   (void)pMeta;
   if (g_ctx.scanCode != TSDB_CODE_SUCCESS) {
     *ppResult = nullptr;
@@ -199,7 +221,7 @@ int32_t __wrap_metaScanTxnEntries(SMeta* pMeta, SArray** ppResult) {
 }
 
 // Mock metaMarkTableTxnStatus: tracks mark call count for PRE_DROP undo verification
-int32_t __wrap_metaMarkTableTxnStatus(SMeta* pMeta, int64_t uid, int64_t txnId, int8_t txnStatus, int64_t txnOrigVer) {
+int32_t seamMetaMarkTableTxnStatus(SMeta* pMeta, int64_t uid, int64_t txnId, int8_t txnStatus, int64_t txnOrigVer) {
   (void)pMeta;
   (void)uid;
   (void)txnId;
@@ -210,7 +232,7 @@ int32_t __wrap_metaMarkTableTxnStatus(SMeta* pMeta, int64_t uid, int64_t txnId, 
 }
 
 // Mock metaScanTxnMetaEntries: always returns empty (unit tests skip Phase 2 rebuild)
-int32_t __wrap_metaScanTxnMetaEntries(SMeta* pMeta, SArray** ppResult) {
+int32_t seamMetaScanTxnMetaEntries(SMeta* pMeta, SArray** ppResult) {
   (void)pMeta;
   // Always return an empty array — unit tests don't test Phase 2 rebuild
   SArray* pResult = taosArrayInit(1, sizeof(int64_t) + sizeof(STxnMetaVal));
@@ -223,7 +245,7 @@ int32_t __wrap_metaScanTxnMetaEntries(SMeta* pMeta, SArray** ppResult) {
 }
 
 // Mock metaTxnMetaDelete: no-op stub for final index cleanup
-int32_t __wrap_metaTxnMetaDelete(SMeta* pMeta, int64_t txnId) {
+int32_t seamMetaTxnMetaDelete(SMeta* pMeta, int64_t txnId) {
   (void)pMeta;
   (void)txnId;
   return TSDB_CODE_SUCCESS;
@@ -231,7 +253,7 @@ int32_t __wrap_metaTxnMetaDelete(SMeta* pMeta, int64_t txnId) {
 
 // Mock metaTxnMetaGet: returns NOT_FOUND so rebuild uses beginWalIndex=0 fallback.
 // The real implementation dereferences pMeta->pTxnMeta which is invalid in test context.
-int32_t __wrap_metaTxnMetaGet(SMeta* pMeta, int64_t txnId, STxnMetaVal* pVal) {
+int32_t seamMetaTxnMetaGet(SMeta* pMeta, int64_t txnId, STxnMetaVal* pVal) {
   (void)pMeta;
   (void)txnId;
   (void)pVal;
@@ -241,7 +263,7 @@ int32_t __wrap_metaTxnMetaGet(SMeta* pMeta, int64_t txnId, STxnMetaVal* pVal) {
 // Mock metaTxnMetaUpsert: tracks lazy-finalize persistence calls without touching real meta.
 // Begin-record writes (status == TXN_META_NONE) from vnodeTxnEnsureEntry are NOT counted,
 // since txnFinalIdxUpsertCalls is intended to verify finalization behaviour only.
-int32_t __wrap_metaTxnMetaUpsert(SMeta* pMeta, int64_t txnId, const STxnMetaVal* pVal) {
+int32_t seamMetaTxnMetaUpsert(SMeta* pMeta, int64_t txnId, const STxnMetaVal* pVal) {
   (void)pMeta;
   (void)txnId;
   if (pVal != NULL && pVal->status != TXN_META_NONE) {
@@ -251,8 +273,8 @@ int32_t __wrap_metaTxnMetaUpsert(SMeta* pMeta, int64_t txnId, const STxnMetaVal*
 }
 
 // Mock vnodeAsync: unit tests verify scheduling intent only, not async execution.
-int32_t __wrap_vnodeAsync(int64_t async, EVAPriority priority, int32_t (*execute)(void*), void (*complete)(void*),
-                          void* arg, SVATaskID* taskID) {
+int32_t seamVnodeAsync(int64_t async, EVAPriority priority, int32_t (*execute)(void*), void (*complete)(void*),
+                       void* arg, SVATaskID* taskID) {
   (void)async;
   (void)priority;
   (void)execute;
@@ -267,10 +289,83 @@ int32_t __wrap_vnodeAsync(int64_t async, EVAPriority priority, int32_t (*execute
 }
 
 // Mock metaRLock/metaULock: no-op stubs since unit tests use a dummy pMeta pointer.
-void __wrap_metaRLock(SMeta* pMeta) { (void)pMeta; }
-void __wrap_metaULock(SMeta* pMeta) { (void)pMeta; }
+void seamMetaRLock(SMeta* pMeta) { (void)pMeta; }
+void seamMetaULock(SMeta* pMeta) { (void)pMeta; }
+
+// Mock metaBumpVtableGen: the vtable-generation bump is a plain function and
+// the dummy pMeta pointer (0x1) must never be dereferenced.
+void seamMetaBumpVtableGen(SMeta* pMeta) { (void)pMeta; }
+
+// Mock tag filter cache clears (called when a txn is finalized / its entries promoted or undone): they walk the real
+// caches of pMeta, which the dummy pMeta does not have. The calls are counted so a test can check they happen.
+int32_t seamMetaTagFilterCachesClearAll(SMeta* pMeta) {
+  (void)pMeta;
+  ++g_tagCachesClearAllCalls;
+  return 0;
+}
+int32_t seamMetaTagFilterCachesClearSuid(SMeta* pMeta, uint64_t suid) {
+  (void)pMeta;
+  (void)suid;
+  ++g_tagCachesClearSuidCalls;
+  return 0;
+}
 
 }  // extern "C"
+
+namespace {
+
+// Installs the seam replacements for the whole test binary and clears them when
+// it exits.  Unit tests in this file share one mock context, so the seams stay
+// installed across cases instead of being set up per case.
+struct SeamInstaller {
+  SeamInstaller() {
+    *seamSlot(gTdSeam_taosArrayAddBatch, "gTdSeam_taosArrayAddBatch") = reinterpret_cast<void*>(&seamTaosArrayAddBatch);
+    *seamSlot(gTdSeam_metaFetchEntryByUid, "gTdSeam_metaFetchEntryByUid") = reinterpret_cast<void*>(&seamMetaFetchEntryByUid);
+    *seamSlot(gTdSeam_metaFetchEntryFree, "gTdSeam_metaFetchEntryFree") = reinterpret_cast<void*>(&seamMetaFetchEntryFree);
+    *seamSlot(gTdSeam_metaDropTable2, "gTdSeam_metaDropTable2") = reinterpret_cast<void*>(&seamMetaDropTable2);
+    *seamSlot(gTdSeam_metaRollbackAlterTable, "gTdSeam_metaRollbackAlterTable") = reinterpret_cast<void*>(&seamMetaRollbackAlterTable);
+    *seamSlot(gTdSeam_metaTxnIdxDelete, "gTdSeam_metaTxnIdxDelete") = reinterpret_cast<void*>(&seamMetaTxnIdxDelete);
+    *seamSlot(gTdSeam_metaScanTxnEntries, "gTdSeam_metaScanTxnEntries") = reinterpret_cast<void*>(&seamMetaScanTxnEntries);
+    *seamSlot(gTdSeam_metaScanTxnMetaEntries, "gTdSeam_metaScanTxnMetaEntries") = reinterpret_cast<void*>(&seamMetaScanTxnMetaEntries);
+    *seamSlot(gTdSeam_metaTxnMetaDelete, "gTdSeam_metaTxnMetaDelete") = reinterpret_cast<void*>(&seamMetaTxnMetaDelete);
+    *seamSlot(gTdSeam_metaTxnMetaGet, "gTdSeam_metaTxnMetaGet") = reinterpret_cast<void*>(&seamMetaTxnMetaGet);
+    *seamSlot(gTdSeam_metaTxnMetaUpsert, "gTdSeam_metaTxnMetaUpsert") = reinterpret_cast<void*>(&seamMetaTxnMetaUpsert);
+    *seamSlot(gTdSeam_metaMarkTableTxnStatus, "gTdSeam_metaMarkTableTxnStatus") = reinterpret_cast<void*>(&seamMetaMarkTableTxnStatus);
+    *seamSlot(gTdSeam_metaBumpVtableGen, "gTdSeam_metaBumpVtableGen") = reinterpret_cast<void*>(&seamMetaBumpVtableGen);
+    *seamSlot(gTdSeam_metaTagFilterCachesClearAll, "gTdSeam_metaTagFilterCachesClearAll") =
+        reinterpret_cast<void*>(&seamMetaTagFilterCachesClearAll);
+    *seamSlot(gTdSeam_metaTagFilterCachesClearSuid, "gTdSeam_metaTagFilterCachesClearSuid") =
+        reinterpret_cast<void*>(&seamMetaTagFilterCachesClearSuid);
+    *seamSlot(gTdSeam_metaRLock, "gTdSeam_metaRLock") = reinterpret_cast<void*>(&seamMetaRLock);
+    *seamSlot(gTdSeam_metaULock, "gTdSeam_metaULock") = reinterpret_cast<void*>(&seamMetaULock);
+    *seamSlot(gTdSeam_vnodeAsync, "gTdSeam_vnodeAsync") = reinterpret_cast<void*>(&seamVnodeAsync);
+  }
+
+  ~SeamInstaller() {
+    *seamSlot(gTdSeam_taosArrayAddBatch, "gTdSeam_taosArrayAddBatch") = nullptr;
+    *seamSlot(gTdSeam_metaFetchEntryByUid, "gTdSeam_metaFetchEntryByUid") = nullptr;
+    *seamSlot(gTdSeam_metaFetchEntryFree, "gTdSeam_metaFetchEntryFree") = nullptr;
+    *seamSlot(gTdSeam_metaDropTable2, "gTdSeam_metaDropTable2") = nullptr;
+    *seamSlot(gTdSeam_metaRollbackAlterTable, "gTdSeam_metaRollbackAlterTable") = nullptr;
+    *seamSlot(gTdSeam_metaTxnIdxDelete, "gTdSeam_metaTxnIdxDelete") = nullptr;
+    *seamSlot(gTdSeam_metaScanTxnEntries, "gTdSeam_metaScanTxnEntries") = nullptr;
+    *seamSlot(gTdSeam_metaScanTxnMetaEntries, "gTdSeam_metaScanTxnMetaEntries") = nullptr;
+    *seamSlot(gTdSeam_metaTxnMetaDelete, "gTdSeam_metaTxnMetaDelete") = nullptr;
+    *seamSlot(gTdSeam_metaTxnMetaGet, "gTdSeam_metaTxnMetaGet") = nullptr;
+    *seamSlot(gTdSeam_metaTxnMetaUpsert, "gTdSeam_metaTxnMetaUpsert") = nullptr;
+    *seamSlot(gTdSeam_metaMarkTableTxnStatus, "gTdSeam_metaMarkTableTxnStatus") = nullptr;
+    *seamSlot(gTdSeam_metaBumpVtableGen, "gTdSeam_metaBumpVtableGen") = nullptr;
+    *seamSlot(gTdSeam_metaTagFilterCachesClearAll, "gTdSeam_metaTagFilterCachesClearAll") = nullptr;
+    *seamSlot(gTdSeam_metaTagFilterCachesClearSuid, "gTdSeam_metaTagFilterCachesClearSuid") = nullptr;
+    *seamSlot(gTdSeam_metaRLock, "gTdSeam_metaRLock") = nullptr;
+    *seamSlot(gTdSeam_metaULock, "gTdSeam_metaULock") = nullptr;
+    *seamSlot(gTdSeam_vnodeAsync, "gTdSeam_vnodeAsync") = nullptr;
+  }
+};
+
+SeamInstaller gSeamInstaller;
+
+}  // namespace
 
 namespace {
 
@@ -633,6 +728,8 @@ TEST(vnodeTxnCase, inlineCommitPartialFailureFallsBackToLazyFinalize) {
   EXPECT_EQ(g_ctx.vnodeAsyncCalls, 1);
   EXPECT_EQ(taosHashGetSize(vnode.pTxnHash), 1);
   EXPECT_EQ(taosHashGetSize(vnode.pTxnMetaCache), 1);
+  // finalizing flips what every reader sees at once: the tag filter caches of the vnode go with it
+  EXPECT_EQ(g_tagCachesClearAllCalls, 1);
 
   auto* pFinalStatus = static_cast<int8_t*>(taosHashGet(vnode.pTxnMetaCache, &txnId, sizeof(txnId)));
   ASSERT_NE(pFinalStatus, nullptr);
@@ -671,6 +768,7 @@ TEST(vnodeTxnCase, rollbackAlterFailureFallsBackToLazyFinalize) {
   EXPECT_EQ(g_ctx.vnodeAsyncCalls, 1);
   EXPECT_EQ(taosHashGetSize(vnode.pTxnHash), 1);
   EXPECT_EQ(taosHashGetSize(vnode.pTxnMetaCache), 1);
+  EXPECT_EQ(g_tagCachesClearAllCalls, 1);  // the lazy finalize of a ROLLBACK drops the tag caches as well
 
   auto* pFinalStatus = static_cast<int8_t*>(taosHashGet(vnode.pTxnMetaCache, &txnId, sizeof(txnId)));
   ASSERT_NE(pFinalStatus, nullptr);

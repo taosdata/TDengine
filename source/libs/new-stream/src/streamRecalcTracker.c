@@ -32,7 +32,15 @@ typedef struct SStreamWideUInt {
 typedef struct SStreamRecalcGroupProgress {
   int64_t gid;
   TSKEY   committedThrough;
+  TSKEY   progressEnd;
 } SStreamRecalcGroupProgress;
+
+typedef struct SStreamRecalcNoDataGroups {
+  int64_t              recalcId;
+  uint64_t             generation;
+  SStreamProgressRange requestedRange;
+  SArray              *pGroups;
+} SStreamRecalcNoDataGroups;
 
 typedef enum EStreamRecalcAttemptStatus {
   STREAM_RECALC_ATTEMPT_PREPARED = 0,
@@ -325,19 +333,18 @@ static void stRefreshJobProgress(SStreamRecalcTracker *pTracker, SStreamRecalcJo
   SStreamWideUInt total = {0};
   SStreamWideUInt completed = {0};
   bool            finished = true;
-  const uint64_t  rangeLength = stRangeLength(pJob->requestedRange);
 
   for (size_t i = 0; i < taosArrayGetSize(pJob->pGroups); ++i) {
     const SStreamRecalcGroupProgress *pGroup = taosArrayGet(pJob->pGroups, i);
+    const uint64_t rangeLength = stRangeLength((SStreamProgressRange){pJob->requestedRange.start, pGroup->progressEnd});
     stWideAdd(&total, rangeLength);
     TSKEY completedThrough = pGroup->committedThrough;
     if (completedThrough < pJob->requestedRange.start) completedThrough = pJob->requestedRange.start;
-    if (completedThrough > pJob->requestedRange.end) completedThrough = pJob->requestedRange.end;
+    if (completedThrough > pGroup->progressEnd) completedThrough = pGroup->progressEnd;
     stWideAdd(&completed, stRangeLength((SStreamProgressRange){pJob->requestedRange.start, completedThrough}));
-    if (rangeLength != 0 && pGroup->committedThrough < pJob->requestedRange.end) finished = false;
+    if (rangeLength != 0 && pGroup->committedThrough < pGroup->progressEnd) finished = false;
   }
 
-  if (taosArrayGetSize(pJob->pGroups) == 0 || rangeLength == 0) finished = true;
   int32_t progressPct = stProgressPercent(completed, total, finished);
   if (progressPct > pJob->progressPct) pJob->progressPct = progressPct;
   if (finished && pJob->status == STREAM_RECALC_STATUS_RUNNING && stJobAllRequiredChainsSucceeded(pTracker, pJob) &&
@@ -592,7 +599,8 @@ int32_t stRecalcTrackerRegisterJob(SStreamRecalcTracker *pTracker, int64_t recal
   if (pGroupIds != NULL) {
     for (size_t i = 0; i < taosArrayGetSize(pGroupIds); ++i) {
       const int64_t             *pGid = taosArrayGet(pGroupIds, i);
-      SStreamRecalcGroupProgress group = {.gid = *pGid, .committedThrough = requestedRange.start};
+      SStreamRecalcGroupProgress group = {
+          .gid = *pGid, .committedThrough = requestedRange.start, .progressEnd = requestedRange.end};
       if (taosArrayPush(pJob->pGroups, &group) == NULL) {
         code = terrno;
         stDestroyJob(pJob);
@@ -768,6 +776,114 @@ _exit:
   return code;
 }
 
+void stRecalcTrackerDestroyNoDataGroups(SStreamRecalcNoDataGroups **ppGroups) {
+  if (ppGroups == NULL || *ppGroups == NULL) return;
+  taosArrayDestroy((*ppGroups)->pGroups);
+  taosMemoryFreeClear(*ppGroups);
+}
+
+int32_t stRecalcTrackerPrepareNoDataGroups(SStreamRecalcTracker *pTracker, int64_t recalcId,
+                                           SStreamProgressRange requestedRange, const SArray *pGroupIds,
+                                           SStreamRecalcNoDataGroups **ppGroups) {
+  if (ppGroups == NULL) return TSDB_CODE_INVALID_PARA;
+  *ppGroups = NULL;
+  if (pTracker == NULL || (pGroupIds != NULL && pGroupIds->elemSize != sizeof(int64_t))) {
+    return TSDB_CODE_INVALID_PARA;
+  }
+  if (pGroupIds == NULL || taosArrayGetSize(pGroupIds) == 0) return TSDB_CODE_SUCCESS;
+
+  int32_t                    code = TSDB_CODE_SUCCESS;
+  SSHashObj                 *pGroupIndex = NULL;
+  SStreamRecalcNoDataGroups *pGroups = NULL;
+  taosWLockLatch(&pTracker->lock);
+  SStreamRecalcJob *pJob = stGetJob(pTracker, recalcId);
+  if (pJob == NULL || !stRangeEquals(pJob->requestedRange, requestedRange)) {
+    code = TSDB_CODE_INVALID_MSG;
+    goto _exit;
+  }
+
+  pGroups = taosMemoryCalloc(1, sizeof(*pGroups));
+  if (pGroups == NULL) {
+    code = terrno;
+    goto _exit;
+  }
+  pGroups->pGroups = taosArrayInit(taosArrayGetSize(pGroupIds), sizeof(SStreamRecalcGroupProgress *));
+  if (pGroups->pGroups == NULL) {
+    code = terrno;
+    goto _exit;
+  }
+  pGroupIndex = tSimpleHashInit(taosArrayGetSize(pJob->pGroups), taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT));
+  if (pGroupIndex == NULL) {
+    code = terrno;
+    goto _exit;
+  }
+  for (size_t i = 0; i < taosArrayGetSize(pJob->pGroups); ++i) {
+    SStreamRecalcGroupProgress *pGroup = taosArrayGet(pJob->pGroups, i);
+    code = tSimpleHashPut(pGroupIndex, &pGroup->gid, sizeof(pGroup->gid), &pGroup, sizeof(pGroup));
+    if (code != TSDB_CODE_SUCCESS) goto _exit;
+  }
+  for (size_t i = 0; i < taosArrayGetSize(pGroupIds); ++i) {
+    const int64_t               *pGid = taosArrayGet(pGroupIds, i);
+    SStreamRecalcGroupProgress **ppGroup = tSimpleHashGet(pGroupIndex, pGid, sizeof(*pGid));
+    if (ppGroup == NULL || taosArrayPush(pGroups->pGroups, ppGroup) == NULL) {
+      code = ppGroup == NULL ? TSDB_CODE_INVALID_MSG : terrno;
+      goto _exit;
+    }
+  }
+
+  for (size_t i = 0; i < taosArrayGetSize(pGroups->pGroups); ++i) {
+    SStreamRecalcGroupProgress **ppGroup = taosArrayGet(pGroups->pGroups, i);
+    (*ppGroup)->progressEnd = requestedRange.start;
+  }
+  pGroups->recalcId = recalcId;
+  pGroups->generation = pJob->generation;
+  pGroups->requestedRange = requestedRange;
+  *ppGroups = pGroups;
+  pGroups = NULL;
+
+_exit:
+  tSimpleHashCleanup(pGroupIndex);
+  stRecalcTrackerDestroyNoDataGroups(&pGroups);
+  taosWUnLockLatch(&pTracker->lock);
+  return code;
+}
+
+int32_t stRecalcTrackerCommitNoDataGroups(SStreamRecalcTracker *pTracker, const SStreamRecalcNoDataGroups *pGroups) {
+  if (pTracker == NULL) return TSDB_CODE_INVALID_PARA;
+  if (pGroups == NULL) return TSDB_CODE_SUCCESS;
+
+  int32_t code = TSDB_CODE_SUCCESS;
+  taosWLockLatch(&pTracker->lock);
+  SStreamRecalcJob *pJob = stGetJob(pTracker, pGroups->recalcId);
+  if (pJob == NULL || pJob->generation != pGroups->generation ||
+      !stRangeEquals(pJob->requestedRange, pGroups->requestedRange)) {
+    code = TSDB_CODE_INVALID_MSG;
+    goto _exit;
+  }
+
+  EStreamRecalcStatus previousStatus = pJob->status;
+  if (pJob->status == STREAM_RECALC_STATUS_PENDING &&
+      stRecalcStatusCanTransition(pJob->status, STREAM_RECALC_STATUS_RUNNING)) {
+    pJob->status = STREAM_RECALC_STATUS_RUNNING;
+  }
+  if (pJob->status == STREAM_RECALC_STATUS_RUNNING) {
+    for (size_t i = 0; i < taosArrayGetSize(pGroups->pGroups); ++i) {
+      SStreamRecalcGroupProgress **ppGroup = taosArrayGet(pGroups->pGroups, i);
+      if ((*ppGroup)->committedThrough < pGroups->requestedRange.start) {
+        (*ppGroup)->committedThrough = pGroups->requestedRange.start;
+      }
+    }
+    stRefreshJobProgress(pTracker, pJob);
+    if (previousStatus != pJob->status && pJob->status == STREAM_RECALC_STATUS_FINISHED) {
+      stRecordJobTerminal(pTracker, pJob);
+    }
+  }
+
+_exit:
+  taosWUnLockLatch(&pTracker->lock);
+  return code;
+}
+
 int32_t stRecalcAttemptCreate(size_t contributorCapacity, SStreamRecalcAttemptState **ppAttempt) {
   if (ppAttempt == NULL) return TSDB_CODE_INVALID_PARA;
   *ppAttempt = NULL;
@@ -863,6 +979,13 @@ int32_t stRecalcTrackerActivateAttempt(SStreamRecalcTracker *pTracker, SStreamRe
     SStreamRecalcJob               *pJob = stGetJob(pTracker, pContributor->recalcId);
     if (pJob != NULL && stRecalcStatusCanTransition(pJob->status, STREAM_RECALC_STATUS_RUNNING)) {
       pJob->status = STREAM_RECALC_STATUS_RUNNING;
+    }
+    if (pJob != NULL && pJob->requestedRange.end == TSKEY_MAX) {
+      // FROM without TO scans only through this group's captured stream progress. Keep the original range
+      // for contributor identity and snapshots; retries reuse the same attempt and progress end.
+      SStreamRecalcGroupProgress *pGroup = stGetGroupProgress(pJob, gid);
+      pGroup->progressEnd = TMAX(pJob->requestedRange.start, scanRange.end);
+      stRefreshJobProgress(pTracker, pJob);
     }
   }
   *pRef = (SStreamRecalcAttemptRef){.chainId = pAttempt->chainId, .executionOrdinal = 0};
@@ -1484,6 +1607,16 @@ int32_t stRecalcTrackerCompleteAttempt(SStreamRecalcTracker *pTracker, SStreamRe
 
 _exit:
   stCompactTerminalAttemptsLocked(pTracker);
+  taosWUnLockLatch(&pTracker->lock);
+  return code;
+}
+
+int32_t stRecalcTrackerDiscardStep(SStreamRecalcTracker *pTracker, uint64_t stepId) {
+  if (!pTracker || !stepId) return TSDB_CODE_INVALID_PARA;
+  taosWLockLatch(&pTracker->lock);
+  SStreamRecalcStep *step = stGetStep(pTracker, stepId);
+  int32_t            code = step ? 0 : stMissingStepCode(pTracker, stepId);
+  if (step) stRetireStep(pTracker, step);
   taosWUnLockLatch(&pTracker->lock);
   return code;
 }

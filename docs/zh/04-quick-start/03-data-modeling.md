@@ -12,7 +12,11 @@ toc_max_heading_level: 4
 创建一个数据库以存储电表数据的 SQL 如下：
 
 ```sql
-CREATE DATABASE power PRECISION 'ms' KEEP 3650 DURATION 10 BUFFER 16;
+CREATE DATABASE power
+  PRECISION 'ms'
+  KEEP 3650
+  DURATION 10
+  BUFFER 16;
 ```
 
 该 SQL 将创建一个名为 `power` 的数据库，各参数说明如下：
@@ -36,13 +40,13 @@ USE power;
 
 ```sql
 CREATE STABLE meters (
-    ts timestamp,
-    current float,
-    voltage int,
-    phase float
+  ts      TIMESTAMP,
+  current FLOAT,
+  voltage INT,
+  phase   FLOAT
 ) TAGS (
-    location varchar(64),
-    group_id int
+  location VARCHAR(64),
+  group_id INT
 );
 ```
 
@@ -62,13 +66,8 @@ CREATE STABLE meters (
 
 ```sql
 CREATE TABLE d1001
-USING meters (
-    location,
-    group_id
-) TAGS (
-    "California.SanFrancisco",
-    2
-);
+  USING meters (location, group_id)
+  TAGS ("California.SanFrancisco", 2);
 ```
 
 上面的 SQL 中，`CREATE TABLE` 为关键字，表示创建子表；`d1001` 是子表的名称；`USING` 是关键字，表示使用超级表作为模板；`meters` 是超级表的名称；超级表名后的括号中，`location`、`group_id` 是超级表的标签列名列表；`TAGS` 是关键字，后面的括号中指定子表的标签列值。`"California.SanFrancisco"` 和 `2` 表示子表 `d1001` 的位置为 `California.SanFrancisco`，分组 ID 为 `2`。
@@ -84,15 +83,8 @@ USING meters (
 ```sql
 INSERT INTO d1002
 USING meters
-TAGS (
-    "California.SanFrancisco",
-    2
-) VALUES (
-    NOW,
-    10.2,
-    219,
-    0.32
-);
+TAGS ("California.SanFrancisco", 2)
+VALUES (NOW, 10.2, 219, 0.32);
 ```
 
 上面的 SQL 中，`INSERT INTO d1002` 表示向子表 `d1002` 中写入数据；`USING meters` 表示使用超级表 `meters` 作为模板；`TAGS ("California.SanFrancisco", 2)` 表示子表 `d1002` 的标签值分别为 `California.SanFrancisco` 和 `2`；`VALUES (NOW, 10.2, 219, 0.32)` 表示向子表 `d1002` 插入一行记录，值分别为 `NOW`（当前时间戳）、`10.2`（电流）、`219`（电压）和 `0.32`（相位）。在 TDengine 执行这条 SQL 时，如果子表 `d1002` 已经存在，则直接写入数据；如果子表 `d1002` 不存在，则先自动创建子表，再写入数据。
@@ -113,12 +105,12 @@ TAGS (
 
 ```sql
 CREATE TABLE meter_n (
-    ts timestamp,
-    current float,
-    voltage int,
-    phase float,
-    location varchar(64),
-    group_id int
+  ts       TIMESTAMP,
+  current  FLOAT,
+  voltage  INT,
+  phase    FLOAT,
+  location VARCHAR(64),
+  group_id INT
 );
 ```
 
@@ -150,112 +142,134 @@ TDengine 支持灵活的数据模型设计，包括多列模型和单列模型�
 
 ```sql
 CREATE STABLE current_stb (
-    ts timestamp,
-    current float
+  ts      TIMESTAMP,
+  current FLOAT
 ) TAGS (
-    device_id varchar(64),
-    location varchar(64),
-    group_id int
+  device_id VARCHAR(64),
+  location  VARCHAR(64),
+  group_id  INT
 );
 
 CREATE STABLE voltage_stb (
-    ts timestamp,
-    voltage int
+  ts      TIMESTAMP,
+  voltage INT
 ) TAGS (
-    device_id varchar(64),
-    location varchar(64),
-    group_id int
+  device_id VARCHAR(64),
+  location  VARCHAR(64),
+  group_id  INT
 );
 
 CREATE STABLE phase_stb (
-    ts timestamp,
-    phase float
+  ts    TIMESTAMP,
+  phase FLOAT
 ) TAGS (
-    device_id varchar(64),
-    location varchar(64),
-    group_id int
+  device_id VARCHAR(64),
+  location  VARCHAR(64),
+  group_id  INT
 );
 ```
 
 假设有 `d1001`、`d1002`、`d1003`、`d1004` 这 4 个设备，为它们的电流、电压、相位采集量分别创建子表，SQL 如下：
 
 ```sql
-CREATE TABLE current_d1001 USING current_stb (device_id, location, group_id) TAGS ("d1001", "California.SanFrancisco", 2);
-CREATE TABLE current_d1002 USING current_stb (device_id, location, group_id) TAGS ("d1002", "California.SanFrancisco", 3);
-CREATE TABLE current_d1003 USING current_stb (device_id, location, group_id) TAGS ("d1003", "California.LosAngeles", 3);
-CREATE TABLE current_d1004 USING current_stb (device_id, location, group_id) TAGS ("d1004", "California.LosAngeles", 2);
+CREATE TABLE current_d1001
+  USING current_stb (device_id, location, group_id)
+  TAGS ("d1001", "California.SanFrancisco", 2);
 
-CREATE TABLE voltage_d1001 USING voltage_stb (device_id, location, group_id) TAGS ("d1001", "California.SanFrancisco", 2);
-CREATE TABLE voltage_d1002 USING voltage_stb (device_id, location, group_id) TAGS ("d1002", "California.SanFrancisco", 3);
-CREATE TABLE voltage_d1003 USING voltage_stb (device_id, location, group_id) TAGS ("d1003", "California.LosAngeles", 3);
-CREATE TABLE voltage_d1004 USING voltage_stb (device_id, location, group_id) TAGS ("d1004", "California.LosAngeles", 2);
+CREATE TABLE current_d1002
+  USING current_stb (device_id, location, group_id)
+  TAGS ("d1002", "California.SanFrancisco", 3);
 
-CREATE TABLE phase_d1001 USING phase_stb (device_id, location, group_id) TAGS ("d1001", "California.SanFrancisco", 2);
-CREATE TABLE phase_d1002 USING phase_stb (device_id, location, group_id) TAGS ("d1002", "California.SanFrancisco", 3);
-CREATE TABLE phase_d1003 USING phase_stb (device_id, location, group_id) TAGS ("d1003", "California.LosAngeles", 3);
-CREATE TABLE phase_d1004 USING phase_stb (device_id, location, group_id) TAGS ("d1004", "California.LosAngeles", 2);
+CREATE TABLE current_d1003
+  USING current_stb (device_id, location, group_id)
+  TAGS ("d1003", "California.LosAngeles", 3);
+
+CREATE TABLE current_d1004
+  USING current_stb (device_id, location, group_id)
+  TAGS ("d1004", "California.LosAngeles", 2);
+
+CREATE TABLE voltage_d1001
+  USING voltage_stb (device_id, location, group_id)
+  TAGS ("d1001", "California.SanFrancisco", 2);
+
+CREATE TABLE voltage_d1002
+  USING voltage_stb (device_id, location, group_id)
+  TAGS ("d1002", "California.SanFrancisco", 3);
+
+CREATE TABLE voltage_d1003
+  USING voltage_stb (device_id, location, group_id)
+  TAGS ("d1003", "California.LosAngeles", 3);
+
+CREATE TABLE voltage_d1004
+  USING voltage_stb (device_id, location, group_id)
+  TAGS ("d1004", "California.LosAngeles", 2);
+
+CREATE TABLE phase_d1001
+  USING phase_stb (device_id, location, group_id)
+  TAGS ("d1001", "California.SanFrancisco", 2);
+
+CREATE TABLE phase_d1002
+  USING phase_stb (device_id, location, group_id)
+  TAGS ("d1002", "California.SanFrancisco", 3);
+
+CREATE TABLE phase_d1003
+  USING phase_stb (device_id, location, group_id)
+  TAGS ("d1003", "California.LosAngeles", 3);
+
+CREATE TABLE phase_d1004
+  USING phase_stb (device_id, location, group_id)
+  TAGS ("d1004", "California.LosAngeles", 2);
 ```
 
 可以通过一张虚拟超级表将这 3 种采集量聚合到一张表中。创建虚拟超级表的 SQL 如下：
 
 ```sql
 CREATE STABLE meters_v (
-    ts timestamp,
-    current float,
-    voltage int,
-    phase float
+  ts      TIMESTAMP,
+  current FLOAT,
+  voltage INT,
+  phase   FLOAT
 ) TAGS (
-    location varchar(64),
-    group_id int
-) VIRTUAL 1;
+  location VARCHAR(64),
+  group_id INT
+)
+  VIRTUAL 1;
 ```
 
 然后为 `d1001`、`d1002`、`d1003`、`d1004` 这 4 个设备分别创建虚拟子表，SQL 如下：
 
 ```sql
 CREATE VTABLE d1001_v (
-    current FROM current_d1001.current,
-    voltage FROM voltage_d1001.voltage,
-    phase FROM phase_d1001.phase
+  current FROM current_d1001.current,
+  voltage FROM voltage_d1001.voltage,
+  phase FROM phase_d1001.phase
 )
-USING meters_v
-TAGS (
-    "California.SanFrancisco",
-    2
-);
+  USING meters_v
+  TAGS ("California.SanFrancisco", 2);
 
 CREATE VTABLE d1002_v (
-    current FROM current_d1002.current,
-    voltage FROM voltage_d1002.voltage,
-    phase FROM phase_d1002.phase
+  current FROM current_d1002.current,
+  voltage FROM voltage_d1002.voltage,
+  phase FROM phase_d1002.phase
 )
-USING meters_v
-TAGS (
-    "California.SanFrancisco",
-    3
-);
+  USING meters_v
+  TAGS ("California.SanFrancisco", 3);
 
 CREATE VTABLE d1003_v (
-    current FROM current_d1003.current,
-    voltage FROM voltage_d1003.voltage,
-    phase FROM phase_d1003.phase
+  current FROM current_d1003.current,
+  voltage FROM voltage_d1003.voltage,
+  phase FROM phase_d1003.phase
 )
-USING meters_v
-TAGS (
-    "California.LosAngeles",
-    3
-);
+  USING meters_v
+  TAGS ("California.LosAngeles", 3);
 
 CREATE VTABLE d1004_v (
-    current FROM current_d1004.current,
-    voltage FROM voltage_d1004.voltage,
-    phase FROM phase_d1004.phase
+  current FROM current_d1004.current,
+  voltage FROM voltage_d1004.voltage,
+  phase FROM phase_d1004.phase
 )
-USING meters_v
-TAGS (
-    "California.LosAngeles",
-    2
-);
+  USING meters_v
+  TAGS ("California.LosAngeles", 2);
 ```
 
 以设备 `d1001` 为例，假设该设备的电流、电压、相位数据如下：
@@ -321,30 +335,31 @@ TAGS (
 写入上述数据的 SQL 如下：
 
 ```sql
-INSERT INTO current_d1001 VALUES
-    (1538548685000, 10.3),
-    (1538548695000, 12.6),
-    (1538548696800, 12.3),
-    (1538548697100, 12.1),
-    (1538548697700, 11.8)
-voltage_d1001 VALUES
-    (1538548685000, 219),
-    (1538548695000, 218),
-    (1538548696800, 221),
-    (1538548697100, 220),
-    (1538548697800, 222)
-phase_d1001 VALUES
-    (1538548685000, 0.31),
-    (1538548695000, 0.33),
-    (1538548696800, 0.31),
-    (1538548697200, 0.32),
-    (1538548697800, 0.33);
+INSERT INTO current_d1001
+VALUES (1538548685000, 10.3),
+       (1538548695000, 12.6),
+       (1538548696800, 12.3),
+       (1538548697100, 12.1),
+       (1538548697700, 11.8)
+voltage_d1001
+VALUES (1538548685000, 219),
+       (1538548695000, 218),
+       (1538548696800, 221),
+       (1538548697100, 220),
+       (1538548697800, 222)
+phase_d1001
+VALUES (1538548685000, 0.31),
+       (1538548695000, 0.33),
+       (1538548696800, 0.31),
+       (1538548697200, 0.32),
+       (1538548697800, 0.33);
 ```
 
 查询虚拟表 `d1001_v` 的 SQL 如下：
 
 ```sql
-SELECT * FROM d1001_v;
+SELECT *
+FROM d1001_v;
 ```
 
 查询结果如下：
@@ -368,11 +383,11 @@ SELECT * FROM d1001_v;
 
 ```sql
 CREATE VTABLE current_v (
-    ts timestamp,
-    d1001_current float FROM current_d1001.current,
-    d1002_current float FROM current_d1002.current,
-    d1003_current float FROM current_d1003.current,
-    d1004_current float FROM current_d1004.current
+  ts            TIMESTAMP,
+  d1001_current FLOAT FROM current_d1001.current,
+  d1002_current FLOAT FROM current_d1002.current,
+  d1003_current FLOAT FROM current_d1003.current,
+  d1004_current FLOAT FROM current_d1004.current
 );
 ```
 
@@ -453,36 +468,37 @@ CREATE VTABLE current_v (
 写入上述电流数据的 SQL 如下：
 
 ```sql
-INSERT INTO current_d1001 VALUES
-    (1538548685000, 10.3),
-    (1538548695000, 12.6),
-    (1538548696800, 12.3),
-    (1538548697100, 12.1),
-    (1538548697700, 11.8)
-current_d1002 VALUES
-    (1538548685000, 11.7),
-    (1538548695000, 11.9),
-    (1538548696800, 12.4),
-    (1538548697200, 12.2),
-    (1538548697700, 11.4)
-current_d1003 VALUES
-    (1538548685000, 11.2),
-    (1538548695000, 10.8),
-    (1538548696800, 12.3),
-    (1538548697100, 11.1),
-    (1538548697800, 12.1)
-current_d1004 VALUES
-    (1538548685000, 12.4),
-    (1538548695000, 11.3),
-    (1538548696800, 10.1),
-    (1538548697200, 11.7),
-    (1538548697800, 12.6);
+INSERT INTO current_d1001
+VALUES (1538548685000, 10.3),
+       (1538548695000, 12.6),
+       (1538548696800, 12.3),
+       (1538548697100, 12.1),
+       (1538548697700, 11.8)
+current_d1002
+VALUES (1538548685000, 11.7),
+       (1538548695000, 11.9),
+       (1538548696800, 12.4),
+       (1538548697200, 12.2),
+       (1538548697700, 11.4)
+current_d1003
+VALUES (1538548685000, 11.2),
+       (1538548695000, 10.8),
+       (1538548696800, 12.3),
+       (1538548697100, 11.1),
+       (1538548697800, 12.1)
+current_d1004
+VALUES (1538548685000, 12.4),
+       (1538548695000, 11.3),
+       (1538548696800, 10.1),
+       (1538548697200, 11.7),
+       (1538548697800, 12.6);
 ```
 
 查询虚拟表 `current_v` 的 SQL 如下：
 
 ```sql
-SELECT * FROM current_v;
+SELECT *
+FROM current_v;
 ```
 
 查询结果如下：

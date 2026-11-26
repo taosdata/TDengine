@@ -75,6 +75,24 @@ if [ -d "${top_dir}/resource" ]; then
   cp -R "${top_dir}/resource/." "${install_dir}/resource/"
 fi
 
+# Bundle the verified TSFM release metadata with the program.  This
+# is program-owned metadata; user resource state and caches remain under data/.
+tsfm_release_manifest="${top_dir}/packaging/tdengine-tdgpt-tsfm-release-1.0.1.json"
+if [ ! -f "${tsfm_release_manifest}" ]; then
+  echo "Error: missing TSFM release manifest: ${tsfm_release_manifest}" >&2
+  exit 1
+fi
+mkdir -p "${install_dir}/share/tsfm"
+cp "${tsfm_release_manifest}" "${install_dir}/share/tsfm/tsfm-release.json"
+
+# AI skills are read-only agent guidance shipped with the product.
+if [ -d "${top_dir}/skills" ]; then
+  mkdir -p "${install_dir}/skills"
+  cp -R "${top_dir}/skills/." "${install_dir}/skills/"
+  find "${install_dir}/skills" -type d -name "__pycache__" -exec rm -rf {} + 2>/dev/null || :
+  find "${install_dir}/skills" -type f \( -name "*.pyc" -o -name "*.pyo" \) -delete 2>/dev/null || :
+fi
+
 if [ -f "${cfg_dir}/${serverName}.service" ]; then
   cp ${cfg_dir}/${serverName}.service ${install_dir}/cfg || :
 fi
@@ -95,13 +113,15 @@ find "${top_dir}/lib/" -type d -name "$TARGET_PATTERN" -exec rm -rf {} +
 # copy lib packages: top-level py files, taosanalytics, tsfm, dynamic
 cp ${top_dir}/lib/*.py ${lib_install_dir}/ || :
 cp -R ${top_dir}/lib/taosanalytics ${lib_install_dir}/ && chmod a+x ${lib_install_dir}/ || :
+# User plugins live in the data directory; never ship legacy plugin placeholders.
+rm -rf "${lib_install_dir}/taosanalytics/algo/custom"
 cp -R ${top_dir}/lib/tsfm ${lib_install_dir}/ || :
 cp -R ${top_dir}/lib/dynamic ${lib_install_dir}/ || :
 # Keep the payload explicit: new development scripts must not be shipped by a glob.
 lifecycle_scripts=(
   start-model.sh stop-model.sh
   taosanode_service.py taosanodectl.py
-  resource_manifest.py resource_manager.py
+    resource_manifest.py resource_manager.py runtime_upgrade.py
   uninstall.sh
 )
 for lifecycle_script in "${lifecycle_scripts[@]}"; do

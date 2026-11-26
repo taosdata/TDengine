@@ -29,10 +29,12 @@ Design notes:
     - SQL Server (4th external source; zero pushdown in step 1, so the remote
       SQL is a base scan) adds a parallel path to tests 001-005 and 007-009
       using the shared SQL Server helpers (sqlserver_exec /
-      stop|start_sqlserver_instance / _mk_sqlserver_real) plus the lock-based
-      slow-query substitute _sqlserver_hold_table_lock — T-SQL has no
-      SELECT-embedded SLEEP().  Tests keep the existing MySQL/PG/InfluxDB
-      paths unchanged and add the SQL Server path at the end of each test.
+      stop|start_sqlserver_instance / _mk_sqlserver_real) plus a lock-based
+      slow-query substitute — T-SQL has no SELECT-embedded SLEEP().  FQ-06-003
+      additionally confirms the lock and the blocked scan through SQL Server
+      DMVs before asserting pool exhaustion (see the fixture notes there).
+      Tests keep the existing MySQL/PG/InfluxDB paths unchanged and add the
+      SQL Server path at the end of each test.
     - FQ-06-006 stays MySQL-only: SQL Server native error 916 maps to
       EXT_ACCESS_DENIED, but a table-level permission error (native 229) falls
       through to EXT_REMOTE_INTERNAL, which FQ-06-009 covers.
@@ -74,6 +76,7 @@ from federated_query_common import (
     FederatedQueryCaseHelper,
     FederatedQueryVersionedMixin,
     ExtSrcEnv,
+    influx18_basic_gate,
     TSDB_CODE_EXT_PUSHDOWN_FAILED,
     TSDB_CODE_EXT_SOURCE_NOT_FOUND,
     TSDB_CODE_EXT_SOURCE_UNAVAILABLE,
@@ -90,6 +93,7 @@ from federated_query_common import (
     TSDB_CODE_EXT_QUERY_TIMEOUT,
     TSDB_CODE_MND_EXTERNAL_SOURCE_NOT_EXIST,
     _code,
+    influx_versions,
 )
 
 
@@ -178,25 +182,103 @@ _SQLSERVER_PUSH_T_SQLS = [
 ]
 
 
-def _sqlserver_hold_table_lock(database, seconds):
-    """Block remote readers of ``dbo.push_t`` for *seconds*.
+# ---------------------------------------------------------------------------
+# SQL Server resource-exhaustion fixtures
+# ---------------------------------------------------------------------------
+# SQL Server has no SELECT-embedded SLEEP(), so a remote scan is made slow by
+# an exclusive table lock (TABLOCKX) held in a background sqlcmd session.
+# Resource-exhaustion setup must not depend on fixed sleeps: on a loaded
+# worker the lock holder can take longer to start than any sleep that is short
+# enough to keep the case fast, and the assertion then runs against a free
+# pool.  Both preconditions are therefore confirmed positively:
+#   * the lock holder takes TABLOCKX and polls dbo.pool_lock_release inside its
+#     transaction, so the lock stays held until the test explicitly releases
+#     it — there is no wall-clock window that can be outrun;
+#   * _wait_sqlserver_table_lock() polls sys.dm_tran_locks until the X lock is
+#     granted, and _wait_sqlserver_blocked_scan() polls sys.dm_exec_requests
+#     until the federated scan is visibly blocked by that session.  A scan
+#     blocked at SQL Server has already opened its ext-connector connection,
+#     so it occupies the single pool slot by construction.
+# The lock is released only after the EXT_RESOURCE_EXHAUSTED assertion, so the
+# client retry chain (EXT_POOL_RETRY_MAX_TIMES x 1 s) can never outlast it.
 
-    SQL Server has no SELECT-embedded SLEEP(), so the row-locking waits used by
-    the MySQL paths cannot be translated literally.  A background sqlcmd
-    session opens a transaction, takes an exclusive table lock with
-    ``WITH (TABLOCKX)`` and holds it via ``WAITFOR DELAY`` before committing;
-    a concurrent plain SELECT (no locking hint) blocks for the whole window.
-    This is used to keep the single ext-connector pool slot busy (test 003)
-    and to make a remote scan deterministically slow.
+_SQLSERVER_LOCK_DEADLINE_S = 120
+_SQLSERVER_LOCK_WAIT_S = 60.0
+_SQLSERVER_BLOCKED_WAIT_S = 30.0
+_SQLSERVER_POLL_INTERVAL_S = 0.5
+_SQLSERVER_LOCK_TABLE = "dbo.push_t"
+_SQLSERVER_RELEASE_TABLE = "dbo.pool_lock_release"
+
+_SQLSERVER_HOLD_LOCK_SQL = (
+    "SET XACT_ABORT ON; BEGIN TRANSACTION; "
+    f"SELECT COUNT(*) FROM {_SQLSERVER_LOCK_TABLE} WITH (TABLOCKX); "
+    f"DECLARE @deadline DATETIME2 = DATEADD(second, {_SQLSERVER_LOCK_DEADLINE_S}, "
+    "SYSUTCDATETIME()); "
+    f"WHILE NOT EXISTS (SELECT 1 FROM {_SQLSERVER_RELEASE_TABLE}) "
+    "BEGIN "
+    "IF SYSUTCDATETIME() >= @deadline "
+    "BEGIN ROLLBACK TRANSACTION; THROW 50000, 'Pool lock release timed out', 1; END; "
+    "WAITFOR DELAY '00:00:00.500'; END; "
+    "COMMIT TRANSACTION"
+)
+
+_SQLSERVER_RELEASE_SQL = f"INSERT INTO {_SQLSERVER_RELEASE_TABLE} VALUES (1)"
+
+
+def _wait_sqlserver_table_lock(database, holder_errors, timeout=_SQLSERVER_LOCK_WAIT_S):
+    """Return the lock holder's session id once it owns the table X lock.
+
+    ``holder_errors`` is the lock-holder thread's error list; a background
+    failure is reported immediately instead of waiting out the timeout.
     """
-    ExtSrcEnv.sqlserver_exec(database, [
-        "BEGIN TRANSACTION; "
-        "SELECT COUNT(*) FROM dbo.push_t WITH (TABLOCKX); "
-        # WAITFOR takes HH:MM:SS; the seconds field must stay below 60, so
-        # anything from a minute upwards has to carry into the minutes field.
-        f"WAITFOR DELAY '{int(seconds) // 3600:02d}:{(int(seconds) % 3600) // 60:02d}:{int(seconds) % 60:02d}'; "
-        "COMMIT TRANSACTION",
-    ])
+    deadline = time.monotonic() + timeout
+    while True:
+        if holder_errors:
+            raise AssertionError(f"SQL Server lock holder failed: {holder_errors[0]}")
+        session = ExtSrcEnv.sqlserver_query(
+            database,
+            "SELECT COALESCE(MAX(request_session_id), 0) FROM sys.dm_tran_locks "
+            "WHERE resource_database_id = DB_ID() AND resource_type = 'OBJECT' "
+            "AND request_mode = 'X' AND request_status = 'GRANT' "
+            f"AND resource_associated_entity_id = OBJECT_ID('{_SQLSERVER_LOCK_TABLE}')",
+        )
+        if int(session or 0) > 0:
+            return int(session)
+        if time.monotonic() >= deadline:
+            raise AssertionError(
+                f"SQL Server did not hold the {_SQLSERVER_LOCK_TABLE} TABLOCKX "
+                f"within {timeout:.0f}s"
+            )
+        time.sleep(_SQLSERVER_POLL_INTERVAL_S)
+
+
+def _wait_sqlserver_blocked_scan(database, lock_session, scan_errors,
+                                 timeout=_SQLSERVER_BLOCKED_WAIT_S):
+    """Return once a federated scan is blocked by the lock-holder session.
+
+    ``scan_errors`` is the blocked-query thread's error list; a background
+    failure is reported immediately instead of waiting out the timeout.
+    """
+    deadline = time.monotonic() + timeout
+    while True:
+        if scan_errors:
+            raise AssertionError(
+                f"SQL Server blocked-query thread failed: {scan_errors[0]}"
+            )
+        blocked = ExtSrcEnv.sqlserver_query(
+            database,
+            "SELECT COUNT(*) FROM sys.dm_exec_requests "
+            f"WHERE database_id = DB_ID() AND blocking_session_id = {lock_session} "
+            "AND wait_type LIKE 'LCK_M_%' AND session_id <> @@SPID",
+        )
+        if int(blocked or 0) > 0:
+            return
+        if time.monotonic() >= deadline:
+            raise AssertionError(
+                f"SQL Server scan was not blocked by session {lock_session} "
+                f"within {timeout:.0f}s"
+            )
+        time.sleep(_SQLSERVER_POLL_INTERVAL_S)
 
 
 def _wait_dnode_var(param, value, timeout=30.0):
@@ -240,18 +322,18 @@ def _alter_max_pool_size(value):
 # VALUES list is not accepted before 23ai.
 # ---------------------------------------------------------------------------
 _ORACLE_PUSH_T_SQLS = [
-    "CREATE TABLE PUSH_T "
-    "(VAL NUMBER(10,0), SCORE BINARY_DOUBLE, NAME VARCHAR2(32), "
-    "FLAG NUMBER(1), STATUS VARCHAR2(16))",
-    "INSERT INTO PUSH_T (VAL, SCORE, NAME, FLAG, STATUS) "
+    'CREATE TABLE "push_t" '
+    '("val" NUMBER(10,0), "score" BINARY_DOUBLE, "name" VARCHAR2(32), '
+    '"flag" NUMBER(1), "status" VARCHAR2(16))',
+    'INSERT INTO "push_t" ("val", "score", "name", "flag", "status") '
     "VALUES (1,1.5,'alpha',1,'active')",
-    "INSERT INTO PUSH_T (VAL, SCORE, NAME, FLAG, STATUS) "
+    'INSERT INTO "push_t" ("val", "score", "name", "flag", "status") '
     "VALUES (2,2.5,'beta',0,'idle')",
-    "INSERT INTO PUSH_T (VAL, SCORE, NAME, FLAG, STATUS) "
+    'INSERT INTO "push_t" ("val", "score", "name", "flag", "status") '
     "VALUES (3,3.5,'gamma',1,'active')",
-    "INSERT INTO PUSH_T (VAL, SCORE, NAME, FLAG, STATUS) "
+    'INSERT INTO "push_t" ("val", "score", "name", "flag", "status") '
     "VALUES (4,4.5,'delta',0,'idle')",
-    "INSERT INTO PUSH_T (VAL, SCORE, NAME, FLAG, STATUS) "
+    'INSERT INTO "push_t" ("val", "score", "name", "flag", "status") '
     "VALUES (5,5.5,'epsilon',1,'active')",
     "COMMIT",
 ]
@@ -285,20 +367,20 @@ def _oracle_sleep_fixtures(cfg, table="PUSH_T"):
         *ExtSrcEnv.oracle_sleep_function_sql("FQ06_SLEEP10", 10),
     ])
     ExtSrcEnv._oracle_sql(cfg, [
-        f"CREATE OR REPLACE VIEW FQ06_SLOW_V AS SELECT VAL, "
-        f"CAST(SYSTEM.FQ06_SLEEP AS NUMBER(10,0)) AS BOOM "
-        f"FROM {table} WHERE ROWNUM <= 1",
-        f"CREATE OR REPLACE VIEW FQ06_SLOW10_V AS SELECT VAL, "
-        f"CAST(SYSTEM.FQ06_SLEEP10 AS NUMBER(10,0)) AS BOOM "
-        f"FROM {table} WHERE ROWNUM <= 1",
+        f'CREATE OR REPLACE VIEW "fq06_slow_v" AS SELECT "val", '
+        f"CAST(SYSTEM.FQ06_SLEEP AS NUMBER(10,0)) AS \"boom\" "
+        f'FROM "{table.lower()}" WHERE ROWNUM <= 1',
+        f'CREATE OR REPLACE VIEW "fq06_slow10_v" AS SELECT "val", '
+        f"CAST(SYSTEM.FQ06_SLEEP10 AS NUMBER(10,0)) AS \"boom\" "
+        f'FROM "{table.lower()}" WHERE ROWNUM <= 1',
     ])
 
 
 def _oracle_drop_sleep_fixtures(cfg):
     """Drop the sleep views (idempotent; the helpers may not exist)."""
-    for view in ("FQ06_SLOW_V", "FQ06_SLOW10_V"):
+    for view in ("fq06_slow_v", "fq06_slow10_v"):
         try:
-            ExtSrcEnv._oracle_sql(cfg, f"DROP VIEW {view}")
+            ExtSrcEnv._oracle_sql(cfg, f'DROP VIEW "{view}"')
         except Exception:
             pass
 
@@ -354,42 +436,42 @@ def _oracle_error_fixtures(cfg, table="PUSH_T"):
         "GRANT EXECUTE ON SYSTEM.FQ06_DENY_FN TO PUBLIC",
     ])
     ExtSrcEnv._oracle_sql(cfg, [
-        f"CREATE OR REPLACE VIEW FQ06_E904_V AS SELECT VAL, "
+        f'CREATE OR REPLACE VIEW "fq06_e904_v" AS SELECT "val", '
         f"CAST(SYSTEM.FQ06_RAISE('SELECT NO_SUCH_COL_ZZ FROM DUAL') "
-        f"AS NUMBER(10,0)) AS BOOM FROM {table} WHERE ROWNUM <= 1",
-        f"CREATE OR REPLACE VIEW FQ06_E937_V AS SELECT VAL, "
+        f'AS NUMBER(10,0)) AS "boom" FROM "{table.lower()}" WHERE ROWNUM <= 1',
+        f'CREATE OR REPLACE VIEW "fq06_e937_v" AS SELECT "val", '
         f"CAST(SYSTEM.FQ06_RAISE('SELECT COUNT(*), DUMMY FROM DUAL') "
-        f"AS NUMBER(10,0)) AS BOOM FROM {table} WHERE ROWNUM <= 1",
-        f"CREATE OR REPLACE VIEW FQ06_E979_V AS SELECT VAL, "
+        f'AS NUMBER(10,0)) AS "boom" FROM "{table.lower()}" WHERE ROWNUM <= 1',
+        f'CREATE OR REPLACE VIEW "fq06_e979_v" AS SELECT "val", '
         f"CAST(SYSTEM.FQ06_RAISE('SELECT DUMMY, COUNT(*) FROM DUAL "
-        f"GROUP BY SYSDATE') AS NUMBER(10,0)) AS BOOM "
-        f"FROM {table} WHERE ROWNUM <= 1",
-        f"CREATE OR REPLACE VIEW FQ06_E900_V AS SELECT VAL, "
-        f"CAST(SYSTEM.FQ06_BOOM AS NUMBER(10,0)) AS BOOM "
-        f"FROM {table} WHERE ROWNUM <= 1",
-        f"CREATE OR REPLACE VIEW FQ06_DENY_V AS SELECT VAL, "
-        f"CAST(SYSTEM.FQ06_DENY_FN AS NUMBER(10,0)) AS BOOM "
-        f"FROM {table} WHERE ROWNUM <= 1",
-        f"CREATE OR REPLACE VIEW FQ06_DIV0_V AS SELECT VAL, "
-        f"CAST(VAL / 0 AS NUMBER(10,0)) AS BOOM FROM {table}",
-        f"CREATE OR REPLACE VIEW FQ06_1722_V AS SELECT VAL, "
-        f"CAST(DUMMY + 1 AS NUMBER(10,0)) AS BOOM FROM {table}, DUAL",
-        f"CREATE OR REPLACE VIEW FQ06_1858_V AS SELECT VAL, "
-        f"TO_DATE('2024-' || NAME || '-01','YYYY-MM-DD') AS BOOM "
-        f"FROM {table}",
-        f"CREATE OR REPLACE VIEW FQ06_E1426_V AS SELECT VAL, "
-        f"CAST(POWER(10, VAL * 400) AS NUMBER(10,0)) AS BOOM "
-        f"FROM {table} WHERE ROWNUM <= 1",
+        f"GROUP BY SYSDATE') AS NUMBER(10,0)) AS \"boom\" "
+        f'FROM "{table.lower()}" WHERE ROWNUM <= 1',
+        f'CREATE OR REPLACE VIEW "fq06_e900_v" AS SELECT "val", '
+        f"CAST(SYSTEM.FQ06_BOOM AS NUMBER(10,0)) AS \"boom\" "
+        f'FROM "{table.lower()}" WHERE ROWNUM <= 1',
+        f'CREATE OR REPLACE VIEW "fq06_deny_v" AS SELECT "val", '
+        f"CAST(SYSTEM.FQ06_DENY_FN AS NUMBER(10,0)) AS \"boom\" "
+        f'FROM "{table.lower()}" WHERE ROWNUM <= 1',
+        f'CREATE OR REPLACE VIEW "fq06_div0_v" AS SELECT "val", '
+        f'CAST("val" / 0 AS NUMBER(10,0)) AS "boom" FROM "{table.lower()}"',
+        f'CREATE OR REPLACE VIEW "fq06_1722_v" AS SELECT "val", '
+        f'CAST(DUMMY + 1 AS NUMBER(10,0)) AS "boom" FROM "{table.lower()}", DUAL',
+        f'CREATE OR REPLACE VIEW "fq06_1858_v" AS SELECT "val", '
+        f'TO_DATE(\'2024-\' || "name" || \'-01\',\'YYYY-MM-DD\') AS "boom" '
+        f'FROM "{table.lower()}"',
+        f'CREATE OR REPLACE VIEW "fq06_e1426_v" AS SELECT "val", '
+        f'CAST(POWER(10, "val" * 400) AS NUMBER(10,0)) AS "boom" '
+        f'FROM "{table.lower()}" WHERE ROWNUM <= 1',
     ])
 
 
 def _oracle_drop_error_fixtures(cfg):
     """Drop the error-injection views (idempotent)."""
-    for view in ("FQ06_E904_V", "FQ06_E937_V", "FQ06_E979_V", "FQ06_E900_V",
-                 "FQ06_DENY_V", "FQ06_DIV0_V", "FQ06_1722_V", "FQ06_1858_V",
-                 "FQ06_E1426_V"):
+    for view in ("fq06_e904_v", "fq06_e937_v", "fq06_e979_v", "fq06_e900_v",
+                 "fq06_deny_v", "fq06_div0_v", "fq06_1722_v", "fq06_1858_v",
+                 "fq06_e1426_v"):
         try:
-            ExtSrcEnv._oracle_sql(cfg, f"DROP VIEW {view}")
+            ExtSrcEnv._oracle_sql(cfg, f'DROP VIEW "{view}"')
         except Exception:
             pass
 
@@ -459,6 +541,7 @@ _INFLUX_PUSH_T_LINES = [
 class TestFq06RetryPolicy(FederatedQueryVersionedMixin):
     """FQ-06-001 through FQ-06-004: error classification & retry policy."""
 
+
     def setup_class(self):
         tdLog.debug(f"start to execute {__file__}")
         self.helper = FederatedQueryCaseHelper(__file__)
@@ -493,6 +576,7 @@ class TestFq06RetryPolicy(FederatedQueryVersionedMixin):
             - 2026-06-30 wpan Add dimension d: recovery verification after service restart
 
         """
+
         # Real MySQL: create source, verify works, STOP instance → connection error,
         # catalog persistence verified, then RESTART + verify recovery.
         src = "fq_06_001"
@@ -560,35 +644,8 @@ class TestFq06RetryPolicy(FederatedQueryVersionedMixin):
             except Exception:
                 pass
         # --- InfluxDB path ---
-        i_src = "fq_06_001_i"
-        i_db = "fq_06_001_i_ext"
-        influx_ver = getattr(self, "_active_influx_ver", None) or ExtSrcEnv.INFLUX_VERSIONS[0]
-        self._cleanup_src(i_src)
-        try:
-            ExtSrcEnv.influx_create_db_cfg(self._influx_cfg(), i_db)
-            ExtSrcEnv.influx_write_cfg(self._influx_cfg(), i_db, _INFLUX_PUSH_T_LINES)
-            self._mk_influx_real(i_src, database=i_db)
-            tdSql.query(f"select count(*) from {i_src}.push_t")
-            tdSql.checkData(0, 0, 5)
-            ExtSrcEnv.stop_influx_instance(influx_ver)
-            try:
-                tdSql.error(f"select * from {i_src}.push_t limit 1",
-                            expectedErrno=TSDB_CODE_EXT_SOURCE_UNAVAILABLE)
-                tdSql.query(
-                    f"select source_name from information_schema.ins_ext_sources "
-                    f"where source_name = '{i_src}'")
-                tdSql.checkRows(1)
-            finally:
-                ExtSrcEnv.start_influx_instance(influx_ver)
-                # Dimension d) Recovery: query succeeds again after service restart
-                tdSql.query(f"select count(*) from {i_src}.push_t")
-                tdSql.checkData(0, 0, 5)
-        finally:
-            self._cleanup_src(i_src)
-            try:
-                ExtSrcEnv.influx_drop_db_cfg(self._influx_cfg(), i_db)
-            except Exception:
-                pass
+        self.do_influx_connection_recovery()
+
         # --- SQL Server path ---
         s_src = "fq_06_001_s"
         s_db = "fq_06_001_s_ext"
@@ -635,7 +692,7 @@ class TestFq06RetryPolicy(FederatedQueryVersionedMixin):
         o_ver = o_cfg.version
         self._cleanup_src(o_src)
         try:
-            ExtSrcEnv.oracle_drop_table_cfg(o_cfg, "PUSH_T")
+            ExtSrcEnv.oracle_drop_table_cfg(o_cfg, "push_t")
             ExtSrcEnv.oracle_exec_cfg(o_cfg, _ORACLE_PUSH_T_SQLS)
             # connect_timeout_ms=500 keeps the unreachable-instance window short;
             # the value is a per-source OPTIONS entry only Oracle exposes.
@@ -676,9 +733,59 @@ class TestFq06RetryPolicy(FederatedQueryVersionedMixin):
         finally:
             self._cleanup_src(o_src)
             try:
-                ExtSrcEnv.oracle_drop_table_cfg(o_cfg, "PUSH_T")
+                ExtSrcEnv.oracle_drop_table_cfg(o_cfg, "push_t")
             except Exception:
                 pass
+
+    @influx_versions()
+    def do_influx_connection_recovery(self):
+        i_src = "fq_06_001_i"
+        i_db = "fq_06_001_i_ext"
+        influx_ver = getattr(self, "_active_influx_ver", None) or ExtSrcEnv.INFLUX_VERSIONS[0]
+        self._cleanup_src(i_src)
+        try:
+            ExtSrcEnv.influx_create_db_cfg(self._influx_cfg(), i_db)
+            ExtSrcEnv.influx_write_cfg(self._influx_cfg(), i_db, _INFLUX_PUSH_T_LINES)
+            self._mk_influx_real(i_src, database=i_db)
+            tdSql.query(f"select count(*) from {i_src}.push_t")
+            tdSql.checkData(0, 0, 5)
+            ExtSrcEnv.stop_influx_instance(influx_ver)
+            try:
+                tdSql.error(f"select * from {i_src}.push_t limit 1",
+                            expectedErrno=TSDB_CODE_EXT_SOURCE_UNAVAILABLE)
+                tdSql.query(
+                    f"select source_name from information_schema.ins_ext_sources "
+                    f"where source_name = '{i_src}'")
+                tdSql.checkRows(1)
+            finally:
+                ExtSrcEnv.start_influx_instance(influx_ver)
+                # Dimension d) Recovery: query succeeds again after service restart
+                tdSql.query(f"select count(*) from {i_src}.push_t")
+                tdSql.checkData(0, 0, 5)
+        finally:
+            self._cleanup_src(i_src)
+            try:
+                ExtSrcEnv.influx_drop_db_cfg(self._influx_cfg(), i_db)
+            except Exception:
+                pass
+
+    def do_influx18_auth_failure_recovery(self, source, database):
+        with influx18_basic_gate(self._influx_cfg()) as (port, _):
+            tdSql.execute(self._mk_influx_source_sql(
+                source, "127.0.0.1", port, "", database=database,
+                user="basic18", password="incorrect"))
+            tdSql.error(f"select * from {source}.push_t limit 1",
+                        expectedErrno=TSDB_CODE_EXT_AUTH_FAILED)
+            tdSql.query(
+                "select source_name from information_schema.ins_ext_sources "
+                f"where source_name = '{source}'")
+            tdSql.checkRows(1)
+            self._cleanup_src(source)
+            tdSql.execute(self._mk_influx_source_sql(
+                source, "127.0.0.1", port, "", database=database,
+                user="basic18", password="basic18_test_password"))
+            tdSql.query(f"select count(*) from {source}.push_t")
+            tdSql.checkData(0, 0, 5)
 
     def test_fq_06_002(self):
         """FQ-06-002: Auth error fast-fail — wrong credentials produce EXT_AUTH_FAILED
@@ -706,6 +813,7 @@ class TestFq06RetryPolicy(FederatedQueryVersionedMixin):
                                password; verify EXT_AUTH_FAILED + recovery
 
         """
+
         # --- MySQL path ---
         src = "fq_06_002"
         ext_db = "fq_06_002_ext"
@@ -776,38 +884,8 @@ class TestFq06RetryPolicy(FederatedQueryVersionedMixin):
             except Exception:
                 pass
         # --- InfluxDB path ---
-        i_src = "fq_06_002_i"
-        i_db = "fq_06_002_i_ext"
-        influx_ver = getattr(self, "_active_influx_ver", None) or ExtSrcEnv.INFLUX_VERSIONS[0]
-        self._cleanup_src(i_src)
-        try:
-            ExtSrcEnv.influx_create_db_cfg(self._influx_cfg(), i_db)
-            ExtSrcEnv.influx_write_cfg(self._influx_cfg(), i_db, _INFLUX_PUSH_T_LINES)
-            self._mk_influx_real(
-                i_src,
-                database=i_db,
-                api_token="TOTALLY_WRONG_TOKEN_FQ06_xr2p7",
-            )
-            # Dimension a/b) Wrong token → EXT_AUTH_FAILED
-            # Generic Influx auth-consumption check: if api_token handling breaks,
-            # the query path should not authenticate successfully.
-            tdSql.error(f"select * from {i_src}.push_t limit 1",
-                        expectedErrno=TSDB_CODE_EXT_AUTH_FAILED)
-            # Dimension c)
-            tdSql.query(
-                f"select source_name from information_schema.ins_ext_sources "
-                f"where source_name = '{i_src}'")
-            tdSql.checkRows(1)
-            # Dimension d) Recovery: recreate with correct token → query succeeds
-            self._mk_influx_real(i_src, database=i_db)
-            tdSql.query(f"select count(*) from {i_src}.push_t")
-            tdSql.checkData(0, 0, 5)
-        finally:
-            self._cleanup_src(i_src)
-            try:
-                ExtSrcEnv.influx_drop_db_cfg(self._influx_cfg(), i_db)
-            except Exception:
-                pass
+        self.do_influx_syntax_diagnostics()
+
         # --- SQL Server path ---
         s_src = "fq_06_002_s"
         s_db = "fq_06_002_s_ext"
@@ -842,7 +920,7 @@ class TestFq06RetryPolicy(FederatedQueryVersionedMixin):
         o_cfg = self._oracle_cfg()
         self._cleanup_src(o_src)
         try:
-            ExtSrcEnv.oracle_drop_table_cfg(o_cfg, "PUSH_T")
+            ExtSrcEnv.oracle_drop_table_cfg(o_cfg, "push_t")
             ExtSrcEnv.oracle_exec_cfg(o_cfg, _ORACLE_PUSH_T_SQLS)
             # Dimension a/b) Wrong password → ORA-01017 → EXT_AUTH_FAILED.
             # The login error is raised by the driver before any statement runs,
@@ -875,7 +953,45 @@ class TestFq06RetryPolicy(FederatedQueryVersionedMixin):
         finally:
             self._cleanup_src(o_src)
             try:
-                ExtSrcEnv.oracle_drop_table_cfg(o_cfg, "PUSH_T")
+                ExtSrcEnv.oracle_drop_table_cfg(o_cfg, "push_t")
+            except Exception:
+                pass
+
+    @influx_versions()
+    def do_influx_syntax_diagnostics(self):
+        i_src = "fq_06_002_i"
+        i_db = "fq_06_002_i_ext"
+        influx_ver = getattr(self, "_active_influx_ver", None) or ExtSrcEnv.INFLUX_VERSIONS[0]
+        self._cleanup_src(i_src)
+        try:
+            ExtSrcEnv.influx_create_db_cfg(self._influx_cfg(), i_db)
+            ExtSrcEnv.influx_write_cfg(self._influx_cfg(), i_db, _INFLUX_PUSH_T_LINES)
+            if influx_ver == "1.8":
+                self.do_influx18_auth_failure_recovery(i_src, i_db)
+            else:
+                self._mk_influx_real(
+                    i_src,
+                    database=i_db,
+                    api_token="TOTALLY_WRONG_TOKEN_FQ06_xr2p7",
+                )
+                # Dimension a/b) Wrong token → EXT_AUTH_FAILED
+                # Generic Influx auth-consumption check: if api_token handling breaks,
+                # the query path should not authenticate successfully.
+                tdSql.error(f"select * from {i_src}.push_t limit 1",
+                            expectedErrno=TSDB_CODE_EXT_AUTH_FAILED)
+                # Dimension c)
+                tdSql.query(
+                    f"select source_name from information_schema.ins_ext_sources "
+                    f"where source_name = '{i_src}'")
+                tdSql.checkRows(1)
+                # Dimension d) Recovery: recreate with correct token → query succeeds
+                self._mk_influx_real(i_src, database=i_db)
+                tdSql.query(f"select count(*) from {i_src}.push_t")
+                tdSql.checkData(0, 0, 5)
+        finally:
+            self._cleanup_src(i_src)
+            try:
+                ExtSrcEnv.influx_drop_db_cfg(self._influx_cfg(), i_db)
             except Exception:
                 pass
 
@@ -922,8 +1038,13 @@ class TestFq06RetryPolicy(FederatedQueryVersionedMixin):
             - 2026-07-01 wpan Full exhaustion test: extConnectorUpdateModuleCfg()
                                propagates ALTER DNODE SET to pool creation; threading
                                with MySQL SLEEP() VIEW holds slot for RESOURCE_EXHAUSTED.
+            - 2026-11-19 wpan SQL Server: confirm TABLOCKX and the blocked scan via
+                               DMVs before asserting, and hold the lock until an
+                               explicit release so a loaded worker cannot let the
+                               setup or the retry chain expire mid-assertion.
 
         """
+
         import threading
         import time
 
@@ -1053,42 +1174,34 @@ class TestFq06RetryPolicy(FederatedQueryVersionedMixin):
         # ----------------------------------------------------------------
         # InfluxDB path — sanity-check
         # ----------------------------------------------------------------
-        i_src = "fq_06_003_i"
-        i_db = "fq_06_003_i_ext"
-        self._cleanup_src(i_src)
-        try:
-            ExtSrcEnv.influx_create_db_cfg(self._influx_cfg(), i_db)
-            ExtSrcEnv.influx_write_cfg(self._influx_cfg(), i_db, _INFLUX_PUSH_T_LINES)
-            self._mk_influx_real(i_src, database=i_db)
-            tdSql.query(f"select count(*) from {i_src}.push_t")
-            tdSql.checkData(0, 0, 5)
-            tdSql.query(
-                f"select source_name from information_schema.ins_ext_sources "
-                f"where source_name = '{i_src}'"
-            )
-            tdSql.checkRows(1)
-        finally:
-            self._cleanup_src(i_src)
-            try:
-                ExtSrcEnv.influx_drop_db_cfg(self._influx_cfg(), i_db)
-            except Exception:
-                pass
+        self.do_influx_error_classification()
 
         # ----------------------------------------------------------------
         # SQL Server path — real RESOURCE_EXHAUSTED verification
         #
         # SQL Server has no SELECT-embedded SLEEP(): the single pool slot is
         # held by a federated base scan that blocks on an exclusive table lock
-        # (TABLOCKX) held by a background sqlcmd session.  The 12s lock window
-        # outlasts the client's retry loop for the retryable
-        # EXT_RESOURCE_EXHAUSTED error, as with the MySQL SLEEP(10) above.
+        # (TABLOCKX) held by a background sqlcmd session.  The lock stays held
+        # until an explicit release, and both setup preconditions are confirmed
+        # before the assertion — see the fixture notes at the top of the file.
         # ----------------------------------------------------------------
         s_src = "fq_06_003_s"
         s_db = "fq_06_003_s_ext"
         self._cleanup_src(s_src)
+        lt = None
+        bt = None
+        lock_errors = []
+        bg_errors = []
+        release_ready = False
         try:
             ExtSrcEnv.sqlserver_create_db(s_db)
             ExtSrcEnv.sqlserver_exec(s_db, _SQLSERVER_PUSH_T_SQLS)
+            ExtSrcEnv.sqlserver_exec(s_db, [
+                f"IF OBJECT_ID('{_SQLSERVER_RELEASE_TABLE}') IS NOT NULL "
+                f"DROP TABLE {_SQLSERVER_RELEASE_TABLE}",
+                f"CREATE TABLE {_SQLSERVER_RELEASE_TABLE} (released INT)",
+            ])
+            release_ready = True
 
             _alter_max_pool_size("1")
             self._mk_sqlserver_real(s_src, database=s_db, schema="dbo")
@@ -1097,12 +1210,9 @@ class TestFq06RetryPolicy(FederatedQueryVersionedMixin):
             tdSql.query(f"select count(*) from {s_src}.push_t")
             tdSql.checkData(0, 0, 5)
 
-            lock_errors: list = []
-            bg_errors: list = []
-
             def _hold_lock():
                 try:
-                    _sqlserver_hold_table_lock(s_db, 12)
+                    ExtSrcEnv.sqlserver_exec(s_db, [_SQLSERVER_HOLD_LOCK_SQL])
                 except Exception as exc:
                     lock_errors.append(exc)
 
@@ -1126,11 +1236,11 @@ class TestFq06RetryPolicy(FederatedQueryVersionedMixin):
 
             lt = threading.Thread(target=_hold_lock, daemon=True)
             lt.start()
-            time.sleep(1.5)  # let the lock holder acquire TABLOCKX
+            lock_session = _wait_sqlserver_table_lock(s_db, lock_errors)
             # Thread B: the blocked scan keeps the single pool slot busy.
             bt = threading.Thread(target=_run_blocked, daemon=True)
             bt.start()
-            time.sleep(1.5)  # blocked scan now occupies the pool slot
+            _wait_sqlserver_blocked_scan(s_db, lock_session, bg_errors)
 
             # Dimension a) Second query hits pool cap → RESOURCE_EXHAUSTED
             tdSql.error(
@@ -1145,21 +1255,36 @@ class TestFq06RetryPolicy(FederatedQueryVersionedMixin):
             )
             tdSql.checkRows(1)
 
-            # Wait for the lock window to elapse and the blocked scan to finish
+            # The client retry chain has finished; release the lock only now.
+            ExtSrcEnv.sqlserver_exec(s_db, [_SQLSERVER_RELEASE_SQL])
             bt.join(timeout=60)
-            lt.join(timeout=30)
-            if bt.is_alive() or lt.is_alive():
-                tdLog.warning("Background SQL Server threads did not finish in time")
-            if lock_errors:
-                tdLog.warning(f"Lock-holder thread error: {lock_errors[0]}")
-            if bg_errors:
-                tdLog.warning(f"Blocked-query thread error: {bg_errors[0]}")
+            lt.join(timeout=60)
+            assert not bt.is_alive(), "Blocked-query thread did not finish after release"
+            assert not lt.is_alive(), "Lock-holder thread did not finish after release"
+            assert not lock_errors, f"Lock-holder thread error: {lock_errors}"
+            assert not bg_errors, f"Blocked-query thread error: {bg_errors}"
 
             # Dimension c) Recovery: slot freed → next query succeeds
             tdSql.query(f"select count(*) from {s_src}.push_t")
             tdSql.checkData(0, 0, 5)
 
         finally:
+            if release_ready:
+                # Release the marker even when the assertion failed: the
+                # lock-holder exits as soon as it observes the row, and the
+                # release is idempotent (the holder only tests for existence).
+                try:
+                    ExtSrcEnv.sqlserver_exec(s_db, [_SQLSERVER_RELEASE_SQL])
+                except Exception as exc:
+                    tdLog.warning(f"SQL Server lock release failed: {exc}")
+                if lt is not None:
+                    lt.join(timeout=_SQLSERVER_LOCK_DEADLINE_S + 30)
+                    if lt.is_alive():
+                        tdLog.warning("SQL Server lock-holder thread did not stop")
+                if bt is not None:
+                    bt.join(timeout=30)
+                    if bt.is_alive():
+                        tdLog.warning("SQL Server blocked-query thread did not stop")
             self._cleanup_src(s_src)
             try:
                 ExtSrcEnv.sqlserver_drop_db(s_db)
@@ -1178,7 +1303,7 @@ class TestFq06RetryPolicy(FederatedQueryVersionedMixin):
         # by a federated base scan over a view that calls DBMS_SESSION.SLEEP
         # through a SYSTEM-owned wrapper.  The 10 s sleep outlasts the client's
         # retry loop for the retryable EXT_RESOURCE_EXHAUSTED error, as with
-        # the MySQL SLEEP(10) and the SQL Server 12 s lock above.  The pool
+        # the MySQL SLEEP(10) and the SQL Server lock above.  The pool
         # acquire itself waits about the connect timeout (5 s) before giving
         # up, so the exhausted error arrives well inside the sleep window.
         # ----------------------------------------------------------------
@@ -1186,7 +1311,7 @@ class TestFq06RetryPolicy(FederatedQueryVersionedMixin):
         o_cfg = self._oracle_cfg()
         self._cleanup_src(o_src)
         try:
-            ExtSrcEnv.oracle_drop_table_cfg(o_cfg, "PUSH_T")
+            ExtSrcEnv.oracle_drop_table_cfg(o_cfg, "push_t")
             ExtSrcEnv.oracle_exec_cfg(o_cfg, _ORACLE_PUSH_T_SQLS)
             _oracle_sleep_fixtures(o_cfg)
 
@@ -1257,12 +1382,35 @@ class TestFq06RetryPolicy(FederatedQueryVersionedMixin):
             self._cleanup_src(o_src)
             try:
                 _oracle_drop_sleep_fixtures(o_cfg)
-                ExtSrcEnv.oracle_drop_table_cfg(o_cfg, "PUSH_T")
+                ExtSrcEnv.oracle_drop_table_cfg(o_cfg, "push_t")
             except Exception:
                 pass
             # Restore original pool size regardless of test outcome
             try:
                 _alter_max_pool_size("64")
+            except Exception:
+                pass
+
+    @influx_versions()
+    def do_influx_error_classification(self):
+        i_src = "fq_06_003_i"
+        i_db = "fq_06_003_i_ext"
+        self._cleanup_src(i_src)
+        try:
+            ExtSrcEnv.influx_create_db_cfg(self._influx_cfg(), i_db)
+            ExtSrcEnv.influx_write_cfg(self._influx_cfg(), i_db, _INFLUX_PUSH_T_LINES)
+            self._mk_influx_real(i_src, database=i_db)
+            tdSql.query(f"select count(*) from {i_src}.push_t")
+            tdSql.checkData(0, 0, 5)
+            tdSql.query(
+                f"select source_name from information_schema.ins_ext_sources "
+                f"where source_name = '{i_src}'"
+            )
+            tdSql.checkRows(1)
+        finally:
+            self._cleanup_src(i_src)
+            try:
+                ExtSrcEnv.influx_drop_db_cfg(self._influx_cfg(), i_db)
             except Exception:
                 pass
 
@@ -1287,6 +1435,7 @@ class TestFq06RetryPolicy(FederatedQueryVersionedMixin):
             - 2026-06-30 wpan Add dimension e: recovery verification after service restart
 
         """
+
         src = "fq_06_004"
         ext_db = "fq_06_004_ext"
         mysql_ver = getattr(self, "_active_mysql_ver", None) or ExtSrcEnv.MYSQL_VERSIONS[0]
@@ -1370,43 +1519,8 @@ class TestFq06RetryPolicy(FederatedQueryVersionedMixin):
             f"where source_name = '{p_src}'")
         tdSql.checkRows(0)
         # --- InfluxDB path ---
-        i_src = "fq_06_004_i"
-        i_db = "fq_06_004_i_ext"
-        influx_ver = getattr(self, "_active_influx_ver", None) or ExtSrcEnv.INFLUX_VERSIONS[0]
-        self._cleanup_src(i_src)
-        try:
-            ExtSrcEnv.influx_create_db_cfg(self._influx_cfg(), i_db)
-            ExtSrcEnv.influx_write_cfg(self._influx_cfg(), i_db, _INFLUX_PUSH_T_LINES)
-            self._mk_influx_real(i_src, database=i_db)
-            tdSql.query(
-                f"select source_name from information_schema.ins_ext_sources "
-                f"where source_name = '{i_src}'")
-            tdSql.checkRows(1)
-            tdSql.query(f"select count(*) from {i_src}.push_t")
-            tdSql.checkData(0, 0, 5)
-            ExtSrcEnv.stop_influx_instance(influx_ver)
-            try:
-                tdSql.error(f"select * from {i_src}.push_t limit 1",
-                            expectedErrno=TSDB_CODE_EXT_SOURCE_UNAVAILABLE)
-                tdSql.query(
-                    f"select source_name from information_schema.ins_ext_sources "
-                    f"where source_name = '{i_src}'")
-                tdSql.checkRows(1)
-            finally:
-                ExtSrcEnv.start_influx_instance(influx_ver)
-                # Dimension e) Recovery
-                tdSql.query(f"select count(*) from {i_src}.push_t")
-                tdSql.checkData(0, 0, 5)
-        finally:
-            self._cleanup_src(i_src)
-            try:
-                ExtSrcEnv.influx_drop_db_cfg(self._influx_cfg(), i_db)
-            except Exception:
-                pass
-        tdSql.query(
-            f"select source_name from information_schema.ins_ext_sources "
-            f"where source_name = '{i_src}'")
-        tdSql.checkRows(0)
+        self.do_influx_abort_cleanup()
+
         # --- SQL Server path ---
         s_src = "fq_06_004_s"
         s_db = "fq_06_004_s_ext"
@@ -1460,7 +1574,7 @@ class TestFq06RetryPolicy(FederatedQueryVersionedMixin):
         o_ver = o_cfg.version
         self._cleanup_src(o_src)
         try:
-            ExtSrcEnv.oracle_drop_table_cfg(o_cfg, "PUSH_T")
+            ExtSrcEnv.oracle_drop_table_cfg(o_cfg, "push_t")
             ExtSrcEnv.oracle_exec_cfg(o_cfg, _ORACLE_PUSH_T_SQLS)
             self._mk_oracle_real(o_src, database=o_cfg.service,
                                  schema=o_cfg.user.upper(),
@@ -1503,13 +1617,53 @@ class TestFq06RetryPolicy(FederatedQueryVersionedMixin):
         finally:
             self._cleanup_src(o_src)
             try:
-                ExtSrcEnv.oracle_drop_table_cfg(o_cfg, "PUSH_T")
+                ExtSrcEnv.oracle_drop_table_cfg(o_cfg, "push_t")
             except Exception:
                 pass
         # Dimension d) After DROP: source removed from catalog
         tdSql.query(
             f"select source_name from information_schema.ins_ext_sources "
             f"where source_name = '{o_src}'")
+        tdSql.checkRows(0)
+
+    @influx_versions()
+    def do_influx_abort_cleanup(self):
+        i_src = "fq_06_004_i"
+        i_db = "fq_06_004_i_ext"
+        influx_ver = getattr(self, "_active_influx_ver", None) or ExtSrcEnv.INFLUX_VERSIONS[0]
+        self._cleanup_src(i_src)
+        try:
+            ExtSrcEnv.influx_create_db_cfg(self._influx_cfg(), i_db)
+            ExtSrcEnv.influx_write_cfg(self._influx_cfg(), i_db, _INFLUX_PUSH_T_LINES)
+            self._mk_influx_real(i_src, database=i_db)
+            tdSql.query(
+                f"select source_name from information_schema.ins_ext_sources "
+                f"where source_name = '{i_src}'")
+            tdSql.checkRows(1)
+            tdSql.query(f"select count(*) from {i_src}.push_t")
+            tdSql.checkData(0, 0, 5)
+            ExtSrcEnv.stop_influx_instance(influx_ver)
+            try:
+                tdSql.error(f"select * from {i_src}.push_t limit 1",
+                            expectedErrno=TSDB_CODE_EXT_SOURCE_UNAVAILABLE)
+                tdSql.query(
+                    f"select source_name from information_schema.ins_ext_sources "
+                    f"where source_name = '{i_src}'")
+                tdSql.checkRows(1)
+            finally:
+                ExtSrcEnv.start_influx_instance(influx_ver)
+                # Dimension e) Recovery
+                tdSql.query(f"select count(*) from {i_src}.push_t")
+                tdSql.checkData(0, 0, 5)
+        finally:
+            self._cleanup_src(i_src)
+            try:
+                ExtSrcEnv.influx_drop_db_cfg(self._influx_cfg(), i_db)
+            except Exception:
+                pass
+        tdSql.query(
+            f"select source_name from information_schema.ins_ext_sources "
+            f"where source_name = '{i_src}'")
         tdSql.checkRows(0)
 
     def test_fq_06_005(self):
@@ -1654,7 +1808,7 @@ class TestFq06RetryPolicy(FederatedQueryVersionedMixin):
         o_cfg = self._oracle_cfg()
         self._cleanup_src(o_src)
         try:
-            ExtSrcEnv.oracle_drop_table_cfg(o_cfg, "PUSH_T")
+            ExtSrcEnv.oracle_drop_table_cfg(o_cfg, "push_t")
             ExtSrcEnv.oracle_exec_cfg(o_cfg, _ORACLE_PUSH_T_SQLS)
             self._mk_oracle_real(o_src, database=o_cfg.service,
                                  schema=o_cfg.user.upper())
@@ -1662,7 +1816,7 @@ class TestFq06RetryPolicy(FederatedQueryVersionedMixin):
             tdSql.query(f"select count(*) from {o_src}.push_t")
             tdSql.checkData(0, 0, 5)
             # Drop the remote table directly — TDengine cache still has the schema
-            ExtSrcEnv.oracle_drop_table_cfg(o_cfg, "PUSH_T")
+            ExtSrcEnv.oracle_drop_table_cfg(o_cfg, "push_t")
             # Dimension c) EXT_TABLE_NOT_EXIST after REFRESH exhausted
             tdSql.error(f"select * from {o_src}.push_t limit 1",
                         expectedErrno=TSDB_CODE_EXT_TABLE_NOT_EXIST)
@@ -1679,7 +1833,7 @@ class TestFq06RetryPolicy(FederatedQueryVersionedMixin):
         finally:
             self._cleanup_src(o_src)
             try:
-                ExtSrcEnv.oracle_drop_table_cfg(o_cfg, "PUSH_T")
+                ExtSrcEnv.oracle_drop_table_cfg(o_cfg, "push_t")
             except Exception:
                 pass
 
@@ -1900,7 +2054,7 @@ class TestFq06RetryPolicy(FederatedQueryVersionedMixin):
         o_cfg = self._oracle_cfg()
         self._cleanup_src(o_src)
         try:
-            ExtSrcEnv.oracle_drop_table_cfg(o_cfg, "PUSH_T")
+            ExtSrcEnv.oracle_drop_table_cfg(o_cfg, "push_t")
             ExtSrcEnv.oracle_exec_cfg(o_cfg, _ORACLE_PUSH_T_SQLS)
             self._mk_oracle_real(o_src, database=o_cfg.service,
                                  schema=o_cfg.user.upper())
@@ -1924,7 +2078,7 @@ class TestFq06RetryPolicy(FederatedQueryVersionedMixin):
             # Source already dropped; just guard against partial cleanup
             self._cleanup_src(o_src)
             try:
-                ExtSrcEnv.oracle_drop_table_cfg(o_cfg, "PUSH_T")
+                ExtSrcEnv.oracle_drop_table_cfg(o_cfg, "push_t")
             except Exception:
                 pass
 
@@ -2063,7 +2217,7 @@ class TestFq06RetryPolicy(FederatedQueryVersionedMixin):
         o_cfg = self._oracle_cfg()
         self._cleanup_src(o_src)
         try:
-            ExtSrcEnv.oracle_drop_table_cfg(o_cfg, "PUSH_T")
+            ExtSrcEnv.oracle_drop_table_cfg(o_cfg, "push_t")
             ExtSrcEnv.oracle_exec_cfg(o_cfg, _ORACLE_PUSH_T_SQLS)
             self._mk_oracle_real(o_src, database=o_cfg.service,
                                  schema=o_cfg.user.upper())
@@ -2093,7 +2247,7 @@ class TestFq06RetryPolicy(FederatedQueryVersionedMixin):
         finally:
             self._cleanup_src(o_src)
             try:
-                ExtSrcEnv.oracle_drop_table_cfg(o_cfg, "PUSH_T")
+                ExtSrcEnv.oracle_drop_table_cfg(o_cfg, "push_t")
             except Exception:
                 pass
 
@@ -2241,7 +2395,7 @@ class TestFq06RetryPolicy(FederatedQueryVersionedMixin):
         o_cfg = self._oracle_cfg()
         self._cleanup_src(o_src)
         try:
-            ExtSrcEnv.oracle_drop_table_cfg(o_cfg, "PUSH_T")
+            ExtSrcEnv.oracle_drop_table_cfg(o_cfg, "push_t")
             ExtSrcEnv.oracle_exec_cfg(o_cfg, _ORACLE_PUSH_T_SQLS)
             _oracle_error_fixtures(o_cfg)
             self._mk_oracle_real(o_src, database=o_cfg.service,
@@ -2262,7 +2416,7 @@ class TestFq06RetryPolicy(FederatedQueryVersionedMixin):
             self._cleanup_src(o_src)
             try:
                 _oracle_drop_error_fixtures(o_cfg)
-                ExtSrcEnv.oracle_drop_table_cfg(o_cfg, "PUSH_T")
+                ExtSrcEnv.oracle_drop_table_cfg(o_cfg, "push_t")
             except Exception:
                 pass
 
@@ -2318,7 +2472,7 @@ class TestFq06RetryPolicy(FederatedQueryVersionedMixin):
         self._cleanup_src(o_src)
         _oracle_drop_user(o_cfg, _FQOR_LOCK_USER)
         try:
-            ExtSrcEnv.oracle_drop_table_cfg(o_cfg, "PUSH_T")
+            ExtSrcEnv.oracle_drop_table_cfg(o_cfg, "push_t")
             ExtSrcEnv.oracle_exec_cfg(o_cfg, _ORACLE_PUSH_T_SQLS)
 
             # --- FQOR-ERR-001: wrong password ---
@@ -2360,7 +2514,7 @@ class TestFq06RetryPolicy(FederatedQueryVersionedMixin):
                 f'ALTER USER {_FQOR_LOCK_USER} IDENTIFIED BY '
                 f'"{_FQOR_LOCK_PASS}" ACCOUNT UNLOCK',
                 f"GRANT CREATE SESSION TO {_FQOR_LOCK_USER}",
-                f"GRANT SELECT ON TAOSDATA.PUSH_T TO {_FQOR_LOCK_USER}",
+                f'GRANT SELECT ON "{o_cfg.user.upper()}"."push_t" TO {_FQOR_LOCK_USER}',
             ])
             self._mk_oracle_real(o_src, database=o_cfg.service,
                                  schema=o_cfg.user.upper(),
@@ -2417,7 +2571,7 @@ class TestFq06RetryPolicy(FederatedQueryVersionedMixin):
             self._cleanup_src(o_src)
             _oracle_drop_user(o_cfg, _FQOR_LOCK_USER)
             try:
-                ExtSrcEnv.oracle_drop_table_cfg(o_cfg, "PUSH_T")
+                ExtSrcEnv.oracle_drop_table_cfg(o_cfg, "push_t")
             except Exception:
                 pass
 
@@ -2442,7 +2596,7 @@ class TestFq06RetryPolicy(FederatedQueryVersionedMixin):
         o_cfg = self._oracle_cfg()
         self._cleanup_src(o_src)
         try:
-            ExtSrcEnv.oracle_drop_table_cfg(o_cfg, "PUSH_T")
+            ExtSrcEnv.oracle_drop_table_cfg(o_cfg, "push_t")
             ExtSrcEnv.oracle_exec_cfg(o_cfg, _ORACLE_PUSH_T_SQLS)
 
             # --- FQOR-ERR-003: DATABASE names a service the listener does not
@@ -2491,7 +2645,7 @@ class TestFq06RetryPolicy(FederatedQueryVersionedMixin):
         finally:
             self._cleanup_src(o_src)
             try:
-                ExtSrcEnv.oracle_drop_table_cfg(o_cfg, "PUSH_T")
+                ExtSrcEnv.oracle_drop_table_cfg(o_cfg, "push_t")
             except Exception:
                 pass
 
@@ -2522,7 +2676,7 @@ class TestFq06RetryPolicy(FederatedQueryVersionedMixin):
         o_cfg = self._oracle_cfg()
         self._cleanup_src(o_src)
         try:
-            ExtSrcEnv.oracle_drop_table_cfg(o_cfg, "PUSH_T")
+            ExtSrcEnv.oracle_drop_table_cfg(o_cfg, "push_t")
             ExtSrcEnv.oracle_exec_cfg(o_cfg, _ORACLE_PUSH_T_SQLS)
             _oracle_error_fixtures(o_cfg)
             self._mk_oracle_real(o_src, database=o_cfg.service,
@@ -2532,7 +2686,7 @@ class TestFq06RetryPolicy(FederatedQueryVersionedMixin):
             tdSql.checkData(0, 0, 5)
 
             # --- FQOR-ERR-006: remote table gone → ORA-00942 ---
-            ExtSrcEnv.oracle_drop_table_cfg(o_cfg, "PUSH_T")
+            ExtSrcEnv.oracle_drop_table_cfg(o_cfg, "push_t")
             tdSql.error(f"select * from {o_src}.push_t limit 1",
                         expectedErrno=TSDB_CODE_EXT_TABLE_NOT_EXIST)
             tdSql.query(
@@ -2565,7 +2719,7 @@ class TestFq06RetryPolicy(FederatedQueryVersionedMixin):
             self._cleanup_src(o_src)
             try:
                 _oracle_drop_error_fixtures(o_cfg)
-                ExtSrcEnv.oracle_drop_table_cfg(o_cfg, "PUSH_T")
+                ExtSrcEnv.oracle_drop_table_cfg(o_cfg, "push_t")
             except Exception:
                 pass
 
@@ -2592,7 +2746,7 @@ class TestFq06RetryPolicy(FederatedQueryVersionedMixin):
         o_cfg = self._oracle_cfg()
         self._cleanup_src(o_src)
         try:
-            ExtSrcEnv.oracle_drop_table_cfg(o_cfg, "PUSH_T")
+            ExtSrcEnv.oracle_drop_table_cfg(o_cfg, "push_t")
             ExtSrcEnv.oracle_exec_cfg(o_cfg, _ORACLE_PUSH_T_SQLS)
             _oracle_error_fixtures(o_cfg)
             self._mk_oracle_real(o_src, database=o_cfg.service,
@@ -2627,7 +2781,7 @@ class TestFq06RetryPolicy(FederatedQueryVersionedMixin):
             self._cleanup_src(o_src)
             try:
                 _oracle_drop_error_fixtures(o_cfg)
-                ExtSrcEnv.oracle_drop_table_cfg(o_cfg, "PUSH_T")
+                ExtSrcEnv.oracle_drop_table_cfg(o_cfg, "push_t")
             except Exception:
                 pass
 
@@ -2653,7 +2807,7 @@ class TestFq06RetryPolicy(FederatedQueryVersionedMixin):
         o_cfg = self._oracle_cfg()
         self._cleanup_src(o_src)
         try:
-            ExtSrcEnv.oracle_drop_table_cfg(o_cfg, "PUSH_T")
+            ExtSrcEnv.oracle_drop_table_cfg(o_cfg, "push_t")
             ExtSrcEnv.oracle_exec_cfg(o_cfg, _ORACLE_PUSH_T_SQLS)
             _oracle_error_fixtures(o_cfg)
             self._mk_oracle_real(o_src, database=o_cfg.service,
@@ -2686,7 +2840,7 @@ class TestFq06RetryPolicy(FederatedQueryVersionedMixin):
             self._cleanup_src(o_src)
             try:
                 _oracle_drop_error_fixtures(o_cfg)
-                ExtSrcEnv.oracle_drop_table_cfg(o_cfg, "PUSH_T")
+                ExtSrcEnv.oracle_drop_table_cfg(o_cfg, "push_t")
             except Exception:
                 pass
 
@@ -2710,7 +2864,7 @@ class TestFq06RetryPolicy(FederatedQueryVersionedMixin):
         o_cfg = self._oracle_cfg()
         self._cleanup_src(o_src)
         try:
-            ExtSrcEnv.oracle_drop_table_cfg(o_cfg, "PUSH_T")
+            ExtSrcEnv.oracle_drop_table_cfg(o_cfg, "push_t")
             ExtSrcEnv.oracle_exec_cfg(o_cfg, _ORACLE_PUSH_T_SQLS)
             _oracle_sleep_fixtures(o_cfg)
             self._mk_oracle_real(
@@ -2744,7 +2898,7 @@ class TestFq06RetryPolicy(FederatedQueryVersionedMixin):
             self._cleanup_src(o_src)
             try:
                 _oracle_drop_sleep_fixtures(o_cfg)
-                ExtSrcEnv.oracle_drop_table_cfg(o_cfg, "PUSH_T")
+                ExtSrcEnv.oracle_drop_table_cfg(o_cfg, "push_t")
             except Exception:
                 pass
 
@@ -2772,14 +2926,14 @@ class TestFq06RetryPolicy(FederatedQueryVersionedMixin):
         o_cfg = self._oracle_cfg()
         self._cleanup_src(o_src)
         try:
-            ExtSrcEnv.oracle_drop_table_cfg(o_cfg, "PUSH_T")
+            ExtSrcEnv.oracle_drop_table_cfg(o_cfg, "push_t")
             ExtSrcEnv.oracle_exec_cfg(o_cfg, _ORACLE_PUSH_T_SQLS)
             _oracle_error_fixtures(o_cfg)
             self._mk_oracle_real(o_src, database=o_cfg.service,
                                  schema=o_cfg.user.upper())
             # Baseline: COUNT is pushed down in this session
             plan = _plan_text(f"select count(*) from {o_src}.push_t")
-            assert "COUNT(VAL)" in plan, plan
+            assert 'COUNT("val")' in plan, plan
 
             # ORA-00937 → precise demotion, AGG clause
             tdSql.error(f"select * from {o_src}.fq06_e937_v limit 1",
@@ -2794,8 +2948,8 @@ class TestFq06RetryPolicy(FederatedQueryVersionedMixin):
             # Same session: the AGG clause is no longer pushed
             plan = _plan_text(f"select count(*) from {o_src}.push_t")
             assert "Aggregate" in plan, plan
-            assert "COUNT(VAL)" not in plan, plan
-            assert "Remote SQL: SELECT VAL" in plan, plan
+            assert 'COUNT("val")' not in plan, plan
+            assert 'Remote SQL: SELECT "val"' in plan, plan
             tdSql.query(f"select count(*) from {o_src}.push_t")
             tdSql.checkData(0, 0, 5)
             tdSql.query(f"select max(val) from {o_src}.push_t")
@@ -2818,7 +2972,7 @@ class TestFq06RetryPolicy(FederatedQueryVersionedMixin):
             fresh_plan = "\n".join(
                 str(col) for row in rows for col in row if col is not None)
             assert "Aggregate" in fresh_plan, fresh_plan
-            assert "COUNT(VAL)" not in fresh_plan, fresh_plan
+            assert 'COUNT("val")' not in fresh_plan, fresh_plan
             rows, err = _fresh_execute(
                 f"select count(*), sum(val) from {o_src}.push_t")
             assert err is None, err
@@ -2829,7 +2983,7 @@ class TestFq06RetryPolicy(FederatedQueryVersionedMixin):
             self._cleanup_src(o_src)
             try:
                 _oracle_drop_error_fixtures(o_cfg)
-                ExtSrcEnv.oracle_drop_table_cfg(o_cfg, "PUSH_T")
+                ExtSrcEnv.oracle_drop_table_cfg(o_cfg, "push_t")
             except Exception:
                 pass
 
@@ -2859,13 +3013,13 @@ class TestFq06RetryPolicy(FederatedQueryVersionedMixin):
         o_cfg = self._oracle_cfg()
         self._cleanup_src(o_src)
         try:
-            ExtSrcEnv.oracle_drop_table_cfg(o_cfg, "PUSH_T")
+            ExtSrcEnv.oracle_drop_table_cfg(o_cfg, "push_t")
             ExtSrcEnv.oracle_exec_cfg(o_cfg, _ORACLE_PUSH_T_SQLS)
             _oracle_error_fixtures(o_cfg)
             self._mk_oracle_real(o_src, database=o_cfg.service,
                                  schema=o_cfg.user.upper())
             plan = _plan_text(f"select count(*) from {o_src}.push_t")
-            assert "COUNT(VAL)" in plan, plan
+            assert 'COUNT("val")' in plan, plan
 
             # ORA-00904 → vague demotion
             tdSql.error(f"select * from {o_src}.fq06_e904_v limit 1",
@@ -2878,7 +3032,7 @@ class TestFq06RetryPolicy(FederatedQueryVersionedMixin):
 
             # (a) The same session's plan is unchanged: COUNT is still pushed.
             plan = _plan_text(f"select count(*) from {o_src}.push_t")
-            assert "COUNT(VAL)" in plan, plan
+            assert 'COUNT("val")' in plan, plan
             assert "Aggregate" not in plan, plan
             tdSql.query(f"select count(*), sum(val) from {o_src}.push_t")
             tdSql.checkData(0, 0, 5)
@@ -2900,7 +3054,7 @@ class TestFq06RetryPolicy(FederatedQueryVersionedMixin):
             assert err is None, err
             fresh_plan = "\n".join(
                 str(col) for row in rows for col in row if col is not None)
-            assert "COUNT(VAL)" in fresh_plan, fresh_plan
+            assert 'COUNT("val")' in fresh_plan, fresh_plan
             rows, err = _fresh_execute(f"select count(*) from {o_src}.push_t")
             assert err is None, err
             assert rows[0][0] == 5, rows
@@ -2910,6 +3064,6 @@ class TestFq06RetryPolicy(FederatedQueryVersionedMixin):
             self._cleanup_src(o_src)
             try:
                 _oracle_drop_error_fixtures(o_cfg)
-                ExtSrcEnv.oracle_drop_table_cfg(o_cfg, "PUSH_T")
+                ExtSrcEnv.oracle_drop_table_cfg(o_cfg, "push_t")
             except Exception:
                 pass

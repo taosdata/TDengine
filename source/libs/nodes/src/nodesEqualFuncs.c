@@ -169,6 +169,7 @@ static bool correlationTimeRangeInitNodeEqual(const SCorrelationTimeRangeInitNod
 }
 
 static bool columnNodeEqual(const SColumnNode* a, const SColumnNode* b) {
+  COMPARE_SCALAR_FIELD(isTbnamePlaceholder);
   COMPARE_STRING_FIELD(dbName);
   COMPARE_STRING_FIELD(tableName);
   COMPARE_STRING_FIELD(colName);
@@ -230,6 +231,7 @@ static bool functionNodeEqual(const SFunctionNode* a, const SFunctionNode* b) {
   COMPARE_SCALAR_FIELD(funcId);
   COMPARE_STRING_FIELD(functionName);
   COMPARE_SCALAR_FIELD(isDistinct);
+  COMPARE_SCALAR_FIELD(ignoreResultRowCount);
   COMPARE_NODE_LIST_FIELD(pParameterList);
   COMPARE_NODE_FIELD(pOver);
   if (a->funcType == FUNCTION_TYPE_SELECT_VALUE) {
@@ -273,6 +275,7 @@ static bool sqlNamedWindowEqual(const SNamedWindowNode* a, const SNamedWindowNod
 }
 
 static bool logicWindowFuncNodeEqual(const SWindowFuncLogicNode* a, const SWindowFuncLogicNode* b) {
+  COMPARE_SCALAR_FIELD(numValuePartitionKeys);
   COMPARE_NODE_LIST_FIELD(pPartitionKeys);
   COMPARE_NODE_LIST_FIELD(pOrderKeys);
   COMPARE_NODE_LIST_FIELD(pFuncs);
@@ -282,6 +285,7 @@ static bool logicWindowFuncNodeEqual(const SWindowFuncLogicNode* a, const SWindo
 
 static bool physiWindowFuncNodeEqual(const SWindowFuncPhysiNode* a, const SWindowFuncPhysiNode* b) {
   COMPARE_NODE_LIST_FIELD(pExprs);
+  COMPARE_SCALAR_FIELD(numValuePartitionKeys);
   COMPARE_NODE_LIST_FIELD(pPartitionKeys);
   COMPARE_NODE_LIST_FIELD(pOrderKeys);
   COMPARE_NODE_LIST_FIELD(pFuncs);
@@ -440,6 +444,13 @@ static bool createStreamStmtEqual(const SCreateStreamStmt* a, const SCreateStrea
          nodeNodeListEqual(a->pCols, b->pCols) && streamCreateTimeInfoEqual(a->pTimeInfo, b->pTimeInfo);
 }
 
+static bool referenceDeclEqual(const SReferenceDeclNode* a, const SReferenceDeclNode* b) {
+  return a->entry.sourceType == b->entry.sourceType && strcmp(a->entry.alias, b->entry.alias) == 0 &&
+      strcmp(a->entry.sourceName, b->entry.sourceName) == 0 && strcmp(a->entry.dbName, b->entry.dbName) == 0 &&
+      strcmp(a->entry.schemaName, b->entry.schemaName) == 0 && strcmp(a->entry.objectName, b->entry.objectName) == 0 &&
+      strcmp(a->entry.timeColumn, b->entry.timeColumn) == 0;
+}
+
 bool nodesEqualNode(const SNode* a, const SNode* b) {
   if (a == b) {
     return true;
@@ -454,6 +465,8 @@ bool nodesEqualNode(const SNode* a, const SNode* b) {
   }
 
   switch (nodeType(a)) {
+    case QUERY_NODE_REFERENCE_DECL:
+      return referenceDeclEqual((const SReferenceDeclNode*)a, (const SReferenceDeclNode*)b);
     case QUERY_NODE_LEFT_VALUE:
       return true;
     case QUERY_NODE_OUTER_REF:

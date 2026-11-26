@@ -4,6 +4,14 @@
 
 本指南涵盖 TDGPT 在 Linux 和 Windows 平台上的安装和使用。
 
+## 用户 Python 算法与升级保留
+
+正常安装无需手动配置，安装器自动创建默认算法目录及 `ad/`、`fc/`、`classification/`、`regression/`、`batch/` 子目录。默认路径由 `data_dir` 派生为 `<data_dir>/custom`；更换 `data_dir` 时无需另改算法路径，但需同步迁移已有数据。`custom_algo_dir` 仅用于显式指定其他存储位置。 Linux / Docker 默认 `/var/lib/taos/taosanode/custom`，Windows 默认 `<安装目录>/data/custom`。Docker 可通过 `TDGPT_CUSTOM_ALGO_DIR` 覆盖配置，必须将宿主机算法目录挂载到对应容器路径。修改算法后重启主服务；额外依赖安装在主 venv，与官方模型的 TSFM venv 分开管理。
+
+`batch/` 存放 `/api/v1/analysis/batch`（兼容 `/tool/batch`）使用的批量包络线算法。模块内定义以 `_` 开头的类，暴露 `name` 与 `build(ts, values, windows, params)`，返回 `center`、`lower`、`upper` 三条曲线。可选的同名 sidecar `<module>.json` 声明版本与可接受的参数；缺失时请求参数原样透传、不做校验。`GET /api/v1/analysis/batch/algos` 列出内置 `golden` 流水线与用户算法。开发步骤、参数声明与调用示例见 [用户自定义批量包络线算法](packaging/TDGPT-CUSTOM-BATCH-ALGORITHM-CN.md)。
+
+安装器迁移旧 `lib/taosanalytics/algo/custom`，校验后退役旧目录，保留备份和迁移记录。冲突时中止升级，不覆盖用户文件；后续升级不会恢复用户在新目录中删除的算法。升级和默认卸载保留新目录。Docker 更换容器前必须先从旧容器导出未挂载的旧算法，再挂载新目录，不能直接删除旧容器。完整目录、迁移及升级步骤见 [Lite 设计文档](packaging/TDGPT-LITE-DESIGN-CN.md)。
+
 ## 目录
 
 - [系统要求](#系统要求)
@@ -21,12 +29,13 @@
 
 ### 支持的平台
 
-- **Linux**: Ubuntu 18.04+、CentOS 7+ 或其他 Linux 发行版
+- **Linux Lite / 共享 TSFM runtime（x64、ARM64）**：glibc 2.28 或更高，例如 Ubuntu 20.04+、Debian 10+。Ubuntu 18.04 和 CentOS 7 低于此基线；部署前运行 `getconf GNU_LIBC_VERSION` 核对目标机器。
 - **Windows**: Windows Server 2016+ 或 Windows 10/11
 
 ### Python 版本
 
-- Python 3.10、3.11 或 3.12（必需）
+- 源码/在线安装使用 Python 3.11 或 3.12。
+- 本轮 Lite 离线版本使用配套 Python 3.12.16 runtime、主 venv 1.0.4，以及可选的共享 TSFM runtime 1.0.1。TSFM 单独安装，产品升级不会自动替换已有模型 runtime；以对应发布清单和 SHA-256 为准。
 
 ### 硬件要求
 
@@ -51,15 +60,15 @@
 
 ### 前置条件
 
-1. 安装 Python 3.10+（如果尚未安装）：
+1. 安装 Python 3.11+（如果尚未安装）：
 
 ```bash
 # Ubuntu/Debian
 sudo apt-get update
-sudo apt-get install python3.10 python3.10-venv python3.10-dev
+sudo apt-get install python3.11 python3.11-venv python3.11-dev
 
 # CentOS/RHEL
-sudo yum install python310 python310-devel
+sudo yum install python311 python311-devel
 ```
 
 2. 确保您有系统级安装的 sudo 权限。
@@ -79,12 +88,21 @@ cd tdgpt-linux-x.x.x
 # 标准安装
 bash install.sh
 
-# 离线安装（如果包含 wheels）
-bash install.sh -o
-
 # 自定义安装目录
 bash install.sh -d /opt/tdgpt
 ```
+
+`-o` 当前仅设置离线标志，脚本未用该标志控制主 venv 重装；在 system-python 模式下仍可能执行 pip 安装。已有 offline-resource 安装若不提供离线资源参数则会被模式校验拒绝。不要仅用 `-o` 执行离线升级。
+
+**Lite 离线新装或升级**：先校验并解压配套 Python 3.12.16 runtime 到固定目录，再显式提供匹配架构的 Lite 主 venv 1.0.4 归档。例如 Linux x64，在解压后的 Lite 产品包目录执行（路径按实际部署替换）：
+
+```bash
+sudo bash install.sh \
+  --python-home /opt/tdgpt-deps/python-runtime-3.12.16 \
+  --venv-package /opt/tdgpt-offline/tdengine-tdgpt-lite-venv-1.0.4-linux-x64.tar.xz
+```
+
+Linux ARM64 使用 `linux-arm64` 归档。升级前先记录配置、资源版本和正在运行的模型，在维护窗口停止全部模型 worker 与主服务；旧 TSFM runtime 引用的 Python 目录须保留到显式替换 TSFM 完成。主 venv 和 TSFM 分别管理，以上命令不会自动升级已安装的共享 TSFM；本轮 TSFM 1.0.1 按[升级顺序](packaging/TDGPT-LITE-DESIGN-CN.md#723-下一版产品与已有动态资源的升级顺序发布方案)停止 worker、显式替换、校验并恢复运行。不要用 `-a` 代替 Lite 的独立 TSFM 资源升级。
 
 3. **验证安装**：
 
@@ -155,7 +173,7 @@ sudo systemctl disable taosanode
 
 ### 前置条件
 
-1. **Python 3.10 / 3.11 / 3.12** - 需要安装 Python 并添加到 PATH
+1. **Python 3.11 / 3.12** - 需要安装 Python 并添加到 PATH
    - 从 [python.org](https://www.python.org/downloads/) 下载
    - 安装时勾选"Add Python to PATH"
    - 验证安装：`python --version`
@@ -307,8 +325,7 @@ python <install_dir>/bin/taosanode_service.py model-status
 
 #### 动态资源删除
 
-动态模型只能从 `model/tsfm/<模型名>` 删除；共享 TSFM runtime 使用 `tsfm_runtime` 作为目标。
-删除前必须停止对应模型，删除 runtime 前必须停止所有 TSFM 模型 worker。
+动态模型只能从 `model/tsfm/<模型名>` 删除；共享 TSFM runtime 使用 `tsfm_runtime` 作为目标。删除前必须停止对应模型，删除 runtime 前必须停止所有 TSFM 模型 worker。
 
 ```bash
 # 删除单个模型

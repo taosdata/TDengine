@@ -9,7 +9,8 @@ description: 创建、查看、修改与删除用户，以及 IP 白名单/黑�
 ## 创建用户
 
 ```sql
-CREATE USER user_name PASS 'password'
+CREATE USER user_name
+  PASS 'password'
   [SYSINFO {1|0}]
   [CREATEDB {1|0}]
   [ENABLE {1|0}]
@@ -47,6 +48,7 @@ ALTER ALL DNODES 'EnableStrongPassword' '0';
 ```sql
 -- 默认关闭高级安全功能
 ALTER ALL DNODES 'EnableAdvancedSecurity' '0';
+
 -- 默认打开高级安全功能
 ALTER ALL DNODES 'EnableAdvancedSecurity' '1';
 ```
@@ -79,8 +81,10 @@ ALTER ALL DNODES 'EnableAdvancedSecurity' '1';
 以下示例创建一个密码为 `abc123!@#`、可查看系统信息的用户：
 
 ```sql
-taos> CREATE USER test PASS 'abc123!@#' SYSINFO 1;
-Query OK, 0 of 0 rows affected (0.001254s)
+taos> CREATE USER test
+        PASS 'abc123!@#'
+        SYSINFO 1;
+Query OK, 0 of 0 rows affected
 ```
 
 ## 查看用户
@@ -97,7 +101,7 @@ taos> SHOW USERS;
 ===========================================================================================================================
  test |     0 |      1 |       1 |        0 | 2025-12-24 18:56:20.709 |    0 | +127.0.0.1/32, +::1/128 | +ALL             |
  root |     1 |      1 |       1 |        1 | 2025-12-24 18:00:43.197 |    0 | +127.0.0.1/32, +::1/128 | +ALL             |
-Query OK, 2 rows in set (0.001657s)
+Query OK, 2 rows in set
 ```
 
 在 `allowed_host` 中，地址或地址段前缀为 `+` 表示白名单（允许登录），前缀为 `-` 表示黑名单（不允许登录）。`allowed_datetime` 同理。
@@ -105,12 +109,13 @@ Query OK, 2 rows in set (0.001657s)
 也可查询内置系统表 `information_schema.ins_users`：
 
 ```sql
-taos> SELECT * FROM information_schema.ins_users;
+taos> SELECT *
+      FROM information_schema.ins_users;
  name | super | enable | sysinfo | createdb |       create_time       | totp |      allowed_host       | allowed_datetime |
 ===========================================================================================================================
  test |     0 |      1 |       1 |        0 | 2025-12-24 18:56:20.709 |    0 | +127.0.0.1/32, +::1/128 | +ALL             |
  root |     1 |      1 |       1 |        1 | 2025-12-24 18:00:43.197 |    0 | +127.0.0.1/32, +::1/128 | +ALL             |
-Query OK, 2 row(s) in set (0.007383s)
+Query OK, 2 row(s) in set
 ```
 
 ## 删除用户
@@ -159,7 +164,7 @@ alter_user_clause: {
 
 ```sql
 taos> ALTER USER test ENABLE 0;
-Query OK, 0 of 0 rows affected (0.001160s)
+Query OK, 0 of 0 rows affected
 ```
 
 修改用户密码（`ALTER USER ... PASS`）后，服务端会在心跳中检测并踢除使用**旧密码**建立的连接；被踢除的连接上后续请求将返回认证失败（`0x80000357`）。执行密码变更操作的连接本身不受影响。**Token 连接不受此机制影响。**
@@ -182,7 +187,10 @@ IP 白名单/黑名单限制用户可从哪些地址登录，与 `GRANT` 权限�
 增加 IP 白名单：
 
 ```sql
-CREATE USER test PASS 'taosdata1' HOST '192.168.1.0/24', '10.0.0.1';
+CREATE USER test
+  PASS 'taosdata1'
+  HOST '192.168.1.0/24', '10.0.0.1';
+
 ALTER USER test ADD HOST '192.168.2.0/24';
 ```
 
@@ -195,7 +203,11 @@ ALTER USER test ADD NOT_ALLOW_HOST '203.0.113.5/32';
 查询：
 
 ```sql
-SELECT name, allowed_host FROM information_schema.ins_users;
+SELECT
+  name,
+  allowed_host
+FROM information_schema.ins_users;
+
 SHOW USERS;
 ```
 
@@ -205,6 +217,7 @@ SHOW USERS;
 
 ```sql
 ALTER USER test DROP HOST '192.168.2.0/24';
+
 ALTER USER test DROP NOT_ALLOW_HOST '203.0.113.5/32';
 ```
 
@@ -247,7 +260,7 @@ taos> CREATE TOTP_SECRET FOR USER test;
                      totp_secret                      |
 =======================================================
  ERIRPLZL4ZBFTPT5BNXMVFPR4Z3PTHUWTBTCNZPOHYPYQGTD25XA |
-Query OK, 1 row(s) in set (0.002314s)
+Query OK, 1 row(s) in set
 ```
 
 ### 删除 TOTP 密钥
@@ -262,7 +275,7 @@ DROP TOTP_SECRET FROM USER user_name;
 
 ```sql
 taos> DROP TOTP_SECRET FROM USER test;
-Drop OK, 0 row(s) affected (0.002295s)
+Drop OK, 0 row(s) affected
 ```
 
 ## 令牌管理
@@ -275,7 +288,7 @@ Drop OK, 0 row(s) affected (0.002295s)
 CREATE TOKEN [IF NOT EXISTS] token_name FROM USER user_name [ENABLE {1|0}] [TTL value] [PROVIDER value] [EXTRA_INFO value];
 ```
 
-令牌名称最长 31 个字节。
+令牌名称最长 31 个字节。自 `v3.4.3.12` 起，以 `__xnode_` 开头的名称由系统保留，使用该前缀创建令牌会返回 `Invalid token name` 错误。
 
 - `ENABLE`：是否启用该令牌。`1` 表示启用，`0` 表示未启用；未启用的令牌不能用于登录。缺省值为 `1`。
 - `TTL`：令牌有效时长，单位为天，从创建时起算。默认 `0`，表示永久有效。
@@ -285,11 +298,12 @@ CREATE TOKEN [IF NOT EXISTS] token_name FROM USER user_name [ENABLE {1|0}] [TTL 
 以下为用户 `test` 创建名为 `test_token` 的令牌。注意：令牌值仅在创建时展示一次，后续无法查询，请及时保存。
 
 ```sql
-taos> CREATE TOKEN test_token FROM USER test;
+taos> CREATE TOKEN test_token
+        FROM USER test;
                              token                               |
 ==================================================================
  BsyjYKxhCMntZ3pHgweCd2uV2C8HoGKn8Mvd49dRRCtzusX0P1mgqRMrG7SzUca |
-Query OK, 1 row(s) in set (0.003018s)
+Query OK, 1 row(s) in set
 ```
 
 ### 查看令牌
@@ -308,18 +322,19 @@ taos> SHOW TOKENS;
 =========================================================================================================
  root_token | root |          |      1 | 2025-12-25 10:02:28.000 | 1970-01-01 08:00:00.000 |            |
  test_token | test |          |      1 | 2025-12-25 10:01:47.000 | 1970-01-01 08:00:00.000 |            |
-Query OK, 2 row(s) in set (0.003313s)
+Query OK, 2 row(s) in set
 ```
 
 也可查询 `information_schema.ins_tokens`：
 
 ```sql
-taos> SELECT * FROM information_schema.ins_tokens;
+taos> SELECT *
+      FROM information_schema.ins_tokens;
     name    | user | provider | enable |       create_time       |       expire_time       | extra_info |
 =========================================================================================================
  root_token | root |          |      1 | 2025-12-25 10:02:28.000 | 1970-01-01 08:00:00.000 |            |
  test_token | test |          |      1 | 2025-12-25 10:01:47.000 | 1970-01-01 08:00:00.000 |            |
-Query OK, 2 row(s) in set (0.007438s)
+Query OK, 2 row(s) in set
 ```
 
 ### 修改令牌

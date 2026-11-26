@@ -1,0 +1,57 @@
+# Prepare data.
+drop database if exists duplicate_correlated_positions;
+create database duplicate_correlated_positions vgroups 2 keep 36500;
+use duplicate_correlated_positions;
+create table matrix_readings (ts timestamp, k int, v int, d double);
+create table matrix_history (ts timestamp, k int, v int);
+create table matrix_other (ts timestamp, k int, v int);
+insert into matrix_readings values (1760000000000, 1, 10, 10);
+insert into matrix_readings values (1760000001000, 2, 20, 20);
+insert into matrix_readings values (1760000002000, 3, 30, 30);
+insert into matrix_readings values (1760000003000, 2, null, null);
+insert into matrix_readings values (1760000004000, null, 40, 40);
+insert into matrix_history values (1760000000000, 1, 5);
+insert into matrix_history values (1760000001000, 1, 15);
+insert into matrix_history values (1760000002000, 2, 20);
+insert into matrix_history values (1760000003000, 3, null);
+insert into matrix_other values (1760000000000, 1, 100);
+
+# Correlated positions.
+select (select max(h.v) from matrix_history h where h.k = r.k), (select max(h.v) from matrix_history h where h.k = r.k) from matrix_readings r order by r.ts;
+# Expected InitPlans 0, correlated templates 2.
+explain select (select max(h.v) from matrix_history h where h.k = r.k), (select max(h.v) from matrix_history h where h.k = r.k) from matrix_readings r order by r.ts\G;
+explain analyze select (select max(h.v) from matrix_history h where h.k = r.k), (select max(h.v) from matrix_history h where h.k = r.k) from matrix_readings r order by r.ts\G;
+select r.v, (select max(h.v) from matrix_history h where h.k = r.k) from matrix_readings r where r.v <= (select max(h.v) from matrix_history h where h.k = r.k) order by r.ts;
+# Expected InitPlans 0, correlated templates 2.
+explain select r.v, (select max(h.v) from matrix_history h where h.k = r.k) from matrix_readings r where r.v <= (select max(h.v) from matrix_history h where h.k = r.k) order by r.ts\G;
+explain analyze select r.v, (select max(h.v) from matrix_history h where h.k = r.k) from matrix_readings r where r.v <= (select max(h.v) from matrix_history h where h.k = r.k) order by r.ts\G;
+select r.k, sum(r.v), (select max(h.v) from matrix_history h where h.k = r.k) from matrix_readings r group by r.k having sum(r.v) >= (select max(h.v) from matrix_history h where h.k = r.k);
+# Expected InitPlans 0, correlated templates 2.
+explain select r.k, sum(r.v), (select max(h.v) from matrix_history h where h.k = r.k) from matrix_readings r group by r.k having sum(r.v) >= (select max(h.v) from matrix_history h where h.k = r.k)\G;
+explain analyze select r.k, sum(r.v), (select max(h.v) from matrix_history h where h.k = r.k) from matrix_readings r group by r.k having sum(r.v) >= (select max(h.v) from matrix_history h where h.k = r.k)\G;
+select r.v, (select max(h.v) from matrix_history h where h.k = r.k) from matrix_readings r order by (select max(h.v) from matrix_history h where h.k = r.k) nulls first, r.ts;
+# Expected InitPlans 0, correlated templates 2.
+explain select r.v, (select max(h.v) from matrix_history h where h.k = r.k) from matrix_readings r order by (select max(h.v) from matrix_history h where h.k = r.k) nulls first, r.ts\G;
+explain analyze select r.v, (select max(h.v) from matrix_history h where h.k = r.k) from matrix_readings r order by (select max(h.v) from matrix_history h where h.k = r.k) nulls first, r.ts\G;
+select count(*), sum(r.v) from matrix_readings r group by (select max(h.v) from matrix_history h where h.k = r.k), (select max(h.v) from matrix_history h where h.k = r.k) order by 2;
+# Expected InitPlans 0, correlated templates 2.
+explain select count(*), sum(r.v) from matrix_readings r group by (select max(h.v) from matrix_history h where h.k = r.k), (select max(h.v) from matrix_history h where h.k = r.k) order by 2\G;
+explain analyze select count(*), sum(r.v) from matrix_readings r group by (select max(h.v) from matrix_history h where h.k = r.k), (select max(h.v) from matrix_history h where h.k = r.k) order by 2\G;
+select sum((select max(h.v) from matrix_history h where h.k = r.k)), max((select max(h.v) from matrix_history h where h.k = r.k)) from matrix_readings r;
+# Expected InitPlans 0, correlated templates 2.
+explain select sum((select max(h.v) from matrix_history h where h.k = r.k)), max((select max(h.v) from matrix_history h where h.k = r.k)) from matrix_readings r\G;
+explain analyze select sum((select max(h.v) from matrix_history h where h.k = r.k)), max((select max(h.v) from matrix_history h where h.k = r.k)) from matrix_readings r\G;
+select case when r.v < (select max(h.v) from matrix_history h where h.k = r.k) then (select max(h.v) from matrix_history h where h.k = r.k) else r.v end from matrix_readings r order by r.ts;
+# Expected InitPlans 0, correlated templates 2.
+explain select case when r.v < (select max(h.v) from matrix_history h where h.k = r.k) then (select max(h.v) from matrix_history h where h.k = r.k) else r.v end from matrix_readings r order by r.ts\G;
+explain analyze select case when r.v < (select max(h.v) from matrix_history h where h.k = r.k) then (select max(h.v) from matrix_history h where h.k = r.k) else r.v end from matrix_readings r order by r.ts\G;
+select r.v, j.v, (select max(h.v) from matrix_history h where h.k = r.k) from matrix_readings r join matrix_history j on r.ts = j.ts and r.v <= (select max(h.v) from matrix_history h where h.k = r.k) order by r.ts;
+# Expected InitPlans 0, correlated templates 2.
+explain select r.v, j.v, (select max(h.v) from matrix_history h where h.k = r.k) from matrix_readings r join matrix_history j on r.ts = j.ts and r.v <= (select max(h.v) from matrix_history h where h.k = r.k) order by r.ts\G;
+explain analyze select r.v, j.v, (select max(h.v) from matrix_history h where h.k = r.k) from matrix_readings r join matrix_history j on r.ts = j.ts and r.v <= (select max(h.v) from matrix_history h where h.k = r.k) order by r.ts\G;
+# Sort output rows for deterministic comparison.
+select r.v, (select max(h.v) from matrix_history h where h.k = r.k) from matrix_readings r partition by (select max(h.v) from matrix_history h where h.k = r.k) order by 1 nulls first, 2 nulls first;
+# Expected InitPlans 0, correlated templates 2.
+explain select r.v, (select max(h.v) from matrix_history h where h.k = r.k) from matrix_readings r partition by (select max(h.v) from matrix_history h where h.k = r.k)\G;
+explain analyze select r.v, (select max(h.v) from matrix_history h where h.k = r.k) from matrix_readings r partition by (select max(h.v) from matrix_history h where h.k = r.k)\G;
+drop database duplicate_correlated_positions;

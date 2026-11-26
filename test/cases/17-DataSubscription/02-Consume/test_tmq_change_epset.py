@@ -96,105 +96,6 @@ class TestTmqBugs:
         except Exception as e:
             tdLog.info(f"failed to remove host entry: {e}")
 
-    def modifyTaosCfg(self, newFqdn, newPort):
-        """Modify taos.cfg to use new fqdn and serverPort."""
-        cfgPath = os.path.join(tdDnodes.getDnodeDir(1), "cfg", "taos.cfg")
-        tdLog.info(f"modifying taos.cfg: {cfgPath}")
-
-        lines = []
-        with open(cfgPath, 'r') as f:
-            lines = f.readlines()
-
-        with open(cfgPath, 'w') as f:
-            for line in lines:
-                stripped = line.strip().lower()
-                if stripped.startswith("fqdn"):
-                    f.write(f"fqdn            {newFqdn}\n")
-                elif stripped.startswith("firstep"):
-                    f.write(f"firstEp         {newFqdn}:{newPort}\n")
-                elif stripped.startswith("serverport"):
-                    f.write(f"serverPort      {newPort}\n")
-                else:
-                    f.write(line)
-
-        tdLog.info(f"taos.cfg modified: fqdn={newFqdn}, serverPort={newPort}")
-
-    def modifyDnodeJson(self, newFqdn, newPort):
-        """Modify dnode.json to use new fqdn and port."""
-        dnodeJsonPath = os.path.join(tdDnodes.getDnodeDir(1), "data", "dnode", "dnode.json")
-        tdLog.info(f"modifying dnode.json: {dnodeJsonPath}")
-
-        with open(dnodeJsonPath, 'r') as f:
-            data = json.load(f)
-
-        if "dnodes" in data:
-            for dnode in data["dnodes"]:
-                dnode["fqdn"] = newFqdn
-                dnode["port"] = newPort
-
-        with open(dnodeJsonPath, 'w') as f:
-            json.dump(data, f, indent=2)
-
-        tdLog.info(f"dnode.json modified: fqdn={newFqdn}, port={newPort}")
-
-    def modifyDnodeConfigDir(self, newFqdn, newPort):
-        """Modify all json files under dnode config dir to replace fqdn/serverPort/firstEp/secondEp."""
-        configDir = os.path.join(tdDnodes.getDnodeDir(1), "data", "dnode", "config")
-        if not os.path.exists(configDir):
-            tdLog.info(f"config dir not found, skip: {configDir}")
-            return
-
-        for filename in os.listdir(configDir):
-            if not filename.endswith(".json"):
-                continue
-            filepath = os.path.join(configDir, filename)
-            tdLog.info(f"modifying config file: {filepath}")
-
-            with open(filepath, 'r') as f:
-                data = json.load(f)
-
-            configs = data.get("configs", {})
-            modified = False
-            if "fqdn" in configs:
-                configs["fqdn"] = newFqdn
-                modified = True
-            if "serverPort" in configs:
-                configs["serverPort"] = newPort
-                modified = True
-            if "firstEp" in configs:
-                configs["firstEp"] = f"{newFqdn}:{newPort}"
-                modified = True
-            if "secondEp" in configs:
-                configs["secondEp"] = f"{newFqdn}:{newPort}"
-                modified = True
-
-            if modified:
-                with open(filepath, 'w') as f:
-                    json.dump(data, f, indent=2)
-                tdLog.info(f"{filename} modified")
-
-    def createEpJson(self, oldFqdn, oldPort, newFqdn, newPort):
-        """Create ep.json to record epset change mapping."""
-        epJsonPath = os.path.join(tdDnodes.getDnodeDir(1), "data", "dnode", "ep.json")
-        tdLog.info(f"creating ep.json: {epJsonPath}")
-
-        epData = {
-            "dnodes": [
-                {
-                    "id": 1,
-                    "fqdn": oldFqdn,
-                    "port": oldPort,
-                    "new_fqdn": newFqdn,
-                    "new_port": newPort
-                }
-            ]
-        }
-
-        with open(epJsonPath, 'w') as f:
-            json.dump(epData, f, indent=2)
-
-        tdLog.info(f"ep.json created with mapping: {oldFqdn}:{oldPort} -> {newFqdn}:{newPort}")
-
     def waitTransactionZero(self, seconds=60, interval=2):
         """Wait for all transactions to complete. Returns True if no pending transactions."""
         for i in range(seconds // interval):
@@ -206,36 +107,41 @@ class TestTmqBugs:
             time.sleep(interval)
         return False
 
-    def checkTransactionExists(self, seconds=30, interval=2):
-        """Check that there IS a pending transaction. Returns True if found."""
-        for i in range(seconds // interval):
-            rows = tdSql.query("show transactions;")
-            if rows > 0:
-                tdLog.info(f"found {rows} pending transaction(s)")
-                return True
-            time.sleep(interval)
-        tdLog.info("no pending transactions found")
-        return False
+    def rewriteEndpoint(self, oldFqdn, oldPort, newFqdn, newPort):
+        """Rewrite every persisted endpoint while taosd is stopped."""
+        binary = os.path.join(tdCom.getBuildPath(), "build", "bin", "taosd")
+        dnodeDir = tdDnodes.getDnodeDir(1)
+        cfgDir = os.path.join(dnodeDir, "cfg")
+        reports = os.path.join(dnodeDir, "precheck")
+        os.makedirs(reports, exist_ok=True)
 
-    '''
-    Test TMQ epset change scenario:
-    1. Build subscription (triggers rebalance transaction with epset in WAL)
-    2. Force kill taosd
-    3. Modify config to change epset (taos.cfg fqdn/port, dnode.json)
-    4. Start taosd - WAL replay with old epset causes stuck transaction
-    5. Verify unfinished transaction exists
-    6. Stop taosd
-    7. Create ep.json with old->new epset mapping
-    8. Start taosd - ep.json resolves the epset mismatch
-    9. Verify no unfinished transactions
-    '''
+        result = subprocess.run(
+            [binary, "-c", cfgDir, "--rewrite-endpoints-precheck", reports,
+             "--map", f"{oldFqdn}:{oldPort}={newFqdn}:{newPort}"],
+            capture_output=True, text=True, timeout=120)
+        if result.returncode != 0:
+            tdLog.exit(f"endpoint precheck failed: {result.stdout}{result.stderr}")
+
+        result = subprocess.run(
+            [binary, "-c", cfgDir, "--rewrite-endpoints-apply", reports],
+            capture_output=True, text=True, timeout=120)
+        if result.returncode != 0:
+            tdLog.exit(f"endpoint apply failed: {result.stdout}{result.stderr}")
+        tdLog.info(f"endpoint rewritten: {oldFqdn}:{oldPort} -> {newFqdn}:{newPort}")
+
     def test_tmq_change_epset(self):
-        """TMQ consume with epset change after force kill
+        """TMQ consume after the endpoint is rewritten offline
 
-        Verify that after changing taosd's epset (fqdn + port), WAL replay
-        of old rebalance transactions fails until ep.json provides the
-        epset mapping. With ep.json in place, taosd can resolve the old
-        epset and complete the pending transactions.
+        Verify that after taosd's endpoint (fqdn + port) is changed with the
+        offline endpoint rewrite command, the subscription created before the
+        change can still be consumed and no unfinished transaction is left.
+
+        1. Build a subscription, then stop taosd normally.
+        2. Rewrite every persisted endpoint with --rewrite-endpoints-precheck
+           and --rewrite-endpoints-apply.
+        3. Start taosd on the new endpoint.
+        4. Consume from the topic and verify no unfinished transaction remains.
+        5. Verify a leftover ep.json is ignored and reported in the log.
 
         Since: v3.0.0.0
 
@@ -245,6 +151,8 @@ class TestTmqBugs:
 
         History:
             - 2026-04-14 wangmm Created
+            - 2026-10-27 Bomin Zhang Use the offline endpoint rewrite command
+              instead of ep.json
 
         """
         oldFqdn = "localhost"
@@ -252,88 +160,69 @@ class TestTmqBugs:
         newFqdn = self.getNewFqdn()
         newPort = self.getNewPort()
 
-        # step 1: build subscription (triggers rebalance, writes epset to WAL)
         self.buildSubscription()
-        tdLog.info("subscription built, rebalance transaction written to WAL")
+        tdLog.info("subscription built")
 
-        # step 2: force kill taosd (leave WAL unfinished)
-        tdLog.info("force killing taosd")
-        tdDnodes.forcestop(1)
-        time.sleep(2)
-
-        # step 3: add new fqdn to /etc/hosts
-        self.addHostEntry(newFqdn)
-
-        # step 4: modify taos.cfg, dnode.json, and config dir with new epset
-        self.modifyTaosCfg(newFqdn, newPort)
-        self.modifyDnodeJson(newFqdn, newPort)
-        self.modifyDnodeConfigDir(newFqdn, newPort)
-
-        # step 5: start taosd - WAL replay with old epset should cause stuck transaction
-        tdLog.info("starting taosd with new epset (no ep.json)")
-        tdDnodes.starttaosd(1)
-        time.sleep(5)
-
-        # step 6: reconnect with new endpoint and check for unfinished transaction
-        # verify 10 consecutive times that there is a pending transaction
-        newConn = taos.connect(host=newFqdn, port=newPort, user="root", password="taosdata")
-        newCursor = newConn.cursor()
-        consecutiveCount = 0
-        for _ in range(60):
-            newCursor.execute("show transactions")
-            rows = newCursor.fetchall()
-            if len(rows) > 0:
-                consecutiveCount += 1
-                tdLog.info(f"pending transaction detected ({consecutiveCount}/10)")
-                if consecutiveCount >= 10:
-                    break
-            else:
-                consecutiveCount = 0
-            time.sleep(1)
-        newCursor.close()
-        newConn.close()
-        if consecutiveCount < 10:
-            self.removeHostEntry(newFqdn)
-            tdLog.exit(f"expected unfinished transaction 10 consecutive times, but only got {consecutiveCount}")
-        tdLog.info("confirmed unfinished transaction exists (10 consecutive checks)")
-
-        # step 7: stop taosd
-        tdLog.info("stopping taosd to add ep.json")
         tdDnodes.stoptaosd(1)
         time.sleep(2)
 
-        # step 8: create ep.json with old->new epset mapping
-        self.createEpJson(oldFqdn, oldPort, newFqdn, newPort)
+        self.addHostEntry(newFqdn)
+        try:
+            self.rewriteEndpoint(oldFqdn, oldPort, newFqdn, newPort)
 
-        # step 9: start taosd again - ep.json should resolve the epset mismatch
-        tdLog.info("starting taosd with ep.json")
-        tdDnodes.starttaosd(1)
-        time.sleep(5)
+            # A leftover ep.json must not be needed any more, and must not
+            # change the endpoint either.
+            epJson = os.path.join(tdDnodes.getDnodeDir(1), "data", "dnode", "ep.json")
+            with open(epJson, "w") as handle:
+                json.dump({"dnodes": [{"id": 1, "fqdn": oldFqdn, "port": oldPort,
+                                       "new_fqdn": oldFqdn, "new_port": oldPort}]},
+                          handle)
 
-        # step 10: check that there are no unfinished transactions
-        # verify 10 consecutive times that there are no pending transactions
-        newConn2 = taos.connect(host=newFqdn, port=newPort, user="root", password="taosdata")
-        newCursor2 = newConn2.cursor()
-        consecutiveZero = 0
-        for _ in range(60):
-            newCursor2.execute("show transactions")
-            rows2 = newCursor2.fetchall()
-            if len(rows2) == 0:
-                consecutiveZero += 1
-                tdLog.info(f"no pending transaction ({consecutiveZero}/10)")
-                if consecutiveZero >= 10:
-                    break
-            else:
-                consecutiveZero = 0
-                tdLog.info(f"still have {len(rows2)} pending transaction(s), resetting counter")
-            time.sleep(1)
-        newCursor2.close()
-        newConn2.close()
-        if consecutiveZero < 10:
+            tdDnodes.starttaosd(1)
+            time.sleep(5)
+
+            connection = taos.connect(host=newFqdn, port=newPort, user="root", password="taosdata")
+            try:
+                cursor = connection.cursor()
+                cursor.execute("show dnodes")
+                endpoints = [row[1] for row in cursor.fetchall()]
+                cursor.close()
+            finally:
+                connection.close()
+            if f"{newFqdn}:{newPort}" not in endpoints:
+                tdLog.exit(f"expected {newFqdn}:{newPort} in show dnodes, got {endpoints}")
+
+            logFile = os.path.join(tdDnodes.getDnodeDir(1), "log", "taosdlog.0")
+            with open(logFile, "r", errors="replace") as handle:
+                content = handle.read()
+            if "ep.json" not in content or epJson not in content:
+                tdLog.exit("leftover ep.json was not reported in the log")
+
+            consumer_dict = {
+                "group.id": "g1",
+                "td.connect.user": "root",
+                "td.connect.pass": "taosdata",
+                "auto.offset.reset": "earliest",
+                "td.connect.ip": newFqdn,
+                "td.connect.port": newPort,
+            }
+            consumer = Consumer(consumer_dict)
+            try:
+                consumer.subscribe(["t1"])
+                rows = 0
+                while True:
+                    res = consumer.poll(1)
+                    if not res:
+                        break
+                    rows += 1
+            finally:
+                consumer.close()
+            if rows == 0:
+                tdLog.exit("no message consumed after the endpoint changed")
+
+            if not self.waitTransactionZero():
+                tdLog.exit("unfinished transaction remains after the endpoint changed")
+        finally:
             self.removeHostEntry(newFqdn)
-            tdLog.exit(f"expected no transactions 10 consecutive times, but only got {consecutiveZero}")
-        tdLog.info("confirmed no unfinished transactions (10 consecutive checks), ep.json resolved the epset change")
 
-        # cleanup: remove hosts entry
-        self.removeHostEntry(newFqdn)
         tdLog.info("test_tmq_change_epset ................ [passed]")

@@ -1085,6 +1085,34 @@ TEST(StreamWindowPlanTest, createRequestJsonRoundTripDeepOwnsWindowPlan) {
   expectPlanEquals(expected.get(), decoded.pWindowPlan);
 }
 
+TEST(StreamWindowPlanTest, createRequestOwnsDerivativeTagDependencies) {
+  SCMCreateStreamReq source = makeLegacyCountRequest();
+  RequestPtr         sourceGuard(&source);
+  source.derivativeTagCols = taosStrdup("[{\"unitTag\":7}]");
+  ASSERT_NE(nullptr, source.derivativeTagCols);
+
+  SCMCreateStreamReq* cloned = nullptr;
+  ASSERT_EQ(TSDB_CODE_SUCCESS, tCloneStreamCreateDeployPointers(&source, &cloned));
+  ASSERT_NE(nullptr, cloned);
+  auto destroyClone = [](SCMCreateStreamReq* request) {
+    tFreeSCMCreateStreamReq(request);
+    taosMemoryFree(request);
+  };
+  std::unique_ptr<SCMCreateStreamReq, decltype(destroyClone)> cloneGuard(cloned, destroyClone);
+  EXPECT_NE(source.derivativeTagCols, cloned->derivativeTagCols);
+  EXPECT_STREQ(static_cast<const char*>(source.derivativeTagCols), static_cast<const char*>(cloned->derivativeTagCols));
+
+  std::string                                    encoded = encodeCreateStreamRequestJson(&source);
+  std::unique_ptr<SJson, decltype(&tjsonDelete)> json(tjsonParse(encoded.c_str()), tjsonDelete);
+  ASSERT_NE(nullptr, json);
+  SCMCreateStreamReq decoded = {};
+  RequestPtr         decodedGuard(&decoded);
+  ASSERT_EQ(TSDB_CODE_SUCCESS, jsonToSCMCreateStreamReq(json.get(), &decoded));
+  tFreeSCMCreateStreamReq(&source);
+  EXPECT_STREQ("[{\"unitTag\":7}]", static_cast<const char*>(decoded.derivativeTagCols));
+  EXPECT_STREQ("[{\"unitTag\":7}]", static_cast<const char*>(cloned->derivativeTagCols));
+}
+
 TEST(StreamWindowPlanTest, createRequestJsonRoundTripsNullAndEmptyConditionSlotIds) {
   SCMCreateStreamReq source = makeLegacyCountRequest();
   RequestPtr         sourceGuard(&source);
@@ -1129,6 +1157,20 @@ TEST(StreamWindowPlanTest, createRequestJsonLegacyWindowPlanOmissionIsByteStable
   ASSERT_EQ(TSDB_CODE_SUCCESS, jsonToSCMCreateStreamReq(json.get(), &decoded));
   EXPECT_EQ(nullptr, decoded.pWindowPlan);
   EXPECT_EQ(legacy, encodeCreateStreamRequestJson(&decoded));
+}
+
+TEST(StreamWindowPlanTest, createRequestJsonConnectionCharsetRoundTrip) {
+  SCMCreateStreamReq source = makeLegacyCountRequest();
+  RequestPtr         sourceGuard(&source);
+  tstrncpy(source.charset, "GBK", sizeof(source.charset));
+  const std::string encoded = encodeCreateStreamRequestJson(&source);
+  std::unique_ptr<SJson, decltype(&tjsonDelete)> json(tjsonParse(encoded.c_str()), tjsonDelete);
+  ASSERT_NE(nullptr, json);
+  SCMCreateStreamReq decoded = {};
+  RequestPtr         decodedGuard(&decoded);
+  ASSERT_EQ(TSDB_CODE_SUCCESS, jsonToSCMCreateStreamReq(json.get(), &decoded));
+  EXPECT_STREQ("GBK", decoded.charset);
+  EXPECT_EQ(encoded, encodeCreateStreamRequestJson(&decoded));
 }
 
 TEST(StreamWindowPlanTest, createRequestLegacySerializationMatchesGoldenBytes) {
@@ -1795,8 +1837,7 @@ TEST(StreamWindowPlanTest, heartbeatPreservesSingleLayerGoldenBytes) {
   tDeepFreeSMStreamHbRspMsg(&legacy);
 }
 
-static_assert(offsetof(SSTriggerCalcParam, notifyType) == 40,
-              "SSTriggerCalcParam::notifyType offset changed");
+static_assert(offsetof(SSTriggerCalcParam, notifyType) == 40, "SSTriggerCalcParam::notifyType offset changed");
 
 SStreamContextPolicyEntry makeContextPolicyEntry(int64_t gid, int32_t paramIndex, int8_t contextPolicy) {
   SStreamContextPolicyEntry entry = {};
@@ -3273,6 +3314,49 @@ TEST(StreamCalcRequestAdmissionTest, OrdinaryMultiGroupRoundTripsWithoutNestedCo
   tDestroySTriggerCalcRequest(&decoded);
 }
 
+TEST(StreamCalcRequestAdmissionTest, DerivativeLogEpochRoundTripsAndDefaultsForOldRequests) {
+  for (bool multi : {false, true}) {
+    for (int64_t epoch : {INT64_C(0), INT64_C(123456789)}) {
+      SSTriggerCalcRequest source = multi ? makeMultiGroupCalcRequest() : makeSingleGroupCalcRequest();
+      source.derivativeLogEpoch = epoch;
+      auto bytes = serializeCalcRequest(source);
+      tDestroySTriggerCalcRequest(&source);
+      SSTriggerCalcRequest decoded = {};
+      decoded.derivativeLogEpoch = -1;
+      ASSERT_EQ(0, tDeserializeSTriggerCalcRequestWithContextFrames(bytes.data(), bytes.size(), &decoded));
+      EXPECT_EQ(epoch, decoded.derivativeLogEpoch);
+      tDestroySTriggerCalcRequest(&decoded);
+    }
+  }
+}
+
+TEST(StreamCalcRequestAdmissionTest, ResultAdmissionBindsToTheCalcAndIsRequiredWhenPresent) {
+  SSTriggerCalcRequest src = makeSingleGroupCalcRequest();
+  src.sessionId = STREAM_TRIGGER_HISTORY_SESSIONID;
+  auto plain = serializeCalcRequest(src);
+  src.resultAdmission = {src.streamId, 21, src.runnerTaskId, src.sessionId, 781, 0, 99, 7};
+  auto wire = serializeCalcRequest(src);
+  ASSERT_GT(wire.size(), plain.size());
+  SSTriggerCalcRequest decoded = {};
+  ASSERT_EQ(0, tDeserializeSTriggerCalcRequestWithContextFrames(wire.data(), wire.size(), &decoded));
+  EXPECT_EQ(781U, decoded.resultAdmission.roundId);
+  EXPECT_EQ(99U, decoded.resultAdmission.calcTokenHi);
+  tDestroySTriggerCalcRequest(&decoded);
+
+  auto duplicate = wire;
+  duplicate.insert(duplicate.end(), wire.begin() + plain.size(), wire.end());
+  writeI32(&duplicate, 0, static_cast<int32_t>(duplicate.size() - sizeof(int32_t)));
+  expectCalcRequestDecodeFailure(duplicate);
+  src.resultAdmission.runnerTaskId++;
+  EXPECT_EQ(TSDB_CODE_INVALID_MSG, tSerializeSTriggerCalcRequest(nullptr, 0, &src));
+  tDestroySTriggerCalcRequest(&src);
+  decoded = {};
+  decoded.resultAdmission.roundId = 123;
+  ASSERT_EQ(0, tDeserializeSTriggerCalcRequest(plain.data(), plain.size(), &decoded));
+  EXPECT_EQ(0U, decoded.resultAdmission.roundId);
+  tDestroySTriggerCalcRequest(&decoded);
+}
+
 TEST(StreamCalcRequestAdmissionTest, NestedMultiGroupRoundTripsEveryGidAndParamIndex) {
   SSTriggerCalcRequest source = makeLineageSplitMultiGroupCalcRequest();
   auto                 bytes = serializeCalcRequest(source);
@@ -4241,6 +4325,27 @@ TEST(StreamFetchGroupProjectionTest, FetchRoundTripKeepsLineageSplitEntriesPerGi
   EXPECT_NE(first->firstParam.wstart, second->firstParam.wstart);
   tDestroySResFetchReq(&decoded);
   tDestroyStRtFuncInfo(&runtime);
+}
+
+double projectionCpuTicks() {
+#ifdef WINDOWS
+  // MSVC's std::clock() measures wall time, including time descheduled by CI.
+  // Compare thread CPU cycles directly; no conversion to elapsed time is needed.
+  ULONG64 cycles = 0;
+  if (!QueryThreadCycleTime(GetCurrentThread(), &cycles)) {
+    ADD_FAILURE() << "QueryThreadCycleTime failed: " << GetLastError();
+    return -1;
+  }
+  return static_cast<double>(cycles);
+#else
+  // Short projections can round to zero with std::clock() on older libc.
+  struct timespec time = {};
+  if (clock_gettime(CLOCK_THREAD_CPUTIME_ID, &time) != 0) {
+    ADD_FAILURE() << "clock_gettime(CLOCK_THREAD_CPUTIME_ID) failed";
+    return -1;
+  }
+  return static_cast<double>(time.tv_sec) * 1e9 + time.tv_nsec;
+#endif
 }
 
 template <typename MeasureCpuTicks>
@@ -5358,9 +5463,9 @@ TEST(StreamFetchGroupProjectionTest, ActualNodeProjectionScalesLinearly) {
     SStreamRuntimeFuncInfo  runtime = makeDenseActualNodeMultiGroupFetchRuntime(paramCount);
     SStreamContextPolicy*   policy = nullptr;
     SStreamAncestorContext* context = nullptr;
-    const std::clock_t      start = std::clock();
+    const double           start = projectionCpuTicks();
     EXPECT_EQ(TSDB_CODE_SUCCESS, tProjectStreamCalcContextForFetch(&runtime, true, true, &policy, &context));
-    const double elapsed = static_cast<double>(std::clock() - start);
+    const double elapsed = projectionCpuTicks() - start;
     tDestroyStreamContextPolicy(&policy);
     tDestroyStreamAncestorContext(&context);
     tDestroyStRtFuncInfo(&runtime);
@@ -5375,10 +5480,10 @@ TEST(StreamFetchGroupProjectionTest, GroupParamLookupScalesLinearly) {
     SStreamRuntimeFuncInfo  runtime = makeSingleGroupFetchRuntime(paramCount);
     SStreamContextPolicy*   policy = nullptr;
     SStreamAncestorContext* context = nullptr;
-    const std::clock_t      start = std::clock();
+    const double           start = projectionCpuTicks();
     EXPECT_EQ(TSDB_CODE_SUCCESS, tProjectStreamCalcContextForGroup(runtime.pContextPolicy, runtime.pAncestorContext,
                                                                    runtime.groupId, &policy, &context));
-    const double elapsed = static_cast<double>(std::clock() - start);
+    const double elapsed = projectionCpuTicks() - start;
     tDestroyStreamContextPolicy(&policy);
     tDestroyStreamAncestorContext(&context);
     tDestroyStRtFuncInfo(&runtime);
@@ -5430,10 +5535,10 @@ TEST(StreamFetchGroupProjectionTest, AllGroupsProjectionScalesLinearly) {
       EXPECT_NE(nullptr, taosArrayPush(policy.pEntries, &entry));
     }
 
-    SArray*            views = nullptr;
-    const std::clock_t start = std::clock();
+    SArray*       views = nullptr;
+    const double start = projectionCpuTicks();
     EXPECT_EQ(TSDB_CODE_SUCCESS, tProjectStreamCalcContextForAllGroups(&policy, nullptr, &views));
-    const double elapsed = static_cast<double>(std::clock() - start);
+    const double elapsed = projectionCpuTicks() - start;
     tDestroyStreamCalcContextGroupViews(&views);
     taosArrayDestroy(policy.pEntries);
     return elapsed;
@@ -6198,6 +6303,33 @@ TEST(StreamAncestorContextTest, ordinaryIntervalWindowSnapshotRoundTripsFourValu
   tDestroySTriggerCalcRequest(&decoded);
 }
 
+TEST(StreamAncestorContextTest, previousWindowSnapshotRoundTripsValueAndNullState) {
+  for (bool hasPrevious : {false, true}) {
+    SSTriggerCalcRequest source = makeSingleGroupCalcRequest();
+    setSingleAncestorPolicy(&source);
+    source.pAncestorContext = makeAncestorContext(source.gid);
+    auto* snapshot = firstAncestorSnapshot(source.pAncestorContext);
+    ASSERT_NE(nullptr, snapshot);
+    snapshot->placeholderMask = PLACE_HOLDER_PREV_WSTART | PLACE_HOLDER_PREV_WEND;
+    snapshot->values.window.hasPrevWindow = hasPrevious;
+    snapshot->values.window.prevStart = 100;
+    snapshot->values.window.prevEnd = 199;
+
+    auto bytes = serializeCalcRequest(source);
+    tDestroySTriggerCalcRequest(&source);
+    SSTriggerCalcRequest decoded = {};
+    ASSERT_EQ(TSDB_CODE_SUCCESS, tDeserializeSTriggerCalcRequest(bytes.data(), bytes.size(), &decoded));
+    const auto* decodedSnapshot = firstAncestorSnapshot(decoded.pAncestorContext);
+    ASSERT_NE(nullptr, decodedSnapshot);
+    EXPECT_EQ(hasPrevious, decodedSnapshot->values.window.hasPrevWindow);
+    if (hasPrevious) {
+      EXPECT_EQ(100, decodedSnapshot->values.window.prevStart);
+      EXPECT_EQ(199, decodedSnapshot->values.window.prevEnd);
+    }
+    tDestroySTriggerCalcRequest(&decoded);
+  }
+}
+
 TEST(StreamAncestorContextTest, pureSlidingSnapshotRoundTripsThreeValues) {
   SSTriggerCalcRequest source = makeSingleGroupCalcRequest();
   setSingleAncestorPolicy(&source);
@@ -6250,7 +6382,7 @@ TEST(StreamAncestorContextTest, rejectsMixedPlaceholderMaskFamilies) {
   tDestroySTriggerCalcRequest(&source);
 }
 
-TEST(StreamAncestorContextTest, v2WireUsesLiteralGoldenFrameAndRejectsV1Payload) {
+TEST(StreamAncestorContextTest, v3WireUsesLiteralGoldenFrameAndRejectsOlderPayloads) {
   SStreamAncestorContext* source = makeAncestorContext(101);
   ASSERT_NE(nullptr, source);
   const auto actual = encodeAncestorFrame(source);
@@ -6258,7 +6390,7 @@ TEST(StreamAncestorContextTest, v2WireUsesLiteralGoldenFrameAndRejectsV1Payload)
 
   static constexpr char golden[] =
       "\x54\x43\x57\x4e\x01\x00\x00\x00\xad\x00\x00\x00"
-      "\x02\x00\x00\x00\x01\x00\x00\x00\x00\x00\x00\x00"
+      "\x03\x00\x00\x00\x01\x00\x00\x00\x00\x00\x00\x00"
       "\x65\x00\x00\x00\x00\x00\x00\x00\x02\x00\x00\x00"
       "\x00\x00\x00\x00\x01\x00\x00\x00\x00\x00\x00\x00"
       "\x00\x0a\x00\x00\x00\x00\x00\x00\x00\x01\x00\x00"
@@ -6297,14 +6429,20 @@ TEST(StreamAncestorContextTest, v2WireUsesLiteralGoldenFrameAndRejectsV1Payload)
   tDestroyStreamAncestorContext(&decoded);
   tDecoderClear(&decoder);
 
-  auto v1 = actual;
-  writeI32(&v1, sizeof(uint32_t) + sizeof(uint16_t) * 2 + sizeof(uint32_t), 1);
-  tDecoderInit(&decoder, v1.data(), v1.size());
-  ASSERT_EQ(TSDB_CODE_SUCCESS, tDecodeNextStreamTailFrame(&decoder, &frame));
-  ASSERT_NE(TSDB_CODE_SUCCESS, tDecodeStreamAncestorContext(&frame.payloadDecoder, &decoded));
-  EXPECT_EQ(nullptr, decoded);
-  tFinishDecodeStreamTailFrame(&frame, false);
-  tDecoderClear(&decoder);
+  for (int32_t version : {1, 2}) {
+    SCOPED_TRACE(version);
+    auto older = actual;
+    writeI32(&older, sizeof(uint32_t) + sizeof(uint16_t) * 2 + sizeof(uint32_t), version);
+    SDecoder                olderDecoder = {};
+    SStreamTailFrameDecoder olderFrame = {};
+    SStreamAncestorContext* olderDecoded = nullptr;
+    tDecoderInit(&olderDecoder, older.data(), older.size());
+    ASSERT_EQ(TSDB_CODE_SUCCESS, tDecodeNextStreamTailFrame(&olderDecoder, &olderFrame));
+    ASSERT_NE(TSDB_CODE_SUCCESS, tDecodeStreamAncestorContext(&olderFrame.payloadDecoder, &olderDecoded));
+    EXPECT_EQ(nullptr, olderDecoded);
+    tFinishDecodeStreamTailFrame(&olderFrame, false);
+    tDecoderClear(&olderDecoder);
+  }
 }
 
 TEST(StreamAncestorContextTest, rejectsPlaceholderBitsOutsideWindowFamilies) {
@@ -6947,6 +7085,280 @@ TEST(StreamAncestorContextTest, calcRequestWithoutContextPreservesLegacyGoldenBy
   EXPECT_EQ(std::vector<uint8_t>(reinterpret_cast<const uint8_t*>(golden),
                                  reinterpret_cast<const uint8_t*>(golden) + sizeof(golden) - 1),
             bytes);
+
+  SSTriggerCalcRequest decoded = {};
+  ASSERT_EQ(TSDB_CODE_SUCCESS, tDeserializeSTriggerCalcRequest(const_cast<char*>(golden), sizeof(golden) - 1, &decoded));
+  ASSERT_EQ(1, taosArrayGetSize(decoded.params));
+  const auto* param = static_cast<const SSTriggerCalcParam*>(taosArrayGet(decoded.params, 0));
+  EXPECT_EQ(1000, param->wstart);
+  EXPECT_EQ(1099, param->wend);
+  EXPECT_FALSE(param->hasPrevWindow);
+  EXPECT_EQ(0, param->prevWstart);
+  EXPECT_EQ(0, param->prevWend);
+  tDestroySTriggerCalcRequest(&decoded);
+}
+
+void setPreviousWindowValue(SSTriggerCalcParam* param, bool hasPrevious) {
+  ASSERT_NE(nullptr, param);
+  param->hasPrevWindow = hasPrevious;
+  param->prevWstart = hasPrevious ? 10 : 0;
+  param->prevWend = hasPrevious ? 99 : 0;
+}
+
+void expectPreviousWindowValue(const SSTriggerCalcParam* param, bool hasPrevious) {
+  ASSERT_NE(nullptr, param);
+  EXPECT_EQ(hasPrevious, param->hasPrevWindow);
+  EXPECT_EQ(hasPrevious ? 10 : 0, param->prevWstart);
+  EXPECT_EQ(hasPrevious ? 99 : 0, param->prevWend);
+}
+
+void setGroupedPreviousWindowValue(SSTriggerCalcRequest* request, bool hasPrevious) {
+  const int64_t gid = 101;
+  const int32_t vgId = 7;
+  auto* calc = static_cast<SSTriggerGroupCalcInfo*>(tSimpleHashGet(request->pGroupCalcInfos, &gid, sizeof(gid)));
+  ASSERT_NE(nullptr, calc);
+  auto* param = static_cast<SSTriggerCalcParam*>(taosArrayGet(calc->pParams, 0));
+  setPreviousWindowValue(param, hasPrevious);
+  auto** reads = static_cast<SArray**>(tSimpleHashGet(request->pGroupReadInfos, &vgId, sizeof(vgId)));
+  ASSERT_NE(nullptr, reads);
+  auto* read = static_cast<SSTriggerGroupReadInfo*>(taosArrayGet(*reads, 0));
+  ASSERT_NE(nullptr, read);
+  tCopySTriggerCalcParamValues(&read->firstParam, param);
+  tCopySTriggerCalcParamValues(&read->lastParam, param);
+}
+
+TEST(StreamPreviousWindowCodecTest, CopyValuesPreservesNotificationOwnershipAndNullState) {
+  SSTriggerCalcParam source = makeWindowCalcParam(1000, 1099, 1);
+  SSTriggerCalcParam destination = {};
+  char path[] = "notification";
+  destination.notifyType = 2;
+  destination.eventConditionPath = path;
+  setPreviousWindowValue(&source, true);
+  tCopySTriggerCalcParamValues(&destination, &source);
+  expectPreviousWindowValue(&destination, true);
+  EXPECT_EQ(1000, destination.wstart);
+  EXPECT_EQ(2, destination.notifyType);
+  EXPECT_EQ(path, destination.eventConditionPath);
+  EXPECT_TRUE(tEqualSTriggerCalcParamValues(&source, &destination));
+
+  source.hasPrevWindow = false;
+  EXPECT_FALSE(tEqualSTriggerCalcParamValues(&source, &destination));
+  tCopySTriggerCalcParamValues(&destination, &source);
+  expectPreviousWindowValue(&destination, false);
+  EXPECT_TRUE(tEqualSTriggerCalcParamValues(&source, &destination));
+}
+
+TEST(StreamPreviousWindowCodecTest, CalcFramePreservesLegacyBodyAndSparseNullEntries) {
+  SSTriggerCalcRequest source = makeSingleGroupCalcRequest();
+  SSTriggerCalcParam second = makeWindowCalcParam(1100, 1199, 1);
+  ASSERT_NE(nullptr, taosArrayPush(source.params, &second));
+  const auto legacy = serializeCalcRequest(source);
+  EXPECT_EQ(legacy.size(), frameOffset(legacy, STREAM_PREV_WINDOW_FRAME_MAGIC));
+  setPreviousWindowValue(static_cast<SSTriggerCalcParam*>(taosArrayGet(source.params, 1)), true);
+  const auto bytes = serializeCalcRequest(source);
+  ASSERT_EQ(legacy.size(), frameOffset(bytes, STREAM_PREV_WINDOW_FRAME_MAGIC));
+  EXPECT_TRUE(std::equal(legacy.begin() + sizeof(int32_t), legacy.end(), bytes.begin() + sizeof(int32_t)));
+  tDestroySTriggerCalcRequest(&source);
+
+  SSTriggerCalcRequest decoded = {};
+  ASSERT_EQ(TSDB_CODE_SUCCESS, tDeserializeSTriggerCalcRequest(const_cast<uint8_t*>(bytes.data()), bytes.size(), &decoded));
+  ASSERT_EQ(2, taosArrayGetSize(decoded.params));
+  expectPreviousWindowValue(static_cast<SSTriggerCalcParam*>(taosArrayGet(decoded.params, 0)), false);
+  expectPreviousWindowValue(static_cast<SSTriggerCalcParam*>(taosArrayGet(decoded.params, 1)), true);
+  tDestroySTriggerCalcRequest(&decoded);
+}
+
+TEST(StreamPreviousWindowCodecTest, GroupedCalcRoundTripsReadBoundsAndNullValues) {
+  for (bool hasPrevious : {false, true}) {
+    SSTriggerCalcRequest source = makeMultiGroupCalcRequest();
+    setGroupedPreviousWindowValue(&source, hasPrevious);
+    const auto bytes = serializeCalcRequest(source);
+    tDestroySTriggerCalcRequest(&source);
+    SSTriggerCalcRequest decoded = {};
+    ASSERT_EQ(TSDB_CODE_SUCCESS,
+              tDeserializeSTriggerCalcRequest(const_cast<uint8_t*>(bytes.data()), bytes.size(), &decoded));
+    const int64_t gid = 101;
+    const int32_t vgId = 7;
+    auto* calc = static_cast<SSTriggerGroupCalcInfo*>(tSimpleHashGet(decoded.pGroupCalcInfos, &gid, sizeof(gid)));
+    ASSERT_NE(nullptr, calc);
+    expectPreviousWindowValue(static_cast<SSTriggerCalcParam*>(taosArrayGet(calc->pParams, 0)), hasPrevious);
+    auto** reads = static_cast<SArray**>(tSimpleHashGet(decoded.pGroupReadInfos, &vgId, sizeof(vgId)));
+    ASSERT_NE(nullptr, reads);
+    auto* read = static_cast<SSTriggerGroupReadInfo*>(taosArrayGet(*reads, 0));
+    ASSERT_NE(nullptr, read);
+    expectPreviousWindowValue(&read->firstParam, hasPrevious);
+    expectPreviousWindowValue(&read->lastParam, hasPrevious);
+    const int64_t nullGid = 202;
+    auto* nullCalc = static_cast<SSTriggerGroupCalcInfo*>(tSimpleHashGet(decoded.pGroupCalcInfos, &nullGid, sizeof(nullGid)));
+    ASSERT_NE(nullptr, nullCalc);
+    expectPreviousWindowValue(static_cast<SSTriggerCalcParam*>(taosArrayGet(nullCalc->pParams, 0)), false);
+    tDestroySTriggerCalcRequest(&decoded);
+  }
+}
+
+TEST(StreamPreviousWindowCodecTest, ReadSegmentIdentityIncludesPreviousValues) {
+  SSTriggerCalcRequest source = makeMultiGroupCalcRequest();
+  setGroupedPreviousWindowValue(&source, true);
+  ASSERT_EQ(TSDB_CODE_SUCCESS, tValidateSTriggerCalcRequest(&source));
+  const int32_t vgId = 7;
+  auto** reads = static_cast<SArray**>(tSimpleHashGet(source.pGroupReadInfos, &vgId, sizeof(vgId)));
+  ASSERT_NE(nullptr, reads);
+  auto* read = static_cast<SSTriggerGroupReadInfo*>(taosArrayGet(*reads, 0));
+  ASSERT_NE(nullptr, read);
+  ++read->firstParam.prevWend;
+  EXPECT_NE(TSDB_CODE_SUCCESS, tValidateSTriggerCalcRequest(&source));
+  tDestroySTriggerCalcRequest(&source);
+}
+
+TEST(StreamPreviousWindowCodecTest, FetchRoundTripsSingleGroupAndLeavesLegacyBodyUnchanged) {
+  SStreamRuntimeFuncInfo runtime = makeSingleGroupFetchRuntime(2);
+  tDestroyStreamContextPolicy(&runtime.pContextPolicy);
+  tDestroyStreamAncestorContext(&runtime.pAncestorContext);
+  runtime.addOptions = 0;
+  SResFetchReq source = {};
+  source.pStRtFuncInfo = &runtime;
+  source.reset = true;
+  const auto legacy = serializeFetchRequest(source, true, false);
+  EXPECT_EQ(legacy.size(), frameOffset(legacy, STREAM_PREV_WINDOW_FRAME_MAGIC));
+  setPreviousWindowValue(static_cast<SSTriggerCalcParam*>(taosArrayGet(runtime.pStreamPesudoFuncVals, 1)), true);
+  const auto bytes = serializeFetchRequest(source, true, false);
+  ASSERT_EQ(legacy.size(), frameOffset(bytes, STREAM_PREV_WINDOW_FRAME_MAGIC));
+  const size_t bodyStart = sizeof(SMsgHead) + sizeof(int32_t);
+  EXPECT_TRUE(std::equal(legacy.begin() + bodyStart, legacy.end(), bytes.begin() + bodyStart));
+
+  for (bool hasPrevious : {false, true}) {
+    const auto& wire = hasPrevious ? bytes : legacy;
+    SResFetchReq decoded = {};
+    ASSERT_EQ(TSDB_CODE_SUCCESS,
+              tDeserializeSResFetchReq(const_cast<uint8_t*>(wire.data()), wire.size(), &decoded));
+    ASSERT_NE(nullptr, decoded.pStRtFuncInfo);
+    ASSERT_EQ(2, taosArrayGetSize(decoded.pStRtFuncInfo->pStreamPesudoFuncVals));
+    expectPreviousWindowValue(
+        static_cast<SSTriggerCalcParam*>(taosArrayGet(decoded.pStRtFuncInfo->pStreamPesudoFuncVals, 0)), false);
+    expectPreviousWindowValue(
+        static_cast<SSTriggerCalcParam*>(taosArrayGet(decoded.pStRtFuncInfo->pStreamPesudoFuncVals, 1)), hasPrevious);
+    tDestroySResFetchReq(&decoded);
+  }
+  const auto withoutRuntime = serializeFetchRequest(source, false, false);
+  EXPECT_EQ(withoutRuntime.size(), frameOffset(withoutRuntime, STREAM_PREV_WINDOW_FRAME_MAGIC));
+  tDestroyStRtFuncInfo(&runtime);
+}
+
+TEST(StreamPreviousWindowCodecTest, FetchRoundTripsGroupedAndCurrentReadBounds) {
+  for (bool needGroupInfo : {false, true}) {
+    SSTriggerCalcRequest request = makeMultiGroupCalcRequest();
+    setGroupedPreviousWindowValue(&request, true);
+    SStreamRuntimeFuncInfo runtime = {};
+    runtime.isMultiGroupCalc = true;
+    runtime.addOptions = STREAM_OPTION_NESTED_WINDOW_PLAN;
+    runtime.sessionId = request.sessionId;
+    runtime.triggerType = request.triggerType;
+    runtime.isWindowTrigger = true;
+    TSWAP(runtime.pGroupCalcInfos, request.pGroupCalcInfos);
+    TSWAP(runtime.pGroupReadInfos, request.pGroupReadInfos);
+    TSWAP(runtime.pContextPolicy, request.pContextPolicy);
+    TSWAP(runtime.pAncestorContext, request.pAncestorContext);
+    tDestroySTriggerCalcRequest(&request);
+    if (needGroupInfo) installActualNodeReadView(&runtime, 7);
+    SResFetchReq source = {};
+    source.pStRtFuncInfo = &runtime;
+    const auto bytes = serializeFetchRequest(source, true, needGroupInfo);
+    SResFetchReq decoded = {};
+    ASSERT_EQ(TSDB_CODE_SUCCESS,
+              tDeserializeSResFetchReq(const_cast<uint8_t*>(bytes.data()), bytes.size(), &decoded));
+    ASSERT_NE(nullptr, decoded.pStRtFuncInfo);
+    const int64_t gid = 101;
+    auto* calc = static_cast<SSTriggerGroupCalcInfo*>(
+        tSimpleHashGet(decoded.pStRtFuncInfo->pGroupCalcInfos, &gid, sizeof(gid)));
+    ASSERT_NE(nullptr, calc);
+    expectPreviousWindowValue(static_cast<SSTriggerCalcParam*>(taosArrayGet(calc->pParams, 0)), true);
+    SArray* reads = decoded.pStRtFuncInfo->curGrpRead;
+    if (!needGroupInfo) {
+      const int32_t vgId = 7;
+      auto** found = static_cast<SArray**>(tSimpleHashGet(decoded.pStRtFuncInfo->pGroupReadInfos, &vgId, sizeof(vgId)));
+      ASSERT_NE(nullptr, found);
+      reads = *found;
+    }
+    ASSERT_EQ(2, taosArrayGetSize(reads));
+    auto* read = static_cast<SSTriggerGroupReadInfo*>(taosArrayGet(reads, 0));
+    expectPreviousWindowValue(&read->firstParam, true);
+    expectPreviousWindowValue(&read->lastParam, true);
+    auto* nullRead = static_cast<SSTriggerGroupReadInfo*>(taosArrayGet(reads, 1));
+    expectPreviousWindowValue(&nullRead->firstParam, false);
+    expectPreviousWindowValue(&nullRead->lastParam, false);
+    tDestroySResFetchReq(&decoded);
+    tDestroyStRtFuncInfo(&runtime);
+  }
+}
+
+TEST(StreamPreviousWindowCodecTest, RejectsMalformedCalcFrames) {
+  SSTriggerCalcRequest source = makeSingleGroupCalcRequest();
+  setPreviousWindowValue(static_cast<SSTriggerCalcParam*>(taosArrayGet(source.params, 0)), true);
+  const auto original = serializeCalcRequest(source);
+  tDestroySTriggerCalcRequest(&source);
+  const size_t offset = frameOffset(original, STREAM_PREV_WINDOW_FRAME_MAGIC);
+  ASSERT_LT(offset, original.size());
+  const size_t payload = offset + sizeof(uint32_t) * 2 + sizeof(uint16_t) * 2;
+  const size_t entry = payload + sizeof(int32_t);
+  const size_t entrySize = sizeof(int8_t) + sizeof(int64_t) * 3 + sizeof(int32_t);
+
+  auto version = original;
+  writeU16(&version, offset + sizeof(uint32_t), STREAM_PREV_WINDOW_FRAME_VERSION + 1);
+  expectCalcRequestDecodeFailure(version);
+  auto flags = original;
+  writeU16(&flags, offset + sizeof(uint32_t) + sizeof(uint16_t), 1);
+  expectCalcRequestDecodeFailure(flags);
+  for (int32_t count : {-1, 0, 2}) {
+    auto malformed = original;
+    writeI32(&malformed, payload, count);
+    expectCalcRequestDecodeFailure(malformed);
+  }
+  auto kind = original;
+  kind[entry] = 100;
+  expectCalcRequestDecodeFailure(kind);
+  auto owner = original;
+  writeI64(&owner, entry + sizeof(int8_t), 202);
+  expectCalcRequestDecodeFailure(owner);
+  auto index = original;
+  writeI32(&index, entry + sizeof(int8_t) + sizeof(int64_t), 1);
+  expectCalcRequestDecodeFailure(index);
+
+  auto duplicate = original;
+  duplicate.insert(duplicate.end(), original.begin() + entry, original.end());
+  writeI32(&duplicate, payload, 2);
+  writeU32(&duplicate, offset + sizeof(uint32_t) + sizeof(uint16_t) * 2, sizeof(int32_t) + entrySize * 2);
+  writeI32(&duplicate, 0, duplicate.size() - sizeof(int32_t));
+  expectCalcRequestDecodeFailure(duplicate);
+  auto duplicateFrame = original;
+  duplicateFrame.insert(duplicateFrame.end(), original.begin() + offset, original.end());
+  writeI32(&duplicateFrame, 0, duplicateFrame.size() - sizeof(int32_t));
+  expectCalcRequestDecodeFailure(duplicateFrame);
+  auto truncated = original;
+  truncated.pop_back();
+  writeI32(&truncated, 0, truncated.size() - sizeof(int32_t));
+  expectCalcRequestDecodeFailure(truncated);
+}
+
+TEST(StreamPreviousWindowCodecTest, RejectsMalformedFetchFrames) {
+  SStreamRuntimeFuncInfo runtime = makeSingleGroupFetchRuntime();
+  setPreviousWindowValue(static_cast<SSTriggerCalcParam*>(taosArrayGet(runtime.pStreamPesudoFuncVals, 0)), true);
+  SResFetchReq source = {};
+  source.pStRtFuncInfo = &runtime;
+  const auto original = serializeFetchRequest(source, true, false);
+  tDestroyStRtFuncInfo(&runtime);
+  const size_t offset = frameOffset(original, STREAM_PREV_WINDOW_FRAME_MAGIC);
+  ASSERT_LT(offset, original.size());
+  auto version = original;
+  writeU16(&version, offset + sizeof(uint32_t), STREAM_PREV_WINDOW_FRAME_VERSION + 1);
+  expectFetchDecodeFailure(version);
+  auto index = original;
+  const size_t payload = offset + sizeof(uint32_t) * 2 + sizeof(uint16_t) * 2;
+  writeI32(&index, payload + sizeof(int32_t) + sizeof(int8_t) + sizeof(int64_t), 1);
+  expectFetchDecodeFailure(index);
+  auto duplicate = original;
+  duplicate.insert(duplicate.end(), original.begin() + offset, original.end());
+  rewriteFetchRequestLengths(&duplicate);
+  expectFetchDecodeFailure(duplicate);
 }
 
 TEST(StreamRuntimeCodecTest, CanonicalOrderIsLocalOnly) {
@@ -6964,6 +7376,104 @@ TEST(StreamRuntimeCodecTest, CanonicalOrderIsLocalOnly) {
   EXPECT_EQ(nullptr, decoded.pGroupCalcOrder);
   tDestroyStRtFuncInfo(&decoded);
   tDestroyStRtFuncInfo(&source);
+}
+
+TEST(StreamRuntimeCodecTest, DerivativeLogEpochSurvivesFetchAndRejectsMalformedFrames) {
+  for (int64_t epoch : {INT64_C(0), INT64_C(123456789)}) {
+    SStreamRuntimeFuncInfo runtime = makeSingleGroupFetchRuntime();
+    runtime.derivativeLogEpoch = epoch;
+    SResFetchReq source = {};
+    source.pStRtFuncInfo = &runtime;
+    auto bytes = serializeFetchRequest(source, true, false);
+    tDestroyStRtFuncInfo(&runtime);
+    SResFetchReq decoded = {};
+    ASSERT_EQ(0, tDeserializeSResFetchReqWithContextFrames(bytes.data(), bytes.size(), &decoded));
+    ASSERT_NE(nullptr, decoded.pStRtFuncInfo);
+    EXPECT_EQ(epoch, decoded.pStRtFuncInfo->derivativeLogEpoch);
+    tDestroySResFetchReq(&decoded);
+    if (epoch != 0) {
+      const size_t offset = frameOffset(bytes, STREAM_DERIVATIVE_LOG_FRAME_MAGIC);
+      ASSERT_LT(offset, bytes.size());
+      auto version = bytes;
+      writeU16(&version, offset + sizeof(uint32_t), STREAM_DERIVATIVE_CONFIG_FRAME_VERSION + 1);
+      expectFetchDecodeFailure(version);
+      auto duplicate = bytes;
+      duplicate.insert(duplicate.end(), bytes.begin() + offset, bytes.end());
+      rewriteFetchRequestLengths(&duplicate);
+      expectFetchDecodeFailure(duplicate);
+    }
+  }
+}
+
+TEST(StreamRuntimeCodecTest, DerivativePointGenerationsSurviveCalcAndFetch) {
+  SStreamRuntimeFuncInfo runtime = makeFullMultiGroupFetchRuntime();
+  for (int64_t gid : {INT64_C(101), INT64_C(202)}) {
+    auto* group = static_cast<SSTriggerGroupCalcInfo*>(tSimpleHashGet(runtime.pGroupCalcInfos, &gid, sizeof(gid)));
+    ASSERT_NE(nullptr, group);
+    group->derivativeLogEpoch = gid + 1000;
+  }
+  SSTriggerCalcRequest calc = makeMultiGroupCalcRequest();
+  TSWAP(calc.pGroupCalcInfos, runtime.pGroupCalcInfos);
+  auto calcBytes = serializeCalcRequest(calc);
+  tDestroySTriggerCalcRequest(&calc);
+  SSTriggerCalcRequest decodedCalc = {};
+  ASSERT_EQ(0, tDeserializeSTriggerCalcRequest(calcBytes.data(), calcBytes.size(), &decodedCalc));
+  TSWAP(runtime.pGroupCalcInfos, decodedCalc.pGroupCalcInfos);
+  tDestroySTriggerCalcRequest(&decodedCalc);
+  SResFetchReq source = {};
+  source.pStRtFuncInfo = &runtime;
+  auto bytes = serializeFetchRequest(source, true, false);
+  SResFetchReq decoded = {};
+  ASSERT_EQ(0, tDeserializeSResFetchReq(bytes.data(), bytes.size(), &decoded));
+  for (int64_t gid : {INT64_C(101), INT64_C(202)}) {
+    auto* group = static_cast<SSTriggerGroupCalcInfo*>(
+        tSimpleHashGet(decoded.pStRtFuncInfo->pGroupCalcInfos, &gid, sizeof(gid)));
+    ASSERT_NE(nullptr, group);
+    EXPECT_EQ(gid + 1000, group->derivativeLogEpoch);
+    decoded.pStRtFuncInfo->curGrpCalc = group;
+    EXPECT_EQ(gid + 1000, tStreamDerivativeLogEpoch(decoded.pStRtFuncInfo));
+  }
+  tDestroySResFetchReq(&decoded);
+  // A fetch projection without the group map still carries its selected point.
+  int64_t gid = 202;
+  runtime.curGrpCalc = static_cast<SSTriggerGroupCalcInfo*>(tSimpleHashGet(runtime.pGroupCalcInfos, &gid, sizeof(gid)));
+  // A data-only projection carries no ancestor policies or complete group map.
+  SStreamRuntimeFuncInfo projection = {};
+  projection.isMultiGroupCalc = true;
+  projection.curGrpCalc = runtime.curGrpCalc;
+  source.pStRtFuncInfo = &projection;
+  bytes = serializeFetchRequest(source, false, false);
+  decoded = {};
+  ASSERT_EQ(0, tDeserializeSResFetchReq(bytes.data(), bytes.size(), &decoded));
+  EXPECT_EQ(1202, decoded.pStRtFuncInfo->derivativeLogEpoch);
+  tDestroySResFetchReq(&decoded);
+  runtime.curGrpCalc = nullptr;
+  tDestroyStRtFuncInfo(&runtime);
+}
+
+TEST(StreamRuntimeCodecTest, DerivativePointGenerationFrameRejectsMissingOrDuplicateGroups) {
+  SStreamRuntimeFuncInfo runtime = makeFullMultiGroupFetchRuntime();
+  for (int64_t gid : {INT64_C(101), INT64_C(202)}) {
+    auto* group = static_cast<SSTriggerGroupCalcInfo*>(tSimpleHashGet(runtime.pGroupCalcInfos, &gid, sizeof(gid)));
+    group->derivativeLogEpoch = gid + 1000;
+  }
+  SResFetchReq source = {};
+  source.pStRtFuncInfo = &runtime;
+  auto bytes = serializeFetchRequest(source, true, false);
+  tDestroyStRtFuncInfo(&runtime);
+  size_t offset = frameOffset(bytes, STREAM_DERIVATIVE_LOG_FRAME_MAGIC);
+  ASSERT_LT(offset, bytes.size());
+  // Frame header is magic/u16 version/u16 flags/u32 length, followed by epoch/count.
+  size_t firstGid = offset + 12 + sizeof(int64_t) + sizeof(int32_t);
+  auto unknown = bytes;
+  writeI64(&unknown, firstGid, 999);
+  expectFetchDecodeFailure(unknown);
+  auto duplicate = bytes;
+  memcpy(duplicate.data() + firstGid + 2 * sizeof(int64_t), bytes.data() + firstGid, sizeof(int64_t));
+  expectFetchDecodeFailure(duplicate);
+  auto zero = bytes;
+  writeI64(&zero, firstGid + sizeof(int64_t), 0);
+  expectFetchDecodeFailure(zero);
 }
 
 TEST(StreamRuntimeCodecTest, ExternalWindowPrevFlagIsFetchOnly) {
@@ -7568,7 +8078,7 @@ class StreamWalDataCodecTest : public ::testing::Test {
     taosArrayDestroy(slices_);
   }
 
-  std::vector<char> encode(int32_t start = 0, int32_t rows = 2) {
+  std::vector<char> encode(int32_t start = 0, int32_t rows = 2, bool withGroupInfoTail = false) {
     SStreamWalDataSlice slice = {};
     slice.uid = 1;
     slice.gId = 2;
@@ -7580,11 +8090,22 @@ class StreamWalDataCodecTest : public ::testing::Test {
     response.dataBlock = source_;
     response.ver = 3;
     response.verTime = 4;
+    SArray* groupInfos = nullptr;
+    if (withGroupInfoTail) {
+      groupInfos = taosArrayInit(0, sizeof(SStreamGroupInfoWithId));
+      EXPECT_NE(nullptr, groupInfos);
+      if (groupInfos == nullptr) return {};
+      response.groupInfos = groupInfos;
+    }
     int32_t            len = tSerializeSStreamWalDataResponse(nullptr, 0, &response);
     EXPECT_GT(len, 0);
-    if (len <= 0) return {};
+    if (len <= 0) {
+      taosArrayDestroy(groupInfos);
+      return {};
+    }
     std::vector<char> result(len);
     EXPECT_EQ(len, tSerializeSStreamWalDataResponse(result.data(), len, &response));
+    taosArrayDestroy(groupInfos);
     return result;
   }
 
@@ -7631,15 +8152,35 @@ TEST_F(StreamWalDataCodecTest, DataRequiresSliceOutputContainer) {
   EXPECT_NE(TSDB_CODE_SUCCESS, decode(bytes, nullptr));
 }
 
-TEST_F(StreamWalDataCodecTest, TruncatedBlocksAndTailUseActualFrameLength) {
-  const auto complete = encode();
-  for (size_t len = sizeof(int32_t) + 1; len < complete.size(); ++len) {
+TEST_F(StreamWalDataCodecTest, TruncatedBlocksAndOptionalTailUseActualFrameLength) {
+  const auto complete = encode(0, 2, true);
+  ASSERT_GT(complete.size(), sizeof(int32_t) * 2);
+
+  // groupInfos was added as an optional int32 count at the end of the frame.
+  // A frame ending immediately before that count is a valid legacy message.
+  const size_t legacyFrameSize = complete.size() - sizeof(int32_t);
+  EXPECT_EQ(legacyFrameSize, encode().size());
+  for (size_t len = sizeof(int32_t) + 1; len < legacyFrameSize; ++len) {
     SCOPED_TRACE(len);
     std::vector<char> bytes(complete.begin(), complete.begin() + len);
     const int32_t     frameLen = len - sizeof(int32_t);
     memcpy(bytes.data(), &frameLen, sizeof(frameLen));
     EXPECT_NE(TSDB_CODE_SUCCESS, decode(bytes, slices_));
   }
+
+  std::vector<char> legacy(complete.begin(), complete.begin() + legacyFrameSize);
+  const int32_t     legacyPayloadLen = legacyFrameSize - sizeof(int32_t);
+  memcpy(legacy.data(), &legacyPayloadLen, sizeof(legacyPayloadLen));
+  EXPECT_EQ(TSDB_CODE_SUCCESS, decode(legacy, slices_));
+
+  for (size_t len = legacyFrameSize + 1; len < complete.size(); ++len) {
+    SCOPED_TRACE(len);
+    std::vector<char> bytes(complete.begin(), complete.begin() + len);
+    const int32_t     frameLen = len - sizeof(int32_t);
+    memcpy(bytes.data(), &frameLen, sizeof(frameLen));
+    EXPECT_NE(TSDB_CODE_SUCCESS, decode(bytes, slices_));
+  }
+
   auto bytes = complete;
   EXPECT_EQ(TSDB_CODE_SUCCESS, decode(bytes, slices_));
 }
@@ -7659,3 +8200,31 @@ TEST_F(StreamWalDataCodecTest, EmptyResponseDoesNotRequireSchemaOrSlices) {
 }
 
 }  // namespace
+
+TEST(StreamWindowPlanTest, heartbeatConnectionCharsetRoundTripAndLegacy) {
+  SMStreamHbRspMsg source = makeHeartbeatWithNestedTrigger();
+  auto *stream = static_cast<SStmStreamDeploy*>(taosArrayGet(source.deploy.streamList, 0));
+  const auto legacy = encodeHeartbeat(source);
+  tstrncpy(stream->triggerTask->task.charset, "GBK", TD_CHARSET_LEN);
+  const auto bytes = encodeHeartbeat(source);
+  SMStreamHbRspMsg decoded = {};
+  ASSERT_EQ(TSDB_CODE_SUCCESS, decodeHeartbeat(bytes, &decoded));
+  auto *out = static_cast<SStmStreamDeploy*>(taosArrayGet(decoded.deploy.streamList, 0));
+  EXPECT_STREQ("GBK", out->triggerTask->task.charset);
+  EXPECT_EQ(nullptr, out->triggerTask->task.charsetCxt);
+  tDeepFreeSMStreamHbRspMsg(&decoded);
+  decoded = {};
+  ASSERT_EQ(TSDB_CODE_SUCCESS, decodeHeartbeat(legacy, &decoded));
+  out = static_cast<SStmStreamDeploy*>(taosArrayGet(decoded.deploy.streamList, 0));
+  EXPECT_STREQ("", out->triggerTask->task.charset);
+  tDeepFreeSMStreamHbRspMsg(&decoded);
+  auto duplicate = bytes;
+  duplicate.insert(duplicate.end(), bytes.begin() + legacy.size(), bytes.end());
+  rewriteHeartbeatLength(&duplicate);
+  expectHeartbeatDecodeFailure(duplicate);
+  tstrncpy(stream->triggerTask->task.charset, "invalid-charset", TD_CHARSET_LEN);
+  decoded = {};
+  EXPECT_EQ(TSDB_CODE_CHARSET_CONVERT_ERROR, decodeHeartbeat(encodeHeartbeat(source), &decoded));
+  tDeepFreeSMStreamHbRspMsg(&decoded);
+  tDeepFreeSMStreamHbRspMsg(&source);
+}

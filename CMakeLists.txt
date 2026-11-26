@@ -53,6 +53,7 @@ include(cmake/enterprise.cmake)
 include(cmake/options.cmake)
 include(cmake/check_env.cmake)
 include(cmake/define.cmake)
+include(cmake/test-shared-engine.cmake)
 include(cmake/version.cmake)
 
 # Ensure pthread is linked globally (workaround for mold linker issues)
@@ -71,6 +72,7 @@ else()
 endif()
 
 set_property(GLOBAL PROPERTY GLOBAL_DEPENDS_NO_CYCLES OFF)
+include(cmake/mimalloc.cmake)
 
 if(BUILD_TEST)
   include(CTest)
@@ -88,6 +90,10 @@ add_subdirectory(utils)
 if(TD_ENTERPRISE)
   add_subdirectory("${TD_ENTERPRISE_DIR}" "${CMAKE_BINARY_DIR}/enterprise")
 endif()
+
+# Optional shared engine for unit tests; must run after all engine libraries
+# have been defined.  Off unless BUILD_TEST_SHARED_ENGINE=ON.
+td_add_test_shared_engine()
 
 include(cmake/third_party_symbols.cmake)
 foreach(client_library ${TAOS_LIB} ${TAOS_NATIVE_LIB} taos_ext_influx_arrow)

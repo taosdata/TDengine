@@ -102,6 +102,27 @@ class TestRBACUpgrade:
                 f.write(f"logDir {log_dir}\n")
             tdLog.info(f"  Created cfg for dnode{index}: {cfg_path} (port {port})")
 
+        if os.name == "nt":
+            # The fixture disables monitoring on dnode1. Old servers reject
+            # peers with a different monitor switch before they become ready.
+            first_cfg = os.path.join(self.getDnodePath()[0], "cfg", "taos.cfg")
+            with open(first_cfg) as f:
+                first_lines = f.readlines()
+            monitor = "1"
+            for line in first_lines:
+                fields = line.split()
+                if len(fields) >= 2 and fields[0].lower() == "monitor":
+                    monitor = fields[1]
+            with open(cfg_path) as f:
+                lines = f.readlines()
+            updated = [line for line in lines
+                       if not line.split() or line.split()[0].lower() != "monitor"]
+            updated.append(f"monitor {monitor}\n")
+            if updated != lines:
+                with open(cfg_path, "w") as f:
+                    f.writelines(updated)
+                tdLog.info(f"  Matched dnode{index} monitor={monitor} to dnode1")
+
     def stop_all_taosd(self):
         """Stop all taosd processes.
 

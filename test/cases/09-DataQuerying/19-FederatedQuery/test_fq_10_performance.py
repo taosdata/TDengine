@@ -392,7 +392,7 @@ class TestFq10Performance(FederatedQueryVersionedMixin):
         namespace, so the fixture is a single table in ``TAOSDATA``.  The
         shape mirrors ``_prepare_sqlserver_data``:
 
-            PERF_O_T : row_count rows
+            "perf_o_t" : row_count rows
                        ts = BASE + i*1000 ms (1-second intervals)
                        v  = i % 100  (NUMBER(10,0))
                        g  = i % 10   (NUMBER(10,0))
@@ -407,10 +407,10 @@ class TestFq10Performance(FederatedQueryVersionedMixin):
             row_count = self._PERF_ROW_COUNT
 
         cfg = self._oracle_cfg()
-        ExtSrcEnv.oracle_drop_table_cfg(cfg, "PERF_O_T")
+        ExtSrcEnv.oracle_drop_table_cfg(cfg, "perf_o_t")
         ExtSrcEnv.oracle_exec_cfg(cfg, [
-            "CREATE TABLE PERF_O_T ("
-            " TS TIMESTAMP(3) PRIMARY KEY, V NUMBER(10,0), G NUMBER(10,0))",
+            'CREATE TABLE "perf_o_t" ('
+            ' "ts" TIMESTAMP(3) PRIMARY KEY, "v" NUMBER(10,0), "g" NUMBER(10,0))',
         ])
 
         def _rows(lo, hi):
@@ -421,7 +421,7 @@ class TestFq10Performance(FederatedQueryVersionedMixin):
             # lines longer than 4999 characters (SP2-0027) while still
             # exiting 0.
             return "\n".join(
-                f"INTO PERF_O_T VALUES ("
+                f'INTO "perf_o_t" VALUES ('
                 f"TO_TIMESTAMP('{_ms_to_dt(_BASE + i * 1000)}', "
                 f"'YYYY-MM-DD HH24:MI:SS.FF3'), {i % 100}, {i % 10})"
                 for i in range(lo, hi)
@@ -1567,7 +1567,7 @@ class TestFq10Performance(FederatedQueryVersionedMixin):
         finally:
             self._cleanup_src(src)
             try:
-                ExtSrcEnv.oracle_drop_table_cfg(cfg, "PERF_O_T")
+                ExtSrcEnv.oracle_drop_table_cfg(cfg, "perf_o_t")
             except Exception:
                 pass
             self._teardown_data()
@@ -1662,7 +1662,7 @@ class TestFq10Performance(FederatedQueryVersionedMixin):
         finally:
             self._cleanup_src(src)
             try:
-                ExtSrcEnv.oracle_drop_table_cfg(cfg, "PERF_O_T")
+                ExtSrcEnv.oracle_drop_table_cfg(cfg, "perf_o_t")
             except Exception:
                 pass
             self._teardown_data()
@@ -1743,7 +1743,7 @@ class TestFq10Performance(FederatedQueryVersionedMixin):
         finally:
             self._cleanup_src(src)
             try:
-                ExtSrcEnv.oracle_drop_table_cfg(cfg, "PERF_O_T")
+                ExtSrcEnv.oracle_drop_table_cfg(cfg, "perf_o_t")
             except Exception:
                 pass
             self._teardown_data()

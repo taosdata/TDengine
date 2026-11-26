@@ -219,10 +219,10 @@ static void getFullPathName(char *fullName, const char *logName) {
 // Try to set log permissions so restrictive umasks do not hide root's logs.
 // Keep writable logs usable when their permissions cannot be changed.
 static TdFilePtr taosOpenLogFile(const char *name, int32_t tdFileOptions) {
-  TdFilePtr pFile = taosOpenFile(name, tdFileOptions | TD_FILE_NOFOLLOW | TD_FILE_SHARE_READ);
+  TdFilePtr pFile = taosOpenFile(name, tdFileOptions | TD_FILE_NOFOLLOW | TD_FILE_SHARE_READ | TD_FILE_SHARE_DELETE);
   if (pFile == NULL && terrno == TAOS_SYSTEM_ERROR(ELOOP)) {
     TAOS_UNUSED(taosRemoveFile(name));
-    pFile = taosOpenFile(name, tdFileOptions | TD_FILE_NOFOLLOW | TD_FILE_SHARE_READ);
+    pFile = taosOpenFile(name, tdFileOptions | TD_FILE_NOFOLLOW | TD_FILE_SHARE_READ | TD_FILE_SHARE_DELETE);
   }
 #ifndef WINDOWS
   if (pFile != NULL) {
@@ -432,9 +432,9 @@ static void taosReserveOldLog(char *oldName, char *keepName) {
     fileSec = ++tsLogObj.lastKeepFileSec;
   }
   snprintf(keepName, PATH_MAX + 20, "%s.%" PRId64, tsLogObj.logName, fileSec);
-  if ((code = taosRenameFile(oldName, keepName))) {
-    keepName[0] = 0;
+  if ((code = taosRenameFileEx(oldName, keepName, true))) {
     uError("failed to rename file:%s to %s since %s", oldName, keepName, tstrerror(code));
+    keepName[0] = 0;
   }
 }
 
@@ -787,8 +787,10 @@ static inline int32_t taosBuildLogHead(char *buffer, const char *flags) {
   time_t curTime = timeSecs.tv_sec;
   ptm = taosLocalTime(&curTime, &Tm, NULL, 0, NULL);
   if (ptm == NULL) {
-    uError("%s failed to get local time, code:%d", __FUNCTION__, ERRNO);
-    return 0;
+    // Logging timezone lookup failures must not re-enter the logger.
+    return snprintf(buffer, LOG_MAX_STACK_LINE_BUFFER_SIZE,
+                    "%08" PRId64 " %s %s", taosGetSelfPthreadId(),
+                    LOG_EDITION_FLG, flags);
   }
   return snprintf(buffer, LOG_MAX_STACK_LINE_BUFFER_SIZE, "%02d/%02d %02d:%02d:%02d.%06d %08" PRId64 " %s %s",
                   ptm->tm_mon + 1, ptm->tm_mday, ptm->tm_hour, ptm->tm_min, ptm->tm_sec, (int32_t)timeSecs.tv_usec,

@@ -14,7 +14,16 @@ If you only need to quickly check whether a topic can deliver data, or observe s
 Use TDengine CLI or refer to [Execute SQL](./02-execute-sql.md) to execute the SQL for creating topics:
 
 ```sql
-CREATE TOPIC IF NOT EXISTS topic_meters AS SELECT ts, current, voltage, phase, groupid, location FROM meters;
+CREATE TOPIC IF NOT EXISTS topic_meters
+  AS
+    SELECT
+      ts,
+      current,
+      voltage,
+      phase,
+      groupid,
+      location
+    FROM meters;
 ```
 
 The SQL creates a topic named `topic_meters`. Each record in the topic contains the columns selected by `SELECT ts, current, voltage, phase, groupid, location FROM meters`.

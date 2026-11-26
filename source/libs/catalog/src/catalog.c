@@ -146,6 +146,15 @@ int32_t ctgRefreshTbMeta(SCatalog* pCtg, SRequestConnInfo* pConn, SCtgTbMetaCtx*
       int32_t exist = 0;
       if (!CTG_FLAG_IS_FORCE_UPDATE(ctx->flag)) {
         CTG_ERR_JRET(ctgTbMetaExistInCache(pCtg, output->dbFName, output->tbName, &exist));
+        if (exist) {
+          // Batch meta txn: the cached super table is the committed view; if this txn modified it, the
+          // child's schema must come from the txn-aware super table meta fetched from mnode below.
+          SName stbName = *ctx->pName;
+          tstrncpy(stbName.tname, output->tbName, sizeof(stbName.tname));
+          if (ctgIsCachedMetaTouchedByTxn(pConn, &stbName, NULL)) {
+            exist = 0;
+          }
+        }
       }
 
       if (0 == exist) {
@@ -187,6 +196,16 @@ int32_t ctgRefreshTbMeta(SCatalog* pCtg, SRequestConnInfo* pConn, SCtgTbMetaCtx*
     CTG_ERR_JRET(ctgCloneMetaOutput(output, pOutput));
   }
 
+  if (ctgIsMetaTouchedByTxn(pConn, output)) {
+    // Batch meta txn: this table is touched by the txn; a txn-aware response may carry this txn's
+    // uncommitted overlay (e.g. an ALTER STB shadow op). The shared catalog cache is the committed
+    // view seen by every session, so it must never be written with it.
+    ctgDebug("tb:%s, txn:%" PRId64 ", touched by txn, skip updating shared cache", ctx->pName->tname,
+             (int64_t)pConn->txnId);
+    code = TSDB_CODE_SUCCESS;
+    goto _return;
+  }
+
   code = ctgUpdateTbMetaEnqueue(pCtg, output, syncReq);
   output = NULL;
   CTG_ERR_JRET(code);
@@ -195,12 +214,12 @@ int32_t ctgRefreshTbMeta(SCatalog* pCtg, SRequestConnInfo* pConn, SCtgTbMetaCtx*
 
 _return:
 
-  if (output) {
-    taosMemoryFreeClear(output->tbMeta);
-    taosMemoryFreeClear(output->vctbMeta);
-    taosMemoryFreeClear(output);
-  }
-  
+  // Not handed to the cache: free it with everything a (virtual) table meta owns on the heap (binding conditions,
+  // series, external references). A bare free of the blocks would leak those, and the txn path above (a table
+  // touched by the txn is never cached) makes this exit a common one.
+  ctgFreeSTableMetaOutput(output);
+  output = NULL;
+
   CTG_RET(code);
 }
 
@@ -208,7 +227,7 @@ int32_t ctgGetTbMeta(SCatalog* pCtg, SRequestConnInfo* pConn, SCtgTbMetaCtx* ctx
   int32_t           code = 0;
   STableMetaOutput* output = NULL;
 
-  CTG_ERR_RET(ctgGetTbMetaFromCache(pCtg, ctx, pTableMeta));
+  CTG_ERR_RET(ctgGetTbMetaFromCache(pCtg, pConn, ctx, pTableMeta));
   if (*pTableMeta || (ctx->flag & CTG_FLAG_ONLY_CACHE)) {
     goto _return;
   }
@@ -1710,22 +1729,39 @@ int32_t catalogGetExpiredSTables(SCatalog* pCtg, SSTableVersion** stables, uint3
   CTG_API_LEAVE(ctgMetaRentGet(&pCtg->stbRent, (void**)stables, num, sizeof(SSTableVersion)));
 }
 
-int32_t catalogGetExpiredViews(SCatalog* pCtg, SViewVersion** views, uint32_t* num, SDynViewVersion** dynViewVersion) {
+int32_t catalogGetExpiredViews(SCatalog* pCtg, int64_t reqId, SViewVersion** views, uint32_t* num,
+                               SDynViewVersion** dynViewVersion) {
   CTG_API_ENTER();
 
-  if (NULL == pCtg || NULL == views || NULL == num) {
+  if (NULL == pCtg || NULL == views || NULL == num || NULL == dynViewVersion) {
     CTG_API_LEAVE(TSDB_CODE_CTG_INVALID_INPUT);
   }
 
-  *dynViewVersion = taosMemoryMalloc(sizeof(SDynViewVersion));
-  if (NULL == *dynViewVersion) {
-    CTG_API_LEAVE(terrno);
-  }
+  CTG_API_LEAVE(ctgGetViewsForHbCheck(pCtg, reqId, views, num, dynViewVersion));
+}
 
-  (*dynViewVersion)->svrBootTs = atomic_load_64(&pCtg->dynViewVer.svrBootTs);
-  (*dynViewVersion)->dynViewVer = atomic_load_64(&pCtg->dynViewVer.dynViewVer);
-  
-  CTG_API_LEAVE(ctgMetaRentGet(&pCtg->viewRent, (void**)views, num, sizeof(SViewVersion)));
+int32_t catalogApplyViewHbVersion(SCatalog* pCtg, const SDynViewVersion* pVer, int64_t rspReqId) {
+  CTG_API_ENTER();
+
+  CTG_API_LEAVE(ctgApplyViewHbVersion(pCtg, pVer, rspReqId));
+}
+
+int32_t catalogViewSweepOnHbRspDone(SCatalog* pCtg, int64_t rspReqId, bool sawDynVer) {
+  CTG_API_ENTER();
+
+  CTG_API_LEAVE(ctgViewSweepOnHbRspDone(pCtg, rspReqId, sawDynVer));
+}
+
+int32_t catalogViewSweepTryCommit(SCatalog* pCtg) {
+  CTG_API_ENTER();
+
+  CTG_API_LEAVE(ctgViewSweepTryCommit(pCtg));
+}
+
+int32_t catalogViewSweepOnHbError(SCatalog* pCtg) {
+  CTG_API_ENTER();
+
+  CTG_API_LEAVE(ctgViewSweepOnHbError(pCtg));
 }
 
 
@@ -2579,7 +2615,7 @@ int32_t catalogSyncGetExtSourceInfo(SCatalog* pCtg, SRequestConnInfo* pConn, con
   tstrncpy(pInfo->options, rsp.options, sizeof(pInfo->options));
   pInfo->meta_version = rsp.meta_version;
   pInfo->create_time  = rsp.create_time;
-  code = extLoadDialectDefaults(pInfo->type, &pInfo->capability);
+  code = extLoadSourceDialectDefaults(pInfo->type, pInfo->options, &pInfo->capability);
   if (TSDB_CODE_SUCCESS != code) {
     extCapDestroy(&pInfo->capability);
     taosMemoryFree(pInfo);
@@ -2594,6 +2630,10 @@ int32_t catalogRemoveExtSource(SCatalog* pCtg, const char* sourceName) {
   if (NULL == pCtg || NULL == sourceName) {
     CTG_API_LEAVE(TSDB_CODE_CTG_INVALID_INPUT);
   }
+  // Bump the local invalidation generation before dropping the entry.  A heartbeat
+  // response that was requested before this point must not repopulate the cache
+  // with a snapshot that may predate the caller's DDL.
+  atomic_add_fetch_64(&pCtg->extSrcDdlGen, 1);
   CTG_API_LEAVE(ctgDropExtSourceEnqueue(pCtg, sourceName, true));
 }
 
@@ -2758,6 +2798,14 @@ int32_t catalogGetExtSrcGlobalVer(SCatalog* pCtg, int64_t* pGlobalVer) {
     CTG_API_LEAVE(TSDB_CODE_CTG_INVALID_INPUT);
   }
   *pGlobalVer = atomic_load_64(&pCtg->extSrcGlobalVer);
+  CTG_API_LEAVE(TSDB_CODE_SUCCESS);
+}
+int32_t catalogGetExtSrcDdlGen(SCatalog* pCtg, int64_t* pDdlGen) {
+  CTG_API_ENTER();
+  if (NULL == pCtg || NULL == pDdlGen) {
+    CTG_API_LEAVE(TSDB_CODE_CTG_INVALID_INPUT);
+  }
+  *pDdlGen = atomic_load_64(&pCtg->extSrcDdlGen);
   CTG_API_LEAVE(TSDB_CODE_SUCCESS);
 }
 

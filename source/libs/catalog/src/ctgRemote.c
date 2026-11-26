@@ -100,9 +100,12 @@ int32_t ctgHandleBatchRsp(SCtgJob* pJob, SCtgTaskCallbackParam* cbParam, SDataBu
       CTG_ERR_JRET(TSDB_CODE_CTG_INTERNAL_ERROR);
     }
 
-    SCtgTask* pTask = taosArrayGet(pJob->pTasks, *taskId);
+    // Resolve by task id instead of using it as an array index: task creation
+    // from concurrent response handlers must never be able to route a batch
+    // reply to a neighbouring task.
+    SCtgTask* pTask = ctgGetTask(pJob, *taskId);
     if (NULL == pTask) {
-      ctgError("taosArrayGet %d SCtgTask failed, total:%d", *taskId, (int32_t)taosArrayGetSize(pJob->pTasks));
+      ctgError("fail to get catalog task:%d, total:%d", *taskId, (int32_t)taosArrayGetSize(pJob->pTasks));
       CTG_ERR_JRET(TSDB_CODE_CTG_INTERNAL_ERROR);
     }
 
@@ -537,9 +540,12 @@ int32_t ctgHandleMsgCallback(void* param, SDataBuf* pMsg, int32_t rspCode) {
       CTG_ERR_JRET(TSDB_CODE_CTG_INTERNAL_ERROR);
     }
 
-    SCtgTask* pTask = taosArrayGet(pJob->pTasks, *taskId);
+    // Resolve by task id instead of using it as an array index: task creation
+    // from concurrent response handlers must never be able to route a batch
+    // reply to a neighbouring task.
+    SCtgTask* pTask = ctgGetTask(pJob, *taskId);
     if (NULL == pTask) {
-      ctgError("taosArrayGet %d SCtgTask failed, total:%d", *taskId, (int32_t)taosArrayGetSize(pJob->pTasks));
+      ctgError("fail to get catalog task:%d, total:%d", *taskId, (int32_t)taosArrayGetSize(pJob->pTasks));
       CTG_ERR_JRET(TSDB_CODE_CTG_INTERNAL_ERROR);
     }
 
@@ -1666,7 +1672,9 @@ int32_t ctgGetTbMetaFromVnode(SCatalog* pCtg, SRequestConnInfo* pConn, const SNa
                               .requestId = pConn->requestId,
                               .requestObjRefId = pConn->requestObjRefId,
                               .mgmtEps = vgroupInfo->epSet,
-                              .txnId = pConn->txnId};
+                              .txnId = pConn->txnId,
+                              .pTxnTableMeta = pConn->pTxnTableMeta,
+                              .pTxnSuidMap = pConn->pTxnSuidMap};
 
     CTG_ERR_RET(ctgUpdateMsgCtx(CTG_GET_TASK_MSGCTX(pTask, tReq->msgIdx), reqType, pOut, tbFName));
 
@@ -1754,7 +1762,9 @@ int32_t ctgGetTableCfgFromVnode(SCatalog* pCtg, SRequestConnInfo* pConn, const S
                               .requestId = pConn->requestId,
                               .requestObjRefId = pConn->requestObjRefId,
                               .mgmtEps = vgroupInfo->epSet,
-                              .txnId = pConn->txnId};
+                              .txnId = pConn->txnId,
+                              .pTxnTableMeta = pConn->pTxnTableMeta,
+                              .pTxnSuidMap = pConn->pTxnSuidMap};
 #if CTG_BATCH_FETCH
     SCtgTaskReq tReq = {0};
     tReq.pTask = pTask;
@@ -1804,7 +1814,7 @@ int32_t ctgGetTableCfgFromMnode(SCatalog* pCtg, SRequestConnInfo* pConn, const S
   void (*freeFp)(void*) = pTask ? taosMemFree : rpcFreeCont;
   char dbFName[TSDB_DB_FNAME_LEN];
   (void)tNameGetFullDbName(pTableName, dbFName);
-  SBuildTableInput bInput = {.vgId = 0, .dbFName = dbFName, .tbName = (char*)pTableName->tname};
+  SBuildTableInput bInput = {.vgId = 0, .dbFName = dbFName, .tbName = (char*)pTableName->tname, .txnId = pConn->txnId};
 
   int32_t code = tNameExtractFullName(pTableName, tbFName);
   if (code) {
@@ -2126,7 +2136,9 @@ int32_t ctgGetVSubtablesMetaFromVnode(SCatalog* pCtg, SRequestConnInfo* pConn, i
                             .requestId = pConn->requestId,
                             .requestObjRefId = pConn->requestObjRefId,
                             .mgmtEps = vgroupInfo->epSet,
-                            .txnId = pConn->txnId};
+                            .txnId = pConn->txnId,
+                            .pTxnTableMeta = pConn->pTxnTableMeta,
+                            .pTxnSuidMap = pConn->pTxnSuidMap};
 
   if (NULL != pTask) {
     CTG_ERR_RET(ctgUpdateMsgCtx(CTG_GET_TASK_MSGCTX(pTask, tReq->msgIdx), reqType, NULL, NULL));

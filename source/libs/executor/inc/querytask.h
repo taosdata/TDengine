@@ -62,6 +62,7 @@ typedef struct STaskStopInfo {
 
 typedef struct {
   STqOffsetVal          currentOffset;  // for tmq
+  bool                  needReseek;     // a previous poll failed, re-position from the consumer offset
   SMqBatchMetaRsp       btMetaRsp;      // for tmq fetching meta
   int8_t                sourceExcluded;
   int32_t               minPollRows;
@@ -123,6 +124,7 @@ struct SExecTaskInfo {
   char                     extErrMsg[512];    // federated query: remote-side error message (empty string = none)
   bool                     hasExtPushdownDiag;
   SExtPushdownDiagnostic   extPushdownDiag;
+  void *charsetCxt;  // Cached connection converter; not owned by the task.
 };
 
 void    buildTaskId(uint64_t taskId, uint64_t queryId, char* dst, int32_t len);

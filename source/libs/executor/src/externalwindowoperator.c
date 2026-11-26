@@ -2688,13 +2688,20 @@ static void mergeAlignExtWinDo(SOperatorInfo* pOperator) {
     TAOS_CHECK_EXIT(extWinSwitchInitCtxs(pOperator, pExtW, &pBlock->info.id));
 
     pRes->info.scanFlag = pBlock->info.scanFlag;
-    pRes->info.id.groupId = pBlock->info.id.baseGId;  // only keep TGroup ID
+    if (((SExternalWindowPhysiNode*)pOperator->pPhyNode)->window.preserveGroupId &&
+        pExtW->calcWithPartition && pTaskInfo->execModel != OPTR_EXEC_MODEL_STREAM) {
+      // TIME_ALIGN over a partitioned view: keep the partition (calc group)
+      // id so the fill Projection can align each partition independently.
+      pRes->info.id.groupId = pBlock->info.id.groupId;
+    } else {
+      pRes->info.id.groupId = pBlock->info.id.baseGId;  // only keep TGroup ID
+    }
     pRes->info.id.baseGId = 0;
 
     code = setInputDataBlock(pSup, pBlock, pExtW->binfo.inputTsOrder, pBlock->info.scanFlag, true);
     QUERY_CHECK_CODE(code, lino, _exit);
 
-    printDataBlock(pBlock, __func__, "externalwindowAlign", pTaskInfo->id.queryId);
+    printDataBlock(pBlock, __func__, "externalwindowAlign", pTaskInfo->id.queryId, pTaskInfo->charsetCxt);
 
     if (EEXT_MODE_SCALAR == pExtW->mode) {
       TAOS_CHECK_EXIT(mergeAlignExtWinProjectDo(pOperator, &pExtW->binfo.resultRowInfo, pBlock, pRes));
@@ -3062,7 +3069,7 @@ static int32_t extWinBuildFillMatchInfo(SColMatchInfo* pMatchInfo, SNodeList* pF
     if (nodeType(pFNode) == QUERY_NODE_TARGET) {
       STargetNode* pTarget = (STargetNode*)pFNode;
       dstSlot = pTarget->slotId;
-      if (nodeType(pTarget->pExpr) == QUERY_NODE_COLUMN) {
+      if (pTarget->pExpr != NULL && nodeType(pTarget->pExpr) == QUERY_NODE_COLUMN) {
         SColumnNode* pCol = (SColumnNode*)pTarget->pExpr;
         dtype = pCol->node.resType;
         colId = pCol->colId;
@@ -3123,11 +3130,11 @@ int32_t createMergeAlignedExternalWindowOperator(SOperatorInfo* pDownstream, SPh
   if (pTaskInfo->pStreamRuntimeInfo != NULL){
     pTaskInfo->pStreamRuntimeInfo->funcInfo.withExternalWindow = true;
   }
-  pOperator->pPhyNode = pNode;
   if (!pMAExtW || !pOperator) {
     code = terrno;
     goto _error;
   }
+  pOperator->pPhyNode = pNode;
   initOperatorCostInfo(pOperator);
 
   pMAExtW->pExtW = taosMemoryCalloc(1, sizeof(SExternalWindowOperator));
@@ -8504,7 +8511,7 @@ static int32_t extWinOpen(SOperatorInfo* pOperator) {
       pExtW->orgTableTimeRange.ekey = TMAX(pExtW->orgTableTimeRange.ekey, ekey);
     }
 
-    printDataBlock(pBlock, __func__, pTaskInfo->id.str, pTaskInfo->id.queryId);
+    printDataBlock(pBlock, __func__, pTaskInfo->id.str, pTaskInfo->id.queryId, pTaskInfo->charsetCxt);
 
     qDebug("%s ext window mode:%s baseGrp:%" PRIu64 " grp:%" PRIu64 " got %" PRId64 " rows from downstream",
            GET_TASKID(pTaskInfo), extWinModeStr(pExtW->mode), pBlock->info.id.baseGId, pBlock->info.id.groupId, pBlock->info.rows);
@@ -8661,7 +8668,7 @@ static int32_t extWinNext(SOperatorInfo* pOperator, SSDataBlock** ppRes) {
       GET_TASKID(pTaskInfo), pExtW->lastTGrpId, pExtW->lastCGrpId, (*ppRes)->info.rows);
         
     pOperator->resultInfo.totalRows += (*ppRes)->info.rows;
-    printDataBlock(*ppRes, __func__, GET_TASKID(pTaskInfo), pTaskInfo->id.queryId);
+    printDataBlock(*ppRes, __func__, GET_TASKID(pTaskInfo), pTaskInfo->id.queryId, pTaskInfo->charsetCxt);
   }
 
 _exit:
@@ -8679,7 +8686,7 @@ _exit:
   pExtW->boundaryReady = false;
 
   if (pTaskInfo->execModel == OPTR_EXEC_MODEL_STREAM && (*ppRes)) {
-    printDataBlock(*ppRes, getStreamOpName(pOperator->operatorType), GET_TASKID(pTaskInfo), pTaskInfo->id.queryId);
+    printDataBlock(*ppRes, getStreamOpName(pOperator->operatorType), GET_TASKID(pTaskInfo), pTaskInfo->id.queryId, pTaskInfo->charsetCxt);
   }
 
   return code;
@@ -9022,12 +9029,12 @@ int32_t createExternalWindowOperator(SOperatorInfo* pDownstream, SPhysiNode* pNo
   STimeWindow              nonStreamExtWinRange = {.skey = INT64_MAX, .ekey = INT64_MIN};
   SExternalWindowOperator* pExtW = taosMemoryCalloc(1, sizeof(SExternalWindowOperator));
   SOperatorInfo*           pOperator = taosMemoryCalloc(1, sizeof(SOperatorInfo));
-  pOperator->pPhyNode = pNode;
   if (!pExtW || !pOperator) {
     code = terrno;
     lino = __LINE__;
     goto _error;
   }
+  pOperator->pPhyNode = pNode;
   initOperatorCostInfo(pOperator);
   pExtW->needGroupSort = extWinNeedGroupSort(pPhynode, pTaskInfo);
   // In non-stream (batch) mode, temporarily disable calcWithPartition to tolerate
@@ -9628,6 +9635,7 @@ static int32_t extWinInitNonStreamWindowDataFromBlock(SExternalWindowPhysiNode* 
   int32_t code = TSDB_CODE_SUCCESS;
   int32_t     lino = 0;
   SArray*     pBlocks = NULL;
+  bool        ownBlocks = true;
   STimeWindow extWinTimeRange = {.skey = INT64_MAX, .ekey = INT64_MIN};
 
   if (NULL == pPhynode->pSubquery || nodeType(pPhynode->pSubquery) != QUERY_NODE_REMOTE_TABLE) {
@@ -9666,6 +9674,9 @@ static int32_t extWinInitNonStreamWindowDataFromBlock(SExternalWindowPhysiNode* 
 
   pBlocks = pRemote->pResBlks;
 #endif
+  // Remote results belong to the task cache (or the remote AST node). Only
+  // blocks manufactured by the BUILD_TEST mock are owned by this initializer.
+  ownBlocks = pBlocks != ((SRemoteTableNode*)pPhynode->pSubquery)->pResBlks;
   // For non-stream external_window, whether trigger windows should be built as
   // grouped calc infos must follow the OUTER query partition semantics instead of
   // raw remote block ids. Remote subquery result blocks may carry non-zero ids
@@ -9723,7 +9734,7 @@ static int32_t extWinInitNonStreamWindowDataFromBlock(SExternalWindowPhysiNode* 
   }
 
 _exit:
-  if (pBlocks) {
+  if (pBlocks && ownBlocks) {
     for (int32_t blockIdx = 0; blockIdx < taosArrayGetSize(pBlocks); ++blockIdx) {
       SSDataBlock** ppOne = taosArrayGet(pBlocks, blockIdx);
       if (ppOne && *ppOne) {

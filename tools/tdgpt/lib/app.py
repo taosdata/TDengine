@@ -29,6 +29,7 @@ from lib.service_registry import loader
 from lib.taosanalytics import ANODE_VER
 from lib.taosanalytics.handlers.anomaly import handle_anomaly
 from lib.taosanalytics.handlers.assoc import handle_association
+from lib.taosanalytics.handlers.classification import handle_classification
 from lib.taosanalytics.handlers.clustering import handle_clustering
 from lib.taosanalytics.handlers.correlation import handle_correlation
 from lib.taosanalytics.handlers.forecast import handle_forecast
@@ -36,6 +37,7 @@ from lib.taosanalytics.handlers.imputation import handle_imputation
 from lib.taosanalytics.handlers.misc import (
     do_profile_search,
     handle_build_batch_env,
+    handle_list_batch_algos,
     handle_pearsonr,
 )
 from lib.taosanalytics.handlers.model_mgmt import (
@@ -52,11 +54,17 @@ from lib.tsfm.mgmt.foundation_model import (
     download_foundation_model,
     download_foundation_runtime,
     ensure_pending_deletes_resumed,
+    get_foundation_runtime,
     get_model_info,
+    get_runtime_upgrade,
     init_models_db,
     list_all_tsfm,
+    recover_runtime_upgrade,
+    resume_due_downloads,
+    runtime_maintenance_guard,
     start_foundation_model,
     stop_foundation_model,
+    upgrade_foundation_runtime,
 )
 from lib.tsfm.mgmt.response_event import (
     get_all_operations_stream,
@@ -103,6 +111,18 @@ def _resume_interrupted_deletes():
         ensure_pending_deletes_resumed()
     except Exception as exc:  # recovery is best-effort; never break the request
         AppLogger.error("Failed to resume interrupted model deletes: %s", exc)
+
+
+@app.before_request
+def _guard_runtime_maintenance():
+    if request.method == "POST" and request.path in {
+        "/api/v1/foundation-models/start", "/api/v1/foundation-models/stop",
+        "/api/v1/foundation-models/delete", "/api/v1/foundation-models/download",
+        "/api/v1/foundation-models/download-start", "/api/v1/foundation-models/runtime/download",
+        "/api/v1/foundation-models/runtime/delete",
+    }:
+        return runtime_maintenance_guard()
+    return None
 
 
 @app.route("/")
@@ -167,6 +187,13 @@ def handle_regression_req():
     return handle_regression(request)
 
 
+@app.route("/classification", methods=["POST"])
+def handle_classification_req():
+    """handle the classification request"""
+    AppLogger.info("recv classification request from %s", request.remote_addr)
+    return handle_classification(request)
+
+
 @app.route("/series-diagnosis", methods=["POST"])
 def handle_series_diagnosis_req():
     """handle the sequence diagnosis request"""
@@ -188,6 +215,14 @@ def handle_clustering_req():
 def handle_batch_req():
     """handle the batch request request"""
     return handle_build_batch_env(request)
+
+
+@app.route("/api/v1/analysis/batch/algos", methods=["GET"])
+@app.route("/tool/batch/algos", methods=["GET"])
+def list_batch_algos():
+    """list the batch envelope algorithms accepted by the batch endpoint"""
+    AppLogger.info("Received request to list batch algorithms, ip:%s", request.remote_addr)
+    return handle_list_batch_algos()
 
 
 @app.route("/deploy", methods=["POST"])
@@ -276,9 +311,36 @@ def handle_delete_foundation_runtime_req():
     return delete_foundation_runtime(request)
 
 
+@app.route("/api/v1/foundation-models/runtime", methods=["GET"])
+def handle_get_foundation_runtime_req():
+    return get_foundation_runtime(request)
+
+
+@app.route("/api/v1/foundation-models/runtime/upgrade", methods=["POST"])
+def handle_upgrade_foundation_runtime_req():
+    return upgrade_foundation_runtime(request)
+
+
+@app.route("/api/v1/foundation-models/runtime/upgrades/<task_id>", methods=["GET"])
+def handle_get_runtime_upgrade_req(task_id):
+    return get_runtime_upgrade(request, task_id)
+
+
+@app.route("/api/v1/foundation-models/runtime/upgrades/<task_id>/recover", methods=["POST"])
+def handle_recover_runtime_upgrade_req(task_id):
+    return recover_runtime_upgrade(request, task_id)
+
+
 @app.route("/api/v1/foundation-models/<task_id>/status", methods=["GET"])
 def handle_get_operation_status_req(task_id):
     """Get status of async operation by task_id"""
+    # A client polling a task is the reliable signal that somebody still wants
+    # it, so this is where a queued download whose retry timer was lost gets
+    # re-armed. Best-effort: recovery must never break the status answer.
+    try:
+        resume_due_downloads()
+    except Exception as exc:
+        AppLogger.error("Failed to resume due model downloads: %s", exc)
     return get_operation_status(request, task_id)
 
 

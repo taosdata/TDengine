@@ -141,6 +141,7 @@ from federated_query_common import (
     FederatedQueryCaseHelper,
     FederatedQueryVersionedMixin,
     ExtSrcEnv,
+    INFLUX18_QUOTED_IDENTIFIER,
 )
 
 
@@ -275,13 +276,13 @@ _PG_ASCII_SETUP_SQLS = [
     "('2024-01-01 00:01:00+00','south','south',2)",
 ]
 
-# Oracle fixture.  Oracle folds unquoted identifiers to upper case, so the
-# objects are created with quoted upper-case names: an unquoted reference such
-# as `sensor."time"` then resolves to SENSOR."TIME" instead of failing with
-# ORA-00904.  Every row is the same as the MySQL/PostgreSQL fixtures; the
-# timestamp literal is pinned with TO_TIMESTAMP because a bare string would be
-# parsed with the session's NLS_TIMESTAMP_FORMAT, which differs between the
-# test client and the server (same convention as test_fq_02).
+# Oracle fixture.  The objects are created with quoted lower-case names so
+# the unquoted TDengine references in the shared matrix (sensor, voltage, ...)
+# resolve to the exact remote spelling under TDengine's identifier grammar.
+# Every row is the same as the MySQL/PostgreSQL fixtures; the timestamp
+# literal is pinned with TO_TIMESTAMP because a bare string would be parsed
+# with the session's NLS_TIMESTAMP_FORMAT, which differs between the test
+# client and the server (same convention as test_fq_02).
 _ORACLE_SENSOR_ROWS = [
     ("2024-01-01 00:00:00.000", 220.5, 1.2, "north", "2024-01-01", '{"k":1}',
      "aGVsbG8=", "POINT(0 0)"),
@@ -318,13 +319,13 @@ def _oracle_setup_sqls():
     # One INSERT per row: the multi-row VALUES constructor is 23ai-only and
     # 11g rejects it with ORA-00933.
     sensor_inserts = [
-        'INSERT INTO "SENSOR" ("TIME", "VOLTAGE", "CURRENT", "REGION", '
-        '"DATE_STR", "JSON_STR", "B64_STR", "GEOM_WKT") VALUES '
+        'INSERT INTO "sensor" ("time", "voltage", "current", "region", '
+        '"date_str", "json_str", "b64_str", "geom_wkt") VALUES '
         "(" + ", ".join([ts(r[0])] + [q(v) for v in r[1:]]) + ")"
         for r in _ORACLE_SENSOR_ROWS
     ]
     region_inserts = [
-        'INSERT INTO "REGION_INFO" ("TIME", "REGION", "AREA") VALUES '
+        'INSERT INTO "region_info" ("time", "region", "area") VALUES '
         "(" + ", ".join([ts(r[0]), q(r[1]), q(r[2])]) + ")"
         for r in _ORACLE_REGION_ROWS
     ]
@@ -335,25 +336,25 @@ def _oracle_setup_sqls():
         # nvarchar, and all three map to TSDB_DATA_TYPE_NCHAR, which is what
         # the shared matrix's expectations assume (LENGTH renders as
         # LENGTH(x) * 4, LIKE prefixes the pattern with N).  The blank-padded
-        # Oracle CHAR column that FQOR-PUSH-008 needs lives in SENSOR_CHAR.
-        'CREATE TABLE "SENSOR" ("TIME" TIMESTAMP(3) NOT NULL, '
-        '"VOLTAGE" BINARY_DOUBLE, "CURRENT" BINARY_FLOAT, '
-        '"REGION" NVARCHAR2(32), "DATE_STR" NVARCHAR2(32), '
-        '"JSON_STR" NVARCHAR2(64), "B64_STR" NVARCHAR2(32), '
-        '"GEOM_WKT" NVARCHAR2(64))',
+        # Oracle CHAR column that FQOR-PUSH-008 needs lives in "sensor_char".
+        'CREATE TABLE "sensor" ("time" TIMESTAMP(3) NOT NULL, '
+        '"voltage" BINARY_DOUBLE, "current" BINARY_FLOAT, '
+        '"region" NVARCHAR2(32), "date_str" NVARCHAR2(32), '
+        '"json_str" NVARCHAR2(64), "b64_str" NVARCHAR2(32), '
+        '"geom_wkt" NVARCHAR2(64))',
         *sensor_inserts,
-        'CREATE TABLE "REGION_INFO" ("TIME" TIMESTAMP(3) NOT NULL, '
-        '"REGION" NVARCHAR2(32), "AREA" NUMBER(10))',
+        'CREATE TABLE "region_info" ("time" TIMESTAMP(3) NOT NULL, '
+        '"region" NVARCHAR2(32), "area" NUMBER(10))',
         *region_inserts,
         # Blank-padded CHAR column (FQOR-PUSH-008).  Oracle compares CHAR with
         # blank padding while TDengine compares the exact text, so every string
         # operation on this column has to stay in the local plan.  It is an
         # Oracle-only table: the other sources have no CHAR type to mirror it.
-        'CREATE TABLE "SENSOR_CHAR" ("TIME" TIMESTAMP(3) NOT NULL, '
-        '"VOLTAGE" BINARY_DOUBLE, "REGION_CHAR" CHAR(32))',
-        'INSERT INTO "SENSOR_CHAR" ("TIME", "VOLTAGE", "REGION_CHAR") VALUES '
+        'CREATE TABLE "sensor_char" ("time" TIMESTAMP(3) NOT NULL, '
+        '"voltage" BINARY_DOUBLE, "region_char" CHAR(32))',
+        'INSERT INTO "sensor_char" ("time", "voltage", "region_char") VALUES '
         "(" + ts("2024-01-01 00:00:00.000") + ", 220.5, 'north')",
-        'INSERT INTO "SENSOR_CHAR" ("TIME", "VOLTAGE", "REGION_CHAR") VALUES '
+        'INSERT INTO "sensor_char" ("time", "voltage", "region_char") VALUES '
         "(" + ts("2024-01-01 00:01:00.000") + ", 221.0, 'south')",
         "COMMIT",
     ]
@@ -5410,12 +5411,11 @@ _EXPLAIN_CASES = [{'id': 'EXP-op_arith-01',
                  'local_not_has': {'mysql': ['InitPlan 1'], 'pg': ['InitPlan 1'], 'sqlserver': ['InitPlan 1'], 'oracle': ['InitPlan 1']}},
   'pre_sql': 'use {SRC}'},
  # The USE-context (unqualified) variants resolve the inner table against the
- # current source.  The plan-level render (EXPLAIN VERBOSE) pushes the
- # EXISTS/NOT EXISTS into the remote statement, while the executed plan
- # (EXPLAIN ANALYZE) keeps it as a local InitPlan subquery and still fetches
- # the outer scan remotely.  Both forms return the same rows, so the checks
- # record each form instead of requiring the runtime plan to match the
- # plan-level one.
+ # current source.  Both the plan-level render (EXPLAIN VERBOSE) and the
+ # executed plan (EXPLAIN ANALYZE) push EXISTS/NOT EXISTS into the remote
+ # statement: the namespace is injected from USE, so the raw subquery text is
+ # not namespace-complete and Oracle/SQL Server re-render it from the inner
+ # plan instead of inlining it verbatim.
  {'id': 'EXP-subq_exists_nocorr_direct-01',
   'sql': 'select * from sensor s where exists (select 1 from sensor r where r.voltage > 220)',
   'sources': 'single',
@@ -5431,7 +5431,7 @@ _EXPLAIN_CASES = [{'id': 'EXP-op_arith-01',
              'local_not_has'],
   'check_args': {'remote_has': {'mysql': ['EXISTS'], 'pg': ['EXISTS'], 'sqlserver': ['EXISTS'], 'oracle': []},
                  'verbose_remote_has': {'oracle': ['EXISTS']},
-                 'analyze_local_has': {'oracle': ['InitPlan 1']},
+                 'analyze_local_has': {'oracle': []},
                  'remote_not_has': {'influx': ['EXISTS'], 'oracle': []},
                  'min_scans': {'mysql': 1, 'pg': 1, 'influx': 2, 'sqlserver': 1, 'oracle': 1},
                  'local_has': {'influx': ['InitPlan 1', 'Projection'], 'oracle': []},
@@ -5452,7 +5452,7 @@ _EXPLAIN_CASES = [{'id': 'EXP-op_arith-01',
              'local_not_has'],
   'check_args': {'remote_has': {'mysql': ['NOT', 'EXISTS'], 'pg': ['NOT', 'EXISTS'], 'sqlserver': ['NOT', 'EXISTS'], 'oracle': []},
                  'verbose_remote_has': {'oracle': ['NOT', 'EXISTS']},
-                 'analyze_local_has': {'oracle': ['InitPlan 1']},
+                 'analyze_local_has': {'oracle': []},
                  'remote_not_has': {'influx': ['NOT EXISTS'], 'oracle': []},
                  'min_scans': {'mysql': 1, 'pg': 1, 'influx': 2, 'sqlserver': 1, 'oracle': 1},
                  'local_has': {'influx': ['InitPlan 1', 'Projection'], 'oracle': []},
@@ -6401,7 +6401,7 @@ _EXPLAIN_CASES = [{'id': 'EXP-op_arith-01',
                                 # select list with internal aliases
                                 # (TIME AS "time"), so only the column and
                                 # ORDER BY terms are asserted for Oracle.
-                                'oracle': ['SELECT TIME', 'REGION', 'ORDER BY TIME ASC']},
+                                'oracle': ['SELECT "time"', '"region"', 'ORDER BY "time" ASC']},
                  'remote_not_has': ['COUNT(', 'GROUP BY', 'FILL', 'INTERVAL('],
                  'local_has': ['Fill', 'Interval', 'Partition']}},
  {'id': 'EXP-combo_S_PP_outer_pushP_inner_pushP-01',
@@ -6751,7 +6751,7 @@ _EXPLAIN_CASES = [{'id': 'EXP-op_arith-01',
   'checks': ['federated_scan', 'analyze_metrics', 'remote_has', 'local_not_has'],
   'check_args': {'remote_has': {'mysql': ['LTRIM'], 'pg': ['LTRIM'], 'influx': ['LTRIM'],
                                 'sqlserver': ['LTRIM'],
-                                'oracle': ['LTRIM(REGION', 'CHR(9)']},
+                                'oracle': ['LTRIM("region"', 'CHR(9)']},
                  'local_not_has': ['Projection']}},
  # PG TEXT and Influx tags map to the maximum field length; keep REPEAT within that limit.
  {'id': 'EXP-ds_string-07',
@@ -6770,7 +6770,7 @@ _EXPLAIN_CASES = [{'id': 'EXP-op_arith-01',
   'checks': ['federated_scan', 'analyze_metrics', 'remote_has', 'local_not_has'],
   'check_args': {'remote_has': {'mysql': ['RTRIM'], 'pg': ['RTRIM'], 'influx': ['RTRIM'],
                                 'sqlserver': ['RTRIM'],
-                                'oracle': ['RTRIM(REGION', 'CHR(9)']},
+                                'oracle': ['RTRIM("region"', 'CHR(9)']},
                  'local_not_has': ['Projection']}},
  {'id': 'EXP-ds_string-10',
   'sql': 'select TRIM(region) from {SRC}.sensor',
@@ -15013,7 +15013,7 @@ _EXPLAIN_CASES = [{'id': 'EXP-op_arith-01',
              'local_not_has'],
   'check_args': {'remote_has': {'mysql': ['SELECT `time`', 'ORDER BY `time` ASC'],
                                 'pg': ['SELECT "time"', 'ORDER BY "time" ASC'],
-                                'influx': ['SELECT "time"', 'ORDER BY "time" ASC'], 'sqlserver': ['SELECT [TIME]', 'ORDER BY [TIME] ASC'], 'oracle': ['SELECT TIME', 'ORDER BY TIME ASC']},
+                                'influx': ['SELECT "time"', 'ORDER BY "time" ASC'], 'sqlserver': ['SELECT [TIME]', 'ORDER BY [TIME] ASC'], 'oracle': ['SELECT "time"', 'ORDER BY "time" ASC']},
                  'remote_not_has': ['SESSION('],
                  'local_has': ['Session'],
                  'local_not_has': ['Sort']}},
@@ -15035,7 +15035,7 @@ _EXPLAIN_CASES = [{'id': 'EXP-op_arith-01',
              'local_not_has'],
   'check_args': {'remote_has': {'mysql': ['SELECT `time`', 'ORDER BY `time` ASC'],
                                 'pg': ['SELECT "time"', 'ORDER BY "time" ASC'],
-                                'influx': ['SELECT "time"', 'ORDER BY "time" ASC'], 'sqlserver': ['SELECT [TIME]', 'ORDER BY [TIME] ASC'], 'oracle': ['SELECT TIME', 'ORDER BY TIME ASC']},
+                                'influx': ['SELECT "time"', 'ORDER BY "time" ASC'], 'sqlserver': ['SELECT [TIME]', 'ORDER BY [TIME] ASC'], 'oracle': ['SELECT "time"', 'ORDER BY "time" ASC']},
                  'remote_not_has': ['COUNT_WINDOW'],
                  'local_has': ['Count'],
                  'local_not_has': ['Sort']}},
@@ -15058,7 +15058,7 @@ _EXPLAIN_CASES = [{'id': 'EXP-op_arith-01',
              'local_not_has'],
   'check_args': {'remote_has': {'mysql': ['SELECT `time`, `voltage`', 'ORDER BY `time` ASC'],
                                 'pg': ['SELECT "time", "voltage"', 'ORDER BY "time" ASC'],
-                                'influx': ['SELECT "time", "voltage"', 'ORDER BY "time" ASC'], 'sqlserver': ['SELECT [TIME], [VOLTAGE]', 'ORDER BY [TIME] ASC'], 'oracle': ['SELECT TIME, VOLTAGE', 'ORDER BY TIME ASC']},
+                                'influx': ['SELECT "time", "voltage"', 'ORDER BY "time" ASC'], 'sqlserver': ['SELECT [TIME], [VOLTAGE]', 'ORDER BY [TIME] ASC'], 'oracle': ['SELECT "time", "voltage"', 'ORDER BY "time" ASC']},
                  'remote_not_has': ['EVENT_WINDOW'],
                  'local_has': ['Event'],
                  'local_not_has': ['Sort']}},
@@ -15357,12 +15357,13 @@ _EXPLAIN_CASES = [{'id': 'EXP-op_arith-01',
  # already carries an "oracle" key in every per-source expectation dict; these
  # rows add the contracts that have no cross-dialect counterpart.
  #
- #   001  R1 fold-once: the path reaches the source in its catalog spelling
- #        and a bare-identifiable name is emitted without quotes.
+ #   001  R1 exact spelling: the path reaches the source verbatim and a
+ #        lower-case name is double-quoted ("sensor", "voltage"), because an
+ #        unquoted lower-case name would fold to upper case at the source.
  #   002  R1 quoting: a backtick-quoted TDengine reference never leaks the
  #        backtick form into Oracle SQL.
- #   003  R1 reserved words: a column that folds onto a reserved word is
- #        double-quoted ("CURRENT"), an unquoted CURRENT would be the keyword.
+ #   003  R1 reserved words: a lower-case column named current is
+ #        double-quoted ("current"), an unquoted CURRENT would be the keyword.
  #   004  Alias form: "table alias" with no AS keyword on either join leg.
  #   005  Booleans: value context renders as CASE WHEN, never TRUE/FALSE.
  #   006  Character equality pushes when the column is not blank-padded, the
@@ -15450,19 +15451,19 @@ _EXPLAIN_CASES = [{'id': 'EXP-op_arith-01',
   'sources': 'custom',
   'source_infos': _ORACLE_ONLY_SOURCES,
   'checks': ['federated_scan', 'analyze_metrics', 'remote_sql', 'remote_has', 'remote_not_has', 'local_not_has'],
-  'check_args': {'remote_has': ['SELECT VOLTAGE', '.SENSOR'], 'remote_not_has': ['"SENSOR"', '"VOLTAGE"'], 'local_not_has': ['Projection']}},
+  'check_args': {'remote_has': ['SELECT "voltage"', '."sensor"'], 'remote_not_has': ['SELECT VOLTAGE', '.SENSOR'], 'local_not_has': ['Projection']}},
  {'id': 'FQOR-PUSH-002',
   'sql': 'select `time`, `voltage` from {SRC}.sensor',
   'sources': 'custom',
   'source_infos': _ORACLE_ONLY_SOURCES,
   'checks': ['federated_scan', 'analyze_metrics', 'remote_sql', 'remote_has', 'remote_not_has', 'local_not_has'],
-  'check_args': {'remote_has': ['TIME', 'VOLTAGE'], 'remote_not_has': ['`'], 'local_not_has': ['Projection']}},
+  'check_args': {'remote_has': ['"time"', '"voltage"'], 'remote_not_has': ['`'], 'local_not_has': ['Projection']}},
  {'id': 'FQOR-PUSH-003',
   'sql': 'select `current` from {SRC}.sensor',
   'sources': 'custom',
   'source_infos': _ORACLE_ONLY_SOURCES,
   'checks': ['federated_scan', 'analyze_metrics', 'remote_sql', 'remote_has', 'remote_not_has', 'local_not_has'],
-  'check_args': {'remote_has': ['"CURRENT"'], 'remote_not_has': ['SELECT CURRENT'], 'local_not_has': ['Projection']}},
+  'check_args': {'remote_has': ['"current"'], 'remote_not_has': ['SELECT CURRENT'], 'local_not_has': ['Projection']}},
  {'id': 'FQOR-PUSH-004',
   'sql': 'select s.voltage, r.area from {SRC}.sensor s join {SRC}.region_info r on s.time = r.time',
   'sources': 'custom',
@@ -15480,7 +15481,7 @@ _EXPLAIN_CASES = [{'id': 'EXP-op_arith-01',
   'sources': 'custom',
   'source_infos': _ORACLE_ONLY_SOURCES,
   'checks': ['federated_scan', 'analyze_metrics', 'remote_sql', 'remote_has', 'remote_not_has', 'local_not_has'],
-  'check_args': {'remote_has': ['WHERE', "REGION = 'north'"], 'local_not_has': ['Filter:']}},
+  'check_args': {'remote_has': ['WHERE', '"region" = \'north\''], 'local_not_has': ['Filter:']}},
  {'id': 'FQOR-PUSH-007',
   'sql': "select voltage from {SRC}.sensor where region = ''",
   'sources': 'custom',
@@ -15721,6 +15722,7 @@ class TestFq13Explain(FederatedQueryVersionedMixin):
     and compares against golden baseline files.
     """
 
+
     # Keep EXPLAIN output deterministic regardless of prior tests.
     # The pytest framework reads class-level updatecfgDict, not cfg.
     updatecfgDict = {
@@ -15795,8 +15797,7 @@ class TestFq13Explain(FederatedQueryVersionedMixin):
 
         ExtSrcEnv.influx_create_db(_INFLUX_BUCKET)
         ExtSrcEnv.influx_write(_INFLUX_BUCKET, _INFLUX_LINES)
-        self._cleanup_src(_SRC_INFLUX)
-        self._mk_influx_real(_SRC_INFLUX, database=_INFLUX_BUCKET)
+        self._mk_influx_sources(_SRC_INFLUX, database=_INFLUX_BUCKET)
 
         self._setup_ascii_length_sources()
 
@@ -15835,8 +15836,9 @@ class TestFq13Explain(FederatedQueryVersionedMixin):
         self._rebuild_sources()
         return True
 
-    def setup_method(self, method):
+    def _setup_version_data(self, method):
         if TestFq13Explain._class_setup_done:
+            self._mk_influx_sources(_SRC_INFLUX, database=_INFLUX_BUCKET)
             return
         tdLog.debug(f"start to execute {__file__}")
         self.helper = FederatedQueryCaseHelper(__file__)
@@ -15858,10 +15860,10 @@ class TestFq13Explain(FederatedQueryVersionedMixin):
         self._mk_pg_real(_SRC_PG, database=_PG_DB)
 
         # -- InfluxDB (sensor measurement) --
-        ExtSrcEnv.influx_create_db(_INFLUX_BUCKET)
-        ExtSrcEnv.influx_write(_INFLUX_BUCKET, _INFLUX_LINES)
-        self._cleanup_src(_SRC_INFLUX)
-        self._mk_influx_real(_SRC_INFLUX, database=_INFLUX_BUCKET)
+        for influx_cfg in ExtSrcEnv.influx_version_configs():
+            ExtSrcEnv.influx_create_db_cfg(influx_cfg, _INFLUX_BUCKET)
+            ExtSrcEnv.influx_write_cfg(influx_cfg, _INFLUX_BUCKET, _INFLUX_LINES)
+        self._mk_influx_sources(_SRC_INFLUX, database=_INFLUX_BUCKET)
 
         # -- Dedicated ASCII/VARCHAR sources used to validate the non-NCHAR
         #    LENGTH rewrite branch without perturbing the shared 3-source corpus.
@@ -15879,7 +15881,13 @@ class TestFq13Explain(FederatedQueryVersionedMixin):
         TestFq13Explain._class_setup_done = True
 
     def teardown_class(self):
+        for cfg in ExtSrcEnv.influx_version_configs():
+            try:
+                ExtSrcEnv.influx_drop_db_cfg(cfg, _INFLUX_BUCKET)
+            except Exception as exc:
+                tdLog.info(f"InfluxDB {cfg.version} cleanup warning: {exc}")
         tmp = TestFq13Explain()
+        tmp._drop_influx_sources(_SRC_INFLUX)
         for src in [_SRC_MYSQL, _SRC_PG, _SRC_INFLUX, _SRC_MYSQL_ASCII,
                     _SRC_PG_ASCII, _SRC_SQLSERVER, _SRC_ORACLE]:
             tmp._cleanup_src(src)
@@ -15888,7 +15896,6 @@ class TestFq13Explain(FederatedQueryVersionedMixin):
             (ExtSrcEnv.mysql_drop_db_cfg, (tmp._mysql_cfg(), _MYSQL_ASCII_DB)),
             (ExtSrcEnv.pg_drop_db_cfg, (tmp._pg_cfg(), _PG_DB)),
             (ExtSrcEnv.pg_drop_db_cfg, (tmp._pg_cfg(), _PG_ASCII_DB)),
-            (ExtSrcEnv.influx_drop_db, (_INFLUX_BUCKET,)),
             (ExtSrcEnv.sqlserver_drop_db, (_SQLSERVER_DB,)),
         ]:
             try:
@@ -16591,6 +16598,51 @@ class TestFq13Explain(FederatedQueryVersionedMixin):
     # Validators
     # ------------------------------------------------------------------
 
+    def _uses_influx18(self, src_info):
+        return self._influx_cfg().version == "1.8" and self._influx_source_name(_SRC_INFLUX) in (
+            src_info.get("src"), src_info.get("src2"))
+
+    def _validate_influx18(self, case_id, mode, lines, case_def, src_info):
+        """Check the single-measurement InfluxQL contract for existing cases.
+
+        3.x pushdown goldens describe a different plan. Keep those goldens
+        unchanged and validate the 1.8 statement boundary in all four modes;
+        ANALYZE also executes each query's local computation.
+        """
+        errors = []
+        native_scan = False
+        native_scans = 0
+        remote_count = 0
+        identifier = INFLUX18_QUOTED_IDENTIFIER
+        native_select = re.compile(
+            rf'SELECT\s+.+\s+FROM\s+{identifier}\.{identifier}\.{identifier}'
+            rf'(?:\s+(?:WHERE|GROUP BY|ORDER BY|LIMIT)\s+.+)?\s*', re.I)
+        for line in lines:
+            if "-> " in line:
+                native_scan = "Federated Scan on " + self._influx_source_name(_SRC_INFLUX) + "." in line
+                if native_scan:
+                    native_scans += 1
+                    if "influxdb-1.8" not in line:
+                        errors.append((case_id, "version", line))
+            if native_scan and "Remote SQL:" in line:
+                remote_count += 1
+                remote = line.split("Remote SQL:", 1)[1].strip()
+                if not native_select.fullmatch(remote):
+                    errors.append((case_id, "native_select", remote))
+                if re.search(r"\b(JOIN|UNION|HAVING)\b|\(\s*SELECT\b", remote, re.I):
+                    errors.append((case_id, "statement_boundary", remote))
+        if native_scans == 0:
+            errors.append((case_id, "federated_scan", "InfluxDB 1.8 scan missing"))
+        if mode in ANALYZE_MODES and mode in VERBOSE_MODES and native_scans and not remote_count:
+            errors.append((case_id, "remote_sql", "Executed scan has no Remote SQL"))
+        args = case_def.get("check_args", {})
+        for value in _per_src(args.get("no_data_leak", []), src_info.get("label", "")):
+            if any(value in line for line in lines):
+                errors.append((case_id, "no_data_leak", value))
+        if mode in ANALYZE_MODES and not any("rows=" in line for line in lines):
+            errors.append((case_id, "analyze_metrics", "Execution row counts missing"))
+        return errors
+
     def _validate(self, case_id, mode, lines, case_def, src_info):
         """Run all validators in case_def['checks'] for the given mode.
 
@@ -16604,6 +16656,8 @@ class TestFq13Explain(FederatedQueryVersionedMixin):
         warnings. ``type_mapping`` stays informational because the
         current explain output does not emit that section.
         """
+        if self._uses_influx18(src_info):
+            return self._validate_influx18(case_id, mode, lines, case_def, src_info)
         checks = case_def.get("checks", [])
         raw_args = case_def.get("check_args", {})
         # Resolve per-source expectations: a check-arg value may be a plain
@@ -17070,7 +17124,7 @@ class TestFq13Explain(FederatedQueryVersionedMixin):
             SRC=src_info["src"], DB=src_info["db"],
         )
 
-    def _expand_sources(self, case_def):
+    def _expand_source_templates(self, case_def):
         """Yield (expanded_id, src_info) for a case definition.
 
         Every statement runs against ALL external sources.
@@ -17088,6 +17142,16 @@ class TestFq13Explain(FederatedQueryVersionedMixin):
         elif sources_type == "cross":
             for pair in _CROSS_PAIRS:
                 yield f"{case_def['id']}_{pair['label']}", pair, sources_type
+
+    def _expand_sources(self, case_def):
+        for case_id, info, source_type in self._expand_source_templates(case_def):
+            yield case_id, info, source_type, None
+            for cfg in self._influx_configs()[1:]:
+                aliases = getattr(type(self), '_influx_aliases', {}).get(cfg.version, {})
+                mapped = {key: self._replace_influx_sources(value, aliases) if isinstance(value, str) else value
+                          for key, value in info.items()}
+                if mapped != info:
+                    yield case_id + '@inf' + cfg.version, mapped, source_type, cfg
 
     @staticmethod
     def _iter_case_sqls(case_def, key):
@@ -17113,6 +17177,7 @@ class TestFq13Explain(FederatedQueryVersionedMixin):
         os.makedirs(self._ANS_DIR, exist_ok=True)
         baseline_file = self._baseline_path(baseline_name)
         blocks = []
+        influx18_ids = set()
         failed = []
         mode_label = _MODE_LABELS[mode]
 
@@ -17162,129 +17227,138 @@ class TestFq13Explain(FederatedQueryVersionedMixin):
                 expect_err_spec = case_def.get("expect_err", False)
                 raw_args = case_def.get("check_args", {})
 
-                for expanded_id, src_info, src_type in \
+                for expanded_id, src_info, src_type, cfg in \
                         self._expand_sources(case_def):
-                    if _id_filters and not any(part in expanded_id for part in _id_filters):
-                        continue
-                    is_ss_block = "sqlserver" in expanded_id.lower()
-                    # An Oracle block is any block of the Oracle pass: the
-                    # single-source Oracle leg and the three cross pairs whose
-                    # label has no "sqlserver".  The sqlserver_oracle pair keeps
-                    # running with the SQL Server blocks and their skip.
-                    is_oracle_block = ("oracle" in expanded_id.lower() and
-                                       not is_ss_block)
-                    if is_ss_block and _SS_LOCAL_CHAR_RE.search(sql_tpl.lower()):
-                        tdLog.info(
-                            f"[{expanded_id:<24s}] SKIP  SQL Server character "
-                            f"semantics covered by test_fq_20_sqlserver_semantics")
-                        continue
-                    block_phase = 2 if is_oracle_block else (1 if is_ss_block else 0)
-                    if phase != block_phase:
-                        continue
-                    # Per-source expect_err: accepts bool (all sources) or
-                    # dict{label:bool} (per-source).  Resolve for this source.
-                    src_label = src_info.get("label", "")
-                    expect_err = _per_src(expect_err_spec, src_label)
-                    expect_err_contains = _per_src(
-                        raw_args.get("expect_err_contains", []), src_label)
-                    if isinstance(expect_err_contains, str):
-                        expect_err_contains = [expect_err_contains]
-                    sql = self._make_real_sql(sql_tpl, src_info, src_type)
-                    for attempt in range(2):
-                        t0 = _time.monotonic()
-                        try:
-                            self._exec_case_sqls(case_def, "pre_sql", src_info, src_type, expanded_id)
-                            lines = self._exec_explain(sql, mode)
-                            elapsed = _time.monotonic() - t0
-                            if expect_err:
-                                # EXPLAIN succeeded but we expected it to fail —
-                                # this is an unexpected success (regression).
-                                msg = (f"[{_MODE_LABELS[mode]}] EXPLAIN unexpectedly "
-                                       f"succeeded (expect_err=True): {sql}")
-                                tdLog.info(
-                                    f"[{expanded_id:<24s}] FAIL  expect_err: {msg}  "
-                                    f"[{elapsed:.2f}s]")
-                                failed.append((expanded_id, "expect_err", msg))
-                                # Still serialize the result for the baseline record.
-                                blocks.append(self._serialize_explain(
-                                    expanded_id, sql, lines))
-                            else:
-                                errs = self._validate(expanded_id, mode, lines,
-                                                      case_def, src_info)
-                                blocks.append(self._serialize_explain(
-                                    expanded_id, sql, lines))
-                                if errs:
-                                    for eid, chk, msg in errs:
-                                        tdLog.info(
-                                            f"[{eid:<24s}] FAIL  {chk}: {msg}  "
-                                            f"[{elapsed:.2f}s]")
-                                        failed.append((eid, chk, msg))
-                                else:
+                    with self._using_influx(cfg):
+                        if _id_filters and not any(part in expanded_id for part in _id_filters):
+                            continue
+                        is_ss_block = "sqlserver" in expanded_id.lower()
+                        # An Oracle block is any block of the Oracle pass: the
+                        # single-source Oracle leg and the three cross pairs whose
+                        # label has no "sqlserver".  The sqlserver_oracle pair keeps
+                        # running with the SQL Server blocks and their skip.
+                        is_oracle_block = ("oracle" in expanded_id.lower() and
+                                           not is_ss_block)
+                        if is_ss_block and _SS_LOCAL_CHAR_RE.search(sql_tpl.lower()):
+                            tdLog.info(
+                                f"[{expanded_id:<24s}] SKIP  SQL Server character "
+                                f"semantics covered by test_fq_20_sqlserver_semantics")
+                            continue
+                        block_phase = 2 if is_oracle_block else (1 if is_ss_block else 0)
+                        if phase != block_phase:
+                            continue
+                        # Per-source expect_err: accepts bool (all sources) or
+                        # dict{label:bool} (per-source).  Resolve for this source.
+                        src_label = src_info.get("label", "")
+                        if self._uses_influx18(src_info):
+                            influx18_ids.add(expanded_id)
+                        expect_err = _per_src(expect_err_spec, src_label)
+                        expect_err_contains = _per_src(
+                            raw_args.get("expect_err_contains", []), src_label)
+                        if isinstance(expect_err_contains, str):
+                            expect_err_contains = [expect_err_contains]
+                        sql = self._make_real_sql(sql_tpl, src_info, src_type)
+                        for attempt in range(2):
+                            t0 = _time.monotonic()
+                            try:
+                                self._exec_case_sqls(case_def, "pre_sql", src_info, src_type, expanded_id)
+                                lines = self._exec_explain(sql, mode)
+                                elapsed = _time.monotonic() - t0
+                                if expect_err:
+                                    # EXPLAIN succeeded but we expected it to fail —
+                                    # this is an unexpected success (regression).
+                                    msg = (f"[{_MODE_LABELS[mode]}] EXPLAIN unexpectedly "
+                                           f"succeeded (expect_err=True): {sql}")
                                     tdLog.info(
-                                        f"[{expanded_id:<24s}] PASS  "
-                                        f"{sql_tpl[:55]}  [{elapsed:.2f}s]")
-                            break
-                        except Exception as e:
-                            elapsed = _time.monotonic() - t0
-                            if self._maybe_recover_case(expanded_id, sql, e, attempt):
-                                continue
-                            if expect_err:
-                                err_text = str(e)
-                                missing = [
-                                    kw for kw in expect_err_contains
-                                    if kw not in err_text
-                                ]
-                                if missing:
-                                    msg = (
-                                        f"[{_MODE_LABELS[mode]}] Expected error "
-                                        f"missing {missing}: {err_text}"
-                                    )
-                                    tdLog.info(
-                                        f"[{expanded_id:<24s}] FAIL  "
-                                        f"expect_err_contains: {msg}  "
+                                        f"[{expanded_id:<24s}] FAIL  expect_err: {msg}  "
                                         f"[{elapsed:.2f}s]")
-                                    failed.append(
-                                        (expanded_id, "expect_err_contains", msg))
-                                # Expected failure — record as POS block (error text
-                                # captured in baseline for change detection).
-                                tdLog.info(
-                                    f"[{expanded_id:<24s}] PASS(expected-err)  "
-                                    f"{sql_tpl[:55]}  [{elapsed:.2f}s]")
-                                blocks.append(self._serialize_err(
-                                    expanded_id, sql, str(e)))
-                            else:
-                                # Unexpected failure — this is a real test failure.
-                                tdLog.info(
-                                    f"[{expanded_id:<24s}] FAIL(exec-err)  "
-                                    f"{sql_tpl[:55]}  [{elapsed:.2f}s]  {e}")
-                                blocks.append(self._serialize_err(
-                                    expanded_id, sql, str(e)))
-                                failed.append((expanded_id, "exec_err", str(e)))
-                            break
-                    try:
-                        self._exec_case_sqls(case_def, "post_sql", src_info, src_type, expanded_id)
-                    except Exception as e:
-                        tdLog.info(
-                            f"[{expanded_id:<24s}] FAIL(post-sql)  "
-                            f"{sql_tpl[:55]}  {e}")
-                        failed.append((expanded_id, "post_sql", str(e)))
-                    # Determinism guard: every case that issued a `use
-                    # <source>` runs in its own session, so its resolution
-                    # context cannot influence the render of a later case.
-                    # (The extra FROM_UNIXTIME wrap these baselines once showed
-                    # came from the baseline normaliser, not from the planner;
-                    # the reset keeps the raw plan text independent of case
-                    # order regardless.)
-                    if self._iter_case_sqls(case_def, "pre_sql"):
-                        self._reset_td_session()
+                                    failed.append((expanded_id, "expect_err", msg))
+                                    # Still serialize the result for the baseline record.
+                                    blocks.append(self._serialize_explain(
+                                        expanded_id, sql, lines))
+                                else:
+                                    errs = self._validate(expanded_id, mode, lines,
+                                                          case_def, src_info)
+                                    blocks.append(self._serialize_explain(
+                                        expanded_id, sql, lines))
+                                    if errs:
+                                        for eid, chk, msg in errs:
+                                            tdLog.info(
+                                                f"[{eid:<24s}] FAIL  {chk}: {msg}  "
+                                                f"[{elapsed:.2f}s]")
+                                            failed.append((eid, chk, msg))
+                                    else:
+                                        tdLog.info(
+                                            f"[{expanded_id:<24s}] PASS  "
+                                            f"{sql_tpl[:55]}  [{elapsed:.2f}s]")
+                                break
+                            except Exception as e:
+                                elapsed = _time.monotonic() - t0
+                                if self._maybe_recover_case(expanded_id, sql, e, attempt):
+                                    continue
+                                if expect_err:
+                                    err_text = str(e)
+                                    missing = [
+                                        kw for kw in expect_err_contains
+                                        if kw not in err_text
+                                    ]
+                                    if missing:
+                                        msg = (
+                                            f"[{_MODE_LABELS[mode]}] Expected error "
+                                            f"missing {missing}: {err_text}"
+                                        )
+                                        tdLog.info(
+                                            f"[{expanded_id:<24s}] FAIL  "
+                                            f"expect_err_contains: {msg}  "
+                                            f"[{elapsed:.2f}s]")
+                                        failed.append(
+                                            (expanded_id, "expect_err_contains", msg))
+                                    # Expected failure — record as POS block (error text
+                                    # captured in baseline for change detection).
+                                    tdLog.info(
+                                        f"[{expanded_id:<24s}] PASS(expected-err)  "
+                                        f"{sql_tpl[:55]}  [{elapsed:.2f}s]")
+                                    blocks.append(self._serialize_err(
+                                        expanded_id, sql, str(e)))
+                                else:
+                                    # Unexpected failure — this is a real test failure.
+                                    tdLog.info(
+                                        f"[{expanded_id:<24s}] FAIL(exec-err)  "
+                                        f"{sql_tpl[:55]}  [{elapsed:.2f}s]  {e}")
+                                    blocks.append(self._serialize_err(
+                                        expanded_id, sql, str(e)))
+                                    failed.append((expanded_id, "exec_err", str(e)))
+                                break
+                        try:
+                            self._exec_case_sqls(case_def, "post_sql", src_info, src_type, expanded_id)
+                        except Exception as e:
+                            tdLog.info(
+                                f"[{expanded_id:<24s}] FAIL(post-sql)  "
+                                f"{sql_tpl[:55]}  {e}")
+                            failed.append((expanded_id, "post_sql", str(e)))
+                        # Determinism guard: every case that issued a `use
+                        # <source>` runs in its own session, so its resolution
+                        # context cannot influence the render of a later case.
+                        # (The extra FROM_UNIXTIME wrap these baselines once showed
+                        # came from the baseline normaliser, not from the planner;
+                        # the reset keeps the raw plan text independent of case
+                        # order regardless.)
+                        if self._iter_case_sqls(case_def, "pre_sql"):
+                            self._reset_td_session()
 
-        output = ExtSrcEnv.baseline_environment("\n".join(blocks) + "\n")
+        # Native 1.8 blocks have been checked against the InfluxQL contract.
+        # Compare every unaffected source against its existing 3.x-era golden.
+        baseline_blocks = [block for block in blocks
+                           if block.split("\n", 1)[0][4:].split(" ")[0] not in influx18_ids]
+        output = ExtSrcEnv.baseline_environment("\n".join(baseline_blocks) + "\n")
         # When either filter is active, extract only the matching blocks from
         # the baseline so we compare like-for-like (filtered subset vs subset).
-        if _case_filter or _id_filter:
+        if not baseline_blocks:
+            pass
+        elif _case_filter or _id_filter or influx18_ids:
             # Collect the expanded_ids that were actually executed.
             executed_ids = set()
-            for b in blocks:
+            for b in baseline_blocks:
                 first_line = b.split("\n")[0]
                 if first_line.startswith("### "):
                     # Every serialized block is "### <expanded_id> <kind>"; the
@@ -17450,7 +17524,7 @@ class TestFq13Explain(FederatedQueryVersionedMixin):
         scan node prints as ``<src>.<schema>.<table>``.
         """
         cfg = self._oracle_cfg()
-        for table in ("SENSOR", "REGION_INFO", "SENSOR_CHAR"):
+        for table in ("sensor", "region_info", "sensor_char"):
             ExtSrcEnv.oracle_drop_table_cfg(cfg, table)
         ExtSrcEnv.oracle_exec_cfg(cfg, _oracle_setup_sqls())
         self._cleanup_src(self._O_SRC)
@@ -17459,7 +17533,7 @@ class TestFq13Explain(FederatedQueryVersionedMixin):
 
     def _drop_oracle_explain_fixture(self):
         cfg = self._oracle_cfg()
-        for table in ("SENSOR", "REGION_INFO", "SENSOR_CHAR"):
+        for table in ("sensor", "region_info", "sensor_char"):
             try:
                 ExtSrcEnv.oracle_drop_table_cfg(cfg, table)
             except Exception:

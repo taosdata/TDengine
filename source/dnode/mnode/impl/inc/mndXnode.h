@@ -147,6 +147,20 @@ void    mndXnodeSixStarMergeOutputFree(SXnodeSixStarMergeOutput *pOutput);
 
 #define TSDB_XNODE_VER_NUMBER   1
 
+typedef enum {
+  XNODE_TASK_TYPE_NORMAL = 0,
+  XNODE_TASK_TYPE_REPLICA = 1,
+} EXnodeTaskType;
+
+int32_t mndXnodeCheckReservedReplicaParam(const char *dsn, int32_t len, const char **reservedParam);
+int32_t mndXnodeCheckTaskType(SMCreateXnodeTaskReq *pCreate, int8_t *type, const char **reservedParam);
+int32_t mndXnodeValidateTaskUpdate(const SXnodeTaskObj *pOld, const SMUpdateXnodeTaskReq *pUpdate,
+                                   bool controllerRequest);
+int32_t mndXnodeBuildHttpTaskBody(const SXnodeTaskObj *pObj, char **ppContStr);
+bool    mndXnodeTaskControllerRequest(SMnode *pMnode, const SRpcMsg *pReq);
+int32_t mndXnodePersistDeletionStatus(SMnode *pMnode, const SXnodeTaskObj *pObj, const char *status,
+                                       const char *reason);
+
 /* Desired state of an XNode task/job persisted in mnode and exposed via
  * SHOW ... desired_state. Only STOPPED and RUNNING are valid storage values;
  * UNKNOWN is only used as an in-memory fallback when decoding rows written by

@@ -369,7 +369,8 @@ Common checkpoints:
 6. **Skip TAG when subtable exists**: If the subtable already exists, omit TAG columns with SQL in the following form to improve performance:
 
    ```sql
-   INSERT INTO meters (tbname, ts, current, voltage, phase) VALUES(?, ?, ?, ?, ?)
+   INSERT INTO meters (tbname, ts, current, voltage, phase)
+   VALUES (?, ?, ?, ?, ?)
    ```
 
 ## 4. Data Query {#data-query}

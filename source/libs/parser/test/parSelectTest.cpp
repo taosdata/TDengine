@@ -19,6 +19,7 @@
 #include "parAst.h"
 #include "parTestUtil.h"
 #include "mockCatalogService.h"
+#include "stub.h"
 #include "tglobal.h"
 
 using namespace std;
@@ -46,6 +47,50 @@ class QueryPolicyGuard {
 
  private:
   int32_t previous_;
+};
+
+enum class ColsAppendFailure {
+  None,
+  BoundFunction,
+  ExpandedColumn,
+};
+
+ColsAppendFailure g_colsAppendFailure = ColsAppendFailure::None;
+
+int32_t appendColsForTest(SNodeList** pList, SNode* pNode) {
+  bool failBoundFunction = NULL != pNode && ColsAppendFailure::BoundFunction == g_colsAppendFailure &&
+                           QUERY_NODE_FUNCTION == nodeType(pNode) && ((SExprNode*)pNode)->bindExprID > 0;
+  bool failExpandedColumn = NULL != pNode && ColsAppendFailure::ExpandedColumn == g_colsAppendFailure &&
+                            QUERY_NODE_COLUMN == nodeType(pNode) && ((SExprNode*)pNode)->relatedTo > 0;
+  if (failBoundFunction || failExpandedColumn) {
+    g_colsAppendFailure = ColsAppendFailure::None;
+    nodesDestroyNode(pNode);  // Strict append consumes its node even on failure.
+    return TSDB_CODE_OUT_OF_MEMORY;
+  }
+  if (NULL == *pList) {
+    int32_t code = nodesMakeList(pList);
+    if (TSDB_CODE_SUCCESS != code) {
+      nodesDestroyNode(pNode);
+      return code;
+    }
+  }
+  return nodesListStrictAppend(*pList, pNode);
+}
+
+class ColsAppendFailureGuard {
+ public:
+  explicit ColsAppendFailureGuard(ColsAppendFailure failure) {
+    g_colsAppendFailure = failure;
+    stub_.set(nodesListMakeStrictAppend, appendColsForTest);
+  }
+
+  ~ColsAppendFailureGuard() {
+    stub_.reset(nodesListMakeStrictAppend);
+    g_colsAppendFailure = ColsAppendFailure::None;
+  }
+
+ private:
+  Stub stub_;
 };
 
 struct OuterRefSummary {
@@ -94,6 +139,32 @@ void registerExternalTimelineTable(const std::string& sourceName) {
 }
 
 }  // namespace
+
+TEST_F(ParserSelectTest, colsBoundAppendFailureReleasesNode) {
+#ifdef WINDOWS
+  GTEST_SKIP() << "cppstub patching of nodesListMakeStrictAppend is unreliable in Windows release builds";
+#endif
+  useDb("root", "test");
+  {
+    ColsAppendFailureGuard guard(ColsAppendFailure::BoundFunction);
+    runClonedAst("SELECT cols(first(c1), c2, c3) FROM t1", TSDB_CODE_OUT_OF_MEMORY);
+    EXPECT_EQ(ColsAppendFailure::None, g_colsAppendFailure);
+  }
+  runClonedAst("SELECT cols(first(c1), c2, c3) FROM t1");
+}
+
+TEST_F(ParserSelectTest, colsExpandedColumnAppendFailureRollsBackSelectFunction) {
+#ifdef WINDOWS
+  GTEST_SKIP() << "cppstub patching of nodesListMakeStrictAppend is unreliable in Windows release builds";
+#endif
+  useDb("root", "test");
+  {
+    ColsAppendFailureGuard guard(ColsAppendFailure::ExpandedColumn);
+    runClonedAst("SELECT cols(first(c1), c2, c3) FROM t1", TSDB_CODE_OUT_OF_MEMORY);
+    EXPECT_EQ(ColsAppendFailure::None, g_colsAppendFailure);
+  }
+  runClonedAst("SELECT cols(first(c1), c2, c3) FROM t1");
+}
 
 TEST_F(ParserSelectDdlTest, correlatedScalarBindsOuterColumn) {
   useDb("root", "test");
@@ -164,6 +235,35 @@ TEST_F(ParserSelectDdlTest, constantTimeRangeDurationReference) {
     EXPECT_EQ(100000, duration->datum.i);
   });
   run("SELECT _qduration FROM st1s1 h WHERE h.ts >= 1000 AND h.ts < 101000 LIMIT 1");
+}
+
+TEST_F(ParserSelectDdlTest, timezoneFuncRefreshesStaleDisplay) {
+  struct TimezoneStringGuard {
+    char saved[TD_TIMEZONE_LEN] = {0};
+    TimezoneStringGuard() { tstrncpy(saved, tsTimezoneStr, sizeof(saved)); }
+    ~TimezoneStringGuard() { tstrncpy(tsTimezoneStr, saved, sizeof(saved)); }
+  } guard;
+  // Only the rule name of the display is reused; the abbreviation and offset
+  // are a snapshot, so plant one no zone produces and expect it re-rendered.
+  const char* stale = "America/New_York (XXX, +1234)";
+  tstrncpy(tsTimezoneStr, stale, TD_TIMEZONE_LEN);
+
+  char expected[TD_TIMEZONE_LEN] = {0};
+  ASSERT_EQ(TSDB_CODE_SUCCESS, taosRefreshTimezoneStr(stale, nullptr, expected));
+  ASSERT_STRNE(stale, expected);
+
+  useDb("root", "test");
+  setCheckDdlFunc([&](const SQuery* pQuery, ParserStage stage) {
+    if (PARSER_STAGE_TRANSLATE != stage) {
+      return;
+    }
+    const SSelectStmt* select = reinterpret_cast<const SSelectStmt*>(pQuery->pRoot);
+    const SValueNode*  value = reinterpret_cast<const SValueNode*>(nodesListGetNode(select->pProjectionList, 0));
+    ASSERT_NE(nullptr, value);
+    ASSERT_EQ(QUERY_NODE_VALUE, nodeType((const SNode*)value));
+    EXPECT_STREQ(expected, value->literal);
+  });
+  run("SELECT timezone()");
 }
 
 TEST_F(ParserSelectDdlTest, emptyTimeRangeDurationReference) {
@@ -412,6 +512,159 @@ TEST_F(ParserSelectTest, correlatedExternalSourceIsRejected) {
 #endif
 }
 
+// TDengine removes the outer backticks while building the AST, so the quoted
+// reference below carries two literal double quotes.  MySQL permits both `v`
+// and `"v"` as distinct column names; binding must preserve those bytes rather
+// than stripping them as representation quotes.
+TEST_F(ParserSelectDdlTest, mysqlColumnNameWithLiteralQuotesBindsExactColumn) {
+#ifndef TD_ENTERPRISE
+  GTEST_SKIP() << "Federated query parse path is gated by TD_ENTERPRISE";
+#else
+  useDb("root", "test");
+  FederatedFlagGuard guard;
+  std::vector<MockCatalogService::MockExtColDef> columns = {
+      {"ts", TSDB_DATA_TYPE_TIMESTAMP, true, false, false, "timestamp"},
+      {"v", TSDB_DATA_TYPE_BIGINT, false, true, false, "bigint"},
+      {"\"v\"", TSDB_DATA_TYPE_BIGINT, false, true, false, "bigint"},
+  };
+  g_mockCatalogService->createExtSource("ext_mysql_quoted", EXT_SOURCE_MYSQL, "127.0.0.1", 3306,
+                                        "fake_user", "fake_db");
+  g_mockCatalogService->createExtTable("ext_mysql_quoted", "fake_db", "", "metrics", columns,
+                                       TSDB_TIME_PRECISION_MILLI);
+
+  setCheckDdlFunc([](const SQuery* pQuery, ParserStage stage) {
+    if (PARSER_STAGE_TRANSLATE != stage) return;
+    const SSelectStmt* select = reinterpret_cast<const SSelectStmt*>(pQuery->pRoot);
+    ASSERT_EQ(QUERY_NODE_SELECT_STMT, nodeType((const SNode*)select));
+    ASSERT_EQ(1, LIST_LENGTH(select->pProjectionList));
+    const SNode* expr = nodesListGetNode(select->pProjectionList, 0);
+    ASSERT_EQ(QUERY_NODE_COLUMN, nodeType(expr));
+    const SColumnNode* col = reinterpret_cast<const SColumnNode*>(expr);
+    EXPECT_STREQ("\"v\"", col->colName);
+    EXPECT_EQ(4, col->colId);
+  });
+  runAsyncOnly("SELECT `\"v\"` FROM ext_mysql_quoted.fake_db.metrics");
+#endif
+}
+
+// Column binding for a federated query follows TDengine's identifier grammar:
+// the harness (like the client) lower-cases an unquoted reference, and Oracle
+// metadata is then compared exactly - extColumnNameEqual() applies strcmp for
+// Oracle, exactly as it does for PostgreSQL and InfluxDB.  Catalog order does
+// not matter: only the byte-identical spelling binds, so an upper-case column is
+// a different object that a backticked reference would address.
+//
+// The harness lower-cases the whole statement outside double-quoted spans
+// (setParseContext()), so a mixed-case backticked reference cannot be expressed
+// here; test_fq_18 oid-14 covers that spelling end to end.
+TEST_F(ParserSelectDdlTest, oracleQueryBindingKeepsExactRules) {
+#ifndef TD_ENTERPRISE
+  GTEST_SKIP() << "Federated query parse path is gated by TD_ENTERPRISE";
+#else
+  useDb("root", "test");
+  FederatedFlagGuard guard;
+  std::vector<MockCatalogService::MockExtColDef> columns = {
+      {"ts", TSDB_DATA_TYPE_TIMESTAMP, true, false, false, "TIMESTAMP(6)"},
+      {"val", TSDB_DATA_TYPE_VARCHAR, false, true, false, "VARCHAR2(32)"},
+      {"VAL", TSDB_DATA_TYPE_BIGINT, false, true, false, "NUMBER(10,0)"},
+  };
+  g_mockCatalogService->createExtSource("ext_oracle_case", EXT_SOURCE_ORACLE, "127.0.0.1", 1521,
+                                        "fake_user", "ORCL", "TAOSDATA");
+  g_mockCatalogService->createExtTable("ext_oracle_case", "", "", "metrics_case", columns,
+                                       TSDB_TIME_PRECISION_MICRO);
+
+  int8_t expectedType = TSDB_DATA_TYPE_VARCHAR;
+  setCheckDdlFunc([&expectedType](const SQuery* pQuery, ParserStage stage) {
+    if (PARSER_STAGE_TRANSLATE != stage) return;
+    const SSelectStmt* select = reinterpret_cast<const SSelectStmt*>(pQuery->pRoot);
+    ASSERT_EQ(QUERY_NODE_SELECT_STMT, nodeType((const SNode*)select));
+    ASSERT_EQ(1, LIST_LENGTH(select->pProjectionList));
+    const SNode* expr = nodesListGetNode(select->pProjectionList, 0);
+    ASSERT_EQ(QUERY_NODE_COLUMN, nodeType(expr));
+    const SColumnNode* col = reinterpret_cast<const SColumnNode*>(expr);
+    EXPECT_EQ(expectedType, col->node.resType.type);
+  });
+  // The lower-case column is listed first, so it wins the exact comparison.
+  runAsyncOnly("SELECT val FROM ext_oracle_case.metrics_case");
+  // A reference that keeps its Oracle quotes is not resolved, as on main.
+  runAsyncOnly("SELECT `\"val\"` FROM ext_oracle_case.metrics_case",
+               TSDB_CODE_PAR_INVALID_COLUMN);
+
+  // Catalog order does not matter: the exactly-named lower-case column binds
+  // even when the upper-case VAL is listed first.
+  std::vector<MockCatalogService::MockExtColDef> upperFirst = {
+      {"ts", TSDB_DATA_TYPE_TIMESTAMP, true, false, false, "TIMESTAMP(6)"},
+      {"VAL", TSDB_DATA_TYPE_BIGINT, false, true, false, "NUMBER(10,0)"},
+      {"val", TSDB_DATA_TYPE_VARCHAR, false, true, false, "VARCHAR2(32)"},
+  };
+  g_mockCatalogService->createExtTable("ext_oracle_case", "", "", "metrics_upper_first", upperFirst,
+                                       TSDB_TIME_PRECISION_MICRO);
+  expectedType = TSDB_DATA_TYPE_VARCHAR;
+  runAsyncOnly("SELECT val FROM ext_oracle_case.metrics_upper_first");
+
+  // An upper-case remote column needs a backticked reference; the plain spelling
+  // is lower-cased and resolves nothing.
+  std::vector<MockCatalogService::MockExtColDef> upperOnly = {
+      {"ts", TSDB_DATA_TYPE_TIMESTAMP, true, false, false, "TIMESTAMP(6)"},
+      {"UPPER", TSDB_DATA_TYPE_BIGINT, false, true, false, "NUMBER(10,0)"},
+  };
+  g_mockCatalogService->createExtTable("ext_oracle_case", "", "", "metrics_upper", upperOnly,
+                                       TSDB_TIME_PRECISION_MICRO);
+  runAsyncOnly("SELECT upper FROM ext_oracle_case.metrics_upper",
+               TSDB_CODE_PAR_INVALID_COLUMN);
+#endif
+}
+
+// Vtable column references resolve exactly like a query column: TDengine
+// lower-cases the unquoted reference and Oracle metadata is compared exactly,
+// with no folding and no interpretation of quote characters.  A reference whose
+// literal name keeps quotes therefore resolves nothing, while the plain spelling
+// binds the exactly-named lower-case column.
+TEST_F(ParserSelectDdlTest, oracleVtableBindingKeepsExactRules) {
+#ifndef TD_ENTERPRISE
+  GTEST_SKIP() << "Federated query parse path is gated by TD_ENTERPRISE";
+#else
+  login("root");
+  g_mockCatalogService->createDatabase("vcase", false, 0, TSDB_TIME_PRECISION_MICRO);
+  useDb("root", "vcase");
+  FederatedFlagGuard guard;
+  std::vector<MockCatalogService::MockExtColDef> columns = {
+      {"ts", TSDB_DATA_TYPE_TIMESTAMP, true, false, false, "TIMESTAMP(6)"},
+      {"VAL", TSDB_DATA_TYPE_TINYINT, false, true, false, "NUMBER(1,0)"},
+      {"val", TSDB_DATA_TYPE_BIGINT, false, true, false, "NUMBER(18,0)"},
+  };
+  g_mockCatalogService->createExtSource("ext_oracle_case", EXT_SOURCE_ORACLE, "127.0.0.1", 1521,
+                                        "fake_user", "ORCL", "TAOSDATA");
+  g_mockCatalogService->createExtTable("ext_oracle_case", "", "", "metrics_vcase", columns,
+                                       TSDB_TIME_PRECISION_MICRO);
+
+  // A reference that keeps its Oracle quotes is not resolved.
+  runAsyncOnly("create vtable v_case_quoted (ts timestamp, value bigint from "
+               "ext_oracle_case.metrics_vcase.`\"val\"`)",
+               TSDB_CODE_EXT_COLUMN_NOT_EXIST);
+  // The plain spelling wins the exact comparison, so it binds the lower-case
+  // BIGINT column rather than folding onto the TINYINT VAL above it.
+  runAsyncOnly("create vtable v_case_plain (ts timestamp, value bigint from "
+               "ext_oracle_case.metrics_vcase.val)");
+  // Declaring the folded column's type against the exact column is a mismatch.
+  runAsyncOnly("create vtable v_case_plain_wrong_type (ts timestamp, value tinyint from "
+               "ext_oracle_case.metrics_vcase.val)",
+               TSDB_CODE_PAR_INVALID_REF_COLUMN_TYPE);
+
+  // The precision gate covers the source time axis only, as on the main branch:
+  // a TIMESTAMP(9) side column is bound into this microsecond virtual table
+  // without an error.  That gap is inherited from main and tracked separately.
+  std::vector<MockCatalogService::MockExtColDef> sideColumns = {
+      {"ts", TSDB_DATA_TYPE_TIMESTAMP, true, false, false, "TIMESTAMP(6)"},
+      {"event_ts", TSDB_DATA_TYPE_TIMESTAMP, false, true, false, "TIMESTAMP(9)"},
+  };
+  g_mockCatalogService->createExtTable("ext_oracle_case", "", "", "metrics_side", sideColumns,
+                                       TSDB_TIME_PRECISION_NANO);
+  runAsyncOnly("create vtable v_case_side_ts (ts timestamp, event_ts timestamp from "
+               "ext_oracle_case.metrics_side.EVENT_TS)");
+#endif
+}
+
 TEST_F(ParserSelectDdlTest, nonCorrelatedAggregateKeepsRemoteValue) {
   useDb("root", "test");
   setCheckDdlFunc([](const SQuery* pQuery, ParserStage stage) {
@@ -423,6 +676,390 @@ TEST_F(ParserSelectDdlTest, nonCorrelatedAggregateKeepsRemoteValue) {
     EXPECT_FALSE(outer->hasAggFuncs);
   });
   run("SELECT (SELECT SUM(1) FROM st1s1 h) FROM t1 r");
+}
+
+TEST_F(ParserSelectDdlTest, constantChecksRequireExplicitStage) {
+  useDb("root", "test");
+  bool translated = false;
+  bool folded = false;
+  setCheckDdlFunc([&](const SQuery*, ParserStage stage) {
+    if (PARSER_STAGE_TRANSLATE == stage) {
+      translated = true;
+    } else if (PARSER_STAGE_CALC_CONST == stage) {
+      folded = true;
+    }
+  });
+
+  run("CREATE DATABASE constant_check_stage");
+  EXPECT_TRUE(translated);
+  EXPECT_FALSE(folded);
+
+  translated = false;
+  run("SELECT c1 FROM t1");
+  EXPECT_TRUE(translated);
+  EXPECT_FALSE(folded);
+
+  translated = false;
+  run("SELECT c1 FROM t1", TSDB_CODE_SUCCESS, PARSER_STAGE_CALC_CONST);
+  EXPECT_TRUE(translated);
+  EXPECT_TRUE(folded);
+}
+
+TEST_F(ParserSelectDdlTest, emptyScalarSubqueryKeepsTypeAndAlias) {
+  useDb("root", "test");
+  bool checked = false;
+  int8_t expectedType = TSDB_DATA_TYPE_BIGINT;
+  setCheckDdlFunc([&](const SQuery* pQuery, ParserStage stage) {
+    if (PARSER_STAGE_CALC_CONST != stage) return;
+    checked = true;
+    const auto* pSelect = (const SSelectStmt*)pQuery->pRoot;
+    ASSERT_EQ(1, LIST_LENGTH(pSelect->pProjectionList));
+    EXPECT_EQ(0, LIST_LENGTH(pSelect->pSubQueries));
+    const SNode* pProjection = nodesListGetNode(pSelect->pProjectionList, 0);
+    ASSERT_EQ(QUERY_NODE_VALUE, nodeType(pProjection));
+    const auto* pValue = (const SValueNode*)pProjection;
+    EXPECT_TRUE(pValue->isNull);
+    EXPECT_TRUE(pValue->translate);
+    EXPECT_EQ(expectedType, pValue->node.resType.type);
+    EXPECT_GT(pValue->node.resType.bytes, 0);
+    EXPECT_STREQ("empty_value", pValue->node.userAlias);
+    EXPECT_FALSE(pSelect->isEmptyResult);
+    EXPECT_EQ(QUERY_EXEC_MODE_SCHEDULE, pQuery->execMode);
+  });
+  run("SELECT (SELECT CAST(c1 AS BIGINT) FROM t1 WHERE 1 = 0) empty_value FROM t1",
+      TSDB_CODE_SUCCESS, PARSER_STAGE_CALC_CONST);
+  ASSERT_TRUE(checked);
+  checked = false;
+  expectedType = TSDB_DATA_TYPE_NCHAR;
+  run("SELECT (SELECT CAST(c1 AS NCHAR(8)) FROM t1 LIMIT 0) empty_value FROM t1",
+      TSDB_CODE_SUCCESS, PARSER_STAGE_CALC_CONST);
+  ASSERT_TRUE(checked);
+}
+
+TEST_F(ParserSelectDdlTest, emptySubqueryPredicatesBecomeBooleanValues) {
+  useDb("root", "test");
+  bool checked = false;
+  const bool expected[] = {false, true, false, true, false, true, false, false, true, true, false, true};
+  setCheckDdlFunc([&](const SQuery* pQuery, ParserStage stage) {
+    if (PARSER_STAGE_CALC_CONST != stage) return;
+    checked = true;
+    const auto* pSelect = (const SSelectStmt*)pQuery->pRoot;
+    ASSERT_EQ(12, LIST_LENGTH(pSelect->pProjectionList));
+    EXPECT_EQ(0, LIST_LENGTH(pSelect->pSubQueries));
+    for (int32_t i = 0; i < 12; ++i) {
+      const SNode* pProjection = nodesListGetNode(pSelect->pProjectionList, i);
+      ASSERT_EQ(QUERY_NODE_VALUE, nodeType(pProjection)) << i;
+      const auto* pValue = (const SValueNode*)pProjection;
+      EXPECT_EQ(TSDB_DATA_TYPE_BOOL, pValue->node.resType.type) << i;
+      EXPECT_FALSE(pValue->isNull) << i;
+      EXPECT_EQ(expected[i], pValue->datum.b) << i;
+    }
+  });
+  run("SELECT c1 IN (SELECT c1 FROM t1 WHERE 1 = 0), "
+      "c1 NOT IN (SELECT c1 FROM t1 WHERE 1 = 0), "
+      "EXISTS (SELECT c1 FROM t1 WHERE 1 = 0), "
+      "NOT EXISTS (SELECT c1 FROM t1 WHERE 1 = 0), "
+      "NULL IN (SELECT c1 FROM t1 WHERE 1 = 0), "
+      "NULL NOT IN (SELECT c1 FROM t1 WHERE 1 = 0), "
+      "c1 = ANY (SELECT c1 FROM t1 WHERE 1 = 0), "
+      "c1 != ANY (SELECT c1 FROM t1 WHERE 1 = 0), "
+      "c1 = ALL (SELECT c1 FROM t1 WHERE 1 = 0), "
+      "c1 != ALL (SELECT c1 FROM t1 WHERE 1 = 0), "
+      "NULL < SOME (SELECT c1 FROM t1 WHERE 1 = 0), "
+      "NULL > ALL (SELECT c1 FROM t1 WHERE 1 = 0) FROM t1",
+      TSDB_CODE_SUCCESS, PARSER_STAGE_CALC_CONST);
+  ASSERT_TRUE(checked);
+}
+
+TEST_F(ParserSelectDdlTest, emptyCountInputKeepsAggregateOutput) {
+  useDb("root", "test");
+  bool checked = false;
+  bool expectedEmpty = false;
+  setCheckDdlFunc([&](const SQuery* pQuery, ParserStage stage) {
+    if (PARSER_STAGE_CALC_CONST != stage) return;
+    checked = true;
+    const auto* pSelect = (const SSelectStmt*)pQuery->pRoot;
+    EXPECT_EQ(expectedEmpty ? 0 : 1, LIST_LENGTH(pSelect->pSubQueries));
+    const SNode* pProjection = nodesListGetNode(pSelect->pProjectionList, 0);
+    if (expectedEmpty) {
+      ASSERT_EQ(QUERY_NODE_VALUE, nodeType(pProjection));
+      EXPECT_TRUE(((const SValueNode*)pProjection)->isNull);
+    } else {
+      ASSERT_EQ(QUERY_NODE_REMOTE_VALUE, nodeType(pProjection));
+      EXPECT_EQ(0, ((const SRemoteValueNode*)pProjection)->subQIdx);
+    }
+    EXPECT_FALSE(pSelect->isEmptyResult);
+  });
+  for (const std::string sql : {
+           "SELECT (SELECT COUNT(*) FROM t1 WHERE 1 = 0) FROM t1",
+           "SELECT (SELECT c FROM (SELECT COUNT(*) c FROM t1 WHERE 1 = 0)) FROM t1"}) {
+    checked = false;
+    run(sql, TSDB_CODE_SUCCESS, PARSER_STAGE_CALC_CONST);
+    ASSERT_TRUE(checked);
+  }
+  expectedEmpty = true;
+  for (const std::string sql : {
+           "SELECT (SELECT COUNT(*) FROM t1 HAVING 1 = 0) FROM t1",
+           "SELECT (SELECT COUNT(*) FROM t1 LIMIT 0) FROM t1"}) {
+    checked = false;
+    run(sql, TSDB_CODE_SUCCESS, PARSER_STAGE_CALC_CONST);
+    ASSERT_TRUE(checked);
+  }
+}
+
+TEST_F(ParserSelectDdlTest, emptySubqueryConditionsPropagate) {
+  useDb("root", "test");
+  bool checked = false;
+  bool expectedEmpty = true;
+  setCheckDdlFunc([&](const SQuery* pQuery, ParserStage stage) {
+    if (PARSER_STAGE_CALC_CONST != stage) return;
+    checked = true;
+    const auto* pSelect = (const SSelectStmt*)pQuery->pRoot;
+    EXPECT_EQ(expectedEmpty, pSelect->isEmptyResult);
+    EXPECT_EQ(expectedEmpty ? QUERY_EXEC_MODE_EMPTY_RESULT : QUERY_EXEC_MODE_SCHEDULE, pQuery->execMode);
+    EXPECT_EQ(0, LIST_LENGTH(pSelect->pSubQueries));
+    if (!expectedEmpty) EXPECT_EQ(nullptr, pSelect->pWhere);
+  });
+  for (const std::string sql : {
+           "SELECT c1 FROM t1 WHERE EXISTS (SELECT c1 FROM t1 WHERE 1 = 0)",
+           "SELECT COUNT(*) FROM t1 HAVING EXISTS (SELECT c1 FROM t1 WHERE 1 = 0)",
+           "SELECT c1 FROM t1 WHERE c1 > (SELECT c1 FROM t1 WHERE 1 = 0)"}) {
+    checked = false;
+    run(sql, TSDB_CODE_SUCCESS, PARSER_STAGE_CALC_CONST);
+    ASSERT_TRUE(checked);
+  }
+  checked = false;
+  expectedEmpty = false;
+  run("SELECT c1 FROM t1 WHERE NOT EXISTS (SELECT c1 FROM t1 WHERE 1 = 0)",
+      TSDB_CODE_SUCCESS, PARSER_STAGE_CALC_CONST);
+  ASSERT_TRUE(checked);
+}
+
+TEST_F(ParserSelectDdlTest, emptyAndLiveSubqueriesRemapRemoteIndex) {
+  useDb("root", "test");
+  bool checked = false;
+  setCheckDdlFunc([&](const SQuery* pQuery, ParserStage stage) {
+    if (PARSER_STAGE_CALC_CONST != stage) return;
+    checked = true;
+    const auto* pSelect = (const SSelectStmt*)pQuery->pRoot;
+    ASSERT_EQ(1, LIST_LENGTH(pSelect->pSubQueries));
+    ASSERT_EQ(2, LIST_LENGTH(pSelect->pProjectionList));
+    const SNode* pEmpty = nodesListGetNode(pSelect->pProjectionList, 0);
+    ASSERT_EQ(QUERY_NODE_VALUE, nodeType(pEmpty));
+    EXPECT_TRUE(((const SValueNode*)pEmpty)->isNull);
+    const SNode* pLive = nodesListGetNode(pSelect->pProjectionList, 1);
+    ASSERT_EQ(QUERY_NODE_REMOTE_VALUE, nodeType(pLive));
+    EXPECT_EQ(0, ((const SRemoteValueNode*)pLive)->subQIdx);
+    const auto* pInner = (const SSelectStmt*)nodesListGetNode(pSelect->pSubQueries, 0);
+    ASSERT_EQ(QUERY_NODE_SELECT_STMT, nodeType((const SNode*)pInner));
+    EXPECT_FALSE(pInner->isEmptyResult);
+  });
+  run("SELECT (SELECT c1 FROM t1 WHERE 1 = 0), (SELECT MAX(c1) FROM t1) FROM t1",
+      TSDB_CODE_SUCCESS, PARSER_STAGE_CALC_CONST);
+  ASSERT_TRUE(checked);
+}
+
+TEST_F(ParserSelectDdlTest, nestedEmptySubqueryPropagatesToParent) {
+  useDb("root", "test");
+  bool checked = false;
+  setCheckDdlFunc([&](const SQuery* pQuery, ParserStage stage) {
+    if (PARSER_STAGE_CALC_CONST != stage) return;
+    checked = true;
+    const auto* pSelect = (const SSelectStmt*)pQuery->pRoot;
+    EXPECT_EQ(0, LIST_LENGTH(pSelect->pSubQueries));
+    const SNode* pProjection = nodesListGetNode(pSelect->pProjectionList, 0);
+    ASSERT_EQ(QUERY_NODE_VALUE, nodeType(pProjection));
+    EXPECT_TRUE(((const SValueNode*)pProjection)->isNull);
+    EXPECT_FALSE(pSelect->isEmptyResult);
+  });
+  run("SELECT (SELECT c1 FROM t1 WHERE c1 IN "
+      "(SELECT c1 FROM t1 WHERE 1 = 0)) FROM t1",
+      TSDB_CODE_SUCCESS, PARSER_STAGE_CALC_CONST);
+  ASSERT_TRUE(checked);
+}
+
+TEST_F(ParserSelectDdlTest, nestedEmptyDependencyKeepsLiveSubqueries) {
+  useDb("root", "test");
+  bool checked = false;
+  setCheckDdlFunc([&](const SQuery* pQuery, ParserStage stage) {
+    if (PARSER_STAGE_CALC_CONST != stage) return;
+    checked = true;
+    const auto* pSelect = (const SSelectStmt*)pQuery->pRoot;
+    ASSERT_EQ(2, LIST_LENGTH(pSelect->pSubQueries));
+    for (int32_t i = 0; i < 2; ++i) {
+      const SNode* pProjection = nodesListGetNode(pSelect->pProjectionList, i);
+      ASSERT_EQ(QUERY_NODE_REMOTE_VALUE, nodeType(pProjection));
+      EXPECT_EQ(i, ((const SRemoteValueNode*)pProjection)->subQIdx);
+    }
+    const auto* pInner = (const SSelectStmt*)nodesListGetNode(pSelect->pSubQueries, 0);
+    EXPECT_FALSE(pInner->isEmptyResult);
+    int32_t remoteRefs = 0;
+    nodesWalkExpr(pInner->pWhere, [](SNode* pNode, void* pContext) {
+      if (QUERY_NODE_REMOTE_VALUE == nodeType(pNode)) ++*(int32_t*)pContext;
+      return DEAL_RES_CONTINUE;
+    }, &remoteRefs);
+    EXPECT_EQ(0, remoteRefs);
+  });
+  run("SELECT (SELECT c1 FROM t1 WHERE "
+      "c1 > (SELECT c1 FROM t1 WHERE 1 = 0) OR c1 > 0 LIMIT 1), "
+      "(SELECT MAX(c1) FROM t1) FROM t1",
+      TSDB_CODE_SUCCESS, PARSER_STAGE_CALC_CONST);
+  ASSERT_TRUE(checked);
+}
+
+TEST_F(ParserSelectDdlTest, emptySubqueriesRemapCorrelatedTemplate) {
+  useDb("root", "test");
+  bool checked = false;
+  setCheckDdlFunc([&](const SQuery* pQuery, ParserStage stage) {
+    if (PARSER_STAGE_CALC_CONST != stage) return;
+    checked = true;
+    const auto* pSelect = (const SSelectStmt*)pQuery->pRoot;
+    ASSERT_EQ(2, LIST_LENGTH(pSelect->pSubQueries));
+    const SNode* pCall = nodesListGetNode(pSelect->pProjectionList, 1);
+    ASSERT_EQ(QUERY_NODE_CORRELATED_SUBQUERY, nodeType(pCall));
+    const auto* pCorrelated = (const SCorrelatedSubqueryNode*)pCall;
+    EXPECT_EQ(0, pCorrelated->templateId);
+    EXPECT_EQ(1, LIST_LENGTH(pCorrelated->pParamBindings));
+    const SNode* pLive = nodesListGetNode(pSelect->pProjectionList, 2);
+    ASSERT_EQ(QUERY_NODE_REMOTE_VALUE, nodeType(pLive));
+    EXPECT_EQ(1, ((const SRemoteValueNode*)pLive)->subQIdx);
+  });
+  run("SELECT (SELECT c1 FROM t1 WHERE 1 = 0), "
+      "(SELECT h.c1 FROM st1s1 h WHERE h.c1 = r.c1 LIMIT 1), "
+      "(SELECT MAX(c1) FROM t1) FROM t1 r",
+      TSDB_CODE_SUCCESS, PARSER_STAGE_CALC_CONST);
+  ASSERT_TRUE(checked);
+}
+
+TEST_F(ParserSelectDdlTest, emptyUnionBranchKeepsLiveScalarSubquery) {
+  useDb("root", "test");
+  bool checked = false;
+  setCheckDdlFunc([&](const SQuery* pQuery, ParserStage stage) {
+    if (PARSER_STAGE_CALC_CONST != stage) return;
+    checked = true;
+    ASSERT_EQ(QUERY_NODE_SELECT_STMT, nodeType(pQuery->pRoot));
+    const auto* pSelect = (const SSelectStmt*)pQuery->pRoot;
+    ASSERT_EQ(1, LIST_LENGTH(pSelect->pSubQueries));
+    ASSERT_EQ(2, LIST_LENGTH(pSelect->pProjectionList));
+    const SNode* pEmpty = nodesListGetNode(pSelect->pProjectionList, 0);
+    ASSERT_EQ(QUERY_NODE_VALUE, nodeType(pEmpty));
+    EXPECT_TRUE(((const SValueNode*)pEmpty)->isNull);
+    const SNode* pLive = nodesListGetNode(pSelect->pProjectionList, 1);
+    ASSERT_EQ(QUERY_NODE_REMOTE_VALUE, nodeType(pLive));
+    EXPECT_EQ(0, ((const SRemoteValueNode*)pLive)->subQIdx);
+    EXPECT_FALSE(pSelect->isEmptyResult);
+  });
+  for (const std::string sql : {
+           "SELECT (SELECT MIN(c1) FROM t1), c1 FROM t1 WHERE 1 = 0 UNION ALL "
+           "SELECT (SELECT c1 FROM t1 WHERE 1 = 0), (SELECT MAX(c1) FROM t1) FROM t1",
+           "SELECT (SELECT c1 FROM t1 WHERE 1 = 0), (SELECT MAX(c1) FROM t1) FROM t1 "
+           "UNION ALL SELECT c1, (SELECT MIN(c1) FROM t1) FROM t1 WHERE 1 = 0"}) {
+    checked = false;
+    run(sql, TSDB_CODE_SUCCESS, PARSER_STAGE_CALC_CONST);
+    ASSERT_TRUE(checked);
+  }
+}
+
+TEST_F(ParserSelectDdlTest, emptyUnionBranchKeepsInSubqueryType) {
+  useDb("root", "test");
+  bool checked = false;
+  std::string originalSql[2];
+  setCheckDdlFunc([&](const SQuery* pQuery, ParserStage stage) {
+    if (PARSER_STAGE_TRANSLATE == stage) {
+      const auto* pSelect = (const SSelectStmt*)pQuery->pRoot;
+      ASSERT_EQ(2, LIST_LENGTH(pSelect->pSubQueries));
+      for (int32_t i = 0; i < 2; ++i) {
+        const SNode* pSubquery = nodesListGetNode(pSelect->pSubQueries, i);
+        ASSERT_EQ(QUERY_NODE_SET_OPERATOR, nodeType(pSubquery));
+        const auto* pSet = (const SSetOperator*)pSubquery;
+        ASSERT_NE(nullptr, pSet->pOrigSubquerySql);
+        originalSql[i] = pSet->pOrigSubquerySql;
+      }
+      return;
+    }
+    if (PARSER_STAGE_CALC_CONST != stage) return;
+    checked = true;
+    const auto* pSelect = (const SSelectStmt*)pQuery->pRoot;
+    ASSERT_EQ(2, LIST_LENGTH(pSelect->pSubQueries));
+    ASSERT_EQ(2, LIST_LENGTH(pSelect->pProjectionList));
+    for (int32_t i = 0; i < 2; ++i) {
+      const SNode* pProjection = nodesListGetNode(pSelect->pProjectionList, i);
+      ASSERT_EQ(QUERY_NODE_OPERATOR, nodeType(pProjection));
+      const auto* pOp = (const SOperatorNode*)pProjection;
+      EXPECT_EQ(i == 0 ? OP_TYPE_IN : OP_TYPE_NOT_IN, pOp->opType);
+      ASSERT_EQ(QUERY_NODE_REMOTE_VALUE_LIST, nodeType(pOp->pRight));
+      EXPECT_EQ(i, ((const SRemoteValueListNode*)pOp->pRight)->subQIdx);
+      const SNode* pSubquery = nodesListGetNode(pSelect->pSubQueries, i);
+      ASSERT_EQ(QUERY_NODE_SELECT_STMT, nodeType(pSubquery));
+      const auto* pInner = (const SSelectStmt*)pSubquery;
+      EXPECT_EQ(E_SUB_QUERY_COLUMN, pInner->subQType);
+      EXPECT_FALSE(pInner->isEmptyResult);
+      ASSERT_NE(nullptr, pInner->pOrigSubquerySql);
+      EXPECT_EQ(originalSql[i], pInner->pOrigSubquerySql);
+    }
+  });
+  run("SELECT c1 IN (SELECT c1 FROM t1 WHERE 1 = 0 UNION ALL SELECT c1 FROM t1), "
+      "c1 NOT IN (SELECT c1 FROM t1 UNION ALL SELECT c1 FROM t1 WHERE 1 = 0) FROM t1",
+      TSDB_CODE_SUCCESS, PARSER_STAGE_CALC_CONST);
+  ASSERT_TRUE(checked);
+}
+
+TEST_F(ParserSelectDdlTest, emptySubqueriesRemapFlattenedUnionOperands) {
+  useDb("root", "test");
+  bool checked = false;
+  setCheckDdlFunc([&](const SQuery* pQuery, ParserStage stage) {
+    if (PARSER_STAGE_CALC_CONST != stage) return;
+    checked = true;
+    ASSERT_EQ(QUERY_NODE_SET_OPERATOR, nodeType(pQuery->pRoot));
+    const auto* pSet = (const SSetOperator*)pQuery->pRoot;
+    ASSERT_EQ(3, setOperatorChildCount(pSet));
+    ASSERT_EQ(2, LIST_LENGTH(pSet->pSubQueries));
+    for (int32_t i = 0; i < 3; ++i) {
+      const auto* pOperand = (const SSelectStmt*)setOperatorChildAt(pSet, i);
+      const SNode* pProjection = nodesListGetNode(pOperand->pProjectionList, 0);
+      if (0 == i) {
+        ASSERT_EQ(QUERY_NODE_VALUE, nodeType(pProjection));
+        EXPECT_TRUE(((const SValueNode*)pProjection)->isNull);
+      } else {
+        ASSERT_EQ(QUERY_NODE_REMOTE_VALUE, nodeType(pProjection));
+        EXPECT_EQ(i - 1, ((const SRemoteValueNode*)pProjection)->subQIdx);
+      }
+    }
+  });
+  run("SELECT (SELECT c1 FROM t1 WHERE 1 = 0), c1 FROM t1 UNION ALL "
+      "SELECT (SELECT MAX(c1) FROM t1), c1 FROM t1 UNION ALL "
+      "SELECT (SELECT MIN(c1) FROM t1), c1 FROM t1",
+      TSDB_CODE_SUCCESS, PARSER_STAGE_CALC_CONST);
+  ASSERT_TRUE(checked);
+}
+
+TEST_F(ParserSelectDdlTest, emptyExternalWindowSubqueryPropagates) {
+  useDb("root", "test");
+  bool checked = false;
+  bool expectedEmpty = true;
+  setCheckDdlFunc([&](const SQuery* pQuery, ParserStage stage) {
+    if (PARSER_STAGE_CALC_CONST != stage) return;
+    checked = true;
+    const auto* pSelect = (const SSelectStmt*)pQuery->pRoot;
+    EXPECT_EQ(expectedEmpty, pSelect->isEmptyResult);
+    EXPECT_EQ(expectedEmpty ? QUERY_EXEC_MODE_EMPTY_RESULT : QUERY_EXEC_MODE_SCHEDULE, pQuery->execMode);
+    if (!expectedEmpty) {
+      EXPECT_EQ(0, LIST_LENGTH(pSelect->pSubQueries));
+      const SNode* pProjection = nodesListGetNode(pSelect->pProjectionList, 0);
+      ASSERT_EQ(QUERY_NODE_VALUE, nodeType(pProjection));
+      EXPECT_TRUE(((const SValueNode*)pProjection)->isNull);
+    }
+  });
+  run("SELECT SUM(c1) FROM t1 EXTERNAL_WINDOW"
+      "((SELECT ts, ts + 1000 AS endtime FROM t1 WHERE 1 = 0) w)",
+      TSDB_CODE_SUCCESS, PARSER_STAGE_CALC_CONST);
+  ASSERT_TRUE(checked);
+  checked = false;
+  expectedEmpty = false;
+  run("SELECT (SELECT SUM(c1) FROM t1 EXTERNAL_WINDOW"
+      "((SELECT ts, ts + 1000 AS endtime FROM t1 WHERE 1 = 0) w)) FROM t1",
+      TSDB_CODE_SUCCESS, PARSER_STAGE_CALC_CONST);
+  ASSERT_TRUE(checked);
 }
 
 TEST_F(ParserSelectDdlTest, externalColumnFilterValidation) {
@@ -699,6 +1336,10 @@ TEST_F(ParserSelectTest, timelineFunc) {
   run("SELECT LAST(*), FIRST(*) FROM t1 INTERVAL(10s)");
 
   run("SELECT diff(c1) FROM t1");
+
+  run("SELECT diff(c1) FROM t1 INTERVAL(10s)");
+
+  run("SELECT derivative(c1, 1s, 0) FROM t1 INTERVAL(10s)");
 
   // timeline fallback: the subquery projects a TIMESTAMP column (ts), which diff uses as a degraded timeline
   run("select diff(ts) from (select _wstart as ts, count(*) from st1 partition by tbname interval(1d))");
@@ -1038,6 +1679,51 @@ TEST_F(ParserSelectTest, limit) {
   run("(SELECT c1, c2 FROM t1 LIMIT 10)");
 }
 
+TEST_F(ParserSelectTest, limitZeroUsesEmptyResult) {
+  useDb("root", "test");
+
+  run("SELECT c1, c2 FROM t1 LIMIT 0");
+  ASSERT_EQ(QUERY_EXEC_MODE_EMPTY_RESULT, getLastExecMode());
+
+  run("SELECT c1, c2 FROM t1 LIMIT 0 OFFSET 5");
+  ASSERT_EQ(QUERY_EXEC_MODE_EMPTY_RESULT, getLastExecMode());
+
+  run("SELECT c1, c2 FROM t1 LIMIT 5, 0");
+  ASSERT_EQ(QUERY_EXEC_MODE_EMPTY_RESULT, getLastExecMode());
+
+  run("SELECT c1, c2 FROM t1 LIMIT 1");
+  ASSERT_EQ(QUERY_EXEC_MODE_SCHEDULE, getLastExecMode());
+
+  run("SELECT c1 FROM t1 UNION ALL SELECT c1 FROM t1 LIMIT 0");
+  ASSERT_EQ(QUERY_EXEC_MODE_EMPTY_RESULT, getLastExecMode());
+
+  run("SELECT COUNT(*) FROM t1 LIMIT 0");
+  ASSERT_EQ(QUERY_EXEC_MODE_EMPTY_RESULT, getLastExecMode());
+
+  // LIMIT 0 narrows the inner statement's own result.  An aggregate over that
+  // empty input still owes the client its single row of 0, so the outer COUNT
+  // must run; the same applies to a constant-false predicate in the same
+  // position.
+  run("SELECT COUNT(*) FROM (SELECT c1 FROM t1 LIMIT 0)");
+  ASSERT_EQ(QUERY_EXEC_MODE_SCHEDULE, getLastExecMode());
+
+  run("SELECT COUNT(*) FROM (SELECT c1 FROM t1 WHERE 0=1)");
+  ASSERT_EQ(QUERY_EXEC_MODE_SCHEDULE, getLastExecMode());
+
+  // A non-aggregate outer statement has no row to preserve and can inherit
+  // the empty result from its derived table.
+  run("SELECT c1 FROM (SELECT c1 FROM t1 LIMIT 0)");
+  ASSERT_EQ(QUERY_EXEC_MODE_EMPTY_RESULT, getLastExecMode());
+
+  // EXPLAIN must keep planning a LIMIT 0 query, while the existing empty-plan
+  // behavior for a constant-false predicate remains unchanged.
+  run("EXPLAIN SELECT c1, c2 FROM t1 LIMIT 0");
+  ASSERT_EQ(QUERY_EXEC_MODE_SCHEDULE, getLastExecMode());
+
+  run("EXPLAIN SELECT c1, c2 FROM t1 WHERE 0=1");
+  ASSERT_EQ(QUERY_EXEC_MODE_EMPTY_RESULT, getLastExecMode());
+}
+
 TEST_F(ParserSelectTest, slimitWithoutFromMatchesLegacyBehavior) {
   useDb("root", "test");
 
@@ -1140,6 +1826,34 @@ TEST_F(ParserSelectTest, sqlWindowAllowsPercentileAggregate) {
   run("SELECT percentile(c1, 50) OVER (ORDER BY ts ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW) FROM t1");
 }
 
+TEST_F(ParserSelectTest, sqlWindowOrderByAggregate) {
+  useDb("root", "test");
+  run("SELECT c2, sum(c1), rank() OVER (ORDER BY sum(c1) DESC) FROM t1 GROUP BY c2");
+  run("SELECT c2, rank() OVER (ORDER BY sum(c1) DESC) FROM t1 GROUP BY c2");
+  run("SELECT c2, rank() OVER (ORDER BY abs(sum(c1)) + 1 DESC) FROM t1 GROUP BY c2");
+  run("SELECT c2, rank() OVER (ORDER BY avg(c1), count(*), min(c1), max(c1), first(c1), last(c1)) "
+      "FROM t1 GROUP BY c2");
+  run("SELECT rank() OVER (ORDER BY sum(c1)) FROM t1");
+  run("SELECT c2, count(c2) OVER (ORDER BY sum(c1) DESC) FROM t1 GROUP BY c2");
+}
+
+TEST_F(ParserSelectTest, sqlWindowOrderByAggregateRejectsUngroupedColumns) {
+  useDb("root", "test");
+  run("SELECT rank() OVER (ORDER BY sum(c1) + c1) FROM t1 GROUP BY c2", TSDB_CODE_PAR_GROUPBY_LACK_EXPRESSION,
+      PARSER_STAGE_TRANSLATE);
+  run("SELECT count(c2) OVER (ORDER BY sum(c1) + c1) FROM t1 GROUP BY c2", TSDB_CODE_PAR_GROUPBY_LACK_EXPRESSION,
+      PARSER_STAGE_TRANSLATE);
+  run("SELECT rank() OVER (ORDER BY sum(c1) + c1) FROM t1", TSDB_CODE_PAR_NOT_SINGLE_GROUP, PARSER_STAGE_TRANSLATE);
+}
+
+TEST_F(ParserSelectTest, sqlWindowCountGroupedRows) {
+  useDb("root", "test");
+  run("SELECT c2, count(*) OVER (ORDER BY sum(c1)) FROM t1 GROUP BY c2");
+  run("SELECT c2, count(1) OVER (ORDER BY sum(c1)) FROM t1 GROUP BY c2");
+  run("SELECT count(*) OVER (ORDER BY sum(c1)) FROM t1");
+  run("SELECT count(1) OVER (ORDER BY sum(c1)) FROM t1");
+}
+
 TEST_F(ParserSelectTest, sqlWindowNamedValidation) {
   useDb("root", "test");
   run("SELECT avg(c1) OVER missing FROM t1", TSDB_CODE_PAR_WINDOW_NOT_DEFINED, PARSER_STAGE_TRANSLATE);
@@ -1187,6 +1901,61 @@ TEST_F(ParserSelectTest, intervalHints) {
       "WHERE ts >= '2022-04-01 00:00:00' AND ts < '2022-04-01 01:00:00' INTERVAL(10s)");
   run("SELECT /*+ SPLIT_SCAN() */ _WSTART, COUNT(*) FROM st1 "
       "WHERE ts >= '2022-04-01 00:00:00' AND ts < '2022-04-01 01:00:00' PARTITION BY TBNAME INTERVAL(10s)");
+}
+
+TEST_F(ParserSelectTest, noConcurrentLastScanHint) {
+  initKeywordsTableOnce();
+  for (std::string hint : {"/*+ NO_CONCURRENT_LAST_SCAN() */",
+                           "/*+ no_concurrent_last_scan() */",
+                           "/*+ NO_CONCURRENT_LAST_SCAN ( ) */",
+                           "/*+ NO_CONCURRENT_LAST_SCAN() "
+                           "NO_CONCURRENT_LAST_SCAN() */"}) {
+    SCOPED_TRACE(hint);
+    SParseContext query = {};
+    SAstCreateContext context;
+    initAstCreateContext(&query, &context);
+    SNodeList* result = createHint(&context, hint);
+    ASSERT_NE(result, nullptr);
+    ASSERT_EQ(LIST_LENGTH(result), 1);
+    EXPECT_EQ(((const SHintNode*)nodesListGetNode(result, 0))->option,
+              HINT_NO_CONCURRENT_LAST_SCAN);
+    EXPECT_EQ(context.errCode, TSDB_CODE_SUCCESS);
+    nodesDestroyList(result);
+  }
+
+  for (std::string hint : {"/*+ NO_CONCURRENT_LAST_SCAN */",
+                           "/*+ NO_CONCURRENT_LAST_SCAN(1) */",
+                           "/*+ CONCURRENT_LAST_SCAN() */"}) {
+    SCOPED_TRACE(hint);
+    SParseContext query = {};
+    SAstCreateContext context;
+    initAstCreateContext(&query, &context);
+    SNodeList* result = createHint(&context, hint);
+    EXPECT_EQ(result, nullptr);
+    EXPECT_EQ(context.errCode, TSDB_CODE_SUCCESS);
+    nodesDestroyList(result);
+  }
+
+  useDb("root", "test");
+  run("SELECT /*+ NO_CONCURRENT_LAST_SCAN() */ COUNT(*), LAST(c1) "
+      "FROM st1 PARTITION BY tbname");
+}
+
+TEST_F(ParserSelectTest, noConcurrentLastScanCombinesWithOtherHints) {
+  initKeywordsTableOnce();
+  for (std::string hint : {
+           "/*+ NO_CONCURRENT_LAST_SCAN() SKIP_TSMA() */",
+           "/*+ SKIP_TSMA() NO_CONCURRENT_LAST_SCAN() */"}) {
+    SCOPED_TRACE(hint);
+    SParseContext query = {};
+    SAstCreateContext context;
+    initAstCreateContext(&query, &context);
+    SNodeList* result = createHint(&context, hint);
+    ASSERT_NE(result, nullptr);
+    EXPECT_EQ(LIST_LENGTH(result), 2);
+    EXPECT_EQ(context.errCode, TSDB_CODE_SUCCESS);
+    nodesDestroyList(result);
+  }
 }
 
 TEST_F(ParserSelectTest, hintParameterListDoesNotHaveFixedCapacity) {
@@ -1674,6 +2443,23 @@ TEST_F(ParserSelectTest, nestedWindowExplicitTimeScope) {
 
 class ParserNestedTemporalTest : public ParserDdlTest {};
 
+TEST_F(ParserNestedTemporalTest, windowTimeStatementClock) {
+  useDb("root", "test");
+  setCheckDdlFunc([](const SQuery* pQuery, ParserStage stage) {
+    if (PARSER_STAGE_TRANSLATE != stage) return;
+    const auto* pSelect = (const SSelectStmt*)pQuery->pRoot;
+    const auto* pJoin = (const SJoinTableNode*)pSelect->pFromTable;
+    const SNode* pLeft = nodesListGetNode(pJoin->pWindowTime, 0);
+    const SNode* pRight = nodesListGetNode(pJoin->pWindowTime, 1);
+    ASSERT_EQ(QUERY_NODE_VALUE, nodeType(pLeft));
+    ASSERT_EQ(QUERY_NODE_VALUE, nodeType(pRight));
+    EXPECT_EQ(((const SValueNode*)pLeft)->datum.i,
+              ((const SValueNode*)pRight)->datum.i);
+  });
+  run("SELECT * FROM stream_t2 l LEFT WINDOW JOIN stream_t2 r "
+      "WINDOW_TIME(NOW(), NOW()) WINDOW_OFFSET(0s, 0s)");
+}
+
 TEST_F(ParserNestedTemporalTest, deferredDefaultTime) {
   useDb("root", "test");
   setCheckDdlFunc([](const SQuery* pQuery, ParserStage stage) {
@@ -1907,13 +2693,52 @@ TEST_F(ParserSelectTest, windowJoinWithExplicitTimeColumns) {
       "WINDOW_TIME(l.c3, r.ts) WINDOW_OFFSET(-1s, 1s)");
   run("SELECT * FROM stream_t2 l LEFT WINDOW JOIN stream_t2 r "
       "WINDOW_TIME(1, r.ts) WINDOW_OFFSET(-1s, 1s)",
-      TSDB_CODE_PAR_SYNTAX_ERROR, PARSER_STAGE_PARSE);
+      TSDB_CODE_PAR_INVALID_TIMELINE_QUERY);
   run("SELECT * FROM stream_t2 l LEFT WINDOW JOIN stream_t2 r "
-      "WINDOW_TIME(NOW(), r.ts) WINDOW_OFFSET(-1s, 1s)",
-      TSDB_CODE_PAR_SYNTAX_ERROR, PARSER_STAGE_PARSE);
+      "WINDOW_TIME('2026-09-30 00:00:00', r.ts) "
+      "WINDOW_OFFSET(-1s, 1s)", TSDB_CODE_PAR_INVALID_TIMELINE_QUERY);
   run("SELECT * FROM stream_t2 l LEFT WINDOW JOIN stream_t2 r "
-      "WINDOW_TIME(l.ts + 1s, r.ts) WINDOW_OFFSET(-1s, 1s)",
-      TSDB_CODE_PAR_SYNTAX_ERROR, PARSER_STAGE_PARSE);
+      "WINDOW_TIME(TIMESTAMP '2026-09-30 00:00:00', "
+      "TIMESTAMP '2026-09-30 00:00:00') WINDOW_OFFSET(-1s, 1s)");
+  run("SELECT * FROM stream_t2 l LEFT WINDOW JOIN stream_t2 r "
+      "WINDOW_TIME(NOW(), r.ts) WINDOW_OFFSET(-1s, 1s)");
+  run("SELECT * FROM stream_t2 l LEFT WINDOW JOIN stream_t2 r "
+      "WINDOW_TIME(TODAY(), r.ts) WINDOW_OFFSET(-1s, 1s)");
+  run("SELECT * FROM stream_t2 l LEFT WINDOW JOIN stream_t2 r "
+      "WINDOW_TIME(l.ts + 1s, r.ts) WINDOW_OFFSET(-1s, 1s)");
+  run("SELECT * FROM stream_t2 l RIGHT WINDOW JOIN stream_t2 r "
+      "WINDOW_TIME(TIMETRUNCATE(l.ts, 1h), r.ts) "
+      "WINDOW_OFFSET(-1s, 1s)");
+  run("SELECT * FROM stream_t2 l LEFT WINDOW JOIN stream_t2 r "
+      "WINDOW_TIME(COALESCE(r.ts, l.ts), r.ts) "
+      "WINDOW_OFFSET(-1s, 1s)", TSDB_CODE_PAR_INVALID_COLUMN);
+  run("SELECT * FROM stream_t2 l LEFT WINDOW JOIN stream_t2 r "
+      "WINDOW_TIME(l.ts, COALESCE(l.ts, r.ts)) "
+      "WINDOW_OFFSET(-1s, 1s)", TSDB_CODE_PAR_INVALID_COLUMN);
+  run("SELECT * FROM stream_t2 l LEFT WINDOW JOIN stream_t2 r "
+      "WINDOW_TIME(MAX(l.ts), r.ts) WINDOW_OFFSET(-1s, 1s)",
+      TSDB_CODE_PAR_ILLEGAL_USE_AGG_FUNCTION);
+  run("SELECT * FROM stream_t2 l LEFT WINDOW JOIN stream_t2 r "
+      "WINDOW_TIME(CAST(RAND() AS TIMESTAMP), r.ts) "
+      "WINDOW_OFFSET(-1s, 1s)", TSDB_CODE_PAR_NOT_ALLOWED_FUNC);
+  run("SELECT * FROM stream_t2 l LEFT WINDOW JOIN stream_t2 r "
+      "WINDOW_TIME(CAST(GENERATE_TOTP_CODE('JBSWY3DPEHPK3PXP') "
+      "AS TIMESTAMP), r.ts) WINDOW_OFFSET(-1s, 1s)",
+      TSDB_CODE_PAR_NOT_ALLOWED_FUNC);
+  run("SELECT * FROM stream_t2 l LEFT WINDOW JOIN stream_t2 r "
+      "WINDOW_TIME(CAST(CSUM(l.c1) AS TIMESTAMP), r.ts) "
+      "WINDOW_OFFSET(-1s, 1s)", TSDB_CODE_PAR_NOT_ALLOWED_FUNC);
+  run("SELECT * FROM stream_t2 l LEFT WINDOW JOIN stream_t2 r "
+      "WINDOW_TIME(_wstart, r.ts) WINDOW_OFFSET(-1s, 1s)",
+      TSDB_CODE_PAR_INVALID_WINDOW_PC);
+  run("SELECT * FROM stream_t2 l LEFT WINDOW JOIN stream_t2 r "
+      "WINDOW_TIME((SELECT MAX(ts) FROM stream_t2), r.ts) "
+      "WINDOW_OFFSET(-1s, 1s)", TSDB_CODE_PAR_SYNTAX_ERROR,
+      PARSER_STAGE_PARSE);
+  run("SELECT * FROM stream_t2 l LEFT WINDOW JOIN stream_t2 r "
+      "WINDOW_TIME(l.ts + (SELECT MAX(ts) FROM stream_t2), r.ts) "
+      "WINDOW_OFFSET(-1s, 1s)",
+      TSDB_CODE_PAR_INVALID_TIMELINE_QUERY);
   run("SELECT * FROM stream_t2 l LEFT ASOF JOIN stream_t2 r "
       "WINDOW_TIME(l.ts, r.ts)", TSDB_CODE_PAR_SYNTAX_ERROR,
       PARSER_STAGE_PARSE);

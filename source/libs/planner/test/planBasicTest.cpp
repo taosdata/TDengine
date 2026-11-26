@@ -25,11 +25,18 @@
 #include "planner.h"
 #include "stub.h"
 
+extern "C" void nodesTestSetStrictAppendFailOnce(void);
+
 using namespace std;
 
 class PlanBasicTest : public PlannerTestBase {};
 
 namespace {
+
+int32_t failColumnClone(const SNode*, SNode** output) {
+  *output = nullptr;
+  return TSDB_CODE_OUT_OF_MEMORY;
+}
 
 template <typename T>
 T* makePlanNode(ENodeType type) {
@@ -1175,6 +1182,65 @@ static SLogicNode* findPostSplitNode(SLogicSubplan* pSubplan,
   return nullptr;
 }
 
+TEST_F(PlanBasicTest, TimeAlignTriggerWideRawScanPreservesColumnOrder) {
+  constexpr int width = 4096;  // Timestamp and 4,095 value columns.
+  auto*         select = makePlanNode<SSelectStmt>(QUERY_NODE_SELECT_STMT);
+  ASSERT_NE(nullptr, select);
+  unique_ptr<SNode, decltype(&nodesDestroyNode)> ast(reinterpret_cast<SNode*>(select), nodesDestroyNode);
+  auto*                                          table = makePlanNode<SRealTableNode>(QUERY_NODE_REAL_TABLE);
+  ASSERT_NE(nullptr, table);
+  select->pFromTable = reinterpret_cast<SNode*>(table);
+  table->pMeta = static_cast<STableMeta*>(taosMemoryCalloc(1, sizeof(STableMeta) + width * sizeof(SSchema)));
+  ASSERT_NE(nullptr, table->pMeta);
+  table->pMeta->tableType = TSDB_VIRTUAL_NORMAL_TABLE;
+  table->pMeta->tableInfo.numOfColumns = width;
+  tstrncpy(table->table.tableName, "wide", sizeof(table->table.tableName));
+  tstrncpy(table->table.tableAlias, "wide", sizeof(table->table.tableAlias));
+  for (int i = 0; i < width; ++i) {
+    auto& col = table->pMeta->schema[i];
+    col.colId = i == width - 1 ? INT16_MAX : i + 1;
+    col.type = i == 0 ? TSDB_DATA_TYPE_TIMESTAMP : TSDB_DATA_TYPE_INT;
+    col.bytes = tDataTypes[col.type].bytes;
+    tsnprintf(col.name, sizeof(col.name), "c%d", col.colId);
+  }
+  auto* projected = makePlanColumn("c32767");
+  ASSERT_NE(nullptr, projected);
+  projected->colId = INT16_MAX;
+  tstrncpy(projected->tableAlias, "wide", sizeof(projected->tableAlias));
+  ASSERT_EQ(0, nodesListMakeStrictAppend(&select->pProjectionList, reinterpret_cast<SNode*>(projected)));
+  table->outputRaw = true;
+  table->pAlignCols = taosArrayInit(2, sizeof(SAlignOutCol));
+  ASSERT_NE(nullptr, table->pAlignCols);
+  for (const char* name : {"c6_prev", "c6_prev_short"}) {
+    SAlignOutCol rule = {};
+    rule.srcColId = 6;
+    rule.method = ALIGN_METHOD_PREV;
+    tstrncpy(rule.outName, name, sizeof(rule.outName));
+    ASSERT_NE(nullptr, taosArrayPush(table->pAlignCols, &rule));
+  }
+  SPlanContext context = {};
+  context.pAstRoot = ast.get();
+  context.streamCxt.isTrigger = true;
+  unique_ptr<SPlanContext, decltype(&planDestroyJoinPropsStore)> props(&context, planDestroyJoinPropsStore);
+  SLogicSubplan*                                                 plan = nullptr;
+  ASSERT_EQ(0, createLogicPlan(&context, &plan));
+  unique_ptr<SNode, decltype(&nodesDestroyNode)> planGuard(reinterpret_cast<SNode*>(plan), nodesDestroyNode);
+  auto* scan = reinterpret_cast<SScanLogicNode*>(findPostSplitNode(plan, QUERY_NODE_LOGIC_PLAN_SCAN));
+  ASSERT_NE(nullptr, scan);
+  vector<col_id_t> expected{INT16_MAX, 6};
+  for (int id = 2; id < width; ++id) {
+    if (id != 6) expected.push_back(id);
+  }
+  expected.push_back(PRIMARYKEY_TIMESTAMP_COL_ID);
+  vector<col_id_t> actual;
+  SNode*           node = nullptr;
+  FOREACH(node, scan->pScanCols) {
+    ASSERT_EQ(QUERY_NODE_COLUMN, nodeType(node));
+    actual.push_back(reinterpret_cast<SColumnNode*>(node)->colId);
+  }
+  EXPECT_EQ(expected, actual);
+}
+
 static void rejectPostSplitMultiGroupProducer(SLogicSubplan* pSubplan) {
   SLogicNode* pNode = findPostSplitNode(
       pSubplan, QUERY_NODE_LOGIC_PLAN_SCAN);
@@ -1610,4 +1676,56 @@ TEST_F(PlanBasicTest, withoutFrom) {
   useDb("root", "test");
 
   run("SELECT 1");
+}
+
+TEST(PlanUtilTest, ColumnRewriteFailureClearsExistingOutputs) {
+  for (bool useList : {false, true}) {
+    SCOPED_TRACE(useList);
+    auto* column = makePlanColumn("tag1");
+    ASSERT_NE(column, nullptr);
+    column->colType = COLUMN_TYPE_TAG;
+    SNode* node = reinterpret_cast<SNode*>(column);
+    SNodeList* inputs = nullptr;
+    ASSERT_EQ(nodesListMakeStrictAppend(&inputs, node), 0);
+    std::unique_ptr<SNodeList, void (*)(SNodeList*)> inputGuard(
+        inputs, nodesDestroyList);
+    SNodeList* output = nullptr;
+    ASSERT_EQ(createColumnByRewriteExpr(node, &output), 0);
+    ASSERT_EQ(LIST_LENGTH(output), 1);
+
+    int32_t code = TSDB_CODE_SUCCESS;
+    {
+      Stub stub;
+      stub.set(nodesCloneNode, failColumnClone);
+      code = useList ? createColumnByRewriteExprs(inputs, &output) :
+                      createColumnByRewriteExpr(node, &output);
+    }
+    EXPECT_EQ(code, TSDB_CODE_OUT_OF_MEMORY);
+    EXPECT_EQ(output, nullptr);
+  }
+}
+
+TEST(PlanUtilTest, ColumnRewriteAppendFailureClearsExistingOutputs) {
+  for (ENodeType type : {QUERY_NODE_COLUMN, QUERY_NODE_VALUE}) {
+    SCOPED_TRACE(type);
+    for (bool useList : {false, true}) {
+      SCOPED_TRACE(useList);
+      SNode* node = makePlanNode<SNode>(type);
+      ASSERT_NE(node, nullptr);
+      SNodeList* inputs = nullptr;
+      ASSERT_EQ(nodesListMakeStrictAppend(&inputs, node), 0);
+      std::unique_ptr<SNodeList, void (*)(SNodeList*)> inputGuard(
+          inputs, nodesDestroyList);
+      SNodeList* output = nullptr;
+      ASSERT_EQ(createColumnByRewriteExpr(node, &output), 0);
+      ASSERT_EQ(LIST_LENGTH(output), 1);
+
+      nodesTestSetStrictAppendFailOnce();
+      int32_t code = useList ? createColumnByRewriteExprs(inputs, &output) :
+                              createColumnByRewriteExpr(node, &output);
+      EXPECT_EQ(code, TSDB_CODE_OUT_OF_MEMORY);
+      EXPECT_EQ(output, nullptr);
+      nodesDestroyList(output);
+    }
+  }
 }

@@ -413,6 +413,15 @@ Build with `--features swagger-ui` to provide Swagger UI at `/swagger-ui/`. Buil
 - `rest_api_threads`: Runtime worker threads for rest api service, default value is `current server cores*2`.
 - `grpc_threads`: Runtime worker threads for grpc service, default value is `current server cores*2`.
 - `scheduler_threads`: Runtime worker threads for scheduler service, default value is `current server cores*2`.
+- `resource.enabled`: Whether to enable the resource governor. The governor is disabled when `[resource]` is absent and enabled by default when the section exists. Set to `false` to disable it completely.
+- `resource.maxWriteMBps`: Data-plane egress limit in MB/s (1 MB = 1024 * 1024 bytes); `0` disables the limit. A token bucket allows a 1-second burst. Control-plane traffic (DDL, metadata, IPC ack/control, heartbeats, xnode/agent management) is not charged.
+- `resource.maxMemoryMB`: Soft RSS budget in MiB for the taosX process plus registered connector children. At or above the budget, source reads pause while in-flight batches continue through the write path. `0` derives the budget from the process cgroup memory limit (cgroup v2 prefers `memory.high`, then `memory.max`; v1 uses `memory.limit_in_bytes`); without a cgroup limit the brake is disabled. A configured value above the cgroup limit is clamped with a warning.
+- `resource.maxPauseSecs`: Maximum time any brake may stay paused, in seconds. When reached, taosX resumes with a warning and increments `resource_brake_max_pause_total`. `0` uses the default of 10 seconds. This prevents a live working set or fragmentation from stalling a task forever.
+- `resource.maxCpuPercent`: CPU high watermark as a percentage of all cores for the taosX process plus children. Crossing it pauses data-plane writes. `0` disables the limit.
+- `resource.cpuResumePercent`: CPU resume watermark; must be lower than `maxCpuPercent`. `0` uses `maxCpuPercent * 0.8`.
+- `resource.maxCpuCores`: Maximum worker threads per runtime pool; `0` means unlimited. This sizes tokio worker pools only and is not a CPU usage cap; use `maxCpuPercent` to limit CPU usage.
+- `resource.cgroupPath`: Optional cgroup directory. By default the process cgroup is resolved from `/proc/self/cgroup`.
+- `resource.cpuPriority`: Optional Linux nice value from `1` to `19`; ignored with a warning on other platforms.
 - `monitor.fqdn`: FQDN of the `taosKeeper` service, no default value, leave blank to disable monitoring.
 - `monitor.port`: Port of the `taosKeeper` service, default `6043`.
 - `monitor.interval`: Frequency of sending metrics to `taosKeeper`, default is every 10 seconds, only values between 1 and 10 are valid.
@@ -432,6 +441,9 @@ As shown below:
 # data dir
 #data_dir = "/var/lib/taos/taosx" # on linux/macOS
 #data_dir = "C:\\TDengine\\data\\taosx" # on windows
+
+# Resource limits: see the [resource] section below.
+# [resource] is independent of [serve] and applies to both serve and run modes.
 
 # number of threads used for tokio workers, default to 0 (means cores * 2)
 #jobs = 0
@@ -486,6 +498,33 @@ As shown below:
 # Not re-loadable at runtime; restart taosX after changing this value or
 # replacing the key file.
 #xnode_dsn_private_key_file = "/etc/taos/xnode-dsn-private.pem"
+
+# Data-plane resource limits. All values default to disabled (0).
+[resource]
+# Egress limit for data-plane writes, MB/s (1 MB = 1024 * 1024 bytes).
+# Token bucket with 1s burst; control-plane traffic is not charged.
+#maxWriteMBps = 0
+
+# Soft RSS budget for this process plus registered connector children, MiB.
+# 0 = use the process cgroup memory limit; no cgroup limit = disabled.
+# Exceeding the budget pauses source reads; writes keep draining.
+#maxMemoryMB = 0
+
+# Maximum time a memory or CPU brake may stay paused before resuming anyway.
+# 0 = default 10 seconds.
+#maxPauseSecs = 10
+
+# High CPU watermark as a percentage of all cores; 0 = disabled.
+#maxCpuPercent = 0
+
+# CPU resume watermark; 0 = maxCpuPercent * 0.8. Must be < maxCpuPercent.
+#cpuResumePercent = 0
+
+# Optional cgroup directory; default: resolve /proc/self/cgroup.
+#cgroupPath = "/sys/fs/cgroup"
+
+# Linux only: nice value 1..=19; ignored with a warning elsewhere.
+#cpuPriority = 0
 
 [monitor]
 # FQDN of taosKeeper service, no default value
@@ -545,6 +584,17 @@ As shown below:
 #"actix_server::accept" = "warn"
 #"taos::query" = "warn"
 ```
+
+### Resource Limits
+
+The `[resource]` section limits data-plane resource usage for the taosX process and its registered connector children. It is useful for Kafka backlog consumption, large CSV imports, migrations, and other workloads that can cause memory, CPU, or network peaks. The governor is fully disabled when `[resource]` is absent; when the section exists, `maxMemoryMB=0` reads the cgroup budget. Set `resource.enabled = false` to keep the section but disable the governor.
+
+- **Bandwidth**: `maxWriteMBps` limits the payload/Arrow bytes handed to the sink with a token bucket whose capacity is one second of traffic, allowing short bursts. Native TDengine writes, IPC, Kafka/MQTT sinks, local backups, and Parquet exports are covered. DDL, metadata, IPC ack/control, heartbeats, and xnode/agent management traffic are not charged.
+- **Memory**: `maxMemoryMB` is a soft budget, not a hard RSS ceiling. Reaching it pauses data-plane **reads** while in-flight batches continue to drain through the write path. If the live working set stays above the budget, taosX pauses and resumes in `maxPauseSecs` cycles with warnings and `resource_brake_max_pause_total` increments. Use cgroup or container memory limits when a hard cap is required.
+- **CPU**: `maxCpuPercent` is duty-cycle feedback control. Crossing the high watermark pauses data-plane writes; writes resume below `cpuResumePercent`. Pauses are bounded by `maxPauseSecs`. `maxCpuCores` only sizes tokio worker pools and does not replace `maxCpuPercent`.
+- **Scope**: limits apply independently to each process. `taosx serve`, `taosx run`, and `taosx-agent` read their own configuration files. Restart the process after changing `[resource]` or cgroup limits.
+
+For recommended settings, metrics, and limitations, see [Resource Usage Control](../../08-data-ingest-and-delivery/06-resource-control.md). The same configuration for taosX-Agent is documented in [taosX-Agent Configuration Reference](./07-taosx-agent/01-configuration.md#resource-limits).
 
 ### Start
 
@@ -654,6 +704,21 @@ taosX reports monitoring metrics to taosKeeper, which are written into the monit
 | process_memory_percent     | Memory percentage used by the taosX process, in %                             |
 | process_disk_read_bytes    | Average number of bytes read from disk by the taosX process in a monitoring period (e.g., 10s), in bytes/s |
 | process_disk_written_bytes | Average number of bytes written to disk by the taosX process in a monitoring period (e.g., 10s), in bytes/s |
+
+### Resource Governor
+
+When `[resource]` is configured, taosX also reports resource-governor metrics with `stable=taosx_resource`; taosKeeper writes them to a subtable keyed by `taosx_id`. With `[monitor]` enabled, these metrics are exported together with other taosX metrics.
+
+| Field | Description |
+| --- | --- |
+| resource_rss_bytes | Total RSS of the process and registered children, in bytes |
+| resource_cpu_percent | CPU usage of the process and children, as a percentage of all cores |
+| resource_egress_bytes_total | Cumulative data-plane bytes charged by the egress bucket |
+| resource_bucket_wait_ms_total | Cumulative token-bucket wait time, in milliseconds |
+| resource_brake_paused | Whether a resource brake is currently pausing the data plane (1/0) |
+| resource_brake_total | Number of times a brake has engaged |
+| resource_brake_max_pause_total | Number of times the memory brake hit `maxPauseSecs` and resumed |
+| resource_cpu_brake_max_pause_total | Number of times the CPU brake hit `maxPauseSecs` and resumed |
 
 ### Agent
 

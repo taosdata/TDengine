@@ -11,9 +11,11 @@ toc_max_heading_level: 4
 CREATE STREAM [IF NOT EXISTS] [db_name.]stream_name options [INTO [db_name.]table_name] [NODELAY_CREATE_SUBTABLE] [OUTPUT_SUBTABLE(tbname_expr)] [(column_name1, column_name2 [COMPOSITE KEY][, ...])] [TAGS (tag_definition [, ...])] [AS subquery]
 
 options: {
-    trigger_type [FROM [db_name.]table_name] [{PARTITION BY col1 [, ...] | ROLLUP BY tag_name}] [STREAM_OPTIONS(stream_option [|...])] [notification_definition]
+    trigger_type [FROM trigger_source] [{PARTITION BY col1 [, ...] | ROLLUP BY tag_name}] [STREAM_OPTIONS(stream_option [|...])] [notification_definition]
 }
-    
+
+trigger_source: {[db_name.]table_name | TABLE(TIME_ALIGN(TABLE [db_name.]virtual_table [, output_raw] [, 'column_list']))}
+
 trigger_type: {
     PERIOD(period_time[, offset_time])
   | SLIDING(sliding_val[, offset_time]) 
@@ -49,18 +51,26 @@ true_for_expr:
 
 true_for_arg: {
     limit_expr
-  | start(limit_expr)
-  | end(limit_expr)
+  | START(limit_expr)
+  | END(limit_expr)
 }
 
 limit_expr: {
     duration_time
+  | tag_name
   | COUNT count_val
+  | COUNT tag_name
   | duration_time AND COUNT count_val
+  | duration_time AND COUNT tag_name
+  | tag_name AND COUNT count_val
+  | tag_name AND COUNT tag_name
   | duration_time OR COUNT count_val
+  | duration_time OR COUNT tag_name
+  | tag_name OR COUNT count_val
+  | tag_name OR COUNT tag_name
 }
 
-stream_option: {WATERMARK(duration_time) | EXPIRED_TIME(exp_time) | IGNORE_DISORDER | DELETE_RECALC | DELETE_OUTPUT_TABLE | FILL_HISTORY[(start_time)] | FILL_HISTORY_FIRST[(start_time)] | CALC_NOTIFY_ONLY | LOW_LATENCY_CALC | PRE_FILTER(expr) | FORCE_OUTPUT | MAX_DELAY(delay_time) | EVENT_TYPE(event_types) | IGNORE_NODATA_TRIGGER | IDLE_TIMEOUT(duration_time) | FLUSH_ON_OUTER_CLOSE | CONFIG(config_item [, config_item ...])}
+stream_option: {WATERMARK(duration_time) | EXPIRED_TIME(exp_time) | IGNORE_DISORDER | DELETE_RECALC | DELETE_OUTPUT_TABLE | FILL_HISTORY[(start_time)] | FILL_HISTORY_FIRST[(start_time)] | CALC_NOTIFY_ONLY | LOW_LATENCY_CALC | PRE_FILTER(expr) | FORCE_OUTPUT | MAX_DELAY(delay_time | tag_name) | EVENT_TYPE(event_types) | IGNORE_NODATA_TRIGGER | IDLE_TIMEOUT(duration_time) | FLUSH_ON_OUTER_CLOSE | CONFIG(config_item [, config_item ...])}
 
 config_item: {timezone = timezone_name | firstDayOfWeek = first_day_of_week}
 
@@ -79,6 +89,18 @@ tag_definition:
 ```
 
 From `v3.4.3`, creating a stream writes the timezone and first day of week into the stream definition. `PERIOD`, `SLIDING`, and `INTERVAL` also extend support for day, week, month, quarter, and year. See [Timezone and Natural Time Units](../05-tdengine-sql/10-time/01-timezone.md#stream-time-configuration).
+
+### TIME_ALIGN trigger tables
+
+A stream can read a local virtual table, virtual child table, or virtual supertable with this trigger source.
+
+```sql
+FROM TABLE(TIME_ALIGN(TABLE [db_name.]virtual_table [, output_raw] [, 'column_list']))
+```
+
+The stream merges source timestamps for each virtual child, fills each configured column with its most recent non-NULL value, applies `PRE_FILTER`, then evaluates the window. A filtered row can supply the predecessor of a later row. `PREV(8s)` includes a value exactly eight seconds old. An expired value contributes NULL at the next input row. With `output_raw=FALSE` (the default), the configured input columns determine which source timestamps participate. With TRUE, all raw data columns contribute timestamps.
+
+All referenced sources must be local. Trigger rules accept `PREV` and `PREV(duration)`. `NEXT` remains available in ordinary TIME_ALIGN queries. An aligned trigger rejects `%%trows` and the combination of `PERIOD` and `PRE_FILTER`. With `PERIOD` alone, the selected sources determine whether input arrived. In the calculation query, `%%tbname` refers to the actual table when the grouping permits it. Specify TIME_ALIGN and any calculation filter in that query to apply them there.
 
 ### Trigger Methods in Stream Processing
 
@@ -117,7 +139,7 @@ Applicable scenarios: Situations requiring scheduled computation driven continuo
 ##### Sliding Trigger
 
 ```sql
-SLIDING(sliding_val[, offset_time]) 
+SLIDING(sliding_val[, offset_time])
 ```
 
 A sliding trigger drives execution based on a fixed interval of event time for data written to the trigger table. It is not considered a window trigger. A trigger table must be specified. The trigger times and time offset rules are the same as for scheduled triggers, with the only difference being that the system time is replaced by event time.
@@ -222,7 +244,12 @@ CREATE STREAM s_tag_state
   FROM meters
   PARTITION BY tbname
   INTO meters_state_out
-  AS SELECT _twstart AS ts, _twend AS te, COUNT(*) AS cnt FROM %%trows;
+  AS
+    SELECT
+      _twstart AS ts,
+      _twend AS te,
+      COUNT(*) AS cnt
+    FROM %%trows;
 ```
 
 Multi-key state-window example:
@@ -234,7 +261,11 @@ CREATE STREAM s_multi_state
   PARTITION BY tbname
   INTO result_table
   AS
-    SELECT _twstart AS ts, _twend AS te, COUNT(*) AS cnt FROM %%trows;
+    SELECT
+      _twstart AS ts,
+      _twend AS te,
+      COUNT(*) AS cnt
+    FROM %%trows;
 ```
 
 The stream above cuts a new window whenever either `s1` or `s2` changes. Zero-state filtering is applied only to `s1 = 1`; `s2` does not participate in zero-state matching.
@@ -268,7 +299,12 @@ CREATE STREAM s_tag_event
   FROM meters
   PARTITION BY tbname
   INTO meters_event_out
-  AS SELECT _twstart AS ts, _twend AS te, COUNT(*) AS cnt FROM %%trows;
+  AS
+    SELECT
+      _twstart AS ts,
+      _twend AS te,
+      COUNT(*) AS cnt
+    FROM %%trows;
 ```
 
 Usage Notes:
@@ -303,31 +339,44 @@ This temperature alarm confirms opening after the temperature stays at or above 
 
 ```sql
 CREATE DATABASE true_for_demo;
+
 USE true_for_demo;
-CREATE TABLE sensor (ts TIMESTAMP, temperature INT);
+
+CREATE TABLE sensor (
+  ts          TIMESTAMP,
+  temperature INT
+);
 
 CREATE STREAM temperature_alarm
-  EVENT_WINDOW(START WITH temperature >= 80 END WITH temperature < 80)
-  TRUE_FOR(START(1m), END(COUNT 2))
+  EVENT_WINDOW(START WITH temperature >= 80 END WITH temperature < 80) TRUE_FOR(START(1m), END(COUNT 2))
   STREAM_OPTIONS(EVENT_TYPE(WINDOW_CLOSE))
   FROM sensor
   INTO temperature_alarm_out
-  AS SELECT _twstart AS ts, _twend AS te, COUNT(*) AS cnt FROM %%trows;
+  AS
+    SELECT
+      _twstart AS ts,
+      _twend AS te,
+      COUNT(*) AS cnt
+    FROM %%trows;
 ```
 
 After the stream is ready, insert the following data in timestamp order:
 
 ```sql
-INSERT INTO sensor VALUES
-  ('2026-01-01 10:00:00', 85)
-  ('2026-01-01 10:00:30', 70)
-  ('2026-01-01 10:01:00', 85)
-  ('2026-01-01 10:01:30', 86)
-  ('2026-01-01 10:02:00', 87)
-  ('2026-01-01 10:02:10', 70)
-  ('2026-01-01 10:02:20', 69);
+INSERT INTO sensor
+VALUES ('2026-01-01 10:00:00', 85)
+       ('2026-01-01 10:00:30', 70)
+       ('2026-01-01 10:01:00', 85)
+       ('2026-01-01 10:01:30', 86)
+       ('2026-01-01 10:02:00', 87)
+       ('2026-01-01 10:02:10', 70)
+       ('2026-01-01 10:02:20', 69);
 
-SELECT ts, te, cnt FROM temperature_alarm_out;
+SELECT
+  ts,
+  te,
+  cnt
+FROM temperature_alarm_out;
 ```
 
 The window is evaluated as follows:
@@ -391,15 +440,16 @@ Example:
 
 ```sql
 CREATE STREAM s_event_tree
-  EVENT_WINDOW(
-    START WITH ((current >= 12 TRUE_FOR(1s), current >= 10), voltage < 215 TRUE_FOR(COUNT 3))
-    END WITH voltage < 210
-  )
-  TRUE_FOR(10s)
+  EVENT_WINDOW(START WITH ((current >= 12 TRUE_FOR(1s), current >= 10), voltage < 215 TRUE_FOR(COUNT 3)) END WITH voltage < 210) TRUE_FOR(10s)
   FROM meters
   PARTITION BY tbname
   INTO event_tree_out(ts, path COMPOSITE KEY, cnt)
-  AS SELECT _twstart, _event_condition_path, COUNT(*) FROM %%trows;
+  AS
+    SELECT
+      _twstart,
+      _event_condition_path,
+      COUNT(*)
+    FROM %%trows;
 ```
 
 The condition paths in this example are:
@@ -419,7 +469,7 @@ Applicable Scenarios: Suitable for use cases where computations and/or notificat
 ##### Count Window Trigger
 
 ```sql
-COUNT_WINDOW(count_val[, sliding_val][, col1[, ...]]) 
+COUNT_WINDOW(count_val[, sliding_val][, col1[, ...]])
 ```
 
 A count window trigger partitions the written data from the trigger table based on a counting window, and triggers when the window starts and/or closes. It supports column-based triggering, where the trigger occurs only when the specified columns receive data writes. Parameter definitions are as follows:
@@ -443,7 +493,7 @@ Applicable Scenarios:
 ##### Nested Window Trigger
 
 ```sql
-WINDOW (
+WINDOW(
   nested_window_type AS outer_layer,
   ...,
   nested_window_type [AS leaf_layer]
@@ -466,7 +516,7 @@ Charging piles continuously report battery state of charge (SOC). Applications o
 
 ```sql
 CREATE STREAM order_pairs
-  WINDOW (
+  WINDOW(
     STATE_WINDOW(order_id) EXTEND(1) AS order_scope,
     COUNT_WINDOW(2, 1) AS pair
   )
@@ -474,12 +524,13 @@ CREATE STREAM order_pairs
   STREAM_OPTIONS(EVENT_TYPE(WINDOW_CLOSE))
   INTO order_pair_results
   AS
-    SELECT _twstart AS ts,
-           _twend AS window_end,
-           order_scope._twstart AS order_start,
-           FIRST(soc) AS previous_soc,
-           LAST(soc) AS current_soc,
-           LAST(soc) - FIRST(soc) AS soc_delta
+    SELECT
+      _twstart AS ts,
+      _twend AS window_end,
+      order_scope._twstart AS order_start,
+      FIRST(soc) AS previous_soc,
+      LAST(soc) AS current_soc,
+      LAST(soc) - FIRST(soc) AS soc_delta
     FROM %%trows;
 ```
 
@@ -550,10 +601,10 @@ Usage notes:
 By default, the results of a stream are stored in an output table. Each output table contains only the results that have been triggered and computed up to the current time. You can define the structure of the output table, and if grouping is used, you can also specify the tag values for each subtable.
 
 ```sql
-[INTO [db_name.]table_name] [NODELAY_CREATE_SUBTABLE] [OUTPUT_SUBTABLE(tbname_expr)] [(column_name1, column_name2 [COMPOSITE KEY][, ...])] [TAGS (tag_definition [, ...])] 
+[INTO [db_name.]table_name] [NODELAY_CREATE_SUBTABLE] [OUTPUT_SUBTABLE(tbname_expr)] [(column_name1, column_name2 [COMPOSITE KEY][, ...])] [TAGS (tag_definition [, ...])]
 
 tag_definition:
-    tag_name type_name AS expr
+  tag_name type_name AS expr
 ```
 
 Details are as follows:
@@ -576,10 +627,11 @@ Details are as follows:
 [AS subquery]
 ```
 
-A computation task is the calculation executed by the stream after an event is triggered. It can be any type of query statement, and can operate on the trigger table or on other databases and tables. Computation tasks are highly flexible and should be carefully designed before creating the stream. Notes:
+A computation task is the calculation executed by the stream after an event is triggered. It can be a common query statement (table functions `TABLE(...)` are not supported), and can operate on the trigger table or on other databases and tables. Computation tasks are highly flexible and should be carefully designed before creating the stream. Notes:
 
 - The first column in the query output will serve as the primary key column of the output table: The first column in the query output must be a valid primary key value (TIMESTAMP). If the column type does not match, an error will occur when creating the stream. If a NULL value appears during execution, the corresponding computation result will be discarded.
 - Each trigger group’s computation results are written into the same output table (subtable or regular table) for that group: If the query also contains a GROUP BY clause, records with the same primary key in the grouped results will overwrite each other. If grouping is required, it is recommended to define a composite primary key for the output table.
+- **Table functions are not supported in computation tasks**: A `TABLE(...)` table function cannot be used in the `FROM` clause of a computation task.
 
 #### Placeholders
 
@@ -593,7 +645,9 @@ When performing calculations, you may need to use contextual information from th
 | Sliding Trigger   | _tcurrent_ts     | Event time of current trigger (same precision as record)     |
 | Sliding Trigger   | _tnext_ts        | Event time of next trigger (same precision as record)        |
 | Window Trigger    | _twstart         | Start timestamp of current window                            |
-| Window Trigger    | _twend           | End timestamp of currently open window. Used only with WINDOW_CLOSE trigger. |
+| Window Trigger    | _twend           | End timestamp of the current trigger window. On `WINDOW_OPEN`, a single-level, single-START event window with a duration-only whole-window `TRUE_FOR` limit uses `_twstart + duration`. For example, `TRUE_FOR(1m, START(10s), END(10s))` uses `_twstart + 1m`. Other data-driven windows use the start timestamp. Time windows use the known window end. |
+| Window Trigger    | `_tpre_wstart`   | Start timestamp of the most recently closed window in the same trigger group when this event fires. `NULL` when no closed window exists. Supports `WINDOW_OPEN`, `WINDOW_CLOSE`, or both. |
+| Window Trigger    | `_tpre_wend`     | End timestamp of the most recently closed window in the same trigger group when this event fires. `NULL` when no closed window exists. Supports `WINDOW_OPEN`, `WINDOW_CLOSE`, or both. |
 | Window Trigger    | _twduration      | Duration of currently open window. Used only with WINDOW_CLOSE trigger. |
 | Window Trigger    | _twrownum        | Number of rows in currently open window. Used only with WINDOW_CLOSE trigger. |
 | Event Window Trigger | _event_condition_path | Condition path of the current event-window node in the `START WITH` start event tree. Available only for `EVENT_WINDOW` when `START WITH` contains at least one parenthesized group. |
@@ -609,20 +663,23 @@ When performing calculations, you may need to use contextual information from th
 
 Usage Restrictions:
 
+- `_tpre_wstart`, `_tpre_wend`: `WINDOW_OPEN` refers to the most recently closed window when the opening event fires; overlapping windows that are still open are excluded. `WINDOW_CLOSE` refers to the most recently closed window before the current window closes. Values can differ between the two events. Neither placeholder supports combinations with `IDLE` or `RESUME`.
+- Previous-window placeholders support only ordinary single-layer windows, not nested `WINDOW(...)` plans or event windows with multiple `START WITH` conditions. Such references, including unqualified leaf and layer-qualified references, are rejected when the stream is created.
+- When previous-window placeholders are used, automatic recalculation caused by out-of-order inserts, updates, or deletes also refreshes successor windows whose predecessor has changed, even if their own input rows have not changed. After the last closed window is deleted, a future successor's OPEN result is also corrected without waiting for it to close. For windows with data-dependent boundaries, rebuilding predecessor relationships may require replay from the history processing boundary; recalculation cost depends on the replay range.
 - %%trows: Can only be used in the FROM clause. Queries that use %%trows do not support WHERE condition filtering or join operations on %%trows.
 - %%tbname: Can be used in the FROM, SELECT, and WHERE clauses.
 - %%rollup_tag: Available only with `ROLLUP BY`. It can be used in `OUTPUT_SUBTABLE`, `TAGS`, and positions in `AS subquery` where existing trigger placeholders are allowed.
 - _trollup_tbcount: Available only with `ROLLUP BY`. It can be used only in `AS subquery`; it cannot be used in `OUTPUT_SUBTABLE` or `TAGS`.
 - _event_condition_path: Available only for `EVENT_WINDOW` when `START WITH` uses a sub-event structure with at least one parenthesized group. It is invalid for a single ordinary start condition or any non-event-window trigger.
 - Other placeholders: Can only be used in the SELECT and WHERE clauses.
-- In a nested window plan, unqualified trigger placeholders refer to the leaf layer. Qualified layer placeholders are visible only in the computation query and its subqueries.
+- In a nested window plan, supported unqualified trigger placeholders refer to the leaf layer. Qualified layer placeholders are visible only in the computation query and its subqueries. Nested windows do not support `_tpre_wstart` or `_tpre_wend`.
 
 ### Stream Processing Control Options
 
 ```sql
 [STREAM_OPTIONS(stream_option [|...])]
 
-stream_option: {WATERMARK(duration_time) | EXPIRED_TIME(exp_time) | IGNORE_DISORDER | DELETE_RECALC | DELETE_OUTPUT_TABLE | FILL_HISTORY[(start_time)] | FILL_HISTORY_FIRST[(start_time)] | CALC_NOTIFY_ONLY | LOW_LATENCY_CALC | PRE_FILTER(expr) | FORCE_OUTPUT | MAX_DELAY(delay_time) | EVENT_TYPE(event_types) | IGNORE_NODATA_TRIGGER | IDLE_TIMEOUT(duration_time) | FLUSH_ON_OUTER_CLOSE | CONFIG(config_item [, config_item ...])}
+stream_option: {WATERMARK(duration_time) | EXPIRED_TIME(exp_time) | IGNORE_DISORDER | DELETE_RECALC | DELETE_OUTPUT_TABLE | FILL_HISTORY[(start_time)] | FILL_HISTORY_FIRST[(start_time)] | CALC_NOTIFY_ONLY | LOW_LATENCY_CALC | PRE_FILTER(expr) | FORCE_OUTPUT | MAX_DELAY(delay_time | tag_name) | EVENT_TYPE(event_types) | IGNORE_NODATA_TRIGGER | IDLE_TIMEOUT(duration_time) | FLUSH_ON_OUTER_CLOSE | CONFIG(config_item [, config_item ...])}
 
 config_item: {timezone = timezone_name | firstDayOfWeek = first_day_of_week}
 ```
@@ -640,7 +697,8 @@ Control options are used to manage trigger and computation behavior. Multiple op
 - LOW_LATENCY_CALC ensures low-latency computation or notification after each trigger. Processing starts immediately. This option guarantees the timeliness of real-time stream processing, but at the cost of lower efficiency and potentially higher resource usage. It is recommended only for workloads with strict real-time requirements. By default, if not specified, computation may be deferred and performed in batches to achieve better resource efficiency.
 - PRE_FILTER(expr) specifies data filtering on the trigger table before evaluation. Only rows that meet the condition will be considered for triggering. The expr can include columns, tags, constants, and scalar or logical operations. Example: `col1 > 0` ensures that only rows where col1 is positive will be evaluated. Default: If not specified, no pre-filtering is applied.
 - FORCE_OUTPUT forces an output row even when a trigger produces no computation result. In this case, all columns except constants (including constant-treated columns) will be set to NULL. More fill strategies will be added in future releases.
-- MAX_DELAY(delay_time) defines the maximum waiting time (processing time) before a window is forcibly triggered if it has not yet closed. Starting from the time a window opens, a trigger will be generated at every interval of delay_time if the window remains open. Non-window triggers automatically ignore this option. If a TRUE_FOR condition is specified and its duration is greater than MAX_DELAY, the MAX_DELAY setting still applies even if the window ultimately does not satisfy the TRUE_FOR condition. delay_time supports the following units: seconds (s), minutes (m), hours (h), days (d). Minimum value: 3 seconds, with an accuracy tolerance of about 1 second. If computation time exceeds delay_time, intermediate MAX_DELAY triggers are skipped. Note: WATERMARK is evaluated before window determination. This may cause cases where MAX_DELAY is set but no trigger occurs, because the window never actually opened.
+- MAX_DELAY(delay_time) defines the maximum waiting time (processing time) before a window is forcibly triggered if it has not yet closed. Starting from the time a window opens, a trigger will be generated at every interval of delay_time if the window remains open. Non-window triggers automatically ignore this option. If a TRUE_FOR condition is specified and its duration is greater than MAX_DELAY, the MAX_DELAY setting still applies even if the window ultimately does not satisfy the TRUE_FOR condition. delay_time may be a time literal or a duration tag column name. For literals, supported units are seconds (s), minutes (m), hours (h), days (d). Minimum value: 3 seconds, with an accuracy tolerance of about 1 second. If computation time exceeds delay_time, intermediate MAX_DELAY triggers are skipped. Note: WATERMARK is evaluated before window determination. This may cause cases where MAX_DELAY is set but no trigger occurs, because the window never actually opened.
+- **TRUE_FOR / MAX_DELAY with tag columns**: In window triggers, `TRUE_FOR` (including `start(...)`, `end(...)`, and `AND`/`OR` combinations) may use supertable tag column names instead of `duration_time` or `COUNT n`; `MAX_DELAY` may reference a duration tag the same way. Duration tags accept strings (e.g. `'3s'`) or integers in the database's time precision (`ms`, `us`, or `ns`); count tags must be positive integers. Referenced tags must appear in `PARTITION BY` unless it contains `tbname`. When `PARTITION BY` contains `tbname`, omitted threshold tags are added internally and support `SET TAG` updates; explicitly partitioned tags still reject `SET TAG`. An invalid or null tag value is logged as an error and treated as 0, so processing for that group continues without affecting other groups. Local `TRUE_FOR` on start-event-tree leaves and nested `WINDOW(...)` triggers do not support tag thresholds.
 - EVENT_TYPE(event_types) specifies the types of events that can trigger a window. Multiple types may be selected. Default: WINDOW_CLOSE. Not applicable for sliding triggers without INTERVAL or for periodic (PERIOD) triggers (automatically ignored). Options:
   - WINDOW_OPEN: Window start event.
   - WINDOW_CLOSE: Window close event.
@@ -674,11 +732,11 @@ Event notifications are optional actions executed after a stream is triggered. N
 [notification_definition]
 
 notification_definition:
-    NOTIFY(url [, ...]) [ON (event_types)] [WHERE condition] [NOTIFY_OPTIONS(notify_option[|notify_option])]
+  NOTIFY(url [, ...]) [ON (event_types)] [WHERE condition] [NOTIFY_OPTIONS(notify_option[|notify_option])]
 
 event_types:
-    event_type [|event_type]    
-    
+  event_type [|event_type]
+
 event_type: {WINDOW_OPEN | WINDOW_CLOSE | IDLE | RESUME}
 ```
 
@@ -959,7 +1017,11 @@ SHOW CREATE STREAM [db_name.]stream_name;
 For more detailed information, query [`INS_STREAMS`](../05-tdengine-sql/09-system-info/01-meta.md#ins_streams):
 
 ```sql
-SELECT stream_name, timezone, first_day_of_week, sql
+SELECT
+  stream_name,
+  timezone,
+  first_day_of_week,
+  sql
 FROM information_schema.ins_streams;
 ```
 
@@ -972,7 +1034,8 @@ For recalculation records, see [`INS_STREAM_RECALCULATES`](../05-tdengine-sql/09
 When a stream is running, it is executed as multiple tasks. Detailed task information can be obtained from [`INS_STREAM_TASKS`](../05-tdengine-sql/09-system-info/01-meta.md#ins_stream_tasks):
 
 ```sql
-SELECT * from information_schema.`ins_stream_tasks`;
+SELECT *
+FROM information_schema.`ins_stream_tasks`;
 ```
 
 ## Start or Stop a Stream
@@ -980,7 +1043,7 @@ SELECT * from information_schema.`ins_stream_tasks`;
 ### Start a Stream
 
 ```sql
-START STREAM [IF EXISTS] [IGNORE UNTREATED] [db_name.]stream_name; 
+START STREAM [IF EXISTS] [IGNORE UNTREATED] [db_name.]stream_name;
 ```
 
 Notes:
@@ -993,7 +1056,7 @@ Notes:
 ### Stop a Stream
 
 ```sql
-STOP STREAM [IF EXISTS] [db_name.]stream_name; 
+STOP STREAM [IF EXISTS] [db_name.]stream_name;
 ```
 
 Notes:
@@ -1001,3 +1064,42 @@ Notes:
 - If IF EXISTS is not specified and the stream does not exist, an error is returned; if the stream exists, the stream processing is stopped.
 - If IF EXISTS is specified and the stream does not exist, the operation returns success; if the stream exists, the stream processing is stopped.
 - The stop operation is persistent. The stream will not resume until the user explicitly restarts it.
+
+## External Sources in Stream Processing
+
+Notes:
+
+- Stream processing can use external sources in triggers and calculations. MySQL, PostgreSQL, InfluxDB 3.x, InfluxDB 1.8, SQL Server, and Oracle are supported. InfluxDB 1.8 works through a native InfluxQL provider and has its own restrictions; see [Use InfluxDB 1.8 as a Trigger Source](#use-influxdb-18-as-a-trigger-source).
+- Historical calculation does not yet support external sources.
+- External sources perform worse than local databases. Tune the workload for the specific scenario.
+- When an external source is the trigger, `EXPIRED_TIME`, `IGNORE_DISORDER`, and `DELETE_RECALC` are not supported.
+- Changes to an external source, such as dropping or altering a table or losing connectivity, can leave stream behavior undefined. Delete the stream and create it again before changing the external source.
+- `tbname` support:
+  - MySQL and PostgreSQL external sources do not support `PARTITION BY tbname` in stream processing.
+  - InfluxDB 3.x external sources support `PARTITION BY tbname`. It is converted internally to `PARTITION BY` every tag. `PARTITION BY` a function of `tbname` is not supported.
+  - InfluxDB 3.x external sources can use `%%tbname`. It joins every tag into the table name. When the result exceeds the table-name length, the joined string is hashed.
+- For an InfluxDB 3.x external source, a tag name longer than 64 characters or a tag value longer than 256 characters returns an error. Correct the data and create the stream again.
+
+### Use InfluxDB 1.8 as a Trigger Source
+
+Starting in `v3.4.3.12`, stream processing supports InfluxDB OSS 1.8 external sources. When you create the external source, explicitly set `version = '1.8'` in `OPTIONS`, use HTTP, and optionally set the retention policy. See [InfluxDB external sources](../05-tdengine-sql/04-data-query/06-federated-query.md#influxdb-parameters) for the external-source syntax and parameters.
+
+Use `<external_source>.<database>.<measurement>` in the stream `FROM` clause. Do not include the retention policy:
+
+```sql
+CREATE STREAM stream_db.influx18_high_voltage
+  INTERVAL(1m) SLIDING(1m)
+  FROM influx18_prod.telegraf.meters
+  STREAM_OPTIONS(PRE_FILTER(voltage > 220))
+  INTO stream_db.influx18_result
+  AS
+    SELECT
+      _twstart AS ts,
+      COUNT(*) AS cnt,
+      AVG(voltage) AS avg_voltage
+    FROM %%trows;
+```
+
+Each InfluxDB 1.8 series has its own subtable identity. `PARTITION BY` determines the trigger groups: without it, one measurement uses one group; with `PARTITION BY tbname`, each series uses its own group; you can also group by measurement tags or a tag subset. To bind a stream to a specific series, create an InfluxDB SERIES virtual table and create the stream from that table. See [InfluxDB SERIES column references](../05-tdengine-sql/04-data-query/06-federated-query.md#influxdb-series-column-references).
+
+`PRE_FILTER` supports `=`, `!=`, `>`, `>=`, `<`, `<=`, and combinations with `AND` and `OR`; other expressions are rejected by `CREATE STREAM`. It filters only trigger-side rows and does not affect the `WHERE` clause of an explicit external calculation table. The InfluxDB 1.8 path refreshes series identity when a new tag key appears, but does not support `FILL_HISTORY`. Several shapes are also rejected for an InfluxDB 1.8 source: a time bound may not use `!=`, and no time condition may appear in an `OR` branch, because the provider intersects the time range of every branch and such a filter would silently return nothing. Tag columns support only `=` and `!=`, and only against string constants (`host = 1` is a type error on the remote server, so every read would fail); the time column may only be compared with a constant, not with another column; and a comparison between two columns is accepted only when both sides are plain fields, because a tag on either side has different NULL semantics on the remote server (`host != zone` would keep the series that lack `zone`).

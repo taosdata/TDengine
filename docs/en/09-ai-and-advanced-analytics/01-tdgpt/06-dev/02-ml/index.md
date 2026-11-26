@@ -158,6 +158,8 @@ After placing the adapter and model files, restart taosanode and run `UPDATE ALL
 
 ```sql
 --- Detect anomalies in the `foo` table using the `sample_ad_model` algorithm and `sample-ad-autoencoder` model.
-SELECT _wstart, count(*) 
+SELECT
+  _wstart,
+  COUNT(*)
 FROM foo anomaly_window(val, 'algo=sample_ad_model,model=sample-ad-autoencoder');
 ```

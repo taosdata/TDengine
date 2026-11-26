@@ -23,9 +23,10 @@ Real CREATE STREAM grammar (from removed reference tests + FS §9):
       INTO   <local_db>.<sink>
       AS SELECT _twstart AS ts, ... FROM %%trows [JOIN <ext>.<...>.<tbl>] ...;
 
-Three-segment external reference uses the *remote* db / schema created by
-``_with_std_sources`` (``{prefix}_{m,p,i}db``); PG middle segment is the
-schema (``public``).
+Three-segment external reference uses the *remote* namespace created by
+``_with_std_sources``: ``{prefix}_{m,i}db`` for MySQL/InfluxDB, ``public``
+for PostgreSQL, ``dbo`` for SQL Server, and the login schema (e.g.
+``TAOSDATA``) for Oracle.
 
 Cases:
   FS-UC-001  Periodic summary: ext-driven INTERVAL stream over external metric.
@@ -59,7 +60,7 @@ from fs_common import (  # noqa: E402
 
 
 def _mid_segment(prefix: str, src_name: str) -> str:
-    """For src '{prefix}_{m|p|s|i}', return remote db (mysql/influx) or schema (pg/sqlserver)."""
+    """For src '{prefix}_{m|p|s|i|o}', return remote db (mysql/influx) or schema (pg/sqlserver/oracle)."""
     suffix = src_name[-1]
     if suffix == "p":
         return "public"
@@ -67,7 +68,17 @@ def _mid_segment(prefix: str, src_name: str) -> str:
         # SQL Server 3-segment refs carry the schema in the middle segment;
         # the database comes from the source default (DS §5.3.3).
         return "dbo"
+    if suffix == "o":
+        # Oracle exposes a single namespace level: the login schema.  TDengine
+        # lower-cases an unquoted identifier, so the upper-case account name is
+        # spelled between backticks.  There is no per-test database — the
+        # source's default service (ORCL) is the connection target.
+        return "`%s`" % ExtSrcEnv.ORACLE_USER.upper()
     return f"{prefix}_{suffix}db"
+
+
+# (host, region) order of the shared PARTITION BY fixtures.
+_UC_KEYS = (("a", "x"), ("a", "y"), ("b", "x"), ("b", "y"))
 
 
 class TestFsUseCases(FsSharedFixtureMixin, FederatedQueryTestMixin):
@@ -132,8 +143,9 @@ class TestFsUseCases(FsSharedFixtureMixin, FederatedQueryTestMixin):
     _ms_to_dt = staticmethod(ms_to_dt)
     _dt_str = staticmethod(dt_str)
 
-    def _verify(self, stream: str, sink: str, expected: list, label: str):
-        verify_sink_rows(self.DB, stream, sink, expected, label)
+    def _verify(self, stream: str, sink: str, expected: list, label: str,
+                since_ms: int = None):
+        verify_sink_rows(self.DB, stream, sink, expected, label, since_ms=since_ms)
 
     def _create_uc001_stream(self, stream: str, sink: str, src_name: str, mid: str,
                              mode: str = "trows"):
@@ -317,19 +329,18 @@ class TestFsUseCases(FsSharedFixtureMixin, FederatedQueryTestMixin):
             # with the OUTPUT_SUBTABLE-computed name (proves the resolved bare
             # tbname reference is both present and correctly formed, not just
             # that some 4 groups exist).
-            self._assert_distinct_tbnames(
-                sink_stb, ['h_src_t_a_x_tname', 'h_src_t_a_y_tname', 'h_src_t_b_x_tname', 'h_src_t_b_y_tname']
-            )
+            tb = self._partition_tbnames("src_t")
+            self._assert_distinct_tbnames(sink_stb, [f"h_{tb[hr]}" for hr in _UC_KEYS])
 
             # Then verify every row of each subtable individually: 4 closed
             # windows (08:00..08:03), in order, with the exact per-series
             # aggregate value and %%tbname -- not just an unordered bag.
             window_starts_ms = [self._BASE_MS + k * 60_000 for k in range(4)]
             expected_by_subtable = {
-                "h_src_t_a_x_tname": (1, 1.0, "src_t_a_x_tname"),
-                "h_src_t_a_y_tname": (1, 3.0, "src_t_a_y_tname"),
-                "h_src_t_b_x_tname": (1, 2.0, "src_t_b_x_tname"),
-                "h_src_t_b_y_tname": (1, 4.0, "src_t_b_y_tname"),
+                f"h_{tb[('a', 'x')]}": (1, 1.0, tb[('a', 'x')]),
+                f"h_{tb[('a', 'y')]}": (1, 3.0, tb[('a', 'y')]),
+                f"h_{tb[('b', 'x')]}": (1, 2.0, tb[('b', 'x')]),
+                f"h_{tb[('b', 'y')]}": (1, 4.0, tb[('b', 'y')]),
             }
             self._assert_windows_per_subtable(
                 "cnt, avg_val, `%%tbname`", expected_by_subtable, window_starts_ms
@@ -392,19 +403,18 @@ class TestFsUseCases(FsSharedFixtureMixin, FederatedQueryTestMixin):
             # with the OUTPUT_SUBTABLE-computed name (proves the resolved bare
             # tbname reference is both present and correctly formed, not just
             # that some 4 groups exist).
-            self._assert_distinct_tbnames(
-                sink_stb, ['h_src_t_a_x_tname', 'h_src_t_a_y_tname', 'h_src_t_b_x_tname', 'h_src_t_b_y_tname']
-            )
+            tb = self._partition_tbnames("src_t")
+            self._assert_distinct_tbnames(sink_stb, [f"h_{tb[hr]}" for hr in _UC_KEYS])
 
             # Then verify every row of each subtable individually: 4 closed
             # windows (08:00..08:03), in order, with the exact per-series
             # aggregate value and %%tbname -- not just an unordered bag.
             window_starts_ms = [self._BASE_MS + k * 60_000 for k in range(4)]
             expected_by_subtable = {
-                "h_src_t_a_x_tname": (1, 1.0, "src_t_a_x_tname"),
-                "h_src_t_a_y_tname": (1, 3.0, "src_t_a_y_tname"),
-                "h_src_t_b_x_tname": (1, 2.0, "src_t_b_x_tname"),
-                "h_src_t_b_y_tname": (1, 4.0, "src_t_b_y_tname"),
+                f"h_{tb[('a', 'x')]}": (1, 1.0, tb[('a', 'x')]),
+                f"h_{tb[('a', 'y')]}": (1, 3.0, tb[('a', 'y')]),
+                f"h_{tb[('b', 'x')]}": (1, 2.0, tb[('b', 'x')]),
+                f"h_{tb[('b', 'y')]}": (1, 4.0, tb[('b', 'y')]),
             }
             self._assert_windows_per_subtable(
                 "cnt, avg_val, `%%1`", expected_by_subtable, window_starts_ms
@@ -466,19 +476,18 @@ class TestFsUseCases(FsSharedFixtureMixin, FederatedQueryTestMixin):
             # with the OUTPUT_SUBTABLE-computed name (proves the resolved bare
             # tbname reference is both present and correctly formed, not just
             # that some 4 groups exist).
-            self._assert_distinct_tbnames(
-                sink_stb, ['h_src_t_a_x_tname', 'h_src_t_a_y_tname', 'h_src_t_b_x_tname', 'h_src_t_b_y_tname']
-            )
+            tb = self._partition_tbnames("src_t")
+            self._assert_distinct_tbnames(sink_stb, [f"h_{tb[hr]}" for hr in _UC_KEYS])
 
             # Then verify every row of each subtable individually: 4 closed
             # windows (08:00..08:03), in order, with the exact per-series
             # aggregate value and %%tbname -- not just an unordered bag.
             window_starts_ms = [self._BASE_MS + k * 60_000 for k in range(4)]
             expected_by_subtable = {
-                "h_src_t_a_x_tname": (1, 1.0, "src_t_a_x_tname", "src_t_a_x_tname", "tname"),
-                "h_src_t_a_y_tname": (1, 3.0, "src_t_a_y_tname", "src_t_a_y_tname", "tname"),
-                "h_src_t_b_x_tname": (1, 2.0, "src_t_b_x_tname", "src_t_b_x_tname", "tname"),
-                "h_src_t_b_y_tname": (1, 4.0, "src_t_b_y_tname", "src_t_b_y_tname", "tname"),
+                f"h_{tb[('a', 'x')]}": (1, 1.0, tb[('a', 'x')], tb[('a', 'x')], "tname"),
+                f"h_{tb[('a', 'y')]}": (1, 3.0, tb[('a', 'y')], tb[('a', 'y')], "tname"),
+                f"h_{tb[('b', 'x')]}": (1, 2.0, tb[('b', 'x')], tb[('b', 'x')], "tname"),
+                f"h_{tb[('b', 'y')]}": (1, 4.0, tb[('b', 'y')], tb[('b', 'y')], "tname"),
             }
             self._assert_windows_per_subtable(
                 "cnt, avg_val, `%%1`, `%%tbname`, `cast(%%2 as varchar(64))`", expected_by_subtable, window_starts_ms
@@ -562,7 +571,10 @@ class TestFsUseCases(FsSharedFixtureMixin, FederatedQueryTestMixin):
                 # directly as an output column, which alone blows past
                 # TSDB_MAX_BYTES_PER_ROW. CAST to a bounded VARCHAR so %%1/%%2/
                 # %%3 can be projected as real sink-table columns.
-                f"CAST(%%1 AS VARCHAR(32)) as t1, CAST(%%2 AS VARCHAR(32)) as t2, "
+                # %%2 / %%tbname carry the composed sub-table identity, which 1.8
+                # name-qualifies, so they need more than the 32 bytes the tag
+                # values themselves require.
+                f"CAST(%%1 AS VARCHAR(32)) as t1, CAST(%%2 AS VARCHAR(64)) as t2, "
                 f"CAST(%%3 AS VARCHAR(32)) as t3, %%tbname as tname "
                 f"FROM %%trows"
             )
@@ -581,13 +593,15 @@ class TestFsUseCases(FsSharedFixtureMixin, FederatedQueryTestMixin):
             # Confirm exactly the 4 expected subtables were auto-created with
             # the OUTPUT_SUBTABLE-computed name (CONCAT('hm_', tbname), where
             # tbname is the reader's synthesized "<measurement>_<tagVal>..."
-            # identity -- e.g. "src_t_a_x" -- built from ALL of this uid's tag
+            # identity -- e.g. "src_t_host_a_region_x_tbname_tname" on 1.8 -- built
+            # from ALL of this uid's tag
             # values, not just the ones in PARTITION BY). This proves bare
             # tbname resolves in OUTPUT_SUBTABLE even though it is mixed with
-            # explicit tag columns in PARTITION BY.
-            self._assert_distinct_tbnames(sink_stb, [
-                'hm_src_t_a_x_tname', 'hm_src_t_a_y_tname', 'hm_src_t_b_x_tname', 'hm_src_t_b_y_tname',
-            ])
+            # explicit tag columns in PARTITION BY.  The composed identity is
+            # version dependent (1.8 qualifies every component with its tag
+            # name), so the expected names come from _partition_tbnames().
+            tb = self._partition_tbnames("src_t")
+            self._assert_distinct_tbnames(sink_stb, [f"hm_{tb[hr]}" for hr in _UC_KEYS])
 
             # Then verify every row of each subtable individually: 4 closed
             # windows, in order, with the exact per-series aggregate value,
@@ -604,10 +618,10 @@ class TestFsUseCases(FsSharedFixtureMixin, FederatedQueryTestMixin):
             # sentinel) and fills it with the same string used for %%tbname.
             window_starts_ms = [self._BASE_MS + k * 60_000 for k in range(4)]
             expected_by_subtable = {
-                "hm_src_t_a_x_tname": (1, 1.0, "a", "src_t_a_x_tname", "x", "src_t_a_x_tname"),
-                "hm_src_t_a_y_tname": (1, 3.0, "a", "src_t_a_y_tname", "y", "src_t_a_y_tname"),
-                "hm_src_t_b_x_tname": (1, 2.0, "b", "src_t_b_x_tname", "x", "src_t_b_x_tname"),
-                "hm_src_t_b_y_tname": (1, 4.0, "b", "src_t_b_y_tname", "y", "src_t_b_y_tname"),
+                f"hm_{tb[('a', 'x')]}": (1, 1.0, "a", tb[('a', 'x')], "x", tb[('a', 'x')]),
+                f"hm_{tb[('a', 'y')]}": (1, 3.0, "a", tb[('a', 'y')], "y", tb[('a', 'y')]),
+                f"hm_{tb[('b', 'x')]}": (1, 2.0, "b", tb[('b', 'x')], "x", tb[('b', 'x')]),
+                f"hm_{tb[('b', 'y')]}": (1, 4.0, "b", tb[('b', 'y')], "y", tb[('b', 'y')]),
             }
             self._assert_windows_per_subtable(
                 "cnt, avg_val, t1, t2, t3, tname", expected_by_subtable, window_starts_ms
@@ -1102,18 +1116,25 @@ class TestFsUseCases(FsSharedFixtureMixin, FederatedQueryTestMixin):
             db_or_bucket = f"{prefix}_{suffix}db"
 
             self._create_uc001_stream(stream, sink, src_name, mid)
+            canary_ts = self._wait_reader_bootstrap(
+                src_name=src_name, db_or_bucket=db_or_bucket, stream=stream,
+                result_db=self.DB, result_tbl=sink, before_ms=self._BASE_MS)
             self._insert_rows(suffix, db_or_bucket, self._BATCH1, src_name)
             self._insert_rows(suffix, db_or_bucket, self._BATCH2, src_name)
-            self._verify(stream, sink, EXPECTED, src_name)
+            # The canary windows sit before the measured range, so they are not
+            # part of the exact comparison (see verify_sink_rows).
+            self._verify(stream, sink, EXPECTED, src_name,
+                         since_ms=None if canary_ts is None else self._BASE_MS)
 
             tdSql.execute(f"DROP STREAM IF EXISTS {stream}", queryTimes=30)
             tdSql.execute(f"DROP TABLE IF EXISTS {self.DB}.{sink}")
 
-        # Streams reject Oracle external tables (streamTriggerTask's identity
-        # check is fail-closed for types past SQL Server), so the stream
-        # matrices never provision an Oracle leg.
-        self._with_std_sources(prefix, body, skip_mysql=False,
-                               skip_pg=False, skip_influx=False, skip_oracle=True)
+        # Oracle IS supported by the ext trigger reader (streamReaderExt.c handles
+        # EXT_SOURCE_ORACLE, and streamTriggerTask's identity check admits every
+        # source type up to EXT_SOURCE_ORACLE), so this case provisions both the
+        # SQL Server and the Oracle leg.  The Oracle namespace is one level deep:
+        # the middle segment of the 3-part reference is the login schema.
+        self._with_std_sources(prefix, body)
 
     # ------------------------------------------------------------------
     # FS-UC-001 — Periodic summary, ext-driven (two-phase verify)
@@ -1158,22 +1179,28 @@ class TestFsUseCases(FsSharedFixtureMixin, FederatedQueryTestMixin):
 
             self._create_uc001_stream(stream, sink, src_name, mid)
 
+            # The reader samples its history cutoff after checkStreamStatus()
+            # returns; a canary window isolated from the measured ones proves
+            # that sample already happened before batch1 is written.
+            canary_ts = self._wait_reader_bootstrap(
+                src_name=src_name, db_or_bucket=db_or_bucket, stream=stream,
+                result_db=self.DB, result_tbl=sink, before_ms=self._BASE_MS)
+            since_ms = None if canary_ts is None else self._BASE_MS
+
             # Phase 1: batch1 closes windows 08:00 and 08:01.
             self._insert_rows(suffix, db_or_bucket, self._BATCH1, src_name)
-            self._verify(stream, sink, EXPECTED1, src_name)
+            self._verify(stream, sink, EXPECTED1, src_name, since_ms=since_ms)
 
             # Phase 2: batch2 closes windows 08:02 and 08:03.
             self._insert_rows(suffix, db_or_bucket, self._BATCH2, src_name)
-            self._verify(stream, sink, EXPECTED2, src_name)
+            self._verify(stream, sink, EXPECTED2, src_name, since_ms=since_ms)
 
             tdSql.execute(f"DROP STREAM IF EXISTS {stream}", queryTimes=30)
             tdSql.execute(f"DROP TABLE IF EXISTS {self.DB}.{sink}")
 
-        # Streams reject Oracle external tables (streamTriggerTask's identity
-        # check is fail-closed for types past SQL Server), so the stream
-        # matrices never provision an Oracle leg.
-        self._with_std_sources(prefix, body, skip_mysql=False,
-                               skip_pg=False, skip_influx=False, skip_oracle=True)
+        # Oracle is supported by the ext trigger reader, so every standard
+        # source (MySQL/PostgreSQL/InfluxDB/SQL Server/Oracle) is provisioned.
+        self._with_std_sources(prefix, body)
 
     # ------------------------------------------------------------------
     # FS-UC-001 — Periodic summary, ext-driven (single-batch verify)
@@ -1207,17 +1234,23 @@ class TestFsUseCases(FsSharedFixtureMixin, FederatedQueryTestMixin):
             db_or_bucket = f"{prefix}_{suffix}db"
 
             self._create_uc001_stream(stream, sink, src_name, mid, mode="no_trows")
+            # This mode re-reads the whole remote table, so the canary is only a
+            # probe: it is deleted again before the measured batch, and its own
+            # window (a closed window emits a COUNT row even without input) stays
+            # out of the comparison through `since_ms`.
+            canary_ts = self._wait_reader_bootstrap(
+                src_name=src_name, db_or_bucket=db_or_bucket, stream=stream,
+                result_db=self.DB, result_tbl=sink, before_ms=self._BASE_MS)
             self._insert_rows(suffix, db_or_bucket, self._BATCH1, src_name)
-            self._verify(stream, sink, EXPECTED_NO_TROWS, src_name)
+            self._verify(stream, sink, EXPECTED_NO_TROWS, src_name,
+                         since_ms=None if canary_ts is None else self._BASE_MS)
 
             tdSql.execute(f"DROP STREAM IF EXISTS {stream}", queryTimes=30)
             tdSql.execute(f"DROP TABLE IF EXISTS {self.DB}.{sink}")
 
-        # Streams reject Oracle external tables (streamTriggerTask's identity
-        # check is fail-closed for types past SQL Server), so the stream
-        # matrices never provision an Oracle leg.
-        self._with_std_sources(prefix, body, skip_mysql=False,
-                               skip_pg=False, skip_influx=False, skip_oracle=True)
+        # Oracle is supported by the ext trigger reader, so every standard
+        # source (MySQL/PostgreSQL/InfluxDB/SQL Server/Oracle) is provisioned.
+        self._with_std_sources(prefix, body)
 
     # ------------------------------------------------------------------
     # FS-UC-001 — Periodic summary, ext-driven (single-batch verify)
@@ -1252,17 +1285,19 @@ class TestFsUseCases(FsSharedFixtureMixin, FederatedQueryTestMixin):
 
             self._create_uc001_stream(stream, sink, src_name, mid,
                                       mode="no_trows_with_wstart")
+            canary_ts = self._wait_reader_bootstrap(
+                src_name=src_name, db_or_bucket=db_or_bucket, stream=stream,
+                result_db=self.DB, result_tbl=sink, before_ms=self._BASE_MS)
             self._insert_rows(suffix, db_or_bucket, self._BATCH1_MORE, src_name)
-            self._verify(stream, sink, EXPECTED, src_name)
+            self._verify(stream, sink, EXPECTED, src_name,
+                         since_ms=None if canary_ts is None else self._BASE_MS)
 
             tdSql.execute(f"DROP STREAM IF EXISTS {stream}", queryTimes=30)
             tdSql.execute(f"DROP TABLE IF EXISTS {self.DB}.{sink}")
 
-        # Streams reject Oracle external tables (streamTriggerTask's identity
-        # check is fail-closed for types past SQL Server), so the stream
-        # matrices never provision an Oracle leg.
-        self._with_std_sources(prefix, body, skip_mysql=False,
-                               skip_pg=False, skip_influx=False, skip_oracle=True)
+        # Oracle is supported by the ext trigger reader, so every standard
+        # source (MySQL/PostgreSQL/InfluxDB/SQL Server/Oracle) is provisioned.
+        self._with_std_sources(prefix, body)
 
     # ------------------------------------------------------------------
     # FS-UC-001 — Periodic summary, ext-driven (single-batch verify)
@@ -1297,17 +1332,24 @@ class TestFsUseCases(FsSharedFixtureMixin, FederatedQueryTestMixin):
 
             self._create_uc001_stream(stream, sink, src_name, mid,
                                       mode="no_trows_with_range")
+            # The calc fetch is pinned to a fixed literal range that covers only
+            # the measured windows: the canary window still emits a row (a closed
+            # window emits a COUNT row even when the range yields nothing), so the
+            # probe stays observable, and the deleted canary cannot change the
+            # measured fetch.
+            canary_ts = self._wait_reader_bootstrap(
+                src_name=src_name, db_or_bucket=db_or_bucket, stream=stream,
+                result_db=self.DB, result_tbl=sink, before_ms=self._BASE_MS)
             self._insert_rows(suffix, db_or_bucket, self._BATCH1_MORE, src_name)
-            self._verify(stream, sink, EXPECTED, src_name)
+            self._verify(stream, sink, EXPECTED, src_name,
+                         since_ms=None if canary_ts is None else self._BASE_MS)
 
             tdSql.execute(f"DROP STREAM IF EXISTS {stream}", queryTimes=30)
             tdSql.execute(f"DROP TABLE IF EXISTS {self.DB}.{sink}")
 
-        # Streams reject Oracle external tables (streamTriggerTask's identity
-        # check is fail-closed for types past SQL Server), so the stream
-        # matrices never provision an Oracle leg.
-        self._with_std_sources(prefix, body, skip_mysql=False,
-                               skip_pg=False, skip_influx=False, skip_oracle=True)
+        # Oracle is supported by the ext trigger reader, so every standard
+        # source (MySQL/PostgreSQL/InfluxDB/SQL Server/Oracle) is provisioned.
+        self._with_std_sources(prefix, body)
 
     # ------------------------------------------------------------------
     # FS-UC-001 — Explicit namespace without a source-level default

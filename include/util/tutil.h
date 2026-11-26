@@ -27,6 +27,14 @@
 extern "C" {
 #endif
 
+// libuv uses small negative errno-style values; TDengine codes are outside
+// this range. Call only on failure paths: zero becomes the module fallback.
+enum { TSDB_UV_ERRNO_MIN = -65536 };
+
+static inline int32_t tsdbMapUvErr(int32_t code, int32_t moduleErr) {
+  return (code == 0 || code > TSDB_UV_ERRNO_MIN) ? moduleErr : code;
+}
+
 int32_t strdequote(char *src);
 size_t  strtrim(char *src);
 char   *strnchr(const char *haystack, char needle, int32_t len, bool skipquote);

@@ -20,6 +20,7 @@
 
 #include "nodes.h"
 #include "streamMsg.h"
+#include "tencode.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -103,8 +104,15 @@ typedef struct {
 int32_t stWindowChainCreate(const SStreamWindowPlan *pPlan, int64_t gid, const SWindowChainPolicy *pPolicy,
                             SWindowChainState **ppState);
 void    stWindowChainDestroy(SWindowChainState **ppState);
+bool    stWindowChainHasOrdinaryState(const SWindowChainState *state, TSKEY through);
+int32_t stWindowChainEncodeOrdinary(SEncoder *encoder, SWindowChainState *state);
+int32_t stWindowChainDecodeOrdinary(SDecoder *decoder, const SStreamWindowPlan *plan, int64_t gid,
+                                    const SWindowChainPolicy *policy, SWindowChainState **result);
 int32_t stWindowChainSubmitPeerGroup(SWindowChainState *pState, const SWindowChainPeerGroup *pGroup, int64_t nowNs,
                                      SWindowChainSubmitResult *pResult);
+/* Compare already filtered rows using the same inputs that drive the nested layers. */
+bool stWindowChainPeerInputsEqual(const SStreamWindowPlan *plan, const SWindowChainPeerGroup *a,
+                                  const SWindowChainPeerGroup *b);
 /* A successful prepare must be paired with exactly one commit or abort. */
 int32_t stWindowChainPreparePeerGroup(SWindowChainState *pState, const SWindowChainPeerGroup *pGroup, int64_t nowNs,
                                       SWindowChainSubmitResult *pResult, SWindowChainPeerGroupTxn **ppTxn);
@@ -118,8 +126,36 @@ int32_t stWindowChainCollectDelayedCandidates(SWindowChainState *pState, int64_t
 int64_t stWindowChainNextDelayDeadline(const SWindowChainState *pState);
 void    stWindowChainRearmDelayClocks(SWindowChainState *pState, int64_t nowNs);
 bool    stWindowChainHasCacheScope(const SWindowChainState *pState, const SStreamCacheScope *pScope);
+/* Bounded repair evidence captured at a common peer boundary of the same group's two chains. */
+typedef struct {
+  bool        hasOpening;
+  bool        current;
+  TSKEY       openingTs;
+  bool        predecessor;
+  STimeWindow prevWindow;
+  bool        hasPrevWindow;
+  bool        currentAsPredecessor;
+  bool        countPhase;
+} SWindowChainRepairScope;
+
+typedef struct {
+  int64_t                 gid;
+  int32_t                 numLayers;
+  TSKEY                   horizon;
+  STimeWindow             openLeaves;
+  SWindowChainRepairScope layers[STREAM_WINDOW_MAX_LAYERS];
+} SWindowChainRepairCarry;
+
+bool stWindowChainCaptureRepairCarry(const SWindowChainState *frozen, const SWindowChainState *ordinary, TSKEY horizon,
+                                     SWindowChainRepairCarry *carry);
+bool stWindowChainHasRepairCarry(const SWindowChainState *frozen, const SWindowChainRepairCarry *carry);
+bool stWindowChainCandidateCarriesRepair(const SWindowChainRepairCarry *carry, const SLeafEventCandidate *candidate);
 bool    stWindowChainGetInputRetentionRange(const SWindowChainState *pState, STimeWindow *pRange);
 bool    stWindowChainGetFirstOpenCountLeafRange(const SWindowChainState *pState, STimeWindow *pRange);
+bool    stWindowChainGetLastClosedCountLeafRange(const SWindowChainState *pState, STimeWindow *pRange);
+bool    stWindowChainMarkDeletedPredecessors(SWindowChainState *pState, const STimeWindow *pRange);
+bool    stWindowChainHasPendingPredecessorRepair(const SWindowChainState *pState);
+void    stWindowChainSetLeafEventTypes(SWindowChainState *pState, int64_t eventTypes);
 bool    stWindowChainCanRepairCountDisorder(const SWindowChainState *pState, const STimeWindow *pRange);
 void    stWindowChainSuppressOpenCountLeafBefore(SWindowChainState *pState, TSKEY firstUnaffectedStart);
 int32_t stWindowChainBuildRecalcImpactDomain(const SStreamWindowPlan *pPlan, int64_t gid,

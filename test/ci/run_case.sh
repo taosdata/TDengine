@@ -154,19 +154,22 @@ cd $CONTAINER_TESTDIR/$target_dir || { echo "Can't enter the target dirctory: ${
 ulimit -c unlimited
 
 # 使用容器本地 marker + requirements.txt 内容 hash 比较，智能安装依赖。
-# marker 不能放在 bind-mounted 源码目录里；CI 每个 case 是新容器，
-# 但源码目录可能跨容器共享，旧 marker 会让新容器跳过 pip install。
-# The runtime image supplies the pip index. Python 3.12 provisioning is a
-# prerequisite for this requirement upgrade (7145792566 / image MR !2643).
+# marker 不能放在 bind-mounted 源码目录、/tmp 或 /var/tmp 里。
+# 这些路径来自 thread volume，同一个 slot 的下一个 --rm 容器还能看到 marker，
+# 却看不到上一个容器装进 site-packages 的 pymysql。
+# The runtime image supplies the pip index. Python 3.12.16 provisioning is a
+# prerequisite for this requirement upgrade (7176672096 / CI image 0.5).
 # Fail before dependency installation if a worker still uses an older image.
-if ! python3 -c 'import sys; sys.exit(0 if sys.version_info >= (3, 12) else 1)'; then
-    echo "[ci] FATAL: container interpreter is $(python3 -V 2>&1), but test/requirements.txt and test/pyproject.toml require >=3.12 (7145792566)" >&2
+if ! python3 -c 'import sys; sys.exit(0 if sys.version_info >= (3, 12, 16) else 1)'; then
+    echo "[ci] FATAL: container interpreter is $(python3 -V 2>&1), but test/requirements.txt and test/pyproject.toml require >=3.12.16 (7176672096)" >&2
     exit 1
 fi
 _REQ_FILE="${CONTAINER_TESTDIR}/test/requirements.txt"
 _REQ_HASH=$(python3 -c 'import hashlib, sys; print(hashlib.sha256(open(sys.argv[1], "rb").read()).hexdigest()[:16])' "${_REQ_FILE}" 2>/dev/null || echo "unknown")
 _PY_TAG=$(python3 -c 'import sys; print(f"{sys.implementation.cache_tag}-{sys.version_info[0]}.{sys.version_info[1]}")' 2>/dev/null || echo "python")
-_DEPS_MARKER="${TMPDIR:-/tmp}/tdengine-ci-deps-${_PY_TAG}-${_REQ_HASH}.installed"
+_DEPS_DIR="/var/lib/tdengine-ci"
+mkdir -p "${_DEPS_DIR}"
+_DEPS_MARKER="${_DEPS_DIR}/deps-${_PY_TAG}-${_REQ_HASH}.installed"
 if [[ ! -f "${_DEPS_MARKER}" ]] || [[ "${_REQ_FILE}" -nt "${_DEPS_MARKER}" ]]; then
     _PIP_LOG=$(mktemp "${TMPDIR:-/tmp}/tdengine-ci-pip.XXXXXX")
     if pip3 install -r "${_REQ_FILE}" -q >"${_PIP_LOG}" 2>&1; then
@@ -367,7 +370,7 @@ esac
 _ci_command_start_ms=$(date +%s%3N)
 echo "[ci-timing] stage=container-preparation elapsed_ms=$(( _ci_command_start_ms - _ci_entry_start_ms ))"
 echo "[ci-timing] stage=test-command event=start"
-$TIMEOUT_CMD bash -c "$cmd"
+FQ_CI_CASE_CONTAINER=1 $TIMEOUT_CMD bash -c "$cmd"
 RET=$?
 echo "[ci-timing] stage=test-command elapsed_ms=$(( $(date +%s%3N) - _ci_command_start_ms )) rc=${RET}"
 # pytest exit code 5 = no tests collected / all skipped → treat as pass

@@ -233,5 +233,6 @@ if [ ! -f "${CONFIG_FILE}" ]; then
 fi
 
 echo "Starting Gunicorn with config: $CONFIG_FILE"
-cd /usr/local/taos/taosanode/lib/taosanalytics/ || exit 1
-exec /usr/local/bin/gunicorn -c "$CONFIG_FILE"
+export TDGPT_CONF="${CONFIG_FILE}"
+cd /usr/local/taos/taosanode || exit 1
+exec /usr/local/bin/gunicorn -c "$CONFIG_FILE" --pythonpath /usr/local/taos/taosanode lib.app:app

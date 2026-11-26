@@ -39,7 +39,7 @@ _PRECISION_RANK = {"ms": 0, "us": 1, "ns": 2}
 _TICKS_PER_MILLISECOND = {"ms": 1, "us": 1_000, "ns": 1_000_000}
 # Oracle tables live in the shared login schema; prefixing their names keeps
 # them apart from the fixtures of the other ext-source test files.
-_ORACLE_TABLE_NAME = "VTP_ORACLE_MS_DENSE_TS"
+_ORACLE_TABLE_NAME = "vtp_oracle_ms_dense_ts"
 # sqlplus receives each statement as one argv entry and truncates a single
 # input line past ~5000 characters, so the INSERT ALL rows are bounded and one
 # INTO branch goes on each line.
@@ -216,6 +216,10 @@ def _external_table_path(case):
     table = case.get("table", "dense_ts")
     if case["backend"] == "sqlserver":
         return f"{path}.dbo.{table}"
+    if case["backend"] == "oracle":
+        # The schema segment is an upper-case Oracle account name; backticks
+        # preserve its spelling under TDengine's identifier grammar.
+        return f"{case['source_name']}.`{case['external_db']}`.{table}"
     return f"{path}.{table}"
 
 
@@ -406,9 +410,9 @@ class TestVTablePlanPushdownExtSourceTsPrecision:
         ExtSrcEnv._oracle_sql(
             cfg,
             [
-                f"CREATE TABLE {table} "
-                "(ts TIMESTAMP(3) NOT NULL PRIMARY KEY, "
-                "v NUMBER(10,0) NOT NULL)",
+                f'CREATE TABLE "{table}" '
+                '("ts" TIMESTAMP(3) NOT NULL PRIMARY KEY, '
+                '"v" NUMBER(10,0) NOT NULL)',
             ],
         )
 
@@ -425,7 +429,7 @@ class TestVTablePlanPushdownExtSourceTsPrecision:
             # One INTO branch per line: SQL*Plus silently truncates an input
             # line past ~5000 characters (SP2-0027) and would load only part
             # of the batch.
-            into = "\n".join(f"INTO {table} VALUES {row}" for row in batch)
+            into = "\n".join(f'INTO "{table}" VALUES {row}' for row in batch)
             ExtSrcEnv._oracle_sql(
                 cfg, f"INSERT ALL\n{into}\nSELECT 1 FROM dual")
         ExtSrcEnv._oracle_sql(cfg, "COMMIT")
@@ -488,15 +492,15 @@ class TestVTablePlanPushdownExtSourceTsPrecision:
                 f"create external source {source_name} type='oracle' "
                 f"host='{adapter.host}' port={adapter.port} "
                 f"user='{adapter.user}' password='{adapter.password}' "
-                f"database={ExtSrcEnv.ORACLE_SERVICE} schema={external_db}"
+                f"database='{ExtSrcEnv.ORACLE_SERVICE}' schema='{external_db}'"
             )
         else:
+            influx_user, influx_password = ExtSrcEnv.influx_source_credentials(adapter.version)
             tdSql.execute(
                 f"create external source {source_name} type='influxdb' "
                 f"host='{adapter.host}' port={adapter.port} "
-                f"user='u' password='' database={external_db} "
-                f"options('api_token'='{adapter.token}',"
-                f"'protocol'='flight_sql')"
+                f"user='{influx_user}' password='{influx_password}' database={external_db} "
+                f"options({ExtSrcEnv.influx_source_options(adapter.version)})"
             )
 
     @staticmethod
@@ -797,9 +801,8 @@ class TestVTablePlanPushdownExtSourceTsPrecision:
         answer_file = os.path.join(
             os.path.dirname(__file__), "ans", f"{test_case}.ans"
         )
-        tdCom.compare_testcase_result(
+        VtableQueryUtil.compare_ext_source_plan_testcase_result(
             input_file, answer_file, test_case,
-            result_transform=ExtSrcEnv.baseline_environment,
         )
 
     @staticmethod
@@ -811,9 +814,15 @@ class TestVTablePlanPushdownExtSourceTsPrecision:
         answer_file = os.path.join(
             os.path.dirname(__file__), "ans", f"{test_case}.ans"
         )
-        tdCom.compare_testcase_result(
+        def check_native_result(query):
+            tdSql.query(f"select cast(ts as bigint), v from ({query}) verified")
+            tdSql.checkRows(1)
+            tdSql.checkData(0, 0, _BASE_TIME_NS)
+            tdSql.checkData(0, 1, 0)
+
+        VtableQueryUtil.compare_ext_source_plan_testcase_result(
             input_file, answer_file, test_case,
-            result_transform=ExtSrcEnv.baseline_environment,
+            result_check=check_native_result,
         )
 
     def test_timestamp_precision_matrix(self):

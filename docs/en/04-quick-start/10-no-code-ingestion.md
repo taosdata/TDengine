@@ -148,7 +148,14 @@ To avoid overwriting the same timestamp, change `ts` to the current time when re
 After publishing, query results in Explorer’s data browser or in the shell.
 
 ```sql
-SELECT tbname, ts, current, voltage, phase, groupid, location
+SELECT
+  tbname,
+  ts,
+  current,
+  voltage,
+  phase,
+  groupid,
+  location
 FROM test_mqtt.meters
 ORDER BY ts DESC
 LIMIT 5;

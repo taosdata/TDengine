@@ -1414,55 +1414,69 @@ int8_t extTimestampTypePrecision(EExtSourceType srcType, const char *extTypeName
              : TSDB_TIME_PRECISION_MILLI;
 }
 
-/* Oracle's SQL parser folds an unquoted identifier to upper case before it
- * looks the name up, while a name written in double quotes is looked up
- * exactly and can therefore be a different object (DS 5.3.6 R1).
- *
- * TDengine has already applied its own rule by the time a reference gets here:
- * an unquoted identifier was lower-cased, a quoted one keeps the spelling the
- * user wrote.  An upper-case letter in refName therefore proves the reference
- * was quoted, and only the all-lower-case form can be an unquoted reference -
- * the one form Oracle folds to upper case.  Folding every reference would make
- * the quoted "Val" resolve onto the column VAL, so a filter that names both
- * VAL and "Val" would look like one column named twice, and a stored filter
- * over "Val" would silently follow a rename of VAL.  Callers that can see both
- * a folded and an exact candidate still try the exact spelling first -
- * findExternalFilterColumn() does. */
-static bool oracleIdentMatches(const char *storedName, const char *refName) {
-  if (NULL == storedName || NULL == refName) {
-    return false;
-  }
-  if (0 == strcmp(storedName, refName)) {
-    return true;
-  }
-  char    folded[TSDB_COL_NAME_LEN];
-  int32_t i = 0;
-  for (; refName[i] != '\0' && i < (int32_t)sizeof(folded) - 1; ++i) {
-    char c = refName[i];
-    if (c >= 'A' && c <= 'Z') {
-      return false;
-    }
-    folded[i] = (c >= 'a' && c <= 'z') ? (char)(c - 'a' + 'A') : c;
-  }
-  folded[i] = '\0';
-  return 0 == strcmp(storedName, folded);
-}
-
 bool extColumnNameEqual(EExtSourceType srcType, const char *lhs, const char *rhs) {
   // MySQL and SQL Server expose case-insensitive catalogs by default, so name
   // variants fold onto the stored column and the resolved column echoes the
-  // stored case; PostgreSQL and InfluxDB compare identifiers literally.
-  // Oracle folds an unquoted reference to upper case and then compares exactly,
-  // so a stored "VAL" matches "val" and "VAL" but not "Val".
+  // stored case.  PostgreSQL, InfluxDB and Oracle compare identifiers
+  // literally: TDengine has already applied its own identifier grammar before
+  // a reference reaches this helper (unquoted text is lower-cased by the
+  // client, backticked text keeps its spelling), so the remote catalog name
+  // must match that resolved spelling byte for byte (DS 5.3.6 R1).
   if (lhs == NULL || rhs == NULL) {
     return lhs == rhs;
-  }
-  if (srcType == EXT_SOURCE_ORACLE) {
-    return oracleIdentMatches(lhs, rhs);
   }
   bool caseInsensitive = (srcType == EXT_SOURCE_MYSQL || srcType == EXT_SOURCE_SQLSERVER);
   return caseInsensitive ? strcasecmp(lhs, rhs) == 0 : strcmp(lhs, rhs) == 0;
 }
+
+bool extColumnNameEqualReference(EExtSourceType srcType, const char *storedName,
+                                 const char *referenceName) {
+  /* The reference has already passed through TDengine's identifier grammar:
+   * unquoted identifiers were lower-cased and backticks were removed, so the
+   * bytes here are the exact remote spelling.  No representation quotes and
+   * no case folding are applied at this layer. */
+  return extColumnNameEqual(srcType, storedName, referenceName);
+}
+
+int32_t extFindColumnIndex(EExtSourceType srcType, const SExtTableMeta *pMeta,
+                           const char *colName) {
+  if (pMeta == NULL || pMeta->pCols == NULL || colName == NULL) {
+    return -1;
+  }
+  /* An exact hit anywhere in the catalog beats a folded one earlier in it: the
+   * fold is only a convention about how the remote parses an unquoted name, so
+   * it must never merge two columns the catalog holds separately.  For MySQL
+   * and SQL Server the second pass folds case; PostgreSQL, InfluxDB and Oracle
+   * are byte-exact, so their second pass can only repeat an exact hit. */
+  for (int32_t i = 0; i < pMeta->numOfCols; ++i) {
+    if (0 == strcmp(pMeta->pCols[i].colName, colName)) {
+      return i;
+    }
+  }
+  for (int32_t i = 0; i < pMeta->numOfCols; ++i) {
+    if (extColumnNameEqual(srcType, pMeta->pCols[i].colName, colName)) {
+      return i;
+    }
+  }
+  return -1;
+}
+
+void extCopyRemoteTableSpelling(const char *spelling, char *out, int32_t outLen) {
+  /* The connector reports the exact remote spelling (DS 5.3.6 R1); bytes are
+   * copied verbatim and only truncated to fit the destination. */
+  if (out == NULL || outLen <= 0) {
+    return;
+  }
+  if (spelling == NULL) {
+    out[0] = '\0';
+    return;
+  }
+  tstrncpy(out, spelling, outLen);
+  if ((int32_t)strlen(spelling) >= outLen) {
+    qError("external table spelling truncated at %d bytes: '%s'", outLen - 1, spelling);
+  }
+}
+
 
 bool extTimestampTypeHasSubMicroFraction(EExtSourceType srcType, const char *extTypeName) {
   // Only SQL Server can declare a timestamp finer than the microsecond the

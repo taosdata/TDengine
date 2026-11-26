@@ -350,6 +350,9 @@ typedef struct SMJoinOperatorInfo {
   joinResetFp       grpResetFp;
   SMJoinCtx         ctx;
   SMJoinExecInfo    execInfo;
+#if defined(BUILD_TEST)
+  bool              testMatchSelected;
+#endif
 } SMJoinOperatorInfo;
 
 #define MJOIN_DS_REQ_INIT(_pOp) ((_pOp)->pOperatorGetParam && ((SSortMergeJoinOperatorParam*)(_pOp)->pOperatorGetParam->value)->initDownstream)

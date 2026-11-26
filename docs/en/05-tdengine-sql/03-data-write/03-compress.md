@@ -47,11 +47,11 @@ Note: `tsz` applies only to `FLOAT` and `DOUBLE`. When `tsz` is set as the compr
 
 ```sql
 CREATE TABLE [db_name.]tb_name (
-    col_name col_type
-        [ENCODE 'encode_type']
-        [COMPRESS 'compress_type']
-        [LEVEL 'level']
-    [, ...]
+  col_name col_type
+    [ENCODE 'encode_type']
+    [COMPRESS 'compress_type']
+    [LEVEL 'level']
+  [, ...]
 );
 ```
 
@@ -68,9 +68,9 @@ Supertable column definitions also support `ENCODE`, `COMPRESS`, and `LEVEL`; se
 
 ```sql
 ALTER TABLE [db_name.]tb_name MODIFY COLUMN col_name
-    [ENCODE 'encode_type']
-    [COMPRESS 'compress_type']
-    [LEVEL 'level'];
+  [ENCODE 'encode_type']
+  [COMPRESS 'compress_type']
+  [LEVEL 'level'];
 ```
 
 **Parameter Description**

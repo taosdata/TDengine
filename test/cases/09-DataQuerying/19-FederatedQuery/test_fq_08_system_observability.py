@@ -825,11 +825,11 @@ _CASES = [
          f"user='{_O_USER}' password='{_O_PASS}' database='{_O_SERVICE}' schema='{_O_SCHEMA}'",
          # 3-segment path: source, schema and table all appear in the plan.
          _AssertQueryStep(
-             f"explain select val from fq08_s002_o.{_O_SCHEMA}.fq08_s002_t order by val",
+             f"explain select val from fq08_s002_o.`{_O_SCHEMA}`.fq08_s002_t order by val",
              required=(f"Federated Scan on fq08_s002_o.{_O_SCHEMA}.fq08_s002_t (oracle)",),
              forbidden=("Federated Scan on fq08_s002_o.fq08_s002_t (oracle)",)),
          _AssertQueryStep(
-             f"select val from fq08_s002_o.{_O_SCHEMA}.fq08_s002_t order by val",
+             f"select val from fq08_s002_o.`{_O_SCHEMA}`.fq08_s002_t order by val",
              rows=["10", "20"]),
          # 2-segment path: the plan must still name the effective (default) schema.
          _AssertQueryStep(
@@ -861,7 +861,7 @@ _CASES = [
              required=(f"Federated Scan on fq08_s003_o.{_O_SCHEMA}.fq08_s003_t (oracle)",),
              forbidden=(f"Federated Scan on fq08_s003_o.{_O_SCHEMA2}.fq08_s003_t (oracle)",)),
          # Explicit namespace: the same unqualified name now reads the other schema.
-         f"use fq08_s003_o.{_O_SCHEMA2}",
+         f"use fq08_s003_o.`{_O_SCHEMA2}`",
          _AssertQueryStep("select val from fq08_s003_t", rows=["200"]),
          _AssertQueryStep(
              "explain select val from fq08_s003_t",
@@ -923,7 +923,7 @@ _CASES = [
                      errno=TSDB_CODE_EXT_DB_NOT_EXIST,
                      required=("External source database or schema not found",)),
          # b) Object missing: same source, existing schema, absent table.
-         _error_step(f"select count(*) from fq08_s005_o.{_O_SCHEMA}.FQ08_S005_MISSING",
+         _error_step(f"select count(*) from fq08_s005_o.`{_O_SCHEMA}`.fq08_s005_missing",
                      errno=TSDB_CODE_EXT_TABLE_NOT_EXIST,
                      required=("External table not found on remote source",)),
          # c) ORA-00942 raised while scanning is passed through verbatim: the
@@ -971,6 +971,7 @@ class TestFq08SystemObservability(FederatedQueryVersionedMixin):
     Labels: common,ci
     Since: v3.4.0.0
     """
+
 
     # ── Lifecycle ─────────────────────────────────────────────────────────
 
@@ -1060,7 +1061,17 @@ class TestFq08SystemObservability(FederatedQueryVersionedMixin):
         """Patch generic import-time Influx source SQL to runtime protocol."""
         if src_type != _influxdb:
             return sql
-        return self._rewrite_influx_source_runtime_sql(sql)
+        rewritten = self._rewrite_influx_source_runtime_sql(sql)
+        if self._influx_cfg().version == "1.8" and "'secret_token'" in sql:
+            # Native 1.8 uses Basic credentials. Keep a real secret in the
+            # masking cases rather than clearing the unsupported API token.
+            if re.search(r"\bpassword\s*=", rewritten, re.I):
+                rewritten = re.sub(r"\bpassword\s*=\s*'[^']*'", "password='secret_token'",
+                                   rewritten, count=1, flags=re.I)
+            else:
+                rewritten = re.sub(r"(\buser\s*=\s*'(?:''|[^'])*')",
+                                   r"\1 password='secret_token'", rewritten, count=1, flags=re.I)
+        return rewritten
 
     @staticmethod
     def _fw_quote_src_name(src_name: str) -> str:
@@ -1116,8 +1127,15 @@ class TestFq08SystemObservability(FederatedQueryVersionedMixin):
 
     @staticmethod
     def _fw_drop_oracle_object(kind: str, name: str) -> str:
-        """Idempotent DROP: Oracle has no DROP <object> IF EXISTS."""
-        return (f"BEGIN EXECUTE IMMEDIATE 'DROP {kind} {name}'; "
+        """Idempotent DROP: Oracle has no DROP <object> IF EXISTS.
+
+        Every dotted segment is double-quoted so the DROP targets the exact
+        spelling the fixture created, including quoted lower-case names.
+        """
+        quoted = ".".join(
+            part if part.startswith('"') else f'"{part}"'
+            for part in name.split("."))
+        return (f"BEGIN EXECUTE IMMEDIATE 'DROP {kind} {quoted}'; "
                 f"EXCEPTION WHEN OTHERS THEN NULL; END;")
 
     def _fw_oracle_fixtures(self, profile: str):
@@ -1125,10 +1143,10 @@ class TestFq08SystemObservability(FederatedQueryVersionedMixin):
         cfg = self._fw_oracle_cfg()
         if profile == "s002":
             ExtSrcEnv.oracle_exec_cfg(cfg, [
-                self._fw_drop_oracle_object("TABLE", "FQ08_S002_T"),
-                "CREATE TABLE FQ08_S002_T (TS TIMESTAMP(3) PRIMARY KEY, VAL NUMBER(10,0))",
-                "INSERT INTO FQ08_S002_T VALUES (TIMESTAMP '2024-01-01 00:00:00.000', 10)",
-                "INSERT INTO FQ08_S002_T VALUES (TIMESTAMP '2024-01-01 00:00:01.000', 20)",
+                self._fw_drop_oracle_object("TABLE", "fq08_s002_t"),
+                'CREATE TABLE "fq08_s002_t" ("ts" TIMESTAMP(3) PRIMARY KEY, "val" NUMBER(10,0))',
+                "INSERT INTO \"fq08_s002_t\" VALUES (TIMESTAMP '2024-01-01 00:00:00.000', 10)",
+                "INSERT INTO \"fq08_s002_t\" VALUES (TIMESTAMP '2024-01-01 00:00:01.000', 20)",
                 "COMMIT",
             ])
             return
@@ -1136,30 +1154,30 @@ class TestFq08SystemObservability(FederatedQueryVersionedMixin):
             # The same table name in two schemas: the row value identifies the
             # schema the query actually read.
             ExtSrcEnv.oracle_exec_cfg(cfg, [
-                self._fw_drop_oracle_object("TABLE", "FQ08_S003_T"),
-                "CREATE TABLE FQ08_S003_T (TS TIMESTAMP(3) PRIMARY KEY, VAL NUMBER(10,0))",
-                "INSERT INTO FQ08_S003_T VALUES (TIMESTAMP '2024-01-01 00:00:00.000', 100)",
+                self._fw_drop_oracle_object("TABLE", "fq08_s003_t"),
+                'CREATE TABLE "fq08_s003_t" ("ts" TIMESTAMP(3) PRIMARY KEY, "val" NUMBER(10,0))',
+                "INSERT INTO \"fq08_s003_t\" VALUES (TIMESTAMP '2024-01-01 00:00:00.000', 100)",
                 "COMMIT",
             ])
             # A schema is an account, so the alternate namespace is created
             # while logged in as that account.
             ExtSrcEnv._oracle_sql(cfg, [
-                self._fw_drop_oracle_object("TABLE", "FQ08_S003_T"),
-                "CREATE TABLE FQ08_S003_T (TS TIMESTAMP(3) PRIMARY KEY, VAL NUMBER(10,0))",
-                "INSERT INTO FQ08_S003_T VALUES (TIMESTAMP '2024-01-01 00:00:00.000', 200)",
+                self._fw_drop_oracle_object("TABLE", "fq08_s003_t"),
+                'CREATE TABLE "fq08_s003_t" ("ts" TIMESTAMP(3) PRIMARY KEY, "val" NUMBER(10,0))',
+                "INSERT INTO \"fq08_s003_t\" VALUES (TIMESTAMP '2024-01-01 00:00:00.000', 200)",
                 "COMMIT",
             ], user=ExtSrcEnv.ORACLE_ALT_USER,
                password=ExtSrcEnv.ORACLE_ALT_PASS)
             # Cross-schema reads need an explicit grant.
             ExtSrcEnv.oracle_admin_exec_cfg(cfg, [
-                f'GRANT SELECT ON "{_O_SCHEMA2}"."FQ08_S003_T" TO "{_O_SCHEMA}"',
+                f'GRANT SELECT ON "{_O_SCHEMA2}"."fq08_s003_t" TO "{_O_SCHEMA}"',
             ])
             return
         if profile == "s004":
             ExtSrcEnv.oracle_exec_cfg(cfg, [
-                self._fw_drop_oracle_object("TABLE", "FQ08_S004_T"),
-                "CREATE TABLE FQ08_S004_T (TS TIMESTAMP(3) PRIMARY KEY, VAL NUMBER(10,0))",
-                "INSERT INTO FQ08_S004_T VALUES (TIMESTAMP '2024-01-01 00:00:00.000', 10)",
+                self._fw_drop_oracle_object("TABLE", "fq08_s004_t"),
+                'CREATE TABLE "fq08_s004_t" ("ts" TIMESTAMP(3) PRIMARY KEY, "val" NUMBER(10,0))',
+                "INSERT INTO \"fq08_s004_t\" VALUES (TIMESTAMP '2024-01-01 00:00:00.000', 10)",
                 "COMMIT",
             ])
             return
@@ -1192,18 +1210,18 @@ class TestFq08SystemObservability(FederatedQueryVersionedMixin):
                 "GRANT EXECUTE ON SYSTEM.FQ08_DENY_FN TO PUBLIC",
             ])
             ExtSrcEnv.oracle_exec_cfg(cfg, [
-                self._fw_drop_oracle_object("VIEW", "FQ08_E942_V"),
-                self._fw_drop_oracle_object("VIEW", "FQ08_DENY_V"),
-                self._fw_drop_oracle_object("TABLE", "FQ08_S005_T"),
-                "CREATE TABLE FQ08_S005_T (TS TIMESTAMP(3) PRIMARY KEY, VAL NUMBER(10,0))",
-                "INSERT INTO FQ08_S005_T VALUES (TIMESTAMP '2024-01-01 00:00:00.000', 10)",
+                self._fw_drop_oracle_object("VIEW", "fq08_e942_v"),
+                self._fw_drop_oracle_object("VIEW", "fq08_deny_v"),
+                self._fw_drop_oracle_object("TABLE", "fq08_s005_t"),
+                'CREATE TABLE "fq08_s005_t" ("ts" TIMESTAMP(3) PRIMARY KEY, "val" NUMBER(10,0))',
+                "INSERT INTO \"fq08_s005_t\" VALUES (TIMESTAMP '2024-01-01 00:00:00.000', 10)",
                 "COMMIT",
-                "CREATE OR REPLACE VIEW FQ08_E942_V AS SELECT VAL, "
+                'CREATE OR REPLACE VIEW "fq08_e942_v" AS SELECT "val", '
                 "CAST(SYSTEM.FQ08_RAISE('SELECT VAL FROM FQ08_S005_MISSING') "
-                "AS NUMBER(10,0)) AS BOOM FROM FQ08_S005_T WHERE ROWNUM <= 1",
-                "CREATE OR REPLACE VIEW FQ08_DENY_V AS SELECT VAL, "
-                "CAST(SYSTEM.FQ08_DENY_FN AS NUMBER(10,0)) AS BOOM "
-                "FROM FQ08_S005_T WHERE ROWNUM <= 1",
+                'AS NUMBER(10,0)) AS "boom" FROM "fq08_s005_t" WHERE ROWNUM <= 1',
+                'CREATE OR REPLACE VIEW "fq08_deny_v" AS SELECT "val", '
+                "CAST(SYSTEM.FQ08_DENY_FN AS NUMBER(10,0)) AS \"boom\" "
+                'FROM "fq08_s005_t" WHERE ROWNUM <= 1',
             ])
             return
         raise ValueError(f"Unknown Oracle fixture profile: {profile}")
@@ -1214,22 +1232,22 @@ class TestFq08SystemObservability(FederatedQueryVersionedMixin):
         try:
             if profile == "s002":
                 ExtSrcEnv.oracle_exec_cfg(
-                    cfg, [self._fw_drop_oracle_object("TABLE", "FQ08_S002_T")])
+                    cfg, [self._fw_drop_oracle_object("TABLE", "fq08_s002_t")])
             elif profile == "s003":
                 ExtSrcEnv.oracle_exec_cfg(
-                    cfg, [self._fw_drop_oracle_object("TABLE", "FQ08_S003_T")])
+                    cfg, [self._fw_drop_oracle_object("TABLE", "fq08_s003_t")])
                 ExtSrcEnv._oracle_sql(
-                    cfg, [self._fw_drop_oracle_object("TABLE", "FQ08_S003_T")],
+                    cfg, [self._fw_drop_oracle_object("TABLE", "fq08_s003_t")],
                     user=ExtSrcEnv.ORACLE_ALT_USER,
                     password=ExtSrcEnv.ORACLE_ALT_PASS)
             elif profile == "s004":
                 ExtSrcEnv.oracle_exec_cfg(
-                    cfg, [self._fw_drop_oracle_object("TABLE", "FQ08_S004_T")])
+                    cfg, [self._fw_drop_oracle_object("TABLE", "fq08_s004_t")])
             elif profile == "s005":
                 ExtSrcEnv.oracle_exec_cfg(cfg, [
-                    self._fw_drop_oracle_object("VIEW", "FQ08_E942_V"),
-                    self._fw_drop_oracle_object("VIEW", "FQ08_DENY_V"),
-                    self._fw_drop_oracle_object("TABLE", "FQ08_S005_T"),
+                    self._fw_drop_oracle_object("VIEW", "fq08_e942_v"),
+                    self._fw_drop_oracle_object("VIEW", "fq08_deny_v"),
+                    self._fw_drop_oracle_object("TABLE", "fq08_s005_t"),
                 ])
                 ExtSrcEnv.oracle_admin_exec_cfg(cfg, [
                     self._fw_drop_oracle_object("FUNCTION", "SYSTEM.FQ08_RAISE"),
@@ -1587,7 +1605,7 @@ class TestFq08SystemObservability(FederatedQueryVersionedMixin):
     # ── Baseline file management ───────────────────────────────────────────
 
     def _fw_baseline_file(self) -> str:
-        label = self._version_label().replace(".", "_").replace("/", "_")
+        label = self._framework_baseline_label()
         return os.path.join(
             os.path.dirname(__file__),
             "ans",
@@ -1681,7 +1699,8 @@ class TestFq08SystemObservability(FederatedQueryVersionedMixin):
         """
         _only     = os.environ.get("FQ_CASES", "").strip()
         _only_set = set(_only.split(",")) if _only else None
-        blocks: List[str]  = []
+        configs = self._influx_configs()
+        version_blocks = {cfg.version: [] for cfg in configs}
         timings: List[str] = []
 
         for case in _CASES:
@@ -1689,19 +1708,27 @@ class TestFq08SystemObservability(FederatedQueryVersionedMixin):
             if _only_set and case_id not in _only_set:
                 continue
             for src_type in types:
-                label = f"CASE-{case_id}[{src_type[:3].upper()}]"
-                tdLog.info(f"Running {label}: {desc}")
-                self._fw_append_case_boundary(blocks, label, desc, is_start=True)
-                _t0 = time.monotonic()
-                for step_no, step in enumerate(steps, start=1):
-                    step_tag = f"STEP-{step_no:03d}"
-                    self._fw_exec_step(step, src_type, source_names, blocks, label, step_tag)
-                elapsed = time.monotonic() - _t0
-                self._fw_append_case_boundary(blocks, label, desc, is_start=False)
-                timing_line = f"{label}: {elapsed:.2f}s"
-                print(f"[TIMING] {timing_line}", flush=True)
-                timings.append(timing_line)
-
+                for cfg in (configs if src_type == _influxdb else [None]):
+                    with self._using_influx(cfg):
+                        blocks = []
+                        desc, steps = case[3], case[4]
+                        if src_type == _influxdb and self._influx_cfg().version == "1.8":
+                            desc = desc.replace("api_token masked", "Basic password masked")
+                        label = f"CASE-{case_id}[{src_type[:3].upper()}]"
+                        tdLog.info(f"Running {label}: {desc}")
+                        self._fw_append_case_boundary(blocks, label, desc, is_start=True)
+                        _t0 = time.monotonic()
+                        for step_no, step in enumerate(steps, start=1):
+                            step_tag = f"STEP-{step_no:03d}"
+                            self._fw_exec_step(step, src_type, source_names, blocks, label, step_tag)
+                        elapsed = time.monotonic() - _t0
+                        self._fw_append_case_boundary(blocks, label, desc, is_start=False)
+                        timing_line = f"{label}: {elapsed:.2f}s"
+                        print(f"[TIMING] {timing_line}", flush=True)
+                        timings.append(timing_line)
+                        targets = version_blocks.values() if cfg is None else [version_blocks[cfg.version]]
+                        for target in targets:
+                            target.extend(blocks)
         print("[TIMING SUMMARY]", flush=True)
         for t in timings:
             print(f"  {t}", flush=True)
@@ -1709,4 +1736,6 @@ class TestFq08SystemObservability(FederatedQueryVersionedMixin):
         if _only_set:
             tdLog.info(f"FQ_CASES={_only} — skipping baseline comparison")
         else:
-            self._fw_compare_baseline(blocks)
+            for cfg in configs:
+                with self._using_influx(cfg):
+                    self._fw_compare_baseline(version_blocks[cfg.version])

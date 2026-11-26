@@ -128,6 +128,42 @@ TEST(ExternalTypeMapTest, NormalizesBoundaryDeclarationsForAllProviders) {
   EXPECT_EQ(DECIMAL128_BYTES, type.bytes);
 }
 
+TEST(ExternalTypeMapTest, OracleColumnNamesCompareExactly) {
+  // TDengine applies its identifier grammar before the reference reaches this
+  // helper: unquoted text is lower-cased by the client and backticked text
+  // keeps its spelling.  Oracle therefore matches the resolved spelling byte
+  // for byte, exactly like PostgreSQL and InfluxDB (DS 5.3.6 R1).
+  EXPECT_TRUE(extColumnNameEqual(EXT_SOURCE_ORACLE, "EMP", "EMP"));
+  EXPECT_TRUE(extColumnNameEqual(EXT_SOURCE_ORACLE, "emp", "emp"));
+  EXPECT_FALSE(extColumnNameEqual(EXT_SOURCE_ORACLE, "EMP", "emp"));
+  EXPECT_FALSE(extColumnNameEqual(EXT_SOURCE_ORACLE, "emp", "EMP"));
+  EXPECT_TRUE(extColumnNameEqual(EXT_SOURCE_ORACLE, "MiXeDCol", "MiXeDCol"));
+  EXPECT_FALSE(extColumnNameEqual(EXT_SOURCE_ORACLE, "mixedcol", "MiXeDCol"));
+  EXPECT_FALSE(extColumnNameEqual(EXT_SOURCE_ORACLE, "MiXeDCol", "MIXEDCOL"));
+
+  // A literal double quote or backtick is part of the name and must not be
+  // interpreted as quoting syntax.
+  EXPECT_TRUE(extColumnNameEqual(EXT_SOURCE_ORACLE, "a\"b", "a\"b"));
+  EXPECT_FALSE(extColumnNameEqual(EXT_SOURCE_ORACLE, "a\"b", "ab"));
+  EXPECT_TRUE(extColumnNameEqual(EXT_SOURCE_ORACLE, "a`b", "a`b"));
+  EXPECT_FALSE(extColumnNameEqual(EXT_SOURCE_ORACLE, "a`b", "ab"));
+
+  // MySQL / SQL Server keep their catalog's case-insensitive matching.
+  EXPECT_TRUE(extColumnNameEqual(EXT_SOURCE_MYSQL, "EMP", "emp"));
+  EXPECT_TRUE(extColumnNameEqual(EXT_SOURCE_SQLSERVER, "EMP", "emp"));
+
+  // PostgreSQL / InfluxDB are case-sensitive as before.
+  EXPECT_TRUE(extColumnNameEqual(EXT_SOURCE_POSTGRESQL, "emp", "emp"));
+  EXPECT_FALSE(extColumnNameEqual(EXT_SOURCE_POSTGRESQL, "EMP", "emp"));
+  EXPECT_TRUE(extColumnNameEqual(EXT_SOURCE_INFLUXDB, "emp", "emp"));
+  EXPECT_FALSE(extColumnNameEqual(EXT_SOURCE_INFLUXDB, "EMP", "emp"));
+
+  // NULL handling: identical NULLs compare equal, one NULL never does.
+  EXPECT_TRUE(extColumnNameEqual(EXT_SOURCE_ORACLE, NULL, NULL));
+  EXPECT_FALSE(extColumnNameEqual(EXT_SOURCE_ORACLE, NULL, "emp"));
+  EXPECT_FALSE(extColumnNameEqual(EXT_SOURCE_ORACLE, "emp", NULL));
+}
+
 TEST(ExternalTypeMapTest, DecimalBoundariesRemainLegalAndUnknownTypesFail) {
   SDataType type = {0};
 
@@ -488,6 +524,56 @@ TEST(TableMetaTest, acceptsVirtualChildWithoutColumnReferences) {
   ASSERT_NE(meta, nullptr);
   EXPECT_EQ(meta->numOfColRefs, 0);
   taosMemoryFree(meta);
+}
+
+TEST(TableMetaTest, referenceDeclarationsBelongToChildMetadata) {
+  SSchema schemas[2] = {};
+  schemas[0].type = TSDB_DATA_TYPE_TIMESTAMP;
+  schemas[0].bytes = sizeof(int64_t);
+  schemas[0].colId = 1;
+  strcpy(schemas[0].name, "ts");
+  schemas[1].type = TSDB_DATA_TYPE_INT;
+  schemas[1].bytes = sizeof(int32_t);
+  schemas[1].colId = 2;
+  strcpy(schemas[1].name, "value");
+
+  SReferenceEntry reference = {};
+  strcpy(reference.alias, "r");
+  strcpy(reference.sourceName, "src");
+  strcpy(reference.objectName, "readings");
+  strcpy(reference.timeColumn, "event_time");
+  SVtableDeclOrder declaration = {};
+  declaration.bindingKind = VTABLE_BINDING_REFERENCE;
+  strcpy(declaration.alias, "r");
+
+  STableMetaRsp msg = {};
+  msg.tableType = TSDB_VIRTUAL_CHILD_TABLE;
+  msg.numOfColumns = 2;
+  msg.pSchemas = schemas;
+  msg.referenceExt.nReferences = 1;
+  msg.referenceExt.pReferences = &reference;
+  msg.referenceExt.nDeclarations = 1;
+  msg.referenceExt.pDeclarations = &declaration;
+
+  for (auto constructor : {queryCreateTableMetaFromMsg, queryCreateTableMetaExFromMsg}) {
+    for (bool isStb : {false, true}) {
+      STableMeta* meta = nullptr;
+      ASSERT_EQ(constructor(&msg, isStb, &meta), TSDB_CODE_SUCCESS);
+      ASSERT_NE(meta, nullptr);
+      EXPECT_EQ(meta->referenceExt.nReferences, isStb ? 0 : 1);
+      EXPECT_EQ(meta->referenceExt.nDeclarations, isStb ? 0 : 1);
+      EXPECT_NE(meta->referenceExt.pReferences, &reference);
+      queryFreeTableMeta(meta);
+    }
+  }
+
+  SVCTableMeta* child = nullptr;
+  ASSERT_EQ(queryCreateVCTableMetaFromMsg(&msg, &child), TSDB_CODE_SUCCESS);
+  ASSERT_NE(child, nullptr);
+  EXPECT_EQ(child->referenceExt.nReferences, 1);
+  EXPECT_EQ(child->referenceExt.nDeclarations, 1);
+  EXPECT_NE(child->referenceExt.pReferences, &reference);
+  queryFreeTableMeta(reinterpret_cast<STableMeta*>(child));
 }
 
 TEST(ExtTimestampTypePrecisionTest, rejectsSubMicrosecondFraction) {

@@ -10,10 +10,12 @@
 #include "stub.h"
 extern "C" {
 #include "meta.h"
+#include "tchecksum.h"
 #include "tlrucache.h"
 #include "tmsgcb.h"
 #include "tsdb.h"
 #include "tsdbDataFileRW.h"
+#include "tsdbDef.h"
 #include "tsdbReadUtil.h"
 #include "tsdbSttFileRW.h"
 #include "vnode.h"
@@ -27,6 +29,381 @@ int32_t tLDataIterNextRow(SLDataIter*, const char*, bool*);
 SDmNotifyHandle dmNotifyHdl = {};
 namespace {
 using Row = std::tuple<uint64_t, int64_t, int64_t, int64_t>;
+
+Stub* pageReadStub = nullptr;
+int pageReadCalls = 0;
+int pageReadFault = 0;
+int pageFaultReads = 0;
+int64_t pageAllocationSize = 0;
+bool failPageAllocation = false;
+void* pageAllocation = nullptr;
+int pageAllocationLive = 0;
+std::vector<int64_t> pageAllocationSizes;
+std::vector<STsdbFD*> openedPageFiles;
+
+void* trackedPageAllocation(int64_t size) {
+  if (size == pageAllocationSize && failPageAllocation) {
+    terrno = TSDB_CODE_OUT_OF_MEMORY;
+    return nullptr;
+  }
+  pageReadStub->reset(taosMemMalloc);
+  void* ptr = taosMemMalloc(size);
+  pageReadStub->set(taosMemMalloc, trackedPageAllocation);
+  if (size == pageAllocationSize) {
+    pageAllocation = ptr;
+    pageAllocationSizes.push_back(size);
+    if (ptr != nullptr) ++pageAllocationLive;
+  }
+  return ptr;
+}
+
+void trackedPageFree(void* ptr) {
+  if (ptr != nullptr && ptr == pageAllocation) {
+    --pageAllocationLive;
+    pageAllocation = nullptr;
+  }
+  pageReadStub->reset(taosMemFree);
+  taosMemFree(ptr);
+  pageReadStub->set(taosMemFree, trackedPageFree);
+}
+
+int32_t capturePageOpen(const char* path, STsdb* tsdb, int32_t flags,
+                        STsdbFD** fd, int32_t lcn) {
+  pageReadStub->reset(tsdbOpenFile);
+  int32_t code = tsdbOpenFile(path, tsdb, flags, fd, lcn);
+  pageReadStub->set(tsdbOpenFile, capturePageOpen);
+  if (code == 0) openedPageFiles.push_back(*fd);
+  return code;
+}
+
+int64_t countedPageRead(TdFilePtr fd, void* buf, int64_t size) {
+  ++pageReadCalls;
+  if (pageReadFault == 1) {
+    pageReadFault = 0;
+    terrno = TAOS_SYSTEM_ERROR(EINTR);
+    return -1;
+  }
+  if (pageReadFault == 2) return 0;
+  if (pageReadFault == 4) {
+    terrno = TAOS_SYSTEM_ERROR(EIO);
+    return -1;
+  }
+  if (pageReadFault == 5) {
+    if (++pageFaultReads > 1) {
+      terrno = TAOS_SYSTEM_ERROR(EIO);
+      return -1;
+    }
+    size = 1000;
+  }
+  if (pageReadFault == 3 && size > 1000) size = 1000;
+  pageReadStub->reset(taosReadFile);
+  int64_t result = taosReadFile(fd, buf, size);
+  pageReadStub->set(taosReadFile, countedPageRead);
+  return result;
+}
+
+TEST(TsdbFilePageReadTest, BatchPermissionOnlyReachesDataFile) {
+  SVnode vnode = {};
+  STsdb tsdb = {};
+  vnode.config.tsdbPageSize = 4096;
+  tsdb.pVnode = &vnode;
+  SDataFileReaderConfig config = {};
+  config.tsdb = &tsdb;
+  config.szPage = 4096;
+  config.enableBatchRead = true;
+  const char* paths[TSDB_FTYPE_MAX] = {};
+  paths[TSDB_FTYPE_HEAD] = "head";
+  paths[TSDB_FTYPE_DATA] = "data";
+  paths[TSDB_FTYPE_SMA] = "sma";
+  paths[TSDB_FTYPE_TOMB] = "tomb";
+  Stub stub;
+  pageReadStub = &stub;
+  openedPageFiles.clear();
+  stub.set(tsdbOpenFile, capturePageOpen);
+  SDataFileReader* reader = nullptr;
+  ASSERT_EQ(0, tsdbDataFileReaderOpen(paths, &config, &reader));
+  ASSERT_EQ(4U, openedPageFiles.size());
+  for (STsdbFD* fd : openedPageFiles) {
+    EXPECT_EQ(std::string(fd->path) == "data", fd->enableBatchRead);
+  }
+  tsdbDataFileReaderSetBatchRead(reader, false);
+  for (STsdbFD* fd : openedPageFiles) EXPECT_FALSE(fd->enableBatchRead);
+  tsdbDataFileReaderSetBatchRead(reader, true);
+  for (STsdbFD* fd : openedPageFiles) {
+    EXPECT_EQ(std::string(fd->path) == "data", fd->enableBatchRead);
+  }
+  stub.reset(tsdbOpenFile);
+  tsdbDataFileReaderClose(&reader);
+  pageReadStub = nullptr;
+}
+
+TEST(TsdbFilePageReadTest, PermissionAndCachedPage) {
+  constexpr int pageSize = 4096;
+  constexpr int contentSize = pageSize - sizeof(TSCKSUM);
+  constexpr int pageCount = 40;
+  char dir[] = "/tmp/tsdb-page-read-XXXXXX";
+  ASSERT_NE(nullptr, mkdtemp(dir));
+  std::string path = std::string(dir) + "/pages";
+  int32_t flags = TD_FILE_CREATE | TD_FILE_TRUNC | TD_FILE_WRITE;
+  TdFilePtr file = taosOpenFile(path.c_str(), flags);
+  ASSERT_NE(nullptr, file);
+  std::vector<uint8_t> expected(contentSize * pageCount);
+  std::vector<uint8_t> page(pageSize);
+  for (int i = 0; i < pageCount; ++i) {
+    for (int j = 0; j < contentSize; ++j) {
+      page[j] = static_cast<uint8_t>(i + j);
+      expected[i * contentSize + j] = page[j];
+    }
+    ASSERT_EQ(0, taosCalcChecksumAppend(0, page.data(), pageSize));
+    ASSERT_EQ(page.size(), taosWriteFile(file, page.data(), page.size()));
+  }
+  ASSERT_EQ(0, taosCloseFile(&file));
+  SVnode vnode = {};
+  STsdb tsdb = {};
+  vnode.config.tsdbPageSize = pageSize;
+  tsdb.pVnode = &vnode;
+  Stub stub;
+  pageReadStub = &stub;
+  stub.set(taosReadFile, countedPageRead);
+  for (bool enabled : {false, true}) {
+    STsdbFD* fd = nullptr;
+    ASSERT_EQ(0, tsdbOpenFile(path.c_str(), &tsdb, TD_FILE_READ, &fd, 0));
+    fd->enableBatchRead = enabled;
+    std::vector<uint8_t> actual(expected.size());
+    pageReadCalls = 0;
+    ASSERT_EQ(0, tsdbReadFile(fd, 0, actual.data(), actual.size(), 0,
+                              nullptr));
+    EXPECT_EQ(enabled ? 1 : pageCount, pageReadCalls);
+    EXPECT_EQ(expected, actual);
+    EXPECT_EQ(pageCount, fd->pgno);
+    pageReadCalls = 0;
+    ASSERT_EQ(0, tsdbReadFile(fd, (pageCount - 1) * contentSize,
+                              actual.data(), contentSize, 0, nullptr));
+    EXPECT_EQ(0, pageReadCalls);
+    if (!enabled) {
+      pageAllocationSize = pageSize * pageCount;
+      failPageAllocation = true;
+      stub.set(taosMemMalloc, trackedPageAllocation);
+      ASSERT_EQ(0, tsdbReadFile(fd, 0, actual.data(), actual.size(), 0,
+                                nullptr));
+      EXPECT_EQ(expected, actual);
+      stub.reset(taosMemMalloc);
+      failPageAllocation = false;
+      pageReadFault = 3;
+      EXPECT_EQ(TSDB_CODE_FILE_CORRUPTED,
+                tsdbReadFile(fd, 0, actual.data(), 1, 0, nullptr));
+      pageReadFault = 0;
+    }
+    if (enabled) {
+      std::vector<uint8_t> cached(fd->pBuf, fd->pBuf + pageSize);
+      pageAllocationSize = pageSize * pageCount;
+      pageAllocationLive = 0;
+      pageAllocation = nullptr;
+      pageAllocationSizes.clear();
+      failPageAllocation = false;
+      stub.set(taosMemMalloc, trackedPageAllocation);
+      stub.set(taosMemFree, trackedPageFree);
+      failPageAllocation = true;
+      EXPECT_EQ(TSDB_CODE_OUT_OF_MEMORY,
+                tsdbReadFile(fd, 0, actual.data(), actual.size(), 0,
+                             nullptr));
+      EXPECT_EQ(pageCount, fd->pgno);
+      EXPECT_TRUE(std::equal(cached.begin(), cached.end(), fd->pBuf));
+      EXPECT_EQ(0, pageAllocationLive);
+      failPageAllocation = false;
+      size_t allocationsBefore = pageAllocationSizes.size();
+      pageReadFault = 4;
+      EXPECT_EQ(TAOS_SYSTEM_ERROR(EIO),
+                tsdbReadFile(fd, 0, actual.data(), actual.size(), 0,
+                             nullptr));
+      EXPECT_EQ(0, pageAllocationLive);
+      EXPECT_EQ(pageCount, fd->pgno);
+      EXPECT_TRUE(std::equal(cached.begin(), cached.end(), fd->pBuf));
+      EXPECT_EQ(allocationsBefore + 1, pageAllocationSizes.size())
+          << "EIO";
+      allocationsBefore = pageAllocationSizes.size();
+      pageReadFault = 5;
+      pageFaultReads = 0;
+      EXPECT_EQ(TAOS_SYSTEM_ERROR(EIO),
+                tsdbReadFile(fd, 0, actual.data(), actual.size(), 0,
+                             nullptr));
+      EXPECT_EQ(0, pageAllocationLive);
+      EXPECT_EQ(pageCount, fd->pgno);
+      EXPECT_TRUE(std::equal(cached.begin(), cached.end(), fd->pBuf));
+      EXPECT_EQ(allocationsBefore + 1, pageAllocationSizes.size())
+          << "partial read then EIO";
+      allocationsBefore = pageAllocationSizes.size();
+      pageReadFault = 2;
+      EXPECT_EQ(TSDB_CODE_FILE_CORRUPTED,
+                tsdbReadFile(fd, 0, actual.data(), actual.size(), 0,
+                             nullptr));
+      EXPECT_EQ(pageCount, fd->pgno);
+      EXPECT_TRUE(std::equal(cached.begin(), cached.end(), fd->pBuf));
+      EXPECT_EQ(0, pageAllocationLive);
+      EXPECT_EQ(allocationsBefore + 1, pageAllocationSizes.size())
+          << "EOF";
+      allocationsBefore = pageAllocationSizes.size();
+      pageReadFault = 1;
+      ASSERT_EQ(0, tsdbReadFile(fd, 0, actual.data(), actual.size(), 0,
+                                nullptr));
+      EXPECT_EQ(expected, actual);
+      EXPECT_EQ(0, pageAllocationLive);
+      EXPECT_EQ(allocationsBefore + 1, pageAllocationSizes.size())
+          << "EINTR retry";
+      allocationsBefore = pageAllocationSizes.size();
+      pageReadFault = 3;
+      ASSERT_EQ(0, tsdbReadFile(fd, 0, actual.data(), actual.size(), 0,
+                                nullptr));
+      EXPECT_EQ(expected, actual);
+      EXPECT_EQ(0, pageAllocationLive);
+      pageReadFault = 0;
+      EXPECT_EQ(allocationsBefore + 1, pageAllocationSizes.size())
+          << "short read";
+      stub.reset(taosMemMalloc);
+      stub.reset(taosMemFree);
+
+      ASSERT_EQ(0, tsdbReadFile(fd, 0, actual.data(), 1, 0, nullptr));
+      pageAllocationSize = pageSize * (pageCount - 1);
+      pageAllocationSizes.clear();
+      stub.set(taosMemMalloc, trackedPageAllocation);
+      stub.set(taosMemFree, trackedPageFree);
+      ASSERT_EQ(0, tsdbReadFile(fd, 0, actual.data(), actual.size(), 0,
+                                nullptr));
+      EXPECT_EQ(expected, actual);
+      EXPECT_EQ(1U, pageAllocationSizes.size());
+      EXPECT_EQ(0, pageAllocationLive);
+      stub.reset(taosMemMalloc);
+      stub.reset(taosMemFree);
+
+      ASSERT_EQ(0, tsdbReadFile(fd, 0, actual.data(), 1, 0, nullptr));
+      pageAllocationSize = pageSize * 2;
+      pageAllocationSizes.clear();
+      failPageAllocation = true;
+      stub.set(taosMemMalloc, trackedPageAllocation);
+      ASSERT_EQ(0, tsdbReadFile(fd, 0, actual.data(), contentSize + 1, 0,
+                                nullptr));
+      EXPECT_TRUE(pageAllocationSizes.empty());
+      EXPECT_TRUE(std::equal(actual.begin(), actual.begin() + contentSize + 1,
+                             expected.begin()));
+      stub.reset(taosMemMalloc);
+      failPageAllocation = false;
+      ASSERT_EQ(0, tsdbReadFile(fd, 19, actual.data(), 9000, 0, nullptr));
+      EXPECT_TRUE(std::equal(actual.begin(), actual.begin() + 9000,
+                             expected.begin() + 19));
+      ASSERT_EQ(0, tsdbReadFile(fd, (pageCount - 1) * contentSize,
+                                actual.data(), 1, 0, nullptr));
+
+      TdFilePtr corrupt = taosOpenFile(path.c_str(), TD_FILE_WRITE);
+      ASSERT_NE(nullptr, corrupt);
+      ASSERT_EQ(pageSize, taosLSeekFile(corrupt, pageSize, SEEK_SET));
+      uint8_t byte = expected[contentSize] ^ 0xff;
+      ASSERT_EQ(1, taosWriteFile(corrupt, &byte, 1));
+      ASSERT_EQ(0, taosCloseFile(&corrupt));
+      cached.assign(fd->pBuf, fd->pBuf + pageSize);
+      SBuffer buffer;
+      tBufferInit(&buffer);
+      ASSERT_EQ(0, tBufferEnsureCapacity(&buffer, actual.size()));
+      pageAllocationSize = pageSize * pageCount;
+      stub.set(taosMemMalloc, trackedPageAllocation);
+      stub.set(taosMemFree, trackedPageFree);
+      EXPECT_EQ(TSDB_CODE_FILE_CORRUPTED,
+                tsdbReadFileToBuffer(fd, 0, actual.size(), &buffer, 0,
+                                     nullptr));
+      EXPECT_EQ(0, buffer.size);
+      EXPECT_EQ(pageCount, fd->pgno);
+      EXPECT_TRUE(std::equal(cached.begin(), cached.end(), fd->pBuf));
+      EXPECT_EQ(0, pageAllocationLive);
+      stub.reset(taosMemMalloc);
+      stub.reset(taosMemFree);
+      tBufferDestroy(&buffer);
+      ASSERT_EQ(0, tsdbRetainFilePages(fd, true));
+      EXPECT_EQ(TSDB_CODE_FILE_CORRUPTED,
+                tsdbReadFile(fd, 0, actual.data(), actual.size(), 0, nullptr));
+      EXPECT_EQ(0U, taosArrayGetSize(fd->blockPageRuns));
+      ASSERT_EQ(0, tsdbRetainFilePages(fd, false));
+      corrupt = taosOpenFile(path.c_str(), TD_FILE_WRITE);
+      ASSERT_NE(nullptr, corrupt);
+      ASSERT_EQ(pageSize, taosLSeekFile(corrupt, pageSize, SEEK_SET));
+      byte = expected[contentSize];
+      ASSERT_EQ(1, taosWriteFile(corrupt, &byte, 1));
+      ASSERT_EQ(0, taosCloseFile(&corrupt));
+      ASSERT_EQ(0, tsdbReadFile(fd, 0, actual.data(), actual.size(), 0,
+                                nullptr));
+      EXPECT_EQ(expected, actual);
+      EXPECT_EQ(TSDB_CODE_INVALID_PARA,
+                tsdbReadFile(fd, INT64_MAX, actual.data(), 1, 0, nullptr));
+      EXPECT_EQ(TSDB_CODE_INVALID_PARA,
+                tsdbReadFile(fd, 0, actual.data(), INT64_MAX, 0, nullptr));
+
+      ASSERT_EQ(0, tsdbRetainFilePages(fd, true));
+      // Create disjoint runs before a request that overlaps all of them.
+      for (int start : {24, 2, 15, 8}) {
+        ASSERT_EQ(0, tsdbReadFile(fd, start * contentSize, actual.data(),
+                                  2 * contentSize, 0, nullptr));
+      }
+      pageReadCalls = 0;
+      ASSERT_EQ(0, tsdbReadFile(fd, 0, actual.data(), actual.size(), 0,
+                                nullptr));
+      EXPECT_EQ(5, pageReadCalls);
+      EXPECT_EQ(expected, actual);
+      pageReadCalls = 0;
+      for (int i = pageCount - 1; i >= 0; --i) {
+        ASSERT_EQ(0, tsdbReadFile(fd, i * contentSize + 1, actual.data(), 1,
+                                  0, nullptr));
+        EXPECT_EQ(expected[i * contentSize + 1], actual[0]);
+      }
+      EXPECT_EQ(0, pageReadCalls);
+      ASSERT_EQ(0, tsdbRetainFilePages(fd, false));
+      EXPECT_EQ(nullptr, fd->blockPageRuns);
+      ASSERT_EQ(0, tsdbReadFile(fd, 0, actual.data(), 1, 0, nullptr));
+      EXPECT_EQ(1, pageReadCalls);
+    }
+    tsdbCloseFile(&fd);
+  }
+  stub.reset(taosReadFile);
+  pageReadStub = nullptr;
+  taosRemoveDir(dir);
+}
+
+TEST(TsdbFilePageReadTest, EncryptedBatchRoundTrip) {
+  char dir[] = "/tmp/tsdb-page-encrypted-XXXXXX";
+  ASSERT_NE(nullptr, mkdtemp(dir));
+  std::string path = std::string(dir) + "/pages";
+  SVnode vnode = {};
+  STsdb tsdb = {};
+  vnode.config.tsdbPageSize = 4096;
+  tsdb.pVnode = &vnode;
+  SEncryptData encrypt = {};
+  tstrncpy(encrypt.encryptAlgrName, TSDB_ENCRYPT_ALGR_SM4_NAME,
+           sizeof(encrypt.encryptAlgrName));
+  tstrncpy(encrypt.encryptKey, "0123456789abcdef",
+           sizeof(encrypt.encryptKey));
+  std::vector<uint8_t> expected(PAGE_CONTENT_SIZE(4096) * 4);
+  for (size_t i = 0; i < expected.size(); ++i) {
+    expected[i] = static_cast<uint8_t>(i * 17);
+  }
+  STsdbFD* writer = nullptr;
+  int32_t flags = TD_FILE_CREATE | TD_FILE_TRUNC | TD_FILE_WRITE;
+  ASSERT_EQ(0, tsdbOpenFile(path.c_str(), &tsdb, flags, &writer, 0));
+  ASSERT_EQ(0, tsdbWriteFile(writer, 0, expected.data(), expected.size(),
+                             &encrypt));
+  ASSERT_EQ(0, tsdbFsyncFile(writer, &encrypt));
+  tsdbCloseFile(&writer);
+  STsdbFD* reader = nullptr;
+  ASSERT_EQ(0, tsdbOpenFile(path.c_str(), &tsdb, TD_FILE_READ, &reader, 0));
+  reader->enableBatchRead = true;
+  ASSERT_EQ(0, tsdbRetainFilePages(reader, true));
+  std::vector<uint8_t> actual(expected.size());
+  ASSERT_EQ(0, tsdbReadFile(reader, 0, actual.data(), actual.size(), 0,
+                            &encrypt));
+  EXPECT_EQ(expected, actual);
+  std::fill(actual.begin(), actual.end(), 0);
+  ASSERT_EQ(0, tsdbReadFile(reader, 0, actual.data(), actual.size(), 0,
+                            &encrypt));
+  EXPECT_EQ(expected, actual);
+  tsdbCloseFile(&reader);
+  taosRemoveDir(dir);
+}
 
 TEST(TsdbScanInfoResetTest, PerTableRangeDoesNotChangeDefaultTimestamp) {
   std::unique_ptr<SSHashObj, decltype(&tSimpleHashCleanup)> tables(
@@ -689,6 +1066,1129 @@ class TsdbReaderGroupSwitchTest : public ::testing::TestWithParam<std::tuple<Pat
   int           directBlocks_ = 0;
   int           composedBlocks_ = 0;
 };
+
+Stub* stagedColumnStub = nullptr;
+int stagedColumnDecodes = 0;
+int32_t countStagedColumnDecode(void* input, SColDataCompressInfo* info,
+                                SColData* column, SBuffer* assist) {
+  ++stagedColumnDecodes;
+  stagedColumnStub->reset(tColDataDecompress);
+  int32_t code = tColDataDecompress(input, info, column, assist);
+  stagedColumnStub->set(tColDataDecompress, countStagedColumnDecode);
+  return code;
+}
+
+Stub* lastReadStub = nullptr;
+int lastReadKeys = 0;
+int lastReadColumns = 0;
+int lastReadWhole = 0;
+uint32_t lastReadFirstPkSize = 0;
+
+int32_t countLastReadKeys(SDataFileReader* reader, const SBrinRecord* record,
+                          SBlockData* data, SDiskDataHdr* header) {
+  ++lastReadKeys;
+  lastReadStub->reset(tsdbDataFileReadBlockKeys);
+  int32_t code = tsdbDataFileReadBlockKeys(reader, record, data, header);
+  lastReadStub->set(tsdbDataFileReadBlockKeys, countLastReadKeys);
+  return code;
+}
+
+int32_t countLastReadColumns(SDataFileReader* reader,
+                            const SBrinRecord* record, SBlockData* data,
+                            STSchema* schema, const SDiskDataHdr* header,
+                            const int16_t* ids, int32_t count) {
+  ++lastReadColumns;
+  lastReadStub->reset(tsdbDataFileReadBlockColumns);
+  int32_t code = tsdbDataFileReadBlockColumns(reader, record, data, schema,
+                                               header, ids, count);
+  lastReadStub->set(tsdbDataFileReadBlockColumns, countLastReadColumns);
+  return code;
+}
+
+int32_t countLastReadWhole(SDataFileReader* reader, const SBrinRecord* record,
+                           SBlockData* data, STSchema* schema, int16_t* ids,
+                           int32_t count) {
+  ++lastReadWhole;
+  lastReadStub->reset(tsdbDataFileReadBlockDataByColumn);
+  int32_t code = tsdbDataFileReadBlockDataByColumn(reader, record, data,
+                                                     schema, ids, count);
+  lastReadStub->set(tsdbDataFileReadBlockDataByColumn, countLastReadWhole);
+  return code;
+}
+
+int32_t failLastReadColumns(SDataFileReader*, const SBrinRecord*, SBlockData*,
+                            STSchema*, const SDiskDataHdr*, const int16_t*,
+                            int32_t) {
+  return TSDB_CODE_OUT_OF_MEMORY;
+}
+
+int32_t failLastReadKeys(SDataFileReader*, const SBrinRecord*, SBlockData*,
+                        SDiskDataHdr*) {
+  return TSDB_CODE_OUT_OF_MEMORY;
+}
+
+int32_t rewriteLastReadFirstPk(SDataFileReader* reader,
+                              const SBrinRecord* record, SBlockData* data,
+                              SDiskDataHdr* header) {
+  lastReadStub->reset(tsdbDataFileReadBlockKeys);
+  int32_t code = tsdbDataFileReadBlockKeys(reader, record, data, header);
+  lastReadStub->set(tsdbDataFileReadBlockKeys, rewriteLastReadFirstPk);
+  if (code != 0) return code;
+  SColData* pk = tBlockDataGetColData(data, 2);
+  if (pk == nullptr || pk->nVal < 2 ||
+      lastReadFirstPkSize > (uint32_t)pk->nData) {
+    return TSDB_CODE_FILE_CORRUPTED;
+  }
+  // Keep the last row valid so candidate validation cannot mask row zero.
+  pk->aOffset[1] = lastReadFirstPkSize;
+  return 0;
+}
+
+int32_t lastFourColumnSchema(SMeta*, tb_uid_t, int32_t, int,
+                            STSchema** out) {
+  SSchema columns[4] = {};
+  std::copy(schemas, schemas + 3, columns);
+  columns[3] = columns[2];
+  columns[3].colId = 4;
+  *out = tBuildTSchema(columns, 4, 1);
+  return *out == nullptr ? terrno : 0;
+}
+
+int32_t lastFourColumnSchemaEx(SMeta*, tb_uid_t, tb_uid_t, int32_t,
+                              STSchema** out) {
+  return lastFourColumnSchema(nullptr, 0, 0, 0, out);
+}
+
+class TsdbLastScanReaderTest : public TsdbReaderGroupSwitchTest {
+ protected:
+  void TearDown() override {
+    stub_.reset(tsdbDataFileReadBlockKeys);
+    stub_.reset(tsdbDataFileReadBlockColumns);
+    stub_.reset(tsdbDataFileReadBlockDataByColumn);
+    lastReadStub = nullptr;
+    tsdbReaderClose2(reader_);
+    reader_ = nullptr;
+    blockDataDestroy(output_);
+    TsdbReaderGroupSwitchTest::TearDown();
+  }
+
+  void seedNullFile(bool sparse = false) {
+    SDataFileWriterConfig cfg = {};
+    cfg.tsdb = &tsdb_;
+    cfg.maxRow = 128;
+    cfg.szPage = 4096;
+    cfg.cid = 1;
+    SDataFileWriter* writer = nullptr;
+    ASSERT_EQ(0, tsdbDataFileWriterOpen(&cfg, &writer));
+    TABLEID id = {};
+    id.suid = 1;
+    id.uid = 7;
+    SBlockData data = {};
+    ASSERT_EQ(0, tBlockDataInit(&data, &id, schema_, nullptr, 0));
+    for (int64_t ts = 10; ts <= 15; ++ts) {
+      if (sparse && ts % 2 != 0) continue;
+      for (int64_t pk = 1; pk <= 2; ++pk) {
+        SArray* values = taosArrayInit(schema_->numOfCols, sizeof(SColVal));
+        ASSERT_NE(nullptr, values);
+        for (int i = 0; i < schema_->numOfCols; ++i) {
+          SColVal value = {};
+          value.cid = i + 1;
+          value.value.type = schema_->columns[i].type;
+          value.value.val = i == 0 ? ts : i == 1 ? pk : ts * 10 + pk;
+          if (i > 2) value.value.val += (i - 2) * 100;
+          if (i == 1 && IS_VAR_DATA_TYPE(value.value.type)) {
+            const char* key = pk == 1 ? "a-long-primary-key" : "z";
+            value.value.pData = (uint8_t*)key;
+            value.value.nData = strlen(key);
+          }
+          if (i == 2 && ts == 14 && pk == 2) {
+            value.flag = CV_FLAG_NULL;
+          }
+          ASSERT_NE(nullptr, taosArrayPush(values, &value));
+        }
+        SRow* row = nullptr;
+        SRowBuildScanInfo scan = {};
+        ASSERT_EQ(0, tRowBuild(values, schema_, &row, &scan));
+        taosArrayDestroy(values);
+        TSDBROW input = {};
+        input.type = TSDBROW_ROW_FMT;
+        input.version = 1;
+        input.pTSRow = row;
+        ASSERT_EQ(0, tBlockDataAppendRow(&data, &input, schema_, 7));
+        taosMemoryFree(row);
+      }
+    }
+    ASSERT_EQ(0, tsdbDataFileWriteBlockData(writer, &data));
+    tBlockDataDestroy(&data);
+    TFileOpArray ops = {};
+    ASSERT_EQ(0, tsdbDataFileWriterClose(&writer, false, &ops));
+    STFileSet* fs = nullptr;
+    ASSERT_EQ(0, tsdbTFileSetInit(0, &fs));
+    for (int i = 0; i < ops.size; ++i) {
+      ASSERT_EQ(0, tsdbTFileSetEdit(&tsdb_, fs, &ops.data[i]));
+    }
+    ASSERT_EQ(0, TARRAY2_APPEND(&files_, fs));
+    TARRAY2_DESTROY(&ops, nullptr);
+  }
+
+  void openLast(ELastScanType mode, int64_t start, int64_t end,
+                bool filter, bool lastInput) {
+    slots_[0] = 2;
+    slots_[1] = 0;
+    slots_[2] = 1;
+    ASSERT_EQ(0, createDataBlock(&output_));
+    for (int i : {1, 2, 0}) {
+      SColumnInfoData column = {};
+      column.info = columns_[i];
+      column.info.colId = slots_[i];
+      ASSERT_EQ(0, blockDataAppendColInfo(output_, &column));
+    }
+    auto c = cond(TSDB_ORDER_DESC);
+    c.twindows = {start, end};
+    c.lastScanType = mode;
+    c.allowLastScanTail = !filter;
+    int16_t colId = 3;
+    if (filter) {
+      c.pFilterInputColIds = taosArrayInit(1, sizeof(colId));
+      ASSERT_NE(nullptr, c.pFilterInputColIds);
+      ASSERT_NE(nullptr, taosArrayPush(c.pFilterInputColIds, &colId));
+    }
+    if (lastInput) {
+      c.pLastInputColIds = taosArrayInit(1, sizeof(colId));
+      ASSERT_NE(nullptr, c.pLastInputColIds);
+      ASSERT_NE(nullptr, taosArrayPush(c.pLastInputColIds, &colId));
+    }
+    STableKeyInfo table = {};
+    table.uid = 7;
+    int32_t code = tsdbReaderOpen2(&vnode_, &c, &table, 1, output_,
+                                   &reader_, "last-staged-test", nullptr);
+    taosArrayDestroy(c.pFilterInputColIds);
+    taosArrayDestroy(c.pLastInputColIds);
+    ASSERT_EQ(0, code);
+  }
+
+  void seedAndOpenSeparatedLast() {
+    stub_.set(metaGetTbTSchemaMaybeNull, lastFourColumnSchema);
+    stub_.set(metaGetTbTSchemaEx, lastFourColumnSchemaEx);
+    SSchema schemaCols[4] = {};
+    std::copy(schemas, schemas + 3, schemaCols);
+    schemaCols[3] = schemaCols[2];
+    schemaCols[3].colId = 4;
+    taosMemoryFree(schema_);
+    schema_ = tBuildTSchema(schemaCols, 4, 1);
+    ASSERT_NE(nullptr, schema_);
+    seedNullFile();
+    SColumnInfo columns[4] = {};
+    std::copy(columns_, columns_ + 3, columns);
+    columns[3] = columns[2];
+    columns[3].colId = 4;
+    int32_t slots[] = {0, 1, 2, 3};
+    auto c = cond(TSDB_ORDER_DESC);
+    c.numOfCols = 4;
+    c.colList = columns;
+    c.pSlotList = slots;
+    c.twindows = {11, 14};
+    c.lastScanType = LAST_SCAN_LAST_ROW_ONLY;
+    int16_t cid = 3;
+    c.pFilterInputColIds = taosArrayInit(1, sizeof(cid));
+    ASSERT_NE(nullptr, c.pFilterInputColIds);
+    ASSERT_NE(nullptr, taosArrayPush(c.pFilterInputColIds, &cid));
+    STableKeyInfo table = {};
+    table.uid = 7;
+    int32_t code = tsdbReaderOpen2(&vnode_, &c, &table, 1, nullptr,
+                                 &reader_, "last-separated-columns", nullptr);
+    taosArrayDestroy(c.pFilterInputColIds);
+    ASSERT_EQ(0, code);
+  }
+
+  void expectFallback(Path path, bool history) {
+    seed(path, history);
+    openLast(LAST_SCAN_LAST_ROW_ONLY, 10, 19, false, false);
+    int64_t total = 0;
+    bool eof = false;
+    for (int i = 0; i < 100; ++i) {
+      bool next = false;
+      ASSERT_EQ(0, tsdbNextDataBlock2(reader_, &next));
+      if (!next) {
+        eof = true;
+        break;
+      }
+      EXPECT_FALSE(output_->info.lastScanCandidate);
+      SSDataBlock* block = nullptr;
+      ASSERT_EQ(0, tsdbRetrieveDataBlock2(reader_, &block));
+      ASSERT_NE(nullptr, block);
+      total += block->info.rows;
+    }
+    EXPECT_TRUE(eof);
+    EXPECT_EQ(history ? 18 : 20, total);
+  }
+
+  SSDataBlock* output_ = nullptr;
+};
+
+TEST_F(TsdbLastScanReaderTest, CloseAfterBorrowedOutputIsDestroyed) {
+  seedNullFile();
+  openLast(LAST_SCAN_NONE, 11, 14, false, false);
+  auto* reader = (STsdbReader*)reader_;
+  ASSERT_FALSE(reader->resBlockInfo.freeBlock);
+  bool next = false;
+  ASSERT_EQ(0, tsdbNextDataBlock2(reader_, &next));
+  ASSERT_TRUE(next);
+  SSDataBlock* result = nullptr;
+  ASSERT_EQ(0, tsdbRetrieveDataBlock2(reader_, &result));
+  ASSERT_EQ(output_, result);
+  EXPECT_EQ(8, result->info.rows);
+
+  blockDataDestroy(output_);
+  output_ = nullptr;
+  tsdbReaderClose2(reader_);
+  reader_ = nullptr;
+}
+
+TEST_F(TsdbLastScanReaderTest, CloseLastAfterBorrowedOutputIsDestroyed) {
+  seedNullFile();
+  for (ELastScanType mode : {LAST_SCAN_LAST_ONLY, LAST_SCAN_LAST_ROW_ONLY,
+                            LAST_SCAN_MIXED}) {
+    SCOPED_TRACE(mode);
+    openLast(mode, 11, 14, true, true);
+    auto* reader = (STsdbReader*)reader_;
+    ASSERT_FALSE(reader->resBlockInfo.freeBlock);
+    bool next = false;
+    ASSERT_EQ(0, tsdbNextDataBlock2(reader_, &next));
+    ASSERT_TRUE(next);
+    ASSERT_TRUE(output_->info.lastScanCandidate);
+    SSDataBlock* view = nullptr;
+    const int32_t* rows = nullptr;
+    ASSERT_EQ(0, tsdbReaderGetFilterBlock(reader_, &view, &rows));
+    ASSERT_NE(nullptr, view);
+    ASSERT_NE(nullptr, rows);
+    EXPECT_EQ(8, view->info.rows);
+    int32_t selected = rows[0];
+    SSDataBlock* result = nullptr;
+    ASSERT_EQ(0, tsdbReaderRetrieveSelectedDataBlock(reader_, &selected, 1,
+                                                   &result));
+    ASSERT_EQ(output_, result);
+    EXPECT_EQ(1, result->info.rows);
+    auto* ts = (SColumnInfoData*)taosArrayGet(result->pDataBlock, 2);
+    auto* value = (SColumnInfoData*)taosArrayGet(result->pDataBlock, 1);
+    EXPECT_EQ(11, ((int64_t*)ts->pData)[0]);
+    EXPECT_EQ(111, ((int64_t*)value->pData)[0]);
+
+    blockDataDestroy(output_);
+    output_ = nullptr;
+    tsdbReaderClose2(reader_);
+    reader_ = nullptr;
+  }
+}
+
+TEST_F(TsdbLastScanReaderTest, FullBlockDefersKeysUntilRetrieved) {
+  seedNullFile();
+  openLast(LAST_SCAN_LAST_ROW_ONLY, 10, 15, false, false);
+  bool next = false;
+  ASSERT_EQ(0, tsdbNextDataBlock2(reader_, &next));
+  ASSERT_TRUE(next);
+  ASSERT_TRUE(output_->info.lastScanCandidate);
+  auto* reader = (STsdbReader*)reader_;
+  EXPECT_EQ(0, reader->cost.fileLoadCalls);
+  EXPECT_EQ(15, output_->info.window.ekey);
+  EXPECT_EQ(2, VALUE_GET_TRIVIAL_DATUM(&output_->info.pks[1]));
+  SSDataBlock* result = nullptr;
+  ASSERT_EQ(0, tsdbRetrieveDataBlock2(reader_, &result));
+  ASSERT_EQ(1, result->info.rows);
+  auto* value = (SColumnInfoData*)taosArrayGet(result->pDataBlock, 1);
+  EXPECT_EQ(152, ((int64_t*)value->pData)[0]);
+  EXPECT_EQ(2, reader->cost.fileLoadCalls);
+}
+
+TEST_F(TsdbLastScanReaderTest, FilterSmaDescribesPhysicalBlock) {
+  schemas[1].flags |= COL_SMA_ON;
+  schemas[2].flags |= COL_SMA_ON;
+  taosMemoryFree(schema_);
+  schema_ = tBuildTSchema(schemas, 3, 1);
+  ASSERT_NE(nullptr, schema_);
+  seedNullFile();
+  openLast(LAST_SCAN_MIXED, 11, 14, true, true);
+  bool next = false;
+  ASSERT_EQ(0, tsdbNextDataBlock2(reader_, &next));
+  ASSERT_TRUE(next);
+  ASSERT_TRUE(output_->info.lastScanCandidate);
+  ASSERT_EQ(1, output_->info.rows);
+  bool all = false;
+  bool nullSma = false;
+  int64_t rows = 0;
+  ASSERT_EQ(0, tsdbRetrieveDatablockSMA2(reader_, output_, &all, &nullSma,
+                                         &rows));
+  ASSERT_TRUE(all);
+  ASSERT_NE(nullptr, output_->pBlockAgg);
+  EXPECT_EQ(12, rows);
+  EXPECT_EQ(10, output_->pBlockAgg[2].min);
+  EXPECT_EQ(15, output_->pBlockAgg[2].max);
+  EXPECT_EQ(14, output_->info.window.ekey);
+  tsdbReleaseDataBlock2(reader_);
+}
+
+TEST_F(TsdbLastScanReaderTest, EmptyTimestampHoleSkipsColumnReads) {
+  seedNullFile(true);
+  openLast(LAST_SCAN_LAST_ROW_ONLY, 11, 11, true, false);
+  lastReadStub = &stub_;
+  lastReadKeys = lastReadColumns = lastReadWhole = 0;
+  stub_.set(tsdbDataFileReadBlockKeys, countLastReadKeys);
+  stub_.set(tsdbDataFileReadBlockColumns, countLastReadColumns);
+  stub_.set(tsdbDataFileReadBlockDataByColumn, countLastReadWhole);
+  bool next = true;
+  ASSERT_EQ(0, tsdbNextDataBlock2(reader_, &next));
+  EXPECT_FALSE(next);
+  EXPECT_EQ(1, lastReadKeys);
+  EXPECT_EQ(0, lastReadColumns);
+  EXPECT_EQ(0, lastReadWhole);
+}
+
+TEST_F(TsdbLastScanReaderTest, FilterViewAndSelectedRowsKeepSlotsAndGroup) {
+  seedNullFile();
+  openLast(LAST_SCAN_MIXED, 11, 14, true, true);
+  lastReadStub = &stub_;
+  lastReadKeys = lastReadColumns = lastReadWhole = 0;
+  stub_.set(tsdbDataFileReadBlockKeys, countLastReadKeys);
+  stub_.set(tsdbDataFileReadBlockColumns, countLastReadColumns);
+  stub_.set(tsdbDataFileReadBlockDataByColumn, countLastReadWhole);
+  bool next = false;
+  ASSERT_EQ(0, tsdbNextDataBlock2(reader_, &next));
+  ASSERT_TRUE(next);
+  ASSERT_TRUE(output_->info.lastScanCandidate);
+  EXPECT_EQ(1, lastReadKeys);
+  EXPECT_EQ(0, lastReadColumns);
+  EXPECT_EQ(0, lastReadWhole);
+  EXPECT_EQ(1, ((STsdbReader*)reader_)->cost.fileLoadCalls);
+  EXPECT_EQ(14, output_->info.window.skey);
+  output_->info.id.groupId = 123;
+  output_->info.id.baseGId = 456;
+  SSDataBlock* view = nullptr;
+  const int32_t* map = nullptr;
+  ASSERT_EQ(0, tsdbReaderGetFilterBlock(reader_, &view, &map));
+  ASSERT_NE(nullptr, view);
+  ASSERT_NE(nullptr, map);
+  ASSERT_EQ(8, view->info.rows);
+  EXPECT_EQ(1, lastReadKeys);
+  EXPECT_EQ(1, lastReadColumns);
+  auto* ts = (SColumnInfoData*)taosArrayGet(view->pDataBlock, 2);
+  auto* pk = (SColumnInfoData*)taosArrayGet(view->pDataBlock, 0);
+  auto* val = (SColumnInfoData*)taosArrayGet(view->pDataBlock, 1);
+  for (int i = 0; i < 8; ++i) {
+    EXPECT_EQ(i + 2, map[i]);
+    EXPECT_EQ(11 + i / 2, ((int64_t*)ts->pData)[i]);
+    EXPECT_EQ(1 + i % 2, ((int64_t*)pk->pData)[i]);
+  }
+  EXPECT_TRUE(colDataIsNull_s(val, 7));
+  int32_t selected[] = {map[0], map[3], map[7]};
+  ASSERT_EQ(0, tsdbReaderSetLastScanCandidate(reader_, selected[2]));
+  SSDataBlock* result = nullptr;
+  ASSERT_EQ(0, tsdbReaderRetrieveSelectedDataBlock(reader_, selected, 3,
+                                                   &result));
+  ASSERT_EQ(output_, result);
+  EXPECT_EQ(1, lastReadKeys);
+  EXPECT_EQ(1, lastReadColumns);
+  EXPECT_EQ(0, lastReadWhole);
+  EXPECT_EQ(2, ((STsdbReader*)reader_)->cost.fileLoadCalls);
+  ASSERT_EQ(2, result->info.rows);
+  EXPECT_EQ(123U, result->info.id.groupId);
+  EXPECT_EQ(456U, result->info.id.baseGId);
+  ts = (SColumnInfoData*)taosArrayGet(result->pDataBlock, 2);
+  pk = (SColumnInfoData*)taosArrayGet(result->pDataBlock, 0);
+  val = (SColumnInfoData*)taosArrayGet(result->pDataBlock, 1);
+  EXPECT_EQ(14, ((int64_t*)ts->pData)[0]);
+  EXPECT_EQ(12, ((int64_t*)ts->pData)[1]);
+  EXPECT_EQ(122, ((int64_t*)val->pData)[1]);
+  EXPECT_EQ(2, ((int64_t*)pk->pData)[0]);
+  EXPECT_TRUE(colDataIsNull_s(val, 0));
+  EXPECT_EQ(12, result->info.window.skey);
+  EXPECT_EQ(14, result->info.window.ekey);
+  EXPECT_EQ(2, VALUE_GET_TRIVIAL_DATUM(&result->info.pks[0]));
+  EXPECT_EQ(2, VALUE_GET_TRIVIAL_DATUM(&result->info.pks[1]));
+}
+
+TEST_F(TsdbLastScanReaderTest, LoadsFilterAndResultColumnsTogether) {
+  seedAndOpenSeparatedLast();
+  auto* reader = (STsdbReader*)reader_;
+  EXPECT_EQ(0, reader->cost.fileLoadCalls);
+  bool next = false;
+  ASSERT_EQ(0, tsdbNextDataBlock2(reader_, &next));
+  ASSERT_TRUE(next);
+  ASSERT_TRUE(reader->resBlockInfo.pResBlock->info.lastScanCandidate);
+  EXPECT_EQ(1, reader->cost.fileLoadCalls);
+  EXPECT_EQ(nullptr, tBlockDataGetColData(&reader->status.fileBlockData, 3));
+  EXPECT_EQ(nullptr, tBlockDataGetColData(&reader->status.fileBlockData, 4));
+  SSDataBlock* view = nullptr;
+  const int32_t* map = nullptr;
+  ASSERT_EQ(0, tsdbReaderGetFilterBlock(reader_, &view, &map));
+  ASSERT_EQ(8, view->info.rows);
+  EXPECT_EQ(2, reader->cost.fileLoadCalls);
+  EXPECT_NE(nullptr, tBlockDataGetColData(&reader->status.fileBlockData, 3));
+  EXPECT_NE(nullptr, tBlockDataGetColData(&reader->status.fileBlockData, 4));
+  auto* filter = (SColumnInfoData*)taosArrayGet(view->pDataBlock, 2);
+  auto* payload = (SColumnInfoData*)taosArrayGet(view->pDataBlock, 3);
+  ASSERT_NE(nullptr, filter);
+  ASSERT_NE(nullptr, payload);
+  EXPECT_NE(nullptr, filter->pData);
+  EXPECT_EQ(nullptr, payload->pData);
+  EXPECT_EQ(nullptr, payload->nullbitmap);
+  int32_t selected = map[7];
+  SSDataBlock* result = nullptr;
+  ASSERT_EQ(0, tsdbReaderRetrieveSelectedDataBlock(reader_, &selected, 1,
+                                                &result));
+  ASSERT_NE(nullptr, result);
+  EXPECT_EQ(2, reader->cost.fileLoadCalls);
+  ASSERT_EQ(1, result->info.rows);
+  auto* value = (SColumnInfoData*)taosArrayGet(result->pDataBlock, 3);
+  ASSERT_NE(nullptr, value);
+  EXPECT_EQ(242, ((int64_t*)value->pData)[0]);
+}
+
+TEST_F(TsdbLastScanReaderTest, FailedColumnLoadDoesNotCountPhase) {
+  seedAndOpenSeparatedLast();
+  auto* reader = (STsdbReader*)reader_;
+  bool next = false;
+  ASSERT_EQ(0, tsdbNextDataBlock2(reader_, &next));
+  ASSERT_TRUE(next);
+  ASSERT_EQ(1, reader->cost.fileLoadCalls);
+  ASSERT_EQ(nullptr, tBlockDataGetColData(&reader->status.fileBlockData, 4));
+  stub_.set(tsdbDataFileReadBlockColumns, failLastReadColumns);
+  SSDataBlock* result = nullptr;
+  EXPECT_EQ(TSDB_CODE_OUT_OF_MEMORY, tsdbRetrieveDataBlock2(reader_, &result));
+  stub_.reset(tsdbDataFileReadBlockColumns);
+  EXPECT_EQ(nullptr, result);
+  EXPECT_EQ(1, reader->cost.fileLoadCalls);
+  EXPECT_FALSE(reader->lastScan.active);
+  EXPECT_FALSE(reader->resBlockInfo.pResBlock->info.lastScanCandidate);
+}
+
+TEST_F(TsdbLastScanReaderTest, FailedFilterColumnLoadClearsCandidate) {
+  seedAndOpenSeparatedLast();
+  auto* reader = (STsdbReader*)reader_;
+  stub_.set(tsdbDataFileReadBlockColumns, failLastReadColumns);
+  bool next = false;
+  ASSERT_EQ(0, tsdbNextDataBlock2(reader_, &next));
+  ASSERT_TRUE(next);
+  SSDataBlock* view = nullptr;
+  const int32_t* map = nullptr;
+  EXPECT_EQ(TSDB_CODE_OUT_OF_MEMORY,
+            tsdbReaderGetFilterBlock(reader_, &view, &map));
+  EXPECT_EQ(nullptr, view);
+  EXPECT_EQ(nullptr, map);
+  EXPECT_EQ(1, reader->cost.fileLoadCalls);
+  EXPECT_FALSE(reader->lastScan.active);
+  EXPECT_FALSE(reader->resBlockInfo.pResBlock->info.lastScanCandidate);
+  tsdbReleaseDataBlock2(reader_);
+}
+
+TEST_F(TsdbLastScanReaderTest, FailedKeyLoadDoesNotCountPhase) {
+  seedNullFile();
+  openLast(LAST_SCAN_LAST_ROW_ONLY, 11, 14, false, false);
+  stub_.set(tsdbDataFileReadBlockKeys, failLastReadKeys);
+  bool next = false;
+  EXPECT_EQ(TSDB_CODE_OUT_OF_MEMORY, tsdbNextDataBlock2(reader_, &next));
+  stub_.reset(tsdbDataFileReadBlockKeys);
+  auto* reader = (STsdbReader*)reader_;
+  EXPECT_EQ(0, reader->cost.fileLoadCalls);
+  EXPECT_FALSE(reader->lastScan.active);
+  EXPECT_FALSE(output_->info.lastScanCandidate);
+}
+
+TEST_F(TsdbLastScanReaderTest, DeferredKeyReadFailureClearsFilterCandidate) {
+  seedNullFile();
+  openLast(LAST_SCAN_LAST_ROW_ONLY, 10, 15, true, false);
+  stub_.set(tsdbDataFileReadBlockKeys, failLastReadKeys);
+  bool next = false;
+  ASSERT_EQ(0, tsdbNextDataBlock2(reader_, &next));
+  ASSERT_TRUE(next);
+  SSDataBlock* view = nullptr;
+  const int32_t* map = nullptr;
+  EXPECT_EQ(TSDB_CODE_OUT_OF_MEMORY,
+            tsdbReaderGetFilterBlock(reader_, &view, &map));
+  EXPECT_EQ(nullptr, view);
+  EXPECT_EQ(nullptr, map);
+  EXPECT_FALSE(output_->info.lastScanCandidate);
+  auto* reader = (STsdbReader*)reader_;
+  EXPECT_FALSE(reader->lastScan.active);
+  EXPECT_EQ(0, reader->cost.fileLoadCalls);
+  tsdbReleaseDataBlock2(reader_);
+}
+
+TEST_F(TsdbLastScanReaderTest, LastRowKeepsNullAtNewestSelectedRow) {
+  seedNullFile();
+  openLast(LAST_SCAN_LAST_ROW_ONLY, 11, 14, true, false);
+  bool next = false;
+  ASSERT_EQ(0, tsdbNextDataBlock2(reader_, &next));
+  ASSERT_TRUE(next);
+  ASSERT_TRUE(output_->info.lastScanCandidate);
+  SSDataBlock* view = nullptr;
+  const int32_t* map = nullptr;
+  ASSERT_EQ(0, tsdbReaderGetFilterBlock(reader_, &view, &map));
+  ASSERT_EQ(8, view->info.rows);
+  int32_t selected[] = {map[0], map[3], map[7]};
+  ASSERT_EQ(0, tsdbReaderSetLastScanCandidate(reader_, selected[2]));
+  SSDataBlock* result = nullptr;
+  ASSERT_EQ(0, tsdbReaderRetrieveSelectedDataBlock(reader_, selected, 3,
+                                                   &result));
+  ASSERT_EQ(1, result->info.rows);
+  auto* ts = (SColumnInfoData*)taosArrayGet(result->pDataBlock, 2);
+  auto* pk = (SColumnInfoData*)taosArrayGet(result->pDataBlock, 0);
+  auto* val = (SColumnInfoData*)taosArrayGet(result->pDataBlock, 1);
+  EXPECT_EQ(14, ((int64_t*)ts->pData)[0]);
+  EXPECT_EQ(2, ((int64_t*)pk->pData)[0]);
+  EXPECT_TRUE(colDataIsNull_s(val, 0));
+}
+
+TEST_F(TsdbLastScanReaderTest, MixedAndLastTrimWhenLastInputIsPresent) {
+  seedNullFile();
+  for (ELastScanType mode : {LAST_SCAN_LAST_ONLY, LAST_SCAN_MIXED}) {
+    openLast(mode, 11, 13, true, mode == LAST_SCAN_MIXED);
+    bool next = false;
+    ASSERT_EQ(0, tsdbNextDataBlock2(reader_, &next));
+    ASSERT_TRUE(next);
+    ASSERT_TRUE(output_->info.lastScanCandidate);
+    SSDataBlock* view = nullptr;
+    const int32_t* map = nullptr;
+    ASSERT_EQ(0, tsdbReaderGetFilterBlock(reader_, &view, &map));
+    ASSERT_EQ(6, view->info.rows);
+    int32_t selected[] = {map[0], map[2], map[5]};
+    ASSERT_EQ(0, tsdbReaderSetLastScanCandidate(reader_, selected[2]));
+    SSDataBlock* result = nullptr;
+    ASSERT_EQ(0, tsdbReaderRetrieveSelectedDataBlock(reader_, selected, 3,
+                                                     &result));
+    ASSERT_EQ(1, result->info.rows);
+    auto* ts = (SColumnInfoData*)taosArrayGet(result->pDataBlock, 2);
+    auto* value = (SColumnInfoData*)taosArrayGet(result->pDataBlock, 1);
+    EXPECT_EQ(13, ((int64_t*)ts->pData)[0]);
+    EXPECT_EQ(132, ((int64_t*)value->pData)[0]);
+    tsdbReaderClose2(reader_);
+    reader_ = nullptr;
+    blockDataDestroy(output_);
+    output_ = nullptr;
+  }
+}
+
+TEST_F(TsdbLastScanReaderTest, ResetCopiesPolicyAndReleaseClearsCandidate) {
+  seedNullFile();
+  openLast(LAST_SCAN_MIXED, 11, 14, true, true);
+  auto* reader = (STsdbReader*)reader_;
+  ASSERT_NE(nullptr, reader->info.pFilterInputColIds);
+  ASSERT_NE(nullptr, reader->info.pLastInputColIds);
+  EXPECT_EQ(3, *(int16_t*)taosArrayGet(reader->info.pFilterInputColIds, 0));
+  bool next = false;
+  ASSERT_EQ(0, tsdbNextDataBlock2(reader_, &next));
+  ASSERT_TRUE(next);
+  ASSERT_TRUE(reader->lastScan.active);
+  tsdbReleaseDataBlock2(reader_);
+  EXPECT_FALSE(reader->lastScan.active);
+  EXPECT_FALSE(output_->info.lastScanCandidate);
+  auto c = cond(TSDB_ORDER_DESC);
+  c.lastScanType = LAST_SCAN_NONE;
+  c.twindows = {11, 14};
+  ASSERT_EQ(0, tsdbReaderReset2(reader_, &c));
+  EXPECT_EQ(LAST_SCAN_NONE, reader->info.lastScanType);
+  EXPECT_FALSE(reader->info.allowLastScanTail);
+  EXPECT_EQ(nullptr, reader->info.pFilterInputColIds);
+  EXPECT_EQ(nullptr, reader->info.pLastInputColIds);
+  ASSERT_EQ(0, tsdbNextDataBlock2(reader_, &next));
+  ASSERT_TRUE(next);
+  EXPECT_FALSE(output_->info.lastScanCandidate);
+  SSDataBlock* block = nullptr;
+  ASSERT_EQ(0, tsdbRetrieveDataBlock2(reader_, &block));
+  ASSERT_NE(nullptr, block);
+  EXPECT_EQ(8, block->info.rows);
+  c.lastScanType = LAST_SCAN_LAST_ROW_ONLY;
+  c.allowLastScanTail = true;
+  c.twindows = {INT64_MAX, INT64_MIN};
+  ASSERT_EQ(0, tsdbReaderReset2(reader_, &c));
+  EXPECT_EQ(LAST_SCAN_LAST_ROW_ONLY, reader->info.lastScanType);
+  EXPECT_TRUE(reader->info.allowLastScanTail);
+  ASSERT_EQ(0, tsdbNextDataBlock2(reader_, &next));
+  EXPECT_FALSE(next);
+  c.allowLastScanTail = false;
+  c.pFilterInputColIds = taosArrayInit(1, sizeof(int16_t));
+  ASSERT_NE(nullptr, c.pFilterInputColIds);
+  int16_t filterId = 3;
+  ASSERT_NE(nullptr, taosArrayPush(c.pFilterInputColIds, &filterId));
+  ASSERT_EQ(0, tsdbReaderReset2(reader_, &c));
+  EXPECT_FALSE(reader->info.allowLastScanTail);
+  ASSERT_NE(nullptr, reader->info.pFilterInputColIds);
+  *(int16_t*)taosArrayGet(c.pFilterInputColIds, 0) = 2;
+  EXPECT_EQ(3, *(int16_t*)taosArrayGet(reader->info.pFilterInputColIds, 0));
+  taosArrayDestroy(c.pFilterInputColIds);
+  c.pFilterInputColIds = nullptr;
+  c.allowLastScanTail = true;
+  ASSERT_EQ(0, tsdbReaderReset2(reader_, &c));
+  EXPECT_TRUE(reader->info.allowLastScanTail);
+  EXPECT_EQ(nullptr, reader->info.pFilterInputColIds);
+  c.lastScanType = (ELastScanType)255;
+  ASSERT_EQ(0, tsdbReaderReset2(reader_, &c));
+  EXPECT_EQ(LAST_SCAN_NONE, reader->info.lastScanType);
+  EXPECT_FALSE(reader->info.allowLastScanTail);
+  ASSERT_EQ(0, tsdbSetTableList2(reader_, nullptr, 0));
+  c.twindows = {11, 14};
+  c.lastScanType = LAST_SCAN_LAST_ONLY;
+  c.allowLastScanTail = true;
+  ASSERT_EQ(0, tsdbReaderReset2(reader_, &c));
+  EXPECT_EQ(LAST_SCAN_LAST_ONLY, reader->info.lastScanType);
+  EXPECT_TRUE(reader->info.allowLastScanTail);
+  ASSERT_EQ(0, tsdbNextDataBlock2(reader_, &next));
+  EXPECT_FALSE(next);
+}
+
+TEST_F(TsdbLastScanReaderTest, OverlappingDataFallsBackWithoutLosingRows) {
+  expectFallback(Merged, true);
+}
+
+TEST_F(TsdbLastScanReaderTest, VersionAndTombstoneDataFallsBack) {
+  expectFallback(Data, true);
+}
+
+TEST_F(TsdbLastScanReaderTest, SttDataFallsBack) {
+  expectFallback(Stt, false);
+}
+
+TEST_F(TsdbLastScanReaderTest, MemoryDataFallsBack) {
+  expectFallback(Mem, false);
+}
+
+TEST_F(TsdbLastScanReaderTest, InvalidSelectedRowsClearStagedState) {
+  seedNullFile();
+  openLast(LAST_SCAN_MIXED, 11, 14, true, true);
+  bool next = false;
+  ASSERT_EQ(0, tsdbNextDataBlock2(reader_, &next));
+  ASSERT_TRUE(next);
+  ASSERT_TRUE(output_->info.lastScanCandidate);
+  SSDataBlock* view = nullptr;
+  const int32_t* map = nullptr;
+  ASSERT_EQ(0, tsdbReaderGetFilterBlock(reader_, &view, &map));
+  int32_t selected[] = {map[3], map[0]};
+  SSDataBlock* result = nullptr;
+  EXPECT_EQ(TSDB_CODE_INVALID_PARA,
+            tsdbReaderRetrieveSelectedDataBlock(reader_, selected, 2,
+                                                &result));
+  EXPECT_EQ(nullptr, result);
+  EXPECT_FALSE(((STsdbReader*)reader_)->lastScan.active);
+  EXPECT_FALSE(output_->info.lastScanCandidate);
+}
+
+TEST_F(TsdbLastScanReaderTest, SelectedReadFailureCleansAndUnlocks) {
+  seedNullFile();
+  openLast(LAST_SCAN_MIXED, 11, 14, false, true);
+  bool next = false;
+  ASSERT_EQ(0, tsdbNextDataBlock2(reader_, &next));
+  ASSERT_TRUE(next);
+  SSDataBlock* view = nullptr;
+  const int32_t* map = nullptr;
+  ASSERT_EQ(0, tsdbReaderGetFilterBlock(reader_, &view, &map));
+  ASSERT_NE(nullptr, map);
+  int32_t selected[] = {map[0], map[3]};
+  stub_.set(tsdbDataFileReadBlockColumns, failLastReadColumns);
+  SSDataBlock* result = nullptr;
+  EXPECT_EQ(TSDB_CODE_OUT_OF_MEMORY,
+            tsdbReaderRetrieveSelectedDataBlock(reader_, selected, 2,
+                                                &result));
+  stub_.reset(tsdbDataFileReadBlockColumns);
+  EXPECT_EQ(nullptr, result);
+  EXPECT_FALSE(((STsdbReader*)reader_)->lastScan.active);
+  EXPECT_FALSE(output_->info.lastScanCandidate);
+  auto c = cond(TSDB_ORDER_DESC);
+  c.twindows = {11, 14};
+  ASSERT_EQ(0, tsdbReaderReset2(reader_, &c));
+  ASSERT_EQ(0, tsdbNextDataBlock2(reader_, &next));
+  ASSERT_TRUE(next);
+  ASSERT_EQ(0, tsdbRetrieveDataBlock2(reader_, &result));
+  ASSERT_NE(nullptr, result);
+  EXPECT_EQ(8, result->info.rows);
+}
+
+TEST_F(TsdbLastScanReaderTest, BlobFallbackDependsOnRequestedColumns) {
+  schemas[2].type = columns_[2].type = TSDB_DATA_TYPE_BLOB;
+  schemas[2].bytes = columns_[2].bytes = 32;
+  taosMemoryFree(schema_);
+  schema_ = tBuildTSchema(schemas, 3, 1);
+  ASSERT_NE(nullptr, schema_);
+  seed(Data);
+  for (bool requestBlob : {false, true}) {
+    auto c = cond(TSDB_ORDER_DESC);
+    c.twindows = {10, 19};
+    c.lastScanType = LAST_SCAN_LAST_ROW_ONLY;
+    c.allowLastScanTail = true;
+    if (!requestBlob) c.numOfCols = 2;
+    STableKeyInfo table = {};
+    table.uid = 7;
+    ASSERT_EQ(0, tsdbReaderOpen2(&vnode_, &c, &table, 1, nullptr, &reader_,
+                                "last-blob-fallback", nullptr));
+    bool next = false;
+    ASSERT_EQ(0, tsdbNextDataBlock2(reader_, &next));
+    ASSERT_TRUE(next);
+    auto* reader = (STsdbReader*)reader_;
+    EXPECT_EQ(!requestBlob,
+              reader->resBlockInfo.pResBlock->info.lastScanCandidate);
+    tsdbReleaseDataBlock2(reader_);
+    tsdbReaderClose2(reader_);
+    reader_ = nullptr;
+  }
+}
+
+TEST_F(TsdbLastScanReaderTest, VarcharPrimaryKeyFilterViewAndSelected) {
+  schemas[1].type = columns_[1].type = TSDB_DATA_TYPE_VARCHAR;
+  schemas[1].bytes = columns_[1].bytes = 32;
+  taosMemoryFree(schema_);
+  schema_ = tBuildTSchema(schemas, 3, 1);
+  ASSERT_NE(nullptr, schema_);
+  seedNullFile();
+  openLast(LAST_SCAN_LAST_ROW_ONLY, 11, 14, true, false);
+  bool next = false;
+  ASSERT_EQ(0, tsdbNextDataBlock2(reader_, &next));
+  ASSERT_TRUE(next);
+  ASSERT_TRUE(output_->info.lastScanCandidate);
+  SSDataBlock* view = nullptr;
+  const int32_t* map = nullptr;
+  ASSERT_EQ(0, tsdbReaderGetFilterBlock(reader_, &view, &map));
+  ASSERT_EQ(8, view->info.rows);
+  auto* pk = (SColumnInfoData*)taosArrayGet(view->pDataBlock, 0);
+  char* first = colDataGetData(pk, 0);
+  char* last = colDataGetData(pk, 7);
+  EXPECT_EQ("a-long-primary-key",
+            std::string(varDataVal(first), varDataLen(first)));
+  EXPECT_EQ("z", std::string(varDataVal(last), varDataLen(last)));
+  int32_t selected[] = {map[0], map[7]};
+  ASSERT_EQ(0, tsdbReaderSetLastScanCandidate(reader_, selected[1]));
+  SSDataBlock* result = nullptr;
+  ASSERT_EQ(0, tsdbReaderRetrieveSelectedDataBlock(reader_, selected, 2,
+                                                   &result));
+  ASSERT_EQ(1, result->info.rows);
+  EXPECT_EQ("z", std::string((char*)result->info.pks[0].pData,
+                             result->info.pks[0].nData));
+  EXPECT_EQ("z", std::string((char*)result->info.pks[1].pData,
+                             result->info.pks[1].nData));
+}
+
+TEST_F(TsdbLastScanReaderTest, OversizedFirstPrimaryKeyClearsStagedState) {
+  schemas[1].type = columns_[1].type = TSDB_DATA_TYPE_VARCHAR;
+  schemas[1].bytes = columns_[1].bytes = 32;
+  taosMemoryFree(schema_);
+  schema_ = tBuildTSchema(schemas, 3, 1);
+  ASSERT_NE(nullptr, schema_);
+  seedNullFile();
+  openLast(LAST_SCAN_LAST_ROW_ONLY, 11, 14, false, false);
+  lastReadStub = &stub_;
+  lastReadFirstPkSize = 33;
+  stub_.set(tsdbDataFileReadBlockKeys, rewriteLastReadFirstPk);
+  bool next = false;
+  EXPECT_EQ(TSDB_CODE_FILE_CORRUPTED, tsdbNextDataBlock2(reader_, &next));
+  stub_.reset(tsdbDataFileReadBlockKeys);
+  auto* reader = (STsdbReader*)reader_;
+  EXPECT_FALSE(reader->lastScan.active);
+  EXPECT_FALSE(output_->info.lastScanCandidate);
+  EXPECT_EQ(0, reader->status.fileBlockData.nRow);
+  EXPECT_EQ(0, reader->status.fileBlockData.nColData);
+  auto c = cond(TSDB_ORDER_DESC);
+  c.twindows = {11, 14};
+  c.lastScanType = LAST_SCAN_LAST_ROW_ONLY;
+  c.allowLastScanTail = true;
+  ASSERT_EQ(0, tsdbReaderReset2(reader_, &c));
+  ASSERT_EQ(0, tsdbNextDataBlock2(reader_, &next));
+  ASSERT_TRUE(next);
+  SSDataBlock* result = nullptr;
+  ASSERT_EQ(0, tsdbRetrieveDataBlock2(reader_, &result));
+  ASSERT_NE(nullptr, result);
+  ASSERT_EQ(1, result->info.rows);
+  EXPECT_EQ("z", std::string((char*)result->info.pks[0].pData,
+                             result->info.pks[0].nData));
+}
+
+TEST_F(TsdbLastScanReaderTest, FirstPrimaryKeyMayFillAllocatedCapacity) {
+  schemas[1].type = columns_[1].type = TSDB_DATA_TYPE_VARCHAR;
+  schemas[1].bytes = columns_[1].bytes = 32;
+  taosMemoryFree(schema_);
+  schema_ = tBuildTSchema(schemas, 3, 1);
+  ASSERT_NE(nullptr, schema_);
+  seedNullFile();
+  openLast(LAST_SCAN_LAST_ROW_ONLY, 11, 14, false, false);
+  lastReadStub = &stub_;
+  lastReadFirstPkSize = 32;
+  stub_.set(tsdbDataFileReadBlockKeys, rewriteLastReadFirstPk);
+  bool next = false;
+  ASSERT_EQ(0, tsdbNextDataBlock2(reader_, &next));
+  stub_.reset(tsdbDataFileReadBlockKeys);
+  ASSERT_TRUE(next);
+  ASSERT_TRUE(output_->info.lastScanCandidate);
+  auto* reader = (STsdbReader*)reader_;
+  SColData* pk = tBlockDataGetColData(&reader->status.fileBlockData, 2);
+  ASSERT_NE(nullptr, pk);
+  SColVal first = {};
+  ASSERT_EQ(0, tColDataGetValue(pk, 0, &first));
+  EXPECT_EQ(32U, first.value.nData);
+  SSDataBlock* result = nullptr;
+  ASSERT_EQ(0, tsdbRetrieveDataBlock2(reader_, &result));
+  ASSERT_NE(nullptr, result);
+  EXPECT_EQ(1, result->info.rows);
+  EXPECT_EQ("z", std::string((char*)result->info.pks[0].pData,
+                             result->info.pks[0].nData));
+  EXPECT_FALSE(reader->lastScan.active);
+}
+
+TEST_P(TsdbReaderGroupSwitchTest, StagedColumnsSortAndReuseDecodedData) {
+  seed(Data);
+  auto c = cond();
+  auto r = ranges();
+  ASSERT_EQ(0, tsdbReaderOpenGroup2(&vnode_, &c, r.data(), 1, nullptr,
+                                   &reader_, "staged-columns", nullptr));
+  bool next = false;
+  ASSERT_EQ(0, tsdbNextDataBlock2(reader_, &next));
+  ASSERT_TRUE(next);
+  auto* file = static_cast<STsdbReader*>(reader_)->pFileReader;
+  ASSERT_NE(nullptr, file);
+  const TBrinBlkArray* directory = nullptr;
+  ASSERT_EQ(0, tsdbDataFileReadBrinBlk(file, &directory));
+  ASSERT_GT(directory->size, 0);
+  SBrinBlock brin = {};
+  ASSERT_EQ(0, tsdbDataFileReadBrinBlock(file, &directory->data[0], &brin));
+  SBrinRecord record = {};
+  ASSERT_EQ(0, tBrinBlockGet(&brin, 0, &record));
+  SSchema schemaCols[5] = {};
+  std::copy(schemas, schemas + 3, schemaCols);
+  schemaCols[3].colId = 4;
+  schemaCols[3].type = TSDB_DATA_TYPE_BIGINT;
+  schemaCols[3].bytes = 8;
+  schemaCols[4] = schemaCols[3];
+  schemaCols[4].colId = 5;
+  STSchema* expanded = tBuildTSchema(schemaCols, 5, 1);
+  ASSERT_NE(nullptr, expanded);
+  SBlockData staged = {};
+  SDiskDataHdr hdr = {};
+  ASSERT_EQ(0, tsdbDataFileReadBlockKeys(file, &record, &staged, &hdr));
+  ASSERT_EQ(1, staged.nColData);
+  stagedColumnStub = &stub_;
+  stagedColumnDecodes = 0;
+  stub_.set(tColDataDecompress, countStagedColumnDecode);
+  int16_t high[] = {4};
+  ASSERT_EQ(0, tsdbDataFileReadBlockColumns(file, &record, &staged, expanded,
+                                            &hdr, high, 1));
+  int16_t mixed[] = {5, 4, 2, 3, 3};
+  ASSERT_EQ(0, tsdbDataFileReadBlockColumns(file, &record, &staged, expanded,
+                                            &hdr, mixed, 5));
+  ASSERT_EQ(4, staged.nColData);
+  EXPECT_EQ(2, staged.aColData[0].cid);
+  EXPECT_EQ(3, staged.aColData[1].cid);
+  EXPECT_EQ(4, staged.aColData[2].cid);
+  EXPECT_EQ(5, staged.aColData[3].cid);
+  EXPECT_EQ(3, stagedColumnDecodes);
+  ASSERT_EQ(0, tsdbDataFileReadBlockColumns(file, &record, &staged, expanded,
+                                            &hdr, mixed, 5));
+  EXPECT_EQ(3, stagedColumnDecodes);
+  SBrinRecord wrong = record;
+  ++wrong.uid;
+  EXPECT_EQ(TSDB_CODE_INVALID_PARA,
+            tsdbDataFileReadBlockColumns(file, &wrong, &staged, expanded,
+                                         &hdr, mixed, 5));
+  EXPECT_EQ(3, stagedColumnDecodes);
+  stub_.reset(tColDataDecompress);
+  stagedColumnStub = nullptr;
+  SBlockData whole = {};
+  int16_t ids[] = {2, 3, 4};
+  ASSERT_EQ(0, tsdbDataFileReadBlockDataByColumn(file, &record, &whole,
+                                                 expanded, ids, 3));
+  ASSERT_EQ(whole.nRow, staged.nRow);
+  for (int i = 0; i < staged.nRow; ++i) {
+    SColVal actual = {}, expected = {};
+    ASSERT_EQ(0, tColDataGetValue(&staged.aColData[1], i, &actual));
+    ASSERT_EQ(0, tColDataGetValue(&whole.aColData[1], i, &expected));
+    EXPECT_EQ(expected.flag, actual.flag);
+    EXPECT_EQ(expected.value.val, actual.value.val);
+  }
+  tBlockDataDestroy(&whole);
+  tBlockDataDestroy(&staged);
+  taosMemoryFree(expanded);
+  tBrinBlockDestroy(&brin);
+  tsdbReleaseDataBlock2(reader_);
+}
+
+TEST_P(TsdbReaderGroupSwitchTest, LegacyMainWindowAfterPrunedSides) {
+  const int order = std::get<1>(GetParam());
+  seed(std::get<0>(GetParam()));
+  auto c = cond(order);
+  c.type = TIMEWINDOW_RANGE_EXTERNAL;
+  c.twindows = {12, 17};
+  c.extTwindows[0] = {INT64_MAX, INT64_MIN};
+  c.extTwindows[1] = {INT64_MAX, INT64_MIN};
+  STableKeyInfo table = {};
+  table.uid = 7;
+  ASSERT_EQ(0, tsdbReaderOpen2(&vnode_, &c, &table, 1, nullptr, &reader_,
+                              "legacy-main-window", nullptr));
+
+  std::vector<Row> expected;
+  for (int64_t ts = 12; ts <= 17; ++ts) {
+    for (int64_t pk : {1, 2}) {
+      expected.emplace_back(7, ts, pk, ts * 10 + pk);
+    }
+  }
+  if (order == TSDB_ORDER_DESC) {
+    std::reverse(expected.begin(), expected.end());
+  }
+  expectRows(read(), expected);
+}
+
+TEST_P(TsdbReaderGroupSwitchTest, LegacyUnboundedMainWindowAfterPrunedSides) {
+  const int order = std::get<1>(GetParam());
+  seed(std::get<0>(GetParam()));
+  auto c = cond(order);
+  c.type = TIMEWINDOW_RANGE_EXTERNAL;
+  c.twindows = {INT64_MIN, INT64_MAX};
+  c.extTwindows[0] = {INT64_MAX, INT64_MIN};
+  c.extTwindows[1] = {INT64_MAX, INT64_MIN};
+  STableKeyInfo table = {};
+  table.uid = 7;
+  ASSERT_EQ(0, tsdbReaderOpen2(&vnode_, &c, &table, 1, nullptr, &reader_,
+                              "unbounded-main-window", nullptr));
+
+  std::vector<Row> expected;
+  for (int64_t ts = 9; ts <= 20; ++ts) {
+    for (int64_t pk : {1, 2}) {
+      expected.emplace_back(7, ts, pk, ts * 10 + pk);
+    }
+  }
+  if (order == TSDB_ORDER_DESC) {
+    std::reverse(expected.begin(), expected.end());
+  }
+  expectRows(read(), expected);
+}
+
+TEST_P(TsdbReaderGroupSwitchTest, LegacyHandoffAfterNonemptyPrevWindowNoRows) {
+  const int order = std::get<1>(GetParam());
+  const bool asc = order == TSDB_ORDER_ASC;
+  seed(std::get<0>(GetParam()));
+  auto c = cond(order);
+  c.type = TIMEWINDOW_RANGE_EXTERNAL;
+  c.twindows = {1000, 1009};
+  c.extTwindows[0] = asc ? STimeWindow{500, 599}
+                         : STimeWindow{INT64_MAX, INT64_MIN};
+  c.extTwindows[1] = asc ? STimeWindow{INT64_MAX, INT64_MIN}
+                         : STimeWindow{1500, 1599};
+  STableKeyInfo table = {};
+  table.uid = 7;
+  ASSERT_EQ(0, tsdbReaderOpen2(&vnode_, &c, &table, 1, nullptr, &reader_,
+                              "nonempty-prev-window", nullptr));
+  expectRows(read(), {});
+
+  auto* reader = static_cast<STsdbReader*>(reader_);
+  STableBlockScanInfo* info = nullptr;
+  ASSERT_EQ(0, getTableBlockScanInfo(reader->status.pTableMap, 7, &info,
+                                     "nonempty-prev-window"));
+  EXPECT_EQ(info->lastProcKey.ts, asc ? 599 : 1599);
+}
+
+class TsdbReaderBoundaryTest : public TsdbReaderGroupSwitchTest {
+ protected:
+  void SetUp() override {
+    ASSERT_NO_FATAL_FAILURE(TsdbReaderGroupSwitchTest::SetUp());
+    // Keep the test windows intact instead of clipping them to retention.
+    stub_.reset(tsdbGetEarliestTs);
+    stub_.set(tsdbGetEarliestTs, +[](STsdb*) { return INT64_MIN; });
+  }
+};
+
+TEST_F(TsdbReaderBoundaryTest, NonemptyMinPrevKeepsExclusiveHandoff) {
+  auto c = cond();
+  c.type = TIMEWINDOW_RANGE_EXTERNAL;
+  c.twindows = {100, 199};
+  c.extTwindows[0] = {INT64_MIN, INT64_MIN};
+  c.extTwindows[1] = {INT64_MAX, INT64_MIN};
+  STableKeyInfo table = {};
+  table.uid = 7;
+  ASSERT_EQ(0, tsdbReaderOpen2(&vnode_, &c, &table, 1, nullptr, &reader_,
+                              "min-prev-window", nullptr));
+  auto* reader = static_cast<STsdbReader*>(reader_);
+  ASSERT_EQ(reader->innerReader[0]->info.window.skey, INT64_MIN);
+  ASSERT_EQ(reader->innerReader[0]->info.window.ekey, INT64_MIN);
+  expectRows(read(), {});
+
+  STableBlockScanInfo* info = nullptr;
+  ASSERT_EQ(0, getTableBlockScanInfo(reader->status.pTableMap, 7, &info,
+                                     "min-prev-window"));
+  EXPECT_EQ(info->lastProcKey.ts, INT64_MIN);
+  EXPECT_EQ(info->sttKeyInfo.nextProcKey.ts, INT64_MIN + 1);
+}
+
+TEST_F(TsdbReaderBoundaryTest, PrunedPrevKeepsExactMainBoundary) {
+  struct BoundaryCase {
+    int order;
+    STimeWindow window;
+    int64_t lastTs;
+    int64_t nextTs;
+  };
+  const BoundaryCase cases[] = {
+      {TSDB_ORDER_ASC, {INT64_MIN, 199}, INT64_MIN, INT64_MIN},
+      {TSDB_ORDER_ASC, {INT64_MIN + 1, 199}, INT64_MIN, INT64_MIN + 1},
+      {TSDB_ORDER_DESC, {100, INT64_MAX}, INT64_MAX, INT64_MAX},
+      {TSDB_ORDER_DESC, {100, INT64_MAX - 1}, INT64_MAX, INT64_MAX - 1},
+  };
+  for (const auto& item : cases) {
+    SCOPED_TRACE(::testing::Message()
+                 << "order=" << item.order << " window=["
+                 << item.window.skey << "," << item.window.ekey << "]");
+    auto c = cond(item.order);
+    c.type = TIMEWINDOW_RANGE_EXTERNAL;
+    c.twindows = item.window;
+    c.extTwindows[0] = {INT64_MAX, INT64_MIN};
+    c.extTwindows[1] = {INT64_MAX, INT64_MIN};
+    STableKeyInfo table = {};
+    table.uid = 7;
+    ASSERT_EQ(0, tsdbReaderOpen2(&vnode_, &c, &table, 1, nullptr, &reader_,
+                                "pruned-prev-boundary", nullptr));
+    auto* reader = static_cast<STsdbReader*>(reader_);
+    ASSERT_EQ(reader->info.window.skey, item.window.skey);
+    ASSERT_EQ(reader->info.window.ekey, item.window.ekey);
+    expectRows(read(), {});
+
+    STableBlockScanInfo* info = nullptr;
+    ASSERT_EQ(0, getTableBlockScanInfo(reader->status.pTableMap, 7, &info,
+                                       "pruned-prev-boundary"));
+    EXPECT_EQ(info->lastProcKey.ts, item.lastTs);
+    EXPECT_EQ(info->sttKeyInfo.nextProcKey.ts, item.nextTs);
+    tsdbReaderClose2(reader_);
+    reader_ = nullptr;
+  }
+}
+
+TEST_F(TsdbReaderBoundaryTest, MainFirstSidesKeepExclusiveExtremeSeeds) {
+  struct BoundaryCase {
+    STimeWindow main;
+    STimeWindow prev;
+    STimeWindow next;
+    int64_t nextTs;
+  };
+  const BoundaryCase cases[] = {
+      {{INT64_MIN, INT64_MIN}, {INT64_MAX, INT64_MIN},
+       {INT64_MIN + 1, INT64_MIN + 2}, INT64_MIN + 1},
+      {{INT64_MAX, INT64_MAX}, {INT64_MAX - 2, INT64_MAX - 1},
+       {INT64_MAX, INT64_MIN}, INT64_MAX - 1},
+  };
+  for (const auto& item : cases) {
+    SCOPED_TRACE(::testing::Message() << "MAIN=" << item.main.skey);
+    auto c = cond();
+    c.type = TIMEWINDOW_RANGE_EXTERNAL;
+    c.mainFirst = true;
+    c.twindows = item.main;
+    c.extTwindows[0] = item.prev;
+    c.extTwindows[1] = item.next;
+    STableKeyInfo table = {};
+    table.uid = 7;
+    ASSERT_EQ(0, tsdbReaderOpen2(&vnode_, &c, &table, 1, nullptr, &reader_,
+                                "main-first-boundary", nullptr));
+    expectRows(read(), {});
+
+    auto* reader = static_cast<STsdbReader*>(reader_);
+    STableBlockScanInfo* info = nullptr;
+    ASSERT_EQ(0, getTableBlockScanInfo(reader->status.pTableMap, 7, &info,
+                                       "main-first-boundary"));
+    EXPECT_EQ(info->sttKeyInfo.nextProcKey.ts, item.nextTs);
+    tsdbReaderClose2(reader_);
+    reader_ = nullptr;
+  }
+}
+
 class TsdbSttPreparationTest : public TsdbReaderGroupSwitchTest {
  protected:
   void TearDown() override {

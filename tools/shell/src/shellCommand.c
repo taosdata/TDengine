@@ -580,6 +580,7 @@ char taosGetConsoleChar() {
 #ifdef WINDOWS
   static void *console = NULL;
   static bool  consoleModeChecked = false;
+  static bool  consoleIsConsole = false;
   if (console == NULL) {
     console = GetStdHandle(STD_INPUT_HANDLE);
   }
@@ -588,11 +589,20 @@ char taosGetConsoleChar() {
     // (dwCtrlWakeupMask) both require the console to be in cooked mode
     DWORD mode = 0;
     consoleModeChecked = true;
-    if (console != NULL && console != INVALID_HANDLE_VALUE && GetConsoleMode(console, &mode) != 0) {
+    consoleIsConsole = (console != NULL && console != INVALID_HANDLE_VALUE && GetConsoleMode(console, &mode) != 0);
+    if (consoleIsConsole) {
       if ((mode & ENABLE_LINE_INPUT) == 0) {
         (void)SetConsoleMode(console, mode | ENABLE_LINE_INPUT | ENABLE_ECHO_INPUT | ENABLE_PROCESSED_INPUT);
       }
     }
+  }
+
+  // When stdin is not a console (a pipe or a redirected file), the ReadConsoleW
+  // based line editor cannot be used: ReadConsoleW fails forever and the shell
+  // keeps waiting without executing the input.  Fall back to the stdio reader
+  // used on the other platforms so that `echo "...;q;" | taos` works.
+  if (!consoleIsConsole) {
+    return (char)getchar();
   }
 
   CONSOLE_READCONSOLE_CONTROL inputControl = {sizeof(CONSOLE_READCONSOLE_CONTROL), 0, 0, 0};

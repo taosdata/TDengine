@@ -87,6 +87,7 @@ from federated_query_common import (
     TSDB_CODE_EXT_CONNECT_FAILED,
     TSDB_CODE_EXT_QUERY_TIMEOUT,
     TSDB_CODE_EXT_TABLE_NOT_EXIST,
+    influx_versions,
 )
 
 # ---------------------------------------------------------------------------
@@ -326,6 +327,7 @@ class _SynDropPort:
 class TestFq15ServiceDisruption(FederatedQueryVersionedMixin):
     """Verify timeout / resilience fixes under real service disruption."""
 
+
     _timing_records: list = []  # [(label, elapsed_s), ...]
 
     def setup_class(self):
@@ -334,15 +336,13 @@ class TestFq15ServiceDisruption(FederatedQueryVersionedMixin):
         self.helper.require_external_source_feature()
         ExtSrcEnv.ensure_env()
 
-    def setup_method(self, method):
+    def _setup_version_data(self, method):
         """Pre-test safety net: if a previous test left MySQL/PG/InfluxDB/SQL Server/Oracle down, restart them."""
         import pymysql, psycopg2, requests
         mysql_cfg  = self._mysql_cfg()
         pg_cfg     = self._pg_cfg()
-        influx_cfg = self._influx_cfg()
         mysql_ver  = self._mysql_ver()
         pg_ver     = self._pg_ver()
-        influx_ver = self._influx_ver()
 
         if "mysql" in ExtSrcEnv.required_services():
             try:
@@ -367,14 +367,15 @@ class TestFq15ServiceDisruption(FederatedQueryVersionedMixin):
                 ExtSrcEnv.start_pg_instance(pg_ver)
 
         if "influx" in ExtSrcEnv.required_services():
-            try:
-                r = requests.get(f"http://{influx_cfg.host}:{influx_cfg.port}/health",
-                                 timeout=3)
-                if r.status_code not in (200, 204, 401):
-                    raise RuntimeError(f"InfluxDB health check returned {r.status_code}")
-            except Exception:
-                tdLog.info("[fq15 setup_method] InfluxDB is down — restarting ...")
-                ExtSrcEnv.start_influx_instance(influx_ver)
+            for influx_cfg in self._influx_configs():
+                try:
+                    r = requests.get(f"http://{influx_cfg.host}:{influx_cfg.port}/health",
+                                     timeout=3)
+                    if r.status_code not in (200, 204, 401):
+                        raise RuntimeError(f"InfluxDB health check returned {r.status_code}")
+                except Exception:
+                    tdLog.info("[fq15 setup_method] InfluxDB is down — restarting ...")
+                    ExtSrcEnv.start_influx_instance(influx_cfg.version)
 
         if "sqlserver" in ExtSrcEnv.required_services():
             try:
@@ -441,8 +442,8 @@ class TestFq15ServiceDisruption(FederatedQueryVersionedMixin):
             # the version configs are taken directly instead of through the
             # instance helper _oracle_cfg().
             for cfg_o in ExtSrcEnv.oracle_version_configs():
-                for table in ("SVC_S01_T", "SVC_S02_T", "SVC_S03_T",
-                              "SVC_S04_T", "SVC_S05_T", "SVC_S07_T"):
+                for table in ("svc_s01_t", "svc_s02_t", "svc_s03_t",
+                              "svc_s04_t", "svc_s05_t", "svc_s07_t"):
                     try:
                         ExtSrcEnv.oracle_drop_table_cfg(cfg_o, table)
                     except Exception:
@@ -550,8 +551,9 @@ class TestFq15ServiceDisruption(FederatedQueryVersionedMixin):
     def _setup_influx_data(self):
         cfg = self._influx_cfg()
         ExtSrcEnv.influx_create_db_cfg(cfg, _INFLUX_BUCKET)
+        # The fixture already appends six digits to its millisecond values.
         ExtSrcEnv.influx_write_cfg(cfg, _INFLUX_BUCKET, _INFLUX_LINES,
-                                   precision='ms')
+                                   precision='ns')
 
     def _setup_sqlserver_data(self, db):
         cfg = self._sqlserver_cfg()
@@ -564,23 +566,23 @@ class TestFq15ServiceDisruption(FederatedQueryVersionedMixin):
         Oracle has no database level and no per-scenario database to isolate
         the fixtures, so each scenario passes its own table name instead.
         The table carries a TIMESTAMP column, which every external table
-        needs as its time key, and is created unquoted so the name folds to
-        upper case exactly like the paths the tests use.
+        needs as its time key.  Names are quoted lower-case so the unquoted
+        TDengine paths the tests use resolve to the exact spelling.
         """
         cfg = self._oracle_cfg()
         ExtSrcEnv.oracle_drop_table_cfg(cfg, table)
         ExtSrcEnv.oracle_exec_cfg(cfg, [
-            f"CREATE TABLE {table} (TS TIMESTAMP(3), ID NUMBER(10) NOT NULL, "
-            "VAL NUMBER(10), NAME VARCHAR2(32))",
-            f"INSERT INTO {table} VALUES "
+            f'CREATE TABLE "{table}" ("ts" TIMESTAMP(3), '
+            '"id" NUMBER(10) NOT NULL, "val" NUMBER(10), "name" VARCHAR2(32))', 
+            f'INSERT INTO "{table}" VALUES '
             "(TIMESTAMP '2024-01-01 00:00:00.000', 1, 10, 'alpha')",
-            f"INSERT INTO {table} VALUES "
+            f'INSERT INTO "{table}" VALUES '
             "(TIMESTAMP '2024-01-01 00:01:00.000', 2, 20, 'beta')",
-            f"INSERT INTO {table} VALUES "
+            f'INSERT INTO "{table}" VALUES '
             "(TIMESTAMP '2024-01-01 00:02:00.000', 3, 30, 'gamma')",
-            f"INSERT INTO {table} VALUES "
+            f'INSERT INTO "{table}" VALUES '
             "(TIMESTAMP '2024-01-01 00:03:00.000', 4, 40, 'delta')",
-            f"INSERT INTO {table} VALUES "
+            f'INSERT INTO "{table}" VALUES '
             "(TIMESTAMP '2024-01-01 00:04:00.000', 5, 50, 'epsilon')",
             "COMMIT",
         ])
@@ -748,6 +750,7 @@ class TestFq15ServiceDisruption(FederatedQueryVersionedMixin):
             except Exception:
                 pass
 
+    @influx_versions()
     def test_svc_s01_influx_stop_query_bounded(self):
         """S01-Influx: stop InfluxDB → query fails within wall-clock bound.
 
@@ -888,6 +891,7 @@ class TestFq15ServiceDisruption(FederatedQueryVersionedMixin):
             except Exception:
                 pass
 
+    @influx_versions()
     def test_svc_s02_influx_kill_query_bounded(self):
         """S02-Influx: SIGKILL InfluxDB → query fails within wall-clock bound.
 
@@ -1042,6 +1046,7 @@ class TestFq15ServiceDisruption(FederatedQueryVersionedMixin):
             except Exception:
                 pass
 
+    @influx_versions()
     def test_svc_s03_influx_restart_recovery(self):
         """S03-Influx: stop → errors → restart → automatic reconnect + correct result.
 
@@ -1188,6 +1193,7 @@ class TestFq15ServiceDisruption(FederatedQueryVersionedMixin):
             except Exception:
                 pass
 
+    @influx_versions()
     def test_svc_s04_influx_burst_all_bounded(self):
         """S04-Influx: stop mid-burst → all queries complete within wall-clock bound.
 
@@ -1322,6 +1328,7 @@ class TestFq15ServiceDisruption(FederatedQueryVersionedMixin):
             except Exception:
                 pass
 
+    @influx_versions()
     def test_svc_s05_influx_schema_down_bounded(self):
         """S05-Influx: getTableSchema while InfluxDB is down → fails fast.
 
@@ -1370,6 +1377,7 @@ class TestFq15ServiceDisruption(FederatedQueryVersionedMixin):
     # S06: isAlive probe with service down → returns false promptly
     # ==================================================================
 
+    @influx_versions()
     def test_svc_s06_influx_isalive_probe(self):
         """S06-Influx: isAlive probe returns false promptly when InfluxDB is down.
 
@@ -1535,6 +1543,7 @@ class TestFq15ServiceDisruption(FederatedQueryVersionedMixin):
             except Exception:
                 pass
 
+    @influx_versions()
     def test_svc_s07_influx_repeated_cycles(self):
         """S07-Influx: 3× stop/start cycles → query always succeeds after restart.
 
@@ -1680,12 +1689,13 @@ class TestFq15ServiceDisruption(FederatedQueryVersionedMixin):
             finally:
                 self._cleanup_src(src)
 
+    @influx_versions()
     def test_svc_s08_influx_black_hole_timeout(self):
-        """S08-Influx: black-hole listener → gRPC deadline fires within wall-clock bound.
+        """S08-Influx: black-hole listener → protocol deadline fires within wall-clock bound.
 
-        A TCP listener that never responds to HTTP/2 preface or gRPC
-        frames.  The ``conn_timeout_ms`` gRPC deadline must cause the
-        query to fail quickly.
+        A TCP listener never responds to HTTP requests, HTTP/2 prefaces, or
+        gRPC frames. InfluxDB 1.8 uses HTTP with a query-timeout error;
+        both protocols must fail within the wall-clock bound.
 
         Cross-platform: works on Linux, macOS, and Windows without root
         privileges or kernel modules.
@@ -1707,10 +1717,11 @@ class TestFq15ServiceDisruption(FederatedQueryVersionedMixin):
             try:
                 cfg = self._influx_cfg()
                 opts = (
-                    f"'api_token'='{cfg.token}','protocol'='flight_sql',"
                     f"'connect_timeout_ms'='{_SHORT_CONN_TIMEOUT_MS}',"
                     f"'read_timeout_ms'='{_SHORT_CONN_TIMEOUT_MS}'"
                 )
+                if cfg.version != "1.8":
+                    opts = f"'api_token'='{cfg.token}','protocol'='flight_sql'," + opts
                 tdSql.execute(
                     self._mk_influx_source_sql(
                         src,
@@ -1724,6 +1735,7 @@ class TestFq15ServiceDisruption(FederatedQueryVersionedMixin):
                 elapsed = self._assert_query_bounded(
                     f"select * from {src}.svc_t limit 1",
                     wall_limit=_QUERY_WALL_LIMIT_S,
+                    expected_errno=(TSDB_CODE_EXT_QUERY_TIMEOUT if cfg.version == "1.8" else None),
                 )
                 self._record_timing("S08-Influx black-hole timeout", elapsed)
             finally:
@@ -2124,7 +2136,7 @@ class TestFq15ServiceDisruption(FederatedQueryVersionedMixin):
             - 2026-10-26 wpan Add Oracle to the per-provider matrix
 
         """
-        src, table = "svc_s01_or", "SVC_S01_T"
+        src, table = "svc_s01_or", "svc_s01_t"
         ver = self._oracle_ver()
         self._cleanup_src(src)
         try:
@@ -2177,7 +2189,7 @@ class TestFq15ServiceDisruption(FederatedQueryVersionedMixin):
             - 2026-10-26 wpan Add Oracle to the per-provider matrix
 
         """
-        src, table = "svc_s02_or", "SVC_S02_T"
+        src, table = "svc_s02_or", "svc_s02_t"
         ver = self._oracle_ver()
 
         self._cleanup_src(src)
@@ -2235,7 +2247,7 @@ class TestFq15ServiceDisruption(FederatedQueryVersionedMixin):
             - 2026-10-26 wpan Add Oracle to the per-provider matrix
 
         """
-        src, table = "svc_s03_or", "SVC_S03_T"
+        src, table = "svc_s03_or", "svc_s03_t"
         ver = self._oracle_ver()
         self._cleanup_src(src)
         try:
@@ -2306,7 +2318,7 @@ class TestFq15ServiceDisruption(FederatedQueryVersionedMixin):
 
         """
         N = 5
-        src, table = "svc_s04_or", "SVC_S04_T"
+        src, table = "svc_s04_or", "svc_s04_t"
         ver = self._oracle_ver()
         self._cleanup_src(src)
         try:
@@ -2357,7 +2369,7 @@ class TestFq15ServiceDisruption(FederatedQueryVersionedMixin):
             - 2026-10-26 wpan Add Oracle to the per-provider matrix
 
         """
-        src, table = "svc_s05_or", "SVC_S05_T"
+        src, table = "svc_s05_or", "svc_s05_t"
         ver = self._oracle_ver()
         self._cleanup_src(src)
         try:
@@ -2404,7 +2416,7 @@ class TestFq15ServiceDisruption(FederatedQueryVersionedMixin):
 
         """
         CYCLES = 3
-        src, table = "svc_s07_or", "SVC_S07_T"
+        src, table = "svc_s07_or", "svc_s07_t"
         ver = self._oracle_ver()
         self._cleanup_src(src)
         try:

@@ -16,6 +16,7 @@
 if(TD_COMMUNITY_STANDALONE)
   option(BUILD_ENTERPRISE    "If build enterprise edition (requires sibling taos-internal repo)" OFF)
   option(BUILD_TEST          "If build unit tests using googletest"  OFF)
+  option(BUILD_TEST_SHARED_ENGINE "Link unit tests against a shared server engine (CI only)" OFF)
   option(BUILD_TOOLS         "Build tools component"                 OFF)
   option(BUILD_SANITIZER     "Enable sanitizers"                     OFF)
   option(BUILD_COVERAGE      "Enable code coverage"                  OFF)
@@ -141,6 +142,14 @@ if(NOT BUILD_ASTRA)
 endif()
 
 option(BUILD_TAOSD_INTEGRATED "Build taosd as integrated library"    OFF)
+
+set(TD_MIMALLOC_SUPPORTED OFF)
+if(TD_WINDOWS AND MSVC AND CMAKE_SIZEOF_VOID_P EQUAL 8
+   AND CMAKE_C_COMPILER_ARCHITECTURE_ID STREQUAL "x64"
+   AND NOT BUILD_SANITIZER AND NOT BUILD_TAOSD_INTEGRATED)
+  set(TD_MIMALLOC_SUPPORTED ON)
+endif()
+option(BUILD_MIMALLOC "Build and package optional mimalloc DLLs and minject for Windows taosd" ${TD_MIMALLOC_SUPPORTED})
 option(BUILD_AS_LIB           "Build TDengine as library"            OFF)
 option(BUILD_RELEASE          "If build release version"             OFF)
 # Offline diagnostic tools for storage corruption (tools/cache-rdb-verify,

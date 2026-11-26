@@ -1,0 +1,439 @@
+taos> set max_binary_display_width 1024;
+taos> alter local "timezone" "UTC";
+
+taos> SELECT count(i) FROM fq24_influx18_pushdown_gate.fq24_influx18_pushdown.rows;
+       count(i)        |
+========================
+                     5 |
+
+taos> EXPLAIN VERBOSE TRUE SELECT count(i) FROM fq24_influx18_pushdown_gate.fq24_influx18_pushdown.rows;
+QUERY_PLAN |
+============
+ -> Federated Scan on fq24_influx18_pushdown_gate.rows (influxdb-1.8) (width=8) |
+       InfluxDB version=1.8 RP=autogen |
+       Output: columns=1 width=8 |
+       Source: <host>:<port> user=<user> |
+       Remote SQL: SELECT COUNT("i") AS "expr_1", COUNT("anchor") AS "__fq_sparse_0", COUNT("d") AS "__fq_sparse_1", COUNT("flag") AS "__fq_sparse_2", COUNT("label") AS "__fq_sparse_3" FROM "fq24_influx18_pushdown"."autogen"."rows" |
+
+taos> SELECT sum(i) FROM fq24_influx18_pushdown_gate.fq24_influx18_pushdown.rows;
+        sum(i)         |
+========================
+      9007199254741013 |
+
+taos> EXPLAIN VERBOSE TRUE SELECT sum(i) FROM fq24_influx18_pushdown_gate.fq24_influx18_pushdown.rows;
+QUERY_PLAN |
+============
+ -> Federated Scan on fq24_influx18_pushdown_gate.rows (influxdb-1.8) (width=8) |
+       InfluxDB version=1.8 RP=autogen |
+       Output: columns=1 width=8 |
+       Source: <host>:<port> user=<user> |
+       Remote SQL: SELECT SUM("i") AS "expr_1", COUNT("anchor") AS "__fq_sparse_0", COUNT("d") AS "__fq_sparse_1", COUNT("flag") AS "__fq_sparse_2", COUNT("label") AS "__fq_sparse_3" FROM "fq24_influx18_pushdown"."autogen"."rows" |
+
+taos> SELECT min(i) FROM fq24_influx18_pushdown_gate.fq24_influx18_pushdown.rows;
+        min(i)         |
+========================
+                     1 |
+
+taos> EXPLAIN VERBOSE TRUE SELECT min(i) FROM fq24_influx18_pushdown_gate.fq24_influx18_pushdown.rows;
+QUERY_PLAN |
+============
+ -> Federated Scan on fq24_influx18_pushdown_gate.rows (influxdb-1.8) (width=8) |
+       InfluxDB version=1.8 RP=autogen |
+       Output: columns=1 width=8 |
+       Source: <host>:<port> user=<user> |
+       Remote SQL: SELECT MIN("i") AS "expr_1", COUNT("anchor") AS "__fq_sparse_0", COUNT("d") AS "__fq_sparse_1", COUNT("flag") AS "__fq_sparse_2", COUNT("label") AS "__fq_sparse_3" FROM "fq24_influx18_pushdown"."autogen"."rows" |
+
+taos> SELECT max(i) FROM fq24_influx18_pushdown_gate.fq24_influx18_pushdown.rows;
+        max(i)         |
+========================
+      9007199254740993 |
+
+taos> EXPLAIN VERBOSE TRUE SELECT max(i) FROM fq24_influx18_pushdown_gate.fq24_influx18_pushdown.rows;
+QUERY_PLAN |
+============
+ -> Federated Scan on fq24_influx18_pushdown_gate.rows (influxdb-1.8) (width=8) |
+       InfluxDB version=1.8 RP=autogen |
+       Output: columns=1 width=8 |
+       Source: <host>:<port> user=<user> |
+       Remote SQL: SELECT MAX("i") AS "expr_1", COUNT("anchor") AS "__fq_sparse_0", COUNT("d") AS "__fq_sparse_1", COUNT("flag") AS "__fq_sparse_2", COUNT("label") AS "__fq_sparse_3" FROM "fq24_influx18_pushdown"."autogen"."rows" |
+
+taos> SELECT avg(i) FROM fq24_influx18_pushdown_gate.fq24_influx18_pushdown.rows;
+          avg(i)           |
+============================
+       1.8014398509482e+15 |
+
+taos> EXPLAIN VERBOSE TRUE SELECT avg(i) FROM fq24_influx18_pushdown_gate.fq24_influx18_pushdown.rows;
+QUERY_PLAN |
+============
+ -> Aggregate (functions=1 width=8 input_order=unknown) |
+       Output: columns=1 width=8 blocking=1 |
+       Merge ResBlocks: True |
+    -> Federated Scan on fq24_influx18_pushdown_gate.rows (influxdb-1.8) (width=8) |
+          InfluxDB version=1.8 RP=autogen |
+          Output: columns=1 width=8 |
+          Source: <host>:<port> user=<user> |
+          Remote SQL: SELECT "time", "anchor", "d", "flag", "i", "label" FROM "fq24_influx18_pushdown"."autogen"."rows" |
+
+taos> SELECT spread(d) FROM fq24_influx18_pushdown_gate.fq24_influx18_pushdown.rows;
+         spread(d)         |
+============================
+                         6 |
+
+taos> EXPLAIN VERBOSE TRUE SELECT spread(d) FROM fq24_influx18_pushdown_gate.fq24_influx18_pushdown.rows;
+QUERY_PLAN |
+============
+ -> Federated Scan on fq24_influx18_pushdown_gate.rows (influxdb-1.8) (width=8) |
+       InfluxDB version=1.8 RP=autogen |
+       Output: columns=1 width=8 |
+       Source: <host>:<port> user=<user> |
+       Remote SQL: SELECT SPREAD("d") AS "expr_1", COUNT("anchor") AS "__fq_sparse_0", COUNT("flag") AS "__fq_sparse_1", COUNT("i") AS "__fq_sparse_2", COUNT("label") AS "__fq_sparse_3" FROM "fq24_influx18_pushdown"."autogen"."rows" |
+
+taos> SELECT count(d),sum(d) FROM fq24_influx18_pushdown_gate.fq24_influx18_pushdown.rows WHERE i > 9223372036854775806;
+       count(d)        |          sum(d)           |
+====================================================
+                     0 | NULL                      |
+
+taos> EXPLAIN VERBOSE TRUE SELECT count(d),sum(d) FROM fq24_influx18_pushdown_gate.fq24_influx18_pushdown.rows WHERE i > 9223372036854775806;
+QUERY_PLAN |
+============
+ -> Federated Scan on fq24_influx18_pushdown_gate.rows (influxdb-1.8) (width=16) |
+       InfluxDB version=1.8 RP=autogen |
+       Output: columns=2 width=16 |
+       Source: <host>:<port> user=<user> |
+       Remote SQL: SELECT COUNT("d") AS "expr_1", SUM("d") AS "expr_2", COUNT("anchor") AS "__fq_sparse_0", COUNT("flag") AS "__fq_sparse_1", COUNT("i") AS "__fq_sparse_2", COUNT("label") AS "__fq_sparse_3" FROM "fq24_influx18_pushdown"."autogen"."rows" WHERE (("i" > 9223372036854775806)) |
+
+taos> SELECT sum(d) FROM fq24_influx18_pushdown_gate.fq24_influx18_pushdown.rows WHERE i = 9007199254740993;
+          sum(d)           |
+============================
+ NULL                      |
+
+taos> EXPLAIN VERBOSE TRUE SELECT sum(d) FROM fq24_influx18_pushdown_gate.fq24_influx18_pushdown.rows WHERE i = 9007199254740993;
+QUERY_PLAN |
+============
+ -> Federated Scan on fq24_influx18_pushdown_gate.rows (influxdb-1.8) (width=8) |
+       InfluxDB version=1.8 RP=autogen |
+       Output: columns=1 width=8 |
+       Source: <host>:<port> user=<user> |
+       Remote SQL: SELECT SUM("d") AS "expr_1", COUNT("anchor") AS "__fq_sparse_0", COUNT("flag") AS "__fq_sparse_1", COUNT("i") AS "__fq_sparse_2", COUNT("label") AS "__fq_sparse_3" FROM "fq24_influx18_pushdown"."autogen"."rows" WHERE (("i" = 9007199254740993)) |
+
+taos> SELECT min(d) FROM fq24_influx18_pushdown_gate.fq24_influx18_pushdown.rows WHERE i = 9007199254740993;
+          min(d)           |
+============================
+ NULL                      |
+
+taos> EXPLAIN VERBOSE TRUE SELECT min(d) FROM fq24_influx18_pushdown_gate.fq24_influx18_pushdown.rows WHERE i = 9007199254740993;
+QUERY_PLAN |
+============
+ -> Federated Scan on fq24_influx18_pushdown_gate.rows (influxdb-1.8) (width=8) |
+       InfluxDB version=1.8 RP=autogen |
+       Output: columns=1 width=8 |
+       Source: <host>:<port> user=<user> |
+       Remote SQL: SELECT MIN("d") AS "expr_1", COUNT("anchor") AS "__fq_sparse_0", COUNT("flag") AS "__fq_sparse_1", COUNT("i") AS "__fq_sparse_2", COUNT("label") AS "__fq_sparse_3" FROM "fq24_influx18_pushdown"."autogen"."rows" WHERE (("i" = 9007199254740993)) |
+
+taos> SELECT max(d) FROM fq24_influx18_pushdown_gate.fq24_influx18_pushdown.rows WHERE i = 9007199254740993;
+          max(d)           |
+============================
+ NULL                      |
+
+taos> EXPLAIN VERBOSE TRUE SELECT max(d) FROM fq24_influx18_pushdown_gate.fq24_influx18_pushdown.rows WHERE i = 9007199254740993;
+QUERY_PLAN |
+============
+ -> Federated Scan on fq24_influx18_pushdown_gate.rows (influxdb-1.8) (width=8) |
+       InfluxDB version=1.8 RP=autogen |
+       Output: columns=1 width=8 |
+       Source: <host>:<port> user=<user> |
+       Remote SQL: SELECT MAX("d") AS "expr_1", COUNT("anchor") AS "__fq_sparse_0", COUNT("flag") AS "__fq_sparse_1", COUNT("i") AS "__fq_sparse_2", COUNT("label") AS "__fq_sparse_3" FROM "fq24_influx18_pushdown"."autogen"."rows" WHERE (("i" = 9007199254740993)) |
+
+taos> SELECT avg(d) FROM fq24_influx18_pushdown_gate.fq24_influx18_pushdown.rows WHERE i = 9007199254740993;
+          avg(d)           |
+============================
+ NULL                      |
+
+taos> EXPLAIN VERBOSE TRUE SELECT avg(d) FROM fq24_influx18_pushdown_gate.fq24_influx18_pushdown.rows WHERE i = 9007199254740993;
+QUERY_PLAN |
+============
+ -> Federated Scan on fq24_influx18_pushdown_gate.rows (influxdb-1.8) (width=8) |
+       InfluxDB version=1.8 RP=autogen |
+       Output: columns=1 width=8 |
+       Source: <host>:<port> user=<user> |
+       Remote SQL: SELECT MEAN("d") AS "expr_1", COUNT("anchor") AS "__fq_sparse_0", COUNT("flag") AS "__fq_sparse_1", COUNT("i") AS "__fq_sparse_2", COUNT("label") AS "__fq_sparse_3" FROM "fq24_influx18_pushdown"."autogen"."rows" WHERE (("i" = 9007199254740993)) |
+
+taos> SELECT spread(d) FROM fq24_influx18_pushdown_gate.fq24_influx18_pushdown.rows WHERE i = 9007199254740993;
+         spread(d)         |
+============================
+ NULL                      |
+
+taos> EXPLAIN VERBOSE TRUE SELECT spread(d) FROM fq24_influx18_pushdown_gate.fq24_influx18_pushdown.rows WHERE i = 9007199254740993;
+QUERY_PLAN |
+============
+ -> Federated Scan on fq24_influx18_pushdown_gate.rows (influxdb-1.8) (width=8) |
+       InfluxDB version=1.8 RP=autogen |
+       Output: columns=1 width=8 |
+       Source: <host>:<port> user=<user> |
+       Remote SQL: SELECT SPREAD("d") AS "expr_1", COUNT("anchor") AS "__fq_sparse_0", COUNT("flag") AS "__fq_sparse_1", COUNT("i") AS "__fq_sparse_2", COUNT("label") AS "__fq_sparse_3" FROM "fq24_influx18_pushdown"."autogen"."rows" WHERE (("i" = 9007199254740993)) |
+
+taos> SELECT stddev_samp(d) FROM fq24_influx18_pushdown_gate.fq24_influx18_pushdown.rows WHERE i = 9007199254740993;
+      stddev_samp(d)       |
+============================
+ NULL                      |
+
+taos> EXPLAIN VERBOSE TRUE SELECT stddev_samp(d) FROM fq24_influx18_pushdown_gate.fq24_influx18_pushdown.rows WHERE i = 9007199254740993;
+QUERY_PLAN |
+============
+ -> Federated Scan on fq24_influx18_pushdown_gate.rows (influxdb-1.8) (width=8) |
+       InfluxDB version=1.8 RP=autogen |
+       Output: columns=1 width=8 |
+       Source: <host>:<port> user=<user> |
+       Remote SQL: SELECT STDDEV("d") AS "expr_1", COUNT("d") AS "__fq_sample_0", COUNT("anchor") AS "__fq_sparse_1", COUNT("flag") AS "__fq_sparse_2", COUNT("i") AS "__fq_sparse_3", COUNT("label") AS "__fq_sparse_4" FROM "fq24_influx18_pushdown"."autogen"."rows" WHERE (("i" = 9007199254740993)) |
+
+taos> SELECT site, sum(i), count(d) FROM fq24_influx18_pushdown_gate.fq24_influx18_pushdown.rows PARTITION BY site ORDER BY site;
+                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               site                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               |        sum(i)         |       count(d)        |
+===================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================
+ NULL                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                             |                     7 |                     2 |
+ a                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                |      9007199254741003 |                     2 |
+ b                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                |                     3 |                     1 |
+ c                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                | NULL                  |                     0 |
+
+taos> EXPLAIN VERBOSE TRUE SELECT site, sum(i), count(d) FROM fq24_influx18_pushdown_gate.fq24_influx18_pushdown.rows PARTITION BY site ORDER BY site;
+QUERY_PLAN |
+============
+ -> Sort input_order=unknown output_order=unknown  (columns=3 width=65535) |
+       Output: columns=3 width=65535 |
+    -> Federated Scan on fq24_influx18_pushdown_gate.rows (influxdb-1.8) (width=65535) |
+          InfluxDB version=1.8 RP=autogen |
+          Output: columns=3 width=65535 |
+          Source: <host>:<port> user=<user> |
+          Remote SQL: SELECT SUM("i") AS "expr_2", COUNT("d") AS "expr_3", COUNT("anchor") AS "__fq_sparse_0", COUNT("flag") AS "__fq_sparse_1", COUNT("label") AS "__fq_sparse_2" FROM "fq24_influx18_pushdown"."autogen"."rows" GROUP BY "site" fill(none) |
+
+taos> SELECT count(d) FROM fq24_influx18_pushdown_gate.fq24_influx18_pushdown.rows WHERE i > 9223372036854775806;
+       count(d)        |
+========================
+                     0 |
+
+taos> EXPLAIN VERBOSE TRUE SELECT count(d) FROM fq24_influx18_pushdown_gate.fq24_influx18_pushdown.rows WHERE i > 9223372036854775806;
+QUERY_PLAN |
+============
+ -> Federated Scan on fq24_influx18_pushdown_gate.rows (influxdb-1.8) (width=8) |
+       InfluxDB version=1.8 RP=autogen |
+       Output: columns=1 width=8 |
+       Source: <host>:<port> user=<user> |
+       Remote SQL: SELECT COUNT("d") AS "expr_1", COUNT("anchor") AS "__fq_sparse_0", COUNT("flag") AS "__fq_sparse_1", COUNT("i") AS "__fq_sparse_2", COUNT("label") AS "__fq_sparse_3" FROM "fq24_influx18_pushdown"."autogen"."rows" WHERE (("i" > 9223372036854775806)) |
+
+taos> SELECT sum(d) FROM fq24_influx18_pushdown_gate.fq24_influx18_pushdown.rows WHERE i > 9223372036854775806;
+
+taos> EXPLAIN VERBOSE TRUE SELECT sum(d) FROM fq24_influx18_pushdown_gate.fq24_influx18_pushdown.rows WHERE i > 9223372036854775806;
+QUERY_PLAN |
+============
+ -> Federated Scan on fq24_influx18_pushdown_gate.rows (influxdb-1.8) (width=8) |
+       InfluxDB version=1.8 RP=autogen |
+       Output: columns=1 width=8 |
+       Source: <host>:<port> user=<user> |
+       Remote SQL: SELECT SUM("d") AS "expr_1", COUNT("anchor") AS "__fq_sparse_0", COUNT("flag") AS "__fq_sparse_1", COUNT("i") AS "__fq_sparse_2", COUNT("label") AS "__fq_sparse_3" FROM "fq24_influx18_pushdown"."autogen"."rows" WHERE (("i" > 9223372036854775806)) |
+
+taos> SELECT avg(d) FROM fq24_influx18_pushdown_gate.fq24_influx18_pushdown.rows WHERE i > 9223372036854775806;
+
+taos> EXPLAIN VERBOSE TRUE SELECT avg(d) FROM fq24_influx18_pushdown_gate.fq24_influx18_pushdown.rows WHERE i > 9223372036854775806;
+QUERY_PLAN |
+============
+ -> Federated Scan on fq24_influx18_pushdown_gate.rows (influxdb-1.8) (width=8) |
+       InfluxDB version=1.8 RP=autogen |
+       Output: columns=1 width=8 |
+       Source: <host>:<port> user=<user> |
+       Remote SQL: SELECT MEAN("d") AS "expr_1", COUNT("anchor") AS "__fq_sparse_0", COUNT("flag") AS "__fq_sparse_1", COUNT("i") AS "__fq_sparse_2", COUNT("label") AS "__fq_sparse_3" FROM "fq24_influx18_pushdown"."autogen"."rows" WHERE (("i" > 9223372036854775806)) |
+
+taos> SELECT stddev_samp(d) FROM fq24_influx18_pushdown_gate.fq24_influx18_pushdown.rows WHERE i > 9223372036854775806;
+
+taos> EXPLAIN VERBOSE TRUE SELECT stddev_samp(d) FROM fq24_influx18_pushdown_gate.fq24_influx18_pushdown.rows WHERE i > 9223372036854775806;
+QUERY_PLAN |
+============
+ -> Federated Scan on fq24_influx18_pushdown_gate.rows (influxdb-1.8) (width=8) |
+       InfluxDB version=1.8 RP=autogen |
+       Output: columns=1 width=8 |
+       Source: <host>:<port> user=<user> |
+       Remote SQL: SELECT STDDEV("d") AS "expr_1", COUNT("d") AS "__fq_sample_0", COUNT("anchor") AS "__fq_sparse_1", COUNT("flag") AS "__fq_sparse_2", COUNT("i") AS "__fq_sparse_3", COUNT("label") AS "__fq_sparse_4" FROM "fq24_influx18_pushdown"."autogen"."rows" WHERE (("i" > 9223372036854775806)) |
+
+taos> SELECT count(d) FROM fq24_influx18_pushdown_gate.fq24_influx18_pushdown.rows WHERE i = 1;
+       count(d)        |
+========================
+                     1 |
+
+taos> EXPLAIN VERBOSE TRUE SELECT count(d) FROM fq24_influx18_pushdown_gate.fq24_influx18_pushdown.rows WHERE i = 1;
+QUERY_PLAN |
+============
+ -> Federated Scan on fq24_influx18_pushdown_gate.rows (influxdb-1.8) (width=8) |
+       InfluxDB version=1.8 RP=autogen |
+       Output: columns=1 width=8 |
+       Source: <host>:<port> user=<user> |
+       Remote SQL: SELECT COUNT("d") AS "expr_1", COUNT("anchor") AS "__fq_sparse_0", COUNT("flag") AS "__fq_sparse_1", COUNT("i") AS "__fq_sparse_2", COUNT("label") AS "__fq_sparse_3" FROM "fq24_influx18_pushdown"."autogen"."rows" WHERE (("i" = 1)) |
+
+taos> SELECT sum(d) FROM fq24_influx18_pushdown_gate.fq24_influx18_pushdown.rows WHERE i = 1;
+          sum(d)           |
+============================
+                       1.5 |
+
+taos> EXPLAIN VERBOSE TRUE SELECT sum(d) FROM fq24_influx18_pushdown_gate.fq24_influx18_pushdown.rows WHERE i = 1;
+QUERY_PLAN |
+============
+ -> Federated Scan on fq24_influx18_pushdown_gate.rows (influxdb-1.8) (width=8) |
+       InfluxDB version=1.8 RP=autogen |
+       Output: columns=1 width=8 |
+       Source: <host>:<port> user=<user> |
+       Remote SQL: SELECT SUM("d") AS "expr_1", COUNT("anchor") AS "__fq_sparse_0", COUNT("flag") AS "__fq_sparse_1", COUNT("i") AS "__fq_sparse_2", COUNT("label") AS "__fq_sparse_3" FROM "fq24_influx18_pushdown"."autogen"."rows" WHERE (("i" = 1)) |
+
+taos> SELECT avg(d) FROM fq24_influx18_pushdown_gate.fq24_influx18_pushdown.rows WHERE i = 1;
+          avg(d)           |
+============================
+                       1.5 |
+
+taos> EXPLAIN VERBOSE TRUE SELECT avg(d) FROM fq24_influx18_pushdown_gate.fq24_influx18_pushdown.rows WHERE i = 1;
+QUERY_PLAN |
+============
+ -> Federated Scan on fq24_influx18_pushdown_gate.rows (influxdb-1.8) (width=8) |
+       InfluxDB version=1.8 RP=autogen |
+       Output: columns=1 width=8 |
+       Source: <host>:<port> user=<user> |
+       Remote SQL: SELECT MEAN("d") AS "expr_1", COUNT("anchor") AS "__fq_sparse_0", COUNT("flag") AS "__fq_sparse_1", COUNT("i") AS "__fq_sparse_2", COUNT("label") AS "__fq_sparse_3" FROM "fq24_influx18_pushdown"."autogen"."rows" WHERE (("i" = 1)) |
+
+taos> SELECT stddev_samp(d) FROM fq24_influx18_pushdown_gate.fq24_influx18_pushdown.rows WHERE i = 1;
+      stddev_samp(d)       |
+============================
+                         0 |
+
+taos> EXPLAIN VERBOSE TRUE SELECT stddev_samp(d) FROM fq24_influx18_pushdown_gate.fq24_influx18_pushdown.rows WHERE i = 1;
+QUERY_PLAN |
+============
+ -> Federated Scan on fq24_influx18_pushdown_gate.rows (influxdb-1.8) (width=8) |
+       InfluxDB version=1.8 RP=autogen |
+       Output: columns=1 width=8 |
+       Source: <host>:<port> user=<user> |
+       Remote SQL: SELECT STDDEV("d") AS "expr_1", COUNT("d") AS "__fq_sample_0", COUNT("anchor") AS "__fq_sparse_1", COUNT("flag") AS "__fq_sparse_2", COUNT("i") AS "__fq_sparse_3", COUNT("label") AS "__fq_sparse_4" FROM "fq24_influx18_pushdown"."autogen"."rows" WHERE (("i" = 1)) |
+
+taos> SELECT count(d) FROM fq24_influx18_pushdown_gate.fq24_influx18_pushdown.rows WHERE i < 4;
+       count(d)        |
+========================
+                     2 |
+
+taos> EXPLAIN VERBOSE TRUE SELECT count(d) FROM fq24_influx18_pushdown_gate.fq24_influx18_pushdown.rows WHERE i < 4;
+QUERY_PLAN |
+============
+ -> Federated Scan on fq24_influx18_pushdown_gate.rows (influxdb-1.8) (width=8) |
+       InfluxDB version=1.8 RP=autogen |
+       Output: columns=1 width=8 |
+       Source: <host>:<port> user=<user> |
+       Remote SQL: SELECT COUNT("d") AS "expr_1", COUNT("anchor") AS "__fq_sparse_0", COUNT("flag") AS "__fq_sparse_1", COUNT("i") AS "__fq_sparse_2", COUNT("label") AS "__fq_sparse_3" FROM "fq24_influx18_pushdown"."autogen"."rows" WHERE (("i" < 4)) |
+
+taos> SELECT sum(d) FROM fq24_influx18_pushdown_gate.fq24_influx18_pushdown.rows WHERE i < 4;
+          sum(d)           |
+============================
+                         4 |
+
+taos> EXPLAIN VERBOSE TRUE SELECT sum(d) FROM fq24_influx18_pushdown_gate.fq24_influx18_pushdown.rows WHERE i < 4;
+QUERY_PLAN |
+============
+ -> Federated Scan on fq24_influx18_pushdown_gate.rows (influxdb-1.8) (width=8) |
+       InfluxDB version=1.8 RP=autogen |
+       Output: columns=1 width=8 |
+       Source: <host>:<port> user=<user> |
+       Remote SQL: SELECT SUM("d") AS "expr_1", COUNT("anchor") AS "__fq_sparse_0", COUNT("flag") AS "__fq_sparse_1", COUNT("i") AS "__fq_sparse_2", COUNT("label") AS "__fq_sparse_3" FROM "fq24_influx18_pushdown"."autogen"."rows" WHERE (("i" < 4)) |
+
+taos> SELECT avg(d) FROM fq24_influx18_pushdown_gate.fq24_influx18_pushdown.rows WHERE i < 4;
+          avg(d)           |
+============================
+                         2 |
+
+taos> EXPLAIN VERBOSE TRUE SELECT avg(d) FROM fq24_influx18_pushdown_gate.fq24_influx18_pushdown.rows WHERE i < 4;
+QUERY_PLAN |
+============
+ -> Federated Scan on fq24_influx18_pushdown_gate.rows (influxdb-1.8) (width=8) |
+       InfluxDB version=1.8 RP=autogen |
+       Output: columns=1 width=8 |
+       Source: <host>:<port> user=<user> |
+       Remote SQL: SELECT MEAN("d") AS "expr_1", COUNT("anchor") AS "__fq_sparse_0", COUNT("flag") AS "__fq_sparse_1", COUNT("i") AS "__fq_sparse_2", COUNT("label") AS "__fq_sparse_3" FROM "fq24_influx18_pushdown"."autogen"."rows" WHERE (("i" < 4)) |
+
+taos> SELECT stddev_samp(d) FROM fq24_influx18_pushdown_gate.fq24_influx18_pushdown.rows WHERE i < 4;
+      stddev_samp(d)       |
+============================
+         0.707106781186548 |
+
+taos> EXPLAIN VERBOSE TRUE SELECT stddev_samp(d) FROM fq24_influx18_pushdown_gate.fq24_influx18_pushdown.rows WHERE i < 4;
+QUERY_PLAN |
+============
+ -> Federated Scan on fq24_influx18_pushdown_gate.rows (influxdb-1.8) (width=8) |
+       InfluxDB version=1.8 RP=autogen |
+       Output: columns=1 width=8 |
+       Source: <host>:<port> user=<user> |
+       Remote SQL: SELECT STDDEV("d") AS "expr_1", COUNT("d") AS "__fq_sample_0", COUNT("anchor") AS "__fq_sparse_1", COUNT("flag") AS "__fq_sparse_2", COUNT("i") AS "__fq_sparse_3", COUNT("label") AS "__fq_sparse_4" FROM "fq24_influx18_pushdown"."autogen"."rows" WHERE (("i" < 4)) |
+
+taos> SELECT CAST(_wstart AS BIGINT), CAST(_wend AS BIGINT), _wduration, sum(i) FROM fq24_influx18_pushdown_gate.fq24_influx18_pushdown.rows WHERE time >= 1700000000000000000 AND time < 1700000007000000000 INTERVAL(2s);
+ cast(_wstart as bigint) | cast(_wend as bigint) |      _wduration       |        sum(i)         |
+==================================================================================================
+     1700000000000000000 |   1700000002000000000 |            2000000000 |                     4 |
+     1700000002000000000 |   1700000004000000000 |            2000000000 |      9007199254740993 |
+     1700000004000000000 |   1700000006000000000 |            2000000000 |                     7 |
+     1700000006000000000 |   1700000008000000000 |            2000000000 | NULL                  |
+
+taos> EXPLAIN VERBOSE TRUE SELECT CAST(_wstart AS BIGINT), CAST(_wend AS BIGINT), _wduration, sum(i) FROM fq24_influx18_pushdown_gate.fq24_influx18_pushdown.rows WHERE time >= 1700000000000000000 AND time < 1700000007000000000 INTERVAL(2s);
+QUERY_PLAN |
+============
+ -> Projection (columns=4 width=32 input_order=unknown) |
+       Output: columns=4 width=32 |
+       Output: Ignore Group Id: true |
+       Merge ResBlocks: True |
+    -> Federated Scan on fq24_influx18_pushdown_gate.rows (influxdb-1.8) (width=32) |
+          InfluxDB version=1.8 RP=autogen |
+          Output: columns=4 width=32 |
+          Source: <host>:<port> user=<user> |
+          Remote SQL: SELECT SUM("i") AS "expr_4", COUNT("anchor") AS "__fq_sparse_0", COUNT("d") AS "__fq_sparse_1", COUNT("flag") AS "__fq_sparse_2", COUNT("label") AS "__fq_sparse_3" FROM "fq24_influx18_pushdown"."autogen"."rows" WHERE time >= -9223372036854775806 AND time <= 9223372036854775806 AND (((time >= 1700000000000000000) AND (time <= 1700000006999999999))) GROUP BY time(2000000000ns) fill(none) |
+
+taos> SELECT CAST(_wstart AS BIGINT), CAST(_wend AS BIGINT), _wduration, sum(i) FROM fq24_influx18_pushdown_gate.fq24_influx18_pushdown.rows WHERE time >= 4102444800000000000 AND time < 4102444801000000000 INTERVAL(2s);
+ cast(_wstart as bigint) | cast(_wend as bigint) |      _wduration       |        sum(i)         |
+==================================================================================================
+     4102444800000000000 |   4102444802000000000 |            2000000000 |                     9 |
+
+taos> EXPLAIN VERBOSE TRUE SELECT CAST(_wstart AS BIGINT), CAST(_wend AS BIGINT), _wduration, sum(i) FROM fq24_influx18_pushdown_gate.fq24_influx18_pushdown.rows WHERE time >= 4102444800000000000 AND time < 4102444801000000000 INTERVAL(2s);
+QUERY_PLAN |
+============
+ -> Projection (columns=4 width=32 input_order=unknown) |
+       Output: columns=4 width=32 |
+       Output: Ignore Group Id: true |
+       Merge ResBlocks: True |
+    -> Federated Scan on fq24_influx18_pushdown_gate.rows (influxdb-1.8) (width=32) |
+          InfluxDB version=1.8 RP=autogen |
+          Output: columns=4 width=32 |
+          Source: <host>:<port> user=<user> |
+          Remote SQL: SELECT SUM("i") AS "expr_4", COUNT("anchor") AS "__fq_sparse_0", COUNT("d") AS "__fq_sparse_1", COUNT("flag") AS "__fq_sparse_2", COUNT("label") AS "__fq_sparse_3" FROM "fq24_influx18_pushdown"."autogen"."rows" WHERE time >= -9223372036854775806 AND time <= 9223372036854775806 AND (((time >= 4102444800000000000) AND (time <= 4102444800999999999))) GROUP BY time(2000000000ns) fill(none) |
+
+taos> SELECT sum(i) FROM fq24_influx18_pushdown_gate.fq24_influx18_pushdown.rows WHERE abs(i) > 2;
+        sum(i)         |
+========================
+      9007199254741012 |
+
+taos> EXPLAIN VERBOSE TRUE SELECT sum(i) FROM fq24_influx18_pushdown_gate.fq24_influx18_pushdown.rows WHERE abs(i) > 2;
+QUERY_PLAN |
+============
+ -> Aggregate (functions=1 width=8 input_order=unknown) |
+       Output: columns=1 width=8 blocking=1 |
+       Merge ResBlocks: True |
+    -> Federated Scan on fq24_influx18_pushdown_gate.rows (influxdb-1.8) (width=8) |
+          InfluxDB version=1.8 RP=autogen |
+          Output: columns=1 width=8 |
+          Source: <host>:<port> user=<user> |
+          Remote SQL: SELECT "time", "anchor", "d", "flag", "i", "label" FROM "fq24_influx18_pushdown"."autogen"."rows" |
+          Filter: conditions=(abs(`rows`.`i`) > 2) |
+
+taos> SELECT count(*) FROM fq24_influx18_pushdown_gate.fq24_influx18_pushdown.rows;
+       count(*)        |
+========================
+                     7 |
+
+taos> EXPLAIN VERBOSE TRUE SELECT count(*) FROM fq24_influx18_pushdown_gate.fq24_influx18_pushdown.rows;
+QUERY_PLAN |
+============
+ -> Aggregate (functions=1 width=8 input_order=unknown) |
+       Output: columns=1 width=8 blocking=1 |
+       Merge ResBlocks: True |
+    -> Federated Scan on fq24_influx18_pushdown_gate.rows (influxdb-1.8) (width=8) |
+          InfluxDB version=1.8 RP=autogen |
+          Output: columns=1 width=8 |
+          Source: <host>:<port> user=<user> |
+          Remote SQL: SELECT "time", "anchor", "d", "flag", "i", "label" FROM "fq24_influx18_pushdown"."autogen"."rows" |

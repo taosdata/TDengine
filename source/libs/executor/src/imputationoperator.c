@@ -77,6 +77,7 @@ typedef struct {
 
 typedef struct {
   SOptrBasicInfo   binfo;
+  SSDataBlock*     pGroupKeys;
   SExprSupp        scalarSup;
   char             algoName[TSDB_ANALYTIC_ALGO_NAME_LEN];
   char             algoUrl[TSDB_ANALYTIC_ALGO_URL_LEN];
@@ -243,6 +244,7 @@ static int32_t imputationNext(SOperatorInfo* pOperator, SSDataBlock** ppRes) {
   SExecTaskInfo*         pTaskInfo = pOperator->pTaskInfo;
   SOptrBasicInfo*        pBInfo = &pInfo->binfo;
   SExprSupp*             pScalarSupp = &pInfo->scalarSup;
+  SExprSupp*             pExprSupp = &pOperator->exprSupp;
   SSDataBlock*           pRes = pInfo->binfo.pRes;
   int64_t                st = taosGetTimestampUs();
   const char*            idstr = GET_TASKID(pTaskInfo);
@@ -251,7 +253,7 @@ static int32_t imputationNext(SOperatorInfo* pOperator, SSDataBlock** ppRes) {
   code = getBaseSupp(pInfo, &pSupp, idstr);
   QUERY_CHECK_CODE(code, lino, _end);
 
-  int32_t numOfBlocks = taosArrayGetSize(pSupp->pBlocks);
+  int32_t numOfBlocks = pSupp->numOfBlocks;
   blockDataCleanup(pRes);
 
   while (1) {
@@ -268,7 +270,11 @@ static int32_t imputationNext(SOperatorInfo* pOperator, SSDataBlock** ppRes) {
       }
     }
 
-    if (pSupp->groupId == 0 || pSupp->groupId == pBlock->info.id.groupId) {
+    if (numOfBlocks == 0 || pSupp->groupId == pBlock->info.id.groupId) {
+      if (numOfBlocks == 0) {
+        code = cacheAnalysisGroupKeys(pExprSupp->pExprInfo, pExprSupp->numOfExprs, pBlock, pRes, &pInfo->pGroupKeys);
+        QUERY_CHECK_CODE(code, lino, _end);
+      }
       pSupp->groupId = pBlock->info.id.groupId;
       numOfBlocks++;
       code = doCacheBlock(pInfo, pBlock, idstr);
@@ -279,6 +285,15 @@ static int32_t imputationNext(SOperatorInfo* pOperator, SSDataBlock** ppRes) {
     } else {
       qDebug("group:%" PRId64 ", read completed for new group coming, blocks:%d", pSupp->groupId, numOfBlocks);
       code = doAnalysis(pInfo, pTaskInfo);
+      QUERY_CHECK_CODE(code, lino, _end);
+      code = fillAnalysisGroupKeys(pExprSupp->pExprInfo, pExprSupp->numOfExprs, pInfo->pGroupKeys, pRes);
+      QUERY_CHECK_CODE(code, lino, _end);
+      pSupp->numOfRows = 0;
+      pSupp->win.skey = INT64_MAX;
+      pSupp->win.ekey = INT64_MIN;
+      code = doCreateBuf(pInfo, idstr);
+      QUERY_CHECK_CODE(code, lino, _end);
+      code = cacheAnalysisGroupKeys(pExprSupp->pExprInfo, pExprSupp->numOfExprs, pBlock, pRes, &pInfo->pGroupKeys);
       QUERY_CHECK_CODE(code, lino, _end);
 
       pSupp->groupId = pBlock->info.id.groupId;
@@ -299,6 +314,9 @@ static int32_t imputationNext(SOperatorInfo* pOperator, SSDataBlock** ppRes) {
   if (numOfBlocks > 0) {
     qDebug("group:%" PRId64 ", read finish, blocks:%d", pSupp->groupId, numOfBlocks);
     code = doAnalysis(pInfo, pTaskInfo);
+    QUERY_CHECK_CODE(code, lino, _end);
+    code = fillAnalysisGroupKeys(pExprSupp->pExprInfo, pExprSupp->numOfExprs, pInfo->pGroupKeys, pRes);
+    QUERY_CHECK_CODE(code, lino, _end);
   }
 
   int64_t cost = taosGetTimestampUs() - st;
@@ -321,12 +339,16 @@ static void analysisDestroyOperatorInfo(void* param) {
 
   cleanupBasicInfo(&pInfo->binfo);
   cleanupExprSupp(&pInfo->scalarSup);
+  blockDataDestroy(pInfo->pGroupKeys);
+  taosMemoryFreeClear(pInfo->options);
 
   SArray* pBlocks = NULL;
   if (pInfo->analysisType == FUNCTION_TYPE_IMPUTATION) {
     pBlocks = pInfo->imputatSup.base.pBlocks;
+    taosAnalyBufDestroy(&pInfo->imputatSup.base.analyBuf);
   } else {
     pBlocks = pInfo->corrSupp.base.pBlocks;
+    taosAnalyBufDestroy(&pInfo->corrSupp.base.analyBuf);
   }
 
   for (int32_t i = 0; i < taosArrayGetSize(pBlocks); ++i) {

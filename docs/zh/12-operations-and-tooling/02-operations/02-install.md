@@ -124,7 +124,7 @@ apt-get 方式只适用于 Debian 或 Ubuntu 系统。
 
 - 从 TDengine 3.1.0.0 开始，只提供 Windows 客户端安装包。如果需要 Windows 服务端安装包，请联系 TDengine 销售团队升级为企业版。
 
-- 目前 TDengine 在 Windows 平台上只支持 Windows Server 2016/2019 和 Windows 10/11。
+- 目前 TDengine 在 Windows 平台上支持 Windows Server 2016 及以上版本和 Windows 10/11。
 
 - Windows 安装程序会检测 Microsoft Visual C++ Redistributable 2015-2022 x64 14.44 或更高版本。如果运行库缺失或版本过低，确认提示后安装程序会自动安装内置的 14.50.35719.0 运行库。如果安装失败，可从 [VC 运行时库](https://learn.microsoft.com/zh-cn/cpp/windows/latest-supported-vc-redist?view=msvc-170) 下载最新支持版本后重试。
 

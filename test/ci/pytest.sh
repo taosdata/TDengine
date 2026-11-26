@@ -38,6 +38,20 @@ SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 # set test code directory
 TEST_CODE_DIR="$(dirname "$SCRIPT_DIR")"
 
+# In native CI the case container owns the provider and its data directory.
+# Leased jobs and standalone window tests borrow a running service.
+if [[ ${FQ_CI_CASE_CONTAINER:-0} == 1 && ${FQ_ENV_MODE:-local} == local &&
+      ${1:-} == pytest && ${2:-} =~ /19-FederatedQuery/test_fq_(mysql|pg|oracle)_window_order\.py(::|$) ]]; then
+  provider=${BASH_REMATCH[1]}
+  if [[ ,${FQ_REQUIRED_SERVICES:-$provider}, == *",$provider,"* ]]; then
+    FQ_BASE_DIR=$(mktemp -d /opt/fq-window.XXXXXXXX) || exit 1
+    chmod 755 "$FQ_BASE_DIR" || exit 1
+    export FQ_BASE_DIR
+    env -u LD_PRELOAD -u LD_LIBRARY_PATH FQ_SERVICES_TO_RESET="$provider" \
+      bash "$TEST_CODE_DIR/cases/09-DataQuerying/19-FederatedQuery/ensure_ext_env.sh" || exit $?
+  fi
+fi
+
 IN_TDINTERNAL="community"
 if [[ "${SCRIPT_DIR}" == *"taos-community"* ]]; then
   TOP_DIR="${TEST_CODE_DIR}/../../../"

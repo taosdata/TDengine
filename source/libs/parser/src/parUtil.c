@@ -128,6 +128,8 @@ static char* getSyntaxErrFormat(int32_t errCode) {
       return "Incorrect TIMESTAMP value: %s";
     case TSDB_CODE_PAR_OFFSET_LESS_ZERO:
       return "soffset/offset cannot be less than 0";
+    case TSDB_CODE_PAR_LIMIT_LESS_ZERO:
+      return "limit cannot be less than 0";
     case TSDB_CODE_PAR_SLIMIT_LEAK_PARTITION_GROUP_BY:
       return "slimit/soffset are only available for PARTITION/GROUP BY query";
     case TSDB_CODE_PAR_INVALID_TOPIC_QUERY:
@@ -204,6 +206,8 @@ static char* getSyntaxErrFormat(int32_t errCode) {
       return "Tags can only be applied to super tables and child tables";
     case TSDB_CODE_PAR_WINDOW_NOT_ALLOWED_FUNC:
       return "%s function is not supported in time window query";
+    case TSDB_CODE_PAR_INVALID_WINDOW_FUNC:
+      return "Window function is not allowed in this clause";
     case TSDB_CODE_PAR_STREAM_NOT_ALLOWED_FUNC:
       return "%s function is not supported in stream query";
     case TSDB_CODE_PAR_GROUP_BY_NOT_ALLOWED_FUNC:
@@ -332,7 +336,7 @@ static char* getSyntaxErrFormat(int32_t errCode) {
     case TSDB_CODE_OSS_NOT_SUPPORT:
       return "Operation not supported in community edition: %s";
     case TSDB_CODE_PAR_INVALID_TIMEZONE:
-      return "Invalid timezone: '%s'";
+      return "Invalid or unsupported timezone: '%s'";
     default:
       return "Unknown error";
   }
@@ -502,6 +506,7 @@ STableMeta* tableMetaDup(const STableMeta* pTableMeta) {
   p->colRef = NULL;
   p->tagRef = NULL;
   p->seriesEntries = NULL;
+  memset(&p->referenceExt, 0, sizeof(p->referenceExt));
   if (hasSchemaExt) {
     p->schemaExt = (SSchemaExt*)(((char*)p) + baseSize);
     memcpy(p->schemaExt, pTableMeta->schemaExt, schemaExtSize);
@@ -523,6 +528,7 @@ STableMeta* tableMetaDup(const STableMeta* pTableMeta) {
     p->tagRef = NULL;
     p->numOfTagRefs = 0;
   }
+  PAR_ERR_JRET(tCloneVtableReferenceExt(&pTableMeta->referenceExt, &p->referenceExt));
   PAR_ERR_JRET(queryCloneSeriesEntries(pTableMeta->seriesEntries, pTableMeta->numOfSeries, &p->seriesEntries));
   return p;
 
@@ -1958,25 +1964,20 @@ int32_t getVStbRefDbsFromCache(SParseMetaCache* pMetaCache, const SName* pName, 
     return code;
   }
 
-  if (NULL == pMetaCache || NULL == pMetaCache->pVStbRefDbs) {
-    return TSDB_CODE_PAR_TABLE_NOT_EXIST;
+  // Each expansion adds entries for its leaves. A missing or unfilled slot can use an enclosing cache.
+  size_t len = strlen(fullName);
+  for (const SParseMetaCache* cache = pMetaCache; cache != NULL; cache = cache->pVStbRefParent) {
+    if (cache->pVStbRefDbs == NULL) continue;
+    SMetaRes** slot = taosHashGet(cache->pVStbRefDbs, fullName, len);
+    if (slot != NULL && *slot != NULL) {
+      const SMetaRes* res = *slot;
+      if (res->code == TSDB_CODE_SUCCESS) {
+        *pOutput = res->pRes;
+      }
+      return res->code;
+    }
   }
-
-  SArray* pRefs = NULL;
-  code = getMetaDataFromHash(fullName, strlen(fullName), pMetaCache->pVStbRefDbs, (void**)&pRefs);
-
-  // Special handling for stmt scenario where slot is reserved but data is not filled
-  // In this case, getMetaDataFromHash returns INTERNAL_ERROR because value is nullPointer
-  if (TSDB_CODE_PAR_INTERNAL_ERROR == code) {
-    // Data not filled in cache (stmt scenario without putMetaDataToCache)
-    // Return table not exist to indicate VStbRefDbs is not available
-    return TSDB_CODE_PAR_TABLE_NOT_EXIST;
-  }
-
-  if (TSDB_CODE_SUCCESS == code && NULL != pRefs) {
-    *pOutput = pRefs;
-  }
-  return code;
+  return TSDB_CODE_PAR_TABLE_NOT_EXIST;
 }
 
 int32_t reserveDnodeRequiredInCache(SParseMetaCache* pMetaCache) {

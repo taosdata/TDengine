@@ -84,9 +84,10 @@ namespace {
 
 constexpr char     kMagic[8] = {'T', 'D', 'W', 'R', 'E', 'C', '0', '1'};
 constexpr uint16_t kMajor = 1;
-// Unreleased: everything added during development is part of 1.0, so there is
-// no minor history to track yet.
-constexpr uint16_t kMinor = 1;
+// 1.1 appended the clock-domain identity to segment headers; 1.2 adds the optional
+// FETCH_CALLS tag for folded fetch sessions. Both are additive, so the reference
+// model reads older files unchanged and this constant tracks the shipped header.
+constexpr uint16_t kMinor = 2;
 constexpr uint16_t kEndianMark = 0x0102;
 constexpr uint8_t  kDelimiter = 0x0A;
 constexpr uint32_t kMaxFramePayload = 1u << 20;  // 1MiB, DS 6.15.2
@@ -146,6 +147,7 @@ constexpr size_t   kFrameDelimiterSize = 1;
   X(TAG_AFFECTED_ROWS, WLR_TAG_AFFECTED_ROWS, 141) \
   X(TAG_FETCH_ROWS, WLR_TAG_FETCH_ROWS, 142) \
   X(TAG_DURATION_NS, WLR_TAG_DURATION_NS, 143) \
+  X(TAG_FETCH_CALLS, WLR_TAG_FETCH_CALLS, 144) \
   X(TAG_CHUNK_INDEX, WLR_TAG_CHUNK_INDEX, 150) \
   X(TAG_CHUNK_COUNT, WLR_TAG_CHUNK_COUNT, 151) \
   X(TAG_TOTAL_LEN, WLR_TAG_TOTAL_LENGTH, 152) \

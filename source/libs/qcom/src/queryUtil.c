@@ -234,10 +234,16 @@ bool beginAsyncWorkShutdown() {
 
 bool mayCreateAsyncWork() { return atomic_load_32(&shutdownSentinel) == 0; }
 
+static threadlocal bool inAsyncTask = false;
+
+bool taosInAsyncTask(void) { return inAsyncTask; }
+
 static void processTaskQueue(SQueueInfo *pInfo, SSchedMsg *pSchedMsg) {
   if(!pSchedMsg || !pSchedMsg->ahandle) return;
   __async_exec_fn_t execFn = (__async_exec_fn_t)pSchedMsg->ahandle;
+  inAsyncTask = true;
   (void)execFn(pSchedMsg->thandle);
+  inAsyncTask = false;
   taosFreeQitem(pSchedMsg);
 }
 
@@ -493,7 +499,7 @@ void destroyQueryExecRes(SExecResult* pRes) {
   pRes->res = NULL;
 }
 // clang-format on
-int32_t dataConverToStr(char* str, int64_t capacity, int type, void* buf, int32_t bufSize, int32_t* len) {
+int32_t dataConverToStr(char* str, int64_t capacity, int type, void* buf, int32_t bufSize, int32_t* len, void *charsetCxt) {
   QUERY_PARAM_CHECK(str);
   QUERY_PARAM_CHECK(buf);
   int32_t n = 0;
@@ -568,10 +574,8 @@ int32_t dataConverToStr(char* str, int64_t capacity, int type, void* buf, int32_
       }
 
       *str = '"';
-      // dataConverToStr has no query context; render with the process/server
-      // charset.
-      int32_t length = taosUcs4ToMbsCharsetInsensitive((TdUcs4*)buf, bufSize,
-                                                       str + 1);
+      int32_t length = taosUcs4ToMbs((TdUcs4*)buf, bufSize,
+                                                       str + 1, charsetCxt);
       if (length < 0) {
         return TSDB_CODE_TSC_INVALID_VALUE;
       }
@@ -771,6 +775,7 @@ void queryFreeTableMeta(STableMeta* pMeta) {
     queryFreeColRefTagConds(pMeta->colRef, pMeta->numOfColRefs);
     queryFreeColRefTagConds(pMeta->tagRef, pMeta->numOfTagRefs);
     queryFreeSeriesEntries(pMeta->seriesEntries, pMeta->numOfSeries);
+    tFreeVtableReferenceExt(&pMeta->referenceExt);
   }
   taosMemoryFree(pMeta);
 }
@@ -844,9 +849,12 @@ int32_t cloneTableMeta(const STableMeta* pSrc, STableMeta** pDst) {
   }
 
   int32_t numOfField = pSrc->tableInfo.numOfColumns + pSrc->tableInfo.numOfTags;
-  if (numOfField > TSDB_MAX_COL_TAG_NUM || numOfField < TSDB_MIN_COLUMNS) {
+  // Sparse external schemas start with one column and materialize others lazily.
+  int32_t minColumns = pSrc->extSrcSynthetic ? 1 : TSDB_MIN_COLUMNS;
+  if (numOfField > TSDB_MAX_COL_TAG_NUM || numOfField < minColumns) {
     *pDst = NULL;
-    qError("too many column and tag num:%d,%d", pSrc->tableInfo.numOfColumns, pSrc->tableInfo.numOfTags);
+    qError("invalid column and tag num:%d,%d", pSrc->tableInfo.numOfColumns,
+           pSrc->tableInfo.numOfTags);
     return TSDB_CODE_INVALID_PARA;
   }
 
@@ -858,6 +866,7 @@ int32_t cloneTableMeta(const STableMeta* pSrc, STableMeta** pDst) {
   memcpy(*pDst, pSrc, metaSize);
   tableMetaResetPointers(*pDst);
   (*pDst)->seriesEntries = NULL;
+  memset(&(*pDst)->referenceExt, 0, sizeof((*pDst)->referenceExt));
 
   int32_t code = queryCloneColRefTagConds(pSrc->colRef, pSrc->numOfColRefs, (*pDst)->colRef);
   if (TSDB_CODE_SUCCESS != code) {
@@ -874,6 +883,12 @@ int32_t cloneTableMeta(const STableMeta* pSrc, STableMeta** pDst) {
     return code;
   }
 
+  code = tCloneVtableReferenceExt(&pSrc->referenceExt, &(*pDst)->referenceExt);
+  if (code != TSDB_CODE_SUCCESS) {
+    queryFreeTableMeta(*pDst);
+    *pDst = NULL;
+    return code;
+  }
   code = queryCloneSeriesEntries(pSrc->seriesEntries, pSrc->numOfSeries, &(*pDst)->seriesEntries);
   if (TSDB_CODE_SUCCESS != code) {
     queryFreeTableMeta(*pDst);
@@ -1096,4 +1111,187 @@ void qDestroyBoundColInfo(void* pInfo) {
 
   taosMemoryFreeClear(pBoundInfo->pColIndex);
   destroySTagsInfo(pBoundInfo->parseredTags);
+}
+
+// ---- batch meta txn: txn-local super table schemas for ins_tags / ins_columns ----
+// Format (tEncoder): version(i8=1), n(i32), then per stb: suid(i64), sversion(i32), tversion(i32), nCols(i32),
+// nTags(i32), nCols+nTags SSchema, nCols typeMod(i32). Only ever exchanged between a client and the vnode
+// executing its plan; the plan field carrying it is omitted when there is nothing to send.
+#define TXN_STB_SCHEMAS_VERSION 1
+// Lower bounds of the encoding, used to reject a forged count before anything is allocated for it.
+// SSchema (tEncodeSSchema): type(1) + flags(1) + bytes(varint, >= 1) + colId(varint, >= 1) + name (length varint, >= 1;
+// an empty name is not assumed away) = 5
+#define TXN_STB_SCHEMA_MIN_BYTES 5
+// one stb entry: suid(8) + sversion(4) + tversion(4) + nCols(4) + nTags(4) + one schema + one typeMod(4)
+#define TXN_STB_ENTRY_MIN_BYTES (8 + 4 + 4 + 4 + 4 + TXN_STB_SCHEMA_MIN_BYTES + 4)
+
+static int32_t queryEncodeTxnStbSchemasImpl(SEncoder* pEncoder, const SArray* pStbMetas) {
+  int32_t n = (int32_t)taosArrayGetSize(pStbMetas);
+  TAOS_CHECK_RETURN(tStartEncode(pEncoder));
+  TAOS_CHECK_RETURN(tEncodeI8(pEncoder, TXN_STB_SCHEMAS_VERSION));
+  TAOS_CHECK_RETURN(tEncodeI32(pEncoder, n));
+  for (int32_t i = 0; i < n; ++i) {
+    const STableMeta* pMeta = *(const STableMeta**)taosArrayGet(pStbMetas, i);
+    int32_t           nCols = pMeta->tableInfo.numOfColumns;
+    int32_t           nTags = pMeta->tableInfo.numOfTags;
+    // only a super table's own schema is shipped (no merged vchild view), and the decoder enforces the same bounds
+    if (pMeta->tableType != TSDB_SUPER_TABLE || pMeta->schema == NULL || nCols <= 0 || nCols > TSDB_MAX_COLUMNS ||
+        nTags < 0 || nTags > TSDB_MAX_TAGS) {
+      return TSDB_CODE_INVALID_PARA;
+    }
+    TAOS_CHECK_RETURN(tEncodeI64(pEncoder, (int64_t)pMeta->uid));
+    TAOS_CHECK_RETURN(tEncodeI32(pEncoder, pMeta->sversion));
+    TAOS_CHECK_RETURN(tEncodeI32(pEncoder, pMeta->tversion));
+    TAOS_CHECK_RETURN(tEncodeI32(pEncoder, nCols));
+    TAOS_CHECK_RETURN(tEncodeI32(pEncoder, nTags));
+    for (int32_t j = 0; j < nCols + nTags; ++j) {
+      TAOS_CHECK_RETURN(tEncodeSSchema(pEncoder, &pMeta->schema[j]));
+    }
+    for (int32_t j = 0; j < nCols; ++j) {
+      TAOS_CHECK_RETURN(tEncodeI32(pEncoder, pMeta->schemaExt != NULL ? pMeta->schemaExt[j].typeMod : 0));
+    }
+  }
+  tEndEncode(pEncoder);
+  return TSDB_CODE_SUCCESS;
+}
+
+int32_t queryEncodeTxnStbSchemas(const SArray* pStbMetas, char** ppBuf, int32_t* pLen) {
+  *ppBuf = NULL;
+  *pLen = 0;
+  if (taosArrayGetSize(pStbMetas) == 0) return TSDB_CODE_SUCCESS;
+
+  SEncoder encoder = {0};
+  tEncoderInit(&encoder, NULL, 0);
+  int32_t code = queryEncodeTxnStbSchemasImpl(&encoder, pStbMetas);
+  int32_t len = encoder.pos;
+  tEncoderClear(&encoder);  // released on every path: the sizing pass owns an internal buffer
+  if (code != TSDB_CODE_SUCCESS) return code;
+  if (len <= 0 || len > TXN_STB_SCHEMAS_MAX_LEN) return TSDB_CODE_INVALID_MSG;
+
+  char* pBuf = taosMemoryMalloc(len);
+  if (pBuf == NULL) return terrno;
+  tEncoderInit(&encoder, (uint8_t*)pBuf, len);
+  code = queryEncodeTxnStbSchemasImpl(&encoder, pStbMetas);
+  int32_t written = encoder.pos;
+  tEncoderClear(&encoder);
+  // both passes walk the same metas under the caller's lock, so they must agree to the byte
+  if (code == TSDB_CODE_SUCCESS && written != len) code = TSDB_CODE_INTERNAL_ERROR;
+  if (code != TSDB_CODE_SUCCESS) {
+    taosMemoryFree(pBuf);
+    return code;
+  }
+  *ppBuf = pBuf;
+  *pLen = len;
+  return TSDB_CODE_SUCCESS;
+}
+
+static void queryFreeTxnStbSchema(void* p) {
+  STxnStbSchema* pStb = (STxnStbSchema*)p;
+  taosMemoryFreeClear(pStb->schemaRow.pSchema);
+  taosMemoryFreeClear(pStb->schemaTag.pSchema);
+  taosMemoryFreeClear(pStb->pExtSchemas);
+}
+
+void queryDestroyTxnStbSchemas(SHashObj* pHash) { taosHashCleanup(pHash); }
+
+int32_t queryDecodeTxnStbSchemas(const char* pBuf, int32_t len, SHashObj** ppHash) {
+  *ppHash = NULL;
+  if (pBuf == NULL || len <= 0) return TSDB_CODE_SUCCESS;
+  if (len > TXN_STB_SCHEMAS_MAX_LEN) return TSDB_CODE_INVALID_MSG;  // the length comes from a plan: bound it again here
+
+  int32_t   code = TSDB_CODE_SUCCESS;
+  int32_t   lino = 0;
+  SDecoder  decoder = {0};
+  SHashObj* pHash = taosHashInit(4, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT), true, HASH_NO_LOCK);
+  if (pHash == NULL) return terrno;
+  taosHashSetFreeFp(pHash, queryFreeTxnStbSchema);
+
+  tDecoderInit(&decoder, (uint8_t*)pBuf, len);
+  int8_t  version = 0;
+  int32_t n = 0;
+  TAOS_CHECK_GOTO(tStartDecode(&decoder), &lino, _exit);
+  TAOS_CHECK_GOTO(tDecodeI8(&decoder, &version), &lino, _exit);
+  if (version != TXN_STB_SCHEMAS_VERSION) {
+    code = TSDB_CODE_INVALID_MSG;
+    goto _exit;
+  }
+  TAOS_CHECK_GOTO(tDecodeI32(&decoder, &n), &lino, _exit);
+  // A stb entry is at least suid(8) + 4 x I32 + one SSchema; an n that the blob cannot possibly hold is forged, and
+  // must not get as far as allocating per entry.
+  if (n < 0 || n > len / TXN_STB_ENTRY_MIN_BYTES) {
+    code = TSDB_CODE_INVALID_MSG;
+    goto _exit;
+  }
+  for (int32_t i = 0; i < n; ++i) {
+    STxnStbSchema stb = {0};
+    int32_t       nCols = 0, nTags = 0;
+    TAOS_CHECK_GOTO(tDecodeI64(&decoder, &stb.suid), &lino, _exit);
+    TAOS_CHECK_GOTO(tDecodeI32(&decoder, &stb.schemaRow.version), &lino, _exit);
+    TAOS_CHECK_GOTO(tDecodeI32(&decoder, &stb.schemaTag.version), &lino, _exit);
+    TAOS_CHECK_GOTO(tDecodeI32(&decoder, &nCols), &lino, _exit);
+    TAOS_CHECK_GOTO(tDecodeI32(&decoder, &nTags), &lino, _exit);
+    if (nCols <= 0 || nCols > TSDB_MAX_COLUMNS || nTags < 0 || nTags > TSDB_MAX_TAGS) {
+      code = TSDB_CODE_INVALID_MSG;
+      goto _exit;
+    }
+    // the bytes of the schemas that follow must exist before they are allocated for: (nCols + nTags) SSchema of at
+    // least TXN_STB_SCHEMA_MIN_BYTES and nCols typeMods
+    int64_t remaining = decoder.pos <= decoder.size ? (int64_t)decoder.size - (int64_t)decoder.pos : 0;
+    if ((int64_t)(nCols + nTags) * TXN_STB_SCHEMA_MIN_BYTES + (int64_t)nCols * (int64_t)sizeof(int32_t) > remaining) {
+      code = TSDB_CODE_INVALID_MSG;
+      goto _exit;
+    }
+    stb.schemaRow.nCols = nCols;
+    stb.schemaTag.nCols = nTags;
+    stb.schemaRow.pSchema = taosMemoryCalloc(nCols, sizeof(SSchema));
+    stb.schemaTag.pSchema = nTags > 0 ? taosMemoryCalloc(nTags, sizeof(SSchema)) : NULL;
+    stb.pExtSchemas = taosMemoryCalloc(nCols, sizeof(SExtSchema));
+    if (stb.schemaRow.pSchema == NULL || (nTags > 0 && stb.schemaTag.pSchema == NULL) || stb.pExtSchemas == NULL) {
+      code = terrno;
+      queryFreeTxnStbSchema(&stb);
+      goto _exit;
+    }
+    for (int32_t j = 0; j < nCols && code == TSDB_CODE_SUCCESS; ++j) {
+      code = tDecodeSSchema(&decoder, &stb.schemaRow.pSchema[j]);
+    }
+    for (int32_t j = 0; j < nTags && code == TSDB_CODE_SUCCESS; ++j) {
+      code = tDecodeSSchema(&decoder, &stb.schemaTag.pSchema[j]);
+    }
+    for (int32_t j = 0; j < nCols && code == TSDB_CODE_SUCCESS; ++j) {
+      code = tDecodeI32(&decoder, &stb.pExtSchemas[j].typeMod);
+    }
+    if (code == TSDB_CODE_SUCCESS && taosHashGet(pHash, &stb.suid, sizeof(int64_t)) != NULL) {
+      code = TSDB_CODE_INVALID_MSG;  // a super table is shipped once; a repeat would silently replace the first
+    }
+    if (code == TSDB_CODE_SUCCESS) {
+      code = taosHashPut(pHash, &stb.suid, sizeof(int64_t), &stb, sizeof(stb));  // hash owns stb's buffers now
+    }
+    if (code != TSDB_CODE_SUCCESS) {
+      queryFreeTxnStbSchema(&stb);
+      goto _exit;
+    }
+  }
+  // Inside the frame: the counts must have consumed exactly what the frame declares. Outside it (after tEndDecode):
+  // nothing may follow the frame. Either leftover means the declared counts do not describe the blob.
+  if (!tDecodeIsEnd(&decoder)) {
+    code = TSDB_CODE_INVALID_MSG;
+    lino = __LINE__;
+    goto _exit;
+  }
+  tEndDecode(&decoder);
+  if (!tDecodeIsEnd(&decoder)) {
+    code = TSDB_CODE_INVALID_MSG;
+    lino = __LINE__;
+    goto _exit;
+  }
+
+_exit:
+  tDecoderClear(&decoder);
+  if (code != TSDB_CODE_SUCCESS) {
+    qError("failed to decode txn stb schemas at line %d since %s", lino, tstrerror(code));
+    taosHashCleanup(pHash);
+    return code;
+  }
+  *ppHash = pHash;
+  return TSDB_CODE_SUCCESS;
 }

@@ -13,6 +13,8 @@
 # You should have received a copy of the GNU Affero General Public License
 # along with this program. If not, see <http://www.gnu.org/licenses/>.
 
+import importlib.util
+import json
 import platform
 import shutil
 import subprocess
@@ -29,6 +31,12 @@ def test_release_payload_preserves_lifecycle_and_full_models(tmp_path, lite, leg
     root = tmp_path / "tdgpt"
     shutil.copytree(source / "script", root / "script", ignore=shutil.ignore_patterns("__pycache__"))
     shutil.copytree(source / "cfg", root / "cfg")
+    shutil.copytree(source / "skills", root / "skills", ignore=shutil.ignore_patterns("__pycache__", "*.pyc"))
+    (root / "packaging").mkdir()
+    shutil.copyfile(
+        source / "packaging" / "tdengine-tdgpt-tsfm-release-1.0.1.json",
+        root / "packaging" / "tdengine-tdgpt-tsfm-release-1.0.1.json",
+    )
     for requirement in source.glob("requirements*.txt"):
         shutil.copyfile(requirement, root / requirement.name)
     analytics = root / "lib" / "taosanalytics"
@@ -67,9 +75,22 @@ def test_release_payload_preserves_lifecycle_and_full_models(tmp_path, lite, leg
             "taosanodectl.py",
             "resource_manager.py",
             "resource_manifest.py",
+            "runtime_upgrade.py",
             "uninstall.sh",
         ):
             assert f"bin/{script}" in members
+        assert "share/tsfm/tsfm-release.json" in members
+        assert "skills/tdgpt-custom-algorithm/SKILL.md" in members
+        assert (
+            "skills/tdgpt-custom-algorithm/scripts/deploy_custom_algorithm.py"
+            in members
+        )
+        manifest = package.extractfile(next(member for member in package.getmembers()
+                                            if member.name.endswith("/share/tsfm/tsfm-release.json")))
+        assert manifest is not None
+        assert json.loads(manifest.read()) == json.loads(
+            (source / "packaging" / "tdengine-tdgpt-tsfm-release-1.0.1.json").read_bytes()
+        )
         assert "bin/start-development.sh" not in members
         assert "bin/start-with-allmd.sh" not in members
         for removed_script in (
@@ -100,6 +121,40 @@ def test_release_payload_preserves_lifecycle_and_full_models(tmp_path, lite, leg
                 assert "./lib/tsfm/service/tdtsfm-server.py" in code.getnames()
         else:
             assert "lib/tsfm/service/tdtsfm-server.py" in members
+
+
+def test_windows_payload_replaces_bundled_manifest_without_touching_user_resources(tmp_path, monkeypatch):
+    source = Path(__file__).resolve().parents[1]
+    path = source / "packaging" / "win_release.py"
+    spec = importlib.util.spec_from_file_location("payload_win_release", path)
+    release = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(release)
+    install = tmp_path / "installed"
+    bundled = install / "share" / "tsfm" / "tsfm-release.json"
+    bundled.parent.mkdir(parents=True)
+    bundled.write_text('{"release": "old"}\n')
+    resource = tmp_path / "data" / "resource"
+    for name in ("state/runtime.json", "cache/runtime.tar.gz"):
+        destination = resource / name
+        destination.parent.mkdir(parents=True, exist_ok=True)
+        destination.write_bytes(b"user-owned")
+    monkeypatch.setattr(release.install_info, "source_dir", str(source))
+    monkeypatch.setattr(release.install_info, "install_dir", str(install))
+
+    release.copy_service_scripts()
+
+    assert bundled.read_bytes() == (source / "packaging" / "tdengine-tdgpt-tsfm-release-1.0.1.json").read_bytes()
+    assert (install / "bin" / "resource_manager.py").is_file()
+    assert not (install / "bin" / "tsfm-release.json").exists()
+    for installer in ("tdgpt.iss", "tdgpt-lite.iss"):
+        definition = (source / "packaging" / "installer" / installer).read_text()
+        assert (
+            'Source: "{#MyAppSourceDir}\\share\\*"; DestDir: "{app}\\share"; '
+            'Flags: ignoreversion recursesubdirs createallsubdirs'
+        ) in definition
+    assert not (install / "resource").exists()
+    assert (resource / "state/runtime.json").read_bytes() == b"user-owned"
+    assert (resource / "cache/runtime.tar.gz").read_bytes() == b"user-owned"
 
 
 @pytest.mark.parametrize("legacy_resources", [False, True])

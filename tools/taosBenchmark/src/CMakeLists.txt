@@ -109,6 +109,11 @@ ADD_EXECUTABLE(taosBenchmark
   toolsSys.c toolsString.c ../../src/pub.c
 )
 
+IF(MSVC)
+  # Keep the shared location literals in UTF-8 without changing other sources.
+  set_property(SOURCE benchData.c APPEND PROPERTY COMPILE_OPTIONS /utf-8)
+ENDIF()
+
 IF (${CMAKE_SYSTEM_NAME} MATCHES "Windows")
   DEP_ext_pthread(taosBenchmark)
   DEP_ext_msvcregex(taosBenchmark)

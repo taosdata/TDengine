@@ -159,6 +159,112 @@ taosd -r --mode force --node-type vnode \
 
 完整的命令行语法、字段约束、默认策略和更多示例，请参考 [taosd 参考手册](../03-components/01-taosd.md)。
 
+## 离线修改 mnode 元数据
+
+当集群元数据出现错误且无法通过 SQL 修复时，例如 dnode 迁移后地址变化、错误的全局配置导致 mnode 无法启动、残留事务阻塞集群操作、双副本仲裁组状态异常等，可以将 mnode 元数据导出为 JSON 文件，人工修改后再导回。从 `v3.4.2.8` 开始支持该功能。
+
+:::warning
+
+该操作直接修改集群元数据，属于高危操作。操作前务必备份 `<dataDir>/mnode` 目录；能通过标准 SQL 解决的问题，应优先使用 SQL。
+
+:::
+
+### 集群正常时
+
+```bash
+# 1. 在 taos shell 中执行，将元数据落盘并截断 WAL，taosd 继续运行
+#    FLUSH MNODE;
+# 2. 停止 mnode leader 所在节点的 taosd
+systemctl stop taosd
+# 3. 备份 mnode 目录
+cp -r <dataDir>/mnode <dataDir>/mnode.bak
+# 4. 导出元数据，生成当前工作目录下的 sdb.json
+taosd -s
+# 5. 编辑 sdb.json 中的目标记录
+# 6. 导入并写回 sdb.data
+taosd -mSdb ./sdb.json
+# 7. 启动 taosd
+systemctl start taosd
+```
+
+### taosd 无法启动时
+
+```bash
+# 1. 停止所有 mnode 节点的 taosd
+systemctl stop taosd
+# 2. 备份 mnode 目录
+cp -r <dataDir>/mnode <dataDir>/mnode.bak
+# 3. 离线落盘元数据并截断 WAL
+taosd -fMnode
+# 4. 导出、编辑、导入
+taosd -s
+taosd -mSdb ./sdb.json
+# 5. 启动 taosd
+systemctl start taosd
+```
+
+`taosd -s`、`taosd -mSdb` 不会重放 WAL，因此必须先执行 `FLUSH MNODE` 或 `taosd -fMnode`，否则导出的内容可能不是最新状态，重启后 WAL 中未落盘的变更还会覆盖手工修改的内容。
+
+### 常见修改场景
+
+- **dnode 地址变更**：修改 `type` 为 `dnode` 的记录中的 `fields.fqdn`、`fields.port`。
+- **修正 vgroup 副本分布**：修改 `type` 为 `vgroup` 的记录中的 `fields.replicas[].dnodeId`。
+- **修复错误的全局配置**：修改 `type` 为 `config` 的记录中的 `fields.value`，并在同一次导入中把 `tsmmConfigVersion` 记录的 `fields.value` 加 1，否则修改不会生效。仅支持布尔、整数和浮点类型的配置。
+- **清理残留事务**：执行 `taosd -dTxn` 删除全部事务；只删除个别事务时，在 `sdb.json` 中删除对应的 `trans` 记录后导入。
+- **清理卡住的 compact 任务**：在 `sdb.json` 中删除对应的 `compact` 记录后导入。
+- **删除多余的 mnode**：在 `sdb.json` 中删除多余的 `mnode` 记录后导入。
+- **修正双副本仲裁组**：修改 `type` 为 `arb_group` 的记录，例如将 `fields.isSync` 改为 `"1"`、在 dnode 替换后修正 `fields.member0.dnodeId` 或 `fields.assignedLeader.assignedDnodeId`，从 `v3.4.3.12` 开始支持。重启后可通过 `SHOW ARBGROUPS` 确认结果。
+
+例如，将 dnode 1 的端口改为 6031，只需修改 `fields` 中的 `port`，其他内容保持不变：
+
+```json
+{
+  "type": "dnode",
+  "status": "4",
+  "sver": "2",
+  "fields": {
+    "id": "1",
+    "createdTime": "1700000000000",
+    "updateTime": "1700000001000",
+    "port": "6031",
+    "fqdn": "node1.example.com"
+  },
+  "rawData": "..."
+}
+```
+
+编辑时注意：
+
+- 所有值都必须保持带双引号的字符串形式，如 `"6031"`。
+- 不要修改 `rawData`、`status`、`sver`。
+- 导入是全量替换，`sdb.json` 中被删除的记录会从元数据中删除，不要删除无关记录。
+
+### 重建多副本 mnode
+
+多副本 mnode 集群已无法选出 leader、无法通过 `DROP MNODE`/`CREATE MNODE` 重建副本时，可以选择一个节点作为基准，用它的元数据覆盖其他副本：
+
+1. 停止所有 mnode 节点的 taosd。
+2. 在作为基准的节点上执行 `taosd -fMnode`。
+3. 将基准节点的 `<dataDir>/mnode/data/sdb.data` 复制到其他每个 mnode 节点的相同路径。
+4. 清空其他每个 mnode 节点的 `<dataDir>/mnode/wal/` 和 `<dataDir>/mnode/sync/` 目录。
+5. 先启动基准节点的 taosd，再依次启动其他节点。
+6. 执行 `SHOW MNODES;` 确认所有 mnode 状态正常。
+
+第 4 步不可省略：mnode 的 raft 成员关系、任期等状态保存在 `sync/` 目录中，不会从 `sdb.data` 派生。只复制 `sdb.data` 而不清空这两个目录时，节点会以旧的 raft 状态加入集群，可能导致日志校验失败或集群状态不一致。
+
+### 常见问题
+
+| 现象 | 原因 | 处理方法 |
+| --- | --- | --- |
+| 导入后重启，修改未生效 | 未先执行 `FLUSH MNODE` 或 `taosd -fMnode`，WAL 重放覆盖了修改 | 按上述流程先落盘，再重新导出、修改、导入 |
+| 修改的字段变成了 0 | 值写成了不带引号的数字 | 用备份恢复后，以字符串形式重新修改 |
+| 修改 `config` 后一直不生效 | 未递增 `tsmmConfigVersion` | 在同一次导入中将 `tsmmConfigVersion` 的 `value` 加 1 |
+| `taosd -mSdb` 报 JSON 格式错误 | `sdb.json` 结构被破坏 | 检查 JSON 语法，或用备份重新导出后修改 |
+| `taosd -fMnode`、`taosd -mSdb` 提示 taosd 正在运行 | 本节点 taosd 未停止 | 停止 taosd 后重试 |
+| `taosd -fMnode` 后，停止前正在执行的事务仍未完成 | 离线落盘不会推进或回滚事务 | 正常启动 taosd 后，mnode 会继续执行该事务 |
+
+完整的命令说明、`sdb.json` 格式和各类型可修改字段，请参考 [taosd 参考手册](../03-components/01-taosd.md#元数据导出与导入)。
+
 ## 分裂虚拟组
 
 当一个 vgroup 因为子表数过多而导致 CPU 或 Disk 资源使用量负载过高时，增加 dnode 节点后，可通过 `split vgroup` 命令把该 vgroup 分裂为两个虚拟组。分裂完成后，新产生的两个 vgroup 承担原来由一个 vgroup 提供的读写服务。该命令在 3.0.6.0 版本第一次发布，建议尽可能使用最新版本。

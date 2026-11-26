@@ -30,19 +30,19 @@ sudo systemctl restart collectd
 
 Use TDengine CLI to verify that data is being written from collectd to TDengine and can be correctly read:
 
-```text
-taos> show databases;
+```sql
+taos> SHOW databases;
               name              |
 =================================
  information_schema             |
  performance_schema             |
  collectd                       |
-Query OK, 3 row(s) in set (0.003266s)
+Query OK, 3 row(s) in set
 
-taos> use collectd;
+taos> USE collectd;
 Database changed.
 
-taos> show stables;
+taos> SHOW stables;
               name              |
 =================================
  load_1                         |
@@ -55,9 +55,11 @@ taos> show stables;
  interface_0                    |
  entropy_value                  |
  swap_value                     |
-Query OK, 10 row(s) in set (0.002236s)
+Query OK, 10 row(s) in set
 
-taos> select * from collectd.memory_value limit 10;
+taos> SELECT *
+      FROM collectd.memory_value
+      LIMIT 10;
               ts               |           value           |              host              |         type_instance          |           type           |
 =========================================================================================================================================================
  2022-04-20 09:27:45.459653462 |        54689792.000000000 | shuduo-1804                    | buffered                       | memory                   |
@@ -70,7 +72,7 @@ taos> select * from collectd.memory_value limit 10;
  2022-04-20 09:27:55.453168283 |       107536384.000000000 | shuduo-1804                    | slab_recl                      | memory                   |
  2022-04-20 09:28:05.453004291 |       107634688.000000000 | shuduo-1804                    | slab_recl                      | memory                   |
  2022-04-20 09:27:45.459653462 |       309137408.000000000 | shuduo-1804                    | used                           | memory                   |
-Query OK, 10 row(s) in set (0.010348s)
+Query OK, 10 row(s) in set
 ```
 
 :::note

@@ -492,6 +492,21 @@ def _prepare_resources(fqdn, cfg_dir, from_ver, args, rp):
             st.rm.write_initial_data()
             rp.info(f"Initial data: {config.SUBTABLE_COUNT} x {config.INIT_ROWS_PER_SUBTABLE:,} rows written")
 
+            # Virtual table: created on the base version, queried again after the
+            # upgrade.  Gated because the feature does not exist on older bases.
+            if _version_ge(from_ver, config.VTABLE_MIN_VERSION):
+                st.rm.create_vtable_source()
+                rp.info(f"Virtual-table source '{config.VTABLE_SRC_TABLE}' created")
+                st.rm.create_virtual_table()
+                rp.info(f"Virtual table '{config.VTABLE_NAME}' created")
+                st.rm.create_virtual_stable()
+                rp.info(f"Virtual stable '{config.VTABLE_STB_NAME}' created")
+                st.rm.create_virtual_child_table()
+                rp.info(f"Virtual child table '{config.VTABLE_CHILD_NAME}' created")
+            else:
+                rp.info(f"Virtual table skipped: base version {from_ver} < "
+                        f"{config.VTABLE_MIN_VERSION}")
+
             if tsma_supported:
                 if args.no_tsma:
                     rp.info("TSMA skipped: --no-tsma specified")
@@ -885,6 +900,23 @@ def _collect_results(metrics, checks, fqdn, cfg_dir, from_ver,
     else:
         rp.info(f"Stream check skipped: base version {from_ver} < 3.3.7.0")
 
+    # ---- virtual table check (rolling path) ----
+    # Queried through a fresh connection so the client has to fetch the virtual
+    # table metadata; that request is the one whose frame layout changes, so a
+    # client that cannot read the new server's reply fails here.  The ALTER
+    # statements cover the request direction: this path keeps the base-version
+    # client, so they also prove an old client can still alter a virtual table
+    # hosted by the new server.
+    if _version_ge(from_ver, config.VTABLE_MIN_VERSION):
+        _safe_verify("Virtual table query after upgrade", rm.verify_virtual_table)
+        _safe_verify("Virtual stable and child table after upgrade", rm.verify_virtual_stable)
+        _safe_verify("Virtual table ALTER after upgrade", rm.alter_virtual_table)
+        _safe_verify("Virtual table ALTER verified after upgrade",
+                     rm.verify_altered_virtual_table)
+    else:
+        rp.info(f"Virtual table check skipped: base version {from_ver} < "
+                f"{config.VTABLE_MIN_VERSION}")
+
     # ---- INFORMATION_SCHEMA check ----
     if args.check_sysinfo:
         _to_ver_actual = None
@@ -1271,6 +1303,26 @@ def _run_cold_phase2(state_file: str):
                      "baseline snapshot not captured (Phase 2 error)")
     else:
         rp.info(f"Stream check skipped: base version {from_ver} < 3.3.7.0")
+
+    # ------ virtual table checks ------
+    # rm runs with the upgraded client here, and every call opens a fresh
+    # connection, so the client has to fetch the virtual table metadata.
+    if _version_ge(from_ver, config.VTABLE_MIN_VERSION):
+        vtb_ok, vtb_msg = rm.verify_virtual_table()
+        _chk("Virtual table query after upgrade", vtb_ok, vtb_msg)
+
+        vstb_ok, vstb_msg = rm.verify_virtual_stable()
+        _chk("Virtual stable and child table after upgrade", vstb_ok, vstb_msg)
+
+        # ALTER covers the request direction, which pre-created resources do not.
+        alt_ok, alt_msg = rm.alter_virtual_table()
+        _chk("Virtual table ALTER after upgrade", alt_ok, alt_msg)
+        if alt_ok:
+            alt_v_ok, alt_v_msg = rm.verify_altered_virtual_table()
+            _chk("Virtual table ALTER verified after upgrade", alt_v_ok, alt_v_msg)
+    else:
+        rp.info(f"Virtual table checks skipped: base version {from_ver} < "
+                f"{config.VTABLE_MIN_VERSION}")
 
     # ------ INFORMATION_SCHEMA check ------
     if check_sysinfo and sysinfo_before is not None and _sysinfo_after is not None:

@@ -47,15 +47,24 @@ TDengine 企业版可将用户与系统操作记录为审计日志，供安全�
 
 ```sql
 -- 创建加密审计库（VGROUPS 必须为 1）
-CREATE DATABASE audit VGROUPS 1 IS_AUDIT 1
-  ENCRYPT_ALGORITHM 'SM4-CBC' WAL_LEVEL 2 PRECISION 'ns';
+CREATE DATABASE audit
+  VGROUPS 1
+  IS_AUDIT 1
+  ENCRYPT_ALGORITHM 'SM4-CBC'
+  WAL_LEVEL 2
+  PRECISION 'ns';
 
 ALTER ALL DNODES 'audit' '1';
+
 ALTER ALL DNODES 'auditSaveInSelf' '1';
-ALTER ALL DNODES 'auditLevel' '3';   -- 按需调高至 4 / 5
+
+ALTER ALL DNODES 'auditLevel' '3';  -- 按需调高至 4 / 5
 
 -- 查询（库名以实际创建为准）
-SELECT * FROM audit.operations ORDER BY ts DESC LIMIT 100;
+SELECT *
+FROM audit.operations
+ORDER BY ts DESC
+LIMIT 100;
 ```
 
 ## 2. taosd 参数
@@ -76,6 +85,7 @@ SELECT * FROM audit.operations ORDER BY ts DESC LIMIT 100;
 
 ```sql
 ALTER ALL DNODES 'auditLevel' '5';
+
 SHOW VARIABLES LIKE 'audit%';
 ```
 
@@ -94,8 +104,13 @@ CREATE DATABASE [IF NOT EXISTS] db_name [database_options] IS_AUDIT 1;
 示例（本集群直写场景常用组合）：
 
 ```sql
-CREATE DATABASE audit VGROUPS 1 IS_AUDIT 1
-  ENCRYPT_ALGORITHM 'SM4-CBC' WAL_LEVEL 2 PRECISION 'ns' KEEP 1825d;
+CREATE DATABASE audit
+  VGROUPS 1
+  IS_AUDIT 1
+  ENCRYPT_ALGORITHM 'SM4-CBC'
+  WAL_LEVEL 2
+  PRECISION 'ns'
+  KEEP 1825d;
 ```
 
 约束（`v3.4.0.0+`，由服务端强制）：
@@ -165,16 +180,18 @@ Keeper 同时负责监控指标（默认写入 `log` 库），与审计库分离
 
 ```sql
 CREATE STABLE IF NOT EXISTS operations (
-  ts TIMESTAMP,
-  user_name VARCHAR(25),
-  operation VARCHAR(20),
-  db VARCHAR(65),
-  resource VARCHAR(193),
+  ts             TIMESTAMP,
+  user_name      VARCHAR(25),
+  operation      VARCHAR(20),
+  db             VARCHAR(65),
+  resource       VARCHAR(193),
   client_address VARCHAR(64),
-  details VARCHAR(50000),
-  affected_rows BIGINT UNSIGNED,
-  `duration` DOUBLE
-) TAGS (cluster_id VARCHAR(64));
+  details        VARCHAR(50000),
+  affected_rows  BIGINT UNSIGNED,
+  `duration`     DOUBLE
+) TAGS (
+  cluster_id VARCHAR(64)
+);
 ```
 
 说明：
@@ -262,6 +279,7 @@ CREATE STABLE IF NOT EXISTS operations (
 | insert | insert | db name | table name | SQL |
 | select | select | db name | table name | SQL |
 | delete | delete | db name | table name | SQL |
+| update | update | db name | table name | SQL |
 
 数据级审计由客户端在语句成功后上报，写入量可能显著增加，请按合规要求与性能权衡。
 
@@ -274,19 +292,34 @@ CREATE STABLE IF NOT EXISTS operations (
 
 ```sql
 SHOW VARIABLES LIKE 'audit%';
-SELECT name, is_audit, allow_drop, `encrypt_algorithm`, precision
-  FROM information_schema.ins_databases
-  WHERE is_audit = 1;
-SELECT ts, user_name, operation, db, resource, client_address, details
-  FROM audit.operations
-  ORDER BY ts DESC
-  LIMIT 100;
+
+SELECT
+  name,
+  is_audit,
+  allow_drop,
+  `encrypt_algorithm`,
+  precision
+FROM information_schema.ins_databases
+WHERE is_audit = 1;
+
+SELECT
+  ts,
+  user_name,
+  operation,
+  db,
+  resource,
+  client_address,
+  details
+FROM audit.operations
+ORDER BY ts DESC
+LIMIT 100;
 ```
 
 删除审计库前（仅 `SYSAUDIT`）：
 
 ```sql
 ALTER DATABASE audit ALLOW_DROP 1;
+
 DROP DATABASE audit;
 ```
 

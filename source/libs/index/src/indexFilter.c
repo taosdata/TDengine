@@ -881,76 +881,29 @@ static int8_t sifShouldUseIndexForInOperator(SIFParam *left, SIFParam *right) {
   return 1;  // All values are compatible with column type
 }
 
-// Normalize a JSON tag inverted-index equality probe constant to the same
-// canonical server-charset VARCHAR var-data the writer persists (metaTable.c:
-// NCHAR UCS-4 -> tsCharsetCxt MBS, VARSTR header, type VARCHAR). The RHS payload
-// arrives either as client-charset MBS (VARCHAR) or as UCS-4 (NCHAR); the index
-// term is stored in the server charset, so probing with the raw client bytes can
-// silently miss rows when the client charset differs from the server charset.
-// right->charsetCxt is the borrowed client charset, NULL when client==server or
-// on an old plan -- there the stored bytes already equal the client bytes, so no
-// conversion is done. On success right->condValue is atomically replaced (old
-// buffer freed exactly once) with a VARCHAR var-data and right->colValType is set
-// to VARCHAR; on failure right is left untouched and the error is returned so the
-// caller never probes with the wrong bytes. Numeric/bool/null are left unchanged.
+// JSON string values are UCS-4, just like NCHAR. Only VARCHAR probes need
+// decoding with the connection charset; persisted keys never use a locale.
 static int32_t sifJsonNormalizeProbeVal(SIFParam *right) {
-  if (right->condValue == NULL) {
+  if (right->condValue == NULL || right->colValType != TSDB_DATA_TYPE_VARCHAR) {
     return TSDB_CODE_SUCCESS;
   }
-  int8_t rtype = right->colValType;
-  if (rtype != TSDB_DATA_TYPE_VARCHAR && rtype != TSDB_DATA_TYPE_NCHAR) {
-    return TSDB_CODE_SUCCESS;
+  int32_t capacity = varDataLen(right->condValue) * TSDB_NCHAR_SIZE;
+  char *value = taosMemoryMalloc(capacity + VARSTR_HEADER_SIZE);
+  if (value == NULL) return terrno;
+  int32_t length = 0;
+  if (!taosMbsToUcs4(varDataVal(right->condValue), varDataLen(right->condValue),
+                      (TdUcs4 *)varDataVal(value), capacity, &length, right->charsetCxt)) {
+    taosMemoryFree(value);
+    return TSDB_CODE_CHARSET_CONVERT_ERROR;
   }
-  // A VARCHAR probe with no client charset (client==server or an old plan)
-  // already holds server-charset bytes. NCHAR (UCS-4), however, must always be
-  // folded down to the persisted server-charset VARCHAR term regardless of
-  // charsetCxt, since the writer stored the JSON string as server MBS.
-  if (rtype == TSDB_DATA_TYPE_VARCHAR && right->charsetCxt == NULL) {
-    return TSDB_CODE_SUCCESS;
+  if (length > UINT16_MAX) {
+    taosMemoryFree(value);
+    return TSDB_CODE_INVALID_DATA_FMT;
   }
-
-  if (rtype == TSDB_DATA_TYPE_VARCHAR) {
-    char   *serverMbs = NULL;
-    int32_t serverMbsLen = 0;
-    int32_t code = taosMbsToMbs(varDataVal(right->condValue),
-                                varDataLen(right->condValue),
-                                right->charsetCxt, tsCharsetCxt, &serverMbs,
-                                &serverMbsLen);
-    if (code != TSDB_CODE_SUCCESS) {
-      return code;
-    }
-
-    char *outBuf = taosMemoryMalloc(serverMbsLen + VARSTR_HEADER_SIZE);
-    if (outBuf == NULL) {
-      taosMemoryFree(serverMbs);
-      return terrno;
-    }
-    varDataSetLen(outBuf, serverMbsLen);
-    memcpy(varDataVal(outBuf), serverMbs, serverMbsLen);
-    taosMemoryFree(serverMbs);
-
-    taosMemoryFree(right->condValue);
-    right->condValue = outBuf;
-  } else {
-    // NCHAR RHS payload is already UCS-4. Fold it down to the persisted
-    // server-charset VARCHAR term.
-    int32_t ucs4Len = varDataLen(right->condValue);
-    char   *outBuf = taosMemoryMalloc(ucs4Len + VARSTR_HEADER_SIZE);
-    if (outBuf == NULL) {
-      return terrno;
-    }
-    int32_t mbsLen = taosUcs4ToMbs((TdUcs4 *)varDataVal(right->condValue),
-                                   ucs4Len, varDataVal(outBuf), tsCharsetCxt);
-    if (mbsLen < 0) {
-      taosMemoryFree(outBuf);
-      return mbsLen;
-    }
-    varDataSetLen(outBuf, mbsLen);
-
-    taosMemoryFree(right->condValue);
-    right->condValue = outBuf;
-  }
-  right->colValType = TSDB_DATA_TYPE_VARCHAR;
+  varDataSetLen(value, length);
+  taosMemoryFree(right->condValue);
+  right->condValue = value;
+  right->colValType = TSDB_DATA_TYPE_NCHAR;
   return TSDB_CODE_SUCCESS;
 }
 
@@ -1017,12 +970,11 @@ static int32_t sifDoIndex(SIFParam *left, SIFParam *right, int8_t operType, SIFP
   }
 
   if (left->colValType == TSDB_DATA_TYPE_JSON) {
-    // Convert the probe constant to the persisted server-charset encoding before
-    // building the term; on failure fail the probe rather than use raw bytes.
+    // Normalize string probes to the same UCS-4 representation as tag values.
     SIF_ERR_RET(sifJsonNormalizeProbeVal(right));
 
     SIndexTerm *tm = indexTermCreate(arg->suid, DEFAULT, right->colValType, left->colName, strlen(left->colName),
-                                     right->condValue, strlen(right->condValue));
+                                     right->condValue, IS_VAR_DATA_TYPE(right->colValType) ? varDataLen(right->condValue) : tDataTypes[right->colValType].bytes);
     if (tm == NULL) {
       return TSDB_CODE_OUT_OF_MEMORY;
     }

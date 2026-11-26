@@ -17,6 +17,7 @@
 
 #define _DEFAULT_SOURCE
 #include "dmMgmt.h"
+#include "tdTestSeam.h"
 #include "dmCorrelation.h"
 #include "dmNodes.h"
 #include "index.h"
@@ -297,13 +298,6 @@ void dmClearVars(SDnode *pDnode) {
 
   SDnodeData *pData = &pDnode->data;
   (void)taosThreadRwlockWrlock(&pData->lock);
-  if (pData->oldDnodeEps != NULL) {
-    if (dmWriteEps(pData) == 0) {
-      dmRemoveDnodePairs(pData);
-    }
-    taosArrayDestroy(pData->oldDnodeEps);
-    pData->oldDnodeEps = NULL;
-  }
   if (pData->dnodeEps != NULL) {
     taosArrayDestroy(pData->dnodeEps);
     pData->dnodeEps = NULL;
@@ -363,6 +357,7 @@ SMgmtWrapper *dmAcquireWrapper(SDnode *pDnode, EDndNodeType ntype) {
 }
 
 int32_t dmMarkWrapper(SMgmtWrapper *pWrapper) {
+  TD_SEAM_RET(dmMarkWrapper, int32_t (*)(SMgmtWrapper *), (pWrapper));
   int32_t code = 0;
 
   (void)taosThreadRwlockRdlock(&pWrapper->lock);
@@ -400,6 +395,7 @@ int32_t dmMarkWrapper(SMgmtWrapper *pWrapper) {
 }
 
 void dmReleaseWrapper(SMgmtWrapper *pWrapper) {
+  TD_SEAM_VOID(dmReleaseWrapper, void (*)(SMgmtWrapper *), (pWrapper));
   if (pWrapper == NULL) return;
 
   (void)taosThreadRwlockRdlock(&pWrapper->lock);

@@ -36,6 +36,42 @@
 
 using namespace std;
 
+#if defined(WINDOWS) && GTEST_HAS_DEATH_TEST
+TEST(LogTimezoneDeathTest, invalid_timezone_keeps_log_output) {
+  for (int invalid = 0; invalid < 3; ++invalid) {
+    SCOPED_TRACE(invalid);
+    EXPECT_EXIT(
+        ([&]() {
+          setvbuf(stdout, nullptr, _IONBF, 0);
+          char oversized[TD_TIMEZONE_LEN * 2 + 1];
+          memset(oversized, 'a', sizeof(oversized) - 1);
+          oversized[sizeof(oversized) - 1] = '\0';
+          EXPECT_TRUE(SetEnvironmentVariableA("TZ", oversized));
+          const char *rule = invalid == 0 ? nullptr :
+                             invalid == 1 ? "No/Such_Zone" : oversized;
+          EXPECT_TRUE(SetEnvironmentVariableA(TAOS_INTERNAL_TZ_ENV, rule));
+          const time_t stamp = 0;
+          struct tm local = {};
+          EXPECT_EQ(taosLocalTime(&stamp, &local, nullptr, 0, nullptr),
+                    nullptr);
+          if (::testing::Test::HasFailure()) _exit(1);
+
+          char output[] = "stderr";
+          tsLogOutput = output;
+          EXPECT_EQ(taosInitLogOutput(nullptr), 0);
+          uDebugFlag = DEBUG_ERROR | DEBUG_SCREEN;
+          taosPrintLog("UTL INFO  ", DEBUG_INFO, DEBUG_SCREEN,
+                       "timezone failure regression");
+          taosPrintLongString("UTL INFO  ", DEBUG_INFO, DEBUG_SCREEN,
+                              "timezone failure regression long log");
+          _exit(::testing::Test::HasFailure() ? 1 : 0);
+        }()),
+        ::testing::ExitedWithCode(0),
+        "UTL INFO.*timezone failure regression");
+  }
+}
+#endif
+
 #if defined(LINUX) && GTEST_HAS_DEATH_TEST
 class LogChmodDeathTest : public ::testing::TestWithParam<bool> {};
 
@@ -194,6 +230,129 @@ TEST(log, rotate_by_real_lines) {
   EXPECT_FALSE(bothExist());
   uInfoL("multi lines:\n%s", multi.c_str());
   EXPECT_TRUE(bothExist());
+}
+
+// Log rotation renames the full log file while its handle is still open (it is closed ~20s later).
+// POSIX allows that; Windows only does when the file was opened with FILE_SHARE_DELETE.
+TEST(log, rename_open_log_file) {
+  char dir[PATH_MAX] = {0};
+  taosGetTmpfilePath(TD_TMP_DIR_PATH, "logRenameTest", dir);
+  ASSERT_EQ(taosMkDir(dir), 0) << terrstr();
+
+  char oldPath[PATH_MAX + 32] = {0}, keepPath[PATH_MAX + 32] = {0};
+  snprintf(oldPath, sizeof(oldPath), "%s/renameTest.0", dir);
+  snprintf(keepPath, sizeof(keepPath), "%s/renameTest.1700000000", dir);
+
+  const char before[] = "before-rename\n";
+  const char after[] = "after-rename\n";
+  const int  opts = TD_FILE_CREATE | TD_FILE_WRITE | TD_FILE_TRUNC | TD_FILE_SHARE_READ | TD_FILE_SHARE_DELETE;
+
+  TdFilePtr pOld = taosOpenFile(oldPath, opts);
+  ASSERT_NE(pOld, nullptr) << terrstr();
+  ASSERT_EQ(taosWriteFile(pOld, before, sizeof(before) - 1), (int64_t)(sizeof(before) - 1));
+
+  // rename while pOld is still open, as taosReserveOldLog does
+  ASSERT_EQ(taosRenameFileEx(oldPath, keepPath, true), 0) << terrstr();
+  EXPECT_FALSE(taosCheckExistFile(oldPath));
+  EXPECT_TRUE(taosCheckExistFile(keepPath));
+
+  // the name is free again at once, as for a second rotation within the close delay
+  TdFilePtr pNew = taosOpenFile(oldPath, opts);
+  ASSERT_NE(pNew, nullptr) << terrstr();
+
+  // late writes through the old handle go to the renamed file, not the new one
+  ASSERT_EQ(taosWriteFile(pOld, after, sizeof(after) - 1), (int64_t)(sizeof(after) - 1));
+  EXPECT_EQ(taosFsyncFile(pOld), 0);
+  EXPECT_EQ(taosCloseFile(&pOld), 0);
+  EXPECT_EQ(taosCloseFile(&pNew), 0);
+
+  int64_t keepSize = -1, newSize = -1;
+  EXPECT_EQ(taosStatFile(keepPath, &keepSize, NULL, NULL), 0);
+  EXPECT_EQ(keepSize, (int64_t)(sizeof(before) + sizeof(after) - 2));
+  EXPECT_EQ(taosStatFile(oldPath, &newSize, NULL, NULL), 0);
+  EXPECT_EQ(newSize, 0);
+
+  taosRemoveDir(dir);
+}
+
+#ifdef WINDOWS
+// Documents the original failure: without the flag Windows refuses to rename an open file.
+TEST(log, rename_open_file_without_share_delete_fails) {
+  char dir[PATH_MAX] = {0};
+  taosGetTmpfilePath(TD_TMP_DIR_PATH, "logNoShareDelTest", dir);
+  ASSERT_EQ(taosMkDir(dir), 0) << terrstr();
+
+  char oldPath[PATH_MAX + 32] = {0}, keepPath[PATH_MAX + 32] = {0};
+  snprintf(oldPath, sizeof(oldPath), "%s/noShareDel.0", dir);
+  snprintf(keepPath, sizeof(keepPath), "%s/noShareDel.1700000000", dir);
+
+  TdFilePtr pFile = taosOpenFile(oldPath, TD_FILE_CREATE | TD_FILE_WRITE | TD_FILE_TRUNC);
+  ASSERT_NE(pFile, nullptr) << terrstr();
+  EXPECT_NE(taosRenameFileEx(oldPath, keepPath, true), 0);
+  EXPECT_EQ(taosCloseFile(&pFile), 0);
+
+  taosRemoveDir(dir);
+}
+#endif
+
+// logKeepDays > 0: every full log file must be kept under a timestamped name (<log>.<sec>), also when
+// rotation happens several times within the 20s the old handle stays open. This is the reported Windows bug.
+TEST(log, rotate_keeps_old_log_by_date) {
+  struct LogStateGuard {
+    char    savedLogDir[PATH_MAX] = {0};
+    int32_t savedLines = 0;
+    int32_t savedKeepDays = 0;
+    bool    savedAsync = false;
+    char    logDir[PATH_MAX] = {0};
+    ~LogStateGuard() {
+      taosCloseLog();
+      tsNumOfLogLines = savedLines;
+      tsLogKeepDays = savedKeepDays;
+      tsAsyncLog = savedAsync;
+      tstrncpy(tsLogDir, savedLogDir, PATH_MAX);
+      taosRemoveDir(logDir);
+    }
+  } guard;
+
+  taosGetTmpfilePath(TD_TMP_DIR_PATH, "logKeepTest", guard.logDir);
+  tstrncpy(guard.savedLogDir, tsLogDir, PATH_MAX);
+  guard.savedLines = tsNumOfLogLines;
+  guard.savedKeepDays = tsLogKeepDays;
+  guard.savedAsync = tsAsyncLog;
+  ASSERT_EQ(taosMkDir(guard.logDir), 0) << terrstr();
+  tstrncpy(tsLogDir, guard.logDir, PATH_MAX);
+  tsAsyncLog = 0;
+  tsLogKeepDays = 3;
+  tsNumOfLogLines = 100;
+  ASSERT_EQ(taosInitLog("keepTest", 1, false), 0) << terrstr();
+  uDebugFlag = 143;
+
+  // kept files are <logName>.<unix seconds> (e.g. keepTest.1730000000); the live files are keepTest.0/.1
+  auto countKept = [&]() {
+    int32_t     n = 0;
+    TdDirPtr    pDir = taosOpenDir(guard.logDir);
+    if (pDir == NULL) return n;
+    TdDirEntryPtr pEntry = NULL;
+    while ((pEntry = taosReadDir(pDir)) != NULL) {
+      const char *name = taosGetDirEntryName(pEntry);
+      if (strncmp(name, "keepTest.", 9) != 0) continue;
+      const char *p = name + 9;
+      size_t      len = strlen(p);
+      bool        digits = len >= 8;
+      for (; *p; ++p) digits = digits && (*p >= '0' && *p <= '9');
+      if (digits) ++n;
+    }
+    (void)taosCloseDir(&pDir);
+    return n;
+  };
+
+  // each call is ~65 estimated lines, so every second call rotates once
+  std::string multi;
+  for (int i = 0; i < 60; ++i) multi += std::string(64, 'a') + "\n";
+  for (int i = 0; i < 12; ++i) uInfoL("multi lines:\n%s", multi.c_str());
+
+  // several rotations happened back to back; each one has to leave its own dated file behind
+  EXPECT_GE(countKept(), 3);
 }
 
 extern char *tsLogOutput;

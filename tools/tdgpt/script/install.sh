@@ -38,7 +38,7 @@ show_help() {
   echo "Help:"
   echo "  -d [install dir]   Specify installation directory"
   echo "  -a                 Install all model virtual environments"
-  echo "  -o                 Offline mode: skip reinstalling existing virtual environments"
+  echo "  -o                 Legacy flag; does not skip venv installation (use explicit offline resource options)"
   echo "  --python-home <path>"
   echo "                     Existing Python runtime directory prepared by Apex"
   echo "  --venv-package <path>"
@@ -325,6 +325,14 @@ function install_main_path() {
 function install_bin_and_lib() {
   ${csudo}cp -r ${script_dir}/bin/* ${install_main_dir}/bin
   ${csudo}cp -r ${script_dir}/lib/* ${install_main_dir}/lib/
+  ${csudo}mkdir -p "${install_main_dir}/share/tsfm"
+  ${csudo}cp "${script_dir}/share/tsfm/tsfm-release.json" "${install_main_dir}/share/tsfm/tsfm-release.json"
+
+  # AI skills are program-owned, read-only guidance; reinstall them on upgrade.
+  if [ -d "${script_dir}/skills" ]; then
+    ${csudo}mkdir -p "${install_main_dir}/skills"
+    ${csudo}cp -r "${script_dir}/skills/." "${install_main_dir}/skills/"
+  fi
 
   # Handle rmtaosanode separately
   sed -i.bak \
@@ -860,6 +868,8 @@ function resolve_python_bin() {
         return 0
       fi
     done
+    echo "No executable Python found in explicit --python-home: ${python_home}" >&2
+    return 1
   fi
   for candidate in \
     "$(command -v python3.${python_minor_ver} 2>/dev/null || true)" \
@@ -882,6 +892,8 @@ function resolve_repair_python_bin() {
         return 0
       fi
     done
+    echo "No executable Python found in explicit Python runtime directory: ${python_runtime_dir}" >&2
+    return 1
   fi
   resolve_python_bin
 }
@@ -1131,6 +1143,28 @@ function installProduct() {
   echo "Start to install ${productName}..."
   validate_offline_packages
 
+  # Check conflicts without moving or retiring files before stopping services.
+  local migration_python
+  migration_python=$(resolve_repair_python_bin) || return 1
+  local migration_args=(
+    "${script_dir}/lib/custom_algorithms.py"
+    --install-dir "${install_main_dir}" --default "${dataDir}/custom"
+    --config "${global_conf_dir}/${configFile}" --backup-dir "${dataDir}/custom-backups"
+  )
+  ${csudo} "${migration_python}" "${migration_args[@]}" --check-only || return 1
+  # Stop with the installed controller while its code and main venv still exist.
+  if [ -x "${venvDir}/bin/python3" ] && [ -f "${install_main_dir}/bin/taosanodectl.py" ]; then
+    if ! ${csudo} "${venvDir}/bin/python3" "${install_main_dir}/bin/taosanodectl.py" model stop all; then
+      echo "Unable to stop model workers; installation aborted, legacy algorithms preserved." >&2
+      return 1
+    fi
+    if ! ${csudo} "${venvDir}/bin/python3" "${install_main_dir}/bin/taosanodectl.py" service stop; then
+      echo "Unable to stop Taosanode; installation aborted, legacy algorithms preserved." >&2
+      return 1
+    fi
+  fi
+  # Retire the legacy directory only after successful service shutdown.
+  ${csudo} "${migration_python}" "${migration_args[@]}" || return 1
   install_main_path
   install_log
   install_anode_config

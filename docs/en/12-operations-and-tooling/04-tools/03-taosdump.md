@@ -81,7 +81,7 @@ Usage: taosdump [OPTION...] dbname [tbname ...] -o outpath
 | `-v, --stmt-version=VER` | STMT API version used during restore: `2` (default, TAOS_STMT2, faster, requires TDengine v3.3+) or `1` (compatible with the legacy TAOS_STMT API). Effective only for restore |
 | `-W, --rename=RENAME-LIST` | Rename databases during restore. Format: `"db1->newdb1\|db2->newdb2"`, which renames `db1` to `newdb1` and `db2` to `newdb2`. Effective only for restore |
 | `-C, --checkpoint` | Flag parameter for resumable transfer, disabled by default. When specified, it enables checkpoint mode, skipping already backed-up tables or previously restored files. Effective for both backup and restore operations. Suitable for large-scale backup/restore scenarios |
-| `-k, --retry-count=VALUE` | Number of retries after a connection or query failure. Default: `3` |
+| `-k, --retry-count=VALUE` | Number of retries after the first attempt (not counting the initial try). Default: `10`; `0` means a single attempt |
 | `-z, --retry-sleep-ms=VALUE` | Wait time between retries in milliseconds. Default: `1000` |
 | `-X, --dsn=DSN` | DSN for connecting to a cloud service, for example `https://host?token=<TOKEN>`. You can also set it through the `TDENGINE_CLOUD_DSN` environment variable. The command-line parameter takes precedence |
 | `-Z, --driver=DRIVER` | Connection driver. Supported values: `Native` (port 6030, faster, `0` also accepted, default) or `WebSocket` (port 6041, no client driver install needed, better compatibility, `1` also accepted). When a DSN is set, the default automatically switches to `WebSocket` |
@@ -260,6 +260,21 @@ Field descriptions:
 
 :::tip
 If the number of failed items is not zero, add `-g` to enable debug output for detailed errors, or check the TDengine server logs for troubleshooting.
+:::
+
+:::note
+**Result** decides whether the backup is complete: `SUCCESS` is printed only when every planned child
+and normal table was exported.
+
+- Transient errors such as a dropped connection or a server restart are retried according to `-k`. Failed
+  intermediate attempts are still counted in `Data Files failed`, so a non-zero `failed` does not by itself
+  mean the run failed.
+- If the export still cannot be completed after the retries, taosdump prints `FAILED (BACKUP, ...)` and exits
+  with a non-zero status instead of reporting a truncated backup as successful.
+- Dropping a child or normal table while the backup runs (or any mismatch with the initial table count) also
+  fails the run with `backup data is incomplete`. Rerun the backup once the data is stable; existing `.dat`
+  files are preserved and `-C` can resume from them.
+
 :::
 
 ## Log Files
@@ -502,5 +517,8 @@ taosdump -u root -p -D test -o /root/backup/
 - Backup and restore of topics
 - The restore runs in two stages, fixing cross-database virtual table failures caused by
   database restore ordering
+- Backup completeness check: transient errors such as a dropped connection are retried according to
+  `-k`; when the export still cannot be completed, taosdump prints `FAILED` and exits non-zero
+  instead of reporting a truncated backup as successful
 
 The new version supports the vast majority of old version command-line parameters (with a few exceptions).

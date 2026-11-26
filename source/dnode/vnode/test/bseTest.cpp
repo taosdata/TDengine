@@ -1187,4 +1187,62 @@ TEST_F(BseIndexedReaderTest, IndexedSeekRejectsCorruptRanges) {
   taosMemoryFree(value);
   taosArrayDestroy(index);
 }
+static std::atomic<int> gBlockFreed{0};
+static void countingBlockFree(void *p) {
+  gBlockFreed++;
+  taosMemoryFree(p);
+}
+
+TEST(bseCacheCase, blockCachePutRefSurvivesEviction) {
+  gBlockFreed = 0;
+  SBlockCache *cache = nullptr;
+  ASSERT_EQ(blockCacheOpen(1, countingBlockFree, &cache), 0);
+
+  SSeqRange keyA = {.sseq = 1, .eseq = 10};
+  SSeqRange keyB = {.sseq = 11, .eseq = 20};
+
+  SCacheItem *held = nullptr;
+  ASSERT_EQ(blockCachePutRef(cache, &keyA, taosMemoryCalloc(1, 8), &held), 0);
+  ASSERT_NE(held, nullptr);
+
+  // capacity is 1: caching B evicts A, but the reference taken by blockCachePutRef keeps A's block alive
+  ASSERT_EQ(blockCachePut(cache, &keyB, taosMemoryCalloc(1, 8)), 0);
+  EXPECT_EQ(gBlockFreed.load(), 0);
+  EXPECT_NE(held->pItem, nullptr);
+  void *pGone = nullptr;
+  EXPECT_EQ(blockCacheGet(cache, &keyA, &pGone), TSDB_CODE_NOT_FOUND);
+
+  // dropping the last reference releases the evicted block exactly once
+  bseCacheUnrefItem(held);
+  EXPECT_EQ(gBlockFreed.load(), 1);
+
+  // B is still cached and readable
+  SCacheItem *pB = nullptr;
+  ASSERT_EQ(blockCacheGet(cache, &keyB, (void **)&pB), 0);
+  bseCacheUnrefItem(pB);
+
+  blockCacheClose(cache);
+  EXPECT_EQ(gBlockFreed.load(), 2);
+}
+
+TEST(bseCacheCase, blockCachePutReplacesExistingKey) {
+  gBlockFreed = 0;
+  SBlockCache *cache = nullptr;
+  ASSERT_EQ(blockCacheOpen(4, countingBlockFree, &cache), 0);
+  SSeqRange key = {.sseq = 1, .eseq = 10};
+
+  ASSERT_EQ(blockCachePut(cache, &key, taosMemoryCalloc(1, 8)), 0);
+  SCacheItem *reader = nullptr;
+  ASSERT_EQ(blockCacheGet(cache, &key, (void **)&reader), 0);
+
+  // replacing the key while a reader still holds the old item must not free the old block under it
+  ASSERT_EQ(blockCachePut(cache, &key, taosMemoryCalloc(1, 8)), 0);
+  EXPECT_EQ(gBlockFreed.load(), 0);
+  EXPECT_NE(reader->pItem, nullptr);
+  bseCacheUnrefItem(reader);
+  EXPECT_EQ(gBlockFreed.load(), 1);
+
+  blockCacheClose(cache);
+  EXPECT_EQ(gBlockFreed.load(), 2);
+}
 #endif

@@ -100,3 +100,76 @@ def test_compare_result_files_ignores_database_changed_prompt(tmp_path):
     assert common_module.TDCom().compare_result_files(
         str(expected_file), str(actual_file)
     )
+
+
+def test_generate_query_result_filters_without_shell(tmp_path, monkeypatch):
+    common_module = _load_common_module()
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setattr(common_module.platform, "system", lambda: "Linux")
+    sql_file = tmp_path / "input.sql"
+    sql_file.write_text("explain select 1;\n", encoding="utf-8")
+    common = common_module.TDCom()
+    monkeypatch.setattr(common, "getClientCfgPath", lambda: "/test/config")
+    monkeypatch.setattr(common, "_taos_cli_path", lambda: "/test/bin/taos")
+    transcript = (
+        "Welcome to the TDengine TSDB Command Line Interface\n"
+        "taos> explain select 1;\r\n"
+        "QUERY_PLAN:    InitPlan 1\r\n"
+        "QUERY_PLAN:    InitPlan 2\r\n"
+        "Query OK, 2 row(s) in set (0.01s)\n"
+        "DB error: scalar subquery returned more than one row\n"
+    )
+
+    def run_cli(args, **kwargs):
+        assert args == ["/test/bin/taos", "-c", "/test/config", "-f", str(sql_file)]
+        assert "shell" not in kwargs
+        return types.SimpleNamespace(stdout=transcript.encode(), stderr=b"", returncode=0)
+
+    monkeypatch.setattr(common_module.subprocess, "run", run_cli)
+    result = common.generate_query_result(str(sql_file), "output")
+    assert Path(result).read_text() == (
+        "taos> explain select 1;\n"
+        "QUERY_PLAN:    InitPlan 1\n"
+        "QUERY_PLAN:    InitPlan 2\n"
+        "DB error: scalar subquery returned more than one row\n"
+    )
+
+
+def test_generate_query_result_rejects_failed_cli(tmp_path, monkeypatch):
+    import pytest
+
+    common_module = _load_common_module()
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setattr(common_module.platform, "system", lambda: "Linux")
+    sql_file = tmp_path / "input.sql"
+    sql_file.write_text("select 1;\n", encoding="utf-8")
+    common = common_module.TDCom()
+    monkeypatch.setattr(common, "getClientCfgPath", lambda: "/test/config")
+    monkeypatch.setattr(common, "_taos_cli_path", lambda: "/test/bin/taos")
+    monkeypatch.setattr(
+        common_module.subprocess, "run",
+        lambda *args, **kwargs: types.SimpleNamespace(
+            stdout=b"partial output\n", stderr=b"ERROR: AddressSanitizer: heap-use-after-free\n", returncode=1
+        ),
+    )
+    with pytest.raises(common_module.subprocess.CalledProcessError) as exc:
+        common.generate_query_result(str(sql_file), "output")
+    assert exc.value.returncode == 1
+    assert "AddressSanitizer" in exc.value.stderr
+    assert exc.value.output == "partial output\n"
+
+
+def test_generate_query_result_preserves_windows_prompt_rules(tmp_path, monkeypatch):
+    common_module = _load_common_module()
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setattr(common_module.platform, "system", lambda: "Windows")
+    sql_file = tmp_path / "input.sql"
+    sql_file.write_text("select 1;\n", encoding="utf-8")
+    common = common_module.TDCom()
+    monkeypatch.setattr(common, "getClientCfgPath", lambda: "/test/config")
+    monkeypatch.setattr(
+        common, "_run_taos_cli",
+        lambda *args: ("taos>   \r\ntaos> select 1;   \r\n1\r\n", 0, ""),
+    )
+    result = common.generate_query_result(str(sql_file), "output")
+    assert Path(result).read_text() == "taos> select 1;\n1\n"

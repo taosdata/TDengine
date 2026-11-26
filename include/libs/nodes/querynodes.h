@@ -108,9 +108,16 @@ typedef struct SColumnNode {
     struct {
       uint8_t hasMask : 1;
       uint8_t appendByPrivCond : 1;
-      uint8_t reserve : 6;
+      uint8_t isAlignOut : 1;    // TIME_ALIGN output column (planner-side marker)
+      uint8_t alignMethod : 2;   // EAlignMethod; valid when isAlignOut
+      uint8_t alignHasSpan : 1;  // TIME_ALIGN optional time-range parameter present
+      uint8_t isTbnamePlaceholder : 1;  // Unresolved %%tbname.column qualifier.
+      // Virtual origin, including virtual stables; travels with flags.
+      uint8_t isVirtualTable : 1;
     };
   };
+  int64_t alignSpanValue;  // TIME_ALIGN duration count; q is folded into months
+  int8_t  alignSpanUnit;   // b/u/a/s/m/h/d/w/n/y; 0 when alignHasSpan is false
   char refSourceName[TSDB_EXT_SOURCE_NAME_LEN];
   char refSchemaName[TSDB_EXT_SOURCE_SCHEMA_LEN];   // external schema (SQL Server); empty otherwise
   char refDbName[TSDB_DB_NAME_LEN];
@@ -120,6 +127,10 @@ typedef struct SColumnNode {
 
 typedef struct SColumnRefNode {
   ENodeType type;
+  int8_t    refPathParts;
+  int8_t    bindingKind;
+  char      referenceAlias[TSDB_COL_NAME_LEN];
+  char      timeColumn[TSDB_COL_NAME_LEN];
   char      colName[TSDB_COL_NAME_LEN];
   int8_t    refType;                                      // 0=internal, 1=external (DS section 6.2.8)
   char      refDbName[TSDB_DB_NAME_LEN];
@@ -134,8 +145,8 @@ typedef struct SColumnRefNode {
   SNode*    pTagCond;           // series tag condition (SOperatorNode or SLogicConditionNode), or NULL
   SNode*    pFilterCond;        // MySQL/PostgreSQL external-column filter, or NULL
   // Own (extension) column declaration of a virtual child table: set when the col_ref
-  // carries an explicit type (`name TYPE FROM db.tb.col`), meaning the column is not
-  // defined in the vstb schema. Only valid in CREATE VTABLE specific_column_ref_list.
+  // carries an explicit type (`name TYPE [FROM db.tb.col]`), meaning the column is not
+  // defined in the vstb schema. Only valid in the CREATE VTABLE ... USING column list.
   bool      hasDataType;
   SDataType dataType;
 } SColumnRefNode;
@@ -260,6 +271,12 @@ typedef struct SCorrelatedSubqueryNode {
 #define VALUELIST_FLAG_VAL_UNSET      (1 << 0)
 
 
+typedef struct SRemoteListBounds {
+  int8_t   type;  // TSDB_DATA_TYPE_NULL until the first ordered non-NULL key.
+  uint64_t min[2];
+  uint64_t max[2];
+} SRemoteListBounds;
+
 typedef struct SRemoteValueListNode {
   SExprNode  node;
   int32_t    flag;
@@ -271,6 +288,9 @@ typedef struct SRemoteValueListNode {
   bool       hashAllocated;
   SHashObj  *pHashFilter;
   SHashObj  *pHashFilterOthers;
+  int32_t    otherKeyType;  // Type used to build the auxiliary hash.
+  bool       droppedKey;    // At least one non-NULL input overflowed during conversion.
+  SRemoteListBounds bounds; // Min/max of the primary hash keys in their native representation.
   int32_t    filterValueType;
   STypeMod   filterValueTypeMod;
   int32_t    subQIdx;
@@ -345,6 +365,9 @@ typedef enum EHintOption {
   HINT_JOIN_ALGO,
   HINT_SPLIT_SCAN,
   HINT_INTERVAL_LIMIT,
+  HINT_EXTWIN_PARTITION_BATCH,  // reserved; does not force batch execution
+  HINT_NO_EXTWIN_PARTITION_BATCH,
+  HINT_NO_CONCURRENT_LAST_SCAN,
 } EHintOption;
 
 // A Hint parameter keeps the original token type and text for later consumers.
@@ -446,6 +469,7 @@ typedef struct SFunctionNode {
   bool       hasPk;
   int32_t    pkBytes;
   bool       hasOriginalFunc;
+  bool                        ignoreResultRowCount;  // Synthesized keys carry values without producing aggregate rows.
   int32_t    originalFuncId;
   ETrimType  trimType;
   bool       dual; // whether select stmt without from stmt, true for without.
@@ -495,6 +519,12 @@ typedef struct SRealTableNode {
   SArray*            tsmaTargetTbInfo;    // SArray<STsmaTargetTbInfo>, used for child table or normal table only
   EStreamPlaceholder placeholderType;
   bool               asSingleTable; // only used in stream calc query
+  // TIME_ALIGN: when pAlignCols != NULL the table is the output of TABLE(TIME_ALIGN(...)).
+  SArray*            pAlignCols;     // SArray<SAlignOutCol>
+  bool               outputRaw;
+  // External table without a remote primary key: align in output row order,
+  // with view-like output columns (no implicit timestamp axis).
+  bool               timeAlignRowOrder;
   // External table path fields (3-segment or 4-segment path)
   SNode*             pExtTableNode;                      // translated external table node (enterprise only)
   int8_t             numPathSegments;                    // 0/1 = default; 2 = db.tbl; 3 = src.mid0.tbl; 4 = src.mid0.mid1.tbl
@@ -505,6 +535,9 @@ typedef struct STempTableNode {
   STableNode table;  // QUERY_NODE_TEMP_TABLE
   SNode*     pSubquery;
   bool       hasExplicitAlias;
+  // TIME_ALIGN over a view/derived table.
+  SArray*    pAlignCols;  // SArray<SAlignOutCol>
+  bool       outputRaw;
 } STempTableNode;
 
 typedef struct STextTableNode {
@@ -540,6 +573,16 @@ typedef struct SFileTableNode {
   int32_t    numBlocks;
 } SFileTableNode;
 
+typedef struct STimeAlignTableNode {
+  STableNode table;        // QUERY_NODE_TIME_ALIGN_TABLE
+  char       dbName[TSDB_DB_NAME_LEN];
+  char       tbName[TSDB_TABLE_NAME_LEN];
+  bool       outputRaw;    // 2nd argument; default false
+  char*      columnList;   // raw column-def string (quotes stripped); NULL = default '*:PREV:'
+  // Owned input AST for stream triggers and multi-segment table paths.
+  SNode*     pRealTableNode;
+} STimeAlignTableNode;
+
 typedef struct SPlaceHolderTableNode {
   STableNode         table;  // QUERY_NODE_PLACE_HOLDER_TABLE
   struct STableMeta* pMeta;
@@ -547,13 +590,33 @@ typedef struct SPlaceHolderTableNode {
   EStreamPlaceholder placeholderType;
 } SPlaceHolderTableNode;
 
+typedef enum EAlignMethod {
+  ALIGN_METHOD_PREV = 1,
+  ALIGN_METHOD_NEXT = 2,
+} EAlignMethod;
+
+typedef struct SAlignOutCol {
+  col_id_t srcColId;                     // source data column id in the vtable
+  char     outName[TSDB_COL_NAME_LEN];   // output column name = source name + suffix
+  char     srcName[TSDB_COL_NAME_LEN];   // source column name (views/Projection host)
+  int8_t   method;                       // EAlignMethod
+  bool     hasSpan;                      // optional time-range parameter present
+  int64_t  spanValue;                    // duration count; q is folded into months
+  char     spanUnit;                     // b/u/a/s/m/h/d/w/n/y; 0 when !hasSpan
+} SAlignOutCol;
+
 typedef struct SVirtualTableNode {
   STableNode         table;  // QUERY_NODE_VIRTUAL_TABLE
   struct STableMeta* pMeta;
   SVgroupsInfo*      pVgroupList;
   SNodeList*         refTables;
   SArray*            pExtSourceNames;  // SArray<char*> external source names (super table path)
+  bool               hasReferenceBinding;
   bool               hasFilterCond;  // any child column or referenced leaf has a saved external filter
+  // TIME_ALIGN: when pAlignCols != NULL the table is the output of TABLE(TIME_ALIGN(...)).
+  SArray*            pAlignCols;     // SArray<SAlignOutCol>; method is PREV or NEXT
+  bool               outputRaw;      // output_raw argument
+  EStreamPlaceholder placeholderType;
 } SVirtualTableNode;
 
 typedef struct SViewNode {
@@ -609,6 +672,9 @@ typedef struct SExtTableNode {
   //         (SQL Server, DS 5.3.5) must re-render (2b) unless the raw text is
   //         namespace-complete.
   bool                  nsFromPathOnly;
+  SNode*                pSeriesCondition;  // explicit virtual SERIES binding; never a user WHERE
+  SNodeList*            pInfluxSchema; // optional raw-column types and Field/Tag roles
+  char                  influxRp[TSDB_EXT_INFLUX_RP_LEN]; // metadata-bound namespace
 } SExtTableNode;
 
 #define JOIN_JLIMIT_MAX_VALUE 1024
@@ -689,6 +755,8 @@ typedef struct SOrderByExprNode {
   SNode*     pExpr;
   EOrder     order;
   ENullOrder nullOrder;
+  bool       isWindowKey;  // use the same value ordering as OVER partitions and peers
+  bool       isQueryPartitionKey;  // leading query partition in an OVER sort
 } SOrderByExprNode;
 
 typedef struct SLimitNode {
@@ -754,8 +822,9 @@ typedef enum ETrueForType {
 typedef struct STrueForNode {
   ENodeType    type;  // QUERY_NODE_TRUE_FOR
   ETrueForType trueForType;
-  int32_t      count;     // Row count threshold (0 if duration-only)
+  int32_t      count;     // Row count threshold (0 if duration-only or count tag)
   SNode*       pDuration;
+  SNode*       pCount;      // SColumnNode* when COUNT references a tag column
   SNode*       pStartLimit;  // STrueForNode* or NULL: start condition threshold (NULL = no limit)
   SNode*       pEndLimit;    // STrueForNode* or NULL: end condition threshold (NULL = no limit)
 } STrueForNode;
@@ -1014,6 +1083,9 @@ typedef struct SSelectStmt {
   bool            hasNonLocalSubQ;
   int32_t         timeLineFromOrderBy;
   bool            isEmptyResult;
+  // TIME_ALIGN over a view: keep the view's whole projection list so the
+  // alignment Projection can still find the timestamp and source columns.
+  bool            keepAllProjections;
   bool            isSubquery;
   bool            implicitPartitionHaving;
   bool            hasAggFuncs;
@@ -1262,6 +1334,7 @@ typedef struct SQuery {
   int32_t         placeholderNum;
   int8_t          precision;
   bool            haveResultSet;
+  bool            hasMySqlContextFunc;  // Requires the execution-time statement clock or connection timezone.
   bool            showRewrite;
   int8_t          xnodeDsnOutputMode;
   bool            stableQuery;
@@ -1315,6 +1388,21 @@ bool nodesExprsHasColumn(SNodeList* pList);
 bool nodesExprHasCorrelation(SNode* pNode);
 bool nodesExprsHasCorrelation(SNodeList* pList);
 
+typedef struct SExternalBindingContext {
+  int8_t bindingKind;
+  const char* timeColumn;
+} SExternalBindingContext;
+
+int32_t nodesValidateExternalFilterEx(EExtSourceType sourceType, const SExtTableMeta* pExtMeta,
+                                      SNode* pFilterCond, timezone_t timezone, void* charsetCxt,
+                                      char* pMsg, int32_t msgLen, int32_t* pTsPrimaryKeyIndex,
+                                      const SExternalBindingContext* pBinding);
+int32_t nodesValidateExternalFilterCurrentMetaEx(EExtSourceType sourceType, const SExtTableMeta* pExtMeta,
+                                                 const char* pFilterCondJson, int32_t filterCondLen,
+                                                 timezone_t timezone, void* charsetCxt, char* pMsg,
+                                                 int32_t msgLen, int32_t* pTsPrimaryKeyIndex,
+                                                 const SExternalBindingContext* pBinding);
+
 // Validate and normalize a DDL filter in place, returning the timestamp primary-key column index.
 int32_t nodesValidateExternalFilter(EExtSourceType sourceType, const SExtTableMeta* pExtMeta, SNode* pFilterCond,
                                     timezone_t timezone, void* charsetCxt, char* pMsg, int32_t msgLen,
@@ -1354,6 +1442,12 @@ const char* logicConditionTypeStr(ELogicConditionType type);
 
 bool nodesIsStar(SNode* pNode);
 bool nodesIsTableStar(SNode* pNode);
+
+// Composite primary keys are stored in (ts, pk) lexicographic order. The planner
+// (sortInputProvesFullOrder) and the executor (sortHasTsPkStorageOrder) must
+// agree on this key shape, so both use this predicate instead of keeping copies
+// that can drift. The planner layers its storage-proof prerequisites on top.
+bool queryNodeSortKeysAreAscPrimTsPk(SNodeList* pKeys);
 
 char*   getJoinTypeString(EJoinType type);
 char*   getJoinSTypeString(EJoinSubType type);

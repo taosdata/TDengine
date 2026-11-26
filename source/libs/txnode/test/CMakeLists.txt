@@ -20,3 +20,25 @@ DEP_ext_gtest(txnodeEnvTest)
 target_include_directories(txnodeEnvTest PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/../inc")
 target_link_libraries(txnodeEnvTest PRIVATE txnode xnode os util common nodes transport)
 add_test(NAME txnodeEnvTest COMMAND txnodeEnvTest)
+
+if(BUILD_WITH_UV)
+    add_executable(companionLifecycleChild companionLifecycleChild.c)
+    DEP_ext_libuv(companionLifecycleChild)
+    target_link_libraries(companionLifecycleChild PRIVATE os)
+    add_executable(companionLifecycleTest companionLifecycleTest.c)
+    target_include_directories(companionLifecycleTest PRIVATE
+        "${CMAKE_CURRENT_SOURCE_DIR}/../inc"
+        "${TD_SOURCE_DIR}/include/libs/txnode"
+        "${TD_SOURCE_DIR}/include/libs/tmqtt"
+    )
+    DEP_ext_libuv(companionLifecycleTest)
+    target_link_libraries(companionLifecycleTest PRIVATE os util common nodes transport)
+    add_dependencies(companionLifecycleTest companionLifecycleChild)
+    foreach(module xnode mqtt)
+        foreach(fault missing invalid loop async pipe barrier thread td-error join)
+            add_test(NAME companionLifecycle_${module}_${fault}
+                COMMAND companionLifecycleTest ${module} ${fault} $<TARGET_FILE:companionLifecycleChild>)
+            set_tests_properties(companionLifecycle_${module}_${fault} PROPERTIES TIMEOUT 30)
+        endforeach()
+    endforeach()
+endif()

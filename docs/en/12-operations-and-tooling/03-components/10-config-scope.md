@@ -49,6 +49,8 @@ This document compares the configuration parameters of taosd (server-side) and t
 | countAlwaysReturnValue | both | Whether count/hyperloglog functions return a value when input data is empty or NULL |
 | tagFilterCache | taosd | Whether to cache tag filter results |
 | stableTagFilterCache | taosd | Whether to cache tag equal condition filter results.  It will not become invalid due to adding or deleting child tables or updating the tag values or modifying super table tags. |
+| streamVcColsCache | taosd | Whether to cache the column-reference scan result used by virtual super table stream calculations |
+| streamVcColsCacheSize | taosd | Memory limit for cached column-reference scan results used by virtual super table stream calculations |
 | queryRspPolicy | taosd | Query response strategy |
 | queryUseMemoryPool | taosd | Whether query will use memory pool to manage memory |
 | minReservedMemorySize | taosd | The minimum reserved system available memory size |
@@ -135,6 +137,7 @@ This document compares the configuration parameters of taosd (server-side) and t
 | syncSnapReplMaxWaitN | taosd | Internal parameter, for debugging synchronization module |
 | snapshotRateLimit | taosd | Controls the total snapshot sending bandwidth per dnode (MB/s), 0 means no limit |
 | snapshotMediumOnLag | taosd | Whether a replica that owns data but lags behind uses file-level delta (medium) snap replication, 0 means the row-by-row mode |
+| snapshotMediumOnIncomplete | taosd | Whether an incomplete FSM uses file-level delta (medium) snapshot replication; 0 means row-by-row mode, default 1 |
 | arbHeartBeatIntervalSec | taosd | Internal parameter, for debugging synchronization module |
 | arbCheckSyncIntervalSec | taosd | Internal parameter, for debugging synchronization module |
 | arbSetAssignedTimeoutSec | taosd | Internal parameter, for debugging synchronization module |

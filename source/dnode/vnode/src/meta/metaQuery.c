@@ -50,9 +50,38 @@ void metaReaderClear(SMetaReader *pReader) {
     metaULock(pReader->pMeta);
   }
   tFreeSSeriesWrapper(&pReader->me.series);
+  tFreeVtableReferenceExt(&pReader->me.referenceExt);
   tDecoderClear(&pReader->coder);
   tdbFree(pReader->pBuf);
   pReader->pBuf = NULL;
+}
+
+// Decode the table.db entry already loaded into pReader->pBuf (by a previous
+// tdbTbGet) into pReader->me. Shared by metaGetTableEntryByVersion and the
+// typeMask pre-filter path in metaTbCursorNext, so a matched record is decoded
+// exactly once.
+static int32_t metaDecodeLoadedTableEntry(SMetaReader *pReader) {
+  // decode the entry
+  tFreeSSeriesWrapper(&pReader->me.series);
+  tFreeVtableReferenceExt(&pReader->me.referenceExt);
+  // The bit-5 tag trailer is optional: a record without it must leave the tag fields
+  // zeroed. Otherwise the reader keeps stale decoder-pool pointers from the previously
+  // decoded entry, and cursor reuse shows phantom tags on tag-less tables.
+  pReader->me.ntbEntry.schemaTag.nCols = 0;
+  pReader->me.ntbEntry.schemaTag.version = 0;
+  pReader->me.ntbEntry.schemaTag.pSchema = NULL;
+  pReader->me.ntbEntry.pTags = NULL;
+  tDecoderClear(&pReader->coder);
+  tDecoderInit(&pReader->coder, pReader->pBuf, pReader->szBuf);
+
+  int32_t code = metaDecodeEntry(&pReader->coder, &pReader->me);
+  if (code) {
+    tDecoderClear(&pReader->coder);
+    return code;
+  }
+  // taosMemoryFreeClear(pReader->me.colCmpr.pColCmpr);
+
+  return 0;
 }
 
 int metaGetTableEntryByVersion(SMetaReader *pReader, int64_t version, tb_uid_t uid) {
@@ -65,26 +94,37 @@ int metaGetTableEntryByVersion(SMetaReader *pReader, int64_t version, tb_uid_t u
     return terrno = (TSDB_CODE_NOT_FOUND == code ? TSDB_CODE_PAR_TABLE_NOT_EXIST : code);
   }
 
-  // decode the entry
-  tFreeSSeriesWrapper(&pReader->me.series);
-  // The bit-5 tag trailer is optional: a record without it must leave the tag fields
-  // zeroed. Otherwise the reader keeps stale decoder-pool pointers from the previously
-  // decoded entry, and cursor reuse shows phantom tags on tag-less tables.
-  pReader->me.ntbEntry.schemaTag.nCols = 0;
-  pReader->me.ntbEntry.schemaTag.version = 0;
-  pReader->me.ntbEntry.schemaTag.pSchema = NULL;
-  pReader->me.ntbEntry.pTags = NULL;
-  tDecoderClear(&pReader->coder);
-  tDecoderInit(&pReader->coder, pReader->pBuf, pReader->szBuf);
+  return metaDecodeLoadedTableEntry(pReader);
+}
 
-  code = metaDecodeEntry(&pReader->coder, &pReader->me);
-  if (code) {
-    tDecoderClear(&pReader->coder);
-    return code;
+/*
+ * Cheap header-only type peek for cursor pre-filtering: load the table.db entry
+ * into the reader's reusable buffer (pReader->pBuf) and decode only
+ * {version, type, uid} without materializing schemas/refs/tags. On a match the
+ * caller keeps the buffer and full-decodes it with metaDecodeLoadedTableEntry,
+ * avoiding a second B-tree lookup; on a mismatch the caller frees the buffer.
+ * Mirrors metaRebuildVTableStats in metaOpen.c.
+ */
+static int32_t metaPeekTableEntryType(SMetaReader *pReader, int64_t version, tb_uid_t uid, ETableType *pType) {
+  SMeta   *pMeta = pReader->pMeta;
+  STbDbKey tbDbKey = {.version = version, .uid = uid};
+  SDecoder dc = {0};
+  SMetaEntry me = {0};
+  int32_t  code = 0;
+
+  code = tdbTbGet(pMeta->pTbDb, &tbDbKey, sizeof(tbDbKey), &pReader->pBuf, &pReader->szBuf);
+  if (code < 0) {
+    return terrno = (TSDB_CODE_NOT_FOUND == code ? TSDB_CODE_PAR_TABLE_NOT_EXIST : code);
   }
-  // taosMemoryFreeClear(pReader->me.colCmpr.pColCmpr);
 
-  return 0;
+  tDecoderInit(&dc, (uint8_t *)pReader->pBuf, pReader->szBuf);
+  code = metaDecodeEntryImpl(&dc, &me, true);
+  tDecoderClear(&dc);
+
+  if (code == TSDB_CODE_SUCCESS) {
+    *pType = (ETableType)me.type;
+  }
+  return code;
 }
 
 bool metaIsTableExist(void *pVnode, tb_uid_t uid) {
@@ -128,60 +168,62 @@ bool metaIsTableExist(void *pVnode, tb_uid_t uid) {
   return true;
 }
 
+// batch meta txn: a table the reader's OWN txn has dropped (PRE_DROP, not committed yet) no longer exists for
+// that reader (read your own writes), exactly as the cursor scan already treats it. Every other reader keeps
+// seeing it until COMMIT. The "committed PRE_DROP" case is handled by each caller's finalized-txn check.
+static FORCE_INLINE bool metaIsDroppedByOwnTxn(const SMetaReader *pReader) {
+  return pReader->txnId != 0 && pReader->txnId == pReader->me.txnId && pReader->me.txnStatus == META_TXN_PRE_DROP;
+}
 
+// batch meta txn: what the reader may see of the entry it has just loaded into pReader->me. The single place that
+// holds the visibility rules; every by-uid entry getter ends here, so they cannot drift apart again.
+//   - txn already COMMITTED (the vacuum has not normalised the entry yet): PRE_DROP is gone, the rest is visible
+//   - PRE_CREATE: invisible once ROLLEDBACK, and to every reader but the creating txn (snapshot isolation);
+//     the creating txn reads its own write
+//   - PRE_DROP by the reader's own txn: gone for it, still visible to everyone else until COMMIT
+//   - PRE_ALTER: every reader but the altering txn is redirected to the pre-txn version (txnOrigVer)
+static int32_t metaApplyTxnVisibility(SMetaReader *pReader, tb_uid_t uid) {
+  int8_t finalStatus = metaGetTxnMetaStatus(pReader->pMeta, pReader->me.txnId);  // NONE when me.txnId == 0
+  if (finalStatus == TXN_META_COMMITTED) {
+    return pReader->me.txnStatus == META_TXN_PRE_DROP ? (terrno = TSDB_CODE_PAR_TABLE_NOT_EXIST) : 0;
+  }
+
+  if (pReader->me.txnStatus == META_TXN_PRE_CREATE) {
+    if (finalStatus == TXN_META_ROLLEDBACK || pReader->txnId == 0 || pReader->txnId != pReader->me.txnId) {
+      return terrno = TSDB_CODE_PAR_TABLE_NOT_EXIST;
+    }
+  }
+
+  // a ROLLEDBACK txn restored the table (the vacuum has not normalised the entry yet): its PRE_DROP is void
+  if (finalStatus != TXN_META_ROLLEDBACK && metaIsDroppedByOwnTxn(pReader)) {
+    return terrno = TSDB_CODE_PAR_TABLE_NOT_EXIST;
+  }
+
+  if (pReader->me.txnStatus == META_TXN_PRE_ALTER && pReader->me.txnOrigVer > 0 &&
+      (pReader->txnId == 0 || pReader->txnId != pReader->me.txnId)) {
+    tDecoderClear(&pReader->coder);
+    int32_t code = metaGetTableEntryByVersion(pReader, pReader->me.txnOrigVer, uid);
+    if (code) return terrno = code;
+  }
+
+  return 0;
+}
 
 int metaReaderGetTableEntryByUid(SMetaReader *pReader, tb_uid_t uid) {
   SMeta  *pMeta = pReader->pMeta;
   int64_t version1;
 
   // query uid.idx
-  if (tdbTbGet(pMeta->pUidIdx, &uid, sizeof(uid), &pReader->pBuf, &pReader->szBuf) < 0) {
-    return terrno = TSDB_CODE_PAR_TABLE_NOT_EXIST;
+  int code = tdbTbGet(pMeta->pUidIdx, &uid, sizeof(uid), &pReader->pBuf, &pReader->szBuf);
+  if (code < 0) {
+    return terrno = (TSDB_CODE_NOT_FOUND == code ? TSDB_CODE_PAR_TABLE_NOT_EXIST : code);
   }
 
   version1 = ((SUidIdxVal *)pReader->pBuf)[0].version;
-  int code = metaGetTableEntryByVersion(pReader, version1, uid);
-  if (code) return code;
+  code = metaGetTableEntryByVersion(pReader, version1, uid);
+  if (code) return terrno = code;
 
-  // batch meta txn: finalized txn visibility adjustment
-  if (pReader->me.txnId != 0) {
-    int8_t finalStatus = metaGetTxnMetaStatus(pReader->pMeta, pReader->me.txnId);
-    if (finalStatus == TXN_META_COMMITTED) {
-      // COMMITTED: PRE_CREATE/PRE_ALTER  ->  visible as normal; PRE_DROP  ->  invisible (deleted)
-      if (pReader->me.txnStatus == META_TXN_PRE_DROP) {
-        return terrno = TSDB_CODE_PAR_TABLE_NOT_EXIST;
-      }
-      // PRE_CREATE and PRE_ALTER: fall through (visible, use current version)
-      return 0;
-    }
-  }
-
-  // batch meta txn: PRE_CREATE entries visibility:
-  //   - ROLLEDBACK txn: always invisible
-  //   - other-txn reader OR non-txn reader (txnId == 0): invisible (snapshot isolation)
-  //   - same-txn reader: visible (RYOW  -  read your own writes)
-  if (pReader->me.txnStatus == META_TXN_PRE_CREATE) {
-    int8_t finalStatus = metaGetTxnMetaStatus(pReader->pMeta, pReader->me.txnId);
-    if (finalStatus == TXN_META_ROLLEDBACK) {
-      return terrno = TSDB_CODE_PAR_TABLE_NOT_EXIST;
-    }
-    if (pReader->txnId == 0 || pReader->txnId != pReader->me.txnId) {
-      return terrno = TSDB_CODE_PAR_TABLE_NOT_EXIST;
-    }
-  }
-
-  // batch meta txn: PRE_ALTER entries  -  redirect to old version for snapshot isolation
-  // Same-txn readers see the new (altered) version directly
-  if (pReader->me.txnStatus == META_TXN_PRE_ALTER && pReader->me.txnOrigVer > 0) {
-    if (pReader->txnId == 0 || pReader->txnId != pReader->me.txnId) {
-      int64_t prevVer = pReader->me.txnOrigVer;
-      tDecoderClear(&pReader->coder);
-      code = metaGetTableEntryByVersion(pReader, prevVer, uid);
-      if (code) return code;
-    }
-  }
-
-  return 0;
+  return metaApplyTxnVisibility(pReader, uid);
 }
 
 static int32_t getUidVersion(SMetaReader *pReader, int64_t *version, tb_uid_t uid) {
@@ -245,44 +287,19 @@ int metaReaderGetTableEntryByVersionUid(SMetaReader *pReader, int64_t version, t
   }
   if (info.version <= version) {
     version = info.version;
-  } else {
+  }
+  // Bulk SET TAG records share a WAL version. Probe the exact entry before
+  // scanning older records, even when a newer batch has already been applied.
+  code = metaGetTableEntryByVersion(pReader, version, uid);
+  if (code == TSDB_CODE_PAR_TABLE_NOT_EXIST && info.version > version) {
     if (getUidVersion(pReader, &version, uid) != 0) {
       version = -1;
     }
+    code = metaGetTableEntryByVersion(pReader, version, uid);
   }
-  code = metaGetTableEntryByVersion(pReader, version, uid);
-  if (code) return code;
+  if (code) return terrno = code;
 
-  // batch meta txn: finalized txn visibility adjustment
-  if (pReader->me.txnId != 0) {
-    int8_t finalStatus = metaGetTxnMetaStatus(pReader->pMeta, pReader->me.txnId);
-    if (finalStatus == TXN_META_COMMITTED) {
-      if (pReader->me.txnStatus == META_TXN_PRE_DROP) {
-        return terrno = TSDB_CODE_PAR_TABLE_NOT_EXIST;
-      }
-      return 0;
-    }
-  }
-
-  // batch meta txn: PRE_CREATE entries are invisible unless same-txn reader
-  if (pReader->me.txnStatus == META_TXN_PRE_CREATE) {
-    if (pReader->txnId == 0 || pReader->txnId != pReader->me.txnId) {
-      return terrno = TSDB_CODE_PAR_TABLE_NOT_EXIST;
-    }
-  }
-
-  // batch meta txn: PRE_ALTER entries  -  redirect to old version for snapshot isolation
-  // Same-txn readers see the new (altered) version directly
-  if (pReader->me.txnStatus == META_TXN_PRE_ALTER && pReader->me.txnOrigVer > 0) {
-    if (pReader->txnId == 0 || pReader->txnId != pReader->me.txnId) {
-      int64_t prevVer = pReader->me.txnOrigVer;
-      tDecoderClear(&pReader->coder);
-      code = metaGetTableEntryByVersion(pReader, prevVer, uid);
-      if (code) return code;
-    }
-  }
-
-  return 0;
+  return metaApplyTxnVisibility(pReader, uid);
 }
 
 int metaReaderGetTableEntryByUidCache(SMetaReader *pReader, tb_uid_t uid) {
@@ -295,45 +312,9 @@ int metaReaderGetTableEntryByUidCache(SMetaReader *pReader, tb_uid_t uid) {
   }
 
   code = metaGetTableEntryByVersion(pReader, info.version, uid);
-  if (code) return code;
+  if (code) return terrno = code;
 
-  // batch meta txn: finalized txn visibility adjustment
-  if (pReader->me.txnId != 0) {
-    int8_t finalStatus = metaGetTxnMetaStatus(pReader->pMeta, pReader->me.txnId);
-    if (finalStatus == TXN_META_COMMITTED) {
-      if (pReader->me.txnStatus == META_TXN_PRE_DROP) {
-        return terrno = TSDB_CODE_PAR_TABLE_NOT_EXIST;
-      }
-      return 0;
-    }
-  }
-
-  if (pReader->me.txnStatus != META_TXN_NORMAL) {
-    if (pReader->me.txnStatus == META_TXN_PRE_CREATE) {
-      // batch meta txn: PRE_CREATE visibility:
-      //   - ROLLEDBACK: invisible
-      //   - other-txn reader OR non-txn reader (txnId==0): invisible (snapshot isolation)
-      //   - same-txn reader: visible (RYOW  -  read your own writes)
-      int8_t finalStatus = metaGetTxnMetaStatus(pReader->pMeta, pReader->me.txnId);
-      if (finalStatus == TXN_META_ROLLEDBACK) {
-        return terrno = TSDB_CODE_PAR_TABLE_NOT_EXIST;
-      }
-      if (pReader->txnId == 0 || pReader->txnId != pReader->me.txnId) {
-        return terrno = TSDB_CODE_PAR_TABLE_NOT_EXIST;
-      }
-    } else if (pReader->me.txnStatus == META_TXN_PRE_ALTER && pReader->me.txnOrigVer > 0) {
-      // batch meta txn: PRE_ALTER entries  -  redirect to old version for snapshot isolation
-      // Same-txn readers see the new (altered) version directly
-      if (pReader->txnId == 0 || pReader->txnId != pReader->me.txnId) {
-        int64_t prevVer = pReader->me.txnOrigVer;
-        tDecoderClear(&pReader->coder);
-        code = metaGetTableEntryByVersion(pReader, prevVer, uid);
-        if (code) return code;
-      }
-    }
-  }
-
-  return 0;
+  return metaApplyTxnVisibility(pReader, uid);
 }
 
 int metaGetTableEntryByVersionName(SMetaReader *pReader, int64_t version, const char *name) {
@@ -527,6 +508,8 @@ static int32_t metaDecodeTableBatchInfo(SMeta *pMeta, const STdbTbBatchGetArg *p
   }
 
   tFreeSSeriesWrapper(&entry.series);
+
+  tFreeVtableReferenceExt(&entry.referenceExt);
   tDecoderClear(&decoder);
   return code;
 }
@@ -639,6 +622,7 @@ int32_t metaGetTableInfosByNames(void *pVnode, const SArray *pTbNames, SArray *p
         pInfo->code = code;
       }
       tFreeSSeriesWrapper(&entry.series);
+      tFreeVtableReferenceExt(&entry.referenceExt);
       tDecoderClear(&decoder);
     }
   }
@@ -850,8 +834,35 @@ int32_t metaTbCursorNext(SMTbCursor *pTbCur, ETableType jumpTableType) {
 
     tDecoderClear(&pTbCur->mr.coder);
 
-    ret = metaGetTableEntryByVersion(&pTbCur->mr, ((SUidIdxVal *)pTbCur->pVal)[0].version, *(tb_uid_t *)pTbCur->pKey);
-    if (ret) return ret;
+    // Cheap header-only pre-filter: skip tables whose type the caller does not
+    // want before paying the full decode. Only the vc_cols scan
+    // (sysTableScanUserVcCols) sets typeMask; it stays 0 elsewhere. The peek
+    // loads the record into the reusable reader buffer, so a wanted type is
+    // then full-decoded in place without a second B-tree lookup.
+    if (pTbCur->typeMask != 0) {
+      ETableType peekType = TSDB_TABLE_MAX;
+      ret = metaPeekTableEntryType(&pTbCur->mr, ((SUidIdxVal *)pTbCur->pVal)[0].version, *(tb_uid_t *)pTbCur->pKey,
+                                   &peekType);
+      if (ret) return ret;
+      if (peekType <= 0 || peekType >= TSDB_TABLE_MAX) {
+        metaError("vgId:%d, invalid table type:%d while applying cursor type mask", TD_VID(pMeta->pVnode),
+                  peekType);
+        return TSDB_CODE_INVALID_MSG;
+      }
+      if ((pTbCur->typeMask & (1 << peekType)) == 0) {
+        // Not a wanted type: drop the buffered record and move on.
+        tdbFree(pTbCur->mr.pBuf);
+        pTbCur->mr.pBuf = NULL;
+        pTbCur->mr.szBuf = 0;
+        continue;
+      }
+      // Wanted type: full-decode the record already loaded by the peek.
+      ret = metaDecodeLoadedTableEntry(&pTbCur->mr);
+      if (ret) return ret;
+    } else {
+      ret = metaGetTableEntryByVersion(&pTbCur->mr, ((SUidIdxVal *)pTbCur->pVal)[0].version, *(tb_uid_t *)pTbCur->pKey);
+      if (ret) return ret;
+    }
 
     if (pTbCur->mr.me.type == jumpTableType) {
       continue;
@@ -1524,7 +1535,12 @@ int32_t metaResumeCtbCursor(SMCtbCursor *pCtbCur, int8_t first) {
         return ret;
       }
       if (c < 0) {
-        ret = tdbTbcMoveToPrev(pCtbCur->pCur);
+        // MoveTo already positioned the cursor at the first key greater than the
+        // missing target. Advancing again would skip it, while moving back would
+        // emit the already-consumed predecessor twice.
+        metaDebug("vgId:%d, resume ctb cursor after missing key, suid:%" PRIu64 " uid:%" PRIu64,
+                  TD_VID(pCtbCur->pMeta->pVnode), pCtbCur->suid, ((SCtbIdxKey*)pCtbCur->pKey)->uid);
+        ret = 0;
       } else {
         ret = tdbTbcMoveToNext(pCtbCur->pCur);
       }
@@ -1942,6 +1958,9 @@ void metaUpdTimeSeriesNum(SMeta *pMeta) {
 static FORCE_INLINE int64_t metaGetTimeSeriesNumImpl(SMeta *pMeta, bool forceUpd) {
   // sum of (number of columns of stable -  1) * number of ctables (excluding timestamp column)
   SVnodeStats *pStats = &pMeta->pVnode->config.vndStats;
+  if (vnodeIsTimeSeriesExcluded(pMeta->pVnode)) {
+    return 0;
+  }
   if (forceUpd || pStats->numOfTimeSeries <= 0) {
     metaUpdTimeSeriesNum(pMeta);
   }
@@ -2603,11 +2622,15 @@ static int32_t metaGetTableTagByUidVersion(SMeta *pMeta, int64_t suid, int64_t u
   if (version != -1) {
     SMetaReader mr = {0};
     metaReaderDoInit(&mr, pMeta, META_READER_NOLOCK, 0);
-    if (getUidVersion(&mr, &version, uid) != 0) {
-      version = -1;
-    }
-
+    // A batch SET TAG writes many UIDs at one WAL version. Avoid rescanning
+    // that version's records for each UID when its exact entry is present.
     ret = metaGetTableEntryByVersion(&mr, version, uid);
+    if (ret == TSDB_CODE_PAR_TABLE_NOT_EXIST) {
+      if (getUidVersion(&mr, &version, uid) != 0) {
+        version = -1;
+      }
+      ret = metaGetTableEntryByVersion(&mr, version, uid);
+    }
     if (ret == 0) {
       // ctbEntry/ntbEntry share a union: child tables carry tags in ctbEntry.pTags, normal and
       // virtual-normal tables carry owned tags in ntbEntry.pTags (NULL when tag-less).
@@ -2678,7 +2701,7 @@ static int32_t metaGetTableTagByUidVersion(SMeta *pMeta, int64_t suid, int64_t u
  * Returns a taosMemoryMalloc'd buffer on redirect (caller owns), NULL otherwise.
  * Must be called under metaRLock (held by the caller).
  */
-static void *metaGetOldTagIfPreAlter(SMeta *pMeta, tb_uid_t uid, int32_t *pOutLen) {
+static void *metaGetOldTagIfPreAlter(SMeta *pMeta, tb_uid_t uid, int64_t txnId, int32_t *pOutLen) {
   void   *pTxnVal = NULL;
   int32_t txnValLen = 0;
   if (tdbTbGet(pMeta->pTxnIdx, &uid, sizeof(uid), &pTxnVal, &txnValLen) != 0) {
@@ -2688,6 +2711,11 @@ static void *metaGetOldTagIfPreAlter(SMeta *pMeta, tb_uid_t uid, int32_t *pOutLe
   tdbFree(pTxnVal);
 
   if (txnVal.txnStatus != META_TXN_PRE_ALTER || txnVal.txnOrigVer < 0) {
+    return NULL;
+  }
+  // Read-your-own-writes: the txn that made the alter sees its new tag value, only other readers
+  // (and non-txn readers, txnId == 0) are redirected to the pre-alter value.
+  if (txnId != 0 && txnVal.txnId == txnId) {
     return NULL;
   }
   // If the txn is already committed the dirty pCtbIdx value is correct  -  no redirect.
@@ -2728,7 +2756,7 @@ static void *metaGetOldTagIfPreAlter(SMeta *pMeta, tb_uid_t uid, int32_t *pOutLe
   tdbFree(pOldBuf);
   return result;
 }
-int32_t metaGetTableTagsByUidsVersion(void *pVnode, int64_t suid, SArray *uidList, int64_t version) {
+int32_t metaGetTableTagsByUidsVersion(void *pVnode, int64_t suid, SArray *uidList, int64_t version, int64_t txnId) {
   SMeta        *pMeta = ((SVnode *)pVnode)->pMeta;
   const int32_t LIMIT = 128;
 
@@ -2747,7 +2775,7 @@ int32_t metaGetTableTagsByUidsVersion(void *pVnode, int64_t suid, SArray *uidLis
     // batch-meta-txn: redirect uncommitted PRE_ALTER to the old tag
     if (metaHasPendingTxnEntries(pMeta)) {
       int32_t oldLen = 0;
-      void   *pOldTags = metaGetOldTagIfPreAlter(pMeta, p->uid, &oldLen);
+      void   *pOldTags = metaGetOldTagIfPreAlter(pMeta, p->uid, txnId, &oldLen);
       if (pOldTags != NULL) {
         p->pTagVal = pOldTags;
         continue;
@@ -2781,7 +2809,7 @@ int32_t metaGetTableTags(void *pVnode, uint64_t suid, SArray *pUidTagInfo, int64
     // batch-meta-txn: redirect uncommitted PRE_ALTER to the old tag blob
     if (metaHasPendingTxnEntries(pMeta)) {
       int32_t oldLen = 0;
-      void   *pOldTags = metaGetOldTagIfPreAlter(pMeta, uid, &oldLen);
+      void   *pOldTags = metaGetOldTagIfPreAlter(pMeta, uid, txnId, &oldLen);
       if (pOldTags != NULL) {
         info.pTagVal = pOldTags;
         if (taosArrayPush(pUidTagInfo, &info) == NULL) {
@@ -3007,6 +3035,11 @@ int32_t metaGetStbStats(void *pVnode, int64_t uid, int64_t *numOfTables, int32_t
 
 _exit:
   return code;
+}
+
+int64_t metaGetVtableGenFromVnode(void* pVnode) {
+  SVnode* pVnodeObj = pVnode;
+  return metaGetVtableGen(pVnodeObj->pMeta);
 }
 
 void metaUpdateStbStats(SMeta *pMeta, int64_t uid, int64_t deltaCtb, int32_t deltaCol, int64_t deltaKeep) {

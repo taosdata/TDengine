@@ -14,10 +14,14 @@
 # along with this program. If not, see <http://www.gnu.org/licenses/>.
 
 import hashlib
+import json
+import math
+import os
 import re
 import shlex
 import sys
 from fnmatch import fnmatchcase
+from pathlib import Path
 
 
 def is_pytest_collection_skip(return_code, output):
@@ -37,21 +41,149 @@ def is_pytest_only_skip(return_code, output):
     ) is not None
 
 
-FQ_SMOKE_CASES = (
-    "cases/09-DataQuerying/19-FederatedQuery/test_fq_01_external_source.py",
-    "cases/09-DataQuerying/19-FederatedQuery/test_fq_20_sqlserver_semantics.py",
-    "cases/05-VirtualTables/04-Query/03-ExtSource/test_vtable_query_ext_source_filter.py",
+FQ_CASE_PATTERNS = (
+    "cases/09-DataQuerying/19-FederatedQuery/*",
+    "cases/05-VirtualTables/*/03-ExtSource/*",
+    "cases/05-VirtualTables/02-Auth/*ext_source*.py",
+    "cases/05-VirtualTables/05-Plan/*ext_source*.py",
+    "cases/05-VirtualTables/05-Plan/*federated*.py",
+    "cases/05-VirtualTables/06-Meta/02-Series/*",
+    "cases/18-StreamProcessing/*/*mixed_external*.py",
+    "cases/18-StreamProcessing/99-Others/test_fs_*.py",
+    "cases/21-MetaData/test_meta_batch_txn_series.py",
+)
+
+# The federated-query inventory: the FQ suite plus the external-source
+# virtual-table, auth and plan suites.  WIN_ONLY_FQ selects exactly these.
+FQ_CASE_MARKERS = (
+    "cases/09-DataQuerying/19-FederatedQuery/",
+    "cases/05-VirtualTables/01-DDL/03-ExtSource/",
+    "cases/05-VirtualTables/04-Query/03-ExtSource/",
+    "cases/05-VirtualTables/02-Auth/test_vtable_auth_ext_source.py",
+    "cases/05-VirtualTables/05-Plan/test_vtable_plan_pushdown_agg_ext_source.py",
+    "cases/05-VirtualTables/05-Plan/test_vtable_plan_pushdown_ext_source_ts_precision.py",
+    "cases/05-VirtualTables/05-Plan/test_vtable_plan_window_ext_source.py",
+    "cases/05-VirtualTables/05-Plan/test_vtable_plan_agg_federated.py",
+    "cases/05-VirtualTables/05-Plan/test_vtable_plan_window_federated_batch.py",
+    # The Windows Oracle installer check is part of the FQ inventory too.
+    "packaging/test_fq_oracle_install_windows.py",
+)
+
+# Cases that directly exercise the Oracle-on-Windows work (and the FQ/vtable
+# helpers it touches).  WIN_CASE_SUBSET=related selects exactly these for a
+# focused verification run.
+RELATED_CASE_MARKERS = (
+    "19-FederatedQuery/test_fq_01_external_source.py",
+    "19-FederatedQuery/test_fq_05_config_effectiveness.py",
+    "19-FederatedQuery/test_fq_09_stability.py",
+    "19-FederatedQuery/test_fq_19_runtime_libs.py",
+    "19-FederatedQuery/test_fq_22_runtime_package.py",
+    "04-Query/03-ExtSource/test_vtable_query_ext_source_filter.py",
+    "04-Query/03-ExtSource/test_vtable_query_ext_source_runtime_libs.py",
+    "packaging/test_fq_oracle_install_windows.py",
+    "81-Tools/04-Taosdump/",
 )
 
 
-def windows_task_manifest(ci_dir, suite="smoke"):
+def is_fq_command(command):
+    """True when the command runs a federated-query case."""
+    if command.lstrip().startswith("#"):
+        # A commented-out row is part of the file's prose, not the selection.
+        return False
+    normalized = command.replace("\\", "/")
+    return any(marker in normalized for marker in FQ_CASE_MARKERS)
+
+
+def is_related_command(command):
+    """True when the command runs a case related to the local branch changes."""
+    if command.lstrip().startswith("#"):
+        return False
+    normalized = command.replace("\\", "/")
+    return any(marker in normalized for marker in RELATED_CASE_MARKERS)
+
+
+def selection_contains_fq(contents):
+    """True when a manifest selection includes at least one FQ case."""
+    return any(is_fq_command(line) for line in contents.splitlines())
+
+
+def is_federated_query_command(command):
+    """Detect external-engine dependencies, including stream and virtual tables."""
+    for argument in shlex.split(command):
+        if argument.startswith("FQ_REQUIRED_SERVICES="):
+            return argument != "FQ_REQUIRED_SERVICES=none"
+        path = re.sub(r",[0-9]+$", "", argument).replace("\\", "/").split("::", 1)[0]
+        if any(fnmatchcase(path, pattern) for pattern in FQ_CASE_PATTERNS):
+            return True
+    return False
+
+
+def registered_windows_fq_cases(task_text):
+    """Derive FQ allowlisting from active Windows registrations only."""
+    cases = []
+    for line in task_text.splitlines():
+        if not line.strip() or line.lstrip().startswith("#"):
+            continue
+        fields = line.split(",", 4)
+        if len(fields) != 5:
+            continue
+        for argument in shlex.split(fields[4]):
+            path = re.sub(r",[0-9]+$", "", argument).split("::", 1)[0]
+            if path.endswith(".py") and (
+                path.startswith("cases/09-DataQuerying/19-FederatedQuery/")
+                or "/03-ExtSource/" in path
+            ):
+                cases.append(path)
+    return tuple(dict.fromkeys(cases))
+
+
+FQ_SMOKE_CASES = registered_windows_fq_cases(
+    Path(__file__).with_name("win_cases.task").read_text(encoding="utf-8")
+)
+
+
+def windows_task_manifest(ci_dir, suite="smoke", task_file=""):
     """Keep the small default gate separate from the full Windows inventory."""
+    if suite not in ("smoke", "full"):
+        raise ValueError(f"Unknown Windows test suite: {suite}")
+    if task_file:
+        selected = (ci_dir / task_file).resolve()
+        if selected.parent != ci_dir.resolve() or selected.suffix != ".task":
+            raise ValueError("WIN_TASK_FILE must name a .task file in test/ci")
+        return selected.read_text(encoding="utf-8")
     smoke = (ci_dir / "win_cases.task").read_text(encoding="utf-8")
     if suite == "smoke":
         return smoke
     if suite == "full":
-        return (ci_dir / "cases.task").read_text(encoding="utf-8") + "\n" + smoke
+        return ((ci_dir / "cases.task").read_text(encoding="utf-8") + "\n" + smoke
+                + "\n" + (ci_dir / "win_full_cases.task").read_text(encoding="utf-8"))
     raise ValueError(f"Unknown Windows test suite: {suite}")
+
+
+def windows_fq_task_manifest(contents):
+    """Restrict shared task selections to provisionable Windows CI servers."""
+    supported = {"FQ_INFLUX_VERSIONS": "3.0", "FQ_ORACLE_VERSIONS": "26ai"}
+    rows = []
+    for line in contents.splitlines():
+        if not line.strip() or line.lstrip().startswith("#"):
+            rows.append(line)
+            continue
+        original = line
+        unavailable = []
+        for variable, version in supported.items():
+            pattern = rf"\b{variable}=(\"[^\"]*\"|'[^']*'|[^\s]+)"
+            def restrict(match):
+                selected = match.group(1).strip("\"'")
+                if selected and version not in {item.strip() for item in selected.split(",")}:
+                    unavailable.append(f"{variable}={selected}")
+                return f"{variable}={version}" if selected else match.group(0)
+            line = re.sub(pattern, restrict, line)
+        if unavailable:
+            rows.append("# Windows CI unavailable: " + "; ".join(unavailable))
+            rows.append("# " + original)
+        else:
+            rows.append(line)
+    return "\n".join(rows) + "\n"
 
 
 def is_excluded_command(command, exclusion_list, suite="full"):
@@ -88,18 +220,41 @@ def parse_case_line(line):
     # across multiple consumers. Windows can keep making progress past 30 min.
     if "cases/81-Tools/03-Benchmark/test_benchmark_query_rest.py" in shlex.split(pytest_cmd):
         timeout = 7200
+    explicit_case_timeout = legacy_timeout is not None
     if legacy_timeout:
         timeout = int(legacy_timeout.group(1))
     for argument in shlex.split(command):
         if argument.startswith("CASE_TIMEOUT="):
             timeout = int(argument.split("=", 1)[1])
+            explicit_case_timeout = True
+    # A per-method pytest deadline must not exceed the default process deadline.
+    # An explicit whole-command CASE_TIMEOUT still takes precedence.
+    if not explicit_case_timeout:
+        arguments = shlex.split(pytest_cmd)
+        pytest_timeout = 0
+        for index, argument in enumerate(arguments):
+            if argument == "--timeout":
+                pytest_timeout = float(arguments[index + 1])
+            elif argument.startswith("--timeout="):
+                pytest_timeout = float(argument.split("=", 1)[1])
+        if not math.isfinite(pytest_timeout) or pytest_timeout < 0:
+            raise ValueError(f"Invalid pytest timeout: {pytest_timeout}")
+        timeout = max(timeout, pytest_timeout)
     return pytest_cmd, timeout
 
 
-def pytest_log_name(command):
+def case_log_prefix(command):
+    """Case-file part of a pytest log name (the part before the env hash)."""
+    return shlex.split(command)[1].rsplit("/", 1)[-1].split("::", 1)[0]
+
+
+def pytest_log_name(command, environment=None):
     """Use a bounded Windows-safe name that distinguishes pytest selectors."""
-    case_file = shlex.split(command)[1].rsplit("/", 1)[-1].split("::", 1)[0]
-    digest = hashlib.sha256(command.encode("utf-8")).hexdigest()[:16]
+    case_file = case_log_prefix(command)
+    identity = command
+    if environment:
+        identity += "\0" + json.dumps(environment, sort_keys=True)
+    digest = hashlib.sha256(identity.encode("utf-8")).hexdigest()[:16]
     return f"{case_file}-{digest}.log"
 
 
@@ -113,7 +268,14 @@ def pytest_command_args(command, timeout=None):
         for argument in arguments
     ):
         arguments.append(f"--timeout={timeout}")
-    return [sys.executable, "-m", *arguments, "--clean"]
+    result = [sys.executable, "-m", *arguments]
+    # --clean is registered by test/conftest.py.  A case outside the test tree
+    # (the packaging installer check lives in ../packaging) is collected with
+    # rootdir=source/taos-community, where that conftest is never loaded, so
+    # pytest rejects the option ("unrecognized arguments: --clean").
+    if len(arguments) < 2 or not (arguments[1].startswith("..") or os.path.isabs(arguments[1])):
+        result.append("--clean")
+    return result
 
 
 def resume_task_manifest(contents, checkpoint):

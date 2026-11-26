@@ -158,6 +158,9 @@ int32_t tRowBuild(SArray *aColVal, const STSchema *pTSchema, SRow **ppRow, SRowB
 int32_t tRowBuildWithBlob(SArray *aColVal, const STSchema *pTSchema, SRow **ppRow, SBlobSet *pBlobSet,
                           SRowBuildScanInfo *sinfo);
 int32_t tRowGet(SRow *pRow, STSchema *pTSchema, int32_t iCol, SColVal *pColVal);
+// blobSeq: the rows were built with a blob set (the submit carries one), so a non-empty BLOB cell holds its 8 byte
+// seq; otherwise it holds the blob inline.
+int32_t tRowValidate(SRow *pRow, STSchema *pTSchema, bool blobSeq);
 
 typedef struct {
   uint64_t offset;
@@ -275,6 +278,7 @@ int32_t tColDataAddValueByDataBlockWithBlob(SColData *pColData, int8_t type, int
 // for encode/decode
 int32_t tEncodeColData(uint8_t version, SEncoder *pEncoder, SColData *pColData);
 int32_t tDecodeColData(uint8_t version, SDecoder *pDecoder, SColData *pColData, bool jump);
+int32_t tDecodeColDataByCid(uint8_t version, SDecoder *pDecoder, col_id_t cid, SColData *pColData);
 int32_t tEncodeRow(SEncoder *pEncoder, SRow *pRow);
 int32_t tDecodeRow(SDecoder *pDecoder, SRow **ppRow);
 

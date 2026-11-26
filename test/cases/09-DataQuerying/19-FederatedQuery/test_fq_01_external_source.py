@@ -32,12 +32,19 @@ from typing import Any, List, Optional, Sequence, Tuple, Union
 
 from taos.constants import FieldType
 
+import pytest
+
 from new_test_framework.utils import tdLog, tdSql
 
 from federated_query_common import (
     ExtSrcEnv,
+    TSDB_CODE_EXT_CONNECT_FAILED,
+    TSDB_CODE_PAR_SYNTAX_ERROR,
+    TSDB_CODE_EXT_DB_NOT_EXIST,
+    TSDB_CODE_EXT_SYNTAX_UNSUPPORTED,
     FederatedQueryCaseHelper,
     FederatedQueryVersionedMixin,
+    influx_versions,
 )
 
 # ── Connection globals (from ExtSrcEnv class-level attributes) ─────────────
@@ -143,6 +150,11 @@ class _SettleStep:
     so baselines are unchanged on every platform."""
     def __init__(self, seconds: float = 2.0):
         self.seconds = seconds
+
+class _DescribeSourceStep:
+    """Check the database after the client's asynchronous metadata update."""
+    def __init__(self, database: str):
+        self.database = database
 
 # ── Step helper functions ──────────────────────────────────────────────────
 
@@ -743,7 +755,10 @@ _CASES = [
             "drop external source if exists fq01_src030i",
             f"create external source fq01_src030i type='influxdb' host='192.0.2.200' port={_I_PORT} user='admin' database='{_I_DB}' options('api_token'='{_I_TOKEN}', 'protocol'='flight_sql', 'connect_timeout_ms'='500')",
             _q_count_step(negative=True),
-            f"alter external source fq01_src030i set host='{_I_HOST}', port={_I_PORT}",
+            # Restore a practical connect deadline for the recovery query: the
+            # 500 ms used to fail fast against the unreachable host is also the
+            # InfluxDB first-response deadline, and ASan can exceed it.
+            f"alter external source fq01_src030i set host='{_I_HOST}', port={_I_PORT}, options('connect_timeout_ms'='5000')",
             "describe external source fq01_src030i",
             "refresh external source fq01_src030i",
             _q_count_step(),
@@ -1047,6 +1062,12 @@ _CASES = [
             "alter external source fq01_src047m set options('connect_timeout_ms'='100', 'read_timeout_ms'='600000')",
             "select source_name, options from information_schema.ins_ext_sources where source_name='fq01_src047m'",
             "describe external source fq01_src047m",
+            # 100 is the validation boundary for the option, not a query-latency
+            # budget: the usability check below opens a fresh connection, and
+            # a 100 ms connect budget is too tight to be a reliable functional
+            # check on an ASan-instrumented CI client. Restore a practical value
+            # before asserting the source is still usable.
+            "alter external source fq01_src047m set options('connect_timeout_ms'='5000')",
             _q_count_step(),
             "alter external source fq01_src047m set options('connect_timeout_ms'='99')",
             "select source_name, options from information_schema.ins_ext_sources where source_name='fq01_src047m'",
@@ -1509,6 +1530,11 @@ _CASES = [
             "alter external source fq01_src047i set options('connect_timeout_ms'='100', 'read_timeout_ms'='600000')",
             "select source_name, options from information_schema.ins_ext_sources where source_name='fq01_src047i'",
             "describe external source fq01_src047i",
+            # 100 is the validation boundary, not a query-latency budget: the
+            # InfluxDB connectors also apply it to the first remote response,
+            # and an ASan-instrumented CI client can exceed it sporadically.
+            # Restore a practical value before asserting the source is usable.
+            "alter external source fq01_src047i set options('connect_timeout_ms'='5000')",
             _q_count_step(),
             # invalid: connect_timeout_ms < 100
             "alter external source fq01_src047i set options('connect_timeout_ms'='99')",
@@ -1969,6 +1995,12 @@ _CASES = [
             "alter external source fq01_src047p set options('connect_timeout_ms'='100', 'read_timeout_ms'='600000')",
             "select source_name, options from information_schema.ins_ext_sources where source_name='fq01_src047p'",
             "describe external source fq01_src047p",
+            # 100 is the validation boundary for the option, not a query-latency
+            # budget: the usability check below opens a fresh connection, and
+            # a 100 ms connect budget is too tight to be a reliable functional
+            # check on an ASan-instrumented CI client. Restore a practical value
+            # before asserting the source is still usable.
+            "alter external source fq01_src047p set options('connect_timeout_ms'='5000')",
             _q_count_step(),
             # below min (99 < 100)
             "alter external source fq01_src047p set options('connect_timeout_ms'='99')",
@@ -2667,7 +2699,7 @@ _CASES = [
             f"create external source fq01_src019s type='sqlserver' host='{_S_HOST}' port={_S_PORT} user='{_S_USER}' password='{_S_PASS}' database='{_S_DB}' schema='{_S_SCHEMA}'",
             _q_count_step(),
             "alter external source fq01_src019s set database='fq01_fw_alt_sdb'",
-            "describe external source fq01_src019s",
+            _DescribeSourceStep("fq01_fw_alt_sdb"),
             f"alter external source fq01_src019s set database='{_S_DB}'",
             _q_count_step(),
             _clear_source_step(),
@@ -2897,6 +2929,11 @@ _CASES = [
             "alter external source fq01_src047s set options('connect_timeout_ms'='100', 'read_timeout_ms'='600000')",
             "select source_name, options from information_schema.ins_ext_sources where source_name='fq01_src047s'",
             "describe external source fq01_src047s",
+            # 100 is the validation boundary for the option, not a login budget:
+            # SQL Server enforces it as a hard connection-login deadline, and
+            # an ASan-instrumented CI client can exceed it sporadically.
+            # Restore a practical value before asserting the source is usable.
+            "alter external source fq01_src047s set options('connect_timeout_ms'='5000')",
             _q_count_step(),
             "alter external source fq01_src047s set options('connect_timeout_ms'='99')",
             "select source_name, options from information_schema.ins_ext_sources where source_name='fq01_src047s'",
@@ -3286,7 +3323,7 @@ _CASES = [
             "drop external source if exists fq01_or001",
             f"create external source fq01_or001 type='oracle' host='{_O_HOST}' port={_O_PORT} user='{_O_USER}' password='{_O_PASS}' database='{_O_SERVICE}' schema='{_O_SCHEMA}'",
             "select source_name, `type`, `host`, `port`, `user`, `database`, `schema`, `options` from information_schema.ins_ext_sources where source_name='fq01_or001'",
-            f"describe fq01_or001.{_O_SCHEMA}.{_FW_TABLE}",
+            f"describe fq01_or001.`{_O_SCHEMA}`.{_FW_TABLE}",
             _q_count_step(),
             _clear_source_step(),
     ]],
@@ -3296,7 +3333,7 @@ _CASES = [
             "drop external source if exists fq01_or002",
             f"create external source fq01_or002 type='oracle' host='{_O_HOST}' port={_O_PORT} user='{_O_USER}' password='{_O_PASS}' database='{_O_SERVICE}'",
             f"select count(*) from fq01_or002.{_FW_TABLE}",
-            f"select count(*) from fq01_or002.{_O_SCHEMA}.{_FW_TABLE}",
+            f"select count(*) from fq01_or002.`{_O_SCHEMA}`.{_FW_TABLE}",
             _clear_source_step(),
     ]],
 
@@ -3361,7 +3398,7 @@ _CASES = [
     ["OREXT009", [_oracle], ["fq01_or009"], "FQOR-EXT-009 DESCRIBE shows the definition with the masked password", [
             "drop external source if exists fq01_or009",
             f"create external source fq01_or009 type='oracle' host='{_O_HOST}' port={_O_PORT} user='{_O_USER}' password='{_O_PASS}' database='{_O_SERVICE}' schema='{_O_SCHEMA}'",
-            f"describe fq01_or009.{_O_SCHEMA}.{_FW_TABLE}",
+            f"describe fq01_or009.`{_O_SCHEMA}`.{_FW_TABLE}",
             "describe external source fq01_or009",
             _clear_source_step(),
     ]],
@@ -3409,15 +3446,17 @@ _CASES = [
             f"create external source fq01_or013 type='oracle' host='{_O_HOST}' port={_O_PORT} user='{_O_USER}' password='{_O_PASS}' database='{_O_SERVICE}' schema='{_O_SCHEMA}'",
             f"select * from fq01_or013.{_FW_TABLE} where val=1",
             _oracle_exec_step([
-                f"ALTER TABLE {_FW_TABLE.upper()} ADD extra_col NUMBER(10)",
-                f"UPDATE {_FW_TABLE.upper()} SET extra_col = 7 WHERE val = 1",
+                # The fixture stores quoted lower-case names; Oracle matches
+                # exact spelling, so DDL/DML must quote them too.
+                f'ALTER TABLE "{_FW_TABLE}" ADD "extra_col" NUMBER(10)',
+                f'UPDATE "{_FW_TABLE}" SET "extra_col" = 7 WHERE "val" = 1',
                 "COMMIT",
             ]),
             f"select * from fq01_or013.{_FW_TABLE} where val=1",
             "refresh external source fq01_or013",
             f"select * from fq01_or013.{_FW_TABLE} where val=1",
             _oracle_exec_step([
-                f"ALTER TABLE {_FW_TABLE.upper()} DROP COLUMN extra_col",
+                f'ALTER TABLE "{_FW_TABLE}" DROP COLUMN "extra_col"',
             ]),
             "refresh external source fq01_or013",
             f"select extra_col from fq01_or013.{_FW_TABLE} where val=1",
@@ -3441,6 +3480,7 @@ _CASES = [
 
 class TestFq01ExternalSource(FederatedQueryVersionedMixin):
     _fw_data_prepared = False
+
 
     # Reset the client-side timezone to Asia/Shanghai so datetime rendering
     # stays aligned with the federated-query baselines.
@@ -3477,7 +3517,7 @@ class TestFq01ExternalSource(FederatedQueryVersionedMixin):
         except Exception:
             pass
 
-    def setup_method(self, method):
+    def _setup_version_data(self, method):
         if TestFq01ExternalSource._fw_data_prepared:
             return
         self._fw_prepare_shared_data()
@@ -3508,7 +3548,6 @@ class TestFq01ExternalSource(FederatedQueryVersionedMixin):
     def _fw_prepare_shared_data(self):
         mysql_cfg  = self._mysql_cfg()
         pg_cfg     = self._pg_cfg()
-        influx_cfg = self._influx_cfg()
 
         mysql_values = ", ".join(
             f"('{ts}', {val}, {score}, '{name}', {flag})"
@@ -3549,42 +3588,44 @@ class TestFq01ExternalSource(FederatedQueryVersionedMixin):
             f"insert into {_P_SCHEMA}.{_FW_TABLE} values {mysql_values}",
         ])
 
-        ExtSrcEnv.influx_create_db_cfg(influx_cfg, _I_DB)
-        influx_lines = [
-            (
-                f"{_FW_TABLE} val={val}i,score={score},flag={flag}i,name=\"{name}\" "
-                f"{_BASE_TS + idx * 60000}000000"
-            )
-            for idx, (_, val, score, name, flag) in enumerate(_FW_ROWS_DT)
-        ]
-        ExtSrcEnv.influx_write_cfg(influx_cfg, _I_DB, influx_lines)
-
-        # Oracle on Windows is deferred; still prepare the other providers.
-        if os.name == "nt":
-            return
+        for influx_cfg in ExtSrcEnv.influx_version_configs():
+            ExtSrcEnv.influx_create_db_cfg(influx_cfg, _I_DB)
+            influx_lines = [
+                (
+                    f"{_FW_TABLE} val={val}i,score={score},flag={flag}i,name=\"{name}\" "
+                    f"{_BASE_TS + idx * 60000}000000"
+                )
+                for idx, (_, val, score, name, flag) in enumerate(_FW_ROWS_DT)
+            ]
+            ExtSrcEnv.influx_write_cfg(influx_cfg, _I_DB, influx_lines)
 
         # ── Oracle ──
-        # The login schema is the default namespace; there is no per-test
-        # database to create (DS 5.3.2).  The timestamp literal is written with
-        # an explicit format because a bare string would be parsed with the
-        # session's NLS_TIMESTAMP_FORMAT.
-        # One INSERT per row: the multi-row VALUES constructor is 23ai-only
-        # and 11g rejects it with ORA-00933.
-        oracle_inserts = [
-            f"INSERT INTO {_FW_TABLE.upper()} (ts, val, score, name, flag) VALUES "
-            f"(TO_TIMESTAMP('{ts}', 'YYYY-MM-DD HH24:MI:SS.FF3'), {val}, {score}, '{name}', {flag})"
-            for ts, val, score, name, flag in _FW_ROWS_DT
-        ]
-        ExtSrcEnv.oracle_drop_table_cfg(self._oracle_cfg(), _FW_TABLE.upper())
-        ExtSrcEnv.oracle_exec_cfg(self._oracle_cfg(), [
-            (
-                f"CREATE TABLE {_FW_TABLE.upper()} ("
-                "ts TIMESTAMP(3), val NUMBER(10), score BINARY_DOUBLE, "
-                "name VARCHAR2(32), flag NUMBER(1))"
-            ),
-            *oracle_inserts,
-            "COMMIT",
-        ])
+        # Required-services aware: a run that does not list oracle in
+        # FQ_REQUIRED_SERVICES (the Windows CI runner has no Docker for the
+        # 11g container) leaves the Oracle fixture absent, the [ORA] cases are
+        # skipped below and the baseline comparison projects their blocks out.
+        if "oracle" in ExtSrcEnv.required_services():
+            # The login schema is the default namespace; there is no per-test
+            # database to create (DS 5.3.2).  The timestamp literal is written
+            # with an explicit format because a bare string would be parsed
+            # with the session's NLS_TIMESTAMP_FORMAT.
+            # One INSERT per row: the multi-row VALUES constructor is
+            # 23ai-only and 11g rejects it with ORA-00933.
+            oracle_inserts = [
+                f'INSERT INTO "{_FW_TABLE}" ("ts", "val", "score", "name", "flag") VALUES '
+                f"(TO_TIMESTAMP('{ts}', 'YYYY-MM-DD HH24:MI:SS.FF3'), {val}, {score}, '{name}', {flag})"
+                for ts, val, score, name, flag in _FW_ROWS_DT
+            ]
+            ExtSrcEnv.oracle_drop_table_cfg(self._oracle_cfg(), _FW_TABLE)
+            ExtSrcEnv.oracle_exec_cfg(self._oracle_cfg(), [
+                (
+                    f'CREATE TABLE "{_FW_TABLE}" ('
+                    '"ts" TIMESTAMP(3), "val" NUMBER(10), "score" BINARY_DOUBLE, '
+                    '"name" VARCHAR2(32), "flag" NUMBER(1))'
+                ),
+                *oracle_inserts,
+                "COMMIT",
+            ])
 
     # ──────────────────────────────────────────────────────────────────────
     # Framework helpers
@@ -3600,7 +3641,7 @@ class TestFq01ExternalSource(FederatedQueryVersionedMixin):
         elif src_type == _sqlserver:
             return f"{src_name}.{_S_SCHEMA}.{_FW_TABLE}"
         elif src_type == _oracle:
-            return f"{src_name}.{_O_SCHEMA}.{_FW_TABLE}"
+            return f"{src_name}.`{_O_SCHEMA}`.{_FW_TABLE}"
         else:  # influxdb
             return f"{src_name}.{_FW_TABLE}"
 
@@ -3754,6 +3795,27 @@ class TestFq01ExternalSource(FederatedQueryVersionedMixin):
         """
         if src_type != _influxdb:
             return sql
+        sql = self._rewrite_influx_source_endpoint(sql)
+        if self._influx_cfg().version == "1.8":
+            # Lifecycle SQL is shared with 3.x. Valid transport options select
+            # native HTTP; deliberately invalid options retain their errors.
+            if not re.search(r"fq01_src05[89]i\b", sql, re.I):
+                sql = re.sub(r"('api_token'\s*=\s*')[^']*(')", r"\1\2", sql, flags=re.I)
+            sql = re.sub(r"('protocol'\s*=\s*')(?:flight_sql|http)(')",
+                         r"\1http\2", sql, flags=re.I)
+            if "fq01_src048i" in sql:
+                # This case tests OPTIONS size. Native 1.8 supports a CA but
+                # rejects client certificates, so use one CA payload of the
+                # same combined size for the accepted/rejected boundaries.
+                sql = re.sub(r"'tls_client_cert'\s*=\s*'([^']*)'\s*,\s*'tls_client_key'\s*=\s*'([^']*)'",
+                             lambda m: "'tls_ca_cert'='" + m[1] + m[2] + "'", sql, flags=re.I)
+            if re.match(r"create\s+external\s+source", sql, re.I):
+                if re.search(r"options\s*\(", sql, re.I):
+                    if not re.search(r"'version'\s*=", sql, re.I):
+                        sql = re.sub(r"options\s*\(", "options('version'='1.8',", sql, count=1, flags=re.I)
+                else:
+                    sql = sql.rstrip().rstrip(';') + " options('version'='1.8')"
+            return self._rewrite_influx_source_credentials(sql)
         runtime_token = self._influx_cfg().token
         if not runtime_token or runtime_token == _I_TOKEN:
             return sql
@@ -3842,6 +3904,27 @@ class TestFq01ExternalSource(FederatedQueryVersionedMixin):
         # ── timing barrier (records nothing) ──────────────────────────────────
         if isinstance(step, _SettleStep):
             time.sleep(step.seconds)
+            return
+
+        if isinstance(step, _DescribeSourceStep):
+            sql = f"describe external source {self._fw_quote_src_name(primary_src)}"
+            deadline = time.monotonic() + 10
+            while True:
+                self._fw_query_once(sql, exit=True)
+                rows = tdSql.queryResult or []
+                if len(rows) == 1 and rows[0][_COL_DATABASE] == step.database:
+                    break
+                if time.monotonic() >= deadline:
+                    actual = [row[_COL_DATABASE] for row in rows]
+                    raise AssertionError(
+                        f"{label}: source database update timed out; "
+                        f"expected {step.database!r}, last got {actual!r}"
+                    )
+                time.sleep(0.1)
+            self._fw_append_step_block(
+                blocks, label, step_tag, "QUERY", sql,
+                self._fw_fmt_result(tdSql.cursor.description, rows),
+            )
             return
 
         if isinstance(step, str):
@@ -4011,7 +4094,7 @@ class TestFq01ExternalSource(FederatedQueryVersionedMixin):
     # ──────────────────────────────────────────────────────────────────────
 
     def _fw_baseline_file(self) -> str:
-        label = self._version_label().replace(".", "_").replace("/", "_")
+        label = self._framework_baseline_label()
         return os.path.join(
             os.path.dirname(__file__),
             "ans",
@@ -4062,7 +4145,7 @@ class TestFq01ExternalSource(FederatedQueryVersionedMixin):
 
         with open(baseline, "r", encoding="utf-8") as f:
             expected = f.read()
-        if os.name == "nt":
+        if "oracle" not in ExtSrcEnv.required_services():
             expected = self._fw_without_oracle_baseline(expected)
         # Apply the same syntax-error normalisation to the baseline so that
         # differences caused by TDengine error-message truncation are absorbed.
@@ -4111,7 +4194,7 @@ class TestFq01ExternalSource(FederatedQueryVersionedMixin):
 
     @staticmethod
     def _fw_without_oracle_baseline(text: str) -> str:
-        """Keep the committed non-Oracle case blocks for the Windows run."""
+        """Keep the committed non-Oracle case blocks for a run without Oracle."""
         sections = re.split(r"(?m)(?=^={96}\nCASE START:)", text)
         return "".join(section for section in sections
                        if not re.match(r"={96}\nCASE START: [^\n]+\[ORA\]\n", section))
@@ -4119,6 +4202,27 @@ class TestFq01ExternalSource(FederatedQueryVersionedMixin):
     # ──────────────────────────────────────────────────────────────────────
     # Main test entry point
     # ──────────────────────────────────────────────────────────────────────
+
+    def _fw_case_steps(self, case_id, src_type, desc, steps):
+        if src_type != _influxdb or self._influx_cfg().version != "1.8" or case_id not in ("057i", "058i", "059i"):
+            return desc, steps
+        cfg = self._influx_cfg()
+        src = "fq01_src" + case_id
+        valid = self._mk_influx_source_sql(src, cfg.host, cfg.port, "", database=_I_DB)
+        invalid = self._mk_influx_source_sql(src, cfg.host, cfg.port, "INVALID_TOKEN_12345", database=_I_DB)
+        if case_id == "057i":
+            return "1.8 queries with Basic USER/PASSWORD instead of api_token", [
+                f"drop external source if exists {src}", valid,
+                f"describe external source {src}", _q_count_step(), _clear_source_step()]
+        if case_id == "058i":
+            return "1.8 rejects api_token on CREATE without metadata residue; empty token works", [
+                f"drop external source if exists {src}", invalid,
+                f"select count(*) from information_schema.ins_ext_sources where source_name='{src}'",
+                valid, _q_count_step(), _clear_source_step()]
+        return "1.8 rejects api_token on ALTER and preserves the working source", [
+            f"drop external source if exists {src}", valid, _q_count_step(),
+            f"alter external source {src} set options('api_token'='INVALID_TOKEN_12345')",
+            f"refresh external source {src}", _q_count_step(), _clear_source_step()]
 
     def test_fq_ext_src_framework(self):
         # FQ_CASES="009,012" → only run CASE-009 and CASE-012
@@ -4131,39 +4235,244 @@ class TestFq01ExternalSource(FederatedQueryVersionedMixin):
         """
         _only = os.environ.get("FQ_CASES", "").strip()
         _only_set = set(_only.split(",")) if _only else None
-        blocks: List[str] = []
+        configs = self._influx_configs()
+        version_blocks = {cfg.version: [] for cfg in configs}
         timings: List[str] = []
+
         for case in _CASES:
             case_id, types, source_names, desc, steps = case
             if _only_set and case_id not in _only_set:
                 continue
             for src_type in types:
-                if os.name == "nt" and src_type == _oracle:
-                    tdLog.info(f"Skipping Oracle {case_id}: Windows FQ Oracle support is deferred")
+                if src_type == _oracle and "oracle" not in ExtSrcEnv.required_services():
                     continue
-                label = f"CASE-{case_id}[{src_type[:3].upper()}]"
-                tdLog.info(f"Running {label}: {desc}")
-                self._fw_append_case_boundary(blocks, label, desc, is_start=True)
-                _t0 = time.monotonic()
-                step_no = 0
-                for step in steps:
-                    # _SettleStep is a pure timing barrier: it emits no block and
-                    # does not consume a STEP number, so baselines stay valid.
-                    if isinstance(step, _SettleStep):
-                        self._fw_exec_step(step, src_type, source_names, blocks, label, "")
-                        continue
-                    step_no += 1
-                    step_tag = f"STEP-{step_no:03d}"
-                    self._fw_exec_step(step, src_type, source_names, blocks, label, step_tag)
-                elapsed = time.monotonic() - _t0
-                self._fw_append_case_boundary(blocks, label, desc, is_start=False)
-                timing_line = f"{label}: {elapsed:.2f}s"
-                print(f"[TIMING] {timing_line}", flush=True)
-                timings.append(timing_line)
+                for cfg in (configs if src_type == _influxdb else [None]):
+                    with self._using_influx(cfg):
+                        blocks = []
+                        desc, steps = case[3], case[4]
+                        desc, steps = self._fw_case_steps(case_id, src_type, desc, steps)
+                        label = f"CASE-{case_id}[{src_type[:3].upper()}]"
+                        tdLog.info(f"Running {label}: {desc}")
+                        self._fw_append_case_boundary(blocks, label, desc, is_start=True)
+                        _t0 = time.monotonic()
+                        step_no = 0
+                        for step in steps:
+                            # _SettleStep is a pure timing barrier: it emits no block and
+                            # does not consume a STEP number, so baselines stay valid.
+                            if isinstance(step, _SettleStep):
+                                self._fw_exec_step(step, src_type, source_names, blocks, label, "")
+                                continue
+                            step_no += 1
+                            step_tag = f"STEP-{step_no:03d}"
+                            self._fw_exec_step(step, src_type, source_names, blocks, label, step_tag)
+                        elapsed = time.monotonic() - _t0
+                        self._fw_append_case_boundary(blocks, label, desc, is_start=False)
+                        timing_line = f"{label}: {elapsed:.2f}s"
+                        print(f"[TIMING] {timing_line}", flush=True)
+                        timings.append(timing_line)
+                        targets = version_blocks.values() if cfg is None else [version_blocks[cfg.version]]
+                        for target in targets:
+                            target.extend(blocks)
         print("[TIMING SUMMARY]", flush=True)
         for t in timings:
             print(f"  {t}", flush=True)
         if _only_set:
             tdLog.info(f"FQ_CASES={_only} — skipping baseline comparison")
         else:
-            self._fw_compare_baseline(blocks)
+            for cfg in configs:
+                with self._using_influx(cfg):
+                    self._fw_compare_baseline(version_blocks[cfg.version])
+
+    def do_influx18_retention_policy(self):
+        if self._influx_cfg().version != "1.8":
+            pytest.skip("This case verifies the native InfluxDB 1.8 contract")
+        timestamp = 1700000000000000001
+        database = "fq01_influx18_retention_policy"
+        lines = [
+            f"sparse,site=a value=1i {timestamp}",
+            f"sparse,site=b other=2i {timestamp + 1}",
+            f"sparse,site=a value=3i {timestamp + 2}",
+            f'wide signed=9007199254740993i {timestamp}',
+        ]
+        with self._influx_fixture(database, lines) as (cfg, source):
+            def create_source(name, extra="", port=None):
+                self._cleanup_src(name)
+                tdSql.execute(self._mk_influx_source_sql(
+                    name, cfg.host, port or cfg.port, "", database=database,
+                    extra_options=extra.lstrip(",") or None))
+
+            try:
+                create_source(source + "_offline", port=1)
+                tdSql.error(f"SELECT * FROM {source}_offline.{database}.sparse",
+                            expectedErrno=TSDB_CODE_EXT_CONNECT_FAILED)
+                create_source(source + "_missing", ",'retention_policy'='missing'")
+                tdSql.error(f"SELECT * FROM {source}_missing.{database}.sparse",
+                            expectedErrno=TSDB_CODE_EXT_DB_NOT_EXIST)
+                for options, errno in [
+                    ("'version'='2'", TSDB_CODE_PAR_SYNTAX_ERROR),
+                    ("'version'='1.8','protocol'='flight_sql'", TSDB_CODE_EXT_SYNTAX_UNSUPPORTED),
+                    ("'version'='1.8','api_token'='token'", TSDB_CODE_EXT_SYNTAX_UNSUPPORTED),
+                    ("'version'='3','retention_policy'='autogen'", TSDB_CODE_EXT_SYNTAX_UNSUPPORTED),
+                ]:
+                    tdSql.error(f"CREATE EXTERNAL SOURCE fq18_invalid TYPE='influxdb' HOST='127.0.0.1' PORT=1 USER='u' PASSWORD='p' OPTIONS({options})",
+                                expectedErrno=errno)
+                    if options == "'version'='2'":
+                        assert "InfluxDB version must be 1.8 or 3" in tdSql.error_info, tdSql.error_info
+                tdSql.query("SHOW EXTERNAL SOURCES")
+                assert not any(row[0] == "fq18_invalid" for row in tdSql.queryResult)
+                ExtSrcEnv.influx_query_sql_cfg(cfg, database,
+                    f'CREATE RETENTION POLICY "KeepCase" ON "{database}" DURATION INF REPLICATION 1')
+                ExtSrcEnv.influx_write_cfg(cfg, database,
+                    [f"sparse,site=a value=88i {timestamp}"], retention_policy="KeepCase")
+                create_source(source + "_rp", ",'retention_policy'='KeepCase'")
+                self._check_query_rows(f"SELECT value FROM {source}_rp.{database}.sparse", [(88,)])
+                self._check_query_rows(f"SELECT signed FROM {source}_rp.{database}.wide", [])
+                assert tdSql.queryCols == 1
+                self._check_query_rows(f"SELECT COUNT(*) FROM {source}.{database}.sparse", [(3,)])
+                ExtSrcEnv.influx_query_sql_cfg(cfg, database,
+                    f'ALTER RETENTION POLICY "KeepCase" ON "{database}" DEFAULT')
+                try:
+                    self._check_query_rows(f"SELECT COUNT(*) FROM {source}.{database}.sparse", [(3,)])
+                    tdSql.execute(f"REFRESH EXTERNAL SOURCE {source}")
+                    self._check_query_rows(f"SELECT value FROM {source}.{database}.sparse", [(88,)])
+                finally:
+                    ExtSrcEnv.influx_query_sql_cfg(cfg, database,
+                        f'ALTER RETENTION POLICY "autogen" ON "{database}" DEFAULT')
+                    tdSql.execute(f"REFRESH EXTERNAL SOURCE {source}")
+                other_database = database + "_other"
+                local_database = "fq01_influx18_rp_refs"
+                ExtSrcEnv.influx_drop_db_cfg(cfg, other_database)
+                ExtSrcEnv.influx_create_db_cfg(cfg, other_database)
+                try:
+                    ExtSrcEnv.influx_write_cfg(cfg, database, [f"rp_rows,site=a value=10i {timestamp}"])
+                    ExtSrcEnv.influx_write_cfg(cfg, other_database, [f"rp_rows,site=a value=900i {timestamp}"])
+                    ExtSrcEnv.influx_query_sql_cfg(cfg, other_database,
+                        f'CREATE RETENTION POLICY "OtherDefault" ON "{other_database}" DURATION INF REPLICATION 1 DEFAULT')
+                    ExtSrcEnv.influx_write_cfg(cfg, other_database,
+                        [f"rp_rows,site=a value=20i {timestamp}"], retention_policy="OtherDefault")
+                    tdSql.execute(f"DROP DATABASE IF EXISTS {local_database}")
+                    tdSql.execute(f"CREATE DATABASE {local_database} PRECISION 'ns'")
+                    tdSql.execute(f"CREATE STABLE {local_database}.parent (ts TIMESTAMP,v BIGINT) TAGS(id INT) VIRTUAL 1")
+                    for name, remote, tag in [("child_a", database, 1), ("child_b", other_database, 2)]:
+                        tdSql.execute(
+                            f"CREATE VTABLE {local_database}.{name} (v FROM s.value) "
+                            f"USING {local_database}.parent TAGS({tag}) "
+                            f"SERIES s AS {source}.{remote}.rp_rows (site='a')")
+                    query = f"SELECT id,v FROM {local_database}.parent"
+                    self._check_query_rows(query + " ORDER BY id", [(1, 10), (2, 20)])
+                    self._check_query_rows(query + " ORDER BY id DESC", [(2, 20), (1, 10)])
+                    self._check_query_rows(f"SELECT value FROM {source}.{other_database}.rp_rows", [(20,)])
+                    self._check_query_rows(query + " WHERE ts>=-9223372036854775807 AND ts<9223372036854775807 ORDER BY id",
+                                           [(1, 10), (2, 20)])
+                    self._check_query_rows(query + " WHERE ts>=9223372036854775807", [])
+                    self._check_query_rows(query + " WHERE ts<-9223372036854775806", [])
+                finally:
+                    tdSql.execute(f"DROP DATABASE IF EXISTS {local_database}")
+                    ExtSrcEnv.influx_drop_db_cfg(cfg, other_database)
+            finally:
+                self._cleanup_src(source + "_rp", source + "_missing", source + "_offline", "fq18_invalid")
+        print("InfluxDB 1.8 retention_policy ................ [ passed ]")
+
+    @influx_versions("1.8")
+    def test_influx18_retention_policy(self):
+        """Validate local source configuration, RP selection and REFRESH.
+
+        1. Validate unsupported options and configured retention policies.
+        2. Check default RP changes remain pinned until REFRESH.
+        3. Keep different database defaults isolated across virtual children and clamp wide time predicates.
+
+        Catalog:
+            - FederatedQuery
+
+        Since: v3.5.0.0
+
+        Labels: common, ci, influx18
+
+        Jira: None
+
+        History:
+            - 2026-10-29 Add RP and source-configuration coverage
+
+        """
+        self.do_influx18_retention_policy()
+
+
+    def do_influx_version_round_trip(self):
+        import json
+        configured_versions = set(ExtSrcEnv.INFLUX_VERSIONS)
+        required_versions = {"3.0", "1.8"}
+        if not required_versions.issubset(configured_versions):
+            pytest.skip(
+                "InfluxDB version round-trip requires 3.0 and 1.8; "
+                f"configured: {sorted(configured_versions)}"
+            )
+        database = "fq01_version_round_trip"
+        source = database + "_src"
+        configs = [ExtSrcEnv.influx_config(version) for version in ("3.0", "1.8")]
+        self._cleanup_src(source)
+        try:
+            for cfg, value in zip(configs, (300, 18)):
+                ExtSrcEnv.influx_drop_db_cfg(cfg, database)
+                ExtSrcEnv.influx_create_db_cfg(cfg, database)
+                field = "only18" if cfg.version == "1.8" else "only3"
+                ExtSrcEnv.influx_write_cfg(cfg, database, [f"rows value={value}i,{field}={value}i 1700000000000000000"])
+            first = True
+            for cfg, expected, version in [(configs[0], 300, "3"), (configs[1], 18, "1.8"),
+                                           (configs[0], 300, ""), (configs[1], 18, "1.8")]:
+                if first:
+                    tdSql.execute(self._mk_influx_source_sql(
+                        source, cfg.host, cfg.port, cfg.token, database=database,
+                        protocol="http", version=cfg.version))
+                    first = False
+                else:
+                    user, password = ExtSrcEnv.influx_source_credentials(cfg.version)
+                    # ALTER does not accept an empty PASSWORD; 3.x authenticates with its token.
+                    password = password or "unused-token-auth"
+                    token = cfg.token if cfg.version != "1.8" else ""
+                    tdSql.execute(f"ALTER EXTERNAL SOURCE {source} SET HOST='{cfg.host}', PORT={cfg.port}, "
+                                  f"USER='{user}', PASSWORD='{password}', OPTIONS('version'='{version}',"
+                                  f"'protocol'='http','api_token'='{token}','retention_policy'='')")
+                for _ in range(2):
+                    self._check_query_rows(f"SELECT value FROM {source}.{database}.rows", [(expected,)])
+                tdSql.query("SHOW EXTERNAL SOURCES")
+                row = next(row for row in tdSql.queryResult if row[0] == source)
+                assert str(row[2]) == cfg.host and int(row[3]) == cfg.port, row
+                options = json.loads(str(row[8]))
+                assert options.get("version", "3") == ("1.8" if cfg.version == "1.8" else "3"), options
+                if cfg.version == "1.8":
+                    assert "api_token" not in options, options
+                field, obsolete = ("only18", "only3") if cfg.version == "1.8" else ("only3", "only18")
+                tdSql.query(f"DESCRIBE {source}.{database}.rows")
+                columns = {row[0] for row in tdSql.queryResult}
+                assert field in columns and obsolete not in columns, columns
+                self._check_query_rows(f"SELECT {field} FROM {source}.{database}.rows", [(expected,)])
+                tdSql.query(f"EXPLAIN VERBOSE TRUE SELECT SUM(value) FROM {source}.{database}.rows")
+                plan = "\n".join(str(row[0]) for row in tdSql.queryResult)
+                assert ("influxdb-1.8" in plan) == (cfg.version == "1.8"), plan
+                self._check_query_rows(f"SELECT SUM(value) FROM {source}.{database}.rows", [(expected,)])
+        finally:
+            self._cleanup_src(source)
+            for cfg in configs:
+                ExtSrcEnv.influx_drop_db_cfg(cfg, database)
+        print("InfluxDB version round trip ................ [ passed ]")
+
+    def test_influx_version_round_trip(self):
+        """Switch a live source between native HTTP providers and invalidate cached metadata.
+
+        1. Warm both query and schema caches before switching endpoints and credentials.
+        2. Check 3.x, 1.8 and deletion of version back to the default 3.x provider.
+
+        Catalog:
+            - FederatedQuery
+
+        Since: v3.5.0.0
+
+        Labels: common, ci
+
+        Jira: None
+
+        History:
+            - 2026-11-02 Add live provider switching regression
+
+        """
+        self.do_influx_version_round_trip()

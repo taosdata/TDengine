@@ -701,7 +701,7 @@ _exit:
 // OP_TYPE_ASSIGN = 200 is the highest value; size = 201.
 #define FQ_OP_CAP_TABLE_SIZE 201
 
-static const uint16_t kFqOpCap[FQ_OP_CAP_TABLE_SIZE] = {
+static const uint32_t kFqOpCap[FQ_OP_CAP_TABLE_SIZE] = {
   // [0] - not a valid operator
   [0]                         = FQ_CAP_NONE,
 
@@ -710,12 +710,12 @@ static const uint16_t kFqOpCap[FQ_OP_CAP_TABLE_SIZE] = {
   // shared FQ_CAP_ALL macro; each phase turns its bits on entry by entry).
   // Oracle rewrites are in DS 5.3.12: `/` and `%` get a zero-divisor CASE,
   // `&`/`|` become BITAND / `a + b - BITAND(a, b)`.
-  [OP_TYPE_ADD]               = FQ_CAP_ALL | FQ_CAP_SQLSERVER | FQ_CAP_ORACLE,
-  [OP_TYPE_SUB]               = FQ_CAP_ALL | FQ_CAP_SQLSERVER | FQ_CAP_ORACLE,
-  [OP_TYPE_MULTI]             = FQ_CAP_ALL | FQ_CAP_SQLSERVER | FQ_CAP_ORACLE,
-  [OP_TYPE_DIV]               = FQ_CAP_ALL | FQ_CAP_SQLSERVER | FQ_CAP_ORACLE,
+  [OP_TYPE_ADD]               = FQ_CAP_ALL | FQ_CAP_SQLSERVER | FQ_CAP_ORACLE | FQ_CAP_INFLUX_1_8,
+  [OP_TYPE_SUB]               = FQ_CAP_ALL | FQ_CAP_SQLSERVER | FQ_CAP_ORACLE | FQ_CAP_INFLUX_1_8,
+  [OP_TYPE_MULTI]             = FQ_CAP_ALL | FQ_CAP_SQLSERVER | FQ_CAP_ORACLE | FQ_CAP_INFLUX_1_8,
+  [OP_TYPE_DIV]               = FQ_CAP_ALL | FQ_CAP_SQLSERVER | FQ_CAP_ORACLE | FQ_CAP_INFLUX_1_8,
   [OP_TYPE_REM]               = FQ_CAP_ALL | FQ_CAP_SQLSERVER | FQ_CAP_ORACLE,
-  [OP_TYPE_MINUS]             = FQ_CAP_ALL | FQ_CAP_SQLSERVER | FQ_CAP_ORACLE,
+  [OP_TYPE_MINUS]             = FQ_CAP_ALL | FQ_CAP_SQLSERVER | FQ_CAP_ORACLE | FQ_CAP_INFLUX_1_8,
 
   // Bitwise operators - MySQL and PG support natively; InfluxDB v3 does not.
   // Oracle has no operators, only BITAND(); `|` is the arithmetic identity.
@@ -723,16 +723,16 @@ static const uint16_t kFqOpCap[FQ_OP_CAP_TABLE_SIZE] = {
   [OP_TYPE_BIT_OR]            = FQ_CAP_MYSQL_PG | FQ_CAP_SQLSERVER | FQ_CAP_ORACLE,
 
   // Comparison operators - all dialects
-  [OP_TYPE_GREATER_THAN]      = FQ_CAP_ALL | FQ_CAP_SQLSERVER | FQ_CAP_ORACLE,
-  [OP_TYPE_GREATER_EQUAL]     = FQ_CAP_ALL | FQ_CAP_SQLSERVER | FQ_CAP_ORACLE,
-  [OP_TYPE_LOWER_THAN]        = FQ_CAP_ALL | FQ_CAP_SQLSERVER | FQ_CAP_ORACLE,
-  [OP_TYPE_LOWER_EQUAL]       = FQ_CAP_ALL | FQ_CAP_SQLSERVER | FQ_CAP_ORACLE,
-  [OP_TYPE_EQUAL]             = FQ_CAP_ALL | FQ_CAP_SQLSERVER | FQ_CAP_ORACLE,
-  [OP_TYPE_NOT_EQUAL]         = FQ_CAP_ALL | FQ_CAP_SQLSERVER | FQ_CAP_ORACLE,
-  [OP_TYPE_IN]                = FQ_CAP_ALL | FQ_CAP_SQLSERVER | FQ_CAP_ORACLE,
-  [OP_TYPE_NOT_IN]            = FQ_CAP_ALL | FQ_CAP_SQLSERVER | FQ_CAP_ORACLE,
-  [OP_TYPE_LIKE]              = FQ_CAP_ALL | FQ_CAP_SQLSERVER | FQ_CAP_ORACLE,
-  [OP_TYPE_NOT_LIKE]          = FQ_CAP_ALL | FQ_CAP_SQLSERVER | FQ_CAP_ORACLE,
+  [OP_TYPE_GREATER_THAN]      = FQ_CAP_ALL | FQ_CAP_SQLSERVER | FQ_CAP_ORACLE | FQ_CAP_INFLUX_1_8,
+  [OP_TYPE_GREATER_EQUAL]     = FQ_CAP_ALL | FQ_CAP_SQLSERVER | FQ_CAP_ORACLE | FQ_CAP_INFLUX_1_8,
+  [OP_TYPE_LOWER_THAN]        = FQ_CAP_ALL | FQ_CAP_SQLSERVER | FQ_CAP_ORACLE | FQ_CAP_INFLUX_1_8,
+  [OP_TYPE_LOWER_EQUAL]       = FQ_CAP_ALL | FQ_CAP_SQLSERVER | FQ_CAP_ORACLE | FQ_CAP_INFLUX_1_8,
+  [OP_TYPE_EQUAL]             = FQ_CAP_ALL | FQ_CAP_SQLSERVER | FQ_CAP_ORACLE | FQ_CAP_INFLUX_1_8,
+  [OP_TYPE_NOT_EQUAL]         = FQ_CAP_ALL | FQ_CAP_SQLSERVER | FQ_CAP_ORACLE | FQ_CAP_INFLUX_1_8,
+  [OP_TYPE_IN]                = FQ_CAP_ALL | FQ_CAP_SQLSERVER | FQ_CAP_ORACLE | FQ_CAP_INFLUX_1_8,
+  [OP_TYPE_NOT_IN]            = FQ_CAP_ALL | FQ_CAP_SQLSERVER | FQ_CAP_ORACLE | FQ_CAP_INFLUX_1_8,
+  [OP_TYPE_LIKE]              = FQ_CAP_ALL | FQ_CAP_SQLSERVER | FQ_CAP_ORACLE | FQ_CAP_INFLUX_1_8,
+  [OP_TYPE_NOT_LIKE]          = FQ_CAP_ALL | FQ_CAP_SQLSERVER | FQ_CAP_ORACLE | FQ_CAP_INFLUX_1_8,
   // MATCH/NMATCH (regex): MySQL and PG support; InfluxDB DataFusion does not;
   // SQL Server 2019/2022 has no regex operator (local).  Oracle has REGEXP_LIKE,
   // but only the ERE constructs that glibc (TDengine's engine) and Oracle read
@@ -743,8 +743,8 @@ static const uint16_t kFqOpCap[FQ_OP_CAP_TABLE_SIZE] = {
 
   // Null/bool checks - all dialects.  Oracle 19c has no IS [NOT] TRUE/FALSE/
   // UNKNOWN syntax; the operator renderer rewrites the family to CASE.
-  [OP_TYPE_IS_NULL]           = FQ_CAP_ALL | FQ_CAP_SQLSERVER | FQ_CAP_ORACLE,
-  [OP_TYPE_IS_NOT_NULL]       = FQ_CAP_ALL | FQ_CAP_SQLSERVER | FQ_CAP_ORACLE,
+  [OP_TYPE_IS_NULL]           = FQ_CAP_ALL | FQ_CAP_SQLSERVER | FQ_CAP_ORACLE | FQ_CAP_INFLUX_1_8,
+  [OP_TYPE_IS_NOT_NULL]       = FQ_CAP_ALL | FQ_CAP_SQLSERVER | FQ_CAP_ORACLE | FQ_CAP_INFLUX_1_8,
   [OP_TYPE_IS_TRUE]           = FQ_CAP_ALL | FQ_CAP_SQLSERVER | FQ_CAP_ORACLE,
   [OP_TYPE_IS_FALSE]          = FQ_CAP_ALL | FQ_CAP_SQLSERVER | FQ_CAP_ORACLE,
   [OP_TYPE_IS_UNKNOWN]        = FQ_CAP_ALL | FQ_CAP_SQLSERVER | FQ_CAP_ORACLE,
@@ -767,7 +767,7 @@ static const uint16_t kFqOpCap[FQ_OP_CAP_TABLE_SIZE] = {
 
 // -- FQ clause push-down capability bitmap ------------------------------------
 // Indexed by EExtClauseKind.
-static const uint16_t kFqClauseCap[EXT_CLAUSE_MAX] = {
+static const uint32_t kFqClauseCap[EXT_CLAUSE_MAX] = {
   // Core push-down gates - all dialects support these.
   // SQL Server / Oracle bits are OR-ed entry by entry (DS 6.2.2).  Phase 2 M1
   // opens FILTER + PROJECTION, M2 adds the aggregate clauses (AGG / HAVING /
@@ -775,11 +775,11 @@ static const uint16_t kFqClauseCap[EXT_CLAUSE_MAX] = {
   // (TOP/OFFSET-FETCH, NULLS rewriting, ...).  Oracle renders LIMIT as
   // FETCH FIRST / OFFSET ... FETCH NEXT and always emits explicit NULLS
   // FIRST/LAST (DS 5.3.6, 5.3.14).
-  [EXT_CLAUSE_FILTER]         = FQ_CAP_ALL | FQ_CAP_SQLSERVER | FQ_CAP_ORACLE,
-  [EXT_CLAUSE_PROJECTION]     = FQ_CAP_ALL | FQ_CAP_SQLSERVER | FQ_CAP_ORACLE,
-  [EXT_CLAUSE_AGG]            = FQ_CAP_ALL | FQ_CAP_SQLSERVER | FQ_CAP_ORACLE,
-  [EXT_CLAUSE_ORDER]          = FQ_CAP_ALL | FQ_CAP_SQLSERVER | FQ_CAP_ORACLE,
-  [EXT_CLAUSE_LIMIT]          = FQ_CAP_ALL | FQ_CAP_SQLSERVER | FQ_CAP_ORACLE,   // SQL Server: TOP / OFFSET ... FETCH NEXT; Oracle: FETCH FIRST / OFFSET ... FETCH NEXT
+  [EXT_CLAUSE_FILTER]         = FQ_CAP_ALL | FQ_CAP_SQLSERVER | FQ_CAP_ORACLE | FQ_CAP_INFLUX_1_8,
+  [EXT_CLAUSE_PROJECTION]     = FQ_CAP_ALL | FQ_CAP_SQLSERVER | FQ_CAP_ORACLE | FQ_CAP_INFLUX_1_8,
+  [EXT_CLAUSE_AGG]            = FQ_CAP_ALL | FQ_CAP_SQLSERVER | FQ_CAP_ORACLE | FQ_CAP_INFLUX_1_8,
+  [EXT_CLAUSE_ORDER]          = FQ_CAP_ALL | FQ_CAP_SQLSERVER | FQ_CAP_ORACLE | FQ_CAP_INFLUX_1_8,
+  [EXT_CLAUSE_LIMIT]          = FQ_CAP_ALL | FQ_CAP_SQLSERVER | FQ_CAP_ORACLE | FQ_CAP_INFLUX_1_8,   // SQL Server: TOP / OFFSET ... FETCH NEXT; Oracle: FETCH FIRST / OFFSET ... FETCH NEXT
   [EXT_CLAUSE_JOIN]           = FQ_CAP_ALL | FQ_CAP_SQLSERVER | FQ_CAP_ORACLE,   // All dialects support JOIN (InfluxDB v3 DataFusion included)
 
   // Static feature flags
@@ -787,7 +787,7 @@ static const uint16_t kFqClauseCap[EXT_CLAUSE_MAX] = {
   [EXT_CLAUSE_HAVING]            = FQ_CAP_ALL | FQ_CAP_SQLSERVER | FQ_CAP_ORACLE,
   [EXT_CLAUSE_ORDER_NULLS_FIRST] = FQ_CAP_ALL | FQ_CAP_SQLSERVER | FQ_CAP_ORACLE,  // MySQL: ISNULL() workaround; PG/Influx/Oracle: native; SQL Server: CASE prefix key
   [EXT_CLAUSE_ORDER_NULLS_LAST]  = FQ_CAP_ALL | FQ_CAP_SQLSERVER | FQ_CAP_ORACLE,
-  [EXT_CLAUSE_OFFSET]            = FQ_CAP_ALL | FQ_CAP_SQLSERVER | FQ_CAP_ORACLE,
+  [EXT_CLAUSE_OFFSET]            = FQ_CAP_ALL | FQ_CAP_SQLSERVER | FQ_CAP_ORACLE | FQ_CAP_INFLUX_1_8,
   [EXT_CLAUSE_DISTINCT]          = FQ_CAP_ALL | FQ_CAP_SQLSERVER | FQ_CAP_ORACLE,
 
   // JOIN subtypes
@@ -806,12 +806,12 @@ static const uint16_t kFqClauseCap[EXT_CLAUSE_MAX] = {
   [EXT_CLAUSE_EXISTS_SUBQUERY]   = FQ_CAP_MYSQL_PG | FQ_CAP_SQLSERVER | FQ_CAP_ORACLE, // MySQL/PG: [NOT] EXISTS (subquery); InfluxDB: no EXISTS subquery; T-SQL/Oracle native
 
   // INTERVAL
-  [EXT_CLAUSE_INTERVAL_TUMBLING] = FQ_CAP_ALL | FQ_CAP_SQLSERVER | FQ_CAP_ORACLE,  // MySQL: FROM_UNIXTIME(FLOOR(...)); PG: DATE_BIN; InfluxDB: DATE_BIN(INTERVAL); T-SQL: DATEADD+DATEDIFF_BIG; Oracle: epoch + NUMTODSINTERVAL
+  [EXT_CLAUSE_INTERVAL_TUMBLING] = FQ_CAP_ALL | FQ_CAP_SQLSERVER | FQ_CAP_ORACLE | FQ_CAP_INFLUX_1_8,  // MySQL: FROM_UNIXTIME(FLOOR(...)); PG: DATE_BIN; InfluxDB: DATE_BIN(INTERVAL); T-SQL: DATEADD+DATEDIFF_BIG; Oracle: epoch + NUMTODSINTERVAL
   [EXT_CLAUSE_INTERVAL_SLIDING]  = FQ_CAP_NONE,
 
   // PARTITION BY
   [EXT_CLAUSE_PARTITION_TBNAME]  = FQ_CAP_INFLUX,  // InfluxDB: tag-based GROUP BY; MySQL/PG/Oracle: no supertable concept
-  [EXT_CLAUSE_PARTITION_COLUMN]  = FQ_CAP_ALL | FQ_CAP_SQLSERVER | FQ_CAP_ORACLE,
+  [EXT_CLAUSE_PARTITION_COLUMN]  = FQ_CAP_ALL | FQ_CAP_SQLSERVER | FQ_CAP_ORACLE | FQ_CAP_INFLUX_1_8,
 
   // Feature flags (connector-reported; default disabled)
   [EXT_CLAUSE_FEAT_CTE]              = FQ_CAP_NONE,
@@ -837,26 +837,26 @@ static const uint16_t kFqClauseCap[EXT_CLAUSE_MAX] = {
 // so all subquery-clause entries stay FQ_CAP_NONE.  ORIG_TYPE_2B inner-body
 // translation is controlled by planner-side render-mode selection, not by a
 // transform-only clause capability matrix.
-static const uint16_t kFqClauseTransformCap[EXT_CLAUSE_MAX] = {
+static const uint32_t kFqClauseTransformCap[EXT_CLAUSE_MAX] = {
   [EXT_CLAUSE_SCALAR_SUBQUERY]  = FQ_CAP_NONE,
   [EXT_CLAUSE_IN_SUBQUERY]      = FQ_CAP_NONE,
   [EXT_CLAUSE_ALL_ANY_SUBQUERY] = FQ_CAP_NONE,
   [EXT_CLAUSE_EXISTS_SUBQUERY]  = FQ_CAP_NONE,
 };
 
-uint16_t fqOpCapBitmap(EOperatorType opType) {
+uint32_t fqOpCapBitmap(EOperatorType opType) {
   int idx = (int)opType;
   if (idx < 0 || idx >= FQ_OP_CAP_TABLE_SIZE) return FQ_CAP_NONE;
   return kFqOpCap[idx];
 }
 
-uint16_t fqClauseCapBitmap(EExtClauseKind clauseKind) {
+uint32_t fqClauseCapBitmap(EExtClauseKind clauseKind) {
   int idx = (int)clauseKind;
   if (idx < 0 || idx >= (int)EXT_CLAUSE_MAX) return FQ_CAP_NONE;
   return kFqClauseCap[idx];
 }
 
-uint16_t fqClauseTransformCapBitmap(EExtClauseKind clauseKind) {
+uint32_t fqClauseTransformCapBitmap(EExtClauseKind clauseKind) {
   int idx = (int)clauseKind;
   if (idx < 0 || idx >= (int)EXT_CLAUSE_MAX) return FQ_CAP_NONE;
   return kFqClauseTransformCap[idx];
@@ -864,27 +864,27 @@ uint16_t fqClauseTransformCapBitmap(EExtClauseKind clauseKind) {
 
 bool fqOpIsPushable(EOperatorType opType, int32_t dialect,
                     const SExtCapSessionOverlay* pOverlay) {
-  uint16_t cap = fqOpCapBitmap(opType);
-  uint16_t bit = fqDialectBit(dialect);
+  uint32_t cap = fqOpCapBitmap(opType);
+  uint32_t bit = fqDialectBit(dialect);
   if (bit == 0) return false;
-  if (pOverlay != NULL && ((uint16_t)(cap >> FQ_CAP_SESSION_SHIFT) & bit)) return false;
+  if (pOverlay != NULL && ((uint32_t)(cap >> FQ_CAP_SESSION_SHIFT) & bit)) return false;
   return (cap & bit) != 0;
 }
 
 bool fqClauseIsPushable(EExtClauseKind clauseKind, int32_t dialect,
                         const SExtCapSessionOverlay* pOverlay) {
-  uint16_t cap = fqClauseCapBitmap(clauseKind);
-  uint16_t bit = fqDialectBit(dialect);
+  uint32_t cap = fqClauseCapBitmap(clauseKind);
+  uint32_t bit = fqDialectBit(dialect);
   if (bit == 0) return false;
-  if (pOverlay != NULL && ((uint16_t)(cap >> FQ_CAP_SESSION_SHIFT) & bit)) return false;
+  if (pOverlay != NULL && ((uint32_t)(cap >> FQ_CAP_SESSION_SHIFT) & bit)) return false;
   return (cap & bit) != 0;
 }
 
 bool fqClauseTransformIsPushable(EExtClauseKind clauseKind, int32_t dialect,
                                  const SExtCapSessionOverlay* pOverlay) {
-  uint16_t cap = fqClauseTransformCapBitmap(clauseKind);
-  uint16_t bit = fqDialectBit(dialect);
+  uint32_t cap = fqClauseTransformCapBitmap(clauseKind);
+  uint32_t bit = fqDialectBit(dialect);
   if (bit == 0) return false;
-  if (pOverlay != NULL && ((uint16_t)(cap >> FQ_CAP_SESSION_SHIFT) & bit)) return false;
+  if (pOverlay != NULL && ((uint32_t)(cap >> FQ_CAP_SESSION_SHIFT) & bit)) return false;
   return (cap & bit) != 0;
 }

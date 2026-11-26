@@ -25,16 +25,30 @@
  * Tests cover all four Xnode object types with real SDB operations.
  */
 
+#if defined(_WIN32)
+// Installed cpp-stub includes windows.h, which pulls in winsock.h.
+// mndInt.h later includes winsock2.h, so winsock2.h must come first.
+#ifndef WIN32_LEAN_AND_MEAN
+#define WIN32_LEAN_AND_MEAN
+#endif
+#include <winsock2.h>
+#endif
+#include "stub.h"
 #include <gtest/gtest.h>
 #include <cstdint>
 #include <cstring>
+#include <string>
 
 extern "C" {
 #include "mndDef.h"
 #include "mndInt.h"
+#include "mndSync.h"
+#include "mndTrans.h"
 #include "mndXnode.h"
 #include "sdb.h"
 #include "taoserror.h"
+#include "tglobal.h"
+#include "tjson.h"
 }
 
 // These are the real production encode functions from mndXnode.c
@@ -45,6 +59,10 @@ SSdbRow* mndXnodeActionDecode(SSdbRaw* pRaw);
 
 SSdbRaw* mndXnodeTaskActionEncode(SXnodeTaskObj* pObj);
 SSdbRow* mndXnodeTaskActionDecode(SSdbRaw* pRaw);
+int32_t mndXnodeTaskActionUpdate(SSdb* pSdb, SXnodeTaskObj* pOld, SXnodeTaskObj* pNew);
+bool    mndXnodeIsLegacyDatabaseSink(const SXnodeTaskObj* pTask);
+int32_t mndXnodeEncodedDsnPartLen(const char* value, int32_t valueLen, int32_t* pEncodedLen);
+void    mndXnodeEncodeDsnPart(char* dst, int32_t* pOffset, const char* value, int32_t valueLen);
 
 SSdbRaw* mndXnodeJobActionEncode(SXnodeJobObj* pObj);
 SSdbRow* mndXnodeJobActionDecode(SSdbRaw* pRaw);
@@ -85,6 +103,149 @@ typedef struct {
 } SLegacyXnodeTaskObjLayout;
 
 static constexpr int32_t kLegacyXnodeReserveSize = 64;
+
+static int32_t deletionProposalCalls = 0;
+static int32_t deletionFailProposal = 0;
+
+static int32_t applyDeletionProposal(SMnode *node, SSdbRaw *raw, int32_t transId) {
+  ++deletionProposalCalls;
+  if (deletionProposalCalls == deletionFailProposal) return TSDB_CODE_MND_TRANS_SYNC_TIMEOUT;
+  int32_t code = sdbWriteWithoutFree(node->pSdb, raw);
+  if (code != TSDB_CODE_SUCCESS) return code;
+  STrans *trans = mndAcquireTrans(node, transId);
+  if (trans == nullptr) return terrno;
+  mndTransRefresh(node, trans);
+  mndReleaseTrans(node, trans);
+  return TSDB_CODE_SUCCESS;
+}
+
+class XnodeDeletionTransactionTest : public ::testing::Test {
+ protected:
+  void SetUp() override {
+    savedErrno_ = terrno;
+    SSdbOpt options = {};
+    options.path = TD_TMP_DIR_PATH "xnode_deletion_transaction";
+    options.pMnode = &node_;
+    taosRemoveDir(options.path);
+    node_.deploy = true;
+    node_.pSdb = sdbInit(&options);
+    ASSERT_NE(node_.pSdb, nullptr);
+    ASSERT_EQ(mndInitTrans(&node_), TSDB_CODE_SUCCESS);
+    ASSERT_EQ(mndInitXnode(&node_), TSDB_CODE_SUCCESS);
+    deletionProposalCalls = 0;
+    deletionFailProposal = 0;
+    stub_.set(mndSyncPropose, applyDeletionProposal);
+    SXnodeTaskObj task = {};
+    task.id = taskId_;
+    task.type = XNODE_TASK_TYPE_REPLICA;
+    task.status = (char *)"running";
+    task.statusLen = strlen(task.status) + 1;
+    task.reason = (char *)"old reason";
+    task.reasonLen = strlen(task.reason) + 1;
+    task.desiredState = XNODE_TASK_DESIRED_STATE_RUNNING;
+    task.updateTime = taosGetTimestampMs();
+    SSdbRaw *raw = mndXnodeTaskActionEncode(&task);
+    ASSERT_NE(raw, nullptr);
+    ASSERT_EQ(sdbSetRawStatus(raw, SDB_STATUS_READY), TSDB_CODE_SUCCESS);
+    ASSERT_EQ(sdbWrite(node_.pSdb, raw), TSDB_CODE_SUCCESS);
+    task_ = static_cast<SXnodeTaskObj *>(sdbAcquire(node_.pSdb, SDB_XNODE_TASK, &taskId_));
+    ASSERT_NE(task_, nullptr);
+  }
+
+  void TearDown() override {
+    stub_.reset(mndSyncPropose);
+    if (task_ != nullptr) sdbRelease(node_.pSdb, task_);
+    if (node_.pSdb != nullptr) sdbCleanup(node_.pSdb);
+    taosRemoveDir(TD_TMP_DIR_PATH "xnode_deletion_transaction");
+    terrno = savedErrno_;
+  }
+
+  bool WriteCredentials(const char *user, const char *token) {
+    SXnodeUserPassObj credentials = {};
+    credentials.id = 1;
+    credentials.user = (char *)user;
+    credentials.userLen = user == nullptr ? 0 : strlen(user) + 1;
+    credentials.token = (char *)token;
+    credentials.tokenLen = token == nullptr ? 0 : strlen(token) + 1;
+    SSdbRaw *raw = mndXnodeUserPassActionEncode(&credentials);
+    if (raw == nullptr) return false;
+    if (sdbSetRawStatus(raw, SDB_STATUS_READY) != TSDB_CODE_SUCCESS) {
+      sdbFreeRaw(raw);
+      return false;
+    }
+    return sdbWrite(node_.pSdb, raw) == TSDB_CODE_SUCCESS;
+  }
+
+  SMnode node_ = {};
+  SXnodeTaskObj *task_ = nullptr;
+  const int32_t taskId_ = 17;
+  int32_t savedErrno_ = 0;
+  Stub stub_;
+};
+
+TEST_F(XnodeDeletionTransactionTest, DeletionStateIsAppliedBeforeReturnAndRepeatedDropClearsFailure) {
+  const int64_t previousUpdate = task_->updateTime;
+  ASSERT_EQ(mndXnodePersistDeletionStatus(&node_, task_, "deleting", ""), TSDB_CODE_SUCCESS);
+  EXPECT_GT(task_->updateTime, previousUpdate);
+  EXPECT_EQ(task_->desiredState, XNODE_TASK_DESIRED_STATE_STOPPED);
+  EXPECT_STREQ(task_->status, "deleting");
+  EXPECT_STREQ(task_->reason, "");
+  EXPECT_GE(deletionProposalCalls, 2);
+  ASSERT_EQ(mndXnodePersistDeletionStatus(&node_, task_, "delete_failed", "request failed"), TSDB_CODE_SUCCESS);
+  EXPECT_STREQ(task_->status, "delete_failed");
+  EXPECT_STREQ(task_->reason, "request failed");
+  ASSERT_EQ(mndXnodePersistDeletionStatus(&node_, task_, "deleting", ""), TSDB_CODE_SUCCESS);
+  EXPECT_STREQ(task_->status, "deleting");
+  EXPECT_STREQ(task_->reason, "");
+}
+
+TEST_F(XnodeDeletionTransactionTest, FailedInitialProposalPreservesRunningTask) {
+  deletionFailProposal = 1;
+  EXPECT_EQ(mndXnodePersistDeletionStatus(&node_, task_, "deleting", ""), TSDB_CODE_MND_TRANS_SYNC_TIMEOUT);
+  EXPECT_STREQ(task_->status, "running");
+  EXPECT_STREQ(task_->reason, "old reason");
+  EXPECT_EQ(task_->desiredState, XNODE_TASK_DESIRED_STATE_RUNNING);
+}
+
+TEST_F(XnodeDeletionTransactionTest, FailedCommitProposalIsNotReportedAsPersisted) {
+  deletionFailProposal = 2;
+  EXPECT_NE(mndXnodePersistDeletionStatus(&node_, task_, "deleting", ""), TSDB_CODE_SUCCESS);
+  EXPECT_STREQ(task_->status, "running");
+  EXPECT_EQ(task_->desiredState, XNODE_TASK_DESIRED_STATE_RUNNING);
+}
+
+TEST_F(XnodeDeletionTransactionTest, CleanupNotificationAcceptsConfiguredUsername) {
+  ASSERT_TRUE(WriteCredentials("xnode_controller", nullptr));
+  SRpcMsg request = {};
+  tstrncpy(request.info.conn.user, "xnode_controller", sizeof(request.info.conn.user));
+  EXPECT_TRUE(mndXnodeTaskControllerRequest(&node_, &request));
+  tstrncpy(request.info.conn.user, "another_user", sizeof(request.info.conn.user));
+  EXPECT_FALSE(mndXnodeTaskControllerRequest(&node_, &request));
+}
+
+TEST_F(XnodeDeletionTransactionTest, CleanupNotificationAcceptsConfiguredToken) {
+  const char *token = "configured_controller_token";
+  ASSERT_TRUE(WriteCredentials(nullptr, token));
+  SRpcMsg request = {};
+  request.info.conn.isToken = true;
+  tstrncpy(request.info.conn.identifier, token, sizeof(request.info.conn.identifier));
+  EXPECT_TRUE(mndXnodeTaskControllerRequest(&node_, &request));
+  request.info.conn.isToken = false;
+  EXPECT_FALSE(mndXnodeTaskControllerRequest(&node_, &request));
+  request.info.conn.isToken = true;
+  tstrncpy(request.info.conn.identifier, "another_token", sizeof(request.info.conn.identifier));
+  EXPECT_FALSE(mndXnodeTaskControllerRequest(&node_, &request));
+}
+
+TEST_F(XnodeDeletionTransactionTest, CleanupNotificationUsesConfiguredTokenBeforeUsername) {
+  ASSERT_TRUE(WriteCredentials("xnode_controller", "configured_controller_token"));
+  SRpcMsg request = {};
+  tstrncpy(request.info.conn.user, "xnode_controller", sizeof(request.info.conn.user));
+  EXPECT_FALSE(mndXnodeTaskControllerRequest(&node_, &request));
+  request.info.conn.isToken = true;
+  tstrncpy(request.info.conn.identifier, "configured_controller_token", sizeof(request.info.conn.identifier));
+  EXPECT_TRUE(mndXnodeTaskControllerRequest(&node_, &request));
+}
 
 class XnodeProductionTest : public ::testing::Test {
  protected:
@@ -324,6 +485,196 @@ TEST_F(XnodeProductionTest, XnodeTaskObj_RealEncodeDecode_Complete) {
   sdbFreeRaw(pRaw);
 }
 
+TEST_F(XnodeProductionTest, XnodeTaskObj_ReplicaTypeRoundTrips) {
+  SXnodeTaskObj obj = {0};
+  obj.id = 104;
+  obj.type = XNODE_TASK_TYPE_REPLICA;
+  obj.statusLen = strlen("deleting") + 1;
+  obj.status = (char *)taosMemoryCalloc(obj.statusLen, 1);
+  strcpy(obj.status, "deleting");
+  SSdbRaw *raw = mndXnodeTaskActionEncode(&obj);
+  ASSERT_NE(raw, nullptr);
+  SSdbRow *row = mndXnodeTaskActionDecode(raw);
+  ASSERT_NE(row, nullptr);
+  SXnodeTaskObj *decoded = (SXnodeTaskObj *)sdbGetRowObj(row);
+  ASSERT_NE(decoded, nullptr);
+  EXPECT_EQ(decoded->type, XNODE_TASK_TYPE_REPLICA);
+  EXPECT_STREQ(decoded->status, "deleting");
+  freeXnodeTaskObj(&obj);
+  freeXnodeTaskObj(decoded);
+  taosMemoryFree(row);
+  sdbFreeRaw(raw);
+}
+
+TEST_F(XnodeProductionTest, ReplicaUpdateRejectsImmutableOptions) {
+  SXnodeTaskObj oldObj = {0};
+  oldObj.type = XNODE_TASK_TYPE_REPLICA;
+  oldObj.status = (char *)"running";
+  SMUpdateXnodeTaskReq update = {0};
+  update.via = 7;
+  EXPECT_EQ(mndXnodeValidateTaskUpdate(&oldObj, &update, false), TSDB_CODE_MND_XNODE_REPLICA_TASK_OPTION);
+  update.via = 0;
+  update.parser = xCreateCowStr(0, "", false);
+  EXPECT_EQ(mndXnodeValidateTaskUpdate(&oldObj, &update, false), TSDB_CODE_MND_XNODE_REPLICA_TASK_OPTION);
+  update.parser = xCreateCowStr(0, nullptr, false);
+  update.source = xCreateTaskSource(XNODE_TASK_SOURCE_DATABASE, 3, (char *)"src");
+  EXPECT_EQ(mndXnodeValidateTaskUpdate(&oldObj, &update, false), TSDB_CODE_MND_XNODE_REPLICA_TASK_OPTION);
+}
+
+TEST_F(XnodeProductionTest, ReplicaTypeIsDefaultedAndValidatedBeforeCreate) {
+  SMCreateXnodeTaskReq create = {0};
+  create.source = xCreateTaskSource(XNODE_TASK_SOURCE_DSN, 10, (char *)"tmq:///src");
+  create.sink = xCreateTaskSink(XNODE_TASK_SINK_DSN, 11, (char *)"taos:///dst");
+  int8_t type = -1;
+  EXPECT_EQ(mndXnodeCheckTaskType(&create, &type, nullptr), TSDB_CODE_SUCCESS);
+  EXPECT_EQ(type, XNODE_TASK_TYPE_NORMAL);
+  create.options.optionsNum = 1;
+  create.options.options[0] = xCreateCowStr(12, "type=RePlIcA", false);
+  EXPECT_EQ(mndXnodeCheckTaskType(&create, &type, nullptr), TSDB_CODE_SUCCESS);
+  EXPECT_EQ(type, XNODE_TASK_TYPE_REPLICA);
+  create.options.via = 1;
+  EXPECT_EQ(mndXnodeCheckTaskType(&create, &type, nullptr), TSDB_CODE_MND_XNODE_REPLICA_TASK_OPTION);
+  create.options.via = 0;
+  create.options.parser = xCreateCowStr(0, "", false);
+  EXPECT_EQ(mndXnodeCheckTaskType(&create, &type, nullptr), TSDB_CODE_MND_XNODE_REPLICA_TASK_OPTION);
+  create.options.parser = xCreateCowStr(0, nullptr, false);
+  create.source.type = XNODE_TASK_SOURCE_DATABASE;
+  EXPECT_EQ(mndXnodeCheckTaskType(&create, &type, nullptr), TSDB_CODE_MND_XNODE_REPLICA_TASK_OPTION);
+  create.source.type = XNODE_TASK_SOURCE_DSN;
+  create.options.options[0] = xCreateCowStr(11, "type=normal", false);
+  EXPECT_EQ(mndXnodeCheckTaskType(&create, &type, nullptr), TSDB_CODE_MND_XNODE_INVALID_TASK_TYPE);
+}
+
+TEST_F(XnodeProductionTest, NormalTaskReservedParamsUseDecodedExactNames) {
+  const char *reserved[] = {"tmq:///db?replica", "sync+ws:///db?msg.consume.excluded=0",
+                            "tmq://host/db?%72eplica=0", "tmq:///db?%6dsg.consume.excluded=false",
+                            "tmq:///db?other=1&replica=0&replica=1",
+                            "tmq://host/a?replica=1?other=1",
+                            "sync://host/a?msg.consume.excluded=1?other=1"};
+  for (const char *dsn : reserved) {
+    const char *param = nullptr;
+    EXPECT_EQ(mndXnodeCheckReservedReplicaParam(dsn, strlen(dsn), &param),
+              TSDB_CODE_MND_XNODE_REPLICA_PARAM_RESERVED) << dsn;
+    ASSERT_NE(param, nullptr);
+    EXPECT_TRUE(strcmp(param, "replica") == 0 || strcmp(param, "msg.consume.excluded") == 0);
+  }
+  const char *allowed[] = {"tmq:///db?Replica=1", "csv:path?replica=1", "tmq:///db?x=replica",
+                           "tmq:///db?replica_extra=1", "tmq:///db?repli%ca=1",
+                           "tmq://user:p?replica=1@host/a?other=1",
+                           "tmq://user:p?msg.consume.excluded=1@host/a?other=1",
+                           "tmq://host/a?other=?replica=1"};
+  for (const char *dsn : allowed) {
+    EXPECT_EQ(mndXnodeCheckReservedReplicaParam(dsn, strlen(dsn), nullptr), TSDB_CODE_SUCCESS) << dsn;
+  }
+}
+
+TEST_F(XnodeProductionTest, CleanupFinalizerRequiresControllerAndDeletionState) {
+  SXnodeTaskObj oldObj = {0};
+  oldObj.type = XNODE_TASK_TYPE_REPLICA;
+  oldObj.status = (char *)"deleting";
+  SMUpdateXnodeTaskReq update = {0};
+  update.status = xCreateCowStr(12, "cleanup_done", false);
+  EXPECT_EQ(mndXnodeValidateTaskUpdate(&oldObj, &update, false), TSDB_CODE_MND_XNODE_INVALID_MSG);
+  EXPECT_EQ(mndXnodeValidateTaskUpdate(&oldObj, &update, true), TSDB_CODE_SUCCESS);
+  update.desiredState = xCreateCowStr(7, "running", false);
+  EXPECT_EQ(mndXnodeValidateTaskUpdate(&oldObj, &update, true), TSDB_CODE_MND_XNODE_INVALID_MSG);
+  update.desiredState = xCreateCowStr(0, nullptr, false);
+  oldObj.status = (char *)"delete_failed";
+  EXPECT_EQ(mndXnodeValidateTaskUpdate(&oldObj, &update, true), TSDB_CODE_MND_XNODE_INVALID_MSG);
+  oldObj.status = (char *)"running";
+  EXPECT_EQ(mndXnodeValidateTaskUpdate(&oldObj, &update, true), TSDB_CODE_MND_XNODE_INVALID_MSG);
+  oldObj.status = (char *)"deleting";
+  oldObj.type = XNODE_TASK_TYPE_NORMAL;
+  EXPECT_EQ(mndXnodeValidateTaskUpdate(&oldObj, &update, true), TSDB_CODE_SUCCESS);
+  EXPECT_EQ(mndXnodeValidateTaskUpdate(&oldObj, &update, false), TSDB_CODE_MND_XNODE_INVALID_MSG);
+  oldObj.status = (char *)"delete_failed";
+  EXPECT_EQ(mndXnodeValidateTaskUpdate(&oldObj, &update, true), TSDB_CODE_MND_XNODE_INVALID_MSG);
+}
+
+TEST_F(XnodeProductionTest, DeletionStateSurvivesLateRuntimeStatusAndRunningIntent) {
+  SXnodeTaskObj oldObj = {0};
+  oldObj.type = XNODE_TASK_TYPE_REPLICA;
+  SMUpdateXnodeTaskReq update = {0};
+  const char *states[] = {"deleting", "delete_failed"};
+  for (const char *state : states) {
+    oldObj.status = (char *)state;
+    update.status = xCreateCowStr(6, "failed", false);
+    EXPECT_EQ(mndXnodeValidateTaskUpdate(&oldObj, &update, true), TSDB_CODE_MND_XNODE_INVALID_MSG);
+    update.status = xCreateCowStr(0, nullptr, false);
+    update.desiredState = xCreateCowStr(7, "running", false);
+    EXPECT_EQ(mndXnodeValidateTaskUpdate(&oldObj, &update, true), TSDB_CODE_MND_XNODE_INVALID_MSG);
+    update.desiredState = xCreateCowStr(0, nullptr, false);
+    update.status = xCreateCowStr(13, "delete_failed", false);
+    EXPECT_EQ(mndXnodeValidateTaskUpdate(&oldObj, &update, true), TSDB_CODE_SUCCESS);
+    EXPECT_EQ(mndXnodeValidateTaskUpdate(&oldObj, &update, false), TSDB_CODE_MND_XNODE_INVALID_MSG);
+  }
+}
+
+TEST_F(XnodeProductionTest, DeleteFailureNotificationOnlyChangesReplicaStatusAndReason) {
+  SXnodeTaskObj oldObj = {};
+  oldObj.type = XNODE_TASK_TYPE_REPLICA;
+  oldObj.status = (char *)"deleting";
+  SMUpdateXnodeTaskReq update = {};
+  update.status = xCreateCowStr(13, "delete_failed", false);
+  update.reason = xCreateCowStr(14, "cleanup failed", false);
+  EXPECT_EQ(mndXnodeValidateTaskUpdate(&oldObj, &update, true), TSDB_CODE_SUCCESS);
+  update.source = xCreateTaskSource(XNODE_TASK_SOURCE_DSN, 10, (char *)"tmq:///src");
+  EXPECT_EQ(mndXnodeValidateTaskUpdate(&oldObj, &update, true), TSDB_CODE_MND_XNODE_INVALID_MSG);
+  update.source = {};
+  update.xnodeId = 4;
+  EXPECT_EQ(mndXnodeValidateTaskUpdate(&oldObj, &update, true), TSDB_CODE_MND_XNODE_INVALID_MSG);
+  update.xnodeId = 0;
+  oldObj.type = XNODE_TASK_TYPE_NORMAL;
+  EXPECT_EQ(mndXnodeValidateTaskUpdate(&oldObj, &update, true), TSDB_CODE_MND_XNODE_INVALID_MSG);
+}
+
+TEST_F(XnodeProductionTest, ReplicaHttpStartAndDropBodyIncludesKindAndDsns) {
+  SXnodeTaskObj obj = {0};
+  obj.type = XNODE_TASK_TYPE_REPLICA;
+  obj.sourceDsn = (char *)"tmq://user:password@source/src";
+  obj.sourceDsnLen = strlen(obj.sourceDsn) + 1;
+  obj.sinkDsn = (char *)"taos://user:password@target/dst";
+  obj.sinkDsnLen = strlen(obj.sinkDsn) + 1;
+  const int32_t oldProtection = tsXnodeDsnProtection;
+  tsXnodeDsnProtection = 0;
+  char *body = nullptr;
+  const int32_t code = mndXnodeBuildHttpTaskBody(&obj, &body);
+  tsXnodeDsnProtection = oldProtection;
+  ASSERT_EQ(code, TSDB_CODE_SUCCESS);
+  ASSERT_NE(body, nullptr);
+  SJson *json = tjsonParse(body);
+  ASSERT_NE(json, nullptr);
+  char type[16] = {0};
+  char from[128] = {0};
+  char to[128] = {0};
+  EXPECT_EQ(tjsonGetStringValue(json, "type", type), TSDB_CODE_SUCCESS);
+  EXPECT_EQ(tjsonGetStringValue(json, "from", from), TSDB_CODE_SUCCESS);
+  EXPECT_EQ(tjsonGetStringValue(json, "to", to), TSDB_CODE_SUCCESS);
+  EXPECT_STREQ(type, "replica");
+  EXPECT_STREQ(from, obj.sourceDsn);
+  EXPECT_STREQ(to, obj.sinkDsn);
+  tjsonDelete(json);
+  taosMemoryFree(body);
+}
+
+TEST_F(XnodeProductionTest, PreReplicaRowDefaultsKindWithoutLosingDesiredState) {
+  SXnodeTaskObj obj = {0};
+  obj.id = 105;
+  obj.type = XNODE_TASK_TYPE_REPLICA;
+  obj.desiredState = XNODE_TASK_DESIRED_STATE_RUNNING;
+  SSdbRaw *raw = mndXnodeTaskActionEncode(&obj);
+  ASSERT_NE(raw, nullptr);
+  ASSERT_EQ(sdbSetRawDataLen(raw, raw->dataLen - sizeof(int8_t)), TSDB_CODE_SUCCESS);
+  SSdbRow *row = mndXnodeTaskActionDecode(raw);
+  ASSERT_NE(row, nullptr);
+  SXnodeTaskObj *decoded = (SXnodeTaskObj *)sdbGetRowObj(row);
+  EXPECT_EQ(decoded->type, XNODE_TASK_TYPE_NORMAL);
+  EXPECT_EQ(decoded->desiredState, XNODE_TASK_DESIRED_STATE_RUNNING);
+  freeXnodeTaskObj(decoded);
+  taosMemoryFree(row);
+  sdbFreeRaw(raw);
+}
+
 TEST_F(XnodeProductionTest, XnodeTaskObj_RealDecode_LegacyAllocatedData) {
   SXnodeTaskObj obj = {0};
   obj.id = 102;
@@ -336,7 +687,7 @@ TEST_F(XnodeProductionTest, XnodeTaskObj_RealDecode_LegacyAllocatedData) {
   SSdbRaw* pEncoded = mndXnodeTaskActionEncode(&obj);
   ASSERT_NE(pEncoded, nullptr);
 
-  const int32_t tailLen = sizeof(int64_t) + sizeof(int32_t) + sizeof(int8_t);
+  const int32_t tailLen = sizeof(int64_t) + sizeof(int32_t) + sizeof(int8_t) * 2;
   const int32_t legacyPayloadLen = pEncoded->dataLen - tailLen;
   ASSERT_GT(legacyPayloadLen, 0);
   const int32_t legacyRawDataLen =
@@ -358,6 +709,7 @@ TEST_F(XnodeProductionTest, XnodeTaskObj_RealDecode_LegacyAllocatedData) {
   EXPECT_EQ(pDecoded->ownerId, 0);
   EXPECT_EQ(pDecoded->acctId, 0);
   EXPECT_EQ(pDecoded->desiredState, XNODE_TASK_DESIRED_STATE_RUNNING);
+  EXPECT_EQ(pDecoded->type, XNODE_TASK_TYPE_NORMAL);
 
   freeXnodeTaskObj(pDecoded);
   taosMemoryFree(pRow);
@@ -378,7 +730,7 @@ TEST_F(XnodeProductionTest, XnodeTaskObj_RealDecode_LegacyTruncatedData) {
   SSdbRaw* pEncoded = mndXnodeTaskActionEncode(&obj);
   ASSERT_NE(pEncoded, nullptr);
 
-  const int32_t tailLen = sizeof(int64_t) + sizeof(int32_t) + sizeof(int8_t);
+  const int32_t tailLen = sizeof(int64_t) + sizeof(int32_t) + sizeof(int8_t) * 2;
   const int32_t legacyPayloadLen = pEncoded->dataLen - tailLen;
   ASSERT_GT(legacyPayloadLen, 0);
 
@@ -393,6 +745,7 @@ TEST_F(XnodeProductionTest, XnodeTaskObj_RealDecode_LegacyTruncatedData) {
   EXPECT_EQ(pDecoded->ownerId, 0);
   EXPECT_EQ(pDecoded->acctId, 0);
   EXPECT_EQ(pDecoded->desiredState, XNODE_TASK_DESIRED_STATE_RUNNING);
+  EXPECT_EQ(pDecoded->type, XNODE_TASK_TYPE_NORMAL);
 
   freeXnodeTaskObj(pDecoded);
   taosMemoryFree(pRow);
@@ -474,6 +827,110 @@ TEST_F(XnodeProductionTest, XnodeTaskObj_RealEncodeDecode_MaxParser) {
   freeXnodeTaskObj(pDecoded);
   taosMemoryFree(pRow);
   sdbFreeRaw(pRaw);
+}
+
+TEST_F(XnodeProductionTest, XnodeTaskObj_UpdatePropagatesSinkTypeAndLegacyOwner) {
+  SXnodeTaskObj oldObj = {0};
+  oldObj.sourceType = XNODE_TASK_SOURCE_DSN;
+  oldObj.sinkType = XNODE_TASK_SINK_DATABASE;
+  oldObj.sinkDsnLen = strlen("target") + 1;
+  oldObj.sinkDsn = (char*)taosMemoryCalloc(oldObj.sinkDsnLen, 1);
+  ASSERT_NE(oldObj.sinkDsn, nullptr);
+  strcpy(oldObj.sinkDsn, "target");
+
+  SXnodeTaskObj newObj = {0};
+  newObj.sourceType = XNODE_TASK_SOURCE_TOPIC;
+  newObj.sinkType = XNODE_TASK_SINK_DSN;
+  newObj.ownerId = 123456;
+  newObj.acctId = 42;
+  newObj.sinkDsnLen = strlen("taos:///target?bearer_token=token") + 1;
+  newObj.sinkDsn = (char*)taosMemoryCalloc(newObj.sinkDsnLen, 1);
+  ASSERT_NE(newObj.sinkDsn, nullptr);
+  strcpy(newObj.sinkDsn, "taos:///target?bearer_token=token");
+
+  ASSERT_EQ(mndXnodeTaskActionUpdate(nullptr, &oldObj, &newObj), 0);
+  EXPECT_EQ(oldObj.sourceType, XNODE_TASK_SOURCE_TOPIC);
+  EXPECT_EQ(oldObj.sinkType, XNODE_TASK_SINK_DSN);
+  EXPECT_EQ(oldObj.ownerId, 123456);
+  EXPECT_EQ(oldObj.acctId, 42);
+  EXPECT_STREQ(oldObj.sinkDsn, "taos:///target?bearer_token=token");
+
+  freeXnodeTaskObj(&oldObj);
+  freeXnodeTaskObj(&newObj);
+}
+
+TEST_F(XnodeProductionTest, XnodeTaskObj_LegacyDatabaseSinkIsDetectedByContent) {
+  struct {
+    int32_t     sinkType;
+    const char* sink;
+    bool        legacy;
+  } cases[] = {
+      {XNODE_TASK_SINK_DATABASE, "target", true},
+      // Stale sinkType next to a bare database name.
+      {XNODE_TASK_SINK_DSN, "target", true},
+      // Stale sinkType next to a complete DSN: must never be rewritten as a database name.
+      {XNODE_TASK_SINK_DATABASE, "taos://root:taosdata@localhost:6030/target", false},
+      {XNODE_TASK_SINK_DATABASE, "local:/tmp/backup", false},
+      {XNODE_TASK_SINK_DSN, "taos:///target?bearer_token=token&subject_encoded=true", false},
+      {XNODE_TASK_SINK_DATABASE, "", false},
+  };
+
+  for (const auto& c : cases) {
+    SXnodeTaskObj obj = {0};
+    obj.sinkType = c.sinkType;
+    obj.sinkDsn = const_cast<char*>(c.sink);
+    obj.sinkDsnLen = strlen(c.sink) + 1;
+    EXPECT_EQ(mndXnodeIsLegacyDatabaseSink(&obj), c.legacy) << c.sink;
+  }
+
+  SXnodeTaskObj empty = {0};
+  EXPECT_FALSE(mndXnodeIsLegacyDatabaseSink(&empty));
+}
+
+// The encoded forms are the ones the taosX subject decoder is tested against in
+// taos-xservice/crates/utils/src/dsn.rs, so both sides stay inverse to each other.
+TEST_F(XnodeProductionTest, XnodeTaskObj_DsnPartEncodingMatchesTaosxDecoder) {
+  struct {
+    const char* raw;
+    const char* encoded;
+  } cases[] = {
+      {"target_db", "target_db"},
+      {"Az09-._~", "Az09-._~"},
+      {"db-中文?part/100%#", "db-%E4%B8%AD%E6%96%87%3Fpart%2F100%25%23"},
+      {"db%41", "db%2541"},
+      {"a b&c=d:e@f+g", "a%20b%26c%3Dd%3Ae%40f%2Bg"},
+  };
+
+  for (const auto& c : cases) {
+    int32_t rawLen = strlen(c.raw);
+    int32_t encodedLen = 0;
+    ASSERT_EQ(mndXnodeEncodedDsnPartLen(c.raw, rawLen, &encodedLen), 0) << c.raw;
+    ASSERT_EQ(encodedLen, (int32_t)strlen(c.encoded)) << c.raw;
+
+    char    encoded[128] = {0};
+    int32_t offset = 0;
+    mndXnodeEncodeDsnPart(encoded, &offset, c.raw, rawLen);
+    EXPECT_EQ(offset, encodedLen) << c.raw;
+    EXPECT_STREQ(encoded, c.encoded) << c.raw;
+  }
+
+  int32_t encodedLen = 0;
+  EXPECT_EQ(mndXnodeEncodedDsnPartLen("", 0, &encodedLen), TSDB_CODE_INVALID_PARA);
+  std::string tooLong(TSDB_XNODE_TASK_SINK_LEN + 1, 'a');
+  EXPECT_EQ(mndXnodeEncodedDsnPartLen(tooLong.c_str(), tooLong.size(), &encodedLen), TSDB_CODE_PAR_VALUE_TOO_LONG);
+}
+
+TEST_F(XnodeProductionTest, XnodeTaskObj_UpdatePreservesExistingOwner) {
+  SXnodeTaskObj oldObj = {0};
+  oldObj.ownerId = 123456;
+  oldObj.acctId = 42;
+  SXnodeTaskObj newObj = {0};
+  newObj.ownerId = 654321;
+  newObj.acctId = 24;
+
+  ASSERT_EQ(mndXnodeTaskActionUpdate(nullptr, &oldObj, &newObj), 0);
+  EXPECT_EQ(oldObj.ownerId, 123456);
+  EXPECT_EQ(oldObj.acctId, 42);
 }
 
 // ========== SXnodeJobObj Production Tests ==========

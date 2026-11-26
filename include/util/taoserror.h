@@ -1174,6 +1174,7 @@ int32_t  taosGetErrSize();
 #define TSDB_CODE_PAR_TB_SELECT_PERMISSION_DENIED     TAOS_DEF_ERROR_CODE(0, 0x26E6)
 #define TSDB_CODE_PAR_STREAM_CREATE_PERMISSION_DENIED TAOS_DEF_ERROR_CODE(0, 0x26E7)
 #define TSDB_CODE_PAR_NOT_SUPPORT_VTABLE_TWO_PASS     TAOS_DEF_ERROR_CODE(0, 0x26E8)
+#define TSDB_CODE_PAR_LIMIT_LESS_ZERO                 TAOS_DEF_ERROR_CODE(0, 0x26E9)
 #define TSDB_CODE_PAR_INTERNAL_ERROR                  TAOS_DEF_ERROR_CODE(0, 0x26FF)
 
 //planner
@@ -1337,11 +1338,12 @@ int32_t  taosGetErrSize();
 // returned by any code path; do not use. The 0x331A value is reserved and not reused.
 #define TSDB_CODE_TXN_PREPARED_DROP              TAOS_DEF_ERROR_CODE(0, 0x331A)  // Deprecated: never returned; 0x331A reserved (see comment above)
 #define TSDB_CODE_TXN_DELETE_ON_DROPPING         TAOS_DEF_ERROR_CODE(0, 0x331B)  // Cannot DELETE on a table being dropped (protect metadata)
-#define TSDB_CODE_TXN_INVALID_OPERATION          TAOS_DEF_ERROR_CODE(0, 0x331C)  // Only table DDL allowed in transaction
+#define TSDB_CODE_TXN_INVALID_OPERATION          TAOS_DEF_ERROR_CODE(0, 0x331C)  // Statement is not supported in transaction
 #define TSDB_CODE_TXN_TOO_MANY_DDL_OPS           TAOS_DEF_ERROR_CODE(0, 0x331D)  // Transaction DDL operation count exceeds per-transaction limit
 #define TSDB_CODE_TXN_EXCEEDED_LIFETIME          TAOS_DEF_ERROR_CODE(0, 0x331E)  // Transaction exceeded maximum lifetime
 #define TSDB_CODE_TXN_TIMEOUT_KILLED             TAOS_DEF_ERROR_CODE(0, 0x331F)  // Transaction was forcibly rolled back by server due to inactivity timeout; execute ROLLBACK to clean up
 #define TSDB_CODE_TXN_RECREATE_NOT_SUPPORTED     TAOS_DEF_ERROR_CODE(0, 0x3320)  // Object was dropped in this transaction; creating it again with the same name is not supported until COMMIT/ROLLBACK
+#define TSDB_CODE_TXN_CONCURRENT_STMT            TAOS_DEF_ERROR_CODE(0, 0x3321)  // Another statement of this transaction is still executing on the connection
 
 //tmq
 #define TSDB_CODE_TMQ_INVALID_MSG                TAOS_DEF_ERROR_CODE(0, 0x4000)
@@ -1450,6 +1452,11 @@ int32_t  taosGetErrSize();
 #define TSDB_CODE_VTABLE_INVALID_EXT_FILTER      TAOS_DEF_ERROR_CODE(0, 0x6215)
 #define TSDB_CODE_VTABLE_DUPLICATE_EXT_FILTER_COLUMN TAOS_DEF_ERROR_CODE(0, 0x6216)
 #define TSDB_CODE_VTABLE_INCOMPLETE_EXT_PK_FILTER TAOS_DEF_ERROR_CODE(0, 0x6217)
+#define TSDB_CODE_VTABLE_REFERENCE_AMBIGUOUS_NAME TAOS_DEF_ERROR_CODE(0, 0x6218)
+#define TSDB_CODE_VTABLE_REFERENCE_NULL_TIMESTAMP TAOS_DEF_ERROR_CODE(0, 0x6219)
+#define TSDB_CODE_VTABLE_REFERENCE_DUPLICATE_TIMESTAMP TAOS_DEF_ERROR_CODE(0, 0x621A)
+#define TSDB_CODE_VTABLE_REFERENCE_TIMESTAMP_OUT_OF_ORDER TAOS_DEF_ERROR_CODE(0, 0x621B)
+#define TSDB_CODE_VTABLE_REFERENCE_VERSION_CONFLICT TAOS_DEF_ERROR_CODE(0, 0x621C)
 
 // blob 
 #define TSDB_CODE_BLOB_SEQ_NOT_FOUND             TAOS_DEF_ERROR_CODE(0, 0x6300)
@@ -1503,7 +1510,9 @@ int32_t  taosGetErrSize();
 #define TSDB_CODE_EXT_PUSHDOWN_DEMOTE_OVERLAY    TAOS_DEF_ERROR_CODE(0, 0x642A)  // Internal: apply session overlay demotion and retry
 #define TSDB_CODE_EXT_PUSHDOWN_BASELINE          TAOS_DEF_ERROR_CODE(0, 0x642B)  // Internal: force baseline path
 #define TSDB_CODE_EXT_PUSHDOWN_BAILOUT_BROKEN    TAOS_DEF_ERROR_CODE(0, 0x642C)  // Internal: baseline path still triggered pushdown demotion
-// 0x642D-0x64FF reserved for extension
+#define TSDB_CODE_EXT_SCHEMA_CONFLICT             TAOS_DEF_ERROR_CODE(0, 0x642D)  // Connector: ambiguous external column types or roles
+#define TSDB_CODE_EXT_CLIENT_PLUGIN_MISSING       TAOS_DEF_ERROR_CODE(0, 0x642E)  // Connector: client authentication plugin (e.g. caching_sha2_password) missing or unloadable
+// 0x642F-0x64FF reserved for extension
 
 // NEW-STREAM
 #define TSDB_CODE_MND_STREAM_INTERNAL_ERROR      TAOS_DEF_ERROR_CODE(0, 0x7000)
@@ -1577,6 +1586,9 @@ int32_t  taosGetErrSize();
 #define TSDB_CODE_MND_XNODE_DSN_PROTECTION_FAILED    TAOS_DEF_ERROR_CODE(0, 0x8026)
 #define TSDB_CODE_MND_XNODE_DSN_CONNECTION_CHANGED   TAOS_DEF_ERROR_CODE(0, 0x8027)
 #define TSDB_CODE_MND_XNODE_OWNED_BY_OTHER_CLUSTER   TAOS_DEF_ERROR_CODE(0, 0x8028)
+#define TSDB_CODE_MND_XNODE_INVALID_TASK_TYPE        TAOS_DEF_ERROR_CODE(0, 0x8029)
+#define TSDB_CODE_MND_XNODE_REPLICA_TASK_OPTION      TAOS_DEF_ERROR_CODE(0, 0x802A)
+#define TSDB_CODE_MND_XNODE_REPLICA_PARAM_RESERVED   TAOS_DEF_ERROR_CODE(0, 0x802B)
 
 #ifdef __cplusplus
 }

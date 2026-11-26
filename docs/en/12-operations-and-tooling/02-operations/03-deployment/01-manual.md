@@ -59,8 +59,8 @@ For dnodes wishing to join the cluster, it is essential to ensure that the param
 
 Start the first dnode, such as `h1.tdengine.com`, following the steps mentioned above. Then execute taos in the terminal to start TDengine CLI program taos, and execute the `show dnodes` command within it to view all dnode information in the current cluster.
 
-```shell
-taos> show dnodes;
+```sql
+taos> SHOW dnodes;
  id | endpoint | vnodes|support_vnodes|status| create_time | note |
 ===================================================================================
  1| h1.tdengine.com:6030 | 0| 1024| ready| 2022-07-16 10:50:42.673 | |
@@ -72,14 +72,14 @@ You can see that the endpoint of the dnode node that has just started is `h1.tde
 
 Follow the steps mentioned earlier, start taosd on each physical node. Each dnode needs to configure the firstEp parameter in the taos.cfg file to the endpoint of the first node of the new cluster, which in this case is `h1.tdengine.com:6030`. On the machine where the first dnode is located, run taos in the terminal, open TDengine CLI program taos, then log into the TDengine cluster, and execute the following SQL.
 
-```shell
-create dnode "h2.tdengine.com:6030"
+```sql
+CREATE dnode "h2.tdengine.com:6030"
 ```
 
 Add the new dnode's endpoint to the cluster's endpoint list. You need to put `fqdn:port` in double quotes, otherwise, it will cause an error when running. Please note to replace the example h2.tdengine.com:6030 with the endpoint of this new dnode. Then execute the following SQL to see if the new node has successfully joined. If the dnode you want to join is currently offline, please refer to the "Common Issues" section later in this chapter for a solution.
 
-```shell
-show dnodes;
+```sql
+SHOW dnodes;
 ```
 
 In the logs, please confirm that the fqdn and port of the output dnode are consistent with the endpoint you just tried to add. If they are not consistent, correct it to the correct endpoint. By following the steps above, you can continuously add new dnodes to the cluster one by one, thereby expanding the scale of the cluster and improving overall performance. Make sure to follow the correct process when adding new nodes, which helps maintain the stability and reliability of the cluster.
@@ -96,8 +96,8 @@ In the logs, please confirm that the fqdn and port of the output dnode are consi
 
 When creating a TDengine cluster, the first dnode automatically becomes the mnode of the cluster, responsible for managing and coordinating the cluster. To achieve high availability of mnode, subsequent dnodes need to manually create mnode. Please note that a cluster can create up to 3 mnodes, and only one mnode can be created on each dnode. When the number of dnodes in the cluster reaches or exceeds 3, you can create mnode for the existing cluster. In the first dnode, first log into TDengine through TDengine CLI program taos, then execute the following SQL.
 
-```shell
-create mnode on dnode <dnodeId>
+```sql
+CREATE mnode ON dnode <dnodeId>
 ```
 
 Please note to replace the dnodeId in the example above with the serial number of the newly created dnode (which can be obtained by executing the `show dnodes` command). Finally, execute the following `show mnodes` to see if the newly created mnode has successfully joined the cluster.

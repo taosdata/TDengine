@@ -117,6 +117,9 @@ enum {
   CTGT_ASYNC_RSP_REQTYPE_MISMATCH = 1,
   CTGT_ASYNC_RSP_VIRTUAL_TABLE_NAME,
   CTGT_ASYNC_RSP_TSMA_NULL_STREAM_ADDR,
+  CTGT_ASYNC_RSP_CHILD_TABLE,
+  CTGT_ASYNC_RSP_VIRTUAL_CHILD_TABLE,
+  CTGT_ASYNC_RSP_SUPER_TABLE,
 };
 
 typedef struct {
@@ -126,6 +129,12 @@ typedef struct {
 } SCtgTestAsyncResult;
 
 int32_t ctgTestAsyncRspType = 0;
+
+int64_t ctgTestMetaOwnerId = 0;
+// number of table meta requests the mock vnode answered, and the request at which the frozen cache is released (0: never)
+int32_t ctgTestMetaReqNum = 0;
+int32_t ctgTestUnfreezeAtMetaReq = 0;
+int64_t ctgTestAuthUserId = 1001;
 
 int32_t ctgTestSerializeTableMetaRsp(STableMetaRsp *rsp, SBatchRspMsg *batchRsp) {
   int32_t len = tSerializeSTableMetaRsp(NULL, 0, rsp);
@@ -195,6 +204,7 @@ int32_t ctgTestBuildNormalTableMetaRsp(SBatchRspMsg *batchRsp) {
   rsp.tversion = 1;
   rsp.tuid = 1;
   rsp.vgId = 1;
+  rsp.ownerId = ctgTestMetaOwnerId;
   rsp.pSchemas = schema;
   rsp.pSchemaExt = schemaExt;
   schema[0].type = TSDB_DATA_TYPE_TIMESTAMP;
@@ -273,6 +283,112 @@ int32_t ctgTestBuildUseDbRsp(SBatchRspMsg *batchRsp) {
   return TSDB_CODE_SUCCESS;
 }
 
+// meta of a child table (answer of the vnode) and of its super table (answer of the mnode)
+static int32_t ctgTestBuildTableMetaRspOfType(int8_t tableType, SBatchRspMsg *batchRsp) {
+  STableMetaRsp rsp = {0};
+  SSchema       schema[3] = {0};
+  SSchemaExt    schemaExt[3] = {0};
+
+  TAOS_STRCPY(rsp.dbFName, ctgTestDbname);
+  TAOS_STRCPY(rsp.tbName, TSDB_SUPER_TABLE == tableType ? ctgTestSTablename : ctgTestCTablename);
+  TAOS_STRCPY(rsp.stbName, ctgTestSTablename);
+  rsp.numOfTags = 1;
+  rsp.numOfColumns = 2;
+  rsp.precision = 1;
+  rsp.tableType = tableType;
+  rsp.sversion = 1;
+  rsp.tversion = 1;
+  rsp.suid = 0x2;
+  rsp.tuid = TSDB_SUPER_TABLE == tableType ? 0x2 : 0x3;
+  rsp.vgId = TSDB_SUPER_TABLE == tableType ? 0 : 1;
+  rsp.ownerId = ctgTestMetaOwnerId;
+  rsp.pSchemas = schema;
+  rsp.pSchemaExt = schemaExt;
+  schema[0].type = TSDB_DATA_TYPE_TIMESTAMP;
+  schema[0].colId = PRIMARYKEY_TIMESTAMP_COL_ID;
+  schema[0].bytes = sizeof(int64_t);
+  TAOS_STRCPY(schema[0].name, "ts");
+  schema[1].type = TSDB_DATA_TYPE_INT;
+  schema[1].colId = 2;
+  schema[1].bytes = sizeof(int32_t);
+  TAOS_STRCPY(schema[1].name, "col1s");
+  schema[2].type = TSDB_DATA_TYPE_BINARY;
+  schema[2].colId = 3;
+  schema[2].bytes = 12;
+  TAOS_STRCPY(schema[2].name, "tag1s");
+
+  return ctgTestSerializeTableMetaRsp(&rsp, batchRsp);
+}
+
+static int32_t ctgTestBuildVirtualChildMetaRsp(SBatchRspMsg *batchRsp) {
+  STableMetaRsp rsp = {0};
+  SSchema       schema[3] = {0};
+  SSchemaExt    schemaExt[3] = {0};
+  SColRef       colRef[2] = {0};
+
+  TAOS_STRCPY(rsp.dbFName, ctgTestDbname);
+  TAOS_STRCPY(rsp.tbName, ctgTestCTablename);
+  TAOS_STRCPY(rsp.stbName, ctgTestSTablename);
+  rsp.numOfTags = 1;
+  rsp.numOfColumns = 2;
+  rsp.precision = 1;
+  rsp.tableType = TSDB_VIRTUAL_CHILD_TABLE;
+  rsp.sversion = 1;
+  rsp.tversion = 1;
+  rsp.rversion = 1;
+  rsp.suid = 0x2;
+  rsp.tuid = 0x3;
+  rsp.vgId = 1;
+  rsp.ownerId = ctgTestMetaOwnerId;
+  rsp.pSchemas = schema;
+  rsp.pSchemaExt = schemaExt;
+  rsp.numOfColRefs = 2;
+  rsp.pColRefs = colRef;
+  schema[0].type = TSDB_DATA_TYPE_TIMESTAMP;
+  schema[0].colId = PRIMARYKEY_TIMESTAMP_COL_ID;
+  schema[0].bytes = sizeof(int64_t);
+  TAOS_STRCPY(schema[0].name, "ts");
+  schema[1].type = TSDB_DATA_TYPE_INT;
+  schema[1].colId = 2;
+  schema[1].bytes = sizeof(int32_t);
+  TAOS_STRCPY(schema[1].name, "col1s");
+  schema[2].type = TSDB_DATA_TYPE_BINARY;
+  schema[2].colId = 3;
+  schema[2].bytes = 12;
+  TAOS_STRCPY(schema[2].name, "tag1s");
+  colRef[0].id = PRIMARYKEY_TIMESTAMP_COL_ID;
+  colRef[1].id = 2;
+
+  return ctgTestSerializeTableMetaRsp(&rsp, batchRsp);
+}
+
+// an ordinary user: enabled, not super, no privilege on any table, so the table level check needs the table meta
+int32_t ctgTestBuildOrdinaryUserAuthRsp(SBatchRspMsg *batchRsp) {
+  SGetUserAuthRsp userRsp = {0};
+  TAOS_STRCPY(userRsp.user, ctgTestUsername);
+  userRsp.version = 1;
+  userRsp.superAuth = 0;
+  userRsp.enable = 1;
+  userRsp.userId = ctgTestAuthUserId;
+
+  int32_t len = tSerializeSGetUserAuthRsp(NULL, 0, &userRsp);
+  int32_t code = TSDB_CODE_SUCCESS;
+  if (len <= 0) {
+    code = TSDB_CODE_INVALID_MSG;
+  } else {
+    batchRsp->msg = taosMemoryMalloc(len);
+    if (NULL == batchRsp->msg) {
+      code = terrno;
+    } else if (tSerializeSGetUserAuthRsp(batchRsp->msg, len, &userRsp) <= 0) {
+      taosMemoryFreeClear(batchRsp->msg);
+      code = TSDB_CODE_INVALID_MSG;
+    } else {
+      batchRsp->msgLen = len;
+    }
+  }
+  return code;
+}
+
 int32_t ctgTestBuildAsyncBatchRsp(SMsgSendInfo *pInfo, SDataBuf *pMsg) {
   SBatchReq batchReq = {0};
   SBatchRsp batchRsp = {0};
@@ -302,7 +418,22 @@ int32_t ctgTestBuildAsyncBatchRsp(SMsgSendInfo *pInfo, SDataBuf *pMsg) {
     } else if (TDMT_VND_TABLE_NAME == req->msgType) {
       code = ctgTestBuildVirtualTableNameRsp(&rsp);
     } else if (TDMT_VND_TABLE_META == req->msgType) {
-      code = ctgTestBuildNormalTableMetaRsp(&rsp);
+      if (++ctgTestMetaReqNum == ctgTestUnfreezeAtMetaReq) {
+        (void)ctgdEnableDebug(const_cast<char *>("stopUpdate"), false);
+      }
+      if (CTGT_ASYNC_RSP_CHILD_TABLE == ctgTestAsyncRspType) {
+        code = ctgTestBuildTableMetaRspOfType(TSDB_CHILD_TABLE, &rsp);
+      } else if (CTGT_ASYNC_RSP_VIRTUAL_CHILD_TABLE == ctgTestAsyncRspType) {
+        code = ctgTestBuildVirtualChildMetaRsp(&rsp);
+      } else if (CTGT_ASYNC_RSP_SUPER_TABLE == ctgTestAsyncRspType) {
+        code = ctgTestBuildTableMetaRspOfType(TSDB_SUPER_TABLE, &rsp);
+      } else {
+        code = ctgTestBuildNormalTableMetaRsp(&rsp);
+      }
+    } else if (TDMT_MND_TABLE_META == req->msgType) {
+      code = ctgTestBuildTableMetaRspOfType(TSDB_SUPER_TABLE, &rsp);
+    } else if (TDMT_MND_GET_USER_AUTH == req->msgType) {
+      code = ctgTestBuildOrdinaryUserAuthRsp(&rsp);
     } else if (TDMT_MND_GET_TABLE_TSMA == req->msgType) {
       code = ctgTestBuildTsmaRspWithNullStreamAddr(&rsp);
     } else {
@@ -3669,6 +3800,198 @@ TEST(apiTest, catalogGetDnodeList_test) {
   catalogDestroy();
 }
 
+// ctgTestDbname is the full name of the database ("<acct>.<db>"); the table name of a request carries the short name
+static const char *ctgTestAuthDb = "db1";
+
+// SELECT on <db>.<tb> granted to a user, keyed the way the auth check looks it up
+static void ctgTestGrantTableSelect(SGetUserAuthRsp *pRsp, const char *tbName) {
+  pRsp->objPrivs = taosHashInit(4, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), true, HASH_ENTRY_LOCK);
+  ASSERT_NE(pRsp->objPrivs, nullptr);
+  const SPrivInfo *pInfo = privInfoGet(PRIV_TBL_SELECT);
+  char             key[TSDB_PRIV_MAX_KEY_LEN] = {0};
+  (void)privObjKey(pInfo, 1, ctgTestAuthDb, tbName, key, sizeof(key));
+  SPrivObjPolicies policies = {0};
+  policies.policy.set[PRIV_GROUP(PRIV_TBL_SELECT)] |= 1ULL << PRIV_OFFSET(PRIV_TBL_SELECT);
+  ASSERT_EQ(taosHashPut(pRsp->objPrivs, key, strlen(key) + 1, &policies, sizeof(policies)), 0);
+}
+
+enum ECtgTestAuthExpect { CTG_TEST_AUTH_PASS, CTG_TEST_AUTH_REFUSED, CTG_TEST_AUTH_ERROR };
+
+static void ctgTestUserAuthOnFetchedMeta(const char *tbName, int32_t asyncRspType, int64_t ownerId,
+                                         ECtgTestAuthExpect expect, const char *grantedTable = NULL,
+                                         bool freezeCache = false, int32_t *pMetaReqNum = NULL) {
+  SCatalog           *pCtg = NULL;
+  SRequestConnInfo    conn = {0};
+  SCatalogReq         req = {0};
+  SCtgTestAsyncResult result = {0};
+
+  ctgTestAsyncRspType = asyncRspType;
+  ctgTestMetaOwnerId = ownerId;
+  ctgTestMetaReqNum = 0;
+  ctgTestSetAsyncBatchRsp();
+  initQueryModuleMsgHandle();
+  ASSERT_EQ(catalogInit(NULL), 0);
+  ASSERT_EQ(catalogGetHandle(ctgTestClusterId, &pCtg), 0);
+  ASSERT_EQ(tsem_init(&result.sem, 0, 0), 0);
+
+  // the user is already known, so the check does not need the mnode (asynchronous update, the synchronous one
+  // expects the caller to hold the catalog api lock)
+  SGetUserAuthRsp userRsp = {0};
+  TAOS_STRCPY(userRsp.user, ctgTestUsername);
+  userRsp.version = 1;
+  userRsp.enable = 1;
+  userRsp.userId = ctgTestAuthUserId;
+  if (NULL != grantedTable) {
+    ctgTestGrantTableSelect(&userRsp, grantedTable);
+  }
+  ASSERT_EQ(ctgUpdateUserEnqueue(pCtg, &userRsp, false), 0);
+  for (int32_t i = 0; i < 200; ++i) {
+    uint64_t n = 0;
+    ASSERT_EQ(0, ctgdGetStatNum("runtime.numOfOpDequeue", (void *)&n));
+    if (n >= 1) {
+      break;
+    }
+    taosMsleep(50);
+  }
+
+  if (freezeCache) {
+    // freeze every later cache update: nothing fetched by the sub task reaches the cache
+    ASSERT_EQ(ctgdEnableDebug(const_cast<char *>("stopUpdate"), true), 0);
+  }
+
+  req.pUser = taosArrayInit(1, sizeof(SUserAuthInfo));
+  ASSERT_NE(req.pUser, nullptr);
+  SUserAuthInfo authInfo = {0};
+  TAOS_STRCPY(authInfo.user, ctgTestUsername);
+  toName(1, ctgTestAuthDb, tbName, &authInfo.tbName);
+  authInfo.privType = PRIV_TBL_SELECT;
+  authInfo.objType = PRIV_OBJ_TBL;
+  ASSERT_NE(taosArrayPush(req.pUser, &authInfo), nullptr);
+
+  ASSERT_EQ(catalogAsyncGetAllMeta(pCtg, &conn, &req, ctgTestAsyncMetaCb, &result, NULL), TSDB_CODE_SUCCESS);
+  ASSERT_EQ(tsem_timewait(&result.sem, 10000), 0);
+
+  EXPECT_EQ(result.code, TSDB_CODE_SUCCESS);  // the job itself succeeds, a failed check is reported in its result
+  ASSERT_NE(result.meta.pUser, nullptr);
+  ASSERT_EQ(taosArrayGetSize(result.meta.pUser), 1);
+  SMetaRes *userRes = (SMetaRes *)taosArrayGet(result.meta.pUser, 0);
+  ASSERT_NE(userRes, nullptr);
+  if (CTG_TEST_AUTH_ERROR == expect) {
+    EXPECT_NE(userRes->code, TSDB_CODE_SUCCESS);
+  } else {
+    EXPECT_EQ(userRes->code, TSDB_CODE_SUCCESS);
+    ASSERT_NE(userRes->pRes, nullptr);
+    EXPECT_EQ(((SUserAuthRes *)userRes->pRes)->pass[AUTH_RES_BASIC], CTG_TEST_AUTH_PASS == expect);
+  }
+
+  if (freezeCache) {
+    (void)ctgdEnableDebug(const_cast<char *>("stopUpdate"), false);
+  }
+  if (NULL != pMetaReqNum) {
+    *pMetaReqNum = ctgTestMetaReqNum;
+  }
+  ctgTestUnfreezeAtMetaReq = 0;
+  taosArrayDestroy(req.pUser);
+  catalogFreeMetaData(&result.meta);
+  tsem_destroy(&result.sem);
+  catalogDestroy();
+  ctgTestMetaOwnerId = 0;
+  ctgTestAsyncRspType = 0;
+}
+
+// table meta fetched by the sub task of the check, then written to the cache as usual
+TEST(catalogAsync, userAuthNormalTableOwner) {
+  ctgTestUserAuthOnFetchedMeta(ctgTestTablename, 0, ctgTestAuthUserId, CTG_TEST_AUTH_PASS);
+}
+
+TEST(catalogAsync, userAuthNormalTableNotOwner) {
+  ctgTestUserAuthOnFetchedMeta(ctgTestTablename, 0, 0, CTG_TEST_AUTH_REFUSED);
+}
+
+// the user holds SELECT on the table itself, not being its owner
+TEST(catalogAsync, userAuthNormalTableGranted) {
+  ctgTestUserAuthOnFetchedMeta(ctgTestTablename, 0, 0, CTG_TEST_AUTH_PASS, ctgTestTablename);
+}
+
+TEST(catalogAsync, userAuthChildTableOwner) {
+  ctgTestUserAuthOnFetchedMeta(ctgTestCTablename, CTGT_ASYNC_RSP_CHILD_TABLE, ctgTestAuthUserId, CTG_TEST_AUTH_PASS);
+}
+
+TEST(catalogAsync, userAuthChildTableNotOwner) {
+  ctgTestUserAuthOnFetchedMeta(ctgTestCTablename, CTGT_ASYNC_RSP_CHILD_TABLE, 0, CTG_TEST_AUTH_REFUSED);
+}
+
+// the user holds SELECT on the super table only: a child table is checked against its super table
+TEST(catalogAsync, userAuthChildTableGrantedOnSuperTable) {
+  ctgTestUserAuthOnFetchedMeta(ctgTestCTablename, CTGT_ASYNC_RSP_CHILD_TABLE, 0, CTG_TEST_AUTH_PASS, ctgTestSTablename);
+}
+
+// the same with a SELECT on an unrelated table: the child must be refused
+TEST(catalogAsync, userAuthChildTableGrantedOnOtherTable) {
+  ctgTestUserAuthOnFetchedMeta(ctgTestCTablename, CTGT_ASYNC_RSP_CHILD_TABLE, 0, CTG_TEST_AUTH_REFUSED, "other_table");
+}
+
+// a query on a super table, which is what the customer's coredump was about
+TEST(catalogAsync, userAuthSuperTableOwner) {
+  ctgTestUserAuthOnFetchedMeta(ctgTestSTablename, CTGT_ASYNC_RSP_SUPER_TABLE, ctgTestAuthUserId, CTG_TEST_AUTH_PASS);
+}
+
+TEST(catalogAsync, userAuthSuperTableNotOwner) {
+  ctgTestUserAuthOnFetchedMeta(ctgTestSTablename, CTGT_ASYNC_RSP_SUPER_TABLE, 0, CTG_TEST_AUTH_REFUSED);
+}
+
+TEST(catalogAsync, userAuthVirtualChildTableOwner) {
+  ctgTestUserAuthOnFetchedMeta(ctgTestCTablename, CTGT_ASYNC_RSP_VIRTUAL_CHILD_TABLE, ctgTestAuthUserId,
+                               CTG_TEST_AUTH_PASS);
+}
+
+TEST(catalogAsync, userAuthVirtualChildTableNotOwner) {
+  ctgTestUserAuthOnFetchedMeta(ctgTestCTablename, CTGT_ASYNC_RSP_VIRTUAL_CHILD_TABLE, 0, CTG_TEST_AUTH_REFUSED);
+}
+
+// Nothing fetched by the sub task is kept in the cache (frozen with the "stopUpdate" debug switch; in the field the
+// cache write is still queued, or the entry is removed again by a heartbeat or by a concurrent request).
+// A normal table is decided on the fetched meta, whatever happens to the cache.
+TEST(catalogAsync, userAuthNormalTableWithCacheFrozen) {
+  ctgTestUserAuthOnFetchedMeta(ctgTestTablename, 0, ctgTestAuthUserId, CTG_TEST_AUTH_PASS, NULL, true);
+}
+
+// A child table also needs the name of its super table, which is looked up in the cache. When it is not there, the
+// meta is fetched once more with a forced update; if the cache still lacks it, the check fails with an error instead of
+// launching the sub task again and again until the stack overflows (coredump in ctgSetSubTaskCb).
+TEST(catalogAsync, userAuthSuperTableWithCacheFrozen) {
+  ctgTestUserAuthOnFetchedMeta(ctgTestSTablename, CTGT_ASYNC_RSP_SUPER_TABLE, ctgTestAuthUserId, CTG_TEST_AUTH_PASS,
+                               NULL, true);
+}
+
+TEST(catalogAsync, userAuthChildTableWithCacheFrozenFailsWithoutRecursion) {
+  ctgTestUserAuthOnFetchedMeta(ctgTestCTablename, CTGT_ASYNC_RSP_CHILD_TABLE, ctgTestAuthUserId, CTG_TEST_AUTH_ERROR,
+                               NULL, true);
+}
+
+// The cache stays frozen for the first fetch and is released for the forced one: the super table name is missing after
+// the first fetch, the forced fetch brings it back and the check passes.
+TEST(catalogAsync, userAuthChildTableForcedRefetchFindsSuperTableName) {
+  int32_t metaReqNum = 0;
+  ctgTestUnfreezeAtMetaReq = 2;
+  ctgTestUserAuthOnFetchedMeta(ctgTestCTablename, CTGT_ASYNC_RSP_CHILD_TABLE, ctgTestAuthUserId, CTG_TEST_AUTH_PASS,
+                               NULL, true, &metaReqNum);
+  EXPECT_EQ(metaReqNum, 2);
+}
+
+// A super table name that never gets into the cache costs at most two fetches of the child table, not one per loop.
+TEST(catalogAsync, userAuthChildTableWithCacheFrozenFetchesAtMostTwice) {
+  int32_t metaReqNum = 0;
+  ctgTestUserAuthOnFetchedMeta(ctgTestCTablename, CTGT_ASYNC_RSP_CHILD_TABLE, ctgTestAuthUserId, CTG_TEST_AUTH_ERROR,
+                               NULL, true, &metaReqNum);
+  EXPECT_EQ(metaReqNum, CTG_USER_META_FETCH_MAX);
+}
+
+TEST(catalogAsync, userAuthVirtualChildTableWithCacheFrozenFailsWithoutRecursion) {
+  ctgTestUserAuthOnFetchedMeta(ctgTestCTablename, CTGT_ASYNC_RSP_VIRTUAL_CHILD_TABLE, ctgTestAuthUserId,
+                               CTG_TEST_AUTH_ERROR, NULL, true);
+}
+
 TEST(catalogAsync, batchRspReqTypeMismatch) {
   SCatalog            *pCtg = NULL;
   SRequestConnInfo     conn = {0};
@@ -3901,6 +4224,445 @@ TEST(apiTest, ctgDropTSMAForTbEnqueueOwnershipTransfer_test) {
   taosArrayDestroy(tsmaCache.pTsmas);
   taosHashCleanup(dbCache.tsmaCache);
   taosHashCleanup(ctg.dbCache);
+}
+
+
+// ---------------------------------------------------------------------------
+// View metadata cache regression tests
+// ---------------------------------------------------------------------------
+
+static SViewMetaRsp *ctgTestBuildViewMetaRsp(const char *viewName, uint64_t viewId, int32_t version) {
+  SViewMetaRsp *pRsp = (SViewMetaRsp *)taosMemoryCalloc(1, sizeof(SViewMetaRsp));
+  if (NULL == pRsp) {
+    return NULL;
+  }
+
+  TAOS_STRCPY(pRsp->name, viewName);
+  TAOS_STRCPY(pRsp->dbFName, "1.db_view_test");
+  pRsp->dbId = 0x1234;
+  pRsp->viewId = viewId;
+  pRsp->version = version;
+  pRsp->precision = TSDB_TIME_PRECISION_MILLI;
+  pRsp->type = 1;
+  pRsp->numOfCols = 1;
+  pRsp->querySql = tstrdup("select ts from t");
+  pRsp->createUser = tstrdup("root");
+  pRsp->pSchema = (SSchema *)taosMemoryCalloc(1, sizeof(SSchema));
+  if (NULL == pRsp->querySql || NULL == pRsp->createUser || NULL == pRsp->pSchema) {
+    tFreeSViewMetaRsp(pRsp);
+    taosMemoryFree(pRsp);
+    return NULL;
+  }
+
+  TAOS_STRCPY(pRsp->pSchema[0].name, "ts");
+  pRsp->pSchema[0].type = TSDB_DATA_TYPE_TIMESTAMP;
+  pRsp->pSchema[0].bytes = sizeof(int64_t);
+  pRsp->pSchema[0].colId = PRIMARYKEY_TIMESTAMP_COL_ID;
+  return pRsp;
+}
+
+static int64_t ctgTestLoadDynViewVer(SCatalog *pCtg) {
+  return atomic_load_64((volatile int64_t *)&pCtg->dynViewVer.dynViewVer);
+}
+
+static SCtgViewCache *ctgTestGetViewCache(SCatalog *pCtg, const char *dbFName, const char *viewName) {
+  if (NULL == pCtg->dbCache || NULL == dbFName || NULL == viewName) {
+    return NULL;
+  }
+
+  SCtgDBCache *dbCache = (SCtgDBCache *)taosHashGet(pCtg->dbCache, dbFName, strlen(dbFName));
+  if (NULL == dbCache || NULL == dbCache->viewCache) {
+    return NULL;
+  }
+
+  return (SCtgViewCache *)taosHashGet(dbCache->viewCache, viewName, strlen(viewName));
+}
+
+// A stale view metadata update (older or equal version) must not overwrite a newer
+// cached instance. Newer versions, including a recreated instance, are accepted.
+TEST(viewMetaCache, rejectStaleVersion) {
+  struct SCatalog *pCtg = NULL;
+
+  ctgTestInitLogFile();
+  ASSERT_EQ(catalogInit(NULL), 0);
+  ASSERT_EQ(catalogGetHandle(ctgTestClusterId, &pCtg), 0);
+
+  SViewMetaRsp *pRsp = ctgTestBuildViewMetaRsp("v_guard", 0x1001, 2);
+  ASSERT_NE(pRsp, nullptr);
+  ASSERT_EQ(catalogUpdateViewMeta(pCtg, pRsp), TSDB_CODE_SUCCESS);  // consumed by the catalog
+
+  SCtgViewCache *pCache = ctgTestGetViewCache(pCtg, "1.db_view_test", "v_guard");
+  ASSERT_NE(pCache, nullptr);
+  ASSERT_NE(pCache->pMeta, nullptr);
+  ASSERT_EQ(pCache->pMeta->viewId, 0x1001u);
+  ASSERT_EQ(pCache->pMeta->version, 2);
+
+  // Same instance, older version: rejected.
+  pRsp = ctgTestBuildViewMetaRsp("v_guard", 0x1001, 1);
+  ASSERT_NE(pRsp, nullptr);
+  ASSERT_EQ(catalogUpdateViewMeta(pCtg, pRsp), TSDB_CODE_SUCCESS);
+  pCache = ctgTestGetViewCache(pCtg, "1.db_view_test", "v_guard");
+  ASSERT_NE(pCache, nullptr);
+  ASSERT_NE(pCache->pMeta, nullptr);
+  ASSERT_EQ(pCache->pMeta->version, 2);
+
+  // Out-of-order response from an older (replaced) instance: rejected.
+  pRsp = ctgTestBuildViewMetaRsp("v_guard", 0x0999, 1);
+  ASSERT_NE(pRsp, nullptr);
+  ASSERT_EQ(catalogUpdateViewMeta(pCtg, pRsp), TSDB_CODE_SUCCESS);
+  pCache = ctgTestGetViewCache(pCtg, "1.db_view_test", "v_guard");
+  ASSERT_NE(pCache, nullptr);
+  ASSERT_NE(pCache->pMeta, nullptr);
+  ASSERT_EQ(pCache->pMeta->version, 2);
+  ASSERT_EQ(pCache->pMeta->viewId, 0x1001u);
+
+  // A newer version from a recreated instance: accepted.
+  pRsp = ctgTestBuildViewMetaRsp("v_guard", 0x1002, 3);
+  ASSERT_NE(pRsp, nullptr);
+  ASSERT_EQ(catalogUpdateViewMeta(pCtg, pRsp), TSDB_CODE_SUCCESS);
+  pCache = ctgTestGetViewCache(pCtg, "1.db_view_test", "v_guard");
+  ASSERT_NE(pCache, nullptr);
+  ASSERT_NE(pCache->pMeta, nullptr);
+  ASSERT_EQ(pCache->pMeta->version, 3);
+  ASSERT_EQ(pCache->pMeta->viewId, 0x1002u);
+
+  catalogDestroy();
+}
+
+static void ctgTestAddViewRent(SCatalog *pCtg, int32_t idx, uint32_t slotNum) {
+  SViewVersion view = {0};
+  view.viewId = (uint64_t)idx * slotNum + (uint64_t)(idx % (int32_t)slotNum);
+  view.dbId = 0x55;
+  view.version = 1;
+  (void)snprintf(view.dbFName, sizeof(view.dbFName), "1.db_view_sweep");
+  (void)snprintf(view.viewName, sizeof(view.viewName), "v_sweep_%d", idx);
+  ASSERT_EQ(ctgMetaRentAdd(&pCtg->viewRent, &view, (int64_t)view.viewId, sizeof(SViewVersion)), TSDB_CODE_SUCCESS);
+}
+
+// One heartbeat batch must carry at least CTG_VIEW_HB_MIN_NUM view versions when
+// the cached views are spread over several rent slots, and the global version may
+// only be committed after every slot has been verified.
+TEST(viewSweep, batchAndCommitOnlyAfterAllSlots) {
+  struct SCatalog *pCtg = NULL;
+
+  ctgTestInitLogFile();
+  ASSERT_EQ(catalogInit(NULL), 0);
+  ASSERT_EQ(catalogGetHandle(ctgTestClusterId, &pCtg), 0);
+
+  uint32_t slotNum = pCtg->viewRent.slotNum;
+  ASSERT_GT(slotNum, 1u);
+
+  const int32_t viewNum = (int32_t)slotNum * 4 + 1;
+  for (int32_t i = 0; i < viewNum; ++i) {
+    ctgTestAddViewRent(pCtg, i, slotNum);
+  }
+
+  SDynViewVersion svrVer = {.svrBootTs = 123, .dynViewVer = 7};
+  uint32_t        collected = 0;
+  int32_t         round = 0;
+  int64_t         reqId = 100;
+
+  while (round < (int32_t)slotNum + 2) {
+    SViewVersion    *views = NULL;
+    uint32_t         num = 0;
+    SDynViewVersion *dynVer = NULL;
+
+    ASSERT_EQ(catalogGetExpiredViews(pCtg, reqId, &views, &num, &dynVer), TSDB_CODE_SUCCESS);
+    ASSERT_NE(dynVer, nullptr);
+    ASSERT_EQ(dynVer->dynViewVer, 0u);  // the client reports the committed version
+
+    if (round == 0 && num > 0) {
+      ASSERT_GE(num, CTG_VIEW_HB_MIN_NUM);
+      ASSERT_LT(num, (uint32_t)viewNum);
+    }
+
+    collected += num;
+    taosMemoryFree(views);
+    taosMemoryFree(dynVer);
+    dynVer = NULL;
+    views = NULL;
+
+    if (num > 0) {
+      ASSERT_EQ(catalogApplyViewHbVersion(pCtg, &svrVer, reqId), TSDB_CODE_SUCCESS);
+    }
+
+    // The committed version must stay untouched until the whole rent is verified.
+    if (ctgTestLoadDynViewVer(pCtg) != (int64_t)svrVer.dynViewVer) {
+      ASSERT_EQ(ctgTestLoadDynViewVer(pCtg), 0);
+    }
+
+    ASSERT_EQ(catalogViewSweepTryCommit(pCtg), TSDB_CODE_SUCCESS);
+
+    round++;
+    reqId++;
+
+    if (ctgTestLoadDynViewVer(pCtg) == (int64_t)svrVer.dynViewVer) {
+      break;
+    }
+  }
+
+  ASSERT_EQ(collected, (uint32_t)viewNum);
+  ASSERT_EQ(ctgTestLoadDynViewVer(pCtg), (int64_t)svrVer.dynViewVer);
+  ASSERT_FALSE(pCtg->viewSweep.hasPending);
+
+  catalogDestroy();
+}
+
+// A response carrying a stale request id must not advance the sweep; a missing
+// response (timeout) and a send/receive failure must drop the outstanding round so the
+// batch can be re-sent; a response without a version change closes the idle round; slots
+// that only contain empty rent entries are verified locally and let the sweep commit.
+TEST(viewSweep, staleReqIdTimeoutAndHbError) {
+  struct SCatalog *pCtg = NULL;
+
+  ctgTestInitLogFile();
+  ASSERT_EQ(catalogInit(NULL), 0);
+  ASSERT_EQ(catalogGetHandle(ctgTestClusterId, &pCtg), 0);
+
+  uint32_t slotNum = pCtg->viewRent.slotNum;
+  ASSERT_GT(slotNum, 1u);
+
+  ctgTestAddViewRent(pCtg, 0, slotNum);
+
+  SDynViewVersion svrVer = {.svrBootTs = 321, .dynViewVer = 9};
+  SViewVersion    *views = NULL;
+  uint32_t         num = 0;
+  SDynViewVersion *dynVer = NULL;
+
+  // Idle probe with no version change: the server omits HEARTBEAT_KEY_DYN_VIEW and the
+  // outstanding round is closed without starting a sweep.
+  ASSERT_EQ(catalogGetExpiredViews(pCtg, 200, &views, &num, &dynVer), TSDB_CODE_SUCCESS);
+  ASSERT_EQ(num, 1u);
+  ASSERT_TRUE(pCtg->viewSweep.awaitingRsp);
+  taosMemoryFree(views);
+  taosMemoryFree(dynVer);
+  views = NULL;
+  dynVer = NULL;
+  ASSERT_EQ(catalogViewSweepOnHbRspDone(pCtg, 200, false), TSDB_CODE_SUCCESS);
+  ASSERT_FALSE(pCtg->viewSweep.awaitingRsp);
+  ASSERT_FALSE(pCtg->viewSweep.hasPending);
+
+  // A lost response is recovered by the timeout: the same view is sent again.
+  ASSERT_EQ(catalogGetExpiredViews(pCtg, 201, &views, &num, &dynVer), TSDB_CODE_SUCCESS);
+  ASSERT_EQ(num, 1u);
+  taosMemoryFree(views);
+  taosMemoryFree(dynVer);
+  views = NULL;
+  dynVer = NULL;
+  pCtg->viewSweep.sentMsec -= (CTG_VIEW_HB_RSP_TIMEOUT_MS + 1000);
+  ASSERT_EQ(catalogGetExpiredViews(pCtg, 202, &views, &num, &dynVer), TSDB_CODE_SUCCESS);
+  ASSERT_EQ(num, 1u);
+  ASSERT_EQ(pCtg->viewSweep.sentReqId, 202);
+  taosMemoryFree(views);
+  taosMemoryFree(dynVer);
+  views = NULL;
+  dynVer = NULL;
+
+  // A heartbeat failure drops the outstanding round; the batch is re-sent.
+  ASSERT_EQ(catalogViewSweepOnHbError(pCtg), TSDB_CODE_SUCCESS);
+  ASSERT_FALSE(pCtg->viewSweep.awaitingRsp);
+  ASSERT_EQ(catalogGetExpiredViews(pCtg, 203, &views, &num, &dynVer), TSDB_CODE_SUCCESS);
+  ASSERT_EQ(num, 1u);
+  taosMemoryFree(views);
+  taosMemoryFree(dynVer);
+  views = NULL;
+  dynVer = NULL;
+
+  // A response for another request id is ignored and does not verify anything.
+  ASSERT_EQ(catalogApplyViewHbVersion(pCtg, &svrVer, 204), TSDB_CODE_SUCCESS);
+  ASSERT_TRUE(pCtg->viewSweep.awaitingRsp);
+  ASSERT_FALSE(pCtg->viewSweep.hasPending);
+  ASSERT_EQ(ctgTestLoadDynViewVer(pCtg), 0);
+
+  // The matching response starts the sweep; the version is not committed yet.
+  ASSERT_EQ(catalogApplyViewHbVersion(pCtg, &svrVer, 203), TSDB_CODE_SUCCESS);
+  ASSERT_TRUE(pCtg->viewSweep.hasPending);
+  ASSERT_EQ(ctgTestLoadDynViewVer(pCtg), 0);
+
+  // The next round only visits the remaining empty slots; they are verified locally
+  // and the sweep commits without needing another response.
+  ASSERT_EQ(catalogGetExpiredViews(pCtg, 205, &views, &num, &dynVer), TSDB_CODE_SUCCESS);
+  ASSERT_EQ(num, 0u);
+  taosMemoryFree(views);
+  taosMemoryFree(dynVer);
+  ASSERT_EQ(ctgTestLoadDynViewVer(pCtg), (int64_t)svrVer.dynViewVer);
+
+  catalogDestroy();
+}
+
+class CtgExtSourceRefreshTest : public testing::Test {
+ protected:
+  void SetUp() override {
+    enqueueStub.set(ctgEnqueue, enqueueImmediately);
+    tstrncpy(source.source_name, "refresh_oracle", sizeof(source.source_name));
+    source.type = EXT_SOURCE_ORACLE;
+    source.port = 1521;
+    source.meta_version = 1;
+    source.create_time = 1000;
+    tstrncpy(source.host, "localhost", sizeof(source.host));
+    tstrncpy(source.database, "test", sizeof(source.database));
+
+    auto* msg = static_cast<SCtgUpdateExtSourceMsg*>(taosMemoryCalloc(1, sizeof(SCtgUpdateExtSourceMsg)));
+    ASSERT_NE(msg, nullptr);
+    msg->pCtg = &catalog;
+    msg->sourceRsp = source;
+    tstrncpy(msg->sourceName, source.source_name, sizeof(msg->sourceName));
+    SCtgCacheOperation operation = {};
+    operation.data = msg;
+    ASSERT_EQ(ctgOpUpdateExtSource(&operation), TSDB_CODE_SUCCESS);
+  }
+
+  void TearDown() override { ctgDestroyExtSourceCache(&catalog); }
+
+  static int32_t enqueueImmediately(SCatalog*, SCtgCacheOperation* operation, bool*) {
+    int32_t code = ctgOpReplaceExtSourceCache(operation);
+    taosMemoryFree(operation);
+    return code;
+  }
+
+  SExtSourceCacheEntry* entry() {
+    auto** cached = static_cast<SExtSourceCacheEntry**>(
+        taosHashGet(catalog.pExtSourceHash, source.source_name, strlen(source.source_name)));
+    return cached ? *cached : nullptr;
+  }
+
+  void replace(bool includeSource = true) {
+    SArray* sources = taosArrayInit(1, sizeof(source));
+    ASSERT_NE(sources, nullptr);
+    if (includeSource && taosArrayPush(sources, &source) == nullptr) {
+      taosArrayDestroy(sources);
+      FAIL() << "failed to construct external source snapshot";
+    }
+    int32_t code = ctgReplaceExtSourceCacheEnqueue(&catalog, ++globalVer, sources);
+    taosArrayDestroy(sources);
+    ASSERT_EQ(code, TSDB_CODE_SUCCESS);
+    ASSERT_EQ(atomic_load_64(&catalog.extSrcGlobalVer), globalVer);
+  }
+
+  void disableClause(EExtClauseKind clause) {
+    SExtCapDemoteSpec spec = {};
+    spec.kind = EXT_DEMOTE_KIND_CLAUSE;
+    spec.reasonCode = EXT_DEMOTE_REASON_USER_FORCED;
+    spec.detail.clauseKind = clause;
+    ASSERT_EQ(extCapDemoteApply(&entry()->capability, &spec), TSDB_CODE_SUCCESS);
+  }
+
+  bool clauseDisabled(EExtClauseKind clause) {
+    return capDisabled(&entry()->capability, nullptr, EXT_DEMOTE_KIND_CLAUSE, &clause);
+  }
+
+  Stub enqueueStub;
+  SCatalog catalog = {};
+  SGetExtSourceRsp source = {};
+  int64_t globalVer = 0;
+};
+
+TEST_F(CtgExtSourceRefreshTest, preservesDisabledPushdownAcrossHeartbeat) {
+  ASSERT_NE(entry(), nullptr);
+  const EExtClauseKind clauses[] = {EXT_CLAUSE_FILTER, EXT_CLAUSE_PROJECTION, EXT_CLAUSE_AGG,
+                                   EXT_CLAUSE_ORDER, EXT_CLAUSE_LIMIT, EXT_CLAUSE_JOIN};
+  for (auto clause : clauses) {
+    ASSERT_NO_FATAL_FAILURE(disableClause(clause));
+  }
+  int64_t loadedAtMs = entry()->capability.loadedAtMs;
+  SHashObj* dbHash = entry()->pDbHash;
+  SHashObj* disabledClauses = entry()->capability.disabledClauses;
+
+  const int64_t fetchedTimes[] = {0, 123};
+  for (auto fetchedAt : fetchedTimes) {
+    entry()->capFetchedAt = fetchedAt;
+    ASSERT_NO_FATAL_FAILURE(replace());
+    ASSERT_NE(entry(), nullptr);
+    EXPECT_EQ(entry()->pDbHash, dbHash);
+    EXPECT_EQ(entry()->capFetchedAt, fetchedAt);
+    EXPECT_EQ(entry()->capability.loadedAtMs, loadedAtMs);
+    EXPECT_EQ(entry()->capability.dialect, EXT_SQL_DIALECT_ORACLE);
+    EXPECT_EQ(entry()->capability.disabledClauses, disabledClauses);
+    for (auto clause : clauses) {
+      EXPECT_TRUE(clauseDisabled(clause)) << "clause: " << clause;
+    }
+  }
+
+  taosHashClear(entry()->capability.disabledClauses);
+  ASSERT_NO_FATAL_FAILURE(replace());
+  for (auto clause : clauses) {
+    EXPECT_FALSE(clauseDisabled(clause)) << "clause: " << clause;
+  }
+}
+
+TEST_F(CtgExtSourceRefreshTest, invalidatesCapabilitiesOnSourceVersionChange) {
+  ASSERT_NO_FATAL_FAILURE(disableClause(EXT_CLAUSE_JOIN));
+  entry()->capFetchedAt = 123;
+  ++source.meta_version;
+
+  ASSERT_NO_FATAL_FAILURE(replace());
+  ASSERT_NE(entry(), nullptr);
+  EXPECT_FALSE(clauseDisabled(EXT_CLAUSE_JOIN));
+  EXPECT_EQ(entry()->capFetchedAt, 0);
+  EXPECT_EQ(entry()->capability.loadedAtMs, 0);
+}
+
+TEST_F(CtgExtSourceRefreshTest, doesNotInheritStateAcrossSourceRecreate) {
+  ASSERT_NO_FATAL_FAILURE(disableClause(EXT_CLAUSE_JOIN));
+  entry()->capFetchedAt = 123;
+  SHashObj* oldDbHash = entry()->pDbHash;
+
+  // DROP + CREATE with identical settings: mnode restarts meta_version at 1 but
+  // stamps a new create_time.  The heartbeat push only carries the recreated
+  // source (no delete event), so the stale entry must not be treated as the
+  // same instance and its demotions must not migrate to the new one.
+  ++source.create_time;
+  ASSERT_NO_FATAL_FAILURE(replace());
+  ASSERT_NE(entry(), nullptr);
+  EXPECT_NE(entry()->pDbHash, oldDbHash);
+  EXPECT_FALSE(clauseDisabled(EXT_CLAUSE_JOIN));
+  EXPECT_EQ(entry()->capFetchedAt, 0);
+  EXPECT_EQ(entry()->capability.loadedAtMs, 0);
+}
+
+TEST_F(CtgExtSourceRefreshTest, simulatesOtherClientRecreateBetweenHeartbeats) {
+  // Client A has the source cached and JOIN pushdown disabled locally.
+  ASSERT_NO_FATAL_FAILURE(disableClause(EXT_CLAUSE_JOIN));
+  entry()->capFetchedAt = 123;
+  SHashObj* oldDbHash = entry()->pDbHash;
+
+  // A routine heartbeat for the same instance must keep A's demotion.
+  ASSERT_NO_FATAL_FAILURE(replace());
+  ASSERT_TRUE(clauseDisabled(EXT_CLAUSE_JOIN));
+
+  // While A is between heartbeats, client B drops and recreates the source
+  // with an identical definition.  A's next heartbeat carries only the
+  // recreated instance - meta_version is back to 1 and only create_time
+  // differs, with no delete snapshot in between.
+  ++source.create_time;
+  ASSERT_NO_FATAL_FAILURE(replace());
+  ASSERT_NE(entry(), nullptr);
+  EXPECT_EQ(entry()->source.meta_version, 1);
+  EXPECT_EQ(entry()->source.create_time, source.create_time);
+  EXPECT_NE(entry()->pDbHash, oldDbHash);
+  EXPECT_FALSE(clauseDisabled(EXT_CLAUSE_JOIN));
+  EXPECT_EQ(entry()->capFetchedAt, 0);
+
+  // State accumulated by the recreated instance still survives its own
+  // refreshes, so the guard only drops cross-instance state.
+  ASSERT_NO_FATAL_FAILURE(disableClause(EXT_CLAUSE_FILTER));
+  entry()->capFetchedAt = 456;
+  ASSERT_NO_FATAL_FAILURE(replace());
+  ASSERT_NE(entry(), nullptr);
+  EXPECT_FALSE(clauseDisabled(EXT_CLAUSE_JOIN));
+  EXPECT_TRUE(clauseDisabled(EXT_CLAUSE_FILTER));
+  EXPECT_EQ(entry()->capFetchedAt, 456);
+}
+
+TEST_F(CtgExtSourceRefreshTest, doesNotRestoreDemotionsAfterSourceRemoval) {
+  ASSERT_NO_FATAL_FAILURE(disableClause(EXT_CLAUSE_JOIN));
+  ASSERT_NO_FATAL_FAILURE(replace(false));
+  EXPECT_EQ(entry(), nullptr);
+
+  ASSERT_NO_FATAL_FAILURE(replace());
+  ASSERT_NE(entry(), nullptr);
+  EXPECT_FALSE(clauseDisabled(EXT_CLAUSE_JOIN));
+  EXPECT_EQ(entry()->capFetchedAt, 0);
 }
 
 #ifdef INTEGRATION_TEST

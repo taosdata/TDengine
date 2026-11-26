@@ -20,6 +20,7 @@
 #include "os.h"
 #include "tarray.h"
 #include "tglobal.h"
+#include "tutil.h"
 #include "txnode.h"
 #include "txnodeInt.h"
 #include "osString.h"
@@ -440,7 +441,10 @@ static int32_t xnodeMgmtSpawnXnoded(SXnodedData *pData) {
 
   // This pipe only detects parent shutdown through EOF. Enabling libuv IPC
   // triggers a child-process handshake that is unsupported by xnoded on Windows.
-  TAOS_UV_LIB_ERROR_RET(uv_pipe_init(&pData->loop, &pData->ctrlPipe, 0));
+  err = uv_pipe_init(&pData->loop, &pData->ctrlPipe, 0);
+  if (err != 0) {
+    return err;
+  }
 
   uv_stdio_container_t child_stdio[3];
   child_stdio[0].flags = UV_CREATE_PIPE | UV_READABLE_PIPE;
@@ -568,19 +572,20 @@ static void xnodeMgmtWatchXnoded(void *args) {
   return;
 
 _exit:
-  if (terrno != 0) {
+  {
     int32_t failCode = terrno;
-    int32_t failLine = terrln;
+    // Failure-only exit: success returns above. Always release the starter.
+    // Publish the result before the starter can read it after the barrier.
+    atomic_store_32(&pData->spawnErr, tsdbMapUvErr(failCode, TSDB_CODE_XNODE_UV_EXEC_FAILURE));
     (void)uv_barrier_wait(&pData->barrier);
-    atomic_store_32(&pData->spawnErr, failCode);
-    // Any handle initialized before failure (stopAsync, ctrlPipe from a
-    // partial xnodeMgmtSpawnXnoded) must be closed and drained, otherwise
-    // uv_loop_close fails and leaks the loop's internal state.
+    // The starter only joins on failure. This thread owns all handle cleanup,
+    // including stopAsync and ctrlPipe from a partially completed spawn.
     if (loopInitialized) {
       xnodeMgmtXnodedDrainLoop(pData);
     }
 
-    xndError("xnoded thread exit with code:%d lino:%d", failCode, failLine);
+    const char *reason = (failCode < 0 && failCode > TSDB_UV_ERRNO_MIN) ? uv_strerror(failCode) : tstrerror(failCode);
+    xndError("xnoded thread start failed with code:%d, reason:%s", failCode, reason);
     terrno = TSDB_CODE_XNODE_UV_EXEC_FAILURE;
   }
 }
@@ -593,13 +598,15 @@ _exit:
 int32_t xnodeMgmtStartXnoded(SXnode *pXnode) {
   int32_t code = 0, lino = 0;
   bool    barrierInitialized = false;
+  bool    canRetry = true;
 
   SXnodedData *pData = &xnodedGlobal;
   pData->leaderEp = pXnode->ep;
   if (pData->isStarted) {
     xndInfo("dnode start xnoded already called");
-    return 0;
+    return atomic_load_32(&pData->spawnErr);
   }
+  atomic_store_32(&pData->spawnErr, 0);
   pData->isStarted = true;
   char dnodeId[8] = {0};
   snprintf(dnodeId, sizeof(dnodeId), "%d", pXnode->dnodeId);
@@ -615,19 +622,18 @@ int32_t xnodeMgmtStartXnoded(SXnode *pXnode) {
   barrierInitialized = true;
   TAOS_CHECK_GOTO(uv_thread_create(&pData->thread, xnodeMgmtWatchXnoded, pData), &lino, _exit);
   (void)uv_barrier_wait(&pData->barrier);
-  uv_sleep(100);
   int32_t err = atomic_load_32(&pData->spawnErr);
   if (err != 0) {
-    uv_barrier_destroy(&pData->barrier);
-    barrierInitialized = false;
-    if (uv_async_send(&pData->stopAsync) != 0) {
-      xndError("start xnoded: failed to send stop async");
+    // stopAsync may already be closing. The worker needs no stop notification.
+    int32_t joinErr = uv_thread_join(&pData->thread);
+    if (joinErr != 0) {
+      // Keep the barrier and started flag while the worker may still use them.
+      xndError("start xnoded: failed to join xnoded thread, code:%d", joinErr);
+      barrierInitialized = false;
+      canRetry = false;
+    } else {
+      xndInfo("xnoded is cleaned up after spawn err");
     }
-    if (uv_thread_join(&pData->thread) != 0) {
-      xndError("start xnoded: failed to join xnoded thread");
-    }
-    pData->needCleanUp = false;
-    xndInfo("xnoded is cleaned up after spawn err");
     TAOS_CHECK_GOTO(err, &lino, _exit);
   } else {
     pData->needCleanUp = true;
@@ -637,16 +643,19 @@ int32_t xnodeMgmtStartXnoded(SXnode *pXnode) {
   return 0;
 
 _exit:
-  if (barrierInitialized) {
-    uv_barrier_destroy(&pData->barrier);
-  }
   if (code != 0) {
-    pData->isStarted = false;
-    pData->needCleanUp = false;
+    if (barrierInitialized) {
+      uv_barrier_destroy(&pData->barrier);
+    }
+    if (canRetry) {
+      pData->isStarted = false;
+      pData->needCleanUp = false;
+    }
     // uv_strerror allocates and never frees a string for codes outside the libuv
     // range, which LeakSanitizer reports. TSDB_CODE_* values take that path.
-    const char *reason = (code > -4096 && code < 0) ? uv_strerror(code) : tstrerror(code);
-    xndError("xnoded start failed with lino:%d, code:%d, error: %s", code, lino, reason);
+    const char *reason = (code > TSDB_UV_ERRNO_MIN && code < 0) ? uv_strerror(code) : tstrerror(code);
+    xndError("xnoded start failed with lino:%d, code:%d, error: %s", lino, code, reason);
+    code = tsdbMapUvErr(code, TSDB_CODE_XNODE_UV_EXEC_FAILURE);
   }
   return code;
 }
@@ -664,12 +673,12 @@ void xnodeMgmtStopXnoded(void) {
   pData->needCleanUp = false;
   (void)uv_process_kill(&pData->process, SIGTERM);
   uv_sleep(1000);
-  uv_barrier_destroy(&pData->barrier);
-
   xndInfo("xnoded waiting to clean up");
   if (uv_thread_join(&pData->thread) != 0) {
     xndError("stop xnoded: failed to join xnoded thread");
+    return;
   }
+  uv_barrier_destroy(&pData->barrier);
   xndInfo("xnoded is cleaned up");
 
   pData->isStarted = false;

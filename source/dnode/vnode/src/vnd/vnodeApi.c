@@ -16,6 +16,7 @@
  */
 
 #include "meta.h"
+#include "tdTestSeam.h"
 #include "storageapi.h"
 #include "vnodeInt.h"
 #include "vnodeStreamVTable.h"
@@ -35,6 +36,7 @@ void vnodeSetDnodeId(int32_t dnodeId) { atomic_store_32(&tsVnodeDnodeId, dnodeId
 int32_t vnodeGetDnodeId(void) { return atomic_load_32(&tsVnodeDnodeId); }
 
 void initStorageAPI(SStorageAPI* pAPI) {
+  TD_SEAM_VOID(initStorageAPI, void (*)(SStorageAPI*), (pAPI));
   initTsdbReaderAPI(&pAPI->tsdReader);
   initMetadataAPI(&pAPI->metaFn);
   initMetaReaderAPI(&pAPI->metaReaderFn);
@@ -56,6 +58,10 @@ void initTsdbReaderAPI(TsdReader* pReader) {
   pReader->tsdReaderReleaseDataBlock = tsdbReleaseDataBlock2;
 
   pReader->tsdReaderRetrieveBlockSMAInfo = tsdbRetrieveDatablockSMA2;
+  pReader->tsdReaderGetFilterBlock = tsdbReaderGetFilterBlock;
+  pReader->tsdReaderSetLastScanCandidate = tsdbReaderSetLastScanCandidate;
+  pReader->tsdReaderRetrieveSelectedDataBlock =
+      tsdbReaderRetrieveSelectedDataBlock;
   pReader->tsdReaderSetBlockSmaMode = tsdbReaderSetBlockSmaMode;
 
   pReader->tsdReaderNotifyClosing = (void (*)(void*))tsdbReaderSetCloseFlag;
@@ -102,6 +108,7 @@ void initMetadataAPI(SStoreMeta* pMeta) {
   pMeta->getSecurityLevel = vnodeGetSecurityLevel;
   pMeta->getVnodePrecision = vnodeGetTsdbPrecision;
   pMeta->getNumOfChildTables = metaGetStbStats;
+  pMeta->getVtableGen = metaGetVtableGenFromVnode;
 
   pMeta->getChildTableList = vnodeGetCtbIdList;
 

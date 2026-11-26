@@ -94,7 +94,7 @@ TDengine ODBC supports two ways to connect to the TDengine database: WebSocket c
 
     4.6 **Password**: Optional, for use in step 5 connection testing only, database user password, if not specified, TDengine defaults to taosdata
 
-    4.7 **Compatible Software**: Supports compatibility adaptation for industrial software such as KingSCADA, Kepware, etc., with ADO support included. Usually, the default value General is sufficient for most scenarios
+    4.7 **Compatible Software**: Provides compatibility adaptation for ADO and industrial software (WellinTech KingCalculation analytics platform, KingSuperScada industrial SCADA platform, KingIOserver data collection tool, Kepware, and others). In most cases, keep the default value General.
 
     4.8 **Enable Transport Compression**: Optional and available only for WebSocket connections. Checked is equivalent to `COMPRESSION=1`, unchecked is equivalent to `COMPRESSION=0`. This parameter controls whether WebSocket transmission compression is enabled.
 
@@ -128,13 +128,59 @@ TDengine ODBC supports two ways to connect to the TDengine database: WebSocket c
 
     4.6 **Password**: Optional, used only for testing the connection in step 5, database user password, if not specified, TDengine defaults to taosdata.
 
-    4.7 **Compatible Software**: Supports compatibility adaptation for industrial software such as KingSCADA, Kepware, etc., with ADO support included. Usually, the default value General is sufficient for most scenarios.
+    4.7 **Compatible Software**: Provides compatibility adaptation for ADO and industrial software (WellinTech KingCalculation analytics platform, KingSuperScada industrial SCADA platform, KingIOserver data collection tool, Kepware, and others). In most cases, keep the default value General.
 
 5. Click **Test Connection** to test the connection status. If successful, a "Connection successful" message will appear.
 
 6. Click **OK** to save the configuration and exit.
 
 7. You can also select a pre-configured data source name in step 2 and enter the configuration page through the **Configure** button to modify existing configurations.
+
+### Compatible Software Options {#compatible-software}
+
+Applications call the ODBC interface differently. An ADO recordset may request a locking concurrency mode, and some industrial software sets a login timeout before connecting. **Compatible Software** declares which kind of application uses the data source. The driver then adjusts a small set of ODBC behaviors so that it works with ADO and industrial software, including WellinTech KingCalculation, KingSuperScada, KingIOserver, and Kepware.
+
+This option affects only client-side driver behavior. It is not sent to the server, and it does not change SQL semantics or write and query results.
+
+#### Values and Driver Behavior
+
+| Option | Shown in the configuration UI | Driver behavior | When to use it |
+| --- | --- | --- | --- |
+| General | 32-bit and 64-bit | Default. Statement concurrency is read-only (`SQL_CONCUR_READ_ONLY`), and result-set columns are described as read-only. If the application sets a non-zero login timeout (`SQL_ATTR_LOGIN_TIMEOUT`), the driver treats it as 0 and returns warning `01S02`. | General ODBC applications such as Power BI, Excel, and programs you write |
+| ADO | 32-bit and 64-bit | The default statement concurrency is `SQL_CONCUR_LOCK`, and `SQL_CONCUR_READ_ONLY` is also accepted. Result-set columns are marked writable (`SQL_ATTR_WRITE`). | Applications that access TDengine through ADO and read or write data with a recordset |
+| KingSCADA | 32-bit only | The driver keeps the login timeout set through `SQL_ATTR_LOGIN_TIMEOUT` and returns that value when the application reads the attribute. Other behavior matches General. | WellinTech industrial software that depends on the driver keeping the login timeout |
+| Kepware | 32-bit only | Marks the data source as used by Kepware. It does not otherwise change driver behavior, which otherwise matches General. | Kepware accessing TDengine through ODBC |
+
+:::note
+
+- The 32-bit driver is available only in the Enterprise edition, and it supports only WebSocket connections. KingSCADA and Kepware appear only in the 32-bit configuration UI.
+- The 64-bit configuration UI does not show KingSCADA or Kepware. To use either option from a 64-bit application, set it in the connection string, as described below.
+
+:::
+
+#### How to Configure
+
+**In the data source configuration UI**
+
+On the TDengine ODBC data source page, select the option in the **Compatible Software** list and click **OK**. The value is saved as the DSN setting `CUSTOMPRODUCT`. Every connection that uses the DSN follows that option. After you change it, open a new connection for the change to take effect.
+
+**In a connection string**
+
+When connecting with `SQLDriverConnect` or a similar API, set `CUSTOMPRODUCT` to one of `general`, `ado`, `kingscada`, or `kepware`. The value is case-insensitive and must be wrapped in braces. For example:
+
+```text
+DSN=TDengine_WS;CUSTOMPRODUCT={ado}
+```
+
+If the value is not one of those four, the driver cannot parse the connection string and the connection fails.
+
+#### How to Choose
+
+1. For BI tools, reporting tools, and programs you write, keep the default General.
+2. When the application accesses TDengine through ADO, choose ADO, especially when it uses a recordset and sets a lock type.
+3. When WellinTech KingCalculation, KingSuperScada, or KingIOserver accesses TDengine through ODBC and sets a login timeout before connecting, choose KingSCADA if General produces warning `01S02` or the timeout does not take effect. Otherwise keep General.
+4. When Kepware accesses TDengine through ODBC, you can choose Kepware to identify the data source. Its behavior currently matches General.
+5. If you are not sure, start with General, run **Test Connection**, and verify the application. Switch to another option only when one of the compatibility problems above appears.
 
 ## Supported Platforms
 

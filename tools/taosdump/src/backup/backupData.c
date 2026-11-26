@@ -143,11 +143,224 @@ int backChildTableData(DataThread* thread, const char *childTableName) {
 }
 
 //
+// object name enumeration
+//
+
+// Callback invoked by backEnumerateObjects() for every enumerated name.
+// Returns TSDB_CODE_SUCCESS to continue with the next name, or an error code to
+// abort the run.
+typedef int (*ObjectNameHandler)(DataThread *thread, const char *name);
+
+// Enumerate object names (child tables of one super table, or normal tables of
+// one database) from `sqlHead LIMIT n OFFSET m` and dispatch them to `handler`.
+//
+// The names are streamed from the server, so a connection that drops *after*
+// taos_query() succeeded makes taos_fetch_row() return NULL.  Treating that as
+// end-of-result silently skips the remaining names, and the run still reported
+// SUCCESS with a truncated backup.  Here a page that breaks mid-stream is
+// re-queried with OFFSET advanced past the names already handled, and an
+// unrecoverable failure is returned to the caller so the run is reported FAILED.
+//
+// `-k` counts retries after the first attempt, like every other retry loop in
+// taosdump, so `-k 0` still makes one attempt.
+//
+// *doneOut receives the number of names handled (backed up or skipped).
+static int backEnumerateObjects(DataThread *thread, TAOS **conn, const char *sqlHead,
+                                const char *what, ObjectNameHandler handler, int64_t *doneOut) {
+    int retryCount   = argRetryCount();
+    int retrySleepMs = argRetrySleepMs();
+    int64_t done     = 0;
+    int streamRetry  = 0;
+    int code         = TSDB_CODE_SUCCESS;
+
+    int sqlLen = (int)strlen(sqlHead) + 64;
+    char *sql = (char *)taosMemoryMalloc(sqlLen);
+    if (sql == NULL) {
+        return TSDB_CODE_BCK_MALLOC_FAILED;
+    }
+
+    while (done < thread->limit) {
+        // query only the not-yet-handled part of this thread's range, so a retry
+        // continues after the names that were already backed up
+        snprintf(sql, sqlLen, "%s LIMIT %lld OFFSET %lld;", sqlHead,
+                 (long long)(thread->limit - done), (long long)(thread->offset + done));
+
+        // page query, retried on transient errors
+        TAOS_RES *res = NULL;
+        int attempt = 0;
+        while (1) {
+            res = taos_query(*conn, sql);
+            code = taos_errno(res);
+            if (code == TSDB_CODE_SUCCESS) {
+                break;
+            }
+
+            // copy the message before releasing the result: taos_errstr(NULL)
+            // only reports the thread-local error, which may already have moved on
+            char queryErr[512] = {0};
+            const char *queryErrStr = res ? taos_errstr(res) : taos_errstr(NULL);
+            snprintf(queryErr, sizeof(queryErr), "%s", queryErrStr ? queryErrStr : "");
+            if (res) {
+                taos_free_result(res);
+                res = NULL;
+            }
+            if (!errorCodeCanRetry(code) || attempt >= retryCount || g_interrupted || g_fatalError) {
+                logError("query %s names failed(0x%08X %s): %s", what, code, queryErr, sql);
+                goto cleanup;
+            }
+            attempt++;
+            logInfo("retry query %s names: %s.%s, attempt: %d", what, thread->dbInfo->dbName,
+                    thread->stbInfo->stbName, attempt);
+            if (bckConnLevelError(code)) {
+                resetConnectionPool();
+                int connCode = TSDB_CODE_SUCCESS;
+                *conn = getConnection(&connCode);
+                if (*conn == NULL) {
+                    // keep the query failure as the reported reason
+                    if (connCode != TSDB_CODE_SUCCESS) {
+                        code = connCode;
+                    }
+                    goto cleanup;
+                }
+            }
+            sleepMs(retrySleepMs);
+        }
+
+        // dispatch the names of this page
+        int64_t page = 0;
+        TAOS_ROW row;
+        while ((row = taos_fetch_row(res)) != NULL) {
+            int32_t *lens = taos_fetch_lengths(res);
+            if (lens == NULL || lens[0] < 0 || lens[0] >= TSDB_TABLE_NAME_LEN) {
+                // counted as handled so the retry below never re-reads this page
+                logWarn("%s name too long, skip. offset: %lld, sql: %s", what,
+                        (long long)(thread->offset + done), sql);
+            } else {
+                char name[TSDB_TABLE_NAME_LEN] = {0};
+                memcpy(name, (char *)row[0], lens[0]);
+                name[lens[0]] = '\0';
+
+                int hcode = handler(thread, name);
+                if (hcode != TSDB_CODE_SUCCESS) {
+                    taos_free_result(res);
+                    code = hcode;
+                    goto cleanup;
+                }
+            }
+            done++;
+            page++;
+        }
+
+        // taos_fetch_row() also returns NULL on error: only a clean end of the
+        // page means every name was enumerated
+        int fetchCode = taos_errno(res);
+        char fetchErr[512] = {0};
+        if (fetchCode != TSDB_CODE_SUCCESS) {
+            const char *errStr = taos_errstr(res);
+            snprintf(fetchErr, sizeof(fetchErr), "%s", errStr ? errStr : "");
+        }
+        taos_free_result(res);
+        res = NULL;
+
+        // this thread's whole range is handled, so a trailing stream error
+        // cannot have cost us a name: do not retry and do not report a failure
+        if (done >= thread->limit) {
+            break;
+        }
+
+        if (fetchCode == TSDB_CODE_SUCCESS) {
+            if (page == 0) {
+                break;  // nothing left in this thread's range
+            }
+            continue;  // page shorter than requested: query the remainder
+        }
+
+        logError("fetch %s names failed(0x%08X %s) after %lld of %d handled: %s", what, fetchCode, fetchErr,
+                 (long long)done, thread->limit, sql);
+        code = fetchCode;
+        if (!errorCodeCanRetry(fetchCode) || streamRetry >= retryCount || g_interrupted || g_fatalError) {
+            goto cleanup;
+        }
+        streamRetry++;
+        logInfo("retry fetching %s names: %s.%s, handled: %lld, attempt: %d", what,
+                thread->dbInfo->dbName, thread->stbInfo->stbName, (long long)done, streamRetry);
+        if (bckConnLevelError(fetchCode)) {
+            resetConnectionPool();
+            int connCode = TSDB_CODE_SUCCESS;
+            *conn = getConnection(&connCode);
+            if (*conn == NULL) {
+                if (connCode != TSDB_CODE_SUCCESS) {
+                    code = connCode;
+                }
+                goto cleanup;
+            }
+        }
+        sleepMs(retrySleepMs);
+    }
+
+    if (doneOut) {
+        *doneOut = done;
+    }
+
+cleanup:
+    taosMemoryFree(sql);
+    return code;
+}
+
+// Back up one child table, retrying transient (connection-level) failures.
+// The original failure code is preserved: a successful reconnect must never
+// turn a table that was not written into a success.
+// `-k` is the number of retries after the first attempt (0 = single attempt).
+static int backOneChildTableData(DataThread *thread, const char *childTableName) {
+    int retryCount   = argRetryCount();
+    int retrySleepMs = argRetrySleepMs();
+    int attempts     = retryCount + 1;
+    int code         = TSDB_CODE_SUCCESS;
+
+    logDebug("backing up child table: %s.%s.%s", thread->dbInfo->dbName, thread->stbInfo->stbName, childTableName);
+
+    for (int n = 0; n < attempts; n++) {
+        code = backChildTableData(thread, childTableName);
+
+        // check user cancelled / fatal server error
+        if (g_interrupted || g_fatalError) {
+            return g_fatalError ? g_fatalCode : TSDB_CODE_BCK_USER_CANCEL;
+        }
+        if (code == TSDB_CODE_SUCCESS) {
+            // count completed CTB for progress display
+            atomic_add_fetch_64(&g_progress.ctbDoneCur, 1);
+            return TSDB_CODE_SUCCESS;
+        }
+        if (!errorCodeCanRetry(code)) {
+            logError("backup child table data failed(0x%08X): %s.%s", code, thread->dbInfo->dbName, childTableName);
+            return code;
+        }
+
+        // only a connection-level failure needs a rebuilt pool (with back-off
+        // after a restart); transient server-side errors keep the healthy
+        // connection and just retry
+        if (bckConnLevelError(code)) {
+            resetConnectionPool();
+            int connCode = TSDB_CODE_SUCCESS;
+            TAOS *conn = getConnection(&connCode);
+            if (conn == NULL) {
+                return (connCode != TSDB_CODE_SUCCESS) ? connCode : code;
+            }
+            thread->conn = conn;
+        }
+        logInfo("retry backup child table data: %s, times: %d", childTableName, n + 1);
+        sleepMs(retrySleepMs);
+    }
+
+    logError("backup child table data failed after %d attempt(s)(0x%08X): %s.%s", attempts, code,
+             thread->dbInfo->dbName, childTableName);
+    return code;
+}
+
+//
 // back data thread
 //
 static void* backDataThread(void *arg) {
-    int retryCount   = argRetryCount();
-    int retrySleepMs = argRetrySleepMs();
     int code = TSDB_CODE_SUCCESS;
 
     DataThread * thread = (DataThread *)arg;
@@ -188,137 +401,50 @@ static void* backDataThread(void *arg) {
         else if (hasIn)
             snprintf(innerWhere, sizeof(innerWhere), "WHERE %s", inPart);
     }
-    char sql[12288] = {0};
-    snprintf(sql, sizeof(sql),
+    // child table names of this thread's range; backEnumerateObjects() appends
+    // the LIMIT/OFFSET of the not-yet-handled remainder for every (re)try
+    int sqlLen = (int)sizeof(innerWhere) + 512;
+    char *sqlHead = (char *)taosMemoryMalloc(sqlLen);
+    if (sqlHead == NULL) {
+        taosMemoryFree(thread->writeBuf);
+        thread->writeBuf = NULL;
+        thread->code = TSDB_CODE_BCK_MALLOC_FAILED;
+        return NULL;
+    }
+    snprintf(sqlHead, sqlLen,
              "SELECT tbname FROM ("
              "SELECT %s lts, tbname FROM `%s`.`%s` %s GROUP BY tbname"
-             ") WHERE lts IS NOT NULL ORDER BY tbname LIMIT %d OFFSET %d;",
+             ") WHERE lts IS NOT NULL ORDER BY tbname",
              hasTf ? "last_row(_c0)" : "last(_c0)",
              thread->dbInfo->dbName,
              thread->stbInfo->stbName,
-             innerWhere,
-             thread->limit,
-             thread->offset);
-    
-    // query child table names — with retry on transient network errors
-    TAOS* conn = getConnection(&thread->code);
-    if (!conn) {
-        taosMemoryFree(thread->writeBuf);
-        thread->writeBuf = NULL;
-        return NULL;
-    }
-    TAOS_RES *res = NULL;
-    {
-        int attempt = 0;
-        while (1) {
-            res = taos_query(conn, sql);
-            thread->code = taos_errno(res);
-            if (thread->code == TSDB_CODE_SUCCESS) 
-                break;
-            if (res) { 
-                taos_free_result(res); 
-                res = NULL; 
-            }
-            if (!errorCodeCanRetry(thread->code) || attempt >= retryCount || g_interrupted) 
-                break;
-            attempt++;
-            logInfo("retry query child table names: %s.%s, attempt: %d", thread->dbInfo->dbName, thread->stbInfo->stbName, attempt);
-            if (bckConnLevelError(thread->code)) {
-                resetConnectionPool();
-                conn = getConnection(&thread->code);
-                if (!conn) {
-                    taosMemoryFree(thread->writeBuf);
-                    thread->writeBuf = NULL;
-                    return NULL;
-                }
-            }
-            sleepMs(retrySleepMs);
-        }
-    }
-    if (res == NULL || thread->code) {
-        logError("query child table names failed(0x%08X %s): %s", thread->code, taos_errstr(res), sql);
-        if (res) 
-            taos_free_result(res);
+             innerWhere);
+
+    TAOS *conn = getConnection(&thread->code);
+    if (conn == NULL) {
+        code = thread->code ? thread->code : TSDB_CODE_BCK_CONN_POOL_EXHAUSTED;
+    } else {
+        int64_t enumerated = 0;
+        code = backEnumerateObjects(thread, &conn, sqlHead, "child table", backOneChildTableData, &enumerated);
         releaseConnection(conn);
-        taosMemoryFree(thread->writeBuf);
-        thread->writeBuf = NULL;
-        return NULL;
+
+        // A short list means part of the child tables could not be read (or the
+        // database changed while backing up): never report such a backup as
+        // successful, the missing tables would silently disappear from the dump.
+        if (code == TSDB_CODE_SUCCESS && enumerated != thread->limit) {
+            logError("child table enumeration incomplete for %s.%s: expected %d, got %lld",
+                     thread->dbInfo->dbName, thread->stbInfo->stbName, thread->limit, (long long)enumerated);
+            code = TSDB_CODE_BCK_INCOMPLETE_DATA;
+        }
     }
+    taosMemoryFree(sqlHead);
 
-    // loop child tables
-    TAOS_ROW row;
-    int offset = thread->offset;
-    char childTableName[TSDB_TABLE_NAME_LEN]= {0};
-    while ((row = taos_fetch_row(res))) {
-        int32_t *lens = taos_fetch_lengths(res);
-        if (lens[0] >= TSDB_TABLE_NAME_LEN) {
-            logWarn("child table name too long, skip. offset: %d sql=%s", offset, sql);
-            offset += 1;
-            continue;
-        }
-
-        memcpy(childTableName, (char *)row[0], lens[0]);
-        childTableName[lens[0]] = '\0';
-
-        logDebug("backing up child table: %s.%s.%s", thread->dbInfo->dbName, thread->stbInfo->stbName, childTableName);
-        
-        // support retry
-        int n = 0;
-        while (n < retryCount) {
-            // back child table data
-            code = backChildTableData(thread, childTableName);
-            // check user cancelled / fatal server error
-            if (g_interrupted || g_fatalError) {
-                code = g_fatalError ? g_fatalCode : TSDB_CODE_BCK_USER_CANCEL;
-                break;
-            }
-
-            // check code
-            if (code == TSDB_CODE_SUCCESS) {
-                // success
-                break;
-            }
-            else if (errorCodeCanRetry(code)) {
-                // only a connection-level failure needs a rebuilt pool (with
-                // back-off after a restart); transient server-side errors keep
-                // the healthy connection and just retry
-                if (bckConnLevelError(code)) {
-                    resetConnectionPool();
-                    thread->conn = getConnection(&code);
-                    if (!thread->conn) {
-                        break;
-                    }
-                }
-                n += 1;
-                logInfo("retry backup child table data: %s, times: %d", childTableName, n);
-                sleepMs(retrySleepMs);
-            } else {
-                // not retry
-                logError("backup child table data failed(0x%08X): %s.%s", code, thread->dbInfo->dbName, childTableName);
-                break;
-            }
-        }
-
-        // any failure aborts the run: non-retryable immediately, retryable after
-        // `retryCount` retries above
-        if(code != TSDB_CODE_SUCCESS) {
-            thread->code = code;
-            if (!g_interrupted) {
-                g_fatalError = 1;
-                g_fatalCode = code;
-            }
-            break;
-        }
-
-        // count completed CTB for progress display
-        atomic_add_fetch_64(&g_progress.ctbDoneCur, 1);
-
-        // save checkpoint
-        offset += 1;
+    // any failure aborts the run so the summary never reports a partial backup
+    // as SUCCESS
+    if (code != TSDB_CODE_SUCCESS && code != TSDB_CODE_BCK_USER_CANCEL && !g_interrupted) {
+        g_fatalError = 1;
+        g_fatalCode = code;
     }
-
-    taos_free_result(res);
-    releaseConnection(conn);
 
     // Free thread-level write buffer
     if (thread->writeBuf) {
@@ -571,18 +697,65 @@ static int backNormalOneTable(DataThread* thread, const char *tableName) {
     return code;
 }
 
-// normal table data backup thread
-static void* backNtbDataThread(void *arg) {
+// Back up one normal table, retrying transient (connection-level) failures.
+// The original failure code is preserved: a successful reconnect must never
+// turn a table that was not written into a success.
+// `-k` is the number of retries after the first attempt (0 = single attempt).
+static int backOneNormalTableData(DataThread *thread, const char *tableName) {
     int retryCount   = argRetryCount();
     int retrySleepMs = argRetrySleepMs();
-    
+    int attempts     = retryCount + 1;
+    int code         = TSDB_CODE_SUCCESS;
+
+    logDebug("backing up normal table: %s.%s", thread->dbInfo->dbName, tableName);
+
+    for (int n = 0; n < attempts; n++) {
+        code = backNormalOneTable(thread, tableName);
+
+        if (g_interrupted || g_fatalError) {
+            return g_fatalError ? g_fatalCode : TSDB_CODE_BCK_USER_CANCEL;
+        }
+        if (code == TSDB_CODE_SUCCESS) {
+            // count completed NTB for progress display
+            atomic_add_fetch_64(&g_progress.ctbDoneCur, 1);
+            return TSDB_CODE_SUCCESS;
+        }
+        if (!errorCodeCanRetry(code)) {
+            logError("backup normal table data failed(0x%08X): %s.%s", code, thread->dbInfo->dbName, tableName);
+            return code;
+        }
+
+        // only a connection-level failure needs a rebuilt pool (with back-off
+        // after a restart); transient server-side errors keep the healthy
+        // connection and just retry
+        if (bckConnLevelError(code)) {
+            resetConnectionPool();
+            int connCode = TSDB_CODE_SUCCESS;
+            TAOS *conn = getConnection(&connCode);
+            if (conn == NULL) {
+                return (connCode != TSDB_CODE_SUCCESS) ? connCode : code;
+            }
+            thread->conn = conn;
+        }
+        logInfo("retry backup normal table data: %s, times: %d", tableName, n + 1);
+        sleepMs(retrySleepMs);
+    }
+
+    logError("backup normal table data failed after %d attempt(s)(0x%08X): %s.%s", attempts, code,
+             thread->dbInfo->dbName, tableName);
+    return code;
+}
+
+// normal table data backup thread
+static void* backNtbDataThread(void *arg) {
     DataThread *thread = (DataThread *)arg;
     const char *dbName = thread->dbInfo->dbName;
     logInfo("normal table data thread %d started for %s (offset=%d, limit=%d)", 
             thread->index, dbName, thread->offset, thread->limit);
 
-    // query normal table names for this thread's range
-    char sql[1024] = {0};
+    // normal table names of this thread's range; backEnumerateObjects() appends
+    // the LIMIT/OFFSET of the not-yet-handled remainder for every (re)try
+    char sqlHead[1024] = {0};
     char specFilter[512] = "";
     if (argSpecTables()) {
         char inClause[400] = "";
@@ -592,108 +765,38 @@ static void* backNtbDataThread(void *arg) {
     char escDb[TSDB_DB_NAME_LEN * 2 + 1] = {0};
     const char *eDb = bckSqlEscape(dbName, escDb, sizeof(escDb));
     if (eDb == NULL) eDb = dbName;
-    snprintf(sql, sizeof(sql), 
+    snprintf(sqlHead, sizeof(sqlHead), 
              "SELECT table_name FROM information_schema.ins_tables "
              "WHERE db_name='%s' AND stable_name IS NULL"
              " AND type NOT LIKE 'VIRTUAL%%'%s "
-             "ORDER BY table_name LIMIT %d OFFSET %d;",
-             eDb, specFilter, thread->limit, thread->offset);
+             "ORDER BY table_name",
+             eDb, specFilter);
 
     TAOS *conn = getConnection(&thread->code);
     if (!conn) {
         return NULL;
     }
-    TAOS_RES *res = NULL;
-    {
-        int attempt = 0;
-        while (1) {
-            res = taos_query(conn, sql);
-            int32_t qcode = taos_errno(res);
-            if (qcode == TSDB_CODE_SUCCESS) break;
-            if (res) { taos_free_result(res); res = NULL; }
-            if (!errorCodeCanRetry(qcode) || attempt >= retryCount || g_interrupted) {
-                thread->code = qcode;
-                break;
-            }
-            attempt++;
-            logInfo("retry query normal table names: %s, attempt: %d", dbName, attempt);
-            if (bckConnLevelError(qcode)) {
-                resetConnectionPool();
-                conn = getConnection(&thread->code);
-                if (!conn) return NULL;
-            }
-            sleepMs(retrySleepMs);
-        }
-    }
-    int32_t code = taos_errno(res);
-    if (res == NULL || code) {
-        logError("query normal table names failed(0x%08X %s): %s", code, taos_errstr(res), sql);
-        if (res) taos_free_result(res);
-        releaseConnection(conn);
-        return NULL;
-    }
 
-    TAOS_ROW row;
-    char tableName[TSDB_TABLE_NAME_LEN] = {0};
-    while ((row = taos_fetch_row(res))) {
-        if (g_interrupted || g_fatalError) {
-            thread->code = g_fatalError ? g_fatalCode : TSDB_CODE_BCK_USER_CANCEL;
-            break;
-        }
-
-        int32_t *lens = taos_fetch_lengths(res);
-        if (lens[0] >= TSDB_TABLE_NAME_LEN) continue;
-
-        memcpy(tableName, (char *)row[0], lens[0]);
-        tableName[lens[0]] = '\0';
-
-        logDebug("backing up normal table: %s.%s", dbName, tableName);
-
-        int n = 0;
-        while (n < retryCount) {
-            thread->code = backNormalOneTable(thread, tableName);
-            if (g_interrupted || g_fatalError) {
-                thread->code = g_fatalError ? g_fatalCode : TSDB_CODE_BCK_USER_CANCEL;
-                break;
-            }
-
-            if (thread->code == TSDB_CODE_SUCCESS) {
-                // count completed NTB for progress display
-                atomic_add_fetch_64(&g_progress.ctbDoneCur, 1);
-                break;
-            } else if (errorCodeCanRetry(thread->code)) {
-                // only a connection-level failure needs a rebuilt pool (with
-                // back-off after a restart); transient server-side errors keep
-                // the healthy connection and just retry
-                if (bckConnLevelError(thread->code)) {
-                    resetConnectionPool();
-                    thread->conn = getConnection(&thread->code);
-                    if (!thread->conn) {
-                        break;
-                    }
-                }
-                n++;
-                logInfo("retry backup normal table data: %s, times: %d", tableName, n);
-                sleepMs(retrySleepMs);
-            } else {
-                logError("backup normal table data failed(0x%08X): %s.%s", thread->code, dbName, tableName);
-                break;
-            }
-        }
-
-        // any failure aborts the run: non-retryable immediately, retryable after
-        // `retryCount` retries above
-        if (thread->code != TSDB_CODE_SUCCESS && !g_interrupted) {
-            g_fatalError = 1;
-            g_fatalCode = thread->code;
-        }
-
-        if (g_interrupted || g_fatalError) break;
-    }
-
-    taos_free_result(res);
+    int64_t enumerated = 0;
+    int code = backEnumerateObjects(thread, &conn, sqlHead, "normal table", backOneNormalTableData, &enumerated);
     releaseConnection(conn);
 
+    // A short list means part of the normal tables could not be read (or the
+    // database changed while backing up): never report such a backup as success.
+    if (code == TSDB_CODE_SUCCESS && enumerated != thread->limit) {
+        logError("normal table enumeration incomplete for db %s: expected %d, got %lld", dbName, thread->limit,
+                 (long long)enumerated);
+        code = TSDB_CODE_BCK_INCOMPLETE_DATA;
+    }
+
+    // any failure aborts the run so the summary never reports a partial backup
+    // as SUCCESS
+    if (code != TSDB_CODE_SUCCESS && code != TSDB_CODE_BCK_USER_CANCEL && !g_interrupted) {
+        g_fatalError = 1;
+        g_fatalCode = code;
+    }
+
+    thread->code = code;
     logInfo("normal table data thread %d finished for %s", thread->index, dbName);
     return NULL;
 }

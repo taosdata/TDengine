@@ -47,11 +47,11 @@ TDengine 支持细粒度的压缩配置。建表时可针对每一列指定是�
 
 ```sql
 CREATE TABLE [db_name.]tb_name (
-    col_name col_type
-        [ENCODE 'encode_type']
-        [COMPRESS 'compress_type']
-        [LEVEL 'level']
-    [, ...]
+  col_name col_type
+    [ENCODE 'encode_type']
+    [COMPRESS 'compress_type']
+    [LEVEL 'level']
+  [, ...]
 );
 ```
 
@@ -68,9 +68,9 @@ CREATE TABLE [db_name.]tb_name (
 
 ```sql
 ALTER TABLE [db_name.]tb_name MODIFY COLUMN col_name
-    [ENCODE 'encode_type']
-    [COMPRESS 'compress_type']
-    [LEVEL 'level'];
+  [ENCODE 'encode_type']
+  [COMPRESS 'compress_type']
+  [LEVEL 'level'];
 ```
 
 **参数说明**

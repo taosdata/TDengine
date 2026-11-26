@@ -7,7 +7,7 @@ toc_max_heading_level: 4
 
 ## 时区概述
 
-TDengine 内部以 UTC 时间戳（int64）存储所有时间数据。时区仅在 **时间字符串与 UTC 之间的转换** 时起作用：写入时将本地时间字符串转为 UTC，读取时将 UTC 转为本地时间字符串展示。
+TDengine 内部以 UTC 时间戳（int64）存储所有时间数据。连接级时区用于无偏移时间字符串的解析、当地日历边界计算和结果展示，不改变原始时间戳表示的绝对时刻。
 
 ### 支持的时区格式
 
@@ -42,7 +42,7 @@ STD offset [ DST [ dstoffset ] [ , rule ] ]
 UTC offset
 ```
 
-**`offset` 字段格式**：带 `UTC` 前缀时，小时可以是一位或两位数字，分钟（如使用）必须是两位数字；表示西向偏移的正号可以省略，例如 `UTC8` 等价于 `UTC+8`，`UTC8:30` 等价于 `UTC+8:30`。不带 `UTC` 前缀时，正负号不能省略，支持 `±HH`、`±HHMM` 和 `±HH:MM`。偏移量精确到分钟。`UTC` 前缀不区分大小写，`utc+8` 与 `UTC+8` 等价。特殊值 `Z` 等价于 `+00:00`。
+**`offset` 字段格式**：带 `UTC` 前缀时，小时可以是一位或两位数字，分钟（如使用）必须是两位数字；表示西向偏移的正号可以省略，例如 `UTC8` 等价于 `UTC+8`，`UTC8:30` 等价于 `UTC+8:30`。不带 `UTC` 前缀时，正负号不能省略，小时必须为两位数字，支持 `±HH`、`±HHMM` 和 `±HH:MM`，不支持 `+8`、`-4`。偏移量精确到分钟；小时为 14 时分钟必须为 00。`UTC` 前缀不区分大小写，`utc+8` 与 `UTC+8` 等价。特殊值 `Z` / `z` 等价于 `+00:00`，即 UTC 时区。
 
 **POSIX 符号约定**：POSIX 标准定义本地时间与 UTC 的关系为：
 
@@ -66,19 +66,24 @@ local_time = UTC - offset
 
 **与 IANA 时区的区别**：POSIX 固定偏移不包含任何夏令时信息，全年使用恒定偏移。如果目标地区存在夏令时（如美国、欧洲），应使用 IANA 名称以获得正确的 DST 自动切换。
 
+### Windows 支持
+
+从 `v3.5.0` 起，Windows 与 Linux、macOS 一样支持连接级时区，可通过 `SET TIMEZONE` 或 C API 独立设置各连接的时区。Windows 支持 IANA 名称、Windows 标准名称（如 `China Standard Time`，对应 `Asia/Shanghai`）及上述固定偏移格式，按目标时刻应用历史和 DST 规则。
+
+Windows 继承的 `TZ` 必须使用支持的时区格式。`EST5EDT,M3.2.0,M11.1.0`、`EST5EDT` 和 `est5edt` 等输入不受支持；新建连接或清除连接级时区设置时遇到这些输入，将返回 `Invalid or unsupported timezone` 错误。清除失败时保留原连接级时区。支持的 IANA 名称及 Windows 系统默认时区仍按目标时刻应用历史和 DST 规则。
+
 ### 时区优先级
 
-TDengine 采用五层时区优先级体系，高层覆盖低层：
+普通 SQL 优先使用函数显式指定的时区，否则使用连接级时区：
 
 | 优先级 | 名称 | 设定方式 | 说明 |
 | --- | --- | --- | --- |
 | 最高 | SQL 级 | 函数时区参数（如 `TO_ISO8601(ts, '+09:00')`）；流任务 `STREAM_OPTIONS(CONFIG(...))` | 函数参数仅影响本条 SQL；流 `CONFIG` 在创建时写入该流的定义，之后只作用于这一条流 |
 | 高 | 连接级 | C API `taos_options_connection`；`SET TIMEZONE` | 影响当前连接的所有 SQL |
-| 中 | 客户端全局 | 客户端侧 `taos.cfg` 中 `timezone` | 仅影响客户端本地时间展示 |
-| 低 | 服务端全局 | 服务端侧 `taos.cfg` 中 `timezone` | 连接未设时区时服务端计算的回退 |
-| 最低 | 系统默认 | 操作系统自动检测 | 最终兜底 |
+| 默认来源 | 客户端默认 | 客户端侧 `taos.cfg timezone`、`taos_options(TSDB_OPTION_TIMEZONE)`、`ALTER LOCAL` | 新连接或重置连接级时区时保存该值 |
+| 未配置时 | 系统默认 | 客户端初始化时检测 | 客户端未配置时区时使用 |
 
-**重要**：客户端全局时区仅影响客户端本地展示（如 `SELECT ts` 的输出格式化），不影响服务端计算。未通过连接级设置时区的连接，服务端计算回退到服务端全局时区。
+新连接即使未执行 `SET TIMEZONE`，也会保存客户端默认时区，用于解析、计算和展示。SQL 解析和生成计划时使用当前连接级时区；已有查询结果保留原时区，后续连接选项变更不影响其时间展示。服务端全局时区不覆盖 SQL 携带的连接级时区。
 
 ## 设置时区
 
@@ -88,8 +93,9 @@ TDengine 采用五层时区优先级体系，高层覆盖低层：
 
 ```sql
 SET TIMEZONE 'Asia/Shanghai';
-SET TIMEZONE '-08:00';      -- POSIX: local = UTC+8，效果同北京时间
-SET TIMEZONE '+08:00';      -- POSIX: local = UTC-8，不是北京时间
+
+SET TIMEZONE '-08:00';  -- POSIX: local = UTC+8，效果同北京时间
+SET TIMEZONE '+08:00';  -- POSIX: local = UTC-8，不是北京时间
 SET TIMEZONE 'America/New_York';
 ```
 
@@ -117,9 +123,7 @@ SET TIMEZONE 'Asia/Shanghai';
 SELECT TIMEZONE();
 ```
 
-返回当前连接当前生效的单个时区字符串，回退链为连接级 `SET TIMEZONE` / C API 设置值 → 连接创建时快照的客户端全局时区 → 系统默认时区。
-
-`TIMEZONE()` 返回当前连接实际生效的时区。
+返回当前连接生效的时区，格式为 `名称 (缩写, ±HHMM)`，例如 `America/New_York (EST, -0500)`。缩写和偏移按每次查询的当前时刻刷新，跨 DST 切换无需重连。
 
 ### 配置文件设置
 
@@ -134,15 +138,25 @@ timezone +08:00
 
 支持 IANA 名称、Windows 标准时区名称（如 `China Standard Time`）以及固定偏移格式 `Z`、`±HH`、`±HHMM`、`±HH:MM`、`UTCH[:MM]`、`UTC+H[:MM]` 和 `UTC-H[:MM]`（`H` 为一位或两位数字，`UTC` 前缀不区分大小写）。`GMT` / `GMT±...` 不支持。未配置时使用操作系统检测的时区。
 
-- **服务端侧** `taos.cfg`：连接未通过 `SET TIMEZONE` 设置时区时，服务端计算回退到此值。
-- **客户端侧** `taos.cfg`：仅影响客户端本地时间展示（如 `SELECT ts` 的输出格式化），不影响服务端计算。
+- **客户端侧** `taos.cfg`：提供新连接和时区重置时使用的默认值，影响该连接的解析、计算和展示。
+- **服务端侧** `taos.cfg`：用于服务端缺少明确时区上下文时的默认处理，不覆盖请求携带的连接级时区。
 
 **注意**：固定偏移写法遵循 POSIX 符号约定（详见"POSIX 固定偏移格式详解"），所有入口（`SET TIMEZONE`、`ALTER LOCAL`、`taos.cfg`）的正负号含义一致。建议使用 IANA 名称以避免混淆。
 
-`ALTER LOCAL 'timezone ...'` 和 `SET TIMEZONE ...` 的区别：
+`ALTER LOCAL 'timezone' '<value>'` 和 `SET TIMEZONE '<value>'` 的区别：
 
-- `SET TIMEZONE` 只影响当前连接，断开重连后就没了。
-- `ALTER LOCAL 'timezone ...'` 修改的是当前客户端进程里的全局配置，只会影响修改后新建的连接，已经打开的旧连接不会立刻改变。
+- `SET TIMEZONE` 只修改当前连接的连接级时区；新建连接重新取默认值，连接器可按连接参数再次设置。
+- `ALTER LOCAL 'timezone' 'Asia/Shanghai'` 同时更新客户端默认时区和执行语句的当前连接；其他已有连接保持原时区，之后新建或重置时区的连接使用新默认值。
+
+### REST 与 WebSocket
+
+- REST 通过 `conn_tz` 指定本次请求的连接级时区，使用 IANA 名称或 `UTC`。设置仅对本次请求生效；未指定 `conn_tz` 的请求使用 taosAdapter 的客户端默认时区。原有 `tz` 参数仅影响响应中的时间展示，详见 [REST API](../../10-developer-guide/08-connectors-reference/10-rest-api.mdx#http-请求格式)。
+- WebSocket 通过连接器的时区参数或 `SET TIMEZONE` 设置会话的连接级时区，持续用于后续 SQL，直到显式修改、清除或重连。
+- JDBC WebSocket 还受驱动的 IANA 名称校验限制，不能直接套用 Native C API 的全部格式，详见 [Java 连接器](../../10-developer-guide/08-connectors-reference/02-java.mdx#设置时区)。
+
+Windows 链路是否支持连接级时区取决于 taosAdapter 所加载原生客户端库的平台和版本，与发起 HTTP / WebSocket 请求的应用所在操作系统无关。
+
+DST 跳过或重复的本地时间应使用整数时间戳或带明确偏移的字符串，详见 [夏令时使用指南](./02-dst.md)。
 
 ## 一周起始日
 
@@ -175,7 +189,7 @@ SELECT FIRST_DAY_OF_WEEK();
 firstDayOfWeek 4
 ```
 
-也可通过 `ALTER LOCAL 'firstDayOfWeek' '<0..6>'` 在当前客户端进程内动态修改。该配置只影响修改后的新连接，已建立连接保持各自创建时的快照值。
+也可通过 `ALTER LOCAL 'firstDayOfWeek' '<0..6>'` 在当前客户端进程内动态修改。该配置只影响修改后的新连接，已建立连接保持各自创建时的值。
 
 默认值为 `4`（周四），与历史按 Unix epoch 取模的周对齐行为兼容。若客户端未显式配置，启动时会尝试从操作系统读取一周起始日；读取失败时回退到 `4`。
 
@@ -200,10 +214,21 @@ SET FIRST_DAY_OF_WEEK 1;
 ### TO_ISO8601
 
 ```sql
-SELECT TO_ISO8601(ts) FROM t;                        -- 使用连接时区
-SELECT TO_ISO8601(ts, '+09:00') FROM t;              -- 指定固定偏移（ISO 8601 符号）
-SELECT TO_ISO8601(ts, 'UTC+09:00') FROM t;           -- 等价写法，'UTC' 前缀会被剥离
-SELECT TO_ISO8601(ts, 'America/New_York') FROM t;    -- 指定 IANA 时区
+-- 使用连接时区
+SELECT TO_ISO8601(ts)
+FROM t;
+
+-- 指定固定偏移（ISO 8601 符号）
+SELECT TO_ISO8601(ts, '+09:00')
+FROM t;
+
+-- 等价写法，'UTC' 前缀会被剥离
+SELECT TO_ISO8601(ts, 'UTC+09:00')
+FROM t;
+
+-- 指定 IANA 时区
+SELECT TO_ISO8601(ts, 'America/New_York')
+FROM t;
 ```
 
 **符号约定**：`TO_ISO8601` 是唯一使用 ISO 8601 符号约定的入口——`local = UTC + offset`，即 `'+08:00'` 表示东八区（北京时间）。以下写法完全等价：`'+0800'`、`'+08:00'`、`'UTC+8'`、`'UTC+0800'`、`'UTC+08:00'`。其余入口（`SET TIMEZONE`、`taos.cfg`、`TO_CHAR`、`TIMETRUNCATE` 等）均使用 POSIX 符号约定（`+` = 西区）。
@@ -221,12 +246,29 @@ SELECT TO_ISO8601('2026-07-15 12:00:00');  -- ...T12:00:00-04:00 (EDT, 夏令时
 将时间戳截断到指定单位边界。
 
 ```sql
-SELECT TIMETRUNCATE(ts, 1d) FROM t;                          -- 截断到当天 00:00:00
-SELECT TIMETRUNCATE(ts, 1w) FROM t;                          -- 截断到一周起始日 00:00:00
-SELECT TIMETRUNCATE(ts, 1n) FROM t;                          -- 截断到当月 1 日
-SELECT TIMETRUNCATE(ts, 1q) FROM t;                          -- 截断到当季首月 1 日
-SELECT TIMETRUNCATE(ts, 1y) FROM t;                          -- 截断到当年 1 月 1 日
-SELECT TIMETRUNCATE(ts, 1d, 'America/New_York') FROM t;      -- 指定时区
+-- 截断到当天 00:00:00
+SELECT TIMETRUNCATE(ts, 1d)
+FROM t;
+
+-- 截断到一周起始日 00:00:00
+SELECT TIMETRUNCATE(ts, 1w)
+FROM t;
+
+-- 截断到当月 1 日
+SELECT TIMETRUNCATE(ts, 1n)
+FROM t;
+
+-- 截断到当季首月 1 日
+SELECT TIMETRUNCATE(ts, 1q)
+FROM t;
+
+-- 截断到当年 1 月 1 日
+SELECT TIMETRUNCATE(ts, 1y)
+FROM t;
+
+-- 指定时区
+SELECT TIMETRUNCATE(ts, 1d, 'America/New_York')
+FROM t;
 ```
 
 **支持的自然时间单位**
@@ -242,9 +284,9 @@ SELECT TIMETRUNCATE(ts, 1d, 'America/New_York') FROM t;      -- 指定时区
 **示例**
 
 ```sql
-SELECT TIMETRUNCATE('2026-03-15', 1n);   -- 2026-03-01 00:00:00
-SELECT TIMETRUNCATE('2026-05-15', 1q);   -- 2026-04-01 00:00:00
-SELECT TIMETRUNCATE('2026-08-15', 1y);   -- 2026-01-01 00:00:00
+SELECT TIMETRUNCATE('2026-03-15', 1n);  -- 2026-03-01 00:00:00
+SELECT TIMETRUNCATE('2026-05-15', 1q);  -- 2026-04-01 00:00:00
+SELECT TIMETRUNCATE('2026-08-15', 1y);  -- 2026-01-01 00:00:00
 ```
 
 **第三参数**（时区）：
@@ -263,41 +305,47 @@ SELECT TIMETRUNCATE('2026-08-15', 1y);   -- 2026-01-01 00:00:00
 SELECT TIMEZONE();
 ```
 
-返回当前连接当前使用的单个时区字符串。
-
-- 当前连接执行过 `SET TIMEZONE` 时，优先返回连接级时区。
-- 未设置连接级时区时，返回该连接创建时快照的客户端全局时区；若客户端也未配置，则回退到系统默认时区。
-- `ALTER LOCAL 'timezone'` 只会影响修改后新建的连接，不会回写已有连接的 `TIMEZONE()` 结果。
+返回连接级时区的名称、当前缩写和偏移，格式为 `名称 (缩写, ±HHMM)`。未显式设置时，使用连接创建或重置时保存的客户端默认时区。
 
 若需确认 `SET TIMEZONE` 是否生效，可执行：
 
 ```sql
 SELECT TIMEZONE();
+
 SELECT TO_ISO8601(NOW());
 ```
 
 例如：
 
-- 执行 `SET TIMEZONE 'Asia/Shanghai'` 后，`TIMEZONE()` 返回 `Asia/Shanghai`。
-- 未执行 `SET TIMEZONE` 时，返回连接创建时快照的客户端全局时区。
-- 执行 `ALTER LOCAL 'timezone Asia/Shanghai'` 后，已有连接不受影响；新建连接才会使用新配置。
+- 执行 `SET TIMEZONE 'Asia/Shanghai'` 后，`TIMEZONE()` 返回 `Asia/Shanghai (CST, +0800)`。
+- 执行 `ALTER LOCAL 'timezone' 'Asia/Shanghai'` 后，当前连接和新建连接使用上海时区，其他已有连接保持原值。
+- 使用 `America/New_York` 的同一连接，冬季返回 `EST, -0500`，夏季返回 `EDT, -0400`；历史时间戳的格式化仍按该时间戳对应的规则计算。
 
 ## INTERVAL 查询
 
 `INTERVAL` 支持按自然时间单位切分窗口：
 
 ```sql
-SELECT _wstart, COUNT(*) FROM meters
-  INTERVAL(1n)                      -- 按月切分
-  FILL(PREV);
+SELECT
+  _wstart,
+  COUNT(*)
+FROM meters
+INTERVAL(1n) -- 按月切分
+FILL(PREV);
 
-SELECT _wstart, AVG(voltage) FROM meters
-  INTERVAL(1q)                      -- 按季度切分
-  FILL(NULL);
+SELECT
+  _wstart,
+  AVG(voltage)
+FROM meters
+INTERVAL(1q) -- 按季度切分
+FILL(NULL);
 
-SELECT _wstart, SUM(energy) FROM meters
-  INTERVAL(1w)                      -- 按周切分（尊重 firstDayOfWeek）
-  FILL(LINEAR);
+SELECT
+  _wstart,
+  SUM(energy)
+FROM meters
+INTERVAL(1w) -- 按周切分（尊重 firstDayOfWeek）
+FILL(LINEAR);
 ```
 
 **支持的自然时间单位**
@@ -349,12 +397,18 @@ STREAM_OPTIONS(CONFIG(timezone = 'Asia/Shanghai', firstDayOfWeek = 1))
 
 ```sql
 SET TIMEZONE 'Asia/Shanghai';
+
 SET FIRST_DAY_OF_WEEK 1;
 
-CREATE STREAM meters_monthly INTERVAL(1n) FROM meters
-  INTO meters_monthly_out AS
-  SELECT _twstart AS window_start, AVG(current) AS avg_current
-  FROM %%trows;
+CREATE STREAM meters_monthly
+  INTERVAL(1n)
+  FROM meters
+  INTO meters_monthly_out
+  AS
+    SELECT
+      _twstart AS window_start,
+      AVG(current) AS avg_current
+    FROM %%trows;
 ```
 
 上例创建后，流会保存 `timezone = 'Asia/Shanghai'` 和 `firstDayOfWeek = 1`。可用 `SHOW CREATE STREAM` 确认实际写入的 `CONFIG`。
@@ -391,33 +445,51 @@ CREATE STREAM meters_monthly INTERVAL(1n) FROM meters
 
 ```sql
 -- 每季度按东京当地时间触发
-CREATE STREAM meters_quarter_tokyo PERIOD(1q)
+CREATE STREAM meters_quarter_tokyo
+  PERIOD(1q)
   STREAM_OPTIONS(CONFIG(timezone = 'Asia/Tokyo', firstDayOfWeek = 1))
-  INTO meters_quarter_tokyo_out AS
-  SELECT CAST(_tlocaltime / 1000000 AS TIMESTAMP) AS ts,
-         AVG(current) AS avg_current
-  FROM meters;
+  INTO meters_quarter_tokyo_out
+  AS
+    SELECT
+      CAST(_tlocaltime / 1000000 AS TIMESTAMP) AS ts,
+      AVG(current) AS avg_current
+    FROM meters;
 
 -- 按纽约当地年边界滑动触发
-CREATE STREAM meters_slide_year SLIDING(1y) FROM meters
+CREATE STREAM meters_slide_year
+  SLIDING(1y)
+  FROM meters
   STREAM_OPTIONS(CONFIG(timezone = 'America/New_York', firstDayOfWeek = 0))
-  INTO meters_slide_year_out AS
-  SELECT _tprev_ts AS window_start, AVG(current) AS avg_current
-  FROM %%trows;
+  INTO meters_slide_year_out
+  AS
+    SELECT
+      _tprev_ts AS window_start,
+      AVG(current) AS avg_current
+    FROM %%trows;
 
 -- 按伦敦当地自然月划分窗口
-CREATE STREAM meters_monthly INTERVAL(1n) FROM meters
+CREATE STREAM meters_monthly
+  INTERVAL(1n)
+  FROM meters
   STREAM_OPTIONS(CONFIG(timezone = 'Europe/London', firstDayOfWeek = 1))
-  INTO meters_monthly_out AS
-  SELECT _twstart AS window_start, AVG(current) AS avg_current
-  FROM %%trows;
+  INTO meters_monthly_out
+  AS
+    SELECT
+      _twstart AS window_start,
+      AVG(current) AS avg_current
+    FROM %%trows;
 
 -- 每 2 秒计算前 1 秒，窗口之间会有空隙
-CREATE STREAM meters_gapped INTERVAL(1s) SLIDING(2s) FROM meters
+CREATE STREAM meters_gapped
+  INTERVAL(1s) SLIDING(2s)
+  FROM meters
   STREAM_OPTIONS(CONFIG(timezone = 'Asia/Shanghai', firstDayOfWeek = 1))
-  INTO meters_gapped_out AS
-  SELECT _twstart AS window_start, AVG(current) AS avg_current
-  FROM %%trows;
+  INTO meters_gapped_out
+  AS
+    SELECT
+      _twstart AS window_start,
+      AVG(current) AS avg_current
+    FROM %%trows;
 ```
 
 ### 偏移
@@ -470,7 +542,11 @@ CREATE STREAM meters_gapped INTERVAL(1s) SLIDING(2s) FROM meters
 ```sql
 SHOW CREATE STREAM db_name.stream_name;
 
-SELECT stream_name, timezone, first_day_of_week, sql
+SELECT
+  stream_name,
+  timezone,
+  first_day_of_week,
+  sql
 FROM information_schema.ins_streams;
 ```
 
@@ -501,33 +577,36 @@ FROM information_schema.ins_streams;
 
 | 错误场景 | 错误信息 |
 | --- | --- |
-| 无效时区字符串 | `[0x26B2] Invalid timezone: '<value>'` |
+| 无效或不受支持的时区字符串 | `[0x26B2] Invalid or unsupported timezone: '<value>'` |
 | firstDayOfWeek 超出范围 | `[0x26B3] Invalid firstDayOfWeek: <value>, must be 0-6` |
 
 ## 版本支持矩阵
 
-| 功能                                       | `v3.4.2` 之前 | `v3.4.2` | `v3.4.3` |
-| ------------------------------------------ | :----------: | :-------: | :--------: |
-| `timezone` 配置文件（服务端/客户端）         |      ✅      |    ✅     |    ✅     |
-| `TO_ISO8601` 固定偏移参数                    |      ✅      |    ✅     |    ✅     |
-| `TIMETRUNCATE` `d`/`w` 截断                  |      ✅      |    ✅     |    ✅     |
-| `INTERVAL` 查询 `d` 窗口                      |      ✅      |    ✅     |    ✅     |
-| `TIMEZONE()` 函数                            |      ✅      |  ✅（增强）   |    ✅     |
-| PERIOD 触发 `a`/`s`/`m`/`h`/`d`/`w`/`n`/`y`  |      ✅      |    ✅     |    ✅     |
-| SLIDING 触发 `a`/`s`/`m`/`h`/`d`/`w`         |      ✅      |    ✅     |    ✅     |
-| INTERVAL 窗口触发 `a`/`s`/`m`/`h`            |      ✅      |    ✅     |    ✅     |
-| `SET TIMEZONE`                             |      ❌      |    ✅     |    ✅     |
-| `SET FIRST_DAY_OF_WEEK`                    |      ❌      |    ✅     |    ✅     |
-| `firstDayOfWeek` 配置参数                   |      ❌      |    ✅     |    ✅     |
-| `TO_ISO8601` IANA 时区参数                  |      ❌      |    ✅     |    ✅     |
-| `TIMETRUNCATE` 时区字符串参数                |      ❌      |    ✅     |    ✅     |
-| `TIMETRUNCATE` `n`/`q`/`y` 截断              |      ❌      |    ✅     |    ✅     |
-| `INTERVAL` 查询 `w`/`n`/`q`/`y` 窗口         |      ❌      |    ✅     |    ✅     |
-| 普通列读取使用连接时区                        |      ❌      |    ✅     |    ✅     |
-| SHOW/EXPLAIN 使用连接时区                     |      ❌      |    ✅     |    ✅     |
-| 流任务 `STREAM_OPTIONS(CONFIG(...))`         |      ❌      |    ❌     |    ✅     |
-| 流任务时区 / 一周起始日写入流定义              |      ❌      |    ❌     |    ✅     |
-| PERIOD 触发 `q` 季度                          |      ❌      |    ❌     |    ✅     |
-| SLIDING 触发 `n`/`q`/`y`                     |      ❌      |    ❌     |    ✅     |
-| INTERVAL 窗口触发 `d`/`w`/`n`/`q`/`y`        |      ❌      |    ❌     |    ✅     |
-| `ins_streams` timezone/first_day_of_week 列  |      ❌      |    ❌     |    ✅     |
+下表列出功能的引入版本；Windows 平台的连接级时区、历史和 DST 能力从 `v3.5.0` 起支持，详见 [Windows 支持](#windows-支持)。
+
+| 功能                                       | `v3.4.2` 之前 | `v3.4.2` | `v3.4.3` | `v3.5.0` |
+| ------------------------------------------ | :----------: | :-------: | :--------: | :--------: |
+| `timezone` 配置文件（服务端/客户端）         |      ✅      |    ✅     |    ✅     |    ✅     |
+| `TO_ISO8601` 固定偏移参数                    |      ✅      |    ✅     |    ✅     |    ✅     |
+| `TIMETRUNCATE` `d`/`w` 截断                  |      ✅      |    ✅     |    ✅     |    ✅     |
+| `INTERVAL` 查询 `d` 窗口                      |      ✅      |    ✅     |    ✅     |    ✅     |
+| `TIMEZONE()` 函数                            |      ✅      |  ✅（增强）   |    ✅     |    ✅     |
+| PERIOD 触发 `a`/`s`/`m`/`h`/`d`/`w`/`n`/`y`  |      ✅      |    ✅     |    ✅     |    ✅     |
+| SLIDING 触发 `a`/`s`/`m`/`h`/`d`/`w`         |      ✅      |    ✅     |    ✅     |    ✅     |
+| INTERVAL 窗口触发 `a`/`s`/`m`/`h`            |      ✅      |    ✅     |    ✅     |    ✅     |
+| `SET TIMEZONE`                             |      ❌      |    ✅     |    ✅     |    ✅     |
+| `SET FIRST_DAY_OF_WEEK`                    |      ❌      |    ✅     |    ✅     |    ✅     |
+| `firstDayOfWeek` 配置参数                   |      ❌      |    ✅     |    ✅     |    ✅     |
+| `TO_ISO8601` IANA 时区参数                  |      ❌      |    ✅     |    ✅     |    ✅     |
+| `TIMETRUNCATE` 时区字符串参数                |      ❌      |    ✅     |    ✅     |    ✅     |
+| `TIMETRUNCATE` `n`/`q`/`y` 截断              |      ❌      |    ✅     |    ✅     |    ✅     |
+| `INTERVAL` 查询 `w`/`n`/`q`/`y` 窗口         |      ❌      |    ✅     |    ✅     |    ✅     |
+| 普通列读取使用连接时区                        |      ❌      |    ✅     |    ✅     |    ✅     |
+| SHOW/EXPLAIN 使用连接时区                     |      ❌      |    ✅     |    ✅     |    ✅     |
+| 流任务 `STREAM_OPTIONS(CONFIG(...))`         |      ❌      |    ❌     |    ✅     |    ✅     |
+| 流任务时区 / 一周起始日写入流定义              |      ❌      |    ❌     |    ✅     |    ✅     |
+| PERIOD 触发 `q` 季度                          |      ❌      |    ❌     |    ✅     |    ✅     |
+| SLIDING 触发 `n`/`q`/`y`                     |      ❌      |    ❌     |    ✅     |    ✅     |
+| INTERVAL 窗口触发 `d`/`w`/`n`/`q`/`y`        |      ❌      |    ❌     |    ✅     |    ✅     |
+| `ins_streams` timezone/first_day_of_week 列  |      ❌      |    ❌     |    ✅     |    ✅     |
+| Windows 连接级时区及 IANA 历史 / DST 规则 |      ❌      |    ❌     |    ❌     |    ✅     |

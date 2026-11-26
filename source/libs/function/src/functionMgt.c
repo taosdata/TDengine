@@ -129,9 +129,11 @@ bool canCoexistIndefiniteRowsFunc(int32_t funcId1, int32_t funcId2) {
   // MAVG outputs N-K+1 rows and is handled by the translator's MAVG-specific K check,
   // so it must not be added to this N-row coexistence whitelist.
   bool isNRow1 = (type1 == FUNCTION_TYPE_CSUM || type1 == FUNCTION_TYPE_FILL_FORWARD ||
+                  type1 == FUNCTION_TYPE_FILL_NEXT ||
                   type1 == FUNCTION_TYPE_STATE_COUNT || type1 == FUNCTION_TYPE_STATE_DURATION ||
                   type1 == FUNCTION_TYPE_LAG || type1 == FUNCTION_TYPE_LEAD);
   bool isNRow2 = (type2 == FUNCTION_TYPE_CSUM || type2 == FUNCTION_TYPE_FILL_FORWARD ||
+                  type2 == FUNCTION_TYPE_FILL_NEXT ||
                   type2 == FUNCTION_TYPE_STATE_COUNT || type2 == FUNCTION_TYPE_STATE_DURATION ||
                   type2 == FUNCTION_TYPE_LAG || type2 == FUNCTION_TYPE_LEAD);
   if (isNRow1 && isNRow2) {
@@ -208,6 +210,7 @@ int32_t fmGetFuncExecFuncs(int32_t funcId, SFuncExecFuncs* pFpSet) {
   pFpSet->finalize = funcMgtBuiltins[funcId].finalizeFunc;
   pFpSet->combine = funcMgtBuiltins[funcId].combineFunc;
   pFpSet->processFuncByRow = funcMgtBuiltins[funcId].processFuncByRow;
+  pFpSet->hasPending = funcMgtBuiltins[funcId].hasPending;
   pFpSet->cleanup = funcMgtBuiltins[funcId].cleanupFunc;
   return TSDB_CODE_SUCCESS;
 }
@@ -236,6 +239,26 @@ int32_t fmGetScalarFuncExecFuncs(int32_t funcId, SScalarFuncExecFuncs* pFpSet) {
   return TSDB_CODE_SUCCESS;
 }
 
+static int32_t validateMySqlTimeRuntimeContext(const SFunctionNode* pFunc) {
+  int32_t count = LIST_LENGTH(pFunc->pParameterList);
+  if (count < 3) return TSDB_CODE_FUNC_FUNTION_PARA_NUM;
+  const int8_t types[] = {TSDB_DATA_TYPE_TINYINT, TSDB_DATA_TYPE_TINYINT, TSDB_DATA_TYPE_BIGINT};
+  for (int32_t i = 0; i < 3; ++i) {
+    SNode* node = nodesListGetNode(pFunc->pParameterList, count - 3 + i);
+    if (node == NULL || nodeType(node) != QUERY_NODE_VALUE) return TSDB_CODE_QRY_INVALID_INPUT;
+    SValueNode* value = (SValueNode*)node;
+    if (value->node.resType.type != types[i] || value->isNull) return TSDB_CODE_FUNC_FUNTION_PARA_TYPE;
+    if (i == 0 && (value->datum.i < TSDB_TIME_PRECISION_MILLI || value->datum.i > TSDB_TIME_PRECISION_NANO)) {
+      return TSDB_CODE_FUNC_FUNTION_PARA_VALUE;
+    }
+    // The shared callback dispatches on this value, so it must match the validated function ID.
+    if (i == 1 && value->datum.i != funcMgtBuiltins[pFunc->funcId].type - FUNCTION_TYPE_MYSQL_CURDATE) {
+      return TSDB_CODE_FUNC_FUNTION_PARA_VALUE;
+    }
+  }
+  return TSDB_CODE_SUCCESS;
+}
+
 int32_t fmValidateFuncNode(SFunctionNode* pFunc, char* pErrBuf, int32_t len) {
   if (pFunc != NULL && fmIsUserDefinedFunc(pFunc->funcId)) {
     return TSDB_CODE_SUCCESS;
@@ -254,6 +277,10 @@ int32_t fmValidateFuncNode(SFunctionNode* pFunc, char* pErrBuf, int32_t len) {
                            pFunc == NULL ? -1 : pFunc->funcId, name));
     }
     return TSDB_CODE_QRY_INVALID_INPUT;
+  }
+  int32_t funcType = funcMgtBuiltins[pFunc->funcId].type;
+  if (funcType >= FUNCTION_TYPE_MYSQL_CURDATE && funcType <= FUNCTION_TYPE_MYSQL_YEARWEEK) {
+    return validateMySqlTimeRuntimeContext(pFunc);
   }
   return TSDB_CODE_SUCCESS;
 }
@@ -281,7 +308,18 @@ int32_t fmValidateFuncInputTypes(int32_t funcId, const int8_t* pTypes, int32_t n
     return TSDB_CODE_SUCCESS;
   }
 
-  switch (funcMgtBuiltins[funcId].type) {
+  int32_t funcType = funcMgtBuiltins[funcId].type;
+  if (funcType >= FUNCTION_TYPE_MYSQL_CURDATE && funcType <= FUNCTION_TYPE_MYSQL_YEARWEEK) {
+    if (numOfParams < 3) return TSDB_CODE_FUNC_FUNTION_PARA_NUM;
+    if (pTypes[numOfParams - 3] != TSDB_DATA_TYPE_TINYINT ||
+        pTypes[numOfParams - 2] != TSDB_DATA_TYPE_TINYINT ||
+        pTypes[numOfParams - 1] != TSDB_DATA_TYPE_BIGINT) {
+      return TSDB_CODE_FUNC_FUNTION_PARA_TYPE;
+    }
+    return validateBuiltinFuncInputTypes(funcId, pTypes, numOfParams - 3);
+  }
+
+  switch (funcType) {
     case FUNCTION_TYPE_CAST:
     case FUNCTION_TYPE_IRATE:
     case FUNCTION_TYPE_IRATE_MERGE:
@@ -691,6 +729,7 @@ int32_t createFunctionWithSrcFunc(const char* pName, const SFunctionNode* pSrcFu
   }
 
   (*ppFunc)->hasPk = pSrcFunc->hasPk;
+  (*ppFunc)->ignoreResultRowCount = pSrcFunc->ignoreResultRowCount;
   (*ppFunc)->pkBytes = pSrcFunc->pkBytes;
   (*ppFunc)->pSrcFuncRef = pSrcFunc;
 
@@ -1059,6 +1098,10 @@ const void* fmGetStreamPesudoFuncVal(int32_t funcId, const SStreamRuntimeFuncInf
       return &pParams->wstart;
     case FUNCTION_TYPE_TWEND:
       return &pParams->wend;
+    case FUNCTION_TYPE_TPREV_WSTART:
+      return &pParams->prevWstart;
+    case FUNCTION_TYPE_TPREV_WEND:
+      return &pParams->prevWend;
     case FUNCTION_TYPE_TWDURATION:
       return &pParams->wduration;
     case FUNCTION_TYPE_TWROWNUM:
@@ -1082,9 +1125,10 @@ const void* fmGetStreamPesudoFuncVal(int32_t funcId, const SStreamRuntimeFuncInf
 }
 
 static int32_t fmGetWindowPlaceholderValue(int32_t funcId, const SStreamRuntimeFuncInfo* pInfo, int32_t layerIndex,
-                                           const void** ppValue) {
-  if (ppValue == NULL) return TSDB_CODE_STREAM_INVALID_PLACE_HOLDER;
+                                           const void** ppValue, bool* pIsNull) {
+  if (ppValue == NULL || pIsNull == NULL) return TSDB_CODE_STREAM_INVALID_PLACE_HOLDER;
   *ppValue = NULL;
+  *pIsNull = false;
   if (pInfo == NULL || funcId < 0 || funcId >= funcMgtBuiltinsNum || layerIndex < 0) {
     return TSDB_CODE_STREAM_INVALID_PLACE_HOLDER;
   }
@@ -1110,6 +1154,12 @@ static int32_t fmGetWindowPlaceholderValue(int32_t funcId, const SStreamRuntimeF
     case FUNCTION_TYPE_TWEND:
       requiredMask = PLACE_HOLDER_WEND;
       break;
+    case FUNCTION_TYPE_TPREV_WSTART:
+      requiredMask = PLACE_HOLDER_PREV_WSTART;
+      break;
+    case FUNCTION_TYPE_TPREV_WEND:
+      requiredMask = PLACE_HOLDER_PREV_WEND;
+      break;
     case FUNCTION_TYPE_TWDURATION:
       requiredMask = PLACE_HOLDER_WDURATION;
       break;
@@ -1130,6 +1180,12 @@ static int32_t fmGetWindowPlaceholderValue(int32_t funcId, const SStreamRuntimeF
   const int32_t snapshotCount = taosArrayGetSize(pMatch->pSnapshots);
   if (layerIndex > snapshotCount) return TSDB_CODE_STREAM_INVALID_PLACE_HOLDER;
   if (layerIndex == snapshotCount) {
+    const int32_t type = funcMgtBuiltins[funcId].type;
+    if (type == FUNCTION_TYPE_TPREV_WSTART || type == FUNCTION_TYPE_TPREV_WEND) {
+      const SSTriggerCalcParam* pParam = taosArrayGet(pInfo->pStreamPesudoFuncVals, pInfo->curIdx);
+      if (pParam == NULL) return TSDB_CODE_STREAM_INVALID_PLACE_HOLDER;
+      *pIsNull = !pParam->hasPrevWindow;
+    }
     *ppValue = fmGetStreamPesudoFuncVal(funcId, pInfo);
     return *ppValue == NULL ? TSDB_CODE_STREAM_INVALID_PLACE_HOLDER : TSDB_CODE_SUCCESS;
   }
@@ -1162,6 +1218,14 @@ static int32_t fmGetWindowPlaceholderValue(int32_t funcId, const SStreamRuntimeF
       break;
     case FUNCTION_TYPE_TWEND:
       *ppValue = &pSnapshot->values.window.end;
+      break;
+    case FUNCTION_TYPE_TPREV_WSTART:
+      *pIsNull = !pSnapshot->values.window.hasPrevWindow;
+      *ppValue = &pSnapshot->values.window.prevStart;
+      break;
+    case FUNCTION_TYPE_TPREV_WEND:
+      *pIsNull = !pSnapshot->values.window.hasPrevWindow;
+      *ppValue = &pSnapshot->values.window.prevEnd;
       break;
     case FUNCTION_TYPE_TWDURATION:
       *ppValue = &pSnapshot->values.window.duration;
@@ -1432,12 +1496,23 @@ int32_t fmSetStreamPseudoFuncParamVal(int32_t funcId, SNodeList* pParamNodes, co
       return code;
     }
   } else if (LIST_LENGTH(pParamNodes) == 1) {
-    // twstart, twend
+    // twstart, twend, tpre_wstart, tpre_wend
+    SSTriggerCalcParam* pParams =
+        taosArrayGet(pStreamRuntimeInfo->pStreamPesudoFuncVals, pStreamRuntimeInfo->curIdx);
+    if (pParams == NULL) {
+      uError("failed to set stream pseudo func param val, missing calc param for funcId: %d", funcId);
+      return TSDB_CODE_INTERNAL_ERROR;
+    }
     const void* pVal = fmGetStreamPesudoFuncVal(funcId, pStreamRuntimeInfo);
     if (!pVal) {
       uError("failed to set stream pseudo func param val, NULL val for funcId: %d", funcId);
       return TSDB_CODE_INTERNAL_ERROR;
     }
+    if ((t == FUNCTION_TYPE_TPREV_WSTART || t == FUNCTION_TYPE_TPREV_WEND) && !pParams->hasPrevWindow) {
+      ((SValueNode*)pFirstParam)->isNull = true;
+      return TSDB_CODE_SUCCESS;
+    }
+    ((SValueNode*)pFirstParam)->isNull = false;
     code = nodesSetValueNodeValue((SValueNode*)pFirstParam, (void*)pVal);
     if (code != 0) {
       uError("failed to set value node value: %s", tstrerror(code));
@@ -1450,8 +1525,12 @@ int32_t fmSetStreamPseudoFuncParamVal(int32_t funcId, SNodeList* pParamNodes, co
       return TSDB_CODE_STREAM_INVALID_PLACE_HOLDER;
     }
     const void* pVal = NULL;
-    code = fmGetWindowPlaceholderValue(funcId, pStreamRuntimeInfo, ((SValueNode*)pSecondParam)->datum.i, &pVal);
+    bool        isNull = false;
+    code =
+        fmGetWindowPlaceholderValue(funcId, pStreamRuntimeInfo, ((SValueNode*)pSecondParam)->datum.i, &pVal, &isNull);
     if (code != TSDB_CODE_SUCCESS) return code;
+    ((SValueNode*)pFirstParam)->isNull = isNull;
+    if (isNull) return TSDB_CODE_SUCCESS;
     code = nodesSetValueNodeValue((SValueNode*)pFirstParam, (void*)pVal);
     if (code != TSDB_CODE_SUCCESS) {
       uError("failed to set value node value: %s", tstrerror(code));
@@ -1465,16 +1544,16 @@ int32_t fmSetStreamPseudoFuncParamVal(int32_t funcId, SNodeList* pParamNodes, co
   return code;
 }
 // --- FQ push-down capability bitmap lookup ---
-// Returns the uint16_t bitmap from funcMgtBuiltins[funcId].fqPushCap.
+// Returns the uint32_t bitmap from funcMgtBuiltins[funcId].fqPushCap.
 // UDFs (funcId > FUNC_UDF_ID_START) and out-of-range ids return FQ_CAP_NONE.
-uint16_t fqFuncCapBitmap(int32_t funcId) {
+uint32_t fqFuncCapBitmap(int32_t funcId) {
   if (fmIsUserDefinedFunc(funcId) || funcId < 0 || funcId >= funcMgtBuiltinsNum) {
     return FQ_CAP_NONE;
   }
   return funcMgtBuiltins[funcId].fqPushCap;
 }
 
-uint16_t fqFuncArg0NcharCapBitmap(int32_t funcId) {
+uint32_t fqFuncArg0NcharCapBitmap(int32_t funcId) {
   if (fmIsUserDefinedFunc(funcId) || funcId < 0 || funcId >= funcMgtBuiltinsNum) {
     return FQ_CAP_NONE;
   }
@@ -1485,13 +1564,13 @@ uint16_t fqFuncArg0NcharCapBitmap(int32_t funcId) {
 
 bool fqFuncIsPushable(int32_t funcId, int32_t dialect,
                       const SExtCapSessionOverlay* pOverlay) {
-  uint16_t cap = fqFuncCapBitmap(funcId);
-  uint16_t bit = fqDialectBit(dialect);
+  uint32_t cap = fqFuncCapBitmap(funcId);
+  uint32_t bit = fqDialectBit(dialect);
   if (bit == 0) return false;
 
-  // Session-level override: high byte (bits 8-15) disables the corresponding dialect.
+  // Session-level override: high half (bits 16-31) disables the corresponding dialect.
   if (pOverlay != NULL) {
-    uint16_t sessionDisable = (uint16_t)(cap >> FQ_CAP_SESSION_SHIFT);
+    uint32_t sessionDisable = (uint32_t)(cap >> FQ_CAP_SESSION_SHIFT);
     if (sessionDisable & bit) return false;
   }
 
@@ -1500,12 +1579,12 @@ bool fqFuncIsPushable(int32_t funcId, int32_t dialect,
 
 bool fqFuncArg0NcharIsPushable(int32_t funcId, int32_t dialect,
                                const SExtCapSessionOverlay* pOverlay) {
-  uint16_t cap = fqFuncArg0NcharCapBitmap(funcId);
-  uint16_t bit = fqDialectBit(dialect);
+  uint32_t cap = fqFuncArg0NcharCapBitmap(funcId);
+  uint32_t bit = fqDialectBit(dialect);
   if (bit == 0) return false;
 
   if (pOverlay != NULL) {
-    uint16_t sessionDisable = (uint16_t)(cap >> FQ_CAP_SESSION_SHIFT);
+    uint32_t sessionDisable = (uint32_t)(cap >> FQ_CAP_SESSION_SHIFT);
     if (sessionDisable & bit) return false;
   }
 
@@ -1514,25 +1593,26 @@ bool fqFuncArg0NcharIsPushable(int32_t funcId, int32_t dialect,
 
 bool fqFuncSubCapIsPushable(int32_t funcId, int32_t subCapShift, int32_t dialect,
                              const SExtCapSessionOverlay* pOverlay) {
-  uint16_t cap = fqFuncCapBitmap(funcId);
-  uint16_t bit = fqDialectBit(dialect);
+  uint32_t cap = fqFuncCapBitmap(funcId);
+  uint32_t bit = fqDialectBit(dialect);
   if (bit == 0) return false;
 
-  /* The sub-capability band (bits 3-5, session band 11-13) is derived from the
-   * first three dialects only.  SQL Server (bit 6) and Oracle (bit 7) sit
+  /* The sub-capability band (bits 3-5, session band 19-21) is derived from the
+   * first three dialects only. SQL Server, Oracle and InfluxDB 1.8 sit
    * outside that band and have no shift-derived sub-capability; deriving one
-   * for them would read an unrelated dialect's bit. */
-  if (dialect == EXT_SQL_DIALECT_SQLSERVER || dialect == EXT_SQL_DIALECT_ORACLE) {
+   * for them would read an unrelated capability bit. */
+  if (dialect == EXT_SQL_DIALECT_SQLSERVER || dialect == EXT_SQL_DIALECT_ORACLE ||
+      dialect == EXT_SQL_DIALECT_INFLUXDB_1_8) {
     return false;
   }
 
-  // Default band for the sub-capability (low byte, bits subCapShift..subCapShift+2).
-  uint16_t subDefault = (uint16_t)(cap >> subCapShift);
+  // Default band for the sub-capability (low half, bits subCapShift..subCapShift+2).
+  uint32_t subDefault = (uint32_t)(cap >> subCapShift);
 
-  // Session-override band sits in the high byte at the same relative position:
+  // Session-override band sits in the high half at the same relative position:
   // (subCapShift + FQ_CAP_SESSION_SHIFT).
   if (pOverlay != NULL) {
-    uint16_t subSession = (uint16_t)(cap >> (subCapShift + FQ_CAP_SESSION_SHIFT));
+    uint32_t subSession = (uint32_t)(cap >> (subCapShift + FQ_CAP_SESSION_SHIFT));
     if (subSession & bit) return false;
   }
 

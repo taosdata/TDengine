@@ -158,6 +158,8 @@ class _AutoEncoderDetectionService(AbstractAnomalyDetectionService):
 
 ```sql
 -- 在 options 中增加 model 参数 sample-ad-autoencoder，针对 foo 数据集（表）训练的采用自编码器的异常检测模型进行异常检测
-SELECT _wstart, count(*)
+SELECT
+  _wstart,
+  COUNT(*)
 FROM foo ANOMALY_WINDOW(val, 'algo=sample_ad_model,model=sample-ad-autoencoder');
 ```

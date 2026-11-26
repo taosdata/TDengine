@@ -9,3 +9,4 @@ This chapter describes a general approach to migrating existing time-series data
 Migration guides describe end-to-end workflows. For connector configuration, protocol syntax, and component parameters, see the relevant reference documentation.
 
 - [Migrate from InfluxDB to TDengine](./01-influxdb.md)
+- [Migrate from WinCC + PI to TDengine](./02-wincc-pi.md)

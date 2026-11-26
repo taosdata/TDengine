@@ -210,6 +210,9 @@ macro(INIT_EXT name)               # {
             if("z${name}" STREQUAL "zext_gtest")
                 target_compile_features(${tgt} PUBLIC cxx_std_11)
                 target_link_libraries(${tgt} PRIVATE Threads::Threads)
+                # Optional: resolve the engine from libtaosd_shared.so instead of
+                # statically embedding it into every test binary.
+                td_test_link_shared_engine(${tgt})
             endif()
         else()
             if(CMAKE_SYSTEM_NAME STREQUAL "Darwin")
@@ -562,7 +565,7 @@ if(BUILD_WCWIDTH)        # {
 endif()                     # }
 
 # wingetopt
-if(BUILD_WINGETOPT)      # {
+if(BUILD_WINGETOPT OR TD_WINDOWS)      # {
     if(TD_WINDOWS)
         set(ext_wingetopt_static wingetopt.lib)
     endif()
@@ -954,7 +957,7 @@ endif()     # }
 if(NOT TD_WINDOWS)       # {
     if(TD_LINUX)
         set(ext_tz_static libtz.a)
-        set(_c_flags_list -fPIC -DTHREAD_SAFE=1)
+        set(_c_flags_list -fPIC -DTHREAD_SAFE=1 -pthread)
     elseif(TD_DARWIN)
         set(ext_tz_static libtz.a)
         set(_c_flags_list -fPIC -DHAVE_GETTEXT=0 -DTHREAD_SAFE=1) # TODO: brew install gettext?
@@ -987,12 +990,13 @@ if(NOT TD_WINDOWS)       # {
     )
     string(JOIN " " _c_flags ${_c_flags_list})
     get_from_local_if_exists(
-        "https://github.com/eggert/tz/archive/refs/tags/2025a.tar.gz"
-        "tz-2025a.tar.gz"
+        "https://github.com/eggert/tz/archive/refs/tags/2026f.tar.gz"
+        "tz-2026f.tar.gz"
     )
     ExternalProject_Add(ext_tz
         URL ${_url}
-        URL_HASH SHA256=d0f35d0a3b5ca1bb25539b159c1338135a4f59b0d423381ecafa31d0449caea5
+        URL_HASH
+        SHA256=2fe4b4f27f75beea17970dfdd242ffb7f099fad9447950a39d0fe8eae522d8e2
         PREFIX "${_base}"
         BUILD_IN_SOURCE TRUE
         CMAKE_ARGS -DCMAKE_BUILD_TYPE:STRING=${TD_CONFIG_NAME}
@@ -1010,6 +1014,37 @@ if(NOT TD_WINDOWS)       # {
         VERBATIM
     )
     add_dependencies(build_externals ext_tz)     # this is for github workflow in cache-miss step.
+else()
+    INIT_EXT(ext_tz INC_DIR include LIB lib/tz.lib)
+    get_from_local_if_exists(
+        "https://github.com/eggert/tz/archive/refs/tags/2026f.tar.gz"
+        "tz-2026f.tar.gz"
+    )
+    set(_tz_adapter "${TD_SUPPORT_DIR}/in/tz-windows")
+    ExternalProject_Add(ext_tz
+        URL ${_url}
+        URL_HASH
+        SHA256=2fe4b4f27f75beea17970dfdd242ffb7f099fad9447950a39d0fe8eae522d8e2
+        PREFIX "${_base}"
+        SOURCE_SUBDIR "td-windows"
+        PATCH_COMMAND
+            COMMAND "${CMAKE_COMMAND}" -E copy_directory
+                "${_tz_adapter}" "<SOURCE_DIR>/td-windows"
+        CMAKE_ARGS
+            -DTZ_SOURCE:PATH=<SOURCE_DIR>
+            -DWINGETOPT_ROOT:PATH=${ext_wingetopt_install}
+            -DCMAKE_BUILD_TYPE:STRING=${TD_CONFIG_NAME}
+            -DCMAKE_INSTALL_PREFIX:PATH=${_ins}
+            -DCMAKE_INSTALL_LIBDIR:PATH=lib
+        BUILD_COMMAND
+            "${CMAKE_COMMAND}" --build . --config "${TD_CONFIG_NAME}"
+        INSTALL_COMMAND
+            "${CMAKE_COMMAND}" --install . --config "${TD_CONFIG_NAME}"
+        DEPENDS ext_wingetopt
+        EXCLUDE_FROM_ALL TRUE
+        VERBATIM
+    )
+    add_dependencies(build_externals ext_tz)
 endif()    # }
 
 # jemalloc
@@ -1202,15 +1237,15 @@ INIT_EXT(ext_curl
 )
 
 if(${TD_WINDOWS})
-    # URL https://github.com/curl/curl/releases/download/curl-8_11_1/curl-8.11.1.tar.gz
-    # URL_HASH SHA256=a889ac9dbba3644271bd9d1302b5c22a088893719b72be3487bc3d401e5c4e80
+    # URL https://github.com/curl/curl/releases/download/curl-8_23_0/curl-8.23.0.tar.gz
+    # URL_HASH SHA256=e3de77cfa6367083c776a26647fc9f633b538c06c3baa73d931a252ac8f72b49
     get_from_local_if_exists(
-        "https://github.com/curl/curl/releases/download/curl-8_11_1/curl-8.11.1.tar.gz"
-        "curl-8.11.1.tar.gz"
+        "https://github.com/curl/curl/releases/download/curl-8_23_0/curl-8.23.0.tar.gz"
+        "curl-8.23.0.tar.gz"
     )
     ExternalProject_Add(ext_curl
         URL ${_url}
-        URL_HASH SHA256=a889ac9dbba3644271bd9d1302b5c22a088893719b72be3487bc3d401e5c4e80
+        URL_HASH SHA256=e3de77cfa6367083c776a26647fc9f633b538c06c3baa73d931a252ac8f72b49
         PREFIX "${_base}"
         CMAKE_ARGS -DCMAKE_BUILD_TYPE:STRING=${TD_CONFIG_NAME}
         CMAKE_ARGS -DCMAKE_INSTALL_PREFIX:STRING=${_ins}
@@ -1218,12 +1253,26 @@ if(${TD_WINDOWS})
         CMAKE_ARGS -DBUILD_SHARED_LIBS:BOOL=OFF
         CMAKE_ARGS -DBUILD_TESTING:BOOL=OFF
         CMAKE_ARGS -DBUILD_CURL_EXE:BOOL=OFF
-        CMAKE_ARGS -DENABLE_WEBSOCKETS:BOOL=ON
+        # curl 8.23.0 no longer has ENABLE_WEBSOCKETS (it was a no-op and made CMake
+        # warn about an unused variable); websockets are on unless
+        # CURL_DISABLE_WEBSOCKETS is set. The engine calls curl_ws_send, so state the
+        # requirement explicitly instead of relying on the default.
+        CMAKE_ARGS -DCURL_DISABLE_WEBSOCKETS:BOOL=OFF
         CMAKE_ARGS -DCURL_USE_SCHANNEL:BOOL=ON
         CMAKE_ARGS -DCURL_USE_OPENSSL:BOOL=OFF
         CMAKE_ARGS -DCURL_ZLIB:BOOL=OFF
         CMAKE_ARGS -DCURL_DISABLE_LDAP:BOOL=ON
         CMAKE_ARGS -DCURL_DISABLE_LDAPS:BOOL=ON
+        # Keep in sync with the Linux/macOS autotools configure below
+        # (--without-libpsl --without-libidn2 --without-nghttp2).
+        # curl 8.23.0 turned CURL_USE_LIBPSL into `find_package(Libpsl MODULE REQUIRED)`
+        # (8.11.1 only warned when libpsl was missing), so without this flag the
+        # Windows ExternalProject configure step fails on runners that have no libpsl.
+        CMAKE_ARGS -DCURL_USE_LIBPSL:BOOL=OFF
+        # Do not import a host MinGW Zstd package into the MSVC build.
+        CMAKE_ARGS -DCURL_ZSTD:STRING=OFF
+        CMAKE_ARGS -DUSE_LIBIDN2:BOOL=OFF
+        CMAKE_ARGS -DUSE_NGHTTP2:BOOL=OFF
         BUILD_COMMAND
             COMMAND "${CMAKE_COMMAND}" --build . --config "${TD_CONFIG_NAME}"
         INSTALL_COMMAND
@@ -1232,10 +1281,6 @@ if(${TD_WINDOWS})
         VERBATIM
     )
 else()
-    find_program(_EXT_CURL_PATCH_EXECUTABLE NAMES patch)
-    if(NOT _EXT_CURL_PATCH_EXECUTABLE)
-        message(FATAL_ERROR "The patch utility is required to build ext_curl")
-    endif()
     string(JOIN " " _c_flags ${_c_flags_list})
     set(_ext_curl_configure_env
         "CFLAGS=${_c_flags}"
@@ -1259,21 +1304,19 @@ else()
     else()
         set(_ext_curl_prepare_ssl_include "")
     endif()
-    # URL https://github.com/curl/curl/releases/download/curl-8_11_1/curl-8.11.1.tar.gz
-    # URL_HASH SHA256=a889ac9dbba3644271bd9d1302b5c22a088893719b72be3487bc3d401e5c4e80
+    # URL https://github.com/curl/curl/releases/download/curl-8_23_0/curl-8.23.0.tar.gz
+    # URL_HASH SHA256=e3de77cfa6367083c776a26647fc9f633b538c06c3baa73d931a252ac8f72b49
     get_from_local_if_exists(
-        "https://github.com/curl/curl/releases/download/curl-8_11_1/curl-8.11.1.tar.gz"
-        "curl-8.11.1.tar.gz"
+        "https://github.com/curl/curl/releases/download/curl-8_23_0/curl-8.23.0.tar.gz"
+        "curl-8.23.0.tar.gz"
     )
     ExternalProject_Add(ext_curl
         URL ${_url}
-        URL_HASH SHA256=a889ac9dbba3644271bd9d1302b5c22a088893719b72be3487bc3d401e5c4e80
+        URL_HASH SHA256=e3de77cfa6367083c776a26647fc9f633b538c06c3baa73d931a252ac8f72b49
         # GIT_SHALLOW TRUE
         DEPENDS ext_ssl
         PREFIX "${_base}"
         BUILD_IN_SOURCE TRUE
-        PATCH_COMMAND
-            COMMAND sh -c "grep -q sendbuf_payload lib/ws.h && grep -q 'buffer + ws->sendbuf_payload' lib/ws.c || '${_EXT_CURL_PATCH_EXECUTABLE}' -p1 -i '${TD_SOURCE_DIR}/cmake/curl-8.11.1-websocket-send.patch'"
         CMAKE_ARGS -DCMAKE_BUILD_TYPE:STRING=${TD_CONFIG_NAME}
         CMAKE_ARGS -DCMAKE_INSTALL_PREFIX:STRING=${_ins}
         CONFIGURE_COMMAND
@@ -1283,7 +1326,7 @@ else()
                     --enable-websockets --enable-shared=no --disable-ldap
                     --disable-ldaps --without-brotli --without-zstd
                     --without-libidn2 --without-nghttp2 --without-libpsl
-                    --without-librtmp --without-libgsasl #--enable-debug
+                    --without-libgsasl #--enable-debug
                     # --without-libgsasl: prevent curl's configure from auto-detecting a
                     # system libgsasl-dev and baking an undeclared dependency into
                     # libcurl.a (would break final link with undefined gsasl_* refs).
@@ -2819,6 +2862,12 @@ if(TD_ENTERPRISE)   # { ext connector client libraries
         set(_oracle_windows_basic_hash "")
         set(_oracle_windows_odbc_url "")
         set(_oracle_windows_odbc_hash "")
+        # SQL*Plus travels with the client only for the FQ test harness: the
+        # 11g server runs in a Linux container (no Windows 11.2.0.4 media
+        # exists) and the harness executes its admin SQL locally.  Small public
+        # package, fetched even when the client itself comes from the mirror.
+        set(_oracle_windows_sqlplus_url "")
+        set(_oracle_windows_sqlplus_hash "")
         if(TD_WINDOWS)
             if(CMAKE_SYSTEM_PROCESSOR MATCHES "^(AMD64|amd64|x86_64)$")
                 set(_oracle_artifact "oracle-instantclient-23.26.4.0.0-windows-amd64.zip")
@@ -2835,6 +2884,10 @@ if(TD_ENTERPRISE)   # { ext connector client libraries
                     "https://download.oracle.com/otn_software/nt/instantclient/2326400/instantclient-odbc-windows.x64-23.26.4.0.0.zip")
                 set(_oracle_windows_odbc_hash
                     "621ed172606c2c1e6af9b5d13f0567e536d0960ea47aadbef8208a0e86d81548")
+                set(_oracle_windows_sqlplus_url
+                    "https://download.oracle.com/otn_software/nt/instantclient/2326400/instantclient-sqlplus-windows.x64-23.26.4.0.0.zip")
+                set(_oracle_windows_sqlplus_hash
+                    "e3600a5a56cf174232731f0874cf9f9cb4a6b0334a68fae9b585dc40ab244b05")
             elseif(CMAKE_SYSTEM_PROCESSOR MATCHES "^(aarch64|arm64)$")
                 # Oracle publishes no ARM64 Windows Instant Client; leaving the
                 # artifact empty makes the resolution below skip the driver
@@ -2854,6 +2907,9 @@ if(TD_ENTERPRISE)   # { ext connector client libraries
                     "b3ed09bb03fb423857bd1a91a3a87d0a012c40025dba7d1c5ab060d7a57cc864")
             elseif(CMAKE_SYSTEM_PROCESSOR MATCHES "^(aarch64|arm64)$")
                 set(_oracle_artifact "oracle-instantclient-23.26.0.0.0-arm64.tar.gz")
+                # Published from the ARM64 client validated in the 1101 release.
+                set(_oracle_artifact_hash
+                    "c50d3db1894870038d598b1e7e62e708e6ac2e4cdb0a9e7e4cf88f88d2b16b09")
             endif()
         endif()
 
@@ -2938,10 +2994,13 @@ if(TD_ENTERPRISE)   # { ext connector client libraries
                         -Dwork_dir=${_oracle_src_dir}
                         -Dmirror_url=${_oracle_mirror_url}
                         -Dmirror_sha256=${_oracle_sha256}
+                        -Dartifact_name=${_oracle_artifact}
                         -Dbasic_url=${_oracle_windows_basic_url}
                         -Dbasic_sha256=${_oracle_windows_basic_hash}
                         -Dodbc_url=${_oracle_windows_odbc_url}
                         -Dodbc_sha256=${_oracle_windows_odbc_hash}
+                        -Dsqlplus_url=${_oracle_windows_sqlplus_url}
+                        -Dsqlplus_sha256=${_oracle_windows_sqlplus_hash}
                         -P "${CMAKE_CURRENT_LIST_DIR}/download_oracle_instantclient_windows.cmake"
                     CONFIGURE_COMMAND ""
                     BUILD_COMMAND ""
@@ -2988,37 +3047,84 @@ if(TD_ENTERPRISE)   # { ext connector client libraries
         # the 23ai bundle, so the mirror URL is the default and the pinned hash
         # is the only thing a build trusts.  EXT_ORACLE_19C_ARTIFACT /
         # _SHA256 override both for a different mirror.
-        set(_oracle19c_artifact "oracle-instantclient-19.28.0.0.0-amd64.tar.gz")
-        set(_oracle19c_artifact_hash
-            "18101d308ca33aeeedd0c40d9b0ff6fb2f887ea5d12b273f23ead51629c61a8a")
+        set(_oracle19c_artifact "")
+        set(_oracle19c_artifact_hash "")
+        if(TD_WINDOWS)
+            # Windows publishes the same Basic + ODBC packages; the merged
+            # mirror artifact keeps the Linux naming with -windows-amd64.
+            # Oracle offers no anonymous direct URL for 19c, so the artifact
+            # comes from the dependency mirror; EXT_ORACLE_19C_ARTIFACT_SHA256
+            # pins a hash when the publisher provides one.
+            set(_oracle19c_artifact "oracle-instantclient-19.28.0.0.0-windows-amd64.zip")
+            set(_oracle19c_artifact_hash "")
+        elseif(CMAKE_SYSTEM_PROCESSOR MATCHES "^(x86_64|amd64|AMD64)$")
+            set(_oracle19c_artifact "oracle-instantclient-19.28.0.0.0-amd64.tar.gz")
+            set(_oracle19c_artifact_hash
+                "18101d308ca33aeeedd0c40d9b0ff6fb2f887ea5d12b273f23ead51629c61a8a")
+        elseif(CMAKE_SYSTEM_PROCESSOR MATCHES "^(aarch64|arm64)$")
+            set(_oracle19c_artifact "oracle-instantclient-19.28.0.0.0-arm64.tar.gz")
+            set(_oracle19c_artifact_hash
+                "6bc83967b00622ec82662c5000ceccfc43343526c0190be975c984aed6edb9a6")
+        endif()
         set(EXT_ORACLE_19C_ARTIFACT "" CACHE STRING
             "URL of the 19c Instant Client bundle (Basic + ODBC)")
         set(EXT_ORACLE_19C_ARTIFACT_SHA256 "" CACHE STRING
             "SHA256 of the 19c Instant Client bundle")
         set(_oracle19c_url "${EXT_ORACLE_19C_ARTIFACT}")
         set(_oracle19c_sha "${EXT_ORACLE_19C_ARTIFACT_SHA256}")
-        if("z${_oracle19c_url}" STREQUAL "z" AND NOT "z${LOCAL_URL}" STREQUAL "")
+        if("z${_oracle19c_url}" STREQUAL "z" AND NOT "z${LOCAL_URL}" STREQUAL ""
+           AND NOT "z${_oracle19c_artifact}" STREQUAL "z")
             set(_oracle19c_url "${LOCAL_URL}/${_oracle19c_artifact}")
             set(_oracle19c_sha "${_oracle19c_artifact_hash}")
         endif()
-        if(NOT TD_WINDOWS AND NOT TD_DARWIN
+        if(NOT TD_DARWIN
            AND NOT "z${_oracle19c_url}" STREQUAL "z"
-           AND NOT "z${_oracle19c_sha}" STREQUAL "z")
+           AND (NOT "z${_oracle19c_sha}" STREQUAL "z" OR TD_WINDOWS))
             INIT_DIRS(ext_oracle_19c ${TD_EXTERNALS_BASE_DIR})
-            ExternalProject_Add(ext_oracle_19c
-                URL "${_oracle19c_url}"
-                URL_HASH SHA256=${_oracle19c_sha}
-                PREFIX "${_base}"
-                CONFIGURE_COMMAND ""
-                BUILD_COMMAND ""
-                INSTALL_COMMAND
-                    COMMAND ${CMAKE_COMMAND}
-                        -Dsrc=<SOURCE_DIR>
-                        -Ddst=${_ins}/lib
-                        -P "${CMAKE_CURRENT_LIST_DIR}/install_oracle_instantclient.cmake"
-                EXCLUDE_FROM_ALL TRUE
-                VERBATIM
-            )
+            if(TD_WINDOWS)
+                set(_oracle19c_src_dir "${_base}/src/ext_oracle_19c")
+                ExternalProject_Add(ext_oracle_19c
+                    PREFIX "${_base}"
+                    SOURCE_DIR "${_oracle19c_src_dir}"
+                    DOWNLOAD_COMMAND ${CMAKE_COMMAND}
+                        -Dwork_dir=${_oracle19c_src_dir}
+                        -Dmirror_url=${_oracle19c_url}
+                        -Dmirror_sha256=${_oracle19c_sha}
+                        -Dartifact_name=${_oracle19c_artifact}
+                        -Dbasic_url=
+                        -Dbasic_sha256=
+                        -Dodbc_url=
+                        -Dodbc_sha256=
+                        -Dsqlplus_url=https://download.oracle.com/otn_software/nt/instantclient/1928000/instantclient-sqlplus-windows.x64-19.28.0.0.0dbru.zip
+                        -Dsqlplus_sha256=db93e57711219f6eeffa66a4c9267879a741f3005f97a9eb8ababdaa2ba6b295
+                        -P "${CMAKE_CURRENT_LIST_DIR}/download_oracle_instantclient_windows.cmake"
+                    CONFIGURE_COMMAND ""
+                    BUILD_COMMAND ""
+                    INSTALL_COMMAND
+                        COMMAND ${CMAKE_COMMAND}
+                            -Dsrc=${_oracle19c_src_dir}
+                            -Ddst=${_ins}/lib
+                            -Dallow_missing=ON
+                            -P "${CMAKE_CURRENT_LIST_DIR}/install_oracle_instantclient.cmake"
+                    EXCLUDE_FROM_ALL TRUE
+                    VERBATIM
+                )
+            else()
+                ExternalProject_Add(ext_oracle_19c
+                    URL "${_oracle19c_url}"
+                    URL_HASH SHA256=${_oracle19c_sha}
+                    PREFIX "${_base}"
+                    CONFIGURE_COMMAND ""
+                    BUILD_COMMAND ""
+                    INSTALL_COMMAND
+                        COMMAND ${CMAKE_COMMAND}
+                            -Dsrc=<SOURCE_DIR>
+                            -Ddst=${_ins}/lib
+                            -P "${CMAKE_CURRENT_LIST_DIR}/install_oracle_instantclient.cmake"
+                    EXCLUDE_FROM_ALL TRUE
+                    VERBATIM
+                )
+            endif()
             add_dependencies(build_externals ext_oracle_19c)
             set(EXT_ORACLE_19C_SO_SRCPATH "${_ins}/lib" CACHE INTERNAL "")
         elseif(INSTALL_FQ_RUNTIME_LIBS)

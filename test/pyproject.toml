@@ -18,7 +18,7 @@ name = "test"
 version = "0.1.0"
 description = "Add your description here"
 readme = "README.md"
-requires-python = ">=3.12"
+requires-python = ">=3.12.16"
 dependencies = [
     "asyncssh>=2.23.1",
     "pynacl>=1.6.2",
@@ -35,12 +35,12 @@ dependencies = [
     "pluggy==1.5.0",
     "pytest-cov==4.1.0",
     "pytest>=8.3.4",
-    "taos-ws-py>=0.6.9",
+    "taos-ws-py>=0.7.1",
     "pytest-xdist>=3.6.1",
     "pytz==2025.1",
     "requests==2.34.2",
     "taospy>=2.8.10",
-    "urllib3==2.7.0",
+    "urllib3==2.8.0",
     "pywinrm>=0.5.0",
     "fabric2>=3.0",
     "decorator>=5.2.1,<6.0",

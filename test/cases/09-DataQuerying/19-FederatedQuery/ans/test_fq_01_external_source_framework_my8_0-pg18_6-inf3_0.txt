@@ -2478,7 +2478,7 @@ RESULT:
 ERROR: count query failed (expected in negative case)
 ---
 ### CASE-030[INF] STEP-004 EXEC
-SQL: alter external source fq01_src030i set host='127.0.0.1', port=18086
+SQL: alter external source fq01_src030i set host='127.0.0.1', port=18086, options('connect_timeout_ms'='5000')
 RESULT:
 OK
 ---
@@ -2486,7 +2486,7 @@ OK
 SQL: describe external source fq01_src030i
 RESULT:
 source_name|type|host|port|user|password|database|schema|options
-fq01_src030i|influxdb|127.0.0.1|18086|admin|******|fq01_fw_idb||{"api_token":"******","protocol":"flight_sql","connect_timeout_ms":"500"}
+fq01_src030i|influxdb|127.0.0.1|18086|admin|******|fq01_fw_idb||{"api_token":"******","protocol":"flight_sql","connect_timeout_ms":"5000"}
 ---
 ### CASE-030[INF] STEP-006 EXEC
 SQL: refresh external source fq01_src030i
@@ -4066,114 +4066,119 @@ RESULT:
 source_name|type|host|port|user|password|database|schema|options
 fq01_src047m|mysql|127.0.0.1|13306|root|******|fq01_fw_mdb||{"connect_timeout_ms":"100","read_timeout_ms":"600000"}
 ---
-### CASE-047m[MYS] STEP-013 COUNT
+### CASE-047m[MYS] STEP-013 EXEC
+SQL: alter external source fq01_src047m set options('connect_timeout_ms'='5000')
+RESULT:
+OK
+---
+### CASE-047m[MYS] STEP-014 COUNT
 SQL: select count(*) from fq01_src047m.fq01_fw_mdb.src_t
 RESULT:
 count(*)
 5
 ---
-### CASE-047m[MYS] STEP-014 EXEC
+### CASE-047m[MYS] STEP-015 EXEC
 SQL: alter external source fq01_src047m set options('connect_timeout_ms'='99')
 RESULT:
 ERROR: [0x2600]: connect_timeout_ms must be 0 or in range [100, 600000]
 ---
-### CASE-047m[MYS] STEP-015 QUERY
+### CASE-047m[MYS] STEP-016 QUERY
 SQL: select source_name, options from information_schema.ins_ext_sources where source_name='fq01_src047m'
 RESULT:
 source_name|options
-fq01_src047m|{"connect_timeout_ms":"100","read_timeout_ms":"600000"}
+fq01_src047m|{"read_timeout_ms":"600000","connect_timeout_ms":"5000"}
 ---
-### CASE-047m[MYS] STEP-016 QUERY
+### CASE-047m[MYS] STEP-017 QUERY
 SQL: describe external source fq01_src047m
 RESULT:
 source_name|type|host|port|user|password|database|schema|options
-fq01_src047m|mysql|127.0.0.1|13306|root|******|fq01_fw_mdb||{"connect_timeout_ms":"100","read_timeout_ms":"600000"}
+fq01_src047m|mysql|127.0.0.1|13306|root|******|fq01_fw_mdb||{"read_timeout_ms":"600000","connect_timeout_ms":"5000"}
 ---
-### CASE-047m[MYS] STEP-017 QUERY
+### CASE-047m[MYS] STEP-018 QUERY
 SQL: select count(*) from information_schema.ins_ext_sources where source_name='fq01_src047m'
 RESULT:
 count(*)
 1
 ---
-### CASE-047m[MYS] STEP-018 COUNT
+### CASE-047m[MYS] STEP-019 COUNT
 SQL: select count(*) from fq01_src047m.fq01_fw_mdb.src_t
 RESULT:
 count(*)
 5
 ---
-### CASE-047m[MYS] STEP-019 EXEC
+### CASE-047m[MYS] STEP-020 EXEC
 SQL: alter external source fq01_src047m set options('read_timeout_ms'='600001')
 RESULT:
 ERROR: [0x2600]: read_timeout_ms must be 0 or in range [100, 600000]
 ---
-### CASE-047m[MYS] STEP-020 QUERY
+### CASE-047m[MYS] STEP-021 QUERY
 SQL: select source_name, options from information_schema.ins_ext_sources where source_name='fq01_src047m'
 RESULT:
 source_name|options
-fq01_src047m|{"connect_timeout_ms":"100","read_timeout_ms":"600000"}
+fq01_src047m|{"read_timeout_ms":"600000","connect_timeout_ms":"5000"}
 ---
-### CASE-047m[MYS] STEP-021 QUERY
+### CASE-047m[MYS] STEP-022 QUERY
 SQL: describe external source fq01_src047m
 RESULT:
 source_name|type|host|port|user|password|database|schema|options
-fq01_src047m|mysql|127.0.0.1|13306|root|******|fq01_fw_mdb||{"connect_timeout_ms":"100","read_timeout_ms":"600000"}
+fq01_src047m|mysql|127.0.0.1|13306|root|******|fq01_fw_mdb||{"read_timeout_ms":"600000","connect_timeout_ms":"5000"}
 ---
-### CASE-047m[MYS] STEP-022 QUERY
+### CASE-047m[MYS] STEP-023 QUERY
 SQL: select count(*) from information_schema.ins_ext_sources where source_name='fq01_src047m'
 RESULT:
 count(*)
 1
 ---
-### CASE-047m[MYS] STEP-023 COUNT
+### CASE-047m[MYS] STEP-024 COUNT
 SQL: select count(*) from fq01_src047m.fq01_fw_mdb.src_t
 RESULT:
 count(*)
 5
 ---
-### CASE-047m[MYS] STEP-024 EXEC
+### CASE-047m[MYS] STEP-025 EXEC
 SQL: create external source fq01_src047m_bad type='mysql' host='127.0.0.1' port=13306 user='root' password='taosdata' database='fq01_fw_mdb' options('connect_timeout_ms'='600001')
 RESULT:
 ERROR: [0x2600]: connect_timeout_ms must be 0 or in range [100, 600000]
 ---
-### CASE-047m[MYS] STEP-024 AUTO-SHOW
+### CASE-047m[MYS] STEP-025 AUTO-SHOW
 SQL: show external sources
 RESULT:
 source_name|type|host|port|user|password|database|schema|options
 ---
-### CASE-047m[MYS] STEP-024 AUTO-DESCRIBE
+### CASE-047m[MYS] STEP-025 AUTO-DESCRIBE
 SQL: describe external source fq01_src047m_bad
 RESULT:
 ERROR: describe external source failed
 ---
-### CASE-047m[MYS] STEP-025 QUERY
+### CASE-047m[MYS] STEP-026 QUERY
 SQL: select count(*) from information_schema.ins_ext_sources where source_name='fq01_src047m_bad'
 RESULT:
 count(*)
 0
 ---
-### CASE-047m[MYS] STEP-026 QUERY
+### CASE-047m[MYS] STEP-027 QUERY
 SQL: select count(*) from information_schema.ins_ext_sources where source_name='fq01_src047m'
 RESULT:
 count(*)
 1
 ---
-### CASE-047m[MYS] STEP-027 QUERY
+### CASE-047m[MYS] STEP-028 QUERY
 SQL: select source_name, options from information_schema.ins_ext_sources where source_name in ('fq01_src047m', 'fq01_src047m_bad') order by source_name
 RESULT:
 source_name|options
-fq01_src047m|{"connect_timeout_ms":"100","read_timeout_ms":"600000"}
+fq01_src047m|{"read_timeout_ms":"600000","connect_timeout_ms":"5000"}
 ---
-### CASE-047m[MYS] STEP-028 QUERY
+### CASE-047m[MYS] STEP-029 QUERY
 SQL: describe external source fq01_src047m_bad
 RESULT:
 ERROR: query failed
 ---
-### CASE-047m[MYS] STEP-029 CLEANUP
+### CASE-047m[MYS] STEP-030 CLEANUP
 SQL: drop external source if exists fq01_src047m
 RESULT:
 OK
 ---
-### CASE-047m[MYS] STEP-029 CLEANUP
+### CASE-047m[MYS] STEP-030 CLEANUP
 SQL: drop external source if exists fq01_src047m_bad
 RESULT:
 OK
@@ -6430,114 +6435,119 @@ RESULT:
 source_name|type|host|port|user|password|database|schema|options
 fq01_src047i|influxdb|127.0.0.1|18086|admin|******|fq01_fw_idb||{"api_token":"******","protocol":"flight_sql","connect_timeout_ms":"100","read_timeout_ms":"600000"}
 ---
-### CASE-047i[INF] STEP-013 COUNT
+### CASE-047i[INF] STEP-013 EXEC
+SQL: alter external source fq01_src047i set options('connect_timeout_ms'='5000')
+RESULT:
+OK
+---
+### CASE-047i[INF] STEP-014 COUNT
 SQL: select count(*) from fq01_src047i.src_t
 RESULT:
 count(*)
 5
 ---
-### CASE-047i[INF] STEP-014 EXEC
+### CASE-047i[INF] STEP-015 EXEC
 SQL: alter external source fq01_src047i set options('connect_timeout_ms'='99')
 RESULT:
 ERROR: [0x2600]: connect_timeout_ms must be 0 or in range [100, 600000]
 ---
-### CASE-047i[INF] STEP-015 QUERY
+### CASE-047i[INF] STEP-016 QUERY
 SQL: select source_name, options from information_schema.ins_ext_sources where source_name='fq01_src047i'
 RESULT:
 source_name|options
-fq01_src047i|{"api_token":"******","protocol":"flight_sql","connect_timeout_ms":"100","read_timeout_ms":"600000"}
+fq01_src047i|{"api_token":"******","protocol":"flight_sql","read_timeout_ms":"600000","connect_timeout_ms":"5000"}
 ---
-### CASE-047i[INF] STEP-016 QUERY
+### CASE-047i[INF] STEP-017 QUERY
 SQL: describe external source fq01_src047i
 RESULT:
 source_name|type|host|port|user|password|database|schema|options
-fq01_src047i|influxdb|127.0.0.1|18086|admin|******|fq01_fw_idb||{"api_token":"******","protocol":"flight_sql","connect_timeout_ms":"100","read_timeout_ms":"600000"}
+fq01_src047i|influxdb|127.0.0.1|18086|admin|******|fq01_fw_idb||{"api_token":"******","protocol":"flight_sql","read_timeout_ms":"600000","connect_timeout_ms":"5000"}
 ---
-### CASE-047i[INF] STEP-017 QUERY
+### CASE-047i[INF] STEP-018 QUERY
 SQL: select count(*) from information_schema.ins_ext_sources where source_name='fq01_src047i'
 RESULT:
 count(*)
 1
 ---
-### CASE-047i[INF] STEP-018 COUNT
+### CASE-047i[INF] STEP-019 COUNT
 SQL: select count(*) from fq01_src047i.src_t
 RESULT:
 count(*)
 5
 ---
-### CASE-047i[INF] STEP-019 EXEC
+### CASE-047i[INF] STEP-020 EXEC
 SQL: alter external source fq01_src047i set options('read_timeout_ms'='600001')
 RESULT:
 ERROR: [0x2600]: read_timeout_ms must be 0 or in range [100, 600000]
 ---
-### CASE-047i[INF] STEP-020 QUERY
+### CASE-047i[INF] STEP-021 QUERY
 SQL: select source_name, options from information_schema.ins_ext_sources where source_name='fq01_src047i'
 RESULT:
 source_name|options
-fq01_src047i|{"api_token":"******","protocol":"flight_sql","connect_timeout_ms":"100","read_timeout_ms":"600000"}
+fq01_src047i|{"api_token":"******","protocol":"flight_sql","read_timeout_ms":"600000","connect_timeout_ms":"5000"}
 ---
-### CASE-047i[INF] STEP-021 QUERY
+### CASE-047i[INF] STEP-022 QUERY
 SQL: describe external source fq01_src047i
 RESULT:
 source_name|type|host|port|user|password|database|schema|options
-fq01_src047i|influxdb|127.0.0.1|18086|admin|******|fq01_fw_idb||{"api_token":"******","protocol":"flight_sql","connect_timeout_ms":"100","read_timeout_ms":"600000"}
+fq01_src047i|influxdb|127.0.0.1|18086|admin|******|fq01_fw_idb||{"api_token":"******","protocol":"flight_sql","read_timeout_ms":"600000","connect_timeout_ms":"5000"}
 ---
-### CASE-047i[INF] STEP-022 QUERY
+### CASE-047i[INF] STEP-023 QUERY
 SQL: select count(*) from information_schema.ins_ext_sources where source_name='fq01_src047i'
 RESULT:
 count(*)
 1
 ---
-### CASE-047i[INF] STEP-023 COUNT
+### CASE-047i[INF] STEP-024 COUNT
 SQL: select count(*) from fq01_src047i.src_t
 RESULT:
 count(*)
 5
 ---
-### CASE-047i[INF] STEP-024 EXEC
+### CASE-047i[INF] STEP-025 EXEC
 SQL: create external source fq01_src047i_bad type='influxdb' host='127.0.0.1' port=18086 user='admin' database='fq01_fw_idb' options('api_token'='test-token', 'connect_timeout_ms'='600001')
 RESULT:
 ERROR: [0x2600]: connect_timeout_ms must be 0 or in range [100, 600000]
 ---
-### CASE-047i[INF] STEP-024 AUTO-SHOW
+### CASE-047i[INF] STEP-025 AUTO-SHOW
 SQL: show external sources
 RESULT:
 source_name|type|host|port|user|password|database|schema|options
 ---
-### CASE-047i[INF] STEP-024 AUTO-DESCRIBE
+### CASE-047i[INF] STEP-025 AUTO-DESCRIBE
 SQL: describe external source fq01_src047i_bad
 RESULT:
 ERROR: describe external source failed
 ---
-### CASE-047i[INF] STEP-025 QUERY
+### CASE-047i[INF] STEP-026 QUERY
 SQL: select count(*) from information_schema.ins_ext_sources where source_name='fq01_src047i_bad'
 RESULT:
 count(*)
 0
 ---
-### CASE-047i[INF] STEP-026 QUERY
+### CASE-047i[INF] STEP-027 QUERY
 SQL: select count(*) from information_schema.ins_ext_sources where source_name='fq01_src047i'
 RESULT:
 count(*)
 1
 ---
-### CASE-047i[INF] STEP-027 QUERY
+### CASE-047i[INF] STEP-028 QUERY
 SQL: select source_name, options from information_schema.ins_ext_sources where source_name in ('fq01_src047i', 'fq01_src047i_bad') order by source_name
 RESULT:
 source_name|options
-fq01_src047i|{"api_token":"******","protocol":"flight_sql","connect_timeout_ms":"100","read_timeout_ms":"600000"}
+fq01_src047i|{"api_token":"******","protocol":"flight_sql","read_timeout_ms":"600000","connect_timeout_ms":"5000"}
 ---
-### CASE-047i[INF] STEP-028 QUERY
+### CASE-047i[INF] STEP-029 QUERY
 SQL: describe external source fq01_src047i_bad
 RESULT:
 ERROR: query failed
 ---
-### CASE-047i[INF] STEP-029 CLEANUP
+### CASE-047i[INF] STEP-030 CLEANUP
 SQL: drop external source if exists fq01_src047i
 RESULT:
 OK
 ---
-### CASE-047i[INF] STEP-029 CLEANUP
+### CASE-047i[INF] STEP-030 CLEANUP
 SQL: drop external source if exists fq01_src047i_bad
 RESULT:
 OK
@@ -8743,114 +8753,119 @@ RESULT:
 source_name|type|host|port|user|password|database|schema|options
 fq01_src047p|postgresql|127.0.0.1|15434|postgres|******|fq01_fw_pdb|public|{"connect_timeout_ms":"100","read_timeout_ms":"600000"}
 ---
-### CASE-047p[POS] STEP-013 COUNT
+### CASE-047p[POS] STEP-013 EXEC
+SQL: alter external source fq01_src047p set options('connect_timeout_ms'='5000')
+RESULT:
+OK
+---
+### CASE-047p[POS] STEP-014 COUNT
 SQL: select count(*) from fq01_src047p.public.src_t
 RESULT:
 count(*)
 5
 ---
-### CASE-047p[POS] STEP-014 EXEC
+### CASE-047p[POS] STEP-015 EXEC
 SQL: alter external source fq01_src047p set options('connect_timeout_ms'='99')
 RESULT:
 ERROR: [0x2600]: connect_timeout_ms must be 0 or in range [100, 600000]
 ---
-### CASE-047p[POS] STEP-015 QUERY
+### CASE-047p[POS] STEP-016 QUERY
 SQL: select source_name, options from information_schema.ins_ext_sources where source_name='fq01_src047p'
 RESULT:
 source_name|options
-fq01_src047p|{"connect_timeout_ms":"100","read_timeout_ms":"600000"}
+fq01_src047p|{"read_timeout_ms":"600000","connect_timeout_ms":"5000"}
 ---
-### CASE-047p[POS] STEP-016 QUERY
+### CASE-047p[POS] STEP-017 QUERY
 SQL: describe external source fq01_src047p
 RESULT:
 source_name|type|host|port|user|password|database|schema|options
-fq01_src047p|postgresql|127.0.0.1|15434|postgres|******|fq01_fw_pdb|public|{"connect_timeout_ms":"100","read_timeout_ms":"600000"}
+fq01_src047p|postgresql|127.0.0.1|15434|postgres|******|fq01_fw_pdb|public|{"read_timeout_ms":"600000","connect_timeout_ms":"5000"}
 ---
-### CASE-047p[POS] STEP-017 QUERY
+### CASE-047p[POS] STEP-018 QUERY
 SQL: select count(*) from information_schema.ins_ext_sources where source_name='fq01_src047p'
 RESULT:
 count(*)
 1
 ---
-### CASE-047p[POS] STEP-018 COUNT
+### CASE-047p[POS] STEP-019 COUNT
 SQL: select count(*) from fq01_src047p.public.src_t
 RESULT:
 count(*)
 5
 ---
-### CASE-047p[POS] STEP-019 EXEC
+### CASE-047p[POS] STEP-020 EXEC
 SQL: alter external source fq01_src047p set options('read_timeout_ms'='600001')
 RESULT:
 ERROR: [0x2600]: read_timeout_ms must be 0 or in range [100, 600000]
 ---
-### CASE-047p[POS] STEP-020 QUERY
+### CASE-047p[POS] STEP-021 QUERY
 SQL: select source_name, options from information_schema.ins_ext_sources where source_name='fq01_src047p'
 RESULT:
 source_name|options
-fq01_src047p|{"connect_timeout_ms":"100","read_timeout_ms":"600000"}
+fq01_src047p|{"read_timeout_ms":"600000","connect_timeout_ms":"5000"}
 ---
-### CASE-047p[POS] STEP-021 QUERY
+### CASE-047p[POS] STEP-022 QUERY
 SQL: describe external source fq01_src047p
 RESULT:
 source_name|type|host|port|user|password|database|schema|options
-fq01_src047p|postgresql|127.0.0.1|15434|postgres|******|fq01_fw_pdb|public|{"connect_timeout_ms":"100","read_timeout_ms":"600000"}
+fq01_src047p|postgresql|127.0.0.1|15434|postgres|******|fq01_fw_pdb|public|{"read_timeout_ms":"600000","connect_timeout_ms":"5000"}
 ---
-### CASE-047p[POS] STEP-022 QUERY
+### CASE-047p[POS] STEP-023 QUERY
 SQL: select count(*) from information_schema.ins_ext_sources where source_name='fq01_src047p'
 RESULT:
 count(*)
 1
 ---
-### CASE-047p[POS] STEP-023 COUNT
+### CASE-047p[POS] STEP-024 COUNT
 SQL: select count(*) from fq01_src047p.public.src_t
 RESULT:
 count(*)
 5
 ---
-### CASE-047p[POS] STEP-024 EXEC
+### CASE-047p[POS] STEP-025 EXEC
 SQL: create external source fq01_src047p_bad type='postgresql' host='127.0.0.1' port=15434 user='postgres' password='taosdata' database='fq01_fw_pdb' schema='public' options('connect_timeout_ms'='600001')
 RESULT:
 ERROR: [0x2600]: connect_timeout_ms must be 0 or in range [100, 600000]
 ---
-### CASE-047p[POS] STEP-024 AUTO-SHOW
+### CASE-047p[POS] STEP-025 AUTO-SHOW
 SQL: show external sources
 RESULT:
 source_name|type|host|port|user|password|database|schema|options
 ---
-### CASE-047p[POS] STEP-024 AUTO-DESCRIBE
+### CASE-047p[POS] STEP-025 AUTO-DESCRIBE
 SQL: describe external source fq01_src047p_bad
 RESULT:
 ERROR: describe external source failed
 ---
-### CASE-047p[POS] STEP-025 QUERY
+### CASE-047p[POS] STEP-026 QUERY
 SQL: select count(*) from information_schema.ins_ext_sources where source_name='fq01_src047p_bad'
 RESULT:
 count(*)
 0
 ---
-### CASE-047p[POS] STEP-026 QUERY
+### CASE-047p[POS] STEP-027 QUERY
 SQL: select count(*) from information_schema.ins_ext_sources where source_name='fq01_src047p'
 RESULT:
 count(*)
 1
 ---
-### CASE-047p[POS] STEP-027 QUERY
+### CASE-047p[POS] STEP-028 QUERY
 SQL: select source_name, options from information_schema.ins_ext_sources where source_name in ('fq01_src047p', 'fq01_src047p_bad') order by source_name
 RESULT:
 source_name|options
-fq01_src047p|{"connect_timeout_ms":"100","read_timeout_ms":"600000"}
+fq01_src047p|{"read_timeout_ms":"600000","connect_timeout_ms":"5000"}
 ---
-### CASE-047p[POS] STEP-028 QUERY
+### CASE-047p[POS] STEP-029 QUERY
 SQL: describe external source fq01_src047p_bad
 RESULT:
 ERROR: query failed
 ---
-### CASE-047p[POS] STEP-029 CLEANUP
+### CASE-047p[POS] STEP-030 CLEANUP
 SQL: drop external source if exists fq01_src047p
 RESULT:
 OK
 ---
-### CASE-047p[POS] STEP-029 CLEANUP
+### CASE-047p[POS] STEP-030 CLEANUP
 SQL: drop external source if exists fq01_src047p_bad
 RESULT:
 OK
@@ -13065,114 +13080,119 @@ RESULT:
 source_name|type|host|port|user|password|database|schema|options
 fq01_src047s|sqlserver|127.0.0.1|1433|sa|******|fq01_fw_sdb|dbo|{"connect_timeout_ms":"100","read_timeout_ms":"600000"}
 ---
-### CASE-047s[SQL] STEP-013 COUNT
+### CASE-047s[SQL] STEP-013 EXEC
+SQL: alter external source fq01_src047s set options('connect_timeout_ms'='5000')
+RESULT:
+OK
+---
+### CASE-047s[SQL] STEP-014 COUNT
 SQL: select count(*) from fq01_src047s.dbo.src_t
 RESULT:
 count(*)
 5
 ---
-### CASE-047s[SQL] STEP-014 EXEC
+### CASE-047s[SQL] STEP-015 EXEC
 SQL: alter external source fq01_src047s set options('connect_timeout_ms'='99')
 RESULT:
 ERROR: [0x2600]: connect_timeout_ms must be 0 or in range [100, 600000]
 ---
-### CASE-047s[SQL] STEP-015 QUERY
+### CASE-047s[SQL] STEP-016 QUERY
 SQL: select source_name, options from information_schema.ins_ext_sources where source_name='fq01_src047s'
 RESULT:
 source_name|options
-fq01_src047s|{"connect_timeout_ms":"100","read_timeout_ms":"600000"}
+fq01_src047s|{"read_timeout_ms":"600000","connect_timeout_ms":"5000"}
 ---
-### CASE-047s[SQL] STEP-016 QUERY
+### CASE-047s[SQL] STEP-017 QUERY
 SQL: describe external source fq01_src047s
 RESULT:
 source_name|type|host|port|user|password|database|schema|options
-fq01_src047s|sqlserver|127.0.0.1|1433|sa|******|fq01_fw_sdb|dbo|{"connect_timeout_ms":"100","read_timeout_ms":"600000"}
+fq01_src047s|sqlserver|127.0.0.1|1433|sa|******|fq01_fw_sdb|dbo|{"read_timeout_ms":"600000","connect_timeout_ms":"5000"}
 ---
-### CASE-047s[SQL] STEP-017 QUERY
+### CASE-047s[SQL] STEP-018 QUERY
 SQL: select count(*) from information_schema.ins_ext_sources where source_name='fq01_src047s'
 RESULT:
 count(*)
 1
 ---
-### CASE-047s[SQL] STEP-018 COUNT
+### CASE-047s[SQL] STEP-019 COUNT
 SQL: select count(*) from fq01_src047s.dbo.src_t
 RESULT:
 count(*)
 5
 ---
-### CASE-047s[SQL] STEP-019 EXEC
+### CASE-047s[SQL] STEP-020 EXEC
 SQL: alter external source fq01_src047s set options('read_timeout_ms'='600001')
 RESULT:
 ERROR: [0x2600]: read_timeout_ms must be 0 or in range [100, 600000]
 ---
-### CASE-047s[SQL] STEP-020 QUERY
+### CASE-047s[SQL] STEP-021 QUERY
 SQL: select source_name, options from information_schema.ins_ext_sources where source_name='fq01_src047s'
 RESULT:
 source_name|options
-fq01_src047s|{"connect_timeout_ms":"100","read_timeout_ms":"600000"}
+fq01_src047s|{"read_timeout_ms":"600000","connect_timeout_ms":"5000"}
 ---
-### CASE-047s[SQL] STEP-021 QUERY
+### CASE-047s[SQL] STEP-022 QUERY
 SQL: describe external source fq01_src047s
 RESULT:
 source_name|type|host|port|user|password|database|schema|options
-fq01_src047s|sqlserver|127.0.0.1|1433|sa|******|fq01_fw_sdb|dbo|{"connect_timeout_ms":"100","read_timeout_ms":"600000"}
+fq01_src047s|sqlserver|127.0.0.1|1433|sa|******|fq01_fw_sdb|dbo|{"read_timeout_ms":"600000","connect_timeout_ms":"5000"}
 ---
-### CASE-047s[SQL] STEP-022 QUERY
+### CASE-047s[SQL] STEP-023 QUERY
 SQL: select count(*) from information_schema.ins_ext_sources where source_name='fq01_src047s'
 RESULT:
 count(*)
 1
 ---
-### CASE-047s[SQL] STEP-023 COUNT
+### CASE-047s[SQL] STEP-024 COUNT
 SQL: select count(*) from fq01_src047s.dbo.src_t
 RESULT:
 count(*)
 5
 ---
-### CASE-047s[SQL] STEP-024 EXEC
+### CASE-047s[SQL] STEP-025 EXEC
 SQL: create external source fq01_src047s_bad type='sqlserver' host='127.0.0.1' port=1433 user='sa' password='TaosFq!2026' database='fq01_fw_sdb' schema='dbo' options('connect_timeout_ms'='600001')
 RESULT:
 ERROR: [0x2600]: connect_timeout_ms must be 0 or in range [100, 600000]
 ---
-### CASE-047s[SQL] STEP-024 AUTO-SHOW
+### CASE-047s[SQL] STEP-025 AUTO-SHOW
 SQL: show external sources
 RESULT:
 source_name|type|host|port|user|password|database|schema|options
 ---
-### CASE-047s[SQL] STEP-024 AUTO-DESCRIBE
+### CASE-047s[SQL] STEP-025 AUTO-DESCRIBE
 SQL: describe external source fq01_src047s_bad
 RESULT:
 ERROR: describe external source failed
 ---
-### CASE-047s[SQL] STEP-025 QUERY
+### CASE-047s[SQL] STEP-026 QUERY
 SQL: select count(*) from information_schema.ins_ext_sources where source_name='fq01_src047s_bad'
 RESULT:
 count(*)
 0
 ---
-### CASE-047s[SQL] STEP-026 QUERY
+### CASE-047s[SQL] STEP-027 QUERY
 SQL: select count(*) from information_schema.ins_ext_sources where source_name='fq01_src047s'
 RESULT:
 count(*)
 1
 ---
-### CASE-047s[SQL] STEP-027 QUERY
+### CASE-047s[SQL] STEP-028 QUERY
 SQL: select source_name, options from information_schema.ins_ext_sources where source_name in ('fq01_src047s', 'fq01_src047s_bad') order by source_name
 RESULT:
 source_name|options
-fq01_src047s|{"connect_timeout_ms":"100","read_timeout_ms":"600000"}
+fq01_src047s|{"read_timeout_ms":"600000","connect_timeout_ms":"5000"}
 ---
-### CASE-047s[SQL] STEP-028 QUERY
+### CASE-047s[SQL] STEP-029 QUERY
 SQL: describe external source fq01_src047s_bad
 RESULT:
 ERROR: query failed
 ---
-### CASE-047s[SQL] STEP-029 CLEANUP
+### CASE-047s[SQL] STEP-030 CLEANUP
 SQL: drop external source if exists fq01_src047s
 RESULT:
 OK
 ---
-### CASE-047s[SQL] STEP-029 CLEANUP
+### CASE-047s[SQL] STEP-030 CLEANUP
 SQL: drop external source if exists fq01_src047s_bad
 RESULT:
 OK
@@ -14866,17 +14886,17 @@ source_name|type|host|port|user|database|schema|options
 fq01_or001|oracle|127.0.0.1|18322|taosdata|FREEPDB1|TAOSDATA|{}
 ---
 ### CASE-OREXT001[ORA] STEP-004 QUERY
-SQL: describe fq01_or001.TAOSDATA.src_t
+SQL: describe fq01_or001.`TAOSDATA`.src_t
 RESULT:
 field|type|length|note
-TS|TIMESTAMP|8|
-VAL|BIGINT|8|
-SCORE|DOUBLE|8|
-NAME|VARCHAR|32|
-FLAG|TINYINT|1|
+ts|TIMESTAMP|8|
+val|BIGINT|8|
+score|DOUBLE|8|
+name|VARCHAR|32|
+flag|TINYINT|1|
 ---
 ### CASE-OREXT001[ORA] STEP-005 COUNT
-SQL: select count(*) from fq01_or001.TAOSDATA.src_t
+SQL: select count(*) from fq01_or001.`TAOSDATA`.src_t
 RESULT:
 count(*)
 5
@@ -14922,7 +14942,7 @@ RESULT:
 ERROR: query failed
 ---
 ### CASE-OREXT002[ORA] STEP-004 QUERY
-SQL: select count(*) from fq01_or002.TAOSDATA.src_t
+SQL: select count(*) from fq01_or002.`TAOSDATA`.src_t
 RESULT:
 count(*)
 5
@@ -15068,7 +15088,7 @@ source_name|options
 fq01_or005|{"connect_timeout_ms":"5000","read_timeout_ms":"7000"}
 ---
 ### CASE-OREXT005[ORA] STEP-007 COUNT
-SQL: select count(*) from fq01_or005.TAOSDATA.src_t
+SQL: select count(*) from fq01_or005.`TAOSDATA`.src_t
 RESULT:
 count(*)
 5
@@ -15209,7 +15229,7 @@ source_name|type|host|port|user|password|database|schema|options
 fq01_or007|oracle|127.0.0.1|18322|taosdata|******|FREEPDB1|TAOSDATA|{"tls_enabled":"false"}
 ---
 ### CASE-OREXT007[ORA] STEP-008 COUNT
-SQL: select count(*) from fq01_or007.TAOSDATA.src_t
+SQL: select count(*) from fq01_or007.`TAOSDATA`.src_t
 RESULT:
 count(*)
 5
@@ -15291,14 +15311,14 @@ source_name|type|host|port|user|password|database|schema|options
 fq01_or009|oracle|127.0.0.1|18322|taosdata|******|FREEPDB1|TAOSDATA|{}
 ---
 ### CASE-OREXT009[ORA] STEP-003 QUERY
-SQL: describe fq01_or009.TAOSDATA.src_t
+SQL: describe fq01_or009.`TAOSDATA`.src_t
 RESULT:
 field|type|length|note
-TS|TIMESTAMP|8|
-VAL|BIGINT|8|
-SCORE|DOUBLE|8|
-NAME|VARCHAR|32|
-FLAG|TINYINT|1|
+ts|TIMESTAMP|8|
+val|BIGINT|8|
+score|DOUBLE|8|
+name|VARCHAR|32|
+flag|TINYINT|1|
 ---
 ### CASE-OREXT009[ORA] STEP-004 QUERY
 SQL: describe external source fq01_or009
@@ -15342,7 +15362,7 @@ source_name|type|host|port|user|password|database|schema|options
 fq01_or010|oracle|127.0.0.1|18322|taosdata|******|FREEPDB1|TAOSDATA|{}
 ---
 ### CASE-OREXT010[ORA] STEP-003 COUNT
-SQL: select count(*) from fq01_or010.TAOSDATA.src_t
+SQL: select count(*) from fq01_or010.`TAOSDATA`.src_t
 RESULT:
 count(*)
 5
@@ -15353,7 +15373,7 @@ RESULT:
 OK
 ---
 ### CASE-OREXT010[ORA] STEP-005 COUNT
-SQL: select count(*) from fq01_or010.TAOSDATA.src_t
+SQL: select count(*) from fq01_or010.`TAOSDATA`.src_t
 RESULT:
 ERROR: count query failed (expected in negative case)
 ---
@@ -15363,7 +15383,7 @@ RESULT:
 OK
 ---
 ### CASE-OREXT010[ORA] STEP-007 COUNT
-SQL: select count(*) from fq01_or010.TAOSDATA.src_t
+SQL: select count(*) from fq01_or010.`TAOSDATA`.src_t
 RESULT:
 count(*)
 5
@@ -15466,7 +15486,7 @@ source_name|type|host|port|user|password|database|schema|options
 fq01_or012|oracle|127.0.0.1|18322|taosdata|******|FREEPDB1|TAOSDATA|{}
 ---
 ### CASE-OREXT012[ORA] STEP-003 COUNT
-SQL: select count(*) from fq01_or012.TAOSDATA.src_t
+SQL: select count(*) from fq01_or012.`TAOSDATA`.src_t
 RESULT:
 count(*)
 5
@@ -15483,7 +15503,7 @@ source_name|type|host|port
 fq01_or012|oracle|127.0.0.1|18330
 ---
 ### CASE-OREXT012[ORA] STEP-006 COUNT
-SQL: select count(*) from fq01_or012.TAOSDATA.src_t
+SQL: select count(*) from fq01_or012.`TAOSDATA`.src_t
 RESULT:
 ERROR: count query failed (expected in negative case)
 ---
@@ -15493,7 +15513,7 @@ RESULT:
 OK
 ---
 ### CASE-OREXT012[ORA] STEP-008 COUNT
-SQL: select count(*) from fq01_or012.TAOSDATA.src_t
+SQL: select count(*) from fq01_or012.`TAOSDATA`.src_t
 RESULT:
 count(*)
 5
@@ -15536,7 +15556,7 @@ fq01_or013|oracle|127.0.0.1|18322|taosdata|******|FREEPDB1|TAOSDATA|{}
 ### CASE-OREXT013[ORA] STEP-003 QUERY
 SQL: select * from fq01_or013.src_t where val=1
 RESULT:
-TS|VAL|SCORE|NAME|FLAG
+ts|val|score|name|flag
 2024-01-01 00:00:00+08:00|1|1.5|alpha|1
 ---
 ### CASE-OREXT013[ORA] STEP-004 QUERY
@@ -15548,7 +15568,7 @@ RESULT:
 ### CASE-OREXT013[ORA] STEP-005 QUERY
 SQL: select * from fq01_or013.src_t where val=1
 RESULT:
-TS|VAL|SCORE|NAME|FLAG
+ts|val|score|name|flag
 2024-01-01 00:00:00+08:00|1|1.5|alpha|1
 ---
 ### CASE-OREXT013[ORA] STEP-006 EXEC
@@ -15559,7 +15579,7 @@ OK
 ### CASE-OREXT013[ORA] STEP-007 QUERY
 SQL: select * from fq01_or013.src_t where val=1
 RESULT:
-TS|VAL|SCORE|NAME|FLAG|EXTRA_COL
+ts|val|score|name|flag|extra_col
 2024-01-01 00:00:00+08:00|1|1.5|alpha|1|7
 ---
 ### CASE-OREXT013[ORA] STEP-008 QUERY
@@ -15581,7 +15601,7 @@ ERROR: query failed
 ### CASE-OREXT013[ORA] STEP-011 QUERY
 SQL: select * from fq01_or013.src_t where val=1
 RESULT:
-TS|VAL|SCORE|NAME|FLAG
+ts|val|score|name|flag
 2024-01-01 00:00:00+08:00|1|1.5|alpha|1
 ---
 ### CASE-OREXT013[ORA] STEP-012 CLEANUP

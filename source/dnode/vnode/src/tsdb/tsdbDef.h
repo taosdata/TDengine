@@ -34,6 +34,7 @@ typedef struct SFDataPtr {
 } SFDataPtr;
 
 extern int32_t tsdbOpenFile(const char *path, STsdb *pTsdb, int32_t flag, STsdbFD **ppFD, int32_t lcn);
+int32_t tsdbRetainFilePages(STsdbFD *fd, bool retain);
 extern void    tsdbCloseFile(STsdbFD **ppFD);
 
 extern int32_t tsdbWriteFile(STsdbFD *pFD, int64_t offset, const uint8_t *pBuf, int64_t size,

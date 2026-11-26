@@ -20,6 +20,7 @@
 | `rust/` | Rust | 原生 / REST 两种连接方式 |
 | `flink/` | Flink | Source / Sink 连接器示例 |
 | `udf/` | C / Python | 用户自定义函数（UDF）示例 |
+| `taosx/` | Python | taosX 运维示例，含双活任务迁移脚本及其单元测试 |
 | `taosgen/` | — | taosgen 配置文件示例 |
 | `perspective/`、`other/` | — | 与第三方工具集成的示例 |
 

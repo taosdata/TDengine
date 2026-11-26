@@ -1,0 +1,6 @@
+# Windows-only full-suite additions; keep the default smoke gate small.
+# Native package layout and reversible DLL/ODBC fault injection.
+,,n,.,env FQ_REQUIRED_SERVICES=none ./ci/pytest.sh pytest cases/09-DataQuerying/19-FederatedQuery/test_fq_22_runtime_package.py
+,,n,.,env FQ_REQUIRED_SERVICES=mysql,pg,influx ./ci/pytest.sh pytest cases/09-DataQuerying/19-FederatedQuery/test_fq_23_runtime_missing_windows.py::TestFq23RuntimeMissingWindows::test_missing_provider_dlls_disable_federated_query_only
+,,n,.,env FQ_REQUIRED_SERVICES=sqlserver FQ_SQLSERVER_DRIVER_MISSING_TEST=1 ./ci/pytest.sh pytest cases/09-DataQuerying/19-FederatedQuery/test_fq_23_runtime_missing_windows.py::TestFq23RuntimeMissingWindows::test_missing_sqlserver_driver_disables_sqlserver_source_only
+,,n,.,env FQ_REQUIRED_SERVICES=oracle FQ_ORACLE_VERSIONS=26ai FQ_ORACLE_DRIVER_MISSING_TEST=1 ./ci/pytest.sh pytest cases/09-DataQuerying/19-FederatedQuery/test_fq_23_runtime_missing_windows.py::TestFq23RuntimeMissingWindows::test_missing_oracle_driver_disables_oracle_source_only

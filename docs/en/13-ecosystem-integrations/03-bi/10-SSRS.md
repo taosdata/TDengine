@@ -110,13 +110,13 @@ Create a super meter with 500 sub-meters, each sub-meter represents a smart mete
    - Query type: choose "text" type query, fill in the following query analysis SQL:
 
    ```sql
-   SELECT 
-      tbname        as DeviceID, 
-      last(ts)      as last_ts, 
-      last(current) as last_current, 
-      last(voltage) as last_voltage 
-   FROM test.meters 
-   GROUP BY tbname 
+   SELECT
+     tbname AS DeviceID,
+     LAST(ts) AS last_ts,
+     LAST(current) AS last_current,
+     LAST(voltage) AS last_voltage
+   FROM test.meters
+   GROUP BY tbname
    ORDER BY tbname;
    ```
 

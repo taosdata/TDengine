@@ -84,13 +84,16 @@ static EDealRes doCreateColumn(SNode* pNode, void* pContext) {
       if (NULL == pCol) {
         return DEAL_RES_ERROR;
       }
-      return (TSDB_CODE_SUCCESS == nodesListAppend(pCxt->pList, pCol) ? DEAL_RES_IGNORE_CHILD : DEAL_RES_ERROR);
+      pCxt->errCode = nodesListStrictAppend(pCxt->pList, pCol);
+      return TSDB_CODE_SUCCESS == pCxt->errCode ? DEAL_RES_IGNORE_CHILD :
+                                                DEAL_RES_ERROR;
     }
     case QUERY_NODE_VALUE:
     case QUERY_NODE_OPERATOR:
     case QUERY_NODE_LOGIC_CONDITION:
     case QUERY_NODE_FUNCTION:
-    case QUERY_NODE_CASE_WHEN: 
+    case QUERY_NODE_CASE_WHEN:
+    case QUERY_NODE_CORRELATED_SUBQUERY:
     case QUERY_NODE_REMOTE_VALUE: {
       SExprNode*   pExpr = (SExprNode*)pNode;
       SColumnNode* pCol = NULL;
@@ -112,8 +115,9 @@ static EDealRes doCreateColumn(SNode* pNode, void* pContext) {
         }
       }
       pCol->node.relatedTo = pExpr->relatedTo;
-      return (TSDB_CODE_SUCCESS == nodesListStrictAppend(pCxt->pList, (SNode*)pCol) ? DEAL_RES_IGNORE_CHILD
-                                                                                    : DEAL_RES_ERROR);
+      pCxt->errCode = nodesListStrictAppend(pCxt->pList, (SNode*)pCol);
+      return TSDB_CODE_SUCCESS == pCxt->errCode ? DEAL_RES_IGNORE_CHILD :
+                                                DEAL_RES_ERROR;
     }
     default:
       break;
@@ -122,7 +126,8 @@ static EDealRes doCreateColumn(SNode* pNode, void* pContext) {
   return DEAL_RES_CONTINUE;
 }
 
-int32_t createColumnByRewriteExprs(SNodeList* pExprs, SNodeList** pList) {
+static int32_t createColumnsByRewrite(SNode* pExpr, SNodeList* pExprs,
+                                      SNodeList** pList) {
   SCreateColumnCxt cxt = {.errCode = TSDB_CODE_SUCCESS, .pList = *pList};
   if (!cxt.pList) {
     int32_t code = nodesMakeList(&cxt.pList);
@@ -131,35 +136,25 @@ int32_t createColumnByRewriteExprs(SNodeList* pExprs, SNodeList** pList) {
     }
   }
 
-  nodesWalkExprs(pExprs, doCreateColumn, &cxt);
+  if (NULL != pExprs) {
+    nodesWalkExprs(pExprs, doCreateColumn, &cxt);
+  } else {
+    nodesWalkExpr(pExpr, doCreateColumn, &cxt);
+  }
   if (TSDB_CODE_SUCCESS != cxt.errCode) {
     nodesDestroyList(cxt.pList);
-    return cxt.errCode;
+    cxt.pList = NULL;
   }
-  if (NULL == *pList) {
-    *pList = cxt.pList;
-  }
+  *pList = cxt.pList;
   return cxt.errCode;
 }
 
-int32_t createColumnByRewriteExpr(SNode* pExpr, SNodeList** pList) {
-  SCreateColumnCxt cxt = {.errCode = TSDB_CODE_SUCCESS, .pList = *pList};
-  if (!cxt.pList) {
-    int32_t code = nodesMakeList(&cxt.pList);
-    if (TSDB_CODE_SUCCESS != code) {
-      return code;
-    }
-  }
+int32_t createColumnByRewriteExprs(SNodeList* pExprs, SNodeList** pList) {
+  return createColumnsByRewrite(NULL, pExprs, pList);
+}
 
-  nodesWalkExpr(pExpr, doCreateColumn, &cxt);
-  if (TSDB_CODE_SUCCESS != cxt.errCode) {
-    nodesDestroyList(cxt.pList);
-    return cxt.errCode;
-  }
-  if (NULL == *pList) {
-    *pList = cxt.pList;
-  }
-  return cxt.errCode;
+int32_t createColumnByRewriteExpr(SNode* pExpr, SNodeList** pList) {
+  return createColumnsByRewrite(pExpr, NULL, pList);
 }
 
 static const SNode* planUnwrapRemoteOutputExpr(const SNode* pExprNode) {
@@ -267,11 +262,17 @@ static int32_t planCreateRemoteOutputColumn(const SExprNode* pResExpr,
   return TSDB_CODE_SUCCESS;
 }
 
-int32_t createColumnByRemoteOutputExprs(SNodeList* pExprs, SNodeList** pList) {
+int32_t createRemoteOutputTargets(const SNodesRemoteSelectOutputs* pOutputs, SNodeList** pList) {
   if (NULL == pList) {
     return TSDB_CODE_INVALID_PARA;
   }
 
+  // JOIN targets are also the SELECT expressions used by the renderer. Keep
+  // their input qualifiers across repeated logical and physical target refreshes.
+  if (pOutputs->source == NODES_REMOTE_SELECT_SOURCE_JOIN) {
+    return nodesCloneList(pOutputs->pSelectExprs, pList);
+  }
+  SNodeList* pExprs = pOutputs->pSelectExprs;
   SNodeList* pCols = *pList;
   int32_t code = TSDB_CODE_SUCCESS;
   if (NULL == pCols) {
@@ -575,6 +576,9 @@ static int32_t adjustScanDataRequirement(SScanLogicNode* pScan, EDataOrderLevel 
       pScan->groupSort = true;
     }
   } else if (TSDB_SUPER_TABLE == pScan->tableType) {
+    // TIME_ALIGN over a super table also uses the table merge scan: the align
+    // stage runs inside it on each per-table block before the ts merge, where
+    // the block still carries its own uid.
     if (pScan->smallDataScanSort) {
       if (planScanHasSortAncestor(pScan)) {
         // ORDER BY case: a Sort already orders the scan output (Task 1 behavior).
@@ -821,6 +825,15 @@ static int32_t adjustAggDataRequirement(SAggLogicNode* pAgg, EDataOrderLevel req
 }
 
 static int32_t adjustProjectDataRequirement(SProjectLogicNode* pProject, EDataOrderLevel requirement) {
+  if (pProject->timeAlignProject) {
+    // The align host keeps per-series state and needs each series to arrive in
+    // ts order, but it must not force a global order requirement into the view
+    // subtree: that promotes a stable scan to a table merge scan, whose blocks
+    // no longer carry a single series id and leak values across devices.
+    pProject->node.resultDataOrder = DATA_ORDER_LEVEL_NONE;
+    pProject->node.requireDataOrder = DATA_ORDER_LEVEL_NONE;
+    return TSDB_CODE_SUCCESS;
+  }
   pProject->node.resultDataOrder = requirement;
   pProject->node.requireDataOrder = requirement;
   return TSDB_CODE_SUCCESS;
@@ -1475,15 +1488,15 @@ bool planAggFuncsHasFirst(SNodeList* pFuncs) {
   return false;
 }
 
-SFunctionNode* createGroupKeyAggFunc(SColumnNode* pGroupCol) {
+SFunctionNode* createGroupKeyAggFunc(SExprNode* pGroupExpr) {
   SFunctionNode* pFunc = NULL;
   int32_t code = nodesMakeNode(QUERY_NODE_FUNCTION, (SNode**)&pFunc);
   if (pFunc) {
     tstrncpy(pFunc->functionName, "_group_key", TSDB_FUNC_NAME_LEN);
-    tstrncpy(pFunc->node.aliasName, pGroupCol->node.aliasName, TSDB_COL_NAME_LEN);
-    tstrncpy(pFunc->node.userAlias, pGroupCol->node.userAlias, TSDB_COL_NAME_LEN);
+    tstrncpy(pFunc->node.aliasName, pGroupExpr->aliasName, TSDB_COL_NAME_LEN);
+    tstrncpy(pFunc->node.userAlias, pGroupExpr->userAlias, TSDB_COL_NAME_LEN);
     SNode* pNew = NULL;
-    code = nodesCloneNode((SNode*)pGroupCol, &pNew);
+    code = nodesCloneNode((SNode*)pGroupExpr, &pNew);
     if (TSDB_CODE_SUCCESS == code) {
       code = nodesListMakeStrictAppend(&pFunc->pParameterList, pNew);
     }
@@ -1621,4 +1634,209 @@ bool inStreamCalcClause(SPlanContext* pCxt) {
 
 bool inStreamTriggerClause(SPlanContext* pCxt) {
   return pCxt->streamCxt.isTrigger;
+}
+
+// Specialized query blocks retain their existing execution paths.
+bool planJoinParallelQuerySupported(const SPlanContext* pCxt) {
+  return !pCxt->topicQuery && !pCxt->rSmaQuery && !pCxt->streamCxt.isCalc &&
+         !pCxt->streamCxt.isTrigger && !pCxt->streamCxt.isVtableCalc;
+}
+
+// Stage-specific remote operands and function safety stay with callers.
+bool planExprIsRuntimeDependent(const SNode* pNode) {
+  switch (nodeType(pNode)) {
+    case QUERY_NODE_OUTER_REF:
+    case QUERY_NODE_CORRELATION_PARAM:
+    case QUERY_NODE_CORRELATION_PARAM_BINDING:
+    case QUERY_NODE_CORRELATED_SUBQUERY:
+      return true;
+    case QUERY_NODE_COLUMN:
+      return ((const SColumnNode*)pNode)->hasDep;
+    case QUERY_NODE_VALUE:
+      return 0 != (((const SValueNode*)pNode)->flag &
+                   VALUE_FLAG_DEFERRED_QUERY_TIME);
+    default:
+      return false;
+  }
+}
+
+bool planJoinColumnNamesEqual(const SColumnNode* pLeft,
+                              const SColumnNode* pRight) {
+  return 0 == strcmp(pLeft->tableAlias, pRight->tableAlias) &&
+         0 == strcmp(pLeft->colName, pRight->colName);
+}
+
+// A bit describes the result after NULL-extending that input. Keeping both
+// truth exclusions lets NOT invert facts without mistaking FALSE for NULL.
+typedef struct SPlanNullFacts {
+  uint64_t notTrue;
+  uint64_t notFalse;
+} SPlanNullFacts;
+
+typedef struct SPlanNullContext {
+  FPlanNullColumnResolver resolver;
+  const void*             pResolveContext;
+  uint64_t                inputs;
+} SPlanNullContext;
+
+static SPlanNullFacts planNullExprFacts(const SPlanNullContext* pCxt,
+                                        const SNode* pExpr);
+
+// A result that is neither TRUE nor FALSE is guaranteed NULL. Strict scalar
+// operations propagate this fact, not the weaker fact that a filter rejects.
+static SPlanNullFacts planNullStrictFacts(SPlanNullFacts left,
+                                          SPlanNullFacts right) {
+  uint64_t inputs = (left.notTrue & left.notFalse) |
+                    (right.notTrue & right.notFalse);
+  return (SPlanNullFacts){.notTrue = inputs, .notFalse = inputs};
+}
+
+static SPlanNullFacts planNullLogicFacts(const SPlanNullContext* pCxt,
+                                         const SLogicConditionNode* pLogic) {
+  SPlanNullFacts facts = {0};
+  if (0 == LIST_LENGTH(pLogic->pParameterList)) return facts;
+  if (LOGIC_COND_TYPE_NOT == pLogic->condType) {
+    if (1 != LIST_LENGTH(pLogic->pParameterList)) return facts;
+    const SNode* pChild = nodesListGetNode(pLogic->pParameterList, 0);
+    SPlanNullFacts child = planNullExprFacts(pCxt, pChild);
+    return (SPlanNullFacts){.notTrue = child.notFalse,
+                            .notFalse = child.notTrue};
+  }
+  bool isAnd = LOGIC_COND_TYPE_AND == pLogic->condType;
+  if (!isAnd && LOGIC_COND_TYPE_OR != pLogic->condType) return facts;
+  facts.notTrue = isAnd ? 0 : pCxt->inputs;
+  facts.notFalse = isAnd ? pCxt->inputs : 0;
+  SNode* pChild = NULL;
+  FOREACH(pChild, pLogic->pParameterList) {
+    SPlanNullFacts child = planNullExprFacts(pCxt, pChild);
+    if (isAnd) {
+      facts.notTrue |= child.notTrue;
+      facts.notFalse &= child.notFalse;
+    } else {
+      facts.notTrue &= child.notTrue;
+      facts.notFalse |= child.notFalse;
+    }
+  }
+  return facts;
+}
+
+static bool planNullIsRemoteOperand(const SNode* pNode) {
+  return QUERY_NODE_REMOTE_VALUE == nodeType(pNode) ||
+         QUERY_NODE_REMOTE_ROW == nodeType(pNode);
+}
+
+static SPlanNullFacts planNullOperatorFacts(const SPlanNullContext* pCxt,
+                                            const SOperatorNode* pOp) {
+  SPlanNullFacts unknown = {0};
+  if (NULL == pOp->pLeft) return unknown;
+  SPlanNullFacts left = planNullExprFacts(pCxt, pOp->pLeft);
+  uint64_t nulls = left.notTrue & left.notFalse;
+  switch (pOp->opType) {
+    case OP_TYPE_IS_NULL:
+      return (SPlanNullFacts){.notFalse = nulls};
+    case OP_TYPE_IS_NOT_NULL:
+      return (SPlanNullFacts){.notTrue = nulls};
+    case OP_TYPE_MINUS:
+      return planNullStrictFacts(left, unknown);
+    case OP_TYPE_ADD:
+    case OP_TYPE_SUB:
+    case OP_TYPE_MULTI:
+    case OP_TYPE_DIV:
+    case OP_TYPE_REM:
+    case OP_TYPE_BIT_AND:
+    case OP_TYPE_BIT_OR:
+    case OP_TYPE_EQUAL:
+    case OP_TYPE_NOT_EQUAL:
+    case OP_TYPE_GREATER_THAN:
+    case OP_TYPE_GREATER_EQUAL:
+    case OP_TYPE_LOWER_THAN:
+    case OP_TYPE_LOWER_EQUAL:
+    case OP_TYPE_LIKE:
+    case OP_TYPE_NOT_LIKE:
+    case OP_TYPE_MATCH:
+    case OP_TYPE_NMATCH:
+      // ANY/ALL rewritten to MIN/MAX use a remote row; an empty set yields
+      // TRUE or FALSE even for a NULL operand. Remote values stay unknown.
+      if (NULL == pOp->pRight || planNullIsRemoteOperand(pOp->pLeft) ||
+          planNullIsRemoteOperand(pOp->pRight)) return unknown;
+      return planNullStrictFacts(left,
+                                  planNullExprFacts(pCxt, pOp->pRight));
+    default:
+      return unknown;
+  }
+}
+
+static SPlanNullFacts planNullFunctionFacts(const SPlanNullContext* pCxt,
+                                            const SFunctionNode* pFunc) {
+  SPlanNullFacts unknown = {0};
+  if (!fmIsScalarFunc(pFunc->funcId)) return unknown;
+  EFunctionType type = fmGetFuncTypeFromId(pFunc->funcId);
+  int32_t numParams = LIST_LENGTH(pFunc->pParameterList);
+  // translateCast appends database precision after the expression argument.
+  if (1 != numParams && !(FUNCTION_TYPE_CAST == type && 2 == numParams)) {
+    return unknown;
+  }
+  // These unary implementations in sclfunc.c preserve NULL. Do not infer
+  // strictness from scalar classification or from a function's name.
+  const SNode* pArg = nodesListGetNode(pFunc->pParameterList, 0);
+  switch (type) {
+    case FUNCTION_TYPE_ABS:
+    case FUNCTION_TYPE_CEIL:
+    case FUNCTION_TYPE_FLOOR:
+    case FUNCTION_TYPE_CAST:
+    case FUNCTION_TYPE_LOWER:
+    case FUNCTION_TYPE_UPPER:
+    case FUNCTION_TYPE_LENGTH:
+      return planNullStrictFacts(planNullExprFacts(pCxt, pArg), unknown);
+    default:
+      return unknown;
+  }
+}
+
+static SPlanNullFacts planNullExprFacts(const SPlanNullContext* pCxt,
+                                        const SNode* pExpr) {
+  SPlanNullFacts unknown = {0};
+  if (NULL == pExpr) return unknown;
+  switch (nodeType(pExpr)) {
+    case QUERY_NODE_COLUMN: {
+      const SColumnNode* pColumn = (const SColumnNode*)pExpr;
+      if (pColumn->hasDep) return unknown;
+      uint64_t inputs = pCxt->resolver(pColumn, pCxt->pResolveContext) &
+                        pCxt->inputs;
+      return (SPlanNullFacts){.notTrue = inputs, .notFalse = inputs};
+    }
+    case QUERY_NODE_VALUE: {
+      const SValueNode* pValue = (const SValueNode*)pExpr;
+      if (!pValue->translate || pValue->placeholderNo > 0 ||
+          0 != (pValue->flag & (VALUE_FLAG_VAL_UNSET | VALUE_FLAG_REMOTE_PLAN |
+                               VALUE_FLAG_RAW_SQL_FRAG |
+                               VALUE_FLAG_DEFERRED_QUERY_TIME))) return unknown;
+      if (pValue->isNull || TSDB_DATA_TYPE_NULL == pValue->node.resType.type) {
+        return (SPlanNullFacts){.notTrue = pCxt->inputs,
+                                .notFalse = pCxt->inputs};
+      }
+      if (TSDB_DATA_TYPE_BOOL == pValue->node.resType.type) {
+        return pValue->datum.b ? (SPlanNullFacts){.notFalse = pCxt->inputs}
+                               : (SPlanNullFacts){.notTrue = pCxt->inputs};
+      }
+      return unknown;
+    }
+    case QUERY_NODE_LOGIC_CONDITION:
+      return planNullLogicFacts(pCxt, (const SLogicConditionNode*)pExpr);
+    case QUERY_NODE_OPERATOR:
+      return planNullOperatorFacts(pCxt, (const SOperatorNode*)pExpr);
+    case QUERY_NODE_FUNCTION:
+      return planNullFunctionFacts(pCxt, (const SFunctionNode*)pExpr);
+    default:
+      return unknown;
+  }
+}
+
+uint64_t planCondRejectsNull(const SNode* pCondition, uint64_t inputs,
+                             FPlanNullColumnResolver resolver,
+                             const void* pContext) {
+  if (NULL == resolver || 0 == inputs) return 0;
+  SPlanNullContext context = {
+      .resolver = resolver, .pResolveContext = pContext, .inputs = inputs};
+  return planNullExprFacts(&context, pCondition).notTrue;
 }

@@ -102,6 +102,101 @@ class FillForwardTest : public ::testing::Test {
     EXPECT_EQ(actual, last);
     for (size_t i = 6 * sizeof(T); i < sizeof(outputValues); ++i) EXPECT_EQ(outputValues[i], 0x5a);
   }
+
+  // Var-length columns: BLOB-family values carry a 4-byte length header, the
+  // other var-data types a 2-byte header.  The filler must copy the whole
+  // value image and re-emit it, including GEOMETRY and BLOB.
+  void checkVarData(int8_t type, const char* first, const char* last) {
+    SFuncExecEnv env = {};
+    ASSERT_TRUE(getFillforwardFuncEnv(nullptr, &env));
+    std::unique_ptr<void, void (*)(void*)> result(taosMemoryCalloc(1, sizeof(SResultRowEntryInfo) + env.calcMemSize),
+                                                  [](void* p) {
+                                                    SqlFunctionCtx cleanup = {};
+                                                    cleanup.resultInfo = static_cast<SResultRowEntryInfo*>(p);
+                                                    fillforwardFunctionCleanupExt(&cleanup);
+                                                    taosMemoryFree(p);
+                                                  });
+    ASSERT_NE(result.get(), nullptr);
+    std::unique_ptr<SArray, decltype(&taosArrayDestroy)> contexts(taosArrayInit(1, sizeof(SqlFunctionCtx*)),
+                                                                  taosArrayDestroy);
+    ASSERT_NE(contexts.get(), nullptr);
+
+    const bool    isBlob = IS_STR_DATA_BLOB(type);
+    const int32_t hdr = isBlob ? (int32_t)BLOBSTR_HEADER_SIZE : (int32_t)VARSTR_HEADER_SIZE;
+    const int32_t firstLen = hdr + (int32_t)strlen(first);
+    const int32_t lastLen = hdr + (int32_t)strlen(last);
+    ASSERT_LE(firstLen + lastLen, 64);
+
+    alignas(8) char inputData[64] = {0};
+    auto put = [&](char* dst, const char* value) {
+      if (isBlob) {
+        blobDataSetLen(dst, static_cast<BlobDataLenT>(strlen(value)));
+        memcpy(blobDataVal(dst), value, strlen(value));
+      } else {
+        varDataSetLen(dst, static_cast<VarDataLenT>(strlen(value)));
+        memcpy(varDataVal(dst), value, strlen(value));
+      }
+    };
+    put(inputData, first);
+    put(inputData + firstLen, last);
+
+    int32_t         inputOffsets[4] = {0, 0, 0, firstLen};
+    char            inputNulls = 0;
+    SColumnInfoData input = {};
+    input.info.type = type;
+    input.info.bytes = 16;
+    input.pData = inputData;
+    input.nullbitmap = &inputNulls;
+    input.varmeta.offset = inputOffsets;
+    colDataSetNULL(&input, 0);
+    colDataSetNULL(&input, 2);
+
+    SColumnInfoData* inputs[] = {&input};
+    SSDataBlock      block = {};
+    block.info.rows = 4;
+    block.info.id.groupId = 1;
+
+    alignas(8) char outputData[128];
+    memset(outputData, 0x5a, sizeof(outputData));
+    int32_t         outputOffsets[8] = {0};
+    char            outputNulls = 0;
+    SColumnInfoData output = {};
+    output.info.type = type;
+    output.info.bytes = 16;
+    output.pData = outputData;
+    output.nullbitmap = &outputNulls;
+    output.varmeta.offset = outputOffsets;
+    output.varmeta.allocLen = sizeof(outputData);
+
+    SqlFunctionCtx ctx = {};
+    ctx.functionId = fmGetFuncId("fill_forward");
+    ctx.resDataInfo.type = type;
+    ctx.resDataInfo.bytes = 16;
+    ctx.resDataInfo.interBufSize = env.calcMemSize;
+    ctx.resultInfo = static_cast<SResultRowEntryInfo*>(result.get());
+    ASSERT_EQ(fillforwardFunctionSetup(&ctx, ctx.resultInfo), TSDB_CODE_SUCCESS);
+    ctx.pOutput = reinterpret_cast<char*>(&output);
+    ctx.pSrcBlock = &block;
+    ctx.input.pData = inputs;
+    ctx.input.numOfRows = 4;
+    ctx.offset = 1;
+    SqlFunctionCtx* pCtx = &ctx;
+    ASSERT_NE(taosArrayPush(contexts.get(), &pCtx), nullptr);
+
+    ASSERT_EQ(fillforwardFunctionByRow(contexts.get()), TSDB_CODE_SUCCESS);
+    EXPECT_EQ(ctx.resultInfo->numOfRes, 4);
+    EXPECT_TRUE(colDataIsNull_s(&output, 1));
+
+    const char* expectedValues[] = {first, first, last};
+    for (int32_t i = 0; i < 3; ++i) {
+      EXPECT_FALSE(colDataIsNull_s(&output, i + 2));
+      char*   value = colDataGetData(&output, i + 2);
+      int32_t valueLen = isBlob ? (int32_t)blobDataLen(value) : (int32_t)varDataLen(value);
+      char*   valueData = isBlob ? blobDataVal(value) : varDataVal(value);
+      EXPECT_EQ(valueLen, (int32_t)strlen(expectedValues[i]));
+      EXPECT_EQ(0, memcmp(valueData, expectedValues[i], valueLen));
+    }
+  }
 };
 
 TEST_F(FillForwardTest, BoolPreservesOutputBounds) { checkIntegerWidth<bool>(TSDB_DATA_TYPE_BOOL, false, true); }
@@ -141,5 +236,25 @@ TEST_F(FillForwardTest, UnsignedBigintPreservesOutputBounds) {
 TEST_F(FillForwardTest, TimestampPreservesOutputBounds) {
   checkIntegerWidth<int64_t>(TSDB_DATA_TYPE_TIMESTAMP, INT64_MIN, INT64_MAX);
 }
+
+TEST_F(FillForwardTest, FloatPreservesOutputBounds) {
+  checkIntegerWidth<float>(TSDB_DATA_TYPE_FLOAT, -1.5f, 2.5f);
+}
+
+TEST_F(FillForwardTest, DoublePreservesOutputBounds) {
+  checkIntegerWidth<double>(TSDB_DATA_TYPE_DOUBLE, -1.5, 2.5);
+}
+
+TEST_F(FillForwardTest, VarcharPreservesValues) { checkVarData(TSDB_DATA_TYPE_VARCHAR, "aa", "bbbb"); }
+
+TEST_F(FillForwardTest, NcharPreservesValues) { checkVarData(TSDB_DATA_TYPE_NCHAR, "aa", "bbbb"); }
+
+TEST_F(FillForwardTest, VarbinaryPreservesValues) { checkVarData(TSDB_DATA_TYPE_VARBINARY, "aa", "bbbb"); }
+
+TEST_F(FillForwardTest, GeometryPreservesValues) { checkVarData(TSDB_DATA_TYPE_GEOMETRY, "aa", "bbbb"); }
+
+TEST_F(FillForwardTest, BlobPreservesValues) { checkVarData(TSDB_DATA_TYPE_BLOB, "aa", "bbbb"); }
+
+TEST_F(FillForwardTest, MediumBlobPreservesValues) { checkVarData(TSDB_DATA_TYPE_MEDIUMBLOB, "aa", "bbbb"); }
 
 }  // namespace

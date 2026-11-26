@@ -291,23 +291,9 @@ static int32_t rebuildSortMergeInfo(SOperatorInfo* pOperator) {
   SSortMergeInfo*             pMerge = &pInfo->sortMergeInfo;
   SMergePhysiNode*            pMergeNode =
       (SMergePhysiNode*)pOperator->pPhyNode;
-  SArray*                     pSortInfo =
-      createSortInfo(pMergeNode->pMergeKeys);
+  SArray* pSortInfo = createSortInfo(pMergeNode->pMergeKeys, pMerge->currentPhase == SCAN_PHASE_PREV);
   if (pSortInfo == NULL) {
     return terrno;
-  }
-
-  if (pMerge->currentPhase == SCAN_PHASE_PREV) {
-    for (int32_t i = 0; i < taosArrayGetSize(pSortInfo); ++i) {
-      SBlockOrderInfo* pOrder = taosArrayGet(pSortInfo, i);
-      if (pOrder == NULL) {
-        taosArrayDestroy(pSortInfo);
-        return terrno;
-      }
-      pOrder->order = TSDB_ORDER_DESC;
-      pOrder->nullFirst = false;
-      pOrder->compFn = NULL;
-    }
   }
 
   taosArrayDestroy(pMerge->pSortInfo);
@@ -1064,20 +1050,32 @@ int32_t doColsMerge(SOperatorInfo* pOperator, SSDataBlock** pResBlock) {
     QUERY_CHECK_CODE(code, lino, _return);
   }
 
+  if (isVtableMerge && pColsMerge->sourceNum > 0) {
+    QUERY_CHECK_CONDITION(pOperator->pDownstreamGetParams != NULL, code, lino, _return,
+                          TSDB_CODE_QRY_EXECUTOR_INTERNAL_ERROR);
+  }
+
   for (int32_t i = 0; i < pColsMerge->sourceNum; ++i) {
     pBlock = NULL;
     if (isVtableMerge) {
-      if (pOperator->pDownstreamGetParams != NULL && pOperator->pDownstreamGetParams[i] == NULL) {
+      if (pOperator->pDownstreamGetParams[i] == NULL) {
         continue;
       }
       SOperatorInfo*  pExtWinOp = pOperator->pDownstream[i];
       SOperatorParam* pParam = pOperator->pDownstreamGetParams[i];
+      if (pExtWinOp->operatorType == QUERY_NODE_PHYSICAL_PLAN_EXTERNAL_WINDOW &&
+          pParam->opType == pExtWinOp->operatorType) {
+        // The child adopts this parameter and may free it before a longjmp.
+        // This covers both the plain external-window node and the merge-aligned
+        // wrapper, whose getNextExtFn also delegates to the default consumer.
+        pOperator->pDownstreamGetParams[i] = NULL;
+      }
       code = pExtWinOp->fpSet.getNextExtFn(pExtWinOp, pParam, &pBlock);
       setOperatorCompleted(pExtWinOp);
       pOperator->pDownstreamGetParams[i] = NULL;
       QUERY_CHECK_CODE(code, lino, _return);
       if (pBlock) {
-        printDataBlock(pBlock, __func__, "colsMerge", pTaskInfo->id.queryId);
+        printDataBlock(pBlock, __func__, "colsMerge", pTaskInfo->id.queryId, pTaskInfo->charsetCxt);
         if (mergeSameCols) {
           pSourceBlocks[i] = pBlock;
         } else {
@@ -1101,9 +1099,11 @@ int32_t doColsMerge(SOperatorInfo* pOperator, SSDataBlock** pResBlock) {
       }
     } else {
       pBlock = getNextBlockFromDownstream(pOperator, i);
+      // An empty aggregate branch still owns output columns. Initialize them
+      // to NULL when another branch contributes the merged result row.
+      code = copyColumnsValue(pColsMerge->pTargets, pColsMerge->srcBlkIds[i], pInfo->binfo.pRes, pBlock, numOfRows);
+      QUERY_CHECK_CODE(code, lino, _return);
       if (pBlock) {
-        code = copyColumnsValue(pColsMerge->pTargets, pColsMerge->srcBlkIds[i], pInfo->binfo.pRes, pBlock, numOfRows);
-        QUERY_CHECK_CODE(code, lino, _return);
         allNull = false;
       }
     }
@@ -1395,7 +1395,7 @@ int32_t createMultiwayMergeOperatorInfo(SOperatorInfo** downStreams, size_t numS
       size_t  numOfCols = taosArrayGetSize(pInfo->binfo.pRes->pDataBlock);
       int32_t rowSize = pInfo->binfo.pRes->info.rowSize;
       int32_t numOfOutputCols = 0;
-      pSortMergeInfo->pSortInfo = createSortInfo(pMergePhyNode->pMergeKeys);
+      pSortMergeInfo->pSortInfo = createSortInfo(pMergePhyNode->pMergeKeys, false);
       TSDB_CHECK_NULL(pSortMergeInfo->pSortInfo, code, lino, _error,
                       terrno);
       pSortMergeInfo->bufPageSize = getProperSortPageSize(rowSize, numOfCols);

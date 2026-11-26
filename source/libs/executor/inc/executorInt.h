@@ -293,6 +293,11 @@ typedef struct SExchangeInfo {
   int32_t      current;
   SLoadRemoteDataInfo loadInfo;
   int64_t             self;
+  uint64_t            lifecycleQueryId;
+  uint64_t            lifecycleTaskId;
+  int64_t             lifecycleBlockId;
+  int64_t             lifecycleFetchId;
+  bool                traceLifecycle;
   SLimitInfo          limitInfo;
   int64_t             openedTs;  // start exec time stamp, todo: move to SLoadRemoteDataInfo
   char*               pTaskId;
@@ -319,7 +324,7 @@ typedef struct SExchangeInfo {
 #define FED_SCAN_TABLE_KEY_SUFFIX_LEN 256
 #define FED_SCAN_TABLE_KEY_LEN \
   (TSDB_EXT_SOURCE_NAME_LEN + TSDB_DB_NAME_LEN + TSDB_EXT_SOURCE_SCHEMA_LEN + \
-   TSDB_TABLE_NAME_LEN + FED_SCAN_TABLE_KEY_SUFFIX_LEN)
+   TSDB_TABLE_NAME_LEN + TSDB_COL_NAME_LEN + 96 + FED_SCAN_TABLE_KEY_SUFFIX_LEN)
 
 // Per-table scan context for multi-table FederatedScan (VStb dynamic dispatch)
 typedef struct SFedScanTableCtx {
@@ -331,6 +336,13 @@ typedef struct SFedScanTableCtx {
   SExtColTypeMapping*   pDynColMappings;   // dynamically built column mappings (VStb)
   int32_t               numDynColMappings;
   SSDataBlock*          pFetchedBlock;      // last fetched block owned by this table context
+  SSDataBlock*          pReferenceRow;
+  bool                  hasPreviousTimestamp;
+  int64_t               previousTimestamp;
+  int64_t               referenceRowsConsumed;
+  int32_t               referenceBlockPos;
+  bool                  influxV1;
+  char                  influxRp[TSDB_EXT_INFLUX_RP_LEN];
 } SFedScanTableCtx;
 typedef struct SFederatedScanOperatorInfo {
   SFederatedScanPhysiNode*  pFedScanNode;      // physi node ref (not owned)
@@ -341,11 +353,13 @@ typedef struct SFederatedScanOperatorInfo {
   bool                      twoPassMode;        // true: execute query twice (PRE_SCAN then MAIN_SCAN)
   bool                      twoPassPhase1Done;  // true: PRE_SCAN pass done, now doing MAIN_SCAN pass
   bool                      vstbLimitDemoted;   // true: remote top-N unsupported, retry without it
+  bool                      influxV1;           // dialect of the active connection
   int64_t                   fetchedRows;        // cumulative rows fetched
   int64_t                   fetchBlockCount;    // cumulative block count
   int64_t                   elapsedTimeUs;      // cumulative elapsed time (micros)
   SSDataBlock*              pFetchedBlock;      // owned block returned by extConnectorFetchBlock
   char                      remoteSql[TSDB_SHOW_SQL_LEN];  // actual SQL sent to the remote source
+  char                      influxRp[TSDB_EXT_INFLUX_RP_LEN]; // active scan namespace; never changes the plan
   char                      extErrMsg[512];     // formatted remote error message
   // Per-table context cache for VStb multi-table dispatch
   SHashObj*                 pTableCtxMap;       // key: source/db/table/filter hashes, value: SFedScanTableCtx
@@ -371,6 +385,13 @@ typedef struct SFederatedScanOperatorInfo {
   // conversion to the consumer's declared precision so unrelated direct
   // external-table queries are unaffected.
   bool                      underVTableScan;
+  bool                      hasPreviousTimestamp;
+  int64_t                   previousTimestamp;
+  int64_t                   referenceRowsConsumed;
+  int32_t                   referenceBlockPos;
+  SSDataBlock*              pReferenceRow;
+  SForeignScanOperatorParam* pStaticReferenceParam;
+  bool                      referenceVersionChecked;
   STimeWindow               runtimeTimeRange;
   bool                      hasRuntimeTimeRange;
   const SOperatorParam*     pPrefetchParam;      // borrowed while the dynamic parameter remains owned upstream
@@ -384,8 +405,14 @@ typedef struct SFederatedScanOperatorInfo {
 
 struct SOperatorInfo;
 
+int32_t fedScanValidateReferenceTimestamp(SFederatedScanOperatorInfo* pInfo,
+                                          const SColumnInfoData* pTs, int32_t row);
+int32_t fedScanAppendTimestampOrder(char* sql, int32_t capacity, int32_t* pOffset,
+                                    EExtSourceType sourceType, int8_t bindingKind, const char* timeColumn);
+bool fedScanReferenceLimitReached(const SFederatedScanOperatorInfo* pInfo);
 void fedScanReleaseFetchedBlock(SFederatedScanOperatorInfo* pInfo);
 int32_t fedScanSaveActiveCtx(SFederatedScanOperatorInfo* pInfo);
+void fedScanRestoreCtx(SFederatedScanOperatorInfo* pInfo, const char* tableKey);
 int32_t federatedScanPrefetch(struct SOperatorInfo* pOperator, SOperatorParam* pParam);
 void federatedScanPropagatePrefetchError(struct SOperatorInfo* pOperator, int32_t code);
 typedef struct SScanInfo {
@@ -434,6 +461,8 @@ typedef struct STableMetaCacheInfo {
 } STableMetaCacheInfo;
 
 typedef struct STableScanBase {
+  SFilterInfo*           remoteFilter;  // Borrowed from exprSupp for eligible batch scans.
+  STaskSubJobCtx*        remoteCtx;
   STsdbReader*           dataReader;
   SFileBlockLoadRecorder readRecorder;
   SFileBlockLoadRecorder readerCostBaseline;
@@ -456,6 +485,8 @@ typedef struct STableScanBase {
 int32_t openOrRebindTableReader(STableScanBase* pBase, STableKeyInfo* pTables, int32_t numOfTables, SSDataBlock* pBlock,
                                 const char* pTaskId, SHashObj** ppIgnoreTables, bool* pOpened);
 int32_t closeTableScanReader(STableScanBase* pBase);
+
+typedef struct SAlignStage SAlignStage;
 
 typedef struct STableScanInfo {
   STableScanBase  base;
@@ -510,6 +541,10 @@ typedef struct STableScanInfo {
   int8_t          currentPhase;  // EScanPhase for MAIN_FIRST groupSort
   bool            groupSort;  // scan table groups sequentially
   bool            groupDone;  // early-stop the current MAIN_FIRST group
+  SAlignStage*    pAlignStage;  // TIME_ALIGN stage for non-virtual table inputs
+  SSDataBlock*    pAlignPendingIn;  // input block waiting for a phase-switch flush
+  int8_t          alignPhase;
+  bool            alignPhaseValid;
 } STableScanInfo;
 
 typedef enum ESubTableInputType {
@@ -591,6 +626,12 @@ typedef struct STableMergeScanInfo {
   bool            bSortRowId;
 
   STmsSubTablesMergeInfo* pSubTablesMergeInfo;
+
+  // TIME_ALIGN over a super table: the stage runs on each per-table block
+  // before the block enters the ts merge, so PREV/NEXT state is keyed by the
+  // block uid and rows of different tables never mix in one fill series.
+  SAlignStage* pAlignStage;
+  bool         alignSourceDone;  // source exhausted; publish the remaining held blocks
 } STableMergeScanInfo;
 
 typedef struct STagScanFilterContext {
@@ -614,6 +655,11 @@ typedef struct STagScanInfo {
   STagScanFilterContext filterCtx;
   SArray*               aUidTags;     // SArray<STUidTagInfo>
   SArray*               aFilterIdxs;  // SArray<int32_t>
+  SArray*               pVirtualTagCols;
+  struct SRefChainCtx*  pVirtualTagCtx;
+  SEpSet                virtualTagEpSet;
+  int32_t               virtualTagBatchStart;
+  bool                  isVirtualStable;
   SStorageAPI*          pStorageAPI;
   SLimitInfo            limitInfo;
 } STagScanInfo;
@@ -1003,6 +1049,10 @@ void sysTagsRefCachesInit(SHashObj** ppVgInfoCache, SHashObj** ppCfgCache);
 // Destroy the cache pair from sysTagsRefCachesInit (vg entries freeVgInfo'd, cfg entries
 // released via the registered freeFp) and reset both pointers to NULL.
 void sysTagsRefCachesClear(SHashObj** ppVgInfoCache, SHashObj** ppCfgCache);
+// Optional, bounded terminal-value cache. Outputs from resolveTagRefChain
+// remain caller-owned even when this cache supplies the value.
+void sysTagsRefValueCacheInit(SHashObj** ppCache);
+void sysTagsRefValueCacheClear(SHashObj** ppCache);
 
 // Context for resolving a tag-ref to its terminal value across vntb tag-ref chains.
 // Each hop first tries a local meta read (short-lived LOCK reader, never held across RPC);
@@ -1038,6 +1088,7 @@ typedef struct SRefChainCtx {
   SHashObj*       pRefTableCfgCache;  // "refDbName.refTableName" -> per-source table-cfg cache
                                       // entry (opaque here: the entry type is file-local to
                                       // sysscanoperator.c); NULL -> uncached
+  SHashObj*       pQueryTagValueCache; // optional terminal values; caller-owned, cleared between scans
 } SRefChainCtx;
 
 // Resolve refDb.refTable.refCol to its terminal tag value following vntb tag-ref chains.
@@ -1063,17 +1114,24 @@ typedef struct SRefChainCtx {
 // TSDB_MAX_VTABLE_REF_DEPTH return hard errors (TSDB_CODE_VTABLE_CIRCULAR_REF /
 // TSDB_CODE_VTABLE_REF_DEPTH_EXCEEDED).
 // MUTATION / THREADING CONTRACT: pCtx is deliberately NON-const -- remote hops write cache
-// entries into pCtx->pRefTableCfgCache / pCtx->pRefDbVgInfoCache (shared per-scan state, the
-// RPC-storm guard from !2045). Do not place the ctx in read-only/shared memory; callers may
+// entries into pCtx->pRefTableCfgCache / pCtx->pRefDbVgInfoCache / pCtx->pQueryTagValueCache
+// (shared per-scan state). Do not place the ctx in read-only/shared memory; callers may
 // pass NULL caches to run fully uncached.
-// THREADING SCOPE: (1) pRefDbVgInfoCache / pRefTableCfgCache are HASH_NO_LOCK (put may
-// rehash), so these two hashes -- and any ctx pointing at them -- must be driven by ONE
+// THREADING SCOPE: (1) all three caches are HASH_NO_LOCK (put may
+// rehash), so these hashes -- and any ctx pointing at them -- must be driven by ONE
 // thread at a time; sharing them across concurrently-resolving scans is a race. (2) The
 // other fields are NOT thread-private: clientRpc/pTaskInfo are task-level shared objects,
 // and pMnodeEpSet is a non-const pointer the RPC layer may rewrite (mnode switchover
 // refresh) -- expect concurrent access to it when a plan/operator runs in parallel.
 int32_t resolveTagRefChain(SRefChainCtx* pCtx, const char* refDb, const char* refTable,
                            const char* refCol, char** ppData, uint32_t* pLen, bool* pResolved);
+// Query-local caches are owned by the context; release with clearQueryTagRefContext.
+// pEpSet must outlive the context. Tag batches own their rebuilt pTagVal blobs.
+int32_t initQueryTagRefContext(SRefChainCtx* pCtx, const SReadHandle* pHandle, SExecTaskInfo* pTask,
+                              int32_t accountId, SEpSet* pEpSet);
+void clearQueryTagRefContext(SRefChainCtx* pCtx);
+// Missing children keep their batch slots with uid=0; filters must omit those rows.
+int32_t resolveQueryVirtualTags(SRefChainCtx* pCtx, SArray* pTags, const SArray* pCols);
 int32_t setResultRowInitCtx(SResultRow* pResult, SqlFunctionCtx* pCtx, int32_t numOfOutput,
                             int32_t* rowEntryInfoOffset);
 void    clearResultRowInitFlag(SqlFunctionCtx* pCtx, int32_t numOfOutput);
@@ -1095,6 +1153,10 @@ int32_t setInputDataBlock(SExprSupp* pExprSupp, SSDataBlock* pBlock, int32_t ord
                           bool createDummyCol);
 
 int32_t createDataSinkParam(SDataSinkNode* pNode, void** pParam, SExecTaskInfo* pTask, SReadHandle* readHandle);
+
+// Clone a resolved ordinary-query result. Success transfers ownership of runtime
+// hashes/blocks to the snapshot; the source node retains borrowed access.
+int32_t qCloneRemoteResult(SNode* pSrc, SNode** ppResult);
 
 STimeWindow getActiveTimeWindow(SDiskbasedBuf* pBuf, SResultRowInfo* pResultRowInfo, int64_t ts, SInterval* pInterval,
                                 int32_t order);

@@ -228,7 +228,7 @@ int32_t taosRemoveFile(const char *path) {
   return code;
 }
 
-int32_t taosRenameFile(const char *oldName, const char *newName) {
+int32_t taosRenameFileEx(const char *oldName, const char *newName, bool allowFallback) {
   OS_PARAM_CHECK(oldName);
   OS_PARAM_CHECK(newName);
 #ifdef WINDOWS
@@ -254,6 +254,17 @@ int32_t taosRenameFile(const char *oldName, const char *newName) {
   } else {
     RollbackTransaction(transactionHandle);
     DWORD error = GetLastError();
+    // A transacted rename conflicts with a handle opened outside the transaction, e.g. the log file that
+    // is rotated while still open. Only when the caller allows it, and only for that conflict, retry
+    // without the transaction; every other failure is reported as it is.
+    if (allowFallback && error == ERROR_TRANSACTIONAL_CONFLICT) {
+      if (MoveFileEx(oldName, newName, MOVEFILE_REPLACE_EXISTING)) {
+        CloseHandle(transactionHandle);
+        return TSDB_CODE_SUCCESS;
+      }
+      // Report why the retry failed, not the conflict that led to it.
+      error = GetLastError();
+    }
     ERRNO = error;
     terrno = TAOS_SYSTEM_WINAPI_ERROR(error);
     finished = false;
@@ -274,6 +285,21 @@ int32_t taosRenameFile(const char *oldName, const char *newName) {
 
   return TSDB_CODE_SUCCESS;
 #endif
+}
+
+int32_t taosRenameDir(const char *oldName, const char *newName) {
+#ifdef WINDOWS
+  OS_PARAM_CHECK(oldName);
+  OS_PARAM_CHECK(newName);
+  if (!MoveFileExA(oldName, newName, 0)) return (terrno = TAOS_SYSTEM_WINAPI_ERROR(GetLastError()));
+  return 0;
+#else
+  return taosRenameFile(oldName, newName);
+#endif
+}
+
+int32_t taosRenameFile(const char *oldName, const char *newName) {
+  return taosRenameFileEx(oldName, newName, false);
 }
 
 int32_t taosStatFile(const char *path, int64_t *size, int64_t *mtime, int64_t *atime) {
@@ -471,6 +497,9 @@ HANDLE taosOpenFileNotStream(const char *path, int32_t tdFileOptions) {
   }
 
   shareMode |= FILE_SHARE_WRITE;
+  if (tdFileOptions & TD_FILE_SHARE_DELETE) {
+    shareMode |= FILE_SHARE_DELETE;
+  }
 
   access |= GENERIC_READ;
 
@@ -2669,6 +2698,7 @@ TdFilePtr taosOpenFileW(const char *path, int32_t tdFileOptions) {
     if (tdFileOptions & TD_FILE_APPEND) access |= FILE_APPEND_DATA;
     if (tdFileOptions & TD_FILE_WRITE) access |= GENERIC_WRITE;
     shareMode |= FILE_SHARE_WRITE;
+    if (tdFileOptions & TD_FILE_SHARE_DELETE) shareMode |= FILE_SHARE_DELETE;
     access |= GENERIC_READ;
     if (tdFileOptions & TD_FILE_AUTO_DEL) fileFlag |= FILE_ATTRIBUTE_TEMPORARY;
     if (tdFileOptions & TD_FILE_WRITE_THROUGH) fileFlag |= FILE_FLAG_WRITE_THROUGH;
@@ -2719,7 +2749,7 @@ int32_t taosRemoveFileW(const char *path) {
   return 0;
 }
 
-int32_t taosRenameFileW(const char *oldName, const char *newName) {
+static int32_t taosMovePathW(const char *oldName, const char *newName, DWORD flags) {
   if (oldName == NULL || newName == NULL) {
     terrno = TSDB_CODE_INVALID_PARA;
     return terrno;
@@ -2730,13 +2760,21 @@ int32_t taosRenameFileW(const char *oldName, const char *newName) {
     terrno = TSDB_CODE_INVALID_PARA;
     return terrno;
   }
-  if (!MoveFileExW(wOld, wNew, MOVEFILE_REPLACE_EXISTING)) {
+  if (!MoveFileExW(wOld, wNew, flags)) {
     DWORD dwError = GetLastError();
     ERRNO = dwError;
     terrno = TAOS_SYSTEM_WINAPI_ERROR(dwError);
     return terrno;
   }
   return TSDB_CODE_SUCCESS;
+}
+
+int32_t taosRenameFileW(const char *oldName, const char *newName) {
+  return taosMovePathW(oldName, newName, MOVEFILE_REPLACE_EXISTING);
+}
+
+int32_t taosRenameDirW(const char *oldName, const char *newName) {
+  return taosMovePathW(oldName, newName, 0);
 }
 
 int32_t taosStatFileW(const char *path, int64_t *size, int64_t *mtime, int64_t *atime) {

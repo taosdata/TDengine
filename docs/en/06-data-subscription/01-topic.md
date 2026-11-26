@@ -19,7 +19,7 @@ Subscribe to a data stream defined by an SQL query. The creation syntax is as fo
 CREATE TOPIC [IF NOT EXISTS] topic_name AS subquery
 ```
 
-This SQL subscribes to data with a `SELECT` statement (for example `SELECT *`, or column projections such as `SELECT ts, c1`). Query topics may include filter conditions and scalar functions, but do not support aggregate functions, time-window aggregation, or `DISTINCT`, `GROUP BY`, `ORDER BY`, `PARTITION BY`, `LIMIT`/`SLIMIT`, and similar clauses. Note that:
+This SQL subscribes to data with a `SELECT` statement (for example `SELECT *`, or column projections such as `SELECT ts, c1`). Query topics may include filter conditions and scalar functions, but do not support aggregate functions, time-window aggregation, table functions (`TABLE(...)`), or `DISTINCT`, `GROUP BY`, `ORDER BY`, `PARTITION BY`, `LIMIT`/`SLIMIT`, and similar clauses. Note that:
 
 1. Once this type of topic is created, the structure of the subscribed data is fixed.
 2. Columns or tags that are subscribed to or referenced in calculations cannot be deleted (`ALTER TABLE DROP`) or modified (`ALTER TABLE MODIFY`). From `v3.4.0.0`, you can modify, delete, or add these columns or tags, but you must run `RELOAD TOPIC` for the change to take effect.
@@ -30,7 +30,14 @@ This SQL subscribes to data with a `SELECT` statement (for example `SELECT *`, o
 For example, to subscribe to all smart-meter rows where voltage is greater than 200 and return only the timestamp, current, and voltage (not phase), create topic `power_topic` as follows:
 
 ```sql
-CREATE TOPIC power_topic AS SELECT ts, current, voltage FROM power.meters WHERE voltage > 200;
+CREATE TOPIC power_topic
+  AS
+    SELECT
+      ts,
+      current,
+      voltage
+    FROM power.meters
+    WHERE voltage > 200;
 ```
 
 ### Supertable Topics

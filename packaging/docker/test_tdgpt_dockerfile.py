@@ -47,7 +47,7 @@ def test_moirai_cleanup_ignores_find_delete_races():
 def test_lite_image_uses_only_the_base_analytics_requirements():
     text = LITE_DOCKERFILE.read_text(encoding="utf-8")
 
-    assert "ARG PYTHON_BASE=python:3.12.12-slim-trixie" in text
+    assert "ARG PYTHON_BASE=python:3.12.16-slim-trixie" in text
     assert "python3.12 -m venv" in text
     assert "python3.10" not in text
     assert "-r /tmp/requirements_docker.txt" in text
@@ -62,9 +62,20 @@ def test_lite_requirements_include_http_client():
     assert "requests==2.33" in text
 
 
+def test_base_images_validate_all_five_pyod_algorithms():
+    for dockerfile in (DOCKERFILE, LITE_DOCKERFILE):
+        text = dockerfile.read_text(encoding="utf-8")
+        requirements_install = text.index("-r /tmp/requirements_docker.txt")
+        imports = "from pyod.models.copod import COPOD; from pyod.models.ecod import ECOD; from pyod.models.hbos import HBOS; from pyod.models.iforest import IForest; from pyod.models.pca import PCA"
+        validation = text.index(f'python3 -B -c "{imports}"')
+        assert validation > requirements_install
+
+
 def test_lite_target_uses_the_model_free_entrypoint():
     text = IMAGE_DOCKERFILE.read_text(encoding="utf-8")
 
+    assert "ARG TDGPT_LITE_ENV_VERSION=1.2" in text
+    assert "FROM tdengine/tdgpt-lite-env-${ARCH}:${TDGPT_LITE_ENV_VERSION} AS tdgpt_lite" in text
     assert "AS tdgpt_lite" in text
     assert "entrypoint-lite.sh" in text
 

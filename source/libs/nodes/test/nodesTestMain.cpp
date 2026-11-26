@@ -16,6 +16,7 @@
  */
 
 #include <gtest/gtest.h>
+#include <memory>
 
 #include <thread>
 #include <vector>
@@ -66,6 +67,82 @@ TEST(NodesTest, traverseTest) {
   EXPECT_EQ(nodeType(pRoot), QUERY_NODE_VALUE);
   EXPECT_EQ(string(((SValueNode*)pRoot)->literal), "18");
   nodesDestroyNode(pRoot);
+}
+
+struct SelectRewriteVisits {
+  int32_t remote = 0;
+  int32_t window = 0;
+};
+
+static EDealRes remapSelectSubquery(SNode** ppNode, void* pContext) {
+  auto* pVisits = (SelectRewriteVisits*)pContext;
+  if (QUERY_NODE_REMOTE_VALUE == nodeType(*ppNode)) {
+    ++pVisits->remote;
+    // Visiting twice incorrectly remaps the already compacted index again.
+    --((SRemoteValueNode*)*ppNode)->subQIdx;
+  } else if (QUERY_NODE_INTERVAL_WINDOW == nodeType(*ppNode) ||
+             QUERY_NODE_COUNT_WINDOW == nodeType(*ppNode)) {
+    ++pVisits->window;
+  }
+  return DEAL_RES_CONTINUE;
+}
+
+TEST(NodesTest, rewriteSelectWindowSubqueryOnce) {
+  for (ENodeType type : {QUERY_NODE_INTERVAL_WINDOW, QUERY_NODE_COUNT_WINDOW}) {
+    for (ESqlClause clause : {SQL_CLAUSE_FROM, SQL_CLAUSE_WINDOW}) {
+      SCOPED_TRACE(type);
+      SCOPED_TRACE(clause);
+      SNode* pRoot = nullptr;
+      ASSERT_EQ(TSDB_CODE_SUCCESS, nodesMakeNode(QUERY_NODE_SELECT_STMT, &pRoot));
+      unique_ptr<SNode, decltype(&nodesDestroyNode)> root(pRoot, nodesDestroyNode);
+      auto* pSelect = (SSelectStmt*)pRoot;
+      ASSERT_EQ(TSDB_CODE_SUCCESS, nodesMakeNode(type, &pSelect->pWindow));
+      SNode* pRemote = nullptr;
+      ASSERT_EQ(TSDB_CODE_SUCCESS, nodesMakeNode(QUERY_NODE_REMOTE_VALUE, &pRemote));
+      ((SRemoteValueNode*)pRemote)->subQIdx = 2;
+      if (QUERY_NODE_INTERVAL_WINDOW == type) {
+        ((SIntervalWindowNode*)pSelect->pWindow)->pFill = pRemote;
+      } else {
+        ASSERT_EQ(TSDB_CODE_SUCCESS,
+                  nodesListMakeAppend(&((SCountWindowNode*)pSelect->pWindow)->pColList, pRemote));
+      }
+      SelectRewriteVisits visits;
+      nodesRewriteSelectStmt(pSelect, clause, remapSelectSubquery, &visits);
+      EXPECT_EQ(1, visits.remote);
+      EXPECT_EQ(1, ((SRemoteValueNode*)pRemote)->subQIdx);
+      EXPECT_EQ(SQL_CLAUSE_FROM == clause ? 1 : 0, visits.window);
+    }
+  }
+}
+
+TEST(NodesTest, rewriteSelectRangeFillAndExternalSubqueries) {
+  SNode* pRoot = nullptr;
+  ASSERT_EQ(TSDB_CODE_SUCCESS, nodesMakeNode(QUERY_NODE_SELECT_STMT, &pRoot));
+  unique_ptr<SNode, decltype(&nodesDestroyNode)> root(pRoot, nodesDestroyNode);
+  auto* pSelect = (SSelectStmt*)pRoot;
+  ASSERT_EQ(TSDB_CODE_SUCCESS, nodesMakeNode(QUERY_NODE_EXTERNAL_WINDOW, &pSelect->pWindow));
+  auto* pExternal = (SExternalWindowNode*)pSelect->pWindow;
+  SNode** fields[] = {&pSelect->pFill, &pSelect->pRange, &pSelect->pRangeAround,
+                     &pSelect->pEvery, &pSelect->pTimeRange,
+                     &pExternal->pSubquery, &pExternal->pTimeRange};
+  for (SNode** ppField : fields) {
+    ASSERT_EQ(TSDB_CODE_SUCCESS, nodesMakeNode(QUERY_NODE_REMOTE_VALUE, ppField));
+    ((SRemoteValueNode*)*ppField)->subQIdx = 2;
+  }
+  SelectRewriteVisits visits;
+  nodesRewriteSelectStmt(pSelect, SQL_CLAUSE_FROM, remapSelectSubquery, &visits);
+  EXPECT_EQ(7, visits.remote);
+  for (SNode** ppField : fields) {
+    EXPECT_EQ(1, ((SRemoteValueNode*)*ppField)->subQIdx);
+  }
+
+  SSelectStmt empty = {};
+  visits = {};
+  nodesRewriteSelectStmt(nullptr, SQL_CLAUSE_FROM, remapSelectSubquery, &visits);
+  nodesRewriteSelectStmt(&empty, SQL_CLAUSE_FROM, remapSelectSubquery, &visits);
+  nodesRewriteSelectStmt(&empty, SQL_CLAUSE_WINDOW, remapSelectSubquery, &visits);
+  EXPECT_EQ(0, visits.remote);
+  EXPECT_EQ(0, visits.window);
 }
 
 int32_t compareValueNode(SNode* pNode1, SNode* pNode2) {
@@ -301,35 +378,44 @@ TEST(NodesTest, invalidTimezoneErrorContainsName) {
       timezoneName, &timezone, &ownsTimezone);
 
   EXPECT_EQ(TSDB_CODE_PAR_INVALID_TIMEZONE, code);
-  EXPECT_STREQ("Invalid timezone: 'UTC+2000'", terrMsg);
+  EXPECT_STREQ("Invalid or unsupported timezone: 'UTC+2000'", terrMsg);
   EXPECT_EQ(nullptr, timezone);
   EXPECT_FALSE(ownsTimezone);
 }
 
 TEST(NodesTest, invalidTimezoneRejectPathsReportName) {
   // Missing name: reported as an empty quoted name.
-  expectTimezoneRejected(nullptr, "Invalid timezone: ''");
-  expectTimezoneRejected("", "Invalid timezone: ''");
+  expectTimezoneRejected(nullptr, "Invalid or unsupported timezone: ''");
+  expectTimezoneRejected("", "Invalid or unsupported timezone: ''");
 
   // Ambiguous uppercase abbreviations.
-  expectTimezoneRejected("CST", "Invalid timezone: 'CST'");
-  expectTimezoneRejected("EST", "Invalid timezone: 'EST'");
+  expectTimezoneRejected("CST", "Invalid or unsupported timezone: 'CST'");
+  expectTimezoneRejected("EST", "Invalid or unsupported timezone: 'EST'");
+
+  expectTimezoneRejected("EST5EDT",
+                          "Invalid or unsupported timezone: 'EST5EDT'");
+  expectTimezoneRejected("est5edt",
+                          "Invalid or unsupported timezone: 'est5edt'");
+  expectTimezoneRejected(
+      "EST5EDT,M3.2.0,M11.1.0",
+      "Invalid or unsupported timezone: 'EST5EDT,M3.2.0,M11.1.0'");
 
   // GMT series, in either case, bare or with an offset.
-  expectTimezoneRejected("GMT", "Invalid timezone: 'GMT'");
-  expectTimezoneRejected("GMT+8", "Invalid timezone: 'GMT+8'");
-  expectTimezoneRejected("gmt-5", "Invalid timezone: 'gmt-5'");
+  expectTimezoneRejected("GMT", "Invalid or unsupported timezone: 'GMT'");
+  expectTimezoneRejected("GMT+8", "Invalid or unsupported timezone: 'GMT+8'");
+  expectTimezoneRejected("gmt-5", "Invalid or unsupported timezone: 'gmt-5'");
 
   // Unknown name carrying no slash.
-  expectTimezoneRejected("foobar", "Invalid timezone: 'foobar'");
+  expectTimezoneRejected("foobar", "Invalid or unsupported timezone: 'foobar'");
 
   // Offset hours out of range.
-  expectTimezoneRejected("UTC+2000", "Invalid timezone: 'UTC+2000'");
-  expectTimezoneRejected("+2000", "Invalid timezone: '+2000'");
+  expectTimezoneRejected("UTC+2000",
+                          "Invalid or unsupported timezone: 'UTC+2000'");
+  expectTimezoneRejected("+2000", "Invalid or unsupported timezone: '+2000'");
 
   // Offset hours that are not two digits.
-  expectTimezoneRejected("+8:00", "Invalid timezone: '+8:00'");
-  expectTimezoneRejected("+8", "Invalid timezone: '+8'");
+  expectTimezoneRejected("+8:00", "Invalid or unsupported timezone: '+8:00'");
+  expectTimezoneRejected("+8", "Invalid or unsupported timezone: '+8'");
 }
 
 TEST(NodesTest, timezoneNormalizeRejectsUndersizedBuffer) {
@@ -340,7 +426,26 @@ TEST(NodesTest, timezoneNormalizeRejectsUndersizedBuffer) {
       "UTC", normalized, sizeof(normalized), nullptr);
 
   EXPECT_EQ(TSDB_CODE_PAR_INVALID_TIMEZONE, code);
-  EXPECT_STREQ("Invalid timezone: 'UTC'", terrMsg);
+  EXPECT_STREQ("Invalid or unsupported timezone: 'UTC'", terrMsg);
+}
+
+TEST(NodesTest, timezoneNormalizeRejectsCustomDstRules) {
+  const char* rules[] = {"EST5EDT,M3.2.0,M11.1.0",
+                        "EST5EDT,M3.2.0/2,M11.1.0/2"};
+  for (const char* rule : rules) {
+    SCOPED_TRACE(rule);
+    char normalized[TD_TIMEZONE_LEN] = {0};
+    taosClearErrMsg();
+    EXPECT_EQ(taosValidateAndNormalizeTimezone(rule, normalized,
+                                              sizeof(normalized), nullptr),
+              TSDB_CODE_PAR_INVALID_TIMEZONE);
+    std::string expected = "Invalid or unsupported timezone: '";
+    expected += rule;
+    expected += "'";
+    EXPECT_STREQ(terrMsg, expected.c_str());
+  }
+  EXPECT_STREQ(tstrerror(TSDB_CODE_PAR_INVALID_TIMEZONE),
+               "Invalid or unsupported timezone");
 }
 
 TEST(NodesTest, validTimezonesAreStillAccepted) {
@@ -505,7 +610,22 @@ TEST(NodesTest, nonCanonicalTimezoneNamesAreNotCached) {
     expectTimezoneUsable(pTz, (time_t)1735689600);
     tzfree((timezone_t)pTz);
   }
-  EXPECT_GT(decoded, 0) << "at least one alias spelling should resolve on this system";
+
+  // Whether a redundant separator is tolerated is a property of the underlying tz
+  // library, not of the cache: the bundled Windows tzcode rejects "Asia//Shanghai"
+  // outright while the Linux one resolves it. Require the decode result to agree
+  // with what the library itself accepts instead of assuming one behaviour on
+  // every platform.
+  timezone_t probe = NULL;
+  bool       libAcceptsAlias =
+      (TSDB_CODE_SUCCESS == taosValidateTimezone("Asia//Shanghai", &probe));
+  if (libAcceptsAlias) {
+    EXPECT_NE(nullptr, probe);
+    tzfree(probe);
+    EXPECT_GT(decoded, 0) << "the tz library resolves the alias spelling, so it must decode";
+  } else {
+    EXPECT_EQ(0, decoded) << "the tz library rejects every alias spelling, so none may decode";
+  }
 
   // Repeating the same alias keeps handing out fresh handles instead of growing the cache.
   void* pFirst = nullptr;
@@ -526,6 +646,7 @@ TEST(NodesTest, nonCanonicalTimezoneNamesAreNotCached) {
 TEST(NodesTest, timezoneCacheIsBounded) {
   nodesCleanupTimezoneCache();
   nodesTestSetTimezoneCacheMax(2);
+  ASSERT_EQ(TSDB_CODE_SUCCESS, nodesValidateTimezoneName("Asia/Shanghai"));
 
   void *pA = nullptr, *pB = nullptr, *pC = nullptr, *pAAgain = nullptr;
   bool  ownsA = true, ownsB = true, ownsC = false, ownsAAgain = true;
@@ -534,6 +655,7 @@ TEST(NodesTest, timezoneCacheIsBounded) {
   EXPECT_FALSE(ownsA);
   EXPECT_FALSE(ownsB);
 
+  ASSERT_EQ(TSDB_CODE_SUCCESS, nodesValidateTimezoneName("America/New_York"));
   ASSERT_EQ(TSDB_CODE_SUCCESS, nodesDecodeTimezoneNameInPlace("America/New_York", &pC, &ownsC));
   ASSERT_NE(nullptr, pC);
   EXPECT_TRUE(ownsC) << "third distinct name exceeds the limit: handle must be owned by the caller";
@@ -581,6 +703,7 @@ TEST(NodesTest, fillLogicNodeTimezoneOwnership) {
 // Cleanup releases every cached handle; a later decode re-creates the cache and still works.
 // Run under ASan to check the cached handles are freed exactly once.
 TEST(NodesTest, timezoneCacheCleanupAndReuse) {
+  ASSERT_EQ(TSDB_CODE_SUCCESS, nodesValidateTimezoneName("Asia/Shanghai"));
   void* pTz = nullptr;
   bool  owns = true;
   ASSERT_EQ(TSDB_CODE_SUCCESS, nodesDecodeTimezoneNameInPlace("Asia/Shanghai", &pTz, &owns));
@@ -589,6 +712,8 @@ TEST(NodesTest, timezoneCacheCleanupAndReuse) {
 
   nodesCleanupTimezoneCache();
   nodesCleanupTimezoneCache();  // idempotent
+  EXPECT_NE(TSDB_CODE_SUCCESS, nodesValidateTimezoneName("Not/A_Zone"));
+  ASSERT_EQ(TSDB_CODE_SUCCESS, nodesValidateTimezoneName("Asia/Shanghai"));
 
   void* pAgain = nullptr;
   owns = true;

@@ -201,7 +201,7 @@ typedef enum EOperatorType {
   OP_TYPE_NOT_LIKE,
   OP_TYPE_MATCH,
   OP_TYPE_NMATCH,
-  
+
   // unary comparison operator
   OP_TYPE_IS_NULL = 100,
   OP_TYPE_IS_NOT_NULL,
@@ -441,11 +441,24 @@ typedef enum {
 #define TSDB_EP_LEN               (TSDB_FQDN_LEN + 6)
 #define TSDB_IPv4ADDR_LEN         16
 #define TSDB_FILENAME_LEN         128
+/* Buffers that hold a whole "<dataDir>/vnode/vnodeN/.../<file>" path need far
+ * more room than a bare file name: the data dir alone can reach the platform
+ * path limit, so a 128 byte buffer silently truncates the suffix and the file
+ * that gets created no longer matches the name the open path expects.  Windows
+ * keeps its 260 byte MAX_PATH, so 512 covers it completely; the platforms with
+ * a POSIX backend already read long paths and keep the old size, which leaves
+ * their behaviour byte for byte unchanged.  TSDB_FILENAME_LEN must stay 128:
+ * it sizes fields inside the RPC and persisted structures (SBackupFile.relPath,
+ * SDiskCfg.dir, WAL_PATH_LEN, ...), so growing it would change their layout. */
+#ifdef WINDOWS
+#define TSDB_PATH_LEN             512
+#else
+#define TSDB_PATH_LEN             TSDB_FILENAME_LEN
+#endif
 #define TSDB_SHOW_SQL_LEN         2048
 #define TSDB_INS_STREAM_SQL_LEN   (48 * 1024)
 #define TSDB_SHOW_SCHEMA_JSON_LEN TSDB_MAX_COLUMNS * 256
 #define TSDB_SLOW_QUERY_SQL_LEN   512
-#define TSDB_SHOW_SUBQUERY_LEN    1000
 #define TSDB_LOG_VAR_LEN          32
 
 #define TSDB_ANALYTIC_ANODE_URL_LEN   128

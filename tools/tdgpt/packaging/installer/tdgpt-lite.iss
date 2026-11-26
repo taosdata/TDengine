@@ -62,18 +62,24 @@ ConfirmUninstall=Are you sure you want to uninstall {#MyAppName}?
 
 [Files]
 Source: "{#MyAppIco}"; DestDir: "{app}"; DestName: "favicon.ico"; Flags: ignoreversion
-Source: "{#MyAppSourceDir}\cfg\*"; DestDir: "{app}\cfg"; Flags: ignoreversion recursesubdirs createallsubdirs onlyifdoesntexist uninsneveruninstall
+Source: "{#MyAppSourceDir}\cfg\*"; DestDir: "{app}\cfg"; Excludes: "package-metadata.json"; Flags: ignoreversion recursesubdirs createallsubdirs onlyifdoesntexist uninsneveruninstall
+; Generated product metadata must follow the installed release during upgrades.
+Source: "{#MyAppSourceDir}\cfg\package-metadata.json"; DestDir: "{app}\cfg"; Flags: ignoreversion uninsneveruninstall
 Source: "{#MyAppSourceDir}\lib\*"; DestDir: "{app}\lib"; Flags: ignoreversion recursesubdirs createallsubdirs
 Source: "{#MyAppSourceDir}\model\*"; DestDir: "{app}\model"; Flags: ignoreversion recursesubdirs createallsubdirs skipifsourcedoesntexist
 Source: "{#MyAppSourceDir}\requirements\*"; DestDir: "{app}\requirements"; Flags: ignoreversion recursesubdirs createallsubdirs
 Source: "{#MyAppSourceDir}\python\*"; DestDir: "{app}\python"; Flags: ignoreversion recursesubdirs createallsubdirs skipifsourcedoesntexist
 Source: "{#MyAppSourceDir}\bin\*"; DestDir: "{app}\bin"; Flags: ignoreversion
+Source: "{#MyAppSourceDir}\share\*"; DestDir: "{app}\share"; Flags: ignoreversion recursesubdirs createallsubdirs
 Source: "{#MyAppSourceDir}\install.bat"; DestDir: "{app}"; Flags: ignoreversion
 Source: "{#MyAppSourceDir}\install.py"; DestDir: "{app}"; Flags: ignoreversion
 Source: "{#MyAppSourceDir}\uninstall.bat"; DestDir: "{app}"; Flags: ignoreversion
 Source: "{#MyAppSourceDir}\uninstall.py"; DestDir: "{app}"; Flags: ignoreversion
 
 [Dirs]
+Name: "{app}\data\custom"; Flags: uninsneveruninstall
+Name: "{app}\data\custom\ad"; Flags: uninsneveruninstall
+Name: "{app}\data\custom\fc"; Flags: uninsneveruninstall
 Name: "{app}\cfg"; Permissions: everyone-modify; Flags: uninsneveruninstall
 Name: "{app}\log"; Permissions: everyone-modify; Flags: uninsneveruninstall
 Name: "{app}\model"; Permissions: everyone-modify; Flags: uninsneveruninstall

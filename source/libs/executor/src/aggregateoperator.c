@@ -530,7 +530,7 @@ static bool nextGroupedResult(SOperatorInfo* pOperator) {
            GET_TASKID(pTaskInfo), pBlock->info.id.groupId, pAggInfo->groupId, pOperator->blocking,
            pAggInfo->groupKeyOptimized, pBlock->info.rows);
 
-    printDataBlock(pBlock, __func__, pTaskInfo->id.str, pTaskInfo->id.queryId);
+    printDataBlock(pBlock, __func__, pTaskInfo->id.str, pTaskInfo->id.queryId, pTaskInfo->charsetCxt);
 
     // there is an scalar expression that needs to be calculated before apply the group aggregation.
     if (pAggInfo->scalarExprSup.pExprInfo != NULL && !blockAllocated) {
@@ -644,7 +644,7 @@ _end:
     T_LONG_JMP(pTaskInfo->env, code);
   }
 
-  printDataBlock(pInfo->pRes, __func__, pTaskInfo->id.str, pTaskInfo->id.queryId);
+  printDataBlock(pInfo->pRes, __func__, pTaskInfo->id.str, pTaskInfo->id.queryId, pTaskInfo->charsetCxt);
 
   (*ppRes) = (pInfo->pRes->info.rows == 0) ? NULL : pInfo->pRes;
   return code;
@@ -982,10 +982,7 @@ int32_t doInitAggInfoSup(SAggSupporter* pAggSup, SqlFunctionCtx* pCtx, int32_t n
 
 void cleanupResultInfoInGroupResInfo(SExecTaskInfo* pTaskInfo, SExprSupp* pSup, SDiskbasedBuf* pBuf,
                                   SGroupResInfo* pGroupResInfo) {
-  int32_t         numOfExprs = pSup->numOfExprs;
-  int32_t*        rowEntryOffset = pSup->rowEntryInfoOffset;
-  SqlFunctionCtx* pCtx = pSup->pCtx;
-  int32_t         numOfRows = getNumOfTotalRes(pGroupResInfo);
+  int32_t numOfRows = getNumOfTotalRes(pGroupResInfo);
 
   if (!exprSuppNeedCleanup(pSup)) {
     return;
@@ -1001,14 +998,14 @@ void cleanupResultInfoInGroupResInfo(SExecTaskInfo* pTaskInfo, SExprSupp* pSup, 
     }
     pRow = (SResultRow*)((char*)page + pPos->pos.offset);
 
-
-    for (int32_t j = 0; j < numOfExprs; ++j) {
-      pCtx[j].resultInfo = getResultEntryInfo(pRow, j, rowEntryOffset);
-      if (pCtx[j].fpSet.cleanup) {
-        pCtx[j].fpSet.cleanup(&pCtx[j]);
-      }
-    }
+    cleanupResultRowFunctionState(pSup, pRow);
     releaseBufPage(pBuf, page);
+  }
+
+  // This traversal finishes the rows' lifetime. The helper restores bindings for
+  // reusable callers, but here their pages may have been evicted during cleanup.
+  for (int32_t i = 0; i < pSup->numOfExprs; ++i) {
+    pSup->pCtx[i].resultInfo = NULL;
   }
 }
 
@@ -1017,9 +1014,6 @@ void cleanupResultInfoInHashMap(SExecTaskInfo* pTaskInfo, SExprSupp* pSup, SDisk
   if (pHashmap == NULL) {
     return;
   }
-  int32_t         numOfExprs = pSup->numOfExprs;
-  int32_t*        rowEntryOffset = pSup->rowEntryInfoOffset;
-  SqlFunctionCtx* pCtx = pSup->pCtx;
   if (!exprSuppNeedCleanup(pSup)) {
     return;
   }
@@ -1038,14 +1032,15 @@ void cleanupResultInfoInHashMap(SExecTaskInfo* pTaskInfo, SExprSupp* pSup, SDisk
 
     SResultRow* pRow = (SResultRow*)((char*)page + pos->offset);
 
-    for (int32_t j = 0; j < numOfExprs; ++j) {
-      pCtx[j].resultInfo = getResultEntryInfo(pRow, j, rowEntryOffset);
-      if (pCtx[j].fpSet.cleanup) {
-        pCtx[j].fpSet.cleanup(&pCtx[j]);
-      }
-    }
+    cleanupResultRowFunctionState(pSup, pRow);
 
     releaseBufPage(pBuf, page);
+  }
+
+  // Hash traversal can reuse the cache frame of the saved binding. Do not let
+  // context destruction revisit that address after the remaining rows are freed.
+  for (int32_t i = 0; i < pSup->numOfExprs; ++i) {
+    pSup->pCtx[i].resultInfo = NULL;
   }
 }
 

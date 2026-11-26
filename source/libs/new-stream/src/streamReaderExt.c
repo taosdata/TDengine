@@ -39,6 +39,7 @@
 #include "executor.h"
 #include "extConnector.h"
 #include "extTypeMap.h"   // extTimestampTypeTzClass
+#include "tconv.h"
 #include "osString.h"     // taosUcs4ToMbs / TdUcs4 (extColCellToStr NCHAR conversion)
 #include "plannodes.h"    // SExtColTypeMapping full definition
 #include "querynodes.h"   // SColumnNode / SExprNode
@@ -69,23 +70,43 @@
  * need the largest buffer; fixed-shape and single-uid queries have smaller
  * bounded inputs. */
 #define EXT_SCHEMA_SQL_BUF_LEN  512
-#define EXT_SIMPLE_SQL_BUF_LEN  (1024 * 2)
-#define EXT_CALC_SQL_BUF_LEN    4096
+#define EXT_SIMPLE_SQL_BUF_LEN  (EXT_SQL_PREFILTER_BUF_LEN + 1024 * 2)
+#define EXT_CALC_SQL_BUF_LEN    (EXT_SQL_PREFILTER_BUF_LEN + 4096)
 #define EXT_DATA_SQL_BUF_LEN    (4096 * 2)
 #define EXT_BATCH_SQL_BUF_LEN   (4096 * 4)
+#define EXT_META_BLOCK_INITIAL_ROWS 64U
 
-/* Max length for the tagset key string used as pTagsetIndex key
- * ("col1=val1|col2=val2|..."). */
-#define EXT_TAGSET_KEY_MAX 1024
+/* Length limits for the tagset key string used as pTagsetIndex key
+ * ("col1=val1|col2=val2|...").  EXT_TAGSET_KEY_MAX is the escaped storage size and
+ * EXT_TAGSET_KEY_RAW_MAX the unescaped budget; both live in streamReaderExt.h because the
+ * persistent SUidIndexEntry copies share them. */
 
 /* Bound the re-enumeration skip after an Influx SERIES condition matched no tag
  * combinations (see SStreamExtReaderInfo.influxEmptyEnumTsMs). */
 #define EXT_INFLUX_EMPTY_ENUM_RECHECK_MS 60000
 
+/* Defined next to handleMetaPullInflux18(); declared here because the reader
+ * close and series-reset paths release the same 1.8 META enumeration cache. */
+static void extInflux18DropMetaSnapshot(SStreamExtReaderInfo *pInfo);
+static void extInflux18AbortMetaEnumeration(SStreamExtReaderInfo *pInfo);
+
 /* Scratch buffer size for one generated SQL clause fragment (a WHERE
  * prefilter condition or a SELECT column list) before it is spliced into a
  * full statement in one of the statement-shape buffers above. */
 #define EXT_SQL_CLAUSE_BUF_LEN 1024
+
+/* Buffer for a prefilter clause, i.e. the stored prefilter wrapped as
+ * "(<prefilter>) AND ".
+ *
+ * The parser renders a PRE_FILTER into a 4096-byte buffer and fails the
+ * statement rather than truncating, so a stored prefilter can be up to 4095
+ * bytes - well past EXT_SQL_CLAUSE_BUF_LEN.  The MySQL hexadecimal form of a
+ * string holding a backslash is twice as long as the value, which is how a
+ * prefilter that used to fit can grow past a clause-sized buffer; building it
+ * there returns OUT_OF_RANGE and leaves the reader FAILED on its first
+ * watermark read, so a stream that used to run would break at startup.  The
+ * statement buffers above are sized off this one for the same reason. */
+#define EXT_SQL_PREFILTER_BUF_LEN (4096 + 16)
 
 /* A quoted identifier is at most quote + ident + escaped-quote pairs + quote + NUL; the largest
  * identifier spliced into generated SQL is a table name. */
@@ -185,6 +206,12 @@ static int32_t extFetchUidBlocks(SStreamExtReaderInfo *pInfo,
 static int32_t extBuildUidWindowFromMetaBlock(SSDataBlock *pMetaBlock,
                                               SSHashObj **ppUidWindow);
 
+static void freeGroupInfoWithId(void *ptr) {
+  SStreamGroupInfoWithId *pInfo = ptr;
+  taosArrayDestroyEx(pInfo->gInfo, tDestroySStreamGroupValue);
+  pInfo->gInfo = NULL;
+}
+
 /* ============================================================
  * Utility: free a response struct (all owned sub-objects).
  * ============================================================ */
@@ -202,6 +229,8 @@ void streamExtPullRspFree(SSTriggerExtPullRsp *pRsp) {
   }
   taosArrayDestroyEx(pRsp->pGroupColVals, tDestroySStreamGroupValue);
   pRsp->pGroupColVals = NULL;
+  taosArrayDestroyEx(pRsp->pGroupInfos, freeGroupInfoWithId);
+  pRsp->pGroupInfos = NULL;
   taosMemoryFree(pRsp);
 }
 
@@ -360,9 +389,10 @@ static EExtSqlBoundForm extSqlBoundForm(const SStreamExtReaderInfo *pInfo) {
 
 /* Longest timestamp literal a remote bound can render:
  * 'YYYY-MM-DD HH:MM:SS.uuuuuu+00:00' (34 bytes incl. quotes) + NUL, or
- * FROM_UNIXTIME(<13-digit seconds>.<6-digit fraction>) (36 bytes) + NUL. */
-/* The ANSI prefix Oracle needs ("TIMESTAMP ") adds 10 bytes on top of the
- * 40-byte literal, so the buffers below are sized for the prefixed form. */
+ * FROM_UNIXTIME(<13-digit seconds>.<6-digit fraction>) (36 bytes) + NUL.
+ * Oracle additionally takes the ANSI prefix ("TIMESTAMP ", 10 bytes) and up to
+ * nine fraction digits: 10 + 1 + 19 + 1 + 9 + 1 = 41 bytes + NUL.  Every buffer
+ * below is sized for that prefixed form. */
 #define EXT_SQL_TS_LITERAL_LEN 56
 
 /* Oracle needs the ANSI timestamp literal prefix (DS 5.3.6 R4): an offset-less
@@ -375,21 +405,44 @@ static const char *extSqlBoundPrefix(const SStreamExtReaderInfo *pInfo) {
 }
 
 static int32_t epochToDatetimeStr(int64_t epoch, int32_t precision, const char *tzName,
-                                  EExtSqlBoundForm form, const char *prefix, char *buf, int32_t bufLen) {
+                                  EExtSqlBoundForm form, const char *prefix,
+                                  bool subMicroDigits, char *buf, int32_t bufLen) {
   if (prefix == NULL) {
     prefix = "";
   }
   const char *suffix = (form == EXT_SQL_BOUND_UTC_SUFFIX) ? "+00:00'" : "'";
-  /* Clamp INT64_MIN / negative to epoch origin. */
-  bool clamped = (epoch == INT64_MIN || epoch < 0);
-  if (clamped) {
+  /* INT64_MIN is the "no bound" sentinel callers pass, so it still renders the
+   * epoch origin.  A real pre-1970 instant must keep its own wall clock: clamping
+   * every negative bound to 1970 would make the remote start each range at
+   * 1970-01-01 and drop the history rows before it, which the static prefilter
+   * already handles (renderExtPrefilterTimestamp in parTranslater.c). */
+  bool unbounded = (epoch == INT64_MIN);
+  if (unbounded) {
+    epoch = 0;
+  }
+  /* FROM_UNIXTIME() has no negative argument and a MySQL TIMESTAMP column cannot
+   * hold a pre-1970 value, so that form keeps the epoch origin. */
+  if (epoch < 0 && form == EXT_SQL_BOUND_UNIX_EPOCH) {
     epoch = 0;
   }
   /* Normalize to microseconds for sub-second formatting. */
   int64_t epoch_us;
+  int32_t sub_ns = 0;
   if (precision == TSDB_TIME_PRECISION_NANO) {
     epoch_us = epoch / 1000LL;
+    /* Digits below the microsecond a six-fraction literal cannot carry.  The
+     * caller only keeps them for a dialect that accepts nine digits.  Floor
+     * semantics keep the fraction non-negative for a pre-1970 instant. */
+    sub_ns = (int32_t)(epoch % 1000LL);
+    if (sub_ns < 0) {
+      sub_ns += 1000;
+      --epoch_us;
+    }
   } else if (precision == TSDB_TIME_PRECISION_MILLI) {
+    if (epoch > INT64_MAX / 1000LL || epoch < INT64_MIN / 1000LL) {
+      stError("ext: millisecond bound epoch:%" PRId64 " overflows microsecond conversion", epoch);
+      return TSDB_CODE_STREAM_INTERNAL_ERROR;
+    }
     epoch_us = epoch * 1000LL;
   } else {
     /* MICRO  -  already in micros */
@@ -401,18 +454,43 @@ static int32_t epochToDatetimeStr(int64_t epoch, int32_t precision, const char *
     return snprintf(buf, bufLen, "FROM_UNIXTIME(%" PRId64 ".%06d)",
                     (int64_t)(epoch_us / 1000000LL), (int32_t)(epoch_us % 1000000LL));
   }
-  if (clamped) {
+  if (unbounded) {
     return snprintf(buf, bufLen, "%s'1970-01-01 00:00:00.000000%s", prefix, suffix);
   }
-  time_t     sec     = (time_t)(epoch_us / 1000000LL);
-  int        us      = (int)(epoch_us % 1000000LL);
+  time_t sec = (time_t)(epoch_us / 1000000LL);
+  int    us  = (int)(epoch_us % 1000000LL);
+  if (us < 0) {
+    /* Floor split: a negative instant belongs to the previous second. */
+    us += 1000000;
+    --sec;
+  }
   struct tm  tm_info = {0};
   /* Render the bound in the same timezone the connector uses to decode the
    * source column; NULL falls back to the server global timezone. */
   timezone_t tz = extResolveSqlTimezone(tzName);
-  taosLocalTime(&sec, &tm_info, NULL, 0, tz);
+  struct tm *pLocal = taosLocalTime(&sec, &tm_info, NULL, 0, tz);
   if (tz != NULL) {
     tzfree(tz);
+  }
+  int32_t year = tm_info.tm_year + 1900;
+  if (pLocal == NULL || year < 1 || year > 9999 || tm_info.tm_mon < 0 || tm_info.tm_mon > 11 ||
+      tm_info.tm_mday < 1 || tm_info.tm_mday > 31) {
+    /* The platform calendar cannot express this instant (Windows stops at
+     * 1900-01-01).  Replacing it with the epoch origin would silently narrow or
+     * widen the remote fetch, so fail the reader request instead. */
+    stError("ext: cannot render tz:%s bound epoch:%" PRId64 " s as a calendar time",
+            tzName != NULL ? tzName : "(default)", (int64_t)sec);
+    return TSDB_CODE_STREAM_INTERNAL_ERROR;
+  }
+  /* A sliding window subtracts one tick from its half-open end and the fetch
+   * keeps an inclusive "<=", so dropping the sub-microsecond digits would
+   * shrink every window end by up to 999 ns and lose its tail rows.  Oracle
+   * TIMESTAMP(7..9) accepts the nine-digit ANSI literal, so keep them there. */
+  if (subMicroDigits && precision == TSDB_TIME_PRECISION_NANO) {
+    return snprintf(buf, bufLen, "%s'%04d-%02d-%02d %02d:%02d:%02d.%06d%03d%s",
+                    prefix,
+                    tm_info.tm_year + 1900, tm_info.tm_mon + 1, tm_info.tm_mday,
+                    tm_info.tm_hour, tm_info.tm_min, tm_info.tm_sec, us, sub_ns, suffix);
   }
   return snprintf(buf, bufLen,
                   "%s'%04d-%02d-%02d %02d:%02d:%02d.%06d%s",
@@ -432,7 +510,9 @@ int32_t streamReaderExtRenderTimeBound(const SStreamExtReaderInfo *pInfo, int64_
     return TSDB_CODE_INVALID_PARA;
   }
   return epochToDatetimeStr(bound, precision, extSqlBoundTimezone(pInfo),
-                            extSqlBoundForm(pInfo), extSqlBoundPrefix(pInfo), buf, bufLen);
+                            extSqlBoundForm(pInfo), extSqlBoundPrefix(pInfo),
+                            (EExtSourceType)pInfo->spec.sourceType == EXT_SOURCE_ORACLE,
+                            buf, bufLen);
 }
 
 /* Last instant a MySQL TIMESTAMP column can hold: 2038-01-19 03:14:07.999999
@@ -646,6 +726,31 @@ static SArray *collectUidsFromWindow(SSHashObj *pUidWindow) {
   return pArr;
 }
 
+static char *findUnescapedTagsetChar(char *value, char delimiter) {
+  bool escaped = false;
+  for (char *p = value; *p != '\0'; ++p) {
+    if (escaped) {
+      escaped = false;
+    } else if (*p == '\\') {
+      escaped = true;
+    } else if (*p == delimiter) {
+      return p;
+    }
+  }
+  return NULL;
+}
+
+static void unescapeTagsetComponent(char *value) {
+  char *write = value;
+  for (char *read = value; *read != '\0'; ++read) {
+    if (*read == '\\' && read[1] != '\0' && (read[1] == '\\' || read[1] == '|' || read[1] == '=')) {
+      ++read;
+    }
+    *write++ = *read;
+  }
+  *write = '\0';
+}
+
 /* ============================================================
  * SQL builder: MySQL/PG  -  uid list using "uid IN (u1, u2, ...)"
  * Writes SQL into buf[0..bufLen-1].  Returns snprintf-style length.
@@ -670,16 +775,18 @@ static int32_t buildInfluxTagWhereClause(const SStreamExtTriggerSpec *pSpec, con
   char tmp[EXT_TAGSET_KEY_MAX] = {0};
   tstrncpy(tmp, tagsetKey, sizeof(tmp));
 
-  char *saveptr = NULL;
-  char *pair    = strtok_r(tmp, "|", &saveptr);
-  while (pair != NULL) {
-    /* Split "col=val" at the first '='. */
-    char *eq = strchr(pair, '=');
+  char *pair = tmp;
+  while (pair != NULL && *pair != '\0') {
+    char *next = findUnescapedTagsetChar(pair, '|');
+    if (next != NULL) *next = '\0';
+    char *eq = findUnescapedTagsetChar(pair, '=');
     if (eq == NULL) {
-      pair = strtok_r(NULL, "|", &saveptr);
+      pair = next != NULL ? next + 1 : NULL;
       continue;
     }
     *eq = '\0';
+    unescapeTagsetComponent(pair);
+    unescapeTagsetComponent(eq + 1);
     const char *col = pair;
     const char *val = eq + 1;
 
@@ -710,7 +817,7 @@ static int32_t buildInfluxTagWhereClause(const SStreamExtTriggerSpec *pSpec, con
     if (n < 0 || off + n >= bufLen) return -1;
     off  += n;
     first = false;
-    pair  = strtok_r(NULL, "|", &saveptr);
+    pair = next != NULL ? next + 1 : NULL;
   }
 
   return off;
@@ -870,6 +977,41 @@ static int32_t extQueryExecFetchAll(SExtConnectorHandle  *pConn,
 static bool extIsValidTimePrecision(int8_t precision) {
   return precision == TSDB_TIME_PRECISION_MILLI || precision == TSDB_TIME_PRECISION_MICRO ||
          precision == TSDB_TIME_PRECISION_NANO;
+}
+
+/* Source transport precision of the reader's timestamp column (DS 5.3.7).
+ *
+ * The trigger column mappings carry it, but the synthetic LAST_TS / MIN / MAX
+ * mappings built inside streamReaderExt.c do not, so it is resolved here and
+ * copied onto them.  The Oracle connector decodes a timestamp column at
+ * tsPrecision and treats every value that is not NANO as microseconds, so a
+ * missing precision truncates a TIMESTAMP(7..9) column by its last three digits
+ * and the tail row can never enter a later pull range.
+ *
+ * SExtColTypeMapping documents tsPrecision 0 as "not set", and 0 collides with
+ * TSDB_TIME_PRECISION_MILLI, so a zero must not be read as a millisecond
+ * column.  When the mapping carries nothing, the spec precision is used: mnode
+ * derives it from the trigger table's schema, which is exactly the transport
+ * precision of that table.  Everything else falls back to MICRO, the
+ * connector's own default. */
+static int8_t extSpecTsSourcePrecision(const SStreamExtTriggerSpec *pSpec, const char *tsCol) {
+  if (pSpec != NULL) {
+    if (pSpec->pColMappings != NULL && tsCol != NULL) {
+      for (int32_t i = 0; i < pSpec->numColMappings; ++i) {
+        if (strcmp(pSpec->pColMappings[i].colName, tsCol) == 0) {
+          int8_t prec = pSpec->pColMappings[i].tsPrecision;
+          if (prec != 0 && extIsValidTimePrecision(prec)) {
+            return prec;
+          }
+          break;
+        }
+      }
+    }
+    if (extIsValidTimePrecision(pSpec->precision)) {
+      return pSpec->precision;
+    }
+  }
+  return TSDB_TIME_PRECISION_MICRO;
 }
 
 /* Keep unbounded sentinels intact and clamp both signs before scaling to nanoseconds. */
@@ -1124,6 +1266,15 @@ static int32_t extInitReaderHashes(SStreamExtReaderInfo *pInfo) {
     return terrno;
   }
 
+  if (pInfo->influxV1) {
+    pInfo->pInflux18MetaEkey =
+        tSimpleHashInit(64, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT));
+    if (pInfo->pInflux18MetaEkey == NULL) {
+      ST_TASK_ELOG("%s", "ext: tSimpleHashInit(pInflux18MetaEkey) failed");
+      return terrno;
+    }
+  }
+
   return TSDB_CODE_SUCCESS;
 }
 
@@ -1133,6 +1284,7 @@ static int32_t extCopyReaderSpec(SStreamExtReaderInfo *pInfo, const SStreamExtTr
   pInfo->spec = *pExtSpec;
   pInfo->spec.prefilter = NULL;
   pInfo->spec.triggerPrefilter = NULL;
+  pInfo->spec.triggerPrefilterAst = NULL;
   pInfo->spec.tagCondJson = NULL;
   pInfo->spec.triggerColumns = NULL;
   pInfo->spec.partitionTagCols = NULL;
@@ -1147,6 +1299,10 @@ static int32_t extCopyReaderSpec(SStreamExtReaderInfo *pInfo, const SStreamExtTr
   if (code != TSDB_CODE_SUCCESS) return code;
 
   code = extCopyOptionalString(pExtSpec->triggerPrefilter, &pInfo->spec.triggerPrefilter, "triggerPrefilter");
+  if (code != TSDB_CODE_SUCCESS) return code;
+
+  code = extCopyOptionalString(pExtSpec->triggerPrefilterAst, &pInfo->spec.triggerPrefilterAst,
+                               "triggerPrefilterAst");
   if (code != TSDB_CODE_SUCCESS) return code;
 
   code = extCopyOptionalString(pExtSpec->tagCondJson, &pInfo->spec.tagCondJson, "tagCondJson");
@@ -1282,13 +1438,15 @@ int32_t streamReaderExtOpen(void *pSpec, const SStreamTask *pTask, SNode *pCalcT
     pInfo->tsTzClass = streamReaderExtSpecTsTzClass(pExtSpec);
   }
   if (pInfo->tsTzClass == EXT_TIMESTAMP_TZ_CLASS_UNKNOWN &&
-      (EExtSourceType)pExtSpec->sourceType == EXT_SOURCE_SQLSERVER) {
-    /* An unclassified SQL Server timestamp would render datetimeoffset bounds
-     * as a client wall clock, which SQL Server reads as UTC; keep the shift
+      ((EExtSourceType)pExtSpec->sourceType == EXT_SOURCE_SQLSERVER ||
+       (EExtSourceType)pExtSpec->sourceType == EXT_SOURCE_ORACLE)) {
+    /* An unclassified timestamp would render timezone-aware bounds as a client
+     * wall clock, which SQL Server (datetimeoffset) and Oracle (TIMESTAMP WITH
+     * TIME ZONE, whose session is pinned to UTC) read as UTC; keep the shift
      * diagnosable instead of silently dropping rows. */
-    stWarn("ext: cannot classify the SQL Server timestamp column, source:%s column:%s; "
-           "datetimeoffset bounds will be rendered in the stream timezone",
-           pExtSpec->sourceName, pExtSpec->tsColumn);
+    stWarn("ext: cannot classify the timestamp column, source:%s type:%d column:%s; "
+           "timezone-aware bounds will be rendered in the stream timezone",
+           pExtSpec->sourceName, (int)pExtSpec->sourceType, pExtSpec->tsColumn);
   }
   stDebug("ext: reader timezone=%s tsTzClass=%d",
           pInfo->timezone[0] != '\0' ? pInfo->timezone : "(server global)",
@@ -1299,6 +1457,40 @@ int32_t streamReaderExtOpen(void *pSpec, const SStreamTask *pTask, SNode *pCalcT
 
   code = extCopyReaderSpec(pInfo, pExtSpec);
   if (code != TSDB_CODE_SUCCESS) goto _err;
+
+  /* The 1.8 provider has no SQL endpoint and a different series model; resolve
+   * the dialect now so every pull takes the right path. */
+  if ((EExtSourceType)pExtSpec->sourceType == EXT_SOURCE_INFLUXDB) {
+    EExtSQLDialect dialect = EXT_SQL_DIALECT_INFLUXQL;
+    int32_t        dcode = extConnectorValidateInfluxOptions(pExtSpec->options, NULL, &dialect);
+    pInfo->influxV1 = (dcode == TSDB_CODE_SUCCESS && dialect == EXT_SQL_DIALECT_INFLUXDB_1_8);
+    stDebug("ext: reader influx dialect resolved code:%d v1:%d", dcode, (int)pInfo->influxV1);
+    bool triggerReader =
+        pTask != NULL && ((const SStreamReaderTask *)pTask)->triggerReader != 0;
+    if (pInfo->influxV1 && triggerReader && pInfo->spec.tagCondJson != NULL &&
+        pInfo->spec.tagCondJson[0] != '\0') {
+      code = nodesStringToNode(pInfo->spec.tagCondJson, &pInfo->pInfluxSeriesFilter);
+      if (code != TSDB_CODE_SUCCESS) {
+        stError("ext: parse SERIES condition failed code:%d", code);
+        goto _err;
+      }
+    }
+    if (pInfo->influxV1 && triggerReader && pInfo->spec.triggerPrefilterAst != NULL &&
+        pInfo->spec.triggerPrefilterAst[0] != '\0') {
+      code = nodesStringToNode(pInfo->spec.triggerPrefilterAst, &pInfo->pTriggerPrefilter);
+      if (code != TSDB_CODE_SUCCESS) {
+        stError("ext: parse PRE_FILTER AST failed code:%d", code);
+        goto _err;
+      }
+    }
+    if (pInfo->influxV1 && triggerReader && pInfo->spec.triggerPrefilter != NULL &&
+        pInfo->spec.triggerPrefilter[0] != '\0' && pInfo->pTriggerPrefilter == NULL) {
+      stError("ext: influx18 PRE_FILTER has no serialized AST, source:%s",
+              pInfo->spec.sourceName);
+      code = TSDB_CODE_EXT_SYNTAX_UNSUPPORTED;
+      goto _err;
+    }
+  }
 
   /* triggerReader is set by stReaderTaskDeploy before the reader is opened. */
   pInfo->borrowConn = (pTask != NULL && ((const SStreamReaderTask *)pTask)->triggerReader == 0);
@@ -1352,6 +1544,27 @@ void streamReaderExtClose(SStreamExtReaderInfo *pInfo) {
     taosArrayDestroy(pInfo->pInfluxTagCols);
     pInfo->pInfluxTagCols = NULL;
   }
+
+  /* Release the InfluxDB 1.8 schema cache and table descriptor. */
+  if (pInfo->pTriggerPrefilter) {
+    nodesDestroyNode(pInfo->pTriggerPrefilter);
+    pInfo->pTriggerPrefilter = NULL;
+  }
+  if (pInfo->pInfluxSeriesFilter) {
+    nodesDestroyNode(pInfo->pInfluxSeriesFilter);
+    pInfo->pInfluxSeriesFilter = NULL;
+  }
+  if (pInfo->pInflux18MetaEkey) {
+    tSimpleHashCleanup(pInfo->pInflux18MetaEkey);
+    pInfo->pInflux18MetaEkey = NULL;
+  }
+  extInflux18DropMetaSnapshot(pInfo);
+  if (pInfo->pInflux18Meta) {
+    extConnectorFreeTableSchema(pInfo->pInflux18Meta);
+    pInfo->pInflux18Meta = NULL;
+  }
+  taosMemoryFree(pInfo->pInflux18Table);
+  pInfo->pInflux18Table = NULL;
 
   /* Free the calc scan time range node kept for fetch-bound evaluation. */
   if (pInfo->pCalcTimeRange) {
@@ -1432,6 +1645,9 @@ void stExtReaderClose(void *pInfo) {
  *     SELECT DISTINCT <tag cols> to enumerate live tag-value combinations.
  *     Each unique combination is one sub-table:
  *       uid = MurmurHash3_64(full tagset "col=val|...") | 1
+ *     For InfluxDB 1.8 the empty tagset (a series without any of the known tag
+ *     keys) keeps the measurement-level uid instead, so adding the first tag key
+ *     to a measurement cannot change the identity of its untagged series.
  *     groupId is derived from the PARTITION BY spec, so multiple uids may
  *     share one groupId (pGroupIndex[groupId] -> SArray<uid>):
  *       - no PARTITION BY         -> groupId = MurmurHash3_64(measurement) | 1
@@ -1445,20 +1661,100 @@ void stExtReaderClose(void *pInfo) {
  * maxTs is initialised to INT64_MIN (no watermark yet).
  * ============================================================ */
 
+static int32_t appendEscapedTagsetComponent(char *buf, int32_t bufLen, int32_t *pOff, const char *value) {
+  int32_t off = *pOff;
+  for (const char *p = value != NULL ? value : ""; *p != '\0'; ++p) {
+    if (*p == '\\' || *p == '|' || *p == '=') {
+      if (off >= bufLen - 1) return TSDB_CODE_OUT_OF_RANGE;
+      buf[off++] = '\\';
+    }
+    if (off >= bufLen - 1) return TSDB_CODE_OUT_OF_RANGE;
+    buf[off++] = *p;
+  }
+  buf[off] = '\0';
+  *pOff = off;
+  return TSDB_CODE_SUCCESS;
+}
+
 /* Build a stable tagset key string from ordered tag column names and their
- * values.  Format: "col1=val1|col2=val2|..."
+ * values.  Format: "col1=val1|col2=val2|...", with backslash escaping for
+ * backslash, '|' and '=' inside names and values.
  * Returns the number of bytes written (not including NUL), or -1 on truncation. */
 static int32_t buildTagsetKey(char *buf, int32_t bufLen,
                               const char **colNames, const char **colVals,
                               int32_t nCols) {
   int32_t off = 0;
   for (int32_t i = 0; i < nCols; i++) {
-    int32_t n = snprintf(buf + off, bufLen - off, "%s=%s%s",
-                         colNames[i], colVals[i] ? colVals[i] : "",
+    if (appendEscapedTagsetComponent(buf, bufLen, &off, colNames[i]) != TSDB_CODE_SUCCESS) {
+      return -1;
+    }
+    if (off >= bufLen - 1) return -1;
+    buf[off++] = '=';
+    if (appendEscapedTagsetComponent(buf, bufLen, &off, colVals[i] ? colVals[i] : "") !=
+        TSDB_CODE_SUCCESS) {
+      return -1;
+    }
+    if (i + 1 < nCols) {
+      if (off >= bufLen - 1) return -1;
+      buf[off++] = '|';
+      buf[off] = '\0';
+    }
+  }
+  return off;
+}
+
+/* Tagset key in the encoding used before escaping was introduced (name=value|name=value...,
+ * nothing escaped).  The escaped key above is what the reader parses and looks tagsets up with,
+ * but the persisted UID of an InfluxDB 3.x sub-table is MurmurHash3_64 over THIS byte
+ * sequence.  Checkpoint watermarks (pUidMaxTs) and the PARTITION BY tbname group ids are
+ * keyed by that uid, so a tag value containing '=', '|' or '\' has to keep producing its
+ * historical identity across an upgrade.  Returns the number of bytes written, or -1 on
+ * truncation. */
+static int32_t buildRawTagsetKey(char *buf, int32_t bufLen, const char **colNames, const char **colVals,
+                                 int32_t nCols) {
+  int32_t off = 0;
+  for (int32_t i = 0; i < nCols; i++) {
+    int32_t n = snprintf(buf + off, bufLen - off, "%s=%s%s", colNames[i], colVals[i] ? colVals[i] : "",
                          (i + 1 < nCols) ? "|" : "");
     if (n < 0 || off + n >= bufLen) return -1;
     off += n;
   }
+  return off;
+}
+
+/* InfluxDB 1.8 omits absent tags from series identity, and it rejects empty tag
+ * values on write, so an empty tag value in a snapshot means "this series does
+ * not carry the tag".  Skipping both keeps the UID of a series stable when
+ * another series introduces a new tag key: without it, the tagset key of the
+ * empty tagset would grow a "tag=" component per added tag key. */
+static int32_t buildInflux18TagsetKey(char *buf, int32_t bufLen, SSDataBlock *pBlock, int32_t row,
+                                      const char **colNames, const char **colVals, int32_t nCols) {
+  int32_t off = 0;
+  bool    hasComponent = false;
+  for (int32_t i = 0; i < nCols; ++i) {
+    SColumnInfoData *pCol = pBlock != NULL ? taosArrayGet(pBlock->pDataBlock, i) : NULL;
+    if (pCol != NULL && colDataIsNull_s(pCol, row)) {
+      continue;
+    }
+    if (colVals[i] == NULL || colVals[i][0] == '\0') {
+      continue;
+    }
+    if (hasComponent) {
+      if (off >= bufLen - 1) return -1;
+      buf[off++] = '|';
+    }
+    if (appendEscapedTagsetComponent(buf, bufLen, &off, colNames[i]) != TSDB_CODE_SUCCESS) {
+      return -1;
+    }
+    if (off >= bufLen - 1) return -1;
+    buf[off++] = '=';
+    if (appendEscapedTagsetComponent(buf, bufLen, &off, colVals[i] ? colVals[i] : "") !=
+        TSDB_CODE_SUCCESS) {
+      return -1;
+    }
+    hasComponent = true;
+  }
+  buf[off] = '\0';
   return off;
 }
 
@@ -1747,7 +2043,10 @@ static int32_t extColCellToStr(SColumnInfoData *pCol, int32_t row, char *outBuf,
               row, pCol->info.type, rawLen, outBufLen);
       return TSDB_CODE_STREAM_EXT_TAG_INVALID;
     }
-    int32_t len = taosUcs4ToMbs((TdUcs4 *)pVal, rawLen, outBuf, NULL);
+    // These strings are used in external-source SQL and UTF-8 tagset keys.
+    void *utf8 = taosConvInit("UTF-8");
+    if (utf8 == NULL) return TSDB_CODE_CHARSET_CONVERT_ERROR;
+    int32_t len = taosUcs4ToMbs((TdUcs4 *)pVal, rawLen, outBuf, utf8);
     if (len < 0 || len >= outBufLen) {
       outBuf[0] = '\0';
       stError("ext: convert NCHAR cell from UCS-4 failed row:%d type:%d rawLen:%d bufLen:%d resultLen:%d", row,
@@ -1898,7 +2197,14 @@ static int32_t extExtractInfluxTagRowValues(SInfluxDistinctCtx *pDCtx, SSDataBlo
 
     colNames[c] = (const char *)taosArrayGet(pDCtx->pTagCols, c);
     if (pCol != NULL && !colDataIsNull_s(pCol, row)) {
-      int32_t code = extColCellToStr(pCol, row, pValBuf, EXT_INFLUX_TAG_NCHAR_CHARS - TSDB_NCHAR_SIZE);
+      /* A tag value longer than EXT_INFLUX_TAG_NCHAR_CHARS - TSDB_NCHAR_SIZE
+       * narrow characters (256) does not fit the tag column the trigger
+       * partitions on, so it has to be reported as TSDB_CODE_STREAM_EXT_TAG_INVALID
+       * instead of being accepted.  Only the InfluxDB 1.8 tagset-key path
+       * (extInflux18RowTagsetKey) passes the full cell width: there the value is
+       * a prefix of the series key and an oversized one must not fail the pull. */
+      int32_t code = extColCellToStr(pCol, row, pValBuf,
+                                     EXT_INFLUX_TAG_NCHAR_CHARS - TSDB_NCHAR_SIZE);
       if (code < 0) {
         ST_TASK_ELOG("ext: distinct tag value conversion failed row:%d tag:%d code:%d", row, c, code);
         return code;
@@ -1985,7 +2291,28 @@ static int32_t extBuildInfluxGroupId(const SInfluxDistinctCtx *pDCtx, uint64_t u
   return TSDB_CODE_SUCCESS;
 }
 
-/* Register each distinct tag combination as a uid entry. */
+/* InfluxDB 1.8 keeps one uid for the empty tagset.  A measurement that has no
+ * tag keys yet registers its only series under this measurement-level uid, and
+ * the same uid must survive once another series introduces a tag key: the
+ * schema reset rebuilds the UID index from scratch, so re-deriving the empty
+ * tagset from the current tag columns would otherwise change that series'
+ * identity and drop the trigger-side watermark persisted under the old uid. */
+static uint64_t extInflux18MeasurementUid(const SStreamExtReaderInfo *pInfo) {
+  char    key[TSDB_TABLE_NAME_LEN * 2] = {0};
+  int32_t keyLen =
+      snprintf(key, sizeof(key), "%s.%s", extTableQualifier(&pInfo->spec), pInfo->spec.extTable);
+  return MurmurHash3_64(key, keyLen) | 1ULL;
+}
+
+/* uid of an InfluxDB 1.8 tagset key.  The empty key is the empty tagset, which
+ * keeps the measurement-level uid (see extInflux18MeasurementUid). */
+static uint64_t extInflux18UidForKey(const SStreamExtReaderInfo *pInfo, const char *key, int32_t keyLen) {
+  if (key == NULL || keyLen <= 0) return extInflux18MeasurementUid(pInfo);
+  return MurmurHash3_64(key, keyLen) | 1ULL;
+}
+
+/* Register each distinct tag combination as a uid entry.  pBlock remains
+ * owned by the caller so snapshot data can also feed the UID/Ts map. */
 static int32_t influxDistinctBlockCb(SSDataBlock *pBlock, void *pCtx) {
   SInfluxDistinctCtx    *pDCtx = (SInfluxDistinctCtx *)pCtx;
   SStreamExtReaderInfo  *pInfo = pDCtx->pInfo;
@@ -1997,20 +2324,17 @@ static int32_t influxDistinctBlockCb(SSDataBlock *pBlock, void *pCtx) {
 
   if (nTags > TSDB_MAX_TAGS) {
     ST_TASK_ELOG("ext: distinct tag count exceeds limit count:%d limit:%d", nTags, TSDB_MAX_TAGS);
-    blockDataDestroy(pBlock);
     return TSDB_CODE_OUT_OF_RANGE;
   }
 
   code = extEvaluatePartitionExprBlock(pDCtx, pBlock, &ppExprResults);
   if (code != TSDB_CODE_SUCCESS) {
-    blockDataDestroy(pBlock);
     return code;
   }
 
   code = extAllocInfluxTagValueBufs(nTags, &pValBufs);
   if (code != TSDB_CODE_SUCCESS) {
     extDestroyPartitionResultCols(ppExprResults, pDCtx->nPart);
-    blockDataDestroy(pBlock);
     return code;
   }
 
@@ -2026,13 +2350,30 @@ static int32_t influxDistinctBlockCb(SSDataBlock *pBlock, void *pCtx) {
       break;
     }
 
-    int32_t keyLen = buildTagsetKey(tagsetKey, sizeof(tagsetKey), colNames, colVals, nTags);
+    int32_t keyLen = pInfo->influxV1
+                       ? buildInflux18TagsetKey(tagsetKey, sizeof(tagsetKey), pBlock, r, colNames,
+                                                colVals, nTags)
+                       : buildTagsetKey(tagsetKey, sizeof(tagsetKey), colNames, colVals, nTags);
     if (keyLen < 0) {
       ST_TASK_WLOG("%s", "ext: initInfluxTagPartition tagset key truncated, skipping row");
       continue;
     }
 
-    uint64_t uid = MurmurHash3_64(tagsetKey, keyLen) | 1ULL;
+    uint64_t uid = 0;
+    if (pInfo->influxV1) {
+      uid = extInflux18UidForKey(pInfo, tagsetKey, keyLen);
+    } else {
+      /* The 3.x identity is the hash of the unescaped tagset, not of the escaped lookup key:
+       * escaping was added for unambiguous parsing and must not move an existing sub-table to a
+       * new uid (and a new PARTITION BY tbname group). */
+      char    rawTagsetKey[EXT_TAGSET_KEY_RAW_MAX] = {0};
+      int32_t rawKeyLen = buildRawTagsetKey(rawTagsetKey, sizeof(rawTagsetKey), colNames, colVals, nTags);
+      if (rawKeyLen < 0) {
+        ST_TASK_WLOG("%s", "ext: initInfluxTagPartition raw tagset key truncated, skipping row");
+        continue;
+      }
+      uid = MurmurHash3_64(rawTagsetKey, rawKeyLen) | 1ULL;
+    }
     if (tSimpleHashGet(pInfo->pUidIndex, &uid, sizeof(uid)) != NULL) continue;
 
     code = extBuildInfluxPartitionValues(pDCtx, ppExprResults, r, colNames, colVals, &pPartitionValues);
@@ -2055,6 +2396,14 @@ static int32_t influxDistinctBlockCb(SSDataBlock *pBlock, void *pCtx) {
 
   taosMemoryFree(pValBufs);
   extDestroyPartitionResultCols(ppExprResults, pDCtx->nPart);
+  return code;
+}
+
+/* influxDistinctBlockCb leaves pBlock owned by the caller (snapshot callers
+ * reuse it afterwards), but extQueryExecForEach requires its callback to
+ * destroy every block.  Wrap it for the for-each path only. */
+static int32_t influxDistinctBlockCbForEach(SSDataBlock *pBlock, void *pCtx) {
+  int32_t code = influxDistinctBlockCb(pBlock, pCtx);
   blockDataDestroy(pBlock);
   return code;
 }
@@ -2286,7 +2635,8 @@ static int32_t extEnumerateInfluxDistinctGroups(SStreamExtReaderInfo *pInfo, SAr
     .partExprNodes = pPlan->partExprNodes,
   };
 
-  code = extQueryExecForEach(pInfo->pConn, pInfo->timezone, distSQL, pMappings, nTags, influxDistinctBlockCb, &dCtx);
+  code = extQueryExecForEach(pInfo->pConn, pInfo->timezone, distSQL, pMappings, nTags, influxDistinctBlockCbForEach,
+                             &dCtx);
   if (code != TSDB_CODE_SUCCESS) {
     ST_TASK_ELOG("ext: initInfluxTagPartition distinct query failed code:%d", code);
     return code;
@@ -2298,10 +2648,7 @@ static int32_t extEnumerateInfluxDistinctGroups(SStreamExtReaderInfo *pInfo, SAr
 
 static int32_t extInsertInfluxSingleGroup(SStreamExtReaderInfo *pInfo) {
   const SStreamTask *pTask = pInfo->pTask;
-  char    key[TSDB_TABLE_NAME_LEN * 2] = {0};
-  int32_t keyLen = snprintf(key, sizeof(key), "%s.%s",
-                            extTableQualifier(&pInfo->spec), pInfo->spec.extTable);
-  uint64_t uid = MurmurHash3_64(key, keyLen) | 1ULL;
+  uint64_t uid = extInflux18MeasurementUid(pInfo);
   SArray  *pPartitionValues = NULL;
   int32_t  nPart = pInfo->spec.partitionTagCols
                        ? (int32_t)taosArrayGetSize(pInfo->spec.partitionTagCols)
@@ -2325,6 +2672,947 @@ static int32_t extInsertInfluxSingleGroup(SStreamExtReaderInfo *pInfo) {
   ST_TASK_DLOG("ext: initInfluxTagPartition no tag combos - single group uid=%" PRIu64 " partitionSlots=%d",
                uid, nPart);
   return extTableListInsertEntry(pInfo, uid, uid, "", 0, pPartitionValues);
+}
+
+/* ============================================================
+ * InfluxDB 1.8 support
+ *
+ * 1.8 exposes InfluxQL only and the connector rejects unprepared SQL, so the
+ * reader cannot reuse the 3.x SQL templates.  Instead:
+ *   - the tag column list comes from the connector schema (SHOW TAG KEYS),
+ *   - series enumeration and per-series watermarks come from one raw snapshot
+ *     (`SELECT * FROM "db"."rp"."m" GROUP BY * ORDER BY time DESC LIMIT 1`),
+ *   - data fetches use the provider's prepared raw scan with a complete tag
+ *     binding and an inclusive time range.
+ * A PRE_FILTER is rendered to InfluxQL by the provider for trigger-side
+ * reads.  Series enumeration uses only SERIES identity, and calc readers keep
+ * their own source semantics so a trigger predicate never filters calc input.
+ * ============================================================ */
+
+/* Build the minimal SExtTableNode the connector APIs expect. */
+static int32_t extInflux18EnsureTable(SStreamExtReaderInfo *pInfo) {
+  if (pInfo->pInflux18Table != NULL) {
+    return TSDB_CODE_SUCCESS;
+  }
+  SExtTableNode *pTable = taosMemoryCalloc(1, sizeof(*pTable));
+  if (pTable == NULL) {
+    return terrno;
+  }
+  pTable->table.node.type = QUERY_NODE_EXTERNAL_TABLE;
+  pTable->sourceType = pInfo->spec.sourceType;
+  tstrncpy(pTable->sourceName, pInfo->spec.sourceName, sizeof(pTable->sourceName));
+  tstrncpy(pTable->table.dbName, pInfo->spec.extDb, sizeof(pTable->table.dbName));
+  tstrncpy(pTable->table.tableName, pInfo->spec.extTable, sizeof(pTable->table.tableName));
+  tstrncpy(pTable->remoteTableName, pInfo->spec.extTable, sizeof(pTable->remoteTableName));
+  tstrncpy(pTable->srcDatabase, pInfo->spec.extDb, sizeof(pTable->srcDatabase));
+  tstrncpy(pTable->srcSchema, pInfo->spec.extSchema, sizeof(pTable->srcSchema));
+  tstrncpy(pTable->srcOptions, pInfo->spec.options, sizeof(pTable->srcOptions));
+  tstrncpy(pTable->schemaName, pInfo->spec.extSchema, sizeof(pTable->schemaName));
+  pTable->metaVersion = (int64_t)pInfo->spec.connCfgVersion;
+  pInfo->pInflux18Table = pTable;
+  return TSDB_CODE_SUCCESS;
+}
+
+/* Drop the cached remote schema.  The next 1.8 operation refetches it, which is
+ * what a reported schema change requires. */
+static void extInflux18ResetSchema(SStreamExtReaderInfo *pInfo) {
+  if (pInfo->pInflux18Meta != NULL) {
+    extConnectorFreeTableSchema(pInfo->pInflux18Meta);
+    pInfo->pInflux18Meta = NULL;
+  }
+}
+
+/* Rebuild every derived series-index structure after a remote tag schema
+ * change.  Reusing the old tagset keys would either bind new tags to '' or
+ * keep removed tags in every scan. */
+static int32_t extInflux18ResetSeriesState(SStreamExtReaderInfo *pInfo) {
+  const SStreamTask *pTask = pInfo->pTask;
+  if (pInfo->pUidIndex != NULL) {
+    tSimpleHashCleanup(pInfo->pUidIndex);
+    pInfo->pUidIndex = NULL;
+  }
+  if (pInfo->pGroupIndex != NULL) {
+    tSimpleHashCleanup(pInfo->pGroupIndex);
+    pInfo->pGroupIndex = NULL;
+  }
+  if (pInfo->pTagsetIndex != NULL) {
+    tSimpleHashCleanup(pInfo->pTagsetIndex);
+    pInfo->pTagsetIndex = NULL;
+  }
+  if (pInfo->pInflux18MetaEkey != NULL) {
+    tSimpleHashCleanup(pInfo->pInflux18MetaEkey);
+    pInfo->pInflux18MetaEkey = NULL;
+  }
+  /* The series set changed under the cached enumeration: drop it (together with
+   * the cursor and the derived uid maps) so the next META pull re-reads the
+   * remote rather than replaying a stale snapshot. */
+  extInflux18AbortMetaEnumeration(pInfo);
+  if (pInfo->pInfluxTagCols != NULL) {
+    taosArrayDestroy(pInfo->pInfluxTagCols);
+    pInfo->pInfluxTagCols = NULL;
+  }
+  extInflux18ResetSchema(pInfo);
+  pInfo->influxEmptyEnumTsMs = 0;
+  pInfo->influxBatchOffset = 0;
+
+  int32_t code = extInitReaderHashes(pInfo);
+  if (code != TSDB_CODE_SUCCESS) {
+    ST_TASK_ELOG("ext: influx18 reset series state failed code:%d", code);
+    return code;
+  }
+  ST_TASK_DLOG("%s", "ext: influx18 series state reset after schema change");
+  return TSDB_CODE_SUCCESS;
+}
+
+/* Fetch the remote schema once and keep it: the prepared raw scan validates
+ * every mapping against it, and 1.8 has no catalog cache on the stream side. */
+static int32_t extInflux18EnsureSchema(SStreamExtReaderInfo *pInfo, SExtConnectorHandle *pConn) {
+  const SStreamTask *pTask = pInfo->pTask;
+  int32_t            code = extInflux18EnsureTable(pInfo);
+  if (code != TSDB_CODE_SUCCESS) {
+    ST_TASK_ELOG("ext: influx18 build table descriptor failed code:%d", code);
+    return code;
+  }
+  if (pInfo->pInflux18Meta != NULL) {
+    return TSDB_CODE_SUCCESS;
+  }
+  SExtTableMeta *pMeta = NULL;
+  code = extConnectorGetTableSchema(pConn, pInfo->pInflux18Table, &pMeta);
+  if (code != TSDB_CODE_SUCCESS) {
+    ST_TASK_ELOG("ext: influx18 getTableSchema failed code:%d source:%s table:%s",
+                 code, pInfo->spec.sourceName, pInfo->spec.extTable);
+    return code;
+  }
+  pInfo->pInflux18Meta = pMeta;
+  ST_TASK_DLOG("ext: influx18 cached schema cols:%d rp:%s", pMeta->numOfCols, pMeta->retentionPolicy);
+  return TSDB_CODE_SUCCESS;
+}
+
+/* Tag column names in schema order.  The element type matches the 3.x tag
+ * array so every downstream helper (tagset keys, PARTITION BY, SQL quoting)
+ * works unchanged.  Returns NULL when the measurement has no tag keys. */
+static int32_t extInflux18BuildTagCols(SStreamExtReaderInfo *pInfo, SArray **ppTagCols) {
+  const SStreamTask *pTask = pInfo->pTask;
+  *ppTagCols = NULL;
+
+  const SExtTableMeta *pMeta = pInfo->pInflux18Meta;
+  if (pMeta == NULL) {
+    return TSDB_CODE_INVALID_PARA;
+  }
+
+  SArray *pTagCols = taosArrayInit(8, EXT_INFLUX_KEY_NCHAR_CHARS);
+  if (pTagCols == NULL) {
+    return terrno;
+  }
+  for (int32_t i = 0; i < pMeta->numOfCols; ++i) {
+    const SExtColumnDef *pCol = &pMeta->pCols[i];
+    if (!pCol->isTag || pCol->isPrimaryKey) {
+      continue;
+    }
+    char *nameBuf = (char *)taosArrayReserve(pTagCols, 1);
+    if (nameBuf == NULL) {
+      int32_t code = terrno;
+      taosArrayDestroy(pTagCols);
+      return code;
+    }
+    tstrncpy(nameBuf, pCol->colName, EXT_INFLUX_KEY_NCHAR_CHARS);
+  }
+
+  if (taosArrayGetSize(pTagCols) == 0) {
+    taosArrayDestroy(pTagCols);
+    return TSDB_CODE_SUCCESS;
+  }
+  ST_TASK_DLOG("ext: influx18 discovered %d tag columns", (int32_t)taosArrayGetSize(pTagCols));
+  *ppTagCols = pTagCols;
+  return TSDB_CODE_SUCCESS;
+}
+
+/* Series snapshot timestamps are nanoseconds (the provider requests epoch=ns);
+ * the reader tracks watermarks in the trigger table precision. */
+static int64_t extInflux18TsToSpec(int64_t ts, int8_t precision) {
+  if (ts == INT64_MIN || ts == INT64_MAX || precision == TSDB_TIME_PRECISION_NANO ||
+      !extIsValidTimePrecision(precision)) {
+    return ts;
+  }
+  return convertTimePrecision(ts, TSDB_TIME_PRECISION_NANO, precision);
+}
+
+/* Build "tag=value|tag=value" for one snapshot row (NULL tag => empty value). */
+static int32_t extInflux18RowTagsetKey(SStreamExtReaderInfo *pInfo, SSDataBlock *pBlock, int32_t row,
+                                       char *keyBuf, int32_t keyLen, int32_t *pOutLen) {
+  const SStreamTask *pTask = pInfo->pTask;
+  int32_t            nTags = pInfo->pInfluxTagCols
+                                 ? (int32_t)taosArrayGetSize(pInfo->pInfluxTagCols)
+                                 : 0;
+  *pOutLen = 0;
+  if (nTags == 0) {
+    return TSDB_CODE_SUCCESS;
+  }
+  if (nTags > TSDB_MAX_TAGS) {
+    ST_TASK_ELOG("ext: influx18 tag count exceeds limit count:%d limit:%d", nTags, TSDB_MAX_TAGS);
+    return TSDB_CODE_OUT_OF_RANGE;
+  }
+
+  char       *pValBufs = taosMemoryCalloc(nTags, EXT_INFLUX_TAG_NCHAR_CHARS);
+  const char *colNames[TSDB_MAX_TAGS] = {0};
+  const char *colVals[TSDB_MAX_TAGS] = {0};
+  if (pValBufs == NULL) {
+    return terrno;
+  }
+
+  int32_t code = TSDB_CODE_SUCCESS;
+  for (int32_t c = 0; c < nTags; ++c) {
+    char            *pValBuf = pValBufs + (size_t)c * EXT_INFLUX_TAG_NCHAR_CHARS;
+    SColumnInfoData *pCol = (SColumnInfoData *)taosArrayGet(pBlock->pDataBlock, c);
+    colNames[c] = (const char *)taosArrayGet(pInfo->pInfluxTagCols, c);
+    if (pCol != NULL && !colDataIsNull_s(pCol, row)) {
+      /* pValBuf is one full EXT_INFLUX_TAG_NCHAR_CHARS slot: pass the whole width, otherwise a
+       * tag value that exactly fills the column (the widest value the schema can hold) is
+       * rejected here even though the remote returned it. */
+      int32_t len = extColCellToStr(pCol, row, pValBuf, EXT_INFLUX_TAG_NCHAR_CHARS);
+      if (len < 0) {
+        ST_TASK_ELOG("ext: influx18 tag value conversion failed row:%d tag:%d code:%d", row, c, len);
+        code = len;
+        break;
+      }
+      colVals[c] = pValBuf;
+    } else {
+      pValBuf[0] = '\0';
+      colVals[c] = "";
+    }
+  }
+
+  if (code == TSDB_CODE_SUCCESS) {
+    int32_t keySize =
+        buildInflux18TagsetKey(keyBuf, keyLen, pBlock, row, colNames, colVals, nTags);
+    if (keySize < 0) {
+      /* One series whose tags do not fit the key budget must not fail the whole pull: the
+       * enumeration skips such a series too (see influxDistinctBlockCb). Report it as a
+       * per-series tag error so extInflux18BuildUidTsMap drops that row and keeps every other
+       * series of the measurement readable. */
+      ST_TASK_WLOG("ext: influx18 tagset key exceeds %d bytes, series skipped", keyLen);
+      code = TSDB_CODE_STREAM_EXT_TAG_INVALID;
+    } else {
+      *pOutLen = keySize;
+    }
+  }
+
+  taosMemoryFree(pValBufs);
+  return code;
+}
+
+/* One bounded snapshot describes every series of the measurement: its tag
+ * tuple and either its first or latest point time (ns). */
+static int32_t extInflux18SeriesSnapshotImpl(SStreamExtReaderInfo *pInfo,
+                                             SExtConnectorHandle *pConn, SArray *pTagCols,
+                                             const SNode *pRowFilter, bool first,
+                                             bool useTimeLower, int64_t timeLower,
+                                             SSDataBlock **ppOut) {
+  const SStreamTask *pTask = pInfo->pTask;
+  *ppOut = NULL;
+
+  const char *tagNames[TSDB_MAX_TAGS] = {0};
+  int32_t     nTags = pTagCols != NULL ? (int32_t)taosArrayGetSize(pTagCols) : 0;
+  if (nTags > TSDB_MAX_TAGS) {
+    return TSDB_CODE_OUT_OF_RANGE;
+  }
+  for (int32_t i = 0; i < nTags; ++i) {
+    tagNames[i] = (const char *)taosArrayGet(pTagCols, i);
+  }
+
+  SSDataBlock *pBlock = NULL;
+  int32_t code = extInflux18EnsureSchema(pInfo, pConn);
+  if (code != TSDB_CODE_SUCCESS) {
+    return code;
+  }
+  if (useTimeLower) {
+    code = extConnectorInfluxV1SeriesSnapshotAfter(
+        pConn, pInfo->pInflux18Table, pInfo->pInflux18Meta, tagNames, nTags,
+        pInfo->pInfluxSeriesFilter, pRowFilter, first, pInfo->spec.precision, timeLower, &pBlock);
+  } else {
+    code = extConnectorInfluxV1SeriesSnapshot(
+        pConn, pInfo->pInflux18Table, pInfo->pInflux18Meta, tagNames, nTags,
+        pInfo->pInfluxSeriesFilter, pRowFilter, first, pInfo->spec.precision, &pBlock);
+  }
+  if (code != TSDB_CODE_SUCCESS) {
+    ST_TASK_ELOG("ext: influx18 series snapshot failed code:%d", code);
+    blockDataDestroy(pBlock);
+    return code;
+  }
+  ST_TASK_DLOG("ext: influx18 series snapshot rows:%" PRId64 " tags:%d",
+               pBlock != NULL ? pBlock->info.rows : (int64_t)-1, nTags);
+  *ppOut = pBlock;
+  return TSDB_CODE_SUCCESS;
+}
+
+static int32_t extInflux18SeriesSnapshotAfter(SStreamExtReaderInfo *pInfo,
+                                              SExtConnectorHandle *pConn, SArray *pTagCols,
+                                              const SNode *pRowFilter, bool first,
+                                              int64_t timeLower, SSDataBlock **ppOut) {
+  return extInflux18SeriesSnapshotImpl(pInfo, pConn, pTagCols, pRowFilter, first, true, timeLower,
+                                       ppOut);
+}
+
+static int32_t extInflux18SeriesSnapshot(SStreamExtReaderInfo *pInfo, SExtConnectorHandle *pConn,
+                                         SArray *pTagCols, const SNode *pRowFilter, bool first,
+                                         SSDataBlock **ppOut) {
+  return extInflux18SeriesSnapshotImpl(pInfo, pConn, pTagCols, pRowFilter, first, false,
+                                       INT64_MIN, ppOut);
+}
+
+/* uid of the single synthetic group used by a measurement without tag keys. */
+static uint64_t extInflux18SingleUid(SStreamExtReaderInfo *pInfo) {
+  int32_t iter = 0;
+  void   *pVal = tSimpleHashIterate(pInfo->pUidIndex, NULL, &iter);
+  if (pVal == NULL) {
+    return 0;
+  }
+  size_t keyLen = 0;
+  return *(uint64_t *)tSimpleHashGetKey(pVal, &keyLen);
+}
+
+/* One series of a snapshot in the order the response reported it; META paging walks
+ * this stable list so a resumed trigger response covers the remaining series. */
+typedef struct SExtInflux18UidTs {
+  uint64_t uid;
+  int64_t  ts;
+} SExtInflux18UidTs;
+
+/* Map uid -> point time (spec precision) from a series snapshot.  When
+ * ppOrder is not NULL it also receives one SExtInflux18UidTs per snapshot row in
+ * response order; the map value is authoritative for the last point of a series
+ * that the response reported more than once.
+ *
+ * keepEarliest selects which point of a duplicated series wins.  A LAST_TS or
+ * META snapshot is ordered by time descending and wants the latest point, while
+ * the FIRST (history head) snapshot is ordered ascending and wants the earliest.
+ * A series response can repeat a timestamp while chunks are merged, so the
+ * selected extreme remains explicit instead of depending on response order.
+ * Keeping the maximum for the first-point query would report a point later than
+ * the real first point and open the first window after data that was not read. */
+static int32_t extInflux18BuildUidTsMap(SStreamExtReaderInfo *pInfo, SSDataBlock *pBlock,
+                                        SSHashObj **ppMap, SArray **ppOrder, bool keepEarliest) {
+  const SStreamTask *pTask = pInfo->pTask;
+  *ppMap = NULL;
+  if (ppOrder != NULL) {
+    *ppOrder = NULL;
+  }
+  if (pBlock == NULL || pBlock->info.rows <= 0) {
+    return TSDB_CODE_SUCCESS;
+  }
+
+  int32_t nTags = pInfo->pInfluxTagCols
+                      ? (int32_t)taosArrayGetSize(pInfo->pInfluxTagCols)
+                      : 0;
+  int32_t nTimeSlot = (int32_t)taosArrayGetSize(pBlock->pDataBlock) - 1;
+  if (nTimeSlot < nTags) {
+    ST_TASK_ELOG("ext: influx18 snapshot has %d columns, expected %d tags + time",
+                 (int32_t)taosArrayGetSize(pBlock->pDataBlock), nTags);
+    return TSDB_CODE_EXT_SCHEMA_CHANGED;
+  }
+  SColumnInfoData *pTimeCol = (SColumnInfoData *)taosArrayGet(pBlock->pDataBlock, nTimeSlot);
+  if (pTimeCol == NULL) {
+    return TSDB_CODE_INTERNAL_ERROR;
+  }
+
+  uint64_t singleUid = (nTags == 0) ? extInflux18SingleUid(pInfo) : 0;
+  if (nTags == 0 && singleUid == 0) {
+    return TSDB_CODE_SUCCESS;
+  }
+
+  SSHashObj *pMap = tSimpleHashInit((int32_t)pBlock->info.rows,
+                                    taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT));
+  if (pMap == NULL) {
+    return terrno;
+  }
+  SArray *pOrder = NULL;
+  if (ppOrder != NULL) {
+    pOrder = taosArrayInit((size_t)pBlock->info.rows, sizeof(SExtInflux18UidTs));
+    if (pOrder == NULL) {
+      tSimpleHashCleanup(pMap);
+      return terrno;
+    }
+  }
+
+  int32_t code = TSDB_CODE_SUCCESS;
+  for (int32_t r = 0; r < pBlock->info.rows; ++r) {
+    if (colDataIsNull_s(pTimeCol, r)) {
+      continue;
+    }
+    int64_t ts = extInflux18TsToSpec(*(int64_t *)colDataGetData(pTimeCol, r), pInfo->spec.precision);
+    uint64_t uid = singleUid;
+    if (nTags > 0) {
+      char    key[EXT_TAGSET_KEY_MAX] = {0};
+      int32_t keyLen = 0;
+      code = extInflux18RowTagsetKey(pInfo, pBlock, r, key, sizeof(key), &keyLen);
+      if (code == TSDB_CODE_STREAM_EXT_TAG_INVALID) {
+        /* An unidentifiable series (tag value the key budget cannot hold) is a property of that
+         * one series: skip it the way the enumeration does instead of failing the pull, which
+         * the trigger would turn into a permanent recovery loop. */
+        ST_TASK_WLOG("ext: influx18 snapshot row %d has no usable tagset key, series skipped", r);
+        code = TSDB_CODE_SUCCESS;
+        continue;
+      }
+      if (code != TSDB_CODE_SUCCESS) {
+        break;
+      }
+      uid = extInflux18UidForKey(pInfo, key, keyLen);
+    }
+
+    SExtInflux18UidTs candidate = {.uid = uid, .ts = ts};
+    if (pOrder != NULL && taosArrayPush(pOrder, &candidate) == NULL) {
+      code = terrno;
+      break;
+    }
+
+    int64_t *pExisting = (int64_t *)tSimpleHashGet(pMap, &uid, sizeof(uid));
+    if (pExisting != NULL) {
+      if (keepEarliest ? (ts < *pExisting) : (ts > *pExisting)) {
+        *pExisting = ts;
+      }
+      continue;
+    }
+    code = tSimpleHashPut(pMap, &uid, sizeof(uid), &ts, sizeof(ts));
+    if (code != TSDB_CODE_SUCCESS) {
+      break;
+    }
+  }
+
+  if (code != TSDB_CODE_SUCCESS) {
+    taosArrayDestroy(pOrder);
+    tSimpleHashCleanup(pMap);
+    return code;
+  }
+  *ppMap = pMap;
+  if (ppOrder != NULL) {
+    *ppOrder = pOrder;
+  }
+  return TSDB_CODE_SUCCESS;
+}
+
+static bool extInflux18HasUnregisteredUid(SStreamExtReaderInfo *pInfo, SSHashObj *pUidTs) {
+  if (pInfo == NULL || pUidTs == NULL) {
+    return false;
+  }
+
+  int32_t iter = 0;
+  void   *pVal = NULL;
+  while (pUidTs != NULL && (pVal = tSimpleHashIterate(pUidTs, pVal, &iter)) != NULL) {
+    size_t   keyLen = 0;
+    uint64_t uid = *(uint64_t *)tSimpleHashGetKey(pVal, &keyLen);
+    if (tSimpleHashGet(pInfo->pUidIndex, &uid, sizeof(uid)) == NULL) {
+      return true;
+    }
+  }
+  return false;
+}
+
+/* Register series newly observed in a snapshot without replacing existing
+ * UID/group/tagset entries. */
+static int32_t extInflux18RegisterSnapshotSeries(SStreamExtReaderInfo *pInfo,
+                                                 SSDataBlock *pBlock) {
+  const SStreamTask *pTask = pInfo->pTask;
+  if (pInfo->pInfluxTagCols == NULL || pBlock == NULL || pBlock->info.rows <= 0) {
+    return TSDB_CODE_SUCCESS;
+  }
+
+  SInfluxPartitionPlan plan = {0};
+  int32_t             code = extResolveInfluxPartitionPlan(pInfo, pInfo->pInfluxTagCols, &plan);
+  if (code != TSDB_CODE_SUCCESS) {
+    extDestroyInfluxPartitionPlan(&plan);
+    return code;
+  }
+
+  SInfluxDistinctCtx dCtx = {
+      .pInfo = pInfo,
+      .pTagCols = pInfo->pInfluxTagCols,
+      .nTags = (int32_t)taosArrayGetSize(pInfo->pInfluxTagCols),
+      .nGroups = 0,
+      .groupMode = plan.groupMode,
+      .measurementGroupId = plan.measurementGroupId,
+      .partIdx = plan.partIdx,
+      .nPart = plan.nPart,
+      .partExprNodes = plan.partExprNodes,
+  };
+  code = influxDistinctBlockCb(pBlock, &dCtx);
+  extDestroyInfluxPartitionPlan(&plan);
+  ST_TASK_DLOG("ext: influx18 register snapshot discovered %d new series", dCtx.nGroups);
+  return code;
+}
+
+/* InfluxDB 1.8: tag columns come from the connector schema.  Series identity
+ * enumeration uses bounded snapshots without inheriting the trigger
+ * PRE_FILTER, so later data changes cannot remove an existing series from the
+ * UID index. */
+static int32_t extInitInflux18TagPartition(SStreamExtReaderInfo *pInfo) {
+  const SStreamTask *pTask = pInfo->pTask;
+  int32_t            code = TSDB_CODE_SUCCESS;
+  SArray            *pTagCols = NULL;
+  SSDataBlock       *pBlock = NULL;
+  SInfluxPartitionPlan plan = {0};
+  int32_t            nGroups = 0;
+  bool               tagColsAdopted = false;
+
+  int64_t nowMs = taosGetTimestampMs();
+  if (pInfo->influxEmptyEnumTsMs != 0 &&
+      nowMs - pInfo->influxEmptyEnumTsMs < EXT_INFLUX_EMPTY_ENUM_RECHECK_MS) {
+    ST_TASK_DLOG("ext: skip repeated influx18 enumeration after empty SERIES match, ageMs:%" PRId64,
+                 nowMs - pInfo->influxEmptyEnumTsMs);
+    return TSDB_CODE_SUCCESS;
+  }
+  pInfo->influxEmptyEnumTsMs = 0;
+
+  if (pInfo->pInfluxTagCols != NULL) {
+    taosArrayDestroy(pInfo->pInfluxTagCols);
+    pInfo->pInfluxTagCols = NULL;
+  }
+
+  code = extInflux18EnsureSchema(pInfo, pInfo->pConn);
+  if (code != TSDB_CODE_SUCCESS) {
+    goto _exit;
+  }
+  code = extInflux18BuildTagCols(pInfo, &pTagCols);
+  if (code != TSDB_CODE_SUCCESS) {
+    goto _exit;
+  }
+  if (pTagCols == NULL) {
+    code = extInsertInfluxSingleGroup(pInfo);
+    goto _exit;
+  }
+  code = extResolveInfluxPartitionPlan(pInfo, pTagCols, &plan);
+  if (code != TSDB_CODE_SUCCESS) {
+    goto _exit;
+  }
+
+  code = extInflux18SeriesSnapshot(pInfo, pInfo->pConn, pTagCols, NULL, false, &pBlock);
+  if (code != TSDB_CODE_SUCCESS) {
+    goto _exit;
+  }
+
+  // Publish the tag column list only after the snapshot succeeds.  The UID
+  // builder below uses this list, while an earlier failure must leave no
+  // adopted state for the next retry to overwrite.
+  pInfo->pInfluxTagCols = pTagCols;
+  pTagCols = NULL;
+  tagColsAdopted = true;
+
+  int32_t nTags = (int32_t)taosArrayGetSize(pInfo->pInfluxTagCols);
+  if (pBlock != NULL && pBlock->info.rows > 0) {
+    SInfluxDistinctCtx dCtx = {
+      .pInfo = pInfo,
+      .pTagCols = pInfo->pInfluxTagCols,
+      .nTags = nTags,
+      .nGroups = 0,
+      .groupMode = plan.groupMode,
+      .measurementGroupId = plan.measurementGroupId,
+      .partIdx = plan.partIdx,
+      .nPart = plan.nPart,
+      .partExprNodes = plan.partExprNodes,
+    };
+    code = influxDistinctBlockCb(pBlock, &dCtx);
+    blockDataDestroy(pBlock);
+    pBlock = NULL;
+    nGroups = dCtx.nGroups;
+    if (code != TSDB_CODE_SUCCESS) {
+      goto _exit;
+    }
+  }
+
+  if (nGroups > 0) {
+    ST_TASK_DLOG("ext: influx18 initTableList inserted %d series groups", nGroups);
+    goto _exit;
+  }
+
+  // Tagged measurements must not cache a synthetic measurement-wide UID when
+  // no series exists yet: later series derive tagset-specific UIDs and would
+  // never be registered in the one-shot UID index.  Leave it empty and let the
+  // existing empty-enumeration recheck discover new series.
+  pInfo->influxEmptyEnumTsMs = taosGetTimestampMs();
+  ST_TASK_DLOG("%s", "ext: influx18 matched no series");
+
+_exit:
+  extDestroyInfluxPartitionPlan(&plan);
+  if (pBlock != NULL) {
+    blockDataDestroy(pBlock);
+  }
+  if (pTagCols != NULL) {
+    taosArrayDestroy(pTagCols);
+  }
+  if (code != TSDB_CODE_SUCCESS && tagColsAdopted && pInfo->pInfluxTagCols != NULL &&
+      tSimpleHashGetSize(pInfo->pUidIndex) == 0) {
+    taosArrayDestroy(pInfo->pInfluxTagCols);
+    pInfo->pInfluxTagCols = NULL;
+  }
+  return code;
+}
+
+/* InfluxDB 1.8 LAST_TS: every series' latest point (all history). */
+static int32_t handleLastTsPullInflux18(SStreamExtReaderInfo *pInfo, SArray *pLastTsArr) {
+  const SStreamTask *pTask = pInfo->pTask;
+  SSDataBlock       *pBlock = NULL;
+  SSHashObj         *pUidTs = NULL;
+  // Series identity is enumerated separately without PRE_FILTER. Here the row
+  // filter must participate in the watermark snapshot: otherwise a non-matching
+  // latest point advances the metadata candidate while DATA_EXT stays empty,
+  // causing the trigger to repeatedly poll the same UID and timestamp.
+  int32_t code =
+      extInflux18SeriesSnapshot(pInfo, pInfo->pConn, pInfo->pInfluxTagCols,
+                                pInfo->pTriggerPrefilter, false, &pBlock);
+  if (code != TSDB_CODE_SUCCESS) {
+    return code;
+  }
+  code = extInflux18BuildUidTsMap(pInfo, pBlock, &pUidTs, NULL, false);
+  if (code != TSDB_CODE_SUCCESS) {
+    blockDataDestroy(pBlock);
+    return code;
+  }
+  if (extInflux18HasUnregisteredUid(pInfo, pUidTs)) {
+    code = extInflux18RegisterSnapshotSeries(pInfo, pBlock);
+    if (code != TSDB_CODE_SUCCESS) {
+      tSimpleHashCleanup(pUidTs);
+      blockDataDestroy(pBlock);
+      return code;
+    }
+  }
+
+  int32_t iter = 0;
+  void   *pVal = NULL;
+  while ((pVal = tSimpleHashIterate(pInfo->pUidIndex, pVal, &iter)) != NULL) {
+    size_t          keyLen = 0;
+    uint64_t        uid = *(uint64_t *)tSimpleHashGetKey(pVal, &keyLen);
+    SUidIndexEntry *pEnt = (SUidIndexEntry *)pVal;
+    int64_t        *pTs = (pUidTs != NULL) ? (int64_t *)tSimpleHashGet(pUidTs, &uid, sizeof(uid)) : NULL;
+    SExtLastTsInfo  info = {
+      .uid = (int64_t)uid,
+      .gid = (int64_t)pEnt->groupId,
+      .ts = pTs != NULL ? *pTs : INT64_MIN,
+    };
+    if (taosArrayPush(pLastTsArr, &info) == NULL) {
+      code = terrno;
+      break;
+    }
+  }
+
+  ST_TASK_DLOG("ext: influx18 lastTs returned %d entries",
+               (int32_t)taosArrayGetSize(pLastTsArr));
+  tSimpleHashCleanup(pUidTs);
+  blockDataDestroy(pBlock);
+  return code;
+}
+
+/* Mapping set covering the whole schema in schema order, used when the plan did
+ * not publish an explicit column list. */
+static int32_t extInflux18FullMappings(SStreamExtReaderInfo *pInfo, SExtColTypeMapping **ppMappings,
+                                       int32_t *pNumMappings) {
+  const SStreamTask *pTask = pInfo->pTask;
+  *ppMappings = NULL;
+  *pNumMappings = 0;
+  const SExtTableMeta *pMeta = pInfo->pInflux18Meta;
+  if (pMeta == NULL || pMeta->numOfCols <= 0) {
+    return TSDB_CODE_SUCCESS;
+  }
+
+  SExtColTypeMapping *pMappings = taosMemoryCalloc(pMeta->numOfCols, sizeof(*pMappings));
+  if (pMappings == NULL) {
+    return terrno;
+  }
+  int32_t n = 0;
+  for (int32_t i = 0; i < pMeta->numOfCols; ++i) {
+    const SExtColumnDef *pCol = &pMeta->pCols[i];
+    SDataType            tdType = {0};
+    int32_t              code = extTypeNameToTDengineType(EXT_SOURCE_INFLUXDB, pCol->extTypeName, "", &tdType);
+    if (code != TSDB_CODE_SUCCESS) {
+      taosMemoryFree(pMappings);
+      ST_TASK_ELOG("ext: influx18 map column '%s' type '%s' failed code:%d",
+                   pCol->colName, pCol->extTypeName, code);
+      return code;
+    }
+    pMappings[n].tdType = tdType;
+    tstrncpy(pMappings[n].colName, pCol->colName, sizeof(pMappings[n].colName));
+    ++n;
+  }
+  *ppMappings = pMappings;
+  *pNumMappings = n;
+  return TSDB_CODE_SUCCESS;
+}
+
+/* Split a tagset key ("tag=value|tag=value") into borrowed name/value pairs.
+ * The scratch buffer receives a private copy; the pairs point into it. */
+static int32_t extInflux18ParseTagBindings(const char *tagsetKey, char *scratch, int32_t scratchLen,
+                                           SExtInfluxTagValue *pBindings, int32_t maxBindings,
+                                           int32_t *pNumBindings) {
+  *pNumBindings = 0;
+  if (tagsetKey == NULL || tagsetKey[0] == '\0') {
+    return TSDB_CODE_SUCCESS;
+  }
+  if (scratchLen <= (int32_t)strlen(tagsetKey)) {
+    return TSDB_CODE_OUT_OF_RANGE;
+  }
+  tstrncpy(scratch, tagsetKey, scratchLen);
+
+  int32_t n = 0;
+  char   *pair = scratch;
+  while (pair != NULL && *pair != '\0') {
+    char *next = findUnescapedTagsetChar(pair, '|');
+    if (next != NULL) *next = '\0';
+    char *eq = findUnescapedTagsetChar(pair, '=');
+    if (eq == NULL) {
+      pair = next != NULL ? next + 1 : NULL;
+      continue;
+    }
+    *eq = '\0';
+    unescapeTagsetComponent(pair);
+    unescapeTagsetComponent(eq + 1);
+    if (n >= maxBindings) {
+      return TSDB_CODE_OUT_OF_RANGE;
+    }
+    pBindings[n].pName = pair;
+    pBindings[n].pValue = eq + 1;
+    ++n;
+    pair = next != NULL ? next + 1 : NULL;
+  }
+  *pNumBindings = n;
+  return TSDB_CODE_SUCCESS;
+}
+
+/* A tagged measurement can contain an untagged series. Its sparse identity key
+ * is empty, but scans still need explicit empty bindings for every known tag
+ * so the read targets that series instead of the whole measurement. */
+static int32_t extInflux18FillEmptyTagBindings(SStreamExtReaderInfo *pInfo,
+                                               SExtInfluxTagValue *pBindings, int32_t maxBindings,
+                                               int32_t *pNumBindings) {
+  if (*pNumBindings != 0 || pInfo->pInfluxTagCols == NULL) {
+    return TSDB_CODE_SUCCESS;
+  }
+  int32_t nTags = (int32_t)taosArrayGetSize(pInfo->pInfluxTagCols);
+  if (nTags > maxBindings) {
+    return TSDB_CODE_OUT_OF_RANGE;
+  }
+  for (int32_t i = 0; i < nTags; ++i) {
+    pBindings[i].pName = taosArrayGet(pInfo->pInfluxTagCols, i);
+    pBindings[i].pValue = "";
+  }
+  *pNumBindings = nTags;
+  return TSDB_CODE_SUCCESS;
+}
+
+/* Execute one prepared InfluxDB 1.8 raw scan and drain it into one block.
+ * pTags describes the complete series binding (unlisted tags are bound to ''
+ * by the provider); passing none scans every series of the measurement. */
+static int32_t extInflux18ExecScan(SStreamExtReaderInfo *pInfo, SExtConnectorHandle *pConn,
+                                   const SExtColTypeMapping *pMappings, int32_t nMappings,
+                                   const SExtInfluxTagValue *pTags, int32_t nTags,
+                                   const SNode *pFilter,
+                                   int64_t skey, int64_t ekey, bool timeAscending,
+                                   SSDataBlock **ppOut) {
+  const SStreamTask *pTask = pInfo->pTask;
+  *ppOut = NULL;
+
+  int8_t precision = pInfo->spec.precision;
+  if (!extIsValidTimePrecision(precision)) {
+    precision = TSDB_TIME_PRECISION_NANO;
+  }
+
+  SExtInfluxScanSpec spec = {0};
+  spec.pTable = pInfo->pInflux18Table;
+  spec.pColMappings = pMappings;
+  spec.numColMappings = nMappings;
+  spec.pTagBindings = pTags;
+  spec.numTagBindings = nTags;
+  spec.pSeriesFilter = pInfo->pInfluxSeriesFilter;
+  spec.pExtraFilter = pFilter;
+  spec.virtualScan = true;
+  spec.hasSeriesBinding = (nTags > 0);
+  spec.timeAscending = timeAscending;
+  spec.scanRange.skey = skey;
+  spec.scanRange.ekey = ekey;
+  spec.rangePrecision = precision;
+
+  char *sql = NULL;
+  int32_t code = TSDB_CODE_SUCCESS;
+  for (int32_t attempt = 0; attempt < 2; ++attempt) {
+    code = extInflux18EnsureSchema(pInfo, pConn);
+    if (code != TSDB_CODE_SUCCESS) {
+      return code;
+    }
+    /* EnsureSchema materializes pInflux18Table on first use; the prepared scan
+     * validates spec.pTable, so refresh it now (a calc reader's very first
+     * fetch reaches here without any prior snapshot having built the table). */
+    spec.pTable = pInfo->pInflux18Table;
+    spec.pCurrentMeta = pInfo->pInflux18Meta;
+    code = extConnectorPrepareInfluxV1Scan(pConn, &spec, &sql);
+    if (code == TSDB_CODE_EXT_SCHEMA_CHANGED && attempt == 0 && pInfo->borrowConn) {
+      extInflux18ResetSchema(pInfo);
+      taosMemoryFree(sql);
+      sql = NULL;
+      continue;
+    }
+    break;
+  }
+  if (code != TSDB_CODE_SUCCESS) {
+    ST_TASK_ELOG("ext: influx18 prepare scan failed code:%d tags:%d", code, nTags);
+    taosMemoryFree(sql);
+    return code;
+  }
+
+  SExtQueryHandle   *pQHdl = NULL;
+  SExtConnectorError connErr = {0};
+  code = extConnectorExecQuery(pConn, NULL, pInfo->timezone, sql, &pQHdl, &connErr);
+  taosMemoryFree(sql);
+  if (code != TSDB_CODE_SUCCESS) {
+    ST_TASK_ELOG("ext: influx18 exec scan failed code:%d msg:%s", code, connErr.remoteMessage);
+    return code;
+  }
+
+  SSDataBlock *pMerged = NULL;
+  while (true) {
+    SSDataBlock *pBlock = NULL;
+    code = extConnectorFetchBlock(pQHdl, pMappings, nMappings, &pBlock, &connErr);
+    if (code != TSDB_CODE_SUCCESS) {
+      ST_TASK_ELOG("ext: influx18 fetch block failed code:%d msg:%s", code, connErr.remoteMessage);
+      break;
+    }
+    if (pBlock == NULL) {
+      break;
+    }
+    if (pMerged == NULL) {
+      pMerged = pBlock;
+    } else {
+      code = blockDataMerge(pMerged, pBlock);
+      blockDataDestroy(pBlock);
+      if (code != TSDB_CODE_SUCCESS) {
+        ST_TASK_ELOG("ext: influx18 merge block failed code:%d", code);
+        break;
+      }
+    }
+  }
+  extConnectorCloseQuery(pQHdl);
+
+  if (code != TSDB_CODE_SUCCESS) {
+    blockDataDestroy(pMerged);
+    return code;
+  }
+  if (pMerged != NULL) {
+    code = extNormalizeTimestampBlockPrecision(pInfo->spec.precision, pMerged, pMappings, nMappings,
+                                               "extInflux18ExecScan");
+    if (code != TSDB_CODE_SUCCESS) {
+      blockDataDestroy(pMerged);
+      return code;
+    }
+  }
+  *ppOut = pMerged;
+  return TSDB_CODE_SUCCESS;
+}
+
+/* First point of one series newer than wm, read from the head of the same
+ * prepared raw scan.  META needs the real first new timestamp (not wm+1):
+ * the trigger aligns its first window at the reported skey, so a synthesized
+ * boundary would open an extra empty window before the data.  Only the first
+ * block is consumed; the query is then cancelled instead of draining it. */
+static int32_t extInflux18SeriesFirstTs(SStreamExtReaderInfo *pInfo, SExtConnectorHandle *pConn,
+                                        const SExtInfluxTagValue *pTags, int32_t nTags,
+                                        int64_t wm, bool *pFound, int64_t *pFirstTs) {
+  const SStreamTask *pTask = pInfo->pTask;
+  *pFound = false;
+  *pFirstTs = INT64_MIN;
+  if (wm == INT64_MAX) {
+    return TSDB_CODE_SUCCESS;
+  }
+
+  int32_t code = extInflux18EnsureSchema(pInfo, pConn);
+  if (code != TSDB_CODE_SUCCESS) {
+    return code;
+  }
+
+  const SExtColumnDef *pTsCol = NULL;
+  for (int32_t i = 0; i < pInfo->pInflux18Meta->numOfCols; ++i) {
+    if (pInfo->pInflux18Meta->pCols[i].isPrimaryKey) {
+      pTsCol = &pInfo->pInflux18Meta->pCols[i];
+      break;
+    }
+  }
+  if (pTsCol == NULL) {
+    ST_TASK_ELOG("%s", "ext: influx18 schema has no primary timestamp column");
+    return TSDB_CODE_EXT_SCHEMA_CHANGED;
+  }
+
+  SExtColTypeMapping tsMapping = {0};
+  tsMapping.tdType.type = TSDB_DATA_TYPE_TIMESTAMP;
+  tsMapping.tdType.bytes = sizeof(int64_t);
+  tsMapping.tdType.precision = TSDB_TIME_PRECISION_NANO;
+  tstrncpy(tsMapping.colName, pTsCol->colName, sizeof(tsMapping.colName));
+
+  int8_t precision = pInfo->spec.precision;
+  if (!extIsValidTimePrecision(precision)) {
+    precision = TSDB_TIME_PRECISION_NANO;
+  }
+
+  SExtInfluxScanSpec spec = {0};
+  spec.pTable = pInfo->pInflux18Table;
+  spec.pColMappings = &tsMapping;
+  spec.numColMappings = 1;
+  spec.pTagBindings = pTags;
+  spec.numTagBindings = nTags;
+  spec.pSeriesFilter = pInfo->pInfluxSeriesFilter;
+  // PRE_FILTER defines which rows participate in trigger evaluation. The first
+  // matching row, rather than the first row of the series, must align the first
+  // window.
+  spec.pExtraFilter = pInfo->pTriggerPrefilter;
+  spec.virtualScan = true;
+  spec.hasSeriesBinding = (nTags > 0);
+  spec.timeAscending = true;
+  /* Only the earliest matching row is needed, and a recovery round runs this probe once per
+   * series: without a cap the whole history of the series is transferred for a single value. */
+  spec.rowLimit = 1;
+  spec.scanRange.skey = (wm == INT64_MIN) ? INT64_MIN : wm + 1;  // inclusive >= wm+1 == > wm
+  spec.scanRange.ekey = INT64_MAX;
+  spec.rangePrecision = precision;
+
+  char *sql = NULL;
+  for (int32_t attempt = 0; attempt < 2; ++attempt) {
+    if (attempt > 0) {
+      code = extInflux18EnsureSchema(pInfo, pConn);
+      if (code != TSDB_CODE_SUCCESS) return code;
+    }
+    spec.pCurrentMeta = pInfo->pInflux18Meta;
+    code = extConnectorPrepareInfluxV1Scan(pConn, &spec, &sql);
+    if (code == TSDB_CODE_EXT_SCHEMA_CHANGED && attempt == 0 && pInfo->borrowConn) {
+      extInflux18ResetSchema(pInfo);
+      taosMemoryFree(sql);
+      sql = NULL;
+      continue;
+    }
+    break;
+  }
+  if (code != TSDB_CODE_SUCCESS) {
+    taosMemoryFree(sql);
+    return code;
+  }
+
+  SExtQueryHandle   *pQHdl = NULL;
+  SExtConnectorError connErr = {0};
+  code = extConnectorExecQuery(pConn, NULL, pInfo->timezone, sql, &pQHdl, &connErr);
+  taosMemoryFree(sql);
+  if (code != TSDB_CODE_SUCCESS) {
+    ST_TASK_ELOG("ext: influx18 first-ts scan failed code:%d msg:%s", code, connErr.remoteMessage);
+    return code;
+  }
+
+  SSDataBlock *pBlock = NULL;
+  code = extConnectorFetchBlock(pQHdl, &tsMapping, 1, &pBlock, &connErr);
+  if (code == TSDB_CODE_SUCCESS && pBlock != NULL && pBlock->info.rows > 0) {
+    SColumnInfoData *pCol = (SColumnInfoData *)taosArrayGet(pBlock->pDataBlock, 0);
+    if (pCol != NULL && !colDataIsNull_s(pCol, 0)) {
+      *pFirstTs = extInflux18TsToSpec(*(int64_t *)colDataGetData(pCol, 0), pInfo->spec.precision);
+      *pFound = true;
+    }
+  }
+  blockDataDestroy(pBlock);
+  extConnectorCloseQuery(pQHdl);
+
+  ST_TASK_DLOG("ext: influx18 first-ts wm:%" PRId64 " found:%d ts:%" PRId64 " code:%d",
+               wm, (int)*pFound, *pFirstTs, code);
+  return code;
 }
 
 /* InfluxDB: query information_schema.columns for tag column names,
@@ -2426,7 +3714,12 @@ static int32_t streamExtReaderInitTableList(SStreamExtReaderInfo *pInfo) {
   int32_t code = TSDB_CODE_SUCCESS;
   bool isInflux = ((EExtSourceType)pInfo->spec.sourceType == EXT_SOURCE_INFLUXDB);
 
-  if (isInflux) {
+  if (pInfo->influxV1) {
+    /* InfluxDB 1.8: schema tag keys + one LAST(*) snapshot enumerate the series
+     * and their latest point; the 3.x information_schema/DISTINCT statements
+     * do not exist there. */
+    code = extInitInflux18TagPartition(pInfo);
+  } else if (isInflux) {
     /* InfluxDB always enumerates sub-tables (one uid per full tag-value
      * combination) via information_schema + SELECT DISTINCT, regardless of
      * PARTITION BY.  groupId is then derived from the partition-tag subset
@@ -2491,22 +3784,46 @@ static int32_t extHandlePullLocked(SStreamExtReaderInfo *pInfo,
 
   const SSTriggerExtPullReq *pReq = (const SSTriggerExtPullReq *)pReqVoid;
   ESTriggerPullType          typedPullType = (ESTriggerPullType)pullType;
+  bool                       schemaRefreshed = false;
+  bool retryAfterRefresh =
+      typedPullType == STRIGGER_PULL_LAST_TS_EXT || typedPullType == STRIGGER_PULL_META_EXT;
 
-  /* ---- One-shot table-list initialization ----
+  /* ---- Initial table-list initialization ----
    * For ext-source readers, pUidIndex is built by querying the external DB
    * (InfluxDB tag combinations, or a single synthetic uid for MySQL/PG).
    * Whenever pUidIndex is empty we re-initialize from the source before
-   * dispatching  -  regardless of pull type. */
+   * dispatching  -  regardless of pull type.  InfluxDB 1.8 can additionally
+   * register newly observed series from later snapshots. */
+_ensure_table_list:
   if (tSimpleHashGetSize(pInfo->pUidIndex) == 0) {
     ST_TASK_DLOG("ext: handlePull: uid hash empty (pullType=%d), initializing table list",
                  pullType);
     code = streamExtReaderInitTableList(pInfo);
+    if (code == TSDB_CODE_EXT_SCHEMA_CHANGED && pInfo->influxV1 &&
+        !pInfo->borrowConn && !schemaRefreshed) {
+      code = extInflux18ResetSeriesState(pInfo);
+      if (code != TSDB_CODE_SUCCESS) {
+        goto _exit;
+      }
+      if (!retryAfterRefresh) {
+        code = TSDB_CODE_EXT_SCHEMA_CHANGED;
+        goto _exit;
+      }
+      code = streamExtReaderInitTableList(pInfo);
+      if (code != TSDB_CODE_SUCCESS) {
+        ST_TASK_ELOG("ext: initTableList after schema refresh failed code:%d", code);
+        goto _exit;
+      }
+      schemaRefreshed = true;
+      goto _allocate_rsp;
+    }
     if (code != TSDB_CODE_SUCCESS) {
       ST_TASK_ELOG("ext: initTableList failed code:%d - aborting pull", code);
       goto _exit;
     }
   }
 
+_allocate_rsp:
   pRsp = allocPullRsp(typedPullType);
   if (pRsp == NULL) {
     code = terrno;
@@ -2516,6 +3833,27 @@ static int32_t extHandlePullLocked(SStreamExtReaderInfo *pInfo,
   pRsp->deploymentGeneration = pReq->deploymentGeneration;
 
   code = extDispatchPullRequest(pInfo, typedPullType, pReq, pRsp);
+  if (code == TSDB_CODE_EXT_SCHEMA_CHANGED && pInfo->influxV1 &&
+      !pInfo->borrowConn && !schemaRefreshed) {
+    ST_TASK_DLOG("%s", "ext: influx18 schema changed, rebuilding series state");
+    streamExtPullRspFree(pRsp);
+    pRsp = NULL;
+    code = extInflux18ResetSeriesState(pInfo);
+    if (code != TSDB_CODE_SUCCESS) {
+      goto _exit;
+    }
+    if (!retryAfterRefresh) {
+      code = TSDB_CODE_EXT_SCHEMA_CHANGED;
+      goto _exit;
+    }
+    code = streamExtReaderInitTableList(pInfo);
+    if (code != TSDB_CODE_SUCCESS) {
+      ST_TASK_ELOG("ext: initTableList after schema refresh failed code:%d", code);
+      goto _exit;
+    }
+    schemaRefreshed = true;
+    goto _allocate_rsp;
+  }
   if (code == TSDB_CODE_INVALID_PARA &&
       !(typedPullType == STRIGGER_PULL_LAST_TS_EXT ||
         typedPullType == STRIGGER_PULL_META_EXT ||
@@ -2525,7 +3863,6 @@ static int32_t extHandlePullLocked(SStreamExtReaderInfo *pInfo,
         typedPullType == STRIGGER_PULL_GROUP_COL_VALUE_EXT)) {
     ST_TASK_ELOG("ext: handlePull unknown pullType=%d", pullType);
   }
-
   if (code == TSDB_CODE_STREAM_NO_DATA) {
     /* No data is a normal signal, not an error.  Propagate the code to the
      * caller (snode.c) so it sets rspMsg.code = NO_DATA, enabling the trigger
@@ -2587,7 +3924,7 @@ static int32_t handleLastTsPullRelational(SStreamExtReaderInfo *pInfo,
   int32_t            code  = TSDB_CODE_SUCCESS;
 
   char sqlBuf[EXT_SIMPLE_SQL_BUF_LEN] = {0};
-  char prefilterBuf[EXT_SQL_CLAUSE_BUF_LEN] = {0};
+  char prefilterBuf[EXT_SQL_PREFILTER_BUF_LEN] = {0};
   /* Trigger reader uses PRE_FILTER (triggerPrefilter), not the calc WHERE. */
   code = buildTriggerPrefilterClause(&pInfo->spec, prefilterBuf, sizeof(prefilterBuf));
   if (code < 0) return code;
@@ -2621,12 +3958,17 @@ static int32_t handleLastTsPullRelational(SStreamExtReaderInfo *pInfo,
   ST_TASK_DLOG("ext: lastTs relational SQL=\"%s\"", sqlBuf);
 
   /* Execute query with a single-column TIMESTAMP mapping for MAX(ts).
-   * Decode source timestamps as nanoseconds, then normalize the result to
-   * spec.precision before exposing the watermark to the trigger. */
+   * Decode the source timestamp at its own transport precision, then normalize
+   * the result to spec.precision before exposing the watermark to the trigger.
+   * The Oracle connector reads tsPrecision, so a zero here silently truncates
+   * TIMESTAMP(7..9) to microseconds and the row whose timestamp only differs in
+   * the sub-microsecond digits is excluded from every later fetch. */
   SExtColTypeMapping tsMapping = {0};
-  tsMapping.tdType.type   = TSDB_DATA_TYPE_TIMESTAMP;
-  tsMapping.tdType.bytes  = sizeof(int64_t);
-  tsMapping.tdType.precision = TSDB_TIME_PRECISION_NANO;
+  int8_t            srcPrec   = extSpecTsSourcePrecision(&pInfo->spec, tsCol);
+  tsMapping.tdType.type       = TSDB_DATA_TYPE_TIMESTAMP;
+  tsMapping.tdType.bytes      = sizeof(int64_t);
+  tsMapping.tdType.precision  = srcPrec;
+  tsMapping.tsPrecision       = srcPrec;
   tstrncpy(tsMapping.colName, tsCol, sizeof(tsMapping.colName));
 
   SSDataBlock *pBlock = NULL;
@@ -2651,7 +3993,7 @@ static int32_t handleLastTsPullRelational(SStreamExtReaderInfo *pInfo,
       globalMaxTs = *(int64_t *)colDataGetData(pCol, 0);
       ST_TASK_DLOG("ext: lastTs globalMaxTs=%" PRId64, globalMaxTs);
     }
-    printDataBlock(pBlock, __func__, "ext_last_ts_raw", pTask->streamId);
+    printDataBlock(pBlock, __func__, "ext_last_ts_raw", pTask->streamId, pTask->charsetCxt);
     blockDataDestroy(pBlock);
   }
 
@@ -2702,7 +4044,9 @@ static int32_t handleLastTsPull(SStreamExtReaderInfo *pInfo,
   }
 
   int32_t code;
-  if (isInflux) {
+  if (pInfo->influxV1) {
+    code = handleLastTsPullInflux18(pInfo, pRsp->pLastTsArr);
+  } else if (isInflux) {
     SArray *pAllUids = collectAllUids(pInfo->pUidIndex);
     if (pAllUids == NULL) {
       ST_TASK_ELOG("%s", "ext: handleLastTsPull collectAllUids OOM");
@@ -2749,13 +4093,35 @@ static SSDataBlock *createMetaBlock(void) {
   return pBlock;
 }
 
+static int32_t extEnsureBlockCapacityGeometric(SSDataBlock *pBlock, uint32_t needed,
+                                               uint32_t initialCapacity) {
+  if (needed <= pBlock->info.capacity) {
+    return TSDB_CODE_SUCCESS;
+  }
+
+  uint32_t capacity = pBlock->info.capacity;
+  if (capacity == 0) {
+    capacity = needed > initialCapacity ? needed : initialCapacity;
+  }
+  while (capacity < needed) {
+    if (capacity > UINT32_MAX / 2) {
+      capacity = needed;
+      break;
+    }
+    capacity *= 2;
+  }
+  return blockDataEnsureCapacity(pBlock, capacity);
+}
+
 /* Append one row to a metaBlock.  All values are int64. */
 static int32_t metaBlockAppendRow(SSDataBlock *pBlock,
                                   uint64_t groupId, int64_t skey, int64_t ekey,
                                   uint64_t uid, int64_t rows) {
   int32_t row = pBlock->info.rows;
-  /* Ensure capacity. */
-  int32_t code = blockDataEnsureCapacity(pBlock, row + 1);
+  /* Grow geometrically so appending a large META or demux block does not copy every
+   * existing row whenever the capacity is exceeded. */
+  int32_t code = extEnsureBlockCapacityGeometric(
+      pBlock, (uint32_t)row + 1, EXT_META_BLOCK_INITIAL_ROWS);
   if (code != TSDB_CODE_SUCCESS) return code;
 
   int64_t vals[META_COL_COUNT] = {(int64_t)groupId, skey, ekey, (int64_t)uid, rows};
@@ -2781,15 +4147,344 @@ static int64_t extLookupUidMaxTs(SSHashObj *pUidMaxTs, uint64_t uid) {
   return maxTs;
 }
 
-static void extInitRelationalMetaMappings(const char *tsCol, SExtColTypeMapping metaMappings[4]) {
+/* ============================================================
+ * handleMetaPullInflux18  -  InfluxDB 1.8 META pull.
+ *
+ * Two bounded snapshots yield the latest and, when a bootstrap UID needs it,
+ * the first point of every matching series.  A series with a latest point
+ * newer than its own watermark has new data.  For the first report of a uid the
+ * META row carries the real first new timestamp so the trigger aligns its first
+ * window at data rather than at watermark+1.
+ *
+ * The snapshot describes every series of the measurement at once, but a META
+ * response must still page: the trigger infers "more pages" from
+ * metaRows >= STREAM_RETURN_ROWS_NUM and re-pulls META after adopting every
+ * reported watermark, so an unbounded response would be followed by a pull that
+ * can no longer report a new row (every uid is already at its last point).  That
+ * pull returns NO_DATA and the windows accumulated from the first response are
+ * never fetched.  influxBatchOffset therefore remembers how many snapshot rows
+ * this enumeration already emitted.
+ * ============================================================ */
+/* Release the series snapshot and the uid maps derived from it that are cached
+ * for the running META enumeration (see pInflux18MetaSnap).  Called when the
+ * enumeration completes or is abandoned, and when the reader resets its series
+ * state, so the next enumeration re-reads the remote. */
+static void extInflux18DropMetaSnapshot(SStreamExtReaderInfo *pInfo) {
+  if (pInfo == NULL) return;
+  if (pInfo->pInflux18MetaSnap != NULL) {
+    blockDataDestroy(pInfo->pInflux18MetaSnap);
+    pInfo->pInflux18MetaSnap = NULL;
+  }
+  if (pInfo->pInflux18MetaUidTs != NULL) {
+    tSimpleHashCleanup(pInfo->pInflux18MetaUidTs);
+    pInfo->pInflux18MetaUidTs = NULL;
+  }
+  if (pInfo->pInflux18MetaUidOrder != NULL) {
+    taosArrayDestroy(pInfo->pInflux18MetaUidOrder);
+    pInfo->pInflux18MetaUidOrder = NULL;
+  }
+  if (pInfo->pInflux18MetaFirstSnap != NULL) {
+    blockDataDestroy(pInfo->pInflux18MetaFirstSnap);
+    pInfo->pInflux18MetaFirstSnap = NULL;
+  }
+  if (pInfo->pInflux18MetaFirstUidTs != NULL) {
+    tSimpleHashCleanup(pInfo->pInflux18MetaFirstUidTs);
+    pInfo->pInflux18MetaFirstUidTs = NULL;
+  }
+  /* The next enumeration decides again whether it needs a history-head snapshot. */
+  pInfo->influx18MetaFirstTried = false;
+  pInfo->influx18MetaFirstLowerValid = false;
+  pInfo->influx18MetaFirstLower = INT64_MAX;
+}
+
+/* Lower bound of the history-head snapshot for the running enumeration: the smallest
+ * (watermark + 1) over the series that still need a FIRST alignment, or INT64_MIN when any
+ * of them has no watermark yet.  Computed on demand and cached, because the scan is O(N) and
+ * a steady-state enumeration - where every series was already reported at its watermark -
+ * never reaches the FIRST branch at all.  Walking the map on every continuation page instead
+ * turned one meta round into O(N * pages). */
+static int64_t extInflux18FirstSnapshotLower(SStreamExtReaderInfo *pInfo, SArray *pUidOrder,
+                                             SSHashObj *pUidTs, SSHashObj *pUidMaxTs) {
+  if (pInfo->influx18MetaFirstLowerValid) {
+    return pInfo->influx18MetaFirstLower;
+  }
+  pInfo->influx18MetaFirstLowerValid = true;
+  int64_t lower = INT64_MAX;
+  int32_t nCandidates = pUidOrder != NULL ? (int32_t)taosArrayGetSize(pUidOrder) : 0;
+  for (int32_t candidateRow = 0; candidateRow < nCandidates; ++candidateRow) {
+    SExtInflux18UidTs *pCandidate = (SExtInflux18UidTs *)taosArrayGet(pUidOrder, candidateRow);
+    if (pCandidate == NULL) {
+      continue;
+    }
+    int64_t *pLastTs = (int64_t *)tSimpleHashGet(pUidTs, &pCandidate->uid, sizeof(pCandidate->uid));
+    if (pLastTs == NULL || *pLastTs != pCandidate->ts) {
+      continue;
+    }
+    int64_t wm = extLookupUidMaxTs(pUidMaxTs, pCandidate->uid);
+    if (wm != INT64_MIN && *pLastTs <= wm) {
+      continue;
+    }
+    if (wm == INT64_MIN) {
+      lower = INT64_MIN;
+      break;
+    }
+    lower = TMIN(lower, wm + 1);
+  }
+  if (lower == INT64_MAX) {
+    /* Defensive: the caller only asks after finding a row that needs FIRST. */
+    lower = INT64_MIN;
+  }
+  pInfo->influx18MetaFirstLower = lower;
+  return lower;
+}
+
+/* Abandon the running enumeration.  A cursor is only meaningful together with
+ * the snapshot it was computed from, so both are dropped and the next META pull
+ * starts a new enumeration from the remote's current series set. */
+static void extInflux18AbortMetaEnumeration(SStreamExtReaderInfo *pInfo) {
+  if (pInfo == NULL) return;
+  pInfo->influxBatchOffset = 0;
+  extInflux18DropMetaSnapshot(pInfo);
+}
+
+/* Fetch the history-head snapshot of the running enumeration on first use.  One
+ * enumeration needs it only to align the first window of a series at its real
+ * first timestamp, and most requests need it not at all, so it is fetched at
+ * most once and only when a row actually needs it.  (Scanning the whole uid map
+ * per page to decide that instead cost O(N) on every continuation page.) */
+static int32_t extInflux18EnsureFirstSnapshot(SStreamExtReaderInfo *pInfo, int64_t timeLower) {
+  if (pInfo->influx18MetaFirstTried) {
+    return TSDB_CODE_SUCCESS;
+  }
+  pInfo->influx18MetaFirstTried = true;
+  SSDataBlock *pBlock = NULL;
+  int32_t      code = TSDB_CODE_SUCCESS;
+  if (timeLower == INT64_MIN) {
+    code = extInflux18SeriesSnapshot(pInfo, pInfo->pConn, pInfo->pInfluxTagCols,
+                                     pInfo->pTriggerPrefilter, true, &pBlock);
+  } else {
+    code = extInflux18SeriesSnapshotAfter(pInfo, pInfo->pConn, pInfo->pInfluxTagCols,
+                                          pInfo->pTriggerPrefilter, true, timeLower, &pBlock);
+  }
+  if (code != TSDB_CODE_SUCCESS) {
+    /* Let the retry of this page fetch it again instead of degrading every
+     * candidate to the per-uid first-point query. */
+    pInfo->influx18MetaFirstTried = false;
+    return code;
+  }
+  blockDataDestroy(pInfo->pInflux18MetaFirstSnap);
+  pInfo->pInflux18MetaFirstSnap = pBlock;
+  if (pInfo->pInflux18MetaFirstUidTs != NULL) {
+    tSimpleHashCleanup(pInfo->pInflux18MetaFirstUidTs);
+    pInfo->pInflux18MetaFirstUidTs = NULL;
+  }
+  /* The history head is the earliest point of the series, not the latest. */
+  SSHashObj *pUidFirstTs = NULL;
+  code = extInflux18BuildUidTsMap(pInfo, pBlock, &pUidFirstTs, NULL, true);
+  if (code != TSDB_CODE_SUCCESS) {
+    pInfo->influx18MetaFirstTried = false;
+    return code;
+  }
+  pInfo->pInflux18MetaFirstUidTs = pUidFirstTs;
+  return TSDB_CODE_SUCCESS;
+}
+
+static int32_t handleMetaPullInflux18(SStreamExtReaderInfo *pInfo, SSHashObj *pUidMaxTs,
+                                      SSTriggerExtPullRsp *pRsp) {
+  const SStreamTask *pTask = pInfo->pTask;
+  SSDataBlock       *pBlock = NULL;
+  SSHashObj         *pUidTs = NULL;
+  SArray            *pUidOrder = NULL;
+  /* A continuation page must neither re-read the measurement nor re-derive its
+   * uid maps: one snapshot costs one HTTP request per INFLUX_V1_SERIES_PAGE_SIZE
+   * series, and rebuilding the maps costs one tagset-key build per series, so
+   * re-reading them for each page of an N/STREAM_RETURN_ROWS_NUM-page META
+   * enumeration multiplies the whole round by the page count.  Both the
+   * snapshot and the maps it yields are therefore cached on the reader for the
+   * duration of one enumeration (see pInflux18MetaSnap). */
+  int32_t code = TSDB_CODE_SUCCESS;
+  if (pInfo->influxBatchOffset > 0 && pInfo->pInflux18MetaSnap != NULL &&
+      pInfo->pInflux18MetaUidOrder != NULL) {
+    pBlock = pInfo->pInflux18MetaSnap;
+    pUidTs = pInfo->pInflux18MetaUidTs;
+    pUidOrder = pInfo->pInflux18MetaUidOrder;
+  } else {
+    /* A new enumeration owns a fresh cache and starts from its first row: any
+     * leftover cache or cursor belongs to an enumeration that is no longer
+     * running and would index a snapshot we are about to replace. */
+    extInflux18AbortMetaEnumeration(pInfo);
+    // Series enumeration is independent from PRE_FILTER. Watermark snapshots must
+    // apply it so metadata advances only for rows that can produce DATA_EXT rows.
+    code = extInflux18SeriesSnapshot(pInfo, pInfo->pConn, pInfo->pInfluxTagCols,
+                                     pInfo->pTriggerPrefilter, false, &pBlock);
+    if (code != TSDB_CODE_SUCCESS) {
+      return code;
+    }
+    pInfo->pInflux18MetaSnap = pBlock;
+    code = extInflux18BuildUidTsMap(pInfo, pBlock, &pUidTs, &pUidOrder, false);
+    if (code != TSDB_CODE_SUCCESS) {
+      extInflux18AbortMetaEnumeration(pInfo);
+      return code;
+    }
+    pInfo->pInflux18MetaUidTs = pUidTs;
+    pInfo->pInflux18MetaUidOrder = pUidOrder;
+    /* Registering the snapshot's series is a snapshot-level effect: the
+     * continuation pages walk the same snapshot, whose uids are all registered
+     * by now, so a per-page rescan of the whole map would only repeat work. */
+    if (extInflux18HasUnregisteredUid(pInfo, pUidTs)) {
+      code = extInflux18RegisterSnapshotSeries(pInfo, pBlock);
+      if (code != TSDB_CODE_SUCCESS) {
+        extInflux18AbortMetaEnumeration(pInfo);
+        return code;
+      }
+    }
+  }
+
+  int32_t totalFetched = 0;
+  int32_t nCandidates = pUidOrder != NULL ? (int32_t)taosArrayGetSize(pUidOrder) : 0;
+  int32_t startRow = pInfo->influxBatchOffset;
+  if (startRow < 0 || startRow > nCandidates) {
+    startRow = 0;  // the snapshot shrank below the remembered cursor: start over
+  }
+  int32_t row = startRow;
+  for (; code == TSDB_CODE_SUCCESS && row < nCandidates && totalFetched < STREAM_RETURN_ROWS_NUM;
+       ++row) {
+    SExtInflux18UidTs *pCandidate = (SExtInflux18UidTs *)taosArrayGet(pUidOrder, row);
+    if (pCandidate == NULL) {
+      continue;
+    }
+    uint64_t uid = pCandidate->uid;
+    int64_t *pLastTs = (int64_t *)tSimpleHashGet(pUidTs, &uid, sizeof(uid));
+    if (pLastTs == NULL || *pLastTs != pCandidate->ts) {
+      continue;  // a later row of the same series carried its last point
+    }
+    SUidIndexEntry *pEntry = tSimpleHashGet(pInfo->pUidIndex, &uid, sizeof(uid));
+    if (pEntry == NULL) {
+      continue;
+    }
+    int64_t wm = extLookupUidMaxTs(pUidMaxTs, uid);
+    if (wm != INT64_MIN && *pLastTs <= wm) {
+      continue;  // no row newer than the watermark
+    }
+
+    int64_t *pReported = (pInfo->pInflux18MetaEkey != NULL)
+                             ? (int64_t *)tSimpleHashGet(pInfo->pInflux18MetaEkey, &uid, sizeof(uid))
+                             : NULL;
+    int64_t  skey;
+    if (wm != INT64_MIN && pReported != NULL && *pReported == wm) {
+      /* The trigger consumed the previous META row, so its first window only
+       * needs a boundary after the watermark (skey is then unused: the
+       * trigger starts new windows from prevMaxTs - watermark). */
+      skey = (wm == INT64_MAX) ? INT64_MAX : wm + 1;
+    } else {
+      /* First META row for this uid (bootstrap or an unconsumed report): the
+       * trigger aligns the first window at skey, so report the real first
+       * timestamp of the new rows. */
+      SExtInfluxTagValue tags[TSDB_MAX_TAGS];
+      char               scratch[EXT_TAGSET_KEY_MAX] = {0};
+      int32_t            nTags = 0;
+      code = extInflux18ParseTagBindings(pEntry->tagsetKey, scratch, sizeof(scratch), tags,
+                                         TSDB_MAX_TAGS, &nTags);
+      if (code != TSDB_CODE_SUCCESS) {
+        ST_TASK_ELOG("ext: influx18 meta parse tagset uid:%" PRIu64 " code:%d", uid, code);
+        break;
+      }
+      code = extInflux18FillEmptyTagBindings(pInfo, tags, TSDB_MAX_TAGS, &nTags);
+      if (code != TSDB_CODE_SUCCESS) {
+        ST_TASK_ELOG("ext: influx18 meta fill empty tagset uid:%" PRIu64 " code:%d", uid, code);
+        break;
+      }
+      bool    found = false;
+      int64_t firstTs = INT64_MIN;
+      code = extInflux18EnsureFirstSnapshot(
+          pInfo, extInflux18FirstSnapshotLower(pInfo, pUidOrder, pUidTs, pUidMaxTs));
+      if (code != TSDB_CODE_SUCCESS) {
+        ST_TASK_ELOG("ext: influx18 first snapshot uid:%" PRIu64 " code:%d", uid, code);
+        break;
+      }
+      int64_t *pFirstTs = (pInfo->pInflux18MetaFirstUidTs != NULL)
+                              ? (int64_t *)tSimpleHashGet(pInfo->pInflux18MetaFirstUidTs, &uid,
+                                                         sizeof(uid))
+                              : NULL;
+      if (pFirstTs != NULL && *pFirstTs > wm) {
+        /* The batched first snapshot reports each series' earliest point over
+         * its whole history.  Only trust it when it is actually newer than the
+         * watermark; otherwise fall back to the per-uid query below, which
+         * returns the real first point newer than wm.  Taking the history head
+         * here would fail the firstTs > wm guard and fall through to wm+1,
+         * opening an extra empty window before the data. */
+        firstTs = *pFirstTs;
+        found = true;
+      } else {
+        code = extInflux18SeriesFirstTs(pInfo, pInfo->pConn, nTags > 0 ? tags : NULL, nTags,
+                                        wm, &found, &firstTs);
+        if (code != TSDB_CODE_SUCCESS) {
+          break;
+        }
+      }
+      skey = (found && firstTs > wm) ? firstTs : ((wm == INT64_MIN) ? INT64_MIN : wm + 1);
+    }
+
+    code = metaBlockAppendRow(pRsp->pMetaBlock, pEntry->groupId, skey, *pLastTs, uid, 1);
+    if (code != TSDB_CODE_SUCCESS) {
+      break;
+    }
+    /* Remember what the trigger will adopt as its watermark. */
+    if (pInfo->pInflux18MetaEkey != NULL) {
+      code = tSimpleHashPut(pInfo->pInflux18MetaEkey, &uid, sizeof(uid), pLastTs, sizeof(*pLastTs));
+      if (code != TSDB_CODE_SUCCESS) {
+        break;
+      }
+    }
+    ++totalFetched;
+  }
+
+  /* Resume the enumeration when this page stopped at the response row limit; a
+   * finished enumeration starts over on the next META pull.  A failed page keeps
+   * its cursor together with the snapshot it was computed from, so the retry
+   * re-reads the same series in the same order.  When there is nothing to
+   * resume from, the cache is released and the next pull starts a new
+   * enumeration. */
+  int32_t nextOffset;
+  if (code != TSDB_CODE_SUCCESS) {
+    nextOffset = startRow;
+  } else if (row < nCandidates) {
+    nextOffset = row;
+  } else if (nCandidates > 0 && totalFetched >= STREAM_RETURN_ROWS_NUM) {
+    /* This page was exactly a full response and it exhausted the snapshot.  The trigger infers
+     * "more pages" from metaRows >= STREAM_RETURN_ROWS_NUM and pulls META again immediately, so
+     * releasing the snapshot here would take a fresh one on the next pull; under continuous
+     * writes that snapshot can again be exactly full, and the stream would never reach
+     * DATA_EXT.  Keeping the cursor at the end (with the snapshot) makes the next pull return
+     * the terminating empty page instead. */
+    nextOffset = nCandidates;
+  } else {
+    nextOffset = 0;
+  }
+  ST_TASK_DLOG("ext: influx18 meta done code:%d uids:%d withNewData:%d rows:%" PRId64
+               " candidates:%d nextOffset:%d",
+               code, pUidTs != NULL ? tSimpleHashGetSize(pUidTs) : 0, totalFetched,
+               pRsp->pMetaBlock ? pRsp->pMetaBlock->info.rows : (int64_t)0, nCandidates,
+               nextOffset);
+  pInfo->influxBatchOffset = nextOffset;
+  if (nextOffset == 0) {
+    extInflux18AbortMetaEnumeration(pInfo);
+  }
+  return code;
+}
+
+static void extInitRelationalMetaMappings(const char *tsCol, int8_t srcPrec,
+                                          SExtColTypeMapping metaMappings[4]) {
   metaMappings[0].tdType.type = TSDB_DATA_TYPE_TIMESTAMP;
   metaMappings[0].tdType.bytes = sizeof(int64_t);
-  metaMappings[0].tdType.precision = TSDB_TIME_PRECISION_NANO;
+  metaMappings[0].tdType.precision = srcPrec;
+  metaMappings[0].tsPrecision = srcPrec;
   tstrncpy(metaMappings[0].colName, tsCol, sizeof(metaMappings[0].colName));
 
   metaMappings[1].tdType.type = TSDB_DATA_TYPE_TIMESTAMP;
   metaMappings[1].tdType.bytes = sizeof(int64_t);
-  metaMappings[1].tdType.precision = TSDB_TIME_PRECISION_NANO;
+  metaMappings[1].tdType.precision = srcPrec;
+  metaMappings[1].tsPrecision = srcPrec;
   tstrncpy(metaMappings[1].colName, tsCol, sizeof(metaMappings[1].colName));
 
   metaMappings[2].tdType.type = TSDB_DATA_TYPE_BIGINT;
@@ -2807,8 +4502,6 @@ static int32_t extBuildRelationalMetaSql(const char *tblRef, const char *prefilt
                                          const SStreamExtReaderInfo *pInfo,
                                          char *sqlBuf, int32_t sqlBufLen) {
   char dtBuf[EXT_SQL_TS_LITERAL_LEN] = {0};
-  streamReaderExtRenderTimeBound(pInfo, maxTs, boundPrecision, dtBuf, sizeof(dtBuf));
-
   /* Emit the uid as its signed 64-bit representation: group uids are
    * MurmurHash3 values with the full uint64 range, and roughly half of them
    * exceed INT64_MAX.  The connector parses this literal back into an
@@ -2816,13 +4509,40 @@ static int32_t extBuildRelationalMetaSql(const char *tblRef, const char *prefilt
    * is stored as int64 anyway, so the signed bit pattern round-trips
    * exactly - an unsigned literal merely worked by luck when the hash
    * happened to stay under 2^63. */
-  int32_t sqlLen = snprintf(sqlBuf, sqlBufLen,
-                            "SELECT MIN(%s),MAX(%s),%" PRId64 ",COUNT(*) FROM %s "
-                            "WHERE %s%s > %s",
-                            tsCol, tsCol, (int64_t)uid,
-                            tblRef,
-                            prefilterBuf,
-                            tsCol, dtBuf);
+  int32_t sqlLen;
+  if (maxTs == INT64_MIN) {
+    /* INT64_MIN is the "no watermark yet" sentinel (the first LAST_TS pull on an
+     * empty table).  Rendering it as a timestamp would bound the history query
+     * to ts > 1970-01-01 and hide every older row, which an Oracle TIMESTAMP
+     * column can legally hold, so the lower bound is simply omitted and only
+     * the trigger prefilter (if any) remains. */
+    int32_t pfLen = (int32_t)strlen(prefilterBuf);
+    if (pfLen >= 5 && strcmp(prefilterBuf + pfLen - 5, " AND ") == 0) {
+      pfLen -= 5;
+    }
+    if (pfLen > 0) {
+      sqlLen = snprintf(sqlBuf, sqlBufLen,
+                        "SELECT MIN(%s),MAX(%s),%" PRId64 ",COUNT(*) FROM %s WHERE %.*s",
+                        tsCol, tsCol, (int64_t)uid, tblRef, pfLen, prefilterBuf);
+    } else {
+      sqlLen = snprintf(sqlBuf, sqlBufLen,
+                        "SELECT MIN(%s),MAX(%s),%" PRId64 ",COUNT(*) FROM %s",
+                        tsCol, tsCol, (int64_t)uid, tblRef);
+    }
+  } else {
+    int32_t boundCode =
+        streamReaderExtRenderTimeBound(pInfo, maxTs, boundPrecision, dtBuf, sizeof(dtBuf));
+    if (boundCode < 0) {
+      return boundCode;
+    }
+    sqlLen = snprintf(sqlBuf, sqlBufLen,
+                      "SELECT MIN(%s),MAX(%s),%" PRId64 ",COUNT(*) FROM %s "
+                      "WHERE %s%s > %s",
+                      tsCol, tsCol, (int64_t)uid,
+                      tblRef,
+                      prefilterBuf,
+                      tsCol, dtBuf);
+  }
   if (sqlLen < 0 || sqlLen >= sqlBufLen) {
     stError("ext: meta relational SQL exceeds %d bytes uid=%" PRIu64,
             sqlBufLen, uid);
@@ -2858,7 +4578,7 @@ static int32_t extAppendRelationalMetaRow(const SStreamTask *pTask, SSDataBlock 
   int64_t ekey = *(int64_t *)colDataGetData(colMax, 0);
   int64_t cnt = colCnt ? *(int64_t *)colDataGetData(colCnt, 0) : 0;
 
-  printDataBlock(pBlock, __func__, "ext_meta_relational_raw", pTask->streamId);
+  printDataBlock(pBlock, __func__, "ext_meta_relational_raw", pTask->streamId, pTask->charsetCxt);
 
   int32_t code = metaBlockAppendRow(pMetaBlock, groupId, skey, ekey, uid, cnt);
   if (code != TSDB_CODE_SUCCESS) {
@@ -2892,7 +4612,7 @@ static int32_t handleMetaPullRelational(SStreamExtReaderInfo *pInfo,
   int32_t totalFetched = 0;
   SSDataBlock *pBlock = NULL;
   SExtColTypeMapping metaMappings[4] = {0};
-  char prefilterBuf[EXT_SQL_CLAUSE_BUF_LEN] = {0};
+  char prefilterBuf[EXT_SQL_PREFILTER_BUF_LEN] = {0};
   char tblRef[EXT_TBL_REF_BUF_LEN] = {0};
   // Quote the timestamp column for the source dialect; the mapping keeps the raw name so the
   // connector can match result columns.
@@ -2911,7 +4631,7 @@ static int32_t handleMetaPullRelational(SStreamExtReaderInfo *pInfo,
     goto _exit;
   }
 
-  extInitRelationalMetaMappings(tsCol, metaMappings);
+  extInitRelationalMetaMappings(tsCol, extSpecTsSourcePrecision(&pInfo->spec, tsCol), metaMappings);
 
   for (int32_t i = 0; i < totalUids; ++i) {
     uint64_t uid = *(uint64_t *)taosArrayGet(pAllUids, i);
@@ -3372,7 +5092,7 @@ static int32_t handleMetaPullInflux(SStreamExtReaderInfo *pInfo,
 
   /* Trigger reader uses PRE_FILTER (triggerPrefilter), not the calc WHERE.
    * Build once; invariant across all uid batches. */
-  char prefilterBuf[EXT_SQL_CLAUSE_BUF_LEN] = {0};
+  char prefilterBuf[EXT_SQL_PREFILTER_BUF_LEN] = {0};
   code = buildTriggerPrefilterClause(&pInfo->spec, prefilterBuf, sizeof(prefilterBuf));
   if (code < 0) goto _done;
 
@@ -3506,7 +5226,7 @@ static int32_t handleLastTsPullInflux(SStreamExtReaderInfo *pInfo,
   int32_t batchIdx = 0;
   int32_t nCols = 0;
   SExtColTypeMapping *pMappings = NULL;
-  char prefilterBuf[EXT_SQL_CLAUSE_BUF_LEN] = {0};
+  char prefilterBuf[EXT_SQL_PREFILTER_BUF_LEN] = {0};
 
   code = buildTriggerPrefilterClause(&pInfo->spec, prefilterBuf, sizeof(prefilterBuf));
   if (code < 0) {
@@ -3561,31 +5281,34 @@ static int32_t handleMetaPull(SStreamExtReaderInfo *pInfo,
   const char *tsCol    = (pInfo->spec.tsColumn[0] != '\0')
                            ? pInfo->spec.tsColumn : "ts";
 
-  SArray *pAllUids = collectAllUids(pInfo->pUidIndex);
-  if (pAllUids == NULL) {
-    ST_TASK_ELOG("%s", "ext: handleMetaPull collectAllUids OOM");
-    return terrno;
-  }
-  int32_t totalUids = (int32_t)taosArrayGetSize(pAllUids);
-  ST_TASK_DLOG("ext: handleMetaPull totalUids=%d isInflux=%d", totalUids, (int)isInflux);
-
   pRsp->pMetaBlock = createMetaBlock();
   if (pRsp->pMetaBlock == NULL) {
-    taosArrayDestroy(pAllUids);
     return terrno;
   }
 
   /* Pass the trigger watermark map directly to sub-handlers; they look up
    * uid->maxTs on demand without copying into pUidIndex. */
   SSHashObj *pUidMaxTs = (pReq != NULL) ? pReq->pUidMaxTs : NULL;
-  int32_t code = isInflux
-      ? handleMetaPullInflux(pInfo, pAllUids, totalUids, tsCol, pUidMaxTs, pRsp)
-      : handleMetaPullRelational(pInfo, pAllUids, totalUids, tsCol, pUidMaxTs, pRsp);
-
-  taosArrayDestroy(pAllUids);
+  int32_t    code = TSDB_CODE_SUCCESS;
+  if (pInfo->influxV1) {
+    /* 1.8 enumerates the remote series set itself and never looks at the local
+     * uid map, so the per-pull uid array is neither built nor needed here. */
+    code = handleMetaPullInflux18(pInfo, pUidMaxTs, pRsp);
+  } else {
+    SArray *pAllUids = collectAllUids(pInfo->pUidIndex);
+    if (pAllUids == NULL) {
+      ST_TASK_ELOG("%s", "ext: handleMetaPull collectAllUids OOM");
+      return terrno;
+    }
+    int32_t totalUids = (int32_t)taosArrayGetSize(pAllUids);
+    ST_TASK_DLOG("ext: handleMetaPull totalUids=%d isInflux=%d", totalUids, (int)isInflux);
+    code = isInflux ? handleMetaPullInflux(pInfo, pAllUids, totalUids, tsCol, pUidMaxTs, pRsp)
+                    : handleMetaPullRelational(pInfo, pAllUids, totalUids, tsCol, pUidMaxTs, pRsp);
+    taosArrayDestroy(pAllUids);
+  }
   int64_t metaRows = (pRsp->pMetaBlock != NULL) ? pRsp->pMetaBlock->info.rows : 0;
   ST_TASK_DLOG("ext: handleMetaPull done code=%d metaRows=%" PRId64, code, metaRows);
-  printDataBlock(pRsp->pMetaBlock, __func__, "ext_meta", pTask->streamId);
+  printDataBlock(pRsp->pMetaBlock, __func__, "ext_meta", pTask->streamId, pTask->charsetCxt);
 
   /* Mirror vnodeProcessStreamWalMetaDataNewReq: return NO_DATA when empty so
    * the trigger side can distinguish "nothing new" from a real error. */
@@ -3617,9 +5340,16 @@ static int32_t extBuildRelationalFetchSql(const char *colList, const char *tblRe
                                           char *sqlBuf, int32_t sqlBufLen) {
   char skeyDt[EXT_SQL_TS_LITERAL_LEN] = {0};
   char ekeyDt[EXT_SQL_TS_LITERAL_LEN] = {0};
-  streamReaderExtRenderTimeBound(pInfo, skey, boundPrecision, skeyDt, sizeof(skeyDt));
-  streamReaderExtRenderTimeBound(pInfo, extClampMysqlUpperBound(pInfo, ekey, boundPrecision),
-                                 boundPrecision, ekeyDt, sizeof(ekeyDt));
+  int32_t code = streamReaderExtRenderTimeBound(pInfo, skey, boundPrecision, skeyDt, sizeof(skeyDt));
+  if (code < 0) {
+    return code;
+  }
+  code = streamReaderExtRenderTimeBound(
+      pInfo, extClampMysqlUpperBound(pInfo, ekey, boundPrecision), boundPrecision, ekeyDt,
+      sizeof(ekeyDt));
+  if (code < 0) {
+    return code;
+  }
 
   // The virtual-table merger and the external timestamp sorter both walk a slice as ascending
   // [skey, ekey] ranges and stop at the first row beyond the window, so an unordered result set
@@ -3902,7 +5632,9 @@ static int32_t influxDemuxAppendRow(SInfluxDataDemuxCtx *pCtx, SSDataBlock *pSrc
   }
 
   int32_t row  = pDst->info.rows;
-  int32_t code = blockDataEnsureCapacity(pDst, row + 1);
+  /* Per-UID blocks persist across every batch query. Start from the row that is
+   * actually present so a sparse UID does not reserve a full 64-row page. */
+  int32_t code = extEnsureBlockCapacityGeometric(pDst, (uint32_t)row + 1, 1U);
   if (code != TSDB_CODE_SUCCESS) return code;
   for (int32_t c = 0; c < pCtx->nData; c++) {
     SColumnInfoData *pSrcCol = taosArrayGet(pSrc->pDataBlock, c);
@@ -4099,9 +5831,18 @@ static int32_t extBuildInfluxFetchBatchSql(SStreamExtReaderInfo *pInfo, const ch
     }
     if (!clauseOk) {
       sqlBuf[saveOff] = '\0';
-      ST_TASK_ELOG("ext: influx data batch SQL exceeds %d bytes uid=%" PRIu64 " batchStart=%d batchSize=%d",
-                   sqlBufLen, uid, batchStart, batchSize);
-      return TSDB_CODE_OUT_OF_RANGE;
+      off = saveOff;
+      if (k == 0) {
+        ST_TASK_ELOG("ext: influx data batch SQL exceeds %d bytes uid=%" PRIu64
+                     " batchStart=%d batchSize=%d",
+                     sqlBufLen, uid, batchStart, batchSize);
+        return TSDB_CODE_OUT_OF_RANGE;
+      }
+      *pConsumed = k;
+      *pAnyUid = anyUid;
+      ST_TASK_DLOG("ext: split influx data batch at SQL capacity consumed=%d requested=%d",
+                   k, batchSize);
+      return TSDB_CODE_SUCCESS;
     }
 
     anyUid = true;
@@ -4333,6 +6074,85 @@ static int32_t extSortUidBlocksByTs(const SStreamTask *pTask, const char *phase,
   return code;
 }
 
+/* InfluxDB 1.8 data fetch: one prepared raw scan per uid.  The uid's complete
+ * tag binding (from its tagset key) reproduces the series it was enumerated
+ * from, and the provider orders every scan ascending by time, so the local
+ * sort below is only a guard. */
+static int32_t extFetchUidBlocksInflux18(SStreamExtReaderInfo *pInfo, const char *phase,
+                                         const SExtColTypeMapping *pMappings, int32_t nMappings,
+                                         SSHashObj *pUidWindow, SArray *pUidBlocks) {
+  const SStreamTask *pTask = pInfo->pTask;
+  int32_t            code = extInflux18EnsureSchema(pInfo, pInfo->pConn);
+  if (code != TSDB_CODE_SUCCESS) {
+    return code;
+  }
+
+  SExtColTypeMapping       *pFullMappings = NULL;
+  int32_t                   nFullMappings = 0;
+  const SExtColTypeMapping *pEffMappings = pMappings;
+  int32_t                   nEffMappings = nMappings;
+  if (nEffMappings <= 0) {
+    code = extInflux18FullMappings(pInfo, &pFullMappings, &nFullMappings);
+    if (code != TSDB_CODE_SUCCESS) {
+      return code;
+    }
+    pEffMappings = pFullMappings;
+    nEffMappings = nFullMappings;
+  }
+
+  int32_t iter = 0;
+  void   *pVal = NULL;
+  while (code == TSDB_CODE_SUCCESS &&
+         (pVal = tSimpleHashIterate(pUidWindow, pVal, &iter)) != NULL) {
+    size_t          keyLen = 0;
+    uint64_t        uid = *(uint64_t *)tSimpleHashGetKey(pVal, &keyLen);
+    SExtUidWindow  *pWin = (SExtUidWindow *)pVal;
+    SUidIndexEntry *pEntry = tSimpleHashGet(pInfo->pUidIndex, &uid, sizeof(uid));
+    if (pEntry == NULL) {
+      ST_TASK_WLOG("ext: %s influx18 uid:%" PRIu64 " not in the series index, skipped",
+                   phase, uid);
+      continue;
+    }
+
+    SExtInfluxTagValue tags[TSDB_MAX_TAGS];
+    char               scratch[EXT_TAGSET_KEY_MAX] = {0};
+    int32_t            nTags = 0;
+    code = extInflux18ParseTagBindings(pEntry->tagsetKey, scratch, sizeof(scratch), tags,
+                                       TSDB_MAX_TAGS, &nTags);
+    if (code != TSDB_CODE_SUCCESS) {
+      ST_TASK_ELOG("ext: %s influx18 parse tagset uid:%" PRIu64 " code:%d", phase, uid, code);
+      break;
+    }
+    code = extInflux18FillEmptyTagBindings(pInfo, tags, TSDB_MAX_TAGS, &nTags);
+    if (code != TSDB_CODE_SUCCESS) {
+      ST_TASK_ELOG("ext: %s influx18 fill empty tagset uid:%" PRIu64 " code:%d", phase, uid, code);
+      break;
+    }
+
+    SSDataBlock *pBlock = NULL;
+    code = extInflux18ExecScan(pInfo, pInfo->pConn, pEffMappings, nEffMappings,
+                               nTags > 0 ? tags : NULL, nTags, pInfo->pTriggerPrefilter,
+                               pWin->skey, pWin->ekey, true, &pBlock);
+    if (code != TSDB_CODE_SUCCESS) {
+      ST_TASK_ELOG("ext: %s influx18 scan uid:%" PRIu64 " code:%d", phase, uid, code);
+      break;
+    }
+
+    SUidBlockPair pair = {.uid = uid, .pBlock = pBlock};
+    if (taosArrayPush(pUidBlocks, &pair) == NULL) {
+      code = terrno;
+      blockDataDestroy(pBlock);
+      break;
+    }
+  }
+
+  if (code == TSDB_CODE_SUCCESS) {
+    code = extSortUidBlocksByTs(pTask, phase, pEffMappings, nEffMappings, pUidBlocks);
+  }
+  taosMemoryFree(pFullMappings);
+  return code;
+}
+
 static int32_t extFetchUidBlocks(SStreamExtReaderInfo *pInfo,
                                  const char *phase,
                                  const char *colList,
@@ -4347,6 +6167,12 @@ static int32_t extFetchUidBlocks(SStreamExtReaderInfo *pInfo,
   int32_t code = TSDB_CODE_SUCCESS;
   bool    isInflux = ((EExtSourceType)pInfo->spec.sourceType == EXT_SOURCE_INFLUXDB);
   int32_t nTags = pInfo->pInfluxTagCols ? (int32_t)taosArrayGetSize(pInfo->pInfluxTagCols) : 0;
+
+  /* 1.8 has no SQL endpoint and no server-side predicate pushdown: every uid is
+   * fetched with its own prepared raw scan. */
+  if (pInfo->influxV1) {
+    return extFetchUidBlocksInflux18(pInfo, phase, pMappings, nMappings, pUidWindow, pUidBlocks);
+  }
 
   /* InfluxDB can batch uid windows only when the select list and mappings
    * align positionally; otherwise it must fall back to one query per uid. */
@@ -4471,7 +6297,7 @@ static int32_t handleDataPull(SStreamExtReaderInfo *pInfo,
   }
 
   /* Trigger data path: use PRE_FILTER (triggerPrefilter). */
-  char prefilterBuf[EXT_SQL_CLAUSE_BUF_LEN] = {0};
+  char prefilterBuf[EXT_SQL_PREFILTER_BUF_LEN] = {0};
   int32_t pfCode = buildTriggerPrefilterClause(&pInfo->spec, prefilterBuf, sizeof(prefilterBuf));
   if (pfCode < 0) {
     code = pfCode;
@@ -4483,6 +6309,25 @@ static int32_t handleDataPull(SStreamExtReaderInfo *pInfo,
    * drop them and let the connector return raw columns. */
   const SExtColTypeMapping *pColMaps = (nCols > 0) ? pInfo->spec.pColMappings : NULL;
   int32_t                   nColMaps = (nCols > 0) ? pInfo->spec.numColMappings : 0;
+
+  /* PERIOD can have no trigger projection even when %%trows needs typed
+   * columns from the cached calculation scan. Reuse that scan's projection
+   * and mappings together: the InfluxDB JSON provider cannot infer types or
+   * column order from an unmapped SELECT * response. */
+  if (nCols == 0 && pInfo->spec.calcColumns != NULL && pInfo->spec.pCalcMappings != NULL &&
+      pInfo->spec.numCalcMappings > 0 &&
+      taosArrayGetSize(pInfo->spec.calcColumns) == (size_t)pInfo->spec.numCalcMappings) {
+    nCols = buildCalcColList(&pInfo->spec, colList, sizeof(colList), false);
+    if (nCols < 0) {
+      code = nCols;
+      goto _exit;
+    }
+    pColMaps = pInfo->spec.pCalcMappings;
+    nColMaps = pInfo->spec.numCalcMappings;
+    ST_TASK_DLOG("ext: handleDataPull using calc projection columns=%d", nCols);
+  } else if (nCols == 0) {
+    ST_TASK_DLOG("%s", "ext: handleDataPull no typed projection, using SELECT * without mappings");
+  }
 
   pUidBlocks = taosArrayInit(tSimpleHashGetSize(pReq->pUidWindow), sizeof(SUidBlockPair));
   if (pUidBlocks == NULL) {
@@ -4503,7 +6348,7 @@ static int32_t handleDataPull(SStreamExtReaderInfo *pInfo,
 
   dataRows = (pRsp->pDataBlock != NULL) ? pRsp->pDataBlock->info.rows : 0;
   ST_TASK_DLOG("ext: handleDataPull done code=%d dataRows=%" PRId64, code, dataRows);
-  printDataBlock(pRsp->pDataBlock, __func__, "ext_data", pTask->streamId);
+  printDataBlock(pRsp->pDataBlock, __func__, "ext_data", pTask->streamId, pTask->charsetCxt);
 
   /* Mirror vnodeProcessStreamWalMetaDataNewReq: signal NO_DATA when result is
    * empty so the trigger side treats this as a normal empty-poll. */
@@ -4567,8 +6412,8 @@ static int32_t handleMetaDataPull(SStreamExtReaderInfo *pInfo,
           code,
           pRsp->pMetaBlock ? pRsp->pMetaBlock->info.rows : 0,
           pRsp->pDataBlock ? pRsp->pDataBlock->info.rows : 0);
-  printDataBlock(pRsp->pMetaBlock, __func__, "ext_meta_data_meta", pTask->streamId);
-  printDataBlock(pRsp->pDataBlock, __func__, "ext_meta_data_data", pTask->streamId);
+  printDataBlock(pRsp->pMetaBlock, __func__, "ext_meta_data_meta", pTask->streamId, pTask->charsetCxt);
+  printDataBlock(pRsp->pDataBlock, __func__, "ext_meta_data_data", pTask->streamId, pTask->charsetCxt);
 
 _exit:
   if (pUidWindow != NULL) {
@@ -4620,7 +6465,7 @@ static int32_t handleCalcDataPull(SStreamExtReaderInfo *pInfo,
   int32_t nMappings = 0;
   SArray *pUidBlocks = NULL;
   char colList[EXT_SQL_CLAUSE_BUF_LEN] = {0};
-  char calcPrefilterBuf[EXT_SQL_CLAUSE_BUF_LEN] = {0};
+  char calcPrefilterBuf[EXT_SQL_PREFILTER_BUF_LEN] = {0};
   const SExtColTypeMapping *pMappings = NULL;
 
   ST_TASK_DLOG("ext: handleCalcDataPull enter source=%s calcCols=%d",
@@ -4660,7 +6505,7 @@ static int32_t handleCalcDataPull(SStreamExtReaderInfo *pInfo,
 
   calcRows = (pRsp->pDataBlock != NULL) ? pRsp->pDataBlock->info.rows : 0;
   ST_TASK_DLOG("ext: handleCalcDataPull done code=%d calcRows=%" PRId64, code, calcRows);
-  printDataBlock(pRsp->pDataBlock, __func__, "ext_calc_data", pTask->streamId);
+  printDataBlock(pRsp->pDataBlock, __func__, "ext_calc_data", pTask->streamId, pTask->charsetCxt);
   if (code == TSDB_CODE_SUCCESS && calcRows == 0) {
     ST_TASK_DLOG("%s", "ext: handleCalcDataPull no rows -> TSDB_CODE_STREAM_NO_DATA");
     code = TSDB_CODE_STREAM_NO_DATA;
@@ -4689,7 +6534,8 @@ typedef struct SExtGroupColValueCtx {
                                       * PARTITION BY items */
   SStreamGroupValue    *pSlots;      /* nPart slots, indexed like partitionTagCols */
   bool                 *pFilled;     /* which of pSlots[] have a real value */
-  /* Scratch for the "<extTable>_<tagVal>_<tagVal>..." subtable identity. */
+  /* Scratch for the "<extTable>_<tag>_<value>..." (1.8) or
+   * "<extTable>_<value>..." (2.x) subtable identity. */
   char                  nameBuf[TSDB_TABLE_NAME_LEN];
   int32_t               nameLen;
   bool                  nameOverflow;
@@ -4730,7 +6576,12 @@ static int32_t extBuildNCharGroupValue(const SStreamTask *pTask, const char *col
   int32_t outLen = 0;
   if (srcLen > 0) {
     outLen = maxUcs4;
-    bool ok = taosMbsToUcs4(colVal, srcLen, (TdUcs4 *)val.data.pData, maxUcs4, &outLen, NULL);
+    void *utf8 = taosConvInit("UTF-8");
+    if (utf8 == NULL) {
+      taosMemoryFree(val.data.pData);
+      return TSDB_CODE_CHARSET_CONVERT_ERROR;
+    }
+    bool ok = taosMbsToUcs4(colVal, srcLen, (TdUcs4 *)val.data.pData, maxUcs4, &outLen, utf8);
     if (!ok) {
       ST_TASK_ELOG("ext: handleGroupColValuePull UTF-8 to UCS-4 conversion failed for col='%s'", colName);
       taosMemoryFree(val.data.pData);
@@ -4740,6 +6591,42 @@ static int32_t extBuildNCharGroupValue(const SStreamTask *pTask, const char *col
   val.data.nData = outLen;
   *pOut = val;
   return TSDB_CODE_SUCCESS;
+}
+
+/* Append one 1.8 sub-table name component ("_<tag>_<value>") with '~' as the escape
+ * character: '~' becomes "~~" and '_' becomes "~_".  Doubling '_' alone was not
+ * enough, because the escaped form still ends with the separator character
+ * ({a_="b"} -> "_a__" + "_b" and {a="_b"} -> "_a" + "___b" both ended as
+ * "..._a___b").  With '_' always preceded by '~' inside a component and '~'
+ * always starting a two-character escape, the composition is injective: two
+ * different tag tuples can never compose the same name.  Only the tag tuple is
+ * escaped -- the measurement prefix is fixed for the whole stream.  Sets
+ * nameOverflow (and NUL-terminates at the last complete component) when the
+ * result no longer fits, so the caller falls back to "influxdb_<uid>". */
+static void extInflux18AppendTbnameComponent(SExtGroupColValueCtx *pCtx, const char *tagName,
+                                             const char *tagValue) {
+  const char *parts[2] = {tagName, tagValue};
+  const int32_t capacity = (int32_t)sizeof(pCtx->nameBuf);
+
+  for (int32_t p = 0; p < 2; ++p) {
+    if (pCtx->nameLen + 1 >= capacity) {
+      pCtx->nameOverflow = true;
+      pCtx->nameBuf[pCtx->nameLen] = '\0';
+      return;
+    }
+    pCtx->nameBuf[pCtx->nameLen++] = '_';
+    for (const char *s = parts[p]; s != NULL && *s != '\0'; ++s) {
+      int32_t need = (*s == '_' || *s == '~') ? 2 : 1;
+      if (pCtx->nameLen + need >= capacity) {
+        pCtx->nameOverflow = true;
+        pCtx->nameBuf[pCtx->nameLen] = '\0';
+        return;
+      }
+      if (need == 2) pCtx->nameBuf[pCtx->nameLen++] = '~';
+      pCtx->nameBuf[pCtx->nameLen++] = *s;
+    }
+  }
+  pCtx->nameBuf[pCtx->nameLen] = '\0';
 }
 
 /* Single pass over pEntry->tagsetKey ("col=val|col=val|..."). With no
@@ -4757,15 +6644,18 @@ static int32_t extGroupColValueScanTagsetKey(SExtGroupColValueCtx *pCtx, const S
   const char *colNames[TSDB_MAX_TAGS] = {0};
   const char *colVals[TSDB_MAX_TAGS] = {0};
   int32_t     nCols = 0;
-  char       *saveptr = NULL;
-  char       *pair = strtok_r(tagsetKey, "|", &saveptr);
-  while (pair != NULL) {
-    char *eq = strchr(pair, '=');
+  char *pair = tagsetKey;
+  while (pair != NULL && *pair != '\0') {
+    char *next = findUnescapedTagsetChar(pair, '|');
+    if (next != NULL) *next = '\0';
+    char *eq = findUnescapedTagsetChar(pair, '=');
     if (eq == NULL) {
-      pair = strtok_r(NULL, "|", &saveptr);
+      pair = next != NULL ? next + 1 : NULL;
       continue;
     }
     *eq = '\0';
+    unescapeTagsetComponent(pair);
+    unescapeTagsetComponent(eq + 1);
     const char *colName = pair;
     const char *colVal  = eq + 1;
     if (nCols >= TSDB_MAX_TAGS) {
@@ -4776,16 +6666,38 @@ static int32_t extGroupColValueScanTagsetKey(SExtGroupColValueCtx *pCtx, const S
     colVals[nCols] = colVal;
     ++nCols;
 
-    if (pCtx->wantTbname && !pCtx->nameOverflow) {
-      int32_t n = snprintf(pCtx->nameBuf + pCtx->nameLen, sizeof(pCtx->nameBuf) - pCtx->nameLen, "_%s", colVal);
+    pair = next != NULL ? next + 1 : NULL;
+  }
+
+  if (pCtx->wantTbname && !pCtx->nameOverflow) {
+    /* InfluxDB 1.8 leaves a tag the series does not carry out of its identity, so
+     * two series can hold the same value under different tag keys ("host=a" and
+     * "region=a").  Qualifying only the sparse tagsets is not enough: with the
+     * schema {site, zone}, series "site=a" composes "<m>_site_a" in the
+     * name-qualified form while the complete series "site=site,zone=a" composes
+     * the same "<m>_site_a" in the value-only form, so both groups would write
+     * the same window into one table.  Switching form by sparsity also renames
+     * existing series as soon as a new tag key appears.  Every 1.8 component is
+     * therefore qualified with its tag name, and the separator/escape characters
+     * inside a name or value are escaped ('_' -> "~_", '~' -> "~~") so the
+     * component boundaries stay decidable and two different tag tuples can never
+     * compose the same name.  Sources without sparse tagsets (2.x) keep the
+     * compact value-only form. */
+    bool qualify = pCtx->pInfo->influxV1;
+    for (int32_t i = 0; i < nCols; ++i) {
+      if (qualify) {
+        extInflux18AppendTbnameComponent(pCtx, colNames[i], colVals[i]);
+        if (pCtx->nameOverflow) break;
+        continue;
+      }
+      int32_t n = snprintf(pCtx->nameBuf + pCtx->nameLen, sizeof(pCtx->nameBuf) - pCtx->nameLen,
+                           "_%s", colVals[i]);
       if (n < 0 || n >= (int32_t)(sizeof(pCtx->nameBuf) - pCtx->nameLen)) {
         pCtx->nameOverflow = true;
-      } else {
-        pCtx->nameLen += n;
+        break;
       }
+      pCtx->nameLen += n;
     }
-
-    pair = strtok_r(NULL, "|", &saveptr);
   }
 
   if (pCtx->nPart == 0) {
@@ -4829,10 +6741,11 @@ static int32_t extGroupColValueCopyCachedSlots(SExtGroupColValueCtx *pCtx, const
 }
 
 /* Resolve the sub-table's own tbname string into tbnameBuf: the composed
- * "<measurement>_<tagVal>..." identity when pCtx->nameBuf was built without
- * overflowing (and this uid actually had a tagsetKey to compose from), else
- * the "influxdb_<uid>" fallback. Feeds extGroupColValueFillTbnameSlot's
- * single call site in handleGroupColValuePull. */
+ * "<measurement>_<tag>_<value>..." (1.8) or "<measurement>_<value>..." (2.x)
+ * identity when pCtx->nameBuf was built without overflowing (and this uid
+ * actually had a tagsetKey to compose from), else the "influxdb_<uid>"
+ * fallback. Feeds extGroupColValueFillTbnameSlot's single call site in
+ * handleGroupColValuePull. */
 static void extGroupColValueComposeTbname(const SExtGroupColValueCtx *pCtx, bool hadTagsetKey, uint64_t uid,
                                           uint64_t gid, char *tbnameBuf, int32_t tbnameBufSize,
                                           int32_t *pTbnameLen) {
@@ -4989,6 +6902,7 @@ static int32_t handleGroupColValuePull(SStreamExtReaderInfo *pInfo,
   const SStreamTask *pTask = pInfo->pTask;
   uint64_t           gid   = (uint64_t)pReq->gid;
   int32_t            code  = TSDB_CODE_SUCCESS;
+  SExtGroupColValueCtx ctx = {0};
 
   ST_TASK_DLOG("ext: handleGroupColValuePull enter gid=%" PRIu64, gid);
 
@@ -4998,7 +6912,6 @@ static int32_t handleGroupColValuePull(SStreamExtReaderInfo *pInfo,
     goto _exit;
   }
 
-  SExtGroupColValueCtx ctx = {0};
   code = extInitGroupColValueCtx(pInfo, gid, &ctx);
   if (code != TSDB_CODE_SUCCESS) {
     ST_TASK_ELOG("ext: handleGroupColValuePull init ctx failed gid=%" PRIu64 " code:%d",
@@ -5041,21 +6954,28 @@ _exit:
   return code;
 }
 
-static bool extAppendFetchDataBound(char *sql, int32_t sqlLen, int32_t *pOff,
-                                    const char *tsCol, const char *op,
-                                    int64_t ts, int8_t boundPrecision,
-                                    const SStreamExtReaderInfo *pInfo, bool isInflux) {
+static int32_t extAppendFetchDataBound(char *sql, int32_t sqlLen, int32_t *pOff,
+                                       const char *tsCol, const char *op,
+                                       int64_t ts, int8_t boundPrecision,
+                                       const SStreamExtReaderInfo *pInfo, bool isInflux) {
   if (isInflux) {
     return extSqlCat(sql, sqlLen, pOff, " AND %s %s to_timestamp_nanos(%" PRId64 ")",
-                     tsCol, op, extInfluxBoundToNanos(ts, boundPrecision, strcmp(op, "<=") == 0));
+                     tsCol, op, extInfluxBoundToNanos(ts, boundPrecision, strcmp(op, "<=") == 0))
+               ? TSDB_CODE_SUCCESS
+               : TSDB_CODE_OUT_OF_RANGE;
   }
 
   char dt[EXT_SQL_TS_LITERAL_LEN] = {0};
   /* Only the inclusive upper bound is clamped into the remote domain; see
    * extClampMysqlUpperBound(). */
   int64_t bound = (strcmp(op, "<=") == 0) ? extClampMysqlUpperBound(pInfo, ts, boundPrecision) : ts;
-  streamReaderExtRenderTimeBound(pInfo, bound, boundPrecision, dt, sizeof(dt));
-  return extSqlCat(sql, sqlLen, pOff, " AND %s %s %s", tsCol, op, dt);
+  int32_t code = streamReaderExtRenderTimeBound(pInfo, bound, boundPrecision, dt, sizeof(dt));
+  if (code < 0) {
+    return code;
+  }
+  return extSqlCat(sql, sqlLen, pOff, " AND %s %s %s", tsCol, op, dt)
+             ? TSDB_CODE_SUCCESS
+             : TSDB_CODE_OUT_OF_RANGE;
 }
 
 /* ============================================================
@@ -5095,8 +7015,8 @@ static int32_t extCalcParamsRange(STimeRangeNode *node, const SStreamRuntimeFunc
     /* Sliding windows are half-open; the others already carry an inclusive end. */
     if (pRt->triggerType == STREAM_TRIGGER_SLIDING && win.ekey != INT64_MIN) win.ekey--;
   } else {
-    /* Time-returning expressions: evaluate the start bound with the first window
-     * parameter and the end bound with the last one. */
+    /* A single window needs the complete predicate, including SQL NULL bounds.
+     * Only a batch uses separate bounds to form its fetch envelope. */
     SStreamRuntimeFuncInfo tmp = *pRt;  // shallow view; never destroy tmp
     tmp.isMultiGroupCalc      = false;
     tmp.pStreamPesudoFuncVals = pParams;
@@ -5106,12 +7026,14 @@ static int32_t extCalcParamsRange(STimeRangeNode *node, const SStreamRuntimeFunc
 
     STimeWindow cur   = {0};
     bool        valid = false;
-    int32_t     code  = streamCalcCurrWinTimeRange(node, &tmp, &cur, &valid, 1);
+    int32_t     code  = streamCalcCurrWinTimeRange(node, &tmp, &cur, &valid, first == last ? 3 : 1);
     if (code != TSDB_CODE_SUCCESS) return code;
     win.skey   = cur.skey;
-    tmp.curIdx = last;
-    code = streamCalcCurrWinTimeRange(node, &tmp, &cur, &valid, 2);
-    if (code != TSDB_CODE_SUCCESS) return code;
+    if (first != last) {
+      tmp.curIdx = last;
+      code = streamCalcCurrWinTimeRange(node, &tmp, &cur, &valid, 2);
+      if (code != TSDB_CODE_SUCCESS) return code;
+    }
     /* streamCalcCurrWinTimeRange returns a half-open end; INT64_MAX = unbounded. */
     win.ekey = cur.ekey;
     if (win.ekey != INT64_MAX) {
@@ -5327,9 +7249,65 @@ int32_t streamReaderExtFetchData(SStreamExtReaderInfo *pReaderInfo,
   const SExtColTypeMapping *pMappings = (nCols > 0) ? pReaderInfo->spec.pCalcMappings : NULL;
   int32_t                   nMappings = (nCols > 0) ? pReaderInfo->spec.numCalcMappings : 0;
 
+  /* InfluxDB 1.8: no SQL endpoint, so the calc window is served by the
+   * provider's prepared raw scan (all series, inclusive time range, ascending).
+   * The plan's calc WHERE is applied by the stream executor.  The trigger
+   * PRE_FILTER belongs only to the trigger reader and must not affect calc
+   * input, including when calc reads a different external table. */
+  if (pReaderInfo->influxV1) {
+    SExtColTypeMapping       *pFullMappings = NULL;
+    int32_t                   nFullMappings = 0;
+    const SExtColTypeMapping *pEffMappings = pMappings;
+    int32_t                   nEffMappings = nMappings;
+    bool                      ownConn = pReaderInfo->borrowConn;
+    SExtConnectorHandle      *pConn = pReaderInfo->pConn;
+    if (ownConn) {
+      pConn = NULL;
+      code = extOpenReaderConnector(pTask, &pReaderInfo->spec, &pConn);
+      if (code != TSDB_CODE_SUCCESS) {
+        return code;
+      }
+    }
+    /* The 1.8 table descriptor and remote schema below are lazy reader state
+     * (pInflux18Table/pInflux18Meta): a concurrent FETCH_EXT on this reader could build them twice,
+     * or reset them while this thread is still using them, so the schema refresh and the scan
+     * share the same lock in both branches. */
+    (void)taosThreadMutexLock(&pReaderInfo->connLock);
+    if (ownConn) {
+      /* A calculation reader is created independently of the trigger reader and never runs the
+       * trigger-side LAST_TS/META field probe, so a field created after the schema was cached
+       * stays outside its projection and a point carrying only that field yields no row at all
+       * (COUNT(*) then undercounts).  Drop the cached schema for every calculation fetch: one
+       * metadata round trip per window buys the exact row set, and the output column mapping is
+       * unaffected because the plan's mappings stay authoritative when they exist. */
+      extInflux18ResetSchema(pReaderInfo);
+    }
+    code = extInflux18EnsureSchema(pReaderInfo, pConn);
+    if (code == TSDB_CODE_SUCCESS && nEffMappings <= 0) {
+      code = extInflux18FullMappings(pReaderInfo, &pFullMappings, &nFullMappings);
+      if (code == TSDB_CODE_SUCCESS) {
+        pEffMappings = pFullMappings;
+        nEffMappings = nFullMappings;
+      }
+    }
+    if (code == TSDB_CODE_SUCCESS) {
+      code = extInflux18ExecScan(pReaderInfo, pConn, pEffMappings, nEffMappings, NULL, 0, NULL, skey,
+                                 ekey, true, ppOut);
+    }
+    (void)taosThreadMutexUnlock(&pReaderInfo->connLock);
+    taosMemoryFree(pFullMappings);
+    if (ownConn) {
+      extConnectorClose(pConn);
+    }
+    if (code != TSDB_CODE_SUCCESS) {
+      ST_TASK_ELOG("ext: streamReaderExtFetchData influx18 failed code:%d", code);
+    }
+    return code;
+  }
+
   /* streamReaderExtFetchData fetches pure calc data for aggregation;
    * apply calc WHERE prefilter (prefilter) only  -  not PRE_FILTER. */
-  char prefilterBuf[EXT_SQL_CLAUSE_BUF_LEN] = {0};
+  char prefilterBuf[EXT_SQL_PREFILTER_BUF_LEN] = {0};
   code = buildPrefilterClause(&pReaderInfo->spec, prefilterBuf, sizeof(prefilterBuf));
   if (code < 0) {
     goto _exit;
@@ -5356,12 +7334,18 @@ int32_t streamReaderExtFetchData(SStreamExtReaderInfo *pReaderInfo,
                " precision:%d isInflux:%d aliasSelectItems:%d",
                skey, ekey, boundPrecision, isInflux, aliasSelectItems);
   if (ok && skey != INT64_MIN) {
-    ok = extAppendFetchDataBound(sql, sizeof(sql), &off, tsColQ, ">=", skey,
-                                 boundPrecision, pReaderInfo, isInflux);
+    code = extAppendFetchDataBound(sql, sizeof(sql), &off, tsColQ, ">=", skey,
+                                   boundPrecision, pReaderInfo, isInflux);
+    if (code != TSDB_CODE_SUCCESS) {
+      goto _exit;
+    }
   }
   if (ok && ekey != INT64_MAX) {
-    ok = extAppendFetchDataBound(sql, sizeof(sql), &off, tsColQ, "<=", ekey,
-                                 boundPrecision, pReaderInfo, isInflux);
+    code = extAppendFetchDataBound(sql, sizeof(sql), &off, tsColQ, "<=", ekey,
+                                   boundPrecision, pReaderInfo, isInflux);
+    if (code != TSDB_CODE_SUCCESS) {
+      goto _exit;
+    }
   }
   // External sources do not guarantee row order, and the trigger consumes calc rows with an
   // ascending time cursor: order the fetch by the timestamp column like the relational uid

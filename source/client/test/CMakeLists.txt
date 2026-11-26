@@ -40,6 +40,18 @@ TARGET_LINK_LIBRARIES(
         connectOptionsTest PRIVATE
         os util common transport parser catalog scheduler ${TAOS_NATIVE_LIB_STATIC} qcom executor function
 )
+add_test(
+        NAME clientTimezoneRulesTest
+        COMMAND connectOptionsTest --gtest_filter=SessionTimezone*Test.*
+)
+
+# Runs against the pytest-managed server; its clock override stays in this
+# statically linked test client and never enters the production libraries.
+ADD_EXECUTABLE(timezoneDstClient timezoneDstClient.cpp)
+TARGET_LINK_LIBRARIES(
+        timezoneDstClient PRIVATE
+        os util common transport parser catalog scheduler ${TAOS_NATIVE_LIB_STATIC} qcom executor function
+)
 
 ADD_EXECUTABLE(tmqTest tmqTest.cpp)
 DEP_ext_gtest(tmqTest)
@@ -54,7 +66,7 @@ TARGET_LINK_LIBRARIES(
 # be compiled and never executed.
 add_test(
         NAME tmqRawDataTest
-        COMMAND tmqTest --gtest_filter=testCase.validate_raw_data_block_versions_Test:testCase.invalid_raw_data_response_returns_error_Test:testCase.rejected_poll_response_retains_offset_Test
+        COMMAND tmqTest --gtest_filter=testCase.validate_raw_data_block_versions_Test:testCase.invalid_raw_data_response_returns_error_Test:testCase.rejected_poll_response_retains_offset_Test:testCase.empty_rawdata_write_succeeds_Test
 )
 add_test(
         NAME tmqStartTimestampTest
@@ -62,7 +74,7 @@ add_test(
 )
 add_test(
         NAME tmqPollResponseTest
-        COMMAND tmqTest --gtest_filter=testCase.metadata_only_response_updates_begin_offset_Test
+        COMMAND tmqTest --gtest_filter=testCase.metadata_only_response_updates_begin_offset_Test:testCase.response_union_aliases_do_not_report_data_Test
 )
 
 ADD_EXECUTABLE(smlTest smlTest.cpp)
@@ -393,6 +405,7 @@ TARGET_LINK_LIBRARIES(liteConsistencyTest PRIVATE ${CMAKE_DL_LIBS})
 # The concurrency cases use std::thread, which needs the platform threads library
 # (pthread_create on Linux/macOS) to be on the link line.
 FIND_PACKAGE(Threads REQUIRED)
+TARGET_LINK_LIBRARIES(connectOptionsTest PRIVATE Threads::Threads)
 TARGET_LINK_LIBRARIES(liteConsistencyTest PRIVATE Threads::Threads)
 TARGET_COMPILE_DEFINITIONS(
         liteConsistencyTest PRIVATE

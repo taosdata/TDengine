@@ -23,16 +23,32 @@ function_name ( [ arguments ] ) OVER ( window_spec | window_name )
 
 ```sql
 window_spec:
-    [ PARTITION BY expr [, ...] ]
-    [ ORDER BY expr [ ASC | DESC ] [ NULLS FIRST | NULLS LAST ] [, ...] ]
-    [ frame_clause ]
+  [ PARTITION BY expr [, ...] ]
+  [ ORDER BY expr [ ASC | DESC ] [ NULLS FIRST | NULLS LAST ] [, ...] ]
+  [ frame_clause ]
 ```
 
-- **PARTITION BY**：把输入结果集按一个或多个表达式切分成互不影响的 **分区**，每个分区独立计算。省略时整个结果集视为一个分区。
+- **PARTITION BY**：把输入结果集按一个或多个表达式切分成互不影响的 **分区**，每个分区独立计算。省略时，当前查询级分片内的输入视为一个窗口分区；没有查询级分片时，整个结果集视为一个窗口分区。
 - **ORDER BY**：在分区内按一个或多个表达式排序，支持 `ASC` / `DESC`（默认 `ASC`）和 `NULLS FIRST` / `NULLS LAST`。排序决定了序号、前后值、累计区间等与顺序相关的语义。
 - **frame_clause**：窗口帧，进一步在排序后的分区内界定当前行参与计算的行范围，详见 [窗口帧](#窗口帧)。
 
 窗口函数只能出现在查询块的 `SELECT` 列表和 `ORDER BY` 中，不能出现在 `WHERE`、`GROUP BY`、`HAVING`、`PARTITION BY` 或窗口帧边界表达式里。如需基于窗口结果再做过滤或聚合，请把窗口查询写成子查询，在外层引用其输出列。
+
+### 与查询级分片的组合
+
+查询级 `PARTITION BY` 为同一查询块中的所有窗口函数划定外层边界。`OVER ()` 在每个查询级分片内独立计算；`OVER (PARTITION BY ...)` 只能在该分片内进一步分区，不同查询级分片中的窗口分区键即使相同，也不会合并计算。
+
+```sql
+SELECT
+  dev,
+  v,
+  RANK() OVER(ORDER BY v DESC) AS r,
+  SUM(v) OVER() AS s
+FROM t
+PARTITION BY dev;
+```
+
+假设 `t` 中两个设备各有一行，`v` 分别为 `100` 和 `10`，则两行排名均为 `1`，总和分别为 `100` 和 `10`。在 `OVER` 内增加 `PARTITION BY grp` 后，按每个 `(dev, grp)` 组合独立计算。去掉查询级 `PARTITION BY dev` 后，示例改为对所有行统一排名，两行总和均为 `110`。
 
 ## 窗口帧
 
@@ -40,7 +56,7 @@ window_spec:
 
 ```sql
 frame_clause:
-    { ROWS | RANGE } frame_extent
+  { ROWS | RANGE } frame_extent
 
 frame_extent:
     frame_bound
@@ -86,10 +102,9 @@ frame_bound:
 
 ```sql
 SELECT
-    AVG(voltage) OVER win AS ma,
-    MAX(voltage) OVER win AS mx
-FROM meters
-WINDOW win AS (PARTITION BY tbname ORDER BY ts ROWS BETWEEN 1 PRECEDING AND CURRENT ROW)
+  AVG(voltage) OVER win AS ma,
+  MAX(voltage) OVER win AS mx
+FROM meters WINDOW win AS (PARTITION BY tbname ORDER BY ts ROWS BETWEEN 1 PRECEDING AND CURRENT ROW)
 ORDER BY ts;
 ```
 
@@ -177,6 +192,8 @@ ORDER BY ts;
 
 - 窗口函数只能出现在查询块的 `SELECT` 列表和 `ORDER BY` 中。出现在 `WHERE`、`GROUP BY`、`HAVING`、`PARTITION BY`、窗口帧边界表达式，或作为标量函数参数、另一个窗口函数的窗口规范时，均返回错误。
 - 不允许窗口函数嵌套，即一个窗口函数的参数或窗口规范中不能再出现窗口函数。
+- 内联 `OVER (...)` 的 `ORDER BY` 支持普通聚合表达式，例如 `SUM(current)`、`AVG(current)` 或 `SUM(current) + 1`，聚合先于窗口函数计算。聚合表达式不必同时出现在 `SELECT` 列表中；其他列仍须满足分组规则。多行函数、窗口 `PARTITION BY` 和帧边界中的聚合，以及命名窗口定义中的聚合，仍不支持。
+- 窗口函数出现在 `SELECT` 列表时，其 `OVER` 内不能引用同层 `SELECT` 定义的别名；数字排序表达式按常量处理，不代表 `SELECT` 列序号。可以重复聚合表达式，或先在子查询中计算别名。
 - 顺序敏感的窗口函数（序号类、分布类、取值类）未指定 `ORDER BY` 时返回错误。
 - 当前仅支持批查询，不支持在流式计算中使用窗口函数。
 - 排序中 `NULL` 默认按最低值处理；同值行的输出顺序由 `ORDER BY` 决定，需要稳定逐行顺序时应显式补充排序键。
@@ -188,7 +205,9 @@ ORDER BY ts;
 自 `v3.4.2.0` 起，`OFFSET N` 可以脱离 `LIMIT` 独立使用：
 
 ```sql
-SELECT v, AVG(v) OVER (ORDER BY ts ROWS BETWEEN 9 PRECEDING AND CURRENT ROW) AS ma
+SELECT
+  v,
+  AVG(v) OVER(ORDER BY ts ROWS BETWEEN 9 PRECEDING AND CURRENT ROW) AS ma
 FROM meters
 ORDER BY ts
 OFFSET 9;
@@ -198,11 +217,27 @@ OFFSET 9;
 
 以下示例基于文档统一使用的智能电表数据模型（超级表 `meters`，包含 `ts`、`current`、`voltage`、`phase` 列和 `location`、`groupid` 标签）。
 
+### 分组后排名
+
+以下查询先计算每组电流总和，再按总和从高到低排名：
+
+```sql
+SELECT
+  groupid,
+  SUM(current) AS total,
+  RANK() OVER(ORDER BY SUM(current) DESC) AS rn
+FROM meters
+GROUP BY groupid;
+```
+
 **移动平均**：计算每个电表最近 10 次采样的平均电压。
 
 ```sql
-SELECT tbname, ts, voltage,
-       AVG(voltage) OVER (PARTITION BY tbname ORDER BY ts ROWS BETWEEN 9 PRECEDING AND CURRENT ROW) AS ma
+SELECT
+  tbname,
+  ts,
+  voltage,
+  AVG(voltage) OVER(PARTITION BY tbname ORDER BY ts ROWS BETWEEN 9 PRECEDING AND CURRENT ROW) AS ma
 FROM meters
 ORDER BY tbname, ts;
 ```
@@ -210,8 +245,11 @@ ORDER BY tbname, ts;
 **运行总计**：计算每个电表电流的累计值。
 
 ```sql
-SELECT tbname, ts, current,
-       SUM(current) OVER (PARTITION BY tbname ORDER BY ts ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW) AS running_total
+SELECT
+  tbname,
+  ts,
+  current,
+  SUM(current) OVER(PARTITION BY tbname ORDER BY ts ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW) AS running_total
 FROM meters
 ORDER BY tbname, ts;
 ```
@@ -219,19 +257,25 @@ ORDER BY tbname, ts;
 **分区排名**：在每个分组内按电压降序排名。
 
 ```sql
-SELECT groupid, tbname, voltage,
-       ROW_NUMBER() OVER (PARTITION BY groupid ORDER BY voltage DESC) AS rn,
-       RANK()       OVER (PARTITION BY groupid ORDER BY voltage DESC) AS rk,
-       DENSE_RANK() OVER (PARTITION BY groupid ORDER BY voltage DESC) AS drk
+SELECT
+  groupid,
+  tbname,
+  voltage,
+  ROW_NUMBER() OVER(PARTITION BY groupid ORDER BY voltage DESC) AS rn,
+  RANK() OVER(PARTITION BY groupid ORDER BY voltage DESC) AS rk,
+  DENSE_RANK() OVER(PARTITION BY groupid ORDER BY voltage DESC) AS drk
 FROM meters;
 ```
 
 **前后值对比**：计算每个电表相邻采样的电压差。
 
 ```sql
-SELECT tbname, ts, voltage,
-       LAG(voltage)           OVER (PARTITION BY tbname ORDER BY ts) AS prev_v,
-       voltage - LAG(voltage) OVER (PARTITION BY tbname ORDER BY ts) AS delta
+SELECT
+  tbname,
+  ts,
+  voltage,
+  LAG(voltage) OVER(PARTITION BY tbname ORDER BY ts) AS prev_v,
+  voltage - LAG(voltage) OVER(PARTITION BY tbname ORDER BY ts) AS delta
 FROM meters
 ORDER BY tbname, ts;
 ```
@@ -239,8 +283,11 @@ ORDER BY tbname, ts;
 **时间范围窗口**：统计每行前 10 秒内（按时间值）的电压总和。
 
 ```sql
-SELECT tbname, ts, voltage,
-       SUM(voltage) OVER (PARTITION BY tbname ORDER BY ts RANGE BETWEEN 10s PRECEDING AND CURRENT ROW) AS sum_10s
+SELECT
+  tbname,
+  ts,
+  voltage,
+  SUM(voltage) OVER(PARTITION BY tbname ORDER BY ts RANGE BETWEEN 10s PRECEDING AND CURRENT ROW) AS sum_10s
 FROM meters
 ORDER BY tbname, ts;
 ```
@@ -248,12 +295,18 @@ ORDER BY tbname, ts;
 **命名窗口 + 子查询过滤**：先在子查询中计算移动平均，再在外层过滤出高于移动平均的行。
 
 ```sql
-SELECT tbname, ts, voltage, ma
+SELECT
+  tbname,
+  ts,
+  voltage,
+  ma
 FROM (
-    SELECT tbname, ts, voltage,
-           AVG(voltage) OVER win AS ma
-    FROM meters
-    WINDOW win AS (PARTITION BY tbname ORDER BY ts ROWS BETWEEN 9 PRECEDING AND CURRENT ROW)
+  SELECT
+    tbname,
+    ts,
+    voltage,
+    AVG(voltage) OVER win AS ma
+  FROM meters WINDOW win AS (PARTITION BY tbname ORDER BY ts ROWS BETWEEN 9 PRECEDING AND CURRENT ROW)
 ) t
 WHERE voltage > ma
 ORDER BY tbname, ts;

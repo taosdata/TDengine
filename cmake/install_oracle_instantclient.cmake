@@ -61,6 +61,13 @@ else()
     endforeach()
 endif()
 if("z${_oracle_src}" STREQUAL "z")
+    if(allow_missing)
+        # Mirror-only artifacts (the Windows 19c bundle) are optional: a build
+        # without the published bundle still completes, and the test/runtime
+        # checks report the missing client.
+        message(STATUS "ext_oracle: no Instant Client in the artifact; skipping (allow_missing=ON)")
+        return()
+    endif()
     message(FATAL_ERROR "ext_oracle: no libsqora.so.* or sqora*.dll in the artifact")
 endif()
 

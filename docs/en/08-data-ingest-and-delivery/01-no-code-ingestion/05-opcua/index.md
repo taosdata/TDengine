@@ -17,6 +17,13 @@ OPC UA is the next-generation standard of the classic OPC specifications, a plat
 
 TDengine can efficiently read data from OPC UA servers and write it to TDengine, enabling real-time data ingestion.
 
+## Prerequisites
+
+Before starting, confirm that the [data ingestion prerequisites](../00-prerequisites.md) are met. Key points for OPC UA:
+
+- **Network connectivity**: Make sure taosX (direct mode) or taosX-Agent (agent proxy mode) can reach the OPC UA service address. In agent proxy mode, both the taosX-Agent → taosX (gRPC, default port `6055`) and taosX-Agent → OPC UA server segments must be connected. See [Verify Port Connectivity](../00-prerequisites.md#verify-port-connectivity) for how to allow and verify both segments.
+- **Security certificates**: If the OPC UA server requires certificate-based authentication (security mode `Sign` or `SignAndEncrypt`), generate the client certificate in advance and make sure the server trusts it. See [Generate a taosX OPC UA Client Certificate](./01-client-certificate.md).
+
 ## Procedure
 
 ### Add a Data Source
@@ -283,13 +290,27 @@ As shown in the image above:
 
 :::
 
-When using **Selecting Data Points** in the **Data Point Set**, the collection configuration can configure **Data Point Update Mode** and **Data Point Update Interval** to enable dynamic data point updates. **Dynamic Data Point Update** refers to, during the task operation, after OPC Server adds or deletes data points, the data points that meet the conditions will automatically be added to the current task without needing to restart the OPC task.
+#### Auto Sync New Points
+
+When **Data Point Set** uses **Selecting Data Points** and collection mode is `subscribe` or `observe`, enable **Auto Sync New Points** to browse OPC UA Server periodically using the saved node scope and filters. New matching nodes join collection using the original mapping rules, with the required subtables, Property tags, and model updates. No task restart or initial CSV update is required. Existing points continue collecting, and new points use the same value transformation rules.
+
+- New rule-based tasks created in the UI keep this option disabled by default; enable it when needed. Editing or copying an existing task preserves its saved value; an older task without the field treats it as disabled. API clients must explicitly set `auto_sync_new_points=true`; omitting it means disabled.
+- Discovery uses **Data Point Update Interval**, in seconds, with a default of 600 and a minimum of 60. Enrollment latency includes the scan wait and subsequent processing. This setting is separate from the `observe` **Collection Interval**.
+- Nodes outside the filters are excluded. Repeated scans do not duplicate subscriptions or subtables. Disappearance from the source does not automatically delete a subtable, and a type change does not automatically alter an existing target schema.
+- A new node is not enrolled if its type cannot be determined, its target schema is incompatible, or its write location conflicts. Check task logs and adjust the type or mapping. Other eligible new nodes continue to be processed.
+- This feature does not apply to fixed CSV uploads or Alarms & Events mode. Both local and taosX-Agent proxy modes are supported; use matching taosX, taosX-Agent, and OPC plugin versions.
+
+#### Existing Data Point Update Modes
+
+**Auto Sync New Points** is mutually exclusive with the existing `Append` and `Update` modes. Enabling it sets the existing mode to `None` and disables that selector in the UI. An API request that enables automatic sync with `append` or `update` is rejected. To retain the existing deletion sync behavior, disable automatic sync and select `Update`.
+
+When **Auto Sync New Points** is disabled, the existing dynamic point update behavior remains available:
 
 - Data Point Update Mode: Can choose `None`, `Append`, `Update`.
   - None: Do not enable dynamic data point updates;
   - Append: Enable dynamic data point updates, but only append;
   - Update: Enable dynamic data point updates, append or delete;
-- Data Point Update Interval: Effective when "Data Point Update Mode" is `Append` and `Update`. Unit: seconds, default value is 600, minimum value: 60, maximum value: 2147483647.
+- Data Point Update Interval: Effective when **Auto Sync New Points** is enabled or **Data Point Update Mode** is `Append` or `Update`. Unit: seconds, default value is 600, minimum value: 60, maximum value: 2147483647.
 
 ### Advanced Options
 
@@ -340,7 +361,8 @@ Day-to-day maintenance of subtable tag values already in TDengine (including aut
 
 ## Related Documents
 
+- [Data Ingestion Prerequisites](../00-prerequisites.md): direct/agent topology and network port requirements
 - [Install taosX-Agent](../01-install-agent.md): remote agent install; task changes usually do not require reinstalling the Agent
-- [OPC-DA](../06-opcda.md): DA-side metadata, collection interval, and task maintenance (for comparison with UA)
+- [OPC-DA](../06-opcda/index.md): DA-side metadata, collection interval, and task maintenance (for comparison with UA)
 - [TDengine IDMP](../../../19-tdengine-idmp/index.md): point tags and industrial metadata management (recommended)
 - [Data Ingestion (Xnode)](../../../05-tdengine-sql/08-cluster-management/02-xnode.md): manage ingest nodes, tasks, and agents with SQL

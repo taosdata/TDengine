@@ -29,6 +29,7 @@
 #include "thttp.h"
 #include "tqueue.h"
 #include "ttime.h"
+#include "tworker.h"
 #include "version.h"
 #include "wal.h"
 
@@ -186,6 +187,18 @@ typedef struct SMnode {
   int64_t        clusterId;
   TdThread       thread;
   TdThread       arbThread;
+#ifdef TD_ENTERPRISE
+  SSingleWorker streamSchemaWorker;
+  int8_t        streamSchemaStopping;
+  int32_t       streamSchemaBatchCount;
+  int64_t       streamSchemaBatchBytes;
+  SRWLatch                   streamSchemaNodeLock;
+  SArray *streamSchemaNodes[32];  // Per-snode counts of queued Reader installs and implicit acknowledgments.
+  struct SStmSchemaBatch *streamSchemaResults;  // Completed legacy replies, oldest first.
+#endif
+  TdThread       streamDeployThread;
+  tsem_t         streamDeploySem;
+  int8_t         streamDeployStopping;
   TdThreadRwlock lock;
   int32_t        rpcRef;
   int32_t        syncRef;

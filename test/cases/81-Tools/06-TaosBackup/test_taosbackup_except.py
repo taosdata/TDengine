@@ -249,13 +249,43 @@ class TestTaosBackupExcept:
         etool.benchmark_write(f"{benchmark} -f {jsonFile}")
 
     def dumpOut(self, taosbackup, db, outdir, websocket=False):
-        command = f"{taosbackup} -T 2 -k 2 -z 800 -D {db} -o {outdir}"
+        # -k counts retries after the first attempt.  The fault injection
+        # restarts taosadapter three times (~6 s each) while the export runs, so
+        # the same table can lose its connection more than twice; the budget has
+        # to cover the injection, not work around a completeness bug.
+        logFile = os.path.abspath("taosdump_backup.log")
+        command = f"{taosbackup} -T 2 -k 5 -z 800 -D {db} -o {outdir}"
         if websocket:
             command += " -Z WebSocket -X http://127.0.0.1:6041"
-        self.exec(command)
+        return self.exec(f"{command} > {logFile} 2>&1"), logFile
 
     def dumpIn(self, taosbackup, db, newdb, indir):
-        self.exec(f'{taosbackup} -T 10 -W "{db}={newdb}" -i {indir}')
+        logFile = os.path.abspath("taosdump_restore.log")
+        command = f'{taosbackup} -T 10 -W "{db}={newdb}" -i {indir}'
+        return self.exec(f"{command} > {logFile} 2>&1"), logFile
+
+    def checkToolResult(self, ret, logFile, action):
+        """Verify the verdict taosdump reported for *action*.
+
+        A non-zero exit alone is not conclusive: when a retry drops the broken
+        pooled handles (resetConnectionPool), LeakSanitizer reports them in
+        sanitizer builds and turns the exit status into 1 even though the
+        backup/restore completed.  The tool's own summary is authoritative --
+        FAILED must never be accepted, SUCCESS must be followed by the data
+        verification below.
+        """
+        with open(logFile, "r", errors="replace") as f:
+            output = f.read()
+        if f"SUCCESS ({action})" in output:
+            if ret != 0:
+                tdLog.info(
+                    f"{action.lower()} reported SUCCESS with exit={ret}; "
+                    "expected under LeakSanitizer, the retry path drops broken pooled handles on purpose"
+                )
+            return
+        tail = "\n".join(output.splitlines()[-40:])
+        tdLog.error(f"{action.lower()} did not report SUCCESS, tool log tail:\n{tail}")
+        tdLog.exit(f"{action.lower()} FAILED (exit={ret}), see {logFile}")
 
     def checkAggSame(self, db, newdb, stb, aggfun):
         sql = f"select {aggfun} from {db}.{stb}"
@@ -320,11 +350,50 @@ class TestTaosBackupExcept:
         self.insertData(benchmark, jsonFile, db)
         self.startKillThread(taosadapter, presleep=2, sleep=5, count=3)
         try:
-            self.dumpOut(taosbackup, db, tmpdir, websocket=websocket)
+            ret, logFile = self.dumpOut(taosbackup, db, tmpdir, websocket=websocket)
         finally:
             self.stopKillThread()
-        self.dumpIn(taosbackup, db, newdb, tmpdir)
+        # An incomplete backup must never be reported as success, so the verdict
+        # is checked before restoring: restoring a truncated dump only turns the
+        # failure into a confusing row-count mismatch later on.
+        self.checkToolResult(ret, logFile, "BACKUP")
+        ret, logFile = self.dumpIn(taosbackup, db, newdb, tmpdir)
+        self.checkToolResult(ret, logFile, "RESTORE")
         self.verifyResult(db, newdb, jsonFile)
+
+    def do_retry_without_budget(self):
+        """Backup with -k 0 must still back every table up once.
+
+        The old per-table loop was `while (n < retryCount)`, so `-k 0` never
+        called the backup function at all: every child table was skipped while
+        the run still reported SUCCESS.
+        """
+        taosbackup, benchmark, _taosadapter, tmpdir = self.findPrograme()
+        src_db = "k0_src"
+        dst_db = "k0_dst"
+        tables = 10
+        rows = 1000
+
+        ret = etool.benchmark_write(f"{benchmark} -d {src_db} -t {tables} -n {rows} -y")
+        if ret != 0:
+            tdLog.exit(f"taosBenchmark failed (ret={ret})")
+
+        logFile = os.path.abspath("taosdump_backup_k0.log")
+        ret = self.exec(f"{taosbackup} -T 2 -k 0 -D {src_db} -o {tmpdir} > {logFile} 2>&1")
+        self.checkToolResult(ret, logFile, "BACKUP")
+
+        dat_dir = os.path.join(tmpdir, src_db, "meters_data0")
+        dats = glob.glob(os.path.join(dat_dir, "*.dat"))
+        if len(dats) != tables:
+            tdLog.exit(f"-k 0 backup wrote {len(dats)}/{tables} child table data files")
+
+        ret, logFile = self.dumpIn(taosbackup, src_db, dst_db, tmpdir)
+        self.checkToolResult(ret, logFile, "RESTORE")
+        tdSql.query(f"select count(*) from {dst_db}.meters")
+        count = tdSql.getData(0, 0)
+        if count != tables * rows:
+            tdLog.exit(f"-k 0 restore row mismatch: expected {tables * rows}, got {count}")
+        tdLog.info("test_taosbackup_retry_without_budget PASSED")
 
     # =========================================================================
     # Helpers for server-pause tests
@@ -692,10 +761,11 @@ class TestTaosBackupExcept:
         """taosBackup exception handling tests
 
         1. taosadapter kill/restart during backup (native + WebSocket)
-        2. taosadapter kill/restart during restore
-        3. pthread_create failure safety (clean exit, no hang/crash)
-        4. taosd unresponsive (sc.dnodeStop) during backup, then restore verify
-        5. taosd unresponsive (sc.dnodeStop) during restore (last, no restart needed)
+        2. backup with -k 0 still backs every table up once
+        3. taosadapter kill/restart during restore
+        4. pthread_create failure safety (clean exit, no hang/crash)
+        5. taosd unresponsive (sc.dnodeStop) during backup, then restore verify
+        6. taosd unresponsive (sc.dnodeStop) during restore (last, no restart needed)
 
         Since: v3.0.0.0
 
@@ -707,9 +777,12 @@ class TestTaosBackupExcept:
             - 2026-03-04 Alex Duan Migrated and adapted from 04-Taosdump/test_taosdump_except.py
             - 2026-03-19 Alex Duan Created server-restart and thread-fail tests
             - 2026-04-01 Alex Duan Refactored into single entry point for serial execution
+            - 2026-11-12 Alex Duan Assert backup/restore exit status after adapter fault injection
+            - 2026-11-13 Alex Duan Add -k 0 backup coverage
 
         """
         self.do_retry()
+        self.do_retry_without_budget()
         self.do_restore_retry()
         self.do_thread_creation_failure()
         self.do_server_restart_backup()

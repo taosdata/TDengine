@@ -33,6 +33,91 @@ class TfsTest : public ::testing::Test {
 
 const char *TfsTest::root;
 
+TEST_F(TfsTest, SnapshotDiskAllocationStrategies) {
+  STfsTier tier = {0};
+  ASSERT_EQ(tfsInitTier(&tier, 0), 0);
+  STfsDisk disks[3] = {};
+  tier.ndisk = 3;
+  tier.nAvailDisks = 3;
+  for (int32_t index = 0; index < 3; ++index) {
+    tier.disks[index] = &disks[index];
+    disks[index].size.total = 100000000000LL;
+    disks[index].size.avail = 80000000000LL;
+    disks[index].size.used = 20000000000LL;
+  }
+  disks[0].size.used = 50000000000LL;
+  disks[0].size.total = 1000000000000LL;
+  EXPECT_EQ(tfsAllocDiskOnTierWithStrategy(&tier, "ratio", TFS_DISK_ALLOC_LEAST_USED), 0);
+  disks[0].size.total = 100000000000LL;
+  EXPECT_EQ(tfsAllocDiskOnTierWithStrategy(&tier, "snapshot", TFS_DISK_ALLOC_LEAST_USED), 1);
+  EXPECT_EQ(tfsAllocDiskOnTierWithStrategy(&tier, "snapshot", TFS_DISK_ALLOC_LEAST_USED), 2);
+  disks[1].disable = 1;
+  disks[2].size.avail = 0;
+  EXPECT_EQ(tfsAllocDiskOnTierWithStrategy(&tier, "snapshot", TFS_DISK_ALLOC_LEAST_USED), 0);
+  disks[1].disable = 0;
+  disks[2].size.avail = 80000000000LL;
+  EXPECT_EQ(tfsAllocDiskOnTierWithStrategy(&tier, "round-robin", TFS_DISK_ALLOC_ROUND_ROBIN), 0);
+  EXPECT_EQ(tfsAllocDiskOnTierWithStrategy(&tier, "round-robin", TFS_DISK_ALLOC_ROUND_ROBIN), 1);
+  disks[0].size.used = 0;
+  disks[1].size.used = 0;
+  disks[2].size.used = 0;
+  EXPECT_EQ(tfsAllocDiskOnTierWithStrategy(&tier, "zero", TFS_DISK_ALLOC_LEAST_USED), 0);
+  EXPECT_EQ(tfsAllocDiskOnTierWithStrategy(&tier, "zero", TFS_DISK_ALLOC_LEAST_USED), 1);
+  disks[0].size.total = 0;
+  disks[1].disable = 1;
+  disks[2].size.avail = 0;
+  EXPECT_EQ(tfsAllocDiskOnTierWithStrategy(&tier, "none", TFS_DISK_ALLOC_LEAST_USED), TSDB_CODE_FS_NO_VALID_DISK);
+  for (int32_t index = 0; index < 3; ++index) tier.disks[index] = NULL;
+  tfsDestroyTier(&tier);
+}
+
+TEST_F(TfsTest, SnapshotDiskAllocationFallsBackToLowerTier) {
+  STfs tfs = {0};
+  tfs.nlevel = 2;
+  STfsDisk disks[2] = {};
+  for (int32_t level = 0; level < 2; ++level) {
+    int32_t code = tfsInitTier(&tfs.tiers[level], level);
+    if (code != 0) {
+      for (int32_t initialized = 0; initialized < level; ++initialized) {
+        tfs.tiers[initialized].disks[0] = NULL;
+        tfsDestroyTier(&tfs.tiers[initialized]);
+      }
+      FAIL() << "Failed to initialize tier " << level << ": " << code;
+    }
+    tfs.tiers[level].ndisk = 1;
+    tfs.tiers[level].nAvailDisks = 1;
+    tfs.tiers[level].disks[0] = &disks[level];
+    disks[level].size.total = 100000000000LL;
+    disks[level].size.used = 20000000000LL;
+    disks[level].size.avail = 80000000000LL;
+  }
+  disks[1].disable = 1;
+  SDiskID diskId = {0};
+  EXPECT_EQ(tfsAllocDiskWithStrategy(&tfs, 1, "snapshot", TFS_DISK_ALLOC_LEAST_USED, &diskId), 0);
+  EXPECT_EQ(diskId.level, 0);
+  EXPECT_EQ(diskId.id, 0);
+  disks[1].disable = 0;
+  EXPECT_EQ(tfsAllocDiskWithStrategy(&tfs, 100, "snapshot", TFS_DISK_ALLOC_LEAST_USED, &diskId), 0);
+  EXPECT_EQ(diskId.level, 1);
+  EXPECT_EQ(diskId.id, 0);
+  EXPECT_EQ(tfsAllocDiskWithStrategy(&tfs, -1, "snapshot", TFS_DISK_ALLOC_LEAST_USED, &diskId), 0);
+  EXPECT_EQ(diskId.level, 1);
+  for (int32_t level = 0; level < 2; ++level) {
+    tfs.tiers[level].disks[0] = NULL;
+    tfsDestroyTier(&tfs.tiers[level]);
+  }
+}
+
+TEST_F(TfsTest, SnapshotDiskAllocationRejectsInvalidArguments) {
+  STfs tfs = {0};
+  SDiskID diskId = {0};
+  EXPECT_EQ(tfsAllocDiskWithStrategy(NULL, 0, "snapshot", TFS_DISK_ALLOC_ROUND_ROBIN, &diskId), TSDB_CODE_INVALID_PARA);
+  EXPECT_EQ(tfsAllocDiskWithStrategy(&tfs, 0, "snapshot", TFS_DISK_ALLOC_ROUND_ROBIN, &diskId), TSDB_CODE_FS_NO_VALID_DISK);
+  EXPECT_EQ(tfsAllocDiskWithStrategy(&tfs, 0, NULL, TFS_DISK_ALLOC_ROUND_ROBIN, &diskId), TSDB_CODE_INVALID_PARA);
+  EXPECT_EQ(tfsAllocDiskWithStrategy(&tfs, 0, "snapshot", TFS_DISK_ALLOC_ROUND_ROBIN, NULL), TSDB_CODE_INVALID_PARA);
+  EXPECT_EQ(tfsAllocDiskWithStrategy(&tfs, 0, "snapshot", -1, &diskId), TSDB_CODE_INVALID_PARA);
+}
+
 TEST_F(TfsTest, 01_Open_Close) {
   SDiskCfg dCfg = {0};
   tstrncpy(dCfg.dir, root, TSDB_FILENAME_LEN);
@@ -896,4 +981,41 @@ TEST_F(TfsTest, DISABLED_06_Misc) {
   for (int32_t l = 0; l < tfs.nlevel; ++l) {
     EXPECT_EQ(taosThreadSpinDestroy(&tfs.tiers[l].lock), 0);
   }
+}
+
+// A stale SDiskID can arrive from persisted metadata (current.json) or from a
+// snapshot peer whose disk layout differs from the local one. tfsGetDiskPath
+// must never dereference an unmounted disk slot for such an id.
+TEST_F(TfsTest, 99_GetDiskPathInvalidDiskId) {
+  SDiskCfg dCfg = {0};
+  tstrncpy(dCfg.dir, root, TSDB_FILENAME_LEN);
+  dCfg.level = 0;
+  dCfg.primary = 1;
+  dCfg.disable = 0;
+
+  taosRemoveDir(root);
+  taosMulMkDir(root);
+  STfs *pTfs = NULL;
+  ASSERT_EQ(tfsOpen(&dCfg, 1, &pTfs), 0);
+  ASSERT_NE(pTfs, nullptr);
+
+  // The only mounted disk is {level = 0, id = 0}; its path is valid.
+  SDiskID validDid = {0};
+  EXPECT_STREQ(tfsGetDiskPath(pTfs, validDid), root);
+
+  // id beyond the number of disks mounted at level 0 (the crash scenario:
+  // a metadata did with id = 5 on a node that has a single disk).
+  SDiskID staleId = {0};
+  staleId.id = 5;
+  EXPECT_EQ(tfsGetDiskPath(pTfs, staleId), nullptr);
+
+  // An unmounted tier, and a level outside the tiers array.
+  SDiskID unmountedLevel = {0};
+  unmountedLevel.level = 1;
+  EXPECT_EQ(tfsGetDiskPath(pTfs, unmountedLevel), nullptr);
+  SDiskID outOfRangeLevel = {0};
+  outOfRangeLevel.level = TFS_MAX_TIERS;
+  EXPECT_EQ(tfsGetDiskPath(pTfs, outOfRangeLevel), nullptr);
+
+  tfsClose(pTfs);
 }

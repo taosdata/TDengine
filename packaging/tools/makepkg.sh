@@ -307,6 +307,8 @@ chmod a+x ${install_dir}/install.sh
 
 if [[ $dbName == "taos" ]]; then  
   cp ${internal_dir}/packaging/start-all.sh ${install_dir}
+  cp ${internal_dir}/packaging/reconcile-tsdb-nodes.sh ${install_dir}
+  chmod a+x ${install_dir}/reconcile-tsdb-nodes.sh
   cp ${internal_dir}/packaging/stop-all.sh ${install_dir}
   cp ${internal_dir}/packaging/README.md ${install_dir}
   chmod a+x ${install_dir}/start-all.sh

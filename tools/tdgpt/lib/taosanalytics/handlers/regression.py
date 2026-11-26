@@ -18,7 +18,13 @@
 from lib.errors import failed_load_model_except
 from lib.log import AppLogger
 from lib.service_registry import loader
-from lib.util import do_initial_check, parse_options
+from lib.util import (
+    do_initial_check,
+    get_algo,
+    normalize_json_values,
+    parse_options,
+    validate_columns,
+)
 
 
 def do_regression(input_data, schema, algo_name, params):
@@ -67,7 +73,13 @@ def handle_regression(request):
         AppLogger.error("failed to parse regression request: %s", str(e))
         return {"msg": str(e), "rows": -1}
 
-    algo = req_json.get("algo", "").lower()
+    if not isinstance(req_json, dict):
+        return {"msg": "request body must be a JSON object", "rows": -1}
+
+    try:
+        algo = get_algo(req_json, "")
+    except ValueError as e:
+        return {"msg": str(e), "rows": -1}
     if not algo:
         return {"msg": "missing required field: algo", "rows": -1}
 
@@ -84,16 +96,24 @@ def handle_regression(request):
 
     # Transpose: payload is list of columns, regression expects list of rows
     try:
-        n_rows = len(payload[0])
+        n_rows = validate_columns(payload)
+    except ValueError as e:
+        AppLogger.error("invalid regression input data: %s", str(e))
+        return {"msg": str(e), "rows": -1}
+
+    try:
         input_data = [
             [payload[col][row] for col in range(len(payload))] for row in range(n_rows)
         ]
-    except (IndexError, TypeError) as e:
+    except (IndexError, KeyError, TypeError) as e:
         AppLogger.error("failed to transpose input data: %s", str(e))
         return {"msg": f"invalid data format: {e}", "rows": -1}
 
     try:
         predictions = do_regression(input_data, schema, algo, params)
+        if not isinstance(predictions, list):
+            predictions = list(predictions)
+        predictions = normalize_json_values(predictions)
         result = {
             "algo": algo,
             "option": options,

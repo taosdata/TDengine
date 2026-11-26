@@ -25,6 +25,7 @@ extern "C" {
 #include "libs/qcom/extTypeMap.h"  // EExtTimestampTzClass
 #include "query.h"
 #include "querynodes.h"
+#include "tcommon.h"
 #include "tname.h"
 
 #define SLOT_NAME_LEN TSDB_TABLE_NAME_LEN + TSDB_COL_NAME_LEN
@@ -78,6 +79,11 @@ typedef struct SLogicNode {
   EOrder             outputTsOrder;
   bool               forceCreateNonBlockingOptr;  // true if the operator can use non-blocking(pipeline) mode
   bool               splitDone;
+  // Keep the block groupId through this operator: used for a PARTITION BY
+  // view without ORDER BY feeding TIME_ALIGN, so the fill Projection can split
+  // PREV/NEXT state per partition.  Windows disable result-block merging,
+  // projects and merges stop clearing the id.
+  bool               preserveGroupId;
 } SLogicNode;
 
 typedef enum EScanType {
@@ -120,6 +126,9 @@ typedef struct SScanLogicNode {
   SLogicNode         node;
   SNodeList*         pScanCols;
   SNodeList*         pScanPseudoCols;
+  // TIME_ALIGN output columns read from this scan: SColumnNode entries with
+  // colId = source column id, colName = output name, alignMethod set.
+  SNodeList*         pAlignCols;
   int8_t             tableType;
   uint64_t           tableId;
   uint64_t           stableId;
@@ -142,7 +151,7 @@ typedef struct SScanLogicNode {
   double             ratio;
   SNodeList*         pDynamicScanFuncs;
   int32_t            dataRequired;
-  bool               lastOnlyScan;
+  ELastScanType      lastScanType;
   int64_t            intervalLimit;  // per-table window prefix; zero disables pruning
   int64_t            interval;
   int64_t            offset;
@@ -201,6 +210,15 @@ typedef struct SScanLogicNode {
   // query pushdown. Physical planning moves them into the remote leaf's pConditions
   // before serialization; they must never become local scan conditions.
   SNode*      pPushedConditions;
+  int8_t      bindingKind;
+  char        referenceAlias[TSDB_COL_NAME_LEN];
+  char        timeColumn[TSDB_COL_NAME_LEN];
+  uint64_t    referenceUid;
+  int32_t     expectedRversion;
+  int32_t     referenceVgId;
+  SEpSet      referenceEpSet;
+  char        referenceDbFName[TSDB_DB_FNAME_LEN];
+  SNode*      pReferenceFilter;
   bool        twoPassRescanSource;  // vtable two-pass: origin keeps reader alive for phase-2 rescan
   // --- table count scan extension (valid only when scanType == SCAN_TYPE_TABLE_COUNT) ---
   // ins_tables row type filter (TSDB_* table entry type); 0 = no filter.
@@ -254,6 +272,9 @@ typedef struct SVirtualScanLogicNode {
   bool          scanAllCols;
   SNodeList*    pScanCols;
   SNodeList*    pScanPseudoCols;
+  // TIME_ALIGN output columns: SColumnNode entries with colId = source column id,
+  // colName = output column name.  The matching output targets live in node.pTargets.
+  SNodeList*    pAlignCols;
   int8_t        tableType;
   uint64_t      tableId;
   uint64_t      stableId;
@@ -273,6 +294,7 @@ typedef struct SVirtualScanLogicNode {
   bool          hasTagRef;        // true if has tag references
   bool          hasLocalTag;      // true if has local tags
   bool          twoPassMode;      // PERCENTILE/repeat-scan: drive two passes (PRE_SCAN then MAIN_SCAN)
+  bool          hasReferenceBinding;
   bool          hasFilterCond;    // saved external filters require virtual-row merging before agg/window
   bool          hasConstRefTag;   // true if has const-ref tags (vntb/ntb source)
 } SVirtualScanLogicNode;
@@ -312,6 +334,7 @@ typedef struct SAggLogicNode {
   bool       isGroupTb;
   bool       isPartTb;  // true if partition keys has tbname
   bool       hasGroup;
+  bool       concurrentLastScan;
   bool       hasMixedDistinct;    // optimizer set: child[0]=non-distinct, child[1]=distinct
   int32_t    numDistinctFuncs;    // number of distinct functions (trailing in pAggFuncs)
   SNodeList* pTsmaSubplans;
@@ -325,6 +348,13 @@ typedef struct SProjectLogicNode {
   bool       inputIgnoreGroup;
   bool       isSetOpProj;
   bool       isUnionDedup;  // DS section5.3.8.6: true -> emit UNION (dedup), false -> UNION ALL
+  // TIME_ALIGN projection: the executor runs the align stage instead of the
+  // regular indefinite-rows projection path.
+  bool       timeAlignProject;
+  // View input: PREV/NEXT follow the view's output row order (no primary
+  // timestamp).  Each input block's groupId selects the align sequence; a
+  // block without a group id continues the current single sequence.
+  bool       timeAlignOutputOrder;
 } SProjectLogicNode;
 
 typedef struct SIndefRowsFuncLogicNode {
@@ -602,6 +632,7 @@ typedef struct SWindowFuncLogicNode {
   SNodeList* pOrderKeys;
   SNodeList* pFuncs;
   SNode*     pFrame;
+  int32_t    numValuePartitionKeys;
 } SWindowFuncLogicNode;
 
 typedef struct SSortLogicNode {
@@ -647,6 +678,9 @@ typedef struct SPartitionLogicNode {
 
   bool     interpPreSplitGroupSort;
   bool     phasedMode;  // true for interp phase-aware partition execution
+  // Candidate until post-split installs a tbname group tag and groupSort on
+  // the TableMergeScan child; mutually exclusive with phasedMode when enabled.
+  bool     extWinGroupBatch;
   bool     needBlockOutputTsOrder;  // if true, partition output block will have ts order maintained
   int32_t  pkTsColId;
   uint64_t pkTsColTbId;
@@ -762,6 +796,11 @@ typedef struct STagRefSourcePhysiNode {
 
 typedef struct SVirtualScanPhysiNode {
   SScanPhysiNode scan;
+  SNodeList*     pAlignCols;  // SColumnNode: colId = source column id, colName = output name
+  // Client timezone name, carried only when an align column has a time-range
+  // parameter with calendar units (n/q/y); the executor uses it to advance the
+  // candidate timestamp with taosTimeAdd().
+  char           timezoneName[TD_TIMEZONE_LEN];
   SNodeList*     pGroupTags;
   bool           groupSort;
   bool           scanAllCols;
@@ -841,10 +880,17 @@ typedef struct SSystemTableScanPhysiNode {
   // string means "use the server default charset" (tsCharsetCxt). Serialized in
   // TLV/JSON; restored to an SConvInfo* in the sysscan operator via taosConvInit.
   char charsetName[TD_CHARSET_LEN];
+  // Batch meta txn: txn-local schemas of the super tables the client's txn altered (queryEncodeTxnStbSchemas),
+  // set only on scans of the tables listed by qSysTableNeedsTxnStbSchemas(). NULL/0 outside a txn: the field is then omitted from the
+  // serialized plan, which stays byte-identical to older versions (rolling upgrade).
+  char*   pTxnStbSchemas;
+  int32_t txnStbSchemasLen;
 } SSystemTableScanPhysiNode;
 
 typedef struct STableScanPhysiNode {
   SScanPhysiNode scan;
+  // TIME_ALIGN output columns (see SScanLogicNode.pAlignCols).
+  SNodeList*     pAlignCols;
   uint8_t        scanSeq[2];  // first is scan count, and second is reverse scan count
   STimeWindow    scanRange;
   STimeWindow*   pExtScanRange;
@@ -857,7 +903,7 @@ typedef struct STableScanPhysiNode {
   SNode*         pPrimaryCond;   // for remote node, splited from filter conditions
   double         ratio;
   int32_t        dataRequired;
-  bool           lastOnlyScan;
+  ELastScanType  lastScanType;
   int64_t        intervalLimit;  // per-table window prefix; zero disables pruning
   SNodeList*     pDynamicScanFuncs;
   SNodeList*     pGroupTags;
@@ -992,6 +1038,15 @@ typedef struct SFederatedScanPhysiNode {
   // same way vnodeStream.c processCalaTimeRange does for table scans - to bound
   // the remote query.  NULL otherwise.
   SNode*              pTimeRange;
+  int8_t      bindingKind;
+  char        referenceAlias[TSDB_COL_NAME_LEN];
+  char        timeColumn[TSDB_COL_NAME_LEN];
+  uint64_t    referenceUid;
+  int32_t     expectedRversion;
+  int32_t     referenceVgId;
+  SEpSet      referenceEpSet;
+  char        referenceDbFName[TSDB_DB_FNAME_LEN];
+  SNode*      pReferenceFilter;
 } SFederatedScanPhysiNode;
 
 typedef struct SProjectPhysiNode {
@@ -1001,6 +1056,8 @@ typedef struct SProjectPhysiNode {
   bool       ignoreGroupId;
   bool       inputIgnoreGroup;
   bool       isUnionDedup;  // DS section5.3.8.6: true -> emit UNION (dedup), false -> UNION ALL
+  bool       timeAlignProject;  // see SProjectLogicNode.timeAlignProject
+  bool       timeAlignOutputOrder;  // see SProjectLogicNode.timeAlignOutputOrder
 } SProjectPhysiNode;
 
 typedef struct SIndefRowsFuncPhysiNode {
@@ -1221,6 +1278,10 @@ typedef struct SWindowPhysiNode {
   int8_t     unusedParam4;
   int8_t     indefRowsFunc; // [external window] identify whether the window has infinite rows
   bool       mergeDataBlock;// [interval window]
+  // Keep the block groupId through this window (TIME_ALIGN over a grouped
+  // view); the external window then keeps the partition id instead of only
+  // the trigger-group id.
+  bool       preserveGroupId;
   int64_t    unusedParam5; // useless
 } SWindowPhysiNode;
 
@@ -1340,6 +1401,7 @@ typedef struct SWindowFuncPhysiNode {
   SNodeList* pOrderKeys;
   SNodeList* pFuncs;
   SNode*     pFrame;
+  int32_t    numValuePartitionKeys;  // trailing OVER keys; older plans compare every key by stored bytes
 } SWindowFuncPhysiNode;
 
 typedef struct SSortPhysiNode {
@@ -1351,6 +1413,12 @@ typedef struct SSortPhysiNode {
   bool       excludePkCol;
   // Leading sort keys used for group id; 0 keeps legacy behavior.
   int32_t numOfGroupKeys;
+  // True when the planner proved that the physical child emits rows already
+  // ordered by the complete sort key list (every key, direction and NULL rule):
+  // a forward single-table scan with an ascending (ts, pk) primary key. The
+  // executor may then trust the plan and finish a block after the first strict
+  // threshold rejection instead of re-validating its suffix at runtime.
+  bool inputOrderedBySortKeys;
 } SSortPhysiNode;
 
 typedef SSortPhysiNode SGroupSortPhysiNode;
@@ -1385,6 +1453,7 @@ typedef struct SPartitionPhysiNode {
   SNodeList* pTargets;
 
   bool    phasedMode;  // true for interp phase-aware partition execution
+  bool    extWinGroupBatch;  // batch external windows by outer group; mutually exclusive with phasedMode
   bool    needBlockOutputTsOrder;
   int32_t tsSlotId;
 } SPartitionPhysiNode;
@@ -1467,7 +1536,10 @@ typedef struct SSubplan {
   bool           dynTbname;
   bool           localBlockExchange;
   bool           execOnChildNode;
+  bool           subqueryDepsKnown;
+  SArray*        pSubqueryDeps;  // Direct reads of this task, indexed in the SQL-wide child job list.
   int16_t        userAppId;  // encoded from client user_app, propagated for server-side use
+  char charsetName[TD_CHARSET_LEN];
 } SSubplan;
 
 typedef enum EExplainMode {
@@ -1524,6 +1596,8 @@ typedef struct SQueryPlan {
   bool          hasFederatedScan;  // true when plan contains at least one SCAN_TYPE_EXTERNAL node
   bool          hasScan;           // true when plan contains at least one local (vnode) scan
   SNodeList*    pCorrelationTemplates;  // Owned; not auto-started child jobs.
+  bool          subqueryDepsKnown;
+  SArray*       pSubqueryDeps;  // Owned int32_t indices into the SQL's child jobs.
 } SQueryPlan;
 
 const char* dataOrderStr(EDataOrderLevel order);

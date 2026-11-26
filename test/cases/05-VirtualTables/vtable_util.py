@@ -52,13 +52,13 @@ _pg_primary_version = (os.environ.get("FQ_PG_VERSIONS") or "18.6").split(",")[0]
 for _proto, _ver_tag in (
         ("PG",     _pg_primary_version.replace(".", "")),
         ("MYSQL",  "80"),
-        ("INFLUX", "30")):
+        ("INFLUX", os.getenv("FQ_INFLUX_VERSIONS", "3.0").split(",")[0].replace(".", ""))):
     _generic = os.environ.get(f"FQ_{_proto}_PORT")
     _versioned_key = f"FQ_{_proto}_PORT_{_ver_tag}"
     if _generic and not os.environ.get(_versioned_key):
         os.environ[_versioned_key] = _generic
 
-from federated_query_common import ExtSrcEnv  # noqa: E402
+from federated_query_common import ExtSrcEnv, INFLUX18_QUOTED_IDENTIFIER  # noqa: E402
 
 
 # ============================================================================
@@ -280,15 +280,16 @@ def _build_ext_virtual_ref_column_types(ext_types):
     return tuple(out)
 
 
-# --- All-sources (11-way) mode -------------------------------------------
+# --- All-sources (13-way) mode -------------------------------------------
 #
-# A single virtual table whose columns are split across 11 sources at once:
+# A single virtual table whose columns are split across 13 sources at once:
 #   bucket 0 → internal TDengine
 #   buckets 1,2 → PG sources       (pg_test_1, pg_test_2)
 #   buckets 3,4 → MySQL sources    (mysql_test_1, mysql_test_2)
-#   buckets 5,6 → Influx sources   (influx_test_1, influx_test_2)
-#   buckets 7,8 → SQL Server sources (ss_test_1, ss_test_2)
-#   buckets 9,10 → Oracle sources  (oracle_test_1, oracle_test_2)
+#   buckets 5,6 → InfluxDB 3.x sources (influx_test_1, influx_test_2)
+#   buckets 7,8 → InfluxDB 1.8 sources (influx18_test_1, influx18_test_2)
+#   buckets 9,10 → SQL Server sources (ss_test_1, ss_test_2)
+#   buckets 11,12 → Oracle sources (oracle_test_1, oracle_test_2)
 #
 # Bucket assignment is by each column's POSITION in VTABLE_COLUMN_TYPES,
 # so the same column always lands in the same source across every vtable.
@@ -302,6 +303,8 @@ _ALL_SOURCE_CYCLE = (
     ('mysql',     1),
     ('influx',    0),
     ('influx',    1),
+    ('influx18',  0),
+    ('influx18',  1),
     ('sqlserver', 0),
     ('sqlserver', 1),
     ('oracle',    0),
@@ -309,8 +312,16 @@ _ALL_SOURCE_CYCLE = (
 )
 
 
+# Windows has no supported InfluxDB 1.8 server package. Derive both column
+# mappings and their declared types from the remaining supported sources.
+if sys.platform == "win32":
+    _ALL_SOURCE_CYCLE = tuple(
+        source for source in _ALL_SOURCE_CYCLE if source[0] != "influx18"
+    )
+
+
 def _build_all_column_buckets():
-    """Return {col_name: (backend, src_idx)} using 11-way positional cycle."""
+    """Return {col_name: (backend, src_idx)} using the platform source cycle."""
     buckets = {}
     data_idx = 0
     for col, _ in VTABLE_COLUMN_TYPES:
@@ -331,6 +342,7 @@ def _build_all_column_types():
         'pg':        dict(VTABLE_COLUMN_TYPES_PG),
         'mysql':     dict(VTABLE_COLUMN_TYPES_MYSQL),
         'influx':    dict(VTABLE_COLUMN_TYPES_INFLUX),
+        'influx18':  dict(VTABLE_COLUMN_TYPES_INFLUX),
         'sqlserver': dict(VTABLE_COLUMN_TYPES_SQLSERVER),
         'oracle':    dict(VTABLE_COLUMN_TYPES_ORACLE),
     }
@@ -428,6 +440,44 @@ ORACLE_TABLE_COLUMNS = (
     'nchar_16_col NVARCHAR2(16)', 'nchar_32_col NVARCHAR2(32)',
     'groupid NUMBER(10,0)', 'location VARCHAR2(64)',
 )
+
+
+def _oracle_quoted_col_defs(col_defs):
+    """Quote the leading identifier of each column definition.
+
+    Fixtures store quoted lower-case names so the TDengine-side references
+    (unquoted -> lower case) match exactly.  Constraint clauses are skipped.
+    """
+    keyword_prefixes = ("primary", "unique", "constraint", "foreign", "check", "key")
+    out = []
+    depth = 0
+    start = 0
+    text = ", ".join(col_defs) + ","
+    for i, ch in enumerate(text):
+        if ch == "(":
+            depth += 1
+        elif ch == ")":
+            depth -= 1
+        elif ch == "," and depth == 0:
+            part = text[start:i].strip()
+            start = i + 1
+            if not part:
+                continue
+            name, sep, rest = part.partition(" ")
+            if name.startswith('"') or name.lower() in keyword_prefixes:
+                # Quote the identifiers inside a constraint column list, e.g.
+                # PRIMARY KEY (ts, device) -> PRIMARY KEY ("ts", "device").
+                part = re.sub(r'([(,])(\s*)([A-Za-z_][A-Za-z0-9_$#]*)(?=\s*[,)])',
+                              lambda m: f'{m.group(1)}{m.group(2)}"{m.group(3).lower()}"',
+                              part)
+                out.append(part)
+            else:
+                out.append(f'"{name.lower()}"{sep}{rest}'.rstrip())
+    return ", ".join(out)
+
+
+def _oracle_quoted_list(cols):
+    return ", ".join(f'"{c}"' for c in cols)
 
 # InfluxDB field columns: every vtable data column is a field — the 11 numeric
 # columns plus the 4 string columns (binary_*/nchar_*). Strings are Utf8 fields
@@ -764,6 +814,20 @@ def _prepare_one_origin_database(
 # start_*_instance are delegated to ExtSrcEnv to avoid duplication.
 
 
+def _skip_unless_service_required(source):
+    """Skip the test when the provider is outside FQ_REQUIRED_SERVICES.
+
+    required_services is the single source of truth for the providers a run
+    exercises: a Windows CI job without Docker for the 11g container keeps the
+    four native engines, and Oracle-backed classes skip here instead of
+    failing inside ensure_running().
+    """
+    if source in ExtSrcEnv.required_services():
+        return
+    import pytest
+    pytest.skip(f"{source} is not in FQ_REQUIRED_SERVICES")
+
+
 # --- PostgreSQL adapter ----------------------------------------------------
 class _PgAdapter:
     BACKEND       = "pg"
@@ -788,6 +852,7 @@ class _PgAdapter:
 
     # ----- env lifecycle ---------------------------------------------------
     def ensure_running(self):
+        _skip_unless_service_required(self.BACKEND)
         if ExtSrcEnv._tcp_probe(self.host, self.port, timeout=5):
             return
         if os.environ.get("FQ_SKIP_ENV_RESET") == "1":
@@ -900,6 +965,7 @@ class _MysqlAdapter:
     def version(self): return ExtSrcEnv.MYSQL_VERSIONS[0]
 
     def ensure_running(self):
+        _skip_unless_service_required(self.BACKEND)
         if ExtSrcEnv._tcp_probe(self.host, self.port, timeout=5):
             return
         if os.environ.get("FQ_SKIP_ENV_RESET") == "1":
@@ -1025,6 +1091,7 @@ class _SqlserverAdapter:
     def version(self): return ExtSrcEnv.SQLSERVER_VERSIONS[0]
 
     def ensure_running(self):
+        _skip_unless_service_required(self.BACKEND)
         if ExtSrcEnv._tcp_probe(self.host, self.port, timeout=5):
             return
         if os.environ.get("FQ_SKIP_ENV_RESET") == "1":
@@ -1182,6 +1249,7 @@ class _OracleAdapter:
         return next(ExtSrcEnv.oracle_version_configs())
 
     def ensure_running(self):
+        _skip_unless_service_required(self.BACKEND)
         if ExtSrcEnv._tcp_probe(self.host, self.port, timeout=5):
             return
         if os.environ.get("FQ_SKIP_ENV_RESET") == "1":
@@ -1199,8 +1267,10 @@ class _OracleAdapter:
     def ref(self, table, col, idx):
         # Oracle references are 4-segment: source.schema.table.column.  The
         # service name is a connection property and never part of a path.
+        # The login schema is upper-case, so that segment must be backticked;
+        # the fixture table/column names are stored quoted lower-case.
         s = self.SOURCE_NAMES[idx % 2]
-        return f"{s}.{self.SCHEMA_NAME}.{table}.{col}"
+        return f"{s}.`{self.SCHEMA_NAME}`.{table}.{col}"
 
     def ref_short(self, table, col, idx):
         # Child vtables keep the schema-qualified form: the schema is Oracle's
@@ -1217,7 +1287,7 @@ class _OracleAdapter:
                 f"CREATE EXTERNAL SOURCE IF NOT EXISTS {src} TYPE='oracle' "
                 f"HOST='{self.host}' PORT={self.port} "
                 f"USER='{self.user}' PASSWORD='{self.password}' "
-                f"DATABASE={self.SERVICE} SCHEMA={self.SCHEMA_NAME}")
+                f"DATABASE='{self.SERVICE}' SCHEMA='{self.SCHEMA_NAME}'")
 
     @classmethod
     def _value_literal(cls, column, value):
@@ -1251,8 +1321,9 @@ class _OracleAdapter:
         # multi-kilobyte line: a 200-row INSERT ALL on one line makes it
         # split the statement and fail.  One row per line keeps every line
         # short while the statement still spans lines until its semicolon.
-        into_rows = "\n".join(f"INTO {table_name} ({col_str}) VALUES {row}"
-                              for row in batch)
+        into_rows = "\n".join(
+            f'INTO "{table_name.lower()}" ({col_str}) VALUES {row}'
+            for row in batch)
         return f"INSERT ALL\n{into_rows}\nSELECT 1 FROM dual"
 
     def _load_csv(self, table_name, csv_path):
@@ -1263,7 +1334,7 @@ class _OracleAdapter:
         as the other adapters' CSV loaders.
         """
         import csv
-        col_str = ", ".join(PG_COPY_COLUMN_LIST)
+        col_str = _oracle_quoted_list(PG_COPY_COLUMN_LIST)
         with open(csv_path, "r", encoding="utf-8") as f:
             reader = csv.DictReader(f)
             batch = []
@@ -1286,22 +1357,22 @@ class _OracleAdapter:
         tdLog.info(
             f"prepare Oracle origin tables in schema {self.SCHEMA_NAME}.")
         cfg = self.cfg
-        cols_sql = ", ".join(ORACLE_TABLE_COLUMNS)
+        cols_sql = _oracle_quoted_col_defs(ORACLE_TABLE_COLUMNS)
         for i in range(18):
-            ExtSrcEnv.oracle_drop_table_cfg(cfg, f"VTB_ORG_TB_{i}")
+            ExtSrcEnv.oracle_drop_table_cfg(cfg, f"vtb_org_tb_{i}")
         ExtSrcEnv._oracle_sql(
-            cfg, [f"CREATE TABLE VTB_ORG_TB_{i} ({cols_sql})"
+            cfg, [f'CREATE TABLE "vtb_org_tb_{i}" ({cols_sql})'
                   for i in range(18)])
         for i in range(9):
             datafile = etool.getFilePath(__file__, "data", f"data{i+1}.csv")
-            self._load_csv(f"VTB_ORG_TB_{i}", datafile)
-        insert_cols = ", ".join(PG_COPY_COLUMN_LIST)
-        select_cols = ", ".join(PG_COPY_COLUMN_LIST[1:])
+            self._load_csv(f"vtb_org_tb_{i}", datafile)
+        insert_cols = _oracle_quoted_list(PG_COPY_COLUMN_LIST)
+        select_cols = _oracle_quoted_list(PG_COPY_COLUMN_LIST[1:])
         # Tables 9..17 = 0..8 shifted +3 days; INTERVAL keeps the ms scale.
         offset_stmts = [
-            f"INSERT INTO VTB_ORG_TB_{i} ({insert_cols}) "
-            f"SELECT ts + INTERVAL '3' DAY, {select_cols} "
-            f"FROM VTB_ORG_TB_{i-9}"
+            f'INSERT INTO "vtb_org_tb_{i}" ({insert_cols}) '
+            f'SELECT "ts" + INTERVAL \'3\' DAY, {select_cols} '
+            f'FROM "vtb_org_tb_{i-9}"'
             for i in range(9, 18)]
         ExtSrcEnv._oracle_sql(cfg, offset_stmts + ["COMMIT"])
 
@@ -1321,7 +1392,10 @@ class _InfluxAdapter:
     # `org_tb` tag, and vtable columns reference it via a SERIES tagCond clause.
     SHARED_MEASUREMENT = "vtb_org_shared"
 
-    def __init__(self):
+    def __init__(self, version=None, source_names=None):
+        self.version = version or ExtSrcEnv.INFLUX_VERSIONS[0]
+        if source_names is not None:
+            self.SOURCE_NAMES = source_names
         # series_mode is enabled only on the basic prepare_ext_source_vtables
         # ("influx") path; the mixed / all paths keep the separate-measurement
         # layout. `_series_registry` maps each SERIES alias to its source target.
@@ -1333,17 +1407,17 @@ class _InfluxAdapter:
         self._series_registry = {}
 
     @property
-    def host(self):    return ExtSrcEnv.INFLUX_HOST
+    def config(self):  return ExtSrcEnv.influx_config(self.version)
     @property
-    def port(self):    return ExtSrcEnv.INFLUX_PORT
+    def host(self):    return self.config.host
+    @property
+    def port(self):    return self.config.port
     @property
     def token(self):
         # Read the token from file each time: INFLUX_TOKEN is a stale class
         # variable set at import time (before ensure_ext_env.sh runs and writes
         # the real admin token).  _get_influx_token() reads the file on demand.
         return ExtSrcEnv._get_influx_token(self.version)
-    @property
-    def version(self): return ExtSrcEnv.INFLUX_VERSIONS[0]
 
     # InfluxDB 3 occasionally dies between vtable suites.  Startup is
     # probe-driven, mirroring ensure_ext_env.sh's quick-restart path: stop a
@@ -1363,6 +1437,7 @@ class _InfluxAdapter:
             return False
 
     def ensure_running(self):
+        _skip_unless_service_required(self.BACKEND)
         if self._health_ready():
             return
         if os.environ.get("FQ_SKIP_ENV_RESET") == "1":
@@ -1505,16 +1580,16 @@ class _InfluxAdapter:
             tdSql.execute(
                 f"CREATE EXTERNAL SOURCE IF NOT EXISTS {src} TYPE='influxdb' "
                 f"HOST='{self.host}' PORT={self.port} "
-                f"USER='u' PASSWORD='' DATABASE={db} "
-                f"OPTIONS('api_token'='{self.token}','protocol'='flight_sql',"
+                f"USER='{ExtSrcEnv.influx_source_credentials(self.version)[0]}' PASSWORD='{ExtSrcEnv.influx_source_credentials(self.version)[1]}' DATABASE={db} "
+                f"OPTIONS({ExtSrcEnv.influx_source_options(self.version)},"
                 f"'connect_timeout_ms'='30000',"
                 f"'read_timeout_ms'='60000')")
 
     def _row_count(self, database, measurement):
         """Return the row count for a measurement, or 0 on any error."""
         try:
-            data = ExtSrcEnv.influx_query_sql(
-                database, f'SELECT count(*) FROM "{measurement}"')
+            data = ExtSrcEnv.influx_query_sql_cfg(
+                self.config, database, f'SELECT count(*) FROM "{measurement}"')
             if data and isinstance(data, list) and "count(*)" in data[0]:
                 return data[0]["count(*)"]
         except Exception:
@@ -1524,8 +1599,8 @@ class _InfluxAdapter:
     def _row_count_series(self, database, org_tb):
         """Return the row count of one org_tb group in the shared measurement."""
         try:
-            data = ExtSrcEnv.influx_query_sql(
-                database,
+            data = ExtSrcEnv.influx_query_sql_cfg(
+                self.config, database,
                 f'SELECT count(*) FROM "{self.SHARED_MEASUREMENT}" '
                 f"WHERE org_tb='{org_tb}'")
             if data and isinstance(data, list) and "count(*)" in data[0]:
@@ -1588,7 +1663,7 @@ class _InfluxAdapter:
 
     def _write_batched(self, database, lines, batch_size=5000):
         for start in range(0, len(lines), batch_size):
-            ExtSrcEnv.influx_write(database, lines[start:start + batch_size])
+            ExtSrcEnv.influx_write_cfg(self.config, database, lines[start:start + batch_size])
 
     def prepare_origin_tables(self):
         """Write identical line-protocol data into BOTH external DBs."""
@@ -1613,8 +1688,8 @@ class _InfluxAdapter:
 
             tdLog.info(f"Dropping & recreating InfluxDB database {db} to "
                        f"ensure clean ts range.")
-            ExtSrcEnv.influx_drop_db(db)
-            ExtSrcEnv.influx_create_db(db)
+            ExtSrcEnv.influx_drop_db_cfg(self.config, db)
+            ExtSrcEnv.influx_create_db_cfg(self.config, db)
 
             for i in range(9):
                 datafile = etool.getFilePath(__file__, "data", f"data{i+1}.csv")
@@ -1654,8 +1729,8 @@ class _InfluxAdapter:
 
             tdLog.info(f"Dropping & recreating InfluxDB database {db} to "
                        f"ensure clean ts range.")
-            ExtSrcEnv.influx_drop_db(db)
-            ExtSrcEnv.influx_create_db(db)
+            ExtSrcEnv.influx_drop_db_cfg(self.config, db)
+            ExtSrcEnv.influx_create_db_cfg(self.config, db)
 
             for i in range(9):
                 datafile = etool.getFilePath(__file__, "data", f"data{i+1}.csv")
@@ -1675,30 +1750,32 @@ class _InfluxAdapter:
                 count = self._row_count_series(db, "vtb_org_tb_0")
                 tdLog.info(f"After additional wait: {count} rows in {db}")
 
-    @staticmethod
-    def _data_looks_valid(db):
+    def _data_looks_valid(self, db):
         """Probe a single row from vtb_org_tb_0 to confirm ts is in the
         expected 2020+ range (i.e., not from a precision-bug write)."""
         try:
-            data = ExtSrcEnv.influx_query_sql(
-                db, 'SELECT "time" FROM "vtb_org_tb_0" LIMIT 1')
+            data = ExtSrcEnv.influx_query_sql_cfg(
+                self.config, db, 'SELECT "time", "bigint_col" FROM "vtb_org_tb_0" LIMIT 1')
             if data and isinstance(data, list):
-                ts_str = str(data[0].get("time", ""))
-                return ts_str.startswith("20")  # 2020+
+                timestamp = data[0].get("time", "")
+                if isinstance(timestamp, (int, float)):
+                    return timestamp >= 1577836800000000000  # 2020-01-01 in ns
+                return str(timestamp).startswith("20")
         except Exception:
             pass
         return False
 
-    @classmethod
-    def _data_looks_valid_series(cls, db):
+    def _data_looks_valid_series(self, db):
         """Series-mode ts sanity probe on the shared measurement."""
         try:
-            data = ExtSrcEnv.influx_query_sql(
-                db, f'SELECT "time" FROM "{cls.SHARED_MEASUREMENT}" '
+            data = ExtSrcEnv.influx_query_sql_cfg(
+                self.config, db, f'SELECT "time", "bigint_col" FROM "{self.SHARED_MEASUREMENT}" '
                     f"WHERE org_tb='vtb_org_tb_0' LIMIT 1")
             if data and isinstance(data, list):
-                ts_str = str(data[0].get("time", ""))
-                return ts_str.startswith("20")  # 2020+
+                timestamp = data[0].get("time", "")
+                if isinstance(timestamp, (int, float)):
+                    return timestamp >= 1577836800000000000  # 2020-01-01 in ns
+                return str(timestamp).startswith("20")
         except Exception:
             pass
         return False
@@ -1946,6 +2023,48 @@ class VtableQueryUtil:
     do not rename or change parameters.
     """
 
+    # Origin tables live in the external backends (PostgreSQL, MySQL, InfluxDB,
+    # SQL Server, Oracle) and their content depends only on the backend (and on
+    # InfluxDB's series mode), never on the vtable shape that is emitted
+    # afterwards.  A single test file builds them once per class, so the
+    # ``mode=1``/``mode=2`` variants of one backend rebuilt byte-identical
+    # external tables twice.  Remember what has already been built in this
+    # process and skip the rebuild.  ``TD_VTABLE_REUSE_EXTERNAL_ORIGIN=0``
+    # restores the old behaviour for debugging.
+    #
+    # Constraint: while a key is cached, nothing in this process may modify or
+    # drop those external databases.  Anything that does must go through
+    # ``_prepare_external_origin_once`` (which re-keys the rebuilt content)
+    # instead of calling ``adapter.prepare_origin_tables()`` directly.
+    _EXTERNAL_ORIGIN_READY = {}
+
+    def _external_origin_key(self, adapter, kind):
+        # ``series_mode`` is adapter state (set by ``enable_series_mode()``), so
+        # read it from the adapter instead of taking it from the caller: every
+        # call site then keys identically for the same physical content.
+        return (kind,
+                type(adapter).__name__,
+                getattr(adapter, "version", ""),
+                bool(getattr(adapter, "series_mode", False)),
+                tuple(getattr(adapter, "SOURCE_NAMES", ())),
+                tuple(getattr(adapter, "DB_NAMES", ())))
+
+    def _prepare_external_origin_once(self, adapter, kind):
+        """Build the external origin tables unless this process already did.
+
+        Safe because ``prepare_origin_tables`` drops and recreates the external
+        databases with the same CSV fixtures for every caller with the same
+        key; the TDengine side (vtable database, EXTERNAL SOURCE object and the
+        virtual tables themselves) is still rebuilt by every caller.
+        """
+        key = self._external_origin_key(adapter, kind)
+        reuse = os.environ.get("TD_VTABLE_REUSE_EXTERNAL_ORIGIN", "1") != "0"
+        if reuse and key in self._EXTERNAL_ORIGIN_READY:
+            tdLog.info(f"reuse external origin tables already built for {key}")
+            return
+        adapter.prepare_origin_tables()
+        self._EXTERNAL_ORIGIN_READY[key] = True
+
     @staticmethod
     def _db_duration_divisor():
         """Divisor turning the session database's timestamp-integer columns
@@ -2155,13 +2274,137 @@ class VtableQueryUtil:
     @classmethod
     def _restart_ext_backends(cls):
         """Restart any external engine whose process stopped during the run."""
-        for adapter_cls in (_PgAdapter, _MysqlAdapter, _InfluxAdapter,
-                            _SqlserverAdapter):
-            name = getattr(adapter_cls, "BACKEND", adapter_cls.__name__)
+        adapters = [_PgAdapter(), _MysqlAdapter(), _SqlserverAdapter()]
+        adapters.extend(_InfluxAdapter(version) for version in ExtSrcEnv.INFLUX_VERSIONS)
+        for adapter in adapters:
+            name = adapter.BACKEND
+            if name not in ExtSrcEnv.required_services():
+                continue
             try:
-                adapter_cls().ensure_running()
+                adapter.ensure_running()
             except Exception as exc:  # keep trying the remaining engines
                 tdLog.error(f"failed to restart {name} external backend: {exc}")
+
+    @classmethod
+    def compare_ext_source_plan_testcase_result(cls, input_file, expected_file, test_case, result_check=None,
+                                               native_same_local_shape=False):
+        if ExtSrcEnv.INFLUX_VERSIONS[0] != "1.8":
+            return tdCom.compare_testcase_result(
+                input_file, expected_file, test_case,
+                result_transform=ExtSrcEnv.baseline_environment)
+
+        result_file = tdCom.generate_query_result(input_file, test_case)
+        with open(result_file, encoding="utf-8") as stream:
+            actual = ExtSrcEnv.baseline_environment(stream.read())
+        with open(expected_file, encoding="utf-8") as stream:
+            expected = stream.read()
+
+        def split_blocks(text):
+            return re.split(r"(?m)(?=^taos> )", text)
+
+        def statement(block):
+            line = block.split("\n", 1)[0]
+            return (line[6:] if line.startswith("taos> ") else line).strip().rstrip(";")
+
+        expected_blocks, actual_blocks = split_blocks(expected), split_blocks(actual)
+        assert len(expected_blocks) == len(actual_blocks), (expected_file, result_file)
+        query_statements = {
+            statement(block).lower() for block in expected_blocks
+            if block.startswith("taos> ") and not statement(block).lower().startswith("explain ")}
+        native_plans = 0
+        for index, (expected_block, actual_block) in enumerate(zip(expected_blocks, actual_blocks)):
+            sql = statement(expected_block)
+            assert sql == statement(actual_block), (sql, statement(actual_block))
+            if not sql.lower().startswith("explain "):
+                continue
+            expected_native = "(influxdb)" in expected_block
+            actual_native = "(influxdb-1.8)" in actual_block or "(influxdb)" in actual_block
+            assert expected_native == actual_native, (sql, actual_block)
+            if not expected_native:
+                continue
+            assert "QUERY_PLAN" in actual_block, (sql, actual_block)
+            assert "InfluxDB version=1.8 RP=" in actual_block, (sql, actual_block)
+            assert not re.search(r"DB error|syntax error|failed to|ERROR:", actual_block, re.I), actual_block
+            query = re.sub(r"^explain\s+(?:verbose\s+(?:true|false)\s+)?", "", sql, flags=re.I)
+            if query.lower() not in query_statements:
+                assert result_check is not None, ("Missing result oracle for native plan", query)
+                result_check(query)
+            cls._check_influx18_virtual_plan(query, actual_block)
+            if native_same_local_shape:
+                def local_shape(block):
+                    lines = []
+                    for line in block.splitlines()[1:]:
+                        line = line.rstrip().rstrip("|").rstrip()
+                        if not line or "QUERY_PLAN" in line or set(line.strip()) == {"="}:
+                            continue
+                        if any(detail in line for detail in ("Source:", "Remote SQL:", "InfluxDB version=")):
+                            continue
+                        lines.append(line.replace("(influxdb-1.8)", "(influxdb)"))
+                    return lines
+                assert local_shape(expected_block) == local_shape(actual_block), (sql, expected_block, actual_block)
+            native_plans += 1
+            # Keep every result and every plan without Influx in the original
+            # golden. Mixed plans change when native scans retain local work.
+            checked = expected_block.split("\n", 1)[0] + "\n[NATIVE PLAN CONTRACT CHECKED]\n\n"
+            expected_blocks[index] = checked
+            actual_blocks[index] = checked
+        assert native_plans, "The plan fixture did not cover an InfluxDB 1.8 scan"
+        filtered_expected = result_file + ".native_expected"
+        filtered_actual = result_file + ".native_actual"
+        with open(filtered_expected, "w", encoding="utf-8") as stream:
+            stream.write("".join(expected_blocks))
+        with open(filtered_actual, "w", encoding="utf-8") as stream:
+            stream.write("".join(actual_blocks))
+        assert tdCom.compare_result_files(filtered_expected, filtered_actual), (
+            expected_file, result_file, filtered_expected, filtered_actual)
+        for path in (result_file, filtered_expected, filtered_actual):
+            os.remove(path)
+        tdLog.info("Native plans satisfy their pushdown contract; unchanged plans and all results match golden.")
+
+    @staticmethod
+    def _check_influx18_virtual_plan(query, plain_plan):
+        tdSql.query("EXPLAIN ANALYZE VERBOSE TRUE " + query)
+        rows = [str(row[0]) for row in (tdSql.queryResult or [])]
+        assert any("InfluxDB version=1.8 RP=" in row and "(runtime)" not in row for row in rows), rows
+        remote_sqls = []
+        native = False
+        for row in rows:
+            if "Federated Scan on " in row:
+                native = "(influxdb-1.8)" in row or "(influxdb)" in row
+            if native and "Remote SQL:" in row:
+                remote_sqls.append(row.split("Remote SQL:", 1)[1].strip())
+        assert remote_sqls, (query, rows)
+        identifier = INFLUX18_QUOTED_IDENTIFIER
+        aggregate = rf"(?:COUNT|SUM|MIN|MAX|MEAN|SPREAD|STDDEV)\({identifier}\)\s+AS\s+{identifier}"
+        has_remote_aggregate = False
+        for remote in remote_sqls:
+            upper = remote.upper()
+            # Virtual aggregation remains selected by the dedicated planner
+            # rewrite. Window/grouped virtual branches still consume raw rows.
+            assert not any(word in upper for word in ("OFFSET", "GROUP BY", "HAVING", "NULLS", " JOIN ")), remote
+            projection, separator, source = remote.partition(" FROM ")
+            assert separator, remote
+            aggregated = bool(re.fullmatch(rf"SELECT\s+{aggregate}(?:\s*,\s*{aggregate})*", projection, re.I))
+            has_remote_aggregate |= aggregated
+            if aggregated:
+                assert " ORDER BY " not in upper, remote
+            else:
+                assert re.fullmatch(rf"SELECT\s+(?:\*|{identifier}(?:\s*,\s*{identifier})*)", projection), remote
+                without_limit = re.sub(r"\s+LIMIT\s+[1-9]\d*\s*$", "", remote, flags=re.I)
+                if " ORDER BY " in upper:
+                    assert re.search(r"ORDER BY TIME ASC\s*$", without_limit, re.I), remote
+            assert re.match(rf"^{identifier}\.{identifier}\.{identifier}(?:\s|$)", source), remote
+            if " LIMIT " in upper:
+                assert re.search(r"\blimit[=: ]+\d+", plain_plan, re.I), (query, plain_plan, remote)
+            if " WHERE " in upper:
+                condition = re.split(r"\s+(?:ORDER BY|LIMIT)\s+", remote.split(" WHERE ", 1)[1], flags=re.I)[0]
+                # These plan fixtures bind tagless measurements. SERIES tests
+                # verify declared Tag identity through their shared entry point.
+                remaining = re.sub(r"\b(?:time|and|or)\b", "", condition, flags=re.I)
+                assert re.fullmatch(r"[\d\s()+<>=!\-]+", remaining), remote
+        if not has_remote_aggregate and re.search(r"\b(?:sum|count|avg|min|max|first|last)\s*\(", query, re.I):
+            assert re.search(r"Aggregate|Window", plain_plan, re.I), (query, plain_plan)
+
 
     @classmethod
     def compare_ext_source_testcase_result(cls, input_file, expected_file, test_case, float_tolerance=0.0,
@@ -2289,8 +2532,8 @@ class VtableQueryUtil:
         return raw_ref_map, direct_ref_map
 
     def _all_map(self, table_map, adapters_by_backend):
-        """Build the 11-way source map (internal + 2*pg + 2*mysql + 2*influx
-        + 2*sqlserver + 2*oracle).
+        """Build the 13-way source map (internal + 2*pg + 2*mysql + 2*influx
+        + 2*influx18 + 2*sqlserver + 2*oracle).
 
         Each column's (backend, src_idx) is fixed by _ALL_COLUMN_BUCKETS, so
         the same column always reads from the same physical source across
@@ -2500,11 +2743,12 @@ class VtableQueryUtil:
         # InfluxDB basic path: route every column through the shared measurement
         # via a SERIES tagCond so the federated-scan tagCond-pushdown code path
         # is exercised by the existing in/ans suite. Other backends are no-ops.
-        if getattr(adapter, "BACKEND", "") == "influx":
+        series_mode = getattr(adapter, "BACKEND", "") == "influx"
+        if series_mode:
             adapter.enable_series_mode()
         _create_vtable_database(self.VTABLE_DB_NAME,
                                 precision=_ext_source_db_precision(adapter))
-        adapter.prepare_origin_tables()
+        self._prepare_external_origin_once(adapter, "ext")
         adapter.create_external_source()
 
         ct = adapter.column_types
@@ -2525,7 +2769,7 @@ class VtableQueryUtil:
             self.VTABLE_DB_NAME, debug_select_database=True,
             precision=_ext_source_db_precision(adapter)
         )
-        adapter.prepare_origin_tables()
+        self._prepare_external_origin_once(adapter, "mixed")
         tdSql.execute(f"use {self.VTABLE_DB_NAME};")
         adapter.create_external_source()
 
@@ -2543,19 +2787,23 @@ class VtableQueryUtil:
         """Shared body for prepare_all_ext_source_vtables.
 
         Builds a single TDengine database that hosts both internal origin
-        tables AND virtual tables whose columns are split 11-ways across:
-        internal + 2*PG + 2*MySQL + 2*Influx + 2*SQL Server + 2*Oracle. All
-        five external backends plus a 2-source-per-backend EXTERNAL SOURCE
-        setup are created.
+        tables AND virtual tables whose columns are split across:
+        internal + 2*PG + 2*MySQL + 2*Influx 3.x + 2*Influx 1.8 + 2*SQL Server
+        + 2*Oracle. All six external backends plus a 2-source-per-backend EXTERNAL SOURCE
+        setup are created. Windows omits InfluxDB 1.8 and uses 11 buckets.
         """
+        influx_version = next((ver for ver in ExtSrcEnv.INFLUX_VERSIONS if ver.startswith("3.")), "3.0")
         pg        = _PgAdapter()
         mysql     = _MysqlAdapter()
-        influx    = _InfluxAdapter()
+        influx    = _InfluxAdapter(influx_version)
         sqlserver = _SqlserverAdapter()
         oracle    = _OracleAdapter()
-        adapters = (pg, mysql, influx, sqlserver, oracle)
         adapters_by_backend = {'pg': pg, 'mysql': mysql, 'influx': influx,
                                'sqlserver': sqlserver, 'oracle': oracle}
+        if any(backend == "influx18" for backend, _ in _ALL_SOURCE_CYCLE):
+            adapters_by_backend["influx18"] = _InfluxAdapter(
+                "1.8", ("influx18_test_1", "influx18_test_2"))
+        adapters = tuple(adapters_by_backend.values())
 
         for a in adapters:
             a.ensure_running()
@@ -2564,7 +2812,7 @@ class VtableQueryUtil:
             self.VTABLE_DB_NAME, debug_select_database=True, precision="ns"
         )
         for a in adapters:
-            a.prepare_origin_tables()
+            self._prepare_external_origin_once(a, "all")
 
         tdSql.execute(f"use {self.VTABLE_DB_NAME};")
         for a in adapters:
@@ -2588,7 +2836,7 @@ class VtableQueryUtil:
             self.VTABLE_DB_NAME, debug_select_database=True,
             precision="ns"
         )
-        adapter.prepare_origin_tables()
+        self._prepare_external_origin_once(adapter, "extref")
         tdSql.execute(f"use {self.VTABLE_DB_NAME};")
         adapter.create_external_source()
 
@@ -2765,9 +3013,9 @@ class VtableQueryUtil:
         self._prepare_mixed_source_vtables(adapter_cls(), mode)
 
     def prepare_all_ext_source_vtables(self, mode=1):
-        """Build vtables whose columns are split across all six sources
-        (internal TDengine + PG + MySQL + Influx + SQL Server + Oracle), with
-        two EXTERNAL SOURCE instances per external backend (11 distinct
+        """Build vtables whose columns are split across all seven sources
+        (internal TDengine + PG + MySQL + Influx 3.x + Influx 1.8 + SQL Server + Oracle), with
+        two EXTERNAL SOURCE instances per external backend (13 distinct
         sources total).
         """
         self._prepare_all_ext_source_vtables(mode)

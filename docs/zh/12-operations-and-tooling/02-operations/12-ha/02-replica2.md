@@ -40,14 +40,16 @@ toc_max_heading_level: 4
 
 ```sql
 CREATE dnode <dnode_ep> port <dnode_port>;
+
 CREATE dnode <dnode_ep> port <dnode_port>;
 ```
 
 创建三副本的 Mnode，保证 Mnode 高可用，确保仲裁服务的高可用
 
 ```sql
-CREATE mnode on dnode <dnode_id>;
-CREATE mnode on dnode <dnode_id>;
+CREATE mnode ON dnode <dnode_id>;
+
+CREATE mnode ON dnode <dnode_id>;
 ```
 
 ### 数据库创建
@@ -71,16 +73,17 @@ alter database <dbname> replica 2|1
 通过以下 SQL 命令查看双副本数据库中各 vgroup 的状态：
 
 ```sql
-show arbgroups;
+SHOW arbgroups;
+```
 
-select * from information_schema.ins_arbgroups;
-
+```sql
+taos> SELECT *
+      FROM information_schema.ins_arbgroups;
  db_name | vgroup_id | v1_dnode | v2_dnode | is_sync | assigned_dnode |     assigned_token      |
 =================================================================================================
  db      |         2 |        2 |        3 |       0 | NULL           | NULL                    |
  db      |         3 |        1 |        2 |       0 |              1 | d1#g3#1714119404630#663 |
  db      |         4 |        1 |        3 |       1 | NULL           | NULL                    |
-
 ```
 
 is_sync 有以下两种取值：
@@ -126,6 +129,8 @@ assigned_token：
 ```sql
 ASSIGN LEADER FORCE;
 ```
+
+如果仲裁组长期处于未同步状态，或在 dnode 替换后成员信息错误，且无法通过上述命令恢复，可以在停止集群后离线修改仲裁组元数据，详见 [离线修改 mnode 元数据](../04-maintenance.md#离线修改-mnode-元数据)。
 
 ## 常见问题
 

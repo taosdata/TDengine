@@ -184,7 +184,7 @@ class TestVTableFilterExtSource:
         if backend == "sqlserver":
             return f"{source}.{_REMOTE_DB}.dbo.{table}"
         if backend == "oracle":
-            return f"{source}.{_OR_SCHEMA}.{table}"
+            return f"{source}.`{_OR_SCHEMA}`.{table}"
         return f"{source}.{_REMOTE_DB}.{table}"
 
     @staticmethod
@@ -210,14 +210,12 @@ class TestVTableFilterExtSource:
         if backend == "sqlserver":
             return f"exec sp_rename 'dbo.{table}.{old}', '{new}', 'COLUMN'"
         if backend == "oracle":
-            # An all-lower-case name is the spelling an unquoted reference has
-            # in this file, and Oracle folds it to upper case, which is how the
-            # fixture's ordinary columns (NOTE, V, ...) are stored - so leave
-            # it unquoted.  Anything carrying an upper-case letter is the
-            # quoted spelling of the case-rules test and must keep its case.
+            # The fixture stores quoted lower-case names, and the case-rules
+            # columns carry their exact quoted spelling.  Oracle DDL needs the
+            # stored spelling quoted verbatim.
             def _oracle_name(name):
-                return name if name == name.lower() else f'"{name}"'
-            return (f"alter table {table} rename column {_oracle_name(old)} "
+                return f'"{name}"'
+            return (f'alter table "{table.lower()}" rename column {_oracle_name(old)} '
                     f"to {_oracle_name(new)}")
         return f"alter table {table} rename column {quote}{old}{quote} to {quote}{new}{quote}"
 
@@ -242,7 +240,7 @@ class TestVTableFilterExtSource:
         """
         return ExtSrcEnv.oracle_query(
             "SELECT CONSTRAINT_NAME FROM ALL_CONSTRAINTS WHERE "
-            f"OWNER = '{_OR_SCHEMA}' AND TABLE_NAME = '{table.upper()}' "
+            f"OWNER = '{_OR_SCHEMA}' AND TABLE_NAME = '{table}' "
             "AND CONSTRAINT_TYPE = 'P'")
 
     @staticmethod
@@ -269,6 +267,10 @@ class TestVTableFilterExtSource:
         finally:
             tdSql.execute(f"drop vtable {_LOCAL_DB}.{copy}")
         return ddl
+
+    def remote_table(self, backend, table="readings"):
+        """Table reference for remote DDL/DML: Oracle stores quoted lower-case."""
+        return f'"{table}"' if backend == "oracle" else table
 
     def remote_exec(self, backend, statements):
         if backend == "mysql":
@@ -339,7 +341,11 @@ class TestVTableFilterExtSource:
         elif backend == "oracle":
             # Oracle likewise generates SYS_C<nnnnnnn> constraint names; adding
             # a primary key implicitly re-asserts NOT NULL on its members.
+            # The fixture stores quoted lower-case names, so the table and the
+            # key members keep that exact spelling.
             drop = f'drop constraint "{self.oracle_pk_name(table)}"'
+            table = f'"{table}"'
+            columns = ", ".join(f'"{c.strip()}"' for c in columns.split(","))
         else:
             drop = f"drop constraint {table}_pkey"
         self.remote_exec(backend, [f"alter table {table} {drop}",
@@ -364,9 +370,10 @@ class TestVTableFilterExtSource:
             create_table, timestamp_type = create_sqlserver_table, "datetime2(3)"
             device_col, note_col = "Device", "Note"
         elif is_oracle:
-            # Oracle has a single namespace level; quoted identifiers keep
-            # their case while unquoted ones fold to upper case, so the fixture
-            # declares one of each and exercises both rules.
+            # Oracle follows TDengine's identifier grammar: the fixture stores
+            # quoted lower-case names for the unquoted references, and the
+            # mixed-case Device/Note columns are reached only by their exact
+            # backticked spelling.
             create_table, timestamp_type = self.oracle_create_table, "TIMESTAMP(3)"
             quote = '"'
             lower_key = "device VARCHAR2(32) NOT NULL, "
@@ -429,12 +436,11 @@ class TestVTableFilterExtSource:
             tdSql.error(f"create vtable incomplete_case (ts timestamp, a {int_type} from {ref} where device = 'd1')",
                         expectedErrno=_INCOMPLETE_PK_FILTER)
         elif is_oracle:
-            # Unquoted reference names fold to upper case, so lowercase device
-            # and DEVICE name the same column and trip the duplicate check;
-            # the quoted mixed-case Note is a different object that NOTE does
-            # not reach.
+            # Unquoted references are lower-cased, so device and DEVICE name
+            # the same stored column and trip the duplicate check; the quoted
+            # mixed-case Note is a different object that NOTE does not reach.
             tdSql.error(f"create vtable duplicate_case (ts timestamp, a {int_type} from {ref} "
-                        "where device = 'D1' and `DEVICE` = 'D2')", expectedErrno=_DUPLICATE_FILTER_COLUMN)
+                        "where device = 'D1' and DEVICE = 'D2')", expectedErrno=_DUPLICATE_FILTER_COLUMN)
             tdSql.error(f"create vtable invalid_case (ts timestamp, a {int_type} from {ref} "
                         f"where {keys} and `NOTE` = 'keep')", expectedErrno=_COLUMN_NOT_EXIST)
             tdSql.error(f"create vtable incomplete_case (ts timestamp, a {int_type} from {ref} where device = 'd1')",
@@ -565,7 +571,7 @@ class TestVTableFilterExtSource:
         if backend == "oracle":
             # Oracle changes a column's datatype only when every value is NULL
             # (ORA-01439), so clear the column before the widen/narrow step.
-            self.remote_exec(backend, ["update readings set note = null"])
+            self.remote_exec(backend, ['update "readings" set "note" = null'])
         else:
             self.remote_exec(backend, ["update readings set note = '0'"])
         if backend == "mysql":
@@ -574,10 +580,10 @@ class TestVTableFilterExtSource:
             # T-SQL changes a column type in place — there is no USING clause.
             change_note = "alter column note int"
         elif backend == "oracle":
-            change_note = "modify note NUMBER(10,0)"
+            change_note = 'modify "note" NUMBER(10,0)'
         else:
             change_note = "alter column note type int using note::int"
-        self.remote_exec(backend, [f"alter table readings {change_note}"])
+        self.remote_exec(backend, [f"alter table {self.remote_table(backend)} {change_note}"])
         self.check_invalid_views(tables, "a", _SCHEMA_CHANGED)
         if backend == "mysql":
             restore_note = "modify column note varchar(8192)"
@@ -588,23 +594,23 @@ class TestVTableFilterExtSource:
             # Mirrors the fixture's VARCHAR2(4000) note type; the long literal
             # is not usable here (see prepare_backend) so a short distinct
             # value stands in and still isolates the first device row.
-            restore_note = "modify note VARCHAR2(4000)"
+            restore_note = 'modify "note" VARCHAR2(4000)'
         else:
             restore_note = "alter column note type varchar(8192) using note::varchar"
         if backend == "oracle":
-            restore_note_data = ["update readings set note = 'n0'",
-                                 "update readings set note = 'n1' where v = 11"]
+            restore_note_data = ['update "readings" set "note" = \'n0\'',
+                                 'update "readings" set "note" = \'n1\' where "v" = 11']
         else:
             restore_note_data = ["update readings set note = ''",
                                  f"update readings set note = '{_LONG_NOTE}' where v = 11"]
-        self.remote_exec(backend, [f"alter table readings {restore_note}"] + restore_note_data)
+        self.remote_exec(backend, [f"alter table {self.remote_table(backend)} {restore_note}"] + restore_note_data)
 
         if backend == "mysql":
             change_type = "modify column v varchar(32)"
         elif backend == "sqlserver":
             change_type = "alter column v varchar(32)"
         elif backend == "oracle":
-            change_type = "modify v VARCHAR2(32)"
+            change_type = 'modify "v" VARCHAR2(32)'
         else:
             change_type = "alter column v type varchar(32) using v::varchar"
         if backend == "oracle":
@@ -612,11 +618,11 @@ class TestVTableFilterExtSource:
             # (ORA-01439).  Unlike note, v is asserted on later, so park the
             # values in a scratch column and put them back after the round trip.
             self.remote_exec(backend, [
-                "alter table readings add v_saved NUMBER(10,0)",
-                "update readings set v_saved = v",
-                "update readings set v = null",
+                'alter table "readings" add "v_saved" NUMBER(10,0)',
+                'update "readings" set "v_saved" = "v"',
+                'update "readings" set "v" = null',
             ])
-        self.remote_exec(backend, [f"alter table readings {change_type}"])
+        self.remote_exec(backend, [f"alter table {self.remote_table(backend)} {change_type}"])
         self.check_invalid_views(tables, "a", _SCHEMA_CHANGED)
         for table in tables:
             self.check_result(table, "b", [(100,), (101,)])
@@ -625,14 +631,14 @@ class TestVTableFilterExtSource:
         elif backend == "sqlserver":
             restore_type = "alter column v int"
         elif backend == "oracle":
-            restore_type = "modify v NUMBER(10,0)"
+            restore_type = 'modify "v" NUMBER(10,0)'
         else:
             restore_type = "alter column v type int using v::int"
-        self.remote_exec(backend, [f"alter table readings {restore_type}"])
+        self.remote_exec(backend, [f"alter table {self.remote_table(backend)} {restore_type}"])
         if backend == "oracle":
             self.remote_exec(backend, [
-                "update readings set v = v_saved",
-                "alter table readings drop column v_saved",
+                'update "readings" set "v" = "v_saved"',
+                'alter table "readings" drop column "v_saved"',
             ])
 
         self.replace_primary_key(backend, "readings", "ts, device, v")
@@ -659,7 +665,7 @@ class TestVTableFilterExtSource:
         else:
             timestamp_type, add_column = "timestamp(3)", "add column"
         if backend == "oracle":
-            add_ts2 = ("alter table readings add ts2 TIMESTAMP(3) "
+            add_ts2 = ('alter table "readings" add "ts2" TIMESTAMP(3) '
                        "default TIMESTAMP '2024-01-01 00:00:00' not null")
         else:
             add_ts2 = (f"alter table readings {add_column} ts2 {timestamp_type} "
@@ -676,11 +682,20 @@ class TestVTableFilterExtSource:
             drop_key = f'drop constraint "{self.oracle_pk_name("readings")}"'
         else:
             drop_key = "drop constraint readings_pkey"
-        self.remote_exec(backend, [f"alter table readings {drop_key}"])
+        self.remote_exec(backend, [f"alter table {self.remote_table(backend)} {drop_key}"])
         self.check_invalid_views(tables, "a", _SCHEMA_CHANGED)
-        self.remote_exec(backend, ["alter table readings add primary key (ts, device)"])
+        # PostgreSQL and Oracle keep quoted lower-case names, so their key
+        # members/v must keep that spelling; MySQL and SQL Server fold bare
+        # identifiers the same way and reject double quotes here (MySQL always,
+        # T-SQL with QUOTED_IDENTIFIER off).
+        quoted = backend in ("postgres", "oracle")
+        key_columns = '"ts", "device"' if quoted else "ts, device"
+        value_column = '"v"' if quoted else "v"
+        self.remote_exec(backend, [
+            f"alter table {self.remote_table(backend)} add primary key ({key_columns})"])
 
-        self.remote_exec(backend, ["alter table readings drop column v"])
+        self.remote_exec(backend, [
+            f"alter table {self.remote_table(backend)} drop column {value_column}"])
         self.check_invalid_views(tables, "a", _SCHEMA_CHANGED)
         for table in tables:
             self.check_result(table, "b", [(100,), (101,)])
@@ -754,8 +769,8 @@ class TestVTableFilterExtSource:
             # values.  ALTER TABLE ADD takes no COLUMN keyword, as in T-SQL.
             o_ver = str(next(ExtSrcEnv.oracle_version_configs()).version)
             oracle_has_boolean = not o_ver.startswith("11g")
-            new_columns = ["alter table readings add rate BINARY_DOUBLE default 1.5",
-                           "alter table readings add active "
+            new_columns = ['alter table "readings" add "rate" BINARY_DOUBLE default 1.5',
+                           'alter table "readings" add "active" '
                            + ("BOOLEAN default TRUE" if oracle_has_boolean
                               else "NUMBER(1) default 1")]
         else:
@@ -902,8 +917,12 @@ class TestVTableFilterExtSource:
         # fixture, so a bare string would be parsed with the session default.
         add_column = "add" if backend in ("sqlserver", "oracle") else "add column"
         observed_at = "DATE '2024-01-01'" if backend == "oracle" else "'2024-01-01'"
-        self.remote_exec(backend, [f"alter table readings {add_column} observed_at date",
-                                   f"update readings set observed_at = {observed_at}"])
+        if backend == "oracle":
+            self.remote_exec(backend, ['alter table "readings" add "observed_at" date',
+                                       f'update "readings" set "observed_at" = {observed_at}'])
+        else:
+            self.remote_exec(backend, [f"alter table readings {add_column} observed_at date",
+                                       f"update readings set observed_at = {observed_at}"])
         tdSql.execute(f"refresh external source {self.source}")
         ref = f"{self.remote_table_ref(self.source, backend)}.v"
         int_type = self.external_integer_type(backend)
@@ -927,8 +946,12 @@ class TestVTableFilterExtSource:
         # write into the fixture's nvarchar note column.
         unicode_prefix = "N" if backend == "sqlserver" else ""
         for literal in ("'it''s a sensor'", "'d1'' OR ''1''=''1'", "'设备甲;--%_|&'"):
-            self.remote_exec(backend,
-                             [f"update readings set note = {unicode_prefix}{literal} where device = 'd1'"])
+            if backend == "oracle":
+                self.remote_exec(backend,
+                                 [f'update "readings" set "note" = {literal} where "device" = \'d1\''])
+            else:
+                self.remote_exec(backend,
+                                 [f"update readings set note = {unicode_prefix}{literal} where device = 'd1'"])
             tdSql.execute(f"create vtable escaped_filter (ts timestamp, v {int_type} from {ref} "
                           f"where device = 'd1' and note = {literal})")
             self.check_roundtrip("escaped_filter", 1, "v", [(10,), (11,)])

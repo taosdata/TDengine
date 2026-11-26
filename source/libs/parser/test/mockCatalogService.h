@@ -43,6 +43,7 @@ class ITableBuilder {
   virtual ITableBuilder& addColumn(const std::string& name, int8_t type, int32_t bytes) = 0;
   virtual ITableBuilder& setVgid(int16_t vgid) = 0;
   virtual ITableBuilder& setPrecision(uint8_t precision) = 0;
+  virtual ITableBuilder& setVirtualSuperTable(bool enabled, bool hasInheritors = false) = 0;
   virtual void           done() = 0;
 };
 
@@ -72,6 +73,7 @@ class MockCatalogService {
   void setTableRefs(const std::string& db, const std::string& table,
                    const std::vector<SColRef>& columns,
                    const std::vector<SColRef>& tags);
+  void           setVstbExternalSource(const std::string& source);
   void showTables() const;
   void createFunction(const std::string& func, int8_t funcType, int8_t outputType, int32_t outputLen, int32_t bufSize);
   void createSmaIndex(const SMCreateSmaReq* pReq);
@@ -84,7 +86,8 @@ class MockCatalogService {
   // sourceType uses EExtSourceType (EXT_SOURCE_POSTGRESQL/EXT_SOURCE_MYSQL/...).
   void createExtSource(const std::string& sourceName, int8_t sourceType, const std::string& host,
                        int32_t port, const std::string& user, const std::string& database,
-                       const std::string& schemaName = "");
+                       const std::string& schemaName = "",
+                       const std::string& options = "");
   // Register a fake external table.  mid0/mid1 are optional path segments
   // (e.g. db/schema for PG); pass empty string to omit.  pkColIdx marks which
   // column is the timestamp primary key.  Column types use TSDB_DATA_TYPE_*.

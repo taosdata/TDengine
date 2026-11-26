@@ -60,9 +60,5 @@ DELETE FROM meters WHERE voltage > 250;
 结合时间范围与标签条件，只清理 `groupId` 为 2 的设备在指定时间段内电流为负值的异常记录：
 
 ```sql
-DELETE FROM meters
-WHERE groupId = 2
-  AND ts >= '2021-10-01 10:00:00'
-  AND ts <  '2021-10-01 11:00:00'
-  AND current < 0;
+DELETE FROM meters WHERE groupId = 2 AND ts >= '2021-10-01 10:00:00' AND ts < '2021-10-01 11:00:00' AND current < 0;
 ```

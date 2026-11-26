@@ -614,9 +614,9 @@ TSDB 错误码包括 taosc 客户端和服务端，所有语言的连接器无�
 | 0x800026AF | Invalid offset unit                                                                                    | offset 子句中使用了无效的时间单位                       | 检查并修正 SQL 语句                    |
 | 0x800026B0 | Invalid offset value                                                                                   | 时间窗口中的 offset 值无效                              | 检查并修正 SQL 语句                    |
 | 0x800026B1 | WHERE clause cannot reference EXTERNAL_WINDOW column                                                   | WHERE 子句中引用了 EXTERNAL_WINDOW 子查询的窗口列       | WHERE 子句不能引用 EXTERNAL_WINDOW 的窗口列，请将过滤条件移到 HAVING 或在 SELECT 列表中处理 |
-| 0x800026B2 | Invalid timezone                                                                                       | 时区字符串非法，或使用了有歧义的时区缩写               | 检查并修正 SQL 语句中的时区参数        |
+| 0x800026B2 | Invalid or unsupported timezone                                                                        | 时区字符串非法、不受支持，或使用了有歧义的时区缩写          | 检查并修正时区配置或 SQL 语句中的时区参数   |
 | 0x800026B3 | Invalid firstDayOfWeek                                                                                 | firstDayOfWeek 必须是 0-6 之间的整数                   | 检查并修正 SQL 语句中的 firstDayOfWeek 参数 |
-| 0x800026B4 | Function does not support DISTINCT                                                                     | 对不支持 DISTINCT 的函数使用了 DISTINCT 关键字，或对 `*` 使用了 DISTINCT，或在 SESSION/STATE/EVENT 窗口中使用了 DISTINCT | 仅 COUNT/SUM/AVG/MIN/MAX 支持 DISTINCT，且不能与 SESSION/STATE/EVENT 窗口同时使用 |
+| 0x800026B4 | Function does not support DISTINCT                                                                     | 对不支持 DISTINCT 的函数或 `*` 使用了 DISTINCT，或在 ANOMALY_WINDOW 等不支持的窗口中使用了 DISTINCT | 仅 COUNT/SUM/AVG/MIN/MAX 支持 DISTINCT；请使用支持的窗口类型 |
 | 0x800026B5 | Window function is not allowed in this clause                                                          | 窗口函数出现在非法子句中                               | 将窗口函数移到 SELECT 或 ORDER BY 中                        |
 | 0x800026B6 | Window function requires ORDER BY                                                                      | 需要排序的窗口函数未指定 ORDER BY                      | 在窗口规范中补充 ORDER BY                                   |
 | 0x800026B7 | Referenced window name is not defined                                                                  | OVER 引用的命名窗口不存在                              | 在当前查询块中定义该窗口名                                 |
@@ -639,6 +639,7 @@ TSDB 错误码包括 taosc 客户端和服务端，所有语言的连接器无�
 | 0x800026C8 | Correlated aggregate owner is not a SELECT query                                                       | 聚合提升的拥有者不是 SELECT 查询块                      | 保留 SQL 和日志并上报问题                                   |
 | 0x800026C9 | Correlated aggregate owner clause not found                                                           | 聚合提升找不到拥有者所在的 SQL 子句                     | 保留 SQL 和日志并上报问题                                   |
 | 0x800026E8 | Virtual table two-pass scan is not supported for this query                                            | 虚拟表上的重扫函数（如 PERCENTILE）查询形状不支持：聚合/窗口未直接位于虚拟扫描之上（中间存在 PROJECT/JOIN/SORT/PARTITION），或源表为外部（联邦）表 | 改写查询，使聚合/窗口直接作用于虚拟表                        |
+| 0x800026E9 | limit cannot be less than 0                                                                            | limit 值非法                                            | 检查并修正 SQL 语句                    |
 | 0x800026FF | Parser internal error                                                                                  | 解析器内部错误                                          | 保留现场和日志，github 上报 issue      |
 | 0x80002700 | Planner internal error                                                                                 | 计划期内部错误                                          | 保留现场和日志，github 上报 issue      |
 | 0x80002701 | Expect ts equal                                                                                        | JOIN 条件校验失败                                       | 保留现场和日志，github 上报 issue      |
@@ -775,6 +776,11 @@ TSDB 错误码包括 taosc 客户端和服务端，所有语言的连接器无�
 | 0x80006215 | Invalid external column filter expression | 外部列过滤条件结构非法，或保存的条件无法解析 | 仅使用未限定列名与字面量进行比较，并通过 `AND` 连接；日期和时间使用字符串字面量 |
 | 0x80006216 | Duplicate column in external column filter | 外部列过滤条件中重复使用同一列，列名比较不区分大小写 | 确保每个条件列只出现一次 |
 | 0x80006217 | External column filter must constrain every business primary key column with an equality literal | 保存的外部列条件未通过等值字面量约束全部业务主键列 | 在列引用的过滤条件中为每个非时间戳主键列指定一次 `=` 字面量条件；查询的 `WHERE` 不能替代该条件 |
+| 0x80006218 | Ambiguous virtual table reference name | 虚拟表引用名称存在歧义 | 使用可唯一解析的引用别名或完整限定路径 |
+| 0x80006219 | Virtual table reference contains a null timestamp | 引用序列读取到空时间戳 | 检查所选时间列及保存的列过滤条件 |
+| 0x8000621A | Virtual table reference contains duplicate timestamps | 引用序列读取到重复时间戳 | 检查所选时间列转换后的值及保存的列过滤条件 |
+| 0x8000621B | Virtual table reference timestamps are out of order | 引用序列转换后的时间戳逆序 | 检查所选时间列的转换及远端读取顺序 |
+| 0x8000621C | Virtual table reference version conflict | 虚拟表引用定义发生并发修改 | 重新获取表定义并校验后重试 |
 
 #### federated query
 
@@ -812,6 +818,8 @@ TSDB 错误码包括 taosc 客户端和服务端，所有语言的连接器无�
 | 0x8000641E | Too many external columns required by query | 当前 SQL 实际引用的外部列数量超过 TDengine 上限 | 减少当前查询引用的列；外部表总列数超限本身不会导致该错误 |
 | 0x8000641F | Too many external tags required by query | 当前 SQL 实际引用的外部 Tag 数量超过 TDengine 上限 | 减少当前查询引用的 Tag；外部 measurement 总 Tag 数超限本身不会导致该错误 |
 | 0x80006420 | Oracle client and server versions are not compatible | Oracle 客户端与服务端版本组合不受支持 | 使用与服务端版本匹配的 Oracle Instant Client |
+| 0x8000642D | External column type or Field/Tag role conflict | InfluxDB 同一 measurement 中的同名 Field 跨 shard 或 RP 存在不同类型，Field/Tag 同名，或列名仅大小写不同 | 统一 Field 类型或拆分 measurement，消除名称或 Field/Tag 冲突后刷新外部数据源 |
+| 0x8000642E | External source client authentication plugin is missing | 客户端认证插件（如 MySQL 8 的 caching_sha2_password）缺失或无法加载，连接在密码校验前就失败 | 确认部署包内客户端库同目录下存在对应的认证插件（如 caching_sha2_password.so），或改用 mysql_native_password 账号 |
 
 #### TDgpt
 
@@ -889,6 +897,9 @@ TSDB 错误码包括 taosc 客户端和服务端，所有语言的连接器无�
 | 0x80008026 | Xnode DSN protection failed                           | Xnode DSN 保护校验失败                                | 检查 DSN 配置及数据源保护策略后重试              |
 | 0x80008027 | Connection info changed, please re-enter the password and other sensitive values | 连接信息已变更，请重新输入密码等敏感信息 | 修改连接地址等字段后重新输入密码等敏感信息再保存 |
 | 0x80008028 | Xnode is already owned by another cluster             | taosx 已被其他 TDengine 集群纳管                        | 在原集群执行 DROP XNODE 后再注册              |
+| 0x80008029 | Invalid xnode task type                               | 创建任务时，`TYPE` 的值不是 `replica`（不区分大小写）               | 创建双活任务时使用 `WITH TYPE 'replica'`，创建普通任务时省略 `TYPE` |
+| 0x8000802A | Option not supported by replica xnode task            | 创建或修改双活任务时，使用了 `FROM DATABASE`、`FROM TOPIC`、`TO DATABASE`、`PARSER` 或 `VIA` | 通过 `FROM` 和 `TO` 指定源端和目标端 DSN，并移除不支持的选项      |
+| 0x8000802B | DSN parameter %s is reserved for replica xnode task   | 创建或修改普通任务时，源端 DSN 包含保留参数 `replica` 或 `msg.consume.excluded` | 移除普通任务源端 DSN 中的保留参数；需要双活任务时，使用 `WITH TYPE 'replica'` 创建 |
 
 #### 备份/恢复
 

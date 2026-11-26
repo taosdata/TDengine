@@ -21,6 +21,7 @@
 #include "decimal.h"
 #include "osMemPool.h"
 #include "streamInt.h"
+#include "tconv.h"
 #include "tcurl.h"
 #include "tdatablock.h"
 #include "tglobal.h"
@@ -215,11 +216,16 @@ static int32_t stmPushTaskStatus(SStreamHbMsg* pMsg, SStreamTask* pTask, SStream
     ST_TASK_ELOG("failed to rotate or log task statistics: %s", tstrerror(statsCode));
   }
 
-  if (taosArrayPush(pMsg->pStreamStatus, pTask) == NULL) {
-    return terrno;
+  SStmTaskStatusMsg* pStatus = NULL;
+  if (pTask->type == STREAM_TRIGGER_TASK) {
+    pStatus = taosArrayReserve(pMsg->pStreamStatus, 1);
+    if (!pStatus) return terrno;
+    // stmHbAddTaskStatus snapshots the request and its acknowledgment together under mgmtReqLock.
+    memcpy(pStatus, pTask, offsetof(SStreamTask, pMgmtReq));
+  } else {
+    pStatus = taosArrayPush(pMsg->pStreamStatus, pTask);
+    if (!pStatus) return terrno;
   }
-
-  SStmTaskStatusMsg* pStatus = taosArrayGetLast(pMsg->pStreamStatus);
   code = stmCloneTaskExtraErrMsg(pTask, pStatus);
   if (code != TSDB_CODE_SUCCESS) {
     TARRAY_SIZE(pMsg->pStreamStatus)--;
@@ -279,14 +285,18 @@ void stmHandleStreamRemovedTasks(SStreamInfo* pStream, int64_t streamId, int32_t
 int32_t stmHbAddTaskStatus(int64_t streamId, SStreamHbMsg* pMsg, SStreamTask* pTask, SStreamTaskStats* pStats) {
   int32_t code = 0, lino = 0;
 
+  size_t metricCount = taosArrayGetSize(pMsg->pTaskMetrics);
   // Period logging may release the last task reference and complete undeploy.
   TAOS_CHECK_GOTO(stmPushTaskStatus(pMsg, pTask, pStats), &lino, _end);
   SStmTaskStatusMsg* pStatus = taosArrayGetLast(pMsg->pStreamStatus);
   pStatus->pMgmtReq = NULL;
 
   taosWLockLatch(&pTask->mgmtReqLock);
+  pStatus->ackedSchemaReqId = pTask->ackedSchemaReqId;
   SStreamMgmtReq* pMgmtReq = pTask->pMgmtReq;
   if (pMgmtReq) {
+    if (pMgmtReq->type == STREAM_MGMT_REQ_TRIGGER_MIXED_ORIGTBL_READER && !pStatus->ackedSchemaReqId)
+      pStatus->ackedSchemaReqId = -1;  // Advertise explicit ACK and versioned PATCH support.
     TAOS_CHECK_EXIT(tCloneSStreamMgmtReq(pMgmtReq, &pStatus->pMgmtReq));
     TAOS_CHECK_EXIT(stmAddMgmtReq(streamId, &pMsg->pStreamReq, taosArrayGetSize(pMsg->pStreamStatus) - 1));
   }
@@ -294,6 +304,18 @@ int32_t stmHbAddTaskStatus(int64_t streamId, SStreamHbMsg* pMsg, SStreamTask* pT
 _exit:
 
   taosWUnLockLatch(&pTask->mgmtReqLock);
+  if (code) {
+    // A status without its request index can be interpreted as an acknowledgment.
+    tFreeSStreamMgmtReq(pStatus->pMgmtReq);
+    taosMemoryFree(pStatus->pMgmtReq);
+    taosMemoryFree(pStatus->extraErrMsg);
+    TAOS_UNUSED(taosArrayPop(pMsg->pStreamStatus));
+    if (taosArrayGetSize(pMsg->pTaskMetrics) > metricCount) {
+      SStreamTaskMetricsEntry* entry = taosArrayPop(pMsg->pTaskMetrics);
+      taosArrayDestroy(entry->snapshot.pRecalculates);
+      taosArrayDestroyEx(entry->snapshot.pRecalcDetails, stmDestroyRecalcDetail);
+    }
+  }
 
 _end:
   if (code) {
@@ -303,13 +325,15 @@ _end:
   return code;
 }
 
-int32_t stmHbAddStreamStatus(SStreamHbMsg* pMsg, SStreamInfo* pStream, int64_t streamId, bool reportPeriod) {
+int32_t stmHbAddStreamStatus(SStreamHbMsg* pMsg, SStreamInfo* pStream, int64_t streamId, bool reportPeriod,
+                             int32_t* pollError) {
   int32_t      code = TSDB_CODE_SUCCESS;
   int32_t      lino = 0;
   SListIter    iter = {0};
   SListNode*   listNode = NULL;
   SStreamTask* pTask = NULL;
 
+  if (pollError) *pollError = TSDB_CODE_SUCCESS;
   // Deployment may wait for external connections; keep heartbeats for other streams moving.
   if (taosWTryLockLatch(&pStream->lock) != 0) {
     return TSDB_CODE_SUCCESS;
@@ -325,6 +349,11 @@ int32_t stmHbAddStreamStatus(SStreamHbMsg* pMsg, SStreamInfo* pStream, int64_t s
   if (NULL == pMsg->pStreamStatus) {
     pMsg->pStreamStatus = taosArrayInit(pStream->taskNum, sizeof(SStmTaskStatusMsg));
     TSDB_CHECK_NULL(pMsg->pStreamStatus, code, lino, _exit, terrno);
+    // The first report commits this group to sending. Bind the poll to the role
+    // and retirement order before taking any task observations.
+    code = streamHbIssueReaderPoll(&gStreamMgmt.hb, taosGetMonoTimestampMs(), pMsg);
+    if (pollError) *pollError = code;
+    TAOS_CHECK_EXIT(code);
   }
 
   int32_t origTaskNum = taosArrayGetSize(pMsg->pStreamStatus);
@@ -334,6 +363,7 @@ int32_t stmHbAddStreamStatus(SStreamHbMsg* pMsg, SStreamInfo* pStream, int64_t s
     while ((listNode = tdListNext(&iter)) != NULL) {
       SStreamReaderTask* pReader = (SStreamReaderTask*)listNode->data;
       pTask = (SStreamTask*)pReader;
+      if (pReader->snodeOwned && atomic_load_8(&pTask->deployed)) continue;
       TAOS_CHECK_EXIT(stmPushTaskStatus(pMsg, &pReader->task, pReader->pStats));
       //if (pReader->task.pMgmtReq) {
       //  TAOS_CHECK_EXIT(stmAddMgmtReq(streamId, &pMsg->pStreamReq, taosArrayGetSize(pMsg->pStreamStatus) - 1));
@@ -355,7 +385,12 @@ int32_t stmHbAddStreamStatus(SStreamHbMsg* pMsg, SStreamInfo* pStream, int64_t s
     }
 
     SStreamTriggerTask* pTrigger = (SStreamTriggerTask*)pTask;
-    TAOS_CHECK_EXIT(stmHbAddTaskStatus(streamId, pMsg, pTask, pTrigger->pStats));
+    code = stmHbAddTaskStatus(streamId, pMsg, pTask, pTrigger->pStats);
+    if (code && reportPeriod) {
+      SSTriggerRuntimeStatus* status = taosArrayPop(pMsg->pTriggerStatus);
+      taosArrayDestroy(status->userRecalcs);
+    }
+    TAOS_CHECK_EXIT(code);
 
     ST_TASK_DLOG("task status added to hb %s mgmtReq", pTask->pMgmtReq ? "with" : "without");
     stsDebug("%d trigger tasks status added to hb", 1);
@@ -408,13 +443,12 @@ int32_t stmBuildHbStreamsStatusReq(SStreamHbMsg* pMsg) {
 
   stDebug("start to build hb status req, gid:%d", pMsg->streamGId);
 
-  SHashObj* pHash = gStreamMgmt.stmGrp[pMsg->streamGId];
+  SHashObj* pHash = atomic_load_ptr(&gStreamMgmt.stmGrp[pMsg->streamGId]);
   if (NULL == pHash) {
     return TSDB_CODE_SUCCESS;
   }
 
-  int32_t code = TSDB_CODE_SUCCESS;
-  void*   pIter = NULL;
+  void* pIter = NULL;
   while (true) {
     pIter = taosHashIterate(pHash, pIter);
     if (NULL == pIter) {
@@ -424,10 +458,16 @@ int32_t stmBuildHbStreamsStatusReq(SStreamHbMsg* pMsg) {
     SStreamInfo* pStream = (SStreamInfo*)pIter;
     int64_t*     streamId = taosHashGetKey(pIter, NULL);
 
-    (void)stmHbAddStreamStatus(pMsg, pStream, *streamId, reportPeriod);
+    int32_t pollError = TSDB_CODE_SUCCESS;
+    (void)stmHbAddStreamStatus(pMsg, pStream, *streamId, reportPeriod, &pollError);
+    if (pollError) {
+      // A failed poll registration cannot authorize a deployment reply for this group.
+      taosHashCancelIterate(pHash, pIter);
+      return pollError;
+    }
   }
 
-  return code;
+  return TSDB_CODE_SUCCESS;
 }
 
 static void stmClearTaskExtraErrMsg(SStreamTask* pTask) {
@@ -593,7 +633,15 @@ static int32_t jsonCreateColumnValue(const SColumnInfo* colInfo, bool isNull, co
       int32_t     len = varDataLen(pData);
       temp = cJSON_malloc(len + 1);
       QUERY_CHECK_NULL(temp, code, lino, _end, TSDB_CODE_OUT_OF_MEMORY);
-      memcpy(temp, src, len);
+      if (type == TSDB_DATA_TYPE_NCHAR) {
+        // Notification JSON uses UTF-8 independently of the server/client charset.
+        void* utf8 = taosConvInit("UTF-8");
+        QUERY_CHECK_NULL(utf8, code, lino, _end, terrno);
+        len = taosUcs4ToMbs((TdUcs4*)src, len, temp, utf8);
+        QUERY_CHECK_CONDITION(len >= 0, code, lino, _end, len);
+      } else {
+        memcpy(temp, src, len);
+      }
       temp[len] = '\0';
 
       *ppItem = cJSON_CreateStringReference(temp);
@@ -3919,7 +3967,9 @@ void streamNotifyWorkerPoolDestroy(SStreamNotifyWorkerPool* pPool) {
   stInfo("stream async notify worker pool stopped");
 }
 
-static void stReleaseCalcDataCacheIter(void* pValue) { releaseDataResultAndResetMgrStatus((void**)pValue); }
+static void stReleaseCalcDataCacheIter(void* pValue) {
+  releaseDataResultAndResetMgrStatusWithCleanup((void**)pValue);
+}
 
 int32_t stCreateCalcDataCacheIterMap(SHashObj** ppMap) {
   if (ppMap == NULL) {
@@ -4013,12 +4063,65 @@ static int32_t stRemoveCalcDataCacheIterForScope(SStreamTriggerTask* pTask, int6
   return code;
 }
 
+typedef struct SStreamDataCacheIterKey {
+  int64_t groupId;
+  TSKEY   start;
+  TSKEY   end;
+  char    eventConditionPath[32];
+} SStreamDataCacheIterKey;
+
+/* Adjust a dispatched calc range back to the cache-write boundary, matching readStreamDataCache. The
+ * trigger side mutates sliding boundaries after writing the cache, and the read side reverses that mutation. */
+static void stAdjustCacheReadRange(const SStreamTriggerTask* pTask, TSKEY* pStart, TSKEY* pEnd) {
+  if (pTask->triggerType == STREAM_TRIGGER_PERIOD) {
+    *pStart = INT64_MIN;
+    *pEnd = INT64_MAX;
+  } else if (pTask->triggerType == STREAM_TRIGGER_SLIDING) {
+    if (pTask->interval.interval > 0) {
+      (*pEnd)--;
+    } else {
+      (*pStart)++;
+    }
+  }
+}
+
 int32_t stCleanupCalcDataCacheItersForRequest(SStreamTriggerTask* pTask, const SSTriggerCalcRequest* pReq) {
   if (pTask == NULL || pReq == NULL) {
     return TSDB_CODE_INVALID_PARA;
   }
   if (pReq->pAncestorContext == NULL) {
-    return TSDB_CODE_SUCCESS;
+    // Non-nested requests use the legacy iterator keyed by (gid, cache-adjusted range, path). Remove them
+    // here so an early-finished (e.g. LIMIT) read does not leave unread fragments pinning their block.
+    if (pReq->isMultiGroupCalc) {
+      return TSDB_CODE_SUCCESS;
+    }
+    SHashObj* pCalcDataCacheIters = stGetCalcDataCacheIterMap(pTask, pReq->sessionId);
+    if (pCalcDataCacheIters == NULL || pReq->params == NULL) {
+      return TSDB_CODE_SUCCESS;
+    }
+
+    int32_t firstCode = TSDB_CODE_SUCCESS;
+    taosWLockLatch(&pTask->calcDataCacheIterLock);
+    for (int32_t i = 0; i < taosArrayGetSize(pReq->params); ++i) {
+      const SSTriggerCalcParam* pParam = (const SSTriggerCalcParam*)taosArrayGet(pReq->params, i);
+      if (pParam == NULL) {
+        continue;
+      }
+      TSKEY start = pParam->wstart;
+      TSKEY end = pParam->wend;
+      stAdjustCacheReadRange(pTask, &start, &end);
+      SStreamDataCacheIterKey key = {.groupId = pReq->gid, .start = start, .end = end};
+      if (pParam->eventConditionPath != NULL) {
+        tstrncpy(key.eventConditionPath, pParam->eventConditionPath, sizeof(key.eventConditionPath));
+      }
+      int32_t code = taosHashRemove(pCalcDataCacheIters, &key, sizeof(key));
+      if (code != TSDB_CODE_SUCCESS && code != TSDB_CODE_NOT_FOUND && code != TSDB_CODE_INVALID_PARA &&
+          firstCode == TSDB_CODE_SUCCESS) {
+        firstCode = code;
+      }
+    }
+    taosWUnLockLatch(&pTask->calcDataCacheIterLock);
+    return firstCode;
   }
 
   const SArray* pIdentities =
@@ -4153,13 +4256,6 @@ _end:
   return code;
 }
 
-typedef struct SStreamDataCacheIterKey {
-  int64_t groupId;
-  TSKEY   start;
-  TSKEY   end;
-  char    eventConditionPath[32];
-} SStreamDataCacheIterKey;
-
 static int32_t readStreamDataCacheLegacy(SStreamTriggerTask* pTask, int64_t sessionId, int64_t gid, TSKEY start,
                                          TSKEY end, const char* eventConditionPath, SSDataBlock** ppBlock, bool reset,
                                          bool* finished) {
@@ -4214,7 +4310,12 @@ static int32_t readStreamDataCacheLegacy(SStreamTriggerTask* pTask, int64_t sess
   }
 
   if (*px == NULL) {
-    code = getStreamDataCache(pCalcDataCache, gid, start, end, px);
+    if (pTask->pRealtimeContext != NULL && sessionId == pTask->pRealtimeContext->sessionId &&
+        pTask->pRealtimeContext->pPeriod != NULL) {
+      code = getStreamDataCacheSnapshot(pCalcDataCache, gid, start, end, px);
+    } else {
+      code = getStreamDataCache(pCalcDataCache, gid, start, end, px);
+    }
     if (code != TSDB_CODE_SUCCESS) {
       removeEntry = true;
       goto _end;
@@ -4278,16 +4379,7 @@ int32_t readStreamDataCache(SStreamCacheReadInfo* pInfo, bool* finished) {
 
   TSKEY start = pInfo->start;
   TSKEY end = pInfo->end;
-  if (((SStreamTriggerTask*)pTask)->triggerType == STREAM_TRIGGER_PERIOD) {
-    start = INT64_MIN;
-    end = INT64_MAX;
-  } else if (((SStreamTriggerTask*)pTask)->triggerType == STREAM_TRIGGER_SLIDING) {
-    if (((SStreamTriggerTask*)pTask)->interval.interval > 0) {
-      end--;
-    } else {
-      start++;
-    }
-  }
+  stAdjustCacheReadRange((SStreamTriggerTask*)pTask, &start, &end);
 
   if (!requiresContextPolicy) {
     code = readStreamDataCacheLegacy(pTask, pInfo->taskInfo.sessionId, pInfo->gid, start, end,

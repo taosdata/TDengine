@@ -252,6 +252,15 @@ typedef struct {
   int32_t       failedTimes;
   void*         rpcRsp;
   int32_t       rpcRspLen;
+  // error-detail payload carried by a failed action's response (e.g. the vstb alter
+  // name-conflict check reports the conflicting child table). Runtime-only, never encoded:
+  // attached to the client rsp instead of rpcRsp when the trans fails with an error code.
+  // errRspCode records the error code the payload came with, so the detail is only attached
+  // when the final trans code still equals it (a later undo/rollback failure must not pair a
+  // different code with stale text).
+  void*         errRsp;
+  int32_t       errRspLen;
+  int32_t       errRspCode;
   int32_t       actionPos;
   SArray*       prepareActions;
   SArray*       redoActions;
@@ -345,7 +354,7 @@ typedef enum {
 
 typedef struct {
   txn_id_t id;              // transaction ID (SDB key)
-  int8_t   stage;           // terminal stage: UTXN_STAGE_COMMITTED / ROLLEDBACK / ZOMBIE
+  int8_t   stage;           // terminal stage: UTXN_STAGE_COMMITTED / UTXN_STAGE_ROLLEDBACK (nothing else is written)
   int8_t   rollbackReason;  // ETxnRollbackReason (0 = explicit; only meaningful when stage == ROLLEDBACK)
   int64_t  createTime;      // creation timestamp (ms)
   int64_t  completedAt;     // completion timestamp (ms); used for adaptive GC TTL
@@ -480,6 +489,7 @@ typedef struct {
   SRWLatch lock;
   // SArray** labels;
   // int32_t  numOfLabels;
+  int8_t   type;
 } SXnodeTaskObj;
 
 typedef struct {
@@ -1286,9 +1296,10 @@ typedef struct {
   int64_t createTime;
   int64_t updateTime;
   int64_t ownerId;
-  // Bitmap of STREAM_FLAG_* (defined in libs/new-stream/stream.h). Currently
-  // only STREAM_FLAG_REF_EXT_SOURCE (bit 3) is consumed; lifted from
-  // SCMCreateStreamReq.flags by mndStreamBuildObj.
+  // Bitmap of STREAM_FLAG_* (defined in libs/new-stream/stream.h). Set at
+  // create (STREAM_FLAG_REF_EXT_SOURCE, bit 3, lifted from SCMCreateStreamReq.flags by
+  // mndStreamBuildObj); afterwards only STREAM_FLAG_TXN_TARGET_STOPPED is rewritten, and
+  // it is meaningful only while txnStatus == META_TXN_PRE_ALTER.
   uint64_t flags;
   uint64_t recalcRevision;
   SArray*  pIncompleteRecalcs;  // SArray<SStreamRecalcPersistReq>
@@ -1303,8 +1314,12 @@ typedef struct {
   // an uncommitted txn has to survive a leader transfer, otherwise the new leader
   // would resurrect a stream the txn had already dropped. See DS 5.2.
   txn_id_t txnId;      // 0 = no associated txn; >0 = owning txn
-  int8_t   txnStatus;  // EMetaTxnStatus: NORMAL / PRE_CREATE / PRE_CREATE_DROP / PRE_DROP
+  int8_t   txnStatus;  // EMetaTxnStatus: NORMAL / PRE_CREATE / PRE_CREATE_DROP / PRE_DROP / PRE_ALTER
 } SStreamObj;
+// The START/STOP an owning txn wants applied at COMMIT is kept in the already-persisted
+// SStreamObj.flags as STREAM_FLAG_TXN_TARGET_STOPPED (libs/new-stream/stream.h, together with every
+// other STREAM_FLAG_* bit); it is meaningful only while txnStatus == META_TXN_PRE_ALTER (that status
+// itself means "an intent exists").
 #if 0
 typedef struct SStreamConf {
   int8_t  igExpired;

@@ -1149,6 +1149,14 @@ static int32_t setValueByBindParam2(SValueNode* pVal, TAOS_STMT2_BIND* pParam, v
   return TSDB_CODE_SUCCESS;
 }
 
+int32_t qStmtRefreshQuery2(SQuery* pQuery) {
+  nodesDestroyNode(pQuery->pRoot);
+  pQuery->pRoot = NULL;
+  int32_t code = nodesCloneNode(pQuery->pPrepareRoot, &pQuery->pRoot);
+  if (code == TSDB_CODE_SUCCESS) rewriteExprAlias(pQuery->pRoot);
+  return code;
+}
+
 int32_t qStmtBindParams2(SQuery* pQuery, TAOS_STMT2_BIND* pParams, int32_t colIdx, void* charsetCxt) {
   int32_t code = TSDB_CODE_SUCCESS;
 
@@ -1165,12 +1173,7 @@ int32_t qStmtBindParams2(SQuery* pQuery, TAOS_STMT2_BIND* pParams, int32_t colId
   }
 
   if (TSDB_CODE_SUCCESS == code && (colIdx < 0 || colIdx + 1 == pQuery->placeholderNum)) {
-    nodesDestroyNode(pQuery->pRoot);
-    pQuery->pRoot = NULL;
-    code = nodesCloneNode(pQuery->pPrepareRoot, &pQuery->pRoot);
-  }
-  if (TSDB_CODE_SUCCESS == code) {
-    rewriteExprAlias(pQuery->pRoot);
+    code = qStmtRefreshQuery2(pQuery);
   }
   return code;
 }

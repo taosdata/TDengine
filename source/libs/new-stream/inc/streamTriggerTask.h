@@ -39,6 +39,14 @@ typedef struct SWindowChainState          SWindowChainState;
 typedef struct SStreamTriggerPeerMerger   SStreamTriggerPeerMerger;
 typedef struct SStreamTriggerNoticeBatch  SStreamTriggerNoticeBatch;
 typedef struct SSTriggerNestedRecovery    SSTriggerNestedRecovery;
+typedef struct SAlignedFutureRepair {
+  int32_t                 refs;
+  int8_t                  cancelled;
+  bool                    running;
+  TSKEY                   anchor, after, target;
+  SWindowChainRepairCarry carry;
+} SAlignedFutureRepair;
+
 typedef struct SSTriggerRealtimeContext   SSTriggerRealtimeContext;
 typedef struct SStagedNestedLeafEffects   SStagedNestedLeafEffects;
 
@@ -100,6 +108,7 @@ struct SSTriggerNestedRecovery {
   int32_t                  replayWalPending;
   volatile int32_t         replayPseudoInFlight;
   bool                     replayRoundActive;
+  SSHashObj               *timeAlignSeeds;
   SArray                  *pReaders;     // immutable SArray<SStreamTaskAddr>
   SArray                  *pWalReaders;  // SArray<SSTriggerNestedWalReader>
   SSTriggerRealtimeBundle *pShadowBundle;
@@ -149,26 +158,46 @@ typedef struct SSTriggerVirtTableInfo {
   bool    colRefsInitialized;
 } SSTriggerVirtTableInfo;
 
+typedef struct {
+  col_id_t cid;
+  int32_t  bytes;
+  col_id_t logical;
+  int32_t  rank;  // position among this table's columns using the logical template slot
+  uint64_t generation;
+} STPhysicalWalSlot;
+
 typedef struct SSTriggerOrigTableInfo {
   int64_t    tbSuid;
   int64_t    tbUid;
   int32_t    vgId;
   SSHashObj *pTrigColMap;  // SSHashObj<colId, slotId>
   SSHashObj *pCalcColMap;  // SSHashObj<colId, slotId>
+  SSHashObj *physicalSlots[2];      // physical colId -> STPhysicalWalSlot
+  SSHashObj *walLogicalColumns[2];  // logical slot -> dense array of STPhysicalWalSlot pointers
   SArray    *pVtbUids;     // SArray<int64_t>
 } SSTriggerOrigTableInfo;
 
 typedef struct SSTriggerWindow {
   STimeWindow range;
   int64_t     wrownum;
+  int64_t     countWindowIndex;  // ordinal among COUNT windows starting at the same timestamp
   int64_t     prevProcTime;  // only used in realtime group for max_delay check
 } SSTriggerWindow;
+
+typedef struct SSTriggerPrevWindowSnapshot {
+  STimeWindow range;
+  STimeWindow prevWindow;  // INT64_MIN marks an event with no predecessor
+  int64_t     countWindowIndex;
+  int8_t      eventType;  // OPEN/CLOSE; zero denotes a legacy timestamp-only snapshot
+} SSTriggerPrevWindowSnapshot;
 
 typedef struct SSTriggerNotifyWindow {
   STimeWindow range;
   int64_t     wrownum;
+  int64_t     countWindowIndex;
   bool        forceWinOpen;
   bool        winOpenEmitted;
+  bool        collapsedParent;
   int32_t     eventTreeNodeIdx;
   char       *pWinOpenNotify;
   char       *pWinCloseNotify;
@@ -203,7 +232,15 @@ typedef struct SStateDeferredState {
   bool    hasPendingPartialNull;
 } SStateDeferredState;
 
+typedef struct SSTriggerPrevWindowState {
+  STimeWindow window;
+  bool        hasClosed;
+  bool        recalcNextOpen;
+  bool        recalcNextClose;
+} SSTriggerPrevWindowState;
+
 typedef struct SSTriggerNestedPeerSource {
+  struct SSTriggerRealtimeGroup *pGroup;
   int64_t tableUid;
   int64_t readerTaskId;
   int32_t sourceIndex;
@@ -220,6 +257,7 @@ typedef struct SSTriggerNestedPeerSource {
 
   SSTriggerVirTablePseudoColRequest request;
   bool                              needsInput;
+  bool                              waitingForTimeAlignSeed;
   bool                              inFlight;
   bool                              dataBound;
   bool                              eof;
@@ -231,9 +269,30 @@ typedef struct SSTriggerNestedInputRetry {
   SSTriggerVirTablePseudoColRequest request;
 } SSTriggerNestedInputRetry;
 
+typedef struct SSTriggerGroupDurationState {
+  bool         durationsFrozen;
+  bool         durationTagErrLogged; /* suppress repeated invalid-tag ELOG */
+  int64_t      frozenMaxDelayNs;
+  STrueForInfo frozenEventTrueFor;
+  STrueForInfo frozenStartTrueFor;
+  STrueForInfo frozenEndTrueFor;
+  STrueForInfo frozenStateTrueFor;
+} SSTriggerGroupDurationState;
+
+typedef struct {
+  uint64_t id, retryUid;
+  int32_t  pending;
+  bool     ready;
+} STimeAlignSeedAdmission;
+
 typedef struct SSTriggerRealtimeGroup {
+  struct SAlignedNormalPage       *alignedNormalPage;
+  STimeAlignSeedAdmission          seedAdmission;
+  struct STriggerTimeAlignGroup   *pTimeAlignStates;
+  int64_t                          derivativeLogEpoch;  // changes with this point's cached Tag snapshot
   struct SSTriggerRealtimeContext *pContext;
   SWindowChainState               *pWindowChain;
+  SWindowChainState               *alignedOrdinaryChain;
   SStreamTriggerPeerMerger        *pPeerMerger;
   const SWindowChainPeerGroup     *pNestedPeerGroup;           // borrowed until explicitly released before merger reset
   SArray                          *pNestedPeerSources;         // SArray<SSTriggerNestedPeerSource>
@@ -250,6 +309,24 @@ typedef struct SSTriggerRealtimeGroup {
   int32_t                          vgId;
   int32_t                          activeVtableCount;
   bool                             recalcNextWindow;
+  bool                             recalcNextOpen;
+  TSKEY                            lastOpenRepairStart;
+  struct SAlignedFutureRepair     *alignedFuture;
+  uint64_t                         alignedRepairId;
+  uint64_t                         alignedCatchupId;
+  bool                             alignedDraining;
+  TSKEY                            alignedInputFloor;  // first raw live body (inclusive)
+  bool                             hasAlignedInputFloor;
+  uint64_t                         ordinaryInputRound;
+  int32_t                          ordinarySubmitVg;
+  int64_t                          ordinarySubmitVer;
+  TSKEY                            ordinarySubmitFloor;
+  bool                             ordinaryOverlap;
+  TSKEY                            ordinaryOverlapThrough;
+  uint8_t                          ordinaryBinding[16];
+  TSKEY                            alignedFixedThrough;
+  uint8_t                         *alignedRepairBinding;   // identity of the group which admitted an unfinished repair
+  STimeWindow                      timeAlignNestedRepair;  // changed input through the affected fixed parent end
   bool                             repairCountDisorder;
   STimeWindow                      countDisorderRange;
   // For EXT/federated groups only (vgId == 0): the taskId of the SSTriggerExtProgress
@@ -280,22 +357,33 @@ typedef struct SSTriggerRealtimeGroup {
       // streak state (start/end, always scalar  -  sub-event + start/end is rejected at parse time)
       int32_t startCondCount;
       TSKEY   startCondFirstTs;
-      int32_t endCondCount;
+      int64_t endCondCount;
       TSKEY   endCondFirstTs;
       SArray *activePath;       // SArray<int32_t>, envelope..leaf
       SArray *openNodeWindows;  // SArray<SSTriggerNotifyWindow>, same order as activePath
       SArray *leafStreaks;      // SArray<SEventLeafStreak>, one per event-tree leaf
+      SArray *eventTreePrevWindows;  // Envelope at 0; siblings use parent node index + 1
       int32_t activeLeaf;       // leaf array index, -1 when no active leaf
     };
     int64_t totalCount;  // for count window trigger
   };
-  STimeWindow prevWindow;                // the last closed window
+  STimeWindow prevWindow;                // last closed window or initial interval cursor
+  bool        hasClosedWindow;           // the initial interval cursor is not a closed window
+  TSKEY       prevWindowRepairThrough;   // latest applied automatic COUNT replay frontier
+  STimeWindow prevParentWindow;          // last closed parent event window
+  bool        hasClosedParentWindow;
+  SArray     *pPrevWindowSnapshots;       // original event predecessors for replay and MAX_DELAY
+  TSKEY       countWindowStart;
+  int64_t     countWindowIndex;
   SObjList    windows;                   // SObjList<SSTriggerWindow>, windows not yet closed
   SObjList    pPendingParWinCalcParams;  // SObjList<SSTriggerCalcParam>
   SObjList    pPendingCalcParams;        // SObjList<SSTriggerCalcParam>
   int64_t     prevParentWinStart;        // for event window trigger with parent windows
   bool        pendingWinOpen;            // for event window trigger and state window trigger
   char       *pPendWinOpenNotify;        // for event window trigger and state window trigger
+
+  // Frozen per-group TRUE_FOR / max_delay values resolved from PARTITION BY tags at first use.
+  SSTriggerGroupDurationState dur;
 
   int64_t  nextExecTime;  // used for max delay and batch window mode
   HeapNode heapNode;      // used for max delay and batch window mode
@@ -309,10 +397,13 @@ typedef struct SSTriggerRealtimeGroup {
   int64_t lastRecvTimeWall;                        // last receive time (wall clock ns)
   int64_t idleEventTimeWall;                       // idle event time (wall clock ns)
   uint8_t idleState;                               // 0=ACTIVE, 1=IDLE
+  TD_DLIST_NODE(SSTriggerRealtimeGroup) alignedWorkNode;
   TD_DLIST_NODE(SSTriggerRealtimeGroup) idleNode;  // for groupsToCheckIdle list
 } SSTriggerRealtimeGroup;
 
 typedef struct SSTriggerHistoryGroup {
+  STimeAlignSeedAdmission         seedAdmission;
+  struct STriggerTimeAlignGroup  *pTimeAlignStates;
   struct SSTriggerHistoryContext *pContext;
   int64_t                         gid;
   TD_DLIST_NODE(SSTriggerHistoryGroup);
@@ -321,6 +412,10 @@ typedef struct SSTriggerHistoryGroup {
   SSHashObj *pTableMetas;      // SSHashObj<tbUid, SSTriggerTableMeta>
 
   int64_t finishTs;
+  int64_t predecessorRepairStart;
+  // Flat EVENT parents have a separate predecessor chain during auto repair.
+  int64_t parentFinishTs;
+  int64_t parentPredecessorRepairStart;
 
   TriggerWindowBuf winBuf;
   union {
@@ -330,18 +425,27 @@ typedef struct SSTriggerHistoryGroup {
       SSTriggerNotifyWindow parentWindow;
       int32_t               numSubWindows;
       int32_t               conditionIdx;
-      int32_t               endCondCount;
+      int64_t               startCondCount;
+      TSKEY                 startCondFirstTs;
+      int64_t               endCondCount;
       TSKEY                 endCondFirstTs;
       SArray               *activePath;       // SArray<int32_t>, envelope..leaf
       SArray               *openNodeWindows;  // SArray<SSTriggerNotifyWindow>, same order as activePath
       SArray               *leafStreaks;      // SArray<SEventLeafStreak>, one per event-tree leaf
+      SArray               *eventTreePrevWindows;  // Envelope at 0; siblings use parent node index + 1
       int32_t               activeLeaf;       // leaf array index, -1 when no active leaf
     };
   };
 
+  STimeWindow        prevWindow;                // the last closed window
+  TSKEY              countWindowStart;
+  int64_t            countWindowIndex;
+  STimeWindow        prevParentWindow;          // the last closed parent event window
+  bool               hasClosedParentWindow;
   SObjList           pPendingParWinCalcParams;  // SObjList<SSTriggerCalcParam>
   SObjList           pPendingCalcParams;        // SObjList<SSTriggerCalcParam>
   SWindowChainState        *pWindowChain;
+  SWindowChainState        *pAlignedLiveChain;
   SStreamTriggerPeerMerger *pPeerMerger;
   SArray                   *pNestedPeerSources;
   SList                     pendingNestedEvents;
@@ -352,6 +456,8 @@ typedef struct SSTriggerHistoryGroup {
   SSTriggerCalcParam pendingWinParam;           // for event window trigger and state window trigger
   HeapNode           heapNode;
   bool               inMaxDelayHeap;
+
+  SSTriggerGroupDurationState dur;
 } SSTriggerHistoryGroup;
 
 typedef enum ESTriggerContextStatus {
@@ -367,8 +473,42 @@ typedef enum ESTriggerContextStatus {
   STRIGGER_CONTEXT_SEND_DROP_REQ,
 } ESTriggerContextStatus;
 
+typedef struct {
+  uint64_t operation;
+  int32_t  pending;
+  int32_t  error;
+  bool     ready;
+} SSTriggerTimeAlignValidation;
+
+typedef struct {
+  uint64_t round, pageId;
+  int32_t  vgId, count;
+} STimeAlignWalCheckPage;
+
 typedef struct SSTriggerWalProgress {
+  uint64_t                  walLayoutGeneration[2];
+  SArray                   *physicalAliases[2];  // Reader-local extra slots -> logical template slots
+  SArray                   *walLogicalRanges[2];
+  SArray                   *physicalWidths[2];  // widened flat columns read by this vnode
   SStreamTaskAddr          *pTaskAddr;    // reader task address
+  uint64_t                  timeAlignRound;
+  int64_t                   alignedDrainedVer;  // completed input page awaiting Runner acknowledgment
+  // Reader deployment identity for nested history handoff.
+  uint64_t previousSourceId;
+  uint64_t timeAlignBoundSourceId;
+  struct {
+    SArray  *cells;
+    void    *metaReply;
+    int32_t  metaLen, offset;
+    uint64_t pageId;
+    int64_t  retryAt;
+    bool     ready;
+  } timeAlignWalCheck;
+  int64_t                   timeAlignMaxVer;
+  bool                      timeAlignHasVersion;
+  void                     *timeAlignBoundRsp;  // staged until every Reader acknowledged this round
+  int32_t                   timeAlignBoundLen;
+  uint64_t                  timeAlignValidationAck;
   int64_t                   startVer;     // version to start realtime check
   int64_t                   savedVer;     // version saved in checkpoint
   int64_t                   doneVer;      // version already processed
@@ -661,10 +801,18 @@ typedef struct SSTriggerExtOrigTableRef {
   char   *tagCondJson;
   char   *canonicalKey;
   SArray *bindings;  // SArray<SSTriggerExtOrigTableBinding>
+  // Virtual-table UIDs that reference this external identity even when they
+  // contribute no bound column (for example COUNT(*) over %%trows).
+  SArray *vtableUids;  // SArray<int64_t>
   // virtualGid -> SArray<SSTriggerExtOrigTableBinding*>: lazily built index over bindings so a
   // per-group lookup is O(1) instead of rescanning every binding. Cleared on destroy and when
   // bindings are appended (patch merge), then rebuilt on next use.
   SSHashObj *pGidToBindings;
+  // Lazily built membership index over bindings (TRIGGER peer pairs and virtual tables that own a
+  // CALC binding).  Shared by every response that fans this ref out instead of being rebuilt per
+  // response, and invalidated together with pGidToBindings whenever bindings or the virtual target
+  // list change.  Opaque here: the layout lives in streamTriggerTask.c.
+  struct STriggerExtBindingIndex *pBindingIndex;
 } SSTriggerExtOrigTableRef;
 
 typedef struct SSTriggerVTablePatchContext {
@@ -682,7 +830,66 @@ typedef struct SSTriggerVTablePatchContext {
   int64_t    prepareFirstFailureMs;
 } SSTriggerVTablePatchContext;
 
+typedef struct SSTriggerPeriodSourceKey {
+  int64_t                gid;
+  int64_t                uid;
+  int64_t                generation;
+  SSTriggerReaderDataKey readerKey;
+} SSTriggerPeriodSourceKey;
+
+typedef struct SSTriggerPeriodBindingKey {
+  int64_t generation;
+  int64_t virtualUid;
+} SSTriggerPeriodBindingKey;
+
+typedef struct SSTriggerPeriodReader {
+  int64_t  nextVer;
+  int64_t  pendingVer;
+  uint64_t committedToken;
+  uint64_t pendingToken;
+  int32_t  error;
+  bool     atCutoff;
+} SSTriggerPeriodReader;
+
+typedef struct SSTriggerPeriodGroup {
+  int32_t vgId;
+  bool    hasInput;
+} SSTriggerPeriodGroup;
+
+typedef struct SSTriggerPeriodCycle {
+  STimeWindow                  window;
+  int64_t                      streamId;
+  int64_t                      taskId;
+  int64_t                      sessionId;
+  SSHashObj                   *pGroups;   // gid -> SSTriggerPeriodGroup
+  SSHashObj                   *pSources;  // SSTriggerPeriodSourceKey -> cache-local source id
+  SSHashObj                   *pReaders;  // vgId -> SSTriggerPeriodReader
+  void                        *pDataCache;
+  SSHashObj                   *pBindings;  // SSTriggerPeriodBindingKey -> owned SSTriggerVirtTableInfo*
+  int64_t                      bindingGeneration;
+  bool                         sealed;
+} SSTriggerPeriodCycle;
+
+int32_t stRealtimePeriodCreate(int64_t streamId, int64_t taskId, int64_t sessionId, STimeWindow window,
+                               SSTriggerPeriodCycle **ppCycle);
+int32_t stRealtimePeriodBeginBatch(SSTriggerPeriodCycle *pCycle, int32_t readerId, uint64_t token, int64_t firstVer,
+                                   int64_t nextVer, bool *pAccepted);
+int32_t stRealtimePeriodCollectMeta(SSTriggerPeriodCycle *pCycle, int32_t readerId, uint64_t token, int64_t gid,
+                                    int32_t vgId);
+int32_t stRealtimePeriodCollectData(SSTriggerPeriodCycle *pCycle, int32_t readerId, uint64_t token,
+                                    const SSTriggerPeriodSourceKey *pKey, SSDataBlock *pBlock, int32_t startIdx,
+                                    int32_t endIdx, int32_t tsSlotId);
+int32_t stRealtimePeriodCommitBatch(SSTriggerPeriodCycle *pCycle, int32_t readerId, uint64_t token, bool atCutoff);
+int32_t stRealtimePeriodSeal(SSTriggerPeriodCycle *pCycle, bool *pSealed);
+// Merge consecutive sealed cycles; on failure both must be discarded by task teardown.
+int32_t stRealtimePeriodMerge(SSTriggerPeriodCycle *pPending, SSTriggerPeriodCycle *pCycle);
+void    stRealtimePeriodDestroy(SSTriggerPeriodCycle **ppCycle);
+
+typedef struct SSTriggerPeriodState SSTriggerPeriodState;
+
 struct SSTriggerRealtimeContext {
+  bool                       timeAlignWaiting;
+  SSTriggerPeriodState      *pPeriod;
   struct SStreamTriggerTask *pTask;
   SSTriggerNestedRecovery   *pRecovery;
   EStreamTriggerType         triggerType;
@@ -718,6 +925,10 @@ struct SSTriggerRealtimeContext {
   SSHashObj   *pRanges;      // SSHashObj<gid, STimeWindow>
 
   SSHashObj *pGroups;  // SSHashObj<gid, SSTriggerRealtimeGroup*>
+  SSHashObj *pOrdinaryBeforeInput;      // confirmed chains touched by the active reader round
+  SSHashObj *pRecoveredOrdinary;        // gid -> original unfinished nested state at the saved WAL cut
+  SSHashObj *pRecoveredAlignedRepairs;  // gid -> compact obligation, until the live group materializes
+  SSHashObj *pRecoveredPrevWindows;  // SSHashObj<gid, checkpointed EXT predecessor state>
   TD_DLIST(SSTriggerRealtimeGroup) groupsToCheck;
   TD_DLIST(SSTriggerRealtimeGroup) groupsToCheckIdle;  // groups to check for idle timeout
   Heap                   *pMaxDelayHeap;
@@ -776,6 +987,15 @@ struct SSTriggerRealtimeContext {
   int32_t dropReqIndex;
 
   bool    haveReadCheckpoint;
+  uint64_t                     timeAlignRound;
+  int32_t                      timeAlignBoundsPending;
+  uint64_t                     timeAlignWalReplyRound;  // first WAL reply makes this round ineligible for an idle close
+  int64_t                      timeAlignWalCheckRetryAt;
+  uint64_t                     timeAlignAbortedRound;
+  SSHashObj                   *timeAlignRepairEnds;
+  SSTriggerTimeAlignValidation timeAlignValidation;
+  struct STriggerResultChecks *resultChecks;  // pending destination checks owned by this session
+  bool                         timeAlignRestart;
   bool    boundDetermined;
   bool    recovering;
   bool    extCheckpointRecovered;
@@ -784,6 +1004,7 @@ struct SSTriggerRealtimeContext {
 
   // LAST_TS create-table: need groupInfo before send create-table req; pull GROUP_COL_VALUE first
   SArray *pPendingCreateTableGids;  // SArray<SSTriggerPendingCreateTableEntry>, (gid, pProgress) per reader
+  TD_DLIST(SSTriggerRealtimeGroup) groupsWithAlignedWork;  // groups following a corrected window chain
 };
 
 typedef struct SSTriggerTsdbProgress {
@@ -792,9 +1013,42 @@ typedef struct SSTriggerTsdbProgress {
   SArray                   *reqCids;     // SArray<col_id_t>
   SArray                   *pMetadatas;  // SArray<SSDataBlock*>
   int64_t                   version;
+  bool                      timeAlignBound;
+  int64_t                   timeAlignStagedVersion;
+  uint64_t                  timeAlignStagedSourceId;
+  uint64_t                  timeAlignSourceId;
+  uint64_t                  timeAlignValidationAck;
+  uint64_t                  timeAlignIndexRequest;  // outstanding FIRST_TS or metadata pull
 } SSTriggerTsdbProgress;
 
+// While probing backwards, rows within each frozen history step still arrive in forward order.
+typedef struct {
+  SSTriggerHistoryGroup *group;
+  int64_t                needed;
+  TSKEY                  first, last, right, boundary;
+  bool                   hasRows, hasRight, hasBoundary;
+} STimeAlignPrefixProbe;
+
 typedef struct SSTriggerHistoryContext {
+  struct SAlignedFutureRepair *alignedFuture;
+  uint64_t                     alignedRepairId;
+  TSKEY                        alignedInputFloor;
+  bool                         alignedFlush;
+  int32_t                      alignedStaged;
+  bool                         alignedReplaySuffix;
+  TSKEY                        alignedReplayAfter;
+  SArray                      *alignedTailEvents;
+  bool                         alignedConfirmedAdvanced;
+  bool                         alignedTailAdvanced;
+  int32_t                      alignedFutureCalcError;
+  bool                         alignedChainPosted;
+  bool                         alignedChainCommitted;
+  STimeAlignPrefixProbe        prefixProbe;
+  SSTriggerHistoryGroup       *pTimeAlignIntervalProbe;  // borrowed through the first metadata step
+  bool                         timeAlignWaiting;
+  bool                         hasTimeAlignChange;
+  STimeWindow                  timeAlignChange;
+  uint64_t                     timeAlignSourceUid;
   struct SStreamTriggerTask *pTask;
   int64_t                    sessionId;
   ESTriggerContextStatus     status;
@@ -805,14 +1059,20 @@ typedef struct SSTriggerHistoryContext {
 
   int64_t              gid;
   STimeWindow          scanRange;
+  TSKEY                predecessorScanThrough;  // request frontier before FIRST_TS narrows an empty scan
   STimeWindow          calcRange;
   STimeWindow          stepRange;
+  STimeWindow          openRepairPrevWindow;  // captured OPEN predecessor, possibly NULL
   bool                 isHistory;
+  bool                 openWindowRepair;
+  bool                 ownsOpenRepairHold;
+  bool                 openRepairPrevCaptured;
   bool                 needTsdbMeta;
   bool                 finishCheck;
   bool                 pendingToFinish;
   SArray              *pContributors;  // SArray<SStreamRecalcContributor>
   struct SSTriggerRecalcRequest *pManualRecalcRequest;
+  int64_t              derivativeLogEpoch;
   uint64_t             progressStepId;
   uint64_t             nextProgressRequestToken;
   SStreamProgressRange historyProgressStepRange;
@@ -820,6 +1080,16 @@ typedef struct SSTriggerHistoryContext {
   bool                 historyProgressReaderCompleting;
   TD_DLIST(SStagedNestedLeafEffects) pendingNestedLeafEffects;
 
+  uint64_t                     timeAlignRound;
+  int32_t                      timeAlignBoundsPending;
+  bool                         timeAlignReady;
+  bool                         timeAlignRestart;
+  STimeWindow                  timeAlignOriginalScan;
+  bool                         timeAlignRepair;
+  SSTriggerTimeAlignValidation timeAlignValidation;
+  struct STriggerResultChecks *resultChecks;  // pending destination checks owned by this session
+  SArray                      *timeAlignBodies;
+  SArray                      *timeAlignReaders;     // frozen, one SStreamTaskAddr per vgroup
   SSHashObj *pReaderTsdbProgress;  // SSHashObj<vgId, SSTriggerTsdbProgress>
   int32_t    curReaderIdx;
 
@@ -896,6 +1166,8 @@ void    stDestroyNestedPendingCalcNode(SListNode **ppNode);
 typedef struct SSTriggerCalcSlot {
   SSTriggerCalcRequest req;  // keep in the first place
   uint64_t             generation;
+  int64_t              vtableRetryAtMs;  // monotonic deadline; zero when no retry is pending
+  int32_t              vtableRetryDelayMs;
   TD_DLIST_NODE(SSTriggerCalcSlot);
 } SSTriggerCalcSlot;
 
@@ -914,6 +1186,7 @@ typedef struct SStreamEventTreeNode {
   bool         isLeaf;
   SNode       *pCond;  // borrowed from the AST used to build this tree
   STrueForInfo trueFor;
+  bool         usesStartTrueFor;  // single leaf inherits the START WITH limit instead of the global limit
 } SStreamEventTreeNode;
 
 typedef struct SStreamEventTree {
@@ -924,6 +1197,7 @@ typedef struct SStreamEventTree {
 
 typedef struct SSTriggerGroupRunning {
   int32_t runningRequests;
+  int32_t pendingOpenRepairs;  // pause MAX_DELAY until repaired snapshots and output are committed
   bool    runnerInitialized[];
 } SSTriggerGroupRunning;
 
@@ -932,11 +1206,23 @@ typedef struct SSTriggerRecalcRequest {
   STimeWindow scanRange;
   STimeWindow calcRange;
   SSHashObj  *pTsdbVersions;
+  bool                         hasTimeAlignChange;
+  STimeWindow                  timeAlignChange;
+  uint64_t                     timeAlignSourceUid;
   SArray     *pContributors;  // SArray<SStreamRecalcContributor>
   bool        isHistory;
   SRecalcImpactDomain        impactDomain;
+  struct SAlignedFutureRepair *alignedFuture;
+  uint64_t                     alignedRepairId;
+  TSKEY                        alignedInputFloor;
   bool                       frozen;
   bool                       noMerge;
+  bool                       openWindowRepair;
+  bool                         alignedCheckpointWork;
+  bool                       waitForOutput;
+  struct SStreamTriggerTask *pOpenRepairOwner;
+  struct SStreamTriggerTask   *timeAlignRepairOwner;
+  SArray                    *pRepairWaits;  // slot generations captured after original output dispatch
   bool                       retryScheduled;
   SStreamRecalcAttemptState *pPreparedAttempt;
   SStreamRecalcAttemptRef    attempt;
@@ -958,11 +1244,26 @@ typedef enum {
   STREAM_CHECKPOINT_SYNC_CORRUPTED = 3,
 } EStreamCheckpointSyncState;
 
+typedef struct {
+  SSHashObj *byRequest;
+  SSHashObj *byOperation;
+  int64_t    nextRetryAt;
+} STriggerTimeAlignCloseQueue;
+
 typedef struct SStreamTriggerTask {
   SStreamTask                       task;
   SStreamTaskStats                 *pStats;
   SRWLatch                          readerProgressLock;
+  SRWLatch                          prevWindowUpdateLock;
+  struct SAlignedChainUpdate       *pAlignedChainUpdate;  // history publishes under prevWindowUpdateLock
+  SArray                           *pPrevWindowUpdates;  // history-to-realtime value updates
   SArray                           *pReaderProgressSnapshots;
+  STriggerTimeAlignCloseQueue       timeAlignCloses;
+  STriggerTimeAlignCloseQueue       historyTimeAlignCloses;
+  SSHashObj                        *timeAlignSeeds;
+  SSHashObj                        *historyTimeAlignSeeds;
+  int64_t                           lastTimeAlignId;
+  int32_t                           timeAlignRepairs;
   SRWLatch                          debugGaugesLock;
   SStreamTriggerCommonDebugGauges   commonDebugGauges;
   SStreamTriggerRealtimeDebugGauges realtimeDebugGauges;
@@ -1005,6 +1306,9 @@ typedef struct SStreamTriggerTask {
   int32_t trigPkIndex;
   int32_t calcPkIndex;
   int64_t maxDelayNs;
+  col_id_t maxDelayTagColId;
+  bool    useDurationTagRuntime;  // true only when max_delay/true_for use tag columns
+  SNodeList *pPartitionCols;
   int64_t fillHistoryStartTime;
   int64_t watermark;
   int64_t expiredTime;
@@ -1028,6 +1332,8 @@ typedef struct SStreamTriggerTask {
   int64_t placeHolderBitmap;
   SNode  *triggerFilter;
   SStreamWindowPlan *pWindowPlan;
+  SStreamTimeAlignSpec     *pTimeAlign;
+  struct SSTimeAlignConfig *pTimeAlignConfig;
   SArray            *pNestedInputProjections;
   bool               flushOnOuterClose;
   // trigger options: old version, to be removed
@@ -1064,6 +1370,8 @@ typedef struct SStreamTriggerTask {
   SArray      *pVirTrigSlots;  // SArray<int32_t>
   SArray      *pVirCalcSlots;  // SArray<int32_t>
   // virtual table info: new version
+  uint64_t     walLayoutGeneration;
+  bool         flatVirtualScan;
   SSDataBlock *pVirtTrigBlock;    // trigger data schema for virtual table
   SSDataBlock *pVirtCalcBlock;    // calc data schema for virtual table
   SArray      *pTrigIsPseudoCol;  // SArray<bool>, whether the column in trig data is pseudo column, could be NULL
@@ -1071,6 +1379,7 @@ typedef struct SStreamTriggerTask {
   col_id_t     trigTsSlotId;
   col_id_t     calcTsSlotId;
   bool         virScanTsOnly;  // whether the trigger and calc data only contains timestamp column
+  bool         calcScanTsOnly;  // whether the calc data only contains timestamp column (pure COUNT(*))
   SSDataBlock *pNestedCalcCacheBlock;
   SArray      *pNestedCalcCacheProjection;  // SArray<SStreamDataCacheColumnProjection>
   SRWLatch     virTableInfoLock;
@@ -1097,6 +1406,10 @@ typedef struct SStreamTriggerTask {
   SSHashObj *pSessionRunning;  // SSHashObj<sessionId, cnt>
 
   SRWLatch   recalcRequestLock;
+  bool                   activeAlignedCheckpointWork;
+  uint64_t               activeAlignedRepairId;
+  int32_t                alignedCheckpointHold;
+  bool       recalcInProgress;     // Protected by recalcRequestLock through history completion.
   SList     *pRecalcRequests;       // SList<SSTriggerRecalcRequest>
   SSHashObj *pRecalcRequestMap;     // SSHashObj<gid, SSTriggerRecalcRequestList>
   SSHashObj *pGroupPendingRecalcs;  // SSHashObj<gid, SSTriggerGroupPendingRecalc>
@@ -1126,7 +1439,23 @@ typedef struct SStreamTriggerTask {
   SSTriggerRealtimeBundle  *pRealtimeBundle;
   SSTriggerRealtimeContext *pRealtimeContext;
   SSTriggerHistoryContext  *pHistoryContext;
+  SSHashObj                *resultDispatches;  // live token pair -> calc slot and generation, under calcPoolLock
 } SStreamTriggerTask;
+
+typedef struct SSTimeAlignSeed SSTimeAlignSeed;
+int32_t stTriggerTimeAlignNext(SStreamTriggerTask *task, struct STriggerTimeAlignGroup **owner, int64_t sessionId,
+                               int64_t gid, const SSTriggerVirtTableInfo *table, SSTriggerNewVtableMerger *newer,
+                               SSTriggerVtableMerger *older, SSDataBlock **out, int32_t *start, int32_t *end,
+                               bool *waiting);
+void    stTriggerTimeAlignDestroyGroup(struct STriggerTimeAlignGroup *group);
+int32_t stTriggerTaskAcquireTimeAlignSeed(SStreamTriggerTask *task, int64_t sessionId, int64_t gid,
+                                          const SSTriggerVirtTableInfo *table, int64_t firstTs,
+                                          const SSTimeAlignSeed **seed, uint64_t *generation, bool *waiting);
+void    stTriggerTaskReleaseTimeAlignSeed(SStreamTriggerTask *task, int64_t sessionId, int64_t gid, uint64_t virtualUid,
+                                          uint64_t generation);
+int32_t stTriggerTaskDiscardTimeAlignSeed(SStreamTriggerTask *task, int64_t session, int64_t gid, uint64_t uid);
+uint64_t stTriggerTaskTimeAlignGeneration(SStreamTriggerTask *task, int64_t sessionId, int64_t gid,
+                                          uint64_t virtualUid);
 
 // interfaces called by stream trigger thread
 int32_t stTriggerTaskAcquireRequest(SStreamTriggerTask *pTask, int64_t sessionId, int64_t gid,
@@ -1195,12 +1524,15 @@ int64_t     stRealtimeContextExtTriggerRecoveryCutoff(const SSTriggerRealtimeCon
 int32_t     stTriggerTaskGetExtRefBindingsForGid(SSTriggerExtOrigTableRef *pRef, int64_t gid, SArray **ppBindings);
 
 #if defined(BUILD_TEST)
+void stTriggerTestPeriodPendingStats(SSTriggerRealtimeContext *pContext, int32_t *pCycles, int64_t *pGroups);
 /* Test seams for streamTriggerTaskTest. They expose the virtual-table patch state machine and the WAL
  * table-change gate so the retry/escalation and replay-dedup rules can be verified without a live
  * vnode. They are compiled only when BUILD_TEST is set, so the production library exports none of
  * them. */
 int32_t stTriggerTestPrepareVtablePatch(SSTriggerRealtimeContext *pContext);
 int32_t stTriggerTestHandleVtablePatchPrepareFailure(SSTriggerRealtimeContext *pContext, int32_t code);
+bool stTriggerTestExtRegistryBindingsEqual(const SSTriggerExtOrigTableRef *pLeft,
+                                           const SSTriggerExtOrigTableRef *pRight);
 int32_t stTriggerTestProcWalMeta(SSTriggerRealtimeContext *pContext, SSTriggerWalProgress *pProgress,
                                  int64_t nowNs);
 #endif

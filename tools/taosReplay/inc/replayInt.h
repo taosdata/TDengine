@@ -37,8 +37,19 @@ extern "C" {
 #define REPLAY_MAX_MAPS   32
 #define REPLAY_MAX_CREDS  32
 /* Hard cap: reaching it aborts input loading with REPLAY_EXIT_INPUT rather than
- * silently truncating the event stream. */
-#define REPLAY_MAX_EVENTS 250000
+ * silently truncating the event stream.
+ *
+ * This is a MEMORY BUDGET, not a coverage guarantee. The array costs sizeof(SReplayEvent)
+ * per event, so 5M events is ~1.8 GB of resident memory (plus the segment buffers).
+ *
+ * Do not derive it from WLR_SEGMENT_ROTATE_SIZE: the recorder rotates on bytes, so a
+ * segment of small frames holds far more events than the measured ~250 bytes/event
+ * average -- a 1 GiB segment of minimum-size frames is ~32M events, and a session that
+ * rotates into several segments accumulates in a single session, so the cap can be
+ * reached long before the recording is large. Long sessions therefore have to be split,
+ * or loaded in pieces; bounding the recorder by event count as well is the real fix. */
+#define REPLAY_MAX_EVENTS 5000000
+
 
 static inline bool replayPhaseTerminatesCall(uint16_t apiType, bool stmt2Async, uint16_t phase) {
   if (phase == WLR_PHASE_DONE) return true;
@@ -62,6 +73,7 @@ typedef enum {
   REPLAY_MODE_NONE = 0,
   REPLAY_MODE_INSPECT,
   REPLAY_MODE_REPLAY,
+  REPLAY_MODE_EXPORT,
 } EReplayMode;
 
 /* All pointer fields borrow argv storage and must not be freed. The parser maintains
@@ -78,7 +90,16 @@ typedef struct {
   const char *creds[REPLAY_MAX_CREDS];
   int32_t     credCount;
   const char *reportDir;
+  /* export mode: "jsonl" (default) or "csv"; NULL output means stdout. */
+  const char *exportFormat;
+  const char *exportOutput;
+  /* replay pacing multiplier: >1 compresses waits, <1 stretches them. */
+  double      timeScale;
   bool        allowIncomplete;
+  /* Replay calls whose recorded async completion overlapped a later call on the same
+   * thread, in recorded begin order. The overlap itself is not reproduced: the async
+   * APIs are reissued synchronously, so each call completes before the next begins. */
+  bool        allowAsyncOverlap;
   bool        verbose;
   int32_t     unfinishedTimeoutSec;
 } SReplayOpts;
@@ -124,8 +145,13 @@ typedef struct {
   int32_t  retCode;
   int64_t  affectedRows;
   int64_t  fetchRows;
+  /* How many original fetch calls one recorded fetch event pair stands for. The
+   * recorder folds all fetch calls on a result into one BEGIN/RETURN pair; a
+   * missing tag means one call, which is what a 1.1 recording always carries. */
+  int64_t  fetchCalls;
   bool     affectedRowsSet;
   bool     fetchRowsSet;
+  bool     fetchCallsSet;
   const char *sql;
   uint32_t    sqlLen;
   const char *tbname; /* STMT set-table-name calls */
@@ -169,6 +195,12 @@ typedef struct {
   uint32_t       smlTbnameKeyLen;
   bool           smlTbnameKeySet;
 } SReplayEvent;
+
+/* The cap is a memory budget: keep the arithmetic honest if SReplayEvent ever grows.
+ * Deriving it from sizeof instead of a per-event byte count keeps the two numbers from
+ * drifting apart silently, and keeps a field addition from breaking the build. */
+typedef char replay_max_events_memory_check[
+    (REPLAY_MAX_EVENTS * sizeof(SReplayEvent) <= (2ull << 30)) ? 1 : -1];
 
 typedef struct {
   uint8_t *buf; /* whole segment contents; events alias into this */
@@ -220,6 +252,8 @@ _Static_assert(sizeof(SReplaySession) <= 16 * 1024, "SReplaySession exceeds stac
 int32_t replayLoadInputs(const SReplayOpts *opts, SReplaySession *session);
 void    replayFreeSession(SReplaySession *session);
 void    replayPrintInspect(const SReplayOpts *opts, const SReplaySession *session);
+/* Writes one JSONL/CSV record per event. Returns one of the REPLAY_EXIT_* codes. */
+int32_t replayPrintExport(const SReplayOpts *opts, const SReplaySession *session);
 
 /* replayExec.c */
 int32_t replayExecute(const SReplayOpts *opts, SReplaySession *session);

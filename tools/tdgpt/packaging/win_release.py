@@ -296,16 +296,18 @@ def copy_python_files():
 
     source_dir = install_info.source_dir
 
-    # Copy taosanalytics directory
-    src_analytics = os.path.join(source_dir, "taosanalytics")
+    # Match the Linux payload: shared loaders plus analytics, dynamic and TSFM.
+    # Copy from the current lib/ layout, not the historical source root.
+    source_lib = os.path.join(source_dir, "lib")
+    if not os.path.isfile(os.path.join(source_lib, "service_registry.py")):
+        raise FileNotFoundError(f"Missing TDgpt runtime library: {source_lib}")
     dst_analytics = os.path.join(lib_dir, "taosanalytics")
 
-    if os.path.exists(dst_analytics):
-        shutil.rmtree(dst_analytics)
-
     # Copy directory, excluding __pycache__ and .pyc files
-    shutil.copytree(src_analytics, dst_analytics,
+    shutil.copytree(source_lib, lib_dir, dirs_exist_ok=True,
                     ignore=shutil.ignore_patterns('__pycache__', '*.pyc', '.git*'))
+    # Legacy package markers must not overwrite user files before migration.
+    shutil.rmtree(os.path.join(dst_analytics, 'algo', 'custom'), ignore_errors=True)
     logging.info(f"Copied taosanalytics to {dst_analytics}")
 
     # Update version in __init__.py
@@ -430,6 +432,23 @@ def copy_service_scripts():
     if os.path.exists(src_resource_manager):
         shutil.copy2(src_resource_manager, dst_resource_manager)
         logging.info("Copied resource_manager.py")
+
+    src_runtime_upgrade = os.path.join(source_script_dir, "runtime_upgrade.py")
+    dst_runtime_upgrade = os.path.join(bin_dir, "runtime_upgrade.py")
+    if os.path.exists(src_runtime_upgrade):
+        shutil.copy2(src_runtime_upgrade, dst_runtime_upgrade)
+        logging.info("Copied runtime_upgrade.py")
+
+    src_release_manifest = os.path.join(
+        install_info.source_dir, "packaging", "tdengine-tdgpt-tsfm-release-1.0.1.json"
+    )
+    release_metadata_dir = os.path.join(install_info.install_dir, "share", "tsfm")
+    os.makedirs(release_metadata_dir, exist_ok=True)
+    dst_release_manifest = os.path.join(release_metadata_dir, "tsfm-release.json")
+    if not os.path.isfile(src_release_manifest):
+        raise FileNotFoundError(f"Missing TSFM release manifest: {src_release_manifest}")
+    shutil.copy2(src_release_manifest, dst_release_manifest)
+    logging.info("Copied TSFM release manifest")
 
     src_ctl = os.path.join(source_script_dir, "taosanodectl.py")
     dst_ctl = os.path.join(bin_dir, "taosanodectl.py")
@@ -1030,6 +1049,10 @@ def main():
 
     # Clean and prepare release directory
     clean_release_dir()
+
+    # AI skills under skills/ are intentionally not packaged on Windows: the
+    # deployment script requires a POSIX shell and coreutils and supports only
+    # Linux, Docker or SSH targets. See skills/README.md.
 
     # Copy all necessary files
     copy_config_files()

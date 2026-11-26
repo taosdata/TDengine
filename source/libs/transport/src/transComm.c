@@ -190,9 +190,20 @@ static int32_t transValidateCompMsg(STransMsgHead* pHead, int32_t msgLen, int32_
     return TSDB_CODE_INVALID_MSG;
   }
 
+  // Validate the buffer length before reading any field beyond the fixed header.
   int32_t minLen = (int32_t)(sizeof(STransMsgHead) + sizeof(STransCompMsg));
   if (msgLen < minLen) {
     tError("invalid compressed rpc msg, msgLen:%d, minLen:%d", msgLen, minLen);
+    return TSDB_CODE_INVALID_MSG;
+  }
+
+  // TD-SEC-2026-045: the declared msgLen in the packet header must match the actual buffer length,
+  // otherwise the decompression input boundary would be derived from an attacker-controlled value.
+  // Every caller passes the exact length of one framed packet, so both directions of a mismatch
+  // indicate a malformed or truncated frame and are rejected.
+  int32_t declaredLen = (int32_t)ntohl(pHead->msgLen);
+  if (declaredLen != msgLen) {
+    tError("invalid compressed rpc msg, declared msgLen:%d, actual len:%d", declaredLen, msgLen);
     return TSDB_CODE_INVALID_MSG;
   }
 
@@ -603,16 +614,17 @@ bool transAsyncPoolIsEmpty(SAsyncPool* pool) {
   }
   return true;
 }
-int transAsyncSend(SAsyncPool* pool, queue* q) {
+// Send the async message to the specified slot.
+int transAsyncSendToIdx(SAsyncPool* pool, int32_t idx, queue* q) {
   if (atomic_load_8(&pool->stop) == 1) {
     return TSDB_CODE_RPC_ASYNC_MODULE_QUIT;
   }
-  int idx = pool->index % pool->nAsync;
 
-  // no need mutex here
-  if (pool->index++ > pool->nAsync * 2000) {
-    pool->index = 0;
+  if (idx < 0 || idx >= pool->nAsync) {
+    tError("invalid async index:%d, nAsync:%d", idx, pool->nAsync);
+    return TSDB_CODE_INVALID_PARA;
   }
+
   uv_async_t* async = &(pool->asyncs[idx]);
   SAsyncItem* item = async->data;
 
@@ -631,6 +643,28 @@ int transAsyncSend(SAsyncPool* pool, queue* q) {
   }
   return 0;
 }
+
+// Round-robin send; outputs the slot used so callers can keep related messages in the same slot.
+int transAsyncSendWithIdx(SAsyncPool* pool, queue* q, int32_t* pIdx) {
+  if (atomic_load_8(&pool->stop) == 1) {
+    return TSDB_CODE_RPC_ASYNC_MODULE_QUIT;
+  }
+
+  int idx = pool->index % pool->nAsync;
+
+  // no need mutex here
+  if (pool->index++ > pool->nAsync * 2000) {
+    pool->index = 0;
+  }
+
+  if (pIdx != NULL) {
+    *pIdx = idx;
+  }
+
+  return transAsyncSendToIdx(pool, idx, q);
+}
+
+int transAsyncSend(SAsyncPool* pool, queue* q) { return transAsyncSendWithIdx(pool, q, NULL); }
 
 void transCtxInit(STransCtx* ctx) {
   // init transCtx
@@ -1101,6 +1135,7 @@ int64_t transAddExHandle(int32_t refMgt, void* p) {
 }
 void transRemoveExHandle(int32_t refMgt, int64_t refId) {
   // acquire extern handle
+  transDiagRefEvent(refMgt, refId, 4);
   int32_t code = taosRemoveRef(refMgt, refId);
   if (code != 0) {
     tTrace("failed to remove %" PRId64 " from resetId:%d", refId, refMgt);
@@ -1108,11 +1143,13 @@ void transRemoveExHandle(int32_t refMgt, int64_t refId) {
 }
 
 void* transAcquireExHandle(int32_t refMgt, int64_t refId) {  // acquire extern handle
+  transDiagRefEvent(refMgt, refId, 2);
   return (void*)taosAcquireRef(refMgt, refId);
 }
 
 void transReleaseExHandle(int32_t refMgt, int64_t refId) {
   // release extern handle
+  transDiagRefEvent(refMgt, refId, 3);
   int32_t code = taosReleaseRef(refMgt, refId);
   if (code != 0) {
     tTrace("failed to release %" PRId64 " from resetId:%d", refId, refMgt);
@@ -1124,6 +1161,12 @@ void transDestroyExHandle(void* handle) {
   }
   SExHandle* eh = handle;
   tDebug("trans destroy sid:%" PRId64 ", memory %p", eh->refId, handle);
+  {
+    char buf[16] = {0};
+    if (taosGetEnv("TD_DIAG_QID_REF", buf, sizeof(buf)) > 0 && atoi(buf) != 0) {
+      tWarn("diag destroy sid:%" PRId64 ", mem:%p", eh->refId, handle);
+    }
+  }
   taosMemoryFree(handle);
 }
 

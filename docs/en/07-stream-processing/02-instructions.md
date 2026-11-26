@@ -36,7 +36,8 @@ SHOW SNODES;
 For more detailed information, use:
 
 ```sql
-SELECT * FROM information_schema.`ins_snodes`;
+SELECT *
+FROM information_schema.`ins_snodes`;
 ```
 
 ### Delete an Snode
@@ -137,7 +138,7 @@ After a stream is created, users may perform operations on the databases and tab
 | User deletes the trigger table                               | Ignored; no additional handling.                             |
 | User adds a column to the trigger table                      | Ignored; no additional handling.                             |
 | User deletes a column from the trigger table                 | Ignored; no additional handling.                             |
-| User modifies the tag value of a child table under the trigger supertable | If the tag column is used by the stream as a grouping key, the operation is not allowed and results in an error.<br/>Otherwise, ignored. |
+| User modifies the tag value of a child table under the trigger supertable | If the tag column is used by the stream as a grouping key, the operation is not allowed and results in an error.<br/>Otherwise, the change is allowed. The stream does not recalculate existing results and does not trigger because of the change. Later calculations read the new value. See [Update a Calculation Threshold at Runtime](#update-threshold). |
 | User modifies the schema of the trigger table columns        | Ignored; no additional handling. (An error will be raised when a schema mismatch is detected at read time.) |
 | User modifies or deletes a source table                      | Ignored; no additional handling.                             |
 | User modifies or deletes an output table                     | Ignored; no additional handling. (If a schema mismatch is detected at write time, an error is raised. If the table does not exist, it will be recreated.) |
@@ -145,6 +146,21 @@ After a stream is created, users may perform operations on the databases and tab
 | User deletes a database                                      | Not allowed if the deleted database is a source database of a stream, or a trigger table database that is not the same as the stream’s own database.<br/>Not allowed if the stream involves triggers or computations on virtual tables from non-target databases.<br/>The user may force execution after confirming no impact with `DROP DATABASE name FORCE`. |
 
 Apart from the operations explicitly restricted or specially handled in the table above, all other operations—as well as those marked as ignored; no additional handling—are unrestricted. However, if such operations may affect stream computation, it is the user’s responsibility to decide how to proceed: either ignore the impact or perform a manual recalculation to restore correctness.
+
+#### Update a Calculation Threshold at Runtime {#update-threshold}
+
+Thresholds such as alarm limits and process standard values can be stored in tags and referenced in the calculation query, for example `LAST(vol) > LAST(hi)`. The tag value can be changed while the stream is running, without recreating the stream:
+
+- The tag must not be a grouping column of `PARTITION BY` or `ROLLUP BY`. Otherwise, `ALTER TABLE ... SET TAG` fails with `Col/Tag referenced by stream`.
+- After the change, the next triggered calculation uses the new value. Results already written to the output table do not change. To recompute historical windows with the new threshold, run a manual recalculation.
+- Changing the tag does not itself trigger a calculation. The new value takes effect on the next trigger produced by a write or a schedule.
+
+The threshold can be stored in either of two ways:
+
+- **The threshold is a tag of the trigger child table.** Change that child table's tag directly, for example `ALTER TABLE d1 SET TAG hi = 100.0`.
+- **Thresholds are kept together in a configuration table.** The virtual table uses a [tag reference](../05-tdengine-sql/02-ddl/04-virtualtable.md#virtual-table-reference-capabilities) (tag-ref) to a tag on the configuration table, and the stream uses the virtual supertable as the trigger table. After the configuration-table tag changes, the next calculation reads the new value. The threshold value is stored in the configuration table, so the statement does not modify a grouping column of the stream.
+
+For an example, see [Use a Tag as a Runtime-Modifiable Threshold](./03-best-practices.md#dynamic-threshold).
 
 ### Configuration Parameters
 
@@ -197,3 +213,23 @@ Compared with `v3.3.6.0`, stream processing has been completely redesigned. Befo
 - Delete all result tables.
 
 Note: If the above steps are not performed, taosd will fail to start.
+
+### Initialization and recalculation for TIME_ALIGN
+
+Even without `FILL_HISTORY`, the first trigger row can use an earlier non-NULL value. The lookup itself emits no window. With history enabled, the start time selects the first eligible trigger row. An earlier reading can still supply its predecessor. The stream looks up the last eligible value before the scan starts, then updates it as it reads rows across windows. Both reads follow the same visibility rules as other streams. The calculation query takes its own snapshot.
+
+`DELETE_RECALC`, `IGNORE_DISORDER`, `EXPIRED_TIME` and the window type determine which changes qualify for automatic recalculation. When deletion recalculation is off, an ordinary deletion leaves counts already consumed by an open window in place. When a change qualifies, one source reading can affect several later heartbeats and windows. Recalculation can overwrite a row with the same output key. A previously written row can remain if its old window produces no replacement.
+
+A new historical scan or recalculation reads the available source history. If a source sample has been overwritten, deleted, or expired, a new scan can produce a different predecessor. `DELETE_RECALC` controls whether a deletion triggers recalculation.
+
+If an accepted correction still needs later input to close a nested window, the stream saves the recalculation progress for that group. After a restart, new input can finish the correction. A correction that had already expired before the restart stays ignored.
+
+When a late write overlaps input that a still-open nested window has already consumed, a checkpoint can preserve the window’s start, row count, and parent. With the same source binding, the window can then continue after a restart even if the source now contains a replacement value. Checkpoints written by older versions can recover only the window information they saved.
+
+On rebinding, the next calculation uses the new reference. A calculation already in progress keeps its snapshot. On recovery, the stream rebuilds its predecessors from the history currently visible to it. Edits and retention can therefore change the first value after recovery. Budget for predecessor lookups when source data is sparse and for one candidate per required source column per active virtual child. Use participating nodes that support aligned stream triggers.
+
+Every source column visible to the trigger must still reference local data after a virtual table changes. This includes columns omitted from the trigger expression. During a rolling upgrade, each participating Reader must support metadata validation for aligned `PERIOD` triggers and the new physical width when a binding widens.
+
+Before creating an aligned stream, upgrade every management node that can become leader. Upgrade every participating Reader and every node that can host the Trigger, including a dedicated Trigger node. For non-`PERIOD` aligned streams, also upgrade every node eligible to run the top-level Runner after deployment, migration or failover. Non-`PERIOD` bindings require Readers that can preserve physical WAL timestamps when source and virtual table precisions differ. Older nodes reject these aligned tasks during deployment.
+
+For non-`PERIOD` aligned streams, upgrade every replica that can become leader of a result vgroup before the first result write. Include vgroups in a separate result database. An older result leader rejects the conditional submit at write time, even if deployment succeeded. An upgraded result leader checks the result with the Trigger before queuing the write.

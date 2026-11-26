@@ -228,6 +228,8 @@ int32_t tsHeartbeatTimeout = 20 * 1000;
 int32_t tsSnapReplMaxWaitN = 128;
 int32_t tsSnapshotRateLimit = 0;
 bool    tsSnapshotMediumOnLag = false;  // when enabled a follower that owns data but lags behind uses MEDIUM snap replication
+int32_t tsSnapshotMediumDiskStrategy = 0;
+bool    tsSnapshotMediumOnIncomplete = true;  // Use MEDIUM snapshot replication for an incomplete FSM.
 int64_t tsLogBufferMemoryAllowed = 0;  // bytes
 int64_t tsSyncApplyQueueSize = 512;
 int32_t tsSyncNegotiationWin = 512;  // negotiation window size for sync module
@@ -487,6 +489,13 @@ char    tsTagFilterCache = 0;
 char    tsStableTagFilterCache = 0;
 int64_t tsMetaEntryCacheSize = TSDB_DEFAULT_MECACHE_SIZE;
 char    tsMetaEntryCache = 0;
+
+// Upper bound (bytes) of the shared vc_cols full-scan result cache used by
+// virtual-table stream readers, across the whole dnode. 0 disables caching.
+int64_t tsStreamVcColsCacheSize = 2LL * 1024 * 1024 * 1024;
+// Master switch of the vc_cols full-scan result cache. false disables caching
+// entirely (serve and commit both fall back to a full scan).
+bool    tsStreamVcColsCache = true;
 
 int32_t tsBypassFlag = 0;
 
@@ -1026,6 +1035,10 @@ static int32_t taosAddSystemCfg(SConfig *pCfg) {
   TAOS_CHECK_RETURN(cfgAddInt64(pCfg, "metaEntryCacheSize", tsMetaEntryCacheSize, TSDB_MIN_MECACHE_SIZE,
                                 TSDB_MAX_MECACHE_SIZE, CFG_SCOPE_SERVER, CFG_DYN_ENT_SERVER, CFG_CATEGORY_LOCAL,
                                 CFG_PRIV_SYSTEM));
+  TAOS_CHECK_RETURN(cfgAddBool(pCfg, "streamVcColsCache", tsStreamVcColsCache, CFG_SCOPE_SERVER,
+                               CFG_DYN_ENT_SERVER, CFG_CATEGORY_LOCAL, CFG_PRIV_SYSTEM));
+  TAOS_CHECK_RETURN(cfgAddInt64(pCfg, "streamVcColsCacheSize", tsStreamVcColsCacheSize, 0, INT64_MAX,
+                                CFG_SCOPE_SERVER, CFG_DYN_ENT_SERVER, CFG_CATEGORY_LOCAL, CFG_PRIV_SYSTEM));
 
   TAOS_CHECK_RETURN(cfgAddInt64(pCfg, "openMax", tsOpenMax, 0, INT64_MAX, CFG_SCOPE_BOTH, CFG_DYN_NONE,
                                 CFG_CATEGORY_LOCAL, CFG_PRIV_SYSTEM));
@@ -1223,6 +1236,8 @@ static int32_t taosAddServerCfg(SConfig *pCfg) {
   TAOS_CHECK_RETURN(cfgAddInt32(pCfg, "syncSnapReplMaxWaitN", tsSnapReplMaxWaitN, 16, (TSDB_SYNC_SNAP_BUFFER_SIZE >> 2), CFG_SCOPE_SERVER, CFG_DYN_SERVER,CFG_CATEGORY_GLOBAL, CFG_PRIV_SYSTEM));
   TAOS_CHECK_RETURN(cfgAddInt32(pCfg, "snapshotRateLimit", tsSnapshotRateLimit, 0, 10240, CFG_SCOPE_SERVER, CFG_DYN_SERVER, CFG_CATEGORY_GLOBAL, CFG_PRIV_SYSTEM));
   TAOS_CHECK_RETURN(cfgAddBool(pCfg, "snapshotMediumOnLag", tsSnapshotMediumOnLag, CFG_SCOPE_SERVER, CFG_DYN_SERVER, CFG_CATEGORY_GLOBAL, CFG_PRIV_SYSTEM));
+  TAOS_CHECK_RETURN(cfgAddInt32(pCfg, "snapshotMediumDiskStrategy", tsSnapshotMediumDiskStrategy, 0, 1, CFG_SCOPE_SERVER, CFG_DYN_SERVER, CFG_CATEGORY_LOCAL, CFG_PRIV_SYSTEM));
+  TAOS_CHECK_RETURN(cfgAddBool(pCfg, "snapshotMediumOnIncomplete", tsSnapshotMediumOnIncomplete, CFG_SCOPE_SERVER, CFG_DYN_SERVER, CFG_CATEGORY_GLOBAL, CFG_PRIV_SYSTEM));
   TAOS_CHECK_RETURN(cfgAddInt64(pCfg, "syncLogBufferMemoryAllowed", tsLogBufferMemoryAllowed, TSDB_MSG_MEMORY_BASELINE * 10L, INT64_MAX, CFG_SCOPE_SERVER, CFG_DYN_ENT_SERVER,CFG_CATEGORY_LOCAL, CFG_PRIV_SYSTEM));
   TAOS_CHECK_RETURN(cfgAddInt64(pCfg, "syncApplyQueueSize", tsSyncApplyQueueSize, 32, 2048, CFG_SCOPE_SERVER, CFG_DYN_SERVER,CFG_CATEGORY_GLOBAL, CFG_PRIV_SYSTEM));
   TAOS_CHECK_RETURN(cfgAddInt32(pCfg, "syncNegotiationWin", tsSyncNegotiationWin, 128, 10240, CFG_SCOPE_SERVER, CFG_DYN_SERVER,CFG_CATEGORY_GLOBAL, CFG_PRIV_SYSTEM));
@@ -2211,16 +2226,33 @@ static int32_t taosSetServerCfg(SConfig *pCfg) {
   bool otherCpuCoresExplicit = (pItem->stype != CFG_STYPE_DEFAULT);
   tsOtherCpuCores = pItem->i32;
 
-  // Recompute dynamic defaults for readCpuCores/otherCpuCores when they were
-  // not explicitly set by user but managementCpuCores was changed from default.
-  // The initial dynamic defaults in taosAddServerCfg() are computed with the
-  // default managementCpuCores=1 before the config file is loaded.
-  if (!readCpuCoresExplicit && !otherCpuCoresExplicit) {
-    int32_t total = (int32_t)tsNumOfCores;
-    int32_t remaining = total - tsManagementCpuCores;
+  // Recompute the dynamic default for whichever of readCpuCores/otherCpuCores
+  // the user did not set explicitly. taosAddServerCfg() only seeds a dynamic
+  // default when managementCpuCores is still at its own default, so a config
+  // that sets readCpuCores (or otherCpuCores) alone used to leave the other
+  // group at the registration-time placeholder of 1 instead of the documented
+  // (totalCores - managementCpuCores) split.
+  //
+  // The unset group keeps that documented independent default, but is capped by
+  // what the explicit group leaves over: taosInitCpuAllocation() rejects a
+  // configuration whose three groups add up to more than the machine has, and
+  // the plain half default next to an explicitly large group would make an
+  // otherwise valid taos.cfg fail to start.
+  if (!readCpuCoresExplicit || !otherCpuCoresExplicit) {
+    int32_t remaining = (int32_t)tsNumOfCores - tsManagementCpuCores;
     if (remaining < 2) remaining = 2;
-    tsReadCpuCores = remaining / 2;
-    tsOtherCpuCores = remaining - tsReadCpuCores;
+    if (!readCpuCoresExplicit && !otherCpuCoresExplicit) {
+      tsReadCpuCores = remaining / 2;
+      tsOtherCpuCores = remaining - tsReadCpuCores;
+    } else if (!readCpuCoresExplicit) {
+      int32_t fit = remaining - tsOtherCpuCores;
+      tsReadCpuCores = (remaining / 2 < fit) ? remaining / 2 : fit;
+      if (tsReadCpuCores < 1) tsReadCpuCores = 1;
+    } else {
+      int32_t fit = remaining - tsReadCpuCores;
+      tsOtherCpuCores = (remaining - remaining / 2 < fit) ? remaining - remaining / 2 : fit;
+      if (tsOtherCpuCores < 1) tsOtherCpuCores = 1;
+    }
   }
 
   TAOS_CHECK_GET_CFG_ITEM(pCfg, pItem, "enableIpv6");
@@ -2318,6 +2350,12 @@ static int32_t taosSetServerCfg(SConfig *pCfg) {
   tsMetaEntryCache = (bool)pItem->bval;
   TAOS_CHECK_GET_CFG_ITEM(pCfg, pItem, "metaEntryCacheSize");
   tsMetaEntryCacheSize = pItem->i64;
+
+  TAOS_CHECK_GET_CFG_ITEM(pCfg, pItem, "streamVcColsCache");
+  tsStreamVcColsCache = pItem->bval;
+
+  TAOS_CHECK_GET_CFG_ITEM(pCfg, pItem, "streamVcColsCacheSize");
+  tsStreamVcColsCacheSize = pItem->i64;
 
   TAOS_CHECK_GET_CFG_ITEM(pCfg, pItem, "slowLogExceptDb");
   TAOS_CHECK_RETURN(taosCheckCfgStrValueLen(pItem->name, pItem->str, TSDB_DB_NAME_LEN));
@@ -2514,6 +2552,12 @@ static int32_t taosSetServerCfg(SConfig *pCfg) {
 
   TAOS_CHECK_GET_CFG_ITEM(pCfg, pItem, "snapshotMediumOnLag");
   tsSnapshotMediumOnLag = pItem->bval;
+
+  TAOS_CHECK_GET_CFG_ITEM(pCfg, pItem, "snapshotMediumDiskStrategy");
+  tsSnapshotMediumDiskStrategy = pItem->i32;
+
+  TAOS_CHECK_GET_CFG_ITEM(pCfg, pItem, "snapshotMediumOnIncomplete");
+  tsSnapshotMediumOnIncomplete = pItem->bval;
 
   TAOS_CHECK_GET_CFG_ITEM(pCfg, pItem, "syncLogBufferMemoryAllowed");
   tsLogBufferMemoryAllowed = pItem->i64;
@@ -3718,6 +3762,8 @@ static int32_t taosCfgDynamicOptionsForServer(SConfig *pCfg, const char *name) {
                                          {"syncSnapReplMaxWaitN", &tsSnapReplMaxWaitN},
                                          {"snapshotRateLimit", &tsSnapshotRateLimit},
                                          {"snapshotMediumOnLag", &tsSnapshotMediumOnLag},
+                                         {"snapshotMediumDiskStrategy", &tsSnapshotMediumDiskStrategy},
+                                         {"snapshotMediumOnIncomplete", &tsSnapshotMediumOnIncomplete},
                                          {"syncRoutineReportInterval", &tsRoutineReportInterval},
                                          {"syncLogHeartbeat", &tsSyncLogHeartbeat},
                                          {"syncTimeout", &tsSyncTimeout},
@@ -3738,6 +3784,8 @@ static int32_t taosCfgDynamicOptionsForServer(SConfig *pCfg, const char *name) {
 
                                          {"logKeepDays", &tsLogKeepDays},
                                          {"metaEntryCacheSize", &tsMetaEntryCacheSize},
+                                         {"streamVcColsCache", &tsStreamVcColsCache},
+                                         {"streamVcColsCacheSize", &tsStreamVcColsCacheSize},
                                          {"mqRebalanceInterval", &tsMqRebalanceInterval},
                                          {"numOfLogLines", &tsNumOfLogLines},
                                          {"queryRspPolicy", &tsQueryRspPolicy},

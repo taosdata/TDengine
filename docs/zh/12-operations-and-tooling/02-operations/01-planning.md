@@ -22,7 +22,8 @@ vgroups ×replica × (buffer + pages × pagesize + cachesize)
 系统管理员可以通过如下 SQL 查看 information_schema 库中的 ins_vnodes 表来获得所有数据库所有 vnodes 在各个 dnode 上的分布。
 
 ```sql
-select * from information_schema.ins_vnodes;
+taos> SELECT *
+      FROM information_schema.ins_vnodes;
 dnode_id |vgroup_id | db_name | status | role_time | start_time | restored |
 ===============================================================================================
  1| 3 | log | leader | 2024-01-16 13:52:13.618 | 2024-01-16 13:52:01.628 | true |

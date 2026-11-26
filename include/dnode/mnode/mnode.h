@@ -40,6 +40,18 @@ typedef struct {
 } SMnodeRestoreDnode;
 
 int32_t mndRestoreMapDnodeId(const SArray *pDnodes, int32_t sourceId);
+// Reads the snapshot of a stopped instance, appending one SDnodeEp per dnode to
+// `dnodes`, which must already be an SArray of SDnodeEp. `transactions` counts
+// unfinished transactions. The out parameters are written only on success, and
+// a failure leaves `dnodes` as it was.
+int32_t mndInspectSdb(const char *path, bool encrypted, SArray *dnodes,
+                      int64_t *index, int64_t *term, int32_t *transactions);
+int32_t mndInspectTxnSeq(const void *body, int32_t len, bool *safe);
+// Rewrites the dnode endpoints in the snapshot of a stopped instance, in place.
+// `pEndpoints` holds the new endpoint of every dnode. `rewritten` is written
+// only on success and counts the dnode rows that changed.
+int32_t mndRewriteSdbDnodes(const char *path, bool encrypted,
+                            const SArray *pEndpoints, int32_t *rewritten);
 
 typedef struct {
   int32_t  dnodeId;

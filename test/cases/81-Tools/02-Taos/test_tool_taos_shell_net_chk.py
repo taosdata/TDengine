@@ -23,26 +23,57 @@ import platform
 import subprocess
 import psutil
 from new_test_framework.utils.eutil import start_test_process
-if platform.system().lower() == 'windows':
-    import wexpect as taosExpect
-else:
+if platform.system().lower() != 'windows':
     import pexpect as taosExpect
 import os
 
 
-def taos_command (buildPath, key, value, expectString, cfgDir, sqlString='', key1='', value1=''):
+def taos_command(buildPath, key, value, expectString, cfgDir, sqlString='', key1='', value1=''):
     if len(key) == 0:
         tdLog.exit("taos test key is null!")
 
-    if platform.system().lower() == 'windows':
-        args = [os.path.join(buildPath, 'build', 'bin', 'taos.exe')]
+    is_windows = platform.system().lower() == 'windows'
+    if is_windows:
+        command = [os.path.join(buildPath, 'build', 'bin', 'taos.exe')]
         if cfgDir:
-            args += ['-c', cfgDir]
-        taosCmd = subprocess.list2cmdline(args)
-    else:
-        taosCmd = buildPath + '/build/bin/taos '
-        if len(cfgDir) != 0:
-            taosCmd = taosCmd + '-c ' + cfgDir
+            command.extend(['-c', os.path.normpath(cfgDir)])
+        if key == 'p':
+            command.append('-p' + value)
+        else:
+            command.append('-' + key)
+            if value:
+                command.append(value[1:-1] if value.startswith('"') and value.endswith('"') else value)
+        if key1:
+            command.append('-' + key1)
+            if value1:
+                command.append(value1[1:-1] if value1.startswith('"') and value1.endswith('"') else value1)
+        tdLog.info("taos cmd: %s" % subprocess.list2cmdline(command))
+        try:
+            child = subprocess.Popen(command, stdin=subprocess.PIPE, stdout=subprocess.PIPE,
+                                     stderr=subprocess.STDOUT, text=True, encoding='utf-8', errors='replace')
+            input_text = (sqlString + "\n" if sqlString else '') + 'quit\n'
+            output, _ = child.communicate(input=input_text, timeout=120)
+        except subprocess.TimeoutExpired:
+            child.kill()
+            output, _ = child.communicate()
+            tdLog.error('taos process timed out after 120 seconds')
+            return 'TAOS_FAIL', output
+        except OSError as error:
+            tdLog.error('unable to start taos: %s' % error)
+            return 'TAOS_FAIL', str(error)
+        print('taos process return code: %s, content:\n%s' % (child.returncode, output))
+        if expectString and expectString not in output and not any(k in (key, key1) for k in ('A', 'C', 'V')):
+            return 'TAOS_FAIL', output
+        if sqlString:
+            markers = ('Query OK', 'Create OK', 'Insert OK', 'Drop OK')
+            return ('TAOS_OK' if child.returncode == 0 and any(m in output for m in markers) else 'TAOS_FAIL'), output
+        if any(k in (key, key1) for k in ('A', 'C', 'V')):
+            return 'TAOS_OK', output.strip()
+        return ('TAOS_OK' if child.returncode == 0 else 'TAOS_FAIL'), output
+
+    taosCmd = buildPath + '/build/bin/taos '
+    if len(cfgDir) != 0:
+        taosCmd = taosCmd + '-c ' + cfgDir
 
     taosCmd = taosCmd + ' -' + key
     if len(value) != 0:
@@ -249,12 +280,26 @@ class TestTaosShellNetChk:
                 taosCmd = buildPath + '/build/bin/taos -c ' + keyDict['c']
             taosCmd = taosCmd + ' -n ' + role + ' -l ' + pktLen + ' -N ' +  pktNum
             print (taosCmd)
-            child = taosExpect.spawn(taosCmd, timeout=3)
-            i = child.expect([taosExpect.TIMEOUT, taosExpect.EOF], timeout=6)
-
             if platform.system().lower() == 'windows':
-                retResult = child.before
+                client_process = start_test_process(
+                    [os.path.join(buildPath, 'build', 'bin', 'taos.exe'),
+                     '-h', '127.0.0.1', '-c', cfgPath, '-P', self.serverPort,
+                     '-n', role, '-l', pktLen, '-N', pktNum],
+                    stdin=subprocess.DEVNULL, stdout=subprocess.PIPE,
+                    stderr=subprocess.STDOUT, text=True, encoding='utf-8', errors='replace',
+                )
+                try:
+                    retResult, _ = client_process.communicate(timeout=120)
+                except subprocess.TimeoutExpired:
+                    client_process.kill()
+                    client_process.communicate()
+                    tdLog.exit('network test client timed out after 120 seconds')
+                if client_process.returncode != 0:
+                    tdLog.exit(f'network test client failed: {retResult}')
+                i = 1
             else:
+                child = taosExpect.spawn(taosCmd, timeout=3)
+                i = child.expect([taosExpect.TIMEOUT, taosExpect.EOF], timeout=6)
                 retResult = child.before.decode()
             print("expect() return code: %d, content:\n %s\n"%(i, retResult))
             #print(child.after.decode())

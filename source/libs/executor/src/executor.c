@@ -16,6 +16,7 @@
  */
 
 #include "executor.h"
+#include "tdTestSeam.h"
 #include <stdint.h>
 #include "cmdnodes.h"
 #include "dataSinkInt.h"
@@ -25,6 +26,14 @@
 #include "operator.h"
 #include "osMemPool.h"
 #include "osMemory.h"
+#if defined(BUILD_TEST)
+#include "ttestgate.h"
+#include "osFile.h"
+#include "osSleep.h"
+#include "osSystem.h"
+#include "osTime.h"
+#include "tglobal.h"
+#endif
 #include "planner.h"
 #include "query.h"
 #include "querytask.h"
@@ -32,7 +41,9 @@
 #include "streamexecutorInt.h"
 #include "taosdef.h"
 #include "tarray.h"
+#include "tcompare.h"
 #include "tdatablock.h"
+#include "tglobal.h"
 #include "tref.h"
 #include "trpc.h"
 #include "ttypes.h"
@@ -43,7 +54,174 @@ static TdThreadOnce initPoolOnce = PTHREAD_ONCE_INIT;
 int32_t             fetchObjRefPool = -1;
 SGlobalExecInfo     gExecInfo = {0};
 
+#if defined(BUILD_TEST)
+static void traceQueryTimeoutTest(const SExecTaskInfo* task,
+                                  const SSDataBlock* block,
+                                  const char* event, int32_t readTimeout) {
+  qDebug("QID:0x%" PRIx64 ", TID:0x%" PRIx64
+         " query timeout test %s, blockId:%" PRId64
+         ", rows:%" PRId64 ", readTimeout:%d",
+         task->id.queryId, task->id.taskId, event, block->info.id.blockId,
+         block->info.rows, readTimeout);
+}
+
+static void waitQueryTimeoutTestBarrier(SExecTaskInfo* task,
+                                         const SSDataBlock* block) {
+  if (task->execModel != OPTR_EXEC_MODEL_BATCH ||
+      task->pStreamRuntimeInfo != NULL || task->pSubplan == NULL ||
+      task->pSubplan->level != 0 || block == NULL || block->info.rows <= 0) {
+    return;
+  }
+
+  int32_t savedErrno = terrno;
+  char root[PATH_MAX], directory[PATH_MAX];
+  char held[PATH_MAX], release[PATH_MAX];
+  TdFilePtr file = NULL;
+  if (taosGetEnv("TD_JOIN_TEST_TIMEOUT_GATE_DIR", root, sizeof(root)) <= 0) {
+    goto _done;
+  }
+  int32_t len = snprintf(directory, sizeof(directory), "%s/%" PRIu64,
+                          root, task->id.queryId);
+  if (len < 0 || len >= (int32_t)sizeof(directory)) {
+    goto _done;
+  }
+  if (!taosTestGatePath(held, sizeof(held), directory, "held")) {
+    goto _done;
+  }
+  if (!taosTestGatePath(release, sizeof(release), directory, "release")) {
+    goto _done;
+  }
+  if (!taosTestGateArmed(directory, task->id.queryId)) {
+    goto _done;
+  }
+
+  file = taosOpenPrivateFile(held,
+                             TD_FILE_CREATE | TD_FILE_EXCL | TD_FILE_WRITE);
+  if (file == NULL) {
+    goto _done;
+  }
+  int32_t code = taosCloseFile(&file);
+  if (code != TSDB_CODE_SUCCESS) {
+    goto _done;
+  }
+
+  // Keep the worker busy while the transport's real read timer expires.
+  int32_t readTimeout = tsReadTimeout;
+  traceQueryTimeoutTest(task, block, "held", readTimeout);
+  int64_t deadline = taosGetMonoTimestampMs() +
+                     (int64_t)readTimeout * 1000 + 30000;
+  while (!taosCheckExistFile(release)) {
+    if (taosGetMonoTimestampMs() >= deadline) {
+      traceQueryTimeoutTest(task, block, "timed out", readTimeout);
+      goto _done;
+    }
+    taosMsleep(10);
+  }
+  traceQueryTimeoutTest(task, block, "resumed", readTimeout);
+
+_done:
+  if (file != NULL) {
+    (void)taosCloseFile(&file);
+  }
+  terrno = savedErrno;
+}
+
+static void traceJoinFailureTest(const SExecTaskInfo* task,
+                                 const SSDataBlock* block,
+                                 const char* event, int32_t code) {
+  qDebug("QID:0x%" PRIx64 ", TID:0x%" PRIx64
+         " join failure test %s, blockId:%" PRId64
+         ", rows:%" PRId64 ", code:%d",
+         task->id.queryId, task->id.taskId, event, block->info.id.blockId,
+         block->info.rows, code);
+}
+
+static int32_t waitJoinFailureTestBarrier(SExecTaskInfo* task,
+                                          const SSDataBlock* block) {
+  if (task->execModel != OPTR_EXEC_MODEL_BATCH ||
+      task->pStreamRuntimeInfo != NULL || task->pSubplan == NULL ||
+      task->pSubplan->level != 1 || block == NULL || block->info.rows <= 0) {
+    return TSDB_CODE_SUCCESS;
+  }
+
+  int32_t savedErrno = terrno;
+  int32_t result = TSDB_CODE_SUCCESS;
+  char root[PATH_MAX], directory[PATH_MAX];
+  char held[PATH_MAX], release[PATH_MAX];
+  TdFilePtr file = NULL;
+  if (taosGetEnv("TD_JOIN_TEST_FAILURE_GATE_DIR", root, sizeof(root)) <= 0) {
+    goto _done;
+  }
+  int32_t len = snprintf(directory, sizeof(directory), "%s/%" PRIu64, root,
+                         task->id.queryId);
+  if (len < 0 || len >= (int32_t)sizeof(directory)) {
+    goto _done;
+  }
+  len = snprintf(held, sizeof(held), "%s/held.%" PRIu64, directory,
+                 task->id.taskId);
+  if (len < 0 || len >= (int32_t)sizeof(held)) {
+    goto _done;
+  }
+  len = snprintf(release, sizeof(release), "%s/release.%" PRIu64, directory,
+                 task->id.taskId);
+  if (len < 0 || len >= (int32_t)sizeof(release)) {
+    goto _done;
+  }
+  if (!taosTestGateArmed(directory, task->id.queryId)) {
+    goto _done;
+  }
+  int64_t read;
+
+  file = taosOpenPrivateFile(held,
+                            TD_FILE_CREATE | TD_FILE_EXCL | TD_FILE_WRITE);
+  if (file == NULL) {
+    goto _done;
+  }
+  int32_t code = taosCloseFile(&file);
+  if (code != TSDB_CODE_SUCCESS) {
+    goto _done;
+  }
+
+  // QUICK query responses let the parent launch before either producer exits.
+  traceJoinFailureTest(task, block, "held", TSDB_CODE_SUCCESS);
+  int64_t deadline = taosGetMonoTimestampMs() + 30000;
+  while (true) {
+    file = taosOpenPrivateFile(release, TD_FILE_READ);
+    if (file != NULL) {
+      char command[6];
+      read = taosReadFile(file, command, sizeof(command));
+      code = taosCloseFile(&file);
+      if (code == TSDB_CODE_SUCCESS && read == 5) {
+        if (memcmp(command, "fail\n", 5) == 0) {
+          result = TSDB_CODE_QRY_EXECUTOR_INTERNAL_ERROR;
+          traceJoinFailureTest(task, block, "injected", result);
+          break;
+        }
+        if (memcmp(command, "pass\n", 5) == 0) {
+          traceJoinFailureTest(task, block, "resumed", TSDB_CODE_SUCCESS);
+          break;
+        }
+      }
+    }
+    if (taosGetMonoTimestampMs() >= deadline) {
+      result = TSDB_CODE_QRY_EXECUTOR_INTERNAL_ERROR;
+      traceJoinFailureTest(task, block, "timed out", result);
+      break;
+    }
+    taosMsleep(10);
+  }
+
+_done:
+  if (file != NULL) {
+    (void)taosCloseFile(&file);
+  }
+  terrno = savedErrno;
+  return result;
+}
+#endif
+
 void setTaskScalarExtraInfo(qTaskInfo_t tinfo) {
+  TD_SEAM_VOID(setTaskScalarExtraInfo, void (*)(qTaskInfo_t), (tinfo));
   SExecTaskInfo* pTaskInfo = (SExecTaskInfo*)tinfo;
   gTaskScalarExtra.pSubJobCtx = pTaskInfo->pSubJobCtx;
   gTaskScalarExtra.isStream =
@@ -55,6 +233,7 @@ void setTaskScalarExtraInfo(qTaskInfo_t tinfo) {
 }
 
 void qSetStreamGen(qTaskInfo_t tinfo, uint64_t gen) {
+  TD_SEAM_VOID(qSetStreamGen, void (*)(qTaskInfo_t, uint64_t), (tinfo, gen));
   SExecTaskInfo* pTaskInfo = (SExecTaskInfo*)tinfo;
   if (pTaskInfo && pTaskInfo->pSubJobCtx) {
     pTaskInfo->pSubJobCtx->streamGen = gen;
@@ -166,6 +345,7 @@ int32_t doSetTaskId(SOperatorInfo* pOperator, SStorageAPI* pAPI) {
 }
 
 int32_t qSetTaskId(qTaskInfo_t tinfo, uint64_t taskId, uint64_t queryId) {
+  TD_SEAM_RET(qSetTaskId, int32_t (*)(qTaskInfo_t, uint64_t, uint64_t), (tinfo, taskId, queryId));
   SExecTaskInfo* pTaskInfo = tinfo;
   pTaskInfo->id.queryId = queryId;
   buildTaskId(taskId, queryId, pTaskInfo->id.str, 64);
@@ -376,6 +556,7 @@ _error:
 }
 
 bool qNeedReset(qTaskInfo_t pInfo) {
+  TD_SEAM_RET(qNeedReset, bool (*)(qTaskInfo_t), (pInfo));
   if (pInfo == NULL) {
     return false;
   }
@@ -430,6 +611,7 @@ static int32_t validateReaderReuseReset(SOperatorInfo* pOperator) {
 }
 
 int32_t qResetTableScan(qTaskInfo_t pInfo, SReadHandle* handle, EQueryTableScanResetMode mode) {
+  TD_SEAM_RET(qResetTableScan, int32_t (*)(qTaskInfo_t, SReadHandle*, EQueryTableScanResetMode), (pInfo, handle, mode));
   if (pInfo == NULL) {
     return TSDB_CODE_INVALID_PARA;
   }
@@ -524,6 +706,7 @@ int32_t qClearStreamDimensionPreparation(qTaskInfo_t task) {
 
 int32_t qCreateStreamExecTaskInfo(qTaskInfo_t* pTaskInfo, void* msg, SReadHandle* readers,
                                   SStreamInserterParam* pInserterParams, int32_t vgId, int32_t taskId) {
+  TD_SEAM_RET(qCreateStreamExecTaskInfo, int32_t (*)(qTaskInfo_t*, void*, SReadHandle*, SStreamInserterParam*, int32_t, int32_t), (pTaskInfo, msg, readers, pInserterParams, vgId, taskId));
   if (msg == NULL) {
     return TSDB_CODE_INVALID_PARA;
   }
@@ -568,11 +751,12 @@ static int32_t filterUnqualifiedTables(const STmqQueryScanInfo* pScanInfo, const
   int32_t code = TSDB_CODE_SUCCESS;
   int32_t lino = 0;
   int8_t  locked = 0;
+  SArray* tUid = NULL;
   SArray* qa = taosArrayInit(4, sizeof(tb_uid_t));
 
   QUERY_CHECK_NULL(qa, code, lino, _error, terrno);
 
-  SArray* tUid = taosArrayInit(4, sizeof(STqPair));
+  tUid = taosArrayInit(4, sizeof(STqPair));
   QUERY_CHECK_NULL(tUid, code, lino, _error, terrno);
 
   int32_t numOfUids = taosArrayGetSize(tableIdList);
@@ -901,6 +1085,7 @@ void qDestroyOperatorParam(SOperatorParam* pParam) {
          operator type mismatch.
 */
 void qUpdateOperatorParam(qTaskInfo_t tinfo, void* pParam) {
+  TD_SEAM_VOID(qUpdateOperatorParam, void (*)(qTaskInfo_t, void*), (tinfo, pParam));
   SExecTaskInfo* pTask = (SExecTaskInfo*)tinfo;
   SOperatorParam* pNewParam = (SOperatorParam*)pParam;
   if (pTask->pRoot && pTask->pRoot->operatorType != pNewParam->opType) {
@@ -972,6 +1157,7 @@ int32_t qSemWait(qTaskInfo_t task, tsem_t* pSem) {
 int32_t qCreateExecTask(SReadHandle* readHandle, int32_t vgId, uint64_t taskId, SSubplan* pSubplan,
                         qTaskInfo_t* pTaskInfo, DataSinkHandle* handle, int8_t compressResult, char* sql,
                         EOPTR_EXEC_MODEL model, SArray** subEndPoints, bool enableExplain) {
+  taosRegexSetPoolSize(tsNumOfQueryThreads);
   SExecTaskInfo** pTask = (SExecTaskInfo**)pTaskInfo;
   (void)taosThreadOnce(&initPoolOnce, initRefPool);
 
@@ -1054,6 +1240,8 @@ static void resetOperatorExecDepth(SOperatorInfo* pOperator) {
 
 int32_t qExecTaskOpt(qTaskInfo_t tinfo, SArray* pResList, uint64_t* useconds, bool* hasMore, SLocalFetch* pLocal,
                      bool processOneBlock) {
+  TD_SEAM_RET(qExecTaskOpt, int32_t (*)(qTaskInfo_t, SArray*, uint64_t*, bool*, SLocalFetch*, bool),
+              (tinfo, pResList, useconds, hasMore, pLocal, processOneBlock));
   int32_t        code = TSDB_CODE_SUCCESS;
   int32_t        lino = 0;
   SExecTaskInfo* pTaskInfo = (SExecTaskInfo*)tinfo;
@@ -1109,6 +1297,7 @@ int32_t qExecTaskOpt(qTaskInfo_t tinfo, SArray* pResList, uint64_t* useconds, bo
   int64_t      current = 0;
   SSDataBlock* pRes = NULL;
   int64_t      st = taosGetTimestampUs();
+  uint64_t     el = 0;
   bool         directBlock = pLocal != NULL && pLocal->directBlock;
   bool         streamLocalBlock = directBlock && pLocal->putBlockFp != NULL;
 
@@ -1122,6 +1311,14 @@ int32_t qExecTaskOpt(qTaskInfo_t tinfo, SArray* pResList, uint64_t* useconds, bo
   QUERY_CHECK_CODE(code, lino, _end);
   code = blockDataCheck(pRes);
   QUERY_CHECK_CODE(code, lino, _end);
+
+#if defined(BUILD_TEST)
+  waitQueryTimeoutTestBarrier(pTaskInfo, pRes);
+  int32_t injected = waitJoinFailureTestBarrier(pTaskInfo, pRes);
+  if (injected != TSDB_CODE_SUCCESS) {
+    T_LONG_JMP(pTaskInfo->env, injected);
+  }
+#endif
 
   if (pRes == NULL) {
     st = taosGetTimestampUs();
@@ -1229,7 +1426,7 @@ int32_t qExecTaskOpt(qTaskInfo_t tinfo, SArray* pResList, uint64_t* useconds, bo
   }
 
   *hasMore = (pRes != NULL);
-  uint64_t el = (taosGetTimestampUs() - st);
+  el = (taosGetTimestampUs() - st);
 
   pTaskInfo->cost.elapsedTime += el;
   if (NULL == pRes) {
@@ -1556,6 +1753,7 @@ static void printTaskExecCostInLog(SExecTaskInfo* pTaskInfo) {
 
 
 void qDestroyTask(qTaskInfo_t qTaskHandle) {
+  TD_SEAM_VOID(qDestroyTask, void (*)(qTaskInfo_t), (qTaskHandle));
   SExecTaskInfo* pTaskInfo = (SExecTaskInfo*)qTaskHandle;
   if (pTaskInfo == NULL) {
     return;
@@ -1740,6 +1938,7 @@ int32_t qStreamPrepareScan(qTaskInfo_t tinfo, STqOffsetVal* pOffset, int8_t subT
   int32_t        code = TSDB_CODE_SUCCESS;
   SExecTaskInfo* pTaskInfo = (SExecTaskInfo*)tinfo;
   SStorageAPI*   pAPI = &pTaskInfo->storageAPI;
+  bool           forceReseek = pTaskInfo->tmqInfo.needReseek;
 
   SOperatorInfo* pOperator = pTaskInfo->pRoot;
   const char*    id = GET_TASKID(pTaskInfo);
@@ -1759,8 +1958,10 @@ int32_t qStreamPrepareScan(qTaskInfo_t tinfo, STqOffsetVal* pOffset, int8_t subT
   // threshold changed since the reader was prepared (e.g. another consumer in
   // the same group resumes with a lower/disabled msg.consume.start.ts), fall
   // through to re-prepare so the snapshot lower bound is recomputed instead of
-  // reusing the stale one.
-  if (tOffsetEqual(pOffset, &pTaskInfo->tmqInfo.currentOffset) &&
+  // reusing the stale one. A task that failed in a previous poll also has to
+  // re-position: the scan may already have consumed WAL messages that were never
+  // delivered, and continuing from the reader position would skip them.
+  if (!pTaskInfo->tmqInfo.needReseek && tOffsetEqual(pOffset, &pTaskInfo->tmqInfo.currentOffset) &&
       pTaskInfo->tmqInfo.startTs == pTaskInfo->tmqInfo.preparedStartTs) {
     return 0;
   }
@@ -1786,6 +1987,13 @@ int32_t qStreamPrepareScan(qTaskInfo_t tinfo, STqOffsetVal* pOffset, int8_t subT
       SStoreTqReader* pReaderAPI = &pTaskInfo->storageAPI.tqReaderFn;
       SWalReader*     pWalReader = pReaderAPI->tqReaderGetWalReader(pInfo->tqReader);
       walReaderVerifyOffset(pWalReader, pOffset);
+      if (forceReseek) {
+        // A failed read may have advanced the file cursor after the header while leaving curVersion
+        // unchanged. Close and reopen the reader files so the seek below cannot take the equal-version
+        // fast path and reuse that stale cursor.
+        qDebug("tmq retry resets wal reader before seeking to version:%" PRId64 ", %s", pOffset->version, id);
+        walReadReset(pWalReader);
+      }
       code = pReaderAPI->tqReaderSeek(pInfo->tqReader, pOffset->version, id);
       if (code < 0) {
         qError("tqReaderSeek failed ver:%" PRId64 ", %s", pOffset->version, id);
@@ -1987,6 +2195,7 @@ int32_t qStreamPrepareScan(qTaskInfo_t tinfo, STqOffsetVal* pOffset, int8_t subT
   }
 
 end:
+  pTaskInfo->tmqInfo.needReseek = false;
   tOffsetCopy(&pTaskInfo->tmqInfo.currentOffset, pOffset);
   pTaskInfo->tmqInfo.preparedStartTs = pTaskInfo->tmqInfo.startTs;
   return 0;
@@ -2252,10 +2461,33 @@ int32_t qStreamOperatorReloadState(qTaskInfo_t tInfo) {
 
 void qResetTaskCode(qTaskInfo_t tinfo) {
   SExecTaskInfo* pTaskInfo = (SExecTaskInfo*)tinfo;
+  if (pTaskInfo == NULL) {
+    return;
+  }
 
   int32_t code = pTaskInfo->code;
+  if (code == TSDB_CODE_SUCCESS) {
+    return;
+  }
+
   pTaskInfo->code = 0;
   qDebug("0x%" PRIx64 " reset task code to be success, prev:%s", pTaskInfo->id.taskId, tstrerror(code));
+}
+
+// A TMQ handle reuses one exec task for every poll. When a poll fails, the scan may already have consumed
+// WAL messages whose rows were never delivered (the column scan accumulates rows across messages until
+// minPollRows), so simply clearing the code and continuing from the reader position would silently skip
+// them. Clear the failure and force the next qStreamPrepareScan() to re-position from the offset requested
+// by the consumer.
+bool qStreamResetTaskForRetry(qTaskInfo_t tinfo) {
+  SExecTaskInfo* pTaskInfo = (SExecTaskInfo*)tinfo;
+  if (pTaskInfo == NULL || pTaskInfo->code == TSDB_CODE_SUCCESS) {
+    return false;
+  }
+
+  qResetTaskCode(tinfo);
+  pTaskInfo->tmqInfo.needReseek = true;
+  return true;
 }
 
 int32_t collectExprsToReplaceForStream(SOperatorInfo* pOper, SArray* pExprs) {
@@ -2412,7 +2644,7 @@ int32_t qStreamCreateTableListForReader(void* pVnode, uint64_t suid, uint64_t ui
   }
 
   SScanPhysiNode pScanNode = {.suid = suid, .uid = uid, .tableType = tableType};
-  SReadHandle    pHandle = {.vnode = pVnode};
+  SReadHandle    pHandle = {.vnode = pVnode, .version = -1};
   SExecTaskInfo  pTaskInfo = {.id.str = "", .storageAPI = *storageAPI};
 
   code = createScanTableListInfo(&pScanNode, pGroupTags, groupSort, &pHandle, pList, pTagCond, pTagIndexCond, &pTaskInfo, groupIdMap);
@@ -2427,13 +2659,11 @@ end:
   return code;
 }
 
-static int32_t doFilterTableByTagCond(void* pVnode, STableListInfo* pListInfo, SArray* pUidList, SNode* pTagCond, SStorageAPI* pStorageAPI){
-  // Only called from qStreamFilterTableListForReader, which runs on the WAL-driven
-  // stream-reader path. That path has no metadata transaction context (the reader
-  // reacts to committed WAL entries), so txnId is intentionally 0 here and the
-  // readers below see the latest committed snapshot.
-  int32_t code = doFilterByTagCond(pListInfo->idInfo.suid, pUidList, -1, pTagCond, pVnode, SFLT_NOT_INDEX,
-                                    pStorageAPI, NULL, 0, pListInfo);
+static int32_t doFilterTableByTagCond(void* pVnode, STableListInfo* pListInfo, SArray* pUidList, int64_t version,
+                                      SNode* pTagCond, SStorageAPI* pStorageAPI) {
+  // WAL readers have no metadata transaction; keep txnId 0 and the caller's WAL version.
+  int32_t code = doFilterByTagCond(pListInfo->idInfo.suid, pUidList, version, pTagCond, pVnode, SFLT_NOT_INDEX,
+                                   pStorageAPI, NULL, 0, pListInfo);
   if (code != 0) {
     return code;
   }
@@ -2453,7 +2683,7 @@ static int32_t doFilterTableByTagCond(void* pVnode, STableListInfo* pListInfo, S
   return code;
 }
 
-int32_t qStreamFilterTableListForReader(void* pVnode, SArray* uidList,
+int32_t qStreamFilterTableListForReader(void* pVnode, SArray* uidList, int64_t version,
                                         SNodeList* pGroupTags, SNode* pTagCond, SNode* pTagIndexCond,
                                         SStorageAPI* storageAPI, SHashObj* groupIdMap, uint64_t suid, SArray** tableList) {
   int32_t code = TSDB_CODE_SUCCESS;
@@ -2469,11 +2699,11 @@ int32_t qStreamFilterTableListForReader(void* pVnode, SArray* uidList,
     goto end;
   }
   SScanPhysiNode pScanNode = {.suid = suid, .tableType = TD_SUPER_TABLE};
-  SReadHandle    pHandle = {.vnode = pVnode};
+  SReadHandle    pHandle = {.vnode = pVnode, .version = version};
 
   pList->idInfo.suid = suid;
   pList->idInfo.tableType = TD_SUPER_TABLE;
-  code = doFilterTableByTagCond(pVnode, pList, uidList, pTagCond, storageAPI);
+  code = doFilterTableByTagCond(pVnode, pList, uidList, version, pTagCond, storageAPI);
   if (code != TSDB_CODE_SUCCESS) {
     goto end;
   }                                              

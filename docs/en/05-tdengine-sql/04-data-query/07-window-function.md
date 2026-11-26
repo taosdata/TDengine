@@ -22,16 +22,32 @@ The window specification describes how the set of rows participating in the comp
 
 ```sql
 window_spec:
-    [ PARTITION BY expr [, ...] ]
-    [ ORDER BY expr [ ASC | DESC ] [ NULLS FIRST | NULLS LAST ] [, ...] ]
-    [ frame_clause ]
+  [ PARTITION BY expr [, ...] ]
+  [ ORDER BY expr [ ASC | DESC ] [ NULLS FIRST | NULLS LAST ] [, ...] ]
+  [ frame_clause ]
 ```
 
-- **PARTITION BY**: splits the input result set into independent **partitions** by one or more expressions; each partition is computed independently. When omitted, the entire result set is treated as a single partition.
+- **PARTITION BY**: splits the input result set into independent **partitions** by one or more expressions; each partition is computed independently. When omitted, the input within the current query-level partition is treated as a single window partition; without query-level partitioning, this means the entire result set.
 - **ORDER BY**: orders rows within a partition by one or more expressions, supporting `ASC`/`DESC` (default `ASC`) and `NULLS FIRST`/`NULLS LAST`. The ordering determines order-sensitive semantics such as row numbers, neighboring values, and cumulative ranges.
 - **frame_clause**: the window frame, which further bounds the range of rows participating in the computation for the current row within the ordered partition. See [Window Frame](#window-frame).
 
 Window functions may only appear in the `SELECT` list and `ORDER BY` of a query block. They are not allowed in `WHERE`, `GROUP BY`, `HAVING`, `PARTITION BY`, or frame boundary expressions. To filter or aggregate on window results, write the window query as a subquery and reference its output columns in the outer query.
+
+### Query-Level Partitioning
+
+The query-level `PARTITION BY` clause establishes an outer boundary for every window function in the same query block. `OVER ()` computes independently within each query partition. An `OVER (PARTITION BY ...)` clause further partitions rows within that boundary: equal window keys in different query partitions never combine.
+
+```sql
+SELECT
+  dev,
+  v,
+  RANK() OVER(ORDER BY v DESC) AS r,
+  SUM(v) OVER() AS s
+FROM t
+PARTITION BY dev;
+```
+
+If `t` contains one row for each of two devices, with values `100` and `10`, both ranks are `1` and the sums are `100` and `10`, respectively. Adding `PARTITION BY grp` inside `OVER` computes separately for each `(dev, grp)` combination. Without the query-level `PARTITION BY dev`, the example ranks all rows together and returns `110` for both sums.
 
 ## Window Frame
 
@@ -39,7 +55,7 @@ A window frame bounds a smaller set of rows for the current row within the order
 
 ```sql
 frame_clause:
-    { ROWS | RANGE } frame_extent
+  { ROWS | RANGE } frame_extent
 
 frame_extent:
     frame_bound
@@ -85,10 +101,9 @@ When multiple window functions in a query share the same window specification, y
 
 ```sql
 SELECT
-    avg(voltage) OVER win AS ma,
-    max(voltage) OVER win AS mx
-FROM meters
-WINDOW win AS (PARTITION BY tbname ORDER BY ts ROWS BETWEEN 1 PRECEDING AND CURRENT ROW)
+  AVG(voltage) OVER win AS ma,
+  MAX(voltage) OVER win AS mx
+FROM meters WINDOW win AS (PARTITION BY tbname ORDER BY ts ROWS BETWEEN 1 PRECEDING AND CURRENT ROW)
 ORDER BY ts;
 ```
 
@@ -176,6 +191,8 @@ Parameter notes for `lag`/`lead`:
 
 - Window functions may only appear in the `SELECT` list and `ORDER BY` of a query block. They return an error when they appear in `WHERE`, `GROUP BY`, `HAVING`, `PARTITION BY`, frame boundary expressions, or as an argument to a scalar function or another window function's specification.
 - Window functions cannot be nested; a window function's arguments or window specification cannot contain another window function.
+- The `ORDER BY` of an inline `OVER (...)` supports ordinary aggregate expressions such as `SUM(current)`, `AVG(current)`, or `SUM(current) + 1`. Aggregation runs before the window function. These aggregates need not also appear in the `SELECT` list; other columns must satisfy grouping rules. Multi-row functions and aggregates in window `PARTITION BY`, frame boundaries, or named window definitions remain unsupported.
+- When a window function appears in the `SELECT` list, expressions inside its `OVER` cannot reference aliases defined by the same `SELECT`. Numeric ordering expressions are constants, not `SELECT` column positions. Repeat the aggregate expression or compute the alias in a subquery.
 - Order-sensitive window functions (ranking, distribution, and value classes) return an error when `ORDER BY` is not specified.
 - The current version supports batch queries only; window functions are not supported in stream processing.
 - In ordering, `NULL` is treated as the lowest value by default. The output order of peer rows is determined by `ORDER BY`; add explicit ordering keys when a stable row-by-row order is required.
@@ -187,7 +204,9 @@ When computing moving metrics with a fixed-length window, the first few rows oft
 Starting from v3.4.2.0, `OFFSET N` can be used independently without `LIMIT`:
 
 ```sql
-SELECT v, avg(v) OVER (ORDER BY ts ROWS BETWEEN 9 PRECEDING AND CURRENT ROW) AS ma
+SELECT
+  v,
+  AVG(v) OVER(ORDER BY ts ROWS BETWEEN 9 PRECEDING AND CURRENT ROW) AS ma
 FROM meters
 ORDER BY ts
 OFFSET 9;
@@ -197,11 +216,25 @@ OFFSET 9;
 
 The following examples are based on the smart meter data model used throughout the TDengine documentation (supertable `meters`, with columns `ts`, `current`, `voltage`, `phase` and tags `location`, `groupid`).
 
+**Ranking grouped results**: compute each group's total current, then rank the totals in descending order.
+
+```sql
+SELECT
+  groupid,
+  SUM(current) AS total,
+  RANK() OVER(ORDER BY SUM(current) DESC) AS rn
+FROM meters
+GROUP BY groupid;
+```
+
 **Moving average**: compute the average voltage of the last 10 samples for each meter.
 
 ```sql
-SELECT tbname, ts, voltage,
-       avg(voltage) OVER (PARTITION BY tbname ORDER BY ts ROWS BETWEEN 9 PRECEDING AND CURRENT ROW) AS ma
+SELECT
+  tbname,
+  ts,
+  voltage,
+  AVG(voltage) OVER(PARTITION BY tbname ORDER BY ts ROWS BETWEEN 9 PRECEDING AND CURRENT ROW) AS ma
 FROM meters
 ORDER BY tbname, ts;
 ```
@@ -209,8 +242,11 @@ ORDER BY tbname, ts;
 **Running total**: compute the cumulative current for each meter.
 
 ```sql
-SELECT tbname, ts, current,
-       sum(current) OVER (PARTITION BY tbname ORDER BY ts ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW) AS running_total
+SELECT
+  tbname,
+  ts,
+  current,
+  SUM(current) OVER(PARTITION BY tbname ORDER BY ts ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW) AS running_total
 FROM meters
 ORDER BY tbname, ts;
 ```
@@ -218,19 +254,25 @@ ORDER BY tbname, ts;
 **Partitioned ranking**: rank by voltage in descending order within each group.
 
 ```sql
-SELECT groupid, tbname, voltage,
-       row_number() OVER (PARTITION BY groupid ORDER BY voltage DESC) AS rn,
-       rank()       OVER (PARTITION BY groupid ORDER BY voltage DESC) AS rk,
-       dense_rank() OVER (PARTITION BY groupid ORDER BY voltage DESC) AS drk
+SELECT
+  groupid,
+  tbname,
+  voltage,
+  ROW_NUMBER() OVER(PARTITION BY groupid ORDER BY voltage DESC) AS rn,
+  RANK() OVER(PARTITION BY groupid ORDER BY voltage DESC) AS rk,
+  DENSE_RANK() OVER(PARTITION BY groupid ORDER BY voltage DESC) AS drk
 FROM meters;
 ```
 
 **Neighboring value comparison**: compute the voltage difference between adjacent samples for each meter.
 
 ```sql
-SELECT tbname, ts, voltage,
-       lag(voltage) OVER (PARTITION BY tbname ORDER BY ts) AS prev_v,
-       voltage - lag(voltage) OVER (PARTITION BY tbname ORDER BY ts) AS delta
+SELECT
+  tbname,
+  ts,
+  voltage,
+  LAG(voltage) OVER(PARTITION BY tbname ORDER BY ts) AS prev_v,
+  voltage - LAG(voltage) OVER(PARTITION BY tbname ORDER BY ts) AS delta
 FROM meters
 ORDER BY tbname, ts;
 ```
@@ -238,8 +280,11 @@ ORDER BY tbname, ts;
 **Time range window**: sum the voltage within the preceding 10 seconds (by time value) of each row.
 
 ```sql
-SELECT tbname, ts, voltage,
-       sum(voltage) OVER (PARTITION BY tbname ORDER BY ts RANGE BETWEEN 10s PRECEDING AND CURRENT ROW) AS sum_10s
+SELECT
+  tbname,
+  ts,
+  voltage,
+  SUM(voltage) OVER(PARTITION BY tbname ORDER BY ts RANGE BETWEEN 10s PRECEDING AND CURRENT ROW) AS sum_10s
 FROM meters
 ORDER BY tbname, ts;
 ```
@@ -247,12 +292,18 @@ ORDER BY tbname, ts;
 **Named window + subquery filtering**: compute the moving average in a subquery, then filter rows above the moving average in the outer query.
 
 ```sql
-SELECT tbname, ts, voltage, ma
+SELECT
+  tbname,
+  ts,
+  voltage,
+  ma
 FROM (
-    SELECT tbname, ts, voltage,
-           avg(voltage) OVER win AS ma
-    FROM meters
-    WINDOW win AS (PARTITION BY tbname ORDER BY ts ROWS BETWEEN 9 PRECEDING AND CURRENT ROW)
+  SELECT
+    tbname,
+    ts,
+    voltage,
+    AVG(voltage) OVER win AS ma
+  FROM meters WINDOW win AS (PARTITION BY tbname ORDER BY ts ROWS BETWEEN 9 PRECEDING AND CURRENT ROW)
 ) t
 WHERE voltage > ma
 ORDER BY tbname, ts;

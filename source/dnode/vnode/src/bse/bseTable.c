@@ -823,11 +823,11 @@ int32_t tableReaderGet(STableReader *p, int64_t seq, uint8_t **pValue, int32_t *
 
     code = blockWithMetaInit(wrapper.data, &pIndexed);
     TSDB_CHECK_CODE(code, lino, _error);
-    code = blockCachePut(pMgt->pBlockCache, &block.range, pIndexed);
+    // take the reference inside the cache lock so the block cannot be evicted before it is read
+    code = blockCachePutRef(pMgt->pBlockCache, &block.range, pIndexed, &pItem);
     TSDB_CHECK_CODE(code, lino, _error);
     pIndexed = NULL;
     wrapper.data = NULL;
-    code = blockCacheGet(pMgt->pBlockCache, &block.range, (void **)&pItem);
   }
   TSDB_CHECK_CODE(code, lino, _error);
 

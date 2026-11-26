@@ -16,6 +16,8 @@ Use explicit `CROSS JOIN` or comma syntax for an unconditional join; both return
 
 JOIN conditions must be evaluable as Boolean expressions. Whole `JSON` values, `BLOB`, and `MEDIUMBLOB` cannot be used as equality match keys. Aggregate and window functions cannot be written directly in `ON`, but columns computed by a subquery can participate in a join.
 
+A table function result (a `TABLE(...)` source in the `FROM` clause) can be used as one side of a JOIN. Its row set and output columns follow the rules in [Table Functions](./03-function.md#table-functions).
+
 ASOF JOIN's main condition is based on primary timestamps and supports the specified comparison operators or `TIMETRUNCATE` expressions. Tags and ordinary columns can only be used as equality grouping conditions. See [Left/Right ASOF Join](#leftright-asof-join) for details. WINDOW JOIN specifies its time range through `WINDOW_OFFSET`; see its section for other condition restrictions.
 
 ### Grouping Conditions
@@ -50,19 +52,27 @@ The examples use smart-meter data: the `meters` supertable has columns `ts TIMES
 The existing timestamp-based join syntax remains valid. This query compares voltages of rows with matching timestamps:
 
 ```sql
-SELECT a.ts, a.voltage, b.voltage
-FROM d1001 a JOIN d1002 b
-ON a.ts = b.ts AND a.voltage > b.voltage;
+SELECT
+  a.ts,
+  a.voltage,
+  b.voltage
+FROM d1001 a
+JOIN d1002 b
+  ON a.ts = b.ts
+ AND a.voltage > b.voltage;
 ```
 
 Additional conditions can contain `OR`. This left join preserves every row from `d1001`; right-side columns are populated only when both the timestamp and date conditions match:
 
 ```sql
-SELECT a.ts, b.ts, b.voltage
-FROM d1001 a LEFT JOIN d1002 b
-ON a.ts = b.ts
-AND (a.ts < '2025-01-01 00:00:00.000'
-     OR a.ts >= '2025-01-02 00:00:00.000');
+SELECT
+  a.ts,
+  b.ts,
+  b.voltage
+FROM d1001 a
+LEFT JOIN d1002 b
+       ON a.ts = b.ts
+      AND (a.ts < '2025-01-01 00:00:00.000' OR a.ts >= '2025-01-02 00:00:00.000');
 ```
 
 ### Joining at a Time Granularity with TIMETRUNCATE
@@ -70,10 +80,15 @@ AND (a.ts < '2025-01-01 00:00:00.000'
 Truncate timestamps to seconds and return all row pairs within the same second where the left current exceeds the right current:
 
 ```sql
-SELECT a.ts, b.ts, a.current, b.current
-FROM d1001 a JOIN d1002 b
-ON TIMETRUNCATE(a.ts, 1s) = TIMETRUNCATE(b.ts, 1s)
-AND a.current > b.current;
+SELECT
+  a.ts,
+  b.ts,
+  a.current,
+  b.current
+FROM d1001 a
+JOIN d1002 b
+  ON TIMETRUNCATE(a.ts, 1s) = TIMETRUNCATE(b.ts, 1s)
+ AND a.current > b.current;
 ```
 
 ### Equality on Business Columns and Expressions
@@ -81,29 +96,46 @@ AND a.current > b.current;
 Starting with `v3.4.3.0`, joins can match business columns without an additional primary timestamp equality condition. This query matches records with the same group and location, then compares voltages. Matching rows can have different timestamps:
 
 ```sql
-SELECT a.ts, b.ts, a.voltage, b.voltage
-FROM meters a JOIN meters b
-ON a.groupId = b.groupId AND a.location = b.location
-AND a.voltage > b.voltage;
+SELECT
+  a.ts,
+  b.ts,
+  a.voltage,
+  b.voltage
+FROM meters a
+JOIN meters b
+  ON a.groupId = b.groupId
+ AND a.location = b.location
+ AND a.voltage > b.voltage;
 ```
 
 Expressions can reference their respective inputs separately, or the complete condition can reference both inputs:
 
 ```sql
 -- The left voltage plus 1 equals the right voltage
-SELECT a.ts, b.ts, a.voltage, b.voltage
-FROM d1001 a LEFT JOIN d1002 b
-ON a.voltage + 1 = b.voltage;
+SELECT
+  a.ts,
+  b.ts,
+  a.voltage,
+  b.voltage
+FROM d1001 a
+LEFT JOIN d1002 b
+       ON a.voltage + 1 = b.voltage;
 
 -- Compare after explicit casts
-SELECT a.ts, b.ts
-FROM d1001 a JOIN d1002 b
-ON CAST(a.voltage AS BIGINT) = CAST(b.voltage AS BIGINT);
+SELECT
+  a.ts,
+  b.ts
+FROM d1001 a
+JOIN d1002 b
+  ON CAST(a.voltage AS BIGINT) = CAST(b.voltage AS BIGINT);
 
 -- An equality referencing both inputs; the system selects an applicable algorithm
-SELECT a.ts, b.ts
-FROM meters a JOIN meters b
-ON a.voltage + b.groupId = b.voltage;
+SELECT
+  a.ts,
+  b.ts
+FROM meters a
+JOIN meters b
+  ON a.voltage + b.groupId = b.voltage;
 ```
 
 ### Range and Combined Boolean Conditions
@@ -111,13 +143,22 @@ ON a.voltage + b.groupId = b.voltage;
 These queries contain no equality condition. They match using a voltage range and a combined Boolean condition, respectively:
 
 ```sql
-SELECT a.ts, b.ts, a.voltage, b.voltage
-FROM d1001 a JOIN d1002 b
-ON a.voltage BETWEEN b.voltage - 5 AND b.voltage + 5;
+SELECT
+  a.ts,
+  b.ts,
+  a.voltage,
+  b.voltage
+FROM d1001 a
+JOIN d1002 b
+  ON a.voltage BETWEEN b.voltage - 5 AND b.voltage + 5;
 
-SELECT a.ts, b.ts
-FROM d1001 a JOIN d1002 b
-ON a.voltage < b.voltage OR a.current > b.current;
+SELECT
+  a.ts,
+  b.ts
+FROM d1001 a
+JOIN d1002 b
+  ON a.voltage < b.voltage
+  OR a.current > b.current;
 ```
 
 ### ON and WHERE in INNER JOIN
@@ -125,25 +166,41 @@ ON a.voltage < b.voltage OR a.current > b.current;
 For these ordinary row-level conditions, both forms return the same row pairs:
 
 ```sql
-SELECT a.ts, b.ts
-FROM d1001 a INNER JOIN d1002 b
-ON a.voltage = b.voltage AND a.current > 10;
+SELECT
+  a.ts,
+  b.ts
+FROM d1001 a
+INNER JOIN d1002 b
+        ON a.voltage = b.voltage
+       AND a.current > 10;
 
-SELECT a.ts, b.ts
+SELECT
+  a.ts,
+  b.ts
 FROM d1001 a, d1002 b
-WHERE a.voltage = b.voltage AND a.current > 10;
+WHERE a.voltage = b.voltage
+  AND a.current > 10;
 ```
 
 This equivalence does not apply to outer joins. The first query below preserves all left-side rows and fills right-side columns with NULL when no row matches. The second query filters out those unmatched rows:
 
 ```sql
-SELECT a.ts, b.ts, b.voltage
-FROM d1001 a LEFT JOIN d1002 b
-ON a.ts = b.ts AND b.voltage > 220;
+SELECT
+  a.ts,
+  b.ts,
+  b.voltage
+FROM d1001 a
+LEFT JOIN d1002 b
+       ON a.ts = b.ts
+      AND b.voltage > 220;
 
-SELECT a.ts, b.ts, b.voltage
-FROM d1001 a LEFT JOIN d1002 b
-ON a.ts = b.ts
+SELECT
+  a.ts,
+  b.ts,
+  b.voltage
+FROM d1001 a
+LEFT JOIN d1002 b
+       ON a.ts = b.ts
 WHERE b.voltage > 220;
 ```
 
@@ -152,18 +209,34 @@ WHERE b.voltage > 220;
 One-sided ON conditions are also evaluated for row pairs. In the first query, left-side rows with voltage greater than 220 match every right-side row; unmatched left-side rows receive NULL values on the right. The second query has no matches: all left-side rows are preserved, with NULL in every right-side column:
 
 ```sql
-SELECT a.ts, b.ts
-FROM d1001 a LEFT JOIN d1002 b ON a.voltage > 220;
+SELECT
+  a.ts,
+  b.ts
+FROM d1001 a
+LEFT JOIN d1002 b
+       ON a.voltage > 220;
 
-SELECT a.ts, b.ts
-FROM d1001 a LEFT JOIN d1002 b ON FALSE;
+SELECT
+  a.ts,
+  b.ts
+FROM d1001 a
+LEFT JOIN d1002 b
+       ON FALSE;
 ```
 
 Use `CROSS JOIN` or comma syntax for an unconditional join. Both queries return the complete Cartesian product:
 
 ```sql
-SELECT a.ts, b.ts FROM d1001 a CROSS JOIN d1002 b;
-SELECT a.ts, b.ts FROM d1001 a, d1002 b;
+SELECT
+  a.ts,
+  b.ts
+FROM d1001 a
+CROSS JOIN d1002 b;
+
+SELECT
+  a.ts,
+  b.ts
+FROM d1001 a, d1002 b;
 ```
 
 Ordinary `JOIN` still requires `ON`. `CROSS JOIN` does not accept `ON`; use `WHERE` to filter its results.
@@ -173,12 +246,25 @@ Ordinary `JOIN` still requires `ON`. `CROSS JOIN` does not accept `ON`; use `WHE
 Neither aggregate subquery below outputs a time column, but they can still join on `groupId`. A successful ordinary JOIN does not imply that its result can be used directly by subsequent timeline functions or window queries:
 
 ```sql
-SELECT a.groupId, a.avg_voltage, b.avg_current
-FROM (SELECT groupId, AVG(voltage) AS avg_voltage
-      FROM meters GROUP BY groupId) a
-JOIN (SELECT groupId, AVG(current) AS avg_current
-      FROM meters GROUP BY groupId) b
-ON a.groupId = b.groupId;
+SELECT
+  a.groupId,
+  a.avg_voltage,
+  b.avg_current
+FROM (
+  SELECT
+    groupId,
+    AVG(voltage) AS avg_voltage
+  FROM meters
+  GROUP BY groupId
+) a
+JOIN (
+  SELECT
+    groupId,
+    AVG(current) AS avg_current
+  FROM meters
+  GROUP BY groupId
+) b
+  ON a.groupId = b.groupId;
 ```
 
 Broader condition support does not remove existing type or input-source
@@ -202,14 +288,29 @@ Filtering out unnecessary data first can reduce join input and matching costs. F
 Place `/*+ JOIN_ALGO(algorithm) */` after SELECT. The algorithm parameter is HASH, MERGE, or THETA:
 
 ```sql
-EXPLAIN SELECT /*+ JOIN_ALGO(HASH) */ a.ts, b.ts
-FROM meters a JOIN meters b ON a.groupId = b.groupId;
+EXPLAIN
+SELECT
+  /*+ JOIN_ALGO(HASH) */ a.ts,
+  b.ts
+FROM meters a
+JOIN meters b
+  ON a.groupId = b.groupId;
 
-EXPLAIN SELECT /*+ JOIN_ALGO(MERGE) */ a.ts, b.ts
-FROM meters a JOIN meters b ON a.ts = b.ts;
+EXPLAIN
+SELECT
+  /*+ JOIN_ALGO(MERGE) */ a.ts,
+  b.ts
+FROM meters a
+JOIN meters b
+  ON a.ts = b.ts;
 
-EXPLAIN SELECT /*+ JOIN_ALGO(THETA) */ a.ts, b.ts
-FROM meters a JOIN meters b ON a.voltage < b.voltage;
+EXPLAIN
+SELECT
+  /*+ JOIN_ALGO(THETA) */ a.ts,
+  b.ts
+FROM meters a
+JOIN meters b
+  ON a.voltage < b.voltage;
 ```
 
 - A Hint expresses an algorithm preference. An inapplicable Merge preference can fall back to Hash; without usable equality keys, execution can fall back to Theta. Check EXPLAIN for the actual algorithm rather than inferring it from the Hint.
@@ -217,6 +318,18 @@ FROM meters a JOIN meters b ON a.voltage < b.voltage;
 - ASOF/WINDOW retain their time-matching rules regardless of the algorithm Hint.
 
 For general syntax and other options, see [Hints in Data Querying](./01-query.md#hints).
+
+## Parallel Execution for Multi-Table Joins
+
+For eligible queries that join multiple tables, the system automatically
+schedules independent join operations to run in parallel to reduce query
+execution time. No SQL changes are required, and query results remain
+unchanged. Operations that cannot run in parallel retain their existing
+execution behavior.
+
+Whether joins can run in parallel depends on the query structure and join
+conditions. Performance gains depend on data volume, data distribution, and
+available resources.
 
 ## Syntax Explanation
 
@@ -264,7 +377,15 @@ Supports Inner Join between supertables, basic tables, subtables, virtual tables
 Moments when both table d1001 and table d1002 have voltages greater than 220V and their respective voltage values:
 
 ```sql
-SELECT a.ts, a.voltage, b.voltage FROM d1001 a JOIN d1002 b ON a.ts = b.ts AND a.voltage > 220 AND b.voltage > 220;
+SELECT
+  a.ts,
+  a.voltage,
+  b.voltage
+FROM d1001 a
+JOIN d1002 b
+  ON a.ts = b.ts
+ AND a.voltage > 220
+ AND b.voltage > 220;
 ```
 
 ### Left/Right Outer Join
@@ -296,7 +417,15 @@ Supports Left/Right Join between supertables, basic tables, subtables, virtual t
 Return every timestamp and voltage from `d1001`. Include the voltage from `d1002` only when the timestamps match and both voltages exceed 220V:
 
 ```sql
-SELECT a.ts, a.voltage, b.voltage FROM d1001 a LEFT JOIN d1002 b ON a.ts = b.ts AND a.voltage > 220 AND b.voltage > 220;
+SELECT
+  a.ts,
+  a.voltage,
+  b.voltage
+FROM d1001 a
+LEFT JOIN d1002 b
+       ON a.ts = b.ts
+      AND a.voltage > 220
+      AND b.voltage > 220;
 ```
 
 ### Left/Right Semi Join
@@ -324,7 +453,13 @@ Supports Left/Right Semi Join between supertables, basic tables, subtables, virt
 Times in table d1001 when the voltage is greater than 220V and there are other meters at the same moment with voltage also greater than 220V:
 
 ```sql
-SELECT a.ts FROM d1001 a LEFT SEMI JOIN meters b ON a.ts = b.ts AND a.voltage > 220 AND b.voltage > 220 AND b.tbname != 'd1001';
+SELECT a.ts
+FROM d1001 a
+LEFT SEMI JOIN meters b
+            ON a.ts = b.ts
+           AND a.voltage > 220
+           AND b.voltage > 220
+           AND b.tbname != 'd1001';
 ```
 
 ### Left/Right Anti-Semi Join
@@ -352,7 +487,13 @@ Supports Left/Right Anti-Semi Join between supertables, basic tables, subtables,
 Times when the voltage in table d1001 is greater than 220V and there is no other electric meter at the same time with a voltage also greater than 220V:
 
 ```sql
-SELECT a.ts FROM d1001 a LEFT ANTI JOIN meters b ON a.ts = b.ts AND b.voltage > 220 AND b.tbname != 'd1001' WHERE a.voltage > 220;
+SELECT a.ts
+FROM d1001 a
+LEFT ANTI JOIN meters b
+            ON a.ts = b.ts
+           AND b.voltage > 220
+           AND b.tbname != 'd1001'
+WHERE a.voltage > 220;
 ```
 
 ### Left/Right ASOF Join
@@ -417,7 +558,16 @@ subquery, or a JOIN result. For rules on using JOIN results as inputs, see
 For each row in `d1001`, first match the row in `d1002` at the same timestamp or the closest earlier timestamp. Then retain only results where both voltages exceed 220V. If the closest record fails the voltage filter, the query does not search for an earlier record:
 
 ```sql
-SELECT a.ts, a.voltage, b.ts, b.voltage FROM d1001 a LEFT ASOF JOIN d1002 b ON a.ts >= b.ts WHERE a.voltage > 220 AND b.voltage > 220;
+SELECT
+  a.ts,
+  a.voltage,
+  b.ts,
+  b.voltage
+FROM d1001 a
+LEFT ASOF JOIN d1002 b
+            ON a.ts >= b.ts
+WHERE a.voltage > 220
+  AND b.voltage > 220;
 ```
 
 ### Left/Right Window Join
@@ -434,7 +584,7 @@ operations within the window.
 ```sql
 SELECT ... FROM table_reference1
 LEFT|RIGHT WINDOW JOIN table_reference2 [ON ...]
-[WINDOW_TIME(left_time_column, right_time_column)]
+[WINDOW_TIME(left_time_expression, right_time_expression)]
 WINDOW_OFFSET(start_offset, end_offset)
 [JLIMIT jlimit_num] [WHERE ...] [...]
 ```
@@ -444,7 +594,7 @@ WINDOW_OFFSET(start_offset, end_offset)
 One of the following:
 
 - Each left/right row paired with up to `jlimit_num` right/left rows within the
-  window defined by the driving row's primary timestamp and `WINDOW_OFFSET`, or
+  window defined by the driving row's time reference and `WINDOW_OFFSET`, or
   with `NULL` values if no match exists.
 - Each left/right row combined with aggregate results over up to `jlimit_num`
   rows in that window. With no matches, the result depends on the aggregate
@@ -464,12 +614,11 @@ as inputs, see [Mixed Nested Joins](#mixed-nested-joins).
 
 - The `ON` clause is optional, only supports specifying equality conditions between tags and normal columns (excluding scalar functions and operations) other than the primary key column for grouped calculations, and only supports `AND` operations between all conditions;
 - `WINDOW_OFFSET` is used to specify the left and right boundaries of the window
-  relative to the primary key timestamp of the left/right table, supporting
-  formats with built-in time units, for example: `WINDOW_OFFSET(-1a, 1a)` for a
-  Left Window Join, represents each window as
-  [left table primary key timestamp - 1 millisecond,
-  left table primary key timestamp + 1 millisecond], with both boundaries
-  included. The time units following the numbers can be
+  relative to each preserved-side row's time reference. Offsets support time
+  units, such as `WINDOW_OFFSET(-1a, 1a)`. For Left Window Join, each window
+  is `[left time reference - 1 ms, left time reference + 1 ms]`.
+  Right Window Join uses the right time reference to construct the window.
+  Both boundaries are inclusive. The time units following the numbers can be
   `b` (nanoseconds), `u` (microseconds), `a` (milliseconds), `s` (seconds), `m`
   (minutes), `h` (hours), `d` (days), `w` (weeks), does not support natural
   months (`n`), natural years (`y`), and the smallest supported time unit is the
@@ -479,15 +628,20 @@ as inputs, see [Mixed Nested Joins](#mixed-nested-joins).
   window. By default, all matching rows are used. The range is `[0, 1024]`;
   `JLIMIT 0` returns an empty result. If the input being matched has fewer than
   `jlimit_num` matches, fewer rows may be returned. If it has more, the
-  `jlimit_num` rows with the earliest primary timestamps in the window are used.
+  `jlimit_num` rows with the smallest time reference values are used.
+  The order among rows with equal time reference values is unspecified.
 - SQL statements cannot contain other `GROUP BY`/`PARTITION BY`/window queries;
 - Supports scalar filtering in the `WHERE` clause, supports aggregation function filtering for each window in the `HAVING` clause (does not support scalar filtering), does not support `SLIMIT`, does not support various window pseudocolumns;
 - The first `WINDOW_TIME` argument is resolved only in the left input, and the
-  second only in the right input. Arguments must be `TIMESTAMP` columns and can
-  be qualified by input aliases. Constants, functions, and other expressions
-  are not supported.
+  second only in the right input. Arguments can be `TIMESTAMP` columns,
+  `TIMESTAMP` constants, or row-level scalar expressions returning `TIMESTAMP`.
+  Columns can be qualified by input aliases. Expressions can reference only
+  columns from the corresponding input. Aggregate functions, window functions,
+  subqueries, and nondeterministic functions such as `RAND()` are not supported.
+  Plain strings are not `TIMESTAMP` values; use `TIMESTAMP '...'` or an explicit
+  cast.
 - Actual tables, virtual tables, and FROM subqueries can specify a non-primary
-  key `TIMESTAMP` column.
+  key `TIMESTAMP` column or a time expression.
 - Without `WINDOW_TIME`, actual and virtual tables use their primary timestamp
   column. A FROM subquery prefers the first `TIMESTAMP` column in its output
   list that preserves primary timestamp semantics. If no such column exists,
@@ -499,16 +653,40 @@ as inputs, see [Mixed Nested Joins](#mixed-nested-joins).
 
 #### Examples
 
+The following query adds one second to each `d1001` row's timestamp
+and matches rows in `d1002` at that time:
+
+```sql
+SELECT
+  a.ts,
+  b.ts
+FROM d1001 a
+LEFT WINDOW JOIN d1002 b WINDOW_TIME(a.ts + 1s, b.ts) WINDOW_OFFSET(0s, 0s);
+```
+
 For each row in `d1001` whose voltage exceeds 220V, return voltages from `d1002` within one second before or after its timestamp:
 
 ```sql
-SELECT a.ts, a.voltage, b.voltage FROM d1001 a LEFT WINDOW JOIN d1002 b WINDOW_OFFSET(-1s, 1s) WHERE a.voltage > 220;
+SELECT
+  a.ts,
+  a.voltage,
+  b.voltage
+FROM d1001 a
+LEFT WINDOW JOIN d1002 b WINDOW_OFFSET(-1s, 1s)
+WHERE a.voltage > 220;
 ```
 
 For each row in `d1001` whose voltage exceeds 220V, calculate the average voltage of `d1002` within one second before or after its timestamp. Return the timestamp, voltage, and average only when that average also exceeds 220V:
 
 ```sql
-SELECT a.ts, a.voltage, AVG(b.voltage) FROM d1001 a LEFT WINDOW JOIN d1002 b WINDOW_OFFSET(-1s, 1s) WHERE a.voltage > 220 HAVING (AVG(b.voltage) > 220);
+SELECT
+  a.ts,
+  a.voltage,
+  AVG(b.voltage)
+FROM d1001 a
+LEFT WINDOW JOIN d1002 b WINDOW_OFFSET(-1s, 1s)
+WHERE a.voltage > 220
+HAVING (AVG(b.voltage) > 220);
 ```
 
 ### Full Outer Join
@@ -543,7 +721,14 @@ Supports Full Outer Join between supertables, basic tables, subtables, virtual t
 Records of all moments and voltage values in tables d1001 and d1002:
 
 ```sql
-SELECT a.ts, a.voltage, b.ts, b.voltage FROM d1001 a FULL JOIN d1002 b ON a.ts = b.ts;
+SELECT
+  a.ts,
+  a.voltage,
+  b.ts,
+  b.voltage
+FROM d1001 a
+FULL JOIN d1002 b
+       ON a.ts = b.ts;
 ```
 
 ## Constraints and Limitations
@@ -597,19 +782,26 @@ then matches each row from the left meter with the third meter's nearest
 reading at or before that time:
 
 ```sql
-SELECT a.ts, a.voltage, b.voltage, c.voltage
+SELECT
+  a.ts,
+  a.voltage,
+  b.voltage,
+  c.voltage
 FROM (d1001 a LEFT JOIN d1002 b ON a.ts = b.ts)
-LEFT ASOF JOIN d1003 c ON a.ts >= c.ts;
+LEFT ASOF JOIN d1003 c
+            ON a.ts >= c.ts;
 ```
 
 The right input can also be a JOIN result. This example uses `b.ts` to match
 the joined rows from two tables within one second before or after `a.ts`:
 
 ```sql
-SELECT a.ts, b.voltage, c.voltage
+SELECT
+  a.ts,
+  b.voltage,
+  c.voltage
 FROM d1001 a
-LEFT WINDOW JOIN (d1002 b JOIN d1003 c ON b.ts = c.ts)
-WINDOW_TIME(a.ts, b.ts) WINDOW_OFFSET(-1s, 1s);
+LEFT WINDOW JOIN (d1002 b JOIN d1003 c ON b.ts = c.ts) WINDOW_TIME(a.ts, b.ts) WINDOW_OFFSET(-1s, 1s);
 ```
 
 ### JOIN Results as ASOF/WINDOW Inputs

@@ -32,5 +32,6 @@ TARGET_LINK_LIBRARIES(qworker
 )
 
 if(BUILD_TEST)
+    target_compile_definitions(qworker PRIVATE BUILD_TEST)
     ADD_SUBDIRECTORY(test)
 endif()

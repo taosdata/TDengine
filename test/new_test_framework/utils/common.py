@@ -2983,17 +2983,24 @@ class TDCom:
                 if i == 1:
                     self.record_history_ts = ts_value
 
-    def generate_query_result_file(self, test_case, idx, sql):
+    def generate_query_result_file(self, test_case, idx, sql, timeout=None):
         self.query_result_file = f"./{test_case}.{idx}.csv"
         cfgPath = self.getClientCfgPath()
         # Construct command parameters to avoid platform compatibility issues
         cmd = ["taos", "-c", cfgPath, "-s", sql]
         try:
-            # Capture output
-            result = subprocess.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, encoding="utf-8", errors="ignore", shell=False)
+            # Capture output. The optional timeout bounds the CLI run so a
+            # query that never returns (e.g. a hung vtable merge task) fails
+            # fast with TimeoutExpired instead of stalling the whole case.
+            result = subprocess.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
+                                    encoding="utf-8", errors="ignore", shell=False,
+                                    timeout=timeout)
             output = result.stdout.splitlines()
             tdLog.info(f"[PIPELINE] taos -s: rc={result.returncode} "
                        f"stdout_lines={len(output)} stderr={result.stderr[:200]!r}")
+        except subprocess.TimeoutExpired as e:
+            tdLog.error(f"taos command timed out after {timeout}s: {e}")
+            raise
         except Exception as e:
             tdLog.error(f"Failed to run taos command: {e}")
             output = []
@@ -3058,9 +3065,8 @@ class TDCom:
 
     # A `taos -f` run prints per-run timings and counters that differ between
     # runs and between platforms, so they must not reach an expected-result
-    # file.  These tables are the single definition of that noise: the POSIX
-    # path renders them into a grep/sed pipeline, the Windows path applies them
-    # in Python, so both strip exactly the same text.
+    # file. These tables define the noise stripped in Python on all platforms.
+    # Keep the shell-compatible patterns for output-equivalence checks.
     #
     # The patterns are deliberately written so that they mean the same thing to
     # Python's ``re`` and to POSIX extended regular expressions (what ``sed -E``
@@ -3163,6 +3169,41 @@ class TDCom:
         candidate = os.path.join(self.taos_bin_path, name)
         return candidate if os.path.exists(candidate) else name
 
+    def _result_cli_env(self):
+        """Environment for the short-lived result-comparison ``taos`` process.
+
+        ``pytest.sh`` leaves leak detection on so ``checkAsan.sh`` still sees
+        ``taosd``. This CLI inherits that setting and otherwise exits through
+        LeakSanitizer ``_exit()``, which drops the tail of the result file.
+        """
+        if (os.environ.get("CI_ASAN_BUILD") != "1"
+                and "libasan" not in os.environ.get("LD_PRELOAD", "")):
+            return None
+        env = os.environ.copy()
+        for name in ("ASAN_OPTIONS", "LSAN_OPTIONS"):
+            options = [
+                option for option in env.get(name, "").split(":")
+                if option and not option.startswith("detect_leaks=")
+            ]
+            options.append("detect_leaks=0")
+            env[name] = ":".join(options)
+        return env
+
+    @staticmethod
+    def _os_system_with_env(pipeline, env):
+        if env is None:
+            return os.system(pipeline)
+        saved = {name: os.environ.get(name) for name in ("ASAN_OPTIONS", "LSAN_OPTIONS")}
+        os.environ.update({name: env[name] for name in saved if name in env})
+        try:
+            return os.system(pipeline)
+        finally:
+            for name, value in saved.items():
+                if value is None:
+                    os.environ.pop(name, None)
+                else:
+                    os.environ[name] = value
+
     def _run_taos_cli(self, cfgPath, inputfile):
         """Run ``taos -c <cfg> -f <file>`` and return stdout, status and stderr.
 
@@ -3174,7 +3215,8 @@ class TDCom:
         taos = self._taos_cli_path()
         try:
             proc = subprocess.run([taos, "-c", cfgPath, "-f", inputfile],
-                                  stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+                                  stdout=subprocess.PIPE, stderr=subprocess.PIPE,
+                                  env=self._result_cli_env())
         except OSError as e:
             tdLog.info(f"[PIPELINE] cannot run {taos} ({e})")
             return "", -1, ""
@@ -3191,60 +3233,36 @@ class TDCom:
             tdLog.info(
                 f"Generating query result file: {self.query_result_file} using input file: {inputfile}"
             )
+            text, rc, err = self._run_taos_cli(cfgPath, inputfile)
+            payload = self._filter_result_output(text)
             if platform.system().lower() == "windows":
-                # Windows has no grep/sed/rm unless a POSIX toolchain happens to
-                # be on PATH, so the transcript is captured and filtered here
-                # instead of through a shell pipeline.  Besides removing that
-                # dependency this keeps the intermediate ".raw" file -- whose
-                # absence used to surface as a FileNotFoundError from every
-                # expected-result case -- out of the picture entirely.
-                text, rc, err = self._run_taos_cli(cfgPath, inputfile)
-                filtered = self._filter_result_output(text)
-                # A transcript normally ends with a newline, which split("\n")
-                # reports as a trailing empty element.  Writing that element
-                # back would append a blank line the POSIX pipeline never
-                # produces, so the trailing newline is handled explicitly.
-                ends_with_newline = filtered.endswith("\n")
-                filtered_lines = filtered.split("\n")
+                ends_with_newline = payload.endswith("\n")
+                filtered_lines = payload.split("\n")
                 if ends_with_newline:
                     filtered_lines.pop()
                 kept = []
                 for line in filtered_lines:
                     stripped = line.rstrip()
-                    # Skip lines that are entirely taos> or taos> followed by whitespace
                     if re.match(r"^taos>\s*$", stripped):
                         continue
-                    # Remove trailing whitespace from lines starting with taos>
                     kept.append(stripped if stripped.startswith("taos>") else line)
                 payload = "\n".join(kept)
                 if ends_with_newline:
                     payload += "\n"
-                with open(self.query_result_file, "w", encoding="utf-8",
-                          newline="") as fout:
-                    fout.write(payload)
-                tdLog.info(f"[PIPELINE] {self.query_result_file}: rc={rc} "
-                           f"bytes={len(payload.encode('utf-8'))} "
-                           f"lines={payload.count(chr(10))}")
-                if rc != 0 and err.strip():
-                    # The POSIX branch leaves the CLI's stderr on the console;
-                    # keep it reachable here too, since that is where a
-                    # connection failure is reported.
-                    tdLog.info(f"[PIPELINE] {self._taos_cli_path()} stderr: "
-                               f"{err.strip()[:2000]}")
-                if rc != 0:
-                    raise subprocess.CalledProcessError(
-                        rc, [self._taos_cli_path(), "-c", cfgPath, "-f", inputfile],
-                        output=text, stderr=err,
-                    )
-            else:
-                pipeline = (
-                    f"{shlex.quote(self._taos_cli_path())} "
-                    f"-c {shlex.quote(cfgPath)} -f {shlex.quote(inputfile)} "
-                    f"{self._result_noise_shell_pipeline()}"
-                    "| tr -d '\\r' "
-                    f"> {shlex.quote(self.query_result_file)}"
+            # Filtering in Python keeps preloaded ASAN out of system sed/grep
+            # processes while the taos CLI remains fully instrumented.
+            with open(self.query_result_file, "w", encoding="utf-8", newline="") as fout:
+                fout.write(payload)
+            tdLog.info(f"[PIPELINE] {self.query_result_file}: rc={rc} "
+                       f"bytes={len(payload.encode('utf-8'))} "
+                       f"lines={payload.count(chr(10))}")
+            if err.strip():
+                tdLog.info(f"[PIPELINE] {self._taos_cli_path()} stderr: {err.strip()[:2000]}")
+            if rc != 0:
+                raise subprocess.CalledProcessError(
+                    rc, [self._taos_cli_path(), "-c", cfgPath, "-f", inputfile],
+                    output=text, stderr=err,
                 )
-                self._run_result_pipeline(pipeline)
             return self.query_result_file
 
     @staticmethod
@@ -3307,12 +3325,14 @@ class TDCom:
         """
         err_file = os.path.join(tempfile.gettempdir(),
                                 f"taos_result_pipeline_{os.getpid()}.stderr")
+        env = self._result_cli_env()
         rc = None
         try:
             with open(err_file, "w", encoding="utf-8", errors="replace") as err:
                 proc = subprocess.run(
                     ["bash", "-c", f"set -o pipefail; {pipeline}"],
                     stderr=err,
+                    env=env,
                 )
             rc = proc.returncode
             try:
@@ -3323,7 +3343,7 @@ class TDCom:
         except OSError as e:
             tdLog.info(f"[PIPELINE] cannot run result pipeline ({e}), "
                        f"falling back to os.system")
-            rc = os.system(pipeline)
+            rc = self._os_system_with_env(pipeline, env)
             stderr_text = ""
         finally:
             if os.path.exists(err_file):

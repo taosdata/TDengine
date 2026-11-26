@@ -29,6 +29,7 @@ typedef struct {
     struct {
       SAppHbMgr *pAppHbMgr;
       int64_t    clusterId;
+      int64_t    reqId;  // request id of the current heartbeat batch
       int32_t    reqCnt;
       int8_t     connHbFlag;
     };
@@ -480,8 +481,10 @@ _return:
   return code;
 }
 
-static int32_t hbProcessDynViewRsp(void *value, int32_t valueLen, struct SCatalog *pCatalog) {
-  return catalogUpdateDynViewVer(pCatalog, (SDynViewVersion *)value);
+static int32_t hbProcessDynViewRsp(void *value, int32_t valueLen, struct SCatalog *pCatalog, int64_t rspReqId) {
+  // Do not commit the version here: the catalog only advances dynViewVer once every
+  // view rent slot has been verified (see catalogViewSweepTryCommit).
+  return catalogApplyViewHbVersion(pCatalog, (SDynViewVersion *)value, rspReqId);
 }
 
 static void hbFreeSViewMetaInRsp(void *p) {
@@ -561,7 +564,8 @@ _return:
 // If mnode detected a version mismatch it pushes the full list of ext sources.
 // We replace the entire local cache with the pushed data and record the new
 // global version so we don't trigger another push on the next heartbeat.
-static int32_t hbProcessExtSourceInfoRsp(void *value, int32_t valueLen, struct SCatalog *pCatalog) {
+static int32_t hbProcessExtSourceInfoRsp(void *value, int32_t valueLen, struct SCatalog *pCatalog,
+                                         const SClientHbReq *pReq) {
   int32_t         code = TSDB_CODE_SUCCESS;
   SExtSourceHbRsp hbRsp = {0};
 
@@ -576,6 +580,24 @@ static int32_t hbProcessExtSourceInfoRsp(void *value, int32_t valueLen, struct S
   tscDebug("hb received ext source push: globalVer:%" PRId64 " numSources:%d",
            hbRsp.globalVer, numOfSources);
 
+  // The push is a full snapshot taken by mnode when it handled this heartbeat
+  // request.  If a local ext-source invalidation happened after the request was
+  // built, the snapshot may predate that DDL (e.g. it can carry the pre-ALTER
+  // database) and must not overwrite the post-DDL cache state.  Dropping it is
+  // safe: the next DESCRIBE/query on a cache miss fetches the source from mnode,
+  // and the next heartbeat (sent with the updated generation) resyncs the rest.
+  if (pReq != NULL) {
+    int64_t curDdlGen = 0;
+    if (TSDB_CODE_SUCCESS == catalogGetExtSrcDdlGen(pCatalog, &curDdlGen) &&
+        pReq->extSrcDdlGenAtSend != curDdlGen) {
+      tscDebug("discard stale ext source push: sentGen:%" PRId64 ", curGen:%" PRId64
+               ", globalVer:%" PRId64 ", numSources:%d",
+               pReq->extSrcDdlGenAtSend, curDdlGen, hbRsp.globalVer, numOfSources);
+      tFreeSExtSourceHbRsp(&hbRsp);
+      return TSDB_CODE_SUCCESS;
+    }
+  }
+
   // Replace the entire cache with the pushed list and record the new global ver.
   code = catalogUpdateAllExtSources(pCatalog, hbRsp.globalVer, hbRsp.pSources);
   if (code) {
@@ -587,7 +609,8 @@ static int32_t hbProcessExtSourceInfoRsp(void *value, int32_t valueLen, struct S
   return code;
 }
 
-static void hbProcessQueryRspKvs(int32_t kvNum, SArray *pKvs, struct SCatalog *pCatalog, SAppHbMgr *pAppHbMgr) {
+static void hbProcessQueryRspKvs(int32_t kvNum, SArray *pKvs, struct SCatalog *pCatalog, SAppHbMgr *pAppHbMgr,
+                                 const SClientHbReq *pReq) {
   for (int32_t i = 0; i < kvNum; ++i) {
     SKv *kv = taosArrayGet(pKvs, i);
     if (NULL == kv) {
@@ -634,7 +657,8 @@ static void hbProcessQueryRspKvs(int32_t kvNum, SArray *pKvs, struct SCatalog *p
           tscError("invalid dyn view info, len:%d, value:%p", kv->valueLen, kv->value);
           break;
         }
-        if (TSDB_CODE_SUCCESS != hbProcessDynViewRsp(kv->value, kv->valueLen, pCatalog)) {
+        pAppHbMgr->viewDynVerSeen = true;
+        if (TSDB_CODE_SUCCESS != hbProcessDynViewRsp(kv->value, kv->valueLen, pCatalog, pAppHbMgr->curRspReqId)) {
           tscError("Process dyn view response failed, len:%d, value:%p", kv->valueLen, kv->value);
           break;
         }
@@ -669,7 +693,7 @@ static void hbProcessQueryRspKvs(int32_t kvNum, SArray *pKvs, struct SCatalog *p
           tscError("invalid ext source hb info, len:%d, value:%p", kv->valueLen, kv->value);
           break;
         }
-        if (TSDB_CODE_SUCCESS != hbProcessExtSourceInfoRsp(kv->value, kv->valueLen, pCatalog)) {
+        if (TSDB_CODE_SUCCESS != hbProcessExtSourceInfoRsp(kv->value, kv->valueLen, pCatalog, pReq)) {
           tscError("process ext source hb response failed, len:%d, value:%p", kv->valueLen, kv->value);
         }
         break;
@@ -780,7 +804,7 @@ static int32_t hbQueryHbRspHandle(SAppHbMgr *pAppHbMgr, SClientHbRsp *pRsp) {
     if (code != TSDB_CODE_SUCCESS) {
       tscWarn("catalogGetHandle failed, clusterId:0x%" PRIx64 ", error:%s", pReq->clusterId, tstrerror(code));
     } else {
-      hbProcessQueryRspKvs(kvNum, pRsp->info, pCatalog, pAppHbMgr);
+      hbProcessQueryRspKvs(kvNum, pRsp->info, pCatalog, pAppHbMgr, pReq);
     }
   }
 
@@ -789,50 +813,59 @@ static int32_t hbQueryHbRspHandle(SAppHbMgr *pAppHbMgr, SClientHbRsp *pRsp) {
   return TSDB_CODE_SUCCESS;
 }
 
-/* Choose execution phase and phase start time for desc.
- * Rules:
- *  - If both timestamps are invalid (<= 0), keep the request's stored values.
- *  - If only one timestamp is valid, use the valid one.
- *  - If both are valid, prefer the job's phase/time when jobPhaseTime >= request's phaseStartTime;
- *    otherwise prefer the request's record.
+/* Choose the execution phase and its start time for desc.
  *
- * Note: If the local system clock was moved backwards (time rollback), jobPhaseTime may appear
- * earlier than the request's phase start time even when the job record is actually newer.
- * This logic avoids reporting a regressed start time in that situation.
+ * The scheduler job owns the schedule/execute/fetch/done phases, so once it has
+ * entered a real phase it is the authoritative source.
+ *
+ * The client request phase is only a fallback for the narrow window in which
+ * the job already exists (hbBuildQueryDesc skips requests whose queryJob is 0)
+ * but the scheduler has not stamped a phase yet, or while the job lookup
+ * transiently fails. In that window the fallback can report the request's
+ * schedule or execute phase. Parse/catalog/plan are never shown: those phases
+ * are written while queryJob is still 0, so the request is not part of the
+ * heartbeat yet.
+ *
+ * Do not arbitrate between the two sources by timestamp: they are independent
+ * state machines updated on different paths and cadence, so picking the freshest
+ * sample makes the reported phase jump back and forth between them.
  */
+
+/* show queries reports the fetch stage as one main phase. The in_progress and
+ * returned sub-states describe internal per-block I/O and stay in the debug
+ * logs; exposing them makes a query that is still fetching look like it keeps
+ * re-entering a new phase. */
+static int32_t hbReportedPhase(int32_t phase) {
+  return QUERY_PHASE_IS_FETCH_STAGE(phase) ? QUERY_PHASE_FETCH : phase;
+}
+
 static void hbSetRequestPhase(SRequestObj *pRequest, SQueryDesc *desc) {
   int32_t jobPhase = QUERY_PHASE_NONE;
   int64_t jobPhaseTime = 0;
   int32_t phaseCode = schedulerGetJobPhase(pRequest->body.queryJob, &jobPhase, &jobPhaseTime);
-  if (phaseCode != TSDB_CODE_SUCCESS) {
-    tscWarn("get job phase failed, code:%d", phaseCode);
-    desc->execPhase = CLIENT_GET_REQUEST_PHASE(pRequest);
-    desc->phaseStartTime = CLIENT_GET_REQUEST_PHASE_START_TIME(pRequest);
+
+  if (phaseCode == TSDB_CODE_SUCCESS && jobPhase != QUERY_PHASE_NONE && jobPhaseTime > 0) {
+    desc->execPhase = hbReportedPhase(jobPhase);
+    desc->phaseStartTime = jobPhaseTime;
     return;
   }
 
-  tscDebug("get job phase success, jobPhase:%d, jobPhaseTime:%" PRId64, jobPhase, jobPhaseTime);
-  int64_t phaseStartTime = CLIENT_GET_REQUEST_PHASE_START_TIME(pRequest);
-  int32_t phaseStatus = CLIENT_GET_REQUEST_PHASE(pRequest);
-
-  if (jobPhaseTime <= 0 && phaseStartTime <= 0) {
-    /* No valid time available, keep original behavior */
-    desc->phaseStartTime = phaseStartTime;
-    desc->execPhase = phaseStatus;
-  } else if (jobPhaseTime <= 0) {
-    desc->phaseStartTime = phaseStartTime;
-    desc->execPhase = phaseStatus;
-  } else if (phaseStartTime <= 0) {
-    desc->phaseStartTime = jobPhaseTime;
-    desc->execPhase = jobPhase;
-  } else if (jobPhaseTime >= phaseStartTime) {
-    /* Job record is newer (or equal, prefer job) */
-    desc->phaseStartTime = jobPhaseTime;
-    desc->execPhase = jobPhase;
-  } else {
-    /* Request record is newer */
-    desc->phaseStartTime = phaseStartTime;
-    desc->execPhase = phaseStatus;
+  if (phaseCode != TSDB_CODE_SUCCESS) {
+    tscWarn("get job phase failed, code:%d, fallback to request phase", phaseCode);
+  } else if (jobPhase == QUERY_PHASE_NONE) {
+    // The job exists but never entered a phase (e.g. the begin event failed
+    // after init); report the client-phase fallback so this is diagnosable.
+    tscDebug("job phase is NONE, fallback to request phase");
+  }
+  int32_t reqPhase = QUERY_PHASE_NONE;
+  int64_t reqPhaseTime = 0;
+  clientGetRequestPhaseSnapshot(pRequest, &reqPhase, &reqPhaseTime);
+  desc->execPhase = hbReportedPhase(reqPhase);
+  desc->phaseStartTime = reqPhaseTime;
+  if (desc->phaseStartTime <= 0) {
+    // A request that never stamped its phase must not report a 1970 start time
+    // (and an absurd duration); floor it at the query creation time.
+    desc->phaseStartTime = desc->stime > 0 ? desc->stime : taosGetTimestampMs();
   }
 }
 
@@ -876,6 +909,15 @@ static int32_t hbAsyncCallBack(void *param, SDataBuf *pMsg, int32_t code) {
   if (code != 0) {
     pInst->onlineDnodes = pInst->totalDnodes ? 0 : -1;
     tscDebug("hb rsp error %s, update server status %d/%d", tstrerror(code), pInst->onlineDnodes, pInst->totalDnodes);
+#ifdef TD_ENTERPRISE
+    {
+      // The round never completed: let the view sweep re-send its batch.
+      SCatalog *pCatalog = NULL;
+      if (TSDB_CODE_SUCCESS == catalogGetHandle(pInst->clusterId, &pCatalog)) {
+        (void)catalogViewSweepOnHbError(pCatalog);
+      }
+    }
+#endif
     (void)taosThreadMutexUnlock(&clientHbMgr.lock);
     taosMemoryFree(pMsg->pData);
     taosMemoryFree(pMsg->pEpSet);
@@ -892,6 +934,10 @@ static int32_t hbAsyncCallBack(void *param, SDataBuf *pMsg, int32_t code) {
   pInst->serverCfg.sodInitial = pRsp.sodInitial;
   pInst->serverCfg.macActive = pRsp.macActive;
   tsEnableStrongPassword = pInst->serverCfg.enableStrongPass;
+
+  // Correlate the catalog view sweep with the heartbeat batch that produced this rsp.
+  pAppHbMgr->curRspReqId = pRsp.reqId;
+  pAppHbMgr->viewDynVerSeen = false;
 
   tscDebug("monitor paras from hb, clusterId:0x%" PRIx64 ", threshold:%d scope:%d", pInst->clusterId,
            pRsp.monitorParas.tsSlowLogThreshold, pRsp.monitorParas.tsSlowLogScope);
@@ -917,6 +963,19 @@ static int32_t hbAsyncCallBack(void *param, SDataBuf *pMsg, int32_t code) {
       break;
     }
   }
+
+#ifdef TD_ENTERPRISE
+  {
+    // All rsps of this batch have been processed: finish the view metadata sweep
+    // bookkeeping (clear the outstanding round when the server reported no version
+    // change and commit the pending version once every slot has been verified).
+    SCatalog *pCatalog = NULL;
+    if (TSDB_CODE_SUCCESS == catalogGetHandle(pInst->clusterId, &pCatalog)) {
+      (void)catalogViewSweepOnHbRspDone(pCatalog, pRsp.reqId, pAppHbMgr->viewDynVerSeen);
+      (void)catalogViewSweepTryCommit(pCatalog);
+    }
+  }
+#endif
 
   (void)taosThreadMutexUnlock(&clientHbMgr.lock);
 
@@ -1264,13 +1323,14 @@ int32_t hbGetExpiredStbInfo(SClientHbKey *connKey, struct SCatalog *pCatalog, SC
   return TSDB_CODE_SUCCESS;
 }
 
-int32_t hbGetExpiredViewInfo(SClientHbKey *connKey, struct SCatalog *pCatalog, SClientHbReq *req) {
+int32_t hbGetExpiredViewInfo(SClientHbKey *connKey, struct SCatalog *pCatalog, SClientHbReq *req,
+                             int64_t reqId) {
   SViewVersion    *views = NULL;
   uint32_t         viewNum = 0;
   int32_t          code = 0;
   SDynViewVersion *pDynViewVer = NULL;
 
-  TSC_ERR_JRET(catalogGetExpiredViews(pCatalog, &views, &viewNum, &pDynViewVer));
+  TSC_ERR_JRET(catalogGetExpiredViews(pCatalog, reqId, &views, &viewNum, &pDynViewVer));
 
   if (viewNum <= 0) {
     taosMemoryFree(views);
@@ -1362,6 +1422,7 @@ int32_t hbGetExpiredTSMAInfo(SClientHbKey *connKey, struct SCatalog *pCatalog, S
 int32_t hbGetExpiredExtSourceInfo(SClientHbKey *connKey, struct SCatalog *pCatalog, SClientHbReq *req) {
   (void)connKey;
   int64_t globalVer   = 0;
+  int64_t ddlGen      = 0;
   int32_t code        = 0;
 
   code = catalogGetExtSrcGlobalVer(pCatalog, &globalVer);
@@ -1369,6 +1430,16 @@ int32_t hbGetExpiredExtSourceInfo(SClientHbKey *connKey, struct SCatalog *pCatal
     tscError("hbGetExpiredExtSourceInfo: catalogGetExtSrcGlobalVer failed, error:%s", tstrerror(code));
     goto _return;
   }
+
+  // Capture the local invalidation generation at request-build time.  The
+  // response path compares it with the current value and drops pushes that may
+  // have been produced before a local ext-source DDL invalidation.
+  code = catalogGetExtSrcDdlGen(pCatalog, &ddlGen);
+  if (code) {
+    tscError("hbGetExpiredExtSourceInfo: catalogGetExtSrcDdlGen failed, error:%s", tstrerror(code));
+    goto _return;
+  }
+  req->extSrcDdlGenAtSend = ddlGen;
 
   // Always send the current global version so mnode can detect first-time
   // registration (globalVer == 0) and subsequent mismatches.
@@ -1379,7 +1450,7 @@ int32_t hbGetExpiredExtSourceInfo(SClientHbKey *connKey, struct SCatalog *pCatal
   }
   *pVerBuf = (int64_t)htobe64((uint64_t)globalVer);
 
-  tscDebug("hb sending ext source globalVer:%" PRId64, globalVer);
+  tscDebug("hb sending ext source globalVer:%" PRId64 " ddlGen:%" PRId64, globalVer, ddlGen);
 
   if (NULL == req->info) {
     req->info = taosHashInit(64, hbKeyHashFunc, 1, HASH_ENTRY_LOCK);
@@ -1529,7 +1600,7 @@ int32_t hbQueryHbReqHandle(SClientHbKey *connKey, void *param, SClientHbReq *req
     }
 
 #ifdef TD_ENTERPRISE
-    code = hbGetExpiredViewInfo(connKey, pCatalog, req);
+    code = hbGetExpiredViewInfo(connKey, pCatalog, req, hbParam->reqId);
     if (TSDB_CODE_SUCCESS != code) {
       tscWarn("hbGetExpiredViewInfo failed, clusterId:0x%" PRIx64 ", error:%s", hbParam->clusterId, tstrerror(code));
       return code;
@@ -1589,6 +1660,12 @@ int32_t hbGatherAllInfo(SAppHbMgr *pAppHbMgr, SClientHbBatchReq **pBatchReq) {
   int64_t  maxIpWhiteVer = 0;
   void    *pIter = NULL;
   SHbParam param = {0};
+
+  // One request id per batch: heartbeat responses echo it, which lets the catalog map
+  // the view metadata sweep response to the batch that produced it.
+  (*pBatchReq)->reqId = generateRequestId();
+  param.reqId = (*pBatchReq)->reqId;
+
   while ((pIter = taosHashIterate(pAppHbMgr->activeInfo, pIter))) {
     SClientHbReq *pOneReq = pIter;
     SClientHbKey *connKey = &pOneReq->connKey;
@@ -1606,6 +1683,10 @@ int32_t hbGatherAllInfo(SAppHbMgr *pAppHbMgr, SClientHbBatchReq **pBatchReq) {
     pOneReq->passVer = atomic_load_32(&pTscObj->loginPassVer);
     tstrncpy(pOneReq->sVer, td_version, TSDB_VERSION_LEN);
 
+    // pOneReq is copied into the batch array below; keep a pointer to the
+    // persistent activeInfo entry so the send-time ext-source generation can be
+    // mirrored back to it after the request handler fills the batch copy.
+    SClientHbReq *pActiveReq = pOneReq;
     pOneReq = taosArrayPush((*pBatchReq)->reqs, pOneReq);
     if (NULL == pOneReq) {
       releaseTscObj(connKey->tscRid);
@@ -1633,6 +1714,11 @@ int32_t hbGatherAllInfo(SAppHbMgr *pAppHbMgr, SClientHbBatchReq **pBatchReq) {
                 connKey->tscRid, connKey->connType);
       }
     }
+
+    // The response handler looks up the activeInfo entry, not the batch copy.
+    // Persist the generation there so the fence can compare it when the push
+    // comes back.
+    pActiveReq->extSrcDdlGenAtSend = pOneReq->extSrcDdlGenAtSend;
 
     int64_t ver = atomic_load_64(&pTscObj->whiteListInfo.ver);
     maxIpWhiteVer = TMAX(maxIpWhiteVer, ver);

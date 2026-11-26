@@ -45,14 +45,19 @@ static bool isExtSourceDdlReq(int32_t msgType) {
 }
 
 static void invalidateExtSourceCacheAfterDdl(SRequestObj* pRequest, int32_t code) {
-  if (code != TSDB_CODE_SUCCESS || pRequest == NULL || !isExtSourceDdlReq(pRequest->type) ||
-      pRequest->extSourceName[0] == '\0') {
+  (void)code;
+  if (pRequest == NULL || !isExtSourceDdlReq(pRequest->type) || pRequest->extSourceName[0] == '\0') {
     return;
   }
 
   SCatalog*     pCtg  = NULL;
   SAppInstInfo* pInst = pRequest->pTscObj->pAppInfo;
   if (TSDB_CODE_SUCCESS == catalogGetHandle(pInst->clusterId, &pCtg)) {
+    // Invalidate on completion even when the DDL failed: the server may have
+    // committed while the client saw an error or lost the response.  Keeping the
+    // entry out of the cache forces the next reader to fetch the authoritative
+    // state, and the generation bump drops heartbeat pushes built before this
+    // point.
     int32_t rmCode = catalogRemoveExtSource(pCtg, pRequest->extSourceName);
     if (rmCode != TSDB_CODE_SUCCESS) {
       tscWarn("req:0x%" PRIx64 ", catalogRemoveExtSource for %s after %s failed: %s, QID:0x%" PRIx64,
@@ -132,14 +137,71 @@ int32_t genericRspCallback(void* param, SDataBuf* pMsg, int32_t code) {
     atomic_store_32(&pRequest->pTscObj->loginPassVer, -1);
   }
 
-  if (NEED_CLIENT_RM_TBLMETA_REQ(pRequest->type)) {
+  /*
+   * CREATE/OR REPLACE VIEW returns the effective view metadata. Install it into the
+   * local catalog directly (same pattern as CREATE TABLE/STABLE) instead of evicting
+   * the entry and re-fetching it on the next query.
+   */
+  bool viewMetaHandled = false;
+#ifdef TD_ENTERPRISE
+  if (code == TSDB_CODE_SUCCESS && pRequest->type == TDMT_MND_CREATE_VIEW && pMsg->pData != NULL && pMsg->len > 0) {
+    SMCreateViewRsp createRsp = {0};
+    SDecoder       coder = {0};
+    tDecoderInit(&coder, pMsg->pData, pMsg->len);
+    int32_t decodeCode = tDecodeSMCreateViewRsp(&coder, &createRsp);
+    tDecoderClear(&coder);
+
+    if (TSDB_CODE_SUCCESS == decodeCode && NULL != createRsp.pMeta) {
+      SCatalog* pCatalog = NULL;
+      int32_t   ctgCode = catalogGetHandle(pRequest->pTscObj->pAppInfo->clusterId, &pCatalog);
+      if (TSDB_CODE_SUCCESS == ctgCode) {
+        // catalogUpdateViewMeta consumes pMeta on both success and failure paths.
+        ctgCode = catalogUpdateViewMeta(pCatalog, createRsp.pMeta);
+        createRsp.pMeta = NULL;
+        if (TSDB_CODE_SUCCESS == ctgCode) {
+          viewMetaHandled = true;
+          tscDebug("conn:0x%" PRIx64 ", view meta updated from create-view rsp, QID:0x%" PRIx64, pRequest->pTscObj->id,
+                   pRequest->requestId);
+        } else {
+          tscError("conn:0x%" PRIx64 ", failed to update view meta from create-view rsp, code:%s, QID:0x%" PRIx64,
+                   pRequest->pTscObj->id, tstrerror(ctgCode), pRequest->requestId);
+        }
+      } else {
+        tscError("conn:0x%" PRIx64 ", failed to get catalog handle for create-view rsp, code:%s, QID:0x%" PRIx64,
+                 pRequest->pTscObj->id, tstrerror(ctgCode), pRequest->requestId);
+      }
+    } else {
+      tscWarn("conn:0x%" PRIx64 ", failed to decode create-view rsp, code:0x%x, len:%d, QID:0x%" PRIx64,
+              pRequest->pTscObj->id, decodeCode, pMsg->len, pRequest->requestId);
+    }
+    tFreeSMCreateViewRsp(&createRsp);
+  }
+#endif
+
+  /*
+   * DROP VIEW has no response payload; evict the named views from the local catalog on
+   * success, mirroring the DROP TABLE path. A missing entry is a no-op.
+   */
+  if (code == TSDB_CODE_SUCCESS && pRequest->type == TDMT_MND_DROP_VIEW) {
+    int32_t rmCode = removeMeta(pRequest->pTscObj, pRequest->targetTableList, true);
+    if (TSDB_CODE_SUCCESS != rmCode) {
+      tscError("conn:0x%" PRIx64 ", failed to evict dropped view meta, code:%s, QID:0x%" PRIx64,
+               pRequest->pTscObj->id, tstrerror(rmCode), pRequest->requestId);
+    } else {
+      viewMetaHandled = true;
+      tscDebug("conn:0x%" PRIx64 ", dropped view meta evicted from local catalog, QID:0x%" PRIx64,
+               pRequest->pTscObj->id, pRequest->requestId);
+    }
+  }
+
+  if (NEED_CLIENT_RM_TBLMETA_REQ(pRequest->type) && !viewMetaHandled) {
     // For DROP STB: save suid -> fullName before removeMeta clears the cache
-    if (code == 0 && pRequest->pTscObj->txnId > 0 && pRequest->type == TDMT_MND_DROP_STB) {
+    if (code == 0 && pRequest->txnId > 0 && pRequest->type == TDMT_MND_DROP_STB) {
       int32_t tbNum = taosArrayGetSize(pRequest->targetTableList);
       for (int32_t i = 0; i < tbNum; ++i) {
         SName* pTbName = TARRAY_GET_ELEM(pRequest->targetTableList, i);
         if (pTbName) {
-          int32_t rc = tscTxnRecordDroppedStbSuid(pRequest->pTscObj, pTbName);
+          int32_t rc = tscTxnRecordDroppedStbSuid(pRequest->pTscObj, pRequest->txnId, pTbName);
           if (rc != 0) {
             code = rc;
             break;
@@ -154,7 +216,7 @@ int32_t genericRspCallback(void* param, SDataBuf* pMsg, int32_t code) {
 
   // Batch meta txn: record NULL sentinel in pTxnTableMeta after DROP so that
   // subsequent queries in the same txn return TABLE_NOT_EXIST instead of stale meta.
-  if (code == 0 && pRequest->pTscObj->txnId > 0 &&
+  if (code == 0 && pRequest->txnId > 0 &&
       (pRequest->type == TDMT_MND_DROP_STB || pRequest->type == TDMT_VND_DROP_TABLE)) {
     int32_t tbNum = taosArrayGetSize(pRequest->targetTableList);
     for (int32_t i = 0; i < tbNum; ++i) {
@@ -162,7 +224,7 @@ int32_t genericRspCallback(void* param, SDataBuf* pMsg, int32_t code) {
       if (pTbName) {
         char fullName[TSDB_TABLE_FNAME_LEN];
         if (tNameExtractFullName(pTbName, fullName) == 0) {
-          (void)tscTxnUpsertTableMeta(pRequest->pTscObj, fullName, NULL, "drop");
+          (void)tscTxnUpsertTableMeta(pRequest->pTscObj, pRequest->txnId, fullName, NULL, "drop");
         }
       }
     }
@@ -606,14 +668,15 @@ int32_t processCreateSTableRsp(void* param, SDataBuf* pMsg, int32_t code) {
         // Batch meta txn: skip global catalog cache update during txn to prevent
         // cross-session pollution. Only populate per-connection pTxnTableMeta.
         STscObj* pTscObj = pRequest->pTscObj;
-        if (pTscObj->txnId == 0) {
+        if (pRequest->txnId == 0) {
           if (ret == TSDB_CODE_SUCCESS) {
             ret = handleCreateTbExecRes(pRes->res, pCatalog);
           }
         }
 #ifdef TD_ENTERPRISE
-        else if (pTscObj->txnId > 0) {
-          int32_t txnCode = tscTxnCacheMetaFromRsp(pTscObj, (STableMetaRsp*)pRes->res, "cached STB (CREATE STB)");
+        else if (pRequest->txnId > 0) {
+          int32_t txnCode =
+              tscTxnCacheMetaFromRsp(pTscObj, pRequest->txnId, (STableMetaRsp*)pRes->res, "cached STB (CREATE STB)");
           if (txnCode != 0) {
             doRequestCallback(pRequest, txnCode);
             return txnCode;
@@ -707,6 +770,15 @@ int32_t processAlterStbRsp(void* param, SDataBuf* pMsg, int32_t code) {
   SRequestObj* pRequest = param;
   if (code != TSDB_CODE_SUCCESS) {
     setErrno(pRequest, code);
+    // Preserve the mnode's custom error-detail string (e.g. a vstb alter name-conflict names
+    // the conflicting child table) so taos_errstr() points at the conflict source instead of
+    // the stock per-code text. Same pattern as genericRspCallback. Guard msgBufLen so a
+    // non-positive buffer cannot make copyLen wrap around to a huge memcpy length.
+    if (pMsg->pData != NULL && pMsg->len > 0 && pRequest->msgBufLen > 0) {
+      int32_t copyLen = TMIN((int32_t)pMsg->len, pRequest->msgBufLen - 1);
+      memcpy(pRequest->msgBuf, (char*)pMsg->pData, copyLen);
+      pRequest->msgBuf[copyLen] = '\0';
+    }
   } else {
     SMAlterStbRsp alterRsp = {0};
     SDecoder      coder = {0};
@@ -736,14 +808,15 @@ int32_t processAlterStbRsp(void* param, SDataBuf* pMsg, int32_t code) {
         // Batch meta txn: skip global catalog cache update during txn to prevent
         // cross-session pollution. Only populate per-connection pTxnTableMeta.
         STscObj* pTscObj = pRequest->pTscObj;
-        if (pTscObj->txnId == 0) {
+        if (pRequest->txnId == 0) {
           if (ret == TSDB_CODE_SUCCESS) {
             ret = handleAlterTbExecRes(pRes->res, pCatalog);
           }
         }
 #ifdef TD_ENTERPRISE
-        else if (pTscObj->txnId > 0) {
-          int32_t txnCode = tscTxnCacheMetaFromRsp(pTscObj, (STableMetaRsp*)pRes->res, "updated STB (ALTER STB)");
+        else if (pRequest->txnId > 0) {
+          int32_t txnCode =
+              tscTxnCacheMetaFromRsp(pTscObj, pRequest->txnId, (STableMetaRsp*)pRes->res, "updated STB (ALTER STB)");
           if (txnCode != 0) {
             doRequestCallback(pRequest, txnCode);
             return txnCode;
@@ -1636,6 +1709,13 @@ static int32_t processBeginTxnRsp(void* param, SDataBuf* pMsg, int32_t code) {
       (void)taosThreadMutexLock(&pTscObj->mutex);
       pTscObj->txnId = rsp.txnId;
       pTscObj->txnDdlCount = 0;
+      // Option is fixed at BEGIN and always overwritten, so it never leaks from a previous txn.
+      pTscObj->txnFlags = 0;
+      if (pRequest->pQuery != NULL && pRequest->pQuery->pRoot != NULL &&
+          nodeType(pRequest->pQuery->pRoot) == QUERY_NODE_BEGIN_TRANS_STMT &&
+          (((SBeginTransStmt*)pRequest->pQuery->pRoot)->flags & TRANS_STMT_FLAG_ALLOW_NONTXN)) {
+        pTscObj->txnFlags |= TSC_TXN_FLAG_ALLOW_NONTXN;
+      }
       atomic_store_8(&pTscObj->txnState, UTXN_STAGE_ACTIVE);
       if (pTscObj->pTxnVgSet == NULL) {
         pTscObj->pTxnVgSet = tSimpleHashInit(8, taosGetDefaultHashFunction(TSDB_DATA_TYPE_INT));
@@ -1643,6 +1723,7 @@ static int32_t processBeginTxnRsp(void* param, SDataBuf* pMsg, int32_t code) {
           orphanTxnId = rsp.txnId;
           atomic_store_8(&pTscObj->txnState, 0);
           pTscObj->txnId = 0;
+          pTscObj->txnFlags = 0;
           (void)taosThreadMutexUnlock(&pTscObj->mutex);
           code = terrno != 0 ? terrno : TSDB_CODE_OUT_OF_MEMORY;
           setErrno(pRequest, code);
@@ -1677,6 +1758,7 @@ static int32_t processBeginTxnRsp(void* param, SDataBuf* pMsg, int32_t code) {
     (void)taosThreadMutexLock(&pTscObj->mutex);
     if (pTscObj->txnState == UTXN_STAGE_BEGIN_PENDING) {
       atomic_store_8(&pTscObj->txnState, UTXN_STAGE_IDLE);
+      pTscObj->txnFlags = 0;
     }
     (void)taosThreadMutexUnlock(&pTscObj->mutex);
   }
@@ -1718,6 +1800,7 @@ void tscResetTxnState(STscObj* pTscObj) {
   (void)taosThreadMutexLock(&pTscObj->mutex);
   atomic_store_8(&pTscObj->txnState, 0);
   pTscObj->txnId = 0;
+  pTscObj->txnFlags = 0;
   pTscObj->txnDdlCount = 0;
   tSimpleHashCleanup(pTscObj->pTxnVgSet);
   pTscObj->pTxnVgSet = NULL;
@@ -1750,13 +1833,14 @@ void tscResetTxnState(STscObj* pTscObj) {
       STableMeta** ppMeta = (STableMeta**)pIter;
       taosMemoryFreeClear(*ppMeta);
     }
-    taosHashCleanup(pTscObj->pTxnTableMeta);
-    pTscObj->pTxnTableMeta = NULL;
+    // Cleared, not destroyed: requests still in flight on this connection (their parse context and catalog jobs)
+    // borrow this hash pointer. It lives as long as the connection and is destroyed in destroyTscObj.
+    taosHashClear(pTscObj->pTxnTableMeta);
   }
 
-  // pTxnSuidMap values are char[] copied inline by the hash  -  no per-entry free needed.
-  taosHashCleanup(pTscObj->pTxnSuidMap);
-  pTscObj->pTxnSuidMap = NULL;
+  // pTxnSuidMap values are char[] copied inline by the hash  -  no per-entry free needed. Cleared, not destroyed,
+  // for the same reason as pTxnTableMeta.
+  taosHashClear(pTscObj->pTxnSuidMap);
   (void)taosThreadMutexUnlock(&pTscObj->mutex);
 
   if (NULL != pStaleTables) {

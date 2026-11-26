@@ -149,6 +149,8 @@ void  vnodeBufPoolFree(SVBufPool* pPool, void* p);
 void  vnodeBufPoolRef(SVBufPool* pPool);
 void  vnodeBufPoolUnRef(SVBufPool* pPool, bool proactive);
 int   vnodeDecodeInfo(uint8_t* pData, SVnodeInfo* pInfo);
+int32_t vnodeCheckBlobSeqSlot(int64_t dataLen, uint64_t dataOffset);
+int32_t vnodeRefillMsgBody(SRpcMsg* pMsg, const void* pBody, int32_t bodyLen);
 
 void vnodeBufPoolRegisterQuery(SVBufPool* pPool, SQueryNode* pQNode);
 void vnodeBufPoolDeregisterQuery(SVBufPool* pPool, SQueryNode* pQNode, bool proactive);
@@ -203,6 +205,8 @@ void            metaFreeRsmaParam(SRSmaParam* pParam, int8_t type);
 
 int32_t metaUidCacheClear(SMeta* pMeta, uint64_t suid);
 int32_t metaTbGroupCacheClear(SMeta* pMeta, uint64_t suid);
+int32_t metaTagFilterCachesClearAll(SMeta* pMeta);  // batch meta txn: see metaCache.c
+int32_t metaTagFilterCachesClearSuid(SMeta* pMeta, uint64_t suid);  // batch meta txn: see metaCache.c
 int32_t metaRefDbsCacheClear(SMeta* pMeta, uint64_t suid);
 void    metaCacheClear(SMeta* pMeta);
 
@@ -248,9 +252,8 @@ void    metaReaderDoInit(SMetaReader* pReader, SMeta* pMeta, int32_t flags, int6
 int32_t metaGetTableUidsByNames(void* pVnode, const SArray* pTbNames, SArray* pUids, int64_t txnId);
 int32_t metaGetTableInfosByNames(void* pVnode, const SArray* pTbNames, SArray* pInfos, int64_t txnId);
 
-int32_t cacheTag(SVnode* pVnode, SHashObj* metaCache, SExprInfo* pExprInfo, 
-                 int32_t numOfExpr, SStorageAPI* api, uint64_t uid, 
-                 col_id_t colId, SRWLatch* lock);
+int32_t cacheTag(SVnode* pVnode, SHashObj* metaCache, SExprInfo* pExprInfo, int32_t numOfExpr, SStorageAPI* api,
+                 uint64_t uid, col_id_t colId, SRWLatch* lock);
 int32_t fillTag(SHashObj* metaCache, SExprInfo* pExprInfo, int32_t numOfExpr,
                 uint64_t uid, SSDataBlock* pBlock, uint32_t currentRow, 
                 uint32_t numOfRows, uint32_t numOfBlocks, SRWLatch* lock);

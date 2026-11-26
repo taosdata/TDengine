@@ -363,7 +363,10 @@ VGroup 1（replica=3）
 ```
 
 ```sql
-CREATE DATABASE db REPLICA 3 VGROUPS 10;
+CREATE DATABASE db
+  REPLICA 3
+  VGROUPS 10;
+
 ALTER DATABASE db REPLICA 3;
 ```
 
@@ -381,8 +384,11 @@ VGroup 1 (replica=2)
 ```
 
 ```sql
-CREATE DATABASE db REPLICA 2 VGROUPS 10;
-ALTER DATABASE db REPLICA 2;   -- 仅支持与单副本互转
+CREATE DATABASE db
+  REPLICA 2
+  VGROUPS 10;
+
+ALTER DATABASE db REPLICA 2;  -- 仅支持与单副本互转
 ```
 
 容错边界：单服务故障且不出现连续故障时尚可恢复；两数据副本同时不可用，或未同步完成时再故障，则无法继续服务。强制指定 Leader 等运维见下。
@@ -409,15 +415,16 @@ Leader 收到写入 → 追加 WAL → 并行发送 AppendEntries → 多数派 
 
 ```sql
 RESTORE DNODE <dnode_id>;
+
 RESTORE MNODE ON DNODE <dnode_id>;
+
 RESTORE VNODE ON DNODE <dnode_id>;
 ```
 
 ### 4.6 副本状态监控
 
 ```sql
-SHOW VGROUPS;
--- status: leader / follower / offline / candidate
+SHOW VGROUPS;  -- status: leader / follower / offline / candidate
 ```
 
 ### 4.7 MNode 元数据高可靠
@@ -426,7 +433,9 @@ MNode 保存集群元数据（用户、库、表、DNode 列表等）。生产�
 
 ```sql
 SHOW MNODES;
+
 CREATE MNODE ON DNODE 2;
+
 CREATE MNODE ON DNODE 3;
 ```
 
@@ -477,10 +486,13 @@ usessl   = false
 
 ```sql
 -- WAL 模式 1：内存缓存（最高性能，崩溃可能丢最新数据）
-CREATE DATABASE db WAL_LEVEL 1;
+CREATE DATABASE db
+  WAL_LEVEL 1;
 
 -- WAL 模式 2：fsync 落盘（推荐生产环境）
-CREATE DATABASE db WAL_LEVEL 2 WAL_FSYNC_PERIOD 3000;
+CREATE DATABASE db
+  WAL_LEVEL 2
+  WAL_FSYNC_PERIOD 3000;
 ```
 
 ```ini
@@ -520,7 +532,9 @@ SVR_KEY → DB_KEY → CFG_KEY → META_KEY → DATA_KEY
 **启用示例（v3.4+，须先用 `taosk` 生成含 `DATA_KEY` 的密钥）：**
 
 ```sql
-CREATE DATABASE db ENCRYPT_ALGORITHM 'SM4-CBC';
+CREATE DATABASE db
+  ENCRYPT_ALGORITHM 'SM4-CBC';
+
 SHOW ENCRYPT_STATUS;
 ```
 

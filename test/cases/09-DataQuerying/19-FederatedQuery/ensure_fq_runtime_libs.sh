@@ -137,7 +137,10 @@ bootstrap_ext_env() {
 }
 
 clean_mysql() {
-    rm -f "${RUNTIME_DIR}"/libmariadb* "${RUNTIME_DIR}"/libmysqlclient* 2>/dev/null || true
+    rm -f "${RUNTIME_DIR}"/libmariadb* "${RUNTIME_DIR}"/libmysqlclient* \
+          "${RUNTIME_DIR}"/caching_sha2_password.* "${RUNTIME_DIR}"/sha256_password.* \
+          "${RUNTIME_DIR}"/mysql_clear_password.* "${RUNTIME_DIR}"/dialog.* \
+          "${RUNTIME_DIR}"/client_ed25519.* 2>/dev/null || true
 }
 
 clean_pg() {
@@ -177,6 +180,20 @@ ensure_mysql() {
     copy_glob "${STAGED_DIR}" 'libmariadb.so*' 'libmysqlclient.so*' 'libmariadb*.dylib*' 'libmysqlclient*.dylib*' || true
     copy_glob "${REPO_ROOT}/.externals/install/ext_mariadb/${TD_CONFIG_NAME:-Debug}/lib/mariadb" \
         'libmariadb.so*' 'libmysqlclient.so*' 'libmariadb*.dylib*' 'libmysqlclient*.dylib*' || true
+    # MySQL 8 accounts default to caching_sha2_password, which MariaDB
+    # Connector/C loads as a client plugin from the client library's directory.
+    # Builds made before the runtime staged these files still have them in the
+    # ExternalProject install tree, so pull them in for local test runs.
+    copy_glob "${REPO_ROOT}/.externals/install/ext_mariadb/${TD_CONFIG_NAME:-Debug}/lib/mariadb/plugin" \
+        'caching_sha2_password.*' 'sha256_password.*' 'mysql_clear_password.*' 'dialog.*' 'client_ed25519.*' || true
+    # The distro MariaDB connector ships the same plugins; use them when the
+    # ExternalProject tree is absent (incremental local builds).
+    copy_glob /usr/lib/x86_64-linux-gnu/libmariadb3/plugin \
+        'caching_sha2_password.*' 'sha256_password.*' 'mysql_clear_password.*' 'dialog.*' 'client_ed25519.*' || true
+    copy_glob /usr/lib/aarch64-linux-gnu/libmariadb3/plugin \
+        'caching_sha2_password.*' 'sha256_password.*' 'mysql_clear_password.*' 'dialog.*' 'client_ed25519.*' || true
+    copy_glob /usr/local/lib/mariadb/plugin \
+        'caching_sha2_password.*' 'sha256_password.*' 'mysql_clear_password.*' 'dialog.*' 'client_ed25519.*' || true
     copy_glob "${FQ_BASE_DIR}/mysql/${ver}/lib" 'libmariadb.so*' 'libmysqlclient.so*' 'libmariadb*.dylib*' 'libmysqlclient*.dylib*' || true
     copy_glob /usr/lib/x86_64-linux-gnu 'libmariadb.so*' 'libmysqlclient.so*' || true
     copy_glob /usr/lib/aarch64-linux-gnu 'libmariadb.so*' 'libmysqlclient.so*' || true

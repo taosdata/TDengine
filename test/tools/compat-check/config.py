@@ -69,6 +69,34 @@ TSMA_NAME = "tsma_compat_meters"  # TSMA on meters stable (sum/avg/min/max/count
 STREAM_NAME      = "stream_compat_meters"  # PERIOD stream aggregating from meters stable
 STREAM_OUT_TABLE = "stream_compat_out"     # output table for stream results
 
+# ==================== Virtual table ====================
+# A plain source table plus a virtual normal table that references two of its
+# columns.  CREATE VTABLE and local column references exist on every base
+# version used by the upgrade matrix (3.3.6.0 / 3.3.8.0 / 3.4.0.0 / 3.4.1.0 /
+# 3.4.2.1 / 3.4.3.0), so this resource is created on the BASE version and queried
+# again after the upgrade.  The post-upgrade query is the point: it makes the
+# client fetch the virtual table's metadata, which is where a changed metadata
+# frame shows up as an incompatible message instead of a silent pass.
+VTABLE_MIN_VERSION = "3.3.6.0"   # lowest verified base version; raise when a
+                                 # lower baseline is added to the matrix
+VTABLE_SRC_TABLE  = "vsrc_compat"
+VTABLE_NAME       = "vtb_compat_local"
+VTABLE_ROWS       = 3
+
+# Virtual super table plus a virtual child table on top of it.  Both carry
+# their own persisted metadata (the child stores column bindings and tags), so
+# they are the second shape the upgrade has to replay correctly.
+VTABLE_STB_NAME   = "vstb_compat"
+VTABLE_CHILD_NAME = "vctb_compat"
+VTABLE_CHILD_TAG  = "beijing"
+
+# ALTER VTABLE is issued after the upgrade, so it exercises the ALTER request
+# path (SVAlterTbReq) instead of the already created resources.  The request
+# carries the virtual-table reference fields on every ALTER, so this crosses the
+# version boundary without needing an external database.
+VTABLE_ALTER_COL     = "voltage_alt"
+VTABLE_ALTER_REF_COL = "voltage"   # source column re-bound by ALTER COLUMN ... SET
+
 # ==================== Runtime thresholds ====================
 MAX_WRITE_LATENCY_S  = 2.0     # 写入延时上限（秒）
 MAX_QUERY_LATENCY_S  = 2.0     # 查询延时上限（秒）

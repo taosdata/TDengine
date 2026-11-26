@@ -39,6 +39,7 @@ typedef struct TagThread {
     TAOS*     conn;
     TdThread  pid;
     int32_t   code;    // first error code from this thread
+    bool      unbounded;  // fetch every row from offset to the end (no LIMIT)
 } TagThread;
 
 

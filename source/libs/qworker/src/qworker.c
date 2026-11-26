@@ -28,6 +28,9 @@
 #include "tglobal.h"
 #include "tmsg.h"
 #include "tname.h"
+#if defined(BUILD_TEST)
+#include "ttestgate.h"
+#endif
 
 #ifndef _GRANT
 int32_t grantCheckQuery(uint32_t tsGrantVal, const SSubplan *pSubplan) { return TSDB_CODE_SUCCESS; }
@@ -720,13 +723,14 @@ int32_t qwGetDeleteResFromSink(QW_FPARAMS_DEF, SQWTaskCtx *ctx, SDeleteRes *pRes
   return TSDB_CODE_SUCCESS;
 }
 
-int32_t qwQuickRspFetchReq(QW_FPARAMS_DEF, SQWMsg *qwMsg, int32_t code) {
+int32_t qwQuickRspFetchReq(QW_FPARAMS_DEF, SQWMsg *qwMsg, int32_t queryCode) {
   if (QUERY_RSP_POLICY_QUICK != tsQueryRspPolicy) {
     return TSDB_CODE_SUCCESS;
   }
 
   SQWTaskCtx *ctx = NULL;
   bool        quickFetch = false;
+  int32_t     code = TSDB_CODE_SUCCESS;
   QW_ERR_JRET(qwAcquireTaskCtx(QW_FPARAMS(), &ctx));
 
   QW_LOCK(QW_WRITE, &ctx->lock);
@@ -742,6 +746,7 @@ int32_t qwQuickRspFetchReq(QW_FPARAMS_DEF, SQWMsg *qwMsg, int32_t code) {
   int32_t     dataLen = 0;
   int32_t     rawLen = 0;
   SOutputData sOutput = {0};
+  code = queryCode;
   if (TSDB_CODE_SUCCESS == code) {
     code = qwGetQueryResFromSink(QW_FPARAMS(), ctx, &dataLen, &rawLen, &rsp, &sOutput);
   }
@@ -839,12 +844,27 @@ int32_t qwStartDynamicTaskNewExec(QW_FPARAMS_DEF, SQWTaskCtx *ctx, SQWMsg *qwMsg
 
   QW_SET_EVENT_RECEIVED(ctx, QW_EVENT_FETCH);
 
+  // The running/in-queue decision must be made under ctx->lock together with
+  // the queryContinue arm: qwProcessCQuery's exit check reads queryContinue and
+  // switches the phase to POST_CQUERY under the same lock. Without this lock the
+  // fetch thread may observe PRE_CQUERY and arm queryContinue after the loop has
+  // already decided to exit with queryContinue==0 -- the new execution never
+  // starts, the pending fetch event is never answered and the fetching task
+  // (e.g. a vtable merge parent) waits forever. Mirrors qwProcessFetch's
+  // continue path, which already serializes on ctx->lock.
+  bool reQueue = false;
+  QW_LOCK(QW_WRITE, &ctx->lock);
   if (QW_QUERY_RUNNING(ctx)) {
     atomic_store_8((int8_t *)&ctx->queryContinue, 1);
     QW_TASK_DLOG("the %dth dynamic task exec started, continue running", ctx->dynExecId++);
   } else if (0 == atomic_load_8((int8_t *)&ctx->queryInQueue)) {
     atomic_store_8((int8_t *)&ctx->queryInQueue, 1);
     QW_TASK_DLOG("the %dth dynamic task exec started", ctx->dynExecId++);
+    reQueue = true;
+  }
+  QW_UNLOCK(QW_WRITE, &ctx->lock);
+
+  if (reQueue) {
     QW_ERR_RET(qwBuildAndSendCQueryMsg(QW_FPARAMS(), &qwMsg->connInfo, ctx->taskType));
   }
 
@@ -1050,52 +1070,30 @@ int32_t qwHandleScalarSubQFetch(QW_FPARAMS_DEF, SQWTaskCtx *ctx, bool* toFetch, 
   return code;
 }
 
-int32_t qwHandleNonScalarSubQFetch(QW_FPARAMS_DEF, SQWTaskCtx *ctx, bool* toFetch, void** ppRes, int32_t* dataLen, SQWMsg *qwMsg) {
-  int32_t code = 0;
-  SResFetchReq* pReq = (SResFetchReq*)qwMsg->req;
+int32_t qwHandleNonScalarSubQFetch(QW_FPARAMS_DEF, SQWTaskCtx* ctx, bool* toFetch, void** ppRes, int32_t* dataLen,
+                                   SQWMsg* qwMsg) {
+  SResFetchReq* pReq = qwMsg->req;
   SQWSubQRes* pSub = &ctx->subQRes;
-
-  if (TSDB_CODE_SUCCESS != pSub->code) {
-    qError("non-scalar subQ already failed with error:%s", tstrerror(ctx->subQRes.code));
-    return pSub->code;
-  }
-  
-  if (0 == pSub->firstSrcTaskId) {
-    pSub->firstSrcTaskId = pReq->srcTaskId;
-    *toFetch = true;
-    return code;
-  }
-
-  if (pSub->firstSrcTaskId == pReq->srcTaskId) {
-    *toFetch = true;
-    return code;
-  }
+  *toFetch = false;
 
   taosWWaitLockLatch(&pSub->lock);
-
-  if (TSDB_CODE_SUCCESS != atomic_load_32(&pSub->code)) {
-    qError("non-scalar subQ already failed with error:%s", tstrerror(ctx->subQRes.code));
-    taosWUnLockLatch(&pSub->lock);
-    return pSub->code;
+  size_t count = taosArrayGetSize(pSub->rspList);
+  int32_t code = pSub->code;
+  if (code == TSDB_CODE_SUCCESS) {
+    if (pReq->blockIdx < count) {
+      SQWRspItem* item = taosArrayGet(pSub->rspList, pReq->blockIdx);
+      code = qwCloneSubQRsp(QW_FPARAMS(), ctx, ppRes, dataLen, toFetch, item);
+    } else if (pReq->blockIdx != count || pSub->fetchDone) {
+      QW_TASK_ELOG("invalid subQ block index:%" PRIu64 ", cached:%zu, done:%d", pReq->blockIdx, count, pSub->fetchDone);
+      code = TSDB_CODE_QRY_INVALID_INPUT;
+    } else if (pSub->fetchPending) {
+      code = qwAppendToSubQWaitList(ctx, qwMsg);
+    } else {
+      pSub->fetchPending = true;
+      *toFetch = true;
+    }
   }
-  
-  SQWRspItem* pItem = (pReq->blockIdx < taosArrayGetSize(pSub->rspList)) ? taosArrayGet(pSub->rspList, pReq->blockIdx) : NULL;
-  if (NULL != pItem) {
-    taosWUnLockLatch(&pSub->lock);
-    return qwCloneSubQRsp(QW_FPARAMS(), ctx, ppRes, dataLen, toFetch, pItem);
-  }
-  
-  if (atomic_load_8(&ctx->subQRes.fetchDone)) {
-    taosWUnLockLatch(&pSub->lock);
-    QW_TASK_ELOG("no rsp for blockIdx:%" PRIu64 " while subQ fetch done, totalRsps:%d", pReq->blockIdx, (int32_t)taosArrayGetSize(pSub->rspList));
-    *toFetch = false;
-    return code;
-  }
-
-  code = qwAppendToSubQWaitList(ctx, qwMsg);
   taosWUnLockLatch(&pSub->lock);
-  
-  *toFetch = false;
 
   return code;
 }
@@ -2167,6 +2165,35 @@ _return:
   QW_RET(TSDB_CODE_SUCCESS);
 }
 
+#if defined(BUILD_TEST)
+int32_t qwIdleTestCheckInterval(SQWorker *mgmt) {
+  int32_t interval = QW_DEFAULT_TIMEOUT_INTERVAL_SECS;
+  int32_t savedErrno = terrno;
+  char root[PATH_MAX];
+  if (taosGetEnv("TD_JOIN_TEST_IDLE_GATE_DIR", root, sizeof(root)) <= 0) {
+    terrno = savedErrno;
+    return interval;
+  }
+  void *iter = taosHashIterate(mgmt->ctxHash, NULL);
+  while (iter != NULL) {
+    uint64_t queryId = 0;
+    memcpy(&queryId, taosHashGetKey(iter, NULL), sizeof(queryId));
+    char directory[PATH_MAX];
+    int32_t len = snprintf(directory, sizeof(directory), "%s/%" PRIu64,
+                           root, queryId);
+    if (len > 0 && len < (int32_t)sizeof(directory) &&
+        taosTestGateArmed(directory, queryId)) {
+      interval = 1;
+      taosHashCancelIterate(mgmt->ctxHash, iter);
+      break;
+    }
+    iter = taosHashIterate(mgmt->ctxHash, iter);
+  }
+  terrno = savedErrno;
+  return interval;
+}
+#endif
+
 void qwProcessHbTimerEvent(void *param, void *tmrId) {
   SQWHbParam *hbParam = (SQWHbParam *)param;
   if (hbParam->qwrId != atomic_load_32(&gQwMgmt.qwRef)) {
@@ -2193,7 +2220,13 @@ void qwProcessHbTimerEvent(void *param, void *tmrId) {
     qwStopAllTasks(mgmt);
   }
 
-  if (mgmt->lastChkTs > 0 && (currTs - mgmt->lastChkTs) >= QW_DEFAULT_TIMEOUT_INTERVAL_SECS) {
+  int32_t checkInterval = QW_DEFAULT_TIMEOUT_INTERVAL_SECS;
+#if defined(BUILD_TEST)
+  // Exercise the real age check without waiting for a ten-minute sweep.
+  checkInterval = qwIdleTestCheckInterval(mgmt);
+#endif
+  if (mgmt->lastChkTs > 0 &&
+      (currTs - mgmt->lastChkTs) >= checkInterval) {
     qwChkDropTimeoutQuery(mgmt, currTs);
     mgmt->lastChkTs = currTs;
   }
@@ -2292,7 +2325,9 @@ int32_t qwProcessDelete(QW_FPARAMS_DEF, SQWMsg *qwMsg, SDeleteRes *pRes) {
   code = qMsgToSubplan(qwMsg->msg, qwMsg->msgLen, &plan);
 
   if (TSDB_CODE_SUCCESS != code) {
-    code = TSDB_CODE_INVALID_MSG;
+    if (code != TSDB_CODE_CHARSET_CONVERT_ERROR) {
+      code = TSDB_CODE_INVALID_MSG;
+    }
     QW_TASK_ELOG("task physical plan to subplan failed, code:%x - %s", code, tstrerror(code));
     QW_ERR_JRET(code);
   }

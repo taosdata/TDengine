@@ -172,7 +172,8 @@ TARGET_INCLUDE_DIRECTORIES(
   PUBLIC "${TD_SOURCE_DIR}/include/common"
   PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/../inc"
 )
-TARGET_LINK_LIBRARIES(streamMgmtTest PUBLIC taos os common executor function index new-stream)
+# Keep the connector in the test executable so cppstub can replace open/close on macOS.
+TARGET_LINK_LIBRARIES(streamMgmtTest PUBLIC os common executor function index new-stream extconnector taos)
 add_test(NAME streamMgmtTest COMMAND streamMgmtTest)
 
 ADD_EXECUTABLE(streamTaskStatsTest streamTaskStatsTest.cpp)
@@ -242,3 +243,9 @@ TARGET_LINK_LIBRARIES(
 )
 add_test(NAME streamTriggerMergerTest COMMAND streamTriggerMergerTest)
 endif(NOT ${TD_WINDOWS})
+
+add_executable(streamTimeAlignTest streamTimeAlignTest.cpp)
+DEP_ext_gtest(streamTimeAlignTest)
+target_include_directories(streamTimeAlignTest PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/../inc")
+target_link_libraries(streamTimeAlignTest PRIVATE new-stream function)
+add_test(NAME streamTimeAlignTest COMMAND streamTimeAlignTest)

@@ -40,6 +40,7 @@ Most of the following parameters are global configuration parameters and must be
 | `syncSnapReplMaxWaitN` | 128 | entries | 16 - 256 | Global | Yes, effective immediately | Maximum number of log entries that can be waited on during snapshot replication. If a replica falls far behind and must be restored by a snapshot, a long-running restore keeps that replica from participating in elections |
 | `snapshotRateLimit` | 0 | MB/s | 0 - 10240 | Global | Yes, effective immediately | Total snapshot sending bandwidth limit per dnode. 0 means no limit. When multiple vgroups replicate snapshots at the same time, disk I/O can be saturated, indirectly causing heartbeat timeouts. Introduced in `v3.4.2.0` |
 | `snapshotMediumOnLag` | 0 | - | 0 - 1 | Global | Yes, effective immediately | Replication mode used by snapshot synchronization when a replica already owns data but lags behind the other replicas of its vgroup. 0 means the row-by-row (normal) mode, 1 means the file-level delta (medium) mode which transfers less data and catches up faster. It does not apply to a new empty replica or to a replica whose FSM is incomplete. Introduced in `v3.4.3.0` |
+| `snapshotMediumOnIncomplete` | 1 | - | 0 - 1 | Global | Yes, effective immediately | Snapshot replication mode when the FSM is incomplete. 0 means row-by-row (normal) mode and 1 means file-level delta (medium) mode. An empty file list causes a fallback to the negotiated format |
 
 ### dnode Status Report Parameters
 
@@ -126,7 +127,9 @@ When a problem occurs, you can temporarily enable the following parameters to ob
 
    ```sql
    SHOW CLUSTER VARIABLES LIKE '%elect%';
+
    SHOW CLUSTER VARIABLES LIKE '%heartbeat%';
+
    SHOW CLUSTER VARIABLES LIKE '%status%';
    ```
 
@@ -135,10 +138,12 @@ When a problem occurs, you can temporarily enable the following parameters to ob
    ```sql
    -- Adjust the vnode heartbeat and election parameters
    ALTER ALL DNODES 'syncVnodeHeartbeatIntervalMs' '2000';
+
    ALTER ALL DNODES 'syncVnodeElectIntervalMs' '8000';
 
    -- Adjust the mnode heartbeat and election parameters
    ALTER ALL DNODES 'syncMnodeHeartbeatIntervalMs' '1000';
+
    ALTER ALL DNODES 'syncMnodeElectIntervalMs' '6000';
 
    -- Adjust the dnode status report timeout
@@ -155,6 +160,7 @@ When a problem occurs, you can temporarily enable the following parameters to ob
 
    ```sql
    SHOW DNODE 1 VARIABLES LIKE '%elect%';
+
    SHOW DNODE 2 VARIABLES LIKE '%elect%';
    ```
 
@@ -176,14 +182,20 @@ When a leader switch problem occurs and needs to be submitted for analysis, coll
 ```sql
 -- Basic information about the cluster and its nodes
 SHOW DNODES;
+
 SHOW MNODES;
+
 SHOW VGROUPS;
 
 -- Current effective values of heartbeat and election parameters
 SHOW CLUSTER VARIABLES LIKE '%elect%';
+
 SHOW CLUSTER VARIABLES LIKE '%heartbeat%';
+
 SHOW CLUSTER VARIABLES LIKE '%status%';
+
 SHOW CLUSTER VARIABLES LIKE '%arb%';
+
 SHOW CLUSTER VARIABLES LIKE '%sync%';
 ```
 
@@ -192,14 +204,18 @@ SHOW CLUSTER VARIABLES LIKE '%sync%';
 ```sql
 -- Roles of vnodes and the time of the most recent election
 -- Pay attention to whether role_time changes frequently
-SELECT * FROM information_schema.ins_vnodes;
+SELECT *
+FROM information_schema.ins_vnodes;
 
 -- Roles of mnodes and the time each became its current role
-SELECT * FROM information_schema.ins_mnodes;
+SELECT *
+FROM information_schema.ins_mnodes;
 
 -- For dual-replica deployments, collect the arbitration group status
 SHOW ARBGROUPS;
-SELECT * FROM information_schema.ins_arbgroups;
+
+SELECT *
+FROM information_schema.ins_arbgroups;
 ```
 
 Record the `vgroup_id` and `dnode_id` where the leader switch occurred, the `role_time`, and the role before and after the switch.
@@ -214,6 +230,7 @@ ALTER ALL DNODES 'sDebugFlag' '143';
 
 -- Raise heartbeat logs to the info level (local parameter, can be enabled only on the affected dnodes)
 ALTER DNODE 1 'syncLogHeartbeat' 'true';
+
 ALTER DNODE 2 'syncLogHeartbeat' 'true';
 
 -- Reduce the interval of routine sync status logs to locate the full state at the moment of the switch
@@ -221,7 +238,9 @@ ALTER DNODE 1 'syncRoutineReportInterval' '30';
 
 -- Restore the default values after the problem is reproduced
 ALTER ALL DNODES 'sDebugFlag' '131';
+
 ALTER DNODE 1 'syncLogHeartbeat' 'false';
+
 ALTER DNODE 1 'syncRoutineReportInterval' '300';
 ```
 

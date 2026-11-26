@@ -46,6 +46,72 @@ int32_t extConnectorOpen(const SExtSourceCfg *cfg, SExtConnectorHandle **ppHandl
 
 void extConnectorClose(SExtConnectorHandle *pHandle) { (void)pHandle; }
 
+int32_t extConnectorPrepareInfluxV1Scan(SExtConnectorHandle *pHandle, const SExtInfluxScanSpec *pSpec, char **ppSQL) {
+  (void)pHandle;
+  (void)pSpec;
+  if (ppSQL != NULL) *ppSQL = NULL;
+  return TSDB_CODE_OPS_NOT_SUPPORT;
+}
+
+int32_t extConnectorInfluxV1SeriesSnapshot(SExtConnectorHandle *pHandle,
+                                           const SExtTableNode *pTable,
+                                           const SExtTableMeta *pCurrentMeta,
+                                           const char *const *pTagNames,
+                                           int32_t numTags,
+                                           const SNode *pSeriesFilter,
+                                           const SNode *pRowFilter,
+                                           bool first,
+                                           int8_t precision,
+                                           SSDataBlock **ppOut) {
+  (void)pHandle;
+  (void)pTable;
+  (void)pCurrentMeta;
+  (void)pTagNames;
+  (void)numTags;
+  (void)pSeriesFilter;
+  (void)pRowFilter;
+  (void)first;
+  (void)precision;
+  if (ppOut != NULL) *ppOut = NULL;
+  return TSDB_CODE_OPS_NOT_SUPPORT;
+}
+
+int32_t extConnectorInfluxV1SeriesSnapshotAfter(SExtConnectorHandle *pHandle,
+                                                const SExtTableNode *pTable,
+                                                const SExtTableMeta *pCurrentMeta,
+                                                const char *const *pTagNames,
+                                                int32_t numTags,
+                                                const SNode *pSeriesFilter,
+                                                const SNode *pRowFilter,
+                                                bool first,
+                                                int8_t precision,
+                                                int64_t timeLower,
+                                                SSDataBlock **ppOut) {
+  (void)pHandle;
+  (void)pTable;
+  (void)pCurrentMeta;
+  (void)pTagNames;
+  (void)numTags;
+  (void)pSeriesFilter;
+  (void)pRowFilter;
+  (void)first;
+  (void)precision;
+  (void)timeLower;
+  if (ppOut != NULL) *ppOut = NULL;
+  return TSDB_CODE_OPS_NOT_SUPPORT;
+}
+
+int32_t extConnectorRenderInfluxV1SQL(const SExtInfluxScanSpec *pSpec, const SExtTableMeta *pMeta,
+                                     const char *database, const char *rp, bool *pEmpty, char **ppSQL) {
+  (void)pSpec;
+  (void)pMeta;
+  (void)database;
+  (void)rp;
+  if (pEmpty != NULL) *pEmpty = false;
+  if (ppSQL != NULL) *ppSQL = NULL;
+  return TSDB_CODE_OPS_NOT_SUPPORT;
+}
+
 int32_t extConnectorGetTableSchema(SExtConnectorHandle *pHandle, const SExtTableNode *pTable,
                                    SExtTableMeta **ppOut) {
   (void)pHandle;

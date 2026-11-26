@@ -33,6 +33,7 @@
 #include "operator.h"
 #include "query.h"
 #include "querytask.h"
+#include "tconv.h"
 #include "storageapi.h"
 #include "thash.h"
 #include "ttypes.h"
@@ -148,6 +149,11 @@ int32_t initTaskSubJobCtx(SExecTaskInfo* pTaskInfo, SArray** subEndPoints, SRead
   
   TAOS_CHECK_EXIT(tsem_init(&ctx->ready, 0, 0));
 
+  if (!ctx->isStream) {
+    ctx->subResCache = taosArrayInit_s(POINTER_BYTES, subJobNum);
+    TSDB_CHECK_NULL(ctx->subResCache, code, lino, _exit, terrno);
+  }
+
   int64_t refId = taosAddRef(fetchObjRefPool, ctx);
   if (refId < 0) {
     qError("%s failed at line %d since %s", __func__, __LINE__, tstrerror(terrno));
@@ -185,6 +191,7 @@ int32_t createExecTaskInfo(SSubplan* pPlan, SExecTaskInfo** pTaskInfo, SReadHand
   }
 
   (*pTaskInfo)->pSubplan = pPlan;
+  (*pTaskInfo)->charsetCxt = pPlan->charsetName[0] ? taosConvInit(pPlan->charsetName) : NULL;
 
   if (NULL != sql) {
     (*pTaskInfo)->sql = taosStrdup(sql);
@@ -387,14 +394,9 @@ void destroySubJobCtx(STaskSubJobCtx* pCtx) {
     return;
   }
 
-  if (pCtx->transporterId > 0) {
-    int32_t ret = asyncFreeConnById(pCtx->rpcHandle, pCtx->transporterId);
-    if (ret != 0) {
-      qDebug("%s failed to free subQ rpc handle, code:%s", pCtx->idStr, tstrerror(ret));
-    }
-    pCtx->transporterId = -1;
-  }
-
+  // Transport handles are owned by the individual fetch requests (see SScalarFetchParam), so the
+  // context no longer tracks or releases a shared handle here. Releasing whatever handle was the
+  // latest would risk dropping another in-flight fetch of the same sub-job.
   if (pCtx->subEndPoints != NULL) {
     size_t size = taosArrayGetSize(pCtx->subEndPoints);
     if (size > 0) {
@@ -402,7 +404,6 @@ void destroySubJobCtx(STaskSubJobCtx* pCtx) {
       if (code != TSDB_CODE_SUCCESS) {
         qError("%s failed at line %d since %s", __func__, __LINE__, tstrerror(code));
       }
-      taosArrayDestroy(pCtx->subResNodes);
     }
     if (pCtx->isStream) {
       taosArrayDestroyP(pCtx->subEndPoints, (FDelete)nodesDestroyNode);
@@ -412,7 +413,9 @@ void destroySubJobCtx(STaskSubJobCtx* pCtx) {
     pCtx->subEndPoints = NULL;
   }
   
-  taosMemoryFreeClear(pCtx);  
+  taosArrayDestroy(pCtx->subResNodes);
+  taosArrayDestroyP(pCtx->subResCache, (FDelete)nodesDestroyNode);
+  taosMemoryFreeClear(pCtx);
 }
 
 void doDestroyTask(SExecTaskInfo* pTaskInfo) {

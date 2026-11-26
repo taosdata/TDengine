@@ -23,6 +23,7 @@
 #include "tglobal.h"
 #include "clientStmt.h"
 #include "clientStmt2.h"
+#include "cmdnodes.h"
 #include "querynodes.h"
 #include "tencode.h"
 #include "tmsg.h"
@@ -4369,9 +4370,9 @@ static int32_t stmtFetchMetadataForQuery(STscStmt2* pStmt, SParseContext* pCxt, 
   return code;
 }
 
-// qStmtBindParams2() clones the prepared AST before every execution. Some
+// Parameter binding and execution refresh clone the prepared AST. Some
 // session-owned context pointers are intentionally not shared by node clone
-// helpers, so restore them from the current STMT2 connection before semantic
+// helpers, so restore them from the current connection before semantic
 // translation injects timezone/charset/first-day parameters.
 typedef struct {
   timezone_t timezone;
@@ -4421,6 +4422,21 @@ static EDealRes stmt2RestoreNodeContext(SNode* pNode, void* pContext) {
       pCaseWhen->charsetCxt = pCxt->charsetCxt;
       break;
     }
+    case QUERY_NODE_RANGE_AROUND: {
+      // The generic expression walker does not descend into this wrapper.
+      SRangeAroundNode* pRange = (SRangeAroundNode*)pNode;
+      nodesWalkExpr(pRange->pRange, stmt2RestoreNodeContext, pCxt);
+      nodesWalkExpr(pRange->pInterval, stmt2RestoreNodeContext, pCxt);
+      return DEAL_RES_IGNORE_CHILD;
+    }
+    case QUERY_NODE_EXTERNAL_WINDOW:
+      // The SELECT walker visits the subquery, but not its nested fill clause.
+      nodesWalkExpr(((SExternalWindowNode*)pNode)->pFill, stmt2RestoreNodeContext, pCxt);
+      break;
+    case QUERY_NODE_TEXT_TABLE:
+      // TEXT literals are materialized after the prepared tree is cloned.
+      nodesWalkExprs(((STextTableNode*)pNode)->pRows, stmt2RestoreNodeContext, pCxt);
+      return DEAL_RES_IGNORE_CHILD;
     case QUERY_NODE_TEMP_TABLE:
       stmt2RestoreQueryContext(((STempTableNode*)pNode)->pSubquery, pCxt);
       break;
@@ -4441,9 +4457,32 @@ static void stmt2RestoreQueryContext(SNode* pRoot, SStmt2QueryContext* pCxt) {
   }
 
   switch (nodeType(pRoot)) {
-    case QUERY_NODE_SELECT_STMT:
-      nodesWalkSelectStmt((SSelectStmt*)pRoot, SQL_CLAUSE_FROM, stmt2RestoreNodeContext, pCxt);
+    case QUERY_NODE_CREATE_TOPIC_STMT: {
+      SCreateTopicStmt* pTopic = (SCreateTopicStmt*)pRoot;
+      stmt2RestoreQueryContext(pTopic->pQuery, pCxt);
+      nodesWalkExpr(pTopic->pWhere, stmt2RestoreNodeContext, pCxt);
       break;
+    }
+    case QUERY_NODE_INSERT_STMT:
+      stmt2RestoreQueryContext(((SInsertStmt*)pRoot)->pQuery, pCxt);
+      break;
+    case QUERY_NODE_EXPLAIN_STMT:
+      stmt2RestoreQueryContext(((SExplainStmt*)pRoot)->pQuery, pCxt);
+      break;
+    case QUERY_NODE_DELETE_STMT: {
+      SDeleteStmt* pDelete = (SDeleteStmt*)pRoot;
+      nodesWalkExpr(pDelete->pFromTable, stmt2RestoreNodeContext, pCxt);
+      nodesWalkExpr(pDelete->pWhere, stmt2RestoreNodeContext, pCxt);
+      break;
+    }
+    case QUERY_NODE_SELECT_STMT: {
+      SSelectStmt* pSelect = (SSelectStmt*)pRoot;
+      nodesWalkSelectStmt(pSelect, SQL_CLAUSE_FROM, stmt2RestoreNodeContext, pCxt);
+      // Interpolation ranges are not included in nodesWalkSelectStmt().
+      nodesWalkExpr(pSelect->pRange, stmt2RestoreNodeContext, pCxt);
+      nodesWalkExpr(pSelect->pRangeAround, stmt2RestoreNodeContext, pCxt);
+      break;
+    }
     case QUERY_NODE_SET_OPERATOR: {
       SSetOperator* pSetOper = (SSetOperator*)pRoot;
       nodesWalkExprs(pSetOper->pProjectionList, stmt2RestoreNodeContext, pCxt);
@@ -4455,6 +4494,41 @@ static void stmt2RestoreQueryContext(SNode* pRoot, SStmt2QueryContext* pCxt) {
     default:
       break;
   }
+}
+
+static int32_t stmt2InitQueryParseContext(STscStmt2* pStmt, SParseContext* pCtx) {
+  void* charsetCxt = taosResolveCharsetCxt(pStmt->taos->optionInfo.charsetCxt);
+  *pCtx = (SParseContext){.requestId = pStmt->exec.pRequest->requestId,
+                          .acctId = pStmt->taos->acctId,
+                          .minSecLevel = pStmt->taos->minSecLevel,
+                          .maxSecLevel = pStmt->taos->maxSecLevel,
+                          .db = pStmt->exec.pRequest->pDb,
+                          .topicQuery = false,
+                          .pSql = pStmt->sql.sqlStr,
+                          .sqlLen = pStmt->sql.sqlLen,
+                          .pMsg = pStmt->exec.pRequest->msgBuf,
+                          .msgLen = ERROR_MSG_BUF_DEFAULT_SIZE,
+                          .pTransporter = pStmt->taos->pAppInfo->pTransporter,
+                          .pStmtCb = NULL,
+                          .pUser = pStmt->taos->user,
+                          .timezone = pStmt->taos->optionInfo.timezone,
+                          .charsetCxt = charsetCxt,
+                          .firstDayOfWeek = pStmt->taos->optionInfo.firstDayOfWeek,
+                          .stmtBindVersion = pStmt->exec.pRequest->stmtBindVersion};
+  tstrncpy(pCtx->timezoneName, pStmt->taos->optionInfo.timezoneName, sizeof(pCtx->timezoneName));
+  pCtx->mgmtEpSet = getEpSet_s(&pStmt->taos->pAppInfo->mgmtEp);
+  return catalogGetHandle(pStmt->taos->pAppInfo->clusterId, &pCtx->pCatalog);
+}
+
+void stmtRestoreCurrentQueryContext(SQuery* pQuery, STscObj* pTscObj, SReqResultInfo* pResInfo) {
+  SStmt2QueryContext queryCxt = {.timezone = pTscObj->optionInfo.timezone,
+                                 .charsetCxt = taosResolveCharsetCxt(pTscObj->optionInfo.charsetCxt),
+                                 .firstDayOfWeek = pTscObj->optionInfo.firstDayOfWeek};
+  tstrncpy(queryCxt.timezoneName, pTscObj->optionInfo.timezoneName, sizeof(queryCxt.timezoneName));
+  stmt2RestoreQueryContext(pQuery->pRoot, &queryCxt);
+  // Keep result decoding on the same execution-time snapshot as the query tree.
+  pResInfo->timezone = queryCxt.timezone;
+  pResInfo->charsetCxt = queryCxt.charsetCxt;
 }
 
 int stmtBindBatch2(TAOS_STMT2* stmt, TAOS_STMT2_BIND* bind, int32_t colIdx, SVCreateTbReq* pCreateTbReq) {
@@ -4478,7 +4552,9 @@ int stmtBindBatch2(TAOS_STMT2* stmt, TAOS_STMT2_BIND* bind, int32_t colIdx, SVCr
     pStmt->bInfo.needParse = false;
   }
 
-  if (pStmt->exec.pRequest && STMT_TYPE_QUERY == pStmt->sql.type && pStmt->sql.runTimes) {
+  // The prepare-time request predates binding. Every query execution needs a
+  // fresh request so its result snapshots match the session used for binding.
+  if (pStmt->exec.pRequest && STMT_TYPE_QUERY == pStmt->sql.type) {
     resetRequest(pStmt);
   }
 
@@ -4497,32 +4573,10 @@ int stmtBindBatch2(TAOS_STMT2* stmt, TAOS_STMT2_BIND* bind, int32_t colIdx, SVCr
     if (code != TSDB_CODE_SUCCESS) {
       goto cleanup_root;
     }
-    SStmt2QueryContext queryCxt = {.timezone = pStmt->taos->optionInfo.timezone,
-                                   .charsetCxt = pStmt->taos->optionInfo.charsetCxt,
-                                   .firstDayOfWeek = pStmt->taos->optionInfo.firstDayOfWeek};
-    tstrncpy(queryCxt.timezoneName, pStmt->taos->optionInfo.timezoneName, sizeof(queryCxt.timezoneName));
-    stmt2RestoreQueryContext(pStmt->sql.pQuery->pRoot, &queryCxt);
+    stmtRestoreCurrentQueryContext(pStmt->sql.pQuery, pStmt->taos, &pStmt->exec.pRequest->body.resInfo);
 
-    SParseContext ctx = {.requestId = pStmt->exec.pRequest->requestId,
-                         .acctId = pStmt->taos->acctId,
-                         .minSecLevel = pStmt->taos->minSecLevel,
-                         .maxSecLevel = pStmt->taos->maxSecLevel,
-                         .db = pStmt->exec.pRequest->pDb,
-                         .topicQuery = false,
-                         .pSql = pStmt->sql.sqlStr,
-                         .sqlLen = pStmt->sql.sqlLen,
-                         .pMsg = pStmt->exec.pRequest->msgBuf,
-                         .msgLen = ERROR_MSG_BUF_DEFAULT_SIZE,
-                         .pTransporter = pStmt->taos->pAppInfo->pTransporter,
-                         .pStmtCb = NULL,
-                         .pUser = pStmt->taos->user,
-                         .timezone = pStmt->taos->optionInfo.timezone,
-                         .charsetCxt = charsetCxt,
-                         .firstDayOfWeek = pStmt->taos->optionInfo.firstDayOfWeek,
-                         .stmtBindVersion = pStmt->exec.pRequest->stmtBindVersion};
-    tstrncpy(ctx.timezoneName, pStmt->taos->optionInfo.timezoneName, sizeof(ctx.timezoneName));
-    ctx.mgmtEpSet = getEpSet_s(&pStmt->taos->pAppInfo->mgmtEp);
-    code = catalogGetHandle(pStmt->taos->pAppInfo->clusterId, &ctx.pCatalog);
+    SParseContext ctx = {0};
+    code = stmt2InitQueryParseContext(pStmt, &ctx);
     if (code != TSDB_CODE_SUCCESS) {
       goto cleanup_root;
     }
@@ -5065,6 +5119,40 @@ static int stmtExecLiteral2(TAOS_STMT2* stmt, int *affected_rows, const SWorkloa
   return TSDB_CODE_SUCCESS;
 }
 
+static int32_t stmt2RefreshMySqlQuery(STscStmt2* pStmt) {
+  SQuery*      pQuery = pStmt->sql.pQuery;
+  SRequestObj* pRequest = pStmt->exec.pRequest;
+  int32_t     code = qStmtRefreshQuery2(pQuery);
+  if (code != TSDB_CODE_SUCCESS) return code;
+
+  stmtRestoreCurrentQueryContext(pQuery, pStmt->taos, &pRequest->body.resInfo);
+  SParseContext ctx = {0};
+  code = stmt2InitQueryParseContext(pStmt, &ctx);
+  if (code != TSDB_CODE_SUCCESS) return code;
+  code = qStmtParseQuerySql(&ctx, pQuery, &pRequest->parseMeta);
+  if (code != TSDB_CODE_SUCCESS) return code;
+
+  if (pQuery->haveResultSet) {
+    code = setResSchemaInfo(&pRequest->body.resInfo, pQuery->pResSchema, pQuery->numOfResCols,
+                            pQuery->pResExtSchema, true);
+    if (code != TSDB_CODE_SUCCESS) return code;
+    taosMemoryFreeClear(pQuery->pResSchema);
+    taosMemoryFreeClear(pQuery->pResExtSchema);
+    setResPrecision(&pRequest->body.resInfo, pQuery->precision);
+  }
+
+  TSWAP(pRequest->dbList, pQuery->pDbList);
+  TSWAP(pRequest->tableList, pQuery->pTableList);
+  TSWAP(pRequest->targetTableList, pQuery->pTargetTableList);
+  taosArrayDestroy(pQuery->pDbList);
+  taosArrayDestroy(pQuery->pTableList);
+  taosArrayDestroy(pQuery->pTargetTableList);
+  pQuery->pDbList = NULL;
+  pQuery->pTableList = NULL;
+  pQuery->pTargetTableList = NULL;
+  return TSDB_CODE_SUCCESS;
+}
+
 int stmtExec2(TAOS_STMT2* stmt, int* affected_rows, const SWorkloadCallToken* wlrToken) {
   STscStmt2* pStmt = (STscStmt2*)stmt;
   int32_t    code = 0;
@@ -5099,6 +5187,11 @@ int stmtExec2(TAOS_STMT2* stmt, int* affected_rows, const SWorkloadCallToken* wl
 
   code = stmtSwitchStatus(pStmt, STMT_EXECUTE);
   if (code != TSDB_CODE_SUCCESS) goto _return;
+
+  if (STMT_TYPE_QUERY == pStmt->sql.type && pStmt->sql.pQuery->hasMySqlContextFunc) {
+    code = stmt2RefreshMySqlQuery(pStmt);
+    if (code != TSDB_CODE_SUCCESS) goto _return;
+  }
 
   if (STMT_TYPE_QUERY != pStmt->sql.type) {
     if (pStmt->sql.stbInterlaceMode) {
@@ -5234,6 +5327,7 @@ int stmtExec2(TAOS_STMT2* stmt, int* affected_rows, const SWorkloadCallToken* wl
 
     stmt2WlrInstallRequestExecToken(pRequest, wlrToken);
     pStmt->execSemWaited = false;
+    tscReqStartStatement(pRequest);  // the request may be reused from a previous execution: check it afresh
     launchAsyncQuery(pRequest, pStmt->sql.pQuery, NULL, pWrapper);
   }
 
@@ -5396,8 +5490,15 @@ int stmtParseColFields2(TAOS_STMT2* stmt) {
   }
 
 _return:
-  // compatible with previous versions
-  if (code == TSDB_CODE_PAR_TABLE_NOT_EXIST && (pStmt->bInfo.tbNameFlag & NO_DATA_USING_CLAUSE) == 0x0) {
+  // compatible with previous versions: "table name not set" stays the result for
+  // the tbname-placeholder forms ("insert into ? ...", with or without USING),
+  // where the table name simply has not been bound yet. Only a statement that
+  // names a concrete table (and has no USING clause) can be reporting a real
+  // missing table, so let TSDB_CODE_PAR_TABLE_NOT_EXIST through for it instead of
+  // masking it as a binding error.
+  if (code == TSDB_CODE_PAR_TABLE_NOT_EXIST && (pStmt->bInfo.tbNameFlag & NO_DATA_USING_CLAUSE) == 0x0 &&
+      !(pStmt->exec.pRequest != NULL && (pStmt->exec.pRequest->stmtTbNameFlag & IS_FIXED_VALUE) != 0 &&
+        (pStmt->exec.pRequest->stmtTbNameFlag & USING_CLAUSE) == 0)) {
     code = TSDB_CODE_TSC_STMT_TBNAME_ERROR;
   }
 

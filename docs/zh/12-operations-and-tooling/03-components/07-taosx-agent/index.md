@@ -28,8 +28,21 @@ taosX-Agent 是 TDengine TSDB Enterprise 的一个组件，作为 taosX 的代�
 | 内存缓存     | 支持配置内存缓存批次数，提升数据传输效率                                                                          |
 | 断线重连     | 支持 taosX 服务不可用时保持运行并自动重连                                                                         |
 | 高可用       | 同时连接多个 taosX，某个 taosX 停机后任务改派到其他 taosX 继续采集。详见 [高可用](./03-high-availability.md)          |
-| 存储转发     | 网络中断时将采集数据持久化到本地磁盘，网络恢复后自动补发，确保数据零丢失，详见 [存储转发](./02-store-and-forward.md) |
+| 存储转发     | 网络中断时将采集数据缓存到本地磁盘，网络恢复后自动补发，详见 [存储转发](./02-store-and-forward.md) |
 | 多实例部署   | 同一台机器可部署多个 Agent 实例，通过 instanceId 区分                                                             |
+| 资源限制     | 支持 `[resource]` 配置，限制 Agent 自身及连接器子进程的内存、CPU 和写入带宽。详见 [配置参考](./01-configuration.md#资源限制) |
+
+## 数据确认机制
+
+taosX-Agent 将数据按批次发送给 taosX。只有 taosX 将一批数据写入 TDengine 后，taosX-Agent 才认为这批数据已交付，并继续推进发送进度。
+
+- **网络中断或超时**：taosX-Agent 保留尚未确认的数据，自动重连后重新发送。
+- **无法自动恢复的错误**：如认证失败、配置错误等，任务报错并停止。排除问题后重新启动任务即可。
+- **可能出现重复数据**：如果 taosX 已写入数据，但确认消息因网络中断未送达，这批数据会被重新发送并再次写入。
+
+taosX-Agent 在 taosExplorer 中显示在线，只表示连接正常，不代表数据已写入。请通过任务状态和日志确认数据写入情况。
+
+发送窗口和超时的设置方法见 [配置参考](./01-configuration.md#交付窗口与超时)，各类失败的处理方式见 [存储转发](./02-store-and-forward.md#确认与失败处理)。
 
 ## 获取 taosX-Agent
 
@@ -85,6 +98,18 @@ Test-NetConnection -ComputerName <taosX_host> -Port 6055
 | 配置文件   | `/etc/taos/agent.toml`   | `C:\TDengine\cfg\agent.toml`  |
 | 日志目录   | `/var/log/taos/`         | `C:\TDengine\log\`            |
 | 服务名称   | `taosx-agent`（systemd） | `taosx-agent`（Windows 服务） |
+
+## 升级
+
+taosX 与 taosX-Agent 之间使用 v2 版数据交付协议。taosX 与连接到它的所有 taosX-Agent 必须升级到同一版本；版本不一致时，taosX-Agent 无法连接 taosX，并在日志中报错。
+
+升级步骤如下：
+
+1. 在 taosExplorer 中停止通过 taosX-Agent 运行的数据接入任务。
+2. 升级 taosX 和所有 taosX-Agent。升级过程中保留 `agent.toml` 配置文件和存储转发的缓存目录。
+3. 启动服务，恢复数据接入任务，并核对 TDengine 中的数据。
+
+回滚时，同样需要将 taosX 和所有 taosX-Agent 一起回滚。请勿通过清空存储转发缓存来解决版本不一致的问题，否则缓存中尚未写入的数据将会丢失。
 
 ## 使用
 
@@ -210,6 +235,7 @@ tail -f /var/log/taos/taosx-agent.log
 | ------------------ | ----------------------------- | --------------------------------------------------------- |
 | Agent 无法上线     | `endpoint` 配置错误或网络不通 | 检查 taosX 地址和端口，验证网络连通性                     |
 | Agent 无法上线     | `token` 配置错误              | 在 taosExplorer 中重新创建 Agent 获取新 Token                 |
+| Agent 无法上线，日志提示协议版本不兼容 | taosX 与 taosX-Agent 版本不一致 | 将 taosX 和所有 taosX-Agent 升级到同一版本，详见 [升级](#升级) |
 | Agent 频繁断线重连 | 网络不稳定                    | 检查 Agent 到 taosX 的网络质量；确认 `keep_online = true` |
 | 数据采集失败       | Agent 无法访问数据源          | 检查 Agent 到数据源的网络连通性和权限                     |
 

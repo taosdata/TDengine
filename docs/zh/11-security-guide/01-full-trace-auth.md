@@ -113,13 +113,12 @@ TDengine 生态中涉及多种 Token，容易混淆。以下对照表明确各 T
 
 ```sql
 -- 在 taosd 中创建 Bearer Token
-CREATE TOKEN
-    auth_code 'my_auth_code'
-    client_id  'app_server_01'
-    expire_time '2026-12-31T23:59:59';
+CREATE TOKEN auth_code 'my_auth_code' client_id 'app_server_01' expire_time '2026-12-31T23:59:59';
 
 -- 查询 token 值
-SELECT token FROM information_schema.ins_tokens WHERE auth_code = 'my_auth_code';
+SELECT token
+FROM information_schema.ins_tokens
+WHERE auth_code = 'my_auth_code';
 ```
 
 **HTTP 示例：**
@@ -631,9 +630,13 @@ CREATE USER [IF NOT EXISTS] <用户名>
 
 ```sql
 ALTER USER alice PASS 'NewP@ssw0rd!';
+
 ALTER USER alice ACCOUNT LOCK;
+
 ALTER USER alice ACCOUNT UNLOCK;
+
 ALTER USER alice FAILED_LOGIN_ATTEMPTS 5;
+
 ALTER USER alice ADD HOST '192.168.1.0/24';
 ```
 
@@ -667,7 +670,9 @@ TDengine 实现了基于 RFC 6238 标准的时间型一次性密码（TOTP）。
 
 ```sql
 -- 1. 创建用户时指定 TOTP 种子
-CREATE USER alice PASS 'P@ssw0rd!' TOTPSEED 'my-seed-string' TOTP 1;
+CREATE USER alice
+  PASS 'P@ssw0rd!'
+  TOTPSEED 'my-seed-string' TOTP 1;
 
 -- 2. 获取实际 TOTP 密钥（给 Authenticator App 扫描）
 SELECT GENERATE_TOTP_SECRET('my-seed-string');
@@ -691,14 +696,12 @@ TOKEN 方式适合应用程序长期使用，避免在配置中明文存储用�
 **创建 TOKEN：**
 
 ```sql
-CREATE TOKEN
-    auth_code 'my_auth_code'
-    client_id  'sensor_gateway'
-    expire_time '2026-12-31T23:59:59'
-    other_info  'production environment';
+CREATE TOKEN auth_code 'my_auth_code' client_id 'sensor_gateway' expire_time '2026-12-31T23:59:59' other_info 'production environment';
 
 -- 通过 auth_code 换取实际 token
-SELECT token FROM information_schema.ins_tokens WHERE auth_code = 'my_auth_code';
+SELECT token
+FROM information_schema.ins_tokens
+WHERE auth_code = 'my_auth_code';
 ```
 
 **使用 TOKEN 登录：**
@@ -920,6 +923,7 @@ IP 访问控制在 taosd 账户级别生效，支持 CIDR 表示法，可同时�
 ```sql
 -- 只允许来自指定网段的连接
 ALTER USER alice ADD HOST '192.168.10.0/24';
+
 ALTER USER alice ADD HOST '10.0.0.0/8';
 
 -- 拒绝来自指定 IP 的连接
@@ -953,10 +957,15 @@ TDengine 企业版支持两种权限模型：
 
 ```sql
 GRANT READ ON db_name.* TO user1;
+
 GRANT WRITE ON db_name.stb1 TO user2;
+
 CREATE ROLE analyst;
+
 GRANT READ ON sensor_db.* TO analyst;
+
 GRANT ROLE analyst TO alice;
+
 REVOKE WRITE ON db_name.* FROM user2;
 ```
 
@@ -1036,8 +1045,14 @@ auditCreateTable  = 1
 
 ```sql
 SHOW USERS;
-SELECT * FROM information_schema.ins_users WHERE name = 'alice';
-SELECT * FROM information_schema.ins_tokens;
+
+SELECT *
+FROM information_schema.ins_users
+WHERE name = 'alice';
+
+SELECT *
+FROM information_schema.ins_tokens;
+
 SHOW CONNECTIONS;
 ```
 

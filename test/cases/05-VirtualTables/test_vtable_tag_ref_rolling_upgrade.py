@@ -80,7 +80,12 @@ class TestVtableTagRefRollingUpgrade:
         parts = nowServerVersion.split(".")
         assert len(parts) >= 3, \
             f"SERVER_VERSION() returned '{nowServerVersion}', expected at least 3 components"
-        lastBigVersion = parts[0] + "." + parts[1] + "." + parts[2] + "." + "0"
+        # Same rule as test-compat-upgrade's hot stage: roll inside one patch
+        # group, from its lowest published package.  A freshly bumped group has
+        # no package until it is released, so that case skips instead of failing.
+        lastBigVersion = tdCb.resolveRollingUpgradeBaseline(nowServerVersion)
+        if lastBigVersion is None:
+            pytest.skip(f"no published {'.'.join(parts[:3])}.* enterprise package for rolling upgrade")
         tdLog.info(f"Last big version is {lastBigVersion}")
         return lastBigVersion
 
@@ -217,6 +222,8 @@ class TestVtableTagRefRollingUpgrade:
 
         History:
             - 2026-09-14 initial version for vntb/ntb tag-ref sources
+            - 2026-11-18 AlexDuan Select the baseline like test-compat-upgrade's hot stage (lowest published
+              version in the same patch group) and skip when the group has no package yet
         """
         hostname = self.host
         tdLog.info(f"hostname: {hostname}")
@@ -251,7 +258,10 @@ class TestVtableTagRefRollingUpgrade:
         time.sleep(10)
 
         # ---- phase 1: fixtures on the OLD version — only features the old build supports
-        tdSql.execute(f"CREATE DATABASE {DB} BUFFER 16 VGROUPS 2;")
+        # SS_CHUNKPAGES is pinned on purpose: the CI build (ASSERT_NOT_CORE=OFF) defaults it to
+        # 4096, but the released base package (ASSERT_NOT_CORE=ON) has a minimum of 128*1024 and
+        # rejects the new client's default with "Invalid database options". 131072 is valid for both.
+        tdSql.execute(f"CREATE DATABASE {DB} BUFFER 16 VGROUPS 2 SS_CHUNKPAGES 131072;")
         tdSql.execute(f"CREATE STABLE {DB}.src_stb (ts TIMESTAMP, val INT) TAGS (city NCHAR(20), code INT);")
         tdSql.execute(f"CREATE TABLE {DB}.c1 USING {DB}.src_stb TAGS ('beijing', 100);")
         tdSql.execute(f"CREATE TABLE {DB}.c2 USING {DB}.src_stb TAGS ('shanghai', 200);")

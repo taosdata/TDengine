@@ -1125,14 +1125,14 @@ cmd ::= CREATE STABLE not_exists_opt(A) full_table_name(B)
   NK_LP column_def_list(C) NK_RP BASE ON base_on_list(F) table_options(E).
                                                                                    { pCxt->pRootNode = createCreateInheritedStableStmt(pCxt, A, B, C, NULL, F, E); }
 cmd ::= CREATE VTABLE not_exists_opt(A) full_table_name(B)
-  NK_LP column_def_list(C) NK_RP series_clause_opt(S) vtags_def_opt(T).           { pCxt->pRootNode = createCreateVTableStmt(pCxt, A, B, C, S, T); }
+  NK_LP vtable_col_list(C) NK_RP series_clause_opt(S) vtags_def_opt(T).           { pCxt->pRootNode = createCreateVTableStmt(pCxt, A, B, C, S, T); }
 cmd ::= CREATE VTABLE create_vsubtable_clause(A).                                { pCxt->pRootNode = A; }
 cmd ::= CREATE VTABLE multi_create_vsubtable_clause(A).                          { pCxt->pRootNode = createCreateMultiTableStmt(pCxt, A); }
 
 %type create_vsubtable_clause                                                    { SNode* }
 %destructor create_vsubtable_clause                                              { nodesDestroyNode($$); }
 create_vsubtable_clause(A) ::= not_exists_opt(B) full_table_name(C)
-  NK_LP specific_column_ref_list(D) NK_RP USING full_table_name(E)
+  NK_LP vtable_col_list(D) NK_RP USING full_table_name(E)
   vchild_tags_opt(F) TAGS NK_LP vtags_literal_list(G) NK_RP
   series_clause_opt(H).                                                           { A = createCreateVSubTableStmt(pCxt, B, C, D, NULL, E, F, G, NULL, NULL, H); }
 create_vsubtable_clause(A) ::= not_exists_opt(B) full_table_name(C)
@@ -1196,6 +1196,13 @@ alter_table_clause(A) ::=
 
 alter_table_clause(A) ::=
   full_table_name(B) REMOVE SERIES NK_ID(C).                                      { A = createAlterTableRemoveSeries(pCxt, B, &C); }
+alter_table_clause(A) ::= full_table_name(B) ADD reference_decl(C).
+  { A = createAlterTableReference(pCxt, B, TSDB_ALTER_TABLE_ADD_REFERENCE, C, NULL); }
+alter_table_clause(A) ::= full_table_name(B) MODIFY reference_decl(C).
+  { A = createAlterTableReference(pCxt, B, TSDB_ALTER_TABLE_MODIFY_REFERENCE, C, NULL); }
+alter_table_clause(A) ::= full_table_name(B) REMOVE REFERENCE NK_ID(C).
+  { A = createAlterTableReference(pCxt, B, TSDB_ALTER_TABLE_REMOVE_REFERENCE, NULL, &C); }
+
 
 /* update multi table tag values */
 %type column_tag_value_list                                                          { SNodeList* }
@@ -1322,19 +1329,24 @@ column_def_list(A) ::= column_def_list(B) NK_COMMA column_def(C).               
 // column_def(A) ::= column_name(B) type_name(C).                                 { A = createColumnDefNode(pCxt, &B, C, NULL); }
 column_def(A) ::= column_name(B) type_name(C) column_options(D).                  { A = createColumnDefNode(pCxt, &B, C, D); }
 
-%type specific_column_ref_list                                                               { SNodeList* }
-%destructor specific_column_ref_list                                                         { nodesDestroyList($$); }
-specific_column_ref_list(A) ::= specific_column_ref(B).                                      { A = createNodeList(pCxt, B); }
-specific_column_ref_list(A) ::= specific_column_ref_list(B) NK_COMMA specific_column_ref(C). { A = addNodeToList(pCxt, B, C); }
+%type vtable_col_list                                                             { SNodeList* }
+%destructor vtable_col_list                                                       { nodesDestroyList($$); }
+vtable_col_list(A) ::= vtable_col(B).                                             { A = createNodeList(pCxt, B); }
+vtable_col_list(A) ::= vtable_col_list(B) NK_COMMA vtable_col(C).                 { A = addNodeToList(pCxt, B, C); }
+
+// One entry of a CREATE VTABLE column list. column_def covers `name TYPE [FROM db.tb.col]`
+// (the optional binding lives in column_options); specific_column_ref covers the untyped
+// `name FROM db.tb.col` cascaded form. The vchild statement converts typed column_defs into
+// own-column declarations whose binding is optional, so SHOW CREATE output stays replayable
+// for unbound own columns; the vntb statement requires typed column_defs. Both statement
+// forms share this one entry nonterminal: a separate bare `name TYPE` specific_column_ref
+// rule would reduce/reduce against column_def in the shared CREATE VTABLE prefix state.
+%type vtable_col                                                                  { SNode* }
+%destructor vtable_col                                                            { nodesDestroyNode($$); }
+vtable_col(A) ::= column_def(B).                                                  { A = B; }
+vtable_col(A) ::= specific_column_ref(B).                                         { A = B; }
 
 specific_column_ref(A) ::= column_name(B) FROM column_ref(C).                    { A = createColumnRefNodeByNode(pCxt, &B, C); }
-// Own (extension) column declared inline with an explicit type (SHOW CREATE replay form:
-// `col TYPE FROM db.tb.col`). createColumnRefNodeByNodeWithType sets hasDataType so the
-// translator routes it to the own-column branch (buildVirtualSubTableBatchReq). This shares the
-// `column_name type_name` prefix with `column_def`, so the lookahead-FROM state (lemon 801)
-// shifts FROM for specific_column_ref instead of reducing `column_options ::=` (empty) for
-// column_def; that empty rule carries [LOWPREC] and FROM has higher precedence.
-specific_column_ref(A) ::= column_name(B) type_name(C) FROM column_ref(D).       { A = createColumnRefNodeByNodeWithType(pCxt, &B, C, D); }
 
 %type column_ref_list                                                             { SNodeList* }
 %destructor column_ref_list                                                       { nodesDestroyList($$); }
@@ -1452,7 +1464,9 @@ cmd ::= DROP MOUNT exists_opt(A) mount_name(B).                                 
 
 /*********************************** Transaction - begin/commit/rollback ***************************************/
 cmd ::= BEGIN.                                                                    { pCxt->pRootNode = createTransStmt(pCxt, QUERY_NODE_BEGIN_TRANS_STMT); }
+cmd ::= BEGIN ALLOW_NONTRANSACTIONAL.                                             { pCxt->pRootNode = createBeginTransStmtAllowNonTxn(pCxt); }
 cmd ::= START TRANSACTION.                                                        { pCxt->pRootNode = createTransStmt(pCxt, QUERY_NODE_BEGIN_TRANS_STMT); }
+cmd ::= START TRANSACTION ALLOW_NONTRANSACTIONAL.                                 { pCxt->pRootNode = createBeginTransStmtAllowNonTxn(pCxt); }
 cmd ::= COMMIT.                                                                   { pCxt->pRootNode = createTransStmt(pCxt, QUERY_NODE_COMMIT_TRANS_STMT); }
 cmd ::= ROLLBACK.                                                                 { pCxt->pRootNode = createTransStmt(pCxt, QUERY_NODE_ROLLBACK_TRANS_STMT); }
 /************************************************ show ****************************************************************/
@@ -1840,6 +1854,10 @@ offset_opt(A) ::= NK_COMMA interval_sliding_duration_literal(B).                
 
 trigger_table_opt(A) ::= .                                                 { A = NULL; }
 trigger_table_opt(A) ::= FROM full_table_name(B).                          { A = B; }
+trigger_table_opt(A) ::= FROM TABLE NK_LP NK_ID(F) NK_LP TABLE full_table_name(B) time_align_args_opt(C) NK_RP NK_RP.
+                                                                         { A = createTimeAlignTableNodeWithTable(pCxt, &F, B, &C, NULL); }
+trigger_table_opt(A) ::= FROM TABLE NK_LP NK_ID(F) NK_LP full_table_name(B) time_align_args_opt(C) NK_RP NK_RP.
+                                                                         { A = createTimeAlignTableNodeWithTable(pCxt, &F, B, &C, NULL); }
 
 /***** stream_partition_by_opt *****/
 
@@ -1885,6 +1903,7 @@ trigger_option(A) ::= FORCE_OUTPUT(B).                                          
 trigger_option(A) ::= IGNORE_DISORDER(B).                                          { A.type = STREAM_TRIGGER_OPTION_IGNORE_DISORDER; A.pNode = NULL; A.first = B; A.last = B; }
 trigger_option(A) ::= LOW_LATENCY_CALC(B).                                         { A.type = STREAM_TRIGGER_OPTION_LOW_LATENCY_CALC; A.pNode = NULL; A.first = B; A.last = B; }
 trigger_option(A) ::= MAX_DELAY(B) NK_LP duration_literal(C) NK_RP(D).             { A.type = STREAM_TRIGGER_OPTION_MAX_DELAY; A.pNode = releaseRawExprNode(pCxt, C); A.first = B; A.last = D; }
+trigger_option(A) ::= MAX_DELAY(B) NK_LP column_name(C) NK_RP(D).                  { A.type = STREAM_TRIGGER_OPTION_MAX_DELAY; A.pNode = createColumnNode(pCxt, NULL, &C); A.first = B; A.last = D; }
 trigger_option(A) ::= PRE_FILTER(B) NK_LP search_condition(C) NK_RP(D).            { A.type = STREAM_TRIGGER_OPTION_PRE_FILTER; A.pNode = C; A.first = B; A.last = D; }
 trigger_option(A) ::= WATERMARK(B) NK_LP duration_literal(C) NK_RP(D).             { A.type = STREAM_TRIGGER_OPTION_WATERMARK; A.pNode = releaseRawExprNode(pCxt, C); A.first = B; A.last = D; }
 trigger_option(A) ::= EVENT_TYPE(B) NK_LP event_type_list(C) NK_RP(D).             { A.type = STREAM_TRIGGER_OPTION_EVENT_TYPE; A.flag = C; A.pNode = NULL; A.first = B; A.last = D; }
@@ -2363,6 +2382,9 @@ column_name(A) ::= REFRESH(B).                                                  
 %type function_name                                                               { SToken }
 %destructor function_name                                                         { }
 function_name(A) ::= NK_ID(B).                                                    { A = B; }
+function_name(A) ::= CURRENT_DATE(B).                                             { A = B; }
+function_name(A) ::= CURRENT_TIME(B).                                             { A = B; }
+function_name(A) ::= CURRENT_TIMESTAMP(B).                                        { A = B; }
 
 %type view_name                                                                   { SToken }
 %destructor view_name                                                             { }
@@ -2480,10 +2502,20 @@ expression_list(A) ::= expression_list(B) NK_COMMA expr_or_subquery(C).         
 
 column_reference(A) ::= column_name(B).                                           { A = createRawExprNode(pCxt, &B, createColumnNode(pCxt, NULL, &B)); }
 column_reference(A) ::= table_name(B) NK_DOT column_name(C).                      { A = createRawExprNodeExt(pCxt, &B, &C, createColumnNode(pCxt, &B, &C)); }
+column_reference(A) ::= NK_PH(B) TBNAME NK_DOT column_name(C).                    {
+                                                                                    SToken qualifier = {sizeof("%%tbname") - 1, TK_NK_ID, "%%tbname"};
+                                                                                    SNode* column = createColumnNode(pCxt, &qualifier, &C);
+                                                                                    if (NULL != column) {
+                                                                                      ((SColumnNode*)column)->isTbnamePlaceholder = true;
+                                                                                    }
+                                                                                    A = createRawExprNodeExt(pCxt, &B, &C, column);
+                                                                                }
 column_reference(A) ::= table_name(B) NK_DOT TWSTART(C).                          { A = createRawExprNodeExt(pCxt, &B, &C, createColumnNode(pCxt, &B, &C)); }
 column_reference(A) ::= table_name(B) NK_DOT TWEND(C).                            { A = createRawExprNodeExt(pCxt, &B, &C, createColumnNode(pCxt, &B, &C)); }
 column_reference(A) ::= table_name(B) NK_DOT TWDURATION(C).                       { A = createRawExprNodeExt(pCxt, &B, &C, createColumnNode(pCxt, &B, &C)); }
 column_reference(A) ::= table_name(B) NK_DOT TWROWNUM(C).                         { A = createRawExprNodeExt(pCxt, &B, &C, createColumnNode(pCxt, &B, &C)); }
+column_reference(A) ::= table_name(B) NK_DOT TPRE_WSTART(C).                      { A = createRawExprNodeExt(pCxt, &B, &C, createColumnNode(pCxt, &B, &C)); }
+column_reference(A) ::= table_name(B) NK_DOT TPRE_WEND(C).                        { A = createRawExprNodeExt(pCxt, &B, &C, createColumnNode(pCxt, &B, &C)); }
 column_reference(A) ::= table_name(B) NK_DOT TPREV_TS(C).                         { A = createRawExprNodeExt(pCxt, &B, &C, createColumnNode(pCxt, &B, &C)); }
 column_reference(A) ::= table_name(B) NK_DOT TCURRENT_TS(C).                      { A = createRawExprNodeExt(pCxt, &B, &C, createColumnNode(pCxt, &B, &C)); }
 column_reference(A) ::= table_name(B) NK_DOT TNEXT_TS(C).                         { A = createRawExprNodeExt(pCxt, &B, &C, createColumnNode(pCxt, &B, &C)); }
@@ -2513,6 +2545,8 @@ pseudo_column(A) ::= TWSTART(B).                                                
 pseudo_column(A) ::= TWEND(B).                                                    { A = createRawExprNode(pCxt, &B, createFunctionNode(pCxt, &B, NULL)); }
 pseudo_column(A) ::= TWDURATION(B).                                               { A = createRawExprNode(pCxt, &B, createFunctionNode(pCxt, &B, NULL)); }
 pseudo_column(A) ::= TWROWNUM(B).                                                 { A = createRawExprNode(pCxt, &B, createFunctionNode(pCxt, &B, NULL)); }
+pseudo_column(A) ::= TPRE_WSTART(B).                                              { A = createRawExprNode(pCxt, &B, createFunctionNode(pCxt, &B, NULL)); }
+pseudo_column(A) ::= TPRE_WEND(B).                                                { A = createRawExprNode(pCxt, &B, createFunctionNode(pCxt, &B, NULL)); }
 pseudo_column(A) ::= TEVENT_CONDITION_PATH(B).                                    { A = createRawExprNode(pCxt, &B, createFunctionNode(pCxt, &B, NULL)); }
 pseudo_column(A) ::= TPREV_LOCALTIME(B).                                          { A = createRawExprNode(pCxt, &B, createFunctionNode(pCxt, &B, NULL)); }
 pseudo_column(A) ::= TNEXT_LOCALTIME(B).                                          { A = createRawExprNode(pCxt, &B, createFunctionNode(pCxt, &B, NULL)); }
@@ -2530,6 +2564,7 @@ pseudo_column(A) ::= TIDLEEND(B).                                               
 
 function_expression(A) ::= function_name(B) NK_LP expression_list(C) NK_RP(D).                        { A = createRawExprNodeExt(pCxt, &B, &D, createFunctionNode(pCxt, &B, C)); }
 function_expression(A) ::= function_name(B) NK_LP NK_RP(C).                                           { A = createRawExprNodeExt(pCxt, &B, &C, createFunctionNode(pCxt, &B, NULL)); }
+function_expression(A) ::= function_name(B) NK_LP NK_ID(C) FROM expr_or_subquery(D) NK_RP(E).      { A = createRawExprNodeExt(pCxt, &B, &E, createFunctionNode(pCxt, &B, addNodeToList(pCxt, createNodeList(pCxt, createIdentifierValueNode(pCxt, &C)), releaseRawExprNode(pCxt, D)))); }
 function_expression(A) ::= function_name(B) NK_LP DISTINCT expression_list(C) NK_RP(D).              { A = createRawExprNodeExt(pCxt, &B, &D, createDistinctFunctionNode(pCxt, &B, C)); }
 function_expression(A) ::= star_func(B) NK_LP star_func_para_list(C) NK_RP(D).                        { A = createRawExprNodeExt(pCxt, &B, &D, createFunctionNode(pCxt, &B, C)); }
 function_expression(A) ::= star_func(B) NK_LP DISTINCT star_func_para_list(C) NK_RP(D).               { A = createRawExprNodeExt(pCxt, &B, &D, createDistinctFunctionNode(pCxt, &B, C)); }
@@ -2616,6 +2651,9 @@ sql_window_frame_bound(A) ::= UNBOUNDED FOLLOWING.                              
 literal_func(A) ::= noarg_func(B) NK_LP NK_RP(C).                                 { A = createRawExprNodeExt(pCxt, &B, &C, createFunctionNode(pCxt, &B, NULL)); }
 literal_func(A) ::= NOW(B).                                                       { A = createRawExprNode(pCxt, &B, createFunctionNode(pCxt, &B, NULL)); }
 literal_func(A) ::= TODAY(B).                                                     { A = createRawExprNode(pCxt, &B, createFunctionNode(pCxt, &B, NULL)); }
+literal_func(A) ::= CURRENT_DATE(B).                                              { A = createRawExprNode(pCxt, &B, createFunctionNode(pCxt, &B, NULL)); }
+literal_func(A) ::= CURRENT_TIME(B).                                              { A = createRawExprNode(pCxt, &B, createFunctionNode(pCxt, &B, NULL)); }
+literal_func(A) ::= CURRENT_TIMESTAMP(B).                                         { A = createRawExprNode(pCxt, &B, createFunctionNode(pCxt, &B, NULL)); }
 
 rand_func(A) ::= RAND(B) NK_LP NK_RP(C).                                          { A = createRawExprNodeExt(pCxt, &B, &C, createFunctionNode(pCxt, &B, NULL)); }
 rand_func(A) ::= RAND(B) NK_LP expression_list(C) NK_RP(D).                       { A = createRawExprNodeExt(pCxt, &B, &D, createFunctionNode(pCxt, &B, C)); }
@@ -2860,9 +2898,34 @@ table_primary(A) ::= subquery(B) alias_opt(C).                                  
 table_primary(A) ::= parenthesized_joined_table(B).                               { A = B; }
 table_primary(A) ::= NK_PH TBNAME alias_opt(C).                                   { A = createPlaceHolderTableNode(pCxt, SP_PARTITION_TBNAME, &C); }
 table_primary(A) ::= NK_PH TROWS alias_opt(C).                                    { A = createPlaceHolderTableNode(pCxt, SP_PARTITION_ROWS, &C); }
+table_primary(A) ::= TABLE NK_LP NK_ID(F) NK_LP TABLE NK_PH TBNAME time_align_args_opt(C) NK_RP NK_RP alias_opt(D).
+                                                                                  { A = createTimeAlignTableNodeWithTable(pCxt, &F, createPlaceHolderTableNode(pCxt, SP_PARTITION_TBNAME, NULL), &C, &D); }
 table_primary(A) ::= TEXT NK_LP column_def_list(B) NK_RP VALUES text_row_list(C) alias_opt(D).  { A = createTextTableNode(pCxt, B, C, &D); }
 table_primary(A) ::= FILE NK_LP NK_STRING(B) NK_COMMA NK_STRING(C) NK_RP alias_opt(D).  { A = createFileTableNode(pCxt, &B, &C, false, ',', &D); }
 table_primary(A) ::= FILE NK_LP NK_STRING(B) NK_COMMA NK_STRING(C) NK_COMMA file_options_opt(E) NK_RP alias_opt(D).  { A = createFileTableNode(pCxt, &B, &C, ((E).header == 1), (E).delimiter, &D); }
+table_primary(A) ::= TABLE NK_LP NK_ID(F) NK_LP TABLE table_name(B) time_align_args_opt(C) NK_RP NK_RP alias_opt(D).
+                                                                                  { A = createTimeAlignTableNode(pCxt, &F, NULL, &B, &C, &D); }
+table_primary(A) ::= TABLE NK_LP NK_ID(F) NK_LP TABLE db_name(B) NK_DOT table_name(C) time_align_args_opt(D) NK_RP NK_RP alias_opt(E).
+                                                                                  { A = createTimeAlignTableNode(pCxt, &F, &B, &C, &D, &E); }
+table_primary(A) ::= TABLE NK_LP NK_ID(F) NK_LP TABLE db_name(B) NK_DOT db_name(C) NK_DOT table_name(D) time_align_args_opt(E) NK_RP NK_RP alias_opt(G).
+                                                                                  { A = createTimeAlignTableNodeWithTable(pCxt, &F, createRealTableNodeExt3(pCxt, &B, &C, &D, NULL), &E, &G); }
+table_primary(A) ::= TABLE NK_LP NK_ID(F) NK_LP TABLE db_name(B) NK_DOT db_name(C) NK_DOT db_name(D) NK_DOT table_name(E) time_align_args_opt(F2) NK_RP NK_RP alias_opt(G).
+                                                                                  { A = createTimeAlignTableNodeWithTable(pCxt, &F, createRealTableNodeExt4(pCxt, &B, &C, &D, &E, NULL), &F2, &G); }
+table_primary(A) ::= TABLE NK_LP NK_ID(F) NK_LP table_name(B) time_align_args_opt(C) NK_RP NK_RP alias_opt(D).
+                                                                                  { A = createTimeAlignTableNode(pCxt, &F, NULL, &B, &C, &D); }
+table_primary(A) ::= TABLE NK_LP NK_ID(F) NK_LP db_name(B) NK_DOT table_name(C) time_align_args_opt(D) NK_RP NK_RP alias_opt(E).
+                                                                                  { A = createTimeAlignTableNode(pCxt, &F, &B, &C, &D, &E); }
+table_primary(A) ::= TABLE NK_LP NK_ID(F) NK_LP db_name(B) NK_DOT db_name(C) NK_DOT table_name(D) time_align_args_opt(E) NK_RP NK_RP alias_opt(G).
+                                                                                  { A = createTimeAlignTableNodeWithTable(pCxt, &F, createRealTableNodeExt3(pCxt, &B, &C, &D, NULL), &E, &G); }
+table_primary(A) ::= TABLE NK_LP NK_ID(F) NK_LP db_name(B) NK_DOT db_name(C) NK_DOT db_name(D) NK_DOT table_name(E) time_align_args_opt(F2) NK_RP NK_RP alias_opt(G).
+                                                                                  { A = createTimeAlignTableNodeWithTable(pCxt, &F, createRealTableNodeExt4(pCxt, &B, &C, &D, &E, NULL), &F2, &G); }
+
+%type time_align_args_opt                                                         { STimeAlignArgs }
+%destructor time_align_args_opt                                                   { }
+time_align_args_opt(A) ::= .                                                      { A.outputRaw = -1; A.columnList = nil_token; }
+time_align_args_opt(A) ::= NK_COMMA NK_BOOL(C).                                   { A.outputRaw = timeAlignOutputRaw(&C); A.columnList = nil_token; }
+time_align_args_opt(A) ::= NK_COMMA NK_STRING(B).                                 { A.outputRaw = -1; A.columnList = B; }
+time_align_args_opt(A) ::= NK_COMMA NK_BOOL(C) NK_COMMA NK_STRING(B).             { A.outputRaw = timeAlignOutputRaw(&C); A.columnList = B; }
 
 /* FILE OPTIONS: comma-separated name=value pairs; names as NK_ID, values as literals */
 /* Syntax: FILE('path', 'schema' [, name=value, name=value]) alias */
@@ -2994,8 +3057,8 @@ join_on_clause(A) ::= ON search_condition(B).                                   
 %type window_time_clause_opt { SNodeList* }
 %destructor window_time_clause_opt { nodesDestroyList($$); }
 window_time_clause_opt(A) ::= . [WINDOW_TIME] { A = NULL; }
-window_time_clause_opt(A) ::= WINDOW_TIME NK_LP column_reference(B)
-  NK_COMMA column_reference(C) NK_RP.
+window_time_clause_opt(A) ::= WINDOW_TIME NK_LP expression(B)
+  NK_COMMA expression(C) NK_RP.
 {
   A = createNodeList(pCxt, releaseRawExprNode(pCxt, B));
   A = addNodeToList(pCxt, A, releaseRawExprNode(pCxt, C));
@@ -3244,15 +3307,31 @@ every_opt(A) ::= EVERY NK_LP duration_literal(B) NK_RP.                         
 
 true_for_opt(A) ::= .                                                             { A = NULL; }
 true_for_opt(A) ::= TRUE_FOR NK_LP interval_sliding_duration_literal(B) NK_RP.    { A = releaseRawExprNode(pCxt, B); }
+true_for_opt(A) ::= TRUE_FOR NK_LP column_name(B) NK_RP.                          { A = createTrueForDurationNode(pCxt, createColumnNode(pCxt, NULL, &B)); }
 true_for_opt(A) ::= TRUE_FOR NK_LP COUNT NK_INTEGER(B) NK_RP.                     { A = createTrueForCountNode(pCxt, &B); }
-true_for_opt(A) ::= TRUE_FOR NK_LP interval_sliding_duration_literal(B) AND COUNT NK_INTEGER(C) NK_RP. { A = createTrueForAndNode(pCxt, releaseRawExprNode(pCxt, B), &C); }
-true_for_opt(A) ::= TRUE_FOR NK_LP interval_sliding_duration_literal(B) OR COUNT NK_INTEGER(C) NK_RP.  { A = createTrueForOrNode(pCxt, releaseRawExprNode(pCxt, B), &C); }
+true_for_opt(A) ::= TRUE_FOR NK_LP COUNT column_name(B) NK_RP.                    { A = createTrueForCountTagNode(pCxt, createColumnNode(pCxt, NULL, &B)); }
+true_for_opt(A) ::= TRUE_FOR NK_LP interval_sliding_duration_literal(B) AND COUNT NK_INTEGER(C) NK_RP. { A = createTrueForAndNode(pCxt, releaseRawExprNode(pCxt, B), &C, NULL); }
+true_for_opt(A) ::= TRUE_FOR NK_LP interval_sliding_duration_literal(B) AND COUNT column_name(C) NK_RP. { A = createTrueForAndNode(pCxt, releaseRawExprNode(pCxt, B), NULL, createColumnNode(pCxt, NULL, &C)); }
+true_for_opt(A) ::= TRUE_FOR NK_LP column_name(B) AND COUNT NK_INTEGER(C) NK_RP.  { A = createTrueForAndNode(pCxt, createColumnNode(pCxt, NULL, &B), &C, NULL); }
+true_for_opt(A) ::= TRUE_FOR NK_LP column_name(B) AND COUNT column_name(C) NK_RP. { A = createTrueForAndNode(pCxt, createColumnNode(pCxt, NULL, &B), NULL, createColumnNode(pCxt, NULL, &C)); }
+true_for_opt(A) ::= TRUE_FOR NK_LP interval_sliding_duration_literal(B) OR COUNT NK_INTEGER(C) NK_RP.  { A = createTrueForOrNode(pCxt, releaseRawExprNode(pCxt, B), &C, NULL); }
+true_for_opt(A) ::= TRUE_FOR NK_LP interval_sliding_duration_literal(B) OR COUNT column_name(C) NK_RP.   { A = createTrueForOrNode(pCxt, releaseRawExprNode(pCxt, B), NULL, createColumnNode(pCxt, NULL, &C)); }
+true_for_opt(A) ::= TRUE_FOR NK_LP column_name(B) OR COUNT NK_INTEGER(C) NK_RP.    { A = createTrueForOrNode(pCxt, createColumnNode(pCxt, NULL, &B), &C, NULL); }
+true_for_opt(A) ::= TRUE_FOR NK_LP column_name(B) OR COUNT column_name(C) NK_RP.  { A = createTrueForOrNode(pCxt, createColumnNode(pCxt, NULL, &B), NULL, createColumnNode(pCxt, NULL, &C)); }
 
 // A single limit sub-expression (used as window_limit, start_limit, or end_limit).
 true_for_limit_expr(A) ::= interval_sliding_duration_literal(B).                  { A = createTrueForDurationNode(pCxt, releaseRawExprNode(pCxt, B)); }
+true_for_limit_expr(A) ::= column_name(B).                                        { A = createTrueForDurationNode(pCxt, createColumnNode(pCxt, NULL, &B)); }
 true_for_limit_expr(A) ::= COUNT NK_INTEGER(B).                                   { A = createTrueForCountNode(pCxt, &B); }
-true_for_limit_expr(A) ::= interval_sliding_duration_literal(B) AND COUNT NK_INTEGER(C). { A = createTrueForAndNode(pCxt, releaseRawExprNode(pCxt, B), &C); }
-true_for_limit_expr(A) ::= interval_sliding_duration_literal(B) OR  COUNT NK_INTEGER(C). { A = createTrueForOrNode(pCxt, releaseRawExprNode(pCxt, B), &C); }
+true_for_limit_expr(A) ::= COUNT column_name(B).                                  { A = createTrueForCountTagNode(pCxt, createColumnNode(pCxt, NULL, &B)); }
+true_for_limit_expr(A) ::= interval_sliding_duration_literal(B) AND COUNT NK_INTEGER(C). { A = createTrueForAndNode(pCxt, releaseRawExprNode(pCxt, B), &C, NULL); }
+true_for_limit_expr(A) ::= interval_sliding_duration_literal(B) AND COUNT column_name(C). { A = createTrueForAndNode(pCxt, releaseRawExprNode(pCxt, B), NULL, createColumnNode(pCxt, NULL, &C)); }
+true_for_limit_expr(A) ::= column_name(B) AND COUNT NK_INTEGER(C).                { A = createTrueForAndNode(pCxt, createColumnNode(pCxt, NULL, &B), &C, NULL); }
+true_for_limit_expr(A) ::= column_name(B) AND COUNT column_name(C).               { A = createTrueForAndNode(pCxt, createColumnNode(pCxt, NULL, &B), NULL, createColumnNode(pCxt, NULL, &C)); }
+true_for_limit_expr(A) ::= interval_sliding_duration_literal(B) OR  COUNT NK_INTEGER(C). { A = createTrueForOrNode(pCxt, releaseRawExprNode(pCxt, B), &C, NULL); }
+true_for_limit_expr(A) ::= interval_sliding_duration_literal(B) OR  COUNT column_name(C).  { A = createTrueForOrNode(pCxt, releaseRawExprNode(pCxt, B), NULL, createColumnNode(pCxt, NULL, &C)); }
+true_for_limit_expr(A) ::= column_name(B) OR COUNT NK_INTEGER(C).                 { A = createTrueForOrNode(pCxt, createColumnNode(pCxt, NULL, &B), &C, NULL); }
+true_for_limit_expr(A) ::= column_name(B) OR COUNT column_name(C).                { A = createTrueForOrNode(pCxt, createColumnNode(pCxt, NULL, &B), NULL, createColumnNode(pCxt, NULL, &C)); }
 
 // Extended true_for_opt with start/end sub-expressions.
 // window_limit + start
@@ -3483,9 +3562,9 @@ ext_alter_clause(A) ::= SCHEMA NK_EQ NK_ID(B).                                  
 ext_alter_clause(A) ::= OPTIONS NK_LP NK_RP.                                       { A = createAlterExtClause(pCxt, EXT_ALTER_OPTIONS, NULL, NULL); }
 ext_alter_clause(A) ::= OPTIONS NK_LP ext_option_list(B) NK_RP.                   { A = createAlterExtClause(pCxt, EXT_ALTER_OPTIONS, B, NULL); }
 
-%fallback NK_ID FROM_BASE64 TO_BASE64 MD5 SHA SHA1 SHA2 AES_ENCRYPT AES_DECRYPT SM4_ENCRYPT SM4_DECRYPT CLOSE CURRENT
+%fallback NK_ID FROM_BASE64 TO_BASE64 MD5 SHA SHA1 SHA2 AES_ENCRYPT AES_DECRYPT SM4_ENCRYPT SM4_DECRYPT CLOSE CURRENT CURRENT_DATE CURRENT_TIME CURRENT_TIMESTAMP
   FOLLOWING OPEN OVER PRECEDING ROWS UNBOUNDED HOST META VALUE
-  EXTERNAL SOURCE SOURCES REFRESH OPTIONS SCHEMA TYPE PASSWORD.
+  EXTERNAL SOURCE SOURCES REFRESH OPTIONS SCHEMA TYPE PASSWORD REFERENCE.
 %fallback ABORT AFTER ATTACH BEFORE BEGIN BITAND BITNOT BITOR BLOCKS CHANGE COMMA CONCAT CONFLICT COPY DEFERRED DELIMITERS DETACH DIVIDE DOT EACH END FAIL
   FILE FOR GLOB ID IMMEDIATE IMPORT INITIALLY INSTEAD ISNULL KEY MODULES NK_BITNOT NK_SEMI NOTNULL OF PLUS PRIVILEGE RAISE RESTRICT ROW SEMI STAR STATEMENT
   STRICT STRING TIMES VALUES VARIABLE VIEW WAL.
@@ -3505,7 +3584,7 @@ external_col_filter_opt(A) ::= .                                                
 external_col_filter_opt(A) ::= WHERE search_condition(B).                           { A = B; }
 
 %type column_name_triplet                                                            { STokenTriplet* }
-%destructor column_name_triplet                                                      { }
+%destructor column_name_triplet                                                      { taosMemoryFree($$); }
 column_name_triplet(A) ::= NK_ID(B).                                                 { A = createTokenTriplet(pCxt, B); }
 column_name_triplet(A) ::= column_name_triplet(B) NK_DOT NK_ID(C).                   { A = setColumnName(pCxt, B, C); }
 
@@ -3513,12 +3592,18 @@ column_name_triplet(A) ::= column_name_triplet(B) NK_DOT NK_ID(C).              
 %type series_clause_opt                                                              { SNodeList* }
 %destructor series_clause_opt                                                        { nodesDestroyList($$); }
 series_clause_opt(A) ::= .                                                           { A = NULL; }
+series_clause_opt(A) ::= series_clause_opt(B) reference_decl(C).                    { A = (B == NULL ? createNodeList(pCxt, C) : addNodeToList(pCxt, B, C)); }
 series_clause_opt(A) ::= series_clause_opt(B) series_decl(C).                        { A = (B == NULL ? createNodeList(pCxt, C) : addNodeToList(pCxt, B, C)); }
 
 %type series_decl                                                                    { SNode* }
 %destructor series_decl                                                              { nodesDestroyNode($$); }
 series_decl(A) ::= SERIES NK_ID(B) AS column_name_triplet(C)
   NK_LP series_tag_list(D) NK_RP.                                                    { A = createSeriesDeclNode(pCxt, &B, C, D); }
+
+%type reference_decl { SNode* }
+%destructor reference_decl { nodesDestroyNode($$); }
+reference_decl(A) ::= REFERENCE NK_ID(B) AS column_name_triplet(C) TIMESTAMP NK_ID(D).
+  { A = createReferenceDeclNode(pCxt, &B, C, &D); }
 
 %type series_tag_list                                                                { SNode* }
 %destructor series_tag_list                                                          { nodesDestroyNode($$); }

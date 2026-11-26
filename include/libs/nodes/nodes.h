@@ -118,6 +118,8 @@ void    nodesDestroyAllocatorSet();
 // Release the timezone handles cached by plan decode/clone. Process cleanup only, after all
 // plans/nodes are destroyed.
 void    nodesCleanupTimezoneCache();
+// Validate a nonempty name using the bounded cache shared with plan decoding.
+int32_t nodesValidateTimezoneName(const char* pTimezoneName);
 int32_t nodesCreateAllocator(int64_t queryId, int32_t chunkSize, int64_t* pAllocatorId);
 int32_t nodesSimAcquireAllocator(int64_t allocatorId);
 int32_t nodesSimReleaseAllocator(int64_t allocatorId);
@@ -183,6 +185,13 @@ int32_t nodesStringToList(const char* pStr, SNodeList** pList);
 
 int32_t nodesNodeToMsg(const SNode* pNode, char** pMsg, int32_t* pLen);
 int32_t nodesMsgToNode(const char* pStr, int32_t len, SNode** pNode);
+// Validate decoded nodes, including nodes nested inside a plan; NULL disables validation.
+// A validator returns TSDB_CODE_SUCCESS or a TSDB error code. After its first error,
+// decoding continues without further validation so ownership of the tree is preserved.
+// A decoding error takes precedence over the first validation error. On any error,
+// the decoded tree is destroyed and *pNode is NULL; on success the caller owns *pNode.
+int32_t nodesMsgToNodeWithValidator(const char* pStr, int32_t len, SNode** pNode,
+                                    int32_t (*validator)(const SNode*));
 
 // Restore a borrowed charset context (SConvInfo*, process-cached, never freed by
 // the caller) from a serialized charset name. An empty name, or a name equal to
@@ -200,6 +209,13 @@ int32_t nodesListDeduplicate(SNodeList** pList);
 bool    nodesIsScalarSubQuery(SNode* pNode);
 char*   nodesGetSubSql(SNode* pNode);
 void    nodesGetSubQType(SNode* pNode, int32_t* pType);
+
+// Snapshot the metadata that binds an InfluxDB 1.8 scan, including Tag roles.
+struct SExtTableNode;
+int32_t nodesCaptureInfluxSchema(struct SExtTableNode* pTable);
+
+int32_t nodesFormatReferenceSource(const SColRef *pRef, const SReferenceEntry *pReference,
+                                   char *buffer, int32_t capacity);
 
 #ifdef __cplusplus
 }

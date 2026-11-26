@@ -28,6 +28,7 @@
   FS-CERR-009  STREAM_OPTIONS(FILL_HISTORY(...)) on ext trigger table -> rejected
                (history recalculation is not supported for federated sources).
   FS-CERR-010  STREAM_OPTIONS(FILL_HISTORY_FIRST) on ext trigger table -> rejected.
+  FS-CERR-011  Unsupported external PRE_FILTER expression -> rejected at CREATE.
 """
 
 import sys
@@ -415,6 +416,189 @@ class TestFsCreateErrors(FederatedQueryTestMixin):
             self._cleanup_src(src)
             try:
                 ExtSrcEnv.mysql_drop_db_cfg(self._mysql_cfg(), db)
+            except Exception:
+                pass
+
+    def test_cerr_011_unsupported_pre_filter_influx(self):
+        """Reject an external PRE_FILTER that has no safe pushdown rendering.
+
+        Verify that CREATE STREAM does not silently drop an unsupported
+        PRE_FILTER expression.
+
+        Since: v3.5.0.0
+
+        """
+        if self._influx_cfg().version != "1.8":
+            tdLog.info("unsupported external PRE_FILTER regression applies only to InfluxDB 1.8")
+            return
+
+        prefix = "cerr011"
+        src = f"{prefix}_i"
+        db = f"{prefix}_idb"
+        self._cleanup_src(src)
+        ExtSrcEnv.influx_create_db_cfg(self._influx_cfg(), db)
+        try:
+            ExtSrcEnv.influx_write_cfg(self._influx_cfg(), db, [
+                "src_t,host=a val=1i 1704067200000000000",
+            ])
+            self._mk_influx_real(src, database=db)
+            tdSql.execute(f"USE {self.DB}")
+            sql = (
+                f"CREATE STREAM s_cerr011 INTERVAL(1m) SLIDING(1m) "
+                f"FROM {src}.{db}.src_t "
+                f"STREAM_OPTIONS(PRE_FILTER(abs(val) > 0)) "
+                f"INTO {self.DB}.sink_cerr011 AS "
+                f"SELECT _twstart AS ts, COUNT(*) FROM %%trows"
+            )
+            tdSql.error(sql)
+            tdLog.info("FS-CERR-011: unsupported external PRE_FILTER rejected at CREATE")
+            # The 1.8 provider only accepts AND/OR of column-to-constant comparisons, so
+            # CREATE must reject what its renderer cannot express: an arithmetic operand
+            # and NOT both pass the generic renderer and would then fail every read.
+            for expr, note in (
+                ("val + 1 > 0", "arithmetic operand"),
+                ("NOT host = 'a'", "NOT"),
+            ):
+                sql = (
+                    f"CREATE STREAM s_cerr011b INTERVAL(1m) SLIDING(1m) "
+                    f"FROM {src}.{db}.src_t "
+                    f"STREAM_OPTIONS(PRE_FILTER({expr})) "
+                    f"INTO {self.DB}.sink_cerr011b AS "
+                    f"SELECT _twstart AS ts, COUNT(*) FROM %%trows"
+                )
+                tdSql.error(sql)
+                tdLog.info(f"FS-CERR-011: PRE_FILTER with {note} rejected at CREATE")
+        finally:
+            self._cleanup_src(src)
+            try:
+                ExtSrcEnv.influx_drop_db_cfg(self._influx_cfg(), db)
+            except Exception:
+                pass
+
+    def test_cerr_012_pre_filter_time_literal_influx(self):
+        """Accept a constant time bound in an InfluxDB 1.8 PRE_FILTER.
+
+        Verify that a date-time literal compared with the primary time column
+        is normalized at CREATE instead of being persisted in a form the 1.8
+        provider rejects on its first read.
+
+        Since: v3.5.0.0
+
+        """
+        if self._influx_cfg().version != "1.8":
+            tdLog.info("PRE_FILTER time bound regression applies only to InfluxDB 1.8")
+            return
+
+        prefix = "cerr012"
+        src = f"{prefix}_i"
+        db = f"{prefix}_idb"
+        self._cleanup_src(src)
+        ExtSrcEnv.influx_create_db_cfg(self._influx_cfg(), db)
+        try:
+            ExtSrcEnv.influx_write_cfg(self._influx_cfg(), db, [
+                "src_t,host=a val=1i 1704067200000000000",
+            ])
+            self._mk_influx_real(src, database=db)
+            tdSql.execute(f"USE {self.DB}")
+            sql = (
+                f"CREATE STREAM s_cerr012 INTERVAL(1m) SLIDING(1m) "
+                f"FROM {src}.{db}.src_t "
+                f"STREAM_OPTIONS(PRE_FILTER(time >= '2023-01-01 00:00:00')) "
+                f"INTO {self.DB}.sink_cerr012 AS "
+                f"SELECT _twstart AS ts, COUNT(*) FROM %%trows"
+            )
+            tdSql.execute(sql)
+            tdLog.info("FS-CERR-012: PRE_FILTER with a date-time literal accepted at CREATE")
+            # The bound must be resolved at CREATE: a literal the reader could never
+            # evaluate is rejected instead of being persisted as a broken filter.
+            sql = (
+                f"CREATE STREAM s_cerr012b INTERVAL(1m) SLIDING(1m) "
+                f"FROM {src}.{db}.src_t "
+                f"STREAM_OPTIONS(PRE_FILTER(time >= 'not-a-time')) "
+                f"INTO {self.DB}.sink_cerr012b AS "
+                f"SELECT _twstart AS ts, COUNT(*) FROM %%trows"
+            )
+            tdSql.error(sql)
+            tdLog.info("FS-CERR-012: unparsable time bound rejected at CREATE")
+        finally:
+            self._cleanup_src(src)
+            try:
+                ExtSrcEnv.influx_drop_db_cfg(self._influx_cfg(), db)
+            except Exception:
+                pass
+
+    # FS-CERR-013 — InfluxDB 1.8 time bounds in PRE_FILTER ---------------
+    def test_cerr_013_pre_filter_time_disjunction_influx(self):
+        """Reject time bounds the InfluxDB 1.8 provider cannot evaluate.
+
+        Verify that a PRE_FILTER whose time bound sits in an OR branch, or uses
+        ``!=``, is refused at CREATE instead of failing on the first read or
+        silently dropping rows.
+
+        Since: v3.5.0.0
+
+        """
+        if self._influx_cfg().version != "1.8":
+            tdLog.info("PRE_FILTER time-shape regression applies only to InfluxDB 1.8")
+            return
+
+        prefix = "cerr013"
+        src = f"{prefix}_i"
+        db = f"{prefix}_idb"
+        self._cleanup_src(src)
+        ExtSrcEnv.influx_create_db_cfg(self._influx_cfg(), db)
+        try:
+            ExtSrcEnv.influx_write_cfg(self._influx_cfg(), db, [
+                "src_t,host=a val=1i 1704067200000000000",
+                # A second tag key, so a tag-to-tag PRE_FILTER is validated
+                # against a schema that really carries both columns.
+                "src_t,host=a,zone=b val=1i 1704067200000000000",
+            ])
+            self._mk_influx_real(src, database=db)
+            tdSql.execute(f"USE {self.DB}")
+            # InfluxDB extracts the time range of every branch with the same
+            # intersection rule regardless of AND/OR, so a disjunction of two
+            # disjoint time bounds becomes an empty range and the rows vanish.
+            # A tag only has an equality index, and the time range is resolved
+            # against a constant, so range comparisons, tag/number comparisons,
+            # time/column comparisons and tag/tag comparisons would pass CREATE
+            # and then fail or drop rows on every read.
+            for expr, note in (
+                ("time < '2023-01-01 00:00:00' OR time >= '2024-01-01 00:00:00'",
+                 "time bound in an OR branch"),
+                ("time != '2023-01-01 00:00:00'", "!= on the time column"),
+                ("host > 'a'", "range comparison on a tag column"),
+                ("host = 1", "number compared with a tag column"),
+                ("1 = host", "number compared with a tag column (swapped sides)"),
+                ("time > val", "time column compared with a field column"),
+                ("host != zone", "comparison between two tag columns"),
+                ("zone != host", "comparison between two tag columns (swapped)"),
+            ):
+                sql = (
+                    f"CREATE STREAM s_cerr013 INTERVAL(1m) SLIDING(1m) "
+                    f"FROM {src}.{db}.src_t "
+                    f"STREAM_OPTIONS(PRE_FILTER({expr})) "
+                    f"INTO {self.DB}.sink_cerr013 AS "
+                    f"SELECT _twstart AS ts, COUNT(*) FROM %%trows"
+                )
+                tdSql.error(sql)
+                tdLog.info(f"FS-CERR-013: {note} rejected at CREATE")
+
+            # A time bound combined with AND, and a field-only OR, stay supported.
+            sql = (
+                f"CREATE STREAM s_cerr013ok INTERVAL(1m) SLIDING(1m) "
+                f"FROM {src}.{db}.src_t "
+                f"STREAM_OPTIONS(PRE_FILTER(time >= '2023-01-01 00:00:00' "
+                f"AND (val > 0 OR host = 'a'))) "
+                f"INTO {self.DB}.sink_cerr013ok AS "
+                f"SELECT _twstart AS ts, COUNT(*) FROM %%trows"
+            )
+            tdSql.execute(sql)
+            tdLog.info("FS-CERR-013: AND time bound with a field-only OR accepted")
+        finally:
+            self._cleanup_src(src)
+            try:
+                ExtSrcEnv.influx_drop_db_cfg(self._influx_cfg(), db)
             except Exception:
                 pass
 

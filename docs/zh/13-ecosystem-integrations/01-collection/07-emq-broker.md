@@ -26,8 +26,23 @@ MQTT 是流行的物联网数据传输协议，[EMQX](https://github.com/emqx/em
 
 ```sql
 CREATE DATABASE test;
+
 USE test;
-CREATE TABLE sensor_data (ts TIMESTAMP, temperature FLOAT, humidity FLOAT, volume FLOAT, pm10 FLOAT, pm25 FLOAT, so2 FLOAT, no2 FLOAT, co FLOAT, sensor_id NCHAR(255), area TINYINT, coll_time TIMESTAMP);
+
+CREATE TABLE sensor_data (
+  ts          TIMESTAMP,
+  temperature FLOAT,
+  humidity    FLOAT,
+  volume      FLOAT,
+  pm10        FLOAT,
+  pm25        FLOAT,
+  so2         FLOAT,
+  no2         FLOAT,
+  co          FLOAT,
+  sensor_id   NCHAR(255),
+  area        TINYINT,
+  coll_time   TIMESTAMP
+);
 ```
 
 注：表结构以博客 [数据传输、存储、展现，EMQX + TDengine 搭建 MQTT 物联网数据可视化平台](https://www.taosdata.com/blog/2020/08/04/1722.html) 为例。后续操作均以此博客场景为例进行，请你根据实际应用场景进行修改。
@@ -53,10 +68,8 @@ CREATE TABLE sensor_data (ts TIMESTAMP, temperature FLOAT, humidity FLOAT, volum
 复制以下内容输入到 SQL 编辑框：
 
 ```sql
-SELECT
-  payload
-FROM
-  "sensor/data"
+SELECT payload
+FROM "sensor/data"
 ```
 
 其中 `payload` 代表整个消息体，`sensor/data` 为本规则选取的消息主题。

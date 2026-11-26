@@ -82,7 +82,11 @@ class _MyForecastService(AbstractForecastService):
 
 ```SQL
 --- 对 col 列进行异常检测，通过指定 algo 参数为 myfc 来调用新添加的预测类
-SELECT  _flow, _fhigh, _frowts, FORECAST(col_name, "algo=myfc")
+SELECT
+  _flow,
+  _fhigh,
+  _frowts,
+  FORECAST(col_name, "algo=myfc")
 FROM foo;
 ```
 

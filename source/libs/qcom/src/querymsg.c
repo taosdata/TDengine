@@ -380,6 +380,7 @@ int32_t queryBuildGetTbCfgMsg(void *input, char **msg, int32_t msgSize, int32_t 
   cfgReq.header.vgId = pInput->vgId;
   tstrncpy(cfgReq.dbFName, pInput->dbFName, TSDB_DB_FNAME_LEN);
   tstrncpy(cfgReq.tbName, pInput->tbName, TSDB_TABLE_NAME_LEN);
+  cfgReq.txnId = pInput->txnId;
 
   int32_t bufLen = tSerializeSTableCfgReq(NULL, 0, &cfgReq);
   void   *pBuf = (*mallcFp)(bufLen);
@@ -870,6 +871,7 @@ int32_t queryCreateVCTableMetaFromMsg(STableMetaRsp *msg, SVCTableMeta **pMeta) 
   qDebug("ctable %s uid %" PRIx64 " meta returned, type %d vgId:%d db %s suid %" PRIx64, msg->tbName, (pTableMeta)->uid,
          (pTableMeta)->tableType, (pTableMeta)->vgId, msg->dbFName, (pTableMeta)->suid);
 
+  TSDB_CHECK_CODE(code = tCloneVtableReferenceExt(&msg->referenceExt, &pTableMeta->referenceExt), lino, _return);
   *pMeta = pTableMeta;
   return code;
 
@@ -879,6 +881,7 @@ _return:
     queryFreeColRefTagConds(pTableMeta->colRef, pTableMeta->numOfColRefs);
     queryFreeColRefTagConds(pTableMeta->tagRef, pTableMeta->numOfTagRefs);
     queryFreeSeriesEntries(pTableMeta->seriesEntries, pTableMeta->numOfSeries);
+    tFreeVtableReferenceExt(&pTableMeta->referenceExt);
     taosMemoryFree(pTableMeta);
   }
   return code;
@@ -910,15 +913,15 @@ static int32_t queryCountVstbSchema(const STableMetaRsp *msg, int32_t *pNumOfCol
   return TSDB_CODE_SUCCESS;
 }
 
-// Repack the vstb entries of a virtual child merged schema into the stb-side meta: columns
-// first, then tags; the matching schemaExt column entries are copied too when dstExt != NULL.
+// Repack the vstb columns followed by tags from a virtual child's merged schema.
+// Copy matching schemaExt entries when both extension buffers are present.
 // Must be called with the counts from queryCountVstbSchema (the destination is sized by them).
 static void queryPackVstbSchema(const STableMetaRsp *msg, SSchema *dstSchema, SSchemaExt *dstExt) {
   int32_t o = 0;
   for (int32_t i = 0; i < msg->numOfColumns; ++i) {
     if (msg->pSchemas[i].colId < TSDB_VCHILD_OWN_COL_ID_BASE) {
       dstSchema[o] = msg->pSchemas[i];
-      if (dstExt != NULL) {
+      if (dstExt != NULL && msg->pSchemaExt != NULL) {
         dstExt[o] = msg->pSchemaExt[i];
       }
       ++o;
@@ -1104,6 +1107,9 @@ int32_t queryCreateTableMetaFromMsg(STableMetaRsp *msg, bool isStb, STableMeta *
          pTableMeta->suid, pTableMeta->sversion, pTableMeta->tversion, pTableMeta->tableInfo.numOfTags,
          pTableMeta->tableInfo.numOfColumns, pTableMeta->tableInfo.precision, pTableMeta->tableInfo.rowSize);
 
+  if (!isStb) {
+    TSDB_CHECK_CODE(code = tCloneVtableReferenceExt(&msg->referenceExt, &pTableMeta->referenceExt), lino, _return);
+  }
   *pMeta = pTableMeta;
   return code;
 
@@ -1228,6 +1234,9 @@ int32_t queryCreateTableMetaExFromMsg(STableMetaRsp *msg, bool isStb, STableMeta
          pTableMeta->suid, pTableMeta->sversion, pTableMeta->tversion, pTableMeta->tableInfo.numOfTags,
          pTableMeta->tableInfo.numOfColumns, pTableMeta->tableInfo.precision, pTableMeta->tableInfo.rowSize);
 
+  if (!isStb) {
+    TSDB_CHECK_CODE(code = tCloneVtableReferenceExt(&msg->referenceExt, &pTableMeta->referenceExt), lino, _return);
+  }
   *pMeta = pTableMeta;
   return code;
 

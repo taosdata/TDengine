@@ -28,7 +28,7 @@ along with this program. If not, see <http://www.gnu.org/licenses/>.
     <description>Demo project for TDengine</description>
 
     <properties>
-        <spring.version>6.2.11</spring.version>
+        <spring.version>6.2.19</spring.version>
     </properties>
 
     <dependencies>

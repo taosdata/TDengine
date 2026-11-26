@@ -80,6 +80,35 @@ class TaosAdapter:
             self._remote.cmd_windows(node, [start_cmd, "sleep 5s"])
         else:
             self._remote.cmd(node, [f"screen -d -m {taosadapter_path} -c {nodeDict['spec']['config_file']}", "sleep 5s"])
+            # `screen -d -m` reports success even when the child dies right away,
+            # so a dead adapter used to stay unnoticed until the first WebSocket
+            # operation failed minutes later with an opaque "connection refused".
+            # Report it here with the adapter log; this stays a warning because
+            # many cases never touch the adapter and must keep running.
+            self._verify_started(node, taosadapter_path, nodeDict)
+
+    def _adapter_log_tail(self, node, nodeDict, lines=50):
+        log_dir = nodeDict["spec"]["adapter_config"]["log"]["path"]
+        cmd = (f'f=$(ls -t {log_dir}/taosadapter*.log 2>/dev/null | head -n1); '
+               f'if [ -n "$f" ]; then echo "----- tail of $f -----"; tail -n {lines} "$f"; fi; true')
+        return (self._remote.cmd(node, cmd) or "").strip()
+
+    def _verify_started(self, node, taosadapter_path, nodeDict, retries=15):
+        pattern = f"{taosadapter_path} -c {nodeDict['spec']['config_file']}"
+        # Poll in one remote round trip; echoes "yes" once the process shows up.
+        # The binary name is split into two adjacent literals ("taos""adapter")
+        # so that this very command line does not contain the pattern it greps
+        # for, otherwise `ps -ef` would always match the shell running the check.
+        cmd = (f'running=no; p="taos""adapter -c {nodeDict["spec"]["config_file"]}"; '
+               f'for i in $(seq 1 {retries}); do '
+               f'if ps -ef | grep -F "$p" | grep -v grep >/dev/null; then running=yes; break; fi; '
+               f'sleep 1; done; echo $running')
+        out = (self._remote.cmd(node, cmd) or "").strip()
+        if not out.endswith("yes"):
+            tail = self._adapter_log_tail(node, nodeDict)
+            self.logger.error(f"taosadapter is not running after startup on {node} "
+                              f"(config: {nodeDict['spec']['config_file']}, expected process: {pattern}); "
+                              f"cases that need the REST/WebSocket port will fail:\n{tail}")
 
     def configure_and_start(self, tmp_dir, nodeDict):
         config_dir, config_file = os.path.split(nodeDict["spec"]["config_file"])

@@ -180,13 +180,13 @@ service_config_dir="/etc/systemd/system"
 
 #echo "verType=${verType} interactiveFqdn=${interactiveFqdn}"
 
-tools=(${clientName} ${benchmarkName} ${dumpName} ${demoName} ${inspect_name} remove.sh ${udfdName} set_core.sh TDinsight.sh start_pre.sh start-all.sh stop-all.sh)
+tools=(${clientName} ${benchmarkName} ${dumpName} ${demoName} ${inspect_name} remove.sh ${udfdName} set_core.sh TDinsight.sh start_pre.sh start-all.sh reconcile-tsdb-nodes.sh stop-all.sh)
 if [ "${verMode}" == "cluster" ]; then
   services=(${serverName} ${adapterName} ${xname} ${explorerName} ${keeperName})
 elif [ "${verMode}" == "edge" ]; then
   if [ "${pagMode}" == "full" ]; then
     services=(${serverName} ${adapterName} ${keeperName} ${explorerName})
-    tools=(${clientName} ${benchmarkName} ${dumpName} ${demoName} remove.sh ${udfdName} set_core.sh TDinsight.sh start_pre.sh start-all.sh stop-all.sh)
+    tools=(${clientName} ${benchmarkName} ${dumpName} ${demoName} remove.sh ${udfdName} set_core.sh TDinsight.sh start_pre.sh start-all.sh reconcile-tsdb-nodes.sh stop-all.sh)
   else
     services=(${serverName})
     tools=(${clientName} ${benchmarkName} remove.sh start_pre.sh)
@@ -265,6 +265,7 @@ function install_bin() {
   else
     ${csudo}cp -r ${script_dir}/bin/* ${install_main_dir}/bin
     ${csudo}cp ${script_dir}/start-all.sh ${install_main_dir}/bin
+    ${csudo}cp ${script_dir}/reconcile-tsdb-nodes.sh ${install_main_dir}/bin
     ${csudo}cp ${script_dir}/stop-all.sh ${install_main_dir}/bin
   fi
 
@@ -1152,22 +1153,21 @@ function installProduct() {
 
 check_java_env() {
   if ! command -v java &>/dev/null; then
-    echo -e "\033[31mWarning: Java command not found. Version 1.8+ is required.\033[0m"
+    echo -e "\033[31mWarning: Java command not found. Version 17+ is required.\033[0m"
     return
   fi
 
   java_version=$(java -version 2>&1 | awk -F '"' '/version/ {print $2}')
+  java_major=$(echo "$java_version" | cut -d"." -f1 | tr -cd '0-9')
   java_version_ok=false
-  if [[ $(echo "$java_version" | cut -d"." -f1) -gt 1 ]]; then
-    java_version_ok=true
-  elif [[ $(echo "$java_version" | cut -d"." -f1) -eq 1 && $(echo "$java_version" | cut -d"." -f2) -ge 8 ]]; then
+  if [ -n "$java_major" ] && [ "$java_major" -ge 17 ]; then
     java_version_ok=true
   fi
 
   if $java_version_ok; then
     echo -e "\033[32mJava ${java_version} has been found.\033[0m"
   else
-    echo -e "\033[31mWarning: Java Version 1.8+ is required, but version ${java_version} has been found.\033[0m"
+    echo -e "\033[31mWarning: Java Version 17+ is required, but version ${java_version} has been found.\033[0m"
   fi
 }
 

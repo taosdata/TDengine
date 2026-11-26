@@ -114,11 +114,11 @@ taosBenchmark -t 100 -n 1000 -y
 
 **db.properties**​（连接配置）：
 
-``` sql
+```properties
 jdbc.url=jdbc:TAOS-WS://localhost:6041/test
 jdbc.user=root
 jdbc.password=taosdata
-jdbc.driver=com.taosdata.jdbc.ws.WebSocketDriver   
+jdbc.driver=com.taosdata.jdbc.ws.WebSocketDriver
 ```
 
 **db.obda**（映射配置）：  

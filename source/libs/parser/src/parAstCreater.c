@@ -987,6 +987,25 @@ static bool isSplitScanHint(const SToken* pToken) {
          0 == strncasecmp(pToken->z, kSplitScanHint, pToken->n);
 }
 
+static bool isExtWinPartitionBatchHint(const SToken* pToken) {
+  static const char kExtWinPartitionBatchHint[] = "EXTWIN_PARTITION_BATCH";
+  return pToken->n == (int32_t)strlen(kExtWinPartitionBatchHint) &&
+         0 == strncasecmp(pToken->z, kExtWinPartitionBatchHint, pToken->n);
+}
+
+static bool isNoExtWinPartitionBatchHint(const SToken* pToken) {
+  static const char kNoExtWinPartitionBatchHint[] = "NO_EXTWIN_PARTITION_BATCH";
+  return pToken->n == (int32_t)strlen(kNoExtWinPartitionBatchHint) &&
+         0 == strncasecmp(pToken->z, kNoExtWinPartitionBatchHint, pToken->n);
+}
+
+static bool isNoConcurrentLastScanHint(const SToken* pToken) {
+  static const char kHint[] = "NO_CONCURRENT_LAST_SCAN";
+
+  return pToken->n == (int32_t)strlen(kHint) &&
+         0 == strncasecmp(pToken->z, kHint, pToken->n);
+}
+
 static EJoinAlgorithm getHintJoinAlgo(SNodeList* pHintList) {
   if (!pHintList) return JOIN_ALGO_UNKNOWN;
 
@@ -1045,8 +1064,17 @@ static bool addHintNodeToList(SAstCreateContext* pCxt, SNodeList** ppHintList, E
     case HINT_FAST_INTERVAL:
     case HINT_EX_INTERVAL:
       break;
+    case HINT_EXTWIN_PARTITION_BATCH:
+    case HINT_NO_EXTWIN_PARTITION_BATCH:
+      if (paramNum != 0) return true;
+      // Ignore duplicates. The planner gives NO priority in either order.
+      if (hasHint(*ppHintList, opt)) return false;
+      break;
     case HINT_INTERVAL_LIMIT:
       if (paramNum != 0 || hasHint(*ppHintList, HINT_INTERVAL_LIMIT)) return true;
+      break;
+    case HINT_NO_CONCURRENT_LAST_SCAN:
+      if (paramNum != 0 || hasHint(*ppHintList, opt)) return true;
       break;
     case HINT_SPLIT_SCAN:
       if (NULL != *ppParams) return true;
@@ -1280,6 +1308,33 @@ SNodeList* createHintNodeList(SAstCreateContext* pCxt, const SToken* pLiteral) {
         }
         break;
       case TK_NK_ID:
+        if (!inParamList && isNoConcurrentLastScanHint(&t0)) {
+          lastComma = false;
+          if (0 != opt) {
+            quit = true;
+            break;
+          }
+          opt = HINT_NO_CONCURRENT_LAST_SCAN;
+          break;
+        }
+        if (!inParamList && isNoExtWinPartitionBatchHint(&t0)) {
+          lastComma = false;
+          if (0 != opt) {
+            quit = true;
+            break;
+          }
+          opt = HINT_NO_EXTWIN_PARTITION_BATCH;
+          break;
+        }
+        if (!inParamList && isExtWinPartitionBatchHint(&t0)) {
+          lastComma = false;
+          if (0 != opt) {
+            quit = true;
+            break;
+          }
+          opt = HINT_EXTWIN_PARTITION_BATCH;
+          break;
+        }
         if (!inParamList && isFastIntervalHint(&t0)) {
           lastComma = false;
           if (0 != opt || inParamList) {
@@ -1888,6 +1943,7 @@ SNode* createPositionFunctionNode(SAstCreateContext* pCxt, SNode* pExpr, SNode* 
   CHECK_PARSER_STATUS(pCxt);
   pCxt->errCode = nodesListMakeAppend(&func->pParameterList, pExpr2);
   CHECK_PARSER_STATUS(pCxt);
+  func->charsetCxt = pCxt->pQueryCxt->charsetCxt;
   return (SNode*)func;
 _err:
   nodesDestroyNode((SNode*)func);
@@ -2347,6 +2403,7 @@ SNode* createTrueForCountNode(SAstCreateContext* pCxt, const SToken* pCount) {
   CHECK_MAKE_NODE(pTrueFor);
   pTrueFor->trueForType = TRUE_FOR_COUNT_ONLY;
   pTrueFor->pDuration = NULL;
+  pTrueFor->pCount = NULL;
   if (!parseTrueForCount(pCxt, pCount, &pTrueFor->count)) {
     goto _err;
   }
@@ -2356,7 +2413,23 @@ _err:
   return NULL;
 }
 
-SNode* createTrueForAndNode(SAstCreateContext* pCxt, SNode* pDuration, const SToken* pCount) {
+SNode* createTrueForCountTagNode(SAstCreateContext* pCxt, SNode* pCountCol) {
+  STrueForNode* pTrueFor = NULL;
+  CHECK_PARSER_STATUS(pCxt);
+  pCxt->errCode = nodesMakeNode(QUERY_NODE_TRUE_FOR, (SNode**)&pTrueFor);
+  CHECK_MAKE_NODE(pTrueFor);
+  pTrueFor->trueForType = TRUE_FOR_COUNT_ONLY;
+  pTrueFor->count = 0;
+  pTrueFor->pDuration = NULL;
+  pTrueFor->pCount = pCountCol;
+  return (SNode*)pTrueFor;
+_err:
+  nodesDestroyNode(pCountCol);
+  nodesDestroyNode((SNode*)pTrueFor);
+  return NULL;
+}
+
+SNode* createTrueForAndNode(SAstCreateContext* pCxt, SNode* pDuration, const SToken* pCount, SNode* pCountCol) {
   STrueForNode* pTrueFor = NULL;
   CHECK_PARSER_STATUS(pCxt);
   pCxt->errCode = nodesMakeNode(QUERY_NODE_TRUE_FOR, (SNode**)&pTrueFor);
@@ -2364,17 +2437,23 @@ SNode* createTrueForAndNode(SAstCreateContext* pCxt, SNode* pDuration, const STo
   pTrueFor->trueForType = TRUE_FOR_AND;
   pTrueFor->pDuration = pDuration;
   pDuration = NULL;
-  if (!parseTrueForCount(pCxt, pCount, &pTrueFor->count)) {
-    goto _err;
+  pTrueFor->pCount = pCountCol;
+  if (pCountCol == NULL) {
+    if (!parseTrueForCount(pCxt, pCount, &pTrueFor->count)) {
+      goto _err;
+    }
+  } else {
+    pTrueFor->count = 0;
   }
   return (SNode*)pTrueFor;
 _err:
   nodesDestroyNode((SNode*)pTrueFor);
   nodesDestroyNode(pDuration);
+  nodesDestroyNode(pCountCol);
   return NULL;
 }
 
-SNode* createTrueForOrNode(SAstCreateContext* pCxt, SNode* pDuration, const SToken* pCount) {
+SNode* createTrueForOrNode(SAstCreateContext* pCxt, SNode* pDuration, const SToken* pCount, SNode* pCountCol) {
   STrueForNode* pTrueFor = NULL;
   CHECK_PARSER_STATUS(pCxt);
   pCxt->errCode = nodesMakeNode(QUERY_NODE_TRUE_FOR, (SNode**)&pTrueFor);
@@ -2382,13 +2461,19 @@ SNode* createTrueForOrNode(SAstCreateContext* pCxt, SNode* pDuration, const STok
   pTrueFor->trueForType = TRUE_FOR_OR;
   pTrueFor->pDuration = pDuration;
   pDuration = NULL;
-  if (!parseTrueForCount(pCxt, pCount, &pTrueFor->count)) {
-    goto _err;
+  pTrueFor->pCount = pCountCol;
+  if (pCountCol == NULL) {
+    if (!parseTrueForCount(pCxt, pCount, &pTrueFor->count)) {
+      goto _err;
+    }
+  } else {
+    pTrueFor->count = 0;
   }
   return (SNode*)pTrueFor;
 _err:
   nodesDestroyNode((SNode*)pTrueFor);
   nodesDestroyNode(pDuration);
+  nodesDestroyNode(pCountCol);
   return NULL;
 }
 
@@ -2400,6 +2485,7 @@ SNode* createTrueForDurationNode(SAstCreateContext* pCxt, SNode* pDuration) {
   pTrueFor->trueForType = TRUE_FOR_DURATION_ONLY;
   pTrueFor->count = 0;
   pTrueFor->pDuration = pDuration;
+  pTrueFor->pCount = NULL;
   return (SNode*)pTrueFor;
 _err:
   nodesDestroyNode(pDuration);
@@ -2418,7 +2504,9 @@ SNode* createTrueForFullNode(SAstCreateContext* pCxt, SNode* pWindowLimit, SNode
     pNode->trueForType = pW->trueForType;
     pNode->count = pW->count;
     pNode->pDuration = pW->pDuration;
+    pNode->pCount = pW->pCount;
     pW->pDuration = NULL;
+    pW->pCount = NULL;
     nodesDestroyNode(pWindowLimit);
     pWindowLimit = NULL;
   }
@@ -2514,7 +2602,6 @@ SNode* createAnomalyWindowNode(SAstCreateContext* pCxt, SNodeList* pExprList) {
 
       SListCell* pCell = nodesListGetCell(pExprList, len - 1);
       (void)nodesListErase(pExprList, pCell);
-      nodesDestroyNode(pNode);
     } else {
       tstrncpy(pAnomaly->anomalyOpt, "algo=iqr", TSDB_ANALYTIC_ALGO_OPTION_LEN);
     }
@@ -4094,6 +4181,7 @@ SNode* setColumnReference(SAstCreateContext* pCxt, SNode* pOptions, SNode* pRef)
   SColumnRefNode* pColRef = (SColumnRefNode*)pRef;
   pColOptions->hasRef = true;
   pColOptions->refType = pColRef->refType;
+  pColOptions->refPathParts = pColRef->refPathParts;
   tstrncpy(pColOptions->refSourceName, pColRef->refSourceName, TSDB_EXT_SOURCE_NAME_LEN);
   tstrncpy(pColOptions->refSchema, pColRef->refSchemaName, TSDB_EXT_SOURCE_SCHEMA_LEN);
   tstrncpy(pColOptions->refDb, pColRef->refDbName, TSDB_DB_NAME_LEN);
@@ -4172,6 +4260,7 @@ SNode* createColumnRefNodeByNode(SAstCreateContext* pCxt, SToken* pColName, SNod
   if (pColName) {
     COPY_STRING_FORM_ID_TOKEN(pCol->colName, pColName);
   }
+  pCol->refPathParts = ((SColumnRefNode*)pRef)->refPathParts;
   pCol->refType = ((SColumnRefNode*)pRef)->refType;
   tstrncpy(pCol->refDbName, ((SColumnRefNode*)pRef)->refDbName, TSDB_DB_NAME_LEN);
   tstrncpy(pCol->refTableName, ((SColumnRefNode*)pRef)->refTableName, TSDB_TABLE_NAME_LEN);
@@ -4188,15 +4277,77 @@ _err:
   return NULL;
 }
 
-// Own (extension) column of a virtual child table at CREATE VTABLE time:
-// `name TYPE FROM db.tb.col`  -  same as createColumnRefNodeByNode plus the declared type.
-SNode* createColumnRefNodeByNodeWithType(SAstCreateContext* pCxt, SToken* pColName, SDataType dataType, SNode* pRef) {
-  SNode* pNode = createColumnRefNodeByNode(pCxt, pColName, pRef);
-  if (NULL != pNode) {
-    ((SColumnRefNode*)pNode)->hasDataType = true;
-    ((SColumnRefNode*)pNode)->dataType = dataType;
+// Own (extension) column of a virtual child table declared in a CREATE VTABLE ... USING list.
+// `name TYPE [FROM db.tb.col]`: the grammar parses the typed form as a column_def (the binding
+// rides in column_options), and the vchild statement converts it into the typed SColumnRefNode
+// shape its translator works with. The binding is optional - a bare `name TYPE` declares an own
+// column with no reference, the same state ALTER VTABLE ... SET NULL produces - so SHOW CREATE
+// output stays replayable for unbound own columns.
+static SNode* columnDefToTypedColumnRef(SAstCreateContext* pCxt, SColumnDefNode* pDef) {
+  SColumnRefNode* pCol = NULL;
+  CHECK_PARSER_STATUS(pCxt);
+  pCxt->errCode = nodesMakeNode(QUERY_NODE_COLUMN_REF, (SNode**)&pCol);
+  CHECK_MAKE_NODE(pCol);
+  tstrncpy(pCol->colName, pDef->colName, TSDB_COL_NAME_LEN);
+  pCol->hasDataType = true;
+  pCol->dataType = pDef->dataType;
+  // pDef->pTagVal (inline `TAGS(name TYPE = value)` tag values, set by
+  // createColumnDefNodeWithTagVal) is never populated here: the = value form only exists in
+  // the vtag_def rules of the USING tag list, and vtag_def is not part of vtable_col, so a
+  // column_def from a CREATE VTABLE column list always carries pTagVal == NULL.
+  SColumnOptions* pOpts = (SColumnOptions*)pDef->pOptions;
+  // PRIMARY KEY is a normal-table column option; an own column of a virtual child table has
+  // no key semantics. The grammar can produce the combination, so reject it explicitly
+  // instead of silently ignoring the flag.
+  if (NULL != pOpts && pOpts->bPrimaryKey) {
+    pCxt->errCode = generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_COLUMN,
+                                            "column %s cannot be a primary key in a virtual child table",
+                                            pDef->colName);
+    goto _err;
   }
-  return pNode;
+  if (NULL != pOpts && pOpts->hasRef) {
+    pCol->refPathParts = pOpts->refPathParts;
+    pCol->refType = pOpts->refType;
+    tstrncpy(pCol->refSourceName, pOpts->refSourceName, TSDB_EXT_SOURCE_NAME_LEN);
+    tstrncpy(pCol->refSchemaName, pOpts->refSchema, TSDB_EXT_SOURCE_SCHEMA_LEN);
+    tstrncpy(pCol->refDbName, pOpts->refDb, TSDB_DB_NAME_LEN);
+    tstrncpy(pCol->refTableName, pOpts->refTable, TSDB_TABLE_NAME_LEN);
+    tstrncpy(pCol->refColName, pOpts->refColumn, TSDB_COL_NAME_LEN);
+    // ownership of both condition nodes moves to the ref node: the old def node is
+    // destroyed by the caller right after, with the moved-out pointers already NULL
+    pCol->pTagCond = pOpts->pTagCond;
+    pOpts->pTagCond = NULL;
+    pCol->pFilterCond = pOpts->pFilterCond;
+    pOpts->pFilterCond = NULL;
+  }
+  return (SNode*)pCol;
+_err:
+  return NULL;
+}
+
+// A CREATE VTABLE ... USING column list carries typed column_defs (own columns, binding
+// optional) next to untyped refs (cascaded columns). Replace the column_defs in place so the
+// statement's pSpecificColRefs stays a homogeneous SColumnRefNode list; the original def node
+// is released only after the cell points at its replacement.
+static void convertColDefsToTypedRefs(SAstCreateContext* pCxt, SNodeList* pCols) {
+  if (NULL == pCols) {
+    return;
+  }
+  SListCell* pCell = pCols->pHead;
+  while (NULL != pCell) {
+    if (QUERY_NODE_COLUMN_DEF == nodeType(pCell->pNode)) {
+      SNode* pOld = pCell->pNode;
+      pCell->pNode = columnDefToTypedColumnRef(pCxt, (SColumnDefNode*)pOld);
+      if (NULL == pCell->pNode) {
+        // restore the cell and stop: the error code is set, and converting the remaining
+        // entries would only churn allocations on a path that is about to fail anyway
+        pCell->pNode = pOld;
+        return;
+      }
+      nodesDestroyNode(pOld);
+    }
+    pCell = pCell->pNext;
+  }
 }
 
 // Create a SColumnRefNode from db.table.col triplet tokens (for positional tag refs in vtags_literal)
@@ -4263,6 +4414,7 @@ STokenTriplet* setColumnName(SAstCreateContext* pCxt, STokenTriplet* pTokenTri, 
   pTokenTri->numOfName++;
   return pTokenTri;
 _err:
+  taosMemoryFree(pTokenTri);
   return NULL;
 }
 
@@ -4271,6 +4423,7 @@ SNode* createColumnRefNodeByName(SAstCreateContext* pCxt, STokenTriplet* pTokenT
   CHECK_PARSER_STATUS(pCxt);
   pCxt->errCode = nodesMakeNode(QUERY_NODE_COLUMN_REF, (SNode**)&pCol);
   CHECK_MAKE_NODE(pCol);
+  pCol->refPathParts = pTokenTri->numOfName;
   pCol->pFilterCond = pFilterCond;
   pFilterCond = NULL;
 
@@ -4405,18 +4558,63 @@ _err:
   return pList;
 }
 
+SNode* createReferenceDeclNode(SAstCreateContext* pCxt, const SToken* pAlias,
+                               STokenTriplet* pTarget, const SToken* pTimeColumn) {
+  SReferenceDeclNode* pDecl = NULL;
+  CHECK_PARSER_STATUS(pCxt);
+  pCxt->errCode = nodesMakeNode(QUERY_NODE_REFERENCE_DECL, (SNode**)&pDecl);
+  CHECK_MAKE_NODE(pDecl);
+  if (pTarget->numOfName < 2 || pTarget->numOfName > 4) {
+    pCxt->errCode = TSDB_CODE_PAR_SYNTAX_ERROR;
+    goto _err;
+  }
+  SToken alias = *pAlias;
+  SToken timeColumn = *pTimeColumn;
+  CHECK_NAME(checkColumnName(pCxt, &alias));
+  CHECK_NAME(checkColumnName(pCxt, &timeColumn));
+  trimEscape(pCxt, &pTarget->name[0], true);
+  if (pTarget->name[0].n == 0 || pTarget->name[0].n >= sizeof(pDecl->entry.sourceName)) {
+    pCxt->errCode = TSDB_CODE_PAR_INVALID_IDENTIFIER_NAME;
+    goto _err;
+  }
+  CHECK_NAME(checkTableName(pCxt, &pTarget->name[pTarget->numOfName - 1]));
+  if (pTarget->numOfName >= 3) CHECK_NAME(checkDbName(pCxt, &pTarget->name[1], true));
+  if (pTarget->numOfName == 4) CHECK_NAME(checkDbName(pCxt, &pTarget->name[2], true));
+  COPY_STRING_FORM_ID_TOKEN(pDecl->entry.alias, &alias);
+  COPY_STRING_FORM_ID_TOKEN(pDecl->entry.sourceName, &pTarget->name[0]);
+  COPY_STRING_FORM_ID_TOKEN(pDecl->entry.objectName, &pTarget->name[pTarget->numOfName - 1]);
+  if (pTarget->numOfName >= 3) {
+    COPY_STRING_FORM_ID_TOKEN(pDecl->entry.dbName, &pTarget->name[1]);
+  }
+  if (pTarget->numOfName == 4) {
+    COPY_STRING_FORM_ID_TOKEN(pDecl->entry.schemaName, &pTarget->name[2]);
+  }
+  COPY_STRING_FORM_ID_TOKEN(pDecl->entry.timeColumn, &timeColumn);
+  taosMemFree(pTarget);
+  return (SNode*)pDecl;
+_err:
+  taosMemFree(pTarget);
+  nodesDestroyNode((SNode*)pDecl);
+  return NULL;
+}
+
 SNode* createSeriesDeclNode(SAstCreateContext* pCxt, const SToken* pAlias,
                             STokenTriplet* pTarget, SNode* pTagCond) {
   SSeriesDeclNode* pDecl = NULL;
   CHECK_PARSER_STATUS(pCxt);
   pCxt->errCode = nodesMakeNode(QUERY_NODE_SERIES_DECL, (SNode**)&pDecl);
   CHECK_MAKE_NODE(pDecl);
-  COPY_STRING_FORM_ID_TOKEN(pDecl->alias, pAlias);
   if (pTarget->numOfName != 3) {
     pCxt->errCode = generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_SYNTAX_ERROR,
                                           "SERIES target must be source.db.measurement (3 segments)");
     goto _err;
   }
+  SToken alias = *pAlias;
+  CHECK_NAME(checkColumnName(pCxt, &alias));
+  CHECK_NAME(checkDbName(pCxt, &pTarget->name[0], true));
+  CHECK_NAME(checkDbName(pCxt, &pTarget->name[1], true));
+  CHECK_NAME(checkTableName(pCxt, &pTarget->name[2]));
+  COPY_STRING_FORM_ID_TOKEN(pDecl->alias, &alias);
   COPY_STRING_FORM_ID_TOKEN(pDecl->sourceName, &pTarget->name[0]);
   COPY_STRING_FORM_ID_TOKEN(pDecl->dbName, &pTarget->name[1]);
   COPY_STRING_FORM_ID_TOKEN(pDecl->measurementName, &pTarget->name[2]);
@@ -4501,6 +4699,24 @@ SNode* createCreateVTableStmt(SAstCreateContext* pCxt, bool ignoreExists, SNode*
                               SNodeList* pCols, SNodeList* pSeriesList, SNodeList* pTags) {
   SCreateVTableStmt* pStmt = NULL;
   CHECK_PARSER_STATUS(pCxt);
+  // The vntb column list shares its entry nonterminal with the vchild form (see vtable_col in
+  // sql.y). A cascaded-style untyped `name FROM ...` entry is only meaningful with USING;
+  // reject it here so a virtual NORMAL table keeps requiring a declared type per column.
+  // Reachability: this creator is only called from the `CREATE VTABLE name ( vtable_col_list )
+  // [series] [vtags]` rule (no USING); the vchild path goes through create_vsubtable_clause
+  // and folds its column_defs inside createCreateVSubTableStmt, so it never passes through
+  // here. column_def entries (QUERY_NODE_COLUMN_DEF) are what a valid vntb list holds.
+  if (NULL != pCols) {
+    SNode* pNode = NULL;
+    FOREACH(pNode, pCols) {
+      if (QUERY_NODE_COLUMN_REF == nodeType(pNode)) {
+        pCxt->errCode = generateSyntaxErrMsgExt(
+            &pCxt->msgBuf, TSDB_CODE_PAR_INVALID_COLUMN, "column %s in a virtual normal table requires a type declaration",
+            ((SColumnRefNode*)pNode)->colName);
+        goto _err;
+      }
+    }
+  }
   pCxt->errCode = nodesMakeNode(QUERY_NODE_CREATE_VIRTUAL_TABLE_STMT, (SNode**)&pStmt);
   CHECK_MAKE_NODE(pStmt);
   tstrncpy(pStmt->dbName, ((SRealTableNode*)pRealTable)->table.dbName, sizeof(pStmt->dbName));
@@ -4526,6 +4742,14 @@ SNode* createCreateVSubTableStmt(SAstCreateContext* pCxt, bool ignoreExists, SNo
                                  SNodeList* pSeriesList) {
   CHECK_PARSER_STATUS(pCxt);
   SCreateVSubTableStmt* pStmt = NULL;
+  // The USING column list carries typed column_defs (own columns, binding optional) next to
+  // untyped cascaded refs: fold the defs into the typed SColumnRefNode form here so the
+  // translator sees one homogeneous list.
+  convertColDefsToTypedRefs(pCxt, pSpecificColRefs);
+  // on failure the list still holds COLUMN_DEF nodes that every consumer below blindly casts
+  // to SColumnRefNode; bail out before nodesMakeNode overwrites errCode and the statement
+  // would continue with a SUCCESS status
+  CHECK_PARSER_STATUS(pCxt);
   pCxt->errCode = nodesMakeNode(QUERY_NODE_CREATE_VIRTUAL_SUBTABLE_STMT, (SNode**)&pStmt);
   CHECK_MAKE_NODE(pStmt);
 
@@ -4890,6 +5114,7 @@ SNode* createAlterTableAddModifyColOptions2(SAstCreateContext* pCxt, SNode* pRea
         pCxt->errCode = generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_ALTER_TABLE);
       }
       pStmt->alterType = TSDB_ALTER_TABLE_ADD_COLUMN_WITH_COLUMN_REF;
+      pStmt->refPathParts = pOption->refPathParts;
       pStmt->refType = pOption->refType;
       tstrncpy(pStmt->refSourceName, pOption->refSourceName, TSDB_TABLE_NAME_LEN);
       tstrncpy(pStmt->refSchemaName, pOption->refSchema, TSDB_EXT_SOURCE_SCHEMA_LEN);
@@ -4979,6 +5204,7 @@ SNode* createAlterTableAlterColRef(SAstCreateContext* pCxt, SNode* pRealTable, i
   CHECK_MAKE_NODE(pStmt);
   pStmt->alterType = alterType;
   COPY_STRING_FORM_ID_TOKEN(pStmt->colName, pColName);
+  pStmt->refPathParts = ((SColumnRefNode*)pRef)->refPathParts;
   pStmt->refType = ((SColumnRefNode*)pRef)->refType;
   tstrncpy(pStmt->refSourceName, ((SColumnRefNode*)pRef)->refSourceName, TSDB_EXT_SOURCE_NAME_LEN);
   tstrncpy(pStmt->refSchemaName, ((SColumnRefNode*)pRef)->refSchemaName, TSDB_EXT_SOURCE_SCHEMA_LEN);
@@ -5031,6 +5257,26 @@ _err:
   nodesDestroyNode((SNode*)pStmt);
   nodesDestroyNode(pRealTable);
   nodesDestroyNode(pRef);
+  return NULL;
+}
+
+SNode* createAlterTableReference(SAstCreateContext* pCxt, SNode* pRealTable,
+                                 int8_t alterType, SNode* pDecl, const SToken* pAlias) {
+  SAlterTableStmt* pStmt = NULL;
+  CHECK_PARSER_STATUS(pCxt);
+  pCxt->errCode = nodesMakeNode(QUERY_NODE_ALTER_TABLE_STMT, (SNode**)&pStmt);
+  CHECK_MAKE_NODE(pStmt);
+  pStmt->alterType = alterType;
+  pStmt->pSeriesDecl = pDecl;
+  if (pAlias != NULL) {
+    SToken alias = *pAlias;
+    CHECK_NAME(checkColumnName(pCxt, &alias));
+    COPY_STRING_FORM_ID_TOKEN(pStmt->seriesAlias, &alias);
+  }
+  return createAlterTableStmtFinalize(pCxt, pRealTable, pStmt);
+_err:
+  nodesDestroyNode(pRealTable);
+  nodesDestroyNode(pDecl);
   return NULL;
 }
 
@@ -5110,7 +5356,7 @@ SNode* createAlterTagValueNodeWithExpression(SAstCreateContext* pCxt, SToken* pT
   }
   (void)trimString(pattern->z, pattern->n, pNode->regexp, pattern->n);
 
-  int32_t code = checkRegexPattern(pNode->regexp);
+  int32_t code = checkRegexPattern(pNode->regexp, pCxt->pQueryCxt->charsetCxt);
   if (code != 0) {
     pCxt->errCode = generateSyntaxErrMsgExt(&pCxt->msgBuf, code,
                                             "'%s' is not a valid regular expression", pNode->regexp);
@@ -5220,12 +5466,20 @@ SNode* createUseExtSourceStmt(SAstCreateContext* pCxt, SToken* pSrc, SToken* pNs
   SUseExtSourceStmt* pStmt = NULL;
   pCxt->errCode = nodesMakeNode(QUERY_NODE_USE_EXT_SOURCE_STMT, (SNode**)&pStmt);
   CHECK_MAKE_NODE(pStmt);
+  // Every component is a TDengine identifier: an unquoted token was already
+  // lower-cased by the client, a backticked one keeps its spelling and the
+  // backticks themselves are syntax.  trimEscape() removes them (and decodes a
+  // doubled backtick) before the namespace is stored in the connection state,
+  // otherwise "USE src.`SCHEMA`" would look up a schema named `SCHEMA`.
+  trimEscape(pCxt, pSrc, true);
   COPY_STRING_FORM_ID_TOKEN(pStmt->sourceName, pSrc);
+  trimEscape(pCxt, pNs1, true);
+  trimEscape(pCxt, pNs2, true);
   if (pNs1 && pNs1->n > 0) {
-    strncpy(pStmt->ns1, pNs1->z, TMIN((int32_t)pNs1->n, (int32_t)sizeof(pStmt->ns1) - 1));
+    COPY_STRING_FORM_ID_TOKEN(pStmt->ns1, pNs1);
   }
   if (pNs2 && pNs2->n > 0) {
-    strncpy(pStmt->ns2, pNs2->z, TMIN((int32_t)pNs2->n, (int32_t)sizeof(pStmt->ns2) - 1));
+    COPY_STRING_FORM_ID_TOKEN(pStmt->ns2, pNs2);
   }
   return (SNode*)pStmt;
 _err:
@@ -5682,7 +5936,21 @@ SNode* createTransStmt(SAstCreateContext* pCxt, ENodeType type) {
   pCxt->errCode = nodesMakeNode(type, (SNode**)&pStmt);
   CHECK_MAKE_NODE(pStmt);
   pStmt->transId = 0;
+  pStmt->flags = 0;
   return (SNode*)pStmt;
+_err:
+  return NULL;
+}
+
+// BEGIN|START TRANSACTION ALLOW_NONTRANSACTIONAL: the option is lexed as its own keyword token, so the
+// grammar itself guarantees the option text and no string matching is needed here.
+SNode* createBeginTransStmtAllowNonTxn(SAstCreateContext* pCxt) {
+  CHECK_PARSER_STATUS(pCxt);
+  SNode* pNode = createTransStmt(pCxt, QUERY_NODE_BEGIN_TRANS_STMT);
+  if (pNode != NULL) {
+    ((STransStmt*)pNode)->flags |= TRANS_STMT_FLAG_ALLOW_NONTXN;
+  }
+  return pNode;
 _err:
   return NULL;
 }
@@ -7316,6 +7584,23 @@ _err:
   return NULL;
 }
 
+static int32_t parseXnodeResourceName(SAstCreateContext* pCxt, const SToken* pToken, EXnodeResourceType resourceType,
+                                      char* name, int32_t capacity) {
+  const char* resource = resourceType == XNODE_AGENT ? "agent" : "task";
+  int32_t     maxLen = resourceType == XNODE_AGENT ? TSDB_XNODE_AGENT_NAME_LEN : TSDB_XNODE_TASK_NAME_LEN;
+  // Reserve space for one byte beyond the limit and the terminator so truncation cannot hide overflow.
+  if (capacity < maxLen + 2) {
+    return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_INTERNAL_ERROR,
+                                   "Xnode %s name buffer capacity should be at least %d bytes", resource, maxLen + 2);
+  }
+  int32_t len = trimString(pToken->z, pToken->n, name, capacity);
+  if (len <= 0 || len > maxLen) {
+    return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_SYNTAX_ERROR,
+                                   "Xnode %s name length should be between 1 and %d bytes", resource, maxLen);
+  }
+  return TSDB_CODE_SUCCESS;
+}
+
 SNode* createXnodeTaskWithOptionsDirectly(SAstCreateContext* pCxt, const SToken* pResourceName, SNode* pSource,
                                           SNode* pSink, SNode* pNode) {
   SNode* pStmt = NULL;
@@ -7338,13 +7623,8 @@ SNode* createXnodeTaskWithOptionsDirectly(SAstCreateContext* pCxt, const SToken*
   CHECK_MAKE_NODE(pStmt);
   SCreateXnodeTaskStmt* pTaskStmt = (SCreateXnodeTaskStmt*)pStmt;
   if (pResourceName->type == TK_NK_STRING) {
-    if (pResourceName->n > TSDB_XNODE_TASK_NAME_LEN + 2) {
-      pCxt->errCode =
-          generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_SYNTAX_ERROR,
-                                  "Xnode task name should be less than %d characters", TSDB_XNODE_TASK_NAME_LEN);
-      goto _err;
-    }
-    COPY_STRING_FORM_STR_TOKEN(pTaskStmt->name, pResourceName);
+    pCxt->errCode = parseXnodeResourceName(pCxt, pResourceName, XNODE_TASK, pTaskStmt->name, sizeof(pTaskStmt->name));
+    CHECK_PARSER_STATUS(pCxt);
   } else if (pResourceName->type == TK_NK_ID) {
     COPY_STRING_FORM_STR_TOKEN(pTaskStmt->name, pResourceName);
   } else {
@@ -7381,14 +7661,9 @@ SNode* createXnodeAgentWithOptionsDirectly(SAstCreateContext* pCxt, const SToken
   CHECK_MAKE_NODE(pStmt);
   SCreateXnodeAgentStmt* pAgentStmt = (SCreateXnodeAgentStmt*)pStmt;
 
-  if (pResourceName->type == TK_NK_STRING && pResourceName->n > 2) {
-    if (pResourceName->n > TSDB_XNODE_AGENT_NAME_LEN + 2) {
-      pCxt->errCode =
-          generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_SYNTAX_ERROR,
-                                  "Xnode agent name should be less than %d characters", TSDB_XNODE_AGENT_NAME_LEN);
-      goto _err;
-    }
-    COPY_STRING_FORM_STR_TOKEN(pAgentStmt->name, pResourceName);
+  if (pResourceName->type == TK_NK_STRING) {
+    pCxt->errCode = parseXnodeResourceName(pCxt, pResourceName, XNODE_AGENT, pAgentStmt->name, sizeof(pAgentStmt->name));
+    CHECK_PARSER_STATUS(pCxt);
   } else {
     pCxt->errCode = generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_SYNTAX_ERROR,
                                             "Invalid xnode agent name type: %d", pResourceName->type);
@@ -7466,15 +7741,11 @@ SNode* createStartXnodeTaskStmt(SAstCreateContext* pCxt, const EXnodeResourceTyp
       goto _err;
     }
   } else {
-    if (pIdOrName->n > TSDB_XNODE_RESOURCE_NAME_LEN + 2) {
-      pCxt->errCode =
-          generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_SYNTAX_ERROR,
-                                  "Xnode task name should be less than %d characters", TSDB_XNODE_RESOURCE_NAME_LEN);
-      goto _err;
-    }
-    char buf[TSDB_XNODE_RESOURCE_NAME_LEN + 1] = {0};
-    COPY_STRING_FORM_STR_TOKEN(buf, pIdOrName);
+    char buf[TSDB_XNODE_TASK_NAME_LEN + 2] = {0};
+    pCxt->errCode = parseXnodeResourceName(pCxt, pIdOrName, XNODE_TASK, buf, sizeof(buf));
+    CHECK_PARSER_STATUS(pCxt);
     pTaskStmt->name = xCreateCowStr(strlen(buf), buf, true);
+    CHECK_OUT_OF_MEM(pTaskStmt->name.ptr);
   }
 
   return (SNode*)pTaskStmt;
@@ -7509,15 +7780,11 @@ SNode* createStopXnodeTaskStmt(SAstCreateContext* pCxt, const EXnodeResourceType
       goto _err;
     }
   } else {
-    if (pIdOrName->n > TSDB_XNODE_RESOURCE_NAME_LEN + 2) {
-      pCxt->errCode =
-          generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_SYNTAX_ERROR,
-                                  "Xnode task name should be less than %d characters", TSDB_XNODE_RESOURCE_NAME_LEN);
-      goto _err;
-    }
-    char buf[TSDB_XNODE_RESOURCE_NAME_LEN + 1] = {0};
-    COPY_STRING_FORM_STR_TOKEN(buf, pIdOrName);
+    char buf[TSDB_XNODE_TASK_NAME_LEN + 2] = {0};
+    pCxt->errCode = parseXnodeResourceName(pCxt, pIdOrName, XNODE_TASK, buf, sizeof(buf));
+    CHECK_PARSER_STATUS(pCxt);
     pTaskStmt->name = xCreateCowStr(strlen(buf), buf, true);
+    CHECK_OUT_OF_MEM(pTaskStmt->name.ptr);
   }
 
   return (SNode*)pTaskStmt;
@@ -7635,14 +7902,11 @@ SNode* updateXnodeTaskWithOptionsDirectly(SAstCreateContext* pCxt, const SToken*
   if (pResIdOrName->type == TK_NK_INTEGER) {
     pTaskStmt->tid = taosStr2Int32(pResIdOrName->z, NULL, 10);
   } else {
-    if (pResIdOrName->n <= 2) {
-      pCxt->errCode =
-          generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_SYNTAX_ERROR, "Xnode task name can't be empty string");
-      goto _err;
-    }
-    char buf[TSDB_XNODE_TASK_NAME_LEN] = {0};
-    COPY_STRING_FORM_STR_TOKEN(buf, pResIdOrName);
+    char buf[TSDB_XNODE_TASK_NAME_LEN + 2] = {0};
+    pCxt->errCode = parseXnodeResourceName(pCxt, pResIdOrName, XNODE_TASK, buf, sizeof(buf));
+    CHECK_PARSER_STATUS(pCxt);
     pTaskStmt->name = xCreateCowStr(strlen(buf), buf, true);
+    CHECK_OUT_OF_MEM(pTaskStmt->name.ptr);
   }
 
   if (pSource != NULL) {
@@ -7718,14 +7982,11 @@ SNode* alterXnodeAgentWithOptionsDirectly(SAstCreateContext* pCxt, const SToken*
   if (pResIdOrName->type == TK_NK_INTEGER) {
     pAgentStmt->id = taosStr2Int32(pResIdOrName->z, NULL, 10);
   } else {
-    if (pResIdOrName->n <= 2) {
-      pCxt->errCode =
-          generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_SYNTAX_ERROR, "Xnode alter agent name can't be empty string");
-      goto _err;
-    }
-    char buf[TSDB_XNODE_AGENT_NAME_LEN] = {0};
-    COPY_STRING_FORM_STR_TOKEN(buf, pResIdOrName);
+    char buf[TSDB_XNODE_AGENT_NAME_LEN + 2] = {0};
+    pCxt->errCode = parseXnodeResourceName(pCxt, pResIdOrName, XNODE_AGENT, buf, sizeof(buf));
+    CHECK_PARSER_STATUS(pCxt);
     pAgentStmt->name = xCreateCowStr(strlen(buf), buf, true);
+    CHECK_OUT_OF_MEM(pAgentStmt->name.ptr);
   }
 
   if (nodeType(pNode) == QUERY_NODE_XNODE_TASK_OPTIONS) {
@@ -7783,7 +8044,7 @@ _err:
 
 SNode* dropXnodeResource(SAstCreateContext* pCxt, EXnodeResourceType resourceType, SToken* pResourceName) {
   SNode* pStmt = NULL;
-  char   buf[TSDB_XNODE_TASK_NAME_LEN + 1] = {0};
+  char   buf[TSDB_XNODE_RESOURCE_NAME_LEN + 2] = {0};
 
   CHECK_PARSER_STATUS(pCxt);
   if (pResourceName == NULL || pResourceName->n <= 0) {
@@ -7791,7 +8052,8 @@ SNode* dropXnodeResource(SAstCreateContext* pCxt, EXnodeResourceType resourceTyp
                                             "Xnode resource name should not be NULL or empty");
     goto _err;
   }
-  if (pResourceName->n > TSDB_XNODE_RESOURCE_NAME_LEN) {
+  if (pResourceName->n > TSDB_XNODE_RESOURCE_NAME_LEN &&
+      !(pResourceName->type == TK_NK_STRING && (resourceType == XNODE_TASK || resourceType == XNODE_AGENT))) {
     pCxt->errCode = generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_SYNTAX_ERROR,
                                             "Invalid xnode resource name length: %d, max length: %d", pResourceName->n,
                                             TSDB_XNODE_RESOURCE_NAME_LEN);
@@ -7804,14 +8066,10 @@ SNode* dropXnodeResource(SAstCreateContext* pCxt, EXnodeResourceType resourceTyp
       SDropXnodeTaskStmt* pTaskStmt = (SDropXnodeTaskStmt*)pStmt;
 
       if (pResourceName->type == TK_NK_STRING) {
-        if (pResourceName->n > TSDB_XNODE_TASK_NAME_LEN + 2) {
-          pCxt->errCode = generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_SYNTAX_ERROR,
-                                                  "Invalid xnode task name length: %d, max length: %d",
-                                                  pResourceName->n, TSDB_XNODE_TASK_NAME_LEN);
-          goto _err;
-        }
-        COPY_STRING_FORM_STR_TOKEN(buf, pResourceName);
+        pCxt->errCode = parseXnodeResourceName(pCxt, pResourceName, XNODE_TASK, buf, sizeof(buf));
+        CHECK_PARSER_STATUS(pCxt);
         pTaskStmt->name = taosStrndupi(buf, sizeof(buf));
+        CHECK_OUT_OF_MEM(pTaskStmt->name);
       } else if (pResourceName->type == TK_NK_ID) {
         COPY_STRING_FORM_ID_TOKEN(buf, pResourceName);
         pTaskStmt->name = taosStrndupi(buf, sizeof(buf));
@@ -7829,14 +8087,10 @@ SNode* dropXnodeResource(SAstCreateContext* pCxt, EXnodeResourceType resourceTyp
       SDropXnodeAgentStmt* pDropAgent = (SDropXnodeAgentStmt*)pStmt;
 
       if (pResourceName->type == TK_NK_STRING) {
-        if (pResourceName->n > TSDB_XNODE_TASK_NAME_LEN + 2) {
-          pCxt->errCode = generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_SYNTAX_ERROR,
-                                                  "Invalid xnode task name length: %d, max length: %d",
-                                                  pResourceName->n, TSDB_XNODE_TASK_NAME_LEN);
-          goto _err;
-        }
-        COPY_STRING_FORM_STR_TOKEN(buf, pResourceName);
+        pCxt->errCode = parseXnodeResourceName(pCxt, pResourceName, XNODE_AGENT, buf, sizeof(buf));
+        CHECK_PARSER_STATUS(pCxt);
         pDropAgent->name = taosStrndupi(buf, sizeof(buf));
+        CHECK_OUT_OF_MEM(pDropAgent->name);
       } else if (pResourceName->type == TK_NK_ID) {
         COPY_STRING_FORM_ID_TOKEN(buf, pResourceName);
         pDropAgent->name = taosStrndupi(buf, sizeof(buf));
@@ -10474,6 +10728,116 @@ SNode* createFileTableNode(SAstCreateContext* pCxt, const SToken* pPath, const S
 _err:
   nodesDestroyNode((SNode*)pNode);
   return NULL;
+}
+
+int8_t timeAlignOutputRaw(const SToken* pBool) {
+  if (pBool == NULL || pBool->z == NULL) return -1;
+  return IS_TRUE_STR(pBool->z, pBool->n) ? 1 : 0;
+}
+
+SNode* createTimeAlignTableNode(SAstCreateContext* pCxt, SToken* pFuncName, SToken* pDbName,
+                                SToken* pTableName, const STimeAlignArgs* pArgs, SToken* pTableAlias) {
+  CHECK_PARSER_STATUS(pCxt);
+  if (pFuncName == NULL || pFuncName->n != 10 || strncasecmp(pFuncName->z, "time_align", 10) != 0) {
+    pCxt->errCode = generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_SYNTAX_ERROR,
+                                         "unsupported table function in TABLE(...)");
+    return NULL;
+  }
+  // An explicit database qualifier must go through checkDbName() like every
+  // other table reference: it strips the backtick escapes.  Copying the raw
+  // token makes a quoted qualifier such as `db`.`tbl` reach the catalog with
+  // its backticks still attached, and the metadata lookup then fails with
+  // "Database does not exist".
+  CHECK_NAME(checkDbName(pCxt, pDbName, true));
+  CHECK_NAME(checkTableName(pCxt, pTableName));
+  CHECK_NAME(checkTableName(pCxt, pTableAlias));
+
+  STimeAlignTableNode* pNode = NULL;
+  pCxt->errCode = nodesMakeNode(QUERY_NODE_TIME_ALIGN_TABLE, (SNode**)&pNode);
+  CHECK_MAKE_NODE(pNode);
+
+  if (pDbName != NULL && TK_NK_NIL != pDbName->type) {
+    COPY_STRING_FORM_ID_TOKEN(pNode->dbName, pDbName);
+  } else if (pCxt->pQueryCxt->db) {
+    snprintf(pNode->dbName, sizeof(pNode->dbName), "%s", pCxt->pQueryCxt->db);
+  }
+  COPY_STRING_FORM_ID_TOKEN(pNode->tbName, pTableName);
+
+  pNode->outputRaw = (pArgs != NULL && pArgs->outputRaw == 1);
+  if (pArgs != NULL && TK_NK_NIL != pArgs->columnList.type && pArgs->columnList.n >= 2) {
+    uint32_t len = pArgs->columnList.n - 2;
+    pNode->columnList = taosMemoryMalloc(len + 1);
+    if (pNode->columnList == NULL) {
+      pCxt->errCode = TSDB_CODE_OUT_OF_MEMORY;
+      goto _err;
+    }
+    if (len > 0) {
+      tstrncpy(pNode->columnList, pArgs->columnList.z + 1, len + 1);
+    } else {
+      pNode->columnList[0] = '\0';
+    }
+  }
+
+  if (pTableAlias != NULL && TK_NK_NIL != pTableAlias->type) {
+    COPY_STRING_FORM_ID_TOKEN(pNode->table.tableAlias, pTableAlias);
+  } else {
+    COPY_STRING_FORM_ID_TOKEN(pNode->table.tableAlias, pTableName);
+  }
+  return (SNode*)pNode;
+_err:
+  nodesDestroyNode((SNode*)pNode);
+  return NULL;
+}
+
+SNode* createTimeAlignTableNodeWithTable(SAstCreateContext* pCxt, SToken* pFuncName, SNode* pTable,
+                                         const STimeAlignArgs* pArgs, SToken* pTableAlias) {
+  if (pTable == NULL || TSDB_CODE_SUCCESS != pCxt->errCode) {
+    nodesDestroyNode(pTable);
+    return NULL;
+  }
+  if (pFuncName == NULL || pFuncName->n != 10 || strncasecmp(pFuncName->z, "time_align", 10) != 0) {
+    nodesDestroyNode(pTable);
+    pCxt->errCode = generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_SYNTAX_ERROR,
+                                         "unsupported table function in TABLE(...)");
+    return NULL;
+  }
+  if (!checkTableName(pCxt, pTableAlias)) {
+    nodesDestroyNode(pTable);
+    return NULL;
+  }
+
+  STimeAlignTableNode* pNode = NULL;
+  pCxt->errCode = nodesMakeNode(QUERY_NODE_TIME_ALIGN_TABLE, (SNode**)&pNode);
+  if (pNode == NULL) {
+    nodesDestroyNode(pTable);
+    return NULL;
+  }
+  pNode->pRealTableNode = pTable;
+  tstrncpy(pNode->dbName, ((STableNode*)pTable)->dbName, sizeof(pNode->dbName));
+  tstrncpy(pNode->tbName, ((STableNode*)pTable)->tableName, sizeof(pNode->tbName));
+
+  pNode->outputRaw = (pArgs != NULL && pArgs->outputRaw == 1);
+  if (pArgs != NULL && TK_NK_NIL != pArgs->columnList.type && pArgs->columnList.n >= 2) {
+    uint32_t len = pArgs->columnList.n - 2;
+    pNode->columnList = taosMemoryMalloc(len + 1);
+    if (pNode->columnList == NULL) {
+      pCxt->errCode = TSDB_CODE_OUT_OF_MEMORY;
+      nodesDestroyNode((SNode*)pNode);
+      return NULL;
+    }
+    if (len > 0) {
+      tstrncpy(pNode->columnList, pArgs->columnList.z + 1, len + 1);
+    } else {
+      pNode->columnList[0] = '\0';
+    }
+  }
+
+  if (pTableAlias != NULL && TK_NK_NIL != pTableAlias->type) {
+    COPY_STRING_FORM_ID_TOKEN(pNode->table.tableAlias, pTableAlias);
+  } else {
+    tstrncpy(pNode->table.tableAlias, ((STableNode*)pTable)->tableAlias, sizeof(pNode->table.tableAlias));
+  }
+  return (SNode*)pNode;
 }
 
 SNode* createRealTableNodeExt3(SAstCreateContext* pCxt,

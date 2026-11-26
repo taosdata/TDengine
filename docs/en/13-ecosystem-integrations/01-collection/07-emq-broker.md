@@ -24,8 +24,23 @@ Create the corresponding database and table structure in TDengine to receive MQT
 
 ```sql
 CREATE DATABASE test;
+
 USE test;
-CREATE TABLE sensor_data (ts TIMESTAMP, temperature FLOAT, humidity FLOAT, volume FLOAT, pm10 FLOAT, pm25 FLOAT, so2 FLOAT, no2 FLOAT, co FLOAT, sensor_id NCHAR(255), area TINYINT, coll_time TIMESTAMP);
+
+CREATE TABLE sensor_data (
+  ts          TIMESTAMP,
+  temperature FLOAT,
+  humidity    FLOAT,
+  volume      FLOAT,
+  pm10        FLOAT,
+  pm25        FLOAT,
+  so2         FLOAT,
+  no2         FLOAT,
+  co          FLOAT,
+  sensor_id   NCHAR(255),
+  area        TINYINT,
+  coll_time   TIMESTAMP
+);
 ```
 
 ## Configure EMQX Rules
@@ -49,10 +64,8 @@ Select "Rule Engine (Rule Engine)" on the left, then "Rule (Rule)" and click the
 Copy the following content into the SQL edit box:
 
 ```sql
-SELECT
-  payload
-FROM
-  "sensor/data"
+SELECT payload
+FROM "sensor/data"
 ```
 
 Where `payload` represents the entire message body, `sensor/data` is the message topic selected for this rule.

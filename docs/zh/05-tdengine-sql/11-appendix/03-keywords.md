@@ -136,6 +136,9 @@ description: 保留关键字列表
 | `CREATE`                  | |
 | `CREATEDB`                | |
 | `CURRENT`                 | `v3.4.2.0`+ |
+| `CURRENT_DATE`            | `v3.4.3.12`+ |
+| `CURRENT_TIME`            | `v3.4.3.12`+ |
+| `CURRENT_TIMESTAMP`       | `v3.4.3.12`+ |
 | `CURRENT_USER`            | |
 
 ### D
@@ -722,6 +725,8 @@ description: 保留关键字列表
 | `_TLOCALTIME`      | |
 | `_TNEXT_LOCALTIME` | |
 | `_TNEXT_TS`        | |
+| `_TPRE_WEND`       | |
+| `_TPRE_WSTART`     | |
 | `_TPREV_LOCALTIME` | |
 | `_TPREV_TS`        | |
 | `_TROLLUP_TBCOUNT` | `v3.4.2.0`+ |

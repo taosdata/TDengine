@@ -146,6 +146,36 @@ TEST_F(TsdbFSEditBeginTest, SubsequentEditBeginIsNotBlockedAfterFailure) {
   (void)tsem_post(&fs_.canEdit);
 }
 
+TEST(TsdbSsMigrateHardening, KeyBasename) {
+  EXPECT_STREQ(tsdbSsKeyBasename("vnode2/f1/v2f1ver1.m1.head"), "v2f1ver1.m1.head");
+  EXPECT_EQ(tsdbSsKeyBasename("noslash.head"), nullptr);
+  EXPECT_EQ(tsdbSsKeyBasename("vnode2/f1/"), nullptr);
+  EXPECT_EQ(tsdbSsKeyBasename(nullptr), nullptr);
+#ifdef WINDOWS
+  // the fs backend joins the '/' prefix and the name with the local separator
+  EXPECT_STREQ(tsdbSsKeyBasename("vnode2/f1/\\v2f1ver1.m1.head"), "v2f1ver1.m1.head");
+  EXPECT_EQ(tsdbSsKeyBasename("vnode2/f1\\"), nullptr);
+#endif
+}
+
+TEST(TsdbSsMigrateHardening, ValidateRemoteFset) {
+  EXPECT_EQ(tsdbValidateRemoteFset(nullptr, 1), TSDB_CODE_INVALID_PARA);
+
+  STFileSet fset = {};
+  fset.fid = 5;
+  // no files at all
+  EXPECT_EQ(tsdbValidateRemoteFset(&fset, 5), TSDB_CODE_FILE_CORRUPTED);
+
+  STFileObj data = {}, head = {}, sma = {};
+  fset.farr[TSDB_FTYPE_DATA] = &data;
+  EXPECT_EQ(tsdbValidateRemoteFset(&fset, 5), TSDB_CODE_FILE_CORRUPTED);  // head and sma missing
+  fset.farr[TSDB_FTYPE_HEAD] = &head;
+  EXPECT_EQ(tsdbValidateRemoteFset(&fset, 5), TSDB_CODE_FILE_CORRUPTED);  // sma missing
+  fset.farr[TSDB_FTYPE_SMA] = &sma;
+  EXPECT_EQ(tsdbValidateRemoteFset(&fset, 5), TSDB_CODE_SUCCESS);
+  EXPECT_EQ(tsdbValidateRemoteFset(&fset, 6), TSDB_CODE_FILE_CORRUPTED);  // fid mismatch
+}
+
 int main(int argc, char **argv) {
   testing::InitGoogleTest(&argc, argv);
   return RUN_ALL_TESTS();

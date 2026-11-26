@@ -10,14 +10,15 @@
 
 #include "meta.h"
 #include "vnodeInt.h"
+#include "tdTestSeam.h"
 
 extern SDmNotifyHandle dmNotifyHdl;
 
 int32_t metaCloneEntry(const SMetaEntry *pEntry, SMetaEntry **ppEntry);
 void    metaCloneEntryFree(SMetaEntry **ppEntry);
 void    metaDestroyTagIdxKey(STagIdxKey *pTagIdxKey);
-int     metaSaveJsonVarToIdx(SMeta *pMeta, const SMetaEntry *pCtbEntry, const SSchema *pSchema);
-int     metaDelJsonVarFromIdx(SMeta *pMeta, const SMetaEntry *pCtbEntry, const SSchema *pSchema);
+int     metaSaveJsonVarToIdx(SMeta *pMeta, const SMetaEntry *pCtbEntry);
+int     metaDelJsonVarFromIdx(SMeta *pMeta, const SMetaEntry *pCtbEntry);
 int     tagIdxKeyCmpr(const void *pKey1, int kLen1, const void *pKey2, int kLen2);
 
 static void    metaTimeSeriesNotifyCheck(SMeta *pMeta);
@@ -66,7 +67,16 @@ typedef struct {
   EMetaTableOp op;
 } SMetaTableOp;
 
+// Bump the vnode-wide virtual-table metadata generation. Declared in meta.h as
+// a real function (not inline) so the vnode txn unit test can seam it out.
+void metaBumpVtableGen(SMeta *pMeta) {
+  TD_SEAM_VOID(metaBumpVtableGen, void (*)(SMeta *), (pMeta));
+  (void)atomic_add_fetch_64(&pMeta->vtableGen, 1);
+}
+
 int32_t metaFetchEntryByUid(SMeta *pMeta, int64_t uid, SMetaEntry **ppEntry) {
+  TD_SEAM_RET(metaFetchEntryByUid, int32_t (*)(SMeta *, int64_t, SMetaEntry **), (pMeta, uid, ppEntry));
+
   int32_t code = TSDB_CODE_SUCCESS;
   void   *value = NULL;
   int32_t valueSize = 0;
@@ -102,6 +112,7 @@ int32_t metaFetchEntryByUid(SMeta *pMeta, int64_t uid, SMetaEntry **ppEntry) {
     metaError("vgId:%d, failed to decode entry by uid:%" PRId64 " since %s", TD_VID(pMeta->pVnode), uid,
               tstrerror(code));
     tFreeSSeriesWrapper(&entry.series);
+    tFreeVtableReferenceExt(&entry.referenceExt);
     tDecoderClear(&decoder);
     tdbFreeClear(value);
     return code;
@@ -112,12 +123,15 @@ int32_t metaFetchEntryByUid(SMeta *pMeta, int64_t uid, SMetaEntry **ppEntry) {
     metaError("vgId:%d, failed to clone entry by uid:%" PRId64 " since %s", TD_VID(pMeta->pVnode), uid,
               tstrerror(code));
     tFreeSSeriesWrapper(&entry.series);
+    tFreeVtableReferenceExt(&entry.referenceExt);
     tDecoderClear(&decoder);
     tdbFreeClear(value);
     return code;
   }
 
   tFreeSSeriesWrapper(&entry.series);
+
+  tFreeVtableReferenceExt(&entry.referenceExt);
   tdbFreeClear(value);
   tDecoderClear(&decoder);
   return code;
@@ -144,7 +158,10 @@ int32_t metaFetchEntryByName(SMeta *pMeta, const char *name, SMetaEntry **ppEntr
   return code;
 }
 
-void metaFetchEntryFree(SMetaEntry **ppEntry) { metaCloneEntryFree(ppEntry); }
+void metaFetchEntryFree(SMetaEntry **ppEntry) {
+  TD_SEAM_VOID(metaFetchEntryFree, void (*)(SMetaEntry **), (ppEntry));
+  metaCloneEntryFree(ppEntry);
+}
 
 // ============================================================================
 // txn.idx  -  small B+ tree tracking pending txn entries for O(k) startup rebuild
@@ -168,6 +185,7 @@ int32_t metaTxnIdxUpsert(SMeta *pMeta, tb_uid_t uid, int64_t txnId, int8_t txnSt
 }
 
 int32_t metaTxnIdxDelete(SMeta *pMeta, tb_uid_t uid) {
+  TD_SEAM_RET(metaTxnIdxDelete, int32_t (*)(SMeta *, tb_uid_t), (pMeta, uid));
   metaWLock(pMeta);
   int32_t code = tdbTbDelete(pMeta->pTxnIdx, &uid, sizeof(uid), pMeta->txn);
   metaULock(pMeta);
@@ -267,6 +285,7 @@ _exit:
  * Returns an SArray of SMetaTxnScanEntry (caller must destroy).
  */
 int32_t metaScanTxnEntries(SMeta *pMeta, SArray **ppResult) {
+  TD_SEAM_RET(metaScanTxnEntries, int32_t (*)(SMeta *, SArray **), (pMeta, ppResult));
   int32_t code = TSDB_CODE_SUCCESS;
   TBC    *pCursor = NULL;
 
@@ -325,6 +344,7 @@ int32_t metaScanTxnEntries(SMeta *pMeta, SArray **ppResult) {
 // ============================================================================
 
 int32_t metaTxnMetaUpsert(SMeta *pMeta, int64_t txnId, const STxnMetaVal *pVal) {
+  TD_SEAM_RET(metaTxnMetaUpsert, int32_t (*)(SMeta *, int64_t, const STxnMetaVal *), (pMeta, txnId, pVal));
   int32_t code = tdbTbUpsert(pMeta->pTxnMeta, &txnId, sizeof(txnId), pVal, sizeof(STxnMetaVal), pMeta->txn);
   if (code != 0) {
     metaError("vgId:%d, metaTxnMetaUpsert failed, txnId:%" PRId64 " status:%d code:0x%x",
@@ -334,6 +354,7 @@ int32_t metaTxnMetaUpsert(SMeta *pMeta, int64_t txnId, const STxnMetaVal *pVal) 
 }
 
 int32_t metaTxnMetaDelete(SMeta *pMeta, int64_t txnId) {
+  TD_SEAM_RET(metaTxnMetaDelete, int32_t (*)(SMeta *, int64_t), (pMeta, txnId));
   int32_t code = tdbTbDelete(pMeta->pTxnMeta, &txnId, sizeof(txnId), pMeta->txn);
   if (code == TSDB_CODE_NOT_FOUND) {
     return TSDB_CODE_SUCCESS;
@@ -345,6 +366,7 @@ int32_t metaTxnMetaDelete(SMeta *pMeta, int64_t txnId) {
 }
 
 int32_t metaTxnMetaGet(SMeta *pMeta, int64_t txnId, STxnMetaVal *pVal) {
+  TD_SEAM_RET(metaTxnMetaGet, int32_t (*)(SMeta *, int64_t, STxnMetaVal *), (pMeta, txnId, pVal));
   void   *pData = NULL;
   int32_t nData = 0;
   int32_t code = tdbTbGet(pMeta->pTxnMeta, &txnId, sizeof(txnId), &pData, &nData);
@@ -361,6 +383,7 @@ int32_t metaTxnMetaGet(SMeta *pMeta, int64_t txnId, STxnMetaVal *pVal) {
 }
 
 int32_t metaScanTxnMetaEntries(SMeta *pMeta, SArray **ppResult) {
+  TD_SEAM_RET(metaScanTxnMetaEntries, int32_t (*)(SMeta *, SArray **), (pMeta, ppResult));
   int32_t code = TSDB_CODE_SUCCESS;
   TBC    *pCursor = NULL;
 
@@ -680,7 +703,10 @@ static int32_t metaAddOrDropTagIndexOfSuperTable(SMeta *pMeta, const SMetaHandle
 // Fail a vstb schema change that would collide with a vchild's own (extension) column/tag
 // names: mnode is not aware of vchild tables, so the conflict can only be detected here, on
 // the vnode owning them. Returning an error fails the whole stb alter on this vnode.
-static int32_t metaCheckVchildOwnNameConflict(SMeta *pMeta, const SMetaEntry *pChildEntry, const char *pName) {
+// pConflict (optional) receives the conflicting child table / name so the client-facing error
+// message can name the conflict source (defect 7160321463).
+static int32_t metaCheckVchildOwnNameConflict(SMeta *pMeta, const SMetaEntry *pChildEntry, const char *pName,
+                                              SOwnNameConflictInfo *pConflict) {
   if (pChildEntry->type != TSDB_VIRTUAL_CHILD_TABLE) {
     return TSDB_CODE_SUCCESS;
   }
@@ -688,6 +714,11 @@ static int32_t metaCheckVchildOwnNameConflict(SMeta *pMeta, const SMetaEntry *pC
     if (strncmp(pChildEntry->own.pOwnColSchemas[i].name, pName, TSDB_COL_NAME_LEN) == 0) {
       metaError("vgId:%d, super table alter on %s conflicts with own column %s of virtual child table uid %" PRId64,
                 TD_VID(pMeta->pVnode), pChildEntry->name, pName, pChildEntry->uid);
+      if (pConflict != NULL) {
+        tstrncpy(pConflict->childName, pChildEntry->name, TSDB_TABLE_NAME_LEN);
+        tstrncpy(pConflict->colName, pName, TSDB_COL_NAME_LEN);
+        pConflict->isTag = false;
+      }
       return TSDB_CODE_VND_COL_ALREADY_EXISTS;
     }
   }
@@ -695,18 +726,27 @@ static int32_t metaCheckVchildOwnNameConflict(SMeta *pMeta, const SMetaEntry *pC
     if (strncmp(pChildEntry->own.pOwnTagSchemas[i].name, pName, TSDB_COL_NAME_LEN) == 0) {
       metaError("vgId:%d, super table alter on %s conflicts with own tag %s of virtual child table uid %" PRId64,
                 TD_VID(pMeta->pVnode), pChildEntry->name, pName, pChildEntry->uid);
+      if (pConflict != NULL) {
+        tstrncpy(pConflict->childName, pChildEntry->name, TSDB_TABLE_NAME_LEN);
+        tstrncpy(pConflict->colName, pName, TSDB_COL_NAME_LEN);
+        pConflict->isTag = true;
+      }
       return TSDB_CODE_VND_COL_ALREADY_EXISTS;
     }
   }
   return TSDB_CODE_SUCCESS;
 }
 
-// Check ALL names in pNames (an SArray of char*, each pointing to a column/tag name) against
+// Check ALL names in pNames (an SArray of inline char[TSDB_COL_NAME_LEN] elements, each a
+// column/tag name) against
 // every vchild's own (extension) column/tag names, fetching the child entries only once. Used
 // by vstb schema-change paths so an alter touching several names does not re-fetch every child
-// once per name.
-static int32_t metaCheckOwnNameConflictsOfChildTables(SMeta *pMeta, tb_uid_t suid, SArray *pNames) {
+// once per name. On conflict, pConflict (optional) receives the first conflicting child table
+// and name for the client-facing error message.
+int32_t metaCheckOwnNameConflictsOfChildTables(SMeta *pMeta, tb_uid_t suid, SArray *pNames,
+                                               SOwnNameConflictInfo *pConflict) {
   int32_t code = TSDB_CODE_SUCCESS;
+  SOwnNameConflictInfo conflict = {0};
 
   if (pNames == NULL || taosArrayGetSize(pNames) == 0) {
     return TSDB_CODE_SUCCESS;
@@ -736,8 +776,9 @@ static int32_t metaCheckOwnNameConflictsOfChildTables(SMeta *pMeta, tb_uid_t sui
     }
 
     for (int32_t j = 0; j < taosArrayGetSize(pNames); j++) {
-      const char *pName = *(char **)taosArrayGet(pNames, j);
-      code = metaCheckVchildOwnNameConflict(pMeta, pChildEntry, pName);
+      // pNames stores inline char[TSDB_COL_NAME_LEN] elements, not char* pointers
+      const char *pName = (const char *)taosArrayGet(pNames, j);
+      code = metaCheckVchildOwnNameConflict(pMeta, pChildEntry, pName, &conflict);
       if (code) {
         break;
       }
@@ -745,28 +786,15 @@ static int32_t metaCheckOwnNameConflictsOfChildTables(SMeta *pMeta, tb_uid_t sui
 
     metaFetchEntryFree(&pChildEntry);
     if (code) {
+      if (pConflict != NULL) {
+        *pConflict = conflict;
+      }
       taosArrayDestroy(childTables);
       return code;
     }
   }
 
   taosArrayDestroy(childTables);
-  return code;
-}
-
-// Single-name variant kept for the exported meta.h surface: delegate to the multi-name
-// helper (wrap pName in a 1-element array) so the fetch/error handling lives in one place.
-int32_t metaCheckOwnNameConflictOfChildTables(SMeta *pMeta, tb_uid_t suid, const char *pName) {
-  SArray *pNames = taosArrayInit(1, sizeof(char *));
-  if (NULL == pNames) {
-    return terrno != 0 ? terrno : TSDB_CODE_OUT_OF_MEMORY;
-  }
-  if (taosArrayPush(pNames, &pName) == NULL) {
-    taosArrayDestroy(pNames);
-    return terrno != 0 ? terrno : TSDB_CODE_OUT_OF_MEMORY;
-  }
-  int32_t code = metaCheckOwnNameConflictsOfChildTables(pMeta, suid, pNames);
-  taosArrayDestroy(pNames);
   return code;
 }
 
@@ -780,27 +808,29 @@ int32_t metaCheckOwnNameConflictOfChildTables(SMeta *pMeta, tb_uid_t suid, const
 static int32_t metaCheckNewSchemaOwnNameConflicts(SMeta *pMeta, const SMetaEntry *pEntry) {
   int32_t code = TSDB_CODE_SUCCESS;
 
-  SArray *pNames = taosArrayInit(pEntry->stbEntry.schemaRow.nCols + pEntry->stbEntry.schemaTag.nCols, sizeof(char *));
+  // pNames carries inline char[TSDB_COL_NAME_LEN] elements (the wire format the shared
+  // consumer metaCheckOwnNameConflictsOfChildTables expects); pushing &pName would store
+  // a pointer value the consumer would read as raw name bytes
+  SArray *pNames = taosArrayInit(pEntry->stbEntry.schemaRow.nCols + pEntry->stbEntry.schemaTag.nCols,
+                                 TSDB_COL_NAME_LEN);
   if (NULL == pNames) {
     return terrno != 0 ? terrno : TSDB_CODE_OUT_OF_MEMORY;
   }
 
   for (int32_t i = 0; i < pEntry->stbEntry.schemaRow.nCols; i++) {
-    const char *pName = pEntry->stbEntry.schemaRow.pSchema[i].name;
-    if (taosArrayPush(pNames, &pName) == NULL) {
+    if (taosArrayPush(pNames, pEntry->stbEntry.schemaRow.pSchema[i].name) == NULL) {
       code = terrno != 0 ? terrno : TSDB_CODE_OUT_OF_MEMORY;
       goto _exit;
     }
   }
   for (int32_t i = 0; i < pEntry->stbEntry.schemaTag.nCols; i++) {
-    const char *pName = pEntry->stbEntry.schemaTag.pSchema[i].name;
-    if (taosArrayPush(pNames, &pName) == NULL) {
+    if (taosArrayPush(pNames, pEntry->stbEntry.schemaTag.pSchema[i].name) == NULL) {
       code = terrno != 0 ? terrno : TSDB_CODE_OUT_OF_MEMORY;
       goto _exit;
     }
   }
 
-  code = metaCheckOwnNameConflictsOfChildTables(pMeta, pEntry->uid, pNames);
+  code = metaCheckOwnNameConflictsOfChildTables(pMeta, pEntry->uid, pNames, NULL);
 
 _exit:
   taosArrayDestroy(pNames);
@@ -828,9 +858,11 @@ static int32_t metaAddOrDropColumnIndexOfVirtualSuperTable(SMeta *pMeta, const S
     action = ADD_COLUMN;
   }
 
-  // fetch all child tables
+  // fetch all child tables. A virtual child created by the same batch meta txn is still PRE_CREATE here, but its
+  // persisted colRef must follow this change like any other child's: left out, it would be committed with a colRef
+  // array that no longer matches the super table's row schema.
   SArray *childTables = 0;
-  code = metaGetChildUidsOfSuperTable(pMeta, pEntry->uid, &childTables);
+  code = metaGetChildUidsOfSuperTableTxn(pMeta, pEntry->uid, pEntry->txnId, false, &childTables);
   if (code) {
     metaErr(TD_VID(pMeta->pVnode), code);
     return code;
@@ -854,7 +886,7 @@ static int32_t metaAddOrDropColumnIndexOfVirtualSuperTable(SMeta *pMeta, const S
     if (action == ADD_COLUMN) {
       // the vstb's new column must not collide with the vchild's own (extension)
       // columns/tags; a conflict fails the whole stb alter on this vnode
-      code = metaCheckVchildOwnNameConflict(pMeta, pChildEntry, pNewColumn->name);
+      code = metaCheckVchildOwnNameConflict(pMeta, pChildEntry, pNewColumn->name, NULL);
       if (code) {
         taosArrayDestroy(childTables);
         metaFetchEntryFree(&pChildEntry);
@@ -878,13 +910,21 @@ static int32_t metaAddOrDropColumnIndexOfVirtualSuperTable(SMeta *pMeta, const S
       }
     } else if (action == RENAME_COLUMN) {
       // conflict check only; the colRef array is keyed by colId and needs no update
-      code = metaCheckVchildOwnNameConflict(pMeta, pChildEntry, pNewColumn->name);
+      code = metaCheckVchildOwnNameConflict(pMeta, pChildEntry, pNewColumn->name, NULL);
       if (code) {
         taosArrayDestroy(childTables);
         metaFetchEntryFree(&pChildEntry);
         return code;
       }
     } else {
+      for (int32_t binding = 0; binding < pChildEntry->referenceExt.nBindings; ++binding) {
+        SVtableBindingLink *link = &pChildEntry->referenceExt.pBindings[binding];
+        if (link->colId == pOldColumn->colId) {
+          memmove(link, link + 1, (pChildEntry->referenceExt.nBindings - binding - 1) * sizeof(*link));
+          --pChildEntry->referenceExt.nBindings;
+          break;
+        }
+      }
       code = updataTableColRef(&pChildEntry->colRef, pOldColumn, 0, NULL);
       if (code) {
         metaErr(TD_VID(pMeta->pVnode), code);
@@ -921,7 +961,8 @@ static int32_t metaUpdateSuperTableTagSchema(SMeta *pMeta, const SMetaHandlePara
   // index mutation below.
   bool checkOwnConflict = TABLE_IS_VIRTUAL(pEntry->flags);
   if (checkOwnConflict) {
-    SArray *pNames = taosArrayInit(4, sizeof(char *));
+    // inline char[TSDB_COL_NAME_LEN] elements, matching the shared consumer
+    SArray *pNames = taosArrayInit(4, TSDB_COL_NAME_LEN);
     if (NULL == pNames) {
       return terrno != 0 ? terrno : TSDB_CODE_OUT_OF_MEMORY;
     }
@@ -931,8 +972,7 @@ static int32_t metaUpdateSuperTableTagSchema(SMeta *pMeta, const SMetaHandlePara
       SSchema *pNewColumn = pNewTagSchema->pSchema + iNewName;
       if (pOldColumn->colId == pNewColumn->colId) {
         if (strncmp(pOldColumn->name, pNewColumn->name, TSDB_COL_NAME_LEN) != 0) {
-          const char *pName = pNewColumn->name;
-          if (taosArrayPush(pNames, &pName) == NULL) {
+          if (taosArrayPush(pNames, pNewColumn->name) == NULL) {
             taosArrayDestroy(pNames);
             return terrno != 0 ? terrno : TSDB_CODE_OUT_OF_MEMORY;
           }
@@ -942,8 +982,7 @@ static int32_t metaUpdateSuperTableTagSchema(SMeta *pMeta, const SMetaHandlePara
       } else if (pOldColumn->colId < pNewColumn->colId) {
         iOldName++;  // dropped tag: no new name to check
       } else {
-        const char *pName = pNewColumn->name;
-        if (taosArrayPush(pNames, &pName) == NULL) {
+        if (taosArrayPush(pNames, pNewColumn->name) == NULL) {
           taosArrayDestroy(pNames);
           return terrno != 0 ? terrno : TSDB_CODE_OUT_OF_MEMORY;
         }
@@ -951,13 +990,12 @@ static int32_t metaUpdateSuperTableTagSchema(SMeta *pMeta, const SMetaHandlePara
       }
     }
     for (; iNewName < pNewTagSchema->nCols; iNewName++) {
-      const char *pName = pNewTagSchema->pSchema[iNewName].name;
-      if (taosArrayPush(pNames, &pName) == NULL) {
+      if (taosArrayPush(pNames, pNewTagSchema->pSchema[iNewName].name) == NULL) {
         taosArrayDestroy(pNames);
         return terrno != 0 ? terrno : TSDB_CODE_OUT_OF_MEMORY;
       }
     }
-    code = metaCheckOwnNameConflictsOfChildTables(pMeta, pEntry->uid, pNames);
+    code = metaCheckOwnNameConflictsOfChildTables(pMeta, pEntry->uid, pNames, NULL);
     taosArrayDestroy(pNames);
     if (code) {
       return code;
@@ -1377,7 +1415,7 @@ static int32_t metaTagIdxInsert(SMeta *pMeta, const SMetaHandleParam *pParam) {
 
     const void *pTagData = pEntry->ctbEntry.pTags;
     int32_t     nTagData = ((const STag *)pEntry->ctbEntry.pTags)->len;
-    code = metaSaveJsonVarToIdx(pMeta, pEntry, pTagColumn);
+    code = metaSaveJsonVarToIdx(pMeta, pEntry);
     if (code) {
       metaErr(TD_VID(pMeta->pVnode), code);
     }
@@ -1424,13 +1462,13 @@ static int32_t metaTagIdxUpdate(SMeta *pMeta, const SMetaHandleParam *pParam) {
   }
 
   if (pTagSchema->nCols == 1 && pTagSchema->pSchema[0].type == TSDB_DATA_TYPE_JSON) {
-    code = metaDelJsonVarFromIdx(pMeta, pOldEntry, &pTagSchema->pSchema[0]);
+    code = metaDelJsonVarFromIdx(pMeta, pOldEntry);
     if (code) {
       metaErr(TD_VID(pMeta->pVnode), code);
       return code;
     }
 
-    code = metaSaveJsonVarToIdx(pMeta, pEntry, &pTagSchema->pSchema[0]);
+    code = metaSaveJsonVarToIdx(pMeta, pEntry);
     if (code) {
       metaErr(TD_VID(pMeta->pVnode), code);
       return code;
@@ -1498,7 +1536,7 @@ static int32_t metaTagIdxDelete(SMeta *pMeta, const SMetaHandleParam *pParam) {
 
   if (pTagSchema->nCols == 1 && pTagSchema->pSchema[0].type == TSDB_DATA_TYPE_JSON) {
     pTagColumn = &pTagSchema->pSchema[0];
-    code = metaDelJsonVarFromIdx(pMeta, pChild, pTagColumn);
+    code = metaDelJsonVarFromIdx(pMeta, pChild);
     if (code) {
       metaErr(TD_VID(pMeta->pVnode), code);
     }
@@ -1900,7 +1938,7 @@ static int32_t metaHandleChildTableCreate(SMeta *pMeta, const SMetaEntry *pEntry
   if (TSDB_CODE_SUCCESS == code) {
     pMeta->pVnode->config.vndStats.numOfCTables++;
 
-    if (!metaTbInFilterCache(pMeta, pSuperEntry->name, 1)) {
+    if (!vnodeIsTimeSeriesExcluded(pMeta->pVnode)) {
       int32_t nCols = 0;
       int32_t ret = metaGetStbStats(pMeta->pVnode, pSuperEntry->uid, 0, &nCols, 0);
       if (ret < 0) {
@@ -2239,7 +2277,7 @@ static int32_t metaHandleChildTableDrop(SMeta *pMeta, const SMetaEntry *pEntry, 
   // do other stuff
   // Use pSuper's already-fetched schema directly  -  avoids a redundant
   // metaGetStbStats round-trip through the stats cache.
-  if (pSuper != NULL && !metaTbInFilterCache(pMeta, pSuper->name, 1)) {
+  if (pSuper != NULL && !vnodeIsTimeSeriesExcluded(pMeta->pVnode)) {
     int32_t nCols = pSuper->stbEntry.schemaRow.nCols;
     pMeta->pVnode->config.vndStats.numOfTimeSeries -= nCols - 1;
   }
@@ -2628,6 +2666,18 @@ int32_t metaDropOrphanedEntry(SMeta *pMeta, tb_uid_t uid, const SMetaEntry *pOld
 }
 
 int32_t metaGetChildUidsOfSuperTable(SMeta *pMeta, tb_uid_t suid, SArray **childList) {
+  return metaGetChildUidsOfSuperTableTxn(pMeta, suid, 0, false, childList);
+}
+
+// Child tables of a super table. Children that are PRE_CREATE in another (or no) batch meta txn are skipped: they
+// are not visible yet. Children created by batch meta txn `txnId` itself are included, so that a super table
+// change made by that txn reaches them too (their persisted state must stay aligned with the super table).
+// includeAllPreCreate: no visibility filter, every child that belongs to the super table. For a caller that removes
+// the super table physically: which children belong to it does not depend on who may see them, and a child that was
+// created in a txn but is still PRE_CREATE (not vacuumed yet) must go with it, or it outlives its super table as an
+// orphan.
+int32_t metaGetChildUidsOfSuperTableTxn(SMeta *pMeta, tb_uid_t suid, int64_t txnId, bool includeAllPreCreate,
+                                        SArray **childList) {
   int32_t code = TSDB_CODE_SUCCESS;
   void   *key = NULL;
   int32_t keySize = 0;
@@ -2677,7 +2727,11 @@ int32_t metaGetChildUidsOfSuperTable(SMeta *pMeta, tb_uid_t suid, SArray **child
         STxnIdxVal txnVal = *(const STxnIdxVal *)pTxnVal;
         int8_t     st = txnVal.txnStatus;
         tdbFree(pTxnVal);
-        if (st == META_TXN_PRE_CREATE) {
+        if (st == META_TXN_PRE_CREATE && !includeAllPreCreate && !(txnId != 0 && txnVal.txnId == txnId)) {
+          continue;
+        }
+        // created and dropped inside one txn: gone for every reader, including that txn itself
+        if (st == META_TXN_PRE_CREATE_DROP && !includeAllPreCreate) {
           continue;
         }
       }
@@ -2754,10 +2808,22 @@ static int32_t metaHandleNormalTableUpdateImpl(SMeta *pMeta, const SMetaHandlePa
   return code;
 }
 
+static int32_t metaCheckEntryReferenceVersion(SMeta *pMeta, const SMetaEntry *pEntry) {
+  if (!pEntry->hasExpectedRversion) return TSDB_CODE_SUCCESS;
+  SMetaEntry *current = NULL;
+  int32_t code = metaFetchEntryByUid(pMeta, pEntry->uid, &current);
+  if (code == TSDB_CODE_SUCCESS && current->colRef.version != pEntry->expectedRversion) {
+    code = TSDB_CODE_VTABLE_REFERENCE_VERSION_CONFLICT;
+  }
+  metaFetchEntryFree(&current);
+  return code;
+}
+
 static int32_t metaHandleVirtualNormalTableUpdateImpl(SMeta *pMeta, const SMetaHandleParam *pParam) {
   int32_t code = TSDB_CODE_SUCCESS;
 
   const SMetaEntry *pEntry = pParam->pEntry;
+  TAOS_CHECK_RETURN(metaCheckEntryReferenceVersion(pMeta, pEntry));
 
   SMetaTableOp ops[] = {
       {META_ENTRY_TABLE, META_TABLE_OP_UPDATA},   //
@@ -2784,6 +2850,7 @@ static int32_t metaHandleVirtualChildTableUpdateImpl(SMeta *pMeta, const SMetaHa
   int32_t code = TSDB_CODE_SUCCESS;
 
   const SMetaEntry *pEntry = pParam->pEntry;
+  TAOS_CHECK_RETURN(metaCheckEntryReferenceVersion(pMeta, pEntry));
   const SMetaEntry *pOldEntry = pParam->pOldEntry;
   const SMetaEntry *pSuperEntry = pParam->pSuperEntry;
 
@@ -2957,7 +3024,7 @@ static int32_t metaHandleSuperTableUpdate(SMeta *pMeta, const SMetaEntry *pEntry
   int     nCols = pEntry->stbEntry.schemaRow.nCols;
   int     onCols = pOldEntry->stbEntry.schemaRow.nCols;
   int32_t deltaCol = nCols - onCols;
-  bool    updStat = deltaCol != 0 && !TABLE_IS_VIRTUAL(pEntry->flags) && !metaTbInFilterCache(pMeta, pEntry->name, 1);
+  bool    updStat = deltaCol != 0 && !TABLE_IS_VIRTUAL(pEntry->flags) && !vnodeIsTimeSeriesExcluded(pMeta->pVnode);
 
   if (!TSDB_CACHE_NO(pMeta->pVnode->config)) {
     STsdb  *pTsdb = pMeta->pVnode->pTsdb;
@@ -3223,7 +3290,7 @@ static int32_t metaHandleSuperTableDrop(SMeta *pMeta, const SMetaEntry *pEntry) 
     return code;
   }
 
-  code = metaGetChildUidsOfSuperTable(pMeta, pEntry->uid, &childList);
+  code = metaGetChildUidsOfSuperTableTxn(pMeta, pEntry->uid, 0, true, &childList);
   if (code) {
     metaErr(TD_VID(pMeta->pVnode), code);
     metaFetchEntryFree(&pOldEntry);
@@ -3266,6 +3333,13 @@ static int32_t metaHandleSuperTableDrop(SMeta *pMeta, const SMetaEntry *pEntry) 
     taosArrayDestroy(childList);
     metaFetchEntryFree(&pOldEntry);
     return code;
+  }
+
+  // Dropping a virtual super table invalidates every vc_cols cache entry for
+  // this vnode, but the drop entry carries flags == 0 so the bump in
+  // metaHandleEntry2 cannot see the virtual flag. Bump here from the old entry.
+  if (TABLE_IS_VIRTUAL(pOldEntry->flags)) {
+    metaBumpVtableGen(pMeta);
   }
 
   // do other stuff
@@ -3371,6 +3445,16 @@ int32_t metaHandleEntry2(SMeta *pMeta, const SMetaEntry *pEntry) {
 
   if (TSDB_CODE_SUCCESS == code) {
     pMeta->changed = true;
+    // Any create/update/drop of a virtual table entry changes the ins_virtual_child_columns
+    // scan result (children, own columns/tags, column references, or tag values). A virtual
+    // super table schema change (ALTER ... ADD/DROP/MODIFY COLUMN/TAG) changes the vc_cols
+    // output too, because vchild rows are rendered from the parent schema
+    // (sysTableUserColsFillOneVirtualTableCols), so bump for it as well. Bump the generation
+    // counter so calc-side vc_cols caches are invalidated on the next serve.
+    if (type == TSDB_VIRTUAL_NORMAL_TABLE || type == TSDB_VIRTUAL_CHILD_TABLE ||
+        (type == TSDB_SUPER_TABLE && TABLE_IS_VIRTUAL(pEntry->flags))) {
+      metaBumpVtableGen(pMeta);
+    }
     metaDebug("vgId:%d, index:%" PRId64 ", handle meta entry success, type:%d tb:%s uid:%" PRId64, vgId,
               pEntry->version, pEntry->type, pEntry->type > 0 ? pEntry->name : "", pEntry->uid);
   } else {

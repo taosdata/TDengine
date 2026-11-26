@@ -51,10 +51,16 @@
 #include "cmdnodes.h"
 #include "streamInt.h"
 #include "stub.h"
+#include "tconv.h"
+#include "tdatablock.h"
 #include "tglobal.h"
 
 extern "C" {
 #include "tcurl.h"
+
+// Keep curl_ws_send real; inject backpressure below its frame encoder.
+struct Curl_easy;
+CURLcode Curl_senddata(struct Curl_easy*, const void*, size_t, size_t*);
 }
 
 namespace {
@@ -101,6 +107,11 @@ CURLcode FailCurlWsSend(CURL*, const void*, size_t, size_t* sent, curl_off_t, un
   ++gCurlWsSendCalls;
   *sent = 0;
   return CURLE_SEND_ERROR;
+}
+
+CURLcode BlockCurlSocketSend(Curl_easy*, const void*, size_t, size_t* sent) {
+  *sent = 0;
+  return CURLE_AGAIN;
 }
 
 CURLcode RetryCurlWsSend(CURL*, const void*, size_t buflen, size_t* sent, curl_off_t, unsigned int) {
@@ -589,6 +600,79 @@ struct ArrayDeleter {
 struct JsonDeleter {
   void operator()(cJSON* json) const { cJSON_Delete(json); }
 };
+
+class StreamNotifyContentTest : public ::testing::Test {
+ protected:
+  void SetUp() override {
+    originalCharset_ = tsCharsetCxt;
+    tsCharsetCxt = taosConvInit("GBK");
+    ASSERT_NE(tsCharsetCxt, nullptr);
+  }
+
+  void TearDown() override { tsCharsetCxt = originalCharset_; }
+
+ private:
+  void* originalCharset_ = nullptr;
+};
+
+TEST_F(StreamNotifyContentTest, ResultStringsPreserveNcharAsUtf8) {
+  const std::u32string wideValues[] = {U"PLK-202612345", U"配料卡-\U0001F600", U"A\"\\\nB", U""};
+  const char*          values[] = {"PLK-202612345", u8"配料卡-\U0001F600", "A\"\\\nB", ""};
+  const int32_t        rows = 5;
+  SSDataBlock*         rawBlock = nullptr;
+  ASSERT_EQ(createDataBlock(&rawBlock), TSDB_CODE_SUCCESS);
+  std::unique_ptr<SSDataBlock, decltype(&blockDataDestroy)> block(rawBlock, blockDataDestroy);
+  ASSERT_NE(block, nullptr);
+  std::unique_ptr<SArray, ArrayDeleter> fields(taosArrayInit(2, sizeof(SFieldWithOptions)));
+  ASSERT_NE(fields, nullptr);
+
+  for (int8_t type : {TSDB_DATA_TYPE_NCHAR, TSDB_DATA_TYPE_VARCHAR}) {
+    SColumnInfoData column = createColumnInfoData(type, 128, type);
+    ASSERT_EQ(blockDataAppendColInfo(block.get(), &column), TSDB_CODE_SUCCESS);
+    SFieldWithOptions field = {};
+    tstrncpy(field.name, type == TSDB_DATA_TYPE_NCHAR ? u8"配料卡" : "varchar", sizeof(field.name));
+    ASSERT_NE(taosArrayPush(fields.get(), &field), nullptr);
+  }
+  ASSERT_EQ(blockDataEnsureCapacity(block.get(), rows), TSDB_CODE_SUCCESS);
+  block->info.rows = rows;
+
+  for (int32_t colIdx = 0; colIdx < 2; ++colIdx) {
+    auto* column = static_cast<SColumnInfoData*>(taosArrayGet(block->pDataBlock, colIdx));
+    for (int32_t row = 0; row < rows - 1; ++row) {
+      const char* data = colIdx == 0 ? reinterpret_cast<const char*>(wideValues[row].data()) : values[row];
+      int32_t len = static_cast<int32_t>(colIdx == 0 ? wideValues[row].size() * sizeof(TdUcs4) : strlen(values[row]));
+      std::vector<char> cell(VARSTR_HEADER_SIZE + len);
+      varDataSetLen(cell.data(), len);
+      memcpy(varDataVal(cell.data()), data, len);
+      ASSERT_EQ(colDataSetVal(column, row, cell.data(), false), TSDB_CODE_SUCCESS);
+    }
+    ASSERT_EQ(colDataSetVal(column, rows - 1, nullptr, true), TSDB_CODE_SUCCESS);
+  }
+
+  SStreamRunnerTask task = {};
+  char*             content = nullptr;
+  bool              hasRows = false;
+  int32_t code = streamBuildBlockResultNotifyContent(&task, block.get(), &content, fields.get(), 0, rows - 1, &hasRows);
+  std::unique_ptr<char, decltype(&cJSON_free)> ownedContent(content, cJSON_free);
+  ASSERT_EQ(code, TSDB_CODE_SUCCESS);
+  ASSERT_TRUE(hasRows);
+  ASSERT_NE(content, nullptr);
+  std::unique_ptr<cJSON, JsonDeleter> root(cJSON_Parse(content));
+  ASSERT_NE(root, nullptr);
+  cJSON* result = cJSON_GetObjectItemCaseSensitive(root.get(), "result");
+  cJSON* data = cJSON_GetObjectItemCaseSensitive(result, "data");
+  ASSERT_EQ(cJSON_GetArraySize(data), rows);
+  for (int32_t row = 0; row < rows; ++row) {
+    for (const char* name : {u8"配料卡", "varchar"}) {
+      cJSON* value = cJSON_GetObjectItemCaseSensitive(cJSON_GetArrayItem(data, row), name);
+      if (row == rows - 1) {
+        EXPECT_TRUE(cJSON_IsNull(value));
+      } else {
+        EXPECT_STREQ(cJSON_GetStringValue(value), values[row]);
+      }
+    }
+  }
+}
 
 class StreamNotifyTest : public ::testing::Test {
  protected:
@@ -1196,6 +1280,54 @@ TEST_F(StreamNotifyTest, ShortWritesContinueWithinEachFrame) {
   cJSON* receivedPayload = cJSON_GetObjectItemCaseSensitive(event, "payload");
   ASSERT_TRUE(cJSON_IsString(receivedPayload));
   EXPECT_EQ(std::string(receivedPayload->valuestring), payload);
+}
+
+TEST(TcurlWebSocketDeathTest, BackpressureRetrySendsCompleteFrame) {
+  // The unpatched curl 8.11.1 encoder spins while retrying the last byte.
+  // Bound the child so this regression fails instead of hanging the suite.
+  ASSERT_EXIT(
+      {
+        alarm(10);
+        int result = ([]() {
+          LoopbackWebSocketServer server;
+          if (!server.Start()) return 1;
+          std::unique_ptr<CURL, decltype(&curl_easy_cleanup)> connection(curl_easy_init(), curl_easy_cleanup);
+          if (!connection) return 2;
+          std::string url = server.Url();
+          if (curl_easy_setopt(connection.get(), CURLOPT_URL, url.c_str()) != CURLE_OK ||
+              curl_easy_setopt(connection.get(), CURLOPT_CONNECT_ONLY, 2L) != CURLE_OK ||
+              curl_easy_setopt(connection.get(), CURLOPT_NOPROXY, "*") != CURLE_OK ||
+              curl_easy_perform(connection.get()) != CURLE_OK) {
+            return 3;
+          }
+
+          std::string payload(1024, 'a');
+          size_t      sent = 0;
+          {
+            Stub stub;
+            stub.set(Curl_senddata, BlockCurlSocketSend);
+            if (curl_ws_send(connection.get(), payload.data(), payload.size(), &sent, payload.size(),
+                             CURLWS_TEXT | CURLWS_OFFSET) != CURLE_AGAIN) {
+              return 4;
+            }
+          }
+          size_t totalSent = sent;
+          for (int attempt = 0; totalSent < payload.size() && attempt < 10; ++attempt) {
+            sent = 0;
+            CURLcode code = curl_ws_send(connection.get(), payload.data() + totalSent, payload.size() - totalSent,
+                                         &sent, 0, CURLWS_TEXT | CURLWS_OFFSET);
+            if (code != CURLE_OK && code != CURLE_AGAIN) return 5;
+            totalSent += sent;
+          }
+          if (totalSent != payload.size()) return 6;
+          server.Wait();
+          if (!server.Error().empty() || server.Frames().size() != 1) return 7;
+          const WebSocketFrame& frame = server.Frames()[0];
+          return frame.fin && frame.opcode == 1 && frame.masked && frame.payload == payload ? 0 : 8;
+        }());
+        _exit(result);
+      },
+      ::testing::ExitedWithCode(0), "");
 }
 
 TEST_F(StreamNotifyTest, LargeNotificationIsFragmentedWithoutChangingMessage) {

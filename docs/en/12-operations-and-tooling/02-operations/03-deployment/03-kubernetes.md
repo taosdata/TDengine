@@ -190,7 +190,7 @@ taos show dnodes
            1 | tdengine-0.ta... |      0 |             16 | ready      | 2023-07-19 17:54:18.552 | 2023-07-19 17:54:18.469 |                                |                                |                                |
            2 | tdengine-1.ta... |      0 |             16 | ready      | 2023-07-19 17:54:37.828 | 2023-07-19 17:54:38.698 |                                |                                |                                |
            3 | tdengine-2.ta... |      0 |             16 | ready      | 2023-07-19 17:55:01.141 | 2023-07-19 17:55:02.039 |                                |                                |                                |
-Query OK, 3 row(s) in set (0.001853s)
+Query OK, 3 row(s) in set
 ```
 
 View the current mnode:
@@ -205,7 +205,7 @@ taos> show mnodes\G
      status: ready
 create_time: 2023-07-19 17:54:18.559
 reboot_time: 2023-07-19 17:54:19.520
-Query OK, 1 row(s) in set (0.001282s)
+Query OK, 1 row(s) in set
 ```
 
 Create mnode
@@ -242,7 +242,7 @@ reboot_time: 2023-07-20 09:22:12.838
      status: ready
 create_time: 2023-07-20 09:22:20.042
 reboot_time: 2023-07-20 09:22:23.271
-Query OK, 3 row(s) in set (0.003108s)
+Query OK, 3 row(s) in set
 ```
 
 ### Port Forwarding
@@ -292,7 +292,7 @@ kubectl exec -it tdengine-3 -n tdengine-test -- taos -s "show dnodes"
 
 The dnode list of the four-node TDengine cluster after expansion:
 
-```text
+```sql
 taos> show dnodes
      id      | endpoint         | vnodes | support_vnodes |   status   |       create_time       |       reboot_time       |              note              |          active_code           |         c_active_code          |
 =============================================================================================================================================================================================================================================
@@ -300,7 +300,7 @@ taos> show dnodes
            2 | tdengine-1.ta... |     10 |             16 | ready      | 2023-07-19 17:54:37.828 | 2023-07-20 09:28:24.240 |                                |                                |                                |
            3 | tdengine-2.ta... |     10 |             16 | ready      | 2023-07-19 17:55:01.141 | 2023-07-20 10:48:43.445 |                                |                                |                                |
            4 | tdengine-3.ta... |      0 |             16 | ready      | 2023-07-20 16:01:44.007 | 2023-07-20 16:01:44.889 |                                |                                |                                |
-Query OK, 4 row(s) in set (0.003628s)
+Query OK, 4 row(s) in set
 ```
 
 ### Cleaning up the Cluster
@@ -481,12 +481,12 @@ taos> show dnodes; show mnodes
      id      |            endpoint            | vnodes | support_vnodes |    status    |       create_time       |       reboot_time       |              note              |
 =============================================================================================================================================================================
            1 | oss-tdengine-0.oss-tdengine... |      0 |             21 | ready        | 2025-03-12 19:05:42.224 | 2025-03-12 19:05:42.044 |                                |
-Query OK, 1 row(s) in set (0.002545s)
+Query OK, 1 row(s) in set
 
      id      |            endpoint            |      role      |   status    |       create_time       |        role_time        |
 ==================================================================================================================================
            1 | oss-tdengine-0.oss-tdengine... | leader         | ready       | 2025-03-12 19:05:42.239 | 2025-03-12 19:05:42.137 |
-Query OK, 1 row(s) in set (0.001343s)
+Query OK, 1 row(s) in set
 ```
 
 To clean up the TDengine cluster, use the following command:
@@ -730,12 +730,12 @@ taos> show dnodes; show mnodes
      id      |            endpoint            | vnodes | support_vnodes |    status    |       create_time       |       reboot_time       |              note              |         machine_id         |
 ==========================================================================================================================================================================================================
            1 | simple-tdengine-0.simple-td... |      0 |             85 | ready        | 2025-02-07 21:17:34.903 | 2025-02-08 15:52:34.781 |                                | BWhWyPiEBrWZrQCSqTSc2a/H   |
-Query OK, 1 row(s) in set (0.005133s)
+Query OK, 1 row(s) in set
 
      id      |            endpoint            |      role      |   status    |       create_time       |        role_time        |
 ==================================================================================================================================
            1 | simple-tdengine-0.simple-td... | leader         | ready       | 2025-02-07 21:17:34.906 | 2025-02-08 15:52:34.878 |
-Query OK, 1 row(s) in set (0.004299s)
+Query OK, 1 row(s) in set
 ```
 
 To clean up the TDengine cluster, use the following command:

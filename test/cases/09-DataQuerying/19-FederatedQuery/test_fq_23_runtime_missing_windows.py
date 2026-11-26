@@ -26,7 +26,7 @@ import pytest
 
 from new_test_framework.utils import tdCom, tdDnodes, tdLog, tdSql
 
-from federated_query_common import ExtSrcEnv, FederatedQueryTestMixin, _code
+from federated_query_common import ExtSrcEnv, FederatedQueryVersionedMixin, _code
 
 TSDB_CODE_EXT_SOURCE_TYPE_NOT_SUPPORT = _code("TSDB_CODE_EXT_SOURCE_TYPE_NOT_SUPPORT")
 
@@ -145,23 +145,33 @@ def _without_registered_oracle_driver():
 
     registrations = _oracle_driver_registrations()
     assert registrations, "no Oracle Instant Client driver is registered"
-    for key_path, _, _, kind in registrations:
-        with winreg.OpenKey(winreg.HKEY_LOCAL_MACHINE, key_path, 0,
-                            winreg.KEY_SET_VALUE) as key:
-            winreg.SetValueEx(key, "Driver", 0, kind, _MISSING_ORACLE_DRIVER_PATH)
+    changed = []
     try:
-        yield
-    finally:
-        for key_path, _, value, kind in registrations:
+        for key_path, name, value, kind in registrations:
             with winreg.OpenKey(winreg.HKEY_LOCAL_MACHINE, key_path, 0,
                                 winreg.KEY_SET_VALUE) as key:
-                winreg.SetValueEx(key, "Driver", 0, kind, value)
-        for key_path, name, value, _ in registrations:
-            with winreg.OpenKey(winreg.HKEY_LOCAL_MACHINE, key_path, 0,
-                                winreg.KEY_READ) as key:
-                restored, _ = winreg.QueryValueEx(key, "Driver")
-            assert restored == value, (
-                f"failed to restore the Oracle driver registration {name}: {restored!r}")
+                # Include the current entry even if SetValueEx raises after
+                # changing it; partial setup must also restore earlier entries.
+                changed.append((key_path, name, value, kind))
+                winreg.SetValueEx(key, "Driver", 0, kind, _MISSING_ORACLE_DRIVER_PATH)
+        yield
+    finally:
+        errors = []
+        for key_path, name, value, kind in reversed(changed):
+            try:
+                with winreg.OpenKey(winreg.HKEY_LOCAL_MACHINE, key_path, 0,
+                                    winreg.KEY_SET_VALUE) as key:
+                    winreg.SetValueEx(key, "Driver", 0, kind, value)
+                with winreg.OpenKey(winreg.HKEY_LOCAL_MACHINE, key_path, 0,
+                                    winreg.KEY_READ) as key:
+                    restored, _ = winreg.QueryValueEx(key, "Driver")
+                assert restored == value, (
+                    f"failed to restore the Oracle driver registration {name}: {restored!r}")
+            except Exception as exc:
+                # Attempt every restoration even when one entry is denied.
+                errors.append(f"{name}: {exc}")
+        if errors:
+            raise RuntimeError("Oracle driver restoration failed: " + "; ".join(errors))
 
 
 def _bin_dir():
@@ -190,7 +200,7 @@ def _move_released(src, dst, timeout=60.0):
             time.sleep(0.5)
 
 
-class TestFq23RuntimeMissingWindows(FederatedQueryTestMixin):
+class TestFq23RuntimeMissingWindows(FederatedQueryVersionedMixin):
     def _start_taosd(self):
         for attempt in range(3):
             try:
@@ -206,6 +216,7 @@ class TestFq23RuntimeMissingWindows(FederatedQueryTestMixin):
                     tdDnodes.stop(1)
                 except Exception:
                     pass
+
 
     def _host_provider_files(self, provider):
         bin_dir = _bin_dir()
@@ -280,10 +291,14 @@ class TestFq23RuntimeMissingWindows(FederatedQueryTestMixin):
                         _MISSING_CREATE_SQL[provider].format(src=missing_src),
                         expectedErrno=TSDB_CODE_EXT_SOURCE_TYPE_NOT_SUPPORT,
                     )
-                    tdSql.error(
-                        f"select count(*) from {src}.src_t",
-                        expectedErrno=TSDB_CODE_EXT_SOURCE_TYPE_NOT_SUPPORT,
-                    )
+                    if provider == "influxdb" and self._influx_cfg().version == "1.8":
+                        tdSql.query(f"select count(*) from {src}.src_t")
+                        tdSql.checkData(0, 0, 5)
+                    else:
+                        tdSql.error(
+                            f"select count(*) from {src}.src_t",
+                            expectedErrno=TSDB_CODE_EXT_SOURCE_TYPE_NOT_SUPPORT,
+                        )
                     self._check_local_operations()
                 finally:
                     tdDnodes.stop(1)

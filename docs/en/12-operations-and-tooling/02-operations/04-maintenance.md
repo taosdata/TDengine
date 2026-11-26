@@ -70,13 +70,21 @@ KILL SCAN <scan_id>;
 When one or more nodes in a multi-replica cluster restart due to upgrades or other reasons, it may lead to an imbalance in the load among the various dnodes in the cluster. In extreme cases, all vgroup leaders may be located on the same dnode. To solve this problem, you can use the following commands, which were first released in version 3.0.4.0. It is recommended to use the latest version as much as possible.
 
 ```sql
-balance vgroup leader; # Rebalance all vgroup leaders (random mode)
-balance vgroup leader on <vgroup_id>; # Rebalance a vgroup leader (random mode)
-balance vgroup leader database <database_name>; # Rebalance all vgroup leaders within a database (random mode)
+balance vgroup leader;
 
-balance vgroup leader force; # Force-rebalance all vgroup leaders (forced mode)
-balance vgroup leader on <vgroup_id> force; # Force-rebalance a vgroup leader (forced mode)
-balance vgroup leader database <database_name> force; # Force-rebalance all vgroup leaders within a database (forced mode)
+# Rebalance ALL vgroup leaders(random mode) balance vgroup leader ON < vgroup_id >;
+
+# Rebalance a vgroup leader(random mode) balance vgroup leader DATABASE < database_name >;
+
+# Rebalance ALL vgroup leaders within a DATABASE(random mode)
+
+balance vgroup leader force;
+
+# Force - rebalance ALL vgroup leaders(forced mode) balance vgroup leader ON < vgroup_id > force;
+
+# Force - rebalance a vgroup leader(forced mode) balance vgroup leader DATABASE < database_name > force;
+
+# Force - rebalance ALL vgroup leaders within a DATABASE(forced mode)
 ```
 
 **Functionality**
@@ -97,13 +105,21 @@ There are two modes of leader rebalancing:
 If the data on a data node (dnode) in the cluster is completely lost or damaged, such as due to disk damage or directory deletion, you can use the restore dnode command to recover some or all logical nodes on that data node. This feature relies on data replication from other replicas in the cluster, so it only works when the number of dnodes in the cluster is three or more and the number of replicas is three.
 
 ```sql
-restore dnode <dnode_id>; # Restore mnode, all vnodes, and qnode on dnode
-restore dnode <dnode_id> parallel <n>; # Restore with n concurrent vnodes, 0 for unlimited
-restore mnode on dnode <dnode_id>; # Restore mnode on dnode
-restore vnode on dnode <dnode_id>; # Restore all vnodes on dnode
-restore vnode on dnode <dnode_id> parallel <n>; # Restore vnodes with n concurrent, 0 for unlimited
-restore vnode on dnode <dnode_id> on vgroup <vgroup_id>; # Restore one vnode on dnode
-restore qnode on dnode <dnode_id>; # Restore qnode on dnode
+restore dnode <dnode_id>;
+
+# Restore mnode, ALL vnodes, AND qnode ON dnode restore dnode <dnode_id> parallel <n>;
+
+# Restore WITH n concurrent vnodes, 0 for unlimited restore mnode ON dnode <dnode_id>;
+
+# Restore mnode ON dnode restore vnode ON dnode <dnode_id>;
+
+# Restore ALL vnodes ON dnode restore vnode ON dnode <dnode_id> parallel <n>;
+
+# Restore vnodes WITH n concurrent, 0 for unlimited restore vnode ON dnode <dnode_id> ON vgroup <vgroup_id>;
+
+# Restore one vnode ON dnode restore qnode ON dnode <dnode_id>;
+
+# Restore qnode ON dnode
 ```
 
 **PARALLEL Parameter**
@@ -156,6 +172,112 @@ Current limitations:
 - The default TSDB strategy `drop_invalid_only` only handles missing-file style damage; size-mismatch recovery requires an explicit deep strategy such as `head_only_rebuild` or `full_rebuild`.
 
 For the complete CLI grammar, supported keys, default strategies, and more examples, see [taosd Reference](../03-components/01-taosd.md).
+
+## Editing mnode Metadata Offline
+
+When cluster metadata is wrong and cannot be repaired with SQL, you can export the mnode metadata to a JSON file, edit it, and import it back. Typical cases are a dnode address change after a move, a bad global configuration that prevents the mnode from starting, a leftover transaction that blocks cluster operations, and an abnormal arbitration group in a two-replica database. This is supported starting from `v3.4.2.8`.
+
+:::warning
+
+This operation changes cluster metadata directly and is high risk. Back up the `<dataDir>/mnode` directory first. Prefer SQL when it can fix the problem.
+
+:::
+
+### When the Cluster Is Running
+
+```bash
+# 1. In the taos shell, write metadata to disk and truncate the WAL. taosd keeps running.
+#    FLUSH MNODE;
+# 2. Stop taosd on the node that hosts the mnode leader
+systemctl stop taosd
+# 3. Back up the mnode directory
+cp -r <dataDir>/mnode <dataDir>/mnode.bak
+# 4. Export metadata. This creates sdb.json in the current working directory
+taosd -s
+# 5. Edit the target records in sdb.json
+# 6. Import the file and write sdb.data
+taosd -mSdb ./sdb.json
+# 7. Start taosd
+systemctl start taosd
+```
+
+### When taosd Cannot Start
+
+```bash
+# 1. Stop taosd on every mnode
+systemctl stop taosd
+# 2. Back up the mnode directory
+cp -r <dataDir>/mnode <dataDir>/mnode.bak
+# 3. Write metadata to disk offline and truncate the WAL
+taosd -fMnode
+# 4. Export, edit, and import
+taosd -s
+taosd -mSdb ./sdb.json
+# 5. Start taosd
+systemctl start taosd
+```
+
+`taosd -s` and `taosd -mSdb` do not replay the WAL, so run `FLUSH MNODE` or `taosd -fMnode` first. Otherwise the export may not be the latest state, and changes still in the WAL overwrite the manual edits after restart.
+
+### Common Changes
+
+- **Change a dnode address**: Edit `fields.fqdn` and `fields.port` on the record whose `type` is `dnode`.
+- **Correct vgroup replica placement**: Edit `fields.replicas[].dnodeId` on the record whose `type` is `vgroup`.
+- **Repair a bad global configuration**: Edit `fields.value` on the record whose `type` is `config`, and add 1 to `fields.value` of the `tsmmConfigVersion` record in the same import. Otherwise the change does not take effect. Only Boolean, integer, and floating-point configuration can be changed this way.
+- **Remove leftover transactions**: Run `taosd -dTxn` to delete every transaction. To delete one transaction, remove its `trans` record from `sdb.json` and import the file.
+- **Remove a stuck compact task**: Remove its `compact` record from `sdb.json` and import the file.
+- **Remove an extra mnode**: Remove its `mnode` record from `sdb.json` and import the file.
+- **Correct a two-replica arbitration group**: Edit the record whose `type` is `arb_group`. For example, set `fields.isSync` to `"1"`, or, after a dnode is replaced, correct `fields.member0.dnodeId` or `fields.assignedLeader.assignedDnodeId`. This is supported starting from `v3.4.3.12`. After restart, check the result with `SHOW ARBGROUPS`.
+
+To change the port of dnode 1 to 6031, change only `port` in `fields` and leave the rest unchanged:
+
+```json
+{
+  "type": "dnode",
+  "status": "4",
+  "sver": "2",
+  "fields": {
+    "id": "1",
+    "createdTime": "1700000000000",
+    "updateTime": "1700000001000",
+    "port": "6031",
+    "fqdn": "node1.example.com"
+  },
+  "rawData": "..."
+}
+```
+
+When editing:
+
+- Keep every value as a quoted string, such as `"6031"`.
+- Do not change `rawData`, `status`, or `sver`.
+- Import replaces the full metadata set. A record deleted from `sdb.json` is deleted from the metadata. Do not delete unrelated records.
+
+### Rebuild a Multi-Replica mnode
+
+When a multi-replica mnode cluster cannot elect a leader and cannot be rebuilt with `DROP MNODE` or `CREATE MNODE`, pick one node as the source and copy its metadata over the other replicas:
+
+1. Stop taosd on every mnode.
+2. On the source node, run `taosd -fMnode`.
+3. Copy `<dataDir>/mnode/data/sdb.data` from the source node to the same path on every other mnode.
+4. Empty `<dataDir>/mnode/wal/` and `<dataDir>/mnode/sync/` on every other mnode.
+5. Start taosd on the source node first, then start the other nodes one by one.
+6. Run `SHOW MNODES;` and confirm that every mnode is healthy.
+
+Do not skip step 4. Raft membership and term are stored in `sync/` and are not derived from `sdb.data`. If you copy only `sdb.data`, the node joins with its old Raft state. Log checks can fail, or the cluster state can diverge.
+
+### Common Problems
+
+| Symptom | Cause | Action |
+| --- | --- | --- |
+| The change is missing after import and restart | `FLUSH MNODE` or `taosd -fMnode` was skipped, and WAL replay overwrote the change | Follow the procedure above: flush first, then export, edit, and import again |
+| A changed field becomes 0 | The value was written as an unquoted number | Restore the backup and edit the value as a string |
+| A `config` change never takes effect | `tsmmConfigVersion` was not increased | In the same import, add 1 to `value` of `tsmmConfigVersion` |
+| `taosd -mSdb` reports a JSON format error | The structure of `sdb.json` is broken | Check the JSON syntax, or export again from the backup and edit that file |
+| `taosd -fMnode` or `taosd -mSdb` says taosd is running | taosd on this node is still running | Stop taosd and retry |
+| After `taosd -fMnode`, a transaction that was running before the stop is still unfinished | The offline flush neither continues nor rolls back a transaction | Start taosd normally. The mnode continues the transaction |
+
+For the commands, the `sdb.json` format, and the editable fields of each type, see [taosd Reference](../03-components/01-taosd.md#exporting-and-importing-metadata).
 
 ## Splitting Virtual Groups
 

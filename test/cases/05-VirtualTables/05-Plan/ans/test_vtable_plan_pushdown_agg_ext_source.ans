@@ -189,7 +189,7 @@ taos> explain verbose true select sum(local_v), sum(remote_v) from vt_pushdown_a
     -> Federated Scan on vt_pushdown_agg_oracle_src.TAOSDATA.vt_pushdown_agg_ora_values (oracle) (width=8)                                                                            |
           Output: columns=1 width=8                                                                                                                                                   |
           Source: 127.0.0.1:18322 user=taosdata                                                                                                                                       |
-          Remote SQL: SELECT SUM(V) AS "expr_2" FROM TAOSDATA.VT_PUSHDOWN_AGG_ORA_VALUES                                                                                              |
+          Remote SQL: SELECT SUM("v") AS "expr_2" FROM TAOSDATA."vt_pushdown_agg_ora_values"                                                                                              |
     -> Aggregate (functions=1 width=8 input_order=asc)                                                                                                                                |
           Output: columns=1 width=8 blocking=1                                                                                                                                        |
           Merge ResBlocks: True                                                                                                                                                       |
@@ -220,7 +220,7 @@ taos> explain verbose true select sum(local_v), sum(mysql_v), sum(postgres_v), s
     -> Federated Scan on vt_pushdown_agg_oracle_src.TAOSDATA.vt_pushdown_agg_ora_values (oracle) (width=8)                                                                            |
           Output: columns=1 width=8                                                                                                                                                   |
           Source: 127.0.0.1:18322 user=taosdata                                                                                                                                       |
-          Remote SQL: SELECT SUM(V) AS "expr_5" FROM TAOSDATA.VT_PUSHDOWN_AGG_ORA_VALUES                                                                                              |
+          Remote SQL: SELECT SUM("v") AS "expr_5" FROM TAOSDATA."vt_pushdown_agg_ora_values"                                                                                              |
     -> Aggregate (functions=1 width=8 input_order=asc)                                                                                                                                |
           Output: columns=1 width=8 blocking=1                                                                                                                                        |
           Merge ResBlocks: True                                                                                                                                                       |

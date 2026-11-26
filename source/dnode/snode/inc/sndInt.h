@@ -33,7 +33,15 @@ extern "C" {
 #endif
 
 struct SSnode {
-  SMsgCb       msgCb;
+  SMsgCb                   msgCb;
+  TdThreadMutex            resultLock;
+  TdThreadCond             resultDrained;
+  void                    *resultTimer;
+  struct SSnodeResultCalc *readyResults;
+  int64_t                  nextResultTicket;
+  int32_t                  activeResultWriters;
+  int32_t                  activeResultPosts;
+  bool                     stopping;
 };
 
 

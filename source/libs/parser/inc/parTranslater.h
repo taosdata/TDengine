@@ -52,8 +52,10 @@ typedef struct STranslateContext {
   bool                     hasNonLocalSubQ;
   bool                     hasLocalSubQ;
   bool                     statementTimeSet;
+  bool                     hasMySqlContextFunc;
   bool                     hasVolatileFunc;  // query/statement contains a volatile function (e.g. SLEEP)
   bool                     stableQuery;
+  bool                     inInsertQuery;  // translating the SELECT of INSERT INTO ... SELECT
   bool                     showRewrite;
   bool                     withOpt;
   SNode*                   pPrevRoot;
@@ -63,6 +65,7 @@ typedef struct STranslateContext {
   bool                     refTable;
   bool                     isCurrOpIn;
   bool                     inJoinOnCond;
+  SNode*                   pStreamCalcRoot;  // borrowed root query while translating CREATE STREAM AS
   ENodeType                origStmtType;
   timezone_t               streamTimezone;     // borrowed from the current CREATE STREAM statement
   const SStreamTimeConfig* pStreamTimeConfig;  // borrowed from the current CREATE STREAM statement

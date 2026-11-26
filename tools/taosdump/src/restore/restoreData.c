@@ -68,6 +68,50 @@ static bool tableHasDecimalCol(TAOS *conn, const char *dbName, const char *tbNam
     return found;
 }
 
+//
+// Sanity check before restoring data: every data file must have a child table on
+// the target. Child table DDL is restored only from the tag files, so when the
+// tag list is short the data of the missing children is still restored and only
+// fails later with an opaque STMT2 "table does not exist" error, after silently
+// dropping everything else. Compare counts up front instead.
+//
+static int verifyChildTablesForData(TAOS *conn, const char *dbName, const char *stbName, int fileCnt) {
+    char escDb[TSDB_DB_NAME_LEN * 2 + 1] = {0};
+    char escStb[TSDB_TABLE_NAME_LEN * 2 + 1] = {0};
+    const char *eDb = bckSqlEscape(dbName, escDb, sizeof(escDb));
+    const char *eStb = bckSqlEscape(stbName, escStb, sizeof(escStb));
+    if (eDb == NULL) eDb = dbName;
+    if (eStb == NULL) eStb = stbName;
+
+    char sql[1024];
+    (void)snprintf(sql, sizeof(sql),
+                   "SELECT table_name FROM information_schema.ins_tables "
+                   "WHERE db_name='%s' AND stable_name='%s'",
+                   eDb, eStb);
+
+    TAOS_RES *res = taos_query(conn, sql);
+    int32_t   qcode = taos_errno(res);
+    if (qcode != TSDB_CODE_SUCCESS) {
+        // Best effort only: never block a restore because the sanity query failed.
+        logWarn("verify child tables: query failed(0x%08X %s): %s", qcode, taos_errstr(res), sql);
+        if (res) taos_free_result(res);
+        return TSDB_CODE_SUCCESS;
+    }
+
+    int32_t childCnt = 0;
+    while (taos_fetch_row(res) != NULL) childCnt++;
+    taos_free_result(res);
+
+    if (childCnt < fileCnt) {
+        logError("restore %s.%s: %d data file(s) but only %d child table(s) on the target; "
+                 "the backup tag file is incomplete, refusing to restore data without table schema",
+                 dbName, stbName, fileCnt, childCnt);
+        return TSDB_CODE_BCK_CHILD_TABLE_MISSING;
+    }
+
+    return TSDB_CODE_SUCCESS;
+}
+
 static void* restoreDataThread(void *arg) {
     RestoreDataThread *thread = (RestoreDataThread *)arg;
     thread->code = TSDB_CODE_SUCCESS;
@@ -532,6 +576,26 @@ static int restoreStbData(DBInfo *dbInfo, const char *stbName, StbChangeMap *cha
     }
 
     logDebug("found %d data files for %s.%s", fileCnt, dbName, stbName);
+
+    // Normal tables have no stable_name, so the child-table check does not apply
+    // to the NORMAL_TABLE_DIR pseudo STB.
+    if (strcmp(stbName, NORMAL_TABLE_DIR) != 0) {
+        int32_t verifyCode = TSDB_CODE_SUCCESS;
+        TAOS   *vconn      = getConnection(&verifyCode);
+        if (vconn != NULL) {
+            /* -W/--rename-db creates the child tables under the target database,
+             * so the check has to look there, not at the backup-side name. */
+            int32_t vcode = verifyChildTablesForData(vconn, argRenameDb(dbName), stbName, fileCnt);
+            releaseConnection(vconn);
+            if (vcode != TSDB_CODE_SUCCESS) {
+                freeArrayPtr(dataFiles);
+                return vcode;
+            }
+        } else {
+            logWarn("restore %s.%s: cannot verify child tables, no connection: 0x%08X", dbName, stbName,
+                    verifyCode);
+        }
+    }
 
     // update progress: how many files this STB/NTB has
     g_progress.ctbTotalCur = fileCnt;

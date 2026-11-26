@@ -22,6 +22,9 @@ from math import inf
 import platform
 import os
 import sys
+import time
+
+import pytest
 
 
 NUM_USER_DB_TABLES = 1  # number of user tables in test_meta_sysdb
@@ -49,6 +52,7 @@ class TestMetaSysDb2:
         6. Check count(distinct ...) function succeeds on ins_tables
         7. Check count with table type filter on ins_tables
         8. Check table_name =/IN filter results on ins_tables
+        9. Check table count scan stays correct after compact database meta_only
 
         Since: v3.3.6
 
@@ -63,6 +67,7 @@ class TestMetaSysDb2:
             - 2025-12-22 Alex Duan Migrated from uncatalog/system-test/2-query/test_table_count_scan.py
             - 2026-09-21 add check_ins_tables_count_by_type for type-filtered count scan
             - 2026-10-13 add check_table_name_in_filter for table_name =/IN direct lookup
+            - 2026-11-16 add check_table_count_after_compact for defect 7169279592
 
         """
         self.check_ins_tables_count()
@@ -72,6 +77,7 @@ class TestMetaSysDb2:
         self.check_count_distinct()
         self.do_odbc()
         self.do_table_count_scan()
+        self.check_table_count_after_compact()
 
     def check_table_type(self):
         # check table type in information_schema
@@ -635,3 +641,149 @@ class TestMetaSysDb2:
         tdSql.checkRows(1)
         tdSql.checkData(0, 0, info_tables + perf_tables + 4)
         tdSql.execute('drop database tbl_count')
+
+    #
+    # ------------------ compact database ... meta_only ------------------
+    #
+    def create_child_tables(self, db, count, batch=500):
+        """Create `count` child tables of db.stb, one row each."""
+        for start in range(0, count, batch):
+            values = " ".join(
+                f"{db}.t{i} using {db}.stb tags({i}) values(1700000000000,{i})"
+                for i in range(start, min(start + batch, count))
+            )
+            tdSql.execute(f"insert into {values}", show=1)
+
+    def pending_compacts(self, db):
+        tdSql.query("show compacts")
+        for row in range(tdSql.queryRows):
+            if str(tdSql.getData(row, 1)) == db:
+                return True
+        return False
+
+    def wait_compact_done(self, db, timeout=180):
+        """Wait until the compact record of `db` leaves `show compacts`.
+
+        A second compact issued while the previous one is still running is rejected
+        with "compact already exist", so every round waits first.
+        """
+        deadline = time.time() + timeout
+        while time.time() < deadline:
+            if not self.pending_compacts(db):
+                time.sleep(2)  # let the vnode finish publishing its final counters
+                return
+            time.sleep(1)
+        assert False, f"compact on {db} did not finish within {timeout}s"
+
+    def compact_meta_only(self, db):
+        self.wait_compact_done(db)
+        tdSql.execute(f"compact database {db} meta_only", show=1)
+        self.wait_compact_done(db)
+
+    def check_compact_table_count(self, db, expect_total, expect_child, expect_normal):
+        """Assert the optimized count(*) agrees with the metadata scan.
+
+        count(*) without GROUP BY is rewritten to a table count scan that reads the
+        vnode counter, while group by type walks the metadata. Comparing the two
+        catches a counter that diverged from the stored entries.
+        """
+        tdSql.query(f"select count(*) from information_schema.ins_tables where db_name='{db}'")
+        tdSql.checkRows(1)
+        optimized = int(tdSql.getData(0, 0))
+
+        tdSql.query(
+            f"select type, count(*) from information_schema.ins_tables "
+            f"where db_name='{db}' group by type",
+            show=1,
+        )
+        by_type = {}
+        for row in range(tdSql.queryRows):
+            by_type[str(tdSql.getData(row, 0))] = int(tdSql.getData(row, 1))
+        scanned = sum(by_type.values())
+
+        tdLog.info(f"[{db}] count(*)={optimized} group_by_total={scanned} by_type={by_type}")
+        assert scanned == expect_total, f"{db}: group by total is {scanned}, expected {expect_total}"
+        assert optimized == scanned, (
+            f"{db}: count(*) reports {optimized} but the metadata scan reports {scanned}; "
+            "the vnode table counter diverged from the metadata"
+        )
+        if expect_child is not None:
+            assert by_type.get("CHILD_TABLE", 0) == expect_child, (
+                f"{db}: child tables are {by_type.get('CHILD_TABLE', 0)}, expected {expect_child}"
+            )
+        if expect_normal is not None:
+            assert by_type.get("NORMAL_TABLE", 0) == expect_normal, (
+                f"{db}: normal tables are {by_type.get('NORMAL_TABLE', 0)}, expected {expect_normal}"
+            )
+
+    def check_table_count_after_compact(self):
+        """Check table counters survive compact database meta_only
+
+        ``compact database <db> meta_only`` rebuilds the vnode metadata by replaying
+        every live entry into a fresh directory. The replay takes the create path of
+        the entry handler, which increments the vnode table counters even though no
+        table is created, so the counters were added twice on every successful
+        compaction (defect 7169279592).
+
+        ins_tables hides this depending on the query shape: count(*) without GROUP BY
+        reads the vnode counter, group by type reads the metadata. Each step below
+        compares them against the known table count.
+        """
+        tdSql.query("select server_version()")
+        version = str(tdSql.getData(0, 0)).lower()
+        if "enterprise" not in version:
+            pytest.skip(f"compact database meta_only needs an enterprise build, server is {version}")
+
+        children = 1000
+        normals = 50
+        dbs = ["test_compact_child", "test_compact_mixed", "test_compact_write"]
+        try:
+            # 1. child tables only, repeated compaction must not accumulate
+            db = "test_compact_child"
+            tdSql.execute(f"drop database if exists {db}", show=1)
+            tdSql.execute(f"create database {db} vgroups 2", show=1)
+            tdSql.execute(f"create stable {db}.stb (ts timestamp, v int) tags (t1 int)", show=1)
+            self.create_child_tables(db, children)
+            self.check_compact_table_count(db, children, children, None)
+            for round_no in range(1, 3):
+                self.compact_meta_only(db)
+                tdLog.info(f"checking table count after meta-only compaction #{round_no}")
+                self.check_compact_table_count(db, children, children, None)
+
+            # 2. normal tables take another handler, so both counters must be checked
+            db = "test_compact_mixed"
+            tdSql.execute(f"drop database if exists {db}", show=1)
+            tdSql.execute(f"create database {db} vgroups 2", show=1)
+            for i in range(normals):
+                tdSql.execute(f"create table {db}.n{i} (ts timestamp, v int)")
+            tdSql.execute(f"create stable {db}.stb (ts timestamp, v int) tags (t1 int)", show=1)
+            self.create_child_tables(db, children)
+            expect_total = normals + children
+            self.check_compact_table_count(db, expect_total, children, normals)
+            self.compact_meta_only(db)
+            self.check_compact_table_count(db, expect_total, children, normals)
+
+            # 3. the corrected counters must still follow later create and drop
+            db = "test_compact_write"
+            tdSql.execute(f"drop database if exists {db}", show=1)
+            tdSql.execute(f"create database {db} vgroups 1", show=1)
+            tdSql.execute(f"create stable {db}.stb (ts timestamp, v int) tags (t1 int)", show=1)
+            self.create_child_tables(db, normals)
+            self.compact_meta_only(db)
+            self.check_compact_table_count(db, normals, normals, None)
+
+            tdSql.execute(f"insert into {db}.t_extra using {db}.stb tags(99999) values(1700000000000,1)", show=1)
+            self.check_compact_table_count(db, normals + 1, normals + 1, None)
+
+            tdSql.execute(f"drop table {db}.t_extra", show=1)
+            self.check_compact_table_count(db, normals, normals, None)
+        finally:
+            # A failing assertion exits the run; leave no database behind, otherwise the
+            # table totals of the earlier checks are off on the next local run.
+            for db in dbs:
+                try:
+                    tdSql.execute(f"drop database if exists {db}", show=1)
+                except Exception as e:  # noqa: BLE001 - cleanup must not mask the failure
+                    tdLog.info(f"cleanup of {db} failed: {e}")
+
+        tdLog.info("Table count check after meta-only compaction passed.")

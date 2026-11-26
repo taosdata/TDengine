@@ -21,6 +21,8 @@ import os.path
 import platform
 from pathlib import Path
 
+from lib.custom_algorithms import custom_directory
+
 os.environ.setdefault("KERAS_BACKEND", "torch")
 try:
     import torch
@@ -44,6 +46,7 @@ class Configure:
             if cls._instance is None:
                 instance = super().__new__(cls)
                 instance._conf = instance._get_default_conf()
+                instance.custom_algo_explicit = False
                 env_resource_base_url = os.environ.get("TDGPT_RESOURCE_BASE_URL", "").strip()
                 if env_resource_base_url:
                     instance._conf["resource_base_url"] = env_resource_base_url
@@ -91,6 +94,8 @@ class Configure:
             "dynamic_model_dir": os.path.join(base_path, "model", "dynamic"),
             "img_dir": os.path.join(base_path, "img"),
             "resource_dir": os.path.join(base_path, "data", "resource"),
+            "data_dir": os.path.join(base_path, "data"),
+            "install_dir": base_path,
             "conf_path": os.path.join(base_path, "cfg", "taosanode.config.py"),
             "log_level": logging.DEBUG,
             "draw_result": False,
@@ -110,6 +115,8 @@ class Configure:
             "dynamic_model_dir": "/usr/local/taos/taosanode/model/dynamic/",
             "img_dir": "/usr/local/taos/taosanode/img/",
             "resource_dir": "/var/lib/taos/taosanode/resource",
+            "data_dir": "/var/lib/taos/taosanode",
+            "install_dir": "/usr/local/taos/taosanode",
             "resource_base_url": "https://downloads.taosdata.com",
             "conf_path": "/etc/taos/taosanode.config.py",
             "log_level": logging.DEBUG,
@@ -125,7 +132,9 @@ class Configure:
         package_dir = Path(__file__).resolve().parent
 
         if platform.system().lower() == "windows":
-            if package_dir.name == "taosanalytics" and package_dir.parent.name == "lib":
+            if package_dir.name == "lib":
+                base_path = str(package_dir.parent).replace("\\", "/")
+            elif package_dir.name == "taosanalytics" and package_dir.parent.name == "lib":
                 base_path = str(package_dir.parent.parent).replace("\\", "/")
             else:
                 # default installation directory in windows
@@ -155,6 +164,14 @@ class Configure:
     def get_model_directory(self):
         """return model directory"""
         return os.environ.get("TDGPT_MODEL_DIR", self._conf["model_dir"])
+
+    def get_custom_algo_directory(self):
+        """Return the persistent Python plugin directory (environment overrides config)."""
+        defaults = self._get_default_conf()
+        return str(custom_directory(
+            self._conf, os.path.join(defaults["data_dir"], "custom"),
+            self._conf.get("base_dir", defaults["install_dir"]),
+        ))
 
     def get_dynamic_model_directory(self):
         """return dynamic model directory, which is a subdirectory under model directory"""
@@ -226,6 +243,7 @@ class Configure:
                 self._conf["port"] = int(port)
             conf_vars.pop("bind")
 
+        self.custom_algo_explicit = "custom_algo_dir" in conf_vars
         self._conf.update(conf_vars)
 
         # Container/deployment configuration must override stale persisted URLs.

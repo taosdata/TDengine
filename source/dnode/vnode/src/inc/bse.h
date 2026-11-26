@@ -66,6 +66,7 @@ int32_t bseBatchGetSize(SBseBatch *pBatch, int32_t *size);
 int32_t bseBatchExccedLimit(SBseBatch *pBatch);
 void    bseBatchDestroy(SBseBatch *pBatch);
 int32_t bseCommitBatch(SBse *pBse, SBseBatch *pBatch);
+int32_t bseRecycleBatch(SBse *pBse, SBseBatch *pBatch);
 
 int32_t bseUpdateCfg(SBse *pBse, SBseCfg *pCfg);
 

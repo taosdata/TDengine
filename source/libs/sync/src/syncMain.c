@@ -17,6 +17,7 @@
 
 #define _DEFAULT_SOURCE
 #include "sync.h"
+#include "tdTestSeam.h"
 #include "syncAppendEntries.h"
 #include "syncAppendEntriesReply.h"
 #include "syncCommit.h"
@@ -599,6 +600,7 @@ bool syncNodeIsReadyForRead(SSyncNode* pSyncNode) {
 }
 
 bool syncIsReadyForRead(int64_t rid) {
+  TD_SEAM_RET(syncIsReadyForRead, bool (*)(int64_t), (rid));
   SSyncNode* pSyncNode = syncNodeAcquire(rid);
   if (pSyncNode == NULL) {
     sError("sync ready for read error");
@@ -3238,10 +3240,24 @@ int32_t syncNodeCheckChangeConfig(SSyncNode* ths, SSyncRaftEntry* pEntry) {
   }
 
   SMsgHead* head = (SMsgHead*)pEntry->data;
+  // The embedded SMsgHead is part of the entry payload and is fully controlled by the
+  // producer of the entry. A larger contLen makes the decoder read past the bytes the entry
+  // actually carries (heap OOB read); a smaller one breaks the producer invariant (decode
+  // truncation/failure), so the only valid value is the exact entry dataLen. pEntry->dataLen
+  // is itself attacker-controlled on the AppendEntries path, so anchor it to the real
+  // allocation first: syncEntryBuild() always allocates sizeof(SSyncRaftEntry) + dataLen and
+  // syncEntryBuildFromAppendEntries() verifies bytes == the size it allocated, hence
+  // legitimate entries always satisfy the equality below. Decode only the real body length
+  // (contLen - sizeof(SMsgHead)), not the header-inclusive contLen.
+  if ((uint64_t)pEntry->dataLen + (uint64_t)sizeof(SSyncRaftEntry) != (uint64_t)pEntry->bytes ||
+      pEntry->dataLen < (int32_t)sizeof(SMsgHead) || head->contLen < (int32_t)sizeof(SMsgHead) ||
+      (uint32_t)head->contLen != pEntry->dataLen) {
+    TAOS_RETURN(TSDB_CODE_INVALID_MSG);
+  }
   void*     pReq = POINTER_SHIFT(head, sizeof(SMsgHead));
 
   SAlterVnodeTypeReq req = {0};
-  if (tDeserializeSAlterVnodeReplicaReq(pReq, head->contLen, &req) != 0) {
+  if (tDeserializeSAlterVnodeReplicaReq(pReq, head->contLen - (int32_t)sizeof(SMsgHead), &req) != 0) {
     code = TSDB_CODE_INVALID_MSG;
     TAOS_RETURN(code);
   }
@@ -3589,10 +3605,24 @@ int32_t syncNodeChangeConfig(SSyncNode* ths, SSyncRaftEntry* pEntry, char* str) 
   }
 
   SMsgHead* head = (SMsgHead*)pEntry->data;
+  // The embedded SMsgHead is part of the entry payload and is fully controlled by the
+  // producer of the entry. A larger contLen makes the decoder read past the bytes the entry
+  // actually carries (heap OOB read); a smaller one breaks the producer invariant (decode
+  // truncation/failure), so the only valid value is the exact entry dataLen. pEntry->dataLen
+  // is itself attacker-controlled on the AppendEntries path, so anchor it to the real
+  // allocation first: syncEntryBuild() always allocates sizeof(SSyncRaftEntry) + dataLen and
+  // syncEntryBuildFromAppendEntries() verifies bytes == the size it allocated, hence
+  // legitimate entries always satisfy the equality below. Decode only the real body length
+  // (contLen - sizeof(SMsgHead)), not the header-inclusive contLen.
+  if ((uint64_t)pEntry->dataLen + (uint64_t)sizeof(SSyncRaftEntry) != (uint64_t)pEntry->bytes ||
+      pEntry->dataLen < (int32_t)sizeof(SMsgHead) || head->contLen < (int32_t)sizeof(SMsgHead) ||
+      (uint32_t)head->contLen != pEntry->dataLen) {
+    TAOS_RETURN(TSDB_CODE_INVALID_MSG);
+  }
   void*     pReq = POINTER_SHIFT(head, sizeof(SMsgHead));
 
   SAlterVnodeTypeReq req = {0};
-  if (tDeserializeSAlterVnodeReplicaReq(pReq, head->contLen, &req) != 0) {
+  if (tDeserializeSAlterVnodeReplicaReq(pReq, head->contLen - (int32_t)sizeof(SMsgHead), &req) != 0) {
     code = TSDB_CODE_INVALID_MSG;
     TAOS_RETURN(code);
   }
@@ -3769,7 +3799,8 @@ int32_t syncNodeAppend(SSyncNode* ths, SSyncRaftEntry* pEntry, SRpcMsg* pMsg) {
 
   // append to log buffer
   if ((code = syncLogBufferAppend(ths->pLogBuf, ths, pEntry)) < 0) {
-    sError("vgId:%d, index:%" PRId64 ", failed to enqueue sync log buffer", ths->vgId, pEntry->index);
+    sError("vgId:%d, index:%" PRId64 ", failed to enqueue sync log buffer since %s", ths->vgId, pEntry->index,
+           tstrerror(code));
     int32_t ret = 0;
     if ((ret = syncFsmExecute(ths, ths->pFsm, ths->state, raftStoreGetTerm(ths), pEntry, terrno, false)) != 0) {
       sError("vgId:%d, index:%" PRId64 ", failed to execute fsm since %s", ths->vgId, pEntry->index, tstrerror(ret));
@@ -3917,6 +3948,17 @@ static int32_t syncNodeAppendNoopOld(SSyncNode* ths) {
 #endif
 
 int32_t syncNodeOnHeartbeat(SSyncNode* ths, const SRpcMsg* pRpcMsg) {
+  // Security (MINING-20261106-01, CWE-125): the RPC dispatch path only guarantees
+  // contLen >= sizeof(SMsgHead) (8 bytes), far less than the fixed SyncHeartbeat
+  // header. The pMsg->srcId / timeStamp / term reads below all live inside that
+  // header, so a truncated frame would otherwise be an out-of-bounds heap read.
+  // Validate the fixed header before the first field access.
+  if (pRpcMsg->contLen < (int32_t)sizeof(SyncHeartbeat)) {
+    sError("vgId:%d, heartbeat frame too short for header, contLen:%d, need at least:%zu", ths->vgId,
+           pRpcMsg->contLen, sizeof(SyncHeartbeat));
+    return TSDB_CODE_INVALID_MSG;
+  }
+
   SyncHeartbeat* pMsg = pRpcMsg->pCont;
   bool           resetElect = false;
 
@@ -4060,6 +4102,14 @@ int32_t syncNodeOnHeartbeat(SSyncNode* ths, const SRpcMsg* pRpcMsg) {
 }
 
 int32_t syncNodeOnHeartbeatReply(SSyncNode* ths, const SRpcMsg* pRpcMsg) {
+  // Security (MINING-20261106-01, CWE-125): reject a frame shorter than the fixed
+  // SyncHeartbeatReply header before syncNodeGetLogReplMgr() reads pMsg->srcId.
+  if (pRpcMsg->contLen < (int32_t)sizeof(SyncHeartbeatReply)) {
+    sError("vgId:%d, heartbeat reply frame too short for header, contLen:%d, need at least:%zu", ths->vgId,
+           pRpcMsg->contLen, sizeof(SyncHeartbeatReply));
+    return TSDB_CODE_INVALID_MSG;
+  }
+
   int32_t code = 0;
 
   SyncHeartbeatReply* pMsg = pRpcMsg->pCont;

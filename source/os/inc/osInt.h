@@ -34,28 +34,21 @@ int32_t taosInitPrivateFileSecurity(SPrivateFileSecurity *security);
 void    taosFreePrivateFileSecurity(SPrivateFileSecurity *security);
 int32_t taosCheckPrivateFileHandle(HANDLE handle, bool directory, PSID owner);
 
-typedef struct WindowsTimezoneObj {
-  // UTC offset in seconds, using POSIX `timezone` convention: east-negative, west-positive.
-  // Examples: UTC+8 (East 8) = -28800, UTC-8 (West 8) = +28800.
-  // This matches what user_mktime64() and taosLocalTime() expect internally.
-  // External callers that need east-positive (tm_gmtoff) should use taosGetTZOffsetSeconds().
-  int64_t offset_seconds;
-  char    name[TD_TIMEZONE_LEN];
-  // Zone id as requested by the caller (IANA or Windows spelling).  Kept so
-  // that wall-clock conversions can apply the zone's DST rules instead of the
-  // single standard-time offset captured above; the offset alone is wrong for
-  // every instant inside a daylight-saving period.
-  char    zoneName[TD_TIMEZONE_LEN];
-  int32_t refCount;            // Reference count
-  TdThreadMutex mutex;         // Protect concurrent access
-} WindowsTimezoneObj;
+#include "tzWindows.h"
 
-/* Convert a wall-clock time in the named zone to a UTC epoch, applying the
- * zone's daylight-saving rules (Windows dynamic time zone data).  Returns
- * false when the zone cannot be resolved, so callers can fall back to the
- * fixed-offset conversion. */
-bool taosWindowsZoneToEpoch(const char *zoneName, int32_t year, int32_t mon, int32_t day,
-                            int32_t hour, int32_t min, int32_t sec, time_t *pEpoch);
+// tz must be non-NULL. The borrowed rules remain owned by tz until tzfree().
+// Do not free them or retain them past tz's lifetime.
+void *taosTimezoneRules(timezone_t tz);
+typedef struct {
+  char name[TD_TIMEZONE_LEN * 2];
+  char fallback[64];
+  bool recovered;
+} SWindowsTimezoneConfig;
+
+timezone_t taosLoadWindowsTimezone(const SWindowsTimezoneConfig *config);
+
+void taosWindowsTimezoneConfig(const DYNAMIC_TIME_ZONE_INFORMATION *info,
+                               DWORD type, SWindowsTimezoneConfig *config);
 #endif
 
 #ifdef __cplusplus

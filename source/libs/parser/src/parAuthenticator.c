@@ -27,6 +27,7 @@ typedef struct SAuthCxt {
   bool             macNruGuaranteed;
   bool             macNwdGuaranteed;
   bool             allowExternalQuery;
+  const STableNode* pStreamTriggerTable;
 } SAuthCxt;
 
 typedef struct SSelectAuthCxt {
@@ -444,12 +445,56 @@ static int32_t authIsExternalTable(SAuthCxt* pCxt, SRealTableNode* pTable, bool*
   return TSDB_CODE_SUCCESS;
 }
 
+static bool authLocalRefExists(SAuthCxt* pCxt, const char* db, const char* table) {
+  if (db[0] == '\0') return false;
+  SName name = {0};
+  toName(pCxt->pParseCxt->acctId, db, table, &name);
+  STableMeta* pMeta = NULL;
+  int32_t code = getTableMetaFromCache(pCxt->pMetaCache, &name, &pMeta);
+  bool found = code == TSDB_CODE_SUCCESS && pMeta != NULL;
+  queryFreeTableMeta(pMeta);
+  return found;
+}
+
+static bool authIsReferenceDecl(SAuthCxt* pCxt, SNodeList* pList, const char* db,
+                                 const char* table, int8_t parts) {
+  if (!tsFederatedQueryEnable || parts != 2) return false;
+  SNode* pNode = NULL;
+  bool fallback = false;
+  FOREACH(pNode, pList) {
+    if (nodeType(pNode) != QUERY_NODE_REFERENCE_DECL) continue;
+    const char* alias = ((SReferenceDeclNode*)pNode)->entry.alias;
+    if (strcmp(alias, table) == 0) return true;
+    fallback |= strcasecmp(alias, table) == 0;
+  }
+  return fallback && !authLocalRefExists(pCxt, db, table);
+}
+
+static bool authIsAlterReference(SAuthCxt* pCxt, const SAlterTableStmt* pStmt) {
+  if (!tsFederatedQueryEnable || pStmt->refPathParts != 2) return false;
+  SName name = {0};
+  toName(pCxt->pParseCxt->acctId, pStmt->dbName, pStmt->tableName, &name);
+  STableMeta* pMeta = NULL;
+  int32_t code = getTargetMetaImpl(pCxt->pParseCxt, pCxt->pMetaCache, &name, &pMeta, true);
+  if (code != TSDB_CODE_SUCCESS || pMeta == NULL) return false;
+  bool exact = false;
+  bool fallback = false;
+  for (int32_t i = 0; i < pMeta->referenceExt.nReferences; ++i) {
+    const char* alias = pMeta->referenceExt.pReferences[i].alias;
+    exact |= strcmp(alias, pStmt->refTableName) == 0;
+    fallback |= strcasecmp(alias, pStmt->refTableName) == 0;
+  }
+  queryFreeTableMeta(pMeta);
+  return exact || (fallback && !authLocalRefExists(pCxt, pStmt->refDbName, pStmt->refTableName));
+}
+
 static bool authIsExternalSeries(SNodeList* pSeriesList, const char* tableName) {
   if (!tsFederatedQueryEnable) {
     return false;
   }
   SNode* pNode = NULL;
   FOREACH(pNode, pSeriesList) {
+    if (nodeType(pNode) != QUERY_NODE_SERIES_DECL) continue;
     SSeriesDeclNode* pSeries = (SSeriesDeclNode*)pNode;
     if (pSeries->sourceName[0] != '\0' && strcasecmp(pSeries->alias, tableName) == 0) {
       return true;
@@ -458,6 +503,74 @@ static bool authIsExternalSeries(SNodeList* pSeriesList, const char* tableName) 
   return false;
 }
 #endif
+
+// FS 6.1: executing TIME_ALIGN requires SELECT privilege on the input table,
+// with the same model as querying that table directly.  The table function
+// keeps only the db/table names in its AST node (the inner table is resolved
+// during translation), so the auth walker cannot reach a REAL_TABLE node and
+// must check the recorded name here.
+static int32_t authTimeAlignTable(SAuthCxt* pCxt, SSelectStmt* pSelect, STimeAlignTableNode* pAlign) {
+  const STableNode* pSource = NULL;
+  if (pAlign->pRealTableNode != NULL && nodeType(pAlign->pRealTableNode) == QUERY_NODE_PLACE_HOLDER_TABLE) {
+    pSource = pCxt->pStreamTriggerTable;
+  }
+  const char* db = pSource != NULL ? pSource->dbName : pAlign->dbName;
+  if (db[0] == '\0') return TSDB_CODE_SUCCESS;
+
+  PAR_ERR_RET(checkDbUseAuth(pCxt, db));
+  STableNode table = {0};
+  tstrncpy(table.dbName, db, sizeof(table.dbName));
+  tstrncpy(table.tableName, pSource != NULL ? pSource->tableName : pAlign->tbName, sizeof(table.tableName));
+  const char* alias =
+      pSource != NULL && pAlign->table.tableAlias[0] == '\0' ? pSource->tableAlias : pAlign->table.tableAlias;
+  tstrncpy(table.tableAlias, alias, sizeof(table.tableAlias));
+
+  int32_t code = TSDB_CODE_SUCCESS;
+  bool isView = false;
+#ifdef TD_ENTERPRISE
+  // Mirror the REAL_TABLE path: MAC level check and the owner shortcut.  Both
+  // use the table meta already reserved by collectMetaKey for this statement.
+  SName       name = {0};
+  STableMeta* pTableMeta = NULL;
+  toName(pCxt->pParseCxt->acctId, table.dbName, table.tableName, &name);
+  int32_t metaCode = getTargetMetaImpl(pCxt->pParseCxt, pCxt->pMetaCache, &name, &pTableMeta, true);
+  if (TSDB_CODE_SUCCESS == metaCode) {
+    if (pCxt->pParseCxt->macMode && macCheckBySecLvl(pCxt, pTableMeta->secLvl, false) != TSDB_CODE_SUCCESS) {
+      queryFreeTableMeta(pTableMeta);
+      return TSDB_CODE_MAC_INSUFFICIENT_LEVEL;
+    }
+    if (pTableMeta->ownerId == pCxt->pParseCxt->userId) {
+      // Owner has all privileges on the table, same as a direct query.
+      queryFreeTableMeta(pTableMeta);
+      return TSDB_CODE_SUCCESS;
+    }
+    if (TSDB_VIEW_TABLE == pTableMeta->tableType) {
+      isView = true;
+    }
+  }
+  queryFreeTableMeta(pTableMeta);
+#endif
+
+  if (isView) {
+    // The input is a view: require the view SELECT privilege, exactly like a
+    // direct query on the view, instead of the table privilege.
+    code = checkViewAuth(pCxt, table.dbName, table.tableName, PRIV_VIEW_SELECT, PRIV_OBJ_VIEW, NULL);
+    if (TSDB_CODE_SUCCESS != code && NULL != pCxt->pParseCxt->pEffectiveUser) {
+      code = checkViewEffectiveAuth(pCxt, table.dbName, table.tableName, PRIV_VIEW_SELECT, PRIV_OBJ_VIEW, NULL);
+    }
+    return code;
+  }
+
+  SNode* pTagCond = NULL;
+  code = checkAuth(pCxt, table.dbName, table.tableName, PRIV_TBL_SELECT, PRIV_OBJ_TBL, &pTagCond, NULL);
+  if (TSDB_CODE_SUCCESS != code && NULL != pCxt->pParseCxt->pEffectiveUser) {
+    code = checkEffectiveAuth(pCxt, table.dbName, table.tableName, PRIV_TBL_SELECT, PRIV_OBJ_TBL, NULL);
+  }
+  if (TSDB_CODE_SUCCESS == code && NULL != pTagCond) {
+    code = rewriteAppendStableTagCond(&pSelect->pWhere, pTagCond, &table);
+  }
+  return code;
+}
 
 static EDealRes authSelectImpl(SNode* pNode, void* pContext) {
   SSelectAuthCxt* pCxt = pContext;
@@ -539,6 +652,9 @@ static EDealRes authSelectImpl(SNode* pNode, void* pContext) {
       }
     }
     return TSDB_CODE_SUCCESS == pAuthCxt->errCode ? DEAL_RES_CONTINUE : DEAL_RES_ERROR;
+  } else if (QUERY_NODE_TIME_ALIGN_TABLE == nodeType(pNode)) {
+    pAuthCxt->errCode = authTimeAlignTable(pAuthCxt, pCxt->pSelect, (STimeAlignTableNode*)pNode);
+    return TSDB_CODE_SUCCESS == pAuthCxt->errCode ? DEAL_RES_IGNORE_CHILD : DEAL_RES_ERROR;
   } else if (QUERY_NODE_TEMP_TABLE == nodeType(pNode)) {
     return authSubquery(pAuthCxt, ((STempTableNode*)pNode)->pSubquery);
   }
@@ -684,7 +800,8 @@ static int32_t authColDefRefs(SAuthCxt* pCxt, SNodeList* pDefs, SNodeList* pSeri
     SColumnOptions* pOptions = (SColumnOptions*)pColDef->pOptions;
     if (pOptions && pOptions->hasRef) {
 #ifdef TD_ENTERPRISE
-      if (authIsExternalSeries(pSeriesList, pOptions->refTable)) {
+      if (authIsExternalSeries(pSeriesList, pOptions->refTable) ||
+          authIsReferenceDecl(pCxt, pSeriesList, pOptions->refDb, pOptions->refTable, pOptions->refPathParts)) {
         continue;
       }
       STranslateContext cxt = {.pParseCxt = pCxt->pParseCxt, .pMetaCache = pCxt->pMetaCache};
@@ -705,7 +822,7 @@ static int32_t authCreateVTable(SAuthCxt* pCxt, SCreateVTableStmt* pStmt) {
   PAR_ERR_RET(checkDbUseAuth(pCxt, pStmt->dbName));
   PAR_ERR_RET(authObjPrivileges(pCxt, pStmt->dbName, NULL, PRIV_TBL_CREATE, PRIV_OBJ_DB));
   PAR_ERR_RET(authColDefRefs(pCxt, pStmt->pCols, pStmt->pSeriesList));
-  PAR_ERR_RET(authColDefRefs(pCxt, pStmt->pTags, pStmt->pSeriesList));
+  PAR_ERR_RET(authColDefRefs(pCxt, pStmt->pTags, NULL));
   return TSDB_CODE_SUCCESS;
 }
 
@@ -720,8 +837,19 @@ static int32_t authCreateVSubTable(SAuthCxt* pCxt, SCreateVSubTableStmt* pStmt) 
       if (NULL == pColRef) {
         PAR_ERR_RET(TSDB_CODE_PAR_INVALID_COLUMN);
       }
+      // a bare `name TYPE` own-column declaration carries no binding: there is no source
+      // table to authorize, the column is created unbound (see checkCreateVChildOwnColRef)
+      if (vtableColRefWithoutBinding(pColRef)) {
+        continue;
+      }
+      // binding artifacts without a complete reference: never authorize a partial shape,
+      // reject here so all three layers enforce the same boundary
+      if (vtableColRefIncomplete(pColRef)) {
+        PAR_ERR_RET(TSDB_CODE_PAR_INVALID_COLUMN);
+      }
 #ifdef TD_ENTERPRISE
-      if (authIsExternalSeries(pStmt->pSeriesList, pColRef->refTableName)) {
+      if (authIsExternalSeries(pStmt->pSeriesList, pColRef->refTableName) ||
+          authIsReferenceDecl(pCxt, pStmt->pSeriesList, pColRef->refDbName, pColRef->refTableName, pColRef->refPathParts)) {
         continue;
       }
       STranslateContext cxt = {.pParseCxt = pCxt->pParseCxt, .pMetaCache = pCxt->pMetaCache};
@@ -772,6 +900,10 @@ static int32_t authCreateStream(SAuthCxt* pCxt, SCreateStreamStmt* pStmt) {
   if (pStmt->pTrigger) {
     SStreamTriggerNode* pTrigger = (SStreamTriggerNode*)pStmt->pTrigger;
     STableNode*         pTriggerTable = (STableNode*)pTrigger->pTrigerTable;
+    if (pTriggerTable != NULL && nodeType(pTriggerTable) == QUERY_NODE_TIME_ALIGN_TABLE) {
+      pTriggerTable = (STableNode*)((STimeAlignTableNode*)pTriggerTable)->pRealTableNode;
+    }
+    pCxt->pStreamTriggerTable = pTriggerTable;
     if (pTriggerTable) {
       if (IS_SYS_DBNAME(pTriggerTable->dbName)) return TSDB_CODE_PAR_PERMISSION_DENIED;
       if (authObjPrivileges(pCxt, pTriggerTable->dbName, pTriggerTable->tableName, PRIV_TBL_SELECT, PRIV_OBJ_TBL)) {
@@ -942,7 +1074,7 @@ static int32_t authAlterTable(SAuthCxt* pCxt, SAlterTableStmt* pStmt) {
          pStmt->alterType == TSDB_ALTER_TABLE_ALTER_COLUMN_REF ||
          pStmt->alterType == TSDB_ALTER_TABLE_ALTER_TAG_REF)
 #ifdef TD_ENTERPRISE
-        && !(tsFederatedQueryEnable && pStmt->refType == 1)
+        && !(tsFederatedQueryEnable && (pStmt->refType == 1 || authIsAlterReference(pCxt, pStmt)))
 #endif
     ) {
       PAR_ERR_RET(checkDbUseAuth(pCxt, pStmt->refDbName));
@@ -985,7 +1117,7 @@ static int32_t authAlterVTable(SAuthCxt* pCxt, SAlterTableStmt* pStmt) {
       pStmt->alterType == TSDB_ALTER_TABLE_ALTER_COLUMN_REF ||
       pStmt->alterType == TSDB_ALTER_TABLE_ALTER_TAG_REF)
 #ifdef TD_ENTERPRISE
-      && !(tsFederatedQueryEnable && pStmt->refType == 1)
+      && !(tsFederatedQueryEnable && (pStmt->refType == 1 || authIsAlterReference(pCxt, pStmt)))
 #endif
   ) {
     PAR_ERR_RET(checkDbUseAuth(pCxt, pStmt->refDbName));

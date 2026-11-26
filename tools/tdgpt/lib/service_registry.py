@@ -20,6 +20,7 @@ import importlib
 import inspect
 import json
 import os
+import stat
 import sys
 import threading
 from collections import defaultdict
@@ -36,6 +37,7 @@ from lib.base import (
     AbstractSeriesDiagnosisService,
 )
 from lib.conf import Configure
+from lib.custom_algorithms import module_prefix
 from lib.dynamic.wrapper import (
     DynamicAnomalyService,
     DynamicClassificationService,
@@ -45,7 +47,19 @@ from lib.dynamic.wrapper import (
 )
 from lib.errors import NotFoundDynamicModelError
 from lib.log import AppLogger
+from lib.taosanalytics.algo.envelop.batch_algorithms import (
+    DEFAULT_ALGO,
+    discover_plugins,
+)
+from lib.taosanalytics.algo.envelop.batch_algorithms import (
+    KIND as BATCH_KIND,
+)
 from lib.util import safely_remove_file
+
+# Category directories under the custom algorithm root whose modules are
+# imported and registered as services. The batch plugins live under BATCH_KIND
+# and are discovered separately.
+_CUSTOM_SERVICE_KINDS = ("ad", "fc", "classification", "regression")
 
 
 class ServiceRegistry:
@@ -86,8 +100,21 @@ class ServiceRegistry:
 
     def __init__(self):
         self.services = defaultdict()
+        # Batch envelope plugins are kept out of `services` on purpose: `/list`
+        # iterates that mapping and reads `service.type` before entering its
+        # try block, so a member without the service interface would turn every
+        # mnode poll into a 500.
+        self.batch_services = {}
         self._loaded = False
         self._services_lock = threading.RLock()
+
+    def get_batch_algo(self, name):
+        """return the registered batch envelope plugin, or None"""
+        return self.batch_services.get(name, None)
+
+    def get_batch_algo_list(self):
+        """return the descriptions of the registered batch envelope plugins"""
+        return [plugin.describe() for plugin in self.batch_services.values()]
 
     def get_service(self, name):
         """get the required service"""
@@ -464,7 +491,7 @@ class ServiceRegistry:
                 # ignore the failure and continue in case of registering custom models
                 return
 
-        all_files = os.listdir(service_directory)
+        all_files = sorted(os.listdir(service_directory))
 
         for item in all_files:
             if item in ("__init__.py", "__pycache__") or not item.endswith(".py"):
@@ -481,7 +508,7 @@ class ServiceRegistry:
                 module = importlib.import_module(name)
             except Exception as e:
                 AppLogger.error(
-                    "failed to import module %s: %s, skipping", name, str(e)
+                    "failed to import module %s (%s): %s, skipping", name, full_path, str(e)
                 )
                 continue
 
@@ -536,10 +563,108 @@ class ServiceRegistry:
                         AppLogger.error(
                             "failed to register service:%s from %s: %s, skipping",
                             class_name,
-                            name,
+                            full_path,
                             str(e),
                         )
                         continue
+
+    def load_custom_services(self):
+        """Discover persistent ad/fc/classification/regression/batch plugins.
+
+        The directories are read in place; none of them is added to sys.path.
+        """
+        config = Configure.get_instance()
+        root = Path(config.get_custom_algo_directory())
+        explicit = bool(os.environ.get("TDGPT_CUSTOM_ALGO_DIR")) or (
+            config.custom_algo_explicit
+        )
+        if not root.exists():
+            if explicit:
+                raise FileNotFoundError(f"custom algorithm directory does not exist: {root}")
+            return
+        if not root.is_dir() or not os.access(root, os.R_OK | os.X_OK):
+            raise OSError(f"custom algorithm directory is not readable: {root}")
+        self._warn_if_world_writable(root)
+        try:
+            prefix = module_prefix(root)
+        except Exception as exc:
+            AppLogger.error("failed to initialize custom algorithm package %s: %s, skipping", root, exc)
+            return
+        for kind in _CUSTOM_SERVICE_KINDS:
+            directory = root / kind
+            if directory.exists():
+                self._register_services_in_dir(str(root), f"{prefix}.{kind}.", kind, True)
+
+        self.load_custom_batch_services(root, prefix)
+
+    @staticmethod
+    def _warn_if_world_writable(root):
+        """Flag writable directories whose files this service imports and runs.
+
+        The scan reads user code from ``<root>/ad``, ``<root>/fc``,
+        ``<root>/classification``, ``<root>/regression`` and ``<root>/batch``,
+        so a root that is not writable below it does not clear them: any one of
+        them being writable lets another user replace a file that then runs as
+        this service. The root itself is checked too, because whoever can write
+        there can replace one of those directories.
+
+        The check is advisory. Refusing to start here would strand deployments
+        whose directory mode predates this rule, while the log entry keeps the
+        exposure visible.
+
+        Windows is skipped: CPython synthesises a fixed ``st_mode`` (0o40777) for
+        directories there, independent of the real ACLs, so the check would
+        report every installation on every start.
+        """
+        if os.name == "nt":
+            return
+
+        root = Path(root)
+        directories = [root]
+        directories.extend(root / kind for kind in _CUSTOM_SERVICE_KINDS)
+        directories.append(root / BATCH_KIND)
+
+        for directory in directories:
+            try:
+                mode = directory.stat().st_mode
+            except OSError as exc:
+                AppLogger.debug(
+                    "unable to stat custom algorithm directory %s: %s", directory, exc
+                )
+                continue
+            if mode & stat.S_IWOTH:
+                AppLogger.warning(
+                    "custom algorithm directory %s is world-writable; user code is "
+                    "imported and executed from it, restrict ownership to the "
+                    "service user (0750 is sufficient)",
+                    directory,
+                )
+
+    def load_custom_batch_services(self, root, prefix):
+        """Discover batch envelope plugins under ``<custom_algo_dir>/batch``."""
+        directory = Path(root) / BATCH_KIND
+        if not directory.is_dir():
+            AppLogger.debug(
+                "batch algorithm directory '%s' does not exist, skipping", directory
+            )
+            return
+        try:
+            plugins = discover_plugins(directory, prefix, reserved=(DEFAULT_ALGO,))
+        except Exception as exc:
+            AppLogger.error(
+                "failed to load batch algorithms from %s: %s, skipping", directory, exc
+            )
+            return
+
+        with self._services_lock:
+            self.batch_services.update(plugins)
+
+        AppLogger.info(
+            "loaded %d custom batch algorithm(s) from %s: %s",
+            len(plugins),
+            directory,
+            ", ".join(sorted(plugins)) or "none",
+        )
 
     def load_all_services(self) -> None:
         """register all algorithms/models in the specified directory"""
@@ -572,12 +697,7 @@ class ServiceRegistry:
         # load user defined ML model-driven script.
         AppLogger.info("start to load custom defined models")
 
-        self._register_services_in_dir(
-            current_directory, "lib.taosanalytics.algo.custom.ad.", "taosanalytics/algo/custom/ad/", False
-        )
-        self._register_services_in_dir(
-            current_directory, "lib.taosanalytics.algo.custom.fc.", "taosanalytics/algo/custom/fc/", False
-        )
+        self.load_custom_services()
 
         AppLogger.info("start to load custom defined models from config files")
 

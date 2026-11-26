@@ -72,8 +72,8 @@ class TestVtableSeriesMeta:
             f"CREATE EXTERNAL SOURCE IF NOT EXISTS {EXT_SOURCE} "
             f"TYPE='influxdb' "
             f"HOST='{ExtSrcEnv.INFLUX_HOST}' PORT={ExtSrcEnv.INFLUX_PORT} "
-            f"USER='u' PASSWORD='' DATABASE={INFLUX_DB} "
-            f"OPTIONS('api_token'='{ExtSrcEnv._get_influx_token(ExtSrcEnv.INFLUX_VERSIONS[0])}','protocol'='flight_sql')"
+            f"USER='{ExtSrcEnv.influx_source_credentials()[0]}' PASSWORD='{ExtSrcEnv.influx_source_credentials()[1]}' DATABASE={INFLUX_DB} "
+            f"OPTIONS({ExtSrcEnv.influx_source_options()})"
         )
 
     @classmethod

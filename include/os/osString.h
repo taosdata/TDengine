@@ -109,16 +109,21 @@ void   *taosResolveCharsetCxt(const void *charsetCxt);
 iconv_t taosAcquireConv(int32_t *idx, ConvType type, void* charsetCxt);
 void    taosReleaseConv(int32_t idx, iconv_t conv, ConvType type, void* charsetCxt);
 const char *taosConvCharset(const void *charsetCxt);
+// Validate native-endian UCS-4 without an output charset; returns 0 or an errno value.
+int32_t taosValidateUcs4(const void *ucs4, int32_t ucs4Len);
 int32_t taosUcs4ToMbs(TdUcs4 *ucs4, int32_t ucs4_max_len, char *mbs, void* charsetCxt);
-int32_t taosUcs4ToMbsCharsetInsensitive(TdUcs4 *ucs4, int32_t ucs4_max_len,
-                                        char *mbs);
 int32_t taosUcs4ToMbsEx(TdUcs4 *ucs4, int32_t ucs4_max_len, char *mbs, iconv_t conv);
 bool    taosMbsToUcs4(const char *mbs, size_t mbs_len, TdUcs4 *ucs4, int32_t ucs4_max_len, int32_t *len, void* charsetCxt);
+bool    taosMbsToUcs4Prefix(const char *mbs, size_t mbsLength, char *ucs4,
+                            int32_t ucs4Capacity, int32_t *len,
+                            void *charsetCxt);
+// Mark character boundaries in a caller-owned length + 1 byte buffer.
+int32_t taosMbsCharBoundaries(const char *string, int32_t length,
+                              void *charsetCxt, uint8_t *boundaries);
+int32_t taosMbsCharOffset(const char *string, size_t length, size_t characters,
+                          void *charsetCxt, int32_t *bytes);
 int32_t taosMbsToMbs(const char *src, int32_t srcLen, void *srcCharsetCxt,
                      void *dstCharsetCxt, char **ppDst, int32_t *pDstLen);
-bool    taosMbsToUcs4CharsetInsensitive(const char *mbs, size_t mbs_len,
-                                         TdUcs4 *ucs4, int32_t ucs4_max_len,
-                                         int32_t *len);
 int32_t taosUcs4Compare(TdUcs4 *f1_ucs4, TdUcs4 *f2_ucs4, int32_t bytes);
 int32_t taosUcs4Copy(TdUcs4 *target_ucs4, TdUcs4 *source_ucs4, int32_t len_ucs4);
 bool    taosValidateEncodec(const char *encodec);

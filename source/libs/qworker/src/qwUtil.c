@@ -938,6 +938,15 @@ void qwChkDropTimeoutQuery(SQWorker *mgmt, int32_t currTs) {
 
     sId = ctx->sId;
 
+#if defined(BUILD_TEST)
+    if (!QW_EVENT_RECEIVED(ctx, QW_EVENT_DROP)) {
+      QW_TASK_DLOG("idle timeout test expired, lastAckTs:%" PRId64
+                   ", nowTs:%d, timeout:%d, code:%x - %s",
+                   ctx->lastAckTs, currTs, tsQueryNoFetchTimeoutSec,
+                   TSDB_CODE_QRY_NO_FETCH_TIMEOUT,
+                   tstrerror(TSDB_CODE_QRY_NO_FETCH_TIMEOUT));
+    }
+#endif
     (void)qwStopTask(QW_FPARAMS(), ctx, true, (QW_EVENT_RECEIVED(ctx, QW_EVENT_DROP)) ? ctx->rspCode : TSDB_CODE_QRY_NO_FETCH_TIMEOUT);
 
     pIter = taosHashIterate(mgmt->ctxHash, pIter);

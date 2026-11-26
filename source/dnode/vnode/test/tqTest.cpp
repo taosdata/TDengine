@@ -15,12 +15,19 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
+// C++ standard headers first: os.h turns nanosleep() into a forbidden symbol, which breaks std::this_thread
+#include <algorithm>
+#include <atomic>
+#include <iostream>
+#include <string>
+#include <thread>
+#include <vector>
+
 #include <gtest/gtest.h>
 #include <vnodeInt.h>
 
 #include <taoserror.h>
 #include <tglobal.h>
-#include <iostream>
 
 #include <tmsg.h>
 #include <vnodeInt.h>
@@ -90,9 +97,65 @@ int32_t snapshotReads = 0;
 int32_t snapshotResponses = 0;
 STqOffsetVal snapshotResponseOffset = {};
 SMqBatchMetaRsp snapshotMeta = {};
+SSDataBlock* replayReadBlocks[4] = {};
+int32_t replayReadCount = 0;
+int32_t replayFailRead = 0;
+int32_t replayOffsetCount = 0;
+int64_t replayOffsets[4] = {};
+int32_t replayResponses = 0;
+SSchemaWrapper* schemaReloadWrapper = nullptr;
+SExtSchema* schemaReloadExt = nullptr;
+int32_t schemaReloadCalls = 0;
+std::vector<void*> metaFreedPointers;
+SMetaTableInfo partialSnapshotMeta = {};
 
 int32_t prepareSnapshot(qTaskInfo_t, STqOffsetVal*, int8_t) { return TSDB_CODE_SUCCESS; }
 void setSnapshotParams(qTaskInfo_t, int8_t, int32_t, int64_t, int8_t, int64_t) {}
+int32_t setReplayTaskId(qTaskInfo_t, uint64_t, uint64_t) { return TSDB_CODE_SUCCESS; }
+void setReplayTaskOpen(qTaskInfo_t) {}
+int32_t getReplayTaskCode(void*) { return TSDB_CODE_SUCCESS; }
+
+SSchemaWrapper* readReloadSchema(SMeta*, tb_uid_t, int32_t, int, SExtSchema** extSchema, int8_t, bool) {
+  ++schemaReloadCalls;
+  if (extSchema != nullptr) {
+    *extSchema = schemaReloadExt;
+  }
+  return schemaReloadWrapper;
+}
+
+STSchema* failReloadSchema(SSchema*, int32_t, int32_t) {
+  terrno = TSDB_CODE_OUT_OF_MEMORY;
+  return nullptr;
+}
+
+SArray* failMetaArrayInit(size_t, size_t) {
+  terrno = TSDB_CODE_OUT_OF_MEMORY;
+  return nullptr;
+}
+
+void* failMetaCalloc(int64_t, int64_t) {
+  terrno = TSDB_CODE_OUT_OF_MEMORY;
+  return nullptr;
+}
+
+void* failMetaArrayPush(SArray*, const void*, int32_t) {
+  terrno = TSDB_CODE_OUT_OF_MEMORY;
+  return nullptr;
+}
+
+void trackMetaFree(void* ptr) {
+  metaFreedPointers.push_back(ptr);
+}
+
+bool containsMetaFreedPointer(const void* ptr) {
+  return std::find(metaFreedPointers.begin(), metaFreedPointers.end(), ptr) != metaFreedPointers.end();
+}
+
+int32_t readPartialSnapshotMeta(SSnapContext*, SMetaTableInfo* pTableInfo) {
+  *pTableInfo = partialSnapshotMeta;
+  terrno = TSDB_CODE_OUT_OF_MEMORY;
+  return TSDB_CODE_OUT_OF_MEMORY;
+}
 
 int32_t readSnapshot(qTaskInfo_t, SSDataBlock** block, uint64_t*) {
   ++snapshotReads;
@@ -119,6 +182,58 @@ int32_t sendSnapshotResponse(STqHandle*, const SRpcMsg*, const SMqPollReq*, SMqD
   EXPECT_EQ(response->blockNum, 0);
   snapshotResponseOffset = response->rspOffset;
   return TSDB_CODE_SUCCESS;
+}
+
+int32_t readReplay(qTaskInfo_t, SSDataBlock** block, uint64_t*) {
+  ++replayReadCount;
+  if (replayReadCount == replayFailRead) {
+    return TSDB_CODE_OUT_OF_MEMORY;
+  }
+  *block = replayReadBlocks[replayReadCount - 1];
+  return TSDB_CODE_SUCCESS;
+}
+
+int32_t extractReplayOffset(qTaskInfo_t, STqOffsetVal* offset) {
+  offset->type = TMQ_OFFSET__LOG;
+  offset->version = replayOffsetCount + 1;
+  offset->ts = replayOffsets[replayOffsetCount++];
+  return TSDB_CODE_SUCCESS;
+}
+
+int32_t sendReplayResponse(STqHandle*, const SRpcMsg*, const SMqPollReq*, SMqDataRsp*, int32_t, int32_t) {
+  ++replayResponses;
+  return TSDB_CODE_SUCCESS;
+}
+
+void initReplayBlock(SSDataBlock** block, int64_t timestamp) {
+  ASSERT_EQ(createDataBlock(block), TSDB_CODE_SUCCESS);
+  SColumnInfoData column =
+      createColumnInfoData(TSDB_DATA_TYPE_TIMESTAMP, sizeof(int64_t), PRIMARYKEY_TIMESTAMP_COL_ID);
+  ASSERT_EQ(blockDataAppendColInfo(*block, &column), TSDB_CODE_SUCCESS);
+  ASSERT_EQ(blockDataEnsureCapacity(*block, 1), TSDB_CODE_SUCCESS);
+  auto* timestampColumn = static_cast<SColumnInfoData*>(taosArrayGet((*block)->pDataBlock, 0));
+  ASSERT_EQ(colDataSetVal(timestampColumn, 0, reinterpret_cast<const char*>(&timestamp), false),
+            TSDB_CODE_SUCCESS);
+  (*block)->info.rows = 1;
+}
+
+void resetReplayTestState() {
+  for (auto& block : replayReadBlocks) {
+    block = nullptr;
+  }
+  replayReadCount = 0;
+  replayFailRead = 0;
+  replayOffsetCount = 0;
+  for (auto& offset : replayOffsets) {
+    offset = 0;
+  }
+  replayResponses = 0;
+}
+
+void resetSchemaReloadTestState() {
+  schemaReloadWrapper = nullptr;
+  schemaReloadExt = nullptr;
+  schemaReloadCalls = 0;
 }
 
 }
@@ -170,4 +285,608 @@ TEST(testCase, filtered_snapshot_returns_progress_on_timeout) {
   snapshotBlock = nullptr;
 }
 
+TEST(testCase, replay_failure_does_not_publish_partial_cursor) {
+  resetReplayTestState();
+  initReplayBlock(&replayReadBlocks[0], 1000);
+  replayOffsets[0] = 1000;
+  replayFailRead = 2;
+
+  Stub stub;
+  stub.set(qSetTaskId, setReplayTaskId);
+  stub.set(qStreamSetOpen, setReplayTaskOpen);
+  stub.set(getTaskCode, getReplayTaskCode);
+  stub.set(qStreamPrepareScan, prepareSnapshot);
+  stub.set(qStreamSetParams, setSnapshotParams);
+  stub.set(qExecTask, readReplay);
+  stub.set(qStreamExtractOffset, extractReplayOffset);
+  stub.set(tqSendDataRsp, sendReplayResponse);
+
+  SVnode vnode = {};
+  vnode.config.tsdbCfg.precision = TSDB_TIME_PRECISION_MILLI;
+  STQ queue = {};
+  queue.pVnode = &vnode;
+  STqHandle handle = {};
+  handle.execHandle.subType = TOPIC_SUB_TYPE__COLUMN;
+  handle.execHandle.task = reinterpret_cast<qTaskInfo_t>(1);
+  SMqPollReq request = {};
+  request.reqOffset.type = TMQ_OFFSET__LOG;
+  request.reqOffset.version = 1;
+  request.enableReplay = 1;
+  request.timeout = 100;
+  request.minPollRows = 4096;
+  SRpcMsg message = {};
+
+  EXPECT_EQ(tqExtractDataForMq(&queue, &handle, &request, &message), TSDB_CODE_OUT_OF_MEMORY);
+  EXPECT_EQ(handle.block, nullptr);
+  EXPECT_EQ(handle.blockTime, 0);
+  EXPECT_EQ(replayResponses, 0);
+
+  blockDataDestroy(replayReadBlocks[0]);
+  resetReplayTestState();
+}
+
+TEST(testCase, replay_success_publishes_next_block_after_response_is_ready) {
+  resetReplayTestState();
+  initReplayBlock(&replayReadBlocks[0], 1000);
+  initReplayBlock(&replayReadBlocks[1], 2000);
+  replayOffsets[0] = 1000;
+  replayOffsets[1] = 2000;
+
+  Stub stub;
+  stub.set(qSetTaskId, setReplayTaskId);
+  stub.set(qStreamSetOpen, setReplayTaskOpen);
+  stub.set(getTaskCode, getReplayTaskCode);
+  stub.set(qStreamPrepareScan, prepareSnapshot);
+  stub.set(qStreamSetParams, setSnapshotParams);
+  stub.set(qExecTask, readReplay);
+  stub.set(qStreamExtractOffset, extractReplayOffset);
+  stub.set(tqSendDataRsp, sendReplayResponse);
+
+  SVnode vnode = {};
+  vnode.config.tsdbCfg.precision = TSDB_TIME_PRECISION_MILLI;
+  STQ queue = {};
+  queue.pVnode = &vnode;
+  STqHandle handle = {};
+  SSchema schema = {};
+  schema.colId = PRIMARYKEY_TIMESTAMP_COL_ID;
+  schema.type = TSDB_DATA_TYPE_TIMESTAMP;
+  schema.bytes = sizeof(int64_t);
+  handle.execHandle.subType = TOPIC_SUB_TYPE__COLUMN;
+  handle.execHandle.task = reinterpret_cast<qTaskInfo_t>(1);
+  handle.execHandle.execCol.pSW.nCols = 1;
+  handle.execHandle.execCol.pSW.pSchema = &schema;
+  SMqPollReq request = {};
+  request.reqOffset.type = TMQ_OFFSET__LOG;
+  request.reqOffset.version = 1;
+  request.enableReplay = 1;
+  request.timeout = 100;
+  request.minPollRows = 4096;
+  SRpcMsg message = {};
+
+  EXPECT_EQ(tqExtractDataForMq(&queue, &handle, &request, &message), TSDB_CODE_SUCCESS);
+  EXPECT_NE(handle.block, nullptr);
+  EXPECT_EQ(handle.blockTime, 2000);
+  EXPECT_EQ(replayResponses, 1);
+
+  blockDataDestroy(handle.block);
+  handle.block = nullptr;
+  blockDataDestroy(replayReadBlocks[0]);
+  blockDataDestroy(replayReadBlocks[1]);
+  resetReplayTestState();
+}
+
+TEST(testCase, schema_reload_failure_keeps_previous_reader_cache) {
+  resetSchemaReloadTestState();
+  SWal wal = {};
+  SWalReader walReader = {};
+  walReader.pWal = &wal;
+  SVnode vnode = {};
+  STqReader reader = {};
+  reader.pWalReader = &walReader;
+  reader.pVnode = &vnode;
+  reader.pSchemaWrapper = static_cast<SSchemaWrapper*>(taosMemoryCalloc(1, sizeof(SSchemaWrapper)));
+  reader.pTSchema = static_cast<STSchema*>(taosMemoryCalloc(1, sizeof(STSchema)));
+  reader.extSchema = static_cast<SExtSchema*>(taosMemoryCalloc(1, sizeof(SExtSchema)));
+  reader.cachedSchemaUid = 10;
+  reader.cachedSchemaSuid = 20;
+  reader.cachedSchemaVer = 1;
+  SSchemaWrapper* previousWrapper = reader.pSchemaWrapper;
+  STSchema* previousTSchema = reader.pTSchema;
+  SExtSchema* previousExtSchema = reader.extSchema;
+
+  schemaReloadWrapper = static_cast<SSchemaWrapper*>(taosMemoryCalloc(1, sizeof(SSchemaWrapper)));
+  schemaReloadExt = static_cast<SExtSchema*>(taosMemoryCalloc(1, sizeof(SExtSchema)));
+  SSubmitTbData submit = {};
+  submit.uid = 10;
+  submit.suid = 20;
+  submit.sver = 2;
+  bool schemaChanged = false;
+
+  Stub stub;
+  stub.set(metaGetTableSchema, readReloadSchema);
+  stub.set(tBuildTSchema, failReloadSchema);
+
+  EXPECT_EQ(tqCheckSchema(&reader, &submit, &schemaChanged), TSDB_CODE_OUT_OF_MEMORY);
+  EXPECT_TRUE(schemaChanged);
+  EXPECT_EQ(schemaReloadCalls, 1);
+  EXPECT_EQ(reader.pSchemaWrapper, previousWrapper);
+  EXPECT_EQ(reader.pTSchema, previousTSchema);
+  EXPECT_EQ(reader.extSchema, previousExtSchema);
+  EXPECT_EQ(reader.cachedSchemaUid, 10);
+  EXPECT_EQ(reader.cachedSchemaSuid, 20);
+  EXPECT_EQ(reader.cachedSchemaVer, 1);
+
+  tDeleteSchemaWrapper(reader.pSchemaWrapper);
+  taosMemoryFree(reader.pTSchema);
+  taosMemoryFree(reader.extSchema);
+  resetSchemaReloadTestState();
+}
+
+TEST(testCase, snapshot_meta_array_init_failure_releases_input) {
+  terrno = 0;
+  metaFreedPointers.clear();
+  void* data = taosMemoryCalloc(1, 16);
+  ASSERT_NE(data, nullptr);
+  SMqBatchMetaRsp response = {};
+
+  {
+    Stub stub;
+    stub.set(taosArrayInit, failMetaArrayInit);
+    stub.set(taosMemFree, trackMetaFree);
+    EXPECT_EQ(qTmqAppendSnapshotMetaRsp(&response, data, 16, 1), TSDB_CODE_OUT_OF_MEMORY);
+  }
+
+  EXPECT_TRUE(containsMetaFreedPointer(data));
+  taosMemoryFree(data);
+  tDeleteMqBatchMetaRsp(&response);
+}
+
+TEST(testCase, snapshot_meta_buffer_allocation_failure_releases_input) {
+  terrno = 0;
+  metaFreedPointers.clear();
+  void* data = taosMemoryCalloc(1, 16);
+  ASSERT_NE(data, nullptr);
+  SMqBatchMetaRsp response = {};
+  response.batchMetaReq = taosArrayInit(4, POINTER_BYTES);
+  response.batchMetaLen = taosArrayInit(4, sizeof(int32_t));
+  ASSERT_NE(response.batchMetaReq, nullptr);
+  ASSERT_NE(response.batchMetaLen, nullptr);
+
+  {
+    Stub stub;
+    stub.set(taosMemCalloc, failMetaCalloc);
+    stub.set(taosMemFree, trackMetaFree);
+    EXPECT_EQ(qTmqAppendSnapshotMetaRsp(&response, data, 16, 1), TSDB_CODE_OUT_OF_MEMORY);
+  }
+
+  EXPECT_TRUE(containsMetaFreedPointer(data));
+  taosMemoryFree(data);
+  tDeleteMqBatchMetaRsp(&response);
+}
+
+TEST(testCase, snapshot_meta_queue_failure_releases_unowned_buffers) {
+  terrno = 0;
+  metaFreedPointers.clear();
+  void* data = taosMemoryCalloc(1, 16);
+  ASSERT_NE(data, nullptr);
+  SMqBatchMetaRsp response = {};
+  response.batchMetaReq = taosArrayInit(4, POINTER_BYTES);
+  response.batchMetaLen = taosArrayInit(4, sizeof(int32_t));
+  ASSERT_NE(response.batchMetaReq, nullptr);
+  ASSERT_NE(response.batchMetaLen, nullptr);
+
+  {
+    Stub stub;
+    stub.set(taosArrayAddBatch, failMetaArrayPush);
+    stub.set(taosMemFree, trackMetaFree);
+    EXPECT_EQ(qTmqAppendSnapshotMetaRsp(&response, data, 16, 1), TSDB_CODE_OUT_OF_MEMORY);
+  }
+
+  EXPECT_EQ(metaFreedPointers.size(), 2);
+  EXPECT_TRUE(containsMetaFreedPointer(data));
+  for (void* ptr : metaFreedPointers) {
+    taosMemoryFree(ptr);
+  }
+  tDeleteMqBatchMetaRsp(&response);
+}
+
+TEST(testCase, snapshot_table_info_failure_releases_partial_schema) {
+  terrno = 0;
+  metaFreedPointers.clear();
+  partialSnapshotMeta = {};
+  partialSnapshotMeta.schema = static_cast<SSchemaWrapper*>(taosMemoryCalloc(1, sizeof(SSchemaWrapper)));
+  ASSERT_NE(partialSnapshotMeta.schema, nullptr);
+  partialSnapshotMeta.schema->pSchema = static_cast<SSchema*>(taosMemoryCalloc(1, sizeof(SSchema)));
+  partialSnapshotMeta.schema->nCols = 1;
+  ASSERT_NE(partialSnapshotMeta.schema->pSchema, nullptr);
+  partialSnapshotMeta.pExtSchemas = static_cast<SExtSchema*>(taosMemoryCalloc(1, sizeof(SExtSchema)));
+  ASSERT_NE(partialSnapshotMeta.pExtSchemas, nullptr);
+
+  SStorageAPI api = {};
+  api.snapshotFn.getMetaTableInfoFromSnapshot = readPartialSnapshotMeta;
+  SSnapContext context = {};
+  SMetaTableInfo tableInfo = {};
+  {
+    Stub stub;
+    stub.set(taosMemFree, trackMetaFree);
+    EXPECT_EQ(qTmqGetSnapshotMetaTableInfo(&api, &context, &tableInfo), TSDB_CODE_OUT_OF_MEMORY);
+  }
+
+  EXPECT_TRUE(containsMetaFreedPointer(partialSnapshotMeta.schema->pSchema));
+  EXPECT_TRUE(containsMetaFreedPointer(partialSnapshotMeta.schema));
+  EXPECT_TRUE(containsMetaFreedPointer(partialSnapshotMeta.pExtSchemas));
+  EXPECT_EQ(tableInfo.schema, nullptr);
+  EXPECT_EQ(tableInfo.pExtSchemas, nullptr);
+  for (void* ptr : metaFreedPointers) {
+    taosMemoryFree(ptr);
+  }
+  partialSnapshotMeta = {};
+}
+
+TEST(testCase, setForSnapShotRestoresQueryMeta) {
+  SSnapContext ctx = {0};
+  ctx.withMeta = WITH_META;
+  ctx.queryMeta = 0;  // simulate a completed snapshot meta scan
+  ctx.index = 42;
+
+  // uid == 0: reposition the snapshot cursor to the earliest entry.
+  setForSnapShot(&ctx, 0);
+
+  EXPECT_EQ(ctx.index, 0);
+  // Regression: repositioning must restore the meta phase, otherwise a retried
+  // SNAPSHOT_META request after a consumer-group rebalance skips create-table
+  // metadata delivery and the destination loses child tables.
+  EXPECT_EQ(ctx.queryMeta, WITH_META);
+}
+
 #pragma GCC diagnostic pop
+
+namespace {
+
+struct TqTestEnv {
+  SVnode* pVnode;
+  STQ*    pTq;
+};
+
+TqTestEnv tqTestEnvCreate() {
+  TqTestEnv env = {};
+  env.pVnode = (SVnode*)taosMemoryCalloc(1, sizeof(SVnode));
+  env.pTq = (STQ*)taosMemoryCalloc(1, sizeof(STQ));
+  env.pVnode->restored = 1;
+  env.pTq->pVnode = env.pVnode;
+  taosInitRWLatch(&env.pTq->lock);
+  env.pTq->pHandle = taosHashInit(8, taosGetDefaultHashFunction(TSDB_DATA_TYPE_VARCHAR), true, HASH_ENTRY_LOCK);
+  env.pTq->pOffset = taosHashInit(8, taosGetDefaultHashFunction(TSDB_DATA_TYPE_VARCHAR), true, HASH_ENTRY_LOCK);
+  taosHashSetFreeFp(env.pTq->pOffset, (FDelete)tDeleteSTqOffset);
+  return env;
+}
+
+void tqTestEnvDestroy(TqTestEnv* pEnv) {
+  taosHashCleanup(pEnv->pTq->pHandle);
+  taosHashCleanup(pEnv->pTq->pOffset);
+  taosMemoryFree(pEnv->pTq);
+  taosMemoryFree(pEnv->pVnode);
+}
+
+// puts a snapshot offset with a heap allocated varchar primary key into the offset cache
+void tqTestPutVarKeyOffset(STQ* pTq, const char* subKey, const char* pk) {
+  STqOffset offset = {};
+  offset.val.type = TMQ_OFFSET__SNAPSHOT_DATA;
+  offset.val.uid = 7;
+  offset.val.ts = 99;
+  offset.val.primaryKey.type = TSDB_DATA_TYPE_VARCHAR;
+  offset.val.primaryKey.nData = strlen(pk);
+  offset.val.primaryKey.pData = (uint8_t*)taosMemoryCalloc(1, strlen(pk));
+  memcpy(offset.val.primaryKey.pData, pk, strlen(pk));
+  tstrncpy(offset.subKey, subKey, sizeof(offset.subKey));
+  ASSERT_EQ(0, taosHashPut(pTq->pOffset, subKey, strlen(subKey), &offset, sizeof(STqOffset)));
+}
+
+class TqMetaTestEnv {
+ public:
+  TqMetaTestEnv() {
+    env_ = tqTestEnvCreate();
+    env_.pVnode->config.vgId = 2;
+
+    const testing::TestInfo* testInfo = testing::UnitTest::GetInstance()->current_test_info();
+    path_ = "/tmp/tdengine-tq-metadata-";
+    path_ += std::to_string(taosGetPId());
+    path_ += "-";
+    path_ += testInfo == nullptr ? "unknown" : testInfo->name();
+    taosRemoveDir(path_.c_str());
+    env_.pTq->path = const_cast<char*>(path_.c_str());
+  }
+
+  ~TqMetaTestEnv() {
+    if (env_.pTq->pExecStore != nullptr) {
+      tdbTbClose(env_.pTq->pExecStore);
+      env_.pTq->pExecStore = nullptr;
+    }
+    if (env_.pTq->pMetaDB != nullptr) {
+      tdbClose(env_.pTq->pMetaDB);
+      env_.pTq->pMetaDB = nullptr;
+    }
+    taosRemoveDir(path_.c_str());
+    tqTestEnvDestroy(&env_);
+  }
+
+  TqMetaTestEnv(const TqMetaTestEnv&) = delete;
+  TqMetaTestEnv& operator=(const TqMetaTestEnv&) = delete;
+
+  int32_t Open() {
+    int32_t code = tdbOpen(env_.pTq->path, 16 * 1024, 1, &env_.pTq->pMetaDB, 0, NULL);
+    if (code != TDB_CODE_SUCCESS) {
+      return code;
+    }
+    return tdbTbOpen("tq.db", -1, -1, NULL, env_.pTq->pMetaDB, &env_.pTq->pExecStore, 0);
+  }
+
+  const char* Path() const { return path_.c_str(); }
+  STQ*        pTq() { return env_.pTq; }
+
+ private:
+  TqTestEnv   env_;
+  std::string path_;
+};
+
+int32_t failTqHandleRead(TTB*, const void*, int, void**, int*) { return TSDB_CODE_OUT_OF_MEMORY; }
+
+}  // namespace
+
+TEST(testCase, tqProcessDeleteSubReqRejectsShortMsg) {
+  TqTestEnv env = tqTestEnvCreate();
+
+  char msg[8] = {0};
+  EXPECT_EQ(TSDB_CODE_INVALID_MSG, tqProcessDeleteSubReq(env.pTq, 0, msg, (int32_t)sizeof(msg)));
+  EXPECT_EQ(TSDB_CODE_INVALID_MSG, tqProcessDeleteSubReq(env.pTq, 0, msg, 0));
+
+  std::vector<char> almost(sizeof(SMqVDeleteReq), 0);
+  EXPECT_EQ(TSDB_CODE_INVALID_MSG, tqProcessDeleteSubReq(env.pTq, 0, almost.data(), (int32_t)almost.size() - 1));
+
+  tqTestEnvDestroy(&env);
+}
+
+TEST(testCase, tqProcessSubscribeReqTreatsMissingHandleRemovalAsIdempotent) {
+  TqMetaTestEnv env;
+  ASSERT_EQ(0, taosMkDir(env.Path()));
+  ASSERT_EQ(TDB_CODE_SUCCESS, env.Open());
+
+  SMqRebVgReq request = {};
+  request.leftForVer = SMQ_REB_VG_REQ_VERSION;
+  request.vgId = 2;
+  request.oldConsumerId = 42;
+  request.newConsumerId = -1;
+  request.subType = TOPIC_SUB_TYPE__DB;
+  tstrncpy(request.subKey, "group:topic", sizeof(request.subKey));
+
+  int32_t tlen = 0;
+  int32_t code = 0;
+  tEncodeSize(tEncodeSMqRebVgReq, &request, tlen, code);
+  ASSERT_EQ(TSDB_CODE_SUCCESS, code);
+
+  std::vector<char> msg(tlen);
+  SEncoder          encoder = {};
+  tEncoderInit(&encoder, reinterpret_cast<uint8_t*>(msg.data()), tlen);
+  ASSERT_EQ(TSDB_CODE_SUCCESS, tEncodeSMqRebVgReq(&encoder, &request));
+  tEncoderClear(&encoder);
+
+  EXPECT_EQ(TSDB_CODE_SUCCESS, tqProcessSubscribeReq(env.pTq(), 0, msg.data(), tlen));
+  EXPECT_EQ(0, taosHashGetSize(env.pTq()->pHandle));
+}
+
+TEST(testCase, tqProcessSubscribeReqPropagatesHandleRestoreFailure) {
+  TqMetaTestEnv env;
+  ASSERT_EQ(0, taosMkDir(env.Path()));
+  ASSERT_EQ(TDB_CODE_SUCCESS, env.Open());
+
+  const char* subKey = "group:topic";
+  uint8_t     corruptHandle[] = {0xff};
+  ASSERT_EQ(TDB_CODE_SUCCESS, tqMetaSaveInfo(env.pTq(), env.pTq()->pExecStore, subKey, strlen(subKey), corruptHandle,
+                                             sizeof(corruptHandle)));
+
+  SMqRebVgReq request = {};
+  request.leftForVer = SMQ_REB_VG_REQ_VERSION;
+  request.vgId = 2;
+  request.oldConsumerId = 42;
+  request.newConsumerId = -1;
+  request.subType = TOPIC_SUB_TYPE__DB;
+  tstrncpy(request.subKey, subKey, sizeof(request.subKey));
+
+  int32_t tlen = 0;
+  int32_t code = 0;
+  tEncodeSize(tEncodeSMqRebVgReq, &request, tlen, code);
+  ASSERT_EQ(TSDB_CODE_SUCCESS, code);
+
+  std::vector<char> msg(tlen);
+  SEncoder          encoder = {};
+  tEncoderInit(&encoder, reinterpret_cast<uint8_t*>(msg.data()), tlen);
+  ASSERT_EQ(TSDB_CODE_SUCCESS, tEncodeSMqRebVgReq(&encoder, &request));
+  tEncoderClear(&encoder);
+
+  EXPECT_NE(TSDB_CODE_SUCCESS, tqProcessSubscribeReq(env.pTq(), 0, msg.data(), tlen));
+  EXPECT_EQ(0, taosHashGetSize(env.pTq()->pHandle));
+}
+
+TEST(testCase, tqProcessSubscribeReqPropagatesHandleReadFailure) {
+  TqMetaTestEnv env;
+  ASSERT_EQ(0, taosMkDir(env.Path()));
+  ASSERT_EQ(TDB_CODE_SUCCESS, env.Open());
+
+  SMqRebVgReq request = {};
+  request.leftForVer = SMQ_REB_VG_REQ_VERSION;
+  request.vgId = 2;
+  request.oldConsumerId = 42;
+  request.newConsumerId = -1;
+  request.subType = TOPIC_SUB_TYPE__DB;
+  tstrncpy(request.subKey, "group:topic", sizeof(request.subKey));
+
+  int32_t tlen = 0;
+  int32_t code = 0;
+  tEncodeSize(tEncodeSMqRebVgReq, &request, tlen, code);
+  ASSERT_EQ(TSDB_CODE_SUCCESS, code);
+
+  std::vector<char> msg(tlen);
+  SEncoder          encoder = {};
+  tEncoderInit(&encoder, reinterpret_cast<uint8_t*>(msg.data()), tlen);
+  ASSERT_EQ(TSDB_CODE_SUCCESS, tEncodeSMqRebVgReq(&encoder, &request));
+  tEncoderClear(&encoder);
+
+  Stub stub;
+  stub.set(tdbTbGet, failTqHandleRead);
+
+  EXPECT_EQ(TSDB_CODE_OUT_OF_MEMORY, tqProcessSubscribeReq(env.pTq(), 0, msg.data(), tlen));
+  EXPECT_EQ(0, taosHashGetSize(env.pTq()->pHandle));
+}
+
+TEST(testCase, tqProcessDeleteSubReqRejectsNonTerminatedSubKey) {
+  TqTestEnv env = tqTestEnvCreate();
+
+  // body is long enough but subKey has no NUL byte: must not be strlen()'d
+  std::vector<char> exact(sizeof(SMqVDeleteReq), 'a');
+  EXPECT_EQ(TSDB_CODE_INVALID_MSG, tqProcessDeleteSubReq(env.pTq, 0, exact.data(), (int32_t)exact.size()));
+
+  std::vector<char> big(1500, 'a');
+  EXPECT_EQ(TSDB_CODE_INVALID_MSG, tqProcessDeleteSubReq(env.pTq, 0, big.data(), (int32_t)big.size()));
+
+  tqTestEnvDestroy(&env);
+}
+
+TEST(testCase, tqMetaGetOffsetCopiesOut) {
+  TqTestEnv env = tqTestEnvCreate();
+  tqTestPutVarKeyOffset(env.pTq, "g1:topic", "abcde");
+
+  STqOffset copy = {};
+  ASSERT_EQ(0, tqMetaGetOffset(env.pTq, "g1:topic", &copy));
+  EXPECT_EQ(TMQ_OFFSET__SNAPSHOT_DATA, copy.val.type);
+  EXPECT_EQ(7, copy.val.uid);
+  EXPECT_EQ(99, copy.val.ts);
+  EXPECT_STREQ("g1:topic", copy.subKey);
+  ASSERT_EQ(5u, copy.val.primaryKey.nData);
+  ASSERT_NE(nullptr, copy.val.primaryKey.pData);
+
+  // the copy must not alias the cached entry
+  STqOffset* pCached = (STqOffset*)taosHashGet(env.pTq->pOffset, "g1:topic", strlen("g1:topic"));
+  ASSERT_NE(nullptr, pCached);
+  EXPECT_NE(pCached, &copy);
+  EXPECT_NE(pCached->val.primaryKey.pData, copy.val.primaryKey.pData);
+
+  // a concurrent commit replaces (and frees) the cached entry, the copy has to stay valid
+  STqOffset newer = {};
+  newer.val.type = TMQ_OFFSET__LOG;
+  newer.val.version = 123;
+  tstrncpy(newer.subKey, "g1:topic", sizeof(newer.subKey));
+  taosWLockLatch(&env.pTq->lock);
+  ASSERT_EQ(0, taosHashPut(env.pTq->pOffset, "g1:topic", strlen("g1:topic"), &newer, sizeof(STqOffset)));
+  taosWUnLockLatch(&env.pTq->lock);
+
+  EXPECT_EQ(TMQ_OFFSET__SNAPSHOT_DATA, copy.val.type);
+  EXPECT_EQ(0, memcmp(copy.val.primaryKey.pData, "abcde", 5));
+  tDeleteSTqOffset(&copy);
+
+  STqOffset copy2 = {};
+  ASSERT_EQ(0, tqMetaGetOffset(env.pTq, "g1:topic", &copy2));
+  EXPECT_EQ(TMQ_OFFSET__LOG, copy2.val.type);
+  EXPECT_EQ(123, copy2.val.version);
+  tDeleteSTqOffset(&copy2);
+
+  tqTestEnvDestroy(&env);
+}
+
+TEST(testCase, tqMetaGetOffsetConcurrentWithReplace) {
+  TqTestEnv env = tqTestEnvCreate();
+  tqTestPutVarKeyOffset(env.pTq, "g1:topic", "abcde");
+
+  std::atomic<bool> stop{false};
+  std::atomic<int>  bad{0};
+  std::vector<std::thread> readers;
+  for (int i = 0; i < 4; i++) {
+    readers.emplace_back([&]() {
+      while (!stop.load()) {
+        STqOffset copy = {};
+        if (tqMetaGetOffset(env.pTq, "g1:topic", &copy) != 0 || copy.val.primaryKey.nData != 5 ||
+            copy.val.primaryKey.pData == nullptr || memcmp(copy.val.primaryKey.pData, "abcde", 5) != 0) {
+          bad++;
+        }
+        tDeleteSTqOffset(&copy);
+      }
+    });
+  }
+
+  // replacing a cached entry frees the old one, readers must be excluded by the write latch while it happens
+  for (int i = 0; i < 2000; i++) {
+    STqOffset next = {};
+    next.val.type = TMQ_OFFSET__SNAPSHOT_DATA;
+    next.val.uid = 7;
+    next.val.ts = i;
+    next.val.primaryKey.type = TSDB_DATA_TYPE_VARCHAR;
+    next.val.primaryKey.nData = 5;
+    next.val.primaryKey.pData = (uint8_t*)taosMemoryCalloc(1, 5);
+    memcpy(next.val.primaryKey.pData, "abcde", 5);
+    tstrncpy(next.subKey, "g1:topic", sizeof(next.subKey));
+    taosWLockLatch(&env.pTq->lock);
+    ASSERT_EQ(0, taosHashPut(env.pTq->pOffset, "g1:topic", strlen("g1:topic"), &next, sizeof(STqOffset)));
+    taosWUnLockLatch(&env.pTq->lock);
+  }
+
+  stop = true;
+  for (auto& t : readers) t.join();
+  EXPECT_EQ(0, bad.load());
+  tqTestEnvDestroy(&env);
+}
+
+// tqOffsetCommit (iterates the offset hash) and tqMetaGetOffset (readers) must never wait for each other in opposite
+// orders: the iteration keeps the latch of the current hash entry, and saving an offset needs pTq->lock
+TEST(testCase, tqOffsetCommitConcurrentWithGetOffset) {
+  TqTestEnv env = tqTestEnvCreate();
+  const int kKeys = 8;
+  char      keys[kKeys][32];
+  for (int i = 0; i < kKeys; i++) {
+    snprintf(keys[i], sizeof(keys[i]), "g%d:topic", i);
+    tqTestPutVarKeyOffset(env.pTq, keys[i], "abcde");
+  }
+
+  std::atomic<bool> stop{false};
+  std::atomic<bool> finished{false};
+  std::atomic<int>  bad{0};
+
+  // a deadlock must fail the test instead of hanging the whole run
+  std::thread watchdog([&]() {
+    for (int i = 0; i < 600 && !finished.load(); i++) taosMsleep(100);
+    if (!finished.load()) {
+      fprintf(stderr, "tqOffsetCommit/tqMetaGetOffset deadlock: no progress for 60s\n");
+      _exit(1);
+    }
+  });
+
+  std::vector<std::thread> readers;
+  for (int i = 0; i < 4; i++) {
+    readers.emplace_back([&, i]() {
+      int n = i;
+      while (!stop.load()) {
+        STqOffset copy = {};
+        if (tqMetaGetOffset(env.pTq, keys[n++ % kKeys], &copy) != 0 || copy.val.primaryKey.nData != 5) bad++;
+        tDeleteSTqOffset(&copy);
+      }
+    });
+  }
+
+  // the offset store is not set up in this environment, saving fails after taking pTq->lock: that is all the
+  // lock order needs
+  for (int i = 0; i < 300; i++) (void)tqOffsetCommit(env.pTq);
+
+  stop = true;
+  for (auto& t : readers) t.join();
+  finished = true;
+  watchdog.join();
+  EXPECT_EQ(0, bad.load());
+  tqTestEnvDestroy(&env);
+}
+
+TEST(testCase, tqMetaGetOffsetInvalidParam) {
+  TqTestEnv env = tqTestEnvCreate();
+  STqOffset offset = {};
+  EXPECT_EQ(TSDB_CODE_INVALID_PARA, tqMetaGetOffset(NULL, "k", &offset));
+  EXPECT_EQ(TSDB_CODE_INVALID_PARA, tqMetaGetOffset(env.pTq, NULL, &offset));
+  EXPECT_EQ(TSDB_CODE_INVALID_PARA, tqMetaGetOffset(env.pTq, "k", NULL));
+  tqTestEnvDestroy(&env);
+}

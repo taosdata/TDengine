@@ -20,6 +20,7 @@
 #include "dmInt.h"
 // #include "dmMgmt.h"
 #include "crypt.h"
+#include "osAtomic.h"  // atomic_store_32 for publishing tsEncryptKeysStatus
 #include "extConnector.h"
 #include "monitor.h"
 #include "stream.h"
@@ -492,7 +493,11 @@ int32_t dmProcessKeySyncRsp(SDnodeMgmt *pMgmt, SRpcMsg *pRsp) {
 
   dInfo("received key sync response, mnode keyVersion:%d, local keyVersion:%d, needUpdate:%d", keySyncRsp.keyVersion,
         tsLocalKeyVersion, keySyncRsp.needUpdate);
-  tsEncryptKeysStatus = keySyncRsp.encryptionKeyStatus;
+  // NOTE: tsEncryptKeysStatus is intentionally NOT published here. It is published at the end
+  // of this function (see below) only AFTER all key material (tsMetaKey, tsCfgKey, ...) has been
+  // fully applied. Publishing it earlier would let a concurrent SDB snapshot writer observe
+  // status==LOADED while tsMetaKey is still empty, producing a mixed plaintext/ciphertext
+  // sdb.data file that cannot be read back uniformly.
   if (keySyncRsp.needUpdate) {
 #if defined(TD_ENTERPRISE) && defined(TD_HAS_TAOSK)
     // Get encrypt file path from tsDataDir
@@ -546,7 +551,15 @@ int32_t dmProcessKeySyncRsp(SDnodeMgmt *pMgmt, SRpcMsg *pRsp) {
   } else {
     dDebug("local keys are up to date, version:%d", tsLocalKeyVersion);
   }
-  
+
+  // Publish the encryption key status ONLY AFTER every key field (tsMetaKey included) has been
+  // persisted to disk and copied into the global variables above. The status is read by concurrent
+  // SDB snapshot writers via atomic_load_32 (see taosWaitCfgKeyLoaded), so we must publish it with a
+  // matching atomic store to establish the happens-before relation and avoid a data race / UB. This
+  // guarantees readers also see a fully-populated tsMetaKey, preventing SDB writers from encrypting
+  // with an empty key or mixing plaintext/ciphertext within a single sdb.data file.
+  atomic_store_32(&tsEncryptKeysStatus, keySyncRsp.encryptionKeyStatus);
+
   code = TSDB_CODE_SUCCESS;
 
 _exit:

@@ -227,7 +227,11 @@ typedef struct SSdb {
   char              *currDir;
   char              *tmpDir;
   char               mnodePath[PATH_MAX];  // Path to mnode directory for persisting mnode.json
-  int32_t          (*persistEncryptedFlagFp)(void *pMnode);  // Callback to persist encrypted flag
+  // Callback to persist the encrypted flag to mnode.json. The `encrypted` argument carries the
+  // ACTUAL on-disk format of the just-written sdb.data so the callee can keep mnode.json consistent
+  // with the disk (true => encrypted, false => plaintext). Persisting the real value (instead of a
+  // hardcoded true) prevents a stale mnode.json from disagreeing with a plaintext snapshot.
+  int32_t          (*persistEncryptedFlagFp)(void *pMnode, bool encrypted);  // Callback to persist encrypted flag
   void              *pMnodeForCallback;  // Pointer to SMnode for callback
   int64_t            commitIndex;
   int64_t            commitTerm;
@@ -344,6 +348,15 @@ int32_t sdbEnsureDefaultData(SSdb *pSdb);
  * @return int32_t 0 for success, -1 for failure.
  */
 int32_t sdbReadFile(SSdb *pSdb);
+// Visits a persisted snapshot without opening an SDB or migrating its files.
+int32_t sdbInspectFile(const char *path, bool encrypted, SSdb *pHead,
+                       int32_t (*visit)(SSdbRaw *, void *), void *param);
+typedef int32_t (*SdbRewriteFp)(SSdbRaw *pRaw, void *param, SSdbRaw **ppOut);
+// Rewrites a persisted snapshot in place. The callback receives each decrypted
+// row and may modify its payload in place, or decode its object, modify it and
+// re-encode it into *ppOut (owned by the callee). The header is copied as read.
+int32_t sdbRewriteFile(const char *path, bool encrypted, SdbRewriteFp rewrite,
+                       void *param);
 
 /**
  * @brief Reset sdb, clearing all in-memory rows and header state.

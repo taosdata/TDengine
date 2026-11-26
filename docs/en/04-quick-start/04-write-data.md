@@ -1,6 +1,6 @@
 ---
 sidebar_label: Data Ingestion
-title: Data Ingestion
+title: Data Ingestion and Update
 description: Use SQL to write, update, and delete time-series data
 toc_max_heading_level: 4
 ---
@@ -9,10 +9,13 @@ This chapter continues with the smart meter model from the previous chapter. You
 
 ## Write Capabilities at a Glance
 
-TDengine uses standard SQL `INSERT` / `DELETE` to manage time-series data, and also supports automatic table creation on write, import from files, and per-column encoding and compression. Besides SQL, connectors support parameter binding for high-throughput writes, and schemaless ingestion via line protocols.
+TDengine uses standard SQL `INSERT` / `UPDATE` / `DELETE` to manage time-series data, and also supports automatic table creation on write, import from files, and per-column encoding and compression. Besides SQL, connectors support parameter binding for high-throughput writes, and schemaless ingestion via line protocols.
 
 - **Data writing**
   Single-row / multi-row / multi-table `INSERT`, column-specified writes, `USING` for automatic table creation, writing directly to a supertable, and importing from a file / CSV with automatic table creation. See [Data Writing](../05-tdengine-sql/03-data-write/01-insert.md).
+
+- **Data update**
+  Use `UPDATE` to change existing data columns by condition, or to change subtable tag values (point information). You can also overwrite old values by writing the same timestamp. See [Data Update](../05-tdengine-sql/03-data-write/04-update.md).
 
 - **Data deletion**
   Use `DELETE` with time and other predicates to delete data from normal tables or supertables (irreversible). See [Data Deletion](../05-tdengine-sql/03-data-write/02-delete.md).
@@ -38,31 +41,39 @@ Confirm that you have completed the earlier chapter:
 If you have not created these objects yet, run the following SQL in the shell.
 
 ```sql
-CREATE DATABASE IF NOT EXISTS power PRECISION 'ms' KEEP 3650 DURATION 10 BUFFER 16;
+CREATE DATABASE IF NOT EXISTS power
+  PRECISION 'ms'
+  KEEP 3650
+  DURATION 10
+  BUFFER 16;
 
 USE power;
 
 CREATE STABLE IF NOT EXISTS meters (
-    ts timestamp,
-    current float,
-    voltage int,
-    phase float
+  ts      TIMESTAMP,
+  current FLOAT,
+  voltage INT,
+  phase   FLOAT
 ) TAGS (
-    location varchar(64),
-    group_id int
+  location VARCHAR(64),
+  group_id INT
 );
 
 CREATE TABLE IF NOT EXISTS d1001
-USING meters TAGS ("California.SanFrancisco", 2);
+  USING meters
+  TAGS ("California.SanFrancisco", 2);
 
 CREATE TABLE IF NOT EXISTS d1002
-USING meters TAGS ("California.SanFrancisco", 3);
+  USING meters
+  TAGS ("California.SanFrancisco", 3);
 
 CREATE TABLE IF NOT EXISTS d1003
-USING meters TAGS ("California.LosAngeles", 2);
+  USING meters
+  TAGS ("California.LosAngeles", 2);
 
 CREATE TABLE IF NOT EXISTS d1004
-USING meters TAGS ("California.LosAngeles", 3);
+  USING meters
+  TAGS ("California.LosAngeles", 3);
 ```
 
 ## Writing
@@ -74,19 +85,22 @@ In the shell, you can write time-series data with the `INSERT` statement.
 Run the following SQL to write one row into subtable `d1001`: current 10.3A, voltage 219V, phase 0.31.
 
 ```sql
-INSERT INTO d1001 (ts, current, voltage, phase) VALUES ("2018-10-03 14:38:05", 10.3, 219, 0.31);
+INSERT INTO d1001 (ts, current, voltage, phase)
+VALUES ("2018-10-03 14:38:05", 10.3, 219, 0.31);
 ```
 
 If `VALUES` includes all columns of the table, you can omit the column list. The effect is the same.
 
 ```sql
-INSERT INTO d1001 VALUES ("2018-10-03 14:38:05", 10.3, 219, 0.31);
+INSERT INTO d1001
+VALUES ("2018-10-03 14:38:05", 10.3, 219, 0.31);
 ```
 
 The timestamp column can also use a numeric timestamp in the database precision.
 
 ```sql
-INSERT INTO d1001 VALUES (1538548685000, 10.3, 219, 0.31);
+INSERT INTO d1001
+VALUES (1538548685000, 10.3, 219, 0.31);
 ```
 
 These three forms have the same effect.
@@ -96,10 +110,10 @@ These three forms have the same effect.
 Assume `d1001` collects data every 10 seconds and reports every 30 seconds. You can write 3 rows in one `INSERT` statement.
 
 ```sql
-INSERT INTO d1001 VALUES
- ("2018-10-03 14:38:05", 10.2, 220, 0.23),
- ("2018-10-03 14:38:15", 12.6, 218, 0.33),
- ("2018-10-03 14:38:25", 12.3, 221, 0.31);
+INSERT INTO d1001
+VALUES ("2018-10-03 14:38:05", 10.2, 220, 0.23),
+       ("2018-10-03 14:38:15", 12.6, 218, 0.33),
+       ("2018-10-03 14:38:25", 12.3, 221, 0.31);
 ```
 
 ### Writing to Multiple Tables at Once
@@ -107,18 +121,18 @@ INSERT INTO d1001 VALUES
 You can also write to `d1001`, `d1002`, and `d1003` in one statement. The following SQL writes 9 rows in total.
 
 ```sql
-INSERT INTO d1001 VALUES
-    ("2018-10-03 14:38:05", 10.2, 220, 0.23),
-    ("2018-10-03 14:38:15", 12.6, 218, 0.33),
-    ("2018-10-03 14:38:25", 12.3, 221, 0.31)
-d1002 VALUES
-    ("2018-10-03 14:38:04", 10.2, 220, 0.23),
-    ("2018-10-03 14:38:14", 10.3, 218, 0.25),
-    ("2018-10-03 14:38:24", 10.1, 220, 0.22)
-d1003 VALUES
-    ("2018-10-03 14:38:06", 11.5, 221, 0.35),
-    ("2018-10-03 14:38:16", 10.4, 220, 0.36),
-    ("2018-10-03 14:38:26", 10.3, 220, 0.33);
+INSERT INTO d1001
+VALUES ("2018-10-03 14:38:05", 10.2, 220, 0.23),
+       ("2018-10-03 14:38:15", 12.6, 218, 0.33),
+       ("2018-10-03 14:38:25", 12.3, 221, 0.31)
+d1002
+VALUES ("2018-10-03 14:38:04", 10.2, 220, 0.23),
+       ("2018-10-03 14:38:14", 10.3, 218, 0.25),
+       ("2018-10-03 14:38:24", 10.1, 220, 0.22)
+d1003
+VALUES ("2018-10-03 14:38:06", 11.5, 221, 0.35),
+       ("2018-10-03 14:38:16", 10.4, 220, 0.36),
+       ("2018-10-03 14:38:26", 10.3, 220, 0.33);
 ```
 
 ### Specifying Columns for Writing
@@ -126,7 +140,8 @@ d1003 VALUES
 When you write only some columns, columns that do not appear are filled with `NULL`. The timestamp column must be present and cannot be NULL. The following SQL writes voltage and phase into `d1004`, with current as `NULL`.
 
 ```sql
-INSERT INTO d1004 (ts, voltage, phase) VALUES ("2018-10-04 14:38:06", 223, 0.29);
+INSERT INTO d1004 (ts, voltage, phase)
+VALUES ("2018-10-04 14:38:06", 223, 0.29);
 ```
 
 ### Automatic Table Creation on Insert
@@ -143,18 +158,24 @@ VALUES ("2018-10-04 14:38:07", 10.15, 217, 0.33);
 Automatic table creation also supports writing to multiple tables at once. The following SQL writes 9 rows in total.
 
 ```sql
-INSERT INTO d1001 USING meters TAGS ("California.SanFrancisco", 2) VALUES
-    ("2018-10-03 14:38:05", 10.2, 220, 0.23),
-    ("2018-10-03 14:38:15", 12.6, 218, 0.33),
-    ("2018-10-03 14:38:25", 12.3, 221, 0.31)
-d1002 USING meters TAGS ("California.SanFrancisco", 3) VALUES
-    ("2018-10-03 14:38:04", 10.2, 220, 0.23),
-    ("2018-10-03 14:38:14", 10.3, 218, 0.25),
-    ("2018-10-03 14:38:24", 10.1, 220, 0.22)
-d1003 USING meters TAGS ("California.LosAngeles", 2) VALUES
-    ("2018-10-03 14:38:06", 11.5, 221, 0.35),
-    ("2018-10-03 14:38:16", 10.4, 220, 0.36),
-    ("2018-10-03 14:38:26", 10.3, 220, 0.33);
+INSERT INTO d1001
+USING meters
+TAGS ("California.SanFrancisco", 2)
+VALUES ("2018-10-03 14:38:05", 10.2, 220, 0.23),
+       ("2018-10-03 14:38:15", 12.6, 218, 0.33),
+       ("2018-10-03 14:38:25", 12.3, 221, 0.31)
+d1002
+USING meters
+TAGS ("California.SanFrancisco", 3)
+VALUES ("2018-10-03 14:38:04", 10.2, 220, 0.23),
+       ("2018-10-03 14:38:14", 10.3, 218, 0.25),
+       ("2018-10-03 14:38:24", 10.1, 220, 0.22)
+d1003
+USING meters
+TAGS ("California.LosAngeles", 2)
+VALUES ("2018-10-03 14:38:06", 11.5, 221, 0.35),
+       ("2018-10-03 14:38:16", 10.4, 220, 0.36),
+       ("2018-10-03 14:38:26", 10.3, 220, 0.33);
 ```
 
 ### Inserting Through Supertables
@@ -176,11 +197,41 @@ Besides writing SQL in the shell, you can import data through third-party tools 
 
 ## Update
 
-Writing data with the same timestamp replaces the old values with the new ones. The following SQL updates the current of `d1001` at `2018-10-03 14:38:05` to `22`.
+### Update Data with UPDATE
+
+`UPDATE` changes data that has already been written. The following SQL sets the current of `d1001` at `2018-10-03 14:38:05` to `22` and leaves the other columns unchanged.
 
 ```sql
-INSERT INTO d1001 (ts, current) VALUES ("2018-10-03 14:38:05", 22);
+UPDATE d1001 SET current = 22 WHERE ts = "2018-10-03 14:38:05";
 ```
+
+`UPDATE` can also target a supertable and correct data in multiple subtables at once. The following SQL sets voltage to 220V for devices whose `group_id` is 2, in the given time range, when the voltage is above 250V.
+
+```sql
+UPDATE meters SET voltage = 220
+WHERE group_id = 2
+  AND ts >= "2018-10-03 14:38:00" AND ts < "2018-10-03 14:39:00"
+  AND voltage > 250;
+```
+
+### Update Point Information
+
+Subtable tags store point information such as location and group. The following SQL changes the location of point `d1001` to `California.SanJose`.
+
+```sql
+UPDATE meters SET location = "California.SanJose" WHERE tbname = "d1001";
+```
+
+### Overwrite by Writing the Same Timestamp
+
+Writing a row with the same timestamp replaces the old values. The following SQL has the same effect as the first `UPDATE` example.
+
+```sql
+INSERT INTO d1001 (ts, current)
+VALUES ("2018-10-03 14:38:05", 22);
+```
+
+`UPDATE` changes only existing rows. It can change many rows in one statement and can compute new values from the current ones. `INSERT` creates a row when the timestamp does not exist. See [Data Update](../05-tdengine-sql/03-data-write/04-update.md).
 
 ## Delete
 
@@ -197,7 +248,9 @@ Deletion is irreversible. It is recommended to run a `SELECT` with the same `WHE
 After writing data, you can check the database compression ratio and disk usage.
 
 ```sql
-SELECT * FROM INFORMATION_SCHEMA.INS_DISK_USAGE WHERE db_name = 'power';
+SELECT *
+FROM INFORMATION_SCHEMA.INS_DISK_USAGE
+WHERE db_name = 'power';
 ```
 
 You can also check the compression distribution of a single table.
@@ -213,6 +266,7 @@ For more on disk usage and distribution, see [View DB Disk Usage](../05-tdengine
 This chapter covers only the most common write, update, and delete patterns for a quick start. For the full write capabilities, continue with:
 
 - [Data Writing](../05-tdengine-sql/03-data-write/01-insert.md): detailed write syntax
+- [Data Update](../05-tdengine-sql/03-data-write/04-update.md): use `UPDATE` to change data and point information
 - [Data Deletion](../05-tdengine-sql/03-data-write/02-delete.md): deleting data from specified tables or supertables
 - [Data Compression](../05-tdengine-sql/03-data-write/03-compress.md): configuring per-column encoding and compression algorithms
 - [Parameter Binding](../10-developer-guide/03-stmt.md): STMT / STMT2 high-throughput writes

@@ -73,6 +73,11 @@ class AsyncOperation:
     error_code: str = ""
     data: Optional[dict] = None  # JSON serializable
     updated_at: float = field(default_factory=time.time)
+    # When a deferred download may run again, as an absolute epoch. NULL means
+    # "not waiting": the task is running, finished, or already claimed by a
+    # submitter. Only queued downloads carry a value, and it is what makes the
+    # row -- not an in-process timer -- the authority on when to retry.
+    retry_after: Optional[float] = None
 
 
 # ============================================================================
@@ -101,6 +106,7 @@ _OPERATION_UPDATE_COLUMNS = (
     "error",
     "error_code",
     "data",
+    "retry_after",
 )
 
 
@@ -237,6 +243,22 @@ class FoundationModelsDAO:
             except sqlite3.OperationalError:
                 pass  # column already exists
 
+            # Migrate existing databases that predate the retry_after column.
+            try:
+                cursor.execute(
+                    "ALTER TABLE async_operations ADD COLUMN retry_after REAL"
+                )
+                AppLogger.info("Migrated async_operations table: added retry_after column")
+            except sqlite3.OperationalError:
+                pass  # column already exists
+
+            # The due-time scan runs on every status poll; without the index it
+            # would read the whole operations table each time.
+            cursor.execute("""
+                CREATE INDEX IF NOT EXISTS idx_async_ops_due
+                ON async_operations(status, retry_after)
+            """)
+
             conn.commit()
             AppLogger.debug("Database schema initialized")
 
@@ -262,6 +284,9 @@ class FoundationModelsDAO:
             error_code=row["error_code"],
             data=data,
             updated_at=row["updated_at"],
+            retry_after=(
+                row["retry_after"] if "retry_after" in row.keys() else None
+            ),
         )
 
     # ========================================================================
@@ -534,14 +559,15 @@ class FoundationModelsDAO:
             cursor.execute("""
                 INSERT INTO async_operations
                 (task_id, operation, model_name, status, progress, created_at,
-                    started_at, completed_at, error, error_code, data, updated_at)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    started_at, completed_at, error, error_code, data, updated_at,
+                    retry_after)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """, (
                 operation.task_id, operation.operation, operation.model_name,
                 operation.status, operation.progress, operation.created_at,
                 operation.started_at, operation.completed_at,
                 operation.error, operation.error_code, data_json,
-                operation.updated_at
+                operation.updated_at, operation.retry_after
             ))
             conn.commit()
             AppLogger.debug("Created async operation: %s", operation.task_id)
@@ -577,8 +603,9 @@ class FoundationModelsDAO:
             cursor.execute("""
                 INSERT INTO async_operations
                 (task_id, operation, model_name, status, progress, created_at,
-                    started_at, completed_at, error, error_code, data, updated_at)
-                SELECT ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?
+                    started_at, completed_at, error, error_code, data, updated_at,
+                    retry_after)
+                SELECT ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?
                 WHERE NOT EXISTS (
                     SELECT 1 FROM async_operations
                     WHERE model_name = ?
@@ -590,7 +617,7 @@ class FoundationModelsDAO:
                 operation.status, operation.progress, operation.created_at,
                 operation.started_at, operation.completed_at,
                 operation.error, operation.error_code, data_json,
-                operation.updated_at,
+                operation.updated_at, operation.retry_after,
                 operation.model_name,
             ))
             conn.commit()
@@ -627,6 +654,119 @@ class FoundationModelsDAO:
             return self._async_operation_from_row(row) if row is not None else None
 
         return self._with_db(_get, f"Failed to retrieve async operation: {task_id} : %s", task_id)
+
+
+    def require_async_operation(self, task_id: str) -> Optional[AsyncOperation]:
+        """Return an operation, or None when it is gone; raise on a read failure.
+
+        ``get_async_operation`` answers None for a missing row *and* for a failed
+        read. A caller that holds a task's only retry cannot tell those apart --
+        treating a transient SQLite failure as "the task is gone" dropped the
+        retry of a download that was still queued. This variant raises instead,
+        so that caller can re-arm rather than give up.
+
+        Args:
+            task_id: Unique task identifier
+
+        Returns:
+            AsyncOperation instance, or None when the row does not exist.
+
+        Raises:
+            sqlite3.Error: A read that failed for any other reason.
+        """
+        def _get(conn, cursor, task_id: str):
+            cursor.execute("SELECT * FROM async_operations WHERE task_id = ?", (task_id,))
+            row = cursor.fetchone()
+            return self._async_operation_from_row(row) if row is not None else None
+
+        return self._with_db(
+            _get,
+            f"Failed to retrieve async operation: {task_id} : %s",
+            task_id,
+            raise_error=True,
+        )
+
+
+    def claim_due_download(
+        self,
+        now: Optional[float] = None,
+        task_id: Optional[str] = None,
+    ) -> Optional[AsyncOperation]:
+        """Atomically take one queued download whose retry time has come.
+
+        The row is the authority on when a deferred download may run again (see
+        the ``retry_after`` field); an in-process timer is only an accelerator.
+        Claiming clears ``retry_after`` in the same statement, so exactly one
+        caller -- a timer, a status poll, or another worker process -- submits
+        the task; everyone else gets None and leaves it alone.
+
+        Args:
+            now: The moment to compare against; defaults to the current time.
+            task_id: Claim this task only. Omitted, any due download-family task
+                is claimed, oldest due first.
+
+        Returns:
+            The claimed row, with ``retry_after`` reset to None to match the
+            write, or None when nothing was due or another caller won the race.
+
+        Raises:
+            sqlite3.Error: The read or the claim write failed. Callers that hold a
+                task's only retry must re-arm on this instead of reading None as
+                "nothing to do" -- the row may still be due and unclaimed.
+        """
+        due_at = time.time() if now is None else now
+
+        def _claim(conn, cursor, due_at: float, task_id: Optional[str]):
+            if task_id is None:
+                cursor.execute("""
+                    SELECT * FROM async_operations
+                    WHERE operation IN ('download', 'download_start')
+                      AND status = 'queued'
+                      AND retry_after IS NOT NULL
+                      AND retry_after <= ?
+                    ORDER BY retry_after
+                    LIMIT 1
+                """, (due_at,))
+            else:
+                cursor.execute("""
+                    SELECT * FROM async_operations
+                    WHERE task_id = ?
+                      AND operation IN ('download', 'download_start')
+                      AND status = 'queued'
+                      AND retry_after IS NOT NULL
+                      AND retry_after <= ?
+                """, (task_id, due_at))
+
+            row = cursor.fetchone()
+            if row is None:
+                return None
+
+            cursor.execute("""
+                UPDATE async_operations
+                SET retry_after = NULL, updated_at = ?
+                WHERE task_id = ? AND status = 'queued' AND retry_after IS NOT NULL
+            """, (time.time(), row["task_id"]))
+            conn.commit()
+
+            if cursor.rowcount != 1:
+                # Another caller claimed it between the read and the write.
+                return None
+
+            claimed = self._async_operation_from_row(row)
+            # The row was read before the UPDATE that this call just committed,
+            # so the object still carries the due time the database no longer
+            # has. Mirror the write: the returned row is the caller's claim, and
+            # a stale due time on it would read as "still waiting to be claimed".
+            claimed.retry_after = None
+            return claimed
+
+        return self._with_db(
+            _claim,
+            "Failed to claim a due download: %s",
+            due_at,
+            task_id,
+            raise_error=True,
+        )
 
 
     def update_async_operation(self, task_id: str, **kwargs) -> bool:
@@ -822,9 +962,9 @@ class FoundationModelsDAO:
 
         - ``queued`` (any): deleted. It never started and the pool that held it is
           gone, so the client re-issues the request if it still wants it. This
-          covers a download waiting for the download lock too: the
-          ``resource apply`` child is only spawned *after* the lock is taken, so
-          a queued download has no detached work behind it.
+          covers a download deferred on the CLI lifecycle lock too: its refused
+          `resource apply` child has already exited, so a queued download has no
+          detached work behind it.
         - ``completed``/``failed`` (any): deleted. The client already knows the
           outcome, so the row is just clutter.
         - ``running`` download/download_start: ``interrupted``. The archive may

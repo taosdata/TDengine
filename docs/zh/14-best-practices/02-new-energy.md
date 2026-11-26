@@ -71,7 +71,10 @@ TDengine 的标签设计允许用户从超级表中迅速分类和检索数据�
 在 TDengine 中，用户可以基于标签进行聚合分析，无须编写代码进行表关联和数据处理，仅须通过 SQL 查询超级表即可直接获得结果，性能表现卓越，通常能在几秒内返回查询结果。示例 SQL 如下。
 
 ```sql
-select sum(val) from dpv_power_1m where ts > now-1m group by dtr;
+SELECT SUM(val)
+FROM dpv_power_1m
+WHERE ts > now - 1m
+GROUP BY dtr;
 ```
 
 借助 TDengine 的高效聚合特性，用户可以高效、及时地获得分布式光伏电站实时运行状态，为运行决策提供可靠的数据支持。

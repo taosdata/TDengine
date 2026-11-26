@@ -17,6 +17,7 @@
 
 #include "meta.h"
 #include "tsdb.h"
+#include "ttime.h"
 #include "tutil.h"
 #include "vnd.h"
 
@@ -235,7 +236,7 @@ int32_t vnodeGetTableMeta(SVnode *pVnode, SRpcMsg *pMsg, bool direct) {
     case TSDB_CHILD_TABLE:
     case TSDB_VIRTUAL_CHILD_TABLE:{
       metaReaderDoInit(&mer2, pVnode->pMeta, META_READER_NOLOCK, infoReq.txnId);
-      if (metaReaderGetTableEntryByUid(&mer2, mer1.me.ctbEntry.suid) < 0) goto _exit2;
+      if ((code = metaReaderGetTableEntryByUid(&mer2, mer1.me.ctbEntry.suid)) < 0) goto _exit2;
 
       tstrncpy(metaRsp.stbName, mer2.me.name, sizeof(metaRsp.stbName));
       metaRsp.suid = mer2.me.uid;
@@ -392,6 +393,8 @@ int32_t vnodeGetTableMeta(SVnode *pVnode, SRpcMsg *pMsg, bool direct) {
     metaRsp.pSeries = NULL;
   }
 
+  code = tCloneVtableReferenceExt(&mer1.me.referenceExt, &metaRsp.referenceExt);
+  if (code != TSDB_CODE_SUCCESS) goto _exit;
   vnodeDebugTableMeta(&metaRsp);
 
   // encode and send response
@@ -506,7 +509,7 @@ int32_t vnodeGetTableCfg(SVnode *pVnode, SRpcMsg *pMsg, bool direct) {
     goto _exit;
   } else if (mer1.me.type == TSDB_CHILD_TABLE || mer1.me.type == TSDB_VIRTUAL_CHILD_TABLE) {
     metaReaderDoInit(&mer2, pVnode->pMeta, META_READER_NOLOCK, cfgReq.txnId);
-    if (metaReaderGetTableEntryByUid(&mer2, mer1.me.ctbEntry.suid) < 0) goto _exit;
+    if ((code = metaReaderGetTableEntryByUid(&mer2, mer1.me.ctbEntry.suid)) < 0) goto _exit;
 
     tstrncpy(cfgRsp.stbName, mer2.me.name, TSDB_TABLE_NAME_LEN);
     schema = mer2.me.stbEntry.schemaRow;
@@ -715,6 +718,9 @@ int32_t vnodeGetTableCfg(SVnode *pVnode, SRpcMsg *pMsg, bool direct) {
       }
     }
   }
+
+  code = tCloneVtableReferenceExt(&mer1.me.referenceExt, &cfgRsp.referenceExt);
+  if (code != TSDB_CODE_SUCCESS) goto _exit;
 
   // populate series
   if (mer1.me.series.nSeries > 0) {
@@ -977,9 +983,12 @@ int32_t vnodeReadVSubtables(SReadHandle* pHandle, int64_t suid, SArray** ppRes) 
     QUERY_CHECK_CODE(pHandle->api.metaReaderFn.getTableEntryByUid(&mr, *id), line, _return);
     readerInit = true;
 
+    int32_t nAllColRefs = mr.me.colRef.nCols + mr.me.own.nOwnCols;
     refColsNum = 0;
-    for (int32_t j = 0; j < mr.me.colRef.nCols; j++) {
-      if (mr.me.colRef.pColRef[j].hasRef) {
+    for (int32_t j = 0; j < nAllColRefs; j++) {
+      const SColRef *pCol = j < mr.me.colRef.nCols ? &mr.me.colRef.pColRef[j] :
+          &mr.me.own.pOwnColRefs[j - mr.me.colRef.nCols];
+      if (pCol->hasRef) {
         refColsNum++;
       }
     }
@@ -1000,22 +1009,28 @@ int32_t vnodeReadVSubtables(SReadHandle* pHandle, int64_t suid, SArray** ppRes) 
     // Size the compact block (entries + string arena) and count source tables.
     uint64_t arenaBytes = 0;
     tSimpleHashClear(pSrcTbls);
-    for (int32_t j = 0; j < mr.me.colRef.nCols; j++) {
-      if (!mr.me.colRef.pColRef[j].hasRef) {
+    for (int32_t j = 0; j < nAllColRefs; j++) {
+      const SColRef *pCol = j < mr.me.colRef.nCols ? &mr.me.colRef.pColRef[j] :
+          &mr.me.own.pOwnColRefs[j - mr.me.colRef.nCols];
+      if (!pCol->hasRef) {
         continue;
       }
 
-      arenaBytes += strlen(mr.me.colRef.pColRef[j].refDbName) + 1;
-      arenaBytes += strlen(mr.me.colRef.pColRef[j].refTableName) + 1;
-      arenaBytes += strlen(mr.me.colRef.pColRef[j].refColName) + 1;
-      if (mr.me.colRef.pColRef[j].refSourceName[0] != '\0') {
-        arenaBytes += strlen(mr.me.colRef.pColRef[j].refSourceName) + 1;
+      const SVtableBindingLink *pLink = tVtableBindingForColumn(&mr.me.referenceExt, pCol->id);
+      const SReferenceEntry *pReference = tVtableReferenceForColumn(&mr.me.referenceExt, pCol->id);
+      if (pLink != NULL) arenaBytes += strlen(pLink->alias) + 1;
+      if (pReference != NULL) arenaBytes += strlen(pReference->timeColumn) + 1;
+      arenaBytes += strlen(pCol->refDbName) + 1;
+      arenaBytes += strlen(pCol->refTableName) + 1;
+      arenaBytes += strlen(pCol->refColName) + 1;
+      if (pCol->refSourceName[0] != '\0') {
+        arenaBytes += strlen(pCol->refSourceName) + 1;
       }
-      if (mr.me.colRef.pColRef[j].refSchemaName[0] != '\0') {
-        arenaBytes += strlen(mr.me.colRef.pColRef[j].refSchemaName) + 1;
+      if (pCol->refSchemaName[0] != '\0') {
+        arenaBytes += strlen(pCol->refSchemaName) + 1;
       }
 
-      snprintf(tbFName, sizeof(tbFName), "%s.%s", mr.me.colRef.pColRef[j].refDbName, mr.me.colRef.pColRef[j].refTableName);
+      snprintf(tbFName, sizeof(tbFName), "%s.%s", pCol->refDbName, pCol->refTableName);
 
       if (NULL == tSimpleHashGet(pSrcTbls, tbFName, strlen(tbFName))) {
         QUERY_CHECK_CODE(tSimpleHashPut(pSrcTbls, tbFName, strlen(tbFName), &code, sizeof(code)), line, _return);
@@ -1048,21 +1063,32 @@ int32_t vnodeReadVSubtables(SReadHandle* pHandle, int64_t suid, SArray** ppRes) 
 
     uint32_t arenaPos = 0;
     int32_t  colIdx = 0;
-    for (int32_t j = 0; j < mr.me.colRef.nCols; j++) {
-      if (!mr.me.colRef.pColRef[j].hasRef) {
+    for (int32_t j = 0; j < nAllColRefs; j++) {
+      const SColRef *pCol = j < mr.me.colRef.nCols ? &mr.me.colRef.pColRef[j] :
+          &mr.me.own.pOwnColRefs[j - mr.me.colRef.nCols];
+      if (!pCol->hasRef) {
         continue;
       }
 
       SRefColEntry* pEntry = vctContentColAt(pContent, colIdx);
-      pEntry->colId = mr.me.colRef.pColRef[j].id;
-      if (mr.me.colRef.pColRef[j].filterCondLen > 0) {
+      pEntry->colId = pCol->id;
+      const SVtableBindingLink *pLink = tVtableBindingForColumn(&mr.me.referenceExt, pEntry->colId);
+      const SReferenceEntry *pReference = tVtableReferenceForColumn(&mr.me.referenceExt, pEntry->colId);
+      if (pLink != NULL) {
+        pEntry->bindingKind = pLink->bindingKind;
+        pEntry->aliasOff = tVctRefContentPutStr(pContent, &arenaPos, pLink->alias);
+      }
+      if (pReference != NULL) {
+        pEntry->timeOff = tVctRefContentPutStr(pContent, &arenaPos, pReference->timeColumn);
+      }
+      if (pCol->filterCondLen > 0) {
         pEntry->flags |= VCT_REF_FLAG_HAS_FILTER_COND;
       }
-      pEntry->dbOff = tVctRefContentPutStr(pContent, &arenaPos, mr.me.colRef.pColRef[j].refDbName);
-      pEntry->tbOff = tVctRefContentPutStr(pContent, &arenaPos, mr.me.colRef.pColRef[j].refTableName);
-      pEntry->colOff = tVctRefContentPutStr(pContent, &arenaPos, mr.me.colRef.pColRef[j].refColName);
-      pEntry->srcOff = tVctRefContentPutStr(pContent, &arenaPos, mr.me.colRef.pColRef[j].refSourceName);
-      pEntry->schemaOff = tVctRefContentPutStr(pContent, &arenaPos, mr.me.colRef.pColRef[j].refSchemaName);
+      pEntry->dbOff = tVctRefContentPutStr(pContent, &arenaPos, pCol->refDbName);
+      pEntry->tbOff = tVctRefContentPutStr(pContent, &arenaPos, pCol->refTableName);
+      pEntry->colOff = tVctRefContentPutStr(pContent, &arenaPos, pCol->refColName);
+      pEntry->srcOff = tVctRefContentPutStr(pContent, &arenaPos, pCol->refSourceName);
+      pEntry->schemaOff = tVctRefContentPutStr(pContent, &arenaPos, pCol->refSchemaName);
       colIdx++;
     }
 
@@ -1104,6 +1130,7 @@ int32_t vnodeReadVSubtables(SReadHandle* pHandle, int64_t suid, SArray** ppRes) 
       goto _return;
     }
 
+    pTb->rversion = mr.me.colRef.version;
     QUERY_CHECK_NULL(taosArrayPush(*ppRes, &pTb), code, line, _return, terrno);
     pTb = NULL;
 
@@ -1321,12 +1348,16 @@ _exit:;
 // Pre-check for a virtual stb alter that introduces new column/tag names: fail with
 // TSDB_CODE_VND_COL_ALREADY_EXISTS if any vchild table of the stb already owns one of the
 // names as an own (extension) column/tag. Same check as the backstop in metaEntry2.c, run
-// ahead of the real alter so the mnode-side trans can fail cleanly.
+// ahead of the real alter so the mnode-side trans can fail cleanly. On conflict the response
+// also carries a text payload naming the conflicting child table (defect 7160321463): the
+// mnode trans forwards it to the client so the error message points at the conflict source
+// instead of a bare "Table column already exists".
 int32_t vnodeProcessCheckStbAlterNameReq(SVnode *pVnode, SRpcMsg *pMsg) {
   SVCheckStbAlterNameReq req = {0};
   int32_t                code = 0;
   void                  *pBuf = POINTER_SHIFT(pMsg->pCont, sizeof(SMsgHead));
   int32_t                bufLen = pMsg->contLen - sizeof(SMsgHead);
+  char                   errText[TSDB_TABLE_NAME_LEN * 2 + TSDB_COL_NAME_LEN + 128] = {0};
 
   code = tDeserializeSVCheckStbAlterNameReq(pBuf, bufLen, &req);
   if (code != 0) {
@@ -1334,10 +1365,30 @@ int32_t vnodeProcessCheckStbAlterNameReq(SVnode *pVnode, SRpcMsg *pMsg) {
     goto _exit;
   }
 
-  for (int32_t i = 0; i < taosArrayGetSize(req.pNames); ++i) {
-    code = metaCheckOwnNameConflictOfChildTables(pVnode->pMeta, req.suid, (const char *)taosArrayGet(req.pNames, i));
+  {
+    // single pass over the children for all names; the first conflict wins and is reported
+    SOwnNameConflictInfo conflict = {0};
+    code = metaCheckOwnNameConflictsOfChildTables(pVnode->pMeta, req.suid, req.pNames, &conflict);
     if (code != 0) {
       vError("vgId:%d, check-stb-alter-name failed for suid:%" PRId64 ", code:0x%x", TD_VID(pVnode), req.suid, code);
+      if (code == TSDB_CODE_VND_COL_ALREADY_EXISTS && conflict.childName[0] != '\0') {
+        // best-effort stable name (suid is the stb entry uid); a failed lookup only drops the
+        // stable name from the message, child table and column names are already known
+        char         stbName[TSDB_TABLE_NAME_LEN] = {0};
+        SMetaEntry  *pStbEntry = NULL;
+        if (metaFetchEntryByUid(pVnode->pMeta, req.suid, &pStbEntry) == 0 && pStbEntry != NULL) {
+          tstrncpy(stbName, pStbEntry->name, sizeof(stbName));
+          metaFetchEntryFree(&pStbEntry);
+        }
+        if (stbName[0] != '\0') {
+          (void)snprintf(errText, sizeof(errText),
+                         "Table column already exists on stable %s (conflicting child table: %s, %s: %s)", stbName,
+                         conflict.childName, conflict.isTag ? "own tag" : "own column", conflict.colName);
+        } else {
+          (void)snprintf(errText, sizeof(errText), "Table column already exists (conflicting child table: %s, %s: %s)",
+                         conflict.childName, conflict.isTag ? "own tag" : "own column", conflict.colName);
+        }
+      }
       goto _exit;
     }
   }
@@ -1345,6 +1396,16 @@ int32_t vnodeProcessCheckStbAlterNameReq(SVnode *pVnode, SRpcMsg *pMsg) {
 _exit:;
   tFreeSVCheckStbAlterNameReq(&req);
   SRpcMsg rspMsg = {.info = pMsg->info, .code = code};
+  int32_t errLen = (int32_t)strlen(errText);
+  if (errLen > 0) {
+    // attach the conflict detail as the response body; the error code stays authoritative,
+    // clients that ignore the body keep seeing the stock message for the code
+    rspMsg.pCont = rpcMallocCont(errLen + 1);
+    if (rspMsg.pCont != NULL) {
+      memcpy(rspMsg.pCont, errText, errLen + 1);
+      rspMsg.contLen = errLen + 1;
+    }
+  }
   tmsgSendRsp(&rspMsg);
   return 0;  // return 0 so fetch worker doesn't double-send response
 }
@@ -1435,11 +1496,27 @@ int32_t vnodeGetVTbTagCond(SVnode *pVnode, SRpcMsg *pMsg, bool direct) {
   rsp.pFilterConds = taosArrayInit(8, sizeof(SVtbColFilterCond));
   QUERY_CHECK_NULL(rsp.pFilterConds, code, line, _return, terrno);
 
+  rsp.rversion = mer.me.colRef.version;
+  rsp.pBindings = taosArrayInit(8, sizeof(SVtableRuntimeBinding));
+  QUERY_CHECK_NULL(rsp.pBindings, code, line, _return, terrno);
   if (hasColRef(mer.me.type)) {
     SColRefWrapper *p = &(mer.me.colRef);
     int32_t nOwnCols = mer.me.type == TSDB_VIRTUAL_CHILD_TABLE ? mer.me.own.nOwnCols : 0;
     for (int32_t i = 0; i < p->nCols + nOwnCols; ++i) {
       SColRef *pColRef = i < p->nCols ? &p->pColRef[i] : &mer.me.own.pOwnColRefs[i - p->nCols];
+      const SVtableBindingLink *pLink =
+          tVtableBindingForColumn(&mer.me.referenceExt, pColRef->id);
+      if (pColRef->hasRef && pLink != NULL) {
+        SVtableRuntimeBinding binding = {.colId = pColRef->id, .bindingKind = pLink->bindingKind};
+        tstrncpy(binding.referenceAlias, pLink->alias, sizeof(binding.referenceAlias));
+        const SReferenceEntry *pReference =
+            tVtableReferenceForColumn(&mer.me.referenceExt, pColRef->id);
+        if (pReference != NULL) {
+          tstrncpy(binding.timeColumn, pReference->timeColumn, sizeof(binding.timeColumn));
+        }
+        void *pResult = taosArrayPush(rsp.pBindings, &binding);
+        QUERY_CHECK_NULL(pResult, code, line, _return, terrno);
+      }
       if (pColRef->hasRef && pColRef->tagCondLen > 0 && pColRef->tagCondJson != NULL) {
         SVTagCondEntry entry = {0};
         entry.colId = pColRef->id;
@@ -1467,6 +1544,7 @@ int32_t vnodeGetVTbTagCond(SVnode *pVnode, SRpcMsg *pMsg, bool direct) {
       }
     }
   }
+  rsp.numOfBindings = taosArrayGetSize(rsp.pBindings);
   rsp.numOfRefs = taosArrayGetSize(rsp.pEntries);
   rsp.numOfFilterConds = taosArrayGetSize(rsp.pFilterConds);
 
@@ -1855,142 +1933,25 @@ int32_t vnodeGetStbInfo(SVnode *pVnode, tb_uid_t suid, int64_t *keep, int8_t *fl
   return TSDB_CODE_SUCCESS;
 }
 
-#ifdef TD_ENTERPRISE
-const char *tkLogStb[] = {"cluster_info",
-                          "data_dir",
-                          "disk_free",
-                          "disk_total",
-                          "dnodes_info",
-                          "d_info",
-                          "explorer_sys",
-                          "grants_info",
-                          "keeper_monitor",
-                          "logs",
-                          "log_dir",
-                          "log_summary",
-                          "http_client_requests",
-                          "http_server_requests_idmp",
-                          "m_info",
-                          "taosadapter_restful_http_request_fail",
-                          "taosadapter_restful_http_request_in_flight",
-                          "taosadapter_restful_http_request_summary_milliseconds",
-                          "taosadapter_restful_http_request_total",
-                          "taosadapter_system_cpu_percent",
-                          "taosadapter_system_mem_percent",
-                          "temp_dir",
-                          "vgroups_info",
-                          "vnodes_role",
-                          "taosd_dnodes_status",
-                          "adapter_conn_pool",
-                          "taosd_vnodes_info",
-                          "taosd_dnodes_metrics",
-                          "taosd_vgroups_info",
-                          "taos_sql_req",
-                          "taosd_mnodes_info",
-                          "adapter_c_interface",
-                          "taosd_cluster_info",
-                          "taosd_sql_req",
-                          "taosd_dnodes_info",
-                          "adapter_requests",
-                          "taosd_write_metrics",
-                          "adapter_status",
-                          "taos_slow_sql",
-                          "taos_slow_sql_detail",
-                          "taosd_cluster_basic",
-                          "taosd_dnodes_data_dirs",
-                          "taosd_dnodes_log_dirs",
-                          "xnode_agent_activities",
-                          "xnode_task_activities",
-                          "xnode_task_metrics",
-                          "taosx_sys",
-                          "taosx_task_csv",
-                          "taosx_task_progress",
-                          "taosx_task_kinghist",
-                          "taosx_task_tdengine2",
-                          "taosx_task_tdengine3",
-                          "taosx_task_opc_da",
-                          "taosx_task_opc_ua",
-                          "taosx_task_kafka",
-                          "taosx_task_influxdb",
-                          "taosx_task_mqtt",
-                          "taosx_task_avevahistorian",
-                          "taosx_task_opentsdb",
-                          "taosx_task_mysql",
-                          "taosx_task_postgres",
-                          "taosx_task_oracle",
-                          "taosx_task_mssql",
-                          "taosx_task_mongodb",
-                          "taosx_task_sparkplugb",
-                          "taosx_task_orc",
-                          "taosx_task_pulsar",
-                          "taosx_task_pspace"};
-const char *tkAuditStb[] = {"operations"};
-const int   tkLogStbNum = ARRAY_SIZE(tkLogStb);
-const int   tkAuditStbNum = ARRAY_SIZE(tkAuditStb);
-
-// exclude stbs of taoskeeper log
-static int32_t vnodeGetTimeSeriesBlackList(SVnode *pVnode, int32_t *tbSize) {
-  int32_t      code = TSDB_CODE_SUCCESS;
-  int32_t      tbNum = 0;
-  const char **pTbArr = NULL;
-  const char  *dbName = NULL;
-  *tbSize = 0;
-
-  if (!(dbName = strchr(pVnode->config.dbname, '.'))) return 0;
-  if (0 == strncmp(++dbName, "log", TSDB_DB_NAME_LEN)) {
-    tbNum = tkLogStbNum;
-    pTbArr = (const char **)&tkLogStb;
-  } else if (0 == strncmp(dbName, "audit", TSDB_DB_NAME_LEN) || pVnode->config.isAudit) {
-    tbNum = tkAuditStbNum;
-    pTbArr = (const char **)&tkAuditStb;
-  }
-  if (tbNum && pTbArr) {
-    *tbSize = metaSizeOfTbFilterCache(pVnode->pMeta, 0);
-    if (*tbSize < tbNum) {
-      for (int32_t i = 0; i < tbNum; ++i) {
-        tb_uid_t suid = metaGetTableEntryUidByName(pVnode->pMeta, pTbArr[i]);
-        if (suid != 0) {
-          code = metaPutTbToFilterCache(pVnode->pMeta, &suid, 0);
-          if (TSDB_CODE_SUCCESS != code) {
-            return code;
-          }
-        }
-      }
-      *tbSize = metaSizeOfTbFilterCache(pVnode->pMeta, 0);
-    }
-  }
-
-  return code;
-}
-#endif
-
-static bool vnodeTimeSeriesFilter(void *arg1, void *arg2) {
-  SVnode *pVnode = (SVnode *)arg1;
-
-  if (metaTbInFilterCache(pVnode->pMeta, arg2, 0)) {
-    return true;
-  }
-  return false;
+bool vnodeIsTimeSeriesExcluded(SVnode *pVnode) {
+  return grantIsTimeSeriesExcluded(pVnode);
 }
 
 int32_t vnodeGetTimeSeriesNum(SVnode *pVnode, int64_t *num) {
   SArray *suidList = NULL;
 
+  if (vnodeIsTimeSeriesExcluded(pVnode)) {
+    *num = 0;
+    return TSDB_CODE_SUCCESS;
+  }
+
   if (!(suidList = taosArrayInit(1, sizeof(tb_uid_t)))) {
     return terrno;
   }
 
-  int32_t tbFilterSize = 0;
   int32_t code = TSDB_CODE_SUCCESS;
-#ifdef TD_ENTERPRISE
-  code = vnodeGetTimeSeriesBlackList(pVnode, &tbFilterSize);
-  if (TSDB_CODE_SUCCESS != code) {
-    goto _exit;
-  }
-#endif
 
-  if ((!tbFilterSize && vnodeGetStbIdList(pVnode, 0, suidList) < 0) ||
-      (tbFilterSize && vnodeGetStbIdListByFilter(pVnode, 0, suidList, vnodeTimeSeriesFilter, pVnode) < 0)) {
+  if (vnodeGetStbIdList(pVnode, 0, suidList) < 0) {
     qError("vgId:%d, failed to get stb id list error: %s", TD_VID(pVnode), terrstr());
     taosArrayDestroy(suidList);
     return terrno;
@@ -2066,17 +2027,17 @@ int32_t vnodeGetTableSchema(void *pVnode, int64_t uid, STSchema **pSchema, int64
 
 static FORCE_INLINE int32_t vnodeGetDBPrimaryInfo(SVnode *pVnode, SDbSizeStatisInfo *pInfo) {
   int32_t code = 0;
-  char    path[TSDB_FILENAME_LEN] = {0};
+  char    path[TSDB_PATH_LEN] = {0};
 
   char   *dirName[] = {VNODE_TSDB_DIR, VNODE_WAL_DIR, VNODE_META_DIR, VNODE_TSDB_CACHE_DIR};
   int64_t dirSize[4];
 
-  vnodeGetPrimaryPath(pVnode, false, path, TSDB_FILENAME_LEN);
+  vnodeGetPrimaryPath(pVnode, false, path, TSDB_PATH_LEN);
   int32_t offset = strlen(path);
 
   for (int i = 0; i < sizeof(dirName) / sizeof(dirName[0]); i++) {
     int64_t size = {0};
-    (void)snprintf(path + offset, TSDB_FILENAME_LEN - offset, "%s%s", TD_DIRSEP, dirName[i]);
+    (void)snprintf(path + offset, TSDB_PATH_LEN - offset, "%s%s", TD_DIRSEP, dirName[i]);
     code = taosGetDirSize(path, &size);
     if (code != 0) {
       uWarn("vnode %d get dir %s %s size failed since %s", TD_VID(pVnode), path, dirName[i], tstrerror(code));

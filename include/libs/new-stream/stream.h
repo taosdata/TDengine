@@ -41,11 +41,17 @@ extern "C" {
 #define STREAM_FLAG_TOP_RUNNER      (1 << 1)
 #define STREAM_FLAG_REDEPLOY_RUNNER (1 << 2)
 #define STREAM_FLAG_REF_EXT_SOURCE  (1 << 3)  // stream references at least one external source
+#define STREAM_FLAG_REMOTE_READER_DEPLOY (1 << 4)  // Heartbeat action flag for a replayable remote Reader.
+// Stored on SStreamObj.flags only (never on task status): while a START / STOP STREAM is pending in a
+// transaction, the stream is in META_TXN_PRE_ALTER and this bit holds the target state, set = "stopped".
+// It is meaningful only in that state. The bit is persisted with the stream object, so keep its value.
+#define STREAM_FLAG_TXN_TARGET_STOPPED (1ULL << 8)
 
 #define STREAM_IS_TRIGGER_READER(_flags) ((_flags) & STREAM_FLAG_TRIGGER_READER)
 #define STREAM_IS_TOP_RUNNER(_flags) ((_flags) & STREAM_FLAG_TOP_RUNNER)
 #define STREAM_IS_REDEPLOY_RUNNER(_flags) ((_flags) & STREAM_FLAG_REDEPLOY_RUNNER)
 #define STREAM_IS_REF_EXT_SOURCE(_flags) ((_flags) & STREAM_FLAG_REF_EXT_SOURCE)
+#define STREAM_IS_TXN_TARGET_STOPPED(_flags) (((_flags) & STREAM_FLAG_TXN_TARGET_STOPPED) != 0)
 
 #define STREAM_CLR_FLAG(st, f) (st) &= (~f)
 
@@ -60,6 +66,7 @@ typedef struct SStreamReaderTask {
   SStreamTask       task;
   SStreamTaskStats *pStats;
   int8_t            triggerReader;
+  bool              snodeOwned;
   void             *info;
 } SStreamReaderTask;
 
@@ -86,6 +93,15 @@ typedef enum {
   STRIGGER_AHANDLE_PARAM_NESTED_INPUT_ROUTE,
   STRIGGER_AHANDLE_PARAM_NESTED_RECOVERY,
   STRIGGER_AHANDLE_PARAM_NESTED_RECOVERY_PSEUDO,
+  STRIGGER_AHANDLE_PARAM_PERIOD_INPUT,
+  STRIGGER_AHANDLE_PARAM_TIME_ALIGN_BOUND,
+  STRIGGER_AHANDLE_PARAM_TIME_ALIGN_CLOSE,
+  STRIGGER_AHANDLE_PARAM_TIME_ALIGN_SEED,
+  STRIGGER_AHANDLE_PARAM_TIME_ALIGN_BODY,
+  STRIGGER_AHANDLE_PARAM_TIME_ALIGN_VALIDATE,
+  STRIGGER_AHANDLE_PARAM_RESULT_VALIDATE,
+  STRIGGER_AHANDLE_PARAM_TIME_ALIGN_WAL_CHECK,
+  STRIGGER_AHANDLE_PARAM_TIME_ALIGN_WAL_RANGE,
 } ESTriggerAHandleParamType;
 
 typedef struct SSTriggerAHandle {
@@ -97,6 +113,9 @@ typedef struct SSTriggerAHandle {
   int64_t requestGid;
   int8_t  paramType; /* ESTriggerAHandleParamType */
   void   *param;
+  SSDataBlock                **timeAlignBlock; /* synchronous history continuation only */
+  bool                         timeAlignDone;
+  uint64_t                     timeAlignRound;
   void   *pullOwner; /* borrowed owner for pull requests that require terminal cleanup */
   uint64_t progressStepId;
   uint64_t progressRequestToken;
@@ -139,6 +158,15 @@ typedef enum sinkHandleInitState {
 } sinkHandleInitState;
 
 typedef struct SStreamRunnerGroupedContinuation SStreamRunnerGroupedContinuation;
+typedef struct SStreamRunnerResultState         SStreamRunnerResultState;
+
+// Owned by one local calculation. The snode serializes execution and timer wakes until completion.
+typedef struct SStreamResultWait {
+  void   *runnerState;
+  void   *sinkState;
+  int32_t delayMs;
+  bool    cancelled;
+} SStreamResultWait;
 
 typedef struct SStreamRunnerTaskExecution {
   const char        *pPlan;
@@ -152,12 +180,14 @@ typedef struct SStreamRunnerTaskExecution {
   int32_t            sinkHandleInited;  // 0: Uninitialized, 1: initializing, 2: initialized
 
   SStreamRunnerGroupedContinuation *pGroupedContinuation;
+  SStreamRunnerResultState         *pResultState;
   int64_t            outputMemoryBytes;
   int64_t            executorMemoryBytes;
   int64_t            memorySnapshotAtMonoUs;
   bool               outputMemoryValid;
   bool               executorMemoryValid;
   bool               memorySnapshotPublished;
+  SStreamResultAdmission            resultAdmission;
 } SStreamRunnerTaskExecution;
 
 typedef struct SStreamRunnerTaskOutput {
@@ -215,6 +245,7 @@ typedef struct SStreamRunnerTask {
   char                         *streamName;
   int32_t                       addOptions;
   int64_t                       mgmtReqId;
+  struct SStreamDerivativeLogState* pDerivativeLogState;
 } SStreamRunnerTask;
 
 typedef struct SStreamCacheReadInfo {
@@ -361,9 +392,23 @@ void    streamSetSnodeEnabled(  SMsgCb* msgCb);
 void    streamSetSnodeDisabled(bool cleanup);
 int32_t streamHbProcessRspMsg(SMStreamHbRspMsg *pRsp);
 int32_t streamHbHandleRspErr(int32_t errCode, int64_t currTs);
+// Initialization contract for the stream subsystem.
+//
+// streamInit()/streamCleanup() run unconditionally, including when the server config
+// `disableStream` is enabled. An online dnode always allocates the stream mgmt state so that
+// streams created before the config was turned on can still be stopped and dropped. As a
+// result `disableStream` only prevents task (re)deployment; it no longer reduces the stream
+// subsystem's resident footprint (async notify worker threads, pending-item pool, mnode stream
+// mgmt thread contexts). The single remaining `disableStream` early-return lives in
+// streamHbInit(): without the heartbeat timer nothing is ever (re)deployed.
 int32_t streamInit(void *pDnode, getDnodeId_f getDnode, getMnodeEpset_f getMnode, getSynEpset_f getSynEpset);
 void    streamGetMnodeEpset(SEpSet *pEpSet);
 void    streamCleanup(void);
+
+// Returns true once streamInit() has allocated the global stream mgmt state.
+// Offline one-shot tools (e.g. -fMnode/mndDump.c) drive a mini-mnode without ever calling
+// streamInit(), so callers that touch gStreamMgmt must check this first.
+bool    streamMgmtInited(void);
 int32_t streamAcquireTask(int64_t streamId, int64_t taskId, SStreamTask** ppTask, void** ppAddr);
 void    streamReleaseTask(void* taskAddr);
 int32_t streamAcquireTriggerTask(int64_t streamId, SStreamTask** ppTask, void** ppAddr);
@@ -386,6 +431,8 @@ int32_t streamCheckpointSyncComplete(int64_t streamId, int32_t result);
 int32_t streamSyncAllCheckpoints(SEpSet* epSet);
 void    streamDeleteAllCheckpoints();
 void    smUndeploySnodeTasks(bool cleanup);
+int32_t stTriggerTaskValidateResult(SStreamTask *task, const SStreamResultAdmission *claim,
+                                    const SRpcHandleInfo *reply);
 int32_t stTriggerTaskProcessRsp(SStreamTask *pTask, SRpcMsg *pRsp, int64_t *pErrTaskId);
 int32_t stTriggerTaskGetStatus(SStreamTask *pTask, SSTriggerRuntimeStatus *pStatus);
 int32_t stTriggerTaskGetDelay(SStreamTask *pTask, int64_t *pDelay, bool *pFillHisFinished);

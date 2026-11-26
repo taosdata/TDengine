@@ -119,6 +119,12 @@ void logTee(const char *format, ...) {
     va_end(args);
     if (!buf) return;
     fwrite(buf, 1, total, stdout);
+    /* stdout is fully buffered when it is redirected to a file or a pipe. The
+     * closing summary is the last thing the tool prints, so anything left in
+     * the CRT buffer at process teardown is lost while the mirror log file,
+     * which is written unbuffered, stays complete. Flush explicitly so the two
+     * stay consistent. */
+    fflush(stdout);
     logFileWrite(buf, total);
     taosMemoryFree(buf);
 }

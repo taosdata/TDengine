@@ -23,7 +23,7 @@ target_include_directories(
 
 target_link_libraries(
         command
-        PRIVATE os util nodes catalog function transport qcom scheduler decimal
+        PRIVATE os util nodes catalog function transport qcom scheduler decimal extconnector
 )
 
 if(BUILD_TEST)

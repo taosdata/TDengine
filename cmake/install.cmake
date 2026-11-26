@@ -48,7 +48,7 @@ ELSEIF (TD_WINDOWS)
   # script path must use native separators.
   FILE(TO_NATIVE_PATH "${TD_MAKE_INSTALL_SH}" TD_MAKE_INSTALL_SH_NATIVE)
   INSTALL(CODE "MESSAGE(\"make install script: ${TD_MAKE_INSTALL_SH}\")")
-  INSTALL(CODE "execute_process(COMMAND \"${CMAKE_COMMAND}\" -E env TD_INSTALL_FQ_RUNTIME_LIBS=${INSTALL_FQ_RUNTIME_LIBS} TD_BUILD_WITH_ODBC=${BUILD_WITH_ODBC} \"${TD_MAKE_INSTALL_SH_NATIVE}\" :needAdmin \"${TD_SOURCE_DIR}\" \"${CMAKE_BINARY_DIR}\" Windows ${BUILD_VER_NUMBER})")
+  INSTALL(CODE "execute_process(COMMAND \"${CMAKE_COMMAND}\" -E env TD_INSTALL_FQ_RUNTIME_LIBS=${INSTALL_FQ_RUNTIME_LIBS} TD_BUILD_WITH_ODBC=${BUILD_WITH_ODBC} TD_MIMALLOC_NAME=${TD_MIMALLOC_NAME} \"TD_MIMALLOC_BIN_DIR=$<TARGET_FILE_DIR:taosd>\" \"${TD_MAKE_INSTALL_SH_NATIVE}\" :needAdmin \"${TD_SOURCE_DIR}\" \"${CMAKE_BINARY_DIR}\" Windows ${BUILD_VER_NUMBER} RESULT_VARIABLE _td_install_result)\nif(NOT _td_install_result EQUAL 0)\n  message(FATAL_ERROR \"Windows installation failed: \${_td_install_result}\")\nendif()")
 ELSEIF (TD_DARWIN)
   SET(TD_MAKE_INSTALL_SH "${TD_SOURCE_DIR}/packaging/tools/make_install.sh")
   INSTALL(CODE "MESSAGE(\"make install script: ${TD_MAKE_INSTALL_SH}\")")

@@ -57,19 +57,36 @@ taosBenchmark -t 1000 -n 259200 -S 1000 -y
 **第 2 步**，导入维度数据。在 Power BI 中导入表的标签列，取名为 tags，通过如下 SQL 获取超级表下所有智能电表的标签数据。
 
 ```sql
-select distinct tbname device, groupId, location from test.meters
+SELECT
+  DISTINCT tbname device,
+  groupId,
+  location
+FROM test.meters
 ```
 
 **第 3 步**，导入度量数据。在 Power BI 中，按照 1 小时的时间窗口，导入每块智能电表的电流均值、电压均值、相位均值，取名为 data，SQL 如下。
 
 ```sql
-select tbname, _wstart ws, avg(current), avg(voltage), avg(phase) from test.meters PARTITION by tbname interval(1h)
+SELECT
+  tbname,
+  _wstart ws,
+  AVG(current),
+  AVG(voltage),
+  AVG(phase)
+FROM test.meters
+PARTITION BY tbname
+INTERVAL(1h)
 ```
 
 **第 4 步**，导入日期数据。按照 1 天的时间窗口，获得时序数据的时间范围及数据计数，SQL 如下。需要在 Power Query 编辑器中将 date 列的格式从“文本”转化为“日期”。
 
 ```sql
-select _wstart date, count(*) from test.meters interval(1d) having count(*)>0
+SELECT
+  _wstart date,
+  COUNT(*)
+FROM test.meters
+INTERVAL(1d)
+HAVING COUNT(*) > 0
 ```
 
 **第 5 步**，建立维度和度量的关联关系。打开模型视图，建立表 tags 和 data 的关联关系，将 tbname 设置为关联数据列。

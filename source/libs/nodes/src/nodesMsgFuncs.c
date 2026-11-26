@@ -13,6 +13,7 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
+#include "cmdnodes.h"
 #include "nodesUtil.h"
 #include "plannodes.h"
 #include "tdatablock.h"
@@ -91,6 +92,14 @@ typedef int32_t (*FToMsg)(const void* pObj, STlvEncoder* pEncoder);
 typedef int32_t (*FToObject)(STlvDecoder* pDecoder, void* pObj);
 typedef int32_t (*FMakeObject)(int16_t type, SNode** ppNode);
 typedef int32_t (*FSetObject)(STlv* pTlv, void* pObj);
+
+typedef struct SNodeMsgValidation {
+  int32_t (*validate)(const SNode*);
+  int32_t code;
+} SNodeMsgValidation;
+
+// Child TLV decoders share the validation state of the top-level decode.
+static threadlocal SNodeMsgValidation* nodeMsgValidation;
 
 static int32_t nodeToMsg(const void* pObj, STlvEncoder* pEncoder);
 static int32_t msgToSpecificNode(STlvDecoder* pDecoder, void* pObj);
@@ -550,10 +559,14 @@ static int32_t tlvDecodeCStr(STlv* pTlv, char* pValue, int32_t size) {
   return TSDB_CODE_SUCCESS;
 }
 
-static int32_t tlvDecodeValueCStr(STlvDecoder* pDecoder, char* pValue) {
+static int32_t tlvDecodeValueCStr(STlvDecoder* pDecoder, char* pValue, int32_t size) {
   int16_t len = 0;
   int32_t code = tlvDecodeValueI16(pDecoder, &len);
   if (TSDB_CODE_SUCCESS == code) {
+    // the length comes from the wire, so never let it exceed the fixed-size destination buffer
+    if (len < 0 || len >= size) {
+      return TSDB_CODE_INVALID_MSG;
+    }
     code = tlvDecodeValueImpl(pDecoder, pValue, len);
   }
   return code;
@@ -631,6 +644,8 @@ static int32_t tlvDecodeDynObjFromTlv(STlv* pTlv, FMakeObject makeFunc, FToObjec
   if (TSDB_CODE_SUCCESS != code) {
     nodesError("tlvDecodeDynObjFromTlv decode failed, type=%d(%s), code:%x", pTlv->type,
                nodesNodeName(nodeType(*pObj)), code);
+  } else if (nodeMsgValidation != NULL && nodeMsgValidation->code == TSDB_CODE_SUCCESS) {
+    nodeMsgValidation->code = nodeMsgValidation->validate(*pObj);
   }
   return code;
 }
@@ -796,6 +811,9 @@ enum {
   COLUMN_CODE_HAS_NULL,
   COLUMN_CODE_REF_SOURCE_NAME,
   COLUMN_CODE_REF_SCHEMA_NAME,   // appended: SQL Server schema segment on external column refs
+  COLUMN_CODE_FLAGS,             // appended: column flag bits (e.g. TIME_ALIGN output marker)
+  COLUMN_CODE_ALIGN_SPAN_VALUE,  // appended: TIME_ALIGN time-range duration count
+  COLUMN_CODE_ALIGN_SPAN_UNIT,   // appended: TIME_ALIGN time-range duration unit
 };
 
 static int32_t columnNodeInlineToMsg(const void* pObj, STlvEncoder* pEncoder) {
@@ -887,6 +905,15 @@ static int32_t columnNodeToMsg(const void* pObj, STlvEncoder* pEncoder) {
   if (TSDB_CODE_SUCCESS == code) {
     code = tlvEncodeCStr(pEncoder, COLUMN_CODE_REF_SCHEMA_NAME, pNode->refSchemaName);
   }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tlvEncodeU8(pEncoder, COLUMN_CODE_FLAGS, pNode->flags);
+  }
+  if (TSDB_CODE_SUCCESS == code && pNode->isAlignOut && pNode->alignHasSpan) {
+    code = tlvEncodeI64(pEncoder, COLUMN_CODE_ALIGN_SPAN_VALUE, pNode->alignSpanValue);
+  }
+  if (TSDB_CODE_SUCCESS == code && pNode->isAlignOut && pNode->alignHasSpan) {
+    code = tlvEncodeI8(pEncoder, COLUMN_CODE_ALIGN_SPAN_UNIT, pNode->alignSpanUnit);
+  }
 
   return code;
 }
@@ -914,16 +941,16 @@ static int32_t msgToColumnNodeInline(STlvDecoder* pDecoder, void* pObj) {
     code = tlvDecodeValueEnum(pDecoder, &pNode->colType, sizeof(pNode->colType));
   }
   if (TSDB_CODE_SUCCESS == code) {
-    code = tlvDecodeValueCStr(pDecoder, pNode->dbName);
+    code = tlvDecodeValueCStr(pDecoder, pNode->dbName, sizeof(pNode->dbName));
   }
   if (TSDB_CODE_SUCCESS == code) {
-    code = tlvDecodeValueCStr(pDecoder, pNode->tableName);
+    code = tlvDecodeValueCStr(pDecoder, pNode->tableName, sizeof(pNode->tableName));
   }
   if (TSDB_CODE_SUCCESS == code) {
-    code = tlvDecodeValueCStr(pDecoder, pNode->tableAlias);
+    code = tlvDecodeValueCStr(pDecoder, pNode->tableAlias, sizeof(pNode->tableAlias));
   }
   if (TSDB_CODE_SUCCESS == code) {
-    code = tlvDecodeValueCStr(pDecoder, pNode->colName);
+    code = tlvDecodeValueCStr(pDecoder, pNode->colName, sizeof(pNode->colName));
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = tlvDecodeValueI64(pDecoder, &pNode->dataBlockId);
@@ -950,13 +977,13 @@ static int32_t msgToColumnNodeInline(STlvDecoder* pDecoder, void* pObj) {
     code = tlvDecodeValueBool(pDecoder, &pNode->hasRef);
   }
   if (TSDB_CODE_SUCCESS == code) {
-    code = tlvDecodeValueCStr(pDecoder, pNode->refDbName);
+    code = tlvDecodeValueCStr(pDecoder, pNode->refDbName, sizeof(pNode->refDbName));
   }
   if (TSDB_CODE_SUCCESS == code) {
-    code = tlvDecodeValueCStr(pDecoder, pNode->refTableName);
+    code = tlvDecodeValueCStr(pDecoder, pNode->refTableName, sizeof(pNode->refTableName));
   }
   if (TSDB_CODE_SUCCESS == code) {
-    code = tlvDecodeValueCStr(pDecoder, pNode->refColName);
+    code = tlvDecodeValueCStr(pDecoder, pNode->refColName, sizeof(pNode->refColName));
   }
   return code;
 }
@@ -985,6 +1012,15 @@ static int32_t msgToColumnNode(STlvDecoder* pDecoder, void* pObj) {
         break;
       case COLUMN_CODE_REF_SCHEMA_NAME:
         code = tlvDecodeCStr(pTlv, pNode->refSchemaName, sizeof(pNode->refSchemaName));
+        break;
+      case COLUMN_CODE_FLAGS:
+        code = tlvDecodeU8(pTlv, &pNode->flags);
+        break;
+      case COLUMN_CODE_ALIGN_SPAN_VALUE:
+        code = tlvDecodeI64(pTlv, &pNode->alignSpanValue);
+        break;
+      case COLUMN_CODE_ALIGN_SPAN_UNIT:
+        code = tlvDecodeI8(pTlv, &pNode->alignSpanUnit);
         break;
       default:
         break;
@@ -1371,6 +1407,8 @@ enum {
 static int32_t remoteValueListNodeToMsg(const void* pObj, STlvEncoder* pEncoder) {
   const SRemoteValueListNode* pNode = (const SRemoteValueListNode*)pObj;
 
+  qDebug("FQ-MSG: encode remote value list subQIdx=%d renderMode=%d hasOrigSql=%d remotePlan=%p",
+         pNode->subQIdx, (int)pNode->renderMode, NULL != pNode->inSubquerySql, pNode->pRemotePlan);
   int32_t code = tlvEncodeObj(pEncoder, REMOTE_VALUELIST_CODE_EXPR, exprNodeToMsg, pNode);
   if (TSDB_CODE_SUCCESS == code) {
     code = tlvEncodeI32(pEncoder, REMOTE_VALUELIST_CODE_FLAG, pNode->flag);
@@ -1421,6 +1459,8 @@ static int32_t msgToRemoteValueListNode(STlvDecoder* pDecoder, void* pObj) {
         break;
     }
   }
+  qDebug("FQ-MSG: decoded remote value list subQIdx=%d renderMode=%d hasOrigSql=%d remotePlan=%p",
+         pNode->subQIdx, (int)pNode->renderMode, NULL != pNode->inSubquerySql, pNode->pRemotePlan);
 
   return code;
 }
@@ -1700,6 +1740,7 @@ enum {
   FUNCTION_CODE_OVER,
   FUNCTION_CODE_TZ_NAME,
   FUNCTION_CODE_CHARSET_NAME,
+  FUNCTION_CODE_IGNORE_RESULT_ROW_COUNT,
 };
 
 static int32_t functionNodeToMsg(const void* pObj, STlvEncoder* pEncoder) {
@@ -1744,6 +1785,9 @@ static int32_t functionNodeToMsg(const void* pObj, STlvEncoder* pEncoder) {
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = tlvEncodeBool(pEncoder, FUNCTION_CODE_IS_DISTINCT, pNode->isDistinct);
+  }
+  if (TSDB_CODE_SUCCESS == code && pNode->ignoreResultRowCount) {
+    code = tlvEncodeBool(pEncoder, FUNCTION_CODE_IGNORE_RESULT_ROW_COUNT, pNode->ignoreResultRowCount);
   }
   if (TSDB_CODE_SUCCESS == code && pNode->tzName[0] != '\0') {
     code = tlvEncodeCStr(pEncoder, FUNCTION_CODE_TZ_NAME, pNode->tzName);
@@ -1805,6 +1849,9 @@ static int32_t msgToFunctionNode(STlvDecoder* pDecoder, void* pObj) {
       case FUNCTION_CODE_IS_DISTINCT:
         code = tlvDecodeBool(pTlv, &pNode->isDistinct);
         break;
+      case FUNCTION_CODE_IGNORE_RESULT_ROW_COUNT:
+        code = tlvDecodeBool(pTlv, &pNode->ignoreResultRowCount);
+        break;
       case FUNCTION_CODE_TZ_NAME:
         code = tlvDecodeCStr(pTlv, pNode->tzName, sizeof(pNode->tzName));
         break;
@@ -1819,7 +1866,13 @@ static int32_t msgToFunctionNode(STlvDecoder* pDecoder, void* pObj) {
   return code;
 }
 
-enum { ORDER_BY_EXPR_CODE_EXPR = 1, ORDER_BY_EXPR_CODE_ORDER, ORDER_BY_EXPR_CODE_NULL_ORDER };
+enum {
+  ORDER_BY_EXPR_CODE_EXPR = 1,
+  ORDER_BY_EXPR_CODE_ORDER,
+  ORDER_BY_EXPR_CODE_NULL_ORDER,
+  ORDER_BY_EXPR_CODE_WINDOW_KEY,
+  ORDER_BY_EXPR_CODE_QUERY_PARTITION_KEY
+};
 
 static int32_t orderByExprNodeToMsg(const void* pObj, STlvEncoder* pEncoder) {
   const SOrderByExprNode* pNode = (const SOrderByExprNode*)pObj;
@@ -1830,6 +1883,12 @@ static int32_t orderByExprNodeToMsg(const void* pObj, STlvEncoder* pEncoder) {
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = tlvEncodeEnum(pEncoder, ORDER_BY_EXPR_CODE_NULL_ORDER, pNode->nullOrder);
+  }
+  if (TSDB_CODE_SUCCESS == code && pNode->isWindowKey) {
+    code = tlvEncodeBool(pEncoder, ORDER_BY_EXPR_CODE_WINDOW_KEY, true);
+  }
+  if (TSDB_CODE_SUCCESS == code && pNode->isQueryPartitionKey) {
+    code = tlvEncodeBool(pEncoder, ORDER_BY_EXPR_CODE_QUERY_PARTITION_KEY, true);
   }
 
   return code;
@@ -1850,6 +1909,12 @@ static int32_t msgToOrderByExprNode(STlvDecoder* pDecoder, void* pObj) {
         break;
       case ORDER_BY_EXPR_CODE_NULL_ORDER:
         code = tlvDecodeEnum(pTlv, &pNode->nullOrder, sizeof(pNode->nullOrder));
+        break;
+      case ORDER_BY_EXPR_CODE_QUERY_PARTITION_KEY:
+        code = tlvDecodeBool(pTlv, &pNode->isQueryPartitionKey);
+        break;
+      case ORDER_BY_EXPR_CODE_WINDOW_KEY:
+        code = tlvDecodeBool(pTlv, &pNode->isWindowKey);
         break;
       default:
         break;
@@ -2309,10 +2374,10 @@ static int32_t msgToTagRefColumnInline(STlvDecoder* pDecoder, void* pObj) {
     code = tlvDecodeValueI16(pDecoder, &pNode->sourceColId);
   }
   if (TSDB_CODE_SUCCESS == code) {
-    code = tlvDecodeValueCStr(pDecoder, pNode->colName);
+    code = tlvDecodeValueCStr(pDecoder, pNode->colName, sizeof(pNode->colName));
   }
   if (TSDB_CODE_SUCCESS == code) {
-    code = tlvDecodeValueCStr(pDecoder, pNode->sourceColName);
+    code = tlvDecodeValueCStr(pDecoder, pNode->sourceColName, sizeof(pNode->sourceColName));
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = tlvDecodeValueI32(pDecoder, &pNode->bytes);
@@ -2369,7 +2434,7 @@ static int32_t epToMsg(const void* pObj, STlvEncoder* pEncoder) {
 static int32_t msgToEpInline(STlvDecoder* pDecoder, void* pObj) {
   SEp* pNode = (SEp*)pObj;
 
-  int32_t code = tlvDecodeValueCStr(pDecoder, pNode->fqdn);
+  int32_t code = tlvDecodeValueCStr(pDecoder, pNode->fqdn, sizeof(pNode->fqdn));
   if (TSDB_CODE_SUCCESS == code) {
     code = tlvDecodeValueU16(pDecoder, &pNode->port);
   }
@@ -3152,6 +3217,10 @@ enum {
   // Appended after the 3.0 const-ref codes: those wire values shipped with the tag-ref
   // feature, so TWO_PASS_MODE must take the next free value (never reuse 16).
   PHY_VIRTUAL_TABLE_SCAN_CODE_TWO_PASS_MODE,
+  // TIME_ALIGN output columns (SColumnNode: colId = source column id, colName = output name).
+  PHY_VIRTUAL_TABLE_SCAN_CODE_ALIGN_COLS,
+  // Client timezone name for calendar-unit TIME_ALIGN time ranges.
+  PHY_VIRTUAL_TABLE_SCAN_CODE_TIMEZONE_NAME,
 };
 
 static int32_t physiVirtualTableScanNodeToMsg(const void* pObj, STlvEncoder* pEncoder) {
@@ -3219,6 +3288,12 @@ static int32_t physiVirtualTableScanNodeToMsg(const void* pObj, STlvEncoder* pEn
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = tlvEncodeBool(pEncoder, PHY_VIRTUAL_TABLE_SCAN_CODE_TWO_PASS_MODE, pNode->twoPassMode);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tlvEncodeObj(pEncoder, PHY_VIRTUAL_TABLE_SCAN_CODE_ALIGN_COLS, nodeListToMsg, pNode->pAlignCols);
+  }
+  if (TSDB_CODE_SUCCESS == code && pNode->timezoneName[0] != '\0') {
+    code = tlvEncodeCStr(pEncoder, PHY_VIRTUAL_TABLE_SCAN_CODE_TIMEZONE_NAME, pNode->timezoneName);
   }
 
   return code;
@@ -3288,6 +3363,12 @@ static int32_t msgToPhysiVirtualTableScanNode(STlvDecoder* pDecoder, void* pObj)
       case PHY_VIRTUAL_TABLE_SCAN_CODE_TWO_PASS_MODE:
         code = tlvDecodeBool(pTlv, &pNode->twoPassMode);
         break;
+      case PHY_VIRTUAL_TABLE_SCAN_CODE_ALIGN_COLS:
+        code = msgToNodeListFromTlv(pTlv, (void**)&pNode->pAlignCols);
+        break;
+      case PHY_VIRTUAL_TABLE_SCAN_CODE_TIMEZONE_NAME:
+        code = tlvDecodeCStr(pTlv, pNode->timezoneName, sizeof(pNode->timezoneName));
+        break;
       default:
         break;
     }
@@ -3328,6 +3409,16 @@ enum {
   // value of an existing one (DS 9.6.1 principle 2), because an older qnode
   // would then decode a known tag as an unknown one.
   PHY_FEDERATED_SCAN_CODE_COL_RENDER_HINTS,   // SExtColumnRenderHint[] blob
+  PHY_FEDERATED_SCAN_CODE_REFERENCE_KIND,
+  PHY_FEDERATED_SCAN_CODE_REFERENCE_ALIAS,
+  PHY_FEDERATED_SCAN_CODE_REFERENCE_TIME,
+  PHY_FEDERATED_SCAN_CODE_REFERENCE_UID,
+  PHY_FEDERATED_SCAN_CODE_REFERENCE_VERSION,
+  PHY_FEDERATED_SCAN_CODE_REFERENCE_FILTER,
+  PHY_FEDERATED_SCAN_CODE_REFERENCE_VGROUP,
+  PHY_FEDERATED_SCAN_CODE_REFERENCE_ENDPOINTS,
+  PHY_FEDERATED_SCAN_CODE_REFERENCE_DATABASE,
+
 };
 
 static int32_t federatedScanPhysiNodeToMsg(const void* pObj, STlvEncoder* pEncoder) {
@@ -3401,6 +3492,33 @@ static int32_t federatedScanPhysiNodeToMsg(const void* pObj, STlvEncoder* pEncod
     code = tlvEncodeBinary(pEncoder, PHY_FEDERATED_SCAN_CODE_COL_RENDER_HINTS,
                            pNode->pColumnRenderHints,
                            (int32_t)(pNode->numColumnRenderHints * sizeof(SExtColumnRenderHint)));
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tlvEncodeI8(pEncoder, PHY_FEDERATED_SCAN_CODE_REFERENCE_KIND, pNode->bindingKind);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tlvEncodeCStr(pEncoder, PHY_FEDERATED_SCAN_CODE_REFERENCE_ALIAS, pNode->referenceAlias);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tlvEncodeCStr(pEncoder, PHY_FEDERATED_SCAN_CODE_REFERENCE_TIME, pNode->timeColumn);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tlvEncodeU64(pEncoder, PHY_FEDERATED_SCAN_CODE_REFERENCE_UID, pNode->referenceUid);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tlvEncodeI32(pEncoder, PHY_FEDERATED_SCAN_CODE_REFERENCE_VERSION, pNode->expectedRversion);
+  }
+  if (TSDB_CODE_SUCCESS == code && pNode->pReferenceFilter != NULL) {
+    code = tlvEncodeObj(pEncoder, PHY_FEDERATED_SCAN_CODE_REFERENCE_FILTER, nodeToMsg, pNode->pReferenceFilter);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tlvEncodeI32(pEncoder, PHY_FEDERATED_SCAN_CODE_REFERENCE_VGROUP, pNode->referenceVgId);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tlvEncodeObj(pEncoder, PHY_FEDERATED_SCAN_CODE_REFERENCE_ENDPOINTS, epSetToMsg, &pNode->referenceEpSet);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tlvEncodeCStr(pEncoder, PHY_FEDERATED_SCAN_CODE_REFERENCE_DATABASE, pNode->referenceDbFName);
   }
   return code;
 }
@@ -3517,6 +3635,33 @@ static int32_t msgToFederatedScanPhysiNode(STlvDecoder* pDecoder, void* pObj) {
       case PHY_FEDERATED_SCAN_CODE_TIME_RANGE:
         code = msgToNodeFromTlv(pTlv, (void**)&pNode->pTimeRange);
         break;
+      case PHY_FEDERATED_SCAN_CODE_REFERENCE_KIND:
+        code = tlvDecodeI8(pTlv, &pNode->bindingKind);
+        break;
+      case PHY_FEDERATED_SCAN_CODE_REFERENCE_ALIAS:
+        code = tlvDecodeCStr(pTlv, pNode->referenceAlias, sizeof(pNode->referenceAlias));
+        break;
+      case PHY_FEDERATED_SCAN_CODE_REFERENCE_TIME:
+        code = tlvDecodeCStr(pTlv, pNode->timeColumn, sizeof(pNode->timeColumn));
+        break;
+      case PHY_FEDERATED_SCAN_CODE_REFERENCE_UID:
+        code = tlvDecodeU64(pTlv, &pNode->referenceUid);
+        break;
+      case PHY_FEDERATED_SCAN_CODE_REFERENCE_VERSION:
+        code = tlvDecodeI32(pTlv, &pNode->expectedRversion);
+        break;
+      case PHY_FEDERATED_SCAN_CODE_REFERENCE_FILTER:
+        code = msgToNodeFromTlv(pTlv, (void**)&pNode->pReferenceFilter);
+        break;
+      case PHY_FEDERATED_SCAN_CODE_REFERENCE_VGROUP:
+        code = tlvDecodeI32(pTlv, &pNode->referenceVgId);
+        break;
+      case PHY_FEDERATED_SCAN_CODE_REFERENCE_ENDPOINTS:
+        code = tlvDecodeObjFromTlv(pTlv, msgToEpSet, &pNode->referenceEpSet);
+        break;
+      case PHY_FEDERATED_SCAN_CODE_REFERENCE_DATABASE:
+        code = tlvDecodeCStr(pTlv, pNode->referenceDbFName, sizeof(pNode->referenceDbFName));
+        break;
       default:
         break;
     }
@@ -3544,6 +3689,9 @@ enum {
   EXT_TABLE_CODE_TABLE_ALIAS,
   EXT_TABLE_CODE_SRC_NAME_FROM_PATH,
   EXT_TABLE_CODE_NS_FROM_PATH_ONLY,
+  EXT_TABLE_CODE_SERIES_CONDITION,
+  EXT_TABLE_CODE_INFLUX_SCHEMA,
+  EXT_TABLE_CODE_INFLUX_RP,
 };
 
 static int32_t extTableNodeToMsg(const void* pObj, STlvEncoder* pEncoder) {
@@ -3595,6 +3743,15 @@ static int32_t extTableNodeToMsg(const void* pObj, STlvEncoder* pEncoder) {
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = tlvEncodeBool(pEncoder, EXT_TABLE_CODE_NS_FROM_PATH_ONLY, pNode->nsFromPathOnly);
+  }
+  if (TSDB_CODE_SUCCESS == code && pNode->pSeriesCondition != NULL) {
+    code = tlvEncodeObj(pEncoder, EXT_TABLE_CODE_SERIES_CONDITION, nodeToMsg, pNode->pSeriesCondition);
+  }
+  if (code == TSDB_CODE_SUCCESS && pNode->pInfluxSchema != NULL) {
+    code = tlvEncodeObj(pEncoder, EXT_TABLE_CODE_INFLUX_SCHEMA, nodeListToMsg, pNode->pInfluxSchema);
+  }
+  if (code == TSDB_CODE_SUCCESS && pNode->influxRp[0] != '\0') {
+    code = tlvEncodeCStr(pEncoder, EXT_TABLE_CODE_INFLUX_RP, pNode->influxRp);
   }
   return code;
 }
@@ -3652,6 +3809,15 @@ static int32_t msgToExtTableNode(STlvDecoder* pDecoder, void* pObj) {
         break;
       case EXT_TABLE_CODE_NS_FROM_PATH_ONLY:
         code = tlvDecodeBool(pTlv, &pNode->nsFromPathOnly);
+        break;
+      case EXT_TABLE_CODE_SERIES_CONDITION:
+        code = msgToNodeFromTlv(pTlv, (void**)&pNode->pSeriesCondition);
+        break;
+      case EXT_TABLE_CODE_INFLUX_SCHEMA:
+        code = msgToNodeListFromTlv(pTlv, (void**)&pNode->pInfluxSchema);
+        break;
+      case EXT_TABLE_CODE_INFLUX_RP:
+        code = tlvDecodeCStr(pTlv, pNode->influxRp, sizeof(pNode->influxRp));
         break;
       default:
         break;
@@ -3881,6 +4047,8 @@ enum {
   PHY_TABLE_SCAN_CODE_TWO_PASS_RESCAN_SOURCE,
   PHY_TABLE_SCAN_CODE_LAST_ONLY_SCAN,
   PHY_TABLE_SCAN_CODE_INTERVAL_LIMIT,
+  PHY_TABLE_SCAN_CODE_ALIGN_COLS,
+  PHY_TABLE_SCAN_CODE_LAST_SCAN_TYPE,
 };
 
 static int32_t physiTableScanNodeInlineToMsg(const void* pObj, STlvEncoder* pEncoder) {
@@ -4003,12 +4171,16 @@ static int32_t physiTableScanNodeToMsg(const void* pObj, STlvEncoder* pEncoder) 
   if (TSDB_CODE_SUCCESS == code) {
     code = tlvEncodeBool(pEncoder, PHY_TABLE_SCAN_CODE_TWO_PASS_RESCAN_SOURCE, pNode->twoPassRescanSource);
   }
-  if (TSDB_CODE_SUCCESS == code && pNode->lastOnlyScan) {
-    code = tlvEncodeBool(pEncoder, PHY_TABLE_SCAN_CODE_LAST_ONLY_SCAN, true);
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tlvEncodeI32(pEncoder, PHY_TABLE_SCAN_CODE_LAST_SCAN_TYPE,
+                        (int32_t)pNode->lastScanType);
   }
   if (TSDB_CODE_SUCCESS == code && pNode->intervalLimit > 0) {
     code = tlvEncodeI64(pEncoder, PHY_TABLE_SCAN_CODE_INTERVAL_LIMIT,
                          pNode->intervalLimit);
+  }
+  if (TSDB_CODE_SUCCESS == code && pNode->pAlignCols != NULL) {
+    code = tlvEncodeObj(pEncoder, PHY_TABLE_SCAN_CODE_ALIGN_COLS, nodeListToMsg, pNode->pAlignCols);
   }
 
   return code;
@@ -4102,7 +4274,7 @@ static int32_t msgToPhysiTableScanNodeInline(STlvDecoder* pDecoder, void* pObj) 
 static int32_t msgToPhysiTableScanNode(STlvDecoder* pDecoder, void* pObj) {
   STableScanPhysiNode* pNode = (STableScanPhysiNode*)pObj;
   pNode->firstDayOfWeek = tsDefaultFirstDayOfWeek;
-  pNode->lastOnlyScan = false;
+  pNode->lastScanType = LAST_SCAN_NONE;
   pNode->intervalLimit = 0;
 
   int32_t code = TSDB_CODE_SUCCESS;
@@ -4158,11 +4330,27 @@ static int32_t msgToPhysiTableScanNode(STlvDecoder* pDecoder, void* pObj) {
       case PHY_TABLE_SCAN_CODE_INTERP_MODE:
         code = tlvDecodeI8(pTlv, &pNode->interpMode);
         break;
-      case PHY_TABLE_SCAN_CODE_LAST_ONLY_SCAN:
-        code = tlvDecodeBool(pTlv, &pNode->lastOnlyScan);
+      case PHY_TABLE_SCAN_CODE_LAST_ONLY_SCAN: {
+        bool ignored = false;
+        code = tlvDecodeBool(pTlv, &ignored);
         break;
+      }
+      case PHY_TABLE_SCAN_CODE_LAST_SCAN_TYPE: {
+        int32_t value = 0;
+        code = tlvDecodeI32(pTlv, &value);
+        if (code == TSDB_CODE_SUCCESS) {
+          pNode->lastScanType = value >= LAST_SCAN_NONE &&
+                                        value <= LAST_SCAN_MIXED
+                                    ? (ELastScanType)value
+                                    : LAST_SCAN_NONE;
+        }
+        break;
+      }
       case PHY_TABLE_SCAN_CODE_INTERVAL_LIMIT:
         code = tlvDecodeI64(pTlv, &pNode->intervalLimit);
+        break;
+      case PHY_TABLE_SCAN_CODE_ALIGN_COLS:
+        code = msgToNodeListFromTlv(pTlv, (void**)&pNode->pAlignCols);
         break;
       default:
         break;
@@ -4181,6 +4369,7 @@ enum {
   PHY_SYSTABLE_SCAN_CODE_PRIV_INFO,
   PHY_SYSTABLE_SCAN_CODE_CHARSET_NAME,
   PHY_SYSTABLE_SCAN_CODE_XNODE_DSN_OUTPUT_MODE,
+  PHY_SYSTABLE_SCAN_CODE_TXN_STB_SCHEMAS,  // optional, appended last: older decoders skip unknown types
 };
 
 static int32_t physiSysTableScanNodeToMsg(const void* pObj, STlvEncoder* pEncoder) {
@@ -4212,6 +4401,11 @@ static int32_t physiSysTableScanNodeToMsg(const void* pObj, STlvEncoder* pEncode
     code = tlvEncodeI8(pEncoder,
                        PHY_SYSTABLE_SCAN_CODE_XNODE_DSN_OUTPUT_MODE,
                        pNode->xnodeDsnOutputMode);
+  }
+  // Only inside a batch meta txn; never emitted otherwise, so plans of every other query are unchanged.
+  if (TSDB_CODE_SUCCESS == code && pNode->pTxnStbSchemas != NULL && pNode->txnStbSchemasLen > 0) {
+    code = tlvEncodeBinary(pEncoder, PHY_SYSTABLE_SCAN_CODE_TXN_STB_SCHEMAS, pNode->pTxnStbSchemas,
+                           pNode->txnStbSchemasLen);
   }
 
   return code;
@@ -4249,6 +4443,19 @@ static int32_t msgToPhysiSysTableScanNode(STlvDecoder* pDecoder, void* pObj) {
         code = tlvDecodeCStr(pTlv, pNode->charsetName,
                              sizeof(pNode->charsetName));
         break;
+      case PHY_SYSTABLE_SCAN_CODE_TXN_STB_SCHEMAS:
+        // length and pointer always change together: never leave len > 0 with a NULL buffer behind
+        taosMemoryFreeClear(pNode->pTxnStbSchemas);
+        pNode->txnStbSchemasLen = 0;
+        if (pTlv->len < 0 || pTlv->len > TXN_STB_SCHEMAS_MAX_LEN) {
+          code = TSDB_CODE_INVALID_MSG;
+        } else if (pTlv->len > 0) {
+          code = tlvDecodeDynBinary(pTlv, (void**)&pNode->pTxnStbSchemas);
+          if (TSDB_CODE_SUCCESS == code) {
+            pNode->txnStbSchemasLen = pTlv->len;
+          }
+        }
+        break;
       default:
         break;
     }
@@ -4262,7 +4469,9 @@ enum {
   PHY_PROJECT_CODE_PROJECTIONS,
   PHY_PROJECT_CODE_MERGE_DATA_BLOCK,
   PHY_PROJECT_CODE_IGNORE_GROUP_ID,
-  PHY_PROJECT_CODE_INPUT_IGNORE_GROUP
+  PHY_PROJECT_CODE_INPUT_IGNORE_GROUP,
+  PHY_PROJECT_CODE_TIME_ALIGN_PROJECT,
+  PHY_PROJECT_CODE_TIME_ALIGN_OUTPUT_ORDER
 };
 
 static int32_t physiProjectNodeToMsg(const void* pObj, STlvEncoder* pEncoder) {
@@ -4280,6 +4489,12 @@ static int32_t physiProjectNodeToMsg(const void* pObj, STlvEncoder* pEncoder) {
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = tlvEncodeBool(pEncoder, PHY_PROJECT_CODE_INPUT_IGNORE_GROUP, pNode->inputIgnoreGroup);
+  }
+  if (TSDB_CODE_SUCCESS == code && pNode->timeAlignProject) {
+    code = tlvEncodeBool(pEncoder, PHY_PROJECT_CODE_TIME_ALIGN_PROJECT, true);
+  }
+  if (TSDB_CODE_SUCCESS == code && pNode->timeAlignOutputOrder) {
+    code = tlvEncodeBool(pEncoder, PHY_PROJECT_CODE_TIME_ALIGN_OUTPUT_ORDER, true);
   }
 
   return code;
@@ -4306,6 +4521,12 @@ static int32_t msgToPhysiProjectNode(STlvDecoder* pDecoder, void* pObj) {
         break;
       case PHY_PROJECT_CODE_INPUT_IGNORE_GROUP:
         code = tlvDecodeBool(pTlv, &pNode->inputIgnoreGroup);
+        break;
+      case PHY_PROJECT_CODE_TIME_ALIGN_PROJECT:
+        code = tlvDecodeBool(pTlv, &pNode->timeAlignProject);
+        break;
+      case PHY_PROJECT_CODE_TIME_ALIGN_OUTPUT_ORDER:
+        code = tlvDecodeBool(pTlv, &pNode->timeAlignOutputOrder);
         break;
       default:
         break;
@@ -4959,7 +5180,8 @@ enum {
   PHY_SORT_CODE_TARGETS,
   PHY_SORT_CODE_CALC_GROUPID,
   PHY_SORT_CODE_EXCLUDE_PK_COL,
-  PHY_SORT_CODE_NUM_OF_GROUP_KEYS
+  PHY_SORT_CODE_NUM_OF_GROUP_KEYS,
+  PHY_SORT_CODE_INPUT_ORDERED_BY_SORT_KEYS
 };
 
 static int32_t physiSortNodeToMsg(const void* pObj, STlvEncoder* pEncoder) {
@@ -4983,6 +5205,12 @@ static int32_t physiSortNodeToMsg(const void* pObj, STlvEncoder* pEncoder) {
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = tlvEncodeI32(pEncoder, PHY_SORT_CODE_NUM_OF_GROUP_KEYS, pNode->numOfGroupKeys);
+  }
+  // Only publish the flag when it is set: an absent field decodes to false, and
+  // omitting it keeps every existing plan (and its golden message/JSON) byte
+  // identical for the common unproven case.
+  if (TSDB_CODE_SUCCESS == code && pNode->inputOrderedBySortKeys) {
+    code = tlvEncodeBool(pEncoder, PHY_SORT_CODE_INPUT_ORDERED_BY_SORT_KEYS, pNode->inputOrderedBySortKeys);
   }
 
   return code;
@@ -5016,6 +5244,9 @@ static int32_t msgToPhysiSortNode(STlvDecoder* pDecoder, void* pObj) {
       case PHY_SORT_CODE_NUM_OF_GROUP_KEYS:
         code = tlvDecodeI32(pTlv, &pNode->numOfGroupKeys);
         break;
+      case PHY_SORT_CODE_INPUT_ORDERED_BY_SORT_KEYS:
+        code = tlvDecodeBool(pTlv, &pNode->inputOrderedBySortKeys);
+        break;
       default:
         break;
     }
@@ -5031,6 +5262,7 @@ enum {
   PHY_WINDOW_FUNC_CODE_FUNCS,
   PHY_WINDOW_FUNC_CODE_FRAME,
   PHY_WINDOW_FUNC_CODE_EXPRS,
+  PHY_WINDOW_FUNC_CODE_VALUE_PARTITION_KEYS,
 };
 
 static int32_t physiWindowFuncNodeToMsg(const void* pObj, STlvEncoder* pEncoder) {
@@ -5051,6 +5283,9 @@ static int32_t physiWindowFuncNodeToMsg(const void* pObj, STlvEncoder* pEncoder)
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = tlvEncodeObj(pEncoder, PHY_WINDOW_FUNC_CODE_FRAME, nodeToMsg, pNode->pFrame);
+  }
+  if (TSDB_CODE_SUCCESS == code && pNode->numValuePartitionKeys) {
+    code = tlvEncodeI32(pEncoder, PHY_WINDOW_FUNC_CODE_VALUE_PARTITION_KEYS, pNode->numValuePartitionKeys);
   }
 
   return code;
@@ -5077,6 +5312,9 @@ static int32_t msgToPhysiWindowFuncNode(STlvDecoder* pDecoder, void* pObj) {
         break;
       case PHY_WINDOW_FUNC_CODE_FUNCS:
         code = msgToNodeListFromTlv(pTlv, (void**)&pNode->pFuncs);
+        break;
+      case PHY_WINDOW_FUNC_CODE_VALUE_PARTITION_KEYS:
+        code = tlvDecodeI32(pTlv, &pNode->numValuePartitionKeys);
         break;
       case PHY_WINDOW_FUNC_CODE_FRAME:
         code = msgToNodeFromTlv(pTlv, (void**)&pNode->pFrame);
@@ -5239,6 +5477,7 @@ enum {
   PHY_WINDOW_CODE_OUTPUT_TS_ORDER,
   PHY_WINDOW_CODE_MERGE_DATA_BLOCK,
   PHY_WINDOW_CODE_PROJS,
+  PHY_WINDOW_CODE_PRESERVE_GROUP_ID,
 };
 
 static int32_t physiWindowNodeToMsg(const void* pObj, STlvEncoder* pEncoder) {
@@ -5277,6 +5516,9 @@ static int32_t physiWindowNodeToMsg(const void* pObj, STlvEncoder* pEncoder) {
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = tlvEncodeObj(pEncoder, PHY_WINDOW_CODE_PROJS, nodeListToMsg, pNode->pProjs);
+  }
+  if (TSDB_CODE_SUCCESS == code && pNode->preserveGroupId) {
+    code = tlvEncodeBool(pEncoder, PHY_WINDOW_CODE_PRESERVE_GROUP_ID, true);
   }
 
   return code;
@@ -5318,6 +5560,9 @@ static int32_t msgToPhysiWindowNode(STlvDecoder* pDecoder, void* pObj) {
         break;
       case PHY_WINDOW_CODE_MERGE_DATA_BLOCK:
         code = tlvDecodeBool(pTlv, &pNode->mergeDataBlock);
+        break;
+      case PHY_WINDOW_CODE_PRESERVE_GROUP_ID:
+        code = tlvDecodeBool(pTlv, &pNode->preserveGroupId);
         break;
       case PHY_WINDOW_CODE_INDEF_ROWS_FUNC:
         code = tlvDecodeI8(pTlv, &pNode->indefRowsFunc);
@@ -6137,6 +6382,7 @@ enum {
   PHY_PARTITION_CODE_HAS_OUTPUT_TS_ORDER,
   PHY_PARTITION_CODE_TS_SLOTID,
   PHY_PARTITION_CODE_PHASED_MODE,
+  PHY_PARTITION_CODE_EXTWIN_GROUP_BATCH,
 };
 
 static int32_t physiPartitionNodeToMsg(const void* pObj, STlvEncoder* pEncoder) {
@@ -6161,6 +6407,10 @@ static int32_t physiPartitionNodeToMsg(const void* pObj, STlvEncoder* pEncoder) 
   if (TSDB_CODE_SUCCESS == code) {
     code = tlvEncodeBool(pEncoder, PHY_PARTITION_CODE_PHASED_MODE,
                          pNode->phasedMode);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tlvEncodeBool(pEncoder, PHY_PARTITION_CODE_EXTWIN_GROUP_BATCH,
+                         pNode->extWinGroupBatch);
   }
 
   return code;
@@ -6193,6 +6443,9 @@ static int32_t msgToPhysiPartitionNode(STlvDecoder* pDecoder, void* pObj) {
         break;
       case PHY_PARTITION_CODE_PHASED_MODE:
         code = tlvDecodeBool(pTlv, &pNode->phasedMode);
+        break;
+      case PHY_PARTITION_CODE_EXTWIN_GROUP_BATCH:
+        code = tlvDecodeBool(pTlv, &pNode->extWinGroupBatch);
         break;
       default:
         break;
@@ -7118,6 +7371,32 @@ static int32_t msgToSubplanId(STlvDecoder* pDecoder, void* pObj) {
   return code;
 }
 
+static int32_t subqueryDependenciesToMsg(const void* pObj, STlvEncoder* pEncoder) {
+  const SArray* pDeps = pObj;
+  for (int32_t i = 0; i < taosArrayGetSize(pDeps); ++i) {
+    int32_t code = tlvEncodeI32(pEncoder, TLV_TYPE_ARRAY_ELEM, *(int32_t*)taosArrayGet(pDeps, i));
+    if (TSDB_CODE_SUCCESS != code) return code;
+  }
+  return TSDB_CODE_SUCCESS;
+}
+
+static int32_t msgToSubqueryDependencies(STlv* pTlv, SArray** ppDeps) {
+  if (NULL != *ppDeps) return TSDB_CODE_QRY_INVALID_MSG;
+  *ppDeps = taosArrayInit(4, sizeof(int32_t));
+  if (NULL == *ppDeps) return terrno;
+  STlvDecoder decoder = {.bufSize = pTlv->len, .pBuf = pTlv->value};
+  STlv* pElem = NULL;
+  int32_t code = TSDB_CODE_SUCCESS;
+  tlvForEach(&decoder, pElem, code) {
+    int32_t dependency = 0;
+    if (TLV_TYPE_ARRAY_ELEM != pElem->type) return TSDB_CODE_QRY_INVALID_MSG;
+    code = tlvDecodeI32(pElem, &dependency);
+    if (TSDB_CODE_SUCCESS != code) return code;
+    if (NULL == taosArrayPush(*ppDeps, &dependency)) return terrno;
+  }
+  return code;
+}
+
 enum {
   SUBPLAN_CODE_INLINE_ATTRS = 1,
   SUBPLAN_CODE_ROOT_NODE,
@@ -7131,6 +7410,9 @@ enum {
   SUBPLAN_CODE_SUBQ,
   SUBPLAN_CODE_LOCAL_BLOCK_EXCHANGE,
   SUBPLAN_CODE_EXEC_ON_CHILD_NODE,
+  SUBPLAN_CODE_SUBQUERY_DEPS,
+  SUBPLAN_CODE_SUBQUERY_DEPS_KNOWN,
+  SUBPLAN_CODE_CHARSET,
 };
 
 static int32_t subplanInlineToMsg(const void* pObj, STlvEncoder* pEncoder) {
@@ -7220,6 +7502,15 @@ static int32_t subplanToMsg(const void* pObj, STlvEncoder* pEncoder) {
     code = tlvEncodeBool(pEncoder, SUBPLAN_CODE_EXEC_ON_CHILD_NODE, pNode->execOnChildNode);
   }
 
+  if (TSDB_CODE_SUCCESS == code && pNode->subqueryDepsKnown) {
+    code = tlvEncodeBool(pEncoder, SUBPLAN_CODE_SUBQUERY_DEPS_KNOWN, true);
+    if (TSDB_CODE_SUCCESS == code && pNode->pSubqueryDeps) {
+      code = tlvEncodeObj(pEncoder, SUBPLAN_CODE_SUBQUERY_DEPS, subqueryDependenciesToMsg, pNode->pSubqueryDeps);
+    }
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tlvEncodeCStr(pEncoder, SUBPLAN_CODE_CHARSET, pNode->charsetName);
+  }
   return code;
 }
 
@@ -7237,10 +7528,10 @@ static int32_t msgToSubplanInline(STlvDecoder* pDecoder, void* pObj) {
     code = tlvDecodeValueI32(pDecoder, &pNode->level);
   }
   if (TSDB_CODE_SUCCESS == code) {
-    code = tlvDecodeValueCStr(pDecoder, pNode->dbFName);
+    code = tlvDecodeValueCStr(pDecoder, pNode->dbFName, sizeof(pNode->dbFName));
   }
   if (TSDB_CODE_SUCCESS == code) {
-    code = tlvDecodeValueCStr(pDecoder, pNode->user);
+    code = tlvDecodeValueCStr(pDecoder, pNode->user, sizeof(pNode->user));
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = msgToQueryNodeAddrInline(pDecoder, &pNode->execNode);
@@ -7311,6 +7602,15 @@ static int32_t msgToSubplan(STlvDecoder* pDecoder, void* pObj) {
         break;
       case SUBPLAN_CODE_LOCAL_BLOCK_EXCHANGE:
         code = tlvDecodeBool(pTlv, &pNode->localBlockExchange);
+        break;
+      case SUBPLAN_CODE_SUBQUERY_DEPS_KNOWN:
+        code = tlvDecodeBool(pTlv, &pNode->subqueryDepsKnown);
+        break;
+      case SUBPLAN_CODE_SUBQUERY_DEPS:
+        code = msgToSubqueryDependencies(pTlv, &pNode->pSubqueryDeps);
+        break;
+      case SUBPLAN_CODE_CHARSET:
+        code = tlvDecodeCStr(pTlv, pNode->charsetName, sizeof(pNode->charsetName));
         break;
       case SUBPLAN_CODE_EXEC_ON_CHILD_NODE:
         code = tlvDecodeBool(pTlv, &pNode->execOnChildNode);
@@ -8007,7 +8307,8 @@ enum { QUERY_PLAN_CODE_INLINE_ATTRS = 1, QUERY_PLAN_CODE_SUBPLANS, QUERY_PLAN_CO
        QUERY_PLAN_CODE_CORRELATION_TEMPLATES, QUERY_PLAN_CODE_SUBPLAN_LINKS,
        QUERY_PLAN_CODE_SUBQ_TYPE, QUERY_PLAN_CODE_SUB_SQL, QUERY_PLAN_CODE_EXPLAIN_MODE,
        QUERY_PLAN_CODE_EXPLAIN_VERBOSE, QUERY_PLAN_CODE_EXPLAIN_RATIO,
-       QUERY_PLAN_CODE_HAS_FEDERATED_SCAN, QUERY_PLAN_CODE_HAS_SCAN };
+       QUERY_PLAN_CODE_HAS_FEDERATED_SCAN, QUERY_PLAN_CODE_HAS_SCAN,
+       QUERY_PLAN_CODE_SUBQUERY_DEPS_KNOWN, QUERY_PLAN_CODE_SUBQUERY_DEPENDENCIES };
 
 enum { SUBPLAN_LINK_CODE_PARENT = 1, SUBPLAN_LINK_CODE_CHILD };
 
@@ -8163,6 +8464,13 @@ static int32_t queryPlanToMsg(const void* pObj, STlvEncoder* pEncoder) {
   if (TSDB_CODE_SUCCESS == code) {
     code = tlvEncodeBool(pEncoder, QUERY_PLAN_CODE_HAS_SCAN, pNode->hasScan);
   }
+  if (TSDB_CODE_SUCCESS == code && pNode->subqueryDepsKnown) {
+    code = tlvEncodeBool(pEncoder, QUERY_PLAN_CODE_SUBQUERY_DEPS_KNOWN, true);
+    if (TSDB_CODE_SUCCESS == code) {
+      code = tlvEncodeObj(pEncoder, QUERY_PLAN_CODE_SUBQUERY_DEPENDENCIES,
+                          subqueryDependenciesToMsg, pNode->pSubqueryDeps);
+    }
+  }
   if ((qDebugFlag & DEBUG_DEBUG) && TSDB_CODE_SUCCESS == code) {
     qDebug("FQ-MSG: encoded query plan qid=0x%" PRIx64 " numOfSubplans=%d levels=%d subqueries=%d",
            pNode->queryId, pNode->numOfSubplans, pNode->pSubplans ? LIST_LENGTH(pNode->pSubplans) : 0,
@@ -8245,6 +8553,12 @@ static int32_t msgToQueryPlan(STlvDecoder* pDecoder, void* pObj) {
         break;
       case QUERY_PLAN_CODE_HAS_SCAN:
         code = tlvDecodeBool(pTlv, &pNode->hasScan);
+        break;
+      case QUERY_PLAN_CODE_SUBQUERY_DEPS_KNOWN:
+        code = tlvDecodeBool(pTlv, &pNode->subqueryDepsKnown);
+        break;
+      case QUERY_PLAN_CODE_SUBQUERY_DEPENDENCIES:
+        code = msgToSubqueryDependencies(pTlv, &pNode->pSubqueryDeps);
         break;
       default:
         break;
@@ -8344,6 +8658,19 @@ enum {
   LOGIC_SCAN_CODE_EXT_TABLE,
   LOGIC_SCAN_CODE_PUSHED_CONDITIONS,  // reserved (was pPushedConditions; field removed)
   LOGIC_SCAN_CODE_PUSHDOWN_FLAGS,     // reserved
+  LOGIC_SCAN_CODE_RANGE_START,
+  LOGIC_SCAN_CODE_RANGE_END,
+  LOGIC_SCAN_CODE_RANGE_PRECISION,
+  LOGIC_SCAN_CODE_REFERENCE_KIND,
+  LOGIC_SCAN_CODE_REFERENCE_ALIAS,
+  LOGIC_SCAN_CODE_REFERENCE_TIME,
+  LOGIC_SCAN_CODE_REFERENCE_UID,
+  LOGIC_SCAN_CODE_REFERENCE_VERSION,
+  LOGIC_SCAN_CODE_REFERENCE_FILTER,
+  LOGIC_SCAN_CODE_REFERENCE_VGROUP,
+  LOGIC_SCAN_CODE_REFERENCE_ENDPOINTS,
+  LOGIC_SCAN_CODE_REFERENCE_DATABASE,
+
 };
 
 static int32_t logicScanNodeToMsg(const void* pObj, STlvEncoder* pEncoder) {
@@ -8358,6 +8685,45 @@ static int32_t logicScanNodeToMsg(const void* pObj, STlvEncoder* pEncoder) {
   if (TSDB_CODE_SUCCESS == code && pNode->pExtTableNode != NULL) {
     code = tlvEncodeObj(pEncoder, LOGIC_SCAN_CODE_EXT_TABLE, nodeToMsg, pNode->pExtTableNode);
   }
+  if (NULL != pNode->pExtTableNode &&
+      EXT_SQL_DIALECT_INFLUXDB_1_8 == ((const SExtTableNode*)pNode->pExtTableNode)->capability.dialect) {
+    if (TSDB_CODE_SUCCESS == code) {
+      code = tlvEncodeI64(pEncoder, LOGIC_SCAN_CODE_RANGE_START, pNode->scanRange.skey);
+    }
+    if (TSDB_CODE_SUCCESS == code) {
+      code = tlvEncodeI64(pEncoder, LOGIC_SCAN_CODE_RANGE_END, pNode->scanRange.ekey);
+    }
+    if (TSDB_CODE_SUCCESS == code) {
+      code = tlvEncodeI8(pEncoder, LOGIC_SCAN_CODE_RANGE_PRECISION, pNode->node.precision);
+    }
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tlvEncodeI8(pEncoder, LOGIC_SCAN_CODE_REFERENCE_KIND, pNode->bindingKind);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tlvEncodeCStr(pEncoder, LOGIC_SCAN_CODE_REFERENCE_ALIAS, pNode->referenceAlias);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tlvEncodeCStr(pEncoder, LOGIC_SCAN_CODE_REFERENCE_TIME, pNode->timeColumn);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tlvEncodeU64(pEncoder, LOGIC_SCAN_CODE_REFERENCE_UID, pNode->referenceUid);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tlvEncodeI32(pEncoder, LOGIC_SCAN_CODE_REFERENCE_VERSION, pNode->expectedRversion);
+  }
+  if (TSDB_CODE_SUCCESS == code && pNode->pReferenceFilter != NULL) {
+    code = tlvEncodeObj(pEncoder, LOGIC_SCAN_CODE_REFERENCE_FILTER, nodeToMsg, pNode->pReferenceFilter);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tlvEncodeI32(pEncoder, LOGIC_SCAN_CODE_REFERENCE_VGROUP, pNode->referenceVgId);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tlvEncodeObj(pEncoder, LOGIC_SCAN_CODE_REFERENCE_ENDPOINTS, epSetToMsg, &pNode->referenceEpSet);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tlvEncodeCStr(pEncoder, LOGIC_SCAN_CODE_REFERENCE_DATABASE, pNode->referenceDbFName);
+  }
   return code;
 }
 
@@ -8365,6 +8731,7 @@ static int32_t msgToLogicScanNode(STlvDecoder* pDecoder, void* pObj) {
   SScanLogicNode* pNode = (SScanLogicNode*)pObj;
   int32_t         code = TSDB_CODE_SUCCESS;
   STlv*           pTlv = NULL;
+  pNode->scanRange = TSWINDOW_INITIALIZER;
   tlvForEach(pDecoder, pTlv, code) {
     switch (pTlv->type) {
       case LOGIC_SCAN_CODE_BASE_NODE:
@@ -8378,6 +8745,42 @@ static int32_t msgToLogicScanNode(STlvDecoder* pDecoder, void* pObj) {
         break;
       case LOGIC_SCAN_CODE_EXT_TABLE:
         code = msgToNodeFromTlv(pTlv, (void**)&pNode->pExtTableNode);
+        break;
+      case LOGIC_SCAN_CODE_RANGE_START:
+        code = tlvDecodeI64(pTlv, &pNode->scanRange.skey);
+        break;
+      case LOGIC_SCAN_CODE_RANGE_END:
+        code = tlvDecodeI64(pTlv, &pNode->scanRange.ekey);
+        break;
+      case LOGIC_SCAN_CODE_RANGE_PRECISION:
+        code = tlvDecodeI8(pTlv, (int8_t*)&pNode->node.precision);
+        break;
+      case LOGIC_SCAN_CODE_REFERENCE_KIND:
+        code = tlvDecodeI8(pTlv, &pNode->bindingKind);
+        break;
+      case LOGIC_SCAN_CODE_REFERENCE_ALIAS:
+        code = tlvDecodeCStr(pTlv, pNode->referenceAlias, sizeof(pNode->referenceAlias));
+        break;
+      case LOGIC_SCAN_CODE_REFERENCE_TIME:
+        code = tlvDecodeCStr(pTlv, pNode->timeColumn, sizeof(pNode->timeColumn));
+        break;
+      case LOGIC_SCAN_CODE_REFERENCE_UID:
+        code = tlvDecodeU64(pTlv, &pNode->referenceUid);
+        break;
+      case LOGIC_SCAN_CODE_REFERENCE_VERSION:
+        code = tlvDecodeI32(pTlv, &pNode->expectedRversion);
+        break;
+      case LOGIC_SCAN_CODE_REFERENCE_FILTER:
+        code = msgToNodeFromTlv(pTlv, (void**)&pNode->pReferenceFilter);
+        break;
+      case LOGIC_SCAN_CODE_REFERENCE_VGROUP:
+        code = tlvDecodeI32(pTlv, &pNode->referenceVgId);
+        break;
+      case LOGIC_SCAN_CODE_REFERENCE_ENDPOINTS:
+        code = tlvDecodeObjFromTlv(pTlv, msgToEpSet, &pNode->referenceEpSet);
+        break;
+      case LOGIC_SCAN_CODE_REFERENCE_DATABASE:
+        code = tlvDecodeCStr(pTlv, pNode->referenceDbFName, sizeof(pNode->referenceDbFName));
         break;
       default:
         break;
@@ -8617,6 +9020,7 @@ enum {
   LOGIC_PARTITION_CODE_PARTITION_KEYS,
   LOGIC_PARTITION_CODE_AGG_FUNCS,
   LOGIC_PARTITION_CODE_PHASED_MODE,
+  LOGIC_PARTITION_CODE_EXTWIN_GROUP_BATCH,
 };
 
 static int32_t logicPartitionNodeToMsg(const void* pObj, STlvEncoder* pEncoder) {
@@ -8631,6 +9035,10 @@ static int32_t logicPartitionNodeToMsg(const void* pObj, STlvEncoder* pEncoder) 
   if (TSDB_CODE_SUCCESS == code) {
     code = tlvEncodeBool(pEncoder, LOGIC_PARTITION_CODE_PHASED_MODE,
                          pNode->phasedMode);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tlvEncodeBool(pEncoder, LOGIC_PARTITION_CODE_EXTWIN_GROUP_BATCH,
+                         pNode->extWinGroupBatch);
   }
   return code;
 }
@@ -8653,8 +9061,53 @@ static int32_t msgToLogicPartitionNode(STlvDecoder* pDecoder, void* pObj) {
       case LOGIC_PARTITION_CODE_PHASED_MODE:
         code = tlvDecodeBool(pTlv, &pNode->phasedMode);
         break;
+      case LOGIC_PARTITION_CODE_EXTWIN_GROUP_BATCH:
+        code = tlvDecodeBool(pTlv, &pNode->extWinGroupBatch);
+        break;
       default:
         break;
+    }
+  }
+  return code;
+}
+
+enum {
+  REFERENCE_DECL_CODE_ALIAS = 1,
+  REFERENCE_DECL_CODE_SOURCE,
+  REFERENCE_DECL_CODE_DATABASE,
+  REFERENCE_DECL_CODE_SCHEMA,
+  REFERENCE_DECL_CODE_OBJECT,
+  REFERENCE_DECL_CODE_TIME_COLUMN,
+  REFERENCE_DECL_CODE_SOURCE_TYPE,
+};
+
+static int32_t referenceDeclToMsg(const void* pObj, STlvEncoder* pEncoder) {
+  const SReferenceEntry* pEntry = &((const SReferenceDeclNode*)pObj)->entry;
+  int32_t code = TSDB_CODE_SUCCESS;
+  if (code == TSDB_CODE_SUCCESS) code = tlvEncodeCStr(pEncoder, REFERENCE_DECL_CODE_ALIAS, pEntry->alias);
+  if (code == TSDB_CODE_SUCCESS) code = tlvEncodeCStr(pEncoder, REFERENCE_DECL_CODE_SOURCE, pEntry->sourceName);
+  if (code == TSDB_CODE_SUCCESS) code = tlvEncodeCStr(pEncoder, REFERENCE_DECL_CODE_DATABASE, pEntry->dbName);
+  if (code == TSDB_CODE_SUCCESS) code = tlvEncodeCStr(pEncoder, REFERENCE_DECL_CODE_SCHEMA, pEntry->schemaName);
+  if (code == TSDB_CODE_SUCCESS) code = tlvEncodeCStr(pEncoder, REFERENCE_DECL_CODE_OBJECT, pEntry->objectName);
+  if (code == TSDB_CODE_SUCCESS) code = tlvEncodeCStr(pEncoder, REFERENCE_DECL_CODE_TIME_COLUMN, pEntry->timeColumn);
+  if (code == TSDB_CODE_SUCCESS) code = tlvEncodeI8(pEncoder, REFERENCE_DECL_CODE_SOURCE_TYPE, pEntry->sourceType);
+  return code;
+}
+
+static int32_t msgToReferenceDecl(STlvDecoder* pDecoder, void* pObj) {
+  SReferenceEntry* pEntry = &((SReferenceDeclNode*)pObj)->entry;
+  STlv* pTlv = NULL;
+  int32_t code = TSDB_CODE_SUCCESS;
+  tlvForEach(pDecoder, pTlv, code) {
+    switch (pTlv->type) {
+      case REFERENCE_DECL_CODE_ALIAS: code = tlvDecodeCStr(pTlv, pEntry->alias, sizeof(pEntry->alias)); break;
+      case REFERENCE_DECL_CODE_SOURCE: code = tlvDecodeCStr(pTlv, pEntry->sourceName, sizeof(pEntry->sourceName)); break;
+      case REFERENCE_DECL_CODE_DATABASE: code = tlvDecodeCStr(pTlv, pEntry->dbName, sizeof(pEntry->dbName)); break;
+      case REFERENCE_DECL_CODE_SCHEMA: code = tlvDecodeCStr(pTlv, pEntry->schemaName, sizeof(pEntry->schemaName)); break;
+      case REFERENCE_DECL_CODE_OBJECT: code = tlvDecodeCStr(pTlv, pEntry->objectName, sizeof(pEntry->objectName)); break;
+      case REFERENCE_DECL_CODE_TIME_COLUMN: code = tlvDecodeCStr(pTlv, pEntry->timeColumn, sizeof(pEntry->timeColumn)); break;
+      case REFERENCE_DECL_CODE_SOURCE_TYPE: code = tlvDecodeI8(pTlv, &pEntry->sourceType); break;
+      default: break;
     }
   }
   return code;
@@ -8664,6 +9117,9 @@ static int32_t specificNodeToMsg(const void* pObj, STlvEncoder* pEncoder) {
   // nodesWarn("specificNodeToMsg node = %s, before tlv count = %d", nodesNodeName(nodeType(pObj)), pEncoder->tlvCount);
   int32_t code = TSDB_CODE_SUCCESS;
   switch (nodeType(pObj)) {
+    case QUERY_NODE_REFERENCE_DECL:
+      code = referenceDeclToMsg(pObj, pEncoder);
+      break;
     case QUERY_NODE_OUTER_REF:
       code = outerRefNodeToMsg(pObj, pEncoder);
       break;
@@ -8924,6 +9380,9 @@ static int32_t specificNodeToMsg(const void* pObj, STlvEncoder* pEncoder) {
 static int32_t msgToSpecificNode(STlvDecoder* pDecoder, void* pObj) {
   int32_t code = TSDB_CODE_SUCCESS;
   switch (nodeType(pObj)) {
+    case QUERY_NODE_REFERENCE_DECL:
+      code = msgToReferenceDecl(pDecoder, pObj);
+      break;
     case QUERY_NODE_OUTER_REF:
       code = msgToOuterRefNode(pDecoder, pObj);
       break;
@@ -9334,13 +9793,22 @@ int32_t nodesNodeToMsg(const SNode* pNode, char** pMsg, int32_t* pLen) {
   return code;
 }
 
-int32_t nodesMsgToNode(const char* pMsg, int32_t len, SNode** pNode) {
+int32_t nodesMsgToNodeWithValidator(const char* pMsg, int32_t len, SNode** pNode,
+                                    int32_t (*validator)(const SNode*)) {
   if (NULL == pNode) return TSDB_CODE_INVALID_MSG_LEN;
   *pNode = NULL;
   if (NULL == pMsg || len <= 0) return TSDB_CODE_INVALID_MSG_LEN;
 
   STlvDecoder decoder = {.bufSize = len, .offset = 0, .pBuf = pMsg};
-  int32_t     code = msgToNode(&decoder, (void**)pNode);
+  SNodeMsgValidation validation = {.validate = validator, .code = TSDB_CODE_SUCCESS};
+  SNodeMsgValidation* previousValidation = nodeMsgValidation;
+  nodeMsgValidation = validator != NULL ? &validation : NULL;
+  // Keep decoding after validation fails so normal tree ownership handles cleanup.
+  int32_t code = msgToNode(&decoder, (void**)pNode);
+  nodeMsgValidation = previousValidation;
+  if (code == TSDB_CODE_SUCCESS) {
+    code = validation.code;
+  }
   if (TSDB_CODE_SUCCESS != code) {
     nodesDestroyNode(*pNode);
     *pNode = NULL;
@@ -9348,4 +9816,8 @@ int32_t nodesMsgToNode(const char* pMsg, int32_t len, SNode** pNode) {
 
   terrno = code;
   return code;
+}
+
+int32_t nodesMsgToNode(const char* pMsg, int32_t len, SNode** pNode) {
+  return nodesMsgToNodeWithValidator(pMsg, len, pNode, NULL);
 }

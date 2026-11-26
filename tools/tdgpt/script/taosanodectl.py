@@ -39,6 +39,11 @@ COMMANDS = {
     ("resource", "list"): "resource-list",
     ("resource", "verify"): "resource-verify",
     ("resource", "delete"): "resource-delete",
+    ("resource", "runtime-status"): "runtime-status",
+    ("resource", "maintenance-status"): "runtime-maintenance-status",
+    ("resource", "upgrade"): "runtime-upgrade",
+    ("resource", "upgrade-status"): "runtime-upgrade-status",
+    ("resource", "upgrade-recover"): "runtime-upgrade-recover",
 }
 
 VERSION_BANNER = "TDgpt - TDengine TSDB(c) Time-Series Data Analytics Platform (ver {version})"
@@ -95,7 +100,7 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--foreground", action="store_true")
     parser.add_argument("--full-preflight", action="store_true")
     parser.add_argument("--python-runtime-dir", default="")
-    parser.add_argument("--release", default="1.0.0")
+    parser.add_argument("--release", default=None)
     parser.add_argument("--resource-base-url", default="")
     parser.add_argument("--format", choices=["table", "json"], default="table")
     return parser
@@ -125,11 +130,13 @@ def translate_args(args: argparse.Namespace) -> list[str]:
         _add_optional_arg(translated, "--expected-sha256", args.expected_sha256)
         _add_optional_arg(translated, "--replace", args.replace)
         _add_optional_arg(translated, "--python-runtime-dir", args.python_runtime_dir)
-    if args.scope == "resource" and args.action in {"check", "apply"}:
+    if args.scope == "resource" and args.action in {"check", "apply", "runtime-status", "upgrade"}:
         _add_optional_arg(translated, "--release", args.release)
         _add_optional_arg(translated, "--resource-base-url", args.resource_base_url)
         _add_optional_arg(translated, "--replace", args.replace)
         _add_optional_arg(translated, "--python-runtime-dir", args.python_runtime_dir)
+    if args.scope == "resource" and args.action == "upgrade":
+        _add_optional_arg(translated, "--expected-sha256", args.expected_sha256)
     if args.scope == "resource" and args.action in {"list", "check", "apply", "import", "verify"} and args.format == "json":
         translated.extend(["--format", "json"])
     # `model status` is the machine-readable liveness source the RESTful service

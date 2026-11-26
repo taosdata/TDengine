@@ -108,6 +108,7 @@ int32_t vnodeGetCtbNum(SVnode *pVnode, int64_t suid, int64_t *num);
 int32_t vnodeGetStbColumnNum(SVnode *pVnode, tb_uid_t suid, int *num);
 int32_t vnodeGetStbInfo(SVnode *pVnode, tb_uid_t suid, int64_t *keep, int8_t *flags);
 int32_t vnodeGetTimeSeriesNum(SVnode *pVnode, int64_t *num);
+bool    vnodeIsTimeSeriesExcluded(SVnode *pVnode);
 int32_t vnodeGetAllCtbNum(SVnode *pVnode, int64_t *num);
 
 int32_t vnodeGetTableSchema(void *pVnode, int64_t uid, STSchema **pSchema, int64_t *suid, SSchemaWrapper **pTagSchema);
@@ -150,7 +151,7 @@ int32_t     metaReaderGetTableEntryByVersionUid(SMetaReader *pReader, int64_t ve
 int32_t     metaReaderGetTableEntryByUidCache(SMetaReader *pReader, tb_uid_t uid);
 int32_t     metaGetTbnameByIdIfTableNotExist(SMeta *pMeta, int64_t uid, char *tbname);
 int32_t     metaGetTableTags(void *pVnode, uint64_t suid, SArray *uidList, int64_t txnId);
-int32_t     metaGetTableTagsByUidsVersion(void *pVnode, int64_t suid, SArray *uidList, int64_t version);
+int32_t     metaGetTableTagsByUidsVersion(void *pVnode, int64_t suid, SArray *uidList, int64_t version, int64_t txnId);
 int32_t     metaReadNext(SMetaReader *pReader);
 const void *metaGetTableTagVal(const void *tag, int16_t type, STagVal *tagVal);
 int32_t     metaGetTableNameByUid(void *pVnode, uint64_t uid, char *tbName, int64_t txnId);
@@ -186,10 +187,6 @@ tb_uid_t metaGetTableEntryUidByName(SMeta *pMeta, const char *name);
 int32_t  metaGetCachedTbGroup(void *pVnode, tb_uid_t suid, const uint8_t *pKey, int32_t keyLen, SArray **pList);
 int32_t  metaPutTbGroupToCache(void *pVnode, uint64_t suid, const void *pKey, int32_t keyLen, void *pPayload,
                                int32_t payloadLen);
-bool     metaTbInFilterCache(SMeta *pMeta, const void *key, int8_t type);
-int32_t  metaPutTbToFilterCache(SMeta *pMeta, const void *key, int8_t type);
-int32_t  metaSizeOfTbFilterCache(SMeta *pMeta, int8_t type);
-int32_t  metaInitTbFilterCache(SMeta *pMeta);
 
 int32_t metaGetStbStats(void *pVnode, int64_t uid, int64_t *numOfTables, int32_t *numOfCols, int8_t *flags);
 
@@ -224,14 +221,29 @@ int32_t  tsdbSetTableList2(void *pReader, const void *pTableList, int32_t num);
 int32_t  tsdbReaderSetId(void *pReader, const char *idstr);
 void     tsdbReaderClose2(void *pReader);
 int32_t  tsdbNextDataBlock2(void *pReader, bool *hasNext);
-int32_t  tsdbRetrieveDatablockSMA2(STsdbReader *pReader, SSDataBlock *pDataBlock, bool *allHave, bool *hasNullSMA);
+// sourceRows is the physical block size, independent of candidate rows.
+int32_t  tsdbRetrieveDatablockSMA2(void *reader, SSDataBlock *block,
+                                 bool *allHave, bool *hasNullSMA,
+                                 int64_t *sourceRows);
+// Borrowed view/map preserve output slots; only loaded dependencies are usable.
+// Invalidated by Retrieve, Release, Next, reset or candidate error cleanup.
+int32_t  tsdbReaderGetFilterBlock(void *reader, SSDataBlock **view,
+                                 const int32_t **rowMap);
+// Use a physical row in the current candidate after complete filtering.
+int32_t  tsdbReaderSetLastScanCandidate(void *reader, int32_t row);
+// Requires the candidate held by the same Next, without intervening Release.
+// Rows are strictly ascending and unique. Success and failure release the lock;
+// invalid reader/output arguments are rejected before acquiring ownership.
+int32_t  tsdbReaderRetrieveSelectedDataBlock(void *reader,
+                                           const int32_t *rows, int32_t count,
+                                           SSDataBlock **block);
 void     tsdbReleaseDataBlock2(void *pReader);
 int32_t  tsdbRetrieveDataBlock2(void *pReader, SSDataBlock **pBlock);
 int32_t  tsdbReaderReset2(void *pReader, SQueryTableDataCond *pCond);
 int32_t  tsdbReaderSetBlockSmaMode(void *pReader, ETsdReaderBlockSmaMode mode);
 int32_t  tsdbGetFileBlocksDistInfo2(STsdbReader *pReader, STableBlockDistInfo *pTableBlockInfo);
 void     tsdbGetDataBlock(STsdbReader* pReader, SSDataBlock** pBlock);
-void     tsdbSetDataBlock(STsdbReader* pReader, SSDataBlock* pBlock);
+int32_t  tsdbSetDataBlock(STsdbReader* pReader, SSDataBlock* pBlock);
 int64_t  tsdbGetNumOfRowsInMemTable2(STsdbReader *pHandle, uint32_t *rows);
 void    *tsdbGetIdx2(SMeta *pMeta);
 void    *tsdbGetIvtIdx2(SMeta *pMeta);

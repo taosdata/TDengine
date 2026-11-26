@@ -501,7 +501,7 @@ static EDealRes walkPhase1CorrelCheck(SNode* pNode, void* pContext) {
   if (QUERY_NODE_COLUMN != nodeType(pNode)) return DEAL_RES_CONTINUE;
   SPhase1CorrelCxt* pCxt = (SPhase1CorrelCxt*)pContext;
   SColumnNode*      pCol = (SColumnNode*)pNode;
-  if ('\0' == pCol->tableAlias[0]) return DEAL_RES_CONTINUE;
+  if (pCol->isTbnamePlaceholder || '\0' == pCol->tableAlias[0]) return DEAL_RES_CONTINUE;
   if (pCxt->pInnerAlias && pCxt->pInnerAlias[0] != '\0' &&
       0 == strcmp(pCxt->pInnerAlias, pCol->tableAlias))
     return DEAL_RES_CONTINUE;
@@ -560,6 +560,24 @@ static EDealRes collectMetaKeyFromExprImpl(SNode* pNode, void* pContext) {
       return collectMetaKeyFromFunction(pCxt, (SFunctionNode*)pNode);
     case QUERY_NODE_REAL_TABLE:
       return collectMetaKeyFromRealTable(pCxt, (SRealTableNode*)pNode);
+    case QUERY_NODE_TIME_ALIGN_TABLE: {
+      STimeAlignTableNode* pAlign = (STimeAlignTableNode*)pNode;
+      if (pAlign->pRealTableNode != NULL) {
+        return DEAL_RES_CONTINUE;  // The type-aware walker visits the input child.
+      }
+      SRealTableNode* pReal = NULL;
+      if (nodesMakeNode(QUERY_NODE_REAL_TABLE, (SNode**)&pReal) != TSDB_CODE_SUCCESS) {
+        pCxt->errCode = terrno;
+        return DEAL_RES_ERROR;
+      }
+      tstrncpy(pReal->table.dbName, pAlign->dbName, sizeof(pReal->table.dbName));
+      tstrncpy(pReal->table.tableName, pAlign->tbName, sizeof(pReal->table.tableName));
+      tstrncpy(pReal->table.tableAlias, pAlign->table.tableAlias, sizeof(pReal->table.tableAlias));
+      pReal->numPathSegments = (pAlign->dbName[0] != '\0') ? 2 : 1;
+      EDealRes res = collectMetaKeyFromRealTable(pCxt, pReal);
+      nodesDestroyNode((SNode*)pReal);
+      return res;
+    }
     case QUERY_NODE_TEMP_TABLE:
       return collectMetaKeyFromTempTable(pCxt, (STempTableNode*)pNode);
     case QUERY_NODE_OPERATOR:
@@ -697,6 +715,13 @@ static int32_t collectMetaKeyFromSeriesList(SCollectMetaKeyCxt* pCxt, SNodeList*
   SNode*  pSeriesNode = NULL;
 
   FOREACH(pSeriesNode, pSeriesList) {
+    if (nodeType(pSeriesNode) == QUERY_NODE_REFERENCE_DECL) {
+      const SReferenceEntry* pEntry = &((SReferenceDeclNode*)pSeriesNode)->entry;
+      PAR_ERR_RET(reserveExtSourceInCache(pEntry->sourceName, pCxt->pMetaCache));
+      PAR_ERR_RET(reserveExtTableMetaInCache(pEntry->sourceName, pEntry->dbName, pEntry->schemaName,
+                                             pEntry->objectName, pCxt->pMetaCache));
+      continue;
+    }
     SSeriesDeclNode* pDecl = (SSeriesDeclNode*)pSeriesNode;
     PAR_ERR_RET(reserveExtSourceInCache(pDecl->sourceName, pCxt->pMetaCache));
     PAR_ERR_RET(reserveExtTableMetaInCache(pDecl->sourceName, pDecl->dbName, "",
@@ -706,15 +731,17 @@ static int32_t collectMetaKeyFromSeriesList(SCollectMetaKeyCxt* pCxt, SNodeList*
   return code;
 }
 
-static bool isSeriesAliasInCreateVTable(SNodeList* pSeriesList, const char* pRefTable) {
+static bool isSeriesAliasInCreateVTable(SNodeList* pSeriesList, const char* pRefTable, int8_t parts) {
   if (NULL == pSeriesList || NULL == pRefTable) {
     return false;
   }
 
   SNode* pSNode = NULL;
   FOREACH(pSNode, pSeriesList) {
-    SSeriesDeclNode* pDecl = (SSeriesDeclNode*)pSNode;
-    if (0 == strcmp(pRefTable, pDecl->alias)) {
+    if (nodeType(pSNode) == QUERY_NODE_REFERENCE_DECL && parts != 2) continue;
+    const char* alias = nodeType(pSNode) == QUERY_NODE_REFERENCE_DECL
+                            ? ((SReferenceDeclNode*)pSNode)->entry.alias : ((SSeriesDeclNode*)pSNode)->alias;
+    if (0 == strcmp(pRefTable, alias)) {
       return true;
     }
   }
@@ -768,7 +795,7 @@ static int32_t collectMetaKeyFromCreateVTable(SCollectMetaKeyCxt* pCxt, SCreateV
       continue;
     }
 
-    if (isSeriesAliasInCreateVTable(pStmt->pSeriesList, pOptions->refTable)) {
+    if (isSeriesAliasInCreateVTable(pStmt->pSeriesList, pOptions->refTable, pOptions->refPathParts)) {
       continue;
     }
 
@@ -843,6 +870,20 @@ static int32_t collectMetaKeyFromCreateVSubTable(SCollectMetaKeyCxt* pCxt, SCrea
         break;
       }
 
+      // a bare `name TYPE` own-column declaration carries no binding: there is no source
+      // table whose meta, vgroup or read auth could be reserved (it is created unbound,
+      // same as after ALTER VTABLE ... SET NULL)
+      if (vtableColRefWithoutBinding(pColRef)) {
+        continue;
+      }
+      // binding artifacts without a complete reference (a condition or a partial path,
+      // e.g. a source name without a table name): unreachable through the grammar; fail
+      // closed here instead of reserving meta for whatever partial names are set
+      if (vtableColRefIncomplete(pColRef)) {
+        code = TSDB_CODE_PAR_INVALID_COLUMN;
+        break;
+      }
+
       // Expand empty refDbName to vtable's database for 2-segment refs
       if (pColRef->refDbName[0] == '\0' && pColRef->refTableName[0] != '\0' && pColRef->refSourceName[0] == '\0') {
         tstrncpy(pColRef->refDbName, pStmt->dbName, TSDB_DB_NAME_LEN);
@@ -858,7 +899,7 @@ static int32_t collectMetaKeyFromCreateVSubTable(SCollectMetaKeyCxt* pCxt, SCrea
       }
 
       // Check if refTableName matches a SERIES alias - skip internal table lookup if so
-      if (isSeriesAliasInCreateVTable(pStmt->pSeriesList, pColRef->refTableName)) {
+      if (isSeriesAliasInCreateVTable(pStmt->pSeriesList, pColRef->refTableName, pColRef->refPathParts)) {
         continue;
       }
 
@@ -886,7 +927,7 @@ static int32_t collectMetaKeyFromCreateVSubTable(SCollectMetaKeyCxt* pCxt, SCrea
                                                pOptions->refSchema, pOptions->refTable, pCxt->pMetaCache));
         continue;
       }
-      if (pOptions && isSeriesAliasInCreateVTable(pStmt->pSeriesList, pOptions->refTable)) {
+      if (pOptions && isSeriesAliasInCreateVTable(pStmt->pSeriesList, pOptions->refTable, pOptions->refPathParts)) {
         continue;
       }
       if (pOptions && pOptions->hasRef && pOptions->refSourceName[0] == '\0') {
@@ -1288,6 +1329,14 @@ static int32_t collectMetaKeyFromAlterStable(SCollectMetaKeyCxt* pCxt, SAlterTab
 static int32_t collectMetaKeyFromAlterVtable(SCollectMetaKeyCxt* pCxt, SAlterTableStmt* pStmt) {
   PAR_ERR_RET(collectMetaKeyFromAlterTable(pCxt, pStmt));
 
+  if ((pStmt->alterType == TSDB_ALTER_TABLE_ADD_REFERENCE ||
+       pStmt->alterType == TSDB_ALTER_TABLE_MODIFY_REFERENCE) && pStmt->pSeriesDecl) {
+    SReferenceEntry* pEntry = &((SReferenceDeclNode*)pStmt->pSeriesDecl)->entry;
+    PAR_ERR_RET(reserveExtSourceInCache(pEntry->sourceName, pCxt->pMetaCache));
+    PAR_ERR_RET(reserveExtTableMetaInCache(pEntry->sourceName, pEntry->dbName, pEntry->schemaName,
+                                           pEntry->objectName, pCxt->pMetaCache));
+  }
+
   if (pStmt->alterType == TSDB_ALTER_TABLE_ADD_SERIES && pStmt->pSeriesDecl) {
     SSeriesDeclNode* pDecl = (SSeriesDeclNode*)pStmt->pSeriesDecl;
     PAR_ERR_RET(reserveExtSourceInCache(pDecl->sourceName, pCxt->pMetaCache));
@@ -1518,7 +1567,11 @@ static int32_t collectMetaKeyFromCreateStream(SCollectMetaKeyCxt* pCxt, SCreateS
     PAR_ERR_RET(reserveDbCfgInCache(pCxt->pParseCxt->acctId, pStmt->targetDbName, pCxt->pMetaCache));
   }
   PAR_ERR_RET(reserveDbCfgInCache(pCxt->pParseCxt->acctId, pStmt->streamDbName, pCxt->pMetaCache));
-  SRealTableNode* pTriggerTable = (SRealTableNode*)((SStreamTriggerNode*)pStmt->pTrigger)->pTrigerTable;
+  SNode* pTriggerSource = ((SStreamTriggerNode*)pStmt->pTrigger)->pTrigerTable;
+  if (pTriggerSource != NULL && nodeType(pTriggerSource) == QUERY_NODE_TIME_ALIGN_TABLE) {
+    pTriggerSource = ((STimeAlignTableNode*)pTriggerSource)->pRealTableNode;
+  }
+  SRealTableNode* pTriggerTable = (SRealTableNode*)pTriggerSource;
   if (pTriggerTable) {
     SCollectMetaKeyFromExprCxt cxt = {
         .pComCxt = pCxt, .hasLastRowOrLast = false, .tbnameCollect = true, .errCode = TSDB_CODE_SUCCESS};

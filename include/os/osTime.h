@@ -108,6 +108,9 @@ static FORCE_INLINE int64_t taosGetMonoTimestampNs() {
 }
 
 char      *taosStrpTime(const char *buf, const char *fmt, struct tm *tm);
+// Retain the instant when formatting historical offset folds on Windows.
+size_t taosStrfTimeAt(char *s, size_t size, const char *format,
+                      const time_t *stamp, timezone_t tz);
 size_t     taosStrfTime(char *s, size_t maxsize, char const *format, struct tm const *t);
 struct tm *taosLocalTime(const time_t *timep, struct tm *result, char *buf, int32_t bufSize, timezone_t tz);
 struct tm *taosGmTimeR(const time_t *timep, struct tm *result);

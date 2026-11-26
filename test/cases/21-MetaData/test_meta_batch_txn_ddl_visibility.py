@@ -874,6 +874,17 @@ class TestBatchMetaTxnDdlVisibility:
         assert 't1_new' not in self._cols("ct1", s2)
         assert 't1_new' in self._cols("ct1")
 
+        # Resolution through the shared catalog cache must follow the txn-local STB schema,
+        # and the uncommitted overlay must never leak into the shared cache seen by s2.
+        tdSql.query("select t1_new from ct1")
+        tdSql.checkRows(1)
+        tdSql.checkData(0, 0, 1)
+        s2.query("select t1 from ct1")
+        assert s2.queryRows == 1
+        s2.error("select t1_new from ct1")
+        assert 't1_new' not in self._cols("ct1", s2)
+        assert 't1_new' not in self._cols("stb", s2)
+
         tdSql.execute("COMMIT")
         assert 't1_new' in self._cols("ct1", s2)
         assert 't1_new' in self._cols("stb", s2)
@@ -1616,6 +1627,528 @@ class TestBatchMetaTxnDdlVisibility:
     # Test entry
     # =========================================================================
 
+    # =========================================================================
+    # Helpers for sections N / O
+    # =========================================================================
+
+    def _rows(self, sql, session=None):
+        s = session or tdSql
+        s.query(sql)
+        return [tuple(s.queryResult[i]) for i in range(s.queryRows)]
+
+    def _ok(self, sql, session=None):
+        """True if the statement succeeds (no retry: a missing column fails fast)."""
+        s = session or tdSql
+        try:
+            return s.query(sql, queryTimes=1, exit=False) is not False
+        except Exception:
+            return False
+
+    def _refill_shared_cache(self, s2, tables):
+        """Another session re-reads the tables, putting their COMMITTED meta into the shared
+        catalog cache. Doing it after the txn DDL makes the race of the original intermittent
+        failure deterministic."""
+        for t in tables:
+            s2.query(f"select * from {t}")
+
+    # =========================================================================
+    # Section N: shared-cache isolation
+    # =========================================================================
+
+    def check_n1_child_follows_txn_stb_after_cache_refill(self):
+        """A child table must follow its super table's txn-local schema even when another
+        session has just refilled the shared catalog cache with the committed schema."""
+        self._reset()
+        tdLog.info("======== test_n1_child_follows_txn_stb_after_cache_refill")
+        for virtual in (False, True):
+            self._reset()
+            if virtual:
+                self._setup_vtable_sources()
+                tdSql.execute("create table stb (ts timestamp, c1 int, c2 int) tags(t1 int, t2 int) virtual 1")
+                tdSql.execute("create vtable ct1 (c1 from txn_vis_db.src_ct1.c1) using stb tags(1, 2)")
+            else:
+                tdSql.execute("create table stb (ts timestamp, c1 int, c2 int) tags(t1 int, t2 int)")
+                tdSql.execute("create table ct1 using stb tags(1, 2)")
+                tdSql.execute("insert into ct1 values(now, 10, 20)")
+            s2 = self._other()
+            self._refill_shared_cache(s2, ["stb", "ct1"])
+
+            tdSql.execute("BEGIN")
+            tdSql.execute("alter table stb add tag t3 int")
+            tdSql.execute("alter table stb rename tag t1 t1_new")
+            tdSql.execute("alter table stb add column c3 int")
+            tdSql.execute("alter table stb drop tag t2")
+            self._refill_shared_cache(s2, ["stb", "ct1"])   # committed schema back into the cache
+
+            cols = self._cols("ct1")
+            assert {'t3', 't1_new', 'c3'} <= cols and 't1' not in cols and 't2' not in cols, (virtual, cols)
+            assert self._ok("select t1_new, t3, c3 from ct1"), virtual
+            assert not self._ok("select t1 from ct1"), virtual
+            assert not self._ok("select t2 from ct1"), virtual
+            cols2 = self._cols("ct1", s2)
+            assert 't1' in cols2 and 't2' in cols2 and not ({'t3', 't1_new', 'c3'} & cols2), (virtual, cols2)
+
+            tdSql.execute("ROLLBACK")
+            assert self._cols("ct1") == cols2 == self._cols("ct1", s2), virtual
+            s2.close()
+
+    def check_n2_no_uncommitted_leak_to_other_session(self):
+        """What the txn connection reads while the txn is open must not reach other sessions'
+        shared cache, for tables that are modified, created or dropped by the txn."""
+        self._reset()
+        tdLog.info("======== test_n2_no_uncommitted_leak_to_other_session")
+        tdSql.execute("create table stb (ts timestamp, c1 int) tags(t1 int)")
+        tdSql.execute("create table ct1 using stb tags(1)")
+        tdSql.execute("create table ntb (ts timestamp, a int)")
+        tdSql.execute("insert into ct1 values(now, 1)")
+        tdSql.execute("insert into ntb values(now, 1)")
+        s2 = self._other()
+
+        tdSql.execute("BEGIN")
+        tdSql.execute("alter table stb add column c2 int")
+        tdSql.execute("alter table ntb add column b int")
+        tdSql.execute("create table ntb_new (ts timestamp, x int)")
+        tdSql.execute("drop table ct1")
+        # txn connection reads everything it touched, filling whatever caches it can
+        for q in ("describe stb", "describe ntb", "describe ntb_new"):
+            tdSql.query(q)
+        assert self._ok("select c2 from stb") and self._ok("select b from ntb")
+        assert self._ok("select x from ntb_new") and not self._ok("select * from ct1")
+
+        # other session: still the committed view, through cache-using statements
+        assert not self._ok("select c2 from stb", s2)
+        assert not self._ok("select b from ntb", s2)
+        assert not self._ok("select x from ntb_new", s2)
+        assert self._ok("select c1 from ct1", s2)
+        assert 'c2' not in self._cols("stb", s2)
+
+        tdSql.execute("ROLLBACK")
+        assert not self._ok("select c2 from stb") and not self._ok("select c2 from stb", s2)
+        assert self._ok("select c1 from ct1") and self._ok("select c1 from ct1", s2)
+        s2.close()
+
+    # =========================================================================
+    # Section O: other ALTER kinds, SET TAG filter, existing comment
+    # =========================================================================
+
+    _STB_DDL = "create table stb (ts timestamp, c1 int, v1 varchar(20)) tags(t1 int, tv varchar(20))"
+    _STB_PROBE = "describe stb"
+    _STBS_COMMENT = ("select table_comment from information_schema.ins_stables "
+                     "where db_name='txn_vis_db' and stable_name='stb'")
+
+    def _tbl_probe(self, name):
+        return (f"select `ttl`, table_comment from information_schema.ins_tables "
+                f"where db_name='txn_vis_db' and table_name='{name}'")
+
+    def check_o1_alter_kinds_isolation_commit_rollback(self):
+        """Each ALTER kind: other sessions keep the committed view, COMMIT publishes it,
+        ROLLBACK restores it, and the cluster stays healthy afterwards."""
+        tdLog.info("======== test_o1_alter_kinds_isolation_commit_rollback")
+        src = "txn_vis_db.src_ntb"
+        stb_setup = [self._STB_DDL, "create table ct1 using stb tags(1, 'a')"]
+        ntb_setup = ["create table ntb (ts timestamp, a int, v varchar(20))"]
+        vn_setup = ["create table src_ntb (ts timestamp, c1 int, c2 int)", "insert into src_ntb values(now, 7, 8)",
+                    f"create vtable vn (ts timestamp, c1 int from {src}.c1)"]
+        vct_setup = ["create table src_stb (ts timestamp, c1 int, c2 int) tags(t1 int)",
+                     "create table src_ct1 using src_stb tags(1)", "insert into src_ct1 values(now, 7, 8)",
+                     "create table vstb (ts timestamp, c1 int, c2 int) tags(t1 int) virtual 1",
+                     "create vtable vct (c1 from txn_vis_db.src_ct1.c1) using vstb tags(1)"]
+        # name, setup, ddl, probe, expect the txn connection itself to see the change.
+        # True  : read-your-own-writes is required and asserted.
+        # None  : not required, only isolation / COMMIT / ROLLBACK are asserted.
+        kinds = [
+            ("stb modify column length", stb_setup, "alter stable stb modify column v1 varchar(50)", "describe stb", True),
+            ("stb modify tag length", stb_setup, "alter stable stb modify tag tv varchar(50)", "describe stb", True),
+            ("stb comment", stb_setup, "alter stable stb comment 'hello'", self._STBS_COMMENT, True),
+            ("stb column compress", stb_setup,
+             "alter stable stb modify column c1 encode 'simple8b' compress 'zlib' level 'high'", "describe stb", True),
+            ("ntb modify column length", ntb_setup, "alter table ntb modify column v varchar(50)", "describe ntb", True),
+            ("ntb comment", ntb_setup, "alter table ntb comment 'hello'", self._tbl_probe("ntb"), True),
+            ("ntb ttl", ntb_setup, "alter table ntb ttl 100", self._tbl_probe("ntb"), True),
+            ("ctb ttl", stb_setup, "alter table ct1 ttl 100", self._tbl_probe("ct1"), True),
+            ("ctb comment", stb_setup, "alter table ct1 comment 'hello'", self._tbl_probe("ct1"), True),
+            ("vntb alter column ref", vn_setup, f"alter table vn alter column c1 set {src}.c2", "describe vn", True),
+            ("vctb alter column ref", vct_setup,
+             "alter table vct alter column c1 set txn_vis_db.src_ct1.c2", "describe vct", True),
+        ]
+        for name, setup, ddl, probe, expect_inside in kinds:
+            for end in ("ROLLBACK", "COMMIT"):
+                self._reset()
+                for q in setup:
+                    tdSql.execute(q)
+                s2 = self._other()
+                before = self._rows(probe, s2)
+                tdSql.execute("BEGIN")
+                tdSql.execute(ddl)
+                inside = self._rows(probe)
+                other = self._rows(probe, s2)
+                tdLog.info(f"O1 {name} end={end}: inside_changed={inside != before}")
+                assert other == before, f"{name}: uncommitted change leaked to another session: {other} vs {before}"
+                if expect_inside:
+                    assert inside != before, f"{name}: txn connection does not see its own change"
+                tdSql.execute(end)
+                after_txn = self._rows(probe)
+                after_s2 = self._rows(probe, s2)
+                if end == "COMMIT":
+                    assert after_s2 == after_txn, f"{name}: sessions disagree after COMMIT"
+                    assert after_s2 != before, f"{name}: COMMIT did not publish the change"
+                else:
+                    assert after_s2 == before and after_txn == before, f"{name}: ROLLBACK did not restore"
+                s2.close()
+                # the cluster must still accept a new txn on this connection
+                tdSql.execute("BEGIN")
+                tdSql.execute("ROLLBACK")
+
+    def check_o2_set_tag_filter_visibility(self):
+        """SET TAG inside a txn: tag filters, grouping and projection in the txn connection see
+        the new value, other sessions keep the committed one; COMMIT / ROLLBACK settle it."""
+        tdLog.info("======== test_o2_set_tag_filter_visibility")
+        shapes = [
+            ("select t1 from ct1", [(100,)], [(1,)]),
+            ("select count(*) from stb where t1=100", [(1,)], [(0,)]),
+            ("select count(*) from stb where t1=1", [(0,)], [(1,)]),
+            ("select count(*) from stb where t1>50", [(1,)], [(0,)]),
+            ("select count(*) from stb where t1=100 and t2=10", [(1,)], [(0,)]),
+            ("select count(*) from stb where tbname='ct1' and t1=100", [(1,)], [(0,)]),
+            ("select count(*) from stb where t1=100 or t1=2", [(2,)], [(1,)]),
+            ("select t1, count(*) from stb group by t1 order by t1", [(2, 1), (100, 1)], [(1, 1), (2, 1)]),
+            ("select c1 from stb where t1=100", [(5,)], []),
+        ]
+        for end in ("ROLLBACK", "COMMIT"):
+            self._reset()
+            tdSql.execute("create table stb (ts timestamp, c1 int) tags(t1 int, t2 int)")
+            tdSql.execute("create table ct1 using stb tags(1, 10)")
+            tdSql.execute("create table ct2 using stb tags(2, 20)")
+            tdSql.execute("insert into ct1 values(now, 5)")
+            tdSql.execute("insert into ct2 values(now, 6)")
+            s2 = self._other()
+            for q, _, committed in shapes:           # warm every cache with the committed view
+                assert self._rows(q, s2) == committed, q
+            tdSql.execute("BEGIN")
+            tdSql.execute("alter table ct1 set tag t1=100")
+            for q, new, old in shapes:
+                assert self._rows(q) == new, f"txn connection: {q}: {self._rows(q)} != {new}"
+                assert self._rows(q, s2) == old, f"other session: {q}: {self._rows(q, s2)} != {old}"
+            tdSql.execute(end)
+            for q, new, old in shapes:
+                expect = new if end == "COMMIT" else old
+                assert self._rows(q) == expect, f"after {end}, txn connection: {q}"
+                assert self._rows(q, s2) == expect, f"after {end}, other session: {q}"
+            s2.close()
+
+    def check_o2b_set_tag_filter_visibility_with_tag_cache(self):
+        """Same SET TAG shapes as o2, with tagFilterCache on. That cache (the normal tag filter cache and the table
+        group cache of GROUP BY) is shared by every session and keyed without any txn identity, so a txn must
+        neither be served from it nor write its uncommitted tag values into it. o2 pre-warms the cache from the
+        other session with the committed view, which is the state this variant needs.
+
+        Only tagFilterCache matters for batch queries: stableTagFilterCache is consulted for stream readers only."""
+        tdLog.info("======== test_o2b_set_tag_filter_visibility_with_tag_cache")
+        # Remember each dnode's value so the case never leaves a modified setting behind.
+        tdSql.query("show dnodes")
+        dnodes = [row[0] for row in tdSql.queryResult]
+        original = []
+        for dnode in dnodes:
+            tdSql.query(f"show dnode {dnode} variables like 'tagFilterCache'")
+            raw = str(tdSql.queryResult[0][2]).strip().lower()
+            original.append((dnode, "1" if raw in ("1", "true") else "0"))
+        try:
+            for dnode in dnodes:
+                tdSql.execute(f"alter dnode {dnode} 'tagFilterCache' '1'")
+            for dnode in dnodes:
+                tdSql.query(f"show dnode {dnode} variables like 'tagFilterCache'")
+                assert str(tdSql.queryResult[0][2]).strip().lower() in ("1", "true"), "tagFilterCache not enabled"
+            self.check_o2_set_tag_filter_visibility()
+        finally:
+            for dnode, val in original:
+                tdSql.execute(f"alter dnode {dnode} 'tagFilterCache' '{val}'")
+
+    def check_o3_alter_stb_with_existing_comment(self):
+        """ALTERs committed on a super table that already has a comment: the comment must survive
+        and the mnode must stay healthy (an accumulated schema used to share, and then free, the
+        comment buffer owned by the live super table)."""
+        tdLog.info("======== test_o3_alter_stb_with_existing_comment")
+        self._reset()
+        tdSql.execute("create table stb (ts timestamp, c1 int) tags(t1 int) comment 'c0'")
+        tdSql.execute("create table ct1 using stb tags(1)")
+
+        def comment(session=None):
+            return self._rows(self._STBS_COMMENT, session)
+
+        assert comment() == [('c0',)]
+        s2 = self._other()
+        # one ALTER, then several in the same txn (accumulated-schema chain), then a comment change
+        for ddls, expect in [
+            (["alter table stb add column c2 int"], 'c0'),
+            (["alter table stb add column c3 int", "alter table stb add tag t2 int",
+              "alter table stb rename tag t1 t1n"], 'c0'),
+            (["alter table stb add column c4 int", "alter stable stb comment 'c1'",
+              "alter table stb drop column c4"], 'c1'),
+        ]:
+            tdSql.execute("BEGIN")
+            for d in ddls:
+                tdSql.execute(d)
+            assert comment(s2) in ([('c0',)], [('c1',)])
+            tdSql.execute("COMMIT")
+            assert comment() == [(expect,)] == comment(s2), (ddls, comment(), comment(s2))
+        # ROLLBACK path with an existing comment, then the cluster still serves DDL and reads
+        tdSql.execute("BEGIN")
+        tdSql.execute("alter table stb add column c9 int")
+        tdSql.execute("ROLLBACK")
+        assert 'c9' not in self._cols("stb") and comment() == [('c1',)]
+        tdSql.execute("alter table stb add column c10 int")
+        assert 'c10' in self._cols("stb", s2) and comment(s2) == [('c1',)]
+        s2.close()
+
+    def _stb_views(self, session=None, name="stb"):
+        """The three super-table system views, normalised. None when the super table is not visible."""
+        s = session or tdSql
+        if not self._ok(f"show create stable {name}", s):
+            return None
+        create_sql = s.queryResult[0][1]
+        rows = self._rows(f"select `columns`, `tags`, table_comment from information_schema.ins_stables "
+                          f"where db_name='txn_vis_db' and stable_name='{name}'", s)
+        if not rows:
+            return None
+        cols = self._rows(f"select col_name, col_type from information_schema.ins_columns "
+                          f"where db_name='txn_vis_db' and table_name='{name}' and table_type='SUPER_TABLE'", s)
+        return {"create": create_sql, "ncols": rows[0][0], "ntags": rows[0][1], "comment": rows[0][2], "cols": cols}
+
+    def check_o4_stb_system_views_in_txn(self):
+        """SHOW CREATE STABLE, information_schema.ins_stables and ins_columns inside a txn: the txn sees its
+        own uncommitted super table changes, other sessions keep the committed view, COMMIT publishes and
+        ROLLBACK restores. Covers ALTER (column / tag / length / comment), CREATE and DROP."""
+        tdLog.info("======== test_o4_stb_system_views_in_txn")
+        base = ("create table stb (ts timestamp, c1 int, c2 int, v1 varchar(20)) tags(t1 int, t2 int)")
+        # name, ddl, check(view): True when the view reflects the ALTER
+        alters = [
+            ("add column", "alter table stb add column c3 bigint",
+             lambda v: "`c3` BIGINT" in v["create"] and v["ncols"] == 5 and ("c3", "BIGINT") in v["cols"]),
+            ("drop column", "alter table stb drop column c2",
+             lambda v: "`c2`" not in v["create"] and v["ncols"] == 3 and all(c[0] != "c2" for c in v["cols"])),
+            ("modify column length", "alter stable stb modify column v1 varchar(50)",
+             lambda v: "VARCHAR(50)" in v["create"] and ("v1", "VARCHAR(50)") in v["cols"]),
+            ("add tag", "alter table stb add tag t3 int",
+             lambda v: "`t3` INT" in v["create"] and v["ntags"] == 3),
+            ("rename tag", "alter table stb rename tag t1 t1n",
+             lambda v: "`t1n`" in v["create"] and "`t1` " not in v["create"]),
+            ("drop tag", "alter table stb drop tag t2",
+             lambda v: "`t2`" not in v["create"] and v["ntags"] == 1),
+            ("modify tag length", "alter stable stb modify tag tv varchar(50)", None),  # tv added below
+            ("comment", "alter stable stb comment 'hello'",
+             lambda v: "COMMENT 'hello'" in v["create"] and v["comment"] == "hello"),
+        ]
+        for name, ddl, reflects in alters:
+            if reflects is None:   # modify tag length needs a varchar tag
+                continue
+            for end in ("ROLLBACK", "COMMIT"):
+                self._reset()
+                tdSql.execute(base)
+                tdSql.execute("create table ct1 using stb tags(1, 2)")
+                s2 = self._other()
+                before = self._stb_views(s2)
+                assert before is not None and self._stb_views() == before
+                assert not reflects(before), name
+                tdSql.execute("BEGIN")
+                tdSql.execute(ddl)
+                inside = self._stb_views()
+                other = self._stb_views(s2)
+                assert inside is not None and reflects(inside), f"{name}: txn views do not show the change: {inside}"
+                assert other == before, f"{name}: uncommitted change leaked to another session: {other}"
+                tdSql.execute(end)
+                after_txn, after_s2 = self._stb_views(), self._stb_views(s2)
+                if end == "COMMIT":
+                    assert reflects(after_txn) and reflects(after_s2), f"{name}: COMMIT did not publish"
+                else:
+                    assert after_txn == before and after_s2 == before, f"{name}: ROLLBACK did not restore"
+                s2.close()
+
+        # modify tag length on a varchar tag
+        for end in ("ROLLBACK", "COMMIT"):
+            self._reset()
+            tdSql.execute("create table stb (ts timestamp, c1 int) tags(t1 int, tv varchar(20))")
+            s2 = self._other()
+            tdSql.execute("BEGIN")
+            tdSql.execute("alter stable stb modify tag tv varchar(50)")
+            assert "VARCHAR(50)" in self._stb_views()["create"]
+            assert "VARCHAR(20)" in self._stb_views(s2)["create"]
+            tdSql.execute(end)
+            want = "VARCHAR(50)" if end == "COMMIT" else "VARCHAR(20)"
+            assert want in self._stb_views()["create"] and want in self._stb_views(s2)["create"]
+            s2.close()
+
+        # several ALTERs in one txn accumulate in the views
+        self._reset()
+        tdSql.execute(base)
+        s2 = self._other()
+        before = self._stb_views(s2)
+        tdSql.execute("BEGIN")
+        tdSql.execute("alter table stb add column c3 bigint")
+        tdSql.execute("alter table stb rename tag t1 t1n")
+        tdSql.execute("alter stable stb comment 'multi'")
+        v = self._stb_views()
+        assert "`c3` BIGINT" in v["create"] and "`t1n`" in v["create"] and v["comment"] == "multi" and v["ncols"] == 5
+        assert self._stb_views(s2) == before
+        tdSql.execute("ROLLBACK")
+        assert self._stb_views() == before == self._stb_views(s2)
+        s2.close()
+
+        # CREATE inside the txn: visible to the txn only; DROP inside the txn: hidden from the txn only
+        for end in ("ROLLBACK", "COMMIT"):
+            self._reset()
+            s2 = self._other()
+            tdSql.execute("BEGIN")
+            tdSql.execute("create table newstb (ts timestamp, c1 int) tags(t1 int)")
+            v = self._stb_views(name="newstb")
+            assert v is not None and v["ncols"] == 2 and v["ntags"] == 1, f"created stb not visible in txn: {v}"
+            assert self._stb_views(s2, "newstb") is None, "uncommitted super table leaked to another session"
+            tdSql.execute(end)
+            assert (self._stb_views(name="newstb") is not None) == (end == "COMMIT")
+            assert (self._stb_views(s2, "newstb") is not None) == (end == "COMMIT")
+            s2.close()
+        for end in ("ROLLBACK", "COMMIT"):
+            self._reset()
+            tdSql.execute(base)
+            s2 = self._other()
+            before = self._stb_views(s2)
+            tdSql.execute("BEGIN")
+            tdSql.execute("drop stable stb")
+            assert self._stb_views() is None, "dropped super table still visible in the txn"
+            assert self._stb_views(s2) == before, "uncommitted drop leaked to another session"
+            tdSql.execute(end)
+            if end == "COMMIT":
+                assert self._stb_views() is None and self._stb_views(s2) is None
+            else:
+                assert self._stb_views() == before == self._stb_views(s2)
+            s2.close()
+
+    def check_o5_show_create_child_table_in_txn(self):
+        """SHOW CREATE TABLE on a (non-virtual) child table follows the txn's own ALTERs of its super table:
+        tag names and the tag list change inside the txn only, tag values are kept, COMMIT publishes,
+        ROLLBACK restores.
+        """
+        tdLog.info("======== test_o5_show_create_child_table_in_txn")
+
+        def create_sql(session=None):
+            s = session or tdSql
+            s.query("show create table ct1")
+            return s.queryResult[0][1]
+
+        cases = [
+            ("rename tag", "alter table stb rename tag t1 t1n", ["(`t1n`, `t2`) TAGS (7, \"x\")"],
+             ["`t1`,"]),
+            ("add tag", "alter table stb add tag t3 int", ["(`t1`, `t2`, `t3`) TAGS (7, \"x\", NULL)"], []),
+            ("drop tag", "alter table stb drop tag t2", ["(`t1`) TAGS (7)"], ["`t2`"]),
+            ("add column", "alter table stb add column c3 int", ["(`t1`, `t2`) TAGS (7, \"x\")"], []),
+        ]
+        for name, ddl, must_have, must_not in cases:
+            for end in ("ROLLBACK", "COMMIT"):
+                self._reset()
+                tdSql.execute("create table stb (ts timestamp, c1 int, c2 int) tags(t1 int, t2 varchar(10))")
+                tdSql.execute("create table ct1 using stb tags(7, 'x')")
+                s2 = self._other()
+                before = create_sql(s2)
+                assert create_sql() == before
+                tdSql.execute("BEGIN")
+                tdSql.execute(ddl)
+                inside, other = create_sql(), create_sql(s2)
+                for frag in must_have:
+                    assert frag in inside, f"{name}: txn does not see its own change: {inside}"
+                for frag in must_not:
+                    assert frag not in inside, f"{name}: stale tag in the txn view: {inside}"
+                assert other == before, f"{name}: uncommitted change leaked to another session: {other}"
+                tdSql.execute(end)
+                after_txn, after_s2 = create_sql(), create_sql(s2)
+                if end == "COMMIT":
+                    assert after_txn == after_s2, f"{name}: sessions disagree after COMMIT"
+                    for frag in must_have:
+                        assert frag in after_s2, f"{name}: COMMIT did not publish: {after_s2}"
+                else:
+                    assert after_txn == before and after_s2 == before, f"{name}: ROLLBACK did not restore"
+                s2.close()
+
+        # a child table created in the same txn as its super table's ALTER, and a dropped parent
+        self._reset()
+        tdSql.execute("create table stb (ts timestamp, c1 int) tags(t1 int)")
+        tdSql.execute("create table ct1 using stb tags(7)")
+        tdSql.execute("BEGIN")
+        tdSql.execute("alter table stb add tag t2 int")
+        tdSql.execute("create table ct2 using stb tags(1, 2)")
+        tdSql.query("show create table ct2")
+        assert "(`t1`, `t2`) TAGS (1, 2)" in tdSql.queryResult[0][1], tdSql.queryResult
+        tdSql.execute("drop table ct1")
+        tdSql.error("show create table ct1", expectedErrno=0x2603)
+        tdSql.execute("ROLLBACK")
+
+    def check_o6_show_create_virtual_child_table_in_txn(self):
+        """SHOW CREATE VTABLE on a virtual child table follows the txn's own ALTERs of its virtual super table.
+        The inherited columns / tags come from the txn-local super table schema, column bindings follow their
+        column (rename keeps it, drop releases it, add starts unbound), and the child's own (extension) column and
+        tag are kept. Other sessions keep the committed view; COMMIT publishes, ROLLBACK restores."""
+        tdLog.info("======== test_o6_show_create_virtual_child_table_in_txn")
+
+        def create_sql(session=None):
+            s = session or tdSql
+            s.query("show create table vct1")
+            return s.queryResult[0][1]
+
+        def setup():
+            self._reset()
+            # own source with both columns: the shared helper's source table has no c2
+            tdSql.execute("create table o6_src (ts timestamp, c1 int, c2 int)")
+            tdSql.execute("insert into o6_src values(now, 1, 2)")
+            tdSql.execute("create table vstb (ts timestamp, c1 int, c2 int) tags(t1 int, t2 int) virtual 1")
+            tdSql.execute("create vtable vct1 (c1 from txn_vis_db.o6_src.c1, c2 from txn_vis_db.o6_src.c2, "
+                          "own_c int from txn_vis_db.o6_src.c1) using vstb (t1, t2, own_t int) tags(7, 8, 9)")
+
+        ref = "FROM `txn_vis_db`.`o6_src`"
+        # name, ddl, fragments the txn view must have, fragments it must not have
+        cases = [
+            ("rename column", ["alter table vstb rename column c1 c1n"],
+             [f"`c1n` {ref}.`c1`", f"`c2` {ref}.`c2`", "`own_c`", "`own_t`", "TAGS (7, 8, 9)"], [f"`c1` {ref}"]),
+            ("drop column", ["alter table vstb drop column c2"],
+             [f"`c1` {ref}.`c1`", "`own_c`", "TAGS (7, 8, 9)"], [f"`c2` {ref}"]),
+            ("add column", ["alter table vstb add column c3 int"],
+             [f"`c1` {ref}.`c1`", f"`c2` {ref}.`c2`", "`own_c`", "TAGS (7, 8, 9)"], ["`c3`"]),
+            ("rename tag", ["alter table vstb rename tag t1 t1n"],
+             ["`t1n`, `t2`, `own_t`", "TAGS (7, 8, 9)", f"`c1` {ref}.`c1`", "`own_c`"], ["`t1`,"]),
+            ("add tag", ["alter table vstb add tag t3 int"],
+             ["`t1`, `t2`, `t3`, `own_t`", "TAGS (7, 8, NULL, 9)", "`own_c`"], []),
+            ("drop tag", ["alter table vstb drop tag t2"],
+             ["`t1`, `own_t`", "TAGS (7, 9)", "`own_c`"], ["`t2`"]),
+            ("several ALTERs", ["alter table vstb rename column c1 c1n", "alter table vstb drop column c2",
+                                "alter table vstb add tag t3 int", "alter table vstb drop tag t1"],
+             [f"`c1n` {ref}.`c1`", "`own_c`", "`t2`, `t3`, `own_t`", "TAGS (8, NULL, 9)"],
+             [f"`c2` {ref}", "`t1`"]),
+        ]
+        for name, ddls, must_have, must_not in cases:
+            for end in ("ROLLBACK", "COMMIT"):
+                setup()
+                s2 = self._other()
+                before = create_sql(s2)
+                assert create_sql() == before
+                assert "`own_c`" in before and "`own_t`" in before, f"setup: own column / tag missing: {before}"
+                tdSql.execute("BEGIN")
+                # the first statement of the txn is a read: nothing is touched yet when it is parsed
+                tdSql.query("select * from vct1")
+                for d in ddls:
+                    tdSql.execute(d)
+                inside, other = create_sql(), create_sql(s2)
+                for frag in must_have:
+                    assert frag in inside, f"{name}: txn does not see its own change ({frag}): {inside}"
+                for frag in must_not:
+                    assert frag not in inside, f"{name}: stale schema in the txn view ({frag}): {inside}"
+                assert other == before, f"{name}: uncommitted change leaked to another session: {other}"
+                tdSql.execute(end)
+                after_txn, after_s2 = create_sql(), create_sql(s2)
+                if end == "COMMIT":
+                    assert after_txn == after_s2, f"{name}: sessions disagree after COMMIT"
+                    # the txn view must equal what COMMIT produces
+                    assert after_s2 == inside, f"{name}: txn view differs from the committed result:\n{inside}\n{after_s2}"
+                else:
+                    assert after_txn == before and after_s2 == before, f"{name}: ROLLBACK did not restore"
+                s2.close()
+
     def test_meta_batch_txn_ddl_visibility(self):
         """Batch meta txn: DDL visibility and isolation comprehensive tests.
 
@@ -1632,6 +2165,14 @@ class TestBatchMetaTxnDdlVisibility:
         Section J: DDL lock conflict — other sessions blocked when table is modified
         Section K: Drop depended-upon table (virtual table dependency)
         Section L: Bulk drop >1000 virtual CTBs — txn visibility, rollback, commit
+        Section N: Shared-cache isolation: a txn's uncommitted schema/tag changes
+                   must not leak to other sessions, and the txn must see its own
+                   changes for tables whose schema follows a modified super table
+        Section O: ALTER kinds beyond ADD/DROP/RENAME (modify length, comment, ttl,
+                   compress, column ref), SET TAG filter visibility, ALTER on a
+                   super table that already has a comment, and the super table
+                   system views (SHOW CREATE STABLE, ins_stables, ins_columns) which
+                   must show the txn's own uncommitted changes and nobody else's
         Section M: Post-COMMIT/ROLLBACK catalog freshness on the committing
                    connection — the next DDL must resolve the committed schema
                    with no intervening DESCRIBE/SELECT to refresh the cache
@@ -1708,3 +2249,16 @@ class TestBatchMetaTxnDdlVisibility:
         self.check_m4_post_commit_rename_tag_virtual_normal()
         self.check_m5_post_rollback_schema_intact()
         self.check_m6_post_commit_multi_table_no_refresh()
+
+        # Section N (shared-cache isolation)
+        self.check_n1_child_follows_txn_stb_after_cache_refill()
+        self.check_n2_no_uncommitted_leak_to_other_session()
+
+        # Section O (other ALTER kinds, SET TAG filter, comment)
+        self.check_o1_alter_kinds_isolation_commit_rollback()
+        self.check_o2_set_tag_filter_visibility()
+        self.check_o2b_set_tag_filter_visibility_with_tag_cache()
+        self.check_o3_alter_stb_with_existing_comment()
+        self.check_o4_stb_system_views_in_txn()
+        self.check_o5_show_create_child_table_in_txn()
+        self.check_o6_show_create_virtual_child_table_in_txn()

@@ -25,6 +25,7 @@
 #include "mndStb.h"
 #include "mndSync.h"
 #include "mndVgroup.h"
+#include "mndArbGroup.h"
 #include "sdb.h"
 #include "tconfig.h"
 #include "tjson.h"
@@ -195,6 +196,34 @@ static void dumpDbFields(SDbObj *p, SJson *fields) {
   (void)tjsonAddStringToObject(fields, "walSegmentSize", i642str(p->cfg.walSegmentSize));
 }
 
+// Serialize an SArbGroup into human-readable, editable JSON fields so operators
+// can inspect/modify arbgroup state offline (consumed by mndModifySdb's overlay
+// path on import). vgId is the sdb primary key; it is intentionally emitted as a
+// read-only reference only and is NOT overlaid back on import (see overlayArbGroup).
+static void dumpArbGroupFields(SArbGroup *p, SJson *fields) {
+  (void)tjsonAddStringToObject(fields, "vgId", i642str(p->vgId));
+  (void)tjsonAddStringToObject(fields, "dbUid", i642str(p->dbUid));
+  for (int32_t i = 0; i < TSDB_ARB_GROUP_MEMBER_NUM; ++i) {
+    char            key[32] = {0};
+    SArbGroupMember *m = &p->members[i];
+    (void)snprintf(key, sizeof(key), "member%d.dnodeId", i);
+    (void)tjsonAddStringToObject(fields, key, i642str(m->info.dnodeId));
+    (void)snprintf(key, sizeof(key), "member%d.token", i);
+    char tok[TSDB_ARB_TOKEN_SIZE + 1] = {0};
+    (void)memcpy(tok, m->state.token, TSDB_ARB_TOKEN_SIZE);
+    (void)tjsonAddStringToObject(fields, key, tok);
+  }
+  (void)tjsonAddStringToObject(fields, "isSync", i642str(p->isSync));
+  (void)tjsonAddStringToObject(fields, "code", i642str(p->code));
+  (void)tjsonAddStringToObject(fields, "updateTimeMs", i642str(p->updateTimeMs));
+  (void)tjsonAddStringToObject(fields, "assignedLeader.assignedDnodeId", i642str(p->assignedLeader.assignedDnodeId));
+  char leaderTok[TSDB_ARB_TOKEN_SIZE + 1] = {0};
+  (void)memcpy(leaderTok, p->assignedLeader.token, TSDB_ARB_TOKEN_SIZE);
+  (void)tjsonAddStringToObject(fields, "assignedLeader.token", leaderTok);
+  (void)tjsonAddStringToObject(fields, "assignedLeader.assignAcked", i642str(p->assignedLeader.assignAcked));
+  (void)tjsonAddStringToObject(fields, "version", i642str(p->version));
+}
+
 static void dumpRecordFields(ESdbType type, void *pObj, SJson *fields) {
   switch (type) {
     case SDB_DNODE:   dumpDnodeFields((SDnodeObj *)pObj, fields); break;
@@ -205,6 +234,7 @@ static void dumpRecordFields(ESdbType type, void *pObj, SJson *fields) {
     case SDB_DB:      dumpDbFields((SDbObj *)pObj, fields); break;
     case SDB_CFG:     dumpConfigFields((SConfigObj *)pObj, fields); break;
     case SDB_COMPACT: dumpCompactFields((SCompactObj *)pObj, fields); break;
+    case SDB_ARBGROUP: dumpArbGroupFields((SArbGroup *)pObj, fields); break;
     default: break;  // other types: rawData only
   }
 }
@@ -785,9 +815,9 @@ static void mndReplayMnodeWal(SMnode *pMnode) {
   // management (msmHandleBecomeLeader -> streamAddVnodeLeader) and touches the gStreamMgmt
   // global. That's only allocated by the full streamInit(), which this offline one-shot
   // mini-mnode never calls -- so left enabled, this segfaults on a NULL gStreamMgmt.vgLeaders
-  // (verified via gdb backtrace). The callback already gates on tsDisableStream and returns
-  // immediately when set, so disable it here instead of standing up the whole (thread-spawning)
-  // stream subsystem just to satisfy it; this process exits right after, so there's no need to
+  // (verified via gdb backtrace). msmHandleBecomeLeader() now bails out on streamMgmtInited(),
+  // which covers this mini-mnode; tsDisableStream is still set here so that no other stream
+  // management path kicks in either. This process exits right after, so there's no need to
   // restore the previous value.
   tsDisableStream = true;
 
@@ -854,10 +884,11 @@ int32_t mndFlushMnode() {
   // NOTE: deliberately not calling mndClose(pMnode) here, matching mndDeleteTrans()/mndModifySdb()
   // above: pMnode was created via mndPrepareMnode(), which never calls the global streamInit(), so
   // gStreamMgmt.vgLeaders etc. are left NULL. mndClose() -> mndCleanupSteps() -> mndCleanupStream()
-  // -> msmHandleBecomeNotLeader() -> streamRemoveVnodeLeader() dereferences that NULL array and
-  // segfaults (verified via gdb backtrace). The flush (sdb file write + WAL snapshot/trim) is
-  // already fsync'd to disk above; this is a one-shot CLI process about to exit via return 0/exit
-  // code, so skipping the in-memory teardown is safe and avoids the crash.
+  // -> msmHandleBecomeNotLeader() -> streamRemoveVnodeLeader() used to dereference that NULL array
+  // and segfault (verified via gdb backtrace); that path is now guarded by streamMgmtInited(), but
+  // the in-memory teardown still buys this one-shot CLI nothing. The flush (sdb file write + WAL
+  // snapshot/trim) is already fsync'd to disk above; this is a one-shot CLI process about to exit
+  // via return 0/exit code, so skipping the in-memory teardown is safe and avoids the crash.
   return code;
 }
 
@@ -961,7 +992,7 @@ bool isOverlayType(ESdbType t) {
   // a corresponding overlayXxx()/case, and vice versa, or records would silently decode+re-encode
   // with no overlay effect (harmless but pointless) or worse, be missing an intended overlay.
   return t == SDB_DNODE || t == SDB_CLUSTER || t == SDB_VGROUP || t == SDB_DB || t == SDB_CFG ||
-         t == SDB_COMPACT;
+         t == SDB_COMPACT || t == SDB_ARBGROUP;
   // SDB_USER intentionally excluded: privileges live in an opaque blob; rawData round-trip only.
   // SDB_MNODE intentionally excluded: no editable scalar fields (role is sync-managed); rawData round-trip only.
 }
@@ -982,6 +1013,25 @@ static void ovStr(SJson *f, const char *k, char *dst, int32_t cap) {
       (void)_c;                                     \
     }                                               \
   } while (0)
+
+// Overlay a JSON bool field (must be 0 or 1) onto an int8_t target. Rejects any
+// other value so we never silently truncate an out-of-range number into the field.
+static int32_t ovBool(SJson *f, const char *k, int8_t *dst) {
+  if (tjsonGetObjectItem(f, k) == NULL) return TSDB_CODE_SUCCESS;
+  int64_t v = 0;
+  int32_t code = 0;
+  tjsonGetNumberValue(f, k, v, code);
+  if (code != 0) {
+    mError("import: failed to overlay field:%s since %s", k, tstrerror(code));
+    return code;
+  }
+  if (v != 0 && v != 1) {
+    mError("import: invalid bool value for field:%s, must be 0 or 1", k);
+    return TSDB_CODE_INVALID_PARA;
+  }
+  *dst = (int8_t)v;
+  return TSDB_CODE_SUCCESS;
+}
 
 void overlayDnode(SDnodeObj *p, SJson *f) {
   ovStr(f, "fqdn", p->fqdn, sizeof(p->fqdn));
@@ -1033,6 +1083,32 @@ void overlayCompact(SCompactObj *p, SJson *f) {
   // compactDetail edits: rare; leave nested array from decoded raw untouched for losslessness.
 }
 
+// Apply operator-edited JSON fields back onto a decoded SArbGroup during
+// mndModifySdb import. Only keys present in the JSON are overwritten (the
+// OV_NUM/ovStr helpers no-op when the key is absent), so omitted fields keep
+// their decoded value. vgId is deliberately NOT overlaid: it is the sdb primary
+// key and editing it would re-key the record and corrupt the table.
+void overlayArbGroup(SArbGroup *p, SJson *f) {
+  mDebug("arbgroup:%d, overlay import start", p->vgId);
+  OV_NUM(f, "dbUid", p->dbUid);
+  for (int32_t i = 0; i < TSDB_ARB_GROUP_MEMBER_NUM; ++i) {
+    char            key[32] = {0};
+    SArbGroupMember *m = &p->members[i];
+    (void)snprintf(key, sizeof(key), "member%d.dnodeId", i);
+    OV_NUM(f, key, m->info.dnodeId);
+    (void)snprintf(key, sizeof(key), "member%d.token", i);
+    ovStr(f, key, m->state.token, TSDB_ARB_TOKEN_SIZE);
+  }
+  ovBool(f, "isSync", &p->isSync);
+  OV_NUM(f, "code", p->code);
+  OV_NUM(f, "updateTimeMs", p->updateTimeMs);
+  OV_NUM(f, "assignedLeader.assignedDnodeId", p->assignedLeader.assignedDnodeId);
+  ovStr(f, "assignedLeader.token", p->assignedLeader.token, TSDB_ARB_TOKEN_SIZE);
+  ovBool(f, "assignedLeader.assignAcked", &p->assignedLeader.assignAcked);
+  OV_NUM(f, "version", p->version);
+  mDebug("arbgroup:%d, overlay import done", p->vgId);
+}
+
 static void applyOverlay(ESdbType type, void *pObj, SJson *fields) {
   switch (type) {
     case SDB_DNODE:   overlayDnode((SDnodeObj *)pObj, fields); break;
@@ -1041,6 +1117,7 @@ static void applyOverlay(ESdbType type, void *pObj, SJson *fields) {
     case SDB_DB:      overlayDb((SDbObj *)pObj, fields); break;
     case SDB_CFG:     overlayConfig((SConfigObj *)pObj, fields); break;
     case SDB_COMPACT: overlayCompact((SCompactObj *)pObj, fields); break;
+    case SDB_ARBGROUP: overlayArbGroup((SArbGroup *)pObj, fields); break;
     default: break;
   }
 }

@@ -105,8 +105,19 @@ typedef struct SPlanContext {
   // owned. Threaded to the system-table physical scan so NCHAR/JSON tag values
   // render in the client charset instead of the server default tsCharsetCxt.
   void*              charsetCxt;
+  // Batch meta txn: provider of the encoded txn-local super table schemas (queryEncodeTxnStbSchemas). The planner
+  // calls it at most once per plan, and only when the plan contains a system table scan for which
+  // qSysTableNeedsTxnStbSchemas() is true, so every other statement of a txn pays nothing for it. NULL outside a
+  // txn. *ppBuf (taosMemoryMalloc'd, ownership passes to the planner) may come back NULL / 0: nothing to send.
+  int32_t          (*getTxnStbSchemas)(void* param, char** ppBuf, int32_t* pLen);
+  void*              getTxnStbSchemasParam;
   SPlanStreamContext streamCxt;
 } SPlanContext;
+
+// Whether a scan of this system table is computed on the vnode from a super table's schema, i.e. whether a batch
+// meta txn must ship its txn-local super table schemas along (SSystemTableScanPhysiNode.pTxnStbSchemas). THE one
+// list: a new vnode-computed system table that reads a super table's columns / tags belongs here.
+bool qSysTableNeedsTxnStbSchemas(const char* pSysTableName);
 
 // Create the physical plan for the query, according to the AST.
 int32_t qCreateQueryPlan(SPlanContext* pCxt, SQueryPlan** pPlan, SArray* pExecNodeList);

@@ -70,6 +70,8 @@ const char* bckErrStr(int code) {
         case TSDB_CODE_BCK_USER_CANCEL:          return "cancelled by user";
         case TSDB_CODE_BCK_SPEC_TABLE_NOT_FOUND: return "specified database/table not found";
         case TSDB_CODE_BCK_INVALID_COMBINATION:  return "invalid option combination";
+        case TSDB_CODE_BCK_INCOMPLETE_DATA:      return "backup data is incomplete";
+        case TSDB_CODE_BCK_CHILD_TABLE_MISSING:  return "data file has no matching child table";
         default:                                 return NULL;
     }
 }
@@ -99,6 +101,10 @@ bool errorCodeCanRetry(int code) {
         case TSDB_CODE_RPC_NETWORK_BUSY:
         case TSDB_CODE_RPC_TIMEOUT:
         case TSDB_CODE_RPC_BROKEN_LINK:
+        // The native client reports a broken link as the generic APP_ERROR when
+        // its client-side meta refresh cannot run ("no db/table in request"), so
+        // a restarted taosd would otherwise abort the run instead of retrying.
+        case TSDB_CODE_APP_ERROR:
         // Raft / consensus layer: leader election or log restore in progress
         case TSDB_CODE_SYN_NOT_LEADER:
         case TSDB_CODE_SYN_RESTORING:

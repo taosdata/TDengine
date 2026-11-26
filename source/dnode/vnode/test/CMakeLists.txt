@@ -78,10 +78,6 @@ TARGET_LINK_LIBRARIES(
          vnodeTxnTest
          PUBLIC os util common vnode mgmt_mnode
 )
-SET_TARGET_PROPERTIES(
-         vnodeTxnTest PROPERTIES
-         LINK_FLAGS "-Wl,--wrap=metaFetchEntryByUid -Wl,--wrap=metaFetchEntryFree -Wl,--wrap=metaDropTable2 -Wl,--wrap=metaRollbackAlterTable -Wl,--wrap=metaTxnIdxDelete -Wl,--wrap=metaScanTxnEntries -Wl,--wrap=metaScanTxnMetaEntries -Wl,--wrap=metaTxnMetaDelete -Wl,--wrap=metaTxnMetaGet -Wl,--wrap=metaTxnMetaUpsert -Wl,--wrap=taosArrayAddBatch -Wl,--wrap=metaMarkTableTxnStatus -Wl,--wrap=vnodeAsync -Wl,--wrap=metaRLock -Wl,--wrap=metaULock"
-)
 
 TARGET_INCLUDE_DIRECTORIES(
          vnodeTxnTest
@@ -125,7 +121,6 @@ ADD_EXECUTABLE(metaTagFilterCacheTest metaTagFilterCacheTest.cpp)
 DEP_ext_gtest(metaTagFilterCacheTest)
 DEP_ext_cppstub(metaTagFilterCacheTest)
 TARGET_LINK_LIBRARIES(metaTagFilterCacheTest PUBLIC os util common vnode mgmt_mnode vnode mgmt_mnode)
-SET_TARGET_PROPERTIES(metaTagFilterCacheTest PROPERTIES LINK_FLAGS "-Wl,--wrap=taosArrayAddBatch -Wl,--wrap=tdbTbcNext -Wl,--wrap=tdbTbcMoveTo -Wl,--wrap=tdbTbcMoveToNext")
 TARGET_INCLUDE_DIRECTORIES(metaTagFilterCacheTest PUBLIC
         "${TD_SOURCE_DIR}/include/common"
         "${TD_SOURCE_DIR}/include/libs/executor"
@@ -158,6 +153,32 @@ add_test(NAME metaTagFilterCacheTest COMMAND metaTagFilterCacheTest)
 #          NAME metaSnapTxnTest
 #          COMMAND metaSnapTxnTest
 # )
+ENDIF()
+
+# ---------------------------------------------------------------------------
+# metaColRefIdempotentTest: pure-helper tests for the virtual-table column-ref
+# ALTER idempotence guard (metaTable2.c metaColRefMatchesAlterReq /
+# metaResolveColRefTagCond). No meta/vnode instance and no --wrap linker flags
+# → kept outside the TD_LINUX block above so it also builds on macOS.
+# ---------------------------------------------------------------------------
+IF(NOT TD_WINDOWS)
+ADD_EXECUTABLE(metaColRefIdempotentTest metaColRefIdempotentTest.cpp)
+DEP_ext_gtest(metaColRefIdempotentTest)
+TARGET_LINK_LIBRARIES(
+         metaColRefIdempotentTest
+         PUBLIC os util common vnode mgmt_mnode vnode mgmt_mnode
+)
+TARGET_INCLUDE_DIRECTORIES(
+         metaColRefIdempotentTest
+         PUBLIC "${TD_SOURCE_DIR}/include/common"
+         PUBLIC "${TD_SOURCE_DIR}/include/libs/executor"
+         PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}/../src/inc"
+         PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}/../inc"
+)
+add_test(
+         NAME metaColRefIdempotentTest
+         COMMAND metaColRefIdempotentTest
+)
 ENDIF()
 
 TARGET_INCLUDE_DIRECTORIES(
@@ -294,6 +315,30 @@ IF(NOT TD_WINDOWS)
     )
 ENDIF()
 
+IF(NOT TD_WINDOWS)
+    ADD_EXECUTABLE(tsdbSecurityHardeningTest tsdbSecurityHardeningTest.cpp)
+    DEP_ext_gtest(tsdbSecurityHardeningTest)
+    if (CMAKE_CXX_COMPILER_ID STREQUAL "GNU")
+        # the test pulls in tsdb-internal C headers, same as the sibling tsdb*Test targets above
+        target_compile_options(tsdbSecurityHardeningTest PRIVATE -fpermissive -Wno-error)
+    endif()
+    TARGET_LINK_LIBRARIES(
+             tsdbSecurityHardeningTest
+             PUBLIC os util common vnode
+    )
+    TARGET_INCLUDE_DIRECTORIES(
+             tsdbSecurityHardeningTest
+             PUBLIC "${TD_SOURCE_DIR}/include/common"
+             PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}/../src/inc"
+             PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}/../src/tsdb"
+             PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}/../inc"
+    )
+    add_test(
+            NAME tsdb_security_hardening_test
+            COMMAND tsdbSecurityHardeningTest
+    )
+ENDIF()
+
 # ADD_EXECUTABLE(tsdbRepairTest tsdbRepairTest.cpp)
 # DEP_ext_gtest(tsdbRepairTest)
 # TARGET_LINK_LIBRARIES(
@@ -308,3 +353,38 @@ ENDIF()
 #          PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}/../src/tsdb"
 #          PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}/../inc"
 # )
+
+# vnodeSecurityTest: input validation of wire-supplied data (alter-replica counts,
+# sync config node arrays, blob submit descriptors). Drives the real code, no --wrap.
+IF(NOT TD_WINDOWS)
+    ADD_EXECUTABLE(vnodeSecurityTest vnodeSecurityTest.cpp)
+    DEP_ext_gtest(vnodeSecurityTest)
+    TARGET_LINK_LIBRARIES(
+             vnodeSecurityTest
+             PUBLIC os util common vnode mgmt_mnode vnode mgmt_mnode
+    )
+    TARGET_INCLUDE_DIRECTORIES(
+             vnodeSecurityTest
+             PUBLIC "${TD_SOURCE_DIR}/include/common"
+             PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}/../src/inc"
+             PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}/../inc"
+    )
+    add_test(
+            NAME vnodeSecurityTest
+            COMMAND vnodeSecurityTest
+    )
+ENDIF()
+
+IF(NOT TD_WINDOWS)
+    add_executable(vnodeStreamTimeAlignTest vnodeStreamTimeAlignTest.cpp)
+    DEP_ext_gtest(vnodeStreamTimeAlignTest)
+    DEP_ext_cppstub(vnodeStreamTimeAlignTest)
+    target_include_directories(vnodeStreamTimeAlignTest PUBLIC
+        "${TD_SOURCE_DIR}/include/common"
+        "${TD_SOURCE_DIR}/include/libs/new-stream"
+        "${TD_SOURCE_DIR}/source/libs/new-stream/inc"
+        "${CMAKE_CURRENT_SOURCE_DIR}/../src/inc"
+        "${CMAKE_CURRENT_SOURCE_DIR}/../inc")
+    target_link_libraries(vnodeStreamTimeAlignTest PUBLIC os util common vnode mgmt_mnode vnode mgmt_mnode)
+    add_test(NAME vnodeStreamTimeAlignTest COMMAND vnodeStreamTimeAlignTest)
+ENDIF()

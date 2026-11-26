@@ -7,6 +7,7 @@ DB_TCOL = "test_join_tcol"       # for t_col (non-primary timestamp) tests
 DB_SORT = "test_join_tt_sort"    # for TIMETRUNCATE sort-compatibility tests
 DB_CROSS_MS = "test_join_tt_sort_ms"
 DB_CROSS_US = "test_join_tt_sort_us"
+DB_EXPR_US = "test_join_window_expr_us"
 
 
 class TestJoinTsSort:
@@ -1680,10 +1681,11 @@ class TestJoinTsSort:
             "select * from ct1 l left window join ct2 r "
             "window_time(1, r.ts) window_offset(-1h, 1h);"
         )
-        tdSql.error(
+        tdSql.query(
             "select * from ct1 l left window join ct2 r "
-            "window_time(now(), r.ts) window_offset(-1h, 1h);"
+            "window_time(now(), r.ts) window_offset(-1h, 1h) jlimit 1;"
         )
+        tdSql.checkRows(4)
         tdSql.error(
             "select * from ct1 l left asof join ct2 r "
             "window_time(l.ts, r.ts);"
@@ -2144,17 +2146,33 @@ class TestJoinTsSort:
             - 2026-09-08 Tony Zhang Covered corrective sorts and tag sources
         """
         self._prepare_tcol_data()
+        baseline = [
+            (1, 1), (1, 4), (2, 2), (3, 3), (4, 1), (4, 4),
+            (10, 10), (20, 20), (30, 30), (40, 40),
+        ]
+        reordered = [
+            (1, 3), (2, 2), (3, 3), (4, 1), (4, 4),
+            (10, 10), (20, 20), (30, 30), (40, 40),
+        ]
         for side in ("left", "right"):
-            tdSql.query(
-                "select /*+ NO_BATCH_SCAN() */ l.val, r.val "
-                f"from stb l {side} window join stb r on l.g = r.g "
-                "window_time(l.t_col, r.t_col) window_offset(0h, 0h) "
-                "order by l.val, r.val"
-            )
-            assert list(tdSql.queryResult) == [
-                (1, 1), (1, 4), (2, 2), (3, 3), (4, 1), (4, 4),
-                (10, 10), (20, 20), (30, 30), (40, 40),
-            ]
+            for keys, expected in (
+                ("l.t_col, r.t_col", baseline),
+                ("l.t_col + 1h, r.t_col + 1h", baseline),
+                (
+                    "case when l.val = 1 then l.t_col + 2h "
+                    "else l.t_col end, r.t_col",
+                    reordered,
+                ),
+            ):
+                sql = (
+                    "select /*+ NO_BATCH_SCAN() */ l.val, r.val "
+                    f"from stb l {side} window join stb r "
+                    "on l.g = r.g "
+                    f"window_time({keys}) window_offset(0h, 0h) "
+                    "order by l.val, r.val"
+                )
+                tdSql.query(sql)
+                assert list(tdSql.queryResult) == expected, sql
         tdSql.execute(
             "create stable tag_source(ts timestamp, val int) "
             "tags(event_ts timestamp, g int)"
@@ -2318,6 +2336,291 @@ class TestJoinTsSort:
                         f"order by {driver}.val",
                         col, (val,) * 4,
                     )
+
+    def test_8_10_window_time_expressions(self):
+        """Use timestamp expressions as each side's window reference.
+
+        Verify WINDOW_TIME expression matching, window offsets, JLIMIT,
+        and rejection of unsupported expressions.
+
+        Since: v3.4.3.0
+
+        Labels: common,ci
+
+        History:
+            - 2026-09-30 Tony Zhang Added WINDOW_TIME expression coverage
+        """
+        self._prepare_sort_data()
+        common = "from t1 l {side} window join t2 r window_time({keys}) "
+        same = (
+            "timestamp '2024-01-01 00:00:00', "
+            "timestamp '2024-01-01 00:00:00'"
+        )
+        later = (
+            "timestamp '2024-01-01 00:00:00', "
+            "timestamp '2024-01-01 01:00:00'"
+        )
+        for side in ("left", "right"):
+            tdSql.query(
+                "select l.val, r.val "
+                + common.format(side=side, keys=same)
+                + "window_offset(0s, 0s)"
+            )
+            tdSql.checkRows(25)
+            tdSql.query(
+                "select l.val, r.val "
+                + common.format(side=side, keys=same)
+                + "window_offset(0s, 0s) jlimit 2"
+            )
+            tdSql.checkRows(10)
+
+        self._check_col(
+            "select l.val, r.val "
+            + common.format(side="left", keys=later)
+            + "window_offset(0s, 2h) order by l.val, r.val",
+            1,
+            tuple(v for _ in range(5) for v in (10, 20, 30, 40, 50)),
+        )
+        self._check_col(
+            "select l.val, r.val "
+            + common.format(side="right", keys=later)
+            + "window_offset(0s, 2h) order by r.val",
+            0,
+            (None,) * 5,
+        )
+
+        for side, order, col, expected in (
+            ("left", "l.val", 1, (10, 20, 30, 40, None)),
+            ("right", "r.val", 0, (1, 2, 3, 4, None)),
+        ):
+            self._check_col(
+                "select l.val, r.val "
+                + common.format(
+                    side=side,
+                    keys="timetruncate(l.ts + 3h, 1h), r.ts",
+                )
+                + f"window_offset(0s, 0s) order by {order}",
+                col,
+                expected,
+            )
+
+        disorder = (
+            "l.ts + case when l.val = 1 then 9h else -3h end, r.ts"
+        )
+        self._check_col(
+            "select l.val, r.val "
+            + common.format(side="left", keys=disorder)
+            + "window_offset(0s, 0s) order by l.val",
+            1,
+            (20, 10, 20, 30, 40),
+        )
+        self._check_col(
+            "select l.val, r.val "
+            + common.format(side="left", keys=disorder)
+            + "window_offset(0h, 6h) jlimit 1 order by l.val",
+            1,
+            (20, 10, 20, 30, 40),
+        )
+
+        tdSql.execute(
+            "create vtable v_expr("
+            "ts timestamp, val int from t1.val)"
+        )
+        self._check_col(
+            "select v.val, r.val from v_expr v left window join t2 r "
+            "window_time(v.ts + 3h, r.ts) "
+            "window_offset(0s, 0s) order by v.val",
+            1,
+            (10, 20, 30, 40, None),
+        )
+        self._check_col(
+            "select l.val, r.val from "
+            "(select ts, val from t1 order by val desc) l "
+            "left window join t2 r "
+            "window_time(l.ts + 3h, r.ts) "
+            "window_offset(0s, 0s) order by l.val",
+            1,
+            (10, 20, 30, 40, None),
+        )
+
+        self._check_col(
+            "select l.val, count(r.val) from t1 l "
+            "left window join t2 r "
+            "window_time(l.ts + 3h, r.ts) "
+            "window_offset(0s, 0s) order by l.val",
+            1,
+            (1, 1, 1, 1, 0),
+        )
+        self._check_col(
+            "select l.val, count(r.val) from t1 l "
+            "left window join t2 r "
+            "window_time(l.ts + 3h, r.ts) "
+            "window_offset(0s, 0s) "
+            "having count(r.val) > 0 order by l.val",
+            0,
+            (1, 2, 3, 4),
+        )
+
+        self._check_col(
+            "select l.val, r.val "
+            + common.format(
+                side="left",
+                keys="case when l.val = 1 then "
+                "cast(null as timestamp) else l.ts + 3h end, r.ts",
+            )
+            + "window_offset(0s, 0s) order by l.val",
+            1,
+            (20, 30, 40, None),
+        )
+
+        self._check_col(
+            "select a.val, r.val from "
+            "(t1 a join t1 b on a.ts = b.ts) "
+            "left window join t2 r "
+            "window_time(coalesce(a.ts + 3h, b.ts), r.ts) "
+            "window_offset(0s, 0s) order by a.val",
+            1,
+            (10, 20, 30, 40, None),
+        )
+
+        self._check_col(
+            "select l.val, r.val from t1 l right window join t2 r "
+            "window_time(l.ts, case when r.val = 10 then "
+            "cast(null as timestamp) else r.ts - 3h end) "
+            "window_offset(0s, 0s) order by r.val",
+            1,
+            (20, 30, 40, 50),
+        )
+        self._check_col(
+            "select l.val, r.val from t1 l right window join t2 r "
+            "window_time(l.ts, case when r.val = 10 then "
+            "cast(null as timestamp) else r.ts - 3h end) "
+            "window_offset(0s, 0s) order by r.val",
+            0,
+            (2, 3, 4, None),
+        )
+        self._check_col(
+            "select a.val, r.val from "
+            "(t1 a join t1 b on a.ts = b.ts) "
+            "left window join t2 r "
+            "window_time(a.ts, r.ts - 3h) "
+            "window_offset(0s, 0s) order by a.val",
+            1,
+            (10, 20, 30, 40, None),
+        )
+
+        tdSql.query(
+            "select l.val, r.val "
+            + common.format(
+                side="left",
+                keys="cast(null as timestamp), r.ts",
+            )
+            + "window_offset(0s, 0s)"
+        )
+        tdSql.checkRows(0)
+
+        tdSql.query(
+            "select l.val, r.val "
+            + common.format(
+                side="left",
+                keys="cast('2024-01-01 00:00:00' as timestamp), "
+                "cast('2024-01-01 00:00:00' as timestamp)",
+            )
+            + "window_offset(0s, 0s)"
+        )
+        tdSql.checkRows(25)
+
+        tdSql.error(
+            "select * "
+            + common.format(side="left", keys="'2024-01-01', r.ts")
+            + "window_offset(0s, 0s)",
+            expectedErrno=0x2666,
+        )
+        tdSql.error(
+            "select * "
+            + common.format(
+                side="left",
+                keys="cast(rand() as timestamp), r.ts",
+            )
+            + "window_offset(0s, 0s)",
+            expectedErrno=0x264F,
+        )
+        tdSql.error(
+            "select * from t1 l left window join t2 r "
+            "window_time(l.ts + (select max(ts) from t2), r.ts) "
+            "window_offset(0s, 0s)",
+            expectedErrno=0x2666,
+            expectErrInfo="WINDOW_TIME requires a row expression",
+            fullMatched=False,
+        )
+
+    def _prepare_window_us_data(self):
+        tdSql.execute(f"drop database if exists {DB_EXPR_US}")
+        tdSql.execute(f"create database {DB_EXPR_US} precision 'us'")
+        tdSql.execute(f"use {DB_EXPR_US}")
+        tdSql.execute("create table l (ts timestamp, val int)")
+        tdSql.execute("create table r (ts timestamp, val int)")
+        tdSql.execute(
+            "insert into l values ('2024-01-01 00:00:00.000001', 1)"
+        )
+        tdSql.execute(
+            "insert into r values ('2024-01-01 00:00:00.000002', 2)"
+        )
+
+    def test_8_11_window_offset_us_precision(self):
+        """Interpret microsecond offsets in the input database precision.
+
+        Verify that a one-microsecond WINDOW_OFFSET includes the matching
+        right row when both inputs use microsecond timestamp precision.
+
+        Since: v3.4.3.0
+
+        Labels: common,ci
+
+        History:
+            - 2026-09-30 Tony Zhang Covered microsecond WINDOW_OFFSET
+        """
+        self._prepare_window_us_data()
+        try:
+            self._check_col(
+                "select l.val, r.val from l left window join r "
+                "window_time(l.ts, r.ts) window_offset(0u, 1u)",
+                1,
+                (2,),
+            )
+        finally:
+            tdSql.execute(f"drop database {DB_EXPR_US}")
+
+    def test_8_12_window_time_us_expressions(self):
+        """Evaluate window time expressions in microsecond precision.
+
+        Check constant and arithmetic WINDOW_TIME expressions against the
+        expected row with one-microsecond and zero-offset windows.
+
+        Since: v3.4.3.0
+
+        Labels: common,ci
+
+        History:
+            - 2026-09-30 Tony Zhang Covered microsecond time keys
+        """
+        self._prepare_window_us_data()
+        try:
+            for keys, offset in (
+                (
+                    "timestamp '2024-01-01 00:00:00.000001', r.ts",
+                    "window_offset(0u, 1u)",
+                ),
+                ("l.ts + 1u, r.ts", "window_offset(0u, 0u)"),
+            ):
+                self._check_col(
+                    "select l.val, r.val from l left window join r "
+                    f"window_time({keys}) {offset}",
+                    1,
+                    (2,),
+                )
+        finally:
+            tdSql.execute(f"drop database {DB_EXPR_US}")
 
     # Group 9: Regression (FS section 4.2 unchanged scenarios)
 

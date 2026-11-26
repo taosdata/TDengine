@@ -11,9 +11,11 @@ toc_max_heading_level: 4
 CREATE STREAM [IF NOT EXISTS] [db_name.]stream_name options [INTO [db_name.]table_name] [NODELAY_CREATE_SUBTABLE] [OUTPUT_SUBTABLE(tbname_expr)] [(column_name1, column_name2 [COMPOSITE KEY][, ...])] [TAGS (tag_definition [, ...])] [AS subquery]
 
 options: {
-    trigger_type [FROM [db_name.]table_name] [{PARTITION BY col1 [, ...] | ROLLUP BY tag_name}] [STREAM_OPTIONS(stream_option [|...])] [notification_definition]
+    trigger_type [FROM trigger_source] [{PARTITION BY col1 [, ...] | ROLLUP BY tag_name}] [STREAM_OPTIONS(stream_option [|...])] [notification_definition]
 }
-    
+
+trigger_source: {[db_name.]table_name | TABLE(TIME_ALIGN(TABLE [db_name.]virtual_table [, output_raw] [, 'column_list']))}
+
 trigger_type: {
     PERIOD(period_time[, offset_time])
   | SLIDING(sliding_val[, offset_time]) 
@@ -49,18 +51,26 @@ true_for_expr:
 
 true_for_arg: {
     limit_expr
-  | start(limit_expr)
-  | end(limit_expr)
+  | START(limit_expr)
+  | END(limit_expr)
 }
 
 limit_expr: {
     duration_time
+  | tag_name
   | COUNT count_val
+  | COUNT tag_name
   | duration_time AND COUNT count_val
+  | duration_time AND COUNT tag_name
+  | tag_name AND COUNT count_val
+  | tag_name AND COUNT tag_name
   | duration_time OR COUNT count_val
+  | duration_time OR COUNT tag_name
+  | tag_name OR COUNT count_val
+  | tag_name OR COUNT tag_name
 }
 
-stream_option: {WATERMARK(duration_time) | EXPIRED_TIME(exp_time) | IGNORE_DISORDER | DELETE_RECALC | DELETE_OUTPUT_TABLE | FILL_HISTORY[(start_time)] | FILL_HISTORY_FIRST[(start_time)] | CALC_NOTIFY_ONLY | LOW_LATENCY_CALC | PRE_FILTER(expr) | FORCE_OUTPUT | MAX_DELAY(delay_time) | EVENT_TYPE(event_types) | IGNORE_NODATA_TRIGGER | IDLE_TIMEOUT(duration_time) | FLUSH_ON_OUTER_CLOSE | CONFIG(config_item [, config_item ...])}
+stream_option: {WATERMARK(duration_time) | EXPIRED_TIME(exp_time) | IGNORE_DISORDER | DELETE_RECALC | DELETE_OUTPUT_TABLE | FILL_HISTORY[(start_time)] | FILL_HISTORY_FIRST[(start_time)] | CALC_NOTIFY_ONLY | LOW_LATENCY_CALC | PRE_FILTER(expr) | FORCE_OUTPUT | MAX_DELAY(delay_time | tag_name) | EVENT_TYPE(event_types) | IGNORE_NODATA_TRIGGER | IDLE_TIMEOUT(duration_time) | FLUSH_ON_OUTER_CLOSE | CONFIG(config_item [, config_item ...])}
 
 config_item: {timezone = timezone_name | firstDayOfWeek = first_day_of_week}
 
@@ -79,6 +89,18 @@ tag_definition:
 ```
 
 从 `v3.4.3` 起，创建流时会把时区和一周起始日写入流定义；`PERIOD`、`SLIDING`、`INTERVAL` 对日、周、月、季、年的支持范围也有扩展。详见 [时区与自然时间单位](../05-tdengine-sql/10-time/01-timezone.md#流式计算时间配置)。
+
+### TIME_ALIGN 触发源
+
+普通虚拟表、虚拟子表和虚拟超级表可使用以下触发源写法。
+
+```sql
+FROM TABLE(TIME_ALIGN(TABLE [db_name.]virtual_table [, output_raw] [, 'column_list']))
+```
+
+流按虚拟子表归并来源时间戳，用各列最近的非 NULL 值填充，再应用 `PRE_FILTER` 并判断窗口。被过滤的行仍可为后续行提供前值。`PREV(8s)` 包含恰好八秒前的读数；超过期限后，下一条输入在该列得到 NULL。`output_raw=FALSE` 为默认值，此时参与的时间戳由规则选中的输入列决定。设为 TRUE 时，全部原始数据列都贡献时间戳。
+
+引用来源须全部为本地表。触发规则支持 `PREV` 和 `PREV(duration)`。普通 TIME_ALIGN 查询仍支持 `NEXT`。使用对齐触发源时，`%%trows` 以及 `PERIOD` 与 `PRE_FILTER` 的组合会在建流时报错。单用 `PERIOD` 时，所选来源决定是否有输入。在符合分组条件的计算查询中，`%%tbname` 指向实际表；需要对齐或过滤计算输入时，在计算查询中显式指定。
 
 ### 流式计算的触发方式
 
@@ -117,7 +139,7 @@ PERIOD(period_time[, offset_time])
 ##### 滑动触发
 
 ```sql
-SLIDING(sliding_val[, offset_time]) 
+SLIDING(sliding_val[, offset_time])
 ```
 
 滑动触发是指对触发表的写入数据按照事件时间的固定间隔来驱动的触发。滑动触发不属于窗口触发，必须指定触发表。滑动触发的触发时刻、时间偏移规则和定时触发相同，唯一的区别是系统时间变更为事件时间。
@@ -222,7 +244,12 @@ CREATE STREAM s_tag_state
   FROM meters
   PARTITION BY tbname
   INTO meters_state_out
-  AS SELECT _twstart AS ts, _twend AS te, COUNT(*) AS cnt FROM %%trows;
+  AS
+    SELECT
+      _twstart AS ts,
+      _twend AS te,
+      COUNT(*) AS cnt
+    FROM %%trows;
 ```
 
 多列状态窗口示例：
@@ -234,7 +261,11 @@ CREATE STREAM s_multi_state
   PARTITION BY tbname
   INTO result_table
   AS
-    SELECT _twstart AS ts, _twend AS te, COUNT(*) AS cnt FROM %%trows;
+    SELECT
+      _twstart AS ts,
+      _twend AS te,
+      COUNT(*) AS cnt
+    FROM %%trows;
 ```
 
 上面的流会在 `s1` 或 `s2` 任一变化时切窗，只对 `s1 = 1` 做零状态过滤，`s2` 不参与零状态判断。
@@ -275,7 +306,12 @@ CREATE STREAM s_tag_event
   FROM meters
   PARTITION BY tbname
   INTO meters_event_out
-  AS SELECT _twstart AS ts, _twend AS te, COUNT(*) AS cnt FROM %%trows;
+  AS
+    SELECT
+      _twstart AS ts,
+      _twend AS te,
+      COUNT(*) AS cnt
+    FROM %%trows;
 ```
 
 适用场景：需要通过事件窗口驱动计算和（或）通知的场景。
@@ -303,31 +339,44 @@ CREATE STREAM s_tag_event
 
 ```sql
 CREATE DATABASE true_for_demo;
+
 USE true_for_demo;
-CREATE TABLE sensor (ts TIMESTAMP, temperature INT);
+
+CREATE TABLE sensor (
+  ts          TIMESTAMP,
+  temperature INT
+);
 
 CREATE STREAM temperature_alarm
-  EVENT_WINDOW(START WITH temperature >= 80 END WITH temperature < 80)
-  TRUE_FOR(START(1m), END(COUNT 2))
+  EVENT_WINDOW(START WITH temperature >= 80 END WITH temperature < 80) TRUE_FOR(START(1m), END(COUNT 2))
   STREAM_OPTIONS(EVENT_TYPE(WINDOW_CLOSE))
   FROM sensor
   INTO temperature_alarm_out
-  AS SELECT _twstart AS ts, _twend AS te, COUNT(*) AS cnt FROM %%trows;
+  AS
+    SELECT
+      _twstart AS ts,
+      _twend AS te,
+      COUNT(*) AS cnt
+    FROM %%trows;
 ```
 
 等待流就绪后，按时间顺序写入以下数据：
 
 ```sql
-INSERT INTO sensor VALUES
-  ('2026-01-01 10:00:00', 85)
-  ('2026-01-01 10:00:30', 70)
-  ('2026-01-01 10:01:00', 85)
-  ('2026-01-01 10:01:30', 86)
-  ('2026-01-01 10:02:00', 87)
-  ('2026-01-01 10:02:10', 70)
-  ('2026-01-01 10:02:20', 69);
+INSERT INTO sensor
+VALUES ('2026-01-01 10:00:00', 85)
+       ('2026-01-01 10:00:30', 70)
+       ('2026-01-01 10:01:00', 85)
+       ('2026-01-01 10:01:30', 86)
+       ('2026-01-01 10:02:00', 87)
+       ('2026-01-01 10:02:10', 70)
+       ('2026-01-01 10:02:20', 69);
 
-SELECT ts, te, cnt FROM temperature_alarm_out;
+SELECT
+  ts,
+  te,
+  cnt
+FROM temperature_alarm_out;
 ```
 
 窗口判断过程如下：
@@ -391,15 +440,16 @@ start_event_item:
 
 ```sql
 CREATE STREAM s_event_tree
-  EVENT_WINDOW(
-    START WITH ((current >= 12 TRUE_FOR(1s), current >= 10), voltage < 215 TRUE_FOR(COUNT 3))
-    END WITH voltage < 210
-  )
-  TRUE_FOR(10s)
+  EVENT_WINDOW(START WITH ((current >= 12 TRUE_FOR(1s), current >= 10), voltage < 215 TRUE_FOR(COUNT 3)) END WITH voltage < 210) TRUE_FOR(10s)
   FROM meters
   PARTITION BY tbname
   INTO event_tree_out(ts, path COMPOSITE KEY, cnt)
-  AS SELECT _twstart, _event_condition_path, COUNT(*) FROM %%trows;
+  AS
+    SELECT
+      _twstart,
+      _event_condition_path,
+      COUNT(*)
+    FROM %%trows;
 ```
 
 上例的条件路径如下：
@@ -419,7 +469,7 @@ CREATE STREAM s_event_tree
 ##### 计数窗口触发
 
 ```sql
-COUNT_WINDOW(count_val[, sliding_val][, col1[, ...]]) 
+COUNT_WINDOW(count_val[, sliding_val][, col1[, ...]])
 ```
 
 计数窗口触发是指对触发表的写入数据按照计数窗口的方式进行窗口划分，当窗口启动和（或）关闭时进行的触发。支持列的触发，只有当指定的列有数据写入时才触发。各参数含义如下：
@@ -443,7 +493,7 @@ COUNT_WINDOW(count_val[, sliding_val][, col1[, ...]])
 ##### 嵌套窗口触发
 
 ```sql
-WINDOW (
+WINDOW(
   nested_window_type AS outer_layer,
   ...,
   nested_window_type [AS leaf_layer]
@@ -466,7 +516,7 @@ WINDOW (
 
 ```sql
 CREATE STREAM order_pairs
-  WINDOW (
+  WINDOW(
     STATE_WINDOW(order_id) EXTEND(1) AS order_scope,
     COUNT_WINDOW(2, 1) AS pair
   )
@@ -474,12 +524,13 @@ CREATE STREAM order_pairs
   STREAM_OPTIONS(EVENT_TYPE(WINDOW_CLOSE))
   INTO order_pair_results
   AS
-    SELECT _twstart AS ts,
-           _twend AS window_end,
-           order_scope._twstart AS order_start,
-           FIRST(soc) AS previous_soc,
-           LAST(soc) AS current_soc,
-           LAST(soc) - FIRST(soc) AS soc_delta
+    SELECT
+      _twstart AS ts,
+      _twend AS window_end,
+      order_scope._twstart AS order_start,
+      FIRST(soc) AS previous_soc,
+      LAST(soc) AS current_soc,
+      LAST(soc) - FIRST(soc) AS soc_delta
     FROM %%trows;
 ```
 
@@ -550,10 +601,10 @@ CREATE STREAM order_pairs
 流式计算的计算结果默认会保存到输出表中，每个输出表中的计算结果是截至当前时刻已经触发和计算完成的输出。可以指定输出表的结构定义，如果存在分组还可以指定子表的标签值。
 
 ```sql
-[INTO [db_name.]table_name] [NODELAY_CREATE_SUBTABLE] [OUTPUT_SUBTABLE(tbname_expr)] [(column_name1, column_name2 [COMPOSITE KEY][, ...])] [TAGS (tag_definition [, ...])] 
+[INTO [db_name.]table_name] [NODELAY_CREATE_SUBTABLE] [OUTPUT_SUBTABLE(tbname_expr)] [(column_name1, column_name2 [COMPOSITE KEY][, ...])] [TAGS (tag_definition [, ...])]
 
 tag_definition:
-    tag_name type_name AS expr
+  tag_name type_name AS expr
 ```
 
 说明如下：
@@ -576,10 +627,11 @@ tag_definition:
 [AS subquery]
 ```
 
-计算任务是流在事件触发后执行的计算动作，可以是任意类型的查询语句，既可以对触发表进行计算，也可以对其他库表进行计算。计算任务的灵活度很高，需在建流前进行合理的设计。注意事项如下：
+计算任务是流在事件触发后执行的计算动作，可以是常用的查询语句（不支持表函数 `TABLE(...)`），既可以对触发表进行计算，也可以对其他库表进行计算。计算任务的灵活度很高，需在建流前进行合理的设计。注意事项如下：
 
 - **查询输出的第一列将作为输出表的主键列**：要求查询输出的第一列为合法的主键数值（Timestamp），如果列类型不符建流时会报错，如果运算过程中出现 NULL 值则对应的计算结果会被丢弃处理。
-- **每个触发分组的计算结果会写入到该分组的同一个输出表（子表或普通表）**：如果查询语句也包含分组子句，分组结果中相同主键的记录会产生覆盖。如果需要使用分组，建议为输出表定义复合主键。
+- **每个触发分组的计算结果会写入到该分组的同一个输出表（子表或普通表）**：JOIN 或分组查询可能在同一时间戳产生多行；默认仅以第一列时间戳作为主键，同一输出表中相同时间戳的结果会覆盖。需要保留这些结果时，应将输出表第二列声明为 `COMPOSITE KEY`，并确保时间戳与第二列的组合对每条结果唯一。
+- **计算任务不支持表函数**：不能在计算任务的 `FROM` 子句中使用 `TABLE(...)` 表函数。
 
 #### 占位符
 
@@ -593,7 +645,9 @@ tag_definition:
 | 滑动触发 | _tcurrent_ts     | 本次触发的事件时间（精度同记录）     |
 | 滑动触发 | _tnext_ts        | 下一次触发的事件时间（精度同记录）   |
 | 窗口触发 | _twstart         | 本次触发窗口的起始时间戳            |
-| 窗口触发 | _twend           | 本次触发窗口的结束时间戳，只适用于 `WINDOW_CLOSE` 触发使用 |
+| 窗口触发 | _twend           | 本次触发窗口的结束时间戳。对单层、单一开始条件的事件窗口，若窗口整体的 `TRUE_FOR` 仅按时长过滤，`WINDOW_OPEN` 时取 `_twstart + 时长`。例如，`TRUE_FOR(1m, START(10s), END(10s))` 取 `_twstart + 1m`。其他数据驱动窗口开窗时取窗口起始时间，时间窗口取已确定的窗口结束时间。 |
+| 窗口触发 | `_tpre_wstart` | 本次事件触发时，同一触发分组中最近一个已关闭窗口的起始时间戳；尚无已关闭窗口时为 `NULL`。支持 `WINDOW_OPEN`、`WINDOW_CLOSE` 及两者组合 |
+| 窗口触发 | `_tpre_wend` | 本次事件触发时，同一触发分组中最近一个已关闭窗口的结束时间戳；尚无已关闭窗口时为 `NULL`。支持 `WINDOW_OPEN`、`WINDOW_CLOSE` 及两者组合 |
 | 窗口触发 | _twduration      | 本次触发窗口的持续时间，只适用于 `WINDOW_CLOSE` 触发使用   |
 | 窗口触发 | _twrownum        | 本次触发窗口的记录条数，只适用于 `WINDOW_CLOSE` 触发使用   |
 | 事件窗口触发 | _event_condition_path | 当前事件窗口节点在 `START WITH` 开始事件树中的条件路径。只适用于 `EVENT_WINDOW` 且 `START WITH` 至少包含一层括号分组的场景 |
@@ -609,20 +663,23 @@ tag_definition:
 
 使用限制：
 
-- %%trows：只能用于 FROM 子句，在使用 %%trows 的语句中不支持 where 条件过滤，不支持对 %%trows 进行关联查询。
+- `_tpre_wstart`、`_tpre_wend`：`WINDOW_OPEN` 引用打开事件触发时最近一个已关闭窗口，尚未关闭的重叠窗口不计入；`WINDOW_CLOSE` 引用当前窗口关闭前最近一个已关闭窗口。两类事件中取值可能不同，均不支持与 `IDLE`、`RESUME` 组合使用。
+- 前序窗口占位符仅支持普通单层窗口，不支持嵌套 `WINDOW(...)` 或多 `START WITH` 条件的事件窗口；在这些场景下使用会在创建流时报错，包括叶层和层名限定形式。
+- 使用前序窗口占位符时，乱序写入、更新或删除引发的自动重算也会刷新前序关系发生变化的后继窗口，即使后继窗口内的数据没有变化。删除最后一个已关闭窗口后，未来后继窗口的 OPEN 结果也会修正，无需等待其关闭。对于边界依赖数据的窗口，恢复前序关系可能需要从历史处理起点回放，重算开销取决于回放范围。
+- `%%trows`：只能用于 `FROM` 子句；单独 `FROM %%trows` 时不支持 `WHERE` 过滤。计算查询最外层的 `SELECT` 支持一个 `%%trows` 与一张普通表或不引用 `%%trows` 的派生表直接进行二元 JOIN，按单组模式计算；支持 INNER、OUTER、SEMI/ANTI、CROSS、ASOF 和 WINDOW JOIN，连接条件与 JOIN 后的 `WHERE` 过滤遵循相应批查询的语法和语义。此时整个计算查询只能有这一处 `%%trows` 引用，包括派生表和表达式子查询；不支持在嵌套查询、嵌套 JOIN 树或 `UNION` 分支中直接关联 `%%trows`。JOIN 的另一侧按计算查询的现有扫描规则读取；如需限定时间范围，应在 SQL 中显式指定。
 - %%tbname：可以用于 FROM、SELECT 和 WHERE 子句。
 - %%rollup_tag：只在使用 `ROLLUP BY` 时可用，可以用于 `OUTPUT_SUBTABLE`、`TAGS`、`AS subquery` 中现有触发占位符允许的位置。
 - _trollup_tbcount：只在使用 `ROLLUP BY` 时可用，只能用于 `AS subquery`，不能用于 `OUTPUT_SUBTABLE` 或 `TAGS`。
 - _event_condition_path：只在 `EVENT_WINDOW` 且 `START WITH` 使用子事件结构（至少一层括号分组）时可用。单个普通开始条件或非事件窗口触发中使用会报错。
 - 其他占位符：只能用于 SELECT 和 WHERE 子句。
-- 嵌套窗口中，未限定的触发占位符引用叶层；层名限定占位符只在计算查询及其子查询中可见。
+- 嵌套窗口中，受支持的未限定触发占位符引用叶层；层名限定占位符只在计算查询及其子查询中可见。嵌套窗口不支持 `_tpre_wstart` 和 `_tpre_wend`。
 
 ### 流式计算的控制选项
 
 ```sql
 [STREAM_OPTIONS(stream_option [|...])]
 
-stream_option: {WATERMARK(duration_time) | EXPIRED_TIME(exp_time) | IGNORE_DISORDER | DELETE_RECALC | DELETE_OUTPUT_TABLE | FILL_HISTORY[(start_time)] | FILL_HISTORY_FIRST[(start_time)] | CALC_NOTIFY_ONLY | LOW_LATENCY_CALC | PRE_FILTER(expr) | FORCE_OUTPUT | MAX_DELAY(delay_time) | EVENT_TYPE(event_types) | IGNORE_NODATA_TRIGGER | IDLE_TIMEOUT(duration_time) | FLUSH_ON_OUTER_CLOSE | CONFIG(config_item [, config_item ...])}
+stream_option: {WATERMARK(duration_time) | EXPIRED_TIME(exp_time) | IGNORE_DISORDER | DELETE_RECALC | DELETE_OUTPUT_TABLE | FILL_HISTORY[(start_time)] | FILL_HISTORY_FIRST[(start_time)] | CALC_NOTIFY_ONLY | LOW_LATENCY_CALC | PRE_FILTER(expr) | FORCE_OUTPUT | MAX_DELAY(delay_time | tag_name) | EVENT_TYPE(event_types) | IGNORE_NODATA_TRIGGER | IDLE_TIMEOUT(duration_time) | FLUSH_ON_OUTER_CLOSE | CONFIG(config_item [, config_item ...])}
 
 config_item: {timezone = timezone_name | firstDayOfWeek = first_day_of_week}
 ```
@@ -640,7 +697,8 @@ config_item: {timezone = timezone_name | firstDayOfWeek = first_day_of_week}
 - LOW_LATENCY_CALC：指定触发后需要低延迟的计算或通知，单次触发发生后会立即启动计算或通知。低延迟的计算或通知会保证实时流式计算任务的时效性，但是也会造成处理效率的降低，有可能需要更多的处理资源才能满足需求，因此只推荐在业务有强时效性要求时使用。未指定时单次触发发生后有可能不会立即进行计算，采用批量计算与通知的方式来达到较好的资源利用效率。
 - PRE_FILTER(expr) ：指定在触发进行前对触发表进行数据过滤处理，只有符合条件的数据才会进入触发判断，`expr` 中可以包含列、标签、常量及其标量与逻辑运算。例如：`col1 > 0` 则只有 col1 为正数的数据行可以进行触发，未指定时无触发表数据过滤。
 - FORCE_OUTPUT：指定计算结果强制输出选项，当某次触发没有计算结果时将强制输出一行数据，除常量外（含常量对待列）其他列的值都为 NULL，后续版本会增加更多填充策略。
-- MAX_DELAY(delay_time)：指定在窗口未关闭时的最长等待的时长（处理时间），从窗口开启时每经过该时间段且窗口仍未关闭时产生触发，非窗口触发时自动忽略。当窗口触发存在 `TRUE_FOR` 条件且 `TRUE_FOR` 时长大于 `MAX_DELAY` 时，`MAX_DELAY` 仍然生效 (即使最终当前窗口未满足 `TRUE_FOR` 条件)。`delay_time` 为等待时长，支持的时间单位包括：秒 (s)、分 (m)、小时 (h)、天 (d)，最小允许的值为 3 秒，误差范围在 1 秒以内，当计算时长超过 `delay_time` 时忽略期间的 `MAX_DELAY` 触发。`WATERMARK` 的判断逻辑早于窗口判定，因此可能出现设定 `max_delay` 但仍未产生触发的情况，这是由于窗口并未真正开启。
+- MAX_DELAY(delay_time)：指定在窗口未关闭时的最长等待的时长（处理时间），从窗口开启时每经过该时间段且窗口仍未关闭时产生触发，非窗口触发时自动忽略。当窗口触发存在 `TRUE_FOR` 条件且 `TRUE_FOR` 时长大于 `MAX_DELAY` 时，`MAX_DELAY` 仍然生效 (即使最终当前窗口未满足 `TRUE_FOR` 条件)。`delay_time` 为等待时长，支持时间字面量或 duration Tag 列名；字面量支持的时间单位包括：秒 (s)、分 (m)、小时 (h)、天 (d)，最小允许的值为 3 秒，误差范围在 1 秒以内，当计算时长超过 `delay_time` 时忽略期间的 `MAX_DELAY` 触发。`WATERMARK` 的判断逻辑早于窗口判定，因此可能出现设定 `max_delay` 但仍未产生触发的情况，这是由于窗口并未真正开启。
+- **TRUE_FOR / MAX_DELAY 引用 Tag 列**：窗口触发中的 `TRUE_FOR`（含 `start(...)`、`end(...)` 及 `AND`/`OR` 组合）可将 `duration_time`、`COUNT n` 替换为超级表 Tag 列名；`MAX_DELAY` 同理可引用 duration Tag。duration Tag 支持字符串（如 `'3s'`）或以库时间精度（`ms`、`us` 或 `ns`）为单位的整型；count Tag 须为正整数。`PARTITION BY` 不含 `tbname` 时，被引用 Tag 须显式出现在分区列表中；包含 `tbname` 时，可省略门限 Tag，系统会在内部补充并支持其 `SET TAG` 热更新，显式参与分区的 Tag 仍不允许 `SET TAG`。非法或空值 Tag 会打印 ERROR 并按 0 处理，对应分组继续正常处理且不影响其他分组。开始事件树叶子上的局部 `TRUE_FOR` 以及嵌套 `WINDOW(...)` 触发器暂不支持 Tag 门限。
 - EVENT_TYPE(event_types)：指定窗口触发的事件类型，可以多选，未指定时默认值为 `WINDOW_CLOSE`。SLIDING 触发（不带 INTERVAL）和 PERIOD 触发不适用（自动忽略）。各选项含义如下：
   - WINDOW_OPEN：窗口启动事件。
   - WINDOW_CLOSE：窗口关闭事件。
@@ -674,10 +732,10 @@ STREAM_OPTIONS(CONFIG(timezone = 'Asia/Shanghai', firstDayOfWeek = 1))
 [notification_definition]
 
 notification_definition:
-    NOTIFY(url [, ...]) [ON (event_types)] [WHERE condition] [NOTIFY_OPTIONS(notify_option[|notify_option])]
+  NOTIFY(url [, ...]) [ON (event_types)] [WHERE condition] [NOTIFY_OPTIONS(notify_option[|notify_option])]
 
 event_types:
-    event_type [|event_type]
+  event_type [|event_type]
 
 event_type: {WINDOW_OPEN | WINDOW_CLOSE | IDLE | RESUME}
 ```
@@ -961,7 +1019,11 @@ SHOW CREATE STREAM [db_name.]stream_name;
 更完整字段可查询 [`INS_STREAMS`](../05-tdengine-sql/09-system-info/01-meta.md#ins_streams)：
 
 ```sql
-SELECT stream_name, timezone, first_day_of_week, sql
+SELECT
+  stream_name,
+  timezone,
+  first_day_of_week,
+  sql
 FROM information_schema.ins_streams;
 ```
 
@@ -974,7 +1036,8 @@ FROM information_schema.ins_streams;
 流式计算在执行时由多个任务组成，可从 [`INS_STREAM_TASKS`](../05-tdengine-sql/09-system-info/01-meta.md#ins_stream_tasks) 获取任务信息：
 
 ```sql
-SELECT * FROM information_schema.`ins_stream_tasks`;
+SELECT *
+FROM information_schema.`ins_stream_tasks`;
 ```
 
 ## 操作流式计算
@@ -982,7 +1045,7 @@ SELECT * FROM information_schema.`ins_stream_tasks`;
 ### 启动操作
 
 ``` SQL
-START STREAM [IF EXISTS] [IGNORE UNTREATED] [db_name.]stream_name; 
+START STREAM [IF EXISTS] [IGNORE UNTREATED] [db_name.]stream_name;
 ```
 
 说明：
@@ -995,7 +1058,7 @@ START STREAM [IF EXISTS] [IGNORE UNTREATED] [db_name.]stream_name;
 ### 停止操作
 
 ``` SQL
-STOP STREAM [IF EXISTS] [db_name.]stream_name; 
+STOP STREAM [IF EXISTS] [db_name.]stream_name;
 ```
 
 说明：
@@ -1008,13 +1071,40 @@ STOP STREAM [IF EXISTS] [db_name.]stream_name;
 
 说明：
 
-- 从 3.4.2.0 版本开始，流计算支持触发和计算里使用外部源。
+- 流式计算支持在触发和计算中使用外部源。可以使用 MySQL、PostgreSQL、InfluxDB 3.x、InfluxDB 1.8、SQL Server 和 Oracle。InfluxDB 1.8 通过原生 InfluxQL 提供者接入，有自己的限制，详见 [使用 InfluxDB 1.8 作为触发源](#使用-influxdb-18-作为触发源)。
 - 历史计算暂不支持。
 - 使用外部源性能没有本地库性能好，需根据具体使用场景具体优化。
 - 外部源触发，不支持的流计算选项：EXPIRED_TIME/IGNORE_DISORDER/DELETE_RECALC。
 - 外部源的变更（删表，改表，连接不可达等等），可能导致未定义的流计算行为。所以如果要变更外部源，最好把流先删除然后重建。
 - tbname 支持
   - 对于 mysql/pg 外部源，流计算里不支持 partition by tbname 语法。
-  - 对于 influxdb 外部源，支持 partition by tbname 语法，内部会转换为 partition by 所有的 tag。不支持 partition by function(tbname)。
-  - 对于 influxdb 外部源，可以使用 %%tbname(将所有 tag 拼接起来作为 tbname，如果超过表名长度，则用拼接的字符串获取 hash 值标识)。
-- influxdb 外部源，tag 名超过 64 个字符或者 tag 值超过 256 个字符，会报错。需要修改数据后，重新建流。
+  - 对于 InfluxDB 3.x 外部源，支持 partition by tbname 语法，内部会转换为 partition by 所有的 tag。不支持 partition by function(tbname)。
+  - 对于 InfluxDB 3.x 外部源，可以使用 %%tbname(将所有 tag 拼接起来作为 tbname，如果超过表名长度，则用拼接的字符串获取 hash 值标识)。
+- InfluxDB 3.x 外部源，tag 名超过 64 个字符或者 tag 值超过 256 个字符，会报错。需要修改数据后，重新建流。
+
+### 使用 InfluxDB 1.8 作为触发源
+
+从 `v3.4.3.12` 开始，流式计算支持 InfluxDB OSS 1.8 外部源。创建外部源时需在 `OPTIONS` 中显式配置 `version = '1.8'`，并使用 HTTP 协议和可选 retention policy。外部源创建方式及参数示例请参阅 [InfluxDB 外部源](../05-tdengine-sql/04-data-query/06-federated-query.md#influxdb-参数)。
+
+流式计算的 `FROM` 子句使用 `<external_source>.<database>.<measurement>`，不需要写入 retention policy：
+
+```sql
+CREATE STREAM stream_db.influx18_high_voltage
+  INTERVAL(1m) SLIDING(1m)
+  FROM influx18_prod.telegraf.meters
+  STREAM_OPTIONS(PRE_FILTER(voltage > 220))
+  INTO stream_db.influx18_result
+  AS
+    SELECT
+      _twstart AS ts,
+      COUNT(*) AS cnt,
+      AVG(voltage) AS avg_voltage
+    FROM %%trows;
+```
+
+InfluxDB 1.8 的每个 series 会作为独立子表身份参与流式计算。`PARTITION BY` 决定触发分组：未指定时，同一 measurement 使用一个分组；`PARTITION BY tbname` 时，每个 series 独立分组；也可以按 measurement tag 或 tag 子集分组。需要固定到具体 series 时，可以创建 InfluxDB SERIES 虚拟表并从该虚拟表建流，详见 [InfluxDB SERIES 列引用](../05-tdengine-sql/04-data-query/06-federated-query.md#influxdb-series-列引用)。
+
+`PRE_FILTER` 支持 `=`、`!=`、`>`、`>=`、`<`、`<=` 以及 `AND`、`OR` 组合；其他表达式会在 `CREATE STREAM` 时被拒绝。该条件只过滤触发侧数据，不影响显式外部计算表的 `WHERE` 条件。InfluxDB 1.8 路径还支持根据新增 tag key 刷新 series 身份，但不支持 `FILL_HISTORY`。针对 InfluxDB 1.8 外部源，以下几类写法同样会被拒绝：时间条件不能使用 `!=`；任何时间条件都不能出现在 `OR` 分支中——provider 会对各分支的时间范围取交集，这类下推会静默返回空结果。tag 列仅支持 `=` 和 `!=`，且只能与字符串常量比
+较（`host = 1` 在远端是类型错误，每次读取都会失败）；time 列只能与常量比较，不能与
+其他列比较；列与列比较仅在两侧都是普通 field 时可用，任一侧是 tag 都会被拒绝，因为
+远端对 tag 的 NULL 语义不同（`host != zone` 会保留缺失 `zone` 的 series）。

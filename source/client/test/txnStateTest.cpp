@@ -22,6 +22,8 @@
 
 extern "C" {
 #include "clientInt.h"
+#include "cmdnodes.h"
+#include "querynodes.h"
 #include "query.h"
 #include "tmsg.h"
 }
@@ -338,6 +340,53 @@ TEST(txnStateCase, commitRspTransientCodeKeepsState) {
 #endif
 }
 
+// COMMIT refused because a participant database was dropped meanwhile (mnode answers
+// TSDB_CODE_TXN_NEED_ROLLBACK): the txn is still open on the mnode, so the client must keep its state
+// and let the user ROLLBACK. Resetting here would leave the mnode txn orphaned until it times out.
+TEST(txnStateCase, commitRspNeedRollbackKeepsState) {
+#if defined(TD_ENTERPRISE) && defined(__linux__)
+  FakeTxnEnv env;
+  g_fakeTxnEnv = &env;
+  g_rollbackReqCount.store(0);
+
+  (void)taosThreadMutexLock(&env.tscObj.mutex);
+  env.tscObj.txnState = UTXN_STAGE_ACTIVE;
+  env.tscObj.txnId = 8004;
+  env.tscObj.pTxnVgSet = tSimpleHashInit(8, taosGetDefaultHashFunction(TSDB_DATA_TYPE_INT));
+  (void)taosThreadMutexUnlock(&env.tscObj.mutex);
+
+  SRequestObj request = {0};
+  request.pTscObj = &env.tscObj;
+  ASSERT_EQ(tsem_init(&request.body.rspSem, 0, 0), 0);
+
+  SDataBuf msg = {0};
+  msg.pData = taosMemoryCalloc(1, 8);
+  msg.len = 8;
+  msg.pEpSet = (SEpSet*)taosMemoryCalloc(1, sizeof(SEpSet));
+
+  __async_send_cb_fn_t handler = getMsgRspHandle(TDMT_MND_COMMIT_TXN);
+  ASSERT_NE(handler, nullptr);
+  handler(&request, &msg, TSDB_CODE_TXN_NEED_ROLLBACK);
+  EXPECT_EQ(tsem_wait(&request.body.rspSem), 0);
+
+  // The error reaches the caller, and the txn state is kept so ROLLBACK can still be issued.
+  EXPECT_EQ(request.code, TSDB_CODE_TXN_NEED_ROLLBACK);
+  EXPECT_EQ(env.tscObj.txnState, UTXN_STAGE_ACTIVE);
+  EXPECT_EQ(env.tscObj.txnId, 8004);
+  EXPECT_NE(env.tscObj.pTxnVgSet, nullptr);
+
+  (void)taosThreadMutexLock(&env.tscObj.mutex);
+  tSimpleHashCleanup(env.tscObj.pTxnVgSet);
+  env.tscObj.pTxnVgSet = NULL;
+  (void)taosThreadMutexUnlock(&env.tscObj.mutex);
+
+  tsem_destroy(&request.body.rspSem);
+  g_fakeTxnEnv = nullptr;
+#else
+  GTEST_SKIP() << "requires Enterprise on Linux";
+#endif
+}
+
 TEST(txnStateCase, commitRspTxnNotExistResetsState) {
 #if defined(TD_ENTERPRISE) && defined(__linux__)
   FakeTxnEnv env;
@@ -376,4 +425,258 @@ TEST(txnStateCase, commitRspTxnNotExistResetsState) {
 #else
   GTEST_SKIP() << "requires Enterprise on Linux";
 #endif
+}
+
+// ---- statements of a batch meta txn run one at a time on their connection (tscTxnAcquireStmtSlot) ----
+
+namespace {
+SRequestObj makeReq(STscObj* pTscObj, int64_t self) {
+  SRequestObj req = {0};
+  req.pTscObj = pTscObj;
+  req.self = self;
+  return req;
+}
+}  // namespace
+
+TEST(txnStateCase, stmtSlotSerializesStatementsOfTxn) {
+  FakeTxnEnv env;
+  env.tscObj.txnId = 9001;
+  SRequestObj reqA = makeReq(&env.tscObj, 101);
+  SRequestObj reqB = makeReq(&env.tscObj, 102);
+  SRequestObj subA = makeReq(&env.tscObj, 103);  // sub-request run on behalf of reqA
+  subA.isSubReq = true;
+  subA.relation.userRefId = reqA.self;
+
+  bool acquired = false;
+  ASSERT_EQ(tscTxnAcquireStmtSlot(&reqA, 9001, &acquired), TSDB_CODE_SUCCESS);
+  EXPECT_TRUE(acquired);
+  EXPECT_EQ(env.tscObj.txnStmtOwner, reqA.self);
+
+  // a second statement of the txn while reqA runs: rejected, the slot stays reqA's
+  EXPECT_EQ(tscTxnAcquireStmtSlot(&reqB, 9001, &acquired), TSDB_CODE_TXN_CONCURRENT_STMT);
+  EXPECT_FALSE(acquired);
+  EXPECT_EQ(env.tscObj.txnStmtOwner, reqA.self);
+
+  // a retry of reqA and a sub-request of reqA pass on reqA's claim without taking it again
+  EXPECT_EQ(tscTxnAcquireStmtSlot(&reqA, 9001, &acquired), TSDB_CODE_SUCCESS);
+  EXPECT_FALSE(acquired);
+  EXPECT_EQ(tscTxnAcquireStmtSlot(&subA, 9001, &acquired), TSDB_CODE_SUCCESS);
+  EXPECT_FALSE(acquired);
+
+  // only the owner gives the slot back: the sub-request's and reqB's completions leave it alone
+  tscTxnReleaseStmtSlot(&subA);
+  tscTxnReleaseStmtSlot(&reqB);
+  EXPECT_EQ(env.tscObj.txnStmtOwner, reqA.self);
+  tscTxnReleaseStmtSlot(&reqA);
+  EXPECT_EQ(env.tscObj.txnStmtOwner, 0);
+  tscTxnReleaseStmtSlot(&reqA);  // idempotent
+  EXPECT_EQ(env.tscObj.txnStmtOwner, 0);
+
+  // once reqA is done the next statement runs
+  EXPECT_EQ(tscTxnAcquireStmtSlot(&reqB, 9001, &acquired), TSDB_CODE_SUCCESS);
+  EXPECT_TRUE(acquired);
+  tscTxnReleaseStmtSlot(&reqB);
+  EXPECT_EQ(env.tscObj.txnStmtOwner, 0);
+}
+
+TEST(txnStateCase, stmtSlotNotTakenOutsideTxnOrForAnotherTxn) {
+  FakeTxnEnv env;
+  SRequestObj req = makeReq(&env.tscObj, 201);
+  bool        acquired = true;
+
+  // a statement outside any txn takes nothing, even while the connection has one
+  env.tscObj.txnId = 9002;
+  EXPECT_EQ(tscTxnAcquireStmtSlot(&req, 0, &acquired), TSDB_CODE_SUCCESS);
+  EXPECT_FALSE(acquired);
+  EXPECT_EQ(env.tscObj.txnStmtOwner, 0);
+
+  // a statement of a txn that is no longer the connection's one never runs against the current txn's state
+  EXPECT_EQ(tscTxnAcquireStmtSlot(&req, 9001, &acquired), TSDB_CODE_TXN_NOT_IN_PROGRESS);
+  EXPECT_FALSE(acquired);
+  EXPECT_EQ(env.tscObj.txnStmtOwner, 0);
+}
+
+TEST(txnStateCase, statementTxnIdentityFixedAtStart) {
+  FakeTxnEnv env;
+  SRequestObj early = makeReq(&env.tscObj, 301);
+
+  // the statement starts before BEGIN completes ...
+  env.tscObj.txnId = 0;
+  tscReqFixTxnId(&early);
+  EXPECT_TRUE(early.txnIdFixed);
+  EXPECT_EQ(early.txnId, 0);
+
+  // ... BEGIN completes while it is in flight: it stays a plain statement (a retry keeps the identity too)
+  env.tscObj.txnId = 9003;
+  tscReqFixTxnId(&early);
+  EXPECT_EQ(early.txnId, 0);
+
+#ifdef TD_ENTERPRISE
+  // The txn check judges it by that identity. It carries no AST, which a statement of the txn may not do:
+  // judged by the connection's current txnId it would be rejected as a txn statement.
+  bool handled = false;
+  EXPECT_EQ(tscCheckTxnState(&early, NULL, &handled), TSDB_CODE_SUCCESS);
+  EXPECT_FALSE(handled);
+
+  // a statement that starts after BEGIN belongs to the txn and is checked as such
+  SRequestObj late = makeReq(&env.tscObj, 302);
+  EXPECT_EQ(tscCheckTxnState(&late, NULL, &handled), TSDB_CODE_TXN_INVALID_OPERATION);
+  EXPECT_TRUE(late.txnIdFixed);
+  EXPECT_EQ(late.txnId, 9003);
+#endif
+}
+
+TEST(txnStateCase, ddlChargedOncePerStatement) {
+#ifdef TD_ENTERPRISE
+  FakeTxnEnv env;
+  env.tscObj.txnId = 9004;
+  env.tscObj.txnState = UTXN_STAGE_ACTIVE;
+
+  SNode* pRoot = NULL;
+  ASSERT_EQ(nodesMakeNode((ENodeType)QUERY_NODE_CREATE_TABLE_STMT, &pRoot), TSDB_CODE_SUCCESS);
+  SQuery query = {};
+  query.pRoot = pRoot;
+  SRequestObj req = makeReq(&env.tscObj, 401);
+  req.pQuery = &query;
+
+  bool handled = false;
+  ASSERT_EQ(tscCheckTxnState(&req, NULL, &handled), TSDB_CODE_SUCCESS);
+  EXPECT_EQ(env.tscObj.txnDdlCount, 1);
+
+  // a retry of the same statement (meta refresh etc.) is checked again but not charged again
+  ASSERT_EQ(tscCheckTxnState(&req, NULL, &handled), TSDB_CODE_SUCCESS);
+  EXPECT_EQ(env.tscObj.txnDdlCount, 1);
+
+  // the same request object run again as a new statement (STMT reuse) is a new DDL: charged
+  tscReqStartStatement(&req);
+  EXPECT_FALSE(req.txnChecked);
+  EXPECT_FALSE(req.txnIdFixed);
+  ASSERT_EQ(tscCheckTxnState(&req, NULL, &handled), TSDB_CODE_SUCCESS);
+  EXPECT_EQ(env.tscObj.txnDdlCount, 2);
+
+  // a new statement after the txn ended takes the connection's new identity instead of the old txn's
+  env.tscObj.txnId = 0;
+  tscReqStartStatement(&req);
+  ASSERT_EQ(tscCheckTxnState(&req, NULL, &handled), TSDB_CODE_SUCCESS);
+  EXPECT_EQ(req.txnId, 0);
+  EXPECT_EQ(env.tscObj.txnDdlCount, 2);
+
+  nodesDestroyNode(pRoot);
+#else
+  GTEST_SKIP() << "requires Enterprise";
+#endif
+}
+
+// ---- a statement's response that arrives after its txn ended must not write the txn-local state ----
+// tscResetTxnState clears pTxnTableMeta / pTxnSuidMap but keeps them for the connection, so a late write would leave
+// an entry of a finished txn behind, which the next txn would take for its own (tscTxnLocalWritable).
+
+namespace {
+STableMeta* makeTxnMeta(int8_t tableType, uint64_t uid) {
+  STableMeta* p = static_cast<STableMeta*>(taosMemoryCalloc(1, sizeof(STableMeta) + 2 * sizeof(SSchema)));
+  p->tableType = tableType;
+  p->uid = uid;
+  p->tableInfo.numOfColumns = 2;
+  return p;
+}
+
+void freeTxnHashes(STscObj* pTscObj) {
+  if (pTscObj->pTxnTableMeta != NULL) {
+    void* pIter = taosHashIterate(pTscObj->pTxnTableMeta, NULL);
+    while (pIter != NULL) {
+      taosMemoryFreeClear(*(STableMeta**)pIter);
+      pIter = taosHashIterate(pTscObj->pTxnTableMeta, pIter);
+    }
+    taosHashCleanup(pTscObj->pTxnTableMeta);
+    pTscObj->pTxnTableMeta = NULL;
+  }
+  taosHashCleanup(pTscObj->pTxnSuidMap);
+  pTscObj->pTxnSuidMap = NULL;
+}
+
+bool hasName(STscObj* pTscObj, const char* name) {
+  return pTscObj->pTxnTableMeta != NULL && taosHashGet(pTscObj->pTxnTableMeta, name, strlen(name)) != NULL;
+}
+}  // namespace
+
+TEST(txnStateCase, lateWriteOfFinishedTxnIsDropped) {
+  FakeTxnEnv env;
+  env.tscObj.txnId = 9101;
+  ASSERT_EQ(tscTxnEnsureLocalMetaHashes(&env.tscObj), TSDB_CODE_SUCCESS);
+
+  // the txn's own statement writes as usual
+  ASSERT_EQ(tscTxnUpsertTableMeta(&env.tscObj, 9101, "1.db.t1", makeTxnMeta(TSDB_NORMAL_TABLE, 1), "cached"),
+            TSDB_CODE_SUCCESS);
+  EXPECT_TRUE(hasName(&env.tscObj, "1.db.t1"));
+  ASSERT_EQ(tscTxnUpsertTableMeta(&env.tscObj, 9101, "1.db.t0", NULL, "drop"), TSDB_CODE_SUCCESS);
+  EXPECT_TRUE(hasName(&env.tscObj, "1.db.t0"));
+
+  // the txn is over (COMMIT / ROLLBACK cleared the hashes, which stay): a response of one of its statements comes
+  // back late. The write is dropped and the meta it carried freed (ASAN: no leak), the call still succeeds.
+  freeTxnHashes(&env.tscObj);
+  env.tscObj.txnId = 0;
+  ASSERT_EQ(tscTxnEnsureLocalMetaHashes(&env.tscObj), TSDB_CODE_SUCCESS);
+  ASSERT_EQ(tscTxnUpsertTableMeta(&env.tscObj, 9101, "1.db.t2", makeTxnMeta(TSDB_NORMAL_TABLE, 2), "cached"),
+            TSDB_CODE_SUCCESS);
+  ASSERT_EQ(tscTxnUpsertTableMeta(&env.tscObj, 9101, "1.db.t3", NULL, "drop"), TSDB_CODE_SUCCESS);
+  EXPECT_EQ(taosHashGetSize(env.tscObj.pTxnTableMeta), 0);
+
+  // ... or after the next txn began: still not the statement's txn
+  env.tscObj.txnId = 9102;
+  ASSERT_EQ(tscTxnUpsertTableMeta(&env.tscObj, 9101, "1.db.t4", makeTxnMeta(TSDB_NORMAL_TABLE, 4), "cached"),
+            TSDB_CODE_SUCCESS);
+  EXPECT_FALSE(hasName(&env.tscObj, "1.db.t4"));
+
+  // a late CREATE TABLE response (child table stub + suid map) and a late CREATE / ALTER STABLE response
+  STableMetaRsp ctbRsp = {0};
+  tstrncpy(ctbRsp.dbFName, "1.db", sizeof(ctbRsp.dbFName));
+  tstrncpy(ctbRsp.tbName, "ct1", sizeof(ctbRsp.tbName));
+  tstrncpy(ctbRsp.stbName, "stb", sizeof(ctbRsp.stbName));
+  ctbRsp.tableType = TSDB_CHILD_TABLE;
+  ctbRsp.tuid = 11;
+  ctbRsp.suid = 10;
+  ASSERT_EQ(tscTxnCacheCreateTbMeta(&env.tscObj, 9101, &ctbRsp), TSDB_CODE_SUCCESS);
+  EXPECT_FALSE(hasName(&env.tscObj, "1.db.ct1"));
+  uint64_t suid = 10;
+  EXPECT_EQ(taosHashGet(env.tscObj.pTxnSuidMap, &suid, sizeof(suid)), nullptr);
+
+  // the current txn's own statements are unaffected
+  ASSERT_EQ(tscTxnCacheCreateTbMeta(&env.tscObj, 9102, &ctbRsp), TSDB_CODE_SUCCESS);
+  EXPECT_TRUE(hasName(&env.tscObj, "1.db.ct1"));
+  EXPECT_NE(taosHashGet(env.tscObj.pTxnSuidMap, &suid, sizeof(suid)), nullptr);
+
+  freeTxnHashes(&env.tscObj);
+}
+
+// The bypass paths (SML / rawBlock / STMT / STMT2) claim the statement slot themselves, so they are serialised with
+// the other statements of the txn, and keep COMMIT / ROLLBACK out while they run.
+TEST(txnStateCase, bypassPathClaimsStmtSlot) {
+  FakeTxnEnv env;
+  env.tscObj.txnId = 9201;
+  SRequestObj owner = makeReq(&env.tscObj, 501);
+  SRequestObj bypass = makeReq(&env.tscObj, 502);
+  owner.txnId = bypass.txnId = 9201;
+  owner.txnIdFixed = bypass.txnIdFixed = true;
+
+  ASSERT_EQ(tscTxnClaimStmtSlot(&owner), TSDB_CODE_SUCCESS);
+  EXPECT_EQ(env.tscObj.txnStmtOwner, owner.self);
+  EXPECT_EQ(tscTxnClaimStmtSlot(&bypass), TSDB_CODE_TXN_CONCURRENT_STMT);
+  EXPECT_EQ(tscTxnClaimStmtSlot(&owner), TSDB_CODE_SUCCESS);  // retry of the owner (e.g. STMT2 internal retry)
+  tscTxnReleaseStmtSlot(&owner);
+
+  ASSERT_EQ(tscTxnClaimStmtSlot(&bypass), TSDB_CODE_SUCCESS);
+  EXPECT_EQ(env.tscObj.txnStmtOwner, bypass.self);
+  tscTxnReleaseStmtSlot(&bypass);
+  EXPECT_EQ(env.tscObj.txnStmtOwner, 0);
+
+  // outside a txn nothing is claimed
+  SRequestObj plain = makeReq(&env.tscObj, 503);
+  plain.txnIdFixed = true;
+  EXPECT_EQ(tscTxnClaimStmtSlot(&plain), TSDB_CODE_SUCCESS);
+  EXPECT_EQ(env.tscObj.txnStmtOwner, 0);
+
+  // a statement of a finished txn does not run against the next one's state
+  env.tscObj.txnId = 9202;
+  EXPECT_EQ(tscTxnClaimStmtSlot(&bypass), TSDB_CODE_TXN_NOT_IN_PROGRESS);
+  EXPECT_EQ(env.tscObj.txnStmtOwner, 0);
 }

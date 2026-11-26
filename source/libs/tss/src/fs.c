@@ -45,19 +45,29 @@ static void printConfig(SSharedStorage* pss) {
 
 
 
+static bool isPathSeparator(char c) {
+#ifdef WINDOWS
+    return c == '/' || c == TD_DIRSEP_CHAR;
+#else
+    return c == TD_DIRSEP_CHAR;
+#endif
+}
+
+
+
 // joinPath is a helper function which joins the base directory and the path to
 // create a full path.
 static void joinPath(SSharedStorageFS* ss, const char* path, char* fullPath, int32_t cap) {
     uint32_t len = ss->baseDirLen;
 
     memcpy(fullPath, ss->baseDir, len);
-    if( fullPath[len - 1] != TD_DIRSEP_CHAR) {
+    if (!isPathSeparator(fullPath[len - 1])) {
         fullPath[len++] = TD_DIRSEP_CHAR;
         fullPath[len] = 0;
     }
 
     if (path != NULL) {
-        if (path[0] == TD_DIRSEP_CHAR) {
+        if (isPathSeparator(path[0])) {
             path++;
         }
         tstrncpy(fullPath + len, path, cap - len);
@@ -359,7 +369,7 @@ static int32_t listFileInDir(const char* dirPath, size_t baseLen, SArray* res) {
 
         if (taosDirEntryIsDir(entry)) {
             size_t len = strlen(path);
-            if (path[len - 1] != TD_DIRSEP_CHAR) {
+            if (!isPathSeparator(path[len - 1])) {
                 path[len++] = TD_DIRSEP_CHAR;
                 path[len] = 0;
             }
@@ -368,7 +378,17 @@ static int32_t listFileInDir(const char* dirPath, size_t baseLen, SArray* res) {
             char* p = taosStrdup(path + baseLen);
             if ( p == NULL ) {
                 code = TSDB_CODE_OUT_OF_MEMORY;
-            } else if (taosArrayPush(res, &p) == NULL) {
+                break;
+            }
+#ifdef WINDOWS
+            // ensure output uses '/' as the path separator on Windows
+            for (char* q = p; *q != 0; ++q) {
+                if (*q == TD_DIRSEP_CHAR) {
+                    *q = '/';
+                }
+            }
+#endif
+            if (taosArrayPush(res, &p) == NULL) {
                 code = TSDB_CODE_OUT_OF_MEMORY;
                 taosMemoryFree(p);
             }
@@ -395,13 +415,13 @@ static int32_t listFile(SSharedStorage* pss, const char* prefix, SArray* paths) 
     char fullPath[1024];
     joinPath(ss, prefix, fullPath, sizeof(fullPath));
     size_t len = strlen(fullPath);
-    if (fullPath[len - 1] != TD_DIRSEP_CHAR) {
+    if (!isPathSeparator(fullPath[len - 1])) {
         fullPath[len++] = TD_DIRSEP_CHAR;
         fullPath[len] = 0;
     }
 
     len = ss->baseDirLen;
-    if (ss->baseDir[len - 1] != TD_DIRSEP_CHAR) {
+    if (!isPathSeparator(ss->baseDir[len - 1])) {
         len++;
     }
     int32_t code = listFileInDir(fullPath, len, paths);

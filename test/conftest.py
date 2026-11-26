@@ -32,6 +32,35 @@ _WINDOWS_DLL_DIR = None
 _POSIX_TAOS_LIB_SENTINEL = "_TAOS_TEST_LIB_DIR"
 
 
+def _create_mnodes(cursor, mnode_count, timeout=180):
+    for dnode_id in range(2, mnode_count + 1):
+        deadline = time.monotonic() + timeout
+        statement = f"create mnode on dnode {dnode_id}"
+        while True:
+            try:
+                cursor.execute(statement)
+                break
+            except Exception as exc:
+                errno = getattr(exc, "errno", None)
+                # A previous global transaction can still be committing.
+                if errno is None or (errno & 0xFFFF) != 0x03D3:
+                    raise
+                if time.monotonic() >= deadline:
+                    raise TimeoutError(f"{statement}: transaction conflict after {timeout}s") from exc
+                time.sleep(1)
+
+        while True:
+            cursor.execute("select `id`, `role`, `status` from information_schema.ins_mnodes")
+            rows = cursor.fetchall()
+            if (set(row[0] for row in rows) == set(range(1, dnode_id + 1))
+                    and sum(row[1] == "leader" for row in rows) == 1
+                    and all(row[1] in ("leader", "follower") and row[2] == "ready" for row in rows)):
+                break
+            if time.monotonic() >= deadline:
+                raise TimeoutError(f"{statement}: mnodes not ready after {timeout}s: {rows!r}")
+            time.sleep(1)
+
+
 def _apply_runtime_exports(env, output):
     for line in output.splitlines():
         if not line.startswith('export '):
@@ -40,6 +69,20 @@ def _apply_runtime_exports(env, output):
         if key == 'DYLD_LIBRARY_PATH' and sys.platform != 'darwin':
             continue
         env[key] = value.replace(f'${key}', env.get(key, ''))
+
+
+def _stage_without_interpreter_leaks(env):
+    """Bash and git exit non-zero when libasan reports their own allocations."""
+    if env.get('CI_ASAN_BUILD') != '1' and 'libasan' not in env.get('LD_PRELOAD', ''):
+        return env
+    for name in ('ASAN_OPTIONS', 'LSAN_OPTIONS'):
+        options = [
+            option for option in env.get(name, '').split(':')
+            if option and not option.startswith('detect_leaks=')
+        ]
+        options.append('detect_leaks=0')
+        env[name] = ':'.join(options)
+    return env
 
 
 def _stage_fq_runtime_libs(build_dir, env):
@@ -53,7 +96,7 @@ def _stage_fq_runtime_libs(build_dir, env):
     if not script.exists():
         return
 
-    run_env = env.copy()
+    run_env = _stage_without_interpreter_leaks(env.copy())
     run_env.setdefault('TD_BUILD_DIR', str(build_dir))
     run_env.setdefault('FQ_PYTHON', sys.executable)
     timeout = int(os.getenv('FQ_RUNTIME_LIBS_TIMEOUT_S', '900'))
@@ -583,8 +626,7 @@ def before_test_class(request):
         )
 
     if request.session.mnodes_num:
-        for i in range(2, request.session.mnodes_num + 1):
-            tdSql.execute(f"create mnode on dnode {i}")
+        _create_mnodes(tdSql.cursor, request.session.mnodes_num)
         tdLog.debug(tdSql.query(f"show mnodes", row_tag=True))
 
     # 处理-Q参数，如果-Q参数不等于1，则创建qnode，并设置queryPolicy
@@ -1461,19 +1503,22 @@ def pytest_collection_modifyitems(config, items):
                 )  # 有效，名称可以修改
                 tdLog.debug(item.name)
                 tdLog.debug(item._nodeid)
-                params = {"params": name_suffix}  # 你的参数组合
-                param_ids = [name_suffix]  # 自定义参数ID
+                # Preserve pytest's callspec for existing parametrized items.
+                if not hasattr(item, "callspec"):
+                    params = {"params": name_suffix}  # 你的参数组合
+                    param_ids = [name_suffix]  # 自定义参数ID
 
-                # 创建参数化标记
-                marker = pytest.mark.parametrize(
-                    argnames="params", argvalues=[name_suffix], ids=param_ids
-                )
-                item.add_marker(marker)
+                    # 创建参数化标记
+                    marker = pytest.mark.parametrize(
+                        argnames="params", argvalues=[name_suffix],
+                        ids=param_ids
+                    )
+                    item.add_marker(marker)
 
-                # 确保Allure能识别新参数
-                item.callspec = type(
-                    "CallSpec", (), {"params": params, "id": param_ids[0]}
-                )
+                    # 确保Allure能识别新参数
+                    item.callspec = type(
+                        "CallSpec", (), {"params": params, "id": param_ids[0]}
+                    )
 
             # 检查是否在测试列表中
             if testlist_file:

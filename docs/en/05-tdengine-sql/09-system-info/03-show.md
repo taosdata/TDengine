@@ -20,6 +20,7 @@ Queries whether the specified database is available. If no database name is spec
 
 ```sql
 SHOW ANODES;
+
 SHOW ANODES FULL;
 ```
 
@@ -100,6 +101,7 @@ Displays the runtime values of configuration parameters that must remain consist
 
 ```sql
 SHOW COMPACTS;
+
 SHOW COMPACT compact_id;
 ```
 
@@ -289,8 +291,11 @@ Displays registration information for instances connected to the cluster. For th
 
 ```sql
 SHOW LICENCES;
+
 SHOW GRANTS;
+
 SHOW GRANTS FULL;
+
 SHOW GRANTS LOGS;
 ```
 
@@ -386,6 +391,7 @@ Displays RSMA definition information. For the complete set of fields, see [`INS_
 
 ```sql
 SHOW SCANS;
+
 SHOW SCAN scan_id;
 ```
 
@@ -524,8 +530,7 @@ _block_dist: 3682 |
 *************************** 24.row ***************************
 
 _block_dist: 3881 |||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||  4 (80.00%)
-
-Query OK, 24 row(s) in set (0.002444s)
+Query OK, 24 row(s) in set
 ```
 
 </details>
@@ -596,6 +601,7 @@ Displays orphan transaction detection results. For the complete set of fields, s
 
 ```sql
 SHOW TRANSACTIONS;
+
 SHOW TRANSACTION transaction_id;
 ```
 
@@ -621,6 +627,7 @@ Displays user privilege details. For the complete set of fields, see [`INS_USER_
 
 ```sql
 SHOW USERS;
+
 SHOW USERS FULL;
 ```
 
@@ -646,6 +653,7 @@ Displays the list of views. For the complete set of fields, see [`INS_VIEWS`](./
 
 ```sql
 SHOW VNODES;
+
 SHOW VNODES ON DNODE dnode_id;
 ```
 

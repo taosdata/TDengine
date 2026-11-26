@@ -19,7 +19,10 @@
 #include "mndStreamRecalc.h"
 
 #include "mndTrans.h"
+#include "tdTestSeam.h"
 #include "tlogKeyOp.h"
+
+enum { MND_STREAM_RECALC_PULLUP_BATCH_SIZE = 8 };
 
 typedef enum EStreamRecalcPersistOpType {
   MND_STREAM_RECALC_OP_ACCEPT = 1,
@@ -50,7 +53,15 @@ typedef struct SStreamRecalcTransParam {
   int8_t   opType;
 } SStreamRecalcTransParam;
 
+typedef struct SStreamRecalcPendingTrans {
+  SStreamObj             *pStream;
+  SArray                 *pRequests;
+  SStreamRecalcPersistOp   op;
+  int64_t                 runtimeGeneration;
+} SStreamRecalcPendingTrans;
+
 typedef struct SStreamRecalcPostActions {
+  SList pendingTrans;
   SList completedOps;
   bool  scheduleNext;
   bool  markPullupPending;
@@ -60,6 +71,7 @@ static int32_t mndStreamRecalcStartClaimed(SMnode *pMnode, SStmStatus *pStatus, 
                                            bool runtimeLocked, SStreamRecalcPostActions *pPostActions);
 static int32_t mndStreamRecalcFinishImpl(SMnode *pMnode, int64_t streamId,
                                          const SStreamRecalcTerminalCandidate *pCandidate, bool *pStartDeferred);
+static void    mndStreamRecalcPreparePending(SMnode *pMnode, SStreamRecalcPostActions *pPostActions);
 static bool    mndStreamRecalcTerminal(EStreamRecalcStatus status);
 static void    mndStreamRecalcSendResponse(const SRpcHandleInfo *pRpcInfo, int32_t code);
 static bool    mndStreamRecalcCheckCommitted(SMnode *pMnode, const SStreamRecalcTransParam *pCallbackParam);
@@ -158,6 +170,7 @@ void mndStreamRecalcSchedulePullupPostUnlock(SMnode *pMnode) {
 }
 
 static void mndStreamRecalcInitPostActions(SStreamRecalcPostActions *pPostActions) {
+  tdListInit(&pPostActions->pendingTrans, sizeof(SStreamRecalcPendingTrans));
   tdListInit(&pPostActions->completedOps, sizeof(SStreamRecalcPersistOp));
   pPostActions->scheduleNext = false;
   pPostActions->markPullupPending = false;
@@ -173,6 +186,7 @@ static void mndStreamRecalcQueueCompletedAction(SStreamRecalcPostActions *pPostA
 }
 
 static void mndStreamRecalcRunPostActions(SMnode *pMnode, SStreamRecalcPostActions *pPostActions) {
+  mndStreamRecalcPreparePending(pMnode, pPostActions);
   SListNode *pCompleted = NULL;
   while ((pCompleted = tdListPopHead(&pPostActions->completedOps)) != NULL) {
     const SStreamRecalcPersistOp *pOp = (const SStreamRecalcPersistOp *)pCompleted->data;
@@ -223,13 +237,6 @@ static bool mndStreamRecalcSamePersistedTuple(const SStmRecalcRecord        *pRe
          pRecord->snapshot.end == pRequest->end && pRecord->requestTimeMs == pRequest->requestTimeMs;
 }
 
-static bool mndStreamRecalcRuntimeReusable(const SStmRecalcRecord *pRecord, const SStreamRecalcPersistReq *pRequest,
-                                           int64_t triggerTaskId, int64_t triggerSeriousId) {
-  return pRecord->visible && !pRecord->hidden && mndStreamRecalcRuntimeActive(pRecord) &&
-         mndStreamRecalcSamePersistedTuple(pRecord, pRequest) && pRecord->triggerTaskId == triggerTaskId &&
-         pRecord->triggerSeriousId == triggerSeriousId;
-}
-
 static SStmRecalcRecord mndStreamRecalcRestoredRecord(const SStreamRecalcPersistReq *pRequest, int64_t triggerTaskId,
                                                       int64_t triggerSeriousId) {
   SStmRecalcRecord record = {
@@ -250,9 +257,18 @@ static SStmRecalcRecord mndStreamRecalcRestoredRecord(const SStreamRecalcPersist
   return record;
 }
 
-int32_t mndStreamRecalcRestore(const SStreamObj *pStream, SStmStatus *pStatus, int64_t triggerTaskId,
-                               int64_t triggerSeriousId) {
-  if (pStream == NULL || pStatus == NULL || triggerTaskId == 0 || triggerSeriousId == 0) {
+int32_t mndStreamRecalcCaptureRecords(SStmStatus *status, SStreamRecalcRestore *restore) {
+  taosRLockLatch(&status->userRecalcLock);
+  restore->recordsVersion = status->recalcRestoreVersion;
+  bool hasRecords = taosArrayGetSize(status->recalcRecords) > 0;
+  restore->records = hasRecords ? taosArrayDup(status->recalcRecords, NULL) : NULL;
+  taosRUnLockLatch(&status->userRecalcLock);
+  return hasRecords && !restore->records ? mndStreamRecalcErrorCode(terrno) : TSDB_CODE_SUCCESS;
+}
+
+int32_t mndStreamRecalcPrepareRestore(const SStreamObj *pStream, SStreamRecalcRestore *restore, int64_t triggerTaskId,
+                                      int64_t triggerSeriousId) {
+  if (pStream == NULL || restore == NULL || triggerTaskId == 0 || triggerSeriousId == 0) {
     return TSDB_CODE_INVALID_PARA;
   }
 
@@ -261,8 +277,11 @@ int32_t mndStreamRecalcRestore(const SStreamObj *pStream, SStmStatus *pStatus, i
   SArray   *pRecords = NULL;
   SHashObj *pRequestIndex = NULL;
   SHashObj *pRuntimeIndex = NULL;
-  TAOS_CHECK_GOTO(mndStreamRecalcSnapshot(pStream, &pRequests), NULL, _exit);
+  TAOS_CHECK_GOTO(mndStreamRecalcSnapshotWithRevision(pStream, &pRequests, &restore->revision), NULL, _exit);
 
+#ifdef BUILD_TEST_SEAM
+  if (gTdSeam_msmDeployPhase) gTdSeam_msmDeployPhase("recalc-restore", pStream->name);
+#endif
   int32_t capacity = taosArrayGetSize(pRequests);
   pRecords = taosArrayInit(capacity, sizeof(SStmRecalcRecord));
   if (pRecords == NULL) {
@@ -286,54 +305,52 @@ int32_t mndStreamRecalcRestore(const SStreamObj *pStream, SStmStatus *pStatus, i
     if (code != TSDB_CODE_SUCCESS) goto _exit;
   }
 
-  taosWLockLatch(&pStatus->userRecalcLock);
-  int32_t runtimeCount = taosArrayGetSize(pStatus->recalcRecords);
+  int32_t runtimeCount = taosArrayGetSize(restore->records);
   pRuntimeIndex = mndStreamRecalcCreateIndex(runtimeCount);
   if (pRuntimeIndex == NULL) {
     code = mndStreamRecalcErrorCode(terrno);
-    goto _unlock;
+    goto _exit;
   }
   for (int32_t i = 0; i < runtimeCount; ++i) {
-    const SStmRecalcRecord *pRecord = taosArrayGet(pStatus->recalcRecords, i);
+    const SStmRecalcRecord *pRecord = taosArrayGet(restore->records, i);
     if (pRecord == NULL || pRecord->snapshot.recalcId == 0) {
       code = TSDB_CODE_INVALID_MSG;
-      goto _unlock;
+      goto _exit;
     }
     code = mndStreamRecalcPutIndex(pRuntimeIndex, pRecord->snapshot.recalcId, i);
-    if (code != TSDB_CODE_SUCCESS) goto _unlock;
+    if (code != TSDB_CODE_SUCCESS) goto _exit;
   }
   for (int32_t i = 0; i < taosArrayGetSize(pRequests); ++i) {
     const SStreamRecalcPersistReq *pRequest = taosArrayGet(pRequests, i);
     int32_t                        index = mndStreamRecalcGetIndex(pRuntimeIndex, pRequest->recalcId);
-    const SStmRecalcRecord        *pExisting = index < 0 ? NULL : taosArrayGet(pStatus->recalcRecords, index);
+    const SStmRecalcRecord        *pExisting = index < 0 ? NULL : taosArrayGet(restore->records, index);
     SStmRecalcRecord               restored = mndStreamRecalcRestoredRecord(pRequest, triggerTaskId, triggerSeriousId);
-    const SStmRecalcRecord        *pRecord =
-        pExisting != NULL && mndStreamRecalcRuntimeReusable(pExisting, pRequest, triggerTaskId, triggerSeriousId)
-                   ? pExisting
-                   : &restored;
+    // New triggers restart active work. The coordinator still owns uncommitted ACCEPT and FINISH records.
+    bool pending =
+        pExisting && (pExisting->hidden || pExisting->terminalCandidateValid || pExisting->terminalPersisting);
+    const SStmRecalcRecord *pRecord =
+        pending && mndStreamRecalcSamePersistedTuple(pExisting, pRequest) ? pExisting : &restored;
     if (taosArrayPush(pRecords, pRecord) == NULL) {
       code = mndStreamRecalcErrorCode(terrno);
-      goto _unlock;
+      goto _exit;
     }
   }
 
-  for (int32_t i = 0; i < taosArrayGetSize(pStatus->recalcRecords); ++i) {
-    const SStmRecalcRecord *pRecord = taosArrayGet(pStatus->recalcRecords, i);
+  for (int32_t i = 0; i < taosArrayGetSize(restore->records); ++i) {
+    const SStmRecalcRecord *pRecord = taosArrayGet(restore->records, i);
     if (pRecord == NULL || mndStreamRecalcGetIndex(pRequestIndex, pRecord->snapshot.recalcId) >= 0) continue;
+    if (pRecord->requestTimeMs <= 0) continue;
     if (!pRecord->hidden && !pRecord->terminalCandidateValid && !pRecord->terminalPersisting &&
         mndStreamRecalcRuntimeActive(pRecord)) {
       continue;
     }
     if (taosArrayPush(pRecords, pRecord) == NULL) {
       code = mndStreamRecalcErrorCode(terrno);
-      goto _unlock;
+      goto _exit;
     }
   }
 
-  TSWAP(pStatus->recalcRecords, pRecords);
-
-_unlock:
-  taosWUnLockLatch(&pStatus->userRecalcLock);
+  TSWAP(restore->records, pRecords);
 
 _exit:
   taosHashCleanup(pRuntimeIndex);
@@ -341,6 +358,22 @@ _exit:
   taosArrayDestroy(pRecords);
   taosArrayDestroy(pRequests);
   return code;
+}
+
+bool mndStreamRecalcCommitRestore(const SStreamObj *stream, SStmStatus *status, SStreamRecalcRestore *restore) {
+  if (taosRTryLockLatch((SRWLatch *)&stream->lock) != 0) return false;
+  if (taosWTryLockLatch(&status->userRecalcLock) != 0) {
+    taosRUnLockLatch((SRWLatch *)&stream->lock);
+    return false;
+  }
+  bool current = stream->recalcRevision == restore->revision && status->recalcRestoreVersion == restore->recordsVersion;
+  if (current) {
+    TSWAP(status->recalcRecords, restore->records);
+    ++status->recalcRestoreVersion;
+  }
+  taosWUnLockLatch(&status->userRecalcLock);
+  taosRUnLockLatch((SRWLatch *)&stream->lock);
+  return current;
 }
 
 static bool mndStreamRecalcDispatchable(const SStmRecalcRecord *pRecord) {
@@ -654,6 +687,7 @@ static int32_t mndStreamRecalcReserveAccept(SStmStatus *pStatus, const SStmRecal
     }
 
     SArray *pOldRecords = pStatus->recalcRecords;
+    ++pStatus->recalcRestoreVersion;
     pStatus->recalcRecords = pRecords;
     pRecords = pOldRecords;
     mndStreamRecalcInitStatus(pStatus);
@@ -702,7 +736,10 @@ static void mndStreamRecalcRemoveHiddenRecord(SStmStatus *pStatus, int64_t recal
   int32_t index = mndStreamRecalcFindRecord(pStatus->recalcRecords, recalcId);
   if (index < 0) return;
   const SStmRecalcRecord *pRecord = taosArrayGet(pStatus->recalcRecords, index);
-  if (pRecord->hidden && !pRecord->visible) taosArrayRemove(pStatus->recalcRecords, index);
+  if (pRecord->hidden && !pRecord->visible) {
+    taosArrayRemove(pStatus->recalcRecords, index);
+    ++pStatus->recalcRestoreVersion;
+  }
 }
 
 static void mndStreamRecalcStartFailed(SStmStatus *pStatus, const SStreamRecalcPersistOp *pExpected, int32_t code,
@@ -736,6 +773,70 @@ static void mndStreamRecalcStartFailed(SStmStatus *pStatus, const SStreamRecalcP
   mndStreamRecalcQueueCompletedAction(pPostActions, pCompleted, sendResponse, code);
   pPostActions->scheduleNext = pPostActions->scheduleNext || scheduleNext;
   pPostActions->markPullupPending = pPostActions->markPullupPending || keepForRetry;
+}
+
+static int32_t mndStreamRecalcPrepareTrans(SMnode *pMnode, const SStreamRecalcPendingTrans *pPending) {
+  const SStreamRecalcPersistOp *pOp = &pPending->op;
+  STrans                      *pTrans = NULL;
+  SStreamRecalcTransParam      *pParam = taosMemoryMalloc(sizeof(*pParam));
+  if (pParam == NULL) return mndStreamRecalcErrorCode(terrno);
+  *pParam = (SStreamRecalcTransParam){.streamId = pOp->streamId,
+                                    .recalcId = pOp->recalcId,
+                                    .targetRevision = pOp->targetRevision,
+                                    .opType = (int8_t)pOp->type};
+  SRpcMsg transReq = {.msgType = TDMT_MND_RECALC_STREAM, .info = pOp->rpcInfo};
+  const SRpcMsg *pTransReq = pOp->type == MND_STREAM_RECALC_OP_ACCEPT && pOp->hasRpc ? &transReq : NULL;
+  int32_t code = mndStreamCreateTrans(pMnode, pPending->pStream, (SRpcMsg *)pTransReq, TRN_CONFLICT_DB_INSIDE,
+                                      MND_STREAM_RECALC_NAME, &pTrans);
+  if (code != TSDB_CODE_SUCCESS || pTrans == NULL) {
+    code = code != TSDB_CODE_SUCCESS ? code : mndStreamRecalcErrorCode(terrno);
+    goto _end;
+  }
+  code = mndStreamTransAppendRecalcUpdate(pPending->pStream, pOp->targetRevision, pPending->pRequests, pTrans,
+                                          SDB_STATUS_READY);
+  if (code != TSDB_CODE_SUCCESS) goto _end;
+  mndTransSetCb(pTrans, 0, TRANS_STOP_FUNC_STREAM_RECALC, pParam, sizeof(*pParam));
+  pParam = NULL;
+  code = mndTransPrepare(pMnode, pTrans);
+
+_end:
+  mndTransDrop(pTrans);
+  taosMemoryFree(pParam);
+  return code;
+}
+
+// Prepare can wait for a sync callback that acquires runtimeLock. Queue an
+// acquired stream and an immutable snapshot, not an allocated transaction ID:
+// mndTransCreate does not reserve IDs until prepare writes the transaction.
+static void mndStreamRecalcPreparePending(SMnode *pMnode, SStreamRecalcPostActions *pPostActions) {
+  SListNode *pNode = NULL;
+  while ((pNode = tdListPopHead(&pPostActions->pendingTrans)) != NULL) {
+    SStreamRecalcPendingTrans *pPending = (SStreamRecalcPendingTrans *)pNode->data;
+    int32_t code = mndStreamRecalcPrepareTrans(pMnode, pPending);
+    mndReleaseStream(pMnode, pPending->pStream);
+    taosArrayDestroy(pPending->pRequests);
+    if (code != TSDB_CODE_SUCCESS && code != TSDB_CODE_ACTION_IN_PROGRESS) {
+      taosRLockLatch(&mStreamMgmt.runtimeLock);
+      SHashObj *pStreamMap = mStreamMgmt.streamMap;
+      // Transferred RPCs remain owned by this snapshot across runtime teardown.
+      bool sendResponse = pPending->op.type == MND_STREAM_RECALC_OP_ACCEPT && pPending->op.hasRpc;
+      if (atomic_load_8(&mStreamMgmt.active) != 0 && pStreamMap != NULL &&
+          mStreamMgmt.stat.activeTimes == pPending->runtimeGeneration) {
+        SStmStatus *pStatus = taosHashAcquire(pStreamMap, &pPending->op.streamId, sizeof(pPending->op.streamId));
+        if (pStatus != NULL) {
+          // The pending snapshot owns failure responses after RPC transfer.
+          // Queue cleanup must not also respond, even when status still exists.
+          mndStreamRecalcStartFailed(pStatus, &pPending->op, code, true, pPostActions);
+          taosHashRelease(pStreamMap, pStatus);
+        }
+      }
+      taosRUnLockLatch(&mStreamMgmt.runtimeLock);
+      if (sendResponse) {
+        mndStreamRecalcSendResponse(&pPending->op.rpcInfo, code);
+      }
+    }
+    listNodeFree(pNode);
+  }
 }
 
 static int32_t mndStreamRecalcSetTarget(SStmStatus *pStatus, const SStreamRecalcPersistOp *pExpected,
@@ -772,8 +873,6 @@ static int32_t mndStreamRecalcStartClaimed(SMnode *pMnode, SStmStatus *pStatus, 
   int32_t                  code = TSDB_CODE_SUCCESS;
   SStreamObj              *pStream = NULL;
   SArray                  *pRequests = NULL;
-  STrans                  *pTrans = NULL;
-  SStreamRecalcTransParam *pParam = NULL;
   SStreamRecalcPersistOp   op = {0};
   uint64_t                 baseRevision = 0;
   bool                     alreadyCommitted = false;
@@ -843,35 +942,23 @@ static int32_t mndStreamRecalcStartClaimed(SMnode *pMnode, SStmStatus *pStatus, 
     return TSDB_CODE_SUCCESS;
   }
 
-  pParam = taosMemoryMalloc(sizeof(*pParam));
-  if (pParam == NULL) {
-    code = mndStreamRecalcErrorCode(terrno);
-    goto _failed;
-  }
-  *pParam = callbackParam;
-
-  SRpcMsg transReq = {
-      .msgType = TDMT_MND_RECALC_STREAM,
-      .info = op.rpcInfo,
-  };
-  const SRpcMsg *pTransReq = op.type == MND_STREAM_RECALC_OP_ACCEPT && op.hasRpc ? &transReq : NULL;
-  code = mndStreamCreateTrans(pMnode, pStream, (SRpcMsg *)pTransReq, TRN_CONFLICT_DB_INSIDE, MND_STREAM_RECALC_NAME,
-                              &pTrans);
-  if (code != TSDB_CODE_SUCCESS || pTrans == NULL) {
-    code = code != TSDB_CODE_SUCCESS ? code : mndStreamRecalcErrorCode(terrno);
-    goto _failed;
-  }
+  op.targetRevision = targetRevision;
   TAOS_CHECK_GOTO(mndStreamRecalcTransferRpc(pStatus, &op), NULL, _failed);
-  TAOS_CHECK_GOTO(mndStreamTransAppendRecalcUpdate(pStream, targetRevision, pRequests, pTrans, SDB_STATUS_READY), NULL,
-                  _failed);
-  mndTransSetCb(pTrans, 0, TRANS_STOP_FUNC_STREAM_RECALC, pParam, sizeof(*pParam));
-  pParam = NULL;
-  code = mndTransPrepare(pMnode, pTrans);
+  SStreamRecalcPendingTrans pending = {.pStream = pStream, .pRequests = pRequests, .op = op};
+  if (runtimeLocked) {
+    pending.runtimeGeneration = mStreamMgmt.stat.activeTimes;
+    code = tdListAppend(&pPostActions->pendingTrans, &pending);
+    if (code != TSDB_CODE_SUCCESS) {
+      goto _failed;
+    }
+    pStream = NULL;
+    pRequests = NULL;
+  } else {
+    code = mndStreamRecalcPrepareTrans(pMnode, &pending);
+  }
   if (code == TSDB_CODE_SUCCESS || code == TSDB_CODE_ACTION_IN_PROGRESS) code = TSDB_CODE_SUCCESS;
 
 _failed:
-  mndTransDrop(pTrans);
-  taosMemoryFree(pParam);
   taosArrayDestroy(pRequests);
   if (pStream != NULL) mndReleaseStream(pMnode, pStream);
   if (code != TSDB_CODE_SUCCESS) {
@@ -1042,6 +1129,7 @@ static int32_t mndStreamRecalcFinishImpl(SMnode *pMnode, int64_t streamId,
     pRecord->snapshot.status = STREAM_RECALC_STATUS_RUNNING;
   }
   op.candidateSnapshot.progressPct = TMAX(op.candidateSnapshot.progressPct, pRecord->snapshot.progressPct);
+  ++pStatus->recalcRestoreVersion;
   pRecord->terminalCandidate = op.candidateSnapshot;
   pRecord->retryOrdinal = op.candidateRetryOrdinal;
   pRecord->errorCode = op.candidateErrorCode;
@@ -1133,6 +1221,7 @@ static void mndStreamRecalcPublishCommittedLocked(SStmStatus *pStatus, const SSt
       pRecord->hidden = false;
       pRecord->visible = true;
     }
+    ++pStatus->recalcRestoreVersion;
     (void)mstPruneRecalcRecordsLocked(pStatus->recalcRecords, taosGetTimestampMs());
   }
 
@@ -1180,6 +1269,61 @@ void mndStreamRecalcTransStopped(SMnode *pMnode, void *param, int32_t paramLen) 
   mndStreamRecalcRunPostActions(pMnode, &postActions);
 }
 
+static bool mndStreamRecalcStatusClaimable(SStmStatus *pStatus) {
+  bool claimable = false;
+  taosWLockLatch(&pStatus->userRecalcLock);
+  claimable = pStatus->recalcPersistOpsInitialized && !pStatus->recalcTransActive &&
+              !isListEmpty(&pStatus->recalcPersistOps);
+  taosWUnLockLatch(&pStatus->userRecalcLock);
+  return claimable;
+}
+
+static int32_t mndStreamRecalcCountClaimable(SHashObj *pStreamMap) {
+  int32_t count = 0;
+  void   *pIter = NULL;
+  while ((pIter = taosHashIterate(pStreamMap, pIter)) != NULL) {
+    if (mndStreamRecalcStatusClaimable(pIter)) ++count;
+  }
+  return count;
+}
+
+static void mndStreamRecalcClaimPass(SMnode *pMnode, SHashObj *pStreamMap, bool afterCursor,
+                                     int64_t cursor, bool cursorValid, int32_t claimLimit, int32_t *pClaimedCount,
+                                     SStreamRecalcPostActions *pPostActions) {
+  void *pIter = NULL;
+  if (afterCursor && cursorValid) {
+    // Acquire a fresh reference for this batch, then let the iterator release it
+    // while advancing. No raw hash entry survives a runtime-lock boundary.
+    pIter = taosHashAcquire(pStreamMap, &cursor, sizeof(cursor));
+    if (pIter == NULL) return;  // The wrap pass handles a removed cursor.
+  }
+  while (*pClaimedCount < claimLimit &&
+         (pIter = taosHashIterate(pStreamMap, pIter)) != NULL) {
+    const int64_t streamId = *(int64_t *)taosHashGetKey(pIter, NULL);
+    const bool    stopAtCursor = !afterCursor && cursorValid && streamId == cursor;
+    SStmStatus *pStatus = pIter;
+    bool        claimed = false;
+    taosWLockLatch(&pStatus->userRecalcLock);
+    if (pStatus->recalcPersistOpsInitialized && !pStatus->recalcTransActive &&
+        !isListEmpty(&pStatus->recalcPersistOps)) {
+      pStatus->recalcTransActive = true;
+      claimed = true;
+    }
+    taosWUnLockLatch(&pStatus->userRecalcLock);
+    if (!claimed) {
+      if (stopAtCursor) break;
+      continue;
+    }
+
+    (void)mndStreamRecalcStartClaimed(pMnode, pStatus, false, true, pPostActions);
+    ++*pClaimedCount;
+    mStreamMgmt.recalcPullupCursor = streamId;
+    mStreamMgmt.recalcPullupCursorValid = 1;
+    if (stopAtCursor) break;
+  }
+  if (pIter != NULL) taosHashCancelIterate(pStreamMap, pIter);
+}
+
 void mndStreamRecalcPullup(SMnode *pMnode) {
   if (pMnode == NULL) return;
 
@@ -1193,18 +1337,25 @@ void mndStreamRecalcPullup(SMnode *pMnode) {
     return;
   }
 
-  void *pIter = NULL;
-  while ((pIter = taosHashIterate(pStreamMap, pIter)) != NULL) {
-    SStmStatus *pStatus = pIter;
-    bool        claimed = false;
-    taosWLockLatch(&pStatus->userRecalcLock);
-    if (pStatus->recalcPersistOpsInitialized && !pStatus->recalcTransActive &&
-        !isListEmpty(&pStatus->recalcPersistOps)) {
-      pStatus->recalcTransActive = true;
-      claimed = true;
+  int32_t claimedCount = 0;
+  if (mStreamMgmt.recalcPullupRoundRemaining <= 0) {
+    mStreamMgmt.recalcPullupRoundRemaining = mndStreamRecalcCountClaimable(pStreamMap);
+  }
+  if (mStreamMgmt.recalcPullupRoundRemaining > 0) {
+    const int64_t cursor = mStreamMgmt.recalcPullupCursor;
+    const bool    cursorValid = mStreamMgmt.recalcPullupCursorValid != 0;
+    const int32_t claimLimit = TMIN(MND_STREAM_RECALC_PULLUP_BATCH_SIZE,
+                                    mStreamMgmt.recalcPullupRoundRemaining);
+    mndStreamRecalcClaimPass(pMnode, pStreamMap, true, cursor, cursorValid, claimLimit, &claimedCount, &postActions);
+    if (claimedCount < claimLimit && cursorValid) {
+      mndStreamRecalcClaimPass(pMnode, pStreamMap, false, cursor, true, claimLimit, &claimedCount, &postActions);
     }
-    taosWUnLockLatch(&pStatus->userRecalcLock);
-    if (claimed) (void)mndStreamRecalcStartClaimed(pMnode, pStatus, false, true, &postActions);
+    mStreamMgmt.recalcPullupRoundRemaining -= claimedCount;
+    // Continue only until every item present at the start of this traversal
+    // round has been attempted once. Failures become eligible again in the
+    // next periodic round instead of extending the current immediate loop.
+    postActions.scheduleNext = postActions.scheduleNext ||
+                               (claimedCount > 0 && mStreamMgmt.recalcPullupRoundRemaining > 0);
   }
   taosRUnLockLatch(&mStreamMgmt.runtimeLock);
   mndStreamRecalcRunPostActions(pMnode, &postActions);

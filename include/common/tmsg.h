@@ -435,6 +435,8 @@ typedef struct SExtPushdownDiagnostic {
 #define TSDB_EXT_SOURCE_OPTIONS_LEN      8192
 // A single option value budget (value length boundary remains 4095 chars).
 #define TSDB_EXT_SOURCE_OPTION_VALUE_LEN 4096
+// InfluxDB 1.8 limits database and retention-policy names to 255 bytes.
+#define TSDB_EXT_INFLUX_RP_LEN            256
 
 // SExtSourceCapability  -  push-down ability flags for an external source.
 // Defined here (tmsg.h) so that SExtSourceInfo below and extConnector.h both
@@ -496,6 +498,7 @@ typedef enum EExtSQLDialect {
   EXT_SQL_DIALECT_INFLUXQL  = 2,
   EXT_SQL_DIALECT_SQLSERVER = 3,  // appended, never reorder/reuse
   EXT_SQL_DIALECT_ORACLE    = 4,  // appended, never reorder/reuse
+  EXT_SQL_DIALECT_INFLUXDB_1_8 = 5,
 } EExtSQLDialect;
 
 // Declared width (in characters) used for InfluxDB tag columns, both when the
@@ -510,91 +513,62 @@ typedef enum EExtSQLDialect {
 #define EXT_INFLUX_KEY_NCHAR_CHARS_TOO_LONG (TSDB_COL_NAME_LEN * TSDB_NCHAR_SIZE)
 
 // -- FQ push-down capability bitmap ------------------------------------------
-// uint16_t bitmap encoding:
-//   bits [2:0]  - default capability per dialect (0 = not pushable)
-//   bits [5:3]  - session-level override (1 = force-disable for that dialect)
-//
-// fqPushCap bitmap layout (uint16_t):
-//
-//   Low byte  (bits 0-7)  - static/global capability defaults
-//   High byte (bits 8-15) - session-level overrides (set to force-disable)
-//
-//   The high byte mirrors the low byte: each bit in the high byte disables the
-//   corresponding bit position in the low byte at session level.
-//
-//   Low-byte layout:
-//     bits 0-2 : main capability    (MySQL=bit0, PG=bit1, Influx=bit2)
-//     bits 3-5 : sub-cap 1: CAST(timestamp -> integer)
-//     bit  6   : main capability - SQL Server (appended; see the note below)
-//     bit  7   : main capability - Oracle (appended; the bitmap is now full)
-//
-//   High-byte layout (FQ_CAP_SESSION_SHIFT = 8):
-//     bits 8-10 : session override for main capability
-//     bits 11-13: session override for CAST(ts->int) sub-capability
-//     bit  14   : session override for SQL Server
-//     bit  15   : session override for Oracle
-//
-//   SQL Server placement note: the 4th main-capability bit sits at bit 6, not at
-//   bit 3, because bits 3-5 form the shift-derived CAST(ts->int) band shared by
-//   the first three dialects; `fqDialectBit(SQLSERVER) << FQ_CAP_CAST_TS_INT_SHIFT`
-//   (bit 9) would collide with the PG session-override bit.  SQL Server therefore
-//   does NOT take part in the shift-derived sub-capability band: code that derives
-//   a sub-capability bit must special-case it (SQL Server has no such sub-capability
-//   today; return FQ_CAP_NONE).
-//
-//   Oracle placement note: with Oracle at bit 7 (session override at bit 15) the
-//   uint16_t bitmap has no free slot left.  A future dialect must widen the
-//   bitmap (for example to uint32_t with one band per dialect) instead of
-//   inventing a new shift.  Oracle likewise has no CAST(ts->int) sub-capability
-//   (Oracle rejects CAST(timestamp AS NUMBER) with ORA-00932), so the
-//   sub-capability query function returns FQ_CAP_NONE for it.
+// uint32_t layout. Bits 0-15 contain static defaults and bits 16-31 mirror
+// them as session-disable flags. Existing dialect values remain unchanged.
+// Bits 0-2 identify MySQL, PostgreSQL and InfluxDB 3.x. Bits 3-5 are the
+// CAST(timestamp -> integer) sub-capability band for those three dialects.
+// SQL Server is bit 6, Oracle bit 7, and InfluxDB 1.8 bit 8. Those dialects
+// have no shift-derived CAST sub-capability.
 
-// Main capability bits (low byte, bits 0-2):
-#define FQ_CAP_MYSQL   ((uint16_t)(1u << 0))   // MySQL / MariaDB
-#define FQ_CAP_PG      ((uint16_t)(1u << 1))   // PostgreSQL
-#define FQ_CAP_INFLUX  ((uint16_t)(1u << 2))   // InfluxDB v3 (DataFusion)
-#define FQ_CAP_SQLSERVER ((uint16_t)(1u << 6)) // SQL Server (ODBC); appended, see layout note
-#define FQ_CAP_ORACLE  ((uint16_t)(1u << 7))   // Oracle Database (ODBC); appended, fills the bitmap
-#define FQ_CAP_ALL     ((uint16_t)(FQ_CAP_MYSQL | FQ_CAP_PG | FQ_CAP_INFLUX))
+// Main capability bits (low half, bits 0-2):
+#define FQ_CAP_MYSQL   ((uint32_t)(1u << 0))   // MySQL / MariaDB
+#define FQ_CAP_PG      ((uint32_t)(1u << 1))   // PostgreSQL
+#define FQ_CAP_INFLUX  ((uint32_t)(1u << 2))   // InfluxDB v3 (DataFusion)
+#define FQ_CAP_SQLSERVER ((uint32_t)(1u << 6)) // SQL Server (ODBC); appended, see layout note
+#define FQ_CAP_ORACLE  ((uint32_t)(1u << 7))   // Oracle Database (ODBC)
+#define FQ_CAP_INFLUX_1_8 ((uint32_t)(1u << 8)) // InfluxQL 1.8
+#define FQ_CAP_ALL     ((uint32_t)(FQ_CAP_MYSQL | FQ_CAP_PG | FQ_CAP_INFLUX))
 
-// Session-override band: high byte (shift = 8).
+// Session-override band: high half (shift = 16).
 // Set a bit here to force-disable the corresponding dialect at session level.
-#define FQ_CAP_SESSION_SHIFT      8
-#define FQ_CAP_SESSION_MYSQL      ((uint16_t)(FQ_CAP_MYSQL  << FQ_CAP_SESSION_SHIFT))
-#define FQ_CAP_SESSION_PG         ((uint16_t)(FQ_CAP_PG     << FQ_CAP_SESSION_SHIFT))
-#define FQ_CAP_SESSION_INFLUX     ((uint16_t)(FQ_CAP_INFLUX << FQ_CAP_SESSION_SHIFT))
-#define FQ_CAP_SESSION_SQLSERVER  ((uint16_t)(FQ_CAP_SQLSERVER << FQ_CAP_SESSION_SHIFT))
-#define FQ_CAP_SESSION_ORACLE     ((uint16_t)(FQ_CAP_ORACLE << FQ_CAP_SESSION_SHIFT))
+#define FQ_CAP_SESSION_SHIFT      16
+#define FQ_CAP_SESSION_MYSQL      ((uint32_t)(FQ_CAP_MYSQL  << FQ_CAP_SESSION_SHIFT))
+#define FQ_CAP_SESSION_PG         ((uint32_t)(FQ_CAP_PG     << FQ_CAP_SESSION_SHIFT))
+#define FQ_CAP_SESSION_INFLUX     ((uint32_t)(FQ_CAP_INFLUX << FQ_CAP_SESSION_SHIFT))
+#define FQ_CAP_SESSION_SQLSERVER  ((uint32_t)(FQ_CAP_SQLSERVER << FQ_CAP_SESSION_SHIFT))
+#define FQ_CAP_SESSION_ORACLE     ((uint32_t)(FQ_CAP_ORACLE << FQ_CAP_SESSION_SHIFT))
+#define FQ_CAP_SESSION_INFLUX_1_8 ((uint32_t)(FQ_CAP_INFLUX_1_8 << FQ_CAP_SESSION_SHIFT))
 
 // Convenience: the dialect combinations used in the capability tables
-#define FQ_CAP_PG_INFLUX   ((uint16_t)(FQ_CAP_PG | FQ_CAP_INFLUX))
-#define FQ_CAP_MYSQL_PG    ((uint16_t)(FQ_CAP_MYSQL | FQ_CAP_PG))
-#define FQ_CAP_NONE        ((uint16_t)0)
+#define FQ_CAP_PG_INFLUX   ((uint32_t)(FQ_CAP_PG | FQ_CAP_INFLUX))
+#define FQ_CAP_MYSQL_PG    ((uint32_t)(FQ_CAP_MYSQL | FQ_CAP_PG))
+#define FQ_CAP_NONE        ((uint32_t)0)
 
 // Sub-capability 1: CAST(timestamp AS integer/bigint/uint/ubigint)
 //   default band   : bits 3-5  (FQ_CAP_CAST_TS_INT_SHIFT = 3)
-//   session band   : bits 11-13 (= FQ_CAP_CAST_TS_INT_SHIFT + FQ_CAP_SESSION_SHIFT = 3+8)
+//   session band   : bits 19-21 (= FQ_CAP_CAST_TS_INT_SHIFT + FQ_CAP_SESSION_SHIFT = 3+16)
 //
 // Only PostgreSQL supports CAST(timestamp -> integer) natively.
 //   MySQL   : binary protocol returns MYSQL_TIME for TIMESTAMP; connector cannot safely
 //             reinterpret that as an integer epoch, so local conversion is required.
 //   InfluxDB: DataFusion does not support CAST(timestamp AS BIGINT).
 #define FQ_CAP_CAST_TS_INT_SHIFT  3
-#define FQ_CAP_CAST_TS_INT_PG     ((uint16_t)(FQ_CAP_PG << FQ_CAP_CAST_TS_INT_SHIFT))
+#define FQ_CAP_CAST_TS_INT_PG     ((uint32_t)(FQ_CAP_PG << FQ_CAP_CAST_TS_INT_SHIFT))
 // Session-level overrides for the CAST(ts->int) sub-capability:
-#define FQ_CAP_CAST_TS_INT_SESSION_MYSQL   ((uint16_t)(FQ_CAP_MYSQL  << (FQ_CAP_CAST_TS_INT_SHIFT + FQ_CAP_SESSION_SHIFT)))
-#define FQ_CAP_CAST_TS_INT_SESSION_PG      ((uint16_t)(FQ_CAP_PG     << (FQ_CAP_CAST_TS_INT_SHIFT + FQ_CAP_SESSION_SHIFT)))
-#define FQ_CAP_CAST_TS_INT_SESSION_INFLUX  ((uint16_t)(FQ_CAP_INFLUX << (FQ_CAP_CAST_TS_INT_SHIFT + FQ_CAP_SESSION_SHIFT)))
+#define FQ_CAP_CAST_TS_INT_SESSION_MYSQL   ((uint32_t)(FQ_CAP_MYSQL  << (FQ_CAP_CAST_TS_INT_SHIFT + FQ_CAP_SESSION_SHIFT)))
+#define FQ_CAP_CAST_TS_INT_SESSION_PG      ((uint32_t)(FQ_CAP_PG     << (FQ_CAP_CAST_TS_INT_SHIFT + FQ_CAP_SESSION_SHIFT)))
+#define FQ_CAP_CAST_TS_INT_SESSION_INFLUX  ((uint32_t)(FQ_CAP_INFLUX << (FQ_CAP_CAST_TS_INT_SHIFT + FQ_CAP_SESSION_SHIFT)))
 
 // Convert EExtSQLDialect to the corresponding FQ_CAP_* default bit.
 // Returns 0 for unknown dialects.
-static inline uint16_t fqDialectBit(int32_t dialect) {
+static inline uint32_t fqDialectBit(int32_t dialect) {
   switch ((EExtSQLDialect)dialect) {
     case EXT_SQL_DIALECT_MYSQL:    return FQ_CAP_MYSQL;
     case EXT_SQL_DIALECT_POSTGRES: return FQ_CAP_PG;
     case EXT_SQL_DIALECT_INFLUXQL: return FQ_CAP_INFLUX;
     case EXT_SQL_DIALECT_SQLSERVER: return FQ_CAP_SQLSERVER;
     case EXT_SQL_DIALECT_ORACLE:   return FQ_CAP_ORACLE;
+    case EXT_SQL_DIALECT_INFLUXDB_1_8: return FQ_CAP_INFLUX_1_8;
     default:                       return 0;
   }
 }
@@ -603,19 +577,19 @@ static inline uint16_t fqDialectBit(int32_t dialect) {
 // clause (by EExtClauseKind) is pushable for the given dialect, taking
 // session-level overrides into account.
 //
-// fqFuncCapBitmap  - returns the uint16_t bitmap; FQ_CAP_NONE for UDFs/unknown.
+// fqFuncCapBitmap  - returns the uint32_t bitmap; FQ_CAP_NONE for UDFs/unknown.
 // fqFuncArg0NcharCapBitmap - returns the arg0==NCHAR-specific bitmap when
 // configured, otherwise inherits fqFuncCapBitmap(funcId).
 // fqOpCapBitmap    - lookup in gFqOpCap[]; FQ_CAP_NONE for unmapped ops.
 // fqClauseCapBitmap - lookup in gFqClauseCap[]; FQ_CAP_NONE for unknown kinds.
-uint16_t fqFuncCapBitmap(int32_t funcId);
-uint16_t fqFuncArg0NcharCapBitmap(int32_t funcId);
-uint16_t fqOpCapBitmap(EOperatorType opType);
-uint16_t fqClauseCapBitmap(EExtClauseKind clauseKind);
+uint32_t fqFuncCapBitmap(int32_t funcId);
+uint32_t fqFuncArg0NcharCapBitmap(int32_t funcId);
+uint32_t fqOpCapBitmap(EOperatorType opType);
+uint32_t fqClauseCapBitmap(EExtClauseKind clauseKind);
 // Transform-pushdown capability bitmap for a subquery clause.
 // Current DS/product semantics do not ship transform-only subquery pushdown;
 // all entries are reserved and default to unsupported.
-uint16_t fqClauseTransformCapBitmap(EExtClauseKind clauseKind);
+uint32_t fqClauseTransformCapBitmap(EExtClauseKind clauseKind);
 
 // High-level pushability check: combines the static bitmap with any active
 // session-level override (pOverlay may be NULL).
@@ -634,9 +608,9 @@ bool fqClauseTransformIsPushable(EExtClauseKind clauseKind, int32_t dialect,
 
 // Sub-capability check: tests a specific sub-capability band within a function's
 // fqPushCap bitmap.  subCapShift is the bit offset of the sub-capability's default
-// band in the low byte (e.g. FQ_CAP_CAST_TS_INT_SHIFT = 3).  The session-override
+// band in the low half (e.g. FQ_CAP_CAST_TS_INT_SHIFT = 3).  The session-override
 // band for the same sub-capability sits at (subCapShift + FQ_CAP_SESSION_SHIFT),
-// i.e. in the high byte at the same relative position.
+// i.e. in the high half at the same relative position.
 //
 // Returns true only when the default bit for `dialect` is set in the sub-cap band
 // AND the session-override bit is NOT set.
@@ -659,10 +633,13 @@ typedef struct SExtColumnDef {
   bool isRemotePrimaryKey;  // original remote primary-key column
 } SExtColumnDef;
 
+enum { EXT_OBJECT_TABLE = 0, EXT_OBJECT_VIEW = 1 };
+
 typedef struct SExtTableMeta {
   SExtColumnDef *pCols;
   int32_t        numOfCols;
   int8_t         tableType;
+  int8_t         objectKind;  // EXT_OBJECT_TABLE or EXT_OBJECT_VIEW
   int8_t         tsPrecision;  // source-level timestamp precision for the primary-key column
                                // (TSDB_TIME_PRECISION_MILLI/MICRO/NANO); 0 = unknown/not set
   SName          name;                              // dbname + tname
@@ -684,6 +661,7 @@ typedef struct SExtTableMeta {
   int8_t         charsetUtf8;
   int64_t        fetched_at;                        // monotonic time of cache fill
   char           remoteTableName[TSDB_TABLE_NAME_LEN]; // actual table name on remote (preserves case)
+  char           retentionPolicy[TSDB_EXT_INFLUX_RP_LEN]; // resolved InfluxDB 1.8 RP
 } SExtTableMeta;
 
 typedef enum {
@@ -720,6 +698,9 @@ typedef enum {
 #define TSDB_ALTER_TABLE_ALTER_TAG_REF                  21 // set/change tag reference for virtual child table
 #define TSDB_ALTER_TABLE_ADD_SERIES                      22
 #define TSDB_ALTER_TABLE_REMOVE_SERIES                   23
+#define TSDB_ALTER_TABLE_ADD_REFERENCE                   27
+#define TSDB_ALTER_TABLE_MODIFY_REFERENCE                28
+#define TSDB_ALTER_TABLE_REMOVE_REFERENCE                29
 #define TSDB_ALTER_TABLE_ADD_BASE_ON                     24
 #define TSDB_ALTER_TABLE_DROP_BASE_ON                    25
 #define TSDB_ALTER_TABLE_ADD_TAG_WITH_TAG_REF           26 // add a tag reference to a virtual normal table
@@ -855,6 +836,7 @@ typedef enum ENodeType {
   QUERY_NODE_EVENT_START_LEAF,
   QUERY_NODE_STREAM_WINDOW_PLAN,
   QUERY_NODE_STREAM_WINDOW_LAYER,
+  QUERY_NODE_TIME_ALIGN_TABLE,  // STimeAlignTableNode: TABLE(TIME_ALIGN(TABLE t, ...))
 
   // Statement nodes are used in parser and planner module.
   QUERY_NODE_SET_OPERATOR = 100,
@@ -1216,6 +1198,7 @@ typedef enum ENodeType {
 
   // xnode restart (appended to preserve existing enum numeric values)
   QUERY_NODE_RESTART_XNODE_STMT,
+  QUERY_NODE_REFERENCE_DECL,
   // Correlation nodes use a separate range; existing wire IDs stay unchanged.
   QUERY_NODE_OUTER_REF = 1300,
   QUERY_NODE_CORRELATION_PARAM,
@@ -1231,6 +1214,7 @@ typedef struct {
   uint8_t     autoCreateCtb;  // 0x0 not auto create, 0x01 auto create
   const char* dbFName;
   const char* tbName;
+  int64_t     txnId;  // batch meta txn: read-your-own-writes for the table cfg request (0 = not in txn)
 } SBuildTableInput;
 
 typedef struct {
@@ -1272,6 +1256,12 @@ typedef struct SEp {
   char     fqdn[TSDB_FQDN_LEN];
   uint16_t port;
 } SEp;
+
+typedef struct SEpSet {
+  int8_t inUse;
+  int8_t numOfEps;
+  SEp    eps[TSDB_MAX_REPLICA];
+} SEpSet;
 
 typedef struct {
   int32_t contLen;
@@ -1342,6 +1332,16 @@ typedef struct {
   int32_t  filterCondLen;
   char     *filterCondJson;  // serialized MySQL/PostgreSQL column filter, or NULL
   char     colName[TSDB_COL_NAME_LEN];     // for tmq get json
+  // Derived leaf identity for planning. Persisted bindings live in referenceExt.
+  // Keep these fields outside the legacy SColRef element wire format.
+  int8_t bindingKind;
+  char referenceAlias[TSDB_COL_NAME_LEN];
+  char timeColumn[TSDB_COL_NAME_LEN];
+  uint64_t referenceUid;
+  int32_t expectedRversion;
+  int32_t referenceVgId;
+  SEpSet referenceEpSet;
+  char referenceDbFName[TSDB_DB_FNAME_LEN];
 } SColRef;
 
 typedef struct {
@@ -1365,6 +1365,50 @@ typedef struct SSeriesEntry {
   char*   tagCondJson;
 } SSeriesEntry;
 
+enum {
+  VTABLE_BINDING_LEGACY = 0,
+  VTABLE_BINDING_REFERENCE = 1,
+  VTABLE_BINDING_SERIES = 2,
+  TSDB_MAX_VTABLE_REFERENCES = 128,
+};
+
+typedef struct SReferenceEntry {
+  char alias[TSDB_COL_NAME_LEN];
+  int8_t sourceType;
+  char sourceName[TSDB_EXT_SOURCE_NAME_LEN];
+  char dbName[TSDB_DB_NAME_LEN];
+  char schemaName[TSDB_EXT_SOURCE_SCHEMA_LEN];
+  char objectName[TSDB_TABLE_NAME_LEN];
+  char timeColumn[TSDB_COL_NAME_LEN];
+} SReferenceEntry;
+
+typedef struct SVtableBindingLink {
+  col_id_t colId;
+  int8_t bindingKind;
+  char alias[TSDB_COL_NAME_LEN];
+} SVtableBindingLink;
+
+typedef struct SVtableDeclOrder {
+  int8_t bindingKind;
+  char alias[TSDB_COL_NAME_LEN];
+} SVtableDeclOrder;
+
+typedef struct SVtableReferenceExt {
+  int32_t nReferences;
+  SReferenceEntry* pReferences;
+  int32_t nBindings;
+  SVtableBindingLink* pBindings;
+  int32_t nDeclarations;
+  SVtableDeclOrder* pDeclarations;
+} SVtableReferenceExt;
+
+int32_t tEncodeVtableReferenceExt(SEncoder* pEncoder, const SVtableReferenceExt* pExt);
+int32_t tDecodeVtableReferenceExt(SDecoder* pDecoder, SVtableReferenceExt* pExt);
+int32_t tCloneVtableReferenceExt(const SVtableReferenceExt* pSrc, SVtableReferenceExt* pDst);
+void tFreeVtableReferenceExt(SVtableReferenceExt* pExt);
+const SVtableBindingLink* tVtableBindingForColumn(const SVtableReferenceExt* pExt, col_id_t colId);
+const SReferenceEntry* tVtableReferenceForColumn(const SVtableReferenceExt* pExt, col_id_t colId);
+
 typedef struct SSeriesWrapper {
   int32_t       nSeries;
   SSeriesEntry* pSeries;
@@ -1386,6 +1430,14 @@ typedef struct {
   char    refColName[TSDB_COL_NAME_LEN];
   char    refSourceName[TSDB_EXT_SOURCE_NAME_LEN];  // external source name, empty for internal refs
   char    refSchemaName[TSDB_EXT_SOURCE_SCHEMA_LEN];  // external schema (SQL Server / PG), empty otherwise
+  int8_t bindingKind;
+  char referenceAlias[TSDB_COL_NAME_LEN];
+  char timeColumn[TSDB_COL_NAME_LEN];
+  uint64_t referenceUid;
+  int32_t expectedRversion;
+  int32_t referenceVgId;
+  SEpSet referenceEpSet;
+  char referenceDbFName[TSDB_DB_FNAME_LEN];
   bool    hasFilterCond;  // saved external-column filter, including resolved leaf refs
 } SRefColInfo;
 
@@ -1405,6 +1457,9 @@ typedef struct {
   uint32_t colOff;
   uint32_t srcOff;
   uint32_t schemaOff;
+  int8_t bindingKind;
+  uint32_t aliasOff;
+  uint32_t timeOff;
 } SRefColEntry;
 
 // The ref payload of one virtual child table, kept as one allocation:
@@ -1427,6 +1482,7 @@ typedef struct SVCTableRefCols {
   int32_t         numOfSrcTbls;
   int32_t         numOfColRefs;
   int32_t         numOfTagRefs;
+  int32_t         rversion;
 } SVCTableRefCols;
 
 static FORCE_INLINE SRefColEntry* vctContentColAt(const SVctRefContent* pContent, int32_t idx) {
@@ -1524,6 +1580,7 @@ typedef struct {
   SColRef*    pTagRefs;
   int32_t       numOfSeries;
   SSeriesEntry* pSeries;
+  SVtableReferenceExt referenceExt;
   int8_t        secureDelete;
   int8_t        hasInheritors;  // 1 if other VSTs inherit from this STB (non-leaf)
 } STableMetaRsp;
@@ -1797,7 +1854,30 @@ static FORCE_INLINE int32_t tDecodeSSchema(SDecoder* pDecoder, SSchema* pSchema)
   TAOS_CHECK_RETURN(tDecodeI8(pDecoder, &pSchema->flags));
   TAOS_CHECK_RETURN(tDecodeI32v(pDecoder, &pSchema->bytes));
   TAOS_CHECK_RETURN(tDecodeI16v(pDecoder, &pSchema->colId));
-  TAOS_CHECK_RETURN(tDecodeCStrTo(pDecoder, pSchema->name));
+
+  // tEncodeSSchema() -> tEncodeCStr() writes strlen(name) + 1 bytes, so a legitimate column
+  // name is at most sizeof(name) - 1 chars followed by a NUL. Require that terminator
+  // explicitly: tDecodeCStrToN() only enforces a NUL when the payload is longer than the
+  // destination, so a field of exactly sizeof(name) bytes would fill the array with no
+  // terminator. name is the last member of the packed SSchema, so the later
+  // tEncodeSSchema() -> strlen() would then read past the schema heap block.
+  char*    pColName = NULL;
+  uint32_t colNameLen = 0;  // decoded string length, excluding the terminating '\0'
+  TAOS_CHECK_RETURN(tDecodeCStrAndLen(pDecoder, &pColName, &colNameLen));
+  // An empty name is a valid wire form: tEncodeCStr(NULL) emits L == 0 and
+  // tEncodeSSchema() -> tEncodeCStr("") emits L == 1 + '\0'. The decoder does not enforce a
+  // non-empty name here -- that is a semantic check for the table-creation paths. Accept both
+  // as an empty string without reading pColName: for L == 0 it points at (or, when this is the
+  // last field, one past) the decoded region and carries no payload byte (same as
+  // tDecodeCStrToFixed()).
+  if (colNameLen == 0) {
+    pSchema->name[0] = '\0';
+    return 0;
+  }
+  if (colNameLen >= sizeof(pSchema->name) || pColName[colNameLen] != '\0') {
+    TAOS_RETURN(TSDB_CODE_INVALID_MSG);
+  }
+  TAOS_MEMCPY(pSchema->name, pColName, colNameLen + 1);
   return 0;
 }
 
@@ -2070,11 +2150,7 @@ int32_t tSerializeSMAlterStbReq(void* buf, int32_t bufLen, SMAlterStbReq* pReq);
 int32_t tDeserializeSMAlterStbReq(void* buf, int32_t bufLen, SMAlterStbReq* pReq);
 void    tFreeSMAltertbReq(SMAlterStbReq* pReq);
 
-typedef struct SEpSet {
-  int8_t inUse;
-  int8_t numOfEps;
-  SEp    eps[TSDB_MAX_REPLICA];
-} SEpSet;
+
 
 int32_t tEncodeSEpSet(SEncoder* pEncoder, const SEpSet* pEp);
 int32_t tDecodeSEpSet(SDecoder* pDecoder, SEpSet* pEp);
@@ -2887,6 +2963,7 @@ typedef struct {
   SColRef* pTagRefs;
   int32_t       numOfSeries;
   SSeriesEntry* pSeries;
+  SVtableReferenceExt referenceExt;
   int8_t   secureDelete;
   int8_t   numParents;
   char     parentStbNames[TSDB_MAX_VST_PARENTS][TSDB_TABLE_NAME_LEN];
@@ -4450,6 +4527,17 @@ typedef struct {
   int32_t  reserved;
 } SAlterVnodeHashRangeReq;
 
+// alter-confirm response: the vnode that handled the (sync-write) confirm reports the local
+// node's dnodeId (i.e. the vgroup leader that answered) so the mnode can stamp the vgroup's
+// leader immediately after commit, instead of waiting for the next dnode heartbeat.
+// See mndTransProcessRsp / mndTransSendRpcRsp.
+typedef struct {
+  int32_t dnodeId;
+} SAlterVnodeConfirmRsp;
+
+int32_t tSerializeSAlterVnodeConfirmRsp(void* buf, int32_t bufLen, SAlterVnodeConfirmRsp* pRsp);
+int32_t tDeserializeSAlterVnodeConfirmRsp(void* buf, int32_t bufLen, SAlterVnodeConfirmRsp* pRsp);
+
 int32_t tSerializeSAlterVnodeHashRangeReq(void* buf, int32_t bufLen, SAlterVnodeHashRangeReq* pReq);
 int32_t tDeserializeSAlterVnodeHashRangeReq(void* buf, int32_t bufLen, SAlterVnodeHashRangeReq* pReq);
 
@@ -5732,11 +5820,21 @@ typedef struct SVTagCondReq {
   int64_t  uid;  // virtual sub-table uid
 } SVTagCondReq;
 
+typedef struct SVtableRuntimeBinding {
+  col_id_t colId;
+  int8_t bindingKind;
+  char referenceAlias[TSDB_COL_NAME_LEN];
+  char timeColumn[TSDB_COL_NAME_LEN];
+} SVtableRuntimeBinding;
+
 typedef struct SVTagCondRsp {
   int32_t numOfRefs;
   SArray* pEntries;  // SArray<SVTagCondEntry>
   int32_t numOfFilterConds;
   SArray* pFilterConds;  // optional tail extension: SArray<SVtbColFilterCond>
+  int32_t rversion;
+  int32_t numOfBindings;
+  SArray* pBindings;  // SArray<SVtableRuntimeBinding>
 } SVTagCondRsp;
 
 int32_t tSerializeSVTagCondReq(void* buf, int32_t bufLen, SVTagCondReq* pReq);
@@ -5791,6 +5889,11 @@ typedef struct SForeignSourceInfo {
   int64_t rowLimit;  // optional per-stream top-N limit for VStb remote SQL; <=0 means unset
   SNode*  pPushedCond;  // heap, owned; VStb local filter fragment safe to push to this foreign source
   uint64_t virtualChildUid;  // virtual child whose row is reconstructed from this remote table
+  int8_t bindingKind;
+  char referenceAlias[TSDB_COL_NAME_LEN];
+  char timeColumn[TSDB_COL_NAME_LEN];
+  int32_t expectedRversion;
+  uint64_t referenceUid;
 } SForeignSourceInfo;
 
 void destroySOrgTbInfo(void *info);
@@ -5880,6 +5983,11 @@ typedef struct SForeignTableInfo {
   SNode*  pPushedCond;      // runtime-only SNode, heap owned
   uint64_t virtualChildUid;  // virtual child whose row is reconstructed from this table
   SArray* pVtbTagList;       // runtime-only SArray<STagVal>, owned by the batch table
+  int8_t bindingKind;
+  char referenceAlias[TSDB_COL_NAME_LEN];
+  char timeColumn[TSDB_COL_NAME_LEN];
+  int32_t expectedRversion;
+  uint64_t referenceUid;
 } SForeignTableInfo;
 
 typedef struct SForeignScanOperatorParam {
@@ -5911,6 +6019,11 @@ typedef struct SForeignScanOperatorParam {
   SArray*   pVtbTagList;     // runtime-only borrowed tag payload for the active table view
   // Runtime-only: consumer accepts timestamp order changes between batch tables.
   bool allowUnorderedBatch;
+  int8_t bindingKind;
+  char referenceAlias[TSDB_COL_NAME_LEN];
+  char timeColumn[TSDB_COL_NAME_LEN];
+  int32_t expectedRversion;
+  uint64_t referenceUid;
 } SForeignScanOperatorParam;
 typedef struct SMergeOperatorParam {
   int32_t winNum;
@@ -6362,7 +6475,9 @@ void    tFreeSVCheckStbAlterNameReq(SVCheckStbAlterNameReq* pReq);
 // the vnode assigns colIds from TSDB_VCHILD_OWN_COL_ID_BASE upwards.
 typedef struct SVChildOwnColDef {
   SSchema  schema;
-  SColRef  ref;  // hasRef is always true: an own data column must carry an origin reference
+  SColRef  ref;  // hasRef = true: own column with an origin reference. hasRef = false: an unbound
+               // own column (bare `name TYPE` declaration at CREATE VTABLE, same state as after
+               // ALTER ... SET NULL); a declared ref must still carry complete names
   STypeMod typeMod;  // decimal precision/scale for own columns of decimal type (0 otherwise)
 } SVChildOwnColDef;
 
@@ -6416,6 +6531,7 @@ typedef struct SVCreateTbReq {
   SVChildOwnColDef *pOwnColDefs;
   int32_t           nOwnTagDefs;
   SVChildOwnTagDef *pOwnTagDefs;
+  SVtableReferenceExt referenceExt;
 } SVCreateTbReq;
 
 int  tEncodeSVCreateTbReq(SEncoder* pCoder, const SVCreateTbReq* pReq);
@@ -6513,6 +6629,7 @@ typedef struct SUpdatedTagVal {
   // support
   char*    regexp;
   char*    replacement;
+  const char* charset;  // Borrowed from the enclosing request.
 } SUpdatedTagVal;
 
 typedef struct SUpdateTableTagVal {
@@ -6585,6 +6702,10 @@ typedef struct SVAlterTbReq {
   // can afford and the vnode aborts its pre-scan once the match count exceeds it. 0 = no
   // limit (non-txn path). See metaPreScanChildTableTagUpdate.
   int32_t txnDdlQuota;
+  SVtableReferenceExt referenceExt;
+  bool hasExpectedRversion;
+  int32_t expectedRversion;
+  const char* charset;  // Connection charset; optional trailing wire field.
 } SVAlterTbReq;
 
 int32_t tEncodeSVAlterTbReq(SEncoder* pEncoder, const SVAlterTbReq* pReq);
@@ -6697,7 +6818,34 @@ typedef enum EQueryExecPhase {
   QUERY_PHASE_FETCH_RETURNED    = 61,  // Data returned to client, business logic processing
 } EQueryExecPhase;
 
+/* True when the phase belongs to the fetch stage. Transitions inside this stage
+ * (in_progress <-> returned) happen once per fetched data block and must not
+ * restart the reported phase.
+ *
+ * NOTE: the argument is evaluated once per comparison (three times in total),
+ * so it must be a side-effect-free expression, e.g. a plain local variable or
+ * an atomic load. Never pass an expression with side effects or a volatile
+ * object whose reads have meaning beyond the value. */
+#define QUERY_PHASE_IS_FETCH_STAGE(_phase)                                                       \
+  ((_phase) == QUERY_PHASE_FETCH || (_phase) == QUERY_PHASE_FETCH_IN_PROGRESS ||                 \
+   (_phase) == QUERY_PHASE_FETCH_RETURNED)
+
 const char* queryPhaseStr(int32_t phase);
+
+/* Encode the sub-task list of one query as the show queries.sub_status value.
+ *
+ * Every task is written as "<tid>:<type/state>:<offset>", entries separated by
+ * ','. <offset> is the task start time relative to <createTimeMs> (the query
+ * create_time, same reference for all tasks of the query) and carries its unit,
+ * for example "+58ms"; a task that never started is written as "-".
+ *
+ * <pOut> receives the payload only (no varstr length header) and <cap> is its
+ * capacity in bytes. All tasks that fit are written; when the list does not
+ * fit, the output ends at an entry boundary and includes "...(+N)" for the
+ * omitted tasks when the marker fits. <pBuilt> counts only encoded tasks.
+ * Returns the encoded payload length, or a negative error code. */
+int32_t tFormatQuerySubStatus(const SArray *pSubDesc, int32_t subPlanNum, int64_t createTimeMs,
+                              char *pOut, int32_t cap, int32_t *pBuilt);
 
 typedef struct {
   char     sql[TSDB_SHOW_SQL_LEN];
@@ -6770,6 +6918,7 @@ typedef struct {
   char              sVer[TSDB_VERSION_LEN];
   char              cInfo[CONNECTOR_INFO_LEN];
   int32_t           passVer;  // password version the client authenticated with (-1: not reported)
+  int64_t           extSrcDdlGenAtSend;  // client-only: ext-source DDL generation when this request was built
 } SClientHbReq;
 
 typedef struct {
@@ -7050,8 +7199,9 @@ int32_t tDeserializeSMDropStreamReq(void* buf, int32_t bufLen, SMDropStreamReq* 
 void    tFreeMDropStreamReq(SMDropStreamReq* pReq);
 
 typedef struct {
-  char*  name;
-  int8_t igNotExists;
+  char*   name;
+  int8_t  igNotExists;
+  int64_t txnId;  // batch meta txn ID (0 = not in txn)
 } SMPauseStreamReq;
 
 int32_t tSerializeSMPauseStreamReq(void* buf, int32_t bufLen, const SMPauseStreamReq* pReq);
@@ -7062,6 +7212,7 @@ typedef struct {
   char*  name;
   int8_t igNotExists;
   int8_t igUntreated;
+  int64_t txnId;  // batch meta txn ID (0 = not in txn)
 } SMResumeStreamReq;
 
 int32_t tSerializeSMResumeStreamReq(void* buf, int32_t bufLen, const SMResumeStreamReq* pReq);
@@ -7955,6 +8106,9 @@ typedef struct {
   char     data[];  // SSubmitReq2
 } SSubmitReq2Msg;
 
+// Accepted only by the admission worker, never by ordinary submit preprocessing or apply.
+#define STREAM_CONDITIONAL_SUBMIT_VERSION INT64_C(0x54415201)
+
 int32_t transformRawSSubmitTbData(void* data, int64_t suid, int64_t uid, int32_t sver);
 int32_t tEncodeSubmitReq(SEncoder* pCoder, const SSubmitReq2* pReq);
 int32_t tDecodeSubmitReq(SDecoder* pCoder, SSubmitReq2* pReq, SArray* rawList);
@@ -8036,6 +8190,21 @@ typedef struct {
 int32_t tSerializeSViewMetaRsp(void* buf, int32_t bufLen, const SViewMetaRsp* pRsp);
 int32_t tDeserializeSViewMetaRsp(void* buf, int32_t bufLen, SViewMetaRsp* pRsp);
 void    tFreeSViewMetaRsp(SViewMetaRsp* pRsp);
+
+/*
+ * Response payload of CREATE/OR REPLACE VIEW.
+ * The effective view metadata is returned so that the issuing client can update its
+ * local catalog immediately instead of evicting the entry and re-fetching it later.
+ * Only attached by enterprise mnodes; community clients ignore the payload.
+ */
+typedef struct {
+  SViewMetaRsp* pMeta;
+} SMCreateViewRsp;
+
+int32_t tEncodeSMCreateViewRsp(SEncoder* pEncoder, const SMCreateViewRsp* pRsp);
+int32_t tDecodeSMCreateViewRsp(SDecoder* pDecoder, SMCreateViewRsp* pRsp);
+void    tFreeSMCreateViewRsp(SMCreateViewRsp* pRsp);
+
 typedef struct {
   char name[TSDB_TABLE_FNAME_LEN];  // table name or tsma name
   bool fetchingWithTsmaName;        // if we are fetching with tsma name

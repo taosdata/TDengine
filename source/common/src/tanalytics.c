@@ -19,11 +19,15 @@
 // the opensocket callback below creates the connection socket itself
 #define ALLOW_FORBID_FUNC
 #include "os.h"
+#include "tdTestSeam.h"
 #include "tanalytics.h"
-#include "ttypes.h"
-#include "tutil.h"
+#include <math.h>
+
+#include "os.h"
 #include "osTime.h"
 #include "tglobal.h"
+#include "ttypes.h"
+#include "tutil.h"
 
 #ifdef USE_ANALYTICS
 
@@ -152,6 +156,7 @@ void taosAnalyticsCleanup() {
 }
 
 void taosAnalyUpdate(int64_t newVer, SHashObj *pHash) {
+  TD_SEAM_VOID(taosAnalyUpdate, void (*)(int64_t, SHashObj *), (newVer, pHash));
   if (newVer > tsAlgos.ver) {
     if (taosThreadMutexLock(&tsAlgos.lock) == 0) {
       SHashObj *hash = tsAlgos.hash;
@@ -362,7 +367,7 @@ static int32_t taosCurlGetRequest(const char *url, SCurlResp *pRsp) {
   }
   if (curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, taosCurlWriteData) != 0) goto _OVER;
   if (curl_easy_setopt(curl, CURLOPT_WRITEDATA, pRsp) != 0) goto _OVER;
-  if (curl_easy_setopt(curl, CURLOPT_TIMEOUT_MS, 20000) != 0) goto _OVER;
+  if (curl_easy_setopt(curl, CURLOPT_TIMEOUT_MS, 20000L) != 0) goto _OVER;
 
   uDebug("curl get request will sent, url:%s", url);
   code = curl_easy_perform(curl);
@@ -375,7 +380,7 @@ _OVER:
   return code;
 }
 
-static int32_t taosCurlPostRequest(const char *url, SCurlResp *pRsp, const char *buf, int32_t bufLen, int32_t timeout,
+static int32_t taosCurlPostRequest(const char *url, SCurlResp *pRsp, const char *buf, int64_t bufLen, int64_t timeout,
                                    const char *id) {
   struct curl_slist *headers = NULL;
   CURL              *curl = NULL;
@@ -398,14 +403,15 @@ static int32_t taosCurlPostRequest(const char *url, SCurlResp *pRsp, const char 
   }
   if (curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, taosCurlWriteData) != 0) goto _OVER;
   if (curl_easy_setopt(curl, CURLOPT_WRITEDATA, pRsp) != 0) goto _OVER;
-  if (curl_easy_setopt(curl, CURLOPT_TIMEOUT, timeout) != 0) goto _OVER;
-  if (curl_easy_setopt(curl, CURLOPT_POST, 1) != 0) goto _OVER;
-  if (curl_easy_setopt(curl, CURLOPT_POSTFIELDSIZE, bufLen) != 0) goto _OVER;
+  // timeout is in seconds, see taosAnalysisParseTimout() and ANALY_DEFAULT_TIMEOUT.
+  if (curl_easy_setopt(curl, CURLOPT_TIMEOUT, (long)timeout) != 0) goto _OVER;
+  if (curl_easy_setopt(curl, CURLOPT_POST, 1L) != 0) goto _OVER;
+  if (curl_easy_setopt(curl, CURLOPT_POSTFIELDSIZE, (long)bufLen) != 0) goto _OVER;
   if (curl_easy_setopt(curl, CURLOPT_POSTFIELDS, buf) != 0) goto _OVER;
   if (curl_easy_setopt(curl, CURLOPT_VERBOSE, 1L) != 0) goto _OVER;
   if (curl_easy_setopt(curl, CURLOPT_NOSIGNAL, 1L) != 0) goto _OVER;
 
-  uDebugL("%s curl post request will sent, url:%s len:%d content:%s", id, url, bufLen, buf);
+  uDebugL("%s curl post request will sent, url:%s len:%" PRId64 " content:%s", id, url, bufLen, buf);
   code = curl_easy_perform(curl);
   if (code != CURLE_OK) {
     uError("%s failed to perform curl action, code:%d", id, code);
@@ -655,6 +661,7 @@ static int32_t taosAnalyJsonBufWriteColEnd(SAnalyticBuf *pBuf, int32_t colIndex)
 static int32_t taosAnalyJsonBufWriteColData(SAnalyticBuf *pBuf, int32_t colIndex, int32_t colType, void *colValue) {
   char    buf[64];
   int32_t bufLen = 0;
+  int32_t valueLen = 0;
 
   if (pBuf->pCols[colIndex].numOfRows != 0) {
     buf[bufLen] = ',';
@@ -663,47 +670,66 @@ static int32_t taosAnalyJsonBufWriteColData(SAnalyticBuf *pBuf, int32_t colIndex
     bufLen += 2;
   }
 
-  switch (colType) {
-    case TSDB_DATA_TYPE_BOOL:
-      bufLen += snprintf(buf + bufLen, sizeof(buf) - bufLen, "%d", (*((int8_t *)colValue) == 1) ? 1 : 0);
-      break;
-    case TSDB_DATA_TYPE_TINYINT:
-      bufLen += snprintf(buf + bufLen, sizeof(buf) - bufLen, "%d", *(int8_t *)colValue);
-      break;
-    case TSDB_DATA_TYPE_UTINYINT:
-      bufLen += snprintf(buf + bufLen, sizeof(buf) - bufLen, "%u", *(uint8_t *)colValue);
-      break;
-    case TSDB_DATA_TYPE_SMALLINT:
-      bufLen += snprintf(buf + bufLen, sizeof(buf) - bufLen, "%d", *(int16_t *)colValue);
-      break;
-    case TSDB_DATA_TYPE_USMALLINT:
-      bufLen += snprintf(buf + bufLen, sizeof(buf) - bufLen, "%u", *(uint16_t *)colValue);
-      break;
-    case TSDB_DATA_TYPE_INT:
-      bufLen += snprintf(buf + bufLen, sizeof(buf) - bufLen, "%d", *(int32_t *)colValue);
-      break;
-    case TSDB_DATA_TYPE_UINT:
-      bufLen += snprintf(buf + bufLen, sizeof(buf) - bufLen, "%u", *(uint32_t *)colValue);
-      break;
-    case TSDB_DATA_TYPE_BIGINT:
-    case TSDB_DATA_TYPE_TIMESTAMP:
-      bufLen += snprintf(buf + bufLen, sizeof(buf) - bufLen, "%" PRId64, *(int64_t *)colValue);
-      break;
-    case TSDB_DATA_TYPE_UBIGINT:
-      bufLen += snprintf(buf + bufLen, sizeof(buf) - bufLen, "%" PRIu64, *(uint64_t *)colValue);
-      break;
-    case TSDB_DATA_TYPE_FLOAT:
-      bufLen += snprintf(buf + bufLen, sizeof(buf) - bufLen, "%f", GET_FLOAT_VAL(colValue));
-      break;
-    case TSDB_DATA_TYPE_DOUBLE:
-      bufLen += snprintf(buf + bufLen, sizeof(buf) - bufLen, "%f", GET_DOUBLE_VAL(colValue));
-      break;
-    default:
-      buf[bufLen] = '\0';
+  char  *pNumber = buf + bufLen;
+  size_t capacity = sizeof(buf) - bufLen;
+
+  // Missing and non-finite values have no JSON numeric representation.
+  if (colValue == NULL || (colType == TSDB_DATA_TYPE_FLOAT && !isfinite(GET_FLOAT_VAL(colValue))) ||
+      (colType == TSDB_DATA_TYPE_DOUBLE && !isfinite(GET_DOUBLE_VAL(colValue)))) {
+    valueLen = snprintf(pNumber, capacity, "null");
+  } else {
+    switch (colType) {
+      case TSDB_DATA_TYPE_BOOL:
+        valueLen = snprintf(pNumber, capacity, "%d", (*((int8_t *)colValue) == 1) ? 1 : 0);
+        break;
+      case TSDB_DATA_TYPE_TINYINT:
+        valueLen = snprintf(pNumber, capacity, "%d", *(int8_t *)colValue);
+        break;
+      case TSDB_DATA_TYPE_UTINYINT:
+        valueLen = snprintf(pNumber, capacity, "%u", *(uint8_t *)colValue);
+        break;
+      case TSDB_DATA_TYPE_SMALLINT:
+        valueLen = snprintf(pNumber, capacity, "%d", *(int16_t *)colValue);
+        break;
+      case TSDB_DATA_TYPE_USMALLINT:
+        valueLen = snprintf(pNumber, capacity, "%u", *(uint16_t *)colValue);
+        break;
+      case TSDB_DATA_TYPE_INT:
+        valueLen = snprintf(pNumber, capacity, "%d", *(int32_t *)colValue);
+        break;
+      case TSDB_DATA_TYPE_UINT:
+        valueLen = snprintf(pNumber, capacity, "%u", *(uint32_t *)colValue);
+        break;
+      case TSDB_DATA_TYPE_BIGINT:
+      case TSDB_DATA_TYPE_TIMESTAMP:
+        valueLen = snprintf(pNumber, capacity, "%" PRId64, *(int64_t *)colValue);
+        break;
+      case TSDB_DATA_TYPE_UBIGINT:
+        valueLen = snprintf(pNumber, capacity, "%" PRIu64, *(uint64_t *)colValue);
+        break;
+      // %g uses scientific notation when needed; 9/17 digits preserve float/double precision.
+      case TSDB_DATA_TYPE_FLOAT:
+        valueLen = snprintf(pNumber, capacity, "%.9g", GET_FLOAT_VAL(colValue));
+        break;
+      case TSDB_DATA_TYPE_DOUBLE:
+        valueLen = snprintf(pNumber, capacity, "%.17g", GET_DOUBLE_VAL(colValue));
+        break;
+      default:
+        return TSDB_CODE_INVALID_PARA;
+    }
   }
 
-  pBuf->pCols[colIndex].numOfRows++;
-  return taosAnalyJsonBufWriteStrUseCol(pBuf, buf, bufLen, colIndex);
+  // snprintf returns the required length, which may exceed the stored bytes.
+  if (valueLen < 0 || (size_t)valueLen >= capacity) {
+    return TSDB_CODE_QRY_NOT_ENOUGH_BUFFER;
+  }
+
+  bufLen += valueLen;
+  int32_t code = taosAnalyJsonBufWriteStrUseCol(pBuf, buf, bufLen, colIndex);
+  if (code == TSDB_CODE_SUCCESS) {
+    pBuf->pCols[colIndex].numOfRows++;
+  }
+  return code;
 }
 
 static int32_t taosAnalyJsonBufWriteDataEnd(SAnalyticBuf *pBuf) {

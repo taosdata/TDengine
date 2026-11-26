@@ -183,7 +183,24 @@ typedef struct SParseContext {
   char        currentExtNs1[TSDB_EXT_SOURCE_DATABASE_LEN]; // active namespace (db/schema); empty if not set
   char        currentExtNs2[TSDB_EXT_SOURCE_SCHEMA_LEN];   // active schema (PG 3-seg only); empty otherwise
   int8_t      firstDayOfWeek;  /* 0-6; -1 = not set (use global tsFirstDayOfWeek) */
+  // How the insert-target table name was spelled, a bit mask of
+  // HAS_BIND_VALUE / IS_FIXED_VALUE / USING_CLAUSE. Filled by parseInsertSql() so
+  // that the client can keep the legacy TSDB_CODE_TSC_STMT_TBNAME_ERROR mapping
+  // only for statements without a concrete table name.
+  uint8_t     stmtTbNameFlag;
 } SParseContext;
+
+// Fill the connection info used by catalog requests from the parse context, including the txn-local
+// state the catalog needs to tell which tables the current txn has touched (see ctgIsMetaTouchedByTxn).
+static FORCE_INLINE void parseCxtToConnInfo(const SParseContext* pCxt, SRequestConnInfo* pConn) {
+  pConn->pTrans = pCxt->pTransporter;
+  pConn->requestId = pCxt->requestId;
+  pConn->requestObjRefId = pCxt->requestRid;
+  pConn->mgmtEps = pCxt->mgmtEpSet;
+  pConn->txnId = pCxt->txnId;
+  pConn->pTxnTableMeta = pCxt->pTxnTableMeta;
+  pConn->pTxnSuidMap = pCxt->pTxnSuidMap;
+}
 
 typedef struct SPureInsertParserCtx {
   int                    nr_params;
@@ -261,6 +278,7 @@ int32_t qBindStmtTagsValue(void* pBlock, void* boundTags, int64_t suid, const ch
                            TAOS_MULTI_BIND* bind, char* msgBuf, int32_t msgBufLen, void* charsetCxt);
 int32_t qBuildUpdateStmtColFields(void* pBlock, int32_t* fieldNum, TAOS_FIELD_E** fields, SSHashObj* parsedCols);
 int32_t qStmtBindParams2(SQuery* pQuery, TAOS_STMT2_BIND* pParams, int32_t colIdx, void* charsetCxt);
+int32_t qStmtRefreshQuery2(SQuery* pQuery);
 int32_t qBindStmtStbColsValue2(void* pBlock, SArray* pCols, SSHashObj* parsedCols, TAOS_STMT2_BIND* bind, char* msgBuf,
                                int32_t msgBufLen, STSchema** pTSchema, SBindInfo2* pBindInfos, void* charsetCxt,
                                SBlobSet** ppBlob);
@@ -314,6 +332,7 @@ typedef struct SParseMetaCache {
   SHashObj* pTSMAs;        // key is tsmaFName, elements are STableTSMAInfo*
   SHashObj* pTableName;    // key is tbFUid, elements is STableMeta*(append with tbName)
   SHashObj* pVStbRefDbs;   // key is tbFName, element is SArray<SVStbRefDbsRsp*>
+  const struct SParseMetaCache* pVStbRefParent;  // Borrowed while translating late-discovered VST leaves.
   SArray*   pDnodes;       // element is SDNodeAddr
   bool      dnodeRequired;
   bool      forceFetchViewMeta;

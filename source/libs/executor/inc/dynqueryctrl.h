@@ -85,6 +85,11 @@ typedef struct {
   int32_t  vgId;
   int32_t  rversion;
   int8_t   refType;       // 0: column reference, 1: tag reference
+  int8_t   bindingKind;
+  char     referenceAlias[TSDB_COL_NAME_LEN];
+  char     timeColumn[TSDB_COL_NAME_LEN];
+  uint64_t referenceUid;
+  int32_t  expectedRversion;
   int8_t   extRefType;    // 0: internal reference, 1: external reference
   char*    tagCondJson;   // heap, owned; external ref series filter (may be NULL)
   int32_t  tagCondLen;
@@ -114,6 +119,7 @@ typedef struct SVtbScanDynCtrlInfo {
   bool             genNewParam;
   bool                 activeScopeValid;
   SVtbAggDispatchScope activeAggScope;
+  void*                pAggGroupIter;
   char*            dbName;
   char*            tbName;
   tsem_t           ready;
@@ -135,6 +141,7 @@ typedef struct SVtbScanDynCtrlInfo {
   SArray*          aggTagColIds; // runtime-only logical Tag/TBNAME col_id_t list for VTB_AGG payloads
   SArray*          refColGroups; // Array of <SRefColIdGroup> (slotId groups)
   SArray*          childTableList; // Array of <Array<SColRefInfo>> used for virtual super table
+  SArray*          childTableNames; // childTableList index -> virtual child name
   SArray*          colRefInfo; // Array of <SColRefInfo> used for single virtual normal/child table
   SHashObj*        newAddedVgInfo;
   SHashObj*        childTableMap;
@@ -156,9 +163,6 @@ typedef struct SVtbScanDynCtrlInfo {
   SHashObj*        vtbUidToGroupIdMap; // key: vtbUid, value: vtbGroupId
   SOperatorParam*  vtbScanParam;
   SHashObj*        tableCfgCache;       // key: "dbFName.tbName" (string), value: STableCfgRsp*; per-query tag-ref chain memo
-  SHashObj*        pExcludedSourceNames; // key: non-matching local source child name (string), value: NULL; for tag-ref filter
-  char*            tagRefFilterColName;  // virtual table tag column name used in the tag-ref filter
-  col_id_t         tagRefFilterColId;    // source tag column ID for tag-ref filter matching
   char             tagRefTerminalColName[TSDB_COL_NAME_LEN]; // terminal physical tag column name (resolved by planner)
   // General tag-ref filter pushdown (Layer 2): evaluate pTagFilterCond per-child after tag resolution
   SNode*           pTagRefFilterCond;       // cloned & slotId-rewritten filter condition for scalar evaluation

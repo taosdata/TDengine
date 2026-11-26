@@ -398,6 +398,7 @@ void ctgFreeInstUserCache(SHashObj* pUserCache) {
 }
 
 void ctgFreeHandleImpl(SCatalog* pCtg) {
+  ctgViewSweepFree(&pCtg->viewSweep);
   ctgFreeMetaRent(&pCtg->dbRent);
   ctgFreeMetaRent(&pCtg->stbRent);
   ctgFreeMetaRent(&pCtg->viewRent);
@@ -429,6 +430,7 @@ void ctgFreeHandle(SCatalog* pCtg) {
 
   int64_t clusterId = pCtg->clusterId;
 
+  ctgViewSweepFree(&pCtg->viewSweep);
   ctgFreeMetaRent(&pCtg->dbRent);
   ctgFreeMetaRent(&pCtg->stbRent);
   ctgFreeMetaRent(&pCtg->viewRent);
@@ -524,6 +526,7 @@ void ctgClearHandle(SCatalog* pCtg) {
 
   int64_t clusterId = pCtg->clusterId;
 
+  ctgViewSweepFree(&pCtg->viewSweep);
   ctgFreeMetaRent(&pCtg->dbRent);
   ctgFreeMetaRent(&pCtg->stbRent);
   ctgFreeMetaRent(&pCtg->viewRent);
@@ -1222,6 +1225,17 @@ void ctgFreeJob(void* job) {
   uint64_t qid = pJob->queryId;
 
   ctgFreeTasks(pJob->pTasks, pJob->jobRes.ctgFree);
+  if (NULL != pJob->pRetiredTaskBufs) {
+    int32_t bufNum = taosArrayGetSize(pJob->pRetiredTaskBufs);
+    for (int32_t i = 0; i < bufNum; ++i) {
+      void** ppBuf = taosArrayGet(pJob->pRetiredTaskBufs, i);
+      if (NULL != ppBuf) {
+        taosMemoryFree(*ppBuf);
+      }
+    }
+    taosArrayDestroy(pJob->pRetiredTaskBufs);
+    pJob->pRetiredTaskBufs = NULL;
+  }
   ctgFreeBatchs(pJob->pBatchs);
   taosHashCleanup(pJob->pDbShortNameMap);
 
@@ -2027,6 +2041,7 @@ int32_t ctgCloneMetaOutput(STableMetaOutput* output, STableMetaOutput** pOutput)
 
     TAOS_MEMCPY((*pOutput)->vctbMeta, output->vctbMeta, metaSize);
     (*pOutput)->vctbMeta->seriesEntries = NULL;
+    memset(&(*pOutput)->vctbMeta->referenceExt, 0, sizeof((*pOutput)->vctbMeta->referenceExt));
     if (colRefSize > 0) {
       (*pOutput)->vctbMeta->colRef = (SColRef*)((char*)(*pOutput)->vctbMeta + metaSize);
       TAOS_MEMCPY((*pOutput)->vctbMeta->colRef, output->vctbMeta->colRef, colRefSize);
@@ -2075,6 +2090,12 @@ int32_t ctgCloneMetaOutput(STableMetaOutput* output, STableMetaOutput** pOutput)
     } else {
       (*pOutput)->vctbMeta->numOfOwnTags = 0;
       (*pOutput)->vctbMeta->ownTagSchemas = NULL;
+    }
+    code = tCloneVtableReferenceExt(&output->vctbMeta->referenceExt, &(*pOutput)->vctbMeta->referenceExt);
+    if (code != TSDB_CODE_SUCCESS) {
+      queryFreeTableMeta((STableMeta*)(*pOutput)->vctbMeta);
+      taosMemoryFreeClear(*pOutput);
+      CTG_ERR_RET(code);
     }
     code = queryCloneSeriesEntries(output->vctbMeta->seriesEntries, output->vctbMeta->numOfSeries,
                                    &(*pOutput)->vctbMeta->seriesEntries);
@@ -2194,7 +2215,8 @@ int32_t ctgAddFetch(SArray** pFetchs, int32_t dbIdx, int32_t tbIdx, int32_t* fet
 int32_t ctgGetFetchName(SArray* pNames, SCtgFetch* pFetch, SName** ppName) {
   STablesReq* pReq = (STablesReq*)taosArrayGet(pNames, pFetch->dbIdx);
   if (NULL == pReq) {
-    qError("fail to get the %dth tb in pTables, tbNum:%d", pFetch->tbIdx, (int32_t)taosArrayGetSize(pReq->pTables));
+    qError("fail to get the %dth db request in pNames, dbNum:%d", pFetch->dbIdx,
+           (int32_t)taosArrayGetSize(pNames));
     return TSDB_CODE_CTG_INTERNAL_ERROR;
   }
 
@@ -2534,6 +2556,18 @@ _return:
   CTG_RET(code);
 }
 
+// Table meta used by the auth check of a table. The meta that a sub task of this very check has just fetched is used
+// directly, so the result does not depend on the cache still holding it. Any other table (the super table of a child
+// table) is looked up in the cache.
+static int32_t ctgGetMetaForAuth(SCatalog* pCtg, SCtgAuthReq* req, SName* pSName, STableMeta** ppMeta) {
+  if (NULL != req->pFetchedMeta && pSName == &req->pRawReq->tbName) {
+    CTG_ERR_RET(cloneTableMeta(req->pFetchedMeta, ppMeta));
+    return TSDB_CODE_SUCCESS;
+  }
+
+  return catalogGetCachedTableMeta(pCtg, pSName, ppMeta);
+}
+
 #if 0
 static int32_t ctgChkSetTbAuthRsp(SCatalog* pCtg, SCtgAuthReq* req, SCtgAuthRsp* res) {
   int32_t          code = 0;
@@ -2709,7 +2743,7 @@ static int32_t ctgChkSetTbAuthRsp(SCatalog* pCtg, SCtgAuthReq* req, SCtgAuthRsp*
       goto _return;
     }
 
-    CTG_ERR_JRET(catalogGetCachedTableMeta(pCtg, pSName, &pMeta));
+    CTG_ERR_JRET(ctgGetMetaForAuth(pCtg, req, pSName, &pMeta));
     if (NULL == pMeta) {
       res->withInsertCond = (req->authInfo.withInsertCond == 1);
       if (pReq->smlInsert) {
@@ -3633,4 +3667,84 @@ int32_t ctgAddTSMAFetch(SArray** pFetchs, int32_t dbIdx, int32_t tbIdx, int32_t*
   }
 
   return TSDB_CODE_SUCCESS;
+}
+
+// Batch meta txn: whether a table meta response is (or may be) affected by the txn's uncommitted
+// changes, in which case it must not be written to the shared (committed-view) catalog cache.
+// Untouched tables return the committed meta and are safe to cache as usual.
+//
+// Fail-safe: a request that carries txnId > 0 must also carry the connection's txn-local hashes (fill the
+// SRequestConnInfo with parseCxtToConnInfo(); inside a txn they always exist, possibly empty). A NULL hash
+// means the caller filled txnId by hand and forgot the pointers, so "which tables did the txn touch" is
+// unknown: answer "touched" (never write the shared cache, always refetch with the txnId) instead of
+// silently treating every table as untouched, which would leak uncommitted meta to other sessions.
+static bool ctgTxnNameTouched(const SRequestConnInfo* pConn, const char* dbFName, const char* tbName) {
+  if (tbName[0] == '\0') return false;
+  if (pConn->pTxnTableMeta == NULL) {
+    qDebug("txn:%" PRId64 ", conn has no pTxnTableMeta, treat tb:%s as touched", (int64_t)pConn->txnId, tbName);
+    return true;
+  }
+  char key[TSDB_TABLE_FNAME_LEN] = {0};
+  int32_t len = snprintf(key, sizeof(key), "%s.%s", dbFName, tbName);
+  if (len <= 0 || len >= (int32_t)sizeof(key)) return true;  // cannot build key: be conservative
+  return taosHashGet(pConn->pTxnTableMeta, key, len) != NULL;
+}
+
+// A super table counts as touched when the txn changed it: created, altered or dropped it, all of which leave an
+// entry under its name in pTxnTableMeta (its txn-local meta, or the NULL sentinel of a drop). pTxnSuidMap alone does
+// not say that: it also maps the super table of every child table the txn merely created (the txn assembles the
+// child's schema through it), and creating a child changes nothing about the super table or its other children.
+// Taking that for a change would keep the super table and all its children out of the shared cache for the rest of
+// the txn and refetch their meta on every statement.
+static bool ctgTxnSuidTouched(const SRequestConnInfo* pConn, uint64_t suid) {
+  if (suid == 0) return false;
+  if (pConn->pTxnSuidMap == NULL || pConn->pTxnTableMeta == NULL) {
+    qDebug("txn:%" PRId64 ", conn has no txn-local hashes, treat suid:%" PRIu64 " as touched", (int64_t)pConn->txnId,
+           suid);
+    return true;
+  }
+  const char* stbFullName = (const char*)taosHashGet(pConn->pTxnSuidMap, &suid, sizeof(uint64_t));
+  if (stbFullName == NULL) return false;
+  size_t len = strnlen(stbFullName, TSDB_TABLE_FNAME_LEN);
+  if (len == 0 || len >= TSDB_TABLE_FNAME_LEN) return true;  // malformed entry: be conservative
+  return taosHashGet(pConn->pTxnTableMeta, stbFullName, len) != NULL;
+}
+
+// Batch meta txn: whether a table meta found in the shared catalog cache must be ignored by this
+// txn connection because the txn has modified the table, or the super table that defines its schema.
+// The shared cache holds the committed view, which is stale for such tables: treat it as a miss so
+// the meta is fetched with the txnId (the server returns the txn's view, virtual children included).
+bool ctgIsCachedMetaTouchedByTxn(const SRequestConnInfo* pConn, const SName* pName, const STableMeta* pMeta) {
+  if (pConn == NULL || pConn->txnId <= 0) return false;
+  char dbFName[TSDB_DB_FNAME_LEN] = {0};
+  if (tNameGetFullDbName(pName, dbFName) != 0) return true;  // cannot build the key: be conservative
+  if (ctgTxnNameTouched(pConn, dbFName, pName->tname)) return true;
+  if (pMeta == NULL) return false;
+  return ctgTxnSuidTouched(pConn, pMeta->suid) ||
+         (pMeta->tableType == TSDB_SUPER_TABLE && ctgTxnSuidTouched(pConn, pMeta->uid));
+}
+
+bool ctgIsMetaTouchedByTxn(const SRequestConnInfo* pConn, const STableMetaOutput* pOut) {
+  if (pConn == NULL || pOut == NULL || pConn->txnId <= 0) return false;
+
+  if (ctgTxnNameTouched(pConn, pOut->dbFName, pOut->ctbName) || ctgTxnNameTouched(pConn, pOut->dbFName, pOut->tbName)) {
+    return true;
+  }
+  switch (pOut->metaType) {
+    case META_TYPE_CTABLE:
+    case META_TYPE_BOTH_TABLE:
+      if (ctgTxnSuidTouched(pConn, pOut->ctbMeta.suid)) return true;
+      break;
+    case META_TYPE_VCTABLE:
+    case META_TYPE_BOTH_VTABLE:
+      if (pOut->vctbMeta && ctgTxnSuidTouched(pConn, pOut->vctbMeta->suid)) return true;
+      break;
+    default:
+      break;
+  }
+  if (pOut->tbMeta && (ctgTxnSuidTouched(pConn, pOut->tbMeta->suid) ||
+                       (pOut->tbMeta->tableType == TSDB_SUPER_TABLE && ctgTxnSuidTouched(pConn, pOut->tbMeta->uid)))) {
+    return true;
+  }
+  return false;
 }

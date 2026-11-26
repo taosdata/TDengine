@@ -608,6 +608,7 @@ int32_t ctgCopyTbMeta(SCatalog *pCtg, SCtgTbMetaCtx *ctx, SCtgDBCache **pDb, SCt
   SColRef *tmpColRef = NULL;
   SColRef *tmpTagRef = NULL;
   SSeriesEntry *tmpSeries = NULL;
+  SVtableReferenceExt tmpReferenceExt = {0};
 
   // Check if tbMeta is a virtual child table by checking tableType
   // Virtual child tables are stored as SVCTableMeta with inline colRef/tagRef data
@@ -736,6 +737,20 @@ int32_t ctgCopyTbMeta(SCatalog *pCtg, SCtgTbMetaCtx *ctx, SCtgDBCache **pDb, SCt
       seriesNum = 0;
     }
   }
+  if (isVirtualChild) {
+    int32_t referenceCode = tCloneVtableReferenceExt(&tbMeta->referenceExt, &tmpReferenceExt);
+    if (referenceCode != TSDB_CODE_SUCCESS) {
+      queryFreeColRefTagConds(tmpColRef, numOfColRefs);
+      queryFreeColRefTagConds(tmpTagRef, numOfTagRefs);
+      taosMemoryFree(tmpColRef);
+      taosMemoryFree(tmpTagRef);
+      taosMemoryFree(tmpOwnSchemas);
+      taosMemoryFree(tmpOwnSchemaExt);
+      taosMemoryFree(tmpOwnTagSchemas);
+      queryFreeSeriesEntries(tmpSeries, seriesNum);
+      CTG_ERR_RET(referenceCode);
+    }
+  }
   // PROCESS FOR CHILD TABLE (both normal and virtual)
   ctgDebug("ctgCopyTbMeta ctb:%s tbType=%d", ctx->pName->tname, tbMeta->tableType);
   int32_t metaSize = sizeof(SCTableMeta);
@@ -750,6 +765,7 @@ int32_t ctgCopyTbMeta(SCatalog *pCtg, SCtgTbMetaCtx *ctx, SCtgDBCache **pDb, SCt
     taosMemoryFreeClear(tmpOwnSchemaExt);
     taosMemoryFreeClear(tmpOwnTagSchemas);
     queryFreeSeriesEntries(tmpSeries, seriesNum);
+    tFreeVtableReferenceExt(&tmpReferenceExt);
     CTG_ERR_RET(terrno);
   }
 
@@ -772,6 +788,7 @@ int32_t ctgCopyTbMeta(SCatalog *pCtg, SCtgTbMetaCtx *ctx, SCtgDBCache **pDb, SCt
     taosMemoryFreeClear(tmpOwnSchemaExt);
     taosMemoryFreeClear(tmpOwnTagSchemas);
     queryFreeSeriesEntries(tmpSeries, seriesNum);
+    tFreeVtableReferenceExt(&tmpReferenceExt);
     CTG_ERR_RET(stbCode);
   }
   if (NULL == tbCache) {
@@ -783,6 +800,7 @@ int32_t ctgCopyTbMeta(SCatalog *pCtg, SCtgTbMetaCtx *ctx, SCtgDBCache **pDb, SCt
     taosMemoryFreeClear(tmpOwnSchemaExt);
     taosMemoryFreeClear(tmpOwnTagSchemas);
     queryFreeSeriesEntries(tmpSeries, seriesNum);
+    tFreeVtableReferenceExt(&tmpReferenceExt);
     taosMemoryFreeClear(*pTableMeta);
     *pDb = NULL;
     ctgDebug("stb:0x%" PRIx64 ", meta not in cache", ctx->tbInfo.suid);
@@ -803,6 +821,7 @@ int32_t ctgCopyTbMeta(SCatalog *pCtg, SCtgTbMetaCtx *ctx, SCtgDBCache **pDb, SCt
     taosMemoryFreeClear(tmpOwnSchemaExt);
     taosMemoryFreeClear(tmpOwnTagSchemas);
     queryFreeSeriesEntries(tmpSeries, seriesNum);
+    tFreeVtableReferenceExt(&tmpReferenceExt);
     CTG_ERR_RET(TSDB_CODE_CTG_INTERNAL_ERROR);
   }
 
@@ -823,6 +842,7 @@ int32_t ctgCopyTbMeta(SCatalog *pCtg, SCtgTbMetaCtx *ctx, SCtgDBCache **pDb, SCt
     taosMemoryFreeClear(tmpOwnSchemaExt);
     taosMemoryFreeClear(tmpOwnTagSchemas);
     queryFreeSeriesEntries(tmpSeries, seriesNum);
+    tFreeVtableReferenceExt(&tmpReferenceExt);
     CTG_ERR_RET(terrno);
   }
   *pTableMeta = pTmp;
@@ -860,6 +880,7 @@ int32_t ctgCopyTbMeta(SCatalog *pCtg, SCtgTbMetaCtx *ctx, SCtgDBCache **pDb, SCt
       taosMemoryFreeClear(tmpOwnSchemaExt);
       taosMemoryFreeClear(tmpOwnTagSchemas);
       queryFreeSeriesEntries(tmpSeries, seriesNum);
+      tFreeVtableReferenceExt(&tmpReferenceExt);
       CTG_ERR_RET(mergeCode);
     }
   } else {
@@ -880,6 +901,8 @@ int32_t ctgCopyTbMeta(SCatalog *pCtg, SCtgTbMetaCtx *ctx, SCtgDBCache **pDb, SCt
     (*pTableMeta)->numOfSeries = 0;
     (*pTableMeta)->seriesEntries = NULL;
   }
+  (*pTableMeta)->referenceExt = tmpReferenceExt;
+  memset(&tmpReferenceExt, 0, sizeof(tmpReferenceExt));
   ctgDebug("ctgCopyTbMeta result:%s tagRef=%p numOfTagRefs=%d colRef=%p numOfColRefs=%d metaSize=%d schemaExt=%d colRef=%d tagRef=%d",
            ctx->pName->tname, (*pTableMeta)->tagRef, (*pTableMeta)->numOfTagRefs,
            (*pTableMeta)->colRef, (*pTableMeta)->numOfColRefs,
@@ -1156,6 +1179,11 @@ int32_t ctgGetCachedStbNameFromSuid(SCatalog* pCtg, char* dbFName, uint64_t suid
 
 
 int32_t ctgChkAuthFromCache(SCatalog *pCtg, SUserAuthInfo *pReq, bool tbNotExists, bool *inCache, SCtgAuthRsp *pRes) {
+  return ctgChkAuthFromCacheWithMeta(pCtg, pReq, tbNotExists, NULL, inCache, pRes);
+}
+
+int32_t ctgChkAuthFromCacheWithMeta(SCatalog *pCtg, SUserAuthInfo *pReq, bool tbNotExists, const STableMeta *pFetchedMeta,
+                                    bool *inCache, SCtgAuthRsp *pRes) {
   int32_t code = 0;
 
   SCtgUserAuth *pUser = (SCtgUserAuth *)taosHashGet(pCtg->userCache, pReq->user, strlen(pReq->user));
@@ -1173,6 +1201,7 @@ int32_t ctgChkAuthFromCache(SCatalog *pCtg, SUserAuthInfo *pReq, bool tbNotExist
   req.pRawReq = pReq;
   req.onlyCache = true;
   req.tbNotExists = tbNotExists;
+  req.pFetchedMeta = pFetchedMeta;
 
   CTG_LOCK(CTG_READ, &pUser->lock);
   TAOS_MEMCPY(&req.authInfo, &pUser->userAuth, sizeof(pUser->userAuth));
@@ -2472,9 +2501,28 @@ int32_t ctgWriteViewMetaToCache(SCatalog *pCtg, SCtgDBCache *dbCache, char *dbFN
     return TSDB_CODE_SUCCESS;
   }
 
+  uint64_t oldViewId = 0;
+  int32_t  oldVersion = 0;
+
   CTG_LOCK(CTG_WRITE, &pCache->viewLock);
 
   if (pCache->pMeta) {
+    oldViewId = pCache->pMeta->viewId;
+    oldVersion = pCache->pMeta->version;
+
+    // Reject stale updates: an older (or equal) version must not overwrite newer cached
+    // metadata. View versions are monotonic per view name (CREATE OR REPLACE bumps the
+    // version), so this also rejects an out-of-order response that still carries a
+    // replaced instance (old viewId). A genuinely recreated view is installed only
+    // after the old entry has been evicted (drop/heartbeat removal).
+    if (pMeta->version <= oldVersion) {
+      CTG_UNLOCK(CTG_WRITE, &pCache->viewLock);
+      ctgDebug("ignore stale view meta update, view:%s, cached id:%" PRIu64 ", ver:%d, incoming id:%" PRIu64
+               ", ver:%d",
+               viewName, oldViewId, oldVersion, pMeta->viewId, pMeta->version);
+      goto _return;
+    }
+
     (void)atomic_sub_fetch_64(&dbCache->dbCacheSize, ctgGetViewMetaCacheSize(pCache->pMeta));
     ctgFreeSViewMeta(pCache->pMeta);
     taosMemoryFree(pCache->pMeta);
@@ -2485,8 +2533,17 @@ int32_t ctgWriteViewMetaToCache(SCatalog *pCtg, SCtgDBCache *dbCache, char *dbFN
 
   (void)atomic_add_fetch_64(&dbCache->dbCacheSize, ctgGetViewMetaCacheSize(pMeta));
 
-  ctgDebug("view meta updated to cache, view:%s, id:%" PRIu64 ", ver:%d, effectiveUser:%s, querySQL:%s", 
+  ctgDebug("view meta updated to cache, view:%s, id:%" PRIu64 ", ver:%d, effectiveUser:%s, querySQL:%s",
     viewName, pMeta->viewId, pMeta->version, pMeta->createUser, pMeta->querySql);
+
+  // A replaced view has a new viewId; drop the rent entry of the old instance so it is
+  // no longer reported in heartbeats.
+  if (0 != oldViewId && oldViewId != pMeta->viewId) {
+    int32_t rmCode = ctgMetaRentRemove(&pCtg->viewRent, (int64_t)oldViewId, ctgViewVersionSortCompare,
+                                       ctgViewVersionSearchCompare);
+    ctgDebug("view:%s, old viewId removed from rent, oldId:%" PRIu64 ", newId:%" PRIu64 ", code:0x%x", viewName,
+             oldViewId, pMeta->viewId, rmCode);
+  }
 
   CTG_ERR_RET(ctgUpdateRentViewVersion(pCtg, dbFName, viewName, dbCache->dbId, pMeta->viewId, pCache));
 
@@ -3811,12 +3868,18 @@ _return:
   return TSDB_CODE_SUCCESS;
 }
 
-int32_t ctgGetTbMetaFromCache(SCatalog *pCtg, SCtgTbMetaCtx *ctx, STableMeta **pTableMeta) {
+int32_t ctgGetTbMetaFromCache(SCatalog *pCtg, SRequestConnInfo *pConn, SCtgTbMetaCtx *ctx, STableMeta **pTableMeta) {
   if (IS_SYS_DBNAME(ctx->pName->dbname)) {
     CTG_FLAG_SET_SYS_DB(ctx->flag);
   }
 
   CTG_ERR_RET(ctgReadTbMetaFromCache(pCtg, ctx, pTableMeta));
+
+  if (*pTableMeta && ctgIsCachedMetaTouchedByTxn(pConn, ctx->pName, *pTableMeta)) {
+    ctgDebug("tb:%s, cached meta is stale for txn:%" PRId64 ", treat as miss", ctx->pName->tname, (int64_t)pConn->txnId);
+    queryFreeTableMeta(*pTableMeta);
+    *pTableMeta = NULL;
+  }
 
   if (*pTableMeta) {
     if (CTG_FLAG_MATCH_STB(ctx->flag, (*pTableMeta)->tableType) &&
@@ -3894,6 +3957,7 @@ int32_t ctgGetTbMetaBFromCache(SCatalog* pCtg, SRequestConnInfo *pConn, SCtgTbMe
 
 int32_t ctgGetTbMetasFromCache(SCatalog *pCtg, SRequestConnInfo *pConn, SCtgTbMetasCtx *ctx, int32_t dbIdx,
                                int32_t *fetchIdx, int32_t baseResIdx, SArray *pList, bool autoCreate) {
+  SVtableReferenceExt tmpReferenceExt = {0};
   int32_t     tbNum = taosArrayGetSize(pList);
   char        dbFName[TSDB_DB_FNAME_LEN] = {0};
   char        dbName[TSDB_DB_NAME_LEN] = {0};
@@ -4013,6 +4077,24 @@ int32_t ctgGetTbMetasFromCache(SCatalog *pCtg, SRequestConnInfo *pConn, SCtgTbMe
 
     STableMeta *tbMeta = pCache->pMeta;
 
+    if (ctgIsCachedMetaTouchedByTxn(pConn, pName, tbMeta)) {
+      // Batch meta txn: the committed meta in the shared cache is stale for this txn, fetch it with the txnId
+      CTG_UNLOCK(CTG_READ, &pCache->metaLock);
+      taosHashRelease(dbCache->tbCache, pCache);
+
+      ctgDebug("tb:%s, cached meta is stale for txn:%" PRId64 ", treat as miss, db:%s", pName->tname,
+               (int64_t)pConn->txnId, dbFName);
+
+      CTG_ERR_JRET(ctgAddFetch(&ctx->pFetchs, dbIdx, i, fetchIdx, baseResIdx + i, flag));
+      if (NULL == taosArrayPush(ctx->pResList, &(SMetaData){0})) {
+        CTG_ERR_JRET(terrno);
+      }
+
+      CTG_META_NHIT_INC();
+
+      continue;
+    }
+
     CTG_META_HIT_INC(tbMeta->tableType);
 
     SCtgTbMetaCtx nctx = {0};
@@ -4047,6 +4129,7 @@ int32_t ctgGetTbMetasFromCache(SCatalog *pCtg, SRequestConnInfo *pConn, SCtgTbMe
 
       TAOS_MEMCPY(pTableMeta, tbMeta, metaSize);
       pTableMeta->seriesEntries = NULL;
+      memset(&pTableMeta->referenceExt, 0, sizeof(pTableMeta->referenceExt));
       if (withExtSchema(tbMeta->tableType) && tbMeta->schemaExt != NULL) {
         pTableMeta->schemaExt = (SSchemaExt *)((char *)pTableMeta + metaSize);
         TAOS_MEMCPY(pTableMeta->schemaExt, tbMeta->schemaExt, schemaExtSize);
@@ -4082,6 +4165,13 @@ int32_t ctgGetTbMetasFromCache(SCatalog *pCtg, SRequestConnInfo *pConn, SCtgTbMe
         pTableMeta->tagRef = NULL;
       }
 
+      code = tCloneVtableReferenceExt(&tbMeta->referenceExt, &pTableMeta->referenceExt);
+      if (code != TSDB_CODE_SUCCESS) {
+        queryFreeTableMeta(pTableMeta);
+        CTG_UNLOCK(CTG_READ, &pCache->metaLock);
+        taosHashRelease(dbCache->tbCache, pCache);
+        CTG_ERR_JRET(code);
+      }
       code = queryCloneSeriesEntries(tbMeta->seriesEntries, tbMeta->numOfSeries, &pTableMeta->seriesEntries);
       if (TSDB_CODE_SUCCESS != code) {
         queryFreeTableMeta(pTableMeta);
@@ -4265,6 +4355,22 @@ int32_t ctgGetTbMetasFromCache(SCatalog *pCtg, SRequestConnInfo *pConn, SCtgTbMe
       }
     }
 
+    if (tbMeta->tableType == TSDB_VIRTUAL_CHILD_TABLE) {
+      int32_t referenceCode = tCloneVtableReferenceExt(&tbMeta->referenceExt, &tmpReferenceExt);
+      if (referenceCode != TSDB_CODE_SUCCESS) {
+        queryFreeColRefTagConds(tmpRef, colRefNum);
+        queryFreeColRefTagConds(tmpTagRef, tagRefNum);
+        taosMemoryFree(tmpRef);
+        taosMemoryFree(tmpTagRef);
+        taosMemoryFree(tmpOwnSchemas);
+        taosMemoryFree(tmpOwnSchemaExt);
+        taosMemoryFree(tmpOwnTagSchemas);
+        queryFreeSeriesEntries(tmpSeries, seriesNum);
+        taosMemoryFree(pTableMeta);
+        ctgReleaseTbMetaToCache(pCtg, dbCache, pCache);
+        CTG_ERR_RET(referenceCode);
+      }
+    }
     TAOS_MEMCPY(pTableMeta, tbMeta, metaSize);
 
     CTG_UNLOCK(CTG_READ, &pCache->metaLock);
@@ -4289,6 +4395,7 @@ int32_t ctgGetTbMetasFromCache(SCatalog *pCtg, SRequestConnInfo *pConn, SCtgTbMe
       taosMemoryFreeClear(tmpOwnSchemaExt);
       taosMemoryFreeClear(tmpOwnTagSchemas);
       queryFreeSeriesEntries(tmpSeries, seriesNum);
+      tFreeVtableReferenceExt(&tmpReferenceExt);
 
       CTG_META_NHIT_INC();
       continue;
@@ -4312,6 +4419,7 @@ int32_t ctgGetTbMetasFromCache(SCatalog *pCtg, SRequestConnInfo *pConn, SCtgTbMe
       taosMemoryFreeClear(tmpOwnSchemaExt);
       taosMemoryFreeClear(tmpOwnTagSchemas);
       queryFreeSeriesEntries(tmpSeries, seriesNum);
+      tFreeVtableReferenceExt(&tmpReferenceExt);
 
       CTG_META_NHIT_INC();
       
@@ -4340,6 +4448,7 @@ int32_t ctgGetTbMetasFromCache(SCatalog *pCtg, SRequestConnInfo *pConn, SCtgTbMe
       taosMemoryFreeClear(tmpOwnSchemaExt);
       taosMemoryFreeClear(tmpOwnTagSchemas);
       queryFreeSeriesEntries(tmpSeries, seriesNum);
+      tFreeVtableReferenceExt(&tmpReferenceExt);
 
       CTG_META_NHIT_INC();
       continue;
@@ -4367,6 +4476,7 @@ int32_t ctgGetTbMetasFromCache(SCatalog *pCtg, SRequestConnInfo *pConn, SCtgTbMe
       taosMemoryFreeClear(tmpOwnSchemaExt);
       taosMemoryFreeClear(tmpOwnTagSchemas);
       queryFreeSeriesEntries(tmpSeries, seriesNum);
+      tFreeVtableReferenceExt(&tmpReferenceExt);
 
       CTG_META_NHIT_INC();
       continue;
@@ -4390,6 +4500,7 @@ int32_t ctgGetTbMetasFromCache(SCatalog *pCtg, SRequestConnInfo *pConn, SCtgTbMe
       taosMemoryFreeClear(tmpOwnSchemaExt);
       taosMemoryFreeClear(tmpOwnTagSchemas);
       queryFreeSeriesEntries(tmpSeries, seriesNum);
+      tFreeVtableReferenceExt(&tmpReferenceExt);
       taosMemoryFreeClear(pTableMeta);
       CTG_ERR_RET(terrno);
     }
@@ -4429,6 +4540,7 @@ int32_t ctgGetTbMetasFromCache(SCatalog *pCtg, SRequestConnInfo *pConn, SCtgTbMe
         taosMemoryFreeClear(tmpOwnSchemaExt);
         taosMemoryFreeClear(tmpOwnTagSchemas);
         queryFreeSeriesEntries(tmpSeries, seriesNum);
+        tFreeVtableReferenceExt(&tmpReferenceExt);
         taosMemoryFreeClear(pTableMeta);
         CTG_ERR_RET(code);
       }
@@ -4444,6 +4556,8 @@ int32_t ctgGetTbMetasFromCache(SCatalog *pCtg, SRequestConnInfo *pConn, SCtgTbMe
     taosMemoryFreeClear(tmpOwnSchemaExt);
     taosMemoryFreeClear(tmpOwnTagSchemas);
 
+    pTableMeta->referenceExt = tmpReferenceExt;
+    memset(&tmpReferenceExt, 0, sizeof(tmpReferenceExt));
     // Restore series (saved before merge)
     if (seriesNum > 0 && tmpSeries) {
       pTableMeta->numOfSeries = seriesNum;
@@ -4468,6 +4582,7 @@ int32_t ctgGetTbMetasFromCache(SCatalog *pCtg, SRequestConnInfo *pConn, SCtgTbMe
   }
 
 _return:
+  tFreeVtableReferenceExt(&tmpReferenceExt);
   queryFreeColRefTagConds(tmpRef, tmpRefNum);
   queryFreeColRefTagConds(tmpTagRef, tmpTagRefNum);
   taosMemoryFreeClear(tmpRef);
@@ -5076,16 +5191,25 @@ static int32_t ctgBuildNewExtSourceHash(SArray* pSources, SHashObj** ppNewHash) 
 }
 
 // Two snapshots of the same external source describe the same remote namespace
-// only when every field the connector resolves names against is identical.  The
-// version is bumped on every ALTER / REFRESH, so a changed version always means
-// the remote schema really did change.
+// only when they refer to the same source instance and every field the
+// connector resolves names against is identical.  meta_version is bumped on
+// every ALTER / REFRESH, so a changed version always means the remote schema
+// really did change.  create_time identifies the instance itself: a DROP
+// followed by a CREATE with the same name and connection settings restarts
+// meta_version, and the heartbeat push carries no delete event in between, so
+// without it cached state would leak from the dropped instance into the new one.
+// create_time has millisecond resolution; a collision would require the old
+// CREATE, the DROP and the new CREATE to commit inside one millisecond, which
+// two separate commitlog transactions make impractical.
 static bool ctgExtSourceSameIdentity(const SGetExtSourceRsp* a, const SGetExtSourceRsp* b) {
   return a->type == b->type && a->port == b->port && a->meta_version == b->meta_version &&
-         0 == strcmp(a->host, b->host) && 0 == strcmp(a->user, b->user) &&
-         0 == strcmp(a->database, b->database) && 0 == strcmp(a->schema_name, b->schema_name);
+         a->create_time == b->create_time && 0 == strcmp(a->host, b->host) &&
+         0 == strcmp(a->user, b->user) && 0 == strcmp(a->database, b->database) &&
+         0 == strcmp(a->schema_name, b->schema_name);
 }
 
-// Carry the cached table schemas of an unchanged source across a cache replace.
+// Carry the cached table schemas and capability profile of an unchanged source
+// instance across a cache replace.
 //
 // The heartbeat push rebuilds pExtSourceHash from mnode's source list, which
 // carries no table metadata.  Without this, a push that lands right after a
@@ -5095,16 +5219,16 @@ static bool ctgExtSourceSameIdentity(const SGetExtSourceRsp* a, const SGetExtSou
 // the two reads then shows up in a SELECT * that must still answer from the
 // cached schema (the documented ADD COLUMN without REFRESH behaviour).
 //
-// Ownership of pDbHash moves to the new entry; the old one is left empty so the
-// old hash's freeFp only reclaims the entry itself.  Called with the
-// extHashLatch WRITE lock held, so no reader holds a reference to either hash.
-static void ctgCarryOverExtTableMeta(SHashObj* pOldHash, SHashObj* pNewHash) {
+// Ownership of pDbHash and capability moves to the new entry; the old one is
+// left empty so the old hash's freeFp only reclaims the entry itself.  Called
+// with the extHashLatch WRITE lock held, so no reader references either hash.
+static void ctgCarryOverExtSourceState(SHashObj* pOldHash, SHashObj* pNewHash) {
   if (NULL == pOldHash || NULL == pNewHash) return;
 
   void* p = taosHashIterate(pOldHash, NULL);
   while (p) {
     SExtSourceCacheEntry* pOld = *(SExtSourceCacheEntry**)p;
-    if (NULL != pOld && NULL != pOld->pDbHash) {
+    if (NULL != pOld) {
       SExtSourceCacheEntry** ppNew =
           (SExtSourceCacheEntry**)taosHashGet(pNewHash, pOld->source.source_name,
                                               strlen(pOld->source.source_name));
@@ -5113,6 +5237,10 @@ static void ctgCarryOverExtTableMeta(SHashObj* pOldHash, SHashObj* pNewHash) {
         taosHashCleanup(pNew->pDbHash);  // freshly allocated by ctgBuildNewExtSourceHash, still empty
         pNew->pDbHash = pOld->pDbHash;   // ownership moves to the new entry
         pOld->pDbHash = NULL;
+        extCapDestroy(&pNew->capability);
+        pNew->capability = pOld->capability;
+        TAOS_MEMSET(&pOld->capability, 0, sizeof(pOld->capability));
+        pNew->capFetchedAt = pOld->capFetchedAt;
       }
     }
     p = taosHashIterate(pOldHash, p);
@@ -5241,7 +5369,7 @@ int32_t ctgOpUpdateExtSource(SCtgCacheOperation* operation) {
     pEntry = *ppExist;
     CTG_LOCK(CTG_WRITE, &pEntry->entryLock);
     TAOS_MEMCPY(&pEntry->source, &msg->sourceRsp, sizeof(pEntry->source));
-    code = extLoadDialectDefaults(msg->sourceRsp.type, &pEntry->capability);
+    code = extLoadSourceDialectDefaults(msg->sourceRsp.type, msg->sourceRsp.options, &pEntry->capability);
     if (TSDB_CODE_SUCCESS != code) {
       CTG_UNLOCK(CTG_WRITE, &pEntry->entryLock);
       goto _return;
@@ -5256,7 +5384,7 @@ int32_t ctgOpUpdateExtSource(SCtgCacheOperation* operation) {
     }
     // entryLock is zero-initialised by calloc; no explicit init needed.
     TAOS_MEMCPY(&pEntry->source, &msg->sourceRsp, sizeof(pEntry->source));
-    code = extLoadDialectDefaults(msg->sourceRsp.type, &pEntry->capability);
+    code = extLoadSourceDialectDefaults(msg->sourceRsp.type, msg->sourceRsp.options, &pEntry->capability);
     if (TSDB_CODE_SUCCESS != code) {
       ctgError("ctgOpUpdateExtSource: extLoadDialectDefaults failed for source '%s', error:%s",
                msg->sourceName, tstrerror(code));
@@ -5462,9 +5590,9 @@ int32_t ctgOpReplaceExtSourceCache(SCtgCacheOperation* operation) {
     SHashObj* pOldHash = NULL;
     CTG_LOCK(CTG_WRITE, &pCtg->extHashLatch);
     pOldHash = pCtg->pExtSourceHash;
-    // Keep the remote table schemas of sources whose definition did not change;
+    // Keep the remote table schemas and capability profiles of unchanged sources;
     // only a real ALTER / REFRESH (meta_version bump) invalidates them.
-    ctgCarryOverExtTableMeta(pOldHash, pNewHash);
+    ctgCarryOverExtSourceState(pOldHash, pNewHash);
     pCtg->pExtSourceHash = pNewHash;
     pNewHash = NULL;   // pCtg now owns the new hash
     CTG_UNLOCK(CTG_WRITE, &pCtg->extHashLatch);

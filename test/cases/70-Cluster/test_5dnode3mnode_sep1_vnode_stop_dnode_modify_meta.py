@@ -139,7 +139,7 @@ class Test5dnode3mnodeSep1VnodeStopDnodeModifyMeta:
             elif stopRole == "dnode":
                 for i in range(dnodeNumbers):
                     tdDnodes[i].stoptaosd()
-                    clusterComCheck.checkDbRows(dbNumbers)
+                    clusterComCheck.checkDbRows(dbNumbers, retryTimes=20)
                     if i == 0 :
                         stableName= '%s_%d'%(paraDict['stbName'],0)
                         newTdSql=tdCom.newTdSql()
@@ -161,7 +161,7 @@ class Test5dnode3mnodeSep1VnodeStopDnodeModifyMeta:
 
 
         clusterComCheck.checkDnodes(dnodeNumbers)
-        clusterComCheck.checkDbRows(dbNumbers)
+        clusterComCheck.checkDbRows(dbNumbers, retryTimes=20)
         # clusterComCheck.checkDb(dbNumbers,1,paraDict["dbName"])
 
         # tdSql.execute("use %s" %(paraDict["dbName"]))

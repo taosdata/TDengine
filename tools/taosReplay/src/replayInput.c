@@ -104,16 +104,27 @@ static int32_t replayReadFile(const char *path, SReplayBuffer *out) {
   return 0;
 }
 
+/* The per-event cost of the in-memory event array is checked against the cap in
+ * replayInt.h, where sizeof(SReplayEvent) is known. */
+
+/* Growing the event array can fail for two different reasons and the caller has to tell
+ * them apart: hitting the cap is a property of the input, running out of memory is not. */
+typedef enum {
+  REPLAY_CAP_OK = 0,
+  REPLAY_CAP_LIMIT,
+  REPLAY_CAP_NOMEM,
+} EReplayCapResult;
+
 static int32_t replayEnsureCap(SReplaySession *s) {
-  if (s->eventCount < s->eventCap) return 0;
-  if (s->eventCap >= REPLAY_MAX_EVENTS) return -1;
+  if (s->eventCount < s->eventCap) return REPLAY_CAP_OK;
+  if (s->eventCap >= REPLAY_MAX_EVENTS) return REPLAY_CAP_LIMIT;
   int64_t proposed = (s->eventCap == 0) ? 4096 : (int64_t)s->eventCap * 2;
   int32_t newCap = proposed > REPLAY_MAX_EVENTS ? REPLAY_MAX_EVENTS : (int32_t)proposed;
   SReplayEvent *n = (SReplayEvent *)taosMemoryRealloc(s->events, (size_t)newCap * sizeof(SReplayEvent));
-  if (n == NULL) return -1;
+  if (n == NULL) return REPLAY_CAP_NOMEM;
   s->events = n;
   s->eventCap = newCap;
-  return 0;
+  return REPLAY_CAP_OK;
 }
 
 /*
@@ -229,6 +240,14 @@ static bool replayFillEvent(SReplayEvent *ev, const SWlrTlv *tlvs, int32_t count
         if (replayTlvU64(&tlvs[i], &v)) {
           ev->fetchRows = replaySignedU64(v);
           ev->fetchRowsSet = true;
+        } else valid = false;
+        break;
+      case WLR_TAG_FETCH_CALLS:
+        /* Optional: absent means one call. Reject only values that cannot be a
+         * call count, so a corrupted tag is not silently turned into a loop. */
+        if (replayTlvU64(&tlvs[i], &v) && v > 0 && v <= (uint64_t)INT64_MAX) {
+          ev->fetchCalls = (int64_t)v;
+          ev->fetchCallsSet = true;
         } else valid = false;
         break;
       case WLR_TAG_SQL:
@@ -600,8 +619,23 @@ static int32_t replayLoadSegment(const char *path, SReplaySession *s, bool *torn
         s->truncatedBySession[sessionIdx] = true;
       }
       if (tr == WLR_DECODE_OK) {
-        if (replayEnsureCap(s) != 0) {
-          (void)fprintf(stderr, "too many events to load\n");
+        int32_t capRc = replayEnsureCap(s);
+        if (capRc != REPLAY_CAP_OK) {
+          if (capRc == REPLAY_CAP_NOMEM) {
+            /* The cap is a memory budget: each event costs sizeof(SReplayEvent) bytes, so
+             * running out of memory here means the host cannot hold this input, not that
+             * the recording is too long. Keep the two diagnoses apart. */
+            (void)fprintf(stderr,
+                          "cannot load the recording: out of memory while growing the event"
+                          " array (each event costs %zu bytes, %d events at most);"
+                          " replay fewer sessions or a narrower time range\n",
+                          sizeof(SReplayEvent), (int32_t)REPLAY_MAX_EVENTS);
+          } else {
+            (void)fprintf(stderr,
+                          "too many events to load: this input exceeds the %d-event cap;"
+                          " split the segment or replay a narrower time range\n",
+                          (int32_t)REPLAY_MAX_EVENTS);
+          }
           /* Roll back this segment as one unit. Its events borrow buf, so freeing only
            * the buffer would leave dangling pointers in the partial session. */
           s->eventCount = eventStart;
@@ -840,7 +874,7 @@ static int32_t replayCmpEvents(const void *a, const void *b) {
  *
  * Two linear passes over an open-addressed table, not the nested scan this used to be.
  * The pairing key is (sessionIdx, callId), and the old form rescanned every event for
- * each BEGIN: quadratic, so at the REPLAY_MAX_EVENTS ceiling of 250000 events it was on
+ * each BEGIN: quadratic, so at the REPLAY_MAX_EVENTS ceiling it was on
  * the order of 1e12 comparisons before replay even started. Since this runs
  * unconditionally at load, a large recording appeared to hang in startup.
  *
@@ -1162,4 +1196,182 @@ void replayPrintInspect(const SReplayOpts *opts, const SReplaySession *session) 
                  apiNameWidth, replayApiName(e->apiType), (unsigned)e->phase, e->connId, e->callId, sqlLen,
                  e->sql != NULL ? e->sql : "");
   }
+}
+
+static int32_t replayExportWrite(TdFilePtr file, const char *buf, size_t len) {
+  if (file != NULL) {
+    return taosWriteFile(file, buf, (int64_t)len) == (int64_t)len ? 0 : -1;
+  }
+  return fwrite(buf, 1, len, stdout) == len ? 0 : -1;
+}
+
+static int32_t replayJsonEscape(char *dst, size_t dstCap, const char *src, uint32_t n) {
+  size_t w = 0;
+  for (uint32_t i = 0; i < n && src != NULL; ++i) {
+    unsigned char c = (unsigned char)src[i];
+    const char   *rep = NULL;
+    char          tmp[8];
+    if (c == '"') {
+      rep = "\\\"";
+    } else if (c == '\\') {
+      rep = "\\\\";
+    } else if (c == '\n') {
+      rep = "\\n";
+    } else if (c == '\r') {
+      rep = "\\r";
+    } else if (c == '\t') {
+      rep = "\\t";
+    } else if (c < 0x20) {
+      (void)snprintf(tmp, sizeof(tmp), "\\u%04x", (unsigned)c);
+      rep = tmp;
+    }
+    if (rep != NULL) {
+      size_t repLen = strlen(rep);
+      if (w + repLen >= dstCap) return -1;
+      memcpy(dst + w, rep, repLen);
+      w += repLen;
+    } else {
+      if (w + 1 >= dstCap) return -1;
+      dst[w++] = (char)c;
+    }
+  }
+  if (w >= dstCap) return -1;
+  dst[w] = '\0';
+  return (int32_t)w;
+}
+
+static int32_t replayCsvEscape(char *dst, size_t dstCap, const char *src, uint32_t n) {
+  size_t w = 0;
+  if (dstCap < 2) return -1;
+  dst[w++] = '"';
+  for (uint32_t i = 0; i < n && src != NULL; ++i) {
+    char c = src[i];
+    if (c == '"') {
+      if (w + 2 >= dstCap) return -1;
+      dst[w++] = '"';
+      dst[w++] = '"';
+    } else {
+      if (w + 1 >= dstCap) return -1;
+      dst[w++] = c;
+    }
+  }
+  if (w + 1 >= dstCap) return -1;
+  dst[w++] = '"';
+  dst[w] = '\0';
+  return (int32_t)w;
+}
+
+int32_t replayPrintExport(const SReplayOpts *opts, const SReplaySession *session) {
+  const char *fmt = opts->exportFormat != NULL ? opts->exportFormat : "jsonl";
+  bool        csv = strcmp(fmt, "csv") == 0;
+  TdFilePtr   file = NULL;
+  int32_t     code = REPLAY_EXIT_OK;
+
+  if (opts->exportOutput != NULL) {
+    file = taosOpenFile(opts->exportOutput, TD_FILE_CREATE | TD_FILE_WRITE | TD_FILE_TRUNC);
+    if (file == NULL) {
+      (void)fprintf(stderr, "cannot open export output %s: %s\n", opts->exportOutput, tstrerror(terrno));
+      return REPLAY_EXIT_INPUT;
+    }
+  }
+
+  if (csv) {
+    /* session goes last: conn/stmt/result are per-session ids, so a multi-session
+     * export is ambiguous without it, but appending keeps existing CSV consumers
+     * parsing the columns they already know. */
+    const char *header =
+        "seq,t_ns,wall_ns,thread,conn,stmt,result,call,api,phase,ret,rows,affected,sql,session\n";
+    if (replayExportWrite(file, header, strlen(header)) != 0) code = REPLAY_EXIT_INPUT;
+  }
+
+  for (int32_t i = 0; i < session->eventCount && code == REPLAY_EXIT_OK; ++i) {
+    const SReplayEvent *e = &session->events[i];
+    /* Escaped SQL can grow up to 6x (\\u00XX); leave room for the fixed fields. */
+    size_t cap = 512 + (size_t)e->sqlLen * 6;
+    char  *line = (char *)taosMemoryMalloc(cap);
+    if (line == NULL) {
+      code = REPLAY_EXIT_INTERNAL;
+      break;
+    }
+    int32_t n = 0;
+    int64_t rows = e->fetchRowsSet ? e->fetchRows : -1;
+    int64_t affected = e->affectedRowsSet ? e->affectedRows : -1;
+    /* -1 for events that carry no folded-call count, so a consumer can tell "not a
+     * folded fetch" from "one call" the same way it reads rows/affected. */
+    int64_t fetchCalls = e->fetchCallsSet ? e->fetchCalls : -1;
+    if (csv) {
+      n = snprintf(line, cap,
+                   "%" PRIu64 ",%" PRId64 ",%" PRId64 ",%" PRIu64 ",%" PRIu64 ",%" PRIu64 ",%" PRIu64
+                   ",%" PRIu64 ",%s,%u,%d,%" PRId64 ",%" PRId64 ",",
+                   e->eventSeq, e->monoNs, e->wallNs, e->originTid, e->connId, e->stmtId, e->resultId,
+                   e->callId, replayApiName(e->apiType), (unsigned)e->phase, e->retCode, rows, affected);
+      if (n < 0 || (size_t)n >= cap) {
+        taosMemoryFree(line);
+        code = REPLAY_EXIT_INTERNAL;
+        break;
+      }
+      int32_t esc = replayCsvEscape(line + n, cap - (size_t)n, e->sql, e->sqlLen);
+      if (esc < 0) {
+        taosMemoryFree(line);
+        code = REPLAY_EXIT_INTERNAL;
+        break;
+      }
+      n += esc;
+      if ((size_t)n + 12 >= cap) {
+        taosMemoryFree(line);
+        code = REPLAY_EXIT_INTERNAL;
+        break;
+      }
+      int32_t tail = snprintf(line + n, cap - (size_t)n, ",%d", e->sessionIdx);
+      if (tail < 0 || (size_t)(n + tail) + 2 >= cap) {
+        taosMemoryFree(line);
+        code = REPLAY_EXIT_INTERNAL;
+        break;
+      }
+      n += tail;
+      if ((size_t)n + 2 >= cap) {
+        taosMemoryFree(line);
+        code = REPLAY_EXIT_INTERNAL;
+        break;
+      }
+      line[n++] = '\n';
+      line[n] = '\0';
+    } else {
+      n = snprintf(line, cap,
+                   "{\"seq\":%" PRIu64 ",\"t_ns\":%" PRId64 ",\"wall_ns\":%" PRId64
+                   ",\"thread\":%" PRIu64 ",\"session\":%d,\"conn\":%" PRIu64 ",\"stmt\":%" PRIu64
+                   ",\"result\":%" PRIu64 ",\"call\":%" PRIu64 ",\"api\":\"%s\",\"phase\":%u"
+                   ",\"ret\":%d,\"rows\":%" PRId64 ",\"fetch_calls\":%" PRId64
+                   ",\"affected\":%" PRId64 ",\"sql\":\"",
+                   e->eventSeq, e->monoNs, e->wallNs, e->originTid, e->sessionIdx, e->connId,
+                   e->stmtId, e->resultId, e->callId, replayApiName(e->apiType), (unsigned)e->phase,
+                   e->retCode, rows, fetchCalls, affected);
+      if (n < 0 || (size_t)n >= cap) {
+        taosMemoryFree(line);
+        code = REPLAY_EXIT_INTERNAL;
+        break;
+      }
+      int32_t esc = replayJsonEscape(line + n, cap - (size_t)n, e->sql, e->sqlLen);
+      if (esc < 0) {
+        taosMemoryFree(line);
+        code = REPLAY_EXIT_INTERNAL;
+        break;
+      }
+      n += esc;
+      if ((size_t)n + 3 >= cap) {
+        taosMemoryFree(line);
+        code = REPLAY_EXIT_INTERNAL;
+        break;
+      }
+      line[n++] = '"';
+      line[n++] = '}';
+      line[n++] = '\n';
+      line[n] = '\0';
+    }
+    if (replayExportWrite(file, line, (size_t)n) != 0) code = REPLAY_EXIT_INPUT;
+    taosMemoryFree(line);
+  }
+
+  if (file != NULL) (void)taosCloseFile(&file);
+  return code;
 }

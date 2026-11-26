@@ -28,12 +28,16 @@
 typedef struct {
   TSKEY    start;
   TSKEY    end;
+  TSKEY    prevStart;
+  TSKEY    prevEnd;
   int64_t  rownum;
   int64_t  prevProcTimeNs;
   int64_t  nativeDiscriminator;
   uint64_t generation;
   bool     suppressed;
   bool     openEmitted;
+  bool     hasPrevWindow;
+  bool     eventParent;
   char    *pOpenNotifyContent;
 } SWindowChainInstance;
 
@@ -48,7 +52,13 @@ typedef struct {
   const SStreamWindowLayerSpec *pSpec;
   EStreamTriggerType            runtimeType;
   bool                          pureSliding;
+  bool                          hasPrevWindow;
+  bool                          repairPrevWindow;
   bool                          timeCursorInitialized;
+  STimeWindow                   prevWindow;
+  STimeWindow                   prevEventParentWindow;
+  bool                          hasPrevEventParentWindow;
+  bool                          repairPrevEventParentWindow;
   STimeWindow                   nextTimeRange;
   SArray                       *pInstances;
   SArray                       *pScratchRanges;
@@ -143,6 +153,36 @@ typedef struct {
 static void stCopyWindowChainInstanceSnapshot(const SWindowChainInstance *pSource, SWindowChainInstance *pTarget) {
   *pTarget = *pSource;
   pTarget->pOpenNotifyContent = NULL;
+}
+
+static void stSetInstancePreviousWindow(const SWindowChainLayerState *pLayer, SWindowChainInstance *pInstance) {
+  const STimeWindow *pPrevious = pInstance->eventParent ? &pLayer->prevEventParentWindow : &pLayer->prevWindow;
+  pInstance->hasPrevWindow = pInstance->eventParent ? pLayer->hasPrevEventParentWindow : pLayer->hasPrevWindow;
+  if (pInstance->hasPrevWindow) {
+    pInstance->prevStart = pPrevious->skey;
+    pInstance->prevEnd = pPrevious->ekey;
+  } else {
+    pInstance->prevStart = 0;
+    pInstance->prevEnd = 0;
+  }
+}
+
+static void stRememberClosedWindow(SWindowChainLayerState *pLayer, const SWindowChainInstance *pInstance) {
+  // A zeroth state is not a logical window. Count replay suppression, however,
+  // only suppresses output and must still advance the predecessor.
+  if (pLayer->runtimeType == STREAM_TRIGGER_STATE && pInstance->suppressed) {
+    return;
+  }
+
+  if (pInstance->eventParent) {
+    pLayer->repairPrevEventParentWindow = false;
+    pLayer->hasPrevEventParentWindow = true;
+    pLayer->prevEventParentWindow = (STimeWindow){.skey = pInstance->start, .ekey = pInstance->end};
+    return;
+  }
+  pLayer->repairPrevWindow = false;
+  pLayer->hasPrevWindow = true;
+  pLayer->prevWindow = (STimeWindow){.skey = pInstance->start, .ekey = pInstance->end};
 }
 
 static void stDestroyCandidateIntent(void *pValue) {
@@ -331,6 +371,137 @@ bool stWindowChainGetInputRetentionRange(const SWindowChainState *pState, STimeW
   return true;
 }
 
+static bool stRepairStateValuesEqual(const SArray *left, const SArray *right) {
+  if (taosArrayGetSize(left) != taosArrayGetSize(right)) return false;
+  for (size_t i = 0; i < taosArrayGetSize(left); ++i) {
+    const SWindowChainStateValue *a = taosArrayGet(left, i), *b = taosArrayGet(right, i);
+    if (a->defined != b->defined ||
+        (a->defined && (a->type != b->type || a->bytes != b->bytes || memcmp(a->pData, b->pData, a->bytes))))
+      return false;
+  }
+  return true;
+}
+
+static bool stRepairAncestorDiffers(const SWindowChainLayerState *a, const SWindowChainLayerState *b,
+                                    const SWindowChainInstance *c, const SWindowChainInstance *o) {
+  if (!o || c->start != o->start || c->end != o->end || c->suppressed != o->suppressed) return true;
+  if ((a->runtimeType == STREAM_TRIGGER_COUNT || (a->pSpec->placeholderMask & PLACE_HOLDER_WROWNUM)) &&
+      c->rownum != o->rownum)
+    return true;
+  switch (a->runtimeType) {
+    case STREAM_TRIGGER_STATE:
+      return !stRepairStateValuesEqual(a->pStateValues, b->pStateValues) ||
+             a->pendingNullCount != b->pendingNullCount || a->pendingNullStart != b->pendingNullStart ||
+             a->hasPendingPartialNull != b->hasPendingPartialNull ||
+             (a->hasPendingPartialNull && !stRepairStateValuesEqual(a->pPendingStateValues, b->pPendingStateValues));
+    case STREAM_TRIGGER_EVENT:
+      return a->eventConditionIndex != b->eventConditionIndex ||
+             a->eventEndConditionCount != b->eventEndConditionCount ||
+             (a->eventEndConditionCount && a->eventEndConditionFirstTs != b->eventEndConditionFirstTs);
+    default:
+      return false;
+  }
+}
+
+bool stWindowChainCaptureRepairCarry(const SWindowChainState *frozen, const SWindowChainState *ordinary, TSKEY horizon,
+                                     SWindowChainRepairCarry *carry) {
+  if (!carry) return false;
+  *carry = (SWindowChainRepairCarry){.openLeaves = {.skey = INT64_MAX, .ekey = INT64_MIN}};
+  if (!frozen || !ordinary || frozen->gid != ordinary->gid || frozen->pPlan != ordinary->pPlan) return false;
+  carry->gid = frozen->gid;
+  carry->numLayers = frozen->numLayers;
+  carry->horizon = horizon;
+  bool active = stWindowChainGetInputRetentionRange(frozen, &carry->openLeaves) && carry->openLeaves.skey <= horizon;
+  for (int32_t i = 0; i < frozen->numLayers; ++i) {
+    const SWindowChainLayerState *a = &frozen->layers[i], *b = &ordinary->layers[i];
+    const SWindowChainInstance   *c = taosArrayGetSize(a->pInstances) ? taosArrayGet(a->pInstances, 0) : NULL;
+    const SWindowChainInstance   *o = taosArrayGetSize(b->pInstances) ? taosArrayGet(b->pInstances, 0) : NULL;
+    SWindowChainRepairScope      *scope = &carry->layers[i];
+    if (c) {
+      scope->hasOpening = true;
+      scope->openingTs = c->start;
+      scope->current = i < frozen->numLayers - 1 && stRepairAncestorDiffers(a, b, c, o);
+    } else if (a->eventStartConditionCount) {
+      scope->hasOpening = true;
+      scope->openingTs = a->eventStartConditionFirstTs;
+      scope->current = a->eventStartConditionCount != b->eventStartConditionCount ||
+                       a->eventStartConditionFirstTs != b->eventStartConditionFirstTs || o;
+    }
+    if (a->runtimeType == STREAM_TRIGGER_COUNT) {
+      const int64_t step = a->pSpec->trigger.count.sliding;
+      scope->countPhase = step > 0 && a->totalCount % step != b->totalCount % step;
+    }
+    const int64_t mask = a->pSpec->placeholderMask;
+    if (mask & (PLACE_HOLDER_PREV_WSTART | PLACE_HOLDER_PREV_WEND)) {
+      scope->hasPrevWindow = a->hasPrevWindow;
+      scope->prevWindow = a->prevWindow;
+      scope->predecessor =
+          a->hasPrevWindow != b->hasPrevWindow ||
+          (a->hasPrevWindow && (((mask & PLACE_HOLDER_PREV_WSTART) && a->prevWindow.skey != b->prevWindow.skey) ||
+                                ((mask & PLACE_HOLDER_PREV_WEND) && a->prevWindow.ekey != b->prevWindow.ekey)));
+      scope->currentAsPredecessor =
+          c && (!o || c->start != o->start || ((mask & PLACE_HOLDER_PREV_WEND) && c->end != o->end));
+    }
+    active |= scope->current || scope->predecessor || scope->currentAsPredecessor || scope->countPhase;
+  }
+  return active;
+}
+
+static bool stRepairPredecessorMatches(const SWindowChainRepairScope *scope, bool hasPrev, TSKEY start, TSKEY end) {
+  return (scope->currentAsPredecessor && hasPrev && scope->openingTs == start) ||
+         (scope->predecessor && scope->hasPrevWindow == hasPrev &&
+          (!hasPrev || (scope->prevWindow.skey == start && scope->prevWindow.ekey == end)));
+}
+
+bool stWindowChainHasRepairCarry(const SWindowChainState *frozen, const SWindowChainRepairCarry *carry) {
+  if (!frozen || !carry || !carry->numLayers || frozen->gid != carry->gid || frozen->numLayers != carry->numLayers)
+    return false;
+  for (int32_t i = 0; i < carry->numLayers; ++i) {
+    const SWindowChainLayerState  *layer = &frozen->layers[i];
+    const SWindowChainRepairScope *scope = &carry->layers[i];
+    const SWindowChainInstance    *instance =
+        taosArrayGetSize(layer->pInstances) ? taosArrayGet(layer->pInstances, 0) : NULL;
+    bool same = scope->hasOpening &&
+                (instance ? instance->start == scope->openingTs
+                          : layer->eventStartConditionCount && layer->eventStartConditionFirstTs == scope->openingTs);
+    if (scope->countPhase || (same && (scope->current || scope->currentAsPredecessor)) ||
+        stRepairPredecessorMatches(scope, layer->hasPrevWindow, layer->prevWindow.skey, layer->prevWindow.ekey))
+      return true;
+    if (i == carry->numLayers - 1) {
+      STimeWindow open;
+      return stWindowChainGetInputRetentionRange(frozen, &open) && open.skey <= carry->horizon &&
+             open.skey <= carry->openLeaves.ekey && open.ekey >= carry->openLeaves.skey;
+    }
+    if (!same) return false;
+  }
+  return false;
+}
+
+bool stWindowChainCandidateCarriesRepair(const SWindowChainRepairCarry *carry, const SLeafEventCandidate *candidate) {
+  if (!carry || !candidate || candidate->eventType != STRIGGER_EVENT_WINDOW_CLOSE ||
+      candidate->instanceId.gid != carry->gid || !carry->numLayers ||
+      taosArrayGetSize(candidate->lineage.pScopes) != (size_t)(carry->numLayers - 1))
+    return false;
+  for (int32_t i = 0; i < carry->numLayers; ++i) {
+    const bool                     leaf = i == carry->numLayers - 1;
+    const SWindowChainRepairScope *scope = &carry->layers[i];
+    const SScopeInstanceId        *ancestor = leaf ? NULL : taosArrayGet(candidate->lineage.pScopes, i);
+    const TSKEY                    start = leaf ? candidate->instanceId.openingTs : ancestor->openingTs;
+    const SWindowAncestorSnapshot *snapshot = leaf ? NULL : taosArrayGet(candidate->pAncestorSnapshots, i);
+    if (!leaf && !snapshot) return false;
+    const bool  hasPrev = leaf ? candidate->leafParam.hasPrevWindow : snapshot->values.window.hasPrevWindow;
+    const TSKEY prevStart = leaf ? candidate->leafParam.prevWstart : snapshot->values.window.prevStart;
+    const TSKEY prevEnd = leaf ? candidate->leafParam.prevWend : snapshot->values.window.prevEnd;
+    if (scope->countPhase || (scope->current && start == scope->openingTs) ||
+        stRepairPredecessorMatches(scope, hasPrev, prevStart, prevEnd))
+      return true;
+    if (leaf) return start >= carry->openLeaves.skey && start <= carry->openLeaves.ekey && start <= carry->horizon;
+    // Descendant predecessor ranges have meaning only in their original parent lineage.
+    if (!scope->hasOpening || start != scope->openingTs) return false;
+  }
+  return false;
+}
+
 bool stWindowChainGetFirstOpenCountLeafRange(const SWindowChainState *pState, STimeWindow *pRange) {
   if (pState == NULL || pRange == NULL || pState->numLayers <= 0) return false;
 
@@ -342,6 +513,50 @@ bool stWindowChainGetFirstOpenCountLeafRange(const SWindowChainState *pState, ST
 
   *pRange = (STimeWindow){.skey = pInstance->start, .ekey = pInstance->end};
   return true;
+}
+
+bool stWindowChainGetLastClosedCountLeafRange(const SWindowChainState *pState, STimeWindow *pRange) {
+  if (pState == NULL || pRange == NULL || pState->numLayers <= 0) return false;
+
+  const SWindowChainLayerState *pLeaf = &pState->layers[pState->numLayers - 1];
+  if (pLeaf->runtimeType != STREAM_TRIGGER_COUNT || !pLeaf->hasPrevWindow) return false;
+
+  *pRange = pLeaf->prevWindow;
+  return true;
+}
+
+bool stWindowChainMarkDeletedPredecessors(SWindowChainState *pState, const STimeWindow *pRange) {
+  if (pState == NULL || pRange == NULL) return false;
+
+  bool affected = false;
+  for (int32_t i = 0; i < pState->numLayers; ++i) {
+    SWindowChainLayerState *pLayer = &pState->layers[i];
+    if (pLayer->hasPrevWindow && pLayer->prevWindow.skey <= pRange->ekey &&
+        pRange->skey <= pLayer->prevWindow.ekey) {
+      pLayer->repairPrevWindow = true;
+      affected = true;
+    }
+    if (pLayer->hasPrevEventParentWindow && pLayer->prevEventParentWindow.skey <= pRange->ekey &&
+        pRange->skey <= pLayer->prevEventParentWindow.ekey) {
+      pLayer->repairPrevEventParentWindow = true;
+      affected = true;
+    }
+  }
+  return affected;
+}
+
+bool stWindowChainHasPendingPredecessorRepair(const SWindowChainState *pState) {
+  if (pState == NULL) return false;
+
+  for (int32_t i = 0; i < pState->numLayers; ++i) {
+    const SWindowChainLayerState *pLayer = &pState->layers[i];
+    if (pLayer->repairPrevWindow || pLayer->repairPrevEventParentWindow) return true;
+  }
+  return false;
+}
+
+void stWindowChainSetLeafEventTypes(SWindowChainState *pState, int64_t eventTypes) {
+  if (pState != NULL) pState->policy.leafEventTypes = eventTypes;
 }
 
 bool stWindowChainCanRepairCountDisorder(const SWindowChainState *pState, const STimeWindow *pRange) {
@@ -470,6 +685,130 @@ int32_t stWindowChainCreate(const SStreamWindowPlan *pPlan, int64_t gid, const S
 
 _exit:
   stWindowChainDestroy(&pState);
+  return code;
+}
+
+bool stWindowChainHasOrdinaryState(const SWindowChainState *state, TSKEY through) {
+  for (int32_t i = 0; state && i < state->numLayers; ++i) {
+    const SWindowChainLayerState *layer = &state->layers[i];
+    // Child phases reset with their parent. A root COUNT step can retain a
+    // different row offset across every subsequent opening, including empty gaps.
+    if (i == 0 && layer->runtimeType == STREAM_TRIGGER_COUNT && layer->pSpec->trigger.count.sliding > 1) return true;
+    bool rootPrevious = i == 0 && (layer->pSpec->placeholderMask & (PLACE_HOLDER_PREV_WSTART | PLACE_HOLDER_PREV_WEND));
+    if (rootPrevious && (!layer->hasPrevWindow || layer->prevWindow.skey <= through ||
+                         (layer->hasPrevEventParentWindow && layer->prevEventParentWindow.skey <= through)))
+      return true;
+    for (int32_t j = 0; j < taosArrayGetSize(layer->pInstances); ++j) {
+      const SWindowChainInstance *instance = taosArrayGet(layer->pInstances, j);
+      if (instance->start <= through || (rootPrevious && (!instance->hasPrevWindow || instance->prevStart <= through)))
+        return true;
+    }
+    if ((layer->eventParentActive && layer->eventParent.start <= through) ||
+        (layer->eventStartConditionCount && layer->eventStartConditionFirstTs <= through) ||
+        (layer->pendingNullCount && layer->pendingNullStart <= through) ||
+        (layer->hasPendingPartialNull && layer->firstDeferredPartialNullTs <= through))
+      return true;
+  }
+  return false;
+}
+
+// The same field list drives sizing, encoding and decoding. Borrowed plan, policy,
+// expression slots and scratch ranges come from stWindowChainCreate at restore.
+#define ST_CHAIN_FIELD(type, field) TAOS_CHECK_RETURN(enc ? tEncode##type(enc, field) : tDecode##type(dec, &(field)))
+
+static int32_t stCodeOrdinaryInstance(SEncoder *enc, SDecoder *dec, SWindowChainInstance *v) {
+  ST_CHAIN_FIELD(I64, v->start);
+  ST_CHAIN_FIELD(I64, v->end);
+  ST_CHAIN_FIELD(I64, v->prevStart);
+  ST_CHAIN_FIELD(I64, v->prevEnd);
+  ST_CHAIN_FIELD(I64, v->rownum);
+  ST_CHAIN_FIELD(I64, v->nativeDiscriminator);
+  ST_CHAIN_FIELD(U64, v->generation);
+  ST_CHAIN_FIELD(Bool, v->suppressed);
+  ST_CHAIN_FIELD(Bool, v->openEmitted);
+  ST_CHAIN_FIELD(Bool, v->hasPrevWindow);
+  ST_CHAIN_FIELD(Bool, v->eventParent);
+  if (enc) return tEncodeCStr(enc, v->pOpenNotifyContent);
+  uint64_t size = 0;
+  TAOS_CHECK_RETURN(tDecodeBinaryAlloc(dec, (void **)&v->pOpenNotifyContent, &size));
+  return size && v->pOpenNotifyContent[size - 1] != 0 ? TSDB_CODE_INVALID_MSG : 0;
+}
+
+static int32_t stCodeOrdinaryValue(SEncoder *enc, SDecoder *dec, SWindowChainStateValue *v) {
+  ST_CHAIN_FIELD(Bool, v->defined);
+  if (!v->defined) return 0;
+  ST_CHAIN_FIELD(I8, v->type);
+  if (enc) return tEncodeBinary(enc, v->pData, v->bytes);
+  uint32_t size = 0;
+  TAOS_CHECK_RETURN(tDecodeBinaryAlloc32(dec, &v->pData, &size));
+  if (!size || size > INT32_MAX) return TSDB_CODE_INVALID_MSG;
+  v->bytes = (int32_t)size;
+  return 0;
+}
+
+static int32_t stCodeOrdinaryLayer(SEncoder *enc, SDecoder *dec, SWindowChainLayerState *v) {
+  ST_CHAIN_FIELD(Bool, v->hasPrevWindow);
+  ST_CHAIN_FIELD(Bool, v->repairPrevWindow);
+  ST_CHAIN_FIELD(Bool, v->timeCursorInitialized);
+  ST_CHAIN_FIELD(Bool, v->hasPrevEventParentWindow);
+  ST_CHAIN_FIELD(Bool, v->repairPrevEventParentWindow);
+  ST_CHAIN_FIELD(I64, v->prevWindow.skey);
+  ST_CHAIN_FIELD(I64, v->prevWindow.ekey);
+  ST_CHAIN_FIELD(I64, v->prevEventParentWindow.skey);
+  ST_CHAIN_FIELD(I64, v->prevEventParentWindow.ekey);
+  ST_CHAIN_FIELD(I64, v->nextTimeRange.skey);
+  ST_CHAIN_FIELD(I64, v->nextTimeRange.ekey);
+  ST_CHAIN_FIELD(I64, v->totalCount);
+  ST_CHAIN_FIELD(I64, v->pendingNullCount);
+  ST_CHAIN_FIELD(I64, v->pendingNullStart);
+  ST_CHAIN_FIELD(I64, v->deferredPartialNullCount);
+  ST_CHAIN_FIELD(I64, v->deferredTailAllNullCount);
+  ST_CHAIN_FIELD(I64, v->firstDeferredPartialNullTs);
+  ST_CHAIN_FIELD(I64, v->lastDeferredPartialNullTs);
+  ST_CHAIN_FIELD(Bool, v->hasPendingPartialNull);
+  ST_CHAIN_FIELD(I32, v->eventConditionIndex);
+  ST_CHAIN_FIELD(I32, v->eventSubwindowCount);
+  ST_CHAIN_FIELD(Bool, v->eventParentActive);
+  ST_CHAIN_FIELD(I32, v->eventStartConditionCount);
+  ST_CHAIN_FIELD(I64, v->eventStartConditionFirstTs);
+  ST_CHAIN_FIELD(I32, v->eventEndConditionCount);
+  ST_CHAIN_FIELD(I64, v->eventEndConditionFirstTs);
+  if (v->eventParentActive) TAOS_CHECK_RETURN(stCodeOrdinaryInstance(enc, dec, &v->eventParent));
+  for (int32_t i = 0; i < taosArrayGetSize(v->pStateValues); ++i) {
+    TAOS_CHECK_RETURN(stCodeOrdinaryValue(enc, dec, taosArrayGet(v->pStateValues, i)));
+    TAOS_CHECK_RETURN(stCodeOrdinaryValue(enc, dec, taosArrayGet(v->pPendingStateValues, i)));
+    ST_CHAIN_FIELD(Bool, v->pPendingStateTouched[i]);
+  }
+  int32_t count = taosArrayGetSize(v->pInstances);
+  ST_CHAIN_FIELD(I32v, count);
+  if (count < 0 || (dec && count > dec->size - dec->pos)) return TSDB_CODE_INVALID_MSG;
+  for (int32_t i = 0; i < count; ++i) {
+    SWindowChainInstance  empty = {0};
+    SWindowChainInstance *instance = enc ? taosArrayGet(v->pInstances, i) : taosArrayPush(v->pInstances, &empty);
+    if (!instance) return terrno;
+    TAOS_CHECK_RETURN(stCodeOrdinaryInstance(enc, dec, instance));
+  }
+  return 0;
+}
+#undef ST_CHAIN_FIELD
+
+int32_t stWindowChainEncodeOrdinary(SEncoder *encoder, SWindowChainState *state) {
+  TAOS_CHECK_RETURN(tEncodeU64(encoder, state->nextInstanceGeneration));
+  for (int32_t i = 0; i < state->numLayers; ++i)
+    TAOS_CHECK_RETURN(stCodeOrdinaryLayer(encoder, NULL, &state->layers[i]));
+  return 0;
+}
+
+int32_t stWindowChainDecodeOrdinary(SDecoder *decoder, const SStreamWindowPlan *plan, int64_t gid,
+                                    const SWindowChainPolicy *policy, SWindowChainState **result) {
+  SWindowChainState *state = NULL;
+  TAOS_CHECK_RETURN(stWindowChainCreate(plan, gid, policy, &state));
+  int32_t code = tDecodeU64(decoder, &state->nextInstanceGeneration);
+  for (int32_t i = 0; !code && i < state->numLayers; ++i) code = stCodeOrdinaryLayer(NULL, decoder, &state->layers[i]);
+  if (code)
+    stWindowChainDestroy(&state);
+  else
+    *result = state;
   return code;
 }
 
@@ -854,10 +1193,8 @@ static int32_t stWindowChainStateDatumBytes(const SColumnInfoData *pColumn, cons
   return IS_VAR_DATA_TYPE(pColumn->info.type) ? varDataTLen(pData) : pColumn->info.bytes;
 }
 
-static int32_t stWindowChainCountRowMatches(const SWindowChainLayerState *pLayer, const SWindowChainRowRef *pRow,
-                                            bool *pMatches) {
+static int32_t stWindowChainCountRowMatches(const SArray *pSlots, const SWindowChainRowRef *pRow, bool *pMatches) {
   *pMatches = true;
-  const SArray *pSlots = pLayer->pSpec->input.pConditionSlotIds;
   if (pSlots == NULL || taosArrayGetSize(pSlots) == 0) return TSDB_CODE_SUCCESS;
 
   *pMatches = false;
@@ -1370,6 +1707,15 @@ static int32_t stBuildAncestorSnapshotsFromInstances(const SWindowChainState    
       snapshot.values.window.end = pInstance->end;
       snapshot.values.window.duration = pInstance->end - pInstance->start;
       snapshot.values.window.rownum = pInstance->rownum;
+      if (pAncestorInstances == NULL) {
+        snapshot.values.window.hasPrevWindow = pLayer->hasPrevWindow;
+        snapshot.values.window.prevStart = pLayer->prevWindow.skey;
+        snapshot.values.window.prevEnd = pLayer->prevWindow.ekey;
+      } else {
+        snapshot.values.window.hasPrevWindow = pInstance->hasPrevWindow;
+        snapshot.values.window.prevStart = pInstance->prevStart;
+        snapshot.values.window.prevEnd = pInstance->prevEnd;
+      }
     }
     if (taosArrayPush(pSnapshots, &snapshot) == NULL) {
       int32_t code = stWindowChainAllocError();
@@ -1400,6 +1746,13 @@ static void stFillLeafParam(const SWindowChainState *pState, const SWindowChainI
     pParam->wend = dataOpen ? pInstance->start : pInstance->end;
     pParam->wduration = pParam->wend - pParam->wstart;
     pParam->wrownum = pInstance->rownum;
+    pParam->hasPrevWindow =
+        (pLeaf->pSpec->placeholderMask & (PLACE_HOLDER_PREV_WSTART | PLACE_HOLDER_PREV_WEND)) != 0 &&
+        pInstance->hasPrevWindow;
+    if (pParam->hasPrevWindow) {
+      pParam->prevWstart = pInstance->prevStart;
+      pParam->prevWend = pInstance->prevEnd;
+    }
   }
 }
 
@@ -1438,9 +1791,11 @@ static bool stWindowChainAcceptedIntentArray(const SArray *pBatches) {
 
 static int32_t stCaptureAncestorInstances(const SWindowChainState *pState, SWindowChainInstance *pAncestorInstances) {
   for (int32_t i = 0; i < pState->numLayers - 1; ++i) {
-    const SWindowChainInstance *pInstance = taosArrayGet(pState->layers[i].pInstances, 0);
+    const SWindowChainLayerState *pLayer = &pState->layers[i];
+    const SWindowChainInstance   *pInstance = taosArrayGet(pLayer->pInstances, 0);
     if (pInstance == NULL) return TSDB_CODE_INTERNAL_ERROR;
     stCopyWindowChainInstanceSnapshot(pInstance, &pAncestorInstances[i]);
+    stSetInstancePreviousWindow(pLayer, &pAncestorInstances[i]);
   }
   return TSDB_CODE_SUCCESS;
 }
@@ -1468,10 +1823,22 @@ static void stRefreshCandidateIntents(const SWindowChainState *pState, SArray *p
   for (int32_t i = 0; i < taosArrayGetSize(pCandidates); ++i) {
     SWindowChainCandidateIntent *pIntent = taosArrayGet(pCandidates, i);
     const SWindowChainInstance  *pInstance = stFindMatchingInstance(pLeaf, &pIntent->instance);
-    if (pInstance != NULL) stCopyWindowChainInstanceSnapshot(pInstance, &pIntent->instance);
+    if (pInstance != NULL) {
+      const SWindowChainInstance previous = pIntent->instance;
+      stCopyWindowChainInstanceSnapshot(pInstance, &pIntent->instance);
+      pIntent->instance.hasPrevWindow = previous.hasPrevWindow;
+      pIntent->instance.prevStart = previous.prevStart;
+      pIntent->instance.prevEnd = previous.prevEnd;
+    }
     for (int32_t j = 0; j < pState->numLayers - 1; ++j) {
       pInstance = stFindMatchingInstance(&pState->layers[j], &pIntent->ancestors[j]);
-      if (pInstance != NULL) stCopyWindowChainInstanceSnapshot(pInstance, &pIntent->ancestors[j]);
+      if (pInstance != NULL) {
+        const SWindowChainInstance previous = pIntent->ancestors[j];
+        stCopyWindowChainInstanceSnapshot(pInstance, &pIntent->ancestors[j]);
+        pIntent->ancestors[j].hasPrevWindow = previous.hasPrevWindow;
+        pIntent->ancestors[j].prevStart = previous.prevStart;
+        pIntent->ancestors[j].prevEnd = previous.prevEnd;
+      }
     }
   }
 }
@@ -1599,25 +1966,37 @@ int32_t stWindowChainBuildRecalcImpactDomain(const SStreamWindowPlan *pPlan, int
   return TSDB_CODE_SUCCESS;
 }
 
-static int32_t stAppendCandidateWithContent(const SWindowChainState *pState, const SWindowChainInstance *pInstance,
+static int32_t stAppendCandidateWithContent(SWindowChainState *pState, const SWindowChainInstance *pInstance,
                                             int32_t eventType, int64_t nowNs, const char *pNotifyContent,
                                             SArray *pCandidates) {
+  SWindowChainLayerState *pLeaf = &pState->layers[pState->numLayers - 1];
+  SWindowChainInstance    candidateInstance = {0};
+  stCopyWindowChainInstanceSnapshot(pInstance, &candidateInstance);
+  stSetInstancePreviousWindow(pLeaf, &candidateInstance);
+  pInstance = &candidateInstance;
+
+  int32_t code = TSDB_CODE_SUCCESS;
   if (stWindowChainCandidateIntentArray(pCandidates)) {
     stRefreshCandidateIntents(pState, pCandidates);
-    const SWindowChainLayerState *pLeaf = &pState->layers[pState->numLayers - 1];
-    if (pInstance->suppressed || !stWindowChainTrueForSatisfied(pLeaf, pInstance)) return TSDB_CODE_SUCCESS;
-    return stAppendCandidateIntent(pState, pInstance, eventType, nowNs, pNotifyContent, pCandidates);
+    if (!pInstance->suppressed && stWindowChainTrueForSatisfied(pLeaf, pInstance)) {
+      code = stAppendCandidateIntent(pState, pInstance, eventType, nowNs, pNotifyContent, pCandidates);
+    }
+  } else {
+    code = stAppendMaterializedCandidateWithContent(pState, pInstance, NULL, eventType, nowNs, pNotifyContent,
+                                                    pCandidates);
   }
-  return stAppendMaterializedCandidateWithContent(pState, pInstance, NULL, eventType, nowNs, pNotifyContent,
-                                                  pCandidates);
+  if (code == TSDB_CODE_SUCCESS && eventType == STRIGGER_EVENT_WINDOW_CLOSE) {
+    stRememberClosedWindow(pLeaf, pInstance);
+  }
+  return code;
 }
 
-static int32_t stAppendCandidate(const SWindowChainState *pState, const SWindowChainInstance *pInstance,
-                                 int32_t eventType, int64_t nowNs, SArray *pCandidates) {
+static int32_t stAppendCandidate(SWindowChainState *pState, const SWindowChainInstance *pInstance, int32_t eventType,
+                                 int64_t nowNs, SArray *pCandidates) {
   return stAppendCandidateWithContent(pState, pInstance, eventType, nowNs, NULL, pCandidates);
 }
 
-static int32_t stAppendForcedCloseCandidate(const SWindowChainState *pState, const SWindowChainInstance *pInstance,
+static int32_t stAppendForcedCloseCandidate(SWindowChainState *pState, const SWindowChainInstance *pInstance,
                                             int64_t nowNs, SArray *pCandidates) {
   const SWindowChainLayerState *pLeaf = &pState->layers[pState->numLayers - 1];
   char                         *pNotifyContent = NULL;
@@ -1711,6 +2090,12 @@ static int32_t stResetLayerRuntime(SWindowChainState *pState, int32_t layerIndex
   code = stWindowChainClearInstances(pState, layerIndex);
   if (code != TSDB_CODE_SUCCESS) return code;
   pLayer->timeCursorInitialized = false;
+  pLayer->hasPrevWindow = false;
+  pLayer->repairPrevWindow = false;
+  pLayer->prevWindow = (STimeWindow){0};
+  pLayer->hasPrevEventParentWindow = false;
+  pLayer->repairPrevEventParentWindow = false;
+  pLayer->prevEventParentWindow = (STimeWindow){0};
   pLayer->nextTimeRange = (STimeWindow){0};
   for (int32_t i = 0; i < taosArrayGetSize(pLayer->pStateValues); ++i) {
     SWindowChainStateValue *pValue = taosArrayGet(pLayer->pStateValues, i);
@@ -1762,6 +2147,7 @@ static int32_t stFlushLeaf(SWindowChainState *pState, int64_t nowNs, SArray *pCa
       int32_t code = stWindowChainTouchInstance(pState, pOnly);
       if (code != TSDB_CODE_SUCCESS) return code;
       pOnly->nativeDiscriminator = -1;
+      pOnly->eventParent = true;
     }
   }
   for (int32_t i = 0; i < taosArrayGetSize(pLeaves); ++i) {
@@ -1795,7 +2181,9 @@ static int32_t stSettleAndResetDescendants(SWindowChainState *pState, int32_t la
         stAdvanceLayer(pState, layerIndex + 1, pInstance->end, WINDOW_LAYER_INPUT_ANCESTOR_END, nowNs, pCandidates);
     if (code != TSDB_CODE_SUCCESS) return code;
   }
-  return stResetDescendants(pState, layerIndex, nowNs, pCandidates);
+  int32_t code = stResetDescendants(pState, layerIndex, nowNs, pCandidates);
+  if (code == TSDB_CODE_SUCCESS) stRememberClosedWindow(&pState->layers[layerIndex], pInstance);
+  return code;
 }
 
 static int32_t stFindInstanceIndex(const SArray *pInstances, TSKEY start) {
@@ -1881,6 +2269,8 @@ static int32_t stAdvanceTimeLeafRanges(SWindowChainState *pState, TSKEY progress
     if ((pState->policy.leafEventTypes & STRIGGER_EVENT_WINDOW_CLOSE) != 0) {
       int32_t code = stAppendCandidate(pState, pInstance, STRIGGER_EVENT_WINDOW_CLOSE, nowNs, pCandidates);
       if (code != TSDB_CODE_SUCCESS) return code;
+    } else {
+      stRememberClosedWindow(pLeaf, pInstance);
     }
     if (pLeaf->nextTimeRange.skey == INT64_MAX || pLeaf->nextTimeRange.ekey == INT64_MAX) {
       pLeaf->timeCursorInitialized = false;
@@ -1996,6 +2386,8 @@ static int32_t stRouteStateLeaf(SWindowChainState *pState, int32_t layerIndex, c
       code = stAppendCandidateWithContent(pState, pCurrent, STRIGGER_EVENT_WINDOW_CLOSE, nowNs, pCloseNotifyContent,
                                           pCandidates);
       if (code != TSDB_CODE_SUCCESS) goto _exit;
+    } else {
+      stRememberClosedWindow(pLayer, pCurrent);
     }
     if (cut.splitStandalone) {
       SWindowChainInstance standalone = {.start = cut.standaloneStart,
@@ -2007,6 +2399,8 @@ static int32_t stRouteStateLeaf(SWindowChainState *pState, int32_t layerIndex, c
       if ((pState->policy.leafEventTypes & STRIGGER_EVENT_WINDOW_CLOSE) != 0) {
         code = stAppendCandidate(pState, &standalone, STRIGGER_EVENT_WINDOW_CLOSE, nowNs, pCandidates);
         if (code != TSDB_CODE_SUCCESS) goto _exit;
+      } else {
+        stRememberClosedWindow(pLayer, &standalone);
       }
     }
     stRefreshCandidateIntents(pState, pCandidates);
@@ -2099,6 +2493,8 @@ static int32_t stRouteStateLayer(SWindowChainState *pState, int32_t layerIndex, 
       code = stAppendCandidate(pState, pCurrent, STRIGGER_EVENT_WINDOW_CLOSE, nowNs, pCandidates);
     } else if (!leaf) {
       code = stSettleAndResetDescendants(pState, layerIndex, pCurrent, nowNs, pCandidates);
+    } else {
+      stRememberClosedWindow(pLayer, pCurrent);
     }
     if (code != TSDB_CODE_SUCCESS) return code;
     stRefreshCandidateIntents(pState, pCandidates);
@@ -2165,7 +2561,7 @@ static int32_t stRouteCountLayer(SWindowChainState *pState, int32_t layerIndex, 
   int32_t                   code = stWindowChainGetTimestamp(pLayer, pRow, &ts);
   if (code != TSDB_CODE_SUCCESS) return code;
   bool matches = false;
-  code = stWindowChainCountRowMatches(pLayer, pRow, &matches);
+  code = stWindowChainCountRowMatches(pLayer->pSpec->input.pConditionSlotIds, pRow, &matches);
   if (code != TSDB_CODE_SUCCESS || !matches) return code;
 
   SWindowChainInstance *pOpened = NULL;
@@ -2211,6 +2607,8 @@ static int32_t stRouteCountLayer(SWindowChainState *pState, int32_t layerIndex, 
     if ((pState->policy.leafEventTypes & STRIGGER_EVENT_WINDOW_CLOSE) != 0) {
       code = stAppendCandidate(pState, pInstance, STRIGGER_EVENT_WINDOW_CLOSE, nowNs, pCandidates);
       if (code != TSDB_CODE_SUCCESS) return code;
+    } else {
+      stRememberClosedWindow(&pState->layers[pState->numLayers - 1], pInstance);
     }
     stRefreshCandidateIntents(pState, pCandidates);
     code = stWindowChainRemoveInstance(pState, layerIndex, i);
@@ -2236,7 +2634,7 @@ static int32_t stRouteCountDisorderRow(SWindowChainState *pState, const SWindowC
   int32_t                   code = stWindowChainGetTimestamp(pLeaf, pRow, &ts);
   if (code != TSDB_CODE_SUCCESS) return code;
   bool matches = false;
-  code = stWindowChainCountRowMatches(pLeaf, pRow, &matches);
+  code = stWindowChainCountRowMatches(pLeaf->pSpec->input.pConditionSlotIds, pRow, &matches);
   if (code != TSDB_CODE_SUCCESS || !matches) return code;
 
   const int32_t instanceCount = taosArrayGetSize(pLeaf->pInstances);
@@ -2280,6 +2678,8 @@ static int32_t stRouteCountDisorderRow(SWindowChainState *pState, const SWindowC
     if ((pState->policy.leafEventTypes & STRIGGER_EVENT_WINDOW_CLOSE) != 0) {
       code = stAppendCandidate(pState, pInstance, STRIGGER_EVENT_WINDOW_CLOSE, nowNs, pCandidates);
       if (code != TSDB_CODE_SUCCESS) return code;
+    } else {
+      stRememberClosedWindow(&pState->layers[pState->numLayers - 1], pInstance);
     }
     stRefreshCandidateIntents(pState, pCandidates);
     code = stWindowChainRemoveInstance(pState, pState->numLayers - 1, i);
@@ -2288,14 +2688,61 @@ static int32_t stRouteCountDisorderRow(SWindowChainState *pState, const SWindowC
   return TSDB_CODE_SUCCESS;
 }
 
-static int32_t stWindowChainEventValue(const SWindowChainLayerState *pLayer, const SWindowChainRowRef *pRow,
-                                       int16_t slotId, uint8_t *pValue) {
+static int32_t stWindowChainEventValue(const SWindowChainRowRef *pRow, int16_t slotId, uint8_t *pValue) {
   *pValue = 0;
   if (slotId < 0) return TSDB_CODE_SUCCESS;
   const SColumnInfoData *pColumn = stWindowChainGetColumn(pRow, slotId);
   if (pColumn == NULL) return TSDB_CODE_INVALID_PARA;
   if (!colDataIsNull_s(pColumn, pRow->rowIndex)) *pValue = *(const uint8_t *)colDataGetData(pColumn, pRow->rowIndex);
   return TSDB_CODE_SUCCESS;
+}
+
+static bool stWindowChainStateInputsEqual(const SWindowChainRowRef *a, const SWindowChainRowRef *b, int16_t slot) {
+  const SColumnInfoData *x = stWindowChainGetColumn(a, slot);
+  const SColumnInfoData *y = stWindowChainGetColumn(b, slot);
+  if (!x || !y || x->info.type != y->info.type) return false;
+  bool xn = colDataIsNull_s(x, a->rowIndex), yn = colDataIsNull_s(y, b->rowIndex);
+  if (xn || yn) return xn == yn;
+  int32_t len = colDataGetRowLength(x, a->rowIndex);
+  return len == colDataGetRowLength(y, b->rowIndex) &&
+         memcmp(colDataGetData(x, a->rowIndex), colDataGetData(y, b->rowIndex), len) == 0;
+}
+
+static bool stWindowChainLayerInputsEqual(const SStreamWindowLayerSpec *layer, const SWindowChainRowRef *a,
+                                          const SWindowChainRowRef *b) {
+  const SArray *slots = layer->input.pConditionSlotIds;
+  if (layer->triggerType == WINDOW_TYPE_COUNT) {
+    bool left, right;
+    return !stWindowChainCountRowMatches(slots, a, &left) && !stWindowChainCountRowMatches(slots, b, &right) &&
+           left == right;
+  }
+  if (layer->triggerType == WINDOW_TYPE_EVENT) {
+    int16_t events[] = {layer->input.eventStartSlotId, layer->input.eventEndSlotId};
+    for (int32_t i = 0; i < 2; ++i) {
+      uint8_t left, right;
+      if (stWindowChainEventValue(a, events[i], &left) || stWindowChainEventValue(b, events[i], &right) ||
+          left != right)
+        return false;
+    }
+  } else if (layer->triggerType == WINDOW_TYPE_STATE) {
+    for (size_t i = 0; i < taosArrayGetSize(slots); ++i) {
+      if (!stWindowChainStateInputsEqual(a, b, *(const int16_t *)taosArrayGet(slots, i))) return false;
+    }
+  }
+  return true;
+}
+
+bool stWindowChainPeerInputsEqual(const SStreamWindowPlan *plan, const SWindowChainPeerGroup *a,
+                                  const SWindowChainPeerGroup *b) {
+  if (!a || !b || a->ts != b->ts || taosArrayGetSize(a->pRows) != taosArrayGetSize(b->pRows)) return false;
+  for (size_t i = 0; i < taosArrayGetSize(a->pRows); ++i) {
+    const SWindowChainRowRef *left = taosArrayGet(a->pRows, i), *right = taosArrayGet(b->pRows, i);
+    if (left->tableUid != right->tableUid) return false;
+    for (size_t j = 0; j < taosArrayGetSize(plan->pLayers); ++j) {
+      if (!stWindowChainLayerInputsEqual(taosArrayGet(plan->pLayers, j), left, right)) return false;
+    }
+  }
+  return true;
 }
 
 static int32_t stWindowChainBuildEventNotifyContent(const SWindowChainState *pState, const SWindowChainRowRef *pRow,
@@ -2375,7 +2822,7 @@ static int32_t stWindowChainFreezeEventOpenNotifyContent(SWindowChainState *pSta
                                               &pInstance->pOpenNotifyContent);
 }
 
-static int32_t stWindowChainAppendEventCloseCandidate(const SWindowChainState *pState, const SWindowChainRowRef *pRow,
+static int32_t stWindowChainAppendEventCloseCandidate(SWindowChainState *pState, const SWindowChainRowRef *pRow,
                                                       const SWindowChainInstance *pInstance, int32_t windowIndex,
                                                       int32_t conditionIndex, TSKEY parentWindowStart, int64_t nowNs,
                                                       SArray *pCandidates) {
@@ -2402,10 +2849,8 @@ static int32_t stRouteEventLayer(SWindowChainState *pState, int32_t layerIndex, 
   uint8_t                   start = 0;
   uint8_t                   end = 0;
   int32_t                   code = stWindowChainGetTimestamp(pLayer, pRow, &ts);
-  if (code == TSDB_CODE_SUCCESS)
-    code = stWindowChainEventValue(pLayer, pRow, pLayer->pSpec->input.eventStartSlotId, &start);
-  if (code == TSDB_CODE_SUCCESS)
-    code = stWindowChainEventValue(pLayer, pRow, pLayer->pSpec->input.eventEndSlotId, &end);
+  if (code == TSDB_CODE_SUCCESS) code = stWindowChainEventValue(pRow, pLayer->pSpec->input.eventStartSlotId, &start);
+  if (code == TSDB_CODE_SUCCESS) code = stWindowChainEventValue(pRow, pLayer->pSpec->input.eventEndSlotId, &end);
   if (code != TSDB_CODE_SUCCESS) return code;
 
   SWindowChainInstance *pCurrent = taosArrayGet(pLayer->pInstances, 0);
@@ -2420,6 +2865,8 @@ static int32_t stRouteEventLayer(SWindowChainState *pState, int32_t layerIndex, 
         code = stWindowChainAppendEventCloseCandidate(pState, pRow, pCurrent, (int32_t)pCurrent->nativeDiscriminator,
                                                       pLayer->eventConditionIndex - 1, pLayer->eventParent.start, nowNs,
                                                       pCandidates);
+      } else if (code == TSDB_CODE_SUCCESS) {
+        stRememberClosedWindow(pLayer, pCurrent);
       }
       if (code != TSDB_CODE_SUCCESS) return code;
     }
@@ -2460,7 +2907,7 @@ static int32_t stRouteEventLayer(SWindowChainState *pState, int32_t layerIndex, 
           pLayer->eventParentActive = true;
           stDestroyWindowChainInstance(&pLayer->eventParent);
           pLayer->eventParent = (SWindowChainInstance){
-              .start = openingTs, .end = ts, .nativeDiscriminator = -1, .generation = generation};
+              .start = openingTs, .end = ts, .nativeDiscriminator = -1, .generation = generation, .eventParent = true};
           if (leaf) {
             code = stWindowChainFreezeEventOpenNotifyContent(pState, pRow, start - 1, -1, 0, &pLayer->eventParent);
             if (code != TSDB_CODE_SUCCESS) return code;
@@ -2532,6 +2979,7 @@ static int32_t stRouteEventLayer(SWindowChainState *pState, int32_t layerIndex, 
   if (leaf) {
     if (pLayer->multipleEventStarts && pLayer->eventSubwindowCount == 1) {
       pCurrent->nativeDiscriminator = -1;
+      pCurrent->eventParent = true;
       pCurrent->openEmitted = pLayer->eventParent.openEmitted;
     }
     code = stAppendOpenCandidateWithContent(pState, pCurrent, nowNs, pCurrent->pOpenNotifyContent, pCandidates);
@@ -2541,12 +2989,16 @@ static int32_t stRouteEventLayer(SWindowChainState *pState, int32_t layerIndex, 
       code = stWindowChainAppendEventCloseCandidate(pState, pRow, pCurrent, windowIndex,
                                                     windowIndex >= 0 ? pLayer->eventConditionIndex - 1 : 0,
                                                     parentWindowStart, nowNs, pCandidates);
+    } else if (code == TSDB_CODE_SUCCESS) {
+      stRememberClosedWindow(pLayer, pCurrent);
     }
     if (code == TSDB_CODE_SUCCESS && pLayer->eventParentActive && pLayer->eventSubwindowCount > 1) {
       code = stAppendOpenCandidateWithContent(pState, &pLayer->eventParent, nowNs,
                                               pLayer->eventParent.pOpenNotifyContent, pCandidates);
       if (code == TSDB_CODE_SUCCESS && (pState->policy.leafEventTypes & STRIGGER_EVENT_WINDOW_CLOSE) != 0) {
         code = stWindowChainAppendEventCloseCandidate(pState, pRow, &pLayer->eventParent, -1, 0, 0, nowNs, pCandidates);
+      } else if (code == TSDB_CODE_SUCCESS) {
+        stRememberClosedWindow(pLayer, &pLayer->eventParent);
       }
     }
   } else if (!leaf) {
@@ -2589,6 +3041,8 @@ static int32_t stRouteTimeLeaf(SWindowChainState *pState, const SWindowChainPeer
       if ((pState->policy.leafEventTypes & STRIGGER_EVENT_WINDOW_CLOSE) != 0) {
         code = stAppendCandidate(pState, pCurrent, STRIGGER_EVENT_WINDOW_CLOSE, nowNs, pCandidates);
         if (code != TSDB_CODE_SUCCESS) goto _exit;
+      } else {
+        stRememberClosedWindow(pLeaf, pCurrent);
       }
       code = stWindowChainClearInstances(pState, leafIndex);
       if (code != TSDB_CODE_SUCCESS) goto _exit;
@@ -2946,6 +3400,8 @@ static int32_t stAdvanceLeaf(SWindowChainState *pState, TSKEY frontier, EWindowL
     if ((pState->policy.leafEventTypes & STRIGGER_EVENT_WINDOW_CLOSE) != 0) {
       int32_t code = stAppendCandidate(pState, pInstance, STRIGGER_EVENT_WINDOW_CLOSE, nowNs, pCandidates);
       if (code != TSDB_CODE_SUCCESS) return code;
+    } else {
+      stRememberClosedWindow(pLeaf, pInstance);
     }
     int32_t code = stWindowChainRemoveInstance(pState, pState->numLayers - 1, i);
     if (code != TSDB_CODE_SUCCESS) return code;
@@ -3085,11 +3541,17 @@ int32_t stWindowChainPrepareHistoryLeafTail(const SWindowChainState *pState, int
   SArray *pStaged = taosArrayInit(2, sizeof(SLeafEventCandidate));
   if (pStaged == NULL) return stWindowChainAllocError();
 
-  const SWindowChainLayerState *pLeaf = &pState->layers[pState->numLayers - 1];
-  int32_t                       code = TSDB_CODE_SUCCESS;
-  for (int32_t i = 0; i < taosArrayGetSize(pLeaf->pInstances); ++i) {
-    code = stAppendCandidate(pState, taosArrayGet(pLeaf->pInstances, i), STRIGGER_EVENT_WINDOW_CLOSE, nowNs, pStaged);
+  SWindowChainLayerState leafState = pState->layers[pState->numLayers - 1];
+  int32_t                code = TSDB_CODE_SUCCESS;
+  for (int32_t i = 0; i < taosArrayGetSize(leafState.pInstances); ++i) {
+    const SWindowChainInstance *pInstance = taosArrayGet(leafState.pInstances, i);
+    SWindowChainInstance        candidate = {0};
+    stCopyWindowChainInstanceSnapshot(pInstance, &candidate);
+    stSetInstancePreviousWindow(&leafState, &candidate);
+    code = stAppendMaterializedCandidateWithContent(pState, &candidate, NULL, STRIGGER_EVENT_WINDOW_CLOSE, nowNs, NULL,
+                                                    pStaged);
     if (code != TSDB_CODE_SUCCESS) goto _exit;
+    stRememberClosedWindow(&leafState, pInstance);
   }
 
   code = stMergeCandidates(pCandidates, pStaged);

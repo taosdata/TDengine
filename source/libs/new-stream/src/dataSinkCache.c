@@ -37,8 +37,43 @@ void* getNextBuffStart(SAlignBlocksInMem* pAlignBlockInfo) {
 }
 
 void setUsedBlockBuf(SAlignBlocksInMem* pAlignBlockInfo, size_t usedSize) {
+  const SSlidingWindowInMem* pWindow = getNextBuffStart(pAlignBlockInfo);
+  if (pAlignBlockInfo->nWindow > 0 && pWindow->startTime < pAlignBlockInfo->lastWindowStart &&
+      !pAlignBlockInfo->unorderedWindows) {
+    pAlignBlockInfo->unorderedWindows = true;
+    stDebug("align cache block received an out-of-order window, start:%" PRId64 " previous:%" PRId64,
+            pWindow->startTime, pAlignBlockInfo->lastWindowStart);
+  }
+  pAlignBlockInfo->lastWindowStart = pWindow->startTime;
   ++pAlignBlockInfo->nWindow;
   pAlignBlockInfo->dataLen += usedSize;
+}
+
+/* Grow the per-window consumption flags so the block can hold needWindows entries. */
+static int32_t ensureAlignConsumedCapacity(SAlignBlocksInMem* pAlignBlockInfo, int32_t needWindows) {
+  if (pAlignBlockInfo == NULL || needWindows <= 0) {
+    return TSDB_CODE_INVALID_PARA;
+  }
+  if (pAlignBlockInfo->pConsumed != NULL && pAlignBlockInfo->consumedCap >= needWindows) {
+    return TSDB_CODE_SUCCESS;
+  }
+  int32_t  newCap = pAlignBlockInfo->consumedCap * 2;
+  if (newCap < needWindows) {
+    newCap = needWindows;
+  }
+  if (newCap < 8) {
+    newCap = 8;
+  }
+  uint8_t* pNew = taosMemoryRealloc(pAlignBlockInfo->pConsumed, newCap);
+  if (pNew == NULL) {
+    return terrno;
+  }
+  memset(pNew + pAlignBlockInfo->consumedCap, 0, newCap - pAlignBlockInfo->consumedCap);
+  // Keep the manager accounting in sync with the consumption flags allocation.
+  (void)atomic_add_fetch_64(&g_pDataSinkManager.usedMemSize, (int64_t)(newCap - pAlignBlockInfo->consumedCap));
+  pAlignBlockInfo->pConsumed = pNew;
+  pAlignBlockInfo->consumedCap = newCap;
+  return TSDB_CODE_SUCCESS;
 }
 
 void* getWindowDataBuf(SSlidingWindowInMem* pWindowData) { return (char*)pWindowData + sizeof(SSlidingWindowInMem); }
@@ -80,23 +115,172 @@ _end:
   return code;
 }
 
+/* -------------------------------------------------------------------------
+ * Align data cache: per-window reads
+ *
+ * One block holds several windows, and the same group can dispatch its windows
+ * through more than one calc request (COUNT_WINDOW/interval streams emit one
+ * window per param, and a mixed stream may dispatch them over several rounds).
+ * A read therefore has to locate exactly the window it was asked for and may
+ * release a block only after every window inside it has been read by its own
+ * request. The previous implementation walked a shared per-block cursor and
+ * destroyed the whole block when the cursor reached its end, which discarded
+ * windows no request had read yet (defect 7147722181).
+ * ------------------------------------------------------------------------- */
+
+static int32_t alignGetWindowRecord(SAlignBlocksInMem* pBlockInfo, int64_t offset, SSlidingWindowInMem** ppWindowData,
+                                    int64_t* pWindowSize) {
+  if (pBlockInfo == NULL || ppWindowData == NULL || pWindowSize == NULL) {
+    return TSDB_CODE_INVALID_PARA;
+  }
+  if (pBlockInfo->dataLen < 0 || pBlockInfo->dataLen > pBlockInfo->capacity || offset < 0 ||
+      offset > pBlockInfo->dataLen || pBlockInfo->dataLen - offset < (int64_t)sizeof(SSlidingWindowInMem)) {
+    return TSDB_CODE_INVALID_MSG;
+  }
+  SSlidingWindowInMem* pWindowData = (SSlidingWindowInMem*)((char*)pBlockInfo + sizeof(SAlignBlocksInMem) + offset);
+  int64_t windowSize =
+      pWindowData->dataLen == 0 ? sizeof(SSlidingWindowInMem) + sizeof(SMoveWindowInfo) : pWindowData->dataLen;
+  if (windowSize < (int64_t)sizeof(SSlidingWindowInMem) || windowSize > pBlockInfo->dataLen - offset) {
+    return TSDB_CODE_INVALID_MSG;
+  }
+  *ppWindowData = pWindowData;
+  *pWindowSize = windowSize;
+  return TSDB_CODE_SUCCESS;
+}
+
+static bool alignWindowConsumed(const SAlignBlocksInMem* pBlockInfo, int32_t winIndex) {
+  return pBlockInfo->pConsumed != NULL && winIndex >= 0 && winIndex < pBlockInfo->consumedCap &&
+         pBlockInfo->pConsumed[winIndex] != 0;
+}
+
+static void alignMarkWindowConsumed(SAlignBlocksInMem* pBlockInfo, int32_t winIndex, int64_t nextOffset) {
+  if (pBlockInfo->pConsumed != NULL && winIndex >= 0 && winIndex < pBlockInfo->consumedCap) {
+    if (!pBlockInfo->pConsumed[winIndex]) {
+      pBlockInfo->pConsumed[winIndex] = 1;
+      ++pBlockInfo->consumedCount;
+    }
+    if (winIndex == pBlockInfo->firstUnreadIndex) {
+      ++pBlockInfo->firstUnreadIndex;
+      pBlockInfo->firstUnreadOffset = nextOffset;
+    }
+  }
+}
+
+static void alignRecordWindowOrder(SAlignGrpMgr* pGroup, int64_t startTime) {
+  if (pGroup->hasWindow && startTime < pGroup->lastWindowStart && !pGroup->unorderedWindows) {
+    pGroup->unorderedWindows = true;
+    stDebug("align cache group received an out-of-order window, groupId:%" PRId64 " start:%" PRId64
+            " previous:%" PRId64, pGroup->groupId, startTime, pGroup->lastWindowStart);
+  }
+  pGroup->hasWindow = true;
+  pGroup->lastWindowStart = startTime;
+}
+
+static int32_t getAlignDataFromMemByWindow(SResultIter* pResult, SAlignGrpMgr* pAlignGrpMgr, SSDataBlock** ppBlock,
+                                           bool* finished) {
+  int32_t code = TSDB_CODE_SUCCESS;
+  int32_t lino = 0;
+  bool    served = false;
+
+  *finished = false;
+
+  // Serve the next unread record that overlaps this request. Windows are
+  // addressed by their own [start, end] range instead of through a shared
+  // per-block cursor, so reading one window can never consume or release the
+  // windows that other pending calculations of the same group still have to
+  // read. Every stored record is returned exactly once, which also keeps a
+  // window whose rows were written in several pieces complete.
+  for (int32_t blockIdx = 0; blockIdx < taosArrayGetSize(pAlignGrpMgr->blocksInMem) && !served;) {
+    SAlignBlocksInMem** ppBlockInfo = taosArrayGet(pAlignGrpMgr->blocksInMem, blockIdx);
+    if (ppBlockInfo == NULL || *ppBlockInfo == NULL) {
+      code = TSDB_CODE_STREAM_INTERNAL_ERROR;
+      QUERY_CHECK_CODE(code, lino, _end);
+    }
+    SAlignBlocksInMem* pBlockInfo = *ppBlockInfo;
+    int64_t            offset = pBlockInfo->firstUnreadOffset;
+    for (int32_t winIndex = pBlockInfo->firstUnreadIndex; winIndex < pBlockInfo->nWindow; ++winIndex) {
+      SSlidingWindowInMem* pWindowData = NULL;
+      int64_t              windowSize = 0;
+      code = alignGetWindowRecord(pBlockInfo, offset, &pWindowData, &windowSize);
+      QUERY_CHECK_CODE(code, lino, _end);
+      offset += windowSize;
+      if (alignWindowConsumed(pBlockInfo, winIndex)) {
+        alignMarkWindowConsumed(pBlockInfo, winIndex, offset);
+        continue;
+      }
+      if (pWindowData->startTime > pResult->reqEndTime && !pBlockInfo->unorderedWindows) {
+        if (!pAlignGrpMgr->unorderedWindows) {
+          *finished = true;
+          return TSDB_CODE_SUCCESS;
+        }
+        break;
+      }
+      if (pWindowData->startTime > pResult->reqEndTime || pWindowData->endTime < pResult->reqStartTime) {
+        continue;
+      }
+      if (pWindowData->dataLen == 0) {
+        SMoveWindowInfo* pMoveWinInfo = getWindowDataBuf(pWindowData);
+        if (pMoveWinInfo->pData == NULL) {
+          // The moved data was handed out already, so this record has nothing left to serve. Mark it
+          // consumed so the block can still be reclaimed, but skip the size accounting that was done
+          // when the data was handed out.
+          alignMarkWindowConsumed(pBlockInfo, winIndex, offset);
+          continue;
+        }
+        *ppBlock = pMoveWinInfo->pData;
+        pMoveWinInfo->pData = NULL;
+        (void)atomic_sub_fetch_64(&g_pDataSinkManager.usedMemSize, pMoveWinInfo->moveSize);
+      } else {
+        code = getRangeInWindowBlock(pWindowData, pWindowData->dataLen - (int64_t)sizeof(SSlidingWindowInMem),
+                                     pResult->tsColSlotId, TSKEY_MIN, TSKEY_MAX, ppBlock);
+        QUERY_CHECK_CODE(code, lino, _end);
+      }
+      // Mark the window read only after its data is in hand: a failed decode must leave the record
+      // readable for a later request instead of dropping it silently.
+      alignMarkWindowConsumed(pBlockInfo, winIndex, offset);
+      // A decoded window with no rows yields no block; keep looking for a window that has data.
+      served = (*ppBlock != NULL);
+      if (served) {
+        break;
+      }
+    }
+    if (pBlockInfo->nWindow > 0 && pBlockInfo->consumedCount == pBlockInfo->nWindow) {
+      stDebug("release consumed align cache block, groupId:%" PRId64 " windows:%d", pResult->groupId,
+              pBlockInfo->nWindow);
+      destroyAlignBlockInMemPP(ppBlockInfo);
+      taosArrayRemove(pAlignGrpMgr->blocksInMem, blockIdx);
+    } else {
+      ++blockIdx;
+    }
+  }
+
+  *finished = !served;
+_end:
+  if (code != TSDB_CODE_SUCCESS) {
+    stError("failed to read align data cache by window since %s, lineno:%d", tstrerror(code), lino);
+  }
+  return code;
+}
+
 static int32_t getAlignDataFromMem(SResultIter* pResult, SSDataBlock** ppBlock, bool* finished) {
   int32_t code = TSDB_CODE_SUCCESS;
   int32_t lino = 0;
 
   SAlignGrpMgr* pAlignGrpMgr = (SAlignGrpMgr*)pResult->groupData;
+  if (!pResult->exactWindow) {
+    // Non exact-window streams (COUNT_WINDOW/interval/state/period) address windows by
+    // their own [start, end], never through a shared per-block cursor.
+    return getAlignDataFromMemByWindow(pResult, pAlignGrpMgr, ppBlock, finished);
+  }
+  // The loop below now only serves EVENT streams (exactWindow); their cursor
+  // based scan is intentionally left unchanged.
   for (;;) {
-    if (pResult->exactWindow) {
-      if (pResult->blockIndex >= pAlignGrpMgr->blocksInMem->size) {
-        *finished = true;
-        return code;
-      }
-    } else if (pAlignGrpMgr->blocksInMem->size == 0) {
+    if (pResult->blockIndex >= pAlignGrpMgr->blocksInMem->size) {
       *finished = true;
       return code;
     }
 
-    int32_t             blockIndex = pResult->exactWindow ? pResult->blockIndex : 0;
+    int32_t             blockIndex = pResult->blockIndex;
     SAlignBlocksInMem** ppBlockInfo = (SAlignBlocksInMem**)taosArrayGet(pAlignGrpMgr->blocksInMem, blockIndex);
     SAlignBlocksInMem*  pBlockInfo = *ppBlockInfo;
     if (pBlockInfo == NULL) {
@@ -117,17 +301,10 @@ static int32_t getAlignDataFromMem(SResultIter* pResult, SSDataBlock** ppBlock, 
         return TSDB_CODE_INVALID_MSG;
       }
       bool found = false;
-      if (!pResult->exactWindow && pWindowData->startTime > pResult->reqEndTime) {
-        *finished = true;
-        return code;
-      }
-
       bool windowMatched =
-          pResult->exactWindow
-              ? (pWindowData->startTime == pResult->reqStartTime && pWindowData->endTime == pResult->reqEndTime &&
-                 strcmp(pWindowData->eventConditionPath, pResult->eventConditionPath) == 0)
-              : (pWindowData->endTime >= pResult->reqStartTime);
-      if (pResult->exactWindow && pResult->exactWindowMatched && !windowMatched) {
+          pWindowData->startTime == pResult->reqStartTime && pWindowData->endTime == pResult->reqEndTime &&
+          strcmp(pWindowData->eventConditionPath, pResult->eventConditionPath) == 0;
+      if (pResult->exactWindowMatched && !windowMatched) {
         *finished = true;
         return code;
       }
@@ -141,35 +318,22 @@ static int32_t getAlignDataFromMem(SResultIter* pResult, SSDataBlock** ppBlock, 
           }
           (void)atomic_sub_fetch_64(&g_pDataSinkManager.usedMemSize, pMoveWinInfo->moveSize);
         } else {
-          TSKEY start = pResult->exactWindow ? pResult->reqStartTime : TSKEY_MIN;
-          TSKEY end = pResult->exactWindow ? pResult->reqEndTime : TSKEY_MAX;
           code = getRangeInWindowBlock(pWindowData, pWindowData->dataLen - (int64_t)sizeof(SSlidingWindowInMem),
-                                       pResult->tsColSlotId, start, end, ppBlock);
+                                       pResult->tsColSlotId, pResult->reqStartTime, pResult->reqEndTime, ppBlock);
           if (code) {
             return code;
           }
         }
-        if (pResult->exactWindow) {
-          pResult->exactWindowMatched = true;
-        }
+        pResult->exactWindowMatched = true;
       }
 
       if (++pResult->winIndex >= pBlockInfo->nWindow) {
         pResult->winIndex = 0;
         pResult->offset = 0;
-        if (pResult->exactWindow) {
-          pResult->blockIndex++;
-          if (pResult->blockIndex >= pAlignGrpMgr->blocksInMem->size) {
-            *finished = true;
-            return code;
-          }
-        } else {
-          destroyAlignBlockInMemPP(ppBlockInfo);
-          taosArrayRemove(pAlignGrpMgr->blocksInMem, 0);
-          if (pAlignGrpMgr->blocksInMem->size == 0) {
-            *finished = true;
-            return code;
-          }
+        pResult->blockIndex++;
+        if (pResult->blockIndex >= pAlignGrpMgr->blocksInMem->size) {
+          *finished = true;
+          return code;
         }
         if (!found) {
           break;  // break the while loop
@@ -354,7 +518,11 @@ void destroySlidingWindowInMemPP(void* pData) {
 void destroyAlignBlockInMemPP(void* ppData) {
   SAlignBlocksInMem* pAlignBlockInfo = *(SAlignBlocksInMem**)ppData;
   if (pAlignBlockInfo) {
-    (void)atomic_sub_fetch_64(&g_pDataSinkManager.usedMemSize, DS_FILE_BLOCK_SIZE + sizeof(SAlignBlocksInMem));
+    (void)atomic_sub_fetch_64(&g_pDataSinkManager.usedMemSize,
+                              DS_FILE_BLOCK_SIZE + sizeof(SAlignBlocksInMem) + pAlignBlockInfo->consumedCap);
+    taosMemoryFree(pAlignBlockInfo->pConsumed);
+    pAlignBlockInfo->pConsumed = NULL;
+    pAlignBlockInfo->consumedCap = 0;
     taosMemoryFree(pAlignBlockInfo);
     *(SAlignBlocksInMem**)ppData = NULL;
   }
@@ -363,8 +531,13 @@ void destroyAlignBlockInMemPP(void* ppData) {
 void destroyAlignBlockInMem(void* pData) {
   SAlignBlocksInMem* pAlignBlockInfo = (SAlignBlocksInMem*)pData;
   if (pAlignBlockInfo) {
+    int32_t consumedCap = pAlignBlockInfo->consumedCap;
+    taosMemoryFree(pAlignBlockInfo->pConsumed);
+    pAlignBlockInfo->pConsumed = NULL;
+    pAlignBlockInfo->consumedCap = 0;
     taosMemoryFree(pAlignBlockInfo);
-    (void)atomic_sub_fetch_64(&g_pDataSinkManager.usedMemSize, DS_FILE_BLOCK_SIZE + sizeof(SAlignBlocksInMem));
+    (void)atomic_sub_fetch_64(&g_pDataSinkManager.usedMemSize,
+                              DS_FILE_BLOCK_SIZE + sizeof(SAlignBlocksInMem) + consumedCap);
   }
 }
 
@@ -411,6 +584,93 @@ int32_t getEnoughBuffWindow(SAlignGrpMgr* pAlignGrpMgr, size_t dataEncodeBufSize
   return TSDB_CODE_SUCCESS;
 }
 
+/* Release the unread fragments of the window a finished or cancelled read was serving. A non-exact
+ * (immediate-clean) stream can store one logical window as several cache records; a LIMIT projection may
+ * finish before every fragment is fetched, and the request cleanup path would otherwise leave them behind.
+ * Those records then keep their block's consumedCount below nWindow, so the block is never reclaimed and
+ * later reads rescan the stale fragments. Drop exactly this request's fragments and reclaim the block once
+ * every window it holds has been consumed, leaving other windows untouched so out-of-order reads keep
+ * working. */
+int32_t alignReleaseWindowFragments(SAlignGrpMgr* pAlignGrpMgr, int64_t reqStartTime, int64_t reqEndTime,
+                                    const char* eventConditionPath) {
+  if (pAlignGrpMgr == NULL || pAlignGrpMgr->blocksInMem == NULL) {
+    return TSDB_CODE_SUCCESS;
+  }
+  for (int32_t blockIdx = 0; blockIdx < taosArrayGetSize(pAlignGrpMgr->blocksInMem);) {
+    SAlignBlocksInMem** ppBlockInfo = taosArrayGet(pAlignGrpMgr->blocksInMem, blockIdx);
+    if (ppBlockInfo == NULL || *ppBlockInfo == NULL) {
+      ++blockIdx;
+      continue;
+    }
+    SAlignBlocksInMem* pBlockInfo = *ppBlockInfo;
+    int64_t            offset = 0;
+    for (int32_t winIndex = 0; winIndex < pBlockInfo->nWindow; ++winIndex) {
+      SSlidingWindowInMem* pWindowData =
+          (SSlidingWindowInMem*)((char*)pBlockInfo + sizeof(SAlignBlocksInMem) + offset);
+      int64_t windowSize = pWindowData->dataLen == 0 ? sizeof(SSlidingWindowInMem) + sizeof(SMoveWindowInfo)
+                                                     : pWindowData->dataLen;
+      offset += windowSize;
+      if (alignWindowConsumed(pBlockInfo, winIndex)) {
+        continue;
+      }
+      if (pWindowData->startTime != reqStartTime || pWindowData->endTime != reqEndTime) {
+        continue;
+      }
+      if (eventConditionPath != NULL && eventConditionPath[0] != '\0' &&
+          strcmp(pWindowData->eventConditionPath, eventConditionPath) != 0) {
+        continue;
+      }
+      if (pWindowData->dataLen == 0) {
+        SMoveWindowInfo* pMoveWinInfo = getWindowDataBuf(pWindowData);
+        if (pMoveWinInfo->pData != NULL) {
+          blockDataDestroy(pMoveWinInfo->pData);
+          pMoveWinInfo->pData = NULL;
+          (void)atomic_sub_fetch_64(&g_pDataSinkManager.usedMemSize, pMoveWinInfo->moveSize);
+        }
+      }
+      if (pBlockInfo->pConsumed != NULL && winIndex < pBlockInfo->consumedCap && !pBlockInfo->pConsumed[winIndex]) {
+        pBlockInfo->pConsumed[winIndex] = 1;
+        ++pBlockInfo->consumedCount;
+      }
+    }
+    if (pBlockInfo->nWindow > 0 && pBlockInfo->consumedCount == pBlockInfo->nWindow) {
+      stDebug("release align cache block after window read finished, groupId:%" PRId64 " windows:%d",
+              pAlignGrpMgr->groupId, pBlockInfo->nWindow);
+      destroyAlignBlockInMemPP(ppBlockInfo);
+      taosArrayRemove(pAlignGrpMgr->blocksInMem, blockIdx);
+    } else {
+      ++blockIdx;
+    }
+  }
+  return TSDB_CODE_SUCCESS;
+}
+
+/* Drop the block a caller just obtained but could not use: only a block that holds neither a
+ * window nor data is removed, so a reused block that already carries windows is never touched.
+ * Without this, a failed flags allocation would leave an empty block in the group cache that
+ * the reader never reclaims (it only releases blocks with nWindow > 0). */
+static void dropUnusedAlignBlock(SAlignGrpMgr* pAlignGrpMgr, SAlignBlocksInMem* pAlignBlockInfo) {
+  if (pAlignGrpMgr == NULL || pAlignGrpMgr->blocksInMem == NULL || pAlignBlockInfo == NULL) {
+    return;
+  }
+  if (pAlignBlockInfo->nWindow != 0 || pAlignBlockInfo->dataLen != 0) {
+    return;
+  }
+  // getEnoughBuffWindow only hands out the trailing block, and a block that is still referenced by
+  // the array must not be freed: releasing it here would leave a dangling pointer behind.
+  int32_t lastIdx = taosArrayGetSize(pAlignGrpMgr->blocksInMem) - 1;
+  if (lastIdx < 0) {
+    return;
+  }
+  SAlignBlocksInMem** ppLast = taosArrayGet(pAlignGrpMgr->blocksInMem, lastIdx);
+  if (ppLast == NULL || *ppLast != pAlignBlockInfo) {
+    stError("cannot release align block since it is not the trailing block, lastIdx:%d", lastIdx);
+    return;
+  }
+  taosArrayRemove(pAlignGrpMgr->blocksInMem, lastIdx);
+  destroyAlignBlockInMem(pAlignBlockInfo);
+}
+
 int32_t buildAlignWindowInMemBlock(SAlignGrpMgr* pAlignGrpMgr, SSDataBlock* pBlock, int32_t tsColSlotId, TSKEY wstart,
                                    TSKEY wend, const char* eventConditionPath, int32_t startIndex, int32_t endIndex) {
   int32_t code = TSDB_CODE_SUCCESS;
@@ -429,6 +689,11 @@ int32_t buildAlignWindowInMemBlock(SAlignGrpMgr* pAlignGrpMgr, SSDataBlock* pBlo
   SAlignBlocksInMem* pAlignBlockInfo = NULL;
   code = getEnoughBuffWindow(pAlignGrpMgr, buffSize, &pAlignBlockInfo);
   QUERY_CHECK_CODE(code, lino, _end);
+  code = ensureAlignConsumedCapacity(pAlignBlockInfo, pAlignBlockInfo->nWindow + 1);
+  if (code != TSDB_CODE_SUCCESS) {
+    dropUnusedAlignBlock(pAlignGrpMgr, pAlignBlockInfo);
+    QUERY_CHECK_CODE(code, lino, _end);
+  }
 
   SSlidingWindowInMem* pSlidingWinInMem = (SSlidingWindowInMem*)(getNextBuffStart(pAlignBlockInfo));
   pSlidingWinInMem->endTime = wend;
@@ -452,6 +717,7 @@ int32_t buildAlignWindowInMemBlock(SAlignGrpMgr* pAlignGrpMgr, SSDataBlock* pBlo
   }
 
   setUsedBlockBuf(pAlignBlockInfo, buffSize);
+  alignRecordWindowOrder(pAlignGrpMgr, wstart);
 
   return TSDB_CODE_SUCCESS;
 _end:
@@ -472,6 +738,11 @@ int32_t buildMoveAlignWindowInMem(SAlignGrpMgr* pAlignGrpMgr, SSDataBlock* pBloc
   SAlignBlocksInMem* pAlignBlockInfo = NULL;
   code = getEnoughBuffWindow(pAlignGrpMgr, dataEncodeBufSize, &pAlignBlockInfo);
   QUERY_CHECK_CODE(code, lino, _end);
+  code = ensureAlignConsumedCapacity(pAlignBlockInfo, pAlignBlockInfo->nWindow + 1);
+  if (code != TSDB_CODE_SUCCESS) {
+    dropUnusedAlignBlock(pAlignGrpMgr, pAlignBlockInfo);
+    QUERY_CHECK_CODE(code, lino, _end);
+  }
 
   SSlidingWindowInMem* pSlidingWinInMem = (SSlidingWindowInMem*)(getNextBuffStart(pAlignBlockInfo));
   pSlidingWinInMem->endTime = wend;
@@ -484,6 +755,7 @@ int32_t buildMoveAlignWindowInMem(SAlignGrpMgr* pAlignGrpMgr, SSDataBlock* pBloc
   pMoveInfo->pData = pBlock;
   (void)atomic_add_fetch_64(&g_pDataSinkManager.usedMemSize, moveSize);
   setUsedBlockBuf(pAlignBlockInfo, dataEncodeBufSize);
+  alignRecordWindowOrder(pAlignGrpMgr, wstart);
 
   return TSDB_CODE_SUCCESS;
 _end:

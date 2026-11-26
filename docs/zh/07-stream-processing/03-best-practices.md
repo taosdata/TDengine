@@ -61,9 +61,18 @@ description: 流式计算部署、建流设计与维护建议
 执行前需有可用的 snode，并在 `ws://localhost:8080/notify` 启动 WebSocket 接收服务；其中 `localhost` 指运行 taosd 的主机。以下示例假设客户端和服务端时区均为 `Asia/Shanghai`（东八区），数据库精度为毫秒。先创建空表和两个流，等待流就绪后再写入示例数据。
 
 ```sql
-CREATE DATABASE notify_demo VGROUPS 1 PRECISION 'ms' KEEP 3650;
+CREATE DATABASE notify_demo
+  VGROUPS 1
+  PRECISION 'ms'
+  KEEP 3650;
+
 USE notify_demo;
-CREATE TABLE measurements (ts TIMESTAMP, current DOUBLE, quality INT);
+
+CREATE TABLE measurements (
+  ts      TIMESTAMP,
+  current DOUBLE,
+  quality INT
+);
 ```
 
 **示例一：按计算结果过滤通知**
@@ -72,13 +81,15 @@ CREATE TABLE measurements (ts TIMESTAMP, current DOUBLE, quality INT);
 
 ```sql
 CREATE STREAM avg_alarm
-  INTERVAL(10s) SLIDING(10s) FROM measurements
-  NOTIFY('ws://localhost:8080/notify')
-    ON(WINDOW_CLOSE) WHERE avg_current > 20
+  INTERVAL(10s) SLIDING(10s)
+  FROM measurements
+  NOTIFY('ws://localhost:8080/notify') ON (WINDOW_CLOSE) WHERE avg_current > 20
   INTO avg_results
-  AS SELECT _twstart AS window_start,
-            AVG(current) AS avg_current
-     FROM %%trows;
+  AS
+    SELECT
+      _twstart AS window_start,
+      AVG(current) AS avg_current
+    FROM %%trows;
 ```
 
 `avg_current` 是计算查询的输出别名。平均值不超过 20 的结果仍然写入 `avg_results`，只是不会出现在结果通知中。
@@ -89,14 +100,20 @@ CREATE STREAM avg_alarm
 
 ```sql
 CREATE STREAM quality_alarm
-  INTERVAL(10s) SLIDING(10s) FROM measurements
-  NOTIFY('ws://localhost:8080/notify')
-    ON(WINDOW_CLOSE) WHERE bad_rows > 0
+  INTERVAL(10s) SLIDING(10s)
+  FROM measurements
+  NOTIFY('ws://localhost:8080/notify') ON (WINDOW_CLOSE) WHERE bad_rows > 0
   INTO quality_results
-  AS SELECT _twstart AS window_start,
-            AVG(current) AS avg_current,
-            SUM(CASE WHEN quality = 0 THEN 1 ELSE 0 END) AS bad_rows
-     FROM %%trows;
+  AS
+    SELECT
+      _twstart AS window_start,
+      AVG(current) AS avg_current,
+      SUM(
+        CASE
+          WHEN quality = 0 THEN 1
+          ELSE 0
+        END) AS bad_rows
+    FROM %%trows;
 ```
 
 这里判断的是“窗口内至少有一条异常记录”，不等同于“最后一条记录异常”或“全部记录异常”。`bad_rows` 是显式输出的结果列，会同时保存在 `quality_results` 和匹配的通知结果中。如果计算查询未输出 `quality`，直接使用 `NOTIFY ... WHERE quality = 0` 会被拒绝。
@@ -106,15 +123,18 @@ CREATE STREAM quality_alarm
 查询任务状态，确认上述两个流的 `Trigger` 任务均为 `Running` 后，再写入数据：
 
 ```sql
-SELECT stream_name, status FROM information_schema.ins_stream_tasks
+SELECT
+  stream_name,
+  status
+FROM information_schema.ins_stream_tasks
 WHERE type = 'Trigger';
 
-INSERT INTO measurements VALUES
-    ('2025-12-09 00:00:00', 10, 0)
-    ('2025-12-09 00:00:01', 20, 1)
-    ('2025-12-09 00:00:10', 30, 1)
-    ('2025-12-09 00:00:11', 50, 1)
-    ('2025-12-09 00:00:20', 0, 1);
+INSERT INTO measurements
+VALUES ('2025-12-09 00:00:00', 10, 0)
+       ('2025-12-09 00:00:01', 20, 1)
+       ('2025-12-09 00:00:10', 30, 1)
+       ('2025-12-09 00:00:11', 50, 1)
+       ('2025-12-09 00:00:20', 0, 1);
 ```
 
 最后一行使事件时间推进到 `00:00:20`，关闭前两个 10 秒窗口；它自身属于第三个尚未关闭的窗口。前两个窗口的计算和通知情况如下：
@@ -127,31 +147,159 @@ INSERT INTO measurements VALUES
 两个输出表均保存这两个窗口的计算结果，其中 `bad_rows` 仅由 `quality_alarm` 输出。可以查询输出表，并与 WebSocket 接收到的两个流的通知分别对照：
 
 ```sql
-SELECT * FROM avg_results ORDER BY window_start;
-SELECT * FROM quality_results ORDER BY window_start;
+SELECT *
+FROM avg_results
+ORDER BY window_start;
+
+SELECT *
+FROM quality_results
+ORDER BY window_start;
 ```
 
 第一个窗口的 `avg_current = 15`，说明 `quality = 1` 的记录仍参与了平均值计算。`NOTIFY ... WHERE` 不等同于 `PRE_FILTER` 或计算查询中的 `WHERE`：后两者会分别过滤触发数据或计算输入，而通知条件只筛选结果通知。
+
+### 用标签作为运行中可修改的阈值 {#dynamic-threshold}
+
+以下示例把设备 `d1` 的上限 `hi` 保存在配置表 `cfg_d1` 的标签中，虚拟子表 `v1` 通过标签引用读取该上限。流运行期间修改 `cfg_d1` 的标签值，后续计算即按新上限判断。适用条件和注意事项见 [运行中更新计算阈值](./02-instructions.md#update-threshold)。
+
+执行前需有可用的 snode。先创建表和流：
+
+```sql
+CREATE DATABASE thresh_demo
+  VGROUPS 1
+  PRECISION 'ms';
+
+USE thresh_demo;
+
+CREATE STABLE src (
+  ts  TIMESTAMP,
+  vol DOUBLE
+) TAGS (
+  device VARCHAR(32)
+);
+
+CREATE TABLE d1
+  USING src
+  TAGS ('d1');
+
+CREATE STABLE cfg (
+  ts    TIMESTAMP,
+  dummy INT
+) TAGS (
+  hi DOUBLE
+);
+
+CREATE TABLE cfg_d1
+  USING cfg
+  TAGS (80.0);
+
+INSERT INTO cfg_d1
+VALUES (NOW, 0);
+
+CREATE STABLE vst (
+  ts  TIMESTAMP,
+  vol DOUBLE
+) TAGS (
+  device VARCHAR(32),
+  hi     DOUBLE
+)
+  VIRTUAL 1;
+
+CREATE VTABLE v1 (
+  vol FROM d1.vol
+)
+  USING vst
+  TAGS ('d1', cfg_d1.hi);
+
+CREATE STREAM s_hi
+  COUNT_WINDOW(1)
+  FROM vst
+  PARTITION BY tbname
+  INTO thresh_alarm
+  AS
+    SELECT
+      _twend AS ts,
+      LAST(vol) AS vol,
+      LAST(hi) AS hi,
+      CASE
+        WHEN LAST(vol) > LAST(hi) THEN 1
+        ELSE 0
+      END AS over_limit
+    FROM %%tbname;
+```
+
+流按虚拟子表分组，`hi` 只在计算查询中使用，不作为分组列。确认流的 `Trigger` 任务为 `Running` 后，写入第一条数据：
+
+```sql
+SELECT
+  stream_name,
+  status
+FROM information_schema.ins_stream_tasks
+WHERE type = 'Trigger';
+
+INSERT INTO d1
+VALUES ('2026-01-01 00:00:00', 90);
+```
+
+将上限改为 100，再写入一条相同的数值：
+
+```sql
+ALTER TABLE cfg_d1 SET TAG hi = 100.0;
+
+INSERT INTO d1
+VALUES ('2026-01-01 00:00:01', 90);
+```
+
+查询结果：
+
+```sql
+SELECT
+  ts,
+  vol,
+  hi,
+  over_limit
+FROM thresh_alarm
+ORDER BY ts;
+```
+
+| ts | vol | hi | over_limit |
+| --- | --- | --- | --- |
+| 2026-01-01 00:00:00.000 | 90 | 80 | 1 |
+| 2026-01-01 00:00:01.000 | 90 | 100 | 0 |
+
+第一行在修改前计算，保持原结果；第二行使用新上限。
+
+如果阈值直接作为触发子表的标签，例如在 `src` 上定义 `hi` 标签，流按 `tbname` 分组并以 `src` 为触发表，则用 `ALTER TABLE d1 SET TAG hi = 100.0` 修改即可，规则相同。若流写成 `PARTITION BY hi`，该修改会被拒绝。
 
 ### 计数窗口触发
 
 - 表 tb1 每写入 1 行数据时，计算表 tb2 在同一时刻前 5 分钟内 col1 的平均值，计算结果写入表 tb3。
 
 ```SQL
-CREATE stream sm1 count_window(1) FROM tb1 
-  INTO tb3 AS
-    SELECT _twstart, avg(col1) FROM tb2 
-    WHERE _c0 >= _twend - 5m AND _c0 <= _twend;
+CREATE STREAM sm1
+  COUNT_WINDOW(1)
+  FROM tb1
+  INTO tb3
+  AS
+    SELECT
+      _twstart,
+      AVG(col1)
+    FROM tb2
+    WHERE _c0 >= _twend - 5m
+      AND _c0 <= _twend;
 ```
 
 - 表 tb1 每写入 10 行大于 0 的 col1 列数据时，计算这 10 条数据 col1 列的平均值，计算结果不需要保存，需要通知到 `ws://localhost:8080/notify`。
 
 ```SQL
-CREATE stream sm2 count_window(10, 1, col1) FROM tb1 
-  STREAM_OPTIONS(CALC_NOTIFY_ONLY | PRE_FILTER(col1 > 0)) 
-  NOTIFY("ws://localhost:8080/notify") ON (WINDOW_CLOSE) 
-  AS 
-    SELECT avg(col1) FROM %%trows;
+CREATE STREAM sm2
+  COUNT_WINDOW(10, 1, col1)
+  FROM tb1
+  STREAM_OPTIONS(CALC_NOTIFY_ONLY | PRE_FILTER(col1 > 0))
+  NOTIFY("ws://localhost:8080/notify") ON (WINDOW_CLOSE)
+  AS
+    SELECT avg(col1)
+    FROM %%trows;
 ```
 
 ### 事件窗口触发
@@ -159,11 +307,18 @@ CREATE stream sm2 count_window(10, 1, col1) FROM tb1
 - 当环境温度超过 80 度持续超过 10 分钟时，计算环境温度的平均值。
 
 ```SQL
-CREATE STREAM `idmp`.`ana_temp` EVENT_WINDOW(start with `环境温度` > 80 end with `环境温度` <= 80 ) TRUE_FOR(10m) FROM `idmp`.`vt_气象传感器02_471544` 
-  STREAM_OPTIONS( IGNORE_DISORDER)
-  INTO `idmp`.`ana_temp` 
-  AS 
-    SELECT _twstart+0s as output_timestamp, avg(`环境温度`) as `平均环境温度` FROM idmp.`vt_气象传感器02_471544` where ts >= _twstart and ts <= _twend;
+CREATE STREAM `idmp`.`ana_temp`
+  EVENT_WINDOW(START WITH `环境温度` > 80 END WITH `环境温度` <= 80) TRUE_FOR(10m)
+  FROM `idmp`.`vt_气象传感器02_471544`
+  STREAM_OPTIONS(IGNORE_DISORDER)
+  INTO `idmp`.`ana_temp`
+  AS
+    SELECT
+      _twstart + 0s AS output_timestamp,
+      AVG(`环境温度`) AS `平均环境温度`
+    FROM idmp.`vt_气象传感器02_471544`
+    WHERE ts >= _twstart
+      AND ts <= _twend;
 ```
 
 ### 滑动触发
@@ -171,11 +326,18 @@ CREATE STREAM `idmp`.`ana_temp` EVENT_WINDOW(start with `环境温度` > 80 end 
 - 超级表 stb1 的每个子表在每 5 分钟的时间窗口结束后，计算这 5 分钟的 col1 的平均值，每个子表的计算结果分别写入超级表 stb2 的不同子表中。
 
 ```SQL
-CREATE stream sm1 INTERVAL(5m) SLIDING(5m) FROM stb1 PARTITION BY tbname 
-  INTO stb2 
-  AS 
-    SELECT _twstart, avg(col1) FROM %%tbname 
-    WHERE _c0 >= _twstart AND _c0 <= _twend;
+CREATE STREAM sm1
+  INTERVAL(5m) SLIDING(5m)
+  FROM stb1
+  PARTITION BY tbname
+  INTO stb2
+  AS
+    SELECT
+      _twstart,
+      AVG(col1)
+    FROM %%tbname
+    WHERE _c0 >= _twstart
+      AND _c0 <= _twend;
 ```
 
 > 上面 SQL 中的 `from %%tbname where _c0 >= _twstart and _c0 <= _twend` 与 `from %%trows` 的含义是不完全相同的。前者表示计算使用触发分组对应的表中在触发窗口时间段内的数据，窗口内的数据在计算时与 `%%trows` 相比较是有可能有变化的，后者则表示只使用触发时读取到的窗口数据。
@@ -183,21 +345,35 @@ CREATE stream sm1 INTERVAL(5m) SLIDING(5m) FROM stb1 PARTITION BY tbname
 - 超级表 stb1 的每个子表从最早的数据开始，在每 5 分钟的时间窗口结束后或从窗口启动 1 分钟后窗口仍然未关闭时，计算窗口内的 col1 的平均值，每个子表的计算结果分别写入超级表 stb2 的不同子表中。
 
 ```SQL
-CREATE stream sm2 INTERVAL(5m) SLIDING(5m) FROM stb1 PARTITION BY tbname 
-  STREAM_OPTIONS(MAX_DELAY(1m) | FILL_HISTORY_FIRST) 
-  INTO stb2 
-  AS 
-    SELECT _twstart, avg(col1) FROM %%tbname WHERE _c0 >= _twstart AND _c0 <= _twend;
+CREATE STREAM sm2
+  INTERVAL(5m) SLIDING(5m)
+  FROM stb1
+  PARTITION BY tbname
+  STREAM_OPTIONS(MAX_DELAY(1m) | FILL_HISTORY_FIRST)
+  INTO stb2
+  AS
+    SELECT
+      _twstart,
+      avg(col1)
+    FROM %%tbname
+    WHERE _c0 >= _twstart
+      AND _c0 <= _twend;
 ```
 
 - 计算电表电流的每分钟平均值，并在窗口打开、关闭时向两个通知地址发送通知，计算历史数据时也发送通知（`NOTIFY_HISTORY`）。
 
 ```sql
-CREATE STREAM avg_stream INTERVAL(1m) SLIDING(1m) FROM meters 
-  NOTIFY ('ws://localhost:8080/notify', 'wss://192.168.1.1:8080/notify?key=foo') ON (WINDOW_OPEN | WINDOW_CLOSE) NOTIFY_OPTIONS(NOTIFY_HISTORY)
+CREATE STREAM avg_stream
+  INTERVAL(1m) SLIDING(1m)
+  FROM meters
+  NOTIFY('ws://localhost:8080/notify', 'wss://192.168.1.1:8080/notify?key=foo') ON (WINDOW_OPEN | WINDOW_CLOSE) NOTIFY_OPTIONS(NOTIFY_HISTORY)
   INTO avg_stb
-  AS 
-    SELECT _twstart, _twend, AVG(current) FROM %%trows;
+  AS
+    SELECT
+      _twstart,
+      _twend,
+      AVG(current)
+    FROM %%trows;
 ```
 
 - `meters` 超级表的 `location` 标签使用 `.` 表示位置层级。每小时计算各层级节点的平均电流。若某个子表的 `location = 'California.SanFrancisco.Soma'`，该子表的数据会同时参与 `California`、`California.SanFrancisco` 和 `California.SanFrancisco.Soma` 三个分组。
@@ -205,15 +381,16 @@ CREATE STREAM avg_stream INTERVAL(1m) SLIDING(1m) FROM meters
 ```SQL
 CREATE STREAM rollup_avg_current
   INTERVAL(1h) SLIDING(1h)
-  FROM meters ROLLUP BY location
+  FROM meters
+  ROLLUP BY location
   INTO rollup_avg
-  OUTPUT_SUBTABLE(concat(%%1, '_avg'))
-  TAGS (
-    location VARCHAR(256) AS %%1,
-    node_name VARCHAR(64) AS %%rollup_tag
-  )
+    OUTPUT_SUBTABLE(CONCAT(%%1, '_avg'))
+    TAGS (location VARCHAR(256) AS %%1, node_name VARCHAR(64) AS %%rollup_tag)
   AS
-    SELECT _twstart, avg(current), _trollup_tbcount
+    SELECT
+      _twstart,
+      AVG(current),
+      _trollup_tbcount
     FROM %%trows;
 ```
 
@@ -222,31 +399,40 @@ CREATE STREAM rollup_avg_current
 - 每过 1 小时计算表 tb1 中总的数据量，计算结果写入表 tb2 (毫秒库)。
 
 ```SQL
-CREATE stream sm1 PERIOD(1h) 
-  INTO tb2 
+CREATE STREAM sm1
+  PERIOD(1h)
+  INTO tb2
   AS
-    SELECT cast(_tlocaltime/1000000 AS TIMESTAMP), count(*) FROM tb1;
+    SELECT
+      CAST(_tlocaltime / 1000000 AS TIMESTAMP),
+      COUNT(*)
+    FROM tb1;
 ```
 
 - 每过 1 小时通知 `ws://localhost:8080/notify` 当前系统时间。
 
 ```SQL
-CREATE stream sm1 PERIOD(1h) 
+CREATE STREAM sm1
+  PERIOD(1h)
   NOTIFY("ws://localhost:8080/notify");
 ```
 
 - 每过 1 天计算智能电表 meters 中各子表的耗电量和，计算结果写入降采样超级表 meters_1d 中并把各子表 TAG 值原样带过来。
 
 ```SQL
-CREATE stream stream_consumer_energy 
-  PERIOD(1d) 
-  FROM meters PARTITION BY tbname, groupid, location
-  INTO meters_1d (ts, sum_power)
-     TAGS (groupid INT AS groupid , location VARCHAR(24) AS location)
-  AS 
-     SELECT cast(_tlocaltime/1000000 AS timestamp) ,sum(current*voltage) AS sum_power
-          FROM meters
-          WHERE ts >= cast(_tprev_localtime/1000000 AS timestamp) AND ts <= cast(_tlocaltime/1000000 AS timestamp);
+CREATE STREAM stream_consumer_energy
+  PERIOD(1d)
+  FROM meters
+  PARTITION BY tbname, groupid, location
+  INTO meters_1d(ts, sum_power)
+    TAGS (groupid INT AS groupid, location VARCHAR(24) AS location)
+  AS
+    SELECT
+      CAST(_tlocaltime / 1000000 AS TIMESTAMP),
+      SUM(current * voltage) AS sum_power
+    FROM meters
+    WHERE ts >= CAST(_tprev_localtime / 1000000 AS TIMESTAMP)
+      AND ts <= CAST(_tlocaltime / 1000000 AS TIMESTAMP);
 ```
 
 - 每周一 00:00:00 计算上周的设备运行汇总，计算结果写入 weekly_summary 表。
@@ -254,14 +440,16 @@ CREATE stream stream_consumer_energy
 ```SQL
 CREATE STREAM weekly_device_summary
   PERIOD(1w)
-  FROM meters PARTITION BY location
+  FROM meters
+  PARTITION BY location
   INTO weekly_summary
   AS
-    SELECT _wstart AS week_start,
-           location,
-           AVG(current) AS avg_current,
-           MAX(voltage) AS max_voltage,
-           COUNT(*) AS record_count
+    SELECT
+      _wstart AS week_start,
+      location,
+      AVG(current) AS avg_current,
+      MAX(voltage) AS max_voltage,
+      COUNT(*) AS record_count
     FROM meters
     INTERVAL(1w)
     PARTITION BY location;
@@ -272,13 +460,15 @@ CREATE STREAM weekly_device_summary
 ```SQL
 CREATE STREAM monthly_energy_bill
   PERIOD(1n)
-  FROM meters PARTITION BY location, groupId
+  FROM meters
+  PARTITION BY location, groupId
   INTO monthly_bill
   AS
-    SELECT _wstart AS month_start,
-           location,
-           groupId,
-           SUM(current * voltage) AS total_energy
+    SELECT
+      _wstart AS month_start,
+      location,
+      groupId,
+      SUM(current * voltage) AS total_energy
     FROM meters
     INTERVAL(1n)
     PARTITION BY location, groupId;
@@ -289,12 +479,14 @@ CREATE STREAM monthly_energy_bill
 ```SQL
 CREATE STREAM mid_month_settlement
   PERIOD(1n, 14d)
-  FROM meters PARTITION BY location
+  FROM meters
+  PARTITION BY location
   INTO mid_month_settlement_table
   AS
-    SELECT _wstart AS period_start,
-           location,
-           SUM(current * voltage) AS total_energy
+    SELECT
+      _wstart AS period_start,
+      location,
+      SUM(current * voltage) AS total_energy
     FROM meters
     INTERVAL(1n)
     PARTITION BY location;
@@ -305,15 +497,121 @@ CREATE STREAM mid_month_settlement
 ```SQL
 CREATE STREAM yearly_archive
   PERIOD(1y)
-  FROM meters PARTITION BY location, groupId
+  FROM meters
+  PARTITION BY location, groupId
   INTO yearly_archive_table
   AS
-    SELECT _wstart AS year_start,
-           location,
-           groupId,
-           AVG(current) AS avg_current,
-           SUM(current * voltage) AS total_energy
+    SELECT
+      _wstart AS year_start,
+      location,
+      groupId,
+      AVG(current) AS avg_current,
+      SUM(current * voltage) AS total_energy
     FROM meters
     INTERVAL(1y)
     PARTITION BY location, groupId;
 ```
+
+### 用异步电压和电流计算平均功率
+
+准备好运行中的流节点。示例使用毫秒精度，时间戳从 UTC 2026-01-01 00:00:00 开始，数据库保留期覆盖示例数据。
+
+```sql
+CREATE DATABASE manual_align_power PRECISION 'ms' KEEP 3650;
+USE manual_align_power;
+CREATE TABLE volts (ts TIMESTAMP, value DOUBLE);
+CREATE TABLE amps (ts TIMESTAMP, value DOUBLE);
+CREATE VTABLE meter (ts TIMESTAMP, voltage DOUBLE FROM volts.value,
+                     current_a DOUBLE FROM amps.value);
+
+CREATE STREAM power_10s INTERVAL(10s) SLIDING(10s)
+FROM TABLE(TIME_ALIGN(TABLE meter, TRUE, 'voltage:PREV:_p;current_a:PREV:_p'))
+PARTITION BY tbname INTO power_10s_out AS
+SELECT _twstart AS ws, COUNT(voltage_p * current_a_p) AS samples,
+       AVG(voltage_p * current_a_p) AS power_avg
+FROM TABLE(TIME_ALIGN(TABLE %%tbname, TRUE, 'voltage:PREV:_p;current_a:PREV:_p'))
+WHERE ts >= _twstart AND ts < _twend;
+
+SELECT status FROM information_schema.ins_stream_tasks
+WHERE stream_name = 'power_10s' AND type = 'Trigger';
+```
+
+触发任务显示 `Running` 后写入读数，等第一个窗口关闭后查询结果。
+
+```sql
+INSERT INTO volts VALUES (1767225600000, 220);
+INSERT INTO amps VALUES (1767225601000, 2) (1767225602000, 3);
+INSERT INTO amps VALUES (1767225611000, 4);
+SELECT CAST(ws AS BIGINT) AS start_ms, samples, power_avg
+FROM power_10s_out WHERE ws = 1767225600000;
+```
+
+第 11 秒的读数使首个十秒窗口关闭。第 0 秒只有电压，乘积为 NULL。随后两次采样得到 220 × 2 和 220 × 3，结果为 `1767225600000 | 2 | 550`。
+
+#### 限制电压前值的有效时间
+
+继续使用同一个数据库。触发过滤要求当前行有电流读数，且对齐后的电压为 220。计算查询也显式指定 `current_a IS NOT NULL`，以免只有电压的行沿用上一次电流而多计一次采样。
+
+```sql
+DROP STREAM power_10s;
+CREATE STREAM bounded_power INTERVAL(10s) SLIDING(10s)
+FROM TABLE(TIME_ALIGN(TABLE meter, TRUE, 'voltage:PREV(2s):_p;current_a:PREV:_p'))
+PARTITION BY tbname
+STREAM_OPTIONS(PRE_FILTER(voltage_p = 220 AND current_a IS NOT NULL))
+INTO bounded_power_out AS
+SELECT _twstart AS ws, COUNT(voltage_p * current_a_p) AS samples,
+       AVG(voltage_p * current_a_p) AS power_avg
+FROM TABLE(TIME_ALIGN(TABLE %%tbname, TRUE, 'voltage:PREV(2s):_p;current_a:PREV:_p'))
+WHERE ts >= _twstart AND ts < _twend AND current_a IS NOT NULL;
+SELECT status FROM information_schema.ins_stream_tasks
+WHERE stream_name = 'bounded_power' AND type = 'Trigger';
+```
+
+触发任务显示 `Running` 后写入电压。在恰好两秒和两秒零一毫秒时分别写入电流。
+
+```sql
+INSERT INTO volts VALUES (1767225660000, 220);
+INSERT INTO amps VALUES (1767225662000, 2) (1767225662001, 3);
+INSERT INTO volts VALUES (1767225671000, 220);
+INSERT INTO amps VALUES (1767225672000, 4);
+SELECT CAST(ws AS BIGINT) AS start_ms, samples, power_avg
+FROM bounded_power_out WHERE ws = 1767225660000;
+```
+
+只有电压的行被触发过滤排除，但它仍为下一条电流读数提供前值。恰好两秒时电压仍然有效，两秒零一毫秒时已经过期。查询结果为 `1767225660000 | 1 | 440`。
+
+#### 切换电压来源
+
+替代源表预先写入一条 100 伏的读数。下面的流选择对齐后电压为 100 的电流读数。
+
+```sql
+DROP STREAM bounded_power;
+CREATE TABLE replacement (ts TIMESTAMP, value DOUBLE);
+INSERT INTO replacement VALUES (1767225700000, 100);
+CREATE STREAM rebound_power INTERVAL(10s) SLIDING(10s)
+FROM TABLE(TIME_ALIGN(TABLE meter, TRUE, 'voltage:PREV:_p;current_a:PREV:_p'))
+PARTITION BY tbname
+STREAM_OPTIONS(PRE_FILTER(voltage_p = 100 AND current_a IS NOT NULL))
+INTO rebound_power_out AS
+SELECT _twstart AS ws, COUNT(voltage_p * current_a_p) AS samples,
+       AVG(voltage_p * current_a_p) AS power_avg
+FROM TABLE(TIME_ALIGN(TABLE %%tbname, TRUE, 'voltage:PREV:_p;current_a:PREV:_p'))
+WHERE ts >= _twstart AND ts < _twend AND voltage_p = 100 AND current_a IS NOT NULL;
+SELECT status FROM information_schema.ins_stream_tasks
+WHERE stream_name = 'rebound_power' AND type = 'Trigger';
+```
+
+触发任务显示 `Running` 后，先写入原来的源表，再切换电压引用，并写入两条电流读数。
+
+```sql
+INSERT INTO volts VALUES (1767225701000, 220);
+INSERT INTO amps VALUES (1767225702000, 2);
+ALTER VTABLE meter ALTER COLUMN voltage SET replacement.value;
+INSERT INTO amps VALUES (1767225721000, 3);
+INSERT INTO replacement VALUES (1767225722000, 100);
+INSERT INTO amps VALUES (1767225731000, 4);
+SELECT CAST(ws AS BIGINT) AS start_ms, samples, power_avg
+FROM rebound_power_out WHERE ws = 1767225720000;
+```
+
+第 121 秒的电流使用替代源表的电压。第 122 秒只有电压更新，计算查询会排除该行。第 131 秒的电流使窗口关闭。查询结果为 `1767225720000 | 1 | 300`。

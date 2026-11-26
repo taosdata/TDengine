@@ -25,6 +25,9 @@ import shutil
 import time as _time
 import pytest
 from collections import namedtuple
+from contextlib import contextmanager
+from functools import wraps
+from uuid import uuid4
 from itertools import zip_longest
 from typing import Dict, List, Optional, Set, Tuple
 
@@ -276,6 +279,7 @@ TSDB_CODE_EXT_OPTIONS_TLS_CONFLICT             = _code('TSDB_CODE_EXT_OPTIONS_TL
 TSDB_CODE_PAR_NAME_OR_PASSWD_TOO_LONG          = _code('TSDB_CODE_PAR_NAME_OR_PASSWD_TOO_LONG')
 
 # --- Path resolution / type mapping / pushdown ---
+TSDB_CODE_EXT_SOURCE_TYPE_NOT_SUPPORT          = _code('TSDB_CODE_EXT_SOURCE_TYPE_NOT_SUPPORT')
 TSDB_CODE_EXT_SOURCE_NOT_FOUND                 = _code('TSDB_CODE_EXT_SOURCE_NOT_FOUND')
 TSDB_CODE_EXT_DB_NOT_EXIST                     = _code('TSDB_CODE_EXT_DB_NOT_EXIST')
 TSDB_CODE_EXT_DEFAULT_NS_MISSING               = _code('TSDB_CODE_EXT_DEFAULT_NS_MISSING')
@@ -287,6 +291,7 @@ TSDB_CODE_EXT_TABLE_NOT_EXIST                  = _code('TSDB_CODE_EXT_TABLE_NOT_
 TSDB_CODE_EXT_PUSHDOWN_FAILED                  = _code('TSDB_CODE_EXT_PUSHDOWN_FAILED')
 TSDB_CODE_EXT_CONNECT_FAILED                   = _code('TSDB_CODE_EXT_CONNECT_FAILED')
 TSDB_CODE_EXT_AUTH_FAILED                      = _code('TSDB_CODE_EXT_AUTH_FAILED')
+TSDB_CODE_EXT_CLIENT_PLUGIN_MISSING            = _code('TSDB_CODE_EXT_CLIENT_PLUGIN_MISSING')
 TSDB_CODE_EXT_ACCESS_DENIED                    = _code('TSDB_CODE_EXT_ACCESS_DENIED')
 TSDB_CODE_EXT_QUERY_TIMEOUT                    = _code('TSDB_CODE_EXT_QUERY_TIMEOUT')
 TSDB_CODE_EXT_SOURCE_UNAVAILABLE               = _code('TSDB_CODE_EXT_SOURCE_UNAVAILABLE')
@@ -294,6 +299,9 @@ TSDB_CODE_EXT_RESOURCE_EXHAUSTED               = _code('TSDB_CODE_EXT_RESOURCE_E
 TSDB_CODE_EXT_FETCH_FAILED                     = _code('TSDB_CODE_EXT_FETCH_FAILED')
 TSDB_CODE_EXT_SOURCE_CHANGED                   = _code('TSDB_CODE_EXT_SOURCE_CHANGED')
 TSDB_CODE_EXT_SCHEMA_CHANGED                   = _code('TSDB_CODE_EXT_SCHEMA_CHANGED')
+TSDB_CODE_EXT_SCHEMA_CONFLICT                  = _code('TSDB_CODE_EXT_SCHEMA_CONFLICT')
+TSDB_CODE_EXT_TYPE_CONVERT_FAILED              = _code('TSDB_CODE_EXT_TYPE_CONVERT_FAILED')
+TSDB_CODE_TSC_QUERY_KILLED                      = _code('TSDB_CODE_TSC_QUERY_KILLED')
 TSDB_CODE_EXT_CAPABILITY_CHANGED               = _code('TSDB_CODE_EXT_CAPABILITY_CHANGED')
 TSDB_CODE_EXT_WRITE_DENIED                     = _code('TSDB_CODE_EXT_WRITE_DENIED')
 TSDB_CODE_EXT_STREAM_NOT_SUPPORTED             = _code('TSDB_CODE_EXT_STREAM_NOT_SUPPORTED')
@@ -428,6 +436,88 @@ def _fq_base_dir() -> str:
     return "/opt/taostest/fq"
 
 
+def _windows_service_process(port: int, names):
+    """Find the Windows external-service process bound to a test port."""
+    if sys.platform != "win32":
+        return None
+    import psutil
+    wanted = {name.lower() for name in names}
+    for conn in psutil.net_connections(kind="tcp"):
+        if conn.status != psutil.CONN_LISTEN or not conn.laddr or conn.laddr.port != port:
+            continue
+        if not conn.pid:
+            raise RuntimeError(f"Cannot identify the listener on PostgreSQL test port {port}")
+        proc = psutil.Process(conn.pid)
+        if proc.name().lower() not in wanted:
+            raise RuntimeError(f"Unexpected listener on PostgreSQL test port {port}")
+        return proc
+    return None
+
+
+def _windows_process_base(proc):
+    if proc is None:
+        return None
+    try:
+        import psutil
+    except ImportError:
+        return None
+    try:
+        executable = proc.exe()
+    except (OSError, psutil.Error):
+        return None
+    bin_dir = os.path.dirname(executable)
+    if os.path.basename(bin_dir).lower() == "bin":
+        return os.path.dirname(bin_dir)
+    return None
+
+
+def _windows_owned_pg_instance(cfg, cached_base=None):
+    """Resolve a test postmaster without adopting an arbitrary port owner."""
+    import ntpath
+    import psutil
+    if cfg.host not in ("localhost", "127.0.0.1", "::1"):
+        raise RuntimeError("PostgreSQL local lifecycle requires a loopback host")
+    listener = _windows_service_process(cfg.port, ("postgres.exe", "postgres"))
+    base = _windows_process_base(listener) if listener is not None else (
+        cached_base or os.path.join(_fq_base_dir(), "pg", cfg.version))
+    system_drive = os.environ.get("SystemDrive", "C:")
+    roots = [_fq_base_dir(), ntpath.join(system_drive + "\\", "ci-tools", "windows-ci-runtime", "fq")]
+    for variable in ("PROGRAMDATA", "LOCALAPPDATA"):
+        if os.environ.get(variable):
+            roots.append(ntpath.join(os.environ[variable], "taostest", "fq"))
+    normalize = lambda value: ntpath.normcase(ntpath.abspath(value))
+    expected = {normalize(ntpath.join(root, "pg", cfg.version)) for root in roots}
+    if not base or normalize(base) not in expected:
+        raise RuntimeError(f"PostgreSQL lifecycle refuses unapproved installation: {base}")
+    for relative in ("bin/postgres.exe", "bin/pg_ctl.exe", "bin/psql.exe", "data/PG_VERSION"):
+        if not os.path.isfile(os.path.join(base, relative)):
+            raise RuntimeError(f"PostgreSQL test installation is incomplete: {base}/{relative}")
+    pidfile = os.path.join(base, "data", "postmaster.pid")
+    try:
+        with open(pidfile, encoding="utf-8") as stream:
+            lines = stream.read().splitlines()
+    except FileNotFoundError:
+        if listener is not None:
+            raise RuntimeError("PostgreSQL listener has no test postmaster.pid")
+        return base, None
+    if len(lines) < 3 or normalize(lines[1]) != normalize(ntpath.join(base, "data")):
+        raise RuntimeError("PostgreSQL PID file does not identify the test data directory")
+    try:
+        master = psutil.Process(int(lines[0]))
+        if normalize(master.exe()) != normalize(ntpath.join(base, "bin", "postgres.exe")):
+            raise RuntimeError("PostgreSQL PID file belongs to another executable")
+        if abs(master.create_time() - int(lines[2])) > 3:
+            raise RuntimeError("PostgreSQL PID file belongs to a different process lifetime")
+        if listener is not None and listener.pid != master.pid:
+            if master.pid not in [parent.pid for parent in listener.parents()]:
+                raise RuntimeError("PostgreSQL listener does not belong to the test postmaster")
+        return base, master
+    except psutil.NoSuchProcess:
+        if listener is not None:
+            raise RuntimeError("PostgreSQL listener does not match the stale test PID file")
+        return base, None
+
+
 def _influx_windows_processes(cfg, data_dir):
     """Live InfluxDB server processes belonging to one test instance.
 
@@ -436,20 +526,37 @@ def _influx_windows_processes(cfg, data_dir):
     address or data directory, so an engine from another version is never
     signalled by mistake.
     """
+    import ntpath
     import psutil
     procs = []
     bind_arg = f"--http-bind {cfg.host}:{cfg.port}"
+    config_path = ntpath.normcase(ntpath.normpath(
+        ntpath.join(ntpath.dirname(data_dir), "influxdb.conf")))
     for proc in psutil.process_iter(["pid", "name", "cmdline"]):
         try:
             name = (proc.info.get("name") or "").lower()
             if name not in ("influxdb3.exe", "influxd.exe", "influxdb3", "influxd"):
                 continue
-            args = " ".join(proc.info.get("cmdline") or [])
+            argv = proc.info.get("cmdline") or []
+            args = " ".join(argv)
         except (psutil.NoSuchProcess, psutil.AccessDenied):
             continue
         if not args:
             continue
-        if bind_arg in args or data_dir in args or f":{cfg.port}" in args:
+        # InfluxDB 1.8 receives its bind address and data directory through
+        # this file, so neither appears in the server's command line.
+        owns_config = False
+        for index, argument in enumerate(argv):
+            option, separator, value = argument.partition("=")
+            if option not in ("-config", "--config"):
+                continue
+            if not separator:
+                value = argv[index + 1] if index + 1 < len(argv) else ""
+            if value and ntpath.normcase(ntpath.normpath(value)) == config_path:
+                owns_config = True
+                break
+        if (owns_config or bind_arg in args or data_dir in args
+                or f":{cfg.port}" in args):
             procs.append(proc)
     return procs
 
@@ -509,6 +616,87 @@ def _read_influx_token_file(ver: str) -> Optional[str]:
         return None
 
 
+INFLUX18_QUOTED_IDENTIFIER = r'"(?:[^"\\]|\\.)*"'
+
+
+def influx18_basic_gate(cfg, username="basic18", password="basic18_test_password",
+                        reported_version="1.8.10", response_override=None, tls_context=None):
+    """Require Basic authentication before forwarding to the real 1.8 fixture.
+
+    This also verifies credential consumption when the fixture disables auth.
+    Only request paths are recorded; credentials never enter diagnostic output.
+    """
+    import base64
+    from contextlib import contextmanager
+    from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
+    import threading
+    import requests
+
+    @contextmanager
+    def serve():
+        upstream = f"http://{cfg.host}:{cfg.port}"
+        backend_auth = ExtSrcEnv.influx_request_auth(cfg)
+        credentials = f"{username}:{password}".encode()
+        accepted = "Basic " + base64.b64encode(credentials).decode()
+        requests_seen = []
+
+        class Handler(BaseHTTPRequestHandler):
+            def log_message(self, *args):
+                pass
+
+            def do_GET(self):
+                requests_seen.append(self.path)
+                if self.headers.get("Authorization") != accepted:
+                    status, body = 401, b'{"error":"unauthorized"}'
+                else:
+                    response = response_override(self.path) if response_override is not None else None
+                    if response is not None:
+                        status, body = response
+                    else:
+                        try:
+                            response = requests.get(upstream + self.path, auth=backend_auth, timeout=15)
+                            status, body = response.status_code, response.content
+                        except requests.RequestException:
+                            status, body = 502, b'{"error":"upstream unavailable"}'
+                self.send_response(status)
+                if reported_version is not None:
+                    self.send_header("X-Influxdb-Version", reported_version)
+                self.send_header("Content-Type", "application/json")
+                if isinstance(body, bytes):
+                    self.send_header("Content-Length", str(len(body)))
+                else:
+                    self.send_header("Connection", "close")
+                self.end_headers()
+                try:
+                    if isinstance(body, bytes):
+                        self.wfile.write(body)
+                    else:
+                        for chunk in body:
+                            self.wfile.write(chunk)
+                            self.wfile.flush()
+                except (BrokenPipeError, ConnectionResetError):
+                    pass
+                finally:
+                    if hasattr(body, "close"):
+                        body.close()
+
+        server = ThreadingHTTPServer(("127.0.0.1", 0), Handler)
+        if tls_context is not None:
+            server.socket = tls_context.wrap_socket(server.socket, server_side=True)
+        server.daemon_threads = True
+        thread = threading.Thread(target=server.serve_forever, daemon=True)
+        thread.start()
+        try:
+            yield server.server_port, requests_seen
+        finally:
+            server.shutdown()
+            server.server_close()
+            thread.join(timeout=5)
+            assert not thread.is_alive(), "Basic authentication fixture did not stop"
+
+    return serve()
+
+
 class ExtSrcEnv:
     """Direct connections to external databases for test data setup/teardown.
 
@@ -543,8 +731,7 @@ class ExtSrcEnv:
                           if v.strip()]
     # Oracle version axis ("11g" / "19c" / "26ai").  Like SQL Server it is not
     # merged into _version_combos(); Oracle scenarios select their version
-    # explicitly.  Linux defaults to 11g (11.2.0.4); Windows keeps 26ai until
-    # an 11g Windows instance is part of that platform's test set.
+    # explicitly. Windows defaults to 26ai; Linux defaults to 11g (11.2.0.4).
     _DEFAULT_ORACLE_VERSION = "26ai" if os.name == "nt" else "11g"
     ORACLE_VERSIONS = [v.strip() for v in
                        os.getenv("FQ_ORACLE_VERSIONS", _DEFAULT_ORACLE_VERSION).split(",")
@@ -614,7 +801,10 @@ class ExtSrcEnv:
     PG_USER    = os.getenv("FQ_PG_USER", "postgres")
     PG_PASS    = os.getenv("FQ_PG_PASS", "taosdata")
 
-    INFLUX_HOST  = os.getenv("FQ_INFLUX_HOST",  "127.0.0.1")
+    INFLUX_HOST  = os.getenv("FQ_INFLUX_HOST_" + INFLUX_VERSIONS[0].replace(".", ""),
+                             os.getenv("FQ_INFLUX_HOST", "127.0.0.1"))
+    INFLUX_USER = os.getenv("FQ_INFLUX_USER", "")
+    INFLUX_PASS = os.getenv("FQ_INFLUX_PASS", "")
     INFLUX_PORT  = _INFLUX_VERSION_PORTS.get(
         INFLUX_VERSIONS[0], int(os.getenv("FQ_INFLUX_PORT", "18086")))
     # Priority: FQ_INFLUX_TOKEN env var → token file written by ensure_ext_env.sh
@@ -691,6 +881,34 @@ class ExtSrcEnv:
         return mode
 
     @classmethod
+    def influx18_plan_baseline(cls, text):
+        """Keep native plan goldens independent of endpoint and runtime timing."""
+        text = cls.baseline_environment(text)
+        lines = []
+        in_plan = False
+        for line in text.splitlines():
+            if line.startswith("taos> "):
+                in_plan = line[6:].lower().startswith("explain ")
+            if in_plan:
+                line = re.sub(r"(Source: )\S+ user=\S+", r"\1<host>:<port> user=<user>", line)
+                # Runtime storage/network counters depend on scheduling and flushes.
+                if re.match(r"\s*(?:I/O cost:|check_rows=|Network:|Sort Method:)", line):
+                    continue
+                if "->" in line:
+                    line = re.sub(r"\brows=\d+(?:\.\d+)?(?:\(\d+\))?\s+", "", line)
+                line = re.sub(r", elapsed=\d+(?:\.\d+)?ms", ", elapsed=<time>", line)
+                line = re.sub(r" efficiency=\d+(?:\.\d+)?%", "", line)
+                line = re.sub(r"[ \t]+\|$", " |", line.rstrip())
+                if line.strip() == "QUERY_PLAN |":
+                    line = "QUERY_PLAN |"
+                elif lines and lines[-1] == "QUERY_PLAN |" and re.fullmatch(r"=+", line):
+                    line = "============"
+            if not line.strip() and (not lines or not lines[-1]):
+                continue
+            lines.append(line.rstrip())
+        return "\n".join(lines).rstrip("\n") + "\n"
+
+    @classmethod
     def baseline_environment(cls, text):
         """Canonicalize configured connection parameters, never query results.
 
@@ -708,11 +926,16 @@ class ExtSrcEnv:
         external = cls._env_mode() == "external"
         sources = (("mysql", cls.MYSQL_HOST, cls.MYSQL_PORT, cls.MYSQL_PASS, 13306, "taosdata"),
                    ("postgresql", cls.PG_HOST, cls.PG_PORT, cls.PG_PASS, 15434, "taosdata"),
-                   ("influxdb", cls.INFLUX_HOST, cls.INFLUX_PORT, None, 18086, None),
+                   ("influxdb", cls.INFLUX_HOST, cls.INFLUX_PORT, None,
+                    18085 if cls.INFLUX_VERSIONS[0] == "1.8" else 18086, None),
                    ("sqlserver", cls.SQLSERVER_HOST, cls.SQLSERVER_PORT, cls.SQLSERVER_PASS,
                     1433, "TaosFq!2026"),
                    ("oracle", cls.ORACLE_HOST, cls.ORACLE_PORT, cls.ORACLE_PASS,
                     18322, "taosdata"))
+        sources += tuple(("influxdb", cfg.host, cfg.port, None,
+                          18085 if cfg.version == "1.8" else 18086, None)
+                         for cfg in cls.influx_version_configs()
+                         if cfg.version != cls.INFLUX_VERSIONS[0])
         # Local PostgreSQL runs use one dedicated port per version (18.6 ->
         # 15437) while the checked-in plan/result baselines keep the historical
         # 16-era 15434 endpoint.  Canonicalise only the version's default port
@@ -737,6 +960,13 @@ class ExtSrcEnv:
             if line.startswith("ERROR:") or (line.startswith("SQL:") and (
                     "external source" in line.lower() or
                     "information_schema.ins_ext_sources" in line.lower())):
+                if "1.8" in cls.INFLUX_VERSIONS and (
+                        line.startswith("ERROR:") or "type='influxdb'" in line.lower()):
+                    user, password = cls.influx_source_credentials("1.8")
+                    user = user.replace("'", "''")
+                    password = password.replace("'", "''")
+                    line = line.replace(f"user='{user}'", "user='admin'")
+                    line = line.replace(f"password='{password}'", "password='taosdata'")
                 for provider, host, port, password, canonical_port, canonical_password in sources:
                     if not external and provider not in local_providers:
                         continue
@@ -763,6 +993,10 @@ class ExtSrcEnv:
             elif metadata:
                 columns = line.rstrip("\n").split("|")
                 if len(columns) == len(metadata):
+                    if ("1.8" in cls.INFLUX_VERSIONS and "user" in metadata
+                            and "type" in metadata and columns[metadata["type"]] == "influxdb"
+                            and columns[metadata["user"]] == cls.influx_source_credentials("1.8")[0]):
+                        columns[metadata["user"]] = "admin"
                     for provider, host, port, password, canonical_port, canonical_password in sources:
                         if not external and provider not in local_providers:
                             continue
@@ -853,16 +1087,29 @@ class ExtSrcEnv:
         return True
 
     @classmethod
+    def _oracle_lifecycle_is_local(cls):
+        """Whether the local Windows/Unix helper owns the configured Oracle host.
+
+        A CI worker can use a native Oracle instance on another Windows host
+        for queries.  The local lifecycle script cannot stop that host, and
+        silently running it would leave disruption tests asserting against a
+        still-healthy remote instance.
+        """
+        host = str(cls.ORACLE_HOST).strip().lower()
+        if host in {"127.0.0.1", "localhost", "::1"}:
+            return True
+        import socket
+        local_names = {socket.gethostname().lower(), socket.getfqdn().lower()}
+        return host in local_names
+
+    @classmethod
     def required_services(cls):
         # Every configured provider is required by default: the shared source
         # matrices (``_with_std_sources`` / ``_with_custom_sources``) walk all
         # of them, so a provider missing from this list would only be detected
         # later, as an unreachable host inside a case (Oracle TS 5.5).
-        # Windows Oracle provisioning is deferred; Linux keeps its Oracle
-        # coverage. Explicit service selections still apply to custom runs.
-        default = "mysql,pg,influx,sqlserver"
-        if os.name != "nt":
-            default += ",oracle"
+        # Windows CI uses native Oracle 26ai; Linux keeps its own version matrix.
+        default = "mysql,pg,influx,sqlserver,oracle"
         value = os.getenv("FQ_REQUIRED_SERVICES", default)
         services = set() if value == "none" else set(value.split(","))
         if services - {"mysql", "pg", "influx", "sqlserver", "oracle"}:
@@ -870,7 +1117,7 @@ class ExtSrcEnv:
         return services
 
     @classmethod
-    def ensure_env(cls):
+    def ensure_env(cls, *, provision=True, purge_sources=True):
         """Start and verify all external test databases.
 
         External mode probes an exclusively leased environment without
@@ -921,7 +1168,7 @@ class ExtSrcEnv:
         env["FQ_ORACLE_ADMIN_USER"] = cls.ORACLE_ADMIN_USER
         env["FQ_ORACLE_ADMIN_PASS"] = cls.ORACLE_ADMIN_PASS
 
-        if services and cls._env_mode() == "local":
+        if provision and services and cls._env_mode() == "local":
             if sys.platform == "win32":
                 ps1 = os.path.join(here, "ensure_ext_env.ps1")
                 if os.path.exists(ps1):
@@ -1120,7 +1367,8 @@ class ExtSrcEnv:
         # external sources created by earlier test files accumulate.  Purge
         # them here so every test class starts from a clean state.
         # ------------------------------------------------------------------
-        cls.purge_all_external_sources()
+        if purge_sources:
+            cls.purge_all_external_sources()
         tdLog.info(
             f"[FQ env] mode={cls._env_mode()} ready in "
             f"{_time.monotonic() - started:.3f}s")
@@ -1373,12 +1621,19 @@ class ExtSrcEnv:
                             cls.PG_USER, cls.PG_PASS)
 
     @classmethod
+    def influx_config(cls, ver=None):
+        ver = ver or cls.INFLUX_VERSIONS[0]
+        host = os.getenv("FQ_INFLUX_HOST_" + ver.replace(".", ""),
+                         os.getenv("FQ_INFLUX_HOST", "127.0.0.1"))
+        return _InfluxVerCfg(ver, host,
+                            cls._INFLUX_VERSION_PORTS.get(ver, cls.INFLUX_PORT),
+                            cls._get_influx_token(ver), cls.INFLUX_ORG)
+
+    @classmethod
     def influx_version_configs(cls):
         """Yield one _InfluxVerCfg per configured InfluxDB version."""
         for ver in cls.INFLUX_VERSIONS:
-            port = cls._INFLUX_VERSION_PORTS.get(ver, cls.INFLUX_PORT)
-            yield _InfluxVerCfg(ver, cls.INFLUX_HOST, port,
-                                cls._get_influx_token(ver), cls.INFLUX_ORG)
+            yield cls.influx_config(ver)
 
     @classmethod
     def _sqlserver_arch_runnable(cls):
@@ -1597,6 +1852,8 @@ class ExtSrcEnv:
         hard reset (data wipe + restart).  Falls back to FQ_INFLUX_TOKEN env
         var or the 'test-token' default (used when InfluxDB runs without auth).
         """
+        if ver == "1.8":
+            return ""
         token_file = os.path.join(_fq_base_dir(), "influxdb", ver, "admin_token.txt")
         try:
             with open(token_file) as _tf:
@@ -1681,13 +1938,43 @@ class ExtSrcEnv:
         os.kill(pid, signal.SIGKILL)
 
     @classmethod
+    def _mysql_lifecycle_paths(cls, ver, discover=False):
+        """Keep stop/start on the same local Windows instance, including reused ones."""
+        base = os.path.join(_fq_base_dir(), "mysql", ver)
+        default = (base, os.path.join(base, "run", "mysqld.pid"))
+        if sys.platform != "win32":
+            return default
+        paths = cls.__dict__.get("_mysql_runtime_paths")
+        if paths is None:
+            paths = {}
+            cls._mysql_runtime_paths = paths
+        if discover:
+            cfg = next(c for c in cls.mysql_version_configs() if c.version == ver)
+            if cfg.host not in ("localhost", "127.0.0.1", "::1"):
+                raise RuntimeError("MySQL local lifecycle requires a loopback host")
+            try:
+                base = cls.mysql_query_cfg(cfg, None, "SELECT @@basedir")
+                pidfile = cls.mysql_query_cfg(cfg, None, "SELECT @@pid_file")
+            except pymysql.err.OperationalError as error:
+                tdLog.info(f"[FQ env] MySQL {ver} lifecycle discovery unavailable; "
+                           f"using cached or configured paths: {error}")
+                return paths.get(ver, default)
+            if not base or not pidfile:
+                raise RuntimeError("MySQL did not report its installation and PID paths")
+            base = os.path.normpath(base)
+            if not (os.path.isfile(os.path.join(base, "bin", "mysqld.exe"))
+                    and os.path.isfile(os.path.join(base, "my.ini"))):
+                raise RuntimeError(f"MySQL lifecycle cannot restart the instance at {base}")
+            paths[ver] = (base, pidfile)
+        return paths.get(ver, default)
+
+    @classmethod
     def kill_mysql_instance(cls, ver):
         """Send SIGKILL to the MySQL process."""
         if cls._external_service_action("kill", "mysql", ver):
             return
 
-        fq_base = _fq_base_dir()
-        pidfile = os.path.join(fq_base, "mysql", ver, "run", "mysqld.pid")
+        _, pidfile = cls._mysql_lifecycle_paths(ver, discover=True)
         cls._kill_process_sigkill(pidfile)
 
     @classmethod
@@ -1696,6 +1983,18 @@ class ExtSrcEnv:
         if cls._external_service_action("kill", "pg", ver):
             return
 
+        if sys.platform == "win32":
+            import psutil
+            cfg = next(c for c in cls.pg_version_configs() if c.version == ver)
+            base, proc = _windows_owned_pg_instance(
+                cfg, os.environ.get(f"FQ_PG_BASE_{ver.replace('.', '')}"))
+            os.environ[f"FQ_PG_BASE_{ver.replace('.', '')}"] = base
+            if proc is not None:
+                try:
+                    proc.kill()
+                except psutil.NoSuchProcess:
+                    pass
+            return
         # postmaster.pid: first line is PID
         fq_base = _fq_base_dir()
         pidfile = os.path.join(fq_base, "pg", ver, "data", "postmaster.pid")
@@ -1721,8 +2020,7 @@ class ExtSrcEnv:
         if cls._external_service_action("stop", "mysql", ver):
             return
 
-        fq_base = _fq_base_dir()
-        pidfile = os.path.join(fq_base, "mysql", ver, "run", "mysqld.pid")
+        _, pidfile = cls._mysql_lifecycle_paths(ver, discover=True)
         cls._kill_process_by_pidfile(pidfile)
 
     @classmethod
@@ -1736,9 +2034,10 @@ class ExtSrcEnv:
                               "ensure_ext_env.sh")
         env = _fq_subprocess_env()
         fq_base = _fq_base_dir()
-        mysql_base = os.path.join(fq_base, "mysql", ver)
+        mysql_base, mysql_pidfile = cls._mysql_lifecycle_paths(ver)
+        mysqld_name = "mysqld.exe" if sys.platform == "win32" else "mysqld"
         has_mysql_install = os.path.isfile(
-            os.path.join(mysql_base, "bin", "mysqld"))
+            os.path.join(mysql_base, "bin", mysqld_name))
         has_mysql_data = (
             os.path.isdir(os.path.join(mysql_base, "data", "mysql"))
             or os.path.isfile(os.path.join(mysql_base, "data", "ibdata1"))
@@ -1769,7 +2068,7 @@ class ExtSrcEnv:
                     stderr=subprocess.STDOUT,
                     creationflags=(subprocess.CREATE_NEW_PROCESS_GROUP
                                    | subprocess.DETACHED_PROCESS))
-            with open(os.path.join(run_dir, "mysqld.pid"), "w") as fh:
+            with open(mysql_pidfile, "w") as fh:
                 fh.write(str(proc.pid))
         else:
             env["FQ_SERVICES_TO_RESET"] = "mysql"
@@ -1814,15 +2113,22 @@ class ExtSrcEnv:
         fq_base = _fq_base_dir()
         datadir = os.path.join(fq_base, "pg", ver, "data")
         if sys.platform == "win32":
+            cfg = next(c for c in cls.pg_version_configs() if c.version == ver)
+            base, proc = _windows_owned_pg_instance(
+                cfg, os.environ.get(f"FQ_PG_BASE_{ver.replace('.', '')}"))
+            os.environ[f"FQ_PG_BASE_{ver.replace('.', '')}"] = base
+            if proc is None:
+                return
+            datadir = os.path.join(base, "data")
+            pg_ctl_exe = os.path.join(base, "bin", "pg_ctl.exe")
             # The Windows distribution ships pg_ctl.exe; the Unix owner check
             # (pwd/runuser) does not apply because the instance runs as the
             # current user.
-            pg_ctl_exe = os.path.join(fq_base, "pg", ver, "bin", "pg_ctl.exe")
             # DEVNULL instead of pipes: the postmaster inherits the handles,
             # and a pipe would keep communicate() waiting for EOF.
             subprocess.run([pg_ctl_exe, "stop", "-D", datadir, "-m", "fast"],
                            stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
-                           timeout=60)
+                           timeout=60, check=True)
             return
         pg_ctl_bin = os.path.join(fq_base, "pg", ver, "bin", "pg_ctl")
         import pwd as _pwd
@@ -1852,6 +2158,9 @@ class ExtSrcEnv:
         fq_base = _fq_base_dir()
         pg_base = os.path.join(fq_base, "pg", ver)
         cfg = next(c for c in cls.pg_version_configs() if c.version == ver)
+        if sys.platform == "win32":
+            pg_base, _ = _windows_owned_pg_instance(
+                cfg, os.environ.get(f"FQ_PG_BASE_{ver.replace('.', '')}"))
         script_error = None
         if sys.platform == "win32":
             # Start in place with pg_ctl.exe.  The setup script is not used
@@ -2178,8 +2487,16 @@ class ExtSrcEnv:
     @classmethod
     def stop_oracle_instance(cls, ver, wait_s=120):
         """Stop the Oracle instance; the port becomes unreachable."""
+        if "oracle" not in cls.required_services() and cls._env_mode() != "external":
+            return
         if cls._external_service_action("stop", "oracle", ver):
             return
+        if not cls._oracle_lifecycle_is_local():
+            import pytest
+            pytest.skip(
+                f"Oracle {ver} at {cls.ORACLE_HOST} is remote and has no "
+                "configured lifecycle controller"
+            )
         import subprocess
         import time
         env = _fq_subprocess_env()
@@ -2207,8 +2524,16 @@ class ExtSrcEnv:
     @classmethod
     def kill_oracle_instance(cls, ver):
         """Hard-stop the Oracle instance (kill -9 equivalent)."""
+        if "oracle" not in cls.required_services() and cls._env_mode() != "external":
+            return
         if cls._external_service_action("kill", "oracle", ver):
             return
+        if not cls._oracle_lifecycle_is_local():
+            import pytest
+            pytest.skip(
+                f"Oracle {ver} at {cls.ORACLE_HOST} is remote and has no "
+                "configured lifecycle controller"
+            )
         import subprocess
         env = _fq_subprocess_env()
         env["FQ_SERVICES_TO_RESET"] = "oracle"
@@ -2228,25 +2553,44 @@ class ExtSrcEnv:
 
         Startup is measured in minutes: a cold instance creates its database
         on first start, and an existing one still has to open the PDB.
+
+        The external lease controller reports success as soon as the container
+        healthcheck passes, which can be before the database accepts a user
+        session (ORA-01033 during startup).  Both modes therefore share the
+        same application-level readiness probe below.
         """
-        if cls._external_service_action("start", "oracle", ver):
-            return True
+        if "oracle" not in cls.required_services() and cls._env_mode() != "external":
+            import pytest
+            pytest.skip("oracle is not in FQ_REQUIRED_SERVICES")
         import subprocess
         import time
-        env = _fq_subprocess_env()
-        env["FQ_SERVICES_TO_RESET"] = "oracle"
-        env["FQ_ORACLE_VERSIONS"] = str(ver)
-        # Quick restart reuses the container and its data, which is what the
-        # disruption scenarios need: the tables created at file start must
-        # still be there once the instance is back.
-        env["FQ_ORACLE_QUICK_RESTART"] = "1"
-        if sys.platform == "win32":
-            subprocess.run(cls._ext_env_script_cmd(), env=env,
-                           capture_output=True, encoding="utf-8",
-                           errors="replace", timeout=900)
-        else:
-            subprocess.run(["bash", cls._fq_env_script()], env=env,
-                           capture_output=True, text=True, timeout=900)
+        external = cls._external_service_action("start", "oracle", ver)
+        if not external and not cls._oracle_lifecycle_is_local():
+            # A remote native instance is provisioned outside this worker.  Do
+            # not run the local setup script; only probe its application-level
+            # readiness below.
+            external = True
+        if not external:
+            env = _fq_subprocess_env()
+            env["FQ_SERVICES_TO_RESET"] = "oracle"
+            env["FQ_ORACLE_VERSIONS"] = str(ver)
+            # Quick restart reuses the container and its data, which is what the
+            # disruption scenarios need: the tables created at file start must
+            # still be there once the instance is back.
+            env["FQ_ORACLE_QUICK_RESTART"] = "1"
+            if sys.platform == "win32":
+                proc = subprocess.run(cls._ext_env_script_cmd(), env=env,
+                                      capture_output=True, encoding="utf-8",
+                                      errors="replace", timeout=900)
+                if proc.returncode != 0:
+                    output = "\n".join(
+                        ((proc.stdout or "") + "\n" + (proc.stderr or "")).splitlines()[-80:])
+                    raise RuntimeError(
+                        f"Oracle {ver} startup failed (exit={proc.returncode})."
+                        f"\n---- ensure_ext_env.ps1 output (tail) ----\n{output}")
+            else:
+                subprocess.run(["bash", cls._fq_env_script()], env=env,
+                               capture_output=True, text=True, timeout=900)
         cfg = next((c for c in cls.oracle_version_configs() if c.version == ver), None)
         if cfg is None:
             return False
@@ -2282,7 +2626,7 @@ class ExtSrcEnv:
             os.path.isfile(os.path.join(influx_bin_dir, "influxdb3"))
             or os.path.isfile(os.path.join(influx_bin_dir, "influxd"))
         )
-        cfg = next(c for c in cls.influx_version_configs() if c.version == ver)
+        cfg = cls.influx_config(ver)
         script_error = None
         proc = None
         log_path = None
@@ -2321,10 +2665,22 @@ class ExtSrcEnv:
                 # Auth stays enabled: the catalog token in admin_token.txt
                 # keeps working across restarts, and the credential scenarios
                 # rely on tokens being enforced.
+                command = [influx_exe, "serve", "--node-id", "fq-test-node",
+                           "--http-bind", f"{cfg.host}:{cfg.port}",
+                           "--object-store", "file", "--data-dir", data_dir]
+                if ver == "1.8":
+                    config_file = os.path.join(influx_base, "influxdb.conf")
+                    native_data = data_dir.replace("\\", "/")
+                    with open(config_file, "w", encoding="utf-8") as config:
+                        config.write(
+                            f'reporting-disabled = true\nbind-address = "127.0.0.1:{cfg.port + 100}"\n'
+                            f'[meta]\n  dir = "{native_data}/meta"\n'
+                            f'[data]\n  dir = "{native_data}/data"\n  wal-dir = "{native_data}/wal"\n'
+                            f'[http]\n  bind-address = "{cfg.host}:{cfg.port}"\n  auth-enabled = false\n'
+                            '[monitor]\n  store-enabled = false\n')
+                    command = [influx_exe, "-config", config_file]
                 proc = subprocess.Popen(
-                    [influx_exe, "serve", "--node-id", "fq-test-node",
-                     "--http-bind", f"{cfg.host}:{cfg.port}",
-                     "--object-store", "file", "--data-dir", data_dir],
+                    command,
                     cwd=influx_bin_dir, stdin=subprocess.DEVNULL,
                     stdout=log_fh, stderr=subprocess.STDOUT,
                     creationflags=(subprocess.CREATE_NEW_PROCESS_GROUP
@@ -2757,8 +3113,47 @@ class ExtSrcEnv:
             next(cls.influx_version_configs()), bucket, sql, fmt)
 
     @classmethod
+    def influx_source_credentials(cls, ver=None):
+        if (ver or cls.INFLUX_VERSIONS[0]) == "1.8":
+            return ((cls.INFLUX_USER, cls.INFLUX_PASS) if cls.INFLUX_USER or cls.INFLUX_PASS
+                    else ("admin", "taosdata"))
+        return "u", ""
+
+    @classmethod
+    def influx_request_auth(cls, cfg):
+        if cfg.version == "1.8" and (cls.INFLUX_USER or cls.INFLUX_PASS):
+            return cls.INFLUX_USER, cls.INFLUX_PASS
+        return None
+
+    @classmethod
+    def influx_source_options(cls, ver=None, extra_options=None):
+        """Return version-specific OPTIONS for a real test source."""
+        ver = ver or cls.INFLUX_VERSIONS[0]
+        options = ("'version'='1.8','protocol'='http'" if ver == "1.8" else
+                   f"'api_token'='{cls._get_influx_token(ver)}','protocol'='flight_sql'")
+        return options + ("," + extra_options if extra_options else "")
+
+    @classmethod
+    def _influx18_query(cls, cfg, bucket, query):
+        response = cls._influx_request(
+            "POST", f"http://{cfg.host}:{cfg.port}/query", ver=cfg.version,
+            data={"db": bucket, "q": query, "epoch": "ns"}, auth=cls.influx_request_auth(cfg), timeout=30)
+        response.raise_for_status()
+        payload = response.json()
+        statements = payload.get("results", [])
+        errors = [item["error"] for item in [payload] + statements if "error" in item]
+        if errors:
+            raise RuntimeError("InfluxDB 1.8: " + "; ".join(errors))
+        return [dict(zip(series["columns"], row), **series.get("tags", {}))
+                for item in statements for series in item.get("series", [])
+                for row in series.get("values", [])]
+
+    @classmethod
     def influx_create_db_cfg(cls, cfg, bucket):
         """Create InfluxDB v3 database on a specific version instance (idempotent)."""
+        if cfg.version == "1.8":
+            cls._influx18_query(cfg, bucket, 'CREATE DATABASE "' + bucket.replace('"', '\\"') + '"')
+            return
         url = f"http://{cfg.host}:{cfg.port}/api/v3/configure/database"
         headers = {"Authorization": f"Bearer {cfg.token}"} if cfg.token else {}
         r = cls._influx_request("GET", url, ver=cfg.version, headers=headers,
@@ -2813,6 +3208,9 @@ class ExtSrcEnv:
         subsequent tests do not fail with ConnectionResetError.
         """
         import requests, time
+        if cfg.version == "1.8":
+            cls._influx18_query(cfg, bucket, 'DROP DATABASE "' + bucket.replace('"', '\\"') + '"')
+            return
         url = f"http://{cfg.host}:{cfg.port}/api/v3/configure/database"
         headers = {"Authorization": f"Bearer {cfg.token}"} if cfg.token else {}
         try:
@@ -2835,32 +3233,81 @@ class ExtSrcEnv:
             pass  # helper restarted it
 
     @classmethod
-    def influx_write_cfg(cls, cfg, bucket, lines, precision='ns'):
-        """Write line-protocol data to a specific InfluxDB v3 instance.
+    def influx_write_cfg(cls, cfg, bucket, lines, precision='ns', retention_policy=None):
+        """Write line-protocol data to the selected InfluxDB version.
 
         lines: list of line-protocol strings, or a single pre-joined string.
         precision: timestamp precision in line protocol ('ns', 'us', 'ms', 's').
                    Defaults to 'ns' to match standard InfluxDB line protocol.
+        retention_policy: optional destination RP for InfluxDB 1.8.
         """
+        if retention_policy is not None and cfg.version != "1.8":
+            raise ValueError("Retention policies require InfluxDB 1.8")
         data = lines if isinstance(lines, str) else "\n".join(lines)
         if not data.strip():
             return  # nothing to write
-        url = f"http://{cfg.host}:{cfg.port}/api/v2/write"
-        params = {"bucket": bucket, "precision": precision}
-        headers = {"Content-Type": "text/plain; charset=utf-8"}
-        if cfg.token:
-            headers["Authorization"] = f"Bearer {cfg.token}"
-        # A write without a timeout can hang forever when InfluxDB stops
-        # answering mid-run (the per-case 3600s watchdog would then kill the
-        # whole case), so always bound it and recover from a dead server.
-        r = cls._influx_request("POST", url, ver=cfg.version, params=params,
-                                headers=headers, data=data.encode('utf-8'),
-                                timeout=30)
+        native = cfg.version == "1.8"
+        url = f"http://{cfg.host}:{cfg.port}" + ("/write" if native else "/api/v2/write")
+        params = {"db" if native else "bucket": bucket, "precision": precision}
+        if retention_policy is not None:
+            params["rp"] = retention_policy
+
+        def _post(current_cfg):
+            headers = {"Content-Type": "text/plain; charset=utf-8"}
+            if current_cfg.token:
+                headers["Authorization"] = f"Bearer {current_cfg.token}"
+            # A write without a timeout can hang forever when InfluxDB stops
+            # answering mid-run (the per-case 3600s watchdog would then kill the
+            # whole case), so always bound it and recover from a dead server.
+            return cls._influx_request(
+                "POST", url, ver=current_cfg.version, params=params,
+                headers=headers, data=data.encode('utf-8'),
+                auth=cls.influx_request_auth(current_cfg), timeout=30)
+
+        r = _post(cfg)
+        if (r.status_code >= 400 and "number of tables limit" in (r.text or "")
+                and sys.platform == "win32"):
+            # InfluxDB 3 Core caps an instance at 2000 tables across all
+            # databases, and dropped databases do not release their slots
+            # (influxdata/influxdb#27281).  Once a long matrix reaches that
+            # state every later write fails, so recreate the data directory
+            # through the setup script and retry against the fresh instance.
+            # The hard reset destroys the catalog, hence the bucket is
+            # re-created and the new admin token re-read below.
+            import subprocess
+            env = _fq_subprocess_env()
+            env["FQ_SERVICES_TO_RESET"] = "influx"
+            env["FQ_INFLUX_VERSIONS"] = str(cfg.version)
+            subprocess.run(
+                cls._ext_env_script_cmd() + ["--influx-reset", str(cfg.version)],
+                env=env, capture_output=True, encoding="utf-8",
+                errors="replace", timeout=600, stdin=subprocess.DEVNULL)
+            cfg = cfg._replace(token=cls._get_influx_token(cfg.version))
+            cls.influx_create_db_cfg(cfg, bucket)
+            r = _post(cfg)
+        if r.status_code >= 400:
+            # The stock HTTPError carries only the reason phrase; the response
+            # body is where InfluxDB names the actual problem (missing/soft
+            # deleted database, rejected line protocol, ...).  Keep it in the
+            # message so a setup failure is diagnosable from the case log.
+            import requests
+            raise requests.exceptions.HTTPError(
+                f"{r.status_code} writing {len(data.encode('utf-8'))} byte(s) "
+                f"to bucket={bucket} precision={precision}: {r.text[:500]!r}",
+                response=r)
         r.raise_for_status()
 
     @classmethod
     def influx_query_sql_cfg(cls, cfg, bucket, sql, fmt="json"):
-        """Run a SQL query against a specific InfluxDB v3 instance, return parsed JSON."""
+        """Run a native query for the selected InfluxDB version, returning parsed JSON."""
+        if cfg.version == "1.8":
+            # Dataset health checks count raw rows; COUNT(*) in InfluxQL counts
+            # each Field independently and is not SQL's row count.
+            count = re.fullmatch(r'\s*select\s+count\(\*\)(?:\s+as\s+(\w+))?\s+from\s+(.+?)\s*;?\s*', sql, re.I)
+            if count:
+                rows = cls._influx18_query(cfg, bucket, "SELECT * FROM " + count.group(2))
+                return [{count.group(1) or "count(*)": len(rows)}]
+            return cls._influx18_query(cfg, bucket, sql)
         url = f"http://{cfg.host}:{cfg.port}/api/v3/query_sql"
         headers = {"Content-Type": "application/json",
                    "Accept": "application/json"}
@@ -3118,6 +3565,15 @@ class ExtSrcEnv:
         what the retry/classification tests assert on, so it must not be
         swallowed here.
         """
+        if "oracle" not in cls.required_services():
+            # The run does not provision Oracle (Windows CI omits it): stop at
+            # the test's first Oracle statement instead of failing.  When the
+            # call comes from a cleanup block while another exception is in
+            # flight, return quietly so a skip or a real failure is not masked.
+            if sys.exc_info()[0] is not None:
+                return ""
+            import pytest
+            pytest.skip("oracle is not in FQ_REQUIRED_SERVICES")
         import subprocess
         if isinstance(sql, (list, tuple)):
             # A batch is one sqlplus session, so statements that must share it
@@ -3316,6 +3772,13 @@ class ExtSrcEnv:
         lease the instance is owned by the controller, so the same batch goes
         through its exec channel with the admin credentials.
         """
+        if "oracle" not in cls.required_services() and cls._env_mode() != "external":
+            # This path runs sqlplus directly instead of going through
+            # _oracle_sql, so it needs the same "oracle not provisioned" skip.
+            if sys.exc_info()[0] is not None:
+                return ""
+            import pytest
+            pytest.skip("oracle is not in FQ_REQUIRED_SERVICES")
         import subprocess
         if cls._env_mode() == "external":
             for sql in sqls:
@@ -3491,9 +3954,20 @@ class FederatedQueryTestMixin:
         other engines, doubles as the login user.  Pass empty strings to
         exercise the "not configured" namespace cases.
         """
+        if "oracle" not in ExtSrcEnv.required_services():
+            # Without a provisioned Oracle there is no server behind the
+            # source, so skip the test here (see _oracle_sql for the guard).
+            if sys.exc_info()[0] is not None:
+                return
+            import pytest
+            pytest.skip("oracle is not in FQ_REQUIRED_SERVICES")
         tdSql.execute(f"drop database if exists {name}")
         tdSql.execute(f"drop external source if exists {name}")
-        cfg = self._oracle_cfg()
+        self._mk_oracle_real_ver(name, self._oracle_cfg(), database, schema,
+                                 extra_options, user, password)
+
+    def _mk_oracle_real_ver(self, name, cfg, database=None, schema=None,
+                            extra_options=None, user=None, password=None):
         _user = user if user is not None else cfg.user
         _pass = password if password is not None else cfg.password
         sql = (f"create external source {name} "
@@ -3512,7 +3986,7 @@ class FederatedQueryTestMixin:
             sql += f" options({extra_options})"
         tdSql.execute(sql)
 
-    def _resolve_influx_protocol(self, protocol=None):
+    def _resolve_influx_protocol(self, protocol=None, version=None):
         """Resolve the InfluxDB protocol for generic query tests.
 
         Resolution order:
@@ -3523,6 +3997,8 @@ class FederatedQueryTestMixin:
         """
         if protocol:
             return protocol
+        if (version or self._influx_cfg().version) == "1.8":
+            return "http"
         attr_protocol = getattr(self, "influx_protocol", None)
         if attr_protocol:
             return attr_protocol
@@ -3531,25 +4007,54 @@ class FederatedQueryTestMixin:
             return env_protocol
         return "flight_sql"
 
-    def _fmt_influx_options(self, api_token, protocol=None, extra_options=None):
+    def _fmt_influx_options(self, api_token, protocol=None, extra_options=None, version=None):
         """Build the OPTIONS(...) clause payload for an InfluxDB external source."""
-        parts = [f"'api_token'='{api_token}'",
-                 f"'protocol'='{self._resolve_influx_protocol(protocol)}'"]
+        version = version or self._influx_cfg().version
+        parts = (["'version'='1.8'"] if version == "1.8" else [f"'api_token'='{api_token}'"])
+        if version == "1.8" and api_token:
+            parts.append(f"'api_token'='{api_token}'")
+        resolved = self._resolve_influx_protocol(protocol, version)
+        parts.append(f"'protocol'='{resolved}'")
         if extra_options:
             parts.append(extra_options)
         return ",".join(parts)
 
     def _mk_influx_source_sql(self, name, host, port, api_token, database="telegraf",
-                              protocol=None, extra_options=None, user="u", password=""):
+                              protocol=None, extra_options=None, user=None, password=None, version=None):
         """Generate InfluxDB CREATE EXTERNAL SOURCE SQL via one shared code path."""
+        version = version or self._influx_cfg().version
+        default_user, default_password = ExtSrcEnv.influx_source_credentials(version)
+        user = default_user if user is None else user
+        password = default_password if password is None else password
         sql = (f"create external source {name} "
                f"type='influxdb' host='{host}' "
                f"port={port} "
                f"user='{user}' password='{password}'")
         if database:
             sql += f" database={database}"
-        sql += f" options({self._fmt_influx_options(api_token, protocol, extra_options)})"
+        sql += f" options({self._fmt_influx_options(api_token, protocol, extra_options, version)})"
         return sql
+
+    def _rewrite_influx_source_credentials(self, sql):
+        if (not re.match(r"create\s+external\s+source\b", sql, re.I)
+                or not re.search(r"\btype\s*=\s*'influxdb'", sql, re.I)
+                or (re.search(r"\bpassword\s*=", sql, re.I)
+                    and not re.search(r"\bpassword\s*=\s*''(?!')", sql, re.I))):
+            return sql
+        user, password = ExtSrcEnv.influx_source_credentials("1.8")
+        user = user.replace("'", "''")
+        password = password.replace("'", "''")
+        credentials = f"user='{user}' password='{password}'"
+        return re.sub(r"\buser\s*=\s*'admin'(?:\s+password\s*=\s*''(?!'))?",
+                      lambda match: credentials, sql, count=1, flags=re.I)
+
+    def _rewrite_influx_source_endpoint(self, sql):
+        """Bind import-time endpoints while preserving deliberately invalid ones."""
+        cfg = self._influx_cfg()
+        sql = re.sub(r"(\bhost\s*=\s*')" + re.escape(ExtSrcEnv.INFLUX_HOST) + r"(')",
+                     lambda m: m[1] + cfg.host.replace("'", "''") + m[2], sql, flags=re.I)
+        return re.sub(r"(\bport\s*=\s*)" + str(ExtSrcEnv.INFLUX_PORT) + r"(?!\d)",
+                      lambda m: m[1] + str(cfg.port), sql, flags=re.I)
 
     def _rewrite_influx_source_runtime_sql(self, sql, import_token=None):
         """Rewrite generic InfluxDB CREATE SOURCE SQL to current runtime settings.
@@ -3559,6 +4064,7 @@ class FederatedQueryTestMixin:
         protocol/token resolution logic without forcing each file to
         reimplement Influx option handling.
         """
+        sql = self._rewrite_influx_source_endpoint(sql)
         if "type='influxdb'" not in sql.lower():
             return sql
 
@@ -3571,6 +4077,11 @@ class FederatedQueryTestMixin:
             )
             rewritten = pattern.sub(r"\1" + runtime_token + r"\2", rewritten)
 
+        if self._influx_cfg().version == "1.8":
+            rewritten = self._rewrite_influx_source_credentials(rewritten)
+            rewritten = re.sub(r"('api_token'\s*=\s*')([^']*)(')", r"\1\3", rewritten, flags=re.I)
+            if not re.search(r"'version'\s*=", rewritten, re.I):
+                rewritten = re.sub(r"options\s*\(", "options('version'='1.8',", rewritten, count=1, flags=re.I)
         resolved_protocol = self._resolve_influx_protocol()
         rewritten = re.sub(
             r"('protocol'\s*=\s*')([^']*)(')",
@@ -3579,6 +4090,26 @@ class FederatedQueryTestMixin:
             flags=re.IGNORECASE,
         )
         return rewritten
+
+    @contextmanager
+    def _influx_fixture(self, database, lines):
+        cfg = self._influx_cfg()
+        source = database + "_src"
+        ExtSrcEnv.influx_drop_db_cfg(cfg, database)
+        ExtSrcEnv.influx_create_db_cfg(cfg, database)
+        try:
+            if lines:
+                ExtSrcEnv.influx_write_cfg(cfg, database, lines)
+            self._mk_influx_real(source, database=database)
+            yield cfg, source
+        finally:
+            self._cleanup_src(source)
+            ExtSrcEnv.influx_drop_db_cfg(cfg, database)
+
+    @staticmethod
+    def _check_query_rows(sql, expected):
+        tdSql.query(sql)
+        assert tdSql.queryResult == expected, (sql, tdSql.queryResult, expected)
 
     def _mk_influx_real(self, name, database="telegraf", protocol=None,
                         api_token=None, extra_options=None):
@@ -3648,6 +4179,98 @@ class FederatedQueryTestMixin:
                 return cfg
         return next(ExtSrcEnv.influx_version_configs())
 
+    @contextmanager
+    def _using_influx(self, cfg):
+        previous = getattr(self, '_active_influx_ver', None)
+        if cfg is not None:
+            self._active_influx_ver = cfg.version
+        try:
+            yield
+        finally:
+            self._active_influx_ver = previous
+
+    def _influx_configs(self):
+        # Keep the existing source/answer names on 3.x when both are requested.
+        return sorted(ExtSrcEnv.influx_version_configs(), key=lambda cfg: cfg.version == '1.8')
+
+    def _influx_source_specs(self, name):
+        for index, cfg in enumerate(self._influx_configs()):
+            alias = name if index == 0 else name + '_v' + cfg.version.replace('.', '_')
+            yield cfg, alias
+
+    def _mk_influx_sources(self, name, database):
+        aliases = getattr(type(self), '_influx_aliases', None)
+        if aliases is None:
+            aliases = {}
+            type(self)._influx_aliases = aliases
+        for cfg, alias in self._influx_source_specs(name):
+            with self._using_influx(cfg):
+                self._cleanup_src(alias)
+                self._mk_influx_real(alias, database=database)
+            aliases.setdefault(cfg.version, {})[name] = alias
+
+    def _influx_source_name(self, name):
+        version = self._influx_cfg().version
+        return next(alias for cfg, alias in self._influx_source_specs(name) if cfg.version == version)
+
+    def _drop_influx_sources(self, *names):
+        for name in names:
+            for _, alias in self._influx_source_specs(name):
+                self._cleanup_src(alias)
+
+    @staticmethod
+    def _replace_influx_sources(text, aliases):
+        for source, alias in aliases.items():
+            if source != alias:
+                text = re.sub(r'(?<![a-zA-Z0-9_])' + re.escape(source) + r'(?![a-zA-Z0-9_])',
+                              lambda match: alias, text)
+        return text
+
+    def _influx_query_variants(self, sql):
+        yield None, sql, ''
+        aliases = getattr(type(self), '_influx_aliases', {})
+        for cfg in self._influx_configs()[1:]:
+            mapped = self._replace_influx_sources(sql, aliases.get(cfg.version, {}))
+            if mapped != sql:
+                yield cfg, mapped, '@inf' + cfg.version
+
+    def _expand_influx_source_list(self, sources, label_versions=True):
+        expanded = []
+        for label, table in sources:
+            for cfg, variant, _ in self._influx_query_variants(table):
+                expanded.append((label if cfg is None or not label_versions else label + '@' + cfg.version, variant))
+        return expanded
+
+    def _influx_case_id(self, case_id, sql):
+        aliases = getattr(type(self), '_influx_aliases', {})
+        for cfg in self._influx_configs()[1:]:
+            if any(re.search(r'(?<![a-zA-Z0-9_])' + re.escape(alias) + r'(?![a-zA-Z0-9_])', sql)
+                   for source, alias in aliases.get(cfg.version, {}).items() if source != alias):
+                return case_id + '@inf' + cfg.version
+        return case_id
+
+    def _expand_influx_baseline(self, text):
+        aliases = getattr(type(self), '_influx_aliases', {})
+        expanded = []
+        for block in re.split(r'(?m)(?=^### )', text):
+            expanded.append(block)
+            if not block.startswith('### '):
+                continue
+            header, separator, body = block.partition('\n')
+            parts = header.split(maxsplit=2)
+            if len(parts) < 3:
+                continue
+            for cfg in self._influx_configs()[1:]:
+                mapped = self._replace_influx_sources(body, aliases.get(cfg.version, {}))
+                if mapped == body and not re.search(r'\{I(?:_TAG|_CPU)?\}', body):
+                    continue
+                if parts[2].split()[0] in ('POS', 'NEG', 'ERR'):
+                    variant_header = f'### {parts[1]}@inf{cfg.version} {parts[2]}'
+                else:
+                    variant_header = f'### {parts[1]} {parts[2]}@{cfg.version}'
+                expanded.append(variant_header + separator + mapped)
+        return ''.join(expanded)
+
     def _oracle_cfg(self):
         """Return the Oracle config for the active (or primary) version."""
         ver = getattr(self, '_active_oracle_ver', None)
@@ -3708,7 +4331,7 @@ class FederatedQueryTestMixin:
         oracle_insert_sql = (
             "INSERT ALL "
             + " ".join(
-                f"INTO {table.upper()} (ts, val, score, name, flag) VALUES"
+                f'INTO "{table}" ("ts", "val", "score", "name", "flag") VALUES'
                 f"(TO_TIMESTAMP('{_ms_to_dt(ts)}', 'YYYY-MM-DD HH24:MI:SS.FF3'),"
                 f" {val}, {score}, '{name}', {flag})"
                 for ts, val, score, name, flag in _STD_ROWS)
@@ -3759,23 +4382,25 @@ class FederatedQueryTestMixin:
 
         # ----- InfluxDB -----
         if not skip_influx and "influx" in enabled:
-            self._cleanup_src(i_src)
-            ExtSrcEnv.influx_create_db_cfg(self._influx_cfg(), i_db)
-            try:
-                lines = [
-                    f'{table} val={val}i,score={score},name="{name}",flag={flag}i '
-                    f'{ts * 1_000_000}'
-                    for ts, val, score, name, flag in _STD_ROWS
-                ]
-                ExtSrcEnv.influx_write_cfg(self._influx_cfg(), i_db, lines)
-                self._mk_influx_real(i_src, database=i_db)
-                body_fn(i_src)
-            finally:
-                self._cleanup_src(i_src)
-                try:
-                    ExtSrcEnv.influx_drop_db_cfg(self._influx_cfg(), i_db)
-                except Exception:
-                    pass
+            for cfg in ExtSrcEnv.influx_version_configs():
+                with self._using_influx(cfg):
+                    self._cleanup_src(i_src)
+                    ExtSrcEnv.influx_create_db_cfg(self._influx_cfg(), i_db)
+                    try:
+                        lines = [
+                            f'{table} val={val}i,score={score},name="{name}",flag={flag}i '
+                            f'{ts * 1_000_000}'
+                            for ts, val, score, name, flag in _STD_ROWS
+                        ]
+                        ExtSrcEnv.influx_write_cfg(self._influx_cfg(), i_db, lines)
+                        self._mk_influx_real(i_src, database=i_db)
+                        body_fn(i_src)
+                    finally:
+                        self._cleanup_src(i_src)
+                        try:
+                            ExtSrcEnv.influx_drop_db_cfg(self._influx_cfg(), i_db)
+                        except Exception:
+                            pass
 
         # ----- SQL Server -----
         if not skip_sqlserver and "sqlserver" in enabled:
@@ -3803,14 +4428,19 @@ class FederatedQueryTestMixin:
             self._cleanup_src(o_src)
             o_cfg = self._oracle_cfg()
             try:
-                # Unquoted identifiers fold to upper case (Oracle R1), so the
-                # table is created and referenced without quotes.  There is no
-                # per-test database: the login schema is the namespace.
-                ExtSrcEnv.oracle_drop_table_cfg(o_cfg, table.upper())
+                # The fixture stores quoted lower-case names so the shared
+                # lower-case references match exactly under TDengine's
+                # identifier grammar (unquoted -> lower case, exact catalog
+                # match).  The login schema is the only namespace.
+                for stale in (table, table.upper()):
+                    try:
+                        ExtSrcEnv.oracle_drop_table_cfg(o_cfg, stale)
+                    except Exception:
+                        pass
                 ExtSrcEnv.oracle_exec_cfg(o_cfg, [
-                    f"CREATE TABLE {table.upper()} ("
-                    f"  ts TIMESTAMP(3) PRIMARY KEY, val NUMBER(10),"
-                    f"  score BINARY_DOUBLE, name VARCHAR2(32), flag NUMBER(1))",
+                    f'CREATE TABLE "{table}" ('
+                    f'  "ts" TIMESTAMP(3) PRIMARY KEY, "val" NUMBER(10),'
+                    f'  "score" BINARY_DOUBLE, "name" VARCHAR2(32), "flag" NUMBER(1))',
                     oracle_insert_sql,
                     "COMMIT",
                 ])
@@ -3819,10 +4449,11 @@ class FederatedQueryTestMixin:
                 body_fn(o_src)
             finally:
                 self._cleanup_src(o_src)
-                try:
-                    ExtSrcEnv.oracle_drop_table_cfg(o_cfg, table.upper())
-                except Exception:
-                    pass
+                for stale in (table, table.upper()):
+                    try:
+                        ExtSrcEnv.oracle_drop_table_cfg(o_cfg, stale)
+                    except Exception:
+                        pass
 
     def _with_custom_sources(self, prefix, body_fn, *,
                              mysql_setup=None, pg_setup=None, influx_lines=None,
@@ -3899,18 +4530,20 @@ class FederatedQueryTestMixin:
 
         # ----- InfluxDB -----
         if not skip_influx and "influx" in enabled and influx_lines:
-            self._cleanup_src(i_src)
-            ExtSrcEnv.influx_create_db_cfg(self._influx_cfg(), i_db)
-            try:
-                ExtSrcEnv.influx_write_cfg(self._influx_cfg(), i_db, influx_lines)
-                self._mk_influx_real(i_src, database=i_db)
-                body_fn(i_src, 'influx')
-            finally:
-                self._cleanup_src(i_src)
-                try:
-                    ExtSrcEnv.influx_drop_db_cfg(self._influx_cfg(), i_db)
-                except Exception:
-                    pass
+            for cfg in self._influx_configs():
+                with self._using_influx(cfg):
+                    self._cleanup_src(i_src)
+                    ExtSrcEnv.influx_create_db_cfg(self._influx_cfg(), i_db)
+                    try:
+                        ExtSrcEnv.influx_write_cfg(self._influx_cfg(), i_db, influx_lines)
+                        self._mk_influx_real(i_src, database=i_db)
+                        body_fn(i_src, 'influx')
+                    finally:
+                        self._cleanup_src(i_src)
+                        try:
+                            ExtSrcEnv.influx_drop_db_cfg(self._influx_cfg(), i_db)
+                        except Exception:
+                            pass
 
         # ----- SQL Server -----
         if not skip_sqlserver and "sqlserver" in enabled and sqlserver_setup:
@@ -3995,6 +4628,7 @@ class FederatedQueryTestMixin:
                 database=database,
                 protocol=protocol,
                 extra_options=extra_options,
+                version=ver_cfg.version,
             )
         )
 
@@ -4157,49 +4791,141 @@ class FederatedQueryTestMixin:
 
 
 # =====================================================================
-# Versioned test mixin — per-version parametrization for fq_01 ~ fq_05
+# Provider version iteration and MySQL/PG fixture parametrization
 # =====================================================================
 
+def influx_versions(*versions):
+    """Run one Influx-only scenario for each configured provider version."""
+    def decorate(method):
+        @wraps(method)
+        def run(self, *args, **kwargs):
+            configs = [cfg for cfg in self._influx_configs()
+                       if not versions or cfg.version in versions]
+            if not configs:
+                pytest.skip("The requested InfluxDB version is not configured")
+            result = None
+            for cfg in configs:
+                with self._using_influx(cfg):
+                    result = method(self, *args, **kwargs)
+            return result
+        return run
+    return decorate
+
+
+class FederatedWindowOrderTestMixin(FederatedQueryTestMixin):
+    """Check the remote plan and row ranks with ORDER enabled and disabled."""
+
+    @pytest.fixture(scope="class", autouse=True)
+    def _window_source_env(self):
+        provider = self.PROVIDER
+        if provider not in ExtSrcEnv.required_services():
+            pytest.skip(f"{provider} is not configured for this run")
+        cfg = next(getattr(ExtSrcEnv, f"{provider}_version_configs")())
+        with pytest.MonkeyPatch.context() as patch:
+            # Each window test queries just its primary provider/version.
+            patch.setenv("FQ_REQUIRED_SERVICES", provider)
+            patch.setattr(ExtSrcEnv, f"{provider.upper()}_VERSIONS", [cfg.version])
+            # The environment owner manages the database even after a connection loss.
+            patch.setattr(ExtSrcEnv, "revive_if_dead", lambda: False)
+            if provider == "oracle":
+                if ExtSrcEnv._env_mode() == "local":
+                    if sys.platform != "win32" and cfg.host.lower() not in ("127.0.0.1", "localhost"):
+                        raise RuntimeError(f"Remote Oracle at {cfg.host}:{cfg.port} requires an exclusive lease "
+                                           "on this platform; run the window test through fq/run-ci.py")
+                    if not ExtSrcEnv._tcp_probe(cfg.host, cfg.port):
+                        raise RuntimeError(f"Oracle {cfg.version} listener at {cfg.host}:{cfg.port} is unavailable; "
+                                           "start the test instance and listener before running the window test")
+                if sys.platform == "win32":
+                    subprocess.run([*ExtSrcEnv._ext_env_script_cmd(), "--oracle-client", cfg.version],
+                                   env=_fq_subprocess_env(), check=True)
+            ExtSrcEnv.ensure_env(provision=False, purge_sources=False)
+            yield
+
+    def _create_window_source(self, cleanup, cfg, **options):
+        self.source = f"fq_{self.PROVIDER}_window_src_{uuid4().hex}"
+        create = getattr(self, f"_mk_{self.PROVIDER}_real_ver")
+        create(self.source, cfg, **options)
+        cleanup.callback(tdSql.execute, f"DROP EXTERNAL SOURCE {self.source}")
+
+    def _read_window(self, sql, enabled):
+        action = "ENABLE" if enabled else "DISABLE"
+        for _ in range(2):
+            tdSql.execute(f"ALTER EXTERNAL SOURCE {self.source} {action} CLAUSE 'ORDER'")
+            tdSql.query(f"EXPLAIN VERBOSE TRUE {sql}")
+            remote = [str(row[0]).lower() for row in tdSql.queryResult
+                      if "remote sql:" in str(row[0]).lower()]
+            tdSql.query(sql)
+            ranks = sorted((ts.second, rank) for ts, rank in tdSql.queryResult)
+            if enabled:
+                return remote, ranks
+            # A heartbeat after CREATE can replace the client catalog and clear
+            # the override between the two queries. Discard only that sample.
+            tdSql.query(f"SHOW EXTERNAL SOURCE {self.source} CAPABILITY")
+            if any(row[:2] == ("CLAUSE", "ORDER") for row in tdSql.queryResult):
+                return remote, ranks
+        raise AssertionError("ORDER did not stay disabled during EXPLAIN and SELECT")
+
+    def _check_window(self, sql, expected, pushable):
+        for enabled in (False, True):
+            remote, ranks = self._read_window(sql, enabled)
+            assert ranks == expected, (enabled, sql, remote, ranks)
+            assert len(remote) == 1, remote
+            assert ("order by" in remote[0]) == (enabled and pushable), (enabled, sql, remote)
+            if " JOIN " in sql:
+                assert " join " in remote[0], remote
+
+
 class FederatedQueryVersionedMixin(FederatedQueryTestMixin):
-    """Extends FederatedQueryTestMixin with automatic per-version parametrization.
+    """Select MySQL/PG version combinations before preparing shared test data.
 
-    Each test method in a subclass runs **once per version combo** determined by
-    FQ_MYSQL_VERSIONS / FQ_PG_VERSIONS / FQ_INFLUX_VERSIONS (zip_longest).
-    Pytest serialises the fixture parameters so versions are always tested one
-    at a time, back-to-back.
+    InfluxDB versions run inside each provider scenario. They do not add pytest
+    parameters or repeat other providers' scenarios. The primary Influx version
+    keeps the existing source names; additional versions use separate aliases.
+    ``_using_influx`` selects credentials and dialect options while a provider
+    scenario runs and restores the primary version for cleanup.
 
-    At the start of every test the ``_version_combo`` autouse fixture sets
-    ``self._active_mysql_ver`` etc., so that ``self._mysql_cfg()`` /
-    ``self._pg_cfg()`` / ``self._influx_cfg()`` return the correct connection
-    details automatically — no changes to test bodies needed.
-
-    ``self._version_label()`` returns a human-readable string such as
-    ``'my8.0-pg18.6-inf3.0'`` that test result helpers can append to scenario
-    names so the final summary shows per-scenario × per-version rows.
-
-    When only default single versions are configured each test runs exactly
-    once, identical to the pre-versioning behavior.
-
-    Usage::
-
-        class TestFqXX(FederatedQueryVersionedMixin):
-            ...
-
-    Do NOT use for fq_12 (which iterates versions explicitly inside test bodies).
+    Do not use for fq_12, which iterates all versions explicitly.
     """
 
-    @pytest.fixture(autouse=True,
-                    params=ExtSrcEnv._version_combos(),
-                    ids=ExtSrcEnv._version_combo_ids())
+    @pytest.fixture(
+        autouse=True,
+        params=list(dict.fromkeys(
+            (mysql, pg, min(ExtSrcEnv.INFLUX_VERSIONS, key=lambda version: version == "1.8"))
+            for mysql, pg, _ in ExtSrcEnv._version_combos()
+        )),
+        ids=lambda combo: f"my{combo[0]}-pg{combo[1]}",
+    )
     def _version_combo(self, request):
-        mysql_ver, pg_ver, influx_ver = request.param
-        self._active_mysql_ver = mysql_ver
-        self._active_pg_ver = pg_ver
-        self._active_influx_ver = influx_ver
-        yield
-        self._active_mysql_ver = None
-        self._active_pg_ver = None
-        self._active_influx_ver = None
+        self._active_mysql_ver, self._active_pg_ver, self._active_influx_ver = request.param
+        try:
+            yield
+        finally:
+            self._active_mysql_ver = None
+            self._active_pg_ver = None
+            self._active_influx_ver = None
+
+    @pytest.fixture(autouse=True)
+    def _version_data(self, _version_combo, request):
+        # xunit setup_method runs before function-scoped fixtures. Depend on
+        # _version_combo explicitly so preparation and cleanup see this version.
+        method = getattr(self, request.function.__name__)
+        prepare = getattr(self, "_setup_version_data", None)
+        cleanup = getattr(self, "_teardown_version_data", None)
+        if prepare is not None:
+            prepare(method)
+        try:
+            yield
+        finally:
+            if cleanup is not None:
+                cleanup(method)
+
+    def _framework_baseline_label(self):
+        # PG 16 and 18.6 have identical reviewed framework results. Reuse the
+        # native Influx answers without adding another complete copy of them.
+        label = self._version_label()
+        if label == "my8.0-pg18.6-inf1.8":
+            label = "my8.0-pg16-inf1.8"
+        return label.replace(".", "_").replace("/", "_")
 
     def _version_label(self):
         """Return the current version-combo label, e.g. ``'my8.0-pg18.6-inf3.0'``.
@@ -4210,7 +4936,7 @@ class FederatedQueryVersionedMixin(FederatedQueryTestMixin):
         """
         mysql_ver = getattr(self, '_active_mysql_ver', None) or ExtSrcEnv.MYSQL_VERSIONS[0]
         pg_ver = getattr(self, '_active_pg_ver', None) or ExtSrcEnv.PG_VERSIONS[0]
-        influx_ver = getattr(self, '_active_influx_ver', None) or ExtSrcEnv.INFLUX_VERSIONS[0]
+        influx_ver = getattr(self, '_active_influx_ver', None) or self._influx_configs()[0].version
         return f"my{mysql_ver}-pg{pg_ver}-inf{influx_ver}"
 
 
@@ -4560,7 +5286,7 @@ def parity_precision_eq(lv, ev, label, tz=None):
         return False
     if str(lv) == str(ev):
         return True
-    factor = _EXT_PRECISION_FACTOR.get(label, 1)
+    factor = _EXT_PRECISION_FACTOR.get(label.split("@", 1)[0], 1)
 
     # ── Integer/float scaling: ext_val == local_val * factor ──
     try:
@@ -4658,7 +5384,7 @@ def parity_make_insert_sqls(rows_dt, *, table="parity_t", schema=""):
     ]
 
 
-class ParityTestBase(FederatedQueryTestMixin):
+class ParityTestBase(FederatedQueryVersionedMixin):
     """Base class for parity tests that compare local TDengine results
     against one or more external sources.
 
@@ -5485,6 +6211,7 @@ class ParityTestBase(FederatedQueryTestMixin):
         else:
             with open(baseline_file, "r") as f:
                 baseline_content = f.read()
+            baseline_content = self._expand_influx_baseline(baseline_content)
             if _normalize_baseline(tmp_content) != _normalize_baseline(baseline_content):
                 # Find first diff
                 tmp_lines = tmp_content.splitlines()

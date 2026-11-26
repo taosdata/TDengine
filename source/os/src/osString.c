@@ -482,16 +482,16 @@ static void taosLogConvError(ConvType type, void *charsetCxt,
          inputLen > num ? " ..." : "");
 }
 
-#ifndef DISALLOW_NCHAR_WITHOUT_ICONV
-static int32_t taosValidateUcs4(const TdUcs4 *ucs4, int32_t ucs4Len) {
-  if (ucs4Len % (int32_t)sizeof(*ucs4) != 0) {
+int32_t taosValidateUcs4(const void *ucs4, int32_t ucs4Len) {
+  if (ucs4Len < 0 || (ucs4 == NULL && ucs4Len != 0) || ucs4Len % (int32_t)sizeof(TdUcs4) != 0) {
     return EINVAL;
   }
 
-  int32_t numOfCodePoints = ucs4Len / (int32_t)sizeof(*ucs4);
+  const char *bytes = ucs4;
+  int32_t numOfCodePoints = ucs4Len / (int32_t)sizeof(TdUcs4);
   for (int32_t i = 0; i < numOfCodePoints; ++i) {
     uint32_t codePoint = 0;
-    (void)memcpy(&codePoint, (const char *)ucs4 + i * sizeof(*ucs4), sizeof(codePoint));
+    (void)memcpy(&codePoint, bytes + i * sizeof(TdUcs4), sizeof(codePoint));
     if (codePoint > 0x10FFFF || (codePoint >= 0xD800 && codePoint <= 0xDFFF)) {
       return EILSEQ;
     }
@@ -499,13 +499,17 @@ static int32_t taosValidateUcs4(const TdUcs4 *ucs4, int32_t ucs4Len) {
 
   return 0;
 }
-#endif
 
-bool taosMbsToUcs4(const char *mbs, size_t mbsLength, TdUcs4 *ucs4, int32_t ucs4_max_len, int32_t *len, void* charsetCxt) {
-  if (ucs4_max_len == 0) {
+static bool taosMbsToUcs4Impl(const char *mbs, size_t mbsLength, char *ucs4,
+                              int32_t ucs4Capacity, int32_t *len,
+                              void *charsetCxt, bool truncate) {
+  if (ucs4Capacity == 0 || (truncate && mbsLength == 0)) {
+    if (truncate && len != NULL) {
+      *len = 0;
+    }
     return true;
   }
-  if (ucs4_max_len < 0 || mbs == NULL || ucs4 == NULL) {
+  if (ucs4Capacity < 0 || mbs == NULL || ucs4 == NULL) {
     terrno = TSDB_CODE_INVALID_PARA;
     return false;
   }
@@ -514,7 +518,9 @@ bool taosMbsToUcs4(const char *mbs, size_t mbsLength, TdUcs4 *ucs4, int32_t ucs4
   terrno = TSDB_CODE_APP_ERROR;
   return false;
 #else
-  (void)memset(ucs4, 0, ucs4_max_len);
+  if (!truncate) {
+    (void)memset(ucs4, 0, ucs4Capacity);
+  }
 
   int32_t idx = -1;
   iconv_t conv = taosAcquireConv(&idx, M2C, charsetCxt);
@@ -522,19 +528,51 @@ bool taosMbsToUcs4(const char *mbs, size_t mbsLength, TdUcs4 *ucs4, int32_t ucs4
     return false;
   }
 
-  size_t ucs4_input_len = mbsLength;
-  size_t outLeft = ucs4_max_len;
-  if (iconv(conv, (char **)&mbs, &ucs4_input_len, (char **)&ucs4, &outLeft) == -1) {
-    int32_t osError = ERRNO;
+  // A pooled descriptor may retain shift state from a previous value.
+  if (truncate) {
+    (void)iconv(conv, NULL, NULL, NULL, NULL);
+  }
+  char  *in = (char *)mbs;
+  char  *out = ucs4;
+  size_t inLeft = mbsLength;
+  size_t outLeft = ucs4Capacity;
+  size_t result = iconv(conv, &in, &inLeft, &out, &outLeft);
+  int32_t osError = result == (size_t)-1 ? ERRNO : 0;
+  const bool flush = truncate && outLeft != 0;
+  if (flush) {
+    // A decoder can buffer a valid character while inspecting the suffix.
+    result = iconv(conv, NULL, NULL, &out, &outLeft);
+    if (result == (size_t)-1 && osError == 0) {
+      osError = ERRNO;
+    }
+  }
+
+  // Some iconv implementations inspect the next byte before reporting E2BIG.
+  bool failed = osError != 0 && (!truncate || outLeft != 0);
+  if (failed) {
     terrno = TAOS_SYSTEM_ERROR(osError);
-    taosLogConvError(M2C, charsetCxt, mbs, ucs4_input_len);
-    taosReleaseConv(idx, conv, M2C, charsetCxt);
-    return false;
+    taosLogConvError(M2C, charsetCxt, in, inLeft);
+  }
+  if (truncate && (!flush || result == (size_t)-1)) {
+    (void)iconv(conv, NULL, NULL, NULL, NULL);
   }
 
   taosReleaseConv(idx, conv, M2C, charsetCxt);
+  if (failed) {
+    return false;
+  }
+  int32_t convertedLen = (int32_t)(ucs4Capacity - outLeft);
+  if (truncate) {
+    // Some iconv implementations write values outside the Unicode range.
+    int32_t errnoCode = taosValidateUcs4(ucs4, convertedLen);
+    if (errnoCode != 0) {
+      terrno = TAOS_SYSTEM_ERROR(errnoCode);
+      taosLogConvError(M2C, charsetCxt, mbs, mbsLength - inLeft);
+      return false;
+    }
+  }
   if (len != NULL) {
-    *len = (int32_t)(ucs4_max_len - outLeft);
+    *len = convertedLen;
     if (*len < 0) {
       // can not happen
       terrno = TSDB_CODE_APP_ERROR;
@@ -546,11 +584,21 @@ bool taosMbsToUcs4(const char *mbs, size_t mbsLength, TdUcs4 *ucs4, int32_t ucs4
 #endif
 }
 
-// MBS -> UCS-4 half of the charset-insensitive contract documented below.
-bool taosMbsToUcs4CharsetInsensitive(const char *mbs, size_t mbsLength,
-                                      TdUcs4 *ucs4, int32_t ucs4_max_len,
-                                      int32_t *len) {
-  return taosMbsToUcs4(mbs, mbsLength, ucs4, ucs4_max_len, len, NULL);
+bool taosMbsToUcs4(const char *mbs, size_t mbsLength, TdUcs4 *ucs4,
+                   int32_t ucs4Capacity, int32_t *len, void *charsetCxt) {
+  return taosMbsToUcs4Impl(mbs, mbsLength, (char *)ucs4, ucs4Capacity, len,
+                           charsetCxt, false);
+}
+
+// Decode only as many complete UCS-4 characters as fit in the destination.
+bool taosMbsToUcs4Prefix(const char *mbs, size_t mbsLength, char *ucs4,
+                         int32_t ucs4Capacity, int32_t *len, void *charsetCxt) {
+  if (ucs4Capacity < 0 || ucs4Capacity % (int32_t)sizeof(TdUcs4) != 0) {
+    terrno = TSDB_CODE_INVALID_PARA;
+    return false;
+  }
+  return taosMbsToUcs4Impl(mbs, mbsLength, ucs4, ucs4Capacity, len, charsetCxt,
+                           true);
 }
 
 // if success, return the number of bytes written to mbs ( >= 0)
@@ -606,6 +654,80 @@ static int32_t taosUcs4ToMbsImpl(TdUcs4 *ucs4, int32_t ucs4_max_len,
 int32_t taosUcs4ToMbs(TdUcs4 *ucs4, int32_t ucs4_max_len, char *mbs,
                        void *charsetCxt) {
   return taosUcs4ToMbsImpl(ucs4, ucs4_max_len, mbs, charsetCxt, true);
+}
+
+// Locate a character boundary in the original byte stream, preserving alternate
+// and stateful encodings instead of computing offsets by re-encoding a prefix.
+int32_t taosMbsCharBoundaries(const char *string, int32_t length,
+                              void *charsetCxt, uint8_t *boundaries) {
+  if (string == NULL || boundaries == NULL || length < 0) {
+    return TSDB_CODE_INVALID_PARA;
+  }
+  memset(boundaries, 0, (size_t)length + 1);
+  boundaries[0] = 1;
+  if (length == 0) return TSDB_CODE_SUCCESS;
+#ifdef DISALLOW_NCHAR_WITHOUT_ICONV
+  return TSDB_CODE_CHARSET_CONVERT_ERROR;
+#else
+  int32_t idx = -1;
+  iconv_t conv = taosAcquireConv(&idx, M2C, charsetCxt);
+  if (conv == (iconv_t)-1) return TSDB_CODE_CHARSET_CONVERT_ERROR;
+  (void)iconv(conv, NULL, NULL, NULL, NULL);
+  char *cursor = (char *)string;
+  size_t remaining = length;
+  int32_t code = TSDB_CODE_SUCCESS;
+  while (remaining > 0) {
+    TdUcs4 scalar = 0;
+    char *out = (char *)&scalar;
+    size_t space = sizeof(scalar);
+    size_t before = remaining;
+    size_t result = iconv(conv, &cursor, &remaining, &out, &space);
+    if (space != 0 || remaining == before ||
+        (result == (size_t)-1 && ERRNO != E2BIG)) {
+      code = TSDB_CODE_CHARSET_CONVERT_ERROR;
+      break;
+    }
+    boundaries[cursor - string] = 1;
+  }
+  (void)iconv(conv, NULL, NULL, NULL, NULL);
+  taosReleaseConv(idx, conv, M2C, charsetCxt);
+  return code;
+#endif
+}
+
+int32_t taosMbsCharOffset(const char *string, size_t length, size_t characters,
+                          void *charsetCxt, int32_t *bytes) {
+  if (string == NULL || bytes == NULL || length > INT32_MAX) return TSDB_CODE_INVALID_PARA;
+  if (characters == 0) {
+    *bytes = 0;
+    return TSDB_CODE_SUCCESS;
+  }
+  if (length == 0) return TSDB_CODE_CHARSET_CONVERT_ERROR;
+#ifdef DISALLOW_NCHAR_WITHOUT_ICONV
+  return TSDB_CODE_CHARSET_CONVERT_ERROR;
+#else
+  int32_t idx = -1;
+  iconv_t conv = taosAcquireConv(&idx, M2C, charsetCxt);
+  if (conv == (iconv_t)-1) return TSDB_CODE_CHARSET_CONVERT_ERROR;
+  (void)iconv(conv, NULL, NULL, NULL, NULL);
+  char *cursor = (char *)string;
+  size_t remaining = length;
+  int32_t code = 0;
+  for (size_t i = 0; i < characters; ++i) {
+    TdUcs4 scalar = 0;
+    char *out = (char *)&scalar;
+    size_t space = sizeof(scalar);
+    size_t result = iconv(conv, &cursor, &remaining, &out, &space);
+    if (space != 0 || (result == (size_t)-1 && ERRNO != E2BIG)) {
+      code = TSDB_CODE_CHARSET_CONVERT_ERROR;
+      break;
+    }
+  }
+  *bytes = (int32_t)(cursor - string);
+  (void)iconv(conv, NULL, NULL, NULL, NULL);
+  taosReleaseConv(idx, conv, M2C, charsetCxt);
+  return code;
+#endif
 }
 
 // Convert MBS between charset contexts through UCS-4. On success, *ppDst is a
@@ -679,33 +801,6 @@ _exit:
   return code;
 }
 
-// UCS-4 -> MBS with no query charset context. Use only when the querying
-// client's charset does not affect the operation's semantics:
-//
-//   1. ASCII-only content: numeric literals (an NCHAR cast/parsed to a
-//      number) and WKT geometry text (POINT/LINESTRING ...). Every supported
-//      charset is an ASCII superset, so codepoints 0-127 map to the same
-//      single byte in any charset -- the output bytes are charset-independent.
-//
-//   2. Regex match (comparewcsRegexMatch): the content may be arbitrary
-//      NCHAR, but (a) both operands arrive as client-independent UCS-4 (NCHAR
-//      is stored as UCS-4, and NCHAR MATCH pattern literals are pre-converted
-//      to UCS-4 on the client), and (b) regexec() reads bytes under the
-//      process LC_CTYPE, i.e. the server locale, so the server charset -- what
-//      NULL resolves to -- is exactly what the engine needs and both operands
-//      are converted the same way. Here NULL is not merely acceptable, it is
-//      required, and the querying client's charset is irrelevant to the match.
-//
-//   3. Server-internal rendering or round trips with no client query context,
-//      such as diagnostics and rollup paths. Both directions intentionally use
-//      the process/server charset, so the operation remains self-consistent.
-//
-// Any other site handling non-ASCII NCHAR text IS query-charset-sensitive and
-// must thread the query's charsetCxt through taosUcs4ToMbs instead.
-int32_t taosUcs4ToMbsCharsetInsensitive(TdUcs4 *ucs4, int32_t ucs4_max_len,
-                                        char *mbs) {
-  return taosUcs4ToMbsImpl(ucs4, ucs4_max_len, mbs, NULL, true);
-}
 
 // if success, return the number of bytes written to mbs ( >= 0)
 // otherwise return error code ( < 0)
@@ -980,11 +1075,14 @@ int32_t taosStr2Int32(const char *str, char **pEnd, int32_t radix) {
     terrno = TSDB_CODE_INVALID_PARA;
     return 0;
   }
-  int32_t tmp = strtol(str, pEnd, radix);
+  /* Parse through 64 bits: on Windows (LLP64) strtol() is a 32-bit parse, so a
+   * value such as the connection id 0xcb03f7f1 saturated to LONG_MAX instead of
+   * keeping its bit pattern. */
+  int64_t tmp = strtoll(str, pEnd, radix);
 #if defined(DARWIN) || defined(_ALPINE)
   if (ERRNO == EINVAL) SET_ERRNO(0);
 #endif
-  return tmp;
+  return (int32_t)tmp;
 }
 
 uint32_t taosStr2UInt32(const char *str, char **pEnd, int32_t radix) {
@@ -992,11 +1090,11 @@ uint32_t taosStr2UInt32(const char *str, char **pEnd, int32_t radix) {
     terrno = TSDB_CODE_INVALID_PARA;
     return 0;
   }
-  uint32_t tmp = strtol(str, pEnd, radix);
+  uint64_t tmp = strtoull(str, pEnd, radix);
 #if defined(DARWIN) || defined(_ALPINE)
   if (ERRNO == EINVAL) SET_ERRNO(0);
 #endif
-  return tmp;
+  return (uint32_t)tmp;
 }
 
 int16_t taosStr2Int16(const char *str, char **pEnd, int32_t radix) {

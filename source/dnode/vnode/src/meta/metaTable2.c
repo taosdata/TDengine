@@ -16,10 +16,13 @@
  */
 
 #include "meta.h"
+#include "tcompare.h"
+#include "tconv.h"
 #include "osString.h"
 #include "querynodes.h"
 #include "scalar.h"
 #include "tarray.h"
+#include "tdTestSeam.h"
 #include "tdatablock.h"
 #include "tdataformat.h"
 #include "thash.h"
@@ -38,6 +41,96 @@ extern void    metaFetchEntryFree(SMetaEntry **ppEntry);
 extern int32_t updataTableColCmpr(SColCmprWrapper *pWp, SSchema *pSchema, int8_t add, uint32_t compress);
 extern int32_t addTableExtSchema(SMetaEntry *pEntry, const SSchema *pColumn, int32_t newColNum, SExtSchema *pExtSchema);
 extern int32_t dropTableExtSchema(SMetaEntry *pEntry, int32_t dropColId, int32_t newColNum);
+
+// Validates a schema received from the wire before it is persisted: the column
+// count, the column array and every column type (SSchema.type is a raw int8 that is
+// later used to index tDataTypes[]).
+int32_t metaCheckReferenceVersion(SMeta *pMeta, const SVAlterTbReq *pReq) {
+  if (!pReq->hasExpectedRversion) return TSDB_CODE_SUCCESS;
+  SMetaEntry *pEntry = NULL;
+  int32_t code = metaFetchEntryByName(pMeta, pReq->tbName, &pEntry);
+  if (code == TSDB_CODE_SUCCESS && pEntry->colRef.version != pReq->expectedRversion) {
+    code = TSDB_CODE_VTABLE_REFERENCE_VERSION_CONFLICT;
+  }
+  metaFetchEntryFree(&pEntry);
+  return code;
+}
+
+static SColRef *metaReferenceColById(SMetaEntry *pEntry, col_id_t colId) {
+  for (int32_t i = 0; i < pEntry->colRef.nCols; ++i) {
+    if (pEntry->colRef.pColRef[i].id == colId) return &pEntry->colRef.pColRef[i];
+  }
+  for (int32_t i = 0; i < pEntry->own.nOwnCols; ++i) {
+    if (pEntry->own.pOwnColRefs[i].id == colId) return &pEntry->own.pOwnColRefs[i];
+  }
+  return NULL;
+}
+
+static int32_t metaApplyReferenceCandidate(SMetaEntry *pEntry, const SVAlterTbReq *pReq) {
+  if (pReq->hasExpectedRversion) {
+    pEntry->hasExpectedRversion = true;
+    pEntry->expectedRversion = pReq->expectedRversion;
+    SVtableReferenceExt candidate = {0};
+    TAOS_CHECK_RETURN(tCloneVtableReferenceExt(&pReq->referenceExt, &candidate));
+    for (int32_t i = 0; i < candidate.nBindings; ++i) {
+      SVtableBindingLink *pLink = &candidate.pBindings[i];
+      SColRef *pRef = NULL;
+      if (pLink->colId == 0 && pReq->action == TSDB_ALTER_TABLE_ADD_COLUMN_WITH_COLUMN_REF) {
+        if (pEntry->type == TSDB_VIRTUAL_CHILD_TABLE && pEntry->own.nOwnCols > 0) {
+          pRef = &pEntry->own.pOwnColRefs[pEntry->own.nOwnCols - 1];
+        } else if (pEntry->colRef.nCols > 0) {
+          pRef = &pEntry->colRef.pColRef[pEntry->colRef.nCols - 1];
+        }
+        if (pRef != NULL) pLink->colId = pRef->id;
+      } else {
+        pRef = metaReferenceColById(pEntry, pLink->colId);
+      }
+      if (pRef == NULL || !pRef->hasRef) {
+        memmove(pLink, pLink + 1, (candidate.nBindings - i - 1) * sizeof(*pLink));
+        --candidate.nBindings;
+        --i;
+        continue;
+      }
+      const SReferenceEntry *pReference = tVtableReferenceForColumn(&candidate, pLink->colId);
+      if (pReference != NULL) {
+        pRef->refType = 1;
+        tstrncpy(pRef->refSourceName, pReference->sourceName, sizeof(pRef->refSourceName));
+        tstrncpy(pRef->refDbName, pReference->dbName, sizeof(pRef->refDbName));
+        tstrncpy(pRef->refSchemaName, pReference->schemaName, sizeof(pRef->refSchemaName));
+        tstrncpy(pRef->refTableName, pReference->objectName, sizeof(pRef->refTableName));
+        taosMemoryFreeClear(pRef->tagCondJson);
+        pRef->tagCondLen = 0;
+      }
+    }
+    tFreeVtableReferenceExt(&pEntry->referenceExt);
+    pEntry->referenceExt = candidate;
+  }
+  return TSDB_CODE_SUCCESS;
+}
+
+static int32_t metaHandleReferenceEntry(SMeta *pMeta, SMetaEntry *pEntry, const SVAlterTbReq *pReq) {
+  TAOS_CHECK_RETURN(metaApplyReferenceCandidate(pEntry, pReq));
+  return metaHandleEntry2(pMeta, pEntry);
+}
+
+static int32_t metaCheckSchemaWrapper(const SSchemaWrapper *pSchema, bool allowEmpty) {
+  if (pSchema == NULL || pSchema->nCols < 0 || pSchema->nCols > TSDB_MAX_COLUMNS) {
+    return TSDB_CODE_INVALID_MSG;
+  }
+  if (pSchema->nCols == 0) {
+    return allowEmpty ? TSDB_CODE_SUCCESS : TSDB_CODE_INVALID_MSG;
+  }
+  if (pSchema->pSchema == NULL) {
+    return TSDB_CODE_INVALID_MSG;
+  }
+  for (int32_t i = 0; i < pSchema->nCols; i++) {
+    const SSchema *pCol = pSchema->pSchema + i;
+    if (IS_INVALID_TYPE(pCol->type) || pCol->type == TSDB_DATA_TYPE_NULL || pCol->bytes < 0) {
+      return TSDB_CODE_INVALID_MSG;
+    }
+  }
+  return TSDB_CODE_SUCCESS;
+}
 
 static int32_t metaValidateVirtualChildColRefReq(SMeta *pMeta, int64_t version, const SVCreateTbReq *pReq,
                                                  const SMetaEntry *pStbEntry) {
@@ -73,6 +166,15 @@ static int32_t metaCheckCreateSuperTableReq(SMeta *pMeta, int64_t version, SVCre
     metaError("vgId:%d, %s failed at %s:%d since invalid name:%s, version:%" PRId64, vgId, __func__, __FILE__, __LINE__,
               pReq->name, version);
     return TSDB_CODE_INVALID_MSG;
+  }
+
+  // check schemas
+  int32_t code = metaCheckSchemaWrapper(&pReq->schemaRow, false);
+  if (code == TSDB_CODE_SUCCESS) code = metaCheckSchemaWrapper(&pReq->schemaTag, true);
+  if (code) {
+    metaError("vgId:%d, %s failed at %s:%d since invalid schema of table %s, version:%" PRId64, vgId, __func__,
+              __FILE__, __LINE__, pReq->name, version);
+    return code;
   }
 
   // Hold metaRLock for pNameIdx B+tree read: async vacuum may concurrently
@@ -591,7 +693,7 @@ _check_stb:
   metaFetchEntryFree(&pStbEntry);
 
   // check grant
-  if (!metaTbInFilterCache(pMeta, pReq->ctb.stbName, 1)) {
+  if (!vnodeIsTimeSeriesExcluded(pMeta->pVnode)) {
     code = grantCheck(TSDB_GRANT_TIMESERIES);
     if (TSDB_CODE_SUCCESS != code) {
       metaError("vgId:%d, %s failed at %s:%d since %s, version:%" PRId64 " name:%s", TD_VID(pMeta->pVnode), __func__,
@@ -691,6 +793,20 @@ static int32_t metaCheckCreateNormalTableReq(SMeta *pMeta, int64_t version, SVCr
     metaError("vgId:%d, %s failed at %s:%d since invalid name:%s, version:%" PRId64, TD_VID(pMeta->pVnode), __func__,
               __FILE__, __LINE__, pReq->name, version);
     return TSDB_CODE_INVALID_MSG;
+  }
+
+  // check schemas; the column compression entries are written per schema column
+  // when the response is built, so they must not outnumber the columns
+  code = metaCheckSchemaWrapper(&pReq->ntb.schemaRow, false);
+  if (code == TSDB_CODE_SUCCESS) code = metaCheckSchemaWrapper(&pReq->ntb.schemaTag, true);
+  if (code == TSDB_CODE_SUCCESS && (pReq->colCmpr.nCols < 0 || pReq->colCmpr.nCols > pReq->ntb.schemaRow.nCols ||
+                                    (pReq->colCmpr.nCols > 0 && pReq->colCmpr.pColCmpr == NULL))) {
+    code = TSDB_CODE_INVALID_MSG;
+  }
+  if (code) {
+    metaError("vgId:%d, %s failed at %s:%d since invalid schema of table %s, version:%" PRId64, TD_VID(pMeta->pVnode),
+              __func__, __FILE__, __LINE__, pReq->name, version);
+    return code;
   }
 
   // check name
@@ -943,7 +1059,7 @@ static int32_t metaFillNtbTableMetaRsp(SMetaEntry *pEntry, const char *tbName, S
   // plain normal tables carry column compress options in colCmpr (mirrors the metaUpdateMetaRsp
   // response paths, e.g. metaAddTableColumn); metaFillRspSchemaExt only fills colId/typeMod.
   if (pEntry->type == TSDB_NORMAL_TABLE) {
-    for (int32_t i = 0; i < pEntry->colCmpr.nCols; i++) {
+    for (int32_t i = 0; i < pEntry->colCmpr.nCols && i < pEntry->ntbEntry.schemaRow.nCols; i++) {
       SColCmpr *p = &pEntry->colCmpr.pColCmpr[i];
       pRsp->pSchemaExt[i].colId = p->id;
       pRsp->pSchemaExt[i].compress = p->alg;
@@ -980,6 +1096,15 @@ static int32_t metaCreateVirtualNormalTable(SMeta *pMeta, int64_t version, SVCre
     TAOS_RETURN(code);
   }
 
+  // every column of a virtual normal table needs exactly one column reference slot
+  if (pReq->colRef.nCols != pReq->ntb.schemaRow.nCols || (pReq->colRef.nCols > 0 && pReq->colRef.pColRef == NULL)) {
+    metaError("vgId:%d, %s failed at %s:%d since col ref count %d does not match schema count %d, version:%" PRId64
+              " name:%s",
+              TD_VID(pMeta->pVnode), __func__, __FILE__, __LINE__, pReq->colRef.nCols, pReq->ntb.schemaRow.nCols,
+              version, pReq->name);
+    TAOS_RETURN(TSDB_CODE_INVALID_MSG);
+  }
+
   int32_t nextCid = 0;
   code = metaNtbNextCid(pReq, &nextCid);
   if (code) {
@@ -1003,7 +1128,8 @@ static int32_t metaCreateVirtualNormalTable(SMeta *pMeta, int64_t version, SVCre
                       .ntbEntry.ownerId = pReq->ntb.userId,
                       .pExtSchemas = pReq->pExtSchemas,
                       .colRef = pReq->colRef,
-                      .series = pReq->series};
+                      .series = pReq->series,
+                      .referenceExt = pReq->referenceExt};
   // Batch meta txn: shadow-in-B+tree  -  write with PRE_CREATE status, invisible until COMMIT
   if (pReq->txnId != 0) {
     entry.txnId = pReq->txnId;
@@ -1124,12 +1250,14 @@ static int32_t metaSetupVChildOwnSchema(SMeta *pMeta, int64_t version, SVCreateT
     goto _exit;
   }
 
-  // validate own columns: mandatory ref, name dup, type and merged limits
+  // validate own columns: a declared ref must be complete, name dup, type and merged limits.
+  // A bare `name TYPE` declaration (hasRef == false) is allowed: the column is created unbound,
+  // the same state ALTER VTABLE ... SET NULL produces, so SHOW CREATE output stays replayable.
   for (int32_t i = 0; i < pReq->nOwnColDefs; i++) {
     SVChildOwnColDef *pDef = &pReq->pOwnColDefs[i];
-    if (!pDef->ref.hasRef || pDef->ref.refDbName[0] == '\0' || pDef->ref.refTableName[0] == '\0' ||
-        pDef->ref.refColName[0] == '\0') {
-      metaError("vgId:%d, %s failed at %s:%d since own column %s without reference, version:%" PRId64,
+    if (pDef->ref.hasRef && (pDef->ref.refDbName[0] == '\0' || pDef->ref.refTableName[0] == '\0' ||
+                             pDef->ref.refColName[0] == '\0')) {
+      metaError("vgId:%d, %s failed at %s:%d since own column %s has an incomplete reference, version:%" PRId64,
                 TD_VID(pMeta->pVnode), __func__, __FILE__, __LINE__, pDef->schema.name, version);
       code = TSDB_CODE_VND_INVALID_TABLE_ACTION;
       goto _exit;
@@ -1260,7 +1388,7 @@ static int32_t metaSetupVChildOwnSchema(SMeta *pMeta, int64_t version, SVCreateT
       pEntry->own.pOwnColSchemas[i].colId = nextColId;
       pEntry->own.pOwnColRefs[i] = pReq->pOwnColDefs[i].ref;  // shallow: tagCondJson stays owned by pReq
       pEntry->own.pOwnColRefs[i].id = nextColId;
-      pEntry->own.pOwnColRefs[i].hasRef = true;
+      // keep the declared hasRef: false for a bare `name TYPE` own column (created unbound)
       if (pEntry->own.pOwnColExtSchemas != NULL) {
         pEntry->own.pOwnColExtSchemas[i].typeMod = pReq->pOwnColDefs[i].typeMod;
       }
@@ -1400,7 +1528,8 @@ static int32_t metaCreateVirtualChildTable(SMeta *pMeta, int64_t version, SVCrea
                       .ctbEntry.suid = pReq->ctb.suid,
                       .ctbEntry.pTags = pReq->ctb.pTag,
                       .colRef = pReq->colRef,
-                      .series = pReq->series};
+                      .series = pReq->series,
+                      .referenceExt = pReq->referenceExt};
   // Batch meta txn: shadow-in-B+tree  -  write with PRE_CREATE status, invisible until COMMIT
   if (pReq->txnId != 0) {
     entry.txnId = pReq->txnId;
@@ -1477,6 +1606,8 @@ int32_t metaCreateTable2(SMeta *pMeta, int64_t version, SVCreateTbReq *pReq, STa
  * Indexes are NOT modified  -  the entry remains visible but filtered by txnStatus.
  */
 int32_t metaMarkTableTxnStatus(SMeta *pMeta, int64_t uid, int64_t txnId, int8_t txnStatus, int64_t txnOrigVer) {
+  TD_SEAM_RET(metaMarkTableTxnStatus, int32_t (*)(SMeta *, int64_t, int64_t, int8_t, int64_t),
+              (pMeta, uid, txnId, txnStatus, txnOrigVer));
   int32_t code = TSDB_CODE_SUCCESS;
   void   *uidValue = NULL, *tbValue = NULL;
   int32_t uidValueSize = 0, tbValueSize = 0;
@@ -1520,6 +1651,13 @@ int32_t metaMarkTableTxnStatus(SMeta *pMeta, int64_t uid, int64_t txnId, int8_t 
     return code;
   }
 
+  // A visibility transition on a virtual-table entry changes what
+  // ins_virtual_child_columns scans. Bump the generation in the same meta write
+  // lock as the status write; otherwise a reader could cache the post-alter
+  // (not yet marked) entry in the window between the ALTER write and this mark.
+  bool bumpVtableGen = (entry.type == TSDB_VIRTUAL_NORMAL_TABLE || entry.type == TSDB_VIRTUAL_CHILD_TABLE ||
+                        (entry.type == TSDB_SUPER_TABLE && TABLE_IS_VIRTUAL(entry.flags)));
+
   // Update txn fields
   entry.txnId = txnId;
   entry.txnStatus = txnStatus;
@@ -1533,6 +1671,7 @@ int32_t metaMarkTableTxnStatus(SMeta *pMeta, int64_t uid, int64_t txnId, int8_t 
   tEncodeSize(metaEncodeEntry, &entry, encodeSize, code);
   if (code) {
     tFreeSSeriesWrapper(&entry.series);
+    tFreeVtableReferenceExt(&entry.referenceExt);
     tDecoderClear(&decoder);
     tdbFreeClear(tbValue);
     metaULock(pMeta);
@@ -1542,6 +1681,7 @@ int32_t metaMarkTableTxnStatus(SMeta *pMeta, int64_t uid, int64_t txnId, int8_t 
   void *newValue = taosMemoryMalloc(encodeSize);
   if (!newValue) {
     tFreeSSeriesWrapper(&entry.series);
+    tFreeVtableReferenceExt(&entry.referenceExt);
     tDecoderClear(&decoder);
     tdbFreeClear(tbValue);
     metaULock(pMeta);
@@ -1558,6 +1698,7 @@ int32_t metaMarkTableTxnStatus(SMeta *pMeta, int64_t uid, int64_t txnId, int8_t 
   // and must be released on every exit. metaCloneEntryFree does the same for
   // heap-allocated entries (see metaFetchEntryFree).
   tFreeSSeriesWrapper(&entry.series);
+  tFreeVtableReferenceExt(&entry.referenceExt);
   if (code) {
     taosMemoryFree(newValue);
     metaULock(pMeta);
@@ -1566,6 +1707,9 @@ int32_t metaMarkTableTxnStatus(SMeta *pMeta, int64_t uid, int64_t txnId, int8_t 
 
   code = tdbTbUpsert(pMeta->pTbDb, &key, sizeof(key), newValue, encodeSize, pMeta->txn);
   taosMemoryFree(newValue);
+  if (code == TSDB_CODE_SUCCESS && bumpVtableGen) {
+    metaBumpVtableGen(pMeta);
+  }
   metaULock(pMeta);
   if (code) {
     metaError("vgId:%d, mark txn status: write back failed for uid %" PRId64, TD_VID(pMeta->pVnode), uid);
@@ -1587,6 +1731,7 @@ int32_t metaMarkTableTxnStatus(SMeta *pMeta, int64_t uid, int64_t txnId, int8_t 
  * @return TSDB_CODE_SUCCESS on success
  */
 int32_t metaRollbackAlterTable(SMeta *pMeta, int64_t uid, int64_t prevVersion) {
+  TD_SEAM_RET(metaRollbackAlterTable, int32_t (*)(SMeta *, int64_t, int64_t), (pMeta, uid, prevVersion));
   int32_t code = TSDB_CODE_SUCCESS;
   void   *uidValue = NULL;
   int32_t uidValueSize = 0;
@@ -1692,12 +1837,10 @@ int32_t metaRollbackAlterTable(SMeta *pMeta, int64_t uid, int64_t prevVersion) {
   // Capture before metaReaderClear  -  mr.me memory is decoder-managed.
   int8_t  statsType = -1;  // TSDB_SUPER_TABLE / TSDB_NORMAL_TABLE; -1 = skip
   int32_t newNcols = 0;
-  char    stbName[TSDB_TABLE_NAME_LEN] = {0};
   if (readCode == 0) {
     if (mr.me.type == TSDB_SUPER_TABLE && !TABLE_IS_VIRTUAL(mr.me.flags)) {
       statsType = TSDB_SUPER_TABLE;
       newNcols = mr.me.stbEntry.schemaRow.nCols;
-      tstrncpy(stbName, mr.me.name, TSDB_TABLE_NAME_LEN);
     } else if (mr.me.type == TSDB_NORMAL_TABLE) {
       statsType = TSDB_NORMAL_TABLE;
       newNcols = mr.me.ntbEntry.schemaRow.nCols;
@@ -1720,7 +1863,7 @@ int32_t metaRollbackAlterTable(SMeta *pMeta, int64_t uid, int64_t prevVersion) {
   // Fetch ctbNum BEFORE taking WLock below: metaGetStbStats acquires metaRLock
   // internally, calling it while holding metaWLock self-deadlocks (glibc rwlock
   // does not allow a wrlock owner to re-enter rdlock).
-  bool    needStbCtbStats = (statsType == TSDB_SUPER_TABLE && !metaTbInFilterCache(pMeta, stbName, 1));
+  bool    needStbCtbStats = (statsType == TSDB_SUPER_TABLE && !vnodeIsTimeSeriesExcluded(pMeta->pVnode));
   int64_t stbCtbNum = 0;
   if (needStbCtbStats) {
     int32_t stRet = metaGetStbStats(pMeta->pVnode, uid, &stbCtbNum, 0, 0);
@@ -1811,6 +1954,7 @@ int32_t metaRollbackAlterTable(SMeta *pMeta, int64_t uid, int64_t prevVersion) {
 }
 
 int32_t metaDropTable2(SMeta *pMeta, int64_t version, SVDropTbReq *pReq) {
+  TD_SEAM_RET(metaDropTable2, int32_t (*)(SMeta *, int64_t, SVDropTbReq *), (pMeta, version, pReq));
   int32_t code = TSDB_CODE_SUCCESS;
 
   // check request
@@ -2212,7 +2356,7 @@ static int32_t metaAddVChildOwnColumn(SMeta *pMeta, int64_t version, SVAlterTbRe
   pEntry->colRef.version++;  // rversion bump: drives client catalog cache invalidation
 
   // do handle entry
-  code = metaHandleEntry2(pMeta, pEntry);
+  code = metaHandleReferenceEntry(pMeta, pEntry, pReq);
   if (code) {
     metaError("vgId:%d, %s failed at %s:%d since %s, uid:%" PRId64 " name:%s version:%" PRId64, TD_VID(pMeta->pVnode),
               __func__, __FILE__, __LINE__, tstrerror(code), pEntry->uid, pReq->tbName, version);
@@ -2317,7 +2461,7 @@ static int32_t metaDropVChildOwnColumn(SMeta *pMeta, int64_t version, SVAlterTbR
   }
 
   // do handle entry
-  code = metaHandleEntry2(pMeta, pEntry);
+  code = metaHandleReferenceEntry(pMeta, pEntry, pReq);
   if (code) {
     metaError("vgId:%d, %s failed at %s:%d since %s, uid:%" PRId64 " name:%s version:%" PRId64, TD_VID(pMeta->pVnode),
               __func__, __FILE__, __LINE__, tstrerror(code), pEntry->uid, pReq->tbName, version);
@@ -2898,25 +3042,22 @@ int32_t metaAddTableColumn(SMeta *pMeta, int64_t version, SVAlterTbReq *pReq, ST
         }
         tmpRef.filterCondLen = pReq->filterCondLen;
       }
-      if (pReq->refType == 1 && pEntry->series.nSeries > 0) {
-        for (int32_t i = 0; i < pEntry->series.nSeries; i++) {
-          SSeriesEntry *s = &pEntry->series.pSeries[i];
-          bool matched = false;
-          if (pReq->seriesAlias && pReq->seriesAlias[0] != '\0') {
-            matched = (strcasecmp(s->alias, pReq->seriesAlias) == 0);
-          } else {
-            matched = (strcasecmp(s->sourceName, pReq->refSourceName ? pReq->refSourceName : "") == 0 &&
-                       strcasecmp(s->dbName, pReq->refDbName) == 0 &&
-                       strcasecmp(s->measurementName, pReq->refTbName) == 0);
-          }
-          if (matched) {
-            if (s->tagCondLen > 0 && s->tagCondJson) {
-              tmpRef.tagCondJson = taosStrdup(s->tagCondJson);
-              tmpRef.tagCondLen = s->tagCondLen;
-            }
-            break;
-          }
+      // Same series lookup the ALTER COLUMN REF path uses. It has to stay the same rule in both
+      // places: metaColRefMatchesAlterReq compares the stored tag condition against what the
+      // ALTER would resolve, so a divergence here would make the first rebind of a column created
+      // by this path look like a real change.
+      const char *pSeriesTagCondJson = NULL;
+      int32_t     seriesTagCondLen = 0;
+      metaResolveColRefTagCond(pEntry, pReq, &pSeriesTagCondJson, &seriesTagCondLen);
+      if (NULL != pSeriesTagCondJson) {
+        tmpRef.tagCondJson = taosStrdup(pSeriesTagCondJson);
+        if (NULL == tmpRef.tagCondJson) {
+          code = terrno;
+          taosMemoryFree(tmpRef.filterCondJson);
+          metaFetchEntryFree(&pEntry);
+          TAOS_RETURN(code);
         }
+        tmpRef.tagCondLen = seriesTagCondLen;
       }
     }
     code = updataTableColRef(&pEntry->colRef, pColumn, 1, &tmpRef);
@@ -2960,7 +3101,7 @@ int32_t metaAddTableColumn(SMeta *pMeta, int64_t version, SVAlterTbReq *pReq, ST
   }
 
   // do handle entry
-  code = metaHandleEntry2(pMeta, pEntry);
+  code = metaHandleReferenceEntry(pMeta, pEntry, pReq);
   if (code) {
     metaError("vgId:%d, %s failed at %s:%d since %s, uid:%" PRId64 " name:%s version:%" PRId64, TD_VID(pMeta->pVnode),
               __func__, __FILE__, __LINE__, tstrerror(code), pEntry->uid, pReq->tbName, version);
@@ -3483,7 +3624,7 @@ int32_t metaDropTableColumn(SMeta *pMeta, int64_t version, SVAlterTbReq *pReq, S
   }
 
   // do handle entry
-  code = metaHandleEntry2(pMeta, pEntry);
+  code = metaHandleReferenceEntry(pMeta, pEntry, pReq);
   if (code) {
     metaError("vgId:%d, %s failed at %s:%d since %s, uid:%" PRId64 " name:%s version:%" PRId64, TD_VID(pMeta->pVnode),
               __func__, __FILE__, __LINE__, tstrerror(code), pEntry->uid, pReq->tbName, version);
@@ -4212,12 +4353,10 @@ static int32_t regexReplaceBuildSubstitution(const char *pReplace, const regmatc
   return TSDB_CODE_SUCCESS;
 }
 
-static int32_t regexReplace(const char *pStr, const char *pPattern, const char *pReplace, char **ppResult) {
-  regex_t *regex = NULL;
-  int32_t  code = threadGetRegComp(&regex, pPattern);
-  if (code != 0) {
-    return code;
-  }
+static int32_t regexReplace(const char *pStr, const char *pPattern, const char *pReplace,
+                            char **ppResult, void *charsetCxt) {
+  int32_t code = taosCheckRegexCharset(pPattern, charsetCxt);
+  if (code != 0) return code;
 
   size_t strLen = strlen(pStr);
   size_t resultCap = strLen + 1;
@@ -4233,8 +4372,8 @@ static int32_t regexReplace(const char *pStr, const char *pPattern, const char *
   int32_t       execFlags = 0;
 
   while (*cursor != '\0') {
-    int ret = regexec(regex, cursor, nmatch, pmatch, execFlags);
-    if (ret == REG_NOMATCH) {
+    int ret = taosExecRegexCapturesCharset(cursor, pPattern, nmatch, pmatch, execFlags, charsetCxt);
+    if (ret == 1) {
       break;
     }
     if (ret != 0) {
@@ -4261,17 +4400,20 @@ static int32_t regexReplace(const char *pStr, const char *pPattern, const char *
     }
 
     if (pmatch[0].rm_so == pmatch[0].rm_eo) {
-      if (resultLen + 1 >= resultCap) {
-        resultCap = resultCap * 2 + 1;
+      const char *next = cursor + pmatch[0].rm_eo;
+      if (*next == 0) { cursor = next; break; }
+      int32_t bytes = 0;
+      code = taosMbsCharOffset(next, strlen(next), 1, charsetCxt, &bytes);
+      if (code != 0) { taosMemoryFree(result); return code; }
+      if (resultLen + bytes + 1 > resultCap) {
+        resultCap = (resultLen + bytes) * 2 + 1;
         char *tmp = taosMemoryRealloc(result, resultCap);
-        if (NULL == tmp) {
-          taosMemoryFree(result);
-          return TSDB_CODE_OUT_OF_MEMORY;
-        }
+        if (tmp == NULL) { taosMemoryFree(result); return TSDB_CODE_OUT_OF_MEMORY; }
         result = tmp;
       }
-      result[resultLen++] = cursor[pmatch[0].rm_eo];
-      cursor += pmatch[0].rm_eo + 1;
+      memcpy(result + resultLen, next, bytes);
+      resultLen += bytes;
+      cursor = next + bytes;
     } else {
       cursor += pmatch[0].rm_eo;
     }
@@ -4300,6 +4442,11 @@ static int32_t regexReplace(const char *pStr, const char *pPattern, const char *
 
 
 static int32_t computeNewTagValViaRegexReplace(const STag* pOldTag, SUpdatedTagVal* pNewVal) {
+  if (pNewVal->charset == NULL || pNewVal->charset[0] == 0) return TSDB_CODE_CHARSET_CONVERT_ERROR;
+  void *charsetCxt = taosConvInit(pNewVal->charset);
+  if (charsetCxt == NULL) return TSDB_CODE_CHARSET_CONVERT_ERROR;
+  int32_t localeCode = taosCheckRegexLocale(charsetCxt);
+  if (localeCode != 0) return localeCode;
   STagVal oldTagVal = {.cid = pNewVal->colId};
   if (!tTagGet(pOldTag, &oldTagVal)) {
     pNewVal->isNull = 1;
@@ -4318,8 +4465,8 @@ static int32_t computeNewTagValViaRegexReplace(const STag* pOldTag, SUpdatedTagV
     if (oldStr == NULL) {
       return TSDB_CODE_OUT_OF_MEMORY;
     }
-    // POSIX regex runs in the server locale, so both legs use the server charset.
-    int32_t ret = taosUcs4ToMbs((TdUcs4*)oldTagVal.pData, oldTagVal.nData, oldStr, tsCharsetCxt);
+    // Decode and encode tag text using the originating connection charset.
+    int32_t ret = taosUcs4ToMbs((TdUcs4*)oldTagVal.pData, oldTagVal.nData, oldStr, charsetCxt);
     if (ret < 0) {
       taosMemoryFree(oldStr);
       return ret;
@@ -4336,7 +4483,7 @@ static int32_t computeNewTagValViaRegexReplace(const STag* pOldTag, SUpdatedTagV
   }
 
   char* newStr = NULL;
-  int32_t code = regexReplace(oldStr, pNewVal->regexp, pNewVal->replacement, &newStr);
+  int32_t code = regexReplace(oldStr, pNewVal->regexp, pNewVal->replacement, &newStr, charsetCxt);
   taosMemoryFree(oldStr);
   if (code != TSDB_CODE_SUCCESS) {
     return code;
@@ -4353,7 +4500,7 @@ static int32_t computeNewTagValViaRegexReplace(const STag* pOldTag, SUpdatedTagV
     }
 
     int32_t ucs4Len = 0;
-    bool    cvtOk = taosMbsToUcs4(newStr, newStrLen, (TdUcs4*)ucs4Buf, ucs4BufLen, &ucs4Len, tsCharsetCxt);
+    bool    cvtOk = taosMbsToUcs4(newStr, newStrLen, (TdUcs4*)ucs4Buf, ucs4BufLen, &ucs4Len, charsetCxt);
     taosMemoryFree(newStr);
     if (!cvtOk) {
       taosMemoryFree(ucs4Buf);
@@ -4520,7 +4667,8 @@ static int32_t metaUpdateNtbTagValueImpl(SMeta *pMeta, SMetaEntry *pTable, SSche
         value.pData = pNewVal->pTagVal;
         value.nData = pNewVal->nTagVal;
       } else {
-        if (pNewVal->nTagVal != tDataTypes[pCol->type].bytes) {
+        if (IS_INVALID_TYPE(pCol->type) || pNewVal->pTagVal == NULL ||
+            (int32_t)pNewVal->nTagVal != tDataTypes[pCol->type].bytes) {
           metaError("vgId:%d, %s failed at %s:%d since invalid tag val len %d for tag %s, version:%" PRId64,
                     TD_VID(pMeta->pVnode), __func__, __FILE__, __LINE__, pNewVal->nTagVal, pCol->name, pTable->version);
           taosArrayDestroy(pTagArray);
@@ -5399,6 +5547,15 @@ static int32_t metaCheckUpdateTableOptionsReq(SMeta *pMeta, int64_t version, SVA
     TAOS_RETURN(TSDB_CODE_INVALID_MSG);
   }
 
+  // newComment is copied with newCommentLen + 1 bytes: it must really be that long
+  if (pReq->newCommentLen > 0 &&
+      (pReq->newCommentLen >= TSDB_TB_COMMENT_LEN || pReq->newComment == NULL ||
+       strnlen(pReq->newComment, (size_t)pReq->newCommentLen + 1) != (size_t)pReq->newCommentLen)) {
+    metaError("vgId:%d, %s failed at %s:%d since invalid comment length:%d, version:%" PRId64, TD_VID(pMeta->pVnode),
+              __func__, __FILE__, __LINE__, pReq->newCommentLen, version);
+    TAOS_RETURN(TSDB_CODE_INVALID_MSG);
+  }
+
   return code;
 }
 
@@ -5594,6 +5751,75 @@ int32_t metaUpdateTableColCompress2(SMeta *pMeta, int64_t version, SVAlterTbReq 
   TAOS_RETURN(code);
 }
 
+void metaResolveColRefTagCond(const SMetaEntry *pEntry, const SVAlterTbReq *pReq, const char **ppTagCondJson,
+                              int32_t *pTagCondLen) {
+  *ppTagCondJson = NULL;
+  *pTagCondLen = 0;
+
+  // Only external refs carry a series tag condition.
+  if (NULL == pEntry || NULL == pReq || pReq->refType != 1 || pEntry->series.nSeries <= 0) {
+    return;
+  }
+
+  for (int32_t i = 0; i < pEntry->series.nSeries; i++) {
+    const SSeriesEntry *s = &pEntry->series.pSeries[i];
+    bool                matched = false;
+    if (pReq->seriesAlias && pReq->seriesAlias[0] != '\0') {
+      matched = (strcasecmp(s->alias, pReq->seriesAlias) == 0);
+    } else {
+      matched = (strcasecmp(s->sourceName, pReq->refSourceName ? pReq->refSourceName : "") == 0 &&
+                 strcasecmp(s->dbName, pReq->refDbName ? pReq->refDbName : "") == 0 &&
+                 strcasecmp(s->measurementName, pReq->refTbName ? pReq->refTbName : "") == 0);
+    }
+    if (matched) {
+      if (s->tagCondLen > 0 && s->tagCondJson) {
+        *ppTagCondJson = s->tagCondJson;
+        *pTagCondLen = s->tagCondLen;
+      }
+      break;
+    }
+  }
+}
+
+// Treats two NULL pointers as equal, which is how an absent JSON condition is stored.
+static bool metaColRefStrEqual(const char *a, const char *b) {
+  if (a == b) return true;
+  if (NULL == a || NULL == b) return false;
+  return strcmp(a, b) == 0;
+}
+
+bool metaColRefMatchesAlterReq(const SColRef *pColRef, const SVAlterTbReq *pReq, col_id_t colId,
+                               const char *pNewTagCondJson, int32_t newTagCondLen) {
+  if (NULL == pColRef || NULL == pReq) return false;
+
+  // metaAlterTableColumnRef rejects these before reaching here; a missing name can never compare
+  // equal to a stored one, so refuse to call it idempotent instead of dereferencing NULL.
+  if (NULL == pReq->refDbName || NULL == pReq->refTbName || NULL == pReq->refColName) return false;
+
+  if (!pColRef->hasRef || pColRef->id != colId || pColRef->refType != pReq->refType) return false;
+
+  // The write path normalises an absent source/schema name to the empty string, so compare against
+  // the same normalised form rather than against the raw request.
+  const char *refSourceName = pReq->refSourceName ? pReq->refSourceName : "";
+  const char *refSchemaName = (pReq->refSchemaName && '\0' != pReq->refSchemaName[0]) ? pReq->refSchemaName : "";
+  if (strncmp(pColRef->refSourceName, refSourceName, TSDB_EXT_SOURCE_NAME_LEN) != 0) return false;
+  if (strncmp(pColRef->refSchemaName, refSchemaName, TSDB_EXT_SOURCE_SCHEMA_LEN) != 0) return false;
+  if (strncmp(pColRef->refDbName, pReq->refDbName, TSDB_DB_NAME_LEN) != 0) return false;
+  if (strncmp(pColRef->refTableName, pReq->refTbName, TSDB_TABLE_NAME_LEN) != 0) return false;
+  if (strncmp(pColRef->refColName, pReq->refColName, TSDB_COL_NAME_LEN) != 0) return false;
+
+  // Mirror the write path exactly: it stores pReq->filterCondLen verbatim but only duplicates the
+  // JSON when both the length and the pointer are set.
+  const char *pNewFilterCondJson = (pReq->filterCondLen > 0 && pReq->filterCondJson) ? pReq->filterCondJson : NULL;
+  if (pColRef->filterCondLen != pReq->filterCondLen) return false;
+  if (!metaColRefStrEqual(pColRef->filterCondJson, pNewFilterCondJson)) return false;
+
+  if (pColRef->tagCondLen != newTagCondLen) return false;
+  if (!metaColRefStrEqual(pColRef->tagCondJson, pNewTagCondJson)) return false;
+
+  return true;
+}
+
 int32_t metaAlterTableColumnRef(SMeta *pMeta, int64_t version, SVAlterTbReq *pReq, STableMetaRsp *pRsp) {
   int32_t code = TSDB_CODE_SUCCESS;
 
@@ -5657,13 +5883,36 @@ int32_t metaAlterTableColumnRef(SMeta *pMeta, int64_t version, SVAlterTbReq *pRe
   // search the column to update
   SSchemaWrapper *pSchema =
       pEntry->type == TSDB_VIRTUAL_CHILD_TABLE ? &pSuper->stbEntry.schemaRow : &pEntry->ntbEntry.schemaRow;
-  SColRef *pColRef = NULL;
-  int32_t  iColumn = 0;
-  for (int32_t i = 0; i < pSchema->nCols; i++) {
+  SColRef       *pColRef = NULL;
+  const SSchema *pColSchema = NULL;
+  // colRef is parallel to the schema but its length comes from the persisted entry
+  for (int32_t i = 0; i < pSchema->nCols && i < pEntry->colRef.nCols; i++) {
     if (strncmp(pSchema->pSchema[i].name, pReq->colName, TSDB_COL_NAME_LEN) == 0) {
       pColRef = &pEntry->colRef.pColRef[i];
-      iColumn = i;
+      pColSchema = &pSchema->pSchema[i];
       break;
+    }
+  }
+
+  // fall back to the vchild's own (extension) columns: an own column is not part of the vstb row
+  // schema, its schema and its ref live in the entry's own area (same fallback rule as the own-tag
+  // lookup in metaAlterTagRef). Without it every ALTER COLUMN ... SET on an own column failed with
+  // TSDB_CODE_VND_COL_NOT_EXISTS because the name is resolvable only in the own area.
+  // Note: tag names (own tags and vstb tags) resolve on the parser side but are no columns;
+  // ALTER COLUMN on them keeps failing here with TSDB_CODE_VND_COL_NOT_EXISTS - the pre-existing
+  // behavior of the column actions, unchanged by the own-column support.
+  // Defensive: a decoder-built entry keeps nOwnCols and the arrays consistent; guard the
+  // dereference anyway (same guard as metaBuildMergedColView/metaUpdateVtbMetaRsp).
+  bool isOwnCol = false;
+  if (NULL == pColRef && pEntry->type == TSDB_VIRTUAL_CHILD_TABLE && pEntry->own.nOwnCols > 0 &&
+      NULL != pEntry->own.pOwnColSchemas && NULL != pEntry->own.pOwnColRefs) {
+    for (int32_t i = 0; i < pEntry->own.nOwnCols; i++) {
+      if (strncmp(pEntry->own.pOwnColSchemas[i].name, pReq->colName, TSDB_COL_NAME_LEN) == 0) {
+        pColRef = &pEntry->own.pOwnColRefs[i];
+        pColSchema = &pEntry->own.pOwnColSchemas[i];
+        isOwnCol = true;
+        break;
+      }
     }
   }
 
@@ -5675,72 +5924,114 @@ int32_t metaAlterTableColumnRef(SMeta *pMeta, int64_t version, SVAlterTbReq *pRe
     TAOS_RETURN(TSDB_CODE_VND_COL_NOT_EXISTS);
   }
 
-  // do update column ref
-  char *pFilterCondJson = NULL;
-  if (pReq->filterCondLen > 0 && pReq->filterCondJson) {
-    pFilterCondJson = taosStrdup(pReq->filterCondJson);
-    if (NULL == pFilterCondJson) {
+  // Resolve the tag condition this request would install before touching anything: it is derived
+  // from the entry's own series list, so it is part of "would this ALTER change anything".
+  const char *pNewTagCondJson = NULL;
+  int32_t     newTagCondLen = 0;
+  metaResolveColRefTagCond(pEntry, pReq, &pNewTagCondJson, &newTagCondLen);
+
+  // IDMP re-binds every `ans*` virtual table every 6 hours without diffing first, so the vast
+  // majority of these ALTERs would write back exactly what is already stored. Applying them anyway
+  // bumps the row-schema and colRef versions, which makes the mnode broadcast a new super table
+  // version and every client drop its cached meta for a vstb that can have tens of thousands of
+  // children. Skipping the no-op keeps that churn - and the entry write - out of the system.
+  //
+  // Exception: inside a batch meta txn the table may have been created by this very txn
+  // (META_TXN_PRE_CREATE). The txn machinery marks the entry PRE_ALTER in place after the ALTER
+  // and relies on a newer entry version existing, so that ROLLBACK deletes it and restores the
+  // PRE_CREATE mark for the create chain-delete. Skipping the write would overwrite the mark on
+  // the create version itself and the entry would be cleared to NORMAL on rollback - the new
+  // table would wrongly survive the ROLLBACK. Take the versioned write path in that case, which
+  // behaves exactly like any real change. Applies to cascaded and own columns alike.
+  bool sameTxnPreCreate =
+      (pReq->txnId != 0 && pEntry->txnStatus == META_TXN_PRE_CREATE && pEntry->txnId == pReq->txnId);
+  bool sameBinding = true;
+  if (pReq->hasExpectedRversion) {
+    const SVtableBindingLink *pOld = tVtableBindingForColumn(&pEntry->referenceExt, pColSchema->colId);
+    const SVtableBindingLink *pNew = tVtableBindingForColumn(&pReq->referenceExt, pColSchema->colId);
+    sameBinding = (pOld == NULL && pNew == NULL) ||
+        (pOld != NULL && pNew != NULL && pOld->bindingKind == pNew->bindingKind &&
+         strcmp(pOld->alias, pNew->alias) == 0);
+  }
+  if (!sameTxnPreCreate && sameBinding &&
+      metaColRefMatchesAlterReq(pColRef, pReq, pColSchema->colId, pNewTagCondJson, newTagCondLen)) {
+    metaInfo(KEYOP("vtable-alter", "SKIP") "vgId:%d, table %s column %s ref unchanged, version:%" PRId64,
+             TD_VID(pMeta->pVnode), pReq->tbName, pReq->colName, version);
+  } else {
+    // do update column ref. Both JSON payloads are duplicated up front, before any field of
+    // pColRef is touched, so a failed allocation leaves the stored ref exactly as it was instead
+    // of half-applied.
+    char *pFilterCondJson = NULL;
+    if (pReq->filterCondLen > 0 && pReq->filterCondJson) {
+      pFilterCondJson = taosStrdup(pReq->filterCondJson);
+      if (NULL == pFilterCondJson) {
+        metaFetchEntryFree(&pEntry);
+        metaFetchEntryFree(&pSuper);
+        TAOS_RETURN(terrno);
+      }
+    }
+    char *pTagCondJson = NULL;
+    if (NULL != pNewTagCondJson) {
+      pTagCondJson = taosStrdup(pNewTagCondJson);
+      if (NULL == pTagCondJson) {
+        // Persisting the ref without the series tag condition and still reporting success would
+        // silently widen what this column resolves to, so fail the ALTER rather than drop it.
+        code = terrno;
+        taosMemoryFree(pFilterCondJson);
+        metaFetchEntryFree(&pEntry);
+        metaFetchEntryFree(&pSuper);
+        TAOS_RETURN(code);
+      }
+    }
+    pEntry->version = version;
+    pColRef->hasRef = true;
+    pColRef->id = pColSchema->colId;
+    pColRef->refType = pReq->refType;
+    tstrncpy(pColRef->refSourceName, pReq->refSourceName ? pReq->refSourceName : "", TSDB_EXT_SOURCE_NAME_LEN);
+    if (NULL != pReq->refSchemaName && '\0' != pReq->refSchemaName[0]) {
+      tstrncpy(pColRef->refSchemaName, pReq->refSchemaName, TSDB_EXT_SOURCE_SCHEMA_LEN);
+    } else {
+      pColRef->refSchemaName[0] = '\0';
+    }
+    tstrncpy(pColRef->refDbName, pReq->refDbName, TSDB_DB_NAME_LEN);
+    tstrncpy(pColRef->refTableName, pReq->refTbName, TSDB_TABLE_NAME_LEN);
+    tstrncpy(pColRef->refColName, pReq->refColName, TSDB_COL_NAME_LEN);
+    taosMemoryFreeClear(pColRef->filterCondJson);
+    pColRef->filterCondJson = pFilterCondJson;
+    pColRef->filterCondLen = pReq->filterCondLen;
+
+    // If external ref, store the tag condition of the matching series resolved above.
+    taosMemoryFreeClear(pColRef->tagCondJson);
+    pColRef->tagCondJson = pTagCondJson;
+    pColRef->tagCondLen = (NULL != pTagCondJson) ? newTagCondLen : 0;
+    // An own column lives in the vchild entry, not in the vstb row schema: bump only the entry's
+    // colRef version (rversion), exactly like the add/drop own-column paths, and leave the vstb
+    // row-schema version alone. For a cascaded column the pSchema bump is kept for response
+    // compatibility (for a vchild it is an in-memory copy; only the entry is persisted).
+    if (!isOwnCol) {
+      pSchema->version++;
+    }
+    pEntry->colRef.version++;
+
+    // do handle entry
+    code = metaHandleReferenceEntry(pMeta, pEntry, pReq);
+    if (code) {
+      metaError("vgId:%d, %s failed at %s:%d since %s, uid:%" PRId64 " name:%s version:%" PRId64, TD_VID(pMeta->pVnode),
+                __func__, __FILE__, __LINE__, tstrerror(code), pEntry->uid, pReq->tbName, version);
       metaFetchEntryFree(&pEntry);
       metaFetchEntryFree(&pSuper);
-      TAOS_RETURN(terrno);
+      TAOS_RETURN(code);
+    } else {
+      metaInfo(KEYOP("vtable-alter", "END") "vgId:%d, table %s uid %" PRId64 " is updated, version:%" PRId64,
+               TD_VID(pMeta->pVnode), pReq->tbName,
+               pEntry->uid, version);
     }
   }
-  pEntry->version = version;
-  pColRef->hasRef = true;
-  pColRef->id = pSchema->pSchema[iColumn].colId;
-  pColRef->refType = pReq->refType;
-  tstrncpy(pColRef->refSourceName, pReq->refSourceName ? pReq->refSourceName : "", TSDB_EXT_SOURCE_NAME_LEN);
-  if (NULL != pReq->refSchemaName && '\0' != pReq->refSchemaName[0]) {
-    tstrncpy(pColRef->refSchemaName, pReq->refSchemaName, TSDB_EXT_SOURCE_SCHEMA_LEN);
-  } else {
-    pColRef->refSchemaName[0] = '\0';
-  }
-  tstrncpy(pColRef->refDbName, pReq->refDbName, TSDB_DB_NAME_LEN);
-  tstrncpy(pColRef->refTableName, pReq->refTbName, TSDB_TABLE_NAME_LEN);
-  tstrncpy(pColRef->refColName, pReq->refColName, TSDB_COL_NAME_LEN);
-  taosMemoryFreeClear(pColRef->filterCondJson);
-  pColRef->filterCondJson = pFilterCondJson;
-  pColRef->filterCondLen = pReq->filterCondLen;
 
-  // If external ref, look up matching series for tag condition
-  taosMemoryFreeClear(pColRef->tagCondJson);
-  pColRef->tagCondLen = 0;
-  if (pReq->refType == 1 && pEntry->series.nSeries > 0) {
-    for (int32_t i = 0; i < pEntry->series.nSeries; i++) {
-      SSeriesEntry *s = &pEntry->series.pSeries[i];
-      bool matched = false;
-      if (pReq->seriesAlias && pReq->seriesAlias[0] != '\0') {
-        matched = (strcasecmp(s->alias, pReq->seriesAlias) == 0);
-      } else {
-        matched = (strcasecmp(s->sourceName, pReq->refSourceName ? pReq->refSourceName : "") == 0 &&
-                   strcasecmp(s->dbName, pReq->refDbName) == 0 &&
-                   strcasecmp(s->measurementName, pReq->refTbName) == 0);
-      }
-      if (matched) {
-        if (s->tagCondLen > 0 && s->tagCondJson) {
-          pColRef->tagCondJson = taosStrdup(s->tagCondJson);
-          pColRef->tagCondLen = s->tagCondLen;
-        }
-        break;
-      }
-    }
-  }
-  pSchema->version++;
-  pEntry->colRef.version++;
-
-  // do handle entry
-  code = metaHandleEntry2(pMeta, pEntry);
-  if (code) {
-    metaError("vgId:%d, %s failed at %s:%d since %s, uid:%" PRId64 " name:%s version:%" PRId64, TD_VID(pMeta->pVnode),
-              __func__, __FILE__, __LINE__, tstrerror(code), pEntry->uid, pReq->tbName, version);
-    metaFetchEntryFree(&pEntry);
-    metaFetchEntryFree(&pSuper);
-    TAOS_RETURN(code);
-  } else {
-    metaInfo(KEYOP("vtable-alter", "END") "vgId:%d, table %s uid %" PRId64 " is updated, version:%" PRId64,
-             TD_VID(pMeta->pVnode), pReq->tbName,
-             pEntry->uid, version);
-  }
+  // The meta response is built on both paths: the skip path leaves the schema versions untouched, so
+  // the catalog simply ignores an identical response (ctgWriteTbMetaToCache), while a client whose
+  // cache happens to be older still gets refreshed. Only the version bump above invalidates other
+  // clients' caches, and that is exactly what the skip path avoids.
 
   // build response
   code = metaUpdateVtbMetaRsp(
@@ -5837,19 +6128,42 @@ int32_t metaRemoveTableColumnRef(SMeta *pMeta, int64_t version, SVAlterTbReq *pR
   // search the column to update
   SSchemaWrapper *pSchema =
       pEntry->type == TSDB_VIRTUAL_CHILD_TABLE ? &pSuper->stbEntry.schemaRow : &pEntry->ntbEntry.schemaRow;
-  SColRef *pColRef = NULL;
-  int32_t  iColumn = 0;
-  for (int32_t i = 0; i < pSchema->nCols; i++) {
+  SColRef       *pColRef = NULL;
+  const SSchema *pColSchema = NULL;
+  // colRef is parallel to the schema but its length comes from the persisted entry
+  for (int32_t i = 0; i < pSchema->nCols && i < pEntry->colRef.nCols; i++) {
     if (strncmp(pSchema->pSchema[i].name, pReq->colName, TSDB_COL_NAME_LEN) == 0) {
       pColRef = &pEntry->colRef.pColRef[i];
-      iColumn = i;
+      pColSchema = &pSchema->pSchema[i];
       break;
+    }
+  }
+
+  // fall back to the vchild's own (extension) columns: an own column is not part of the vstb row
+  // schema, its schema and its ref live in the entry's own area (same fallback rule as the own-tag
+  // lookup in metaAlterTagRef). Without it every ALTER COLUMN ... SET NULL on an own column failed
+  // with TSDB_CODE_VND_COL_NOT_EXISTS even though no source column is involved at all.
+  // Note: tag names (own tags and vstb tags) resolve on the parser side but are no columns;
+  // SET NULL on them keeps failing here with TSDB_CODE_VND_COL_NOT_EXISTS - the pre-existing
+  // behavior of the column actions, unchanged by the own-column support.
+  // Defensive: a decoder-built entry keeps nOwnCols and the arrays consistent; guard the
+  // dereference anyway (same guard as metaBuildMergedColView/metaUpdateVtbMetaRsp).
+  bool isOwnCol = false;
+  if (NULL == pColRef && pEntry->type == TSDB_VIRTUAL_CHILD_TABLE && pEntry->own.nOwnCols > 0 &&
+      NULL != pEntry->own.pOwnColSchemas && NULL != pEntry->own.pOwnColRefs) {
+    for (int32_t i = 0; i < pEntry->own.nOwnCols; i++) {
+      if (strncmp(pEntry->own.pOwnColSchemas[i].name, pReq->colName, TSDB_COL_NAME_LEN) == 0) {
+        pColRef = &pEntry->own.pOwnColRefs[i];
+        pColSchema = &pEntry->own.pOwnColSchemas[i];
+        isOwnCol = true;
+        break;
+      }
     }
   }
 
   if (NULL == pColRef) {
     metaError("vgId:%d, %s failed at %s:%d since column id %d not found in table %s, version:%" PRId64,
-              TD_VID(pMeta->pVnode), __func__, __FILE__, __LINE__, iColumn + 1, pReq->tbName, version);
+              TD_VID(pMeta->pVnode), __func__, __FILE__, __LINE__, pReq->colId, pReq->tbName, version);
     metaFetchEntryFree(&pEntry);
     metaFetchEntryFree(&pSuper);
     TAOS_RETURN(TSDB_CODE_VND_COL_NOT_EXISTS);
@@ -5858,14 +6172,21 @@ int32_t metaRemoveTableColumnRef(SMeta *pMeta, int64_t version, SVAlterTbReq *pR
   // do update column name
   pEntry->version = version;
   pColRef->hasRef = false;
-  pColRef->id = pSchema->pSchema[iColumn].colId;
+  pColRef->id = pColSchema->colId;
+  taosMemoryFreeClear(pColRef->tagCondJson);
+  pColRef->tagCondLen = 0;
   taosMemoryFreeClear(pColRef->filterCondJson);
   pColRef->filterCondLen = 0;
-  pSchema->version++;
+  // An own column lives in the vchild entry, not in the vstb row schema: bump only the entry's
+  // colRef version (rversion), exactly like the add/drop own-column paths; the vstb row-schema
+  // version must not advance for an own column's change.
+  if (!isOwnCol) {
+    pSchema->version++;
+  }
   pEntry->colRef.version++;
 
   // do handle entry
-  code = metaHandleEntry2(pMeta, pEntry);
+  code = metaHandleReferenceEntry(pMeta, pEntry, pReq);
   if (code) {
     metaError("vgId:%d, %s failed at %s:%d since %s, uid:%" PRId64 " name:%s version:%" PRId64, TD_VID(pMeta->pVnode),
               __func__, __FILE__, __LINE__, tstrerror(code), pEntry->uid, pReq->tbName, version);
@@ -6264,6 +6585,70 @@ int32_t metaAlterTagRef(SMeta *pMeta, int64_t version, SVAlterTbReq *pReq, STabl
   TAOS_RETURN(code);
 }
 
+static int32_t metaFillBindingMetaRsp(SMeta *pMeta, SMetaEntry *pEntry, const char *tbName,
+                                       STableMetaRsp *pRsp) {
+  if (pRsp == NULL) return TSDB_CODE_SUCCESS;
+  if (pEntry->type != TSDB_VIRTUAL_CHILD_TABLE) return metaFillNtbTableMetaRsp(pEntry, tbName, pRsp);
+
+  SMetaEntry *pSuper = NULL;
+  int32_t code = metaFetchEntryByUid(pMeta, pEntry->ctbEntry.suid, &pSuper);
+  if (code == TSDB_CODE_SUCCESS) {
+    code = metaUpdateVtbMetaRsp(pEntry, (char *)tbName, &pSuper->stbEntry.schemaRow,
+                               &pSuper->stbEntry.schemaTag, &pEntry->colRef, pSuper->pExtSchemas,
+                               pSuper->stbEntry.ownerId, pRsp, pEntry->type);
+  }
+  metaFetchEntryFree(&pSuper);
+  return code;
+}
+
+static const SReferenceEntry *metaFindReference(const SVtableReferenceExt *pExt, const char *alias) {
+  for (int32_t i = 0; i < pExt->nReferences; ++i) {
+    if (strcmp(pExt->pReferences[i].alias, alias) == 0) return &pExt->pReferences[i];
+  }
+  return NULL;
+}
+
+int32_t metaAlterTableReference(SMeta *pMeta, int64_t version, SVAlterTbReq *pReq, STableMetaRsp *pRsp) {
+  if (!pReq->hasExpectedRversion || pReq->seriesAlias == NULL || pReq->seriesAlias[0] == '\0') {
+    return TSDB_CODE_INVALID_MSG;
+  }
+  SMetaEntry *pEntry = NULL;
+  int32_t code = metaFetchEntryByName(pMeta, pReq->tbName, &pEntry);
+  if (code != TSDB_CODE_SUCCESS) return code;
+  if (!hasColRef(pEntry->type) || pEntry->version >= version) {
+    code = TSDB_CODE_VND_INVALID_TABLE_ACTION;
+    goto _exit;
+  }
+  const SReferenceEntry *pOld = metaFindReference(&pEntry->referenceExt, pReq->seriesAlias);
+  const SReferenceEntry *pNew = metaFindReference(&pReq->referenceExt, pReq->seriesAlias);
+  bool adding = pReq->action == TSDB_ALTER_TABLE_ADD_REFERENCE;
+  bool removing = pReq->action == TSDB_ALTER_TABLE_REMOVE_REFERENCE;
+  if ((adding && pOld != NULL) || (!adding && pOld == NULL) ||
+      (removing ? pNew != NULL : pNew == NULL) ||
+      pReq->referenceExt.nReferences != pEntry->referenceExt.nReferences + (adding ? 1 : removing ? -1 : 0)) {
+    code = TSDB_CODE_INVALID_MSG;
+    goto _exit;
+  }
+  if (removing) {
+    for (int32_t i = 0; i < pEntry->referenceExt.nBindings; ++i) {
+      const SVtableBindingLink *pLink = &pEntry->referenceExt.pBindings[i];
+      if (pLink->bindingKind == VTABLE_BINDING_REFERENCE && strcmp(pLink->alias, pReq->seriesAlias) == 0) {
+        code = TSDB_CODE_VND_INVALID_TABLE_ACTION;
+        goto _exit;
+      }
+    }
+  }
+  code = metaApplyReferenceCandidate(pEntry, pReq);
+  if (code != TSDB_CODE_SUCCESS) goto _exit;
+  pEntry->version = version;
+  ++pEntry->colRef.version;
+  code = metaFillBindingMetaRsp(pMeta, pEntry, pReq->tbName, pRsp);
+  if (code == TSDB_CODE_SUCCESS) code = metaHandleEntry2(pMeta, pEntry);
+_exit:
+  metaFetchEntryFree(&pEntry);
+  return code;
+}
+
 int32_t metaAddTableSeries(SMeta *pMeta, int64_t version, SVAlterTbReq *pReq, STableMetaRsp *pRsp) {
   int32_t code = TSDB_CODE_SUCCESS;
 
@@ -6320,38 +6705,13 @@ int32_t metaAddTableSeries(SMeta *pMeta, int64_t version, SVAlterTbReq *pReq, ST
   pEntry->version = version;
   pEntry->colRef.version++;
 
-  code = metaHandleEntry2(pMeta, pEntry);
+  code = metaApplyReferenceCandidate(pEntry, pReq);
+  if (code == TSDB_CODE_SUCCESS) code = metaFillBindingMetaRsp(pMeta, pEntry, pReq->tbName, pRsp);
+  if (code == TSDB_CODE_SUCCESS) code = metaHandleEntry2(pMeta, pEntry);
   if (code) {
     metaError("vgId:%d, %s failed since %s, table:%s", TD_VID(pMeta->pVnode), __func__, tstrerror(code), pReq->tbName);
   } else {
     metaInfo("vgId:%d, table %s added series %s", TD_VID(pMeta->pVnode), pReq->tbName, pReq->seriesAlias);
-    // Build response so client catalog cache is updated with new series
-    SSchemaWrapper *pSchema = &pEntry->ntbEntry.schemaRow;
-    code = metaUpdateVtbMetaRsp(pEntry, pReq->tbName, pSchema, NULL, &pEntry->colRef, pEntry->pExtSchemas,
-                                pEntry->ntbEntry.ownerId, pRsp, pEntry->type);
-    if (code) {
-      metaError("vgId:%d, %s metaUpdateVtbMetaRsp failed: %s", TD_VID(pMeta->pVnode), __func__, tstrerror(code));
-    }
-  }
-
-  // Same rule as the column-alter sites above: a normal / virtual-normal table owns its tag schema
-  // (ntbEntry.schemaTag) and every meta response must carry it. Adding a series advances
-  // colRef.version (rversion), which is enough for ctgWriteTbMetaToCache to accept the response, so
-  // omitting the tag schema here would replace the cached meta with a tag-less one and break later
-  // tag access on the same connection.
-  if (code == TSDB_CODE_SUCCESS &&
-      (pEntry->type == TSDB_NORMAL_TABLE || pEntry->type == TSDB_VIRTUAL_NORMAL_TABLE)) {
-    // The ALTER is already persisted at this point, so a failure to append the tag schema must not
-    // turn into a failed ALTER: reporting an error here would tell the client the DDL did not take
-    // effect while the change is on disk and in the WAL. Log it and return success with an
-    // incomplete response instead - the client then simply refetches the meta on its next RPC.
-    int32_t rspCode = metaAppendNtbTagSchemaToRsp(pEntry, pRsp);
-    if (rspCode != TSDB_CODE_SUCCESS) {
-      metaError("vgId:%d, %s failed to append owned tag schema at %s:%d since %s, uid:%" PRId64
-                " name:%s version:%" PRId64,
-                TD_VID(pMeta->pVnode), __func__, __FILE__, __LINE__, tstrerror(rspCode), pEntry->uid, pReq->tbName,
-                version);
-    }
   }
 
   metaFetchEntryFree(&pEntry);
@@ -6397,8 +6757,17 @@ int32_t metaRemoveTableSeries(SMeta *pMeta, int64_t version, SVAlterTbReq *pReq,
 
   // check no column references this series
   SSeriesEntry *pTarget = &pEntry->series.pSeries[idx];
-  for (int32_t i = 0; i < pEntry->colRef.nCols; i++) {
-    SColRef *p = &pEntry->colRef.pColRef[i];
+  for (int32_t i = 0; i < pEntry->colRef.nCols + pEntry->own.nOwnCols; i++) {
+    SColRef *p = i < pEntry->colRef.nCols ? &pEntry->colRef.pColRef[i] :
+        &pEntry->own.pOwnColRefs[i - pEntry->colRef.nCols];
+    const SVtableBindingLink *link = tVtableBindingForColumn(&pEntry->referenceExt, p->id);
+    if (link != NULL) {
+      if (link->bindingKind == VTABLE_BINDING_SERIES && strcmp(link->alias, pReq->seriesAlias) == 0) {
+        metaFetchEntryFree(&pEntry);
+        return TSDB_CODE_VND_INVALID_TABLE_ACTION;
+      }
+      continue;
+    }
     bool sameTagCond = p->tagCondLen == pTarget->tagCondLen;
     if (sameTagCond && p->tagCondLen > 0) {
       sameTagCond = p->tagCondJson != NULL && pTarget->tagCondJson != NULL &&
@@ -6422,7 +6791,10 @@ int32_t metaRemoveTableSeries(SMeta *pMeta, int64_t version, SVAlterTbReq *pReq,
   pEntry->series.nSeries--;
 
   pEntry->version = version;
-  code = metaHandleEntry2(pMeta, pEntry);
+  ++pEntry->colRef.version;
+  code = metaApplyReferenceCandidate(pEntry, pReq);
+  if (code == TSDB_CODE_SUCCESS) code = metaFillBindingMetaRsp(pMeta, pEntry, pReq->tbName, pRsp);
+  if (code == TSDB_CODE_SUCCESS) code = metaHandleEntry2(pMeta, pEntry);
   if (code) {
     metaError("vgId:%d, %s failed since %s, table:%s", TD_VID(pMeta->pVnode), __func__, tstrerror(code), pReq->tbName);
   } else {
@@ -6654,6 +7026,24 @@ int32_t metaAlterSuperTable(SMeta *pMeta, int64_t version, SVCreateStbReq *pReq)
               __func__, __FILE__, __LINE__, pReq->name, pEntry->type, version);
     metaFetchEntryFree(&pEntry);
     TAOS_RETURN(TSDB_CODE_VND_INVALID_TABLE_ACTION);
+  }
+
+  // the request is applied under its own suid: it must be the one of the named table
+  if (pReq->suid != pEntry->uid) {
+    metaError("vgId:%d, %s failed at %s:%d since request suid:%" PRId64 " does not match table %s uid:%" PRId64
+              ", version:%" PRId64,
+              TD_VID(pMeta->pVnode), __func__, __FILE__, __LINE__, pReq->suid, pReq->name, pEntry->uid, version);
+    metaFetchEntryFree(&pEntry);
+    TAOS_RETURN(TSDB_CODE_INVALID_MSG);
+  }
+
+  code = metaCheckSchemaWrapper(&pReq->schemaRow, false);
+  if (code == TSDB_CODE_SUCCESS) code = metaCheckSchemaWrapper(&pReq->schemaTag, true);
+  if (code) {
+    metaError("vgId:%d, %s failed at %s:%d since invalid schema of table %s, version:%" PRId64, TD_VID(pMeta->pVnode),
+              __func__, __FILE__, __LINE__, pReq->name, version);
+    metaFetchEntryFree(&pEntry);
+    TAOS_RETURN(code);
   }
 
   SMetaEntry entry = {

@@ -146,7 +146,11 @@ typedef struct {
   bool           stopped;
   SEpSet         mnodeEps;
   SArray        *dnodeEps;
-  SArray        *oldDnodeEps;
+  // Reserved: the layout of this struct is shared with the prebuilt
+  // deps/*/dm_static/libdmodule.a, which indexes fields at compile-time
+  // offsets (see dmCheckOffset in dmodule.c). Keep this slot to avoid
+  // shifting the fields that follow it.
+  void          *reserved0;
   SHashObj      *dnodeHash;
   TdThreadRwlock lock;
   SMsgCb         msgCb;
@@ -252,7 +256,6 @@ void    dmGetMnodeEpSetForRedirect(SDnodeData *pData, SRpcMsg *pMsg, SEpSet *pEp
 void    dmSetMnodeEpSet(SDnodeData *pData, SEpSet *pEpSet);
 bool    dmUpdateDnodeInfo(void *pData, int32_t *dnodeId, int64_t *clusterId, char *fqdn, uint16_t *port);
 int32_t dmCheckEpSetInCluster(SDnodeData *pData, int32_t nodeId, const SEpSet *pEpSet);
-void    dmRemoveDnodePairs(SDnodeData *pData);
 void    dmGetDnodeEp(void *pData, int32_t dnodeId, char *pEp, char *pFqdn, uint16_t *pPort);
 int32_t dmUpdateEncryptKey(char *key, bool toLogFile);
 int32_t dmGetEncryptKey();

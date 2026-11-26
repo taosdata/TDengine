@@ -19,7 +19,7 @@ CREATE TSMA tsma_name ON [dbname.]table_name FUNCTION (func_name(func_param) [, 
 CREATE RECURSIVE TSMA tsma_name ON [db_name.]tsma_name1 INTERVAL(time_duration);
 
 time_duration:
-    number unit
+  number unit
 ```
 
 When creating a TSMA, you need to specify the TSMA name, table name, function list, and window size. When creating a new TSMA based on an existing TSMA, use the `RECURSIVE` keyword but do not specify `FUNCTION()`. The new TSMA will have the same function list as the existing TSMA, and the specified INTERVAL must be at least an integer multiple of the window length of the based TSMA, and cannot be based on 2h or 3h, only 1h, and months can only be based on 1d instead of 2d or 3d.

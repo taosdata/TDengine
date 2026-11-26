@@ -25,11 +25,11 @@ tdmodel_requirements=""
 work_dir="${PWD}/tdgpt-linux-offline-release-build"
 output_dir="${PWD}/dist"
 arch=""
-python_version="3.12.12"
+python_version="3.12.16"
 target_python_home="/usr/local/taos-deps/python-runtime"
 pip_extra_args=""
 lite=0
-venv_version="1.0.2"
+venv_version="1.0.4"
 
 usage() {
   cat <<'EOF'
@@ -49,12 +49,12 @@ Options:
   --work-dir DIR                 Temporary build workspace.
   --output-dir DIR               Deliverable directory. Default: ./dist
   --arch x64|arm64               Validate native architecture and name outputs.
-  --python-version VERSION       CPython version. Default: 3.12.12
+  --python-version VERSION       CPython version. Default: 3.12.16
   --target-python-home DIR       Runtime path written into venvs.
                                  Default: /usr/local/taos-deps/python-runtime
   --pip-extra-args STRING        Extra pip arguments passed to venv builder.
   --lite                         Build Lite installer and Lite TDgpt venv archives.
-  --venv-version VERSION         Version used in venv archive names. Default: 1.0.2.
+  --venv-version VERSION         Version used in venv archive names. Default: 1.0.4.
 EOF
 }
 

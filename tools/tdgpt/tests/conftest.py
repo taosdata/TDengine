@@ -90,6 +90,7 @@ def mock_config(temp_dir):
     config.log_dir = os.path.join(temp_dir, "log")
     config.data_dir = os.path.join(temp_dir, "data")
     config.cfg_dir = os.path.join(temp_dir, "cfg")
+    config.config_path = os.path.join(config.cfg_dir, "taosanode.config.py")
     config.pid_file = os.path.join(temp_dir, "taosanode.pid")
     config.app_log = os.path.join(config.log_dir, "taosanode.app.log")
     config.model_dir = os.path.join(config.data_dir, "model")

@@ -206,6 +206,12 @@ static int32_t splCreateExchangeNodeForSubplan(SSplitContext* pCxt, SLogicSubpla
 
   PLAN_ERR_JRET(splCreateExchangeNode(pCxt, pSplitNode, &pExchange));
 
+  // The stream cache supplies these rows without executing the scan subplan.
+  if (inStreamCalcClause(pCxt->pPlanCxt) && QUERY_NODE_LOGIC_PLAN_SCAN == nodeType(pSplitNode) &&
+      SP_PARTITION_ROWS == ((SScanLogicNode*)pSplitNode)->placeholderType) {
+    PLAN_ERR_JRET(nodesCloneNode(pSplitNode->pConditions, &pExchange->node.pConditions));
+  }
+
   pExchange->dynTbname = nodeType(pSplitNode) == QUERY_NODE_LOGIC_PLAN_SCAN ? ((SScanLogicNode*)pSplitNode)->phTbnameScan : false;
   pExchange->seqRecvData = seqScan;
   pExchange->localBlockExchange = localBlockExchange;
@@ -227,7 +233,9 @@ static bool splIsChildSubplan(SLogicNode* pLogicNode, int32_t groupId) {
            groupId <= ((SExchangeLogicNode*)pLogicNode)->srcEndGroupId;
   }
 
-  if (QUERY_NODE_LOGIC_PLAN_MERGE == nodeType(pLogicNode)) {
+  // Column merges depend on child exchanges rather than a remote source range.
+  if (QUERY_NODE_LOGIC_PLAN_MERGE == nodeType(pLogicNode) &&
+      !((SMergeLogicNode*)pLogicNode)->colsMerge) {
     return ((SMergeLogicNode*)pLogicNode)->srcGroupId <= groupId &&
            ((SMergeLogicNode*)pLogicNode)->srcEndGroupId >= groupId;
   }
@@ -1586,7 +1594,7 @@ static int32_t stbSplAggNodeCreateMerge(SSplitContext* pCtx, SStableSplitInfo* p
       // We only need newly added nodes in pSort.node.pTargets when stbSplCreateMergeKeys
       FOREACH(node, pSort->node.pTargets) {
         if (idx++ < originalLen) continue;
-        SFunctionNode* pGroupKeyFunc = createGroupKeyAggFunc((SColumnNode*)node);
+        SFunctionNode* pGroupKeyFunc = createGroupKeyAggFunc((SExprNode*)node);
         if (!pGroupKeyFunc) {
           code = terrno;
           break;
@@ -1790,6 +1798,8 @@ static int32_t stbSplCreateOrderByExpr(SOrderByExprNode* pSortKey, SNode* pCol, 
   }
   pOutput->order = pSortKey->order;
   pOutput->nullOrder = pSortKey->nullOrder;
+  pOutput->isWindowKey = pSortKey->isWindowKey;
+  pOutput->isQueryPartitionKey = pSortKey->isQueryPartitionKey;
   *ppNode = (SNode*)pOutput;
   return code;
 }
@@ -2329,6 +2339,176 @@ static int32_t stableSplit(SSplitContext* pCxt, SLogicSubplan* pSubplan) {
   return code;
 }
 
+typedef struct SJoinParallelSplitInfo {
+  SLogicSubplan* pSubplan;
+  SJoinLogicNode* pJoin;
+} SJoinParallelSplitInfo;
+
+static EDealRes joinParSplCheckDependency(SNode* pNode, void* pContext) {
+  bool* pDependent = pContext;
+  *pDependent |= planExprIsRuntimeDependent(pNode);
+  switch (nodeType(pNode)) {
+    case QUERY_NODE_REMOTE_VALUE:
+    case QUERY_NODE_REMOTE_VALUE_LIST:
+    case QUERY_NODE_REMOTE_ROW:
+    case QUERY_NODE_REMOTE_ZERO_ROWS:
+      *pDependent = true;
+      break;
+    default:
+      break;
+  }
+  return *pDependent ? DEAL_RES_END : DEAL_RES_CONTINUE;
+}
+
+static bool joinParSplNodeDependent(const SLogicNode* pNode) {
+  if (pNode->dynamicOp ||
+      QUERY_NODE_LOGIC_PLAN_DYN_QUERY_CTRL == nodeType(pNode)) return true;
+  bool dependent = false;
+  planWalkLogicExprFields((SLogicNode*)pNode, joinParSplCheckDependency,
+                            &dependent);
+  return dependent;
+}
+
+static bool joinParSplTreeIndependent(const SLogicNode* pNode) {
+  if (joinParSplNodeDependent(pNode)) return false;
+  // An existing Exchange already supplies an independent task's output.
+  if (QUERY_NODE_LOGIC_PLAN_EXCHANGE == nodeType(pNode)) return true;
+  SNode* pChild = NULL;
+  FOREACH(pChild, pNode->pChildren) {
+    if (!joinParSplTreeIndependent((SLogicNode*)pChild)) return false;
+  }
+  return true;
+}
+
+static bool joinParSplInputHasJoin(const SLogicNode* pNode) {
+  while (NULL != pNode) {
+    if (QUERY_NODE_LOGIC_PLAN_JOIN == nodeType(pNode)) return true;
+    if (1 != LIST_LENGTH(pNode->pChildren)) return false;
+    switch (nodeType(pNode)) {
+      case QUERY_NODE_LOGIC_PLAN_PROJECT:
+      case QUERY_NODE_LOGIC_PLAN_SORT:
+      case QUERY_NODE_LOGIC_PLAN_PARTITION:
+        pNode = (SLogicNode*)nodesListGetNode(pNode->pChildren, 0);
+        break;
+      default:
+        return false;
+    }
+  }
+  return false;
+}
+
+static bool joinParSplOtherConsumer(SLogicNode* pNode,
+                                    const SLogicNode* pInput, int32_t groupId) {
+  if (pNode == pInput) return false;
+  if (QUERY_NODE_LOGIC_PLAN_EXCHANGE == nodeType(pNode) ||
+      QUERY_NODE_LOGIC_PLAN_MERGE == nodeType(pNode)) {
+    return splIsChildSubplan(pNode, groupId);
+  }
+  SNode* pChild = NULL;
+  FOREACH(pChild, pNode->pChildren) {
+    if (joinParSplOtherConsumer((SLogicNode*)pChild, pInput, groupId)) {
+      return true;
+    }
+  }
+  return false;
+}
+
+static bool joinParSplCanMoveDependencies(SLogicSubplan* pSubplan,
+                                         SLogicNode* pInput) {
+  SNode* pChild = NULL;
+  FOREACH(pChild, pSubplan->pChildren) {
+    int32_t groupId = ((SLogicSubplan*)pChild)->id.groupId;
+    if (splIsChildSubplan(pInput, groupId) &&
+        joinParSplOtherConsumer(pSubplan->pNode, pInput, groupId)) {
+      // splMountSubplan moves ownership; shared producers need a DAG rewrite.
+      return false;
+    }
+  }
+  return true;
+}
+
+static bool joinParSplFindInTree(SLogicSubplan* pSubplan, SLogicNode* pNode,
+                                 SJoinParallelSplitInfo* pInfo) {
+  if (joinParSplNodeDependent(pNode) ||
+      QUERY_NODE_LOGIC_PLAN_EXCHANGE == nodeType(pNode)) return false;
+  if (!pNode->splitDone && QUERY_NODE_LOGIC_PLAN_JOIN == nodeType(pNode) &&
+      2 == LIST_LENGTH(pNode->pChildren)) {
+    SLogicNode* pLeft =
+        (SLogicNode*)nodesListGetNode(pNode->pChildren, 0);
+    SLogicNode* pRight =
+        (SLogicNode*)nodesListGetNode(pNode->pChildren, 1);
+    if (joinParSplInputHasJoin(pLeft) && joinParSplInputHasJoin(pRight) &&
+        joinParSplTreeIndependent(pNode) &&
+        joinParSplCanMoveDependencies(pSubplan, pLeft) &&
+        joinParSplCanMoveDependencies(pSubplan, pRight)) {
+      pInfo->pJoin = (SJoinLogicNode*)pNode;
+      pInfo->pSubplan = pSubplan;
+      return true;
+    }
+  }
+  SNode* pChild = NULL;
+  FOREACH(pChild, pNode->pChildren) {
+    if (joinParSplFindInTree(pSubplan, (SLogicNode*)pChild, pInfo)) return true;
+  }
+  return false;
+}
+
+static bool joinParSplFind(SLogicSubplan* pSubplan,
+                           SJoinParallelSplitInfo* pInfo) {
+  if (joinParSplFindInTree(pSubplan, pSubplan->pNode, pInfo)) return true;
+  SNode* pChild = NULL;
+  FOREACH(pChild, pSubplan->pChildren) {
+    if (joinParSplFind((SLogicSubplan*)pChild, pInfo)) return true;
+  }
+  return false;
+}
+
+static int32_t joinParSplExtractInput(SSplitContext* pCxt,
+                                     SJoinParallelSplitInfo* pInfo,
+                                     int32_t side) {
+  SLogicNode* pInput =
+      (SLogicNode*)nodesListGetNode(pInfo->pJoin->node.pChildren, side);
+  PLAN_ERR_RET(splCreateExchangeNodeForSubplan(pCxt, pInfo->pSubplan, pInput,
+                                              pInfo->pSubplan->subplanType,
+                                              false, false));
+  SLogicNode* pExchange =
+      (SLogicNode*)nodesListGetNode(pInfo->pJoin->node.pChildren, side);
+  pExchange->groupAction = pInput->groupAction;
+
+  // Only detach after replacement: splCreateSubplan clears the input parent.
+  SLogicSubplan* pProducer = NULL;
+  int32_t code = splCreateSubplan(pCxt, pInput, &pProducer);
+  if (TSDB_CODE_SUCCESS != code) {
+    nodesDestroyNode((SNode*)pInput);
+    return code;
+  }
+  code = nodesListMakeAppend(&pInfo->pSubplan->pChildren, (SNode*)pProducer);
+  if (TSDB_CODE_SUCCESS != code) {
+    nodesDestroyNode((SNode*)pProducer);
+    return code;
+  }
+  // The parent now owns the producer, including partially moved dependencies
+  // if mounting fails. The fresh group id cannot reference the producer itself.
+  PLAN_ERR_RET(splMountSubplan(pProducer, pInfo->pSubplan->pChildren));
+  splSetSubplanType(pInfo->pSubplan);
+  ++pCxt->groupId;
+  pCxt->split = true;
+  return TSDB_CODE_SUCCESS;
+}
+
+static int32_t joinParallelSplit(SSplitContext* pCxt, SLogicSubplan* pSubplan) {
+  const SPlanContext* pPlanCxt = pCxt->pPlanCxt;
+  if (!planJoinParallelQuerySupported(pPlanCxt)) return TSDB_CODE_SUCCESS;
+  SJoinParallelSplitInfo info = {0};
+  // Later rules can mark nodes splitDone. Finish nested candidates now rather
+  // than relying on the next outer split-rule round to find them.
+  while (joinParSplFind(pSubplan, &info)) {
+    PLAN_ERR_RET(joinParSplExtractInput(pCxt, &info, 0));
+    PLAN_ERR_RET(joinParSplExtractInput(pCxt, &info, 1));
+  }
+  return TSDB_CODE_SUCCESS;
+}
+
 typedef struct SSigTbJoinSplitInfo {
   SJoinLogicNode* pJoin;
   SLogicNode*     pSplitNode;
@@ -2438,7 +2618,20 @@ static int32_t singleTableJoinSplit(SSplitContext* pCxt, SLogicSubplan* pSubplan
   int32_t code = splCreateExchangeNodeForSubplan(pCxt, info.pSubplan, info.pSplitNode,
                                                  hasScan ? SUBPLAN_TYPE_SCAN : SUBPLAN_TYPE_MERGE, false, false);
   if (TSDB_CODE_SUCCESS == code) {
-    code = nodesListMakeStrictAppend(&info.pSubplan->pChildren, (SNode*)splCreateScanSubplan(pCxt, info.pSplitNode, 0));
+    SLogicSubplan* pChild = splCreateScanSubplan(pCxt, info.pSplitNode, 0);
+    if (NULL == pChild) {
+      code = terrno;
+      nodesDestroyNode((SNode*)info.pSplitNode);
+      return code;
+    }
+    // Earlier parallel cuts can leave a JOIN with only Exchange inputs.
+    if (joinParSplInputHasJoin(info.pSplitNode)) {
+      splSetSubplanType(pChild);
+    }
+    code = nodesListMakeStrictAppend(&info.pSubplan->pChildren, (SNode*)pChild);
+    if (TSDB_CODE_SUCCESS == code) {
+      code = splMountSubplan(pChild, info.pSubplan->pChildren);
+    }
   }
   ++(pCxt->groupId);
   pCxt->split = true;
@@ -3226,21 +3419,20 @@ static int32_t vstbAggSplit(SSplitContext* pCxt, SLogicSubplan* pSubplan) {
   }
 
   SLogicNode* pPartAgg = NULL;
+  // Both aggregate branches must stay with their source scan: stream exchange
+  // parameters address the original-table vgroup, not a separate snode runner.
+  int32_t scanSubplanFlag = inStreamCalcClause(pCxt->pPlanCxt) ? SPLIT_FLAG_VTB_AGG_PUSHDOWN : 0;
 
   if (info.needPartAgg) {
     PLAN_ERR_JRET(stbSplCreatePartAggNode((SAggLogicNode*)info.pAgg, &pPartAgg));
     PLAN_ERR_JRET(stbSplCreateExchangeNode(pCxt, info.pAgg, pPartAgg));
-    // In a stream calc plan, keep the partial agg fused with its org-table scan in a single reader
-    // subplan (flagged so streamScanSplit will not peel the scan out). This co-locates the partial
-    // aggregate with the per-vgroup scan, mirroring the batch topology so the merge exchange reads
-    // the org-table vgroups directly.
-    int32_t scanSubplanFlag = inStreamCalcClause(pCxt->pPlanCxt) ? SPLIT_FLAG_VTB_AGG_PUSHDOWN : 0;
     PLAN_ERR_JRET(nodesListMakeStrictAppend(&info.pSubplan->pChildren,
                                             (SNode*)splCreateScanSubplan(pCxt, pPartAgg, scanSubplanFlag)));
   } else {
     PLAN_ERR_JRET(splCreateExchangeNodeForSubplan(pCxt, info.pSubplan, (SLogicNode*)info.pAgg,
                                                   info.pSubplan->subplanType, false, false));
-    PLAN_ERR_JRET(nodesListMakeStrictAppend(&info.pSubplan->pChildren, (SNode*)splCreateScanSubplan(pCxt, (SLogicNode*)info.pAgg, 0)));
+    PLAN_ERR_JRET(nodesListMakeStrictAppend(&info.pSubplan->pChildren,
+                                            (SNode*)splCreateScanSubplan(pCxt, info.pAgg, scanSubplanFlag)));
   }
 
 
@@ -3411,6 +3603,7 @@ static int32_t streamScanSplit(SSplitContext* pCxt, SLogicSubplan* pSubplan) {
 
 // clang-format off
 static const SSplitRule splitRuleSet[] = {
+  {.pName = "JoinParallelSplit",      .splitFunc = joinParallelSplit},
   {.pName = "SuperTableSplit",        .splitFunc = stableSplit},
   {.pName = "SingleTableJoinSplit",   .splitFunc = singleTableJoinSplit},
   {.pName = "UnionAllSplit",          .splitFunc = unionAllSplit},

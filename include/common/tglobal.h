@@ -114,6 +114,8 @@ extern int32_t tsTagFilterResCacheSize;
 extern int32_t tsBypassFlag;
 extern int64_t tsMetaEntryCacheSize;
 extern char    tsMetaEntryCache;
+extern int64_t tsStreamVcColsCacheSize;  // bytes; 0 disables the vc_cols result cache
+extern bool    tsStreamVcColsCache;      // master switch; false disables the vc_cols result cache
 
 // queue & threads
 extern int32_t tsQueryMinConcurrentTaskNum;
@@ -179,6 +181,8 @@ extern int32_t tsHeartbeatTimeout;
 extern int32_t tsSnapReplMaxWaitN;
 extern int32_t tsSnapshotRateLimit;
 extern bool    tsSnapshotMediumOnLag;  // use MEDIUM (file-level) snap replication when a follower owns data but lags behind
+extern int32_t tsSnapshotMediumDiskStrategy;  // MEDIUM disk allocation: 0=round-robin, 1=least-used
+extern bool    tsSnapshotMediumOnIncomplete;  // use MEDIUM (file-level) snap replication when the FSM is incomplete
 extern int64_t tsLogBufferMemoryAllowed;  // maximum allowed log buffer size in bytes for each dnode
 extern int64_t tsSyncApplyQueueSize;
 extern int32_t tsSyncNegotiationWin;  // negotiation window size for sync module

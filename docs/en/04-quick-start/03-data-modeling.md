@@ -16,7 +16,11 @@ This section uses smart meters as an example to briefly introduce how to use SQL
 The SQL to create a database for storing meter data is as follows:
 
 ```sql
-CREATE DATABASE power PRECISION 'ms' KEEP 3650 DURATION 10 BUFFER 16;
+CREATE DATABASE power
+  PRECISION 'ms'
+  KEEP 3650
+  DURATION 10
+  BUFFER 16;
 ```
 
 This SQL will create a database named `power`, with the following parameters explained:
@@ -29,7 +33,7 @@ This SQL will create a database named `power`, with the following parameters exp
 After creating the power database, you can execute the USE statement to switch databases.
 
 ```sql
-use power;
+USE power;
 ```
 
 This SQL switches the current database to `power`, indicating that subsequent insertions, queries, and other operations will be performed in the current `power` database.
@@ -40,13 +44,13 @@ The SQL to create a supertable named `meters` is as follows:
 
 ```sql
 CREATE STABLE meters (
-    ts timestamp, 
-    current float, 
-    voltage int, 
-    phase float
+  ts      TIMESTAMP,
+  current FLOAT,
+  voltage INT,
+  phase   FLOAT
 ) TAGS (
-    location varchar(64), 
-    group_id int
+  location VARCHAR(64),
+  group_id INT
 );
 ```
 
@@ -65,14 +69,9 @@ Finally, TAGS is a keyword, indicating tags, and in the parentheses following TA
 The SQL to create a subtable `d1001` using the supertable is as follows:
 
 ```sql
-CREATE TABLE d1001 
-USING meters (
-    location,
-    group_id
-) TAGS (
-    "California.SanFrancisco", 
-    2
-);
+CREATE TABLE d1001
+  USING meters (location, group_id)
+  TAGS ("California.SanFrancisco", 2);
 ```
 
 In the SQL above, `CREATE TABLE` is a keyword indicating the creation of a table; `d1001` is the name of the subtable; `USING` is a keyword indicating the use of a supertable as a template; `meters` is the name of the supertable; in the parentheses following the supertable name, `location`, `group_id` are the names of the tag columns of the supertable; `TAGS` is a keyword, and the values of the tag columns for the subtable are specified in the following parentheses. `"California.SanFrancisco"` and `2` indicate that the location of subtable `d1001` is `California.SanFrancisco`, and the group ID is `2`.
@@ -86,17 +85,10 @@ In TDengine, to simplify user operations and ensure smooth data entry, even if a
 The SQL for writing data while automatically creating tables is as follows:
 
 ```sql
-INSERT INTO d1002 
-USING meters 
-TAGS (
-    "California.SanFrancisco", 
-    2
-) VALUES (
-    NOW, 
-    10.2, 
-    219, 
-    0.32
-);
+INSERT INTO d1002
+USING meters
+TAGS ("California.SanFrancisco", 2)
+VALUES (NOW, 10.2, 219, 0.32);
 ```
 
 In the SQL above, `INSERT INTO d1002` indicates writing data into the subtable `d1002`; `USING meters` indicates using the supertable `meters` as a template; `TAGS ("California.SanFrancisco",  2)` indicates the tag values for subtable `d1002` are `California.SanFrancisco` and `2`; `VALUES (NOW, 10.2, 219, 0.32)` indicates inserting a record into subtable `d1002` with values NOW (current timestamp), 10.2 (current), 219 (voltage), 0.32 (phase). When TDengine executes this SQL, if subtable `d1002` already exists, it writes the data directly; if subtable `d1002` does not exist, it first automatically creates the subtable, then writes the data.
@@ -116,13 +108,13 @@ In summary, basic tables provide functionality similar to traditional relational
 The SQL for creating an basic table without any tags is as follows:
 
 ```sql
-CREATE TABLE meter_n(
-    ts timestamp,
-    current float, 
-    voltage int, 
-    phase float,
-    location varchar(64), 
-    group_id int
+CREATE TABLE meter_n (
+  ts       TIMESTAMP,
+  current  FLOAT,
+  voltage  INT,
+  phase    FLOAT,
+  location VARCHAR(64),
+  group_id INT
 );
 ```
 
@@ -155,114 +147,135 @@ For example, Suppose three supertables are created for current, voltage, and pha
 The SQL statement for creating a supertable in the single-column model is as follows:
 
 ```sql
-
 CREATE STABLE current_stb (
-    ts timestamp, 
-    current float
+  ts      TIMESTAMP,
+  current FLOAT
 ) TAGS (
-    device_id varchar(64),
-    location varchar(64), 
-    group_id int
+  device_id VARCHAR(64),
+  location  VARCHAR(64),
+  group_id  INT
 );
 
 CREATE STABLE voltage_stb (
-    ts timestamp, 
-    voltage int
+  ts      TIMESTAMP,
+  voltage INT
 ) TAGS (
-    device_id varchar(64),
-    location varchar(64), 
-    group_id int
+  device_id VARCHAR(64),
+  location  VARCHAR(64),
+  group_id  INT
 );
- 
+
 CREATE STABLE phase_stb (
-    ts timestamp, 
-    phase float
+  ts    TIMESTAMP,
+  phase FLOAT
 ) TAGS (
-    device_id varchar(64),
-    location varchar(64), 
-    group_id int
+  device_id VARCHAR(64),
+  location  VARCHAR(64),
+  group_id  INT
 );
 ```
 
 Assume there are four devices: d1001, d1002, d1003, and d1004. To create subtables for their current, voltage, and phase measurements, use the following SQL statements:
 
 ```sql
-create table current_d1001 using current_stb(device_id, location, group_id) tags("d1001", "California.SanFrancisco", 2);
-create table current_d1002 using current_stb(device_id, location, group_id) tags("d1002", "California.SanFrancisco", 3);
-create table current_d1003 using current_stb(device_id, location, group_id) tags("d1003", "California.LosAngeles", 3);
-create table current_d1004 using current_stb(device_id, location, group_id) tags("d1004", "California.LosAngeles", 2);
+CREATE TABLE current_d1001
+  USING current_stb (device_id, location, group_id)
+  TAGS ("d1001", "California.SanFrancisco", 2);
 
-create table voltage_d1001 using voltage_stb(device_id, location, group_id) tags("d1001", "California.SanFrancisco", 2);
-create table voltage_d1002 using voltage_stb(device_id, location, group_id) tags("d1002", "California.SanFrancisco", 3);
-create table voltage_d1003 using voltage_stb(device_id, location, group_id) tags("d1003", "California.LosAngeles", 3);
-create table voltage_d1004 using voltage_stb(device_id, location, group_id) tags("d1004", "California.LosAngeles", 2);
+CREATE TABLE current_d1002
+  USING current_stb (device_id, location, group_id)
+  TAGS ("d1002", "California.SanFrancisco", 3);
 
-create table phase_d1001 using phase_stb(device_id, location, group_id) tags("d1001", "California.SanFrancisco", 2);
-create table phase_d1002 using phase_stb(device_id, location, group_id) tags("d1002", "California.SanFrancisco", 3);
-create table phase_d1003 using phase_stb(device_id, location, group_id) tags("d1003", "California.LosAngeles", 3);
-create table phase_d1004 using phase_stb(device_id, location, group_id) tags("d1004", "California.LosAngeles", 2);
+CREATE TABLE current_d1003
+  USING current_stb (device_id, location, group_id)
+  TAGS ("d1003", "California.LosAngeles", 3);
+
+CREATE TABLE current_d1004
+  USING current_stb (device_id, location, group_id)
+  TAGS ("d1004", "California.LosAngeles", 2);
+
+CREATE TABLE voltage_d1001
+  USING voltage_stb (device_id, location, group_id)
+  TAGS ("d1001", "California.SanFrancisco", 2);
+
+CREATE TABLE voltage_d1002
+  USING voltage_stb (device_id, location, group_id)
+  TAGS ("d1002", "California.SanFrancisco", 3);
+
+CREATE TABLE voltage_d1003
+  USING voltage_stb (device_id, location, group_id)
+  TAGS ("d1003", "California.LosAngeles", 3);
+
+CREATE TABLE voltage_d1004
+  USING voltage_stb (device_id, location, group_id)
+  TAGS ("d1004", "California.LosAngeles", 2);
+
+CREATE TABLE phase_d1001
+  USING phase_stb (device_id, location, group_id)
+  TAGS ("d1001", "California.SanFrancisco", 2);
+
+CREATE TABLE phase_d1002
+  USING phase_stb (device_id, location, group_id)
+  TAGS ("d1002", "California.SanFrancisco", 3);
+
+CREATE TABLE phase_d1003
+  USING phase_stb (device_id, location, group_id)
+  TAGS ("d1003", "California.LosAngeles", 3);
+
+CREATE TABLE phase_d1004
+  USING phase_stb (device_id, location, group_id)
+  TAGS ("d1004", "California.LosAngeles", 2);
 ```
 
 A virtual supertable can be used to aggregate these three types of measurements into a single table. The SQL statement to create the virtual supertable is as follows:
 
 ```sql
 CREATE STABLE meters_v (
-    ts timestamp, 
-    current float, 
-    voltage int, 
-    phase float
+  ts      TIMESTAMP,
+  current FLOAT,
+  voltage INT,
+  phase   FLOAT
 ) TAGS (
-    location varchar(64), 
-    group_id int
-) VIRTUAL 1;
+  location VARCHAR(64),
+  group_id INT
+)
+  VIRTUAL 1;
 ```
 
 For the four devices d1001, d1002, d1003, and d1004, create virtual subtables with the following SQL statements:
 
 ```sql
 CREATE VTABLE d1001_v (
-    current from current_d1001.current,
-    voltage from voltage_d1001.voltage, 
-    phase from phase_d1001.phase
-) 
-USING meters_v 
-TAGS (
-    "California.SanFrancisco", 
-    2
-);
-       
+  current FROM current_d1001.current,
+  voltage FROM voltage_d1001.voltage,
+  phase FROM phase_d1001.phase
+)
+  USING meters_v
+  TAGS ("California.SanFrancisco", 2);
+
 CREATE VTABLE d1002_v (
-    current from current_d1002.current,
-    voltage from voltage_d1002.voltage, 
-    phase from phase_d1002.phase
-) 
-USING meters_v 
-TAGS (
-    "California.SanFrancisco", 
-    3
-);
-       
+  current FROM current_d1002.current,
+  voltage FROM voltage_d1002.voltage,
+  phase FROM phase_d1002.phase
+)
+  USING meters_v
+  TAGS ("California.SanFrancisco", 3);
+
 CREATE VTABLE d1003_v (
-    current from current_d1003.current,
-    voltage from voltage_d1003.voltage, 
-    phase from phase_d1003.phase
-) 
-USING meters_v 
-TAGS (
-    "California.LosAngeles", 
-    3
-);
-       
+  current FROM current_d1003.current,
+  voltage FROM voltage_d1003.voltage,
+  phase FROM phase_d1003.phase
+)
+  USING meters_v
+  TAGS ("California.LosAngeles", 3);
+
 CREATE VTABLE d1004_v (
-    current from current_d1004.current,
-    voltage from voltage_d1004.voltage, 
-    phase from phase_d1004.phase
-) 
-USING meters_v 
-TAGS (
-    "California.LosAngeles", 
-    2
-);
+  current FROM current_d1004.current,
+  voltage FROM voltage_d1004.voltage,
+  phase FROM phase_d1004.phase
+)
+  USING meters_v
+  TAGS ("California.LosAngeles", 2);
 ```
 
 Taking device d1001 as an example, assume that the current, voltage, and phase data of device d1001 are as follows:
@@ -328,30 +341,31 @@ Taking device d1001 as an example, assume that the current, voltage, and phase d
 The SQL to write the data above is as follows:
 
 ```sql
-INSERT INTO current_d1001 VALUES
-    (1538548685000, 10.3),
-    (1538548695000, 12.6),
-    (1538548696800, 12.3),
-    (1538548697100, 12.1),
-    (1538548697700, 11.8)
-voltage_d1001 VALUES
-    (1538548685000, 219),
-    (1538548695000, 218),
-    (1538548696800, 221),
-    (1538548697100, 220),
-    (1538548697800, 222)
-phase_d1001 VALUES
-    (1538548685000, 0.31),
-    (1538548695000, 0.33),
-    (1538548696800, 0.31),
-    (1538548697200, 0.32),
-    (1538548697800, 0.33);
+INSERT INTO current_d1001
+VALUES (1538548685000, 10.3),
+       (1538548695000, 12.6),
+       (1538548696800, 12.3),
+       (1538548697100, 12.1),
+       (1538548697700, 11.8)
+voltage_d1001
+VALUES (1538548685000, 219),
+       (1538548695000, 218),
+       (1538548696800, 221),
+       (1538548697100, 220),
+       (1538548697800, 222)
+phase_d1001
+VALUES (1538548685000, 0.31),
+       (1538548695000, 0.33),
+       (1538548696800, 0.31),
+       (1538548697200, 0.32),
+       (1538548697800, 0.33);
 ```
 
 Query the virtual table `d1001_v` as follows:
 
 ```sql
-SELECT * FROM d1001_v;
+SELECT *
+FROM d1001_v;
 ```
 
 The query result is as follows:
@@ -375,11 +389,11 @@ For example, Compare current measurements across devices `d1001`, `d1002`, `d100
 
 ```sql
 CREATE VTABLE current_v (
-    ts TIMESTAMP,
-    d1001_current FLOAT FROM current_d1001.current,
-    d1002_current FLOAT FROM current_d1002.current, 
-    d1003_current FLOAT FROM current_d1003.current,
-    d1004_current FLOAT FROM current_d1004.current
+  ts            TIMESTAMP,
+  d1001_current FLOAT FROM current_d1001.current,
+  d1002_current FLOAT FROM current_d1002.current,
+  d1003_current FLOAT FROM current_d1003.current,
+  d1004_current FLOAT FROM current_d1004.current
 );
 ```
 
@@ -460,36 +474,37 @@ Assume that the current data of devices d1001, d1002, d1003, and d1004 are as fo
 The SQL to write the current data above is as follows:
 
 ```sql
-INSERT INTO current_d1001 VALUES
-    (1538548685000, 10.3),
-    (1538548695000, 12.6),
-    (1538548696800, 12.3),
-    (1538548697100, 12.1),
-    (1538548697700, 11.8)
-current_d1002 VALUES
-    (1538548685000, 11.7),
-    (1538548695000, 11.9),
-    (1538548696800, 12.4),
-    (1538548697200, 12.2),
-    (1538548697700, 11.4)
-current_d1003 VALUES
-    (1538548685000, 11.2),
-    (1538548695000, 10.8),
-    (1538548696800, 12.3),
-    (1538548697100, 11.1),
-    (1538548697800, 12.1)
-current_d1004 VALUES
-    (1538548685000, 12.4),
-    (1538548695000, 11.3),
-    (1538548696800, 10.1),
-    (1538548697200, 11.7),
-    (1538548697800, 12.6);
+INSERT INTO current_d1001
+VALUES (1538548685000, 10.3),
+       (1538548695000, 12.6),
+       (1538548696800, 12.3),
+       (1538548697100, 12.1),
+       (1538548697700, 11.8)
+current_d1002
+VALUES (1538548685000, 11.7),
+       (1538548695000, 11.9),
+       (1538548696800, 12.4),
+       (1538548697200, 12.2),
+       (1538548697700, 11.4)
+current_d1003
+VALUES (1538548685000, 11.2),
+       (1538548695000, 10.8),
+       (1538548696800, 12.3),
+       (1538548697100, 11.1),
+       (1538548697800, 12.1)
+current_d1004
+VALUES (1538548685000, 12.4),
+       (1538548695000, 11.3),
+       (1538548696800, 10.1),
+       (1538548697200, 11.7),
+       (1538548697800, 12.6);
 ```
 
 Query the virtual table `current_v` as follows:
 
 ```sql
-SELECT * FROM current_v;
+SELECT *
+FROM current_v;
 ```
 
 The virtual table `current_v` aligns current data by timestamp:

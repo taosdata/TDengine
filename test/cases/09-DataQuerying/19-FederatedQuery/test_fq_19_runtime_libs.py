@@ -31,7 +31,7 @@ import pytest
 
 from new_test_framework.utils import tdCom, tdDnodes, tdLog, tdSql
 
-from federated_query_common import ExtSrcEnv, FederatedQueryTestMixin, _code, _fq_subprocess_env
+from federated_query_common import ExtSrcEnv, FederatedQueryVersionedMixin, _code, _fq_subprocess_env, influx_versions
 
 
 TSDB_CODE_EXT_SOURCE_TYPE_NOT_SUPPORT = _code("TSDB_CODE_EXT_SOURCE_TYPE_NOT_SUPPORT")
@@ -240,15 +240,16 @@ def _odbcinst_registers_driver18():
     return False
 
 
-class TestFq19RuntimeLibs(FederatedQueryTestMixin):
+class TestFq19RuntimeLibs(FederatedQueryVersionedMixin):
+
     def setup_class(cls):
         tdLog.debug(f"start to execute {__file__}")
 
     @pytest.mark.parametrize("action", ["start", "stop", "kill"])
     @pytest.mark.parametrize("service,version", [("mysql", "8.0"),
                                                 ("pg", "18.6"), ("pg", "16"),
-                                                ("influx", "3.0"), ("sqlserver", "2022"),
-                                                ("oracle", "26ai")])
+                                                ("influx", "3.0"), ("influx", "1.8"),
+                                                ("sqlserver", "2022"), ("oracle", "26ai")])
     def test_external_lifecycle_requires_lease_controller(self, monkeypatch, action,
                                                         service, version):
         """External fault operations fail explicitly without a lease owner.
@@ -386,6 +387,27 @@ class TestFq19RuntimeLibs(FederatedQueryTestMixin):
         assert "host='127.0.0.1' port=1433 password='TaosFq!2026'" in sqlserver_normalized
         assert "host='wrong' port=1434 password='bad'" in sqlserver_normalized
         assert sqlserver_normalized.endswith("RESULT:\nsqlserver\n25003\n")
+        with monkeypatch.context() as influx:
+            influx.setattr(ExtSrcEnv, "INFLUX_VERSIONS", ["1.8"])
+            influx.setattr(ExtSrcEnv, "INFLUX_USER", "lease-admin")
+            influx.setattr(ExtSrcEnv, "INFLUX_PASS", "lease'password")
+            template = "create external source s type='influxdb' user='admin'"
+            runtime = self._rewrite_influx_source_credentials(template)
+            assert "user='lease-admin' password='lease''password'" in runtime
+            assert self._rewrite_influx_source_credentials(template + " password=''") == runtime
+            explicit = template + " password='wrong-password'"
+            assert self._rewrite_influx_source_credentials(explicit) == explicit
+            quoted = template + " password=''''"
+            assert self._rewrite_influx_source_credentials(quoted) == quoted
+            missing_type = template.replace(" type='influxdb'", "")
+            assert self._rewrite_influx_source_credentials(missing_type) == missing_type
+            influx_text = (f"SQL: {runtime}\n"
+                           "source_name|type|host|user\ns|influxdb|127.0.0.1|lease-admin\n---\n"
+                           "SQL: select user from ordinary_table\nuser\nlease-admin\n")
+            normalized = ExtSrcEnv.baseline_environment(influx_text)
+            assert "user='admin' password='taosdata'" in normalized
+            assert "s|influxdb|127.0.0.1|admin" in normalized
+            assert normalized.endswith("user\nlease-admin\n")
         monkeypatch.setenv("FQ_ENV_MODE", "local")
         assert ExtSrcEnv.baseline_environment(text) == text
         print("external baseline normalization ......................... [ passed ]")
@@ -556,6 +578,10 @@ class TestFq19RuntimeLibs(FederatedQueryTestMixin):
         lib.write_text("mysql runtime")
         nested_lib.write_text("nested mysql runtime")
         monkeypatch.setattr(self, "_runtime_lib_dir", lambda: str(tmp_path))
+        # _hidden_runtime_roots() also probes the configured build tree; pin it
+        # to the temp tree, otherwise this unit test hides provider DLLs in the
+        # real build/bin and fails on Windows while taosd has them mapped.
+        monkeypatch.setattr(self, "_runtime_lib_dir_base", lambda: str(tmp_path))
 
         with self._without_provider_runtime_libs({"mysql"}):
             assert not lib.exists()
@@ -578,6 +604,10 @@ class TestFq19RuntimeLibs(FederatedQueryTestMixin):
         driver = tmp_path / "libmsodbcsql-18.so"
         driver.write_text("driver")
         monkeypatch.setattr(self, "_runtime_lib_dir", lambda: str(tmp_path))
+        # _hidden_runtime_roots() also probes the configured build tree; pin it
+        # to the temp tree, otherwise this unit test hides provider DLLs in the
+        # real build/bin and fails on Windows while taosd has them mapped.
+        monkeypatch.setattr(self, "_runtime_lib_dir_base", lambda: str(tmp_path))
 
         with self._without_provider_runtime_libs(
                 {"sqlserver"}, patterns=["libmsodbcsql*"]):
@@ -606,6 +636,10 @@ class TestFq19RuntimeLibs(FederatedQueryTestMixin):
             lib.write_text(lib.name)
         resolved_arrow.write_text(resolved_arrow.name)
         monkeypatch.setattr(self, "_runtime_lib_dir", lambda: str(tmp_path))
+        # _hidden_runtime_roots() also probes the configured build tree; pin it
+        # to the temp tree, otherwise this unit test hides provider DLLs in the
+        # real build/bin and fails on Windows while taosd has them mapped.
+        monkeypatch.setattr(self, "_runtime_lib_dir_base", lambda: str(tmp_path))
         monkeypatch.setattr(
             self,
             "_resolved_runtime_dep_files",
@@ -662,6 +696,14 @@ class TestFq19RuntimeLibs(FederatedQueryTestMixin):
         monkeypatch.setattr(tdDnodes, "binPath", str(taosd), raising=False)
         monkeypatch.setattr(tdDnodes, "dnodes", [Dnode])
         monkeypatch.setattr(self, "_runtime_lib_dir", runtime_dir)
+        # Hide only from the isolated copy this test builds.  The default roots
+        # also cover the configured build tree (TAOS_BIN_PATH), and renaming
+        # its provider DLLs fails on Windows while taosd has them mapped.  The
+        # original fixture lib must stay in place: the assertion below checks
+        # that the engine restarted from the copy while the original runtime
+        # was intact.
+        monkeypatch.setattr(self, "_hidden_runtime_roots",
+                            lambda: [self._runtime_lib_dir()])
         monkeypatch.setattr(self, "_restart_taosd", fake_restart)
 
         self._check_runtime_missing_uses_provider_error(
@@ -692,7 +734,8 @@ class TestFq19RuntimeLibs(FederatedQueryTestMixin):
             ),
         ]
 
-    def test_influx_http_uses_runtime_missing_query_check(self, monkeypatch):
+    @pytest.mark.parametrize("influx_version", ["3.0", "1.8"])
+    def test_influx_http_uses_runtime_missing_query_check(self, monkeypatch, influx_version):
         """Use the runtime-missing query check for HTTP InfluxDB sources.
 
         Verify that an HTTP InfluxDB source uses the same provider-error path as
@@ -704,9 +747,10 @@ class TestFq19RuntimeLibs(FederatedQueryTestMixin):
         calls = []
 
         class Cfg:
+            version = influx_version
             host = "127.0.0.1"
             port = 18086
-            token = "tok"
+            token = "" if version == "1.8" else "tok"
 
         def fake_runtime_missing(provider, src, table, missing_create_src, missing_create_sql):
             calls.append((
@@ -719,6 +763,7 @@ class TestFq19RuntimeLibs(FederatedQueryTestMixin):
             ))
 
         monkeypatch.setattr(self, "_influx_cfg", lambda: Cfg)
+        monkeypatch.setattr(self, "_influx_configs", lambda: [Cfg])
         monkeypatch.setattr(self, "_cleanup_src", lambda src: calls.append(("cleanup", src)))
         monkeypatch.setattr(self, "_check_remote_count", lambda src: calls.append(("remote_count", src)))
         monkeypatch.setattr(self, "_check_runtime_missing_uses_provider_error", fake_runtime_missing)
@@ -728,6 +773,7 @@ class TestFq19RuntimeLibs(FederatedQueryTestMixin):
         monkeypatch.setattr(tdSql, "execute", lambda sql: calls.append(("execute", sql)))
 
         self._with_influx_http_source(self._check_influx_http_missing_runtime)
+        assert sum(call[0] == "runtime_missing" for call in calls) == 1
 
         assert any(
             call[0] == "execute"
@@ -825,7 +871,16 @@ class TestFq19RuntimeLibs(FederatedQueryTestMixin):
     def _runtime_lib_dir_base(self):
         taos_bin_path = os.environ.get("TAOS_BIN_PATH")
         if taos_bin_path:
+            if sys.platform == "win32":
+                # Windows has no build/lib: the provider DLLs (and every other
+                # runtime dependency) ship next to the executables, and the
+                # loader resolves them from the exe directory.  The Linux
+                # sibling directory would be empty and an isolated copy built
+                # from it would contain taosd.exe alone (0xC0000135).
+                return os.path.abspath(taos_bin_path)
             return os.path.abspath(os.path.join(taos_bin_path, "..", "lib"))
+        if sys.platform == "win32":
+            return os.path.abspath(os.path.join(tdCom.getBuildPath(), "build", "bin"))
         return os.path.abspath(os.path.join(tdCom.getBuildPath(), "build", "lib"))
 
     def _runtime_lib_dir(self):
@@ -904,7 +959,15 @@ class TestFq19RuntimeLibs(FederatedQueryTestMixin):
         copy_root = tempfile.mkdtemp(prefix="fq-runtime-copy.")
         copy_build = os.path.join(copy_root, "build")
         copy_bin_dir = os.path.join(copy_build, "bin")
-        copy_lib_dir = os.path.join(copy_build, "lib")
+        # Windows resolves a DLL from the directory of the running executable,
+        # then PATH; LD_LIBRARY_PATH does not exist there.  The runtime dir is
+        # build\bin on that platform, so the copy's DLLs must land next to the
+        # copied taosd.exe or the process dies at startup with 0xC0000135
+        # (STATUS_DLL_NOT_FOUND) before any provider check can run.
+        if sys.platform == "win32":
+            copy_lib_dir = copy_bin_dir
+        else:
+            copy_lib_dir = os.path.join(copy_build, "lib")
         old_runtime_override = getattr(self, "_runtime_lib_dir_override", None)
         # The dnode start command prepends the copy's lib dir and appends the
         # inherited search path, so anything hidden in the copy stays reachable
@@ -914,7 +977,7 @@ class TestFq19RuntimeLibs(FederatedQueryTestMixin):
         lib_env = "DYLD_LIBRARY_PATH" if sys.platform == "darwin" else "LD_LIBRARY_PATH"
         original_lib_path = os.environ.get(lib_env)
         try:
-            os.makedirs(copy_bin_dir)
+            os.makedirs(copy_bin_dir, exist_ok=True)
             copy_taosd = os.path.join(copy_bin_dir, os.path.basename(original_taosd))
             self._link_or_copy_file(original_taosd, copy_taosd)
             # Dereference symlinks: a lib entry that is a link keeps the
@@ -927,6 +990,7 @@ class TestFq19RuntimeLibs(FederatedQueryTestMixin):
                 copy_lib_dir,
                 symlinks=False,
                 copy_function=self._link_or_copy_file,
+                dirs_exist_ok=(copy_lib_dir == copy_bin_dir),
             )
             self._runtime_lib_dir_override = copy_lib_dir
             tdDnodes.binPath = copy_taosd
@@ -1067,11 +1131,21 @@ class TestFq19RuntimeLibs(FederatedQueryTestMixin):
 
         The CI test artifact mounts build/lib read-only; root can still open
         files for writing on some read-only mounts, so ask statvfs for the
-        mount flag instead of relying on os.access().
+        mount flag instead of relying on os.access().  Windows has no
+        statvfs; a writability probe is the only portable signal there.
         """
+        if os.name == "nt":
+            # Windows has no statvfs; probe this directory's actual create/delete
+            # permission without touching any provider library.
+            try:
+                with tempfile.TemporaryFile(dir=path):
+                    pass
+            except OSError:
+                return True
+            return False
         try:
             flags = os.statvfs(path).f_flag
-        except OSError:
+        except (OSError, AttributeError):
             return True
         return bool(flags & getattr(os, "ST_RDONLY", 1))
 
@@ -1301,10 +1375,19 @@ class TestFq19RuntimeLibs(FederatedQueryTestMixin):
                 with self._without_provider_runtime_libs({provider}):
                     self._restart_taosd()
                     _check_provider_missing(missing_create_src, missing_create_sql)
-                    tdSql.error(
-                        f"select count(*) from {src}.{table}",
-                        expectedErrno=TSDB_CODE_EXT_SOURCE_TYPE_NOT_SUPPORT,
-                    )
+                    if provider == "influxdb" and self._influx_cfg().version == "1.8":
+                        # The native HTTP provider is linked into extconnector.
+                        self._check_remote_count(src)
+                        for version in ("3", ""):
+                            tdSql.error(
+                                f"ALTER EXTERNAL SOURCE {src} SET OPTIONS('version'='{version}')",
+                                expectedErrno=TSDB_CODE_EXT_SOURCE_TYPE_NOT_SUPPORT)
+                        self._check_remote_count(src)
+                    else:
+                        tdSql.error(
+                            f"select count(*) from {src}.{table}",
+                            expectedErrno=TSDB_CODE_EXT_SOURCE_TYPE_NOT_SUPPORT,
+                        )
             finally:
                 self._restart_taosd()
 
@@ -1341,6 +1424,7 @@ class TestFq19RuntimeLibs(FederatedQueryTestMixin):
         provider, missing_src, missing_sql = self._missing_create_sql_for_src(src)
         self._check_runtime_missing_uses_provider_error(provider, src, "src_t", missing_src, missing_sql)
 
+    @influx_versions()
     def _with_influx_http_source(self, callback):
         cfg = self._influx_cfg()
         src = "fq19_runtime_influx_http"
@@ -1350,11 +1434,7 @@ class TestFq19RuntimeLibs(FederatedQueryTestMixin):
         try:
             lines = [f"src_t val={i}i {1704067200000000000 + i * 60000000000}" for i in range(5)]
             ExtSrcEnv.influx_write_cfg(cfg, db, lines)
-            tdSql.execute(
-                f"create external source {src} type='influxdb' "
-                f"host='{cfg.host}' port={cfg.port} user='u' password='' database={db} "
-                f"options('api_token'='{cfg.token}','protocol'='http')"
-            )
+            self._mk_influx_real(src, database=db, protocol="http")
             callback(src)
         finally:
             self._cleanup_src(src)
@@ -1412,6 +1492,35 @@ class TestFq19RuntimeLibs(FederatedQueryTestMixin):
                 f"options('api_token'='tok','protocol'='{protocol}')",
             )
 
+    def test_mysql_auth_plugin_staged(self):
+        """Check the MySQL client authentication plugins ship with the runtime
+
+        MySQL 8 accounts default to caching_sha2_password, which MariaDB
+        Connector/C loads as a client plugin from a directory next to the
+        client library.  Staging only libmariadb makes every such account
+        fail with a client-synthesized 1045 that looks like a bad password,
+        so the packaged runtime must carry the plugin from the same build.
+
+        Since: v3.5.0.0
+
+        """
+        if sys.platform == "win32":
+            # Windows stages the plugins next to libmariadb.dll; the packaged
+            # layout is asserted by the Windows package test.
+            pytest.skip("Windows package layout is covered by test_fq_22")
+        runtime_dir = self._runtime_lib_dir()
+        clients = self._existing_runtime_files(
+            glob.glob(os.path.join(runtime_dir, "libmariadb.so*"))
+            + glob.glob(os.path.join(runtime_dir, "libmariadb*.dylib*")))
+        if not clients:
+            pytest.skip(f"no libmariadb staged in {runtime_dir}")
+        plugins = self._existing_runtime_files(
+            glob.glob(os.path.join(runtime_dir, "caching_sha2_password.so"))
+            + glob.glob(os.path.join(runtime_dir, "caching_sha2_password.dylib")))
+        assert plugins, (
+            "caching_sha2_password must be staged next to the MySQL client library in "
+            f"{runtime_dir}; MySQL 8 accounts cannot authenticate without it")
+
     def test_fq_runtime_provider_libs_available(self):
         """Check federated-query provider runtime libraries work when present
 
@@ -1443,6 +1552,7 @@ class TestFq19RuntimeLibs(FederatedQueryTestMixin):
         1. Verify missing runtime libraries reject CREATE EXTERNAL SOURCE
         2. Verify existing external-source queries reject missing runtime libraries
         3. Verify InfluxDB HTTP also fails without its runtime plugin
+        4. Verify native InfluxDB 1.8 works without that plugin and rejects ALTER to unavailable 3.x
 
         Catalog:
             - FederatedQuery
@@ -1564,18 +1674,38 @@ class TestFq19RuntimeLibs(FederatedQueryTestMixin):
 
         Windows resolves the driver only through HKLM\\SOFTWARE\\ODBC\\
         ODBCINST.INI and the Driver keyword cannot carry a DLL path, so the
-        provider needs both halves: the Instant Client DLLs next to taosd (or
-        in the package's driver\\oracle) and a registration whose Driver value
-        points at an existing sqora DLL in a directory that also carries the
-        base libraries.
+        provider needs both halves: the Instant Client DLLs of the generation
+        the server family uses (11g -> 19c, 26ai -> 23ai, install.sh parity)
+        under build\\driver\\oracle\\<client>, or the legacy flat copy next to
+        taosd, and a registration whose Driver value points at an existing
+        sqora DLL in a directory that also carries the base libraries.
         """
         bin_dir = os.path.abspath(os.environ.get(
             "TAOS_BIN_PATH", os.path.join(tdCom.getBuildPath(), "build", "bin")))
-        for pattern in ("sqora32.dll", "oraociei*.dll", "oci.dll", "odbc_install.exe"):
-            matches = glob.glob(os.path.join(bin_dir, pattern))
-            assert matches, (
-                f"the Windows build did not stage {pattern} in {bin_dir}; "
-                "FQ_ORACLE_DRIVER_DIR or INSTALL_FQ_RUNTIME_LIBS=ON is required")
+        version = (ExtSrcEnv.ORACLE_VERSIONS or ["11g"])[0]
+        expected = "19c" if version == "11g" else "23ai"
+        build_root = os.path.dirname(bin_dir)
+        oracle_root = os.path.join(build_root, "driver", "oracle")
+        staged = os.path.join(oracle_root, expected)
+        marker = os.path.join(oracle_root, "active")
+        if os.path.isfile(marker):
+            with open(marker, encoding="utf-8", errors="replace") as handle:
+                active = handle.read().strip()
+            assert active in ("19c", "23ai"), f"invalid Oracle active client: {active!r}"
+        if os.path.isdir(staged):
+            source_dirs = [staged]
+        else:
+            # Legacy flat staging next to taosd carries the 23ai client only;
+            # an 11g run needs the versioned 19c tree.
+            assert expected == "23ai", (
+                f"Oracle {version} needs the {expected} Instant Client, but {staged} "
+                "is missing; stage both clients (INSTALL_FQ_RUNTIME_LIBS=ON with the "
+                "dependency mirror) or set FQ_ORACLE_DRIVER_DIR")
+            source_dirs = [bin_dir]
+        for source in source_dirs:
+            for pattern in ("sqora*.dll", "oraociei*.dll", "oci.dll", "odbc_install.exe"):
+                assert glob.glob(os.path.join(source, pattern)), (
+                    f"the {expected} Instant Client in {source} has no {pattern}")
         registrations = _windows_oracle_driver_registrations()
         assert registrations, (
             "no Oracle Instant Client driver is registered under "
@@ -1593,6 +1723,16 @@ class TestFq19RuntimeLibs(FederatedQueryTestMixin):
             "the registered Oracle drivers do not point at a loadable Instant "
             "Client: " + ", ".join(f"{name} -> {driver}"
                                    for name, driver in registrations))
+        expected_dirs = {
+            os.path.normcase(os.path.abspath(directory)) for directory in source_dirs
+        }
+        matching = [item for item in loadable
+                    if os.path.normcase(os.path.abspath(
+                        os.path.dirname(item[1]))) in expected_dirs]
+        assert matching, (
+            f"no Oracle ODBC registration points into the {expected} Instant Client "
+            f"({', '.join(sorted(expected_dirs))}); registrations: "
+            + ", ".join(f"{name} -> {driver}" for name, driver in registrations))
         tdLog.info("Oracle ODBC registrations: "
                    + ", ".join(f"{name} -> {driver}" for name, driver in loadable))
 
@@ -1807,8 +1947,10 @@ class TestFq19RuntimeLibs(FederatedQueryTestMixin):
             # Read through a one-shot CLI: the test process itself keeps a
             # client-side pool (idle TTL 600 s) that would hold an Oracle
             # session of its own and make V$SESSION say the engine leaked one.
+            # The fixture is unquoted DDL, so the dictionary spelling is upper
+            # case and every reference has to preserve it between backticks.
             values = self._query_ints_with_taos(
-                f"select val from {src}.{table.lower()} order by val")
+                f"select `VAL` from {src}.`{table}` order by `VAL`")
             assert values == [1, 2, 3, 4, 5], values
 
         try:
@@ -1896,6 +2038,12 @@ class TestFq19RuntimeLibs(FederatedQueryTestMixin):
             - 2026-10-10 Claude Add FQSS-LIB-003 driver-missing coverage
 
         """
+        if sys.platform == "win32":
+            # Windows resolves the driver through its machine-wide ODBC
+            # registration and keeps msodbcsql18.dll in System32, so hiding a
+            # copy next to taosd cannot produce the gate deterministically.
+            pytest.skip("Windows hides the driver through its ODBC registration; "
+                        "test_fq_23_runtime_missing_windows.py covers that path")
         ExtSrcEnv.ensure_env()
         self._with_std_sources(
             "fq19_runtime_ssdrv", self._check_sqlserver_driver_missing,

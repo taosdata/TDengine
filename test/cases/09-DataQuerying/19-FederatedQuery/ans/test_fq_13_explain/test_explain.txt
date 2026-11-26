@@ -428,12 +428,12 @@ RESULT
 ### EXP-func_str_concat-01_pg POS
 SQL: select concat(region, '_x') from fq_exp_pg.sensor
 RESULT
--> Federated Scan on fq_exp_pg.sensor (postgresql) (width=65535)
+-> Federated Scan on fq_exp_pg.sensor (postgresql) (width=65518)
 ---
 ### EXP-func_str_concat-01_influx POS
 SQL: select concat(region, '_x') from fq_exp_influx.sensor
 RESULT
--> Federated Scan on fq_exp_influx.sensor (influxdb) (width=65535)
+-> Federated Scan on fq_exp_influx.sensor (influxdb) (width=65518)
 ---
 ### EXP-func_str_trim-01_mysql POS
 SQL: select trim(region) from fq_exp_mysql.sensor
@@ -1093,11 +1093,8 @@ SQL: select s.`time`, s.voltage, r.area from fq_exp_mysql.sensor s full join fq_
 RESULT
 -> Projection (columns=3 width=20 input_order=unknown)
    -> Full Join (columns=5 width=280 input_order=asc algo=Hash)
-      -> Partition on Column region (width=146)
-         -> Federated Scan on fq_exp_mysql.sensor (mysql) (width=146)
-      -> Data Exchange 1:1 (width=142)
-         -> Partition on Column region (width=142)
-            -> Federated Scan on fq_exp_mysql.region_info (mysql) (width=142)
+      -> Federated Scan on fq_exp_mysql.sensor (mysql) (width=146)
+      -> Federated Scan on fq_exp_mysql.region_info (mysql) (width=142)
 ---
 ### EXP-join_full-01_pg POS
 SQL: select s.`time`, s.voltage, r.area from fq_exp_pg.sensor s full join fq_exp_pg.region_info r on s.`time` = r.`time` and s.region = r.region
@@ -3862,12 +3859,12 @@ RESULT
 ### EXP-ds_string-03_pg POS
 SQL: select CONCAT(region, '_x') from fq_exp_pg.sensor
 RESULT
--> Federated Scan on fq_exp_pg.sensor (postgresql) (width=65535)
+-> Federated Scan on fq_exp_pg.sensor (postgresql) (width=65518)
 ---
 ### EXP-ds_string-03_influx POS
 SQL: select CONCAT(region, '_x') from fq_exp_influx.sensor
 RESULT
--> Federated Scan on fq_exp_influx.sensor (influxdb) (width=65535)
+-> Federated Scan on fq_exp_influx.sensor (influxdb) (width=65518)
 ---
 ### EXP-ds_string-04_mysql POS
 SQL: select CONCAT_WS(',', region, region) from fq_exp_mysql.sensor
@@ -3877,12 +3874,12 @@ RESULT
 ### EXP-ds_string-04_pg POS
 SQL: select CONCAT_WS(',', region, region) from fq_exp_pg.sensor
 RESULT
--> Federated Scan on fq_exp_pg.sensor (postgresql) (width=131050)
+-> Federated Scan on fq_exp_pg.sensor (postgresql) (width=65518)
 ---
 ### EXP-ds_string-04_influx POS
 SQL: select CONCAT_WS(',', region, region) from fq_exp_influx.sensor
 RESULT
--> Federated Scan on fq_exp_influx.sensor (influxdb) (width=131050)
+-> Federated Scan on fq_exp_influx.sensor (influxdb) (width=65518)
 ---
 ### EXP-ds_string-05_mysql POS
 SQL: select LOWER(region) from fq_exp_mysql.sensor
@@ -6084,11 +6081,8 @@ SQL: select s.`time`, s.voltage, r.area from fq_exp_mysql.sensor s full join fq_
 RESULT
 -> Projection (columns=3 width=20 input_order=unknown)
    -> Full Join (columns=5 width=280 input_order=asc algo=Hash)
-      -> Partition on Column region (width=146)
-         -> Federated Scan on fq_exp_mysql.sensor (mysql) (width=146)
-      -> Data Exchange 1:1 (width=142)
-         -> Partition on Column region (width=142)
-            -> Federated Scan on fq_exp_mysql.region_info (mysql) (width=142)
+      -> Federated Scan on fq_exp_mysql.sensor (mysql) (width=146)
+      -> Federated Scan on fq_exp_mysql.region_info (mysql) (width=142)
 ---
 ### EXP-ds_join-04_pg POS
 SQL: select s.`time`, s.voltage, r.area from fq_exp_pg.sensor s full join fq_exp_pg.region_info r on s.`time` = r.`time` and s.region = r.region
@@ -20021,7 +20015,7 @@ RESULT
 SQL: select _wstart, avg(voltage) from fq_exp_oracle.sensor where `time` >= '2024-01-01' and `time` <= '2024-01-02' interval(1m) fill(value, 0)
 RESULT
 -> Fill (mode=value width=16 input_order=asc)
-   -> Interval on Column TIME (functions=2 width=16 input_order=unknown output_order=asc)
+   -> Interval on Column time (functions=2 width=16 input_order=unknown output_order=asc)
       -> Federated Scan on fq_exp_oracle.TAOSDATA.sensor (oracle) (width=16)
 ---
 ### EXP-interp_local-01_oracle POS
@@ -20202,13 +20196,13 @@ RESULT
 ### EXP-combo_FW_PP_pushfunc_intervalwin-01_oracle POS
 SQL: select _wstart, avg(voltage) from fq_exp_oracle.sensor where `time` >= '2024-01-01' and `time` <= '2024-01-02' interval(1m)
 RESULT
--> Interval on Column TIME (functions=2 width=16 input_order=unknown output_order=asc)
+-> Interval on Column time (functions=2 width=16 input_order=unknown output_order=asc)
    -> Federated Scan on fq_exp_oracle.TAOSDATA.sensor (oracle) (width=16)
 ---
 ### EXP-combo_FW_LP_localfunc_intervalwin-01_oracle POS
 SQL: select csum(voltage) from fq_exp_oracle.sensor where `time` >= '2024-01-01' and `time` <= '2024-01-02' interval(1m)
 RESULT
--> Interval on Column TIME (functions=1 width=8 input_order=unknown output_order=asc)
+-> Interval on Column time (functions=1 width=8 input_order=unknown output_order=asc)
    -> Federated Scan on fq_exp_oracle.TAOSDATA.sensor (oracle) (width=16)
 ---
 ### EXP-combo_FW_PL_pushfunc_statewin-01_oracle POS
@@ -20269,7 +20263,7 @@ RESULT
 ### EXP-combo_OW_PP_op_intervalwin-01_oracle POS
 SQL: select _wstart, avg(voltage) from fq_exp_oracle.sensor where region = 'north' and `time` >= '2024-01-01' and `time` <= '2024-01-02' interval(1m)
 RESULT
--> Interval on Column TIME (functions=2 width=16 input_order=unknown output_order=asc)
+-> Interval on Column time (functions=2 width=16 input_order=unknown output_order=asc)
    -> Federated Scan on fq_exp_oracle.TAOSDATA.sensor (oracle) (width=146)
 ---
 ### EXP-combo_OW_PL_op_statewin-01_oracle POS
@@ -20310,47 +20304,47 @@ RESULT
 SQL: select _wstart, avg(voltage) from fq_exp_oracle.sensor where `time` >= '2024-01-01' and `time` <= '2024-01-02' interval(1m) order by _wstart limit 5
 RESULT
 -> Projection (columns=2 width=16 input_order=asc)
-   -> Interval on Column TIME (functions=2 width=16 input_order=unknown output_order=asc)
+   -> Interval on Column time (functions=2 width=16 input_order=unknown output_order=asc)
       -> Federated Scan on fq_exp_oracle.TAOSDATA.sensor (oracle) (width=16)
 ---
 ### EXP-combo_WC_PL_interval_fill-01_oracle POS
 SQL: select _wstart, avg(voltage) from fq_exp_oracle.sensor where `time` >= '2024-01-01' and `time` <= '2024-01-02' interval(1m) fill(value, 0)
 RESULT
 -> Fill (mode=value width=16 input_order=asc)
-   -> Interval on Column TIME (functions=2 width=16 input_order=unknown output_order=asc)
+   -> Interval on Column time (functions=2 width=16 input_order=unknown output_order=asc)
       -> Federated Scan on fq_exp_oracle.TAOSDATA.sensor (oracle) (width=16)
 ---
 ### EXP-combo_WC_PL_extwin_fill-01_oracle POS
 SQL: select _wstart, count(*), sum(voltage) from fq_exp_oracle.sensor external_window((select _wstart, _wend from fq_exp_oracle.sensor where `time` >= '2024-01-01' and `time` < '2024-01-01 00:05:00' interval(30s) fill(null)) w) fill(null) order by _wstart
 RESULT
 -> Projection (columns=3 width=24 input_order=asc)
-   -> External on Column TIME (functions=3 width=24 input_order=asc output_order=asc)
+   -> External on Column time (functions=3 width=24 input_order=asc output_order=asc)
       -> Federated Scan on fq_exp_oracle.TAOSDATA.sensor (oracle) (width=16)
    InitPlan 1
       -> Fill (mode=null width=16 input_order=asc)
-         -> Interval on Column TIME (functions=2 width=16 input_order=unknown output_order=asc)
+         -> Interval on Column time (functions=2 width=16 input_order=unknown output_order=asc)
             -> Federated Scan on fq_exp_oracle.TAOSDATA.sensor (oracle) (width=8)
 ---
 ### EXP-combo_WC_PL_extwin_fill-02_oracle POS
 SQL: select _wstart, count(*), sum(voltage) from fq_exp_oracle.sensor external_window((select _wstart, _wend from fq_exp_oracle.sensor where `time` >= '2024-01-01' and `time` < '2024-01-01 00:05:00' interval(30s) fill(null)) w) fill(value, 0, 0) order by _wstart
 RESULT
 -> Projection (columns=3 width=24 input_order=asc)
-   -> External on Column TIME (functions=3 width=24 input_order=asc output_order=asc)
+   -> External on Column time (functions=3 width=24 input_order=asc output_order=asc)
       -> Federated Scan on fq_exp_oracle.TAOSDATA.sensor (oracle) (width=16)
    InitPlan 1
       -> Fill (mode=null width=16 input_order=asc)
-         -> Interval on Column TIME (functions=2 width=16 input_order=unknown output_order=asc)
+         -> Interval on Column time (functions=2 width=16 input_order=unknown output_order=asc)
             -> Federated Scan on fq_exp_oracle.TAOSDATA.sensor (oracle) (width=8)
 ---
 ### EXP-combo_WC_PL_extwin_fill-03_oracle POS
 SQL: select _wstart, count(*), sum(voltage) from fq_exp_oracle.sensor external_window((select _wstart, _wend from fq_exp_oracle.sensor where `time` >= '2024-01-01' and `time` < '2024-01-01 00:05:00' interval(30s) fill(null)) w) fill(prev) order by _wstart
 RESULT
 -> Projection (columns=3 width=24 input_order=asc)
-   -> External on Column TIME (functions=3 width=24 input_order=asc output_order=asc)
+   -> External on Column time (functions=3 width=24 input_order=asc output_order=asc)
       -> Federated Scan on fq_exp_oracle.TAOSDATA.sensor (oracle) (width=16)
    InitPlan 1
       -> Fill (mode=null width=16 input_order=asc)
-         -> Interval on Column TIME (functions=2 width=16 input_order=unknown output_order=asc)
+         -> Interval on Column time (functions=2 width=16 input_order=unknown output_order=asc)
             -> Federated Scan on fq_exp_oracle.TAOSDATA.sensor (oracle) (width=8)
 ---
 ### EXP-combo_WC_LP_statewin_orderby-01_oracle POS
@@ -20395,7 +20389,7 @@ RESULT
 SQL: select _wstart, region, count(*) from fq_exp_oracle.sensor where `time` >= '2024-01-01' and `time` <= '2024-01-02' partition by region interval(1m) fill(null)
 RESULT
 -> Fill (mode=null width=146 input_order=asc)
-   -> Interval on Column TIME (functions=3 width=146 input_order=unknown output_order=asc)
+   -> Interval on Column time (functions=3 width=146 input_order=unknown output_order=asc)
       -> Partition on Column region (width=138)
          -> Federated Scan on fq_exp_oracle.TAOSDATA.sensor (oracle) (width=138)
 ---
@@ -20440,7 +20434,7 @@ RESULT
 SQL: select _wstart, avg(abs(voltage - 220.0)) av from fq_exp_oracle.sensor where `time` >= '2024-01-01' and `time` <= '2024-01-02' interval(1m) order by _wstart limit 5
 RESULT
 -> Projection (columns=2 width=16 input_order=asc)
-   -> Interval on Column TIME (functions=2 width=16 input_order=unknown output_order=asc)
+   -> Interval on Column time (functions=2 width=16 input_order=unknown output_order=asc)
       -> Federated Scan on fq_exp_oracle.TAOSDATA.sensor (oracle) (width=16)
 ---
 ### EXP-combo_3W_FWC_LLP-01_oracle POS
@@ -20478,7 +20472,7 @@ SQL: select _wstart, region, avg(abs(voltage - 220.0)) av from fq_exp_oracle.sen
 RESULT
 -> Projection (columns=3 width=146 input_order=asc)
    -> Sort input_order=unknown output_order=asc  (columns=3 width=146)
-      -> Interval on Column TIME (functions=3 width=146 input_order=unknown output_order=asc)
+      -> Interval on Column time (functions=3 width=146 input_order=unknown output_order=asc)
          -> Partition on Column region (width=154)
             -> Federated Scan on fq_exp_oracle.TAOSDATA.sensor (oracle) (width=146)
 ---
@@ -21386,7 +21380,7 @@ RESULT
 ### EXP-ds_window-04_oracle POS
 SQL: select _wstart, count(*) from fq_exp_oracle.sensor where `time` >= '2024-01-01' and `time` <= '2024-01-02' interval(2m) sliding(1m)
 RESULT
--> Interval on Column TIME (functions=2 width=16 input_order=unknown output_order=asc)
+-> Interval on Column time (functions=2 width=16 input_order=unknown output_order=asc)
    -> Federated Scan on fq_exp_oracle.TAOSDATA.sensor (oracle) (width=8)
 ---
 ### EXP-ds_window-05_oracle POS
@@ -21720,7 +21714,7 @@ RESULT
 ### EXP-ds_subquery-49_oracle POS
 SQL: select _wstart, count(*) from fq_exp_oracle.sensor where `time` >= '2024-01-01' and `time` <= '2024-01-02' and voltage > (select avg(voltage) from fq_exp_oracle.sensor) interval(1m)
 RESULT
--> Interval on Column TIME (functions=2 width=16 input_order=unknown output_order=asc)
+-> Interval on Column time (functions=2 width=16 input_order=unknown output_order=asc)
    -> Federated Scan on fq_exp_oracle.TAOSDATA.sensor (oracle) (width=16)
    InitPlan 1
       -> Aggregate (functions=1 width=8 input_order=unknown)

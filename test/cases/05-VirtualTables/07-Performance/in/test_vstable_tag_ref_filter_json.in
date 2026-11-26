@@ -1,0 +1,11 @@
+USE vt_tag_filter_idmp;
+
+CREATE STABLE vt_tag_filter_source.json_src (ts TIMESTAMP, v INT) TAGS (j JSON);
+CREATE TABLE vt_tag_filter_source.json_data USING vt_tag_filter_source.json_src TAGS ('{"k":7}');
+INSERT INTO vt_tag_filter_source.json_data VALUES (1700000000000, 1);
+CREATE STABLE json_vst (ts TIMESTAMP, v INT) TAGS (j JSON) VIRTUAL 1;
+CREATE VTABLE json_owned (v FROM vt_tag_filter_source.json_data.v) USING json_vst TAGS ('{"k":7}');
+
+# Preserve the complete JSON tag container.
+SELECT DISTINCT tbname, j FROM json_vst ORDER BY tbname;
+SELECT DISTINCT tbname FROM json_vst WHERE j->'k' = 7 ORDER BY tbname;

@@ -91,6 +91,8 @@ typedef struct STrueForInfo {
   ETrueForType trueForType;
   int32_t      count;
   int64_t      duration;
+  col_id_t     durationTagColId;  // 0 = use duration literal
+  col_id_t     countTagColId;     // 0 = use count literal
 } STrueForInfo;
 
 typedef struct SStreamInserterParam {
@@ -198,7 +200,7 @@ qTaskInfo_t qCreateQueueExecTaskInfo(void* msg, SReadHandle* pReaderHandle, int3
 
 int32_t qGetColumnsFromNodeList(void* data, bool isList, SArray** pColList);
 SSDataBlock* createDataBlockFromDescNode(void* pNode);
-void    printDataBlock(SSDataBlock* pBlock, const char* flag, const char* taskIdStr, int64_t qId);
+void    printDataBlock(SSDataBlock* pBlock, const char* flag, const char* taskIdStr, int64_t qId, void *charsetCxt);
 
 int32_t qGetTableList(int64_t suid, void* pVnode, void* node, SArray** tableList, void* pTaskInfo);
 int32_t qGetTableListByApi(int64_t suid, void* pVnode, void* node, SArray** tableList, SStorageAPI* pStorageAPI);
@@ -318,6 +320,7 @@ int32_t qRestoreExecTaskResultBlock(qTaskInfo_t tinfo, int32_t blockIndex, SSDat
 
 int32_t qExecutorInit(void);
 void    qResetTaskCode(qTaskInfo_t tinfo);
+bool    qStreamResetTaskForRetry(qTaskInfo_t tinfo);
 
 void qCleanExecTaskBlockBuf(qTaskInfo_t tinfo);
 
@@ -361,6 +364,8 @@ void qStreamSetParams(qTaskInfo_t tinfo, int8_t sourceExcluded, int32_t minPollR
 int32_t qStreamExtractOffset(qTaskInfo_t tinfo, STqOffsetVal* pOffset);
 
 SMqBatchMetaRsp* qStreamExtractMetaMsg(qTaskInfo_t tinfo);
+int32_t qTmqAppendSnapshotMetaRsp(SMqBatchMetaRsp* pRsp, void* data, int32_t dataLen, int16_t type);
+int32_t qTmqGetSnapshotMetaTableInfo(SStorageAPI* pAPI, SSnapContext* pContext, SMetaTableInfo* pTableInfo);
 
 const SSchemaWrapper* qExtractSchemaFromTask(qTaskInfo_t tinfo);
 
@@ -381,7 +386,7 @@ int32_t  qStreamCreateTableListForReader(void* pVnode, uint64_t suid, uint64_t u
                                          SNodeList* pGroupTags, bool groupSort, SNode* pTagCond, SNode* pTagIndexCond,
                                          SStorageAPI* storageAPI, void** pTableListInfo, SHashObj* groupIdMap);
 
-int32_t  qStreamFilterTableListForReader(void* pVnode, SArray* uidList,
+int32_t  qStreamFilterTableListForReader(void* pVnode, SArray* uidList, int64_t version,
                                         SNodeList* pGroupTags, SNode* pTagCond, SNode* pTagIndexCond,
                                         SStorageAPI* storageAPI, SHashObj* groupIdMap, uint64_t suid, SArray** tableList);
 

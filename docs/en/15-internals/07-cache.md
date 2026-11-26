@@ -31,7 +31,12 @@ The two key parameters `vgroups` and `buffer` during database creation determine
 For example, the following SQL creates a database containing 10 vgroups, each vnode using 256MB of memory.
 
 ```sql
-CREATE DATABASE POWER VGROUPS 10 BUFFER 256 CACHEMODEL 'NONE' PAGES 128 PAGESIZE 16;
+CREATE DATABASE POWER
+  VGROUPS 10
+  BUFFER 256
+  CACHEMODEL 'NONE'
+  PAGES 128
+  PAGESIZE 16;
 ```
 
 The larger the cache, the better, but increasing the cache beyond a certain threshold no longer helps improve writing performance. For parameter meanings, see [VGROUPS](../05-tdengine-sql/02-ddl/01-database.md#vgroups) and [BUFFER](../05-tdengine-sql/02-ddl/01-database.md#buffer).
@@ -78,7 +83,9 @@ You can observe this engine's runtime state per `vgroup` — including block-cac
 To enhance the efficiency of query and write operations, each vnode is equipped with a caching mechanism for storing metadata it has previously accessed. The size of this metadata cache is determined by two parameters set during database creation: pages and pagesize. The pagesize parameter is in KB and specifies the size of each cache page. The following SQL creates a metadata cache for each vnode in the database power with 128 pages, each page being 16KB
 
 ```sql
-CREATE DATABASE POWER PAGES 128 PAGESIZE 16;
+CREATE DATABASE POWER
+  PAGES 128
+  PAGESIZE 16;
 ```
 
 For defaults and value ranges, see [PAGES](../05-tdengine-sql/02-ddl/01-database.md#pages) and [PAGESIZE](../05-tdengine-sql/02-ddl/01-database.md#pagesize).
@@ -95,7 +102,9 @@ Database parameters wal_level and wal_fsync_period together determine the behavi
 - wal_fsync_period: When wal_level is set to 2, this parameter controls the frequency of executing fsync. Setting it to 0 means fsync is executed immediately after each write, which can ensure data safety but may sacrifice some performance. When set to a value greater than 0, it represents the fsync period, with a default of 3000, ranging from [1, 180000], in milliseconds.
 
 ```sql
-CREATE DATABASE POWER WAL_LEVEL 2 WAL_FSYNC_PERIOD 3000;
+CREATE DATABASE POWER
+  WAL_LEVEL 2
+  WAL_FSYNC_PERIOD 3000;
 ```
 
 When creating a database, users can choose different parameter settings according to their needs to find the best balance between performance and reliability:

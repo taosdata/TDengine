@@ -22,10 +22,16 @@ SELECT [hints] [DISTINCT] [TAGS] [SCALAR | AGG] select_list
     [LIMIT limit_val [OFFSET offset_val]]
     [>> export_file]
 
-hints: /*+ [hint([hint_param_list])] [hint([hint_param_list])] */
+hints: /*+ [hint_option] ... */
+
+hint_option:
+    hint([hint_param_list])
 
 hint:
-    BATCH_SCAN | NO_BATCH_SCAN | SORT_FOR_GROUP | PARTITION_FIRST | PARA_TABLES_SORT | SMALLDATA_TS_SORT | SMALLDATA_SCAN_SORT | FAST_INTERVAL | EX_INTERVAL | INTERVAL_LIMIT | JOIN_ALGO | HASH_JOIN | MERGE_JOIN
+    BATCH_SCAN | NO_BATCH_SCAN | SORT_FOR_GROUP | PARTITION_FIRST
+  | PARA_TABLES_SORT | SMALLDATA_TS_SORT | SMALLDATA_SCAN_SORT
+  | FAST_INTERVAL | EX_INTERVAL | INTERVAL_LIMIT | JOIN_ALGO
+  | HASH_JOIN | MERGE_JOIN | NO_CONCURRENT_LAST_SCAN
 
 select_list:
     select_expr [, select_expr] ...
@@ -52,6 +58,7 @@ table_expr: {
   | ( subquery )
   | TEXT(column_list) VALUES (val [, ...]) [(...)] ...
   | FILE('file_path', 'column_list' [, header=true] [, delimiter='char'])
+  | TABLE(table_function_call)
 }
 
 column_list:
@@ -70,7 +77,7 @@ window_clause: {
     SESSION(ts_col, tol_val)
     | STATE_WINDOW(state_expr [, state_expr ...]) [EXTEND(extend_val)] [ZEROTH_STATE(zeroth_val [, zeroth_val ...])] [TRUE_FOR(true_for_expr)]
   | INTERVAL(interval_val [, interval_offset]) [SLIDING (sliding_val)] [fill_clause]
-  | EXTERNAL_WINDOW ((subquery) window_alias) [fill_clause]
+  | EXTERNAL_WINDOW((subquery) window_alias) [fill_clause]
   | EVENT_WINDOW START WITH start_trigger_condition END WITH end_trigger_condition [TRUE_FOR(true_for_expr)]
   | COUNT_WINDOW(count_val[, sliding_val][, col_name ...])
 }
@@ -114,8 +121,8 @@ true_for_expr:
 
 true_for_arg: {
     limit_expr
-  | start(limit_expr)
-  | end(limit_expr)
+  | START(limit_expr)
+  | END(limit_expr)
 }
 
 limit_expr: {
@@ -129,11 +136,11 @@ limit_expr: {
 ### 部分字段说明
 
 - select_expr: 选择列表达式，可以为常量、列、运算、函数以及它们的混合运算，不支持聚合函数的嵌套。
-- from_clause: 指定查询的数据源，可以是单个表（超级表、子表、普通表、虚拟表），也可以是视图，也支持多表关联查询。
+- from_clause: 指定查询的数据源，可以是单个表（超级表、子表、普通表、虚拟表），也可以是视图或表函数结果，也支持多表关联查询。
 - table_reference: 指定单个表（含视图）的名称，可选指定表的别名。
-- table_expr: 指定查询数据源，可以为表名、视图名、子查询，或内联数据源（`TEXT` 或 `FILE`）。详见 [TEXT 内联数据源](#text-内联数据源) 和 [FILE CSV 文件数据源](#file-csv-文件数据源)。
+- table_expr: 指定查询数据源，可以为表名、视图名、子查询、表函数结果（`TABLE(...)`），或内联数据源（`TEXT` 或 `FILE`）。详见 [TABLE 表函数数据源](#table-表函数数据源)、[TEXT 内联数据源](#text-内联数据源) 和 [FILE CSV 文件数据源](#file-csv-文件数据源)。
 - column_list: `TEXT` 和 `FILE` 共用的列定义语法，每项为 `col_name type_name`。支持 JSON、GEOMETRY、BLOB 之外的其他类型。
-- join_clause: 连接查询。普通 JOIN 支持子表、普通表、超级表、虚拟表和子查询。WINDOW JOIN 必须指定 `WINDOW_OFFSET(start_offset, end_offset)`，设置窗口边界相对驱动表主键时间戳的偏移；时间单位见 [时间单位](../01-datatype.md#时间单位)（不支持月/季/年）。`JLIMIT` 限制每行最多匹配的行数，取值范围为 `[0, 1024]`；省略时，ASOF JOIN 默认最多匹配 1 行，WINDOW JOIN 匹配窗口内的全部行。ASOF/WINDOW 的输入限制和详细语法见 [关联查询](05-join.md)。
+- join_clause: 连接查询。普通 JOIN 支持子表、普通表、超级表、虚拟表、表函数结果和子查询。WINDOW JOIN 必须指定 `WINDOW_OFFSET(start_offset, end_offset)`，设置窗口边界相对驱动表主键时间戳的偏移；时间单位见 [时间单位](../01-datatype.md#时间单位)（不支持月/季/年）。`JLIMIT` 限制每行最多匹配的行数，取值范围为 `[0, 1024]`；省略时，ASOF JOIN 默认最多匹配 1 行，WINDOW JOIN 匹配窗口内的全部行。ASOF/WINDOW 的输入限制和详细语法见 [关联查询](05-join.md)。
 - window_clause: 指定数据按照窗口进行切分并进行聚合，是时序数据库特色查询。详见 [特色查询](04-distinguished.md)。
   - SESSION: 会话窗口，ts_col 指定时间戳主键列，tol_val 指定时间间隔，正值，时间单位参见 [时间单位](../01-datatype.md#时间单位)（仅支持毫秒至周），如 SESSION(ts, 12s)。
   - STATE_WINDOW: 状态窗口，使用一个或多个状态键划分窗口（从 `v3.4.2.0` 版本开始支持多个状态键）。可以配置 `EXTEND` 参数指定窗口边界扩展策略，配置 `ZEROTH_STATE` 参数指定零状态过滤，配置 `TRUE_FOR` 参数指定窗口过滤条件。
@@ -169,33 +176,101 @@ Hints 用于控制单条语句的查询优化。当 Hint 不适用于当前查�
 | `BATCH_SCAN`          | 无 | 采用批量读表方式 | 超级表 `JOIN` 语句 |
 | `NO_BATCH_SCAN`       | 无 | 采用顺序读表方式 | 超级表 `JOIN` 语句 |
 | `SORT_FOR_GROUP`      | 无 | 采用 sort 方式分组，与 `PARTITION_FIRST` 冲突 | `PARTITION BY` 列表含普通列时 |
-| `PARTITION_FIRST`     | 无 | 优先保留独立的 `Partition` 算子完成分区，与 `SORT_FOR_GROUP` 冲突 | `PARTITION BY` 列表含普通列时；从 `v3.4.3.0` 起，也适用于超级表按标签列或 `tbname` 分区的 `STATE_WINDOW` 查询 |
+| [`PARTITION_FIRST`](#partition_first) | 无 | 优先保留独立的 `Partition` 算子完成分区，与 `SORT_FOR_GROUP` 冲突 | `PARTITION BY` 列表含普通列时；从 `v3.4.3.0` 起，也适用于超级表按标签列或 `tbname` 分区的 `STATE_WINDOW` 查询 |
 | `PARA_TABLES_SORT`    | 无 | 超级表按时间戳排序时不使用临时磁盘空间，仅使用内存；子表多、行长大时可能 OOM | 超级表按时间戳排序时 |
 | `SMALLDATA_TS_SORT`   | 无 | 超级表按时间戳排序时，查询列长度大于等于 256 但行数不多，可提升性能 | 超级表按时间戳排序时 |
 | `SMALLDATA_SCAN_SORT` | 无 | 超级表需要按时间戳有序扫描输出时，用普通表扫描加排序代替表合并扫描；每 vnode 数据量较小时更优。适用于引擎会用表合并扫描产生时间戳有序输出的场景，包括 `ORDER BY ts`，以及会话窗口 `SESSION`、状态窗口 `STATE_WINDOW`（无需显式 `ORDER BY`）；对时间窗口 `INTERVAL`（本身不使用表合并扫描）以及按非时间戳列的 `ORDER BY` 无效 | 小数据量超级表需要时间戳有序时 |
 | `SKIP_TSMA`           | 无 | 显式禁用 TSMA 查询优化 | 带聚合函数的查询语句 |
-| `FAST_INTERVAL`       | 无 | 对符合条件的固定窗口 `INTERVAL` 聚合查询启用 partial 或 merge FAST 执行路径 | 支持无分区、按标签分区、按 `tbname` 及其他标签分区，以及符合条件的 TSMA 改写计划；窗口和分区限制见下文 |
+| [`FAST_INTERVAL`](#fast_interval) | 无 | 对符合条件的固定窗口 `INTERVAL` 聚合查询启用 partial 或 merge FAST 执行路径 | 支持无分区、按标签分区、按 `tbname` 及其他标签分区，以及符合条件的 TSMA 改写计划；窗口和分区限制见下文 |
 | `EX_INTERVAL`         | 无 | 对符合条件的固定窗口 `INTERVAL` 聚合查询启用 EX 执行路径 | 满足 `FAST_INTERVAL` 的基础窗口条件，且无 `PARTITION BY`、`LIMIT`、`SLIMIT`；查询仅有一个表扫描、所有 vgroup 位于同一 dnode，选择列表仅支持 `_wstart`、`_wend`、`_wduration`、`COUNT`、`SUM` 和 `AVG` 的受限组合 |
-| `INTERVAL_LIMIT`      | 无 | 对符合条件的 `INTERVAL` 查询按子表裁剪后续扫描，减少获取前几个窗口所需的工作量，默认关闭 | 带正数 `LIMIT`、窗口直接读取 Table Scan 且扫描与窗口输出顺序一致的查询；完整限制见下文 |
+| [`INTERVAL_LIMIT`](#interval_limit) | 无 | 对符合条件的 `INTERVAL` 查询按子表裁剪后续扫描，减少获取前几个窗口所需的工作量，默认关闭 | 带正数 `LIMIT`、窗口直接读取 Table Scan 且扫描与窗口输出顺序一致的查询；完整限制见下文 |
 | `JOIN_ALGO` | `HASH`、`MERGE` 或 `THETA`，仅一个参数 | 自 `v3.4.3.0` 起支持，指定 JOIN 算法偏好，不适用时回退；详见 [JOIN 算法与 Hint](./05-join.md#join-算法与-hint) | 普通 JOIN |
 | `HASH_JOIN` | 无 | 已有写法，对应 `JOIN_ALGO(HASH)` | 普通 JOIN |
 | `MERGE_JOIN` | 无 | 自 `v3.4.3.0` 起支持，对应 `JOIN_ALGO(MERGE)` | 普通 JOIN |
+| [`NO_CONCURRENT_LAST_SCAN`](#no_concurrent_last_scan) | 无 | 禁用缓存与普通扫描的并发拆分 | 数据库已启用相应的 `cachemodel`，且查询同时包含可使用缓存的 `LAST`/`LAST_ROW` 与需要普通扫描的聚合函数 |
 
 示例：
 
 ```sql
-SELECT /*+ BATCH_SCAN() */ a.ts FROM stable1 a, stable2 b where a.tag0 = b.tag0 and a.ts = b.ts;
-SELECT /*+ SORT_FOR_GROUP() */ count(*), c1 FROM stable1 PARTITION BY c1;
-SELECT /*+ PARTITION_FIRST() */ count(*), c1 FROM stable1 PARTITION BY c1;
-SELECT /*+ PARTITION_FIRST() */ gid, _wstart, COUNT(*) FROM meters PARTITION BY gid STATE_WINDOW(status);
-SELECT /*+ PARTITION_FIRST() */ category, _wstart, COUNT(*) FROM meters PARTITION BY category STATE_WINDOW(status);
-SELECT /*+ PARA_TABLES_SORT() */ * from stable1 order by ts;
-SELECT /*+ SMALLDATA_TS_SORT() */ * from stable1 order by ts;
-SELECT /*+ SMALLDATA_SCAN_SORT() */ * from stable1 order by ts;
-SELECT /*+ FAST_INTERVAL() */ _wstart, count(*), sum(c1) FROM stable1 WHERE ts >= '2024-01-01 00:00:00' AND ts < '2024-01-01 01:00:00' INTERVAL(10s);
-SELECT /*+ EX_INTERVAL() */ _wstart, count(*), sum(c1), avg(c2) FROM stable1 WHERE ts >= '2024-01-01 00:00:00' AND ts < '2024-01-01 01:00:00' INTERVAL(10s);
-SELECT /*+ INTERVAL_LIMIT() */ _wstart, max(c1) FROM stable1 INTERVAL(1m) LIMIT 5;
+SELECT /*+ BATCH_SCAN() */ a.ts
+FROM stable1 a, stable2 b
+WHERE a.tag0 = b.tag0
+  AND a.ts = b.ts;
+
+SELECT
+  /*+ SORT_FOR_GROUP() */ COUNT(*),
+  c1
+FROM stable1
+PARTITION BY c1;
+
+SELECT
+  /*+ PARTITION_FIRST() */ COUNT(*),
+  c1
+FROM stable1
+PARTITION BY c1;
+
+SELECT
+  /*+ PARTITION_FIRST() */ gid,
+  _wstart,
+  COUNT(*)
+FROM meters
+PARTITION BY gid
+STATE_WINDOW(status);
+
+SELECT
+  /*+ PARTITION_FIRST() */ category,
+  _wstart,
+  COUNT(*)
+FROM meters
+PARTITION BY category
+STATE_WINDOW(status);
+
+SELECT /*+ PARA_TABLES_SORT() */ *
+FROM stable1
+ORDER BY ts;
+
+SELECT /*+ SMALLDATA_TS_SORT() */ *
+FROM stable1
+ORDER BY ts;
+
+SELECT /*+ SMALLDATA_SCAN_SORT() */ *
+FROM stable1
+ORDER BY ts;
+
+SELECT
+  /*+ FAST_INTERVAL() */ _wstart,
+  COUNT(*),
+  SUM(c1)
+FROM stable1
+WHERE ts >= '2024-01-01 00:00:00'
+  AND ts < '2024-01-01 01:00:00'
+INTERVAL(10s);
+
+SELECT
+  /*+ EX_INTERVAL() */ _wstart,
+  COUNT(*),
+  SUM(c1),
+  AVG(c2)
+FROM stable1
+WHERE ts >= '2024-01-01 00:00:00'
+  AND ts < '2024-01-01 01:00:00'
+INTERVAL(10s);
+
+SELECT
+  /*+ INTERVAL_LIMIT() */ _wstart,
+  MAX(c1)
+FROM stable1
+INTERVAL(1m)
+LIMIT 5;
 ```
+
+### PARTITION_FIRST
+
+从 `v3.4.3.0` 起，`PARTITION_FIRST` 也适用于超级表按标签列或 `tbname` 分区的状态窗口查询。在该执行路径中，Table Merge Scan 先扫描相关子表，独立的 `Partition` 算子再按标签列或 `tbname` 组织分区，之后由 `STATE_WINDOW` 在每个分区内计算状态窗口。多 vnode 查询会保持分区内的主时间戳顺序；表具有第二主键时，也会使用第二主键确定相同时间戳记录的顺序。
+
+当 `PARTITION BY` 包含普通数据列，或者同时包含标签和普通数据列时，系统在有无 `PARTITION_FIRST` 时都会保留独立的 `Partition`。这是因为普通列的值可能逐行变化，不能按子表标签在扫描阶段预先分组。多 vnode 查询同样会保持分区内的主时间戳和可选第二主键顺序。此类查询使用 Hint 通常不会改变算子结构，也不应预期获得额外的扫描性能收益。
+
+该 Hint 不改变查询结果语义。对纯标签或 `tbname` 分区，它主要用于减少大量小分区带来的扫描分组切换和小数据块调度开销；少量大分区可能因额外的分区重组而无法获得性能收益。建议使用 `EXPLAIN` 确认计划中存在独立的 `Partition`，并使用 `EXPLAIN ANALYZE` 对比启用 Hint 前后的耗时和资源使用。不使用该 Hint 时，系统继续采用默认计划。
 
 ### FAST_INTERVAL
 
@@ -210,9 +285,13 @@ SELECT /*+ INTERVAL_LIMIT() */ _wstart, max(c1) FROM stable1 INTERVAL(1m) LIMIT 
 例如，以下查询按标签 `tag0` 分区：
 
 ```sql
-SELECT /*+ FAST_INTERVAL() */ tag0, _wstart, AVG(c1)
+SELECT
+  /*+ FAST_INTERVAL() */ tag0,
+  _wstart,
+  AVG(c1)
 FROM stable1
-WHERE ts >= '2024-01-01 00:00:00' AND ts < '2024-01-01 01:00:00'
+WHERE ts >= '2024-01-01 00:00:00'
+  AND ts < '2024-01-01 01:00:00'
 PARTITION BY tag0
 INTERVAL(10m);
 ```
@@ -236,23 +315,66 @@ TSMA 场景还需要已有可用的预聚合并启用 TSMA 查询优化；此 Hi
 
 ```sql
 EXPLAIN VERBOSE TRUE
-SELECT /*+ INTERVAL_LIMIT() */ _wstart, MAX(c1)
+SELECT
+  /*+ INTERVAL_LIMIT() */ _wstart,
+  MAX(c1)
 FROM stable1
 INTERVAL(1m)
-LIMIT 5 OFFSET 20;
+LIMIT 5
+OFFSET 20;
 ```
 
 计划中的 Table Scan 出现 `interval_limit=25` 表示已启用对应裁剪。对于分别满足条件的查询，可以在同一注释中组合 `FAST_INTERVAL()` 与 `INTERVAL_LIMIT()`，例如 `/*+ FAST_INTERVAL() INTERVAL_LIMIT() */`。
 
 该优化主要适合只需少量窗口的查询。`LIMIT` 较大或无法减少扫描时，额外的窗口跟踪可能增加开销；建议通过 `EXPLAIN ANALYZE` 对比启用前后的扫描行数和查询耗时，按需使用。
 
-### PARTITION_FIRST
+### NO_CONCURRENT_LAST_SCAN
 
-从 `v3.4.3.0` 起，`PARTITION_FIRST` 也适用于超级表按标签列或 `tbname` 分区的状态窗口查询。在该执行路径中，Table Merge Scan 先扫描相关子表，独立的 `Partition` 算子再按标签列或 `tbname` 组织分区，之后由 `STATE_WINDOW` 在每个分区内计算状态窗口。多 vnode 查询会保持分区内的主时间戳顺序；表具有第二主键时，也会使用第二主键确定相同时间戳记录的顺序。
+符合缓存扫描资格的分组及非分组混合聚合默认将缓存扫描与普通扫描并发执行。
+在所属 `SELECT` 后指定 `/*+ NO_CONCURRENT_LAST_SCAN() */`，
+可关闭该项并发拆分，恢复共享扫描路径。
+该 Hint 使用空括号写法，不接收参数，名称不区分大小写。
+省略括号或带参数的写法会被忽略，保持默认并发行为。
 
-当 `PARTITION BY` 包含普通数据列，或者同时包含标签和普通数据列时，系统在有无 `PARTITION_FIRST` 时都会保留独立的 `Partition`。这是因为普通列的值可能逐行变化，不能按子表标签在扫描阶段预先分组。多 vnode 查询同样会保持分区内的主时间戳和可选第二主键顺序。此类查询使用 Hint 通常不会改变算子结构，也不应预期获得额外的扫描性能收益。
+```sql
+-- 默认允许并发扫描
+SELECT
+  tbname,
+  COUNT(*),
+  LAST(current)
+FROM meters
+PARTITION BY tbname;
 
-该 Hint 不改变查询结果语义。对纯标签或 `tbname` 分区，它主要用于减少大量小分区带来的扫描分组切换和小数据块调度开销；少量大分区可能因额外的分区重组而无法获得性能收益。建议使用 `EXPLAIN` 确认计划中存在独立的 `Partition`，并使用 `EXPLAIN ANALYZE` 对比启用 Hint 前后的耗时和资源使用。不使用该 Hint 时，系统继续采用默认计划。
+-- 显式关闭分组并发拆分
+SELECT
+  /*+ NO_CONCURRENT_LAST_SCAN() */ tbname,
+  COUNT(*),
+  LAST(current)
+FROM meters
+PARTITION BY tbname;
+
+-- 显式关闭非分组并发拆分
+SELECT
+  /*+ NO_CONCURRENT_LAST_SCAN() */ COUNT(*),
+  LAST(current)
+FROM meters;
+```
+
+Hint 仅控制所属 `SELECT`，外层 Hint 不会关闭子查询或其他 `UNION`
+分支的并发拆分。
+
+当普通扫描本身很快时，分支调度、数据传输和结果合并的固定开销可能占比较高。
+此时可尝试使用该 Hint，让混合聚合共用一次普通扫描，以降低完整查询耗时。
+以下场景可优先对比：
+
+- 对于按 `tbname` 分组的 `COUNT(*)` 与 `LAST` 混合聚合，
+  每组历史数据在几百行以内、分组数在几千个以内时，推荐尝试添加该 Hint。
+- 不分组、参与查询的子表较少且总扫描量很小的混合聚合。
+
+上述数据量仅用于选择对比场景，不是固定的启用阈值。应同时考虑参与查询的子表数、
+每组历史行数、行宽、聚合函数、数据是否落盘、缓存状态及硬件条件。
+当每组达到上千行或更多时，缓存分支减少历史列读取的收益通常更明显，
+宜优先保留默认并发路径。
 
 ## SELECT 列表
 
@@ -263,21 +385,30 @@ LIMIT 5 OFFSET 20;
 通配符 \* 可以用于代指全部列。对于普通表和子表，结果中只有普通列。对于超级表，还包含了 TAG 列。
 
 ```sql
-SELECT * FROM d1001;
+SELECT *
+FROM d1001;
 ```
 
 通配符支持表名前缀，以下两个 SQL 语句均为返回全部的列：
 
 ```sql
-SELECT * FROM d1001;
-SELECT d1001.* FROM d1001;
+SELECT *
+FROM d1001;
+
+SELECT d1001.*
+FROM d1001;
 ```
 
 在 JOIN 查询中，带表名前缀的\*和不带前缀\*返回的结果有差别， \*返回全部表的所有列数据（不包含标签），而带表名前缀的通配符，则只返回该表的列数据。
 
 ```sql
-SELECT * FROM d1001, d1003 WHERE d1001.ts=d1003.ts;
-SELECT d1001.* FROM d1001,d1003 WHERE d1001.ts = d1003.ts;
+SELECT *
+FROM d1001, d1003
+WHERE d1001.ts = d1003.ts;
+
+SELECT d1001.*
+FROM d1001, d1003
+WHERE d1001.ts = d1003.ts;
 ```
 
 上面的查询语句中，前者返回 d1001 和 d1003 的全部列，而后者仅返回 d1001 的全部列。
@@ -290,7 +421,12 @@ SELECT d1001.* FROM d1001,d1003 WHERE d1001.ts = d1003.ts;
 在超级表和子表的查询中可以指定 _标签列_，且标签列的值会与普通列的数据一起返回。
 
 ```sql
-SELECT location, groupid, current FROM d1001 LIMIT 2;
+SELECT
+  location,
+  groupid,
+  current
+FROM d1001
+LIMIT 2;
 ```
 
 ### 别名
@@ -335,7 +471,10 @@ SELECT TAGS tag_name [, tag_name ...] FROM stb_name
 `SELECT`子句中，如果不指定返回结果集合的列名，结果集列名称默认使用`SELECT`子句中的表达式名称作为列名称。此外，用户可使用`AS`来重命名返回结果集合中列的名称。例如：
 
 ```sql
-taos> SELECT ts, ts AS primary_key_ts FROM d1001;
+SELECT
+  ts,
+  ts AS primary_key_ts
+FROM d1001;
 ```
 
 但是针对`first(*)`、`last(*)`、`last_row(*)`不支持针对单列的重命名。
@@ -350,19 +489,32 @@ taos> SELECT ts, ts AS primary_key_ts FROM d1001;
 获取一个超级表所有的子表名及相关的标签信息：
 
 ```sql
-SELECT TAGS TBNAME, location FROM meters;
+SELECT
+  TAGS TBNAME,
+  location
+FROM meters;
 ```
 
 建议用户使用 INFORMATION_SCHEMA 下的 INS_TAGS 系统表来查询超级表的子表标签信息，例如获取超级表 meters 所有的子表名和标签值：
 
 ```sql
-SELECT table_name, tag_name, tag_type, tag_value FROM information_schema.ins_tags WHERE stable_name='meters';
+SELECT
+  table_name,
+  tag_name,
+  tag_type,
+  tag_value
+FROM information_schema.ins_tags
+WHERE stable_name = 'meters';
 ```
 
 统计超级表下辖子表数量：
 
 ```sql
-SELECT COUNT(*) FROM (SELECT DISTINCT TBNAME FROM meters);
+SELECT COUNT(*)
+FROM (
+  SELECT DISTINCT TBNAME
+  FROM meters
+);
 ```
 
 以上两个查询均只支持在 WHERE 条件子句中添加针对标签（TAGS）的过滤条件。
@@ -384,7 +536,10 @@ SELECT COUNT(*) FROM (SELECT DISTINCT TBNAME FROM meters);
 TDengine 中，所有表的第一列都必须是时间戳类型，并作为主键。`_rowts` 和 `_c0` 均代表该列的值。相比直接使用主键时间戳列，伪列更灵活、语义也更标准，例如可以与 `max` / `min` 等函数一起使用。
 
 ```sql
-select _rowts, max(current) from meters;
+SELECT
+  _rowts,
+  MAX(current)
+FROM meters;
 ```
 
 **`_IROWTS`**
@@ -392,7 +547,13 @@ select _rowts, max(current) from meters;
 `_irowts` 伪列只能与 `INTERP` 函数一起使用，用于返回插值结果对应的时间戳列。
 
 ```sql
-SELECT _irowts, interp(current) FROM meters RANGE('2020-01-01 10:00:00', '2020-01-01 10:30:00') EVERY(1s) FILL(linear);
+SELECT
+  _irowts,
+  INTERP(current)
+FROM meters
+RANGE ('2020-01-01 10:00:00', '2020-01-01 10:30:00')
+EVERY(1s)
+FILL(linear);
 ```
 
 **`_IROWTS_ORIGIN`**
@@ -400,12 +561,18 @@ SELECT _irowts, interp(current) FROM meters RANGE('2020-01-01 10:00:00', '2020-0
 `_irowts_origin` 伪列只能与 `INTERP` 函数一起使用，且仅适用于 `FILL` 类型为 `PREV` / `NEXT` / `NEAR` 的场景，用于返回插值所使用的原始数据时间戳。若范围内无值，则返回 `NULL`。
 
 ```sql
-SELECT _irowts_origin, interp(current) FROM meters RANGE('2020-01-01 10:00:00', '2020-01-01 10:30:00') EVERY(1s) FILL(NEXT);
+SELECT
+  _irowts_origin,
+  INTERP(current)
+FROM meters
+RANGE ('2020-01-01 10:00:00', '2020-01-01 10:30:00')
+EVERY(1s)
+FILL(NEXT);
 ```
 
 ## FROM 子句
 
-`FROM` 关键字后可以是一个或多个表（含超级表）引用、子查询结果，或 `TEXT` / `FILE` 内联数据源（见下文）。
+`FROM` 关键字后可以是一个或多个表（含超级表）引用、子查询结果、`TABLE` 表函数结果，或 `TEXT` / `FILE` 内联数据源（见下文）。
 如果未指定当前数据库，可以在表名前加数据库名做跨库引用，例如 `power.d1001`。
 
 TDengine 支持基于时间戳主键的 `INNER JOIN`，规则如下：
@@ -439,16 +606,21 @@ WHERE t1.ts = t2.ts;
 
 ```sql
 SELECT *
-FROM temp_stable t1 LEFT JOIN temp_stable t2
-ON t1.ts = t2.ts AND t1.deviceid = t2.deviceid AND t1.status = 0;
+FROM temp_stable t1
+LEFT JOIN temp_stable t2
+       ON t1.ts = t2.ts
+      AND t1.deviceid = t2.deviceid
+      AND t1.status = 0;
 ```
 
 子表与超级表之间的 `LEFT ASOF JOIN`：
 
 ```sql
 SELECT *
-FROM temp_ctable t1 LEFT ASOF JOIN temp_stable t2
-ON t1.ts = t2.ts AND t1.deviceid = t2.deviceid;
+FROM temp_ctable t1
+LEFT ASOF JOIN temp_stable t2
+            ON t1.ts = t2.ts
+           AND t1.deviceid = t2.deviceid;
 ```
 
 ## TEXT 内联数据源
@@ -459,8 +631,8 @@ ON t1.ts = t2.ts AND t1.deviceid = t2.deviceid;
 
 ```sql
 TEXT(column_list)
-    VALUES (val [, val] ...) [(val [, val] ...)] ...
-    [alias]
+  VALUES (val [, val] ...) [(val [, val] ...)] ...
+  [alias]
 ```
 
 ### 说明
@@ -486,43 +658,47 @@ TEXT(column_list)
 
 ```sql
 -- 基本查询：查询内联电表读数
-SELECT ts, current, voltage
-FROM TEXT(ts TIMESTAMP, current FLOAT, voltage INT)
-    VALUES ('2024-01-01 08:00:00', 10.2, 220)
-           ('2024-01-01 09:00:00', 10.8, 221) t1;
+SELECT
+  ts,
+  current,
+  voltage
+FROM TEXT(ts TIMESTAMP, current FLOAT, voltage INT) VALUES ('2024-01-01 08:00:00', 10.2, 220) ('2024-01-01 09:00:00', 10.8, 221) t1;
 
 -- 带条件过滤：筛选电压超标的读数
-SELECT ts, current, voltage
-FROM TEXT(ts TIMESTAMP, current FLOAT, voltage INT)
-    VALUES ('2024-01-01 08:00:00', 10.2, 220)
-           ('2024-01-01 09:00:00', 10.8, 221)
-           ('2024-01-01 10:00:00', 11.5, 219) t2
+SELECT
+  ts,
+  current,
+  voltage
+FROM TEXT(ts TIMESTAMP, current FLOAT, voltage INT) VALUES ('2024-01-01 08:00:00', 10.2, 220) ('2024-01-01 09:00:00', 10.8, 221) ('2024-01-01 10:00:00', 11.5, 219) t2
 WHERE voltage > 220;
 
 -- 作为子查询：对内联读数进行二次过滤
-SELECT * FROM (
-    SELECT ts, current, voltage
-    FROM TEXT(ts TIMESTAMP, current FLOAT, voltage INT)
-        VALUES ('2024-01-01 08:00:00', 10.2, 220)
-               ('2024-01-01 09:00:00', 10.8, 221) readings
-) sub WHERE current > 10.5;
+SELECT *
+FROM (
+  SELECT
+    ts,
+    current,
+    voltage
+  FROM TEXT(ts TIMESTAMP, current FLOAT, voltage INT) VALUES ('2024-01-01 08:00:00', 10.2, 220) ('2024-01-01 09:00:00', 10.8, 221) readings
+) sub
+WHERE current > 10.5;
 
 -- 窗口聚合：按 6 小时统计平均电流和最大电压
-SELECT _wstart, AVG(current), MAX(voltage)
-FROM TEXT(ts TIMESTAMP, current FLOAT, voltage INT)
-    VALUES ('2024-01-01 08:00:00', 10.2, 220)
-           ('2024-01-01 09:00:00', 10.8, 221)
-           ('2024-01-01 10:00:00', 11.5, 219)
-           ('2024-01-01 14:00:00', 9.8,  218) t3
+SELECT
+  _wstart,
+  AVG(current),
+  MAX(voltage)
+FROM TEXT(ts TIMESTAMP, current FLOAT, voltage INT) VALUES ('2024-01-01 08:00:00', 10.2, 220) ('2024-01-01 09:00:00', 10.8, 221) ('2024-01-01 10:00:00', 11.5, 219) ('2024-01-01 14:00:00', 9.8, 218) t3
 INTERVAL(6h);
 
 -- JOIN：用内联校准数据关联真实电表
-SELECT m.ts, m.current, cal.factor
+SELECT
+  m.ts,
+  m.current,
+  cal.factor
 FROM meters m
-JOIN TEXT(ts TIMESTAMP, factor FLOAT)
-    VALUES ('2024-01-01 08:00:00', 1.02)
-           ('2024-01-01 09:00:00', 0.98) cal
-ON m.ts = cal.ts;
+JOIN TEXT(ts TIMESTAMP, factor FLOAT) VALUES ('2024-01-01 08:00:00', 1.02) ('2024-01-01 09:00:00', 0.98) cal
+  ON m.ts = cal.ts;
 ```
 
 ## FILE CSV 文件数据源
@@ -533,7 +709,7 @@ ON m.ts = cal.ts;
 
 ```sql
 FILE('file_path', 'column_list' [, header=true] [, delimiter='char'])
-    [alias]
+  [alias]
 ```
 
 ### 说明
@@ -558,42 +734,75 @@ FILE('file_path', 'column_list' [, header=true] [, delimiter='char'])
 
 ```sql
 -- 读取 CSV 文件中的全部列（电表四列读数）
-SELECT ts, current, voltage, phase
-FROM FILE('./meter_readings.csv',
-          'ts TIMESTAMP, current FLOAT, voltage INT, phase FLOAT') f;
+SELECT
+  ts,
+  current,
+  voltage,
+  phase
+FROM FILE('./meter_readings.csv', 'ts TIMESTAMP, current FLOAT, voltage INT, phase FLOAT') f;
 
 -- CSV 有 4 列，只读取其中 2 列（电流和电压）
-SELECT ts, current
-FROM FILE('./meter_readings.csv',
-          'ts TIMESTAMP, current FLOAT, voltage INT, phase FLOAT') f;
+SELECT
+  ts,
+  current
+FROM FILE('./meter_readings.csv', 'ts TIMESTAMP, current FLOAT, voltage INT, phase FLOAT') f;
 
 -- CSV 带列名头部，跳过首行
-SELECT ts, current, voltage, phase
-FROM FILE('./meter_readings_with_header.csv',
-          'ts TIMESTAMP, current FLOAT, voltage INT, phase FLOAT',
-          header=true) f;
+SELECT
+  ts,
+  current,
+  voltage,
+  phase
+FROM FILE('./meter_readings_with_header.csv', 'ts TIMESTAMP, current FLOAT, voltage INT, phase FLOAT', header = true) f;
 
 -- 作为子查询：对 CSV 读数进行过滤聚合
-SELECT AVG(current), MAX(voltage)
+SELECT
+  AVG(current),
+  MAX(voltage)
 FROM (
-    SELECT ts, current, voltage
-    FROM FILE('./meter_readings.csv',
-              'ts TIMESTAMP, current FLOAT, voltage INT, phase FLOAT') src
-) sub WHERE voltage BETWEEN 200 AND 250;
+  SELECT
+    ts,
+    current,
+    voltage
+  FROM FILE('./meter_readings.csv', 'ts TIMESTAMP, current FLOAT, voltage INT, phase FLOAT') src
+) sub
+WHERE voltage BETWEEN 200 AND 250;
 
 -- JOIN：用 CSV 校准数据关联真实电表
-SELECT m.ts, m.current, cal.factor
+SELECT
+  m.ts,
+  m.current,
+  cal.factor
 FROM meters m
-JOIN FILE('./calibration.csv',
-          'ts TIMESTAMP, factor FLOAT') cal
-ON m.ts = cal.ts;
+JOIN FILE('./calibration.csv', 'ts TIMESTAMP, factor FLOAT') cal
+  ON m.ts = cal.ts;
 
 -- 窗口聚合：按小时统计 CSV 电表数据
-SELECT _wstart, AVG(current), MAX(voltage)
-FROM FILE('./meter_readings.csv',
-          'ts TIMESTAMP, current FLOAT, voltage INT, phase FLOAT') f
+SELECT
+  _wstart,
+  AVG(current),
+  MAX(voltage)
+FROM FILE('./meter_readings.csv', 'ts TIMESTAMP, current FLOAT, voltage INT, phase FLOAT') f
 INTERVAL(1h);
 ```
+
+## TABLE(...) 表函数数据源
+
+`TABLE` 将表函数的计算结果作为查询表源。表函数返回一个行集，其参数由具体函数定义；具体函数列表、参数和输出列见 [内置函数](03-function.md#表函数)。
+
+### 语法
+
+```sql
+TABLE (table_function_call)
+```
+
+### 说明
+
+- `TABLE(...)` 是表函数数据源的固定写法；括号内的表函数调用（函数名、参数个数、参数类型和写法）由具体表函数定义，详见 [内置函数](03-function.md#表函数)。
+- 可以为表函数结果指定表别名，用于 `JOIN` 或子查询中引用列，例如在 `TABLE(...)` 后写别名 `a`，再用 `a.column` 引用列。
+- `TABLE(...)` 只能出现在 `FROM` 子句中，可以用于 `FROM` 表源、`JOIN` 的一侧、子查询的 `FROM` 和 `UNION` 的一侧。
+- 表函数返回的行集可以继续参与 `WHERE`、`GROUP BY`、聚合函数、窗口、`ORDER BY`、`LIMIT` 等查询操作。
+- 表函数结果不是持久化表，不支持写入、`ALTER`、删除、订阅、流式计算，也不能直接作为 `CREATE VTABLE` 的列引用或 `CREATE TABLE ... AS` 的数据源。
 
 ## INTERP 子句
 
@@ -660,7 +869,8 @@ FILL_VALS 参数用于指定填充的值，数目和格式均与 FILL 子句的 
 ### 示例
 
 ```sql
-taos> select * from fill_example;
+taos> SELECT *
+      FROM fill_example;
            ts            |   c1        |
 ========================================
  2026-01-01 00:00:00.000 | 2026        |
@@ -670,8 +880,15 @@ taos> select * from fill_example;
  2026-01-01 00:00:04.000 | NULL        |
  2026-01-01 00:00:05.000 | NULL        |
  2026-01-01 00:00:06.000 | 6202        |
+Query OK, 7 row(s) in set
 
-taos> select _irowts as ts, interp(c1) from fill_example range('2026-01-01 00:00:01', '2026-01-01 00:00:05') every(1s) fill(near);
+taos> SELECT
+        _irowts AS ts,
+        INTERP(c1)
+      FROM fill_example
+      RANGE ('2026-01-01 00:00:01', '2026-01-01 00:00:05')
+      EVERY(1s)
+      FILL(near);
            ts            |   c1        |
 ========================================
  2026-01-01 00:00:01.000 | 2026        |
@@ -679,8 +896,15 @@ taos> select _irowts as ts, interp(c1) from fill_example range('2026-01-01 00:00
  2026-01-01 00:00:03.000 | 2026        |
  2026-01-01 00:00:04.000 | 6202        |
  2026-01-01 00:00:05.000 | 6202        |
+Query OK, 5 row(s) in set
 
-taos> select _irowts as ts, interp(c1) from fill_example range('2026-01-01 00:00:01', '2026-01-01 00:00:05') every(1s) fill(near) surround(2s, 0);
+taos> SELECT
+        _irowts AS ts,
+        INTERP(c1)
+      FROM fill_example
+      RANGE ('2026-01-01 00:00:01', '2026-01-01 00:00:05')
+      EVERY(1s)
+      FILL(near) SURROUND(2s, 0);
            ts            |   c1        |
 ========================================
  2026-01-01 00:00:01.000 | 2026        |
@@ -688,8 +912,17 @@ taos> select _irowts as ts, interp(c1) from fill_example range('2026-01-01 00:00
  2026-01-01 00:00:03.000 | 0           |
  2026-01-01 00:00:04.000 | 6202        |
  2026-01-01 00:00:05.000 | 6202        |
+Query OK, 5 row(s) in set
 
-taos> select _wstart, _wend, avg(c1), last(c1) from fill_example where ts between "2026-01-01 00:00:00" and "2026-01-01 00:00:06" interval(1s) fill(prev) surround(5s, 0, 0);
+taos> SELECT
+        _wstart,
+        _wend,
+        AVG(c1),
+        LAST(c1)
+      FROM fill_example
+      WHERE ts BETWEEN "2026-01-01 00:00:00" AND "2026-01-01 00:00:06"
+      INTERVAL(1s)
+      FILL(prev) SURROUND(5s, 0, 0);
          _wstart         |          _wend          |  avg(c1)   |  last(c1)   |
 ===============================================================================
  2026-01-01 00:00:00.000 | 2026-01-01 00:00:01.000 |       2026 |        2026 |
@@ -699,8 +932,17 @@ taos> select _wstart, _wend, avg(c1), last(c1) from fill_example where ts betwee
  2026-01-01 00:00:04.000 | 2026-01-01 00:00:05.000 |       2026 |        2026 |
  2026-01-01 00:00:05.000 | 2026-01-01 00:00:06.000 |       2026 |        2026 |
  2026-01-01 00:00:06.000 | 2026-01-01 00:00:07.000 |       6202 |        6202 |
+Query OK, 7 row(s) in set
 
-taos> select _wstart, _wend, avg(c1), last(c1) from fill_example where ts between "2026-01-01 00:00:00" and "2026-01-01 00:00:06" interval(1s) fill(next) surround(2s, 0, 0);
+taos> SELECT
+        _wstart,
+        _wend,
+        AVG(c1),
+        LAST(c1)
+      FROM fill_example
+      WHERE ts BETWEEN "2026-01-01 00:00:00" AND "2026-01-01 00:00:06"
+      INTERVAL(1s)
+      FILL(next) SURROUND(2s, 0, 0);
          _wstart         |          _wend          |  avg(c1)   |  last(c1)   |
 ===============================================================================
  2026-01-01 00:00:00.000 | 2026-01-01 00:00:01.000 |       2026 |        2026 |
@@ -710,6 +952,7 @@ taos> select _wstart, _wend, avg(c1), last(c1) from fill_example where ts betwee
  2026-01-01 00:00:04.000 | 2026-01-01 00:00:05.000 |       6202 |        6202 |
  2026-01-01 00:00:05.000 | 2026-01-01 00:00:06.000 |       6202 |        6202 |
  2026-01-01 00:00:06.000 | 2026-01-01 00:00:07.000 |       6202 |        6202 |
+Query OK, 7 row(s) in set
 ```
 
 ## GROUP BY
@@ -759,22 +1002,33 @@ GROUP BY 子句中在使用位置语法和结果集列名进行分组时，其�
 
 ```sql
 -- 聚合查询：普通列 location 是分组键
-SELECT location, COUNT(*)
+SELECT
+  location,
+  COUNT(*)
 FROM meters
 GROUP BY location
-HAVING location = 'California.SanFrancisco' AND COUNT(*) > 10;
+HAVING location = 'California.SanFrancisco'
+  AND COUNT(*) > 10;
 
 -- 非聚合 PARTITION BY 查询：current 不是分区键，也可以用于筛选
-SELECT ts, current
+SELECT
+  ts,
+  current
 FROM meters
 PARTITION BY location
 HAVING current > 10;
 
 -- 隐式分区查询：仅使用普通列表达式
-SELECT ts, current FROM meters HAVING current > 10;
+SELECT
+  ts,
+  current
+FROM meters
+HAVING current > 10;
 
 -- 隐式分区查询：仅使用聚合表达式
-SELECT COUNT(*), AVG(current)
+SELECT
+  COUNT(*),
+  AVG(current)
 FROM meters
 HAVING COUNT(*) > 100;
 ```
@@ -797,7 +1051,7 @@ NULLS 语法用来指定 NULL 值在排序中输出的位置。NULLS LAST 是升
 
 ```sql
 function_name ( [ arguments ] ) OVER (
-    [ PARTITION BY expr [, ...] ]
+  [ PARTITION BY expr [, ...] ]
     [ ORDER BY expr [ ASC | DESC ] [, ...] ]
     [ { ROWS | RANGE } frame_extent ]
 )
@@ -827,27 +1081,35 @@ SLIMIT 和 `PARTITION BY`、`GROUP BY` 子句一起使用，用于控制输出�
 
 ```sql
 -- 最近 1 小时
-SELECT * FROM meters
+SELECT *
+FROM meters
 WHERE ts >= NOW() - 1h;
 
 -- 今天
-SELECT * FROM meters
-WHERE ts >= TODAY() AND ts < TODAY() + 1d;
+SELECT *
+FROM meters
+WHERE ts >= TODAY()
+  AND ts < TODAY() + 1d;
 
 -- 昨天
-SELECT * FROM meters
-WHERE ts >= TODAY() - 1d AND ts < TODAY();
+SELECT *
+FROM meters
+WHERE ts >= TODAY() - 1d
+  AND ts < TODAY();
 
 -- 本周以来
-SELECT * FROM meters
+SELECT *
+FROM meters
 WHERE ts >= TIMETRUNCATE(NOW(), 1w);
 
 -- 本月以来
-SELECT * FROM meters
+SELECT *
+FROM meters
 WHERE ts >= TIMETRUNCATE(NOW(), 1n);
 
 -- 指定时间范围
-SELECT * FROM meters
+SELECT *
+FROM meters
 WHERE ts >= '2024-01-01 00:00:00'
   AND ts < '2024-02-01 00:00:00';
 ```
@@ -870,6 +1132,7 @@ SELECT DATABASE();
 
 ```sql
 SELECT CLIENT_VERSION();
+
 SELECT SERVER_VERSION();
 ```
 
@@ -923,13 +1186,24 @@ WHERE (column|tbname) match/MATCH/nmatch/NMATCH _regex_
 
 正则匹配字符串长度不能超过 128 字节。可通过客户端配置参数 `maxRegexStringLen` 调整上限，修改后需要重启客户端才能生效。
 
+正则匹配使用连接字符集。Linux 和 macOS 服务端需要安装与连接字符集对应的 locale，否则查询会报错。Windows 按连接字符集解码，遇到无效编码时查询会报错。
+
 ## CASE 表达式
 
 ### 语法
 
-```txt
-CASE value WHEN compare_value THEN result [WHEN compare_value THEN result ...] [ELSE result] END
-CASE WHEN condition THEN result [WHEN condition THEN result ...] [ELSE result] END
+```sql
+CASE value
+  WHEN compare_value THEN result
+  [WHEN compare_value THEN result ...]
+  [ELSE result]
+END
+
+CASE
+  WHEN condition THEN result
+  [WHEN condition THEN result ...]
+  [ELSE result]
+END
 ```
 
 ### 说明
@@ -947,13 +1221,25 @@ CASE WHEN condition THEN result [WHEN condition THEN result ...] [ELSE result] E
 某设备有三个状态码，显示其状态，语句如下：
 
 ```sql
-SELECT CASE dev_status WHEN 1 THEN 'Running' WHEN 2 THEN 'Warning' WHEN 3 THEN 'Downtime' ELSE 'Unknown' END FROM dev_table;
+SELECT
+  CASE dev_status
+    WHEN 1 THEN 'Running'
+    WHEN 2 THEN 'Warning'
+    WHEN 3 THEN 'Downtime'
+    ELSE 'Unknown'
+  END
+FROM dev_table;
 ```
 
 统计智能电表的电压平均值，当电压小于 200 或大于 250 时认为是统计有误，修正其值为 220，语句如下：
 
 ```sql
-SELECT AVG(CASE WHEN voltage < 200 or voltage > 250 THEN 220 ELSE voltage END) FROM meters;
+SELECT AVG(
+  CASE
+    WHEN voltage < 200 OR voltage > 250 THEN 220
+    ELSE voltage
+  END)
+FROM meters;
 ```
 
 ## 时间线
@@ -970,9 +1256,11 @@ SELECT AVG(CASE WHEN voltage < 200 or voltage > 250 THEN 220 ELSE voltage END) F
 
 ```sql
 -- 子查询未输出系统时间列 ts，event_time 成为退化时间线
-SELECT diff(val)
+SELECT DIFF(val)
 FROM (
-  SELECT event_time, val
+  SELECT
+    event_time,
+    val
   FROM sensor_data
   ORDER BY event_time
 );
@@ -982,7 +1270,9 @@ FROM (
 -- 结果中没有 TIMESTAMP 列时，按子查询的 ORDER BY 计算相邻差值
 SELECT DIFF(avg_v)
 FROM (
-  SELECT groupId, AVG(voltage) AS avg_v
+  SELECT
+    groupId,
+    AVG(voltage) AS avg_v
   FROM meters
   GROUP BY groupId
   ORDER BY groupId
@@ -1029,8 +1319,20 @@ SELECT ... FROM (SELECT ... FROM ...) ...;
 示例如下：
 
 ```sql
-SELECT col1, (SELECT sum(col1) FROM tb1) FROM tb2;
-SELECT col1 FROM tb2 WHERE col1 >= (SELECT avg(col1) FROM tb1);
+SELECT
+  col1,
+(
+  SELECT SUM(col1)
+  FROM tb1
+  )
+FROM tb2;
+
+SELECT col1
+FROM tb2
+WHERE col1 >= (
+  SELECT AVG(col1)
+  FROM tb1
+);
 ```
 
 ### 相关标量子查询
@@ -1038,8 +1340,16 @@ SELECT col1 FROM tb2 WHERE col1 >= (SELECT avg(col1) FROM tb1);
 相关标量子查询引用外层查询块的列，并在外层表达式实际求值时，使用当前行的值执行内层查询。例如：
 
 ```sql
-SELECT r.ts, r.c1,
-       (SELECT h.c1 FROM history h WHERE h.device_id = r.device_id ORDER BY h.ts DESC LIMIT 1)
+SELECT
+  r.ts,
+  r.c1,
+(
+  SELECT h.c1
+  FROM history h
+  WHERE h.device_id = r.device_id
+  ORDER BY h.ts DESC
+  LIMIT 1
+  )
 FROM readings r;
 ```
 
@@ -1057,14 +1367,37 @@ FROM readings r;
 
 ```sql
 -- WHERE 子句基础用法
-select col1 from tb2 where col1 in (select col1 from tb1 where f2 > 10);
+SELECT col1
+FROM tb2
+WHERE col1 IN (
+  SELECT col1
+  FROM tb1
+  WHERE f2 > 10
+);
 
 -- JOIN 关联条件中使用
-select a.ts from tb1 a
-join tb2 b on a.ts = b.ts and a.f1 in (select col1 from tb1 union select col1 from tb2);
+SELECT a.ts
+FROM tb1 a
+JOIN tb2 b
+  ON a.ts = b.ts
+ AND a.f1 IN (
+    SELECT col1
+  FROM tb1
+  UNION
+  SELECT col1
+  FROM tb2
+);
 
 -- CASE 表达式中使用
-select case when f1 in (select f2 from tb1) then 0 else 1 end from tb1;
+SELECT
+  CASE
+    WHEN f1 IN (
+      SELECT f2
+      FROM tb1
+    ) THEN 0
+    ELSE 1
+  END
+FROM tb1;
 ```
 
 #### NOT IN 子查询
@@ -1073,15 +1406,36 @@ select case when f1 in (select f2 from tb1) then 0 else 1 end from tb1;
 
 ```sql
 -- WHERE 子句基础用法
-select col1 from tb2 where col1 not in (select col1 from tb1 where f2 < 100);
+SELECT col1
+FROM tb2
+WHERE col1 NOT IN (
+  SELECT col1
+  FROM tb1
+  WHERE f2 < 100
+);
 
 -- HAVING 子句中使用
-select avg(f1) from tb1
-group by f1 having f1 not in (select f1 from tb2 interval(10s));
+SELECT AVG(f1)
+FROM tb1
+GROUP BY f1
+HAVING f1 NOT IN (
+  SELECT f1
+  FROM tb2
+  INTERVAL(10s)
+);
 
 -- JOIN 关联条件中使用
-select a.ts, b.val from tb1 a
-join tb2 b on a.ts = b.ts and a.f2 not in (select col2 from tb3 where ts > '2026-01-01');
+SELECT
+  a.ts,
+  b.val
+FROM tb1 a
+JOIN tb2 b
+  ON a.ts = b.ts
+ AND a.f2 NOT IN (
+    SELECT col2
+  FROM tb3
+  WHERE ts > '2026-01-01'
+);
 ```
 
 #### ALL 子查询
@@ -1090,14 +1444,34 @@ join tb2 b on a.ts = b.ts and a.f2 not in (select col2 from tb3 where ts > '2026
 
 ```sql
 -- 大于子查询所有结果
-select col1, col2 from tb1 where col1 > ALL (select f1 from tb2 where f2 > 10);
+SELECT
+  col1,
+  col2
+FROM tb1
+WHERE col1 > ALL (
+  SELECT f1
+  FROM tb2
+  WHERE f2 > 10
+);
 
 -- 不等于子查询所有结果
-select col1 from tb1 where col1 <> ALL (select avg(f1) from tb2 group by f2);
+SELECT col1
+FROM tb1
+WHERE col1 <> ALL (
+  SELECT AVG(f1)
+  FROM tb2
+  GROUP BY f2
+);
 
 -- HAVING 子句中使用
-select sum(f1) from tb1
-group by f1 having max(f2) <= ALL (select col3 from tb3 interval(1s));
+SELECT SUM(f1)
+FROM tb1
+GROUP BY f1
+HAVING MAX(f2) <= ALL (
+  SELECT col3
+  FROM tb3
+  INTERVAL(1s)
+);
 ```
 
 #### ANY 子查询
@@ -1106,15 +1480,42 @@ group by f1 having max(f2) <= ALL (select col3 from tb3 interval(1s));
 
 ```sql
 -- 小于子查询任意一个结果
-select a.ts, b.val from tb1 a
-join tb2 b on a.ts = b.ts and a.f1 < ANY (select col1 from tb3 union select col1 from tb4);
+SELECT
+  a.ts,
+  b.val
+FROM tb1 a
+JOIN tb2 b
+  ON a.ts = b.ts
+ AND a.f1 < ANY(
+    SELECT col1
+  FROM tb3
+  UNION
+  SELECT col1
+  FROM tb4
+);
 
 -- INSERT INTO SELECT 中使用
-insert into tb6 (ts, val)
-select ts, f1 from tb1 where f1 = ANY (select col1 from tb7 where ts > '2026-01-01 00:00:00');
+INSERT INTO tb6(ts, val)
+SELECT
+  ts,
+  f1
+FROM tb1
+WHERE f1 = ANY(
+  SELECT col1
+  FROM tb7
+  WHERE ts > '2026-01-01 00:00:00'
+);
 
 -- CASE 表达式中使用
-select case when f2 >= ANY (select f3 from tb8) then 'high' else 'low' end from tb1;
+SELECT
+  CASE
+    WHEN f2 >= ANY(
+      SELECT f3
+      FROM tb8
+    ) THEN 'high'
+    ELSE 'low'
+  END
+FROM tb1;
 ```
 
 #### SOME 子查询
@@ -1123,14 +1524,32 @@ select case when f2 >= ANY (select f3 from tb8) then 'high' else 'low' end from 
 
 ```sql
 -- HAVING 子句中使用
-select avg(f1) from tb1
-group by f1 having sum(f2) >= SOME (select f3 from tb2 interval(1s));
+SELECT AVG(f1)
+FROM tb1
+GROUP BY f1
+HAVING SUM(f2) >= SOME(
+  SELECT f3
+  FROM tb2
+  INTERVAL(1s)
+);
 
 -- SELECT 列表中使用
-select col1, f2 > SOME (select f1 from tb3) as flag from tb1;
+SELECT
+  col1,
+f2 > SOME(
+  SELECT f1
+  FROM tb3
+  ) AS flag
+FROM tb1;
 
 -- WHERE 子句基础用法
-select col1 from tb1 where f3 = SOME (select col2 from tb4 where f4 < 50);
+SELECT col1
+FROM tb1
+WHERE f3 = SOME(
+  SELECT col2
+  FROM tb4
+  WHERE f4 < 50
+);
 ```
 
 #### EXISTS 子查询
@@ -1139,16 +1558,41 @@ select col1 from tb1 where f3 = SOME (select col2 from tb4 where f4 < 50);
 
 ```sql
 -- CASE 表达式中使用
-select case when exists (select 1 from tb2 where tb2.col1 = 1)
-           then 'exist' else 'not exist' end as status from tb1;
+SELECT
+  CASE
+    WHEN EXISTS (
+      SELECT 1
+      FROM tb2
+      WHERE tb2.col1 = 1
+    ) THEN 'exist'
+    ELSE 'not exist'
+  END AS status
+FROM tb1;
 
 -- UNION 中组合使用
-select col1 from tb1 where exists (select 1 from tb4)
-union
-select col2 from tb2 where exists (select 1 from tb5 where f2 > 0);
+SELECT col1
+FROM tb1
+WHERE EXISTS (
+  SELECT 1
+  FROM tb4
+)
+UNION
+SELECT col2
+FROM tb2
+WHERE EXISTS (
+  SELECT 1
+  FROM tb5
+  WHERE f2 > 0
+);
 
 -- WHERE 子句基础用法
-select col1 from tb1 where exists (select * from tb3 where f3 = 1);
+SELECT col1
+FROM tb1
+WHERE EXISTS (
+  SELECT *
+  FROM tb3
+  WHERE f3 = 1
+);
 ```
 
 #### NOT EXISTS 子查询
@@ -1157,21 +1601,39 @@ select col1 from tb1 where exists (select * from tb3 where f3 = 1);
 
 ```sql
 -- SELECT 列表中使用
-select col1, not exists (select f1 from tb3 where f1 = 1) as flag from tb1;
+SELECT
+  col1,
+NOT EXISTS (
+  SELECT f1
+  FROM tb3
+  WHERE f1 = 1
+  ) AS flag
+FROM tb1;
 
 -- WHERE 子句中使用
-select col1 from tb1
-where not exists (select 1 from tb2 where f2 between 10 and 20);
+SELECT col1
+FROM tb1
+WHERE NOT EXISTS (
+  SELECT 1
+  FROM tb2
+  WHERE f2 BETWEEN 10 AND 20
+);
 
 -- JOIN 关联条件中使用
-select a.ts from tb1 a
-left join tb2 b on a.ts = b.ts
-where not exists (select 1 from tb3 where tb3.col1 = 1);
+SELECT a.ts
+FROM tb1 a
+LEFT JOIN tb2 b
+       ON a.ts = b.ts
+WHERE NOT EXISTS (
+  SELECT 1
+  FROM tb3
+  WHERE tb3.col1 = 1
+);
 ```
 
 ## UNION 子句
 
-```txt title=语法
+```sql title=语法
 SELECT ...
 UNION [ALL] SELECT ...
 [UNION [ALL] SELECT ...]
@@ -1189,25 +1651,42 @@ TDengine 支持 `UNION [ALL]` 操作符，用于合并多个 `SELECT` 子句的�
 下面的示例基于如下建表语句：
 
 ```sql
-CREATE TABLE tb1 (ts TIMESTAMP, col1 INT, col2 FLOAT, col3 BINARY(50));
+CREATE TABLE tb1 (
+  ts   TIMESTAMP,
+  col1 INT,
+  col2 FLOAT,
+  col3 BINARY(50)
+);
 ```
 
 查询 tb1 刚过去的一个小时的所有记录：
 
 ```sql
-SELECT * FROM tb1 WHERE ts >= NOW - 1h;
+SELECT *
+FROM tb1
+WHERE ts >= NOW - 1h;
 ```
 
 查询表 tb1 从 2018-06-01 08:00:00.000 到 2018-06-02 08:00:00.000 时间范围，并且 col3 的字符串是'nny'结尾的记录，结果按照时间戳降序：
 
 ```sql
-SELECT * FROM tb1 WHERE ts > '2018-06-01 08:00:00.000' AND ts <= '2018-06-02 08:00:00.000' AND col3 LIKE '%nny' ORDER BY ts DESC;
+SELECT *
+FROM tb1
+WHERE ts > '2018-06-01 08:00:00.000'
+  AND ts <= '2018-06-02 08:00:00.000'
+  AND col3 LIKE '%nny'
+ORDER BY ts DESC;
 ```
 
 查询 col1 与 col2 的和，并取名 complex，时间大于 2018-06-01 08:00:00.000，col2 大于 1.2，结果输出仅仅 10 条记录，从第 5 条开始：
 
 ```sql
-SELECT (col1 + col2) AS 'complex' FROM tb1 WHERE ts > '2018-06-01 08:00:00.000' AND col2 > 1.2 LIMIT 10 OFFSET 5;
+SELECT (col1 + col2) AS 'complex'
+FROM tb1
+WHERE ts > '2018-06-01 08:00:00.000'
+  AND col2 > 1.2
+LIMIT 10
+OFFSET 5;
 ```
 
 查询过去 10 分钟的记录，col2 的值大于 3.14，并且将结果输出到文件 `/home/testoutput.csv`：

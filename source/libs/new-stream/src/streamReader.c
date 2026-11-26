@@ -16,6 +16,7 @@
  */
 
 #include "streamReader.h"
+#include "tdTestSeam.h"
 #include <stdint.h>
 #include <tdef.h>
 #include "osMemPool.h"
@@ -193,8 +194,15 @@ bool stReaderTaskGetShallowMemoryEstimate(const SStreamReaderTask *pTask, int64_
     return true;
   }
 
-  const SStreamTriggerReaderInfo *pInfo = (const SStreamTriggerReaderInfo *)pTask->info;
+  SStreamTriggerReaderInfo* pInfo = (SStreamTriggerReaderInfo*)pTask->info;
   int64_t total = sizeof(*pInfo);
+  taosRLockLatch(&pInfo->timeAlignScanLock);
+  size_t scanBytes = taosHashGetMemSize(pInfo->pTimeAlignScans);
+  size_t roundBytes = taosHashGetMemSize(pInfo->pTimeAlignRounds);
+  bool   widthsCounted = stReaderAddArrayMemory(&total, pInfo->timeAlignWidthTxns);
+  taosRUnLockLatch(&pInfo->timeAlignScanLock);
+  if (!widthsCounted || !stReaderAddMemoryBytes(&total, scanBytes) || !stReaderAddMemoryBytes(&total, roundBytes))
+    return false;
   const SHashObj *hashes[] = {pInfo->streamTaskMap, pInfo->groupIdMap, pInfo->pTableMetaCacheTrigger,
                               pInfo->pTableMetaCacheCalc, pInfo->triggerTableSchemaMapVTable};
   const SSHashObj *simpleHashes[] = {pInfo->uidHashTrigger, pInfo->uidHashCalc};
@@ -744,8 +752,8 @@ int32_t stValidateNodeGroupReadBindings(const SStreamRuntimeFuncInfo* pSource, i
       const SSTriggerGroupReadInfo* pRead = taosArrayGet(pSource->curGrpRead, readInfoIndex);
       const SSTriggerGroupReadInfo* pSourceRead = taosArrayGet(*ppNodeReads, readInfoIndex);
       if (pRead == NULL || pSourceRead == NULL || pSourceRead->gid != pRead->gid ||
-          memcmp(&pSourceRead->firstParam, &pRead->firstParam, offsetof(SSTriggerCalcParam, notifyType)) != 0 ||
-          memcmp(&pSourceRead->lastParam, &pRead->lastParam, offsetof(SSTriggerCalcParam, notifyType)) != 0) {
+          !tEqualSTriggerCalcParamValues(&pSourceRead->firstParam, &pRead->firstParam) ||
+          !tEqualSTriggerCalcParamValues(&pSourceRead->lastParam, &pRead->lastParam)) {
         code = TSDB_CODE_INVALID_PARA;
         goto _exit;
       }
@@ -1212,8 +1220,10 @@ void releaseStreamTask(void* p) {
   blockDataDestroy(pTask->pResBlockDst);
   pTask->storageApi->tsdReader.tsdReaderClose(pTask->pReader);
   cleanupQueryTableDataCond(&pTask->cond);
+  taosArrayDestroy(pTask->rawColumnAliases);
   tSimpleHashCleanup(pTask->pRollupMetaByUid);
   tSimpleHashCleanup(pTask->pRollupMetaCount);
+  taosMemoryFree(pTask->pMetaTables);
 
   taosMemoryFree(pTask);
 }
@@ -1387,6 +1397,568 @@ void streamTblRefCacheItemFree(void *param) {
   }
 }
 
+// Total bytes (installed + in-flight accumulators) of the vc_cols cache on this
+// dnode, bounded by tsStreamVcColsCacheSize. Updated with 64-bit atomics.
+static int64_t gVcColsCacheTotalBytes = 0;
+// Monotonic incarnation seed: every generation transition (new object or
+// Clear) takes the next value, so a generation captured by an in-flight scan
+// round is never reused by a later object even when the old one was dropped and
+// recreated.
+static int64_t gVcColsCacheGeneration = 0;
+
+// Capacity eviction: drop idle entries (only the registry reference, i.e. no
+// in-flight serve) so their budget becomes available again when the cap is hit
+// by a growing set of no-longer-visited fingerprint keys. Defined after
+// SVcColsCacheKey; TryReserve uses this forward declaration.
+static int64_t stStreamVcColsCacheEvictIdle(void);
+
+bool stStreamVcColsCacheTryReserve(int64_t bytes) {
+  // Return false when caching is disabled or nothing is to reserve: the caller
+  // must not build a copy it would later Release() without a matching charge.
+  // A single block larger than the whole cap can never fit: reject it before
+  // evicting, so an unsatisfiable reserve does not clear other vnodes' live
+  // caches for nothing.
+  if (!tsStreamVcColsCache || tsStreamVcColsCacheSize <= 0 || bytes <= 0 || bytes > tsStreamVcColsCacheSize) {
+    return false;
+  }
+  for (;;) {
+    int64_t total = atomic_load_64(&gVcColsCacheTotalBytes);
+    if (total + bytes <= tsStreamVcColsCacheSize) {
+      // Publish the reserve with a CAS only when it fits, so a failed reserve
+      // never exposes a transient over-budget total that Acquire would misread
+      // as a capacity shrink.
+      if (atomic_val_compare_exchange_64(&gVcColsCacheTotalBytes, total, total + bytes) == total) {
+        return true;
+      }
+      continue;
+    }
+    // Budget exhausted: evict idle entries once and retry; with no budget freed,
+    // fall back to a full scan (the caller must not build an unbilled copy).
+    if (stStreamVcColsCacheEvictIdle() <= 0) {
+      return false;
+    }
+  }
+}
+
+void stStreamVcColsCacheRelease(int64_t bytes) {
+  if (bytes <= 0) {
+    return;
+  }
+  atomic_sub_fetch_64(&gVcColsCacheTotalBytes, bytes);
+}
+
+int64_t stStreamVcColsCacheGetTotalBytes(void) { return atomic_load_64(&gVcColsCacheTotalBytes); }
+
+static void stStreamVcColsCacheFreeBlocks(SStreamVcColsCache *pCache) {
+  if (pCache->pBlocks == NULL) {
+    return;
+  }
+  int32_t n = taosArrayGetSize(pCache->pBlocks);
+  for (int32_t i = 0; i < n; ++i) {
+    SSDataBlock *pBlock = *(SSDataBlock **)taosArrayGet(pCache->pBlocks, i);
+    blockDataDestroy(pBlock);
+  }
+  taosArrayDestroy(pCache->pBlocks);
+  stStreamVcColsCacheRelease(pCache->bytes);
+  pCache->bytes = 0;
+  pCache->pBlocks = NULL;
+}
+
+// Destroy a block array that has not been installed into the cache yet (used
+// for losing committers, where taosArrayDestroy alone would leak the blocks).
+// Uninstalled blocks were never accounted in gVcColsCacheTotalBytes.
+static void stStreamVcColsCacheFreeBlocksArray(SArray *pBlocks) {
+  if (pBlocks == NULL) {
+    return;
+  }
+  int32_t n = taosArrayGetSize(pBlocks);
+  for (int32_t i = 0; i < n; ++i) {
+    SSDataBlock *pBlock = *(SSDataBlock **)taosArrayGet(pBlocks, i);
+    blockDataDestroy(pBlock);
+  }
+  taosArrayDestroy(pBlocks);
+}
+
+void stStreamVcColsCacheInit(SStreamVcColsCache *pCache) {
+  if (pCache == NULL) {
+    return;
+  }
+  taosThreadMutexInit(&pCache->lock, NULL);
+  pCache->pBlocks = NULL;
+  pCache->valid = false;
+  pCache->generation = 0;
+  pCache->refCount = 0;
+  pCache->vtableGen = 0;
+  pCache->bytes = 0;
+}
+
+// Free the cache object once the last reference is gone. No other thread can
+// be touching it at this point.
+static void stStreamVcColsCacheReleaseLast(SStreamVcColsCache *pCache) {
+  stStreamVcColsCacheFreeBlocks(pCache);
+  taosThreadMutexDestroy(&pCache->lock);
+  taosMemoryFree(pCache);
+}
+
+void stStreamVcColsCacheClear(SStreamVcColsCache *pCache) {
+  if (pCache == NULL) {
+    return;
+  }
+  taosThreadMutexLock(&pCache->lock);
+  stStreamVcColsCacheFreeBlocks(pCache);
+  pCache->valid = false;
+  // Use a globally monotonic token, not a local increment: a local value could
+  // collide with a later recreated object's generation (which also starts from
+  // the global counter) after the cache was disabled and re-enabled.
+  pCache->generation = atomic_add_fetch_64(&gVcColsCacheGeneration, 1);
+  taosThreadMutexUnlock(&pCache->lock);
+}
+
+typedef struct {
+  int32_t  vgId;
+  int64_t  suid;            // virtual super table uid (calc-side identity)
+  uint64_t fingerprint[2];  // 128-bit tag-filter map fingerprint
+} SVcColsCacheKey;
+
+static SHashObj      *gVcColsCacheMap = NULL;
+static TdThreadMutex  gVcColsCacheMapLock;
+static TdThreadOnce   gVcColsCacheMapLockOnce = PTHREAD_ONCE_INIT;
+static bool           gVcColsCacheMapLockReady = false;
+
+// Per-vgId vtable generation, consulted before the key lookup so a key miss
+// (fingerprint changed) still reaps stale entries for that vnode.
+static SHashObj *gVcColsVgGenMap = NULL;
+
+// The registry lock cannot be statically initialized (a zero-initialized
+// CRITICAL_SECTION is not usable on Windows), so initialize it on first use.
+static void stStreamVcColsCacheMapLockInit(void) {
+  gVcColsCacheMapLockReady = taosThreadMutexInit(&gVcColsCacheMapLock, NULL) == TSDB_CODE_SUCCESS;
+}
+
+static bool stStreamVcColsCacheMapLockAcquire(void) {
+  if (taosThreadOnce(&gVcColsCacheMapLockOnce, stStreamVcColsCacheMapLockInit) != TSDB_CODE_SUCCESS ||
+      !gVcColsCacheMapLockReady) {
+    return false;
+  }
+  return taosThreadMutexLock(&gVcColsCacheMapLock) == TSDB_CODE_SUCCESS;
+}
+
+static void stStreamVcColsCacheMapInit(void) {
+  if (gVcColsCacheMap == NULL) {
+    gVcColsCacheMap = taosHashInit(64, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), true, HASH_ENTRY_LOCK);
+  }
+}
+
+static void stStreamVcColsCacheVgGenMapInit(void) {
+  if (gVcColsVgGenMap == NULL) {
+    gVcColsVgGenMap = taosHashInit(16, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), true, HASH_ENTRY_LOCK);
+  }
+}
+
+// Called with gVcColsCacheMapLock held: remove and free every registry entry
+// whose key carries vgId. The vtable metadata generation is per-vnode, so once
+// one entry for this vgId is seen stale, all of them are stale (including keys
+// no reader visits anymore). Dropping them releases their installed blocks and
+// budget instead of pinning them until the vnode is reopened.
+static bool stStreamVcColsCacheCleanupVgLocked(int32_t vgId) {
+  if (gVcColsCacheMap == NULL) {
+    return true;
+  }
+  SArray *pKeys = taosArrayInit(8, sizeof(SVcColsCacheKey));
+  if (pKeys == NULL) {
+    qError("failed to allocate vc_cols cache cleanup keys for vgId:%d", vgId);
+    return false;
+  }
+  bool ok = true;
+  void *pIter = taosHashIterate(gVcColsCacheMap, NULL);
+  while (pIter != NULL) {
+    size_t keyLen = 0;
+    void  *pKey = taosHashGetKey(pIter, &keyLen);
+    if (pKey != NULL && keyLen == sizeof(SVcColsCacheKey) && ((SVcColsCacheKey *)pKey)->vgId == vgId) {
+      if (taosArrayPush(pKeys, pKey) == NULL) {
+        qError("failed to record vc_cols cache cleanup key for vgId:%d", vgId);
+        ok = false;
+        break;
+      }
+    }
+    pIter = taosHashIterate(gVcColsCacheMap, pIter);
+  }
+  if (!ok) {
+    if (pIter != NULL) {
+      taosHashCancelIterate(gVcColsCacheMap, pIter);
+    }
+    taosArrayDestroy(pKeys);
+    return false;
+  }
+  for (int32_t i = 0; i < (int32_t)taosArrayGetSize(pKeys); ++i) {
+    SVcColsCacheKey     *pKey = (SVcColsCacheKey *)taosArrayGet(pKeys, i);
+    SStreamVcColsCache **ppCache = taosHashGet(gVcColsCacheMap, pKey, sizeof(*pKey));
+    if (ppCache == NULL) {
+      continue;
+    }
+    SStreamVcColsCache *pCache = *ppCache;
+    // Free installed blocks and their budget, then drop the registry entry and
+    // its permanent reference. In-flight serves still hold their own reference,
+    // so the shell survives until they Unref.
+    stStreamVcColsCacheClear(pCache);
+    int32_t code = taosHashRemove(gVcColsCacheMap, pKey, sizeof(*pKey));
+    if (code != TSDB_CODE_SUCCESS) {
+      qError("failed to remove stale vc_cols cache vgId:%d suid:%" PRId64 ", code:%d", pKey->vgId, pKey->suid,
+             code);
+      ok = false;
+      continue;
+    }
+    stStreamVcColsCacheUnref(pCache);
+  }
+  taosArrayDestroy(pKeys);
+  return ok;
+}
+
+// Public eviction entry point for vnode close/remove: release every installed
+// cache and its budget for one vgId. Without it, a dropped or migrated vnode
+// keeps its vc_cols caches pinned until process exit.
+void stStreamVcColsCacheCleanupVg(int32_t vgId) {
+  if (stStreamVcColsCacheMapLockAcquire()) {
+    if (stStreamVcColsCacheCleanupVgLocked(vgId)) {
+      // Drop the per-vgId generation index entry too, otherwise repeated vnode
+      // create/drop/migrate leaves one stale (unbilled) hash node per vgId.
+      if (gVcColsVgGenMap != NULL) {
+        int32_t code = taosHashRemove(gVcColsVgGenMap, &vgId, sizeof(vgId));
+        if (code != TSDB_CODE_SUCCESS && code != TSDB_CODE_NOT_FOUND) {
+          qError("failed to remove vc_cols vgId gen index vgId:%d, code:%d", vgId, code);
+        }
+      }
+    }
+    taosThreadMutexUnlock(&gVcColsCacheMapLock);
+  }
+}
+
+// Evict idle cache entries (refCount == 1: only the registry reference, no
+// in-flight serve), releasing their installed blocks and budget. Called with
+// the registry lock held; returns the number of bytes released.
+static int64_t stStreamVcColsCacheEvictIdleLocked(void) {
+  if (gVcColsCacheMap == NULL) {
+    return 0;
+  }
+  SArray *pKeys = taosArrayInit(8, sizeof(SVcColsCacheKey));
+  if (pKeys == NULL) {
+    return 0;
+  }
+  void *pIter = taosHashIterate(gVcColsCacheMap, NULL);
+  while (pIter != NULL) {
+    size_t keyLen = 0;
+    void  *pKey = taosHashGetKey(pIter, &keyLen);
+    if (pKey != NULL && keyLen == sizeof(SVcColsCacheKey)) {
+      SStreamVcColsCache **ppCache = taosHashGet(gVcColsCacheMap, pKey, sizeof(SVcColsCacheKey));
+      if (ppCache != NULL && *ppCache != NULL && atomic_load_32(&(*ppCache)->refCount) == 1 &&
+          (*ppCache)->bytes > 0) {
+        if (taosArrayPush(pKeys, pKey) == NULL) {
+          taosHashCancelIterate(gVcColsCacheMap, pIter);
+          taosArrayDestroy(pKeys);
+          return 0;
+        }
+      }
+    }
+    pIter = taosHashIterate(gVcColsCacheMap, pIter);
+  }
+  int64_t released = 0;
+  for (int32_t i = 0; i < (int32_t)taosArrayGetSize(pKeys); ++i) {
+    SVcColsCacheKey     *pKey = (SVcColsCacheKey *)taosArrayGet(pKeys, i);
+    SStreamVcColsCache **ppCache = taosHashGet(gVcColsCacheMap, pKey, sizeof(*pKey));
+    if (ppCache == NULL || *ppCache == NULL) {
+      continue;
+    }
+    SStreamVcColsCache *pCache = *ppCache;
+    if (atomic_load_32(&pCache->refCount) != 1) {
+      // A serve grabbed a reference between collection and eviction; keep it.
+      continue;
+    }
+    released += pCache->bytes;
+    stStreamVcColsCacheClear(pCache);
+    int32_t code = taosHashRemove(gVcColsCacheMap, pKey, sizeof(*pKey));
+    if (code != TSDB_CODE_SUCCESS) {
+      qError("failed to evict vc_cols cache vgId:%d suid:%" PRId64 ", code:%d", pKey->vgId, pKey->suid, code);
+      continue;
+    }
+    stStreamVcColsCacheUnref(pCache);
+  }
+  taosArrayDestroy(pKeys);
+  return released;
+}
+
+static int64_t stStreamVcColsCacheEvictIdle(void) {
+  if (!stStreamVcColsCacheMapLockAcquire()) {
+    return 0;
+  }
+  int64_t released = stStreamVcColsCacheEvictIdleLocked();
+  taosThreadMutexUnlock(&gVcColsCacheMapLock);
+  return released;
+}
+
+// Called with gVcColsCacheMapLock held: release every installed cache and clear
+// the per-vgId generation index. In-flight callers keep their own references.
+static bool stStreamVcColsCacheCleanupAllLocked(void) {
+  if (gVcColsCacheMap == NULL || taosHashGetSize(gVcColsCacheMap) == 0) {
+    if (gVcColsVgGenMap != NULL) {
+      taosHashClear(gVcColsVgGenMap);
+    }
+    return true;
+  }
+  SArray *pKeys = taosArrayInit(8, sizeof(SVcColsCacheKey));
+  if (pKeys == NULL) {
+    qError("failed to allocate vc_cols cache cleanup keys");
+    return false;
+  }
+  bool ok = true;
+  void *pIter = taosHashIterate(gVcColsCacheMap, NULL);
+  while (pIter != NULL) {
+    size_t keyLen = 0;
+    void  *pKey = taosHashGetKey(pIter, &keyLen);
+    if (pKey != NULL && keyLen == sizeof(SVcColsCacheKey)) {
+      if (taosArrayPush(pKeys, pKey) == NULL) {
+        qError("failed to record vc_cols cache cleanup key");
+        ok = false;
+        break;
+      }
+    }
+    pIter = taosHashIterate(gVcColsCacheMap, pIter);
+  }
+  if (!ok) {
+    if (pIter != NULL) {
+      taosHashCancelIterate(gVcColsCacheMap, pIter);
+    }
+    taosArrayDestroy(pKeys);
+    return false;
+  }
+  for (int32_t i = 0; i < (int32_t)taosArrayGetSize(pKeys); ++i) {
+    SVcColsCacheKey     *pKey = (SVcColsCacheKey *)taosArrayGet(pKeys, i);
+    SStreamVcColsCache **ppCache = taosHashGet(gVcColsCacheMap, pKey, sizeof(*pKey));
+    if (ppCache == NULL) {
+      continue;
+    }
+    SStreamVcColsCache *pCache = *ppCache;
+    stStreamVcColsCacheClear(pCache);
+    int32_t code = taosHashRemove(gVcColsCacheMap, pKey, sizeof(*pKey));
+    if (code != TSDB_CODE_SUCCESS) {
+      qError("failed to remove disabled vc_cols cache vgId:%d suid:%" PRId64 ", code:%d", pKey->vgId, pKey->suid,
+             code);
+      ok = false;
+      continue;
+    }
+    stStreamVcColsCacheUnref(pCache);
+  }
+  taosArrayDestroy(pKeys);
+  if (ok && gVcColsVgGenMap != NULL) {
+    taosHashClear(gVcColsVgGenMap);
+  }
+  return ok;
+}
+
+// Calc-side get-or-create: looks up the shared cache under
+// (vgId, suid, fingerprint[2]) and takes a reference. Before the key lookup, the
+// per-vgId vtable generation is checked so that a moved generation drops every
+// entry for that vnode (including keys no reader visits anymore), releasing
+// stale blocks and budget; then the requested key is created empty if needed.
+// Newly created objects take a globally monotonic generation, so a generation
+// captured by an in-flight scan round is never mistaken for the generation of a
+// later recreated object. Returns NULL on alloc/insert failure.
+SStreamVcColsCache *stStreamVcColsCacheAcquire(int32_t vgId, int64_t suid, const uint64_t fingerprint[2],
+                                               int64_t vtableGen) {
+  bool cleanupAll = false;
+  if (!tsStreamVcColsCache || tsStreamVcColsCacheSize <= 0) {
+    cleanupAll = true;  // caching disabled
+  } else if (atomic_load_64(&gVcColsCacheTotalBytes) > tsStreamVcColsCacheSize) {
+    // The cap was lowered below what is already installed: release everything
+    // so the existing occupancy converges to the new limit instead of staying
+    // pinned until the metadata generation moves.
+    cleanupAll = true;
+  }
+  if (cleanupAll) {
+    // Disabling the cache is also a lifecycle boundary: release any installed
+    // blocks immediately so a dynamic disable actually returns their budget.
+    if (stStreamVcColsCacheMapLockAcquire()) {
+      stStreamVcColsCacheCleanupAllLocked();
+      taosThreadMutexUnlock(&gVcColsCacheMapLock);
+    }
+    if (!tsStreamVcColsCache || tsStreamVcColsCacheSize <= 0) {
+      return NULL;
+    }
+  }
+  SStreamVcColsCache *pCache = NULL;
+  if (!stStreamVcColsCacheMapLockAcquire()) {
+    return NULL;
+  }
+  stStreamVcColsCacheMapInit();
+  stStreamVcColsCacheVgGenMapInit();
+  if (gVcColsCacheMap == NULL || gVcColsVgGenMap == NULL) {
+    taosThreadMutexUnlock(&gVcColsCacheMapLock);
+    return NULL;
+  }
+
+  // vnode-wide generation check: when it moved, every entry for this vgId is
+  // stale (including keys with an old fingerprint that no reader visits). Drop
+  // them all before the key lookup so a key miss also reclaims their blocks and
+  // budget instead of pinning them until the vnode is reopened.
+  int64_t *pVgGen = taosHashGet(gVcColsVgGenMap, &vgId, sizeof(vgId));
+  if (pVgGen == NULL) {
+    int64_t gen = vtableGen;
+    if (taosHashPut(gVcColsVgGenMap, &vgId, sizeof(vgId), &gen, sizeof(gen)) != TSDB_CODE_SUCCESS) {
+      taosThreadMutexUnlock(&gVcColsCacheMapLock);
+      return NULL;
+    }
+  } else if (*pVgGen != vtableGen) {
+    if (!stStreamVcColsCacheCleanupVgLocked(vgId)) {
+      taosThreadMutexUnlock(&gVcColsCacheMapLock);
+      return NULL;
+    }
+    *pVgGen = vtableGen;
+  }
+
+  SVcColsCacheKey key;
+  memset(&key, 0, sizeof(key));
+  key.vgId = vgId;
+  key.suid = suid;
+  if (fingerprint != NULL) {
+    key.fingerprint[0] = fingerprint[0];
+    key.fingerprint[1] = fingerprint[1];
+  }
+  SStreamVcColsCache **ppCache = taosHashGet(gVcColsCacheMap, &key, sizeof(key));
+  if (ppCache != NULL) {
+    pCache = *ppCache;
+    if (pCache->vtableGen != vtableGen) {
+      // Defensive: the vg-level check above should have dropped this entry, but
+      // keep the shell alive and clear it so the caller re-scans.
+      pCache->vtableGen = vtableGen;
+      stStreamVcColsCacheClear(pCache);
+    }
+  } else {
+    pCache = taosMemoryCalloc(1, sizeof(SStreamVcColsCache));
+    if (pCache != NULL) {
+      stStreamVcColsCacheInit(pCache);
+      pCache->vtableGen = vtableGen;
+      pCache->refCount = 1;  // permanent registry reference (empty shell)
+      // Take a fresh, never-reused generation so an in-flight scan round that
+      // captured an older object's generation cannot commit into this object.
+      pCache->generation = atomic_add_fetch_64(&gVcColsCacheGeneration, 1);
+      if (taosHashPut(gVcColsCacheMap, &key, sizeof(key), &pCache, POINTER_BYTES) != TSDB_CODE_SUCCESS) {
+        // Insert failed: the object is not in the registry, so the phantom
+        // registry reference must not survive. Tear it down and fail.
+        stStreamVcColsCacheReleaseLast(pCache);
+        pCache = NULL;
+      }
+    }
+  }
+  if (pCache != NULL) {
+    // Hold a reference for the caller; Unref() releases it.
+    atomic_add_fetch_32(&pCache->refCount, 1);
+  }
+  taosThreadMutexUnlock(&gVcColsCacheMapLock);
+  return pCache;
+}
+
+void stStreamVcColsCacheUnref(SStreamVcColsCache *pCache) {
+  if (pCache == NULL) {
+    return;
+  }
+  if (atomic_sub_fetch_32(&pCache->refCount, 1) == 0) {
+    stStreamVcColsCacheReleaseLast(pCache);
+  }
+}
+
+bool stStreamVcColsCacheIsValid(SStreamVcColsCache *pCache) {
+  if (pCache == NULL) {
+    return false;
+  }
+  taosThreadMutexLock(&pCache->lock);
+  bool valid = pCache->valid;
+  taosThreadMutexUnlock(&pCache->lock);
+  return valid;
+}
+
+int32_t stStreamVcColsCacheReadBlock(SStreamVcColsCache *pCache, int32_t idx, SSDataBlock *pDst,
+                                     uint64_t *pGeneration, bool *pFinished) {
+  if (pCache == NULL || pDst == NULL || pGeneration == NULL || pFinished == NULL || idx < 0) {
+    return TSDB_CODE_INVALID_PARA;
+  }
+  int32_t code = TSDB_CODE_SUCCESS;
+  *pFinished = false;
+  taosThreadMutexLock(&pCache->lock);
+  int32_t n = pCache->pBlocks != NULL ? taosArrayGetSize(pCache->pBlocks) : 0;
+  if (!pCache->valid || (idx > 0 && *pGeneration != pCache->generation)) {
+    code = idx == 0 ? TSDB_CODE_NOT_FOUND : TSDB_CODE_STREAM_INTERNAL_ERROR;
+    goto end;
+  }
+  if (n == 0) {
+    if (idx == 0) {
+      *pGeneration = pCache->generation;
+    }
+    *pFinished = true;
+    goto end;
+  }
+
+  SSDataBlock *pFirst = *(SSDataBlock **)taosArrayGet(pCache->pBlocks, 0);
+  size_t nCols = blockDataGetNumOfCols(pFirst);
+  if (nCols != blockDataGetNumOfCols(pDst)) {
+    code = idx == 0 ? TSDB_CODE_NOT_FOUND : TSDB_CODE_STREAM_INTERNAL_ERROR;
+    goto end;
+  }
+  for (size_t i = 0; i < nCols; ++i) {
+    SColumnInfoData *pA = taosArrayGet(pFirst->pDataBlock, (int32_t)i);
+    SColumnInfoData *pB = taosArrayGet(pDst->pDataBlock, (int32_t)i);
+    if (pA->info.colId != pB->info.colId || pA->info.type != pB->info.type) {
+      code = idx == 0 ? TSDB_CODE_NOT_FOUND : TSDB_CODE_STREAM_INTERNAL_ERROR;
+      goto end;
+    }
+  }
+  if (idx == 0) {
+    *pGeneration = pCache->generation;
+  }
+  if (idx < n) {
+    SSDataBlock *pBlock = *(SSDataBlock **)taosArrayGet(pCache->pBlocks, idx);
+    code = copyDataBlock(pDst, pBlock);
+  } else {
+    *pFinished = true;
+  }
+
+end:
+  taosThreadMutexUnlock(&pCache->lock);
+  return code;
+}
+
+uint64_t stStreamVcColsCacheGetGeneration(SStreamVcColsCache *pCache) {
+  if (pCache == NULL) {
+    return 0;
+  }
+  taosThreadMutexLock(&pCache->lock);
+  uint64_t generation = pCache->generation;
+  taosThreadMutexUnlock(&pCache->lock);
+  return generation;
+}
+
+// Install the first completed scan result; later committers are discarded. A
+// committer whose scan began before a Clear() (generation mismatch) also
+// discards its stale blocks. `bytes` was already reserved by the caller via
+// TryReserve() and is transferred to the cache here, not re-added.
+void stStreamVcColsCacheCommit(SStreamVcColsCache *pCache, SArray *pBlocks, uint64_t expectedGeneration,
+                               int64_t bytes) {
+  if (pCache == NULL || pBlocks == NULL) {
+    stStreamVcColsCacheFreeBlocksArray(pBlocks);
+    stStreamVcColsCacheRelease(bytes);
+    return;
+  }
+  taosThreadMutexLock(&pCache->lock);
+  if (pCache->valid || expectedGeneration != pCache->generation) {
+    taosThreadMutexUnlock(&pCache->lock);
+    stStreamVcColsCacheFreeBlocksArray(pBlocks);
+    stStreamVcColsCacheRelease(bytes);
+    return;
+  }
+  pCache->pBlocks = pBlocks;
+  pCache->bytes = bytes;
+  pCache->valid = true;
+  taosThreadMutexUnlock(&pCache->lock);
+}
+
 int32_t streamVTableInfoCacheInit(SStreamVTableInfoCache *pCache) {
   if (pCache == NULL) return TSDB_CODE_INVALID_PARA;
   taosInitRWLatch(&pCache->lock);
@@ -1451,8 +2023,21 @@ void streamVTableInfoCacheDestroy(SStreamVTableInfoCache *pCache) {
 static void releaseStreamReaderInfo(void* p) {
   if (p == NULL) return;
   SStreamTriggerReaderInfo* pInfo = (SStreamTriggerReaderInfo*)p;
+  taosArrayDestroy(pInfo->timeAlignWidthTxns);
+  taosHashCleanup(pInfo->pTimeAlignScans);
+  pInfo->pTimeAlignScans = NULL;
+  taosHashCleanup(pInfo->pTimeAlignRounds);
+  pInfo->pTimeAlignRounds = NULL;
   taosHashCleanup(pInfo->streamTaskMap);
   taosHashCleanup(pInfo->groupIdMap);
+  taosArrayDestroy(pInfo->pendingGroupColRefresh);
+  pInfo->pendingGroupColRefresh = NULL;
+  if (pInfo->groupColRefreshCursor != NULL) {
+    pInfo->storageApi.metaFn.closeCtbCursor(pInfo->groupColRefreshCursor);
+    pInfo->groupColRefreshCursor = NULL;
+  }
+  taosMemoryFreeClear(pInfo->walMetaRspCache);
+  pInfo->walMetaRspCacheLen = 0;
   pInfo->streamTaskMap = NULL;
 
   nodesDestroyNode((SNode*)(pInfo->triggerAst));
@@ -1474,6 +2059,8 @@ static void releaseStreamReaderInfo(void* p) {
   qStreamDestroyTableInfo(&pInfo->vSetTableList);
   filterFreeInfo(pInfo->pFilterInfo);
   pInfo->pFilterInfo = NULL;
+  blockDataDestroy(pInfo->extendedWalBlock[0]);
+  blockDataDestroy(pInfo->extendedWalBlock[1]);
   blockDataDestroy(pInfo->triggerBlock);
   pInfo->triggerBlock = NULL;
   blockDataDestroy(pInfo->calcBlock);
@@ -1568,16 +2155,17 @@ static void freeSchema(void* pData){
   taosMemoryFree(schema);
 }
 
-static bool groupbyTbname(SNodeList* pGroupList) {
-  bool   bytbname = false;
+bool qStreamPartitionByTbname(SNodeList* pGroupList) {
   SNode* pNode = NULL;
   FOREACH(pNode, pGroupList) {
-    if (pNode->type == QUERY_NODE_FUNCTION) {
-      bytbname = (strcmp(((struct SFunctionNode*)pNode)->functionName, "tbname") == 0);
-      break;
+    if ((nodeType(pNode) == QUERY_NODE_FUNCTION &&
+         strcmp(((SFunctionNode*)pNode)->functionName, "tbname") == 0) ||
+        (nodeType(pNode) == QUERY_NODE_COLUMN &&
+         ((SColumnNode*)pNode)->colType == COLUMN_TYPE_TBNAME)) {
+      return true;
     }
   }
-  return bytbname;
+  return false;
 }
 
 static SStreamTriggerReaderInfo* createStreamReaderInfo(void* pTask, const SStreamReaderDeployMsg* pMsg) {
@@ -1589,6 +2177,8 @@ static SStreamTriggerReaderInfo* createStreamReaderInfo(void* pTask, const SStre
 
   sStreamReaderInfo->lock = 0;
   sStreamReaderInfo->pTask = pTask;
+  sStreamReaderInfo->timeAlignConsumer = pMsg->msg.trigger.timeAlignConsumer;
+  sStreamReaderInfo->requireLocalVtableRefs = pMsg->msg.trigger.requireLocalVtableRefs;
   sStreamReaderInfo->tableType = pMsg->msg.trigger.triggerTblType;
   sStreamReaderInfo->isVtableStream = pMsg->msg.trigger.isTriggerTblVirt;
 
@@ -1632,7 +2222,7 @@ static SStreamTriggerReaderInfo* createStreamReaderInfo(void* pTask, const SStre
     }
     STREAM_CHECK_RET_GOTO(setColIdForCalcResBlock(sStreamReaderInfo->triggerPseudoCols, sStreamReaderInfo->triggerResBlock->pDataBlock));
     STREAM_CHECK_RET_GOTO(setColIdForCalcResBlock(sStreamReaderInfo->triggerCols, sStreamReaderInfo->triggerResBlock->pDataBlock));
-    sStreamReaderInfo->groupByTbname = groupbyTbname(sStreamReaderInfo->partitionCols);
+    sStreamReaderInfo->groupByTbname = qStreamPartitionByTbname(sStreamReaderInfo->partitionCols);
     if (pMsg->msg.trigger.rollupTagCols != NULL) {
       SNodeList* pList = NULL;
       STREAM_CHECK_RET_GOTO(nodesStringToList(pMsg->msg.trigger.rollupTagCols, &pList));
@@ -2042,9 +2632,15 @@ static int32_t stExtOverrideNamespaceFromPlan(SStreamReaderTask *pTask, SStreamE
  * and timezone-aware ones (MySQL TIMESTAMP, PG timestamptz) with the server
  * timezone.  The remote fetch/metadata bounds must be rendered with the same
  * timezone as the decode, so the reader needs the class of the ts column.
- * The hint is matched with extColumnNameEqual() -- the same fold the parser and
- * mnode use -- so a column referenced in a different case still finds its hint
- * instead of silently falling back to the spec lookup.
+ * The hint is resolved with the rule the parser and mnode use for the same
+ * reference: the exact spelling wins across the whole hint list, and only a
+ * column without an exact hint falls back to extColumnNameEqual() (MySQL /
+ * SQL Server fold case; PostgreSQL, InfluxDB and Oracle are byte-exact).  The
+ * hints keep the catalog order, so folding first would take the class of a
+ * case-sibling column stored earlier - a table holding TS and a quoted "ts"
+ * would render the naive primary column's bounds in the aware column's UTC
+ * basis.  A reference that does not match falls back to the spec lookup
+ * instead of silently picking another column.
  * Returns EXT_TIMESTAMP_TZ_CLASS_UNKNOWN when the plan carries no hint.
  * --------------------------------------------------------------------------- */
 static int8_t stExtResolveTsTzClass(const SFederatedScanPhysiNode *pFedScan,
@@ -2055,13 +2651,17 @@ static int8_t stExtResolveTsTzClass(const SFederatedScanPhysiNode *pFedScan,
   }
 
   EExtSourceType srcType = (EExtSourceType)pFedScan->sourceType;
-  for (int32_t i = 0; i < pFedScan->numTimestampTypeHints; ++i) {
-    const char *hintName = pFedScan->pTimestampTypeHints[i].colName;
-    if (extColumnNameEqual(srcType, hintName, tsColumn)) {
-      stDebug("ext: resolved timestamp class sourceType:%d column:%s class:%d",
-              (int)pFedScan->sourceType, tsColumn,
-              (int)pFedScan->pTimestampTypeHints[i].tzClass);
-      return pFedScan->pTimestampTypeHints[i].tzClass;
+  for (int32_t pass = 0; pass < 2; ++pass) {
+    for (int32_t i = 0; i < pFedScan->numTimestampTypeHints; ++i) {
+      const char *hintName = pFedScan->pTimestampTypeHints[i].colName;
+      bool matched = (pass == 0) ? (0 == strcmp(hintName, tsColumn))
+                                 : extColumnNameEqual(srcType, hintName, tsColumn);
+      if (matched) {
+        stDebug("ext: resolved timestamp class sourceType:%d column:%s class:%d",
+                (int)pFedScan->sourceType, tsColumn,
+                (int)pFedScan->pTimestampTypeHints[i].tzClass);
+        return pFedScan->pTimestampTypeHints[i].tzClass;
+      }
     }
   }
   return EXT_TIMESTAMP_TZ_CLASS_UNKNOWN;
@@ -2244,8 +2844,25 @@ static int32_t stExtBuildTriggerColumns(SStreamReaderTask *pTask,
     SExtColTypeMapping *pMap = &pMsg->pExtSpec->pColMappings[colIdx];
     pMap->tdType = ((SExprNode *)pNode)->resType;
     tstrncpy(pMap->colName, pCol->colName, sizeof(pMap->colName));
-    ST_TASK_DLOG("ext: triggerColumns[%d] col='%s' type=%d bytes=%d",
-                 colIdx, pCol->colName, pMap->tdType.type, pMap->tdType.bytes);
+    /* The connector decodes a timestamp column at tsPrecision and treats every
+     * other value as microseconds (DS 5.3.7).  This builder runs when mnode did
+     * not pre-fill the mappings - the direct trigger table - and the spec
+     * precision is that table's transport precision (mnode derives it from the
+     * source schema), so it is the decode basis for every timestamp column of
+     * the table, not only for the primary-key one.  Leaving it zero truncates a
+     * TIMESTAMP(7..9) value below one microsecond: on the timestamp column that
+     * the trigger's LAST_TS / MIN / MAX mapping reports as the watermark the
+     * newest row can never enter a later fetch range, and on any other column
+     * the projected value is simply wrong. */
+    if (pMap->tdType.type == TSDB_DATA_TYPE_TIMESTAMP &&
+        (pMsg->pExtSpec->precision == TSDB_TIME_PRECISION_MILLI ||
+         pMsg->pExtSpec->precision == TSDB_TIME_PRECISION_MICRO ||
+         pMsg->pExtSpec->precision == TSDB_TIME_PRECISION_NANO)) {
+      pMap->tsPrecision = pMsg->pExtSpec->precision;
+    }
+    ST_TASK_DLOG("ext: triggerColumns[%d] col='%s' type=%d bytes=%d tsPrec=%d",
+                 colIdx, pCol->colName, pMap->tdType.type, pMap->tdType.bytes,
+                 (int)pMap->tsPrecision);
     colIdx++;
   }
   pMsg->pExtSpec->numColMappings = colIdx;
@@ -2304,17 +2921,35 @@ static int32_t stExtCollectScanCols(SStreamReaderTask *pTask,
     if (pFedScan && pFedScan->pColTypeMappings != NULL &&
         calcIdx < pFedScan->numColTypeMappings) {
       pMap->tdType = pFedScan->pColTypeMappings[calcIdx].tdType;
+      /* The plan carries the source transport precision separately from the
+       * output type (DS 5.3.7): carrying it over is what keeps an Oracle
+       * TIMESTAMP(7..9) column decoding at nanoseconds.  Without it the
+       * connector falls back to microseconds and the calc result timestamp is
+       * truncated, which normalization to NANO can only pad with zeros. */
+      pMap->tsPrecision = pFedScan->pColTypeMappings[calcIdx].tsPrecision;
     } else {
       pMap->tdType = ((SExprNode *)pExpr)->resType;
     }
-    if (pMap->tdType.type == TSDB_DATA_TYPE_TIMESTAMP && pMap->tdType.precision != pExtSpec->precision) {
-      ST_TASK_DLOG("ext: normalize calc mapping timestamp precision col='%s' precision:%d->%d %s",
-                   pCol->colName, pMap->tdType.precision, pExtSpec->precision, tag);
-      pMap->tdType.precision = pExtSpec->precision;
+    if (pMap->tdType.type == TSDB_DATA_TYPE_TIMESTAMP) {
+      if (pMap->tsPrecision == 0 &&
+          (pExtSpec->precision == TSDB_TIME_PRECISION_MILLI ||
+           pExtSpec->precision == TSDB_TIME_PRECISION_MICRO ||
+           pExtSpec->precision == TSDB_TIME_PRECISION_NANO)) {
+        /* No plan mapping (or no source precision in it): the spec precision is
+         * the trigger table's transport precision, the same fallback the trigger
+         * column mappings use. */
+        pMap->tsPrecision = pExtSpec->precision;
+      }
+      if (pMap->tdType.precision != pExtSpec->precision) {
+        ST_TASK_DLOG("ext: normalize calc mapping timestamp precision col='%s' precision:%d->%d %s",
+                     pCol->colName, pMap->tdType.precision, pExtSpec->precision, tag);
+        pMap->tdType.precision = pExtSpec->precision;
+      }
     }
     tstrncpy(pMap->colName, pCol->colName, sizeof(pMap->colName));
-    ST_TASK_DLOG("ext: calcColumns[%d] col='%s' type=%d bytes=%d precision=%d %s",
-                 calcIdx, pCol->colName, pMap->tdType.type, pMap->tdType.bytes, pMap->tdType.precision, tag);
+    ST_TASK_DLOG("ext: calcColumns[%d] col='%s' type=%d bytes=%d precision=%d srcPrec=%d %s",
+                 calcIdx, pCol->colName, pMap->tdType.type, pMap->tdType.bytes, pMap->tdType.precision,
+                 (int)pMap->tsPrecision, tag);
     calcIdx++;
   }
   pExtSpec->numCalcMappings = calcIdx;
@@ -2356,7 +2991,7 @@ static int32_t stExtBuildCalcColumnsFromPlanNode(SStreamReaderTask *pTask,
   }
 
   ENodeType ntype = (pCalcPlan != NULL) ? nodeType(pCalcPlan) : (ENodeType)0;
-  ST_TASK_DLOG("ext: calcCacheScanPlan subplan pNode type=%d", (int)ntype);
+  ST_TASK_DLOG("ext: scanPlan subplan pNode type=%d", (int)ntype);
 
   if (updateSpecPrecision && pExtSpec != NULL && pCalcPlan != NULL &&
       pCalcPlan->pOutputDataBlockDesc != NULL) {
@@ -2379,10 +3014,10 @@ static int32_t stExtBuildCalcColumnsFromPlanNode(SStreamReaderTask *pTask,
   pScanCols = stExtFindCalcScanColsInPlan((SNode *)pCalcPlan, pExtSpec == NULL ? NULL : pExtSpec->sourceName,
                                           &pFedScan, &scanType);
   if (pScanCols != NULL) {
-    ST_TASK_DLOG("ext: calcCacheScanPlan found scan node type=%d under root node type=%d",
+    ST_TASK_DLOG("ext: scanPlan found scan node type=%d under root node type=%d",
                  (int)scanType, (int)ntype);
   } else {
-    ST_TASK_DLOG("ext: calcCacheScanPlan root node type=%d has no TABLE_SCAN/FEDERATED_SCAN, calcColumns empty",
+    ST_TASK_DLOG("ext: scanPlan root node type=%d has no matching TABLE_SCAN/FEDERATED_SCAN, calcColumns empty",
                  (int)ntype);
   }
 
@@ -2390,7 +3025,7 @@ static int32_t stExtBuildCalcColumnsFromPlanNode(SStreamReaderTask *pTask,
     code = stExtCollectScanCols(pTask, pExtSpec, pScanCols, pFedScan);
   } else if (pScanCols != NULL) {
     const char *tag = pFedScan ? "federated " : "";
-    ST_TASK_DLOG("ext: %scalcScanPlan has no scan cols, calcColumns empty", tag);
+    ST_TASK_DLOG("ext: %sscanPlan has no scan cols, calcColumns empty", tag);
   }
 
   return code;
@@ -2402,14 +3037,14 @@ static int32_t stExtBuildCalcColumnsFromPlan(SStreamReaderTask *pTask,
                                              const char *planStr,
                                              bool updateSpecPrecision) {
   if (planStr == NULL) {
-    ST_TASK_DLOG("%s", "ext: calcScanPlan is NULL, calcColumns empty");
+    ST_TASK_DLOG("%s", "ext: scanPlan is NULL, calcColumns empty");
     return TSDB_CODE_SUCCESS;
   }
 
   SSubplan *pCalcSubplan = NULL;
   int32_t calcParseCode = nodesStringToNode(planStr, (SNode**)&pCalcSubplan);
   if (calcParseCode != TSDB_CODE_SUCCESS || pCalcSubplan == NULL) {
-    ST_TASK_DLOG("ext: calcCacheScanPlan parse failed code=%d, calcColumns will be empty",
+    ST_TASK_DLOG("ext: scanPlan parse failed code=%d, calcColumns will be empty",
                  calcParseCode);
     return TSDB_CODE_SUCCESS;
   }
@@ -2419,12 +3054,49 @@ static int32_t stExtBuildCalcColumnsFromPlan(SStreamReaderTask *pTask,
   return code;
 }
 
+static void stExtResetCalcColumns(SStreamExtTriggerSpec *pExtSpec) {
+  taosArrayDestroy(pExtSpec->calcColumns);
+  taosMemoryFree(pExtSpec->pCalcMappings);
+  pExtSpec->calcColumns = NULL;
+  pExtSpec->pCalcMappings = NULL;
+  pExtSpec->numCalcMappings = 0;
+}
+
 /* Convenience wrapper for the trigger reader deploy path. */
 static int32_t stExtBuildCalcColumns(SStreamReaderTask *pTask,
                                      const SStreamReaderDeployMsg *pMsg) {
-  return stExtBuildCalcColumnsFromPlan(pTask, pMsg->pExtSpec,
-                                      (const char *)pMsg->msg.trigger.calcCacheScanPlan,
-                                      false);
+  const char *calcCachePlan = (const char *)pMsg->msg.trigger.calcCacheScanPlan;
+  const char *triggerPlan = (const char *)pMsg->msg.trigger.triggerScanPlan;
+  const char *scanPlan = calcCachePlan;
+  const char *planSource = "calcCacheScanPlan";
+
+  if (scanPlan == NULL) {
+    /* A PERIOD stream whose calculation reads the source directly has no
+     * cached calculation scan. Its trigger scan still carries the timestamp
+     * projection and transport mapping needed by external connectors. */
+    scanPlan = triggerPlan;
+    planSource = "triggerScanPlan";
+    ST_TASK_DLOG("%s", "ext: calc cache scan plan is empty, using trigger scan plan");
+  }
+
+  int32_t code = stExtBuildCalcColumnsFromPlan(pTask, pMsg->pExtSpec, scanPlan, false);
+  if (code != TSDB_CODE_SUCCESS) {
+    return code;
+  }
+
+  if (pMsg->pExtSpec->numCalcMappings > 0 ||
+      calcCachePlan == NULL || triggerPlan == NULL || calcCachePlan == triggerPlan) {
+    ST_TASK_DLOG("ext: trigger reader projection source=%s columns=%d", planSource,
+                 pMsg->pExtSpec->numCalcMappings);
+    return TSDB_CODE_SUCCESS;
+  }
+
+  ST_TASK_DLOG("ext: projection source=%s yielded no columns, retrying triggerScanPlan",
+               planSource);
+  stExtResetCalcColumns(pMsg->pExtSpec);
+  code = stExtBuildCalcColumnsFromPlan(pTask, pMsg->pExtSpec, triggerPlan, false);
+  ST_TASK_DLOG("ext: triggerScanPlan fallback columns=%d", pMsg->pExtSpec->numCalcMappings);
+  return code;
 }
 
 /* Extract the stream calc scan time range (STimeRangeNode) from an already
@@ -2526,6 +3198,11 @@ end:
   return code;
 }
 
+void stReaderTaskDiscardInstall(SStreamReaderTask* pTask) {
+  streamTaskStatsHandleLifecycle(&pTask->pStats, STREAM_TASK_STATS_DEPLOY_FAILED);
+  stReaderTaskReleaseInfo(pTask);
+}
+
 int32_t stReaderTaskDeploy(SStreamReaderTask* pTask, const SStreamReaderDeployMsg* pMsg) {
   int32_t code = 0;
   int32_t lino = 0;
@@ -2581,9 +3258,20 @@ int32_t stReaderTaskDeploy(SStreamReaderTask* pTask, const SStreamReaderDeployMs
       /* Multi-source federated calc: each calc reader scans its own external
        * table, but the mnode-supplied ext spec only carries the source-level
        * connection.  Override the per-scan table identity delivered in the
-       * deploy msg so streamReaderExtFetchData targets the correct table/ts col. */
+       * deploy msg so streamReaderExtFetchData targets the correct table/ts col.
+       *
+       * The connectors report the exact remote spelling (DS 5.3.6 R1); the
+       * reader adds its own quoting when it renders the table reference, so the
+       * bytes are copied verbatim for every provider.  A name may itself
+       * contain a literal double quote, which must not be stripped. */
       if (pMsg->msg.calc.extTable[0] != '\0') {
-        tstrncpy(pMsg->pExtSpec->extTable, pMsg->msg.calc.extTable, sizeof(pMsg->pExtSpec->extTable));
+        if ((EExtSourceType)pMsg->pExtSpec->sourceType == EXT_SOURCE_ORACLE) {
+          extCopyRemoteTableSpelling(pMsg->msg.calc.extTable, pMsg->pExtSpec->extTable,
+                                     sizeof(pMsg->pExtSpec->extTable));
+        } else {
+          tstrncpy(pMsg->pExtSpec->extTable, pMsg->msg.calc.extTable,
+                   sizeof(pMsg->pExtSpec->extTable));
+        }
       }
       if (pMsg->msg.calc.tsColumn[0] != '\0') {
         tstrncpy(pMsg->pExtSpec->tsColumn, pMsg->msg.calc.tsColumn, sizeof(pMsg->pExtSpec->tsColumn));
@@ -2646,12 +3334,11 @@ end:
   STREAM_PRINT_LOG_END(code, lino);
 
   if (code) {
-    streamTaskStatsHandleLifecycle(&pTask->pStats, STREAM_TASK_STATS_DEPLOY_FAILED);
     if (!pPlanMoved) {
       nodesDestroyNode(pPlan);
     }
     nodesDestroyNode(pCalcPlan);
-    stReaderTaskReleaseInfo(pTask);
+    stReaderTaskDiscardInstall(pTask);
     pTask->task.status = STREAM_STATUS_FAILED;
   }
 
@@ -2692,6 +3379,7 @@ int32_t stReaderTaskUndeploy(SStreamReaderTask** ppTask, bool force) {
 // }
 
 void* qStreamGetReaderInfo(int64_t streamId, int64_t taskId, void** taskAddr) {
+  TD_SEAM_RET(qStreamGetReaderInfo, void* (*)(int64_t, int64_t, void**), (streamId, taskId, taskAddr));
   int32_t      code = 0;
   int32_t      lino = 0;
   SStreamTask* pTask = NULL;

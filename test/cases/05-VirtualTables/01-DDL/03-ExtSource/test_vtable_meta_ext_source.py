@@ -48,6 +48,7 @@ _SS_SRC   = "vmeta_ss_src"
 # Oracle identifiers fold to upper case).
 _OR_SVC    = ExtSrcEnv.ORACLE_SERVICE
 _OR_SCHEMA = ExtSrcEnv.ORACLE_USER.upper()
+_OR_SCHEMA_REF = "`" + _OR_SCHEMA + "`"
 _OR_SRC    = "vmeta_or_src"
 
 # 2024-01-01 00:00:00 UTC in nanoseconds; every Oracle time-axis fixture is
@@ -196,15 +197,15 @@ class TestVtableMetaExtSource:
         # NUMBER(10,0) maps to BIGINT, so the local columns are bigint.
         tdSql.execute(
             "CREATE VTABLE v_meta_or (ts timestamp, "
-            f"v bigint FROM {_OR_SRC}.{_OR_SCHEMA}.r.v, "
-            f"w bigint FROM {_OR_SRC}.{_OR_SCHEMA}.r.w, "
+            f"v bigint FROM {_OR_SRC}.{_OR_SCHEMA_REF}.r.v, "
+            f"w bigint FROM {_OR_SRC}.{_OR_SCHEMA_REF}.r.w, "
             "local_only int)")
         tdSql.execute(
             "CREATE STABLE vstb_or_meta (ts timestamp, v bigint) "
             "TAGS (site nchar(16)) VIRTUAL 1")
         tdSql.execute(
             "CREATE VTABLE vctb_or_meta ("
-            f"v FROM {_OR_SRC}.{_OR_SCHEMA}.r.v) "
+            f"v FROM {_OR_SRC}.{_OR_SCHEMA_REF}.r.v) "
             f"USING vstb_or_meta TAGS ('siteOR')")
         # One vtable per supported time-axis declaration (FQOR-VTBL-007).
         for vtb, table in (("v_meta_or_date", "r_date"),
@@ -213,13 +214,13 @@ class TestVtableMetaExtSource:
                            ("v_meta_or_tstzl", "r_tstzl")):
             tdSql.execute(
                 f"CREATE VTABLE {vtb} (ts timestamp, "
-                f"v bigint FROM {_OR_SRC}.{_OR_SCHEMA}.{table}.v)")
+                f"v bigint FROM {_OR_SRC}.{_OR_SCHEMA_REF}.{table}.v)")
         # Declared filter on a LOB column: Oracle cannot compare it remotely,
         # so the FederatedScan operator has to evaluate it locally
         # (FQOR-VTBL-011).
         tdSql.execute(
             "CREATE VTABLE v_meta_or_filter (ts timestamp, "
-            f"v bigint FROM {_OR_SRC}.{_OR_SCHEMA}.r_filter.v "
+            f"v bigint FROM {_OR_SRC}.{_OR_SCHEMA_REF}.r_filter.v "
             "WHERE note = 'alpha')")
 
     @classmethod

@@ -63,6 +63,8 @@ static int32_t  mndMarkStbTxnDrop(SMnode *pMnode, SRpcMsg *pReq, SStbObj *pStb, 
 static int32_t  mndMarkStbTxnAlter(SMnode *pMnode, SRpcMsg *pReq, SStbObj *pStb, SDbObj *pDb, txn_id_t txnId,
                                    void *pReqData, int32_t reqDataLen, SArray *pCheckNames);
 static int32_t  mndCollectBaseOnNewNames(const SStbObj *pOld, const SStbObj *pNew, SArray **ppNames);
+static void     mndClearStbTxnView(SStbObj *pView);
+static int32_t  mndBuildStbTxnView(SMnode *pMnode, SStbObj *pStb, int64_t txnId, SStbObj *pView, bool *pApplied);
 static int32_t  mndApplyTxnAlterOpsToSchema(SMnode *pMnode, SArray *pAlterOps, SDbObj *pDb, SStbObj *pBaseStb,
                                             const char *tbName, STableMetaRsp *pRsp, bool refByStm);
 static int32_t  mndProcessDropTtltbRsp(SRpcMsg *pReq);
@@ -3257,6 +3259,10 @@ static int32_t mndDropSuperTableTag(SMnode *pMnode, const SStbObj *pOld, SStbObj
   }
 
   col_id_t colId = pOld->pTags[tag].colId;
+  if (mndStreamTagReferencedByDuration(pMnode, pOld->uid, colId)) {
+    mError("stb:%s, tag:%s referenced by stream duration/count, cannot drop", pOld->name, tagName);
+    TAOS_RETURN(TSDB_CODE_PAR_COL_TAG_REF_BY_STM);
+  }
   TAOS_CHECK_RETURN(mndCheckAlterColForTSma(pMnode, pOld->name, pOld->uid, colId, true));
 
   TAOS_CHECK_RETURN(mndAllocStbSchemas(pOld, pNew));
@@ -4193,7 +4199,8 @@ static int32_t mndBuildStbSchema(SMnode *pMnode, const char *dbFName, const char
   TAOS_RETURN(code);
 }
 
-static int32_t mndBuildStbCfg(SMnode *pMnode, const char *dbFName, const char *tbName, STableCfgRsp *pRsp) {
+static int32_t mndBuildStbCfg(SMnode *pMnode, const char *dbFName, const char *tbName, int64_t txnId,
+                              STableCfgRsp *pRsp) {
   int32_t code = 0;
   char    tbFName[TSDB_TABLE_FNAME_LEN] = {0};
   snprintf(tbFName, sizeof(tbFName), "%s.%s", dbFName, tbName);
@@ -4211,7 +4218,27 @@ static int32_t mndBuildStbCfg(SMnode *pMnode, const char *dbFName, const char *t
     TAOS_RETURN(code);
   }
 
-  code = mndBuildStbCfgImp(pMnode, pDb, pStb, tbName, pRsp);
+  // batch-meta-txn visibility, same rules as the table meta request: another session must not see a super
+  // table that is only PRE_CREATEd, and the txn that dropped it gets "not exist" (read your own writes).
+  if (pStb->txnId != 0) {
+    bool otherSession = (pStb->txnId != (txn_id_t)txnId);
+    bool isPreCreate = (pStb->txnStatus == META_TXN_PRE_CREATE || pStb->txnStatus == META_TXN_PRE_CREATE_DROP);
+    bool isPreDrop = (pStb->txnStatus == META_TXN_PRE_DROP || pStb->txnStatus == META_TXN_PRE_CREATE_DROP);
+    if ((otherSession && isPreCreate) || (!otherSession && isPreDrop)) {
+      mndReleaseDb(pMnode, pDb);
+      mndReleaseStb(pMnode, pStb);
+      TAOS_RETURN(TSDB_CODE_PAR_TABLE_NOT_EXIST);
+    }
+  }
+
+  // read your own writes: the requester txn's uncommitted ALTERs are part of what SHOW CREATE STABLE shows
+  SStbObj view = {0};
+  bool    applied = false;
+  code = mndBuildStbTxnView(pMnode, pStb, txnId, &view, &applied);
+  if (code == 0) {
+    code = mndBuildStbCfgImp(pMnode, pDb, applied ? &view : pStb, tbName, pRsp);
+  }
+  if (applied) mndClearStbTxnView(&view);
 
   mndReleaseDb(pMnode, pDb);
   mndReleaseStb(pMnode, pStb);
@@ -5270,15 +5297,36 @@ static int32_t mndAlterStb(SMnode *pMnode, SRpcMsg *pReq, const SMAlterStbReq *p
   // (extension) column/tag names by vnode check actions prepended in the *Imp functions.
   SArray *pCheckNames = NULL;
 
+  // The shallow copy below makes stbObj.comment alias pOld->comment, which belongs to the SDB object, and this
+  // function frees stbObj.comment at _OVER. So stbObj must own a private copy. Only an UPDATE_OPTIONS alter that
+  // sets a new comment replaces it (the applier allocates one itself), and then no copy is needed. The decision
+  // is keyed on the alter type as well: a request carrying commentLen > 0 for another type leaves the comment
+  // untouched, and an allocation failure in the applier leaves the borrowed pointer in place.
+  bool  freshComment = (pAlter->alterType == TSDB_ALTER_TABLE_UPDATE_OPTIONS && pAlter->commentLen > 0);
+  char *pCommentCopy = NULL;
+  bool  commentCopyFailed = false;
   SStbObj stbObj = {0};
   taosRLockLatch(&pOld->lock);
   memcpy(&stbObj, pOld, sizeof(SStbObj));
+  if (!freshComment && pOld->commentLen > 0 && pOld->comment != NULL) {
+    pCommentCopy = taosMemoryCalloc(1, pOld->commentLen + 1);
+    if (pCommentCopy != NULL) {
+      memcpy(pCommentCopy, pOld->comment, pOld->commentLen + 1);
+    } else {
+      commentCopyFailed = true;
+    }
+  }
   taosRUnLockLatch(&pOld->lock);
+  stbObj.comment = pCommentCopy;  // never keep the pointer borrowed from pOld
   stbObj.pColumns = NULL;
   stbObj.pTags = NULL;
   stbObj.pFuncs = NULL;
   stbObj.pCmpr = NULL;
   stbObj.pExtSchemas = NULL;
+  if (commentCopyFailed) {
+    code = terrno != 0 ? terrno : TSDB_CODE_OUT_OF_MEMORY;
+    goto _OVER;
+  }
   stbObj.updateTime = taosGetTimestampMs();
   stbObj.lock = 0;
   stbObj.virtualStb = pOld->virtualStb;
@@ -5363,9 +5411,7 @@ _OVER:
   taosMemoryFreeClear(stbObj.pTags);
   taosMemoryFreeClear(stbObj.pColumns);
   taosMemoryFreeClear(stbObj.pCmpr);
-  if (pAlter->commentLen > 0) {
-    taosMemoryFreeClear(stbObj.comment);
-  }
+  taosMemoryFreeClear(stbObj.comment);  // always owned here: private copy or the applier's allocation
   taosMemoryFreeClear(stbObj.pExtSchemas);
   TAOS_RETURN(code);
 }
@@ -6142,9 +6188,31 @@ int32_t mndAppendAlterStbToTrans(SMnode *pMnode, STrans *pTrans, void *pReqData,
   mInfo("stb:%s, appending alter actions to trans:%d", alterReq.name, pTrans->id);
 
   // Build modified SStbObj (same logic as mndAlterStb)
+  // The shallow copy below makes stbObj.comment alias pOld->comment, which belongs to the SDB object (or to
+  // the previous accumulated schema, which the caller frees once this result replaces it). stbObj is handed
+  // to the caller as an accumulated schema that owns and later frees its comment, so it must own a private
+  // copy. When this ALTER sets a new comment the applier allocates one itself, no copy is needed then.
+  char   *pCommentCopy = NULL;
+  bool    commentCopyFailed = false;
   taosRLockLatch(&pOld->lock);
   memcpy(&stbObj, pOld, sizeof(SStbObj));
+  // Same predicate as the applier: only UPDATE_OPTIONS with commentLen > 0 replaces the comment. Keying on
+  // commentLen alone left stbObj.comment NULL with commentLen > 0 for other alter types.
+  if (!(alterReq.alterType == TSDB_ALTER_TABLE_UPDATE_OPTIONS && alterReq.commentLen > 0) && pOld->commentLen > 0 &&
+      pOld->comment != NULL) {
+    pCommentCopy = taosMemoryCalloc(1, pOld->commentLen + 1);
+    if (pCommentCopy != NULL) {
+      memcpy(pCommentCopy, pOld->comment, pOld->commentLen + 1);
+    } else {
+      commentCopyFailed = true;
+    }
+  }
   taosRUnLockLatch(&pOld->lock);
+  stbObj.comment = pCommentCopy;  // never keep the pointer borrowed from pOld
+  if (commentCopyFailed) {
+    code = terrno != 0 ? terrno : TSDB_CODE_OUT_OF_MEMORY;
+    goto _OVER;
+  }
   // Save txnStatus before clearing: used to detect whether a DROP will follow
   // in the same COMMIT trans (PRE_CREATE_DROP or PRE_DROP  ->  skip entire ALTER).
   EMetaTxnStatus oldTxnStatus = stbObj.txnStatus;
@@ -6283,11 +6351,13 @@ int32_t mndAppendAlterStbToTrans(SMnode *pMnode, STrans *pTrans, void *pReqData,
 
 _OVER:
   taosMemoryFree(pAlterCont);
+  // stbObj.comment is always owned here (private copy or applier allocation, NULL once handed to the
+  // caller), including the early exits taken before stbBuilt is set.
+  taosMemoryFreeClear(stbObj.comment);
   if (stbBuilt) {
     taosMemoryFreeClear(stbObj.pTags);
     taosMemoryFreeClear(stbObj.pColumns);
     taosMemoryFreeClear(stbObj.pCmpr);
-    if (alterReq.commentLen > 0) taosMemoryFreeClear(stbObj.comment);
     taosMemoryFreeClear(stbObj.pExtSchemas);
   }
   if (pDb) mndReleaseDb(pMnode, pDb);
@@ -6429,8 +6499,22 @@ _OVER:
  * @param pRsp      Output metaRsp (existing content will be freed and rebuilt)
  * @param refByStm  Whether referenced by statement
  */
-static int32_t mndApplyTxnAlterOpsToSchema(SMnode *pMnode, SArray *pAlterOps, SDbObj *pDb, SStbObj *pBaseStb,
-                                           const char *tbName, STableMetaRsp *pRsp, bool refByStm) {
+// Free the heap fields owned by a txn view built by mndApplyTxnAlterOpsToStbObj. pFuncs / pAst1 / pAst2
+// are never owned by a view (they alias, or are NULL, see mndBuildStbTxnView) and are not touched.
+static void mndClearStbTxnView(SStbObj *pView) {
+  taosMemoryFreeClear(pView->pColumns);
+  taosMemoryFreeClear(pView->pTags);
+  taosMemoryFreeClear(pView->pCmpr);
+  taosMemoryFreeClear(pView->pExtSchemas);
+  taosMemoryFreeClear(pView->comment);
+  memset(pView, 0, sizeof(SStbObj));
+}
+
+// Deep clone pBaseStb and replay the txn's ALTER shadow ops on the clone with the same applier the COMMIT
+// replay uses, so the result is what COMMIT will produce. On success *pView owns its columns / tags / cmpr /
+// ext schemas / comment (release with mndClearStbTxnView); on failure *pView is left untouched.
+static int32_t mndApplyTxnAlterOpsToStbObj(SMnode *pMnode, SArray *pAlterOps, SDbObj *pDb, SStbObj *pBaseStb,
+                                           SStbObj *pView) {
   int32_t code = 0;
   int32_t numOps = taosArrayGetSize(pAlterOps);
 
@@ -6519,10 +6603,8 @@ static int32_t mndApplyTxnAlterOpsToSchema(SMnode *pMnode, SArray *pAlterOps, SD
     current = next;
   }
 
-  // Rebuild metaRsp from the modified clone
-  tFreeSTableMetaRsp(pRsp);
-  memset(pRsp, 0, sizeof(STableMetaRsp));
-  code = mndBuildStbSchemaImp(pMnode, pDb, &current, tbName, pRsp, refByStm);
+  *pView = current;
+  return 0;
 
 _DONE:
   taosMemoryFreeClear(current.pColumns);
@@ -6530,6 +6612,51 @@ _DONE:
   taosMemoryFreeClear(current.pCmpr);
   taosMemoryFreeClear(current.pExtSchemas);
   taosMemoryFreeClear(current.comment);
+  return code;
+}
+
+static int32_t mndApplyTxnAlterOpsToSchema(SMnode *pMnode, SArray *pAlterOps, SDbObj *pDb, SStbObj *pBaseStb,
+                                           const char *tbName, STableMetaRsp *pRsp, bool refByStm) {
+  SStbObj view = {0};
+  int32_t code = mndApplyTxnAlterOpsToStbObj(pMnode, pAlterOps, pDb, pBaseStb, &view);
+  if (code != 0) return code;
+
+  // Rebuild metaRsp from the modified clone
+  tFreeSTableMetaRsp(pRsp);
+  memset(pRsp, 0, sizeof(STableMetaRsp));
+  code = mndBuildStbSchemaImp(pMnode, pDb, &view, tbName, pRsp, refByStm);
+  mndClearStbTxnView(&view);
+  return code;
+}
+
+// Txn view of a super table for the requester txn: *pApplied is set (and *pView filled, release with
+// mndClearStbTxnView) when the txn has ALTER shadow ops on it. Otherwise *pApplied is false and the caller
+// keeps using the committed object. Used by every reader that must honour read-your-own-writes besides
+// DESCRIBE: SHOW CREATE STABLE (table cfg) and information_schema.ins_stables / ins_columns.
+static int32_t mndBuildStbTxnView(SMnode *pMnode, SStbObj *pStb, int64_t txnId, SStbObj *pView, bool *pApplied) {
+  *pApplied = false;
+  if (txnId == 0 || pStb->txnId != (txn_id_t)txnId) return 0;
+
+  SArray *pOps = NULL;
+  int32_t code = mndTxnGetAlterOpsForStb(pMnode, (txn_id_t)txnId, pStb->name, &pOps);
+  if (code != 0) return code;
+  if (pOps == NULL || taosArrayGetSize(pOps) == 0) {
+    taosArrayDestroy(pOps);
+    return 0;
+  }
+
+  SDbObj *pDb = mndAcquireDb(pMnode, pStb->db);
+  if (pDb == NULL) {
+    taosArrayDestroy(pOps);
+    return TSDB_CODE_MND_DB_NOT_EXIST;
+  }
+  code = mndApplyTxnAlterOpsToStbObj(pMnode, pOps, pDb, pStb, pView);
+  mndReleaseDb(pMnode, pDb);
+  taosArrayDestroy(pOps);
+  if (code == 0) {
+    pView->pFuncs = pStb->pFuncs;  // not alterable, borrowed from the live object (held by the caller)
+    *pApplied = true;
+  }
   return code;
 }
 
@@ -6659,7 +6786,7 @@ static int32_t mndProcessTableCfgReq(SRpcMsg *pReq) {
     TAOS_CHECK_GOTO(mndBuildPerfsTableCfg(pMnode, cfgReq.dbFName, cfgReq.tbName, &cfgRsp), NULL, _OVER);
   } else {
     mInfo("stb:%s.%s, start to retrieve cfg", cfgReq.dbFName, cfgReq.tbName);
-    TAOS_CHECK_GOTO(mndBuildStbCfg(pMnode, cfgReq.dbFName, cfgReq.tbName, &cfgRsp), NULL, _OVER);
+    TAOS_CHECK_GOTO(mndBuildStbCfg(pMnode, cfgReq.dbFName, cfgReq.tbName, cfgReq.txnId, &cfgRsp), NULL, _OVER);
   }
 
   int32_t rspLen = tSerializeSTableCfgRsp(NULL, 0, &cfgRsp);
@@ -6879,6 +7006,7 @@ static int32_t mndRetrieveStb(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBloc
   int32_t    code = 0;
   char       objFName[TSDB_OBJ_FNAME_LEN + 1] = {0};
   bool       showAll = false;
+  SStbObj    txnView = {0};  // txn view of the current row, see mndBuildStbTxnView
 
   SDbObj *pDb = NULL;
   if (strlen(pShow->db) > 0) {
@@ -6940,17 +7068,22 @@ static int32_t mndRetrieveStb(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBloc
       continue;
     }
 #endif
+    // read your own writes: show the requester txn's uncommitted ALTERs on its own super tables
+    bool applied = false;
+    RETRIEVE_CHECK_GOTO(mndBuildStbTxnView(pMnode, pStb, pShow->txnId, &txnView, &applied), pStb, &lino, _ERROR);
+    SStbObj *pCur = applied ? &txnView : pStb;  // pStb stays the sdb object to release
     cols = 0;
 
     SName name = {0};
 
     char stbName[TSDB_TABLE_NAME_LEN + VARSTR_HEADER_SIZE] = {0};
-    mndExtractTbNameFromStbFullName(pStb->name, &stbName[VARSTR_HEADER_SIZE], TSDB_TABLE_NAME_LEN);
+    mndExtractTbNameFromStbFullName(pCur->name, &stbName[VARSTR_HEADER_SIZE], TSDB_TABLE_NAME_LEN);
 
-    if (!showAll && (mndCheckObjPrivilegeRecF(pMnode, pOperUser, PRIV_CM_SHOW, PRIV_OBJ_TBL, pStb->ownerId, pStb->db,
+    if (!showAll && (mndCheckObjPrivilegeRecF(pMnode, pOperUser, PRIV_CM_SHOW, PRIV_OBJ_TBL, pCur->ownerId, pCur->db,
                                               &stbName[VARSTR_HEADER_SIZE]) ||
                      mndCheckDbPrivilegeByName(pMnode, RPC_MSG_USER(pReq), RPC_MSG_TOKEN(pReq), MND_OPER_USE_DB,
-                                               pStb->db, false))) {
+                                               pCur->db, false))) {
+      if (applied) mndClearStbTxnView(&txnView);  // the next row's view would overwrite (leak) it
       sdbRelease(pSdb, pStb);
       terrno = 0;
       continue;
@@ -6961,42 +7094,42 @@ static int32_t mndRetrieveStb(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBloc
     RETRIEVE_CHECK_GOTO(colDataSetVal(pColInfo, numOfRows, (const char *)stbName, false), pStb, &lino, _ERROR);
 
     char db[TSDB_DB_NAME_LEN + VARSTR_HEADER_SIZE] = {0};
-    RETRIEVE_CHECK_GOTO(tNameFromString(&name, pStb->db, T_NAME_ACCT | T_NAME_DB), pStb, &lino, _ERROR);
+    RETRIEVE_CHECK_GOTO(tNameFromString(&name, pCur->db, T_NAME_ACCT | T_NAME_DB), pStb, &lino, _ERROR);
     RETRIEVE_CHECK_GOTO(tNameGetDbName(&name, varDataVal(db)), pStb, &lino, _ERROR);
     varDataSetLen(db, strlen(varDataVal(db)));
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
     RETRIEVE_CHECK_GOTO(colDataSetVal(pColInfo, numOfRows, (const char *)db, false), pStb, &lino, _ERROR);
 
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-    RETRIEVE_CHECK_GOTO(colDataSetVal(pColInfo, numOfRows, (const char *)&pStb->createdTime, false), pStb, &lino,
+    RETRIEVE_CHECK_GOTO(colDataSetVal(pColInfo, numOfRows, (const char *)&pCur->createdTime, false), pStb, &lino,
                         _ERROR);
 
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-    RETRIEVE_CHECK_GOTO(colDataSetVal(pColInfo, numOfRows, (const char *)&pStb->numOfColumns, false), pStb, &lino,
+    RETRIEVE_CHECK_GOTO(colDataSetVal(pColInfo, numOfRows, (const char *)&pCur->numOfColumns, false), pStb, &lino,
                         _ERROR);
 
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-    RETRIEVE_CHECK_GOTO(colDataSetVal(pColInfo, numOfRows, (const char *)&pStb->numOfTags, false), pStb, &lino, _ERROR);
+    RETRIEVE_CHECK_GOTO(colDataSetVal(pColInfo, numOfRows, (const char *)&pCur->numOfTags, false), pStb, &lino, _ERROR);
 
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-    RETRIEVE_CHECK_GOTO(colDataSetVal(pColInfo, numOfRows, (const char *)&pStb->updateTime, false), pStb, &lino,
+    RETRIEVE_CHECK_GOTO(colDataSetVal(pColInfo, numOfRows, (const char *)&pCur->updateTime, false), pStb, &lino,
                         _ERROR);  // number of tables
 
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-    if (pStb->commentLen > 0) {
+    if (pCur->commentLen > 0) {
       // A row written before the mnode started validating commentLen can hold a longer comment:
       // cap the copy at the payload capacity so that such a row is rendered (and can therefore be
       // listed, found and dropped) instead of overflowing this stack buffer.
       char    comment[TSDB_TB_COMMENT_LEN + VARSTR_HEADER_SIZE] = {0};
       int32_t clen = 0;
-      if (pStb->comment != NULL) {
-        clen = pStb->commentLen;
+      if (pCur->comment != NULL) {
+        clen = pCur->commentLen;
         if (clen > MND_STB_MAX_COMMENT_LEN) clen = MND_STB_MAX_COMMENT_LEN;
-        (void)memcpy(varDataVal(comment), pStb->comment, clen);
+        (void)memcpy(varDataVal(comment), pCur->comment, clen);
       }
       varDataSetLen(comment, clen);
       RETRIEVE_CHECK_GOTO(colDataSetVal(pColInfo, numOfRows, comment, false), pStb, &lino, _ERROR);
-    } else if (pStb->commentLen == 0) {
+    } else if (pCur->commentLen == 0) {
       char comment[VARSTR_HEADER_SIZE + VARSTR_HEADER_SIZE] = {0};
       STR_TO_VARSTR(comment, "");
       RETRIEVE_CHECK_GOTO(colDataSetVal(pColInfo, numOfRows, comment, false), pStb, &lino, _ERROR);
@@ -7006,7 +7139,7 @@ static int32_t mndRetrieveStb(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBloc
 
     char watermark[64 + VARSTR_HEADER_SIZE] = {0};
     (void)snprintf(varDataVal(watermark), sizeof(watermark) - VARSTR_HEADER_SIZE, "%" PRId64 "a,%" PRId64 "a",
-                   pStb->watermark[0], pStb->watermark[1]);
+                   pCur->watermark[0], pCur->watermark[1]);
     varDataSetLen(watermark, strlen(varDataVal(watermark)));
 
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
@@ -7014,7 +7147,7 @@ static int32_t mndRetrieveStb(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBloc
 
     char maxDelay[64 + VARSTR_HEADER_SIZE] = {0};
     (void)snprintf(varDataVal(maxDelay), sizeof(maxDelay) - VARSTR_HEADER_SIZE, "%" PRId64 "a,%" PRId64 "a",
-                   pStb->maxdelay[0], pStb->maxdelay[1]);
+                   pCur->maxdelay[0], pCur->maxdelay[1]);
     varDataSetLen(maxDelay, strlen(varDataVal(maxDelay)));
 
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
@@ -7027,13 +7160,13 @@ static int32_t mndRetrieveStb(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBloc
     // so once the buffer filled up it went negative and, converted to the size_t bound of strncat,
     // turned every following append into an unbounded write past the end of this stack buffer.
     char    rollup[160 + VARSTR_HEADER_SIZE] = {0};
-    int32_t rollupNum = (int32_t)taosArrayGetSize(pStb->pFuncs);
+    int32_t rollupNum = (int32_t)taosArrayGetSize(pCur->pFuncs);
     char   *rollupVal = varDataVal(rollup);
     // One byte of the content area is reserved for the terminating '\0'.
     int32_t rollupCap = (int32_t)sizeof(rollup) - VARSTR_HEADER_SIZE - 1;
     int32_t rollupLen = 0;
     for (int32_t i = 0; i < rollupNum; ++i) {
-      char *funcName = taosArrayGet(pStb->pFuncs, i);
+      char *funcName = taosArrayGet(pCur->pFuncs, i);
       // Bound the scan to the element size so a name that lost its terminator cannot overrun.
       int32_t nameLen = (int32_t)strnlen(funcName, TSDB_FUNC_NAME_LEN - 1);
       int32_t sepLen = (i == 0) ? 0 : 2;  // ", " precedes every name but the first
@@ -7054,17 +7187,17 @@ static int32_t mndRetrieveStb(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBloc
 
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
     if (pColInfo) {
-      RETRIEVE_CHECK_GOTO(colDataSetVal(pColInfo, numOfRows, (const char *)(&pStb->uid), false), pStb, &lino, _ERROR);
+      RETRIEVE_CHECK_GOTO(colDataSetVal(pColInfo, numOfRows, (const char *)(&pCur->uid), false), pStb, &lino, _ERROR);
     }
 
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
     if (pColInfo) {
-      RETRIEVE_CHECK_GOTO(colDataSetVal(pColInfo, numOfRows, (const char *)(&pStb->virtualStb), false), pStb, &lino, _ERROR);
+      RETRIEVE_CHECK_GOTO(colDataSetVal(pColInfo, numOfRows, (const char *)(&pCur->virtualStb), false), pStb, &lino, _ERROR);
     }
 
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
     if (pColInfo) {
-      RETRIEVE_CHECK_GOTO(colDataSetVal(pColInfo, numOfRows, (const char *)(&pStb->keep), false), pStb, &lino, _ERROR);
+      RETRIEVE_CHECK_GOTO(colDataSetVal(pColInfo, numOfRows, (const char *)(&pCur->keep), false), pStb, &lino, _ERROR);
     }
 
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
@@ -7072,7 +7205,7 @@ static int32_t mndRetrieveStb(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBloc
       if (!pUidNames) {
         TAOS_CHECK_GOTO(mndBuildUidNamesHash(pMnode, &pUidNames), &lino, _OVER);
       }
-      const char *ownerName = tSimpleHashGet(pUidNames, (const char *)&pStb->ownerId, sizeof(pStb->ownerId));
+      const char *ownerName = tSimpleHashGet(pUidNames, (const char *)&pCur->ownerId, sizeof(pCur->ownerId));
       char        owner[TSDB_USER_LEN + VARSTR_HEADER_SIZE] = {0};
       STR_WITH_MAXSIZE_TO_VARSTR(owner, ownerName ? ownerName : "[unknown]", sizeof(owner));
       RETRIEVE_CHECK_GOTO(colDataSetVal(pColInfo, numOfRows, (const char *)owner, false), pStb, &lino, _ERROR);
@@ -7080,12 +7213,13 @@ static int32_t mndRetrieveStb(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBloc
 
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
     if (pColInfo) {
-      uint8_t securityLevel = pStb->securityLevel;
+      uint8_t securityLevel = pCur->securityLevel;
       RETRIEVE_CHECK_GOTO(colDataSetVal(pColInfo, numOfRows, (const char *)(&securityLevel), false), pStb, &lino,
                           _ERROR);
     }
 
     numOfRows++;
+    if (applied) mndClearStbTxnView(&txnView);
     sdbRelease(pSdb, pStb);
   }
 
@@ -7109,6 +7243,7 @@ _ERROR:
          tstrerror(code));
 
 _OVER:
+  mndClearStbTxnView(&txnView);
   pShow->numOfRows += numOfRows;
   tSimpleHashCleanup(pUidNames);
   return numOfRows;
@@ -7235,6 +7370,7 @@ static int32_t mndRetrieveStbCol(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pB
   SMnode  *pMnode = pReq->info.node;
   SSdb    *pSdb = pMnode->pSdb;
   SStbObj *pStb = NULL;
+  SStbObj  txnView = {0};  // txn view of the current super table, see mndBuildStbTxnView
   int32_t  numOfRows = 0;
   int32_t  lino = 0;
   int32_t  code = 0;
@@ -7274,6 +7410,16 @@ static int32_t mndRetrieveStbCol(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pB
         continue;
       }
 
+      // batch meta txn: same visibility as mndRetrieveStb (ins_stables). Another session's PRE_CREATE and a
+      // PRE_CREATE_DROP do not exist yet; the requester's own PRE_DROP no longer exists for it.
+      if (pStb->txnId != 0 &&
+          ((pStb->txnStatus == META_TXN_PRE_CREATE && pStb->txnId != (txn_id_t)pShow->txnId) ||
+           pStb->txnStatus == META_TXN_PRE_CREATE_DROP ||
+           (pStb->txnStatus == META_TXN_PRE_DROP && pStb->txnId == (txn_id_t)pShow->txnId))) {
+        sdbRelease(pSdb, pStb);
+        continue;
+      }
+
       SName name = {0};
       char  stbName[TSDB_TABLE_NAME_LEN + VARSTR_HEADER_SIZE] = {0};
       mndExtractTbNameFromStbFullName(pStb->name, &stbName[VARSTR_HEADER_SIZE], TSDB_TABLE_NAME_LEN);
@@ -7282,26 +7428,32 @@ static int32_t mndRetrieveStbCol(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pB
         continue;
       }
 
-      if ((numOfRows + pStb->numOfColumns) > rows) {
+      // read your own writes: list the requester txn's uncommitted ALTERs on its own super tables
+      bool applied = false;
+      RETRIEVE_CHECK_GOTO(mndBuildStbTxnView(pMnode, pStb, pShow->txnId, &txnView, &applied), pStb, &lino, _OVER);
+      SStbObj *pCur = applied ? &txnView : pStb;  // pStb stays the sdb object to release
+
+      if ((numOfRows + pCur->numOfColumns) > rows) {
         pShow->restore = true;
         if (numOfRows == 0) {
           mError("mndRetrieveStbCol failed to get stable cols since buf:%d less than result:%d, stable name:%s, db:%s",
-                 rows, pStb->numOfColumns, pStb->name, pStb->db);
+                 rows, pCur->numOfColumns, pCur->name, pCur->db);
         }
+        if (applied) mndClearStbTxnView(&txnView);
         sdbRelease(pSdb, pStb);
         break;
       }
 
       varDataSetLen(stbName, strlen(&stbName[VARSTR_HEADER_SIZE]));
 
-      mDebug("mndRetrieveStbCol get stable cols, stable name:%s, db:%s", pStb->name, pStb->db);
+      mDebug("mndRetrieveStbCol get stable cols, stable name:%s, db:%s", pCur->name, pCur->db);
 
       char db[TSDB_DB_NAME_LEN + VARSTR_HEADER_SIZE] = {0};
-      RETRIEVE_CHECK_GOTO(tNameFromString(&name, pStb->db, T_NAME_ACCT | T_NAME_DB), pStb, &lino, _OVER);
+      RETRIEVE_CHECK_GOTO(tNameFromString(&name, pCur->db, T_NAME_ACCT | T_NAME_DB), pStb, &lino, _OVER);
       RETRIEVE_CHECK_GOTO(tNameGetDbName(&name, varDataVal(db)), pStb, &lino, _OVER);
       varDataSetLen(db, strlen(varDataVal(db)));
 
-      for (int i = 0; i < pStb->numOfColumns; i++) {
+      for (int i = 0; i < pCur->numOfColumns; i++) {
         int32_t          cols = 0;
         SColumnInfoData *pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
         RETRIEVE_CHECK_GOTO(colDataSetVal(pColInfo, numOfRows, (const char *)stbName, false), pStb, &lino, _OVER);
@@ -7314,12 +7466,12 @@ static int32_t mndRetrieveStbCol(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pB
 
         // col name
         char colName[TSDB_COL_NAME_LEN + VARSTR_HEADER_SIZE] = {0};
-        STR_TO_VARSTR(colName, pStb->pColumns[i].name);
+        STR_TO_VARSTR(colName, pCur->pColumns[i].name);
         pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
         RETRIEVE_CHECK_GOTO(colDataSetVal(pColInfo, numOfRows, colName, false), pStb, &lino, _OVER);
 
         // col type
-        int8_t colType = pStb->pColumns[i].type;
+        int8_t colType = pCur->pColumns[i].type;
         pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
         char colTypeStr[VARSTR_HEADER_SIZE + 32];
         int  colTypeLen =
@@ -7327,17 +7479,17 @@ static int32_t mndRetrieveStbCol(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pB
         if (colType == TSDB_DATA_TYPE_VARCHAR) {
           colTypeLen +=
               snprintf(varDataVal(colTypeStr) + colTypeLen, sizeof(colTypeStr) - colTypeLen - VARSTR_HEADER_SIZE,
-                       "(%d)", (int32_t)(pStb->pColumns[i].bytes - VARSTR_HEADER_SIZE));
+                       "(%d)", (int32_t)(pCur->pColumns[i].bytes - VARSTR_HEADER_SIZE));
         } else if (colType == TSDB_DATA_TYPE_NCHAR) {
           colTypeLen +=
               snprintf(varDataVal(colTypeStr) + colTypeLen, sizeof(colTypeStr) - colTypeLen - VARSTR_HEADER_SIZE,
-                       "(%d)", (int32_t)((pStb->pColumns[i].bytes - VARSTR_HEADER_SIZE) / TSDB_NCHAR_SIZE));
+                       "(%d)", (int32_t)((pCur->pColumns[i].bytes - VARSTR_HEADER_SIZE) / TSDB_NCHAR_SIZE));
         } else if (IS_DECIMAL_TYPE(colType)) {
           // [FIX][item-167] pExtSchemas can be NULL for a decimal column when an inconsistent
           // schema was persisted by an older/buggy build. Do not dereference it; render the type
           // name without precision so the retrieve succeeds instead of crashing the mnode.
-          if (pStb->pExtSchemas != NULL) {
-            STypeMod typeMod = pStb->pExtSchemas[i].typeMod;
+          if (pCur->pExtSchemas != NULL) {
+            STypeMod typeMod = pCur->pExtSchemas[i].typeMod;
             uint8_t prec = 0, scale = 0;
             decimalFromTypeMod(typeMod, &prec, &scale);
             colTypeLen += snprintf(varDataVal(colTypeStr) + colTypeLen,
@@ -7349,7 +7501,7 @@ static int32_t mndRetrieveStbCol(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pB
 
         // col length
         pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-        RETRIEVE_CHECK_GOTO(colDataSetVal(pColInfo, numOfRows, (const char *)&pStb->pColumns[i].bytes, false), pStb,
+        RETRIEVE_CHECK_GOTO(colDataSetVal(pColInfo, numOfRows, (const char *)&pCur->pColumns[i].bytes, false), pStb,
                             &lino, _OVER);
         
         // col precision, col scale, col nullable, col source
@@ -7360,11 +7512,12 @@ static int32_t mndRetrieveStbCol(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pB
 
         // col id
         pColInfo = taosArrayGet(pBlock->pDataBlock, 10);
-        RETRIEVE_CHECK_GOTO(colDataSetVal(pColInfo, numOfRows, (const char *)&pStb->pColumns[i].colId, false), pStb,
+        RETRIEVE_CHECK_GOTO(colDataSetVal(pColInfo, numOfRows, (const char *)&pCur->pColumns[i].colId, false), pStb,
                             &lino, _OVER);
         numOfRows++;
       }
 
+      if (applied) mndClearStbTxnView(&txnView);
       sdbRelease(pSdb, pStb);
     }
 
@@ -7381,6 +7534,7 @@ _ERROR:
          __FUNCTION__, lino, tstrerror(code));
 
 _OVER:
+  mndClearStbTxnView(&txnView);
   pShow->numOfRows += numOfRows;
   return numOfRows;
 }

@@ -2290,6 +2290,46 @@ void taosSetCpuAffinity(EThreadCategory category) {
     uError("failed to set CPU affinity for category %d: %s", category, strerror(rc));
     return;
   }
+#elif defined(WINDOWS)
+  // A Windows affinity mask is DWORD_PTR wide and is relative to the thread's
+  // processor group, which is the group the assigned core ids are taken from
+  // (they are enumerated by taosGetSystemInfo() for the current group).
+  const SCpuCoreSet *pSet = &gCpuAllocStatus.sets[category];
+  const int32_t      bits = (int32_t)(sizeof(DWORD_PTR) * 8);
+
+  DWORD_PTR mask = 0;
+  int32_t   applied = 0;
+  int32_t   dropped = 0;
+  for (int32_t i = 0; i < pSet->count; i++) {
+    int32_t id = pSet->coreIds[i];
+    if (id < 0 || id >= bits) {
+      dropped++;
+      continue;
+    }
+    mask |= ((DWORD_PTR)1 << id);
+    applied++;
+  }
+
+  if (applied == 0) {
+    uError("failed to set CPU affinity for category %d: no valid core id assigned", category);
+    return;
+  }
+
+  if (SetThreadAffinityMask(GetCurrentThread(), mask) == 0) {
+    uError("failed to set CPU affinity for category %d, mask %" PRIu64 ": error %d", category, (uint64_t)mask,
+           (int32_t)GetLastError());
+    return;
+  }
+
+  if (dropped > 0) {
+    static int32_t logged = 0;
+    if (logged == 0) {
+      logged = 1;
+      uWarn("CPU affinity: %d assigned core(s) are outside the current processor group and cannot be bound on "
+            "Windows",
+            dropped);
+    }
+  }
 #else
   static bool logged = false;
   if (!logged) {

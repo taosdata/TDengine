@@ -333,6 +333,44 @@ run_init_scripts() {
     touch "$flag_file"
 }
 
+# Bootstrap one query node only when the cluster has none. Preserve operator topology.
+create_qnode_if_needed() {
+    local daemon_version
+    daemon_version=$(taosd -V 2>&1) || { echo 'Error: cannot detect TDengine edition' >&2; return 1; }
+    if printf '%s\n' "$daemon_version" | grep -Eqi 'version:[[:space:]]+[^[:space:]]+\.community([[:space:]]|$)'; then
+        log_info 'Community edition: skipping QNODE initialization'
+        return 0
+    fi
+    if ! printf '%s\n' "$daemon_version" | grep -Eqi 'version:[[:space:]]+[^[:space:]]+\.enterprise([[:space:]]|$)'; then
+        echo 'Error: cannot detect TDengine edition from taosd -V' >&2
+        return 1
+    fi
+    local output dnodes dnode_id
+    output=$(qnode_cli -s 'SHOW QNODES;' 2>&1) || return 1
+    if ! printf '%s\n' "$output" | grep -Eq '[0-9]+ row\(s\)'; then
+        echo "Error: cannot read QNODE metadata" >&2
+        return 1
+    fi
+    if ! printf '%s\n' "$output" | grep -Eq '(^|[^0-9])0 row\(s\)'; then
+        return 0
+    fi
+    dnodes=$(qnode_cli -s "SELECT id FROM information_schema.ins_dnodes WHERE status = 'ready' ORDER BY id LIMIT 1;" 2>&1) || return 1
+    dnode_id=$(printf '%s\n' "$dnodes" | awk -F '|' '/^[[:space:]]*[0-9]+[[:space:]]*\|/ {gsub(/[[:space:]]/, "", $1); print $1; exit}')
+    case "$dnode_id" in ''|*[!0-9]*) echo "Error: no ready DNODE for QNODE" >&2; return 1 ;; esac
+    # A concurrent bootstrap may have created it; the metadata check is authoritative.
+    qnode_cli -s "CREATE QNODE ON DNODE $dnode_id;" >/dev/null 2>&1 || :
+    output=$(qnode_cli -s 'SHOW QNODES;' 2>&1) || return 1
+    if ! printf '%s\n' "$output" | grep -Eq '(^|[^0-9])[1-9][0-9]* row\(s\)'; then
+        echo "Error: QNODE creation could not be verified" >&2
+        return 1
+    fi
+    echo "QNODE is available"
+}
+
+qnode_cli() {
+    taos -p"${TAOS_ROOT_PASSWORD}" -h "$FIRST_EP_HOST" -P "$FIRST_EP_PORT" "$@"
+}
+
 create_snode() {
     log_info "→ Creating snode on dnode 1..."
     set +e
@@ -631,6 +669,12 @@ start_taosd() {
 
 main() {
     init_env_vars
+    if [ -n "${TAOS_ORACLE_CLIENT:-}" ]; then
+        taos-fq-client --install-dir /usr/local oracle use "$TAOS_ORACLE_CLIENT"
+        # The image relocates private libraries into its loader-cache directory.
+        # Refresh only inside the image, after changing the selected aliases.
+        ldconfig
+    fi
     read_taosd_config
     core_dump_config
     detect_node_role
@@ -639,6 +683,8 @@ main() {
     support_custom_commands "$@"
     if [ "$DISABLE_TAOSD" = "0" ]; then
         start_taosd
+        wait_service_ready "$FIRST_EP_HOST" "$FIRST_EP_PORT" 120 "$TAOS_ROOT_PASSWORD" || exit 1
+        create_qnode_if_needed || exit 1
     fi
     start_components
     if [ -z "$PIDS" ]; then

@@ -21,6 +21,7 @@
 #include <array>
 #include <chrono>
 #include <condition_variable>
+#include <cstring>
 #include <functional>
 #include <future>
 #include <iostream>
@@ -54,10 +55,12 @@ namespace {
 
 std::string gInfluxPrecisionSql;
 std::string gCapturedConnTimezone;
+int32_t gInfluxQueryCalls = 0;
 
 int32_t captureInfluxPrecisionQuery(SExtConnectorHandle *, const SFederatedScanPhysiNode *,
                                     const char *timezoneName, const char *sql,
                                     SExtQueryHandle **query, SExtConnectorError *) {
+  ++gInfluxQueryCalls;
   gInfluxPrecisionSql = sql;
   gCapturedConnTimezone = (timezoneName != nullptr) ? timezoneName : "";
   *query = nullptr;
@@ -404,6 +407,279 @@ TEST(StreamReaderTest, InfluxDataBoundsUseReaderPrecisionInSingleAndBatchFetch) 
   tSimpleHashCleanup(reader.pUidIndex);
 }
 
+TEST(StreamReaderTest, InfluxBatcherSplitsWideUidQueriesBySqlCapacity) {
+  Stub stub;
+  stub.set(extConnectorExecQuery, captureInfluxPrecisionQuery);
+  stub.set(extConnectorFetchBlock, finishInfluxPrecisionQuery);
+  stub.set(extConnectorCloseQuery, closeInfluxPrecisionQuery);
+
+  SStreamTask task = {};
+  SStreamExtReaderInfo reader = {};
+  reader.pTask = &task;
+  reader.spec.sourceType = EXT_SOURCE_INFLUXDB;
+  reader.spec.precision = TSDB_TIME_PRECISION_NANO;
+  tstrncpy(reader.spec.extTable, "metrics", sizeof(reader.spec.extTable));
+  tstrncpy(reader.spec.tsColumn, "ts", sizeof(reader.spec.tsColumn));
+  reader.pUidIndex = tSimpleHashInit(64, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT));
+  ASSERT_NE(reader.pUidIndex, nullptr);
+
+  reader.spec.triggerColumns = taosArrayInit(51, TSDB_COL_NAME_LEN);
+  ASSERT_NE(reader.spec.triggerColumns, nullptr);
+  reader.spec.pColMappings =
+      static_cast<SExtColTypeMapping *>(taosMemoryCalloc(51, sizeof(SExtColTypeMapping)));
+  ASSERT_NE(reader.spec.pColMappings, nullptr);
+  reader.spec.numColMappings = 51;
+  for (int32_t i = 0; i < 51; ++i) {
+    char column[TSDB_COL_NAME_LEN] = {0};
+    if (i == 0) {
+      tstrncpy(column, "ts", sizeof(column));
+    } else {
+      snprintf(column, sizeof(column), "m%02d", i - 1);
+    }
+    ASSERT_NE(taosArrayPush(reader.spec.triggerColumns, column), nullptr);
+    tstrncpy(reader.spec.pColMappings[i].colName, column, sizeof(reader.spec.pColMappings[i].colName));
+    reader.spec.pColMappings[i].tdType.type =
+        i == 0 ? TSDB_DATA_TYPE_TIMESTAMP : TSDB_DATA_TYPE_DOUBLE;
+    reader.spec.pColMappings[i].tdType.bytes =
+        i == 0 ? sizeof(int64_t) : sizeof(double);
+    if (i == 0) {
+      reader.spec.pColMappings[i].tdType.precision = TSDB_TIME_PRECISION_NANO;
+    }
+  }
+
+  reader.pInfluxTagCols = taosArrayInit(1, TSDB_COL_NAME_LEN);
+  ASSERT_NE(reader.pInfluxTagCols, nullptr);
+  char tagColumn[TSDB_COL_NAME_LEN] = "host";
+  ASSERT_NE(taosArrayPush(reader.pInfluxTagCols, tagColumn), nullptr);
+
+  SSTriggerExtPullReq request = {};
+  request.pUidWindow = tSimpleHashInit(64, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT));
+  ASSERT_NE(request.pUidWindow, nullptr);
+  for (uint64_t uid = 1; uid <= 64; ++uid) {
+    SUidIndexEntry entry = {};
+    ASSERT_EQ(tSimpleHashPut(reader.pUidIndex, &uid, sizeof(uid), &entry, sizeof(entry)),
+              TSDB_CODE_SUCCESS);
+    SExtUidWindow window = {.skey = 1700000000000000000LL, .ekey = 1700000001000000000LL};
+    ASSERT_EQ(tSimpleHashPut(request.pUidWindow, &uid, sizeof(uid), &window, sizeof(window)),
+              TSDB_CODE_SUCCESS);
+  }
+
+  gInfluxQueryCalls = 0;
+  void *response = nullptr;
+  ASSERT_EQ(streamReaderExtHandlePull(&reader, STRIGGER_PULL_DATA_EXT, &request, &response),
+            TSDB_CODE_STREAM_NO_DATA);
+  EXPECT_GT(gInfluxQueryCalls, 1);
+  EXPECT_LT(gInfluxPrecisionSql.size(), 16384U);
+  streamExtPullRspFree(static_cast<SSTriggerExtPullRsp *>(response));
+
+  taosArrayDestroy(reader.pInfluxTagCols);
+  taosArrayDestroy(reader.spec.triggerColumns);
+  taosMemoryFree(reader.spec.pColMappings);
+  tSimpleHashCleanup(request.pUidWindow);
+  tSimpleHashCleanup(reader.pUidIndex);
+}
+
+bool gInfluxManyRowsPending = false;
+
+int32_t fetchInfluxManyRows(SExtQueryHandle *, const SExtColTypeMapping *, int32_t,
+                            SSDataBlock **block, SExtConnectorError *) {
+  *block = nullptr;
+  if (!gInfluxManyRowsPending) return TSDB_CODE_SUCCESS;
+  gInfluxManyRowsPending = false;
+  int32_t code = createDataBlock(block);
+  if (code != TSDB_CODE_SUCCESS) return code;
+  SColumnInfoData time = createColumnInfoData(TSDB_DATA_TYPE_TIMESTAMP, sizeof(int64_t), 0);
+  time.info.precision = TSDB_TIME_PRECISION_NANO;
+  SColumnInfoData tag =
+      createColumnInfoData(TSDB_DATA_TYPE_NCHAR, EXT_INFLUX_TAG_NCHAR_CHARS, 1);
+  code = blockDataAppendColInfo(*block, &time);
+  if (code == TSDB_CODE_SUCCESS) code = blockDataAppendColInfo(*block, &tag);
+  if (code == TSDB_CODE_SUCCESS) code = blockDataEnsureCapacity(*block, 100);
+  if (code != TSDB_CODE_SUCCESS) return code;
+  auto *timeColumn = static_cast<SColumnInfoData *>(taosArrayGet((*block)->pDataBlock, 0));
+  auto *tagColumn = static_cast<SColumnInfoData *>(taosArrayGet((*block)->pDataBlock, 1));
+  for (int32_t row = 0; row < 100; ++row) {
+    int64_t ts = 1700000000000000000LL + row;
+    code = colDataSetVal(timeColumn, row, reinterpret_cast<const char *>(&ts), false);
+    if (code != TSDB_CODE_SUCCESS) return code;
+    char tagValue[EXT_INFLUX_TAG_NCHAR_CHARS] = {0};
+    varDataSetLen(tagValue, TSDB_NCHAR_SIZE);
+    *reinterpret_cast<unsigned char *>(varDataVal(tagValue)) = 'a';
+    code = colDataSetVal(tagColumn, row, tagValue, false);
+    if (code != TSDB_CODE_SUCCESS) return code;
+  }
+  (*block)->info.rows = 100;
+  return TSDB_CODE_SUCCESS;
+}
+
+bool gInfluxSparseRowsPending = false;
+
+int32_t fetchInfluxSparseRows(SExtQueryHandle *, const SExtColTypeMapping *, int32_t,
+                              SSDataBlock **block, SExtConnectorError *) {
+  *block = nullptr;
+  if (!gInfluxSparseRowsPending) return TSDB_CODE_SUCCESS;
+  gInfluxSparseRowsPending = false;
+  int32_t code = createDataBlock(block);
+  if (code != TSDB_CODE_SUCCESS) return code;
+  SColumnInfoData time = createColumnInfoData(TSDB_DATA_TYPE_TIMESTAMP, sizeof(int64_t), 0);
+  time.info.precision = TSDB_TIME_PRECISION_NANO;
+  SColumnInfoData tag =
+      createColumnInfoData(TSDB_DATA_TYPE_NCHAR, EXT_INFLUX_TAG_NCHAR_CHARS, 1);
+  code = blockDataAppendColInfo(*block, &time);
+  if (code == TSDB_CODE_SUCCESS) code = blockDataAppendColInfo(*block, &tag);
+  if (code == TSDB_CODE_SUCCESS) code = blockDataEnsureCapacity(*block, 4);
+  if (code != TSDB_CODE_SUCCESS) return code;
+  auto *timeColumn = static_cast<SColumnInfoData *>(taosArrayGet((*block)->pDataBlock, 0));
+  auto *tagColumn = static_cast<SColumnInfoData *>(taosArrayGet((*block)->pDataBlock, 1));
+  for (int32_t row = 0; row < 4; ++row) {
+    int64_t ts = 1700000000000000000LL + row;
+    code = colDataSetVal(timeColumn, row, reinterpret_cast<const char *>(&ts), false);
+    if (code != TSDB_CODE_SUCCESS) return code;
+    char tagValue[EXT_INFLUX_TAG_NCHAR_CHARS] = {0};
+    varDataSetLen(tagValue, TSDB_NCHAR_SIZE);
+    *reinterpret_cast<unsigned char *>(varDataVal(tagValue)) =
+        static_cast<unsigned char>('a' + row);
+    code = colDataSetVal(tagColumn, row, tagValue, false);
+    if (code != TSDB_CODE_SUCCESS) return code;
+  }
+  (*block)->info.rows = 4;
+  return TSDB_CODE_SUCCESS;
+}
+
+TEST(StreamReaderTest, InfluxDemuxGrowsDestinationBlocksGeometrically) {
+  Stub stub;
+  stub.set(extConnectorExecQuery, captureInfluxPrecisionQuery);
+  stub.set(extConnectorFetchBlock, fetchInfluxManyRows);
+  stub.set(extConnectorCloseQuery, closeInfluxPrecisionQuery);
+
+  SStreamTask task = {};
+  SStreamExtReaderInfo reader = {};
+  reader.pTask = &task;
+  reader.spec.sourceType = EXT_SOURCE_INFLUXDB;
+  reader.spec.precision = TSDB_TIME_PRECISION_NANO;
+  tstrncpy(reader.spec.extTable, "metrics", sizeof(reader.spec.extTable));
+  tstrncpy(reader.spec.tsColumn, "ts", sizeof(reader.spec.tsColumn));
+  reader.pUidIndex = tSimpleHashInit(1, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT));
+  reader.pTagsetIndex = tSimpleHashInit(1, MurmurHash3_32);
+  ASSERT_NE(reader.pUidIndex, nullptr);
+  ASSERT_NE(reader.pTagsetIndex, nullptr);
+
+  SExtColTypeMapping mapping = {};
+  mapping.tdType.type = TSDB_DATA_TYPE_TIMESTAMP;
+  mapping.tdType.bytes = sizeof(int64_t);
+  mapping.tdType.precision = TSDB_TIME_PRECISION_NANO;
+  tstrncpy(mapping.colName, "ts", sizeof(mapping.colName));
+  reader.spec.pColMappings = &mapping;
+  reader.spec.numColMappings = 1;
+  reader.spec.triggerColumns = taosArrayInit(1, TSDB_COL_NAME_LEN);
+  ASSERT_NE(reader.spec.triggerColumns, nullptr);
+  char timestampColumn[TSDB_COL_NAME_LEN] = "ts";
+  ASSERT_NE(taosArrayPush(reader.spec.triggerColumns, timestampColumn), nullptr);
+  reader.pInfluxTagCols = taosArrayInit(1, TSDB_COL_NAME_LEN);
+  ASSERT_NE(reader.pInfluxTagCols, nullptr);
+  char tagColumn[TSDB_COL_NAME_LEN] = "host";
+  ASSERT_NE(taosArrayPush(reader.pInfluxTagCols, tagColumn), nullptr);
+
+  uint64_t uid = 42;
+  SUidIndexEntry entry = {};
+  ASSERT_EQ(tSimpleHashPut(reader.pUidIndex, &uid, sizeof(uid), &entry, sizeof(entry)),
+            TSDB_CODE_SUCCESS);
+  const char *tagKey = "host=a";
+  ASSERT_EQ(tSimpleHashPut(reader.pTagsetIndex, tagKey, (int32_t)strlen(tagKey), &uid, sizeof(uid)),
+            TSDB_CODE_SUCCESS);
+  SSTriggerExtPullReq request = {};
+  request.pUidWindow = tSimpleHashInit(1, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT));
+  ASSERT_NE(request.pUidWindow, nullptr);
+  SExtUidWindow window = {.skey = 1700000000000000000LL, .ekey = 1700000001000000000LL};
+  ASSERT_EQ(tSimpleHashPut(request.pUidWindow, &uid, sizeof(uid), &window, sizeof(window)),
+            TSDB_CODE_SUCCESS);
+
+  gInfluxManyRowsPending = true;
+  void *response = nullptr;
+  ASSERT_EQ(streamReaderExtHandlePull(&reader, STRIGGER_PULL_DATA_EXT, &request, &response),
+            TSDB_CODE_SUCCESS);
+  auto *rsp = static_cast<SSTriggerExtPullRsp *>(response);
+  ASSERT_NE(rsp, nullptr);
+  ASSERT_NE(rsp->pDataBlock, nullptr);
+  EXPECT_EQ(rsp->pDataBlock->info.rows, 100);
+  EXPECT_GT(rsp->pDataBlock->info.capacity, 100U);
+  streamExtPullRspFree(rsp);
+
+  taosArrayDestroy(reader.pInfluxTagCols);
+  taosArrayDestroy(reader.spec.triggerColumns);
+  tSimpleHashCleanup(request.pUidWindow);
+  tSimpleHashCleanup(reader.pTagsetIndex);
+  tSimpleHashCleanup(reader.pUidIndex);
+}
+
+TEST(StreamReaderTest, InfluxDemuxKeepsSparsePerUidCapacityBounded) {
+  Stub stub;
+  stub.set(extConnectorExecQuery, captureInfluxPrecisionQuery);
+  stub.set(extConnectorFetchBlock, fetchInfluxSparseRows);
+  stub.set(extConnectorCloseQuery, closeInfluxPrecisionQuery);
+
+  SStreamTask task = {};
+  SStreamExtReaderInfo reader = {};
+  reader.pTask = &task;
+  reader.spec.sourceType = EXT_SOURCE_INFLUXDB;
+  reader.spec.precision = TSDB_TIME_PRECISION_NANO;
+  tstrncpy(reader.spec.extTable, "metrics", sizeof(reader.spec.extTable));
+  tstrncpy(reader.spec.tsColumn, "ts", sizeof(reader.spec.tsColumn));
+  reader.pUidIndex = tSimpleHashInit(4, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT));
+  reader.pTagsetIndex = tSimpleHashInit(4, MurmurHash3_32);
+  ASSERT_NE(reader.pUidIndex, nullptr);
+  ASSERT_NE(reader.pTagsetIndex, nullptr);
+
+  SExtColTypeMapping mapping = {};
+  mapping.tdType.type = TSDB_DATA_TYPE_TIMESTAMP;
+  mapping.tdType.bytes = sizeof(int64_t);
+  mapping.tdType.precision = TSDB_TIME_PRECISION_NANO;
+  tstrncpy(mapping.colName, "ts", sizeof(mapping.colName));
+  reader.spec.pColMappings = &mapping;
+  reader.spec.numColMappings = 1;
+  reader.spec.triggerColumns = taosArrayInit(1, TSDB_COL_NAME_LEN);
+  ASSERT_NE(reader.spec.triggerColumns, nullptr);
+  char timestampColumn[TSDB_COL_NAME_LEN] = "ts";
+  ASSERT_NE(taosArrayPush(reader.spec.triggerColumns, timestampColumn), nullptr);
+  reader.pInfluxTagCols = taosArrayInit(1, TSDB_COL_NAME_LEN);
+  ASSERT_NE(reader.pInfluxTagCols, nullptr);
+  char tagColumn[TSDB_COL_NAME_LEN] = "host";
+  ASSERT_NE(taosArrayPush(reader.pInfluxTagCols, tagColumn), nullptr);
+
+  SSTriggerExtPullReq request = {};
+  request.pUidWindow = tSimpleHashInit(4, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT));
+  ASSERT_NE(request.pUidWindow, nullptr);
+  for (uint64_t uid = 1; uid <= 4; ++uid) {
+    SUidIndexEntry entry = {};
+    ASSERT_EQ(tSimpleHashPut(reader.pUidIndex, &uid, sizeof(uid), &entry, sizeof(entry)),
+              TSDB_CODE_SUCCESS);
+    SExtUidWindow window = {.skey = 1700000000000000000LL, .ekey = 1700000001000000000LL};
+    ASSERT_EQ(tSimpleHashPut(request.pUidWindow, &uid, sizeof(uid), &window, sizeof(window)),
+              TSDB_CODE_SUCCESS);
+    char tagKey[16] = {0};
+    snprintf(tagKey, sizeof(tagKey), "host=%c", static_cast<int>('a' + uid - 1));
+    ASSERT_EQ(tSimpleHashPut(reader.pTagsetIndex, tagKey, (int32_t)strlen(tagKey), &uid, sizeof(uid)),
+              TSDB_CODE_SUCCESS);
+  }
+
+  gInfluxSparseRowsPending = true;
+  void *response = nullptr;
+  ASSERT_EQ(streamReaderExtHandlePull(&reader, STRIGGER_PULL_DATA_EXT, &request, &response),
+            TSDB_CODE_SUCCESS);
+  auto *rsp = static_cast<SSTriggerExtPullRsp *>(response);
+  ASSERT_NE(rsp, nullptr);
+  ASSERT_NE(rsp->pDataBlock, nullptr);
+  EXPECT_EQ(rsp->pDataBlock->info.rows, 4);
+  EXPECT_EQ(rsp->pDataBlock->info.capacity, 4U);
+  streamExtPullRspFree(rsp);
+
+  taosArrayDestroy(reader.pInfluxTagCols);
+  taosArrayDestroy(reader.spec.triggerColumns);
+  tSimpleHashCleanup(request.pUidWindow);
+  tSimpleHashCleanup(reader.pTagsetIndex);
+  tSimpleHashCleanup(reader.pUidIndex);
+}
+
 TEST(StreamReaderTest, InfluxCalcBoundsCoverTruncatedNegativeAndZeroTicks) {
   Stub stub;
   stub.set(extConnectorExecQuery, captureInfluxPrecisionQuery);
@@ -516,6 +792,95 @@ TEST(StreamReaderTest, ExternalDeployDoesNotTraverseRemoteLogicalHintsAsPhysical
   }
 }
 
+SNode *gExternalTriggerFallbackPlan = nullptr;
+SNode *gExternalMismatchedCalcPlan = nullptr;
+
+int32_t cloneExternalReaderPlanByText(const char *plan, SNode **ppNode) {
+  if (strcmp(plan, "trigger-plan") == 0) {
+    return nodesCloneNode(gExternalTriggerFallbackPlan, ppNode);
+  }
+  if (strcmp(plan, "mismatched-calc-plan") == 0) {
+    return nodesCloneNode(gExternalMismatchedCalcPlan, ppNode);
+  }
+  return TSDB_CODE_INVALID_PARA;
+}
+
+void buildFederatedReaderPlan(SNode **ppNode, const char *sourceName, const char *colName) {
+  ASSERT_EQ(nodesMakeNode(QUERY_NODE_PHYSICAL_PLAN_FEDERATED_SCAN, ppNode), TSDB_CODE_SUCCESS);
+  auto *scan = reinterpret_cast<SFederatedScanPhysiNode *>(*ppNode);
+  ASSERT_EQ(nodesMakeNode(QUERY_NODE_EXTERNAL_TABLE, &scan->pExtTable), TSDB_CODE_SUCCESS);
+  auto *table = reinterpret_cast<SExtTableNode *>(scan->pExtTable);
+  tstrncpy(table->sourceName, sourceName, sizeof(table->sourceName));
+  tstrncpy(table->table.dbName, "metrics", sizeof(table->table.dbName));
+
+  SNode *column = nullptr;
+  ASSERT_EQ(nodesMakeNode(QUERY_NODE_COLUMN, &column), TSDB_CODE_SUCCESS);
+  auto *columnInfo = reinterpret_cast<SColumnNode *>(column);
+  tstrncpy(columnInfo->colName, colName, sizeof(columnInfo->colName));
+  columnInfo->node.resType.type = TSDB_DATA_TYPE_TIMESTAMP;
+  columnInfo->node.resType.bytes = sizeof(int64_t);
+  ASSERT_EQ(nodesListMakeAppend(&scan->pScanCols, column), TSDB_CODE_SUCCESS);
+}
+
+int32_t openExternalTriggerReaderForProjectionTest(void *, const SStreamTask *, SNode *range,
+                                                   const char *, int8_t, void **ppInfo) {
+  ++gExternalReaderOpenCalls;
+  nodesDestroyNode(range);
+  *ppInfo = new int(1);
+  return TSDB_CODE_SUCCESS;
+}
+
+void closeExternalTriggerReaderForProjectionTest(void *info) {
+  delete static_cast<int *>(info);
+}
+
+void finishExternalTriggerReaderProjectionUndeploy(void *) {}
+
+TEST(StreamReaderTest, ExternalTriggerFallsBackWhenCalcCachePlanDoesNotMatchSource) {
+  buildFederatedReaderPlan(&gExternalTriggerFallbackPlan, "remote", "ts");
+  buildFederatedReaderPlan(&gExternalMismatchedCalcPlan, "other", "other_ts");
+  ASSERT_NE(gExternalTriggerFallbackPlan, nullptr);
+  ASSERT_NE(gExternalMismatchedCalcPlan, nullptr);
+  std::unique_ptr<SNode, decltype(&nodesDestroyNode)> triggerPlan(
+      gExternalTriggerFallbackPlan, nodesDestroyNode);
+  std::unique_ptr<SNode, decltype(&nodesDestroyNode)> calcPlan(
+      gExternalMismatchedCalcPlan, nodesDestroyNode);
+
+  SStreamReaderTask task = {};
+  SStreamExtTriggerSpec spec = {};
+  tstrncpy(spec.sourceName, "remote", sizeof(spec.sourceName));
+  SStreamReaderDeployMsg message = {};
+  message.pExtSpec = &spec;
+  message.triggerReader = 1;
+  message.msg.trigger.triggerScanPlan = const_cast<char *>("trigger-plan");
+  message.msg.trigger.calcCacheScanPlan = const_cast<char *>("mismatched-calc-plan");
+
+  gExternalReaderOpenCalls = 0;
+  Stub stub;
+  stub.set(nodesStringToNode, cloneExternalReaderPlanByText);
+  stub.set(stExtReaderOpen, openExternalTriggerReaderForProjectionTest);
+  stub.set(stExtReaderClose, closeExternalTriggerReaderForProjectionTest);
+
+  EXPECT_EQ(stReaderTaskDeploy(&task, &message), TSDB_CODE_SUCCESS);
+  EXPECT_EQ(gExternalReaderOpenCalls, 1);
+  EXPECT_EQ(spec.numCalcMappings, 1);
+  ASSERT_NE(spec.calcColumns, nullptr);
+  ASSERT_EQ(taosArrayGetSize(spec.calcColumns), 1U);
+  EXPECT_STREQ(static_cast<const char *>(taosArrayGet(spec.calcColumns, 0)), "ts");
+
+  SStreamReaderTask *readerTask = &task;
+  task.task.undeployCb = finishExternalTriggerReaderProjectionUndeploy;
+  EXPECT_EQ(stReaderTaskUndeploy(&readerTask, true), TSDB_CODE_SUCCESS);
+  stub.reset(stExtReaderClose);
+  stub.reset(stExtReaderOpen);
+  stub.reset(nodesStringToNode);
+  streamTaskStatsHandleLifecycle(&task.pStats, STREAM_TASK_STATS_OWNER_DESTROYED);
+  taosArrayDestroy(spec.calcColumns);
+  taosMemoryFree(spec.pCalcMappings);
+  gExternalTriggerFallbackPlan = nullptr;
+  gExternalMismatchedCalcPlan = nullptr;
+}
+
 struct ExternalCalcReaderStub {
   SNode *range;
   std::string timezone;
@@ -607,6 +972,100 @@ TEST_F(ExternalCalcReaderDeployTest, PreservesCaseSensitiveTimestampColumnIdenti
     EXPECT_EQ(reader->timezone, "Asia/Shanghai");
     EXPECT_EQ(reader->tsTzClass, EXT_TIMESTAMP_TZ_CLASS_NAIVE);
   }
+}
+
+/* Oracle folds an unquoted reference to upper case, so one table can hold both
+ * TS and a quoted "ts".  The hints keep the catalog order, so a folding-first
+ * lookup took the class of TS (stored first) and rendered the naive primary
+ * column's fetch bounds in the aware column's UTC basis - the META/DATA windows
+ * then disagreed with the column the reader actually decodes.  The exact spelling
+ * has to win, as it does in DDL validation and in the prefilter. */
+TEST_F(ExternalCalcReaderDeployTest, ResolvesCaseSiblingTimestampHintByExactSpelling) {
+  auto *scan = reinterpret_cast<SFederatedScanPhysiNode *>(gExternalReaderPlan);
+  scan->sourceType = EXT_SOURCE_ORACLE;
+  tstrncpy(scan->timezone, "Asia/Shanghai", sizeof(scan->timezone));
+  tstrncpy(spec.tsColumn, "ts", sizeof(spec.tsColumn));
+  scan->pTimestampTypeHints = static_cast<SExtTimestampTypeHint *>(
+      taosMemoryCalloc(2, sizeof(SExtTimestampTypeHint)));
+  ASSERT_NE(scan->pTimestampTypeHints, nullptr);
+  scan->numTimestampTypeHints = 2;
+  tstrncpy(scan->pTimestampTypeHints[0].colName, "TS", TSDB_COL_NAME_LEN);
+  scan->pTimestampTypeHints[0].tzClass = EXT_TIMESTAMP_TZ_CLASS_AWARE;
+  tstrncpy(scan->pTimestampTypeHints[1].colName, "ts", TSDB_COL_NAME_LEN);
+  scan->pTimestampTypeHints[1].tzClass = EXT_TIMESTAMP_TZ_CLASS_NAIVE;
+  ASSERT_EQ(stReaderTaskDeploy(&task, &message), TSDB_CODE_SUCCESS);
+  auto *readers = static_cast<SArray *>(task.info);
+  for (int32_t i = 0; i < message.msg.calc.execReplica; ++i) {
+    auto *reader = static_cast<ExternalCalcReaderStub *>(taosArrayGetP(readers, i));
+    EXPECT_EQ(reader->tsTzClass, EXT_TIMESTAMP_TZ_CLASS_NAIVE);
+  }
+}
+
+/* The CALC reader overrides its table identity with the name carried in the
+ * deploy message.  MySQL reports the raw INFORMATION_SCHEMA name there, which may
+ * legitimately contain literal double quotes - a table named "metrics" is
+ * created with backticks around the whole name - and every source now keeps the
+ * spelling verbatim: stripping those quotes would silently address another
+ * table (or fail with "not found"), because the reader re-quotes whatever the
+ * spec holds. */
+TEST_F(ExternalCalcReaderDeployTest, KeepsMysqlCalcTableSpellingVerbatim) {
+  spec.sourceType = EXT_SOURCE_MYSQL;
+  tstrncpy(message.msg.calc.extTable, "\"metrics\"", sizeof(message.msg.calc.extTable));
+  ASSERT_EQ(stReaderTaskDeploy(&task, &message), TSDB_CODE_SUCCESS);
+  EXPECT_STREQ(spec.extTable, "\"metrics\"");
+}
+
+/* The deploy message carries the exact remote spelling resolved by the parser;
+ * Oracle is no longer special-cased and a literal double quote that is part of
+ * the name must survive verbatim - the renderer doubles it when it quotes the
+ * identifier. */
+TEST_F(ExternalCalcReaderDeployTest, KeepsOracleCalcTableSpellingVerbatim) {
+  spec.sourceType = EXT_SOURCE_ORACLE;
+  tstrncpy(message.msg.calc.extTable, "a\"b", sizeof(message.msg.calc.extTable));
+  ASSERT_EQ(stReaderTaskDeploy(&task, &message), TSDB_CODE_SUCCESS);
+  EXPECT_STREQ(spec.extTable, "a\"b");
+}
+
+/* The calc column mappings must keep the SOURCE transport precision carried by
+ * the plan, which is independent of the output precision the stream normalizes
+ * to.  Dropping it made the Oracle connector decode a TIMESTAMP(7..9) column at
+ * microseconds; normalizing that to nanoseconds afterwards only pads zeros, so
+ * the projected timestamp is wrong and rows inside one microsecond collide. */
+TEST_F(ExternalCalcReaderDeployTest, CarriesPlanSourceTimestampPrecisionIntoCalcMappings) {
+  auto *scan = reinterpret_cast<SFederatedScanPhysiNode *>(gExternalReaderPlan);
+  nodesDestroyList(scan->pScanCols);
+  scan->pScanCols = nullptr;
+
+  SNode *column = nullptr;
+  ASSERT_EQ(nodesMakeNode(QUERY_NODE_COLUMN, &column), TSDB_CODE_SUCCESS);
+  auto *col = reinterpret_cast<SColumnNode *>(column);
+  tstrncpy(col->colName, "ts", sizeof(col->colName));
+  col->node.resType.type = TSDB_DATA_TYPE_TIMESTAMP;
+  col->node.resType.bytes = sizeof(int64_t);
+  col->node.resType.precision = TSDB_TIME_PRECISION_NANO;
+  ASSERT_EQ(nodesListMakeAppend(&scan->pScanCols, column), TSDB_CODE_SUCCESS);
+
+  scan->pColTypeMappings =
+      static_cast<SExtColTypeMapping *>(taosMemoryCalloc(1, sizeof(SExtColTypeMapping)));
+  ASSERT_NE(scan->pColTypeMappings, nullptr);
+  scan->numColTypeMappings = 1;
+  scan->pColTypeMappings[0].tdType.type = TSDB_DATA_TYPE_TIMESTAMP;
+  scan->pColTypeMappings[0].tdType.bytes = sizeof(int64_t);
+  scan->pColTypeMappings[0].tdType.precision = TSDB_TIME_PRECISION_NANO;
+  // The scanned table holds a TIMESTAMP(9) column while the trigger table (and
+  // therefore the spec) works at microseconds, so only the plan knows the
+  // source precision.
+  scan->pColTypeMappings[0].tsPrecision = TSDB_TIME_PRECISION_NANO;
+  tstrncpy(scan->pColTypeMappings[0].colName, "ts", sizeof(scan->pColTypeMappings[0].colName));
+  spec.precision = TSDB_TIME_PRECISION_MICRO;
+  tstrncpy(spec.tsColumn, "ts", sizeof(spec.tsColumn));
+
+  ASSERT_EQ(stReaderTaskDeploy(&task, &message), TSDB_CODE_SUCCESS);
+  ASSERT_EQ(spec.numCalcMappings, 1);
+  EXPECT_EQ(static_cast<int>(spec.pCalcMappings[0].tsPrecision),
+            static_cast<int>(TSDB_TIME_PRECISION_NANO));
+  EXPECT_EQ(static_cast<int>(spec.pCalcMappings[0].tdType.precision),
+            static_cast<int>(TSDB_TIME_PRECISION_MICRO));
 }
 
 TEST_F(ExternalCalcReaderDeployTest, CreatesIndependentReplicasAndClosesAll) {
@@ -764,6 +1223,61 @@ TEST_F(ExternalTriggerReaderDeployTest, ClassifiesZeroScaleDatetimeoffsetFromRem
   EXPECT_EQ(reader->tsTzClass, EXT_TIMESTAMP_TZ_CLASS_AWARE);
 }
 
+/* A mapping that leaves tsPrecision at 0 is decoded by the provider as
+ * microseconds (DS 5.3.7), so every timestamp column of the directly referenced
+ * trigger table has to carry the table's transport precision - not only the one
+ * the trigger windows on.  Only filling the window column made an Oracle
+ * TIMESTAMP(7..9) side column lose its last three digits at fetch time, and the
+ * later normalization to the stream precision can only pad zeros. */
+TEST_F(ExternalTriggerReaderDeployTest, FillsSourceTimestampPrecisionForEveryTimestampColumn) {
+  spec.sourceType = EXT_SOURCE_ORACLE;
+  // Nanoseconds: an Oracle table holding any TIMESTAMP(7..9) column transports
+  // its timestamps at nanosecond precision.
+  spec.precision = TSDB_TIME_PRECISION_NANO;
+  // This builder only runs when mnode did not pre-fill the mappings, which is the
+  // directly referenced external table (a virtual table ships its spec from
+  // mnode instead).
+  taosArrayDestroy(spec.triggerColumns);
+  spec.triggerColumns = nullptr;
+  taosMemoryFree(spec.pColMappings);
+  spec.pColMappings = nullptr;
+  spec.numColMappings = 0;
+
+  static const char *kTriggerCols[] = {"ts", "event_ts"};
+  SNodeList *triggerCols = nullptr;
+  for (const char *name : kTriggerCols) {
+    SNode *node = nullptr;
+    ASSERT_EQ(nodesMakeNode(QUERY_NODE_COLUMN, &node), TSDB_CODE_SUCCESS);
+    auto *column = reinterpret_cast<SColumnNode *>(node);
+    tstrncpy(column->colName, name, sizeof(column->colName));
+    column->node.resType.type = TSDB_DATA_TYPE_TIMESTAMP;
+    column->node.resType.bytes = sizeof(int64_t);
+    column->node.resType.precision = TSDB_TIME_PRECISION_NANO;
+    ASSERT_EQ(nodesListMakeAppend(&triggerCols, node), TSDB_CODE_SUCCESS);
+  }
+  char   *serialized = nullptr;
+  int32_t serializedLen = 0;
+  ASSERT_EQ(nodesListToString(triggerCols, false, &serialized, &serializedLen), TSDB_CODE_SUCCESS);
+  message.msg.trigger.triggerCols = serialized;
+
+  ASSERT_EQ(stReaderTaskDeploy(&task, &message), TSDB_CODE_SUCCESS);
+  ASSERT_EQ(spec.numColMappings, 2);
+  EXPECT_STREQ(static_cast<const char *>(taosArrayGet(spec.triggerColumns, 0)), "ts");
+  EXPECT_STREQ(static_cast<const char *>(taosArrayGet(spec.triggerColumns, 1)), "event_ts");
+  for (int32_t i = 0; i < spec.numColMappings; ++i) {
+    EXPECT_EQ(static_cast<int>(TSDB_DATA_TYPE_TIMESTAMP),
+              static_cast<int>(spec.pColMappings[i].tdType.type))
+        << "column " << i;
+    EXPECT_EQ(static_cast<int>(TSDB_TIME_PRECISION_NANO),
+              static_cast<int>(spec.pColMappings[i].tsPrecision))
+        << "column " << i;
+  }
+
+  nodesDestroyList(triggerCols);
+  taosMemoryFree(serialized);
+  message.msg.trigger.triggerCols = nullptr;
+}
+
 TEST(StreamReaderTest, FoldsExternalColumnNamesPerSourceSemantics) {
   // MySQL and SQL Server resolve unquoted identifiers case-insensitively, so a
   // reference written in a different case still binds to the stored column;
@@ -773,10 +1287,52 @@ TEST(StreamReaderTest, FoldsExternalColumnNamesPerSourceSemantics) {
   EXPECT_FALSE(extColumnNameEqual(EXT_SOURCE_POSTGRESQL, "Ts", "ts"));
   EXPECT_FALSE(extColumnNameEqual(EXT_SOURCE_INFLUXDB, "Ts", "ts"));
   EXPECT_TRUE(extColumnNameEqual(EXT_SOURCE_POSTGRESQL, "ts", "ts"));
+  // Oracle matches the resolved spelling literally: TDengine lower-cases an
+  // unquoted identifier and keeps a backticked one verbatim, so the catalog
+  // name must match those bytes exactly.
+  EXPECT_FALSE(extColumnNameEqual(EXT_SOURCE_ORACLE, "VAL", "val"));
+  EXPECT_TRUE(extColumnNameEqual(EXT_SOURCE_ORACLE, "VAL", "VAL"));
+  EXPECT_FALSE(extColumnNameEqual(EXT_SOURCE_ORACLE, "VAL", "Val"));
+  EXPECT_TRUE(extColumnNameEqualReference(EXT_SOURCE_ORACLE, "val", "val"));
+  EXPECT_FALSE(extColumnNameEqualReference(EXT_SOURCE_ORACLE, "VAL", "val"));
+  EXPECT_TRUE(extColumnNameEqualReference(EXT_SOURCE_ORACLE, "VAL", "VAL"));
+  EXPECT_FALSE(extColumnNameEqualReference(EXT_SOURCE_ORACLE, "val", "\"val\""));
+  std::string longTable(80, 'a');
+  longTable.back() = 'b';
+  EXPECT_TRUE(extColumnNameEqualReference(EXT_SOURCE_ORACLE, longTable.c_str(), longTable.c_str()));
   // The helper stays total for optional metadata: a NULL name never matches a
   // real one, and two NULLs compare equal.
   EXPECT_FALSE(extColumnNameEqual(EXT_SOURCE_MYSQL, "ts", nullptr));
   EXPECT_TRUE(extColumnNameEqual(EXT_SOURCE_MYSQL, nullptr, nullptr));
+}
+
+/* The connector reports the exact spelling, which must be kept byte for byte
+ * (the stream reader adds its own quoting when it renders the reference).  A
+ * name that does not fit is truncated rather than overrunning the destination,
+ * and the result is always NUL-terminated. */
+TEST(StreamReaderTest, CopiesRemoteTableSpellingWithinCapacity) {
+  char out[16] = {0};
+  extCopyRemoteTableSpelling("same_a", out, sizeof(out));
+  EXPECT_STREQ("same_a", out);
+
+  extCopyRemoteTableSpelling("sa\"me", out, sizeof(out));
+  EXPECT_STREQ("sa\"me", out);
+
+  char tight[4] = {0};
+  extCopyRemoteTableSpelling("sa\"me", tight, sizeof(tight));
+  EXPECT_STREQ("sa\"", tight);
+
+  std::string longIn(199, 'a');
+  char        small[8] = {0};
+  extCopyRemoteTableSpelling(longIn.c_str(), small, sizeof(small));
+  EXPECT_EQ(std::string(7, 'a'), std::string(small));
+
+  char one[1] = {'x'};
+  extCopyRemoteTableSpelling("abc", one, sizeof(one));
+  EXPECT_EQ('\0', one[0]);
+
+  extCopyRemoteTableSpelling(nullptr, out, sizeof(out));
+  EXPECT_STREQ("", out);
 }
 
 SSDataBlock *makeReaderFetchDataBlock(uint64_t baseGId, int32_t value) {
@@ -2648,4 +3204,309 @@ TEST(StreamReaderDimensionBatchTest, BindsAllWindowsAndClearsBorrowerBeforeOwner
   EXPECT_FALSE(batch.installed);
   stReaderClearDimensionBatch(&calc);
   EXPECT_EQ(1, dimensionOwnerDestroyCalls);
+}
+
+namespace {
+
+// One-column (INT) block used by the vc_cols cache tests.
+SSDataBlock *makeVcColsTestBlock(int32_t rows, int32_t firstValue) {
+  SSDataBlock *pBlock = nullptr;
+  if (createDataBlock(&pBlock) != TSDB_CODE_SUCCESS) return nullptr;
+  SColumnInfoData column = createColumnInfoData(TSDB_DATA_TYPE_INT, sizeof(int32_t), 1);
+  if (blockDataAppendColInfo(pBlock, &column) != TSDB_CODE_SUCCESS ||
+      blockDataEnsureCapacity(pBlock, rows) != TSDB_CODE_SUCCESS) {
+    blockDataDestroy(pBlock);
+    return nullptr;
+  }
+  SColumnInfoData *pCol = static_cast<SColumnInfoData *>(taosArrayGet(pBlock->pDataBlock, 0));
+  for (int32_t row = 0; row < rows; ++row) {
+    int32_t value = firstValue + row;
+    if (colDataSetVal(pCol, row, reinterpret_cast<const char *>(&value), false) != TSDB_CODE_SUCCESS) {
+      blockDataDestroy(pBlock);
+      return nullptr;
+    }
+  }
+  pBlock->info.rows = rows;
+  return pBlock;
+}
+
+void freeVcColsTestBlocks(SArray *pBlocks) {
+  if (pBlocks == nullptr) return;
+  for (int32_t i = 0; i < taosArrayGetSize(pBlocks); ++i) {
+    blockDataDestroy(*static_cast<SSDataBlock **>(taosArrayGet(pBlocks, i)));
+  }
+  taosArrayDestroy(pBlocks);
+}
+
+// Reserve `bytes` and install a one-block accumulator, mirroring the operator path.
+bool installVcColsTestBlocks(SStreamVcColsCache *pCache, int32_t numOfBlocks) {
+  SArray *pBlocks = taosArrayInit(numOfBlocks, POINTER_BYTES);
+  if (pBlocks == nullptr) return false;
+  int64_t bytes = 0;
+  for (int32_t i = 0; i < numOfBlocks; ++i) {
+    SSDataBlock *pCopy = nullptr;
+    SSDataBlock *pSrc = makeVcColsTestBlock(2, 10 * (i + 1));
+    if (pSrc == nullptr) {
+      freeVcColsTestBlocks(pBlocks);
+      return false;
+    }
+    int64_t blockBytes = static_cast<int64_t>(blockDataGetMemorySize(pSrc));
+    if (!stStreamVcColsCacheTryReserve(blockBytes)) {
+      blockDataDestroy(pSrc);
+      freeVcColsTestBlocks(pBlocks);
+      return false;
+    }
+    int32_t code = createOneDataBlock(pSrc, true, &pCopy);
+    blockDataDestroy(pSrc);
+    if (code != TSDB_CODE_SUCCESS || pCopy == nullptr || taosArrayPush(pBlocks, &pCopy) == nullptr) {
+      blockDataDestroy(pCopy);
+      stStreamVcColsCacheRelease(blockBytes);
+      freeVcColsTestBlocks(pBlocks);
+      return false;
+    }
+    bytes += blockBytes;
+  }
+  uint64_t generation = stStreamVcColsCacheGetGeneration(pCache);
+  stStreamVcColsCacheCommit(pCache, pBlocks, generation, bytes);
+  return true;
+}
+
+}  // namespace
+
+TEST(StreamVcColsCacheTest, SharesOneEntryPerVnodeSuidAndFingerprint) {
+  int64_t savedSize = tsStreamVcColsCacheSize;
+  tsStreamVcColsCacheSize = 2LL * 1024 * 1024 * 1024;
+
+  const uint64_t fp[2] = {0x123456789abcdef0ULL, 0x0fedcba987654321ULL};
+  const uint64_t fp2[2] = {0xaaaaaaaaaaaaaaaaULL, 0xbbbbbbbbbbbbbbbbULL};
+
+  // Same (vgId, suid, fingerprint) reuses one entry.
+  SStreamVcColsCache *pFirst = stStreamVcColsCacheAcquire(101, 1001, fp, 1);
+  ASSERT_NE(pFirst, nullptr);
+  SStreamVcColsCache *pSecond = stStreamVcColsCacheAcquire(101, 1001, fp, 1);
+  EXPECT_EQ(pFirst, pSecond);
+  stStreamVcColsCacheUnref(pSecond);
+
+  // A different suid under the same vnode gets a different entry.
+  SStreamVcColsCache *pOtherKey = stStreamVcColsCacheAcquire(101, 1002, fp, 1);
+  ASSERT_NE(pOtherKey, nullptr);
+  EXPECT_NE(pOtherKey, pFirst);
+  stStreamVcColsCacheUnref(pOtherKey);
+
+  // A different tag-filter fingerprint under the same suid gets a different entry.
+  SStreamVcColsCache *pOtherFp = stStreamVcColsCacheAcquire(101, 1001, fp2, 1);
+  ASSERT_NE(pOtherFp, nullptr);
+  EXPECT_NE(pOtherFp, pFirst);
+  stStreamVcColsCacheUnref(pOtherFp);
+
+  // A stale vtableGen drops the entry (and any others for this vgId) and
+  // recreates an empty one under the new generation. The old object survives
+  // only via this test's own reference until it is released below.
+  ASSERT_TRUE(installVcColsTestBlocks(pFirst, 1));
+  EXPECT_TRUE(stStreamVcColsCacheIsValid(pFirst));
+  SStreamVcColsCache *pStale = stStreamVcColsCacheAcquire(101, 1001, fp, 2);
+  ASSERT_NE(pStale, nullptr);
+  EXPECT_NE(pStale, pFirst);
+  EXPECT_FALSE(stStreamVcColsCacheIsValid(pStale));
+  stStreamVcColsCacheUnref(pStale);
+
+  stStreamVcColsCacheUnref(pFirst);
+
+  // 0 disables the cache completely.
+  tsStreamVcColsCacheSize = 0;
+  EXPECT_EQ(stStreamVcColsCacheAcquire(101, 1003, fp, 1), nullptr);
+
+  tsStreamVcColsCacheSize = savedSize;
+}
+
+TEST(StreamVcColsCacheTest, ServesInstalledBlocksAndReportsEof) {
+  int64_t savedSize = tsStreamVcColsCacheSize;
+  tsStreamVcColsCacheSize = 2LL * 1024 * 1024 * 1024;
+  int64_t baseBytes = stStreamVcColsCacheGetTotalBytes();
+  const uint64_t fp[2] = {0x1111111111111111ULL, 0x2222222222222222ULL};
+
+  SStreamVcColsCache *pCache = stStreamVcColsCacheAcquire(102, 2001, fp, 1);
+  ASSERT_NE(pCache, nullptr);
+  EXPECT_FALSE(stStreamVcColsCacheIsValid(pCache));
+  ASSERT_TRUE(installVcColsTestBlocks(pCache, 2));
+  EXPECT_TRUE(stStreamVcColsCacheIsValid(pCache));
+  EXPECT_GT(stStreamVcColsCacheGetTotalBytes(), baseBytes);
+
+  SSDataBlock *pDst = makeVcColsTestBlock(0, 0);
+  ASSERT_NE(pDst, nullptr);
+  uint64_t generation = 0;
+  bool finished = false;
+  ASSERT_EQ(TSDB_CODE_SUCCESS, stStreamVcColsCacheReadBlock(pCache, 0, pDst, &generation, &finished));
+  EXPECT_FALSE(finished);
+  EXPECT_EQ(2, pDst->info.rows);
+  SColumnInfoData *pCol = static_cast<SColumnInfoData *>(taosArrayGet(pDst->pDataBlock, 0));
+  int32_t *pValue = reinterpret_cast<int32_t *>(colDataGetData(pCol, 0));
+  ASSERT_NE(pValue, nullptr);
+  EXPECT_EQ(10, *pValue);
+  ASSERT_EQ(TSDB_CODE_SUCCESS, stStreamVcColsCacheReadBlock(pCache, 1, pDst, &generation, &finished));
+  EXPECT_FALSE(finished);
+  pValue = reinterpret_cast<int32_t *>(colDataGetData(pCol, 0));
+  ASSERT_NE(pValue, nullptr);
+  EXPECT_EQ(20, *pValue);
+  ASSERT_EQ(TSDB_CODE_SUCCESS, stStreamVcColsCacheReadBlock(pCache, 2, pDst, &generation, &finished));
+  EXPECT_TRUE(finished);
+
+  // A different destination schema cannot be served from this cache.
+  SSDataBlock *pOther = nullptr;
+  ASSERT_EQ(TSDB_CODE_SUCCESS, createDataBlock(&pOther));
+  SColumnInfoData tsColumn = createColumnInfoData(TSDB_DATA_TYPE_TIMESTAMP, sizeof(int64_t), 1);
+  ASSERT_EQ(TSDB_CODE_SUCCESS, blockDataAppendColInfo(pOther, &tsColumn));
+  uint64_t otherGeneration = 0;
+  EXPECT_EQ(TSDB_CODE_NOT_FOUND,
+            stStreamVcColsCacheReadBlock(pCache, 0, pOther, &otherGeneration, &finished));
+
+  // A second committer is discarded and its reservation released.
+  int64_t bytesBeforeSecondCommit = stStreamVcColsCacheGetTotalBytes();
+  SArray *pLosing = taosArrayInit(1, POINTER_BYTES);
+  ASSERT_NE(pLosing, nullptr);
+  SSDataBlock *pLosingBlock = makeVcColsTestBlock(1, 99);
+  ASSERT_NE(pLosingBlock, nullptr);
+  int64_t losingBytes = static_cast<int64_t>(blockDataGetMemorySize(pLosingBlock));
+  ASSERT_TRUE(stStreamVcColsCacheTryReserve(losingBytes));
+  ASSERT_NE(nullptr, taosArrayPush(pLosing, &pLosingBlock));
+  stStreamVcColsCacheCommit(pCache, pLosing, stStreamVcColsCacheGetGeneration(pCache), losingBytes);
+  EXPECT_EQ(bytesBeforeSecondCommit, stStreamVcColsCacheGetTotalBytes());
+
+  stStreamVcColsCacheClear(pCache);
+  EXPECT_FALSE(stStreamVcColsCacheIsValid(pCache));
+  EXPECT_EQ(baseBytes, stStreamVcColsCacheGetTotalBytes());
+  uint64_t clearedGeneration = 0;
+  EXPECT_EQ(TSDB_CODE_NOT_FOUND,
+            stStreamVcColsCacheReadBlock(pCache, 0, pDst, &clearedGeneration, &finished));
+
+  // Clearing returns the installed blocks to the budget; the empty shell stays.
+  ASSERT_TRUE(installVcColsTestBlocks(pCache, 1));
+  EXPECT_GT(stStreamVcColsCacheGetTotalBytes(), baseBytes);
+  stStreamVcColsCacheClear(pCache);
+  EXPECT_EQ(baseBytes, stStreamVcColsCacheGetTotalBytes());
+  stStreamVcColsCacheUnref(pCache);
+  pCache = nullptr;
+
+  blockDataDestroy(pDst);
+  blockDataDestroy(pOther);
+  tsStreamVcColsCacheSize = savedSize;
+}
+
+TEST(StreamVcColsCacheTest, CachesEmptyResultAsEof) {
+  int64_t savedSize = tsStreamVcColsCacheSize;
+  tsStreamVcColsCacheSize = 2LL * 1024 * 1024 * 1024;
+  const uint64_t fp[2] = {0x9999999999999999ULL, 0xaaaaaaaaaaaaaaaaULL};
+
+  SStreamVcColsCache *pCache = stStreamVcColsCacheAcquire(106, 6001, fp, 1);
+  ASSERT_NE(pCache, nullptr);
+  SArray *pEmpty = taosArrayInit(1, POINTER_BYTES);
+  ASSERT_NE(pEmpty, nullptr);
+  stStreamVcColsCacheCommit(pCache, pEmpty, stStreamVcColsCacheGetGeneration(pCache), 0);
+  EXPECT_TRUE(stStreamVcColsCacheIsValid(pCache));
+
+  SSDataBlock *pDst = makeVcColsTestBlock(0, 0);
+  ASSERT_NE(pDst, nullptr);
+  uint64_t generation = 0;
+  bool finished = false;
+  EXPECT_EQ(TSDB_CODE_SUCCESS, stStreamVcColsCacheReadBlock(pCache, 0, pDst, &generation, &finished));
+  EXPECT_TRUE(finished);
+
+  blockDataDestroy(pDst);
+  stStreamVcColsCacheUnref(pCache);
+  tsStreamVcColsCacheSize = savedSize;
+}
+
+TEST(StreamVcColsCacheTest, ClearRejectsPinnedServeRoundAndStaleCommit) {
+  int64_t savedSize = tsStreamVcColsCacheSize;
+  tsStreamVcColsCacheSize = 2LL * 1024 * 1024 * 1024;
+  int64_t baseBytes = stStreamVcColsCacheGetTotalBytes();
+  const uint64_t fp[2] = {0x3333333333333333ULL, 0x4444444444444444ULL};
+
+  SStreamVcColsCache *pCache = stStreamVcColsCacheAcquire(103, 3001, fp, 1);
+  ASSERT_NE(pCache, nullptr);
+  ASSERT_TRUE(installVcColsTestBlocks(pCache, 2));
+
+  SSDataBlock *pDst = makeVcColsTestBlock(0, 0);
+  ASSERT_NE(pDst, nullptr);
+  uint64_t pinnedGeneration = 0;
+  bool finished = false;
+  ASSERT_EQ(TSDB_CODE_SUCCESS, stStreamVcColsCacheReadBlock(pCache, 0, pDst, &pinnedGeneration, &finished));
+
+  // Invalidate mid-serve: the pinned round must not silently continue.
+  stStreamVcColsCacheClear(pCache);
+  EXPECT_EQ(TSDB_CODE_STREAM_INTERNAL_ERROR,
+            stStreamVcColsCacheReadBlock(pCache, 1, pDst, &pinnedGeneration, &finished));
+
+  // A scan that started before the invalidation must not reinstall its result.
+  SArray *pStale = taosArrayInit(1, POINTER_BYTES);
+  ASSERT_NE(pStale, nullptr);
+  SSDataBlock *pStaleBlock = makeVcColsTestBlock(1, 7);
+  ASSERT_NE(pStaleBlock, nullptr);
+  int64_t staleBytes = static_cast<int64_t>(blockDataGetMemorySize(pStaleBlock));
+  ASSERT_TRUE(stStreamVcColsCacheTryReserve(staleBytes));
+  ASSERT_NE(nullptr, taosArrayPush(pStale, &pStaleBlock));
+  stStreamVcColsCacheCommit(pCache, pStale, pinnedGeneration, staleBytes);
+  EXPECT_FALSE(stStreamVcColsCacheIsValid(pCache));
+  EXPECT_EQ(baseBytes, stStreamVcColsCacheGetTotalBytes());
+
+  blockDataDestroy(pDst);
+  stStreamVcColsCacheUnref(pCache);
+  tsStreamVcColsCacheSize = savedSize;
+}
+
+TEST(StreamVcColsCacheTest, BudgetBoundsInstalledAndInFlightBytes) {
+  int64_t savedSize = tsStreamVcColsCacheSize;
+  int64_t baseBytes = stStreamVcColsCacheGetTotalBytes();
+  const uint64_t fp[2] = {0x5555555555555555ULL, 0x6666666666666666ULL};
+  SStreamVcColsCache *pCache = stStreamVcColsCacheAcquire(104, 4001, fp, 1);
+  ASSERT_NE(pCache, nullptr);
+
+  // A budget smaller than one block rejects the build reservation.
+  tsStreamVcColsCacheSize = baseBytes + 16;
+  EXPECT_FALSE(stStreamVcColsCacheTryReserve(64));
+  EXPECT_EQ(baseBytes, stStreamVcColsCacheGetTotalBytes());
+  EXPECT_TRUE(stStreamVcColsCacheTryReserve(16));
+  EXPECT_EQ(baseBytes + 16, stStreamVcColsCacheGetTotalBytes());
+  stStreamVcColsCacheRelease(16);
+  EXPECT_EQ(baseBytes, stStreamVcColsCacheGetTotalBytes());
+
+  // 0 disables reservation entirely.
+  tsStreamVcColsCacheSize = 0;
+  EXPECT_FALSE(stStreamVcColsCacheTryReserve(16));
+  EXPECT_EQ(baseBytes, stStreamVcColsCacheGetTotalBytes());
+
+  stStreamVcColsCacheUnref(pCache);
+  tsStreamVcColsCacheSize = savedSize;
+}
+
+TEST(StreamVcColsCacheTest, MasterSwitchDisablesCaching) {
+  int64_t savedSize = tsStreamVcColsCacheSize;
+  bool    savedSwitch = tsStreamVcColsCache;
+  tsStreamVcColsCacheSize = 2LL * 1024 * 1024 * 1024;
+  const uint64_t fp[2] = {0x7777777777777777ULL, 0x8888888888888888ULL};
+
+  // Disabling the master switch turns off acquire/reserve and releases blocks
+  // already installed in the registry.
+  SStreamVcColsCache *pInstalled = stStreamVcColsCacheAcquire(105, 5000, fp, 1);
+  ASSERT_NE(pInstalled, nullptr);
+  ASSERT_TRUE(installVcColsTestBlocks(pInstalled, 1));
+  EXPECT_GT(stStreamVcColsCacheGetTotalBytes(), 0);
+  tsStreamVcColsCache = false;
+  EXPECT_EQ(stStreamVcColsCacheAcquire(105, 5001, fp, 1), nullptr);
+  EXPECT_FALSE(stStreamVcColsCacheTryReserve(64));
+  EXPECT_EQ(0, stStreamVcColsCacheGetTotalBytes());
+  stStreamVcColsCacheUnref(pInstalled);
+
+  // Re-enabling restores caching.
+  tsStreamVcColsCache = true;
+  SStreamVcColsCache *pCache = stStreamVcColsCacheAcquire(105, 5001, fp, 1);
+  ASSERT_NE(pCache, nullptr);
+  ASSERT_TRUE(installVcColsTestBlocks(pCache, 1));
+  tsStreamVcColsCacheSize = 0;
+  EXPECT_EQ(stStreamVcColsCacheAcquire(105, 5002, fp, 1), nullptr);
+  EXPECT_EQ(0, stStreamVcColsCacheGetTotalBytes());
+  stStreamVcColsCacheUnref(pCache);
+
+  tsStreamVcColsCache = savedSwitch;
+  tsStreamVcColsCacheSize = savedSize;
 }

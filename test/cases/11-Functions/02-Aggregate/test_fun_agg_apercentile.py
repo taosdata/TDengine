@@ -356,6 +356,113 @@ class TestFunApercentile:
         print("do apercentile negative histogram ...... [passed]\n")
 
     #
+    # ------------------ t-digest accuracy ------------------
+    #
+
+    # t-digest is input-order sensitive. With COMPRESSION=300 the engine keeps
+    # about 475 centroids; one centroid spans pi*sqrt(q*(1-q))/475 of the rank,
+    # i.e. < 0.33% at q=0.69. One percentile point covers the multiple merge
+    # stages while still catching a real accuracy regression.
+    TDIGEST_RANK_TOLERANCE = 0.01
+
+    @staticmethod
+    def exact_rank(sorted_values, value):
+        """Return the exact percentile rank of value in sorted_values."""
+        total = len(sorted_values)
+        if total <= 1:
+            return 0.5
+        below = int(np.searchsorted(sorted_values, value, side="left"))
+        above = int(np.searchsorted(sorted_values, value, side="right"))
+        equal = above - below
+        return (below + max(equal - 1, 0) / 2.0) / (total - 1)
+
+    def check_tdigest_rank(self, sorted_values, value, percent, label):
+        """Assert a t-digest result locates the requested percentile by rank.
+
+        Raw values from different input orders are not comparable, because
+        t-digest is an approximate, order-sensitive algorithm. The accuracy
+        contract is on the rank of the returned value instead.
+        """
+        assert value is not None, f"t-digest returned NULL [{label}]"
+        rank = self.exact_rank(sorted_values, value)
+        expected = percent / 100.0
+        allowed = self.TDIGEST_RANK_TOLERANCE + 1.0 / (len(sorted_values) - 1)
+        tdLog.info(
+            f"t-digest rank [{label}]: value={value} rank={rank:.6f} "
+            f"expected={expected:.6f} allowed={allowed:.6f}"
+        )
+        assert abs(rank - expected) <= allowed, (
+            f"t-digest rank error too large [{label}]: value={value} "
+            f"rank={rank:.6f} expected={expected:.6f} allowed={allowed:.6f}"
+        )
+
+    def build_tdigest_values(self):
+        # Deterministic heavy-tailed values: raw values are far apart, so
+        # different t-digest input orders can return visibly different values
+        # while still satisfying the rank accuracy contract.
+        rng = random.Random(20261119)
+        values = []
+        for _ in range(600):
+            magnitude = 10 ** rng.randint(0, 6)
+            values.append(round(rng.uniform(-1.0, 1.0) * magnitude, 6))
+        return values
+
+    def do_apercentile_tdigest_accuracy(self):
+        tdSql.prepare(dbname="apct_tdigest", drop=True)
+        base_ts = 1767225600000
+        percent = 69
+        values = self.build_tdigest_values()
+        sorted_values = np.sort(np.array(values, dtype=float))
+
+        # --- exact percentile baseline on a normal table ---
+        tdSql.execute("create table t (ts timestamp, v double)")
+        rows = " ".join(
+            f"({base_ts + i}, {value})" for i, value in enumerate(values)
+        )
+        tdSql.execute(f"insert into t values {rows}")
+
+        exact = np.percentile(values, percent)
+        tdSql.query(f"select percentile(v,{percent}) from t")
+        tdSql.checkRows(1)
+        tdSql.checkData(0, 0, float(exact))
+
+        # --- t-digest on different input orders must meet the rank contract ---
+        for label, sql in (
+            ("normal-ts-asc", "select * from t order by ts"),
+            ("normal-ts-desc", "select * from t order by ts desc"),
+        ):
+            value = tdSql.getFirstValue(
+                f"select apercentile(v,{percent},'t-digest') from ({sql})"
+            )
+            self.check_tdigest_rank(sorted_values, value, percent, label)
+
+        # --- supertable: direct aggregation vs ordered subquery ---
+        tdSql.execute("create stable st (ts timestamp, v double) tags(grp int)")
+        tdSql.execute("create table ct0 using st tags(0)")
+        tdSql.execute("create table ct1 using st tags(1)")
+        for grp in (0, 1):
+            group_rows = " ".join(
+                f"({base_ts + i}, {values[i]})"
+                for i in range(grp, len(values), 2)
+            )
+            tdSql.execute(f"insert into ct{grp} values {group_rows}")
+
+        direct = tdSql.getFirstValue(
+            f"select apercentile(v,{percent},'t-digest') from st"
+        )
+        ordered = tdSql.getFirstValue(
+            f"select apercentile(v,{percent},'t-digest') from (select * from st order by ts)"
+        )
+        reversed_order = tdSql.getFirstValue(
+            f"select apercentile(v,{percent},'t-digest') from (select * from st order by ts desc)"
+        )
+        self.check_tdigest_rank(sorted_values, direct, percent, "stable-direct")
+        self.check_tdigest_rank(sorted_values, ordered, percent, "stable-ts-asc")
+        self.check_tdigest_rank(sorted_values, reversed_order, percent, "stable-ts-desc")
+
+        print("do apercentile t-digest accuracy ....... [passed]\n")
+
+    #
     # ------------------ main ------------------
     #
     def test_func_agg_apercentile(self):
@@ -370,6 +477,7 @@ class TestFunApercentile:
         Since: v3.0.0.0
 
         Labels: common,ci,integration,functional
+
         Jira: None
 
         History:
@@ -383,3 +491,26 @@ class TestFunApercentile:
         self.do_apercentile()
         self.do_distribute_apercentile()
         self.do_apercentile_negative_histogram()
+
+    def test_func_agg_apercentile_tdigest_accuracy(self):
+        """APERCENTILE t-digest accuracy across query paths
+
+        1. t-digest result ranks the requested percentile within the
+           algorithm accuracy contract
+        2. Direct aggregation and ordered subquery aggregation are compared
+           by rank, not by raw value, because t-digest is order sensitive
+
+        Catalog:
+            - Function
+
+        Since: v3.0.0.0
+
+        Labels: common,ci
+
+        Jira: 7173827126
+
+        History:
+            - 2026-11-19 AlexDuan Add t-digest rank accuracy checks for query paths
+
+        """
+        self.do_apercentile_tdigest_accuracy()

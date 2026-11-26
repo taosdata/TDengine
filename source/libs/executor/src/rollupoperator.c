@@ -242,7 +242,6 @@ int32_t tdRollupCtxInit(SRollupCtx *pCtx, SRSchema *pRSchema, int8_t precision, 
       pPrimaryKeyColNode->colType = COLUMN_TYPE_COLUMN;
       pPrimaryKeyColNode->slotId = 0;  // put the timestamp column at the 1st position
       // (void)snprintf(pPrimaryKeyColNode->tableName, TSDB_TABLE_NAME_LEN, "%s", pRSchema->tbName);
-      (void)snprintf(pFuncNode->functionName, TSDB_FUNC_NAME_LEN, "%s", pFuncNode->functionName);
       TAOS_CHECK_EXIT(nodesListMakeAppend(&pFuncNode->pParameterList, (SNode *)pPrimaryKeyColNode));
       pPrimaryKeyColNode = NULL;
       if (hasPk) {
@@ -297,7 +296,9 @@ int32_t tdRollupCtxInit(SRollupCtx *pCtx, SRSchema *pRSchema, int8_t precision, 
   pResultRow = doSetResultOutBufByKey(pAggSup->pResultBuf, pResultRowInfo, (char *)&groupId, sizeof(groupId), true,
                                       groupId, pTaskInfo, false, pAggSup, true);
   if (pResultRow == NULL || pTaskInfo->code != 0) {
-    TAOS_CHECK_EXIT(pTaskInfo->code);
+    code = pTaskInfo->code != TSDB_CODE_SUCCESS ? pTaskInfo->code : TSDB_CODE_QRY_EXECUTOR_INTERNAL_ERROR;
+    lino = __LINE__;
+    goto _exit;
   }
   pCtx->resultRow = pResultRow;
   int32_t rowSize = pAggSup->resultRowSize;

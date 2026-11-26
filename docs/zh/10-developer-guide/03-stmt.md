@@ -26,15 +26,31 @@ import TabItem from "@theme/TabItem";
 确定子表存在时，不带标签可提升写入性能。若子表不存在，行为与 `taos` shell 不一致：`taos` shell 会以 tag 为 `NULL` 自动建表，而 STMT 会报错，以避免因错误表名意外建表。
 
 ```sql
-   1. INSERT INTO meters (tbname, ts, current, voltage, phase) VALUES(?, ?, ?, ?, ?) 
+INSERT INTO meters (tbname, ts, current, voltage, phase)
+VALUES (?, ?, ?, ?, ?);
 ```
 
 ##### 子表不存在，指定标签自动建表
 
 ```sql
-   1. INSERT INTO meters (tbname, ts, current, voltage, phase, location, group_id) VALUES(?, ?, ?, ?, ?, ?, ?)   
-   2. INSERT INTO ? USING meters TAGS (?, ?) VALUES (?, ?, ?, ?)
+INSERT INTO meters (tbname, ts, current, voltage, phase, location, group_id)
+VALUES (?, ?, ?, ?, ?, ?, ?);
+
+INSERT INTO ?
+USING meters
+TAGS (?, ?)
+VALUES (?, ?, ?, ?);
 ```
+
+## 参数绑定更新
+
+STMT / STMT2 也支持预编译 `UPDATE` 语句，批量修正已写入的数据。`SET` 中的新值和 `WHERE` 中的全部主键（时间戳列，以及复合主键列）必须使用 `?` 占位符：
+
+```sql
+UPDATE meters SET current = ?, voltage = ? WHERE tbname = ? AND ts = ?
+```
+
+`WHERE` 中的其他条件与 SQL 中的 `UPDATE` 含义相同，只有满足全部条件的行才会被更新。参数绑定方式不支持更新标签列。完整的更新语义和限制见 [数据更新](../05-tdengine-sql/03-data-write/04-update.md)。
 
 ## 示例
 

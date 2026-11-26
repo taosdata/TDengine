@@ -26,10 +26,7 @@ from typing import List
 from datetime import datetime, timedelta
 import re
 import platform
-if platform.system().lower() == 'windows':
-    import wexpect
-
-from new_test_framework.utils import tdLog, tdSql, TDSql
+from new_test_framework.utils import tdLog, tdSql, TDSql, etool
 from decimal import *
 from multiprocessing import Value, Lock
 from functools import cmp_to_key
@@ -251,19 +248,14 @@ class TaosShell:
         self.queryResult = []
         try:
             if platform.system().lower() == "windows":
-                tdLog.info(f"use wexpect to exec taos command: {sql}")
-                child = wexpect.spawn("taos", timeout=60)
-                try:
-                    child.expect("> ")
-                    child.sendline(f"{sql} >> {self.get_file_path()};")
-                    child.expect("> ")
-                    child.sendline("quit")
-                    child.expect("> ")
-                    child.expect(wexpect.EOF)
-                except Exception as e:
-                    # 打印 taos shell 实际输出
-                    tdLog.error(f"wexpect failed, child.before:\n{child.before}")
-                    raise
+                # CSV export does not require an interactive console on CI runners.
+                result = subprocess.run(
+                    [etool.taosFile(), "-s", f"{sql} >> {self.get_file_path()}"],
+                    check=True,
+                    stderr=subprocess.PIPE,
+                    stdout=subprocess.PIPE,
+                    timeout=60,
+                )
             else:
                 command = f'taos -s "{sql} >> {self.get_file_path()}"'
                 tdLog.debug(f"exec command: {command}")
@@ -272,7 +264,7 @@ class TaosShell:
                 )
             self.read_result()
         except Exception as e:
-            tdLog.exit(f"Command '{sql}' failed with error: {e.stderr.decode('utf-8')}")
+            tdLog.exit(f"Command '{sql}' failed with error: {e}")
             self.queryResult = []
             raise
         return self.queryResult
@@ -2054,6 +2046,7 @@ class TestDecimal2:
         Since: v3.0.0.0
 
         Labels: common,ci,integration,functional
+
         Jira: None
 
         History:

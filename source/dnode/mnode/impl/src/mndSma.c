@@ -1209,9 +1209,6 @@ static int32_t mndTSMAGenerateOutputName(const char *tsmaName, char *streamName,
 }
 
 static int32_t mndProcessCreateTSMAReq(SRpcMsg *pReq) {
-#ifdef WINDOWS
-  TAOS_RETURN(TSDB_CODE_MND_INVALID_PLATFORM);
-#endif
   SMnode        *pMnode = pReq->info.node;
   int32_t        code = -1;
   SDbObj        *pDb = NULL;

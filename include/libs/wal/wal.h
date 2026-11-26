@@ -95,6 +95,27 @@ typedef struct {
   int64_t logRetention;
 } SWalVer;
 
+typedef struct {
+  const char *path;
+  const char **diskPaths;  // Full WAL directories, indexed by level-0 disk ID;
+                           // one non-NULL entry per disk, numOfDisks in total.
+  int32_t numOfDisks;
+  SWalCfg cfg;
+  int64_t snapshotIndex;
+  int64_t snapshotTerm;
+  bool allowAlterConfirm;  // Only when vnode's persisted hashChange is false.
+  int32_t (*checkReplay)(int32_t vgId, int16_t msgType, const void *body,
+                         int32_t len, bool *safe);
+} SWalInspectOption;
+
+typedef struct {
+  SWalVer versions;
+  int64_t safeLowerBound;  // A: every retained record in (A,L] was checked safe.
+} SWalInspectResult;
+
+// Checks (S,L] and up to 20 records backwards from S, without changing the WAL.
+int32_t walInspect(const SWalInspectOption *option, SWalInspectResult *result);
+
 #pragma pack(push, 1)
 // used by sync module
 typedef struct {

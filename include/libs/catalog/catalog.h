@@ -418,7 +418,30 @@ int32_t catalogGetDnodeList(SCatalog* pCatalog, SRequestConnInfo* pConn, SArray*
 
 int32_t catalogGetExpiredSTables(SCatalog* pCatalog, SSTableVersion** stables, uint32_t* num);
 
-int32_t catalogGetExpiredViews(SCatalog* pCtg, SViewVersion** views, uint32_t* num, SDynViewVersion** dynViewVersion);
+/*
+ * Collect the cached view versions to report in one heartbeat round.
+ * reqId identifies the heartbeat batch (used to correlate the response).
+ * At most one round is outstanding at a time; a new batch is produced only after the
+ * previous response has been applied (or timed out).
+ */
+int32_t catalogGetExpiredViews(SCatalog* pCtg, int64_t reqId, SViewVersion** views, uint32_t* num,
+                               SDynViewVersion** dynViewVersion);
+
+/*
+ * Apply the global view version returned by a heartbeat response and mark the slots
+ * carried by the corresponding request as verified. The committed dynViewVer is only
+ * advanced after every view rent slot has been verified (catalogViewSweepTryCommit).
+ */
+int32_t catalogApplyViewHbVersion(SCatalog* pCtg, const SDynViewVersion* pVer, int64_t rspReqId);
+
+// Finish the sweep bookkeeping for one heartbeat batch response.
+int32_t catalogViewSweepOnHbRspDone(SCatalog* pCtg, int64_t rspReqId, bool sawDynVer);
+
+// Commit the pending global view version when the whole rent has been verified.
+int32_t catalogViewSweepTryCommit(SCatalog* pCtg);
+
+// Drop the outstanding view heartbeat round after a send/receive failure.
+int32_t catalogViewSweepOnHbError(SCatalog* pCtg);
 
 int32_t catalogGetExpiredDBs(SCatalog* pCatalog, SDbCacheInfo** dbs, uint32_t* num);
 
@@ -530,6 +553,11 @@ int32_t ctgHashValueComp(void const* lp, void const* rp);
  *   of the ext-source list (0 = unknown/never synced).  Used by heartbeat to tell
  *   mnode which global version the client has.
  *
+ * catalogGetExtSrcDdlGen - return the client-local ext-source invalidation
+ *   generation.  It is bumped on every local cache invalidation (DDL pre-clear,
+ *   post-DDL invalidation, error-driven refresh) and is used by the heartbeat
+ *   receive path to reject pushes requested before such an invalidation.
+ *
  * catalogUpdateAllExtSources  -  atomically replace the entire ext-source cache with
  *   the pushed list from mnode and record the new global version.  Called when mnode
  *   detects a version mismatch and pushes all sources in the heartbeat response.
@@ -557,6 +585,7 @@ int32_t catalogClearExtSourceDemotions(SCatalog* pCtg, const char* sourceName);
 int32_t catalogClearExtSourceDemoteEntry(SCatalog* pCtg, const char* sourceName,
                                          const SExtCapDemoteSpec* pSpec);
 int32_t catalogGetExtSrcGlobalVer(SCatalog* pCtg, int64_t* pGlobalVer);
+int32_t catalogGetExtSrcDdlGen(SCatalog* pCtg, int64_t* pDdlGen);
 int32_t catalogUpdateAllExtSources(SCatalog* pCtg, int64_t globalVer, SArray* pSources);
 int32_t catalogDisableExtSourceCapabilities(SCatalog* pCtg, const char* sourceName);
 int32_t catalogRestoreExtSourceCapabilities(SCatalog* pCtg, const char* sourceName);

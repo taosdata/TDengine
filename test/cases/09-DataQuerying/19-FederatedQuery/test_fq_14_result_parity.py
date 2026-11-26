@@ -76,6 +76,7 @@ from federated_query_common import (
     QueryError,
     parity_sql_val,
     parity_make_insert_sqls,
+    influx_versions,
 )
 
 # Oracle's transport precision is MICRO (DS 5.3.7: the fixture has no
@@ -934,20 +935,17 @@ _PARITY_GROUPS: Dict[str, list] = {
         ("SELECT SM4_DECRYPT(SM4_ENCRYPT(CAST(label AS VARCHAR(32)), 'mykeystring12345'), 'mykeystring12345') FROM {tbl} WHERE id = 1",),
         ("SELECT CRC32(CAST(label AS VARCHAR(32))) FROM {tbl} WHERE id = 1", dict(ordered=False)),
     ],
-    # ── dtf: 日期函数（DATE / DAYOFWEEK / WEEK / WEEKDAY）
-    # 2024-01-01 is a Monday: DAYOFWEEK=2, WEEK=0, WEEKDAY=0
-    # YEAR/HOUR/MINUTE are not TDengine functions → error on all sources
+    # ── dtf: date and time functions
+    # 2024-01-01 00:00 UTC: DAYOFWEEK=2, WEEK=0, WEEKDAY=0,
+    # YEAR=2024, HOUR=0, MINUTE=0.
     "dtf": [
         ("SELECT DATE(time) FROM {tbl} WHERE id = 1 ORDER BY time",),
         ("SELECT DAYOFWEEK(time) FROM {tbl} WHERE id = 1 ORDER BY time",),
         ("SELECT WEEK(time) FROM {tbl} WHERE id = 1 ORDER BY time",),
         ("SELECT WEEKDAY(time) FROM {tbl} WHERE id = 1 ORDER BY time",),
-        ("SELECT YEAR(time) FROM {tbl} LIMIT 1",
-         dict(positive=False, reason="YEAR() is not a TDengine function (TSDB_CODE_MND_FUNC_NOT_EXIST)")),
-        ("SELECT HOUR(time) FROM {tbl} LIMIT 1",
-         dict(positive=False, reason="HOUR() is not a TDengine function (TSDB_CODE_MND_FUNC_NOT_EXIST)")),
-        ("SELECT MINUTE(time) FROM {tbl} LIMIT 1",
-         dict(positive=False, reason="MINUTE() is not a TDengine function (TSDB_CODE_MND_FUNC_NOT_EXIST)")),
+        ("SELECT YEAR(time) FROM {tbl} WHERE id = 1",),
+        ("SELECT HOUR(time) FROM {tbl} WHERE id = 1",),
+        ("SELECT MINUTE(time) FROM {tbl} WHERE id = 1",),
     ],
     # ── tochar: TO_CHAR / TO_TIMESTAMP / TO_UNIXTIMESTAMP
     "tochar": [
@@ -1299,11 +1297,12 @@ _LOCAL_US_SETUP = [
 # (DS 5.3.2), so every fixture is a table in ORACLE_USER's own schema.  The
 # names carry this file's own prefix so the fixtures never collide with the
 # identifiers other FQ files create on the same instance.
-_ORACLE_TABLE      = "PARITY14_T"
-_ORACLE_SEM_TABLE  = "PARITY14_SEM"
-_ORACLE_BULK_TABLE = "PARITY14_BULK"
-_ORACLE_VIEW_SUM   = "PARITY14_V_SUM"
-_ORACLE_VIEW_FILT  = "PARITY14_V_FILT"
+_ORACLE_TABLE      = "parity14_t"
+_ORACLE_SEM_TABLE  = "parity14_sem"
+_ORACLE_BULK_TABLE = "parity14_bulk"
+_ORACLE_VIEW_SUM   = "parity14_v_sum"
+_ORACLE_VIEW_FILT  = "parity14_v_filt"
+_ORACLE_MC_TABLE   = "parity14_mc"   # mixed-case identifier fixture
 
 # Types are picked so the TDengine mapping matches the other providers:
 #   NUMBER(10,0)  -> BIGINT        (id / val / Mapped_Val / nullable_val)
@@ -1314,11 +1313,11 @@ _ORACLE_VIEW_FILT  = "PARITY14_V_FILT"
 #   TIMESTAMP(3)  -> TIMESTAMP with MICRO transport precision (DS 5.3.7: no
 #                                   TIMESTAMP(7-9) column in the table)
 _ORACLE_COLUMNS = (
-    '"TIME" TIMESTAMP(3) PRIMARY KEY,'
-    ' "ID" NUMBER(10,0), "VAL" NUMBER(10,0), "MAPPED_VAL" NUMBER(10,0),'
-    ' "SCORE" BINARY_DOUBLE, "LABEL" NVARCHAR2(32), "NULLABLE_VAL" NUMBER(10,0),'
-    ' "LAT" BINARY_DOUBLE, "LON" BINARY_DOUBLE,'
-    ' "WKT_POINT" NVARCHAR2(64), "WKT_POLY" NVARCHAR2(256), "TS_STR" NVARCHAR2(32)'
+    '"time" TIMESTAMP(3) PRIMARY KEY,'
+    ' "id" NUMBER(10,0), "val" NUMBER(10,0), "mapped_val" NUMBER(10,0),'
+    ' "score" BINARY_DOUBLE, "label" NVARCHAR2(32), "nullable_val" NUMBER(10,0),'
+    ' "lat" BINARY_DOUBLE, "lon" BINARY_DOUBLE,'
+    ' "wkt_point" NVARCHAR2(64), "wkt_poly" NVARCHAR2(256), "ts_str" NVARCHAR2(32)'
 )
 
 
@@ -1360,6 +1359,12 @@ def _oracle_insert_all(table, rows_dt):
 _ORACLE_SETUP = [
     f'CREATE TABLE "{_ORACLE_TABLE}" ({_ORACLE_COLUMNS})',
     _oracle_insert_all(_ORACLE_TABLE, _ROWS_DT),
+    # Dedicated mixed-case identifier fixture: the stored spelling is upper
+    # case, so only a backticked `MAPPED_VAL` reaches it.
+    f'CREATE TABLE "{_ORACLE_MC_TABLE}" ('
+    f' "ID" NUMBER(10,0), "MAPPED_VAL" NUMBER(10,0))',
+    f'INSERT INTO "{_ORACLE_MC_TABLE}" VALUES (4, 104)',
+    f'INSERT INTO "{_ORACLE_MC_TABLE}" VALUES (5, 105)',
     "COMMIT",
 ]
 
@@ -1376,8 +1381,8 @@ _ORACLE_SEM_ROWS = [
 ]
 _ORACLE_SEM_SETUP = [
     f'CREATE TABLE "{_ORACLE_SEM_TABLE}" ('
-    f' "D_DATE" DATE, "D_DEC" NUMBER(10,2), "D_NUM1" NUMBER(1,0),'
-    f' "D_STR" NVARCHAR2(16))',
+    f' "d_date" DATE, "d_dec" NUMBER(10,2), "d_num1" NUMBER(1,0),'
+    f' "d_str" NVARCHAR2(16))',
 ] + [
     # DATE is a second-precision timestamp in Oracle; the ANSI DATE literal
     # only takes YYYY-MM-DD and raises ORA-01861 for a time component, so
@@ -1408,11 +1413,11 @@ _ORACLE_VIEWS = [
     # map rejects (DS 5.3.2.1: 未声明精度的 NUMBER 不支持), so the view casts
     # its aggregate columns to the precision the values really need.
     f'CREATE OR REPLACE VIEW "{_ORACLE_VIEW_SUM}" AS '
-    f'SELECT "LABEL", CAST(COUNT(*) AS NUMBER(18,0)) AS "CNT", '
-    f'CAST(SUM("VAL") AS NUMBER(19,0)) AS "SV" '
-    f'FROM "{_ORACLE_TABLE}" GROUP BY "LABEL"',
+    f'SELECT "label", CAST(COUNT(*) AS NUMBER(18,0)) AS "cnt", '
+    f'CAST(SUM("val") AS NUMBER(19,0)) AS "sv" '
+    f'FROM "{_ORACLE_TABLE}" GROUP BY "label"',
     f'CREATE OR REPLACE VIEW "{_ORACLE_VIEW_FILT}" AS '
-    f'SELECT "ID", "VAL" FROM "{_ORACLE_TABLE}" WHERE "VAL" > 20',
+    f'SELECT "id", "val" FROM "{_ORACLE_TABLE}" WHERE "val" > 20',
 ]
 
 # Large result set (FQOR-LOCAL-013): one row per second, K = 1..5000, V = 2*K.
@@ -1420,8 +1425,8 @@ _ORACLE_VIEWS = [
 _ORACLE_BULK_ROWS = 5000
 _ORACLE_BULK_SETUP = [
     f'CREATE TABLE "{_ORACLE_BULK_TABLE}" ('
-    f' "TS" TIMESTAMP(3) PRIMARY KEY, "K" NUMBER(10,0), "V" NUMBER(10,0))',
-    f'INSERT INTO "{_ORACLE_BULK_TABLE}" ("TS", "K", "V") '
+    f' "ts" TIMESTAMP(3) PRIMARY KEY, "k" NUMBER(10,0), "v" NUMBER(10,0))',
+    f'INSERT INTO "{_ORACLE_BULK_TABLE}" ("ts", "k", "v") '
     f"SELECT TIMESTAMP '2024-02-01 00:00:00' + NUMTODSINTERVAL(LEVEL - 1, 'SECOND'),"
     f" LEVEL, LEVEL * 2 FROM DUAL CONNECT BY LEVEL <= {_ORACLE_BULK_ROWS}",
     "COMMIT",
@@ -1433,6 +1438,7 @@ _ORACLE_DROP_OBJECTS = (
     ("TABLE", _ORACLE_BULK_TABLE),
     ("TABLE", _ORACLE_SEM_TABLE),
     ("TABLE", _ORACLE_TABLE),
+    ("TABLE", _ORACLE_MC_TABLE),
 )
 
 
@@ -1463,6 +1469,7 @@ class TestFq14ResultParity(ParityTestBase):
     SQL dialect physically lacks the required syntax.
     """
 
+
     _SRC_MYSQL  = "fq_parity_src_m"
     _SRC_PG     = "fq_parity_src_p"
     _SRC_INFLUX = "fq_parity_src_i"
@@ -1486,15 +1493,16 @@ class TestFq14ResultParity(ParityTestBase):
         return f"{_LOCAL_DB}.{_LOCAL_TBL}"
 
     def _ext_sources(self):
-        return [
+        sources = [
             ("MySQL",     f"{self._SRC_MYSQL}.parity_t"),
             ("PG",        f"{self._SRC_PG}.parity_t"),
             ("InfluxDB",  f"{self._SRC_INFLUX}.parity_t"),
             ("SQLServer", f"{self._SRC_SQLSERVER}.parity_t"),
-            # Oracle folds unquoted identifiers to upper case, so the lowercase
-            # reference resolves to PARITY14_T.
+            # Oracle fixtures store quoted lower-case names, so the plain
+            # lower-case reference matches exactly.
             ("Oracle",    f"{self._SRC_ORACLE}.parity14_t"),
         ]
+        return self._expand_influx_source_list(sources)
 
     def _join_ts_source_map(self, *, local_ref=False):
         local_tbl = self._local_tbl
@@ -1569,8 +1577,9 @@ class TestFq14ResultParity(ParityTestBase):
                 f"JOIN TIMETRUNCATE external sort case(s) failed:{all_errors}"
             )
 
-    def setup_method(self, method):
+    def _setup_version_data(self, method):
         if TestFq14ResultParity._class_setup_done:
+            self._mk_influx_sources(self._SRC_INFLUX, database=_INFLUX_BUCKET)
             return
         tdLog.debug(f"start to execute {__file__}")
         self.helper = FederatedQueryCaseHelper(__file__)
@@ -1608,10 +1617,10 @@ class TestFq14ResultParity(ParityTestBase):
         self._cleanup_src(self._SRC_PG)
         self._mk_pg_real(self._SRC_PG, database=_PG_DB, schema="public")
 
-        ExtSrcEnv.influx_create_db_cfg(self._influx_cfg(), _INFLUX_BUCKET)
-        ExtSrcEnv.influx_write_cfg(self._influx_cfg(), _INFLUX_BUCKET, _INFLUX_LINES)
-        self._cleanup_src(self._SRC_INFLUX)
-        self._mk_influx_real(self._SRC_INFLUX, database=_INFLUX_BUCKET)
+        for influx_cfg in ExtSrcEnv.influx_version_configs():
+            ExtSrcEnv.influx_create_db_cfg(influx_cfg, _INFLUX_BUCKET)
+            ExtSrcEnv.influx_write_cfg(influx_cfg, _INFLUX_BUCKET, _INFLUX_LINES)
+        self._mk_influx_sources(self._SRC_INFLUX, database=_INFLUX_BUCKET)
 
         ExtSrcEnv.sqlserver_create_db(_SQLSERVER_DB)
         ExtSrcEnv.sqlserver_exec(_SQLSERVER_DB, _SQLSERVER_SETUP)
@@ -1634,7 +1643,13 @@ class TestFq14ResultParity(ParityTestBase):
         TestFq14ResultParity._class_setup_done = True
 
     def teardown_class(self):
+        for cfg in ExtSrcEnv.influx_version_configs():
+            try:
+                ExtSrcEnv.influx_drop_db_cfg(cfg, _INFLUX_BUCKET)
+            except Exception as exc:
+                tdLog.info(f"InfluxDB {cfg.version} cleanup warning: {exc}")
         tmp = TestFq14ResultParity()
+        tmp._drop_influx_sources(tmp._SRC_INFLUX)
         tmp._cleanup_src(tmp._SRC_MYSQL, tmp._SRC_PG, tmp._SRC_INFLUX,
                          tmp._SRC_SQLSERVER, tmp._SRC_ORACLE)
         try:
@@ -1650,7 +1665,6 @@ class TestFq14ResultParity(ParityTestBase):
         for drop in [
             lambda: ExtSrcEnv.mysql_drop_db_cfg(tmp._mysql_cfg(), _MYSQL_DB),
             lambda: ExtSrcEnv.pg_drop_db_cfg(tmp._pg_cfg(), _PG_DB),
-            lambda: ExtSrcEnv.influx_drop_db_cfg(tmp._influx_cfg(), _INFLUX_BUCKET),
         ]:
             try:
                 drop()
@@ -1801,7 +1815,11 @@ class TestFq14ResultParity(ParityTestBase):
         self._assert_parity_all(sql_template)
         for label, table in self._ext_sources():
             sql = sql_template.format(tbl=table)
-            tdSql.query(f"EXPLAIN VERBOSE TRUE {sql}")
+            mode = ("EXPLAIN ANALYZE VERBOSE TRUE"
+                    if label == "InfluxDB@1.8" or
+                       (label == "InfluxDB" and self._influx_configs()[0].version == "1.8")
+                    else "EXPLAIN VERBOSE TRUE")
+            tdSql.query(f"{mode} {sql}")
             plan_lines = [
                 str(cell)
                 for row in (tdSql.queryResult or [])
@@ -1866,7 +1884,10 @@ class TestFq14ResultParity(ParityTestBase):
         for case_id, sql_template in plan_cases:
             for label, table in self._ext_sources():
                 sql = sql_template.format(tbl=table)
-                tdSql.query(f"EXPLAIN VERBOSE TRUE {sql}")
+                influx18 = (label == "InfluxDB@1.8" or
+                            (label == "InfluxDB" and self._influx_configs()[0].version == "1.8"))
+                mode = "EXPLAIN ANALYZE VERBOSE TRUE" if influx18 else "EXPLAIN VERBOSE TRUE"
+                tdSql.query(f"{mode} {sql}")
                 plan_lines = [
                     str(cell)
                     for row in (tdSql.queryResult or [])
@@ -1879,6 +1900,14 @@ class TestFq14ResultParity(ParityTestBase):
                 local_plan = "\n".join(
                     line for line in plan_lines if "remote sql:" not in line.lower()
                 )
+                if influx18:
+                    assert len(remote_lines) == 2, (case_id, remote_lines)
+                    assert "join" in local_plan.lower() and "filter" in local_plan.lower(), local_plan
+                    for remote in remote_lines:
+                        assert not re.search(r"\b(join|group by|limit|offset)\b|\b(?:sum|count|mean)\s*\(", remote, re.I), remote
+                        if " ORDER BY " in remote.upper():
+                            assert re.search(r"ORDER BY time ASC\s*$", remote, re.I), remote
+                    continue
                 remote_sql = re.sub(r"\s+", " ", " ".join(remote_lines)).strip()
                 remote_sql = re.sub(r"^remote sql:\s*", "", remote_sql, flags=re.IGNORECASE)
                 plan_details = [f"REMOTE SQL: {remote_sql}"]
@@ -1960,6 +1989,9 @@ class TestFq14ResultParity(ParityTestBase):
             )
         with open(baseline_file, "r") as f:
             expected = f.read()
+        if self._influx_cfg().version == "1.8":
+            expected = "".join(block for block in re.split(r"(?=### )", expected)
+                               if not re.match(r"### \S+ InfluxDB\n", block))
         if actual != expected:
             actual_lines = actual.splitlines()
             expected_lines = expected.splitlines()
@@ -2012,9 +2044,10 @@ class TestFq14ResultParity(ParityTestBase):
         original case, so unquoted mapped_val is rejected and quoted
         Mapped_Val is required for metadata and binding. SQL Server keeps the
         stored case but matches names case-insensitively, like MySQL. Oracle
-        folds the unquoted declaration to upper case, so the stored column is
-        MAPPED_VAL; an unquoted or all-lowercase reference folds onto it, while
-        a quoted reference is matched exactly (DS 5.3.6 R1).
+        follows TDengine's identifier grammar: an unquoted reference is
+        lower-cased and matched exactly, while a backticked reference keeps its
+        spelling and is matched exactly (DS 5.3.6 R1).  A dedicated fixture
+        pins the mixed-case MAPPED_VAL spelling.
 
         Catalog: - Query:FederatedResultParity
 
@@ -2025,7 +2058,8 @@ class TestFq14ResultParity(ParityTestBase):
         History:
             - 2026-09-01 xsren Mixed-case identifier parity for MySQL/PG/InfluxDB
             - 2026-10-16 wpan Add the SQL Server identifier leg
-            - 2026-10-26 wpan Add the Oracle identifier-folding leg
+            - 2026-10-26 wpan Add the Oracle identifier leg
+            - 2026-11-09 wpan Align Oracle with TDengine's identifier grammar
         """
         tables = dict(self._ext_sources())
 
@@ -2041,16 +2075,8 @@ class TestFq14ResultParity(ParityTestBase):
             tdSql.checkData(1, 1, 105)
 
         for provider in ("PG", "InfluxDB"):
-            tdSql.query(f"DESC {tables[provider]}")
-            fields = [str(row[0]) for row in tdSql.queryResult]
-            assert "Mapped_Val" in fields and "mapped_val" not in fields
-            tdSql.error(f"SELECT mapped_val FROM {tables[provider]}")
-            tdSql.query(f"SELECT id, `Mapped_Val` FROM {tables[provider]} WHERE `Mapped_Val` > 103 ORDER BY id")
-            tdSql.checkRows(2)
-            tdSql.checkData(0, 0, 4)
-            tdSql.checkData(0, 1, 104)
-            tdSql.checkData(1, 0, 5)
-            tdSql.checkData(1, 1, 105)
+            for _, table in self._expand_influx_source_list([(provider, tables[provider])]):
+                self.do_preserved_case_identifier(table)
 
         # SQL Server keeps the stored case in the metadata but exposes a
         # case-insensitive catalog (its default collation), exactly like MySQL:
@@ -2068,16 +2094,13 @@ class TestFq14ResultParity(ParityTestBase):
             tdSql.checkData(1, 0, 5)
             tdSql.checkData(1, 1, 105)
 
-        # Oracle folds the unquoted column declaration to upper case (DS
-        # 5.3.6 R1): the metadata reports MAPPED_VAL.  An unquoted reference
-        # is lower-cased by TDengine and then folds onto it, and the quoted
-        # all-lower-case form is indistinguishable from an unquoted one, so
-        # all of those spellings resolve.
+        # Oracle follows TDengine's identifier grammar (DS 5.3.6 R1): the
+        # catalog stores quoted lower-case names, and every unquoted spelling
+        # is lower-cased to mapped_val and matches exactly.
         tdSql.query(f"DESC {tables['Oracle']}")
         oracle_fields = [str(row[0]) for row in tdSql.queryResult]
-        assert "MAPPED_VAL" in oracle_fields and "Mapped_Val" not in oracle_fields
-        for name in ("MAPPED_VAL", "mapped_val", "Mapped_Val",
-                     "`MAPPED_VAL`", "`mapped_val`"):
+        assert "mapped_val" in oracle_fields and "MAPPED_VAL" not in oracle_fields
+        for name in ("mapped_val", "MAPPED_VAL", "Mapped_Val", "`mapped_val`"):
             tdSql.query(
                 f"SELECT id, {name} FROM {tables['Oracle']} "
                 f"WHERE {name} > 103 ORDER BY id")
@@ -2087,10 +2110,36 @@ class TestFq14ResultParity(ParityTestBase):
             tdSql.checkData(1, 0, 5)
             tdSql.checkData(1, 1, 105)
 
-        # A quoted reference keeps its spelling and is matched exactly, so the
-        # quoted mixed-case form names a column that does not exist: the
-        # table declares MAPPED_VAL, not "Mapped_Val".
+        # A backticked mixed-case spelling stays mixed-case and names nothing.
         tdSql.error(f"SELECT id, `Mapped_Val` FROM {tables['Oracle']}")
+
+        # Dedicated mixed-case fixture: the stored column is MAPPED_VAL, so
+        # only the exact backticked spelling reaches it.
+        mc_ref = f"{self._SRC_ORACLE}.{_ORACLE_MC_TABLE}"
+        tdSql.query(f"DESC {mc_ref}")
+        mc_fields = [str(row[0]) for row in tdSql.queryResult]
+        assert "MAPPED_VAL" in mc_fields and "mapped_val" not in mc_fields
+        tdSql.query(f"SELECT `ID`, `MAPPED_VAL` FROM {mc_ref} WHERE `MAPPED_VAL` > 103 ORDER BY `ID`")
+        tdSql.checkRows(2)
+        tdSql.checkData(0, 0, 4)
+        tdSql.checkData(0, 1, 104)
+        tdSql.checkData(1, 0, 5)
+        tdSql.checkData(1, 1, 105)
+        for name in ("MAPPED_VAL", "mapped_val", "Mapped_Val", "`mapped_val`"):
+            tdSql.error(f"SELECT `ID`, {name} FROM {mc_ref}")
+
+    def do_preserved_case_identifier(self, table):
+        tdSql.query(f"DESC {table}")
+        fields = [str(row[0]) for row in tdSql.queryResult]
+        assert "Mapped_Val" in fields and "mapped_val" not in fields
+        tdSql.error(f"SELECT mapped_val FROM {table}")
+        tdSql.query(f"SELECT id, `Mapped_Val` FROM {table} WHERE `Mapped_Val` > 103 ORDER BY id")
+        tdSql.checkRows(2)
+        tdSql.checkData(0, 0, 4)
+        tdSql.checkData(0, 1, 104)
+        tdSql.checkData(1, 0, 5)
+        tdSql.checkData(1, 1, 105)
+
 
     def test_fq_join_timetruncate_external_sort_matrix(self):
         """JOIN TIMETRUNCATE sort compatibility with explicit external sources.
@@ -2539,11 +2588,12 @@ class TestFq14ResultParity(ParityTestBase):
         ref_sql = (f"SELECT a.id, b.val FROM {local_us} a JOIN {local_us} b "
                    f"ON a.time = b.time ORDER BY a.id")
         ref = self._get_rows(ref_sql)
-        for label, other in others:
+        for label, other in self._expand_influx_source_list(others):
             sql = (f"SELECT a.id, b.val FROM {oracle} a JOIN {other} b "
                    f"ON a.time = b.time ORDER BY a.id")
             rows = self._get_rows(sql)
             self._compare_rows(ref, rows, ref_sql, sql, f"Oracle×{label}", set())
+
 
         three_ref_sql = (
             f"SELECT COUNT(*) AS cnt, SUM(a.val + b.val + c.val) AS sv "
@@ -2617,6 +2667,10 @@ class TestFq14ResultParity(ParityTestBase):
         )
 
         # --- InfluxDB (no DELETE; drop + recreate bucket) ---
+        self.do_rewrite_influx_data(row_indices)
+
+    @influx_versions()
+    def do_rewrite_influx_data(self, row_indices):
         try:
             self._run_ext_op_with_recover(
                 "influx drop bucket",
@@ -2636,8 +2690,9 @@ class TestFq14ResultParity(ParityTestBase):
         # Bucket recreation can invalidate the existing external-source binding.
         # Recreate the source so subsequent connector and taos -r queries see
         # the freshly written disorder dataset consistently.
-        self._cleanup_src(self._SRC_INFLUX)
-        self._mk_influx_real(self._SRC_INFLUX, database=_INFLUX_BUCKET)
+        source = self._influx_source_name(self._SRC_INFLUX)
+        self._cleanup_src(source)
+        self._mk_influx_real(source, database=_INFLUX_BUCKET)
 
     def test_fq_parity_disorder(self):
         """Re-run ALL parity cases after inserting data in deliberately shuffled order.
@@ -2685,3 +2740,390 @@ class TestFq14ResultParity(ParityTestBase):
         finally:
             tdLog.info("[epoch-disorder] Restoring original ordered data …")
             self._rewrite_all_data(list(range(len(_ROWS))))
+
+    def do_influx18_raw_scans(self):
+        if self._influx_cfg().version != "1.8":
+            pytest.skip("This case verifies the native InfluxDB 1.8 contract")
+        timestamp = 1700000000000000001
+        database = "fq14_influx18_raw_scans"
+        lines = [
+            "negative value=42i -1",
+            f"sparse,site=a value=1i {timestamp}",
+            f"sparse,site=b other=2i {timestamp + 1}",
+            f"sparse,site=a value=3i {timestamp + 2}",
+            f'wide signed=9007199254740993i,flag=true,text="中文" {timestamp}',
+            f"same_time,site=a value=1i {timestamp}",
+            f"same_time,site=b value=2i {timestamp}",
+        ]
+        lines.extend(f"bulk,site=s{index % 2} id={index}i,value={index * 3}i {timestamp + index}"
+                     for index in range(10003))
+        with self._influx_fixture(database, lines) as (cfg, source):
+            table = f"{source}.{database}.sparse"
+            self._check_query_rows(f"SELECT CAST(time AS BIGINT),value FROM {source}.{database}.negative", [(-1, 42)])
+            self._check_query_rows(f"SELECT value FROM {table} ORDER BY time", [(1,), (None,), (3,)])
+            self._check_query_rows(f"SELECT site FROM {table} ORDER BY time", [("a",), ("b",), ("a",)])
+            self._check_query_rows(f"SELECT _TAGS FROM {table} ORDER BY time", [("a",), ("b",), ("a",)])
+            self._check_query_rows(f"SELECT _TAGS,value FROM {table} ORDER BY time", [("a", 1), ("b", None), ("a", 3)])
+            self._check_query_rows(f"SELECT _TAGS,site,value FROM {table} ORDER BY time",
+                        [("a", "a", 1), ("b", "b", None), ("a", "a", 3)])
+            self._check_query_rows(f"SELECT CAST(time AS BIGINT) FROM {table} ORDER BY time",
+                        [(timestamp,), (timestamp + 1,), (timestamp + 2,)])
+            self._check_query_rows(f"SELECT COUNT(*) FROM {table}", [(3,)])
+            self._check_query_rows(f"SELECT 7 FROM {table}", [(7,), (7,), (7,)])
+            self._check_query_rows(f"SELECT value+10 AS v FROM {table} WHERE value>=1 ORDER BY value DESC LIMIT 1 OFFSET 1", [(11.0,)])
+            self._check_query_rows(f"SELECT site, SUM(value) FROM {table} GROUP BY site ORDER BY site", [("a", 4), ("b", None)])
+            self._check_query_rows(f"SELECT COUNT(*) FROM {source}.{database}.same_time", [(2,)])
+            self._check_query_rows(f"SELECT signed,flag,`text` FROM {source}.{database}.wide",
+                        [(9007199254740993, True, "中文")])
+            bulk = f"{source}.{database}.bulk"
+            self._check_query_rows(f"SELECT COUNT(*) FROM {bulk}", [(10003,)])
+            self._check_query_rows(f"SELECT id FROM {bulk} WHERE id>=10000 ORDER BY id LIMIT 1 OFFSET 1", [(10001,)])
+            tdSql.query(f"EXPLAIN SELECT value FROM {table}")
+            plan = "\n".join(str(row[0]) for row in tdSql.queryResult)
+            assert "1.8" in plan and "RP=autogen" in plan, plan
+            tdSql.query(f"EXPLAIN ANALYZE VERBOSE TRUE SELECT value FROM {table} WHERE value>1 LIMIT 1")
+            remote = [str(row[0]) for row in tdSql.queryResult if "Remote SQL:" in str(row[0])]
+            assert remote and all(" WHERE " in row.upper() and " LIMIT 1" in row.upper() for row in remote), remote
+            assert all('"value"' in row and '"other"' in row for row in remote), remote
+        print("InfluxDB 1.8 raw_scans ................ [ passed ]")
+
+    @influx_versions("1.8")
+    def test_influx18_raw_scans(self):
+        """Read sparse Fields, Tag-only/time-only projections and exact integers.
+
+        1. Check sparse rows, Tag-only/time-only projection and integer precision.
+        2. Verify pushed filters and limits preserve all-Field sparse-row anchoring.
+
+        Catalog:
+            - FederatedQuery
+
+        Since: v3.5.0.0
+
+        Labels: common, ci, influx18
+
+        Jira: None
+
+        History:
+            - 2026-10-29 Add InfluxDB 1.8 raw-scan regression coverage
+
+        """
+        self.do_influx18_raw_scans()
+
+    def do_influx18_series_grouping(self):
+        if self._influx_cfg().version != "1.8":
+            pytest.skip("This case verifies the native InfluxDB 1.8 contract")
+        timestamp = 1700000000000000001
+        database = "fq14_influx18_series_grouping"
+        lines = []
+        with self._influx_fixture(database, lines) as (cfg, source):
+            lines = [
+                f"group_tuple,a=a_b,b=c value=1i {timestamp}",
+                f"group_tuple,a=a_b,b=c value=2i {timestamp + 1}",
+                f"group_tuple,a=a,b=b_c value=4i {timestamp + 2}",
+                f"group_tuple,a=a value=8i {timestamp + 3}",
+                f"group_tuple,a=a value=16i {timestamp + 4}",
+                f"group_tuple,a=x,b=c value=32i {timestamp + 5}",
+            ]
+            lines.extend(f"group_plain value={index + 1}i {timestamp + index}" for index in range(3))
+            lines.extend(f"group_right,r=z value={value}i {timestamp + index}"
+                         for index, value in enumerate((1, 2, 4, 8, 16, 32)))
+            labels = ["中文'逗,斜\\线", "长" * 100 + "A", "长" * 100 + "B"]
+            for index, (label, value) in enumerate(zip(labels, (4, 8, 16))):
+                escaped = label.replace(" ", "\\ ").replace(",", "\\,").replace("=", "\\=")
+                lines.append(f"group_special,label={escaped} value={value}i {timestamp + index}")
+            ExtSrcEnv.influx_write_cfg(cfg, database, lines)
+
+            table = f"{source}.{database}.group_tuple"
+            self._check_query_rows(f"SELECT COUNT(*) AS n FROM {table} PARTITION BY tbname ORDER BY n", [(1,), (1,), (2,), (2,)])
+            self._check_query_rows(f"SELECT SUM(value) AS n FROM {table} GROUP BY tbname ORDER BY n", [(3,), (4,), (24,), (32,)])
+            self._check_query_rows(f"SELECT SUM(value) AS n FROM {table} PARTITION BY tbname,b ORDER BY n", [(3,), (4,), (24,), (32,)])
+            self._check_query_rows(f"SELECT COUNT(*) AS n FROM {table} AS x PARTITION BY x.tbname ORDER BY n", [(1,), (1,), (2,), (2,)])
+            self._check_query_rows(f"SELECT COUNT(*) AS n FROM {table} PARTITION BY tbname AS `other.tbname` ORDER BY n",
+                        [(1,), (1,), (2,), (2,)])
+            right = f"{source}.{database}.group_right"
+            joined = f"{table} AS x JOIN {right} AS y ON x.value=y.value"
+            self._check_query_rows(f"SELECT COUNT(*) AS n FROM {joined} PARTITION BY x.tbname ORDER BY n", [(1,), (1,), (2,), (2,)])
+            self._check_query_rows(f"SELECT COUNT(*) FROM {joined} GROUP BY y.tbname", [(6,)])
+            plain = f"{source}.{database}.group_plain"
+            self._check_query_rows(f"SELECT COUNT(*) FROM {plain} PARTITION BY tbname", [(3,)])
+            self._check_query_rows(f"SELECT 1 FROM {plain} GROUP BY tbname", [(1,)])
+            special = f"{source}.{database}.group_special"
+            self._check_query_rows(f"SELECT label,value FROM {special} ORDER BY value", list(zip(labels, (4, 8, 16))))
+            self._check_query_rows(f"SELECT SUM(value) AS n FROM {special} GROUP BY tbname ORDER BY n", [(4,), (8,), (16,)])
+            tdSql.error(f"SELECT tbname FROM {table}", expectedErrno=0x80006409)
+
+            query = f"SELECT COUNT(*) AS n FROM {table} WHERE value>1 GROUP BY tbname ORDER BY n LIMIT 2"
+            self._check_query_rows(query, [(1,), (1,)])
+            tdSql.query("EXPLAIN ANALYZE VERBOSE TRUE " + query)
+            remote = [str(row[0]) for row in tdSql.queryResult if "Remote SQL:" in str(row[0])]
+            assert remote and all(all(f'"{column}"' in row for column in ("a", "b", "value")) for row in remote), remote
+            for row in remote:
+                assert not any(token in row.upper() for token in (
+                    "COUNT(", "SUM(", "GROUP BY", "LIMIT", "OFFSET")), row
+                assert " WHERE " in row.upper() and re.search(r'"value"\s*>\s*1', row), row
+                if " ORDER BY " in row.upper():
+                    assert re.search(r"ORDER BY time ASC\s*$", row, re.I), row
+        print("InfluxDB 1.8 series_grouping ................ [ passed ]")
+
+    @influx_versions("1.8")
+    def test_influx18_series_grouping(self):
+        """Group TBNAME by complete Tag tuples locally, including hidden Tags.
+
+        1. Group rows by complete Tag tuples, including missing and special values.
+        2. Check remote projections include hidden Tags needed for local grouping.
+
+        Catalog:
+            - FederatedQuery
+
+        Since: v3.5.0.0
+
+        Labels: common, ci, influx18
+
+        Jira: None
+
+        History:
+            - 2026-10-29 Cover local SERIES grouping without aggregate pushdown
+
+        """
+        self.do_influx18_series_grouping()
+
+    def do_influx18_http_rows_and_lifecycle(self):
+        import json
+        import threading
+        from concurrent.futures import ThreadPoolExecutor
+        from urllib.parse import parse_qs, urlsplit
+        from federated_query_common import (
+            influx18_basic_gate, INFLUX18_QUOTED_IDENTIFIER, TSDB_CODE_EXT_TYPE_CONVERT_FAILED,
+            TSDB_CODE_EXT_SCHEMA_CHANGED, TSDB_CODE_EXT_SYNTAX_UNSUPPORTED,
+            TSDB_CODE_EXT_FETCH_FAILED, TSDB_CODE_EXT_RESOURCE_EXHAUSTED,
+            TSDB_CODE_TSC_QUERY_KILLED,
+        )
+        if self._influx_cfg().version != "1.8":
+            pytest.skip("This case verifies the native InfluxDB 1.8 HTTP reader")
+        timestamp = 1700000000000000001
+        database = "fq14_influx18_http_rows"
+        state = {}
+        generated_sql = []
+
+        def packet(columns, values, tags=None):
+            series = {"name": "rows", "columns": columns, "values": values}
+            if tags is not None:
+                series["tags"] = tags
+            return json.dumps({"results": [{"series": [series]}]}, ensure_ascii=False).encode() + b"\n"
+
+        first = packet(["text", "value", "time", "flag"],
+                       [["max", 18446744073709551615, timestamp, True],
+                        ["zero", 0, timestamp + 1, False]], {"site": "a"})
+        second = packet(["site", "flag", "time", "text", "value"],
+                        [["b", None, timestamp + 2, None, None],
+                         ["b", True, timestamp + 3, "中文", 9007199254740993]])
+        batch = packet(["time", "value"], [[timestamp + i, i] for i in range(4096)])
+        fields = json.dumps({"results": [{"series": [{"name": "rows",
+            "columns": ["fieldKey", "fieldType"],
+            "values": [["value", "unsigned"], ["flag", "boolean"], ["text", "string"],
+                       ['q"field', "integer"], ["slash\\field", "string"]]}]}]}).encode()
+
+        def override(path):
+            sql = parse_qs(urlsplit(path).query).get("q", [""])[0]
+            if sql.startswith("SHOW FIELD KEYS"):
+                return 200, fields
+            if sql.startswith("SELECT"):
+                generated_sql.append(sql)
+                body = state["body"]
+                return 200, body() if callable(body) else iter(body)
+            return None
+
+        def worker(sql):
+            import taos
+            conn = taos.connect(host=self.host, port=self.port, config=self.cfg_path)
+            try:
+                cursor = conn.cursor()
+                try:
+                    cursor.execute(sql)
+                    return cursor.fetchall()
+                finally:
+                    cursor.close()
+            finally:
+                conn.close()
+
+        with self._influx_fixture(database, [f'rows,site=a value=1i,flag=true,text="seed" {timestamp}']) as (cfg, _):
+            source = database + "_gate"
+            with influx18_basic_gate(cfg, response_override=override) as (port, _):
+                try:
+                    tdSql.execute(self._mk_influx_source_sql(
+                        source, "127.0.0.1", port, "", database=database,
+                        user="basic18", password="basic18_test_password"))
+                    table = f"{source}.{database}.rows"
+                    state["body"] = [first, second]
+                    self._check_query_rows(f"SELECT CAST(time AS BIGINT),value,flag,`text`,site FROM {table} ORDER BY time", [
+                        (timestamp, 18446744073709551615, True, "max", "a"),
+                        (timestamp + 1, 0, False, "zero", "a"),
+                        (timestamp + 2, None, None, None, "b"),
+                        (timestamp + 3, 9007199254740993, True, "中文", "b")])
+                    state["body"] = [packet(["time", "value"], [[timestamp, 7]], {"site": "a"})]
+                    self._check_query_rows(f"SELECT value,flag,`text`,site FROM {table}", [(7, None, None, "a")])
+                    state["body"] = [packet(["time", 'q"field'], [[timestamp, -9223372036854775808]])]
+                    self._check_query_rows(f'SELECT `q"field` FROM {table}', [(-9223372036854775808,)])
+                    for columns, values, tags, errno in [
+                        (["time", "value"], [[timestamp, -1]], None, TSDB_CODE_EXT_TYPE_CONVERT_FAILED),
+                        (["time", "value"], [[timestamp, 18446744073709551616]], None, TSDB_CODE_EXT_TYPE_CONVERT_FAILED),
+                        (["time", "value"], [[timestamp, "42"]], None, TSDB_CODE_EXT_TYPE_CONVERT_FAILED),
+                        (["time", "value", "flag"], [[timestamp, 1, 0]], None, TSDB_CODE_EXT_TYPE_CONVERT_FAILED),
+                        (["time", "value", "text"], [[timestamp, 1, 0]], None, TSDB_CODE_EXT_TYPE_CONVERT_FAILED),
+                        (["time", "value"], [[1.5, 1]], None, TSDB_CODE_EXT_TYPE_CONVERT_FAILED),
+                        (["value"], [[1]], None, TSDB_CODE_EXT_SCHEMA_CHANGED),
+                        (["time", "value", "site"], [[timestamp, 1, "b"]], {"site": "a"}, TSDB_CODE_EXT_SCHEMA_CHANGED),
+                    ]:
+                        state["body"] = [packet(columns, values, tags)]
+                        tdSql.error(f"SELECT * FROM {table}", expectedErrno=errno)
+                    for tail, errno in [
+                        (b'{"results":[{"error":"error parsing query: late chunk"}]}', TSDB_CODE_EXT_SYNTAX_UNSUPPORTED),
+                        (b'{"results":[', TSDB_CODE_EXT_FETCH_FAILED),
+                    ]:
+                        state["body"] = [batch, tail]
+                        tdSql.error(f"SELECT * FROM {table}", expectedErrno=errno)
+                        state["body"] = [first]
+                        self._check_query_rows(f"SELECT COUNT(*) FROM {table}", [(2,)])
+                    limit = 16 * 1024 * 1024
+                    prefix = b'{"results":[{}]'
+                    padded = prefix + b" " * (limit - len(prefix) - 1) + b"}"
+                    state["body"] = [batch, padded]
+                    self._check_query_rows(f"SELECT COUNT(*) FROM {table}", [(4096,)])
+                    state["body"] = [batch, padded[:-1] + b" }"]
+                    tdSql.error(f"SELECT * FROM {table}", expectedErrno=TSDB_CODE_EXT_RESOURCE_EXHAUSTED)
+                    del padded
+                    for cancel in (False, True):
+                        started, release, finished = threading.Event(), threading.Event(), threading.Event()
+
+                        def blocked_response():
+                            try:
+                                yield batch
+                                started.set()
+                                # Keep the HTTP response open without adding another JSON root.
+                                # Cancellation must close it before the fixture supplies EOF.
+                                deadline = time.monotonic() + 60
+                                while not release.is_set() and time.monotonic() < deadline:
+                                    yield b" " * 65536
+                                    time.sleep(0.01)
+                            finally:
+                                finished.set()
+
+                        state["body"] = blocked_response
+                        # Keep the final LIMIT local so this protocol fixture can
+                        # test early reader closure without evaluating InfluxQL.
+                        query = (f"SELECT COUNT(*) AS cancel_probe FROM {table}" if cancel else
+                                 f"SELECT value FROM {table} WHERE value IS NOT NULL LIMIT 1")
+                        with ThreadPoolExecutor(max_workers=1) as pool:
+                            future = pool.submit(worker, query)
+                            try:
+                                assert started.wait(10), "reader never received its first block"
+                                if cancel:
+                                    kill_id = None
+                                    deadline = time.monotonic() + 8
+                                    while time.monotonic() < deadline and kill_id is None:
+                                        tdSql.query("SELECT kill_id, sql FROM performance_schema.perf_queries", queryTimes=1)
+                                        kill_id = next((row[0] for row in tdSql.queryResult if str(row[1]).strip().casefold() == query.casefold()), None)
+                                        if kill_id is None:
+                                            time.sleep(0.1)
+                                    assert kill_id is not None, ("blocked query absent from perf_queries", tdSql.queryResult)
+                                    tdSql.execute(f"KILL QUERY '{kill_id}'")
+                                    with pytest.raises(Exception) as error:
+                                        future.result(timeout=10)
+                                    assert (error.value.errno & 0xFFFFFFFF) == TSDB_CODE_TSC_QUERY_KILLED, str(error.value)
+                                else:
+                                    assert future.result(timeout=10) == [(0,)]
+                                assert finished.wait(10), "reader did not close the response before upstream EOF"
+                            finally:
+                                release.set()
+                                assert finished.wait(10), "upstream response handler did not exit"
+                        state["body"] = [first]
+                        self._check_query_rows(f"SELECT COUNT(*) FROM {table}", [(2,)])
+                finally:
+                    self._cleanup_src(source)
+        identifier = INFLUX18_QUOTED_IDENTIFIER
+        pattern = (rf'SELECT\s+{identifier}(?:\s*,\s*{identifier})*\s+FROM\s+'
+                   rf'{identifier}\.{identifier}\.{identifier}(?:\s+ORDER BY time ASC)?')
+        assert generated_sql and all(re.fullmatch(pattern, sql) for sql in generated_sql), generated_sql
+        assert any('q\\"field' in sql and 'slash\\\\field' in sql for sql in generated_sql), generated_sql
+        print("InfluxDB 1.8 HTTP rows, failures and cancellation ................ [ passed ]")
+
+    @influx_versions("1.8")
+    def test_influx18_http_rows_and_lifecycle(self):
+        """Validate complete JSON row decoding and asynchronous HTTP reader cleanup.
+
+        1. Decode exact UInt64 values, reordered columns, series Tags and missing Fields.
+        2. Propagate late chunk errors, truncation and per-object resource exhaustion.
+        3. Stop the producer on LIMIT and KILL QUERY and recover with a healthy query.
+
+        Catalog:
+            - FederatedQuery
+
+        Since: v3.5.0.0
+
+        Labels: common, ci, influx18
+
+        Jira: None
+
+        History:
+            - 2026-11-02 Cover synthetic native HTTP protocol boundaries and cleanup
+
+        """
+        self.do_influx18_http_rows_and_lifecycle()
+
+    def do_influx18_local_plan(self):
+        if self._influx_cfg().version != "1.8":
+            pytest.skip("This case verifies the native InfluxDB 1.8 local plan")
+        database = "fq14_influx18_local_plan"
+        lines = [f"rows,site=a value={i}i {1700000000000000000 + i}" for i in range(3)]
+        with self._influx_fixture(database, lines) as (_, source):
+            table = f"{source}.{database}.rows"
+            for sql, operators, expected in [
+                (f"SELECT value FROM {table} WHERE ABS(value)>0", [r"Filter|Conditions"], [(1,), (2,)]),
+                (f"SELECT COUNT(*) FROM {table}", [r"Aggregate"], [(3,)]),
+                (f"SELECT value FROM {table} ORDER BY value DESC", [r"Sort"], [(2,), (1,), (0,)]),
+                (f"SELECT value FROM {table} WHERE value IS NOT NULL LIMIT 1", [r"limit[=: ]+1"], [(0,)]),
+                (f"SELECT a.value,b.value FROM {table} a JOIN {table} b ON a.time=b.time ORDER BY a.value",
+                 [r"Join", r"Sort"], [(0, 0), (1, 1), (2, 2)]),
+            ]:
+                tdSql.query("EXPLAIN VERBOSE TRUE " + sql)
+                plan = "\n".join(str(row[0]) for row in tdSql.queryResult)
+                local = "\n".join(line for line in plan.splitlines() if "Remote SQL:" not in line)
+                for operator in operators:
+                    assert re.search(operator, local, re.I), (sql, operator, plan)
+                self._check_query_rows(sql, expected)
+            for sql, remote_pattern, expected in [
+                (f"SELECT value FROM {table} WHERE value>0", r'"value"\s*>\s*0', [(1,), (2,)]),
+                (f"SELECT SUM(value) FROM {table}", r'SUM\("value"\)', [(3,)]),
+                (f"SELECT value FROM {table} ORDER BY time DESC LIMIT 1 OFFSET 1",
+                 r"ORDER BY time DESC\s+LIMIT 1\s+OFFSET 1", [(1,)]),
+            ]:
+                tdSql.query("EXPLAIN ANALYZE VERBOSE TRUE " + sql)
+                plan = "\n".join(str(row[0]) for row in tdSql.queryResult)
+                remote = "\n".join(line for line in plan.splitlines() if "Remote SQL:" in line)
+                assert re.search(remote_pattern, remote, re.I), (sql, plan)
+                self._check_query_rows(sql, expected)
+        print("InfluxDB 1.8 pushdown and local plan operators ................ [ passed ]")
+
+    @influx_versions("1.8")
+    def test_influx18_local_plan(self):
+        """Protect local operators independently of the remote raw SELECT contract.
+
+        1. Require local filter, aggregate, sort, limit and join fallback plan evidence.
+        2. Check supported filters, SUM and time ordering with LIMIT/OFFSET reach InfluxQL.
+        3. Compare the executed results against fixed expectations.
+
+        Catalog:
+            - FederatedQuery
+
+        Since: v3.5.0.0
+
+        Labels: common, ci, influx18
+
+        Jira: None
+
+        History:
+            - 2026-11-02 Add native local-plan regression assertions
+            - 2026-11-04 Cover pushdown and retained local fallback boundaries
+
+        """
+        self.do_influx18_local_plan()

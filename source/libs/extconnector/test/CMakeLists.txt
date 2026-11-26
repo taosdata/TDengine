@@ -20,6 +20,12 @@ SET(CMAKE_CXX_STANDARD 11)
 ADD_EXECUTABLE(extConnectorBoundaryTest extConnectorBoundaryTest.cpp)
 DEP_ext_gtest(extConnectorBoundaryTest)
 
+if(TD_ENTERPRISE)
+  target_sources(extConnectorBoundaryTest PRIVATE
+    "${TD_ENTERPRISE_DIR}/source/plugins/extsource/test/extInfluxV1ScanTest.cpp")
+  target_include_directories(extConnectorBoundaryTest PRIVATE "${TD_ENTERPRISE_DIR}/source/plugins/extsource/src")
+endif()
+
 TARGET_INCLUDE_DIRECTORIES(
   extConnectorBoundaryTest
   PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/../inc"

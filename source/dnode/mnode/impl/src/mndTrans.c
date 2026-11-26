@@ -31,6 +31,7 @@
 #include "mndTxn.h"
 #include "mndUser.h"
 #include "mndVgroup.h"
+#include "mndView.h"
 #include "osTime.h"
 #include "tlogKeyOp.h"
 
@@ -125,6 +126,7 @@ static bool    mndTransPerformCommitStage(SMnode *pMnode, STrans *pTrans, bool t
 static bool    mndTransPerformRollbackStage(SMnode *pMnode, STrans *pTrans, bool topHalf);
 static bool    mndTransPerformFinishStage(SMnode *pMnode, STrans *pTrans, bool topHalf);
 static bool    mndTransIsStreamStopCallback(ETrnFunc stopFunc);
+static void    mndTransDropDataImpl(STrans *pTrans, bool destroyMutex);
 
 static inline bool mndTransIsInSyncContext(bool topHalf) { return !topHalf; }
 
@@ -406,21 +408,24 @@ static int32_t mndTransDecodeActionWithGroup(SSdbRaw *pRaw, int32_t *offset, SAr
     if (action.actionType == TRANS_ACTION_RAW) {
       SDB_GET_INT8(pRaw, dataPos, &unused /*&action.rawWritten*/, _OVER)
       SDB_GET_INT32(pRaw, dataPos, &dataLen, _OVER)
-      // Validate the raw-supplied length before allocating (security finding item 267):
-      // it must be non-negative and must not exceed the bytes still available in the raw,
-      // otherwise a length near INT32_MAX would allocate gigabytes and memcpy past the raw.
-      if (dataLen < 0 || dataLen > pRaw->dataLen - dataPos) {
-        terrno = TSDB_CODE_SDB_INVALID_DATA_LEN;
+      if (dataLen < (int32_t)sizeof(SSdbRaw) || dataPos < 0 ||
+          dataLen > pRaw->dataLen - dataPos) {
+        terrno = TSDB_CODE_INVALID_MSG;
         goto _OVER;
       }
       action.pRaw = taosMemoryMalloc(dataLen);
       if (action.pRaw == NULL) goto _OVER;
       mTrace("raw:%p, is created", action.pRaw);
       SDB_GET_BINARY(pRaw, dataPos, (void *)action.pRaw, dataLen, _OVER);
+      if (action.pRaw->dataLen < 0 ||
+          action.pRaw->dataLen != dataLen - sizeof(SSdbRaw)) {
+        terrno = TSDB_CODE_INVALID_MSG;
+        goto _OVER;
+      }
       if (taosArrayPush(pActions, &action) == NULL) goto _OVER;
+      action.pRaw = NULL;
       STransAction *pAction = taosArrayGet(pActions, taosArrayGetSize(pActions) - 1);
       if (mndTransDecodeGroupRedoAction(redoGroupActions, pAction) != 0) goto _OVER;
-      action.pRaw = NULL;
     } else if (action.actionType == TRANS_ACTION_MSG) {
       SDB_GET_BINARY(pRaw, dataPos, (void *)&action.epSet, sizeof(SEpSet), _OVER);
       tmsgUpdateDnodeEpSet(&action.epSet);
@@ -436,9 +441,9 @@ static int32_t mndTransDecodeActionWithGroup(SSdbRaw *pRaw, int32_t *offset, SAr
       if (action.pCont == NULL) goto _OVER;
       SDB_GET_BINARY(pRaw, dataPos, action.pCont, action.contLen, _OVER);
       if (taosArrayPush(pActions, &action) == NULL) goto _OVER;
+      action.pCont = NULL;
       STransAction *pAction = taosArrayGet(pActions, taosArrayGetSize(pActions) - 1);
       if (mndTransDecodeGroupRedoAction(redoGroupActions, pAction) != 0) goto _OVER;
-      action.pCont = NULL;
     } else {
       if (taosArrayPush(pActions, &action) == NULL) goto _OVER;
     }
@@ -448,7 +453,10 @@ static int32_t mndTransDecodeActionWithGroup(SSdbRaw *pRaw, int32_t *offset, SAr
 _OVER:
   if (terrno != 0) mError("failed to decode action with group at line:%d, since %s", lino, terrstr());
   *offset = dataPos;
+  // Whatever was not handed over to pActions yet is freed here; a pushed action
+  // is owned by the array and released by mndTransDropActions().
   taosMemoryFreeClear(action.pCont);
+  taosMemoryFreeClear(action.pRaw);
   return ret;
 }
 
@@ -481,17 +489,20 @@ static int32_t mndTransDecodeAction(SSdbRaw *pRaw, int32_t *offset, SArray *pAct
     if (action.actionType == TRANS_ACTION_RAW) {
       SDB_GET_INT8(pRaw, dataPos, &unused /*&action.rawWritten*/, _OVER)
       SDB_GET_INT32(pRaw, dataPos, &dataLen, _OVER)
-      // Validate the raw-supplied length before allocating (security finding item 267):
-      // it must be non-negative and must not exceed the bytes still available in the raw,
-      // otherwise a length near INT32_MAX would allocate gigabytes and memcpy past the raw.
-      if (dataLen < 0 || dataLen > pRaw->dataLen - dataPos) {
-        terrno = TSDB_CODE_SDB_INVALID_DATA_LEN;
+      if (dataLen < (int32_t)sizeof(SSdbRaw) || dataPos < 0 ||
+          dataLen > pRaw->dataLen - dataPos) {
+        terrno = TSDB_CODE_INVALID_MSG;
         goto _OVER;
       }
       action.pRaw = taosMemoryMalloc(dataLen);
       if (action.pRaw == NULL) goto _OVER;
       mTrace("raw:%p, is created", action.pRaw);
       SDB_GET_BINARY(pRaw, dataPos, (void *)action.pRaw, dataLen, _OVER);
+      if (action.pRaw->dataLen < 0 ||
+          action.pRaw->dataLen != dataLen - sizeof(SSdbRaw)) {
+        terrno = TSDB_CODE_INVALID_MSG;
+        goto _OVER;
+      }
       if (taosArrayPush(pActions, &action) == NULL) goto _OVER;
       action.pRaw = NULL;
     } else if (action.actionType == TRANS_ACTION_MSG) {
@@ -519,7 +530,10 @@ static int32_t mndTransDecodeAction(SSdbRaw *pRaw, int32_t *offset, SArray *pAct
 _OVER:
   if (terrno != 0) mError("failed to decode action at line:%d, since %s", lino, terrstr());
   *offset = dataPos;
+  // Whatever was not handed over to pActions yet is freed here; a pushed action
+  // is owned by the array and released by mndTransDropActions().
   taosMemoryFreeClear(action.pCont);
+  taosMemoryFreeClear(action.pRaw);
   return ret;
 }
 
@@ -689,7 +703,7 @@ _OVER:
   if (terrno != 0 && pTrans != NULL) {
     mError("trans:%d, failed to parse from raw:%p at line:%d dataPos:%d dataLen:%d since %s", pTrans->id, pRaw, lino,
            dataPos, pRaw->dataLen, terrstr());
-    mndTransDropData(pTrans);
+    mndTransDropDataImpl(pTrans, false);
     taosMemoryFreeClear(pRow);
     return NULL;
   }
@@ -856,7 +870,7 @@ static int32_t mndTransActionInsert(SSdb *pSdb, STrans *pTrans) {
   return 0;
 }
 
-void mndTransDropData(STrans *pTrans) {
+static void mndTransDropDataImpl(STrans *pTrans, bool destroyMutex) {
   if (pTrans->prepareActions != NULL) {
     mndTransDropActions(pTrans->prepareActions);
     pTrans->prepareActions = NULL;
@@ -900,6 +914,12 @@ void mndTransDropData(STrans *pTrans) {
     pTrans->rpcRsp = NULL;
     pTrans->rpcRspLen = 0;
   }
+  if (pTrans->errRsp != NULL) {
+    taosMemoryFree(pTrans->errRsp);
+    pTrans->errRsp = NULL;
+    pTrans->errRspLen = 0;
+    pTrans->errRspCode = 0;
+  }
   if (pTrans->param != NULL) {
     taosMemoryFree(pTrans->param);
     pTrans->param = NULL;
@@ -910,7 +930,18 @@ void mndTransDropData(STrans *pTrans) {
     pTrans->userData = NULL;
     pTrans->userDataLen = 0;
   }
-  (void)taosThreadMutexDestroy(&pTrans->mutex);
+  if (destroyMutex) (void)taosThreadMutexDestroy(&pTrans->mutex);
+}
+
+void mndTransDropData(STrans *pTrans) {
+  mndTransDropDataImpl(pTrans, true);
+}
+
+void mndTransFreeDecoded(SSdbRow *pRow) {
+  if (pRow == NULL) return;
+  // Decoding does not initialize the runtime mutex or execute SDB callbacks.
+  mndTransDropDataImpl(sdbGetRowObj(pRow), false);
+  taosMemoryFree(pRow);
 }
 
 static int32_t mndTransDelete(SSdb *pSdb, STrans *pTrans, bool callFunc) {
@@ -1786,6 +1817,37 @@ static void mndTransSendRpcRsp(SMnode *pMnode, STrans *pTrans) {
 
       if (pTrans->originRpcType == TDMT_MND_CREATE_DB) {
         mInfo("trans:%d, origin msgtype:%s", pTrans->id, TMSG_INFO(pTrans->originRpcType));
+
+        // Stamp each newly created vgroup's leader immediately after commit, using the leader dnodeId
+        // captured from the alter-confirm responses. This closes the heartbeat-lag window during which
+        // the vgroup is already visible (committed) but the mnode's cached syncState is still the
+        // initial FOLLOWER, which made `show cluster alive` transiently report 2 right after create-db.
+        //
+        // This MUST run BEFORE the mndIsDbReady wait loop below: test_create_db_alive_from_other_client
+        // uses an independent connection that polls `show cluster alive` WHILE create-db is held back by
+        // that loop. Stamping afterwards would leave the observer seeing leaderless vgroups during the
+        // heartbeat wait and re-open the bug.
+        //
+        // The stamped value is the GENUINE leader, proven by the alter-confirm sync-write (only the
+        // leader applies it). So mndIsDbReady passing immediately is the legitimate "leader is ready"
+        // signal, not a fabricated bypass. The next real heartbeat (~1s) re-writes the same leader.
+        int32_t nActions = (pTrans->redoActions != NULL) ? taosArrayGetSize(pTrans->redoActions) : 0;
+        for (int32_t a = 0; a < nActions; ++a) {
+          STransAction *pAct = taosArrayGet(pTrans->redoActions, a);
+          if (pAct->msgType != TDMT_VND_ALTER_CONFIRM || pAct->leaderDnodeId <= 0) continue;
+          SVgObj *pVg = mndAcquireVgroup(pMnode, pAct->groupId);
+          if (pVg == NULL) continue;
+          for (int32_t g = 0; g < pVg->replica; ++g) {
+            if (pVg->vnodeGid[g].dnodeId == pAct->leaderDnodeId) {
+              pVg->vnodeGid[g].syncState = TAOS_SYNC_STATE_LEADER;
+              mInfo("trans:%d, vgId:%d stamp leader dnode:%d (alter-confirm) to avoid show cluster alive = 2",
+                    pTrans->id, pAct->groupId, pAct->leaderDnodeId);
+              break;
+            }
+          }
+          mndReleaseVgroup(pMnode, pVg);
+        }
+
         SDbObj *pDb = mndAcquireDb(pMnode, pTrans->dbname);
         if (pDb != NULL) {
           for (int32_t j = 0; j < 12; j++) {
@@ -1811,7 +1873,21 @@ static void mndTransSendRpcRsp(SMnode *pMnode, STrans *pTrans) {
         if (0 == mndBuildSMCreateStbRsp(pMnode, pTrans->dbname, pTrans->stbname, &pCont, &contLen)) {
           mndTransSetRpcRsp(pTrans, pCont, contLen);
         }
-      } else if (pTrans->originRpcType == TDMT_MND_DROP_DNODE || pTrans->originRpcType == TDMT_MND_CREATE_DNODE) {
+      }
+#ifdef TD_ENTERPRISE
+      else if (pTrans->originRpcType == TDMT_MND_CREATE_VIEW) {
+        // Return the effective view metadata so the issuing client can update its
+        // catalog without evicting the entry and re-fetching it on the next query.
+        void   *pCont = NULL;
+        int32_t contLen = 0;
+        if (0 == mndBuildSCMCreateViewRsp(pMnode, pTrans->stbname, &pCont, &contLen)) {
+          mndTransSetRpcRsp(pTrans, pCont, contLen);
+        } else {
+          mError("trans:%d, failed to build create-view rsp for view:%s", pTrans->id, pTrans->stbname);
+        }
+      }
+#endif
+      else if (pTrans->originRpcType == TDMT_MND_DROP_DNODE || pTrans->originRpcType == TDMT_MND_CREATE_DNODE) {
         int32_t code = mndRefreshUserIpWhiteList(pMnode);
         if (code != 0) {
           // Log as error: if the whitelist refresh fails, the new dnode's intra-cluster RPC will be rejected
@@ -1832,7 +1908,20 @@ static void mndTransSendRpcRsp(SMnode *pMnode, STrans *pTrans) {
         }
       }
 
-      if (pTrans->rpcRspLen != 0) {
+      if (code != TSDB_CODE_SUCCESS) {
+        // failed trans: attach the action's error-detail text when present; the (stale)
+        // success rpcRsp built at trans creation must not go out on an error response. Only
+        // attach when the final error code is the one that produced the detail, so a later
+        // undo/rollback failure cannot pair a different code with stale conflict text.
+        if (pTrans->errRspLen > 0 && pTrans->errRsp != NULL && code == pTrans->errRspCode) {
+          void *rpcCont = rpcMallocCont(pTrans->errRspLen);
+          if (rpcCont != NULL) {
+            memcpy(rpcCont, pTrans->errRsp, pTrans->errRspLen);
+            rspMsg.pCont = rpcCont;
+            rspMsg.contLen = pTrans->errRspLen;
+          }
+        }
+      } else if (pTrans->rpcRspLen != 0) {
         void *rpcCont = rpcMallocCont(pTrans->rpcRspLen);
         if (rpcCont != NULL) {
           memcpy(rpcCont, pTrans->rpcRsp, pTrans->rpcRspLen);
@@ -1899,6 +1988,38 @@ int32_t mndTransProcessRsp(SRpcMsg *pRsp) {
       pAction->errCode = pRsp->code;
       pAction->endTime = taosGetTimestampMs();
 
+      // Capture the alter-confirm leader dnodeId so we can stamp the vgroup leader right after
+      // commit (see mndTransSendRpcRsp), closing the heartbeat-lag window where `show cluster
+      // alive` transiently reports 2 for a just-created database.
+      if (pAction->msgType == TDMT_VND_ALTER_CONFIRM && pRsp->code == 0 && pRsp->pCont != NULL &&
+          pRsp->contLen > 0) {
+        SAlterVnodeConfirmRsp confirm = {0};
+        if (tDeserializeSAlterVnodeConfirmRsp(pRsp->pCont, pRsp->contLen, &confirm) == 0 && confirm.dnodeId > 0) {
+          pAction->leaderDnodeId = confirm.dnodeId;
+          mInfo("trans:%d, alter-confirm vgId:%d leader dnodeId:%d captured", pTrans->id, pAction->groupId,
+                pAction->leaderDnodeId);
+        }
+      }
+
+      // A failed action response may carry a custom error-detail text payload (e.g. the
+      // vstb alter name-conflict check names the conflicting child table, defect 7160321463).
+      // Keep a copy on the trans so the final client rsp can attach it alongside the error
+      // code. The first error wins; the payload is owned by the rpc layer, hence the copy.
+      // Gate tightly: only the exact conflict code carries the text, and only a payload that
+      // is NUL-terminated text. A vnode redirect (sync not-leader) answers this same msgType
+      // with a serialized SEpSet binary body, which must not be captured as error text.
+      if (pRsp->code == TSDB_CODE_VND_COL_ALREADY_EXISTS && pRsp->msgType == TDMT_VND_CHECK_STB_ALTER_NAME_RSP &&
+          pRsp->pCont != NULL && pRsp->contLen > 0 && pTrans->errRsp == NULL &&
+          memchr(pRsp->pCont, '\0', pRsp->contLen) != NULL) {
+        void *pErr = taosMemoryMalloc(pRsp->contLen);
+        if (pErr != NULL) {
+          memcpy(pErr, pRsp->pCont, pRsp->contLen);
+          pTrans->errRsp = pErr;
+          pTrans->errRspLen = pRsp->contLen;
+          pTrans->errRspCode = pRsp->code;
+        }
+      }
+
       // pTrans->lastErrorNo = pRsp->code;
       mndSetTransLastAction(pTrans, pAction);
 
@@ -1957,6 +2078,15 @@ static void mndTransResetActions(SMnode *pMnode, STrans *pTrans, SArray *pArray)
     mndTransResetAction(pMnode, pTrans, pAction);
     mInfo("trans:%d, %s:%d reset, errCode:%d, startTime:%" PRId64, pTrans->id, mndTransStr(pAction->stage), pAction->id,
           pAction->errCode, pAction->startTime);
+
+    // a retry may fail on a different action; drop the stale error detail so it cannot be
+    // paired with a mismatched error code in the eventual client response
+    if (pTrans->errRsp != NULL) {
+      taosMemoryFree(pTrans->errRsp);
+      pTrans->errRsp = NULL;
+      pTrans->errRspLen = 0;
+      pTrans->errRspCode = 0;
+    }
   }
 }
 
@@ -2001,12 +2131,50 @@ static int32_t mndTransWriteSingleLog(SMnode *pMnode, STrans *pTrans, STransActi
   TAOS_RETURN(code);
 }
 
+// A vgroup is gone for good when it is no longer in the mnode's SDB, or is DROPPING (DROP DATABASE is
+// removing it; that cannot be undone). This is judged on the SDB, not on a vnode's answer: "Vnode is closed
+// or removed" (TSDB_CODE_VND_INVALID_VGROUP_ID) is also what an offline / starting / closed / failed vnode
+// answers, and such a vnode still holds the txn's uncommitted entries.
+bool mndTransVgroupIsGone(SMnode *pMnode, int32_t vgId) {
+  SVgObj *pVgroup = mndAcquireVgroup(pMnode, vgId);  // only returns a READY vgroup
+  if (pVgroup != NULL) {
+    mndReleaseVgroup(pMnode, pVgroup);
+    return false;
+  }
+  return terrno == TSDB_CODE_MND_VGROUP_NOT_EXIST || terrno == TSDB_CODE_SDB_OBJ_DROPPING;
+}
+
+// The commit / rollback trans of a user txn (TRN_POLICY_RETRY) sends one action per participant vgroup. If
+// the vgroup's database was dropped meanwhile - possibly after the trans was prepared - the action would be
+// retried for ever and the txn could never end, although there is nothing left there to commit or roll
+// back. Such an action is completed without being sent. Only these two trans are affected (oper is
+// persisted with the trans); every other trans, incl. the orphan-txn clean-up ones, is untouched.
+static bool mndTransVnodeGoneForUserTxn(SMnode *pMnode, STrans *pTrans, STransAction *pAction) {
+  if (pTrans->oper != MND_OPER_COMMIT_TXN && pTrans->oper != MND_OPER_ROLLBACK_TXN) return false;
+  if (pAction->msgType != TDMT_VND_TXN_COMMIT && pAction->msgType != TDMT_VND_TXN_ROLLBACK) return false;
+  if (pAction->groupId <= 0) return false;
+  return mndTransVgroupIsGone(pMnode, pAction->groupId);
+}
+
 // execute in trans context
 static int32_t mndTransSendSingleMsg(SMnode *pMnode, STrans *pTrans, STransAction *pAction, bool topHalf,
                                      bool notSend) {
   if (pAction->msgSent) return 0;
   if (mndCannotExecuteTrans(pMnode, topHalf)) {
     TAOS_RETURN(TSDB_CODE_MND_TRANS_CTX_SWITCH);
+  }
+
+  if (!notSend && mndTransVnodeGoneForUserTxn(pMnode, pTrans, pAction)) {
+    // Record it exactly as a successful round trip, which is what every executor looks at.
+    mWarn("trans:%d, %s:%d (%s) skipped: vgId:%d no longer exists, its database was dropped during the txn",
+          pTrans->id, mndTransStr(pAction->stage), pAction->id, TMSG_INFO(pAction->msgType), pAction->groupId);
+    pAction->msgSent = 1;
+    pAction->msgReceived = 1;
+    pAction->errCode = 0;
+    pAction->startTime = taosGetTimestampMs();
+    pAction->endTime = pAction->startTime;
+    mndSetTransLastAction(pTrans, pAction);
+    return 0;
   }
 
   if (notSend) {
@@ -2574,8 +2742,9 @@ static int32_t mndTransExecuteRedoActionGroup(SMnode *pMnode, STrans *pTrans, bo
     } else if (code == TSDB_CODE_ACTION_IN_PROGRESS) {
       mInfo("trans:%d, group:%d/%d(%d) is executed and still in progress", pTrans->id, currentGroup, groupCount, *key);
     } else if (code == TSDB_CODE_MND_TRANS_GROUP_FINISHED) {
-      mInfo("trans:%d, group:%d/%d(%d) is finished, activeCount:%d", pTrans->id, currentGroup, groupCount, *key,
-            activeCount);
+      successCount++;
+      mInfo("trans:%d, group:%d/%d(%d) is finished, successCount:%d, activeCount:%d", pTrans->id, currentGroup,
+            groupCount, *key, successCount, activeCount);
       // if (parallelNum > 0 && activeCount > 0) activeCount--;
     } else if (code != 0) {
       mError("trans:%d, group:%d/%d(%d) failed to execute, code:%s", pTrans->id, currentGroup, groupCount, *key,

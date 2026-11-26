@@ -58,7 +58,7 @@ from fs_common import (  # noqa: E402
 
 
 def _mid_segment(prefix: str, src_name: str) -> str:
-    """For src '{prefix}_{m|p|s|i}', return remote db (mysql/influx) or schema (pg/sqlserver)."""
+    """For src '{prefix}_{m|p|s|i|o}', return remote db (mysql/influx) or schema (pg/sqlserver/oracle)."""
     suffix = src_name[-1]
     if suffix == "p":
         return "public"
@@ -66,6 +66,13 @@ def _mid_segment(prefix: str, src_name: str) -> str:
         # SQL Server 3-segment refs carry the schema in the middle segment;
         # the database comes from the source default (DS §5.3.3).
         return "dbo"
+    if suffix == "o":
+        # Oracle exposes a single namespace level: the login schema.  TDengine
+        # lower-cases an unquoted identifier, so the upper-case account name is
+        # spelled between backticks.  There is no per-test database - the
+        # source's default service is the connection
+        # target (DS §5.3.3).
+        return "`%s`" % ExtSrcEnv.ORACLE_USER.upper()
     return f"{prefix}_{suffix}db"
 
 
@@ -191,16 +198,29 @@ class TestFsExtWindowBounds(FsSharedFixtureMixin, FederatedQueryTestMixin):
             )
             tdStream.checkStreamStatus(stream)
 
+            # The reader samples its history cutoff (MAX(ts)) after the START
+            # request is queued, and a row written before that sample becomes
+            # history that no later META pull asks for.  Prove the sample already
+            # happened with a canary window isolated from the measured ones
+            # before the measured rows are written.
+            canary_ts = self._wait_reader_bootstrap(
+                src_name=src_name, db_or_bucket=db_or_bucket, stream=stream,
+                result_db=self.DB, result_tbl=sink, before_ms=self._BASE_MS)
+
             self._insert_rows(suffix, db_or_bucket, rows, src_name)
-            verify_sink_rows(self.DB, stream, sink, EXPECTED, src_name)
+            # The canary windows stay out of the comparison: a window that closes
+            # without input still emits a COUNT row (cnt=0, avg_val=NULL), so the
+            # canary slot and the minutes after it would otherwise be compared too.
+            # The measured windows are still compared exactly.
+            verify_sink_rows(self.DB, stream, sink, EXPECTED, src_name,
+                             since_ms=None if canary_ts is None else self._BASE_MS)
 
             tdSql.execute(f"DROP STREAM IF EXISTS {stream}", queryTimes=30)
             tdSql.execute(f"DROP TABLE IF EXISTS {self.DB}.{sink}")
 
-        # Streams reject Oracle external tables (streamTriggerTask's identity
-        # check is fail-closed for types past SQL Server), so the stream
-        # matrices never provision an Oracle leg.
-        self._with_std_sources(prefix, body, skip_oracle=True)
+        # Oracle is supported by the ext trigger reader, so every standard
+        # source (MySQL/PostgreSQL/InfluxDB/SQL Server/Oracle) is provisioned.
+        self._with_std_sources(prefix, body)
 
     # ------------------------------------------------------------------
     # FS-BND-002  INTERVAL + mixed upper bound.
@@ -269,16 +289,23 @@ class TestFsExtWindowBounds(FsSharedFixtureMixin, FederatedQueryTestMixin):
             )
             tdStream.checkStreamStatus(stream)
 
+            canary_ts = self._wait_reader_bootstrap(
+                src_name=src_name, db_or_bucket=db_or_bucket, stream=stream,
+                result_db=self.DB, result_tbl=sink, before_ms=self._BASE_MS)
+
             self._insert_rows(suffix, db_or_bucket, rows, src_name)
-            verify_sink_rows(self.DB, stream, sink, EXPECTED, src_name)
+            # Same as FS-BND-001: the canary windows (including the ones that close
+            # without input and still emit a COUNT row) are excluded, the measured
+            # windows are compared exactly.
+            verify_sink_rows(self.DB, stream, sink, EXPECTED, src_name,
+                             since_ms=None if canary_ts is None else self._BASE_MS)
 
             tdSql.execute(f"DROP STREAM IF EXISTS {stream}", queryTimes=30)
             tdSql.execute(f"DROP TABLE IF EXISTS {self.DB}.{sink}")
 
-        # Streams reject Oracle external tables (streamTriggerTask's identity
-        # check is fail-closed for types past SQL Server), so the stream
-        # matrices never provision an Oracle leg.
-        self._with_std_sources(prefix, body, skip_oracle=True)
+        # Oracle is supported by the ext trigger reader, so every standard
+        # source (MySQL/PostgreSQL/InfluxDB/SQL Server/Oracle) is provisioned.
+        self._with_std_sources(prefix, body)
 
     # ------------------------------------------------------------------
     # FS-BND-003  PERIOD + casted localtime bounds.
@@ -294,6 +321,8 @@ class TestFsExtWindowBounds(FsSharedFixtureMixin, FederatedQueryTestMixin):
     # ------------------------------------------------------------------
     _BND003_BATCHES = 5
     _BND003_BATCH_ROWS = 3
+
+    _BND003_ROUND_TIMEOUT_S = 45
 
     # InfluxDB 3 only makes a write queryable after its next WAL flush.  A
     # write-to-visible delay longer than the 1s period window means every batch
@@ -342,27 +371,73 @@ class TestFsExtWindowBounds(FsSharedFixtureMixin, FederatedQueryTestMixin):
         return None
 
     @staticmethod
-    def _bnd003_sink_sum(sink_db: str, sink: str):
-        """(window rows, SUM(cnt)) of the sink; (0, 0) before it exists."""
+    def _bnd003_sink_sum(sink_db: str, sink: str, strict: bool = False):
+        """(window rows, SUM(cnt)) of the sink; (0, 0) before it exists.
+
+        ``strict`` re-raises a query failure rather than reporting it as an
+        empty sink.  Once warm-up has counted a row the sink is known to
+        exist, so a failure past that point means the database or table
+        stopped resolving (taosd restarted, or another instance took over the
+        port) and must never be read as "no window landed".
+        """
         try:
             tdSql.query(f"SELECT COUNT(*), SUM(cnt) FROM {sink_db}.{sink}",
                         queryTimes=1)
         except Exception:
+            if strict:
+                raise
             return 0, 0
         if not tdSql.queryResult:
             return 0, 0
         return (tdSql.queryResult[0][0] or 0), (tdSql.queryResult[0][1] or 0)
 
+    @staticmethod
+    def _bnd003_sink_rows(sink_db: str, sink: str, strict: bool = False):
+        """[(window start, cnt)] of the sink; [] before it exists.
+
+        ``measured`` must be a set difference over window labels, never a
+        SUM(cnt) delta: a warm-up window that the engine only collects after
+        the snapshot would otherwise be charged to the measured phase.
+
+        ``strict`` has the same meaning as in ``_bnd003_sink_sum``: a read
+        error is re-raised instead of being indistinguishable from "sink is
+        empty", which would otherwise be reported as a period window having
+        been skipped.
+        """
+        try:
+            tdSql.query(f"SELECT CAST(ts AS BIGINT), cnt FROM {sink_db}.{sink} ORDER BY ts",
+                        queryTimes=1)
+        except Exception:
+            if strict:
+                raise
+            return []
+        return [(row[0], row[1] or 0) for row in (tdSql.queryResult or [])]
+
+    @staticmethod
+    def _bnd003_align_to_tick():
+        """Sleep until just after the next whole second.
+
+        Starting a round on a period boundary keeps every measured window
+        entirely inside the round, so the window labels seen at the start of
+        the round can never be re-labelled by the measurement.
+        """
+        now = time.time()
+        time.sleep(max(0.0, 1.0 - (now - int(now)) + 0.2))
+
     @classmethod
     def _bnd003_wait_stable(cls, sink_db: str, sink: str, stable_s: float,
                             timeout_s: float):
-        """Wait until SUM(cnt) is unchanged for ``stable_s`` seconds."""
+        """Wait until SUM(cnt) is unchanged for ``stable_s`` seconds.
+
+        Only called once warm-up has counted a row, so the sink must be
+        readable; a query failure here aborts instead of settling on (0, 0).
+        """
         deadline = time.time() + timeout_s
-        last = cls._bnd003_sink_sum(sink_db, sink)
+        last = cls._bnd003_sink_sum(sink_db, sink, strict=True)
         since = time.time()
         while time.time() < deadline:
             time.sleep(0.5)
-            cur = cls._bnd003_sink_sum(sink_db, sink)
+            cur = cls._bnd003_sink_sum(sink_db, sink, strict=True)
             if cur != last:
                 last, since = cur, time.time()
             elif time.time() - since >= stable_s:
@@ -383,9 +458,12 @@ class TestFsExtWindowBounds(FsSharedFixtureMixin, FederatedQueryTestMixin):
         Adjacent period windows share the instant ``_tlocaltime(N) ==
         _tprev_localtime(N+1)``, so the lower bound is inclusive and the upper
         bound is exclusive (``ts >= prev AND ts < cur``), the same half-open
-        convention as FS-BND-001.  The last measured batch is pinned so its
+        convention as FS-BND-001.  Every measured batch is pinned so its
         newest row sits exactly on a whole second: that row must still be
-        counted once, which a closed upper bound would violate.
+        counted once, which a closed upper bound would violate. Exact-count
+        sources are written ahead of time and independently checked for
+        visibility before the first measured window opens, so client startup
+        and commit latency cannot masquerade as a bounds failure.
 
         InfluxDB 3 only makes a write queryable after its next WAL flush
         (``--wal-flush-interval``, default 1s), which can land after the
@@ -419,10 +497,12 @@ class TestFsExtWindowBounds(FsSharedFixtureMixin, FederatedQueryTestMixin):
         def write_batch(suffix, db_or_bucket, src_name, tag, base_ms=None):
             # base_ms lets the caller pin the batch on the window grid; the
             # rows stay `batch_rows` consecutive milliseconds ending at it.
+            # The base actually used is returned so a failure can report it.
             now_ms = base_ms if base_ms is not None else int(time.time() * 1000)
             batch = [(now_ms - (batch_rows - 1 - k), k + 1, float(k + 1),
                       f"{tag}{k}", 0) for k in range(batch_rows)]
             self._insert_rows(suffix, db_or_bucket, batch, src_name)
+            return now_ms
 
         def body(src_name: str):
             mid = _mid_segment(prefix, src_name)
@@ -436,112 +516,250 @@ class TestFsExtWindowBounds(FsSharedFixtureMixin, FederatedQueryTestMixin):
             sink_db = self.NS_DB if suffix == "i" else self.US_DB
             ts_col = _src_ts_col(src_name)
 
-            tdSql.execute(f"USE {self.DB}")
-            tdSql.execute(f"DROP STREAM IF EXISTS {stream}")
-            tdSql.execute(f"DROP TABLE IF EXISTS {sink_db}.{sink}")
-            tdSql.execute(
-                f"CREATE STREAM {stream} period(1s) "
-                f"FROM {src_name}.{mid}.src_t "
-                f"INTO {sink_db}.{sink} AS "
-                f"SELECT ts, cnt FROM ("
-                f"  SELECT cast(_tprev_localtime/{div} as timestamp) AS ts, "
-                f"  COUNT(*) AS cnt, AVG(val) AS avg_val "
-                f"  FROM {src_name}.{mid}.src_t "
-                f"  WHERE {ts_col} >= cast(_tprev_localtime/{div} as timestamp) "
-                f"  AND {ts_col} < cast(_tlocaltime/{div} as timestamp)"
-                f") WHERE cnt > 0"
-            )
-            tdStream.checkStreamStatus(stream)
-
-            # Phase 1 - warm-up.  Ext PERIOD triggers may defer calc dispatch
-            # for many seconds on a cold start (especially InfluxDB, and on a
-            # loaded CI host where the federated-query environment is still
-            # settling), silently skipping windows that closed in the meantime.
-            # Keep writing until the first window is aggregated; these rows are
-            # not measured.
-            warm_timeout_s = 240 if suffix == "i" else 120
-            deadline = time.time() + warm_timeout_s
-            warm = 0
-            while time.time() < deadline:
-                write_batch(suffix, db_or_bucket, src_name, f"w{warm}_")
-                warm += 1
-                time.sleep(1.0)
-                if self._bnd003_sink_sum(sink_db, sink)[1] > 0:
-                    break
-            if self._bnd003_sink_sum(sink_db, sink)[1] <= 0:
-                msg = (f"sink {sink} got no window within {warm_timeout_s}s of "
-                       f"warm-up ({warm} batch(es) written)")
-                if suffix != "i":
-                    raise AssertionError(msg)
-                # Never treat an empty sink as a pass.  Measure InfluxDB's
-                # write-to-visible delay directly first: only a delay beyond
-                # the 1s period window explains the empty sink, and that
-                # environment limitation is reported as an explicit skip.
-                # A fast probe means the reader/bound path is broken.
-                delay = self._influx_visible_delay(db_or_bucket)
-                tdSql.execute(f"DROP STREAM IF EXISTS {stream}", queryTimes=30)
+            def recreate_and_warmup():
+                tdSql.execute(f"USE {self.DB}")
+                tdSql.execute(f"DROP STREAM IF EXISTS {stream}")
                 tdSql.execute(f"DROP TABLE IF EXISTS {sink_db}.{sink}")
-                if delay is None or delay > self._BND003_INFLUX_MAX_VISIBLE_DELAY_S:
-                    observed = ("never visible within 10s" if delay is None
-                                else f"{delay:.2f}s")
-                    reason = (
-                        f"{msg}; direct InfluxDB write-to-visible probe: {observed} "
-                        f"(WAL flush slower than the 1s period window), so no window "
-                        f"can aggregate and the InfluxDB bound scaling is unverified")
-                    type(self)._bnd003_skip_reason = reason
-                    tdLog.info(f"[{src_name}] {reason}")
-                    return
-                raise AssertionError(
-                    f"{msg}; direct InfluxDB probe became visible in {delay:.2f}s "
-                    f"(<= {self._BND003_INFLUX_MAX_VISIBLE_DELAY_S:.1f}s), so the empty "
-                    f"sink is not explained by WAL-flush latency")
+                tdSql.execute(
+                    f"CREATE STREAM {stream} period(1s) "
+                    f"FROM {src_name}.{mid}.src_t "
+                    f"INTO {sink_db}.{sink} AS "
+                    f"SELECT ts, cnt FROM ("
+                    f"  SELECT cast(_tprev_localtime/{div} as timestamp) AS ts, "
+                    f"  COUNT(*) AS cnt, AVG(val) AS avg_val "
+                    f"  FROM {src_name}.{mid}.src_t "
+                    f"  WHERE {ts_col} >= cast(_tprev_localtime/{div} as timestamp) "
+                    f"  AND {ts_col} < cast(_tlocaltime/{div} as timestamp)"
+                    f") WHERE cnt > 0"
+                )
+                tdStream.checkStreamStatus(stream)
 
-            # Let every warm-up window close so none of them overlaps the
-            # measured rows (empty windows are dropped by cnt > 0).
-            base_rows, base_sum = self._bnd003_wait_stable(
-                sink_db, sink, stable_s=3.0, timeout_s=30)
+                # Phase 1 - warm-up.  Ext PERIOD triggers may defer calc dispatch
+                # for many seconds on a cold start (especially InfluxDB, and on a
+                # loaded CI host where the federated-query environment is still
+                # settling), silently skipping windows that closed in the meantime.
+                # Keep writing until the first window is aggregated; these rows are
+                # not measured.
+                warm_timeout_s = 240 if suffix == "i" else 120
+                deadline = time.time() + warm_timeout_s
+                warm = 0
+                while time.time() < deadline:
+                    write_batch(suffix, db_or_bucket, src_name, f"w{warm}_")
+                    warm += 1
+                    time.sleep(1.0)
+                    if self._bnd003_sink_sum(sink_db, sink)[1] > 0:
+                        break
+                if self._bnd003_sink_sum(sink_db, sink)[1] <= 0:
+                    msg = (f"sink {sink} got no window within {warm_timeout_s}s of "
+                           f"warm-up ({warm} batch(es) written)")
+                    if suffix != "i":
+                        raise AssertionError(msg)
+                    # Never treat an empty sink as a pass.  Measure InfluxDB's
+                    # write-to-visible delay directly first: only a delay beyond
+                    # the 1s period window explains the empty sink, and that
+                    # environment limitation is reported as an explicit skip.
+                    # A fast probe means the reader/bound path is broken.
+                    delay = self._influx_visible_delay(db_or_bucket)
+                    tdSql.execute(f"DROP STREAM IF EXISTS {stream}", queryTimes=30)
+                    tdSql.execute(f"DROP TABLE IF EXISTS {sink_db}.{sink}")
+                    if delay is None or delay > self._BND003_INFLUX_MAX_VISIBLE_DELAY_S:
+                        observed = ("never visible within 10s" if delay is None
+                                    else f"{delay:.2f}s")
+                        reason = (
+                            f"{msg}; direct InfluxDB write-to-visible probe: {observed} "
+                            f"(WAL flush slower than the 1s period window), so no window "
+                            f"can aggregate and the InfluxDB bound scaling is unverified")
+                        type(self)._bnd003_skip_reason = reason
+                        tdLog.info(f"[{src_name}] {reason}")
+                        return False
+                    raise AssertionError(
+                        f"{msg}; direct InfluxDB probe became visible in {delay:.2f}s "
+                        f"(<= {self._BND003_INFLUX_MAX_VISIBLE_DELAY_S:.1f}s), so the empty "
+                        f"sink is not explained by WAL-flush latency")
 
-            # Phase 2 - measure: a fixed number of batches, ~1s apart.  The
-            # last one is pinned to the next whole second so its newest row
-            # lands exactly on a period boundary: that row is counted by the
-            # window opening at the boundary, never by both sides of it.
-            for b in range(n_batches):
-                base_ms = None
-                if b == n_batches - 1:
-                    base_ms = ((int(time.time() * 1000) // 1000) + 1) * 1000
-                write_batch(suffix, db_or_bucket, src_name, f"m{b}_", base_ms)
-                time.sleep(1.0)
+                # Let every warm-up window close so none of them overlaps the
+                # measured rows (empty windows are dropped by cnt > 0).
+                self._bnd003_wait_stable(sink_db, sink, stable_s=3.0, timeout_s=30)
+                return True
+
+            if recreate_and_warmup() is False:
+                return
+
             expected = n_batches * batch_rows
+            # Re-baseline on a fresh period boundary.  The round's total is
+            # a set difference over window labels, so a warm-up window that
+            # only lands now is invisible to it instead of shifting
+            # `measured` by a whole batch (the old SUM(cnt) delta did).
+            self._bnd003_align_to_tick()
+            # Warm-up already counted a window in this table, so any read
+            # failure from here on is infrastructure, not a bounds defect.
+            try:
+                self._bnd003_wait_stable(sink_db, sink, stable_s=2.0,
+                                         timeout_s=15)
+                # Windows the sink already holds belong to the warm-up: they
+                # are excluded by label identity, which works in every unit.
+                seen = {ts for ts, _ in self._bnd003_sink_rows(
+                    sink_db, sink, strict=True)}
+            except Exception as e:
+                raise AssertionError(
+                    f"sink {sink_db}.{sink} stopped resolving before round "
+                    f"measurement ({e}), although warm-up counted "
+                    f"its rows seconds earlier. This is not a window-bounds "
+                    f"failure: the database or table became unreadable, e.g. "
+                    f"taosd was killed and another instance answered on the "
+                    f"same port (see the run's sim/dnode1/log/taosdlog.0).") from e
 
-            # Wait for the measured windows to close, then make sure the sum
-            # stays put (a duplicated boundary row would show up late).
-            rows, total = self._bnd003_wait_stable(
-                sink_db, sink, stable_s=3.0, timeout_s=60)
-            measured = total - base_sum
+            # Phase 2 - measure.  Exact-count sources must be visible before
+            # their first window opens.  Starting a fresh sqlcmd/sqlplus for
+            # each batch can take longer than the sub-second lead provided by
+            # "next whole second", so that scheme races the PERIOD reader.
+            written = []
+            if suffix == "i":
+                # Preserve the existing InfluxDB WAL-latency coverage.
+                for b in range(n_batches):
+                    base_ms = ((int(time.time() * 1000) // 1000) + 1) * 1000
+                    written.append(write_batch(suffix, db_or_bucket, src_name,
+                                               f"m{b}_", base_ms))
+                    time.sleep(1.0)
+            else:
+                # One remote write avoids five client startups.  The rows
+                # still straddle adjacent one-second boundaries, including
+                # a row exactly on each boundary, with the same 15-row oracle.
+                first_base_ms = (int(time.time()) + 10) * 1000
+                written = [first_base_ms + b * 1000 for b in range(n_batches)]
+                rows = [(base - (batch_rows - 1 - k), k + 1, float(k + 1),
+                         f"m{b}_{k}", 0)
+                        for b, base in enumerate(written)
+                        for k in range(batch_rows)]
+                started_ms = int(time.time() * 1000)
+                self._insert_rows(suffix, db_or_bucket, rows, src_name)
+                write_done_ms = int(time.time() * 1000)
+                # This query uses the independent FQ reader connection, not
+                # the writer session.  Do not assume a helper's return proves
+                # that a window query could already see the committed rows.
+                first_window_ms = first_base_ms - 1000
+                visible = 0
+                while time.time() * 1000 < first_window_ms:
+                    tdSql.query(
+                        f"SELECT COUNT(*) FROM {src_name}.{mid}.src_t "
+                        f"WHERE {ts_col} >= '{dt_str(rows[0][0])}' "
+                        f"AND {ts_col} <= '{dt_str(rows[-1][0])}'",
+                        queryTimes=1)
+                    visible = tdSql.getData(0, 0) or 0
+                    if visible == expected:
+                        break
+                    time.sleep(0.1)
+                visible_ms = int(time.time() * 1000)
+                tdLog.info(
+                    f"[{src_name}] FS-BND-003 preparation: start_ms={started_ms}, "
+                    f"write_done_ms={write_done_ms}, checked_ms={visible_ms}, "
+                    f"first_window_ms={first_window_ms}, visible={visible}/{expected}")
+                assert visible == expected and visible_ms < first_window_ms, (
+                    f"FS-BND-003 preparation missed its visibility deadline: "
+                    f"source={src_name}, visible={visible}/{expected}, "
+                    f"start_ms={started_ms}, write_done_ms={write_done_ms}, "
+                    f"checked_ms={visible_ms}, first_window_ms={first_window_ms}; "
+                    f"window-bound correctness cannot be evaluated")
+                # Wait through the last measured window before inspecting the
+                # sink; the existing bounded result polling starts afterwards.
+                time.sleep(max(0.0, (written[-1] + 1000) / 1000 - time.time()))
+
+            deadline = time.time() + self._BND003_ROUND_TIMEOUT_S
+            last_val, last_change = None, time.time()
+
+            def expected_window_counts():
+                """Window labels and counts of the written rows, in time order.
+
+                Rows stay ``batch_rows`` consecutive milliseconds ending on
+                the pin, so each row's window is ``floor(t/1000)``; grouping
+                in time order is what the sink reports. Labels use the sink
+                database's timestamp precision.
+                """
+                counts = {}
+                for base in written:
+                    for offset in range(batch_rows - 1, -1, -1):
+                        window = (base - offset) // 1000 * 1000
+                        counts[window] = counts.get(window, 0) + 1
+                scale = 1_000_000 if suffix == "i" else 1_000
+                return [(window * scale, counts[window]) for window in sorted(counts)]
+
+            def observed_window_counts():
+                """Window labels and counts of this round, in label order."""
+                fresh = [(label, cnt) for label, cnt in
+                         self._bnd003_sink_rows(sink_db, sink, strict=True)
+                         if label not in seen]
+                fresh.sort(key=lambda item: item[0])
+                return fresh
+
+            while time.time() < deadline:
+                measured = sum(cnt for _, cnt in observed_window_counts())
+                if measured >= expected:
+                    # A duplicated boundary row would land a few seconds
+                    # behind, so re-read once before believing the total.
+                    time.sleep(3.0)
+                    break
+                if suffix == "i":
+                    # Only "counted at most once" is asserted for InfluxDB,
+                    # so stop waiting as soon as the count has stopped
+                    # moving instead of burning the whole round timeout.
+                    if measured != last_val:
+                        last_val, last_change = measured, time.time()
+                    elif time.time() - last_change >= 3.0:
+                        break
+                time.sleep(0.5)
+
+            observed = observed_window_counts()
+            measured = sum(cnt for _, cnt in observed)
+            windows = len(observed)
+            expected_counts = expected_window_counts()
+            tdLog.debug(f"[{src_name}] FS-BND-003 windows: observed={observed}, "
+                        f"expected={expected_counts}")
+            if observed != expected_counts and measured > expected:
+                raise AssertionError(
+                    f"sink {sink} counted {measured} of {expected} row(s) in window(s) "
+                    f"{observed} (expected {expected_counts}): a row on a period "
+                    f"boundary was counted twice (batches written at {written})")
+            if observed != expected_counts and suffix != "i":
+                raise AssertionError(
+                    f"sink {sink} window counts {observed} do not match {expected_counts}: "
+                    f"rows or entire windows were lost or misplaced "
+                    f"(batches written at {written}, "
+                    f"sink={self._bnd003_sink_rows(sink_db, sink, strict=True)})")
+            if suffix == "i":
+                expected_by_window = dict(expected_counts)
+                unexpected = [(label, count) for label, count in observed
+                              if count > expected_by_window.get(label, 0)]
+                if unexpected:
+                    raise AssertionError(
+                        f"sink {sink} has unexpected window counts {unexpected}; "
+                        f"expected at most {expected_counts} (batches written at {written})")
+            sink_rows = self._bnd003_sink_rows(sink_db, sink)
             if suffix == "i":
                 # WAL-flush latency may hide a batch from its window's calc
                 # (see docstring); only double counting is an error here.
                 assert 0 <= measured <= expected, \
                     (f"sink {sink} counted {measured} measured row(s), expected "
-                     f"at most {expected} (base SUM(cnt)={base_sum}, now {total})")
-                tdLog.info(f"[{src_name}] FS-BND-003 verified: {rows - base_rows} "
+                     f"at most {expected} (batches written at {written}, "
+                     f"sink={sink_rows})")
+                tdLog.info(f"[{src_name}] FS-BND-003 verified: {windows} "
                            f"window(s), {measured}/{expected} row(s) counted, "
                            f"none twice")
             else:
                 assert measured == expected, \
                     (f"sink {sink} counted {measured} measured row(s), expected "
-                     f"{expected} (base SUM(cnt)={base_sum}, now {total})")
-                assert rows > base_rows, f"sink {sink} produced no measured window"
-                tdLog.info(f"[{src_name}] FS-BND-003 verified: {rows - base_rows} "
+                     f"{expected}; per-window counts "
+                     f"{observed} vs {expected_counts} (batches written at {written}, "
+                     f"sink={sink_rows})")
+                assert windows > 0, f"sink {sink} produced no measured window"
+                tdLog.info(f"[{src_name}] FS-BND-003 verified: {windows} "
                            f"window(s), {measured} row(s) counted exactly once")
 
             tdSql.execute(f"DROP STREAM IF EXISTS {stream}", queryTimes=30)
             tdSql.execute(f"DROP TABLE IF EXISTS {sink_db}.{sink}")
 
-        # Streams reject Oracle external tables (streamTriggerTask's identity
-        # check is fail-closed for types past SQL Server), so the stream
-        # matrices never provision an Oracle leg.
-        self._with_std_sources(prefix, body, skip_oracle=True)
+        # Oracle is supported by the ext trigger reader, so every standard
+        # source (MySQL/PostgreSQL/InfluxDB/SQL Server/Oracle) is provisioned.
+        self._with_std_sources(prefix, body)
 
         # Report the InfluxDB environment limitation explicitly instead of
         # silently passing (the other sources already asserted their bounds).

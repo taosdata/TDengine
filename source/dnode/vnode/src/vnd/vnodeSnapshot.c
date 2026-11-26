@@ -116,12 +116,17 @@ static int32_t vnodeSnapReaderDealWithSnapInfo(SVSnapReader *pReader, SSnapshotP
 
     STsdbRepOpts         tsdbOpts = {0};
     TFileSetRangeArray **ppRanges = NULL;
-    int32_t              offset = 0;
+    int64_t              offset = 0;
 
-    while (offset + sizeof(SSyncTLV) < datHead->len) {
-      SSyncTLV *subField = (void *)(datHead->val + offset);
-      offset += sizeof(SSyncTLV) + subField->len;
-      void   *buf = subField->val;
+    for (;;) {
+      const SSyncTLV *subField = NULL;
+      code = tsdbSnapTlvNext(datHead, &offset, &subField);
+      if (code) {
+        vError("vgId:%d, invalid snapshot param TLV since %s", TD_VID(pVnode), tstrerror(code));
+        goto _out;
+      }
+      if (subField == NULL) break;
+      void   *buf = (void *)subField->val;
       int32_t bufLen = subField->len;
 
       switch (subField->typ) {
@@ -477,12 +482,12 @@ int32_t vnodeSnapRead(SVSnapReader *pReader, uint8_t **ppData, uint32_t *nData) 
   // CONFIG ==============
   // FIXME: if commit multiple times and the config changed?
   if (!pReader->cfgDone) {
-    char    fName[TSDB_FILENAME_LEN];
+    char    fName[TSDB_PATH_LEN];
     int32_t offset = 0;
 
-    vnodeGetPrimaryPath(pVnode, false, fName, TSDB_FILENAME_LEN);
+    vnodeGetPrimaryPath(pVnode, false, fName, TSDB_PATH_LEN);
     offset = strlen(fName);
-    snprintf(fName + offset, TSDB_FILENAME_LEN - offset - 1, "%s%s", TD_DIRSEP, VND_INFO_FNAME);
+    snprintf(fName + offset, TSDB_PATH_LEN - offset - 1, "%s%s", TD_DIRSEP, VND_INFO_FNAME);
 
     TdFilePtr pFile = taosOpenFile(fName, TD_FILE_READ);
     if (NULL == pFile) {
@@ -800,12 +805,17 @@ static int32_t vnodeSnapWriterDealWithSnapInfo(SVSnapWriter *pWriter, SSnapshotP
 
     STsdbRepOpts         tsdbOpts = {0};
     TFileSetRangeArray **ppRanges = NULL;
-    int32_t              offset = 0;
+    int64_t              offset = 0;
 
-    while (offset + sizeof(SSyncTLV) < datHead->len) {
-      SSyncTLV *subField = (void *)(datHead->val + offset);
-      offset += sizeof(SSyncTLV) + subField->len;
-      void   *buf = subField->val;
+    for (;;) {
+      const SSyncTLV *subField = NULL;
+      code = tsdbSnapTlvNext(datHead, &offset, &subField);
+      if (code) {
+        vError("vgId:%d, invalid snapshot param TLV since %s", TD_VID(pVnode), tstrerror(code));
+        TSDB_CHECK_CODE(code, lino, _exit);
+      }
+      if (subField == NULL) break;
+      void   *buf = (void *)subField->val;
       int32_t bufLen = subField->len;
 
       switch (subField->typ) {
@@ -954,8 +964,8 @@ int32_t vnodeSnapWriterClose(SVSnapWriter *pWriter, int8_t rollback, SSnapshot *
                               .commitTerm = pWriter->info.state.commitTerm,
                               .applyTerm = pWriter->info.state.commitTerm};
     pVnode->statis = pWriter->info.statis;
-    char dir[TSDB_FILENAME_LEN] = {0};
-    vnodeGetPrimaryPath(pVnode, false, dir, TSDB_FILENAME_LEN);
+    char dir[TSDB_PATH_LEN] = {0};
+    vnodeGetPrimaryPath(pVnode, false, dir, TSDB_PATH_LEN);
 
     code = vnodeCommitInfo(dir);
     if (code) goto _exit;
@@ -1054,8 +1064,8 @@ static int32_t vnodeSnapWriteInfo(SVSnapWriter *pWriter, uint8_t *pData, uint32_
   pWriter->info.state.commitID = pWriter->commitID;
 
   // modify info as needed
-  char dir[TSDB_FILENAME_LEN] = {0};
-  vnodeGetPrimaryPath(pVnode, false, dir, TSDB_FILENAME_LEN);
+  char dir[TSDB_PATH_LEN] = {0};
+  vnodeGetPrimaryPath(pVnode, false, dir, TSDB_PATH_LEN);
 
   // Keep the target vnode identity and replication topology local.  All other
   // persisted vnode settings come from the snapshot leader, including the

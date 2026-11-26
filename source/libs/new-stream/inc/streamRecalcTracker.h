@@ -107,6 +107,17 @@ int32_t stRecalcContributorsAdd(SStreamRecalcTracker *pTracker, SArray **ppContr
 int32_t stRecalcContributorsMerge(SArray **ppDst, const SArray *pSrc);
 int32_t stRecalcTrackerConfirmGroupPrefix(SStreamRecalcTracker *pTracker, int64_t gid, TSKEY confirmedThrough,
                                           const SArray *pContributors);
+typedef struct SStreamRecalcNoDataGroups SStreamRecalcNoDataGroups;
+/*
+ * Preparation allocates the confirmation state and normalizes empty groups to
+ * zero work before execution requests are activated. Commit performs no
+ * allocation, so it cannot fail after attempt ownership transfers to tracker.
+ */
+int32_t stRecalcTrackerPrepareNoDataGroups(SStreamRecalcTracker *pTracker, int64_t recalcId,
+                                           SStreamProgressRange requestedRange, const SArray *pGroupIds,
+                                           SStreamRecalcNoDataGroups **ppGroups);
+int32_t stRecalcTrackerCommitNoDataGroups(SStreamRecalcTracker *pTracker, const SStreamRecalcNoDataGroups *pGroups);
+void    stRecalcTrackerDestroyNoDataGroups(SStreamRecalcNoDataGroups **ppGroups);
 int32_t stRecalcAttemptCreate(size_t contributorCapacity, SStreamRecalcAttemptState **ppAttempt);
 void    stRecalcAttemptDestroy(SStreamRecalcAttemptState **ppAttempt);
 /*
@@ -147,6 +158,8 @@ int32_t stRecalcTrackerCompleteReader(SStreamRecalcTracker *pTracker, uint64_t s
 int32_t stRecalcTrackerSetTriggerDone(SStreamRecalcTracker *pTracker, uint64_t stepId, int32_t pendingCalcParamCount);
 int32_t stRecalcTrackerAddRunner(SStreamRecalcTracker *pTracker, uint64_t stepId, uint64_t requestToken);
 int32_t stRecalcTrackerCompleteRunner(SStreamRecalcTracker *pTracker, uint64_t stepId, uint64_t requestToken);
+/* Retire input tokens without advancing contributors when the fixed source view is revoked. */
+int32_t stRecalcTrackerDiscardStep(SStreamRecalcTracker *pTracker, uint64_t stepId);
 int32_t stRecalcTrackerFailStep(SStreamRecalcTracker *pTracker, uint64_t stepId, int32_t errorCode);
 int32_t stRecalcTrackerInitHistory(SStreamRecalcTracker *pTracker, bool enabled, SStreamProgressRange originalRange,
                                    bool checkpointFinished);

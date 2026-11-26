@@ -57,6 +57,8 @@ static threadlocal SNodeAllocator* g_pNodeAllocator;
 static int32_t                     g_allocatorReqRefPool = -1;
 #if defined(BUILD_TEST)
 static threadlocal bool g_nodesTestStrictAppendFailOnce = false;
+static threadlocal bool g_nodesTestCollectColumnsHashFailOnce = false;
+static threadlocal int64_t g_nodesTestLiveAllocations = 0;
 #endif
 
 bool nodesIsValidPhysiJoin(ENodeType type, int32_t joinType, int32_t subType) {
@@ -296,6 +298,14 @@ static int32_t nodesGetCachedTimezone(const char* pTimezoneName, timezone_t* pTz
   return TSDB_CODE_SUCCESS;
 }
 
+int32_t nodesValidateTimezoneName(const char* pTimezoneName) {
+  timezone_t tz = NULL;
+  bool owned = false;
+  int32_t code = nodesGetCachedTimezone(pTimezoneName, &tz, &owned);
+  if (owned) tzfree(tz);
+  return code;
+}
+
 // Release every cached timezone handle. Call only at process cleanup, after all plans/nodes
 // that may borrow a cached handle are destroyed and no thread decodes plans any more.
 void nodesCleanupTimezoneCache() {
@@ -504,16 +514,30 @@ static int32_t nodesCalloc(int32_t num, int32_t size, void** pOut) {
   }
   *(char*)p = (NULL != g_pNodeAllocator) ? 1 : 0;
   *pOut = (char*)p + NODE_ALLOCATOR_HEAD_LEN;
+#if defined(BUILD_TEST)
+  if (NULL == g_pNodeAllocator) {
+    ++g_nodesTestLiveAllocations;
+  }
+#endif
   return TSDB_CODE_SUCCESS;
 }
 
 void nodesFree(void* p) {
   char* ptr = (char*)p - NODE_ALLOCATOR_HEAD_LEN;
   if (0 == *ptr) {
+#if defined(BUILD_TEST)
+    --g_nodesTestLiveAllocations;
+#endif
     taosMemoryFree(ptr);
   }
   return;
 }
+
+#if defined(BUILD_TEST)
+int64_t nodesTestGetLiveAllocations(void) {
+  return g_nodesTestLiveAllocations;
+}
+#endif
 
 static int32_t createNodeAllocator(int32_t chunkSize, SNodeAllocator** pAllocator) {
   *pAllocator = taosMemoryCalloc(1, sizeof(SNodeAllocator));
@@ -857,6 +881,9 @@ int32_t nodesMakeNode(ENodeType type, SNode** ppNodeOut) {
     case QUERY_NODE_STREAM_WINDOW_LAYER:
       code = makeNode(type, sizeof(SStreamWindowLayerNode), &pNode);
       break;
+    case QUERY_NODE_TIME_ALIGN_TABLE:
+      code = makeNode(type, sizeof(STimeAlignTableNode), &pNode);
+      break;
     case QUERY_NODE_LEFT_VALUE:
       code = makeNode(type, sizeof(SLeftValueNode), &pNode);
       break;
@@ -976,6 +1003,9 @@ int32_t nodesMakeNode(ENodeType type, SNode** ppNodeOut) {
       break;
     case QUERY_NODE_CREATE_VIRTUAL_SUBTABLE_STMT:
       code = makeNode(type, sizeof(SCreateVSubTableStmt), &pNode);
+      break;
+    case QUERY_NODE_REFERENCE_DECL:
+      code = makeNode(type, sizeof(SReferenceDeclNode), &pNode);
       break;
     case QUERY_NODE_SERIES_DECL:
       code = makeNode(type, sizeof(SSeriesDeclNode), &pNode);
@@ -1958,7 +1988,7 @@ void nodesDestroyNode(SNode* pNode) {
     case QUERY_NODE_REMOTE_TABLE: {
       SRemoteTableNode* pRemote = (SRemoteTableNode*)pNode;
       if (pRemote->pResBlks && (pRemote->flag & REMOTE_TABLE_FLAG_RES_ALLOCED)) {
-        taosArrayDestroyEx(pRemote->pResBlks, destroySSDataBlock);
+        taosArrayDestroyP(pRemote->pResBlks, destroySSDataBlock);
       }
       pRemote->pResBlks = NULL;
       break;
@@ -2007,6 +2037,8 @@ void nodesDestroyNode(SNode* pNode) {
       taosArrayDestroyP(pReal->tsmaTargetTbVgInfo, NULL);
       taosArrayDestroy(pReal->tsmaTargetTbInfo);
       nodesDestroyNode(pReal->pExtTableNode);
+      taosArrayDestroy(pReal->pAlignCols);
+      pReal->pAlignCols = NULL;
       break;
     }
     case QUERY_NODE_VIRTUAL_TABLE: {
@@ -2016,11 +2048,17 @@ void nodesDestroyNode(SNode* pNode) {
       taosMemoryFreeClear(pVirtual->pVgroupList);
       nodesDestroyList(pVirtual->refTables);
       taosArrayDestroyP(pVirtual->pExtSourceNames, NULL);
+      taosArrayDestroy(pVirtual->pAlignCols);
+      pVirtual->pAlignCols = NULL;
       break;
     }
-    case QUERY_NODE_TEMP_TABLE:
-      nodesDestroyNode(((STempTableNode*)pNode)->pSubquery);
+    case QUERY_NODE_TEMP_TABLE: {
+      STempTableNode* pTemp = (STempTableNode*)pNode;
+      nodesDestroyNode(pTemp->pSubquery);
+      taosArrayDestroy(pTemp->pAlignCols);
+      pTemp->pAlignCols = NULL;
       break;
+    }
     case QUERY_NODE_TEXT_TABLE: {
       STextTableNode* pText = (STextTableNode*)pNode;
       nodesDestroyList(pText->pColDefs);
@@ -2040,6 +2078,13 @@ void nodesDestroyNode(SNode* pNode) {
         taosMemoryFree(pFile->pBlockBuf);
         pFile->pBlockBuf = NULL;
       }
+      break;
+    }
+    case QUERY_NODE_TIME_ALIGN_TABLE: {
+      STimeAlignTableNode* pAlign = (STimeAlignTableNode*)pNode;
+      taosMemoryFreeClear(pAlign->columnList);
+      nodesDestroyNode(pAlign->pRealTableNode);
+      pAlign->pRealTableNode = NULL;
       break;
     }
     case QUERY_NODE_PLACE_HOLDER_TABLE: {
@@ -2352,6 +2397,7 @@ void nodesDestroyNode(SNode* pNode) {
     case QUERY_NODE_TRUE_FOR: {
       STrueForNode* pTrueFor = (STrueForNode*)pNode;
       nodesDestroyNode(pTrueFor->pDuration);
+      nodesDestroyNode(pTrueFor->pCount);
       nodesDestroyNode(pTrueFor->pStartLimit);
       nodesDestroyNode(pTrueFor->pEndLimit);
       break;
@@ -2480,6 +2526,7 @@ void nodesDestroyNode(SNode* pNode) {
       nodesDestroyList(pStmt->pSpecificTagRefs);
       nodesDestroyList(pStmt->pTagRefs);
       nodesDestroyList(pStmt->pSeriesList);
+      nodesDestroyList(pStmt->pColDefs);
       break;
     }
     case QUERY_NODE_SERIES_DECL: {
@@ -2488,6 +2535,7 @@ void nodesDestroyNode(SNode* pNode) {
       pDecl->pTagCond = NULL;
       break;
     }
+    case QUERY_NODE_REFERENCE_DECL:
     case QUERY_NODE_SERIES_TAG_ASSIGN:
       break;
     case QUERY_NODE_CREATE_SUBTABLE_FROM_FILE_CLAUSE: {
@@ -2927,6 +2975,7 @@ void nodesDestroyNode(SNode* pNode) {
       destroyLogicNode((SLogicNode*)pLogicNode);
       nodesDestroyList(pLogicNode->pScanCols);
       nodesDestroyList(pLogicNode->pScanPseudoCols);
+      nodesDestroyList(pLogicNode->pAlignCols);
       taosMemoryFreeClear(pLogicNode->pVgroupList);
       nodesDestroyList(pLogicNode->pDynamicScanFuncs);
       nodesDestroyNode(pLogicNode->pTagCond);
@@ -2947,6 +2996,7 @@ void nodesDestroyNode(SNode* pNode) {
       nodesDestroyList(pLogicNode->pFqJoinTables);
       nodesDestroyNode(pLogicNode->pRemoteLogicPlan);
       nodesDestroyNode(pLogicNode->pPushedConditions);
+      nodesDestroyNode(pLogicNode->pReferenceFilter);
       break;
     }
     case QUERY_NODE_LOGIC_PLAN_JOIN: {
@@ -2972,6 +3022,7 @@ void nodesDestroyNode(SNode* pNode) {
       destroyLogicNode((SLogicNode*)pLogicNode);
       nodesDestroyList(pLogicNode->pScanCols);
       nodesDestroyList(pLogicNode->pScanPseudoCols);
+      nodesDestroyList(pLogicNode->pAlignCols);
       taosMemoryFreeClear(pLogicNode->pVgroupList);
       nodesDestroyList(pLogicNode->pTagRefSources);
       nodesDestroyList(pLogicNode->pLocalTags);
@@ -3030,6 +3081,7 @@ void nodesDestroyNode(SNode* pNode) {
       nodesDestroyNode(pLogicNode->pTimeRange);
       nodesDestroyNode(pLogicNode->pTsEnd);
       nodesDestroyList(pLogicNode->pStateExprs);
+      nodesDestroyList(pLogicNode->pAnomalyExpr);
       nodesDestroyNode(pLogicNode->pStartCond);
       nodesDestroyNode(pLogicNode->pEndCond);
       nodesDestroyList(pLogicNode->pColList);
@@ -3152,14 +3204,18 @@ void nodesDestroyNode(SNode* pNode) {
     case QUERY_NODE_LOGIC_PLAN:
       nodesDestroyList(((SQueryLogicPlan*)pNode)->pTopSubplans);
       break;
-    case QUERY_NODE_PHYSICAL_PLAN_TAG_SCAN:
     case QUERY_NODE_PHYSICAL_PLAN_SYSTABLE_SCAN:
+      taosMemoryFreeClear(((SSystemTableScanPhysiNode*)pNode)->pTxnStbSchemas);
+      destroyScanPhysiNode((SScanPhysiNode*)pNode);
+      break;
+    case QUERY_NODE_PHYSICAL_PLAN_TAG_SCAN:
     case QUERY_NODE_PHYSICAL_PLAN_BLOCK_DIST_SCAN:
       destroyScanPhysiNode((SScanPhysiNode*)pNode);
       break;
     case QUERY_NODE_PHYSICAL_PLAN_VIRTUAL_TABLE_SCAN: {
       SVirtualScanPhysiNode* pPhyNode = (SVirtualScanPhysiNode*)pNode;
       destroyScanPhysiNode((SScanPhysiNode*)pNode);
+      nodesDestroyList(pPhyNode->pAlignCols);
       nodesDestroyList(pPhyNode->pGroupTags);
       nodesDestroyList(pPhyNode->pTargets);
       nodesDestroyList(pPhyNode->pTags);
@@ -3196,6 +3252,7 @@ void nodesDestroyNode(SNode* pNode) {
     }
     case QUERY_NODE_PHYSICAL_PLAN_FEDERATED_SCAN: {
       SFederatedScanPhysiNode* pFedNode = (SFederatedScanPhysiNode*)pNode;
+      nodesDestroyNode(pFedNode->pReferenceFilter);
       destroyPhysiNode((SPhysiNode*)pFedNode);
       nodesDestroyNode(pFedNode->pExtTable);
       nodesDestroyList(pFedNode->pScanCols);
@@ -3208,6 +3265,8 @@ void nodesDestroyNode(SNode* pNode) {
     }
     case QUERY_NODE_EXTERNAL_TABLE: {
       SExtTableNode* pExtTbl = (SExtTableNode*)pNode;
+      nodesDestroyNode(pExtTbl->pSeriesCondition);
+      nodesDestroyList(pExtTbl->pInfluxSchema);
       extCapDestroy(&pExtTbl->capability);
       if (pExtTbl->pExtMeta) {
         taosMemoryFree(pExtTbl->pExtMeta->pCols);
@@ -3262,6 +3321,7 @@ void nodesDestroyNode(SNode* pNode) {
         tzfree(pPhyNode->timezone);
       }
       destroyScanPhysiNode((SScanPhysiNode*)pNode);
+      nodesDestroyList(pPhyNode->pAlignCols);
       nodesDestroyList(pPhyNode->pDynamicScanFuncs);
       nodesDestroyList(pPhyNode->pGroupTags);
       nodesDestroyList(pPhyNode->pTags);
@@ -3508,6 +3568,7 @@ void nodesDestroyNode(SNode* pNode) {
       nodesDestroyNode((SNode*)pSubplan->pNode);
       nodesDestroyNode((SNode*)pSubplan->pDataSink);
       nodesDestroyList(pSubplan->pSubQ);
+      taosArrayDestroy(pSubplan->pSubqueryDeps);
       nodesDestroyNode((SNode*)pSubplan->pTagCond);
       nodesDestroyNode((SNode*)pSubplan->pTagIndexCond);
       tSimpleHashCleanup(pSubplan->pVTables);
@@ -3518,6 +3579,7 @@ void nodesDestroyNode(SNode* pNode) {
       nodesDestroyList(((SQueryPlan*)pNode)->pSubplans);
       nodesDestroyList(((SQueryPlan*)pNode)->pChildren);
       nodesDestroyList(((SQueryPlan*)pNode)->pCorrelationTemplates);
+      taosArrayDestroy(((SQueryPlan*)pNode)->pSubqueryDeps);
       if (((SQueryPlan*)pNode)->ownsSubSql) {
         taosMemoryFree(((SQueryPlan*)pNode)->subSql);
       }
@@ -4160,6 +4222,7 @@ typedef struct SExternalFilterCxt {
   char*                    pMsg;
   int32_t                  msgLen;
   bool                     storedFilter;
+  const SExternalBindingContext* pBinding;
   int32_t                  code;
 } SExternalFilterCxt;
 
@@ -4198,29 +4261,18 @@ static bool isExternalFilterStringLiteral(const SValueNode* pValue) {
 }
 
 static int32_t findExternalFilterColumn(EExtSourceType sourceType, const SExtTableMeta* pExtMeta, const char* colName) {
-  // The per-dialect rule (MySQL / SQL Server fold case, Oracle folds an
-  // unquoted reference to upper case then compares exactly, PostgreSQL /
-  // InfluxDB compare literally) is shared with the parser-side contract
-  // externalColumnNamesEqual() through extColumnNameEqual().
+  // The per-dialect rule (MySQL / SQL Server fold case; PostgreSQL, InfluxDB
+  // and Oracle compare literally) is shared with the parser-side contract
+  // externalColumnNamesEqual() through extColumnNameEqual().  TDengine applies
+  // its identifier grammar before the reference reaches here, so an Oracle
+  // name must match the resolved spelling exactly (DS 5.3.6 R1).
   //
-  // The exact spelling wins over the folded one.  Oracle keeps a quoted
-  // "Device" apart from a folded DEVICE, and TDengine has already dropped the
-  // quoting by the time the reference gets here, so a single folding pass would
-  // map both spellings onto DEVICE and turn a filter that pins both columns
-  // into a duplicate-column error (DS 5.3.6 R1).  For MySQL / SQL Server /
-  // PostgreSQL / InfluxDB the first pass is a subset of the second and only
-  // changes which of several equally valid candidates is picked.
-  for (int32_t i = 0; i < pExtMeta->numOfCols; ++i) {
-    if (0 == strcmp(pExtMeta->pCols[i].colName, colName)) {
-      return i;
-    }
-  }
-  for (int32_t i = 0; i < pExtMeta->numOfCols; ++i) {
-    if (extColumnNameEqual(sourceType, pExtMeta->pCols[i].colName, colName)) {
-      return i;
-    }
-  }
-  return -1;
+  // extFindColumnIndex() also owns the exact-before-folded order: Oracle keeps
+  // a quoted "Device" apart from a folded DEVICE, and TDengine has already
+  // applied its identifier grammar by the time the reference gets here, so a
+  // case-insensitive pass would map both spellings onto DEVICE and turn a
+  // filter that pins both columns into a duplicate-column error (DS 5.3.6 R1).
+  return extFindColumnIndex(sourceType, pExtMeta, colName);
 }
 
 typedef struct SExternalFilterLiteralCxt {
@@ -4346,7 +4398,7 @@ static int32_t validateExternalFilterOperator(SExternalFilterCxt* pCxt, SOperato
   }
 
   SValueNode* pValue = (SValueNode*)pOp->pRight;
-  if (pCxt->storedFilter) {
+  if (pCxt->storedFilter || pValue->translate) {
     code = resetStoredExternalFilterValue(pCxt, pValue);
     QUERY_CHECK_CODE(code, lino, _return);
   }
@@ -4472,12 +4524,14 @@ static int32_t validateExternalFilterBinding(SExternalFilterCxt* pCxt, SNode* pF
   QUERY_CHECK_NULL(pExtMeta->pCols, code, lino, _return, TSDB_CODE_INVALID_PARA);
   QUERY_CHECK_CONDITION(pExtMeta->numOfCols > 0, code, lino, _return, TSDB_CODE_INVALID_PARA);
 
+  bool explicitTime = NULL != pCxt->pBinding &&
+                      VTABLE_BINDING_REFERENCE == pCxt->pBinding->bindingKind;
   if (EXT_SOURCE_MYSQL != pCxt->sourceType && EXT_SOURCE_POSTGRESQL != pCxt->sourceType &&
       EXT_SOURCE_SQLSERVER != pCxt->sourceType && EXT_SOURCE_ORACLE != pCxt->sourceType) {
     // Non-relational sources (InfluxDB) have no remote primary key, so a
     // declared filter cannot be bound; SQL Server and Oracle are relational
     // and follow the same primary-key coverage rules as MySQL / PostgreSQL.
-    if (NULL != pFilterCond) {
+    if (NULL != pFilterCond || explicitTime) {
       code =
           externalFilterError(pCxt, TSDB_CODE_VTABLE_EXT_FILTER_NOT_SUPPORTED,
                               "external column filters are supported only for direct MySQL, PostgreSQL, SQL Server or Oracle references");
@@ -4486,7 +4540,39 @@ static int32_t validateExternalFilterBinding(SExternalFilterCxt* pCxt, SNode* pF
     goto _return;
   }
 
-  for (int32_t i = 0; i < pExtMeta->numOfCols; ++i) {
+  if (!explicitTime && EXT_OBJECT_VIEW == pExtMeta->objectKind) {
+    code = externalFilterError(pCxt, TSDB_CODE_EXT_NO_TS_PRIMARY_KEY,
+                               "direct virtual column references require a source table");
+    QUERY_CHECK_CODE(code, lino, _return);
+  }
+  if (explicitTime) {
+    QUERY_CHECK_CONDITION(NULL != pCxt->pBinding->timeColumn &&
+                              '\0' != pCxt->pBinding->timeColumn[0],
+                          code, lino, _return, TSDB_CODE_INVALID_PARA);
+    tsPrimaryKeyIndex = extFindColumnIndex(pCxt->sourceType, pExtMeta,
+                                         pCxt->pBinding->timeColumn);
+    if (tsPrimaryKeyIndex < 0) {
+      code = externalFilterError(pCxt, TSDB_CODE_EXT_COLUMN_NOT_EXIST,
+                                 "reference time column '%s' does not exist",
+                                 pCxt->pBinding->timeColumn);
+      QUERY_CHECK_CODE(code, lino, _return);
+    }
+    const SExtColumnDef* pTime = &pExtMeta->pCols[tsPrimaryKeyIndex];
+    SDataType mappedType = {0};
+    code = extTypeNameToTDengineType(pCxt->sourceType, pTime->extTypeName,
+                                     pTime->extCharsetName, &mappedType);
+    QUERY_CHECK_CODE(code, lino, _return);
+    if (TSDB_DATA_TYPE_TIMESTAMP != mappedType.type) {
+      code = externalFilterError(pCxt, TSDB_CODE_EXT_TYPE_NOT_MAPPABLE,
+                                 "reference time column '%s' must map to TIMESTAMP",
+                                 pTime->colName);
+      QUERY_CHECK_CODE(code, lino, _return);
+    }
+    hasRemotePrimaryKey = true;
+    tsPrimaryKeyCount = 1;
+  }
+
+  for (int32_t i = 0; !explicitTime && i < pExtMeta->numOfCols; ++i) {
     const SExtColumnDef* pCol = &pExtMeta->pCols[i];
     if (!pCol->isRemotePrimaryKey) {
       continue;
@@ -4520,7 +4606,7 @@ static int32_t validateExternalFilterBinding(SExternalFilterCxt* pCxt, SNode* pF
     QUERY_CHECK_CODE(code, lino, _return);
   }
 
-  for (int32_t i = 0; i < pExtMeta->numOfCols; ++i) {
+  for (int32_t i = 0; !explicitTime && i < pExtMeta->numOfCols; ++i) {
     if (!pExtMeta->pCols[i].isRemotePrimaryKey || i == tsPrimaryKeyIndex) {
       continue;
     }
@@ -4547,10 +4633,11 @@ _return:
   return code;
 }
 
-int32_t nodesValidateExternalFilter(EExtSourceType sourceType, const SExtTableMeta* pExtMeta, SNode* pFilterCond,
+int32_t nodesValidateExternalFilterEx(EExtSourceType sourceType, const SExtTableMeta* pExtMeta, SNode* pFilterCond,
                                     timezone_t timezone, void* charsetCxt, char* pMsg, int32_t msgLen,
-                                    int32_t* pTsPrimaryKeyIndex) {
+                                    int32_t* pTsPrimaryKeyIndex, const SExternalBindingContext* pBinding) {
   SExternalFilterCxt cxt = {
+      .pBinding = pBinding,
       .sourceType = sourceType,
       .pExtMeta = pExtMeta,
       .timezone = timezone,
@@ -4561,14 +4648,15 @@ int32_t nodesValidateExternalFilter(EExtSourceType sourceType, const SExtTableMe
   return validateExternalFilterBinding(&cxt, pFilterCond, pTsPrimaryKeyIndex);
 }
 
-int32_t nodesValidateExternalFilterCurrentMeta(EExtSourceType sourceType, const SExtTableMeta* pExtMeta,
+int32_t nodesValidateExternalFilterCurrentMetaEx(EExtSourceType sourceType, const SExtTableMeta* pExtMeta,
                                                const char* pFilterCondJson, int32_t filterCondLen, timezone_t timezone,
                                                void* charsetCxt, char* pMsg, int32_t msgLen,
-                                               int32_t* pTsPrimaryKeyIndex) {
+                                               int32_t* pTsPrimaryKeyIndex, const SExternalBindingContext* pBinding) {
   int32_t            code = TSDB_CODE_SUCCESS;
   int32_t            lino = 0;
   SNode*             pFilterCond = NULL;
   SExternalFilterCxt cxt = {
+      .pBinding = pBinding,
       .sourceType = sourceType,
       .pExtMeta = pExtMeta,
       .timezone = timezone,
@@ -4616,6 +4704,22 @@ _return:
     qError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
   }
   return code;
+}
+
+int32_t nodesValidateExternalFilter(EExtSourceType sourceType, const SExtTableMeta* pExtMeta,
+                                    SNode* pFilterCond, timezone_t timezone, void* charsetCxt,
+                                    char* pMsg, int32_t msgLen, int32_t* pTsPrimaryKeyIndex) {
+  return nodesValidateExternalFilterEx(sourceType, pExtMeta, pFilterCond, timezone,
+                                      charsetCxt, pMsg, msgLen, pTsPrimaryKeyIndex, NULL);
+}
+
+int32_t nodesValidateExternalFilterCurrentMeta(EExtSourceType sourceType, const SExtTableMeta* pExtMeta,
+                                               const char* pFilterCondJson, int32_t filterCondLen,
+                                               timezone_t timezone, void* charsetCxt, char* pMsg,
+                                               int32_t msgLen, int32_t* pTsPrimaryKeyIndex) {
+  return nodesValidateExternalFilterCurrentMetaEx(sourceType, pExtMeta, pFilterCondJson,
+                                                 filterCondLen, timezone, charsetCxt, pMsg,
+                                                 msgLen, pTsPrimaryKeyIndex, NULL);
 }
 
 void* nodesGetValueFromNode(SValueNode* pNode) {
@@ -5225,6 +5329,24 @@ typedef struct SCollectColumnsCxt {
   SHashObj*       pColHash;
 } SCollectColumnsCxt;
 
+#if defined(BUILD_TEST)
+void nodesTestSetCollectColumnsHashFailOnce(void) {
+  g_nodesTestCollectColumnsHashFailOnce = true;
+}
+#endif
+
+static SHashObj* createCollectColumnsHash(void) {
+#if defined(BUILD_TEST)
+  if (g_nodesTestCollectColumnsHashFailOnce) {
+    g_nodesTestCollectColumnsHashFailOnce = false;
+    terrno = TSDB_CODE_OUT_OF_MEMORY;
+    return NULL;
+  }
+#endif
+  return taosHashInit(128, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY),
+                      true, HASH_NO_LOCK);
+}
+
 static EDealRes doCollect(SCollectColumnsCxt* pCxt, SColumnNode* pCol, SNode* pNode) {
   char    name[TSDB_TABLE_NAME_LEN + TSDB_COL_NAME_LEN];
   int32_t len = 0;
@@ -5308,8 +5430,9 @@ int32_t nodesCollectColumns(SSelectStmt* pSelect, ESqlClause clause, const char*
       .pTableAlias = pTableAlias,
       .collectType = type,
       .pCols = (NULL == *pCols ? pList : *pCols),
-      .pColHash = taosHashInit(128, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), true, HASH_NO_LOCK)};
+      .pColHash = createCollectColumnsHash()};
   if (NULL == cxt.pCols || NULL == cxt.pColHash) {
+    nodesDestroyList(pList);
     return TSDB_CODE_OUT_OF_MEMORY;
   }
   *pCols = NULL;
@@ -5348,8 +5471,9 @@ int32_t nodesCollectColumnsExt(SSelectStmt* pSelect, ESqlClause clause, SSHashOb
       .pMultiTableAlias = pMultiTableAlias,
       .collectType = type,
       .pCols = (NULL == *pCols ? pList : *pCols),
-      .pColHash = taosHashInit(128, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), true, HASH_NO_LOCK)};
+      .pColHash = createCollectColumnsHash()};
   if (NULL == cxt.pCols || NULL == cxt.pColHash) {
+    nodesDestroyList(pList);
     return TSDB_CODE_OUT_OF_MEMORY;
   }
   *pCols = NULL;
@@ -5386,8 +5510,9 @@ int32_t nodesCollectColumnsFromMultiNodes(SNode** pNodes, int32_t numNodes, cons
       .pTableAlias = pTableAlias,
       .collectType = type,
       .pCols = (NULL == *pCols ? pList : *pCols),
-      .pColHash = taosHashInit(128, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), true, HASH_NO_LOCK)};
+      .pColHash = createCollectColumnsHash()};
   if (NULL == cxt.pCols || NULL == cxt.pColHash) {
+    nodesDestroyList(pList);
     return TSDB_CODE_OUT_OF_MEMORY;
   }
   *pCols = NULL;
@@ -5917,6 +6042,30 @@ bool nodesIsTableStar(SNode* pNode) {
          (0 == strcmp(((SColumnNode*)pNode)->colName, "*"));
 }
 
+bool queryNodeSortKeysAreAscPrimTsPk(SNodeList* pKeys) {
+  if (pKeys == NULL || LIST_LENGTH(pKeys) != 2) {
+    return false;
+  }
+
+  SOrderByExprNode* pTsKey = (SOrderByExprNode*)nodesListGetNode(pKeys, 0);
+  SOrderByExprNode* pPkKey = (SOrderByExprNode*)nodesListGetNode(pKeys, 1);
+  if (pTsKey == NULL || pPkKey == NULL || pTsKey->pExpr == NULL || pPkKey->pExpr == NULL ||
+      nodeType(pTsKey->pExpr) != QUERY_NODE_COLUMN || nodeType(pPkKey->pExpr) != QUERY_NODE_COLUMN ||
+      pTsKey->order != ORDER_ASC || pPkKey->order != ORDER_ASC) {
+    return false;
+  }
+
+  // Only the primary timestamp and a distinct fixed-width primary key can form
+  // a storage-order pair. The width and distinct-column constraints live here,
+  // in the shared predicate, so an executor-only caller cannot draw a wider
+  // conclusion than the planner does.
+  SColumnNode* pTsCol = (SColumnNode*)pTsKey->pExpr;
+  SColumnNode* pPkCol = (SColumnNode*)pPkKey->pExpr;
+  return pTsCol->isPrimTs && pTsCol->colId == PRIMARYKEY_TIMESTAMP_COL_ID &&
+         pTsCol->node.resType.type == TSDB_DATA_TYPE_TIMESTAMP && pPkCol->isPk &&
+         pPkCol->colId != pTsCol->colId && !IS_VAR_DATA_TYPE(pPkCol->node.resType.type);
+}
+
 void nodesSortList(SNodeList** pList, int32_t (*comp)(SNode* pNode1, SNode* pNode2)) {
   if ((*pList)->length == 1) return;
 
@@ -6207,4 +6356,85 @@ SColumnNode* createColumnByExpr(const char* pStmtName, SExprNode* pExpr) {
   snprintf(pCol->node.userAlias, sizeof(pCol->node.userAlias), "%s", pExpr->userAlias);
   pCol->node.relatedTo = pExpr->relatedTo;
   return pCol;
+}
+
+int32_t nodesCaptureInfluxSchema(SExtTableNode* pTable) {
+  if (pTable == NULL || pTable->pExtMeta == NULL) return TSDB_CODE_INVALID_PARA;
+  nodesDestroyList(pTable->pInfluxSchema);
+  pTable->pInfluxSchema = NULL;
+  tstrncpy(pTable->influxRp, pTable->pExtMeta->retentionPolicy, sizeof(pTable->influxRp));
+  for (int32_t i = 0; i < pTable->pExtMeta->numOfCols; ++i) {
+    const SExtColumnDef* pDef = &pTable->pExtMeta->pCols[i];
+    SColumnNode* pCol = NULL;
+    int32_t code = nodesMakeNode(QUERY_NODE_COLUMN, (SNode**)&pCol);
+    if (code == TSDB_CODE_SUCCESS) {
+      tstrncpy(pCol->colName, pDef->colName, sizeof(pCol->colName));
+      pCol->colType = pDef->isTag ? COLUMN_TYPE_TAG : COLUMN_TYPE_COLUMN;
+      code = extTypeNameToTDengineType(pTable->sourceType, pDef->extTypeName,
+                                       pDef->extCharsetName, &pCol->node.resType);
+    }
+    if (code == TSDB_CODE_SUCCESS) code = nodesListMakeStrictAppend(&pTable->pInfluxSchema, (SNode*)pCol);
+    else nodesDestroyNode((SNode*)pCol);
+    if (code != TSDB_CODE_SUCCESS) return code;
+  }
+  return TSDB_CODE_SUCCESS;
+}
+
+int32_t nodesFormatReferenceSource(const SColRef *pRef, const SReferenceEntry *pReference,
+                                   char *buffer, int32_t capacity) {
+  if (pRef == NULL || pReference == NULL || buffer == NULL || capacity <= 0) {
+    return TSDB_CODE_INVALID_PARA;
+  }
+  int32_t code = TSDB_CODE_SUCCESS;
+  int32_t filterLen = 0;
+  SNode *pFilter = NULL;
+  char *filterSQL = NULL;
+  if (pRef->filterCondJson != NULL) {
+    code = nodesStringToNode(pRef->filterCondJson, &pFilter);
+    if (code == TSDB_CODE_SUCCESS) code = nodesRestoreExternalFilterLiterals(&pFilter, true);
+    if (code == TSDB_CODE_SUCCESS) {
+      code = nodesExprToExtSQL(pFilter, EXT_SQL_DIALECT_MYSQL, NULL, 0, &filterLen);
+    }
+    if (code == TSDB_CODE_SUCCESS) {
+      filterSQL = taosMemoryMalloc((size_t)filterLen + 1);
+      if (filterSQL == NULL) code = terrno;
+    }
+    if (code == TSDB_CODE_SUCCESS) {
+      code = nodesExprToExtSQL(pFilter, EXT_SQL_DIALECT_MYSQL, filterSQL, filterLen + 1, &filterLen);
+    }
+    nodesDestroyNode(pFilter);
+    if (code != TSDB_CODE_SUCCESS) {
+      taosMemoryFree(filterSQL);
+      return code;
+    }
+  }
+  size_t fullCapacity = strlen(pRef->refSourceName) + strlen(pRef->refDbName) +
+      strlen(pRef->refSchemaName) + strlen(pRef->refTableName) + strlen(pRef->refColName) +
+      strlen(pReference->timeColumn) + filterLen + 48;
+  char *full = taosMemoryMalloc(fullCapacity);
+  if (full == NULL) {
+    taosMemoryFree(filterSQL);
+    return terrno;
+  }
+  int32_t length = tsnprintf(full, fullCapacity, "%s.%s%s%s%s%s.%s (TIMESTAMP %s)%s%s",
+                            pRef->refSourceName, pRef->refDbName, pRef->refDbName[0] ? "." : "",
+                            pRef->refSchemaName, pRef->refSchemaName[0] ? "." : "", pRef->refTableName,
+                            pRef->refColName, pReference->timeColumn,
+                            filterSQL ? " WHERE " : "", filterSQL ? filterSQL : "");
+  const char marker[] = "... [truncated]";
+  size_t markerLen = sizeof(marker) - 1;
+  if (length < capacity) {
+    memcpy(buffer, full, length + 1);
+  } else if ((size_t)capacity > markerLen) {
+    size_t prefix = capacity - markerLen - 1;
+    while (prefix > 0 && ((uint8_t)full[prefix] & 0xc0) == 0x80) --prefix;
+    memcpy(buffer, full, prefix);
+    memcpy(buffer + prefix, marker, markerLen + 1);
+  } else {
+    buffer[0] = '\0';
+    code = TSDB_CODE_OUT_OF_BUFFER;
+  }
+  taosMemoryFree(full);
+  taosMemoryFree(filterSQL);
+  return code;
 }

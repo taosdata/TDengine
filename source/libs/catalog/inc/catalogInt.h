@@ -48,6 +48,15 @@ extern "C" {
 
 #define CTG_RENT_SLOT_SECOND 1.5
 
+// Minimum number of cached view versions carried by one heartbeat. When a rent slot
+// holds fewer views, the heartbeat keeps collecting subsequent slots until this
+// threshold is reached (or all slots have been visited).
+#define CTG_VIEW_HB_MIN_NUM 20
+
+// Safety timeout for the in-flight view heartbeat round. A response that takes longer
+// is treated as lost so the sweep can re-send the batch.
+#define CTG_VIEW_HB_RSP_TIMEOUT_MS 10000
+
 #define CTG_DEFAULT_INVALID_VERSION (-1)
 
 #define CTG_ERR_CODE_TABLE_NOT_EXIST TSDB_CODE_PAR_TABLE_NOT_EXIST
@@ -181,6 +190,9 @@ typedef struct SCtgAuthReq {
   EPrivType         singleType;
   bool              onlyCache;
   bool              tbNotExists;
+  // Table meta that a GET_TB_META sub task of this very auth check has just fetched (NULL if none). The check uses
+  // it before it looks into the cache, so that its result does not depend on the fetched meta still being there.
+  const STableMeta* pFetchedMeta;
 } SCtgAuthReq;
 
 typedef struct SCtgAuthRsp {
@@ -280,9 +292,16 @@ typedef struct SCtgUdfCtx {
   char udfName[TSDB_FUNC_NAME_LEN];
 } SCtgUdfCtx;
 
+// A user auth check that finds the table meta (or the super table name of a child table) missing in the cache fetches
+// the table meta and decides on what the fetch returned. If that is not enough, it fetches once more with
+// CTG_FLAG_FORCE_UPDATE, which bypasses the finished sub task of the first fetch and refreshes the cache. The callback
+// of a finished sub task runs on the same stack, so any further launch is refused instead of recursing.
+#define CTG_USER_META_FETCH_MAX 2
+
 typedef struct SCtgUserCtx {
   SUserAuthInfo user;
   int32_t       subTaskCode;
+  int8_t        metaFetchTimes;
 } SCtgUserCtx;
 
 typedef struct SCtgViewsCtx {
@@ -453,6 +472,34 @@ typedef struct SCtgRentMgmt {
   SCtgRentSlot* slots;
 } SCtgRentMgmt;
 
+/*
+ * View metadata heartbeat verification sweep.
+ *
+ * The client reports only a limited batch of cached view versions per heartbeat, so the
+ * global view version (dynViewVer) must not be committed when one batch has been checked:
+ * every rent slot must be validated against the same pending version first. The sweep
+ * keeps the pending version and the set of already validated slots until then.
+ *
+ * Threading: the heartbeat request thread and the heartbeat response callback access
+ * this state; lock protects it. Catalog writes do not need it: view metadata written
+ * to the cache always comes from mnode, so it is at least as fresh as the sweep.
+ */
+typedef struct SCtgViewSweep {
+  SRWLatch        lock;
+  SDynViewVersion pendingVer;      // global version the current sweep is validating
+  bool            hasPending;      // a sweep is in progress
+  bool            awaitingRsp;     // a request batch was sent and its response not applied yet
+  int64_t         sentMsec;        // send time of the pending request (timeout guard)
+  int64_t         sentReqId;       // request id of the pending batch (response association)
+  uint32_t        nextSlot;        // next rent slot to collect (round robin)
+  uint32_t        verifiedNum;     // number of rent slots already verified for pendingVer
+  uint8_t*        verifiedSlots;   // bitmap of verified rent slots (viewRent.slotNum bits)
+  uint32_t        verifiedCapacity;  // capacity of verifiedSlots in bytes
+  uint32_t        sentNum;         // slots carried by the pending request
+  uint32_t*       sentSlots;       // slot indices carried by the pending request
+  uint32_t        sentCapacity;    // capacity of sentSlots in entries
+} SCtgViewSweep;
+
 typedef struct SCtgUserAuth {
   SRWLatch        lock;
   SGetUserAuthRsp userAuth;
@@ -463,6 +510,7 @@ typedef struct SCatalog {
   int64_t         clusterId;
   bool            stopUpdate;
   SDynViewVersion dynViewVer;
+  SCtgViewSweep   viewSweep;  // view metadata version verification state
   SHashObj*       userCache;      // key:user, value:SCtgUserAuth
   SHashObj*       dbCache;        // key:dbname, value:SCtgDBCache
   SCtgRentMgmt    dbRent;
@@ -472,6 +520,7 @@ typedef struct SCatalog {
   SHashObj*       pExtSourceHash; // key:sourceName, value:SExtSourceCacheEntry* (HASH_ENTRY_LOCK)
   SRWLatch        extHashLatch;   // protects pExtSourceHash pointer during bulk-replace swaps
   int64_t         extSrcGlobalVer;// client's known mnode global ext-source version (0 = unknown)
+  int64_t         extSrcDdlGen;   // client-local ext-source invalidation generation (monotonic)
   SCtgCacheStat   cacheStat;
 } SCatalog;
 
@@ -491,6 +540,7 @@ typedef struct SCtgJob {
   SHashObj* pBatchs;
   SHashObj* pDbShortNameMap;  // key: short db name, value: full db name
   SArray*   pTasks;
+  SArray*   pRetiredTaskBufs;  // old pTasks buffers kept alive until job free, see ctgGrowTaskArray
   int32_t   subTaskNum;
   int32_t   taskDone;
   SMetaData jobRes;
@@ -1166,7 +1216,7 @@ int32_t ctgdShowCacheInfo(void);
 int32_t ctgdShowStatInfo(void);
 
 int32_t ctgRemoveTbMetaFromCache(SCatalog* pCtg, SName* pTableName, bool syncReq, bool related);
-int32_t ctgGetTbMetaFromCache(SCatalog* pCtg, SCtgTbMetaCtx* ctx, STableMeta** pTableMeta);
+int32_t ctgGetTbMetaFromCache(SCatalog* pCtg, SRequestConnInfo* pConn, SCtgTbMetaCtx* ctx, STableMeta** pTableMeta);
 int32_t ctgGetTbMetasFromCache(SCatalog* pCtg, SRequestConnInfo* pConn, SCtgTbMetasCtx* ctx, int32_t dbIdx,
                                int32_t* fetchIdx, int32_t baseResIdx, SArray* pList, bool autoCreate);
 int32_t ctgGetTbNamesFromCache(SCatalog* pCtg, SRequestConnInfo* pConn, SCtgTbNamesCtx* ctx, int32_t dbIdx,
@@ -1192,6 +1242,8 @@ int32_t ctgReadTbMetaFromCache(SCatalog* pCtg, SCtgTbMetaCtx* ctx, STableMeta** 
 int32_t ctgReadTbVerFromCache(SCatalog* pCtg, SName* pTableName, int32_t* sver, int32_t* tver, int32_t *rver, int32_t* tbType,
                               uint64_t* suid, char* stbName);
 int32_t ctgChkAuthFromCache(SCatalog* pCtg, SUserAuthInfo* pReq, bool tbNotExists, bool* inCache, SCtgAuthRsp* pRes);
+int32_t ctgChkAuthFromCacheWithMeta(SCatalog* pCtg, SUserAuthInfo* pReq, bool tbNotExists, const STableMeta* pFetchedMeta,
+                                    bool* inCache, SCtgAuthRsp* pRes);
 int32_t ctgGetUserAuthFromCache(SCatalog* pCtg, const char* user, bool* inCache, SGetUserAuthRsp* pRes);
 int32_t ctgDropDbCacheEnqueue(SCatalog* pCtg, const char* dbFName, int64_t dbId);
 int32_t ctgDropDbVgroupEnqueue(SCatalog* pCtg, const char* dbFName, bool syncReq);
@@ -1212,7 +1264,17 @@ int32_t ctgMetaRentAdd(SCtgRentMgmt* mgmt, void* meta, int64_t id, int32_t size)
 int32_t ctgMetaRentUpdate(SCtgRentMgmt* mgmt, void* meta, int64_t id, int32_t size, __compar_fn_t sortCompare,
                           __compar_fn_t searchCompare);
 int32_t ctgMetaRentGet(SCtgRentMgmt* mgmt, void** res, uint32_t* num, int32_t size);
+int32_t ctgMetaRentGetSlotByIdx(SCtgRentMgmt* mgmt, int32_t slotIdx, void** res, uint32_t* num, int32_t size);
 int32_t ctgMetaRentRemove(SCtgRentMgmt* mgmt, int64_t id, __compar_fn_t sortCompare, __compar_fn_t searchCompare);
+
+// View metadata heartbeat sweep (see SCtgViewSweep).
+int32_t ctgGetViewsForHbCheck(SCatalog* pCtg, int64_t reqId, SViewVersion** views, uint32_t* num,
+                              SDynViewVersion** dynViewVersion);
+int32_t ctgApplyViewHbVersion(SCatalog* pCtg, const SDynViewVersion* pVer, int64_t rspReqId);
+int32_t ctgViewSweepOnHbRspDone(SCatalog* pCtg, int64_t rspReqId, bool sawDynVer);
+int32_t ctgViewSweepTryCommit(SCatalog* pCtg);
+int32_t ctgViewSweepOnHbError(SCatalog* pCtg);
+void    ctgViewSweepFree(SCtgViewSweep* pSweep);
 void    ctgRemoveStbRent(SCatalog* pCtg, SCtgDBCache* dbCache);
 void    ctgRemoveViewRent(SCatalog* pCtg, SCtgDBCache* dbCache);
 void    ctgRemoveTSMARent(SCatalog* pCtg, SCtgDBCache* dbCache);
@@ -1286,6 +1348,8 @@ void    ctgFreeBatch(SCtgBatch* pBatch);
 void    ctgFreeBatchs(SHashObj* pBatchs);
 int32_t ctgCloneVgInfo(SDBVgInfo* src, SDBVgInfo** dst);
 int32_t ctgCloneMetaOutput(STableMetaOutput* output, STableMetaOutput** pOutput);
+bool    ctgIsMetaTouchedByTxn(const SRequestConnInfo* pConn, const STableMetaOutput* pOut);
+bool    ctgIsCachedMetaTouchedByTxn(const SRequestConnInfo* pConn, const SName* pName, const STableMeta* pMeta);
 int32_t ctgMergeVctbOwnMeta(STableMeta** ppTbMeta, const SVCTableMeta* pVctbMeta);
 int32_t ctgGenerateVgList(SCatalog* pCtg, SHashObj* vgHash, SArray** pList, const char* dbFName);
 void    ctgFreeJob(void* job);
@@ -1310,6 +1374,7 @@ void    ctgFreeSTableMetaOutput(STableMetaOutput* pOutput);
 int32_t ctgUpdateMsgCtx(SCtgMsgCtx* pCtx, int32_t reqType, void* out, char* target);
 int32_t ctgAddMsgCtx(SArray* pCtxs, int32_t reqType, void* out, char* target);
 char*   ctgTaskTypeStr(CTG_TASK_TYPE type);
+SCtgTask* ctgGetTask(SCtgJob* pJob, int32_t taskId);
 int32_t ctgUpdateSendTargetInfo(SMsgSendInfo* pMsgSendInfo, int32_t msgType, char* dbFName, int32_t vgId);
 int32_t ctgGetTablesReqNum(SArray* pList);
 int32_t ctgAddFetch(SArray** pFetchs, int32_t dbIdx, int32_t tbIdx, int32_t* fetchIdx, int32_t resIdx, int32_t flag);

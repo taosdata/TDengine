@@ -38,6 +38,7 @@ extern "C" {
 
 // #include "clientSession.h"
 #include "tconfig.h"
+#include "clientWlr.h"
 
 #define ERROR_MSG_BUF_DEFAULT_SIZE 512
 #define HEARTBEAT_INTERVAL         1500  // ms
@@ -68,20 +69,35 @@ enum {
 
 #define TSC_MAX_SUBPLAN_CAPACITY_NUM 1000
 
-// Client request phase tracking macros
-#define CLIENT_SET_REQUEST_PHASE(_req, _phase)                      \
-  do {                                                              \
-    atomic_store_32(&(_req)->execPhase, (_phase));                  \
-    atomic_store_64(&(_req)->phaseStartTime, taosGetTimestampMs()); \
-  } while (0)
+// Client request phase tracking. All writers publish the (phase, startTime)
+// pair through these helpers, which serialize on phaseWriteLock and use a
+// seqlock sequence (phaseSeq odd while updating). The heartbeat reads the pair
+// through clientGetRequestPhaseSnapshot() so it never reports a new phase with
+// the previous stage's start time.
+#define CLIENT_PHASE_READ_RETRY_TIMES 16
+// Writer-lock waits beyond this many attempts are reported and back off from
+// 1ms to 10ms sleeps: the critical section only performs atomics, so a longer
+// wait means the holder was preempted rather than blocked.
+#define CLIENT_PHASE_LOCK_SPIN_TIMES 1000
 
-#define CLIENT_UPDATE_REQUEST_PHASE_IF_CHANGED(_req, _newPhase)       \
-  do {                                                                \
-    if (atomic_load_32(&(_req)->execPhase) != (_newPhase)) {          \
-      atomic_store_32(&(_req)->execPhase, (_newPhase));               \
-      atomic_store_64(&(_req)->phaseStartTime, taosGetTimestampMs()); \
-    }                                                                 \
-  } while (0)
+#define CLIENT_SET_REQUEST_PHASE(_req, _phase) clientSetRequestPhase((_req), (_phase))
+
+#define CLIENT_UPDATE_REQUEST_PHASE_IF_CHANGED(_req, _newPhase) \
+  clientUpdateRequestPhaseIfChanged((_req), (_newPhase))
+
+/* Enter the fetch stage without restarting it: a query fetches one data block
+ * at a time, so re-entering FETCH_IN_PROGRESS on every block would refresh
+ * phaseStartTime while the reported phase stays in the fetch stage. Returning
+ * to in_progress from FETCH_RETURNED keeps the same stage timer. The update is
+ * serialized with the other phase writers, so a concurrent fetch callback
+ * cannot resurrect a stage that already returned. */
+#define CLIENT_ENTER_REQUEST_FETCH_PHASE(_req) clientEnterRequestFetchPhase((_req))
+
+/* Close the fetch stage when the request already entered it (mid-fetch error,
+ * kill, or the final empty response). Requests that never entered the fetch
+ * stage (INSERT, failed or field-less results, empty-result requests) keep
+ * their current phase: a fetch stage is only created by entering it. */
+#define CLIENT_CLOSE_REQUEST_FETCH_IF_ENTERED(_req) clientCloseRequestFetchIfEntered((_req))
 
 #define CLIENT_GET_REQUEST_PHASE(_req)            atomic_load_32(&(_req)->execPhase)
 #define CLIENT_GET_REQUEST_PHASE_START_TIME(_req) atomic_load_64(&(_req)->phaseStartTime)
@@ -97,6 +113,8 @@ typedef struct {
   int8_t  connHbFlag;   // 0 init, 1 send req, 2 get resp
   int64_t reportBytes;  // not implemented
   int64_t startTime;
+  int64_t curRspReqId;      // request id of the batch response currently being processed
+  bool    viewDynVerSeen;   // current batch response carried HEARTBEAT_KEY_DYN_VIEW
   // ctl
   SRWLatch      lock;  // lock is used in serialization
   SAppInstInfo* pAppInstInfo;
@@ -221,6 +239,9 @@ typedef struct {
   int64_t lastAccessTime;
 } SConnAccessInfo;
 
+// STscObj.txnFlags bits: per-txn options fixed at BEGIN, cleared on reset.
+#define TSC_TXN_FLAG_ALLOW_NONTXN (1 << 0)  // BEGIN ALLOW_NONTRANSACTIONAL: skip stmt-type check
+
 typedef struct STscObj {
   char           user[TSDB_USER_LEN];
   char           tokenName[TSDB_TOKEN_NAME_LEN];
@@ -234,11 +255,16 @@ typedef struct STscObj {
   int8_t         dropped;
   int8_t         biMode;
   int8_t         txnState;
+  uint8_t        txnFlags;  // TSC_TXN_FLAG_*, written under mutex. Kept out of the bitfield word below: the heartbeat
+                            // thread updates those bitfields without the lock, and a bitfield write is a whole-word RMW.
   txn_id_t       txnId;
   int32_t        txnDdlCount;    // DDL op count in current txn; checked against TSDB_TXN_MAX_DDL_OPS_PER_TXN
   SSHashObj*     pTxnVgSet;      // Hash set of int32_t vgId  ->  dummy, accumulated during DDL in txn
   SHashObj*      pTxnTableMeta;  // Hash cache: "db.table"  ->  STableMeta* for tables created in this txn
   SHashObj*      pTxnSuidMap;    // Hash: suid (uint64_t)  ->  stbFullName (char[TSDB_TABLE_FNAME_LEN])
+  // Batch meta txn: rid of the user request that is executing a statement of the active txn, 0 = none. The
+  // statements of a txn run one at a time (see tscTxnAcquireStmtSlot). Written under mutex.
+  int64_t        txnStmtOwner;
   union {
     uint32_t flags;
     struct {
@@ -378,6 +404,12 @@ typedef struct SRequestObj {
   // to the user and referenced by later fetch/free events. Not the address and not
   // requestId, since replay assigns its own (DS 6.11). Zero when not recording.
   uint64_t             wlrResultId;
+  // Workload recorder: the folded fetch session for this result. Every fetch call
+  // on the result is accounted here and recorded as ONE BEGIN/RETURN pair instead
+  // of one pair per row; zeroed (closed) for a request that is never fetched. Kept
+  // on the request rather than in thread-local storage so results consumed
+  // alternately on one thread keep independent sessions.
+  SWlrFetchFold        wlrFetchFold;
   // Call ID of the async API that created this request, so the completion callback
   // can name it as the parent of anything the user issues from inside the callback
   // (DS 6.8). Zero for synchronous requests.
@@ -416,8 +448,10 @@ typedef struct SRequestObj {
   bool                 inRetry;
   bool                 isSubReq;
   bool                 inCallback;
-  bool                 txnChecked;  // true after doAsyncQuery has validated txn state; skips re-check in launchQueryImpl
+  bool                 txnChecked;  // txn check done for this statement: launchAsyncQuery skips it, a retry does not charge again
+  bool                 txnIdFixed;  // txnId below is fixed (see tscReqFixTxnId)
   uint8_t              stmtBindVersion;  // 0 for not stmt; 1 for stmt1; 2 for stmt2
+  uint8_t              stmtTbNameFlag;   // insert tbname kind reported by the parser, see SParseContext
   bool                 isQuery;
   uint32_t             prevCode;  // previous error code: todo refactor, add update flag for catalog
   uint32_t             retry;
@@ -428,16 +462,43 @@ typedef struct SRequestObj {
   SMetaData            parseMeta;
   char*                effectiveUser;
   int8_t               source;
+  // Request phase pair and its seqlock guard. These fields are one logical
+  // snapshot: (execPhase, phaseStartTime) is published under phaseWriteLock,
+  // while phaseSeq is odd when a writer updates the pair and even when it is
+  // stable. The heartbeat reads it through clientGetRequestPhaseSnapshot().
+  //
+  // Do NOT write execPhase/phaseStartTime directly: every update must go
+  // through clientSetRequestPhase(), clientUpdateRequestPhaseIfChanged(),
+  // clientEnterRequestFetchPhase() or clientCloseRequestFetchIfEntered() in
+  // clientEnv.c, otherwise the seqlock snapshot is broken.
+  // Plain int32_t is intentional (same as the other atomic lock words in this
+  // codebase, e.g. gConvLock): the atomic API takes int32_t volatile *, and
+  // qualifier addition on the way in is a valid conversion, so no cast or
+  // volatile field is needed.
   int32_t              execPhase;       // EQueryExecPhase
-  bool                 execDispatched;  // Retained across internal stmt retries.
   int64_t              phaseStartTime;  // when current phase started, ms
+  int32_t              phaseWriteLock;
+  int32_t              phaseSeq;        // odd while a phase writer updates the pair
+  bool                 execDispatched;  // Retained across internal stmt retries.
   int8_t               secureDelete;
+  // Batch meta txn: the txn this statement belongs to (0 = none), fixed once when the statement starts and read by
+  // every later stage (txn check, plan, schedule, response handling) instead of the connection's current txnId. A
+  // statement issued before BEGIN completed therefore stays a plain statement from start to end.
+  txn_id_t             txnId;
   TAOS_STMT2          *literal_by_stmt2; // reference only
   char                 extSourceName[TSDB_EXT_SOURCE_NAME_LEN];  // ext source for this request (FH-10)
   int32_t              extPushdownAttemptCount;
   SExtCapSessionOverlay extSessionOverlay;
   uint32_t             extPoolRetry;  // pool-exhaustion retry count (client-side delayed retry)
 } SRequestObj;
+
+/* Request phase writers and the consistent snapshot reader used by the
+ * heartbeat. Defined in clientEnv.c; see the macro block above. */
+void clientSetRequestPhase(SRequestObj* pReq, int32_t phase);
+void clientUpdateRequestPhaseIfChanged(SRequestObj* pReq, int32_t newPhase);
+void clientEnterRequestFetchPhase(SRequestObj* pReq);
+void clientCloseRequestFetchIfEntered(SRequestObj* pReq);
+void clientGetRequestPhaseSnapshot(SRequestObj* pReq, int32_t* pPhase, int64_t* pStartTime);
 
 typedef struct SSyncQueryParam {
   tsem_t       sem;
@@ -514,6 +575,7 @@ void         destroyRequest(SRequestObj* pRequest);
 SRequestObj* acquireRequest(int64_t rid);
 int32_t      releaseRequest(int64_t rid);
 int32_t      removeRequest(int64_t rid);
+bool         chkRequestKilled(void* param);
 void         doDestroyRequest(void* p);
 int64_t      removeFromMostPrevReq(SRequestObj* pRequest);
 
@@ -521,6 +583,12 @@ char* getDbOfConnection(STscObj* pObj);
 void  setConnectionDB(STscObj* pTscObj, const char* db);
 void  setConnectionExtSource(STscObj* pTscObj, const char* srcName, const char* ns1, const char* ns2);
 void  resetConnectDB(STscObj* pTscObj);
+int32_t tscTxnEnsureLocalMetaHashes(STscObj* pTscObj);  // caller holds pTscObj->mutex
+int32_t tscTxnAcquireStmtSlot(SRequestObj* pRequest, txn_id_t txnId, bool* pAcquired);  // caller holds pTscObj->mutex
+void    tscReqFixTxnId(SRequestObj* pRequest);
+void    tscReqStartStatement(SRequestObj* pRequest);
+void    tscTxnReleaseStmtSlot(SRequestObj* pRequest);
+int32_t tscTxnClaimStmtSlot(SRequestObj* pRequest);  // bypass paths (SML / rawBlock / STMT / STMT2), takes the mutex
 void  tscBestEffortRollbackOrphanTxn(STscObj* pTscObj, txn_id_t txnId, const char* source);// Reset all client-side txn state (txnId, txnState, txnDdlCount, pTxnVgSet, pTxnTableMeta, pTxnSuidMap).
 // Used for explicit COMMIT/ROLLBACK completion and for local-only cleanup after a timeout-killed txn.
 void    tscResetTxnState(STscObj* pTscObj);
@@ -546,6 +614,7 @@ int32_t taos_connect_by_auth(const char* ip, const char* user, const char* auth,
                               uint16_t port, int connType, STscObj** pObj);
 
 int32_t parseSql(SRequestObj* pRequest, bool topicQuery, SQuery** pQuery, SStmtCallback* pStmtCb);
+void    stmtRestoreCurrentQueryContext(SQuery* pQuery, STscObj* pTscObj, SReqResultInfo* pResInfo);
 
 int32_t getPlan(SRequestObj* pRequest, SQuery* pQuery, SQueryPlan** pPlan, SArray* pNodeList);
 int32_t sqlSecurityCheckStringLevel(SRequestObj* pRequest, const char* sql, int32_t sqlLen);
@@ -601,10 +670,13 @@ void    doAsyncQuery(SRequestObj* pRequest, EClientMetaRefreshScope refreshScope
 int32_t removeMeta(STscObj* pTscObj, SArray* tbList, bool isView);
 int32_t handleAlterTbExecRes(void* res, struct SCatalog* pCatalog);
 int32_t handleCreateTbExecRes(void* res, SCatalog* pCatalog);
-int32_t tscTxnCacheMetaFromRsp(STscObj* pTscObj, STableMetaRsp* pMetaRsp, const char* opName);
-int32_t tscTxnCacheCreateTbMeta(STscObj* pTscObj, STableMetaRsp* pMetaRsp);
-int32_t tscTxnUpsertTableMeta(STscObj* pTscObj, const char* fullName, STableMeta* pTableMeta, const char* opName);
-int32_t tscTxnRecordDroppedStbSuid(STscObj* pTscObj, const SName* pStbName);
+// Writers of the connection's txn-local state on behalf of a statement of txn `txnId` (pRequest->txnId). A write
+// for a txn that is no longer the connection's one (the response came back after COMMIT / ROLLBACK) is dropped.
+int32_t tscTxnCacheMetaFromRsp(STscObj* pTscObj, txn_id_t txnId, STableMetaRsp* pMetaRsp, const char* opName);
+int32_t tscTxnCacheCreateTbMeta(STscObj* pTscObj, txn_id_t txnId, STableMetaRsp* pMetaRsp);
+int32_t tscTxnUpsertTableMeta(STscObj* pTscObj, txn_id_t txnId, const char* fullName, STableMeta* pTableMeta,
+                              const char* opName);
+int32_t tscTxnRecordDroppedStbSuid(STscObj* pTscObj, txn_id_t txnId, const SName* pStbName);
 int32_t qnodeRequired(SRequestObj* pRequest, bool* required);
 void    continueInsertFromCsv(SSqlCallbackWrapper* pWrapper, SRequestObj* pRequest);
 void    destorySqlCallbackWrapper(SSqlCallbackWrapper* pWrapper);
@@ -662,6 +734,7 @@ void sqlReqLog(int64_t rid, bool killed, int32_t code, int8_t type);
 
 void tmqMgmtClose(void);
 void writeRawCleanup(void);
+void writeRawCleanupConn(int64_t connId);
 
 /*
  * taos_fetch_row without the recorder hook. Internal callers on driver completion

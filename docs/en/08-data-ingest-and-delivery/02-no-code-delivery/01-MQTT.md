@@ -28,10 +28,29 @@ Before using TDengine's MQTT publishing feature, users need to install and confi
 Use the `taos` CLI tool or the taosExplorer management interface to execute SQL statements, create databases, super tables, topics, and insert data for subsequent subscription. Here is a simple example:
 
 ```sql
-create database db vgroups 1;
-create table db.meters (ts timestamp, f1 int) tags(t1 int);
-create topic topic_meters as select ts, tbname, f1, t1 from db.meters;
-insert into db.tb using db.meters tags(1) values(now, 1);
+CREATE DATABASE db
+  vgroups 1;
+
+CREATE TABLE db.meters (
+  ts TIMESTAMP,
+  f1 INT
+) TAGS (
+  t1 INT
+);
+
+CREATE TOPIC topic_meters
+  AS
+    SELECT
+      ts,
+      tbname,
+      f1,
+      t1
+    FROM db.meters;
+
+INSERT INTO db.tb
+USING db.meters
+TAGS (1)
+VALUES (now, 1);
 ```
 
 ## Create MQTT Data Publishing Task

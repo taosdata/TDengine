@@ -269,5 +269,9 @@ int main(int argc, char* argv[]) {
 #endif
 
     exitLog();
+    /* With stdout redirected it is fully buffered; flush every stream here so a
+     * caller that captures the run always sees the banner and the summary even
+     * if the process is torn down by whoever started it. */
+    fflush(NULL);
     return ret;
 }

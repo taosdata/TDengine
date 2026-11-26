@@ -54,7 +54,7 @@ typedef struct SExprInfo {
   struct tExprNode*     pExpr;
 } SExprInfo;
 
-int32_t setLagLeadDefaultValueToCol(SColumnInfoData *pOutput, int32_t pos, SFunctParam *pDefaultParam);
+int32_t setLagLeadDefaultValueToCol(SColumnInfoData *pOutput, int32_t pos, SFunctParam *pDefaultParam, void *charsetCxt);
 
 typedef bool (*FExecGetEnv)(struct SFunctionNode *pFunc, SFuncExecEnv *pEnv);
 typedef void (*FExecCleanUp)(struct SqlFunctionCtx *pCtx);
@@ -66,6 +66,9 @@ typedef int32_t (*FExecCombine)(struct SqlFunctionCtx *pDestCtx, struct SqlFunct
 typedef int32_t (*FExecDecode)(struct SqlFunctionCtx *pCtx, const char *buf,
                                struct SResultRowEntryInfo *pResultCellInfo, int32_t version);
 typedef int32_t (*processFuncByRow)(SArray *pCtx);  // array of SqlFunctionCtx
+// Deferred-output functions (e.g. fill_next) keep rows before publishing the
+// host's result block: the host must not emit a block while this returns true.
+typedef bool (*FExecHasPending)(struct SqlFunctionCtx *pCtx);
 
 typedef struct SScalarFuncExecFuncs {
   FExecGetEnv        getEnv;
@@ -81,6 +84,7 @@ typedef struct SFuncExecFuncs {
   FExecCleanUp     cleanup;
   FExecDecode      decode;
   processFuncByRow processFuncByRow;
+  FExecHasPending  hasPending;
 } SFuncExecFuncs;
 
 #define MAX_INTERVAL_TIME_WINDOW 10000000  // maximum allowed time windows in final results
@@ -273,6 +277,7 @@ typedef struct SqlFunctionCtx {
   uint32_t             order;          // data block scanner order: asc|desc
   uint8_t              isPseudoFunc;   // denote current function is pseudo function or not [added for perf reason]
   uint8_t              isNotNullFunc;  // not return null value.
+  bool                 ignoreResultRowCount;
   bool                 isDistinctFunc;  // DISTINCT variant; cached at ctx creation because the
                                         // cleanup path runs after the plan node may be freed
   uint8_t              scanFlag;       // record current running step, default: 0

@@ -30,6 +30,10 @@ extern "C" {
 #include "tobjpool.h"
 
 struct SStreamTriggerTask;
+struct SSTimeAlignState;
+int32_t stVtableMergerAlignBlock(struct SSTimeAlignState *state, const SArray *slots, uint64_t uid, int32_t tsSlot,
+                                 SFilterInfo *filter, SSDataBlock *block, const SArray *sourceTimes,
+                                 int32_t timeOffset);
 
 typedef struct SSTriggerMetaData {
   int64_t skey;
@@ -218,6 +222,8 @@ typedef struct SSTriggerColMatch {
     col_id_t otbSlotId;
   };
   col_id_t vtbSlotId;
+  col_id_t physicalId;   // physical column identity across WAL projection generations
+  int32_t  sourceBytes;  // bound width of a flat virtual column
 } SSTriggerColMatch;
 
 typedef enum ESTriggerReaderKind {
@@ -270,7 +276,15 @@ typedef enum ETriggerVtableMergerMask {
   TRIGGER_VTABLE_MERGER_MASK_META_DATA_SET = BIT_FLAG_MASK(1),
 } ETriggerVtableMergerMask;
 
+// One raw buffer is exchanged with a suspended input before its merger can advance.
+typedef struct {
+  SSDataBlock *spare;
+  SSDataBlock *output;
+  SArray      *sourceTimes;  // physical timestamp columns indexed by virtual input slot
+} SSTriggerAlignBuffers;
+
 typedef struct SSTriggerVtableMerger {
+  SSTriggerAlignBuffers      alignBuffers;
   struct SStreamTriggerTask *pTask;
   int64_t                    flags;  // bitmask of ETriggerVtableMergerMask
   SSDataBlock               *pDataBlock;
@@ -367,11 +381,14 @@ int32_t stVtableMergerGetMetaToFetch(SSTriggerVtableMerger *pMerger, SSTriggerMe
  * @return int32_t Status code indicating success or error
  */
 int32_t stVtableMergerBindDataBlock(SSTriggerVtableMerger *pMerger, SSDataBlock **ppDataBlock);
+int32_t stVtableMergerBindDataBatch(SSTriggerVtableMerger *pMerger, SSDataBlock **ppDataBlock, bool done);
 
 typedef struct SSTriggerDataSlice {
   SSDataBlock *pDataBlock;
   int32_t      startIdx;
   int32_t      endIdx;
+  void        *pSnapshotCache;
+  int64_t      snapshotSourceId;
 } SSTriggerDataSlice;
 
 typedef struct SSTriggerNewTimestampSorter {
@@ -382,11 +399,15 @@ typedef struct SSTriggerNewTimestampSorter {
   SSDataBlock *pDataBlock;
   int32_t      tsSlotId;
   int32_t      pkSlotId;
+  int32_t                keyTsSlotId;
+  SSDataBlock           *pWalInput;
+  SSDataBlock           *pMergedRow;
   SSTriggerReaderDataKey readerKey;
 
   SArray                 *pSliceBuf;    // SArray<SNewTimestampSorterSlice>
   SArray                 *pSliceLists;  // SArray<SNewTimestampSorterSliceList>
   SMultiwayMergeTreeInfo *pDataMerger;
+  void                   *pSnapshotSort;
 } SSTriggerNewTimestampSorter;
 
 /**
@@ -444,12 +465,14 @@ int32_t stNewTimestampSorterNextDataBlock(SSTriggerNewTimestampSorter *pSorter, 
                                           int32_t *pStartIdx, int32_t *pEndIdx);
 
 typedef struct SSTriggerNewVtableMerger {
+  SSTriggerAlignBuffers      alignBuffers;
   struct SStreamTriggerTask *pTask;
   SSDataBlock               *pDataBlock;
   bool                      *pIsPseudoCol;  // whether the column is pseudo column, could be NULL if no pseudo columns
   SFilterInfo               *pFilter;
 
   bool         inUse;
+  bool         timeAlignTrigger;
   SSDataBlock *pPseudoColValues;  // value of pseudo columns, could be NULL if no pseudo columns
   int32_t      tsSlotId;
 
@@ -457,6 +480,24 @@ typedef struct SSTriggerNewVtableMerger {
   SArray                 *pReaderInfos;  // SArray<SNewVtableMergerReaderInfo>
   SMultiwayMergeTreeInfo *pDataMerger;
 } SSTriggerNewVtableMerger;
+
+// Borrowed input descriptors; each layout generation keeps its own column mapping.
+typedef struct SSTriggerVtableSource {
+  SSTriggerReaderDataKey readerKey;
+  SSTriggerTableColRef  *pColRef;
+  SSTriggerDataSlice     slice;
+  SObjList              *pMetas;
+  int64_t                generation;
+} SSTriggerVtableSource;
+
+struct SSTriggerRealtimeGroup;
+struct SSTriggerVirtTableInfo;
+// Inspect the first eligible timestamp with the same source sorters as the body.
+int32_t stVtableMergerFirstInputTs(struct SSTriggerRealtimeGroup *group, const struct SSTriggerVirtTableInfo *table,
+                                   SObjList *tableRefs, bool ordered, int64_t *first, bool *found);
+
+int32_t stNewVtableMergerSetSources(SSTriggerNewVtableMerger *pMerger, int64_t vtbUid, int32_t tsSlotId,
+                                    int32_t pkSlotId, STimeWindow *pReadRange, SArray *pSources, bool orderedInput);
 
 /**
  * @brief Initializes a vtable merger for merging data from original tables.

@@ -23,6 +23,7 @@ extern "C" {
 #endif
 
 #include "decimal.h"
+#include "fillPrev.h"
 #include "functionResInfo.h"
 #include "os.h"
 #include "tdigest.h"
@@ -119,19 +120,37 @@ typedef struct SMinmaxResInfo {
   int16_t   type;
 } SMinmaxResInfo;
 
-typedef struct SFillforwardInfo {
-  union {
-    struct {
-      int64_t v;
-      float   fv;
-      double  dv;
-      char*   str;
-    };
-    int64_t dec[2];  // for decimal types
-  };
+// TIME_ALIGN optional time-range parameter state.  Fixed units are converted
+// to ticks of the input time axis precision with getDuration(); calendar units
+// (n/y) keep the period count and advance timestamps with taosTimeAdd().
+typedef struct SFillSpanInfo {
+  SFillPrevRange range;
+  bool           spanReady;
+  bool           mono;
+  bool           desc;
+} SFillSpanInfo;
 
-  bool nonnull;
+typedef struct SFillforwardInfo {
+  SFillPrevValue value;
+  SFillSpanInfo  span;
 } SFillforwardInfo;
+
+// One output position whose successor value is not known yet, together with
+// the row timestamp used by the optional time-range parameter.
+typedef struct SFillNextPending {
+  int32_t pos;    // absolute output position in the host result block
+  int64_t rowTs;  // timestamp of the pending row
+} SFillNextPending;
+
+// NEXT keeps the output positions whose successor is not known yet.  The
+// positions are absolute row indexes in the host result block (the block that
+// accumulates rows across input blocks, see projectApplyFunctions), so a value
+// found in a later input block can be written back in place.
+typedef struct SFillNextInfo {
+  SArray* pPending;     // SArray<SFillNextPending>, ascending output positions
+  int32_t pendingHead;  // first unresolved entry (monotonic inputs only)
+  SFillSpanInfo span;
+} SFillNextInfo;
 
 typedef struct SOldMinMaxResInfo {
   bool      assign;  // assign the first value or not

@@ -295,6 +295,11 @@ ulimit -c unlimited
 
 TMP_DIR=$WORKDIR/tmp
 MOUNT_DIR=""
+# packageName="TDengine-server-3.0.1.0-Linux-x64.tar.gz"
+# 有第二块盘时按 worker 写入的通道号 bind。没有通道号、额外盘或 CI_JOB_ID 时留在原盘。
+# shellcheck source=thread_volume.sh
+source "$(cd "$(dirname "$0")" && pwd)/thread_volume.sh"
+prepare_thread_volume "${thread_no}" || exit 1
 rm -rf ${TMP_DIR}/thread_volume/$thread_no/sim
 source "$REPDIR/test/ci/compat_package_cache.sh" || exit 1
 # Bind the cache directly: never replace or mutate an existing job/src directory.
@@ -444,7 +449,27 @@ TEST_VOLUME_READY="${TEST_VOLUME}/.ci-test-tree-ready"
 mkdir -p "${TEST_VOLUME}/sim/var_taoslog"
 mkdir -p "${TEST_VOLUME}/sim/tsim"
 mkdir -p "${TEST_VOLUME}/coredump"
+mkdir -p "${TEST_VOLUME}/container-scratch/tmp"
+mkdir -p "${TEST_VOLUME}/container-scratch/var-tmp"
+# mkdir leaves root:755. apt runs as the _apt user and must create files in /tmp.
+chmod 1777 "${TEST_VOLUME}/container-scratch/tmp" "${TEST_VOLUME}/container-scratch/var-tmp" || exit 1
 rm -rf "${TEST_VOLUME}/coredump"/*
+# Lane > 0 bind-mounts this directory onto the second disk. /tmp and /var/tmp
+# follow it, so a case placed on /data2 does not write those paths on /data1.
+# The thin Docker overlay upper dir stays on the daemon graph root.
+_ci_scratch="${TEST_VOLUME}/container-scratch"
+# The same slot is reused by the next case, a retry, and an affinity rerun.
+# Drop the previous container's /tmp and /var/tmp, including dotfiles.
+# -xdev stays inside scratch if a privileged container left a mount behind.
+# find returns non-zero when an entry disappears during the walk; only a
+# remaining entry is a failed cleanup.
+find "${_ci_scratch}/tmp" "${_ci_scratch}/var-tmp" -xdev -mindepth 1 -delete || true
+_ci_scratch_left=$(find "${_ci_scratch}/tmp" "${_ci_scratch}/var-tmp" -xdev -mindepth 1 -print 2>/dev/null || true)
+if [[ -n "${_ci_scratch_left}" ]]; then
+    echo "[ci] ERROR: container scratch still has entries" >&2
+    printf '%s\n' "${_ci_scratch_left}" >&2
+    exit 1
+fi
 
 # The volume is mounted directly as the container's test directory.  Copy the
 # tree once per slot and publish the marker only after the required entrypoints
@@ -480,6 +505,11 @@ coredump_dir=$(cat /proc/sys/kernel/core_pattern | xargs dirname)
 if [ -z "$coredump_dir" ] || [ "$coredump_dir" = "." ]; then
     coredump_dir="/home/coredump"
 fi
+# core_pattern often points at /tmp. That bind already places /tmp on the lane
+# disk, and Docker rejects a second mount of the same path.
+_ci_scratch_mounts=()
+[[ "${coredump_dir}" == "/tmp" ]] || _ci_scratch_mounts+=(-v "${_ci_scratch}/tmp:/tmp")
+[[ "${coredump_dir}" == "/var/tmp" ]] || _ci_scratch_mounts+=(-v "${_ci_scratch}/var-tmp:/var/tmp")
 
 name_param=""
 [ -n "$container_name" ] && name_param="--name ${container_name}"
@@ -589,6 +619,13 @@ if fq_ci_needs_databases "$cmd" && \
     export FQ_CI_HYBRID="${FQ_CI_HYBRID:-1}"
 fi
 
+# Native Oracle 11g runs its Java VM during database creation. Docker's
+# default noexec /dev/shm prevents it from mapping its shared object cache.
+fq_oracle_shm=""
+if [[ ${#fq_runner[@]} == 0 && "$cmd" == *"/19-FederatedQuery/test_fq_oracle_window_order.py"* ]]; then
+    fq_oracle_shm="--tmpfs=/dev/shm:rw,exec,nosuid,nodev,size=1g"
+fi
+
 mock_env=""
 if [[ "${CHILD_PIPELINE_NAME:-}" == "tsdb-ci-linux" && "${cmd}" =~ (cases/[^[:space:]]+\.py) ]]; then
   case_file="${REPDIR}/test/${BASH_REMATCH[1]}"
@@ -606,7 +643,7 @@ _ci_remove_flag=--rm
 [[ "${CI_WORKER_MANAGED_CONTAINER:-0}" != 1 ]] || _ci_remove_flag=""
 
 echo "docker run \
-    ${name_param:+$name_param }--privileged=true \
+    ${name_param:+$name_param }--privileged=true ${fq_oracle_shm} \
     $asan_env \
     $mock_env \
     -e CI_MIN_RESERVED_MEMORY_MB=${CI_MIN_RESERVED_MEMORY_MB:-2048} \
@@ -620,13 +657,14 @@ echo "docker run \
     -v ${SOURCEDIR}:/usr/local/src/ \
     -v \"$TMP_DIR/thread_volume/$thread_no/sim:${SIM_DIR}\" \
     -v ${TMP_DIR}/thread_volume/$thread_no/coredump:$coredump_dir \
-    ${_ci_remove_flag} --ulimit core=-1 ${DOCKER_IMAGE_NAME:-harbor.tdengine.net/tsdb-ci/tdengine-ci:0.4} $CONTAINER_TESTDIR/test/ci/run_case.sh -d \"$exec_dir\" -c \"$cmd\" $extra_param"
+    ${_ci_scratch_mounts[*]+${_ci_scratch_mounts[*]}} \
+    ${_ci_remove_flag} --ulimit core=-1 ${DOCKER_IMAGE_NAME:-harbor.tdengine.net/tsdb-ci/tdengine-ci:0.5} $CONTAINER_TESTDIR/test/ci/run_case.sh -d \"$exec_dir\" -c \"$cmd\" $extra_param"
 _ci_exit_marker="${TMP_DIR}/thread_volume/${thread_no}/.ci-container-exit"
 rm -f "${_ci_exit_marker}" "${TMP_DIR}/thread_volume/${thread_no}/.ci-test-command-exit"
 _ci_docker_start_ms=$(date +%s%3N)
 echo "[ci-timing] stage=docker-run event=start"
 "${fq_runner[@]}" docker run \
-    ${name_param:+$name_param} --privileged=true \
+    ${name_param:+$name_param} --privileged=true ${fq_oracle_shm} \
     $asan_env \
     $mock_env \
     -e CI_CONTAINER_EXIT_MARKER="$CONTAINER_TESTDIR/test/.ci-container-exit" \
@@ -642,7 +680,8 @@ echo "[ci-timing] stage=docker-run event=start"
     -v ${SOURCEDIR}:/usr/local/src/ \
     -v "$TMP_DIR/thread_volume/$thread_no/sim:${SIM_DIR}" \
     -v ${TMP_DIR}/thread_volume/$thread_no/coredump:$coredump_dir \
-    ${_ci_remove_flag} --ulimit core=-1 ${DOCKER_IMAGE_NAME:-harbor.tdengine.net/tsdb-ci/tdengine-ci:0.4} $CONTAINER_TESTDIR/test/ci/run_case.sh -d "$exec_dir" -c "$cmd" $extra_param
+    ${_ci_scratch_mounts[@]+"${_ci_scratch_mounts[@]}"} \
+    ${_ci_remove_flag} --ulimit core=-1 ${DOCKER_IMAGE_NAME:-harbor.tdengine.net/tsdb-ci/tdengine-ci:0.5} $CONTAINER_TESTDIR/test/ci/run_case.sh -d "$exec_dir" -c "$cmd" $extra_param
 ret=$?
 _ci_docker_end_ms=$(date +%s%3N)
 echo "[ci-timing] stage=docker-run elapsed_ms=$(( _ci_docker_end_ms - _ci_docker_start_ms )) rc=${ret}"

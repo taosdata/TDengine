@@ -28,7 +28,7 @@ int32_t tsdbForceRepair(STFileSystem *fs);
 
 typedef struct STFileHashEntry {
   struct STFileHashEntry *next;
-  char                    fname[TSDB_FILENAME_LEN];
+  char                    fname[TSDB_PATH_LEN];
 } STFileHashEntry;
 
 typedef struct {
@@ -79,9 +79,9 @@ static void destroy_fs(STFileSystem **fs) {
 void current_fname(STsdb *pTsdb, char *fname, EFCurrentT ftype) {
   int32_t offset = 0;
 
-  vnodeGetPrimaryPath(pTsdb->pVnode, false, fname, TSDB_FILENAME_LEN);
+  vnodeGetPrimaryPath(pTsdb->pVnode, false, fname, TSDB_PATH_LEN);
   offset = strlen(fname);
-  snprintf(fname + offset, TSDB_FILENAME_LEN - offset - 1, "%s%s%s%s", TD_DIRSEP, pTsdb->name, TD_DIRSEP,
+  snprintf(fname + offset, TSDB_PATH_LEN - offset - 1, "%s%s%s%s", TD_DIRSEP, pTsdb->name, TD_DIRSEP,
            gCurrentFname[ftype]);
 }
 
@@ -285,8 +285,8 @@ _exit:
 }
 
 static int32_t commit_edit(STFileSystem *fs) {
-  char current[TSDB_FILENAME_LEN];
-  char current_t[TSDB_FILENAME_LEN];
+  char current[TSDB_PATH_LEN];
+  char current_t[TSDB_PATH_LEN];
 
   current_fname(fs->tsdb, current, TSDB_FCURRENT);
   if (fs->etype == TSDB_FEDIT_COMMIT) {
@@ -317,7 +317,7 @@ static int32_t tsdbFSDoSanAndFix(STFileSystem *fs);
 static int32_t apply_abort(STFileSystem *fs) { return tsdbFSDoSanAndFix(fs); }
 
 static int32_t abort_edit(STFileSystem *fs) {
-  char fname[TSDB_FILENAME_LEN];
+  char fname[TSDB_PATH_LEN];
 
   if (fs->etype == TSDB_FEDIT_COMMIT) {
     current_fname(fs->tsdb, fname, TSDB_FCURRENT_C);
@@ -354,7 +354,7 @@ static int32_t tsdbFSDoScanAndFixFile(STFileSystem *fs, const STFileObj *fobj) {
     bool found = false;
 
     if (tsSsEnabled && fobj->f->lcn > 1) {
-      char fname1[TSDB_FILENAME_LEN];
+      char fname1[TSDB_PATH_LEN];
       tsdbTFileLastChunkName(fs->tsdb, fobj->f, fname1);
       if (!taosCheckExistFile(fname1)) {
         code = TSDB_CODE_FILE_CORRUPTED;
@@ -381,7 +381,7 @@ static int32_t tsdbFSAddEntryToFileObjHash(STFileHash *hash, const char *fname) 
   STFileHashEntry *entry = taosMemoryMalloc(sizeof(*entry));
   if (entry == NULL) return terrno;
 
-  tstrncpy(entry->fname, fname, TSDB_FILENAME_LEN);
+  tstrncpy(entry->fname, fname, TSDB_PATH_LEN);
 
   uint32_t idx = MurmurHash3_32(fname, strlen(fname)) % hash->numBucket;
 
@@ -395,7 +395,7 @@ static int32_t tsdbFSAddEntryToFileObjHash(STFileHash *hash, const char *fname) 
 static int32_t tsdbFSCreateFileObjHash(STFileSystem *fs, STFileHash *hash) {
   int32_t code = 0;
   int32_t lino;
-  char    fname[TSDB_FILENAME_LEN];
+  char    fname[TSDB_PATH_LEN];
 
   // init hash table
   hash->numFile = 0;
@@ -422,7 +422,7 @@ static int32_t tsdbFSCreateFileObjHash(STFileSystem *fs, STFileHash *hash) {
         if (TSDB_FTYPE_DATA == i && fset->farr[i]->f->lcn > 0) {
           STFileObj *fobj = fset->farr[i];
           int32_t    lcn = fobj->f->lcn;
-          char       lcn_name[TSDB_FILENAME_LEN];
+          char       lcn_name[TSDB_PATH_LEN];
 
           snprintf(lcn_name, TSDB_FQDN_LEN, "%s", fobj->fname);
           char *dot = strrchr(lcn_name, '.');
@@ -600,9 +600,9 @@ static int32_t open_fs(STFileSystem *fs, int8_t rollback) {
   int32_t lino = 0;
   STsdb  *pTsdb = fs->tsdb;
 
-  char fCurrent[TSDB_FILENAME_LEN];
-  char cCurrent[TSDB_FILENAME_LEN];
-  char mCurrent[TSDB_FILENAME_LEN];
+  char fCurrent[TSDB_PATH_LEN];
+  char cCurrent[TSDB_PATH_LEN];
+  char mCurrent[TSDB_PATH_LEN];
 
   current_fname(pTsdb, fCurrent, TSDB_FCURRENT);
   current_fname(pTsdb, cCurrent, TSDB_FCURRENT_C);
@@ -860,7 +860,7 @@ void tsdbFSUpdateEid(STFileSystem *fs, int64_t cid) {
 int32_t tsdbFSEditBegin(STFileSystem *fs, const TFileOpArray *opArray, EFEditT etype) {
   int32_t code = 0;
   int32_t lino;
-  char    current_t[TSDB_FILENAME_LEN];
+  char    current_t[TSDB_PATH_LEN];
 
   if (etype == TSDB_FEDIT_COMMIT) {
     current_fname(fs->tsdb, current_t, TSDB_FCURRENT_C);

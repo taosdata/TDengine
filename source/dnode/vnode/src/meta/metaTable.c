@@ -39,11 +39,11 @@ int32_t metaRemoveTableColumnRef(SMeta *pMeta, int64_t version, SVAlterTbReq *pR
 int32_t metaAlterTagRef(SMeta *pMeta, int64_t version, SVAlterTbReq *pReq, STableMetaRsp *pRsp);
 int32_t metaAddTableSeries(SMeta *pMeta, int64_t version, SVAlterTbReq *pReq, STableMetaRsp *pRsp);
 int32_t metaRemoveTableSeries(SMeta *pMeta, int64_t version, SVAlterTbReq *pReq, STableMetaRsp *pRsp);
-int32_t metaSaveJsonVarToIdx(SMeta *pMeta, const SMetaEntry *pCtbEntry, const SSchema *pSchema);
+int32_t metaSaveJsonVarToIdx(SMeta *pMeta, const SMetaEntry *pCtbEntry);
 
-int32_t    metaDelJsonVarFromIdx(SMeta *pMeta, const SMetaEntry *pCtbEntry, const SSchema *pSchema);
+int32_t    metaDelJsonVarFromIdx(SMeta *pMeta, const SMetaEntry *pCtbEntry);
 static int metaUpdateChangeTime(SMeta *pMeta, tb_uid_t uid, int64_t changeTimeMs);
-static int metaDropTableByUid(SMeta *pMeta, tb_uid_t uid, int *type, tb_uid_t *pSuid, int8_t *pSysTbl);
+static int metaDropTableByUid(SMeta *pMeta, tb_uid_t uid, int *type, tb_uid_t *pSuid, bool *pTsExcluded);
 void       metaDestroyTagIdxKey(STagIdxKey *pTagIdxKey);
 // opt ins_tables query
 static int metaDeleteBtimeIdx(SMeta *pMeta, const SMetaEntry *pME);
@@ -552,6 +552,9 @@ int32_t metaUpdateVtbMetaRsp(SMetaEntry *pEntry, char *tbName, const SSchemaWrap
     pMetaRsp->numOfTagRefs = 0;
   }
 
+  code = tCloneVtableReferenceExt(&pEntry->referenceExt, &pMetaRsp->referenceExt);
+  QUERY_CHECK_CODE(code, line, _return);
+
   // Populate series
   if (pEntry->series.nSeries > 0) {
     pMetaRsp->numOfSeries = pEntry->series.nSeries;
@@ -583,7 +586,7 @@ _return:
   return code;
 }
 
-int metaSaveJsonVarToIdx(SMeta *pMeta, const SMetaEntry *pCtbEntry, const SSchema *pSchema) {
+int metaSaveJsonVarToIdx(SMeta *pMeta, const SMetaEntry *pCtbEntry) {
   int32_t code = 0;
 
 #ifdef USE_INVERTED_INDEX
@@ -591,12 +594,9 @@ int metaSaveJsonVarToIdx(SMeta *pMeta, const SMetaEntry *pCtbEntry, const SSchem
     return TSDB_CODE_INVALID_PARA;
   }
   void       *data = pCtbEntry->ctbEntry.pTags;
-  const char *tagName = pSchema->name;
 
   tb_uid_t    suid = pCtbEntry->ctbEntry.suid;
   tb_uid_t    tuid = pCtbEntry->uid;
-  const void *pTagData = pCtbEntry->ctbEntry.pTags;
-  int32_t     nTagData = 0;
 
   SArray *pTagVals = NULL;
   code = tTagToValArray((const STag *)data, &pTagVals);
@@ -606,7 +606,9 @@ int metaSaveJsonVarToIdx(SMeta *pMeta, const SMetaEntry *pCtbEntry, const SSchem
 
   SIndexMultiTerm *terms = indexMultiTermCreate();
   if (terms == NULL) {
-    return terrno;
+    code = terrno;
+    taosArrayDestroy(pTagVals);
+    return code;
   }
 
   int16_t nCols = taosArrayGetSize(pTagVals);
@@ -621,24 +623,13 @@ int metaSaveJsonVarToIdx(SMeta *pMeta, const SMetaEntry *pCtbEntry, const SSchem
     if (type == TSDB_DATA_TYPE_NULL) {
       term = indexTermCreate(suid, ADD_VALUE, TSDB_DATA_TYPE_VARCHAR, key, nKey, NULL, 0);
     } else if (type == TSDB_DATA_TYPE_NCHAR) {
-      if (pTagVal->nData > 0) {
-        char *val = taosMemoryCalloc(1, pTagVal->nData + VARSTR_HEADER_SIZE);
-        if (val == NULL) {
-          TAOS_CHECK_GOTO(terrno, NULL, _exception);
-        }
-        // Index terms are persisted in the server charset; query charset must not change them.
-        int32_t len =
-            taosUcs4ToMbs((TdUcs4 *)pTagVal->pData, pTagVal->nData, val + VARSTR_HEADER_SIZE, tsCharsetCxt);
-        if (len < 0) {
-          TAOS_CHECK_GOTO(len, NULL, _exception);
-        }
-        memcpy(val, (uint16_t *)&len, VARSTR_HEADER_SIZE);
-        type = TSDB_DATA_TYPE_VARCHAR;
-        term = indexTermCreate(suid, ADD_VALUE, type, key, nKey, val, len);
-        taosMemoryFree(val);
-      } else if (pTagVal->nData == 0) {
-        term = indexTermCreate(suid, ADD_VALUE, TSDB_DATA_TYPE_VARCHAR, key, nKey, pTagVal->pData, 0);
-      }
+      char *val = taosMemoryMalloc(pTagVal->nData + VARSTR_HEADER_SIZE);
+      if (val == NULL) TAOS_CHECK_GOTO(terrno, NULL, _exception);
+      varDataSetLen(val, pTagVal->nData);
+      if (pTagVal->nData > 0) memcpy(varDataVal(val), pTagVal->pData, pTagVal->nData);
+      term = indexTermCreate(suid, ADD_VALUE, TSDB_DATA_TYPE_NCHAR,
+                               key, nKey, val, pTagVal->nData);
+      taosMemoryFree(val);
     } else if (type == TSDB_DATA_TYPE_DOUBLE) {
       double val = *(double *)(&pTagVal->i64);
       int    len = sizeof(val);
@@ -654,6 +645,9 @@ int metaSaveJsonVarToIdx(SMeta *pMeta, const SMetaEntry *pCtbEntry, const SSchem
       if (ret < 0) {
         metaError("vgId:%d, failed to add term to multi term, uid: %" PRId64 ", key: %s, type: %d, ret: %d",
                   TD_VID(pMeta->pVnode), tuid, key, type, ret);
+        indexTermDestroy(term);
+        code = ret;
+        goto _exception;
       }
     } else {
       code = terrno;
@@ -671,19 +665,16 @@ _exception:
 #endif
   return code;
 }
-int metaDelJsonVarFromIdx(SMeta *pMeta, const SMetaEntry *pCtbEntry, const SSchema *pSchema) {
-int32_t code = 0;
+int metaDelJsonVarFromIdx(SMeta *pMeta, const SMetaEntry *pCtbEntry) {
+  int32_t code = 0;
 #ifdef USE_INVERTED_INDEX
   if (pMeta->pTagIvtIdx == NULL || pCtbEntry == NULL) {
     return TSDB_CODE_INVALID_PARA;
   }
   void       *data = pCtbEntry->ctbEntry.pTags;
-  const char *tagName = pSchema->name;
 
   tb_uid_t    suid = pCtbEntry->ctbEntry.suid;
   tb_uid_t    tuid = pCtbEntry->uid;
-  const void *pTagData = pCtbEntry->ctbEntry.pTags;
-  int32_t     nTagData = 0;
 
   SArray *pTagVals = NULL;
   code = tTagToValArray((const STag *)data, &pTagVals);
@@ -693,7 +684,9 @@ int32_t code = 0;
 
   SIndexMultiTerm *terms = indexMultiTermCreate();
   if (terms == NULL) {
-    return terrno;
+    code = terrno;
+    taosArrayDestroy(pTagVals);
+    return code;
   }
 
   int16_t nCols = taosArrayGetSize(pTagVals);
@@ -708,24 +701,13 @@ int32_t code = 0;
     if (type == TSDB_DATA_TYPE_NULL) {
       term = indexTermCreate(suid, DEL_VALUE, TSDB_DATA_TYPE_VARCHAR, key, nKey, NULL, 0);
     } else if (type == TSDB_DATA_TYPE_NCHAR) {
-      if (pTagVal->nData > 0) {
-        char *val = taosMemoryCalloc(1, pTagVal->nData + VARSTR_HEADER_SIZE);
-        if (val == NULL) {
-          TAOS_CHECK_GOTO(terrno, NULL, _exception);
-        }
-        // Use the same server charset as index insertion so deletion addresses the same term.
-        int32_t len =
-            taosUcs4ToMbs((TdUcs4 *)pTagVal->pData, pTagVal->nData, val + VARSTR_HEADER_SIZE, tsCharsetCxt);
-        if (len < 0) {
-          TAOS_CHECK_GOTO(len, NULL, _exception);
-        }
-        memcpy(val, (uint16_t *)&len, VARSTR_HEADER_SIZE);
-        type = TSDB_DATA_TYPE_VARCHAR;
-        term = indexTermCreate(suid, DEL_VALUE, type, key, nKey, val, len);
-        taosMemoryFree(val);
-      } else if (pTagVal->nData == 0) {
-        term = indexTermCreate(suid, DEL_VALUE, TSDB_DATA_TYPE_VARCHAR, key, nKey, pTagVal->pData, 0);
-      }
+      char *val = taosMemoryMalloc(pTagVal->nData + VARSTR_HEADER_SIZE);
+      if (val == NULL) TAOS_CHECK_GOTO(terrno, NULL, _exception);
+      varDataSetLen(val, pTagVal->nData);
+      if (pTagVal->nData > 0) memcpy(varDataVal(val), pTagVal->pData, pTagVal->nData);
+      term = indexTermCreate(suid, DEL_VALUE, TSDB_DATA_TYPE_NCHAR,
+                               key, nKey, val, pTagVal->nData);
+      taosMemoryFree(val);
     } else if (type == TSDB_DATA_TYPE_DOUBLE) {
       double val = *(double *)(&pTagVal->i64);
       int    len = sizeof(val);
@@ -740,6 +722,9 @@ int32_t code = 0;
       if (ret < 0) {
         metaError("vgId:%d, failed to add term to multi term, uid: %" PRId64 ", key: %s, type: %d, ret: %d",
                   TD_VID(pMeta->pVnode), tuid, key, type, ret);
+        indexTermDestroy(term);
+        code = ret;
+        goto _exception;
       }
     } else {
       code = terrno;
@@ -771,15 +756,15 @@ static int32_t metaDropTables(SMeta *pMeta, SArray *tbUids) {
   for (int i = 0; i < taosArrayGetSize(tbUids); ++i) {
     tb_uid_t uid = *(tb_uid_t *)taosArrayGet(tbUids, i);
     tb_uid_t suid = 0;
-    int8_t   sysTbl = 0;
+    bool     tsExcluded = false;
     int      type;
-    code = metaDropTableByUid(pMeta, uid, &type, &suid, &sysTbl);
+    code = metaDropTableByUid(pMeta, uid, &type, &suid, &tsExcluded);
     if (code) {
       metaULock(pMeta);
       tSimpleHashCleanup(suidHash);
       return code;
     }
-    if (!sysTbl && type == TSDB_CHILD_TABLE && suid != 0 && suidHash) {
+    if (!tsExcluded && type == TSDB_CHILD_TABLE && suid != 0 && suidHash) {
       int64_t *pVal = tSimpleHashGet(suidHash, &suid, sizeof(tb_uid_t));
       if (pVal) {
         nCtbDropped = *pVal + 1;
@@ -963,7 +948,7 @@ static void metaDeleteTtl(SMeta *pMeta, const SMetaEntry *pME) {
   return;
 }
 
-static int metaDropTableByUid(SMeta *pMeta, tb_uid_t uid, int *type, tb_uid_t *pSuid, int8_t *pSysTbl) {
+static int metaDropTableByUid(SMeta *pMeta, tb_uid_t uid, int *type, tb_uid_t *pSuid, bool *pTsExcluded) {
   void      *pData = NULL;
   int        nData = 0;
   int        rc = 0;
@@ -1012,7 +997,7 @@ static int metaDropTableByUid(SMeta *pMeta, tb_uid_t uid, int *type, tb_uid_t *p
           return ret;
         }
 
-        if (pSysTbl) *pSysTbl = metaTbInFilterCache(pMeta, stbEntry.name, 1) ? 1 : 0;
+        if (pTsExcluded) *pTsExcluded = vnodeIsTimeSeriesExcluded(pMeta->pVnode);
         
         ret = metaStableTagFilterCacheUpdateUid(
           pMeta, &e, &stbEntry, STABLE_TAG_FILTER_CACHE_DROP_TABLE);
@@ -1026,7 +1011,7 @@ static int metaDropTableByUid(SMeta *pMeta, tb_uid_t uid, int *type, tb_uid_t *p
         SSchemaWrapper *pTagSchema = &stbEntry.stbEntry.schemaTag;
         if (pTagSchema->nCols == 1 && pTagSchema->pSchema[0].type == TSDB_DATA_TYPE_JSON) {
           pTagColumn = &stbEntry.stbEntry.schemaTag.pSchema[0];
-          ret = metaDelJsonVarFromIdx(pMeta, &e, pTagColumn);
+          ret = metaDelJsonVarFromIdx(pMeta, &e);
           if (ret < 0) {
             metaError("vgId:%d, failed to delete json var from idx:%s uid:%" PRId64 " since %s", TD_VID(pMeta->pVnode),
                       e.name, e.uid, tstrerror(ret));
@@ -1035,6 +1020,7 @@ static int metaDropTableByUid(SMeta *pMeta, tb_uid_t uid, int *type, tb_uid_t *p
           for (int i = 0; i < pTagSchema->nCols; i++) {
             pTagColumn = &stbEntry.stbEntry.schemaTag.pSchema[i];
             if (!IS_IDX_ON(pTagColumn)) continue;
+            if (IS_INVALID_TYPE(pTagColumn->type)) continue;  // never indexed, see metaCreateTagIdxKey
             STagIdxKey *pTagIdxKey = NULL;
             int32_t     nTagIdxKey;
 
@@ -1218,7 +1204,11 @@ static int32_t metaAlterTableTagDispatch(SMeta *pMeta, int64_t version, SVAlterT
                 : metaAddTableTag(pMeta, version, pReq, pMetaRsp);
 }
 
+int32_t metaCheckReferenceVersion(SMeta *pMeta, const SVAlterTbReq *pReq);
+int32_t metaAlterTableReference(SMeta *pMeta, int64_t version, SVAlterTbReq *pReq, STableMetaRsp *pRsp);
+
 int metaAlterTable(SMeta *pMeta, int64_t version, SVAlterTbReq *pReq, STableMetaRsp *pMetaRsp) {
+  TAOS_CHECK_RETURN(metaCheckReferenceVersion(pMeta, pReq));
   pMeta->changed = true;
   switch (pReq->action) {
     case TSDB_ALTER_TABLE_ADD_COLUMN:
@@ -1253,6 +1243,10 @@ int metaAlterTable(SMeta *pMeta, int64_t version, SVAlterTbReq *pReq, STableMeta
       return metaRemoveTableColumnRef(pMeta, version, pReq, pMetaRsp);
     case TSDB_ALTER_TABLE_ALTER_TAG_REF:
       return metaAlterTagRef(pMeta, version, pReq, pMetaRsp);
+    case TSDB_ALTER_TABLE_ADD_REFERENCE:
+    case TSDB_ALTER_TABLE_MODIFY_REFERENCE:
+    case TSDB_ALTER_TABLE_REMOVE_REFERENCE:
+      return metaAlterTableReference(pMeta, version, pReq, pMetaRsp);
     case TSDB_ALTER_TABLE_ADD_SERIES:
       return metaAddTableSeries(pMeta, version, pReq, pMetaRsp);
     case TSDB_ALTER_TABLE_REMOVE_SERIES:
@@ -1287,6 +1281,9 @@ int metaUpdateChangeTimeWithLock(SMeta *pMeta, tb_uid_t uid, int64_t changeTimeM
 
 int metaCreateTagIdxKey(tb_uid_t suid, int32_t cid, const void *pTagData, int32_t nTagData, int8_t type, tb_uid_t uid,
                         STagIdxKey **ppTagIdxKey, int32_t *nTagIdxKey) {
+  if (IS_INVALID_TYPE(type) || nTagData < 0) {
+    return TSDB_CODE_INVALID_MSG;
+  }
   if (IS_VAR_DATA_TYPE(type)) {
     *nTagIdxKey = sizeof(STagIdxKey) + nTagData + VARSTR_HEADER_SIZE + sizeof(tb_uid_t);
   } else {

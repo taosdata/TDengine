@@ -505,6 +505,30 @@ static void replayCompareCount(SReplayShared *sh, int32_t selfIdx, uint16_t apiT
   }
 }
 
+/*
+ * How many fetch calls one recorded event pair stands for.
+ *
+ * The recorder folds every fetch on a result into a single BEGIN/RETURN pair and
+ * records the call count on the RETURN: the BEGIN is written before the first fetch,
+ * when the count is still unknown. Replay only executes BEGIN events, so the count
+ * has to be read from the terminal event keyed by this BEGIN -- reading it from the
+ * BEGIN itself always yields one call and makes a folded multi-row result replay as
+ * a single row.
+ *
+ * A BEGIN with no terminal RETURN is an unfinished session (the recorder stopped, or
+ * the result was never freed), so no call count was ever recorded. Returning 0 tells
+ * the caller to replay the fetch loop until the result is exhausted, which is what
+ * the original call-by-call recording would have done.
+ */
+static int64_t replayFetchCalls(const SReplayShared *sh, int32_t selfIdx) {
+  if (sh == NULL || sh->terminalByBegin == NULL || sh->session == NULL) return 0;
+  if (selfIdx < 0 || selfIdx >= sh->eventTotal) return 0;
+  int32_t terminalIdx = sh->terminalByBegin[selfIdx];
+  if (terminalIdx < 0) return 0;
+  const SReplayEvent *terminal = &sh->session->events[terminalIdx];
+  return (terminal->fetchCallsSet && terminal->fetchCalls > 1) ? terminal->fetchCalls : 1;
+}
+
 static void replayDropStmt2(SReplayShared *sh, const SReplayEvent *e, TAOS_STMT2 *stmt2) {
   replayLaneDropStmt(sh, e->sessionIdx, e->stmtId);
   (void)taos_stmt2_close(stmt2);
@@ -608,6 +632,38 @@ static int32_t replayRunEvent(SReplayShared *sh, const SReplayEvent *e, int32_t 
         const char *pass = (e->user != NULL) ? replayFindPassword(sh->opts, e->user, e->userLen) : NULL;
         TAOS *taos = taos_connect(host[0] ? host : NULL, user[0] ? user : "root", pass != NULL ? pass : "",
                                   db[0] ? db : NULL, port);
+        if (taos == NULL && db[0] != 0) {
+          /*
+           * A recording can open with a connection that names a database the target does
+           * not have: either the recording began mid-life, or -- more usefully -- the
+           * schema is created later in the same recording by this very connection's
+           * CREATE DATABASE. Retry without the default database and let the recorded
+           * statements establish it.
+           *
+           * Only that specific failure is retried: a wrong password, an unreachable host
+           * or an unreadable recording would just fail again and, worse, report the retry's
+           * error instead of the original one.
+           */
+          int32_t connErr = taos_errno(NULL);
+          char    dbErr[TSDB_ERROR_MSG_LEN] = {0};
+          (void)snprintf(dbErr, sizeof(dbErr), "%s", taos_errstr(NULL));
+          if (connErr == TSDB_CODE_MND_DB_NOT_EXIST) {
+            taos = taos_connect(host[0] ? host : NULL, user[0] ? user : "root",
+                                pass != NULL ? pass : "", NULL, port);
+            if (taos != NULL) {
+              /* Silent here would be wrong: recorded statements that rely on the default
+               * database now fail, and only a recorded USE can restore it. */
+              (void)fprintf(stderr,
+                            "replay: connect to %s:%u as %s had no default database %s (%s);"
+                            " connected without it, so statements relying on that database"
+                            " will fail until the recording issues USE\n",
+                            host, port, user, db, dbErr);
+            }
+          } else {
+            (void)fprintf(stderr, "replay: connect to %s:%u as %s failed for default database %s: %s\n",
+                          host, port, user, db, dbErr);
+          }
+        }
         if (taos == NULL) {
           (void)fprintf(stderr, "connect to %s:%u as %s failed: %s\n", host, port, user, taos_errstr(NULL));
           return replayFatalEvent(sh, REPLAY_EXIT_CONN, nExec, nSkip, nErr, nMis);
@@ -946,10 +1002,24 @@ static int32_t replayRunEvent(SReplayShared *sh, const SReplayEvent *e, int32_t 
           ++nSkip;
           break;
         }
-        TAOS_ROW row = taos_fetch_row(res);
-        int32_t code = taos_errno(res);
-        replayCompareOutcome(sh, selfIdx, e->apiType, code, &nErr, &nMis);
-        replayCompareCount(sh, selfIdx, e->apiType, row != NULL ? 1 : 0, false, &nCountMis);
+        /* A folded pair stands for the whole fetch loop, including the call that
+         * returned NULL. Replaying it one row at a time is what reproduces the
+         * original number of round trips. A count of 0 means the session never
+         * recorded its terminal event, so the loop runs until the result ends. */
+        int64_t calls = replayFetchCalls(sh, selfIdx);
+        int64_t rows = 0;
+        /* The recorder stores the FIRST non-zero code of the session, so compare
+         * against the same value rather than the last call's. */
+        int32_t firstErr = 0;
+        for (int64_t i = 0; calls == 0 || i < calls; ++i) {
+          TAOS_ROW row = taos_fetch_row(res);
+          int32_t  callCode = taos_errno(res);
+          if (row != NULL) ++rows;
+          if (callCode != 0 && firstErr == 0) firstErr = callCode;
+          if (row == NULL || callCode != 0) break;
+        }
+        replayCompareOutcome(sh, selfIdx, e->apiType, firstErr, &nErr, &nMis);
+        replayCompareCount(sh, selfIdx, e->apiType, rows, false, &nCountMis);
         replayLaneReleaseResult(sh, e->sessionIdx, e->resultId, res);
         ++nExec;
         break;
@@ -963,16 +1033,24 @@ static int32_t replayRunEvent(SReplayShared *sh, const SReplayEvent *e, int32_t 
           ++nSkip;
           break;
         }
-        int32_t rows = 0;
-        if (e->apiType == WLR_API_FETCH_RAW_BLOCK) {
-          void *pData = NULL;
-          int32_t code = taos_fetch_raw_block(res, &rows, &pData);
-          replayCompareOutcome(sh, selfIdx, e->apiType, code, &nErr, &nMis);
-        } else {
-          TAOS_ROW row = NULL;
-          int32_t code = taos_fetch_block_s(res, &rows, &row);
-          replayCompareOutcome(sh, selfIdx, e->apiType, code, &nErr, &nMis);
+        int64_t calls = replayFetchCalls(sh, selfIdx);
+        int64_t rows = 0;
+        int32_t firstErr = 0;
+        for (int64_t i = 0; calls == 0 || i < calls; ++i) {
+          int32_t blockRows = 0;
+          int32_t code = 0;
+          if (e->apiType == WLR_API_FETCH_RAW_BLOCK) {
+            void *pData = NULL;
+            code = taos_fetch_raw_block(res, &blockRows, &pData);
+          } else {
+            TAOS_ROW row = NULL;
+            code = taos_fetch_block_s(res, &blockRows, &row);
+          }
+          if (blockRows > 0) rows += blockRows;
+          if (code != 0 && firstErr == 0) firstErr = code;
+          if (code != 0 || blockRows == 0) break;
         }
+        replayCompareOutcome(sh, selfIdx, e->apiType, firstErr, &nErr, &nMis);
         replayCompareCount(sh, selfIdx, e->apiType, rows, false, &nCountMis);
         replayLaneReleaseResult(sh, e->sessionIdx, e->resultId, res);
         ++nExec;
@@ -2150,7 +2228,14 @@ int32_t replayExecute(const SReplayOpts *opts, SReplaySession *session) {
   /* Async calls are awaited by their replay lane. That is safe only when the original
    * lane issued no later call before DONE: otherwise serialising here can put a
    * recorded kill/stop behind the operation it was meant to cancel. Reject that
-   * dependency shape before any target connection is opened or mutated. */
+   * dependency shape before any target connection is opened or mutated.
+   *
+   * --allow-async-overlap accepts the shape instead, replaying the calls in recorded
+   * begin order. The overlap itself is still not reproduced (the async APIs are
+   * reissued synchronously), so the flag trades exact concurrency for the ability to
+   * replay read-mostly workloads -- IDMP's taosAdapter, for one, issues another call
+   * on the same thread long before its asynchronous STMT2 exec completes. */
+  int32_t overlapCount = 0;
   for (i = 0; i < laneCount; ++i) {
     int32_t eventPos;
     for (eventPos = 0; eventPos + 1 < lanes[i].eventCount; ++eventPos) {
@@ -2159,15 +2244,28 @@ int32_t replayExecute(const SReplayOpts *opts, SReplaySession *session) {
       int32_t terminalIdx = sh->terminalByBegin[beginIdx];
       if (!replayCallAwaitedSynchronously(event)) continue;
       if (terminalIdx < 0 || lanes[i].eventIdx[eventPos + 1] < terminalIdx) {
+        if (sh->opts->allowAsyncOverlap) {
+          ++overlapCount;
+          continue;
+        }
         (void)fprintf(stderr,
                       "replay: asynchronous call api=%u callId=%" PRIu64
                       " overlaps a later call on recorded thread %" PRIu64
-                      "; this dependency shape is not yet replayable safely\n",
+                      "; this dependency shape is not yet replayable safely\n"
+                      "        rerun with --allow-async-overlap to replay these calls in"
+                      " recorded order (the overlap itself is not reproduced)\n",
                       event->apiType, event->callId, lanes[i].originTid);
         exitCode = REPLAY_EXIT_INPUT;
         goto _done;
       }
     }
+  }
+  if (overlapCount > 0) {
+    (void)fprintf(stderr,
+                  "replay: --allow-async-overlap: %d asynchronous call(s) completed after a"
+                  " later call on the same thread; replaying them in recorded begin order"
+                  " (overlap not reproduced)\n",
+                  overlapCount);
   }
 
   if (laneCount == 0) {

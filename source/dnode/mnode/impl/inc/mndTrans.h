@@ -63,6 +63,10 @@ typedef struct {
   int64_t startTime;
   int64_t endTime;
   int32_t groupId;
+  // For TDMT_VND_ALTER_CONFIRM actions: dnodeId of the vnode that answered the confirm (the vgroup
+  // leader), captured from the response. Stamped onto the vgroup's syncState at finish time so
+  // `show cluster alive` reports 1 immediately after commit (see mndTransSendRpcRsp). -1 = unset.
+  int32_t leaderDnodeId;
 } STransAction;
 
 typedef void (*TransCbFp)(SMnode *pMnode, void *param, int32_t paramLen);
@@ -98,6 +102,8 @@ void    mndTransSetKillMode(STrans *pTrans, ETrnKillMode killMode);
 void    mndTransSetParallel(STrans *pTrans);
 void    mndTransSetChangeless(STrans *pTrans);
 void    mndTransSetOper(STrans *pTrans, EOperType oper);
+// True when vgId is no longer in the SDB or is DROPPING, i.e. its database was dropped (not a mere offline vnode).
+bool    mndTransVgroupIsGone(SMnode *pMnode, int32_t vgId);
 int32_t mndTransCheckConflict(SMnode *pMnode, STrans *pTrans);
 int32_t mndTransCheckConflictWithCompact(SMnode *pMnode, STrans *pTrans);
 int32_t mndTransCheckConflictWithRetention(SMnode *pMnode, STrans *pTrans);
@@ -118,6 +124,11 @@ int32_t mndSetRpcInfoForDbTrans(SMnode *pMnode, SRpcMsg *pMsg, EOperType oper, c
 
 SSdbRaw *mndTransEncode(STrans *pTrans);
 SSdbRow *mndTransDecode(SSdbRaw *pRaw);
+// Releases a row returned by mndTransDecode. Such a row was never registered in
+// an SDB and its runtime state was never initialized, so it must be freed with
+// this function and never handed to mndTransDrop or an SDB: doing so would skip
+// the mutex teardown and free memory an SDB still references.
+void     mndTransFreeDecoded(SSdbRow *pRow);
 void     mndTransDropData(STrans *pTrans);
 
 bool mndTransPerformPrepareStage(SMnode *pMnode, STrans *pTrans, bool topHalf);

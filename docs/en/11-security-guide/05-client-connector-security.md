@@ -353,7 +353,11 @@ For complete token syntax and field definitions, see [Users](../05-tdengine-sql/
 
 ```sql
 -- Create a token with 1-day TTL
-CREATE TOKEN my_app_token FROM USER root ENABLE 1 PROVIDER 'root' TTL 1;
+CREATE TOKEN my_app_token
+  FROM USER root
+  ENABLE 1
+  PROVIDER 'root'
+  TTL 1;
 
 -- Query tokens created by current user
 SHOW TOKENS;

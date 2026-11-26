@@ -312,10 +312,18 @@ EXPLAIN [ANALYZE] [VERBOSE {true | false}] query_or_subquery;
 例如，下面的 SQL 包含两个标量子查询：
 
 ```sql
-SELECT * FROM meters
-WHERE
-current > (SELECT AVG(current) FROM meters WHERE location = 'Beijing')
-AND voltage < (SELECT AVG(voltage) FROM meters WHERE location = 'Beijing');
+SELECT *
+FROM meters
+WHERE current > (
+  SELECT AVG(current)
+  FROM meters
+  WHERE location = 'Beijing'
+)
+AND voltage < (
+    SELECT AVG(voltage)
+  FROM meters
+  WHERE location = 'Beijing'
+);
 ```
 
 对应的 `EXPLAIN ANALYZE VERBOSE true` 结果通常会先给出主计划，再给出子查询的 `InitPlan`，例如：
@@ -351,7 +359,13 @@ AND voltage < (SELECT AVG(voltage) FROM meters WHERE location = 'Beijing');
 ### 查看普通查询的执行计划
 
 ```sql
-taos> EXPLAIN SELECT ts, current FROM meters WHERE ts >= '2026-01-01 00:00:00' AND ts < '2026-02-01 00:00:00' \G;
+taos> EXPLAIN
+      SELECT
+        ts,
+        current
+      FROM meters
+      WHERE ts >= '2026-01-01 00:00:00'
+        AND ts < '2026-02-01 00:00:00' \G;
 *************************** 1.row ***************************
 QUERY_PLAN: -> Data Exchange 4:1 (width=12)
 *************************** 2.row ***************************
@@ -363,7 +377,13 @@ QUERY_PLAN:       -> Table Scan on meters (columns=2 width=12 order=[asc|1 desc|
 ### 查看详细计划
 
 ```sql
-taos> EXPLAIN VERBOSE true SELECT ts, current FROM meters WHERE ts >= '2025-01-01 00:00:00+08:00' AND ts < '2025-01-02 00:00:00+08:00' \G;
+taos> EXPLAIN VERBOSE true
+      SELECT
+        ts,
+        current
+      FROM meters
+      WHERE ts >= '2025-01-01 00:00:00+08:00'
+        AND ts < '2025-01-02 00:00:00+08:00' \G;
 *************************** 1.row ***************************
 QUERY_PLAN: -> Data Exchange 4:1 (width=12)
 *************************** 2.row ***************************
@@ -387,7 +407,10 @@ QUERY_PLAN:             Time Range: [1735660800000, 1735747199999]
 ### 查看执行过程信息
 
 ```sql
-taos> EXPLAIN ANALYZE VERBOSE true SELECT * FROM meters WHERE location = 'Beijing' \G;
+taos> EXPLAIN ANALYZE VERBOSE true
+      SELECT *
+      FROM meters
+      WHERE location = 'Beijing' \G;
 *************************** 1.row ***************************
 QUERY_PLAN: -> Data Exchange 4:1 (cost=2.358..9.769 rows=80000 width=39)
 *************************** 2.row ***************************
@@ -433,7 +456,14 @@ QUERY_PLAN: Execution Time: 24.992 ms
 ### 子查询
 
 ```sql
-taos> EXPLAIN ANALYZE VERBOSE true SELECT * FROM meters WHERE voltage > (SELECT AVG(voltage) FROM meters WHERE location = 'Beijing') \G;
+taos> EXPLAIN ANALYZE VERBOSE true
+      SELECT *
+      FROM meters
+      WHERE voltage > (
+        SELECT AVG(voltage)
+        FROM meters
+        WHERE location = 'Beijing'
+      ) \G;
 *************************** 1.row ***************************
 QUERY_PLAN: -> Data Exchange 4:1 (cost=3.021..24.317 rows=149340 width=39)
 *************************** 2.row ***************************
@@ -517,7 +547,13 @@ QUERY_PLAN: Execution Time: 64.835 ms
 ### 聚合查询
 
 ```sql
-taos> EXPLAIN ANALYZE VERBOSE true SELECT tbname, COUNT(*), AVG(current) FROM meters PARTITION BY tbname \G;
+taos> EXPLAIN ANALYZE VERBOSE true
+      SELECT
+        tbname,
+        COUNT(*),
+        AVG(current)
+      FROM meters
+      PARTITION BY tbname \G;
 *************************** 1.row ***************************
 QUERY_PLAN: -> Data Exchange 4:1 (cost=0.357..0.563 rows=30 width=288)
 *************************** 2.row ***************************
@@ -559,7 +595,14 @@ QUERY_PLAN: Execution Time: 10.767 ms
 ### 时间窗口查询
 
 ```sql
-taos> EXPLAIN ANALYZE VERBOSE true SELECT _wstart, _wend, COUNT(*), AVG(current) FROM meters INTERVAL(10s) \G;
+taos> EXPLAIN ANALYZE VERBOSE true
+      SELECT
+        _wstart,
+        _wend,
+        COUNT(*),
+        AVG(current)
+      FROM meters
+      INTERVAL(10s) \G;
 *************************** 1.row ***************************
 QUERY_PLAN: -> Merge Aligned Interval on Column  (cost=0.626..0.626 rows=10 functions=4 width=32 input_order=asc output_order=asc)
 *************************** 2.row ***************************

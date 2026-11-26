@@ -134,8 +134,9 @@ curl --location 'http://127.0.0.1:6041/record_sql' \
   原始 sql 为：
 
   ```sql
-   select * from t1
-   where c1 = "ab"
+  SELECT *
+  FROM t1
+  WHERE c1 = "ab"
   ```
 
    csv 文件中的记录为：

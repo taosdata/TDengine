@@ -110,13 +110,13 @@ SSRS 通过 ODBC 访问 TDengine 数据源，配置步骤如下：
    - Query type：选择“text”类型查询，填写如下查询分析 SQL：
 
    ``` sql
-   SELECT 
-      tbname        as DeviceID, 
-      last(ts)      as last_ts, 
-      last(current) as last_current, 
-      last(voltage) as last_voltage 
-   FROM test.meters 
-   GROUP BY tbname 
+   SELECT
+     tbname AS DeviceID,
+     LAST(ts) AS last_ts,
+     LAST(current) AS last_current,
+     LAST(voltage) AS last_voltage
+   FROM test.meters
+   GROUP BY tbname
    ORDER BY tbname;
    ```
 

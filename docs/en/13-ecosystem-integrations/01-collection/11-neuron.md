@@ -13,17 +13,17 @@ import NeuronOneClick from './resource/_neuron-one-click.mdx'
 
 This guide describes three ways to write data collected by Neuron to TDengine:
 
-- **Install-time onboarding**: For environments where NeuronEX Enterprise is not yet installed. The installation command installs NeuronEX, registers it with taosExplorer, creates the `neuron` business database, the `neuron_demo` demo database, and four demo devices, and configures the write path. No operation in taosExplorer is required after installation.
+- **Install-time onboarding**: For environments where NeuronEX Enterprise is not yet installed. The installation command installs NeuronEX, validates its entitlement (importing an explicitly supplied license), registers it with taosExplorer, creates the `neuron` business database, the `neuron_demo` demo database, and four demo devices, and configures the write path. No operation in taosExplorer is required after installation.
 - **One-click onboarding**: For environments where Neuron or NeuronEX is already deployed. On the **Data In → Data Collection Agents → Neuron** page in taosExplorer, enter the Neuron address and credentials; taosExplorer automatically configures the data stream, processing rules, and collection subscriptions.
 - **Manual onboarding**: For environments where Neuron or NeuronEX is already deployed and you need custom tags, business attributes, or data transformation. Manually configure the data stream, processing rule, and InfluxDB v1 write action in the NeuronEX interface.
 
-| Method | Neuron preinstalled? | Use case | taosExplorer operation |
-| --- | --- | --- | --- |
-| Install-time onboarding | No | NeuronEX Enterprise not yet installed | None |
-| One-click onboarding | Yes | Neuron or NeuronEX already deployed | Wizard |
-| Manual onboarding | Yes | Already deployed; custom tags or transformation needed | Manual configuration |
+| Method | Neuron preinstalled? | Use case | taosExplorer operation | License activation |
+| --- | --- | --- | --- | --- |
+| Install-time onboarding | No | NeuronEX Enterprise not yet installed | None | Import and validate when explicitly supplied |
+| One-click onboarding | Yes | Neuron or NeuronEX already deployed | Wizard | User-managed |
+| Manual onboarding | Yes | Already deployed; custom tags or transformation needed | Manual configuration | User-managed |
 
-All three methods share the same data plane: Neuron sends collection reports to eKuiper; eKuiper extracts measurement columns and tags, encodes them as Influx line protocol, and writes them to TDengine in batches; schemaless writes automatically create the supertable and subtables. This integration can ingest the industrial protocols supported by Neuron: more than 70 by protocol family, and more than 100 when PLC sub-series and similar drivers are counted separately, subject to the version and license. After you purchase TDengine TSDB-Enterprise, Taos Data can procure the EMQX Neuron software license.
+All three methods share the same data plane: Neuron sends collection reports to eKuiper; eKuiper extracts measurement columns and tags, encodes them as Influx line protocol, and writes them to TDengine in batches; schemaless writes automatically create the supertable and subtables. This integration can ingest the industrial protocols supported by Neuron: more than 70 by protocol family, and more than 100 when PLC sub-series and similar drivers are counted separately. Named entries are listed in [Driver Details](#driver-details). After you purchase TDengine TSDB-Enterprise, Taos Data can procure the EMQX Neuron software license; install-time onboarding imports and validates a license explicitly specified with `NEURONEX_LICENSE_FILE` in the environment file.
 
 <figure style={{width: 'fit-content', margin: '0 auto'}}>
 
@@ -38,94 +38,136 @@ As shown above, Neuron converts device data into JSON collection reports; eKuipe
 
 ## Install-Time Onboarding
 
+This section uses the independent `neuronex` package of the Apex `tsdb-edge` component to install NeuronEX and complete demo onboarding when all connection settings are supplied. TDengine, taosAdapter, and a taosExplorer version supporting Neuron onboarding must be available on the center side. NeuronEX integration targets support Linux x64 and arm64 and require Bash, `curl`, `jq`, and `flock`.
+
 :::note
 
-Install-time onboarding relies on the `apex` tool, which is not yet released. It is planned for release in early November 2026. Stay tuned.
-
-:::
-
-This section applies to environments where NeuronEX Enterprise is not yet installed. The installation automatically creates the business database `neuron`, the demo database `neuron_demo`, four demo devices, and the collection group `meters`. After installation, you can view the result directly in taosExplorer without creating an integration there. To connect real devices, continue adding devices, collection groups, and tags in NeuronEX. Before configuring devices, review the [Data Mapping and Collection Configuration Guidelines](#appendix-data-mapping-and-collection-configuration-guidelines).
-
-The installation command is provided by the `apex` tool in the TDengine Enterprise package; you do not need to install NeuronEX separately.
-
-After installation, taosExplorer polls the NeuronEX device list every 5 minutes by default. When it finds a new device with configured tags, it automatically creates or updates the integration rules without any action in taosExplorer. Automatic discovery only covers new device names; when an existing device adds a collection group or tags, click **Refresh Configuration** on the taosExplorer detail page to rescan. Adjust the polling interval with the taosExplorer environment variable `NEURON_POLL_INTERVAL_SECS` (default `300` seconds); set it to `0` to disable polling.
-
-taosExplorer manages the rules and subscriptions it creates. Do not edit generated rules in eKuiper: a refresh reconciles an owned rule to the current mapping and overwrites manual changes. Configure devices, groups, and tags in Neuron or NeuronEX, then use **Refresh Configuration**.
-
-:::tip
-
-For same-host installation, no connection parameters are required. For cross-host installation, you must specify the TDengine host address. For other parameters, see [Cross-Host Installation](#cross-host-installation).
+This workflow describes the current Apex branch implementation. Public `tsdb-edge/stable` resolves to `v3.4.3.10`; its component manifest is downloadable and requires Apex `v0.3.87`. Also prepare the matching `scripts/apex-neuronex.sh` and `tdengine-tsdb-edge-enterprise-<version>.yaml`, and preload the manifest under `<apex_home>/manifests/`. The internal `release.tdengine.net` directory contains this profile, but the corresponding manifest and NeuronEX artifact URLs returned 404 during review; confirm both artifacts are downloadable before using the internal source, or use an available public version. Apex release packages do not bundle component manifests, so running the `latest` installer alone does not establish these prerequisites.
 
 :::
 
 ### Same-Host Installation
 
-When TDengine and NeuronEX are deployed on the same host, run:
+#### Prepare the Center Services
+
+If the center services are not installed, first install Apex and deploy All-in-One:
 
 ```bash
-sudo apex install all
+curl -fsSL https://downloads.taosdata.com/apex/latest/install.sh | sudo bash -s -- -m apex
 ```
 
-The installation automatically performs the following work:
-
-- Install and start NeuronEX; the default web port is `8085`.
-- Register NeuronEX with the local taosExplorer.
-- Create the business database `neuron` (`--database`, default `neuron`); reuse it if it already exists.
-- Create the demo database `neuron_demo` (`--database-demo`, default `neuron_demo`); reuse it if it already exists.
-- Create four Modbus simulator devices, `demo_meter01` through `demo_meter04`, all in the `meters` collection group and writing to `neuron_demo`.
-- Configure TDengine write parameters and generate demo rules with a `location` tag.
-- Generate a NeuronEX administrator password and save it to `/var/lib/apex/neuronex-admin-password` (readable only by root).
-
-After installation, NeuronEX is connected to the local TDengine; you do not need to enter a Neuron address, database, or integration configuration. Typical output:
-
-```text
-[apex] Installing TDengine All-in-One...
-[apex] NeuronEX installed and started: http://127.0.0.1:8085
-[apex] NeuronEX registered with taosExplorer: http://127.0.0.1:6060
-[apex] Database neuron created.
-[apex] Demo database neuron_demo created.
-[apex] Demo devices created: demo_meter01, demo_meter02, demo_meter03, demo_meter04
-[apex] NeuronEX admin password saved to /var/lib/apex/neuronex-admin-password
-[apex] NeuronEX is connected to TDengine.
-```
-
-### Cross-Host Installation
-
-When TDengine is on another host, run the following on the NeuronEX host:
+Here, `-m apex` selects host deployment mode; the default profile is `All-in-One`. **This is not a NeuronEX installation command.** To deploy only the TSDB stack, set the profile on the installer side:
 
 ```bash
-sudo apex install neuronex --tdengine-host 192.168.1.100
+curl -fsSL https://downloads.taosdata.com/apex/latest/install.sh | sudo env APEX_DEPLOY_PROFILE=TSDB-Enterprise bash -s -- -m apex
 ```
 
-Replace `192.168.1.100` with the IP address or domain name of the target TDengine host. Other parameters use their defaults. To customize the TDengine username, password, or other settings, append the parameters in the following table:
+Skip this step if compatible center services are already available. Then ensure that the Apex version, scripts, and Edge manifest meet the requirements above. The installer does not currently support selecting NeuronEX with `APEX_DEPLOY_PROFILE=tsdb-edge`.
 
-| Parameter | Default | Description |
-| --- | --- | --- |
-| `--tdengine-host` | Local host | TDengine host IP or domain name; required for cross-host installation |
-| `--tdengine-port` | `6041` | taosAdapter REST port |
-| `--tdengine-user` | `root` | TDengine username; must have permission to create databases and write to the target database |
-| `--tdengine-password` | `taosdata` | TDengine user password |
-| `--explorer-port` | `6060` | taosExplorer port |
-| `--database` | `neuron` | Business database; created automatically if it does not exist |
-| `--database-demo` | `neuron_demo` | Demo database; created automatically if it does not exist; the four demo devices write to it |
+#### Configure the NeuronEX Deployment
 
-Cross-host installation also creates the business database `neuron`, the demo database `neuron_demo`, and four demo devices. After installation, NeuronEX registers with the taosExplorer automatically and configures the write path. The output is similar to same-host installation, with the registration address `http://<TDengine_IP>:6060` and the TDengine target `http://<TDengine_IP>:6041`. If TDengine is already installed separately on the same host, you can omit `--tdengine-host`.
+Save the following as `deployment-neuronex.yaml`. Alternatively, use `manifests/deployment-tsdb-edge-only.yaml` from the matching Apex package. On arm64, change `platform` to `linux-arm64`.
 
-:::note
+```yaml
+apiVersion: tdengine.taosdata.com/v1
+kind: Deployment
+metadata:
+  name: NeuronEX demo
+spec:
+  release:
+    profile: tsdb-edge
+    channel: stable
+  nodes:
+    - name: node1
+      transport: local
+      host: localhost
+      platform: linux-x64
+      roles:
+        - id: node1-tsdb-edge
+          component: tsdb-edge
+          version: auto
+          packages: [neuronex]
+          envFile: tsdb-edge.env
+```
 
-The installation generates a NeuronEX administrator password and saves it to `/var/lib/apex/neuronex-admin-password`. Use it when you log in to NeuronEX for the first time or add real devices:
+On the Apex controller, create `<apex_home>/conf/tsdb-edge.env` and restrict it to owner read/write access (`0600`). When running as root without configuration overrides, the default `apex_home` is `/root/.apex`; use the actual path for a custom Apex home. Replace the placeholders with the current TDengine credentials and do not commit this file to version control:
+
+```dotenv
+NEURONEX_EXPLORER_URL=http://localhost:6060
+NEURONEX_ADAPTER_URL=http://localhost:6041
+NEURONEX_ENDPOINT=http://localhost:8085
+NEURONEX_TSDB_USER=<tsdb-user>
+NEURONEX_TSDB_PASSWORD=<tsdb-password>
+```
+
+All five settings are required. The packaged `conf/tsdb-edge.env` provides localhost examples and initial `root` / `taosdata` credentials; verify the actual services and passwords before use. URLs must be HTTP(S) base URLs without embedded credentials, queries, or fragments. Omitting all integration-related variables installs software only; supplying a partial configuration fails before deployment.
+
+| Setting | Description |
+| --- | --- |
+| `NEURONEX_EXPLORER_URL` | taosExplorer URL reachable from the NeuronEX host |
+| `NEURONEX_ADAPTER_URL` | taosAdapter URL reachable from the NeuronEX host |
+| `NEURONEX_ENDPOINT` | NeuronEX URL reachable from taosExplorer; default port `8085` |
+| `NEURONEX_TSDB_USER`, `NEURONEX_TSDB_PASSWORD` | Current TDengine credentials with permission to query system information, create databases, and access the target databases |
+| `NEURONEX_ADMIN_PASSWORD` (optional) | Current administrator password when adopting an existing NeuronEX installation; not an automatic password-reset option |
+| `NEURONEX_LICENSE_FILE` (optional) | License file path relative to the controller's `<apex_home>/conf/`, for example `neuronex.lic` |
+
+The TDengine user must be an enabled superuser, or an enabled user with `createdb=1` and `sysinfo=1`. Every existing target database (`neuron` and `neuron_demo`) must be owned by this user, including when using a superuser. Apex does not create users or grant permissions automatically.
+
+#### Run the Deployment
+
+Run under the same execution identity for which the Apex home above is configured:
+
+```bash
+sudo apex deploy -f deployment-neuronex.yaml --yes
+```
+
+For an existing deployment context containing a `tsdb-edge` role, explicitly select that file to install the independent package:
+
+```bash
+apex validate -f deployment-neuronex.yaml
+sudo apex package install neuronex -f deployment-neuronex-resolved.yaml
+```
+
+`apex validate` resolves `version: auto`; save its resolved YAML output as `deployment-neuronex-resolved.yaml` and pass that file to `-f`. With SSH transport, remote NeuronEX lifecycle commands run as the SSH login account, which must have root privileges; `sudo` on the controller does not elevate permissions on the remote host.
+
+After a successful deployment, you can omit `-f` and run `sudo apex package install neuronex` using the saved Default Deployment. A default deployment containing only TSDB roles does not automatically become an Edge deployment.
+
+The integration action runs after software installation, startup, and health checks:
+
+- Establish an administrator identity on a fresh installation and save the password to `/var/lib/apex/neuronex-admin-password` on the target. Retries reuse the verified identity and do not automatically reset existing passwords.
+- Validate the installed entitlement, or import and revalidate an explicitly supplied license. Without a supplied license, the built-in 30-tag free entitlement can be used if it meets the requirements. The demo uses 12 tags; free data processing is limited to approximately 60 minutes. An explicit license that is invalid, expired, or lacks capacity or permissions fails integration instead of silently falling back to free entitlement. Check scope, expiration, and hardware binding under **Administration → License** in NeuronEX.
+- Create or reuse compatible databases: the empty business database `neuron` and demo database `neuron_demo`. These names are fixed; Apex does not change existing retention or precision. Conflicting objects remain intact and cause an error.
+- Use one built-in Modbus simulator to prepare four logical devices, `demo_meter01` through `demo_meter04`, each with the `meters` group collecting `current`, `voltage`, and `phase` once per second.
+- Create or resume the `NeuronEX demo` integration in taosExplorer, **registering only `neuron_demo`**. taosExplorer manages the rules and subscriptions.
+- Verify integration readiness and at least two observations showing fresh data in all four tables. Neither row counts nor latest timestamps may decrease for any table, and at least one of them must increase. Software health or local acquisition alone does not establish complete onboarding.
+
+Check `integration: succeeded` and `integrationStage: complete`, together with `integrationId`, `database`, `tables`, and `evidence` in the result. `/var/lib/apex/neuronex-integration.json` on the target retains safe integration evidence. Integration failure returns a nonzero exit code but preserves installed software and existing resources. Resolve the problem and rerun the original command to recover; do not delete databases or identity files merely to retry. A successful free demo does not certify production entitlement or sustained operation.
+
+On the NeuronEX host, view the administrator password with:
 
 ```bash
 sudo cat /var/lib/apex/neuronex-admin-password
 ```
 
-To use a custom password, append `--neuron-password-file <path>` to the installation command.
+### Cross-Host Installation
 
-:::
+The implementation accepts separate hosts for the center services and NeuronEX. When deploying on the NeuronEX host, replace the environment-file URLs with addresses reachable in both directions, for example:
+
+```dotenv
+NEURONEX_EXPLORER_URL=https://tsdb.example.com:6060
+NEURONEX_ADAPTER_URL=https://tsdb.example.com:6041
+NEURONEX_ENDPOINT=https://edge.example.com:8085
+```
+
+Keep the other required credentials. Use HTTPS URLs for taosExplorer, taosAdapter, and NeuronEX in cross-host configurations because requests carry TDengine Basic Auth credentials; HTTP is for trusted, isolated test networks only. The NeuronEX host must reach the center services, and taosExplorer must reach `NEURONEX_ENDPOINT`. Do not use `localhost` for services on another host. With Apex SSH transport, `envFile` and the license file are still read from the controller's `<apex_home>/conf/`, not the corresponding remote directory. Live acceptance currently covers same-host Linux x64; validate a separate-host topology in the actual network rather than treating configuration support as completed cross-host acceptance.
 
 ### View the Result in taosExplorer
 
-Both same-host and cross-host installation automatically create an integration record in taosExplorer. Log in to taosExplorer and go to **Data In → Data Collection Agents → Neuron** to see the automatically created NeuronEX integration. The demo devices write data every second, and the status changes to **Verified** automatically. In the `neuron_demo` database, you can see the `meters` supertable and four subtables, `demo_meter01` through `demo_meter04`, with `location` tags `Factory01.Workshop01`, `Factory01.Workshop02`, `Factory02.Workshop01`, and `Factory02.Workshop02`. **This page is for viewing only; you do not need to create an integration or enter any configuration.**
+After successful onboarding, open the configured taosExplorer and go to **Data In → Data Collection Agents → Neuron** to view `NeuronEX demo`; do not create a duplicate integration. In `neuron_demo`, check the `meters` supertable and subtables `demo_meter01` through `demo_meter04`, with locations `Factory01.Workshop01`, `Factory01.Workshop02`, `Factory02.Workshop01`, and `Factory02.Workshop02`, respectively.
+
+Real devices added later may be discovered by this integration and written to `neuron_demo`; **they are not automatically isolated into `neuron`**, which is initially empty. Plan separate production databases and integrations before production use. For device naming and grouping, see [Data Mapping and Collection Configuration Guidelines](#appendix-data-mapping-and-collection-configuration-guidelines). When an existing device gains groups or tags, click **Refresh Configuration** in taosExplorer. Do not manually edit the eKuiper rules it manages; refresh overwrites those changes.
+
+taosExplorer polls the device list every 5 minutes by default. Automatic discovery covers new device names with configured tags; adding groups or tags to an existing device still requires a manual refresh. Set the taosExplorer environment variable `NEURON_POLL_INTERVAL_SECS` to change the interval (default `300` seconds), or set it to `0` to disable polling.
 
 <figure style={{width: 'fit-content', margin: '0 auto'}}>
 
@@ -197,7 +239,8 @@ A Neuron tag is a collection point and maps to a measurement column. A TDengine 
 Run the following statement in a TDengine SQL client. Do not manually create the supertable or subtables.
 
 ```sql
-CREATE DATABASE IF NOT EXISTS neuron_meters_demo PRECISION 'ms';
+CREATE DATABASE IF NOT EXISTS neuron_meters_demo
+  PRECISION 'ms';
 ```
 
 #### 2. Check the Direct Connection Endpoint
@@ -274,19 +317,23 @@ An explicit schema preserves voltage as an integer instead of treating schemales
 2. Enter the following statement in the SQL editor.
 
    ```sql
-   SELECT values.current AS current,
-          values.voltage AS voltage,
-          values.phase AS phase,
-          timestamp AS ets,
-          node_name AS device,
-          CASE WHEN node_name IN ("workshop01_meter01", "workshop01_meter02")
-               THEN "1" ELSE "2" END AS group_id,
-          CASE WHEN node_name IN ("workshop01_meter01", "workshop01_meter02")
-               THEN "Factory01.Workshop01" ELSE "Factory01.Workshop02" END AS location
+   SELECT
+     values.current AS current,
+     values.voltage AS voltage,
+     values.phase AS phase,
+     timestamp AS ets,
+     node_name AS device,
+     CASE
+       WHEN node_name IN ("workshop01_meter01", "workshop01_meter02") THEN "1"
+       ELSE "2"
+     END AS group_id,
+     CASE
+       WHEN node_name IN ("workshop01_meter01", "workshop01_meter02") THEN "Factory01.Workshop01"
+       ELSE "Factory01.Workshop02"
+     END AS location
    FROM meters_stream
    WHERE group_name = "electrical_readings"
-     AND node_name IN ("workshop01_meter01", "workshop01_meter02",
-                       "workshop02_meter01", "workshop02_meter02")
+     AND node_name IN ("workshop01_meter01", "workshop01_meter02", "workshop02_meter01", "workshop02_meter02")
    ```
 
    This SQL selects reports from the four meters' `electrical_readings` groups, extracts current, voltage, and phase, preserves the original timestamp and device name, and assigns the location and business group identifier by device name. The device name determines the subtable name; location and business group are written as TAGs.
@@ -392,32 +439,44 @@ Writes to the same subtable with the same millisecond timestamp overwrite existi
 
 ## Verify the Results
 
-Regardless of the onboarding method, confirm ingestion through query results — a running rule or a successful ping does not confirm that data is being written. The following SQL uses the database and table names from the manual onboarding example. For install-time onboarding, use `neuron_demo` (demo) or `neuron` (real devices) as the database and the collection group name as the supertable name. For one-click onboarding, use your target database and mapped supertable names.
+Regardless of the onboarding method, confirm ingestion through query results — a running rule or a successful ping does not confirm that data is being written. The following SQL uses the database and table names from the manual onboarding example. For install-time onboarding, use `neuron_demo` and the `meters` supertable. The `neuron` database is initially empty; query the actually configured target database for real devices. For one-click onboarding, use your target database and mapped supertable names.
 
 1. In a TDengine SQL client, check the automatically generated schema and device tags.
 
    ```sql
    DESCRIBE neuron_meters_demo.meters;
 
-   SELECT DISTINCT TBNAME, device, group_id, location
+   SELECT
+     DISTINCT TBNAME,
+     device,
+     group_id,
+     location
    FROM neuron_meters_demo.meters;
    ```
 
    There should be four subtables with field types and tags matching the example data model.
 
-2. Query the latest data and compare it with **Data Collection → Data Monitoring**. Replace the subtable name to check all four devices.
+2. Query the latest data and compare it with **Data Collection → Data Monitoring**. For install-time onboarding, use `demo_meter01` through `demo_meter04`, replacing the name to check each device; the manual onboarding example's `workshop01_meter01` does not apply here.
 
    ```sql
-   SELECT _ts, current, voltage, phase
-   FROM neuron_meters_demo.workshop01_meter01
-   ORDER BY _ts DESC LIMIT 5;
+   SELECT
+     _ts,
+     current,
+     voltage,
+     phase
+   FROM neuron_demo.demo_meter01
+   ORDER BY _ts DESC
+   LIMIT 5;
    ```
 
-3. Repeat the following query a few seconds apart to confirm that the row count increases in all four subtables.
+3. Run the following query at least twice a few seconds apart and also check each table's latest timestamp. All four tables should contain fresh data, neither their row counts nor latest timestamps should decrease, and at least one of these values should increase.
 
    ```sql
-   SELECT TBNAME, COUNT(*)
-   FROM neuron_meters_demo.meters PARTITION BY TBNAME;
+   SELECT
+     TBNAME,
+     COUNT(*)
+   FROM neuron_meters_demo.meters
+   PARTITION BY TBNAME;
    ```
 
 ## View Monitoring
@@ -563,10 +622,11 @@ These results support capacity planning and do not represent TDengine's write li
 
 | Symptom | Checks and actions |
 | --- | --- |
-| No integration record appears in taosExplorer after install-time onboarding | Confirm the installation command succeeded. For same-host installation, check the local taosExplorer; for cross-host installation, check the taosExplorer at `--tdengine-host`. Review the installation output and taosExplorer logs |
+| No integration record appears in taosExplorer after install-time onboarding | Confirm the Apex result shows `integration: succeeded` and `integrationStage: complete`. Check the service at `NEURONEX_EXPLORER_URL`, the Apex operation logs, and taosExplorer logs |
 | The status remains "Configuration Preserved; Verification Pending" after install-time onboarding | Confirm the four demo devices are running and connected; check whether **Data Monitoring** in NeuronEX shows data, and review taosExplorer logs |
+| NeuronEX still shows the 30-tag free license after installation | Without `NEURONEX_LICENSE_FILE`, built-in free entitlement can be used. For a production license, configure a valid license file on the controller and retry; verify entitlement under **Administration → License** in NeuronEX. An explicit license failure does not fall back to free entitlement |
 | Forgot the NeuronEX administrator password | Run `sudo cat /var/lib/apex/neuronex-admin-password` to view the password generated during installation |
-| Data stops after changing the NeuronEX password | Re-run the installation command and pass the new password with `--neuron-password-file` to update the credentials in taosExplorer |
+| Data stops after changing the NeuronEX password | First update the saved credentials on the taosExplorer integration detail page (**Edit Configuration**), then synchronize `NEURONEX_ADMIN_PASSWORD` to the current password and rerun the original Apex command. Changing only the environment file and rerunning is rejected because the registration credentials differ |
 | One-click onboarding reports "No acquisition groups with readable points were found" | Configure device collection in Neuron first; confirm devices are running and connected, with tag values visible in **Data Monitoring** |
 | One-click onboarding fails with a subtable name conflict | The subtable name conflicts with an existing table in the database; set a **Table Name Prefix** for the integration to distinguish it, and confirm that same-named measurement columns have compatible types |
 | Data stops being written after the TDengine password is changed | Click **Refresh Configuration** on the integration detail page to update the rules with the current login credentials |
@@ -588,3 +648,196 @@ These results support capacity planning and do not represent TDengine's write li
 - [eKuiper Sink Cache and Sending Mechanism](https://ekuiper.org/docs/en/latest/guide/sinks/overview.html)
 - [Neuron Open Source Documentation](https://docs.emqx.com/en/neuron/latest/)
 - [NeuronEX Configuration](https://docs.emqx.com/en/neuronex/latest/configuration/introduction.html)
+
+## Driver Details
+
+The names below are taken from the EMQX Neuron [southbound driver list](https://docs.emqx.com/en/emqx-neuron/latest/introduction/driver-list/driver-list.html) and the [datasheet](https://assets.emqx.com/resources/datasheet/EMQX%20Neuron%20DataSheet%202026-EN.pdf). Connection parameters, address formats, and examples follow the driver documentation.
+
+**Modbus**
+
+| Protocol or driver | Interface | Devices and notes |
+| --- | --- | --- |
+| Modbus TCP | Ethernet | - |
+| Modbus RTU | Serial | - |
+| Modbus RTU over TCP | Ethernet | Ethernet link for Modbus RTU |
+| Modbus Ascii | Serial | - |
+
+**PLCs and Motion**
+
+| Protocol or driver | Interface | Devices and notes |
+| --- | --- | --- |
+| CIP Ethernet/IP | Ethernet | CIP, Common Industrial Protocol |
+| Siemens S7 ISO TCP | Ethernet | Siemens S200<br/>S200smart<br/>S1200<br/>S1500 |
+| Siemens S7 ISOTCP for 300/400 | Ethernet | S7-300/400 |
+| Siemens MPI | Serial | Devices with a Siemens MPI interface |
+| Siemens FetchWrite | Ethernet | Siemens PLCs with a CP443 network module |
+| Allen-Bradley DF1 | Serial | - |
+| Allen-Bradley CIP EtherNet/IP | Ethernet | CIP, Common Industrial Protocol |
+| Allen-Bradley 5000 EtherNet/IP | Ethernet | ControlLogix 55xx<br/>CompactLogix 53xx |
+| Allen-Bradley ControlLogix 5500 | Ethernet | - |
+| Allen-Bradley MicroLogix 1400 | Ethernet | - |
+| Schneider PLC Modbus RTU | Serial | Generic Modbus RTU |
+| Schneider PLC Modbus TCP | Ethernet | Generic Modbus TCP |
+| Inovance PLC Modbus TCP | Ethernet | Inovance PLCs |
+| XINJE PLC Modbus RTU | Serial | Xinje XC, XD, and XL series |
+| HollySys PLC Modbus TCP | Ethernet | HollySys LK and LE series |
+| HollySys PLC Modbus RTU | Serial | HollySys LK and LE series |
+| ABB COMLI | Serial | Communication with ABB PLCs |
+| Omron Host Link | Serial | Host Link C-mode |
+| Omron FINS on TCP | Ethernet | Omron PLCs |
+| Omron FINS on UDP | Ethernet | Omron PLCs |
+| Mitsubishi 1E | Ethernet | Mitsubishi A series<br/>FX3U<br/>FX3G<br/>iQ-F |
+| Mitsubishi 3E | Ethernet | Mitsubishi Q series (MC)<br/>iQ-F (SLMP)<br/>iQ-L |
+| Mitsubishi 4E | Ethernet | Mitsubishi iQ-F (SLMP) and iQ-R |
+| Mitsubishi FX | Serial | Mitsubishi FX0<br/>FX2<br/>FX3<br/>similar series |
+| Panasonic Mewtocol | Ethernet | Panasonic FP-XH and FP0H |
+| Beckhoff ADS | Ethernet | Beckhoff TwinCAT PLCs |
+| Keyence CIP Ethernet/IP | Ethernet | CIP, Common Industrial Protocol |
+| Keyence MC Protocol | Ethernet | Mitsubishi MC protocol |
+| Delta Modbus TCP | Ethernet | Delta DVP and AS series |
+| KUKA Ethernet KRL TCP | Ethernet | KUKA devices |
+| GE SRTP | Ethernet | GE PLCs that support SRTP |
+| MTconnect | Ethernet | Access an MTConnect agent over HTTP |
+| Codesys V3 | Ethernet | CODESYS V3 platform |
+
+**OPC**
+
+| Protocol or driver | Interface | Devices and notes |
+| --- | --- | --- |
+| OPC UA | Ethernet | - |
+| OPC DA | Ethernet | Accessed through NeuronHUB |
+
+**Power and Energy**
+
+| Protocol or driver | Interface | Devices and notes |
+| --- | --- | --- |
+| DL/T645-1997 | Serial | Chinese electricity-meter standard |
+| DL/T645-2007 | Serial | Chinese electricity-meter standard |
+| IEC 60870-5-101 | Serial, Ethernet | - |
+| IEC 60870-5-102 | Serial, Ethernet | - |
+| IEC 60870-5-103 | Serial, Ethernet | - |
+| IEC 60870-5-104 | Ethernet | - |
+| IEC 61850 | Ethernet | - |
+| DNP 3.0 | Ethernet | - |
+
+**Building and Environment**
+
+| Protocol or driver | Interface | Devices and notes |
+| --- | --- | --- |
+| BACnet IP | Ethernet | - |
+| KNXnet IP | Ethernet | - |
+| HJ212-2017 | Ethernet / serial | Chinese environmental monitoring standard |
+
+**Other**
+
+| Protocol or driver | Interface | Devices and notes |
+| --- | --- | --- |
+| NON A11 | Serial | Agricultural machinery standard |
+| SECS GEM HSMS | Ethernet | Semiconductor protocol |
+| SNMP | Ethernet | Switches<br/>servers<br/>other network devices |
+| NeuronHUB | Ethernet | Windows-side agent for OPC DA<br/>OPC AE<br/>GE Historian<br/>some CNC controllers |
+
+**CNC Devices**
+
+The official page maps these device models to drivers. Some reuse an existing driver and are not a separate protocol family.
+
+| Vendor | Model | Interface | Driver | Notes |
+| --- | --- | --- | --- | --- |
+| FANUC | 0i, 30i, 31i, 32i, 35i | Ethernet | Fanuc Focas Ethernet | Serial collection is not supported yet |
+| Siemens | 802D SL, 808 | Ethernet | Siemens MPI | - |
+| Siemens | 828D, 840DSL | Ethernet | OPC UA | CNC software version 4.5 SP3 or later |
+| Mitsubishi | M70, M80, M700, M800, E70 | Ethernet | NeuronHUB | - |
+| HEIDENHAIN | TNC640, iTNC530 | Ethernet | HEIDENHAIN CNC | - |
+| KND | K2000<br/>K1000 C/Ci/F/Fi<br/>K1000TTCi | Ethernet | KND CNC | - |
+| GSK | GSK-980 and similar models | Ethernet | Modbus TCP | - |
+| SYNTEC | SYNTEC CNC devices | Ethernet | NeuronHUB | - |
+| DMG MORI | DMG MORI devices | Ethernet | MTconnect | The device must support MTConnect |
+| Brother | Brother CNC devices | Ethernet | Brother CNC | - |
+| Mazak | Mazak CNC devices | Ethernet | Mazak CNC | - |
+
+**Drivers Not Listed as Their Own Row**
+
+These names have their own documentation pages. The southbound list mentions them only in the CNC mapping or in the NeuronHUB notes, not as separate rows.
+
+| Driver | Interface | Devices | Notes |
+| --- | --- | --- | --- |
+| Fanuc Focas Ethernet | Ethernet | FANUC 0i<br/>30i<br/>31i<br/>32i<br/>35i | [Fanuc Focas Ethernet](https://docs.emqx.com/en/emqx-neuron/latest/configuration/south-devices/fanuc-focas/fanuc-focas.html). Serial collection is not supported yet |
+| HEIDENHAIN CNC | Ethernet | TNC640, iTNC530 | [HEIDENHAIN CNC](https://docs.emqx.com/en/emqx-neuron/latest/configuration/south-devices/heidenhain-cnc/heidenhain-cnc.html), over LSV2 |
+| KND CNC | Ethernet | K2000<br/>K1000 C/Ci/F/Fi<br/>K1000TTCi | [KND CNC](https://docs.emqx.com/en/emqx-neuron/latest/configuration/south-devices/knd/knd.html) |
+| Brother CNC | Ethernet, serial | Brother machining centers | [Brother CNC](https://docs.emqx.com/en/emqx-neuron/latest/configuration/south-devices/brother-cnc/brother-cnc.html) |
+| Mazak CNC | UDP | Mazak CNC | [Mazak CNC](https://docs.emqx.com/en/emqx-neuron/latest/configuration/south-devices/mazak-udp/mazak-udp.html) |
+| OPC AE | Ethernet | OPC AE on Windows | Collected through [NeuronHUB](https://docs.emqx.com/en/emqx-neuron/latest/configuration/south-devices/neuhub/neuhub.md), not as a native Linux southbound driver |
+| GE Historian | Ethernet | GE Historian | Same path, through NeuronHUB |
+| SYNTEC CNC | Ethernet | SYNTEC CNC | [SYNTEC CNC](https://docs.emqx.com/en/emqx-neuron/latest/configuration/south-devices/neuhub/syntec-cnc.html), through NeuronHUB |
+| MITSUBISHI CNC | Ethernet | The NeuronHUB parameter page names M700L<br/>M700M<br/>M800L<br/>M800M | [MITSUBISHI CNC](https://docs.emqx.com/en/emqx-neuron/latest/configuration/south-devices/neuhub/mitsubishi-cnc.html). The southbound list also names M70<br/>M80<br/>M700<br/>M800<br/>E70 |
+
+**Device Series**
+
+EMQ does not publish an itemized list for the "more than 100" figure. The 64 rows below split out PLC sub-series and CNC models named on the southbound list and the individual driver pages. When one driver covers several series, each series is a row. That does not mean Neuron has a separate plugin of the same name. Series that are not named in full are omitted. Protocols without sub-series, such as Modbus, OPC UA, IEC 60870, BACnet, and SECS GEM, remain in the tables above.
+
+| Device series | Driver | Interface | Devices and notes |
+| --- | --- | --- | --- |
+| S200 | Siemens S7 ISO TCP | Ethernet | Siemens S200<br/>S200smart<br/>S1200<br/>S1500 |
+| S200smart | Siemens S7 ISO TCP | Ethernet | Siemens S200<br/>S200smart<br/>S1200<br/>S1500 |
+| S1200 | Siemens S7 ISO TCP | Ethernet | Siemens S200<br/>S200smart<br/>S1200<br/>S1500 |
+| S1500 | Siemens S7 ISO TCP | Ethernet | Siemens S200<br/>S200smart<br/>S1200<br/>S1500 |
+| S7-300 | Siemens S7 ISOTCP for 300/400 | Ethernet | S7-300/400 |
+| S7-400 | Siemens S7 ISOTCP for 300/400 | Ethernet | S7-300/400 |
+| ControlLogix 55xx | Allen-Bradley 5000 EtherNet/IP | Ethernet | ControlLogix 55xx<br/>CompactLogix 53xx |
+| CompactLogix 53xx | Allen-Bradley 5000 EtherNet/IP | Ethernet | ControlLogix 55xx<br/>CompactLogix 53xx |
+| ControlLogix 5500 | Allen-Bradley ControlLogix 5500 | Ethernet |  |
+| MicroLogix 1400 | Allen-Bradley MicroLogix 1400 | Ethernet |  |
+| XC | XINJE PLC Modbus RTU | Serial | Xinje XC, XD, and XL series |
+| XD | XINJE PLC Modbus RTU | Serial | Xinje XC, XD, and XL series |
+| XL | XINJE PLC Modbus RTU | Serial | Xinje XC, XD, and XL series |
+| LK | HollySys PLC Modbus TCP | Ethernet | HollySys LK and LE series |
+| LE | HollySys PLC Modbus TCP | Ethernet | HollySys LK and LE series |
+| LK | HollySys PLC Modbus RTU | Serial | HollySys LK and LE series |
+| LE | HollySys PLC Modbus RTU | Serial | HollySys LK and LE series |
+| A series | Mitsubishi 1E | Ethernet | Mitsubishi A series<br/>FX3U<br/>FX3G<br/>iQ-F |
+| FX3U | Mitsubishi 1E | Ethernet | Mitsubishi A series<br/>FX3U<br/>FX3G<br/>iQ-F |
+| FX3G | Mitsubishi 1E | Ethernet | Mitsubishi A series<br/>FX3U<br/>FX3G<br/>iQ-F |
+| iQ-F | Mitsubishi 1E | Ethernet | Mitsubishi A series<br/>FX3U<br/>FX3G<br/>iQ-F |
+| Q series (MC) | Mitsubishi 3E | Ethernet | Mitsubishi Q series (MC)<br/>iQ-F (SLMP)<br/>iQ-L |
+| iQ-F (SLMP) | Mitsubishi 3E | Ethernet | Mitsubishi Q series (MC)<br/>iQ-F (SLMP)<br/>iQ-L |
+| iQ-L | Mitsubishi 3E | Ethernet | Mitsubishi Q series (MC)<br/>iQ-F (SLMP)<br/>iQ-L |
+| iQ-F (SLMP) | Mitsubishi 4E | Ethernet | Mitsubishi iQ-F (SLMP) and iQ-R |
+| iQ-R | Mitsubishi 4E | Ethernet | Mitsubishi iQ-F (SLMP) and iQ-R |
+| FX0 | Mitsubishi FX | Serial | Mitsubishi FX0<br/>FX2<br/>FX3<br/>similar series |
+| FX2 | Mitsubishi FX | Serial | Mitsubishi FX0<br/>FX2<br/>FX3<br/>similar series |
+| FX3 | Mitsubishi FX | Serial | Mitsubishi FX0<br/>FX2<br/>FX3<br/>similar series |
+| FP-XH | Panasonic Mewtocol | Ethernet | Panasonic FP-XH and FP0H |
+| FP0H | Panasonic Mewtocol | Ethernet | Panasonic FP-XH and FP0H |
+| DVP | Delta Modbus TCP | Ethernet | Delta DVP and AS series |
+| AS | Delta Modbus TCP | Ethernet | Delta DVP and AS series |
+| FANUC 0i | Fanuc Focas Ethernet | Ethernet | Serial collection is not supported yet |
+| FANUC 30i | Fanuc Focas Ethernet | Ethernet | Serial collection is not supported yet |
+| FANUC 31i | Fanuc Focas Ethernet | Ethernet | Serial collection is not supported yet |
+| FANUC 32i | Fanuc Focas Ethernet | Ethernet | Serial collection is not supported yet |
+| FANUC 35i | Fanuc Focas Ethernet | Ethernet | Serial collection is not supported yet |
+| Siemens 802D SL | Siemens MPI | Ethernet |  |
+| Siemens 808 | Siemens MPI | Ethernet |  |
+| Siemens 828D | OPC UA | Ethernet | CNC software version 4.5 SP3 or later |
+| Siemens 840DSL | OPC UA | Ethernet | CNC software version 4.5 SP3 or later |
+| Mitsubishi M70 | NeuronHUB | Ethernet |  |
+| Mitsubishi M80 | NeuronHUB | Ethernet |  |
+| Mitsubishi M700 | NeuronHUB | Ethernet |  |
+| Mitsubishi M800 | NeuronHUB | Ethernet |  |
+| Mitsubishi E70 | NeuronHUB | Ethernet |  |
+| HEIDENHAIN TNC640 | HEIDENHAIN CNC | Ethernet |  |
+| HEIDENHAIN iTNC530 | HEIDENHAIN CNC | Ethernet |  |
+| KND K2000 | KND CNC | Ethernet |  |
+| KND K1000 C | KND CNC | Ethernet |  |
+| KND K1000 Ci | KND CNC | Ethernet |  |
+| KND K1000 F | KND CNC | Ethernet |  |
+| KND K1000 Fi | KND CNC | Ethernet |  |
+| KND K1000TTCi | KND CNC | Ethernet |  |
+| GSK-980 | Modbus TCP | Ethernet |  |
+| SYNTEC CNC | NeuronHUB | Ethernet |  |
+| DMG MORI | MTconnect | Ethernet | The device must support MTConnect |
+| Brother CNC | Brother CNC | Ethernet |  |
+| Mazak CNC | Mazak CNC | Ethernet |  |
+| Mitsubishi M700L | NeuronHUB / MITSUBISHI CNC | Ethernet |  |
+| Mitsubishi M700M | NeuronHUB / MITSUBISHI CNC | Ethernet |  |
+| Mitsubishi M800L | NeuronHUB / MITSUBISHI CNC | Ethernet |  |
+| Mitsubishi M800M | NeuronHUB / MITSUBISHI CNC | Ethernet |  |

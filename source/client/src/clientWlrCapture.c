@@ -611,7 +611,7 @@ void wlrApiSkipToken(SWorkloadCallToken *token) {
 
 static void wlrEmitCompletion(SWorkloadCallToken *token, uint16_t phase, int32_t retCode,
                               uint64_t connId, uint64_t stmtId, uint64_t resultId, int64_t affected,
-                              int64_t fetched, int64_t qid) {
+                              int64_t fetched, int64_t qid, int64_t fetchCalls) {
   SWlrSlot *slot = NULL;
   uint8_t  *buf = NULL;
   int32_t   off = 0;
@@ -654,6 +654,20 @@ static void wlrEmitCompletion(SWorkloadCallToken *token, uint16_t phase, int32_t
     off = wlrPutTlvU64(buf, cap, off, WLR_TAG_AFFECTED_ROWS, (uint64_t)(int64_t)affected);
   }
   if (off > 0) off = wlrPutTlvU64(buf, cap, off, WLR_TAG_FETCH_ROWS, (uint64_t)(int64_t)fetched);
+  /*
+   * Present only when a folded fetch session stands behind this RETURN, i.e. it
+   * represents more than one original call. Absent means exactly one call, which
+   * is what a 1.1 recording always carries, so replay treats a missing tag as 1.
+   *
+   * Encoded as OPTIONAL on purpose: a reader that predates folding must skip it by
+   * length (DS 11.3) rather than reject the frame. Its own failure is non-fatal --
+   * an optional description must not discard the required prefix encoded above.
+   */
+  if (off > 0 && fetchCalls > 1) {
+    int32_t offWithCalls =
+        wlrPutTlvU64Optional(buf, cap, off, WLR_TAG_FETCH_CALLS, (uint64_t)fetchCalls);
+    if (offWithCalls > 0) off = offWithCalls;
+  }
   if (off > 0 && qid != 0) off = wlrPutTlvU64(buf, cap, off, WLR_TAG_QID, (uint64_t)(int64_t)qid);
   offRequired = (off > 0) ? off : 0;
 
@@ -700,15 +714,29 @@ static void wlrEmitCompletion(SWorkloadCallToken *token, uint16_t phase, int32_t
   (void)wlrPublish(&wlrMgr, slot, /*waitAck=*/false);
 }
 
-void wlrApiReturn(SWorkloadCallToken *token, const SWorkloadReturnArgs *args) {
-  if (token == NULL) return;
-
-  /* Depth must unwind even when the call was not recorded or the ack failed,
-   * otherwise this thread would never record again (TS RE016). */
+/* Release this thread's public-API depth without completing the call.
+ *
+ * Only a folded fetch session uses this: it keeps its call open for the whole
+ * result but must not hold the thread's depth, because the application may issue
+ * unrelated public calls between two fetches and a stuck depth would silently
+ * stop those from being recorded. */
+static void wlrUnwindDepth(SWorkloadCallToken *token) {
   if (token->depthOwner) {
     if (wlrTlsDepth > 0) wlrTlsDepth--;
     token->depthOwner = false;
   }
+}
+
+/* Complete a recorded call: unwind depth, retire it from the active list, and emit
+ * the terminal event. fetchCalls is 0 for a normal one-call event and the folded
+ * call count for a fetch session (see wlrFetchFoldOpen). */
+static void wlrApiComplete(SWorkloadCallToken *token, const SWorkloadReturnArgs *args,
+                           int64_t fetchCalls) {
+  if (token == NULL) return;
+
+  /* Depth must unwind even when the call was not recorded or the ack failed,
+   * otherwise this thread would never record again (TS RE016). */
+  wlrUnwindDepth(token);
 
   if (!token->recorded) return;
 
@@ -724,7 +752,12 @@ void wlrApiReturn(SWorkloadCallToken *token, const SWorkloadReturnArgs *args) {
   if (args == NULL) return;
 
   wlrEmitCompletion(token, WLR_PHASE_RETURN, args->code, args->logicalConnId, args->logicalStmtId,
-                    args->logicalResultId, args->affectedRows, args->fetchRows, args->qid);
+                    args->logicalResultId, args->affectedRows, args->fetchRows, args->qid,
+                    fetchCalls);
+}
+
+void wlrApiReturn(SWorkloadCallToken *token, const SWorkloadReturnArgs *args) {
+  wlrApiComplete(token, args, 0);
 }
 
 void wlrAsyncDone(SWorkloadCallToken *token, const SWorkloadDoneArgs *args) {
@@ -733,7 +766,7 @@ void wlrAsyncDone(SWorkloadCallToken *token, const SWorkloadDoneArgs *args) {
   /* DONE may arrive on a driver thread, long after RETURN unwound the depth on
    * the originating thread. It must not touch depth at all. */
   wlrEmitCompletion(token, WLR_PHASE_DONE, args->code, 0, args->logicalStmtId, args->logicalResultId, args->affectedRows,
-                    args->fetchRows, 0);
+                    args->fetchRows, 0, 0);
 }
 
 void wlrResultFree(uint64_t logicalResultId) {
@@ -758,4 +791,142 @@ void wlrConnectComplete(SWorkloadCallToken *token, uint64_t *logicalConnId) {
   } else {
     wlrApiReturn(token, NULL);
   }
+}
+
+/* ---------------------------------------------------- folded fetch sessions */
+
+/* Emit the RETURN for the session that belongs to resultId. The id is passed in
+ * because the rollover path has already claimed fold->resultId for the NEXT result
+ * by the time the previous session is finished. */
+static void wlrFetchFoldFinishFor(SWlrFetchFold *fold, int64_t resultId) {
+  if (fold == NULL) return;
+  /* Only one thread may emit the RETURN: whoever moves OPEN -> DONE owns it. A
+   * second caller (the fetch that ended the result racing with taos_free_result)
+   * sees the state already changed and does nothing. */
+  if (atomic_val_compare_exchange_32(&fold->state, WLR_FETCH_FOLD_OPEN, WLR_FETCH_FOLD_DONE) !=
+      WLR_FETCH_FOLD_OPEN) {
+    return;
+  }
+
+  SWorkloadReturnArgs ret = {0};
+  ret.code = atomic_load_32(&fold->code);
+  ret.logicalResultId = (uint64_t)resultId;
+  ret.fetchRows = atomic_load_64(&fold->rows);
+  /* fetchCalls is what tells replay this pair stands for N original calls; without
+   * it a folded RETURN is indistinguishable from a single call returning N rows,
+   * and replay would issue one fetch and report a count mismatch on every
+   * projection query. */
+  wlrApiComplete(&fold->token, &ret, atomic_load_64(&fold->calls));
+
+  memset(&fold->token, 0, sizeof(fold->token));
+  atomic_store_64(&fold->rows, 0);
+  atomic_store_64(&fold->calls, 0);
+  atomic_store_32(&fold->code, 0);
+}
+
+void wlrFetchFoldFinish(SWlrFetchFold *fold) {
+  if (fold == NULL) return;
+  wlrFetchFoldFinishFor(fold, atomic_load_64(&fold->resultId));
+}
+
+void wlrFetchFoldOpen(SWlrFetchFold *fold, uint16_t apiType, uint64_t resultId) {
+  if (fold == NULL || resultId == 0) return;
+
+  /*
+   * Only the thread that claims the result ID may open the session. Every other
+   * fetch on the same result returns here and lets wlrFetchFoldAccount count its
+   * rows, so at most one BEGIN can ever be emitted per result.
+   *
+   * The claim reads the ID exactly once and exchanges that same value: reloading it
+   * for the compare-exchange would let a loser read the winner's NEW id and then
+   * exchange it with itself -- a CAS that trivially succeeds -- so two threads could
+   * both believe they own the transition.
+   *
+   * Confining the state transitions to the claim winner is what makes resetting the
+   * state below safe. A thread that merely observes the new ID must not enter the
+   * open path: it could claim OPENING, and the claim winner's reset would then
+   * overwrite that OPENING with IDLE, after which the winner opens a second session
+   * while the first thread is still inside wlrApiBegin. That is a second BEGIN
+   * paired with one RETURN, and it strands an active-call entry.
+   */
+  int64_t prior = atomic_load_64(&fold->resultId);
+  if (prior == (int64_t)resultId) return;
+
+  if (atomic_val_compare_exchange_64(&fold->resultId, prior, (int64_t)resultId) != prior) {
+    return;
+  }
+
+  /*
+   * A different result ID on the same request object means the previous result is
+   * gone: close its session naming the OLD id (fold->resultId already holds the new
+   * one), then start the new one from a clean slate.
+   */
+  wlrFetchFoldFinishFor(fold, prior);
+
+  fold->apiType = apiType;
+  atomic_store_64(&fold->rows, 0);
+  atomic_store_64(&fold->calls, 0);
+  atomic_store_32(&fold->code, 0);
+
+  /* Safe because no other thread may claim OPENING for this result: the ID is
+   * already ours, so every other fetch returned above. */
+  atomic_store_32(&fold->state, WLR_FETCH_FOLD_IDLE);
+  if (atomic_val_compare_exchange_32(&fold->state, WLR_FETCH_FOLD_IDLE,
+                                     WLR_FETCH_FOLD_OPENING) != WLR_FETCH_FOLD_IDLE) {
+    return;
+  }
+
+  SWorkloadBeginArgs a = {0};
+  a.apiType = apiType;
+  a.logicalResultId = resultId;
+
+  SWorkloadCallToken token = {0};
+  if (wlrApiBegin(&a, &token) != WLR_E_OK || !token.recorded) {
+    /* Fail-open: the business call is unaffected, this result is unrecorded, and
+     * the BEGIN is not retried for every remaining row. */
+    atomic_store_32(&fold->state, WLR_FETCH_FOLD_DONE);
+    return;
+  }
+
+  /* Keep the call open for the whole result, but release the thread's depth now:
+   * the application may run other public calls while the result is half
+   * consumed, and a held depth would suppress those (the depth rule only means to
+   * suppress NESTED calls). */
+  wlrUnwindDepth(&token);
+
+  /* The token is published before the state becomes OPEN, and atomic_store_32 is a
+   * plain volatile store on the Windows branch of osAtomic.c, so the barrier is
+   * explicit: a thread that sees OPEN must also see the token it will return with. */
+  fold->token = token;
+  tmemory_barrier(0);
+  atomic_store_32(&fold->state, WLR_FETCH_FOLD_OPEN);
+}
+
+void wlrFetchFoldAccount(SWlrFetchFold *fold, int32_t code, int64_t rows, bool terminal) {
+  if (fold == NULL || atomic_load_32(&fold->state) != WLR_FETCH_FOLD_OPEN) return;
+
+  if (fold->calls < INT64_MAX) (void)atomic_add_fetch_64(&fold->calls, 1);
+  if (rows > 0) {
+    int64_t prior = atomic_load_64(&fold->rows);
+    if (prior <= INT64_MAX - rows) (void)atomic_add_fetch_64(&fold->rows, rows);
+  }
+  if (code != 0 && atomic_load_32(&fold->code) == 0) {
+    int32_t expected = 0;
+    (void)atomic_val_compare_exchange_32(&fold->code, expected, code);
+  }
+
+  /* The call that ended the result also ends the session, so its RETURN is emitted
+   * while the result still exists instead of waiting for taos_free_result. */
+  if (terminal) wlrFetchFoldFinish(fold);
+}
+
+/*
+ * Depth guard around a fetch's real work. Depth is thread-local and only ever
+ * incremented and decremented on the same thread by the same call, so plain
+ * arithmetic is enough -- see wlrApiBegin, which does the same.
+ */
+void wlrFetchEnter(void) { wlrTlsDepth++; }
+
+void wlrFetchLeave(void) {
+  if (wlrTlsDepth > 0) wlrTlsDepth--;
 }

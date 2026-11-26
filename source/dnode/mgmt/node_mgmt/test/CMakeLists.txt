@@ -17,32 +17,22 @@ add_executable(streamHeartbeatTest streamHeartbeatTest.cpp)
 DEP_ext_gtest(streamHeartbeatTest)
 target_include_directories(streamHeartbeatTest PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/../inc")
 target_link_libraries(streamHeartbeatTest PRIVATE dnode)
-target_link_options(streamHeartbeatTest PRIVATE
-  -Wl,--wrap=rpcOpen
-  -Wl,--wrap=rpcFreeCont
-  -Wl,--wrap=rpcSendRequest
-  -Wl,--wrap=rpcSendResponse
-  -Wl,--wrap=dmMarkWrapper
-  -Wl,--wrap=dmReleaseWrapper
-  -Wl,--wrap=streamHbProcessRspMsg
-  -Wl,--wrap=streamHbHandleRspErr
-)
 add_test(NAME streamHeartbeatTest COMMAND streamHeartbeatTest)
 
 add_executable(dmTransportSecurityTest dmTransportSecurityTest.cpp)
 DEP_ext_gtest(dmTransportSecurityTest)
 target_include_directories(dmTransportSecurityTest PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/../inc")
 target_link_libraries(dmTransportSecurityTest PRIVATE dnode)
-target_link_options(dmTransportSecurityTest PRIVATE
-  -Wl,--wrap=rpcOpen
-  -Wl,--wrap=rpcFreeCont
-  -Wl,--wrap=dmMarkWrapper
-  -Wl,--wrap=dmReleaseWrapper
-  -Wl,--wrap=rpcSetIpWhite
-  -Wl,--wrap=rpcSetTimeIpWhite
-  -Wl,--wrap=taosAnalyUpdate
-  -Wl,--wrap=tDeserializeSUpdateIpWhiteDual
-  -Wl,--wrap=tDeserializeSRetrieveDateTimeWhiteListRsp
-  -Wl,--wrap=tDeserializeRetrieveAnalyticAlgoRsp
-)
 add_test(NAME dmTransportSecurityTest COMMAND dmTransportSecurityTest)
+
+add_executable(dmProcessNodeMsgTest dmProcessNodeMsgTest.cpp)
+DEP_ext_gtest(dmProcessNodeMsgTest)
+target_include_directories(dmProcessNodeMsgTest PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/../inc")
+target_link_libraries(dmProcessNodeMsgTest PRIVATE dnode)
+add_test(NAME dmProcessNodeMsgTest COMMAND dmProcessNodeMsgTest)
+
+add_executable(dmStartNodeRollbackTest dmStartNodeRollbackTest.cpp)
+DEP_ext_gtest(dmStartNodeRollbackTest)
+target_include_directories(dmStartNodeRollbackTest PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/../inc")
+target_link_libraries(dmStartNodeRollbackTest PRIVATE dnode)
+add_test(NAME dmStartNodeRollbackTest COMMAND dmStartNodeRollbackTest)

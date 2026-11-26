@@ -133,8 +133,10 @@ graph TD
 
 ```sql
 -- TDengine：查询某张表在回填时间范围内的数据量
-SELECT COUNT(*) FROM <table_name>
-WHERE ts >= '2020-01-01' AND ts < '2025-01-01';
+SELECT COUNT(*)
+FROM <table_name>
+WHERE ts >= '2020-01-01'
+  AND ts < '2025-01-01';
 ```
 
 ### 数据准确性抽样

@@ -64,7 +64,11 @@ from resource_manager import (
     ResourceImportError,
     lifecycle_lock,
 )
-from resource_manifest import SHARED_RUNTIME_NAME, validate_tsfm_model, validate_tsfm_runtime
+from resource_manifest import (
+    SHARED_RUNTIME_NAME,
+    validate_tsfm_model,
+    validate_tsfm_runtime,
+)
 
 # Exit codes the REST layer switches on (see _CLI_EXIT_* in
 # lib/tsfm/mgmt/foundation_model.py -- the two modules are separate deployment
@@ -378,6 +382,10 @@ class Config:
         """从 taosanode.config.py 加载配置"""
         if config_path is None:
             config_path = os.path.join(self.cfg_dir, "taosanode.config.py")
+
+        self.config_path = os.path.abspath(config_path)
+        self.cfg_dir = os.path.dirname(self.config_path)
+        config_path = self.config_path
 
         # Set attribute defaults so they always exist even if config file is missing
         self.pid_file = PID_FILE
@@ -716,7 +724,7 @@ class ProcessManager:
             markers = [
                 "taosanode_service.py",
                 "from waitress import serve",
-                "taosanalytics.app",
+                "lib.app",
                 "gunicorn",
             ]
             return any(marker in commandline for marker in markers)
@@ -896,7 +904,8 @@ class TaosanodeService:
     def _build_runtime_env(self) -> Dict[str, str]:
         """Build a consistent runtime environment for import checks and service start."""
         env = os.environ.copy()
-        lib_root = os.path.join(self.config.install_dir, "lib")
+        env["TDGPT_CONF"] = self.config.config_path
+        lib_root = self.config.install_dir
         existing_pythonpath = env.get("PYTHONPATH", "").strip()
         env["PYTHONPATH"] = (
             lib_root if not existing_pythonpath else lib_root + os.pathsep + existing_pythonpath
@@ -945,8 +954,8 @@ class TaosanodeService:
     def _collect_preflight_diagnostics(self, python_exe: str, env: Dict[str, str], cwd: str) -> None:
         """Run focused import probes so startup failures identify the exact failing dependency."""
         self.logger.info("Collecting taosanode startup diagnostics...")
-        lib_root = os.path.join(self.config.install_dir, "lib").replace("\\", "\\\\")
-        discovered_modules = self._discover_runtime_dependencies("taosanalytics.app")
+        lib_root = self.config.install_dir.replace("\\", "\\\\")
+        discovered_modules = self._discover_runtime_dependencies("lib.app")
         fallback_modules = ["waitress", "numpy", "pandas", "flask", "torch", "tensorflow", "keras"]
         probe_modules = []
         for module_name in discovered_modules + fallback_modules:
@@ -954,7 +963,7 @@ class TaosanodeService:
                 probe_modules.append(module_name)
 
         self.logger.info(
-            "Dependency probes derived from taosanalytics.app: " +
+            "Dependency probes derived from lib.app: " +
             (", ".join(discovered_modules) if discovered_modules else "none discovered")
         )
 
@@ -964,12 +973,12 @@ class TaosanodeService:
         ]
         probes.extend([
             (
-                "import taosanalytics.conf",
-                f"import sys; sys.path.insert(0, r'{lib_root}'); import taosanalytics.conf; print('conf ok')"
+                "import lib.conf",
+                f"import sys; sys.path.insert(0, r'{lib_root}'); import lib.conf; print('conf ok')"
             ),
             (
-                "import taosanalytics.app",
-                f"import sys; sys.path.insert(0, r'{lib_root}'); from taosanalytics.app import app; print('app ok')"
+                "import lib.app",
+                f"import sys; sys.path.insert(0, r'{lib_root}'); from lib.app import app; print('app ok')"
             ),
         ])
         for label, code in probes:
@@ -1181,9 +1190,9 @@ class TaosanodeService:
         return module_name in stdlib_names
 
     def _resolve_local_module_path(self, module_name: str, package_root: str) -> Optional[str]:
-        if not module_name.startswith("taosanalytics"):
+        if module_name != "lib" and not module_name.startswith("lib."):
             return None
-        relative_parts = module_name.split(".")[1:]
+        relative_parts = module_name.split(".")
         base_path = os.path.join(package_root, *relative_parts) if relative_parts else package_root
         file_candidate = base_path + ".py"
         init_candidate = os.path.join(base_path, "__init__.py")
@@ -1202,8 +1211,8 @@ class TaosanodeService:
             prefix_parts.extend(module_name.split("."))
         return ".".join(part for part in prefix_parts if part)
 
-    def _discover_runtime_dependencies(self, entry_module: str = "taosanalytics.app") -> List[str]:
-        package_root = os.path.join(self.config.install_dir, "lib")
+    def _discover_runtime_dependencies(self, entry_module: str = "lib.app") -> List[str]:
+        package_root = self.config.install_dir
         entry_path = self._resolve_local_module_path(entry_module, package_root)
         if not entry_path:
             return []
@@ -1231,7 +1240,7 @@ class TaosanodeService:
                     for alias in node.names:
                         imported = alias.name
                         top_level = imported.split(".")[0]
-                        if top_level == "taosanalytics":
+                        if top_level == "lib":
                             visit(imported)
                         elif top_level not in stdlib_exclusions and not self._is_stdlib_module(top_level):
                             external_modules.add(top_level)
@@ -1243,7 +1252,7 @@ class TaosanodeService:
                     if not resolved:
                         continue
                     top_level = resolved.split(".")[0]
-                    if top_level == "taosanalytics":
+                    if top_level == "lib":
                         visit(resolved)
                     elif top_level not in stdlib_exclusions and not self._is_stdlib_module(top_level):
                         external_modules.add(top_level)
@@ -1252,11 +1261,11 @@ class TaosanodeService:
         return sorted(external_modules)
 
     def _preflight_app_import(self, python_exe: str, env: Dict[str, str], cwd: str) -> bool:
-        """Validate that taosanalytics.app can be imported before starting the service."""
+        """Validate that lib.app can be imported before starting the service."""
         self.logger.info("Running taosanode import preflight check...")
         check_script = (
-            "from taosanalytics.app import app; "
-            "print('taosanalytics.app import ok')"
+            "from lib.app import app; "
+            "print('lib.app import ok')"
         )
 
         try:
@@ -1306,7 +1315,7 @@ class TaosanodeService:
         """Run taosanode in the current process for WinSW-managed service mode."""
         redirect_stdio_if_needed()
         python_exe = self.process_mgr._get_python_exe()
-        lib_root = os.path.join(self.config.install_dir, "lib")
+        lib_root = self.config.install_dir
         lib_dir = os.path.join(self.config.install_dir, "lib", "taosanalytics")
         env = self._build_runtime_env()
         try:
@@ -1390,7 +1399,8 @@ class TaosanodeService:
 
         cmd = [
             python_exe, "-m", "gunicorn",
-            "-c", os.path.join(self.config.cfg_dir, "taosanode.config.py"),
+            "-c", self.config.config_path,
+            "--pythonpath", self.config.install_dir, "lib.app:app",
         ]
 
         try:
@@ -1453,7 +1463,7 @@ class TaosanodeService:
 
                 cmd = [
                     python_exe, "-c",
-                    f"from waitress import serve; from taosanalytics.app import app; "
+                    f"from waitress import serve; from lib.app import app; "
                     f"serve(app, "
                     f"host='{bind_host}', "
                     f"port={bind_port}, "
@@ -1467,7 +1477,8 @@ class TaosanodeService:
                 # Linux: use gunicorn
                 cmd = [
                     python_exe, "-m", "gunicorn",
-                    "-c", os.path.join(self.config.cfg_dir, "taosanode.config.py"),
+                    "-c", self.config.config_path,
+                    "--pythonpath", self.config.install_dir, "lib.app:app",
                     "-D",  # Daemon mode
                 ]
 
@@ -1893,6 +1904,25 @@ class ModelService:
         if detail:
             self.logger.error(f"Last model output:\n{detail}")
 
+    def _resolve_model_script(self, model_name: str, service_dir: str) -> str:
+        """Honor configured entrypoints, with aliases for legacy built-in names."""
+        script = self.config.models[model_name]["script"]
+        script_path = os.path.join(service_dir, script)
+        if os.path.exists(script_path):
+            return script_path
+
+        # Only historical built-in basenames are aliases. Never rewrite custom
+        # entrypoints, explicit paths, or names belonging to another model.
+        if model_name in DEFAULT_MODEL_ORDER and script == f"{model_name}-server.py":
+            current_path = os.path.join(service_dir, f"{model_name}_server.py")
+            if os.path.isfile(current_path):
+                self.logger.info(
+                    f"Using compatible model entrypoint for {model_name}: "
+                    f"{script} -> {os.path.basename(current_path)}"
+                )
+                return current_path
+        return script_path
+
     def start(self, model_name: str, timeout: Optional[int] = None) -> bool:
         """Start model service"""
         if model_name == "all":
@@ -1948,7 +1978,7 @@ class ModelService:
         service_dir = os.path.join(
             self.config.install_dir, "lib", "tsfm", "service"
         )
-        script_path = os.path.join(service_dir, model_config["script"])
+        script_path = self._resolve_model_script(model_name, service_dir)
 
         if not os.path.exists(script_path):
             self.logger.error(f"Script not found: {script_path}")
@@ -2182,6 +2212,13 @@ class ModelService:
                 self.logger.info(f"Force killing model {model_name}...")
                 self.process_mgr.kill_process(pid, force=True)
 
+                deadline = time.monotonic() + 5
+                while self.process_mgr.is_running(service_name):
+                    if time.monotonic() >= deadline:
+                        self.logger.error(f"Model {model_name} PID {pid} did not stop")
+                        return False
+                    time.sleep(0.1)
+
         self.process_mgr.remove_pid(service_name)
         self.logger.info(f"Model {model_name} stopped")
         return True
@@ -2343,7 +2380,9 @@ Examples:
         choices=["start", "stop", "status", "model-start", "model-stop", "model-status", "wait-ready",
                  "resource-import", "resource-check", "resource-apply",
                  "resource-list", "resource-verify", "resource-delete", "install-service",
-                 "uninstall-service", "start-service", "stop-service"],
+                 "uninstall-service", "start-service", "stop-service", "runtime-status",
+                 "runtime-upgrade", "runtime-upgrade-status", "runtime-upgrade-recover", "runtime-upgrade-run",
+                 "runtime-maintenance-status"],
         help="Command to execute"
     )
     parser.add_argument(
@@ -2363,7 +2402,7 @@ Examples:
     parser.add_argument(
         "--full-preflight",
         action="store_true",
-        help="Run the full taosanalytics.app import preflight before startup"
+        help="Run the full lib.app import preflight before startup"
     )
     parser.add_argument(
         "--timeout",
@@ -2391,7 +2430,7 @@ Examples:
         "--python-runtime-dir",
         help="Host Python runtime directory used to relocate imported TSFM venvs",
     )
-    parser.add_argument("--release", default="1.0.0", help="Resource release version or manifest URL")
+    parser.add_argument("--release", default=None, help="Resource release version or manifest URL")
     parser.add_argument(
         "--resource-base-url",
         default=None,
@@ -2427,8 +2466,17 @@ Examples:
     # Initialize
     config = Config(args.config)
     try:
-        if args.command in {"model-start", "model-stop", "resource-import", "resource-apply", "resource-delete"}:
+        if args.command == "runtime-upgrade-run":
+            from runtime_upgrade import run_upgrade_task
+            model_service = ModelService(config, ProcessManager(config))
+            result = run_upgrade_task(config, args.target, model_service)
+            print(json.dumps(result, indent=2))
+        elif args.command in {"model-start", "model-stop", "resource-import", "resource-apply", "resource-delete",
+                              "runtime-upgrade", "runtime-upgrade-recover"}:
             with lifecycle_lock(config.resource_dir):
+                if args.command not in {"runtime-upgrade", "runtime-upgrade-recover"}:
+                    from runtime_upgrade import RuntimeUpgrade
+                    RuntimeUpgrade(config).guard()
                 execute_command(args, config)
         else:
             execute_command(args, config)
@@ -2468,7 +2516,43 @@ def execute_command(args, config):
     logger = get_logger()
 
     # Execute command
-    if args.command == "start":
+    if args.command.startswith("runtime-"):
+        from runtime_upgrade import RuntimeUpgrade
+        upgrade = RuntimeUpgrade(config, models)
+        if args.command == "runtime-maintenance-status":
+            task = upgrade.latest()
+            result = {"task": upgrade.status(task["task_id"]) if task else None}
+        elif args.command == "runtime-status":
+            result = upgrade.inventory(args.release or "", args.resource_base_url or config.resource_base_url)
+        elif args.command == "runtime-upgrade-status":
+            result = upgrade.status(args.target)
+        else:
+            if args.command == "runtime-upgrade-recover":
+                result = upgrade.queue_recovery(args.target)
+            else:
+                if not args.expected_sha256:
+                    raise ResourceImportError("--expected-sha256 from runtime-status is required")
+                result = upgrade.queue(args.release, args.resource_base_url or config.resource_base_url,
+                                       args.expected_sha256)
+            if result["status"] != "queued":
+                print(json.dumps(result, indent=2))
+                return
+            child = [sys.executable, str(Path(__file__).resolve()), "runtime-upgrade-run", result["task_id"]]
+            if args.config:
+                child.extend(["--config", args.config])
+            options = {"start_new_session": True} if os.name != "nt" else {
+                "creationflags": subprocess.DETACHED_PROCESS | subprocess.CREATE_NEW_PROCESS_GROUP,
+            }
+            try:
+                subprocess.Popen(child, stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL,
+                                 stderr=subprocess.DEVNULL, **options)
+            except OSError as exc:
+                upgrade.save(result, status="interrupted", phase="manual_intervention", error=str(exc))
+                raise
+        print(json.dumps(result, indent=2))
+        return
+
+    elif args.command == "start":
         success = taosanode.start(foreground=args.foreground, full_preflight=args.full_preflight)
         sys.exit(0 if success else 1)
 
@@ -2545,16 +2629,17 @@ def execute_command(args, config):
                 config.python_runtime_dir = args.python_runtime_dir
             manager = DynamicResourceManager(config)
             target = args.target or "all"
+            release = args.release
             if args.replace:
                 running = {item["model"] for item in models.status() if item["running"]}
                 base_url = args.resource_base_url or config.resource_base_url
-                runtime_replace = manager.requires_runtime_replacement(args.release, base_url, target)
+                runtime_replace = manager.requires_runtime_replacement(release, base_url, target)
                 blocked = running if runtime_replace or target == "all" else running.intersection({target})
                 if blocked:
                     scope = "all" if runtime_replace or target == "all" else ", ".join(sorted(blocked))
                     raise ResourceImportError(f"resource replacement requires stopped model workers: {scope}")
             result = DynamicResourceManager(config).apply_release(
-                args.release, args.resource_base_url or config.resource_base_url, target, args.replace
+                release, args.resource_base_url or config.resource_base_url, target, args.replace
             )
             print(json.dumps(result, indent=2))
         except ResourceImportError as exc:

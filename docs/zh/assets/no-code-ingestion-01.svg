@@ -51,7 +51,7 @@
 
   <rect x="1124" y="268" width="192" height="168" rx="12" fill="#f7fbff" stroke="#7eadd8" stroke-width="1.6"/>
   <text x="1220" y="322" text-anchor="middle" font-size="18" font-weight="700" fill="#1d4e89">Neuron</text>
-  <text x="1220" y="356" text-anchor="middle" font-size="14" fill="#355f8a">70+ / 100+ protocols</text>
+  <text x="1220" y="356" text-anchor="middle" font-size="14" fill="#355f8a">100+ protocols</text>
 
   <rect x="1344" y="268" width="192" height="168" rx="12" fill="#f7fbff" stroke="#7eadd8" stroke-width="1.6"/>
   <text x="1440" y="322" text-anchor="middle" font-size="18" font-weight="700" fill="#1d4e89">Kepware</text>

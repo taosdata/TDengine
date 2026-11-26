@@ -1701,15 +1701,16 @@ static bool needRefreshMeta(void* rawData, STableMeta* pTableMeta, SSchemaWrappe
   return false;
 }
 
-static int32_t getRawCache(SHashObj** pVgHash, SHashObj** pNameHash, SHashObj** pMetaHash, void* key) {
-  if (pVgHash == NULL || pNameHash == NULL || pMetaHash == NULL || key == NULL) {
+static int32_t getRawCache(SHashObj** pVgHash, SHashObj** pNameHash, SHashObj** pMetaHash, int64_t connId) {
+  if (pVgHash == NULL || pNameHash == NULL || pMetaHash == NULL || connId <= 0) {
     uError("invalid parameter in %s", __func__);
     return TSDB_CODE_INVALID_PARA;
   }
   int32_t code = 0;
   int32_t lino = 0;
   RAW_LOG_START
-  void* cacheInfo = taosHashGet(writeRawCache, &key, POINTER_BYTES);
+  uDebug("get raw cache connId:0x%" PRIx64, connId);
+  void* cacheInfo = taosHashGet(writeRawCache, &connId, sizeof(connId));
   if (cacheInfo == NULL) {
     *pVgHash = taosHashInit(16, taosGetDefaultHashFunction(TSDB_DATA_TYPE_INT), true, HASH_NO_LOCK);
     RAW_NULL_CHECK(*pVgHash);
@@ -1719,7 +1720,8 @@ static int32_t getRawCache(SHashObj** pVgHash, SHashObj** pNameHash, SHashObj** 
     RAW_NULL_CHECK(*pMetaHash);
     taosHashSetFreeFp(*pMetaHash, tmqFreeMeta);
     rawCacheInfo info = {*pVgHash, *pNameHash, *pMetaHash};
-    RAW_RETURN_CHECK(taosHashPut(writeRawCache, &key, POINTER_BYTES, &info, sizeof(rawCacheInfo)));
+    RAW_RETURN_CHECK(taosHashPut(writeRawCache, &connId, sizeof(connId), &info, sizeof(rawCacheInfo)));
+    uDebug("created raw cache connId:0x%" PRIx64, connId);
   } else {
     rawCacheInfo* info = (rawCacheInfo*)cacheInfo;
     *pVgHash = info->pVgHash;
@@ -1953,7 +1955,7 @@ static int32_t tmqWriteRawCommon(TAOS* taos, void* data, uint32_t dataLen,
   SHashObj* pVgHash = NULL;
   SHashObj* pNameHash = NULL;
   SHashObj* pMetaHash = NULL;
-  RAW_RETURN_CHECK(getRawCache(&pVgHash, &pNameHash, &pMetaHash, taos));
+  RAW_RETURN_CHECK(getRawCache(&pVgHash, &pNameHash, &pMetaHash, pRequest->pTscObj->id));
 
   // Create tables whose blocks were entirely filtered out of an otherwise nonempty
   // response. Tables with a block here are created by the block replay path below.
@@ -2066,14 +2068,19 @@ static int32_t tmqWriteRawRawDataImpl(TAOS* taos, void* data, uint32_t dataLen) 
   SCatalog*        pCatalog = NULL;
   SRequestConnInfo conn = {0};
 
-  RAW_RETURN_CHECK(buildRawRequest(taos, &pRequest, &pCatalog, &conn));
-  uDebug(LOG_ID_TAG " write raw rawdata, data:%p, dataLen:%d", LOG_ID_VALUE, data, dataLen);
+  uDebug("connId:0x%" PRIx64 ", task:%s, write raw rawdata, data:%p, dataLen:%d", *(int64_t*)taos, __func__, data,
+         dataLen);
   RAW_RETURN_CHECK(decodeRawData(&decoder, data, dataLen, tDecodeMqDataRsp, &rspObj));
+  if (rspObj.dataRsp.blockNum == 0) {
+    uDebug("connId:0x%" PRIx64 ", task:%s, skip empty raw rawdata response", *(int64_t*)taos, __func__);
+    goto end;
+  }
 
+  RAW_RETURN_CHECK(buildRawRequest(taos, &pRequest, &pCatalog, &conn));
   SHashObj* pVgHash = NULL;
   SHashObj* pNameHash = NULL;
   SHashObj* pMetaHash = NULL;
-  RAW_RETURN_CHECK(getRawCache(&pVgHash, &pNameHash, &pMetaHash, taos));
+  RAW_RETURN_CHECK(getRawCache(&pVgHash, &pNameHash, &pMetaHash, pRequest->pTscObj->id));
   int retry = 0;
   while (1) {
     RAW_RETURN_CHECK(smlInitHandle(&pQuery));
@@ -2392,4 +2399,16 @@ void writeRawCleanup(void) {
   taosHashCleanup(h3);
   atomic_store_8(&initFlag, 0);
   atomic_store_8(&initedFlag, WRITE_RAW_INIT_START);
+}
+
+// Raw-write requests hold a connection reference, so only final object destruction can safely remove this cache.
+void writeRawCleanupConn(int64_t connId) {
+  if (connId <= 0 || writeRawCache == NULL) {
+    return;
+  }
+
+  int32_t code = taosHashRemove(writeRawCache, &connId, sizeof(connId));
+  if (code == 0) {
+    uDebug("removed raw cache connId:0x%" PRIx64, connId);
+  }
 }

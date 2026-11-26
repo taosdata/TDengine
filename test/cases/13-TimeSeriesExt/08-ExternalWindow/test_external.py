@@ -14,6 +14,7 @@
 # along with this program. If not, see <http://www.gnu.org/licenses/>.
 
 import os
+from collections import Counter
 
 import taos
 from taos import new_bind_params
@@ -21,6 +22,138 @@ from new_test_framework.utils import tdLog, tdSql, sc, clusterComCheck, tdCom
 
 
 class TestExternal:
+    def do_partition_batch_hint_regression(self):
+        database = "extwin_partition_batch_case"
+        base = 1700000000000
+        tdSql.execute(f"drop database if exists {database}")
+        tdSql.execute(f"create database {database} vgroups 3")
+        tdSql.execute(f"use {database}")
+        tdSql.execute("create stable readings(ts timestamp, v int, status int) tags(region int)")
+        tdSql.execute("create table windows(ts timestamp, end_ts timestamp)")
+        windows = [(0, 29000), (15000, 44000), (45000, 75000),
+                   (76000, 119000), (150000, 160000)]
+        tdSql.execute("insert into windows values " + " ".join(
+            f"({base + start},{base + end})" for start, end in windows))
+
+        for table in range(12):
+            tdSql.execute(f"create table d{table} using readings tags({table % 3})")
+            if table == 11:
+                continue
+            for start in range(0, 120, 20):
+                values = []
+                for row in range(start, start + 20):
+                    status = "NULL" if row % 9 == 0 else row % 4
+                    values.append(
+                        f"({base + row * 1000},{table * 100 + row},{status})")
+                tdSql.execute(f"insert into d{table} values " + " ".join(values))
+
+        window_clause = "external_window((select ts,end_ts from windows) w)"
+        bodies = {
+            "aggregate": (
+                "tbname,status,_wstart,count(*),sum(v),min(v),max(v) "
+                f"from readings partition by tbname,status {window_clause}"),
+            "aggregate_filtered": (
+                "tbname,status,_wstart,count(*),sum(v) from readings "
+                "where v >= 500 and v < 900 "
+                f"partition by tbname,status {window_clause}"),
+            "aggregate_empty": (
+                "tbname,status,_wstart,count(*),sum(v) from readings "
+                "where v > 10000 "
+                f"partition by tbname,status {window_clause}"),
+            "scalar": (
+                "tbname,status,ts,v from readings "
+                f"partition by tbname,status {window_clause}"),
+            "fill": (
+                "tbname,status,_wstart,count(*),sum(v) from readings "
+                f"partition by tbname,status {window_clause} fill(null)"),
+            "grouped_windows": (
+                "tbname,status,_wstart,count(*) from readings "
+                "partition by tbname,status "
+                "external_window((select _wstart,_wend from readings "
+                "partition by tbname,status interval(30s)) w)"),
+            "single_table": (
+                "tbname,status,_wstart,count(*) from d0 "
+                f"partition by tbname,status {window_clause}"),
+            "fallback_tag": (
+                "region,status,_wstart,count(*) from readings "
+                f"partition by region,status {window_clause}"),
+            "fallback_column": (
+                "status,_wstart,count(*) from readings "
+                f"partition by status {window_clause}"),
+            "fallback_order": (
+                "tbname,status,_wstart,count(*) from readings "
+                f"partition by tbname,status {window_clause} "
+                "order by tbname,status,_wstart"),
+            "fallback_having": (
+                "tbname,status,_wstart,count(*) from readings "
+                f"partition by tbname,status {window_clause} "
+                "having count(*) > 0"),
+            "fallback_limit": (
+                "tbname,status,_wstart,count(*) from readings "
+                f"partition by tbname,status {window_clause} limit 10"),
+        }
+        for name, body in bodies.items():
+            off = "select /*+ NO_EXTWIN_PARTITION_BATCH() */ " + body
+            default = "select " + body
+            on = "select /*+ EXTWIN_PARTITION_BATCH() */ " + body
+            conflict = ("select /*+ EXTWIN_PARTITION_BATCH(), "
+                        "NO_EXTWIN_PARTITION_BATCH() */ " + body)
+            reverse_conflict = ("select /*+ NO_EXTWIN_PARTITION_BATCH(), "
+                                "EXTWIN_PARTITION_BATCH() */ " + body)
+            duplicate_on = ("select /*+ EXTWIN_PARTITION_BATCH(), "
+                            "EXTWIN_PARTITION_BATCH() */ " + body)
+            duplicate_off = ("select /*+ NO_EXTWIN_PARTITION_BATCH(), "
+                             "NO_EXTWIN_PARTITION_BATCH() */ " + body)
+            duplicate_conflict = ("select /*+ EXTWIN_PARTITION_BATCH(), "
+                                  "EXTWIN_PARTITION_BATCH(), "
+                                  "NO_EXTWIN_PARTITION_BATCH() */ " + body)
+            tdSql.query(off)
+            expected = Counter(tuple(row) for row in tdSql.queryResult)
+            tdSql.query("explain verbose true " + off)
+            off_plan = "\n".join(row[0] for row in tdSql.queryResult)
+            assert "mode=seq_grp_order" not in off_plan, name
+            for variant, sql in (("default", default), ("on", on),
+                                 ("conflict", conflict),
+                                 ("reverse_conflict", reverse_conflict),
+                                 ("duplicate_on", duplicate_on),
+                                 ("duplicate_off", duplicate_off),
+                                 ("duplicate_conflict", duplicate_conflict)):
+                tdSql.query(sql)
+                actual = Counter(tuple(row) for row in tdSql.queryResult)
+                if name != "fallback_limit":
+                    assert actual == expected, (name, variant)
+                tdSql.query("explain verbose true " + sql)
+                plan = "\n".join(row[0] for row in tdSql.queryResult)
+                eligible = name in ("aggregate", "aggregate_filtered",
+                                    "aggregate_empty", "fill", "grouped_windows")
+                expected_mode = eligible and variant in ("default", "on", "duplicate_on")
+                assert ("mode=seq_grp_order" in plan) == expected_mode, (name, variant)
+
+        tdSql.execute(f"drop database {database}")
+        print("external window partition batch default and hint .. [ passed ]")
+
+    def test_partition_batch_hint(self):
+        """External Window: drain complete tbname batches from Partition.
+
+        1. Compare default, explicit on and off for aggregation, projection, FILL and
+           grouped window subqueries.
+        2. Verify that unsupported grouping shapes keep the original plan.
+
+        Catalog:
+            - TimeSeriesExt:ExternalWindow
+
+        Since: v3.4.4.0
+
+        Labels: common,ci
+
+        Jira: None
+
+        History:
+            - 2026-10-27 Codex Added grouped Partition batch regression
+
+        """
+        self.do_partition_batch_hint_regression()
+
     def do_set_function_windows(self):
         tdSql.execute("drop database if exists ext_set_functions")
         tdSql.execute("create database ext_set_functions")

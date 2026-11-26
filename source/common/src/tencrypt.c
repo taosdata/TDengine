@@ -646,7 +646,7 @@ int32_t taosEncryptExistingCfgFiles(const char *dataDir) {
   //   uInfo("successfully encrypted file %s", filepath);
   // }
 
-  // dnode.json (ep.json)
+  // dnode.json
   snprintf(filepath, sizeof(filepath), "%s%sdnode%sdnode.json", dataDir, TD_DIRSEP, TD_DIRSEP);
   if (taosCheckExistFile(filepath) && !taosIsEncryptedFile(filepath, NULL)) {
     code = taosEncryptSingleCfgFile(filepath);

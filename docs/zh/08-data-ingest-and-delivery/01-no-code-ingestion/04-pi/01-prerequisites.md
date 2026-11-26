@@ -3,7 +3,7 @@ title: PI 数据接入前置条件
 sidebar_label: 前置条件
 ---
 
-本页列出从 PI 系统接入数据到 TDengine 之前需要确认的所有前置条件，包括软件依赖、网络连通性、端口与协议、认证与权限等。建议在创建 PI 数据接入任务之前，由 PI 管理员和网络管理员共同完成检查。
+本页列出从 PI 系统接入数据到 TDengine 之前需要确认的所有前置条件，包括软件依赖、网络连通性、端口与协议、认证与权限等。建议在创建 PI 数据接入任务之前，由 PI 管理员和网络管理员共同完成检查。通用网络拓扑与 taosX-Agent 网络要求见 [数据接入前置条件](../00-prerequisites.md)。
 
 ## 软件依赖
 
@@ -52,7 +52,7 @@ taosX（或 taosX-Agent）所在主机必须能够访问 PI 系统的以下端�
 | --- | --- | --- | --- | --- |
 | PI 连接器（taosX/taosX-Agent 主机） | PI Data Archive Server | 5450/TCP | PI AF SDK 私有协议 | 必须，读取 PI Point 数据 |
 | PI 连接器（taosX/taosX-Agent 主机） | PI AF Server | 5457/TCP | PI AF SDK 私有协议 | 使用 AF 模式时必须 |
-| taosX-Agent | taosX | taosX 配置端口 | gRPC | 使用 taosX-Agent 代理模式时必须 |
+| taosX-Agent | taosX | taosX gRPC 端口，默认 **6055** | gRPC | 使用 taosX-Agent 代理模式时必须 |
 
 如果你的网络环境中存在防火墙或网络隔离，请确保以上端口已放通。
 
@@ -65,11 +65,13 @@ taosX（或 taosX-Agent）所在主机必须能够访问 PI 系统的以下端�
 # Windows PowerShell
 Test-NetConnection -ComputerName <PI_SERVER_HOST> -Port 5450
 Test-NetConnection -ComputerName <AF_SERVER_HOST> -Port 5457
+# 使用 taosX-Agent 代理时，在 Agent 主机上验证 Agent → taosX 连通性
+Test-NetConnection -ComputerName <taosX_host> -Port 6055
 ```
 
 ```bash
 # Linux（仅验证 taosX ↔ taosX-Agent 连通性时使用）
-nc -zv <HOST> <PORT>
+nc -zv <taosX_host> 6055
 ```
 
 :::
@@ -138,7 +140,7 @@ taosX-Agent 服务默认以 Windows **Local System** 账户运行，在域环境
 - [ ] 从 taosX/taosX-Agent 主机可以访问 PI Data Archive（端口 5450）
 - [ ] 从 taosX/taosX-Agent 主机可以访问 PI AF Server（端口 5457，如使用 AF 模式）
 - [ ] 在 taosX-Agent 主机上，已通过 PI System Management Tools（SMT）或 PI System Explorer（PSE）**手动验证** 可连接 PI（先排除环境问题，再测试 taosX）
-- [ ] 如使用 taosX-Agent 代理模式，taosX-Agent 服务已启动，taosX ↔ taosX-Agent 网络已连通，taosExplorer 中 taosX-Agent 状态显示在线
+- [ ] 如使用 taosX-Agent 代理模式，taosX-Agent 服务已启动，taosX ↔ taosX-Agent 网络已连通（gRPC 默认 6055 端口已放通），taosExplorer 中 taosX-Agent 状态显示在线
 
 ### 认证与权限
 

@@ -35,6 +35,7 @@
 // Declare it here so the unit test can drive the scratch-vg-list ownership rules directly instead of
 // only through a full executor pipeline.
 extern "C" int32_t processOrgTbVg(SVtbScanDynCtrlInfo *pVtbScan, SExecTaskInfo *pTaskInfo, int32_t rversion);
+extern "C" int32_t vtbScanNext(SOperatorInfo *pOperator, SSDataBlock **pRes);
 
 namespace {
 
@@ -57,6 +58,7 @@ struct RedeployCheckHarness {
   }
 
   ~RedeployCheckHarness() {
+    taosArrayDestroy(runtime.funcInfo.pStreamPartColVals);
     if (dynInfo.vtbScan.existOrgTbVg != nullptr) {
       taosHashCleanup(dynInfo.vtbScan.existOrgTbVg);
     }
@@ -96,6 +98,66 @@ bool initVgSets(RedeployCheckHarness *h, std::initializer_list<int32_t> exist, s
 }
 
 }  // namespace
+
+class VtbTimeAlignLifetimeTest : public testing::TestWithParam<bool> {
+ protected:
+  void SetUp() override {
+    ASSERT_EQ(0, nodesMakeNode(QUERY_NODE_PHYSICAL_PLAN_VIRTUAL_TABLE_SCAN, reinterpret_cast<SNode **>(&scan)));
+    auto &node = scan->scan.node;
+    node.inputTsOrder = node.outputTsOrder = ORDER_ASC;
+    ASSERT_EQ(0, nodesMakeNode(QUERY_NODE_DATABLOCK_DESC, reinterpret_cast<SNode **>(&node.pOutputDataBlockDesc)));
+    auto *desc = node.pOutputDataBlockDesc;
+    desc->totalRowSize = desc->outputRowSize = 24;
+    for (int16_t i = 0; i < 3; ++i) {
+      SSlotDescNode *slot = nullptr;
+      ASSERT_EQ(0, nodesMakeNode(QUERY_NODE_SLOT_DESC, reinterpret_cast<SNode **>(&slot)));
+      slot->slotId = i;
+      slot->dataType.type = i == 0 ? TSDB_DATA_TYPE_TIMESTAMP : TSDB_DATA_TYPE_BIGINT;
+      slot->dataType.bytes = 8;
+      slot->output = true;
+      ASSERT_EQ(0, nodesListMakeStrictAppend(&desc->pSlots, reinterpret_cast<SNode *>(slot)));
+      SColumnNode *column = nullptr;
+      ASSERT_EQ(0, nodesMakeNode(QUERY_NODE_COLUMN, reinterpret_cast<SNode **>(&column)));
+      column->node.resType = slot->dataType;
+      column->colId = i == 0 ? PRIMARYKEY_TIMESTAMP_COL_ID : 2;
+      column->colType = COLUMN_TYPE_COLUMN;
+      column->slotId = i;
+      tstrncpy(column->colName, i == 0 ? "ts" : (i == 1 ? "v" : "v_prev"), sizeof(column->colName));
+      ASSERT_EQ(0, nodesListMakeStrictAppend(&scan->pTargets, reinterpret_cast<SNode *>(column)));
+      SNode *copy = nullptr;
+      ASSERT_EQ(0, nodesCloneNode(reinterpret_cast<SNode *>(column), &copy));
+      if (i < 2) {
+        ASSERT_EQ(0, nodesListMakeStrictAppend(&scan->scan.pScanCols, copy));
+      } else {
+        auto *aligned = reinterpret_cast<SColumnNode *>(copy);
+        aligned->alignMethod = ALIGN_METHOD_PREV;
+        aligned->alignHasSpan = GetParam();
+        aligned->alignSpanValue = 8;
+        aligned->alignSpanUnit = 's';
+        ASSERT_EQ(0, nodesListMakeStrictAppend(&scan->pAlignCols, copy));
+      }
+    }
+  }
+
+  void TearDown() override {
+    destroyOperator(op);
+    nodesDestroyNode(reinterpret_cast<SNode *>(scan));
+  }
+
+  SVirtualScanPhysiNode *scan = nullptr;
+  SOperatorInfo         *op = nullptr;
+  SExecTaskInfo          task{};
+};
+
+TEST_P(VtbTimeAlignLifetimeTest, CreateResetDestroyReleasesGeneratedExpressions) {
+  // Exercise real expression construction and teardown; LSan detects detached AST owners.
+  ASSERT_EQ(0, createVirtualTableMergeOperatorInfo(nullptr, 0, scan, &task, &op));
+  ASSERT_NE(nullptr, op);
+  ASSERT_NE(nullptr, op->fpSet.resetStateFn);
+  EXPECT_EQ(0, op->fpSet.resetStateFn(op));
+}
+
+INSTANTIATE_TEST_SUITE_P(WithAndWithoutDuration, VtbTimeAlignLifetimeTest, testing::Bool());
 
 TEST(VtbScanRedeployCheckTest, NoPendingRedeployReturnsNeedRedeploy) {
   RedeployCheckHarness h;
@@ -143,6 +205,8 @@ TEST(VtbScanProcessOrgTbVgTest, PublishesNewVgIdsForDeploy) {
   RedeployCheckHarness h;
   ASSERT_TRUE(initVgSets(&h, {1}, {1, 2}));
   h.dynInfo.vtbScan.uid = 0x1234;
+  h.dynInfo.vtbScan.suid = 0x5678;
+  h.dynInfo.vtbScan.dynTbUid = 0x9abc;
 
   EXPECT_EQ(processOrgTbVg(&h.dynInfo.vtbScan, &h.taskInfo, 7), TSDB_CODE_STREAM_VTABLE_NEED_REDEPLOY);
 
@@ -156,6 +220,21 @@ TEST(VtbScanProcessOrgTbVgTest, PublishesNewVgIdsForDeploy) {
   EXPECT_EQ(atomic_load_8(&h.vtableDeployFlag), 1);
   EXPECT_EQ(atomic_load_64(&h.runtime.vtableDeployInfo.uid), (int64_t)0x1234);
   EXPECT_NE(atomic_load_64(&h.runtime.vtableDeployInfo.redeployStartMs), 0);
+}
+
+TEST(VtbScanProcessOrgTbVgTest, SuperTableDeployUsesScanPlanUid) {
+  for (uint64_t childUid : {0ULL, 0x1234ULL, 0x5678ULL}) {
+    SCOPED_TRACE(childUid);
+    RedeployCheckHarness h;
+    ASSERT_TRUE(initVgSets(&h, {1}, {1, 2}));
+    h.dynInfo.vtbScan.isSuperTable = true;
+    h.dynInfo.vtbScan.suid = 0x9abc;
+    h.dynInfo.vtbScan.dynTbUid = childUid;
+
+    EXPECT_EQ(processOrgTbVg(&h.dynInfo.vtbScan, &h.taskInfo, 7), TSDB_CODE_STREAM_VTABLE_NEED_REDEPLOY);
+    EXPECT_EQ(atomic_load_64(&h.runtime.vtableDeployInfo.uid), static_cast<int64_t>(h.dynInfo.vtbScan.suid));
+    EXPECT_EQ(h.dynInfo.vtbScan.dynTbUid, childUid);
+  }
 }
 
 TEST(VtbScanProcessOrgTbVgTest, ReleasesScratchListWhileDeployRequestPending) {
@@ -191,4 +270,43 @@ TEST(VtbScanProcessOrgTbVgTest, NoNewVgroupLeavesDeployStateUntouched) {
   EXPECT_EQ(h.dynInfo.vtbScan.rversion, 0);
   EXPECT_EQ(atomic_load_8(&h.vtableDeployFlag), 0);
   EXPECT_EQ(static_cast<int32_t>(taosHashGetSize(h.dynInfo.vtbScan.curOrgTbVg)), 2);
+}
+
+TEST(VtbScanPartitionTest, ReopenUsesGroupBoundAfterReset) {
+  RedeployCheckHarness h;
+  SDynQueryCtrlPhysiNode plan{};
+  plan.dynTbname = true;
+  h.op.pPhyNode = &plan;
+  h.dynInfo.vtbScan.isSuperTable = true;
+  h.runtime.funcInfo.pStreamPartColVals = taosArrayInit(2, sizeof(SStreamGroupValue));
+  ASSERT_NE(h.runtime.funcInfo.pStreamPartColVals, nullptr);
+  SStreamGroupValue other{};
+  other.uid = 0x9999;
+  ASSERT_NE(taosArrayPush(h.runtime.funcInfo.pStreamPartColVals, &other), nullptr);
+  SStreamGroupValue table{};
+  table.isTbname = true;
+  ASSERT_NE(taosArrayPush(h.runtime.funcInfo.pStreamPartColVals, &table), nullptr);
+
+  h.op.fpSet._openFn = [](SOperatorInfo *op) -> int32_t {
+    auto *dyn = static_cast<SDynQueryCtrlOperatorInfo *>(op->info);
+    auto *group = static_cast<SStreamGroupValue *>(
+        taosArrayGet(op->pTaskInfo->pStreamRuntimeInfo->funcInfo.pStreamPartColVals, 1));
+    // The real open builds child/source maps using this UID.
+    EXPECT_EQ(dyn->vtbScan.dynTbUid, group->uid);
+    OPTR_SET_OPENED(op);
+    return TSDB_CODE_SUCCESS;
+  };
+
+  // Simulate reset observing the old group, then Runner binding another group.
+  // Revisit both children across windows, including reopening the same child.
+  for (uint64_t uid : {0x1234ULL, 0x5678ULL, 0x5678ULL, 0x1234ULL}) {
+    SCOPED_TRACE(uid);
+    auto *group = static_cast<SStreamGroupValue *>(taosArrayGet(h.runtime.funcInfo.pStreamPartColVals, 1));
+    group->uid = uid;
+    h.op.status = OP_NOT_OPENED;
+    SSDataBlock *result = nullptr;
+    ASSERT_EQ(vtbScanNext(&h.op, &result), TSDB_CODE_SUCCESS);
+    EXPECT_EQ(h.dynInfo.vtbScan.dynTbUid, uid);
+    EXPECT_EQ(result, nullptr);
+  }
 }

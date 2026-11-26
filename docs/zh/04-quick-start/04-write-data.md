@@ -9,10 +9,13 @@ toc_max_heading_level: 4
 
 ## 写入能力一览
 
-TDengine 使用标准 SQL 的 `INSERT` / `DELETE` 管理时序数据，并支持写入时自动建表、从文件导入，以及按列配置编码与压缩。除 SQL 外，还可通过连接器做参数绑定高效写入，或按行协议做无模式写入。
+TDengine 使用标准 SQL 的 `INSERT` / `UPDATE` / `DELETE` 管理时序数据，并支持写入时自动建表、从文件导入，以及按列配置编码与压缩。除 SQL 外，还可通过连接器做参数绑定高效写入，或按行协议做无模式写入。
 
 - **数据写入**
   单条 / 多条 / 多表 `INSERT`，指定列写入，`USING` 自动建表，直接向超级表写入，以及从文件 / CSV 导入并自动建表。详见 [数据写入](../05-tdengine-sql/03-data-write/01-insert.md)。
+
+- **数据更新**
+  使用 `UPDATE` 按条件修改已写入的数据列，或修改子表的标签值（点位信息）；也可以写入相同时间戳的数据覆盖旧值。详见 [数据更新](../05-tdengine-sql/03-data-write/04-update.md)。
 
 - **数据删除**
   使用 `DELETE` 按时间等条件删除普通表或超级表中的数据（不可恢复）。详见 [数据删除](../05-tdengine-sql/03-data-write/02-delete.md)。
@@ -38,31 +41,39 @@ TDengine 使用标准 SQL 的 `INSERT` / `DELETE` 管理时序数据，并支持
 如果你还没有创建这些对象，可以直接在 shell 中执行下面的 SQL。
 
 ```sql
-CREATE DATABASE IF NOT EXISTS power PRECISION 'ms' KEEP 3650 DURATION 10 BUFFER 16;
+CREATE DATABASE IF NOT EXISTS power
+  PRECISION 'ms'
+  KEEP 3650
+  DURATION 10
+  BUFFER 16;
 
 USE power;
 
 CREATE STABLE IF NOT EXISTS meters (
-    ts timestamp,
-    current float,
-    voltage int,
-    phase float
+  ts      TIMESTAMP,
+  current FLOAT,
+  voltage INT,
+  phase   FLOAT
 ) TAGS (
-    location varchar(64),
-    group_id int
+  location VARCHAR(64),
+  group_id INT
 );
 
 CREATE TABLE IF NOT EXISTS d1001
-USING meters TAGS ("California.SanFrancisco", 2);
+  USING meters
+  TAGS ("California.SanFrancisco", 2);
 
 CREATE TABLE IF NOT EXISTS d1002
-USING meters TAGS ("California.SanFrancisco", 3);
+  USING meters
+  TAGS ("California.SanFrancisco", 3);
 
 CREATE TABLE IF NOT EXISTS d1003
-USING meters TAGS ("California.LosAngeles", 2);
+  USING meters
+  TAGS ("California.LosAngeles", 2);
 
 CREATE TABLE IF NOT EXISTS d1004
-USING meters TAGS ("California.LosAngeles", 3);
+  USING meters
+  TAGS ("California.LosAngeles", 3);
 ```
 
 ## 写入
@@ -74,19 +85,22 @@ USING meters TAGS ("California.LosAngeles", 3);
 执行下面的 SQL，向子表 `d1001` 写入一条数据：电流 10.3A，电压 219V，相位 0.31。
 
 ```sql
-INSERT INTO d1001 (ts, current, voltage, phase) VALUES ("2018-10-03 14:38:05", 10.3, 219, 0.31);
+INSERT INTO d1001 (ts, current, voltage, phase)
+VALUES ("2018-10-03 14:38:05", 10.3, 219, 0.31);
 ```
 
 如果 `VALUES` 中包含表的所有列，也可以省略字段列表，效果相同。
 
 ```sql
-INSERT INTO d1001 VALUES ("2018-10-03 14:38:05", 10.3, 219, 0.31);
+INSERT INTO d1001
+VALUES ("2018-10-03 14:38:05", 10.3, 219, 0.31);
 ```
 
 时间戳列也可以直接使用数据库精度的时间戳数值。
 
 ```sql
-INSERT INTO d1001 VALUES (1538548685000, 10.3, 219, 0.31);
+INSERT INTO d1001
+VALUES (1538548685000, 10.3, 219, 0.31);
 ```
 
 以上三种写法效果完全相同。
@@ -96,10 +110,10 @@ INSERT INTO d1001 VALUES (1538548685000, 10.3, 219, 0.31);
 假设 `d1001` 每 10 秒采集一次，每 30 秒上报一次，可以在一条 `INSERT` 语句中一次写入 3 条数据。
 
 ```sql
-INSERT INTO d1001 VALUES
- ("2018-10-03 14:38:05", 10.2, 220, 0.23),
- ("2018-10-03 14:38:15", 12.6, 218, 0.33),
- ("2018-10-03 14:38:25", 12.3, 221, 0.31);
+INSERT INTO d1001
+VALUES ("2018-10-03 14:38:05", 10.2, 220, 0.23),
+       ("2018-10-03 14:38:15", 12.6, 218, 0.33),
+       ("2018-10-03 14:38:25", 12.3, 221, 0.31);
 ```
 
 ### 一次写入多表
@@ -107,18 +121,18 @@ INSERT INTO d1001 VALUES
 也可以在一条语句中同时向 `d1001`、`d1002`、`d1003` 写入数据。下面的 SQL 一共写入 9 条记录。
 
 ```sql
-INSERT INTO d1001 VALUES
-    ("2018-10-03 14:38:05", 10.2, 220, 0.23),
-    ("2018-10-03 14:38:15", 12.6, 218, 0.33),
-    ("2018-10-03 14:38:25", 12.3, 221, 0.31)
-d1002 VALUES
-    ("2018-10-03 14:38:04", 10.2, 220, 0.23),
-    ("2018-10-03 14:38:14", 10.3, 218, 0.25),
-    ("2018-10-03 14:38:24", 10.1, 220, 0.22)
-d1003 VALUES
-    ("2018-10-03 14:38:06", 11.5, 221, 0.35),
-    ("2018-10-03 14:38:16", 10.4, 220, 0.36),
-    ("2018-10-03 14:38:26", 10.3, 220, 0.33);
+INSERT INTO d1001
+VALUES ("2018-10-03 14:38:05", 10.2, 220, 0.23),
+       ("2018-10-03 14:38:15", 12.6, 218, 0.33),
+       ("2018-10-03 14:38:25", 12.3, 221, 0.31)
+d1002
+VALUES ("2018-10-03 14:38:04", 10.2, 220, 0.23),
+       ("2018-10-03 14:38:14", 10.3, 218, 0.25),
+       ("2018-10-03 14:38:24", 10.1, 220, 0.22)
+d1003
+VALUES ("2018-10-03 14:38:06", 11.5, 221, 0.35),
+       ("2018-10-03 14:38:16", 10.4, 220, 0.36),
+       ("2018-10-03 14:38:26", 10.3, 220, 0.33);
 ```
 
 ### 指定列写入
@@ -126,7 +140,8 @@ d1003 VALUES
 只写入部分列时，未出现的列会自动填充为 `NULL`。时间戳列必须存在，且值不能为空。下面的 SQL 向 `d1004` 写入电压和相位，电流为 `NULL`。
 
 ```sql
-INSERT INTO d1004 (ts, voltage, phase) VALUES ("2018-10-04 14:38:06", 223, 0.29);
+INSERT INTO d1004 (ts, voltage, phase)
+VALUES ("2018-10-04 14:38:06", 223, 0.29);
 ```
 
 ### 写入时自动建表
@@ -143,18 +158,24 @@ VALUES ("2018-10-04 14:38:07", 10.15, 217, 0.33);
 自动建表也支持一次向多张表写入。下面的 SQL 一共写入 9 条数据。
 
 ```sql
-INSERT INTO d1001 USING meters TAGS ("California.SanFrancisco", 2) VALUES
-    ("2018-10-03 14:38:05", 10.2, 220, 0.23),
-    ("2018-10-03 14:38:15", 12.6, 218, 0.33),
-    ("2018-10-03 14:38:25", 12.3, 221, 0.31)
-d1002 USING meters TAGS ("California.SanFrancisco", 3) VALUES
-    ("2018-10-03 14:38:04", 10.2, 220, 0.23),
-    ("2018-10-03 14:38:14", 10.3, 218, 0.25),
-    ("2018-10-03 14:38:24", 10.1, 220, 0.22)
-d1003 USING meters TAGS ("California.LosAngeles", 2) VALUES
-    ("2018-10-03 14:38:06", 11.5, 221, 0.35),
-    ("2018-10-03 14:38:16", 10.4, 220, 0.36),
-    ("2018-10-03 14:38:26", 10.3, 220, 0.33);
+INSERT INTO d1001
+USING meters
+TAGS ("California.SanFrancisco", 2)
+VALUES ("2018-10-03 14:38:05", 10.2, 220, 0.23),
+       ("2018-10-03 14:38:15", 12.6, 218, 0.33),
+       ("2018-10-03 14:38:25", 12.3, 221, 0.31)
+d1002
+USING meters
+TAGS ("California.SanFrancisco", 3)
+VALUES ("2018-10-03 14:38:04", 10.2, 220, 0.23),
+       ("2018-10-03 14:38:14", 10.3, 218, 0.25),
+       ("2018-10-03 14:38:24", 10.1, 220, 0.22)
+d1003
+USING meters
+TAGS ("California.LosAngeles", 2)
+VALUES ("2018-10-03 14:38:06", 11.5, 221, 0.35),
+       ("2018-10-03 14:38:16", 10.4, 220, 0.36),
+       ("2018-10-03 14:38:26", 10.3, 220, 0.33);
 ```
 
 ### 通过超级表写入
@@ -176,11 +197,41 @@ VALUES ("d1001", "2018-10-03 14:38:05", 10.2, 220, 0.23, "California.SanFrancisc
 
 ## 更新
 
-写入相同时间戳的数据时，新值会替换旧值。下面的 SQL 把 `d1001` 在 `2018-10-03 14:38:05` 的电流更新为 `22`。
+### 使用 UPDATE 更新数据
+
+使用 `UPDATE` 语句可以按条件修改已经写入的数据。下面的 SQL 把 `d1001` 在 `2018-10-03 14:38:05` 的电流更新为 `22`，其他列保持不变。
 
 ```sql
-INSERT INTO d1001 (ts, current) VALUES ("2018-10-03 14:38:05", 22);
+UPDATE d1001 SET current = 22 WHERE ts = "2018-10-03 14:38:05";
 ```
+
+`UPDATE` 也可以作用于超级表，一次修正多个子表中的数据。下面的 SQL 把 `group_id` 为 2 的设备在指定时间段内超过 250V 的电压修正为 220V。
+
+```sql
+UPDATE meters SET voltage = 220
+WHERE group_id = 2
+  AND ts >= "2018-10-03 14:38:00" AND ts < "2018-10-03 14:39:00"
+  AND voltage > 250;
+```
+
+### 更新点位信息
+
+子表的标签记录了测点的位置、分组等点位信息。下面的 SQL 把测点 `d1001` 的位置改为 `California.SanJose`。
+
+```sql
+UPDATE meters SET location = "California.SanJose" WHERE tbname = "d1001";
+```
+
+### 写入相同时间戳覆盖旧值
+
+写入相同时间戳的数据时，新值会替换旧值。下面的 SQL 与第一个 `UPDATE` 示例效果相同。
+
+```sql
+INSERT INTO d1001 (ts, current)
+VALUES ("2018-10-03 14:38:05", 22);
+```
+
+两种方式的区别是：`UPDATE` 只修改已经存在的行，可以按条件一次修改多行，也可以基于原值计算；`INSERT` 在行不存在时会新增一行。详见 [数据更新](../05-tdengine-sql/03-data-write/04-update.md)。
 
 ## 删除
 
@@ -197,7 +248,9 @@ DELETE FROM meters WHERE ts < '2021-10-01 10:40:00.100';
 写入完成后，可以查看数据库压缩率和磁盘占用。
 
 ```sql
-SELECT * FROM INFORMATION_SCHEMA.INS_DISK_USAGE WHERE db_name = 'power';
+SELECT *
+FROM INFORMATION_SCHEMA.INS_DISK_USAGE
+WHERE db_name = 'power';
 ```
 
 也可以查看单表的压缩率分布。
@@ -213,6 +266,7 @@ SHOW TABLE DISTRIBUTED d1001;
 本章只覆盖快速上手阶段最常用的写入、更新与删除方式。更完整的写入能力，请继续阅读以下文档：
 
 - [数据写入](../05-tdengine-sql/03-data-write/01-insert.md)：写入数据的详细语法
+- [数据更新](../05-tdengine-sql/03-data-write/04-update.md)：使用 `UPDATE` 修改数据和点位信息
 - [数据删除](../05-tdengine-sql/03-data-write/02-delete.md)：删除指定表或超级表中的数据
 - [压缩配置](../05-tdengine-sql/03-data-write/03-compress.md)：按列配置数据编码与压缩算法
 - [参数绑定](../10-developer-guide/03-stmt.md)：STMT / STMT2 高效写入

@@ -37,17 +37,11 @@ The `taosmqtt` service uses port 6057 by default. You can modify the `mqttPort` 
 Use the following SQL statement to display information about the Bnodes in your cluster. For the complete field list, see [`INS_BNODES`](../05-tdengine-sql/09-system-info/01-meta.md#ins_bnodes).
 
 ```sql
-SHOW BNODES;
-```
-
-Information similar to the following is displayed:
-
-```text
-taos> show bnodes;
+taos> SHOW BNODES;
      id    |   endpoint       |    protocol    |       create_time    | 
 ======================================================================
      1     | 192.168.0.1:6057 | mqtt        | 2024-11-28 18:44:27.089 | 
-Query OK, 1 row(s) in set (0.037205s)
+Query OK, 1 row(s) in set
 ```
 
 ### Delete a Bnode
@@ -69,10 +63,30 @@ This example creates test data in TDengine and subscribes to the data. You can u
 In the taos CLI, run the following SQL statements to set up your environment for this example.
 
 ```sql
-CREATE DATABASE db VGROUPS 1;
-CREATE TABLE db.meters (ts TIMESTAMP, f1 INT) TAGS (t1 INT);
-CREATE TOPIC topic_meters AS SELECT ts, tbname, f1, t1 FROM db.meters;
-INSERT INTO db.tb USING db.meters TAGS (1) VALUES (now, 1);
+CREATE DATABASE db
+  VGROUPS 1;
+
+CREATE TABLE db.meters (
+  ts TIMESTAMP,
+  f1 INT
+) TAGS (
+  t1 INT
+);
+
+CREATE TOPIC topic_meters
+  AS
+    SELECT
+      ts,
+      tbname,
+      f1,
+      t1
+    FROM db.meters;
+
+INSERT INTO db.tb
+USING db.meters
+TAGS (1)
+VALUES (now, 1);
+
 CREATE BNODE ON DNODE 1;
 ```
 

@@ -300,12 +300,17 @@ static int stmt2PrepareOnce(Stmt2RestoreCtx *ctx, int numCols, FieldInfo *fieldI
     }
 
     int ret = taos_stmt2_prepare(ctx->stmt2, sql, 0);
-    taosMemoryFree(sql);
     if (ret != 0) {
-        logError("taos_stmt2_prepare failed(0x%08X, %s)", ret, taos_stmt2_error(ctx->stmt2));
+        /* Include the statement: the client maps PAR_TABLE_NOT_EXIST to
+         * TSDB_CODE_TSC_STMT_TBNAME_ERROR for inserts without a USING clause, so
+         * the message alone ("Stmt table name not set correctly") does not say
+         * which table is missing. */
+        logError("taos_stmt2_prepare failed(0x%08X, %s), sql: %s", ret, taos_stmt2_error(ctx->stmt2), sql);
+        taosMemoryFree(sql);
         taos_stmt2_close(ctx->stmt2); ctx->stmt2 = NULL;
         return ret;
     }
+    taosMemoryFree(sql);
 
     ctx->prepared = true;
     (void)fieldInfos;   /* used only for bind buffer alloc, not here */

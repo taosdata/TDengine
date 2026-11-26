@@ -215,8 +215,6 @@ python_error=$(
 )
 
 # Use "#" "0x" and "TDinternal" to match python taos error log
-# #1 0x7f480ff14839  (/usr/local/lib/python3.9/site-packages/taosws/taosws.abi3.so+0x269839)
-# TD-37832: taosws.abi3.so is a memory leak referenced by the third-party library of taosws, which can be ignored for the time being. If it is resolved, the ignore condition can be removed. @qevolg 2025-09-19
 # grep -E "TDinternal|TDengine|/taosws/" for check all taos lib and repo related code,example: 
 #/home/TDinternal/community/source/libs/scalar/src/sclfunc.c
 #/home/TDengine/source/common/src/tdataformat.c
@@ -237,7 +235,7 @@ python_taos_error=$(
   # 与 memory_leak 共用同一份白名单（这里把通用分配器也算进来：它的帧只是一次分配的
   # 中转，不是 python 侧的问题），避免两条指标对同一批帧给出相反结论。
   grep -E -v "${ignore_pat}|${allocator_pat}" |
-  grep -E -v "venv|taosws.abi3.so|__gcov|gcov_do_dump|_GLOBAL__sub_D|sml_test|tmq_get_meta_json|replay_test|tmq_sim|tmq_taosx_ci|${openssl_internal_pat}|${libpq_openssl_internal_pat}" |
+  grep -E -v "venv|__gcov|gcov_do_dump|_GLOBAL__sub_D|sml_test|tmq_get_meta_json|replay_test|tmq_sim|tmq_taosx_ci|${openssl_internal_pat}|${libpq_openssl_internal_pat}" |
   wc -l
 )
 

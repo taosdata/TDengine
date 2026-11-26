@@ -72,7 +72,9 @@ _SS_SRC     = "vtcreate_ss_src"
 # and the schema is the login user (DS 5.3.10).
 _OR_SVC        = ExtSrcEnv.ORACLE_SERVICE
 _OR_SCHEMA     = ExtSrcEnv.ORACLE_USER.upper()
+_OR_SCHEMA_REF = "`" + _OR_SCHEMA + "`"
 _OR_ALT_SCHEMA = ExtSrcEnv.ORACLE_ALT_USER.upper()
+_OR_ALT_SCHEMA_REF = "`" + _OR_ALT_SCHEMA + "`"
 _OR_SRC        = "vtcreate_or_src"
 _OR_ALT_SRC    = "vtcreate_or_alt_src"
 
@@ -549,12 +551,20 @@ def create_sqlserver_remote_table(table, matrix, schema="dbo", rows=None,
         f"{n} {t}" for n, t, _ in matrix)
     create_sqlserver_table(_SS_DB, table, cols, rows=rows, schema=schema)
 
+def _influx_type_fixture():
+    values = {"c_int": "1i", "c_uint": "2u", "c_float": "3.5",
+              "c_str": '"x"', "c_bool": "true"}
+    if ExtSrcEnv.INFLUX_VERSIONS[0] == "1.8":
+        del values["c_uint"]
+    return values, {name: _INF_COMPAT[name] for name in values}
+
+
 def create_influx_remote_table(meas):
-    # Influx is schema-on-write — emit one row so all fields exist.
+    # Influx is schema-on-write — emit one row so all supported fields exist.
+    values, _ = _influx_type_fixture()
+    fields = ",".join(f"{name}={value}" for name, value in values.items())
     create_influx_measurement(_INF_DB, [
-        f"{meas},tag1=a "
-        f"c_int=1i,c_uint=2u,c_float=3.5,c_str=\"x\",c_bool=true "
-        f"1700000000000000000"
+        f"{meas},tag1=a {fields} 1700000000000000000"
     ])
 
 def create_oracle_remote_table(table, matrix, rows=None, ts_type="TIMESTAMP(3)",
@@ -817,10 +827,11 @@ class TestVtableCreateExtSource:
             "my", _MY_COMPAT,
             lambda c: f"{_MY_SRC}.{_MY_DB}.t_typematrix_my.{c}")
 
-        # (c) Influx type matrix: 5 LP types × 17 TDengine local types.
+        # (c) Preserve every available LP type across all local types.
         create_influx_remote_table("t_typematrix_inf")
+        _, influx_compat = _influx_type_fixture()
         self._check_type_compat_matrix(
-            "inf", _INF_COMPAT,
+            "inf", influx_compat,
             lambda c: f"{_INF_SRC}.{_INF_DB}.t_typematrix_inf.{c}")
 
         # (c2) SQL Server type matrix: 28 remote types × 17 TDengine local
@@ -846,7 +857,7 @@ class TestVtableCreateExtSource:
                 oracle_ref_tables[n] = table
         self._check_type_compat_matrix(
             "ora", _ORACLE_COMPAT,
-            lambda c: f"{_OR_SRC}.{_OR_SCHEMA}.{oracle_ref_tables[c]}.{c}")
+            lambda c: f"{_OR_SRC}.{_OR_SCHEMA_REF}.{oracle_ref_tables[c]}.{c}")
 
         # (d) TIMESTAMP precision cross-product (8 sources × 3 local precisions).
         create_pg_remote_table("ts_p", [("v", "INTEGER", "int")])
@@ -867,9 +878,9 @@ class TestVtableCreateExtSource:
             ("inf", "ns", "bigint", f"{_INF_SRC}.{_INF_DB}.ts_p_inf.c_int"),
             ("ss",    "ms", "int", f"{_SS_SRC}.{_SS_DB}.dbo.ts_p.v"),
             ("ss_us", "us", "int", f"{_SS_SRC}.{_SS_DB}.dbo.ts_p_us.v"),
-            ("ora_ms", "ms", "bigint", f"{_OR_SRC}.{_OR_SCHEMA}.ts_p_ms.v"),
-            ("ora_us", "us", "bigint", f"{_OR_SRC}.{_OR_SCHEMA}.ts_p_us.v"),
-            ("ora_ns", "ns", "bigint", f"{_OR_SRC}.{_OR_SCHEMA}.ts_p_ns.v"),
+            ("ora_ms", "ms", "bigint", f"{_OR_SRC}.{_OR_SCHEMA_REF}.ts_p_ms.v"),
+            ("ora_us", "us", "bigint", f"{_OR_SRC}.{_OR_SCHEMA_REF}.ts_p_us.v"),
+            ("ora_ns", "ns", "bigint", f"{_OR_SRC}.{_OR_SCHEMA_REF}.ts_p_ns.v"),
         ]
         precision_rank = {"ms": 0, "us": 1, "ns": 2}
         for prec in ("ms", "us", "ns"):
@@ -1704,8 +1715,8 @@ class TestVtableCreateExtSource:
         tdSql.execute(
             "CREATE VTABLE v_or_mixed ("
             "ts timestamp, "
-            f"v bigint FROM {_OR_SRC}.{_OR_SCHEMA}.r_mixed.v, "
-            f"name varchar(32) FROM {_OR_SRC}.{_OR_SCHEMA}.r_mixed.name, "
+            f"v bigint FROM {_OR_SRC}.{_OR_SCHEMA_REF}.r_mixed.v, "
+            f"name varchar(32) FROM {_OR_SRC}.{_OR_SCHEMA_REF}.r_mixed.name, "
             "local_col int)")
         tdSql.query("DESCRIBE v_or_mixed")
         tdSql.checkData(0, 0, "ts")
@@ -1762,7 +1773,7 @@ class TestVtableCreateExtSource:
         tdSql.execute("DROP VTABLE IF EXISTS v_or_rel4")
         tdSql.execute(
             "CREATE VTABLE v_or_rel4 (ts timestamp, "
-            f"v bigint FROM {_OR_SRC}.{_OR_SCHEMA}.r_rel.v)")
+            f"v bigint FROM {_OR_SRC}.{_OR_SCHEMA_REF}.r_rel.v)")
         tdSql.query("SELECT v FROM v_or_rel4")
         tdSql.checkData(0, 0, 31)
         tdSql.query(
@@ -1787,10 +1798,10 @@ class TestVtableCreateExtSource:
         tdSql.execute("DROP VTABLE IF EXISTS v_or_schema_b")
         tdSql.execute(
             "CREATE VTABLE v_or_schema_a (ts timestamp, "
-            f"v bigint FROM {_OR_SRC}.{_OR_SCHEMA}.r_schema.v)")
+            f"v bigint FROM {_OR_SRC}.{_OR_SCHEMA_REF}.r_schema.v)")
         tdSql.execute(
             "CREATE VTABLE v_or_schema_b (ts timestamp, "
-            f"v bigint FROM {_OR_ALT_SRC}.{_OR_ALT_SCHEMA}.r_schema.v)")
+            f"v bigint FROM {_OR_ALT_SRC}.{_OR_ALT_SCHEMA_REF}.r_schema.v)")
         tdSql.query("SELECT v FROM v_or_schema_a")
         tdSql.checkData(0, 0, 41)
         tdSql.query("SELECT v FROM v_or_schema_b")
@@ -1803,6 +1814,66 @@ class TestVtableCreateExtSource:
         tdSql.checkData(0, 0, f"{_OR_ALT_SRC}.{_OR_ALT_SCHEMA}.r_schema.v")
         tdSql.execute("DROP VTABLE v_or_schema_a")
         tdSql.execute("DROP VTABLE v_or_schema_b")
+
+    def do_oracle_virtual_child_relative_column_paths(self):
+        assert _LOCAL_DB.casefold() != _OR_SCHEMA.casefold()
+        create_oracle_remote_table(
+            "r_child_relative", [("v", "NUMBER(10,0)", "bigint")],
+            rows=["(TIMESTAMP '2024-01-01 00:00:00.000', 31)"])
+        tdSql.execute("DROP STABLE IF EXISTS vstb_or_relpaths")
+        tdSql.execute(
+            "CREATE STABLE vstb_or_relpaths "
+            "(ts timestamp, short_value bigint, full_value bigint) "
+            "TAGS (site int) VIRTUAL 1")
+        short_ref = f"{_OR_SRC}.r_child_relative.v"
+        full_ref = f"{_OR_SRC}.{_OR_SCHEMA_REF}.r_child_relative.v"
+        bindings = (
+            ("named", f"short_value FROM {short_ref}, full_value FROM {full_ref}"),
+            ("positional", f"{short_ref}, {full_ref}"),
+        )
+        try:
+            for site, (name, refs) in enumerate(bindings):
+                table = f"vctb_or_rel_{name}"
+                tdSql.execute(
+                    f"CREATE VTABLE {table} ({refs}) "
+                    f"USING vstb_or_relpaths TAGS ({site})")
+                tdSql.query(f"SELECT short_value, full_value FROM {table}")
+                tdSql.checkRows(1)
+                tdSql.checkData(0, 0, 31)
+                tdSql.checkData(0, 1, 31)
+                tdSql.query(
+                    "SELECT col_source FROM information_schema.ins_columns "
+                    f"WHERE db_name='{_LOCAL_DB}' AND table_name='{table}' "
+                    "AND col_name IN ('short_value', 'full_value') "
+                    "ORDER BY col_name")
+                tdSql.checkRows(2)
+                expected_ref = f"{_OR_SRC}.{_OR_SCHEMA}.r_child_relative.v"
+                tdSql.checkData(0, 0, expected_ref)
+                tdSql.checkData(1, 0, expected_ref)
+        finally:
+            tdSql.execute("DROP STABLE IF EXISTS vstb_or_relpaths")
+        print("Oracle virtual child relative column paths ........ [ passed ]")
+
+    def test_oracle_virtual_child_relative_column_paths(self):
+        """Resolve Oracle virtual child references with the source default schema.
+
+        Create virtual children with named and positional column bindings.
+        Mix three-part and explicit-schema references, then verify query
+        results and the persisted schema when the local database differs.
+
+        Catalog:
+            - VirtualTable
+
+        Since: v3.5.0.0
+
+        Labels: common,ci
+
+        Jira: https://project.feishu.cn/taosdata_td/defect/detail/7160732905
+
+        History:
+            - 2026-11-16 Joey Sima Add regression for external default schemas
+        """
+        self.do_oracle_virtual_child_relative_column_paths()
 
     def test_oracle_show_create_roundtrip(self):
         """FQOR-VTBL-006: Oracle schema survives SHOW CREATE and replay.
@@ -1828,7 +1899,7 @@ class TestVtableCreateExtSource:
         tdSql.execute("DROP VTABLE IF EXISTS v_or_rt")
         tdSql.execute(
             "CREATE VTABLE v_or_rt (ts timestamp, "
-            f"v bigint FROM {_OR_SRC}.{_OR_SCHEMA}.r_rt.v, "
+            f"v bigint FROM {_OR_SRC}.{_OR_SCHEMA_REF}.r_rt.v, "
             "local_col int)")
         sql = _extract_show_create_sql("SHOW CREATE VTABLE v_or_rt")
         for expected in (_OR_SRC, _OR_SCHEMA, "r_rt", "local_col"):
@@ -1886,7 +1957,7 @@ class TestVtableCreateExtSource:
             rows=["(TIMESTAMP '2024-01-01 00:00:00.000', 61)"])
         tdSql.error(
             "CREATE VTABLE v_or_nopk_bad (ts timestamp, "
-            f"v bigint FROM {_OR_SRC}.{_OR_SCHEMA}.r_nopk.v)",
+            f"v bigint FROM {_OR_SRC}.{_OR_SCHEMA_REF}.r_nopk.v)",
             expectedErrno=0x6406)
         _assert_no_vtable("v_or_nopk_bad")
 
@@ -1894,7 +1965,7 @@ class TestVtableCreateExtSource:
         create_oracle_table("r_raw_axis", "ts RAW(16) PRIMARY KEY, v NUMBER(10,0)")
         tdSql.error(
             "CREATE VTABLE v_or_raw_bad (ts timestamp, "
-            f"v bigint FROM {_OR_SRC}.{_OR_SCHEMA}.r_raw_axis.v)",
+            f"v bigint FROM {_OR_SRC}.{_OR_SCHEMA_REF}.r_raw_axis.v)",
             expectedErrno=0x6406)
         _assert_no_vtable("v_or_raw_bad")
 
@@ -1903,7 +1974,7 @@ class TestVtableCreateExtSource:
         create_oracle_table("r_blob_axis", "b BLOB, v NUMBER(10,0)")
         tdSql.error(
             "CREATE VTABLE v_or_blob_bad (ts timestamp, "
-            f"v bigint FROM {_OR_SRC}.{_OR_SCHEMA}.r_blob_axis.v)",
+            f"v bigint FROM {_OR_SRC}.{_OR_SCHEMA_REF}.r_blob_axis.v)",
             expectedErrno=0x6406)
         _assert_no_vtable("v_or_blob_bad")
 
@@ -1913,7 +1984,7 @@ class TestVtableCreateExtSource:
             "r_itv_axis", "ts INTERVAL DAY TO SECOND PRIMARY KEY, v NUMBER(10,0)")
         tdSql.error(
             "CREATE VTABLE v_or_itv_bad (ts timestamp, "
-            f"v bigint FROM {_OR_SRC}.{_OR_SCHEMA}.r_itv_axis.v)",
+            f"v bigint FROM {_OR_SRC}.{_OR_SCHEMA_REF}.r_itv_axis.v)",
             expectedErrno=0x6405)
         _assert_no_vtable("v_or_itv_bad")
 
@@ -1921,18 +1992,18 @@ class TestVtableCreateExtSource:
         # an unknown column.
         tdSql.error(
             "CREATE VTABLE v_or_pseudo_bad (ts timestamp, "
-            f"x bigint FROM {_OR_SRC}.{_OR_SCHEMA}.r_raw_axis.ROWNUM)",
+            f"x bigint FROM {_OR_SRC}.{_OR_SCHEMA_REF}.r_raw_axis.ROWNUM)",
             expectedErrno=0x641B)
         _assert_no_vtable("v_or_pseudo_bad")
 
         # (f) unknown table / column.
         tdSql.error(
             "CREATE VTABLE v_or_unk_tbl (ts timestamp, "
-            f"v bigint FROM {_OR_SRC}.{_OR_SCHEMA}.r_no_such_tbl.v)",
+            f"v bigint FROM {_OR_SRC}.{_OR_SCHEMA_REF}.r_no_such_tbl.v)",
             expectedErrno=0x6410)
         tdSql.error(
             "CREATE VTABLE v_or_unk_col (ts timestamp, "
-            f"v bigint FROM {_OR_SRC}.{_OR_SCHEMA}.r_raw_axis.no_such_col)",
+            f"v bigint FROM {_OR_SRC}.{_OR_SCHEMA_REF}.r_raw_axis.no_such_col)",
             expectedErrno=0x641B)
 
         # (g) A view has no remote key, whether or not it exposes a time
@@ -1941,18 +2012,18 @@ class TestVtableCreateExtSource:
         create_oracle_table(
             "r_view_base", "ts TIMESTAMP(3) PRIMARY KEY, v NUMBER(10,0)",
             rows=["(TIMESTAMP '2024-01-01 00:00:00.000', 71)"])
-        create_oracle_view("v_or_no_ts", "SELECT v FROM r_view_base")
-        create_oracle_view("v_or_with_ts", "SELECT ts, v FROM r_view_base")
+        create_oracle_view("v_or_no_ts", 'SELECT "v" FROM "r_view_base"')
+        create_oracle_view("v_or_with_ts", 'SELECT "ts", "v" FROM "r_view_base"')
         # The materialized view is created by the admin account, so its body
         # must name the owning schema explicitly.
         create_oracle_materialized_view(
-            "mv_or_no_ts", f"SELECT v FROM {_OR_SCHEMA}.r_view_base")
+            "mv_or_no_ts", f'SELECT "v" FROM {_OR_SCHEMA}."r_view_base"')
         tdSql.execute(f"REFRESH EXTERNAL SOURCE {_OR_SRC}")
         for view in ("v_or_no_ts", "v_or_with_ts", "mv_or_no_ts"):
             vname = f"v_or_view_bad_{view}".lower()
             tdSql.error(
                 f"CREATE VTABLE {vname} (ts timestamp, "
-                f"v bigint FROM {_OR_SRC}.{_OR_SCHEMA}.{view}.v)",
+                f"v bigint FROM {_OR_SRC}.{_OR_SCHEMA_REF}.{view}.v)",
                 expectedErrno=0x6406)
             _assert_no_vtable(vname)
 
@@ -2000,13 +2071,13 @@ class TestVtableCreateExtSource:
             f"USING vstb_or_fan TAGS ('siteD', 'sqlserver')")
         tdSql.execute(
             f"CREATE VTABLE vctb_or_fan_a ("
-            f"temperature FROM {_OR_SRC}.{_OR_SCHEMA}.kpi_ora.temperature, "
-            f"humidity    FROM {_OR_SRC}.{_OR_SCHEMA}.kpi_ora.humidity) "
+            f"temperature FROM {_OR_SRC}.{_OR_SCHEMA_REF}.kpi_ora.temperature, "
+            f"humidity    FROM {_OR_SRC}.{_OR_SCHEMA_REF}.kpi_ora.humidity) "
             f"USING vstb_or_fan TAGS ('siteE', 'oracle')")
         tdSql.execute(
             f"CREATE VTABLE vctb_or_fan_b ("
-            f"temperature FROM {_OR_SRC}.{_OR_SCHEMA}.kpi_ora_b.temperature, "
-            f"humidity    FROM {_OR_SRC}.{_OR_SCHEMA}.kpi_ora_b.humidity) "
+            f"temperature FROM {_OR_SRC}.{_OR_SCHEMA_REF}.kpi_ora_b.temperature, "
+            f"humidity    FROM {_OR_SRC}.{_OR_SCHEMA_REF}.kpi_ora_b.humidity) "
             f"USING vstb_or_fan TAGS ('siteF', 'oracle')")
 
         tdSql.query(

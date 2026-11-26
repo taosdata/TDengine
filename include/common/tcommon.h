@@ -233,6 +233,13 @@ typedef enum EScanPhase {
   SCAN_PHASE_COUNT,
 } EScanPhase;
 
+typedef enum ELastScanType {
+  LAST_SCAN_NONE = 0,
+  LAST_SCAN_LAST_ONLY = 1,
+  LAST_SCAN_LAST_ROW_ONLY = 2,
+  LAST_SCAN_MIXED = 3,
+} ELastScanType;
+
 typedef struct SDataBlockInfo {
   STimeWindow window;
   int32_t     rowSize;
@@ -244,6 +251,7 @@ typedef struct SDataBlockInfo {
   uint8_t     scanFlag;
   int8_t      scanPhase;  // EScanPhase serialized in the block flag segment
   bool        blankFill;
+  bool        lastScanCandidate;
   SValue      pks[2];
   SColumnDataAgg* pBlockAgg;  // borrowed block SMA for dynamic aggregate pruning; do not serialize or copy
   int32_t     smaSourceRows;  // source physical row count represented by a one-row SMA block; do not serialize
@@ -262,7 +270,7 @@ typedef struct SSDataBlock {
   SColumnDataAgg* pBlockAggBuf;      // reusable storage for block SMA results
   uint32_t        pBlockAggBufSize;  // number of entries in pBlockAggBuf
   SArray*         pDataBlock;  // SArray<SColumnInfoData>
-  SArray*         pConstTagCols;  // owned SConstTagColumn; local single-table scan->aggregate only.
+  SArray*         pConstTagCols;  // owned values for a local scan and its immediate aggregate/window consumer.
   SDataBlockInfo  info;
   uint64_t        recycleKey;
   int64_t         recycleTime;
@@ -292,7 +300,9 @@ typedef struct SColumnInfoData {
 typedef struct SConstTagColumn {
   int32_t         slotId;
   uint64_t        uid;  // zero until the current single-table block supplies a value.
-  SColumnInfoData column;  // one owned value; logical rows come from the input block.
+  // Owned by the block; blockDataEmpty resets it and freeConstTagColumns releases it. Only a local
+  // single-table scan and its immediate aggregate/window consumer use this value.
+  SColumnInfoData column;
 } SConstTagColumn;
 
 typedef struct SQueryTableDataCond {
@@ -310,8 +320,10 @@ typedef struct SQueryTableDataCond {
   bool         notLoadData;  // response the actual data, not only the rows in the attribute of info.row of ssdatablock
   bool         cacheSttStatis;
   bool         mainFirst;  // scan external windows in MAIN/NEXT/PREV order
-  // A planner-proven LAST-only scan may discard clean-block rows before copying them.
-  bool         lastOnlyScan;
+  ELastScanType lastScanType;
+  bool          allowLastScanTail;
+  SArray*       pFilterInputColIds;
+  SArray*       pLastInputColIds;
   // Positive only for a planner-proven ordered single-primary-key scan with LIMIT and no OFFSET.
   int32_t      blockRowLimit;
 } SQueryTableDataCond;
@@ -477,6 +489,7 @@ typedef struct SFederatedScanExplainInfo {
   bool    batchMode;                                // true when runtime input is a source batch
   int32_t batchTables;                              // number of remote tables in the active batch
   char    sourceName[TSDB_EXT_SOURCE_NAME_LEN];     // registered external source batch key
+  char    influxRp[TSDB_EXT_INFLUX_RP_LEN]; // namespace of the displayed runtime SQL
 } SFederatedScanExplainInfo;
 
 typedef struct STUidTagInfo {

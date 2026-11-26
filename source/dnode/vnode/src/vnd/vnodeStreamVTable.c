@@ -215,6 +215,26 @@ static int32_t streamFillResolvedColRef(SVnode *pVnode, SStreamTriggerReaderInfo
   return code;
 }
 
+static bool streamTimeAlignEntryHasExternalRef(const SMetaEntry *entry, bool includeOwn,
+                                               const SVTableResolveResult *resolved) {
+  if (entry) {
+    for (int32_t i = 0; i < streamVTableColRefCount(entry, includeOwn); ++i) {
+      const SColRef *ref = streamVTableColRefAt(entry, i);
+      if (ref->hasRef && (ref->refType || ref->refSourceName[0])) return true;
+    }
+    for (int32_t i = 0; i < entry->colRef.nTagRefs; ++i) {
+      const SColRef *ref = &entry->colRef.pTagRef[i];
+      if (ref->hasRef && (ref->refType || ref->refSourceName[0])) return true;
+    }
+  }
+  int32_t           iter = 0;
+  SColResolveItem **item = NULL;
+  while (resolved && (item = tSimpleHashIterate(resolved->colMap, item, &iter))) {
+    if (*item && (*item)->hasRef && ((*item)->refType || (*item)->refSourceName[0])) return true;
+  }
+  return false;
+}
+
 // For a single resolved uid, fill one VTableInfo entry: copy each requested cid's
 // resolved terminal SColResolveItem into pColRef[i] (hasRef + ref{Db,Table,Col}Name);
 // id is the virtual cid itself. version is taken from metaReader if available.
@@ -261,6 +281,14 @@ int32_t streamFillVTableInfoFromResolved(SVnode *pVnode, SStreamTriggerReaderInf
   }
   ST_TASK_DLOG("vgId:%d %s put resolved vtable uid:%" PRId64 ", gid:%" PRIu64 ", tbname:%s", TD_VID(pVnode),
                __func__, uid, gid, vTable->tbName);
+
+  if (sStreamReaderInfo->requireLocalVtableRefs &&
+      streamTimeAlignEntryHasExternalRef(haveMeta ? &metaReader->me : NULL,
+                                         sStreamReaderInfo->tableType != TSDB_SUPER_TABLE, pRes)) {
+    ST_TASK_ELOG("vgId:%d TIME_ALIGN requires local references for virtual table uid:%" PRId64, TD_VID(pVnode), uid);
+    code = TSDB_CODE_STREAM_INVALID_TRIGGER;
+    goto end;
+  }
 
   if (cids == NULL) {
     int32_t nAll =
@@ -398,8 +426,8 @@ bool tagValueEqual(const STagValue *a, const STagValue *b) {
   if (a == NULL || b == NULL) return false;
   if (a->type != b->type) return false;
   if (a->nLen != b->nLen) return false;
-  if (a->nLen == 0) return true;
   if (a->pData == NULL || b->pData == NULL) return a->pData == b->pData;
+  if (a->nLen == 0) return true;
   return memcmp(a->pData, b->pData, a->nLen) == 0;
 }
 
@@ -546,9 +574,9 @@ _unlock:
 // with newRes (ownership transferred from uid2Result).
 //
 // Must be called with pCache->lock held in write mode (caller's responsibility).
-static int32_t streamRecheckDiffAndApplyOneUid(SVnode *pVnode, SStreamVTableInfoCache *pCache,
-                                               int64_t uid, SSHashObj *uid2Result,
-                                               SArray *changedUids) {
+static int32_t streamRecheckDiffAndApplyOneUid(SVnode *pVnode, SStreamTriggerReaderInfo *pInfo, int64_t uid,
+                                               SSHashObj *uid2Result, SArray *changedUids) {
+  SStreamVTableInfoCache *pCache = pInfo->vtbCache;
   SVTableResolveResult **ppNew = (SVTableResolveResult **)tSimpleHashGet(uid2Result, &uid, sizeof(uid));
   SVTableResolveResult **ppOld = (SVTableResolveResult **)tSimpleHashGet(pCache->uid2Result, &uid, sizeof(uid));
   SVTableResolveResult  *newRes = (ppNew == NULL) ? NULL : *ppNew;
@@ -588,8 +616,10 @@ static int32_t streamRecheckDiffAndApplyOneUid(SVnode *pVnode, SStreamVTableInfo
   if (tagChanged) return TSDB_CODE_STREAM_VTB_TAG_CHANGED;
 
   // Col diff -- collect uids that need re-publication.
-  bool colChanged = false;
-  if (oldRes != NULL && oldRes->colMap != NULL) {
+  // TIME_ALIGN admits the full visible reference set, including newly added, unprojected columns.
+  bool colChanged = pInfo->requireLocalVtableRefs && oldRes != NULL &&
+                    tSimpleHashGetSize(oldRes->colMap) != tSimpleHashGetSize(newRes->colMap);
+  if (!colChanged && oldRes != NULL && oldRes->colMap != NULL) {
     void *it2 = NULL; int32_t i2 = 0;
     while ((it2 = tSimpleHashIterate(oldRes->colMap, it2, &i2)) != NULL) {
       col_id_t          cid  = *(col_id_t *)tSimpleHashGetKey(it2, NULL);
@@ -656,7 +686,7 @@ int32_t streamMaybeRecheckVTableCache(SVnode *pVnode, SStreamTriggerReaderInfo *
   taosWLockLatch(&pCache->lock);
   for (int32_t i = 0; i < (int32_t)taosArrayGetSize(sliceUids); ++i) {
     int64_t uid = *(int64_t *)taosArrayGet(sliceUids, i);
-    code = streamRecheckDiffAndApplyOneUid(pVnode, pCache, uid, uid2Result, changedUids);
+    code = streamRecheckDiffAndApplyOneUid(pVnode, pInfo, uid, uid2Result, changedUids);
     if (code != 0) break;
   }
   pCache->lastCheckMs = taosGetTimestampMs();
@@ -745,8 +775,7 @@ _cleanup:
 // the child entry is provided by the caller.
 //   pVnode      : owning vnode
 //   pChildEntry : decoded entry whose type is *_CHILD_TABLE (carries ctbEntry.suid/pTags)
-//   tagColName  : tag name on the stable (vchild's SColRef.colName matches stable tag name
-//                 by build-time convention)
+//   tagColName  : inherited or owned tag name on the child
 // Outputs:
 //   *outType    : tag SDataType
 //   *outLen     : payload length; 0 when tag absent on this child
@@ -754,12 +783,12 @@ _cleanup:
 // Returns:
 //   0                                          success (incl. "tag absent")
 //   TSDB_CODE_STREAM_VTB_REF_TABLE_NOT_EXIST   suid not present on this vnode
-//   TSDB_CODE_STREAM_VTB_REF_COL_NOT_EXIST     tag name not in stable schema
+//   TSDB_CODE_STREAM_VTB_REF_COL_NOT_EXIST     tag not in the child's visible schema
 //   terrno                                     OOM
 // Internal helper: read a constant tag value from a virtual child table.
-// Tag is located in the parent stable's schemaTag by either colId (preferred when > 0)
-// or by colName (fallback). vtable on-disk SColRef does not persist colName, so callers
-// holding only a SColRef entry must pass the cid.
+// Search the parent stable's schemaTag and the virtual child's own tag schemas by
+// colId (preferred when > 0) or colName. On-disk SColRef does not persist colName,
+// so callers holding only a SColRef entry must pass the cid.
 static int32_t streamReadChildTagConstValueImpl(SVnode *pVnode, const SMetaEntry *pChildEntry,
                                                 col_id_t tagColId, const char *tagColName,
                                                 int64_t txnId, int8_t *outType, int32_t *outLen,
@@ -790,6 +819,16 @@ static int32_t streamReadChildTagConstValueImpl(SVnode *pVnode, const SMetaEntry
       break;
     }
   }
+  if (pTagSchema == NULL && pChildEntry->type == TSDB_VIRTUAL_CHILD_TABLE) {
+    for (int32_t i = 0; i < pChildEntry->own.nOwnTags; ++i) {
+      SSchema *pOwn = &pChildEntry->own.pOwnTagSchemas[i];
+      if (tagColId > 0 ? pOwn->colId == tagColId
+                       : (tagColName != NULL && strncmp(pOwn->name, tagColName, TSDB_COL_NAME_LEN) == 0)) {
+        pTagSchema = pOwn;
+        break;
+      }
+    }
+  }
   if (pTagSchema == NULL) {
     code = TSDB_CODE_STREAM_VTB_REF_COL_NOT_EXIST;
     goto _end;
@@ -807,9 +846,13 @@ static int32_t streamReadChildTagConstValueImpl(SVnode *pVnode, const SMetaEntry
 
   if (IS_VAR_DATA_TYPE(pTagSchema->type)) {
     *outLen = (int32_t)tv.nData;
+    // A present empty string still needs a buffer: NULL means SQL NULL.
+    *outData = taosMemoryCalloc(1, *outLen > 0 ? *outLen : 1);
+    if (*outData == NULL) {
+      code = terrno;
+      goto _end;
+    }
     if (*outLen > 0) {
-      *outData = taosMemoryMalloc(*outLen);
-      if (*outData == NULL) { code = terrno; goto _end; }
       memcpy(*outData, tv.pData, *outLen);
     }
   } else {
@@ -932,7 +975,17 @@ static int32_t vnodeFindVTableColRef(SVnode *pVnode, const SMetaEntry *pVtbEntry
     }
   }
 
-  // Step 2: scan the vtable's ref array for that cid.
+  if (!cidFound && kind == STREAM_VREF_KIND_TAG && pVtbEntry->type == TSDB_VIRTUAL_CHILD_TABLE) {
+    for (int32_t k = 0; k < pVtbEntry->own.nOwnTags; ++k) {
+      if (strncmp(pVtbEntry->own.pOwnTagSchemas[k].name, colName, TSDB_COL_NAME_LEN) == 0) {
+        targetCid = pVtbEntry->own.pOwnTagSchemas[k].colId;
+        cidFound = true;
+        break;
+      }
+    }
+  }
+
+  // Step 2: inherited and owned tags share the same ref array, indexed by cid.
   if (cidFound) {
     for (int32_t j = 0; j < nArr && pArr != NULL; ++j) {
       if (pArr[j].id == targetCid) {
@@ -990,7 +1043,15 @@ static int32_t vnodeFillResolveRspFromColRef(SVnode *pVnode, const SMetaEntry *p
   }
   if (isVtable) {
     if (pFound == NULL) {
-      r->code = TSDB_CODE_STREAM_VTB_REF_COL_NOT_EXIST;
+      if (kind == STREAM_VREF_KIND_TAG && pEntry->type == TSDB_VIRTUAL_CHILD_TABLE) {
+        // Owned literal tags need not have an entry in the sparse ref array.
+        // The value reader still checks that the requested tag exists.
+        r->nextRef.kind = STREAM_VREF_KIND_TAG;
+        int32_t rc = vnodeFillTagValueFromChild(pVnode, pEntry, colName, txnId, r);
+        if (rc != 0) r->code = rc;
+      } else {
+        r->code = TSDB_CODE_STREAM_VTB_REF_COL_NOT_EXIST;
+      }
       return 0;
     }
     if (pFound->hasRef) {
@@ -2333,8 +2394,8 @@ void streamTblRefCacheInsertEx(SStreamVTableInfoCache *pCache,
   if (keyLen < 0) return;
   // Store a deep copy including tagData so cache outlives the original rsp.
   SVTableRefResolveRspItem copy = *pItem;
-  if (pItem->tagData != NULL && pItem->tagLen > 0) {
-    copy.tagData = taosMemoryMalloc(pItem->tagLen);
+  if (pItem->tagData != NULL && pItem->tagLen >= 0) {
+    copy.tagData = taosMemoryCalloc(1, pItem->tagLen > 0 ? pItem->tagLen : 1);
     if (copy.tagData != NULL) {
       memcpy(copy.tagData, pItem->tagData, pItem->tagLen);
       copy.tagLen = pItem->tagLen;
@@ -2378,8 +2439,8 @@ void streamTblRefCacheInsertEx(SStreamVTableInfoCache *pCache,
 int32_t streamWriteRspItemDeepCopy(const SVTableRefResolveRspItem *src,
                                           SVTableRefResolveRspItem *dst) {
   *dst = *src;
-  if (src->tagData != NULL && src->tagLen > 0) {
-    dst->tagData = taosMemoryMalloc(src->tagLen);
+  if (src->tagData != NULL && src->tagLen >= 0) {
+    dst->tagData = taosMemoryCalloc(1, src->tagLen > 0 ? src->tagLen : 1);
     if (dst->tagData == NULL) {
       // Mirror the existing graceful-degrade behavior: keep dst->code,
       // surface the missing payload by zeroing tagLen instead of failing
@@ -3568,15 +3629,15 @@ bool vnodeIsVirtualSuperTable(void *pVnode, int64_t suid, int64_t txnId) {
 // This helper post-processes the STUidTagInfo list: when suid is a virtual
 // stable, each vchild uid is fed into `streamResolveVTableRefChain` (which
 // already handles multi-hop and cross-vnode resolution), and the returned tag
-// values are repacked into a fresh STag in stable-schemaTag order. Failures
+// values are repacked into a fresh STag sorted by cid. Failures
 // are returned to the caller; failed resolution must not be treated as a NULL TAG.
 //
 // pTagCids narrows the resolve scope to the TAG columns the caller is going to
 // read. NULL keeps the legacy behaviour of resolving every TAG of the stable;
 // an empty array resolves nothing. Ref chains are resolved through cross-vnode
 // RPC (bounded by STREAM_VTB_RPC_TIMEOUT_MS), so callers that only evaluate a
-// few TAGs must not pay for unrelated ones. The STag rebuild below always walks
-// the full schemaTag, so literal TAGs outside pTagCids are preserved.
+// few TAGs must not pay for unrelated ones. The STag rebuild preserves every
+// existing literal outside pTagCids, including virtual-child owned tags.
 // ============================================================================
 int32_t vnodeResolveVTableTagChain(void *pVnode, int64_t suid, SArray *pUidTagList, const SArray *pTagCids,
                                    int64_t txnId) {
@@ -3596,6 +3657,7 @@ int32_t vnodeResolveVTableTagChain(void *pVnode, int64_t suid, SArray *pUidTagLi
   SArray      *cidsToResolve = NULL;
   SArray      *noColCids    = NULL;
   SArray      *tagVals      = NULL;
+  SArray      *literalVals = NULL;
   SSHashObj   *uid2Result = NULL;
   int32_t      nTagCols     = 0;
   int32_t nUids = (int32_t)taosArrayGetSize(pUidTagList);
@@ -3714,8 +3776,8 @@ int32_t vnodeResolveVTableTagChain(void *pVnode, int64_t suid, SArray *pUidTagLi
   //      - literal STagVals already present in p->pTagVal (vchild may declare
   //        some tags as plain literals and only some as colRefs)
   //      - chain-resolved STagValues from streamResolveVTableRefChain
-  //    The chain resolver only fills cids that appeared as colRefs, so without
-  //    this merge the literal tags would be lost when we tTagNew a fresh STag.
+  //    Resolution is limited to cidsToResolve. Preserve all other literals,
+  //    including owned TAGs absent from the parent stable schema.
   for (int32_t i = 0; i < nUids; ++i) {
     STUidTagInfo *p = taosArrayGet(pUidTagList, i);
     if (p == NULL) continue;
@@ -3766,43 +3828,51 @@ int32_t vnodeResolveVTableTagChain(void *pVnode, int64_t suid, SArray *pUidTagLi
       if (tagVals == NULL) { code = terrno; goto _end; }
     }
 
-    bool anyChange = false;
-    for (int32_t j = 0; j < nTagCols; ++j) {
-      col_id_t cid = *(col_id_t *)taosArrayGet(tagCids, j);
+    if (!hasResolvedTags) continue;
 
-      // Prefer chain-resolved value when present (overrides any stale literal).
-      if (hasResolvedTags) {
-        STagValue **ppTV = (STagValue **)tSimpleHashGet(pRes->tagMap, &cid, sizeof(cid));
-        if (ppTV != NULL && *ppTV != NULL) {
-          STagValue *tv = *ppTV;
-          if (tv->pData != NULL && tv->nLen > 0) {
-            STagVal v = {0};
-            v.cid  = cid;
-            v.type = tv->type;
-            if (IS_VAR_DATA_TYPE(tv->type)) {
-              v.nData = (uint32_t)tv->nLen;
-              v.pData = (uint8_t *)tv->pData;
-            } else {
-              int32_t copyLen = tv->nLen < (int32_t)sizeof(int64_t) ? tv->nLen : (int32_t)sizeof(int64_t);
-              memcpy(&v.i64, tv->pData, copyLen);
-            }
-            if (taosArrayPush(tagVals, &v) == NULL) { code = terrno; goto _end; }
-            anyChange = true;
-            continue;
-          }
+    // Values borrow from the old blob until tTagNew copies them. Keep only
+    // literals absent from the result map: a resolved NULL also overrides a
+    // stale literal and is represented by omitting its cid from the new STag.
+    if (p->pTagVal != NULL) {
+      int32_t rc = tTagToValArray((const STag *)p->pTagVal, &literalVals);
+      if (rc != 0) {
+        code = rc;
+        goto _end;
+      }
+      for (int32_t j = 0; j < taosArrayGetSize(literalVals); ++j) {
+        STagVal *v = taosArrayGet(literalVals, j);
+        if (tSimpleHashGet(pRes->tagMap, &v->cid, sizeof(v->cid)) != NULL) continue;
+        if (taosArrayPush(tagVals, v) == NULL) {
+          code = terrno;
+          goto _end;
         }
       }
-
-      // Fall back to the literal tag in the original STag, if any.
-      if (p->pTagVal != NULL) {
-        STagVal probe = {.cid = cid};
-        if (tTagGet((const STag *)p->pTagVal, &probe)) {
-          if (taosArrayPush(tagVals, &probe) == NULL) { code = terrno; goto _end; }
-        }
-      }
+      taosArrayDestroy(literalVals);
+      literalVals = NULL;
     }
 
-    if (!anyChange) continue;  // nothing was resolved -> keep the original STag
+    // Iterate resolved cids, not the parent schema: the caller can request
+    // owned TAG literals or references, even without any inherited TAG.
+    void   *iter = NULL;
+    int32_t iterIndex = 0;
+    while ((iter = tSimpleHashIterate(pRes->tagMap, iter, &iterIndex)) != NULL) {
+      STagValue *tv = *(STagValue **)iter;
+      if (tv == NULL || tv->pData == NULL || tv->nLen < 0) continue;
+      STagVal v = {0};
+      v.cid = *(col_id_t *)tSimpleHashGetKey(iter, NULL);
+      v.type = tv->type;
+      if (IS_VAR_DATA_TYPE(tv->type)) {
+        v.nData = (uint32_t)tv->nLen;
+        v.pData = (uint8_t *)tv->pData;
+      } else {
+        int32_t copyLen = tv->nLen < (int32_t)sizeof(int64_t) ? tv->nLen : (int32_t)sizeof(int64_t);
+        memcpy(&v.i64, tv->pData, copyLen);
+      }
+      if (taosArrayPush(tagVals, &v) == NULL) {
+        code = terrno;
+        goto _end;
+      }
+    }
 
     STag   *pNewTag = NULL;
     int32_t rc      = tTagNew(tagVals, 1, false, &pNewTag);
@@ -3825,6 +3895,7 @@ _end:
   if (resolveCids != NULL) taosArrayDestroy(resolveCids);
   if (noColCids != NULL) taosArrayDestroy(noColCids);
   if (tagVals   != NULL) taosArrayDestroy(tagVals);
+  if (literalVals != NULL) taosArrayDestroy(literalVals);
   tSimpleHashCleanup(uid2Result);
   return code;
 }

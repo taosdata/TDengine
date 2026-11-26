@@ -22,6 +22,8 @@
 #include "streamRunner.h"
 #include "tdatablock.h"
 #include "tencrypt.h"
+#include "tglobal.h"
+#include "ttimer.h"
 #include "tuuid.h"
 
 // clang-format off
@@ -29,16 +31,44 @@
 #define sndInfo(...)  do {  if (sndDebugFlag & DEBUG_INFO)  { taosPrintLog("SND INFO  ", DEBUG_INFO,  sndDebugFlag, __VA_ARGS__);}} while (0)
 #define sndDebug(...) do {  if (sndDebugFlag & DEBUG_DEBUG) { taosPrintLog("SND DEBUG ", DEBUG_DEBUG, sndDebugFlag, __VA_ARGS__);}} while (0)
 
-SSnode *sndOpen(const char *path, const SSnodeOpt *pOption) {
-  int32_t code = 0;
-  SSnode *pSnode = taosMemoryCalloc(1, sizeof(SSnode));
-  if (pSnode == NULL) {
-    return NULL;
+// clang-format on
+
+typedef struct SSnodeResultCalc {
+  SSnode*                  node;
+  SStreamRunnerTask*       task;
+  void*                    taskAddr;
+  SSTriggerCalcRequest     req;
+  SRpcHandleInfo           reply;
+  int64_t                  startUs;
+  SStreamResultWait        wait;
+  int64_t                  ticket;
+  struct SSnodeResultCalc* next;
+} SSnodeResultCalc;
+
+SSnode* sndOpen(const char* path, const SSnodeOpt* pOption) {
+  SSnode* node = taosMemoryCalloc(1, sizeof(*node));
+  if (!node) return NULL;
+  node->msgCb = pOption->msgCb;
+  int32_t code = taosThreadMutexInit(&node->resultLock, NULL);
+  if (code) goto fail;
+  code = taosThreadCondInit(&node->resultDrained, NULL);
+  if (code) goto destroyLock;
+  if (node->msgCb.putToQueueFp) {
+    node->resultTimer = taosTmrInit(0, 0, 0, "snd-result");
+    if (!node->resultTimer) {
+      code = terrno ? terrno : TSDB_CODE_OUT_OF_MEMORY;
+      (void)taosThreadCondDestroy(&node->resultDrained);
+      goto destroyLock;
+    }
   }
+  return node;
 
-  pSnode->msgCb = pOption->msgCb;
-
-  return pSnode;
+destroyLock:
+  (void)taosThreadMutexDestroy(&node->resultLock);
+fail:
+  taosMemoryFree(node);
+  terrno = code;
+  return NULL;
 }
 
 int32_t sndInit(SSnode *pSnode) {
@@ -46,55 +76,151 @@ int32_t sndInit(SSnode *pSnode) {
   return 0;
 }
 
-void sndClose(SSnode *pSnode) {
-  streamSetSnodeDisabled(false);
-  taosMemoryFree(pSnode);
+void sndStop(SSnode* node) {
+  (void)taosThreadMutexLock(&node->resultLock);
+  bool disable = !node->stopping;
+  node->stopping = true;
+  (void)taosThreadMutexUnlock(&node->resultLock);
+  if (disable) streamSetSnodeDisabled(false);
+  (void)taosThreadMutexLock(&node->resultLock);
+  while (node->activeResultWriters || node->activeResultPosts)
+    (void)taosThreadCondWait(&node->resultDrained, &node->resultLock);
+  (void)taosThreadMutexUnlock(&node->resultLock);
 }
 
-static int32_t handleTriggerCalcReq(SSnode* pSnode, void* pWorkerCb, SRpcMsg* pRpcMsg) {
-  SSTriggerCalcRequest req = {0};
-  SStreamRunnerTask* pTask = NULL;
-  void* taskAddr = NULL;
-  int32_t code = 0, lino = 0;
-  int64_t requestStartMonoUs = streamTaskGetMonotonicUs();
-  if (pRpcMsg->pCont == NULL || pRpcMsg->contLen <= (int32_t)sizeof(SMsgHead)) {
-    TAOS_CHECK_EXIT(TSDB_CODE_INVALID_MSG);
-  }
-  TAOS_CHECK_EXIT(tDeserializeSTriggerCalcRequestWithContextFrames(POINTER_SHIFT(pRpcMsg->pCont, sizeof(SMsgHead)), pRpcMsg->contLen - sizeof(SMsgHead), &req));
-  TAOS_CHECK_EXIT(streamAcquireTask(req.streamId, req.runnerTaskId, (SStreamTask**)&pTask, &taskAddr));
-  if (pTask->task.type != STREAM_RUNNER_TASK) {
-    TAOS_CHECK_EXIT(TSDB_CODE_INVALID_MSG);
-  }
+void sndClose(SSnode* node) {
+  sndStop(node);
+  taosTmrCleanUp(node->resultTimer);
+  (void)taosThreadCondDestroy(&node->resultDrained);
+  (void)taosThreadMutexDestroy(&node->resultLock);
+  taosMemoryFree(node);
+}
 
-  req.brandNew = true;
-  req.execId = -1;
-  pTask->msgCb = pSnode->msgCb;
-  //pTask->pMsgCb = &pSnode->msgCb;
-  pTask->pWorkerCb = pWorkerCb;
-  req.curWinIdx = 0;
-  TAOS_CHECK_EXIT(stRunnerTaskExecute(pTask, &req, requestStartMonoUs));
-
-_exit:
-
-  tDestroySTriggerCalcRequest(&req);
-  SRpcMsg rsp = {.code = code, .msgType = TDMT_STREAM_TRIGGER_CALC_RSP, .contLen = 0, .pCont = NULL, .info = pRpcMsg->info};
-  if (rpcSendResponse(&rsp) != 0) {
-    sndError("failed to send response, msg:%p", &rsp);
-  }
-  
+static int32_t finishTriggerCalc(SSTriggerCalcRequest* req, void* taskAddr, const SRpcHandleInfo* info, int32_t code) {
+  tDestroySTriggerCalcRequest(req);
+  SRpcMsg rsp = {.code = code, .msgType = TDMT_STREAM_TRIGGER_CALC_RSP, .info = *info};
+  if (rpcSendResponse(&rsp) != 0) sndError("failed to send calculation response");
   streamReleaseTask(taskAddr);
+  return code == TSDB_CODE_MND_STREAM_TABLE_NOT_CREATE || code == TSDB_CODE_STREAM_INPUTQ_FULL ? 0 : code;
+}
 
-  if(code == TSDB_CODE_MND_STREAM_TABLE_NOT_CREATE) {
-    code = 0; // not real error, just notify trigger the table is not created
-  }
-
-  if (code) {
-    sndError("%s failed at line %d, error:%s", __FUNCTION__, lino, tstrerror(code));
-  }
-  
+static int32_t finishResultCalc(SSnodeResultCalc* calc, int32_t code) {
+  SSnode* node = calc->node;
+  code = finishTriggerCalc(&calc->req, calc->taskAddr, &calc->reply, code);
+  taosMemoryFree(calc);
+  (void)taosThreadMutexLock(&node->resultLock);
+  if (--node->activeResultWriters == 0) (void)taosThreadCondBroadcast(&node->resultDrained);
+  (void)taosThreadMutexUnlock(&node->resultLock);
   return code;
 }
 
+static int32_t cancelResultCalc(SSnodeResultCalc* calc, int32_t reason) {
+  calc->wait.cancelled = true;
+  (void)stRunnerTaskExecuteResumable(calc->task, &calc->req, calc->startUs, &calc->wait);
+  return finishResultCalc(calc, reason);
+}
+
+// A local queue item carries a single-use ticket. The request, task lease and response handle stay at the snode.
+static SSnodeResultCalc* takeResultCalc(SSnode* node, int64_t ticket) {
+  (void)taosThreadMutexLock(&node->resultLock);
+  SSnodeResultCalc** link = &node->readyResults;
+  while (*link && (*link)->ticket != ticket) link = &(*link)->next;
+  SSnodeResultCalc* calc = *link;
+  if (calc) *link = calc->next;
+  (void)taosThreadMutexUnlock(&node->resultLock);
+  return calc;
+}
+
+static void wakeResultCalc(void* param, void* timer) {
+  SSnodeResultCalc* calc = param;
+  SSnode*           node = calc->node;
+  (void)taosThreadMutexLock(&node->resultLock);
+  if (node->stopping) {
+    (void)taosThreadMutexUnlock(&node->resultLock);
+    (void)cancelResultCalc(calc, TSDB_CODE_STREAM_EXEC_CANCELLED);
+    return;
+  }
+  // The runner may finish before the timer returns from publishing its queue item.
+  ++node->activeResultPosts;
+  calc->ticket = ++node->nextResultTicket;
+  calc->next = node->readyResults;
+  node->readyResults = calc;
+  SRpcMsg wake = {.msgType = TDMT_STREAM_TASK_RESUME, .info = {.qId = calc->ticket}};
+  (void)taosThreadMutexUnlock(&node->resultLock);
+  int32_t code = tmsgPutToQueue(&node->msgCb, STREAM_RUNNER_QUEUE, &wake);
+  if (code) {
+    calc = takeResultCalc(node, wake.info.qId);
+    if (calc) (void)cancelResultCalc(calc, code);
+  }
+  (void)taosThreadMutexLock(&node->resultLock);
+  if (--node->activeResultPosts == 0 && node->stopping) (void)taosThreadCondBroadcast(&node->resultDrained);
+  (void)taosThreadMutexUnlock(&node->resultLock);
+}
+
+static int32_t runResultCalc(SSnodeResultCalc* calc, void* worker) {
+  SSnode* node = calc->node;
+  (void)taosThreadMutexLock(&node->resultLock);
+  calc->wait.cancelled = node->stopping;
+  (void)taosThreadMutexUnlock(&node->resultLock);
+  calc->task->pWorkerCb = worker;
+  int32_t code = stRunnerTaskExecuteResumable(calc->task, &calc->req, calc->startUs, &calc->wait);
+  if (code != TSDB_CODE_ACTION_IN_PROGRESS) return finishResultCalc(calc, code);
+  if (!node->resultTimer) return cancelResultCalc(calc, TSDB_CODE_APP_ERROR);
+  if (!taosTmrStart(wakeResultCalc, calc->wait.delayMs, calc, node->resultTimer))
+    return cancelResultCalc(calc, TSDB_CODE_OUT_OF_MEMORY);
+  return 0;
+}
+
+static int32_t handleTriggerCalcReq(SSnode* node, void* worker, SRpcMsg* msg) {
+  SSTriggerCalcRequest req = {0};
+  SStreamRunnerTask*   task = NULL;
+  void*                taskAddr = NULL;
+  int32_t              code = 0, lino = 0;
+  int64_t              startUs = streamTaskGetMonotonicUs();
+  if (msg->pCont == NULL || msg->contLen <= (int32_t)sizeof(SMsgHead)) TAOS_CHECK_EXIT(TSDB_CODE_INVALID_MSG);
+  TAOS_CHECK_EXIT(tDeserializeSTriggerCalcRequestWithContextFrames(POINTER_SHIFT(msg->pCont, sizeof(SMsgHead)),
+                                                                   msg->contLen - sizeof(SMsgHead), &req));
+  TAOS_CHECK_EXIT(streamAcquireTask(req.streamId, req.runnerTaskId, (SStreamTask**)&task, &taskAddr));
+  if (task->task.type != STREAM_RUNNER_TASK) TAOS_CHECK_EXIT(TSDB_CODE_INVALID_MSG);
+  req.brandNew = true;
+  req.execId = -1;
+  req.curWinIdx = 0;
+
+  if (task->topTask && !task->notification.calcNotifyOnly && req.resultAdmission.roundId &&
+      BIT_FLAG_TEST_MASK(task->addOptions, STREAM_OPTION_TIME_ALIGN)) {
+    (void)taosThreadMutexLock(&node->resultLock);
+    if (node->stopping)
+      code = TSDB_CODE_STREAM_EXEC_CANCELLED;
+    else if (node->activeResultWriters >= TMAX(1, tsNumOfStreamRunnerThreads - 1))
+      code = TSDB_CODE_STREAM_INPUTQ_FULL;
+    SSnodeResultCalc* calc = NULL;
+    if (!code) {
+      calc = taosMemoryCalloc(1, sizeof(*calc));
+      if (!calc)
+        code = terrno;
+      else
+        ++node->activeResultWriters;
+    }
+    (void)taosThreadMutexUnlock(&node->resultLock);
+    TAOS_CHECK_EXIT(code);
+    calc->node = node;
+    calc->task = task;
+    calc->taskAddr = taskAddr;
+    calc->req = req;
+    calc->reply = msg->info;
+    calc->startUs = startUs;
+    task->msgCb = node->msgCb;
+    return runResultCalc(calc, worker);
+  }
+
+  task->msgCb = node->msgCb;
+  task->pWorkerCb = worker;
+  code = stRunnerTaskExecute(task, &req, startUs);
+_exit:
+  return finishTriggerCalc(&req, taskAddr, &msg->info, code);
+}
+
+// clang-format off
 static int32_t handleSyncDeleteCheckPointReq(SSnode* pSnode, SRpcMsg* pRpcMsg) {
   if (pRpcMsg->pCont == NULL || pRpcMsg->contLen < (int32_t)sizeof(SMsgHead) + LONG_BYTES) {
     return TSDB_CODE_INVALID_MSG;
@@ -504,6 +630,7 @@ static int32_t handleStreamFetchData(SSnode* pSnode, void *pWorkerCb, SRpcMsg* p
   calcReq.runnerEogBatch = req.runnerEogBatch;
   if (req.pStRtFuncInfo) {
     calcReq.sessionId = req.pStRtFuncInfo->sessionId;
+    calcReq.derivativeLogEpoch = req.pStRtFuncInfo->derivativeLogEpoch;
     calcReq.triggerType = req.pStRtFuncInfo->triggerType;
     calcReq.isWindowTrigger = req.pStRtFuncInfo->isWindowTrigger;
     calcReq.precision = req.pStRtFuncInfo->precision;
@@ -598,7 +725,6 @@ static int32_t handleStreamFetchFromCache(SSnode* pSnode, SRpcMsg* pRpcMsg) {
 
 _exit:
 
-  printDataBlock(readInfo.pBlock, __func__, "fetchFromCache", streamId);
 
   stsDebug("task %" PRIx64 " TDMT_STREAM_FETCH_FROM_CACHE_RSP with code:%d rows:%" PRId64 ", size:%d, time range:[%" PRId64 ", %" PRId64 "]", 
       req.taskId, code, readInfo.pBlock ? readInfo.pBlock->info.rows : 0, (int32_t)size, readInfo.start, readInfo.end);  
@@ -910,7 +1036,7 @@ static int32_t handleExtFetchReq(SSnode *pSnode, SRpcMsg *pRpcMsg) {
   }
 
   TAOS_CHECK_EXIT(streamReaderExtFetchData(pInfo, skey, ekey, &pBlock));
-  printDataBlock(pBlock, __func__, "fetch calc ext data", pRpcMsg->info.traceId.msgId);
+  printDataBlock(pBlock, __func__, "fetch calc ext data", pRpcMsg->info.traceId.msgId, pTask->task.charsetCxt);
   
   outRows = (pBlock != NULL) ? pBlock->info.rows : 0;
 
@@ -947,6 +1073,12 @@ _exit:
 int32_t sndProcessStreamMsg(SSnode *pSnode, void *pWorkerCb, SRpcMsg *pMsg) {
   int32_t code = 0, lino = 0;
   switch (pMsg->msgType) {
+    // Only the local result timer places this message on the runner queue.
+    case TDMT_STREAM_TASK_RESUME: {
+      SSnodeResultCalc* calc = takeResultCalc(pSnode, pMsg->info.qId);
+      if (calc) code = runResultCalc(calc, pWorkerCb);
+      break;
+    }
     case TDMT_STREAM_TRIGGER_CALC:
       TAOS_CHECK_EXIT(handleTriggerCalcReq(pSnode, pWorkerCb, pMsg));
       break;
