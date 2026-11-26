@@ -19,6 +19,13 @@
 ,,y,.,./ci/pytest.sh pytest cases/50-Others/test_wrapper_colocated_windows.py -R
 ,,y,.,./ci/pytest.sh pytest cases/50-Others/test_wrapper_config_dir_logs.py
 ,,y,.,./ci/pytest.sh pytest cases/81-Tools/02-Taos/test_timezone_websocket.py -B
+
+## Native TLS over OpenSSL.  This job builds the enterprise edition; on a
+## community build the case prints "SKIPPED: ..." with the reason so a
+## zero-coverage run is visible instead of silently green.  -N 2 exercises
+## dnode-to-dnode traffic over TLS in addition to taosc/taosd.
+,,y,.,./ci/pytest.sh pytest cases/73-TLS/test_tls.py -N 2
+
 ,,n,.,pytest cases/18-StreamProcessing/30-OldPyCases/test_oldcase_taosdShell.py
 
 ## 06-Backup
