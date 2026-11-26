@@ -1,6 +1,6 @@
 ---
 name: tdgpt-custom-algorithm
-description: TDgpt 用户自定义算法部署：支持异常检测（ad）、预测（fc）和批量包络线（batch），并可为不符合 TDgpt 类体系的用户模型生成 Adapter。检查 TDgpt 主 venv 依赖、按原生/Docker/SSH 部署到 custom 对应目录、重启服务，并用 curl 验证。触发关键词：TDgpt 自定义算法, 用户算法, custom algorithm, custom anomaly detection, custom forecast, batch envelope, Adapter, 部署自定义算法, TDgpt 算法依赖缺失, custom_algo_dir
+description: TDgpt 用户自定义算法部署：支持异常检测（ad）、预测（fc）、分类（classification）、回归（regression）和批量包络线（batch）五种算法，并可为不符合 TDgpt 类体系的用户模型生成 Adapter。确认算法类型、检查 TDgpt 主 venv 依赖、按原生/Docker/SSH 部署到 custom 对应类型目录、重启服务，并用 curl 验证注册与调用。触发关键词：TDgpt 自定义算法, 用户算法, custom algorithm, custom anomaly detection, custom forecast, custom classification, custom regression, batch envelope, Adapter, 部署自定义算法, 部署分类算法, 部署回归算法, TDgpt 算法依赖缺失, custom_algo_dir, custom/classification, custom/regression, add third-party model, 第三方模型接入
 metadata:
   short-description: Deploy any supported user-defined algorithm to TDgpt
   author: TDgpt Team
@@ -22,12 +22,14 @@ metadata:
 | --- | --- | --- | --- | --- |
 | `ad` 异常检测 | `custom/ad/` | 继承 `AbstractAnomalyDetectionService`，`execute()` 返回标记列表 | `GET /list` | `POST /anomaly-detect` |
 | `fc` 预测 | `custom/fc/` | 继承 `AbstractForecastService`，`execute()` 返回结果字典 | `GET /list` | `POST /forecast` |
+| `classification` 分类 | `custom/classification/` | 继承 `AbstractClassificationService`，`execute()` 返回标签列表 | `GET /list` | `POST /classification` |
+| `regression` 回归 | `custom/regression/` | 继承 `AbstractRegressionService`，`execute()` 返回预测值列表 | `GET /list` | `POST /regression` |
 | `batch` 批量包络线 | `custom/batch/` | 类名 `_X`，实现 `build(ts, values, windows, params)` | `GET /api/v1/analysis/batch/algos` | `POST /api/v1/analysis/batch` |
 
-当前版本中 `ServiceRegistry` 只扫描 `ad/`、`fc/` 作为自定义服务，`batch/` 由独立
-发现器加载。插补、相关性、回归、分类、聚类、序列诊断等类别没有用户扩展目录，
-不在本 skill 范围内；动态 pkl 模型（`/deploy`）和独立 venv 的用户模型也走各自
-入口，不使用本 skill。
+当前版本中 `ServiceRegistry` 扫描 `ad/`、`fc/`、`classification/`、`regression/`
+作为自定义服务，`batch/` 由独立发现器加载。插补、相关性、聚类、序列诊断等类别
+没有用户扩展目录，不在本 skill 范围内；动态 pkl 模型（`/deploy`）和独立 venv 的
+用户模型也走各自入口，不使用本 skill。
 
 ## 两种接入方式
 
@@ -45,19 +47,24 @@ metadata:
 
 适用：
 
-- 用户有一个单变量或单序列算法脚本，希望注册为 `ad`、`fc` 或 `batch` 算法；
+- 用户有一个算法脚本，希望注册为 `ad`、`fc`、`classification`、`regression`
+  或 `batch` 算法；
 - 脚本依赖的第三方包可能不在 TDgpt 主 venv 中，需要先检测再决定是否安装；
 - 执行端为 Linux/macOS；目标 TDgpt 是 Linux 原生安装、Docker 容器或可通过
   SSH 到达的 Linux 主机。
 
 不适用：
 
-- 多列联合算法。异常检测和预测框架只把第一列/第一条时间序列传给算法；
 - 需要热加载、进程隔离或独立 venv 的用户模型；
 - 修改 TDgpt 内置算法（内置算法随程序交付，不能放进 `custom/`）；
 - Windows 原生部署。部署脚本依赖 POSIX `sh`、`chmod`、`sha256sum`、`base64`；
   Windows 执行端只支持 `--deploy-mode remote` 管理 Linux 目标，本地和 Docker
   模式会直接被拒绝。
+
+多列联合的异常检测是支持的：`ad` 会收到请求里除时间戳外的所有列，单列算法读
+`self.list`，多列算法读 `self.input_data_lists`，见“算法契约”。用户部署的算法只
+支持单列时，静默忽略第一列以外的输入列即可，不必报错。本 skill 的
+`templates/anomaly_ad_template.py` 与 `adapter_ad_template.py` 只演示单列写法。
 
 ## 必须先向用户收集的信息
 
@@ -65,7 +72,7 @@ metadata:
 | --- | --- | --- |
 | TDgpt 地址 | 是 | 例如 `http://192.168.1.20:6035`，默认端口 6035 |
 | 算法名称 | 是 | 对外算法名，必须与脚本类里的 `name` 完全一致，建议 `^[a-z][a-z0-9_]*$` |
-| 算法类型 | 否 | `ad` / `fc` / `batch`；默认从脚本自动识别 |
+| 算法类型 | 否 | `ad` / `fc` / `classification` / `regression` / `batch`；默认从脚本自动识别，识别结果必须经用户确认后才能部署 |
 | 算法脚本路径 | 是 | 用户提供的 `.py` 文件；没有提供时，从 `templates/` 选择模板 |
 | 部署形态 | 否 | `local` / `docker` / `remote`；默认自动探测 |
 | 容器名 | Docker 时必填 | 自动探测到多个 TDgpt 容器时必须指定 |
@@ -80,6 +87,8 @@ metadata:
 | --- | --- | --- |
 | `ad` | `templates/anomaly_ad_template.py` | `templates/adapter_ad_template.py` |
 | `fc` | `templates/forecast_template.py` | `templates/adapter_fc_template.py` |
+| `classification` | `templates/classification_template.py` | `templates/adapter_classification_template.py` |
+| `regression` | `templates/regression_template.py` | `templates/adapter_regression_template.py` |
 | `batch` | `templates/batch_env_template.py` | `templates/adapter_batch_template.py` |
 
 用户直接提供模型代码时，优先使用 Adapter 模板，而不是要求用户改写模型。
@@ -97,7 +106,13 @@ metadata:
 ### `ad` 异常检测
 
 - 继承 `lib.base.AbstractAnomalyDetectionService`；
-- `set_input_list()` 后从 `self.list` 读取单列浮点数据，时间戳在 `self.ts_list`；
+- 输入是请求中除时间戳以外的**全部列**：基类把每一列放进
+  `self.input_data_lists`，同时把第一列赋给 `self.list`。单列算法读 `self.list`
+  即可；多列联合算法读 `self.input_data_lists`（每列一个 `list`，长度必须相等，
+  否则基类抛 `multiple dimensions of data for anomaly detection are not equal`）；
+- 算法只支持单列时，读 `self.list` 并**静默忽略**第一列以外的输入列即可，不需要
+  报错或提示：多列请求不会因为算法只用第一列而失败；
+- 时间戳在 `self.ts_list`；
 - `execute()` 返回与输入等长的整数列表，正常点用 `valid_code`（默认 `1`），
   异常点用其他值（建议 `-1`）；
 - `option` 里的参数值都是**字符串**，`set_params()` 里必须显式转换
@@ -109,6 +124,9 @@ metadata:
 - `set_params()` 必须先调用 `super().set_params(params)`，由基类解析
   `start_ts`、`time_step`、`rows`、`period`、`conf`、`return_conf`；
 - 输入数据在 `self.list`，时间戳在 `self.ts_list`；
+- 目标列是 schema 中名为 `val` 的列；额外列若以 `past_dynamic_real` 或
+  `dynamic_real` 开头，会作为外生变量放进 `self.past_dynamic_real` /
+  `self.dynamic_real`；
 - `execute()` 返回字典：
 
   ```python
@@ -122,6 +140,24 @@ metadata:
 
 - `timestamps`、`forecast`、`lower`、`upper` 长度都等于 `self.rows`；
 - `self.rows` 取值范围 1..1024，服务端通过 `forecast_rows` 传入。
+
+### `classification` 分类
+
+- 继承 `lib.base.AbstractClassificationService`；
+- 请求的 `data` 是列数组，服务端转置后通过 `self.input_data` 传入行列表，
+  `self.schema` 是列元信息；
+- `execute()` 返回与输入行数等长的标签列表（`list[int]` 或 `list[str]`）；
+- `option` 里的参数值都是**字符串**，`set_params()` 里显式转换并校验；
+- 模型在 `execute()` 内加载或拟合，长度不匹配会被 handler 拒绝。
+
+### `regression` 回归
+
+- 继承 `lib.base.AbstractRegressionService`；
+- 请求的 `data` 是列数组，服务端转置后通过 `self.input_data` 传入行列表，
+  `self.schema` 是列元信息；
+- `execute()` 返回与输入行数等长的预测值列表（`list[float]`）；
+- `option` 里的参数值都是**字符串**，`set_params()` 里显式转换并校验；
+- 目标列的定义由算法决定，例如“最后一列是目标，其余列是特征”。
 
 ### `batch` 批量包络线
 
@@ -184,9 +220,9 @@ python3 "<skill-dir>/scripts/deploy_custom_algorithm.py" \
 | 事项 | 要求 |
 | --- | --- |
 | 导入方式 | 辅助模块使用相对导入；绝对导入会在加载器的隔离包中失败 |
-| 输入转换 | 把 `self.list`（浮点列表）转成用户模型需要的数组、DataFrame 或张量 |
-| 参数转换 | `ad`/`fc` 的 `option` 是字符串，显式 `int()`/`float()`；`batch` 的 `config` 是对象 |
-| 输出转换 | 转成 TDgpt 协议：`ad` 标记列表、`fc` 结果字典、`batch` 三条等长曲线 |
+| 输入转换 | 把 `self.list` / `self.input_data` 转成用户模型需要的数组、DataFrame 或张量 |
+| 参数转换 | `ad`/`fc`/`classification`/`regression` 的 `option` 是字符串；`batch` 的 `config` 是对象 |
+| 输出转换 | `ad` 标记列表、`fc` 结果字典、`classification` 标签列表、`regression` 预测值列表、`batch` 三条等长曲线 |
 | 模型加载 | 首次 `execute()`/`build()` 时懒加载，使用 `threading.Lock` 防并发重复加载 |
 | 异常处理 | 抛出带上下文的 `ValueError`，服务会把它放进响应 `msg` |
 | 无状态 | 不要在模块顶层读取文件、起线程、连接数据库或训练模型 |
@@ -197,6 +233,8 @@ python3 "<skill-dir>/scripts/deploy_custom_algorithm.py" \
   （异常），长度必须等于输入；
 - `fc`：用户模型返回的预测点数必须等于 `self.rows`；`return_conf=1` 时补齐
   `lower`/`upper`，没有置信区间就退化为 `forecast` 本身；
+- `classification`：用户模型返回的标签数必须等于 `self.input_data` 的行数；
+- `regression`：用户模型返回的预测值数必须等于 `self.input_data` 的行数；
 - `batch`：用户函数返回的 `center`/`lower`/`upper` 必须等长且不含 `NaN`/`Inf`。
 
 ### 模型文件
@@ -241,7 +279,29 @@ python3 "<skill-dir>/scripts/deploy_custom_algorithm.py" \
 
 退出码：`0` 预检通过；`2` 缺少依赖；`3` 预检失败（地址、路径、契约或挂载错误）。
 
-### 步骤 2：处理缺失依赖（必须由用户确认）
+### 步骤 2：确认算法类型（必须由用户确认）
+
+预检会打印 `[check] algorithm type: <type>`。`--algorithm-type auto` 只根据继承的
+基类或 `build()` 推断，装错不会报错，只会把文件写进错误目录并注册成错误的服务
+类型。因此部署前必须把推断结果展示给用户并等待确认：
+
+- 算法脚本：`/path/to/my_algo.py`
+- 检测到的类型：`<type>`（推断依据：继承的基类或 `build()`）
+- 目标目录：`<custom_algo_dir>/<type>/`
+- 调用接口：`ad`→`/anomaly-detect`、`fc`→`/forecast`、`classification`→
+  `/classification`、`regression`→`/regression`、`batch`→`/api/v1/analysis/batch`
+- 是否使用 Adapter：是 / 否
+
+出现以下情况必须先停下来问，不要自行决定：
+
+- 检测结果与用户描述的用途不一致（例如用户说“做异常检测”而推断成 `fc`）；
+- 用户代码的基类命名不规范，或同时符合 `batch` 与其它类型的判定条件；
+- 用户对算法类型有明确偏好。
+
+确认后，后续部署命令一律显式传 `--algorithm-type <type>`：脚本会把它与静态推断
+交叉校验，不一致时直接以退出码 `3` 结束。未确认前不得执行步骤 4。
+
+### 步骤 3：处理缺失依赖（必须由用户确认）
 
 脚本检测到缺失依赖时不会自动安装，会打印缺失模块、对应 pip 包和安装命令，
 然后以退出码 `2` 结束。此时：
@@ -262,21 +322,21 @@ python3 "<skill-dir>/scripts/deploy_custom_algorithm.py" \
 
 不要跳过用户确认直接加 `--install-missing`。安装完成后重新执行 `--check`。
 
-### 步骤 3：部署文件（不重启）
+### 步骤 4：部署文件（不重启）
 
 ```bash
 python3 "<skill-dir>/scripts/deploy_custom_algorithm.py" \
   --tdgpt-url "http://192.168.1.20:6035" \
   --model-name "my_algo" \
   --script /path/to/my_algo.py \
-  --algorithm-type auto \
+  --algorithm-type <步骤 2 确认的类型> \
   --asset /path/to/my_algo_impl \
   --restart none
 ```
 
 脚本会：
 
-- 按类型创建 `<custom_algo_dir>/ad|fc|batch/`，目录权限 `0750`；
+- 按类型创建 `<custom_algo_dir>/ad|fc|classification|regression|batch/`，目录权限 `0750`；
 - 目标文件存在且内容不同时，先备份到 `<custom_algo_dir>/.deploy-backups/`；
 - 通过临时文件 + `mv` 原子替换，文件权限 `0640`；
 - 拒绝覆盖符号链接；
@@ -284,7 +344,7 @@ python3 "<skill-dir>/scripts/deploy_custom_algorithm.py" \
 - 递归部署 `--asset` 文件和目录，覆盖前先备份，单个文件 `0640`；
 - 打印类型、目标路径、asset 路径和重启命令。
 
-### 步骤 4：重启服务
+### 步骤 5：重启服务
 
 | 部署形态 | 重启方式 |
 | --- | --- |
@@ -305,14 +365,14 @@ python3 "<skill-dir>/scripts/deploy_custom_algorithm.py" \
 
 Docker 部署必须在部署完成后重启容器，否则发现接口看不到新算法。
 
-### 步骤 5：验证
+### 步骤 6：验证
 
 ```bash
 python3 "<skill-dir>/scripts/deploy_custom_algorithm.py" \
   --tdgpt-url "http://192.168.1.20:6035" \
   --model-name "my_algo" \
   --script /path/to/my_algo.py \
-  --algorithm-type auto \
+  --algorithm-type <步骤 2 确认的类型> \
   --verify-only
 ```
 
@@ -354,6 +414,34 @@ curl -s -X POST http://192.168.1.20:6035/forecast \
   }'
 ```
 
+**`classification`** — `GET /list` 中出现 `type=classification` 且 `builtins=false`，然后：
+
+```bash
+curl -s -X POST http://192.168.1.20:6035/classification \
+  -H 'Content-Type: application/json' \
+  -d '{
+    "algo": "my_algo",
+    "schema": [["feature", "DOUBLE", 8], ["label", "TINYINT", 1]],
+    "data": [[0.0, 1.0, "...", 59.0],
+             [0, 0, "...", 1]],
+    "option": "threshold=30"
+  }'
+```
+
+**`regression`** — `GET /list` 中出现 `type=regression` 且 `builtins=false`，然后：
+
+```bash
+curl -s -X POST http://192.168.1.20:6035/regression \
+  -H 'Content-Type: application/json' \
+  -d '{
+    "algo": "my_algo",
+    "schema": [["x", "DOUBLE", 8], ["y", "DOUBLE", 8]],
+    "data": [[0.0, 1.0, "...", 59.0],
+             [1.0, 3.0, "...", 119.0]],
+    "option": "degree=1"
+  }'
+```
+
 **`batch`** — `GET /api/v1/analysis/batch/algos` 中出现该名称且 `builtin=false`，然后：
 
 ```bash
@@ -377,17 +465,33 @@ curl -s -X POST http://192.168.1.20:6035/api/v1/analysis/batch \
 - 调用接口没有 `msg`，且 `rows != -1`；
 - `ad` 的 `rows` 是异常窗口数，`fc` 的 `rows` 是预测点数，`batch` 的 `rows`
   是输出曲线长度；
+- `classification`/`regression` 的 `rows` 和 `res` 长度都必须等于输入样本数；
 - `ad` 返回 `rows == 0` 表示调用成功但没有异常窗口，需要换 `--option` 或验证数据。
 
 可用参数：
 
-- `--option "window=20,threshold=4"`：`ad` / `fc` 的 `option` 字符串；
+- `--option "window=20,threshold=4"`：`ad` / `fc` / `classification` /
+  `regression` 的 `option` 字符串；
 - `--config-json '{"factor":3}'`：`batch` 的 `config` 对象；
-- `--values "1,2,..."`：替换默认验证数据；
-- `--sample-file data.json`：自定义验证负载或纯数值列表；
-- `--forecast-rows 10`：`fc` 验证时的预测点数。
+- `--values "1,2,..."`：替换默认验证数据；对 classification/regression 用作第一列，
+  第二列（标签/目标）自动生成；完整双列数据用 `--sample-file`；
+- `--sample-file data.json`：自定义验证负载或数值列表；文件无法读取或不是合法
+  JSON 时报错退出，不会抛栈。列数下限按接口契约而非示例模板：`ad`、`fc` 至少
+  2 列（`ad` 为时间戳 + 数值，`fc` 为时间戳 + 目标，时间戳列不能为空），
+  `classification`、`regression` 至少 1 列（纯特征推理负载合法，列数是否够用由
+  用户算法自己判断）；各列长度必须相等；
+- `--forecast-rows 10`：`fc` 验证时的预测点数；
+- `--every 1000`：`fc` 验证时的时间步长（毫秒）；
+- `--deploy-mode auto|local|docker|remote`：显式指定部署形态；`auto` 依次看
+  `--ssh`、`--container`，再用 `docker ps` 探测；
+- `--ssh root@192.168.1.20`：远程部署的 SSH 目标；
+- `--config /etc/taos/taosanode.config.py`：显式指定目标端配置文件；
+- `--dry-run`：只解析和校验，打印将要写入的路径，不落盘；
+- `--sudo`：本地和 SSH 命令统一通过 `sudo -n sh -c` 执行（免交互提权）；
+- `--service taosanoded`：显式指定 systemd 单元名；
+- `--timeout 30`：HTTP 超时秒数；`--insecure`：跳过 TLS 证书校验。
 
-### 步骤 6：输出部署报告
+### 步骤 7：输出部署报告
 
 报告至少包含：
 
@@ -424,7 +528,7 @@ docker run -d --name tdgpt \
 ```
 
 此时 `custom_algo_dir` 保持容器内路径 `/var/lib/taos/taosanode/custom`，脚本会实际
-写入宿主机的 `/data/tdgpt-custom/ad|fc|batch/`。不要只用 `docker cp` 把文件复制
+写入宿主机的 `/data/tdgpt-custom/ad|fc|classification|regression|batch/`。不要只用 `docker cp` 把文件复制
 进容器，容器重建后同样会丢失。
 
 `--allow-ephemeral` 只用于一次性验证：它允许在没有任何挂载时把算法写进容器
@@ -451,7 +555,7 @@ sudo systemctl restart taosanoded
 | 现象 | 原因与处理 |
 | --- | --- |
 | `--check` 报 `main venv python not found` | 用 `--venv-python` 指定主 venv 解释器 |
-| `--check` 报算法类型无法识别 | 显式传 `--algorithm-type ad|fc|batch`；用户代码不符合类体系时生成 Adapter |
+| `--check` 报算法类型无法识别 | 显式传 `--algorithm-type ad|fc|classification|regression|batch`；用户代码不符合类体系时生成 Adapter |
 | `--check` 报 `no module-level class subclassing ...` | 需要 Adapter，不要修改用户模型；用 `templates/adapter_*_template.py` |
 | `--check` 报 `absolute import of a bundled helper` | 该名字在目标 venv 中不可导入，且来自本地目录/asset；改为 `from .my_algo_impl...` 并用 `--asset` 部署。若是已安装包，先确认主 venv 中可导入 |
 | Adapter 运行时 `ModuleNotFoundError` | 辅助模块没随 `--asset` 部署，或入口用了绝对导入 |

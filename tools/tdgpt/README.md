@@ -26,10 +26,11 @@ For user manual, system design and architecture, please refer to [TDengine Docum
 TDgpt publishes agent skills under [`skills/`](skills/):
 
 - [`tdgpt-custom-algorithm`](skills/tdgpt-custom-algorithm/SKILL.md): deploy
-  user-defined anomaly detection, forecast and batch envelope algorithms. It
-  generates an Adapter when the user model does not follow the TDgpt class
-  hierarchy, checks the main venv for missing dependencies, deploys to native,
-  Docker or SSH targets, and verifies registration with curl. The deployment
+  user-defined anomaly detection, forecast, classification, regression and
+  batch envelope algorithms. It generates an Adapter when the user model does
+  not follow the TDgpt class hierarchy, checks the main venv for missing
+  dependencies, deploys to native, Docker or SSH targets, and verifies
+  registration with curl. The deployment
   script targets Linux/macOS execution hosts and Linux, Docker or SSH targets;
   Windows native deployment is not supported.
 
