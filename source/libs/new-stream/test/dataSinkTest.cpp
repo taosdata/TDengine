@@ -27,10 +27,12 @@
 #include <mutex>
 #include <queue>
 #include <random>
+#include <set>
 #include <thread>
 #include <vector>
 
 #include "dataSink.h"
+#include "freeBlockMgr.h"
 #include "osSleep.h"
 #include "stub.h"
 #include "tdatablock.h"
@@ -1304,6 +1306,108 @@ class ScopedDataSinkEnvironment {
 };
 
 int64_t ScopedDataSinkEnvironment::nextId_ = 10000;
+
+TEST(dataSinkTest, concurrentFileBlockRecycle) {
+  ScopedDataSinkEnvironment env(DATA_CLEAN_EXPIRED);
+  ASSERT_EQ(env.code, TSDB_CODE_SUCCESS);
+  using Block = std::unique_ptr<SSDataBlock, decltype(&blockDataDestroy)>;
+  const int groupCount = 512;
+  const int readerCount = 16;
+  const int preReleasedCount = 64;
+  const int writerCount = 256;
+  auto* task = static_cast<SSlidingTaskDSMgr*>(env.cache);
+  std::vector<SSlidingGrpMgr*> groups;
+  std::vector<SSlidingGrpMgr*> writerGroups;
+  // Prepare every group before starting threads, so the shared group hash is read-only.
+  for (int i = 0; i < groupCount + writerCount; ++i) {
+    Block block(createTestBlock(baseTestTime1, 0), blockDataDestroy);
+    ASSERT_NE(block, nullptr);
+    const bool donor = i < groupCount;
+    // Donors have varied, larger ranges; writers must retain their full capacity when reusing them.
+    ASSERT_EQ(putStreamDataCache(env.cache, i, baseTestTime1, baseTestTime1 + 100, block.get(), 0,
+                                donor ? 50 + i % 50 : i % 25), TSDB_CODE_SUCCESS);
+    int64_t groupId = i;
+    auto** group = static_cast<SSlidingGrpMgr**>(taosHashGet(task->pSlidingGrpList, &groupId, sizeof(groupId)));
+    ASSERT_NE(group, nullptr);
+    if (donor) {
+      ASSERT_EQ(moveSlidingGrpMemCache(task, *group), TSDB_CODE_SUCCESS);
+      groups.push_back(*group);
+    } else {
+      writerGroups.push_back(*group);
+    }
+  }
+  const int64_t initialFileSize = task->pFileMgr->fileSize;
+  auto recycle = [&](int i) {
+    SResultIter result = {};
+    result.cleanMode = DATA_CLEAN_EXPIRED;
+    result.groupData = groups[i];
+    result.pFileMgr = task->pFileMgr;
+    result.reqStartTime = baseTestTime1 + 1000;
+    result.reqEndTime = baseTestTime1 + 2000;
+    SSDataBlock* output = nullptr;
+    const int32_t code = readDataFromFile(&result, &output, 0);
+    Block block(output, blockDataDestroy);
+    return code == TSDB_CODE_SUCCESS && block == nullptr && taosArrayGetSize(groups[i]->blocksInFile) == 0;
+  };
+  // Seed the tree so allocation exercises popBestFitBlock even if the writer runs first.
+  for (int i = 0; i < preReleasedCount; ++i) ASSERT_TRUE(recycle(i));
+
+  std::atomic<int> ready{0};
+  std::atomic<bool> start{false};
+  std::atomic<int> errors{0};
+  std::vector<std::thread> threads;
+  for (int reader = 0; reader < readerCount; ++reader) {
+    threads.emplace_back([&, reader] {
+      ++ready;
+      while (!start.load()) std::this_thread::yield();
+      for (int i = preReleasedCount + reader; i < groupCount; i += readerCount) {
+        if (!recycle(i)) ++errors;
+      }
+    });
+  }
+  threads.emplace_back([&] {
+    ++ready;
+    while (!start.load()) std::this_thread::yield();
+    for (auto* group : writerGroups) {
+      if (moveSlidingGrpMemCache(task, group) != TSDB_CODE_SUCCESS) ++errors;
+    }
+  });
+  while (ready.load() != readerCount + 1) std::this_thread::yield();
+  start = true;
+  for (auto& thread : threads) thread.join();
+  ASSERT_EQ(errors.load(), 0);
+
+  // Active and free capacities must partition the entire file, without overlap or lost bytes.
+  std::set<std::pair<int64_t, int64_t>> ranges;
+  int reusedCount = 0;
+  for (auto* group : writerGroups) {
+    ASSERT_EQ(taosArrayGetSize(group->blocksInFile), 1);
+    auto* block = static_cast<SBlocksInfoFile*>(taosArrayGet(group->blocksInFile, 0));
+    ASSERT_NE(block, nullptr);
+    EXPECT_GE(block->capacity, block->dataLen);
+    if (block->groupOffset < initialFileSize) {
+      ++reusedCount;
+      EXPECT_GT(block->capacity, block->dataLen);
+    }
+    EXPECT_TRUE(ranges.insert({block->groupOffset, block->capacity}).second);
+  }
+  EXPECT_GE(reusedCount, preReleasedCount);
+  SRBTreeIter iter = tRBTreeIterCreate(&task->pFileMgr->pFreeFileBlockList, 1);
+  FreeBlock* head = nullptr;
+  while ((head = reinterpret_cast<FreeBlock*>(tRBTreeIterNext(&iter))) != nullptr) {
+    for (FreeBlock* block = head; block != nullptr; block = block->nextInBucket) {
+      EXPECT_TRUE(ranges.insert({block->start, block->length}).second);
+    }
+  }
+  int64_t end = 0;
+  for (const auto& range : ranges) {
+    EXPECT_EQ(range.first, end);
+    EXPECT_GT(range.second, 0);
+    end = range.first + range.second;
+  }
+  EXPECT_EQ(end, task->pFileMgr->fileSize);
+  EXPECT_EQ(ranges.size(), static_cast<size_t>(task->pFileMgr->fileBlockCount));
+}
 
 TEST(dataSinkTest, AlignedWindowReadsProjectedColumnsWithoutTimestampFiltering) {
   ScopedDataSinkEnvironment env;
