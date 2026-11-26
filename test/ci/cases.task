@@ -1286,6 +1286,7 @@
 ,,y,.,./ci/pytest.sh pytest cases/21-MetaData/test_meta_batch_txn_advanced.py
 ,,y,.,./ci/pytest.sh pytest cases/21-MetaData/test_meta_batch_txn_alter_tag.py
 ,1,y,.,./ci/pytest.sh pytest cases/21-MetaData/test_meta_batch_txn_ddl_visibility.py -N 3 -M 3
+,,y,.,./ci/pytest.sh pytest cases/21-MetaData/test_meta_txn_bulk_drop_then_drop_stb.py
 ,,y,.,./ci/pytest.sh pytest cases/21-MetaData/test_meta_batch_txn_stb_alter_child_schema.py
 ,,y,.,./ci/pytest.sh pytest cases/21-MetaData/test_meta_batch_txn_batch_ops.py
 ,,y,.,./ci/pytest.sh pytest cases/21-MetaData/test_meta_batch_txn_op_matrix.py

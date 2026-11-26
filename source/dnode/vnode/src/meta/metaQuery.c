@@ -2873,7 +2873,9 @@ int32_t metaFlagCache(SVnode *pVnode) {
     SMeta   *pMeta = pVnode->pMeta;
     SArray  *uids = NULL;
 
+    metaRLock(pMeta);  // the async txn vacuum may already be resuming on this vnode
     int32_t code = metaGetChildUidsOfSuperTable(pMeta, id, &uids);
+    metaULock(pMeta);
     if (code) {
       metaError("vgId:%d, failed to get subtables, suid:%" PRId64 " since %s.", TD_VID(pVnode), id, tstrerror(code));
 
