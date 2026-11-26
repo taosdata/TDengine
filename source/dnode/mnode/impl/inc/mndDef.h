@@ -952,6 +952,13 @@ typedef struct {
   int64_t    prevTransferredSize;  // transferred bytes at the previous sample point, used for rate
   int64_t    prevSampleMs;         // timestamp of the previous sample point (ms)
   double     snapRate;             // instantaneous rate (bytes/second)
+  // Runtime field (not persisted in SDB): timestamp in ms at which the mnode stamped this gid as
+  // LEADER from the alter-confirm response of a just-created database. A vnode status report is
+  // generated asynchronously, so a report produced BEFORE the election may reach the mnode AFTER
+  // the stamp and downgrade syncState back to FOLLOWER. That would leave the new vgroup visible in
+  // ins_vgroups but leaderless in the mnode cache, making `show cluster alive` transiently return 2.
+  // mndUpdateVnodeState() uses this timestamp to ignore such stale downgrades for a short window.
+  int64_t    stampedLeaderMs;
 } SVnodeGid;
 
 typedef struct {
