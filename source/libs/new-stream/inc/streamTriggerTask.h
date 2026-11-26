@@ -751,7 +751,10 @@ typedef struct SSTriggerExtProgress {
 typedef struct {
   int64_t               gid;
   SSTriggerWalProgress *pProgress;
+  int64_t               retryAt;      // Wall-clock wakeup after a local send failure.
   int32_t               attemptCount;  // 1-based, incremented on each NEED_RETRY for logging
+  bool                  transientGroupColVals;
+  bool                  hasFallbackReader;
 } SSTriggerPendingCreateTableEntry;
 
 typedef enum ESTriggerWalMode {
@@ -1004,6 +1007,9 @@ struct SSTriggerRealtimeContext {
 
   // LAST_TS create-table: need groupInfo before send create-table req; pull GROUP_COL_VALUE first
   SArray *pPendingCreateTableGids;  // SArray<SSTriggerPendingCreateTableEntry>, (gid, pProgress) per reader
+  size_t  pendingCreateTableIndex;  // First entry awaiting a successful create request.
+  SArray *pPendingCreateGroupColVals;  // Owned values for an empty virtual group at the queue head.
+  SArray *pPendingCreateFallbackVgIds;  // Distinct backup vnodes for the queue head, stored in reverse pull order.
   TD_DLIST(SSTriggerRealtimeGroup) groupsWithAlignedWork;  // groups following a corrected window chain
 };
 
@@ -1168,6 +1174,7 @@ typedef struct SSTriggerCalcSlot {
   uint64_t             generation;
   int64_t              vtableRetryAtMs;  // monotonic deadline; zero when no retry is pending
   int32_t              vtableRetryDelayMs;
+  bool                 createTableOnly;
   TD_DLIST_NODE(SSTriggerCalcSlot);
 } SSTriggerCalcSlot;
 

@@ -17898,6 +17898,87 @@ TEST_F(StreamTest, StreamDeployWindowPlanDeepOwnsPersistedPlan) {
   tDestroyStreamWindowPlan(&deploy.msg.trigger.pWindowPlan);
 }
 
+TEST_F(StreamTest, VirtualPartitionDeployPrecreatesOnlySuperTableOutput) {
+  SCMCreateStreamReq create = {};
+  create.streamId = 42;
+  create.triggerTblType = TSDB_SUPER_TABLE;
+  create.flags = CREATE_STREAM_FLAG_TRIGGER_VIRTUAL_STB;
+  create.nodelayCreateSubtable = true;
+  SArray *partitionCols = taosArrayInit(1, sizeof(SColumnNode));
+  ASSERT_NE(nullptr, partitionCols);
+  SColumnNode partition = {};
+  ASSERT_NE(nullptr, taosArrayPush(partitionCols, &partition));
+  create.partitionCols = partitionCols;
+
+  SStmStatus status = {};
+  status.pCreate = &create;
+  SStreamObj stream = {};
+  stream.pCreate = &create;
+  for (int8_t outputType : {TSDB_NORMAL_TABLE, TSDB_SUPER_TABLE}) {
+    create.outTblType = outputType;
+    SStmTaskDeploy deploy = {};
+    ASSERT_EQ(TSDB_CODE_SUCCESS, msmBuildTriggerDeployInfo(nullptr, &status, &deploy, &stream));
+    EXPECT_TRUE(deploy.msg.trigger.isTriggerTblVirt);
+    EXPECT_EQ(partitionCols, deploy.msg.trigger.partitionCols);
+    EXPECT_EQ(outputType == TSDB_SUPER_TABLE, deploy.msg.trigger.nodelayCreateSubtable);
+  }
+  taosArrayDestroy(partitionCols);
+}
+
+TEST_F(StreamTest, VirtualPrecreateDeployClassifiesOutputGroupValues) {
+  SCMCreateStreamReq create = {};
+  create.triggerTblType = TSDB_SUPER_TABLE;
+  create.flags = CREATE_STREAM_FLAG_TRIGGER_VIRTUAL_STB;
+  create.outTblType = TSDB_SUPER_TABLE;
+  create.nodelayCreateSubtable = true;
+  create.placeHolderBitmap = PLACE_HOLDER_PARTITION_IDX;
+
+  SFunctionNode groupId = {};
+  groupId.node.type = QUERY_NODE_FUNCTION;
+  groupId.funcType = FUNCTION_TYPE_TGRPID;
+  char* nameExpr = nullptr;
+  ASSERT_EQ(TSDB_CODE_SUCCESS, nodesNodeToString(reinterpret_cast<SNode*>(&groupId), false, &nameExpr, nullptr));
+  create.subTblNameExpr = nameExpr;
+
+  SColumnNode partition = {};
+  partition.node.type = QUERY_NODE_COLUMN;
+  SArray* partitionCols = taosArrayInit(1, sizeof(SColumnNode));
+  ASSERT_NE(partitionCols, nullptr);
+  ASSERT_NE(taosArrayPush(partitionCols, &partition), nullptr);
+  create.partitionCols = partitionCols;
+
+  SStmStatus status = {};
+  status.pCreate = &create;
+  SStreamObj stream = {};
+  stream.pCreate = &create;
+  for (bool usesPartition : {false, true}) {
+    SNode* tag = nullptr;
+    if (usesPartition) {
+      ASSERT_EQ(TSDB_CODE_SUCCESS, nodesMakeNode(QUERY_NODE_FUNCTION, &tag));
+      reinterpret_cast<SFunctionNode*>(tag)->funcType = FUNCTION_TYPE_PLACEHOLDER_COLUMN;
+    } else {
+      char fixed[] = "fixed";
+      SValueNode* literal = nullptr;
+      ASSERT_EQ(TSDB_CODE_SUCCESS, nodesMakeValueNodeFromString(fixed, &literal));
+      tag = reinterpret_cast<SNode*>(literal);
+    }
+    SNodeList* tags = nullptr;
+    ASSERT_EQ(TSDB_CODE_SUCCESS, nodesListMakeStrictAppend(&tags, tag));
+    char* tagExpr = nullptr;
+    int32_t tagExprLen = 0;
+    ASSERT_EQ(TSDB_CODE_SUCCESS, nodesListToString(tags, false, &tagExpr, &tagExprLen));
+    nodesDestroyList(tags);
+    create.tagValueExpr = tagExpr;
+    SStmTaskDeploy deploy = {};
+    EXPECT_EQ(TSDB_CODE_SUCCESS, msmBuildTriggerDeployInfo(nullptr, &status, &deploy, &stream));
+    EXPECT_TRUE(BIT_FLAG_TEST_MASK(deploy.msg.trigger.addOptions, STREAM_OPTION_PRECREATE_OUTPUT_ANALYZED));
+    EXPECT_EQ(usesPartition, BIT_FLAG_TEST_MASK(deploy.msg.trigger.addOptions, STREAM_OPTION_OUTPUT_NEEDS_GROUP_VALUES));
+    taosMemoryFree(tagExpr);
+  }
+  taosArrayDestroy(partitionCols);
+  taosMemoryFree(nameExpr);
+}
+
 TEST_F(StreamTest, StreamDeployWindowPlanPropagatesRunnerCapability) {
   SCMCreateStreamReq create = {};
   create.addOptions = STREAM_OPTION_NESTED_WINDOW_PLAN | STREAM_OPTION_FLUSH_ON_OUTER_CLOSE;
