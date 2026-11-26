@@ -3825,8 +3825,10 @@ int32_t createExprInfo(SNodeList* pNodeList, SNodeList* pGroupKeys, SExprInfo** 
 
 _return:
   qError("%s failed at line %d since %s", __func__, __LINE__, tstrerror(code));
-  destroyExprInfo(pExprs, *numOfExprs);
-  taosMemoryFreeClear(pExprs);
+  if (pExprs != NULL) {
+    destroyExprInfo(pExprs, *numOfExprs);
+    taosMemoryFreeClear(pExprs);
+  }
   return code;
 }
 
