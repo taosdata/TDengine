@@ -285,6 +285,16 @@ def sync_source(source_dir):
     if source_dir == runner_dir:
         fail("Windows test workspace must be separate from the runner checkout")
     checkout_ref = os.environ["CI_COMMIT_SHA"]
+    if "TSDB_CI_CONFIG_SHA" in os.environ:
+        checkout_ref = os.environ["TSDB_CI_CONFIG_SHA"]
+        if not re.fullmatch(r"[0-9a-f]{40}", checkout_ref) or checkout_ref == "0" * 40:
+            fail("invalid Windows CI configuration snapshot")
+        if os.environ.get("MR_MERGE_REF_SHA") != checkout_ref:
+            fail("Windows source snapshot does not match CI configuration")
+        actual = subprocess.run(["git", "-C", str(runner_dir), "rev-parse", "HEAD"],
+                                capture_output=True, text=True)
+        if actual.returncode or actual.stdout.strip() != checkout_ref:
+            fail("runner checkout does not match Windows CI configuration snapshot")
 
     # A cancelled job can leave engines and test drivers running from the
     # previous workspace; they lock the files the metadata swap and the
