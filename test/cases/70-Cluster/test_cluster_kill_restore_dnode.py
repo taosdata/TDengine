@@ -21,7 +21,9 @@ import os
 
 sys.path.append(os.path.dirname(os.path.realpath(__file__)))
 from restore_basic import *
+from concurrent.futures import Future
 import threading
+from taos.error import Error as TaosError
 
 class TestClusterKillRestoreDnode:
     # init
@@ -37,10 +39,10 @@ class TestClusterKillRestoreDnode:
         1. Create 5 dnode 3 mnode cluster
         2. Create 1 db, 1 stable, 100 childs table
         3. Insert 10w records for each child table
-        4. Stop dnode 2 
+        4. Stop dnode 2 and wait until it is offline
         5. Delete the data folder of dnode 2
-        6. Start dnode 2
-        7. Restore dnode 2 data with "restore dnode 2"
+        6. Start dnode 2 and wait until ready
+        7. Restore dnode 2 data and wait for the restore transaction
         8. Kill the restore transaction
         9. Restart the restore dnode 2
         10. Check data correctness
@@ -63,17 +65,20 @@ class TestClusterKillRestoreDnode:
 
 
     def execute(self):
-        newTdSql=tdCom.newTdSql()
-        t0 = threading.Thread(target=self.restoreDnodeThread, args=('', newTdSql))
-        t0.start()
+        restore = Future()
 
-        time.sleep(5)
-        sql ="show transactions;"
-        tdLog.info(sql)
-        rows = tdSql.query(sql)
+        def run_restore():
+            try:
+                self.restoreDnodeThread()
+            except BaseException as error:
+                restore.set_exception(error)
+            else:
+                restore.set_result(None)
 
-        if rows > 0:
-            tranId = tdSql.getData(0, 0)
+        worker = threading.Thread(target=run_restore, daemon=True)
+        worker.start()
+        try:
+            tranId = self.wait_restore_transaction(restore)
 
             tdLog.info('show transaction %d'%tranId)
             rows=tdSql.query('show transaction %d'%tranId, queryTimes=1)
@@ -84,37 +89,50 @@ class TestClusterKillRestoreDnode:
             tdLog.info('kill transaction %d'%tranId)
             tdSql.execute('kill transaction %d'%tranId, queryTimes=1 )
 
-            time.sleep(3)
-            sql ="show transactions;"
-            tdLog.info(sql)
-            rows = tdSql.query(sql)
-            if rows > 0:
-                tdLog.info(f"{sql} transaction not finished")
-                return False
-            
-            self.basic.restore_dnode_exec(2)
-        else:
-            tdLog.exit(f"{sql} no transaction exist")
-            return False
+            restore.result(timeout=60)
+        finally:
+            # A blocked client call must not make the case's timeout unbounded.
+            worker.join(timeout=1)
 
-    def restoreDnodeThread(self, p, newTdSql):
-        deadline = time.time() + 60
-        while time.time() < deadline:
-            newTdSql.query('show dnodes')
-            dnode_status = next(
-                (row[4] for row in newTdSql.queryResult if str(row[0]) == "2"),
-                None,
-            )
-            if dnode_status == "ready":
+        deadline = time.monotonic() + 60
+        while time.monotonic() < deadline:
+            tdSql.query("show transactions", queryTimes=1)
+            if not any(row[0] == tranId for row in tdSql.queryResult):
                 break
             time.sleep(0.2)
         else:
-            tdLog.exit("dnode 2 did not become ready before restore")
+            raise TimeoutError(f"restore transaction {tranId} did not finish after kill")
 
-        sql = f"restore dnode 2"
-        tdLog.info(sql)
-        newTdSql.error(sql, expectErrInfo="Wrong transaction execution context")
-        tdLog.info(f"{sql} finished")
+        self.basic.restore_dnode_exec(2)
+
+    def wait_restore_transaction(self, restore, timeout=60):
+        deadline = time.monotonic() + timeout
+        while time.monotonic() < deadline:
+            # Propagate failures, but keep observing after an accepted response.
+            if restore.done():
+                restore.result()
+            tdSql.query("show transactions", queryTimes=1)
+            for row in tdSql.queryResult:
+                if (row[3] == "restore-dnode" and row[2] == "redoAction"
+                        and row[6] == "yes"):
+                    return row[0]
+            time.sleep(0.2)
+        raise TimeoutError("no restore-dnode transaction appeared within the timeout")
+
+    def restoreDnodeThread(self):
+        newTdSql = tdCom.newTdSql()
+        try:
+            sql = "restore dnode 2"
+            tdLog.info(sql)
+            # Execute once: the wrappers either require failure or retry errors.
+            try:
+                newTdSql.cursor.execute(sql)
+            except TaosError as error:
+                if error.msg != "Wrong transaction execution context":
+                    raise
+            tdLog.info(f"{sql} finished")
+        finally:
+            newTdSql.close()
 
 
     def test_except_kill_transaction(self):
