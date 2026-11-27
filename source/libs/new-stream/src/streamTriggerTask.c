@@ -42,6 +42,25 @@
 #include "ttime.h"
 #include "tutil.h"
 
+#if defined(BUILD_TEST)
+// Only this trigger translation unit and the thread driving the test use the injected clock.
+static threadlocal const int64_t *stTestWallNs;
+static threadlocal const int64_t *stTestMonoNs;
+
+void stTriggerTestSetClock(const int64_t *wallNs, const int64_t *monoNs) {
+  stTestWallNs = wallNs;
+  stTestMonoNs = monoNs;
+}
+
+#define ST_TEST_TIME(ns, scale, realClock) ((ns) ? *(ns) / (scale) : (realClock)())
+#define taosGetTimestampNs()               ST_TEST_TIME(stTestWallNs, 1, taosGetTimestampNs)
+#define taosGetTimestampUs()               ST_TEST_TIME(stTestWallNs, NANOSECOND_PER_USEC, taosGetTimestampUs)
+#define taosGetTimestampMs()               ST_TEST_TIME(stTestWallNs, NANOSECOND_PER_MSEC, taosGetTimestampMs)
+#define taosGetMonoTimestampNs()           ST_TEST_TIME(stTestMonoNs, 1, taosGetMonoTimestampNs)
+#define taosGetMonoTimestampMs()           ST_TEST_TIME(stTestMonoNs, NANOSECOND_PER_MSEC, taosGetMonoTimestampMs)
+#define streamTaskGetMonotonicUs()         ST_TEST_TIME(stTestMonoNs, NANOSECOND_PER_USEC, streamTaskGetMonotonicUs)
+#endif
+
 #define STREAM_TRIGGER_CHECK_INTERVAL_MS  1000                    // 1s
 #define STREAM_TRIGGER_CHECK_INTERVAL_US  (STREAM_TRIGGER_CHECK_INTERVAL_MS * 1000LL)
 #define STREAM_TRIGGER_IDLE_TIME_NS       1 * NANOSECOND_PER_SEC  // 1s, todo(kjq): increase the wait time to 10s
@@ -2407,6 +2426,8 @@ typedef enum {
   STREAM_TRIGGER_WAIT_PERIOD_POLL,
   STREAM_TRIGGER_WAIT_TIME_ALIGN_CLOSE,
   STREAM_TRIGGER_WAIT_RESULT_CHECK,
+  STREAM_TRIGGER_WAIT_WAL_CHECKPOINT,
+  STREAM_TRIGGER_WAIT_GROUP_COL_RETRY,
 } EStreamTriggerWaitReason;
 
 typedef struct StreamTriggerWaitInfo {
@@ -2417,7 +2438,8 @@ typedef struct StreamTriggerWaitInfo {
   EStreamTriggerWaitReason reason;
   bool                     queued;
   uint64_t                 manualRecalcChainId;
-  uint64_t                 controlMsgId;  // nonzero while this node owns a queued manual CTRL handoff
+  uint64_t                 controlMsgId;  // Identifies a queued wake for its owner.
+  int64_t                  walWindowDeadline;  // Wall-clock MAX_DELAY while the checkpoint pauses WAL.
 } StreamTriggerWaitInfo;
 
 static EDealRes nodeRewriteSlotid(SNode *pNode, void *pContext) {
@@ -3280,8 +3302,8 @@ static SRWLatch gStreamTriggerWaitLatch;
 static SList    gStreamTriggerWaitList;
 static tmr_h    gStreamTriggerTimerId = NULL;
 
-static int32_t stTriggerTaskAddWaitSessionForReason(SStreamTriggerTask *pTask, int64_t sessionId, int64_t resumeTime,
-                                                    EStreamTriggerWaitReason reason) {
+static int32_t stTriggerTaskAddWait(SStreamTriggerTask *pTask, int64_t sessionId, int64_t resumeTime,
+                                    EStreamTriggerWaitReason reason, int64_t walWindowDeadline) {
   int32_t code = TSDB_CODE_SUCCESS;
   int32_t lino = 0;
 
@@ -3291,24 +3313,40 @@ static int32_t stTriggerTaskAddWaitSessionForReason(SStreamTriggerTask *pTask, i
       .sessionId = sessionId,
       .resumeTime = resumeTime,
       .reason = reason,
+      .walWindowDeadline = walWindowDeadline,
   };
+  int64_t *wakeId = NULL;
+  if (reason == STREAM_TRIGGER_WAIT_WAL_CHECKPOINT) wakeId = &pTask->walCheckpointWakeId;
+  if (reason == STREAM_TRIGGER_WAIT_GROUP_COL_RETRY) wakeId = &pTask->pRealtimeContext->calcGroupValueWakeId;
+  int64_t currentId = wakeId ? atomic_load_64(wakeId) : 0;
+  if (wakeId) {
+    if (currentId && reason != STREAM_TRIGGER_WAIT_WAL_CHECKPOINT) return TSDB_CODE_SUCCESS;
+    info.controlMsgId = currentId ? currentId : tGenIdPI64();
+  }
   taosWLockLatch(&gStreamTriggerWaitLatch);
   if (reason == STREAM_TRIGGER_WAIT_PERIOD_POLL || reason == STREAM_TRIGGER_WAIT_TIME_ALIGN_CLOSE ||
-      reason == STREAM_TRIGGER_WAIT_RESULT_CHECK) {
+      reason == STREAM_TRIGGER_WAIT_RESULT_CHECK || currentId) {
     SListIter  iter = {0};
     SListNode *pNode = NULL;
     tdListInitIter(&gStreamTriggerWaitList, &iter, TD_LIST_FORWARD);
     while ((pNode = tdListNext(&iter)) != NULL) {
       StreamTriggerWaitInfo *pWait = (StreamTriggerWaitInfo *)pNode->data;
       if (pWait->streamId == info.streamId && pWait->taskId == info.taskId && pWait->sessionId == info.sessionId &&
-          pWait->reason == reason) {
+          pWait->reason == reason && (!wakeId || pWait->controlMsgId == currentId)) {
         pWait->resumeTime = TMIN(pWait->resumeTime, resumeTime);
+        if (reason == STREAM_TRIGGER_WAIT_WAL_CHECKPOINT) pWait->walWindowDeadline = walWindowDeadline;
         taosWUnLockLatch(&gStreamTriggerWaitLatch);
         return TSDB_CODE_SUCCESS;
       }
     }
+    if (currentId) {
+      // The timer already queued this control.
+      taosWUnLockLatch(&gStreamTriggerWaitLatch);
+      return TSDB_CODE_SUCCESS;
+    }
   }
   code = tdListAppend(&gStreamTriggerWaitList, &info);
+  if (code == TSDB_CODE_SUCCESS && wakeId) atomic_store_64(wakeId, info.controlMsgId);
   taosWUnLockLatch(&gStreamTriggerWaitLatch);
   QUERY_CHECK_CODE(code, lino, _end);
 
@@ -3319,6 +3357,31 @@ _end:
     ST_TASK_DLOG("add session %" PRIx64 " to wait list, resumeTime:%" PRId64, sessionId, resumeTime);
   }
   return code;
+}
+
+static int32_t stTriggerTaskAddWaitSessionForReason(SStreamTriggerTask *pTask, int64_t sessionId, int64_t resumeTime,
+                                                    EStreamTriggerWaitReason reason) {
+  return stTriggerTaskAddWait(pTask, sessionId, resumeTime, reason, 0);
+}
+
+static void stCancelWalCheckpointWake(SStreamTriggerTask *task) {
+  // Invalidate controls already taken by the timer as well as nodes still waiting below.
+  int64_t wakeId = atomic_exchange_64(&task->walCheckpointWakeId, 0);
+  if (!wakeId) return;
+  SListIter  iter = {0};
+  SListNode *node = NULL;
+  taosWLockLatch(&gStreamTriggerWaitLatch);
+  tdListInitIter(&gStreamTriggerWaitList, &iter, TD_LIST_FORWARD);
+  while ((node = tdListNext(&iter)) != NULL) {
+    StreamTriggerWaitInfo *wait = (StreamTriggerWaitInfo *)node->data;
+    if (wait->reason == STREAM_TRIGGER_WAIT_WAL_CHECKPOINT && wait->streamId == task->task.streamId &&
+        wait->taskId == task->task.taskId && wait->controlMsgId == wakeId) {
+      TD_DLIST_POP(&gStreamTriggerWaitList, node);
+      break;
+    }
+  }
+  taosWUnLockLatch(&gStreamTriggerWaitLatch);
+  taosMemoryFree(node);
 }
 
 static int32_t stTriggerTaskAddWaitSession(SStreamTriggerTask *pTask, int64_t sessionId, int64_t resumeTime) {
@@ -3445,6 +3508,13 @@ static int32_t stTriggerTaskResumeManualRecalc(SStreamTriggerTask *pTask, uint64
   return TSDB_CODE_SUCCESS;
 }
 
+static int64_t stTriggerWaitClock(EStreamTriggerWaitReason reason, int64_t wallNow, int64_t monoNow) {
+  return (reason == STREAM_TRIGGER_WAIT_CALC_RETRY || reason == STREAM_TRIGGER_WAIT_RESULT_CHECK ||
+          reason == STREAM_TRIGGER_WAIT_WAL_CHECKPOINT || reason == STREAM_TRIGGER_WAIT_GROUP_COL_RETRY)
+             ? monoNow
+             : wallNow;
+}
+
 static void stTriggerTaskCheckWaitSession(void *param, void *tmrId) {
   int64_t    now = taosGetTimestampNs();
   int64_t    monoNow = taosGetMonoTimestampNs();
@@ -3459,10 +3529,11 @@ static void stTriggerTaskCheckWaitSession(void *param, void *tmrId) {
   tdListInitIter(&gStreamTriggerWaitList, &iter, TD_LIST_FORWARD);
   while ((pNode = tdListNext(&iter)) != NULL) {
     StreamTriggerWaitInfo *pInfo = (StreamTriggerWaitInfo *)pNode->data;
-    int64_t                clockNow =
-        (pInfo->reason == STREAM_TRIGGER_WAIT_CALC_RETRY || pInfo->reason == STREAM_TRIGGER_WAIT_RESULT_CHECK) ? monoNow
-                                                                                                                              : now;
-    if (!pInfo->queued && pInfo->controlMsgId == 0 && pInfo->resumeTime <= clockNow) {
+    int64_t                clockNow = stTriggerWaitClock(pInfo->reason, now, monoNow);
+    bool                   queuedManual = pInfo->manualRecalcChainId != 0 && pInfo->controlMsgId != 0;
+    bool windowDue = pInfo->reason == STREAM_TRIGGER_WAIT_WAL_CHECKPOINT && pInfo->walWindowDeadline != 0 &&
+                     pInfo->walWindowDeadline <= now;
+    if (!pInfo->queued && !queuedManual && (pInfo->resumeTime <= clockNow || windowDue)) {
       TD_DLIST_POP(&gStreamTriggerWaitList, pNode);
       TD_DLIST_APPEND(&readylist, pNode);
     }
@@ -3501,7 +3572,9 @@ static void stTriggerTaskCheckWaitSession(void *param, void *tmrId) {
         .streamId = pInfo->streamId,
         .taskId = pInfo->taskId,
         .sessionId = pInfo->sessionId};
-    SRpcMsg              msg = {.msgType = TDMT_STREAM_TRIGGER_CTRL};
+    if (pInfo->reason == STREAM_TRIGGER_WAIT_WAL_CHECKPOINT) req.type = STRIGGER_CTRL_WAL_CHECKPOINT;
+    if (pInfo->reason == STREAM_TRIGGER_WAIT_GROUP_COL_RETRY) req.type = STRIGGER_CTRL_GROUP_COL_RETRY;
+    SRpcMsg msg = {.msgType = TDMT_STREAM_TRIGGER_CTRL};
     msg.contLen = tSerializeSTriggerCtrlRequest(NULL, 0, &req);
     if (msg.contLen > 0) {
       msg.pCont = rpcMallocCont(msg.contLen);
@@ -3509,7 +3582,7 @@ static void stTriggerTaskCheckWaitSession(void *param, void *tmrId) {
         int32_t tlen = tSerializeSTriggerCtrlRequest(msg.pCont, msg.contLen, &req);
         if (tlen == msg.contLen) {
           TRACE_SET_ROOTID(&msg.info.traceId, pInfo->streamId);
-          TRACE_SET_MSGID(&msg.info.traceId, tGenIdPI64());
+          TRACE_SET_MSGID(&msg.info.traceId, pInfo->controlMsgId ? (int64_t)pInfo->controlMsgId : tGenIdPI64());
           if (manual) {
             // Publish the exact handoff owner before queueing.  The worker may
             // take and free this node as soon as putToQueueFp succeeds.
@@ -3560,16 +3633,17 @@ static void stTriggerTaskCheckWaitSession(void *param, void *tmrId) {
       taosMemoryFreeClear(pNode);
     } else {
       rpcFreeCont(msg.pCont);
-      pInfo->resumeTime =
-          ((pInfo->reason == STREAM_TRIGGER_WAIT_CALC_RETRY || pInfo->reason == STREAM_TRIGGER_WAIT_RESULT_CHECK)
-               ? monoNow
-               : now) +
-          STREAM_TRIGGER_NOTICE_RETRY_NS;
-      stWarn("retry trigger start request stream:%" PRIx64 ", task:%" PRIx64 ", session:%" PRIx64 " at:%" PRId64,
-             pInfo->streamId, pInfo->taskId, pInfo->sessionId, pInfo->resumeTime);
+      if (pInfo->reason == STREAM_TRIGGER_WAIT_WAL_CHECKPOINT) pInfo->walWindowDeadline = 0;
+      pInfo->resumeTime = stTriggerWaitClock(pInfo->reason, now, monoNow) + STREAM_TRIGGER_NOTICE_RETRY_NS;
+      stWarn("failed to queue trigger start request stream:%" PRIx64 ", task:%" PRIx64 ", session:%" PRIx64,
+             pInfo->streamId, pInfo->taskId, pInfo->sessionId);
       taosWLockLatch(&gStreamTriggerWaitLatch);
-      tdListAppendNode(&gStreamTriggerWaitList, pNode);
+      bool cancelled = pInfo->reason == STREAM_TRIGGER_WAIT_WAL_CHECKPOINT &&
+                       (pTask->type != STREAM_TRIGGER_TASK ||
+                        pInfo->controlMsgId != atomic_load_64(&((SStreamTriggerTask *)pTask)->walCheckpointWakeId));
+      if (!cancelled) tdListAppendNode(&gStreamTriggerWaitList, pNode);
       taosWUnLockLatch(&gStreamTriggerWaitLatch);
+      if (cancelled) taosMemoryFree(pNode);
     }
     streamReleaseTask(pTaskAddr);
   }
@@ -7398,6 +7472,8 @@ static int32_t stTriggerTaskDriveNestedValidate(SStreamTriggerTask *pTask) {
   return TSDB_CODE_SUCCESS;
 }
 
+static bool stTriggerTaskCanDrainWalCheckpoint(const SStreamTriggerTask *task);
+
 static bool stTriggerTaskShouldCheckpointWalProgress(SStreamTriggerTask *pTask, SSTriggerWalProgress *pProgress,
                                                      int32_t vgId) {
   if (!pTask->isVirtualTable || pTask->pVirtTableInfos == NULL) {
@@ -8186,13 +8262,14 @@ int32_t stTriggerTaskDoGenCheckpoint(SStreamTriggerTask *pTask, uint8_t *buf, in
   int32_t  code = TSDB_CODE_SUCCESS;
   int32_t  lino = 0;
   SEncoder encoder = {0};
+  int64_t  capacity = *pLen;
+  *pLen = 0;
   /* Synthetic TRIGGER bindings of the current reference (see
    * stTriggerTaskBuildExtOwnedBindings); freed at function exit so the inner
    * loops can keep using continue. */
   SArray *pOwnedBindings = NULL;
 
   if (stTriggerTaskHasUnfinishedExtCalc(pTask)) {
-    *pLen = 0;
     return TSDB_CODE_SUCCESS;
   }
 
@@ -8211,7 +8288,7 @@ int32_t stTriggerTaskDoGenCheckpoint(SStreamTriggerTask *pTask, uint8_t *buf, in
     goto _end;
   }
 
-  tEncoderInit(&encoder, buf, *pLen);
+  tEncoderInit(&encoder, buf, capacity);
   code = tStartEncode(&encoder);
   QUERY_CHECK_CODE(code, lino, _end);
 
@@ -8249,7 +8326,7 @@ int32_t stTriggerTaskDoGenCheckpoint(SStreamTriggerTask *pTask, uint8_t *buf, in
       pProgress = tSimpleHashIterate(pWalProgress, pProgress, &iter);
       continue;
     }
-    if (pProgress->startVer == 0) {
+    if (pProgress->startVer == 0 && !(pProgress->zeroStartConfirmed && stTriggerTaskCanDrainWalCheckpoint(pTask))) {
       ST_TASK_ILOG("[checkpoint] skip checkpoint since VNode %d start version has not been determined", vgId);
       goto _end;
     }
@@ -8572,6 +8649,7 @@ typedef enum {
   STRIGGER_CHECKPOINT_GENERATED = 0,
   STRIGGER_CHECKPOINT_DEFERRED,
   STRIGGER_CHECKPOINT_ERROR,
+  STRIGGER_CHECKPOINT_SKIPPED,
 } ESTriggerCheckpointStatus;
 
 typedef struct {
@@ -8589,13 +8667,39 @@ static bool stOrdinaryCheckpointPending(const SStreamTriggerTask *task, bool clo
          (ctx->timeAlignRestart || !stAlignedWalInputsDrained(ctx, closing));
 }
 
+// Takes ownership of buf. On retry, read the latest committed version without regenerating the checkpoint.
+static int32_t stTriggerTaskSyncCommittedCheckpoint(SStreamTriggerTask *pTask, void *buf, int64_t len, bool retry) {
+  SEpSet *epSet = gStreamMgmt.getSynEpset(pTask->leaderSnodeId);
+  int32_t code = TSDB_CODE_SUCCESS;
+  if (epSet != NULL) {
+    if (buf == NULL) {
+      code = streamReadCheckPoint(pTask->task.streamId, &buf, &len);
+      if (code == TSDB_CODE_SUCCESS && buf == NULL) code = TAOS_SYSTEM_ERROR(ENOENT);
+    }
+    if (code == TSDB_CODE_SUCCESS) {
+      code = streamSyncWriteCheckpoint(pTask->task.streamId, epSet, buf, len);
+      buf = NULL;
+    }
+  }
+  taosMemoryFree(buf);
+  pTask->checkpointSyncRetryMonoUs = 0;
+  if (retry && code != TSDB_CODE_SUCCESS) {
+    pTask->checkpointSyncRetryMonoUs = streamTaskGetMonotonicUs() + STREAM_TRIGGER_CHECK_INTERVAL_US;
+    ST_TASK_WLOG("failed to submit committed checkpoint for replication since %s", tstrerror(code));
+    return TSDB_CODE_SUCCESS;
+  }
+  return code;
+}
+
 static SSTriggerCheckpointResult stTriggerTaskGenCheckpoint(SStreamTriggerTask *pTask, bool closing) {
   int32_t                   code = TSDB_CODE_SUCCESS;
   int32_t                   lino = 0;
   uint8_t                  *buf = NULL;
   int64_t                   len = 0;
-  SSTriggerCheckpointResult result = {.status = STRIGGER_CHECKPOINT_GENERATED, .code = TSDB_CODE_SUCCESS};
+  SSTriggerCheckpointResult result = {.status = STRIGGER_CHECKPOINT_SKIPPED, .code = TSDB_CODE_SUCCESS};
 
+  // Ordinary WAL STATE_WINDOW rebuilds its windows from startVer. Its doneVer already excludes the page
+  // waiting for partition values, so undeploy can persist earlier confirmed output.
   if (stTriggerTaskHasNestedRecoveryOwner(pTask) || stTriggerTaskHasUnfinishedExtCalc(pTask) ||
       stOrdinaryCheckpointPending(pTask, closing) ||
       (atomic_load_32(&pTask->alignedCheckpointHold) &&
@@ -8616,16 +8720,15 @@ static SSTriggerCheckpointResult stTriggerTaskGenCheckpoint(SStreamTriggerTask *
   QUERY_CHECK_NULL(buf, code, lino, _end, terrno);
   code = stTriggerTaskDoGenCheckpoint(pTask, buf, &len, version);
   QUERY_CHECK_CODE(code, lino, _end);
+  if (len == 0) goto _end;
   code = streamWriteCheckPoint(pTask->task.streamId, buf, len);
   QUERY_CHECK_CODE(code, lino, _end);
-  int32_t leaderSid = pTask->leaderSnodeId;
-  SEpSet *epSet = gStreamMgmt.getSynEpset(leaderSid);
-  if (epSet != NULL) {
-    code = streamSyncWriteCheckpoint(pTask->task.streamId, epSet, buf, len);
-    buf = NULL;
-    QUERY_CHECK_CODE(code, lino, _end);
-  }
+  bool retrySync = !closing && (pTask->pRealtimeContext->drainingWalCheckpoint || pTask->checkpointSyncRetryMonoUs);
+  code = stTriggerTaskSyncCommittedCheckpoint(pTask, buf, len, retrySync);
+  buf = NULL;
+  QUERY_CHECK_CODE(code, lino, _end);
 
+  result.status = STRIGGER_CHECKPOINT_GENERATED;
   ST_TASK_DLOG("[checkpoint] generated checkpoint with version %d, len %" PRId64, version, len);
 
 _end:
@@ -8639,6 +8742,7 @@ _end:
 }
 
 #define STRIGGER_CHECKPOINT_INTERVAL_NS (10 * NANOSECOND_PER_MINUTE)  // 10min
+#define STRIGGER_WAL_STALL_INTERVAL_US  (30 * 60 * MICROSECOND_PER_SECOND)
 
 static void stTriggerTaskGeneratePeriodicCheckpoint(SStreamTriggerTask *pTask, SSTriggerRealtimeContext *pContext,
                                                     int64_t now) {
@@ -8647,7 +8751,8 @@ static void stTriggerTaskGeneratePeriodicCheckpoint(SStreamTriggerTask *pTask, S
   }
 
   SSTriggerCheckpointResult result = stTriggerTaskGenCheckpoint(pTask, false);
-  if (result.status == STRIGGER_CHECKPOINT_DEFERRED) {
+  if (result.status == STRIGGER_CHECKPOINT_DEFERRED ||
+      (result.status == STRIGGER_CHECKPOINT_SKIPPED && pContext->drainingWalCheckpoint)) {
     pTask->pendingPeriodicCheckpoint = true;
     return;
   }
@@ -9345,6 +9450,7 @@ int32_t stTriggerTaskParseCheckpoint(SStreamTriggerTask *pTask, uint8_t *buf, in
       continue;
     }
     pProgress->startVer = pEntry->startVer;
+    pProgress->zeroStartConfirmed = pEntry->startVer == 0;
     pProgress->savedVer = pEntry->savedVer;
     pProgress->doneVer = pEntry->startVer;
     pProgress->lastScanVer = pEntry->startVer;
@@ -10930,15 +11036,14 @@ static int32_t stTriggerTaskPrepareManualRecalcRequest(SStreamTriggerTask *pTask
   return TSDB_CODE_SUCCESS;
 }
 
-typedef struct SSTriggerRepairWait {
+typedef struct SSTriggerCalcWait {
   int32_t  nodeIndex;
   int32_t  slotIndex;
   uint64_t generation;
-} SSTriggerRepairWait;
+} SSTriggerCalcWait;
 
-static int32_t stTriggerTaskCaptureRepairWaits(SStreamTriggerTask *pTask, SSTriggerRecalcRequest *pRecalc) {
-  if (!pRecalc->waitForOutput || pRecalc->pRepairWaits != NULL) return TSDB_CODE_SUCCESS;
-  SArray *pWaits = taosArrayInit(0, sizeof(SSTriggerRepairWait));
+static int32_t stTriggerTaskCaptureCalcWaits(SStreamTriggerTask *pTask, const int64_t *gid, SArray **ppWaits) {
+  SArray *pWaits = taosArrayInit(0, sizeof(SSTriggerCalcWait));
   if (pWaits == NULL) return terrno;
   int32_t code = TSDB_CODE_SUCCESS;
   taosRLockLatch(&pTask->calcPoolLock);
@@ -10950,19 +11055,18 @@ static int32_t stTriggerTaskCaptureRepairWaits(SStreamTriggerTask *pTask, SSTrig
       bool idle = TD_DLIST_HEAD(&pNode->idleSlots) == pSlot ||
                   TD_DLIST_NODE_PREV(pSlot) != NULL || TD_DLIST_NODE_NEXT(pSlot) != NULL;
       if (idle || pReq->sessionId != STREAM_TRIGGER_REALTIME_SESSIONID) continue;
-      bool grouped = pReq->pGroupCalcInfos != NULL && tSimpleHashGetSize(pReq->pGroupCalcInfos) > 0;
-      if (grouped ? tSimpleHashGet(pReq->pGroupCalcInfos, &pRecalc->gid, sizeof(pRecalc->gid)) == NULL
-                  : pReq->gid != pRecalc->gid) {
-        continue;
+      if (gid) {
+        bool grouped = pReq->pGroupCalcInfos != NULL && tSimpleHashGetSize(pReq->pGroupCalcInfos) > 0;
+        if (grouped ? tSimpleHashGet(pReq->pGroupCalcInfos, gid, sizeof(*gid)) == NULL : pReq->gid != *gid) continue;
       }
-      SSTriggerRepairWait wait = {.nodeIndex = i, .slotIndex = j, .generation = pSlot->generation};
+      SSTriggerCalcWait wait = {.nodeIndex = i, .slotIndex = j, .generation = pSlot->generation};
       if (taosArrayPush(pWaits, &wait) == NULL) {
         code = terrno;
         goto _end;
       }
     }
   }
-  pRecalc->pRepairWaits = pWaits;
+  *ppWaits = pWaits;
   pWaits = NULL;
 _end:
   taosRUnLockLatch(&pTask->calcPoolLock);
@@ -10970,22 +11074,23 @@ _end:
   return code;
 }
 
-static bool stTriggerTaskRepairIsWaiting(SStreamTriggerTask *pTask, const SSTriggerRecalcRequest *pRecalc) {
-  bool waiting = false;
+static bool stTriggerTaskCalcIsWaiting(SStreamTriggerTask *pTask, const SArray *pWaits, int32_t *firstPending) {
+  int32_t i = firstPending ? *firstPending : 0;
+  int32_t count = taosArrayGetSize(pWaits);
+  if (i == count) return false;
+
   taosRLockLatch(&pTask->calcPoolLock);
-  for (int32_t i = 0; i < taosArrayGetSize(pRecalc->pRepairWaits); ++i) {
-    const SSTriggerRepairWait *pWait = taosArrayGet(pRecalc->pRepairWaits, i);
+  for (; i < count; ++i) {
+    const SSTriggerCalcWait *pWait = taosArrayGet(pWaits, i);
     const SSTriggerCalcNode *pNode = taosArrayGet(pTask->pCalcNodes, pWait->nodeIndex);
     const SSTriggerCalcSlot *pSlot = pNode == NULL ? NULL : taosArrayGet(pNode->pSlots, pWait->slotIndex);
     // Both completion and reuse advance the generation; later requests must
     // not extend the original output's completion barrier.
-    if (pSlot != NULL && pSlot->generation == pWait->generation) {
-      waiting = true;
-      break;
-    }
+    if (pSlot != NULL && pSlot->generation == pWait->generation) break;
   }
   taosRUnLockLatch(&pTask->calcPoolLock);
-  return waiting;
+  if (firstPending) *firstPending = i;
+  return i < count;
 }
 
 static int32_t stTriggerTaskAddReadyRecalcImpl(SStreamTriggerTask *pTask, SSTriggerRecalcRequest **ppReq,
@@ -11082,7 +11187,8 @@ static int32_t stTriggerTaskAddReadyRecalcImpl(SStreamTriggerTask *pTask, SSTrig
     }
     // Output progress has passed this window, so all its requests are now
     // allocated. Freeze that finite set before publishing the repair.
-    code = stTriggerTaskCaptureRepairWaits(pTask, pReq);
+    if (pReq->waitForOutput && !pReq->pRepairWaits)
+      code = stTriggerTaskCaptureCalcWaits(pTask, &pReq->gid, &pReq->pRepairWaits);
     if (code == TSDB_CODE_SUCCESS) code = tdListAppend(pTask->pRecalcRequests, &pReq);
     if (code != TSDB_CODE_SUCCESS && pMutations != NULL) TAOS_UNUSED(taosArrayPop(pMutations));
     QUERY_CHECK_CODE(code, lino, _end);
@@ -11767,7 +11873,7 @@ int32_t stTriggerTaskFetchRecalcRequest(SStreamTriggerTask *pTask, SSTriggerReca
     // Keep each group's request order while allowing other ready groups past
     // a repair whose original output is still running.
     bool firstForGroup = pReq->isHistory || (pList != NULL && TD_DLIST_HEAD(pList) == pReq);
-    if (firstForGroup && (!pReq->waitForOutput || !stTriggerTaskRepairIsWaiting(pTask, pReq))) break;
+    if (firstForGroup && (!pReq->waitForOutput || !stTriggerTaskCalcIsWaiting(pTask, pReq->pRepairWaits, NULL))) break;
     pNode = TD_DLIST_NODE_NEXT(pNode);
   }
   if (pNode != NULL) pNode = tdListPopNode(pTask->pRecalcRequests, pNode);
@@ -19413,8 +19519,21 @@ int32_t stTriggerTaskProcessRsp(SStreamTask *pStreamTask, SRpcMsg *pRsp, int64_t
     QUERY_CHECK_CODE(code, lino, _end);
     debugSessionId = req.sessionId;
     switch (req.type) {
+      case STRIGGER_CTRL_GROUP_COL_RETRY:
+      case STRIGGER_CTRL_WAL_CHECKPOINT:
       case STRIGGER_CTRL_CALC_RETRY:
       case STRIGGER_CTRL_START: {
+        if (req.type == STRIGGER_CTRL_WAL_CHECKPOINT || req.type == STRIGGER_CTRL_GROUP_COL_RETRY) {
+          SSTriggerRealtimeContext *ctx = pTask->pRealtimeContext;
+          if (req.sessionId != STREAM_TRIGGER_REALTIME_SESSIONID || !ctx) break;
+          int64_t *wakeId =
+              req.type == STRIGGER_CTRL_WAL_CHECKPOINT ? &pTask->walCheckpointWakeId : &ctx->calcGroupValueWakeId;
+          int64_t controlId = TRACE_GET_MSGID(&pRsp->info.traceId);
+          if (!controlId || atomic_val_compare_exchange_64(wakeId, controlId, 0) != controlId) break;
+          if (req.type == STRIGGER_CTRL_WAL_CHECKPOINT && ctx->walCheckpointMaxDelayCutoff &&
+              ctx->status != STRIGGER_CONTEXT_ACQUIRE_REQUEST)
+            break;
+        }
         if (req.type == STRIGGER_CTRL_CALC_RETRY) stWakeResultChecks(pTask, req.sessionId);
         if (atomic_load_32((int32_t *)&pStreamTask->status) == STREAM_STATUS_FAILED) {
           code = atomic_load_32(&pStreamTask->errorCode);
@@ -19428,6 +19547,20 @@ int32_t stTriggerTaskProcessRsp(SStreamTask *pStreamTask, SRpcMsg *pRsp, int64_t
           if (pTask->pRealtimeContext && pTask->pRealtimeContext->timeAlignRestart) {
             code = stRestartRealtimeTimeAlignRound(pTask);
             QUERY_CHECK_CODE(code, lino, _end);
+            break;
+          }
+          if (req.type == STRIGGER_CTRL_GROUP_COL_RETRY) {
+            SSTriggerRealtimeContext *ctx = pTask->pRealtimeContext;
+            code = ctx->walStallError;
+            QUERY_CHECK_CODE(code, lino, _end);
+            SSTriggerRealtimeGroup *group = stRealtimeContextGetCurrentGroup(ctx);
+            code = group ? stRealtimeContextSendGroupColValuePull(ctx, group->gid) : TSDB_CODE_INTERNAL_ERROR;
+            if (code != TSDB_CODE_SUCCESS) {
+              ctx->walStallError = code;
+              if (ctx->pCalcReq) TAOS_UNUSED(stTriggerTaskReleaseRequest(pTask, &ctx->pCalcReq, false));
+              localFailure = true;
+              QUERY_CHECK_CODE(code, lino, _end);
+            }
             break;
           }
           if (req.type == STRIGGER_CTRL_CALC_RETRY) {
@@ -19518,6 +19651,11 @@ int32_t stTriggerTaskProcessRsp(SStreamTask *pStreamTask, SRpcMsg *pRsp, int64_t
 
 _end:
   if (code != TSDB_CODE_SUCCESS) {
+    // A terminal failure can release the first slot before this page finishes dispatch.
+    if (pRsp->msgType == TDMT_STREAM_TRIGGER_CALC_RSP && debugSessionId == STREAM_TRIGGER_REALTIME_SESSIONID &&
+        stTriggerTaskCanDrainWalCheckpoint(pTask)) {
+      pTask->pRealtimeContext->walStallError = code;
+    }
     if (pRsp->msgType == TDMT_STREAM_TRIGGER_CALC_RSP && debugSessionId == STREAM_TRIGGER_REALTIME_SESSIONID &&
         pTask->pRealtimeContext && pTask->pRealtimeContext->nestedWindowPlan &&
         pTask->pRealtimeContext->timeAlignRound) {
@@ -22279,6 +22417,13 @@ static bool stRealtimeContextHasExtProgress(const SSTriggerRealtimeContext *pCon
          tSimpleHashGetSize(pContext->pReaderExtProgress) > 0;
 }
 
+static bool stTriggerTaskCanDrainWalCheckpoint(const SStreamTriggerTask *task) {
+  // IDLE/RESUME observes incoming and empty WAL pages throughout the timeout.
+  return task->pRealtimeContext && task->triggerType == STREAM_TRIGGER_STATE && task->idleTimeoutMs == 0 &&
+         !task->isVirtualTable && !BIT_FLAG_TEST_MASK(task->addOptions, STREAM_OPTION_NESTED_WINDOW_PLAN) &&
+         !stUsesTimeAlignRows(task) && !stRealtimeContextHasExtProgress(task->pRealtimeContext);
+}
+
 static bool stTriggerTaskIsConfirmedExtReader(const SStreamTriggerTask *pTask, int64_t readerTaskId) {
   if (pTask == NULL || pTask->pExtOrigTableRefs == NULL || readerTaskId == 0) {
     return false;
@@ -22752,6 +22897,7 @@ static void stRealtimeContextDestroy(void *ptr) {
     tSimpleHashCleanup(pContext->pReaderExtProgress);
     pContext->pReaderExtProgress = NULL;
   }
+  taosArrayDestroy(pContext->pWalCheckpointWaits);
   if (pContext->pGidToExtRefs != NULL) {
     tSimpleHashCleanup(pContext->pGidToExtRefs);
     pContext->pGidToExtRefs = NULL;
@@ -24622,6 +24768,9 @@ static int32_t stTriggerTaskResumeVtableCalcRequests(SStreamTriggerTask *pTask, 
       }
       if (code != TSDB_CODE_SUCCESS) {
         // CTRL has no response handle for the common failure tail. Settle progress before release clears it.
+        if (sessionId == STREAM_TRIGGER_REALTIME_SESSIONID && stTriggerTaskCanDrainWalCheckpoint(pTask)) {
+          pTask->pRealtimeContext->walStallError = code;
+        }
         if (pReq->progressStepId != 0) {
           int32_t trackerCode = stRecalcTrackerFailStep(pTask->pRecalcTracker, pReq->progressStepId, code);
           if (trackerCode != TSDB_CODE_SUCCESS) {
@@ -24654,8 +24803,6 @@ static int32_t stRealtimeContextFlushCalcRequest(SSTriggerRealtimeContext *pCont
   if (code != TSDB_CODE_SUCCESS) {
     rpcFreeCont(msg.pCont);
     destroyAhandle(msg.info.ahandle);
-    int32_t releaseCode = stTriggerTaskReleaseRequest(pTask, &pContext->pCalcReq, false);
-    if (releaseCode != TSDB_CODE_SUCCESS && code == TSDB_CODE_SUCCESS) code = releaseCode;
     return code;
   }
   msg.pCont = NULL;
@@ -25593,14 +25740,15 @@ static int32_t stRealtimeGroupAppendPendingCalc(SSTriggerRealtimeGroup *pGroup, 
   int64_t maxDelayNs = stGroupMaxDelayNs(pTask, pGroup);
   if (*pAppended < limit && moved == 0 && maxDelayNs > 0) {
     int64_t          now = taosGetTimestampNs();
+    int64_t          dueThrough = pContext->walCheckpointMaxDelayCutoff ? pContext->walCheckpointMaxDelayCutoff : now;
     bool             repairPending = stTriggerTaskHasOpenRepair(pTask, pGroup->gid);
     SObjListIter     iter = {0};
     SSTriggerWindow *pWindow = NULL;
     taosObjListInitIter(&pGroup->windows, &iter, TOBJLIST_ITER_FORWARD);
     while (*pAppended < limit && (pWindow = taosObjListIterNext(&iter)) != NULL) {
-      if (pWindow->prevProcTime + maxDelayNs > now) continue;
+      if (pWindow->prevProcTime + maxDelayNs > dueThrough) continue;
       if (repairPending) {
-        pWindow->prevProcTime = now;
+        pWindow->prevProcTime = TMAX(now, dueThrough);
         continue;
       }
       SSTriggerNotifyWindow window = {.range = pWindow->range, .wrownum = pWindow->wrownum};
@@ -25615,7 +25763,7 @@ static int32_t stRealtimeGroupAppendPendingCalc(SSTriggerRealtimeGroup *pGroup, 
         return terrno;
       }
       ++pContext->pCalcReq->assembledParamCount;
-      pWindow->prevProcTime = now;
+      pWindow->prevProcTime = TMAX(now, dueThrough);
       ++*pAppended;
     }
   }
@@ -25672,7 +25820,7 @@ static int32_t stRealtimeContextSendCalcReq(SSTriggerRealtimeContext *pContext, 
 
   if ((needTagValue || stTriggerTaskNeedNotifyTableName(pTask)) && taosArrayGetSize(pCalcReq->groupColVals) == 0) {
     void *px = tSimpleHashGet(pContext->pGroupColVals, &pGroup->gid, sizeof(int64_t));
-    if (px == NULL) {
+    if (px == NULL || (needTagValue && *(SArray **)px == NULL && stTriggerTaskCanDrainWalCheckpoint(pTask))) {
       code = stRealtimeContextSendGroupColValuePull(pContext, pGroup->gid);
       QUERY_CHECK_CODE(code, lino, _end);
       goto _end;
@@ -26965,6 +27113,7 @@ static int32_t stRealtimeContextSendGroupColValuePull(SSTriggerRealtimeContext *
   SStreamTriggerTask *pTask = pContext->pTask;
   if (pContext->pReaderExtProgress == NULL) {
     if (pContext->notifyGroupColValuePending || pTask->multiGroupBatch ||
+        (pContext->status == STRIGGER_CONTEXT_SEND_CALC_REQ && stTriggerTaskCanDrainWalCheckpoint(pTask)) ||
         BIT_FLAG_TEST_MASK(pTask->addOptions, STREAM_OPTION_NESTED_WINDOW_PLAN)) {
       void *px = tSimpleHashGet(pContext->pGroups, &gid, sizeof(gid));
       if (px == NULL) {
@@ -28092,6 +28241,65 @@ static int32_t stAbortIdleAlignedPoll(SSTriggerRealtimeContext *ctx, int32_t cod
   return code;
 }
 
+static bool stRealtimeGroupHasPendingParams(const SSTriggerRealtimeGroup *group) {
+  return group->pPendingCalcParams.neles || group->pPendingParWinCalcParams.neles;
+}
+
+static int32_t stRealtimeContextBeginWalDrain(SSTriggerRealtimeContext *ctx, int64_t now) {
+  ctx->drainingWalCheckpoint = true;
+  if (!ctx->calcParamPool.size) return TSDB_CODE_SUCCESS;
+
+  // Dispatch queued WAL work before capturing the requests this checkpoint must wait for.
+  int32_t                  iter = 0;
+  SSTriggerRealtimeGroup **group = NULL;
+  while ((group = tSimpleHashIterate(ctx->pGroups, group, &iter))) {
+    if (stRealtimeGroupHasPendingParams(*group)) TAOS_CHECK_RETURN(stRealtimeGroupUpdateExecTime(*group, now, true));
+  }
+  return TSDB_CODE_SUCCESS;
+}
+
+static int32_t stRealtimeContextCaptureWalCheckpoint(SSTriggerRealtimeContext *ctx) {
+  if (ctx->pWalCheckpointWaits || ctx->calcParamPool.size || ctx->pCalcReq || TD_DLIST_NELES(&ctx->groupsToCheck) ||
+      taosArrayGetSize(ctx->groupsToDelete) || ctx->calcGroupValueMisses || ctx->notifyGroupColValuePending ||
+      stRealtimeContextHasPendingWalPulls(ctx))
+    return TSDB_CODE_SUCCESS;
+  ctx->walCheckpointWaitIndex = 0;
+  return stTriggerTaskCaptureCalcWaits(ctx->pTask, NULL, &ctx->pWalCheckpointWaits);
+}
+
+static bool stRealtimeContextWalCalcIsWaiting(SSTriggerRealtimeContext *ctx) {
+  return stTriggerTaskCalcIsWaiting(ctx->pTask, ctx->pWalCheckpointWaits, &ctx->walCheckpointWaitIndex);
+}
+
+static void stRealtimeContextFinishWalCheckpoint(SSTriggerRealtimeContext *ctx, int64_t now) {
+  SStreamTriggerTask *task = ctx->pTask;
+  if (atomic_load_32((int32_t *)&task->task.status) == STREAM_STATUS_FAILED || stRealtimeContextWalCalcIsWaiting(ctx))
+    return;
+
+  // New timer calculations can reuse the slots while WAL stays at the captured boundary.
+  int32_t               iter = 0;
+  SSTriggerWalProgress *progress = NULL;
+  while ((progress = tSimpleHashIterate(ctx->pReaderWalProgress, progress, &iter))) {
+    progress->doneVer = progress->lastScanVer;
+    progress->alignedDrainedVer = 0;
+    stTriggerTaskUpdateReaderProgress(task, progress);
+  }
+  task->pendingPeriodicCheckpoint = true;
+  stTriggerTaskGeneratePeriodicCheckpoint(task, ctx, now);
+  if (!task->pendingPeriodicCheckpoint) {
+    taosArrayDestroy(ctx->pWalCheckpointWaits);
+    ctx->pWalCheckpointWaits = NULL;
+    ctx->drainingWalCheckpoint = false;
+    ctx->walStallDeadlineUs = 0;
+    stCancelWalCheckpointWake(task);
+    if (ctx->pMaxDelayHeap->min) {
+      SSTriggerRealtimeGroup *first = container_of(ctx->pMaxDelayHeap->min, SSTriggerRealtimeGroup, heapNode);
+      int64_t                 finished = taosGetTimestampNs();
+      if (first->nextExecTime <= finished) ctx->walCheckpointMaxDelayCutoff = finished;
+    }
+  }
+}
+
 static int32_t stRealtimeContextCheckAt(SSTriggerRealtimeContext *pContext, int64_t now) {
   int32_t             code = TSDB_CODE_SUCCESS;
   int32_t             lino = 0;
@@ -28101,7 +28309,10 @@ static int32_t stRealtimeContextCheckAt(SSTriggerRealtimeContext *pContext, int6
   int64_t             checkEndMonoUs = 0;
   bool                nested = BIT_FLAG_TEST_MASK(pTask->addOptions, STREAM_OPTION_NESTED_WINDOW_PLAN);
   bool                periodicCheckpointChecked = false;
+  bool                wasDrainingWal = pContext->drainingWalCheckpoint;
 
+  TAOS_CHECK_RETURN(pContext->walStallError);
+  if (pContext->pWalCheckpointWaits) stRealtimeContextFinishWalCheckpoint(pContext, now);
   if (pContext->timeAlignRestart) return 0;
   TAOS_CHECK_RETURN(stDriveTimeAlignWalCheckRetries(pContext, now));
   if (pContext->timeAlignRestart) return 0;
@@ -28172,7 +28383,9 @@ static int32_t stRealtimeContextCheckAt(SSTriggerRealtimeContext *pContext, int6
     goto _end;
   }
 
-  if (pContext->notifyGroupColValuePending) goto _end;
+  if (pContext->calcGroupValueMisses || pContext->notifyGroupColValuePending ||
+      (wasDrainingWal && stRealtimeContextHasPendingWalPulls(pContext)))
+    goto _end;
 
   // Group-value replies and slot releases normally advance virtual output precreation.
   if (pTask->isVirtualTable && pContext->status == STRIGGER_CONTEXT_DETERMINE_BOUND &&
@@ -28761,9 +28974,10 @@ _check:
     goto _calc_done;
   }
 
+  int64_t dispatchThrough = pContext->walCheckpointMaxDelayCutoff ? pContext->walCheckpointMaxDelayCutoff : now;
   if (pContext->pMinGroup == NULL && pContext->pMaxDelayHeap->min != NULL) {
     pContext->pMinGroup = container_of(pContext->pMaxDelayHeap->min, SSTriggerRealtimeGroup, heapNode);
-    if (pContext->pMinGroup->nextExecTime > now &&
+    if (pContext->pMinGroup->nextExecTime > dispatchThrough &&
         !(pTask->lowLatencyCalc && (pContext->pMinGroup->pPendingCalcParams.neles > 0 ||
                                     pContext->pMinGroup->pPendingParWinCalcParams.neles > 0)) &&
         pContext->pMinGroup->pPendingCalcParams.neles < STREAM_CALC_REQ_MAX_WIN_NUM &&
@@ -28793,6 +29007,10 @@ _check:
     }
   }
   while (pContext->pMinGroup != NULL) {
+    if (pContext->drainingWalCheckpoint && !pContext->pWalCheckpointWaits) {
+      code = stRealtimeContextCaptureWalCheckpoint(pContext);
+      QUERY_CHECK_CODE(code, lino, _end);
+    }
     SSTriggerRealtimeGroup *pGroup = pContext->pMinGroup;
     if (pContext->pCalcReq == NULL && taosArrayGetSize(pTask->runnerList) == 0) {
       heapRemove(pContext->pMaxDelayHeap, &pGroup->heapNode);
@@ -28808,7 +29026,7 @@ _check:
           pTask->readerList != NULL && taosArrayGetSize(pTask->readerList) > 0;
       if (stTriggerTaskNeedGroupColVals(pTask, true)) {
         void *px = tSimpleHashGet(pContext->pGroupColVals, &pGroup->gid, sizeof(pGroup->gid));
-        if (px == NULL) {
+        if (px == NULL || (*(SArray **)px == NULL && stTriggerTaskCanDrainWalCheckpoint(pTask))) {
           pContext->status = STRIGGER_CONTEXT_SEND_CALC_REQ;
           code = stRealtimeContextSendGroupColValuePull(pContext, pGroup->gid);
           QUERY_CHECK_CODE(code, lino, _end);
@@ -28843,10 +29061,7 @@ _check:
         }
         code = stTriggerTaskInitCalcRequestGroup(pContext->pCalcReq, pGroup->gid, pContext->pCalcReq->createTable,
                                                  &pGroupCalc);
-        if (code != TSDB_CODE_SUCCESS) {
-          TAOS_UNUSED(stTriggerTaskReleaseRequest(pTask, &pContext->pCalcReq, false));
-          QUERY_CHECK_CODE(code, lino, _end);
-        }
+        QUERY_CHECK_CODE(code, lino, _end);
       } else {
         int32_t requestCount = 0;
         code = stTriggerTaskCalcRequestParamCount(pContext->pCalcReq, &requestCount);
@@ -28861,10 +29076,7 @@ _check:
         }
         bool reserved = false;
         code = stTriggerTaskTryReserveCalcRequestGroup(pTask, pContext->pCalcReq, pGroup->gid, &pGroupCalc, &reserved);
-        if (code != TSDB_CODE_SUCCESS) {
-          TAOS_UNUSED(stTriggerTaskReleaseRequest(pTask, &pContext->pCalcReq, false));
-          QUERY_CHECK_CODE(code, lino, _end);
-        }
+        QUERY_CHECK_CODE(code, lino, _end);
         if (!reserved) {
           if (requestCount > 0) {
             code = stRealtimeContextFlushCalcRequest(pContext);
@@ -28884,10 +29096,7 @@ _check:
       int32_t appended = 0;
       code =
           stRealtimeGroupAppendPendingCalc(pGroup, pGroupCalc, STREAM_CALC_REQ_MAX_WIN_NUM - requestCount, &appended);
-      if (code != TSDB_CODE_SUCCESS) {
-        TAOS_UNUSED(stTriggerTaskReleaseRequest(pTask, &pContext->pCalcReq, false));
-        QUERY_CHECK_CODE(code, lino, _end);
-      }
+      QUERY_CHECK_CODE(code, lino, _end);
       code = stTriggerTaskCalcRequestParamCount(pContext->pCalcReq, &requestCount);
       QUERY_CHECK_CODE(code, lino, _end);
       if (requestCount == STREAM_CALC_REQ_MAX_WIN_NUM || !completeRoute) {
@@ -28967,13 +29176,13 @@ _check:
       }
     }
     heapRemove(pContext->pMaxDelayHeap, &pGroup->heapNode);
-    if (pGroup->nextExecTime > 0) {
+    if (pGroup->nextExecTime != 0) {
       heapInsert(pContext->pMaxDelayHeap, &pGroup->heapNode);
     }
     pContext->status = pTask->multiGroupBatch ? STRIGGER_CONTEXT_FETCH_META : STRIGGER_CONTEXT_ACQUIRE_REQUEST;
     if (pContext->pMaxDelayHeap->min != NULL) {
       pContext->pMinGroup = container_of(pContext->pMaxDelayHeap->min, SSTriggerRealtimeGroup, heapNode);
-      if (pContext->pMinGroup->nextExecTime > now &&
+      if (pContext->pMinGroup->nextExecTime > dispatchThrough &&
           !(pTask->lowLatencyCalc && (pContext->pMinGroup->pPendingCalcParams.neles > 0 ||
                                       pContext->pMinGroup->pPendingParWinCalcParams.neles > 0)) &&
           pContext->pMinGroup->pPendingCalcParams.neles < STREAM_CALC_REQ_MAX_WIN_NUM &&
@@ -29010,6 +29219,17 @@ _check:
   }
 
 _calc_done:
+  if (pContext->walCheckpointMaxDelayCutoff) {
+    HeapNode *min = pContext->pMaxDelayHeap->min;
+    if (min &&
+        container_of(min, SSTriggerRealtimeGroup, heapNode)->nextExecTime <= pContext->walCheckpointMaxDelayCutoff) {
+      // A batch can flush before the remaining group gets a slot.
+      pContext->status = STRIGGER_CONTEXT_ACQUIRE_REQUEST;
+      goto _end;
+    }
+    pContext->walCheckpointMaxDelayCutoff = 0;
+    stCancelWalCheckpointWake(pTask);
+  }
   if (nested && stUsesTimeAlignRows(pTask) && !pContext->suppressOutput) {
     TAOS_CHECK_RETURN(stAcceptAlignedChain(pContext));
   }
@@ -29066,7 +29286,7 @@ _calc_done:
   }
 
   bool forwardDoneVer = false;
-  if (noPendingCalc) {
+  if (noPendingCalc && !pContext->drainingWalCheckpoint) {
     int64_t nRunningReq = 0;
     code = stTriggerTaskGetRunningReq(pTask, pContext->sessionId, &nRunningReq);
     QUERY_CHECK_CODE(code, lino, _end);
@@ -29113,6 +29333,7 @@ _calc_done:
       }
     }
   }
+  bool                  walBehind = false;
   int32_t               iter = 0;
   SSTriggerWalProgress *pProgress = tSimpleHashIterate(pContext->pReaderWalProgress, NULL, &iter);
   while (pProgress != NULL) {
@@ -29136,6 +29357,7 @@ _calc_done:
     if (pProgress->lastScanVer < pProgress->savedVer) {
       pContext->recovering = true;
     }
+    walBehind |= pProgress->lastScanVer > TMAX(pProgress->doneVer, pProgress->savedVer);
     stTriggerTaskUpdateReaderProgress(pTask, pProgress);
     pProgress = tSimpleHashIterate(pContext->pReaderWalProgress, pProgress, &iter);
   }
@@ -29144,12 +29366,28 @@ _calc_done:
     pFrozenVgIds = NULL;
   }
 
-  if (!periodicCheckpointChecked) {
+  if (stTriggerTaskCanDrainWalCheckpoint(pTask)) {
+    // On this path doneVer advances for all readers together. Only age an actual outstanding cut.
+    if (!walBehind || pContext->recovering) {
+      pContext->walStallDeadlineUs = 0;
+    } else if (!pContext->walStallDeadlineUs) {
+      pContext->walStallDeadlineUs = checkStartMonoUs + STRIGGER_WAL_STALL_INTERVAL_US;
+    } else if (!pContext->drainingWalCheckpoint && checkStartMonoUs >= pContext->walStallDeadlineUs &&
+               !stRealtimeContextHasPendingWalPulls(pContext)) {
+      code = stRealtimeContextBeginWalDrain(pContext, now);
+      QUERY_CHECK_CODE(code, lino, _end);
+    }
+  }
+
+  if (pContext->drainingWalCheckpoint) {
+    pContext->status = STRIGGER_CONTEXT_FETCH_META;
+  } else if (!periodicCheckpointChecked) {
     stTriggerTaskGeneratePeriodicCheckpoint(pTask, pContext, now);
   }
 
   code = stRealtimeContextAddUserRecalc(pContext);
   QUERY_CHECK_CODE(code, lino, _end);
+  if (pContext->drainingWalCheckpoint) goto _end;
 
   if (pContext->timeAlignRound && forwardDoneVer && !pContext->metaPool.size && !hasReadyDeferredGroup &&
       !stRealtimeContextHasPendingWalPulls(pContext)) {
@@ -29217,7 +29455,40 @@ _calc_done:
   }
 
 _end:
+  if (code == TSDB_CODE_SUCCESS && pContext == pTask->pRealtimeContext && pContext->drainingWalCheckpoint) {
+    code = stRealtimeContextCaptureWalCheckpoint(pContext);
+    if (code == TSDB_CODE_SUCCESS) {
+      HeapNode *min = pContext->pMaxDelayHeap->min;
+      bool      needRetry = !pContext->pWalCheckpointWaits || !stRealtimeContextWalCalcIsWaiting(pContext);
+      if (min || needRetry) {
+        int64_t windowDeadline = min ? container_of(min, SSTriggerRealtimeGroup, heapNode)->nextExecTime : 0;
+        // An already due window may still need a slot. Retry it on the monotonic backoff.
+        if (windowDeadline <= taosGetTimestampNs()) windowDeadline = 0;
+        int64_t retryAt =
+            needRetry || !windowDeadline ? taosGetMonoTimestampNs() + STREAM_TRIGGER_IDLE_TIME_NS : INT64_MAX;
+        code = stTriggerTaskAddWait(pTask, pContext->sessionId, retryAt, STREAM_TRIGGER_WAIT_WAL_CHECKPOINT,
+                                    windowDeadline);
+      }
+    }
+  } else if (code == TSDB_CODE_SUCCESS && pContext == pTask->pRealtimeContext &&
+             pContext->walCheckpointMaxDelayCutoff && pContext->status == STRIGGER_CONTEXT_ACQUIRE_REQUEST) {
+    // An ACK for a slot held by another session only wakes that session.
+    code = stTriggerTaskAddWaitSessionForReason(pTask, pContext->sessionId,
+                                                taosGetMonoTimestampNs() + STREAM_TRIGGER_IDLE_TIME_NS,
+                                                STREAM_TRIGGER_WAIT_WAL_CHECKPOINT);
+  }
+  if (pTask->checkpointSyncRetryMonoUs && checkStartMonoUs >= pTask->checkpointSyncRetryMonoUs &&
+      pContext == pTask->pRealtimeContext) {
+    TAOS_UNUSED(stTriggerTaskSyncCommittedCheckpoint(pTask, NULL, 0, true));
+  }
   if (code != TSDB_CODE_SUCCESS && pContext->pCalcReq != NULL) {
+    // Releasing this request discards its dequeued windows. Another ACK must not confirm their WAL cursor.
+    int32_t requestCount = 0;
+    if (pContext == pTask->pRealtimeContext && stTriggerTaskCanDrainWalCheckpoint(pTask) &&
+        (stTriggerTaskCalcRequestParamCount(pContext->pCalcReq, &requestCount) != TSDB_CODE_SUCCESS ||
+         requestCount > 0)) {
+      pContext->walStallError = code;
+    }
     stDestroyRealtimeNestedCalcMaterialization(&pContext->pNestedCalcMaterialization);
     TAOS_UNUSED(stTriggerTaskReleaseRequest(pTask, &pContext->pCalcReq, false));
   }
@@ -29238,6 +29509,7 @@ static int32_t stRealtimeContextProcWalMeta(SSTriggerRealtimeContext *pContext, 
   int32_t             lino = 0;
   SStreamTriggerTask *pTask = pContext->pTask;
 
+  bool scannedFromZero = pProgress->startVer == 0 && pProgress->lastScanVer == 0;
   pProgress->lastScanVer = pContext->pMetaBlock->info.version;
   bool needShrink = pContext->recovering && (pProgress->lastScanVer > pProgress->savedVer);
   if (needShrink) {
@@ -29574,6 +29846,8 @@ static int32_t stRealtimeContextProcWalMeta(SSTriggerRealtimeContext *pContext, 
 
 _end:
   if (code == TSDB_CODE_SUCCESS && (pContext->pPeriod == NULL || pContext->pPeriod->pReceiving == NULL)) {
+    // A reader missing from a restored checkpoint starts at zero and reads the retained WAL.
+    if (scannedFromZero) pProgress->zeroStartConfirmed = true;
     stTriggerTaskUpdateReaderProgress(pTask, pProgress);
   }
   if (code != TSDB_CODE_SUCCESS) {
@@ -29809,6 +30083,26 @@ _end:
   return code;
 }
 
+// Give the original Reader one second to restore its groupIdMap. Later misses advance directly to the next Reader.
+static int32_t stRealtimeContextRetryCalcGroupValue(SSTriggerRealtimeContext *ctx, SSTriggerWalProgress *last,
+                                                    int64_t gid) {
+  SStreamTriggerTask *task = ctx->pTask;
+  if (++ctx->calcGroupValueMisses == 1) {
+    int64_t deadline = taosGetMonoTimestampNs() + STREAM_TRIGGER_IDLE_TIME_NS;
+    return stTriggerTaskAddWaitSessionForReason(task, ctx->sessionId, deadline, STREAM_TRIGGER_WAIT_GROUP_COL_RETRY);
+  }
+
+  int32_t count = TARRAY_SIZE(task->readerList);
+  int32_t index = TARRAY_ELEM_IDX(task->readerList, last->pTaskAddr);
+  for (; ctx->calcGroupValueMisses <= count; ++ctx->calcGroupValueMisses) {
+    index = (index + 1) % count;
+    SStreamTaskAddr      *peer = TARRAY_GET_ELEM(task->readerList, index);
+    SSTriggerWalProgress *progress = tSimpleHashGet(ctx->pReaderWalProgress, &peer->nodeId, sizeof(peer->nodeId));
+    if (progress && !progress->pendingPulls) return stRealtimeContextSendPullReqForGid(ctx, progress, gid);
+  }
+  return TSDB_CODE_STREAM_NO_CONTEXT;
+}
+
 static int32_t stRealtimeContextProcPullRsp(SSTriggerRealtimeContext *pContext, SRpcMsg *pRsp,
                                             int64_t nowNs, bool *pFailureRecordedByChild) {
   int32_t                   code = TSDB_CODE_SUCCESS;
@@ -29879,6 +30173,7 @@ static int32_t stRealtimeContextProcPullRsp(SSTriggerRealtimeContext *pContext, 
       QUERY_CHECK_CODE(code, lino, _end);
       // set start version to current latest version of WAL
       pProgress->startVer = pDataBlock->info.id.groupId;
+      pProgress->zeroStartConfirmed = pProgress->startVer == 0;
       if (pProgress->timeAlignRound) {
         // LAST_TS gives the next WAL cursor. Zero means no admitted version. An inclusive upper bound of zero is valid.
         pProgress->timeAlignHasVersion = pProgress->startVer > 0;
@@ -30092,10 +30387,11 @@ static int32_t stRealtimeContextProcPullRsp(SSTriggerRealtimeContext *pContext, 
       }
 
       if (pContext->recovering && recoveryDone) {
-        ST_TASK_DLOG("realtime WAL recovery completed before data check, clear recovering flag, pool size: %" PRId64
-                     ", groupsToCheck:%" PRId64,
-                     pContext->metaPool.size, (int64_t)TD_DLIST_NELES(&pContext->groupsToCheck));
-        pContext->recovering = false;
+        // The final metadata page still needs its data to rebuild the open state window.
+        // Keep replay output suppressed until _calc_done consumes that page.
+        if (pContext->walMode != STRIGGER_WAL_META_THEN_DATA || !stTriggerTaskCanDrainWalCheckpoint(pTask)) {
+          pContext->recovering = false;
+        }
         ST_TASK_DLOG("stop fetch wal metas since recovery is done, pool size: %" PRId64, pContext->metaPool.size);
         pContext->continueToFetch = false;
       }
@@ -30692,6 +30988,34 @@ static int32_t stRealtimeContextProcPullRsp(SSTriggerRealtimeContext *pContext, 
           if (pRsp->contLen > 0) {
             code = tDeserializeSStreamGroupInfo(pRsp->pCont, pRsp->contLen, &groupInfo);
             QUERY_CHECK_CODE(code, lino, _end);
+          }
+          if (stTriggerTaskCanDrainWalCheckpoint(pTask) &&
+              stTriggerTaskNeedGroupColVals(
+                  pTask, pTask->multiGroupBatch || (pContext->pCalcReq && pContext->pCalcReq->createTable))) {
+            if (!groupInfo.gInfo && pRsp->code == TSDB_CODE_SUCCESS && pRsp->contLen > 0) {
+              // A mapped partition consisting only of constants has no dynamic values on the wire.
+              bool   constantsOnly = LIST_LENGTH(pTask->pPartitionCols) > 0;
+              SNode *node = NULL;
+              FOREACH(node, pTask->pPartitionCols) {
+                if (nodeType(node) != QUERY_NODE_VALUE) {
+                  constantsOnly = false;
+                  break;
+                }
+              }
+              if (constantsOnly) {
+                groupInfo.gInfo = taosArrayInit(0, sizeof(SStreamGroupValue));
+                QUERY_CHECK_NULL(groupInfo.gInfo, code, lino, _end, terrno);
+              }
+            }
+            if (!groupInfo.gInfo) {
+              // NO_CONTEXT only describes this Reader's local groupIdMap. Retain the window and its WAL cut.
+              code = stRealtimeContextRetryCalcGroupValue(pContext, pProgress, pRequest->gid);
+              if (code) pContext->walStallError = code;
+              QUERY_CHECK_CODE(code, lino, _end);
+              break;
+            }
+            pContext->calcGroupValueMisses = 0;
+            pContext->calcGroupValueWakeId = 0;
           }
           code =
               tSimpleHashPut(pContext->pGroupColVals, &pRequest->gid, sizeof(int64_t), &groupInfo.gInfo, POINTER_BYTES);
@@ -31483,8 +31807,16 @@ static int32_t stRealtimeContextProcCalcRsp(SSTriggerRealtimeContext *pContext, 
       }
     }
 
-    if (pContext->status == STRIGGER_CONTEXT_ACQUIRE_REQUEST) {
-      // continue check if the context is waiting for any available request
+    bool wakeDrain = completed && pContext->drainingWalCheckpoint && pContext->status == STRIGGER_CONTEXT_FETCH_META;
+    if (wakeDrain && pContext->pWalCheckpointWaits && stRealtimeContextWalCalcIsWaiting(pContext)) {
+      HeapNode *min = pContext->pMaxDelayHeap->min;
+      wakeDrain = min && container_of(min, SSTriggerRealtimeGroup, heapNode)->nextExecTime <= taosGetTimestampNs();
+    } else if (completed && pContext->pWalCheckpointWaits && !wakeDrain &&
+               pContext->status != STRIGGER_CONTEXT_ACQUIRE_REQUEST && !pContext->walStallError) {
+      stRealtimeContextFinishWalCheckpoint(pContext, taosGetTimestampNs());
+    }
+    if (pContext->status == STRIGGER_CONTEXT_ACQUIRE_REQUEST || wakeDrain) {
+      // A released slot can unblock dispatch or finish the stalled WAL checkpoint.
       code = stTriggerTaskAttributeChildFailure(stRealtimeContextCheck(pContext), &failureRecordedByChild);
       QUERY_CHECK_CODE(code, lino, _end);
     } else if (!pTask->lowLatencyCalc && pContext->pMaxDelayHeap->min != NULL &&
@@ -39130,6 +39462,9 @@ static int32_t stRealtimeGroupUpdateExecTime(SSTriggerRealtimeGroup *pGroup, int
     code = stRealtimeGroupSyncNestedPendingIndex(pGroup, now);
     QUERY_CHECK_CODE(code, lino, _end);
     nextExecTime = stRealtimeGroupNestedDeadline(pGroup, now);
+  } else if (pContext->drainingWalCheckpoint && stRealtimeGroupHasPendingParams(pGroup)) {
+    // Already admitted batches precede every wall-clock deadline, including after the clock moves back.
+    nextExecTime = INT64_MIN;
   } else {
     int64_t maxDelayNs = stGroupMaxDelayNs(pTask, pGroup);
     if (taosArrayGetSize(pTask->runnerList) > 0 && maxDelayNs > 0 && pGroup->windows.neles > 0) {
@@ -40108,15 +40443,16 @@ static int32_t stRealtimeGroupRetrievePendingCalc(SSTriggerRealtimeGroup *pGroup
 
   if (stGroupMaxDelayNs(pTask, pGroup) > 0 && pGroup->windows.neles > 0) {
     int64_t          maxDelayNs = stGroupMaxDelayNs(pTask, pGroup);
+    int64_t          dueThrough = pContext->walCheckpointMaxDelayCutoff ? pContext->walCheckpointMaxDelayCutoff : now;
     bool             repairPending = stTriggerTaskHasOpenRepair(pTask, pGroup->gid);
     SSTriggerWindow *pWin = NULL;
     SObjListIter     iter = {0};
     taosObjListInitIter(&pGroup->windows, &iter, TOBJLIST_ITER_FORWARD);
     while ((pWin = taosObjListIterNext(&iter)) != NULL) {
-      if (pWin->prevProcTime + maxDelayNs <= now &&
+      if (pWin->prevProcTime + maxDelayNs <= dueThrough &&
           TARRAY_SIZE(pContext->pCalcReq->params) < STREAM_CALC_REQ_MAX_WIN_NUM) {
         if (repairPending) {
-          pWin->prevProcTime = now;
+          pWin->prevProcTime = TMAX(now, dueThrough);
           continue;
         }
         SSTriggerNotifyWindow win = {.range = pWin->range, .wrownum = pWin->wrownum};
@@ -40129,7 +40465,7 @@ static int32_t stRealtimeGroupRetrievePendingCalc(SSTriggerRealtimeGroup *pGroup
         QUERY_CHECK_NULL(px, code, lino, _end, terrno);
         stTaskStatsRecordTriggerEvent(pTask->pStats, STREAM_TRIGGER_EVENT_LOGICAL_WINDOW, 1,
                                       streamTaskGetMonotonicUs());
-        pWin->prevProcTime = now;
+        pWin->prevProcTime = TMAX(now, dueThrough);
       }
     }
   }
