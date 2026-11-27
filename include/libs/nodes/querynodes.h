@@ -368,6 +368,7 @@ typedef enum EHintOption {
   HINT_EXTWIN_PARTITION_BATCH,  // reserved; does not force batch execution
   HINT_NO_EXTWIN_PARTITION_BATCH,
   HINT_NO_CONCURRENT_LAST_SCAN,
+  HINT_NO_GROUP_KEY_REUSE,
 } EHintOption;
 
 // A Hint parameter keeps the original token type and text for later consumers.
