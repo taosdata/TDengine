@@ -182,13 +182,12 @@ TEST_F(FillNextTest, ResolvesPendingAcrossBlocks) {
   // Block 2: [NULL, 7] starts at result row 4.  The NULL row becomes pending,
   // then 7 resolves rows 2, 3 and 4; row 5 outputs 7.
   int32_t in2[] = {0, 7};
-  // nullbitmap shares storage with varmeta.offset; keep room for an int32_t so GCC 11 does not
-  // flag the (unreachable for INT) var-type branch of colDataSetNULL as a 1-byte overflow.
-  char    in2Nulls[8] = {0};
+  char    in2Nulls = 0;
   SColumnInfoData input2 = {};
-  input2.info = input1.info;
+  input2.info.type = TSDB_DATA_TYPE_INT;
+  input2.info.bytes = sizeof(int32_t);
   input2.pData = reinterpret_cast<char*>(in2);
-  input2.nullbitmap = in2Nulls;
+  input2.nullbitmap = &in2Nulls;
   colDataSetNULL(&input2, 0);
 
   block.info.rows = 2;

@@ -5822,6 +5822,7 @@ TEST(tmsgTest, vtable_resolve_response_strips_optional_tagcond_tail) {
   tFreeSVTableRefResolveRsp(&decoded);
 
   // An empty-tag flag on a column response is invalid and must not allocate a tag.
+  // Use at() instead of back(): GCC 11 -Wstringop-overflow falsely flags back() writes on std::vector.
   ASSERT_FALSE(bytes.empty());
   bytes.at(bytes.size() - 1) = 1;
   EXPECT_LT(tDeserializeSVTableRefResolveRsp(bytes.data(), bytes.size(), &decoded), 0);
