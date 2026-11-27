@@ -51,8 +51,8 @@ static int32_t invaildFuncParaValueErrMsg(char* pErrBuf, int32_t len, const char
 
 #if !defined(TD_ENTERPRISE) && !defined(TD_ASTRA)
 static int32_t enterpriseOnlyFuncErrMsg(char* pErrBuf, int32_t len, const char* pFuncName) {
-  return buildFuncErrMsg(pErrBuf, len, TSDB_CODE_OPS_NOT_SUPPORT, "%s is only supported in Enterprise edition",
-                         pFuncName);
+  return buildFuncErrMsg(pErrBuf, len, TSDB_CODE_OPS_NOT_SUPPORT,
+                         "%s is only supported in TDengine Enterprise edition", pFuncName);
 }
 #endif
 

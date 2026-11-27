@@ -3,6 +3,10 @@ from new_test_framework.utils import tdLog, tdSql, tdStream, sc, clusterComCheck
 
 
 class TestCrypto:
+    # SM4 is only implemented by the enterprise build; the community build rejects it at
+    # parse/translate time. The default keeps the helper methods usable when a single test
+    # method is selected with ``-k``; test_crypto() updates it per run.
+    sm4_supported = True
 
     def setup_class(cls):
         tdLog.debug(f"start to execute {__file__}")
@@ -26,11 +30,7 @@ class TestCrypto:
 
         """
 
-        self.sm4_supported = tdSql.query(
-            "SELECT sm4_encrypt('probe', 'mykeystring')",
-            queryTimes=1,
-            exit=False,
-        ) is not False
+        self.sm4_supported = self.detect_sm4_support()
         if not self.sm4_supported:
             self.sm4_community_rejection()
 
@@ -45,33 +45,64 @@ class TestCrypto:
         self.error()
         tdStream.dropAllStreamsAndDbs()
 
-    def sm4_community_rejection(self):
-        err = "only supported in Enterprise edition"
-        tdSql.error(
-            "SELECT sm4_encrypt('plaintext', 'mykeystring')",
-            expectErrInfo=err,
-            fullMatched=False,
-        )
-        tdSql.error(
-            "SELECT sm4_decrypt('ciphertext', 'mykeystring')",
-            expectErrInfo=err,
-            fullMatched=False,
+    def detect_sm4_support(self):
+        """Probe whether the connected server implements SM4 (enterprise build).
+
+        The result is wrapped in to_base64() because the raw ciphertext is varbinary
+        and cannot be decoded by the client result set reader.
+        """
+        return (
+            tdSql.query(
+                "SELECT to_base64(sm4_encrypt('probe', 'mykeystring'))",
+                queryTimes=1,
+                exit=False,
+            )
+            is not False
         )
 
-        tdSql.execute("drop database if exists db_sm4_unsupported")
-        tdSql.execute("create database db_sm4_unsupported")
-        tdSql.execute("create table db_sm4_unsupported.tb(ts timestamp, v varchar(64))")
-        tdSql.error(
-            "insert into db_sm4_unsupported.tb values(now, sm4_encrypt('plaintext', 'mykeystring'))",
-            expectErrInfo=err,
-            fullMatched=False,
-        )
-        tdSql.error(
-            "insert into db_sm4_unsupported.tb values(now, sm4_decrypt('ciphertext', 'mykeystring'))",
-            expectErrInfo=err,
-            fullMatched=False,
-        )
-        tdSql.execute("drop database db_sm4_unsupported")
+    def sm4_community_rejection(self):
+        """The community build must reject SM4 rather than return the plaintext unchanged."""
+
+        # TSDB_CODE_OPS_NOT_SUPPORT: TAOS_DEF_ERROR_CODE(0, 0x0100)
+        errno = 0x80000100
+        err = "only supported in TDengine Enterprise edition"
+
+        def expect_rejected(sql):
+            tdSql.error(sql, expectedErrno=errno, expectErrInfo=err, fullMatched=False)
+
+        # SELECT: projection list, mixed case and a nested call.
+        expect_rejected("SELECT sm4_encrypt('plaintext', 'mykeystring')")
+        expect_rejected("SELECT sm4_decrypt('ciphertext', 'mykeystring')")
+        expect_rejected("SELECT SM4_ENCRYPT('plaintext', 'mykeystring')")
+        expect_rejected("SELECT length(sm4_encrypt('plaintext', 'mykeystring'))")
+
+        db = "db_sm4_unsupported"
+        tdSql.execute(f"drop database if exists {db}")
+        tdSql.execute(f"create database {db}")
+        try:
+            tdSql.execute(f"create table {db}.tb(ts timestamp, v varchar(64))")
+            tdSql.execute(f"create table {db}.src(ts timestamp, v varchar(64))")
+            tdSql.execute(f"insert into {db}.src values(now, 'plaintext')")
+
+            # INSERT ... VALUES constant folding path.
+            expect_rejected(f"insert into {db}.tb values(now, sm4_encrypt('plaintext', 'mykeystring'))")
+            expect_rejected(f"insert into {db}.tb values(now, sm4_decrypt('ciphertext', 'mykeystring'))")
+
+            # INSERT ... SELECT and WHERE are translated as select statements.
+            expect_rejected(
+                f"insert into {db}.tb select ts, sm4_encrypt(v, 'mykeystring') from {db}.src"
+            )
+            expect_rejected(
+                f"select ts from {db}.src where length(sm4_encrypt(v, 'mykeystring')) > 0"
+            )
+
+            # Tag values are parsed by the tag parser instead of the column value parser.
+            tdSql.execute(f"create stable {db}.st(ts timestamp, v int) tags(t varchar(64))")
+            expect_rejected(
+                f"insert into {db}.ct using {db}.st tags(sm4_encrypt('tagvalue', 'mykeystring')) values(now, 1)"
+            )
+        finally:
+            tdSql.execute(f"drop database if exists {db}")
 
     def smoking(self):
         vgroups = 1

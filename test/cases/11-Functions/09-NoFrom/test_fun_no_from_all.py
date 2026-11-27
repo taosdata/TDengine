@@ -219,12 +219,28 @@ class TestFunctionNoFromAll:
             )
 
         unexpected_success = []
+        wrong_rejection_reason = []
+        sm4_sql = {sql for _, sql in self.SM4_CASES}
         for name, sql in negative_cases:
             code, output = self._run_by_taos_cli(sql)
             if not self._is_sql_failed(code, output):
                 tail = output.strip().splitlines()
                 detail = tail[-1] if tail else "no output"
                 unexpected_success.append((name, sql, detail))
+            elif sql in sm4_sql and "only supported in TDengine Enterprise edition" not in output:
+                tail = output.strip().splitlines()
+                detail = tail[-1] if tail else "no output"
+                wrong_rejection_reason.append((name, sql, detail))
+
+        if wrong_rejection_reason:
+            preview = []
+            for name, sql, detail in wrong_rejection_reason:
+                tdLog.error(f"sm4 rejected for the wrong reason - {name}: {sql} => {detail}")
+                preview.append(f"{name}: {sql} => {detail}")
+            tdLog.exit(
+                "sm4 functions were rejected without the enterprise-only message: "
+                f"{len(wrong_rejection_reason)}\\n" + "\\n".join(preview)
+            )
 
         if unexpected_success:
             preview = []
