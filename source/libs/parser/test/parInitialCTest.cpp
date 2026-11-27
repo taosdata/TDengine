@@ -170,7 +170,7 @@ TEST_F(ParserInitialCTest, referenceMetadataDupOwnsExtension) {
   ASSERT_NE(pExt->pDeclarations, nullptr);
   pExt->nReferences = pExt->nBindings = pExt->nDeclarations = 1;
   tstrncpy(pExt->pReferences[0].alias, "r", TSDB_COL_NAME_LEN);
-  tstrncpy(pExt->pReferences[0].sourceName, "src", TSDB_TABLE_NAME_LEN);
+  tstrncpy(pExt->pReferences[0].sourceName, "src", sizeof(pExt->pReferences[0].sourceName));
   tstrncpy(pExt->pReferences[0].objectName, "samples", TSDB_TABLE_NAME_LEN);
   tstrncpy(pExt->pReferences[0].timeColumn, "event_time", TSDB_COL_NAME_LEN);
   pExt->pBindings[0].colId = 2;
