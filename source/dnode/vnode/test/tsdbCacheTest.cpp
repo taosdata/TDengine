@@ -1,6 +1,8 @@
 /*
  * Copyright (c) 2019 TAOS Data, Inc. <jhtao@taosdata.com>
  *
+ * SPDX-License-Identifier: AGPL-3.0-or-later
+ *
  * This program is free software: you can use, redistribute, and/or modify
  * it under the terms of the GNU Affero General Public License, version 3
  * or later ("AGPL"), as published by the Free Software Foundation.
@@ -451,6 +453,33 @@ TEST_F(TsdbStatisBlockGetSecurityTest, zeroNumOfPKsAccepted) {
   EXPECT_EQ(code, 0);
 
   tStatisBlockDestroy(&block);
+}
+#include "tsdbReadUtil.h"
+
+// Cached value length is row-declared; it must fit the schema-sized destination.
+TEST(TsdbCacheCopyBytes, RejectsOverflow) {
+  int32_t copyBytes = -1;
+
+  // varchar(8): bytes = 8 + VARSTR_HEADER_SIZE
+  int32_t bytes = 8 + VARSTR_HEADER_SIZE;
+  EXPECT_EQ(tsdbCacheCalcCopyBytes(TSDB_DATA_TYPE_VARCHAR, bytes, 8, &copyBytes), TSDB_CODE_SUCCESS);
+  EXPECT_EQ(copyBytes, 8);
+  EXPECT_EQ(tsdbCacheCalcCopyBytes(TSDB_DATA_TYPE_VARCHAR, bytes, 9, &copyBytes), TSDB_CODE_INVALID_PARA);
+  EXPECT_EQ(tsdbCacheCalcCopyBytes(TSDB_DATA_TYPE_VARCHAR, bytes, -1, &copyBytes), TSDB_CODE_INVALID_PARA);
+  EXPECT_EQ(tsdbCacheCalcCopyBytes(TSDB_DATA_TYPE_VARCHAR, 1, 0, &copyBytes), TSDB_CODE_INVALID_PARA);
+
+  // blob copies at most the 8-byte sequence id, and never more than the cached nData
+  EXPECT_EQ(tsdbCacheCalcCopyBytes(TSDB_DATA_TYPE_BLOB, (int32_t)BSE_SEQUECE_SIZE, 100, &copyBytes), TSDB_CODE_SUCCESS);
+  EXPECT_EQ(copyBytes, (int32_t)BSE_SEQUECE_SIZE);
+  EXPECT_EQ(tsdbCacheCalcCopyBytes(TSDB_DATA_TYPE_BLOB, (int32_t)BSE_SEQUECE_SIZE, 3, &copyBytes), TSDB_CODE_SUCCESS);
+  EXPECT_EQ(copyBytes, 3);
+
+  // fixed-size decimal
+  EXPECT_EQ(tsdbCacheCalcCopyBytes(TSDB_DATA_TYPE_DECIMAL, 16, 16, &copyBytes), TSDB_CODE_SUCCESS);
+  EXPECT_EQ(tsdbCacheCalcCopyBytes(TSDB_DATA_TYPE_DECIMAL, 16, 17, &copyBytes), TSDB_CODE_INVALID_PARA);
+
+  EXPECT_EQ(tsdbCacheCalcCopyBytes(TSDB_DATA_TYPE_VARCHAR, bytes, 1, NULL), TSDB_CODE_INVALID_PARA);
+  EXPECT_EQ(tsdbCacheCalcCopyBytes(TSDB_DATA_TYPE_MAX, bytes, 1, &copyBytes), TSDB_CODE_INVALID_PARA);
 }
 #endif  // LINUX
 

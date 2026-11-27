@@ -1,0 +1,1 @@
+{"version":1,"name":"ntb","cols": [{"name":"st", "type":9},{"name":"c1", "type":4},{"name":"c2", "type":20}]}

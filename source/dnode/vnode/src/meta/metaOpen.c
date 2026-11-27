@@ -1,6 +1,8 @@
 /*
  * Copyright (c) 2019 TAOS Data, Inc. <jhtao@taosdata.com>
  *
+ * SPDX-License-Identifier: AGPL-3.0-or-later
+ *
  * This program is free software: you can use, redistribute, and/or modify
  * it under the terms of the GNU Affero General Public License, version 3
  * or later ("AGPL"), as published by the Free Software Foundation.
@@ -15,6 +17,8 @@
 
 #include "dmRepair.h"
 #include "meta.h"
+#include "tdTestSeam.h"
+#include "thash.h"
 #include "vnd.h"
 
 #ifndef NO_UNALIGNED_ACCESS
@@ -60,8 +64,8 @@ static void doScan(SMeta *pMeta) {
   int32_t code;
 
   // open file to write
-  char path[TSDB_FILENAME_LEN] = {0};
-  snprintf(path, TSDB_FILENAME_LEN - 1, "%s%s", pMeta->path, TD_DIRSEP "scan.txt");
+  char path[TSDB_PATH_LEN] = {0};
+  snprintf(path, TSDB_PATH_LEN - 1, "%s%s", pMeta->path, TD_DIRSEP "scan.txt");
   TdFilePtr fp = taosOpenFile(path, TD_FILE_CREATE | TD_FILE_WRITE | TD_FILE_TRUNC);
   if (fp == NULL) {
     metaError("failed to open file:%s, reason:%s", path, tstrerror(terrno));
@@ -150,19 +154,185 @@ static void doScan(SMeta *pMeta) {
   }
 }
 
-int32_t metaOpenImpl(SVnode *pVnode, SMeta **ppMeta, const char *metaDir, int8_t rollback) {
+// Identify the on-disk format by directory name, not by the server release
+// number: older binaries wrote charset-dependent JSON terms under invert/.
+// This directory holds UCS-4 terms and must not reuse those legacy files.
+// Only a fully rebuilt and flushed index is renamed to this published name.
+#define META_JSON_UCS4_INDEX "invert-ucs4-v1"
+#define META_JSON_UCS4_BUILD "invert-ucs4-v1.building"
+
+int metaSaveJsonVarToIdx(SMeta *pMeta, const SMetaEntry *pEntry);
+
+// Rebuild from authoritative tag metadata rather than decoding legacy index
+// terms, whose original server charset may no longer be known. Walk uid.idx to
+// select the current table.db version of each live table, not historical entries.
+// Any failure aborts publication: skipping a table would silently lose matches.
+static int32_t metaRebuildJsonIndex(SMeta *pMeta) {
+  TBC *cursor = NULL;
+  int32_t code = tdbTbcOpen(pMeta->pUidIdx, &cursor, NULL);
+  if (code != 0) return code;
+  code = tdbTbcMoveToFirst(cursor);
+  while (code == 0 && tdbTbcIsValid(cursor)) {
+    const void *key = NULL;
+    const void *value = NULL;
+    int keyLen = 0, valueLen = 0;
+    code = tdbTbcGet(cursor, &key, &keyLen, &value, &valueLen);
+    if (code != 0) {
+      metaError("vgId:%d JSON index rebuild failed reading uid index, reason:%s", TD_VID(pMeta->pVnode), tstrerror(code));
+      break;
+    }
+    if (keyLen != sizeof(tb_uid_t) || valueLen != sizeof(SUidIdxVal)) {
+      code = TSDB_CODE_INVALID_DATA_FMT;
+      metaError("vgId:%d JSON index rebuild invalid uid entry, keyLen:%d, valueLen:%d",
+                TD_VID(pMeta->pVnode), keyLen, valueLen);
+      break;
+    }
+    SUidIdxVal uidValue = {0};
+    STbDbKey tableKey = {0};
+    memcpy(&tableKey.uid, key, sizeof(tableKey.uid));
+    memcpy(&uidValue, value, sizeof(uidValue));
+    tableKey.version = uidValue.version;
+    void *entryData = NULL;
+    int entryLen = 0;
+    code = tdbTbGet(pMeta->pTbDb, &tableKey, sizeof(tableKey), &entryData, &entryLen);
+    if (code != 0) {
+      metaError("vgId:%d JSON index rebuild failed fetching uid:%" PRId64 ", version:%" PRId64 ", reason:%s",
+                TD_VID(pMeta->pVnode), tableKey.uid, tableKey.version, tstrerror(code));
+      break;
+    }
+    SDecoder decoder = {0};
+    SMetaEntry entry = {0};
+    tDecoderInit(&decoder, entryData, entryLen);
+    const char *stage = "decode metadata";
+    code = metaDecodeEntry(&decoder, &entry);
+    if (code == 0 && (entry.type == TSDB_CHILD_TABLE || entry.type == TSDB_VIRTUAL_CHILD_TABLE) &&
+        entry.ctbEntry.pTags != NULL && tTagIsJson(entry.ctbEntry.pTags)) {
+      stage = "index JSON tags";
+      code = metaSaveJsonVarToIdx(pMeta, &entry);
+    }
+    tDecoderClear(&decoder);
+    tdbFree(entryData);
+    if (code != 0) {
+      metaError("vgId:%d JSON index rebuild failed to %s, uid:%" PRId64 ", version:%" PRId64 ", reason:%s",
+                TD_VID(pMeta->pVnode), stage, tableKey.uid, tableKey.version, tstrerror(code));
+      break;
+    }
+    code = tdbTbcMoveToNext(cursor);
+  }
+  tdbTbcClose(cursor);
+  return code;
+}
+
+static int32_t metaSyncIndexDirectory(const char *path) {
+#ifndef WINDOWS
+  TdFilePtr directory = taosOpenFile(path, TD_FILE_READ);
+  if (directory == NULL) return terrno;
+  int32_t code = taosFsyncFile(directory);
+  int32_t closeCode = taosCloseFile(&directory);
+  return code != 0 ? code : closeCode;
+#else
+  // No directory flush is implemented here on Windows. Process-interruption
+  // recovery follows the same directory states, but this is not a power-loss
+  // durability barrier equivalent to the POSIX path above.
+  return TSDB_CODE_SUCCESS;
+#endif
+}
+
+// Called during meta open, before the vnode serves requests. Startup states:
+// - Published directory present: load it; rebuild only on confirmed corruption.
+// - Published directory absent: initialize/rebuild from metadata. This covers a
+//   new vnode, a legacy invert/ index, and interruption before publication.
+// - .building and .corrupt are never opened for queries. Discard .building and
+//   restart the rebuild; .corrupt is retained only for diagnosis.
+// There is no separate release-version check or migration-complete marker.
+static int32_t metaOpenJsonIndex(SMeta *pMeta) {
+  char finalPath[TSDB_PATH_LEN] = {0};
+  char buildPath[TSDB_PATH_LEN] = {0};
+  char corruptPath[TSDB_PATH_LEN] = {0};
+  snprintf(finalPath, sizeof(finalPath), "%s/%s", pMeta->path, META_JSON_UCS4_INDEX);
+  snprintf(buildPath, sizeof(buildPath), "%s/%s", pMeta->path, META_JSON_UCS4_BUILD);
+  snprintf(corruptPath, sizeof(corruptPath), "%s/%s.corrupt", pMeta->path, META_JSON_UCS4_INDEX);
+  SIndexOpts opts = {.cacheSize = 8 * 1024 * 1024};
+  const char *stage = "open published index";
+  int32_t code = 0;
+  bool replace = taosCheckExistFile(finalPath);
+  if (replace) {
+    code = indexOpen(&opts, finalPath, (SIndex **)&pMeta->pTagIvtIdx);
+    if (code == 0) return 0;
+    // I/O, permission and allocation failures do not prove corruption. Preserve
+    // them and leave the published directory untouched instead of rebuilding.
+    if (code != TSDB_CODE_INDEX_INVALID_FILE) goto _error;
+    metaError("vgId:%d JSON index is corrupt, rebuilding from metadata, path:%s", TD_VID(pMeta->pVnode), finalPath);
+  }
+  // Only published indexes are trusted. If interrupted between the two renames,
+  // finalPath is absent and the next startup rebuilds from authoritative metadata.
+  // The legacy invert/ directory is retained but is never updated or reused;
+  // downgrading cannot safely query it without rebuilding the legacy format.
+  stage = "discard interrupted rebuild";
+  taosRemoveDir(buildPath);
+  if (taosCheckExistFile(buildPath)) { code = TAOS_SYSTEM_ERROR(EIO); goto _error; }
+  stage = "create staging index";
+  code = taosMkDir(buildPath);
+  if (code != 0) goto _error;
+  code = indexOpen(&opts, buildPath, (SIndex **)&pMeta->pTagIvtIdx);
+  if (code != 0) goto _error;
+  metaInfo("vgId:%d rebuilding JSON UCS-4 index before serving requests", TD_VID(pMeta->pVnode));
+  stage = "rebuild JSON index";
+  code = metaRebuildJsonIndex(pMeta);
+  // Closing waits for asynchronous merges and reports their flush failures.
+  // Always close, even after a scan failure; never publish on either error.
+  int32_t flushCode = indexCloseChecked(pMeta->pTagIvtIdx);
+  pMeta->pTagIvtIdx = NULL;
+  if (code != 0) goto _error;
+  stage = "flush staging index";
+  code = flushCode;
+  if (code != 0) goto _error;
+  code = metaSyncIndexDirectory(buildPath);
+  if (code != 0) goto _error;
+  if (replace) {
+    stage = "quarantine corrupt index";
+    // Keep the current corrupt index until its replacement is fully flushed.
+    // An older quarantine may be discarded here; finalPath still holds the
+    // current failed index until the following rename succeeds.
+    taosRemoveDir(corruptPath);
+    if (taosCheckExistFile(corruptPath)) { code = TAOS_SYSTEM_ERROR(EIO); goto _error; }
+    code = taosRenameDir(finalPath, corruptPath);
+    if (code != 0) goto _error;
+    code = metaSyncIndexDirectory(pMeta->path);
+    if (code != 0) goto _error;
+  }
+  // Both paths share a parent/filesystem. Interruption after quarantine but
+  // before this rename leaves no finalPath, so startup rebuilds from metadata.
+  // After this rename, startup loads finalPath normally; it does not restart a
+  // rebuild merely because the diagnostic .corrupt directory still exists.
+  stage = "publish rebuilt index";
+  code = taosRenameDir(buildPath, finalPath);
+  if (code != 0) goto _error;
+  code = metaSyncIndexDirectory(pMeta->path);
+  if (code != 0) goto _error;
+  stage = "open rebuilt index";
+  code = indexOpen(&opts, finalPath, (SIndex **)&pMeta->pTagIvtIdx);
+  if (code != 0) goto _error;
+  // Retain quarantined files for diagnosis. They are never used for queries.
+  metaInfo("vgId:%d JSON UCS-4 index rebuild complete", TD_VID(pMeta->pVnode));
+  return 0;
+_error:
+  metaError("vgId:%d failed to %s, path:%s, reason:%s", TD_VID(pMeta->pVnode), stage, finalPath, tstrerror(code));
+  return code;
+}
+
+static int32_t metaOpenInternal(SVnode *pVnode, SMeta **ppMeta, const char *metaDir, int8_t rollback, bool openJsonIndex) {
   SMeta  *pMeta = NULL;
   int32_t code = 0;
   int32_t lino = 0;
   int32_t offset;
   int32_t pathLen = 0;
-  char    path[TSDB_FILENAME_LEN] = {0};
-  char    indexFullPath[128] = {0};
+  char    path[TSDB_PATH_LEN] = {0};
 
   // create handle
-  vnodeGetPrimaryPath(pVnode, false, path, TSDB_FILENAME_LEN);
+  vnodeGetPrimaryPath(pVnode, false, path, TSDB_PATH_LEN);
   offset = strlen(path);
-  snprintf(path + offset, TSDB_FILENAME_LEN - offset - 1, "%s%s", TD_DIRSEP, metaDir);
+  snprintf(path + offset, TSDB_PATH_LEN - offset - 1, "%s%s", TD_DIRSEP, metaDir);
 
   if (strncmp(metaDir, VNODE_META_TMP_DIR, strlen(VNODE_META_TMP_DIR)) == 0) {
     taosRemoveDir(path);
@@ -172,6 +342,13 @@ int32_t metaOpenImpl(SVnode *pVnode, SMeta **ppMeta, const char *metaDir, int8_t
   if ((pMeta = taosMemoryCalloc(1, sizeof(*pMeta) + pathLen)) == NULL) {
     TSDB_CHECK_CODE(code = terrno, lino, _exit);
   }
+
+  // Seed the vtable metadata generation with a non-zero value. A reopened vnode
+  // gets a fresh (calloc-zeroed) SMeta, but the process-wide vc_cols cache
+  // registry survives across close/reopen of the same vgId; if both sides
+  // started from 0, a stale cached result could be treated as still valid. The
+  // seed is monotonic wall time so it differs across reopen cycles.
+  pMeta->vtableGen = taosGetTimestampNs();
 
   metaInitLock(pMeta);
 
@@ -198,6 +375,10 @@ int32_t metaOpenImpl(SVnode *pVnode, SMeta **ppMeta, const char *metaDir, int8_t
   code = tdbTbOpen("schema.db", sizeof(SSkmDbKey), -1, skmDbKeyCmpr, pMeta->pEnv, &pMeta->pSkmDb, 0);
   TSDB_CHECK_CODE(code, lino, _exit);
 
+  // open pSkmExtDb
+  code = tdbTbOpen("schema_ext.db", sizeof(SSkmDbKey), -1, skmDbKeyCmpr, pMeta->pEnv, &pMeta->pSkmExtDb, 0);
+  TSDB_CHECK_CODE(code, lino, _exit);
+
   // open pUidIdx
   code = tdbTbOpen("uid.idx", sizeof(tb_uid_t), sizeof(SUidIdxVal), uidIdxKeyCmpr, pMeta->pEnv, &pMeta->pUidIdx, 0);
   TSDB_CHECK_CODE(code, lino, _exit);
@@ -212,13 +393,6 @@ int32_t metaOpenImpl(SVnode *pVnode, SMeta **ppMeta, const char *metaDir, int8_t
 
   // open pSuidIdx
   code = tdbTbOpen("suid.idx", sizeof(tb_uid_t), 0, uidIdxKeyCmpr, pMeta->pEnv, &pMeta->pSuidIdx, 0);
-  TSDB_CHECK_CODE(code, lino, _exit);
-
-  (void)snprintf(indexFullPath, sizeof(indexFullPath), "%s/%s", pMeta->path, "invert");
-  ret = taosMkDir(indexFullPath);
-
-  SIndexOpts opts = {.cacheSize = 8 * 1024 * 1024};
-  code = indexOpen(&opts, indexFullPath, (SIndex **)&pMeta->pTagIvtIdx);
   TSDB_CHECK_CODE(code, lino, _exit);
 
   code = tdbTbOpen("tag.idx", -1, 0, tagIdxKeyCmpr, pMeta->pEnv, &pMeta->pTagIdx, 0);
@@ -245,11 +419,28 @@ int32_t metaOpenImpl(SVnode *pVnode, SMeta **ppMeta, const char *metaDir, int8_t
   code = tdbTbOpen("stream.task.db", sizeof(int64_t), -1, taskIdxKeyCmpr, pMeta->pEnv, &pMeta->pStreamDb, 0);
   TSDB_CHECK_CODE(code, lino, _exit);
 
+  // open pTxnIdx  -  small B+ tree tracking pending txn entries (key=uid, value=STxnIdxVal)
+  code = tdbTbOpen("txn.idx", sizeof(tb_uid_t), sizeof(STxnIdxVal), uidIdxKeyCmpr, pMeta->pEnv, &pMeta->pTxnIdx, 0);
+  TSDB_CHECK_CODE(code, lino, _exit);
+
+  // open pTxnMeta  -  lazy COMMIT/ROLLBACK finalization records (key=txnId, value=STxnMetaVal)
+  code = tdbTbOpen("txn.meta", sizeof(int64_t), sizeof(STxnMetaVal), uidIdxKeyCmpr, pMeta->pEnv,
+                   &pMeta->pTxnMeta, 0);
+  TSDB_CHECK_CODE(code, lino, _exit);
+
   code = metaCacheOpen(pMeta);
   TSDB_CHECK_CODE(code, lino, _exit);
 
-  code = metaInitTbFilterCache(pMeta);
-  TSDB_CHECK_CODE(code, lino, _exit);
+  pMeta->uidSuidHash = taosHashInit(64, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT), false, HASH_ENTRY_LOCK);
+  TSDB_CHECK_NULL(pMeta->uidSuidHash, code, lino, _exit, terrno);
+
+  pMeta->uidNameHash = taosHashInit(64, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT), false, HASH_ENTRY_LOCK);
+  TSDB_CHECK_NULL(pMeta->uidNameHash, code, lino, _exit, terrno);
+
+  if (openJsonIndex) {
+    code = metaOpenJsonIndex(pMeta);
+    TSDB_CHECK_CODE(code, lino, _exit);
+  }
 
 #if 0
   // Do NOT remove this code, it is used to do debug stuff
@@ -269,10 +460,14 @@ _exit:
   TAOS_RETURN(code);
 }
 
+int32_t metaOpenImpl(SVnode *pVnode, SMeta **ppMeta, const char *metaDir, int8_t rollback) {
+  return metaOpenInternal(pVnode, ppMeta, metaDir, rollback, true);
+}
+
 void vnodeGetMetaPath(SVnode *pVnode, const char *metaDir, char *fname) {
-  vnodeGetPrimaryPath(pVnode, false, fname, TSDB_FILENAME_LEN);
+  vnodeGetPrimaryPath(pVnode, false, fname, TSDB_PATH_LEN);
   int32_t offset = strlen(fname);
-  snprintf(fname + offset, TSDB_FILENAME_LEN - offset - 1, "%s%s", TD_DIRSEP, metaDir);
+  snprintf(fname + offset, TSDB_PATH_LEN - offset - 1, "%s%s", TD_DIRSEP, metaDir);
 }
 
 static bool metaShouldForceRepair(SVnode *pVnode, EDmRepairStrategy *pStrategy) {
@@ -314,8 +509,8 @@ static int32_t metaCopyDirRecursive(const char *srcDir, const char *dstDir) {
       continue;
     }
 
-    char srcPath[TSDB_FILENAME_LEN] = {0};
-    char dstPath[TSDB_FILENAME_LEN] = {0};
+    char srcPath[TSDB_PATH_LEN] = {0};
+    char dstPath[TSDB_PATH_LEN] = {0};
     snprintf(srcPath, sizeof(srcPath), "%s%s%s", srcDir, TD_DIRSEP, name);
     snprintf(dstPath, sizeof(dstPath), "%s%s%s", dstDir, TD_DIRSEP, name);
 
@@ -357,8 +552,8 @@ static int32_t metaBuildRepairBackupDir(SVnode *pVnode, char *buf, int32_t bufLe
 }
 
 static int32_t metaBackupCurrentMeta(SVnode *pVnode) {
-  char metaDir[TSDB_FILENAME_LEN] = {0};
-  char backupDir[TSDB_FILENAME_LEN] = {0};
+  char metaDir[TSDB_PATH_LEN] = {0};
+  char backupDir[TSDB_PATH_LEN] = {0};
 
   vnodeGetMetaPath(pVnode, VNODE_META_DIR, metaDir);
 
@@ -392,6 +587,98 @@ static void metaResetStatisInfo(SMeta *pMeta) {
   pMeta->pVnode->config.vndStats.numOfNTimeSeries = 0;
   pMeta->pVnode->config.vndStats.numOfTimeSeries = 0;
   pMeta->pVnode->config.vndStats.numOfRSMAs = 0;
+}
+
+// One-time rebuild of the virtual-table counters for vnodes whose config was
+// written before numOfVTables/numOfVCTables were persisted. Iterates uid.idx
+// and joins table.db by {version, uid}, the same path metaTbCursorNext uses,
+// so table.db rows whose uid was already removed from the index (dropped
+// tables) are not counted. The runtime counters track physical presence in
+// meta (PRE_CREATE shadows included until vacuumed), so no txn-status
+// filtering is applied here; the other counters are left untouched.
+int32_t metaRebuildVTableStats(SMeta *pMeta) {
+  int32_t code = TSDB_CODE_SUCCESS;
+  int64_t nVTables = 0;
+  int64_t nVCTables = 0;
+  TBC    *cursor = NULL;
+
+  code = tdbTbcOpen(pMeta->pUidIdx, &cursor, NULL);
+  if (code) {
+    metaError("vgId:%d failed to open uid index cursor, reason:%s", TD_VID(pMeta->pVnode), tstrerror(code));
+    return code;
+  }
+
+  code = tdbTbcMoveToFirst(cursor);
+  if (code) {
+    metaError("vgId:%d failed to move to first, reason:%s", TD_VID(pMeta->pVnode), tstrerror(code));
+    tdbTbcClose(cursor);
+    return code;
+  }
+
+  for (;;) {
+    const void *pKey;
+    int         kLen;
+    const void *pVal;
+    int         vLen;
+
+    if (tdbTbcGet(cursor, &pKey, &kLen, &pVal, &vLen) < 0) {
+      break;
+    }
+
+    tb_uid_t    uid = *(tb_uid_t *)pKey;
+    SUidIdxVal *pUidIdxVal = (SUidIdxVal *)pVal;
+    void       *pEntryVal = NULL;
+    int         entryValLen = 0;
+    STbDbKey    tbDbKey = {.version = pUidIdxVal->version, .uid = uid};
+
+    code = tdbTbGet(pMeta->pTbDb, &tbDbKey, sizeof(tbDbKey), &pEntryVal, &entryValLen);
+    if (code == TSDB_CODE_NOT_FOUND) {
+      // The uid index references a table entry that is gone, so this table is already
+      // unresolvable through metaGetTableEntryByUid; exclude it and keep counting.
+      metaWarn("vgId:%d table entry missing for uid:%" PRId64 ", skipped", TD_VID(pMeta->pVnode), uid);
+      code = TSDB_CODE_SUCCESS;
+    } else if (code != TSDB_CODE_SUCCESS) {
+      metaError("vgId:%d failed to fetch table entry for uid:%" PRId64 ", reason:%s", TD_VID(pMeta->pVnode), uid,
+                tstrerror(code));
+      break;
+    } else {
+      SDecoder   dc = {0};
+      SMetaEntry me = {0};
+
+      tDecoderInit(&dc, (uint8_t *)pEntryVal, entryValLen);
+      int32_t dcode = metaDecodeEntryImpl(&dc, &me, true);
+      if (dcode != TSDB_CODE_SUCCESS) {
+        code = dcode;
+        metaError("vgId:%d failed to decode entry header for uid:%" PRId64 ", reason:%s", TD_VID(pMeta->pVnode), uid,
+                  tstrerror(code));
+        tDecoderClear(&dc);
+        tdbFree(pEntryVal);
+        break;
+      } else if (me.type == TSDB_VIRTUAL_NORMAL_TABLE) {
+        nVTables++;
+      } else if (me.type == TSDB_VIRTUAL_CHILD_TABLE) {
+        nVCTables++;
+      }
+      tDecoderClear(&dc);
+      tdbFree(pEntryVal);
+    }
+
+    code = tdbTbcMoveToNext(cursor);
+    if (code) {
+      metaError("vgId:%d failed to move to next, reason:%s", TD_VID(pMeta->pVnode), tstrerror(code));
+      break;
+    }
+  }
+
+  tdbTbcClose(cursor);
+
+  if (code == TSDB_CODE_SUCCESS) {
+    pMeta->pVnode->config.vndStats.numOfVTables = nVTables;
+    pMeta->pVnode->config.vndStats.numOfVCTables = nVCTables;
+    metaInfo("vgId:%d rebuilt virtual table stats, vtables:%" PRId64 ", vctables:%" PRId64, TD_VID(pMeta->pVnode),
+             nVTables, nVCTables);
+  }
+  return code;
 }
 
 typedef enum {
@@ -509,32 +796,23 @@ static int32_t metaForceRepairFromRedo(SVnode *pVnode, SMeta *pMeta, SMeta *pNew
     return code;
   }
 
-  while (true) {
+  while (tdbTbcIsValid(cursor)) {
     const void *pKey;
-    int         kLen;
     const void *pVal;
-    int         vLen;
+    int kLen, vLen;
+    code = tdbTbcGet(cursor, &pKey, &kLen, &pVal, &vLen);
+    if (code != 0) break;
 
-    if (tdbTbcGet(cursor, &pKey, &kLen, &pVal, &vLen) < 0) {
-      break;
-    }
-
-    STbDbKey  *pKeyEntry = (STbDbKey *)pKey;
-    SDecoder   dc = {0};
+    SDecoder dc = {0};
     SMetaEntry me = {0};
-
     tDecoderInit(&dc, (uint8_t *)pVal, vLen);
-    if (metaDecodeEntry(&dc, &me) < 0) {
-      tDecoderClear(&dc);
-      break;
-    }
-
-    if (metaHandleEntry2(pNewMeta, &me) != 0) {
-      metaError("vgId:%d failed to handle entry, uid:%" PRId64, TD_VID(pVnode), pKeyEntry->uid);
-      tDecoderClear(&dc);
-      break;
-    }
+    code = metaDecodeEntry(&dc, &me);
+    if (code == 0) code = metaHandleEntry2(pNewMeta, &me);
     tDecoderClear(&dc);
+    if (code != 0) {
+      metaError("vgId:%d redo repair failed to replay metadata entry, reason:%s", TD_VID(pVnode), tstrerror(code));
+      break;
+    }
 
     code = tdbTbcMoveToNext(cursor);
     if (code) {
@@ -562,9 +840,9 @@ static int32_t metaForceRepair(SMeta **ppMeta, EDmRepairStrategy repairStrategy)
   SMeta  *pMeta = *ppMeta;
   SVnode *pVnode = pMeta->pVnode;
   bool    cleanupTmpDirOnError = false;
-  char    metaDir[TSDB_FILENAME_LEN] = {0};
-  char    metaTempDir[TSDB_FILENAME_LEN] = {0};
-  char    metaBackupDir[TSDB_FILENAME_LEN] = {0};
+  char    metaDir[TSDB_PATH_LEN] = {0};
+  char    metaTempDir[TSDB_PATH_LEN] = {0};
+  char    metaBackupDir[TSDB_PATH_LEN] = {0};
 
   vnodeGetMetaPath(pVnode, VNODE_META_DIR, metaDir);
   vnodeGetMetaPath(pVnode, VNODE_META_TMP_DIR, metaTempDir);
@@ -621,7 +899,16 @@ static int32_t metaForceRepair(SMeta **ppMeta, EDmRepairStrategy repairStrategy)
 
   if ((code = metaBegin(pNewMeta, META_BEGIN_HEAP_NIL)) != 0) {
     metaError("vgId:%d failed to begin new meta, reason:%s", TD_VID(pVnode), tstrerror(code));
+    goto _exit;
   }
+  if (pNewMeta->pTagIvtIdx == NULL) {
+    code = TSDB_CODE_INTERNAL_ERROR;
+    metaError("vgId:%d repaired metadata has no JSON index", TD_VID(pVnode));
+    goto _exit;
+  }
+  code = indexCloseChecked(pNewMeta->pTagIvtIdx);
+  pNewMeta->pTagIvtIdx = NULL;
+  if (code != 0) goto _exit;
   metaClose(&pNewMeta);
   cleanupTmpDirOnError = false;
   metaInfo("vgId:%d finish to generate new meta", TD_VID(pVnode));
@@ -670,9 +957,9 @@ _exit:
 
 static int32_t metaRollbackFromRepair(SVnode *pVnode) {
   int32_t code = TSDB_CODE_SUCCESS;
-  char    metaDir[TSDB_FILENAME_LEN] = {0};
-  char    metaBackupDir[TSDB_FILENAME_LEN] = {0};
-  char    metaTempDir[TSDB_FILENAME_LEN] = {0};
+  char    metaDir[TSDB_PATH_LEN] = {0};
+  char    metaBackupDir[TSDB_PATH_LEN] = {0};
+  char    metaTempDir[TSDB_PATH_LEN] = {0};
 
   vnodeGetMetaPath(pVnode, VNODE_META_DIR, metaDir);
   vnodeGetMetaPath(pVnode, VNODE_META_BACKUP_DIR, metaBackupDir);
@@ -703,27 +990,6 @@ static int32_t metaRollbackFromRepair(SVnode *pVnode) {
   return code;
 }
 
-static int32_t metaForceRepairIfShould(SVnode *pVnode, SMeta **ppMeta) {
-  int32_t           code = TSDB_CODE_SUCCESS;
-  EDmRepairStrategy strategy = DM_REPAIR_STRATEGY_META_FROM_UID;
-  bool              shouldForceRepair = metaShouldForceRepair(pVnode, &strategy);
-
-  // Check if meta should repair
-  if (!shouldForceRepair) {
-    metaDebug("vgId:%d, meta should not repair!", TD_VID(pVnode));
-    return code;
-  }
-
-  // Do repair
-  code = metaForceRepair(ppMeta, strategy);
-  if (code) {
-    metaError("vgId:%d, %s failed at %s:%d since %s", TD_VID(pVnode), __func__, __FILE__, __LINE__, tstrerror(code));
-    return code;
-  }
-
-  return code;
-}
-
 int32_t metaOpen(SVnode *pVnode, SMeta **ppMeta, int8_t rollback) {
   int32_t code = TSDB_CODE_SUCCESS;
 
@@ -734,15 +1000,18 @@ int32_t metaOpen(SVnode *pVnode, SMeta **ppMeta, int8_t rollback) {
     TAOS_RETURN(code);
   }
 
-  // Do open meta
-  code = metaOpenImpl(pVnode, ppMeta, VNODE_META_DIR, rollback);
+  // Repair reads the source metadata directly. Its derived index may itself need repair.
+  EDmRepairStrategy strategy = DM_REPAIR_STRATEGY_META_FROM_UID;
+  bool repair = metaShouldForceRepair(pVnode, &strategy);
+  code = metaOpenInternal(pVnode, ppMeta, VNODE_META_DIR, rollback, !repair);
   if (code) {
     metaError("vgId:%d, %s failed at %s:%d since %s", TD_VID(pVnode), __func__, __FILE__, __LINE__, tstrerror(code));
     TAOS_RETURN(code);
   }
 
   // Repair meta data if should
-  code = metaForceRepairIfShould(pVnode, ppMeta);
+  if (!repair) return TSDB_CODE_SUCCESS;
+  code = metaForceRepair(ppMeta, strategy);
   if (code) {
     metaError("vgId:%d, %s failed at %s:%d since %s", TD_VID(pVnode), __func__, __FILE__, __LINE__, tstrerror(code));
     TAOS_RETURN(code);
@@ -793,6 +1062,7 @@ int metaAlterCache(SMeta *pMeta, int32_t nPage) {
 }
 
 void metaRLock(SMeta *pMeta) {
+  TD_SEAM_VOID(metaRLock, void (*)(SMeta *), (pMeta));
   metaTrace("meta rlock %p", &pMeta->lock);
   if (taosThreadRwlockRdlock(&pMeta->lock) != 0) {
     metaError("vgId:%d failed to lock %p", TD_VID(pMeta->pVnode), &pMeta->lock);
@@ -807,6 +1077,7 @@ void metaWLock(SMeta *pMeta) {
 }
 
 void metaULock(SMeta *pMeta) {
+  TD_SEAM_VOID(metaULock, void (*)(SMeta *), (pMeta));
   metaTrace("meta ulock %p", &pMeta->lock);
   if (taosThreadRwlockUnlock(&pMeta->lock) != 0) {
     metaError("vgId:%d failed to unlock %p", TD_VID(pMeta->pVnode), &pMeta->lock);
@@ -822,6 +1093,8 @@ static void metaCleanup(SMeta **ppMeta) {
 #ifdef BUILD_NO_CALL
     if (pMeta->pIdx) metaCloseIdx(pMeta);
 #endif
+    if (pMeta->pTxnIdx) tdbTbClose(pMeta->pTxnIdx);
+    if (pMeta->pTxnMeta) tdbTbClose(pMeta->pTxnMeta);
     if (pMeta->pStreamDb) tdbTbClose(pMeta->pStreamDb);
     if (pMeta->pNcolIdx) tdbTbClose(pMeta->pNcolIdx);
     if (pMeta->pBtimeIdx) tdbTbClose(pMeta->pBtimeIdx);
@@ -834,10 +1107,13 @@ static void metaCleanup(SMeta **ppMeta) {
     if (pMeta->pNameIdx) tdbTbClose(pMeta->pNameIdx);
     if (pMeta->pUidIdx) tdbTbClose(pMeta->pUidIdx);
     if (pMeta->pSkmDb) tdbTbClose(pMeta->pSkmDb);
+    if (pMeta->pSkmExtDb) tdbTbClose(pMeta->pSkmExtDb);
     if (pMeta->pTbDb) tdbTbClose(pMeta->pTbDb);
     if (pMeta->pEnv) tdbClose(pMeta->pEnv);
     metaDestroyLock(pMeta);
 
+    taosHashCleanup(pMeta->uidSuidHash);
+    taosHashCleanup(pMeta->uidNameHash);
     taosMemoryFreeClear(*ppMeta);
   }
 }

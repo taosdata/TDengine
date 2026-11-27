@@ -1,6 +1,8 @@
 /*
  * Copyright (c) 2019 TAOS Data, Inc. <jhtao@taosdata.com>
  *
+ * SPDX-License-Identifier: AGPL-3.0-or-later
+ *
  * This program is free software: you can use, redistribute, and/or modify
  * it under the terms of the GNU Affero General Public License, version 3
  * or later ("AGPL"), as published by the Free Software Foundation.
@@ -17,14 +19,375 @@
 #include <stdio.h>
 #include "dataSink.h"
 #include "osAtomic.h"
+#include "osFile.h"
 #include "osMemory.h"
+#include "osTime.h"
 #include "stream.h"
 #include "taoserror.h"
 #include "tarray.h"
+#include "tdatablock.h"
 #include "tdef.h"
+#include "tglobal.h"
 #include "thash.h"
 
 SDataSinkManager2 g_pDataSinkManager = {0};
+
+#define STREAM_SCOPED_CACHE_BUCKETS 64
+#define STREAM_SCOPED_CACHE_BLOCK_ROWS 1024
+
+typedef struct SScopedCacheBlock {
+  struct SScopedCacheBlock* pNext;
+  struct SScopedCacheBlock* pNextResident;
+  struct SScopedCacheBlock* pPrevResident;
+  TSKEY                     minTs;
+  TSKEY                     maxTs;
+  int32_t                   rows;
+  SDataBlockInfo            info;
+  SSDataBlock*              pBlock;
+  int64_t                   payloadMemSize;
+  SFileBlockInfo            fileBlock;
+  int32_t                   fileDataLen;
+} SScopedCacheBlock;
+
+typedef struct SScopedCacheEntry {
+  struct SScopedCacheEntry* pNextScope;
+  struct SScopedCacheEntry* pNextGroup;
+  int64_t                   gid;
+  int32_t                   keyLen;
+  int32_t                   tsSlotId;
+  uint64_t                  entryId;
+  void*                     pKey;
+  SArray*                   pSchema;
+  int64_t                   metadataMemSize;
+  SScopedCacheBlock*        pBlocks;
+  SScopedCacheBlock*        pLastBlock;
+  SScopedCacheBlock**       ppBlockTail;
+} SScopedCacheEntry;
+
+typedef struct {
+  const SSDataBlock* pSourceBlock;
+  int32_t            sourceRowIndex;
+} SStagedScopedCacheRowKey;
+
+typedef struct {
+  SScopedCacheEntry* pEntry;
+  SHashObj*          pSourceRows;
+} SStagedScopedCacheScope;
+
+typedef struct {
+  TdThreadMutex       lock;
+  SScopedCacheEntry*  scopeBuckets[STREAM_SCOPED_CACHE_BUCKETS];
+  SScopedCacheEntry** scopeTails[STREAM_SCOPED_CACHE_BUCKETS];
+  SScopedCacheEntry*  groupBuckets[STREAM_SCOPED_CACHE_BUCKETS];
+  SScopedCacheEntry** groupTails[STREAM_SCOPED_CACHE_BUCKETS];
+  SScopedCacheBlock*  pResidentBlocks;
+  TdFilePtr           pFile;
+  char                fileName[FILENAME_MAX];
+  int64_t             fileSize;
+  int64_t             fileBlockCount;
+  uint64_t            nextEntryId;
+  SArray*             pFreeFileBlocks;
+#ifdef BUILD_TEST
+  int64_t spillBlockVisits;
+#endif
+} SScopedCacheStore;
+
+typedef struct {
+  int8_t  cleanMode;
+  void*   pScopedStore;
+  int32_t leaseCount;
+  int32_t refCount;
+  bool    retired;
+  bool    detached;
+  int64_t streamId;
+  int64_t taskId;
+  int64_t sessionId;
+  int32_t tsSlotId;
+} SStreamDataCacheBase;
+
+typedef struct {
+  SStreamDataCacheBase* pCache;
+  void*                 pKey;
+  int32_t               keyLen;
+  uint64_t              entryId;
+  SScopedCacheBlock*    pNextBlock;
+  SScopedCacheBlock*    pSnapshotLastBlock;
+  int32_t               snapshotLastRows;
+} SScopedCacheResultState;
+
+typedef struct {
+  void*    pCache;
+  uint64_t generation;
+} SStreamDataCacheRegistration;
+
+struct SStreamDataCacheLease {
+  SStreamDataCacheBase* pCache;
+};
+
+struct SStreamDataCacheWriteBatch {
+  SStreamDataCacheBase* pCache;
+  SArray*               pScopes;
+  SHashObj*             pScopeIndex;
+};
+
+static uint32_t scopedCacheHash(const void* pData, int32_t len) {
+  const uint8_t* p = pData;
+  uint32_t       hash = 2166136261u;
+  for (int32_t i = 0; i < len; ++i) {
+    hash = (hash ^ p[i]) * 16777619u;
+  }
+  return hash;
+}
+
+static uint32_t scopedGroupHash(int64_t gid) {
+  return scopedCacheHash(&gid, sizeof(gid)) % STREAM_SCOPED_CACHE_BUCKETS;
+}
+
+static int32_t buildScopedCacheKey(const SStreamCacheScope* pScope, void** ppKey, int32_t* pKeyLen) {
+  if (pScope == NULL || ppKey == NULL || pKeyLen == NULL) {
+    return TSDB_CODE_INVALID_PARA;
+  }
+  int32_t depth = taosArrayGetSize(pScope->lineage.pScopes);
+  if (pScope->lineage.pScopes != NULL && pScope->lineage.pScopes->elemSize != sizeof(SScopeInstanceId)) {
+    return TSDB_CODE_INVALID_PARA;
+  }
+  int32_t keyLen = sizeof(pScope->gid) + sizeof(depth) +
+                   depth * (sizeof(int32_t) + sizeof(int8_t) + sizeof(TSKEY) + sizeof(int64_t));
+  uint8_t* pKey = taosMemoryMalloc(keyLen);
+  if (pKey == NULL) {
+    return terrno;
+  }
+  int32_t offset = 0;
+  memcpy(pKey + offset, &pScope->gid, sizeof(pScope->gid));
+  offset += sizeof(pScope->gid);
+  memcpy(pKey + offset, &depth, sizeof(depth));
+  offset += sizeof(depth);
+  for (int32_t i = 0; i < depth; ++i) {
+    const SScopeInstanceId* pId = taosArrayGet(pScope->lineage.pScopes, i);
+    if (pId == NULL) {
+      taosMemoryFree(pKey);
+      return TSDB_CODE_INVALID_PARA;
+    }
+    memcpy(pKey + offset, &pId->layerIndex, sizeof(pId->layerIndex));
+    offset += sizeof(pId->layerIndex);
+    memcpy(pKey + offset, &pId->triggerType, sizeof(pId->triggerType));
+    offset += sizeof(pId->triggerType);
+    memcpy(pKey + offset, &pId->openingTs, sizeof(pId->openingTs));
+    offset += sizeof(pId->openingTs);
+    memcpy(pKey + offset, &pId->nativeDiscriminator, sizeof(pId->nativeDiscriminator));
+    offset += sizeof(pId->nativeDiscriminator);
+  }
+  *ppKey = pKey;
+  *pKeyLen = keyLen;
+  return TSDB_CODE_SUCCESS;
+}
+
+
+static int64_t scopedCacheBlockPayloadSize(const SSDataBlock* pBlock) {
+  int32_t size = blockGetEncodeSize(pBlock);
+  return size > 0 ? size : 0;
+}
+
+static bool scopedCacheBlockInfoEquals(const SDataBlockInfo* pLeft, const SDataBlockInfo* pRight) {
+  return pLeft->window.skey == pRight->window.skey && pLeft->window.ekey == pRight->window.ekey &&
+         pLeft->id.uid == pRight->id.uid && pLeft->id.blockId == pRight->id.blockId &&
+         pLeft->id.groupId == pRight->id.groupId && pLeft->id.baseGId == pRight->id.baseGId &&
+         pLeft->dataLoad == pRight->dataLoad && pLeft->scanFlag == pRight->scanFlag &&
+         pLeft->blankFill == pRight->blankFill && pLeft->version == pRight->version &&
+         pLeft->childId == pRight->childId && pLeft->calWin.skey == pRight->calWin.skey &&
+         pLeft->calWin.ekey == pRight->calWin.ekey && pLeft->watermark == pRight->watermark &&
+         strcmp(pLeft->parTbName, pRight->parTbName) == 0;
+}
+
+static void restoreScopedCacheBlockInfo(const SDataBlockInfo* pStored, SSDataBlock* pBlock) {
+  pBlock->info.window = pStored->window;
+  pBlock->info.id = pStored->id;
+  pBlock->info.dataLoad = pStored->dataLoad;
+  pBlock->info.scanFlag = pStored->scanFlag;
+  pBlock->info.blankFill = pStored->blankFill;
+  pBlock->info.version = pStored->version;
+  pBlock->info.childId = pStored->childId;
+  pBlock->info.calWin = pStored->calWin;
+  pBlock->info.watermark = pStored->watermark;
+  tstrncpy(pBlock->info.parTbName, pStored->parTbName, sizeof(pBlock->info.parTbName));
+}
+
+static void destroyUntrackedScopedCacheBlock(SScopedCacheBlock* pBlock) {
+  if (pBlock == NULL) return;
+  blockDataDestroy(pBlock->pBlock);
+  taosMemoryFree(pBlock);
+}
+
+static void destroyUntrackedScopedCacheEntry(SScopedCacheEntry* pEntry) {
+  if (pEntry == NULL) return;
+  taosMemoryFree(pEntry->pKey);
+  taosArrayDestroy(pEntry->pSchema);
+  taosMemoryFree(pEntry);
+}
+
+static void destroyStagedScopedCacheScope(void* pValue) {
+  if (pValue == NULL) return;
+  SStagedScopedCacheScope* pStaged = *(SStagedScopedCacheScope**)pValue;
+  if (pStaged == NULL) return;
+  if (pStaged->pEntry != NULL) {
+    SScopedCacheBlock* pBlock = pStaged->pEntry->pBlocks;
+    while (pBlock != NULL) {
+      SScopedCacheBlock* pNext = pBlock->pNext;
+      destroyUntrackedScopedCacheBlock(pBlock);
+      pBlock = pNext;
+    }
+    pStaged->pEntry->pBlocks = NULL;
+    destroyUntrackedScopedCacheEntry(pStaged->pEntry);
+  }
+  taosHashCleanup(pStaged->pSourceRows);
+  taosMemoryFree(pStaged);
+}
+
+static int32_t closeScopedCacheFile(SScopedCacheStore* pStore) {
+  int32_t code = TSDB_CODE_SUCCESS;
+  if (pStore->pFile != NULL && taosCloseFile(&pStore->pFile) != 0) code = terrno;
+  if (pStore->fileName[0] != '\0' && taosRemoveFile(pStore->fileName) != 0 && code == TSDB_CODE_SUCCESS) code = terrno;
+  pStore->fileName[0] = '\0';
+  pStore->fileSize = 0;
+  taosArrayClear(pStore->pFreeFileBlocks);
+  return code;
+}
+
+static void recycleScopedCacheFileRange(SScopedCacheStore* pStore, const SFileBlockInfo* pFileBlock) {
+  if (pFileBlock->size <= 0) return;
+  if (taosArrayEnsureCap(pStore->pFreeFileBlocks, taosArrayGetSize(pStore->pFreeFileBlocks) + 1) != TSDB_CODE_SUCCESS) {
+    stError("failed to retain scoped cache free file range, err: %s", terrMsg);
+    return;
+  }
+
+  SFileBlockInfo merged = *pFileBlock;
+  int32_t        insertIndex = taosArrayGetSize(pStore->pFreeFileBlocks);
+  for (int32_t i = 0; i < taosArrayGetSize(pStore->pFreeFileBlocks); ++i) {
+    SFileBlockInfo* pFree = taosArrayGet(pStore->pFreeFileBlocks, i);
+    if (pFree->offset + pFree->size < merged.offset) continue;
+    if (merged.offset + merged.size < pFree->offset) {
+      insertIndex = i;
+      break;
+    }
+    int64_t mergedEnd = TMAX(merged.offset + merged.size, pFree->offset + pFree->size);
+    merged.offset = TMIN(merged.offset, pFree->offset);
+    merged.size = mergedEnd - merged.offset;
+    (void)taosArrayRemove(pStore->pFreeFileBlocks, i);
+    insertIndex = i--;
+  }
+
+  if (merged.offset + merged.size == pStore->fileSize) {
+    pStore->fileSize = merged.offset;
+    return;
+  }
+  if (taosArrayInsert(pStore->pFreeFileBlocks, insertIndex, &merged) == NULL) {
+    stError("failed to retain scoped cache free file range, err: %s", terrMsg);
+  }
+}
+
+static void releaseScopedCacheFileBlock(SScopedCacheStore* pStore, const SFileBlockInfo* pFileBlock) {
+  if (pFileBlock->size <= 0) return;
+  if (pStore->fileBlockCount > 0) --pStore->fileBlockCount;
+  if (pStore->fileBlockCount == 0) {
+    int32_t code = closeScopedCacheFile(pStore);
+    if (code != TSDB_CODE_SUCCESS) stError("failed to remove scoped cache file, err: %s", tstrerror(code));
+    return;
+  }
+  recycleScopedCacheFileRange(pStore, pFileBlock);
+}
+
+// Only committed blocks with an in-memory payload are linked, under the store lock.
+static void linkResidentScopedCacheBlock(SScopedCacheStore* pStore, SScopedCacheBlock* pBlock) {
+  pBlock->pPrevResident = NULL;
+  pBlock->pNextResident = pStore->pResidentBlocks;
+  if (pStore->pResidentBlocks != NULL) pStore->pResidentBlocks->pPrevResident = pBlock;
+  pStore->pResidentBlocks = pBlock;
+}
+
+static void unlinkResidentScopedCacheBlock(SScopedCacheStore* pStore, SScopedCacheBlock* pBlock) {
+  if (pBlock->pPrevResident != NULL)
+    pBlock->pPrevResident->pNextResident = pBlock->pNextResident;
+  else
+    pStore->pResidentBlocks = pBlock->pNextResident;
+  if (pBlock->pNextResident != NULL) pBlock->pNextResident->pPrevResident = pBlock->pPrevResident;
+  pBlock->pPrevResident = NULL;
+  pBlock->pNextResident = NULL;
+}
+
+static void destroyTrackedScopedCacheBlock(SScopedCacheStore* pStore, SScopedCacheBlock* pBlock) {
+  if (pBlock == NULL) return;
+  if (pBlock->pBlock != NULL) {
+    unlinkResidentScopedCacheBlock(pStore, pBlock);
+    blockDataDestroy(pBlock->pBlock);
+    (void)atomic_sub_fetch_64(&g_pDataSinkManager.usedMemSize, pBlock->payloadMemSize);
+  } else {
+    releaseScopedCacheFileBlock(pStore, &pBlock->fileBlock);
+  }
+  (void)atomic_sub_fetch_64(&g_pDataSinkManager.usedMemSize, sizeof(*pBlock));
+  taosMemoryFree(pBlock);
+}
+
+static void destroyTrackedScopedCacheEntry(SScopedCacheStore* pStore, SScopedCacheEntry* pEntry) {
+  if (pEntry == NULL) return;
+  SScopedCacheBlock* pBlock = pEntry->pBlocks;
+  while (pBlock != NULL) {
+    SScopedCacheBlock* pNext = pBlock->pNext;
+    destroyTrackedScopedCacheBlock(pStore, pBlock);
+    pBlock = pNext;
+  }
+  (void)atomic_sub_fetch_64(&g_pDataSinkManager.usedMemSize, pEntry->metadataMemSize);
+  destroyUntrackedScopedCacheEntry(pEntry);
+}
+
+static int32_t createScopedCacheStore(void** ppStore) {
+  SScopedCacheStore* pStore = taosMemoryCalloc(1, sizeof(SScopedCacheStore));
+  if (pStore == NULL) {
+    return terrno;
+  }
+  int32_t code = taosThreadMutexInit(&pStore->lock, NULL);
+  if (code != TSDB_CODE_SUCCESS) {
+    taosMemoryFree(pStore);
+    return code;
+  }
+  pStore->pFreeFileBlocks = taosArrayInit(8, sizeof(SFileBlockInfo));
+  if (pStore->pFreeFileBlocks == NULL) {
+    taosThreadMutexDestroy(&pStore->lock);
+    taosMemoryFree(pStore);
+    return terrno;
+  }
+  for (int32_t i = 0; i < STREAM_SCOPED_CACHE_BUCKETS; ++i) {
+    pStore->scopeTails[i] = &pStore->scopeBuckets[i];
+    pStore->groupTails[i] = &pStore->groupBuckets[i];
+  }
+  *ppStore = pStore;
+  return TSDB_CODE_SUCCESS;
+}
+
+static void destroyScopedCacheStore(void** ppStore) {
+  if (ppStore == NULL || *ppStore == NULL) {
+    return;
+  }
+  SScopedCacheStore* pStore = *ppStore;
+  for (int32_t i = 0; i < STREAM_SCOPED_CACHE_BUCKETS; ++i) {
+    SScopedCacheEntry* pEntry = pStore->scopeBuckets[i];
+    while (pEntry != NULL) {
+      SScopedCacheEntry* pNext = pEntry->pNextScope;
+      destroyTrackedScopedCacheEntry(pStore, pEntry);
+      pEntry = pNext;
+    }
+  }
+  (void)closeScopedCacheFile(pStore);
+  taosArrayDestroy(pStore->pFreeFileBlocks);
+  taosThreadMutexDestroy(&pStore->lock);
+  taosMemoryFree(pStore);
+  *ppStore = NULL;
+}
+
+static int32_t getCacheKey(const SStreamDataCacheBase* pCache, char* pKey, int32_t keyLen) {
+  int32_t written =
+      snprintf(pKey, keyLen, "%" PRId64 "_%" PRId64 "_%" PRId64, pCache->streamId, pCache->taskId, pCache->sessionId);
+  return written > 0 && written < keyLen ? written : TSDB_CODE_INVALID_PARA;
+}
 
 void setDataSinkMaxMemSize(int64_t maxMemSize) {
   if (maxMemSize >= 0) {
@@ -46,12 +409,18 @@ int32_t     initStreamDataSink() {
   g_pDataSinkManager.usedMemSize = 0;
   g_pDataSinkManager.fileBlockSize = 0;
   g_pDataSinkManager.readDataFromFileTimes = 0;
+  if (!g_pDataSinkManager.registrationLockInited) {
+    code = taosThreadMutexInit(&g_pDataSinkManager.registrationLock, NULL);
+    if (code != TSDB_CODE_SUCCESS) {
+      return code;
+    }
+    g_pDataSinkManager.registrationLockInited = true;
+  }
   g_pDataSinkManager.dsStreamTaskList =
       taosHashInit(4, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT), false, HASH_ENTRY_LOCK);
   if (g_pDataSinkManager.dsStreamTaskList == NULL) {
     return terrno;
   }
-  taosHashSetFreeFp(g_pDataSinkManager.dsStreamTaskList, destroySStreamDSTaskMgr);
   stInfo("data sink manager init success, max mem size: %" PRId64, tsStreamBufferSizeBytes);
   return TSDB_CODE_SUCCESS;
 }
@@ -83,6 +452,7 @@ static void destroySlidingTaskDSMgr(SSlidingTaskDSMgr** pData) {
   if (pSlidingTaskDSMgr->pFileMgr) {
     destroyStreamDataSinkFile(&pSlidingTaskDSMgr->pFileMgr);
   }
+  destroyScopedCacheStore(&pSlidingTaskDSMgr->pScopedStore);
   taosMemoryFreeClear(pSlidingTaskDSMgr);
 }
 
@@ -99,6 +469,8 @@ static void destroyAlignTaskDSMgr(SAlignTaskDSMgr** pData) {
     taosHashCleanup(pAlignTaskDSMgr->pAlignGrpList);
     pAlignTaskDSMgr->pAlignGrpList = NULL;
   }
+
+  destroyScopedCacheStore(&pAlignTaskDSMgr->pScopedStore);
 
   taosMemoryFreeClear(pAlignTaskDSMgr);
 }
@@ -172,7 +544,12 @@ static int32_t createAlignTaskMgr(int64_t streamId, int64_t taskId, int64_t sess
     return terrno;
   }
   taosHashSetFreeFp(pAlignTaskDSMgr->pAlignGrpList, destroyAlignGrpMgr);
-  char key[64] = {0};
+  code = createScopedCacheStore(&pAlignTaskDSMgr->pScopedStore);
+  if (code != TSDB_CODE_SUCCESS) {
+    taosHashCleanup(pAlignTaskDSMgr->pAlignGrpList);
+    taosMemoryFree(pAlignTaskDSMgr);
+    return code;
+  }
   *ppCache = pAlignTaskDSMgr;
 
   return code;
@@ -242,76 +619,196 @@ static int32_t createSlidingTaskMgr(int64_t streamId, int64_t taskId, int64_t se
     return terrno;
   }
   taosHashSetFreeFp(pSlidingTaskDSMgr->pSlidingGrpList, destroySSlidingGrpMgr);
+  int32_t code = createScopedCacheStore(&pSlidingTaskDSMgr->pScopedStore);
+  if (code != TSDB_CODE_SUCCESS) {
+    taosHashCleanup(pSlidingTaskDSMgr->pSlidingGrpList);
+    taosMemoryFree(pSlidingTaskDSMgr);
+    return code;
+  }
   *ppCache = pSlidingTaskDSMgr;
   return TSDB_CODE_SUCCESS;
 }
 
-// initialize data cache
-int32_t initStreamDataCache(int64_t streamId, int64_t taskId, int64_t sessionId, int32_t cleanMode, int32_t tsSlotId,
-                            void** ppCache) {
-  int32_t code = 0;                            
-  *ppCache = NULL;
-  char key[64] = {0};
-  snprintf(key, sizeof(key), "%" PRId64 "_%" PRId64 "_%"PRId64, streamId, taskId, sessionId);
-
-  void** ppStreamTaskDSManager = (void**)taosHashGet(g_pDataSinkManager.dsStreamTaskList, key, strlen(key));
-  if (ppStreamTaskDSManager == NULL) {
-    if (cleanMode == DATA_CLEAN_IMMEDIATE) {
-      code = createAlignTaskMgr(streamId, taskId, sessionId, tsSlotId, ppCache);
-    } else {
-      code = createSlidingTaskMgr(streamId, taskId, sessionId, tsSlotId, ppCache);
-    }
-    if (code != 0) {
-      stError("failed to create stream task data sink manager, cleanMode:%d, err: 0x%0x", cleanMode, code);
-      return code;
-    } else {
-      code = taosHashPut(g_pDataSinkManager.dsStreamTaskList, key, strlen(key), ppCache, sizeof(void*));
-      if (code != 0) {
-        destroyStreamDataCache(*ppCache);
-        stError("failed to put stream task data sink manager, err: 0x%0x", code);
-        return code;
-      }
-      stDebug("streamId: %" PRId64 " taskId: %" PRId64 " data sink manager created", streamId, taskId);
-    }
-  } else {
-    stError("streamId: %" PRId64 " taskId: %" PRId64 " already exist", streamId, taskId);
-    *ppCache = *ppStreamTaskDSManager;
-  }
-  return code;
-}
-
-// destroy data cache
-void destroyStreamDataCache(void* pCache) {
-  int32_t code = 0;
+static void destroyStreamDataCacheStorage(void* pCache) {
   if (pCache == NULL) {
     return;
   }
   if (getCleanModeFromDSMgr(pCache) == DATA_CLEAN_IMMEDIATE) {
-    SAlignTaskDSMgr* pStreamDataSink = (SAlignTaskDSMgr*)pCache;
-    char             key[64] = {0};
-    snprintf(key, sizeof(key), "%" PRId64 "_%" PRId64 "_%" PRId64, pStreamDataSink->streamId, pStreamDataSink->taskId,
-             pStreamDataSink->sessionId);
-    SAlignTaskDSMgr** ppStreamTaskDSManager =
-        (SAlignTaskDSMgr**)taosHashGet(g_pDataSinkManager.dsStreamTaskList, key, strlen(key));
-    if (ppStreamTaskDSManager != NULL) {
-      code = taosHashRemove(g_pDataSinkManager.dsStreamTaskList, key, strlen(key));
-    }
+    destroyAlignTaskDSMgr((SAlignTaskDSMgr**)&pCache);
   } else if (getCleanModeFromDSMgr(pCache) == DATA_CLEAN_EXPIRED) {
-    SSlidingTaskDSMgr* pStreamDataSink = (SSlidingTaskDSMgr*)pCache;
-    char               key[64] = {0};
-    snprintf(key, sizeof(key), "%" PRId64 "_%" PRId64 "_%" PRId64, pStreamDataSink->streamId, pStreamDataSink->taskId,
-             pStreamDataSink->sessionId);
-    SSlidingTaskDSMgr** ppStreamTaskDSManager =
-        (SSlidingTaskDSMgr**)taosHashGet(g_pDataSinkManager.dsStreamTaskList, key, strlen(key));
-    if (ppStreamTaskDSManager != NULL) {
-      code = taosHashRemove(g_pDataSinkManager.dsStreamTaskList, key, strlen(key));
+    destroySlidingTaskDSMgr((SSlidingTaskDSMgr**)&pCache);
+  }
+}
+
+int32_t createDetachedStreamDataCache(int64_t streamId, int64_t taskId, int64_t sessionId, int32_t cleanMode,
+                                      int32_t tsSlotId, void** ppCache) {
+  if (ppCache == NULL || *ppCache != NULL || (cleanMode != DATA_CLEAN_IMMEDIATE && cleanMode != DATA_CLEAN_EXPIRED)) {
+    return TSDB_CODE_INVALID_PARA;
+  }
+  int32_t code = cleanMode == DATA_CLEAN_IMMEDIATE
+                     ? createAlignTaskMgr(streamId, taskId, sessionId, tsSlotId, ppCache)
+                     : createSlidingTaskMgr(streamId, taskId, sessionId, tsSlotId, ppCache);
+  if (code == TSDB_CODE_SUCCESS) {
+    SStreamDataCacheBase* pCache = *ppCache;
+    pCache->refCount = 1;
+    pCache->detached = true;
+  }
+  return code;
+}
+
+int32_t initStreamDataCache(int64_t streamId, int64_t taskId, int64_t sessionId, int32_t cleanMode, int32_t tsSlotId,
+                            void** ppCache) {
+  if (ppCache == NULL || g_pDataSinkManager.dsStreamTaskList == NULL) {
+    return TSDB_CODE_INVALID_PARA;
+  }
+  *ppCache = NULL;
+  char key[64] = {0};
+  snprintf(key, sizeof(key), "%" PRId64 "_%" PRId64 "_%" PRId64, streamId, taskId, sessionId);
+
+  int32_t code = taosThreadMutexLock(&g_pDataSinkManager.registrationLock);
+  if (code != TSDB_CODE_SUCCESS) {
+    return code;
+  }
+  SStreamDataCacheRegistration* pRegistration = taosHashGet(g_pDataSinkManager.dsStreamTaskList, key, strlen(key));
+  if (pRegistration != NULL && pRegistration->pCache != NULL) {
+    *ppCache = pRegistration->pCache;
+    taosThreadMutexUnlock(&g_pDataSinkManager.registrationLock);
+    return TSDB_CODE_SUCCESS;
+  }
+  if (pRegistration != NULL) {
+    code = taosHashRemove(g_pDataSinkManager.dsStreamTaskList, key, strlen(key));
+    if (code != TSDB_CODE_SUCCESS) {
+      taosThreadMutexUnlock(&g_pDataSinkManager.registrationLock);
+      return code;
     }
+  }
+
+  code = createDetachedStreamDataCache(streamId, taskId, sessionId, cleanMode, tsSlotId, ppCache);
+  if (code == TSDB_CODE_SUCCESS) {
+    ((SStreamDataCacheBase*)*ppCache)->detached = false;
+    SStreamDataCacheRegistration registration = {.pCache = *ppCache, .generation = 1};
+    code = taosHashPut(g_pDataSinkManager.dsStreamTaskList, key, strlen(key), &registration, sizeof(registration));
+  }
+  taosThreadMutexUnlock(&g_pDataSinkManager.registrationLock);
+  if (code != TSDB_CODE_SUCCESS && *ppCache != NULL) {
+    destroyStreamDataCacheStorage(*ppCache);
+    *ppCache = NULL;
+  }
+  return code;
+}
+
+static void releaseStreamDataCacheReference(SStreamDataCacheBase* pCache) {
+  if (atomic_sub_fetch_32(&pCache->refCount, 1) == 0) {
+    destroyStreamDataCacheStorage(pCache);
+  }
+}
+
+void retireStreamDataCache(void** ppCache) {
+  if (ppCache == NULL || *ppCache == NULL) {
+    return;
+  }
+  SStreamDataCacheBase* pCache = *ppCache;
+  *ppCache = NULL;
+  if (!atomic_val_compare_exchange_8((int8_t*)&pCache->retired, false, true)) {
+    releaseStreamDataCacheReference(pCache);
+  }
+}
+
+void destroyStreamDataCache(void* pCache) {
+  if (pCache == NULL) {
+    return;
+  }
+  SStreamDataCacheBase* pBase = pCache;
+  char                  key[64] = {0};
+  int32_t               keyLen = getCacheKey(pBase, key, sizeof(key));
+  if (keyLen > 0 && g_pDataSinkManager.dsStreamTaskList != NULL) {
+    taosThreadMutexLock(&g_pDataSinkManager.registrationLock);
+    SStreamDataCacheRegistration* pRegistration = taosHashGet(g_pDataSinkManager.dsStreamTaskList, key, keyLen);
+    if (pRegistration != NULL && pRegistration->pCache == pCache) {
+      // Clear the pointer before retiring the cache even if removal fails.
+      pRegistration->pCache = NULL;
+      int32_t code = taosHashRemove(g_pDataSinkManager.dsStreamTaskList, key, keyLen);
+      if (code != TSDB_CODE_SUCCESS) {
+        stError("failed to remove stream data cache registration, code:%s", tstrerror(code));
+      }
+    }
+    taosThreadMutexUnlock(&g_pDataSinkManager.registrationLock);
+  }
+  retireStreamDataCache(&pCache);
+}
+
+int32_t replaceStreamDataCacheRegistration(int64_t streamId, int64_t taskId, int64_t sessionId, void* pExpectedOld,
+                                           void* pNew, void** ppRetired) {
+  if (pExpectedOld == NULL || pNew == NULL || ppRetired == NULL || *ppRetired != NULL ||
+      g_pDataSinkManager.dsStreamTaskList == NULL) {
+    return TSDB_CODE_INVALID_PARA;
+  }
+  SStreamDataCacheBase* pNewBase = pNew;
+  if (pNewBase->streamId != streamId || pNewBase->taskId != taskId || pNewBase->sessionId != sessionId ||
+      !pNewBase->detached) {
+    return TSDB_CODE_INVALID_PARA;
+  }
+  char key[64] = {0};
+  snprintf(key, sizeof(key), "%" PRId64 "_%" PRId64 "_%" PRId64, streamId, taskId, sessionId);
+  int32_t code = taosThreadMutexLock(&g_pDataSinkManager.registrationLock);
+  if (code != TSDB_CODE_SUCCESS) {
+    return code;
+  }
+  SStreamDataCacheRegistration* pRegistration = taosHashGet(g_pDataSinkManager.dsStreamTaskList, key, strlen(key));
+  if (pRegistration == NULL || pRegistration->pCache != pExpectedOld) {
+    code = TSDB_CODE_INVALID_PARA;
   } else {
-    stError("invalid clean mode: %d", getCleanModeFromDSMgr(pCache));
+    pRegistration->pCache = pNew;
+    ++pRegistration->generation;
+    pNewBase->detached = false;
+    ((SStreamDataCacheBase*)pExpectedOld)->detached = true;
+    *ppRetired = pExpectedOld;
   }
-  if (code != 0) {
-    stError("failed to remove stream task data sink manager, err: 0x%0x", code);
+  taosThreadMutexUnlock(&g_pDataSinkManager.registrationLock);
+  return code;
+}
+
+int32_t acquireStreamDataCacheLease(int64_t streamId, int64_t taskId, int64_t sessionId,
+                                    SStreamDataCacheLease** ppLease, void** ppCache) {
+  if (ppLease == NULL || *ppLease != NULL || ppCache == NULL || g_pDataSinkManager.dsStreamTaskList == NULL) {
+    return TSDB_CODE_INVALID_PARA;
   }
+  *ppCache = NULL;
+  SStreamDataCacheLease* pLease = taosMemoryCalloc(1, sizeof(SStreamDataCacheLease));
+  if (pLease == NULL) {
+    return terrno;
+  }
+  char key[64] = {0};
+  snprintf(key, sizeof(key), "%" PRId64 "_%" PRId64 "_%" PRId64, streamId, taskId, sessionId);
+  int32_t code = taosThreadMutexLock(&g_pDataSinkManager.registrationLock);
+  if (code == TSDB_CODE_SUCCESS) {
+    SStreamDataCacheRegistration* pRegistration = taosHashGet(g_pDataSinkManager.dsStreamTaskList, key, strlen(key));
+    if (pRegistration == NULL || pRegistration->pCache == NULL) {
+      code = TSDB_CODE_INVALID_PARA;
+    } else {
+      pLease->pCache = pRegistration->pCache;
+      atomic_add_fetch_32(&pLease->pCache->refCount, 1);
+      atomic_add_fetch_32(&pLease->pCache->leaseCount, 1);
+      *ppCache = pLease->pCache;
+      *ppLease = pLease;
+    }
+    taosThreadMutexUnlock(&g_pDataSinkManager.registrationLock);
+  }
+  if (code != TSDB_CODE_SUCCESS) {
+    taosMemoryFree(pLease);
+  }
+  return code;
+}
+
+void releaseStreamDataCacheLease(SStreamDataCacheLease** ppLease) {
+  if (ppLease == NULL || *ppLease == NULL) {
+    return;
+  }
+  SStreamDataCacheBase* pCache = (*ppLease)->pCache;
+  taosMemoryFree(*ppLease);
+  *ppLease = NULL;
+  atomic_sub_fetch_32(&pCache->leaseCount, 1);
+  releaseStreamDataCacheReference(pCache);
 }
 
 static int32_t getOrCreateSSlidingGrpMgr(SSlidingTaskDSMgr* pSlidingTaskMgr, int64_t groupId,
@@ -366,8 +863,8 @@ static int32_t getOrCreateAlignGrpMgr(SAlignTaskDSMgr* pStreamTaskMgr, int64_t g
   return code;
 }
 
-int32_t putDataToSlidingTaskMgr(SSlidingTaskDSMgr* pStreamTaskMgr, int64_t groupId, SSDataBlock* pBlock,
-                                int32_t startIndex, int32_t endIndex) {
+int32_t putDataToSlidingTaskMgr(SSlidingTaskDSMgr* pStreamTaskMgr, int64_t groupId, const char* eventConditionPath,
+                                SSDataBlock* pBlock, int32_t startIndex, int32_t endIndex) {
   int32_t         code = TSDB_CODE_SUCCESS;
   int32_t         lino = 0;
   SSlidingGrpMgr* pSlidingGrpMgr = NULL;
@@ -387,7 +884,8 @@ int32_t putDataToSlidingTaskMgr(SSlidingTaskDSMgr* pStreamTaskMgr, int64_t group
   }
 
   SSlidingWindowInMem* pSlidingWinInMem = NULL;
-  code = buildSlidingWindowInMem(pBlock, pStreamTaskMgr->tsSlotId, startIndex, endIndex, &pSlidingWinInMem);
+  code = buildSlidingWindowInMem(pBlock, pStreamTaskMgr->tsSlotId, startIndex, endIndex, eventConditionPath,
+                                 &pSlidingWinInMem);
   QUERY_CHECK_CODE(code, lino, _end);
 
   void* p = taosArrayPush(pSlidingGrpMgr->winDataInMem, &pSlidingWinInMem);
@@ -414,7 +912,8 @@ _end:
 }
 
 int32_t putDataToAlignTaskMgr(SAlignTaskDSMgr* pStreamTaskMgr, int64_t groupId, TSKEY wstart, TSKEY wend,
-                              SSDataBlock* pBlock, int32_t startIndex, int32_t endIndex) {
+                              const char* eventConditionPath, SSDataBlock* pBlock, int32_t startIndex,
+                              int32_t endIndex) {
   int32_t       code = TSDB_CODE_SUCCESS;
   int32_t       lino = 0;
   SAlignGrpMgr* pAlignGrpMgr = NULL;
@@ -442,7 +941,8 @@ int32_t putDataToAlignTaskMgr(SAlignTaskDSMgr* pStreamTaskMgr, int64_t groupId, 
     }
   }
 
-  code = buildAlignWindowInMemBlock(pAlignGrpMgr, pBlock, pStreamTaskMgr->tsSlotId, wstart, wend, startIndex, endIndex);
+  code = buildAlignWindowInMemBlock(pAlignGrpMgr, pBlock, pStreamTaskMgr->tsSlotId, wstart, wend, eventConditionPath,
+                                    startIndex, endIndex);
   QUERY_CHECK_CODE(code, lino, _end);
 
 _end:
@@ -483,8 +983,9 @@ int32_t moveDataToAlignTaskMgr(SAlignTaskDSMgr* pStreamTaskMgr, SSDataBlock* pBl
   return code;
 }
 
-int32_t putStreamDataCache(void* pCache, int64_t groupId, TSKEY wstart, TSKEY wend, SSDataBlock* pBlock,
-                           int32_t startIndex, int32_t endIndex) {
+int32_t putStreamDataCacheWithPath(void* pCache, int64_t groupId, TSKEY wstart, TSKEY wend,
+                                   const char* eventConditionPath, SSDataBlock* pBlock, int32_t startIndex,
+                                   int32_t endIndex) {
   int32_t code = TSDB_CODE_SUCCESS, lino = 0;
   int64_t streamId = 0;
   if (pCache == NULL) {
@@ -519,12 +1020,11 @@ int32_t putStreamDataCache(void* pCache, int64_t groupId, TSKEY wstart, TSKEY we
   }
   if (getCleanModeFromDSMgr(pCache) == DATA_CLEAN_IMMEDIATE) {
     SAlignTaskDSMgr* pStreamTaskMgr = (SAlignTaskDSMgr*)pCache;
-    printDataBlock(pBlock, __func__, "", pStreamTaskMgr->streamId);
-    code = putDataToAlignTaskMgr(pStreamTaskMgr, groupId, wstart, wend, pBlock, startIndex, endIndex);
+    code =
+        putDataToAlignTaskMgr(pStreamTaskMgr, groupId, wstart, wend, eventConditionPath, pBlock, startIndex, endIndex);
   } else {
     SSlidingTaskDSMgr* pStreamTaskMgr = (SSlidingTaskDSMgr*)pCache;
-    printDataBlock(pBlock, __func__, "", pStreamTaskMgr->streamId);
-    code = putDataToSlidingTaskMgr(pStreamTaskMgr, groupId, pBlock, startIndex, endIndex);
+    code = putDataToSlidingTaskMgr(pStreamTaskMgr, groupId, eventConditionPath, pBlock, startIndex, endIndex);
   }
   (void)checkAndMoveMemCache(false);
 
@@ -537,6 +1037,11 @@ _exit:
         groupId, wstart, wend, startIndex, endIndex);
   }
   return code;
+}
+
+int32_t putStreamDataCache(void* pCache, int64_t groupId, TSKEY wstart, TSKEY wend, SSDataBlock* pBlock,
+                           int32_t startIndex, int32_t endIndex) {
+  return putStreamDataCacheWithPath(pCache, groupId, wstart, wend, NULL, pBlock, startIndex, endIndex);
 }
 
 int32_t moveStreamDataCache(void* pCache, int64_t groupId, TSKEY wstart, TSKEY wend, SSDataBlock* pBlock) {
@@ -554,6 +1059,799 @@ int32_t moveStreamDataCache(void* pCache, int64_t groupId, TSKEY wstart, TSKEY w
     return TSDB_CODE_STREAM_INTERNAL_ERROR;
   }
   return moveDataToAlignTaskMgr((SAlignTaskDSMgr*)pCache, pBlock, groupId, wstart, wend);
+}
+
+static void unlinkScopedEntryFromGroup(SScopedCacheStore* pStore, SScopedCacheEntry* pTarget) {
+  uint32_t            bucket = scopedGroupHash(pTarget->gid);
+  SScopedCacheEntry** ppEntry = &pStore->groupBuckets[bucket];
+  while (*ppEntry != NULL) {
+    if (*ppEntry == pTarget) {
+      if (pTarget->pNextGroup == NULL) {
+        pStore->groupTails[bucket] = ppEntry;
+      }
+      *ppEntry = pTarget->pNextGroup;
+      return;
+    }
+    ppEntry = &(*ppEntry)->pNextGroup;
+  }
+}
+
+static bool scopedKeyEquals(const SScopedCacheEntry* pEntry, const void* pKey, int32_t keyLen) {
+  return pEntry->keyLen == keyLen && memcmp(pEntry->pKey, pKey, keyLen) == 0;
+}
+
+static SScopedCacheEntry* findScopedCacheEntry(SScopedCacheStore* pStore, const void* pKey, int32_t keyLen) {
+  uint32_t bucket = scopedCacheHash(pKey, keyLen) % STREAM_SCOPED_CACHE_BUCKETS;
+  for (SScopedCacheEntry* pEntry = pStore->scopeBuckets[bucket]; pEntry != NULL; pEntry = pEntry->pNextScope) {
+    if (scopedKeyEquals(pEntry, pKey, keyLen)) return pEntry;
+  }
+  return NULL;
+}
+
+static int32_t createStagedScopedCacheEntry(int64_t gid, void* pKey, int32_t keyLen, int32_t tsSlotId,
+                                            const SSDataBlock* pBlock, SScopedCacheEntry** ppEntry) {
+  SScopedCacheEntry* pEntry = taosMemoryCalloc(1, sizeof(*pEntry));
+  if (pEntry == NULL) return terrno;
+  int32_t numCols = taosArrayGetSize(pBlock->pDataBlock);
+  pEntry->pSchema = taosArrayInit(numCols, sizeof(SColumnInfo));
+  if (pEntry->pSchema == NULL) {
+    taosMemoryFree(pEntry);
+    return terrno;
+  }
+  for (int32_t i = 0; i < numCols; ++i) {
+    const SColumnInfoData* pCol = taosArrayGet(pBlock->pDataBlock, i);
+    if (pCol == NULL || taosArrayPush(pEntry->pSchema, &pCol->info) == NULL) {
+      destroyUntrackedScopedCacheEntry(pEntry);
+      return pCol == NULL ? TSDB_CODE_INVALID_PARA : terrno;
+    }
+  }
+  pEntry->gid = gid;
+  pEntry->pKey = pKey;
+  pEntry->keyLen = keyLen;
+  pEntry->tsSlotId = tsSlotId;
+  pEntry->ppBlockTail = &pEntry->pBlocks;
+  pEntry->metadataMemSize = sizeof(*pEntry) + keyLen + (int64_t)numCols * sizeof(SColumnInfo);
+  *ppEntry = pEntry;
+  return TSDB_CODE_SUCCESS;
+}
+
+static int32_t ensureScopedCacheFile(SScopedCacheStore* pStore) {
+  if (pStore->pFile != NULL) return TSDB_CODE_SUCCESS;
+  return createStreamDataSinkFile(pStore->fileName, sizeof(pStore->fileName), &pStore->pFile);
+}
+
+static SFileBlockInfo allocateScopedCacheFileBlock(SScopedCacheStore* pStore, int32_t size) {
+  for (int32_t i = 0; i < taosArrayGetSize(pStore->pFreeFileBlocks); ++i) {
+    SFileBlockInfo* pFree = taosArrayGet(pStore->pFreeFileBlocks, i);
+    if (pFree == NULL || pFree->size < size) continue;
+    SFileBlockInfo result = {.offset = pFree->offset, .size = size};
+    pFree->offset += size;
+    pFree->size -= size;
+    if (pFree->size == 0) (void)taosArrayRemove(pStore->pFreeFileBlocks, i);
+    return result;
+  }
+  SFileBlockInfo result = {.offset = pStore->fileSize, .size = size};
+  pStore->fileSize += size;
+  return result;
+}
+
+static int32_t spillScopedCacheBlock(SScopedCacheStore* pStore, SScopedCacheBlock* pBlock) {
+#ifdef BUILD_TEST
+  ++pStore->spillBlockVisits;
+#endif
+  if (pBlock->pBlock == NULL) return TSDB_CODE_SUCCESS;
+  int32_t bufferSize = blockGetEncodeSize(pBlock->pBlock);
+  if (bufferSize <= 0) return TSDB_CODE_STREAM_INTERNAL_ERROR;
+  char* pBuffer = taosMemoryMalloc(bufferSize);
+  if (pBuffer == NULL) return terrno;
+  int32_t dataLen = blockEncode(pBlock->pBlock, pBuffer, bufferSize, blockDataGetNumOfCols(pBlock->pBlock));
+  if (dataLen <= 0) {
+    taosMemoryFree(pBuffer);
+    return dataLen < 0 ? dataLen : TSDB_CODE_STREAM_INTERNAL_ERROR;
+  }
+  bool    createdFile = pStore->pFile == NULL;
+  int32_t code = ensureScopedCacheFile(pStore);
+  if (code != TSDB_CODE_SUCCESS) {
+    taosMemoryFree(pBuffer);
+    return code;
+  }
+  SFileBlockInfo fileBlock = allocateScopedCacheFileBlock(pStore, dataLen);
+  int64_t        written = taosPWriteFile(pStore->pFile, pBuffer, dataLen, fileBlock.offset);
+  taosMemoryFree(pBuffer);
+  if (written != dataLen) {
+    code = written < 0 && terrno != 0 ? terrno : TSDB_CODE_STREAM_INTERNAL_ERROR;
+    if (createdFile) {
+      (void)closeScopedCacheFile(pStore);
+    } else {
+      recycleScopedCacheFileRange(pStore, &fileBlock);
+    }
+    return code;
+  }
+  pBlock->fileBlock = fileBlock;
+  pBlock->fileDataLen = dataLen;
+  unlinkResidentScopedCacheBlock(pStore, pBlock);
+  blockDataDestroy(pBlock->pBlock);
+  pBlock->pBlock = NULL;
+  (void)atomic_sub_fetch_64(&g_pDataSinkManager.usedMemSize, pBlock->payloadMemSize);
+  pBlock->payloadMemSize = 0;
+  ++pStore->fileBlockCount;
+  return TSDB_CODE_SUCCESS;
+}
+
+static int32_t spillScopedCacheStore(SScopedCacheStore* pStore) {
+  int32_t code = taosThreadMutexLock(&pStore->lock);
+  if (code != TSDB_CODE_SUCCESS) return code;
+  while (code == TSDB_CODE_SUCCESS && pStore->pResidentBlocks != NULL) {
+    code = spillScopedCacheBlock(pStore, pStore->pResidentBlocks);
+  }
+  taosThreadMutexUnlock(&pStore->lock);
+  return code;
+}
+
+#ifdef BUILD_TEST
+int64_t dataSinkTestScopedSpillVisits(void* pCache) {
+  SScopedCacheStore* pStore = ((SStreamDataCacheBase*)pCache)->pScopedStore;
+  taosThreadMutexLock(&pStore->lock);
+  int64_t visits = pStore->spillBlockVisits;
+  taosThreadMutexUnlock(&pStore->lock);
+  return visits;
+}
+#endif
+
+static int32_t restoreScopedCacheSchema(const SScopedCacheEntry* pEntry, SSDataBlock* pBlock) {
+  if (taosArrayGetSize(pEntry->pSchema) != taosArrayGetSize(pBlock->pDataBlock)) return TSDB_CODE_INVALID_MSG;
+  for (int32_t i = 0; i < taosArrayGetSize(pEntry->pSchema); ++i) {
+    const SColumnInfo* pInfo = taosArrayGet(pEntry->pSchema, i);
+    SColumnInfoData*   pCol = taosArrayGet(pBlock->pDataBlock, i);
+    if (pInfo == NULL || pCol == NULL || pInfo->type != pCol->info.type || pInfo->bytes != pCol->info.bytes) {
+      return TSDB_CODE_INVALID_MSG;
+    }
+    pCol->info = *pInfo;
+  }
+  return TSDB_CODE_SUCCESS;
+}
+
+static int32_t loadScopedCacheBlock(SScopedCacheStore* pStore, const SScopedCacheEntry* pEntry,
+                                    const SScopedCacheBlock* pStored, SSDataBlock** ppBlock) {
+  if (pStored->pBlock != NULL) return createOneDataBlock(pStored->pBlock, true, ppBlock);
+  if (pStored->fileDataLen <= 0 || pStored->fileDataLen > pStored->fileBlock.size) return TSDB_CODE_INVALID_MSG;
+  char* pBuffer = taosMemoryMalloc(pStored->fileDataLen);
+  if (pBuffer == NULL) return terrno;
+  int64_t readLen = taosPReadFile(pStore->pFile, pBuffer, pStored->fileDataLen, pStored->fileBlock.offset);
+  if (readLen != pStored->fileDataLen) {
+    taosMemoryFree(pBuffer);
+    return readLen < 0 && terrno != 0 ? terrno : TSDB_CODE_STREAM_INTERNAL_ERROR;
+  }
+  SSDataBlock* pBlock = taosMemoryCalloc(1, sizeof(*pBlock));
+  if (pBlock == NULL) {
+    taosMemoryFree(pBuffer);
+    return terrno;
+  }
+  const char* pEnd = NULL;
+  int32_t     code = blockDecodeBounded(pBlock, pBuffer, pStored->fileDataLen, &pEnd);
+  if (code == TSDB_CODE_SUCCESS && pEnd != pBuffer + pStored->fileDataLen) code = TSDB_CODE_INVALID_MSG;
+  if (code == TSDB_CODE_SUCCESS) code = restoreScopedCacheSchema(pEntry, pBlock);
+  if (code == TSDB_CODE_SUCCESS) restoreScopedCacheBlockInfo(&pStored->info, pBlock);
+  taosMemoryFree(pBuffer);
+  if (code != TSDB_CODE_SUCCESS) {
+    blockDataDestroy(pBlock);
+    return code;
+  }
+  *ppBlock = pBlock;
+  return TSDB_CODE_SUCCESS;
+}
+
+static int32_t mergeScopedCacheBlockOnFile(SScopedCacheStore* pStore, const SScopedCacheEntry* pEntry,
+                                           SScopedCacheBlock* pStored, const SScopedCacheBlock* pNewBlock,
+                                           bool* pMerged) {
+  *pMerged = false;
+  SSDataBlock* pBlock = NULL;
+  int32_t      code = loadScopedCacheBlock(pStore, pEntry, pStored, &pBlock);
+  if (code == TSDB_CODE_SUCCESS) code = blockDataMerge(pBlock, pNewBlock->pBlock);
+  if (code != TSDB_CODE_SUCCESS) {
+    blockDataDestroy(pBlock);
+    return code;
+  }
+  int32_t bufferSize = blockGetEncodeSize(pBlock);
+  char*   pBuffer = bufferSize > 0 ? taosMemoryMalloc(bufferSize) : NULL;
+  if (pBuffer == NULL) {
+    blockDataDestroy(pBlock);
+    return bufferSize > 0 ? terrno : TSDB_CODE_STREAM_INTERNAL_ERROR;
+  }
+  int32_t dataLen = blockEncode(pBlock, pBuffer, bufferSize, blockDataGetNumOfCols(pBlock));
+  if (dataLen <= 0) {
+    taosMemoryFree(pBuffer);
+    blockDataDestroy(pBlock);
+    return dataLen < 0 ? dataLen : TSDB_CODE_STREAM_INTERNAL_ERROR;
+  }
+  SFileBlockInfo replacement = allocateScopedCacheFileBlock(pStore, dataLen);
+  int64_t        written = taosPWriteFile(pStore->pFile, pBuffer, dataLen, replacement.offset);
+  taosMemoryFree(pBuffer);
+  blockDataDestroy(pBlock);
+  if (written != dataLen) {
+    recycleScopedCacheFileRange(pStore, &replacement);
+    return written < 0 ? terrno : TSDB_CODE_STREAM_INTERNAL_ERROR;
+  }
+  recycleScopedCacheFileRange(pStore, &pStored->fileBlock);
+  pStored->fileBlock = replacement;
+  pStored->fileDataLen = dataLen;
+  pStored->rows += pNewBlock->rows;
+  pStored->minTs = TMIN(pStored->minTs, pNewBlock->minTs);
+  pStored->maxTs = TMAX(pStored->maxTs, pNewBlock->maxTs);
+  *pMerged = true;
+  return TSDB_CODE_SUCCESS;
+}
+
+static int32_t copyScopedCacheBlockRange(const SSDataBlock* pSource, int32_t maxRows, int32_t tsSlotId, TSKEY start,
+                                         TSKEY end, SSDataBlock** ppResult) {
+  const SColumnInfoData* pTsCol = taosArrayGet(pSource->pDataBlock, tsSlotId);
+  if (pTsCol == NULL) return TSDB_CODE_INVALID_PARA;
+  maxRows = TMIN(maxRows, pSource->info.rows);
+  int32_t code = TSDB_CODE_SUCCESS;
+  for (int32_t i = 0; i < maxRows;) {
+    while (i < maxRows && (colDataIsNull_s(pTsCol, i) || *(const TSKEY*)colDataGetData(pTsCol, i) < start ||
+                           *(const TSKEY*)colDataGetData(pTsCol, i) > end)) {
+      ++i;
+    }
+    int32_t first = i;
+    while (i < maxRows && !colDataIsNull_s(pTsCol, i) && *(const TSKEY*)colDataGetData(pTsCol, i) >= start &&
+           *(const TSKEY*)colDataGetData(pTsCol, i) <= end) {
+      ++i;
+    }
+    if (first == i) continue;
+    SSDataBlock* pRange = NULL;
+    code = blockDataExtractBlock((SSDataBlock*)pSource, first, i - first, &pRange);
+    if (code != TSDB_CODE_SUCCESS) break;
+    if (*ppResult == NULL) {
+      *ppResult = pRange;
+    } else {
+      code = blockDataMerge(*ppResult, pRange);
+      blockDataDestroy(pRange);
+      if (code != TSDB_CODE_SUCCESS) break;
+    }
+  }
+  if (code != TSDB_CODE_SUCCESS) {
+    blockDataDestroy(*ppResult);
+    *ppResult = NULL;
+  }
+  return code;
+}
+
+int32_t beginStreamDataCacheWriteBatch(void* pCache, SStreamDataCacheWriteBatch** ppBatch) {
+  if (pCache == NULL || ppBatch == NULL || *ppBatch != NULL) {
+    return TSDB_CODE_INVALID_PARA;
+  }
+  SStreamDataCacheWriteBatch* pBatch = taosMemoryCalloc(1, sizeof(SStreamDataCacheWriteBatch));
+  if (pBatch == NULL) {
+    return terrno;
+  }
+  pBatch->pScopes = taosArrayInit(1, sizeof(SStagedScopedCacheScope*));
+  pBatch->pScopeIndex = taosHashInit(16, MurmurHash3_32, false, HASH_NO_LOCK);
+  if (pBatch->pScopes == NULL || pBatch->pScopeIndex == NULL) {
+    taosArrayDestroy(pBatch->pScopes);
+    taosHashCleanup(pBatch->pScopeIndex);
+    taosMemoryFree(pBatch);
+    return terrno;
+  }
+  pBatch->pCache = pCache;
+  *ppBatch = pBatch;
+  return TSDB_CODE_SUCCESS;
+}
+
+static int32_t getOrCreateStagedScopedCacheScope(SStreamDataCacheWriteBatch* pBatch, int64_t gid, void* pKey,
+                                                 int32_t keyLen, int32_t tsSlotId, const SSDataBlock* pSchemaBlock,
+                                                 SStagedScopedCacheScope** ppScope) {
+  SStagedScopedCacheScope** ppExisting = taosHashGet(pBatch->pScopeIndex, pKey, keyLen);
+  if (ppExisting != NULL) {
+    taosMemoryFree(pKey);
+    *ppScope = *ppExisting;
+    return TSDB_CODE_SUCCESS;
+  }
+
+  SStagedScopedCacheScope* pScope = taosMemoryCalloc(1, sizeof(*pScope));
+  if (pScope == NULL) {
+    taosMemoryFree(pKey);
+    return terrno;
+  }
+  int32_t code = createStagedScopedCacheEntry(gid, pKey, keyLen, tsSlotId, pSchemaBlock, &pScope->pEntry);
+  if (code != TSDB_CODE_SUCCESS) {
+    taosMemoryFree(pKey);
+    taosMemoryFree(pScope);
+    return code;
+  }
+  pScope->pSourceRows = taosHashInit(16, MurmurHash3_32, false, HASH_NO_LOCK);
+  if (pScope->pSourceRows == NULL) {
+    SStagedScopedCacheScope* pCleanup = pScope;
+    destroyStagedScopedCacheScope(&pCleanup);
+    return terrno;
+  }
+  code = taosHashPut(pBatch->pScopeIndex, pScope->pEntry->pKey, pScope->pEntry->keyLen, &pScope, sizeof(pScope));
+  if (code != TSDB_CODE_SUCCESS) {
+    SStagedScopedCacheScope* pCleanup = pScope;
+    destroyStagedScopedCacheScope(&pCleanup);
+    return code;
+  }
+  if (taosArrayPush(pBatch->pScopes, &pScope) == NULL) {
+    int32_t rollbackCode = taosHashRemove(pBatch->pScopeIndex, pScope->pEntry->pKey, pScope->pEntry->keyLen);
+    if (rollbackCode != TSDB_CODE_SUCCESS) {
+      stError("failed to roll back staged scope index since %s", tstrerror(rollbackCode));
+    }
+    SStagedScopedCacheScope* pCleanup = pScope;
+    destroyStagedScopedCacheScope(&pCleanup);
+    return terrno;
+  }
+  *ppScope = pScope;
+  return TSDB_CODE_SUCCESS;
+}
+
+static SStagedScopedCacheRowKey makeStagedScopedCacheRowKey(const SSDataBlock* pSourceBlock, int32_t sourceRowIndex) {
+  SStagedScopedCacheRowKey key = {0};
+  key.pSourceBlock = pSourceBlock;
+  key.sourceRowIndex = sourceRowIndex;
+  return key;
+}
+
+static int32_t appendStagedScopedCacheBlock(SStagedScopedCacheScope* pScope, TSKEY ts, SSDataBlock* pBlock) {
+  SScopedCacheEntry* pEntry = pScope->pEntry;
+  SScopedCacheBlock* pLast = pEntry->pLastBlock;
+  if (pLast != NULL && pLast->rows + pBlock->info.rows <= STREAM_SCOPED_CACHE_BLOCK_ROWS &&
+      scopedCacheBlockInfoEquals(&pLast->info, &pBlock->info)) {
+    int32_t code = blockDataMerge(pLast->pBlock, pBlock);
+    if (code != TSDB_CODE_SUCCESS) return code;
+    pLast->rows += pBlock->info.rows;
+    pLast->minTs = TMIN(pLast->minTs, ts);
+    pLast->maxTs = TMAX(pLast->maxTs, ts);
+    pLast->payloadMemSize = scopedCacheBlockPayloadSize(pLast->pBlock);
+    blockDataDestroy(pBlock);
+    return TSDB_CODE_SUCCESS;
+  }
+
+  SScopedCacheBlock* pScopedBlock = taosMemoryCalloc(1, sizeof(*pScopedBlock));
+  if (pScopedBlock == NULL) {
+    return terrno;
+  }
+  pScopedBlock->minTs = ts;
+  pScopedBlock->maxTs = ts;
+  pScopedBlock->rows = pBlock->info.rows;
+  pScopedBlock->info = pBlock->info;
+  pScopedBlock->info.pks[0].pData = NULL;
+  pScopedBlock->info.pks[1].pData = NULL;
+  pScopedBlock->pBlock = pBlock;
+  pScopedBlock->payloadMemSize = scopedCacheBlockPayloadSize(pBlock);
+  *pEntry->ppBlockTail = pScopedBlock;
+  pEntry->ppBlockTail = &pScopedBlock->pNext;
+  pEntry->pLastBlock = pScopedBlock;
+  return TSDB_CODE_SUCCESS;
+}
+
+int32_t stageStreamDataCacheRowScoped(SStreamDataCacheWriteBatch* pBatch, const SStreamCacheScope* pScope,
+                                      const SSDataBlock* pBlock, int32_t rowIndex) {
+  if (pBatch == NULL || pScope == NULL || pBlock == NULL || rowIndex < 0 || rowIndex >= pBlock->info.rows) {
+    return TSDB_CODE_INVALID_PARA;
+  }
+
+  void*   pKey = NULL;
+  int32_t keyLen = 0;
+  int32_t code = buildScopedCacheKey(pScope, &pKey, &keyLen);
+  if (code != TSDB_CODE_SUCCESS) {
+    return code;
+  }
+  SStagedScopedCacheScope* pStaged = NULL;
+  code =
+      getOrCreateStagedScopedCacheScope(pBatch, pScope->gid, pKey, keyLen, pBatch->pCache->tsSlotId, pBlock, &pStaged);
+  if (code != TSDB_CODE_SUCCESS) {
+    return code;
+  }
+  SStagedScopedCacheRowKey rowKey = makeStagedScopedCacheRowKey(pBlock, rowIndex);
+  if (taosHashGet(pStaged->pSourceRows, &rowKey, sizeof(rowKey)) != NULL) return TSDB_CODE_SUCCESS;
+
+  SSDataBlock* pExtracted = NULL;
+  code = blockDataExtractBlock((SSDataBlock*)pBlock, rowIndex, 1, &pExtracted);
+  if (code != TSDB_CODE_SUCCESS) {
+    return code;
+  }
+  SColumnInfoData* pTsCol = taosArrayGet(pBlock->pDataBlock, pBatch->pCache->tsSlotId);
+  if (pTsCol == NULL || colDataIsNull_s(pTsCol, rowIndex)) {
+    blockDataDestroy(pExtracted);
+    return TSDB_CODE_INVALID_PARA;
+  }
+  TSKEY ts = *(TSKEY*)colDataGetData(pTsCol, rowIndex);
+  bool  seen = true;
+  code = taosHashPut(pStaged->pSourceRows, &rowKey, sizeof(rowKey), &seen, sizeof(seen));
+  if (code == TSDB_CODE_SUCCESS) code = appendStagedScopedCacheBlock(pStaged, ts, pExtracted);
+  if (code != TSDB_CODE_SUCCESS) {
+    int32_t rollbackCode = taosHashRemove(pStaged->pSourceRows, &rowKey, sizeof(rowKey));
+    if (rollbackCode != TSDB_CODE_SUCCESS) {
+      stError("failed to roll back staged source row since %s", tstrerror(rollbackCode));
+    }
+    blockDataDestroy(pExtracted);
+  }
+  return code;
+}
+
+int32_t stageStreamDataCacheProjectedRowScoped(SStreamDataCacheWriteBatch* pBatch, const SStreamCacheScope* pScope,
+                                               const SSDataBlock* pSourceBlock, int32_t sourceRowIndex,
+                                               const SSDataBlock* pPayloadTemplate, const SArray* pProjection) {
+  if (pBatch == NULL || pScope == NULL || pSourceBlock == NULL || pPayloadTemplate == NULL || pProjection == NULL ||
+      sourceRowIndex < 0 || sourceRowIndex >= pSourceBlock->info.rows ||
+      pProjection->elemSize != sizeof(SStreamDataCacheColumnProjection)) {
+    return TSDB_CODE_INVALID_PARA;
+  }
+
+  int32_t numSourceCols = taosArrayGetSize(pSourceBlock->pDataBlock);
+  int32_t numTargetCols = taosArrayGetSize(pPayloadTemplate->pDataBlock);
+  int32_t targetTsSlotId = -1;
+  if (taosArrayGetSize(pProjection) != numTargetCols) {
+    return TSDB_CODE_INVALID_PARA;
+  }
+  for (int32_t i = 0; i < numTargetCols; ++i) {
+    const SStreamDataCacheColumnProjection* pItem = taosArrayGet(pProjection, i);
+    if (pItem == NULL || pItem->sourceSlotId < 0 || pItem->sourceSlotId >= numSourceCols || pItem->targetSlotId < 0 ||
+        pItem->targetSlotId >= numTargetCols) {
+      return TSDB_CODE_INVALID_PARA;
+    }
+    const SColumnInfoData* pSourceCol = taosArrayGet(pSourceBlock->pDataBlock, pItem->sourceSlotId);
+    const SColumnInfoData* pTargetCol = taosArrayGet(pPayloadTemplate->pDataBlock, pItem->targetSlotId);
+    if (pSourceCol == NULL || pTargetCol == NULL || pSourceCol->info.type != pTargetCol->info.type ||
+        pSourceCol->info.bytes != pTargetCol->info.bytes ||
+        (IS_DECIMAL_TYPE(pSourceCol->info.type) && (pSourceCol->info.precision != pTargetCol->info.precision ||
+                                                    pSourceCol->info.scale != pTargetCol->info.scale))) {
+      return TSDB_CODE_INVALID_PARA;
+    }
+    int32_t targetCount = 0;
+    for (int32_t j = 0; j < numTargetCols; ++j) {
+      const SStreamDataCacheColumnProjection* pCandidate = taosArrayGet(pProjection, j);
+      if (pCandidate != NULL && pCandidate->targetSlotId == pItem->targetSlotId) {
+        ++targetCount;
+      }
+    }
+    if (targetCount != 1) {
+      return TSDB_CODE_INVALID_PARA;
+    }
+    if (pItem->sourceSlotId == pBatch->pCache->tsSlotId) targetTsSlotId = pItem->targetSlotId;
+  }
+  if (targetTsSlotId < 0) return TSDB_CODE_INVALID_PARA;
+
+  SColumnInfoData* pTsCol = taosArrayGet(pSourceBlock->pDataBlock, pBatch->pCache->tsSlotId);
+  if (pTsCol == NULL || colDataIsNull_s(pTsCol, sourceRowIndex)) {
+    return TSDB_CODE_INVALID_PARA;
+  }
+
+  void*   pKey = NULL;
+  int32_t keyLen = 0;
+  int32_t code = buildScopedCacheKey(pScope, &pKey, &keyLen);
+  if (code != TSDB_CODE_SUCCESS) {
+    return code;
+  }
+  SStagedScopedCacheScope* pStaged = NULL;
+  code =
+      getOrCreateStagedScopedCacheScope(pBatch, pScope->gid, pKey, keyLen, targetTsSlotId, pPayloadTemplate, &pStaged);
+  if (code != TSDB_CODE_SUCCESS) {
+    return code;
+  }
+  SStagedScopedCacheRowKey rowKey = makeStagedScopedCacheRowKey(pSourceBlock, sourceRowIndex);
+  if (taosHashGet(pStaged->pSourceRows, &rowKey, sizeof(rowKey)) != NULL) return TSDB_CODE_SUCCESS;
+
+  SSDataBlock* pProjected = NULL;
+  code = createOneDataBlock(pPayloadTemplate, false, &pProjected);
+  if (code != TSDB_CODE_SUCCESS) {
+    return code;
+  }
+  code = blockDataEnsureCapacity(pProjected, 1);
+  if (code != TSDB_CODE_SUCCESS) {
+    blockDataDestroy(pProjected);
+    return code;
+  }
+  for (int32_t i = 0; i < numTargetCols; ++i) {
+    const SStreamDataCacheColumnProjection* pItem = taosArrayGet(pProjection, i);
+    const SColumnInfoData*                  pSourceCol = taosArrayGet(pSourceBlock->pDataBlock, pItem->sourceSlotId);
+    SColumnInfoData*                        pTargetCol = taosArrayGet(pProjected->pDataBlock, pItem->targetSlotId);
+    bool        isNull = pSourceBlock->pBlockAgg == NULL ? colDataIsNull_s(pSourceCol, sourceRowIndex)
+                                                         : colDataIsNull(pSourceCol, pSourceBlock->info.rows, sourceRowIndex,
+                                                                         &pSourceBlock->pBlockAgg[pItem->sourceSlotId]);
+    const char* pData = isNull ? NULL : colDataGetData(pSourceCol, sourceRowIndex);
+    code = colDataSetVal(pTargetCol, 0, pData, isNull);
+    if (code != TSDB_CODE_SUCCESS) {
+      blockDataDestroy(pProjected);
+      return code;
+    }
+  }
+  pProjected->info.rows = 1;
+  pProjected->info.id = pSourceBlock->info.id;
+  pProjected->info.window = pSourceBlock->info.window;
+  pProjected->info.dataLoad = pSourceBlock->info.dataLoad;
+  pProjected->info.scanFlag = pSourceBlock->info.scanFlag;
+  pProjected->info.version = pSourceBlock->info.version;
+  pProjected->info.childId = pSourceBlock->info.childId;
+  pProjected->info.calWin = pSourceBlock->info.calWin;
+  pProjected->info.watermark = pSourceBlock->info.watermark;
+  tstrncpy(pProjected->info.parTbName, pSourceBlock->info.parTbName, sizeof(pProjected->info.parTbName));
+  TSKEY ts = *(TSKEY*)colDataGetData(pTsCol, sourceRowIndex);
+  bool  seen = true;
+  code = taosHashPut(pStaged->pSourceRows, &rowKey, sizeof(rowKey), &seen, sizeof(seen));
+  if (code == TSDB_CODE_SUCCESS) code = appendStagedScopedCacheBlock(pStaged, ts, pProjected);
+  if (code != TSDB_CODE_SUCCESS) {
+    int32_t rollbackCode = taosHashRemove(pStaged->pSourceRows, &rowKey, sizeof(rowKey));
+    if (rollbackCode != TSDB_CODE_SUCCESS) {
+      stError("failed to roll back staged source row since %s", tstrerror(rollbackCode));
+    }
+    blockDataDestroy(pProjected);
+  }
+  return code;
+}
+
+static void commitStagedScopedCacheBlock(SScopedCacheStore* pStore, SScopedCacheEntry* pEntry,
+                                         SScopedCacheBlock* pNewBlock) {
+  SScopedCacheBlock* pLast = pEntry->pLastBlock;
+  if (pLast != NULL && pLast->rows + pNewBlock->rows <= STREAM_SCOPED_CACHE_BLOCK_ROWS &&
+      scopedCacheBlockInfoEquals(&pLast->info, &pNewBlock->info)) {
+    if (pLast->pBlock != NULL) {
+      SSDataBlock* pMerged = NULL;
+      int32_t      code = createOneDataBlock(pLast->pBlock, true, &pMerged);
+      if (code == TSDB_CODE_SUCCESS) code = blockDataMerge(pMerged, pNewBlock->pBlock);
+      if (code == TSDB_CODE_SUCCESS) {
+        int64_t oldPayloadSize = pLast->payloadMemSize;
+        blockDataDestroy(pLast->pBlock);
+        pLast->pBlock = pMerged;
+        pLast->payloadMemSize = scopedCacheBlockPayloadSize(pMerged);
+        pLast->rows += pNewBlock->rows;
+        pLast->minTs = TMIN(pLast->minTs, pNewBlock->minTs);
+        pLast->maxTs = TMAX(pLast->maxTs, pNewBlock->maxTs);
+        (void)atomic_add_fetch_64(&g_pDataSinkManager.usedMemSize, pLast->payloadMemSize - oldPayloadSize);
+        destroyUntrackedScopedCacheBlock(pNewBlock);
+        return;
+      }
+      blockDataDestroy(pMerged);
+    } else {
+      bool    merged = false;
+      int32_t code = mergeScopedCacheBlockOnFile(pStore, pEntry, pLast, pNewBlock, &merged);
+      if (merged) {
+        destroyUntrackedScopedCacheBlock(pNewBlock);
+        return;
+      }
+      if (code != TSDB_CODE_SUCCESS) {
+        stError("failed to merge scoped cache file block, err: %s", tstrerror(code));
+      }
+    }
+  }
+  pNewBlock->pNext = NULL;
+  *pEntry->ppBlockTail = pNewBlock;
+  pEntry->ppBlockTail = &pNewBlock->pNext;
+  pEntry->pLastBlock = pNewBlock;
+  linkResidentScopedCacheBlock(pStore, pNewBlock);
+  (void)atomic_add_fetch_64(&g_pDataSinkManager.usedMemSize, sizeof(*pNewBlock) + pNewBlock->payloadMemSize);
+}
+
+static int32_t commitStreamDataCacheWriteBatchImpl(SStreamDataCacheWriteBatch** ppBatch) {
+  if (ppBatch == NULL || *ppBatch == NULL) {
+    return TSDB_CODE_SUCCESS;
+  }
+  SStreamDataCacheWriteBatch* pBatch = *ppBatch;
+  SScopedCacheStore*          pStore = pBatch->pCache->pScopedStore;
+  taosThreadMutexLock(&pStore->lock);
+  for (int32_t i = 0; i < taosArrayGetSize(pBatch->pScopes); ++i) {
+    SStagedScopedCacheScope** ppStaged = taosArrayGet(pBatch->pScopes, i);
+    SStagedScopedCacheScope*  pStaged = *ppStaged;
+    SScopedCacheEntry*        pStagedEntry = pStaged->pEntry;
+    SScopedCacheEntry*        pEntry = findScopedCacheEntry(pStore, pStagedEntry->pKey, pStagedEntry->keyLen);
+    if (pEntry == NULL) {
+      pEntry = pStagedEntry;
+      pEntry->entryId = ++pStore->nextEntryId;
+      uint32_t scopeBucket = scopedCacheHash(pEntry->pKey, pEntry->keyLen) % STREAM_SCOPED_CACHE_BUCKETS;
+      uint32_t groupBucket = scopedGroupHash(pEntry->gid);
+      *pStore->scopeTails[scopeBucket] = pEntry;
+      pStore->scopeTails[scopeBucket] = &pEntry->pNextScope;
+      *pStore->groupTails[groupBucket] = pEntry;
+      pStore->groupTails[groupBucket] = &pEntry->pNextGroup;
+      (void)atomic_add_fetch_64(&g_pDataSinkManager.usedMemSize, pEntry->metadataMemSize);
+      for (SScopedCacheBlock* pBlock = pEntry->pBlocks; pBlock != NULL; pBlock = pBlock->pNext) {
+        linkResidentScopedCacheBlock(pStore, pBlock);
+        (void)atomic_add_fetch_64(&g_pDataSinkManager.usedMemSize, sizeof(*pBlock) + pBlock->payloadMemSize);
+      }
+      pStaged->pEntry = NULL;
+      continue;
+    }
+
+    SScopedCacheBlock* pNewBlock = pStagedEntry->pBlocks;
+    pStagedEntry->pBlocks = NULL;
+    pStagedEntry->pLastBlock = NULL;
+    pStagedEntry->ppBlockTail = &pStagedEntry->pBlocks;
+    destroyUntrackedScopedCacheEntry(pStagedEntry);
+    pStaged->pEntry = NULL;
+    while (pNewBlock != NULL) {
+      SScopedCacheBlock* pNext = pNewBlock->pNext;
+      commitStagedScopedCacheBlock(pStore, pEntry, pNewBlock);
+      pNewBlock = pNext;
+    }
+  }
+  taosThreadMutexUnlock(&pStore->lock);
+  taosArrayDestroyEx(pBatch->pScopes, destroyStagedScopedCacheScope);
+  taosHashCleanup(pBatch->pScopeIndex);
+  int32_t code = TSDB_CODE_SUCCESS;
+  if (tsStreamBufferSizeBytes > DS_MEM_SIZE_RESERVED && !hasEnoughMemSize()) {
+    code = spillScopedCacheStore(pStore);
+    if (code != TSDB_CODE_SUCCESS) stError("failed to spill scoped cache, err: %s", tstrerror(code));
+  }
+  taosMemoryFree(pBatch);
+  *ppBatch = NULL;
+  return code;
+}
+
+void commitStreamDataCacheWriteBatch(SStreamDataCacheWriteBatch** ppBatch) {
+  (void)commitStreamDataCacheWriteBatchImpl(ppBatch);
+}
+
+void abortStreamDataCacheWriteBatch(SStreamDataCacheWriteBatch** ppBatch) {
+  if (ppBatch == NULL || *ppBatch == NULL) {
+    return;
+  }
+  SStreamDataCacheWriteBatch* pBatch = *ppBatch;
+  taosArrayDestroyEx(pBatch->pScopes, destroyStagedScopedCacheScope);
+  taosHashCleanup(pBatch->pScopeIndex);
+  taosMemoryFree(pBatch);
+  *ppBatch = NULL;
+}
+
+int32_t putStreamDataCacheScoped(void* pCache, const SStreamCacheScope* pScope, TSKEY wstart, TSKEY wend,
+                                 SSDataBlock* pBlock, int32_t startIndex, int32_t endIndex) {
+  if (pScope == NULL || pBlock == NULL || wstart > wend || startIndex < 0 || endIndex < startIndex ||
+      endIndex >= pBlock->info.rows) {
+    return TSDB_CODE_INVALID_PARA;
+  }
+  if (taosArrayGetSize(pScope->lineage.pScopes) == 0) {
+    return putStreamDataCache(pCache, pScope->gid, wstart, wend, pBlock, startIndex, endIndex);
+  }
+  SStreamDataCacheWriteBatch* pBatch = NULL;
+  int32_t                     code = beginStreamDataCacheWriteBatch(pCache, &pBatch);
+  for (int32_t i = startIndex; code == TSDB_CODE_SUCCESS && i <= endIndex; ++i) {
+    code = stageStreamDataCacheRowScoped(pBatch, pScope, pBlock, i);
+  }
+  if (code != TSDB_CODE_SUCCESS) {
+    abortStreamDataCacheWriteBatch(&pBatch);
+    return code;
+  }
+  commitStreamDataCacheWriteBatch(&pBatch);
+  return TSDB_CODE_SUCCESS;
+}
+
+static int32_t getStreamDataCacheScopedImpl(void* pCache, const SStreamCacheScope* pScope, TSKEY start, TSKEY end,
+                                            void** ppIter, bool snapshot) {
+  if (pCache == NULL || pScope == NULL || ppIter == NULL || start > end) {
+    return TSDB_CODE_INVALID_PARA;
+  }
+  if (!snapshot && taosArrayGetSize(pScope->lineage.pScopes) == 0) {
+    return getStreamDataCache(pCache, pScope->gid, start, end, ppIter);
+  }
+  *ppIter = NULL;
+  void*   pKey = NULL;
+  int32_t keyLen = 0;
+  int32_t code = buildScopedCacheKey(pScope, &pKey, &keyLen);
+  if (code != TSDB_CODE_SUCCESS) {
+    return code;
+  }
+  SResultIter* pResult = NULL;
+  code = createDataResult((void**)&pResult);
+  if (code != TSDB_CODE_SUCCESS) {
+    taosMemoryFree(pKey);
+    return code;
+  }
+  SScopedCacheResultState* pScoped = taosMemoryCalloc(1, sizeof(*pScoped));
+  if (pScoped == NULL) {
+    taosMemoryFree(pKey);
+    releaseDataResult((void**)&pResult);
+    return terrno;
+  }
+  pScoped->pCache = pCache;
+  pScoped->pKey = pKey;
+  pScoped->keyLen = keyLen;
+  pResult->groupData = pScoped;
+  pResult->cleanMode = getCleanModeFromDSMgr(pCache);
+  pResult->dataPos = DATA_SINK_ALL_TMP;
+  pResult->groupId = pScope->gid;
+  pResult->reqStartTime = start;
+  pResult->reqEndTime = end;
+  pResult->scopedResult = true;
+
+  SScopedCacheStore* pStore = ((SStreamDataCacheBase*)pCache)->pScopedStore;
+  uint32_t           bucket = scopedCacheHash(pKey, keyLen) % STREAM_SCOPED_CACHE_BUCKETS;
+  bool               found = false;
+  taosThreadMutexLock(&pStore->lock);
+  for (SScopedCacheEntry* pEntry = pStore->scopeBuckets[bucket]; pEntry != NULL; pEntry = pEntry->pNextScope) {
+    if (!scopedKeyEquals(pEntry, pKey, keyLen)) continue;
+    for (SScopedCacheBlock* pStored = pEntry->pBlocks; pStored != NULL; pStored = pStored->pNext) {
+      if (pStored->maxTs < start || pStored->minTs > end) continue;
+      found = true;
+      pScoped->pNextBlock = pStored;
+      break;
+    }
+    pResult->tsColSlotId = pEntry->tsSlotId;
+    pScoped->entryId = pEntry->entryId;
+    pScoped->pSnapshotLastBlock = pEntry->pLastBlock;
+    pScoped->snapshotLastRows = pEntry->pLastBlock == NULL ? 0 : pEntry->pLastBlock->rows;
+    break;
+  }
+  taosThreadMutexUnlock(&pStore->lock);
+  if (!found) {
+    releaseDataResult((void**)&pResult);
+    return TSDB_CODE_SUCCESS;
+  }
+  *ppIter = pResult;
+  return TSDB_CODE_SUCCESS;
+}
+
+int32_t getStreamDataCacheScoped(void* pCache, const SStreamCacheScope* pScope, TSKEY start, TSKEY end, void** ppIter) {
+  return getStreamDataCacheScopedImpl(pCache, pScope, start, end, ppIter, false);
+}
+
+int32_t cleanStreamDataCacheScope(void* pCache, const SStreamCacheScope* pScope) {
+  if (pCache == NULL || pScope == NULL) {
+    return TSDB_CODE_INVALID_PARA;
+  }
+  if (taosArrayGetSize(pScope->lineage.pScopes) == 0) {
+    return cleanStreamDataCache(pCache, pScope->gid);
+  }
+  void*   pKey = NULL;
+  int32_t keyLen = 0;
+  int32_t code = buildScopedCacheKey(pScope, &pKey, &keyLen);
+  if (code != TSDB_CODE_SUCCESS) {
+    return code;
+  }
+  SScopedCacheStore* pStore = ((SStreamDataCacheBase*)pCache)->pScopedStore;
+  uint32_t           bucket = scopedCacheHash(pKey, keyLen) % STREAM_SCOPED_CACHE_BUCKETS;
+  taosThreadMutexLock(&pStore->lock);
+  SScopedCacheEntry** ppEntry = &pStore->scopeBuckets[bucket];
+  while (*ppEntry != NULL) {
+    SScopedCacheEntry* pEntry = *ppEntry;
+    if (scopedKeyEquals(pEntry, pKey, keyLen)) {
+      if (pEntry->pNextScope == NULL) {
+        pStore->scopeTails[bucket] = ppEntry;
+      }
+      *ppEntry = pEntry->pNextScope;
+      unlinkScopedEntryFromGroup(pStore, pEntry);
+      destroyTrackedScopedCacheEntry(pStore, pEntry);
+    } else {
+      ppEntry = &pEntry->pNextScope;
+    }
+  }
+  taosThreadMutexUnlock(&pStore->lock);
+  taosMemoryFree(pKey);
+  return TSDB_CODE_SUCCESS;
+}
+
+int32_t cleanStreamDataCacheGroup(void* pCache, int64_t gid) {
+  if (pCache == NULL) {
+    return TSDB_CODE_INVALID_PARA;
+  }
+  SScopedCacheStore* pStore = ((SStreamDataCacheBase*)pCache)->pScopedStore;
+  uint32_t           groupBucket = scopedGroupHash(gid);
+  taosThreadMutexLock(&pStore->lock);
+  SScopedCacheEntry** ppGroupEntry = &pStore->groupBuckets[groupBucket];
+  while (*ppGroupEntry != NULL) {
+    SScopedCacheEntry* pEntry = *ppGroupEntry;
+    if (pEntry->gid != gid) {
+      ppGroupEntry = &pEntry->pNextGroup;
+      continue;
+    }
+    if (pEntry->pNextGroup == NULL) {
+      pStore->groupTails[groupBucket] = ppGroupEntry;
+    }
+    *ppGroupEntry = pEntry->pNextGroup;
+    uint32_t            scopeBucket = scopedCacheHash(pEntry->pKey, pEntry->keyLen) % STREAM_SCOPED_CACHE_BUCKETS;
+    SScopedCacheEntry** ppScopeEntry = &pStore->scopeBuckets[scopeBucket];
+    while (*ppScopeEntry != pEntry) {
+      ppScopeEntry = &(*ppScopeEntry)->pNextScope;
+    }
+    if (pEntry->pNextScope == NULL) {
+      pStore->scopeTails[scopeBucket] = ppScopeEntry;
+    }
+    *ppScopeEntry = pEntry->pNextScope;
+    destroyTrackedScopedCacheEntry(pStore, pEntry);
+  }
+  taosThreadMutexUnlock(&pStore->lock);
+  if (getCleanModeFromDSMgr(pCache) == DATA_CLEAN_EXPIRED) {
+    return cleanStreamDataCache(pCache, gid);
+  }
+  return TSDB_CODE_SUCCESS;
 }
 
 int32_t getAlignDataCache(void* pCache, int64_t groupId, TSKEY start, TSKEY end, void** pIter) {
@@ -730,7 +2028,7 @@ int32_t cleanStreamDataCache(void* pCache, int64_t groupId) {
 
   int32_t code = TSDB_CODE_SUCCESS;
   if (getCleanModeFromDSMgr(pCache) == DATA_CLEAN_IMMEDIATE) {
-    stError("cleanStreamDataCache not support immediate mode");
+    stError("cleanStreamDataCache is not supported in immediate mode");
     return TSDB_CODE_STREAM_INTERNAL_ERROR;
 
   } else if (getCleanModeFromDSMgr(pCache) == DATA_CLEAN_EXPIRED) {
@@ -757,11 +2055,21 @@ void releaseDataResult(void** pIter) {
     return;
   }
   SResultIter* pResult = (SResultIter*)*pIter;
+  if (pResult->scopedResult && pResult->groupData != NULL) {
+    SScopedCacheResultState* pScoped = pResult->groupData;
+    taosMemoryFree(pScoped->pKey);
+    taosMemoryFree(pScoped);
+    pResult->groupData = NULL;
+  }
   if (pResult->tmpBlocksInMem) {
     for (int32_t i = 0; i < pResult->tmpBlocksInMem->size; ++i) {
       SSDataBlock** ppBlk = (SSDataBlock**)taosArrayGet(pResult->tmpBlocksInMem, i);
       if (*ppBlk != NULL) {
-        taosMemoryFree(*ppBlk);
+        if (pResult->scopedResult) {
+          blockDataDestroy(*ppBlk);
+        } else {
+          taosMemoryFree(*ppBlk);
+        }
         *ppBlk = NULL;
       }
     }
@@ -770,6 +2078,7 @@ void releaseDataResult(void** pIter) {
   }
 
   if (pResult != NULL) {
+    releaseStreamDataCacheLease(&pResult->pLease);
     taosMemoryFree(pResult);
     *pIter = NULL;
   }
@@ -781,6 +2090,11 @@ void releaseDataResultAndResetMgrStatus(void** pIter) {
   }
   SResultIter* pResult = (SResultIter*)*pIter;
 
+  if (pResult->scopedResult) {
+    releaseDataResult(pIter);
+    return;
+  }
+
   if (pResult->cleanMode == DATA_CLEAN_EXPIRED) {
     SSlidingGrpMgr* pSlidingGrpMgr = (SSlidingGrpMgr*)pResult->groupData;
     (void)changeMgrStatus(&pSlidingGrpMgr->status, GRP_DATA_IDLE);
@@ -790,6 +2104,23 @@ void releaseDataResultAndResetMgrStatus(void** pIter) {
   }
 
   releaseDataResult(pIter);
+}
+
+/* Release the unread fragments of the window an early-finished or cancelled read was serving, then free the
+ * iterator. This is separate from releaseDataResultAndResetMgrStatus (the normal EOF path) so that reading
+ * N windows one by one does not rescan every remaining cache record for each window's normal completion. */
+void releaseDataResultAndResetMgrStatusWithCleanup(void** pIter) {
+  if (pIter == NULL || *pIter == NULL) {
+    return;
+  }
+  SResultIter* pResult = (SResultIter*)*pIter;
+  if (!pResult->scopedResult && pResult->cleanMode == DATA_CLEAN_IMMEDIATE && !pResult->exactWindow &&
+      pResult->groupData != NULL) {
+    SAlignGrpMgr* pAlignGrpMgr = (SAlignGrpMgr*)pResult->groupData;
+    alignReleaseWindowFragments(pAlignGrpMgr, pResult->reqStartTime, pResult->reqEndTime,
+                                pResult->eventConditionPath);
+  }
+  releaseDataResultAndResetMgrStatus(pIter);
 }
 
 void moveToNextIterator(void** ppIter) {
@@ -831,8 +2162,45 @@ void moveToNextIterator(void** ppIter) {
   return;
 }
 
+static int32_t getNextScopedStreamDataCache(void** pIter, SSDataBlock** ppBlock) {
+  SResultIter*             pResult = *pIter;
+  SScopedCacheResultState* pScoped = pResult->groupData;
+  SScopedCacheStore*       pStore = pScoped->pCache->pScopedStore;
+  SSDataBlock*             pRange = NULL;
+  int32_t                  code = taosThreadMutexLock(&pStore->lock);
+  if (code != TSDB_CODE_SUCCESS) return code;
+
+  SScopedCacheEntry* pEntry = findScopedCacheEntry(pStore, pScoped->pKey, pScoped->keyLen);
+  if (pEntry == NULL || pEntry->entryId != pScoped->entryId) {
+    pScoped->pNextBlock = NULL;
+  }
+  while (code == TSDB_CODE_SUCCESS && pScoped->pNextBlock != NULL && pRange == NULL) {
+    SScopedCacheBlock* pStored = pScoped->pNextBlock;
+    bool               isSnapshotLast = pStored == pScoped->pSnapshotLastBlock;
+    pScoped->pNextBlock = isSnapshotLast ? NULL : pStored->pNext;
+    if (pStored->maxTs < pResult->reqStartTime || pStored->minTs > pResult->reqEndTime) continue;
+
+    SSDataBlock* pLoaded = NULL;
+    code = loadScopedCacheBlock(pStore, pEntry, pStored, &pLoaded);
+    if (code == TSDB_CODE_SUCCESS) {
+      int32_t maxRows = isSnapshotLast ? pScoped->snapshotLastRows : pStored->rows;
+      code = copyScopedCacheBlockRange(pLoaded, maxRows, pEntry->tsSlotId, pResult->reqStartTime, pResult->reqEndTime,
+                                       &pRange);
+    }
+    blockDataDestroy(pLoaded);
+  }
+  bool finished = pScoped->pNextBlock == NULL;
+  taosThreadMutexUnlock(&pStore->lock);
+  if (code != TSDB_CODE_SUCCESS || finished) releaseDataResult(pIter);
+  if (code == TSDB_CODE_SUCCESS)
+    *ppBlock = pRange;
+  else
+    blockDataDestroy(pRange);
+  return code;
+}
+
 int32_t getNextStreamDataCache(void** pIter, SSDataBlock** ppBlock) {
-  if (ppBlock == NULL) {
+  if (pIter == NULL || ppBlock == NULL) {
     stError("getNextStreamDataCache param invalid, ppBlock is NULL");
     return TSDB_CODE_STREAM_INTERNAL_ERROR;
   }
@@ -842,6 +2210,9 @@ int32_t getNextStreamDataCache(void** pIter, SSDataBlock** ppBlock) {
   SResultIter* pResult = (SResultIter*)*pIter;
   if (pResult == NULL) {
     return TSDB_CODE_SUCCESS;
+  }
+  if (pResult->scopedResult) {
+    return getNextScopedStreamDataCache(pIter, ppBlock);
   }
   int64_t groupId = pResult->groupId;
   stDebug("[get data cache] start groupID:%" PRId64 ", start:%" PRId64 " end:%" PRId64 " dataPos: %d, winIndex: %d",
@@ -903,12 +2274,24 @@ _end:
   return code;
 }
 
-void cancelStreamDataCacheIterate(void** pIter) { releaseDataResultAndResetMgrStatus(pIter); }
+void cancelStreamDataCacheIterate(void** pIter) { releaseDataResultAndResetMgrStatusWithCleanup(pIter); }
 
 void destroyDataSinkMgr() {
   if (g_pDataSinkManager.dsStreamTaskList) {
+    taosThreadMutexLock(&g_pDataSinkManager.registrationLock);
+    SStreamDataCacheRegistration* pRegistration = taosHashIterate(g_pDataSinkManager.dsStreamTaskList, NULL);
+    while (pRegistration != NULL) {
+      void* pCache = pRegistration->pCache;
+      retireStreamDataCache(&pCache);
+      pRegistration = taosHashIterate(g_pDataSinkManager.dsStreamTaskList, pRegistration);
+    }
     taosHashCleanup(g_pDataSinkManager.dsStreamTaskList);
     g_pDataSinkManager.dsStreamTaskList = NULL;
+    taosThreadMutexUnlock(&g_pDataSinkManager.registrationLock);
+  }
+  if (g_pDataSinkManager.registrationLockInited) {
+    taosThreadMutexDestroy(&g_pDataSinkManager.registrationLock);
+    g_pDataSinkManager.registrationLockInited = false;
   }
 }
 
@@ -923,30 +2306,56 @@ int32_t moveMemCacheAllList() {
   }
   stInfo("moveMemCache started, from all list");
 
-  STaskDSMgr** ppTaskMgr = taosHashIterate(g_pDataSinkManager.dsStreamTaskList, NULL);
-  while (ppTaskMgr != NULL) {
-    STaskDSMgr* pTaskMgr = *ppTaskMgr;
-    if (pTaskMgr == NULL) continue;
-    if (pTaskMgr->cleanMode == DATA_CLEAN_EXPIRED) {
-      SSlidingTaskDSMgr* pSlidingTaskMgr = (SSlidingTaskDSMgr*)pTaskMgr;
-      int32_t            code = moveSlidingTaskMemCache(pSlidingTaskMgr);
-      if (code != TSDB_CODE_SUCCESS) {
-        taosHashCancelIterate(g_pDataSinkManager.dsStreamTaskList, ppTaskMgr);
-        stError("failed to move sliding task mem cache, lino:%d code: %d err: %s", __LINE__, code, terrMsg);
-        return code;
-      }
-      if (hasEnoughMemSize()) {
+  SArray* pPinnedCaches = taosArrayInit(taosHashGetSize(g_pDataSinkManager.dsStreamTaskList), sizeof(void*));
+  if (pPinnedCaches == NULL) {
+    return terrno;
+  }
+
+  int32_t code = taosThreadMutexLock(&g_pDataSinkManager.registrationLock);
+  if (code != TSDB_CODE_SUCCESS) {
+    taosArrayDestroy(pPinnedCaches);
+    return code;
+  }
+  SStreamDataCacheRegistration* pRegistration = taosHashIterate(g_pDataSinkManager.dsStreamTaskList, NULL);
+  while (pRegistration != NULL) {
+    SStreamDataCacheBase* pCache = pRegistration->pCache;
+    if (pCache != NULL) {
+      atomic_add_fetch_32(&pCache->refCount, 1);
+      if (taosArrayPush(pPinnedCaches, &pCache) == NULL) {
+        releaseStreamDataCacheReference(pCache);
+        code = terrno;
         break;
       }
     }
-
-    ppTaskMgr = taosHashIterate(g_pDataSinkManager.dsStreamTaskList, ppTaskMgr);
+    pRegistration = taosHashIterate(g_pDataSinkManager.dsStreamTaskList, pRegistration);
   }
-  if (ppTaskMgr != NULL) {
-    taosHashCancelIterate(g_pDataSinkManager.dsStreamTaskList, ppTaskMgr);
+  if (pRegistration != NULL) {
+    taosHashCancelIterate(g_pDataSinkManager.dsStreamTaskList, pRegistration);
   }
+  taosThreadMutexUnlock(&g_pDataSinkManager.registrationLock);
 
-  return TSDB_CODE_SUCCESS;
+  for (int32_t i = 0; code == TSDB_CODE_SUCCESS && i < taosArrayGetSize(pPinnedCaches); ++i) {
+    SStreamDataCacheBase* pCache = *(SStreamDataCacheBase**)taosArrayGet(pPinnedCaches, i);
+    code = spillScopedCacheStore(pCache->pScopedStore);
+    if (code != TSDB_CODE_SUCCESS) {
+      stError("failed to move scoped task mem cache, lino:%d code: %d err: %s", __LINE__, code, terrMsg);
+    } else if (pCache->cleanMode == DATA_CLEAN_EXPIRED) {
+      code = moveSlidingTaskMemCache((SSlidingTaskDSMgr*)pCache);
+      if (code != TSDB_CODE_SUCCESS) {
+        stError("failed to move sliding task mem cache, lino:%d code: %d err: %s", __LINE__, code, terrMsg);
+      } else if (hasEnoughMemSize()) {
+        break;
+      }
+    } else if (hasEnoughMemSize()) {
+      break;
+    }
+  }
+  for (int32_t i = 0; i < taosArrayGetSize(pPinnedCaches); ++i) {
+    SStreamDataCacheBase* pCache = *(SStreamDataCacheBase**)taosArrayGet(pPinnedCaches, i);
+    releaseStreamDataCacheReference(pCache);
+  }
+  taosArrayDestroy(pPinnedCaches);
+  return code;
 }
 
 int32_t moveMemCache() {
@@ -1116,4 +2525,95 @@ bool changeMgrStatusToMoving(int8_t* pStatus, int8_t mode) {
     }
     return false;
   }
+}
+
+int32_t putStreamDataCacheSnapshot(void* pCache, int64_t sourceId, int32_t tsSlotId, SSDataBlock* pBlock,
+                                   int32_t startIndex, int32_t endIndex) {
+  if (pCache == NULL || pBlock == NULL || tsSlotId < 0 || tsSlotId >= blockDataGetNumOfCols(pBlock) || startIndex < 0 ||
+      endIndex < startIndex || endIndex >= pBlock->info.rows)
+    return TSDB_CODE_INVALID_PARA;
+  SColumnInfoData* pTsCol = taosArrayGet(pBlock->pDataBlock, tsSlotId);
+  if (pTsCol->info.type != TSDB_DATA_TYPE_TIMESTAMP) return TSDB_CODE_INVALID_PARA;
+  SStreamCacheScope  scope = {.gid = sourceId};
+  SScopedCacheStore* pStore = ((SStreamDataCacheBase*)pCache)->pScopedStore;
+  int32_t            code = TSDB_CODE_SUCCESS;
+  for (int32_t start = startIndex; start <= endIndex && code == TSDB_CODE_SUCCESS;) {
+    int32_t                     rows = TMIN(STREAM_SCOPED_CACHE_BLOCK_ROWS, endIndex - start + 1);
+    void*                       pKey = NULL;
+    int32_t                     keyLen = 0;
+    SStreamDataCacheWriteBatch* pBatch = NULL;
+    SStagedScopedCacheScope*    pStaged = NULL;
+    SSDataBlock*                pExtracted = NULL;
+    code = buildScopedCacheKey(&scope, &pKey, &keyLen);
+    if (code != TSDB_CODE_SUCCESS) return code;
+    // A frozen source owns its schema; a later table patch must not reinterpret it.
+    taosThreadMutexLock(&pStore->lock);
+    SScopedCacheEntry* pExisting = findScopedCacheEntry(pStore, pKey, keyLen);
+    if (pExisting != NULL) {
+      if (pExisting->tsSlotId != tsSlotId || taosArrayGetSize(pExisting->pSchema) != blockDataGetNumOfCols(pBlock)) {
+        code = TSDB_CODE_INVALID_MSG;
+      }
+      for (int32_t col = 0; code == TSDB_CODE_SUCCESS && col < blockDataGetNumOfCols(pBlock); ++col) {
+        const SColumnInfo*     pInfo = taosArrayGet(pExisting->pSchema, col);
+        const SColumnInfoData* pCol = taosArrayGet(pBlock->pDataBlock, col);
+        if (pInfo->colId != pCol->info.colId || pInfo->type != pCol->info.type || pInfo->bytes != pCol->info.bytes ||
+            pInfo->precision != pCol->info.precision || pInfo->scale != pCol->info.scale)
+          code = TSDB_CODE_INVALID_MSG;
+      }
+    }
+    taosThreadMutexUnlock(&pStore->lock);
+    if (code == TSDB_CODE_SUCCESS) code = beginStreamDataCacheWriteBatch(pCache, &pBatch);
+    if (code != TSDB_CODE_SUCCESS) {
+      taosMemoryFree(pKey);
+      return code;
+    }
+    code = getOrCreateStagedScopedCacheScope(pBatch, sourceId, pKey, keyLen, tsSlotId, pBlock, &pStaged);
+    if (code == TSDB_CODE_SUCCESS) code = blockDataExtractBlock(pBlock, start, rows, &pExtracted);
+    TSKEY minTs = TSKEY_MAX, maxTs = TSKEY_MIN;
+    for (int32_t row = start; code == TSDB_CODE_SUCCESS && row < start + rows; ++row) {
+      if (colDataIsNull_s(pTsCol, row)) {
+        code = TSDB_CODE_INVALID_PARA;
+        break;
+      }
+      TSKEY ts = *(TSKEY*)colDataGetData(pTsCol, row);
+      minTs = TMIN(minTs, ts);
+      maxTs = TMAX(maxTs, ts);
+    }
+    if (code == TSDB_CODE_SUCCESS) {
+      code = appendStagedScopedCacheBlock(pStaged, minTs, pExtracted);
+      if (code == TSDB_CODE_SUCCESS) {
+        pExtracted = NULL;
+        pStaged->pEntry->pLastBlock->maxTs = maxTs;
+        code = commitStreamDataCacheWriteBatchImpl(&pBatch);
+      }
+    }
+    blockDataDestroy(pExtracted);
+    abortStreamDataCacheWriteBatch(&pBatch);
+    start += rows;
+  }
+  return code;
+}
+
+int32_t getStreamDataCacheSnapshot(void* pCache, int64_t sourceId, TSKEY start, TSKEY end, void** ppIter) {
+  if (pCache == NULL) return TSDB_CODE_INVALID_PARA;
+  SStreamCacheScope scope = {.gid = sourceId};
+  return getStreamDataCacheScopedImpl(pCache, &scope, start, end, ppIter, true);
+}
+
+int32_t appendStreamDataCacheSnapshot(void* pTarget, int64_t targetSourceId, void* pSource, int64_t sourceId) {
+  if (pTarget == NULL || pSource == NULL || pTarget == pSource) return TSDB_CODE_INVALID_PARA;
+  void*   pIter = NULL;
+  int32_t code = getStreamDataCacheSnapshot(pSource, sourceId, TSKEY_MIN, TSKEY_MAX, &pIter);
+  if (code != TSDB_CODE_SUCCESS || pIter == NULL) return code;
+  int32_t tsSlotId = ((SResultIter*)pIter)->tsColSlotId;
+  while (pIter != NULL && code == TSDB_CODE_SUCCESS) {
+    SSDataBlock* pBlock = NULL;
+    code = getNextStreamDataCache(&pIter, &pBlock);
+    if (code == TSDB_CODE_SUCCESS && pBlock != NULL) {
+      code = putStreamDataCacheSnapshot(pTarget, targetSourceId, tsSlotId, pBlock, 0, pBlock->info.rows - 1);
+    }
+    blockDataDestroy(pBlock);
+  }
+  cancelStreamDataCacheIterate(&pIter);
+  return code;
 }

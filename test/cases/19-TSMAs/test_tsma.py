@@ -1,3 +1,18 @@
+# Copyright (c) 2025 TAOS Data, Inc. <jhtao@taosdata.com>
+#
+# SPDX-License-Identifier: AGPL-3.0-or-later
+#
+# This program is free software: you can use, redistribute, and/or modify
+# it under the terms of the GNU Affero General Public License, version 3
+# or later ("AGPL"), as published by the Free Software Foundation.
+#
+# This program is distributed in the hope that it will be useful, but WITHOUT
+# ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+# FITNESS FOR A PARTICULAR PURPOSE.
+#
+# You should have received a copy of the GNU Affero General Public License
+# along with this program. If not, see <http://www.gnu.org/licenses/>.
+
 import random
 import os
 import sys
@@ -5,7 +20,7 @@ import string
 from random import randrange
 import time
 import secrets
-from new_test_framework.utils import tdLog, tdSql, tdCom, List
+from new_test_framework.utils import etool, tdLog, tdSql, tdCom, List
 
 
 ROUND = 1000
@@ -202,6 +217,14 @@ class TSMATester:
                 else:
                     deduplicated_tsmas.append(tsma)
             query_ctx.used_tsmas = deduplicated_tsmas
+
+        if query_ctx.has_tsma():
+            for row in explain_res:
+                plan = str(row).lower()
+                if 'data_load=sma' in plan:
+                    tdLog.exit('tsma query must not use block SMA: %s, plan: %s' % (sql, str(row)))
+                if 'interval on column' in plan and 'mode=fast' in plan and 'fast_interval()' not in sql.lower():
+                    tdLog.exit('tsma query must not use fast interval: %s, plan: %s' % (sql, str(row)))
 
         return query_ctx
 
@@ -603,7 +626,7 @@ class TSMATestSQLGenerator:
 
 
 class TestTsma:
-    updatecfgDict = {'asynclog': 0, 'ttlUnit': 1, 'ttlPushInterval': 5, 'ratioOfVnodeStreamThrea': 4, 'maxTsmaNum': 10, 'debugFlag': 143}
+    updatecfgDict = {'asynclog': 0, 'ttlUnit': 1, 'ttlPushInterval': 5, 'ratioOfVnodeStreamThrea': 4, 'maxTsmaNum': 10, 'debugFlag': 135}
 
     def setup_class(cls):
         cls.vgroups = 4
@@ -1048,6 +1071,9 @@ class TestTsma:
         sql = f'select avg(c1), avg(c2) from {db_name}.meters interval(5m)'
         ctxs.append(TSMAQCBuilder().with_sql(sql)
                     .should_query_with_tsma('tsma1', UsedTsma.TS_MIN, UsedTsma.TS_MAX).get_qc())
+        sql = f'select /*+ fast_interval() */ avg(c1), avg(c2) from {db_name}.meters interval(5m)'
+        ctxs.append(TSMAQCBuilder().with_sql(sql)
+                    .should_query_with_tsma('tsma1', UsedTsma.TS_MIN, UsedTsma.TS_MAX).get_qc())
 
         sql = f'select avg(c1), avg(c2) from {db_name}.meters interval(10m)'
         ctxs.append(TSMAQCBuilder().with_sql(sql)
@@ -1226,6 +1252,133 @@ class TestTsma:
         #self.tsma_tb_ddl_with_created_tsma()
     
 
+    def do_tsma_partial_fast(self):
+        db = "tsma_partial_fast"
+        start = 1704067200000
+        step = 600000
+        windows = 18
+        created_snode = not tdSql.getResult("show snodes")
+        if created_snode:
+            tdSql.execute("create snode on dnode 1")
+        try:
+            tdSql.execute(f"drop database if exists {db}")
+            tdSql.execute(f"create database {db} vgroups 2")
+            tdSql.execute(f"create stable {db}.readings(ts timestamp, v double) tags(name varchar(16), fleet nchar(16))")
+            groups = {}
+            for table in range(24):
+                name = "NULL" if table % 4 == 3 else f"'truck{table % 3}'"
+                fleet = "NULL" if table % 5 == 4 else "'fleet'"
+                tdSql.execute(f"create table {db}.ct{table} using {db}.readings tags({name}, {fleet})")
+                tdSql.query(
+                    "select vgroup_id from information_schema.ins_tables "
+                    f"where db_name = '{db}' and table_name = 'ct{table}'"
+                )
+                groups.setdefault(name, set()).add(tdSql.getData(0, 0))
+                values = []
+                for window in range(windows):
+                    for row in range(table % 3 + 1):
+                        value = "NULL" if window == 2 else str((window % 2) * 10 + table + row)
+                        values.append(f"({start + window * step + row * 1000}, {value})")
+                tdSql.execute(f"insert into {db}.ct{table} values " + " ".join(values))
+            tdSql.checkAssert(any(len(vgroups) > 1 for vgroups in groups.values()))
+            self.create_tsma("velocity_10m", db, "readings",
+                             ["avg(v)", "sum(v)", "count(v)", "min(v)", "max(v)"], "10m")
+            projection = "select _wstart, name, avg(v), sum(v), count(v), min(v), max(v) "
+            ranges = [
+                f"ts > {start} and ts < {start + windows * step}",
+                f"ts > {start + 1000} and ts < {start + (windows - 1) * step + 1000}",
+                f"ts >= {start} and ts < {start + (windows - 1) * step + 1000}",
+                f"ts >= {start} and ts < {start + windows * step}",
+            ]
+            queries = [
+                f"{projection}from {db}.readings where {bounds} partition by name interval(10m)"
+                for bounds in ranges
+            ]
+            queries.append(queries[0].replace("_wstart, name", "_wstart, name, fleet")
+                           .replace("partition by name", "partition by name, fleet"))
+            for bounds in (ranges[1], ranges[3]):
+                queries.append(f"{projection}from {db}.readings where {bounds} interval(10m)"
+                               .replace("_wstart, name", "_wstart"))
+            # Larger windows need a complete interior window to use TSMA.
+            # Keep both raw boundary branches in the cross-source merge.
+            for interval in ("30m", "1h"):
+                queries.append(f"{projection}from {db}.readings where {ranges[1]} "
+                               f"partition by name interval({interval})")
+                queries.append(queries[-1].replace("_wstart, name", "_wstart")
+                               .replace("partition by name ", ""))
+            queries.append(queries[0] + " having count(v) > 0")
+            queries.append(queries[0].replace("where ", "where name is null and ", 1))
+            for sql in queries:
+                self.check_tsma_partial_fast(sql, False)
+                hinted = sql.replace("select", "select /*+ FAST_INTERVAL() */", 1)
+                self.check_tsma_partial_fast(hinted, True)
+                self.tsma_tester.check_result(hinted, skip_order=True)
+                self.tsma_tester.check_result(sql, skip_order=True)
+            inner = (
+                "select _wstart as ts, name, cast(cast(floor(avg(v) / 5) as bool) as int) as mv "
+                f"from {db}.readings where name is not null and {ranges[0]} "
+                "partition by name interval(10m)"
+            )
+            nested = f"select ts, name, diff(mv) from ({inner}) partition by name"
+            hinted = nested.replace("select _wstart", "select /*+ FAST_INTERVAL() */ _wstart", 1)
+            self.check_tsma_partial_fast(hinted, True)
+            outer_hint = nested.replace("select", "select /*+ FAST_INTERVAL() */", 1)
+            self.check_tsma_partial_fast(outer_hint, False)
+            self.tsma_tester.check_result(hinted, skip_order=True)
+            self.tsma_tester.check_result(nested, skip_order=True)
+            for sql in (queries[0].replace("interval(10m)", "interval(1d)"),
+                        queries[0].replace(f"where {ranges[0]} ", "")):
+                hinted = sql.replace("select", "select /*+ FAST_INTERVAL() */", 1)
+                self.check_tsma_partial_fast(hinted, False, require_tsma=False)
+                self.tsma_tester.check_result(hinted, skip_order=True)
+            print("TSMA partial and merge FAST results . [ passed ]")
+        finally:
+            tdSql.execute("alter local 'querySmaOptimize' '0'")
+            tdSql.execute(f"drop database if exists {db}")
+            if created_snode:
+                tdSql.execute("drop snode on dnode 1")
+
+    def check_tsma_partial_fast(self, sql, expected_fast, require_tsma=True):
+        ctx = self.tsma_tester.get_tsma_query_ctx(sql)
+        if require_tsma:
+            tdSql.checkAssert(ctx.has_tsma())
+        plan = [str(row[0]) for row in tdSql.queryResult]
+        tsma_fast = 0
+        for index, line in enumerate(plan):
+            if "Interval on Column" in line and "mode=fast" in line:
+                scan = next((row for row in plan[index + 1:] if "Table Scan on" in row), "")
+                if "velocity_10m_tsma_res_stb_" in scan:
+                    tsma_fast += 1
+        tdSql.checkAssert((tsma_fast > 0) == expected_fast)
+        merge_lines = [row for row in plan if "Merge Aligned Interval" in row]
+        tdSql.checkAssert(all(("mode=fast" in row) == expected_fast for row in merge_lines))
+        if not expected_fast:
+            tdSql.checkAssert(all("mode=fast" not in row for row in plan))
+
+    def test_tsma_partial_fast(self):
+        """TSMA partial and merge interval with FAST
+
+        1. Verify raw boundary and TSMA partial branches with shared tags across vgroups
+        2. Verify weighted AVG, SUM, COUNT, MIN, MAX, NULL groups and nested AVG-to-DIFF results
+        3. Merge raw head, TSMA middle and raw tail with larger windows and optional tag groups
+        4. Keep calendar and unbounded windows on the ordinary interval path
+
+        Catalog:
+            - TSMA
+
+        Since: v3.4.3.0
+
+        Labels: common,ci
+
+        Jira: None
+
+        History:
+            - 2026-10-14 Codex Added TSMA partial FAST regression coverage
+            - 2026-10-15 Codex Added TSMA merge FAST and multi-source window coverage
+
+        """
+        self.do_tsma_partial_fast()
+
     def test_tsma(self):
         """TSMAs basic
 
@@ -1241,6 +1394,8 @@ class TestTsma:
         
 
         Since: v3.0.0.0
+
+        Labels: common,ci,integration,functional
 
         History:
             - 2024-4-14 chenhaoran Created
@@ -1584,7 +1739,7 @@ class TestTsma:
         tdLog.info(f'-----{function_name}------')
         json_file = os.path.join(os.path.dirname(__file__), "compa4096_tsma.json")
         tdCom.update_json_file_replica(json_file, self.replicaVar)
-        os.system(f"taosBenchmark -f {json_file} -y ")
+        etool.benchmark_write(f"taosBenchmark -f {json_file} -y ")
         # max number of list is 4093: 4096 - 3 - 2(原始表tag个数) - 1(tbname)
         tdSql.execute('use db4096')
 

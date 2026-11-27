@@ -1,0 +1,54 @@
+
+taos> alter local "timezone" "UTC";
+
+taos> select count(*) as rows_n, count(a) as a_n, count(b) as b_n, count(c) as c_n, count(empty_v) as empty_n, sum(a) as a_sum, sum(c) as c_sum from vfilter_query.filter_normal;
+ rows_n | a_n | b_n | c_n | empty_n | a_sum | c_sum |
+================
+ 6 | 4 | 3 | 4 | 0 | 49 | 91 |
+
+taos> select min(a) as a_min, max(a) as a_max, min(c) as c_min, max(c) as c_max from vfilter_query.chain;
+ a_min | a_max | c_min | c_max |
+================
+ 10 | 15 | 20 | 26 |
+
+taos> select scenario, count(a) as a_n, count(b) as b_n, count(c) as c_n, sum(a) as a_sum, sum(c) as c_sum from vfilter_query.filter_stable group by scenario order by scenario;
+ scenario | a_n | b_n | c_n | a_sum | c_sum |
+================
+ 1 | 4 | 3 | 4 | 49 | 91 |
+ 2 | 4 | 4 | 4 | 91 | 49 |
+
+taos> select scenario, sum(a) as a_sum, sum(c) as c_sum from vfilter_query.filter_stable group by scenario having sum(a) > 50 order by scenario;
+ scenario | a_sum | c_sum |
+================
+ 2 | 91 | 49 |
+
+taos> select count(*) as rows_n, count(a) as a_n, sum(a) as a_sum, count(c) as c_n, sum(c) as c_sum from vfilter_query.chain_stable;
+ rows_n | a_n | a_sum | c_n | c_sum |
+================
+ 6 | 4 | 49 | 4 | 91 |
+
+taos> select cast(_wstart as bigint) as start_ms, sum(a) as a_sum, sum(c) as c_sum, count(a) as a_n, count(c) as c_n from vfilter_query.filter_normal interval(2s) order by _wstart;
+ start_ms | a_sum | c_sum | a_n | c_n |
+================
+ 1704067200000 | 21 | 20 | 2 | 1 |
+ 1704067202000 | 13 | 45 | 1 | 2 |
+ 1704067204000 | 15 | NULL | 1 | 0 |
+ 1704067206000 | NULL | 26 | 0 | 1 |
+
+taos> select scenario, cast(_wstart as bigint) as start_ms, sum(a) as a_sum, sum(c) as c_sum from vfilter_query.filter_stable partition by scenario interval(2s) order by scenario, _wstart;
+ scenario | start_ms | a_sum | c_sum |
+================
+ 1 | 1704067200000 | 21 | 20 |
+ 1 | 1704067202000 | 13 | 45 |
+ 1 | 1704067204000 | 15 | NULL |
+ 1 | 1704067206000 | NULL | 26 |
+ 2 | 1704067200000 | 20 | 21 |
+ 2 | 1704067202000 | 45 | 13 |
+ 2 | 1704067204000 | NULL | 15 |
+ 2 | 1704067206000 | 26 | NULL |
+
+taos> select count(*) as rows_n, count(a) as a_n, sum(a) as a_sum from vfilter_query.filter_normal where a > 100;
+ rows_n | a_n | a_sum |
+================
+ 0 | 0 | NULL |
+

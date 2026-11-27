@@ -1,3 +1,18 @@
+# Copyright (c) 2021 TAOS Data, Inc. <jhtao@taosdata.com>
+#
+# SPDX-License-Identifier: AGPL-3.0-or-later
+#
+# This program is free software: you can use, redistribute, and/or modify
+# it under the terms of the GNU Affero General Public License, version 3
+# or later ("AGPL"), as published by the Free Software Foundation.
+#
+# This program is distributed in the hope that it will be useful, but WITHOUT
+# ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+# FITNESS FOR A PARTICULAR PURPOSE.
+#
+# You should have received a copy of the GNU Affero General Public License
+# along with this program. If not, see <http://www.gnu.org/licenses/>.
+
 add_subdirectory(node_mgmt)
 add_subdirectory(node_util)
 add_subdirectory(mgmt_mnode)
@@ -21,6 +36,14 @@ target_include_directories(
 )
 
 target_link_libraries(taosd PUBLIC dnode crypt)
+
+if(BUILD_TEST AND NOT BUILD_TAOSD_INTEGRATED)
+  add_executable(streamDeployTestDaemon ${EXEC_SRC} test/streamDeployTestDaemon.c)
+  target_compile_definitions(streamDeployTestDaemon PRIVATE TAOSD_INTEGRATED)
+  target_include_directories(streamDeployTestDaemon PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/node_mgmt/inc")
+  target_link_libraries(streamDeployTestDaemon PRIVATE dnode crypt)
+  set_target_properties(streamDeployTestDaemon PROPERTIES RUNTIME_OUTPUT_DIRECTORY "${CMAKE_CURRENT_BINARY_DIR}")
+endif()
 
 if(CMAKE_SYSTEM_NAME STREQUAL "Darwin")
   include(CheckLinkerFlag)

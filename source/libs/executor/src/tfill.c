@@ -1,6 +1,8 @@
 /*
  * Copyright (c) 2019 TAOS Data, Inc. <jhtao@taosdata.com>
  *
+ * SPDX-License-Identifier: AGPL-3.0-or-later
+ *
  * This program is free software: you can use, redistribute, and/or modify
  * it under the terms of the GNU Affero General Public License, version 3
  * or later ("AGPL"), as published by the Free Software Foundation.
@@ -215,8 +217,10 @@ bool fillWindowPseudoColumn(const SFillInfo* pFillInfo,
       return true;
     } else if (pCol->pExpr->base.pParam[0].pCol->colType == COLUMN_TYPE_WINDOW_END) {
       const SInterval* pInterval = &pFillInfo->interval;
-      int64_t    windowEnd =
-          taosTimeAdd(pFillInfo->currentKey, pInterval->interval, pInterval->intervalUnit, pInterval->precision, NULL);
+      int64_t windowEnd =
+        taosTimeAdd(pFillInfo->currentKey, pInterval->interval,
+                    pInterval->intervalUnit, pInterval->precision,
+                    pInterval->timezone);
       code = colDataSetVal(pDstColInfo, (uint32_t)rowIndex, (const char*)&windowEnd, false);
       QUERY_CHECK_CODE(code, lino, _end);
       return true;
@@ -320,7 +324,8 @@ int32_t taosCreateFillInfo(TSKEY skey, int32_t numOfFillCols,
                            int32_t fillType, struct SFillColInfo* pCol,
                            int32_t primaryTsSlotId, int32_t order,
                            const char* id, SExecTaskInfo* pTaskInfo,
-                           int64_t surroundingTime, SFillInfo** ppFillInfo) {
+                           int64_t surroundingTime, bool indefRowsMode,
+                           SFillInfo** ppFillInfo) {
   int32_t code = TSDB_CODE_SUCCESS;
   int32_t lino = 0;
   if (fillType == TSDB_FILL_NONE) {
@@ -384,6 +389,8 @@ int32_t taosCreateFillInfo(TSKEY skey, int32_t numOfFillCols,
   QUERY_CHECK_CODE(code, lino, _end);
 
   pFillInfo->pTaskInfo = pTaskInfo;
+  pFillInfo->indefRowsMode = indefRowsMode;
+  pFillInfo->indefWindowActive = false;
 
 _end:
   if (code != TSDB_CODE_SUCCESS) {
@@ -402,6 +409,7 @@ void taosResetFillInfo(SFillInfo* pFillInfo, TSKEY startTimestamp) {
   pFillInfo->numOfRows = 0;
   pFillInfo->numOfCurrent = 0;
   pFillInfo->numOfTotal = 0;
+  pFillInfo->indefWindowActive = false;
 }
 
 void* taosDestroyFillInfo(SFillInfo* pFillInfo) {
@@ -496,8 +504,12 @@ int64_t getNumOfResultsAfterFillGap(SFillInfo* pFillInfo, TSKEY ekey, int32_t ma
     int64_t*         tsList = (int64_t*)pCol->pData;
     TSKEY            lastKey = tsList[pFillInfo->numOfRows - 1];
     numOfRes =
-        taosTimeCountIntervalForFill(lastKey, pFillInfo->currentKey, pFillInfo->interval.sliding,
-                                     pFillInfo->interval.slidingUnit, pFillInfo->interval.precision, pFillInfo->order);
+      taosTimeCountIntervalForFill(lastKey, pFillInfo->currentKey,
+                                   pFillInfo->interval.sliding,
+                                   pFillInfo->interval.slidingUnit,
+                                   pFillInfo->interval.precision,
+                                   pFillInfo->order,
+                                   pFillInfo->interval.timezone);
   } else {  // reach the end of data
     if ((ekey1 < pFillInfo->currentKey && FILL_IS_ASC_FILL(pFillInfo)) ||
         (ekey1 > pFillInfo->currentKey && !FILL_IS_ASC_FILL(pFillInfo))) {
@@ -505,8 +517,12 @@ int64_t getNumOfResultsAfterFillGap(SFillInfo* pFillInfo, TSKEY ekey, int32_t ma
     }
 
     numOfRes =
-        taosTimeCountIntervalForFill(ekey1, pFillInfo->currentKey, pFillInfo->interval.sliding,
-                                     pFillInfo->interval.slidingUnit, pFillInfo->interval.precision, pFillInfo->order);
+      taosTimeCountIntervalForFill(ekey1, pFillInfo->currentKey,
+                                   pFillInfo->interval.sliding,
+                                   pFillInfo->interval.slidingUnit,
+                                   pFillInfo->interval.precision,
+                                   pFillInfo->order,
+                                   pFillInfo->interval.timezone);
   }
 
   return (numOfRes > maxNumOfRows) ? maxNumOfRows : numOfRes;
@@ -540,6 +556,7 @@ SFillColInfo* createFillColInfo(SExprInfo* pExpr, int32_t numOfFillExpr, SExprIn
   }
 
   size_t len = (pValNode != NULL) ? LIST_LENGTH(pValNode->pNodeList) : 0;
+  SListCell* pValueCell = len > 0 ? pValNode->pNodeList->pHead : NULL;
   for (int32_t i = 0; i < numOfFillExpr; ++i) {
     SExprInfo* pExprInfo = &pExpr[i];
     pFillCol[i].pExpr = pExprInfo;
@@ -548,12 +565,13 @@ SFillColInfo* createFillColInfo(SExprInfo* pExpr, int32_t numOfFillExpr, SExprIn
     // todo refactor
     if (len > 0) {
       // if the user specified value is less than the column, alway use the last one as the fill value
-      int32_t index = (i >= len) ? (len - 1) : i;
-
-      SValueNode* pv = (SValueNode*)nodesListGetNode(pValNode->pNodeList, index);
+      SValueNode* pv = NULL != pValueCell ? (SValueNode*)pValueCell->pNode : NULL;
       QUERY_CHECK_NULL(pv, code, lino, _end, terrno);
       code = nodesValueNodeToVariant(pv, &pFillCol[i].fillVal);
       QUERY_CHECK_CODE(code, lino, _end);
+      if (NULL != pValueCell->pNext) {
+        pValueCell = pValueCell->pNext;
+      }
     }
     if (TSDB_CODE_SUCCESS != code) {
       goto _end;
@@ -613,23 +631,52 @@ static bool fillShouldPause(SFillInfo* pFillInfo, const SSDataBlock* pDstBlock) 
   @param isNull  Whether the column value is null.
   @param rowTs   The timestamp of the row being copied.
 */
-static void copyCurrentValIntoBuf(const SRowVal* pRowVal, int32_t colIdx,
-                                  const char* src, bool isNull, TSKEY rowTs) {
+static int32_t copyCurrentValIntoBuf(const SRowVal* pRowVal, int32_t colIdx,
+                                     const char* src, bool isNull, TSKEY rowTs) {
   SGroupKeys* pKey = taosArrayGet(pRowVal->pRowVal, colIdx);
+  if (pKey == NULL) return TSDB_CODE_INVALID_MSG;
   if (isNull) {
     pKey->isNull = true;
   } else {
+    if (src == NULL) return TSDB_CODE_INVALID_MSG;
     if (IS_VAR_DATA_TYPE(pKey->type)) {
       int32_t bytes = calcStrBytesByType(pKey->type, (char*)src);
+      // A negative length (truncated blob header) would bypass the bound and become
+      // a huge size_t in memcpy -- refuse it.
+      if (bytes < 0) {
+        qError("invalid varlen fill cell length %d", bytes);
+        return TSDB_CODE_QRY_NOT_ENOUGH_BUFFER;
+      }
+      // The cell buffer is initially sized by the fill expression's declared width; a
+      // virtual table column may carry a value wider than declared (the full source
+      // value is returned by design), so grow the cell instead of overrunning it.
+      if (bytes > pKey->bytes) {
+        char* tmp = taosMemoryRealloc(pKey->pData, bytes);
+        if (NULL == tmp) {
+          qError("failed to grow fill cell to %d bytes", bytes);
+          return terrno;
+        }
+        pKey->pData = tmp;
+        pKey->bytes = bytes;
+      }
       memcpy(pKey->pData, src, bytes);
     } else {
       memcpy(pKey->pData, src, pKey->bytes);
     }
     pKey->isNull = false;
     int64_t* pValueTs = taosArrayGet(pRowVal->pValueTs, colIdx);
+    if (pValueTs == NULL) return TSDB_CODE_INVALID_MSG;
     *pValueTs = rowTs;
   }
+  return TSDB_CODE_SUCCESS;
 }
+
+#if defined(BUILD_TEST)
+int32_t fillTestCopyCurrentValIntoBuf(const SRowVal* pRowVal, int32_t colIdx,
+                                      const char* src, bool isNull, TSKEY rowTs) {
+  return copyCurrentValIntoBuf(pRowVal, colIdx, src, isNull, rowTs);
+}
+#endif
 
 /**
   @brief Copy the current row of data from the source block into a buffer for
@@ -645,7 +692,7 @@ static int32_t copyCurrentRowIntoBuf(const SFillInfo* pFillInfo, int32_t rowInde
   int32_t lino = 0;
   int32_t fillType = pFillInfo->type;
   bool    fillNext = fillType == TSDB_FILL_NEXT;
-  bool    fillPrev = fillType == TSDB_FILL_PREV;
+  bool    fillPrev = fillType == TSDB_FILL_PREV || fillType == TSDB_FILL_NEAR;
 
   for (int32_t i = 0; i < pFillInfo->numOfCols; ++i) {
     int32_t type = pFillInfo->pFillCol[i].pExpr->pExpr->nodeType;
@@ -679,7 +726,8 @@ static int32_t copyCurrentRowIntoBuf(const SFillInfo* pFillInfo, int32_t rowInde
         if (isNull && !pFillInfo->ascNextOrDescPrev) continue;
       }
 
-      copyCurrentValIntoBuf(pRowVal, i, p, isNull, rowTs);
+      code = copyCurrentValIntoBuf(pRowVal, i, p, isNull, rowTs);
+      QUERY_CHECK_CODE(code, lino, _end);
     } else {
       code = TSDB_CODE_QRY_EXECUTOR_INTERNAL_ERROR;
       qError("%s failed at line %d since %s", __func__, __LINE__, tstrerror(code));
@@ -743,7 +791,8 @@ static bool doFillOneCol(SFillInfo* pFillInfo, const SSDataBlock* pFillBlock,
   const SFillColInfo* pCol = &pFillInfo->pFillCol[colIdx];
   SColumnInfoData*    pDstCol = taosArrayGet(pFillBlock->pDataBlock,
                                              GET_DEST_SLOT_ID(pCol));
-  if (pFillInfo->type == TSDB_FILL_PREV || pFillInfo->type == TSDB_FILL_NEXT) {
+  if (pFillInfo->type == TSDB_FILL_PREV || pFillInfo->type == TSDB_FILL_NEXT ||
+      pFillInfo->type == TSDB_FILL_NEAR) {
     filled = fillWindowPseudoColumn(pFillInfo, pFillBlock, rowIdx, colIdx);
     if (!filled) {
       saveProgress = fillCommonColumn(pFillInfo, pFillBlock, rowIdx, colIdx,
@@ -825,7 +874,7 @@ static int32_t tFillFromHeadForCol(struct SFillInfo* pFillInfo, TSKEY ts,
   SColumnFillProgress* pColProgress =
     taosArrayGet(pFillInfo->pColFillProgress, colIdx);
   if (!pColProgress) {
-    qError("%s falied at %d, failed to get col progress for col %d, size: %lu",
+    qError("%s failed at %d, failed to get col progress for col %d, size: %lu",
            __func__, __LINE__, colIdx,
            taosArrayGetSize(pFillInfo->pColFillProgress));
     return TSDB_CODE_INTERNAL_ERROR;
@@ -894,7 +943,8 @@ static void doFillOneRow(SFillInfo* pFillInfo, SSDataBlock* pFillBlock,
   pFillInfo->currentKey = taosTimeAdd(pFillInfo->currentKey,
                                       pInterval->sliding * step,
                                       pInterval->slidingUnit,
-                                      pInterval->precision, NULL);
+                                      pInterval->precision,
+                                      pInterval->timezone);
   pFillInfo->numOfCurrent++;
   pFillBlock->info.rows += 1;
   /*
@@ -951,12 +1001,13 @@ static SSDataBlock* createNewSavedBlock(struct SFillInfo* pFillInfo, SSDataBlock
 static int32_t trySaveNewBlock(struct SFillInfo* pFillInfo, SSDataBlock* pDstBlock, int32_t capacity,
                                SFillBlock** ppFillBlock) {
   int32_t      code = 0;
+  SArray*      pProgress = NULL;
   SSDataBlock* pBlock = createNewSavedBlock(pFillInfo, pDstBlock, capacity);
   if (!pBlock) {
     code = terrno;
     goto _end;
   }
-  SArray* pProgress = taosArrayInit(pFillInfo->numOfCols, sizeof(SBlockFillProgress));
+  pProgress = taosArrayInit(pFillInfo->numOfCols, sizeof(SBlockFillProgress));
   if (!pProgress) {
     code = terrno;
     goto _end;
@@ -1029,6 +1080,16 @@ int32_t taosFillResultDataBlock(struct SFillInfo* pFillInfo, SSDataBlock* pDstBl
 
   // if all blocks are consumed, we have to fill for not filled cols
   if (pFillInfo->numOfRows == 0) {
+    if (pFillInfo->indefRowsMode && pFillInfo->indefWindowActive) {
+      const SInterval* pInterval = &pFillInfo->interval;
+      pFillInfo->currentKey =
+        taosTimeAdd(pFillInfo->currentKey,
+                    pInterval->sliding *
+                      GET_FORWARD_DIRECTION_FACTOR(pFillInfo->order),
+                    pInterval->slidingUnit, pInterval->precision,
+                    pInterval->timezone);
+      pFillInfo->indefWindowActive = false;
+    }
     if (!pFillBlock) {
       code = trySaveNewBlock(pFillInfo, pDstBlock, capacity, &pFillBlock);
       QUERY_CHECK_CODE(code, lino, _end);
@@ -1070,6 +1131,17 @@ int32_t taosFillResultDataBlock(struct SFillInfo* pFillInfo, SSDataBlock* pDstBl
     QUERY_CHECK_CODE(code, lino, _end);
 
     if (blockCurTs != fillCurTs || !pFillInfo->pSrcBlock) {
+      if (pFillInfo->indefRowsMode && pFillInfo->indefWindowActive) {
+        const SInterval* pInterval = &pFillInfo->interval;
+        pFillInfo->currentKey =
+          taosTimeAdd(pFillInfo->currentKey,
+                      pInterval->sliding *
+                        GET_FORWARD_DIRECTION_FACTOR(pFillInfo->order),
+                      pInterval->slidingUnit, pInterval->precision,
+                      pInterval->timezone);
+        pFillInfo->indefWindowActive = false;
+        continue;
+      }
       doFillOneRow(pFillInfo, pFillBlock->pBlock, blockCurTs, false);
     } else {
       for (int32_t colIdx = 0; colIdx < pFillInfo->numOfCols; ++colIdx) {
@@ -1105,15 +1177,39 @@ int32_t taosFillResultDataBlock(struct SFillInfo* pFillInfo, SSDataBlock* pDstBl
         }
         tryResetColNextPrev(pFillInfo, colIdx);
       }
-      const SInterval* pInterval = &pFillInfo->interval;
-      pFillInfo->currentKey =
-        taosTimeAdd(pFillInfo->currentKey,
-                    pInterval->sliding *
-                      GET_FORWARD_DIRECTION_FACTOR(pFillInfo->order),
-                    pInterval->slidingUnit, pInterval->precision, NULL);
       pFillBlock->pBlock->info.rows += 1;
       pFillInfo->index += 1;
       pFillInfo->numOfCurrent += 1;
+
+      if (pFillInfo->indefRowsMode) {
+        pFillInfo->indefWindowActive = true;
+        bool lastRowOfWindow = true;
+        if (pFillInfo->index < pFillInfo->numOfRows) {
+          TSKEY nextTs = getBlockCurTs(pFillInfo->pSrcBlock, pFillInfo->index,
+                                       pFillInfo->srcTsSlotId);
+          if (nextTs == fillCurTs) {
+            lastRowOfWindow = false;
+          }
+        }
+        if (lastRowOfWindow && pFillInfo->index < pFillInfo->numOfRows) {
+          const SInterval* pInterval = &pFillInfo->interval;
+          pFillInfo->currentKey =
+            taosTimeAdd(pFillInfo->currentKey,
+                        pInterval->sliding *
+                          GET_FORWARD_DIRECTION_FACTOR(pFillInfo->order),
+                        pInterval->slidingUnit, pInterval->precision,
+                        pInterval->timezone);
+          pFillInfo->indefWindowActive = false;
+        }
+      } else {
+        const SInterval* pInterval = &pFillInfo->interval;
+        pFillInfo->currentKey =
+          taosTimeAdd(pFillInfo->currentKey,
+                      pInterval->sliding *
+                        GET_FORWARD_DIRECTION_FACTOR(pFillInfo->order),
+                      pInterval->slidingUnit, pInterval->precision,
+                      pInterval->timezone);
+      }
     }
     tryExtractReadyBlocks(pFillInfo, pDstBlock, capacity);
   }

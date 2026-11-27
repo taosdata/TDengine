@@ -11,6 +11,7 @@
 #include "transcode.h"
 #include "fse.h"
 #include "bitstream.h"
+#include "error_private.h"
 #include <stdlib.h>
 
 
@@ -99,37 +100,47 @@ void encode_with_fse(int *type, size_t dataSeriesLength, unsigned int intervals,
  * @brief transform FseCode & tranCodeBits to type array 
  * 
  */
-void decode_with_fse(int *type, size_t dataSeriesLength, unsigned int intervals, 
+int decode_with_fse(int *type, size_t dataSeriesLength, unsigned int intervals, 
                     unsigned char *FseCode, size_t FseCode_size, 
                     unsigned char *transCodeBits, size_t transCodeBits_size) 
 {
     uint8_t *tp_code = (uint8_t *)malloc(dataSeriesLength);
+
+    if (type == NULL || tp_code == NULL) 
+    {
+        free(tp_code);
+        return SZ_FORMAT_ERR;
+    }
 
     if (FseCode_size <= 1) 
     {
         // all zeros
         memset((void *)type, 0, sizeof(int) * dataSeriesLength);
         free(tp_code);
-        return;
+        return SZ_SUCCESS;
     }
     size_t fse_size = FSE_decompress(tp_code, dataSeriesLength, FseCode, FseCode_size);
     if (FSE_isError(fse_size)) 
     {
+        //malformed FSE code in the payload: report an error, never terminate the process
         printf("ADT-FSE: FSE_decompress error!\n");
-        exit(1);
+        free(tp_code);
+        return SZ_FORMAT_ERR;
     }
     if (fse_size != dataSeriesLength) 
     {
         printf("ADT-FSE: FSE_decompress error! fse_size(%lu) != dataSeriesLength(%lu)!\n", fse_size, dataSeriesLength);
-        exit(1);
+        free(tp_code);
+        return SZ_FORMAT_ERR;
     }
 
     BIT_DStream_t transCodeStream;
     size_t stream_size = BIT_initDStream(&transCodeStream, transCodeBits, transCodeBits_size);
-    if (stream_size == 0) 
+    if (ERR_isError(stream_size)) 
     {
-        printf("ADT-FSE: transcode stream empty!\n");
-        exit(1);
+        printf("ADT-FSE: transcode stream invalid!\n");
+        free(tp_code);
+        return SZ_FORMAT_ERR;
     }
 
     int md = intervals / 2;
@@ -146,6 +157,12 @@ void decode_with_fse(int *type, size_t dataSeriesLength, unsigned int intervals,
         if (tp_code[i] == 67) {
             type[i] = 0;
             continue;
+        }
+        if (tp_code[i] > 67) //only 0..66 are real codes, 67 marks unpredictable data
+        {
+            printf("ADT-FSE: invalid type code %u in the payload!\n", (unsigned int)tp_code[i]);
+            free(tp_code);
+            return SZ_FORMAT_ERR;
         }
         nbits = code2int[tp_code[i]][1];
 
@@ -166,6 +183,6 @@ void decode_with_fse(int *type, size_t dataSeriesLength, unsigned int intervals,
     }
     free(tp_code);
 
-    return;
+    return SZ_SUCCESS;
 }
 

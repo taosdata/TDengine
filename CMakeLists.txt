@@ -1,3 +1,18 @@
+# Copyright (c) 2019 TAOS Data, Inc. <jhtao@taosdata.com>
+#
+# SPDX-License-Identifier: AGPL-3.0-or-later
+#
+# This program is free software: you can use, redistribute, and/or modify
+# it under the terms of the GNU Affero General Public License, version 3
+# or later ("AGPL"), as published by the Free Software Foundation.
+#
+# This program is distributed in the hope that it will be useful, but WITHOUT
+# ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+# FITNESS FOR A PARTICULAR PURPOSE.
+#
+# You should have received a copy of the GNU Affero General Public License
+# along with this program. If not, see <http://www.gnu.org/licenses/>.
+
 cmake_minimum_required(VERSION 3.16)
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 
@@ -38,10 +53,16 @@ include(cmake/enterprise.cmake)
 include(cmake/options.cmake)
 include(cmake/check_env.cmake)
 include(cmake/define.cmake)
+include(cmake/test-shared-engine.cmake)
+include(cmake/test-cxx-compatibility.cmake)
 include(cmake/version.cmake)
 
 # Ensure pthread is linked globally (workaround for mold linker issues)
-link_libraries(pthread)
+# On Windows pthread is provided via ext_pthread (pthreadVC3.lib) and linked
+# per-target; the global injection would resolve to a non-existent 'pthread.lib'.
+if(NOT WIN32)
+  link_libraries(pthread)
+endif()
 
 if(USE_CONAN)
   message(STATUS "Using Conan for dependency management")
@@ -52,6 +73,7 @@ else()
 endif()
 
 set_property(GLOBAL PROPERTY GLOBAL_DEPENDS_NO_CYCLES OFF)
+include(cmake/mimalloc.cmake)
 
 if(BUILD_TEST)
   include(CTest)
@@ -65,11 +87,28 @@ add_subdirectory(contrib)
 add_subdirectory(source)
 add_subdirectory(tools)
 add_subdirectory(utils)
-add_subdirectory(examples/c)
 
 if(TD_ENTERPRISE)
   add_subdirectory("${TD_ENTERPRISE_DIR}" "${CMAKE_BINARY_DIR}/enterprise")
 endif()
+
+if(BUILD_TEST)
+  td_apply_test_cxx_compatibility("${CMAKE_CURRENT_SOURCE_DIR}/source")
+  if(TD_ENTERPRISE)
+    td_apply_test_cxx_compatibility("${TD_ENTERPRISE_DIR}")
+  endif()
+endif()
+
+# Optional shared engine for unit tests; must run after all engine libraries
+# have been defined.  Off unless BUILD_TEST_SHARED_ENGINE=ON.
+td_add_test_shared_engine()
+
+include(cmake/third_party_symbols.cmake)
+foreach(client_library ${TAOS_LIB} ${TAOS_NATIVE_LIB} taos_ext_influx_arrow)
+  if(TARGET ${client_library})
+    taos_hide_third_party_symbols(${client_library})
+  endif()
+endforeach()
 
 include(cmake/install.cmake)
 include(CPack)

@@ -1,6 +1,8 @@
 /*
  * Copyright (c) 2019 TAOS Data, Inc. <jhtao@taosdata.com>
  *
+ * SPDX-License-Identifier: AGPL-3.0-or-later
+ *
  * This program is free software: you can use, redistribute, and/or modify
  * it under the terms of the GNU Affero General Public License, version 3
  * or later ("AGPL"), as published by the Free Software Foundation.
@@ -116,20 +118,16 @@ void mpDestroyCacheGroup(SMPCacheGroupInfo* pInfo) {
 int32_t mpPopIdleNode(SMemPool* pPool, SMPCacheGroupInfo* pInfo, void** ppRes) {
   SMPCacheGroup* pGrp = NULL;
   SMPListNode* pNode = NULL;
-  
-  while (true) {
-    pNode = (SMPListNode*)atomic_load_ptr(&pInfo->pIdleList);
-    if (NULL == pNode) {
-      break;
-    }
 
-    if (atomic_val_compare_exchange_ptr(&pInfo->pIdleList, pNode, pNode->pNext) != pNode) {
-      continue;
-    }
-
+  taosWLockLatch(&pInfo->idleListLock);
+  pNode = (SMPListNode*)pInfo->pIdleList;
+  if (NULL != pNode) {
+    pInfo->pIdleList = pNode->pNext;
     pNode->pNext = NULL;
+    taosWUnLockLatch(&pInfo->idleListLock);
     goto _return;
   }
+  taosWUnLockLatch(&pInfo->idleListLock);
 
   while (true) {
     pGrp = atomic_load_ptr(&pInfo->pGrpHead);
@@ -152,19 +150,10 @@ _return:
 }
 
 void mpPushIdleNode(SMemPool* pPool, SMPCacheGroupInfo* pInfo, SMPListNode* pNode) {
-  SMPCacheGroup* pGrp = NULL;
-  SMPListNode* pOrig = NULL;
-  
-  while (true) {
-    pOrig = (SMPListNode*)atomic_load_ptr(&pInfo->pIdleList);
-    pNode->pNext = pOrig;
-    
-    if (atomic_val_compare_exchange_ptr(&pInfo->pIdleList, pOrig, pNode) != pOrig) {
-      continue;
-    }
-
-    break;
-  }
+  taosWLockLatch(&pInfo->idleListLock);
+  pNode->pNext = pInfo->pIdleList;
+  pInfo->pIdleList = pNode;
+  taosWUnLockLatch(&pInfo->idleListLock);
 }
 
 
@@ -539,7 +528,7 @@ void mpPrintPosRemainStat(SMPStatPos* pStat) {
       goto _return;
     }
 
-    uInfo("REMAINING: %" PRId64 " bytes alloced by %s:%d in %" PRId64 " times", pAlloc->allocBytes, pFileName, pId->line, pAlloc->allocTimes);
+    uInfo("REMAINING: %" PRId64 " bytes allocated by %s:%d in %" PRId64 " times", pAlloc->allocBytes, pFileName, pId->line, pAlloc->allocTimes);
     
     pIter = taosHashIterate(pAllocHash, pIter);
   }
@@ -1236,7 +1225,7 @@ void taosMemPoolDestroySession(void* poolHandle, void* session) {
     mpDestroyPosStat(&pSession->stat.posStat);
   }
   
-  //taosMemFreeClear(pSession->sessionId);
+  taosMemFreeClear(pSession->sessionId);
 
   TAOS_MEMSET(pSession, 0, sizeof(*pSession));
 
@@ -1250,13 +1239,12 @@ int32_t taosMemPoolInitSession(void* poolHandle, void** ppSession, void* pJob, c
 
   MP_ERR_JRET(mpPopIdleNode(pPool, &pPool->sessionCache, (void**)&pSession));
 
-/*
-  pSession->sessionId = taosStrdup(sessionId);
-  if (NULL == pSession->sessionId) {
-    uError("strdup sessionId failed, error:%s", tstrerror(terrno));
-    MP_ERR_JRET(terrno);
+  if (NULL != sessionId) {
+    pSession->sessionId = taosStrdupi(sessionId);
+    if (NULL == pSession->sessionId) {
+      MP_ERR_JRET(terrno);
+    }
   }
-*/
 
   TAOS_MEMCPY(&pSession->ctrl, &gMPMgmt.ctrl, sizeof(pSession->ctrl));
 
@@ -1610,7 +1598,7 @@ int32_t taosMemPoolTrim(void* poolHandle, void* session, int32_t size, char* fil
 
 int32_t taosMemPoolCallocJob(uint64_t jobId, uint64_t cId, void** ppJob) {
   int32_t code = TSDB_CODE_SUCCESS;
-  *ppJob = taosMemoryCalloc(1, sizeof(SMPJob));
+  *ppJob = taosMemCalloc(1, sizeof(SMPJob));
   if (NULL == *ppJob) {
     uError("calloc mp job failed, code: 0x%x", terrno);
     MP_ERR_RET(terrno);
@@ -1619,8 +1607,40 @@ int32_t taosMemPoolCallocJob(uint64_t jobId, uint64_t cId, void** ppJob) {
   SMPJob* pJob = (SMPJob*)*ppJob;
   pJob->job.jobId = jobId;
   pJob->job.clientId = cId;
+  pJob->job.refs = 1;
 
   return code;
+}
+
+void taosMemPoolRetainJob(void* pJob) {
+  if (NULL != pJob) {
+    (void)atomic_add_fetch_32(&((SMemPoolJob*)pJob)->refs, 1);
+  }
+}
+
+void taosMemPoolReleaseJob(void* pJob) {
+  if (NULL != pJob && 0 == atomic_sub_fetch_32(&((SMemPoolJob*)pJob)->refs, 1)) {
+    taosMemFree(pJob);
+  }
+}
+
+int32_t taosMemPoolReserveJobMemory(void* poolHandle, void* pJob, int64_t size) {
+  if (NULL == poolHandle || NULL == pJob || size < 0) {
+    return TSDB_CODE_INVALID_PARA;
+  }
+  if (0 == size) {
+    return TSDB_CODE_SUCCESS;
+  }
+  SMPSession session = {.pJob = (SMPJob*)pJob};
+  return mpChkFullQuota((SMemPool*)poolHandle, &session, size);
+}
+
+void taosMemPoolReleaseJobMemory(void* poolHandle, void* pJob, int64_t size) {
+  if (NULL == poolHandle || NULL == pJob || size <= 0) {
+    return;
+  }
+  (void)atomic_sub_fetch_64(&((SMemPoolJob*)pJob)->allocMemSize, size);
+  (void)atomic_sub_fetch_64(&((SMemPool*)poolHandle)->allocMemSize, size);
 }
 
 int32_t taosMemPoolTryLockPool(void* poolHandle, bool readLock) {
@@ -1719,7 +1739,7 @@ int32_t taosMemoryPoolInit(mpReserveFailFp failFp, mpReserveReachFp reachFp) {
   }
 
   if (tsTotalMemoryKB <= 0) {
-    uInfo("memory pool disabled since no enough system total memory, size: %" PRId64 "KB", tsTotalMemoryKB);
+    uInfo("memory pool disabled since not enough system total memory, size: %" PRId64 "KB", tsTotalMemoryKB);
     return code;
   }
 
@@ -1734,7 +1754,7 @@ int32_t taosMemoryPoolInit(mpReserveFailFp failFp, mpReserveReachFp reachFp) {
   
   code = taosGetSysAvailMemory(&sysAvailSize);
   if (code || sysAvailSize < MP_MIN_MEM_POOL_SIZE) {
-    uInfo("memory pool disabled since no enough system available memory, size: %" PRId64, sysAvailSize);
+    uInfo("memory pool disabled since not enough system available memory, size: %" PRId64, sysAvailSize);
     code = TSDB_CODE_SUCCESS;
     return code;
   }
@@ -1743,7 +1763,7 @@ int32_t taosMemoryPoolInit(mpReserveFailFp failFp, mpReserveReachFp reachFp) {
 
   int64_t freeSizeAfterRes = sysAvailSize - tsMinReservedMemorySize * 1048576UL;
   if (freeSizeAfterRes < MP_MIN_FREE_SIZE_AFTER_RESERVE) {
-    uInfo("memory pool disabled since no enough system available memory after reservied, size: %" PRId64, freeSizeAfterRes);
+    uInfo("memory pool disabled since not enough system available memory after reserved, size: %" PRId64, freeSizeAfterRes);
     return code;
   }
 
@@ -1784,13 +1804,13 @@ static int32_t mpUpdateReservedSize(SMemPool* pPool, int32_t newReservedSizeMB) 
   int64_t sysAvailSize = 0;
   code = taosGetSysAvailMemory(&sysAvailSize);
   if (code || sysAvailSize < MP_MIN_MEM_POOL_SIZE) {
-    uInfo("failed to update reserved size since no enough system available memory, size: %" PRId64, sysAvailSize);
+    uInfo("failed to update reserved size since not enough system available memory, size: %" PRId64, sysAvailSize);
     MP_ERR_RET(TSDB_CODE_QRY_MEMORY_POOL_MEMORY_NOT_ENOUGH);
   }
 
   int64_t freeSizeAfterRes = sysAvailSize - newReservedSizeMB * 1048576UL;
   if (freeSizeAfterRes < MP_MIN_FREE_SIZE_AFTER_RESERVE) {
-    uInfo("failed to update reserved size since no enough system available memory after reservied, size: %" PRId64,
+    uInfo("failed to update reserved size since not enough system available memory after reserved, size: %" PRId64,
           freeSizeAfterRes);
     MP_ERR_RET(TSDB_CODE_QRY_MEMORY_POOL_MEMORY_NOT_ENOUGH);
   }

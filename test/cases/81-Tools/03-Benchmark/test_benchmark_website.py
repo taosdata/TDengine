@@ -1,13 +1,17 @@
-###################################################################
-#           Copyright (c) 2016 by TAOS Technologies, Inc.
-#                     All rights reserved.
+# Copyright (c) 2016 TAOS Data, Inc. <jhtao@taosdata.com>
 #
-#  This file is proprietary and confidential to TAOS Technologies.
-#  No part of this file may be reproduced, stored, transmitted,
-#  disclosed or used in any form or by any means other than as
-#  expressly provided by the written permission from Jianhui Tao
+# SPDX-License-Identifier: AGPL-3.0-or-later
 #
-###################################################################
+# This program is free software: you can use, redistribute, and/or modify
+# it under the terms of the GNU Affero General Public License, version 3
+# or later ("AGPL"), as published by the Free Software Foundation.
+#
+# This program is distributed in the hope that it will be useful, but WITHOUT
+# ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+# FITNESS FOR A PARTICULAR PURPOSE.
+#
+# You should have received a copy of the GNU Affero General Public License
+# along with this program. If not, see <http://www.gnu.org/licenses/>.
 
 # -*- coding: utf-8 -*-
 from new_test_framework.utils import tdLog, tdSql, etool, sc, eos
@@ -66,7 +70,7 @@ class TestBenchmarkWebsite:
         dbRows = tdSql.getData(0, 0)
         return dbRows
 
-    def checkItem(self, output, key, end, expect, equal):
+    def checkItem(self, output, key, end, expect, equal, allow_zero=False):
         ret, value = self.getKeyValue(output, key, end)
         if ret == False:
             tdLog.exit(f"not found key:{key}. end:{end} output:\n{output}")
@@ -82,7 +86,7 @@ class TestBenchmarkWebsite:
         # compare
         if equal and fval != expect:
             tdLog.exit(f"check not expect. expect:{expect} real:{fval}, key:'{key}' end:'{end}' output:\n{output}")
-        elif equal == False and fval <= expect:
+        elif equal == False and (fval < expect if allow_zero else fval <= expect):
             tdLog.error(f"value:'{value}' < expect, key:'{key}' end:'{end}' output:\n{output}")
             tdLog.exit(f"failed because {fval} <= {expect}, key:'{key}' end:'{end}' output:\n{output}")
         else:
@@ -96,7 +100,10 @@ class TestBenchmarkWebsite:
     def checkAfterRun(self, benchmark, jsonFile, specMode, tbCnt):
         # run
         cmd = f"{benchmark} -f {jsonFile}"
-        output, error = etool.run(cmd)
+        output, error, code = etool.run(cmd, ret_code=True)
+        if code:
+            tdLog.exit(f"benchmark failed: rc={code} (0x{code & 0xffffffff:08X}), "
+                       f"command={cmd}, stdout={output}, stderr={error}")
         if specMode :
             label = "specified_table_query"
         else:
@@ -194,7 +201,11 @@ class TestBenchmarkWebsite:
         # check
         for item in items:
             if len(item[0]) > 0:
-                self.checkItem(output, item[0], item[1], item[2], item[3])
+                # Windows GetSystemTimeAsFileTime can report the same clock
+                # tick around a fast query. Keep query counts, QPS, and other
+                # latency checks strict; only its minimum may be zero.
+                self.checkItem(output, item[0], item[1], item[2], item[3],
+                               allow_zero=os.name == "nt" and item[0] == minKey)
 
 
 
@@ -219,7 +230,7 @@ class TestBenchmarkWebsite:
 
         Since: v3.0.0.0
 
-        Labels: common,ci
+        Labels: common,ci,integration,functional
 
         Jira: None
 
@@ -231,17 +242,17 @@ class TestBenchmarkWebsite:
         benchmark = etool.benchMarkFile()
 
         # insert
-        json = "../tools/taos-tools/example/insert.json"
+        json = "../tools/taosBenchmark/example/insert.json"
         self.insertBenchJson(json, checkStep=True)
 
         # query
-        json = "../tools/taos-tools/example/query.json"
+        json = "../tools/taosBenchmark/example/query.json"
         self.checkAfterRun(benchmark, json, True, tbCnt)
-        json = "../tools/taos-tools/example/queryStb.json"
+        json = "../tools/taosBenchmark/example/queryStb.json"
         self.checkAfterRun(benchmark, json, False, tbCnt)
 
         # tmq
-        json = "../tools/taos-tools/example/tmq.json"
+        json = "../tools/taosBenchmark/example/tmq.json"
         self.checkTmqJson(benchmark, json)
 
 

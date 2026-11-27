@@ -1,6 +1,8 @@
 /*
  * Copyright (c) 2019 TAOS Data, Inc. <jhtao@taosdata.com>
  *
+ * SPDX-License-Identifier: AGPL-3.0-or-later
+ *
  * This program is free software: you can use, redistribute, and/or modify
  * it under the terms of the GNU Affero General Public License, version 3
  * or later ("AGPL"), as published by the Free Software Foundation.
@@ -12,18 +14,20 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
+
 #ifndef TDENGINE_STREAM_INT_H
 #define TDENGINE_STREAM_INT_H
 
-
 #include "executor.h"
 #include "query.h"
-#include "trpc.h"
 #include "stream.h"
-#include "tref.h"
-#include "ttimer.h"
 #include "streamRunner.h"
 #include "streamTriggerTask.h"
+#include "tlist.h"
+#include "tobjpool.h"
+#include "tref.h"
+#include "trpc.h"
+#include "ttimer.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -32,11 +36,22 @@ extern "C" {
 #define STREAM_GRP_STREAM_NUM             20
 #define STREAM_HB_ERR_HANDLE_MAX_DELAY    300000
 
+typedef struct {
+  int64_t    period;
+  SSHashObj* polls;    // opaque heartbeat token -> poll serial
+  SSHashObj* retired;  // (stream, task, seriousId) -> last poll issued before retirement
+} SReaderPollWindow;
+
 typedef struct SStreamHbInfo {
   int32_t      lastErrCode;
   int64_t      lastErrTs;
   tmr_h        hbTmr;
   SStreamHbMsg hbMsg;
+  SStreamReaderRuntime readerRuntime;
+  SRWLatch     readerDeployLock;  // Serializes guarded task-map claims with Reader retirement.
+  int64_t              readerPollSerial;
+  SReaderPollWindow    readerPollWindows[2];
+  SSHashObj*           readerInstalls;  // (stream, task, seriousId) -> claiming heartbeat token
 } SStreamHbInfo;
 
 typedef struct SStreamInfo {
@@ -51,7 +66,7 @@ typedef struct SStreamInfo {
 
   SRWLatch            undeployLock;
 
-  SArray*             undeployReaders;        // SArray<taskId+seriousId>
+  SArray*             undeployReaders;        // SArray<SStreamTask*>, owned by readerList
   SArray*             undeployTriggers;       // SArray<taskId+seriousId>
   SArray*             undeployRunners;        // SArray<taskId+seriousId>
 } SStreamInfo;
@@ -63,11 +78,62 @@ typedef struct SStreamVgReaderTasks {
   SArray*  taskList;       // SArray<SStreamTask*>
 } SStreamVgReaderTasks;
 
+// Pending notify item allocated from the global paramPool (see notifyWorkerPool).
+typedef struct SStreamNotifyPendingItem {
+  SSTriggerCalcParam param;
+  int64_t            groupId;
+  char*              tableName;
+  char*              triggerTableName;  // owned; NULL represents an empty name
+  int32_t            nextUrl;  // successful URL prefix; retained across worker reschedules
+  int32_t            sendFailures;
+} SStreamNotifyPendingItem;
+
+// Per-stream notify queue (lazy-created on first async notify).
+typedef struct SStreamNotifyQueue {
+  int64_t streamId;
+  char*   streamName;
+  char*   tableName;
+  int8_t  precision;
+  int32_t triggerType;
+  int32_t addOptions;
+  SArray* pUrls;
+  bool     inGlobalList;   // true while linked into notifyWorkerPool.globalQueueList
+  bool     consuming;      // true while a worker owns this queue (suppress re-schedule)
+  bool     pendingDestroy; // stream dropped or pool shutting down; destroy once refCount reaches 0
+  int32_t  refCount;       // active worker references; unregister defers destroy while > 0
+  SObjList paramList;     // pending params (FIFO), backed by notifyWorkerPool.paramPool
+  size_t   pendingBytes;  // sum of enqueued param payload estimates
+  TD_DLIST_NODE(SStreamNotifyQueue) queueNode;
+  TdThreadMutex lock;
+} SStreamNotifyQueue;
+
+// Background worker: all workers compete for the shared globalQueueList (FIFO).
+typedef struct SStreamNotifyWorker {
+  TdThreadMutex  lock;
+  TdThreadCond   cond;
+  TdThread       thread;
+  volatile bool  running;
+  volatile bool  pendingWork;
+  bool           inited;
+  int32_t        id;
+} SStreamNotifyWorker;
+
+typedef struct SStreamNotifyWorkerPool {
+  SStreamNotifyWorker* workers;
+  int32_t              numWorkers;
+  SObjPool             paramPool;                // shared SStreamNotifyPendingItem storage for all stream queues
+  SHashObj*            queueMap;                 // streamId => SStreamNotifyQueue* (active producers)
+  TD_DLIST(SStreamNotifyQueue) globalQueueList;  // FIFO of queues waiting for workers
+  TdThreadMutex        mapLock;                  // protects queueMap + globalQueueList
+  TdThreadMutex        poolLock;                 // protects paramPool alloc/free across queues
+  volatile bool        shuttingDown;             // set during pool destroy to unblock workers
+  bool                 inited;
+} SStreamNotifyWorkerPool;
 
 typedef struct SStreamMgmtInfo {
   void*                  timer;
   void*                  dnode;
-  bool                   snodeEnabled;
+  int8_t                 snodeEnabled;
   SRWLatch               snodeLock;
   SNodeEpSet             snodeLeaders[2];
   SNodeEpSet             snodeReplica;
@@ -91,6 +157,7 @@ typedef struct SStreamMgmtInfo {
 
   SArray*                snodeTasks;                      // SArray<SStreamTask*>
 
+  SStreamNotifyWorkerPool notifyWorkerPool;  // async notification sender pool
   // Cleanup gating for stream timer callbacks.
   //   tmrStopped:  set to 1 by streamCleanup before tearing down shared state.
   //                streamTmrStart() checks this flag and refuses to (re-)arm
@@ -113,6 +180,9 @@ extern SStreamMgmtInfo gStreamMgmt;
 
 int32_t streamTimerInit(void** ppTimer);
 int32_t streamHbInit(SStreamHbInfo* pHb);
+int32_t streamHbIssueReaderPoll(SStreamHbInfo* hb, int64_t now, SStreamHbMsg* msg);
+void    streamHbResetReaderRole(SStreamHbInfo* hb, bool enabled);
+void    streamHbRenewReaderRuntime(SStreamHbInfo* hb);
 int32_t smDeployTasks(SStmStreamDeploy* pDeploy);
 int32_t smUndeployTasks(SStreamUndeployActions* actions);
 int32_t smHandleMgmtRsp(SStreamMgmtRsps* rsps);
@@ -126,27 +196,74 @@ int32_t stTriggerTaskEnvInit();
 void    stTriggerTaskEnvCleanup();
 
 int32_t stReaderTaskDeploy(SStreamReaderTask* pTask, const SStreamReaderDeployMsg* pMsg);
+void    stReaderTaskDiscardInstall(SStreamReaderTask* pTask);
 int32_t stReaderTaskUndeploy(SStreamReaderTask** ppTask, bool force);
 int32_t stReaderTaskExecute(SStreamReaderTask* pTask, SStreamMsg* pMsg);
 
 void smHandleRemovedTask(SStreamInfo* pStream, int64_t streamId, int32_t gid, EStreamTaskType type, SArray* pUndeployList, SList* pTaskList);
 void smUndeployVgTasks(int32_t vgId, bool cleanup);
-int32_t smDeployStreams(SStreamDeployActions* actions);
+int32_t smDeployStreams(SStreamDeployActions* actions, int64_t readerDeployEpoch);
 void stmDestroySStreamInfo(void* param);
-int32_t streamBuildStateNotifyContent(ESTriggerEventType eventType, SColumnInfo* colInfo, const char* pFromState,
-                                      const char* pToState, char** ppContent);
+int32_t streamBuildMultiStateNotifyContent(ESTriggerEventType eventType, const SArray* pStateCols,
+                                           const SArray* pFromStates, const bool* pFromDefined, const SArray* pToStates,
+                                           const bool* pToDefined, char** ppContent);
 int32_t streamBuildIdleNotifyContent(ESTriggerEventType eventType, int64_t idleDurationMs, char** ppContent);
 int32_t streamBuildEventNotifyContent(const SSDataBlock* pInputBlock, const SNodeList* pCondCols, int32_t rowIdx,
-                                      int32_t condIdx, int32_t winIdx, int64_t groupId, int64_t windowStart,
-                                      int64_t parentWindowStart, char** ppContent);
+                                      const char* conditionPath, const SArray* parentTriggerIds, int64_t groupId,
+                                      int64_t windowStart, char** ppContent);
+int32_t streamBuildNotifyTriggerId(int64_t groupId, int64_t windowStart, const char* conditionPath, char* triggerId);
 int32_t streamBuildBlockResultNotifyContent(const SStreamRunnerTask* pTask, const SSDataBlock* pBlock, char** ppContent,
-                                            const SArray* pFields, const int32_t startRow, const int32_t endRow);
-int32_t streamSendNotifyContent(SStreamTask* pTask, const char* streamName, const char* tableName, int32_t triggerType,
-                                int64_t groupId, const SArray* pNotifyAddrUrls, int32_t addOptions,
-                                const SSTriggerCalcParam* pParams, int32_t nParam);
+                                            const SArray* pFields, const int32_t startRow, const int32_t endRow,
+                                            bool* pHasNotifyRows);
+// Copy a counted tbname group value; absent or ineligible names produce an empty string.
+int32_t streamGetNotifyTriggerTableName(bool partByTbname, const SArray* pValues, char* pName, int32_t nameSize);
+int32_t streamSendNotifyContent(SStreamTask* pTask, const char* streamName, const char* tableName,
+                                const char* triggerTableName, int32_t triggerType, int64_t groupId, int8_t precision,
+                                const SArray* pNotifyAddrUrls, int32_t addOptions, const SSTriggerCalcParam* pParams,
+                                int32_t nParam);
+int32_t streamSendNotifyContentWithResult(SStreamTask* pTask, const char* streamName, const char* tableName,
+                                          const char* triggerTableName, int32_t triggerType, int64_t groupId,
+                                          int8_t precision, const SArray* pNotifyAddrUrls, int32_t addOptions,
+                                          const SSTriggerCalcParam* pParams, int32_t nParam, bool* pAttempted,
+                                          bool* pAccepted);
+int32_t streamNotifyWorkerPoolInit(SStreamNotifyWorkerPool* pPool, int32_t numWorkers);
+void    streamNotifyWorkerPoolDestroy(SStreamNotifyWorkerPool* pPool);
+void    streamNotifyQueueUnregister(int64_t streamId);
 
-int32_t readStreamDataCache(int64_t streamId, int64_t taskId, int64_t sessionId, int64_t groupId, TSKEY start,
-                            TSKEY end, void*** pppIter);
+int32_t streamSendNestedResultNotifyContent(SStreamTask* pTask, const char* pStreamName, const char* pTableName,
+                                            const char* triggerTableName, int32_t triggerType, int64_t gid,
+                                            const SArray* pNotifyAddrUrls, int32_t addOptions,
+                                            const SSTriggerCalcParam* pParams, const char* const* pTriggerIds,
+                                            int32_t nParam);
+
+int32_t stBuildNestedTriggerId(int64_t gid, const SWindowLineage* pLineage, TSKEY leafStart, int32_t windowIndex,
+                               char triggerId[STREAM_NESTED_TRIGGER_ID_LEN]);
+int32_t stResolveNestedLeafWindowIndex(int32_t runtimeTriggerType, const SLeafInstanceId* pLeafIdentity,
+                                       int32_t notifyType, const char* pExtraNotifyContent, int32_t* pWindowIndex);
+
+int32_t stTriggerNoticeBatchCreate(SStreamTriggerNoticeBatch** ppBatch);
+int32_t stTriggerNoticeBatchStageWindow(SStreamTriggerNoticeBatch* pBatch, const SStreamTriggerTask* pTask,
+                                        const char* pTableName, const char* triggerTableName, int64_t gid,
+                                        int32_t triggerType, const SStreamNestedPendingCalcEvent* pEvent);
+bool    stTriggerNoticeBatchHasItems(const SStreamTriggerNoticeBatch* pBatch);
+void    stTriggerNoticeBatchSend(SStreamTriggerNoticeBatch** ppBatch);
+void    stTriggerNoticeBatchAbort(SStreamTriggerNoticeBatch** ppBatch);
+
+int32_t streamBuildNestedTriggerWindowNotice(const SStreamTriggerTask* pTask, const char* pTableName,
+                                             const char* triggerTableName, int64_t gid, int32_t triggerType,
+                                             const SStreamNestedPendingCalcEvent* pEvent, char** ppPayload,
+                                             int32_t* pPayloadLen);
+int32_t streamSendNotifyPayloadOnce(const char* pUrl, const char* pPayload, int32_t payloadLen);
+int32_t streamSendNotifyPayloadCached(const char* pUrl, const char* pPayload, int32_t payloadLen);
+int32_t streamEnqueueNotifyPayload(const char* pUrl, const char* pPayload, int32_t payloadLen);
+int32_t streamNoticeQueueInit(void);
+void    streamNoticeQueueCleanup(void);
+
+int32_t readStreamDataCache(SStreamCacheReadInfo* pInfo, bool* finished);
+int32_t stCreateCalcDataCacheIterMap(SHashObj** ppMap);
+int32_t stCleanupCalcDataCacheItersForRequest(SStreamTriggerTask* pTask, const SSTriggerCalcRequest* pReq);
+int32_t stBindStreamCacheReadScopeForTask(const SStreamRuntimeFuncInfo* pRuntime, bool nested, int32_t expectedNodeId,
+                                          SStreamCacheReadInfo* pReadInfo);
 void streamTimerCleanUp();
 void streamTmrWaitAllCallbacks(void);
 void smRemoveTaskPostCheck(int64_t streamId, SStreamInfo* pStream, bool* isLastTask);
@@ -182,6 +299,11 @@ void smUndeployStreamTriggerTasks(SStreamInfo* pStream, int64_t streamId);
 
 #define STREAM_TMR_CB_LEAVE() \
   (void)atomic_sub_fetch_32(&gStreamMgmt.tmrInflight, 1)
+
+#if defined(BUILD_TEST)
+/* Test seam for streamTriggerTaskTest: drives the runner-side task mgmt request builder. */
+int32_t stRunnerTestBuildTaskMgmtReq(SStreamRunnerTask *pTask);
+#endif
 
 #ifdef __cplusplus
 }

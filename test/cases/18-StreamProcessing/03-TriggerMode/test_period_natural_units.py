@@ -1,3 +1,22 @@
+# Copyright (c) 2026 TAOS Data, Inc. <jhtao@taosdata.com>
+#
+# SPDX-License-Identifier: AGPL-3.0-or-later
+#
+# This program is free software: you can use, redistribute, and/or modify
+# it under the terms of the GNU Affero General Public License, version 3
+# or later ("AGPL"), as published by the Free Software Foundation.
+#
+# This program is distributed in the hope that it will be useful, but WITHOUT
+# ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+# FITNESS FOR A PARTICULAR PURPOSE.
+#
+# You should have received a copy of the GNU Affero General Public License
+# along with this program. If not, see <http://www.gnu.org/licenses/>.
+
+import os
+import pytest
+
+from new_test_framework.utils import clusterComCheck, sc, tdLog, tdSql, tdStream
 from new_test_framework.utils import tdLog, tdSql, tdStream
 
 
@@ -9,7 +28,7 @@ class TestPeriodNaturalUnits:
         """Prepare test environment"""
         tdLog.info("=== Prepare test environment ===")
         tdStream.dropAllStreamsAndDbs()
-        tdStream.createSnode()
+        tdStream.ensureSnode()
         tdStream.init_database("test_period_natural")
         tdSql.execute("use test_period_natural")
         tdSql.execute("create table meters (ts timestamp, current float, voltage int)")
@@ -275,29 +294,85 @@ class TestPeriodNaturalUnits:
 
         tdLog.success("Month offset overflow test passed")
 
-    def _test_offset_invalid_units(self):
-        """Test invalid offset units"""
-        tdLog.info("=== Test invalid offset units ===")
+    def _test_offset_natural_units(self):
+        """Test fixed and natural offset units"""
+        tdLog.info("=== Test fixed and natural offset units ===")
 
-        # Week unit not allowed for offset
-        tdSql.error("""
-            create stream s_offset_invalid_w period(1n, 1w) into s_offset_invalid_w_output
+        tdSql.execute("""
+            create stream s_offset_valid_w period(1n, 1w) into s_offset_valid_w_output
             as select _wstart, avg(current) from meters interval(1n)
         """)
+        tdSql.query(
+            "select stream_name from information_schema.ins_streams "
+            "where stream_name='s_offset_valid_w'"
+        )
+        tdSql.checkRows(1)
 
-        # Month unit not allowed for offset
-        tdSql.error("""
-            create stream s_offset_invalid_n period(1y, 1n) into s_offset_invalid_n_output
+        tdSql.execute("""
+            create stream s_offset_valid_n period(1y, 1n) into s_offset_valid_n_output
             as select _wstart, avg(current) from meters interval(1y)
         """)
+        tdSql.query(
+            "select stream_name from information_schema.ins_streams "
+            "where stream_name='s_offset_valid_n'"
+        )
+        tdSql.checkRows(1)
 
-        # Year unit not allowed for offset
         tdSql.error("""
             create stream s_offset_invalid_y period(1y, 1y) into s_offset_invalid_y_output
             as select _wstart, avg(current) from meters interval(1y)
         """)
 
-        tdLog.success("Invalid offset units test passed")
+        tdLog.success("Fixed and natural offset units test passed")
+
+    def _test_quarter_lifecycle(self):
+        """Verify PERIOD quarter normalization survives task lifecycle."""
+        tdSql.execute("set timezone 'UTC'")
+        tdSql.execute("set first_day_of_week 1")
+
+        for name, period in (("s_period_1q", "1q"), ("s_period_3n", "3n")):
+            tdSql.execute(
+                f"create stream {name} period({period}) from meters "
+                "stream_options(config(timezone='Asia/Shanghai', "
+                "firstDayOfWeek=0)) "
+                f"into {name}_output as "
+                "select cast(_tlocaltime/1000000 as timestamp), count(*) "
+                "from meters"
+            )
+            tdStream.checkStreamStatus(name)
+
+        self._check_quarter_metadata()
+
+        for name in ("s_period_1q", "s_period_3n"):
+            tdSql.execute(f"stop stream {name}")
+            tdStream.waitStreamStatus("test_period_natural", name, "Stopped")
+            tdSql.execute(f"start stream {name}")
+            tdStream.waitStreamStatus("test_period_natural", name, "Running")
+
+        sc.dnodeStop(1)
+        sc.dnodeStart(1)
+        clusterComCheck.checkDnodes(1)
+        tdSql.connect()
+        tdSql.execute("use test_period_natural")
+        for name in ("s_period_1q", "s_period_3n"):
+            tdStream.checkStreamStatus(name)
+        self._check_quarter_metadata()
+
+    def _check_quarter_metadata(self):
+        for name in ("s_period_1q", "s_period_3n"):
+            tdSql.query(
+                "select `timezone`, `first_day_of_week`, `sql` "
+                "from information_schema.ins_streams "
+                f"where stream_name='{name}'"
+            )
+            tdSql.checkRows(1)
+            tdSql.checkData(0, 0, "Asia/Shanghai")
+            tdSql.checkData(0, 1, 0)
+            sql = tdSql.getData(0, 2)
+            assert sql.lower().count("config(") == 1, sql
+            assert (
+                "CONFIG(timezone = 'Asia/Shanghai', firstDayOfWeek = 0)" in sql
+            ), sql
 
     def test_period_natural_units(self):
         """
@@ -314,8 +389,7 @@ class TestPeriodNaturalUnits:
 
         Since: 3.4.1.0
 
-        Labels: stream, common, ci
-
+        Labels: common,ci,stream,integration,functional
         Feishu: https://project.feishu.cn/taosdata_td/feature/detail/6490755304
 
         History:
@@ -341,4 +415,28 @@ class TestPeriodNaturalUnits:
         self._test_offset_cross_unit()
         self._test_offset_validation_errors()
         self._test_offset_month_overflow()
-        self._test_offset_invalid_units()
+        self._test_offset_natural_units()
+
+    @pytest.mark.skipif(
+        os.name == "nt", reason="Windows does not support SET TIMEZONE"
+    )
+    def test_period_quarter_lifecycle(self):
+        """Verify quarter-period metadata survives a stream restart.
+
+        1. Compare PERIOD(1q) with PERIOD(3n).
+        2. Verify timezone metadata survives stop/start and dnode restart.
+
+        Since: 3.4.1.0
+
+        Labels: common,ci,stream,integration,functional
+
+        Jira: None
+
+        History:
+            - 2026-10-28: Separate Windows-unsupported SET TIMEZONE coverage
+        """
+        self.prepare_env()
+        # Runtime boundary equivalence is covered deterministically by
+        # StreamTriggerTaskTest. The system layer verifies that both public
+        # forms persist and redeploy identically.
+        self._test_quarter_lifecycle()

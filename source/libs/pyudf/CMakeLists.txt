@@ -1,3 +1,18 @@
+# Copyright (c) 2026 TAOS Data, Inc. <jhtao@taosdata.com>
+#
+# SPDX-License-Identifier: AGPL-3.0-or-later
+#
+# This program is free software: you can use, redistribute, and/or modify
+# it under the terms of the GNU Affero General Public License, version 3
+# or later ("AGPL"), as published by the Free Software Foundation.
+#
+# This program is distributed in the hope that it will be useful, but WITHOUT
+# ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+# FITNESS FOR A PARTICULAR PURPOSE.
+#
+# You should have received a copy of the GNU Affero General Public License
+# along with this program. If not, see <http://www.gnu.org/licenses/>.
+
 cmake_minimum_required(VERSION 3.14)
 
 # ── Common include paths used by all taospyudf targets ───────────────────
@@ -24,7 +39,7 @@ macro(_pyudf_add_target _tgt _py_inc _py_lib _ver_short _output_name)
     target_include_directories(${_tgt} PRIVATE ${_pyudf_common_incs} "${_py_inc}")
 
     DEP_ext_plog_INC(${_tgt})
-    if(TARGET ext_plog)
+    if(NOT TD_EXTERNALS_USE_ONLY AND TARGET ext_plog)
         add_dependencies(${_tgt} ext_plog)
     endif()
 
@@ -105,6 +120,8 @@ set(_tgt "taospyudf")
 set(_oname "taospyudf")
 
 _pyudf_add_target(${_tgt} "${_py_inc}" "${_py_lib}" "${_ver_short}" "${_oname}")
-add_dependencies(${_tgt} ${_cptarget})
+if(NOT TD_EXTERNALS_USE_ONLY)
+    add_dependencies(${_tgt} ${_cptarget})
+endif()
 
 message(STATUS "[pyudf] target ${_tgt} → Python ${_ver_short} (single-library abi3 rollout mode)")

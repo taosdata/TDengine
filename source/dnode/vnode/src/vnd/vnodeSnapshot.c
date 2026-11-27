@@ -1,6 +1,8 @@
 /*
  * Copyright (c) 2019 TAOS Data, Inc. <jhtao@taosdata.com>
  *
+ * SPDX-License-Identifier: AGPL-3.0-or-later
+ *
  * This program is free software: you can use, redistribute, and/or modify
  * it under the terms of the GNU Affero General Public License, version 3
  * or later ("AGPL"), as published by the Free Software Foundation.
@@ -14,9 +16,11 @@
  */
 
 #include "bse.h"
+#include "sync.h"
 #include "tencrypt.h"
 #include "tsdb.h"
 #include "vnd.h"
+#include "tlogKeyOp.h"
 
 static int32_t vnodeExtractSnapInfoDiff(void *buf, int32_t bufLen, TFileSetRangeArray **ppRanges) {
   int32_t            code = 0;
@@ -43,8 +47,14 @@ struct SVSnapReader {
   int64_t sver;
   int64_t ever;
   int64_t index;
+  int32_t destDnodeId;  // target follower dnodeId of this snapshot send, passed through to the tsdb reader for per-target bucketed stats
   // config
   int8_t cfgDone;
+  // wal txn files
+  int8_t             txnWalDone;
+  SWalTxnSnapReader *pWalTxnReader;
+  // txn.meta (section 44 lazy COMMIT/ROLLBACK durable transfer)
+  int8_t txnMetaDone;
   // meta
   int8_t           metaDone;
   SMetaSnapReader *pMetaReader;
@@ -55,6 +65,9 @@ struct SVSnapReader {
   // tsdb raw
   int8_t              tsdbRAWDone;
   STsdbSnapRAWReader *pTsdbRAWReader;
+  // tsdb medium
+  int8_t                   tsdbMEDIUMDone;
+  STsdbSnapMediumReader   *pTsdbMEDIUMReader;
 
   // tq
   int8_t         tqHandleDone;
@@ -103,12 +116,17 @@ static int32_t vnodeSnapReaderDealWithSnapInfo(SVSnapReader *pReader, SSnapshotP
 
     STsdbRepOpts         tsdbOpts = {0};
     TFileSetRangeArray **ppRanges = NULL;
-    int32_t              offset = 0;
+    int64_t              offset = 0;
 
-    while (offset + sizeof(SSyncTLV) < datHead->len) {
-      SSyncTLV *subField = (void *)(datHead->val + offset);
-      offset += sizeof(SSyncTLV) + subField->len;
-      void   *buf = subField->val;
+    for (;;) {
+      const SSyncTLV *subField = NULL;
+      code = tsdbSnapTlvNext(datHead, &offset, &subField);
+      if (code) {
+        vError("vgId:%d, invalid snapshot param TLV since %s", TD_VID(pVnode), tstrerror(code));
+        goto _out;
+      }
+      if (subField == NULL) break;
+      void   *buf = (void *)subField->val;
       int32_t bufLen = subField->len;
 
       switch (subField->typ) {
@@ -134,6 +152,19 @@ static int32_t vnodeSnapReaderDealWithSnapInfo(SVSnapReader *pReader, SSnapshotP
             goto _out;
           }
         } break;
+        case SNAP_DATA_MEDIUM: {
+          SMediumSnapFileList fileList = {0};
+          code = tDeserializeSMediumSnapFileList(buf, bufLen, &fileList);
+          if (code) {
+            vError("vgId:%d, failed to deserialize medium file list since %s", TD_VID(pVnode), terrstr());
+            goto _out;
+          }
+          code = tsdbSnapMediumReaderOpen(pReader->pVnode->pTsdb, pReader->ever,
+                                          SNAP_DATA_MEDIUM, &fileList,
+                                          pReader->sver, pReader->destDnodeId, &pReader->pTsdbMEDIUMReader);
+          taosMemoryFreeClear(fileList.aFiles);
+          if (code) goto _out;
+        } break;
         default:
           vError("vgId:%d, unexpected subfield type of snap info. typ:%d", TD_VID(pVnode), subField->typ);
           code = TSDB_CODE_INVALID_DATA_FMT;
@@ -143,21 +174,30 @@ static int32_t vnodeSnapReaderDealWithSnapInfo(SVSnapReader *pReader, SSnapshotP
 
     // toggle snap replication mode
     vInfo("vgId:%d, vnode snap reader supported tsdb rep of format:%d", TD_VID(pVnode), tsdbOpts.format);
-    if (pReader->sver == 0 && tsdbOpts.format == TSDB_SNAP_REP_FMT_RAW) {
+    if (tsdbOpts.format == TSDB_SNAP_REP_FMT_MEDIUM) {
       pReader->tsdbDone = true;
+      pReader->tsdbRAWDone = true;
+      // MEDIUM reader opened above via SNAP_DATA_MEDIUM TLV
+    } else if (pReader->sver == 0 && tsdbOpts.format == TSDB_SNAP_REP_FMT_RAW) {
+      pReader->tsdbDone = true;
+      pReader->tsdbMEDIUMDone = true;
     } else {
       pReader->tsdbRAWDone = true;
+      pReader->tsdbMEDIUMDone = true;
     }
 
     vInfo("vgId:%d, vnode snap writer enabled replication mode: %s", TD_VID(pVnode),
-          (pReader->tsdbDone ? "raw" : "normal"));
+          (pReader->tsdbDone && pReader->tsdbRAWDone ? "medium" : (pReader->tsdbDone ? "raw" : "normal")));
   }
 
 _out:
   return code;
 }
 
-int32_t vnodeSnapReaderOpen(SVnode *pVnode, SSnapshotParam *pParam, SVSnapReader **ppReader) {
+void vnodeSnapReaderClose(SVSnapReader *pReader);
+
+static int32_t vnodeSnapReaderOpenImpl(SVnode *pVnode, SSnapshotParam *pParam, SVSnapReader **ppReader,
+                                       const char *baseFileSets, int64_t baseVersion, char **fileSetsJson) {
   int32_t       code = 0;
   int64_t       sver = pParam->start;
   int64_t       ever = pParam->end;
@@ -171,14 +211,27 @@ int32_t vnodeSnapReaderOpen(SVnode *pVnode, SSnapshotParam *pParam, SVSnapReader
   pReader->pVnode = pVnode;
   pReader->sver = sver;
   pReader->ever = ever;
+  // Record the target dnodeId for use by all subsequent tsdb reader opens.
+  // [Timing constraint] This assignment must precede vnodeSnapReaderDealWithSnapInfo: the MEDIUM reader is created inside that function
+  // and reads pReader->destDnodeId; if this line is mistakenly reordered after it, the MEDIUM reader silently gets 0 (neither compilation nor the RAW path errors out).
+  pReader->destDnodeId = pParam->destDnodeId;
 
-  // snapshot info
-  code = vnodeSnapReaderDealWithSnapInfo(pReader, pParam);
-  if (code) goto _exit;
+  if (baseFileSets) {
+    code = tsdbFSetJsonToRangeDiff(baseFileSets, &pReader->pRanges);
+    if (code) goto _exit;
+    pReader->tsdbRAWDone = true;
+    pReader->tsdbMEDIUMDone = true;
+    code = tsdbBackupSnapReaderOpen(pVnode->pTsdb, baseVersion + 1, ever, pReader->pRanges,
+                                    &pReader->pTsdbReader, fileSetsJson);
+    if (code) goto _exit;
+  } else {
+    code = vnodeSnapReaderDealWithSnapInfo(pReader, pParam);
+    if (code) goto _exit;
+  }
 
   // open tsdb snapshot raw reader
   if (!pReader->tsdbRAWDone) {
-    code = tsdbSnapRAWReaderOpen(pVnode->pTsdb, ever, SNAP_DATA_RAW, &pReader->pTsdbRAWReader);
+    code = tsdbSnapRAWReaderOpen(pVnode->pTsdb, ever, SNAP_DATA_RAW, pReader->destDnodeId, &pReader->pTsdbRAWReader);
     if (code) goto _exit;
   }
 
@@ -196,12 +249,33 @@ int32_t vnodeSnapReaderOpen(SVnode *pVnode, SSnapshotParam *pParam, SVSnapReader
 _exit:
   if (code) {
     vError("vgId:%d, vnode snapshot reader open failed since %s", TD_VID(pVnode), tstrerror(code));
+    if (pReader != NULL) vnodeSnapReaderClose(pReader);
+    if (fileSetsJson) taosMemoryFreeClear(*fileSetsJson);
     *ppReader = NULL;
   } else {
-    vInfo("vgId:%d, vnode snapshot reader opened, sver:%" PRId64 " ever:%" PRId64, TD_VID(pVnode), sver, ever);
+    vInfo(KEYOP("restore-dnode", "START") "vgId:%d, vnode snapshot reader opened, sver:%" PRId64 " ever:%" PRId64,
+          TD_VID(pVnode), sver, ever);
     *ppReader = pReader;
   }
   return code;
+}
+
+int32_t vnodeSnapReaderOpen(SVnode *pVnode, SSnapshotParam *pParam, SVSnapReader **ppReader) {
+  return vnodeSnapReaderOpenImpl(pVnode, pParam, ppReader, NULL, 0, NULL);
+}
+
+static int32_t vnodeBackupSnapReaderOpen(SVnode *pVnode, SSnapshotParam *pParam, bool isFull,
+                                         const char *baseFileSets, int64_t baseVersion,
+                                         SVSnapReader **ppReader, char **fileSetsJson) {
+  int32_t code = vnodeSnapReaderOpenImpl(pVnode, pParam, ppReader, isFull ? NULL : baseFileSets,
+                                         baseVersion, fileSetsJson);
+  if (code != 0) return code;
+
+  // Full backup uses RAW data; incremental backup uses normal logical TSDB data. Neither uses MEDIUM.
+  (*ppReader)->tsdbDone = isFull;
+  (*ppReader)->tsdbRAWDone = !isFull;
+  (*ppReader)->tsdbMEDIUMDone = true;
+  return 0;
 }
 
 static void vnodeSnapReaderDestroyTsdbRanges(SVSnapReader *pReader) {
@@ -214,7 +288,7 @@ static void vnodeSnapReaderDestroyTsdbRanges(SVSnapReader *pReader) {
 }
 
 void vnodeSnapReaderClose(SVSnapReader *pReader) {
-  vInfo("vgId:%d, close vnode snapshot reader", TD_VID(pReader->pVnode));
+  vInfo(KEYOP("restore-dnode", "END") "vgId:%d, close vnode snapshot reader", TD_VID(pReader->pVnode));
   vnodeSnapReaderDestroyTsdbRanges(pReader);
 #ifdef USE_RSMA_ORIGIN
   if (pReader->pRsmaReader) {
@@ -230,8 +304,16 @@ void vnodeSnapReaderClose(SVSnapReader *pReader) {
     tsdbSnapRAWReaderClose(&pReader->pTsdbRAWReader);
   }
 
+  if (pReader->pTsdbMEDIUMReader) {
+    tsdbSnapMediumReaderClose(&pReader->pTsdbMEDIUMReader);
+  }
+
   if (pReader->pMetaReader) {
     metaSnapReaderClose(&pReader->pMetaReader);
+  }
+
+  if (pReader->pWalTxnReader) {
+    walSnapTxnReaderClose(&pReader->pWalTxnReader);
   }
 #ifdef USE_TQ
   if (pReader->pTqSnapReader) {
@@ -250,6 +332,198 @@ void vnodeSnapReaderClose(SVSnapReader *pReader) {
   taosMemoryFree(pReader);
 }
 
+static void vnodeCloseBackupSnapLocked(SVnode *pVnode) {
+  if (pVnode->pBackupSnapReader != NULL) {
+    vnodeSnapReaderClose(pVnode->pBackupSnapReader);
+    pVnode->pBackupSnapReader = NULL;
+  }
+  pVnode->backupSnapChainId = 0;
+  pVnode->backupSnapBackupId = 0;
+  pVnode->backupSnapIndex = 0;
+  pVnode->backupSnapLastActivityMs = 0;
+  pVnode->backupSnapIncremental = false;
+}
+
+static bool vnodeBackupSnapTimedOut(const SVnode *pVnode, int64_t nowMs) {
+  if (pVnode->backupSnapLastActivityMs == 0) {
+    return true;
+  }
+  // Guard against a backwards wall-clock jump (e.g. NTP adjustment): a
+  // negative delta must not be treated as "no time elapsed" forever.
+  int64_t elapsedMs = nowMs - pVnode->backupSnapLastActivityMs;
+  return elapsedMs < 0 || elapsedMs > SYNC_SNAP_TIMEOUT_MS;
+}
+
+void vnodeCloseBackupSnap(SVnode *pVnode) {
+  (void)taosThreadMutexLock(&pVnode->backupSnapMutex);
+  vnodeCloseBackupSnapLocked(pVnode);
+  (void)taosThreadMutexUnlock(&pVnode->backupSnapMutex);
+}
+
+void vnodeCheckBackupSnapTimeout(SVnode *pVnode) {
+  int64_t nowMs = taosGetTimestampMs();
+
+  (void)taosThreadMutexLock(&pVnode->backupSnapMutex);
+  if (pVnode->pBackupSnapReader != NULL && vnodeBackupSnapTimedOut(pVnode, nowMs)) {
+    vWarn("vgId:%d, backup snapshot session timed out, last activity:%" PRId64, TD_VID(pVnode),
+          pVnode->backupSnapLastActivityMs);
+    vnodeCloseBackupSnapLocked(pVnode);
+  }
+  (void)taosThreadMutexUnlock(&pVnode->backupSnapMutex);
+}
+
+static int32_t vnodeBuildBackupSnapRsp(SRpcMsg *pMsg, const SBackupVnodeSnapRsp *pRsp) {
+  int32_t contLen = tSerializeSBackupVnodeSnapRsp(NULL, 0, (SBackupVnodeSnapRsp *)pRsp);
+  if (contLen < 0) return contLen;
+
+  pMsg->info.rsp = rpcMallocCont(contLen);
+  if (pMsg->info.rsp == NULL) return terrno;
+
+  pMsg->info.rspLen = tSerializeSBackupVnodeSnapRsp(pMsg->info.rsp, contLen, (SBackupVnodeSnapRsp *)pRsp);
+  if (pMsg->info.rspLen < 0) {
+    int32_t code = pMsg->info.rspLen;
+    rpcFreeCont(pMsg->info.rsp);
+    pMsg->info.rsp = NULL;
+    return code;
+  }
+  return 0;
+}
+
+static bool vnodeBackupSnapOwnerMatches(const SVnode *pVnode, const SBackupVnodeSnapReq *pReq) {
+  return pVnode->backupSnapChainId == pReq->chainId && pVnode->backupSnapBackupId == pReq->backupId &&
+         pVnode->backupSnapIncremental == !pReq->isFull;
+}
+
+int32_t vnodeProcessBackupSnapReq(SVnode *pVnode, SRpcMsg *pMsg) {
+  int32_t             code = 0;
+  SBackupVnodeSnapReq req = {0};
+  SBackupVnodeSnapRsp rsp = {0};
+  SSnapshot           snapshot = {0};
+  SSnapshotParam      param = {0};
+  uint8_t            *pData = NULL;
+  uint32_t            dataLen = 0;
+  int64_t             nowMs = 0;
+  bool                snapOpened = false;
+
+  if (pMsg->contLen < sizeof(SMsgHead) ||
+      tDeserializeSBackupVnodeSnapReq((char *)pMsg->pCont + sizeof(SMsgHead), pMsg->contLen - sizeof(SMsgHead),
+                                       &req) != 0) {
+    return TSDB_CODE_INVALID_MSG;
+  }
+  if (req.vgId != TD_VID(pVnode) || (req.isFull != 0 && req.isFull != 1) ||
+      (!req.isFull && req.baseVersion < 0) ||
+      req.op < BACKUP_VNODE_SNAP_BEGIN || req.op > BACKUP_VNODE_SNAP_RELEASE) {
+    return TSDB_CODE_INVALID_MSG;
+  }
+
+  (void)taosThreadMutexLock(&pVnode->backupSnapMutex);
+  rsp.vgId = req.vgId;
+  nowMs = taosGetTimestampMs();
+  if (pVnode->pBackupSnapReader != NULL && vnodeBackupSnapTimedOut(pVnode, nowMs)) {
+    vWarn("vgId:%d, discard timed-out backup snapshot session before %s", TD_VID(pVnode),
+          req.op == BACKUP_VNODE_SNAP_BEGIN ? "begin" : "request");
+    vnodeCloseBackupSnapLocked(pVnode);
+  }
+
+  switch (req.op) {
+    case BACKUP_VNODE_SNAP_BEGIN:
+      if (pVnode->pBackupSnapReader != NULL) {
+        code = TSDB_CODE_BACKUP_IN_PROGRESS;
+        goto _exit;
+      }
+      code = vnodeGetSnapshot(pVnode, &snapshot);
+      if (code != 0) goto _exit;
+      if (!req.isFull && (req.baseVersion > snapshot.lastApplyIndex || req.baseVersion == INT64_MAX)) {
+        vError("vgId:%d, backup base version:%" PRId64 " exceeds snapshot:%" PRId64, req.vgId,
+               req.baseVersion, snapshot.lastApplyIndex);
+        code = TSDB_CODE_INVALID_DATA_FMT;
+        goto _exit;
+      }
+      if (!req.isFull) {
+        if (req.fileSets == NULL || req.fileSetsLen <= 1 || req.fileSets[req.fileSetsLen - 1] != '\0' ||
+            strlen((char *)req.fileSets) != req.fileSetsLen - 1) {
+          vError("vgId:%d, invalid incremental backup fileset description", req.vgId);
+          code = TSDB_CODE_INVALID_MSG;
+          goto _exit;
+        }
+      }
+      // Metadata and TQ remain full; TSDB uses the incremental base version.
+      param.start = 0;
+      param.end = snapshot.lastApplyIndex;
+      char *fileSetsJson = NULL;
+      code = vnodeBackupSnapReaderOpen(pVnode, &param, req.isFull, (char *)req.fileSets, req.baseVersion,
+                                       &pVnode->pBackupSnapReader, &fileSetsJson);
+      if (code != 0) goto _exit;
+      snapOpened = true;
+
+      if (req.isFull) {
+        code = tsdbSnapRAWReaderFileSetsJson(pVnode->pBackupSnapReader->pTsdbRAWReader, &fileSetsJson);
+        if (code != 0) goto _exit;
+      }
+      pData = (uint8_t *)fileSetsJson;
+      size_t jsonLen = strlen((const char *)pData) + 1;
+      if (jsonLen > INT32_MAX) {
+        code = TSDB_CODE_INVALID_MSG;
+        goto _exit;
+      }
+      rsp.data = pData;
+      rsp.dataLen = (int32_t)jsonLen;
+      pVnode->backupSnapChainId = req.chainId;
+      pVnode->backupSnapBackupId = req.backupId;
+      pVnode->backupSnapIndex = snapshot.lastApplyIndex;
+      pVnode->backupSnapLastActivityMs = nowMs;
+      pVnode->backupSnapIncremental = !req.isFull;
+      rsp.snapshotIndex = snapshot.lastApplyIndex;
+      break;
+
+    case BACKUP_VNODE_SNAP_FETCH:
+      if (pVnode->pBackupSnapReader == NULL) {
+        code = TSDB_CODE_NOT_FOUND;
+        goto _exit;
+      }
+      if (!vnodeBackupSnapOwnerMatches(pVnode, &req)) {
+        // A stale or different backup coordinator must not tear down the
+        // legitimate active session owned by another coordinator.
+        taosMemoryFree(pData);
+        (void)taosThreadMutexUnlock(&pVnode->backupSnapMutex);
+        return TSDB_CODE_NOT_FOUND;
+      }
+      code = vnodeSnapRead(pVnode->pBackupSnapReader, &pData, &dataLen);
+      if (code != 0) {
+        goto _exit;
+      }
+      rsp.snapshotIndex = pVnode->backupSnapIndex;
+      rsp.eof = pData == NULL;
+      rsp.data = pData;
+      rsp.dataLen = (int32_t)dataLen;
+      pVnode->backupSnapLastActivityMs = nowMs;
+      break;
+
+    case BACKUP_VNODE_SNAP_RELEASE:
+      if (!vnodeBackupSnapOwnerMatches(pVnode, &req)) {
+        taosMemoryFree(pData);
+        (void)taosThreadMutexUnlock(&pVnode->backupSnapMutex);
+        return TSDB_CODE_NOT_FOUND;
+      }
+      rsp.snapshotIndex = pVnode->backupSnapIndex;
+      rsp.eof = 1;
+      vnodeCloseBackupSnapLocked(pVnode);
+      break;
+  }
+
+  code = vnodeBuildBackupSnapRsp(pMsg, &rsp);
+
+_exit:
+  taosMemoryFree(pData);
+  if (code != 0 && req.op == BACKUP_VNODE_SNAP_FETCH && pVnode->pBackupSnapReader != NULL) {
+    vnodeCloseBackupSnapLocked(pVnode);
+  } else if (code != 0 && snapOpened) {
+    vnodeCloseBackupSnapLocked(pVnode);
+  }
+  (void)taosThreadMutexUnlock(&pVnode->backupSnapMutex);
+  return code;
+}
+
 int32_t vnodeSnapRead(SVSnapReader *pReader, uint8_t **ppData, uint32_t *nData) {
   int32_t code = 0;
   int32_t lino;
@@ -259,12 +533,12 @@ int32_t vnodeSnapRead(SVSnapReader *pReader, uint8_t **ppData, uint32_t *nData) 
   // CONFIG ==============
   // FIXME: if commit multiple times and the config changed?
   if (!pReader->cfgDone) {
-    char    fName[TSDB_FILENAME_LEN];
+    char    fName[TSDB_PATH_LEN];
     int32_t offset = 0;
 
-    vnodeGetPrimaryPath(pVnode, false, fName, TSDB_FILENAME_LEN);
+    vnodeGetPrimaryPath(pVnode, false, fName, TSDB_PATH_LEN);
     offset = strlen(fName);
-    snprintf(fName + offset, TSDB_FILENAME_LEN - offset - 1, "%s%s", TD_DIRSEP, VND_INFO_FNAME);
+    snprintf(fName + offset, TSDB_PATH_LEN - offset - 1, "%s%s", TD_DIRSEP, VND_INFO_FNAME);
 
     TdFilePtr pFile = taosOpenFile(fName, TD_FILE_READ);
     if (NULL == pFile) {
@@ -308,6 +582,51 @@ int32_t vnodeSnapRead(SVSnapReader *pReader, uint8_t **ppData, uint32_t *nData) 
     goto _exit;
   }
 
+  // WAL_TXN ==============
+  if (!pReader->txnWalDone) {
+    if (pReader->pWalTxnReader == NULL) {
+      code = walSnapTxnReaderOpen(pVnode->pWal, pReader->ever, &pReader->pWalTxnReader);
+      TSDB_CHECK_CODE(code, lino, _exit);
+    }
+
+    uint8_t *pRaw   = NULL;
+    uint32_t rawLen = 0;
+    code = walSnapTxnRead(pReader->pWalTxnReader, &pRaw, &rawLen);
+    TSDB_CHECK_CODE(code, lino, _exit);
+
+    if (pRaw) {
+      uint8_t *pBlock = taosMemoryMalloc(sizeof(SSnapDataHdr) + rawLen);
+      if (pBlock == NULL) {
+        taosMemoryFree(pRaw);
+        TSDB_CHECK_CODE(code = terrno, lino, _exit);
+      }
+      ((SSnapDataHdr *)pBlock)->type = SNAP_DATA_TXN_WAL;
+      ((SSnapDataHdr *)pBlock)->size = rawLen;
+      (void)memcpy(((SSnapDataHdr *)pBlock)->data, pRaw, rawLen);
+      taosMemoryFree(pRaw);
+      *ppData = pBlock;
+      goto _exit;
+    } else {
+      pReader->txnWalDone = 1;
+      walSnapTxnReaderClose(&pReader->pWalTxnReader);
+    }
+  }
+
+  // TXN_META ==============
+  // section 44: replicate txn.meta so that a follower joining via full snapshot
+  // resumes lazy vacuum of large-txn shadow entries instead of leaking PRE_*
+  // status forever. Emitted AFTER WAL_TXN, BEFORE META entries.
+  if (!pReader->txnMetaDone) {
+    code = metaSnapTxnMetaRead(pReader->pVnode->pMeta, ppData);
+    TSDB_CHECK_CODE(code, lino, _exit);
+
+    pReader->txnMetaDone = 1;  // single-shot: one block contains all entries
+    if (*ppData) {
+      goto _exit;
+    }
+    // empty txn.meta: fall through to meta stage
+  }
+
   // META ==============
   if (!pReader->metaDone) {
     // open reader if not
@@ -331,8 +650,9 @@ int32_t vnodeSnapRead(SVSnapReader *pReader, uint8_t **ppData, uint32_t *nData) 
   if (!pReader->tsdbDone) {
     // open if not
     if (pReader->pTsdbReader == NULL) {
-      code = tsdbSnapReaderOpen(pReader->pVnode->pTsdb, pReader->sver, pReader->ever, SNAP_DATA_TSDB, pReader->pRanges,
-                                &pReader->pTsdbReader);
+      // Pass in destDnodeId so the tsdb reader bucketizes send progress per target follower
+      code = tsdbSnapReaderOpen(pReader->pVnode->pTsdb, pReader->sver, pReader->ever, SNAP_DATA_TSDB,
+                                pReader->destDnodeId, pReader->pRanges, &pReader->pTsdbReader);
       TSDB_CHECK_CODE(code, lino, _exit);
     }
 
@@ -349,7 +669,7 @@ int32_t vnodeSnapRead(SVSnapReader *pReader, uint8_t **ppData, uint32_t *nData) 
   if (!pReader->tsdbRAWDone) {
     // open if not
     if (pReader->pTsdbRAWReader == NULL) {
-      code = tsdbSnapRAWReaderOpen(pReader->pVnode->pTsdb, pReader->ever, SNAP_DATA_RAW, &pReader->pTsdbRAWReader);
+      code = tsdbSnapRAWReaderOpen(pReader->pVnode->pTsdb, pReader->ever, SNAP_DATA_RAW, pReader->destDnodeId, &pReader->pTsdbRAWReader);
       TSDB_CHECK_CODE(code, lino, _exit);
     }
 
@@ -360,6 +680,28 @@ int32_t vnodeSnapRead(SVSnapReader *pReader, uint8_t **ppData, uint32_t *nData) 
     } else {
       pReader->tsdbRAWDone = 1;
       tsdbSnapRAWReaderClose(&pReader->pTsdbRAWReader);
+    }
+  }
+
+  // MEDIUM TSDB
+  if (!pReader->tsdbMEDIUMDone) {
+    if (pReader->pTsdbMEDIUMReader == NULL) {
+      vError(
+          "vgId:%d, tsdb snap medium reader is expected to be opened via SNAP_DATA_MEDIUM TLV, but it is not. abort "
+          "reading medium snap data",
+          vgId);
+      code = -1;
+      TSDB_CHECK_CODE(code, lino, _exit);
+    }
+    uint8_t *pData = NULL;
+    code = tsdbSnapMediumRead(pReader->pTsdbMEDIUMReader, &pData);
+    TSDB_CHECK_CODE(code, lino, _exit);
+    if (pData) {
+      *ppData = pData;
+      goto _exit;
+    } else {
+      pReader->tsdbMEDIUMDone = 1;
+      tsdbSnapMediumReaderClose(&pReader->pTsdbMEDIUMReader);
     }
   }
 
@@ -417,13 +759,13 @@ int32_t vnodeSnapRead(SVSnapReader *pReader, uint8_t **ppData, uint32_t *nData) 
       rsmaSnapReaderClose(&pReader->pRsmaReader);
     }
   }
+#endif
 
   if (!pReader->bseDone) {
     if (pReader->pBseReader == NULL) {
       code = bseSnapReaderOpen(pReader->pVnode->pBse, pReader->sver, pReader->ever, &pReader->pBseReader);
       TSDB_CHECK_CODE(code, lino, _exit);
     }
-    int32_t len = 0;
     code = bseSnapReaderRead(pReader->pBseReader, ppData);
     TSDB_CHECK_CODE(code, lino, _exit);
     if (*ppData) {
@@ -434,12 +776,13 @@ int32_t vnodeSnapRead(SVSnapReader *pReader, uint8_t **ppData, uint32_t *nData) 
     }
   }
 
-#endif
   *ppData = NULL;
   *nData = 0;
 
 _exit:
   if (code) {
+    *ppData = NULL;
+    *nData = 0;
     vError("vgId:%d, vnode snapshot read failed at %s:%d since %s", vgId, __FILE__, lino, tstrerror(code));
   } else {
     if (*ppData) {
@@ -473,6 +816,8 @@ struct SVSnapWriter {
   STsdbSnapWriter    *pTsdbSnapWriter;
   // tsdb raw
   STsdbSnapRAWWriter *pTsdbSnapRAWWriter;
+  // tsdb medium
+  STsdbSnapMediumWriter *pTsdbSnapMEDIUMWriter;
   // tq
   STqSnapWriter *pTqSnapHandleWriter;
   STqSnapWriter *pTqSnapOffsetWriter;
@@ -510,12 +855,17 @@ static int32_t vnodeSnapWriterDealWithSnapInfo(SVSnapWriter *pWriter, SSnapshotP
 
     STsdbRepOpts         tsdbOpts = {0};
     TFileSetRangeArray **ppRanges = NULL;
-    int32_t              offset = 0;
+    int64_t              offset = 0;
 
-    while (offset + sizeof(SSyncTLV) < datHead->len) {
-      SSyncTLV *subField = (void *)(datHead->val + offset);
-      offset += sizeof(SSyncTLV) + subField->len;
-      void   *buf = subField->val;
+    for (;;) {
+      const SSyncTLV *subField = NULL;
+      code = tsdbSnapTlvNext(datHead, &offset, &subField);
+      if (code) {
+        vError("vgId:%d, invalid snapshot param TLV since %s", TD_VID(pVnode), tstrerror(code));
+        TSDB_CHECK_CODE(code, lino, _exit);
+      }
+      if (subField == NULL) break;
+      void   *buf = (void *)subField->val;
       int32_t bufLen = subField->len;
 
       switch (subField->typ) {
@@ -534,6 +884,9 @@ static int32_t vnodeSnapWriterDealWithSnapInfo(SVSnapWriter *pWriter, SSnapshotP
         case SNAP_DATA_RAW: {
           code = tDeserializeTsdbRepOpts(buf, bufLen, &tsdbOpts);
           TSDB_CHECK_CODE(code, lino, _exit);
+        } break;
+        case SNAP_DATA_MEDIUM: {
+          // file list for MEDIUM mode  -  writer does not need it
         } break;
         default:
           vError("vgId:%d, unexpected subfield type of snap info. typ:%d", TD_VID(pVnode), subField->typ);
@@ -603,11 +956,36 @@ _exit:
     if (pWriter) taosMemoryFreeClear(pWriter);
     *ppWriter = NULL;
   } else {
-    vInfo("vgId:%d, vnode snapshot writer opened, sver:%" PRId64 " ever:%" PRId64 " commit id:%" PRId64, TD_VID(pVnode),
-          sver, ever, pWriter->commitID);
+    vInfo(KEYOP("restore-dnode", "START")
+              "vgId:%d, vnode snapshot writer opened, sver:%" PRId64 " ever:%" PRId64 " commit id:%" PRId64,
+          TD_VID(pVnode), sver, ever, pWriter->commitID);
     *ppWriter = pWriter;
   }
   return code;
+}
+
+int32_t vnodeBackupSnapWriterOpen(SVnode *pVnode, SSnapshotParam *pParam, const char *baseFileSets,
+                                  SVSnapWriter **ppWriter) {
+  if (pVnode == NULL || pParam == NULL || pParam->data != NULL || ppWriter == NULL) {
+    return TSDB_CODE_INVALID_PARA;
+  }
+  *ppWriter = NULL;
+  TFileSetRangeArray *pRanges = NULL;
+  int32_t code = 0;
+  if (baseFileSets != NULL) {
+    code = tsdbFSetJsonToRangeDiff(baseFileSets, &pRanges);
+    if (code != 0) return code;
+  }
+
+  code = vnodeSnapWriterOpen(pVnode, pParam, ppWriter);
+  if (code != 0) {
+    tsdbTFileSetRangeArrayDestroy(&pRanges);
+    return code;
+  }
+  TFileSetRangeArray **ppWriterRanges = vnodeSnapWriterGetTsdbRanges(*ppWriter, SNAP_DATA_TSDB);
+  tsdbTFileSetRangeArrayDestroy(ppWriterRanges);
+  ppWriterRanges[0] = pRanges;
+  return 0;
 }
 
 static void vnodeSnapWriterDestroyTsdbRanges(SVSnapWriter *pWriter) {
@@ -635,6 +1013,11 @@ int32_t vnodeSnapWriterClose(SVSnapWriter *pWriter, int8_t rollback, SSnapshot *
     code = tsdbSnapRAWWriterPrepareClose(pWriter->pTsdbSnapRAWWriter);
     if (code) goto _exit;
   }
+
+  if (pWriter->pTsdbSnapMEDIUMWriter) {
+    code = tsdbSnapMediumWriterPrepareClose(pWriter->pTsdbSnapMEDIUMWriter);
+    if (code) goto _exit;
+  }
 #ifdef USE_RSMA_ORIGIN
   if (pWriter->pRsmaSnapWriter) {
     code = rsmaSnapWriterPrepareClose(pWriter->pRsmaSnapWriter, rollback);
@@ -645,14 +1028,18 @@ int32_t vnodeSnapWriterClose(SVSnapWriter *pWriter, int8_t rollback, SSnapshot *
   if (!rollback) {
     pWriter->info.state.committed = pWriter->ever;
     pVnode->config = pWriter->info.config;
+    // vnode.json and the tsdb runtime keep cache must be updated together.
+    // Do this only after the snapshot has been accepted so a rollback keeps
+    // the old runtime configuration intact.
+    tsdbSetKeepCfg(pVnode->pTsdb, &pVnode->config.tsdbCfg);
     pVnode->state = (SVState){.committed = pWriter->info.state.committed,
                               .applied = pWriter->info.state.committed,
                               .commitID = pWriter->commitID,
                               .commitTerm = pWriter->info.state.commitTerm,
                               .applyTerm = pWriter->info.state.commitTerm};
     pVnode->statis = pWriter->info.statis;
-    char dir[TSDB_FILENAME_LEN] = {0};
-    vnodeGetPrimaryPath(pVnode, false, dir, TSDB_FILENAME_LEN);
+    char dir[TSDB_PATH_LEN] = {0};
+    vnodeGetPrimaryPath(pVnode, false, dir, TSDB_PATH_LEN);
 
     code = vnodeCommitInfo(dir);
     if (code) goto _exit;
@@ -676,6 +1063,11 @@ int32_t vnodeSnapWriterClose(SVSnapWriter *pWriter, int8_t rollback, SSnapshot *
     code = tsdbSnapRAWWriterClose(&pWriter->pTsdbSnapRAWWriter, rollback);
     if (code) goto _exit;
   }
+
+  if (pWriter->pTsdbSnapMEDIUMWriter) {
+    code = tsdbSnapMediumWriterClose(&pWriter->pTsdbSnapMEDIUMWriter, rollback);
+    if (code) goto _exit;
+  }
 #ifdef USE_TQ
   if (pWriter->pTqSnapHandleWriter) {
     code = tqSnapWriterClose(&pWriter->pTqSnapHandleWriter, rollback);
@@ -692,14 +1084,33 @@ int32_t vnodeSnapWriterClose(SVSnapWriter *pWriter, int8_t rollback, SSnapshot *
     code = rsmaSnapWriterClose(&pWriter->pRsmaSnapWriter, rollback);
     if (code) goto _exit;
   }
+#endif
 
   if (pWriter->pBseSnapWriter) {
     bseSnapWriterClose(&pWriter->pBseSnapWriter, rollback);
+    if (!rollback) {
+      // The BSE files were replaced by the snapshot, so the in-memory tables must be rebuilt from
+      // them; a failure here leaves BSE only partially recovered.
+      code = bseReload(pVnode->pBse);
+      if (code) {
+        vError("vgId:%d, failed to reload bse after applying the snapshot since %s", TD_VID(pVnode),
+               tstrerror(code));
+        goto _exit;
+      }
+    }
   }
 
-#endif
   code = vnodeBegin(pVnode);
   if (code) goto _exit;
+
+  // After snapshot apply, reset in-memory txn state and rebuild from the new
+  // B+ tree content.  txn.idx was populated during metaSnapWrite; txn.meta
+  // was written by metaSnapTxnMetaWrite.  The old in-memory state (from before
+  // the snapshot) is now stale and must be replaced.
+  if (!rollback) {
+    code = vnodeTxnResetForSnapshot(pVnode);
+    if (code) goto _exit;
+  }
 
   (void)taosThreadMutexLock(&pVnode->mutex);
   pVnode->disableWrite = false;
@@ -709,7 +1120,8 @@ _exit:
   if (code) {
     vError("vgId:%d, vnode snapshot writer close failed since %s", TD_VID(pWriter->pVnode), tstrerror(code));
   } else {
-    vInfo("vgId:%d, vnode snapshot writer closed, rollback:%d", TD_VID(pVnode), rollback);
+    vInfo(KEYOP("restore-dnode", "END") "vgId:%d, vnode snapshot writer closed, rollback:%d", TD_VID(pVnode),
+          rollback);
     taosMemoryFree(pWriter);
   }
   if (vnodeEnableBgTask(pVnode) != 0) {
@@ -736,13 +1148,28 @@ static int32_t vnodeSnapWriteInfo(SVSnapWriter *pWriter, uint8_t *pData, uint32_
   pWriter->info.state.commitID = pWriter->commitID;
 
   // modify info as needed
-  char dir[TSDB_FILENAME_LEN] = {0};
-  vnodeGetPrimaryPath(pVnode, false, dir, TSDB_FILENAME_LEN);
+  char dir[TSDB_PATH_LEN] = {0};
+  vnodeGetPrimaryPath(pVnode, false, dir, TSDB_PATH_LEN);
 
-  SVnodeStats vndStats = pWriter->info.config.vndStats;
-  pWriter->info.config = pVnode->config;
-  pWriter->info.config.vndStats = vndStats;
-  vDebug("vgId:%d, save config while write snapshot", pWriter->pVnode->config.vgId);
+  // Keep the target vnode identity and replication topology local.  All other
+  // persisted vnode settings come from the snapshot leader, including the
+  // database retention settings (keep0/keep1/keep2/keepTimeOffset).
+  int32_t  vgId = pVnode->config.vgId;
+  int32_t  mountVgId = pVnode->config.mountVgId;
+  uint64_t dbId = pVnode->config.dbId;
+  char     dbname[TSDB_DB_FNAME_LEN] = {0};
+  SSyncCfg syncCfg = pVnode->config.syncCfg;
+  tstrncpy(dbname, pVnode->config.dbname, sizeof(dbname));
+
+  pWriter->info.config.vgId = vgId;
+  pWriter->info.config.mountVgId = mountVgId;
+  pWriter->info.config.dbId = dbId;
+  tstrncpy(pWriter->info.config.dbname, dbname, sizeof(pWriter->info.config.dbname));
+  pWriter->info.config.syncCfg = syncCfg;
+
+  vInfo("vgId:%d, saved snapshot config, keep0:%d keep1:%d keep2:%d keepTimeOffset:%d", pVnode->config.vgId,
+        pWriter->info.config.tsdbCfg.keep0, pWriter->info.config.tsdbCfg.keep1, pWriter->info.config.tsdbCfg.keep2,
+        pWriter->info.config.tsdbCfg.keepTimeOffset);
   code = vnodeSaveInfo(dir, &pWriter->info);
   TSDB_CHECK_CODE(code, lino, _exit);
 
@@ -786,6 +1213,17 @@ int32_t vnodeSnapWrite(SVSnapWriter *pWriter, uint8_t *pData, uint32_t nData) {
       code = metaSnapWrite(pWriter->pMetaSnapWriter, pData, nData);
       TSDB_CHECK_CODE(code, lino, _exit);
     } break;
+    case SNAP_DATA_TXN_WAL: {
+      code = walSnapTxnWrite(pVnode->pWal, pHdr->data, (uint32_t)pHdr->size);
+      TSDB_CHECK_CODE(code, lino, _exit);
+    } break;
+    case SNAP_DATA_TXN_META: {
+      // section 44: bulk-apply finalized-txn records into local txn.meta so
+      // that follower-side vnodeTxnRebuildFromMeta Phase 2 can resume vacuum.
+      // metaSnapTxnMetaWrite manages its own meta txn (begin/commit/abort).
+      code = metaSnapTxnMetaWrite(pVnode->pMeta, pData, nData);
+      TSDB_CHECK_CODE(code, lino, _exit);
+    } break;
     case SNAP_DATA_TSDB:
     case SNAP_DATA_DEL: {
       // tsdb
@@ -806,6 +1244,15 @@ int32_t vnodeSnapWrite(SVSnapWriter *pWriter, uint8_t *pData, uint32_t nData) {
       }
 
       code = tsdbSnapRAWWrite(pWriter->pTsdbSnapRAWWriter, pHdr);
+      TSDB_CHECK_CODE(code, lino, _exit);
+    } break;
+    case SNAP_DATA_MEDIUM: {
+      if (pWriter->pTsdbSnapMEDIUMWriter == NULL) {
+        code = tsdbSnapMediumWriterOpen(pVnode->pTsdb, pWriter->ever, &pWriter->pTsdbSnapMEDIUMWriter);
+        TSDB_CHECK_CODE(code, lino, _exit);
+      }
+
+      code = tsdbSnapMediumWrite(pWriter->pTsdbSnapMEDIUMWriter, pHdr);
       TSDB_CHECK_CODE(code, lino, _exit);
     } break;
 #ifdef USE_TQ
@@ -844,6 +1291,7 @@ int32_t vnodeSnapWrite(SVSnapWriter *pWriter, uint8_t *pData, uint32_t nData) {
       code = rsmaSnapWrite(pWriter->pRsmaSnapWriter, pData, nData);
       TSDB_CHECK_CODE(code, lino, _exit);
     } break;
+#endif
     case SNAP_DATA_BSE: {
       if (pWriter->pBseSnapWriter == NULL) {
         code = bseSnapWriterOpen(pVnode->pBse, pWriter->sver, pWriter->ever, &pWriter->pBseSnapWriter);
@@ -852,7 +1300,6 @@ int32_t vnodeSnapWrite(SVSnapWriter *pWriter, uint8_t *pData, uint32_t nData) {
       code = bseSnapWriterWrite(pWriter->pBseSnapWriter, pData, nData);
       TSDB_CHECK_CODE(code, lino, _exit);
     } break;
-#endif
     default:
       break;
   }
@@ -862,4 +1309,87 @@ _exit:
            tstrerror(code), pHdr->index, pHdr->type, nData);
   }
   return code;
+}
+
+int32_t vnodeGetSnapSendProgress(SVnode *pVnode, int32_t dnodeId, SSnapSendVnodeInfo *pInfo) {
+  if (pVnode == NULL || pInfo == NULL) return -1;
+
+  STsdb *pTsdb = pVnode->pTsdb;
+  if (pTsdb == NULL) return -1;
+
+  (void)taosThreadRwlockRdlock(&pTsdb->snapStatLock);
+
+  // Progress is already bucketed by target follower dnodeId in pSnapBuckets; here we aggregate all buckets and return to the upper-layer RPC.
+  // If there are no buckets (no snapshot send in progress), return -1 to indicate there is no progress to report.
+  if (pTsdb->pSnapBuckets == NULL || taosArrayGetSize(pTsdb->pSnapBuckets) == 0) {
+    (void)taosThreadRwlockUnlock(&pTsdb->snapStatLock);
+    return -1;
+  }
+
+  int32_t numBuckets      = (int32_t)taosArrayGetSize(pTsdb->pSnapBuckets);
+  int32_t sumTotal        = 0;  // sum of totalFileSets across all buckets
+  int32_t sumFinished     = 0;  // sum of finishedFileSets across all buckets
+  int32_t sumFileSetCount = 0;  // sum of fileSetCount across all buckets (used to allocate the concatenated array)
+  int64_t earliestStart   = 0;  // minimum of all non-zero startTime values; stays 0 if all are 0
+
+  // First pass: aggregate scalars and count the total number of filesets to concatenate
+  for (int32_t b = 0; b < numBuckets; b++) {
+    SSnapSendTargetBucket *pBucket = (SSnapSendTargetBucket *)taosArrayGet(pTsdb->pSnapBuckets, b);
+    if (pBucket == NULL || pBucket->pStat == NULL) continue;  // skip empty buckets
+    SSnapSendVnodeStat *pStat = pBucket->pStat;
+    sumTotal    += pStat->totalFileSets;
+    sumFinished += pStat->finishedFileSets;
+    sumFileSetCount += pStat->fileSetCount;
+    if (pStat->startTime != 0 && (earliestStart == 0 || pStat->startTime < earliestStart)) {
+      earliestStart = pStat->startTime;  // take the earliest non-zero start time
+    }
+  }
+
+  pInfo->vgId             = TD_VID(pVnode);
+  pInfo->dnodeId          = dnodeId;
+  pInfo->totalFileSets    = sumTotal;
+  pInfo->finishedFileSets = sumFinished;
+  pInfo->startTime        = earliestStart;
+
+  pInfo->fileSetCount  = 0;
+  pInfo->pFileSetInfos = NULL;
+
+  // Second pass: concatenate every bucket's fileset details into one contiguous array so the upper layer can show each fileset's transfer progress
+  if (sumFileSetCount > 0) {
+    pInfo->pFileSetInfos = taosMemoryCalloc(sumFileSetCount, sizeof(SSnapSendFileSetInfo));
+    if (pInfo->pFileSetInfos != NULL) {
+      pInfo->fileSetCount = sumFileSetCount;
+      int32_t w = 0;  // write cursor for the destination array
+      for (int32_t b = 0; b < numBuckets; b++) {
+        SSnapSendTargetBucket *pBucket = (SSnapSendTargetBucket *)taosArrayGet(pTsdb->pSnapBuckets, b);
+        if (pBucket == NULL || pBucket->pStat == NULL) continue;  // skip empty buckets
+        SSnapSendVnodeStat *pStat = pBucket->pStat;
+        if (pStat->pFileSetStats == NULL) continue;  // skip if there are no details
+        for (int32_t i = 0; i < pStat->fileSetCount && w < sumFileSetCount; i++) {
+          SSnapSendFileSetStat *pFs   = &pStat->pFileSetStats[i];
+          SSnapSendFileSetInfo *pDest = &pInfo->pFileSetInfos[w++];
+          pDest->fid               = pFs->fid;
+          pDest->fileCount         = pFs->fileCount;
+          pDest->finishedFileCount = pFs->finishedFileCount;
+          pDest->totalSize         = pFs->totalSize;
+          pDest->readSize          = pFs->readSize;
+          pDest->startTime         = pFs->startTime;
+          pDest->sver              = pFs->sver;
+          pDest->ever              = pFs->ever;
+          pDest->transferType      = pFs->transferType;
+        }
+      }
+    } else {
+      // Allocation failed: best-effort, return only scalar progress and leave details empty
+      pInfo->fileSetCount  = 0;
+      pInfo->pFileSetInfos = NULL;
+    }
+  }
+
+  (void)taosThreadRwlockUnlock(&pTsdb->snapStatLock);
+
+  // This RPC is on-demand / low-frequency, so an info-level log helps investigate "which target the progress is shown on" issues
+  vInfo("vgId:%d, get snap send progress: numBuckets:%d totalFileSets:%d finishedFileSets:%d", TD_VID(pVnode),
+        numBuckets, sumTotal, sumFinished);
+  return 0;
 }

@@ -1,6 +1,8 @@
 /*
  * Copyright (c) 2019 TAOS Data, Inc. <jhtao@taosdata.com>
  *
+ * SPDX-License-Identifier: AGPL-3.0-or-later
+ *
  * This program is free software: you can use, redistribute, and/or modify
  * it under the terms of the GNU Affero General Public License, version 3
  * or later ("AGPL"), as published by the Free Software Foundation.
@@ -41,6 +43,8 @@ typedef struct SVgroupDataCxt {
 } SVgroupDataCxt;
 
 int32_t insCreateSName(SName *pName, struct SToken *pTableName, int32_t acctId, const char *dbName, SMsgBuf *pMsgBuf);
+int32_t insBuildNcharConvErrMsg(SMsgBuf *pMsgBuf, const char *source,
+                                const void *charsetCxt);
 int32_t insBuildCreateTbReq(SVCreateTbReq *pTbReq, const char *tname, STag *pTag, int64_t suid, const char *sname,
                             SArray *tagName, uint8_t tagNum, int32_t ttl);
 int32_t insInitBoundColsInfo(int32_t numOfBound, SBoundColInfo *pInfo);

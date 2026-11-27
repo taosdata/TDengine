@@ -1,6 +1,8 @@
 /*
  * Copyright (c) 2019 TAOS Data, Inc. <jhtao@taosdata.com>
  *
+ * SPDX-License-Identifier: AGPL-3.0-or-later
+ *
  * This program is free software: you can use, redistribute, and/or modify
  * it under the terms of the GNU Affero General Public License, version 3
  * or later ("AGPL"), as published by the Free Software Foundation.
@@ -12,6 +14,7 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
+
 #include "mndRetention.h"
 #include "audit.h"
 #include "mndCompact.h"
@@ -516,7 +519,10 @@ int32_t mndProcessKillRetentionReq(SRpcMsg *pReq) {
     TAOS_RETURN(code);
   }
 
-  TAOS_CHECK_GOTO(mndCheckOperPrivilege(pMnode, RPC_MSG_USER(pReq), RPC_MSG_TOKEN(pReq), MND_OPER_TRIM_DB), &lino, _OVER);
+  TAOS_CHECK_GOTO(mndCheckDbPrivilegeByName(pMnode, RPC_MSG_USER(pReq), RPC_MSG_TOKEN(pReq),
+                                            pObj->optrType == TSDB_OPTR_ROLLUP ? MND_OPER_ROLLUP_DB : MND_OPER_TRIM_DB,
+                                            pObj->dbname, false),
+                  &lino, _OVER);
 
   TAOS_CHECK_GOTO(mndKillRetention(pMnode, pReq, pObj), &lino, _OVER);
 

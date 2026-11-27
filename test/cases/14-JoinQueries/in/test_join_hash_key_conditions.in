@@ -1,0 +1,165 @@
+USE hash_join_snap;
+
+SELECT CAST(a.ts AS BIGINT), a.payload, b.metric FROM l_key a JOIN r_key b ON a.ts = b.ts AND a.k_int = b.k_int ORDER BY 1, 2, 3;
+
+SELECT CAST(a.ts AS BIGINT), a.payload, b.metric FROM l_key a JOIN r_key b ON a.ts = b.ts AND a.k_int = b.k_int AND a.k_big = b.k_big ORDER BY 1, 2, 3;
+
+SELECT CAST(a.ts AS BIGINT), a.payload, b.metric FROM l_key a JOIN r_key b ON a.ts = b.ts AND a.k_int = b.k_int AND a.k_big = b.k_big AND a.k_bin = b.k_bin ORDER BY 1, 2, 3;
+
+SELECT CAST(a.ts AS BIGINT), a.payload, b.metric FROM l_key a JOIN r_key b ON a.ts = b.ts AND a.k_tiny = b.k_tiny AND a.k_small = b.k_small AND a.k_int = b.k_int AND a.k_big = b.k_big AND a.k_utiny = b.k_utiny AND a.k_usmall = b.k_usmall AND a.k_uint = b.k_uint AND a.k_ubig = b.k_ubig AND a.k_float = b.k_float AND a.k_double = b.k_double AND a.k_bool = b.k_bool AND a.k_bin = b.k_bin AND a.k_nch = b.k_nch AND a.k_ts = b.k_ts ORDER BY 1, 2, 3;
+
+SELECT CAST(a.ts AS BIGINT), a.payload, b.metric FROM l_key a JOIN r_key b ON a.ts = b.ts AND b.k_int = a.k_int ORDER BY 1, 2, 3;
+
+SELECT CAST(a.ts AS BIGINT), a.payload, b.metric FROM l_key a JOIN r_key b ON a.ts = b.ts AND a.k_bool = b.k_bool ORDER BY 1, 2, 3;
+
+SELECT CAST(a.ts AS BIGINT), a.payload, b.metric FROM l_key a JOIN r_key b ON a.ts = b.ts AND a.k_utiny = b.k_utiny AND a.k_usmall = b.k_usmall AND a.k_uint = b.k_uint AND a.k_ubig = b.k_ubig ORDER BY 1, 2, 3;
+
+SELECT CAST(a.ts AS BIGINT), a.payload, b.metric FROM l_key a JOIN r_key b ON a.ts = b.ts AND a.k_bin = b.k_bin AND a.k_nch = b.k_nch ORDER BY 1, 2, 3;
+
+SELECT CAST(a.ts AS BIGINT), a.payload, b.metric FROM l_key a JOIN r_key b ON a.ts = b.ts AND a.k_ts = b.k_ts ORDER BY 1, 2, 3;
+
+SELECT CAST(a.ts AS BIGINT), a.payload, b.metric FROM l_key a JOIN r_key b ON a.ts = b.ts AND a.k_int = b.k_int AND a.k_bin = b.k_bin AND a.k_bool = b.k_bool AND a.k_ts = b.k_ts ORDER BY 1, 2, 3;
+
+SELECT a.payload, b.metric FROM l_key a JOIN r_key b ON a.k_int = b.k_int ORDER BY 1, 2;
+
+SELECT a.payload, b.metric FROM l_key a JOIN r_key b ON a.k_tiny = b.k_tiny ORDER BY 1, 2;
+
+SELECT a.payload, b.metric FROM l_key a JOIN r_key b ON a.k_small = b.k_small ORDER BY 1, 2;
+
+SELECT a.payload, b.metric FROM l_key a JOIN r_key b ON a.k_big = b.k_big ORDER BY 1, 2;
+
+SELECT a.payload, b.metric FROM l_key a JOIN r_key b ON a.k_utiny = b.k_utiny ORDER BY 1, 2;
+
+SELECT a.payload, b.metric FROM l_key a JOIN r_key b ON a.k_usmall = b.k_usmall ORDER BY 1, 2;
+
+SELECT a.payload, b.metric FROM l_key a JOIN r_key b ON a.k_uint = b.k_uint ORDER BY 1, 2;
+
+SELECT a.payload, b.metric FROM l_key a JOIN r_key b ON a.k_ubig = b.k_ubig ORDER BY 1, 2;
+
+SELECT a.payload, b.metric FROM l_key a JOIN r_key b ON a.k_bool = b.k_bool ORDER BY 1, 2;
+
+SELECT a.payload, b.metric FROM l_key a JOIN r_key b ON a.k_bin = b.k_bin ORDER BY 1, 2;
+
+SELECT a.payload, b.metric FROM l_key a JOIN r_key b ON a.k_nch = b.k_nch ORDER BY 1, 2;
+
+SELECT a.payload, b.metric FROM l_key a JOIN r_key b ON a.k_ts = b.k_ts ORDER BY 1, 2;
+
+SELECT a.payload, b.metric FROM l_key a JOIN r_key b ON a.k_float = b.k_float ORDER BY 1, 2;
+
+SELECT a.payload, b.metric FROM l_key a JOIN r_key b ON a.k_double = b.k_double ORDER BY 1, 2;
+
+SELECT a.payload, b.metric FROM l_key_ext a JOIN r_key_ext b ON a.k_varchar = b.k_varchar ORDER BY 1, 2;
+
+SELECT a.payload, b.metric FROM l_key_ext a JOIN r_key_ext b ON a.k_varbinary = b.k_varbinary ORDER BY 1, 2;
+
+SELECT a.payload, b.metric FROM l_key_ext a JOIN r_key_ext b ON a.k_geometry = b.k_geometry ORDER BY 1, 2;
+
+SELECT a.payload, b.metric FROM l_key_ext a JOIN r_key_ext b ON a.k_dec64 = b.k_dec64 ORDER BY 1, 2;
+
+SELECT a.payload, b.metric FROM l_key_ext a JOIN r_key_ext b ON a.k_dec128 = b.k_dec128 ORDER BY 1, 2;
+
+SELECT a.payload, b.metric FROM l_key_ext a JOIN r_key_ext b ON a.k_varchar = b.k_varchar AND a.k_varbinary = b.k_varbinary AND a.k_dec64 = b.k_dec64 ORDER BY 1, 2;
+
+SELECT a.payload, b.metric FROM l_key a JOIN r_key b ON a.k_int = b.k_int AND a.k_bin = b.k_bin ORDER BY 1, 2;
+
+SELECT a.payload, b.metric FROM l_key a JOIN r_key b ON a.k_tiny = b.k_tiny AND a.k_small = b.k_small AND a.k_int = b.k_int AND a.k_big = b.k_big ORDER BY 1, 2;
+
+SELECT a.payload, b.metric FROM l_key a JOIN r_key b ON a.k_utiny = b.k_utiny AND a.k_usmall = b.k_usmall AND a.k_uint = b.k_uint AND a.k_ubig = b.k_ubig ORDER BY 1, 2;
+
+SELECT a.payload, b.metric FROM l_key a JOIN r_key b ON a.k_int = b.k_int AND a.ts = b.ts ORDER BY 1, 2;
+
+SELECT a.payload, b.metric FROM l_key a JOIN r_key b ON a.k_bin = b.k_bin AND a.ts = b.ts ORDER BY 1, 2;
+
+SELECT a.payload, b.metric FROM l_key a JOIN r_key b ON a.k_int = b.k_int AND a.ts < b.ts ORDER BY 1, 2;
+
+SELECT a.payload, b.metric FROM l_key a JOIN r_key b ON a.k_bool = b.k_bool AND a.ts < b.ts ORDER BY 1, 2;
+
+SELECT a.payload, b.metric FROM l_key a JOIN r_key b ON a.k_int = b.k_int AND a.payload < b.metric ORDER BY 1, 2;
+
+SELECT a.payload, b.metric FROM l_key a JOIN r_key b ON a.k_bin = b.k_bin AND a.payload < b.metric ORDER BY 1, 2;
+
+SELECT a.payload, b.metric FROM l_key a JOIN r_key b ON a.k_int = b.k_int WHERE b.metric >= 30 ORDER BY 1, 2;
+
+SELECT a.payload, b.metric FROM l_key_ext a JOIN r_key_ext b ON a.k_varchar = b.k_varchar AND a.ts < b.ts ORDER BY 1, 2;
+
+SELECT a.payload, b.metric FROM l_key_ext a JOIN r_key_ext b ON a.k_dec64 = b.k_dec64 AND a.payload < b.metric ORDER BY 1, 2;
+
+SELECT a.payload, b.metric FROM l_key_ext a JOIN r_key_ext b ON a.k_varbinary = b.k_varbinary WHERE b.metric >= 202 ORDER BY 1, 2;
+
+SELECT a.payload, b.metric FROM l_key a JOIN r_key b ON a.k_int = b.k_int ORDER BY 1, 2 LIMIT 3;
+
+SELECT a.payload, b.metric FROM l_key_ext a JOIN r_key_ext b ON a.k_dec64 = b.k_dec64 ORDER BY 1, 2 LIMIT 2;
+
+SELECT a.k_bool, COUNT(*) FROM l_key a JOIN r_key b ON a.k_bool = b.k_bool WHERE b.metric >= 10 PARTITION BY a.k_bool ORDER BY 1;
+
+SELECT a.k_varchar, COUNT(*) FROM l_key_ext a JOIN r_key_ext b ON a.k_varchar = b.k_varchar PARTITION BY a.k_varchar ORDER BY 1;
+
+SELECT a.payload, b.metric FROM l_key a JOIN r_key b ON a.k_int = b.k_int AND a.k_bin = b.k_bin AND a.ts = b.ts ORDER BY 1, 2;
+
+SELECT a.payload, b.metric FROM l_key a JOIN r_key b ON a.k_int = b.k_int AND a.k_bin = b.k_bin AND a.ts < b.ts ORDER BY 1, 2;
+
+SELECT a.payload, b.metric FROM l_key a JOIN r_key b ON a.k_int = b.k_int AND a.k_bin = b.k_bin AND a.payload < b.metric ORDER BY 1, 2;
+
+SELECT a.payload, b.metric FROM l_key a JOIN r_key b ON a.k_int = b.k_int AND a.k_bin = b.k_bin WHERE b.metric >= 40 ORDER BY 1, 2;
+
+SELECT a.payload, b.metric FROM l_key a JOIN r_key b ON a.k_int = b.k_int AND a.k_bin = b.k_bin ORDER BY 1, 2 LIMIT 2;
+
+SELECT a.k_bin, COUNT(*) FROM l_key a JOIN r_key b ON a.k_int = b.k_int AND a.k_bin = b.k_bin PARTITION BY a.k_bin ORDER BY 1;
+
+SELECT a.payload, b.metric FROM l_key_ext a JOIN r_key_ext b ON a.k_varchar = b.k_varchar AND a.k_varbinary = b.k_varbinary AND a.k_dec64 = b.k_dec64 AND a.ts < b.ts ORDER BY 1, 2;
+
+SELECT a.payload, b.metric FROM l_key_ext a JOIN r_key_ext b ON a.k_varchar = b.k_varchar AND a.k_varbinary = b.k_varbinary AND a.k_dec64 = b.k_dec64 AND a.payload < b.metric ORDER BY 1, 2;
+
+SELECT a.payload, b.metric FROM l_key_ext a JOIN r_key_ext b ON a.k_varchar = b.k_varchar AND a.k_varbinary = b.k_varbinary AND a.k_dec64 = b.k_dec64 WHERE b.metric >= 202 ORDER BY 1, 2;
+
+SELECT a.payload, b.metric FROM l_key a JOIN r_key b ON a.k_int + 1 = b.k_int ORDER BY 1, 2;
+
+SELECT a.payload, b.metric FROM l_key_blob a JOIN r_key_blob b ON a.k_blob = b.k_blob ORDER BY 1, 2;
+
+SELECT a.payload, b.metric FROM l_key_mediumblob a JOIN r_key_mediumblob b ON a.k_mediumblob = b.k_mediumblob ORDER BY 1, 2;
+
+SELECT a.payload, b.metric FROM l_key_json a JOIN r_key_json b ON a.k_json = b.k_json ORDER BY 1, 2;
+
+SELECT a.payload, b.metric FROM l_key_json a JOIN r_key_json b ON a.ts = b.ts AND a.k_json->'k' = b.k_json->'k' ORDER BY 1, 2;
+
+SELECT a.payload, b.metric FROM l_key_json a JOIN r_key_json b ON a.k_json->'k' = b.k_json->'k' ORDER BY 1, 2;
+
+SELECT a.payload, b.metric FROM ( SELECT k_int, payload FROM l_key ) a JOIN ( SELECT k_int, metric FROM r_key ) b ON a.k_int = b.k_int ORDER BY 1, 2;
+
+SELECT a.payload, b.metric FROM ( SELECT k_bin, k_nch, payload FROM l_key ) a JOIN ( SELECT k_bin, k_nch, metric FROM r_key ) b ON a.k_bin = b.k_bin AND a.k_nch = b.k_nch ORDER BY 1, 2;
+
+SELECT a.payload, b.metric FROM ( SELECT k_bool, payload FROM l_key ) a JOIN ( SELECT k_bool, metric FROM r_key ) b ON a.k_bool = b.k_bool ORDER BY 1, 2;
+
+SELECT a.payload, b.metric FROM l_key a LEFT JOIN r_key b ON a.k_int = b.k_int ORDER BY 1, 2;
+
+SELECT a.payload, b.metric FROM l_key a RIGHT JOIN r_key b ON a.k_bin = b.k_bin ORDER BY 1, 2;
+
+SELECT a.payload, b.metric FROM l_key a FULL JOIN r_key b ON a.k_bool = b.k_bool AND a.k_bin = b.k_bin ORDER BY 1, 2;
+
+SELECT a.payload FROM l_key a LEFT SEMI JOIN r_key b ON a.k_int = b.k_int AND a.payload < b.metric ORDER BY 1;
+
+SELECT a.payload FROM l_key a LEFT ANTI JOIN r_key b ON a.k_int = b.k_int AND a.payload < b.metric ORDER BY 1;
+
+SELECT a.payload, b.metric FROM l_key a RIGHT SEMI JOIN r_key b ON a.k_bool = b.k_bool AND a.k_bin = b.k_bin ORDER BY 1, 2;
+
+SELECT a.payload, b.metric FROM l_key a RIGHT ANTI JOIN r_key b ON a.k_bool = b.k_bool AND a.k_bin = b.k_bin ORDER BY 1, 2;
+
+SELECT a.payload, b.metric FROM l_key_ext a LEFT JOIN r_key_ext b ON a.k_varchar = b.k_varchar AND a.k_varbinary = b.k_varbinary ORDER BY 1, 2;
+
+SELECT a.payload, b.metric FROM l_key_ext a FULL JOIN r_key_ext b ON a.k_dec64 = b.k_dec64 AND a.k_dec128 = b.k_dec128 ORDER BY 1, 2;
+
+SELECT a.payload FROM l_key_ext a LEFT SEMI JOIN r_key_ext b ON a.k_geometry = b.k_geometry AND a.payload < b.metric ORDER BY 1;
+
+SELECT a.payload FROM l_key_ext a LEFT ANTI JOIN r_key_ext b ON a.k_geometry = b.k_geometry AND a.payload < b.metric ORDER BY 1;
+
+SELECT a.k_bool, COUNT(*), SUM(a.payload), SUM(b.metric) FROM l_key a JOIN r_key b ON a.k_bool = b.k_bool AND a.k_bin = b.k_bin WHERE b.metric >= 20 PARTITION BY a.k_bool ORDER BY 1;
+
+SELECT a.k_varchar, COUNT(*), SUM(a.payload), SUM(b.metric) FROM l_key_ext a JOIN r_key_ext b ON a.k_varchar = b.k_varchar AND a.k_varbinary = b.k_varbinary WHERE b.metric >= 200 PARTITION BY a.k_varchar ORDER BY 1;
+
+SELECT a.payload, b.metric FROM l_key a JOIN r_key b ON a.k_int = b.k_int AND (a.payload < b.metric OR a.k_bool = b.k_bool) ORDER BY 1, 2;
+
+SELECT a.payload, b.metric FROM l_key a JOIN r_key b ON a.k_int = b.k_int AND (a.payload < b.metric AND a.k_bool = b.k_bool) ORDER BY 1, 2;
+
+SELECT a.payload, b.metric FROM l_key_ext a JOIN r_key_ext b ON a.k_varchar = b.k_varchar AND (a.payload < b.metric OR a.k_dec64 = b.k_dec64) ORDER BY 1, 2;
+
+SELECT a.payload, b.metric FROM l_key_ext a JOIN r_key_ext b ON a.k_varchar = b.k_varchar AND (a.payload < b.metric AND a.k_dec64 = b.k_dec64) ORDER BY 1, 2;

@@ -1,12 +1,205 @@
+# Copyright (c) 2025 TAOS Data, Inc. <jhtao@taosdata.com>
+#
+# SPDX-License-Identifier: AGPL-3.0-or-later
+#
+# This program is free software: you can use, redistribute, and/or modify
+# it under the terms of the GNU Affero General Public License, version 3
+# or later ("AGPL"), as published by the Free Software Foundation.
+#
+# This program is distributed in the hope that it will be useful, but WITHOUT
+# ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+# FITNESS FOR A PARTICULAR PURPOSE.
+#
+# You should have received a copy of the GNU Affero General Public License
+# along with this program. If not, see <http://www.gnu.org/licenses/>.
+
+import platform
+
 from new_test_framework.utils import tdLog, tdSql, sc, clusterComCheck
 
 
 class TestJoinFull:
     updatecfgDict = {'debugFlag': 131, 'asyncLog': 1, 'qDebugFlag': 143, 'cDebugFlag': 131, 'rpcDebugFlag': 131}
-    clientCfgDict = {'debugFlag': 131, 'asyncLog': 1, 'qDebugFlag': 143, 'cDebugFlag': 131, 'rpcDebugFlag': 131}
+    clientCfgDict = {'debugFlag': 131, 'asyncLog': 1, 'qDebugFlag': 143, 'cDebugFlag': 131, 'rpcDebugFlag': 131, 'timezone': 'Asia/Shanghai'}
     updatecfgDict["clientCfg"] = clientCfgDict
     def setup_class(cls):
         tdLog.debug(f"start to execute {__file__}")
+
+    def check_join_without_on(self, sql):
+        tdSql.error(
+            sql,
+            expectedErrno=-2147473920,
+            expectErrInfo="JOIN requires an ON clause",
+            fullMatched=False,
+        )
+
+    def join_nested_timetruncate_timezone(self):
+        tdSql.prepare(dbname="test_join_tz", vgroups=3)
+        tdSql.execute(f"use test_join_tz;")
+        tdSql.query("show local variables like 'timezone'")
+        assert "Asia/Shanghai" in tdSql.queryResult[0][1]
+
+        tdSql.execute(f"create stable sta (ts timestamp, col1 int) tags(t1 int);")
+        tdSql.execute(f"create table tba1 using sta tags(1);")
+        tdSql.execute(f"create table tba2 using sta tags(2);")
+
+        tdSql.execute(f"insert into tba1 values ('2023-11-17 16:29:00', 1);")
+        tdSql.execute(f"insert into tba1 values ('2023-11-17 16:29:02', 3);")
+        tdSql.execute(f"insert into tba1 values ('2023-11-17 16:29:03', 4);")
+        tdSql.execute(f"insert into tba1 values ('2023-11-17 16:29:04', 5);")
+
+        tdSql.execute(f"insert into tba2 values ('2023-11-17 16:29:00', 2);")
+        tdSql.execute(f"insert into tba2 values ('2023-11-17 16:29:01', 3);")
+        tdSql.execute(f"insert into tba2 values ('2023-11-17 16:29:03', 5);")
+        tdSql.execute(f"insert into tba2 values ('2023-11-17 16:29:05', 7);")
+
+        tdSql.query(
+            f"select count(*) from (select ts from sta) a, (select ts from sta) b where a.ts = b.ts;"
+        )
+        tdSql.checkData(0, 0, 12)
+
+        tdSql.query(
+            f"select count(*) from (select timetruncate(ts, 1d) ts from sta) a, (select timetruncate(ts, 1d, '-0800') ts from sta) b where a.ts = b.ts;"
+        )
+        tdSql.checkData(0, 0, 64)
+
+        tdSql.query(
+            f"select count(*) from (select timetruncate(ts, 1d) ts from sta) a, (select timetruncate(ts, 1d, '+0800') ts from sta) b where a.ts = b.ts;"
+        )
+        tdSql.checkData(0, 0, 0)
+
+        tdSql.query(
+            f"select count(*) from (select timetruncate(ts, 1d, '-0700') ts from sta) a, (select timetruncate(ts, 1d, '-0800') ts from sta) b where a.ts = b.ts;"
+        )
+        tdSql.checkData(0, 0, 0)
+
+        tdSql.query(
+            f"select count(*) from (select timetruncate(ts, 1d, '+0000') ts from sta) a, (select timetruncate(ts, 1d, '-0800') ts from sta) b where a.ts = b.ts;"
+        )
+        tdSql.checkData(0, 0, 0)
+
+        tdSql.query(
+            f"select count(*) from (select timetruncate(ts, 1d, 0) ts from sta) a, (select timetruncate(ts, 1d, '+0000') ts from sta) b where a.ts = b.ts;"
+        )
+        tdSql.checkData(0, 0, 64)
+
+        tdSql.query(
+            f"select count(*) from (select timetruncate(ts, 1w) ts from sta) a, (select timetruncate(ts, 1w, '-0800') ts from sta) b where a.ts = b.ts;"
+        )
+        tdSql.checkData(0, 0, 64)
+
+        if platform.system().lower() != "windows":
+            tdSql.execute(f"create table dst(ts timestamp, case_id int);")
+            tdSql.execute(f"insert into dst values ('2023-07-01 12:00:00', 1);")
+            tdSql.execute(f"insert into dst values ('2023-01-01 12:00:00', 2);")
+
+            tdSql.query(
+                f"select count(*) from (select timetruncate(ts, 1d, 'America/New_York') ts from dst where case_id = 1) a, (select timetruncate(ts, 1d, '+0400') ts from dst where case_id = 1) b where a.ts = b.ts;"
+            )
+            tdSql.checkData(0, 0, 1)
+
+            tdSql.query(
+                f"select count(*) from (select timetruncate(ts, 1d, 'America/New_York') ts from dst where case_id = 1) a, (select timetruncate(ts, 1d, '+0500') ts from dst where case_id = 1) b where a.ts = b.ts;"
+            )
+            tdSql.checkData(0, 0, 0)
+
+            tdSql.query(
+                f"select count(*) from (select timetruncate(ts, 1d, 'America/New_York') ts from dst where case_id = 2) a, (select timetruncate(ts, 1d, '+0500') ts from dst where case_id = 2) b where a.ts = b.ts;"
+            )
+            tdSql.checkData(0, 0, 1)
+
+            tdSql.query(
+                f"select count(*) from (select timetruncate(ts, 1d, 'America/Chicago') ts from dst where case_id = 1) a, (select timetruncate(ts, 1d, '+0500') ts from dst where case_id = 1) b where a.ts = b.ts;"
+            )
+            tdSql.checkData(0, 0, 1)
+
+            tdSql.query(
+                f"select count(*) from (select timetruncate(ts, 1d, 'Europe/London') ts from dst where case_id = 1) a, (select timetruncate(ts, 1d, '-0100') ts from dst where case_id = 1) b where a.ts = b.ts;"
+            )
+            tdSql.checkData(0, 0, 1)
+
+            tdSql.query(
+                f"select count(*) from (select timetruncate(ts, 1d, 'Europe/London') ts from dst where case_id = 2) a, (select timetruncate(ts, 1d, '+0000') ts from dst where case_id = 2) b where a.ts = b.ts;"
+            )
+            tdSql.checkData(0, 0, 1)
+
+        tdSql.query(
+            f"select a.ts from sta a ,(select TIMETRUNCATE(ts,1d,'-0800') ts from sta) b where timetruncate(a.ts, 1d) = b.ts;"
+        )
+        tdSql.checkRows(64)
+
+        tdSql.query(
+            f"select a.ts from sta a ,(select TIMETRUNCATE(ts,1w,'-0800') ts from sta) b where timetruncate(a.ts, 1w) = b.ts;"
+        )
+        tdSql.checkRows(64)
+
+        print("join_nested_timetruncate_timezone ......................... [ passed ]")
+
+    def _prepare_cross_db_join_data(self):
+        tdSql.execute("drop database if exists testb;")
+        tdSql.execute("create database testb precision 'us';")
+        tdSql.execute("use testb;")
+
+        tdSql.execute("create table stb1(ts timestamp, f int,g int) tags (t int);")
+        tdSql.execute(
+            "insert into ctb11 using stb1 tags(1) values('2023-10-16 09:10:11', 110111, 1101110);"
+        )
+        tdSql.execute(
+            "insert into ctb12 using stb1 tags(2) values('2023-10-16 09:10:12', 110112, 1101120);"
+        )
+        tdSql.execute(
+            "insert into ctb13 using stb1 tags(3) values('2023-10-16 09:10:13', 110113, 1101130);"
+        )
+        tdSql.execute(
+            "insert into ctb14 using stb1 tags(4) values('2023-10-16 09:10:14', 110114, 1101140);"
+        )
+
+        tdSql.execute("create table st2(ts timestamp, f int, g int) tags (t int);")
+        tdSql.execute(
+            "insert into ctb21 using st2 tags(1) values('2023-10-16 09:10:11', 110221, 1102210);"
+        )
+        tdSql.execute(
+            "insert into ctb22 using st2 tags(2) values('2023-10-16 09:10:12', 110222, 1102220);"
+        )
+        tdSql.execute(
+            "insert into ctb23 using st2 tags(3) values('2023-10-16 09:10:13', 110223, 1102230);"
+        )
+        tdSql.execute(
+            "insert into ctb24 using st2 tags(4) values('2023-10-16 09:10:14', 110224, 1102240);"
+        )
+
+        tdSql.execute("drop database if exists testb1;")
+        tdSql.execute("create database testb1 precision 'us';")
+        tdSql.execute("use testb1;")
+
+        tdSql.execute("create table stb21(ts timestamp, f int,g int) tags (t int);")
+        tdSql.execute(
+            "insert into ctb11 using stb21 tags(1) values('2023-10-16 09:10:11', 110111, 1101110);"
+        )
+        tdSql.execute(
+            "insert into ctb12 using stb21 tags(2) values('2023-10-16 09:10:12', 110112, 1101120);"
+        )
+        tdSql.execute(
+            "insert into ctb13 using stb21 tags(3) values('2023-10-16 09:10:13', 110113, 1101130);"
+        )
+        tdSql.execute(
+            "insert into ctb14 using stb21 tags(4) values('2023-10-16 09:10:14', 110114, 1101140);"
+        )
+
+        tdSql.execute("create table st22(ts timestamp, f int, g int) tags (t int);")
+        tdSql.execute(
+            "insert into ctb21 using st22 tags(1) values('2023-10-16 09:10:11', 110221, 1102210);"
+        )
+        tdSql.execute(
+            "insert into ctb22 using st22 tags(2) values('2023-10-16 09:10:12', 110222, 1102220);"
+        )
+        tdSql.execute(
+            "insert into ctb23 using st22 tags(3) values('2023-10-16 09:10:13', 110223, 1102230);"
+        )
+        tdSql.execute(
+            "insert into ctb24 using st22 tags(4) values('2023-10-16 09:10:14', 110224, 1102240);"
+        )
+
 
     def test_join_full(self):
         """Join mode
@@ -36,7 +229,7 @@ class TestJoinFull:
 
         Since: v3.0.0.0
 
-        Labels: common,ci
+        Labels: common,ci,integration,functional
 
         Jira: None
 
@@ -101,68 +294,6 @@ class TestJoinFull:
             f"insert into ctv1 using stv tags(1) values('2023-10-16 10:10:10', 1);"
         )
 
-        tdSql.prepare(dbname="testb", vgroups=1, PRECISION="us")
-        tdSql.execute(f"use testb;")
-
-        tdSql.execute(f"create table stb1(ts timestamp, f int,g int) tags (t int);")
-        tdSql.execute(
-            f"insert into ctb11 using stb1 tags(1) values('2023-10-16 09:10:11', 110111, 1101110);"
-        )
-        tdSql.execute(
-            f"insert into ctb12 using stb1 tags(2) values('2023-10-16 09:10:12', 110112, 1101120);"
-        )
-        tdSql.execute(
-            f"insert into ctb13 using stb1 tags(3) values('2023-10-16 09:10:13', 110113, 1101130);"
-        )
-        tdSql.execute(
-            f"insert into ctb14 using stb1 tags(4) values('2023-10-16 09:10:14', 110114, 1101140);"
-        )
-
-        tdSql.execute(f"create table st2(ts timestamp, f int, g int) tags (t int);")
-        tdSql.execute(
-            f"insert into ctb21 using st2 tags(1) values('2023-10-16 09:10:11', 110221, 1102210);"
-        )
-        tdSql.execute(
-            f"insert into ctb22 using st2 tags(2) values('2023-10-16 09:10:12', 110222, 1102220);"
-        )
-        tdSql.execute(
-            f"insert into ctb23 using st2 tags(3) values('2023-10-16 09:10:13', 110223, 1102230);"
-        )
-        tdSql.execute(
-            f"insert into ctb24 using st2 tags(4) values('2023-10-16 09:10:14', 110224, 1102240);"
-        )
-
-        tdSql.prepare(dbname="testb1", vgroups=1, PRECISION="us")
-        tdSql.execute(f"use testb1;")
-
-        tdSql.execute(f"create table stb21(ts timestamp, f int,g int) tags (t int);")
-        tdSql.execute(
-            f"insert into ctb11 using stb21 tags(1) values('2023-10-16 09:10:11', 110111, 1101110);"
-        )
-        tdSql.execute(
-            f"insert into ctb12 using stb21 tags(2) values('2023-10-16 09:10:12', 110112, 1101120);"
-        )
-        tdSql.execute(
-            f"insert into ctb13 using stb21 tags(3) values('2023-10-16 09:10:13', 110113, 1101130);"
-        )
-        tdSql.execute(
-            f"insert into ctb14 using stb21 tags(4) values('2023-10-16 09:10:14', 110114, 1101140);"
-        )
-
-        tdSql.execute(f"create table st22(ts timestamp, f int, g int) tags (t int);")
-        tdSql.execute(
-            f"insert into ctb21 using st22 tags(1) values('2023-10-16 09:10:11', 110221, 1102210);"
-        )
-        tdSql.execute(
-            f"insert into ctb22 using st22 tags(2) values('2023-10-16 09:10:12', 110222, 1102220);"
-        )
-        tdSql.execute(
-            f"insert into ctb23 using st22 tags(3) values('2023-10-16 09:10:13', 110223, 1102230);"
-        )
-        tdSql.execute(
-            f"insert into ctb24 using st22 tags(4) values('2023-10-16 09:10:14', 110224, 1102240);"
-        )
-
         tdSql.prepare(dbname="testc", vgroups=3)
         tdSql.execute(f"use testc")
 
@@ -197,6 +328,9 @@ class TestJoinFull:
         tdSql.execute(
             f'insert into ctb22 using stc2 tags("{json22}") values("2023-10-16 09:10:12", 220);'
         )
+
+        self._prepare_cross_db_join_data()
+        tdSql.execute("use testc;")
 
         self.inner_join()
         self.left_join()
@@ -244,6 +378,30 @@ class TestJoinFull:
         self.join_boundary()
         self.join_explain()
         self.join_json()
+
+    def test_join_nested_timetruncate_timezone(self):
+        """Nested join with TIMETRUNCATE timezone offset
+
+        1. Verify raw timestamp self-join cardinality.
+        2. Verify session timezone Asia/Shanghai matches explicit -0800 for 1d TIMETRUNCATE.
+        3. Verify explicit +0800 follows POSIX west-of-UTC semantics and differs from Asia/Shanghai.
+        4. Verify explicit -0700 and -0800 are different day boundaries.
+        5. Verify nested join keeps the same TIMETRUNCATE timezone semantics.
+
+        Catalog:
+            - Query:Join
+
+        Since: v3.4.1.6
+
+        Labels: common,ci
+
+        Jira: None
+
+        History:
+            - 2026-07-16 Simon Guan added TIMETRUNCATE timezone regression coverage
+
+        """
+        self.join_nested_timetruncate_timezone()
 
     def inner_join(self):
         tdSql.execute(f"use test0;")
@@ -338,12 +496,12 @@ class TestJoinFull:
         tdSql.checkData(1, 1, "2023-11-17 16:29:04")
 
         tdSql.query(
-            f"select c.ts from ((select a.ts from sta a join sta b where a.ts=b.ts order by a.ts) union (select b.ts from sta a join sta b where a.ts=b.ts) order by 1) c join ((select a.ts from sta a join sta b where a.ts=b.ts order by a.ts) union (select b.ts from sta a join sta b where a.ts=b.ts) order by 1) d on c.ts = d.ts;"
+            f"select c.ts from ((select a.ts from sta a join sta b on a.ts=b.ts order by a.ts) union (select b.ts from sta a join sta b on a.ts=b.ts) order by 1) c join ((select a.ts from sta a join sta b on a.ts=b.ts order by a.ts) union (select b.ts from sta a join sta b on a.ts=b.ts) order by 1) d on c.ts = d.ts;"
         )
         tdSql.checkRows(6)
 
         tdSql.query(
-            f"select c.ts from ((select a.ts from sta a join sta b where a.ts=b.ts order by a.ts) union all (select b.ts from sta a join sta b where a.ts=b.ts) order by 1) c join ((select a.ts from sta a join sta b where a.ts=b.ts order by a.ts) union all (select b.ts from sta a join sta b where a.ts=b.ts) order by 1) d on c.ts = d.ts;"
+            f"select c.ts from ((select a.ts from sta a join sta b on a.ts=b.ts order by a.ts) union all (select b.ts from sta a join sta b on a.ts=b.ts) order by 1) c join ((select a.ts from sta a join sta b on a.ts=b.ts order by a.ts) union all (select b.ts from sta a join sta b on a.ts=b.ts) order by 1) d on c.ts = d.ts;"
         )
         tdSql.checkRows(144)
 
@@ -358,37 +516,37 @@ class TestJoinFull:
         tdSql.checkRows(8)
 
         tdSql.query(
-            f"select * from testb.stb1 a join testb.st2 b where a.ts = b.ts and a.t = b.t;"
+            f"select * from testb.stb1 a join testb.st2 b on a.ts = b.ts and a.t = b.t;"
         )
         tdSql.checkRows(4)
 
         tdSql.query(
-            f"select * from testb.stb1 a join testb1.stb21 b where a.ts = b.ts and a.t = b.t;"
+            f"select * from testb.stb1 a join testb1.stb21 b on a.ts = b.ts and a.t = b.t;"
         )
         tdSql.checkRows(4)
 
         tdSql.query(
-            f"select * from testb.stb1 b join testb1.stb21 a where a.ts = b.ts and a.t = b.t;"
+            f"select * from testb.stb1 b join testb1.stb21 a on a.ts = b.ts and a.t = b.t;"
         )
         tdSql.checkRows(4)
 
         tdSql.query(
-            f"select * from testb.stb1 a join testb1.stb21 b where b.ts = a.ts and b.t = a.t;"
+            f"select * from testb.stb1 a join testb1.stb21 b on b.ts = a.ts and b.t = a.t;"
         )
         tdSql.checkRows(4)
 
         tdSql.query(
-            f"select * from testb.stb1 b join testb1.stb21 a where b.ts = a.ts and b.t = a.t;"
+            f"select * from testb.stb1 b join testb1.stb21 a on b.ts = a.ts and b.t = a.t;"
         )
         tdSql.checkRows(4)
 
         tdSql.query(
-            f"select * from testb.stb1 b join testb1.stb21 a where a.ts = b.ts and b.t = a.t;"
+            f"select * from testb.stb1 b join testb1.stb21 a on a.ts = b.ts and b.t = a.t;"
         )
         tdSql.checkRows(4)
 
         tdSql.query(
-            f"select * from testb.stb1 b join testb1.stb21 a where b.ts = a.ts and a.t = b.t;"
+            f"select * from testb.stb1 b join testb1.stb21 a on b.ts = a.ts and a.t = b.t;"
         )
         tdSql.checkRows(4)
 
@@ -834,10 +992,16 @@ class TestJoinFull:
         tdSql.error(
             f"select a.ts, b.ts from sta a left semi join sta b jlimit 3 where a.ts > b.ts;"
         )
-        tdSql.error(
-            f"select a.ts, b.ts from sta a left semi join sta b where a.ts > b.ts;"
+        # Both child tables start at the same timestamp, so the first match
+        # has b.ts = 16:29:00. WHERE removes the two earliest left rows.
+        tdSql.query(
+            f"select a.ts, b.ts from sta a left semi join sta b on a.ts > b.ts order by a.ts;"
         )
-        tdSql.error(
+        tdSql.checkRows(6)
+        for row, second in enumerate((1, 2, 3, 3, 4, 5)):
+            tdSql.checkData(row, 0, f"2023-11-17 16:29:0{second}")
+            tdSql.checkData(row, 1, "2023-11-17 16:29:00")
+        tdSql.query(
             f"select a.ts, b.ts from sta a left semi join sta b on a.ts > 1 where a.ts = b.ts;"
         )
 
@@ -1536,7 +1700,8 @@ class TestJoinFull:
         tdSql.checkData(1, 1, "2023-11-17 16:29:04")
 
         tdSql.query(
-            f"select a.ts, b.ts from sta a left asof join sta b jlimit 2 order by a.ts desc;"
+            "select a.ts, b.ts from sta a left asof join sta b "
+            "jlimit 2 order by a.ts desc, b.ts desc;"
         )
         tdSql.checkRows(16)
         tdSql.checkData(0, 0, "2023-11-17 16:29:05")
@@ -1667,15 +1832,20 @@ class TestJoinFull:
         tdSql.error(
             f"select a.ts, b.ts from tba1 a left asof join tba2 b on a.ts > b.ts and a.col1 = 1 jlimit 2 order by a.ts;"
         )
-        tdSql.error(
-            f"select a.t1, a.ts, b.ts from sta a left asof join sta b on a.ts <= b.ts and a.t1=b.t1 and a.col1=b.col1 jlimit 2 having(a.ts>0) order by a.t1, a.ts, b.ts;"
+        tdSql.query(
+            "select a.t1, a.ts, b.ts from sta a left asof join sta b "
+            "on a.ts <= b.ts and a.t1=b.t1 and a.col1=b.col1 "
+            "jlimit 2 having(a.ts>0) order by a.t1, a.ts, b.ts;"
         )
+        tdSql.checkRows(8)
         tdSql.error(
             f"select count(*) from sta a left asof join sta b on a.ts <= b.ts and a.t1=b.t1 and a.col1=b.col1 jlimit 2 where a.ts > '2023-11-17 16:29:00.000' slimit 1;"
         )
-        tdSql.error(
-            f"select a.ts, b.ts from (select * from sta) a left asof join sta b where a.ts = b.ts;"
+        tdSql.query(
+            "select a.ts, b.ts from (select * from sta) a left asof join sta "
+            "b where a.ts = b.ts;"
         )
+        tdSql.checkRows(8)
         tdSql.error(f"select a.ts, b.ts from tba1 a left asof join tba2 b jlimit 1025;")
 
         tdSql.error(
@@ -2254,7 +2424,8 @@ class TestJoinFull:
         tdSql.checkData(2, 1, "2023-11-17 16:29:03")
 
         tdSql.query(
-            f"select a.ts, b.ts from sta a left window join sta b window_offset(-1s, 1s) order by a.ts desc;"
+            "select a.ts, b.ts from sta a left window join sta b "
+            "window_offset(-1s, 1s) order by a.ts desc, b.ts desc;"
         )
         tdSql.checkRows(28)
         tdSql.checkData(0, 0, "2023-11-17 16:29:05")
@@ -2265,7 +2436,8 @@ class TestJoinFull:
         tdSql.checkData(2, 1, "2023-11-17 16:29:05")
 
         tdSql.query(
-            f"select a.ts, b.ts from sta a left window join sta b window_offset(1s, 2s) order by a.ts desc;"
+            "select a.ts, b.ts from sta a left window join sta b "
+            "window_offset(1s, 2s) order by a.ts desc, b.ts desc;"
         )
         tdSql.checkRows(16)
         tdSql.checkData(0, 0, "2023-11-17 16:29:05")
@@ -2423,15 +2595,21 @@ class TestJoinFull:
         tdSql.error(
             f"select a.ts, b.ts from sta a left window join sta b window_offset(-1, 1) where a.ts = b.ts;"
         )
-        tdSql.error(
-            f"select a.ts, b.ts from (select * from sta) a left window join sta b window_offset(-1s, 1s) where a.ts = b.ts;"
+        tdSql.query(
+            "select a.ts, b.ts from (select * from sta) a left window join "
+            "sta b window_offset(-1s, 1s) where a.ts = b.ts;"
         )
+        tdSql.checkRows(12)
         tdSql.error(
             f"select a.ts, b.ts from tba1 a left window join tba2 b window_offset(-10a, 1a) jlimit 1025;"
         )
-        tdSql.error(
-            f"SELECT * FROM (SELECT TODAY() AS ts ) as a left window join (SELECT TODAY() AS ts FROM test0.tba1 WHERE ts >= TODAY() AND ts < TODAY() + 1d ) as b window_offset(-1s, 1s);"
+        tdSql.query(
+            "SELECT * FROM (SELECT TODAY() AS ts ) as a left window join "
+            "(SELECT TODAY() AS ts FROM test0.tba1 WHERE ts >= TODAY() AND ts"
+            " < TODAY() + 1d ) as b window_offset(-1s, 1s);"
         )
+        tdSql.checkRows(1)
+        tdSql.checkData(0, 1, None)
 
     def right_win_join(self):
         tdSql.execute(f"use test0;")
@@ -2579,9 +2757,12 @@ class TestJoinFull:
             f"select a.ts, b.ts from tba1 a right window join tba2 b window_offset(1a, -1h);"
         )
         tdSql.checkRows(9)
-        tdSql.error(
-            f"SELECT * FROM (SELECT TODAY() AS ts ) as a right window join (SELECT TODAY() AS ts FROM test0.tba1 WHERE ts >= TODAY() AND ts < TODAY() + 1d ) as b window_offset(-1s, 1s);"
+        tdSql.query(
+            "SELECT * FROM (SELECT TODAY() AS ts ) as a right window join "
+            "(SELECT TODAY() AS ts FROM test0.tba1 WHERE ts >= TODAY() AND ts"
+            " < TODAY() + 1d ) as b window_offset(-1s, 1s);"
         )
+        tdSql.checkRows(0)
 
     def join_scalar1(self):
         tdSql.execute(f"use test0;")
@@ -2677,15 +2858,18 @@ class TestJoinFull:
         tdSql.error(
             f"select a.ts, b.ts from sta a left asof join sta b on timetruncate(a.ts, 1h) >= timetruncate(b.ts, 1h) and a.ts =b.col1 jlimit 2;"
         )
-        tdSql.error(
+        tdSql.query(
             f"select a.ts, b.col1 from sta a left join sta b on timetruncate(b.ts, 1h) + 1 = a.ts;"
         )
-        tdSql.error(
+        tdSql.checkRows(8)
+        tdSql.query(
             f"select a.ts, b.col1 from sta a left join sta b on timetruncate(b.ts, 1h) = a.ts + 1;"
         )
-        tdSql.error(
+        tdSql.checkRows(8)
+        tdSql.query(
             f"select a.ts, b.col1 from sta a left join sta b on b.ts + 1 = a.ts + 1;"
         )
+        tdSql.checkRows(12)
 
         tdSql.execute(f"use testa;")
 
@@ -2804,6 +2988,11 @@ class TestJoinFull:
         tdSql.checkRows(0)
 
         tdSql.query(
+            f"select a.ts, a.col1, b.ts, b.col1 from sta a join sta b on timetruncate(a.ts, 1d, '-0800') = timetruncate(b.ts, 1h, '-0800');"
+        )
+        tdSql.checkRows(0)
+
+        tdSql.query(
             f"select a.ts, a.col1, b.ts, b.col1 from sta a join sta b on a.t1 = b.t1 where a.ts = b.ts;"
         )
         tdSql.checkRows(8)
@@ -2833,13 +3022,13 @@ class TestJoinFull:
         )
         tdSql.checkRows(8)
 
-        tdSql.error(
+        tdSql.query(
             f"select a.ts, a.col1, b.ts, b.col1 from sta a join sta b on (a.t1 = b.t1 or a.col1 = b.col1) or a.ts = b.ts;"
         )
-        tdSql.error(
+        tdSql.query(
             f"select a.ts, a.col1, b.ts, b.col1 from sta a join sta b on (a.t1 = b.t1 or a.col1 = b.col1) and timetruncate(a.ts, 1h) = b.ts or a.ts = b.ts;"
         )
-        tdSql.error(
+        tdSql.query(
             f"select a.ts, a.col1, b.ts, b.col1 from sta a join sta b on (a.t1 = b.t1 or a.col1 = b.col1) and (timetruncate(a.ts, 1h) = b.ts or a.ts = b.ts);"
         )
         tdSql.query(
@@ -2887,60 +3076,60 @@ class TestJoinFull:
         tdSql.checkRows(6)
 
         tdSql.query(
-            f"select a.ts, a.col1, b.ts, b.col1 from sta a join sta b where (a.t1 = b.t1 or a.col1 = b.col1) and a.ts = b.ts;"
-        )
-        tdSql.checkRows(8)
-
-        tdSql.error(
-            f"select a.ts, a.col1, b.ts, b.col1 from sta a join sta b where (a.t1 = b.t1 or a.col1 = b.col1) or a.ts = b.ts;"
-        )
-        tdSql.error(
-            f"select a.ts, a.col1, b.ts, b.col1 from sta a join sta b where (a.t1 = b.t1 or a.col1 = b.col1) and timetruncate(a.ts, 1h) = b.ts or a.ts = b.ts;"
-        )
-        tdSql.error(
-            f"select a.ts, a.col1, b.ts, b.col1 from sta a join sta b where (a.t1 = b.t1 or a.col1 = b.col1) and (timetruncate(a.ts, 1h) = b.ts or a.ts = b.ts);"
-        )
-        tdSql.query(
-            f"select a.ts, a.col1, b.ts, b.col1 from sta a join sta b where (a.t1 = b.t1 or a.col1 = b.col1) and timetruncate(a.ts, 1m) = b.ts;"
+            f"select a.ts, a.col1, b.ts, b.col1 from sta a join sta b on (a.t1 = b.t1 or a.col1 = b.col1) and a.ts = b.ts;"
         )
         tdSql.checkRows(8)
 
         tdSql.query(
-            f"select a.ts, a.col1, b.ts, b.col1 from sta a join sta b where a.t1 = b.t1 and timetruncate(a.ts, 1m) = b.ts and a.col1 = b.col1;"
+            f"select a.ts, a.col1, b.ts, b.col1 from sta a join sta b on (a.t1 = b.t1 or a.col1 = b.col1) or a.ts = b.ts;"
+        )
+        tdSql.query(
+            f"select a.ts, a.col1, b.ts, b.col1 from sta a join sta b on (a.t1 = b.t1 or a.col1 = b.col1) and timetruncate(a.ts, 1h) = b.ts or a.ts = b.ts;"
+        )
+        tdSql.query(
+            f"select a.ts, a.col1, b.ts, b.col1 from sta a join sta b on (a.t1 = b.t1 or a.col1 = b.col1) and (timetruncate(a.ts, 1h) = b.ts or a.ts = b.ts);"
+        )
+        tdSql.query(
+            f"select a.ts, a.col1, b.ts, b.col1 from sta a join sta b on (a.t1 = b.t1 or a.col1 = b.col1) and timetruncate(a.ts, 1m) = b.ts;"
+        )
+        tdSql.checkRows(8)
+
+        tdSql.query(
+            f"select a.ts, a.col1, b.ts, b.col1 from sta a join sta b on a.t1 = b.t1 and timetruncate(a.ts, 1m) = b.ts and a.col1 = b.col1;"
         )
         tdSql.checkRows(2)
 
         tdSql.query(
-            f"select a.ts, a.col1, b.ts, b.col1 from sta a join sta b where a.t1 = b.t1 and timetruncate(a.ts, 1m) = b.ts and b.col1 > 1;"
+            f"select a.ts, a.col1, b.ts, b.col1 from sta a join sta b on a.t1 = b.t1 and timetruncate(a.ts, 1m) = b.ts and b.col1 > 1;"
         )
         tdSql.checkRows(4)
 
         tdSql.query(
-            f"select a.tbname from sta a join sta b where a.t1 = b.t1 and timetruncate(a.ts, 1m) = b.ts and a.col1 = b.col1 + 1;"
+            f"select a.tbname from sta a join sta b on a.t1 = b.t1 and timetruncate(a.ts, 1m) = b.ts and a.col1 = b.col1 + 1;"
         )
         tdSql.checkRows(1)
         tdSql.checkData(0, 0, "tba2")
 
         tdSql.error(
-            f"select a.tbname from sta a join sta b where a.t1 = b.t1 and timetruncate(a.ts, 1m) = b.ts and count(a.col1) = 1;"
+            f"select a.tbname from sta a join sta b on a.t1 = b.t1 and timetruncate(a.ts, 1m) = b.ts and count(a.col1) = 1;"
         )
         tdSql.query(
-            f"select a.ts, a.col1, b.ts, b.col1 from sta a join sta b where a.t1 = b.t1 and a.ts = b.ts and a.col1 > 2 and b.col1 < 5;"
+            f"select a.ts, a.col1, b.ts, b.col1 from sta a join sta b on a.t1 = b.t1 and a.ts = b.ts and a.col1 > 2 and b.col1 < 5;"
         )
         tdSql.checkRows(3)
 
         tdSql.query(
-            f"select a.ts, a.col1, b.ts, b.col1 from sta a join sta b where a.t1 = b.t1 and a.ts = b.ts and (a.col1 < 3 or a.col1 > 4) and b.col1 is not null;"
+            f"select a.ts, a.col1, b.ts, b.col1 from sta a join sta b on a.t1 = b.t1 and a.ts = b.ts and (a.col1 < 3 or a.col1 > 4) and b.col1 is not null;"
         )
         tdSql.checkRows(5)
 
         tdSql.query(
-            f"select a.ts, a.col1, b.ts, b.col1 from sta a join sta b where a.t1 = b.t1 and a.ts = b.ts and (a.col1 < 3 or a.col1 > 4) and b.col1 is null;"
+            f"select a.ts, a.col1, b.ts, b.col1 from sta a join sta b on a.t1 = b.t1 and a.ts = b.ts and (a.col1 < 3 or a.col1 > 4) and b.col1 is null;"
         )
         tdSql.checkRows(0)
 
         tdSql.query(
-            f"select a.ts, a.col1, b.ts, b.col1 from sta a join sta b where a.t1 = b.t1 and a.ts = b.ts and (a.col1 < 3 or b.col1 > 3);"
+            f"select a.ts, a.col1, b.ts, b.col1 from sta a join sta b on a.t1 = b.t1 and a.ts = b.ts and (a.col1 < 3 or b.col1 > 3);"
         )
         tdSql.checkRows(6)
 
@@ -2960,15 +3149,16 @@ class TestJoinFull:
         )
         tdSql.checkRows(8)
 
-        tdSql.error(
+        tdSql.query(
             f"select a.ts, a.col1, b.ts, b.col1 from sta a left join sta b on a.t1 = b.t1 where a.ts = b.ts;"
         )
+        tdSql.checkRows(8)
         tdSql.query(
             f"select a.ts, a.col1, b.ts, b.col1 from sta a left join sta b on a.t1 = b.t1 and a.ts = b.ts;"
         )
         tdSql.checkRows(8)
 
-        tdSql.error(
+        tdSql.query(
             f"select a.ts, a.col1, b.ts, b.col1 from sta a left join sta b on a.t1 = b.t1 or a.col1 = b.col1 where a.ts = b.ts;"
         )
         tdSql.query(
@@ -2976,7 +3166,7 @@ class TestJoinFull:
         )
         tdSql.checkRows(8)
 
-        tdSql.error(
+        tdSql.query(
             f"select count(*),last(a.col1) from sta a left join sta b on (a.t1 = b.t1 or a.col1 > b.col1) and a.col1 > 1 where a.ts = b.ts and a.col1 > 2;"
         )
         tdSql.query(
@@ -2986,9 +3176,10 @@ class TestJoinFull:
         tdSql.checkData(0, 0, 9)
         tdSql.checkData(0, 1, 7)
 
-        tdSql.error(
+        tdSql.query(
             f"select first(b.col1),count(b.t1),last(a.col1) from sta a left join sta b on a.t1 = b.t1 and a.col1 > 1 and b.t1 is not null where a.ts = b.ts and b.col1 > 3 and a.t1 != 1;"
         )
+        tdSql.checkRows(1)
         tdSql.query(
             f"select first(b.col1),count(b.t1),last(a.col1),count(*) from sta a left join sta b on a.t1 = b.t1 and a.col1 > 1 and b.t1 is not null and a.ts = b.ts and b.col1 > 3 and a.t1 != 1;"
         )
@@ -3003,13 +3194,13 @@ class TestJoinFull:
         )
         tdSql.checkRows(8)
 
-        tdSql.error(
+        tdSql.query(
             f"select a.ts, a.col1, b.ts, b.col1 from sta a left join sta b on (a.t1 = b.t1 or a.col1 = b.col1) or a.ts = b.ts;"
         )
-        tdSql.error(
+        tdSql.query(
             f"select a.ts, a.col1, b.ts, b.col1 from sta a left join sta b on (a.t1 = b.t1 or a.col1 = b.col1) and timetruncate(a.ts, 1h) = b.ts or a.ts = b.ts;"
         )
-        tdSql.error(
+        tdSql.query(
             f"select a.ts, a.col1, b.ts, b.col1 from sta a left join sta b on (a.t1 = b.t1 or a.col1 = b.col1) and (timetruncate(a.ts, 1h) = b.ts or a.ts = b.ts);"
         )
         tdSql.query(
@@ -3103,46 +3294,46 @@ class TestJoinFull:
         tdSql.checkRows(1)
         tdSql.checkData(0, 0, 6)
 
-        tdSql.error(
+        self.check_join_without_on(
             f"select a.ts, a.col1, b.ts, b.col1 from sta a left join sta b where (a.t1 = b.t1 or a.col1 = b.col1) and a.ts = b.ts;"
         )
-        tdSql.error(
+        self.check_join_without_on(
             f"select a.ts, a.col1, b.ts, b.col1 from sta a left join sta b where (a.t1 = b.t1 or a.col1 = b.col1) or a.ts = b.ts;"
         )
-        tdSql.error(
+        self.check_join_without_on(
             f"select a.ts, a.col1, b.ts, b.col1 from sta a left join sta b where (a.t1 = b.t1 or a.col1 = b.col1) and timetruncate(a.ts, 1h) = b.ts or a.ts = b.ts;"
         )
-        tdSql.error(
+        self.check_join_without_on(
             f"select a.ts, a.col1, b.ts, b.col1 from sta a left join sta b where (a.t1 = b.t1 or a.col1 = b.col1) and (timetruncate(a.ts, 1h) = b.ts or a.ts = b.ts);"
         )
-        tdSql.error(
+        self.check_join_without_on(
             f"select a.ts, a.col1, b.ts, b.col1 from sta a left join sta b where (a.t1 = b.t1 or a.col1 = b.col1) and timetruncate(a.ts, 1m) = b.ts;"
         )
-        tdSql.error(
+        self.check_join_without_on(
             f"select a.ts, a.col1, b.ts, b.col1 from sta a left join sta b where (a.t1 = b.t1 or a.col1 = b.col1) and timetruncate(a.ts, 1m) = b.ts;"
         )
-        tdSql.error(
+        self.check_join_without_on(
             f"select a.ts, a.col1, b.ts, b.col1 from sta a left join sta b where a.t1 = b.t1 and timetruncate(a.ts, 1m) = b.ts and a.col1 = b.col1;"
         )
-        tdSql.error(
+        self.check_join_without_on(
             f"select a.ts, a.col1, b.ts, b.col1 from sta a left join sta b where a.t1 = b.t1 and timetruncate(a.ts, 1m) = b.ts and b.col1 > 1;"
         )
-        tdSql.error(
+        self.check_join_without_on(
             f"select a.tbname from sta a left join sta b where a.t1 = b.t1 and timetruncate(a.ts, 1m) = b.ts and a.col1 = b.col1 + 1;"
         )
         tdSql.error(
-            f"select a.tbname from sta a left join sta b where a.t1 = b.t1 and timetruncate(a.ts, 1m) = b.ts and count(a.col1) = 1;"
+            f"select a.tbname from sta a left join sta b on a.t1 = b.t1 and timetruncate(a.ts, 1m) = b.ts and count(a.col1) = 1;"
         )
-        tdSql.error(
+        self.check_join_without_on(
             f"select a.ts, a.col1, b.ts, b.col1 from sta a left join sta b where a.t1 = b.t1 and a.ts = b.ts and a.col1 > 2 and b.col1 < 5;"
         )
-        tdSql.error(
+        self.check_join_without_on(
             f"select a.ts, a.col1, b.ts, b.col1 from sta a left join sta b where a.t1 = b.t1 and a.ts = b.ts and (a.col1 < 3 or a.col1 > 4) and b.col1 is not null;"
         )
-        tdSql.error(
+        self.check_join_without_on(
             f"select a.ts, a.col1, b.ts, b.col1 from sta a left join sta b where a.t1 = b.t1 and a.ts = b.ts and (a.col1 < 3 or a.col1 > 4) and b.col1 is null;"
         )
-        tdSql.error(
+        self.check_join_without_on(
             f"select a.ts, a.col1, b.ts, b.col1 from sta a left join sta b where a.t1 = b.t1 and a.ts = b.ts and (a.col1 < 3 or b.col1 > 3);"
         )
 
@@ -3162,15 +3353,18 @@ class TestJoinFull:
         )
         tdSql.checkRows(0)
 
-        tdSql.error(
+        tdSql.query(
             f"select a.ts, a.col1, b.ts, b.col1 from sta a left semi join sta b on a.t1 = b.t1 where a.ts = b.ts;"
         )
+        # The SEMI result may include one actual matching row from the other side.
+        # Which matching row is selected is unspecified without ORDER BY.
+        tdSql.checkRows(2)
         tdSql.query(
             f"select a.ts, a.col1, b.ts, b.col1 from sta a left semi join sta b on a.t1 = b.t1 and a.ts = b.ts;"
         )
         tdSql.checkRows(8)
 
-        tdSql.error(
+        tdSql.query(
             f"select a.ts, a.col1, b.ts, b.col1 from sta a left semi join sta b on a.t1 = b.t1 or a.col1 = b.col1 where a.ts = b.ts;"
         )
         tdSql.query(
@@ -3178,7 +3372,7 @@ class TestJoinFull:
         )
         tdSql.checkRows(8)
 
-        tdSql.error(
+        tdSql.query(
             f"select count(*),last(a.col1) from sta a left semi join sta b on (a.t1 = b.t1 or a.col1 > b.col1) and a.col1 > 1 where a.ts = b.ts and a.col1 > 2;"
         )
         tdSql.query(
@@ -3188,9 +3382,10 @@ class TestJoinFull:
         tdSql.checkData(0, 0, 6)
         tdSql.checkData(0, 1, 7)
 
-        tdSql.error(
+        tdSql.query(
             f"select first(b.col1),count(b.t1),last(a.col1) from sta a left semi join sta b on a.t1 = b.t1 and a.col1 > 1 and b.t1 is not null where a.ts = b.ts and b.col1 > 3 and a.t1 != 1;"
         )
+        tdSql.checkRows(1)
         tdSql.query(
             f"select first(b.col1),count(b.t1),last(a.col1),count(*) from sta a left semi join sta b on a.t1 = b.t1 and a.col1 > 1 and b.t1 is not null and a.ts = b.ts and b.col1 > 3 and a.t1 != 1;"
         )
@@ -3205,13 +3400,13 @@ class TestJoinFull:
         )
         tdSql.checkRows(8)
 
-        tdSql.error(
+        tdSql.query(
             f"select a.ts, a.col1, b.ts, b.col1 from sta a left semi join sta b on (a.t1 = b.t1 or a.col1 = b.col1) or a.ts = b.ts;"
         )
-        tdSql.error(
+        tdSql.query(
             f"select a.ts, a.col1, b.ts, b.col1 from sta a left semi join sta b on (a.t1 = b.t1 or a.col1 = b.col1) and timetruncate(a.ts, 1h) = b.ts or a.ts = b.ts;"
         )
-        tdSql.error(
+        tdSql.query(
             f"select a.ts, a.col1, b.ts, b.col1 from sta a left semi join sta b on (a.t1 = b.t1 or a.col1 = b.col1) and (timetruncate(a.ts, 1h) = b.ts or a.ts = b.ts);"
         )
         tdSql.query(
@@ -3305,46 +3500,46 @@ class TestJoinFull:
         tdSql.checkRows(1)
         tdSql.checkData(0, 0, 6)
 
-        tdSql.error(
+        self.check_join_without_on(
             f"select a.ts, a.col1, b.ts, b.col1 from sta a left semi join sta b where (a.t1 = b.t1 or a.col1 = b.col1) and a.ts = b.ts;"
         )
-        tdSql.error(
+        self.check_join_without_on(
             f"select a.ts, a.col1, b.ts, b.col1 from sta a left semi join sta b where (a.t1 = b.t1 or a.col1 = b.col1) or a.ts = b.ts;"
         )
-        tdSql.error(
+        self.check_join_without_on(
             f"select a.ts, a.col1, b.ts, b.col1 from sta a left semi join sta b where (a.t1 = b.t1 or a.col1 = b.col1) and timetruncate(a.ts, 1h) = b.ts or a.ts = b.ts;"
         )
-        tdSql.error(
+        self.check_join_without_on(
             f"select a.ts, a.col1, b.ts, b.col1 from sta a left semi join sta b where (a.t1 = b.t1 or a.col1 = b.col1) and (timetruncate(a.ts, 1h) = b.ts or a.ts = b.ts);"
         )
-        tdSql.error(
+        self.check_join_without_on(
             f"select a.ts, a.col1, b.ts, b.col1 from sta a left semi join sta b where (a.t1 = b.t1 or a.col1 = b.col1) and timetruncate(a.ts, 1m) = b.ts;"
         )
-        tdSql.error(
+        self.check_join_without_on(
             f"select a.ts, a.col1, b.ts, b.col1 from sta a left semi join sta b where (a.t1 = b.t1 or a.col1 = b.col1) and timetruncate(a.ts, 1m) = b.ts;"
         )
-        tdSql.error(
+        self.check_join_without_on(
             f"select a.ts, a.col1, b.ts, b.col1 from sta a left semi join sta b where a.t1 = b.t1 and timetruncate(a.ts, 1m) = b.ts and a.col1 = b.col1;"
         )
-        tdSql.error(
+        self.check_join_without_on(
             f"select a.ts, a.col1, b.ts, b.col1 from sta a left semi join sta b where a.t1 = b.t1 and timetruncate(a.ts, 1m) = b.ts and b.col1 > 1;"
         )
-        tdSql.error(
+        self.check_join_without_on(
             f"select a.tbname from sta a left semi join sta b where a.t1 = b.t1 and timetruncate(a.ts, 1m) = b.ts and a.col1 = b.col1 + 1;"
         )
         tdSql.error(
-            f"select a.tbname from sta a left semi join sta b where a.t1 = b.t1 and timetruncate(a.ts, 1m) = b.ts and count(a.col1) = 1;"
+            f"select a.tbname from sta a left semi join sta b on a.t1 = b.t1 and timetruncate(a.ts, 1m) = b.ts and count(a.col1) = 1;"
         )
-        tdSql.error(
+        self.check_join_without_on(
             f"select a.ts, a.col1, b.ts, b.col1 from sta a left semi join sta b where a.t1 = b.t1 and a.ts = b.ts and a.col1 > 2 and b.col1 < 5;"
         )
-        tdSql.error(
+        self.check_join_without_on(
             f"select a.ts, a.col1, b.ts, b.col1 from sta a left semi join sta b where a.t1 = b.t1 and a.ts = b.ts and (a.col1 < 3 or a.col1 > 4) and b.col1 is not null;"
         )
-        tdSql.error(
+        self.check_join_without_on(
             f"select a.ts, a.col1, b.ts, b.col1 from sta a left semi join sta b where a.t1 = b.t1 and a.ts = b.ts and (a.col1 < 3 or a.col1 > 4) and b.col1 is null;"
         )
-        tdSql.error(
+        self.check_join_without_on(
             f"select a.ts, a.col1, b.ts, b.col1 from sta a left semi join sta b where a.t1 = b.t1 and a.ts = b.ts and (a.col1 < 3 or b.col1 > 3);"
         )
 
@@ -3364,15 +3559,16 @@ class TestJoinFull:
         )
         tdSql.checkRows(8)
 
-        tdSql.error(
+        tdSql.query(
             f"select a.ts, a.col1, b.ts, b.col1 from sta a left anti join sta b on a.t1 = b.t1 where a.ts = b.ts;"
         )
+        tdSql.checkRows(0)
         tdSql.query(
             f"select a.ts, a.col1, b.ts, b.col1 from sta a left anti join sta b on a.t1 = b.t1 and a.ts = b.ts;"
         )
         tdSql.checkRows(0)
 
-        tdSql.error(
+        tdSql.query(
             f"select a.ts, a.col1, b.ts, b.col1 from sta a left anti join sta b on a.t1 = b.t1 or a.col1 = b.col1 where a.ts = b.ts;"
         )
         tdSql.query(
@@ -3380,7 +3576,7 @@ class TestJoinFull:
         )
         tdSql.checkRows(0)
 
-        tdSql.error(
+        tdSql.query(
             f"select count(*),last(a.col1) from sta a left anti join sta b on (a.t1 = b.t1 or a.col1 > b.col1) and a.col1 > 1 where a.ts = b.ts and a.col1 > 2;"
         )
         tdSql.query(
@@ -3390,9 +3586,10 @@ class TestJoinFull:
         tdSql.checkData(0, 0, 2)
         tdSql.checkData(0, 1, 2)
 
-        tdSql.error(
+        tdSql.query(
             f"select first(b.col1),count(b.t1),last(a.col1) from sta a left anti join sta b on a.t1 = b.t1 and a.col1 > 1 and b.t1 is not null where a.ts = b.ts and b.col1 > 3 and a.t1 != 1;"
         )
+        tdSql.checkRows(1)
         tdSql.query(
             f"select first(b.col1),count(b.t1),last(a.col1),count(*) from sta a left anti join sta b on a.t1 = b.t1 and a.col1 > 1 and b.t1 is not null and a.ts = b.ts and b.col1 > 3 and a.t1 != 1;"
         )
@@ -3407,13 +3604,13 @@ class TestJoinFull:
         )
         tdSql.checkRows(0)
 
-        tdSql.error(
+        tdSql.query(
             f"select a.ts, a.col1, b.ts, b.col1 from sta a left anti join sta b on (a.t1 = b.t1 or a.col1 = b.col1) or a.ts = b.ts;"
         )
-        tdSql.error(
+        tdSql.query(
             f"select a.ts, a.col1, b.ts, b.col1 from sta a left anti join sta b on (a.t1 = b.t1 or a.col1 = b.col1) and timetruncate(a.ts, 1h) = b.ts or a.ts = b.ts;"
         )
-        tdSql.error(
+        tdSql.query(
             f"select a.ts, a.col1, b.ts, b.col1 from sta a left anti join sta b on (a.t1 = b.t1 or a.col1 = b.col1) and (timetruncate(a.ts, 1h) = b.ts or a.ts = b.ts);"
         )
         tdSql.query(
@@ -3507,46 +3704,46 @@ class TestJoinFull:
         tdSql.checkRows(1)
         tdSql.checkData(0, 0, 0)
 
-        tdSql.error(
+        self.check_join_without_on(
             f"select a.ts, a.col1, b.ts, b.col1 from sta a left anti join sta b where (a.t1 = b.t1 or a.col1 = b.col1) and a.ts = b.ts;"
         )
-        tdSql.error(
+        self.check_join_without_on(
             f"select a.ts, a.col1, b.ts, b.col1 from sta a left anti join sta b where (a.t1 = b.t1 or a.col1 = b.col1) or a.ts = b.ts;"
         )
-        tdSql.error(
+        self.check_join_without_on(
             f"select a.ts, a.col1, b.ts, b.col1 from sta a left anti join sta b where (a.t1 = b.t1 or a.col1 = b.col1) and timetruncate(a.ts, 1h) = b.ts or a.ts = b.ts;"
         )
-        tdSql.error(
+        self.check_join_without_on(
             f"select a.ts, a.col1, b.ts, b.col1 from sta a left anti join sta b where (a.t1 = b.t1 or a.col1 = b.col1) and (timetruncate(a.ts, 1h) = b.ts or a.ts = b.ts);"
         )
-        tdSql.error(
+        self.check_join_without_on(
             f"select a.ts, a.col1, b.ts, b.col1 from sta a left anti join sta b where (a.t1 = b.t1 or a.col1 = b.col1) and timetruncate(a.ts, 1m) = b.ts;"
         )
-        tdSql.error(
+        self.check_join_without_on(
             f"select a.ts, a.col1, b.ts, b.col1 from sta a left anti join sta b where (a.t1 = b.t1 or a.col1 = b.col1) and timetruncate(a.ts, 1m) = b.ts;"
         )
-        tdSql.error(
+        self.check_join_without_on(
             f"select a.ts, a.col1, b.ts, b.col1 from sta a left anti join sta b where a.t1 = b.t1 and timetruncate(a.ts, 1m) = b.ts and a.col1 = b.col1;"
         )
-        tdSql.error(
+        self.check_join_without_on(
             f"select a.ts, a.col1, b.ts, b.col1 from sta a left anti join sta b where a.t1 = b.t1 and timetruncate(a.ts, 1m) = b.ts and b.col1 > 1;"
         )
-        tdSql.error(
+        self.check_join_without_on(
             f"select a.tbname from sta a left anti join sta b where a.t1 = b.t1 and timetruncate(a.ts, 1m) = b.ts and a.col1 = b.col1 + 1;"
         )
         tdSql.error(
-            f"select a.tbname from sta a left anti join sta b where a.t1 = b.t1 and timetruncate(a.ts, 1m) = b.ts and count(a.col1) = 1;"
+            f"select a.tbname from sta a left anti join sta b on a.t1 = b.t1 and timetruncate(a.ts, 1m) = b.ts and count(a.col1) = 1;"
         )
-        tdSql.error(
+        self.check_join_without_on(
             f"select a.ts, a.col1, b.ts, b.col1 from sta a left anti join sta b where a.t1 = b.t1 and a.ts = b.ts and a.col1 > 2 and b.col1 < 5;"
         )
-        tdSql.error(
+        self.check_join_without_on(
             f"select a.ts, a.col1, b.ts, b.col1 from sta a left anti join sta b where a.t1 = b.t1 and a.ts = b.ts and (a.col1 < 3 or a.col1 > 4) and b.col1 is not null;"
         )
-        tdSql.error(
+        self.check_join_without_on(
             f"select a.ts, a.col1, b.ts, b.col1 from sta a left anti join sta b where a.t1 = b.t1 and a.ts = b.ts and (a.col1 < 3 or a.col1 > 4) and b.col1 is null;"
         )
-        tdSql.error(
+        self.check_join_without_on(
             f"select a.ts, a.col1, b.ts, b.col1 from sta a left anti join sta b where a.t1 = b.t1 and a.ts = b.ts and (a.col1 < 3 or b.col1 > 3);"
         )
 
@@ -4074,31 +4271,37 @@ class TestJoinFull:
         )
         tdSql.checkRows(16)
 
-        tdSql.error(
+        tdSql.query(
             f"select a.ts, a.col1, b.ts, b.col1 from sta a full join sta b on a.t1 = b.t1 where a.ts = b.ts;"
         )
-        tdSql.error(
+        tdSql.checkRows(8)
+        tdSql.query(
             f"select a.ts, a.col1, b.ts, b.col1 from sta a full join sta b on a.t1 = b.t1 or a.col1 = b.col1 where a.ts = b.ts;"
         )
-        tdSql.error(
+        tdSql.query(
             f"select count(*),last(a.col1) from sta a full join sta b on (a.t1 = b.t1 or a.col1 > b.col1) and a.col1 > 1 where a.ts = b.ts and a.col1 > 2;"
         )
-        tdSql.error(
+        tdSql.checkRows(1)
+        tdSql.query(
             f"select first(b.col1),count(b.t1),last(a.col1) from sta a full join sta b on a.t1 = b.t1 and a.col1 > 1 and b.t1 is not null where a.ts = b.ts and b.col1 > 3 and a.t1 != 1;"
         )
+        tdSql.checkRows(1)
+        tdSql.checkData(0, 0, 5)
+        tdSql.checkData(0, 1, 2)
+        tdSql.checkData(0, 2, 7)
 
         tdSql.query(
             f"select a.ts, a.col1, b.ts, b.col1 from sta a full join sta b on (a.t1 = b.t1 or a.col1 = b.col1) and a.ts = b.ts;"
         )
         tdSql.checkRows(8)
 
-        tdSql.error(
+        tdSql.query(
             f"select a.ts, a.col1, b.ts, b.col1 from sta a full join sta b on (a.t1 = b.t1 or a.col1 = b.col1) or a.ts = b.ts;"
         )
-        tdSql.error(
+        tdSql.query(
             f"select a.ts, a.col1, b.ts, b.col1 from sta a full join sta b on (a.t1 = b.t1 or a.col1 = b.col1) and timetruncate(a.ts, 1h) = b.ts or a.ts = b.ts;"
         )
-        tdSql.error(
+        tdSql.query(
             f"select a.ts, a.col1, b.ts, b.col1 from sta a full join sta b on (a.t1 = b.t1 or a.col1 = b.col1) and (timetruncate(a.ts, 1h) = b.ts or a.ts = b.ts);"
         )
         tdSql.query(
@@ -4144,43 +4347,43 @@ class TestJoinFull:
         )
         tdSql.checkRows(10)
 
-        tdSql.error(
+        self.check_join_without_on(
             f"select a.ts, a.col1, b.ts, b.col1 from sta a full join sta b where (a.t1 = b.t1 or a.col1 = b.col1) and a.ts = b.ts;"
         )
-        tdSql.error(
+        self.check_join_without_on(
             f"select a.ts, a.col1, b.ts, b.col1 from sta a full join sta b where (a.t1 = b.t1 or a.col1 = b.col1) or a.ts = b.ts;"
         )
-        tdSql.error(
+        self.check_join_without_on(
             f"select a.ts, a.col1, b.ts, b.col1 from sta a full join sta b where (a.t1 = b.t1 or a.col1 = b.col1) and timetruncate(a.ts, 1h) = b.ts or a.ts = b.ts;"
         )
-        tdSql.error(
+        self.check_join_without_on(
             f"select a.ts, a.col1, b.ts, b.col1 from sta a full join sta b where (a.t1 = b.t1 or a.col1 = b.col1) and (timetruncate(a.ts, 1h) = b.ts or a.ts = b.ts);"
         )
-        tdSql.error(
+        self.check_join_without_on(
             f"select a.ts, a.col1, b.ts, b.col1 from sta a full join sta b where (a.t1 = b.t1 or a.col1 = b.col1) and timetruncate(a.ts, 1m) = b.ts;"
         )
-        tdSql.error(
+        self.check_join_without_on(
             f"select a.ts, a.col1, b.ts, b.col1 from sta a full join sta b where a.t1 = b.t1 and timetruncate(a.ts, 1m) = b.ts and a.col1 = b.col1;"
         )
-        tdSql.error(
+        self.check_join_without_on(
             f"select a.ts, a.col1, b.ts, b.col1 from sta a full join sta b where a.t1 = b.t1 and timetruncate(a.ts, 1m) = b.ts and b.col1 > 1;"
         )
-        tdSql.error(
+        self.check_join_without_on(
             f"select a.tbname from sta a full join sta b where a.t1 = b.t1 and timetruncate(a.ts, 1m) = b.ts and a.col1 = b.col1 + 1;"
         )
         tdSql.error(
-            f"select a.tbname from sta a full join sta b where a.t1 = b.t1 and timetruncate(a.ts, 1m) = b.ts and count(a.col1) = 1;"
+            f"select a.tbname from sta a full join sta b on a.t1 = b.t1 and timetruncate(a.ts, 1m) = b.ts and count(a.col1) = 1;"
         )
-        tdSql.error(
+        self.check_join_without_on(
             f"select a.ts, a.col1, b.ts, b.col1 from sta a full join sta b where a.t1 = b.t1 and a.ts = b.ts and a.col1 > 2 and b.col1 < 5;"
         )
-        tdSql.error(
+        self.check_join_without_on(
             f"select a.ts, a.col1, b.ts, b.col1 from sta a full join sta b where a.t1 = b.t1 and a.ts = b.ts and (a.col1 < 3 or a.col1 > 4) and b.col1 is not null;"
         )
-        tdSql.error(
+        self.check_join_without_on(
             f"select a.ts, a.col1, b.ts, b.col1 from sta a full join sta b where a.t1 = b.t1 and a.ts = b.ts and (a.col1 < 3 or a.col1 > 4) and b.col1 is null;"
         )
-        tdSql.error(
+        self.check_join_without_on(
             f"select a.ts, a.col1, b.ts, b.col1 from sta a full join sta b where a.t1 = b.t1 and a.ts = b.ts and (a.col1 < 3 or b.col1 > 3);"
         )
 
@@ -4200,15 +4403,16 @@ class TestJoinFull:
         )
         tdSql.checkRows(8)
 
-        tdSql.error(
+        tdSql.query(
             f"select a.ts, a.col1, b.ts, b.col1 from sta b right join sta a on a.t1 = b.t1 where a.ts = b.ts;"
         )
+        tdSql.checkRows(8)
         tdSql.query(
             f"select a.ts, a.col1, b.ts, b.col1 from sta b right join sta a on a.t1 = b.t1 and a.ts = b.ts;"
         )
         tdSql.checkRows(8)
 
-        tdSql.error(
+        tdSql.query(
             f"select a.ts, a.col1, b.ts, b.col1 from sta b right join sta a on a.t1 = b.t1 or a.col1 = b.col1 where a.ts = b.ts;"
         )
         tdSql.query(
@@ -4216,9 +4420,10 @@ class TestJoinFull:
         )
         tdSql.checkRows(8)
 
-        tdSql.error(
+        tdSql.query(
             f"select count(*),last(a.col1) from sta b right join sta a on (a.t1 = b.t1 or a.col1 > b.col1) and a.col1 > 1 where a.ts = b.ts and a.col1 > 2;"
         )
+        tdSql.checkRows(1)
         tdSql.query(
             f"select count(*),last(a.col1) from sta b right join sta a on (a.t1 = b.t1 or a.col1 > b.col1) and a.col1 > 1 and a.ts = b.ts and a.col1 > 2;"
         )
@@ -4226,9 +4431,13 @@ class TestJoinFull:
         tdSql.checkData(0, 0, 9)
         tdSql.checkData(0, 1, 7)
 
-        tdSql.error(
+        tdSql.query(
             f"select first(b.col1),count(b.t1),last(a.col1) from sta b right join sta a on a.t1 = b.t1 and a.col1 > 1 and b.t1 is not null where a.ts = b.ts and b.col1 > 3 and a.t1 != 1;"
         )
+        tdSql.checkRows(1)
+        tdSql.checkData(0, 0, 5)
+        tdSql.checkData(0, 1, 2)
+        tdSql.checkData(0, 2, 7)
         tdSql.query(
             f"select first(b.col1),count(b.t1),last(a.col1),count(*) from sta b right join sta a on a.t1 = b.t1 and a.col1 > 1 and b.t1 is not null and a.ts = b.ts and b.col1 > 3 and a.t1 != 1;"
         )
@@ -4243,13 +4452,13 @@ class TestJoinFull:
         )
         tdSql.checkRows(8)
 
-        tdSql.error(
+        tdSql.query(
             f"select a.ts, a.col1, b.ts, b.col1 from sta b right join sta a on (a.t1 = b.t1 or a.col1 = b.col1) or a.ts = b.ts;"
         )
-        tdSql.error(
+        tdSql.query(
             f"select a.ts, a.col1, b.ts, b.col1 from sta b right join sta a on (a.t1 = b.t1 or a.col1 = b.col1) and timetruncate(a.ts, 1h) = b.ts or a.ts = b.ts;"
         )
-        tdSql.error(
+        tdSql.query(
             f"select a.ts, a.col1, b.ts, b.col1 from sta b right join sta a on (a.t1 = b.t1 or a.col1 = b.col1) and (timetruncate(a.ts, 1h) = b.ts or a.ts = b.ts);"
         )
         tdSql.query(
@@ -4343,46 +4552,46 @@ class TestJoinFull:
         tdSql.checkRows(1)
         tdSql.checkData(0, 0, 6)
 
-        tdSql.error(
+        self.check_join_without_on(
             f"select a.ts, a.col1, b.ts, b.col1 from sta b right join sta a where (a.t1 = b.t1 or a.col1 = b.col1) and a.ts = b.ts;"
         )
-        tdSql.error(
+        self.check_join_without_on(
             f"select a.ts, a.col1, b.ts, b.col1 from sta b right join sta a where (a.t1 = b.t1 or a.col1 = b.col1) or a.ts = b.ts;"
         )
-        tdSql.error(
+        self.check_join_without_on(
             f"select a.ts, a.col1, b.ts, b.col1 from sta b right join sta a where (a.t1 = b.t1 or a.col1 = b.col1) and timetruncate(a.ts, 1h) = b.ts or a.ts = b.ts;"
         )
-        tdSql.error(
+        self.check_join_without_on(
             f"select a.ts, a.col1, b.ts, b.col1 from sta b right join sta a where (a.t1 = b.t1 or a.col1 = b.col1) and (timetruncate(a.ts, 1h) = b.ts or a.ts = b.ts);"
         )
-        tdSql.error(
+        self.check_join_without_on(
             f"select a.ts, a.col1, b.ts, b.col1 from sta b right join sta a where (a.t1 = b.t1 or a.col1 = b.col1) and timetruncate(a.ts, 1m) = b.ts;"
         )
-        tdSql.error(
+        self.check_join_without_on(
             f"select a.ts, a.col1, b.ts, b.col1 from sta b right join sta a where (a.t1 = b.t1 or a.col1 = b.col1) and timetruncate(a.ts, 1m) = b.ts;"
         )
-        tdSql.error(
+        self.check_join_without_on(
             f"select a.ts, a.col1, b.ts, b.col1 from sta b right join sta a where a.t1 = b.t1 and timetruncate(a.ts, 1m) = b.ts and a.col1 = b.col1;"
         )
-        tdSql.error(
+        self.check_join_without_on(
             f"select a.ts, a.col1, b.ts, b.col1 from sta b right join sta a where a.t1 = b.t1 and timetruncate(a.ts, 1m) = b.ts and b.col1 > 1;"
         )
-        tdSql.error(
+        self.check_join_without_on(
             f"select a.tbname from sta b right join sta a where a.t1 = b.t1 and timetruncate(a.ts, 1m) = b.ts and a.col1 = b.col1 + 1;"
         )
         tdSql.error(
-            f"select a.tbname from sta b right join sta a where a.t1 = b.t1 and timetruncate(a.ts, 1m) = b.ts and count(a.col1) = 1;"
+            f"select a.tbname from sta b right join sta a on a.t1 = b.t1 and timetruncate(a.ts, 1m) = b.ts and count(a.col1) = 1;"
         )
-        tdSql.error(
+        self.check_join_without_on(
             f"select a.ts, a.col1, b.ts, b.col1 from sta b right join sta a where a.t1 = b.t1 and a.ts = b.ts and a.col1 > 2 and b.col1 < 5;"
         )
-        tdSql.error(
+        self.check_join_without_on(
             f"select a.ts, a.col1, b.ts, b.col1 from sta b right join sta a where a.t1 = b.t1 and a.ts = b.ts and (a.col1 < 3 or a.col1 > 4) and b.col1 is not null;"
         )
-        tdSql.error(
+        self.check_join_without_on(
             f"select a.ts, a.col1, b.ts, b.col1 from sta b right join sta a where a.t1 = b.t1 and a.ts = b.ts and (a.col1 < 3 or a.col1 > 4) and b.col1 is null;"
         )
-        tdSql.error(
+        self.check_join_without_on(
             f"select a.ts, a.col1, b.ts, b.col1 from sta b right join sta a where a.t1 = b.t1 and a.ts = b.ts and (a.col1 < 3 or b.col1 > 3);"
         )
 
@@ -4402,15 +4611,18 @@ class TestJoinFull:
         )
         tdSql.checkRows(0)
 
-        tdSql.error(
+        tdSql.query(
             f"select a.ts, a.col1, b.ts, b.col1 from sta b right semi join sta a on a.t1 = b.t1 where a.ts = b.ts;"
         )
+        # The SEMI result may include one actual matching row from the other side.
+        # Which matching row is selected is unspecified without ORDER BY.
+        tdSql.checkRows(2)
         tdSql.query(
             f"select a.ts, a.col1, b.ts, b.col1 from sta b right semi join sta a on a.t1 = b.t1 and a.ts = b.ts;"
         )
         tdSql.checkRows(8)
 
-        tdSql.error(
+        tdSql.query(
             f"select a.ts, a.col1, b.ts, b.col1 from sta b right semi join sta a on a.t1 = b.t1 or a.col1 = b.col1 where a.ts = b.ts;"
         )
         tdSql.query(
@@ -4418,9 +4630,10 @@ class TestJoinFull:
         )
         tdSql.checkRows(8)
 
-        tdSql.error(
+        tdSql.query(
             f"select count(*),last(a.col1) from sta b right semi join sta a on (a.t1 = b.t1 or a.col1 > b.col1) and a.col1 > 1 where a.ts = b.ts and a.col1 > 2;"
         )
+        tdSql.checkRows(1)
         tdSql.query(
             f"select count(*),last(a.col1) from sta b right semi join sta a on (a.t1 = b.t1 or a.col1 > b.col1) and a.col1 > 1 and a.ts = b.ts and a.col1 > 2;"
         )
@@ -4428,9 +4641,13 @@ class TestJoinFull:
         tdSql.checkData(0, 0, 6)
         tdSql.checkData(0, 1, 7)
 
-        tdSql.error(
+        tdSql.query(
             f"select first(b.col1),count(b.t1),last(a.col1) from sta b right semi join sta a on a.t1 = b.t1 and a.col1 > 1 and b.t1 is not null where a.ts = b.ts and b.col1 > 3 and a.t1 != 1;"
         )
+        tdSql.checkRows(1)
+        tdSql.checkData(0, 0, 7)
+        tdSql.checkData(0, 1, 1)
+        tdSql.checkData(0, 2, 7)
         tdSql.query(
             f"select first(b.col1),count(b.t1),last(a.col1),count(*) from sta b right semi join sta a on a.t1 = b.t1 and a.col1 > 1 and b.t1 is not null and a.ts = b.ts and b.col1 > 3 and a.t1 != 1;"
         )
@@ -4445,13 +4662,13 @@ class TestJoinFull:
         )
         tdSql.checkRows(8)
 
-        tdSql.error(
+        tdSql.query(
             f"select a.ts, a.col1, b.ts, b.col1 from sta b right semi join sta a on (a.t1 = b.t1 or a.col1 = b.col1) or a.ts = b.ts;"
         )
-        tdSql.error(
+        tdSql.query(
             f"select a.ts, a.col1, b.ts, b.col1 from sta b right semi join sta a on (a.t1 = b.t1 or a.col1 = b.col1) and timetruncate(a.ts, 1h) = b.ts or a.ts = b.ts;"
         )
-        tdSql.error(
+        tdSql.query(
             f"select a.ts, a.col1, b.ts, b.col1 from sta b right semi join sta a on (a.t1 = b.t1 or a.col1 = b.col1) and (timetruncate(a.ts, 1h) = b.ts or a.ts = b.ts);"
         )
         tdSql.query(
@@ -4545,46 +4762,46 @@ class TestJoinFull:
         tdSql.checkRows(1)
         tdSql.checkData(0, 0, 6)
 
-        tdSql.error(
+        self.check_join_without_on(
             f"select a.ts, a.col1, b.ts, b.col1 from sta b right semi join sta a where (a.t1 = b.t1 or a.col1 = b.col1) and a.ts = b.ts;"
         )
-        tdSql.error(
+        self.check_join_without_on(
             f"select a.ts, a.col1, b.ts, b.col1 from sta b right semi join sta a where (a.t1 = b.t1 or a.col1 = b.col1) or a.ts = b.ts;"
         )
-        tdSql.error(
+        self.check_join_without_on(
             f"select a.ts, a.col1, b.ts, b.col1 from sta b right semi join sta a where (a.t1 = b.t1 or a.col1 = b.col1) and timetruncate(a.ts, 1h) = b.ts or a.ts = b.ts;"
         )
-        tdSql.error(
+        self.check_join_without_on(
             f"select a.ts, a.col1, b.ts, b.col1 from sta b right semi join sta a where (a.t1 = b.t1 or a.col1 = b.col1) and (timetruncate(a.ts, 1h) = b.ts or a.ts = b.ts);"
         )
-        tdSql.error(
+        self.check_join_without_on(
             f"select a.ts, a.col1, b.ts, b.col1 from sta b right semi join sta a where (a.t1 = b.t1 or a.col1 = b.col1) and timetruncate(a.ts, 1m) = b.ts;"
         )
-        tdSql.error(
+        self.check_join_without_on(
             f"select a.ts, a.col1, b.ts, b.col1 from sta b right semi join sta a where (a.t1 = b.t1 or a.col1 = b.col1) and timetruncate(a.ts, 1m) = b.ts;"
         )
-        tdSql.error(
+        self.check_join_without_on(
             f"select a.ts, a.col1, b.ts, b.col1 from sta b right semi join sta a where a.t1 = b.t1 and timetruncate(a.ts, 1m) = b.ts and a.col1 = b.col1;"
         )
-        tdSql.error(
+        self.check_join_without_on(
             f"select a.ts, a.col1, b.ts, b.col1 from sta b right semi join sta a where a.t1 = b.t1 and timetruncate(a.ts, 1m) = b.ts and b.col1 > 1;"
         )
-        tdSql.error(
+        self.check_join_without_on(
             f"select a.tbname from sta b right semi join sta a where a.t1 = b.t1 and timetruncate(a.ts, 1m) = b.ts and a.col1 = b.col1 + 1;"
         )
         tdSql.error(
-            f"select a.tbname from sta b right semi join sta a where a.t1 = b.t1 and timetruncate(a.ts, 1m) = b.ts and count(a.col1) = 1;"
+            f"select a.tbname from sta b right semi join sta a on a.t1 = b.t1 and timetruncate(a.ts, 1m) = b.ts and count(a.col1) = 1;"
         )
-        tdSql.error(
+        self.check_join_without_on(
             f"select a.ts, a.col1, b.ts, b.col1 from sta b right semi join sta a where a.t1 = b.t1 and a.ts = b.ts and a.col1 > 2 and b.col1 < 5;"
         )
-        tdSql.error(
+        self.check_join_without_on(
             f"select a.ts, a.col1, b.ts, b.col1 from sta b right semi join sta a where a.t1 = b.t1 and a.ts = b.ts and (a.col1 < 3 or a.col1 > 4) and b.col1 is not null;"
         )
-        tdSql.error(
+        self.check_join_without_on(
             f"select a.ts, a.col1, b.ts, b.col1 from sta b right semi join sta a where a.t1 = b.t1 and a.ts = b.ts and (a.col1 < 3 or a.col1 > 4) and b.col1 is null;"
         )
-        tdSql.error(
+        self.check_join_without_on(
             f"select a.ts, a.col1, b.ts, b.col1 from sta b right semi join sta a where a.t1 = b.t1 and a.ts = b.ts and (a.col1 < 3 or b.col1 > 3);"
         )
 
@@ -4604,15 +4821,16 @@ class TestJoinFull:
         )
         tdSql.checkRows(8)
 
-        tdSql.error(
+        tdSql.query(
             f"select a.ts, a.col1, b.ts, b.col1 from sta b right anti join sta a on a.t1 = b.t1 where a.ts = b.ts;"
         )
+        tdSql.checkRows(0)
         tdSql.query(
             f"select a.ts, a.col1, b.ts, b.col1 from sta b right anti join sta a on a.t1 = b.t1 and a.ts = b.ts;"
         )
         tdSql.checkRows(0)
 
-        tdSql.error(
+        tdSql.query(
             f"select a.ts, a.col1, b.ts, b.col1 from sta b right anti join sta a on a.t1 = b.t1 or a.col1 = b.col1 where a.ts = b.ts;"
         )
         tdSql.query(
@@ -4620,9 +4838,10 @@ class TestJoinFull:
         )
         tdSql.checkRows(0)
 
-        tdSql.error(
+        tdSql.query(
             f"select count(*),last(a.col1) from sta b right anti join sta a on (a.t1 = b.t1 or a.col1 > b.col1) and a.col1 > 1 where a.ts = b.ts and a.col1 > 2;"
         )
+        tdSql.checkRows(1)
         tdSql.query(
             f"select count(*),count(a.col1) from sta b right anti join sta a on (a.t1 = b.t1 or a.col1 > b.col1) and a.col1 > 1 and a.ts = b.ts and a.col1 > 2;"
         )
@@ -4630,9 +4849,13 @@ class TestJoinFull:
         tdSql.checkData(0, 0, 2)
         tdSql.checkData(0, 1, 2)
 
-        tdSql.error(
+        tdSql.query(
             f"select first(b.col1),count(b.t1),last(a.col1) from sta b right anti join sta a on a.t1 = b.t1 and a.col1 > 1 and b.t1 is not null where a.ts = b.ts and b.col1 > 3 and a.t1 != 1;"
         )
+        tdSql.checkRows(1)
+        tdSql.checkData(0, 0, None)
+        tdSql.checkData(0, 1, 0)
+        tdSql.checkData(0, 2, None)
         tdSql.query(
             f"select first(b.col1),count(b.t1),last(a.col1),count(*) from sta b right anti join sta a on a.t1 = b.t1 and a.col1 > 1 and b.t1 is not null and a.ts = b.ts and b.col1 > 3 and a.t1 != 1;"
         )
@@ -4647,13 +4870,13 @@ class TestJoinFull:
         )
         tdSql.checkRows(0)
 
-        tdSql.error(
+        tdSql.query(
             f"select a.ts, a.col1, b.ts, b.col1 from sta b right anti join sta a on (a.t1 = b.t1 or a.col1 = b.col1) or a.ts = b.ts;"
         )
-        tdSql.error(
+        tdSql.query(
             f"select a.ts, a.col1, b.ts, b.col1 from sta b right anti join sta a on (a.t1 = b.t1 or a.col1 = b.col1) and timetruncate(a.ts, 1h) = b.ts or a.ts = b.ts;"
         )
-        tdSql.error(
+        tdSql.query(
             f"select a.ts, a.col1, b.ts, b.col1 from sta b right anti join sta a on (a.t1 = b.t1 or a.col1 = b.col1) and (timetruncate(a.ts, 1h) = b.ts or a.ts = b.ts);"
         )
         tdSql.query(
@@ -4747,46 +4970,46 @@ class TestJoinFull:
         tdSql.checkRows(1)
         tdSql.checkData(0, 0, 0)
 
-        tdSql.error(
+        self.check_join_without_on(
             f"select a.ts, a.col1, b.ts, b.col1 from sta b right anti join sta a where (a.t1 = b.t1 or a.col1 = b.col1) and a.ts = b.ts;"
         )
-        tdSql.error(
+        self.check_join_without_on(
             f"select a.ts, a.col1, b.ts, b.col1 from sta b right anti join sta a where (a.t1 = b.t1 or a.col1 = b.col1) or a.ts = b.ts;"
         )
-        tdSql.error(
+        self.check_join_without_on(
             f"select a.ts, a.col1, b.ts, b.col1 from sta b right anti join sta a where (a.t1 = b.t1 or a.col1 = b.col1) and timetruncate(a.ts, 1h) = b.ts or a.ts = b.ts;"
         )
-        tdSql.error(
+        self.check_join_without_on(
             f"select a.ts, a.col1, b.ts, b.col1 from sta b right anti join sta a where (a.t1 = b.t1 or a.col1 = b.col1) and (timetruncate(a.ts, 1h) = b.ts or a.ts = b.ts);"
         )
-        tdSql.error(
+        self.check_join_without_on(
             f"select a.ts, a.col1, b.ts, b.col1 from sta b right anti join sta a where (a.t1 = b.t1 or a.col1 = b.col1) and timetruncate(a.ts, 1m) = b.ts;"
         )
-        tdSql.error(
+        self.check_join_without_on(
             f"select a.ts, a.col1, b.ts, b.col1 from sta b right anti join sta a where (a.t1 = b.t1 or a.col1 = b.col1) and timetruncate(a.ts, 1m) = b.ts;"
         )
-        tdSql.error(
+        self.check_join_without_on(
             f"select a.ts, a.col1, b.ts, b.col1 from sta b right anti join sta a where a.t1 = b.t1 and timetruncate(a.ts, 1m) = b.ts and a.col1 = b.col1;"
         )
-        tdSql.error(
+        self.check_join_without_on(
             f"select a.ts, a.col1, b.ts, b.col1 from sta b right anti join sta a where a.t1 = b.t1 and timetruncate(a.ts, 1m) = b.ts and b.col1 > 1;"
         )
-        tdSql.error(
+        self.check_join_without_on(
             f"select a.tbname from sta b right anti join sta a where a.t1 = b.t1 and timetruncate(a.ts, 1m) = b.ts and a.col1 = b.col1 + 1;"
         )
         tdSql.error(
-            f"select a.tbname from sta b right anti join sta a where a.t1 = b.t1 and timetruncate(a.ts, 1m) = b.ts and count(a.col1) = 1;"
+            f"select a.tbname from sta b right anti join sta a on a.t1 = b.t1 and timetruncate(a.ts, 1m) = b.ts and count(a.col1) = 1;"
         )
-        tdSql.error(
+        self.check_join_without_on(
             f"select a.ts, a.col1, b.ts, b.col1 from sta b right anti join sta a where a.t1 = b.t1 and a.ts = b.ts and a.col1 > 2 and b.col1 < 5;"
         )
-        tdSql.error(
+        self.check_join_without_on(
             f"select a.ts, a.col1, b.ts, b.col1 from sta b right anti join sta a where a.t1 = b.t1 and a.ts = b.ts and (a.col1 < 3 or a.col1 > 4) and b.col1 is not null;"
         )
-        tdSql.error(
+        self.check_join_without_on(
             f"select a.ts, a.col1, b.ts, b.col1 from sta b right anti join sta a where a.t1 = b.t1 and a.ts = b.ts and (a.col1 < 3 or a.col1 > 4) and b.col1 is null;"
         )
-        tdSql.error(
+        self.check_join_without_on(
             f"select a.ts, a.col1, b.ts, b.col1 from sta b right anti join sta a where a.t1 = b.t1 and a.ts = b.ts and (a.col1 < 3 or b.col1 > 3);"
         )
 
@@ -5315,7 +5538,8 @@ class TestJoinFull:
         tdSql.checkRows(1)
         tdSql.checkData(0, 0, 3)
 
-        tdSql.error(f"select csum(b.col1) from sta a join sta b on a.ts = b.ts;")
+        tdSql.query(f"select csum(b.col1) from sta a join sta b on a.ts = b.ts;")
+        tdSql.checkRows(12)
         tdSql.query(f"select csum(b.col1) from tba1 a join tba2 b on a.ts = b.ts;")
         tdSql.checkRows(2)
         tdSql.checkData(0, 0, 2)
@@ -5344,9 +5568,14 @@ class TestJoinFull:
         tdSql.checkRows(1)
         tdSql.checkData(0, 0, 12)
 
-        tdSql.error(
+        tdSql.query(
             f"select count(a.col1) c1 from sta a join sta b on a.ts = b.ts state_window(b.col1);"
         )
+        tdSql.checkRows(4)
+        tdSql.checkData(0, 0, 4)
+        tdSql.checkData(1, 0, 2)
+        tdSql.checkData(2, 0, 5)
+        tdSql.checkData(3, 0, 1)
 
         # left join
         tdSql.query(f"select sum(a.col1) c1 from sta a left join sta b on a.ts = b.ts;")
@@ -5369,7 +5598,8 @@ class TestJoinFull:
         tdSql.checkData(1, 0, 3)
         tdSql.checkData(2, 0, None)
 
-        tdSql.error(f"select csum(b.col1) from sta a left join sta b on a.ts = b.ts;")
+        tdSql.query(f"select csum(b.col1) from sta a left join sta b on a.ts = b.ts;")
+        tdSql.checkRows(12)
         tdSql.query(f"select csum(b.col1) from tba1 a left join tba2 b on a.ts = b.ts;")
         tdSql.checkRows(2)
         tdSql.checkData(0, 0, 2)
@@ -5392,13 +5622,20 @@ class TestJoinFull:
         tdSql.checkRows(1)
         tdSql.checkData(0, 0, 12)
 
-        tdSql.error(
+        tdSql.query(
             f"select count(a.col1) c1 from sta a left join sta b on a.ts = b.ts session(b.ts, 1s);"
         )
+        tdSql.checkRows(1)
+        tdSql.checkData(0, 0, 12)
 
-        tdSql.error(
+        tdSql.query(
             f"select count(a.col1) c1 from sta a left join sta b on a.ts = b.ts state_window(b.col1);"
         )
+        tdSql.checkRows(4)
+        tdSql.checkData(0, 0, 4)
+        tdSql.checkData(1, 0, 2)
+        tdSql.checkData(2, 0, 5)
+        tdSql.checkData(3, 0, 1)
 
         # left semi join
         tdSql.query(
@@ -5419,9 +5656,10 @@ class TestJoinFull:
         tdSql.checkRows(1)
         tdSql.checkData(0, 0, 3)
 
-        tdSql.error(
+        tdSql.query(
             f"select csum(b.col1) from sta a left semi join sta b on a.ts = b.ts;"
         )
+        tdSql.checkRows(8)
         tdSql.query(
             f"select csum(b.col1) from tba1 a left semi join tba2 b on a.ts = b.ts;"
         )
@@ -5452,9 +5690,15 @@ class TestJoinFull:
         tdSql.checkRows(1)
         tdSql.checkData(0, 0, 8)
 
-        tdSql.error(
+        tdSql.query(
             f"select count(a.col1) c1 from sta a left semi join sta b on a.ts = b.ts state_window(b.col1);"
         )
+        tdSql.checkRows(5)
+        tdSql.checkData(0, 0, 2)
+        tdSql.checkData(1, 0, 2)
+        tdSql.checkData(2, 0, 2)
+        tdSql.checkData(3, 0, 1)
+        tdSql.checkData(4, 0, 1)
 
         # left anti join
         tdSql.query(
@@ -5507,13 +5751,20 @@ class TestJoinFull:
         tdSql.checkData(0, 0, 1)
         tdSql.checkData(1, 0, 1)
 
-        tdSql.error(
+        tdSql.query(
             f"select count(a.col1) c1 from sta a left anti join sta b on a.ts = b.ts session(b.ts, 1s);"
         )
+        tdSql.checkRows(0)
 
-        tdSql.error(
+        tdSql.query(
             f"select count(a.col1) c1 from sta a left semi join sta b on a.ts = b.ts state_window(b.col1);"
         )
+        tdSql.checkRows(5)
+        tdSql.checkData(0, 0, 2)
+        tdSql.checkData(1, 0, 2)
+        tdSql.checkData(2, 0, 2)
+        tdSql.checkData(3, 0, 1)
+        tdSql.checkData(4, 0, 1)
 
         # left asof join + join group
         tdSql.query(
@@ -5565,9 +5816,10 @@ class TestJoinFull:
         tdSql.checkRows(1)
         tdSql.checkData(0, 0, 30)
 
-        tdSql.error(
+        tdSql.query(
             f"select diff(a.col1) c1 from sta a left asof join sta b on a.ts > b.ts;"
         )
+        tdSql.checkRows(7)
         tdSql.query(
             f"select diff(a.col1) c1 from tba1 a left asof join tba2 b on a.ts > b.ts;"
         )
@@ -5617,9 +5869,12 @@ class TestJoinFull:
         tdSql.checkData(0, 0, 1)
         tdSql.checkData(1, 0, 3)
 
-        tdSql.error(
+        tdSql.query(
             f"select count(a.col1) c1 from tba1 a left asof join tba2 b on a.ts > b.ts session(b.ts, 1s);"
         )
+        tdSql.checkRows(2)
+        tdSql.checkData(0, 0, 2)
+        tdSql.checkData(1, 0, 1)
 
         tdSql.query(
             f"select count(a.col1) c1 from tba1 a left asof join tba2 b on a.ts > b.ts state_window(b.col1);"
@@ -5673,9 +5928,10 @@ class TestJoinFull:
         tdSql.checkData(6, 0, 20)
         tdSql.checkData(7, 0, 20)
 
-        tdSql.error(
+        tdSql.query(
             f"select diff(a.col1) c1 from sta a left window join sta b window_offset(-1s, 1s);"
         )
+        tdSql.checkRows(20)
         tdSql.query(
             f"select diff(a.col1) c1 from tba1 a left window join tba2 b window_offset(-1s, 0s);"
         )
@@ -5698,12 +5954,14 @@ class TestJoinFull:
         tdSql.checkData(5, 0, 1)
         tdSql.checkData(6, 0, 1)
 
-        tdSql.error(
+        tdSql.query(
             f"select csum(a.col1) from sta a left window join sta b window_offset(-1s, 1s);"
         )
-        tdSql.error(
+        tdSql.checkRows(28)
+        tdSql.query(
             f"select csum(a.col1) from tba1 a left window join tba2 b window_offset(-1s, 1s);"
         )
+        tdSql.checkRows(7)
         tdSql.query(
             f"select csum(a.col1) from tba1 a left window join tba2 b window_offset(-1s, 0s);"
         )
@@ -5785,12 +6043,14 @@ class TestJoinFull:
         tdSql.checkRows(1)
         tdSql.checkData(0, 0, 7)
 
-        tdSql.error(
+        tdSql.query(
             f"select a.*,b.* from (select * from sta partition by tbname) a join (select * from sta partition by tbname order by ts) b on a.ts = b.ts;"
         )
-        tdSql.error(
+        tdSql.checkRows(12)
+        tdSql.query(
             f"select a.t1 from (select * from sta partition by tbname order by col1) a join (select * from sta partition by tbname order by ts) b on a.ts = b.ts;"
         )
+        tdSql.checkRows(12)
         tdSql.query(
             f"select a.t1 from (select * from sta partition by tbname order by ts) a join (select * from sta partition by tbname order by ts) b on a.ts = b.ts;"
         )
@@ -5813,12 +6073,14 @@ class TestJoinFull:
         tdSql.checkData(0, 0, "2023-11-17 16:29:03")
 
         # left join + non join
-        tdSql.error(
+        tdSql.query(
             f"select a.*,b.* from (select * from sta partition by tbname) a left join (select * from sta partition by tbname order by ts) b on a.ts = b.ts;"
         )
-        tdSql.error(
+        tdSql.checkRows(12)
+        tdSql.query(
             f"select a.t1 from (select * from sta partition by tbname order by col1) a left join (select * from sta partition by tbname order by ts) b on a.ts = b.ts;"
         )
+        tdSql.checkRows(12)
         tdSql.query(
             f"select a.t1 from (select * from sta partition by tbname order by ts) a left join (select * from sta partition by tbname order by ts) b on a.ts = b.ts;"
         )
@@ -5835,12 +6097,14 @@ class TestJoinFull:
         tdSql.checkRows(12)
 
         # left semi join + non join
-        tdSql.error(
+        tdSql.query(
             f"select a.*,b.* from (select * from sta partition by tbname) a left semi join (select * from sta partition by tbname order by ts) b on a.ts = b.ts;"
         )
-        tdSql.error(
+        tdSql.checkRows(8)
+        tdSql.query(
             f"select a.t1 from (select * from sta partition by tbname order by col1) a left semi join (select * from sta partition by tbname order by ts) b on a.ts = b.ts;"
         )
+        tdSql.checkRows(8)
         tdSql.query(
             f"select a.t1 from (select * from sta partition by tbname order by ts) a left semi join (select * from sta partition by tbname order by ts) b on a.ts = b.ts;"
         )
@@ -5857,12 +6121,14 @@ class TestJoinFull:
         tdSql.checkRows(8)
 
         # left anti join + non join
-        tdSql.error(
+        tdSql.query(
             f"select a.*,b.* from (select * from sta partition by tbname) a left anti join (select * from sta partition by tbname order by ts) b on a.ts = b.ts;"
         )
-        tdSql.error(
+        tdSql.checkRows(0)
+        tdSql.query(
             f"select a.t1 from (select * from sta partition by tbname order by col1) a left anti join (select * from sta partition by tbname order by ts) b on a.ts = b.ts;"
         )
+        tdSql.checkRows(0)
         tdSql.query(
             f"select a.t1 from (select * from sta partition by tbname order by ts) a left anti join (select * from sta partition by tbname order by ts) b on a.ts = b.ts;"
         )
@@ -5879,43 +6145,74 @@ class TestJoinFull:
         tdSql.checkRows(0)
 
         # left asof join + non join
-        tdSql.error(
-            f"select a.*,b.* from (select * from sta partition by tbname) a left asof join (select * from sta partition by tbname order by ts) b;"
+        tdSql.query(
+            "select a.*,b.* from (select * from sta partition by tbname) a "
+            "left asof join (select * from sta partition by tbname order by "
+            "ts) b;"
         )
-        tdSql.error(
-            f"select a.t1 from (select * from sta partition by tbname order by col1) a left asof join (select * from sta partition by tbname order by ts) b;"
+        tdSql.checkRows(8)
+        tdSql.query(
+            "select a.t1 from (select * from sta partition by tbname order by"
+            " col1) a left asof join (select * from sta partition by tbname "
+            "order by ts) b;"
         )
-        tdSql.error(
-            f"select a.t1 from (select * from sta partition by tbname order by ts) a left asof join (select * from sta partition by tbname order by ts) b;"
+        tdSql.checkRows(8)
+        tdSql.query(
+            "select a.t1 from (select * from sta partition by tbname order by"
+            " ts) a left asof join (select * from sta partition by tbname "
+            "order by ts) b;"
         )
-        tdSql.error(
-            f"select a.t1 from (select * from sta partition by tbname order by ts desc) a left asof join (select * from sta partition by tbname order by ts) b;"
+        tdSql.checkRows(8)
+        tdSql.query(
+            "select a.t1 from (select * from sta partition by tbname order by"
+            " ts desc) a left asof join (select * from sta partition by "
+            "tbname order by ts) b;"
         )
-        tdSql.error(
-            f"select a.t1 from (select * from sta partition by tbname order by ts desc) a left asof join (select * from sta partition by tbname order by ts) b order by b.ts desc;"
+        tdSql.checkRows(8)
+        tdSql.query(
+            "select a.t1 from (select * from sta partition by tbname order by"
+            " ts desc) a left asof join (select * from sta partition by "
+            "tbname order by ts) b order by b.ts desc;"
         )
+        tdSql.checkRows(8)
 
         # left window join + non join
-        tdSql.error(
-            f"select a.*,b.* from (select * from sta partition by tbname) a left window join (select * from sta partition by tbname order by ts) b window_offset(-1s,1s);"
+        tdSql.query(
+            "select a.*,b.* from (select * from sta partition by tbname) a "
+            "left window join (select * from sta partition by tbname order by"
+            " ts) b window_offset(-1s,1s);"
         )
-        tdSql.error(
-            f"select a.t1 from (select * from sta partition by tbname order by col1) a left window join (select * from sta partition by tbname order by ts) b window_offset(-1s,1s);"
+        tdSql.checkRows(28)
+        tdSql.query(
+            "select a.t1 from (select * from sta partition by tbname order by"
+            " col1) a left window join (select * from sta partition by tbname"
+            " order by ts) b window_offset(-1s,1s);"
         )
-        tdSql.error(
-            f"select a.t1 from (select * from sta partition by tbname order by ts) a left window join (select * from sta partition by tbname order by ts) b window_offset(-1s,1s);"
+        tdSql.checkRows(28)
+        tdSql.query(
+            "select a.t1 from (select * from sta partition by tbname order by"
+            " ts) a left window join (select * from sta partition by tbname "
+            "order by ts) b window_offset(-1s,1s);"
         )
-        tdSql.error(
-            f"select a.t1 from (select * from sta partition by tbname order by ts desc) a left window join (select * from sta partition by tbname order by ts) b window_offset(-1s,1s);"
+        tdSql.checkRows(28)
+        tdSql.query(
+            "select a.t1 from (select * from sta partition by tbname order by"
+            " ts desc) a left window join (select * from sta partition by "
+            "tbname order by ts) b window_offset(-1s,1s);"
         )
-        tdSql.error(
-            f"select a.t1 from (select * from sta partition by tbname order by ts desc) a left window join (select * from sta partition by tbname order by ts) b window_offset(-1s,1s) order by b.ts desc;"
+        tdSql.checkRows(28)
+        tdSql.query(
+            "select a.t1 from (select * from sta partition by tbname order by"
+            " ts desc) a left window join (select * from sta partition by "
+            "tbname order by ts) b window_offset(-1s,1s) order by b.ts desc;"
         )
+        tdSql.checkRows(28)
 
         # inner join + inner join
-        tdSql.error(
+        tdSql.query(
             f"select a.ts from (select tb1.ts from sta tb1 join sta tb2 on tb1.ts=tb2.ts and tb1.t1=tb2.t1) a join (select * from sta partition by tbname order by ts) b on a.ts = b.ts;"
         )
+        tdSql.checkRows(12)
         tdSql.query(
             f"select a.ts from (select tba1.ts from tba1 join tba2 on tba1.ts=tba2.ts) a join (select * from sta partition by tbname order by ts) b on a.ts = b.ts;"
         )
@@ -5960,9 +6257,10 @@ class TestJoinFull:
         )
 
         # inner join + left join
-        tdSql.error(
+        tdSql.query(
             f"select a.ts from (select tb1.ts from sta tb1 left join sta tb2 on tb1.ts=tb2.ts order by tb2.ts) a join sta b on a.ts = b.ts;"
         )
+        tdSql.checkRows(20)
         tdSql.query(
             f"select a.ts from (select tb1.ts from sta tb1 left join sta tb2 on tb1.ts=tb2.ts) a join sta b on a.ts = b.ts;"
         )
@@ -5973,9 +6271,11 @@ class TestJoinFull:
         )
         tdSql.checkRows(36)
 
-        tdSql.error(
+        tdSql.query(
             f"select count(a.col1) from (select tb1.ts,tb1.col1 from sta tb1 left join sta tb2 on tb1.ts=tb2.ts order by tb2.ts desc) a join (select * from sta partition by tbname order by ts desc) b on a.ts = b.ts session(a.ts, 1s);;"
         )
+        tdSql.checkRows(1)
+        tdSql.checkData(0, 0, 20)
         tdSql.query(
             f"select count(a.col1) from (select tb1.ts,tb1.col1 from sta tb1 left join sta tb2 on tb1.ts=tb2.ts) a join (select * from sta partition by tbname order by ts desc) b on a.ts = b.ts session(a.ts, 1s);;"
         )
@@ -6004,9 +6304,10 @@ class TestJoinFull:
         )
 
         # inner join + left anti join
-        tdSql.error(
+        tdSql.query(
             f"select a.ts from (select tb1.ts from sta tb1 left anti join sta tb2 on tb1.ts=tb2.ts order by tb2.ts) a join sta b on a.ts = b.ts;"
         )
+        tdSql.checkRows(0)
         tdSql.query(
             f"select a.ts from (select tb1.ts from sta tb1 left anti join sta tb2 on tb1.ts=tb2.ts) a join sta b on a.ts = b.ts;"
         )
@@ -6017,17 +6318,19 @@ class TestJoinFull:
         )
         tdSql.checkRows(0)
 
-        tdSql.error(
+        tdSql.query(
             f"select count(a.col1) from (select tb1.ts,tb1.col1 from sta tb1 left anti join sta tb2 on tb1.ts=tb2.ts order by tb2.ts desc) a join (select * from sta partition by tbname order by ts desc) b on a.ts = b.ts session(a.ts, 1s);;"
         )
+        tdSql.checkRows(0)
         tdSql.query(
             f"select count(a.col1) from (select tb1.ts,tb1.col1 from sta tb1 left anti join sta tb2 on tb1.ts=tb2.ts) a join (select * from sta partition by tbname order by ts desc) b on a.ts = b.ts session(a.ts, 1s);;"
         )
 
         # inner join + left asof join
-        tdSql.error(
+        tdSql.query(
             f"select a.ts from (select tb1.ts from sta tb1 left asof join sta tb2 order by tb2.ts) a join sta b on a.ts = b.ts;"
         )
+        tdSql.checkRows(12)
         tdSql.query(
             f"select a.ts from (select tb1.ts from sta tb1 left asof join sta tb2) a join sta b on a.ts = b.ts;"
         )
@@ -6038,17 +6341,21 @@ class TestJoinFull:
         )
         tdSql.checkRows(12)
 
-        tdSql.error(
+        tdSql.query(
             f"select count(a.col1) from (select tb1.ts,tb1.col1 from sta tb1 left asof join sta tb2 order by tb2.ts desc) a join (select * from sta partition by tbname order by ts desc) b on a.ts = b.ts session(a.ts, 1s);;"
         )
+        tdSql.checkRows(1)
+        tdSql.checkData(0, 0, 12)
         tdSql.query(
             f"select count(a.col1) from (select tb1.ts,tb1.col1 from sta tb1 left asof join sta tb2) a join (select * from sta partition by tbname order by ts desc) b on a.ts = b.ts session(a.ts, 1s);;"
         )
 
         # inner join + left window join
-        tdSql.error(
+        tdSql.query(
             f"select a.ts from (select tb1.ts from sta tb1 left window join sta tb2 window_offset(-1s,1s) order by tb2.ts) a join sta b on a.ts = b.ts;"
         )
+        # ORDER BY tb2.ts changes only the subquery output order. The outer JOIN still matches all rows on a.ts.
+        tdSql.checkRows(42)
         tdSql.query(
             f"select a.ts from (select tb1.ts from sta tb1 left window join sta tb2 window_offset(-1s,1s)) a join sta b on a.ts = b.ts;"
         )
@@ -6059,270 +6366,13 @@ class TestJoinFull:
         )
         tdSql.checkRows(152)
 
-        tdSql.error(
+        tdSql.query(
             f"select count(a.col1) from (select tb1.ts,tb1.col1 from sta tb1 left window join sta tb2 window_offset(-1s,1s) order by tb2.ts desc) a join (select * from sta partition by tbname order by ts desc) b on a.ts = b.ts session(a.ts, 1s);;"
         )
+        tdSql.checkRows(1)
+        tdSql.checkData(0, 0, 42)
         tdSql.query(
             f"select count(a.col1) from (select tb1.ts,tb1.col1 from sta tb1 left window join sta tb2 window_offset(-1s,1s)) a join (select * from sta partition by tbname order by ts desc) b on a.ts = b.ts session(a.ts, 1s);;"
-        )
-
-        # left join + inner join
-        tdSql.error(
-            f"select a.ts from (select tb1.ts from sta tb1 join sta tb2 on tb1.ts=tb2.ts and tb1.t1=tb2.t1) a left join (select * from sta partition by tbname order by ts) b on a.ts = b.ts;"
-        )
-        tdSql.error(
-            f"select a.ts from (select tba1.ts from tba1 join tba2 on tba1.ts=tba2.ts) a left join (select * from sta partition by tbname order by ts) b on a.ts = b.ts;"
-        )
-        tdSql.error(
-            f"select a.ts from (select tb1.ts from sta tb1 join sta tb2 on tb1.ts=tb2.ts) a left join (select * from sta partition by tbname order by ts) b on a.ts = b.ts;"
-        )
-        tdSql.error(
-            f"select a.ts from (select tb1.ts from sta tb1 join sta tb2 on tb1.ts=tb2.ts) a left join (select * from sta partition by tbname order by ts desc) b on a.ts = b.ts;"
-        )
-        tdSql.error(
-            f"select a.ts from (select tb1.ts from sta tb1 join sta tb2 on tb1.ts=tb2.ts order by tb2.ts desc) a left join (select * from sta partition by tbname order by ts desc) b  on a.ts = b.ts;"
-        )
-        tdSql.error(
-            f"select a.ts from (select tb1.ts from sta tb1 join sta tb2 on tb1.ts=tb2.ts order by tb2.ts desc) a left join (select * from sta partition by tbname order by ts) b  on a.ts = b.ts;"
-        )
-        tdSql.error(
-            f"select a.ts from (select tb1.ts from sta tb1 join sta tb2 on tb1.ts=tb2.ts order by tb2.ts desc) a left join (select tb1.ts from sta tb1 join sta tb2 on tb1.ts=tb2.ts order by tb2.ts desc) b on a.ts = b.ts;"
-        )
-        tdSql.error(
-            f"select a.ts from (select tb1.ts from sta tb1 join sta tb2 on tb1.ts=tb2.ts order by tb2.ts desc) a left join (select tb1.ts from sta tb1 join sta tb2 on tb1.ts=tb2.ts order by tb2.ts) b on a.ts = b.ts;"
-        )
-
-        # left join + left join
-        tdSql.error(
-            f"select a.ts from (select tb1.ts from sta tb1 left join sta tb2 on tb1.ts=tb2.ts order by tb2.ts) a left join sta b on a.ts = b.ts;"
-        )
-        tdSql.error(
-            f"select a.ts from (select tb1.ts from sta tb1 left join sta tb2 on tb1.ts=tb2.ts) a left join sta b on a.ts = b.ts;"
-        )
-        tdSql.error(
-            f"select a.ts from (select tb1.ts from sta tb1 left join sta tb2 on tb1.ts=tb2.ts) a left join (select tb1.ts from sta tb1 left join sta tb2 on tb1.ts=tb2.ts order by tb1.ts desc) b on a.ts = b.ts;"
-        )
-
-        # left join + left semi join
-        tdSql.error(
-            f"select a.ts from (select tb1.ts from sta tb1 left semi join sta tb2 on tb1.ts=tb2.ts order by tb2.ts) a left join sta b on a.ts = b.ts;"
-        )
-        tdSql.error(
-            f"select a.ts from (select tb1.ts from sta tb1 left semi join sta tb2 on tb1.ts=tb2.ts) a left join sta b on a.ts = b.ts;"
-        )
-        tdSql.error(
-            f"select a.ts from (select tb1.ts from sta tb1 left semi join sta tb2 on tb1.ts=tb2.ts) a left join (select tb1.ts from sta tb1 left semi join sta tb2 on tb1.ts=tb2.ts order by tb1.ts desc) b on a.ts = b.ts;"
-        )
-
-        # left join + left anti join
-        tdSql.error(
-            f"select a.ts from (select tb1.ts from sta tb1 left anti join sta tb2 on tb1.ts=tb2.ts order by tb2.ts) a left join sta b on a.ts = b.ts;"
-        )
-        tdSql.error(
-            f"select a.ts from (select tb1.ts from sta tb1 left anti join sta tb2 on tb1.ts=tb2.ts) a left join sta b on a.ts = b.ts;"
-        )
-        tdSql.error(
-            f"select a.ts from (select tb1.ts from sta tb1 left anti join sta tb2 on tb1.ts=tb2.ts) a left join (select tb1.ts from sta tb1 left anti join sta tb2 on tb1.ts=tb2.ts order by tb1.ts desc) b on a.ts = b.ts;"
-        )
-
-        # left join + left asof join
-        tdSql.error(
-            f"select a.ts from (select tb1.ts from sta tb1 left asof join sta tb2 order by tb2.ts) a left join sta b on a.ts = b.ts;"
-        )
-        tdSql.error(
-            f"select a.ts from (select tb1.ts from sta tb1 left asof join sta tb2) a left join sta b on a.ts = b.ts;"
-        )
-        tdSql.error(
-            f"select a.ts from (select tb1.ts from sta tb1 left asof join sta tb2) a left join (select tb1.ts from sta tb1 left asof join sta tb2 order by tb1.ts desc) b on a.ts = b.ts;"
-        )
-
-        # left join + left window join
-        tdSql.error(
-            f"select a.ts from (select tb1.ts from sta tb1 left window join sta tb2 window_offset(-1s,1s) order by tb2.ts) a left join sta b on a.ts = b.ts;"
-        )
-        tdSql.error(
-            f"select a.ts from (select tb1.ts from sta tb1 left window join sta tb2 window_offset(-1s,1s)) a left join sta b on a.ts = b.ts;"
-        )
-        tdSql.error(
-            f"select a.ts from (select tb1.ts from sta tb1 left window join sta tb2 window_offset(-1s,1s)) a left join (select tb1.ts from sta tb1 left window join sta tb2 window_offset(-1s,1s) order by tb1.ts desc) b on a.ts = b.ts;"
-        )
-
-        # left semi join + inner join
-        tdSql.error(
-            f"select a.ts from (select tb1.ts from sta tb1 join sta tb2 on tb1.ts=tb2.ts and tb1.t1=tb2.t1) a left semi join (select * from sta partition by tbname order by ts) b on a.ts = b.ts;"
-        )
-        tdSql.error(
-            f"select a.ts from (select tba1.ts from tba1 join tba2 on tba1.ts=tba2.ts) a left semi join (select * from sta partition by tbname order by ts) b on a.ts = b.ts;"
-        )
-        tdSql.error(
-            f"select a.ts from (select tb1.ts from sta tb1 join sta tb2 on tb1.ts=tb2.ts) a left semi join (select * from sta partition by tbname order by ts) b on a.ts = b.ts;"
-        )
-        tdSql.error(
-            f"select a.ts from (select tb1.ts from sta tb1 join sta tb2 on tb1.ts=tb2.ts) a left semi join (select * from sta partition by tbname order by ts desc) b on a.ts = b.ts;"
-        )
-        tdSql.error(
-            f"select a.ts from (select tb1.ts from sta tb1 join sta tb2 on tb1.ts=tb2.ts order by tb2.ts desc) a left semi join (select * from sta partition by tbname order by ts desc) b  on a.ts = b.ts;"
-        )
-        tdSql.error(
-            f"select a.ts from (select tb1.ts from sta tb1 join sta tb2 on tb1.ts=tb2.ts order by tb2.ts desc) a left semi join (select * from sta partition by tbname order by ts) b  on a.ts = b.ts;"
-        )
-        tdSql.error(
-            f"select a.ts from (select tb1.ts from sta tb1 join sta tb2 on tb1.ts=tb2.ts order by tb2.ts desc) a left semi join (select tb1.ts from sta tb1 join sta tb2 on tb1.ts=tb2.ts order by tb2.ts desc) b on a.ts = b.ts;"
-        )
-        tdSql.error(
-            f"select a.ts from (select tb1.ts from sta tb1 join sta tb2 on tb1.ts=tb2.ts order by tb2.ts desc) a left semi join (select tb1.ts from sta tb1 join sta tb2 on tb1.ts=tb2.ts order by tb2.ts) b on a.ts = b.ts;"
-        )
-
-        # left semi join + left join
-        tdSql.error(
-            f"select a.ts from (select tb1.ts from sta tb1 left join sta tb2 on tb1.ts=tb2.ts order by tb2.ts) a left semi join sta b on a.ts = b.ts;"
-        )
-        tdSql.error(
-            f"select a.ts from (select tb1.ts from sta tb1 left join sta tb2 on tb1.ts=tb2.ts) a left semi join sta b on a.ts = b.ts;"
-        )
-        tdSql.error(
-            f"select a.ts from (select tb1.ts from sta tb1 left join sta tb2 on tb1.ts=tb2.ts) a left semi join (select tb1.ts from sta tb1 left join sta tb2 on tb1.ts=tb2.ts order by tb1.ts desc) b on a.ts = b.ts;"
-        )
-
-        # left semi join + left semi join
-        tdSql.error(
-            f"select a.ts from (select tb1.ts from sta tb1 left semi join sta tb2 on tb1.ts=tb2.ts order by tb2.ts) a left semi join sta b on a.ts = b.ts;"
-        )
-        tdSql.error(
-            f"select a.ts from (select tb1.ts from sta tb1 left semi join sta tb2 on tb1.ts=tb2.ts) a left semi join sta b on a.ts = b.ts;"
-        )
-        tdSql.error(
-            f"select a.ts from (select tb1.ts from sta tb1 left semi join sta tb2 on tb1.ts=tb2.ts) a left semi join (select tb1.ts from sta tb1 left semi join sta tb2 on tb1.ts=tb2.ts order by tb1.ts desc) b on a.ts = b.ts;"
-        )
-
-        # left semi join + left anti join
-        tdSql.error(
-            f"select a.ts from (select tb1.ts from sta tb1 left anti join sta tb2 on tb1.ts=tb2.ts order by tb2.ts) a left semi join sta b on a.ts = b.ts;"
-        )
-        tdSql.error(
-            f"select a.ts from (select tb1.ts from sta tb1 left anti join sta tb2 on tb1.ts=tb2.ts) a left semi join sta b on a.ts = b.ts;"
-        )
-        tdSql.error(
-            f"select a.ts from (select tb1.ts from sta tb1 left anti join sta tb2 on tb1.ts=tb2.ts) a left semi join (select tb1.ts from sta tb1 left anti join sta tb2 on tb1.ts=tb2.ts order by tb1.ts desc) b on a.ts = b.ts;"
-        )
-
-        # left semi join + left asof join
-        tdSql.error(
-            f"select a.ts from (select tb1.ts from sta tb1 left asof join sta tb2 order by tb2.ts) a left semi join sta b on a.ts = b.ts;"
-        )
-        tdSql.error(
-            f"select a.ts from (select tb1.ts from sta tb1 left asof join sta tb2) a left semi join sta b on a.ts = b.ts;"
-        )
-        tdSql.error(
-            f"select a.ts from (select tb1.ts from sta tb1 left asof join sta tb2) a left semi join (select tb1.ts from sta tb1 left asof join sta tb2 order by tb1.ts desc) b on a.ts = b.ts;"
-        )
-
-        # left semi join + left window join
-        tdSql.error(
-            f"select a.ts from (select tb1.ts from sta tb1 left window join sta tb2 window_offset(-1s,1s) order by tb2.ts) a left semi join sta b on a.ts = b.ts;"
-        )
-        tdSql.error(
-            f"select a.ts from (select tb1.ts from sta tb1 left window join sta tb2 window_offset(-1s,1s)) a left semi join sta b on a.ts = b.ts;"
-        )
-
-        # left anti join + inner join
-        tdSql.error(
-            f"select a.ts from (select tb1.ts from sta tb1 join sta tb2 on tb1.ts=tb2.ts and tb1.t1=tb2.t1) a left anti join (select * from sta partition by tbname order by ts) b on a.ts = b.ts;"
-        )
-        tdSql.error(
-            f"select a.ts from (select tba1.ts from tba1 join tba2 on tba1.ts=tba2.ts) a left anti join (select * from sta partition by tbname order by ts) b on a.ts = b.ts;"
-        )
-        tdSql.error(
-            f"select a.ts from (select tb1.ts from sta tb1 join sta tb2 on tb1.ts=tb2.ts) a left anti join (select * from sta partition by tbname order by ts) b on a.ts = b.ts;"
-        )
-        tdSql.error(
-            f"select a.ts from (select tb1.ts from sta tb1 join sta tb2 on tb1.ts=tb2.ts) a left anti join (select * from sta partition by tbname order by ts desc) b on a.ts = b.ts;"
-        )
-        tdSql.error(
-            f"select a.ts from (select tb1.ts from sta tb1 join sta tb2 on tb1.ts=tb2.ts order by tb2.ts desc) a left anti join (select * from sta partition by tbname order by ts desc) b  on a.ts = b.ts;"
-        )
-        tdSql.error(
-            f"select a.ts from (select tb1.ts from sta tb1 join sta tb2 on tb1.ts=tb2.ts order by tb2.ts desc) a left anti join (select * from sta partition by tbname order by ts) b  on a.ts = b.ts;"
-        )
-        tdSql.error(
-            f"select a.ts from (select tb1.ts from sta tb1 join sta tb2 on tb1.ts=tb2.ts order by tb2.ts desc) a left anti join (select tb1.ts from sta tb1 join sta tb2 on tb1.ts=tb2.ts order by tb2.ts desc) b on a.ts = b.ts;"
-        )
-        tdSql.error(
-            f"select a.ts from (select tb1.ts from sta tb1 join sta tb2 on tb1.ts=tb2.ts order by tb2.ts desc) a left anti join (select tb1.ts from sta tb1 join sta tb2 on tb1.ts=tb2.ts order by tb2.ts) b on a.ts = b.ts;"
-        )
-
-        # left anti join + left join
-        tdSql.error(
-            f"select a.ts from (select tb1.ts from sta tb1 left join sta tb2 on tb1.ts=tb2.ts order by tb2.ts) a left anti join sta b on a.ts = b.ts;"
-        )
-        tdSql.error(
-            f"select a.ts from (select tb1.ts from sta tb1 left join sta tb2 on tb1.ts=tb2.ts) a left anti join sta b on a.ts = b.ts;"
-        )
-        tdSql.error(
-            f"select a.ts from (select tb1.ts from sta tb1 left join sta tb2 on tb1.ts=tb2.ts) a left anti join (select tb1.ts from sta tb1 left join sta tb2 on tb1.ts=tb2.ts order by tb1.ts desc) b on a.ts = b.ts;"
-        )
-
-        # left anti join + left semi join
-        tdSql.error(
-            f"select a.ts from (select tb1.ts from sta tb1 left semi join sta tb2 on tb1.ts=tb2.ts order by tb2.ts) a left anti join sta b on a.ts = b.ts;"
-        )
-        tdSql.error(
-            f"select a.ts from (select tb1.ts from sta tb1 left semi join sta tb2 on tb1.ts=tb2.ts) a left anti join sta b on a.ts = b.ts;"
-        )
-        tdSql.error(
-            f"select a.ts from (select tb1.ts from sta tb1 left semi join sta tb2 on tb1.ts=tb2.ts) a left anti join (select tb1.ts from sta tb1 left semi join sta tb2 on tb1.ts=tb2.ts order by tb1.ts desc) b on a.ts = b.ts;"
-        )
-
-        # left anti join + left anti join
-        tdSql.error(
-            f"select a.ts from (select tb1.ts from sta tb1 left anti join sta tb2 on tb1.ts=tb2.ts order by tb2.ts) a left anti join sta b on a.ts = b.ts;"
-        )
-        tdSql.error(
-            f"select a.ts from (select tb1.ts from sta tb1 left anti join sta tb2 on tb1.ts=tb2.ts) a left anti join sta b on a.ts = b.ts;"
-        )
-        tdSql.error(
-            f"select a.ts from (select tb1.ts from sta tb1 left anti join sta tb2 on tb1.ts=tb2.ts) a left anti join (select tb1.ts from sta tb1 left anti join sta tb2 on tb1.ts=tb2.ts order by tb1.ts desc) b on a.ts = b.ts;"
-        )
-
-        # left anti join + left asof join
-        tdSql.error(
-            f"select a.ts from (select tb1.ts from sta tb1 left asof join sta tb2 order by tb2.ts) a left anti join sta b on a.ts = b.ts;"
-        )
-        tdSql.error(
-            f"select a.ts from (select tb1.ts from sta tb1 left asof join sta tb2) a left anti join sta b on a.ts = b.ts;"
-        )
-        tdSql.error(
-            f"select a.ts from (select tb1.ts from sta tb1 left asof join sta tb2) a left anti join (select tb1.ts from sta tb1 left asof join sta tb2 order by tb1.ts desc) b on a.ts = b.ts;"
-        )
-
-        # left anti join + left window join
-        tdSql.error(
-            f"select a.ts from (select tb1.ts from sta tb1 left window join sta tb2 window_offset(-1s,1s) order by tb2.ts) a left anti join sta b on a.ts = b.ts;"
-        )
-        tdSql.error(
-            f"select a.ts from (select tb1.ts from sta tb1 left window join sta tb2 window_offset(-1s,1s)) a left anti join sta b on a.ts = b.ts;"
-        )
-
-        # left asof join + left join
-        tdSql.error(
-            f"select a.ts from (select tb1.ts from sta tb1 left join sta tb2 on tb1.ts=tb2.ts order by tb2.ts) a left asof join sta b;"
-        )
-        tdSql.error(
-            f"select a.ts from (select tb1.ts from sta tb1 left join sta tb2 on tb1.ts=tb2.ts) a left asof join sta b;"
-        )
-        tdSql.error(
-            f"select a.ts from (select tb1.ts from sta tb1 left join sta tb2 on tb1.ts=tb2.ts) a left asof join (select tb1.ts from sta tb1 left join sta tb2 on tb1.ts=tb2.ts order by tb1.ts desc) b;"
-        )
-
-        # left window join + left join
-        tdSql.error(
-            f"select a.ts from (select tb1.ts from sta tb1 left join sta tb2 on tb1.ts=tb2.ts order by tb2.ts) a left window join sta b window_offset(-1s, 1s);"
-        )
-        tdSql.error(
-            f"select a.ts from (select tb1.ts from sta tb1 left join sta tb2 on tb1.ts=tb2.ts) a left window join sta b window_offset(-1s, 1s);"
-        )
-        tdSql.error(
-            f"select a.ts from (select tb1.ts from sta tb1 left join sta tb2 on tb1.ts=tb2.ts) a left window join (select tb1.ts from sta tb1 left join sta tb2 on tb1.ts=tb2.ts order by tb1.ts desc) b window_offset(-1s, 1s);"
         )
 
         # multi level join
@@ -6331,12 +6381,6 @@ class TestJoinFull:
         )
         tdSql.checkRows(20)
 
-        tdSql.error(
-            f"select a.ts from sta a join sta b on a.ts = b.ts left join sta c on b.ts = c.ts;"
-        )
-        tdSql.error(
-            f"select a.ts from sta a join sta b on a.ts = b.ts left semi join sta c on b.ts = c.ts;"
-        )
         tdSql.query(
             f"select a.ts from sta a left join sta b on a.ts = b.ts join sta c on b.ts = c.ts;"
         )
@@ -6351,15 +6395,6 @@ class TestJoinFull:
         )
         tdSql.query(
             f"select a.ts from sta a left window join sta b window_offset(-1s,1s) join sta c on b.ts = c.ts;"
-        )
-        tdSql.error(
-            f"select a.ts from sta a left join sta b on a.ts = b.ts left join sta c on b.ts = c.ts;"
-        )
-        tdSql.error(
-            f"select a.ts from sta a left semi join sta b on a.ts = b.ts left join sta c on b.ts = c.ts;"
-        )
-        tdSql.error(
-            f"select a.ts from sta a left anti join sta b on a.ts = b.ts left semi join sta c on b.ts = c.ts;"
         )
         tdSql.query(
             f"select a.ts from sta a full join sta b on a.ts = b.ts join sta c on b.ts = c.ts;"
@@ -6448,21 +6483,26 @@ class TestJoinFull:
         tdSql.checkData(0, 0, 2)
         tdSql.checkData(1, 0, 4)
 
-        tdSql.error(
+        tdSql.query(
             f"select diff(c1) from (select a.ts, a.col1 c1 from sta a join sta b on a.ts = b.ts);"
         )
-        tdSql.error(
+        tdSql.checkRows(11)
+        tdSql.query(
             f"select diff(c1) from (select a.col1 c1 from sta a join sta b on a.ts = b.ts and a.t1 = b.t1);"
         )
-        tdSql.error(
+        tdSql.checkRows(7)
+        tdSql.query(
             f"select diff(c1) from (select a.col1 c1 from sta a join sta b on a.ts = b.ts);"
         )
-        tdSql.error(
+        tdSql.checkRows(11)
+        tdSql.query(
             f"select diff(c1) from (select a.col1 c1 from sta a join sta b on a.ts = b.ts and a.t1 = b.t1 order by a.ts);"
         )
-        tdSql.error(
+        tdSql.checkRows(7)
+        tdSql.query(
             f"select diff(c1) from (select a.col1 c1, a.ts from sta a join sta b on a.ts = b.ts and a.t1 = b.t1 order by a.ts);"
         )
+        tdSql.checkRows(7)
         tdSql.error(
             f"select count(c1) from (select a.col1 c1 from tba1 a join sta b on a.ts = b.ts) interval(1s);"
         )
@@ -6479,12 +6519,20 @@ class TestJoinFull:
         tdSql.checkData(1, 0, 1)
         tdSql.checkData(2, 0, 1)
 
-        tdSql.error(
+        tdSql.query(
             f"select diff(c1) from (select b.col1 c1 from tba1 a left join tba2 b on a.ts = b.ts);"
         )
-        tdSql.error(
+        tdSql.checkRows(3)
+        tdSql.checkData(0, 0, None)
+        tdSql.checkData(1, 0, 3)
+        tdSql.checkData(2, 0, None)
+        tdSql.query(
             f"select diff(c1) from (select b.ts, b.col1 c1 from tba1 a left join tba2 b on a.ts = b.ts);"
         )
+        tdSql.checkRows(3)
+        tdSql.checkData(0, 0, None)
+        tdSql.checkData(1, 0, 3)
+        tdSql.checkData(2, 0, None)
         tdSql.query(
             f"select diff(c1) from (select a.ts, b.col1 c1 from tba1 a left join tba2 b on a.ts = b.ts);"
         )
@@ -6496,12 +6544,22 @@ class TestJoinFull:
         tdSql.error(
             f"select count(c1) from (select a.col1 c1 from tba1 a left join sta b on a.ts = b.ts) interval(1s);"
         )
-        tdSql.error(
+        tdSql.query(
             f"select count(c1) from (select b.ts, a.col1 c1 from tba1 a left join sta b on a.ts = b.ts) interval(1s);"
         )
-        tdSql.error(
+        tdSql.checkRows(4)
+        tdSql.checkData(0, 0, 2)
+        tdSql.checkData(1, 0, 1)
+        tdSql.checkData(2, 0, 2)
+        tdSql.checkData(3, 0, 1)
+        tdSql.query(
             f"select count(c1) from (select b.ts, a.col1 c1 from tba1 a left join sta b on a.ts = b.ts order by b.ts) interval(1s);"
         )
+        tdSql.checkRows(4)
+        tdSql.checkData(0, 0, 2)
+        tdSql.checkData(1, 0, 1)
+        tdSql.checkData(2, 0, 2)
+        tdSql.checkData(3, 0, 1)
         tdSql.query(
             f"select count(c1) from (select a.ts, a.col1 c1 from tba1 a left join sta b on a.ts = b.ts) interval(1s);"
         )
@@ -6511,12 +6569,18 @@ class TestJoinFull:
         tdSql.checkData(2, 0, 2)
         tdSql.checkData(3, 0, 1)
 
-        tdSql.error(
+        tdSql.query(
             f"select count(c1) from (select b.ts ts1, a.col1 c1 from tba1 a left join sta b on a.ts = b.ts) c session(c.ts1, 1s);"
         )
-        tdSql.error(
+        tdSql.checkRows(2)
+        tdSql.checkData(0, 0, 2)
+        tdSql.checkData(1, 0, 4)
+        tdSql.query(
             f"select count(c1) from (select b.ts ts1, a.col1 c1 from tba1 a left join sta b on a.ts = b.ts order by ts1) c session(c.ts1, 1s);"
         )
+        tdSql.checkRows(2)
+        tdSql.checkData(0, 0, 2)
+        tdSql.checkData(1, 0, 4)
         tdSql.query(
             f"select count(c1) from (select a.ts ts1, a.col1 c1 from tba1 a left join sta b on a.ts = b.ts) c session(c.ts1, 1s);"
         )
@@ -6531,9 +6595,11 @@ class TestJoinFull:
         tdSql.checkRows(1)
         tdSql.checkData(0, 0, 3)
 
-        tdSql.error(
+        tdSql.query(
             f"select diff(c1) from (select b.col1 c1 from tba1 a left semi join tba2 b on a.ts = b.ts);"
         )
+        tdSql.checkRows(1)
+        tdSql.checkData(0, 0, 3)
         tdSql.query(
             f"select diff(c1) from (select b.ts, b.col1 c1 from tba1 a left semi join tba2 b on a.ts = b.ts);"
         )
@@ -6604,12 +6670,16 @@ class TestJoinFull:
         tdSql.checkRows(1)
         tdSql.checkData(0, 0, 2)
 
-        tdSql.error(
+        tdSql.query(
             f"select diff(c1) from (select b.col1 c1 from tba1 a left anti join tba2 b on a.ts = b.ts);"
         )
-        tdSql.error(
+        tdSql.checkRows(1)
+        tdSql.checkData(0, 0, None)
+        tdSql.query(
             f"select diff(c1) from (select b.ts, b.col1 c1 from tba1 a left anti join tba2 b on a.ts = b.ts);"
         )
+        tdSql.checkRows(1)
+        tdSql.checkData(0, 0, None)
 
         # ????
         tdSql.query(
@@ -6622,12 +6692,14 @@ class TestJoinFull:
         tdSql.error(
             f"select count(c1) from (select a.col1 c1 from tba1 a left anti join sta b on a.ts = b.ts) interval(1s);"
         )
-        tdSql.error(
+        tdSql.query(
             f"select count(c1) from (select b.ts, a.col1 c1 from tba1 a left anti join sta b on a.ts = b.ts) interval(1s);"
         )
-        tdSql.error(
+        tdSql.checkRows(0)
+        tdSql.query(
             f"select count(c1) from (select b.ts, a.col1 c1 from tba1 a left anti join sta b on a.ts = b.ts order by b.ts) interval(1s);"
         )
+        tdSql.checkRows(0)
         tdSql.query(
             f"select count(c1) from (select a.ts, a.col1 c1 from tba1 a left anti join sta b on a.ts = b.ts) interval(1s);"
         )
@@ -6638,12 +6710,14 @@ class TestJoinFull:
         )
         tdSql.checkRows(0)
 
-        tdSql.error(
+        tdSql.query(
             f"select count(c1) from (select b.ts ts1, a.col1 c1 from tba1 a left anti join sta b on a.ts = b.ts) c session(c.ts1, 1s);"
         )
-        tdSql.error(
+        tdSql.checkRows(0)
+        tdSql.query(
             f"select count(c1) from (select b.ts ts1, a.col1 c1 from tba1 a left anti join sta b on a.ts = b.ts order by ts1) c session(c.ts1, 1s);"
         )
+        tdSql.checkRows(0)
         tdSql.query(
             f"select count(c1) from (select a.ts ts1, a.col1 c1 from tba1 a left anti join sta b on a.ts = b.ts) c session(c.ts1, 1s);"
         )
@@ -6668,15 +6742,23 @@ class TestJoinFull:
         tdSql.checkData(1, 0, 1)
         tdSql.checkData(2, 0, 1)
 
-        tdSql.error(
+        tdSql.query(
             f"select diff(c1) from (select a.ts, a.col1 c1 from tba1 a left asof join tba2 b on a.col1 = b.col1);"
         )
-        tdSql.error(
+        tdSql.query(
             f"select diff(c1) from (select b.col1 c1 from tba1 a left asof join tba2 b on a.ts = b.ts);"
         )
-        tdSql.error(
+        tdSql.checkRows(3)
+        tdSql.checkData(0, 0, None)
+        tdSql.checkData(1, 0, 3)
+        tdSql.checkData(2, 0, None)
+        tdSql.query(
             f"select diff(c1) from (select b.ts, b.col1 c1 from tba1 a left asof join tba2 b on a.ts = b.ts);"
         )
+        tdSql.checkRows(3)
+        tdSql.checkData(0, 0, None)
+        tdSql.checkData(1, 0, 3)
+        tdSql.checkData(2, 0, None)
 
         tdSql.query(
             f"select diff(c1) from (select b.ts, b.col1 c1,a.ts from tba1 a left asof join tba2 b on a.ts = b.ts);"
@@ -6689,12 +6771,22 @@ class TestJoinFull:
         tdSql.error(
             f"select count(c1) from (select a.col1 c1 from tba1 a left asof join sta b on a.ts = b.ts) interval(1s);"
         )
-        tdSql.error(
+        tdSql.query(
             f"select count(c1) from (select b.ts, a.col1 c1 from tba1 a left asof join sta b on a.ts = b.ts) interval(1s);"
         )
-        tdSql.error(
+        tdSql.checkRows(4)
+        tdSql.checkData(0, 0, 1)
+        tdSql.checkData(1, 0, 1)
+        tdSql.checkData(2, 0, 1)
+        tdSql.checkData(3, 0, 1)
+        tdSql.query(
             f"select count(c1) from (select b.ts, a.col1 c1 from tba1 a left asof join sta b on a.ts = b.ts order by b.ts) interval(1s);"
         )
+        tdSql.checkRows(4)
+        tdSql.checkData(0, 0, 1)
+        tdSql.checkData(1, 0, 1)
+        tdSql.checkData(2, 0, 1)
+        tdSql.checkData(3, 0, 1)
         tdSql.query(
             f"select count(c1) from (select a.ts, a.col1 c1 from tba1 a left asof join sta b on a.col1 = b.col1) interval(1s);"
         )
@@ -6722,13 +6814,19 @@ class TestJoinFull:
         tdSql.checkData(2, 0, 1)
         tdSql.checkData(3, 0, 1)
 
-        tdSql.error(
+        tdSql.query(
             f"select count(c1) from (select b.ts ts1, a.col1 c1 from tba1 a left asof join sta b on a.ts = b.ts) c session(c.ts1, 1s);"
         )
-        tdSql.error(
+        tdSql.checkRows(2)
+        tdSql.checkData(0, 0, 1)
+        tdSql.checkData(1, 0, 3)
+        tdSql.query(
             f"select count(c1) from (select b.ts ts1, a.col1 c1 from tba1 a left asof join sta b on a.ts = b.ts order by ts1) c session(c.ts1, 1s);"
         )
-        tdSql.error(
+        tdSql.checkRows(2)
+        tdSql.checkData(0, 0, 1)
+        tdSql.checkData(1, 0, 3)
+        tdSql.query(
             f"select count(c1) from (select a.ts ts1, a.col1 c1 from tba1 a left asof join sta b on a.col1 = b.col1) c session(c.ts1, 1s);"
         )
         tdSql.query(
@@ -6738,7 +6836,7 @@ class TestJoinFull:
         tdSql.checkData(0, 0, 1)
         tdSql.checkData(1, 0, 3)
 
-        tdSql.error(
+        tdSql.query(
             f"select count(c1) from (select a.col1 c1, timetruncate(a.ts, 1d) ts1 from tba1 a left asof join sta b on a.col1 = b.col1) c session(c.ts1, 1s);"
         )
         tdSql.query(
@@ -6747,7 +6845,7 @@ class TestJoinFull:
         tdSql.checkRows(1)
         tdSql.checkData(0, 0, 4)
 
-        tdSql.error(
+        tdSql.query(
             f"select count(c1) from (select a.col1 c1, a.ts + 1s ts1 from tba1 a left asof join sta b on a.col1 = b.col1) c session(c.ts1, 1s);"
         )
         tdSql.query(
@@ -6766,15 +6864,23 @@ class TestJoinFull:
         tdSql.checkData(1, 0, 1)
         tdSql.checkData(2, 0, 1)
 
-        tdSql.error(
+        tdSql.query(
             f"select diff(c1) from (select a.ts, a.col1 c1 from tba1 a left window join tba2 b on a.col1 = b.col1 window_offset(1s,1s));"
         )
-        tdSql.error(
+        tdSql.query(
             f"select diff(c1) from (select b.col1 c1 from tba1 a left window join tba2 b window_offset(1s,1s));"
         )
-        tdSql.error(
+        tdSql.checkRows(3)
+        tdSql.checkData(0, 0, 2)
+        tdSql.checkData(1, 0, None)
+        tdSql.checkData(2, 0, 2)
+        tdSql.query(
             f"select diff(c1) from (select b.ts, b.col1 c1 from tba1 a left window join tba2 b window_offset(1s,1s));"
         )
+        tdSql.checkRows(3)
+        tdSql.checkData(0, 0, 2)
+        tdSql.checkData(1, 0, None)
+        tdSql.checkData(2, 0, 2)
 
         tdSql.query(
             f"select diff(c1) from (select b.ts, b.col1 c1,a.ts from tba1 a left window join tba2 b window_offset(1s,1s));"
@@ -6787,12 +6893,26 @@ class TestJoinFull:
         tdSql.error(
             f"select count(c1) from (select a.col1 c1 from tba1 a left window join sta b window_offset(-1s,1s)) interval(1s);"
         )
-        tdSql.error(
+        tdSql.query(
             f"select count(c1) from (select b.ts, a.col1 c1 from tba1 a left window join sta b window_offset(-1s,1s)) interval(1s);"
         )
-        tdSql.error(
+        tdSql.checkRows(6)
+        tdSql.checkData(0, 0, 2)
+        tdSql.checkData(1, 0, 2)
+        tdSql.checkData(2, 0, 2)
+        tdSql.checkData(3, 0, 6)
+        tdSql.checkData(4, 0, 2)
+        tdSql.checkData(5, 0, 1)
+        tdSql.query(
             f"select count(c1) from (select b.ts, a.col1 c1 from tba1 a left window join sta b window_offset(-1s,1s) order by b.ts) interval(1s);"
         )
+        tdSql.checkRows(6)
+        tdSql.checkData(0, 0, 2)
+        tdSql.checkData(1, 0, 2)
+        tdSql.checkData(2, 0, 2)
+        tdSql.checkData(3, 0, 6)
+        tdSql.checkData(4, 0, 2)
+        tdSql.checkData(5, 0, 1)
         tdSql.query(
             f"select count(c1) from (select a.ts, a.col1 c1 from tba1 a left window join sta b on a.col1 = b.col1 window_offset(-1s,1s)) interval(1s);"
         )
@@ -6820,13 +6940,17 @@ class TestJoinFull:
         tdSql.checkData(2, 0, 4)
         tdSql.checkData(3, 0, 4)
 
-        tdSql.error(
+        tdSql.query(
             f"select count(c1) from (select b.ts ts1, a.col1 c1 from tba1 a left window join sta b window_offset(-1s,1s)) c session(c.ts1, 1s);"
         )
-        tdSql.error(
+        tdSql.checkRows(1)
+        tdSql.checkData(0, 0, 15)
+        tdSql.query(
             f"select count(c1) from (select b.ts ts1, a.col1 c1 from tba1 a left window join sta b window_offset(-1s,1s) order by ts1) c session(c.ts1, 1s);"
         )
-        tdSql.error(
+        tdSql.checkRows(1)
+        tdSql.checkData(0, 0, 15)
+        tdSql.query(
             f"select count(c1) from (select a.ts ts1, a.col1 c1 from tba1 a left window join sta b on a.col1 = b.col1 window_offset(-1s,1s)) c session(c.ts1, 1s);"
         )
         tdSql.query(
@@ -6836,7 +6960,7 @@ class TestJoinFull:
         tdSql.checkData(0, 0, 3)
         tdSql.checkData(1, 0, 12)
 
-        tdSql.error(
+        tdSql.query(
             f"select count(c1) from (select a.col1 c1, timetruncate(a.ts, 1d) ts1 from tba1 a left window join sta b on a.col1 = b.col1 window_offset(-1s,1s)) c session(c.ts1, 1s);"
         )
         tdSql.query(
@@ -6845,7 +6969,7 @@ class TestJoinFull:
         tdSql.checkRows(1)
         tdSql.checkData(0, 0, 15)
 
-        tdSql.error(
+        tdSql.query(
             f"select count(c1) from (select a.col1 c1, a.ts + 1s ts1 from tba1 a left window join sta b on a.col1 = b.col1 window_offset(-1s,1s)) c session(c.ts1, 1s);"
         )
         tdSql.query(
@@ -6856,37 +6980,40 @@ class TestJoinFull:
         tdSql.checkData(1, 0, 12)
 
         # timeline + full join
-        tdSql.error(
+        tdSql.query(
             f"select diff(c1) from (select a.ts, a.col1 c1 from tba1 a full join tba2 b on a.ts = b.ts);"
         )
-        tdSql.error(
+        tdSql.query(
             f"select diff(c1) from (select b.col1 c1 from tba1 a full join tba2 b on a.ts = b.ts);"
         )
-        tdSql.error(
+        tdSql.checkRows(5)
+        tdSql.query(
             f"select diff(c1) from (select b.ts, b.col1 c1 from tba1 a full join tba2 b on a.ts = b.ts);"
         )
-        tdSql.error(
+        tdSql.query(
             f"select diff(c1) from (select a.ts, b.col1 c1 from tba1 a full join tba2 b on a.ts = b.ts);"
         )
         tdSql.error(
             f"select count(c1) from (select a.col1 c1 from tba1 a full join sta b on a.ts = b.ts) interval(1s);"
         )
-        tdSql.error(
+        tdSql.query(
             f"select count(c1) from (select b.ts, a.col1 c1 from tba1 a full join sta b on a.ts = b.ts) interval(1s);"
         )
-        tdSql.error(
+        tdSql.query(
             f"select count(c1) from (select b.ts, a.col1 c1 from tba1 a full join sta b on a.ts = b.ts order by b.ts) interval(1s);"
         )
-        tdSql.error(
+        tdSql.query(
             f"select count(c1) from (select a.ts, a.col1 c1 from tba1 a full join sta b on a.ts = b.ts) interval(1s);"
         )
-        tdSql.error(
+        tdSql.query(
             f"select count(c1) from (select b.ts ts1, a.col1 c1 from tba1 a full join sta b on a.ts = b.ts) c session(c.ts1, 1s);"
         )
-        tdSql.error(
+        tdSql.query(
             f"select count(c1) from (select b.ts ts1, a.col1 c1 from tba1 a full join sta b on a.ts = b.ts order by ts1) c session(c.ts1, 1s);"
         )
-        tdSql.error(
+        tdSql.checkRows(1)
+        tdSql.checkData(0, 0, 6)
+        tdSql.query(
             f"select count(c1) from (select a.ts ts1, a.col1 c1 from tba1 a full join sta b on a.ts = b.ts) c session(c.ts1, 1s);"
         )
 
@@ -6915,18 +7042,24 @@ class TestJoinFull:
         )
 
         # inner join
-        tdSql.error(f"select a.ts from sta a join sta b;")
-        tdSql.error(f"select a.ts from sta a join sta b on a.ts = b.ts or a.ts = b.ts;")
-        tdSql.error(
-            f"select a.ts from sta a join sta b where a.ts = b.ts or a.ts = b.ts;"
+        self.check_join_without_on(f"select a.ts from sta a join sta b;")
+        tdSql.query(f"select a.ts from sta a join sta b on a.ts = b.ts or a.ts = b.ts;")
+        tdSql.checkRows(12)
+        tdSql.query(
+            f"select a.ts from sta a join sta b on a.ts = b.ts or a.ts = b.ts;"
         )
-        tdSql.error(f"select a.ts from sta a join sta b on a.col1 = b.col1;")
-        tdSql.error(f"select a.ts from sta a join sta b on a.col1 is null;")
-        tdSql.error(f"select a.ts from sta a join sta b on a.ts + 1 = b.col1;")
-        tdSql.error(
+        tdSql.checkRows(12)
+        tdSql.query(f"select a.ts from sta a join sta b on a.col1 = b.col1;")
+        tdSql.checkRows(12)
+        tdSql.query(f"select a.ts from sta a join sta b on a.col1 is null;")
+        tdSql.checkRows(0)
+        tdSql.query(f"select a.ts from sta a join sta b on a.ts + 1 = b.col1;")
+        tdSql.checkRows(0)
+        tdSql.query(
             f"select a.ts from sta a join sta b on timetruncate(a.ts, 1d) > b.ts;"
         )
-        tdSql.error(
+        tdSql.checkRows(0)
+        tdSql.query(
             f"select a.ts from sta a join sta b on timetruncate(a.ts, 1d) = b.ts + 1;"
         )
         tdSql.query(f"select a.ts from sta a join sta b on a.ts = b.ts;")
@@ -6942,13 +7075,14 @@ class TestJoinFull:
         tdSql.error(
             f"select a.ts from sta a join sta b on timetruncate(a.ts, 1d) = b.ts window_offset(-1s, 1s);"
         )
-        tdSql.error(
+        tdSql.query(
             f"select a.ts from sta a join sta b on a.col1 = b.col1 where a.col1=b.col1;"
         )
+        tdSql.checkRows(12)
         tdSql.query(
             f"select a.ts from sta a join sta b on a.col1 = b.col1 where a.ts=b.ts;"
         )
-        tdSql.query(f"select a.ts from sta a join sta b where a.ts=b.ts;")
+        tdSql.query(f"select a.ts from sta a join sta b on a.ts=b.ts;")
         tdSql.error(f"select a.ts from sta a ,sta b on a.ts=b.ts;")
         tdSql.query(f"select a.ts from sta a ,sta b where a.ts=b.ts;")
         tdSql.query(
@@ -6958,67 +7092,75 @@ class TestJoinFull:
             f"select b.col1 from sta a ,sta b where a.ts=b.ts and a.col1 + 1 = b.col1 order by a.ts;"
         )
         tdSql.query(
-            f"select b.col1 from sta a join sta b join sta c where a.ts=b.ts and b.ts = c.ts order by a.ts;"
+            f"select b.col1 from sta a join sta b on a.ts=b.ts join sta c on b.ts = c.ts order by a.ts;"
         )
         tdSql.query(
-            f"select b.col1 from (select ts from sta) a join (select ts, col1 from sta) b join sta c where a.ts=b.ts and b.ts = c.ts order by a.ts;"
+            f"select b.col1 from (select ts from sta) a join (select ts, col1 from sta) b on a.ts=b.ts join sta c on b.ts = c.ts order by a.ts;"
+        )
+        tdSql.query(
+            f"select b.col1 from sta a join sta b on a.ts=b.ts join sta c on b.ts = c.ts order by a.ts;"
+        )
+        tdSql.checkRows(20)
+        tdSql.query(
+            f"(select b.col1 from sta a join sta b on a.ts=b.ts order by a.ts) union (select a.col1 from sta a join sta b on a.ts=b.ts order by a.ts);"
+        )
+        tdSql.query(
+            f"(select b.col1 from sta a join sta b on a.ts=b.ts order by a.ts) union all (select a.col1 from sta a join sta b on a.ts=b.ts order by a.ts);"
         )
         tdSql.error(
-            f"select b.col1 from sta a join sta b join sta c where a.ts=b.ts and a.ts = b.ts order by a.ts;"
-        )
-        tdSql.query(
-            f"(select b.col1 from sta a join sta b where a.ts=b.ts order by a.ts) union (select a.col1 from sta a join sta b where a.ts=b.ts order by a.ts);"
-        )
-        tdSql.query(
-            f"(select b.col1 from sta a join sta b where a.ts=b.ts order by a.ts) union all (select a.col1 from sta a join sta b where a.ts=b.ts order by a.ts);"
+            f"(select b.col1 from sta a join sta b on a.ts=b.ts order by a.ts) union (select a.col1 from sta a join sta b on a.ts=b.ts) order by a.ts;"
         )
         tdSql.error(
-            f"(select b.col1 from sta a join sta b where a.ts=b.ts order by a.ts) union (select a.col1 from sta a join sta b where a.ts=b.ts) order by a.ts;"
-        )
-        tdSql.error(
-            f"(select b.col1 from sta a join sta b where a.ts=b.ts order by a.ts) union all (select a.col1 from sta a join sta b where a.ts=b.ts) order by a.ts;"
+            f"(select b.col1 from sta a join sta b on a.ts=b.ts order by a.ts) union all (select a.col1 from sta a join sta b on a.ts=b.ts) order by a.ts;"
         )
         tdSql.query(
-            f"(select b.col1 from sta a join sta b where a.ts=b.ts order by a.ts) union (select a.col1 from sta a join sta b where a.ts=b.ts) order by col1;"
+            f"(select b.col1 from sta a join sta b on a.ts=b.ts order by a.ts) union (select a.col1 from sta a join sta b on a.ts=b.ts) order by col1;"
         )
         tdSql.query(
-            f"(select b.col1 from sta a join sta b where a.ts=b.ts order by a.ts) union all (select a.col1 from sta a join sta b where a.ts=b.ts) order by col1;"
+            f"(select b.col1 from sta a join sta b on a.ts=b.ts order by a.ts) union all (select a.col1 from sta a join sta b on a.ts=b.ts) order by col1;"
         )
         tdSql.query(
-            f"(select b.col1 from sta a join sta b where a.ts=b.ts order by a.ts) union (select a.col1 from sta a join sta b where a.ts=b.ts) order by 1;"
+            f"(select b.col1 from sta a join sta b on a.ts=b.ts order by a.ts) union (select a.col1 from sta a join sta b on a.ts=b.ts) order by 1;"
         )
         tdSql.query(
-            f"(select b.col1 from sta a join sta b where a.ts=b.ts order by a.ts) union all (select a.col1 from sta a join sta b where a.ts=b.ts) order by 1;"
-        )
-        tdSql.error(
-            f"select c.ts from ((select a.ts from sta a join sta b where a.ts=b.ts order by a.ts) union (select b.ts from sta a join sta b where a.ts=b.ts)) c join ((select a.ts from sta a join sta b where a.ts=b.ts order by a.ts) union all (select b.ts from sta a join sta b where a.ts=b.ts)) d on c.ts = d.ts;"
-        )
-        tdSql.error(
-            f"select c.ts from ((select a.ts from sta a join sta b where a.ts=b.ts order by a.ts) union all (select b.ts from sta a join sta b where a.ts=b.ts)) c join ((select a.ts from sta a join sta b where a.ts=b.ts order by a.ts) union all (select b.ts from sta a join sta b where a.ts=b.ts)) d on c.ts = d.ts;"
+            f"(select b.col1 from sta a join sta b on a.ts=b.ts order by a.ts) union all (select a.col1 from sta a join sta b on a.ts=b.ts) order by 1;"
         )
         tdSql.query(
-            f"select c.ts from ((select a.ts from sta a join sta b where a.ts=b.ts order by a.ts) union (select b.ts from sta a join sta b where a.ts=b.ts) order by 1) c join ((select a.ts from sta a join sta b where a.ts=b.ts order by a.ts) union (select b.ts from sta a join sta b where a.ts=b.ts) order by 1) d on c.ts = d.ts;"
+            f"select c.ts from ((select a.ts from sta a join sta b on a.ts=b.ts order by a.ts) union (select b.ts from sta a join sta b on a.ts=b.ts)) c join ((select a.ts from sta a join sta b on a.ts=b.ts order by a.ts) union all (select b.ts from sta a join sta b on a.ts=b.ts)) d on c.ts = d.ts;"
+        )
+        tdSql.checkRows(24)
+        tdSql.query(
+            f"select c.ts from ((select a.ts from sta a join sta b on a.ts=b.ts order by a.ts) union all (select b.ts from sta a join sta b on a.ts=b.ts)) c join ((select a.ts from sta a join sta b on a.ts=b.ts order by a.ts) union all (select b.ts from sta a join sta b on a.ts=b.ts)) d on c.ts = d.ts;"
+        )
+        tdSql.checkRows(144)
+        tdSql.query(
+            f"select c.ts from ((select a.ts from sta a join sta b on a.ts=b.ts order by a.ts) union (select b.ts from sta a join sta b on a.ts=b.ts) order by 1) c join ((select a.ts from sta a join sta b on a.ts=b.ts order by a.ts) union (select b.ts from sta a join sta b on a.ts=b.ts) order by 1) d on c.ts = d.ts;"
         )
         tdSql.query(
-            f"select c.ts from ((select a.ts from sta a join sta b where a.ts=b.ts order by a.ts) union all (select b.ts from sta a join sta b where a.ts=b.ts) order by 1) c join ((select a.ts from sta a join sta b where a.ts=b.ts order by a.ts) union all (select b.ts from sta a join sta b where a.ts=b.ts) order by 1) d on c.ts = d.ts;"
+            f"select c.ts from ((select a.ts from sta a join sta b on a.ts=b.ts order by a.ts) union all (select b.ts from sta a join sta b on a.ts=b.ts) order by 1) c join ((select a.ts from sta a join sta b on a.ts=b.ts order by a.ts) union all (select b.ts from sta a join sta b on a.ts=b.ts) order by 1) d on c.ts = d.ts;"
         )
         tdSql.query(f"select a.ts from test0.sta a ,testb.stb1 b where a.ts=b.ts;")
 
         # left join
-        tdSql.error(f"select a.ts from sta a left join sta b;")
-        tdSql.error(
+        self.check_join_without_on(f"select a.ts from sta a left join sta b;")
+        tdSql.query(
             f"select a.ts from sta a left join sta b on a.ts = b.ts or a.ts = b.ts;"
         )
-        tdSql.error(
+        tdSql.checkRows(12)
+        self.check_join_without_on(
             f"select a.ts from sta a left join sta b where a.ts = b.ts or a.ts = b.ts;"
         )
-        tdSql.error(f"select a.ts from sta a left join sta b on a.col1 = b.col1;")
-        tdSql.error(f"select a.ts from sta a left join sta b on a.col1 is not NULL;")
-        tdSql.error(f"select a.ts from sta a left join sta b on a.ts + 1 = b.col1;")
-        tdSql.error(
+        tdSql.query(f"select a.ts from sta a left join sta b on a.col1 = b.col1;")
+        tdSql.checkRows(12)
+        tdSql.query(f"select a.ts from sta a left join sta b on a.col1 is not NULL;")
+        tdSql.checkRows(64)
+        tdSql.query(f"select a.ts from sta a left join sta b on a.ts + 1 = b.col1;")
+        tdSql.checkRows(8)
+        tdSql.query(
             f"select a.ts from sta a left join sta b on timetruncate(a.ts, 1d) > b.ts;"
         )
-        tdSql.error(
+        tdSql.checkRows(8)
+        tdSql.query(
             f"select a.ts from sta a left join sta b on timetruncate(a.ts, 1d) = b.ts + 1;"
         )
         tdSql.error(
@@ -7030,14 +7172,16 @@ class TestJoinFull:
         tdSql.query(
             f"select a.ts from sta a left join sta b on timetruncate(a.ts, 1d) = b.ts;"
         )
-        tdSql.error(
+        tdSql.query(
             f"select a.ts from sta a left join sta b on a.col1 = b.col1 where a.col1 = b.col1;"
         )
-        tdSql.error(
+        tdSql.checkRows(12)
+        tdSql.query(
             f"select a.ts from sta a left join sta b on a.col1 = b.col1 where a.ts = b.ts;"
         )
-        tdSql.error(f"select a.ts from sta a left join sta b where a.ts = b.ts;")
-        tdSql.error(
+        tdSql.checkRows(8)
+        self.check_join_without_on(f"select a.ts from sta a left join sta b where a.ts = b.ts;")
+        self.check_join_without_on(
             f"select b.col1 from sta a left join sta b where a.ts = b.ts and a.col1 + 1 = b.col1 order by a.ts;"
         )
         tdSql.query(
@@ -7079,37 +7223,30 @@ class TestJoinFull:
         tdSql.query(
             f"(select b.col1 from sta a left join sta b on a.ts=b.ts order by a.ts) union all (select a.col1 from sta a left join sta b on a.ts=b.ts) order by 1;"
         )
-        tdSql.error(
-            f"select c.ts from ((select a.ts from sta a left join sta b on a.ts=b.ts order by a.ts) union (select b.ts from sta a left join sta b on a.ts=b.ts)) c left join ((select a.ts from sta a left join sta b on a.ts=b.ts order by a.ts) union all (select b.ts from sta a left join sta b on a.ts=b.ts)) d on c.ts = d.ts;"
-        )
-        tdSql.error(
-            f"select c.ts from ((select a.ts from sta a left join sta b on a.ts=b.ts order by a.ts) union all (select b.ts from sta a left join sta b on a.ts=b.ts)) c left join ((select a.ts from sta a left join sta b on a.ts=b.ts order by a.ts) union all (select b.ts from sta a left join sta b on a.ts=b.ts)) d on c.ts = d.ts;"
-        )
-        tdSql.error(
-            f"select c.ts from ((select a.ts from sta a left join sta b on a.ts=b.ts order by a.ts) union (select b.ts from sta a left join sta b on a.ts=b.ts) order by 1) c left join ((select a.ts from sta a left join sta b on a.ts=b.ts order by a.ts) union (select b.ts from sta a left join sta b on a.ts=b.ts) order by 1) d on c.ts = d.ts;"
-        )
-        tdSql.error(
-            f"select c.ts from ((select a.ts from sta a left join sta b on a.ts=b.ts order by a.ts) union all (select b.ts from sta a left join sta b on a.ts=b.ts) order by 1) c left join ((select a.ts from sta a left join sta b on a.ts=b.ts order by a.ts) union all (select b.ts from sta a left join sta b on a.ts=b.ts) order by 1) d on c.ts = d.ts;"
-        )
 
         # left semi join
-        tdSql.error(f"select a.ts from sta a left semi join sta b;")
-        tdSql.error(
+        self.check_join_without_on(f"select a.ts from sta a left semi join sta b;")
+        tdSql.query(
             f"select a.ts from sta a left semi join sta b on a.ts = b.ts or a.ts = b.ts;"
         )
-        tdSql.error(
+        tdSql.checkRows(8)
+        self.check_join_without_on(
             f"select a.ts from sta a left semi join sta b where a.ts = b.ts or a.ts = b.ts;"
         )
-        tdSql.error(f"select a.ts from sta a left semi join sta b on a.col1 = b.col1;")
+        tdSql.query(f"select a.ts from sta a left semi join sta b on a.col1 = b.col1;")
+        tdSql.checkRows(8)
         tdSql.error(f"select a.ts from sta a left semi join sta b on a.col1 like '1';")
-        tdSql.error(f"select a.ts from sta a left semi join sta b on a.col1 is null;")
-        tdSql.error(
+        tdSql.query(f"select a.ts from sta a left semi join sta b on a.col1 is null;")
+        tdSql.checkRows(0)
+        tdSql.query(
             f"select a.ts from sta a left semi join sta b on a.ts + 1 = b.col1;"
         )
-        tdSql.error(
+        tdSql.checkRows(0)
+        tdSql.query(
             f"select a.ts from sta a left semi join sta b on timetruncate(a.ts, 1d) > b.ts;"
         )
-        tdSql.error(
+        tdSql.checkRows(0)
+        tdSql.query(
             f"select a.ts from sta a left semi join sta b on timetruncate(a.ts, 1d) = b.ts + 1;"
         )
         tdSql.error(
@@ -7121,14 +7258,16 @@ class TestJoinFull:
         tdSql.query(
             f"select a.ts from sta a left semi join sta b on timetruncate(a.ts, 1d) = b.ts;"
         )
-        tdSql.error(
+        tdSql.query(
             f"select a.ts from sta a left semi join sta b on a.col1 = b.col1 where a.col1 = b.col1;"
         )
-        tdSql.error(
+        tdSql.checkRows(8)
+        tdSql.query(
             f"select a.ts from sta a left semi join sta b on a.col1 = b.col1 where a.ts = b.ts;"
         )
-        tdSql.error(f"select a.ts from sta a left semi join sta b where a.ts = b.ts;")
-        tdSql.error(
+        tdSql.checkRows(6)
+        self.check_join_without_on(f"select a.ts from sta a left semi join sta b where a.ts = b.ts;")
+        self.check_join_without_on(
             f"select b.col1 from sta a left semi join sta b where a.ts = b.ts and a.col1 + 1 = b.col1 order by a.ts;"
         )
         tdSql.query(
@@ -7170,37 +7309,31 @@ class TestJoinFull:
         tdSql.query(
             f"(select b.col1 from sta a left semi join sta b on a.ts=b.ts order by a.ts) union all (select a.col1 from sta a left semi join sta b on a.ts=b.ts) order by 1;"
         )
-        tdSql.error(
-            f"select c.ts from ((select a.ts from sta a left semi join sta b on a.ts=b.ts order by a.ts) union (select b.ts from sta a left semi join sta b on a.ts=b.ts)) c left semi join ((select a.ts from sta a left semi join sta b on a.ts=b.ts order by a.ts) union all (select b.ts from sta a left semi join sta b on a.ts=b.ts)) d on c.ts = d.ts;"
-        )
-        tdSql.error(
-            f"select c.ts from ((select a.ts from sta a left semi join sta b on a.ts=b.ts order by a.ts) union all (select b.ts from sta a left semi join sta b on a.ts=b.ts)) c left semi join ((select a.ts from sta a left semi join sta b on a.ts=b.ts order by a.ts) union all (select b.ts from sta a left semi join sta b on a.ts=b.ts)) d on c.ts = d.ts;"
-        )
-        tdSql.error(
-            f"select c.ts from ((select a.ts from sta a left semi join sta b on a.ts=b.ts order by a.ts) union (select b.ts from sta a left semi join sta b on a.ts=b.ts) order by 1) c left semi join ((select a.ts from sta a left semi join sta b on a.ts=b.ts order by a.ts) union (select b.ts from sta a left semi join sta b on a.ts=b.ts) order by 1) d on c.ts = d.ts;"
-        )
-        tdSql.error(
-            f"select c.ts from ((select a.ts from sta a left semi join sta b on a.ts=b.ts order by a.ts) union all (select b.ts from sta a left semi join sta b on a.ts=b.ts) order by 1) c left semi join ((select a.ts from sta a left semi join sta b on a.ts=b.ts order by a.ts) union all (select b.ts from sta a left semi join sta b on a.ts=b.ts) order by 1) d on c.ts = d.ts;"
-        )
 
         # left anti join
-        tdSql.error(f"select a.ts from sta a left anti join sta b;")
-        tdSql.error(
+        self.check_join_without_on(f"select a.ts from sta a left anti join sta b;")
+        tdSql.query(
             f"select a.ts from sta a left anti join sta b on a.ts = b.ts or a.ts = b.ts;"
         )
-        tdSql.error(
+        tdSql.checkRows(0)
+        self.check_join_without_on(
             f"select a.ts from sta a left anti join sta b where a.ts = b.ts or a.ts = b.ts;"
         )
-        tdSql.error(f"select a.ts from sta a left anti join sta b on a.col1 = b.col1;")
-        tdSql.error(f"select a.ts from sta a left anti join sta b on a.col1 / 1;")
-        tdSql.error(f"select a.ts from sta a left anti join sta b on a.col1 is null;")
-        tdSql.error(
+        tdSql.query(f"select a.ts from sta a left anti join sta b on a.col1 = b.col1;")
+        tdSql.checkRows(0)
+        tdSql.query(f"select a.ts from sta a left anti join sta b on a.col1 / 1;")
+        tdSql.checkRows(0)
+        tdSql.query(f"select a.ts from sta a left anti join sta b on a.col1 is null;")
+        tdSql.checkRows(8)
+        tdSql.query(
             f"select a.ts from sta a left anti join sta b on a.ts + 1 = b.col1;"
         )
-        tdSql.error(
+        tdSql.checkRows(8)
+        tdSql.query(
             f"select a.ts from sta a left anti join sta b on timetruncate(a.ts, 1d) > b.ts;"
         )
-        tdSql.error(
+        tdSql.checkRows(8)
+        tdSql.query(
             f"select a.ts from sta a left anti join sta b on timetruncate(a.ts, 1d) = b.ts + 1;"
         )
         tdSql.error(
@@ -7212,14 +7345,16 @@ class TestJoinFull:
         tdSql.query(
             f"select a.ts from sta a left anti join sta b on timetruncate(a.ts, 1d) = b.ts;"
         )
-        tdSql.error(
+        tdSql.query(
             f"select a.ts from sta a left anti join sta b on a.col1 = b.col1 where a.col1 = b.col1;"
         )
-        tdSql.error(
+        tdSql.checkRows(0)
+        tdSql.query(
             f"select a.ts from sta a left anti join sta b on a.col1 = b.col1 where a.ts = b.ts;"
         )
-        tdSql.error(f"select a.ts from sta a left anti join sta b where a.ts = b.ts;")
-        tdSql.error(
+        tdSql.checkRows(0)
+        self.check_join_without_on(f"select a.ts from sta a left anti join sta b where a.ts = b.ts;")
+        self.check_join_without_on(
             f"select b.col1 from sta a left anti join sta b where a.ts = b.ts and a.col1 + 1 = b.col1 order by a.ts;"
         )
         tdSql.query(
@@ -7260,18 +7395,6 @@ class TestJoinFull:
         )
         tdSql.query(
             f"(select b.col1 from sta a left anti join sta b on a.ts=b.ts order by a.ts) union all (select a.col1 from sta a left anti join sta b on a.ts=b.ts) order by 1;"
-        )
-        tdSql.error(
-            f"select c.ts from ((select a.ts from sta a left anti join sta b on a.ts=b.ts order by a.ts) union (select b.ts from sta a left anti join sta b on a.ts=b.ts)) c left anti join ((select a.ts from sta a left anti join sta b on a.ts=b.ts order by a.ts) union all (select b.ts from sta a left anti join sta b on a.ts=b.ts)) d on c.ts = d.ts;"
-        )
-        tdSql.error(
-            f"select c.ts from ((select a.ts from sta a left anti join sta b on a.ts=b.ts order by a.ts) union all (select b.ts from sta a left anti join sta b on a.ts=b.ts)) c left anti join ((select a.ts from sta a left anti join sta b on a.ts=b.ts order by a.ts) union all (select b.ts from sta a left anti join sta b on a.ts=b.ts)) d on c.ts = d.ts;"
-        )
-        tdSql.error(
-            f"select c.ts from ((select a.ts from sta a left anti join sta b on a.ts=b.ts order by a.ts) union (select b.ts from sta a left anti join sta b on a.ts=b.ts) order by 1) c left anti join ((select a.ts from sta a left anti join sta b on a.ts=b.ts order by a.ts) union (select b.ts from sta a left anti join sta b on a.ts=b.ts) order by 1) d on c.ts = d.ts;"
-        )
-        tdSql.error(
-            f"select c.ts from ((select a.ts from sta a left anti join sta b on a.ts=b.ts order by a.ts) union all (select b.ts from sta a left anti join sta b on a.ts=b.ts) order by 1) c left anti join ((select a.ts from sta a left anti join sta b on a.ts=b.ts order by a.ts) union all (select b.ts from sta a left anti join sta b on a.ts=b.ts) order by 1) d on c.ts = d.ts;"
         )
 
         # left asof join
@@ -7347,9 +7470,11 @@ class TestJoinFull:
         tdSql.error(
             f"select b.col1 from sta a left asof join sta b on a.ts = b.ts and 1 = 2 order by a.ts;"
         )
-        tdSql.error(
-            f"select b.col1 from (select ts from sta) a left asof join (select ts, col1 from sta) b on a.ts=b.ts order by a.ts;"
+        tdSql.query(
+            "select b.col1 from (select ts from sta) a left asof join (select"
+            " ts, col1 from sta) b on a.ts=b.ts order by a.ts;"
         )
+        tdSql.checkRows(8)
         tdSql.error(
             f"select b.col1 from (select ts from sta) a left asof join (select ts, col1 from sta) b left asof join sta c on a.ts=b.ts and b.ts = c.ts order by a.ts;"
         )
@@ -7382,18 +7507,6 @@ class TestJoinFull:
         )
         tdSql.query(
             f"(select b.col1 from sta a left asof join sta b on a.ts=b.ts order by a.ts) union all (select a.col1 from sta a left asof join sta b on a.ts=b.ts) order by 1;"
-        )
-        tdSql.error(
-            f"select c.ts from ((select a.ts from sta a left asof join sta b on a.ts=b.ts order by a.ts) union (select b.ts from sta a left asof join sta b on a.ts=b.ts)) c left asof join ((select a.ts from sta a left asof join sta b on a.ts=b.ts order by a.ts) union all (select b.ts from sta a left asof join sta b on a.ts=b.ts)) d on c.ts = d.ts;"
-        )
-        tdSql.error(
-            f"select c.ts from ((select a.ts from sta a left asof join sta b on a.ts=b.ts order by a.ts) union all (select b.ts from sta a left asof join sta b on a.ts=b.ts)) c left asof join ((select a.ts from sta a left asof join sta b on a.ts=b.ts order by a.ts) union all (select b.ts from sta a left asof join sta b on a.ts=b.ts)) d on c.ts = d.ts;"
-        )
-        tdSql.error(
-            f"select c.ts from ((select a.ts from sta a left asof join sta b on a.ts=b.ts order by a.ts) union (select b.ts from sta a left asof join sta b on a.ts=b.ts) order by 1) c left asof join ((select a.ts from sta a left asof join sta b on a.ts=b.ts order by a.ts) union (select b.ts from sta a left asof join sta b on a.ts=b.ts) order by 1) d on c.ts = d.ts;"
-        )
-        tdSql.error(
-            f"select c.ts from ((select a.ts from sta a left asof join sta b on a.ts=b.ts order by a.ts) union all (select b.ts from sta a left asof join sta b on a.ts=b.ts) order by 1) c left asof join ((select a.ts from sta a left asof join sta b on a.ts=b.ts order by a.ts) union all (select b.ts from sta a left asof join sta b on a.ts=b.ts) order by 1) d on c.ts = d.ts;"
         )
 
         # left window join
@@ -7519,9 +7632,12 @@ class TestJoinFull:
         tdSql.error(
             f"select b.col1 from sta a left window join sta b on a.ts = b.ts and 1 = 2 window_offset(-1s,1s) order by a.ts;"
         )
-        tdSql.error(
-            f"select b.col1 from (select ts from sta) a left window join (select ts, col1 from sta) b window_offset(-1s,1s) order by a.ts;"
+        tdSql.query(
+            "select b.col1 from (select ts from sta) a left window join "
+            "(select ts, col1 from sta) b window_offset(-1s,1s) order by "
+            "a.ts;"
         )
+        tdSql.checkRows(28)
         tdSql.error(
             f"select b.col1 from (select ts from sta) a left window join (select ts, col1 from sta) b left window join sta c window_offset(-1s,1s) order by a.ts;"
         )
@@ -7616,12 +7732,14 @@ class TestJoinFull:
         tdSql.error(
             f"select a.col1, b.col1, count(a.col1) from sta a left window join sta b window_offset(-1s,1s) where a.col1 > 0;"
         )
-        tdSql.error(
+        tdSql.query(
             f"select diff(a.col1) from sta a left window join sta b window_offset(-1s,1s);"
         )
-        tdSql.error(
+        tdSql.checkRows(20)
+        tdSql.query(
             f"select csum(a.col1) from sta a left window join sta b window_offset(-1s,1s);"
         )
+        tdSql.checkRows(28)
         tdSql.query(
             f"select diff(a.col1) from tba1 a left window join tba1 b window_offset(0s,0s);"
         )
@@ -7672,20 +7790,25 @@ class TestJoinFull:
         )
 
         # right join
-        tdSql.error(f"select a.ts from sta a right join sta b;")
-        tdSql.error(
+        self.check_join_without_on(f"select a.ts from sta a right join sta b;")
+        tdSql.query(
             f"select a.ts from sta a right join sta b on a.ts = b.ts or a.ts = b.ts;"
         )
-        tdSql.error(
+        tdSql.checkRows(12)
+        self.check_join_without_on(
             f"select a.ts from sta a right join sta b where a.ts = b.ts or a.ts = b.ts;"
         )
-        tdSql.error(f"select a.ts from sta a right join sta b on a.col1 = b.col1;")
-        tdSql.error(f"select a.ts from sta a right join sta b on a.col1 is not NULL;")
-        tdSql.error(f"select a.ts from sta a right join sta b on a.ts + 1 = b.col1;")
-        tdSql.error(
+        tdSql.query(f"select a.ts from sta a right join sta b on a.col1 = b.col1;")
+        tdSql.checkRows(12)
+        tdSql.query(f"select a.ts from sta a right join sta b on a.col1 is not NULL;")
+        tdSql.checkRows(64)
+        tdSql.query(f"select a.ts from sta a right join sta b on a.ts + 1 = b.col1;")
+        tdSql.checkRows(8)
+        tdSql.query(
             f"select a.ts from sta a right join sta b on timetruncate(a.ts, 1d) > b.ts;"
         )
-        tdSql.error(
+        tdSql.checkRows(8)
+        tdSql.query(
             f"select a.ts from sta a right join sta b on timetruncate(a.ts, 1d) = b.ts + 1;"
         )
         tdSql.error(
@@ -7697,14 +7820,16 @@ class TestJoinFull:
         tdSql.query(
             f"select a.ts from sta a right join sta b on timetruncate(a.ts, 1d) = b.ts;"
         )
-        tdSql.error(
+        tdSql.query(
             f"select a.ts from sta a right join sta b on a.col1 = b.col1 where a.col1 = b.col1;"
         )
-        tdSql.error(
+        tdSql.checkRows(12)
+        tdSql.query(
             f"select a.ts from sta a right join sta b on a.col1 = b.col1 where a.ts = b.ts;"
         )
-        tdSql.error(f"select a.ts from sta a right join sta b where a.ts = b.ts;")
-        tdSql.error(
+        tdSql.checkRows(8)
+        self.check_join_without_on(f"select a.ts from sta a right join sta b where a.ts = b.ts;")
+        self.check_join_without_on(
             f"select b.col1 from sta a right join sta b where a.ts = b.ts and a.col1 + 1 = b.col1 order by a.ts;"
         )
         tdSql.query(
@@ -7746,37 +7871,30 @@ class TestJoinFull:
         tdSql.query(
             f"(select b.col1 from sta a right join sta b on a.ts=b.ts order by a.ts) union all (select a.col1 from sta a right join sta b on a.ts=b.ts) order by 1;"
         )
-        tdSql.error(
-            f"select c.ts from ((select a.ts from sta a right join sta b on a.ts=b.ts order by a.ts) union (select b.ts from sta a right join sta b on a.ts=b.ts)) c right join ((select a.ts from sta a right join sta b on a.ts=b.ts order by a.ts) union all (select b.ts from sta a right join sta b on a.ts=b.ts)) d on c.ts = d.ts;"
-        )
-        tdSql.error(
-            f"select c.ts from ((select a.ts from sta a right join sta b on a.ts=b.ts order by a.ts) union all (select b.ts from sta a right join sta b on a.ts=b.ts)) c right join ((select a.ts from sta a right join sta b on a.ts=b.ts order by a.ts) union all (select b.ts from sta a right join sta b on a.ts=b.ts)) d on c.ts = d.ts;"
-        )
-        tdSql.error(
-            f"select c.ts from ((select a.ts from sta a right join sta b on a.ts=b.ts order by a.ts) union (select b.ts from sta a right join sta b on a.ts=b.ts) order by 1) c right join ((select a.ts from sta a right join sta b on a.ts=b.ts order by a.ts) union (select b.ts from sta a right join sta b on a.ts=b.ts) order by 1) d on c.ts = d.ts;"
-        )
-        tdSql.error(
-            f"select c.ts from ((select a.ts from sta a right join sta b on a.ts=b.ts order by a.ts) union all (select b.ts from sta a right join sta b on a.ts=b.ts) order by 1) c right join ((select a.ts from sta a right join sta b on a.ts=b.ts order by a.ts) union all (select b.ts from sta a right join sta b on a.ts=b.ts) order by 1) d on c.ts = d.ts;"
-        )
 
         # right semi join
-        tdSql.error(f"select a.ts from sta a right semi join sta b;")
-        tdSql.error(
+        self.check_join_without_on(f"select a.ts from sta a right semi join sta b;")
+        tdSql.query(
             f"select a.ts from sta a right semi join sta b on a.ts = b.ts or a.ts = b.ts;"
         )
-        tdSql.error(
+        tdSql.checkRows(8)
+        self.check_join_without_on(
             f"select a.ts from sta a right semi join sta b where a.ts = b.ts or a.ts = b.ts;"
         )
-        tdSql.error(f"select a.ts from sta a right semi join sta b on a.col1 = b.col1;")
+        tdSql.query(f"select a.ts from sta a right semi join sta b on a.col1 = b.col1;")
+        tdSql.checkRows(8)
         tdSql.error(f"select a.ts from sta a right semi join sta b on a.col1 like '1';")
-        tdSql.error(f"select a.ts from sta a right semi join sta b on a.col1 is null;")
-        tdSql.error(
+        tdSql.query(f"select a.ts from sta a right semi join sta b on a.col1 is null;")
+        tdSql.checkRows(0)
+        tdSql.query(
             f"select a.ts from sta a right semi join sta b on a.ts + 1 = b.col1;"
         )
-        tdSql.error(
+        tdSql.checkRows(0)
+        tdSql.query(
             f"select a.ts from sta a right semi join sta b on timetruncate(a.ts, 1d) > b.ts;"
         )
-        tdSql.error(
+        tdSql.checkRows(0)
+        tdSql.query(
             f"select a.ts from sta a right semi join sta b on timetruncate(a.ts, 1d) = b.ts + 1;"
         )
         tdSql.error(
@@ -7788,14 +7906,16 @@ class TestJoinFull:
         tdSql.query(
             f"select a.ts from sta a right semi join sta b on timetruncate(a.ts, 1d) = b.ts;"
         )
-        tdSql.error(
+        tdSql.query(
             f"select a.ts from sta a right semi join sta b on a.col1 = b.col1 where a.col1 = b.col1;"
         )
-        tdSql.error(
+        tdSql.checkRows(8)
+        tdSql.query(
             f"select a.ts from sta a right semi join sta b on a.col1 = b.col1 where a.ts = b.ts;"
         )
-        tdSql.error(f"select a.ts from sta a right semi join sta b where a.ts = b.ts;")
-        tdSql.error(
+        tdSql.checkRows(6)
+        self.check_join_without_on(f"select a.ts from sta a right semi join sta b where a.ts = b.ts;")
+        self.check_join_without_on(
             f"select b.col1 from sta a right semi join sta b where a.ts = b.ts and a.col1 + 1 = b.col1 order by a.ts;"
         )
         tdSql.query(
@@ -7837,37 +7957,31 @@ class TestJoinFull:
         tdSql.query(
             f"(select b.col1 from sta a right semi join sta b on a.ts=b.ts order by a.ts) union all (select a.col1 from sta a right semi join sta b on a.ts=b.ts) order by 1;"
         )
-        tdSql.error(
-            f"select c.ts from ((select a.ts from sta a right semi join sta b on a.ts=b.ts order by a.ts) union (select b.ts from sta a right semi join sta b on a.ts=b.ts)) c right semi join ((select a.ts from sta a right semi join sta b on a.ts=b.ts order by a.ts) union all (select b.ts from sta a right semi join sta b on a.ts=b.ts)) d on c.ts = d.ts;"
-        )
-        tdSql.error(
-            f"select c.ts from ((select a.ts from sta a right semi join sta b on a.ts=b.ts order by a.ts) union all (select b.ts from sta a right semi join sta b on a.ts=b.ts)) c right semi join ((select a.ts from sta a right semi join sta b on a.ts=b.ts order by a.ts) union all (select b.ts from sta a right semi join sta b on a.ts=b.ts)) d on c.ts = d.ts;"
-        )
-        tdSql.error(
-            f"select c.ts from ((select a.ts from sta a right semi join sta b on a.ts=b.ts order by a.ts) union (select b.ts from sta a right semi join sta b on a.ts=b.ts) order by 1) c right semi join ((select a.ts from sta a right semi join sta b on a.ts=b.ts order by a.ts) union (select b.ts from sta a right semi join sta b on a.ts=b.ts) order by 1) d on c.ts = d.ts;"
-        )
-        tdSql.error(
-            f"select c.ts from ((select a.ts from sta a right semi join sta b on a.ts=b.ts order by a.ts) union all (select b.ts from sta a right semi join sta b on a.ts=b.ts) order by 1) c right semi join ((select a.ts from sta a right semi join sta b on a.ts=b.ts order by a.ts) union all (select b.ts from sta a right semi join sta b on a.ts=b.ts) order by 1) d on c.ts = d.ts;"
-        )
 
         # right anti join
-        tdSql.error(f"select a.ts from sta a right anti join sta b;")
-        tdSql.error(
+        self.check_join_without_on(f"select a.ts from sta a right anti join sta b;")
+        tdSql.query(
             f"select a.ts from sta a right anti join sta b on a.ts = b.ts or a.ts = b.ts;"
         )
-        tdSql.error(
+        tdSql.checkRows(0)
+        self.check_join_without_on(
             f"select a.ts from sta a right anti join sta b where a.ts = b.ts or a.ts = b.ts;"
         )
-        tdSql.error(f"select a.ts from sta a right anti join sta b on a.col1 = b.col1;")
-        tdSql.error(f"select a.ts from sta a right anti join sta b on a.col1 / 1;")
-        tdSql.error(f"select a.ts from sta a right anti join sta b on a.col1 is null;")
-        tdSql.error(
+        tdSql.query(f"select a.ts from sta a right anti join sta b on a.col1 = b.col1;")
+        tdSql.checkRows(0)
+        tdSql.query(f"select a.ts from sta a right anti join sta b on a.col1 / 1;")
+        tdSql.checkRows(0)
+        tdSql.query(f"select a.ts from sta a right anti join sta b on a.col1 is null;")
+        tdSql.checkRows(8)
+        tdSql.query(
             f"select a.ts from sta a right anti join sta b on a.ts + 1 = b.col1;"
         )
-        tdSql.error(
+        tdSql.checkRows(8)
+        tdSql.query(
             f"select a.ts from sta a right anti join sta b on timetruncate(a.ts, 1d) > b.ts;"
         )
-        tdSql.error(
+        tdSql.checkRows(8)
+        tdSql.query(
             f"select a.ts from sta a right anti join sta b on timetruncate(a.ts, 1d) = b.ts + 1;"
         )
         tdSql.error(
@@ -7879,14 +7993,16 @@ class TestJoinFull:
         tdSql.query(
             f"select a.ts from sta a right anti join sta b on timetruncate(a.ts, 1d) = b.ts;"
         )
-        tdSql.error(
+        tdSql.query(
             f"select a.ts from sta a right anti join sta b on a.col1 = b.col1 where a.col1 = b.col1;"
         )
-        tdSql.error(
+        tdSql.checkRows(0)
+        tdSql.query(
             f"select a.ts from sta a right anti join sta b on a.col1 = b.col1 where a.ts = b.ts;"
         )
-        tdSql.error(f"select a.ts from sta a right anti join sta b where a.ts = b.ts;")
-        tdSql.error(
+        tdSql.checkRows(0)
+        self.check_join_without_on(f"select a.ts from sta a right anti join sta b where a.ts = b.ts;")
+        self.check_join_without_on(
             f"select b.col1 from sta a right anti join sta b where a.ts = b.ts and a.col1 + 1 = b.col1 order by a.ts;"
         )
         tdSql.query(
@@ -7927,18 +8043,6 @@ class TestJoinFull:
         )
         tdSql.query(
             f"(select b.col1 from sta a right anti join sta b on a.ts=b.ts order by a.ts) union all (select a.col1 from sta a right anti join sta b on a.ts=b.ts) order by 1;"
-        )
-        tdSql.error(
-            f"select c.ts from ((select a.ts from sta a right anti join sta b on a.ts=b.ts order by a.ts) union (select b.ts from sta a right anti join sta b on a.ts=b.ts)) c right anti join ((select a.ts from sta a right anti join sta b on a.ts=b.ts order by a.ts) union all (select b.ts from sta a right anti join sta b on a.ts=b.ts)) d on c.ts = d.ts;"
-        )
-        tdSql.error(
-            f"select c.ts from ((select a.ts from sta a right anti join sta b on a.ts=b.ts order by a.ts) union all (select b.ts from sta a right anti join sta b on a.ts=b.ts)) c right anti join ((select a.ts from sta a right anti join sta b on a.ts=b.ts order by a.ts) union all (select b.ts from sta a right anti join sta b on a.ts=b.ts)) d on c.ts = d.ts;"
-        )
-        tdSql.error(
-            f"select c.ts from ((select a.ts from sta a right anti join sta b on a.ts=b.ts order by a.ts) union (select b.ts from sta a right anti join sta b on a.ts=b.ts) order by 1) c right anti join ((select a.ts from sta a right anti join sta b on a.ts=b.ts order by a.ts) union (select b.ts from sta a right anti join sta b on a.ts=b.ts) order by 1) d on c.ts = d.ts;"
-        )
-        tdSql.error(
-            f"select c.ts from ((select a.ts from sta a right anti join sta b on a.ts=b.ts order by a.ts) union all (select b.ts from sta a right anti join sta b on a.ts=b.ts) order by 1) c right anti join ((select a.ts from sta a right anti join sta b on a.ts=b.ts order by a.ts) union all (select b.ts from sta a right anti join sta b on a.ts=b.ts) order by 1) d on c.ts = d.ts;"
         )
 
         # right asof join
@@ -8014,9 +8118,11 @@ class TestJoinFull:
         tdSql.error(
             f"select b.col1 from sta a right asof join sta b on a.ts = b.ts and 1 = 2 order by a.ts;"
         )
-        tdSql.error(
-            f"select b.col1 from (select ts from sta) a right asof join (select ts, col1 from sta) b on a.ts=b.ts order by a.ts;"
+        tdSql.query(
+            "select b.col1 from (select ts from sta) a right asof join "
+            "(select ts, col1 from sta) b on a.ts=b.ts order by a.ts;"
         )
+        tdSql.checkRows(8)
         tdSql.error(
             f"select b.col1 from (select ts from sta) a right asof join (select ts, col1 from sta) b right asof join sta c on a.ts=b.ts and b.ts = c.ts order by a.ts;"
         )
@@ -8049,18 +8155,6 @@ class TestJoinFull:
         )
         tdSql.query(
             f"(select b.col1 from sta a right asof join sta b on a.ts=b.ts order by a.ts) union all (select a.col1 from sta a right asof join sta b on a.ts=b.ts) order by 1;"
-        )
-        tdSql.error(
-            f"select c.ts from ((select a.ts from sta a right asof join sta b on a.ts=b.ts order by a.ts) union (select b.ts from sta a right asof join sta b on a.ts=b.ts)) c right asof join ((select a.ts from sta a right asof join sta b on a.ts=b.ts order by a.ts) union all (select b.ts from sta a right asof join sta b on a.ts=b.ts)) d on c.ts = d.ts;"
-        )
-        tdSql.error(
-            f"select c.ts from ((select a.ts from sta a right asof join sta b on a.ts=b.ts order by a.ts) union all (select b.ts from sta a right asof join sta b on a.ts=b.ts)) c right asof join ((select a.ts from sta a right asof join sta b on a.ts=b.ts order by a.ts) union all (select b.ts from sta a right asof join sta b on a.ts=b.ts)) d on c.ts = d.ts;"
-        )
-        tdSql.error(
-            f"select c.ts from ((select a.ts from sta a right asof join sta b on a.ts=b.ts order by a.ts) union (select b.ts from sta a right asof join sta b on a.ts=b.ts) order by 1) c right asof join ((select a.ts from sta a right asof join sta b on a.ts=b.ts order by a.ts) union (select b.ts from sta a right asof join sta b on a.ts=b.ts) order by 1) d on c.ts = d.ts;"
-        )
-        tdSql.error(
-            f"select c.ts from ((select a.ts from sta a right asof join sta b on a.ts=b.ts order by a.ts) union all (select b.ts from sta a right asof join sta b on a.ts=b.ts) order by 1) c right asof join ((select a.ts from sta a right asof join sta b on a.ts=b.ts order by a.ts) union all (select b.ts from sta a right asof join sta b on a.ts=b.ts) order by 1) d on c.ts = d.ts;"
         )
 
         # right window join
@@ -8190,9 +8284,12 @@ class TestJoinFull:
         tdSql.error(
             f"select b.col1 from sta a right window join sta b on a.ts = b.ts and 1 = 2 window_offset(-1s,1s) order by a.ts;"
         )
-        tdSql.error(
-            f"select b.col1 from (select ts from sta) a right window join (select ts, col1 from sta) b window_offset(-1s,1s) order by a.ts;"
+        tdSql.query(
+            "select b.col1 from (select ts from sta) a right window join "
+            "(select ts, col1 from sta) b window_offset(-1s,1s) order by "
+            "a.ts;"
         )
+        tdSql.checkRows(28)
         tdSql.error(
             f"select b.col1 from (select ts from sta) a right window join (select ts, col1 from sta) b right window join sta c window_offset(-1s,1s) order by a.ts;"
         )
@@ -8287,12 +8384,14 @@ class TestJoinFull:
         tdSql.error(
             f"select a.col1, b.col1, count(a.col1) from sta a right window join sta b window_offset(-1s,1s) where a.col1 > 0;"
         )
-        tdSql.error(
+        tdSql.query(
             f"select diff(a.col1) from sta a right window join sta b window_offset(-1s,1s);"
         )
-        tdSql.error(
+        tdSql.checkRows(20)
+        tdSql.query(
             f"select csum(a.col1) from sta a right window join sta b window_offset(-1s,1s);"
         )
+        tdSql.checkRows(28)
         tdSql.query(
             f"select diff(a.col1) from tba1 a right window join tba1 b window_offset(0s,0s);"
         )
@@ -8343,20 +8442,25 @@ class TestJoinFull:
         )
 
         # full join
-        tdSql.error(f"select a.ts from sta a full join sta b;")
-        tdSql.error(
+        self.check_join_without_on(f"select a.ts from sta a full join sta b;")
+        tdSql.query(
             f"select a.ts from sta a full join sta b on a.ts = b.ts or a.ts = b.ts;"
         )
-        tdSql.error(
+        tdSql.checkRows(12)
+        self.check_join_without_on(
             f"select a.ts from sta a full join sta b where a.ts = b.ts or a.ts = b.ts;"
         )
-        tdSql.error(f"select a.ts from sta a full join sta b on a.col1 = b.col1;")
-        tdSql.error(f"select a.ts from sta a full join sta b on a.col1 is not NULL;")
-        tdSql.error(f"select a.ts from sta a full join sta b on a.ts + 1 = b.col1;")
-        tdSql.error(
+        tdSql.query(f"select a.ts from sta a full join sta b on a.col1 = b.col1;")
+        tdSql.checkRows(12)
+        tdSql.query(f"select a.ts from sta a full join sta b on a.col1 is not NULL;")
+        tdSql.checkRows(64)
+        tdSql.query(f"select a.ts from sta a full join sta b on a.ts + 1 = b.col1;")
+        tdSql.checkRows(16)
+        tdSql.query(
             f"select a.ts from sta a full join sta b on timetruncate(a.ts, 1d) > b.ts;"
         )
-        tdSql.error(
+        tdSql.checkRows(16)
+        tdSql.query(
             f"select a.ts from sta a full join sta b on timetruncate(a.ts, 1d) = b.ts + 1;"
         )
         tdSql.error(
@@ -8368,14 +8472,16 @@ class TestJoinFull:
         tdSql.query(
             f"select a.ts from sta a full join sta b on timetruncate(a.ts, 1d) = b.ts;"
         )
-        tdSql.error(
+        tdSql.query(
             f"select a.ts from sta a full join sta b on a.col1 = b.col1 where a.col1 = b.col1;"
         )
-        tdSql.error(
+        tdSql.checkRows(12)
+        tdSql.query(
             f"select a.ts from sta a full join sta b on a.col1 = b.col1 where a.ts = b.ts;"
         )
-        tdSql.error(f"select a.ts from sta a full join sta b where a.ts = b.ts;")
-        tdSql.error(
+        tdSql.checkRows(8)
+        self.check_join_without_on(f"select a.ts from sta a full join sta b where a.ts = b.ts;")
+        self.check_join_without_on(
             f"select b.col1 from sta a full join sta b where a.ts = b.ts and a.col1 + 1 = b.col1 order by a.ts;"
         )
         tdSql.query(
@@ -8416,18 +8522,6 @@ class TestJoinFull:
         )
         tdSql.query(
             f"(select b.col1 from sta a full join sta b on a.ts=b.ts order by a.ts) union all (select a.col1 from sta a full join sta b on a.ts=b.ts) order by 1;"
-        )
-        tdSql.error(
-            f"select c.ts from ((select a.ts from sta a full join sta b on a.ts=b.ts order by a.ts) union (select b.ts from sta a full join sta b on a.ts=b.ts)) c full join ((select a.ts from sta a full join sta b on a.ts=b.ts order by a.ts) union all (select b.ts from sta a full join sta b on a.ts=b.ts)) d on c.ts = d.ts;"
-        )
-        tdSql.error(
-            f"select c.ts from ((select a.ts from sta a full join sta b on a.ts=b.ts order by a.ts) union all (select b.ts from sta a full join sta b on a.ts=b.ts)) c full join ((select a.ts from sta a full join sta b on a.ts=b.ts order by a.ts) union all (select b.ts from sta a full join sta b on a.ts=b.ts)) d on c.ts = d.ts;"
-        )
-        tdSql.error(
-            f"select c.ts from ((select a.ts from sta a full join sta b on a.ts=b.ts order by a.ts) union (select b.ts from sta a full join sta b on a.ts=b.ts) order by 1) c full join ((select a.ts from sta a full join sta b on a.ts=b.ts order by a.ts) union (select b.ts from sta a full join sta b on a.ts=b.ts) order by 1) d on c.ts = d.ts;"
-        )
-        tdSql.error(
-            f"select c.ts from ((select a.ts from sta a full join sta b on a.ts=b.ts order by a.ts) union all (select b.ts from sta a full join sta b on a.ts=b.ts) order by 1) c full join ((select a.ts from sta a full join sta b on a.ts=b.ts order by a.ts) union all (select b.ts from sta a full join sta b on a.ts=b.ts) order by 1) d on c.ts = d.ts;"
         )
 
     def join_explain(self):
@@ -8487,26 +8581,26 @@ class TestJoinFull:
         )
 
         # inner join
-        tdSql.error(f"explain analyze verbose true select a.ts from sta a join sta b;")
-        tdSql.error(
+        tdSql.query(f"explain analyze verbose true select a.ts from sta a join sta b on true;")
+        tdSql.query(
             f"explain analyze verbose true select a.ts from sta a join sta b on a.ts = b.ts or a.ts = b.ts;"
         )
-        tdSql.error(
-            f"explain analyze verbose true select a.ts from sta a join sta b where a.ts = b.ts or a.ts = b.ts;"
+        tdSql.query(
+            f"explain analyze verbose true select a.ts from sta a join sta b on a.ts = b.ts or a.ts = b.ts;"
         )
-        tdSql.error(
+        tdSql.query(
             f"explain analyze verbose true select a.ts from sta a join sta b on a.col1 = b.col1;"
         )
-        tdSql.error(
+        tdSql.query(
             f"explain analyze verbose true select a.ts from sta a join sta b on a.col1 is null;"
         )
-        tdSql.error(
+        tdSql.query(
             f"explain analyze verbose true select a.ts from sta a join sta b on a.ts + 1 = b.col1;"
         )
-        tdSql.error(
+        tdSql.query(
             f"explain analyze verbose true select a.ts from sta a join sta b on timetruncate(a.ts, 1d) > b.ts;"
         )
-        tdSql.error(
+        tdSql.query(
             f"explain analyze verbose true select a.ts from sta a join sta b on timetruncate(a.ts, 1d) = b.ts + 1;"
         )
         tdSql.query(
@@ -8524,14 +8618,14 @@ class TestJoinFull:
         tdSql.error(
             f"explain analyze verbose true select a.ts from sta a join sta b on timetruncate(a.ts, 1d) = b.ts window_offset(-1s, 1s);"
         )
-        tdSql.error(
+        tdSql.query(
             f"explain analyze verbose true select a.ts from sta a join sta b on a.col1 = b.col1 where a.col1=b.col1;"
         )
         tdSql.query(
             f"explain analyze verbose true select a.ts from sta a join sta b on a.col1 = b.col1 where a.ts=b.ts;"
         )
         tdSql.query(
-            f"explain analyze verbose true select a.ts from sta a join sta b where a.ts=b.ts;"
+            f"explain analyze verbose true select a.ts from sta a join sta b on a.ts=b.ts;"
         )
         tdSql.error(
             f"explain analyze verbose true select a.ts from sta a ,sta b on a.ts=b.ts;"
@@ -8549,77 +8643,77 @@ class TestJoinFull:
             f"explain analyze verbose true select b.col1 from sta a ,sta b where a.ts=b.ts and a.col1 + 1 = b.col1 order by a.ts;"
         )
         tdSql.query(
-            f"explain analyze verbose true select b.col1 from sta a join sta b join sta c where a.ts=b.ts and b.ts = c.ts order by a.ts;"
+            f"explain analyze verbose true select b.col1 from sta a join sta b on a.ts=b.ts join sta c on b.ts = c.ts order by a.ts;"
         )
         tdSql.query(
-            f"explain analyze verbose true select b.col1 from (select ts from sta) a join (select ts, col1 from sta) b join sta c where a.ts=b.ts and b.ts = c.ts order by a.ts;"
+            f"explain analyze verbose true select b.col1 from (select ts from sta) a join (select ts, col1 from sta) b on a.ts=b.ts join sta c on b.ts = c.ts order by a.ts;"
         )
-        tdSql.error(
-            f"explain analyze verbose true select b.col1 from sta a join sta b join sta c where a.ts=b.ts and a.ts = b.ts order by a.ts;"
+        tdSql.query(
+            f"explain analyze verbose true select b.col1 from sta a join sta b on a.ts=b.ts join sta c on b.ts = c.ts order by a.ts;"
         )
         tdSql.query(
             f"explain analyze verbose true select a.ts from test0.sta a ,testb.stb1 b where a.ts=b.ts;"
         )
         tdSql.query(
-            f"explain analyze verbose true (select b.col1 from sta a join sta b where a.ts=b.ts order by a.ts) union (select a.col1 from sta a join sta b where a.ts=b.ts order by a.ts);"
+            f"explain analyze verbose true (select b.col1 from sta a join sta b on a.ts=b.ts order by a.ts) union (select a.col1 from sta a join sta b on a.ts=b.ts order by a.ts);"
         )
         tdSql.query(
-            f"explain analyze verbose true (select b.col1 from sta a join sta b where a.ts=b.ts order by a.ts) union all (select a.col1 from sta a join sta b where a.ts=b.ts order by a.ts);"
+            f"explain analyze verbose true (select b.col1 from sta a join sta b on a.ts=b.ts order by a.ts) union all (select a.col1 from sta a join sta b on a.ts=b.ts order by a.ts);"
         )
         tdSql.error(
-            f"analyze verbose true (select b.col1 from sta a join sta b where a.ts=b.ts order by a.ts) union (select a.col1 from sta a join sta b where a.ts=b.ts) order by a.ts;"
+            f"analyze verbose true (select b.col1 from sta a join sta b on a.ts=b.ts order by a.ts) union (select a.col1 from sta a join sta b on a.ts=b.ts) order by a.ts;"
         )
         tdSql.error(
-            f"analyze verbose true (select b.col1 from sta a join sta b where a.ts=b.ts order by a.ts) union all (select a.col1 from sta a join sta b where a.ts=b.ts) order by a.ts;"
+            f"analyze verbose true (select b.col1 from sta a join sta b on a.ts=b.ts order by a.ts) union all (select a.col1 from sta a join sta b on a.ts=b.ts) order by a.ts;"
         )
         tdSql.query(
-            f"explain analyze verbose true (select b.col1 from sta a join sta b where a.ts=b.ts order by a.ts) union (select a.col1 from sta a join sta b where a.ts=b.ts) order by col1;"
+            f"explain analyze verbose true (select b.col1 from sta a join sta b on a.ts=b.ts order by a.ts) union (select a.col1 from sta a join sta b on a.ts=b.ts) order by col1;"
         )
         tdSql.query(
-            f"explain analyze verbose true (select b.col1 from sta a join sta b where a.ts=b.ts order by a.ts) union all (select a.col1 from sta a join sta b where a.ts=b.ts) order by col1;"
+            f"explain analyze verbose true (select b.col1 from sta a join sta b on a.ts=b.ts order by a.ts) union all (select a.col1 from sta a join sta b on a.ts=b.ts) order by col1;"
         )
         tdSql.query(
-            f"explain analyze verbose true (select b.col1 from sta a join sta b where a.ts=b.ts order by a.ts) union (select a.col1 from sta a join sta b where a.ts=b.ts) order by 1;"
+            f"explain analyze verbose true (select b.col1 from sta a join sta b on a.ts=b.ts order by a.ts) union (select a.col1 from sta a join sta b on a.ts=b.ts) order by 1;"
         )
         tdSql.query(
-            f"explain analyze verbose true (select b.col1 from sta a join sta b where a.ts=b.ts order by a.ts) union all (select a.col1 from sta a join sta b where a.ts=b.ts) order by 1;"
+            f"explain analyze verbose true (select b.col1 from sta a join sta b on a.ts=b.ts order by a.ts) union all (select a.col1 from sta a join sta b on a.ts=b.ts) order by 1;"
         )
         tdSql.error(
-            f"analyze verbose true select c.ts from ((select a.ts from sta a join sta b where a.ts=b.ts order by a.ts) union (select b.ts from sta a join sta b where a.ts=b.ts)) c join ((select a.ts from sta a join sta b where a.ts=b.ts order by a.ts) union all (select b.ts from sta a join sta b where a.ts=b.ts)) d on c.ts = d.ts;"
+            f"analyze verbose true select c.ts from ((select a.ts from sta a join sta b on a.ts=b.ts order by a.ts) union (select b.ts from sta a join sta b on a.ts=b.ts)) c join ((select a.ts from sta a join sta b on a.ts=b.ts order by a.ts) union all (select b.ts from sta a join sta b on a.ts=b.ts)) d on c.ts = d.ts;"
         )
         tdSql.error(
-            f"analyze verbose true select c.ts from ((select a.ts from sta a join sta b where a.ts=b.ts order by a.ts) union all (select b.ts from sta a join sta b where a.ts=b.ts)) c join ((select a.ts from sta a join sta b where a.ts=b.ts order by a.ts) union all (select b.ts from sta a join sta b where a.ts=b.ts)) d on c.ts = d.ts;"
+            f"analyze verbose true select c.ts from ((select a.ts from sta a join sta b on a.ts=b.ts order by a.ts) union all (select b.ts from sta a join sta b on a.ts=b.ts)) c join ((select a.ts from sta a join sta b on a.ts=b.ts order by a.ts) union all (select b.ts from sta a join sta b on a.ts=b.ts)) d on c.ts = d.ts;"
         )
         tdSql.query(
-            f"explain analyze verbose true select c.ts from ((select a.ts from sta a join sta b where a.ts=b.ts order by a.ts) union (select b.ts from sta a join sta b where a.ts=b.ts) order by 1) c join ((select a.ts from sta a join sta b where a.ts=b.ts order by a.ts) union (select b.ts from sta a join sta b where a.ts=b.ts) order by 1) d on c.ts = d.ts;"
+            f"explain analyze verbose true select c.ts from ((select a.ts from sta a join sta b on a.ts=b.ts order by a.ts) union (select b.ts from sta a join sta b on a.ts=b.ts) order by 1) c join ((select a.ts from sta a join sta b on a.ts=b.ts order by a.ts) union (select b.ts from sta a join sta b on a.ts=b.ts) order by 1) d on c.ts = d.ts;"
         )
         tdSql.query(
-            f"explain analyze verbose true select c.ts from ((select a.ts from sta a join sta b where a.ts=b.ts order by a.ts) union all (select b.ts from sta a join sta b where a.ts=b.ts) order by 1) c join ((select a.ts from sta a join sta b where a.ts=b.ts order by a.ts) union all (select b.ts from sta a join sta b where a.ts=b.ts) order by 1) d on c.ts = d.ts;"
+            f"explain analyze verbose true select c.ts from ((select a.ts from sta a join sta b on a.ts=b.ts order by a.ts) union all (select b.ts from sta a join sta b on a.ts=b.ts) order by 1) c join ((select a.ts from sta a join sta b on a.ts=b.ts order by a.ts) union all (select b.ts from sta a join sta b on a.ts=b.ts) order by 1) d on c.ts = d.ts;"
         )
 
         # left join
-        tdSql.error(
-            f"explain analyze verbose true select a.ts from sta a left join sta b;"
+        tdSql.query(
+            f"explain analyze verbose true select a.ts from sta a left join sta b on true;"
         )
-        tdSql.error(
+        tdSql.query(
             f"explain analyze verbose true select a.ts from sta a left join sta b on a.ts = b.ts or a.ts = b.ts;"
         )
-        tdSql.error(
-            f"explain analyze verbose true select a.ts from sta a left join sta b where a.ts = b.ts or a.ts = b.ts;"
+        tdSql.query(
+            f"explain analyze verbose true select a.ts from sta a left join sta b on a.ts = b.ts or a.ts = b.ts;"
         )
-        tdSql.error(
+        tdSql.query(
             f"explain analyze verbose true select a.ts from sta a left join sta b on a.col1 = b.col1;"
         )
-        tdSql.error(
+        tdSql.query(
             f"explain analyze verbose true select a.ts from sta a left join sta b on a.col1 is not NULL;"
         )
-        tdSql.error(
+        tdSql.query(
             f"explain analyze verbose true select a.ts from sta a left join sta b on a.ts + 1 = b.col1;"
         )
-        tdSql.error(
+        tdSql.query(
             f"explain analyze verbose true select a.ts from sta a left join sta b on timetruncate(a.ts, 1d) > b.ts;"
         )
-        tdSql.error(
+        tdSql.query(
             f"explain analyze verbose true select a.ts from sta a left join sta b on timetruncate(a.ts, 1d) = b.ts + 1;"
         )
         tdSql.error(
@@ -8631,17 +8725,17 @@ class TestJoinFull:
         tdSql.query(
             f"explain analyze verbose true select a.ts from sta a left join sta b on timetruncate(a.ts, 1d) = b.ts;"
         )
-        tdSql.error(
+        tdSql.query(
             f"explain analyze verbose true select a.ts from sta a left join sta b on a.col1 = b.col1 where a.col1 = b.col1;"
         )
-        tdSql.error(
+        tdSql.query(
             f"explain analyze verbose true select a.ts from sta a left join sta b on a.col1 = b.col1 where a.ts = b.ts;"
         )
-        tdSql.error(
-            f"explain analyze verbose true select a.ts from sta a left join sta b where a.ts = b.ts;"
+        tdSql.query(
+            f"explain analyze verbose true select a.ts from sta a left join sta b on a.ts = b.ts;"
         )
-        tdSql.error(
-            f"explain analyze verbose true select b.col1 from sta a left join sta b where a.ts = b.ts and a.col1 + 1 = b.col1 order by a.ts;"
+        tdSql.query(
+            f"explain analyze verbose true select b.col1 from sta a left join sta b on a.ts = b.ts and a.col1 + 1 = b.col1 order by a.ts;"
         )
         tdSql.query(
             f"explain analyze verbose true select b.col1 from sta a left join sta b on a.ts = b.ts and a.col1 + 1 = b.col1 order by a.ts;"
@@ -8682,45 +8776,33 @@ class TestJoinFull:
         tdSql.query(
             f"explain analyze verbose true (select b.col1 from sta a left join sta b on a.ts=b.ts order by a.ts) union all (select a.col1 from sta a left join sta b on a.ts=b.ts) order by 1;"
         )
-        tdSql.error(
-            f"explain analyze verbose true select c.ts from ((select a.ts from sta a left join sta b on a.ts=b.ts order by a.ts) union (select b.ts from sta a left join sta b on a.ts=b.ts)) c left join ((select a.ts from sta a left join sta b on a.ts=b.ts order by a.ts) union all (select b.ts from sta a left join sta b on a.ts=b.ts)) d on c.ts = d.ts;"
-        )
-        tdSql.error(
-            f"explain analyze verbose true select c.ts from ((select a.ts from sta a left join sta b on a.ts=b.ts order by a.ts) union all (select b.ts from sta a left join sta b on a.ts=b.ts)) c left join ((select a.ts from sta a left join sta b on a.ts=b.ts order by a.ts) union all (select b.ts from sta a left join sta b on a.ts=b.ts)) d on c.ts = d.ts;"
-        )
-        tdSql.error(
-            f"explain analyze verbose true select c.ts from ((select a.ts from sta a left join sta b on a.ts=b.ts order by a.ts) union (select b.ts from sta a left join sta b on a.ts=b.ts) order by 1) c left join ((select a.ts from sta a left join sta b on a.ts=b.ts order by a.ts) union (select b.ts from sta a left join sta b on a.ts=b.ts) order by 1) d on c.ts = d.ts;"
-        )
-        tdSql.error(
-            f"explain analyze verbose true select c.ts from ((select a.ts from sta a left join sta b on a.ts=b.ts order by a.ts) union all (select b.ts from sta a left join sta b on a.ts=b.ts) order by 1) c left join ((select a.ts from sta a left join sta b on a.ts=b.ts order by a.ts) union all (select b.ts from sta a left join sta b on a.ts=b.ts) order by 1) d on c.ts = d.ts;"
-        )
 
         # left semi join
-        tdSql.error(
-            f"explain analyze verbose true select a.ts from sta a left semi join sta b;"
+        tdSql.query(
+            f"explain analyze verbose true select a.ts from sta a left semi join sta b on true;"
         )
-        tdSql.error(
+        tdSql.query(
             f"explain analyze verbose true select a.ts from sta a left semi join sta b on a.ts = b.ts or a.ts = b.ts;"
         )
-        tdSql.error(
-            f"explain analyze verbose true select a.ts from sta a left semi join sta b where a.ts = b.ts or a.ts = b.ts;"
+        tdSql.query(
+            f"explain analyze verbose true select a.ts from sta a left semi join sta b on a.ts = b.ts or a.ts = b.ts;"
         )
-        tdSql.error(
+        tdSql.query(
             f"explain analyze verbose true select a.ts from sta a left semi join sta b on a.col1 = b.col1;"
         )
         tdSql.error(
             f"explain analyze verbose true select a.ts from sta a left semi join sta b on a.col1 like '1';"
         )
-        tdSql.error(
+        tdSql.query(
             f"explain analyze verbose true select a.ts from sta a left semi join sta b on a.col1 is null;"
         )
-        tdSql.error(
+        tdSql.query(
             f"explain analyze verbose true select a.ts from sta a left semi join sta b on a.ts + 1 = b.col1;"
         )
-        tdSql.error(
+        tdSql.query(
             f"explain analyze verbose true select a.ts from sta a left semi join sta b on timetruncate(a.ts, 1d) > b.ts;"
         )
-        tdSql.error(
+        tdSql.query(
             f"explain analyze verbose true select a.ts from sta a left semi join sta b on timetruncate(a.ts, 1d) = b.ts + 1;"
         )
         tdSql.error(
@@ -8732,17 +8814,17 @@ class TestJoinFull:
         tdSql.query(
             f"explain analyze verbose true select a.ts from sta a left semi join sta b on timetruncate(a.ts, 1d) = b.ts;"
         )
-        tdSql.error(
+        tdSql.query(
             f"explain analyze verbose true select a.ts from sta a left semi join sta b on a.col1 = b.col1 where a.col1 = b.col1;"
         )
-        tdSql.error(
+        tdSql.query(
             f"explain analyze verbose true select a.ts from sta a left semi join sta b on a.col1 = b.col1 where a.ts = b.ts;"
         )
-        tdSql.error(
-            f"explain analyze verbose true select a.ts from sta a left semi join sta b where a.ts = b.ts;"
+        tdSql.query(
+            f"explain analyze verbose true select a.ts from sta a left semi join sta b on a.ts = b.ts;"
         )
-        tdSql.error(
-            f"explain analyze verbose true select b.col1 from sta a left semi join sta b where a.ts = b.ts and a.col1 + 1 = b.col1 order by a.ts;"
+        tdSql.query(
+            f"explain analyze verbose true select b.col1 from sta a left semi join sta b on a.ts = b.ts and a.col1 + 1 = b.col1 order by a.ts;"
         )
         tdSql.query(
             f"explain analyze verbose true select b.col1 from sta a left semi join sta b on a.ts = b.ts and a.col1 + 1 = b.col1 order by a.ts;"
@@ -8783,45 +8865,33 @@ class TestJoinFull:
         tdSql.query(
             f"explain analyze verbose true (select b.col1 from sta a left semi join sta b on a.ts=b.ts order by a.ts) union all (select a.col1 from sta a left semi join sta b on a.ts=b.ts) order by 1;"
         )
-        tdSql.error(
-            f"explain analyze verbose true select c.ts from ((select a.ts from sta a left semi join sta b on a.ts=b.ts order by a.ts) union (select b.ts from sta a left semi join sta b on a.ts=b.ts)) c left semi join ((select a.ts from sta a left semi join sta b on a.ts=b.ts order by a.ts) union all (select b.ts from sta a left semi join sta b on a.ts=b.ts)) d on c.ts = d.ts;"
-        )
-        tdSql.error(
-            f"explain analyze verbose true select c.ts from ((select a.ts from sta a left semi join sta b on a.ts=b.ts order by a.ts) union all (select b.ts from sta a left semi join sta b on a.ts=b.ts)) c left semi join ((select a.ts from sta a left semi join sta b on a.ts=b.ts order by a.ts) union all (select b.ts from sta a left semi join sta b on a.ts=b.ts)) d on c.ts = d.ts;"
-        )
-        tdSql.error(
-            f"explain analyze verbose true select c.ts from ((select a.ts from sta a left semi join sta b on a.ts=b.ts order by a.ts) union (select b.ts from sta a left semi join sta b on a.ts=b.ts) order by 1) c left semi join ((select a.ts from sta a left semi join sta b on a.ts=b.ts order by a.ts) union (select b.ts from sta a left semi join sta b on a.ts=b.ts) order by 1) d on c.ts = d.ts;"
-        )
-        tdSql.error(
-            f"explain analyze verbose true select c.ts from ((select a.ts from sta a left semi join sta b on a.ts=b.ts order by a.ts) union all (select b.ts from sta a left semi join sta b on a.ts=b.ts) order by 1) c left semi join ((select a.ts from sta a left semi join sta b on a.ts=b.ts order by a.ts) union all (select b.ts from sta a left semi join sta b on a.ts=b.ts) order by 1) d on c.ts = d.ts;"
-        )
 
         # left anti join
-        tdSql.error(
-            f"explain analyze verbose true select a.ts from sta a left anti join sta b;"
+        tdSql.query(
+            f"explain analyze verbose true select a.ts from sta a left anti join sta b on true;"
         )
-        tdSql.error(
+        tdSql.query(
             f"explain analyze verbose true select a.ts from sta a left anti join sta b on a.ts = b.ts or a.ts = b.ts;"
         )
-        tdSql.error(
-            f"explain analyze verbose true select a.ts from sta a left anti join sta b where a.ts = b.ts or a.ts = b.ts;"
+        tdSql.query(
+            f"explain analyze verbose true select a.ts from sta a left anti join sta b on a.ts = b.ts or a.ts = b.ts;"
         )
-        tdSql.error(
+        tdSql.query(
             f"explain analyze verbose true select a.ts from sta a left anti join sta b on a.col1 = b.col1;"
         )
-        tdSql.error(
+        tdSql.query(
             f"explain analyze verbose true select a.ts from sta a left anti join sta b on a.col1 / 1;"
         )
-        tdSql.error(
+        tdSql.query(
             f"explain analyze verbose true select a.ts from sta a left anti join sta b on a.col1 is null;"
         )
-        tdSql.error(
+        tdSql.query(
             f"explain analyze verbose true select a.ts from sta a left anti join sta b on a.ts + 1 = b.col1;"
         )
-        tdSql.error(
+        tdSql.query(
             f"explain analyze verbose true select a.ts from sta a left anti join sta b on timetruncate(a.ts, 1d) > b.ts;"
         )
-        tdSql.error(
+        tdSql.query(
             f"explain analyze verbose true select a.ts from sta a left anti join sta b on timetruncate(a.ts, 1d) = b.ts + 1;"
         )
         tdSql.error(
@@ -8833,17 +8903,17 @@ class TestJoinFull:
         tdSql.query(
             f"explain analyze verbose true select a.ts from sta a left anti join sta b on timetruncate(a.ts, 1d) = b.ts;"
         )
-        tdSql.error(
+        tdSql.query(
             f"explain analyze verbose true select a.ts from sta a left anti join sta b on a.col1 = b.col1 where a.col1 = b.col1;"
         )
-        tdSql.error(
+        tdSql.query(
             f"explain analyze verbose true select a.ts from sta a left anti join sta b on a.col1 = b.col1 where a.ts = b.ts;"
         )
-        tdSql.error(
-            f"explain analyze verbose true select a.ts from sta a left anti join sta b where a.ts = b.ts;"
+        tdSql.query(
+            f"explain analyze verbose true select a.ts from sta a left anti join sta b on a.ts = b.ts;"
         )
-        tdSql.error(
-            f"explain analyze verbose true select b.col1 from sta a left anti join sta b where a.ts = b.ts and a.col1 + 1 = b.col1 order by a.ts;"
+        tdSql.query(
+            f"explain analyze verbose true select b.col1 from sta a left anti join sta b on a.ts = b.ts and a.col1 + 1 = b.col1 order by a.ts;"
         )
         tdSql.query(
             f"explain analyze verbose true select b.col1 from sta a left anti join sta b on a.ts = b.ts and a.col1 + 1 = b.col1 order by a.ts;"
@@ -8883,18 +8953,6 @@ class TestJoinFull:
         )
         tdSql.query(
             f"explain analyze verbose true (select b.col1 from sta a left anti join sta b on a.ts=b.ts order by a.ts) union all (select a.col1 from sta a left anti join sta b on a.ts=b.ts) order by 1;"
-        )
-        tdSql.error(
-            f"explain analyze verbose true select c.ts from ((select a.ts from sta a left anti join sta b on a.ts=b.ts order by a.ts) union (select b.ts from sta a left anti join sta b on a.ts=b.ts)) c left anti join ((select a.ts from sta a left anti join sta b on a.ts=b.ts order by a.ts) union all (select b.ts from sta a left anti join sta b on a.ts=b.ts)) d on c.ts = d.ts;"
-        )
-        tdSql.error(
-            f"explain analyze verbose true select c.ts from ((select a.ts from sta a left anti join sta b on a.ts=b.ts order by a.ts) union all (select b.ts from sta a left anti join sta b on a.ts=b.ts)) c left anti join ((select a.ts from sta a left anti join sta b on a.ts=b.ts order by a.ts) union all (select b.ts from sta a left anti join sta b on a.ts=b.ts)) d on c.ts = d.ts;"
-        )
-        tdSql.error(
-            f"explain analyze verbose true select c.ts from ((select a.ts from sta a left anti join sta b on a.ts=b.ts order by a.ts) union (select b.ts from sta a left anti join sta b on a.ts=b.ts) order by 1) c left anti join ((select a.ts from sta a left anti join sta b on a.ts=b.ts order by a.ts) union (select b.ts from sta a left anti join sta b on a.ts=b.ts) order by 1) d on c.ts = d.ts;"
-        )
-        tdSql.error(
-            f"explain analyze verbose true select c.ts from ((select a.ts from sta a left anti join sta b on a.ts=b.ts order by a.ts) union all (select b.ts from sta a left anti join sta b on a.ts=b.ts) order by 1) c left anti join ((select a.ts from sta a left anti join sta b on a.ts=b.ts order by a.ts) union all (select b.ts from sta a left anti join sta b on a.ts=b.ts) order by 1) d on c.ts = d.ts;"
         )
 
         # left asof join
@@ -8982,8 +9040,13 @@ class TestJoinFull:
         tdSql.error(
             f"explain analyze verbose true select b.col1 from sta a left asof join sta b on a.ts = b.ts and 1 = 2 order by a.ts;"
         )
-        tdSql.error(
-            f"explain analyze verbose true select b.col1 from (select ts from sta) a left asof join (select ts, col1 from sta) b on a.ts=b.ts order by a.ts;"
+        tdSql.query(
+            "explain analyze verbose true select b.col1 from (select ts from "
+            "sta) a left asof join (select ts, col1 from sta) b on a.ts=b.ts "
+            "order by a.ts;"
+        )
+        assert any(
+            "Left ASOF Join" in row[0] for row in tdSql.queryResult
         )
         tdSql.error(
             f"explain analyze verbose true select b.col1 from (select ts from sta) a left asof join (select ts, col1 from sta) b left asof join sta c on a.ts=b.ts and b.ts = c.ts order by a.ts;"
@@ -9017,18 +9080,6 @@ class TestJoinFull:
         )
         tdSql.query(
             f"explain analyze verbose true (select b.col1 from sta a left asof join sta b on a.ts=b.ts order by a.ts) union all (select a.col1 from sta a left asof join sta b on a.ts=b.ts) order by 1;"
-        )
-        tdSql.error(
-            f"explain analyze verbose true select c.ts from ((select a.ts from sta a left asof join sta b on a.ts=b.ts order by a.ts) union (select b.ts from sta a left asof join sta b on a.ts=b.ts)) c left asof join ((select a.ts from sta a left asof join sta b on a.ts=b.ts order by a.ts) union all (select b.ts from sta a left asof join sta b on a.ts=b.ts)) d on c.ts = d.ts;"
-        )
-        tdSql.error(
-            f"explain analyze verbose true select c.ts from ((select a.ts from sta a left asof join sta b on a.ts=b.ts order by a.ts) union all (select b.ts from sta a left asof join sta b on a.ts=b.ts)) c left asof join ((select a.ts from sta a left asof join sta b on a.ts=b.ts order by a.ts) union all (select b.ts from sta a left asof join sta b on a.ts=b.ts)) d on c.ts = d.ts;"
-        )
-        tdSql.error(
-            f"explain analyze verbose true select c.ts from ((select a.ts from sta a left asof join sta b on a.ts=b.ts order by a.ts) union (select b.ts from sta a left asof join sta b on a.ts=b.ts) order by 1) c left asof join ((select a.ts from sta a left asof join sta b on a.ts=b.ts order by a.ts) union (select b.ts from sta a left asof join sta b on a.ts=b.ts) order by 1) d on c.ts = d.ts;"
-        )
-        tdSql.error(
-            f"explain analyze verbose true select c.ts from ((select a.ts from sta a left asof join sta b on a.ts=b.ts order by a.ts) union all (select b.ts from sta a left asof join sta b on a.ts=b.ts) order by 1) c left asof join ((select a.ts from sta a left asof join sta b on a.ts=b.ts order by a.ts) union all (select b.ts from sta a left asof join sta b on a.ts=b.ts) order by 1) d on c.ts = d.ts;"
         )
 
         # left window join
@@ -9164,8 +9215,13 @@ class TestJoinFull:
         tdSql.error(
             f"explain analyze verbose true select b.col1 from sta a left window join sta b on a.ts = b.ts and 1 = 2 window_offset(-1s,1s) order by a.ts;"
         )
-        tdSql.error(
-            f"explain analyze verbose true select b.col1 from (select ts from sta) a left window join (select ts, col1 from sta) b window_offset(-1s,1s) order by a.ts;"
+        tdSql.query(
+            "explain analyze verbose true select b.col1 from (select ts from "
+            "sta) a left window join (select ts, col1 from sta) b "
+            "window_offset(-1s,1s) order by a.ts;"
+        )
+        assert any(
+            "Left Window Join" in row[0] for row in tdSql.queryResult
         )
         tdSql.error(
             f"explain analyze verbose true select b.col1 from (select ts from sta) a left window join (select ts, col1 from sta) b left window join sta c window_offset(-1s,1s) order by a.ts;"
@@ -9261,10 +9317,10 @@ class TestJoinFull:
         tdSql.error(
             f"explain analyze verbose true select a.col1, b.col1, count(a.col1) from sta a left window join sta b window_offset(-1s,1s) where a.col1 > 0;"
         )
-        tdSql.error(
+        tdSql.query(
             f"explain analyze verbose true select diff(a.col1) from sta a left window join sta b window_offset(-1s,1s);"
         )
-        tdSql.error(
+        tdSql.query(
             f"explain analyze verbose true select csum(a.col1) from sta a left window join sta b window_offset(-1s,1s);"
         )
         tdSql.query(
@@ -9317,28 +9373,28 @@ class TestJoinFull:
         )
 
         # right join
-        tdSql.error(
-            f"explain analyze verbose true select a.ts from sta a right join sta b;"
+        tdSql.query(
+            f"explain analyze verbose true select a.ts from sta a right join sta b on true;"
         )
-        tdSql.error(
+        tdSql.query(
             f"explain analyze verbose true select a.ts from sta a right join sta b on a.ts = b.ts or a.ts = b.ts;"
         )
-        tdSql.error(
-            f"explain analyze verbose true select a.ts from sta a right join sta b where a.ts = b.ts or a.ts = b.ts;"
+        tdSql.query(
+            f"explain analyze verbose true select a.ts from sta a right join sta b on a.ts = b.ts or a.ts = b.ts;"
         )
-        tdSql.error(
+        tdSql.query(
             f"explain analyze verbose true select a.ts from sta a right join sta b on a.col1 = b.col1;"
         )
-        tdSql.error(
+        tdSql.query(
             f"explain analyze verbose true select a.ts from sta a right join sta b on a.col1 is not NULL;"
         )
-        tdSql.error(
+        tdSql.query(
             f"explain analyze verbose true select a.ts from sta a right join sta b on a.ts + 1 = b.col1;"
         )
-        tdSql.error(
+        tdSql.query(
             f"explain analyze verbose true select a.ts from sta a right join sta b on timetruncate(a.ts, 1d) > b.ts;"
         )
-        tdSql.error(
+        tdSql.query(
             f"explain analyze verbose true select a.ts from sta a right join sta b on timetruncate(a.ts, 1d) = b.ts + 1;"
         )
         tdSql.error(
@@ -9350,17 +9406,17 @@ class TestJoinFull:
         tdSql.query(
             f"explain analyze verbose true select a.ts from sta a right join sta b on timetruncate(a.ts, 1d) = b.ts;"
         )
-        tdSql.error(
+        tdSql.query(
             f"explain analyze verbose true select a.ts from sta a right join sta b on a.col1 = b.col1 where a.col1 = b.col1;"
         )
-        tdSql.error(
+        tdSql.query(
             f"explain analyze verbose true select a.ts from sta a right join sta b on a.col1 = b.col1 where a.ts = b.ts;"
         )
-        tdSql.error(
-            f"explain analyze verbose true select a.ts from sta a right join sta b where a.ts = b.ts;"
+        tdSql.query(
+            f"explain analyze verbose true select a.ts from sta a right join sta b on a.ts = b.ts;"
         )
-        tdSql.error(
-            f"explain analyze verbose true select b.col1 from sta a right join sta b where a.ts = b.ts and a.col1 + 1 = b.col1 order by a.ts;"
+        tdSql.query(
+            f"explain analyze verbose true select b.col1 from sta a right join sta b on a.ts = b.ts and a.col1 + 1 = b.col1 order by a.ts;"
         )
         tdSql.query(
             f"explain analyze verbose true select b.col1 from sta a right join sta b on a.ts = b.ts and a.col1 + 1 = b.col1 order by a.ts;"
@@ -9401,45 +9457,33 @@ class TestJoinFull:
         tdSql.query(
             f"explain analyze verbose true (select b.col1 from sta a right join sta b on a.ts=b.ts order by a.ts) union all (select a.col1 from sta a right join sta b on a.ts=b.ts) order by 1;"
         )
-        tdSql.error(
-            f"explain analyze verbose true select c.ts from ((select a.ts from sta a right join sta b on a.ts=b.ts order by a.ts) union (select b.ts from sta a right join sta b on a.ts=b.ts)) c right join ((select a.ts from sta a right join sta b on a.ts=b.ts order by a.ts) union all (select b.ts from sta a right join sta b on a.ts=b.ts)) d on c.ts = d.ts;"
-        )
-        tdSql.error(
-            f"explain analyze verbose true select c.ts from ((select a.ts from sta a right join sta b on a.ts=b.ts order by a.ts) union all (select b.ts from sta a right join sta b on a.ts=b.ts)) c right join ((select a.ts from sta a right join sta b on a.ts=b.ts order by a.ts) union all (select b.ts from sta a right join sta b on a.ts=b.ts)) d on c.ts = d.ts;"
-        )
-        tdSql.error(
-            f"explain analyze verbose true select c.ts from ((select a.ts from sta a right join sta b on a.ts=b.ts order by a.ts) union (select b.ts from sta a right join sta b on a.ts=b.ts) order by 1) c right join ((select a.ts from sta a right join sta b on a.ts=b.ts order by a.ts) union (select b.ts from sta a right join sta b on a.ts=b.ts) order by 1) d on c.ts = d.ts;"
-        )
-        tdSql.error(
-            f"explain analyze verbose true select c.ts from ((select a.ts from sta a right join sta b on a.ts=b.ts order by a.ts) union all (select b.ts from sta a right join sta b on a.ts=b.ts) order by 1) c right join ((select a.ts from sta a right join sta b on a.ts=b.ts order by a.ts) union all (select b.ts from sta a right join sta b on a.ts=b.ts) order by 1) d on c.ts = d.ts;"
-        )
 
         # right semi join
-        tdSql.error(
-            f"explain analyze verbose true select a.ts from sta a right semi join sta b;"
+        tdSql.query(
+            f"explain analyze verbose true select a.ts from sta a right semi join sta b on true;"
         )
-        tdSql.error(
+        tdSql.query(
             f"explain analyze verbose true select a.ts from sta a right semi join sta b on a.ts = b.ts or a.ts = b.ts;"
         )
-        tdSql.error(
-            f"explain analyze verbose true select a.ts from sta a right semi join sta b where a.ts = b.ts or a.ts = b.ts;"
+        tdSql.query(
+            f"explain analyze verbose true select a.ts from sta a right semi join sta b on a.ts = b.ts or a.ts = b.ts;"
         )
-        tdSql.error(
+        tdSql.query(
             f"explain analyze verbose true select a.ts from sta a right semi join sta b on a.col1 = b.col1;"
         )
         tdSql.error(
             f"explain analyze verbose true select a.ts from sta a right semi join sta b on a.col1 like '1';"
         )
-        tdSql.error(
+        tdSql.query(
             f"explain analyze verbose true select a.ts from sta a right semi join sta b on a.col1 is null;"
         )
-        tdSql.error(
+        tdSql.query(
             f"explain analyze verbose true select a.ts from sta a right semi join sta b on a.ts + 1 = b.col1;"
         )
-        tdSql.error(
+        tdSql.query(
             f"explain analyze verbose true select a.ts from sta a right semi join sta b on timetruncate(a.ts, 1d) > b.ts;"
         )
-        tdSql.error(
+        tdSql.query(
             f"explain analyze verbose true select a.ts from sta a right semi join sta b on timetruncate(a.ts, 1d) = b.ts + 1;"
         )
         tdSql.error(
@@ -9451,17 +9495,17 @@ class TestJoinFull:
         tdSql.query(
             f"explain analyze verbose true select a.ts from sta a right semi join sta b on timetruncate(a.ts, 1d) = b.ts;"
         )
-        tdSql.error(
+        tdSql.query(
             f"explain analyze verbose true select a.ts from sta a right semi join sta b on a.col1 = b.col1 where a.col1 = b.col1;"
         )
-        tdSql.error(
+        tdSql.query(
             f"explain analyze verbose true select a.ts from sta a right semi join sta b on a.col1 = b.col1 where a.ts = b.ts;"
         )
-        tdSql.error(
-            f"explain analyze verbose true select a.ts from sta a right semi join sta b where a.ts = b.ts;"
+        tdSql.query(
+            f"explain analyze verbose true select a.ts from sta a right semi join sta b on a.ts = b.ts;"
         )
-        tdSql.error(
-            f"explain analyze verbose true select b.col1 from sta a right semi join sta b where a.ts = b.ts and a.col1 + 1 = b.col1 order by a.ts;"
+        tdSql.query(
+            f"explain analyze verbose true select b.col1 from sta a right semi join sta b on a.ts = b.ts and a.col1 + 1 = b.col1 order by a.ts;"
         )
         tdSql.query(
             f"explain analyze verbose true select b.col1 from sta a right semi join sta b on a.ts = b.ts and a.col1 + 1 = b.col1 order by a.ts;"
@@ -9502,45 +9546,33 @@ class TestJoinFull:
         tdSql.query(
             f"explain analyze verbose true (select b.col1 from sta a right semi join sta b on a.ts=b.ts order by a.ts) union all (select a.col1 from sta a right semi join sta b on a.ts=b.ts) order by 1;"
         )
-        tdSql.error(
-            f"explain analyze verbose true select c.ts from ((select a.ts from sta a right semi join sta b on a.ts=b.ts order by a.ts) union (select b.ts from sta a right semi join sta b on a.ts=b.ts)) c right semi join ((select a.ts from sta a right semi join sta b on a.ts=b.ts order by a.ts) union all (select b.ts from sta a right semi join sta b on a.ts=b.ts)) d on c.ts = d.ts;"
-        )
-        tdSql.error(
-            f"explain analyze verbose true select c.ts from ((select a.ts from sta a right semi join sta b on a.ts=b.ts order by a.ts) union all (select b.ts from sta a right semi join sta b on a.ts=b.ts)) c right semi join ((select a.ts from sta a right semi join sta b on a.ts=b.ts order by a.ts) union all (select b.ts from sta a right semi join sta b on a.ts=b.ts)) d on c.ts = d.ts;"
-        )
-        tdSql.error(
-            f"explain analyze verbose true select c.ts from ((select a.ts from sta a right semi join sta b on a.ts=b.ts order by a.ts) union (select b.ts from sta a right semi join sta b on a.ts=b.ts) order by 1) c right semi join ((select a.ts from sta a right semi join sta b on a.ts=b.ts order by a.ts) union (select b.ts from sta a right semi join sta b on a.ts=b.ts) order by 1) d on c.ts = d.ts;"
-        )
-        tdSql.error(
-            f"explain analyze verbose true select c.ts from ((select a.ts from sta a right semi join sta b on a.ts=b.ts order by a.ts) union all (select b.ts from sta a right semi join sta b on a.ts=b.ts) order by 1) c right semi join ((select a.ts from sta a right semi join sta b on a.ts=b.ts order by a.ts) union all (select b.ts from sta a right semi join sta b on a.ts=b.ts) order by 1) d on c.ts = d.ts;"
-        )
 
         # right anti join
-        tdSql.error(
-            f"explain analyze verbose true select a.ts from sta a right anti join sta b;"
+        tdSql.query(
+            f"explain analyze verbose true select a.ts from sta a right anti join sta b on true;"
         )
-        tdSql.error(
+        tdSql.query(
             f"explain analyze verbose true select a.ts from sta a right anti join sta b on a.ts = b.ts or a.ts = b.ts;"
         )
-        tdSql.error(
-            f"explain analyze verbose true select a.ts from sta a right anti join sta b where a.ts = b.ts or a.ts = b.ts;"
+        tdSql.query(
+            f"explain analyze verbose true select a.ts from sta a right anti join sta b on a.ts = b.ts or a.ts = b.ts;"
         )
-        tdSql.error(
+        tdSql.query(
             f"explain analyze verbose true select a.ts from sta a right anti join sta b on a.col1 = b.col1;"
         )
-        tdSql.error(
+        tdSql.query(
             f"explain analyze verbose true select a.ts from sta a right anti join sta b on a.col1 / 1;"
         )
-        tdSql.error(
+        tdSql.query(
             f"explain analyze verbose true select a.ts from sta a right anti join sta b on a.col1 is null;"
         )
-        tdSql.error(
+        tdSql.query(
             f"explain analyze verbose true select a.ts from sta a right anti join sta b on a.ts + 1 = b.col1;"
         )
-        tdSql.error(
+        tdSql.query(
             f"explain analyze verbose true select a.ts from sta a right anti join sta b on timetruncate(a.ts, 1d) > b.ts;"
         )
-        tdSql.error(
+        tdSql.query(
             f"explain analyze verbose true select a.ts from sta a right anti join sta b on timetruncate(a.ts, 1d) = b.ts + 1;"
         )
         tdSql.error(
@@ -9552,17 +9584,17 @@ class TestJoinFull:
         tdSql.query(
             f"explain analyze verbose true select a.ts from sta a right anti join sta b on timetruncate(a.ts, 1d) = b.ts;"
         )
-        tdSql.error(
+        tdSql.query(
             f"explain analyze verbose true select a.ts from sta a right anti join sta b on a.col1 = b.col1 where a.col1 = b.col1;"
         )
-        tdSql.error(
+        tdSql.query(
             f"explain analyze verbose true select a.ts from sta a right anti join sta b on a.col1 = b.col1 where a.ts = b.ts;"
         )
-        tdSql.error(
-            f"explain analyze verbose true select a.ts from sta a right anti join sta b where a.ts = b.ts;"
+        tdSql.query(
+            f"explain analyze verbose true select a.ts from sta a right anti join sta b on a.ts = b.ts;"
         )
-        tdSql.error(
-            f"explain analyze verbose true select b.col1 from sta a right anti join sta b where a.ts = b.ts and a.col1 + 1 = b.col1 order by a.ts;"
+        tdSql.query(
+            f"explain analyze verbose true select b.col1 from sta a right anti join sta b on a.ts = b.ts and a.col1 + 1 = b.col1 order by a.ts;"
         )
         tdSql.query(
             f"explain analyze verbose true select b.col1 from sta a right anti join sta b on a.ts = b.ts and a.col1 + 1 = b.col1 order by a.ts;"
@@ -9602,18 +9634,6 @@ class TestJoinFull:
         )
         tdSql.query(
             f"explain analyze verbose true (select b.col1 from sta a right anti join sta b on a.ts=b.ts order by a.ts) union all (select a.col1 from sta a right anti join sta b on a.ts=b.ts) order by 1;"
-        )
-        tdSql.error(
-            f"explain analyze verbose true select c.ts from ((select a.ts from sta a right anti join sta b on a.ts=b.ts order by a.ts) union (select b.ts from sta a right anti join sta b on a.ts=b.ts)) c right anti join ((select a.ts from sta a right anti join sta b on a.ts=b.ts order by a.ts) union all (select b.ts from sta a right anti join sta b on a.ts=b.ts)) d on c.ts = d.ts;"
-        )
-        tdSql.error(
-            f"explain analyze verbose true select c.ts from ((select a.ts from sta a right anti join sta b on a.ts=b.ts order by a.ts) union all (select b.ts from sta a right anti join sta b on a.ts=b.ts)) c right anti join ((select a.ts from sta a right anti join sta b on a.ts=b.ts order by a.ts) union all (select b.ts from sta a right anti join sta b on a.ts=b.ts)) d on c.ts = d.ts;"
-        )
-        tdSql.error(
-            f"explain analyze verbose true select c.ts from ((select a.ts from sta a right anti join sta b on a.ts=b.ts order by a.ts) union (select b.ts from sta a right anti join sta b on a.ts=b.ts) order by 1) c right anti join ((select a.ts from sta a right anti join sta b on a.ts=b.ts order by a.ts) union (select b.ts from sta a right anti join sta b on a.ts=b.ts) order by 1) d on c.ts = d.ts;"
-        )
-        tdSql.error(
-            f"explain analyze verbose true select c.ts from ((select a.ts from sta a right anti join sta b on a.ts=b.ts order by a.ts) union all (select b.ts from sta a right anti join sta b on a.ts=b.ts) order by 1) c right anti join ((select a.ts from sta a right anti join sta b on a.ts=b.ts order by a.ts) union all (select b.ts from sta a right anti join sta b on a.ts=b.ts) order by 1) d on c.ts = d.ts;"
         )
 
         # right asof join
@@ -9701,8 +9721,13 @@ class TestJoinFull:
         tdSql.error(
             f"explain analyze verbose true select b.col1 from sta a right asof join sta b on a.ts = b.ts and 1 = 2 order by a.ts;"
         )
-        tdSql.error(
-            f"explain analyze verbose true select b.col1 from (select ts from sta) a right asof join (select ts, col1 from sta) b on a.ts=b.ts order by a.ts;"
+        tdSql.query(
+            "explain analyze verbose true select b.col1 from (select ts from "
+            "sta) a right asof join (select ts, col1 from sta) b on a.ts=b.ts"
+            " order by a.ts;"
+        )
+        assert any(
+            "Right ASOF Join" in row[0] for row in tdSql.queryResult
         )
         tdSql.error(
             f"explain analyze verbose true select b.col1 from (select ts from sta) a right asof join (select ts, col1 from sta) b right asof join sta c on a.ts=b.ts and b.ts = c.ts order by a.ts;"
@@ -9736,18 +9761,6 @@ class TestJoinFull:
         )
         tdSql.query(
             f"explain analyze verbose true (select b.col1 from sta a right asof join sta b on a.ts=b.ts order by a.ts) union all (select a.col1 from sta a right asof join sta b on a.ts=b.ts) order by 1;"
-        )
-        tdSql.error(
-            f"explain analyze verbose true select c.ts from ((select a.ts from sta a right asof join sta b on a.ts=b.ts order by a.ts) union (select b.ts from sta a right asof join sta b on a.ts=b.ts)) c right asof join ((select a.ts from sta a right asof join sta b on a.ts=b.ts order by a.ts) union all (select b.ts from sta a right asof join sta b on a.ts=b.ts)) d on c.ts = d.ts;"
-        )
-        tdSql.error(
-            f"explain analyze verbose true select c.ts from ((select a.ts from sta a right asof join sta b on a.ts=b.ts order by a.ts) union all (select b.ts from sta a right asof join sta b on a.ts=b.ts)) c right asof join ((select a.ts from sta a right asof join sta b on a.ts=b.ts order by a.ts) union all (select b.ts from sta a right asof join sta b on a.ts=b.ts)) d on c.ts = d.ts;"
-        )
-        tdSql.error(
-            f"explain analyze verbose true select c.ts from ((select a.ts from sta a right asof join sta b on a.ts=b.ts order by a.ts) union (select b.ts from sta a right asof join sta b on a.ts=b.ts) order by 1) c right asof join ((select a.ts from sta a right asof join sta b on a.ts=b.ts order by a.ts) union (select b.ts from sta a right asof join sta b on a.ts=b.ts) order by 1) d on c.ts = d.ts;"
-        )
-        tdSql.error(
-            f"explain analyze verbose true select c.ts from ((select a.ts from sta a right asof join sta b on a.ts=b.ts order by a.ts) union all (select b.ts from sta a right asof join sta b on a.ts=b.ts) order by 1) c right asof join ((select a.ts from sta a right asof join sta b on a.ts=b.ts order by a.ts) union all (select b.ts from sta a right asof join sta b on a.ts=b.ts) order by 1) d on c.ts = d.ts;"
         )
 
         # right window join
@@ -9883,8 +9896,13 @@ class TestJoinFull:
         tdSql.error(
             f"explain analyze verbose true select b.col1 from sta a right window join sta b on a.ts = b.ts and 1 = 2 window_offset(-1s,1s) order by a.ts;"
         )
-        tdSql.error(
-            f"explain analyze verbose true select b.col1 from (select ts from sta) a right window join (select ts, col1 from sta) b window_offset(-1s,1s) order by a.ts;"
+        tdSql.query(
+            "explain analyze verbose true select b.col1 from (select ts from "
+            "sta) a right window join (select ts, col1 from sta) b "
+            "window_offset(-1s,1s) order by a.ts;"
+        )
+        assert any(
+            "Right Window Join" in row[0] for row in tdSql.queryResult
         )
         tdSql.error(
             f"explain analyze verbose true select b.col1 from (select ts from sta) a right window join (select ts, col1 from sta) b right window join sta c window_offset(-1s,1s) order by a.ts;"
@@ -9980,10 +9998,10 @@ class TestJoinFull:
         tdSql.error(
             f"explain analyze verbose true select a.col1, b.col1, count(a.col1) from sta a right window join sta b window_offset(-1s,1s) where a.col1 > 0;"
         )
-        tdSql.error(
+        tdSql.query(
             f"explain analyze verbose true select diff(a.col1) from sta a right window join sta b window_offset(-1s,1s);"
         )
-        tdSql.error(
+        tdSql.query(
             f"explain analyze verbose true select csum(a.col1) from sta a right window join sta b window_offset(-1s,1s);"
         )
         tdSql.query(
@@ -10036,28 +10054,28 @@ class TestJoinFull:
         )
 
         # full join
-        tdSql.error(
-            f"explain analyze verbose true select a.ts from sta a full join sta b;"
+        tdSql.query(
+            f"explain analyze verbose true select a.ts from sta a full join sta b on true;"
         )
-        tdSql.error(
+        tdSql.query(
             f"explain analyze verbose true select a.ts from sta a full join sta b on a.ts = b.ts or a.ts = b.ts;"
         )
-        tdSql.error(
-            f"explain analyze verbose true select a.ts from sta a full join sta b where a.ts = b.ts or a.ts = b.ts;"
+        tdSql.query(
+            f"explain analyze verbose true select a.ts from sta a full join sta b on a.ts = b.ts or a.ts = b.ts;"
         )
-        tdSql.error(
+        tdSql.query(
             f"explain analyze verbose true select a.ts from sta a full join sta b on a.col1 = b.col1;"
         )
-        tdSql.error(
+        tdSql.query(
             f"explain analyze verbose true select a.ts from sta a full join sta b on a.col1 is not NULL;"
         )
-        tdSql.error(
+        tdSql.query(
             f"explain analyze verbose true select a.ts from sta a full join sta b on a.ts + 1 = b.col1;"
         )
-        tdSql.error(
+        tdSql.query(
             f"explain analyze verbose true select a.ts from sta a full join sta b on timetruncate(a.ts, 1d) > b.ts;"
         )
-        tdSql.error(
+        tdSql.query(
             f"explain analyze verbose true select a.ts from sta a full join sta b on timetruncate(a.ts, 1d) = b.ts + 1;"
         )
         tdSql.error(
@@ -10069,17 +10087,17 @@ class TestJoinFull:
         tdSql.query(
             f"explain analyze verbose true select a.ts from sta a full join sta b on timetruncate(a.ts, 1d) = b.ts;"
         )
-        tdSql.error(
+        tdSql.query(
             f"explain analyze verbose true select a.ts from sta a full join sta b on a.col1 = b.col1 where a.col1 = b.col1;"
         )
-        tdSql.error(
+        tdSql.query(
             f"explain analyze verbose true select a.ts from sta a full join sta b on a.col1 = b.col1 where a.ts = b.ts;"
         )
-        tdSql.error(
-            f"explain analyze verbose true select a.ts from sta a full join sta b where a.ts = b.ts;"
+        tdSql.query(
+            f"explain analyze verbose true select a.ts from sta a full join sta b on a.ts = b.ts;"
         )
-        tdSql.error(
-            f"explain analyze verbose true select b.col1 from sta a full join sta b where a.ts = b.ts and a.col1 + 1 = b.col1 order by a.ts;"
+        tdSql.query(
+            f"explain analyze verbose true select b.col1 from sta a full join sta b on a.ts = b.ts and a.col1 + 1 = b.col1 order by a.ts;"
         )
         tdSql.query(
             f"explain analyze verbose true select b.col1 from sta a full join sta b on a.ts = b.ts and a.col1 + 1 = b.col1 order by a.ts;"
@@ -10119,18 +10137,6 @@ class TestJoinFull:
         )
         tdSql.query(
             f"explain analyze verbose true (select b.col1 from sta a full join sta b on a.ts=b.ts order by a.ts) union all (select a.col1 from sta a full join sta b on a.ts=b.ts) order by 1;"
-        )
-        tdSql.error(
-            f"explain analyze verbose true select c.ts from ((select a.ts from sta a full join sta b on a.ts=b.ts order by a.ts) union (select b.ts from sta a full join sta b on a.ts=b.ts)) c full join ((select a.ts from sta a full join sta b on a.ts=b.ts order by a.ts) union all (select b.ts from sta a full join sta b on a.ts=b.ts)) d on c.ts = d.ts;"
-        )
-        tdSql.error(
-            f"explain analyze verbose true select c.ts from ((select a.ts from sta a full join sta b on a.ts=b.ts order by a.ts) union all (select b.ts from sta a full join sta b on a.ts=b.ts)) c full join ((select a.ts from sta a full join sta b on a.ts=b.ts order by a.ts) union all (select b.ts from sta a full join sta b on a.ts=b.ts)) d on c.ts = d.ts;"
-        )
-        tdSql.error(
-            f"explain analyze verbose true select c.ts from ((select a.ts from sta a full join sta b on a.ts=b.ts order by a.ts) union (select b.ts from sta a full join sta b on a.ts=b.ts) order by 1) c full join ((select a.ts from sta a full join sta b on a.ts=b.ts order by a.ts) union (select b.ts from sta a full join sta b on a.ts=b.ts) order by 1) d on c.ts = d.ts;"
-        )
-        tdSql.error(
-            f"explain analyze verbose true select c.ts from ((select a.ts from sta a full join sta b on a.ts=b.ts order by a.ts) union all (select b.ts from sta a full join sta b on a.ts=b.ts) order by 1) c full join ((select a.ts from sta a full join sta b on a.ts=b.ts order by a.ts) union all (select b.ts from sta a full join sta b on a.ts=b.ts) order by 1) d on c.ts = d.ts;"
         )
 
     def join_json(self):

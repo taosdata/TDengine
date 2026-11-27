@@ -1,6 +1,8 @@
 /*
  * Copyright (c) 2019 TAOS Data, Inc. <jhtao@taosdata.com>
  *
+ * SPDX-License-Identifier: AGPL-3.0-or-later
+ *
  * This program is free software: you can use, redistribute, and/or modify
  * it under the terms of the GNU Affero General Public License, version 3
  * or later ("AGPL"), as published by the Free Software Foundation.
@@ -12,6 +14,7 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
+
 #ifndef TDENGINE_TRPC_H
 #define TDENGINE_TRPC_H
 
@@ -73,6 +76,7 @@ typedef struct SRpcHandleInfo {
   int64_t      qId;     // queryId Get from client, other req's qId = -1;
   int32_t      refIdMgt;
   int32_t      msgType;
+  txn_id_t     txnId;   // batch-meta-txn: non-zero when this message belongs to a transaction
 } SRpcHandleInfo;
 
 typedef struct SRpcMsg {
@@ -96,6 +100,7 @@ typedef bool (*RpcTfp)(int32_t code, tmsg_t msgType);
 typedef bool (*RpcFFfp)(tmsg_t msgType);
 typedef bool (*RpcNoDelayfp)(tmsg_t msgType);
 typedef void (*RpcDfp)(void *ahandle);
+typedef bool (*RpcRetryOnOverloadFp)(int32_t code, tmsg_t msgType);
 
 typedef struct SRpcInit {
   char     localFqdn[TSDB_FQDN_LEN];
@@ -111,6 +116,9 @@ typedef struct SRpcInit {
   int32_t retryStepFactor;   // retry interval factor
   int32_t retryMaxInterval;  // retry max interval
   int64_t retryMaxTimeout;
+
+  int32_t retryOnOverloadBaseInterval;   // base interval (ms) for overload retry, doubles each attempt
+  int32_t retryOnOverloadTimeout; // max total duration (ms) for overload retry
 
   int32_t failFastThreshold;
   int32_t failFastInterval;
@@ -137,6 +145,8 @@ typedef struct SRpcInit {
 
   RpcNoDelayfp noDelayFp;
 
+  // check if error code should trigger overload retry
+  RpcRetryOnOverloadFp retryOnOverloadFp;
   int32_t connLimitNum;
   int32_t connLimitLock;
   int32_t timeToGetConn;
@@ -195,6 +205,19 @@ int32_t rpcSendRequest(void *thandle, const SEpSet *pEpSet, SRpcMsg *pMsg, int64
 int32_t rpcSendResponse(const SRpcMsg *pMsg);
 int32_t rpcRegisterBrokenLinkArg(SRpcMsg *msg);
 int32_t rpcReleaseHandle(void *handle, int8_t type, int32_t code);  // just release conn to rpc instance, no close sock
+
+/**
+ * Synchronously close the physical connection referenced by the RPC handle info.
+ *
+ * The connection is marked broken so that no further message can be queued on it, the real
+ * socket is closed in the transport loop thread and (when called from another thread) this
+ * function waits until the connection has been destroyed. This guarantees that a client
+ * waiting for a response either receives it or observes a broken link.
+ *
+ * @param handle SRpcHandleInfo* of the connection.
+ * @return 0 on success, otherwise an error code.
+ */
+int32_t rpcCloseConnSync(void* handle);
 
 // These functions will not be called in the child process
 int32_t rpcSendRequestWithCtx(void *thandle, const SEpSet *pEpSet, SRpcMsg *pMsg, int64_t *rid, SRpcCtx *ctx);
@@ -296,6 +319,7 @@ typedef bool (*RpcTfp)(int32_t code, tmsg_t msgType);
 typedef bool (*RpcFFfp)(tmsg_t msgType);
 typedef bool (*RpcNoDelayfp)(tmsg_t msgType);
 typedef void (*RpcDfp)(void *ahandle);
+typedef bool (*RpcRetryOnOverloadFp)(int32_t code, tmsg_t msgType);
 
 typedef struct SRpcInit {
   char     localFqdn[TSDB_FQDN_LEN];
@@ -311,6 +335,9 @@ typedef struct SRpcInit {
   int32_t retryStepFactor;   // retry interval factor
   int32_t retryMaxInterval;  // retry max interval
   int64_t retryMaxTimeout;
+
+  int32_t retryOnOverloadBaseInterval;   // base interval (ms) for overload retry, doubles each attempt
+  int32_t retryOnOverloadTimeout; // max total duration (ms) for overload retry
 
   int32_t failFastThreshold;
   int32_t failFastInterval;
@@ -336,6 +363,9 @@ typedef struct SRpcInit {
   RpcFFfp ffp;
 
   RpcNoDelayfp noDelayFp;
+
+  // check if error code should trigger overload retry
+  RpcRetryOnOverloadFp retryOnOverloadFp;
 
   int32_t connLimitNum;
   int32_t connLimitLock;
@@ -387,6 +417,19 @@ int32_t rpcSendResponse(SRpcMsg *pMsg);
 int32_t rpcRegisterBrokenLinkArg(SRpcMsg *msg);
 int32_t rpcReleaseHandle(void *handle, int8_t type,
                          int32_t status);  // just release conn to rpc instance, no close sock
+
+/**
+ * Synchronously close the physical connection referenced by the RPC handle info.
+ *
+ * The connection is marked broken so that no further message can be queued on it, the real
+ * socket is closed in the transport loop thread and (when called from another thread) this
+ * function waits until the connection has been destroyed. This guarantees that a client
+ * waiting for a response either receives it or observes a broken link.
+ *
+ * @param handle SRpcHandleInfo* of the connection.
+ * @return 0 on success, otherwise an error code.
+ */
+int32_t rpcCloseConnSync(void* handle);
 
 // These functions will not be called in the child process
 int32_t rpcSendRequestWithCtx(void *thandle, const SEpSet *pEpSet, SRpcMsg *pMsg, int64_t *rid, SRpcCtx *ctx);

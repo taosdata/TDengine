@@ -1,7 +1,22 @@
+# Copyright (c) 2025 TAOS Data, Inc. <jhtao@taosdata.com>
+#
+# SPDX-License-Identifier: AGPL-3.0-or-later
+#
+# This program is free software: you can use, redistribute, and/or modify
+# it under the terms of the GNU Affero General Public License, version 3
+# or later ("AGPL"), as published by the Free Software Foundation.
+#
+# This program is distributed in the hope that it will be useful, but WITHOUT
+# ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+# FITNESS FOR A PARTICULAR PURPOSE.
+#
+# You should have received a copy of the GNU Affero General Public License
+# along with this program. If not, see <http://www.gnu.org/licenses/>.
+
 import time
 import math
 import random
-from new_test_framework.utils import tdLog, tdSql, tdStream, streamUtil,StreamTableType, StreamTable, cluster,tdCom
+from new_test_framework.utils import etool, tdLog, tdSql, tdStream, streamUtil,StreamTableType, StreamTable, cluster,tdCom
 from random import randint
 import os
 import subprocess
@@ -42,7 +57,7 @@ class Test_ThreeGorges:
 
         Since: v3.3.3.7
 
-        Labels: common,ci,skip
+        Labels: common,ci,skip,integration,functional
 
         Jira: None
 
@@ -250,7 +265,7 @@ class Test_ThreeGorges:
         tdLog.info('config file ready')
         cmd = f"taosBenchmark -f insert_config.json "
         # output = subprocess.check_output(cmd, shell=True).decode().strip()
-        ret = os.system(cmd)
+        ret = etool.benchmark_write(cmd)
         if ret != 0:
             raise Exception("taosBenchmark run failed")
         time.sleep(5)

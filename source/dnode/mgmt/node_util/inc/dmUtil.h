@@ -1,6 +1,8 @@
 /*
  * Copyright (c) 2019 TAOS Data, Inc. <jhtao@taosdata.com>
  *
+ * SPDX-License-Identifier: AGPL-3.0-or-later
+ *
  * This program is free software: you can use, redistribute, and/or modify
  * it under the terms of the GNU Affero General Public License, version 3
  * or later ("AGPL"), as published by the Free Software Foundation.
@@ -131,6 +133,7 @@ typedef void (*SetVnodeSyncTimeoutFp)();
 typedef void (*GetQnodeLoadsFp)(SQnodeLoad *pInfo);
 typedef int32_t (*ProcessAlterNodeTypeFp)(EDndNodeType ntype, SRpcMsg *pMsg);
 typedef void (*StopDnodeFp)();
+typedef void (*CollectVnodeTxnIdleFp)(SArray **ppQueries);
 
 typedef struct {
   int32_t        dnodeId;
@@ -143,7 +146,11 @@ typedef struct {
   bool           stopped;
   SEpSet         mnodeEps;
   SArray        *dnodeEps;
-  SArray        *oldDnodeEps;
+  // Reserved: the layout of this struct is shared with the prebuilt
+  // deps/*/dm_static/libdmodule.a, which indexes fields at compile-time
+  // offsets (see dmCheckOffset in dmodule.c). Keep this slot to avoid
+  // shifting the fields that follow it.
+  void          *reserved0;
   SHashObj      *dnodeHash;
   TdThreadRwlock lock;
   SMsgCb         msgCb;
@@ -178,6 +185,7 @@ typedef struct {
   GetMnodeLoadsFp              getMnodeLoadsFp;
   SetMnodeSyncTimeoutFp        setMnodeSyncTimeoutFp;
   GetQnodeLoadsFp              getQnodeLoadsFp;
+  CollectVnodeTxnIdleFp        collectVnodeTxnIdleFp;
   StopDnodeFp                  stopDnodeFp;
 } SMgmtInputOpt;
 
@@ -247,7 +255,7 @@ void    dmRotateMnodeEpSet(SDnodeData *pData);
 void    dmGetMnodeEpSetForRedirect(SDnodeData *pData, SRpcMsg *pMsg, SEpSet *pEpSet);
 void    dmSetMnodeEpSet(SDnodeData *pData, SEpSet *pEpSet);
 bool    dmUpdateDnodeInfo(void *pData, int32_t *dnodeId, int64_t *clusterId, char *fqdn, uint16_t *port);
-void    dmRemoveDnodePairs(SDnodeData *pData);
+int32_t dmCheckEpSetInCluster(SDnodeData *pData, int32_t nodeId, const SEpSet *pEpSet);
 void    dmGetDnodeEp(void *pData, int32_t dnodeId, char *pEp, char *pFqdn, uint16_t *pPort);
 int32_t dmUpdateEncryptKey(char *key, bool toLogFile);
 int32_t dmGetEncryptKey();

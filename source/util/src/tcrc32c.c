@@ -1034,7 +1034,7 @@ int32_t main(int32_t argc, char *argv[]) {
   while ((count = read(0, ptr, 10)) > 0) {
     ptr += count;
     totalRead += count;
-    // 添加边界检查防止缓冲区溢出
+    // Add bounds checking to prevent buffer overflow.
     if (totalRead >= sizeof(str) - 10) {
       printf("Warning: Input exceeds buffer size, truncating.\n");
       break;

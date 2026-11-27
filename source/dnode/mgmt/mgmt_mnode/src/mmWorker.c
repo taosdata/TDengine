@@ -1,6 +1,8 @@
 /*
  * Copyright (c) 2019 TAOS Data, Inc. <jhtao@taosdata.com>
  *
+ * SPDX-License-Identifier: AGPL-3.0-or-later
+ *
  * This program is free software: you can use, redistribute, and/or modify
  * it under the terms of the GNU Affero General Public License, version 3
  * or later ("AGPL"), as published by the Free Software Foundation.
@@ -10,7 +12,7 @@
  * FITNESS FOR A PARTICULAR PURPOSE.
  *
  * You should have received a copy of the GNU Affero General Public License
- * along with this program. If not, see <http:www.gnu.org/licenses/>.
+ * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
 #define _DEFAULT_SOURCE
@@ -145,6 +147,10 @@ static inline int32_t mmPutMsgToWorker(SMnodeMgmt *pMgmt, SSingleWorker *pWorker
 
 int32_t mmPutMsgToWriteQueue(SMnodeMgmt *pMgmt, SRpcMsg *pMsg) {
   return mmPutMsgToWorker(pMgmt, &pMgmt->writeWorker, pMsg);
+}
+
+int32_t mmPutMsgToXnodeCreateQueue(SMnodeMgmt *pMgmt, SRpcMsg *pMsg) {
+  return mmPutMsgToWorker(pMgmt, &pMgmt->xnodeCreateWorker, pMsg);
 }
 
 int32_t mmPutMsgToArbQueue(SMnodeMgmt *pMgmt, SRpcMsg *pMsg) {
@@ -290,11 +296,29 @@ int32_t mmPutMsgToQueue(SMnodeMgmt *pMgmt, EQueueType qtype, SRpcMsg *pRpc) {
   return code;
 }
 
-int32_t mmDispatchStreamHbMsg(struct SDispatchWorkerPool* pPool, void* pParam, int32_t *pWorkerIdx) {
-  SRpcMsg* pMsg = (SRpcMsg*)pParam;
-  SStreamMsgGrpHeader* pHeader = (SStreamMsgGrpHeader*)pMsg->pCont;
-  *pWorkerIdx = pHeader->streamGid % tsNumOfMnodeStreamMgmtThreads;
+int32_t mmDispatchStreamHbMsg(struct SDispatchWorkerPool *pPool, void *pParam, int32_t *pWorkerIdx) {
+  SRpcMsg *pMsg = (SRpcMsg *)pParam;
+  if (pMsg->pCont == NULL || pMsg->contLen < (int32_t)sizeof(SStreamMsgGrpHeader)) {
+    return TSDB_CODE_INVALID_MSG;
+  }
+  SStreamMsgGrpHeader *pHeader = (SStreamMsgGrpHeader *)pMsg->pCont;
+  if (pHeader->streamGid < 0 || pHeader->streamGid >= STREAM_MAX_GROUP_NUM) {
+    return TSDB_CODE_INVALID_MSG;
+  }
+  int32_t workerNum = pPool->num > 0 ? pPool->num : 1;
+  *pWorkerIdx = pHeader->streamGid % workerNum;
   return TSDB_CODE_SUCCESS;
+}
+
+static void mmAddReaderResponseBlocks(SStreamReaderResponseStats *pRspStats, const SArray *pBlocks) {
+  if (pRspStats == NULL || pBlocks == NULL) return;
+
+  for (int32_t i = 0; i < taosArrayGetSize(pBlocks); ++i) {
+    const SSDataBlock *pBlock = taosArrayGetP(pBlocks, i);
+    if (pBlock == NULL || pBlock->info.rows <= 0) continue;
+    pRspStats->dataRows += (uint64_t)pBlock->info.rows;
+    ++pRspStats->dataBlocks;
+  }
 }
 
 static int32_t mmProcessStreamFetchMsg(SMnodeMgmt *pMgmt, SRpcMsg* pMsg) {
@@ -305,18 +329,40 @@ static int32_t mmProcessStreamFetchMsg(SMnodeMgmt *pMgmt, SRpcMsg* pMsg) {
   SSDataBlock*       pBlock = NULL;
   void*              taskAddr = NULL;
   SArray*            pResList = NULL;
-  
+  SArray                    *calcInfoList = NULL;
+  SStreamReaderTask         *pReaderTask = NULL;
+  SStreamReaderResponseStats rspStats = {.requestStartMonoUs = streamTaskGetMonotonicUs()};
+
   SResFetchReq req = {0};
   STREAM_CHECK_CONDITION_GOTO(tDeserializeSResFetchReq(pMsg->pCont, pMsg->contLen, &req) < 0,
                               TSDB_CODE_QRY_INVALID_INPUT);
-  SArray* calcInfoList = (SArray*)qStreamGetReaderInfo(req.queryId, req.taskId, &taskAddr);
+  calcInfoList = (SArray *)qStreamGetReaderInfo(req.queryId, req.taskId, &taskAddr);
   STREAM_CHECK_NULL_GOTO(calcInfoList, terrno);
 
   STREAM_CHECK_CONDITION_GOTO(req.execId < 0, TSDB_CODE_INVALID_PARA);
   SStreamTriggerReaderCalcInfo* sStreamReaderCalcInfo = taosArrayGetP(calcInfoList, req.execId);
   STREAM_CHECK_NULL_GOTO(sStreamReaderCalcInfo, terrno);
-  void* pTask = sStreamReaderCalcInfo->pTask;
+  pReaderTask = (SStreamReaderTask *)sStreamReaderCalcInfo->pTask;
+  STREAM_CHECK_RET_GOTO(tAdmitStreamContext(req.pStRtFuncInfo == NULL ? NULL : req.pStRtFuncInfo->pContextPolicy,
+                                            req.pStRtFuncInfo == NULL ? NULL : req.pStRtFuncInfo->pAncestorContext,
+                                            sStreamReaderCalcInfo->requiresContextPolicy));
+  void *pTask = pReaderTask;
   ST_TASK_DLOG("mnode %s start", __func__);
+
+  // Security hardening against item 182:
+  // The reset / first-run branch below rebuilds the reader task from
+  // req.pStRtFuncInfo (it dereferences req.pStRtFuncInfo->pStreamPartColVals when
+  // req.dynTbname is set, and unconditionally TSWAPs *req.pStRtFuncInfo into the
+  // stored runtime info). However, tDeserializeSResFetchReq() only allocates
+  // req.pStRtFuncInfo when the wire carries hasStRtFuncInfo > 0; reset and dynTbname
+  // are decoded independently and afterwards, so a crafted TDMT_STREAM_FETCH frame
+  // with reset=1 (or a first-run fetch where pTaskInfo == NULL) and the runtime-info
+  // section omitted is a valid frame that leaves req.pStRtFuncInfo == NULL.
+  // Dereferencing it would crash the whole taosd process hosting the mnode and every
+  // vnode it carries. Reject such malformed requests *before* any dereference.
+  // The runtime funcInfo is mandatory exactly when the rebuild path is taken.
+  STREAM_CHECK_CONDITION_GOTO(req.pStRtFuncInfo == NULL && (req.reset || sStreamReaderCalcInfo->pTaskInfo == NULL),
+                              TSDB_CODE_QRY_INVALID_INPUT);
 
   if (req.reset || sStreamReaderCalcInfo->pTaskInfo == NULL) {
     qDestroyTask(sStreamReaderCalcInfo->pTaskInfo);
@@ -367,17 +413,24 @@ static int32_t mmProcessStreamFetchMsg(SMnodeMgmt *pMgmt, SRpcMsg* pMsg) {
   for(size_t i = 0; i < taosArrayGetSize(pResList); i++){
     SSDataBlock* pBlock = taosArrayGetP(pResList, i);
     if (pBlock == NULL) continue;
-    printDataBlock(pBlock, __func__, "streemFetch", ((SStreamTask*)pTask)->streamId);
+    printDataBlock(pBlock, __func__, "streemFetch", ((SStreamTask*)pTask)->streamId, ((SStreamTask*)pTask)->charsetCxt);
     if (sStreamReaderCalcInfo->rtInfo.funcInfo.withExternalWindow && pBlock != NULL) {
       STREAM_CHECK_RET_GOTO(qStreamFilter(pBlock, sStreamReaderCalcInfo->pFilterInfo, NULL));
-      printDataBlock(pBlock, __func__, "fetch filter", ((SStreamTask*)pTask)->streamId);
+      printDataBlock(pBlock, __func__, "fetch filter", ((SStreamTask*)pTask)->streamId, ((SStreamTask*)pTask)->charsetCxt);
     }
   }
 
   STREAM_CHECK_RET_GOTO(streamBuildFetchRsp(pResList, hasNext, &buf, &size, TSDB_TIME_PRECISION_MILLI));
+  mmAddReaderResponseBlocks(&rspStats, pResList);
   ST_TASK_DLOG("%s end:", __func__);
 
 end:
+  if (pReaderTask != NULL) {
+    rspStats.activeScanContexts = taosArrayGetSize(calcInfoList);
+    rspStats.activeScanContextsValid = true;
+    int64_t nowMonoUs = streamTaskGetMonotonicUs();
+    stReaderTaskRecordPullResult(pReaderTask, &rspStats, code, nowMonoUs, taosGetTimestampMs());
+  }
   taosArrayDestroy(pResList);
   streamReleaseTask(taskAddr);
 
@@ -517,6 +570,19 @@ int32_t mmStartWorker(SMnodeMgmt *pMgmt) {
   }
   taosQueueSetFreeFp(pMgmt->writeWorker.queue, mmFreeRpcQitem);
 
+  SSingleWorkerCfg xnodeCreateCfg = {
+      .min = 1,
+      .max = 1,
+      .name = "mnode-xnode-create",
+      .fp = (FItem)mmProcessRpcMsg,
+      .param = pMgmt,
+  };
+  if ((code = tSingleWorkerInit(&pMgmt->xnodeCreateWorker, &xnodeCreateCfg)) != 0) {
+    dError("failed to start mnode-xnode-create worker since %s", tstrerror(code));
+    return code;
+  }
+  taosQueueSetFreeFp(pMgmt->xnodeCreateWorker.queue, mmFreeRpcQitem);
+
   SSingleWorkerCfg sCfg = {
       .min = 1,
       .max = 1,
@@ -525,7 +591,7 @@ int32_t mmStartWorker(SMnodeMgmt *pMgmt) {
       .param = pMgmt,
   };
   if ((code = tSingleWorkerInit(&pMgmt->syncWorker, &sCfg)) != 0) {
-    dError("failed to start mnode mnode-sync worker since %s", tstrerror(code));
+    dError("failed to start mnode-sync worker since %s", tstrerror(code));
     return code;
   }
   taosQueueSetFreeFp(pMgmt->syncWorker.queue, mmFreeRpcQitem);
@@ -538,7 +604,7 @@ int32_t mmStartWorker(SMnodeMgmt *pMgmt) {
       .param = pMgmt,
   };
   if ((code = tSingleWorkerInit(&pMgmt->syncRdWorker, &scCfg)) != 0) {
-    dError("failed to start mnode mnode-sync-rd worker since %s", tstrerror(code));
+    dError("failed to start mnode-sync-rd worker since %s", tstrerror(code));
     return code;
   }
   taosQueueSetFreeFp(pMgmt->syncRdWorker.queue, mmFreeRpcQitem);
@@ -551,7 +617,7 @@ int32_t mmStartWorker(SMnodeMgmt *pMgmt) {
       .param = pMgmt,
   };
   if ((code = tSingleWorkerInit(&pMgmt->arbWorker, &arbCfg)) != 0) {
-    dError("failed to start mnode mnode-arb worker since %s", tstrerror(code));
+    dError("failed to start mnode-arb worker since %s", tstrerror(code));
     return code;
   }
   taosQueueSetFreeFp(pMgmt->arbWorker.queue, mmFreeRpcQitem);
@@ -564,7 +630,7 @@ int32_t mmStartWorker(SMnodeMgmt *pMgmt) {
       .param = pMgmt,
   };
   if ((code = tSingleWorkerInit(&pMgmt->auditWorker, &auditCfg)) != 0) {
-    dError("failed to start mnode mnode-audit worker since %s", tstrerror(code));
+    dError("failed to start mnode-audit worker since %s", tstrerror(code));
     return code;
   }
 
@@ -601,6 +667,7 @@ void mmStopWorker(SMnodeMgmt *pMgmt) {
   tSingleWorkerCleanup(&pMgmt->fetchWorker);
   tSingleWorkerCleanup(&pMgmt->readWorker);
   tSingleWorkerCleanup(&pMgmt->statusWorker);
+  tSingleWorkerCleanup(&pMgmt->xnodeCreateWorker);
   tSingleWorkerCleanup(&pMgmt->writeWorker);
   tSingleWorkerCleanup(&pMgmt->arbWorker);
   tSingleWorkerCleanup(&pMgmt->syncWorker);

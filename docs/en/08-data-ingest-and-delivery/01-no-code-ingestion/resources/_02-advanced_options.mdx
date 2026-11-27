@@ -1,0 +1,7 @@
+The **Advanced Options** section is collapsed by default. Click `>` to expand it. Fields vary by data source; common options include the following.
+
+**Maximum Read Concurrency** limits the number of source connections or reader threads. The default `0` lets the connector configure this automatically. Increase it when the source responds slowly and additional concurrency is appropriate.
+
+**Batch Size** specifies the maximum number of messages or rows sent at a time. The default depends on the data source and is commonly `1000` or `10000`.
+
+Some data sources also provide **Write Concurrency**, which specifies how many tasks can write to TDengine concurrently. For health-monitoring options such as monitoring periods, busy-state thresholds, write-queue length, and write-error thresholds, see [Health Status](../index.md#health-status).

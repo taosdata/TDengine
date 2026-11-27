@@ -1,6 +1,8 @@
 /*
  * Copyright (c) 2019 TAOS Data, Inc. <jhtao@taosdata.com>
  *
+ * SPDX-License-Identifier: AGPL-3.0-or-later
+ *
  * This program is free software: you can use, redistribute, and/or modify
  * it under the terms of the GNU Affero General Public License, version 3
  * or later ("AGPL"), as published by the Free Software Foundation.
@@ -13,16 +15,16 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
+#ifdef _WIN32
+#include "osWindows.h"
+#endif
+
 #include <getopt.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string>
 
 #include <gtest/gtest.h>
-
-#ifdef WINDOWS
-#define TD_USE_WINSOCK
-#endif
 
 #include "functionMgt.h"
 #include "mockCatalog.h"

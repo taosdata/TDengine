@@ -1,13 +1,17 @@
-###################################################################
-#           Copyright (c) 2016 by TAOS Technologies, Inc.
-#                     All rights reserved.
+# Copyright (c) 2016 TAOS Data, Inc. <jhtao@taosdata.com>
 #
-#  This file is proprietary and confidential to TAOS Technologies.
-#  No part of this file may be reproduced, stored, transmitted,
-#  disclosed or used in any form or by any means other than as
-#  expressly provided by the written permission from Jianhui Tao
+# SPDX-License-Identifier: AGPL-3.0-or-later
 #
-###################################################################
+# This program is free software: you can use, redistribute, and/or modify
+# it under the terms of the GNU Affero General Public License, version 3
+# or later ("AGPL"), as published by the Free Software Foundation.
+#
+# This program is distributed in the hope that it will be useful, but WITHOUT
+# ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+# FITNESS FOR A PARTICULAR PURPOSE.
+#
+# You should have received a copy of the GNU Affero General Public License
+# along with this program. If not, see <http://www.gnu.org/licenses/>.
 
 # -*- coding: utf-8 -*-
 from new_test_framework.utils import tdLog, tdSql, etool, tdCom
@@ -171,7 +175,7 @@ class TestQueryBugs:
             "create database ctg_tsdb cachemodel 'both' stt_trigger 1;",
             "use ctg_tsdb;",
             "CREATE STABLE `stb_sxny_cn` (`dt` TIMESTAMP ENCODE 'delta-i' COMPRESS 'lz4' LEVEL 'medium', \
-                `val` DOUBLE ENCODE 'delta-d' COMPRESS 'tsz' LEVEL 'medium') TAGS (`point` VARCHAR(50),  \
+                `val` DOUBLE COMPRESS 'tsz' LEVEL 'medium') TAGS (`point` VARCHAR(50),  \
                 `point_name` VARCHAR(64), `point_path` VARCHAR(2000), `index_name` VARCHAR(64),          \
                 `country_equipment_code` VARCHAR(64), `index_code` VARCHAR(64), `ps_code` VARCHAR(50),   \
                 `cnstationno` VARCHAR(255), `index_level` VARCHAR(10), `cz_flag` VARCHAR(255),           \
@@ -828,9 +832,10 @@ class TestQueryBugs:
     #
     # ------------------- 8 ----------------
     #            
-    def FIX_TD_32548(self): 
+    def FIX_TD_32548(self):
+        tdSql.execute("drop database if exists td_32548;")
         tdSql.execute("create database td_32548 cachemodel 'last_row' keep 3650,3650,3650;")
-        
+
         tdSql.execute("use td_32548;")
 
         tdSql.execute("create table ntb1 (ts timestamp, ival int);")
@@ -842,9 +847,71 @@ class TestQueryBugs:
         tdSql.execute("insert into ntb1 values ('2024-07-08 17:52:49.675', 52);")
         tdSql.execute("delete from ntb1 where ts = '2024-07-08 17:54:49.675';")
 
+        # The flushed record (17:54:49.675) has been deleted, so last_row must
+        # fall back to the next newest record for both the ts and value columns.
         tdSql.query('select last_row(ts) from ntb1;')
         tdSql.checkData(0, 0, '2024-07-08 17:53:49.675')
-         
+
+        tdSql.query('select last_row(ival) from ntb1;')
+        tdSql.checkData(0, 0, 53)
+
+        tdSql.execute("drop database if exists td_32548;")
+
+        # cachemodel 'both': when the newest imem rows hold NULL and a middle
+        # row is deleted, last() must keep scanning past the deleted row to an
+        # older non-null value instead of returning the stale cached value.
+        tdSql.execute("drop database if exists td_32548_both;")
+        tdSql.execute("create database td_32548_both cachemodel 'both' keep 3650,3650,3650;")
+
+        tdSql.execute("use td_32548_both;")
+
+        tdSql.execute("create table ntb1 (ts timestamp, ival int);")
+        tdSql.execute("insert into ntb1 values ('2024-07-08 17:50:49.675', 10);")
+
+        tdSql.execute("flush database td_32548_both;")
+
+        tdSql.execute("insert into ntb1 values ('2024-07-08 17:51:49.675', 30);")
+        tdSql.execute("insert into ntb1 values ('2024-07-08 17:52:49.675', NULL);")
+        tdSql.execute("insert into ntb1 values ('2024-07-08 17:53:49.675', NULL);")
+        tdSql.execute("delete from ntb1 where ts = '2024-07-08 17:52:49.675';")
+
+        # The second flush waits for the first commit's last-cache update to
+        # settle, so the query below deterministically observes the cache.
+        tdSql.execute("flush database td_32548_both;")
+        tdSql.execute("flush database td_32548_both;")
+
+        tdSql.query('select last(ival) from ntb1;')
+        tdSql.checkData(0, 0, 30)
+
+        tdSql.execute("drop database if exists td_32548_both;")
+
+        # cachemodel 'last_row': no writes after the flush, so the current mem
+        # has no table data; the delete creates it while appending its
+        # tombstone. The last-cache reload of the flushed rows must not
+        # re-cache the deleted row.
+        tdSql.execute("drop database if exists td_32548_empty_mem;")
+        tdSql.execute("create database td_32548_empty_mem cachemodel 'last_row' keep 3650,3650,3650;")
+
+        tdSql.execute("use td_32548_empty_mem;")
+
+        tdSql.execute("create table ntb1 (ts timestamp, ival int);")
+        tdSql.execute("insert into ntb1 values ('2024-07-08 17:54:49.675', 54);")
+        tdSql.execute("insert into ntb1 values ('2024-07-08 17:53:49.675', 53);")
+
+        tdSql.execute("flush database td_32548_empty_mem;")
+        tdSql.execute("delete from ntb1 where ts = '2024-07-08 17:54:49.675';")
+
+        tdSql.execute("flush database td_32548_empty_mem;")
+        tdSql.execute("flush database td_32548_empty_mem;")
+
+        tdSql.query('select last_row(ts) from ntb1;')
+        tdSql.checkData(0, 0, '2024-07-08 17:53:49.675')
+
+        tdSql.query('select last_row(ival) from ntb1;')
+        tdSql.checkData(0, 0, 53)
+
+        tdSql.execute("drop database if exists td_32548_empty_mem;")
+
         print("do TD-32548 ............................ [passed]")
 
     #
@@ -933,7 +1000,7 @@ class TestQueryBugs:
 
         Since: v3.0.0.0
 
-        Labels: common,ci
+        Labels: common,ci,integration,functional
 
         Jira: None
 

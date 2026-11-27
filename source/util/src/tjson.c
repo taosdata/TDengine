@@ -1,6 +1,8 @@
 /*
  * Copyright (c) 2019 TAOS Data, Inc. <jhtao@taosdata.com>
  *
+ * SPDX-License-Identifier: AGPL-3.0-or-later
+ *
  * This program is free software: you can use, redistribute, and/or modify
  * it under the terms of the GNU Affero General Public License, version 3
  * or later ("AGPL"), as published by the Free Software Foundation.
@@ -341,6 +343,8 @@ int32_t tjsonGetDoubleValue(const SJson* pJson, const char* pName, double* pVal)
   return TSDB_CODE_SUCCESS;
 }
 
+bool tjsonIsArray(const SJson* pJson) { return cJSON_IsArray(pJson); }
+
 int32_t tjsonGetArraySize(const SJson* pJson) { return cJSON_GetArraySize(pJson); }
 
 SJson* tjsonGetArrayItem(const SJson* pJson, int32_t index) { return cJSON_GetArrayItem(pJson, index); }
@@ -400,40 +404,6 @@ int32_t tjsonToTArray(const SJson* pJson, const char* pName, FJsonToObject func,
 }
 
 SJson* tjsonParse(const char* pStr) { return cJSON_Parse(pStr); }
-
-bool tjsonValidateJson(const char* jIn) {
-  if (!jIn) {
-    return false;
-  }
-
-  // set json real data
-  cJSON* root = cJSON_Parse(jIn);
-  if (root == NULL) {
-    return false;
-  }
-
-  if (!cJSON_IsObject(root)) {
-    return false;
-  }
-  int size = cJSON_GetArraySize(root);
-  for (int i = 0; i < size; i++) {
-    cJSON* item = cJSON_GetArrayItem(root, i);
-    if (!item) {
-      return false;
-    }
-
-    char* jsonKey = item->string;
-    if (!jsonKey) return false;
-    for (size_t j = 0; j < strlen(jsonKey); ++j) {
-      if (isprint(jsonKey[j]) == 0) return false;
-    }
-
-    if (item->type == cJSON_Object || item->type == cJSON_Array) {
-      return false;
-    }
-  }
-  return true;
-}
 
 const char* tjsonGetError() { return cJSON_GetErrorPtr(); }
 

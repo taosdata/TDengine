@@ -1,6 +1,8 @@
 /*
  * Copyright (c) 2019 TAOS Data, Inc. <jhtao@taosdata.com>
  *
+ * SPDX-License-Identifier: AGPL-3.0-or-later
+ *
  * This program is free software: you can use, redistribute, and/or modify
  * it under the terms of the GNU Affero General Public License, version 3
  * or later ("AGPL"), as published by the Free Software Foundation.
@@ -78,10 +80,10 @@ typedef struct FstUnFinishedNodes {
 
 FstUnFinishedNodes* fstUnFinishedNodesCreate();
 void                fstUnFinishedNodesDestroy(FstUnFinishedNodes* node);
-void                fstUnFinishedNodesPushEmpty(FstUnFinishedNodes* nodes, bool isFinal);
+int32_t             fstUnFinishedNodesPushEmpty(FstUnFinishedNodes* nodes, bool isFinal);
 void                fstUnFinishedNodesSetRootOutput(FstUnFinishedNodes* node, Output out);
-void                fstUnFinishedNodesTopLastFreeze(FstUnFinishedNodes* node, CompiledAddr addr);
-void                fstUnFinishedNodesAddSuffix(FstUnFinishedNodes* node, FstSlice bs, Output out);
+int32_t             fstUnFinishedNodesTopLastFreeze(FstUnFinishedNodes* node, CompiledAddr addr);
+int32_t             fstUnFinishedNodesAddSuffix(FstUnFinishedNodes* node, FstSlice bs, Output out);
 uint64_t            fstUnFinishedNodesFindCommPrefix(FstUnFinishedNodes* node, FstSlice bs);
 FstBuilderNode*     fstUnFinishedNodesPopRoot(FstUnFinishedNodes* nodes);
 FstBuilderNode*     fstUnFinishedNodesPopFreeze(FstUnFinishedNodes* nodes, CompiledAddr addr);
@@ -101,11 +103,11 @@ typedef struct FstBuilder {
 FstBuilder* fstBuilderCreate(void* w, FstType ty);
 
 void         fstBuilderDestroy(FstBuilder* b);
-void         fstBuilderInsertOutput(FstBuilder* b, FstSlice bs, Output in);
+int32_t      fstBuilderInsertOutput(FstBuilder* b, FstSlice bs, Output in);
 bool         fstBuilderInsert(FstBuilder* b, FstSlice bs, Output in);
-void         fstBuilderCompileFrom(FstBuilder* b, uint64_t istate);
+int32_t      fstBuilderCompileFrom(FstBuilder* b, uint64_t istate);
 void*        fstBuilerIntoInner(FstBuilder* b);
-void         fstBuilderFinish(FstBuilder* b);
+int32_t      fstBuilderFinish(FstBuilder* b);
 FstOrderType fstBuilderCheckLastKey(FstBuilder* b, FstSlice bs, bool ckDup);
 CompiledAddr fstBuilderCompile(FstBuilder* b, FstBuilderNode* bn);
 
@@ -191,7 +193,7 @@ typedef struct FstBuilderNodeUnfinished {
   FstLastTransition* last;
 } FstBuilderNodeUnfinished;
 
-void fstBuilderNodeUnfinishedLastCompiled(FstBuilderNodeUnfinished* node, CompiledAddr addr);
+int32_t fstBuilderNodeUnfinishedLastCompiled(FstBuilderNodeUnfinished* node, CompiledAddr addr);
 
 void fstBuilderNodeUnfinishedAddOutputPrefix(FstBuilderNodeUnfinished* node, Output out);
 
@@ -306,6 +308,7 @@ typedef struct FStmSt {
   FstOutput         emptyOutput;
   SArray*           stack;  // <FstStreamState>
   FstBoundWithData* endAt;
+  int32_t           error;  // Distinguish failed traversal from exhaustion.
 } FStmSt;
 
 typedef struct FStmStRslt {

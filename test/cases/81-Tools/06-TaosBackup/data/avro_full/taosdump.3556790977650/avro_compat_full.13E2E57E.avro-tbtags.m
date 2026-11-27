@@ -1,0 +1,1 @@
+{"version":1,"name":"meters","cols": [{"name":"ts", "type":9},{"name":"ic", "type":4},{"name":"bi", "type":5},{"name":"fc", "type":6},{"name":"bc", "type":1},{"name":"bin", "type":8},{"name":"nch", "type":10}],"tags": [{"name":"tid", "type":4},{"name":"loc", "type":10}]}

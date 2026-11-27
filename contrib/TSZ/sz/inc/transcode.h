@@ -113,7 +113,7 @@ static const int code2int[67][2] = { {0,0},{1,0},{2,0},{3,0},
 void encode_with_fse(int *type, size_t dataSeriesLength, unsigned int intervals, 
                     unsigned char **FseCode, size_t *FseCode_size, 
                     unsigned char **transCodeBits, size_t *transCodeBits_size);
-void decode_with_fse(int *type, size_t dataSeriesLength, unsigned int intervals, 
+int decode_with_fse(int *type, size_t dataSeriesLength, unsigned int intervals, 
                     unsigned char *FseCode, size_t FseCode_size, 
                     unsigned char *transCodeBits, size_t transCodeBits_size);
 

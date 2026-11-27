@@ -1,3 +1,18 @@
+# Copyright (c) 2025 TAOS Data, Inc. <jhtao@taosdata.com>
+#
+# SPDX-License-Identifier: AGPL-3.0-or-later
+#
+# This program is free software: you can use, redistribute, and/or modify
+# it under the terms of the GNU Affero General Public License, version 3
+# or later ("AGPL"), as published by the Free Software Foundation.
+#
+# This program is distributed in the hope that it will be useful, but WITHOUT
+# ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+# FITNESS FOR A PARTICULAR PURPOSE.
+#
+# You should have received a copy of the GNU Affero General Public License
+# along with this program. If not, see <http://www.gnu.org/licenses/>.
+
 """
 执行远程shell命令
 """
@@ -221,7 +236,9 @@ class Remote:
         if host == platform.node() or host == "localhost":
             if not os.path.exists(path):
                 self.mkdir(host, path)
-            os.system("cp -rf {0} {1}".format(file, path))
+            # One copy command per platform: cmd.exe has no cp, so running both
+            # unconditionally printed "'cp' is not recognized" on every Windows
+            # deploy before xcopy did the actual work.
             if platform.system().lower() == "windows":
                 os.system(f'xcopy /E /Y "{file}" "{path}\\"')
             else:

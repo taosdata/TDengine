@@ -1,0 +1,71 @@
+
+taos> use ts_4893
+Database changed.
+
+taos> select database() from fc_d
+ database() |
+=============
+ ts_4893    |
+ ts_4893    |
+ ts_4893    |
+ ts_4893    |
+ ts_4893    |
+
+taos> select server_status() from fc_d limit 1
+ server_status() |
+==================
+               1 |
+
+taos> select database(), avg(voltage) from fc_d
+ database() |       avg(voltage)        |
+=========================================
+ ts_4893    |                       220 |
+
+taos> select server_status(), avg(voltage) from fc_d
+ server_status() |       avg(voltage)        |
+==============================================
+               1 |                       220 |
+
+taos> select database(), diff(voltage) from fc_d
+ database() |     diff(voltage)     |
+=====================================
+ ts_4893    |                    -5 |
+ ts_4893    |                    10 |
+ ts_4893    |                   -15 |
+ ts_4893    |                    20 |
+
+taos> select length(database()) from fc_d
+  length(database())   |
+========================
+                     7 |
+                     7 |
+                     7 |
+                     7 |
+                     7 |
+
+taos> select avg(length(database())) from fc_d
+  avg(length(database()))  |
+============================
+                         7 |
+
+taos> select diff(length(database())) from fc_d
+ diff(length(database())) |
+===========================
+                        0 |
+                        0 |
+                        0 |
+                        0 |
+
+taos> select sleep(0), avg(voltage) from fc_d
+  sleep(0)   |       avg(voltage)        |
+==========================================
+           0 |                       220 |
+
+taos> select sleep(0), diff(voltage) from fc_d
+  sleep(0)   |     diff(voltage)     |
+======================================
+           0 |                    -5 |
+           0 |                    10 |
+           0 |                   -15 |
+           0 |                    20 |
+

@@ -1,6 +1,8 @@
 /*
  * Copyright (c) 2019 TAOS Data, Inc. <jhtao@taosdata.com>
  *
+ * SPDX-License-Identifier: AGPL-3.0-or-later
+ *
  * This program is free software: you can use, redistribute, and/or modify
  * it under the terms of the GNU Affero General Public License, version 3
  * or later ("AGPL"), as published by the Free Software Foundation.
@@ -12,6 +14,7 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
+
 #ifndef TDENGINE_EXECUTORINT_H
 #define TDENGINE_EXECUTORINT_H
 
@@ -29,16 +32,18 @@ extern "C" {
 #include "dataSinkMgt.h"
 #include "executil.h"
 #include "executor.h"
+#include "extConnector.h"
 #include "planner.h"
 #include "scalar.h"
+#include "streamMsg.h"
 #include "taosdef.h"
 #include "tarray.h"
 #include "tfill.h"
 #include "thash.h"
 #include "tlockfree.h"
+#include "tlrucache.h"
 #include "tmsg.h"
 #include "tpagedbuf.h"
-#include "tlrucache.h"
 #include "tworker.h"
 
 typedef int32_t (*__block_search_fn_t)(char* data, int32_t num, int64_t key, int32_t order);
@@ -59,7 +64,7 @@ typedef enum EExtWinMode {
 
 #define IS_NON_STREAM_MODE(_task) ((_task)->execModel != OPTR_EXEC_MODEL_STREAM)
 #define IS_STREAM_MODE(_task) ((_task)->execModel == OPTR_EXEC_MODEL_STREAM)
-#define IS_STREAM_SINGLE_GRP(_task) (!(_task)->pStreamRuntimeInfo->funcInfo.isMultiGroupCalc)
+#define IS_STREAM_SINGLE_GRP(_task) (!GET_STM_RTINFO(_task)->isMultiGroupCalc)
 
 /**
  * If the number of generated results is greater than this value,
@@ -83,6 +88,29 @@ typedef struct SLimit {
 } SLimit;
 
 typedef struct STableScanAnalyzeInfo SFileBlockLoadRecorder;
+
+typedef struct SIntervalTimingInfo {
+  int64_t openCalls;
+  int64_t openElapsedUs;
+  int64_t downstreamCalls;
+  int64_t downstreamElapsedUs;
+  int64_t setInputCalls;
+  int64_t setInputElapsedUs;
+  int64_t hashCalls;
+  int64_t hashElapsedUs;
+  int64_t hashOutputCalls;
+  int64_t hashOutputElapsedUs;
+  int64_t hashApplyCalls;
+  int64_t hashApplyElapsedUs;
+  int64_t hashSeekCalls;
+  int64_t hashSeekElapsedUs;
+  int64_t initResultCalls;
+  int64_t initResultElapsedUs;
+  int64_t buildCalls;
+  int64_t buildElapsedUs;
+  int64_t filterCalls;
+  int64_t filterElapsedUs;
+} SIntervalTimingInfo;
 
 enum {
   STREAM_RECOVER_STEP__NONE = 0,
@@ -179,6 +207,7 @@ typedef enum EExchangeSourceType {
   EX_SRC_TYPE_VSTB_TS_SCAN,
   EX_SRC_TYPE_VSTB_INTERVAL_SCAN,
   EX_SRC_TYPE_VSTB_PART_INTERVAL_SCAN,
+  EX_SRC_TYPE_VSTB_SYS_SCAN,
 } EExchangeSourceType;
 
 typedef enum {
@@ -200,10 +229,13 @@ typedef struct SExchangeOperatorBasicParam {
   SOrgTbInfo*           orgTbInfo;
   SArray*               batchOrgTbInfo; // SArray<SOrgTbInfo>
   SArray*               tagList;
+  SArray*               sysScanReqs; // SArray<SSysTableScanVtbRefReq>
   STimeWindow           window;
   SDownstreamSourceNode newDeployedSrc; // used with isNewDeployed
   /* notify scan params */
-  TSKEY notifyTs;
+  TSKEY    notifyTs;
+  int8_t   notifyPhase;
+  uint64_t notifyScanGroupId;
 } SExchangeOperatorBasicParam;
 
 typedef struct SExchangeOperatorBatchParam {
@@ -221,6 +253,13 @@ typedef struct SExchangeSrcIndex {
   int32_t inUseIdx;
 } SExchangeSrcIndex;
 
+typedef struct SExchangeMultiGroupResult {
+  EStreamRunnerFetchType type;
+  uint64_t               baseGId;
+  SSDataBlock*           pBlock;
+  SArray*                pLineage;  // owned until publication
+} SExchangeMultiGroupResult;
+
 typedef struct SExchangeInfo {
   bool       isExchange;  // KEEP IT FIRST
   int64_t    seqId;
@@ -234,21 +273,148 @@ typedef struct SExchangeInfo {
   // passed by downstream operator
   SArray*      pResultBlockList;
   SArray*      pRecycledBlocks;  // build a pool for small data block to avoid to repeatly create and then destroy.
+  SArray*      pLocalBlockLeases;           // SArray<SExchangeLocalBlockLease>, local source blocks pending reuse
+  SArray*      pMultiGroupResultList;        // SArray<SExchangeMultiGroupResult>, Runner or Reader fetch
+  SArray*      pPublishedLineage;            // owned; runtime pStreamBlkWinIdx borrows it
+  SStreamRuntimeFuncInfo* pPublishedStream;  // borrowed runtime that received pPublishedLineage
+  int32_t                 nextGroupIdx;      // strict Runner fetch canonical cursor
+  int32_t                 eogSourceCount;    // strict Runner sources at current group barrier
+  bool                    strictSourcesValidated;
+  bool                    readerGroupRequested;
+  bool                    readerDimensionBatch;
+  bool                    readerGroupsInitialized;
+  int32_t                 readerGroupMode;  // 0 unknown, 1 legacy, 2 grouped
+  int32_t                 readerNextGroupIdx;
   SSDataBlock* pDummyBlock;      // dummy block, not keep data
   bool         seqLoadData;      // sequential load data or not, false by default
   bool         dynamicOp;
   bool         dynTbname;         // %%tbname for stream    
+  bool         fastInterval;
   int32_t      current;
   SLoadRemoteDataInfo loadInfo;
   int64_t             self;
+  uint64_t            lifecycleQueryId;
+  uint64_t            lifecycleTaskId;
+  int64_t             lifecycleBlockId;
+  int64_t             lifecycleFetchId;
+  bool                traceLifecycle;
   SLimitInfo          limitInfo;
   int64_t             openedTs;  // start exec time stamp, todo: move to SLoadRemoteDataInfo
   char*               pTaskId;
   SArray*             pFetchRpcHandles;
   bool                notifyToSend;  // need to send notify STEP DONE message
   TSKEY               notifyTs;      // notify timestamp
+  bool                phase2Rescan;  // vtable two-pass: next fetch is phase-2 rescan (reuse reader)
+  bool                twoPassExchange;  // vtable two-pass: this exchange re-executes its source, so an
+                                        // empty-but-not-completed fetch rsp means "retry", not "exhausted"
+  int32_t             twoPassRetryMs;   // vtable two-pass: backoff between empty-rsp retries (0 = none yet)
+  int32_t             twoPassRetries;   // vtable two-pass: empty-rsp retry rounds so far (capped, then error)
+  int32_t             notifySrcOpType;
+  int32_t             readerSrcOpType;
+  uint64_t            notifyGroupId;
+  int8_t              notifyPhase;
+  uint64_t            notifyScanGroupId;
 } SExchangeInfo;
 
+// ---------------------------------------------------------------------------
+// SFederatedScanOperatorInfo  -  state for the FederatedScan operator (Module F)
+// ---------------------------------------------------------------------------
+
+// Separators and decimal forms of all fixed-width fields in the cache key.
+#define FED_SCAN_TABLE_KEY_SUFFIX_LEN 256
+#define FED_SCAN_TABLE_KEY_LEN \
+  (TSDB_EXT_SOURCE_NAME_LEN + TSDB_DB_NAME_LEN + TSDB_EXT_SOURCE_SCHEMA_LEN + \
+   TSDB_TABLE_NAME_LEN + TSDB_COL_NAME_LEN + 96 + FED_SCAN_TABLE_KEY_SUFFIX_LEN)
+
+// Per-table scan context for multi-table FederatedScan (VStb dynamic dispatch)
+typedef struct SFedScanTableCtx {
+  SExtConnectorHandle*  pConnHandle;
+  SExtQueryHandle*      pQueryHandle;
+  bool                  queryStarted;
+  bool                  queryFinished;
+  bool                  twoPassPhase1Done;
+  SExtColTypeMapping*   pDynColMappings;   // dynamically built column mappings (VStb)
+  int32_t               numDynColMappings;
+  SSDataBlock*          pFetchedBlock;      // last fetched block owned by this table context
+  SSDataBlock*          pReferenceRow;
+  bool                  hasPreviousTimestamp;
+  int64_t               previousTimestamp;
+  int64_t               referenceRowsConsumed;
+  int32_t               referenceBlockPos;
+  bool                  influxV1;
+  char                  influxRp[TSDB_EXT_INFLUX_RP_LEN];
+} SFedScanTableCtx;
+typedef struct SFederatedScanOperatorInfo {
+  SFederatedScanPhysiNode*  pFedScanNode;      // physi node ref (not owned)
+  SExtConnectorHandle*      pConnHandle;        // connector handle (Module B)
+  SExtQueryHandle*          pQueryHandle;       // query handle (Module B)
+  bool                      queryStarted;       // query has been issued
+  bool                      queryFinished;      // EOF reached
+  bool                      twoPassMode;        // true: execute query twice (PRE_SCAN then MAIN_SCAN)
+  bool                      twoPassPhase1Done;  // true: PRE_SCAN pass done, now doing MAIN_SCAN pass
+  bool                      vstbLimitDemoted;   // true: remote top-N unsupported, retry without it
+  bool                      influxV1;           // dialect of the active connection
+  int64_t                   fetchedRows;        // cumulative rows fetched
+  int64_t                   fetchBlockCount;    // cumulative block count
+  int64_t                   elapsedTimeUs;      // cumulative elapsed time (micros)
+  SSDataBlock*              pFetchedBlock;      // owned block returned by extConnectorFetchBlock
+  char                      remoteSql[TSDB_SHOW_SQL_LEN];  // actual SQL sent to the remote source
+  char                      influxRp[TSDB_EXT_INFLUX_RP_LEN]; // active scan namespace; never changes the plan
+  char                      extErrMsg[512];     // formatted remote error message
+  // Per-table context cache for VStb multi-table dispatch
+  SHashObj*                 pTableCtxMap;       // key: source/db/table/filter hashes, value: SFedScanTableCtx
+  char                      activeTableKey[FED_SCAN_TABLE_KEY_LEN];
+  // VStb dynamic query: column type mappings built at runtime
+  SForeignScanOperatorParam* pActiveVStbParam;  // borrowed ref to current VStb param (not owned)
+  SForeignScanOperatorParam* pActiveBatchParam;      // owned copy retained until batch reset/close
+  const SForeignScanOperatorParam* pBatchInputIdentity;  // non-owning identity token; never dereferenced
+  SForeignScanOperatorParam  activeBatchTableParam;  // shallow view of the current batch table
+  int32_t                    currentBatchIdx;        // current table index within pActiveBatchParam
+  SSortHandle*               pBatchMergeHandle;      // streaming merge for ordered remote table streams
+  SArray*                    pBatchMergeSortInfo;    // sort keys retained for the merge handle lifetime
+  SSDataBlock*               pBatchMergeOutput;      // owned output block reused by the streaming merge
+  SArray*                    pBatchMergeSourceParams;  // owned SFedBatchMergeSourceParam* entries
+  int32_t                    batchMergeTsSlot;       // timestamp slot in normalized federated blocks
+  int32_t                    activeBatchTableCount;  // copied table count retained for EXPLAIN
+  char                       activeBatchSourceName[TSDB_EXT_SOURCE_NAME_LEN];  // copied source batch key
+  bool                       batchMode;              // true after this operator has consumed a batch parameter
+  SExtColTypeMapping*       pDynColMappings;    // dynamically built column mappings
+  int32_t                   numDynColMappings;
+  // True when this federate scan feeds a virtual-table scan operator (either
+  // static or VStb dispatch path).  Used to gate per-block TIMESTAMP precision
+  // conversion to the consumer's declared precision so unrelated direct
+  // external-table queries are unaffected.
+  bool                      underVTableScan;
+  bool                      hasPreviousTimestamp;
+  int64_t                   previousTimestamp;
+  int64_t                   referenceRowsConsumed;
+  int32_t                   referenceBlockPos;
+  SSDataBlock*              pReferenceRow;
+  SForeignScanOperatorParam* pStaticReferenceParam;
+  bool                      referenceVersionChecked;
+  STimeWindow               runtimeTimeRange;
+  bool                      hasRuntimeTimeRange;
+  const SOperatorParam*     pPrefetchParam;      // borrowed while the dynamic parameter remains owned upstream
+  SSDataBlock*              pPrefetchedBlock;    // alias of pFetchedBlock; ownership stays with FederatedScan
+  STimeWindow               prefetchWindow;
+  bool                      prefetchReady;
+  bool                      parallelPrefetch;
+  bool                      hasPrefetchDiag;
+  SExtPushdownDiagnostic    prefetchDiag;
+} SFederatedScanOperatorInfo;
+
+struct SOperatorInfo;
+
+int32_t fedScanValidateReferenceTimestamp(SFederatedScanOperatorInfo* pInfo,
+                                          const SColumnInfoData* pTs, int32_t row);
+int32_t fedScanAppendTimestampOrder(char* sql, int32_t capacity, int32_t* pOffset,
+                                    EExtSourceType sourceType, int8_t bindingKind, const char* timeColumn);
+bool fedScanReferenceLimitReached(const SFederatedScanOperatorInfo* pInfo);
+void fedScanReleaseFetchedBlock(SFederatedScanOperatorInfo* pInfo);
+int32_t fedScanSaveActiveCtx(SFederatedScanOperatorInfo* pInfo);
+void fedScanRestoreCtx(SFederatedScanOperatorInfo* pInfo, const char* tableKey);
+int32_t federatedScanPrefetch(struct SOperatorInfo* pOperator, SOperatorParam* pParam);
+void federatedScanPropagatePrefetchError(struct SOperatorInfo* pOperator, int32_t code);
 typedef struct SScanInfo {
   int32_t numOfAsc;
   int32_t numOfDesc;
@@ -277,6 +443,7 @@ struct SAggSupporter {
   SDiskbasedBuf* pResultBuf;           // query result buffer based on blocked-wised disk file
   int32_t        resultRowSize;  // the result buffer size for each result row, with the meta data size for each row
   int32_t        currentPageId;  // current write page id
+  void*          pFastInterval;  // private FAST_INTERVAL contiguous result storage
 };
 
 typedef struct {
@@ -294,8 +461,12 @@ typedef struct STableMetaCacheInfo {
 } STableMetaCacheInfo;
 
 typedef struct STableScanBase {
+  SFilterInfo*           remoteFilter;  // Borrowed from exprSupp for eligible batch scans.
+  STaskSubJobCtx*        remoteCtx;
   STsdbReader*           dataReader;
   SFileBlockLoadRecorder readRecorder;
+  SFileBlockLoadRecorder readerCostBaseline;
+  STsdbReader*           readerCostBaselineReader;
   SQueryTableDataCond    cond;
   SQueryTableDataCond    orgCond; // use for virtual super table scan
   SAggOptrPushDownInfo   pdInfo;
@@ -311,12 +482,27 @@ typedef struct STableScanBase {
   TsdReader       readerAPI;
 } STableScanBase;
 
+int32_t openOrRebindTableReader(STableScanBase* pBase, STableKeyInfo* pTables, int32_t numOfTables, SSDataBlock* pBlock,
+                                const char* pTaskId, SHashObj** ppIgnoreTables, bool* pOpened);
+int32_t closeTableScanReader(STableScanBase* pBase);
+
+typedef struct SAlignStage SAlignStage;
+
 typedef struct STableScanInfo {
   STableScanBase  base;
   SScanInfo       scanInfo;
+  SStreamTagLookupPlan* pTagLookupPlan;  // owned by this scan for one dimension batch
+  bool                  tagLookupPreparationAttempted;
   int32_t         scanTimes;
   SSDataBlock*    pResBlock;
   SHashObj*       pIgnoreTables;
+  SHashObj*       pIntervalLimitStates;  // uid -> ordered window prefix state
+  int64_t         intervalLimit;
+  int32_t         intervalTsSlot;
+  SSDataBlock*    pGroupEndBlock;
+  SArray*         pReaderGroups;  // owned, sorted unique uint64_t trigger gids
+  int32_t         readerGroupIndex;
+  bool            readerSubgroupActive;
   SSampleExecInfo sample;           // sample execution info
   int32_t         tableStartIndex;  // current group scan start
   int32_t         tableEndIndex;    // current group scan end
@@ -324,17 +510,24 @@ typedef struct STableScanInfo {
   int32_t         currentTable;
   int8_t          scanMode;
   int8_t          assignBlockUid;
+  bool            fastInterval;
   uint8_t         countState;  // empty table count state
   bool            hasGroupByTag;
   bool            filesetDelimited;
   bool            needCountEmptyTable;
   // for virtual super table scan
   SSDataBlock*    pOrgBlock;
+  SSDataBlock*    pVstbOutputBlock;
+  SHashObj*       pVtableReaderLimits;  // source uid -> SLimitInfo for interleaved readers
   bool            ignoreTag;
   bool            virtualStableScan;
+  uint8_t         vtablePrecision;
+  uint8_t         srcPrecision;        // source DB precision for virtual table scan; UINT8_MAX = unknown
+  uint8_t         outputTsPrecision;  // cross-precision: convert TIMESTAMP cols to this precision at scan output; UINT8_MAX = no conversion
   SHashObj*       readerCache;
   bool            newReader;
   SArray*         pBlockColMap;
+  SSHashObj*      pVstbSchemaSlots;
   // for virtual super table batch scan
   int32_t         lastBatchIdx;
   int32_t         currentBatchIdx;
@@ -345,6 +538,13 @@ typedef struct STableScanInfo {
   STimeWindow     cachedTimeWindow;
   SArray*         cachedTagList;
   uint64_t        cachedGroupId;
+  int8_t          currentPhase;  // EScanPhase for MAIN_FIRST groupSort
+  bool            groupSort;  // scan table groups sequentially
+  bool            groupDone;  // early-stop the current MAIN_FIRST group
+  SAlignStage*    pAlignStage;  // TIME_ALIGN stage for non-virtual table inputs
+  SSDataBlock*    pAlignPendingIn;  // input block waiting for a phase-switch flush
+  int8_t          alignPhase;
+  bool            alignPhaseValid;
 } STableScanInfo;
 
 typedef enum ESubTableInputType {
@@ -390,6 +590,11 @@ typedef struct STableMergeScanInfo {
   int32_t         tableEndIndex;
   bool            hasGroupId;
   uint64_t        groupId;
+  uint64_t        baseGroupId;
+  int8_t          currentPhase;
+  bool            groupDone;
+  bool            phaseDone;
+  STimeWindow     phaseWins[SCAN_PHASE_PREV + 1];
   STableScanBase  base;
   int32_t         bufPageSize;
   uint32_t        sortBufSize;  // max buffer size for in-memory sort
@@ -421,6 +626,12 @@ typedef struct STableMergeScanInfo {
   bool            bSortRowId;
 
   STmsSubTablesMergeInfo* pSubTablesMergeInfo;
+
+  // TIME_ALIGN over a super table: the stage runs on each per-table block
+  // before the block enters the ts merge, so PREV/NEXT state is keyed by the
+  // block uid and rows of different tables never mix in one fill series.
+  SAlignStage* pAlignStage;
+  bool         alignSourceDone;  // source exhausted; publish the remaining held blocks
 } STableMergeScanInfo;
 
 typedef struct STagScanFilterContext {
@@ -444,6 +655,11 @@ typedef struct STagScanInfo {
   STagScanFilterContext filterCtx;
   SArray*               aUidTags;     // SArray<STUidTagInfo>
   SArray*               aFilterIdxs;  // SArray<int32_t>
+  SArray*               pVirtualTagCols;
+  struct SRefChainCtx*  pVirtualTagCtx;
+  SEpSet                virtualTagEpSet;
+  int32_t               virtualTagBatchStart;
+  bool                  isVirtualStable;
   SStorageAPI*          pStorageAPI;
   SLimitInfo            limitInfo;
 } STagScanInfo;
@@ -453,19 +669,6 @@ enum {
   PROJECT_RETRIEVE_CONTINUE = 0x1,
   PROJECT_RETRIEVE_DONE = 0x2,
 };
-
-typedef struct SPartitionBySupporter {
-  SArray* pGroupCols;     // group by columns, SArray<SColumn>
-  SArray* pGroupColVals;  // current group column values, SArray<SGroupKeys>
-  char*   keyBuf;         // group by keys for hash
-  bool    needCalc;       // partition by column
-} SPartitionBySupporter;
-
-typedef struct SPartitionDataInfo {
-  uint64_t groupId;
-  char*    tbname;
-  SArray*  rowIds;
-} SPartitionDataInfo;
 
 typedef struct STimeWindowAggSupp {
   TSKEY           maxTs;
@@ -513,6 +716,7 @@ typedef struct STableCountScanSupp {
   bool    groupByStbName;
   char    dbNameFilter[TSDB_DB_NAME_LEN];
   char    stbNameFilter[TSDB_TABLE_NAME_LEN];
+  int8_t  tbCountType;  // ins_tables row type filter (TSDB_* table entry type); 0 = no filter
 } STableCountScanSupp;
 
 typedef struct SOptrBasicInfo {
@@ -521,7 +725,50 @@ typedef struct SOptrBasicInfo {
   bool           mergeResultBlock;
   int32_t        inputTsOrder;
   int32_t        outputTsOrder;
+  EDataOrderLevel inputDataOrder;
+  EDataOrderLevel outputDataOrder;
 } SOptrBasicInfo;
+
+static FORCE_INLINE void setOptrBasicInfoOrder(SOptrBasicInfo* pInfo, const SPhysiNode* pNode) {
+  pInfo->inputTsOrder = pNode->inputTsOrder;
+  pInfo->outputTsOrder = pNode->outputTsOrder;
+  // Maps planner's require/result data order to executor's input/output data order.
+  // inputDataOrder is used by optrHasOrderedInput() to decide if sorted execution path is viable.
+  pInfo->inputDataOrder = pNode->requireDataOrder;
+  pInfo->outputDataOrder = pNode->resultDataOrder;
+}
+
+static FORCE_INLINE bool optrHasOrderedInput(const SOptrBasicInfo* pInfo, EDataOrderLevel minLevel) {
+  return (pInfo->inputTsOrder == TSDB_ORDER_ASC || pInfo->inputTsOrder == TSDB_ORDER_DESC) &&
+         pInfo->inputDataOrder >= minLevel;
+}
+
+static FORCE_INLINE bool optrHasOrderedOutput(const SOptrBasicInfo* pInfo, EDataOrderLevel minLevel) {
+  return (pInfo->outputTsOrder == TSDB_ORDER_ASC || pInfo->outputTsOrder == TSDB_ORDER_DESC) &&
+         pInfo->outputDataOrder >= minLevel;
+}
+typedef struct SIndefRowsWindowState {
+  STimeWindow  win;      // logical window range for this state
+  uint64_t     groupId;  // source group id of this logical window
+  SResultRow*  pRow;     // persistent function state for this logical window
+  SList*       pSealedBlocks;  // SList<SSDataBlock*> - completed full blocks
+  SSDataBlock* pCurBlock;      // block currently being filled
+} SIndefRowsWindowState;
+
+typedef struct SIndefRowsStateKey {
+  uint64_t groupId;
+  TSKEY    skey;
+} SIndefRowsStateKey;
+
+typedef struct SIndefRowsRuntime {
+  SSHashObj*             pOpenStatesMap;  // key: SIndefRowsStateKey -> val: SIndefRowsWindowState*
+  SList*                 pReadyBlocks;    // SList<SSDataBlock*> - blocks ready to return to upstream
+  SSDataBlock*           pReturnedBlock;  // last returned block, destroyed on next fetch
+  SArray*                pPseudoColInfo;  // pseudo-column slot mapping for direct project
+  SSDataBlock*           pTmpBlock;       // reusable temp block for one segment copy
+  int32_t                blockCapacity;   // max rows per output block
+  SExprSupp              projSupp;        // projection expressions for pure raw-col/scalar window queries
+} SIndefRowsRuntime;
 
 typedef struct SIntervalAggOperatorInfo {
   SOptrBasicInfo     binfo;              // basic info
@@ -536,7 +783,11 @@ typedef struct SIntervalAggOperatorInfo {
   EOPTR_EXEC_MODEL   execModel;          // operator execution model [batch model|stream model]
   STimeWindowAggSupp twAggSup;
   SArray*            pPrevValues;  //  SArray<SGroupKeys> used to keep the previous not null value for interpolation.
+  // SArray initialized with numOfExprs pre-sized zeroed entries, indexed by output expression.
+  SArray*            pBitDurationInterpCaches;
   bool               cleanGroupResInfo;
+  bool               indefRowsMode;
+  SIndefRowsRuntime  indefRows;
   struct SOperatorInfo* pOperator;
   // for limit optimization
   bool          limited;
@@ -546,6 +797,8 @@ typedef struct SIntervalAggOperatorInfo {
   uint64_t      curGroupId;  // initialize to UINT64_MAX
   uint64_t      handledGroupNum;
   BoundedQueue* pBQ;
+  void*         pExInterval;
+  SIntervalTimingInfo timing;
 } SIntervalAggOperatorInfo;
 
 typedef struct SMergeAlignedIntervalAggOperatorInfo {
@@ -555,6 +808,8 @@ typedef struct SMergeAlignedIntervalAggOperatorInfo {
   int64_t      curTs;    // current ts
   SSDataBlock* prefetchedBlock;
   SResultRow*  pResultRow;
+  void*        pFastInterval;  // private FAST_INTERVAL multi-source partial-result cache
+  void*        pExInterval;
 } SMergeAlignedIntervalAggOperatorInfo;
 
 typedef struct SOpCheckPointInfo {
@@ -562,21 +817,17 @@ typedef struct SOpCheckPointInfo {
   SHashObj* children;  // key:child id
 } SOpCheckPointInfo;
 
-typedef struct SDataGroupInfo {
-  uint64_t groupId;
-  int64_t  numOfRows;
-  SArray*  pPageList;
-  SArray*  blockForNotLoaded;   // SSDataBlock that data is not loaded
-  int32_t  offsetForNotLoaded;  // read offset for SSDataBlock that data is not loaded
-} SDataGroupInfo;
-
 typedef struct SWindowRowsSup {
   STimeWindow win;
   TSKEY       prevTs;  // previous timestamp, used for window aggregation
   int32_t     startRowIndex;
   int32_t     numOfRows;
   uint64_t    groupId;
-  uint32_t    numNullRows;  // number of continuous rows with null state col
+  uint32_t    numNullRows;           // number of continuous all-NULL rows
+  uint32_t    numDeferredPartialNull; // number of continuous deferred partial-NULL rows
+  uint32_t    numDeferredTailAllNull; // trailing all-NULL suffix after deferred partial-NULL rows
+  int32_t     firstDeferredPartialRowIndex; // first deferred partial-NULL row index in current pending segment
+  TSKEY       lastDeferredPartialNullTs; // timestamp of the last deferred partial-NULL row
   TSKEY       lastTs;  // last row's timestamp, used for checking duplicated ts
 } SWindowRowsSup;
 
@@ -589,6 +840,10 @@ static inline bool hasContinuousNullRows(SWindowRowsSup* pRowSup) {
 // reset on initialization or found of a row with non-null state col
 static inline void resetNumNullRows(SWindowRowsSup* pRowSup) {
   pRowSup->numNullRows = 0;
+  pRowSup->numDeferredPartialNull = 0;
+  pRowSup->numDeferredTailAllNull = 0;
+  pRowSup->firstDeferredPartialRowIndex = -1;
+  pRowSup->lastDeferredPartialNullTs = INT64_MIN;
 }
 
 static inline void resetWindowRowsSup(SWindowRowsSup* pRowSup) {
@@ -599,7 +854,10 @@ static inline void resetWindowRowsSup(SWindowRowsSup* pRowSup) {
   pRowSup->win.skey = pRowSup->win.ekey = 0;
   pRowSup->prevTs = INT64_MIN;
   pRowSup->startRowIndex = pRowSup->groupId = 0;
-  pRowSup->numOfRows = pRowSup->numNullRows = 0;
+  pRowSup->numOfRows = pRowSup->numNullRows = pRowSup->numDeferredPartialNull = 0;
+  pRowSup->numDeferredTailAllNull = 0;
+  pRowSup->firstDeferredPartialRowIndex = -1;
+  pRowSup->lastDeferredPartialNullTs = INT64_MIN;
 }
 
 typedef int32_t (*AggImplFn)(struct SOperatorInfo* pOperator, SSDataBlock* pBlock);
@@ -614,6 +872,8 @@ typedef struct SSessionAggOperatorInfo {
   int64_t               gap;       // session window gap
   int32_t               tsSlotId;  // primary timestamp slot id
   STimeWindowAggSupp    twAggSup;
+  bool                  indefRowsMode;
+  SIndefRowsRuntime     indefRows;
   struct SOperatorInfo* pOperator;
   bool                  cleanGroupResInfo;
 } SSessionAggOperatorInfo;
@@ -624,11 +884,16 @@ typedef struct SStateWindowOperatorInfo {
   SExprSupp             scalarSup;
   SGroupResInfo         groupResInfo;
   SWindowRowsSup        winSup;
-  SColumn               stateCol;
+  SArray*               stateCols;  // SArray<SColumn>
   bool                  hasKey;    // has key means the state window has started
-  SStateKeys            stateKey;
+  SArray*               stateKeys;  // SArray<SStateKeys>
+  SArray*               pendingKeys; // SArray<SStateKeys>  shadow including deferred partial-NULL rows
+  bool*                 pendingColTouched; // per-column flag: non-NULL seen in a pending partial-NULL row
+  bool                  hasPendingPartialNull; // any deferred partial-NULL row exists
   int32_t               tsSlotId;  // primary timestamp column slot id
   STimeWindowAggSupp    twAggSup;
+  bool                  indefRowsMode;
+  SIndefRowsRuntime     indefRows;
   struct SOperatorInfo* pOperator;
   bool                  cleanGroupResInfo;
   STrueForInfo          trueForInfo;
@@ -649,8 +914,16 @@ typedef struct SEventWindowOperatorInfo {
   bool               inWindow;
   SResultRow*        pRow;
   SSDataBlock*       pPreDataBlock;
+  bool               indefRowsMode;
+  SIndefRowsRuntime  indefRows;
   struct SOperatorInfo*     pOperator;
   STrueForInfo              trueForInfo;
+  STrueForInfo  startTrueForInfo;
+  int32_t       startCondCount;     // consecutive start-condition row count (across blocks)
+  int64_t       startCondFirstTs;   // ts of first row in current start-condition streak (INT64_MIN if none)
+  STrueForInfo  endTrueForInfo;
+  int32_t       endCondCount;       // consecutive end-condition row count (across blocks)
+  int64_t       endCondFirstTs;     // ts of first row in current end-condition streak (INT64_MIN if none)
 } SEventWindowOperatorInfo;
 
 #define OPTR_IS_OPENED(_optr)  (((_optr)->status & OP_OPENED) == OP_OPENED)
@@ -668,6 +941,23 @@ void cleanupBasicInfo(SOptrBasicInfo* pInfo);
 
 int32_t initExprSupp(SExprSupp* pSup, SExprInfo* pExprInfo, int32_t numOfExpr, SFunctionStateStore* pStore);
 void checkIndefRowsFuncs(SExprSupp* pSup);
+int32_t initIndefRowsRuntime(SIndefRowsRuntime* pRuntime, SqlFunctionCtx* pCtx, int32_t numOfExprs, int32_t blockCapacity,
+                             SNodeList* pProjs, SFunctionStateStore* pFuncStore);
+void    resetIndefRowsRuntime(SIndefRowsRuntime* pRuntime, struct SOperatorInfo* pOperator);
+void    cleanupIndefRowsRuntime(SIndefRowsRuntime* pRuntime, struct SOperatorInfo* pOperator);
+SIndefRowsWindowState* findIndefRowsWindowState(const SIndefRowsRuntime* pRuntime, uint64_t groupId, TSKEY winSKey);
+int32_t applyIndefRowsFuncOnWindowState(struct SOperatorInfo* pOperator, SIndefRowsRuntime* pRuntime,
+                                        SIndefRowsWindowState** ppState, SSDataBlock* pResultTemplate,
+                                        uint64_t groupId, const STimeWindow* pWin, SSDataBlock* pInputBlock,
+                                        int32_t startRow, int32_t numRows, int32_t inputTsOrder,
+                                        int32_t resultRowSize);
+int32_t closeIndefRowsWindowState(struct SOperatorInfo* pOperator, SIndefRowsRuntime* pRuntime,
+                                  SIndefRowsWindowState* pState);
+int32_t closeAllIndefRowsWindowStates(struct SOperatorInfo* pOperator, SIndefRowsRuntime* pRuntime);
+void    dropIndefRowsWindowState(struct SOperatorInfo* pOperator, SIndefRowsRuntime* pRuntime,
+                                 SIndefRowsWindowState* pState);
+void    dropAllIndefRowsWindowStates(struct SOperatorInfo* pOperator, SIndefRowsRuntime* pRuntime);
+SSDataBlock* getNextIndefRowsResultBlock(SIndefRowsRuntime* pRuntime, struct SOperatorInfo* pOperator);
 void    cleanupExprSupp(SExprSupp* pSup);
 void    cleanupExprSuppWithoutFilter(SExprSupp* pSupp);
 
@@ -707,7 +997,8 @@ int32_t applyAggFunctionOnPartialTuples(SExecTaskInfo* taskInfo, SqlFunctionCtx*
 int32_t setFunctionResultOutput(struct SOperatorInfo* pOperator, SOptrBasicInfo* pInfo, SAggSupporter* pSup, int32_t stage,
                              int32_t numOfExprs);
 int32_t      setRowTsColumnOutputInfo(SqlFunctionCtx* pCtx, int32_t numOfCols, SArray** pResList);                             
-int32_t extractDataBlockFromFetchRsp(SSDataBlock* pRes, char* pData, SArray* pColList, char** pNextStart, bool isVstbScan);
+int32_t extractDataBlockFromFetchRsp(SSDataBlock* pRes, char* pData, size_t dataLen, SArray* pColList,
+                                     char** pNextStart, bool isVstbScan);
 void    updateLoadRemoteInfo(SLoadRemoteDataInfo* pInfo, int64_t numOfRows, int32_t dataLen, int64_t startTs,
                              struct SOperatorInfo* pOperator);
 
@@ -717,28 +1008,155 @@ int32_t     getBufferPgSize(int32_t rowSize, uint32_t* defaultPgsz, int64_t* def
 extern void doDestroyExchangeOperatorInfo(void* param);
 
 int32_t doFilter(SSDataBlock* pBlock, SFilterInfo* pFilterInfo, SColMatchInfo* pColMatchInfo, SColumnInfoData** pRet);
+int32_t doFilterWithCorrelation(SSDataBlock* pBlock, SFilterInfo* pFilterInfo,
+                                SColMatchInfo* pColMatchInfo, SColumnInfoData** pRet,
+                                const SCorrelationEvalContext* pCorrelation);
+// Initializes caller-owned storage and returns pCorrelation as a borrowed alias.
+// pCorrelation and pWait must be non-NULL and remain valid while the returned context is used.
+const SCorrelationEvalContext* initTaskCorrelationEvalContext(SExecTaskInfo* pTaskInfo,
+                                                              SCorrelationEvalContext* pCorrelation,
+                                                              SCorrelationWaitHooks* pWait);
+int32_t doFilterWithTaskCorrelation(SSDataBlock* pBlock, SFilterInfo* pFilterInfo,
+                                    SColMatchInfo* pColMatchInfo, SColumnInfoData** pRet,
+                                    SExecTaskInfo* pTaskInfo);
+int32_t filterExecuteWithTaskCorrelation(SFilterInfo* pFilterInfo, SSDataBlock* pBlock,
+                                         SColumnInfoData** ppResult, SColumnDataAgg* pStatis,
+                                         int16_t numOfCols, int32_t* pResultStatus,
+                                         SExecTaskInfo* pTaskInfo);
 int32_t addTagPseudoColumnData(SReadHandle* pHandle, const SExprInfo* pExpr, int32_t numOfExpr, SSDataBlock* pBlock,
-                               int32_t rows, SExecTaskInfo* pTask, STableMetaCacheInfo* pCache);
+                               int32_t rows, SExecTaskInfo* pTask, const STableListInfo* pTableListInfo,
+                               STableMetaCacheInfo* pCache);
 
 int32_t appendOneRowToDataBlock(SSDataBlock* pBlock, STupleHandle* pTupleHandle);
+
+// Append one tag value (looked up by cid from pTagData) into the resolved-tag array, replacing
+// any existing entry with the same cid. Shared by the DynQueryCtrl path and the static virtual
+// table scan path (ensureOwnedTagsResolved).
+int32_t appendResolvedTagVal(SArray* pResolvedTags, col_id_t dstColId, const SSchema* pSchema,
+                             const STag* pTagData);
+
+
+// Create the per-scan ref-resolution cache pair (vgInfo: refDbName -> SDBVgInfo*;
+// cfg: "refDbName.refTableName" -> an internal per-source cfg cache entry type
+// maintained by sysscanoperator.c). Ownership of BOTH maps and their entries sits with the Init/Clear pair
+// here: Init creates them, Clear releases them (vg entries freeVgInfo'd one by one,
+// cfg entries via the registered freeFp). Idempotent: fields already initialized
+// are left untouched; on allocation failure the failing pair stays NULL and the
+// caller runs uncached. NOTE the failure is NOT memorized: the pair stays NULL and each
+// subsequent call retries the allocation (and re-logs). Single-thread use only (HASH_NO_LOCK).
+void sysTagsRefCachesInit(SHashObj** ppVgInfoCache, SHashObj** ppCfgCache);
+
+// Destroy the cache pair from sysTagsRefCachesInit (vg entries freeVgInfo'd, cfg entries
+// released via the registered freeFp) and reset both pointers to NULL.
+void sysTagsRefCachesClear(SHashObj** ppVgInfoCache, SHashObj** ppCfgCache);
+// Optional, bounded terminal-value cache. Outputs from resolveTagRefChain
+// remain caller-owned even when this cache supplies the value.
+void sysTagsRefValueCacheInit(SHashObj** ppCache);
+void sysTagsRefValueCacheClear(SHashObj** ppCache);
+
+// Context for resolving a tag-ref to its terminal value across vntb tag-ref chains.
+// Each hop first tries a local meta read (short-lived LOCK reader, never held across RPC);
+// if the table is not on this vnode, one synchronous TDMT_VND_TABLE_CFG RPC is issued.
+// A vntb source tag that is itself a ref (no value in its STag) continues to the next hop
+// via entry colRef.pTagRef (local) or cfgRsp.pTagRefs (remote).
+typedef struct SRefChainCtx {
+  void*           vnode;       // local vnode handle (the data vnode's readHandle.vnode).
+                               // The local fast path needs BOTH vnode and pAPI non-NULL:
+                               // resolveTagRefLocalHop falls back to a remote cfg hop when
+                               // either is NULL -- e.g. the virtual-scan operator holds no
+                               // vnode, so every hop takes the remote path there
+  SStorageAPI*    pAPI;        // storage/meta reader API
+  int32_t         accountId;
+  int64_t         txnId;       // reader txn scope (pTaskInfo->txnId; 0 outside a txn)
+  void*           clientRpc;   // pMsgCb->clientRpc; NULL -> remote hops unavailable
+  // writable on purpose: the RPC layer may refresh the endpoints through it (mnode
+  // switchover updates), callers must pass a writable SEpSet -- matches the non-const
+  // SEpSet* parameter of the underlying vg-lookup helper
+  SEpSet*         pMnodeEpSet; // mnode endpoints for vg lookup on remote hops
+  uint64_t        reqId;
+  SExecTaskInfo*  pTaskInfo;   // for msg callback and error propagation (may be NULL)
+  // optional per-scan RPC result caches: repeated refs to the same source table then
+  // cost at most one GET_DB_INFO + one TABLE_CFG RPC per scan (RPC-storm guard, same
+  // caches the ins_tags operator keeps in SSysTableScanInfo). BEST-EFFORT: on init
+  // failure, or past SYS_TAGS_REF_CFG_CACHE_MAX_NUM entries, fetches pass through
+  // uncached; negative/source-gone outcomes are cached too, so they are NOT retried
+  // within the same scan. Callers that resolve a bounded number of chains (e.g. once
+  // per scan) may leave both NULL and simply run uncached.
+  SHashObj*       pRefDbVgInfoCache;  // refDbName -> SDBVgInfo* (owned by the cache pair:
+                                      // freed entry-by-entry inside sysTagsRefCachesClear,
+                                      // not via a hash freeFp); NULL -> uncached
+  SHashObj*       pRefTableCfgCache;  // "refDbName.refTableName" -> per-source table-cfg cache
+                                      // entry (opaque here: the entry type is file-local to
+                                      // sysscanoperator.c); NULL -> uncached
+  SHashObj*       pQueryTagValueCache; // optional terminal values; caller-owned, cleared between scans
+} SRefChainCtx;
+
+// Resolve refDb.refTable.refCol to its terminal tag value following vntb tag-ref chains.
+// No destination-type parameter on purpose (see the definition comment): the DDL
+// type-match gate keeps source/destination types identical and the value width always
+// comes from the per-hop source schema.
+// Out: on *pResolved=true, *ppData is a malloc'd buffer owned by the caller (free it)
+// with *pLen set to the value width. EXCEPTION: a resolved var-typed tag with an empty
+// payload ('' stored, nData == 0) yields *ppData == NULL with *pLen == 0 while
+// *pResolved stays true -- callers must not dereference *ppData without a NULL check
+// (downstream tTagValToData renders it as an empty string). A broken chain (dropped source table/db) resolves
+// to *pResolved=false with SUCCESS and *ppData NULL / *pLen 0 -- the tag reads as
+// NULL, the query must not fail. NOTE two further silent-NULL paths with the same
+// NULL/0 outputs: (a) a hop neither locally resolvable nor advanceable while remote
+// hops are unavailable (ctx.clientRpc or ctx.pMnodeEpSet NULL, see the struct fields);
+// (b) a remote cfg hop whose tag exists in the schema but carries neither a value nor
+// an active ref. "Unresolved" therefore does NOT imply the source was dropped -- it
+// covers dropped-source, remote-unavailable and value-less terminal alike.
+// RPC/internal failures on hops that WERE attempted propagate as errors (a silently-NULL
+// tag would hide the outage); on any hard error *ppData is likewise guaranteed NULL and
+// *pLen 0 (no partial allocation -- ensureRefTagsResolved relies on this). Runtime
+// cycles and chains deeper than
+// TSDB_MAX_VTABLE_REF_DEPTH return hard errors (TSDB_CODE_VTABLE_CIRCULAR_REF /
+// TSDB_CODE_VTABLE_REF_DEPTH_EXCEEDED).
+// MUTATION / THREADING CONTRACT: pCtx is deliberately NON-const -- remote hops write cache
+// entries into pCtx->pRefTableCfgCache / pCtx->pRefDbVgInfoCache / pCtx->pQueryTagValueCache
+// (shared per-scan state). Do not place the ctx in read-only/shared memory; callers may
+// pass NULL caches to run fully uncached.
+// THREADING SCOPE: (1) all three caches are HASH_NO_LOCK (put may
+// rehash), so these hashes -- and any ctx pointing at them -- must be driven by ONE
+// thread at a time; sharing them across concurrently-resolving scans is a race. (2) The
+// other fields are NOT thread-private: clientRpc/pTaskInfo are task-level shared objects,
+// and pMnodeEpSet is a non-const pointer the RPC layer may rewrite (mnode switchover
+// refresh) -- expect concurrent access to it when a plan/operator runs in parallel.
+int32_t resolveTagRefChain(SRefChainCtx* pCtx, const char* refDb, const char* refTable,
+                           const char* refCol, char** ppData, uint32_t* pLen, bool* pResolved);
+// Query-local caches are owned by the context; release with clearQueryTagRefContext.
+// pEpSet must outlive the context. Tag batches own their rebuilt pTagVal blobs.
+int32_t initQueryTagRefContext(SRefChainCtx* pCtx, const SReadHandle* pHandle, SExecTaskInfo* pTask,
+                              int32_t accountId, SEpSet* pEpSet);
+void clearQueryTagRefContext(SRefChainCtx* pCtx);
+// Missing children keep their batch slots with uid=0; filters must omit those rows.
+int32_t resolveQueryVirtualTags(SRefChainCtx* pCtx, SArray* pTags, const SArray* pCols);
 int32_t setResultRowInitCtx(SResultRow* pResult, SqlFunctionCtx* pCtx, int32_t numOfOutput,
                             int32_t* rowEntryInfoOffset);
 void    clearResultRowInitFlag(SqlFunctionCtx* pCtx, int32_t numOfOutput);
+void    cleanupResultRowFunctionState(SExprSupp* pSup, SResultRow* pRow);
 
 SResultRow* doSetResultOutBufByKey(SDiskbasedBuf* pResultBuf, SResultRowInfo* pResultRowInfo, char* pData,
                                    int32_t bytes, bool masterscan, uint64_t groupId, SExecTaskInfo* pTaskInfo,
                                    bool isIntervalQuery, SAggSupporter* pSup, bool keepGroup);
 
 int32_t projectApplyFunctions(SExprInfo* pExpr, SSDataBlock* pResult, SSDataBlock* pSrcBlock, SqlFunctionCtx* pCtx,
-                              int32_t numOfOutput, SArray* pPseudoList, const void* pExtraParams);
+                              int32_t numOfOutput, SArray* pPseudoList, const void* pExtraParams,
+                              SExecTaskInfo* pTaskInfo);
 int32_t projectApplyFunctionsWithSelect(SExprInfo* pExpr, SSDataBlock* pResult, SSDataBlock* pSrcBlock,
                                         SqlFunctionCtx* pCtx, int32_t numOfOutput, SArray* pPseudoList,
-                                        const void* pExtraParams, bool doSelectFunc, bool hasIndefRowsFunc);
+                                        const void* pExtraParams, bool doSelectFunc, bool hasIndefRowsFunc,
+                                        SExecTaskInfo* pTaskInfo);
 
 int32_t setInputDataBlock(SExprSupp* pExprSupp, SSDataBlock* pBlock, int32_t order, int32_t scanFlag,
                           bool createDummyCol);
 
 int32_t createDataSinkParam(SDataSinkNode* pNode, void** pParam, SExecTaskInfo* pTask, SReadHandle* readHandle);
+
+// Clone a resolved ordinary-query result. Success transfers ownership of runtime
+// hashes/blocks to the snapshot; the source node retains borrowed access.
+int32_t qCloneRemoteResult(SNode* pSrc, SNode** ppResult);
 
 STimeWindow getActiveTimeWindow(SDiskbasedBuf* pBuf, SResultRowInfo* pResultRowInfo, int64_t ts, SInterval* pInterval,
                                 int32_t order);
@@ -751,8 +1169,6 @@ bool functionNeedToExecute(SqlFunctionCtx* pCtx);
 bool isOverdue(TSKEY ts, STimeWindowAggSupp* pSup);
 bool isCloseWindow(STimeWindow* pWin, STimeWindowAggSupp* pSup);
 
-uint64_t calGroupIdByData(SPartitionBySupporter* pParSup, SExprSupp* pExprSup, SSDataBlock* pBlock, int32_t rowId);
-
 void finalizeResultRows(SDiskbasedBuf* pBuf, SResultRowPosition* resultRowPosition, SExprSupp* pSup,
                         SSDataBlock* pBlock, SExecTaskInfo* pTaskInfo);
 
@@ -764,6 +1180,10 @@ SExprInfo*   createExpr(SNodeList* pNodeList, int32_t* numOfExprs);
 int32_t copyResultrowToDataBlock(SExprInfo* pExprInfo, int32_t numOfExprs, SResultRow* pRow, SqlFunctionCtx* pCtx,
                                  SSDataBlock* pBlock, const int32_t* rowEntryOffset, SExecTaskInfo* pTaskInfo);
 void doUpdateNumOfRows(SqlFunctionCtx* pCtx, SResultRow* pRow, int32_t numOfExprs, const int32_t* rowEntryOffset);
+bool resultRowGetGroupKeyResult(const SResultRow* pRow, int32_t index, const int32_t* rowEntryOffset,
+                                const void** ppData, bool* pIsNull);
+bool resultRowCopyGroupKeyResult(SResultRow* pDstRow, int32_t dstIndex, const SResultRow* pSrcRow, int32_t srcIndex,
+                                 const int32_t* rowEntryOffset, int32_t interBufSize);
 
 void    streamOpReleaseState(struct SOperatorInfo* pOperator);
 void    streamOpReloadState(struct SOperatorInfo* pOperator);
@@ -793,10 +1213,6 @@ int64_t getDeleteMark(SWindowPhysiNode* pWinPhyNode, int64_t interval);
 void    resetUnCloseSessionWinInfo(SSHashObj* winMap);
 void    setStreamOperatorCompleted(struct SOperatorInfo* pOperator);
 void    destroyFlusedPos(void* pRes);
-bool    isIrowtsPseudoColumn(SExprInfo* pExprInfo);
-bool    isIsfilledPseudoColumn(SExprInfo* pExprInfo);
-bool    isInterpFunc(SExprInfo* pExprInfo);
-bool    isIrowtsOriginPseudoColumn(SExprInfo* pExprInfo);
 
 int32_t encodeSSessionKey(void** buf, SSessionKey* key);
 void*   decodeSSessionKey(void* buf, SSessionKey* key);
@@ -810,9 +1226,21 @@ int32_t mergeOperatorParams(SOperatorParam* pDst, SOperatorParam* pSrc);
 int32_t buildTableScanOperatorParam(SOperatorParam** ppRes, SArray* pUidList, int32_t srcOpType, bool tableSeq);
 int32_t buildTableScanOperatorParamEx(SOperatorParam** ppRes, SArray* pUidList, int32_t srcOpType, SOrgTbInfo *pMap, bool tableSeq, STimeWindow *window, bool isNewParam, ETableScanDynType type);
 int32_t buildTableScanOperatorParamNotify(SOperatorParam** ppRes,
-                                          int32_t srcOpType, TSKEY notifyTs);
+                                          int32_t srcOpType,
+                                          uint64_t notifyGroupId,
+                                          int8_t notifyPhase,
+                                          uint64_t notifyScanGroupId,
+                                          TSKEY notifyTs);
+int32_t storeExchangeNotifyInfo(struct SOperatorInfo* pOperator);
+int32_t getExchangeReaderSourceOpType(const struct SOperatorInfo* pOperator);
+int32_t setTbNameColData(const SSDataBlock* pBlock, SColumnInfoData* pColInfoData, int32_t functionId,
+                         const char* name);
 void    freeExchangeGetBasicOperatorParam(void* pParam);
+int32_t setOperatorParams(struct SOperatorInfo* pOperator,
+                          SOperatorParam* pInput,
+                          SOperatorParamType type);
 void    freeResetOperatorParams(struct SOperatorInfo* pOperator, SOperatorParamType type, bool allFree);
+void    detachOperatorRoutingParam(struct SOperatorInfo* pOperator);
 int32_t getNextBlockFromDownstreamImpl(struct SOperatorInfo* pOperator, int32_t idx, bool clearParam,
                                        SSDataBlock** pResBlock);
 
@@ -828,14 +1256,119 @@ bool inWinRange(STimeWindow* range, STimeWindow* cur);
 int32_t getNextQualifiedWindow(SInterval* pInterval, STimeWindow* pNext, SDataBlockInfo* pDataBlockInfo,
                                TSKEY* primaryKeys, int32_t prevPosition, int32_t order);
 int32_t extractQualifiedTupleByFilterResult(SSDataBlock* pBlock, const SColumnInfoData* p, int32_t status);
-bool    getIgoreNullRes(SExprSupp* pExprSup);
-bool    checkNullRow(SExprSupp* pExprSup, SSDataBlock* pSrcBlock, int32_t index, bool ignoreNull);
 STrueForInfo* getTrueForInfo(struct SOperatorInfo* pOperator);
+
+bool interpGroupNeedsPrev(int32_t fillType, bool hasLeadHole);
+bool interpGroupNeedsNext(int32_t fillType, bool hasTrailHole);
+bool interpTimestampInMainRange(const STimeWindow* pWin, int64_t ts);
+bool interpLegacyGroupCanEmit(bool requireMainMembership, bool mainSeen);
+bool interpLegacyApplyGroupMembership(bool requireMainMembership,
+                                      bool mainSeen,
+                                      SSDataBlock* pResult);
+bool interpModeUsesPhasedProtocol(int8_t interpMode);
+bool interpModeCanEarlyStop(int8_t interpMode);
+bool interpTimestampFollows(int32_t order, int64_t previous, int64_t current);
+// Accepts valid, nondecreasing MAIN/NEXT/PREV input. Invalid phases or a
+// phase regression return TSDB_CODE_PLAN_INTERNAL_ERROR; no result is
+// retryable.
+int32_t interpValidatePhaseTransition(int8_t currentPhase, int8_t inputPhase);
+// Returns a supported leaf, or a MERGE whose branches all resolve to
+// EXCHANGE. NULL input and unsupported or ambiguous shapes return NULL.
+struct SOperatorInfo* interpMainFirstResolveNotifyTarget(
+    struct SOperatorInfo* pDownstream);
+// pDownstream and ppParam must be non-NULL, and notifyPhase must be valid.
+// The caller owns the returned pending parameter tree. A direct FEDERATED_SCAN
+// is a successful no-op and leaves *ppParam NULL.
+int32_t interpMainFirstBuildNotifyParam(
+    struct SOperatorInfo* pDownstream, int32_t downstreamIdx,
+    uint64_t notifyGroupId, int8_t notifyPhase,
+    uint64_t notifyScanGroupId, TSKEY notifyTs,
+    SOperatorParam** ppParam);
+// pOperator and pBlock must be non-NULL. notifyTs identifies the phase
+// boundary; pBlock supplies groupId/baseGId. Unsupported modes and operators
+// without downstreams are successful no-ops.
+int32_t interpMainFirstSetDownstreamNotifyParam(
+    struct SOperatorInfo* pOperator, int8_t interpMode,
+    int8_t notifyPhase, TSKEY notifyTs,
+    const SSDataBlock* pBlock);
+void interpPrepareNotifyParamForDispatch(SOperatorParam* pParam);
+
+// Per-call value snapshot assembled from one group and current phase state.
+// Callers initialize every field before evaluating it; it is never retained.
+typedef struct SInterpMainFirstReadiness {
+  int32_t fillType;
+  bool    firstMainRowSet;
+  bool    groupRowSet;
+  bool    mainFinalized;
+  bool    queued;
+  bool    leadHoleSet;
+  bool    trailHoleSet;
+  bool    extPrevRowSet;
+  bool    extNextRowSet;
+  bool    prevPhaseClosed;
+  bool    nextPhaseClosed;
+} SInterpMainFirstReadiness;
+
+typedef enum EInterpSideGroupAction {
+  INTERP_SIDE_GROUP_DROP = 0,
+  INTERP_SIDE_GROUP_CREATE,
+  INTERP_SIDE_GROUP_PROCESS,
+  INTERP_SIDE_GROUP_NOTIFY,
+} EInterpSideGroupAction;
+
+bool interpMainFirstGroupIsReady(const SInterpMainFirstReadiness* pReadiness);
+bool interpMainFirstNextCompletedGroup(const SArray* pGroups,
+                                       int32_t* pIndex,
+                                       uint64_t* pGroupId);
+bool interpMainFirstGroupWasEmitted(SHashObj* pEmittedGroups,
+                                    uint64_t groupId);
+bool interpMainFirstEmittedGroupNeedsNotify(SHashObj* pEmittedGroups,
+                                            uint64_t groupId, int8_t phase);
+EInterpSideGroupAction interpSideGroupAction(int8_t interpMode,
+                                             bool groupExists,
+                                             bool groupEmitted);
+bool interpMainFirstEdgeCanProduce(int32_t fillType, bool linearReady,
+                                   bool prevRowSet, bool nextRowSet);
+int32_t interpMainFirstGetLeadHole(int64_t startTs, int64_t firstTs,
+                                   const SInterval* pInterval,
+                                   STimeWindow* pHole, int64_t* pNextTs,
+                                   bool* pHasHole);
 
 void    destroyTmqScanOperatorInfo(void* param);
 void    resetBasicOperatorState(SOptrBasicInfo* pBasicInfo);
 
 int32_t addNewResultRowBuf(SResultRow* pWindowRes, SDiskbasedBuf* pResultBuf, uint32_t size);
+
+#if defined(BUILD_TEST)
+int32_t interpTestKeepRows(SArray* pRows, const SSDataBlock* pBlock,
+                           int32_t rowIndex);
+int32_t interpTestCopyKeeperRow(SArray* pDst, const SArray* pSrc);
+typedef struct SInterpMainFirstOutputTestCtx
+    SInterpMainFirstOutputTestCtx;
+int32_t interpTestCreateMainFirstOutput(
+    SSDataBlock* const* ppBlocks, int32_t numBlocks,
+    int32_t capacity, int32_t threshold,
+    SInterpMainFirstOutputTestCtx** ppCtx);
+int32_t interpTestNextMainFirstOutput(
+    SInterpMainFirstOutputTestCtx* pCtx, SSDataBlock** ppBlock);
+int32_t interpTestSetMainFirstOutputFilterFalse(
+    SInterpMainFirstOutputTestCtx* pCtx);
+void interpTestResetMainFirstOutput(
+    SInterpMainFirstOutputTestCtx* pCtx);
+int64_t interpTestMainFirstOutputStoreBytes(
+    const SInterpMainFirstOutputTestCtx* pCtx);
+void interpTestDestroyMainFirstOutput(
+    SInterpMainFirstOutputTestCtx* pCtx);
+int32_t extWinTestTakeReusableBlock(SList* pFreeBlocks, SList* pTargetBlocks, int32_t rows, SSDataBlock** ppBlock,
+                                    SArray** ppIdx);
+bool    extWinTestBlockNodeInvariantHolds(SList* pList, SListNode* pNode, SListNode* pExpectedPrev, SSDataBlock* pBlock,
+                                          SArray* pIdx, int32_t appendRows, int32_t* pOverlapCol);
+int32_t extWinTestOutputAliasLifecycle(SList* pOutputList, SList* pFreeBlocks, bool reset, bool* pAliasEstablished,
+                                       bool* pAliasCleared);
+int32_t extWinTestLastWinClosed(SList* pOutputBlocks, bool* pClosed);
+int32_t scanTestSetScalarGroupColumnData(const STableListInfo* pTableListInfo, int32_t slotId, uint64_t uid,
+                                         SColumnInfoData* pDst, int32_t rows, bool* pSet);
+#endif
 
 #ifdef __cplusplus
 }

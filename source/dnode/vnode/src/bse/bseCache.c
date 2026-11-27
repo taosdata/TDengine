@@ -1,6 +1,8 @@
 /*
  * Copyright (c) 2019 TAOS Data, Inc. <jhtao@taosdata.com>
  *
+ * SPDX-License-Identifier: AGPL-3.0-or-later
+ *
  * This program is free software: you can use, redistribute, and/or modify
  * it under the terms of the GNU Affero General Public License, version 3
  * or later ("AGPL"), as published by the Free Software Foundation.
@@ -104,23 +106,21 @@ _error:
   return code;
 }
 
-int32_t cacheLRUPut(SLruCache *pCache, SSeqRange *key, int32_t keyLen, void *pElem) {
+// On success the cache owns pElem; if ppRef is not NULL the caller additionally gets one reference on the new item
+// (taken under the cache mutex) and must release it with bseCacheUnrefItem. On failure pElem is still owned by the
+// caller.
+int32_t cacheLRUPut(SLruCache *pCache, SSeqRange *key, int32_t keyLen, void *pElem, SCacheItem **ppRef) {
   int32_t code = 0;
   int32_t lino = 0;
+  SCacheItem *pItem = NULL;
+  SListNode *pListNode = NULL;
 
   (void)taosThreadMutexLock(&pCache->mutex);
 
   SCacheItem **ppItem = taosHashGet(pCache->pCache, key, keyLen);
   if (ppItem != NULL && *ppItem != NULL) {
-    SCacheItem *pItem = (SCacheItem *)*ppItem;
-    if ((tdListPopNode(pCache->lruList, pItem->pNode)) == NULL) {
-      bseWarn("node not exist in lru list");
-    }
-
-    bseCacheRefItem(pItem);
-    code = taosHashRemove(pCache->pCache, key, keyLen);
+    code = lruCacheRemoveNolock(pCache, key, keyLen);
     TSDB_CHECK_CODE(code, lino, _error);
-    pCache->size--;
   }
 
   while (pCache->size >= pCache->cap) {
@@ -132,7 +132,7 @@ int32_t cacheLRUPut(SLruCache *pCache, SSeqRange *key, int32_t keyLen, void *pEl
     }
   }
 
-  SCacheItem *pItem = taosMemCalloc(1, sizeof(SCacheItem));
+  pItem = taosMemCalloc(1, sizeof(SCacheItem));
   if (pItem == NULL) {
     TSDB_CHECK_CODE(code = terrno, lino, _error);
   }
@@ -141,7 +141,7 @@ int32_t cacheLRUPut(SLruCache *pCache, SSeqRange *key, int32_t keyLen, void *pEl
   pItem->pKey = *(SSeqRange *)key;
   pItem->freeFunc = pCache->freeElemFunc;
 
-  SListNode *pListNode = tdListAdd(pCache->lruList, &pItem);
+  pListNode = tdListAdd(pCache->lruList, &pItem);
   if (pListNode == NULL) {
     TSDB_CHECK_CODE(terrno, lino, _error);
   }
@@ -151,10 +151,20 @@ int32_t cacheLRUPut(SLruCache *pCache, SSeqRange *key, int32_t keyLen, void *pEl
   if (code != 0) {
     TSDB_CHECK_CODE(code, lino, _error);
   }
-  bseCacheRefItem(pItem);
+  bseCacheRefItem(pItem);  // reference owned by the cache
+  if (ppRef != NULL) {
+    bseCacheRefItem(pItem);  // reference owned by the caller, keeps the block alive against eviction
+    *ppRef = pItem;
+  }
 
 _error:
   if (code != 0) {
+    // A failed insertion leaves ownership of pElem with the caller.
+    if (pListNode != NULL) {
+      SListNode *pDetached = tdListPopNode(pCache->lruList, pListNode);
+      taosMemoryFree(pDetached);
+    }
+    taosMemoryFree(pItem);
     bseError("failed to put cache lru at line %d since %s", lino, tstrerror(code));
   } else {
     pCache->size++;
@@ -176,7 +186,7 @@ int32_t lruCacheRemoveNolock(SLruCache *pCache, SSeqRange *key, int32_t keyLen) 
   TSDB_CHECK_CODE(code, lino, _error);
 
   if (tdListPopNode(pCache->lruList, pItem->pNode) == NULL) {
-    bseWarn("node not exist in lru list");
+    bseWarn("node does not exist in lru list");
   }
 
   bseCacheUnrefItem(pItem);
@@ -313,7 +323,7 @@ int32_t tableCachePut(STableCache *pCache, SSeqRange *key, STableReader *pReader
   int32_t code = 0;
   int32_t lino = 0;
 
-  code = cacheLRUPut(pCache->pCache, key, sizeof(*key), pReader);
+  code = cacheLRUPut(pCache->pCache, key, sizeof(*key), pReader, NULL);
   TSDB_CHECK_CODE(code, lino, _error);
 
 _error:
@@ -379,10 +389,16 @@ _error:
 }
 
 int32_t blockCachePut(SBlockCache *pCache, SSeqRange *key, void *pBlock) {
+  return blockCachePutRef(pCache, key, pBlock, NULL);
+}
+
+// Same as blockCachePut, but also returns the new cache item holding one extra reference in *ppItem when ppItem is
+// not NULL. The caller must release it with bseCacheUnrefItem. On failure the block is still owned by the caller.
+int32_t blockCachePutRef(SBlockCache *pCache, SSeqRange *key, void *pBlock, SCacheItem **ppItem) {
   int32_t code = 0;
   int32_t lino = 0;
 
-  code = cacheLRUPut(pCache->pCache, key, sizeof(SSeqRange), pBlock);
+  code = cacheLRUPut(pCache->pCache, key, sizeof(SSeqRange), pBlock, ppItem);
   TSDB_CHECK_CODE(code, lino, _error);
 _error:
   if (code != 0) {

@@ -1,0 +1,8 @@
+use test;
+
+select cast(_wstart as bigint) as ws, count(*) as c from ext_cx_src external_window((select ts, endtime, mark from ext_cx_win) w) fill(none) order by ws;
+select cast(_wstart as bigint) as ws, count(*) as c from ext_cx_src external_window((select ts, endtime, mark from ext_cx_win) w) fill(null) order by ws;
+select cast(_wstart as bigint) as ws, count(*) as c, sum(v) as sv from ext_cx_src external_window((select ts, endtime, mark from ext_cx_win) w) fill(value, 0, 0) order by ws;
+select cast(_wstart as bigint) as ws, count(*) as c from ext_cx_src external_window((select ts, endtime, mark from ext_cx_win) w) fill(prev) order by ws;
+select cast(_wstart as bigint) as ws, count(*) as c from ext_cx_src external_window((select ts, endtime, mark from ext_cx_win) w) fill(next) order by ws;
+select t1, cast(_wstart as bigint) as ws, count(*) as c from ext_cx_src partition by t1 external_window((select ts, endtime, mark from ext_cx_win) w) fill(null) order by t1, ws;

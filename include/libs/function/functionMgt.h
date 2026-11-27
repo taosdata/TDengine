@@ -1,6 +1,8 @@
 /*
  * Copyright (c) 2019 TAOS Data, Inc. <jhtao@taosdata.com>
  *
+ * SPDX-License-Identifier: AGPL-3.0-or-later
+ *
  * This program is free software: you can use, redistribute, and/or modify
  * it under the terms of the GNU Affero General Public License, version 3
  * or later ("AGPL"), as published by the Free Software Foundation.
@@ -25,6 +27,10 @@ extern "C" {
 
 #define FUNC_AGGREGATE_UDF_ID 5001
 #define FUNC_SCALAR_UDF_ID    5002
+
+// Internal marker carried by a federated virtual-stable LAST_ROW partial.
+// Positive relatedTo values are reserved for selectivity-expression binding.
+#define FUNC_RELATED_TO_VSTABLE_LAST_ROW_PARTIAL (-1)
 
 extern const int32_t funcMgtBuiltinsNum;
 
@@ -51,6 +57,15 @@ typedef enum EFunctionType {
   FUNCTION_TYPE_STDDEV_SAMP,
   FUNCTION_TYPE_STDVAR_SAMP,
   FUNCTION_TYPE_GROUP_CONCAT,
+  FUNCTION_TYPE_TWAVG_LINEAR,
+  FUNCTION_TYPE_TWAVG_LOCF,
+  FUNCTION_TYPE_TWSUM_LINEAR,
+  FUNCTION_TYPE_TWSUM_LOCF,
+  FUNCTION_TYPE_TWVAR_LINEAR,
+  FUNCTION_TYPE_TWVAR_LOCF,
+  FUNCTION_TYPE_VALUE_CHANGES,
+  FUNCTION_TYPE_BIT_CHANGES,
+  FUNCTION_TYPE_BIT_DURATION,
 
   // nonstandard SQL function
   FUNCTION_TYPE_BOTTOM = 500,
@@ -78,6 +93,14 @@ typedef enum EFunctionType {
   FUNCTION_TYPE_FILL_FORWARD,
   FUNCTION_TYPE_EXTERNAL_WINDOW_COLUMN,
   FUNCTION_TYPE_LEAD,
+  FUNCTION_TYPE_ROW_NUMBER,
+  FUNCTION_TYPE_RANK,
+  FUNCTION_TYPE_DENSE_RANK,
+  FUNCTION_TYPE_PERCENT_RANK,
+  FUNCTION_TYPE_CUME_DIST,
+  FUNCTION_TYPE_FIRST_VALUE,
+  FUNCTION_TYPE_LAST_VALUE,
+  FUNCTION_TYPE_NTH_VALUE,
 
   // math function
   FUNCTION_TYPE_ABS = 1000,
@@ -106,6 +129,7 @@ typedef enum EFunctionType {
   FUNCTION_TYPE_GREATEST,
   FUNCTION_TYPE_LEAST,
   FUNCTION_TYPE_CRC32,
+  FUNCTION_TYPE_BIT_COUNT,
 
   // string function
   FUNCTION_TYPE_LENGTH = 1500,
@@ -141,6 +165,8 @@ typedef enum EFunctionType {
   FUNCTION_TYPE_AES_DECRYPT,
   FUNCTION_TYPE_SM4_ENCRYPT,
   FUNCTION_TYPE_SM4_DECRYPT,
+  FUNCTION_TYPE_REGEXP_EXTRACT,
+  FUNCTION_TYPE_STRCMP,
 
   // conversion function
   FUNCTION_TYPE_CAST = 2000,
@@ -161,6 +187,34 @@ typedef enum EFunctionType {
   FUNCTION_TYPE_WEEKOFYEAR,
   FUNCTION_TYPE_DAYOFWEEK,
   FUNCTION_TYPE_DATE,
+  FUNCTION_TYPE_FIRST_DAY_OF_WEEK,
+  FUNCTION_TYPE_MYSQL_CURDATE,
+  FUNCTION_TYPE_MYSQL_CURRENT_DATE,
+  FUNCTION_TYPE_MYSQL_CURTIME,
+  FUNCTION_TYPE_MYSQL_CURRENT_TIME,
+  FUNCTION_TYPE_MYSQL_CURRENT_TIMESTAMP,
+  FUNCTION_TYPE_MYSQL_DATEDIFF,
+  FUNCTION_TYPE_MYSQL_DATE_FORMAT,
+  FUNCTION_TYPE_MYSQL_DAY,
+  FUNCTION_TYPE_MYSQL_DAYNAME,
+  FUNCTION_TYPE_MYSQL_DAYOFMONTH,
+  FUNCTION_TYPE_MYSQL_DAYOFYEAR,
+  FUNCTION_TYPE_MYSQL_EXTRACT,
+  FUNCTION_TYPE_MYSQL_FROM_DAYS,
+  FUNCTION_TYPE_MYSQL_FROM_UNIXTIME,
+  FUNCTION_TYPE_MYSQL_HOUR,
+  FUNCTION_TYPE_MYSQL_MICROSECOND,
+  FUNCTION_TYPE_MYSQL_MINUTE,
+  FUNCTION_TYPE_MYSQL_MONTH,
+  FUNCTION_TYPE_MYSQL_MONTHNAME,
+  FUNCTION_TYPE_MYSQL_QUARTER,
+  FUNCTION_TYPE_MYSQL_SECOND,
+  FUNCTION_TYPE_MYSQL_STR_TO_DATE,
+  FUNCTION_TYPE_MYSQL_TO_DAYS,
+  FUNCTION_TYPE_MYSQL_TO_SECONDS,
+  FUNCTION_TYPE_MYSQL_UNIX_TIMESTAMP,
+  FUNCTION_TYPE_MYSQL_YEAR,
+  FUNCTION_TYPE_MYSQL_YEARWEEK,
 
   // system function
   FUNCTION_TYPE_DATABASE = 3000,
@@ -169,6 +223,7 @@ typedef enum EFunctionType {
   FUNCTION_TYPE_SERVER_STATUS,
   FUNCTION_TYPE_CURRENT_USER,
   FUNCTION_TYPE_USER,
+  FUNCTION_TYPE_SLEEP,
 
   // pseudo column function
   FUNCTION_TYPE_ROWTS = 3500,
@@ -208,8 +263,13 @@ typedef enum EFunctionType {
   FUNCTION_TYPE_IMPUTATION_ROWTS,
   FUNCTION_TYPE_IMPUTATION_MARK,
   FUNCTION_TYPE_ANOMALY_MARK,
-  FUNCTION_TYPE_TIDLESTART,          // _tidlestart
-  FUNCTION_TYPE_TIDLEEND,            // _tidleend
+  FUNCTION_TYPE_TIDLESTART,                  // _tidlestart
+  FUNCTION_TYPE_TIDLEEND,                    // _tidleend
+  FUNCTION_TYPE_PLACEHOLDER_ROLLUP_TAG,      // %%rollup_tag
+  FUNCTION_TYPE_PLACEHOLDER_ROLLUP_TBCOUNT,  // _trollup_tbcount
+  FUNCTION_TYPE_TEVENT_CONDITION_PATH,       // _event_condition_path
+  FUNCTION_TYPE_TPREV_WSTART,                // _tpre_wstart
+  FUNCTION_TYPE_TPREV_WEND,                  // _tpre_wend
 
   // internal function
   FUNCTION_TYPE_SELECT_VALUE = 3750,
@@ -222,6 +282,7 @@ typedef enum EFunctionType {
   FUNCTION_TYPE_TABLE_COUNT,
   FUNCTION_TYPE_GROUP_CONST_VALUE,
   FUNCTION_TYPE_HAS_NULL,
+  FUNCTION_TYPE_STREAM_DERIVATIVE_FACTOR,
 
   // distributed splitting functions
   FUNCTION_TYPE_APERCENTILE_PARTIAL = 4000,
@@ -281,6 +342,24 @@ typedef enum EFunctionType {
   FUNCTION_TYPE_DB_USAGE = 4300,
   FUNCTION_TYPE_DB_USAGE_INFO,
 
+  // internal functions (not user-callable)
+  FUNCTION_TYPE_TIMESTAMP_SCALE = 4400,
+
+  // FQ-internal functions (not user-callable; used to carry interval metadata
+  // through the logic-plan->physical-plan->remote-SQL pipeline)
+  // FUNCTION_TYPE_FQ_TIME_BUCKET is injected by fqConvertInterval into the
+  // GROUP BY key of the remote SAggLogicNode.  It carries:
+  //   pParameterList[0] = SColumnNode for the timestamp primary key column
+  //   pParameterList[1] = SValueNode (int64, ticks in srcPrecision) for bucket size
+  //   pParameterList[2] = SValueNode (int8, TSDB_TIME_PRECISION_*) for source precision
+  // nodesRemotePlanToSQL renders it per-dialect:
+  //   MySQL:    FLOOR(UNIX_TIMESTAMP(`ts`) * tps / ticks) * ticks / tps
+  //             where tps = ticks-per-second for srcPrecision
+  //   PG:       DATE_BIN('N unit', ts, '1970-01-01 00:00:00')
+  //   InfluxDB: DATE_BIN(INTERVAL 'N unit', time, '1970-01-01T00:00:00Z')
+  FUNCTION_TYPE_FQ_TIME_BUCKET = 4500,
+  // TIME_ALIGN forward fill (NEXT); not user-facing, injected by the planner.
+  FUNCTION_TYPE_FILL_NEXT = 4600,
   // user defined funcion
   FUNCTION_TYPE_UDF = 10000
 } EFunctionType;
@@ -297,6 +376,13 @@ struct SResultRowEntryInfo;
 struct STimeWindow;
 
 int32_t fmFuncMgtInit();
+// Validates runtime input types after fmFuncMgtInit. UDF IDs above the reserved
+// FUNC_UDF_ID_START boundary and pseudo-column functions are accepted without
+// count or type validation; FUNC_UDF_ID_START itself is invalid. pTypes may be
+// NULL only when numOfParams is zero or the ID identifies a UDF.
+// Returns query-input errors for invalid IDs and function parameter errors for
+// an invalid count or type.
+int32_t fmValidateFuncInputTypes(int32_t funcId, const int8_t* pTypes, int32_t numOfParams);
 
 void fmFuncMgtDestroy();
 
@@ -307,6 +393,7 @@ EFuncReturnRows fmGetFuncReturnRows(SFunctionNode* pFunc);
 bool          fmIsBuiltinFunc(const char* pFunc);
 EFunctionType fmGetFuncType(const char* pFunc);
 EFunctionType fmGetFuncTypeFromId(int32_t funcId);
+bool          fmIsCanonicalTbnameFunction(const SNode* pNode);
 
 bool fmIsAggFunc(int32_t funcId);
 bool fmIsScalarFunc(int32_t funcId);
@@ -317,11 +404,13 @@ bool fmIsStringFunc(int32_t funcId);
 bool fmIsDateTimeFunc(int32_t funcId);
 bool fmIsSelectFunc(int32_t funcId);
 bool fmIsTimelineFunc(int32_t funcId);
+bool fmSupportsNoTimelineRowOrder(int32_t funcId);
 bool fmIsTimeorderFunc(int32_t funcId);
 bool fmIsPseudoColumnFunc(int32_t funcId);
 bool fmIsScanPseudoColumnFunc(int32_t funcId);
 bool fmIsWindowPseudoColumnFunc(int32_t funcId);
 bool fmIsWindowClauseFunc(int32_t funcId);
+bool fmIsWindowIndefRowsFunc(int32_t funcId);
 bool fmIsStreamWindowClauseFunc(int32_t funcId);
 bool fmIsSpecialDataRequiredFunc(int32_t funcId);
 bool fmIsDynamicScanOptimizedFunc(int32_t funcId);
@@ -345,6 +434,7 @@ bool fmIsClientPseudoColumnFunc(int32_t funcId);
 bool fmIsMultiRowsFunc(int32_t funcId);
 bool fmIsKeepOrderFunc(SFunctionNode* pFunc);
 bool fmIsCumulativeFunc(int32_t funcId);
+bool fmIsCumulativeSqlWindowFunc(int32_t funcId);
 bool fmIsInterpPseudoColumnFunc(int32_t funcId);
 bool fmIsAnalysisPseudoColumnFunc(int32_t funcId);
 bool fmIsGroupKeyFunc(int32_t funcId);
@@ -354,8 +444,16 @@ bool fmIsConstantResFunc(SFunctionNode* pFunc);
 bool fmIsSkipScanCheckFunc(int32_t funcId);
 bool fmIsPrimaryKeyFunc(int32_t funcId);
 bool fmIsProcessByRowFunc(int32_t funcId);
+bool fmIsDegradedTimelineRowOrderFunc(int32_t funcId);
+bool fmIsVolatileFunc(int32_t funcId);
+bool fmIsNoPushdownFunc(int32_t funcId);
 bool fmisSelectGroupConstValueFunc(int32_t funcId);
 bool fmIsElapsedFunc(int32_t funcId);
+bool fmIsTwLocfFunc(int32_t funcId);
+// Identifies bit_duration for interval/external-window boundary state mapping.
+bool fmIsBitDurationFunc(int32_t funcId);
+// Returns whether bit_duration needs a predecessor row for its selected mode.
+bool fmBitDurationNeedsPrevRow(const SqlFunctionCtx* pCtx);
 bool fmIsDBUsageFunc(int32_t funcId);
 bool fmIsRowTsOriginFunc(int32_t funcId);
 bool fmIsSelectColsFunc(int32_t funcId);
@@ -363,6 +461,9 @@ bool fmIsGroupIdFunc(int32_t funcId);
 bool fmIsPlaceHolderFunc(int32_t funcId);
 bool fmIsHasNullFunc(int32_t funcId);
 bool fmIsPlaceHolderFuncForExternalWin(int32_t funcId);
+bool fmIsSqlWindowFunc(const char* pFuncName);
+bool fmIsSqlWindowOrderRequiredFunc(const char* pFuncName);
+bool fmCanUseAsSqlWindowAgg(const char* pFuncName);
 
 void    getLastCacheDataType(SDataType* pType, int32_t pkBytes);
 int32_t createFunction(const char* pName, SNodeList* pParameterList, SFunctionNode** pFunc);
@@ -385,6 +486,10 @@ EFuncDataRequired fmFuncDynDataRequired(int32_t funcId, void* pRes, SDataBlockIn
 
 int32_t fmGetFuncExecFuncs(int32_t funcId, SFuncExecFuncs* pFpSet);
 int32_t fmGetScalarFuncExecFuncs(int32_t funcId, SScalarFuncExecFuncs* pFpSet);
+// Validates a function node after fmFuncMgtInit. UDF nodes are accepted without
+// validating their name; invalid built-in nodes return TSDB_CODE_QRY_INVALID_INPUT
+// and write a diagnostic to pErrBuf when it is non-NULL and len is positive.
+int32_t fmValidateFuncNode(SFunctionNode* pFunc, char* pErrBuf, int32_t len);
 int32_t fmGetUdafExecFuncs(int32_t funcId, SFuncExecFuncs* pFpSet);
 
 #ifdef BUILD_NO_CALL

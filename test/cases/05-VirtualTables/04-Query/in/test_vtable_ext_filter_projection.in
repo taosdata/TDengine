@@ -1,0 +1,11 @@
+alter local "timezone" "UTC";
+select cast(ts as bigint) as ts_ms, a, b, c, bounded, empty_v from vfilter_query.filter_normal order by ts;
+select cast(ts as bigint) as ts_ms, a, b, c, bounded, empty_v from vfilter_query.child_1 order by ts;
+select cast(ts as bigint) as ts_ms, a, b, c, bounded, empty_v from vfilter_query.chain order by ts;
+select cast(ts as bigint) as ts_ms, a, b from vfilter_query.filter_normal order by ts;
+select cast(ts as bigint) as ts_ms, c from vfilter_query.chain order by ts;
+select cast(ts as bigint) as ts_ms, bounded from vfilter_query.filter_normal order by ts;
+select empty_v from vfilter_query.filter_normal;
+select scenario, cast(ts as bigint) as ts_ms, a, b, c, bounded, empty_v from vfilter_query.filter_stable order by scenario, ts;
+select cast(ts as bigint) as ts_ms, a, b, c, bounded, empty_v from vfilter_query.chain_stable order by ts;
+select cast(ts as bigint) as ts_ms, a, b, c from vfilter_query.filter_stable where scenario = 2 order by ts;

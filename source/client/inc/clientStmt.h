@@ -1,6 +1,8 @@
 /*
  * Copyright (c) 2019 TAOS Data, Inc. <jhtao@taosdata.com>
  *
+ * SPDX-License-Identifier: AGPL-3.0-or-later
+ *
  * This program is free software: you can use, redistribute, and/or modify
  * it under the terms of the GNU Affero General Public License, version 3
  * or later ("AGPL"), as published by the Free Software Foundation.
@@ -121,12 +123,19 @@ typedef struct SStmtStatInfo {
   int64_t addBatchUs;
   int64_t execWaitUs;
   int64_t execUseUs;
+  int64_t asyncQueueWaitUs;
+  int64_t asyncBackpressureUs;
+  int64_t asyncAppendUs;
+  int64_t asyncTaskNum;
+  int64_t asyncQueueHighWater;
 } SStmtStatInfo;
 
 typedef struct SStmtQNode {
   bool                 restoreTbCols;
   STableColsData       tblData;
   SVCreateTbReq       *pCreateTbReq;
+  int32_t              tableColsIdx;
+  int64_t              enqueueUs;
   struct SStmtQNode*   next;
 } SStmtQNode;
 
@@ -159,6 +168,12 @@ typedef struct STscStmt {
   int32_t           errCode;
 
   SStmtStatInfo     stat;
+  // Workload recorder: logical statement identity, minted once by the public
+  // taos_stmt_init/taos_stmt2_init wrappers after calloc and referenced by every
+  // later event on this handle. The handle is freed by stmtClose rather than recycled,
+  // so the ID is never reused or reset in place. STMT1 and STMT2 share
+  // wlrNextStmtId(). Zero means recording is off or capture is not running.
+  uint64_t wlrStmtId;
 } STscStmt;
 
 extern char *gStmtStatusStr[];

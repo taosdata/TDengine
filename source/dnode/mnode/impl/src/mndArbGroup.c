@@ -1,6 +1,8 @@
 /*
  * Copyright (c) 2019 TAOS Data, Inc. <jhtao@taosdata.com>
  *
+ * SPDX-License-Identifier: AGPL-3.0-or-later
+ *
  * This program is free software: you can use, redistribute, and/or modify
  * it under the terms of the GNU Affero General Public License, version 3
  * or later ("AGPL"), as published by the Free Software Foundation.
@@ -18,6 +20,7 @@
 #include "audit.h"
 #include "mndDb.h"
 #include "mndDnode.h"
+#include "mndPrivilege.h"
 #include "mndShow.h"
 #include "mndSync.h"
 #include "mndTrans.h"
@@ -238,9 +241,34 @@ static int32_t mndArbGroupActionDelete(SSdb *pSdb, SArbGroup *pGroup) {
   return 0;
 }
 
+// Realign an arbgroup's member dnodeId onto pNew. Invoked by the SDB update action
+// (mndArbGroupActionUpdate) and exercised directly by unit tests.
+//
+// This MUST run unconditionally (i.e. even when the version check in mndArbGroupActionUpdate skips
+// the rest of the fields): REDISTRIBUTE VGROUP moves vnodes between dnodes, so
+// members[i].info.dnodeId must follow the new vgroup layout, otherwise vnode heartbeats no longer
+// match this arbgroup and "show arbgroups" keeps reporting the stale mapping.
+//
+// Only members[i].info.dnodeId is realigned here unconditionally. It is written solely by the
+// redistribute path, so an unconditional copy is safe even under a concurrent heartbeat that bumps
+// pOld->version. The assignedLeader fields are intentionally NOT touched here: they are also written
+// by the check-sync (mndArbGroupSetAssignedLeader) and reset (mndArbGroupResetAssignedLeader) paths,
+// so copying them unconditionally would let a stale commit log overwrite the live leader; they remain
+// updated only under the version gate in mndArbGroupActionUpdate.
+void mndArbGroupApplyDnodeRealign(SArbGroup *pOld, const SArbGroup *pNew) {
+  for (int i = 0; i < TSDB_ARB_GROUP_MEMBER_NUM; i++) {
+    pOld->members[i].info.dnodeId = pNew->members[i].info.dnodeId;
+  }
+}
+
 static int32_t mndArbGroupActionUpdate(SSdb *pSdb, SArbGroup *pOld, SArbGroup *pNew) {
   mTrace("arbgroup:%d, perform update action, old row:%p new row:%p", pOld->vgId, pOld, pNew);
   (void)taosThreadMutexLock(&pOld->mutex);
+
+  // Realign member dnodeId unconditionally (see mndArbGroupApplyDnodeRealign for the reason it must
+  // happen even when the version check below skips the rest). assignedLeader is deliberately left to
+  // the version-gated block below.
+  mndArbGroupApplyDnodeRealign(pOld, pNew);
 
   if (pOld->version != pNew->version) {
     mInfo("arbgroup:%d, skip to perform update action, old row:%p new row:%p, old version:%" PRId64
@@ -253,6 +281,10 @@ static int32_t mndArbGroupActionUpdate(SSdb *pSdb, SArbGroup *pOld, SArbGroup *p
     tstrncpy(pOld->members[i].state.token, pNew->members[i].state.token, TSDB_ARB_TOKEN_SIZE);
   }
   pOld->isSync = pNew->isSync;
+  // assignedLeader is also written by the check-sync (mndArbGroupSetAssignedLeader) and reset
+  // (mndArbGroupResetAssignedLeader) paths, so it stays under the version gate: an unconditional copy
+  // would let a stale commit log overwrite the live leader. The redistribute reset is carried down by
+  // mndSetUpdateArbGroupDnodeByVgObj via this normal versioned update.
   pOld->assignedLeader.assignedDnodeId = pNew->assignedLeader.assignedDnodeId;
   tstrncpy(pOld->assignedLeader.token, pNew->assignedLeader.token, TSDB_ARB_TOKEN_SIZE);
   pOld->assignedLeader.assignAcked = pNew->assignedLeader.assignAcked;
@@ -268,6 +300,27 @@ static int32_t mndArbGroupActionUpdate(SSdb *pSdb, SArbGroup *pOld, SArbGroup *p
       pOld->version);
 
 _OVER:
+  // Invariant: the assigned leader must be one of the current members. REDISTRIBUTE may have moved
+  // the leader vnode's dnode away from this vgroup; because the member dnodeId realignment above ran
+  // unconditionally, members[] already reflects the new layout. If the assigned leader's dnode is no
+  // longer a member, clear it so the arbitrator re-elects instead of assigning leadership to a vnode
+  // that no longer exists. This also guarantees the assigned-leader reset survives the version gate
+  // being skipped (e.g. a concurrent heartbeat bumped pOld->version between acquire and commit).
+  if (pOld->assignedLeader.assignedDnodeId != 0) {
+    bool leaderIsMember = false;
+    for (int32_t i = 0; i < TSDB_ARB_GROUP_MEMBER_NUM; i++) {
+      if (pOld->members[i].info.dnodeId == pOld->assignedLeader.assignedDnodeId) {
+        leaderIsMember = true;
+        break;
+      }
+    }
+    if (!leaderIsMember) {
+      mInfo("arbgroup:%d, assigned leader dnode:%d no longer a member after realign, reset", pOld->vgId,
+            pOld->assignedLeader.assignedDnodeId);
+      mndArbGroupResetAssignedLeader(pOld);
+    }
+  }
+
   (void)taosThreadMutexUnlock(&pOld->mutex);
 
   if (mndIsLeader(pSdb->pMnode)) {
@@ -640,7 +693,7 @@ void mndArbCheckSync(SArbGroup *pArbGroup, int64_t nowMs, ECheckSyncOp *pOp, SAr
   int32_t          candidateIndex = member0IsTimeout ? 1 : 0;
   SArbGroupMember *pMember = &pArbGroup->members[candidateIndex];
 
-  // has assigned leader and dnodeId not match => skip
+  // has assigned leader and dnodeId does not match => skip
   if (currentAssignedDnodeId != 0 && currentAssignedDnodeId != pMember->info.dnodeId) {
     mInfo("arbgroup:%d, arb skip to set assigned leader to dnodeId:%d, assigned leader has been set to dnodeId:%d",
           vgId, pMember->info.dnodeId, currentAssignedDnodeId);
@@ -670,12 +723,28 @@ static int32_t mndProcessAssignLeaderMsg(SRpcMsg *pReq) {
   SMnode    *pMnode = pReq->info.node;
   int32_t    code = -1, lino = 0;
   SArray    *pArray = NULL;
+  SArray    *pUpdateArray = NULL;
   void      *pIter = NULL;
   SSdb      *pSdb = pMnode->pSdb;
   SArbGroup *pArbGroup = NULL;
   int64_t    tss = taosGetTimestampMs();
 
   SAssignLeaderReq req = {0};
+
+  // Authorization gate (security finding 270): TDMT_MND_ARB_ASSIGN_LEADER is routed from the
+  // shared 6030 listener by msgType alone and this handler used to run for any sender without
+  // even resolving the asserted user name. ASSIGN LEADER FORCE is a cluster-wide action - it
+  // tells an arbitrary online member of every 2-replica vgroup to declare itself ASSIGNED_LEADER
+  // with force=true, which skips the member-token check on the vnode and lets that replica commit
+  // without quorum. Bind it to a real, enabled, cluster-admin identity before emitting anything,
+  // exactly like the sibling cluster-admin handlers do. Rejected callers get an error and cause
+  // no TDMT_SYNC_SET_ASSIGNED_LEADER to be sent.
+  code = mndCheckOperPrivilege(pMnode, RPC_MSG_USER(pReq), RPC_MSG_TOKEN(pReq), MND_OPER_ASSIGN_LEADER);
+  if (code != 0) {
+    mError("arbgroup:0, assign leader rejected for user:%s since %s", RPC_MSG_USER(pReq), tstrerror(code));
+    goto _exit;
+  }
+
   if (tDeserializeSAssignLeaderReq(pReq->pCont, pReq->contLen, &req) != 0) {
     code = TSDB_CODE_INVALID_MSG;
     goto _exit;
@@ -707,18 +776,60 @@ static int32_t mndProcessAssignLeaderMsg(SRpcMsg *pReq) {
     sdbRelease(pSdb, pArbGroup);
 
     int32_t dnodeId = 0;
+    int32_t onlineIdx = -1;
     for (int32_t i = 0; i < 2; i++) {
       SDnodeObj *pDnode = mndAcquireDnode(pMnode, arbGroupDup.members[i].info.dnodeId);
       bool       isonline = mndIsDnodeOnline(pDnode, taosGetTimestampMs());
       mndReleaseDnode(pMnode, pDnode);
       if (isonline) {
         dnodeId = arbGroupDup.members[i].info.dnodeId;
+        onlineIdx = i;
         break;
       }
     }
 
-    (void)mndSendArbSetAssignedLeaderReq(pMnode, dnodeId, arbGroupDup.vgId, arbToken, term, "", true);
+    if (onlineIdx < 0) {
+      // [SECURITY FIX for finding "item49"] No online member for this vgroup; skip sending instead
+      // of forwarding to dnodeId 0. The previous code sent an empty memberToken with force=1, which
+      // (together with the forced-assignment bypass on the vnode) allowed any network peer to
+      // impersonate the arbitrator. The vnode now always requires the correct member shared-secret
+      // token, so only a request carrying the token learned via the heartbeat handshake is honored.
+      mInfo("arbgroup:%d, arb skip set assigned leader since no online member", arbGroupDup.vgId);
+      continue;
+    }
+
+    // [SECURITY FIX for finding "item49" follow-up] Initiate the assignment in SDB (assignedLeader +
+    // assignAcked=false) instead of relying solely on the one-shot SET_ASSIGNED_LEADER below. After a
+    // vnode restart or a step-down from ASSIGNED_LEADER regenerates its per-node arbToken, the mnode's
+    // cached token can be stale and the vnode would reject the one-shot with
+    // TSDB_CODE_MND_ARB_TOKEN_MISMATCH. The arbiter timer re-sends SET_ASSIGNED_LEADER carrying the
+    // LIVE member token (see mndArbProcessTimer) until the vnode acks, so the operator-assigned leader
+    // is reached reliably rather than failing silently in the disaster-recovery window.
+    SArbGroup newGroup = {0};
+    mndArbGroupDupObj(&arbGroupDup, &newGroup);
+    mndArbGroupSetAssignedLeader(&newGroup, onlineIdx);
+    if (pUpdateArray == NULL) {
+      pUpdateArray = taosArrayInit(16, sizeof(SArbGroup));
+    }
+    if (pUpdateArray != NULL) {
+      if (taosArrayPush(pUpdateArray, &newGroup) == NULL) {
+        mError("arbgroup:%d, arb failed to queue assign leader for dnodeId:%d", arbGroupDup.vgId, dnodeId);
+      }
+    }
+
+    // Best-effort immediate send: works when the cached token is already fresh, which is the common
+    // case (including the primary one-replica-down disaster-recovery path where the survivor is
+    // stable). The SDB-initiated retry above covers the stale-token window.
+    (void)mndSendArbSetAssignedLeaderReq(pMnode, dnodeId, arbGroupDup.vgId, arbToken, term,
+                                        arbGroupDup.members[onlineIdx].state.token, false);
     mInfo("arbgroup:%d, arb send set assigned leader to dnodeId:%d", arbGroupDup.vgId, dnodeId);
+  }
+
+  // [SECURITY FIX for finding "item49" follow-up] Persist the queued assignments so the arbiter timer
+  // reliably re-sends SET_ASSIGNED_LEADER (with the live member token) until each vnode acks, closing
+  // the silent-failure window described in the review.
+  if (pUpdateArray != NULL) {
+    (void)mndArbPutBatchUpdateIntoWQ(pMnode, pUpdateArray);
   }
 
   code = 0;
@@ -733,6 +844,9 @@ _exit:
     mError("arbgroup:0, failed to assign leader since %s", tstrerror(code));
   }
 
+  if (pUpdateArray != NULL) {
+    taosArrayDestroy(pUpdateArray);
+  }
   tFreeSAssignLeaderReq(&req);
   TAOS_RETURN(code);
 }
@@ -788,10 +902,20 @@ static int32_t mndArbProcessTimer(SRpcMsg *pReq) {
       case CHECK_SYNC_NONE:
         mTrace("arbgroup:%d, arb skip to send msg by check sync", vgId);
         break;
-      case CHECK_SYNC_SET_ASSIGNED_LEADER:
-        (void)mndSendArbSetAssignedLeaderReq(pMnode, assgndDnodeId, vgId, arbToken, term, pAssgndLeader->token, false);
+      case CHECK_SYNC_SET_ASSIGNED_LEADER: {
+        // [SECURITY FIX for finding "item49" follow-up] Use the LIVE member token (refreshed by the
+        // arbitrator heartbeat handshake) instead of the snapshot cached in pAssgndLeader->token. After
+        // a vnode restart or a step-down from ASSIGNED_LEADER regenerates its per-node arbToken, the
+        // snapshot can be stale; the timer re-sends SET_ASSIGNED_LEADER until the vnode acks and MUST
+        // carry the current token, otherwise the vnode rejects it forever and the assignment fails
+        // silently. When the snapshot already equals the live token (the normal case) behavior is
+        // unchanged.
+        int32_t assgndIdx = (arbGroupDup.members[0].info.dnodeId == assgndDnodeId) ? 0 : 1;
+        (void)mndSendArbSetAssignedLeaderReq(pMnode, assgndDnodeId, vgId, arbToken, term,
+                                            arbGroupDup.members[assgndIdx].state.token, false);
         mInfo("arbgroup:%d, arb send set assigned leader to dnodeId:%d", vgId, assgndDnodeId);
         break;
+      }
       case CHECK_SYNC_CHECK_SYNC:
         (void)mndSendArbCheckSyncReq(pMnode, vgId, arbToken, term, arbGroupDup.members[0].state.token,
                                      arbGroupDup.members[1].state.token);
@@ -1062,6 +1186,84 @@ static void mndArbGroupResetAssignedLeader(SArbGroup *pGroup) {
   pGroup->assignedLeader.assignAcked = false;
 }
 
+// Update an existing arbgroup's member dnode mapping from a (dual-replica) vgroup layout.
+// This is the pure/logic-only core: it copies pOld into pNew, rewrites each member's
+// dnodeId from the vgroup vnode distribution, and resets the assigned leader when its
+// dnode is no longer part of the vgroup (so the arbitrator re-elects instead of assigning
+// leadership to a vnode that no longer exists on that dnode).
+//
+// The vnode token is intentionally NOT reset here: the new vnode refreshes it (and resets
+// the assigned leader when applicable) through the normal mndArbIsNeedUpdateTokenByHeartBeat
+// heartbeat path once it comes up.
+// Returns TSDB_CODE_INVALID_PARA if pVgObj->replica != 2 (arbgroups only exist for replica 2).
+int32_t mndArbGroupUpdateDnodeByVgObj(SArbGroup *pOld, SVgObj *pVgObj, SArbGroup *pNew) {
+  if (pVgObj->replica != 2) {
+    // arbgroups only exist for dual-replica vgroups; nothing to do
+    return TSDB_CODE_INVALID_PARA;
+  }
+
+  // copy everything (token, isSync, assignedLeader, version, ...) then only fix the dnode mapping
+  mndArbGroupDupObj(pOld, pNew);
+
+  for (int32_t i = 0; i < TSDB_ARB_GROUP_MEMBER_NUM; i++) {
+    pNew->members[i].info.dnodeId = pVgObj->vnodeGid[i].dnodeId;
+  }
+
+  // if the assigned leader's dnode was migrated away, reset it so the arbiter re-elects
+  // instead of assigning leadership to a vnode that no longer exists on that dnode
+  bool assignedStillPresent = false;
+  for (int32_t i = 0; i < TSDB_ARB_GROUP_MEMBER_NUM; i++) {
+    if (pVgObj->vnodeGid[i].dnodeId == pNew->assignedLeader.assignedDnodeId) {
+      assignedStillPresent = true;
+      break;
+    }
+  }
+  if (!assignedStillPresent) {
+    mndArbGroupResetAssignedLeader(pNew);
+  }
+
+  mInfo("arbgroup:%d, dbUid:%" PRId64
+        ", updated member dnode mapping by vgroup, old:[%d,%d] new:[%d,%d] assignedReset:%d",
+        pNew->vgId, pOld->dbUid, pOld->members[0].info.dnodeId, pOld->members[1].info.dnodeId,
+        pNew->members[0].info.dnodeId, pNew->members[1].info.dnodeId, !assignedStillPresent);
+
+  return TSDB_CODE_SUCCESS;
+}
+
+// Transactional wrapper around mndArbGroupUpdateDnodeByVgObj: acquire the live arbgroup for
+// pVgObj->vgId, apply the dnode-mapping update, and append it as a commit log so the change
+// commits atomically with the caller's transaction (e.g. the redistribute vgroup transaction).
+// This keeps the arbgroup's member dnode mapping in sync after vnodes are migrated between
+// dnodes, so the arbitrator can still match vnode heartbeats.
+// No-op (returns 0) when replica != 2 or when no arbgroup exists for this vgId.
+int32_t mndSetUpdateArbGroupDnodeByVgObj(SMnode *pMnode, STrans *pTrans, SVgObj *pVgObj) {
+  if (pVgObj->replica != 2) {
+    return TSDB_CODE_SUCCESS;
+  }
+
+  SArbGroup *pOld = mndAcquireArbGroup(pMnode, pVgObj->vgId);
+  if (pOld == NULL) {
+    // best-effort: if the arbgroup isn't available right now (not created yet, or being
+    // created/dropped concurrently), skip the sync; heartbeats will reconcile it later.
+    return TSDB_CODE_SUCCESS;
+  }
+
+  SArbGroup newGroup = {0};
+  // Hold pOld->mutex while reading it: mndArbGroupDupObj copies version/isSync/assignedLeader, and the
+  // heartbeat/check-sync paths update those fields under the same lock. Without it we could read a
+  // half-updated snapshot and persist a torn state into the commit log.
+  taosThreadMutexLock(&pOld->mutex);
+  int32_t code = mndArbGroupUpdateDnodeByVgObj(pOld, pVgObj, &newGroup);
+  taosThreadMutexUnlock(&pOld->mutex);
+  if (code == TSDB_CODE_SUCCESS) {
+    mndTransAddArbGroupId(pTrans, pVgObj->vgId);
+    code = mndSetCreateArbGroupCommitLogs(pTrans, &newGroup);  // insert-or-update by vgId key
+  }
+
+  mndReleaseArbGroup(pMnode, pOld);
+  return code;
+}
+
 bool mndArbIsNeedUpdateTokenByHeartBeat(SArbGroup *pGroup, SVArbHbRspMember *pRspMember, int64_t nowMs, int32_t dnodeId,
                                         SArbGroup *pNewGroup) {
   bool             updateToken = false;
@@ -1235,7 +1437,7 @@ static int32_t mndProcessArbHbRsp(SRpcMsg *pRsp) {
   }
 
   if (mndArbCheckToken(arbToken, arbHbRsp.arbToken) != 0) {
-    mInfo("arbgroup:0, arb hearbeat skip update for dnodeId:%d, arb token mismatch, local:[%s] msg:[%s]",
+    mInfo("arbgroup:0, arb heartbeat skip update for dnodeId:%d, arb token mismatch, local:[%s] msg:[%s]",
           arbHbRsp.dnodeId, arbToken, arbHbRsp.arbToken);
     code = TSDB_CODE_MND_ARB_TOKEN_MISMATCH;
     goto _OVER;

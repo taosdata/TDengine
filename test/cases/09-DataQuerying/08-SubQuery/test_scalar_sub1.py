@@ -1,3 +1,18 @@
+# Copyright (c) 2025 TAOS Data, Inc. <jhtao@taosdata.com>
+#
+# SPDX-License-Identifier: AGPL-3.0-or-later
+#
+# This program is free software: you can use, redistribute, and/or modify
+# it under the terms of the GNU Affero General Public License, version 3
+# or later ("AGPL"), as published by the Free Software Foundation.
+#
+# This program is distributed in the hope that it will be useful, but WITHOUT
+# ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+# FITNESS FOR A PARTICULAR PURPOSE.
+#
+# You should have received a copy of the GNU Affero General Public License
+# along with this program. If not, see <http://www.gnu.org/licenses/>.
+
 import time
 import math
 import os
@@ -113,8 +128,7 @@ class TestScalarSubQuery1:
 
         Since: v3.4.0.0
 
-        Labels: common,ci
-
+        Labels: common,ci,integration,functional
         Jira: None
 
         History:
@@ -180,6 +194,15 @@ class TestScalarSubQuery1:
                 for self.subIdx in range(len(self.scalarSqls)):
                     self.querySql = self.subSqls[self.mainIdx].replace("{scalarSql}", self.scalarSqls[self.subIdx])
                     self.querySql = self.querySql.replace("{tableName}", self.tableNames[self.tableIdx])
+                    if self.tableNames[self.tableIdx] == "st1" and "EVENT_WINDOW" in self.querySql:
+                        self.querySql = self.querySql.replace(" from st1 EVENT_WINDOW", " from st1 partition by tbname EVENT_WINDOW")
+                        # Keep event windows independent per child table and make partition order deterministic.
+                        self.querySql = self.querySql.replace("select ", "select tbname, ", 1)
+                        self.querySql = f"{self.querySql} order by tbname"
+                    if self.tableNames[self.tableIdx] == "st1" and "partition by tbname interval(1d)" in self.querySql:
+                        # Include the partition key so ordering by partition is deterministic.
+                        self.querySql = self.querySql.replace("select ", "select tbname, ", 1)
+                        self.querySql = f"{self.querySql} order by tbname"
                     # ensure exactly one trailing semicolon
                     self.querySql = self.querySql.rstrip().rstrip(';') + ';'
                     #tdLog.info(f"generated sql: {self.querySql}")

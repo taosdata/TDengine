@@ -1,8 +1,23 @@
+# Copyright (c) 2023 TAOS Data, Inc. <jhtao@taosdata.com>
+#
+# SPDX-License-Identifier: AGPL-3.0-or-later
+#
+# This program is free software: you can use, redistribute, and/or modify
+# it under the terms of the GNU Affero General Public License, version 3
+# or later ("AGPL"), as published by the Free Software Foundation.
+#
+# This program is distributed in the hope that it will be useful, but WITHOUT
+# ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+# FITNESS FOR A PARTICULAR PURPOSE.
+#
+# You should have received a copy of the GNU Affero General Public License
+# along with this program. If not, see <http://www.gnu.org/licenses/>.
+
 import threading
 import platform
+import subprocess
 from taos.tmq import Consumer
 from new_test_framework.utils import tdLog, tdSql, tdCom, tmqCom
-from new_test_framework.utils.pathFinding import find_proj_path
 import sys
 import os
 import time
@@ -23,29 +38,6 @@ class TestCase:
         cls.TSDB_CODE_TMQ_INVALID_VGID         = '0x4008'
         cls.TSDB_CODE_TMQ_INVALID_TOPIC        = '0x4009'
         
-
-    def getPath(self, tool="taosBenchmark"):
-        if (platform.system().lower() == 'windows'):
-            tool = tool + ".exe"
-        selfPath = os.path.dirname(os.path.realpath(__file__))
-
-        projPath = find_proj_path(selfPath)
-
-        paths = []
-        for root, dirs, files in os.walk(projPath):
-            if ".git" in root:
-                continue
-            if ((tool) in files):
-                rootRealPath = os.path.dirname(os.path.realpath(root))
-                if ("packaging" not in rootRealPath):
-                    paths.append(os.path.join(root, tool))
-                    break
-        if (len(paths) == 0):
-            tdLog.exit("taosBenchmark not found!")
-            return
-        else:
-            tdLog.info("taosBenchmark found in %s" % paths[0])
-            return paths[0]
 
     def prepareTestEnv(self):
         tdLog.printNoPrefix("======== prepare test env include database, stable, ctables, and insert data: ")
@@ -378,21 +370,25 @@ class TestCase:
     def do_tmq_offset_benchmark(self):
         if platform.system().lower() == 'windows':
             buildPath = tdCom.getBuildPath()
-            cmdStr1 = ' mintty -h never %s/build/bin/taosBenchmark -i 50 -v 1 -B 1 -t 1000 -n 100000 -y '%(buildPath)
-            tdLog.info(cmdStr1)
-            os.system(cmdStr1)
-            time.sleep(15)
-
-            cmdStr2 = ' mintty -h never %s/build/bin/tmq_offset_test '%(buildPath)
-            tdLog.info(cmdStr2)
-            os.system(cmdStr2)
-            time.sleep(20)
-
-            # tdLog.info("ps -a | grep taos | awk \'{print $2}\' | xargs kill -9")
-            os.system('ps -a | grep taosBenchmark | awk \'{print $2}\' | xargs kill -9')
-            result = os.system('ps -a | grep tmq_offset_test | awk \'{print $2}\' | xargs kill -9')
-            if result != 0:
-                tdLog.exit("tmq_offset_test error!")
+            bin_path = os.path.join(buildPath, 'build', 'bin')
+            benchmark = subprocess.Popen([
+                os.path.join(bin_path, 'taosBenchmark.exe'),
+                '-i', '50', '-v', '1', '-B', '1', '-t', '1000', '-n', '100000', '-y'])
+            consumer = None
+            try:
+                time.sleep(15)
+                if benchmark.poll() not in (None, 0):
+                    tdLog.exit(f'taosBenchmark failed: exit {benchmark.returncode}')
+                consumer = subprocess.Popen([os.path.join(bin_path, 'tmq_offset_test.exe')])
+                time.sleep(20)
+                if consumer.poll() is not None:
+                    tdLog.exit(f'tmq_offset_test exited before the observation period: {consumer.returncode}')
+            finally:
+                for process in (consumer, benchmark):
+                    if process is not None:
+                        if process.poll() is None:
+                            process.kill()
+                        process.wait(timeout=10)
         else:
             buildPath = tdCom.getBuildPath()
             cmdStr0 = '%s/build/bin/tmq_offset_test 5679'%(buildPath)
@@ -427,7 +423,7 @@ class TestCase:
 
         Since: v3.0.0.0
 
-        Labels: common,ci
+        Labels: common,ci,integration,functional
 
         Jira: None
 
@@ -443,4 +439,3 @@ class TestCase:
 
 
 event = threading.Event()
-

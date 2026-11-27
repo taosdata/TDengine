@@ -1,8 +1,24 @@
+# Copyright (c) 2025 TAOS Data, Inc. <jhtao@taosdata.com>
+#
+# SPDX-License-Identifier: AGPL-3.0-or-later
+#
+# This program is free software: you can use, redistribute, and/or modify
+# it under the terms of the GNU Affero General Public License, version 3
+# or later ("AGPL"), as published by the Free Software Foundation.
+#
+# This program is distributed in the hope that it will be useful, but WITHOUT
+# ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+# FITNESS FOR A PARTICULAR PURPOSE.
+#
+# You should have received a copy of the GNU Affero General Public License
+# along with this program. If not, see <http://www.gnu.org/licenses/>.
+
 import subprocess
 import sys
 import os
 import platform
 import copy
+import time
 from new_test_framework import taostest
 
 import taos
@@ -74,7 +90,7 @@ class BeforeTest:
                 #process.wait()
                 result = taostest.main({"test_root": self.root_dir, "init": True})
                 if result != 0:
-                    tdLog.error(f"Error run taostest --init: {result}")
+                    tdLog.exit(f"Error run taostest --init: {result}")
             except Exception as e:
                 tdLog.exit(f"Error run taostest --init: {e}")
 
@@ -92,9 +108,9 @@ class BeforeTest:
             #subprocess.run([sys.executable, f"taostest --setup {yaml_file} --mnode-count {mnodes_num}"], check=True, text=True, shell=True, env=env_vars)
             result = taostest.main(setup_params)
             if result != 0:
-                tdLog.error(f"Error run taostest --setup {yaml_file}: {result}")
+                tdLog.exit(f"Error run taostest --setup {yaml_file}: {result}")
         except Exception as e:
-            tdLog.error(f"Exception run taostest --setup {yaml_file}: {e}")
+            tdLog.exit(f"Exception run taostest --setup {yaml_file}: {e}")
 
     def configure_test(self, yaml_file):
 
@@ -165,7 +181,28 @@ class BeforeTest:
                 )
             except Exception:
                 _port = 6030
-            conn = taos.connect(host=request.session.host, port=_port, config=cfg_opt)
+            if sys.platform == "win32":
+                # A freshly (re)deployed taosd may accept TCP connections before
+                # its mnode leader is reachable (Windows starts much slower).
+                # Retry the transient errors instead of failing the whole test
+                # class on a startup race; other platforms keep the original
+                # single-attempt behaviour.
+                _transient = ("Sync leader is unreachable", "0x090c",
+                              "Dnode is starting up", "cluster not ready",
+                              "not ready", "0x0130")
+                _deadline = time.time() + 60
+                while True:
+                    try:
+                        conn = taos.connect(host=request.session.host, port=_port, config=cfg_opt)
+                        break
+                    except Exception as _conn_err:
+                        if time.time() > _deadline or not any(
+                                t in str(_conn_err) for t in _transient):
+                            raise
+                        tdLog.notice(f"taos connect retry after transient error: {_conn_err}")
+                        time.sleep(2)
+            else:
+                conn = taos.connect(host=request.session.host, port=_port, config=cfg_opt)
         # Apply pending client-side config via ALTER LOCAL.
         # This overrides any earlier C-library initialization (e.g. from the startup probe)
         # that may have loaded default values before the psim cfg was written.
@@ -230,12 +267,21 @@ class BeforeTest:
             }]
         }
         dnode_config_template = load_yaml_config(os.path.join(self.root_dir, 'env', 'taos_config.yaml'))
+        # The shared template uses a POSIX locale that Windows CRT rejects.
+        # Let taosd select its Windows default; case overrides are applied later.
+        if sys.platform == "win32" and dnode_config_template.get("locale") == "en_US.UTF-8":
+            dnode_config_template.pop("locale")
+        # Apply the CI default before copying configs for nodes and case overrides.
+        ci_memory_reserve = os.environ.get("CI_MIN_RESERVED_MEMORY_MB")
+        if ci_memory_reserve is not None:
+            dnode_config_template["minReservedMemorySize"] = ci_memory_reserve
+            tdLog.info(f"CI dnode default: minReservedMemorySize={ci_memory_reserve} MB")
         adapter_config_template = load_yaml_config(os.path.join(self.root_dir, 'env', 'taosadapter_config.yaml'))
         taoskeeper_config_template = load_yaml_config(os.path.join(self.root_dir, 'env', 'taoskeeper_config.yaml'))
         servers = []
         port_base = dnode_config_template["port"] if "port" in dnode_config_template else 6030
         yaml_data["settings"][0]["spec"]["config"]["firstEP"] = f"localhost:{port_base}"
-        mqttport_base = dnode_config_template["mqttPort"] if "mqttPort" in dnode_config_template else 6083
+        mqttport_base = dnode_config_template["mqttPort"] if "mqttPort" in dnode_config_template else 6057
         taosd_binary = "taosd.exe" if sys.platform == "win32" else "taosd"
         taosadapter_binary = "taosadapter.exe" if sys.platform == "win32" else "taosadapter"
         taoskeeper_binary = "taoskeeper.exe" if sys.platform == "win32" else "taoskeeper"
@@ -256,6 +302,7 @@ class BeforeTest:
                 data_path = [os.path.join(work_dir, f"dnode{i+1}", "data")]
             dnode_config = copy.deepcopy(dnode_config_template)
             dnode_config.pop("port", None)
+            dnode_config["serverPort"] = str(port_base + i * 100)
             dnode_config["mqttPort"] = mqttport_base + i * 100
             dnode_config["dataDir"] = data_path
             dnode_config["logDir"] = log_path
@@ -449,6 +496,8 @@ class BeforeTest:
         request.session.denodes_num = len(servers)
         request.session.create_dnode_num = len(servers)
         request.session.query_policy = 1
+        request.session.restful = False
+        request.session.asan = False
         request.session.yaml_data = yaml_data
         if setting.get("name") == "taosAdapter":
             request.session.adapter = adapter
@@ -492,6 +541,16 @@ class BeforeTest:
         tdDnodes.sim.logDir = os.path.join(tdDnodes.sim.path,"psim","log")
         tdDnodes.sim.cfgDir = os.path.join(tdDnodes.sim.path,"psim","cfg")
         tdDnodes.sim.cfgPath = os.path.join(tdDnodes.sim.path,"psim","cfg","taos.cfg")
+        # The client config has to point at the dnode that was actually
+        # deployed.  Without it the CLI falls back to the default 6030, so any
+        # environment that moves the dnode off the default port (env
+        # taos_config.yaml "port") leaves every expected-result case unable to
+        # connect while the tests themselves query fine over the connector.
+        # deploy() applies a class-level "clientCfg" override afterwards, so
+        # this only establishes the default.
+        servers = getattr(request.session, "servers", None)
+        if servers:
+            tdDnodes.sim.cfgDict["firstEP"] = servers[0]["endpoint"]
         tdDnodes.sim.deploy(request.cls.updatecfgDict if hasattr(request.cls, "updatecfgDict") else {})
         tdDnodes.simDeployed = True
         tdDnodes.setLevelDisk(request.session.level, request.session.disk)
@@ -529,13 +588,32 @@ class BeforeTest:
         # 实例化 tdCommon
         tdCom.init(request.session.taos_bin_path, request.session.cfg_path, request.session.work_dir)
        
+    def _dnode_cfg_baseline(self, dnodes):
+        """Per-dnode config as it was before the first update_cfg() of the session.
+
+        yaml_data lives for the whole pytest session, so merging every class'
+        updatecfgDict into it made a class inherit the keys an earlier class set
+        and never asked for.  For example test_cpu_affinity_switch sets
+        readCpuCores/otherCpuCores in one class, and the following class that
+        only sets managementCpuCores then kept those stale counts instead of the
+        dynamic default it wanted to verify.
+        """
+        if getattr(self, "_cfg_baseline", None) is None:
+            self._cfg_baseline = [copy.deepcopy(d.get("config", {})) for d in dnodes]
+        return self._cfg_baseline
+
     def update_cfg(self, updatecfgDict):
         # Collect client-side config separately; store for ALTER LOCAL application after connection
         self._pending_client_cfg = dict(updatecfgDict.get("clientCfg", {}))
-        for key, value in updatecfgDict.items():
-            if key == "clientCfg":
-                continue
-            for dnode in self.request.session.yaml_data["settings"][0]["spec"]["dnodes"]:
+        dnodes = self.request.session.yaml_data["settings"][0]["spec"]["dnodes"]
+        baseline = self._dnode_cfg_baseline(dnodes)
+        for i, dnode in enumerate(dnodes):
+            # Start from the session baseline so keys set by a previous test class
+            # do not leak into this one.
+            dnode["config"] = copy.deepcopy(baseline[i]) if i < len(baseline) else {}
+            for key, value in updatecfgDict.items():
+                if key == "clientCfg":
+                    continue
                 dnode["config"][key] = value
         with open(os.path.join(self.root_dir, 'env', 'ci_default.yaml'), 'w') as file:
             yaml.dump(self.request.session.yaml_data, file)
@@ -605,10 +683,7 @@ class BeforeTest:
                 path = os.path.realpath(taos_bin_path)
                 while path and path != os.path.dirname(path):
                     if os.path.basename(path) == 'debug':
-                        if sys.platform == "win32":
-                            workdir = os.path.join(path, "sim")
-                        else:
-                            workdir = os.path.join(os.path.dirname(path), "sim")
+                        workdir = os.path.join(os.path.dirname(path), "sim")
                         break
                     path = os.path.dirname(path)
             if workdir is None:

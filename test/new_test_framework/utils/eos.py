@@ -1,13 +1,17 @@
-###################################################################
-#           Copyright (c) 2023 by TAOS Technologies, Inc.
-#                     All rights reserved.
+# Copyright (c) 2023 TAOS Data, Inc. <jhtao@taosdata.com>
 #
-#  This file is proprietary and confidential to TAOS Technologies.
-#  No part of this file may be reproduced, stored, transmitted,
-#  disclosed or used in any form or by any means other than as
-#  expressly provided by the written permission from Jianhui Tao
+# SPDX-License-Identifier: AGPL-3.0-or-later
 #
-###################################################################
+# This program is free software: you can use, redistribute, and/or modify
+# it under the terms of the GNU Affero General Public License, version 3
+# or later ("AGPL"), as published by the Free Software Foundation.
+#
+# This program is distributed in the hope that it will be useful, but WITHOUT
+# ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+# FITNESS FOR A PARTICULAR PURPOSE.
+#
+# You should have received a copy of the GNU Affero General Public License
+# along with this program. If not, see <http://www.gnu.org/licenses/>.
 
 # -*- coding: utf-8 -*-
 
@@ -21,6 +25,7 @@ import time
 import datetime
 import platform
 import subprocess
+import shutil
 
 #
 #  platform
@@ -78,7 +83,29 @@ def run(command, timeout = 20, ret_code=False, show = True):
     out = f"out_{id}.txt"
     err = f"err_{id}.txt"
     
+    started_ns = time.time_ns()
     code = exe(command + f" 1>{out} 2>{err}", show)
+
+    # Optional CI evidence: retain the original bytes before decoding/deleting
+    # temporary output. The caller's output and assertions remain unchanged.
+    evidence_dir = os.environ.get("TAOSBACKUP_DIAGNOSTICS_DIR")
+    if evidence_dir and "taosdump" in command.lower():
+        try:
+            os.makedirs(evidence_dir, exist_ok=True)
+            stamp = str(time.time_ns())
+            for path, suffix in ((out, "stdout"), (err, "stderr"),
+                                 ("tmp/backup.log", "backup.log"),
+                                 ("restore.log", "restore.log")):
+                if os.path.isfile(path):
+                    # Mirrors may survive a previous invocation using another
+                    # output directory. Do not label those as current evidence.
+                    if suffix.endswith(".log") and os.stat(path).st_mtime_ns < started_ns:
+                        continue
+                    shutil.copyfile(path, os.path.join(evidence_dir, f"{stamp}-{suffix}"))
+            with open(os.path.join(evidence_dir, f"{stamp}-exit.txt"), "w") as evidence:
+                evidence.write(str(code))
+        except OSError as error:
+            print(f"taosBackup evidence capture failed: {error}")
 
     # read from file
     output = readFileContext(out)

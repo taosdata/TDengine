@@ -1,3 +1,18 @@
+# Copyright (c) 2026 TAOS Data, Inc. <jhtao@taosdata.com>
+#
+# SPDX-License-Identifier: AGPL-3.0-or-later
+#
+# This program is free software: you can use, redistribute, and/or modify
+# it under the terms of the GNU Affero General Public License, version 3
+# or later ("AGPL"), as published by the Free Software Foundation.
+#
+# This program is distributed in the hope that it will be useful, but WITHOUT
+# ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+# FITNESS FOR A PARTICULAR PURPOSE.
+#
+# You should have received a copy of the GNU Affero General Public License
+# along with this program. If not, see <http://www.gnu.org/licenses/>.
+
 from new_test_framework.utils import tdLog, tdSql, tdStream
 import time
 from datetime import datetime, timedelta
@@ -85,6 +100,25 @@ class TestFunSelectLagLead:
         tdSql.checkData(0, 1, 13)
         tdSql.checkData(1, 1, -1)
         tdSql.checkData(2, 1, -1)
+
+    def _case_default_offset_and_zero_offset(self):
+        tdSql.query("select _rowts, lag(v), lead(v) from ct1 order by ts")
+        tdSql.checkRows(3)
+        tdSql.checkData(0, 1, None)
+        tdSql.checkData(0, 2, 12)
+        tdSql.checkData(1, 1, 11)
+        tdSql.checkData(1, 2, 13)
+        tdSql.checkData(2, 1, 12)
+        tdSql.checkData(2, 2, None)
+
+        tdSql.query("select _rowts, lag(v, 0), lead(v, 0) from ct1 order by ts")
+        tdSql.checkRows(3)
+        tdSql.checkData(0, 1, 11)
+        tdSql.checkData(0, 2, 11)
+        tdSql.checkData(1, 1, 12)
+        tdSql.checkData(1, 2, 12)
+        tdSql.checkData(2, 1, 13)
+        tdSql.checkData(2, 2, 13)
 
     def _case_partition_lag_lead(self):
         tdSql.query(
@@ -270,8 +304,23 @@ class TestFunSelectLagLead:
         tdSql.checkData(2, 2, -1)
 
     def _case_window_query_lag_lead(self):
-        tdSql.error("select _wstart, lag(v, 1, -1) from ct1 interval(1s)")
-        tdSql.error("select _wstart, lead(v, 1, -1) from ct1 interval(1s)")
+        tdSql.query("select _wstart, lag(v, 1, -1) from ct1 interval(1s) order by _wstart")
+        tdSql.checkRows(3)
+        tdSql.checkData(0, 0, "2025-01-01 00:00:01.000")
+        tdSql.checkData(0, 1, -1)
+        tdSql.checkData(1, 0, "2025-01-01 00:00:02.000")
+        tdSql.checkData(1, 1, -1)
+        tdSql.checkData(2, 0, "2025-01-01 00:00:03.000")
+        tdSql.checkData(2, 1, -1)
+
+        tdSql.query("select _wstart, lead(v, 1, -1) from ct1 interval(1s) order by _wstart")
+        tdSql.checkRows(3)
+        tdSql.checkData(0, 0, "2025-01-01 00:00:01.000")
+        tdSql.checkData(0, 1, -1)
+        tdSql.checkData(1, 0, "2025-01-01 00:00:02.000")
+        tdSql.checkData(1, 1, -1)
+        tdSql.checkData(2, 0, "2025-01-01 00:00:03.000")
+        tdSql.checkData(2, 1, -1)
 
     def _case_order_desc_lag_lead(self):
         tdSql.query("select _rowts, v, lag(v, 1, -1), lead(v, 1, -1) from ct1 order by ts desc")
@@ -561,8 +610,7 @@ class TestFunSelectLagLead:
 
         Since: v3.4.0.0
 
-        Labels: common,ci
-
+        Labels: common,ci,integration,functional
         Jira: None
 
         History:
@@ -573,6 +621,7 @@ class TestFunSelectLagLead:
         self._prepare_data()
         self._case_lag_basic()
         self._case_lead_basic()
+        self._case_default_offset_and_zero_offset()
         self._case_partition_lag_lead()
         self._case_multi_lag_lead_same_select()
         self._case_lag_lead_combo_same_and_diff_cols()

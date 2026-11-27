@@ -1,9 +1,37 @@
+# Copyright (c) 2025 TAOS Data, Inc. <jhtao@taosdata.com>
+#
+# SPDX-License-Identifier: AGPL-3.0-or-later
+#
+# This program is free software: you can use, redistribute, and/or modify
+# it under the terms of the GNU Affero General Public License, version 3
+# or later ("AGPL"), as published by the Free Software Foundation.
+#
+# This program is distributed in the hope that it will be useful, but WITHOUT
+# ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+# FITNESS FOR A PARTICULAR PURPOSE.
+#
+# You should have received a copy of the GNU Affero General Public License
+# along with this program. If not, see <http://www.gnu.org/licenses/>.
+
 """
 Tests for ModelService class
 """
-import pytest
+
+import copy
 import os
-from unittest.mock import Mock, patch, MagicMock
+from types import SimpleNamespace
+
+import pytest
+from taosanode_service import EXIT_CONFLICT, execute_command
+
+
+def _complete_model(mock_config, model_name="tdtsfm"):
+    model_dir = os.path.join(mock_config.tsfm_model_dir, model_name)
+    os.makedirs(model_dir, exist_ok=True)
+    marker = "taos.pth" if model_name == "tdtsfm" else "model.safetensors"
+    open(os.path.join(model_dir, marker), "wb").write(b"weights")
+    if model_name != "tdtsfm":
+        open(os.path.join(model_dir, "config.json"), "w", encoding="utf-8").write("{}")
 
 
 class TestModelService:
@@ -22,34 +50,22 @@ class TestModelService:
 
     def test_start_model_already_running(self, model_service, mocker):
         """Test starting model when it's already running"""
-        mocker.patch.object(
-            model_service.process_mgr,
-            'is_running',
-            return_value=True
-        )
+        mocker.patch.object(model_service.process_mgr, "is_running", return_value=True)
 
         result = model_service.start("tdtsfm")
         assert result is True
 
     def test_start_required_model_missing(self, model_service, mocker):
         """Test starting required model when directory is missing"""
-        mocker.patch.object(
-            model_service.process_mgr,
-            'is_running',
-            return_value=False
-        )
-        mocker.patch('os.path.exists', return_value=False)
+        mocker.patch.object(model_service.process_mgr, "is_running", return_value=False)
+        mocker.patch("os.path.exists", return_value=False)
 
         result = model_service.start("tdtsfm")
         assert result is True
 
     def test_start_optional_model_missing(self, model_service, mocker):
         """Test starting optional model when directory is missing"""
-        mocker.patch.object(
-            model_service.process_mgr,
-            'is_running',
-            return_value=False
-        )
+        mocker.patch.object(model_service.process_mgr, "is_running", return_value=False)
 
         # Mock os.path.exists to return False for model_dir but True for others
         def exists_side_effect(path):
@@ -57,43 +73,203 @@ class TestModelService:
                 return False
             return True
 
-        mocker.patch('os.path.exists', side_effect=exists_side_effect)
+        mocker.patch("os.path.exists", side_effect=exists_side_effect)
 
         result = model_service.start("chronos")
         assert result is True  # Should skip optional model
 
-    def test_start_model_success(self, model_service, mocker):
+    def test_legacy_model_directory_is_not_started(self, model_service, mock_config, mocker):
+        os.makedirs(os.path.join(mock_config.model_dir, "tdtsfm"), exist_ok=True)
+        mocker.patch.object(model_service.process_mgr, "is_running", return_value=False)
+        assert model_service.start("tdtsfm") is True
+        assert model_service._model_directory_exists("tdtsfm") is False
+
+    def test_model_with_files_but_missing_runtime_is_not_started(
+        self, model_service, mock_config, mocker
+    ):
+        _complete_model(mock_config)
+        mocker.patch.object(model_service.process_mgr, "is_running", return_value=False)
+        mocker.patch.object(model_service, "_get_dynamic_tsfm_runtime", return_value=None)
+        assert model_service.start("tdtsfm") is False
+
+    def test_start_model_success(self, model_service, mock_config, mocker):
         """Test successful model start"""
+        _complete_model(mock_config)
+        mocker.patch.object(model_service, "_get_dynamic_tsfm_runtime", return_value=({}, "/usr/bin/python3"))
+        mocker.patch.object(model_service.process_mgr, "is_running", return_value=False)
         mocker.patch.object(
             model_service.process_mgr,
-            'is_running',
-            return_value=False
+            "_get_python_exe",
+            return_value="/usr/bin/python3",
         )
         mocker.patch.object(
-            model_service.process_mgr,
-            '_get_python_exe',
-            return_value='/usr/bin/python3'
+            model_service.process_mgr, "wait_for_service", return_value=True
         )
-        mocker.patch.object(
-            model_service.process_mgr,
-            'wait_for_service',
-            return_value=True
+        wait_for_tcp_port = mocker.patch.object(
+            model_service.process_mgr, "wait_for_tcp_port", return_value=True
         )
-        mocker.patch.object(
-            model_service.process_mgr,
-            'read_pid',
-            return_value=5678
-        )
-        mocker.patch.object(
-            model_service.process_mgr,
-            'write_pid'
-        )
-        mocker.patch('os.path.exists', return_value=True)
-        mocker.patch('subprocess.Popen')
-        mocker.patch('builtins.open', create=True)
+        mocker.patch.object(model_service.process_mgr, "read_pid", return_value=5678)
+        mocker.patch.object(model_service.process_mgr, "write_pid")
+        mocker.patch("os.path.exists", return_value=True)
+        mocker.patch("subprocess.Popen")
+        mocker.patch("builtins.open", create=True)
 
         result = model_service.start("tdtsfm")
         assert result is True
+        wait_for_tcp_port.assert_called_once_with(
+            "model-tdtsfm", "127.0.0.1", 6061, timeout=300
+        )
+
+    def test_start_model_timeout_override(self, model_service, mock_config, mocker):
+        _complete_model(mock_config)
+        mocker.patch.object(model_service, "_get_dynamic_tsfm_runtime", return_value=({}, "/usr/bin/python3"))
+        mocker.patch.object(model_service.process_mgr, "is_running", return_value=False)
+        mocker.patch.object(
+            model_service.process_mgr,
+            "_get_python_exe",
+            return_value="/usr/bin/python3",
+        )
+        wait_for_tcp_port = mocker.patch.object(
+            model_service.process_mgr, "wait_for_tcp_port", return_value=True
+        )
+        mocker.patch.object(model_service.process_mgr, "read_pid", return_value=5678)
+        mocker.patch.object(model_service.process_mgr, "write_pid")
+        mocker.patch("os.path.exists", return_value=True)
+        mocker.patch("subprocess.Popen")
+        mocker.patch("builtins.open", create=True)
+
+        assert model_service.start("tdtsfm", timeout=300) is True
+        wait_for_tcp_port.assert_called_once_with(
+            "model-tdtsfm", "127.0.0.1", 6061, timeout=300
+        )
+
+    def test_start_model_timeout_reports_diagnostics(self, model_service, mock_config, mocker):
+        _complete_model(mock_config)
+        mocker.patch.object(model_service, "_get_dynamic_tsfm_runtime", return_value=({}, "/usr/bin/python3"))
+        mocker.patch.object(
+            model_service.process_mgr, "is_running", side_effect=[False, True]
+        )
+        mocker.patch.object(
+            model_service.process_mgr,
+            "_get_python_exe",
+            return_value="/usr/bin/python3",
+        )
+        mocker.patch.object(
+            model_service.process_mgr, "wait_for_tcp_port", return_value=False
+        )
+        mocker.patch.object(model_service.process_mgr, "write_pid")
+        mocker.patch.object(model_service, "stop", return_value=True)
+        mocker.patch("os.path.exists", return_value=True)
+        mocker.patch("subprocess.Popen")
+        mocker.patch("builtins.open", create=True)
+        log_error = mocker.patch.object(model_service.logger, "error")
+
+        assert model_service.start("tdtsfm") is False
+        messages = [str(call.args[0]) for call in log_error.call_args_list]
+        assert any("Model startup timed out after 300 seconds" in message for message in messages)
+        assert any("model_tdtsfm.log" in message for message in messages)
+
+    def test_dynamic_tdtsfm_worker_gets_dynamic_model_root(
+        self, model_service, mock_config, mocker
+    ):
+        model_dir = os.path.join(mock_config.tsfm_model_dir, "tdtsfm")
+        os.makedirs(model_dir, exist_ok=True)
+        service_dir = os.path.join(
+            mock_config.install_dir, "lib", "tsfm", "service"
+        )
+        os.makedirs(service_dir, exist_ok=True)
+        open(os.path.join(service_dir, "tdtsfm_server.py"), "a", encoding="utf-8").close()
+        mocker.patch.object(model_service.process_mgr, "is_running", return_value=False)
+        mocker.patch.object(model_service.process_mgr, "wait_for_service", return_value=True)
+        mocker.patch.object(model_service.process_mgr, "wait_for_tcp_port", return_value=True)
+        mocker.patch.object(model_service.process_mgr, "read_pid", return_value=5678)
+        mocker.patch.object(model_service.process_mgr, "write_pid")
+        mocker.patch.object(
+            model_service,
+            "_resolve_dynamic_model",
+            return_value=(model_dir, "/shared/venv/bin/python3"),
+        )
+        popen = mocker.patch("subprocess.Popen")
+
+        assert model_service.start("tdtsfm") is True
+        assert popen.call_args.kwargs["env"]["TDGPT_MODEL_DIR"] == mock_config.tsfm_model_dir
+
+    @pytest.mark.parametrize("model_name", [
+        "tdtsfm", "timemoe", "moirai", "chronos", "timesfm", "moment",
+    ])
+    @pytest.mark.parametrize("legacy", [False, True])
+    def test_start_model_script_names(
+        self, model_service, mock_config, mocker, model_name, legacy
+    ):
+        """Retained legacy config starts the installed worker without being changed."""
+        model_dir = os.path.join(mock_config.tsfm_model_dir, model_name)
+        os.makedirs(model_dir, exist_ok=True)
+        service_dir = os.path.join(mock_config.install_dir, "lib", "tsfm", "service")
+        os.makedirs(service_dir, exist_ok=True)
+        script_path = os.path.join(service_dir, f"{model_name}_server.py")
+        with open(script_path, "w", encoding="utf-8") as script:
+            script.write("# installed worker")
+        if legacy:
+            mock_config.models[model_name]["script"] = f"{model_name}-server.py"
+        original_models = copy.deepcopy(mock_config.models)
+        with open(mock_config.config_path, "w", encoding="utf-8") as config:
+            config.write(f"models = {original_models!r}")
+        with open(mock_config.config_path, "rb") as config:
+            original_config = config.read()
+
+        mocker.patch.object(model_service.process_mgr, "is_running", return_value=False)
+        mocker.patch.object(model_service.process_mgr, "wait_for_tcp_port", return_value=True)
+        mocker.patch.object(model_service.process_mgr, "read_pid", return_value=5678)
+        mocker.patch.object(model_service.process_mgr, "write_pid")
+        mocker.patch.object(
+            model_service, "_resolve_dynamic_model",
+            return_value=(model_dir, "/shared/venv/bin/python3"),
+        )
+        popen = mocker.patch("subprocess.Popen")
+
+        assert model_service.start(model_name) is True
+        assert popen.call_args.args[0][:2] == ["/shared/venv/bin/python3", script_path]
+        assert popen.call_args.kwargs["cwd"] == service_dir
+        assert mock_config.models == original_models
+        with open(mock_config.config_path, "rb") as config:
+            assert config.read() == original_config
+
+    @pytest.mark.parametrize("script", [
+        "moirai-server.py", "my-custom-server.py",
+    ])
+    def test_existing_configured_script_has_priority(
+        self, model_service, mock_config, tmp_path, script
+    ):
+        mock_config.models["moirai"]["script"] = script
+        (tmp_path / script).touch()
+        (tmp_path / "moirai_server.py").touch()
+        assert model_service._resolve_model_script("moirai", str(tmp_path)) == str(tmp_path / script)
+
+    @pytest.mark.parametrize("script", [
+        "my-custom-server.py", "chronos-server.py", "./moirai-server.py",
+    ])
+    def test_missing_custom_script_is_not_rewritten(
+        self, model_service, mock_config, tmp_path, script
+    ):
+        mock_config.models["moirai"]["script"] = script
+        (tmp_path / "moirai_server.py").touch()
+        (tmp_path / script.replace("-", "_")).touch()
+        assert model_service._resolve_model_script("moirai", str(tmp_path)) == os.path.join(str(tmp_path), script)
+
+    def test_missing_legacy_script_target_fails_start(
+        self, model_service, mock_config, mocker, tmp_path
+    ):
+        mock_config.models["moirai"]["script"] = "moirai-server.py"
+        mocker.patch.object(model_service.process_mgr, "is_running", return_value=False)
+        mocker.patch.object(
+            model_service, "_resolve_dynamic_model",
+            return_value=(str(tmp_path), "/shared/venv/bin/python3"),
+        )
+        popen = mocker.patch("subprocess.Popen")
+        error = mocker.patch.object(model_service.logger, "error")
+        assert model_service.start("moirai") is False
+        popen.assert_not_called()
+        assert "moirai-server.py" in error.call_args.args[0]
 
     def test_stop_unknown_model(self, model_service):
         """Test stopping unknown model"""
@@ -102,15 +278,8 @@ class TestModelService:
 
     def test_stop_model_not_running(self, model_service, mocker):
         """Test stopping model when it's not running"""
-        mocker.patch.object(
-            model_service.process_mgr,
-            'is_running',
-            return_value=False
-        )
-        mocker.patch.object(
-            model_service.process_mgr,
-            'remove_pid'
-        )
+        mocker.patch.object(model_service.process_mgr, "is_running", return_value=False)
+        mocker.patch.object(model_service.process_mgr, "remove_pid")
 
         result = model_service.stop("tdtsfm")
         assert result is True
@@ -119,70 +288,43 @@ class TestModelService:
         """Test successful model stop"""
         mocker.patch.object(
             model_service.process_mgr,
-            'is_running',
-            side_effect=[True, False]  # Running initially, then stopped
+            "is_running",
+            side_effect=[True, False],  # Running initially, then stopped
         )
-        mocker.patch.object(
-            model_service.process_mgr,
-            'read_pid',
-            return_value=5678
-        )
-        mocker.patch.object(
-            model_service.process_mgr,
-            'kill_process'
-        )
-        mocker.patch.object(
-            model_service.process_mgr,
-            'remove_pid'
-        )
+        mocker.patch.object(model_service.process_mgr, "read_pid", return_value=5678)
+        mocker.patch.object(model_service.process_mgr, "kill_process")
+        mocker.patch.object(model_service.process_mgr, "remove_pid")
 
         result = model_service.stop("tdtsfm")
         assert result is True
 
     def test_start_all_models(self, model_service, mocker):
         """Test starting all models"""
+        mocker.patch.object(model_service.process_mgr, "is_running", return_value=False)
         mocker.patch.object(
             model_service.process_mgr,
-            'is_running',
-            return_value=False
+            "_get_python_exe",
+            return_value="/usr/bin/python3",
         )
         mocker.patch.object(
-            model_service.process_mgr,
-            '_get_python_exe',
-            return_value='/usr/bin/python3'
+            model_service.process_mgr, "wait_for_service", return_value=True
         )
         mocker.patch.object(
-            model_service.process_mgr,
-            'wait_for_service',
-            return_value=True
+            model_service.process_mgr, "wait_for_tcp_port", return_value=True
         )
-        mocker.patch.object(
-            model_service.process_mgr,
-            'read_pid',
-            return_value=5678
-        )
-        mocker.patch.object(
-            model_service.process_mgr,
-            'write_pid'
-        )
-        mocker.patch('os.path.exists', return_value=True)
-        mocker.patch('subprocess.Popen')
-        mocker.patch('builtins.open', create=True)
+        mocker.patch.object(model_service.process_mgr, "read_pid", return_value=5678)
+        mocker.patch.object(model_service.process_mgr, "write_pid")
+        mocker.patch("os.path.exists", return_value=True)
+        mocker.patch("subprocess.Popen")
+        mocker.patch("builtins.open", create=True)
 
         result = model_service.start("all")
         assert result is True
 
     def test_stop_all_models(self, model_service, mocker):
         """Test stopping all models"""
-        mocker.patch.object(
-            model_service.process_mgr,
-            'is_running',
-            return_value=False
-        )
-        mocker.patch.object(
-            model_service.process_mgr,
-            'remove_pid'
-        )
+        mocker.patch.object(model_service.process_mgr, "is_running", return_value=False)
+        mocker.patch.object(model_service.process_mgr, "remove_pid")
 
         result = model_service.stop("all")
         assert result is True
@@ -191,13 +333,20 @@ class TestModelService:
         """Test getting model status"""
         mocker.patch.object(
             model_service.process_mgr,
-            'is_running',
-            side_effect=[True, False, True, False, False, False]  # Status for each model
+            "is_running",
+            side_effect=[
+                True,
+                False,
+                True,
+                False,
+                False,
+                False,
+            ],  # Status for each model
         )
         mocker.patch.object(
             model_service.process_mgr,
-            'read_pid',
-            side_effect=[1111, None, 2222, None, None, None]
+            "read_pid",
+            side_effect=[1111, None, 2222, None, None, None],
         )
 
         status = model_service.status()
@@ -212,28 +361,99 @@ class TestModelService:
         assert status[4]["port"] == 6065
         assert status[5]["port"] == 6066
 
+    def test_delete_runtime_alias_rejects_running_model(
+        self, mock_config, mocker
+    ):
+        models = mocker.patch("taosanode_service.ModelService").return_value
+        models.status.return_value = [
+            {"model": "moment", "running": True},
+        ]
+        manager = mocker.patch(
+            "taosanode_service.DynamicResourceManager"
+        ).return_value
+
+        with pytest.raises(SystemExit) as exc:
+            execute_command(
+                SimpleNamespace(command="resource-delete", target="runtime"),
+                mock_config,
+            )
+
+        assert exc.value.code == EXIT_CONFLICT
+        manager.delete_resource.assert_not_called()
+
     def test_get_model_venv(self, model_service, mock_config):
         """Test getting model virtual environment path"""
-        venv = model_service._get_model_venv("timesfm")
-        assert venv == mock_config.timesfm_venv
-
-        venv = model_service._get_model_venv("moirai")
-        assert venv == mock_config.moirai_venv
-
-        venv = model_service._get_model_venv("chronos")
-        assert venv == mock_config.chronos_venv
-
-        venv = model_service._get_model_venv("moment")
-        assert venv == mock_config.moment_venv
-
-        # Default venv for unknown models
-        venv = model_service._get_model_venv("tdtsfm")
+        venv = model_service._get_model_venv()
         assert venv == mock_config.venv_dir
 
-    def test_build_model_args(self, model_service):
-        """Test building model arguments"""
-        args = model_service._build_model_args("tdtsfm")
-        assert args == []
+        venv = model_service._get_model_venv()
+        assert venv == mock_config.venv_dir
+
+        venv = model_service._get_model_venv()
+        assert venv == mock_config.venv_dir
+
+        venv = model_service._get_model_venv()
+        assert venv == mock_config.venv_dir
+
+        # All supported model servers use the unified venv.
+        venv = model_service._get_model_venv()
+        assert venv == mock_config.venv_dir
+
+    def test_dynamic_tsfm_model_uses_shared_runtime(
+        self, model_service, mock_config, mocker
+    ):
+        model_dir = os.path.join(mock_config.tsfm_model_dir, "moirai")
+        os.makedirs(model_dir, exist_ok=True)
+        runtime_manifest = {"runtime_id": "tsfm-runtime-1.0.0"}
+        mocker.patch.object(
+            model_service,
+            "_get_dynamic_tsfm_runtime",
+            return_value=(runtime_manifest, "/shared/venv/bin/python3"),
+        )
+        validate = mocker.patch(
+            "taosanode_service.validate_tsfm_model", return_value={}
+        )
+
+        resolved = model_service._resolve_dynamic_model("moirai")
+
+        assert resolved == (model_dir, "/shared/venv/bin/python3")
+        validate.assert_called_once()
+
+    def test_dynamic_tsfm_model_skips_when_runtime_is_missing(
+        self, model_service, mock_config, mocker
+    ):
+        model_dir = os.path.join(mock_config.tsfm_model_dir, "chronos")
+        os.makedirs(model_dir, exist_ok=True)
+        mocker.patch.object(
+            model_service, "_get_dynamic_tsfm_runtime", return_value=None
+        )
+
+        assert model_service._resolve_dynamic_model("chronos") is False
+
+    def test_dynamic_model_directory_is_available(self, model_service, mock_config):
+        model_dir = os.path.join(mock_config.tsfm_model_dir, "moment")
+        os.makedirs(model_dir, exist_ok=True)
+        open(os.path.join(model_dir, "model.safetensors"), "wb").write(b"weights")
+        open(os.path.join(model_dir, "config.json"), "w", encoding="utf-8").write("{}")
+
+        assert model_service._model_directory_exists("moment") is True
+
+    def test_build_model_args(self, model_service, mock_config):
+        """tdtsfm must be told where its weights are; the others also get name/port."""
+        dynamic_dir = os.path.join(mock_config.tsfm_model_dir, "tdtsfm")
+        os.makedirs(dynamic_dir, exist_ok=True)
+        expected = [
+            "--model-folder",
+            dynamic_dir,
+            "--port",
+            str(mock_config.models["tdtsfm"]["port"]),
+        ]
+
+        # Without a caller-supplied directory the dynamic layout is what the
+        # installer creates, so that is what must be passed on.
+        assert model_service._build_model_args("tdtsfm") == expected
+        # A directory the caller already resolved wins over the default.
+        assert model_service._build_model_args("tdtsfm", dynamic_dir) == expected
 
         args = model_service._build_model_args("timemoe")
         assert "--model-folder" in args
@@ -241,7 +461,9 @@ class TestModelService:
         assert "--port" in args
 
     @pytest.mark.parametrize("model_name", ["moirai", "chronos", "timesfm", "moment"])
-    def test_build_model_args_contract_for_optional_models(self, model_service, mock_config, model_name):
+    def test_build_model_args_contract_for_optional_models(
+        self, model_service, mock_config, model_name
+    ):
         """Validate full startup arg contract for optional forecast model servers."""
         model_cfg = mock_config.models[model_name]
         expected = [
@@ -254,4 +476,3 @@ class TestModelService:
         ]
 
         assert model_service._build_model_args(model_name) == expected
-

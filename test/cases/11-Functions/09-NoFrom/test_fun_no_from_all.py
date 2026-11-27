@@ -1,6 +1,21 @@
 # -*- coding: utf-8 -*-
-from new_test_framework.utils import tdLog, tdSql, tdCom, etool
-import subprocess
+
+# Copyright (c) 2026 TAOS Data, Inc. <jhtao@taosdata.com>
+#
+# SPDX-License-Identifier: AGPL-3.0-or-later
+#
+# This program is free software: you can use, redistribute, and/or modify
+# it under the terms of the GNU Affero General Public License, version 3
+# or later ("AGPL"), as published by the Free Software Foundation.
+#
+# This program is distributed in the hope that it will be useful, but WITHOUT
+# ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+# FITNESS FOR A PARTICULAR PURPOSE.
+#
+# You should have received a copy of the GNU Affero General Public License
+# along with this program. If not, see <http://www.gnu.org/licenses/>.
+
+from new_test_framework.utils import tdLog, tdSql, etool
 
 
 class TestFunctionNoFromAll:
@@ -18,7 +33,7 @@ class TestFunctionNoFromAll:
         ("abs", "select abs(1);"),
         ("acos", "select acos(1);"),
         ("aes_decrypt", "select aes_decrypt(aes_encrypt('abc', 'key123456789012'), 'key123456789012');"),
-        ("aes_encrypt", "select aes_encrypt('abc', 'key123456789012');"),
+        ("aes_encrypt", "select to_base64(aes_encrypt('abc', 'key123456789012'));"),
         ("apercentile", "select apercentile(1, 50);"),
         ("ascii", "select ascii('a');"),
         ("asin", "select asin(1);"),
@@ -134,11 +149,6 @@ class TestFunctionNoFromAll:
         ("weekofyear", "select weekofyear('2024-01-01 00:00:00');"),
     ]
 
-    SM4_CASES = [
-        ("sm4_decrypt", "select sm4_decrypt(sm4_encrypt('abc', 'key123456789012'), 'key123456789012');"),
-        ("sm4_encrypt", "select sm4_encrypt('abc', 'key123456789012');"),
-    ]
-
     # Unsupported in query without FROM. These calls must fail.
     NEGATIVE_CASES = [
         # count(*) requires a table to resolve the '*' column; only count(1) is valid without FROM.
@@ -156,57 +166,32 @@ class TestFunctionNoFromAll:
         ("_table_count", "select _table_count;"),
     ]
 
-    def _run_by_taos_cli(self, sql):
-        taos_file = etool.taosFile()
-        cmd = [taos_file, "-c", tdCom.getClientCfgPath(), "-s", sql]
-        proc = subprocess.run(cmd, text=True, capture_output=True)
-        return proc.returncode, (proc.stdout or "") + (proc.stderr or "")
+    # SM4 is only implemented by the enterprise build and rejected by the community build,
+    # so the expected outcome is probed at run time instead of being hard-coded here.
+    SM4_CASES = [
+        ("sm4_decrypt", "select sm4_decrypt(sm4_encrypt('abc', 'key123456789012'), 'key123456789012');"),
+        ("sm4_encrypt", "select to_base64(sm4_encrypt('abc', 'key123456789012'));"),
+    ]
 
-    def _is_sql_failed(self, code, output):
-        if code != 0:
-            return True
+    def _query_sql(self, sql):
+        tdSql.sql = sql
+        try:
+            tdSql.cursor.execute(sql)
+            tdSql.queryResult = tdSql.cursor.fetchall()
+            tdSql.queryRows = len(tdSql.queryResult)
+            tdSql.queryCols = len(tdSql.cursor.description)
+            return True, f"rows={tdSql.queryRows}"
+        except Exception as err:
+            tdSql.queryResult = None
+            tdSql.queryRows = 0
+            tdSql.queryCols = 0
+            return False, repr(err)
 
-        lower = output.lower()
-        err_markers = [
-            "db error:",
-            "syntax error",
-            "invalid column name",
-            "not supported",
-            "failed",
-        ]
-        return any(marker in lower for marker in err_markers)
-
-    def test_fun_no_from_all(self):
-        """Function no-from: 
-
-        1. Execute one fixed no-from call for each function
-        2. Ensure every positive call can be executed successfully
-        3. Ensure unsupported no-from functions fail as expected
-
-        Catalog:
-            - Function
-
-        Since: v3.4.1.0
-
-        Labels: common,ci
-
-        Jira: None
-
-        History:
-            - 2026-04-02 wpan Add full no-from function tests
-
-        """
-        sm4_code, sm4_output = self._run_by_taos_cli(self.SM4_CASES[0][1])
-        sm4_supported = not self._is_sql_failed(sm4_code, sm4_output)
-        positive_cases = self.CASES + (self.SM4_CASES if sm4_supported else [])
-        negative_cases = self.NEGATIVE_CASES + ([] if sm4_supported else self.SM4_CASES)
-
+    def do_positive_no_from_calls(self, extra_cases=()):
         failed = []
-        for name, sql in positive_cases:
-            code, output = self._run_by_taos_cli(sql)
-            if self._is_sql_failed(code, output):
-                tail = output.strip().splitlines()
-                detail = tail[-1] if tail else "no output"
+        for name, sql in self.CASES + list(extra_cases):
+            success, detail = self._query_sql(sql)
+            if not success:
                 failed.append((name, sql, detail))
 
         if failed:
@@ -218,29 +203,14 @@ class TestFunctionNoFromAll:
                 f"no-from function calls failed: {len(failed)}\\n" + "\\n".join(preview)
             )
 
-        unexpected_success = []
-        wrong_rejection_reason = []
-        sm4_sql = {sql for _, sql in self.SM4_CASES}
-        for name, sql in negative_cases:
-            code, output = self._run_by_taos_cli(sql)
-            if not self._is_sql_failed(code, output):
-                tail = output.strip().splitlines()
-                detail = tail[-1] if tail else "no output"
-                unexpected_success.append((name, sql, detail))
-            elif sql in sm4_sql and "only supported in TDengine Enterprise edition" not in output:
-                tail = output.strip().splitlines()
-                detail = tail[-1] if tail else "no output"
-                wrong_rejection_reason.append((name, sql, detail))
+        print("positive no-from function calls ......................... [ passed ]")
 
-        if wrong_rejection_reason:
-            preview = []
-            for name, sql, detail in wrong_rejection_reason:
-                tdLog.error(f"sm4 rejected for the wrong reason - {name}: {sql} => {detail}")
-                preview.append(f"{name}: {sql} => {detail}")
-            tdLog.exit(
-                "sm4 functions were rejected without the enterprise-only message: "
-                f"{len(wrong_rejection_reason)}\\n" + "\\n".join(preview)
-            )
+    def do_negative_no_from_calls(self):
+        unexpected_success = []
+        for name, sql in self.NEGATIVE_CASES:
+            success, detail = self._query_sql(sql)
+            if success:
+                unexpected_success.append((name, sql, detail))
 
         if unexpected_success:
             preview = []
@@ -251,3 +221,52 @@ class TestFunctionNoFromAll:
                 "unsupported no-from functions unexpectedly succeeded: "
                 f"{len(unexpected_success)}\\n" + "\\n".join(preview)
             )
+
+        print("negative no-from function calls ......................... [ passed ]")
+
+    def do_sm4_unsupported_calls(self):
+        """The community build must reject SM4 rather than return the plaintext unchanged."""
+        err = "only supported in TDengine Enterprise edition"
+        unexpected = []
+        for name, sql in self.SM4_CASES:
+            success, detail = self._query_sql(sql)
+            if success or err not in detail:
+                unexpected.append((name, sql, detail))
+
+        if unexpected:
+            preview = []
+            for name, sql, detail in unexpected:
+                tdLog.error(f"sm4 not rejected as expected - {name}: {sql} => {detail}")
+                preview.append(f"{name}: {sql} => {detail}")
+            tdLog.exit(
+                "sm4 functions were not rejected by the community build: "
+                f"{len(unexpected)}\\n" + "\\n".join(preview)
+            )
+
+        print("sm4 community rejection ......................... [ passed ]")
+
+    def test_fun_no_from_all(self):
+        """Function no-from:
+
+        1. Execute one fixed no-from call for each function
+        2. Ensure every positive call can be executed successfully
+        3. Ensure unsupported no-from functions fail as expected
+
+        Catalog:
+            - Function
+
+        Since: v3.4.1.0
+
+        Labels: common,ci,integration,functional
+        Jira: None
+
+        History:
+            - 2026-04-02 wpan Add full no-from function tests
+            - 2026-06-18 Codex Execute SQL through tdSql instead of taos CLI
+
+        """
+        sm4_supported, _ = self._query_sql(self.SM4_CASES[0][1])
+        self.do_positive_no_from_calls(self.SM4_CASES if sm4_supported else ())
+        self.do_negative_no_from_calls()
+        if not sm4_supported:
+            self.do_sm4_unsupported_calls()

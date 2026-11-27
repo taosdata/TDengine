@@ -1,6 +1,8 @@
 /*
  * Copyright (c) 2019 TAOS Data, Inc. <jhtao@taosdata.com>
  *
+ * SPDX-License-Identifier: AGPL-3.0-or-later
+ *
  * This program is free software: you can use, redistribute, and/or modify
  * it under the terms of the GNU Affero General Public License, version 3
  * or later ("AGPL"), as published by the Free Software Foundation.
@@ -14,18 +16,24 @@
  */
 
 #include "meta.h"
+#include "tcompare.h"
+#include "tconv.h"
+#include "osString.h"
+#include "querynodes.h"
 #include "scalar.h"
 #include "tarray.h"
+#include "tdTestSeam.h"
 #include "tdatablock.h"
-#include "querynodes.h"
+#include "tdataformat.h"
 #include "thash.h"
+#include "tlogKeyOp.h"
 
 extern int32_t metaHandleEntry2(SMeta *pMeta, const SMetaEntry *pEntry);
-extern int32_t metaUpdateMetaRsp(tb_uid_t uid, char *tbName, SSchemaWrapper *pSchema, int64_t ownerId,
-                                 STableMetaRsp *pMetaRsp);
+extern int32_t metaUpdateMetaRsp(tb_uid_t uid, char *tbName, SSchemaWrapper *pSchema,
+                                 const SExtSchema *pExtSchemas, int64_t ownerId, STableMetaRsp *pMetaRsp);
 extern int32_t metaUpdateVtbMetaRsp(SMetaEntry *pEntry, char *tbName, const SSchemaWrapper *pSchema,
-                                    const SColRefWrapper *pRef, const SExtSchema *pExtSchemas, int64_t ownerId,
-                                    STableMetaRsp *pMetaRsp,
+                                    const SSchemaWrapper *pTagSchema, const SColRefWrapper *pRef,
+                                    const SExtSchema *pExtSchemas, int64_t ownerId, STableMetaRsp *pMetaRsp,
                                     int8_t tableType);
 extern int32_t metaFetchEntryByUid(SMeta *pMeta, int64_t uid, SMetaEntry **ppEntry);
 extern int32_t metaFetchEntryByName(SMeta *pMeta, const char *name, SMetaEntry **ppEntry);
@@ -33,6 +41,96 @@ extern void    metaFetchEntryFree(SMetaEntry **ppEntry);
 extern int32_t updataTableColCmpr(SColCmprWrapper *pWp, SSchema *pSchema, int8_t add, uint32_t compress);
 extern int32_t addTableExtSchema(SMetaEntry *pEntry, const SSchema *pColumn, int32_t newColNum, SExtSchema *pExtSchema);
 extern int32_t dropTableExtSchema(SMetaEntry *pEntry, int32_t dropColId, int32_t newColNum);
+
+// Validates a schema received from the wire before it is persisted: the column
+// count, the column array and every column type (SSchema.type is a raw int8 that is
+// later used to index tDataTypes[]).
+int32_t metaCheckReferenceVersion(SMeta *pMeta, const SVAlterTbReq *pReq) {
+  if (!pReq->hasExpectedRversion) return TSDB_CODE_SUCCESS;
+  SMetaEntry *pEntry = NULL;
+  int32_t code = metaFetchEntryByName(pMeta, pReq->tbName, &pEntry);
+  if (code == TSDB_CODE_SUCCESS && pEntry->colRef.version != pReq->expectedRversion) {
+    code = TSDB_CODE_VTABLE_REFERENCE_VERSION_CONFLICT;
+  }
+  metaFetchEntryFree(&pEntry);
+  return code;
+}
+
+static SColRef *metaReferenceColById(SMetaEntry *pEntry, col_id_t colId) {
+  for (int32_t i = 0; i < pEntry->colRef.nCols; ++i) {
+    if (pEntry->colRef.pColRef[i].id == colId) return &pEntry->colRef.pColRef[i];
+  }
+  for (int32_t i = 0; i < pEntry->own.nOwnCols; ++i) {
+    if (pEntry->own.pOwnColRefs[i].id == colId) return &pEntry->own.pOwnColRefs[i];
+  }
+  return NULL;
+}
+
+static int32_t metaApplyReferenceCandidate(SMetaEntry *pEntry, const SVAlterTbReq *pReq) {
+  if (pReq->hasExpectedRversion) {
+    pEntry->hasExpectedRversion = true;
+    pEntry->expectedRversion = pReq->expectedRversion;
+    SVtableReferenceExt candidate = {0};
+    TAOS_CHECK_RETURN(tCloneVtableReferenceExt(&pReq->referenceExt, &candidate));
+    for (int32_t i = 0; i < candidate.nBindings; ++i) {
+      SVtableBindingLink *pLink = &candidate.pBindings[i];
+      SColRef *pRef = NULL;
+      if (pLink->colId == 0 && pReq->action == TSDB_ALTER_TABLE_ADD_COLUMN_WITH_COLUMN_REF) {
+        if (pEntry->type == TSDB_VIRTUAL_CHILD_TABLE && pEntry->own.nOwnCols > 0) {
+          pRef = &pEntry->own.pOwnColRefs[pEntry->own.nOwnCols - 1];
+        } else if (pEntry->colRef.nCols > 0) {
+          pRef = &pEntry->colRef.pColRef[pEntry->colRef.nCols - 1];
+        }
+        if (pRef != NULL) pLink->colId = pRef->id;
+      } else {
+        pRef = metaReferenceColById(pEntry, pLink->colId);
+      }
+      if (pRef == NULL || !pRef->hasRef) {
+        memmove(pLink, pLink + 1, (candidate.nBindings - i - 1) * sizeof(*pLink));
+        --candidate.nBindings;
+        --i;
+        continue;
+      }
+      const SReferenceEntry *pReference = tVtableReferenceForColumn(&candidate, pLink->colId);
+      if (pReference != NULL) {
+        pRef->refType = 1;
+        tstrncpy(pRef->refSourceName, pReference->sourceName, sizeof(pRef->refSourceName));
+        tstrncpy(pRef->refDbName, pReference->dbName, sizeof(pRef->refDbName));
+        tstrncpy(pRef->refSchemaName, pReference->schemaName, sizeof(pRef->refSchemaName));
+        tstrncpy(pRef->refTableName, pReference->objectName, sizeof(pRef->refTableName));
+        taosMemoryFreeClear(pRef->tagCondJson);
+        pRef->tagCondLen = 0;
+      }
+    }
+    tFreeVtableReferenceExt(&pEntry->referenceExt);
+    pEntry->referenceExt = candidate;
+  }
+  return TSDB_CODE_SUCCESS;
+}
+
+static int32_t metaHandleReferenceEntry(SMeta *pMeta, SMetaEntry *pEntry, const SVAlterTbReq *pReq) {
+  TAOS_CHECK_RETURN(metaApplyReferenceCandidate(pEntry, pReq));
+  return metaHandleEntry2(pMeta, pEntry);
+}
+
+static int32_t metaCheckSchemaWrapper(const SSchemaWrapper *pSchema, bool allowEmpty) {
+  if (pSchema == NULL || pSchema->nCols < 0 || pSchema->nCols > TSDB_MAX_COLUMNS) {
+    return TSDB_CODE_INVALID_MSG;
+  }
+  if (pSchema->nCols == 0) {
+    return allowEmpty ? TSDB_CODE_SUCCESS : TSDB_CODE_INVALID_MSG;
+  }
+  if (pSchema->pSchema == NULL) {
+    return TSDB_CODE_INVALID_MSG;
+  }
+  for (int32_t i = 0; i < pSchema->nCols; i++) {
+    const SSchema *pCol = pSchema->pSchema + i;
+    if (IS_INVALID_TYPE(pCol->type) || pCol->type == TSDB_DATA_TYPE_NULL || pCol->bytes < 0) {
+      return TSDB_CODE_INVALID_MSG;
+    }
+  }
+  return TSDB_CODE_SUCCESS;
+}
 
 static int32_t metaValidateVirtualChildColRefReq(SMeta *pMeta, int64_t version, const SVCreateTbReq *pReq,
                                                  const SMetaEntry *pStbEntry) {
@@ -70,10 +168,28 @@ static int32_t metaCheckCreateSuperTableReq(SMeta *pMeta, int64_t version, SVCre
     return TSDB_CODE_INVALID_MSG;
   }
 
+  // check schemas
+  int32_t code = metaCheckSchemaWrapper(&pReq->schemaRow, false);
+  if (code == TSDB_CODE_SUCCESS) code = metaCheckSchemaWrapper(&pReq->schemaTag, true);
+  if (code) {
+    metaError("vgId:%d, %s failed at %s:%d since invalid schema of table %s, version:%" PRId64, vgId, __func__,
+              __FILE__, __LINE__, pReq->name, version);
+    return code;
+  }
+
+  // Hold metaRLock for pNameIdx B+tree read: async vacuum may concurrently
+  // take metaWLock and mutate pNameIdx. Lock released before calling metaGetInfo
+  // to avoid nested rdlock deadlock.
+  metaRLock(pMeta);
   int32_t r = tdbTbGet(pMeta->pNameIdx, pReq->name, strlen(pReq->name) + 1, &value, &valueSize);
-  if (r == 0) {  // name exists, check uid and type
-    int64_t uid = *(tb_uid_t *)value;
+  int64_t uid = 0;
+  if (r == 0) {
+    uid = *(tb_uid_t *)value;
     tdbFree(value);
+  }
+  metaULock(pMeta);
+
+  if (r == 0) {  // name exists, check uid and type
 
     if (pReq->suid != uid) {
       metaError("vgId:%d, %s failed at %s:%d since table %s uid:%" PRId64 " already exists, request uid:%" PRId64
@@ -121,8 +237,11 @@ static int32_t metaCheckDropTableReq(SMeta *pMeta, int64_t version, SVDropTbReq 
     return TSDB_CODE_INVALID_MSG;
   }
 
+  // Hold metaRLock for B+tree reads; release before metaGetInfo to avoid nested rdlock deadlock.
+  metaRLock(pMeta);
   code = tdbTbGet(pMeta->pNameIdx, pReq->name, strlen(pReq->name) + 1, &value, &valueSize);
   if (TSDB_CODE_SUCCESS != code) {
+    metaULock(pMeta);
     if (pReq->igNotExists) {
       metaTrace("vgId:%d, %s success since table %s not found, version:%" PRId64, TD_VID(pMeta->pVnode), __func__,
                 pReq->name, version);
@@ -132,9 +251,43 @@ static int32_t metaCheckDropTableReq(SMeta *pMeta, int64_t version, SVDropTbReq 
     }
     return TSDB_CODE_TDB_TABLE_NOT_EXIST;
   }
-  pReq->uid = *(tb_uid_t *)value;
+
+  tb_uid_t uidFromName = *(tb_uid_t *)value;
   tdbFreeClear(value);
 
+  // Vacuum internal (version < 0): verify pNameIdx[name] still maps to the caller's uid.
+  // A new CREATE may have already reclaimed the name after ROLLBACK. In that case, the
+  // old uid's entry is orphaned  -  we must NOT proceed or we would corrupt the new table.
+  if (version < 0 && pReq->uid != 0 && uidFromName != pReq->uid) {
+    metaULock(pMeta);
+    metaInfo("vgId:%d, %s: vacuum uid %" PRId64 " but pNameIdx[%s]=%" PRId64 " (name reclaimed), skip",
+             TD_VID(pMeta->pVnode), __func__, pReq->uid, pReq->name, uidFromName);
+    return TSDB_CODE_TDB_TABLE_NOT_EXIST;
+  }
+  pReq->uid = uidFromName;
+
+  // Batch meta txn: check if the entry is a finalized shadow that should be treated as non-existent.
+  // Skip for internal operations (version == -1, e.g., vacuum cleanup) which need to physically
+  // delete these entries.
+  // Fast path: skip expensive fetch when no txns are active.
+  if (version >= 0 && metaHasPendingTxnEntries(pMeta)) {
+    SMetaEntry *pExist = NULL;
+    if (metaFetchEntryByUid(pMeta, pReq->uid, &pExist) == 0 && pExist != NULL) {
+      if (pExist->txnId != 0) {
+        int8_t finalStatus = metaGetTxnMetaStatus(pMeta, pExist->txnId);
+        if (pExist->txnStatus == META_TXN_PRE_CREATE && finalStatus == TXN_META_ROLLEDBACK) {
+          // Rolled-back PRE_CREATE: table never existed, return NOT_EXIST
+          metaFetchEntryFree(&pExist);
+          metaULock(pMeta);
+          return TSDB_CODE_TDB_TABLE_NOT_EXIST;
+        }
+      }
+      metaFetchEntryFree(&pExist);
+    }
+  }
+  metaULock(pMeta);
+
+  // metaGetInfo locks internally  -  call without holding our lock
   code = metaGetInfo(pMeta, pReq->uid, &info, NULL);
   if (TSDB_CODE_SUCCESS != code) {
     metaError("vgId:%d, %s failed at %s:%d since table %s uid %" PRId64
@@ -160,22 +313,29 @@ static int32_t metaCheckDropSuperTableReq(SMeta *pMeta, int64_t version, SVDropS
     return TSDB_CODE_INVALID_MSG;
   }
 
+  // Hold metaRLock for pNameIdx B+tree read: async vacuum may concurrently
+  // take metaWLock and mutate pNameIdx. Released before metaGetInfo to avoid
+  // nested rdlock deadlock.
+  metaRLock(pMeta);
   code = tdbTbGet(pMeta->pNameIdx, pReq->name, strlen(pReq->name) + 1, &value, &valueSize);
   if (code) {
+    metaULock(pMeta);
     metaError("vgId:%d, %s failed at %s:%d since table %s not found, version:%" PRId64, TD_VID(pMeta->pVnode), __func__,
               __FILE__, __LINE__, pReq->name, version);
     return TSDB_CODE_TDB_STB_NOT_EXIST;
   } else {
     int64_t uid = *(int64_t *)value;
     tdbFreeClear(value);
+    metaULock(pMeta);
 
     if (uid != pReq->suid) {
-      metaError("vgId:%d, %s failed at %s:%d since table %s uid:%" PRId64 " not match, version:%" PRId64,
+      metaError("vgId:%d, %s failed at %s:%d since table %s uid:%" PRId64 " does not match, version:%" PRId64,
                 TD_VID(pMeta->pVnode), __func__, __FILE__, __LINE__, pReq->name, pReq->suid, version);
       return TSDB_CODE_TDB_STB_NOT_EXIST;
     }
   }
 
+  // metaGetInfo acquires RLock internally; call without holding our lock
   code = metaGetInfo(pMeta, pReq->suid, &info, NULL);
   if (code) {
     metaError("vgId:%d, %s failed at %s:%d since table %s uid %" PRId64
@@ -196,6 +356,9 @@ int32_t metaCreateSuperTable(SMeta *pMeta, int64_t version, SVCreateStbReq *pReq
   int32_t code = TSDB_CODE_SUCCESS;
 
   // check request
+  // NOTE: locking is done inside metaCheckCreateSuperTableReq per-operation
+  // to avoid nested rdlock deadlock with metaGetInfo's internal rdlock
+  // (writer-preference rwlock policy blocks nested readers when a writer waits).
   code = metaCheckCreateSuperTableReq(pMeta, version, pReq);
   if (code != TSDB_CODE_SUCCESS) {
     if (code == TSDB_CODE_TDB_STB_ALREADY_EXIST) {
@@ -234,10 +397,34 @@ int32_t metaCreateSuperTable(SMeta *pMeta, int64_t version, SVCreateStbReq *pReq
     TABLE_SET_VIRTUAL(entry.flags);
   }
 
+  // VST inheritance (BASE ON): persist parent names + own-column/tag boundaries so the
+  // TMQ snapshot path can reconstruct a replayable BASE ON clause (the incremental WAL
+  // path carries these in the CREATE_STB message; the snapshot path has only this entry).
+  entry.stbEntry.numParents = pReq->numParents;
+  entry.stbEntry.ownColStart = pReq->ownColStart;
+  entry.stbEntry.ownTagStart = pReq->ownTagStart;
+  if (pReq->numParents > 0 && pReq->numParents <= TSDB_MAX_VST_PARENTS) {
+    memcpy(entry.stbEntry.parentStbFNames, pReq->parentStbFNames,
+           sizeof(char) * pReq->numParents * TSDB_TABLE_FNAME_LEN);
+  }
+  // batch-meta-txn: mark STB as PRE_CREATE (invisible to other sessions)
+  if (pReq->txnId != 0) {
+    entry.txnId = pReq->txnId;
+    entry.txnStatus = META_TXN_PRE_CREATE;
+  }
+
   code = metaHandleEntry2(pMeta, &entry);
   if (TSDB_CODE_SUCCESS == code) {
-    metaInfo("vgId:%d, super table %s suid:%" PRId64 " is created, version:%" PRId64, TD_VID(pMeta->pVnode), pReq->name,
-             pReq->suid, version);
+    metaInfo("vgId:%d, super table %s suid:%" PRId64 " is created, version:%" PRId64 " txnId:%" PRIu64,
+             TD_VID(pMeta->pVnode), pReq->name, pReq->suid, version, pReq->txnId);
+    // batch-meta-txn: add to txn.idx for COMMIT/ROLLBACK handling
+    if (pReq->txnId != 0) {
+      code = metaTxnIdxUpsert(pMeta, pReq->suid, pReq->txnId, META_TXN_PRE_CREATE, 0);
+      if (code != TSDB_CODE_SUCCESS) {
+        metaError("vgId:%d, failed to upsert txn.idx for stb:%s uid:%" PRId64 " since %s", TD_VID(pMeta->pVnode),
+                  pReq->name, pReq->suid, tstrerror(code));
+      }
+    }
   } else {
     metaError("vgId:%d, failed to create stb:%s uid:%" PRId64 " since %s", TD_VID(pMeta->pVnode), pReq->name,
               pReq->suid, tstrerror(code));
@@ -255,6 +442,92 @@ int32_t metaDropSuperTable(SMeta *pMeta, int64_t verison, SVDropStbReq *pReq) {
     TAOS_RETURN(code);
   }
 
+  // batch-meta-txn: handle DROP within transaction
+  if (pReq->txnId != 0) {
+    SMetaEntry *pExist = NULL;
+    metaRLock(pMeta);
+    int32_t     fetchCode = metaFetchEntryByUid(pMeta, pReq->suid, &pExist);
+    metaULock(pMeta);
+    if (fetchCode == 0 && pExist != NULL && pExist->txnId == pReq->txnId) {
+      if (pExist->txnStatus == META_TXN_PRE_ALTER) {
+        // Same-txn ALTER -> DROP: undo ALTER first, then check restored state
+        int64_t prevVer = pExist->txnOrigVer;
+        metaFetchEntryFree(&pExist);
+        if (prevVer >= 0) {
+          code = metaRollbackAlterTable(pMeta, pReq->suid, prevVer);
+          if (code != 0) {
+            metaError("vgId:%d, %s failed to undo ALTER for stb uid:%" PRId64 " name:%s txnId:%" PRIu64,
+                      TD_VID(pMeta->pVnode), __func__, pReq->suid, pReq->name, pReq->txnId);
+            TAOS_RETURN(code);
+          }
+          metaRLock(pMeta);
+          fetchCode = metaFetchEntryByUid(pMeta, pReq->suid, &pExist);
+          metaULock(pMeta);
+          if (fetchCode == 0 && pExist != NULL && pExist->txnId == pReq->txnId &&
+              pExist->txnStatus == META_TXN_PRE_CREATE) {
+            // Fall through to PRE_CREATE undo below
+          } else {
+            metaFetchEntryFree(&pExist);
+            goto _stb_mark_pre_drop;
+          }
+        } else {
+          goto _stb_mark_pre_drop;
+        }
+      }
+
+      if (pExist != NULL && pExist->txnStatus == META_TXN_PRE_CREATE) {
+        // Same-txn CREATE -> DROP: undo by physically deleting STB
+        metaFetchEntryFree(&pExist);
+        SMetaEntry delEntry = {
+            .version = verison,
+            .type = -TSDB_SUPER_TABLE,
+            .uid = pReq->suid,
+        };
+        code = metaHandleEntry2(pMeta, &delEntry);
+        if (code == 0) {
+          int32_t idxCode = metaTxnIdxDelete(pMeta, pReq->suid);
+          if (idxCode != 0) {
+            metaError("vgId:%d, %s failed to cleanup txn.idx for stb uid:%" PRId64 " txnId:%" PRIu64 " code:0x%x",
+                      TD_VID(pMeta->pVnode), __func__, pReq->suid, pReq->txnId, idxCode);
+            if (idxCode != TSDB_CODE_TXN_NOT_EXIST) {
+              TAOS_RETURN(idxCode);
+            }
+          }
+          metaInfo("vgId:%d, stb %s uid %" PRId64 " PRE_CREATE undone (same-txn DROP), txnId:%" PRIu64,
+                   TD_VID(pMeta->pVnode), pReq->name, pReq->suid, pReq->txnId);
+        } else {
+          metaError("vgId:%d, %s failed to undo PRE_CREATE for stb uid:%" PRId64 " name:%s txnId:%" PRIu64,
+                    TD_VID(pMeta->pVnode), __func__, pReq->suid, pReq->name, pReq->txnId);
+        }
+        TAOS_RETURN(code);
+      }
+      metaFetchEntryFree(&pExist);
+    } else {
+      metaFetchEntryFree(&pExist);
+    }
+
+  _stb_mark_pre_drop:
+    // Normal txn DROP: mark as PRE_DROP (snapshot isolation  -  STB remains visible)
+    code = metaMarkTableTxnStatus(pMeta, pReq->suid, pReq->txnId, META_TXN_PRE_DROP, -1);
+    if (code) {
+      metaError("vgId:%d, %s failed to mark PRE_DROP for stb uid:%" PRId64 " name:%s txnId:%" PRIu64,
+                TD_VID(pMeta->pVnode), __func__, pReq->suid, pReq->name, pReq->txnId);
+    } else {
+      int32_t idxCode = metaTxnIdxUpsert(pMeta, pReq->suid, pReq->txnId, META_TXN_PRE_DROP, -1);
+      if (idxCode != 0) {
+        metaError("vgId:%d, %s failed to upsert txn.idx for stb uid:%" PRId64 " txnId:%" PRIu64 " code:0x%x",
+                  TD_VID(pMeta->pVnode), __func__, pReq->suid, pReq->txnId, idxCode);
+        if (idxCode != TSDB_CODE_TXN_NOT_EXIST) {
+          TAOS_RETURN(idxCode);
+        }
+      }
+      metaInfo("vgId:%d, stb %s uid %" PRId64 " marked PRE_DROP, txnId:%" PRIu64, TD_VID(pMeta->pVnode), pReq->name,
+               pReq->suid, pReq->txnId);
+    }
+    TAOS_RETURN(code);
+  }
+
+  // Non-txn path: physical drop
   // handle entry
   SMetaEntry entry = {
       .version = verison,
@@ -276,10 +549,11 @@ int32_t metaDropSuperTable(SMeta *pMeta, int64_t verison, SVDropStbReq *pReq) {
 
 // Create Child Table
 static int32_t metaCheckCreateChildTableReq(SMeta *pMeta, int64_t version, SVCreateTbReq *pReq) {
-  int32_t   code = TSDB_CODE_SUCCESS;
-  void     *value = NULL;
-  int32_t   valueSize = 0;
-  SMetaInfo info;
+  int32_t     code = TSDB_CODE_SUCCESS;
+  void       *value = NULL;
+  int32_t     valueSize = 0;
+  SMetaInfo   info;
+  SMetaEntry *pStbEntry = NULL;
 
   if (NULL == pReq->name || strlen(pReq->name) == 0 || NULL == pReq->ctb.stbName || strlen(pReq->ctb.stbName) == 0 ||
       pReq->ctb.suid == 0) {
@@ -289,10 +563,17 @@ static int32_t metaCheckCreateChildTableReq(SMeta *pMeta, int64_t version, SVCre
   }
 
   // check table existence
-  if (tdbTbGet(pMeta->pNameIdx, pReq->name, strlen(pReq->name) + 1, &value, &valueSize) == 0) {
+  // Hold metaRLock only for pNameIdx B+tree read; release before metaGetInfo
+  // to avoid nested rdlock deadlock (writer-preference policy).
+  metaRLock(pMeta);
+  int32_t nameFound = (tdbTbGet(pMeta->pNameIdx, pReq->name, strlen(pReq->name) + 1, &value, &valueSize) == 0);
+  if (nameFound) {
     pReq->uid = *(int64_t *)value;
     tdbFreeClear(value);
+  }
+  metaULock(pMeta);
 
+  if (nameFound) {
     if (metaGetInfo(pMeta, pReq->uid, &info, NULL) != 0) {
       metaError("vgId:%d, %s failed at %s:%d since cannot find table with uid %" PRId64
                 ", which is an internal error, version:%" PRId64,
@@ -316,15 +597,61 @@ static int32_t metaCheckCreateChildTableReq(SMeta *pMeta, int64_t version, SVCre
       return TSDB_CODE_TDB_TABLE_IN_OTHER_STABLE;
     }
 
+    // Batch meta txn: if existing entry is a PRE_CREATE shadow from another txn,
+    // return TXN_CONFLICT instead of TABLE_ALREADY_EXIST
+    // Also: if the owning txn is ROLLEDBACK, treat entry as non-existent (allow CREATE)
+    // Also: if the entry is PRE_DROP+COMMITTED, table is logically gone (allow CREATE)
+    // Fast path: skip expensive fetch when no txns are active.
+    if (metaHasPendingTxnEntries(pMeta)) {
+      SMetaEntry *pExist = NULL;
+      metaRLock(pMeta);
+      int32_t fetchRet = metaFetchEntryByUid(pMeta, pReq->uid, &pExist);
+      metaULock(pMeta);
+      if (fetchRet == 0 && pExist != NULL) {
+        if (pExist->txnId != 0) {
+          int8_t finalStatus = metaGetTxnMetaStatus(pMeta, pExist->txnId);
+          if (pExist->txnStatus == META_TXN_PRE_CREATE && finalStatus == TXN_META_ROLLEDBACK) {
+            // Rolled-back PRE_CREATE: treat as non-existent (vacuum will clean up)
+            metaFetchEntryFree(&pExist);
+            goto _check_stb;
+          }
+          if (pExist->txnStatus == META_TXN_PRE_DROP && finalStatus == TXN_META_COMMITTED) {
+            // Committed PRE_DROP: table is logically deleted (vacuum will clean up), allow CREATE
+            metaFetchEntryFree(&pExist);
+            goto _check_stb;
+          }
+          if (pExist->txnStatus == META_TXN_PRE_CREATE && pExist->txnId != pReq->txnId) {
+            metaFetchEntryFree(&pExist);
+            return TSDB_CODE_TXN_RESOURCE_BUSY;
+          }
+          // batch-meta-txn: this txn dropped the table and has not finished yet, so the
+          // entry and its name.idx key are held until COMMIT (other sessions must still
+          // see the table, and ROLLBACK must be able to restore it). Say so, instead of
+          // reporting a name clash (FS 5). A table this txn CREATEd and then dropped is
+          // physically removed at drop time, so it never reaches this branch and can be
+          // recreated freely.
+          if ((pExist->txnStatus == META_TXN_PRE_DROP || pExist->txnStatus == META_TXN_PRE_CREATE_DROP) &&
+              pReq->txnId != 0 && pExist->txnId == pReq->txnId) {
+            metaFetchEntryFree(&pExist);
+            return TSDB_CODE_TXN_RECREATE_NOT_SUPPORTED;
+          }
+        }
+        metaFetchEntryFree(&pExist);
+      }
+    }
+
     return TSDB_CODE_TDB_TABLE_ALREADY_EXIST;
   }
 
-  // check super table existence
-  SMetaEntry *pStbEntry = NULL;
-  code = metaFetchEntryByName(pMeta, pReq->ctb.stbName, &pStbEntry);
+_check_stb:
+  // check super table existence  -  use UID-based lookup (cheaper than name -> UID -> entry chain)
+  // metaRLock guards metaFetchEntryByUid's tdb reads.
+  metaRLock(pMeta);
+  code = metaFetchEntryByUid(pMeta, pReq->ctb.suid, &pStbEntry);
+  metaULock(pMeta);
   if (code) {
-    metaError("vgId:%d, %s failed at %s:%d since super table %s does not exist, version:%" PRId64,
-              TD_VID(pMeta->pVnode), __func__, __FILE__, __LINE__, pReq->ctb.stbName, version);
+    metaError("vgId:%d, %s failed at %s:%d since super table %s (suid %" PRId64 ") does not exist, version:%" PRId64,
+              TD_VID(pMeta->pVnode), __func__, __FILE__, __LINE__, pReq->ctb.stbName, pReq->ctb.suid, version);
     return TSDB_CODE_PAR_TABLE_NOT_EXIST;
   }
 
@@ -333,15 +660,6 @@ static int32_t metaCheckCreateChildTableReq(SMeta *pMeta, int64_t version, SVCre
               TD_VID(pMeta->pVnode), __func__, __FILE__, __LINE__, pReq->ctb.stbName, version);
     metaFetchEntryFree(&pStbEntry);
     return TSDB_CODE_INVALID_MSG;
-  }
-
-  if (pStbEntry->uid != pReq->ctb.suid) {
-    metaError("vgId:%d, %s failed at %s:%d since super table %s uid %" PRId64 " does not match request uid %" PRId64
-              ", version:%" PRId64,
-              TD_VID(pMeta->pVnode), __func__, __FILE__, __LINE__, pReq->ctb.stbName, pStbEntry->uid, pReq->ctb.suid,
-              version);
-    metaFetchEntryFree(&pStbEntry);
-    return TSDB_CODE_PAR_TABLE_NOT_EXIST;
   }
 
   // Check tag value
@@ -375,7 +693,7 @@ static int32_t metaCheckCreateChildTableReq(SMeta *pMeta, int64_t version, SVCre
   metaFetchEntryFree(&pStbEntry);
 
   // check grant
-  if (!metaTbInFilterCache(pMeta, pReq->ctb.stbName, 1)) {
+  if (!vnodeIsTimeSeriesExcluded(pMeta->pVnode)) {
     code = grantCheck(TSDB_GRANT_TIMESERIES);
     if (TSDB_CODE_SUCCESS != code) {
       metaError("vgId:%d, %s failed at %s:%d since %s, version:%" PRId64 " name:%s", TD_VID(pMeta->pVnode), __func__,
@@ -393,7 +711,7 @@ static int32_t metaBuildCreateChildTableRsp(SMeta *pMeta, const SMetaEntry *pEnt
   }
 
   *ppRsp = taosMemoryCalloc(1, sizeof(STableMetaRsp));
-  if (NULL == ppRsp) {
+  if (NULL == *ppRsp) {
     return terrno;
   }
 
@@ -409,6 +727,8 @@ static int32_t metaCreateChildTable(SMeta *pMeta, int64_t version, SVCreateTbReq
   int32_t code = TSDB_CODE_SUCCESS;
 
   // check request
+  // NOTE: locking is done inside metaCheckCreateChildTableReq per-operation
+  // to avoid nested rdlock deadlock with metaGetInfo's internal rdlock.
   code = metaCheckCreateChildTableReq(pMeta, version, pReq);
   if (code) {
     if (TSDB_CODE_TDB_TABLE_ALREADY_EXIST != code) {
@@ -430,12 +750,20 @@ static int32_t metaCreateChildTable(SMeta *pMeta, int64_t version, SVCreateTbReq
       .ctbEntry.suid = pReq->ctb.suid,
       .ctbEntry.pTags = pReq->ctb.pTag,
   };
+  // Batch meta txn: shadow-in-B+tree  -  write with PRE_CREATE status, invisible until COMMIT
+  if (pReq->txnId != 0) {
+    entry.txnId = pReq->txnId;
+    entry.txnStatus = META_TXN_PRE_CREATE;
+  }
 
   // build response
   code = metaBuildCreateChildTableRsp(pMeta, &entry, ppRsp);
   if (code) {
     metaError("vgId:%d, %s failed at %s:%d since %s", TD_VID(pMeta->pVnode), __func__, __FILE__, __LINE__,
               tstrerror(code));
+  }
+  if (ppRsp && *ppRsp) {
+    tstrncpy((*ppRsp)->stbName, pReq->ctb.stbName, TSDB_TABLE_NAME_LEN);
   }
 
   // handle entry
@@ -467,14 +795,68 @@ static int32_t metaCheckCreateNormalTableReq(SMeta *pMeta, int64_t version, SVCr
     return TSDB_CODE_INVALID_MSG;
   }
 
+  // check schemas; the column compression entries are written per schema column
+  // when the response is built, so they must not outnumber the columns
+  code = metaCheckSchemaWrapper(&pReq->ntb.schemaRow, false);
+  if (code == TSDB_CODE_SUCCESS) code = metaCheckSchemaWrapper(&pReq->ntb.schemaTag, true);
+  if (code == TSDB_CODE_SUCCESS && (pReq->colCmpr.nCols < 0 || pReq->colCmpr.nCols > pReq->ntb.schemaRow.nCols ||
+                                    (pReq->colCmpr.nCols > 0 && pReq->colCmpr.pColCmpr == NULL))) {
+    code = TSDB_CODE_INVALID_MSG;
+  }
+  if (code) {
+    metaError("vgId:%d, %s failed at %s:%d since invalid schema of table %s, version:%" PRId64, TD_VID(pMeta->pVnode),
+              __func__, __FILE__, __LINE__, pReq->name, version);
+    return code;
+  }
+
   // check name
   if (tdbTbGet(pMeta->pNameIdx, pReq->name, strlen(pReq->name) + 1, &value, &valueSize) == 0) {
     // for auto create table, we return the uid of the existing table
     pReq->uid = *(tb_uid_t *)value;
     tdbFree(value);
+
+    // Batch meta txn: if existing entry is a PRE_CREATE shadow from another txn,
+    // return TXN_CONFLICT instead of TABLE_ALREADY_EXIST
+    // Also: if the owning txn is ROLLEDBACK, treat entry as non-existent (allow CREATE)
+    // Also: if the entry is PRE_DROP+COMMITTED, table is logically gone (allow CREATE)
+    // Fast path: skip expensive fetch when no txns are active.
+    if (metaHasPendingTxnEntries(pMeta)) {
+      SMetaEntry *pExist = NULL;
+      if (metaFetchEntryByUid(pMeta, pReq->uid, &pExist) == 0 && pExist != NULL) {
+        if (pExist->txnId != 0) {
+          int8_t finalStatus = metaGetTxnMetaStatus(pMeta, pExist->txnId);
+          if (pExist->txnStatus == META_TXN_PRE_CREATE && finalStatus == TXN_META_ROLLEDBACK) {
+            metaFetchEntryFree(&pExist);
+            goto _grant;
+          }
+          if (pExist->txnStatus == META_TXN_PRE_DROP && finalStatus == TXN_META_COMMITTED) {
+            metaFetchEntryFree(&pExist);
+            goto _grant;
+          }
+          if (pExist->txnStatus == META_TXN_PRE_CREATE && pExist->txnId != pReq->txnId) {
+            metaFetchEntryFree(&pExist);
+            return TSDB_CODE_TXN_RESOURCE_BUSY;
+          }
+          // batch-meta-txn: this txn dropped the table and has not finished yet, so the
+          // entry and its name.idx key are held until COMMIT (other sessions must still
+          // see the table, and ROLLBACK must be able to restore it). Say so, instead of
+          // reporting a name clash (FS 5). A table this txn CREATEd and then dropped is
+          // physically removed at drop time, so it never reaches this branch and can be
+          // recreated freely.
+          if ((pExist->txnStatus == META_TXN_PRE_DROP || pExist->txnStatus == META_TXN_PRE_CREATE_DROP) &&
+              pReq->txnId != 0 && pExist->txnId == pReq->txnId) {
+            metaFetchEntryFree(&pExist);
+            return TSDB_CODE_TXN_RECREATE_NOT_SUPPORTED;
+          }
+        }
+        metaFetchEntryFree(&pExist);
+      }
+    }
+
     return TSDB_CODE_TDB_TABLE_ALREADY_EXIST;
   }
 
+_grant:
   // grant check
   code = grantCheck(TSDB_GRANT_TIMESERIES);
   if (code) {
@@ -483,6 +865,8 @@ static int32_t metaCheckCreateNormalTableReq(SMeta *pMeta, int64_t version, SVCr
   }
   return code;
 }
+
+static int32_t metaAppendNtbTagSchemaToRsp(SMetaEntry *pEntry, STableMetaRsp *pRsp);
 
 static int32_t metaBuildCreateNormalTableRsp(SMeta *pMeta, SMetaEntry *pEntry, STableMetaRsp **ppRsp) {
   int32_t code = TSDB_CODE_SUCCESS;
@@ -496,7 +880,8 @@ static int32_t metaBuildCreateNormalTableRsp(SMeta *pMeta, SMetaEntry *pEntry, S
     return terrno;
   }
 
-  code = metaUpdateMetaRsp(pEntry->uid, pEntry->name, &pEntry->ntbEntry.schemaRow, pEntry->ntbEntry.ownerId, *ppRsp);
+  code = metaUpdateMetaRsp(pEntry->uid, pEntry->name, &pEntry->ntbEntry.schemaRow, pEntry->pExtSchemas,
+                           pEntry->ntbEntry.ownerId, *ppRsp);
   if (code) {
     taosMemoryFreeClear(*ppRsp);
     return code;
@@ -511,14 +896,49 @@ static int32_t metaBuildCreateNormalTableRsp(SMeta *pMeta, SMetaEntry *pEntry, S
     }
   }
 
+  // owned tags (CREATE TABLE ... TAGS on a plain normal table): append the tag schema so the
+  // client catalog does not cache a tag-less meta  -  same fix as the virtual-normal-table path.
+  code = metaAppendNtbTagSchemaToRsp(pEntry, *ppRsp);
+  if (code) {
+    // pSchemas/pSchemaExt are already populated by metaUpdateMetaRsp above  -  deep-free them
+    // (mirrors metaBuildCreateVirtualNormalTableRsp), else the shallow free leaks both buffers.
+    tFreeSTableMetaRsp(*ppRsp);
+    taosMemoryFreeClear(*ppRsp);
+    return code;
+  }
+
   return code;
+}
+
+// ncid is the shared counter for both columns and tags (metaAddTableTag bumps it).
+// When tags are declared at create time, ncid must continue past the last tag cid,
+// otherwise a subsequent ADD TAG would reuse an already-assigned tag cid.
+// ncid is int32_t in SMetaEntry; keep nextCid int32_t too. With 32767 columns the next
+// cid is 32768, which overflows int16_t to a negative value and would silently bypass the
+// INT16_MAX upper-bound checks in metaAddTableColumn/metaAddTableTag.
+// schemaRow.nCols >= 1 is guaranteed by the parser in the normal path; reject a malformed
+// request with an empty column schema instead of indexing pSchema[-1].
+static int32_t metaNtbNextCid(const SVCreateTbReq *pReq, int32_t *pNextCid) {
+  if (pReq->ntb.schemaRow.nCols <= 0 || pReq->ntb.schemaRow.pSchema == NULL) {
+    return TSDB_CODE_INVALID_MSG;
+  }
+  int32_t nextCid = pReq->ntb.schemaRow.pSchema[pReq->ntb.schemaRow.nCols - 1].colId + 1;
+  if (pReq->ntb.schemaTag.nCols > 0 && pReq->ntb.schemaTag.pSchema != NULL) {
+    int32_t lastTagCid = pReq->ntb.schemaTag.pSchema[pReq->ntb.schemaTag.nCols - 1].colId + 1;
+    if (lastTagCid > nextCid) nextCid = lastTagCid;
+  }
+  *pNextCid = nextCid;
+  return TSDB_CODE_SUCCESS;
 }
 
 static int32_t metaCreateNormalTable(SMeta *pMeta, int64_t version, SVCreateTbReq *pReq, STableMetaRsp **ppRsp) {
   int32_t code = TSDB_CODE_SUCCESS;
 
   // check request
+  // metaRLock guards tdb reads against concurrent vacuum mutations under metaWLock.
+  metaRLock(pMeta);
   code = metaCheckCreateNormalTableReq(pMeta, version, pReq);
+  metaULock(pMeta);
   if (code) {
     if (TSDB_CODE_TDB_TABLE_ALREADY_EXIST != code) {
       metaError("vgId:%d, %s failed at %s:%d since %s, version:%" PRId64 " name:%s", TD_VID(pMeta->pVnode), __func__,
@@ -537,7 +957,7 @@ static int32_t metaCreateNormalTable(SMeta *pMeta, int64_t version, SVCreateTbRe
                   TD_VID(pMeta->pVnode), __func__, __FILE__, __LINE__, i, pCmpr->id, pSchema->colId, version);
         TAOS_RETURN(TSDB_CODE_INVALID_MSG);
       }
-      code = validColCmprByType(pSchema->type, pCmpr->alg);
+      code = validAndNormalizeColCmprByType(pSchema->type, &pCmpr->alg);
       if (code != TSDB_CODE_SUCCESS) {
         metaError("vgId:%d, %s failed at %s:%d since %s, col:%s version:%" PRId64,
                   TD_VID(pMeta->pVnode), __func__, __FILE__, __LINE__,
@@ -545,6 +965,14 @@ static int32_t metaCreateNormalTable(SMeta *pMeta, int64_t version, SVCreateTbRe
         TAOS_RETURN(code);
       }
     }
+  }
+
+  int32_t nextCid = 0;
+  code = metaNtbNextCid(pReq, &nextCid);
+  if (code) {
+    metaError("vgId:%d, %s failed at %s:%d since %s, version:%" PRId64 " name:%s", TD_VID(pMeta->pVnode), __func__,
+              __FILE__, __LINE__, tstrerror(code), version, pReq->name);
+    TAOS_RETURN(code);
   }
 
   SMetaEntry entry = {
@@ -557,18 +985,26 @@ static int32_t metaCreateNormalTable(SMeta *pMeta, int64_t version, SVCreateTbRe
       .ntbEntry.commentLen = pReq->commentLen,
       .ntbEntry.comment = pReq->comment,
       .ntbEntry.schemaRow = pReq->ntb.schemaRow,
-      .ntbEntry.ncid = pReq->ntb.schemaRow.pSchema[pReq->ntb.schemaRow.nCols - 1].colId + 1,
+      .ntbEntry.schemaTag = pReq->ntb.schemaTag,
+      .ntbEntry.pTags = pReq->ntb.pTags,
+      .ntbEntry.ncid = nextCid,
       .ntbEntry.ownerId = pReq->ntb.userId,
       .colCmpr = pReq->colCmpr,
       .pExtSchemas = pReq->pExtSchemas,
   };
   TABLE_SET_COL_COMPRESSED(entry.flags);
+  // Batch meta txn: shadow-in-B+tree  -  write with PRE_CREATE status, invisible until COMMIT
+  if (pReq->txnId != 0) {
+    entry.txnId = pReq->txnId;
+    entry.txnStatus = META_TXN_PRE_CREATE;
+  }
 
   // build response
   code = metaBuildCreateNormalTableRsp(pMeta, &entry, ppRsp);
   if (code) {
     metaError("vgId:%d, %s failed at %s:%d since %s", TD_VID(pMeta->pVnode), __func__, __FILE__, __LINE__,
               tstrerror(code));
+    TAOS_RETURN(code);
   }
 
   // handle entry
@@ -583,36 +1019,97 @@ static int32_t metaCreateNormalTable(SMeta *pMeta, int64_t version, SVCreateTbRe
   TAOS_RETURN(code);
 }
 
-static int32_t metaBuildCreateVirtualNormalTableRsp(SMeta *pMeta, SMetaEntry *pEntry, STableMetaRsp **ppRsp) {
-  int32_t code = TSDB_CODE_SUCCESS;
-
-  if (NULL == ppRsp) {
-    return code;
+// Append the owned-tag schema to a meta response (columns first, tags right after them), so the
+// client catalog caches a complete meta. A tag-less response lets the client catalog cache stale
+// meta, so same-connection tag reads (WHERE <tag> / DROP TAG) fail with Invalid column/tag name
+// until a fresh RPC refreshes it. Also stamps tversion so every response path (create and alter
+// alike) reports the same tag schema version vnodeGetTableMeta would.
+//
+// Only pSchemas grows here: pSchemaExt and pColRefs stay sized to numOfColumns, because
+// tEncodeSTableMetaRsp walks pSchemas for numOfColumns + numOfTags entries but both of those arrays
+// for numOfColumns only. Do not index either of them past numOfColumns after calling this.
+// (metaUpdateVtbMetaRsp differs for a virtual CHILD table: there the tag region is part of the one
+// pSchemas block it allocates itself, and this function is not used on that path.)
+static int32_t metaAppendNtbTagSchemaToRsp(SMetaEntry *pEntry, STableMetaRsp *pRsp) {
+  if (pEntry->ntbEntry.schemaTag.nCols > 0 && pEntry->ntbEntry.schemaTag.pSchema != NULL) {
+    int32_t nCols = pRsp->numOfColumns;
+    int32_t nTags = pEntry->ntbEntry.schemaTag.nCols;
+    SSchema *pNew = taosMemoryRealloc(pRsp->pSchemas, (nCols + nTags) * sizeof(SSchema));
+    if (NULL == pNew) return terrno;
+    pRsp->pSchemas = pNew;
+    memcpy(pRsp->pSchemas + nCols, pEntry->ntbEntry.schemaTag.pSchema, nTags * sizeof(SSchema));
+    pRsp->numOfTags = nTags;
+    pRsp->tversion = pEntry->ntbEntry.schemaTag.version;
   }
+  return TSDB_CODE_SUCCESS;
+}
+
+// Fill pRsp with a complete normal/virtual-normal-table meta: columns + colRef + owned-tag schema.
+// Shared by create / alter-add-tag / alter-drop-tag responses.
+static int32_t metaFillNtbTableMetaRsp(SMetaEntry *pEntry, const char *tbName, STableMetaRsp *pRsp) {
+  int32_t code = metaUpdateVtbMetaRsp(pEntry, (char *)tbName, &pEntry->ntbEntry.schemaRow, NULL, &pEntry->colRef,
+                                      pEntry->pExtSchemas, pEntry->ntbEntry.ownerId, pRsp, pEntry->type);
+  if (code) return code;
+  // tversion must track the owned-tag schema version. Without it an ADD/DROP TAG response carries
+  // tversion=0 with unchanged sversion/rversion (plain normal tables bump neither), so the client
+  // catalog's version comparison (ctgWriteTbMetaToCache) discards the update as stale and the
+  // connection keeps a tagless/tagged-outdated cached meta. Mirrors vnodeGetTableMeta, which
+  // already reports schemaTag.version as tversion.
+  pRsp->tversion = pEntry->ntbEntry.schemaTag.version;
+  // plain normal tables carry column compress options in colCmpr (mirrors the metaUpdateMetaRsp
+  // response paths, e.g. metaAddTableColumn); metaFillRspSchemaExt only fills colId/typeMod.
+  if (pEntry->type == TSDB_NORMAL_TABLE) {
+    for (int32_t i = 0; i < pEntry->colCmpr.nCols && i < pEntry->ntbEntry.schemaRow.nCols; i++) {
+      SColCmpr *p = &pEntry->colCmpr.pColCmpr[i];
+      pRsp->pSchemaExt[i].colId = p->id;
+      pRsp->pSchemaExt[i].compress = p->alg;
+    }
+  }
+  return metaAppendNtbTagSchemaToRsp(pEntry, pRsp);
+}
+
+static int32_t metaBuildCreateVirtualNormalTableRsp(SMeta *pMeta, SMetaEntry *pEntry, STableMetaRsp **ppRsp) {
+  if (NULL == ppRsp) return TSDB_CODE_SUCCESS;
 
   *ppRsp = taosMemoryCalloc(1, sizeof(STableMetaRsp));
-  if (NULL == *ppRsp) {
-    return terrno;
-  }
+  if (NULL == *ppRsp) return terrno;
 
-  code = metaUpdateVtbMetaRsp(pEntry, pEntry->name, &pEntry->ntbEntry.schemaRow, &pEntry->colRef, pEntry->pExtSchemas,
-                              pEntry->ntbEntry.ownerId, *ppRsp, TSDB_VIRTUAL_NORMAL_TABLE);
+  int32_t code = metaFillNtbTableMetaRsp(pEntry, pEntry->name, *ppRsp);
   if (code) {
+    tFreeSTableMetaRsp(*ppRsp);
     taosMemoryFreeClear(*ppRsp);
-    return code;
   }
-
   return code;
 }
 
 static int32_t metaCreateVirtualNormalTable(SMeta *pMeta, int64_t version, SVCreateTbReq *pReq, STableMetaRsp **ppRsp) {
   // check request
+  // metaRLock guards tdb reads against concurrent vacuum mutations under metaWLock.
+  metaRLock(pMeta);
   int32_t code = metaCheckCreateNormalTableReq(pMeta, version, pReq);
+  metaULock(pMeta);
   if (code) {
     if (TSDB_CODE_TDB_TABLE_ALREADY_EXIST != code) {
       metaError("vgId:%d, %s failed at %s:%d since %s, version:%" PRId64 " name:%s", TD_VID(pMeta->pVnode), __func__,
                 __FILE__, __LINE__, tstrerror(code), version, pReq->name);
     }
+    TAOS_RETURN(code);
+  }
+
+  // every column of a virtual normal table needs exactly one column reference slot
+  if (pReq->colRef.nCols != pReq->ntb.schemaRow.nCols || (pReq->colRef.nCols > 0 && pReq->colRef.pColRef == NULL)) {
+    metaError("vgId:%d, %s failed at %s:%d since col ref count %d does not match schema count %d, version:%" PRId64
+              " name:%s",
+              TD_VID(pMeta->pVnode), __func__, __FILE__, __LINE__, pReq->colRef.nCols, pReq->ntb.schemaRow.nCols,
+              version, pReq->name);
+    TAOS_RETURN(TSDB_CODE_INVALID_MSG);
+  }
+
+  int32_t nextCid = 0;
+  code = metaNtbNextCid(pReq, &nextCid);
+  if (code) {
+    metaError("vgId:%d, %s failed at %s:%d since %s, version:%" PRId64 " name:%s", TD_VID(pMeta->pVnode), __func__,
+              __FILE__, __LINE__, tstrerror(code), version, pReq->name);
     TAOS_RETURN(code);
   }
 
@@ -625,10 +1122,19 @@ static int32_t metaCreateVirtualNormalTable(SMeta *pMeta, int64_t version, SVCre
                       .ntbEntry.commentLen = pReq->commentLen,
                       .ntbEntry.comment = pReq->comment,
                       .ntbEntry.schemaRow = pReq->ntb.schemaRow,
-                      .ntbEntry.ncid = pReq->ntb.schemaRow.pSchema[pReq->ntb.schemaRow.nCols - 1].colId + 1,
+                      .ntbEntry.schemaTag = pReq->ntb.schemaTag,
+                      .ntbEntry.pTags = pReq->ntb.pTags,
+                      .ntbEntry.ncid = nextCid,
                       .ntbEntry.ownerId = pReq->ntb.userId,
                       .pExtSchemas = pReq->pExtSchemas,
-                      .colRef = pReq->colRef};
+                      .colRef = pReq->colRef,
+                      .series = pReq->series,
+                      .referenceExt = pReq->referenceExt};
+  // Batch meta txn: shadow-in-B+tree  -  write with PRE_CREATE status, invisible until COMMIT
+  if (pReq->txnId != 0) {
+    entry.txnId = pReq->txnId;
+    entry.txnStatus = META_TXN_PRE_CREATE;
+  }
 
   code = metaBuildCreateVirtualNormalTableRsp(pMeta, &entry, ppRsp);
   if (code) {
@@ -640,8 +1146,9 @@ static int32_t metaCreateVirtualNormalTable(SMeta *pMeta, int64_t version, SVCre
   // handle entry
   code = metaHandleEntry2(pMeta, &entry);
   if (TSDB_CODE_SUCCESS == code) {
-    metaInfo("vgId:%d, index:%" PRId64 ", virtual normal table is created, tb:%s uid:%" PRId64, TD_VID(pMeta->pVnode),
-             version, pReq->name, pReq->uid);
+    metaInfo(KEYOP("vtable-create", "END")
+                 "vgId:%d, index:%" PRId64 ", virtual normal table is created, tb:%s uid:%" PRId64,
+             TD_VID(pMeta->pVnode), version, pReq->name, pReq->uid);
   } else {
     metaError("vgId:%d, %s failed at %s:%d since %s, uid:%" PRId64 " name:%s version:%" PRId64, TD_VID(pMeta->pVnode),
               __func__, __FILE__, __LINE__, tstrerror(code), pReq->uid, pReq->name, version);
@@ -665,13 +1172,15 @@ static int32_t metaBuildCreateVirtualChildTableRsp(SMeta *pMeta, SMetaEntry *pEn
     return terrno;
   }
 
+  metaRLock(pMeta);
   code = metaFetchEntryByUid(pMeta, pEntry->ctbEntry.suid, &pSuper);
+  metaULock(pMeta);
   if (code != TSDB_CODE_SUCCESS) {
     taosMemoryFreeClear(*ppRsp);
     return code;
   }
 
-  code = metaUpdateVtbMetaRsp(pEntry, pEntry->name, &pSuper->stbEntry.schemaRow, &pEntry->colRef, pSuper->pExtSchemas,
+  code = metaUpdateVtbMetaRsp(pEntry, pEntry->name, &pSuper->stbEntry.schemaRow, &pSuper->stbEntry.schemaTag, &pEntry->colRef, pSuper->pExtSchemas,
                               pSuper->stbEntry.ownerId, *ppRsp, TSDB_VIRTUAL_CHILD_TABLE);
   if (code) {
     metaFetchEntryFree(&pSuper);
@@ -679,14 +1188,326 @@ static int32_t metaBuildCreateVirtualChildTableRsp(SMeta *pMeta, SMetaEntry *pEn
     return code;
   }
 
+  // the tag region (vstb tags + own tags) is already appended by metaUpdateVtbMetaRsp so the
+  // client can resolve tag names (e.g. ALTER TABLE vctb SET TAG vt1=N inside a transaction)
+
   (*ppRsp)->suid = pEntry->ctbEntry.suid;
   metaFetchEntryFree(&pSuper);
 
   return code;
 }
 
+// Set up the own (extension) schema of a virtual child table at create time (CREATE VTABLE
+// declaring own columns/tags, e.g. a SHOW CREATE replay). Validates the defs against the
+// vstb schema, assigns colIds from TSDB_VCHILD_OWN_COL_ID_BASE upwards (columns first, then
+// tags, both in request order), fills pEntry->own, merges own tag literal values into the
+// shared tag blob, and appends own tag references to the sparse colRef.pTagRef array.
+//
+// Memory: the buffers attached to pEntry (own.*, *ppMergedTagRefs, *ppMergedTagBlob) are
+// owned by the caller and must stay valid until metaHandleEntry2/metaBuild...Rsp return
+// (both encode synchronously); ref entries are shallow copies, their tagCondJson stays
+// owned by pReq.
+static int32_t metaSetupVChildOwnSchema(SMeta *pMeta, int64_t version, SVCreateTbReq *pReq, SMetaEntry *pEntry,
+                                        SColRef **ppMergedTagRefs, uint8_t **ppMergedTagBlob) {
+  int32_t     code = TSDB_CODE_SUCCESS;
+  SMetaEntry *pSuper = NULL;
+
+  metaRLock(pMeta);
+  code = metaFetchEntryByUid(pMeta, pEntry->ctbEntry.suid, &pSuper);
+  metaULock(pMeta);
+  if (code) {
+    metaError("vgId:%d, %s failed at %s:%d since super table uid %" PRId64 " not found, version:%" PRId64,
+              TD_VID(pMeta->pVnode), __func__, __FILE__, __LINE__, pEntry->ctbEntry.suid, version);
+    TAOS_RETURN(TSDB_CODE_INTERNAL_ERROR);
+  }
+
+  SSchemaWrapper *pStbSchema = &pSuper->stbEntry.schemaRow;
+  SSchemaWrapper *pStbTagSchema = &pSuper->stbEntry.schemaTag;
+  int32_t         rowSize = 0;
+  int32_t         tagsLen = 0;
+  for (int32_t i = 0; i < pStbSchema->nCols; i++) {
+    rowSize += pStbSchema->pSchema[i].bytes;
+  }
+  for (int32_t i = 0; i < pStbTagSchema->nCols; i++) {
+    tagsLen += pStbTagSchema->pSchema[i].bytes;
+  }
+
+  // the shared tag blob is rebuilt with the merged tag schema, which does not support a
+  // vstb JSON tag (same restriction as metaAddVChildOwnTag)
+  if (pReq->nOwnTagDefs > 0 && pStbTagSchema->nCols == 1 &&
+      pStbTagSchema->pSchema[0].type == TSDB_DATA_TYPE_JSON) {
+    metaError("vgId:%d, %s failed at %s:%d since super table %s has json tag, version:%" PRId64, TD_VID(pMeta->pVnode),
+              __func__, __FILE__, __LINE__, pSuper->name, version);
+    code = TSDB_CODE_PAR_ONLY_ONE_JSON_TAG;
+    goto _exit;
+  }
+
+  // colId space exhaustion check (shared by own columns and own tags)
+  if ((int64_t)TSDB_VCHILD_OWN_COL_ID_BASE + pReq->nOwnColDefs + pReq->nOwnTagDefs - 1 > INT16_MAX) {
+    metaError("vgId:%d, %s failed at %s:%d since own column/tag count exceeds max column id, version:%" PRId64,
+              TD_VID(pMeta->pVnode), __func__, __FILE__, __LINE__, version);
+    code = TSDB_CODE_VND_EXCEED_MAX_COL_ID;
+    goto _exit;
+  }
+
+  // validate own columns: a declared ref must be complete, name dup, type and merged limits.
+  // A bare `name TYPE` declaration (hasRef == false) is allowed: the column is created unbound,
+  // the same state ALTER VTABLE ... SET NULL produces, so SHOW CREATE output stays replayable.
+  for (int32_t i = 0; i < pReq->nOwnColDefs; i++) {
+    SVChildOwnColDef *pDef = &pReq->pOwnColDefs[i];
+    if (pDef->ref.hasRef && (pDef->ref.refDbName[0] == '\0' || pDef->ref.refTableName[0] == '\0' ||
+                             pDef->ref.refColName[0] == '\0')) {
+      metaError("vgId:%d, %s failed at %s:%d since own column %s has an incomplete reference, version:%" PRId64,
+                TD_VID(pMeta->pVnode), __func__, __FILE__, __LINE__, pDef->schema.name, version);
+      code = TSDB_CODE_VND_INVALID_TABLE_ACTION;
+      goto _exit;
+    }
+    for (int32_t j = 0; j < pStbSchema->nCols; j++) {
+      if (strncmp(pStbSchema->pSchema[j].name, pDef->schema.name, TSDB_COL_NAME_LEN) == 0) {
+        code = TSDB_CODE_VND_COL_ALREADY_EXISTS;
+        goto _exit;
+      }
+    }
+    for (int32_t j = 0; j < pStbTagSchema->nCols; j++) {
+      if (strncmp(pStbTagSchema->pSchema[j].name, pDef->schema.name, TSDB_COL_NAME_LEN) == 0) {
+        code = TSDB_CODE_VND_COL_ALREADY_EXISTS;
+        goto _exit;
+      }
+    }
+    for (int32_t j = 0; j < i; j++) {
+      if (strncmp(pReq->pOwnColDefs[j].schema.name, pDef->schema.name, TSDB_COL_NAME_LEN) == 0) {
+        code = TSDB_CODE_VND_COL_ALREADY_EXISTS;
+        goto _exit;
+      }
+    }
+    rowSize += pDef->schema.bytes;
+  }
+  if (pStbSchema->nCols + pReq->nOwnColDefs > TSDB_MAX_COLUMNS) {
+    metaError("vgId:%d, %s failed at %s:%d since too many columns, version:%" PRId64, TD_VID(pMeta->pVnode), __func__,
+              __FILE__, __LINE__, version);
+    code = TSDB_CODE_PAR_TOO_MANY_COLUMNS;
+    goto _exit;
+  }
+  if (rowSize > TSDB_MAX_BYTES_PER_ROW_VIRTUAL) {
+    metaError("vgId:%d, %s failed at %s:%d since row size %d > %d, version:%" PRId64, TD_VID(pMeta->pVnode), __func__,
+              __FILE__, __LINE__, rowSize, TSDB_MAX_BYTES_PER_ROW_VIRTUAL, version);
+    code = TSDB_CODE_PAR_INVALID_ROW_LENGTH;
+    goto _exit;
+  }
+
+  // validate own tags: name dup (incl. against own columns), type and merged limits
+  for (int32_t i = 0; i < pReq->nOwnTagDefs; i++) {
+    SVChildOwnTagDef *pDef = &pReq->pOwnTagDefs[i];
+    if (pDef->schema.type == TSDB_DATA_TYPE_JSON) {
+      code = TSDB_CODE_PAR_ONLY_ONE_JSON_TAG;
+      goto _exit;
+    }
+    if (IS_DECIMAL_TYPE(pDef->schema.type)) {
+      code = TSDB_CODE_PAR_INVALID_COLUMN;
+      goto _exit;
+    }
+    if ((pDef->schema.type == TSDB_DATA_TYPE_VARCHAR || pDef->schema.type == TSDB_DATA_TYPE_VARBINARY ||
+         pDef->schema.type == TSDB_DATA_TYPE_NCHAR || pDef->schema.type == TSDB_DATA_TYPE_GEOMETRY) &&
+        pDef->schema.bytes > TSDB_MAX_TAGS_LEN) {
+      code = TSDB_CODE_PAR_INVALID_VAR_COLUMN_LEN;
+      goto _exit;
+    }
+    for (int32_t j = 0; j < pStbSchema->nCols; j++) {
+      if (strncmp(pStbSchema->pSchema[j].name, pDef->schema.name, TSDB_COL_NAME_LEN) == 0) {
+        code = TSDB_CODE_VND_COL_ALREADY_EXISTS;
+        goto _exit;
+      }
+    }
+    for (int32_t j = 0; j < pStbTagSchema->nCols; j++) {
+      if (strncmp(pStbTagSchema->pSchema[j].name, pDef->schema.name, TSDB_COL_NAME_LEN) == 0) {
+        code = TSDB_CODE_VND_COL_ALREADY_EXISTS;
+        goto _exit;
+      }
+    }
+    for (int32_t j = 0; j < pReq->nOwnColDefs; j++) {
+      if (strncmp(pReq->pOwnColDefs[j].schema.name, pDef->schema.name, TSDB_COL_NAME_LEN) == 0) {
+        code = TSDB_CODE_VND_COL_ALREADY_EXISTS;
+        goto _exit;
+      }
+    }
+    for (int32_t j = 0; j < i; j++) {
+      if (strncmp(pReq->pOwnTagDefs[j].schema.name, pDef->schema.name, TSDB_COL_NAME_LEN) == 0) {
+        code = TSDB_CODE_VND_COL_ALREADY_EXISTS;
+        goto _exit;
+      }
+    }
+    if (pDef->hasValue && pDef->ref.hasRef) {
+      metaError("vgId:%d, %s failed at %s:%d since own tag %s has both value and reference, version:%" PRId64,
+                TD_VID(pMeta->pVnode), __func__, __FILE__, __LINE__, pDef->schema.name, version);
+      code = TSDB_CODE_INVALID_MSG;
+      goto _exit;
+    }
+    tagsLen += pDef->schema.bytes;
+  }
+  if (pStbTagSchema->nCols + pReq->nOwnTagDefs > TSDB_MAX_TAGS) {
+    metaError("vgId:%d, %s failed at %s:%d since too many tags, version:%" PRId64, TD_VID(pMeta->pVnode), __func__,
+              __FILE__, __LINE__, version);
+    code = TSDB_CODE_PAR_INVALID_TAGS_NUM;
+    goto _exit;
+  }
+  if (tagsLen > TSDB_MAX_TAGS_LEN) {
+    metaError("vgId:%d, %s failed at %s:%d since tags length %d > %d, version:%" PRId64, TD_VID(pMeta->pVnode),
+              __func__, __FILE__, __LINE__, tagsLen, TSDB_MAX_TAGS_LEN, version);
+    code = TSDB_CODE_PAR_INVALID_TAGS_LENGTH;
+    goto _exit;
+  }
+
+  // fill the own schema area; colIds are assigned in request order, columns first
+  col_id_t nextColId = TSDB_VCHILD_OWN_COL_ID_BASE;
+  if (pReq->nOwnColDefs > 0) {
+    pEntry->own.pOwnColSchemas = taosMemoryCalloc(pReq->nOwnColDefs, sizeof(SSchema));
+    pEntry->own.pOwnColRefs = taosMemoryCalloc(pReq->nOwnColDefs, sizeof(SColRef));
+    if (NULL == pEntry->own.pOwnColSchemas || NULL == pEntry->own.pOwnColRefs) {
+      code = terrno;
+      goto _exit;
+    }
+    pEntry->own.nOwnCols = pReq->nOwnColDefs;
+    // allocate own-col ext only when at least one own column carries a typeMod (decimal); matches
+    // the wire/persistence condition so non-decimal own columns stay NULL (no ext storage).
+    bool hasOwnColTypeMod = false;
+    for (int32_t i = 0; i < pReq->nOwnColDefs; i++) {
+      if (pReq->pOwnColDefs[i].schema.flags & COL_HAS_TYPE_MOD) {
+        hasOwnColTypeMod = true;
+        break;
+      }
+    }
+    if (hasOwnColTypeMod) {
+      pEntry->own.pOwnColExtSchemas = taosMemoryCalloc(pReq->nOwnColDefs, sizeof(SExtSchema));
+      if (NULL == pEntry->own.pOwnColExtSchemas) {
+        code = terrno;
+        goto _exit;
+      }
+    }
+    for (int32_t i = 0; i < pReq->nOwnColDefs; i++) {
+      pEntry->own.pOwnColSchemas[i] = pReq->pOwnColDefs[i].schema;
+      pEntry->own.pOwnColSchemas[i].colId = nextColId;
+      pEntry->own.pOwnColRefs[i] = pReq->pOwnColDefs[i].ref;  // shallow: tagCondJson stays owned by pReq
+      pEntry->own.pOwnColRefs[i].id = nextColId;
+      // keep the declared hasRef: false for a bare `name TYPE` own column (created unbound)
+      if (pEntry->own.pOwnColExtSchemas != NULL) {
+        pEntry->own.pOwnColExtSchemas[i].typeMod = pReq->pOwnColDefs[i].typeMod;
+      }
+      nextColId++;
+    }
+  }
+  if (pReq->nOwnTagDefs > 0) {
+    pEntry->own.pOwnTagSchemas = taosMemoryCalloc(pReq->nOwnTagDefs, sizeof(SSchema));
+    if (NULL == pEntry->own.pOwnTagSchemas) {
+      code = terrno;
+      goto _exit;
+    }
+    pEntry->own.nOwnTags = pReq->nOwnTagDefs;
+    for (int32_t i = 0; i < pReq->nOwnTagDefs; i++) {
+      pEntry->own.pOwnTagSchemas[i] = pReq->pOwnTagDefs[i].schema;
+      pEntry->own.pOwnTagSchemas[i].colId = nextColId++;
+    }
+  }
+
+  // own tag references: append to the sparse pTagRef array (a merged copy; the array
+  // borrowed from pReq is left untouched)
+  int32_t nOwnTagRefs = 0;
+  for (int32_t i = 0; i < pReq->nOwnTagDefs; i++) {
+    if (pReq->pOwnTagDefs[i].ref.hasRef) {
+      nOwnTagRefs++;
+    }
+  }
+  if (nOwnTagRefs > 0) {
+    int32_t nOld = pEntry->colRef.nTagRefs;
+    SColRef *pMerged = taosMemoryCalloc(nOld + nOwnTagRefs, sizeof(SColRef));
+    if (NULL == pMerged) {
+      code = terrno;
+      goto _exit;
+    }
+    for (int32_t i = 0; i < nOld; i++) {
+      pMerged[i] = pEntry->colRef.pTagRef[i];  // shallow: tagCondJson stays owned by pReq
+    }
+    int32_t idx = nOld;
+    for (int32_t i = 0; i < pReq->nOwnTagDefs; i++) {
+      if (!pReq->pOwnTagDefs[i].ref.hasRef) {
+        continue;
+      }
+      pMerged[idx] = pReq->pOwnTagDefs[i].ref;  // shallow: tagCondJson stays owned by pReq
+      pMerged[idx].id = pEntry->own.pOwnTagSchemas[i].colId;
+      pMerged[idx].hasRef = true;
+      idx++;
+    }
+    pEntry->colRef.pTagRef = pMerged;
+    pEntry->colRef.nTagRefs = nOld + nOwnTagRefs;
+    *ppMergedTagRefs = pMerged;
+  }
+
+  // own tag literal values: merge into the shared tag blob (tTagNew sorts by colId and own
+  // colIds are always greater than any vstb colId, so the blob order matches the merged
+  // tag schema order)
+  bool hasOwnTagValue = false;
+  for (int32_t i = 0; i < pReq->nOwnTagDefs; i++) {
+    if (pReq->pOwnTagDefs[i].hasValue) {
+      hasOwnTagValue = true;
+      break;
+    }
+  }
+  if (hasOwnTagValue) {
+    SArray *pTagVals = NULL;
+    if (NULL != pEntry->ctbEntry.pTags) {
+      code = tTagToValArray((const STag *)pEntry->ctbEntry.pTags, &pTagVals);
+      if (code) {
+        // tTagToValArray may leave pTagVals allocated (NULL or partially filled) on failure;
+        // _exit does not destroy it, so release it here (taosArrayDestroy is NULL-safe)
+        taosArrayDestroy(pTagVals);
+        goto _exit;
+      }
+    } else {
+      pTagVals = taosArrayInit(pReq->nOwnTagDefs, sizeof(STagVal));
+      if (NULL == pTagVals) {
+        code = terrno;
+        goto _exit;
+      }
+    }
+    for (int32_t i = 0; i < pReq->nOwnTagDefs; i++) {
+      SVChildOwnTagDef *pDef = &pReq->pOwnTagDefs[i];
+      if (!pDef->hasValue) {
+        continue;
+      }
+      STagVal val = {.cid = pEntry->own.pOwnTagSchemas[i].colId, .type = pDef->valType};
+      if (IS_VAR_DATA_TYPE(pDef->valType)) {
+        val.nData = pDef->valLen;
+        val.pData = pDef->pVal;  // borrowed; tTagNew serializes the content
+      } else {
+        val.i64 = pDef->valI64;
+      }
+      if (NULL == taosArrayPush(pTagVals, &val)) {
+        taosArrayDestroy(pTagVals);
+        code = terrno;
+        goto _exit;
+      }
+    }
+    STag *pNewTag = NULL;
+    code = tTagNew(pTagVals, pStbTagSchema->version, false, &pNewTag);
+    taosArrayDestroy(pTagVals);
+    if (code) {
+      goto _exit;
+    }
+    pEntry->ctbEntry.pTags = (uint8_t *)pNewTag;
+    *ppMergedTagBlob = (uint8_t *)pNewTag;
+  }
+
+  metaInfo("vgId:%d, table %s created with %d own columns and %d own tags, version:%" PRId64, TD_VID(pMeta->pVnode),
+           pReq->name, pReq->nOwnColDefs, pReq->nOwnTagDefs, version);
+
+_exit:
+  metaFetchEntryFree(&pSuper);
+  TAOS_RETURN(code);
+}
+
 static int32_t metaCreateVirtualChildTable(SMeta *pMeta, int64_t version, SVCreateTbReq *pReq, STableMetaRsp **ppRsp) {
   // check request
+  // NOTE: locking is done inside metaCheckCreateChildTableReq per-operation
+  // to avoid nested rdlock deadlock with metaGetInfo's internal rdlock.
   int32_t code = metaCheckCreateChildTableReq(pMeta, version, pReq);
   if (code) {
     if (TSDB_CODE_TDB_TABLE_ALREADY_EXIST != code) {
@@ -706,24 +1527,53 @@ static int32_t metaCreateVirtualChildTable(SMeta *pMeta, int64_t version, SVCrea
                       .ctbEntry.comment = pReq->comment,
                       .ctbEntry.suid = pReq->ctb.suid,
                       .ctbEntry.pTags = pReq->ctb.pTag,
-                      .colRef = pReq->colRef};
+                      .colRef = pReq->colRef,
+                      .series = pReq->series,
+                      .referenceExt = pReq->referenceExt};
+  // Batch meta txn: shadow-in-B+tree  -  write with PRE_CREATE status, invisible until COMMIT
+  if (pReq->txnId != 0) {
+    entry.txnId = pReq->txnId;
+    entry.txnStatus = META_TXN_PRE_CREATE;
+  }
+
+  // own (extension) columns/tags declared at create time (SHOW CREATE replay)
+  SColRef *pOwnMergedTagRefs = NULL;
+  uint8_t *pOwnMergedTagBlob = NULL;
+  if (pReq->nOwnColDefs > 0 || pReq->nOwnTagDefs > 0) {
+    code = metaSetupVChildOwnSchema(pMeta, version, pReq, &entry, &pOwnMergedTagRefs, &pOwnMergedTagBlob);
+    if (code) {
+      metaError("vgId:%d, %s failed at %s:%d since %s, version:%" PRId64 " name:%s", TD_VID(pMeta->pVnode), __func__,
+                __FILE__, __LINE__, tstrerror(code), version, pReq->name);
+      goto _exit;
+    }
+  }
 
   code = metaBuildCreateVirtualChildTableRsp(pMeta, &entry, ppRsp);
   if (code) {
     metaError("vgId:%d, %s failed at %s:%d since %s", TD_VID(pMeta->pVnode), __func__, __FILE__, __LINE__,
               tstrerror(code));
-    TAOS_RETURN(code);
+    goto _exit;
   }
 
   // handle entry
   code = metaHandleEntry2(pMeta, &entry);
   if (TSDB_CODE_SUCCESS == code) {
-    metaInfo("vgId:%d, index:%" PRId64 ", virtual child table is created, tb:%s uid:%" PRId64, TD_VID(pMeta->pVnode),
-             version, pReq->name, pReq->uid);
+    metaInfo(KEYOP("vtable-create", "END")
+                 "vgId:%d, index:%" PRId64 ", virtual child table is created, tb:%s uid:%" PRId64,
+             TD_VID(pMeta->pVnode), version, pReq->name, pReq->uid);
   } else {
     metaError("vgId:%d, %s failed at %s:%d since %s, uid:%" PRId64 " name:%s version:%" PRId64, TD_VID(pMeta->pVnode),
               __func__, __FILE__, __LINE__, tstrerror(code), pReq->uid, pReq->name, version);
   }
+
+_exit:
+  // temp own-schema buffers: encoding above is synchronous, the entry only borrows them
+  taosMemoryFreeClear(entry.own.pOwnColSchemas);
+  taosMemoryFreeClear(entry.own.pOwnColRefs);
+  taosMemoryFreeClear(entry.own.pOwnColExtSchemas);
+  taosMemoryFreeClear(entry.own.pOwnTagSchemas);
+  taosMemoryFreeClear(pOwnMergedTagRefs);
+  taosMemoryFreeClear(pOwnMergedTagBlob);
   TAOS_RETURN(code);
 #if 0
   metaTimeSeriesNotifyCheck(pMeta);
@@ -750,10 +1600,366 @@ int32_t metaCreateTable2(SMeta *pMeta, int64_t version, SVCreateTbReq *pReq, STa
   TAOS_RETURN(code);
 }
 
+/**
+ * Mark an existing entry with txnId/txnStatus in-place (shadow-in-B+tree).
+ * Reads the entry from pTbDb, updates txnId/txnStatus, re-encodes, and writes back.
+ * Indexes are NOT modified  -  the entry remains visible but filtered by txnStatus.
+ */
+int32_t metaMarkTableTxnStatus(SMeta *pMeta, int64_t uid, int64_t txnId, int8_t txnStatus, int64_t txnOrigVer) {
+  TD_SEAM_RET(metaMarkTableTxnStatus, int32_t (*)(SMeta *, int64_t, int64_t, int8_t, int64_t),
+              (pMeta, uid, txnId, txnStatus, txnOrigVer));
+  int32_t code = TSDB_CODE_SUCCESS;
+  void   *uidValue = NULL, *tbValue = NULL;
+  int32_t uidValueSize = 0, tbValueSize = 0;
+
+  // Serialize concurrent foreground/vacuum updates to pTbDb/pUidIdx via shared
+  // pMeta->txn handle; without this lock, btree corruption (e.g. invalid idx
+  // N, nCells N-1) can occur during async vacuum-commit.
+  metaWLock(pMeta);
+
+  // Read current version from uid index
+  code = tdbTbGet(pMeta->pUidIdx, &uid, sizeof(uid), &uidValue, &uidValueSize);
+  if (code) {
+    metaULock(pMeta);
+    metaError("vgId:%d, mark txn status: uid %" PRId64 " not found", TD_VID(pMeta->pVnode), uid);
+    return TSDB_CODE_TDB_TABLE_NOT_EXIST;
+  }
+
+  int64_t  version = ((SUidIdxVal *)uidValue)->version;
+  STbDbKey key = {.version = version, .uid = uid};
+  tdbFreeClear(uidValue);
+
+  // Read the entry from B+ tree
+  code = tdbTbGet(pMeta->pTbDb, &key, sizeof(key), &tbValue, &tbValueSize);
+  if (code) {
+    metaULock(pMeta);
+    metaError("vgId:%d, mark txn status: entry not found for uid %" PRId64 " ver %" PRId64, TD_VID(pMeta->pVnode), uid,
+              version);
+    return TSDB_CODE_INTERNAL_ERROR;
+  }
+
+  // Decode
+  SDecoder   decoder = {0};
+  SMetaEntry entry = {0};
+  tDecoderInit(&decoder, tbValue, tbValueSize);
+  code = metaDecodeEntry(&decoder, &entry);
+  if (code) {
+    tDecoderClear(&decoder);
+    tdbFreeClear(tbValue);
+    metaULock(pMeta);
+    metaError("vgId:%d, mark txn status: decode failed for uid %" PRId64, TD_VID(pMeta->pVnode), uid);
+    return code;
+  }
+
+  // A visibility transition on a virtual-table entry changes what
+  // ins_virtual_child_columns scans. Bump the generation in the same meta write
+  // lock as the status write; otherwise a reader could cache the post-alter
+  // (not yet marked) entry in the window between the ALTER write and this mark.
+  bool bumpVtableGen = (entry.type == TSDB_VIRTUAL_NORMAL_TABLE || entry.type == TSDB_VIRTUAL_CHILD_TABLE ||
+                        (entry.type == TSDB_SUPER_TABLE && TABLE_IS_VIRTUAL(entry.flags)));
+
+  // Update txn fields
+  entry.txnId = txnId;
+  entry.txnStatus = txnStatus;
+  entry.txnOrigVer = txnOrigVer;
+
+  // Re-encode and write back to the same key (in-place update)
+  // NOTE: decoder/tbValue must stay alive until after encoding because
+  // the decoded entry's schema pointers reference decoder-managed memory.
+  int32_t  encodeSize = 0;
+  SEncoder encoder = {0};
+  tEncodeSize(metaEncodeEntry, &entry, encodeSize, code);
+  if (code) {
+    tFreeSSeriesWrapper(&entry.series);
+    tFreeVtableReferenceExt(&entry.referenceExt);
+    tDecoderClear(&decoder);
+    tdbFreeClear(tbValue);
+    metaULock(pMeta);
+    return code;
+  }
+
+  void *newValue = taosMemoryMalloc(encodeSize);
+  if (!newValue) {
+    tFreeSSeriesWrapper(&entry.series);
+    tFreeVtableReferenceExt(&entry.referenceExt);
+    tDecoderClear(&decoder);
+    tdbFreeClear(tbValue);
+    metaULock(pMeta);
+    return terrno;
+  }
+
+  tEncoderInit(&encoder, newValue, encodeSize);
+  code = metaEncodeEntry(&encoder, &entry);
+  tEncoderClear(&encoder);
+  tDecoderClear(&decoder);
+  tdbFreeClear(tbValue);
+  // entry.series (SSeriesWrapper) owns heap memory decoded from the B+ tree
+  // value (pSeries[i].tagCondJson); it is not referenced by the encoder output
+  // and must be released on every exit. metaCloneEntryFree does the same for
+  // heap-allocated entries (see metaFetchEntryFree).
+  tFreeSSeriesWrapper(&entry.series);
+  tFreeVtableReferenceExt(&entry.referenceExt);
+  if (code) {
+    taosMemoryFree(newValue);
+    metaULock(pMeta);
+    return code;
+  }
+
+  code = tdbTbUpsert(pMeta->pTbDb, &key, sizeof(key), newValue, encodeSize, pMeta->txn);
+  taosMemoryFree(newValue);
+  if (code == TSDB_CODE_SUCCESS && bumpVtableGen) {
+    metaBumpVtableGen(pMeta);
+  }
+  metaULock(pMeta);
+  if (code) {
+    metaError("vgId:%d, mark txn status: write back failed for uid %" PRId64, TD_VID(pMeta->pVnode), uid);
+  } else {
+    metaInfo("vgId:%d, marked uid %" PRId64 " with txnId %" PRId64 " status %d", TD_VID(pMeta->pVnode), uid, txnId,
+             txnStatus);
+  }
+  return code;
+}
+
+/**
+ * Rollback an ALTER operation: delete the new version entry from pTbDb,
+ * restore pUidIdx to point at the old version, and clear txnId/txnStatus
+ * on the old entry.
+ *
+ * @param pMeta       The meta handle
+ * @param uid         The table UID
+ * @param prevVersion  The version to restore to
+ * @return TSDB_CODE_SUCCESS on success
+ */
+int32_t metaRollbackAlterTable(SMeta *pMeta, int64_t uid, int64_t prevVersion) {
+  TD_SEAM_RET(metaRollbackAlterTable, int32_t (*)(SMeta *, int64_t, int64_t), (pMeta, uid, prevVersion));
+  int32_t code = TSDB_CODE_SUCCESS;
+  void   *uidValue = NULL;
+  int32_t uidValueSize = 0;
+
+  // Read current version (the new-version entry created by ALTER)
+  metaRLock(pMeta);
+  code = tdbTbGet(pMeta->pUidIdx, &uid, sizeof(uid), &uidValue, &uidValueSize);
+  metaULock(pMeta);
+  if (code) {
+    metaError("vgId:%d, rollback alter: uid %" PRId64 " not found in uidIdx", TD_VID(pMeta->pVnode), uid);
+    return TSDB_CODE_TDB_TABLE_NOT_EXIST;
+  }
+  int64_t newVersion = ((SUidIdxVal *)uidValue)->version;
+  tdbFreeClear(uidValue);
+
+  if (newVersion == prevVersion) {
+    // No new version was created, just clear txnStatus
+    return metaMarkTableTxnStatus(pMeta, uid, 0, META_TXN_NORMAL, -1);
+  }
+
+  // Read the new-version entry to get schema version for pSkmDb cleanup
+  SMetaReader mr = {0};
+  metaReaderDoInit(&mr, pMeta, META_READER_NOLOCK, 0);
+  metaRLock(pMeta);
+  int32_t readCode = metaGetTableEntryByVersion(&mr, newVersion, uid);
+  metaULock(pMeta);
+  if (readCode == 0) {
+    // Delete the orphan row-schema entry from pSkmDb (normal tables and STBs only).
+    //
+    // pSkmDb is keyed by (uid, schemaRow.version), so this cleanup is only correct when the
+    // rolled-back ALTER actually advanced schemaRow.version - ADD/DROP/MODIFY/RENAME COLUMN.
+    // Tag-only ALTERs (RENAME TAG, SET TAG, ADD TAG, DROP TAG on a normal / virtual-normal
+    // table) bump schemaTag.version and leave schemaRow.version untouched, so the new and the
+    // restored entry share one pSkmDb key. Deleting it there removes the row schema the
+    // surviving entry still needs: tsdbUpdateSkmTb -> metaGetTbTSchemaEx then returns
+    // TSDB_CODE_NOT_FOUND, tsdbCommitTSData fails, and vnodeCommitImpl aborts the vnode with a
+    // FATAL that recurs on every restart (the WAL replay re-runs the same rollback).
+    // So compare against the restored version and only delete a key it does not own.
+    int32_t newSver = -1;
+    if (mr.me.type == TSDB_NORMAL_TABLE || mr.me.type == TSDB_VIRTUAL_NORMAL_TABLE) {
+      newSver = mr.me.ntbEntry.schemaRow.version;
+    } else if (mr.me.type == TSDB_SUPER_TABLE) {
+      newSver = mr.me.stbEntry.schemaRow.version;
+    }
+
+    int32_t prevSver = -1;
+    if (newSver >= 0) {
+      SMetaReader mrPrev = {0};
+      metaReaderDoInit(&mrPrev, pMeta, META_READER_NOLOCK, 0);
+      metaRLock(pMeta);
+      int32_t readPrevCode = metaGetTableEntryByVersion(&mrPrev, prevVersion, uid);
+      metaULock(pMeta);
+      if (readPrevCode == 0) {
+        if (mrPrev.me.type == TSDB_NORMAL_TABLE || mrPrev.me.type == TSDB_VIRTUAL_NORMAL_TABLE) {
+          prevSver = mrPrev.me.ntbEntry.schemaRow.version;
+        } else if (mrPrev.me.type == TSDB_SUPER_TABLE) {
+          prevSver = mrPrev.me.stbEntry.schemaRow.version;
+        }
+      } else {
+        // Cannot read the restored entry: skip the delete rather than risk removing a live
+        // schema. A leftover pSkmDb entry is harmless (it is keyed by a version nothing
+        // resolves to); a missing one aborts the vnode.
+        metaWarn("vgId:%d, rollback alter: cannot read prev entry ver %" PRId64 " uid %" PRId64
+                 " for pSkmDb cleanup, skipping delete (code:0x%x)",
+                 TD_VID(pMeta->pVnode), prevVersion, uid, readPrevCode);
+        newSver = -1;
+      }
+      metaReaderClear(&mrPrev);
+    }
+
+    if (newSver >= 0 && newSver != prevSver) {
+      SSkmDbKey skmKey = {.uid = uid, .sver = newSver};
+      metaWLock(pMeta);
+      int32_t   skmCode = tdbTbDelete(pMeta->pSkmDb, &skmKey, sizeof(skmKey), pMeta->txn);
+      metaULock(pMeta);
+      if (skmCode == 0) {
+        metaInfo("vgId:%d, schema delete applied, reason:rollback-alter"
+                 ", schemaUid:%" PRId64 ", sver:%d, prevSver:%d"
+                 ", metaVer:%" PRId64 ", prevMetaVer:%" PRId64
+                 ", txnId:%" PRId64 ", txnStatus:%d",
+                 TD_VID(pMeta->pVnode), uid, newSver, prevSver,
+                 newVersion, prevVersion, mr.me.txnId, mr.me.txnStatus);
+      } else {
+        metaWarn("vgId:%d, schema delete failed, reason:rollback-alter"
+                 ", schemaUid:%" PRId64 ", sver:%d, prevSver:%d"
+                 ", metaVer:%" PRId64 ", prevMetaVer:%" PRId64
+                 ", txnId:%" PRId64 ", txnStatus:%d, code:0x%x(%s)",
+                 TD_VID(pMeta->pVnode), uid, newSver, prevSver,
+                 newVersion, prevVersion, mr.me.txnId, mr.me.txnStatus,
+                 skmCode, tstrerror(skmCode));
+      }
+    } else if (newSver >= 0) {
+      metaDebug("vgId:%d, rollback alter: keeping pSkmDb entry uid %" PRId64 " sver %d (row schema unchanged by the "
+                "rolled-back alter)",
+                TD_VID(pMeta->pVnode), uid, newSver);
+    }
+  }
+
+  // Capture info needed to undo the stats change applied by ALTER.
+  // Only non-virtual STB and non-virtual NTB contribute to timeseries stats;
+  // virtual types (TSDB_VIRTUAL_NORMAL_TABLE, or TSDB_SUPER_TABLE with VIRTUAL flag)
+  // never affect stats  -  exclude them here to avoid a redundant check at apply time.
+  // Capture before metaReaderClear  -  mr.me memory is decoder-managed.
+  int8_t  statsType = -1;  // TSDB_SUPER_TABLE / TSDB_NORMAL_TABLE; -1 = skip
+  int32_t newNcols = 0;
+  if (readCode == 0) {
+    if (mr.me.type == TSDB_SUPER_TABLE && !TABLE_IS_VIRTUAL(mr.me.flags)) {
+      statsType = TSDB_SUPER_TABLE;
+      newNcols = mr.me.stbEntry.schemaRow.nCols;
+    } else if (mr.me.type == TSDB_NORMAL_TABLE) {
+      statsType = TSDB_NORMAL_TABLE;
+      newNcols = mr.me.ntbEntry.schemaRow.nCols;
+    }
+    // TSDB_VIRTUAL_NORMAL_TABLE, TSDB_VIRTUAL_CHILD_TABLE: no stats update needed.
+  }
+  metaReaderClear(&mr);
+
+  // Rollback child table tag index (pTagIdx) and child index (pCtbIdx) if applicable.
+  // Must be done BEFORE deleting the new-version pTbDb entry, since the function
+  // reads both old and new entries to reverse the tag index changes.
+  {
+    int32_t tagCode = metaRollbackChildTableTags(pMeta, uid, prevVersion, newVersion);
+    if (tagCode != 0) {
+      metaWarn("vgId:%d, rollback alter: metaRollbackChildTableTags failed for uid %" PRId64 ", code:0x%x",
+               TD_VID(pMeta->pVnode), uid, tagCode);
+    }
+  }
+
+  // Fetch ctbNum BEFORE taking WLock below: metaGetStbStats acquires metaRLock
+  // internally, calling it while holding metaWLock self-deadlocks (glibc rwlock
+  // does not allow a wrlock owner to re-enter rdlock).
+  bool    needStbCtbStats = (statsType == TSDB_SUPER_TABLE && !vnodeIsTimeSeriesExcluded(pMeta->pVnode));
+  int64_t stbCtbNum = 0;
+  if (needStbCtbStats) {
+    int32_t stRet = metaGetStbStats(pMeta->pVnode, uid, &stbCtbNum, 0, 0);
+    if (stRet != 0) {
+      metaWarn("vgId:%d, rollback alter: metaGetStbStats failed uid %" PRId64
+               ", numOfTimeSeries may be inaccurate",
+               TD_VID(pMeta->pVnode), uid);
+      stbCtbNum = 0;
+    }
+  }
+
+  // Delete the new-version entry from pTbDb, read old entry, restore pUidIdx,
+  // and drop cache  -  all under WLock to serialize with async vacuum.
+  STbDbKey newKey = {.version = newVersion, .uid = uid};
+  SUidIdxVal uidVal = {.version = prevVersion};
+  metaWLock(pMeta);
+  code = tdbTbDelete(pMeta->pTbDb, &newKey, sizeof(newKey), pMeta->txn);
+  if (code) {
+    metaULock(pMeta);
+    metaError("vgId:%d, rollback alter: failed to delete new ver %" PRId64 " for uid %" PRId64, TD_VID(pMeta->pVnode),
+              newVersion, uid);
+    return code;
+  }
+
+  // Restore pUidIdx to point at old version with correct suid/skmVer
+  {
+    SMetaReader mr2 = {0};
+    metaReaderDoInit(&mr2, pMeta, META_READER_NOLOCK, 0);
+    int32_t readOldCode = metaGetTableEntryByVersion(&mr2, prevVersion, uid);
+    if (readOldCode == 0) {
+      if (mr2.me.type == TSDB_SUPER_TABLE) {
+        uidVal.suid = mr2.me.uid;
+        uidVal.skmVer = mr2.me.stbEntry.schemaRow.version;
+      } else if (mr2.me.type == TSDB_CHILD_TABLE || mr2.me.type == TSDB_VIRTUAL_CHILD_TABLE) {
+        uidVal.suid = mr2.me.ctbEntry.suid;
+      } else if (mr2.me.type == TSDB_NORMAL_TABLE || mr2.me.type == TSDB_VIRTUAL_NORMAL_TABLE) {
+        uidVal.skmVer = mr2.me.ntbEntry.schemaRow.version;
+      }
+
+      // Undo the stats applied optimistically when ALTER was written:
+      //   STB: numOfTimeSeries  += ctbNum * (newNcols - oldNcols)
+      //   NTB: numOfNTimeSeries += (newNcols - oldNcols)
+      // statsType is only set for non-virtual STB and non-virtual NTB (captured above),
+      // so no further virtual-table guard is needed here.
+      if (statsType != -1) {
+        int32_t oldNcols =
+            (statsType == TSDB_SUPER_TABLE) ? mr2.me.stbEntry.schemaRow.nCols : mr2.me.ntbEntry.schemaRow.nCols;
+        int32_t undoDelta = oldNcols - newNcols;
+        if (undoDelta != 0) {
+          if (statsType == TSDB_SUPER_TABLE && needStbCtbStats) {
+            pMeta->pVnode->config.vndStats.numOfTimeSeries += stbCtbNum * undoDelta;
+          } else if (statsType == TSDB_NORMAL_TABLE) {
+            pMeta->pVnode->config.vndStats.numOfNTimeSeries += undoDelta;
+          }
+        }
+      }
+    } else {
+      // Old entry missing from pTbDb  -  likely data corruption.
+      // Must still write pUidIdx (otherwise table becomes invisible), but skmVer=0
+      // will cause client schema mismatch on INSERT. Log ERROR for operator awareness.
+      metaError("vgId:%d, rollback alter: cannot read prev entry ver %" PRId64 " uid %" PRId64
+                ", skmVer will be 0 (code:0x%x). Potential data corruption",
+                TD_VID(pMeta->pVnode), prevVersion, uid, readOldCode);
+    }
+    metaReaderClear(&mr2);
+  }
+  code = tdbTbUpsert(pMeta->pUidIdx, &uid, sizeof(uid), &uidVal, sizeof(uidVal), pMeta->txn);
+  if (code) {
+    metaULock(pMeta);
+    metaError("vgId:%d, rollback alter: failed to restore uidIdx for uid %" PRId64 " to ver %" PRId64,
+              TD_VID(pMeta->pVnode), uid, prevVersion);
+    return code;
+  }
+
+  // Do NOT clear txnId/txnStatus on the old entry  -  it retains its original state.
+  // For pre-existing tables: old entry already has txnId=0, txnStatus=NORMAL.
+  // For same-txn CREATE -> ALTER: old entry retains PRE_CREATE, enabling chained rollback.
+
+  // Drop the meta cache entry so next lookup reads the restored version from pUidIdx.
+  // The cache only updates to higher versions (never downgrades), so without this
+  // the stale cache entry would point to the deleted new-version entry.
+  (void)metaCacheDrop(pMeta, uid);
+  metaULock(pMeta);
+
+  metaInfo("vgId:%d, rollback alter: uid %" PRId64 " restored to version %" PRId64, TD_VID(pMeta->pVnode), uid,
+           prevVersion);
+  return code;
+}
+
 int32_t metaDropTable2(SMeta *pMeta, int64_t version, SVDropTbReq *pReq) {
+  TD_SEAM_RET(metaDropTable2, int32_t (*)(SMeta *, int64_t, SVDropTbReq *), (pMeta, version, pReq));
   int32_t code = TSDB_CODE_SUCCESS;
 
   // check request
+  // NOTE: locking is done inside metaCheckDropTableReq per-operation
+  // to avoid nested rdlock deadlock with metaGetInfo's internal rdlock.
   code = metaCheckDropTableReq(pMeta, version, pReq);
   if (code) {
     if (TSDB_CODE_TDB_TABLE_NOT_EXIST != code) {
@@ -767,6 +1973,104 @@ int32_t metaDropTable2(SMeta *pMeta, int64_t version, SVDropTbReq *pReq) {
     code = TSDB_CODE_INVALID_PARA;
     metaError("vgId:%d, %s failed at %s:%d since %s, uid:%" PRId64 " name:%s version:%" PRId64, TD_VID(pMeta->pVnode),
               __func__, __FILE__, __LINE__, tstrerror(code), pReq->uid, pReq->name, version);
+    TAOS_RETURN(code);
+  }
+
+  // Batch meta txn: handle DROP within transaction.
+  if (pReq->txnId != 0) {
+    // Check if the table was created (or altered) within the same txn.
+    // PRE_CREATE: simple undo (physically delete the entry).
+    // PRE_ALTER from same txn: undo ALTER first, then check if restored entry is PRE_CREATE.
+    // This handles CREATE -> DROP and CREATE -> ALTER -> DROP chains.
+    SMetaEntry *pExist = NULL;
+    metaRLock(pMeta);
+    int32_t     fetchCode = metaFetchEntryByUid(pMeta, pReq->uid, &pExist);
+    metaULock(pMeta);
+    if (fetchCode == 0 && pExist != NULL && pExist->txnId == pReq->txnId) {
+      if (pExist->txnStatus == META_TXN_PRE_ALTER) {
+        // Same-txn ALTER -> DROP: undo ALTER first to restore previous version
+        int64_t prevVer = pExist->txnOrigVer;
+        metaFetchEntryFree(&pExist);
+        if (prevVer >= 0) {
+          code = metaRollbackAlterTable(pMeta, pReq->uid, prevVer);
+          if (code != 0) {
+            metaError("vgId:%d, %s failed to undo ALTER for uid:%" PRId64 " name:%s txnId:%" PRId64,
+                      TD_VID(pMeta->pVnode), __func__, pReq->uid, pReq->name, pReq->txnId);
+            TAOS_RETURN(code);
+          }
+          // Re-fetch to check if restored entry is PRE_CREATE
+          metaRLock(pMeta);
+          fetchCode = metaFetchEntryByUid(pMeta, pReq->uid, &pExist);
+          metaULock(pMeta);
+          if (fetchCode == 0 && pExist != NULL && pExist->txnId == pReq->txnId &&
+              pExist->txnStatus == META_TXN_PRE_CREATE) {
+            // Fall through to PRE_CREATE undo below
+          } else {
+            // Restored entry is pre-existing (NORMAL)  -  mark as PRE_DROP
+            metaFetchEntryFree(&pExist);
+            goto _mark_pre_drop;
+          }
+        } else {
+          // No prevVer, fall through to normal PRE_DROP
+          goto _mark_pre_drop;
+        }
+      }
+
+      if (pExist != NULL && pExist->txnStatus == META_TXN_PRE_CREATE) {
+        // Same-txn CREATE -> DROP: undo the create by physically deleting the entry
+        metaFetchEntryFree(&pExist);
+        SMetaEntry delEntry = {
+            .version = version,
+            .uid = pReq->uid,
+        };
+        if (pReq->isVirtual) {
+          delEntry.type = (pReq->suid == 0) ? -TSDB_VIRTUAL_NORMAL_TABLE : -TSDB_VIRTUAL_CHILD_TABLE;
+        } else {
+          delEntry.type = (pReq->suid == 0) ? -TSDB_NORMAL_TABLE : -TSDB_CHILD_TABLE;
+        }
+        code = metaHandleEntry2(pMeta, &delEntry);
+        if (code == 0) {
+          // Also clean up txn.idx entry that was created during the original CREATE
+          int32_t idxCode = metaTxnIdxDelete(pMeta, pReq->uid);
+          if (idxCode != 0) {
+            metaError("vgId:%d, %s failed to cleanup txn.idx for uid:%" PRId64 " txnId:%" PRId64 " code:0x%x",
+                      TD_VID(pMeta->pVnode), __func__, pReq->uid, pReq->txnId, idxCode);
+            if (idxCode != TSDB_CODE_TXN_NOT_EXIST) {
+              TAOS_RETURN(idxCode);
+            }
+          }
+          metaInfo("vgId:%d, table %s uid %" PRId64 " PRE_CREATE undone (same-txn DROP), txnId:%" PRId64,
+                   TD_VID(pMeta->pVnode), pReq->name, pReq->uid, pReq->txnId);
+        } else {
+          metaError("vgId:%d, %s failed to undo PRE_CREATE for uid:%" PRId64 " name:%s txnId:%" PRId64,
+                    TD_VID(pMeta->pVnode), __func__, pReq->uid, pReq->name, pReq->txnId);
+        }
+        TAOS_RETURN(code);
+      }
+      metaFetchEntryFree(&pExist);
+    } else {
+      metaFetchEntryFree(&pExist);
+    }
+
+  _mark_pre_drop:
+    // Normal txn DROP: mark as PRE_DROP (snapshot isolation  -  entry remains visible to other sessions)
+    code = metaMarkTableTxnStatus(pMeta, pReq->uid, pReq->txnId, META_TXN_PRE_DROP, -1);
+    if (code) {
+      metaError("vgId:%d, %s failed to mark PRE_DROP for uid:%" PRId64 " name:%s txnId:%" PRId64, TD_VID(pMeta->pVnode),
+                __func__, pReq->uid, pReq->name, pReq->txnId);
+    } else {
+      // Update txn.idx to reflect PRE_DROP status
+      int32_t idxCode = metaTxnIdxUpsert(pMeta, pReq->uid, pReq->txnId, META_TXN_PRE_DROP, -1);
+      if (idxCode != 0) {
+        metaError("vgId:%d, %s failed to upsert txn.idx for uid:%" PRId64 " txnId:%" PRId64 " code:0x%x",
+                  TD_VID(pMeta->pVnode), __func__, pReq->uid, pReq->txnId, idxCode);
+        if (idxCode != TSDB_CODE_TXN_NOT_EXIST) {
+          TAOS_RETURN(idxCode);
+        }
+      }
+      metaInfo("vgId:%d, table %s uid %" PRId64 " marked PRE_DROP, txnId:%" PRId64, TD_VID(pMeta->pVnode), pReq->name,
+               pReq->uid, pReq->txnId);
+    }
     TAOS_RETURN(code);
   }
 
@@ -792,9 +2096,17 @@ int32_t metaDropTable2(SMeta *pMeta, int64_t version, SVDropTbReq *pReq) {
   if (code) {
     metaError("vgId:%d, %s failed at %s:%d since %s, uid:%" PRId64 " name:%s version:%" PRId64, TD_VID(pMeta->pVnode),
               __func__, __FILE__, __LINE__, tstrerror(code), pReq->uid, pReq->name, version);
+    if (pReq->isVirtual) {
+      metaError(KEYOP("vtable-drop", "FAIL") "vgId:%d, table %s uid %" PRId64 " since %s", TD_VID(pMeta->pVnode),
+                pReq->name, pReq->uid, tstrerror(code));
+    }
   } else {
     metaInfo("vgId:%d, table %s uid %" PRId64 " is dropped, version:%" PRId64, TD_VID(pMeta->pVnode), pReq->name,
              pReq->uid, version);
+    if (pReq->isVirtual) {
+      metaInfo(KEYOP("vtable-drop", "END") "vgId:%d, table %s uid %" PRId64 " is dropped, version:%" PRId64,
+               TD_VID(pMeta->pVnode), pReq->name, pReq->uid, version);
+    }
   }
   TAOS_RETURN(code);
 }
@@ -809,9 +2121,14 @@ static int32_t metaCheckAlterTableColumnReq(SMeta *pMeta, int64_t version, SVAlt
   }
 
   // check name
+  // Hold metaRLock for pNameIdx B+tree read: async vacuum may concurrently
+  // take metaWLock and mutate pNameIdx. Released before metaGetInfo to avoid
+  // nested rdlock deadlock.
   void   *value = NULL;
   int32_t valueSize = 0;
+  metaRLock(pMeta);
   code = tdbTbGet(pMeta->pNameIdx, pReq->tbName, strlen(pReq->tbName) + 1, &value, &valueSize);
+  metaULock(pMeta);
   if (code) {
     metaError("vgId:%d, %s failed at %s:%d since table %s not found, version:%" PRId64, TD_VID(pMeta->pVnode), __func__,
               __FILE__, __LINE__, pReq->tbName, version);
@@ -821,7 +2138,7 @@ static int32_t metaCheckAlterTableColumnReq(SMeta *pMeta, int64_t version, SVAlt
   int64_t uid = *(int64_t *)value;
   tdbFreeClear(value);
 
-  // check table type
+  // check table type  -  metaGetInfo acquires RLock internally; call without holding our lock
   SMetaInfo info;
   if (metaGetInfo(pMeta, uid, &info, NULL) != 0) {
     metaError("vgId:%d, %s failed at %s:%d since table %s uid %" PRId64
@@ -831,7 +2148,9 @@ static int32_t metaCheckAlterTableColumnReq(SMeta *pMeta, int64_t version, SVAlt
     TAOS_RETURN(code);
   }
   if (info.suid != 0 && pReq->action != TSDB_ALTER_TABLE_ALTER_COLUMN_REF &&
-      pReq->action != TSDB_ALTER_TABLE_REMOVE_COLUMN_REF) {
+      pReq->action != TSDB_ALTER_TABLE_REMOVE_COLUMN_REF &&
+      pReq->action != TSDB_ALTER_TABLE_ADD_COLUMN_WITH_COLUMN_REF &&
+      pReq->action != TSDB_ALTER_TABLE_DROP_COLUMN) {
     metaError("vgId:%d, %s failed at %s:%d since table %s uid %" PRId64 " is not a normal table, version:%" PRId64,
               TD_VID(pMeta->pVnode), __func__, __FILE__, __LINE__, pReq->tbName, uid, version);
     code = TSDB_CODE_VND_INVALID_TABLE_ACTION;
@@ -848,6 +2167,746 @@ static int32_t metaCheckAlterTableColumnReq(SMeta *pMeta, int64_t version, SVAlt
   TAOS_RETURN(code);
 }
 
+// Add an own (extension) column to a virtual child table. The column does not exist in the
+// vstb schema; it is stored in the vchild's own schema area (SMetaEntry.own) with a mandatory
+// origin reference, and its colId is allocated from TSDB_VCHILD_OWN_COL_ID_BASE upwards so it
+// can never collide with vstb-assigned colIds.
+static int32_t metaAddVChildOwnColumn(SMeta *pMeta, int64_t version, SVAlterTbReq *pReq, SMetaEntry *pEntry,
+                                      STableMetaRsp *pRsp) {
+  int32_t code = TSDB_CODE_SUCCESS;
+  int32_t lino = 0;
+
+  metaInfo(KEYOP("vtable-alter", "START") "vgId:%d, table %s add own column %s, version:%" PRId64,
+           TD_VID(pMeta->pVnode), pReq->tbName, pReq->colName, version);
+
+  // an own data column of a vchild must carry an origin reference
+  if (NULL == pReq->refDbName || NULL == pReq->refTbName || NULL == pReq->refColName ||
+      pReq->refDbName[0] == '\0' || pReq->refTbName[0] == '\0' || pReq->refColName[0] == '\0') {
+    metaError("vgId:%d, %s failed at %s:%d since virtual child table %s add column %s without reference, version:%" PRId64,
+              TD_VID(pMeta->pVnode), __func__, __FILE__, __LINE__, pReq->tbName, pReq->colName, version);
+    metaFetchEntryFree(&pEntry);
+    TAOS_RETURN(TSDB_CODE_VND_INVALID_TABLE_ACTION);
+  }
+
+  // fetch super entry (vstb): name-dup check against its schema and the merged response source
+  // (metaRLock guards metaFetchEntryByUid's tdb reads against a concurrent WLock/vacuum commit)
+  SMetaEntry *pSuper = NULL;
+  metaRLock(pMeta);
+  code = metaFetchEntryByUid(pMeta, pEntry->ctbEntry.suid, &pSuper);
+  metaULock(pMeta);
+  if (code) {
+    metaError("vgId:%d, %s failed at %s:%d since super table uid %" PRId64 " not found, version:%" PRId64,
+              TD_VID(pMeta->pVnode), __func__, __FILE__, __LINE__, pEntry->ctbEntry.suid, version);
+    metaFetchEntryFree(&pEntry);
+    TAOS_RETURN(TSDB_CODE_INTERNAL_ERROR);
+  }
+
+  // duplicate name check: vstb row schema + vstb tag schema + existing own columns/tags
+  SSchemaWrapper *pStbSchema = &pSuper->stbEntry.schemaRow;
+  int32_t         rowSize = 0;
+  for (int32_t i = 0; i < pStbSchema->nCols; i++) {
+    SSchema *pColumn = &pStbSchema->pSchema[i];
+    if (strncmp(pColumn->name, pReq->colName, TSDB_COL_NAME_LEN) == 0) {
+      metaError("vgId:%d, %s failed at %s:%d since column %s already exists in super table %s, version:%" PRId64,
+                TD_VID(pMeta->pVnode), __func__, __FILE__, __LINE__, pReq->colName, pSuper->name, version);
+      code = TSDB_CODE_VND_COL_ALREADY_EXISTS;
+      goto _return;
+    }
+    rowSize += pColumn->bytes;
+  }
+  SSchemaWrapper *pStbTagSchema = &pSuper->stbEntry.schemaTag;
+  for (int32_t i = 0; i < pStbTagSchema->nCols; i++) {
+    if (strncmp(pStbTagSchema->pSchema[i].name, pReq->colName, TSDB_COL_NAME_LEN) == 0) {
+      metaError("vgId:%d, %s failed at %s:%d since column %s already exists as tag in super table %s, version:%" PRId64,
+                TD_VID(pMeta->pVnode), __func__, __FILE__, __LINE__, pReq->colName, pSuper->name, version);
+      code = TSDB_CODE_VND_COL_ALREADY_EXISTS;
+      goto _return;
+    }
+  }
+  col_id_t maxOwnColId = TSDB_VCHILD_OWN_COL_ID_BASE - 1;
+  for (int32_t i = 0; i < pEntry->own.nOwnCols; i++) {
+    SSchema *pColumn = &pEntry->own.pOwnColSchemas[i];
+    if (strncmp(pColumn->name, pReq->colName, TSDB_COL_NAME_LEN) == 0) {
+      metaError("vgId:%d, %s failed at %s:%d since column %s already exists in table %s, version:%" PRId64,
+                TD_VID(pMeta->pVnode), __func__, __FILE__, __LINE__, pReq->colName, pReq->tbName, version);
+      code = TSDB_CODE_VND_COL_ALREADY_EXISTS;
+      goto _return;
+    }
+    rowSize += pColumn->bytes;
+    if (pColumn->colId > maxOwnColId) {
+      maxOwnColId = pColumn->colId;
+    }
+  }
+  for (int32_t i = 0; i < pEntry->own.nOwnTags; i++) {
+    SSchema *pTag = &pEntry->own.pOwnTagSchemas[i];
+    if (strncmp(pTag->name, pReq->colName, TSDB_COL_NAME_LEN) == 0) {
+      metaError("vgId:%d, %s failed at %s:%d since column %s already exists as own tag in table %s, version:%" PRId64,
+                TD_VID(pMeta->pVnode), __func__, __FILE__, __LINE__, pReq->colName, pReq->tbName, version);
+      code = TSDB_CODE_VND_COL_ALREADY_EXISTS;
+      goto _return;
+    }
+    if (pTag->colId > maxOwnColId) {
+      maxOwnColId = pTag->colId;
+    }
+  }
+
+  // limits are checked against the merged view (vstb columns + existing own columns + new one)
+  if (rowSize + pReq->bytes > TSDB_MAX_BYTES_PER_ROW_VIRTUAL) {
+    metaError("vgId:%d, %s failed at %s:%d since row size %d + %d > %d, version:%" PRId64, TD_VID(pMeta->pVnode),
+              __func__, __FILE__, __LINE__, rowSize, pReq->bytes, TSDB_MAX_BYTES_PER_ROW_VIRTUAL, version);
+    code = TSDB_CODE_PAR_INVALID_ROW_LENGTH;
+    goto _return;
+  }
+  if (pStbSchema->nCols + pEntry->own.nOwnCols + 1 > TSDB_MAX_COLUMNS) {
+    metaError("vgId:%d, %s failed at %s:%d since column count %d + %d + 1 > %d, version:%" PRId64,
+              TD_VID(pMeta->pVnode), __func__, __FILE__, __LINE__, pStbSchema->nCols, pEntry->own.nOwnCols,
+              TSDB_MAX_COLUMNS, version);
+    code = TSDB_CODE_PAR_TOO_MANY_COLUMNS;
+    goto _return;
+  }
+
+  int32_t newColId = (int32_t)maxOwnColId + 1;
+  if (newColId > INT16_MAX) {
+    metaError("vgId:%d, %s failed at %s:%d since column id %d exceeds max column id %d, version:%" PRId64,
+              TD_VID(pMeta->pVnode), __func__, __FILE__, __LINE__, newColId, INT16_MAX, version);
+    code = TSDB_CODE_VND_EXCEED_MAX_COL_ID;
+    goto _return;
+  }
+
+  // append the own column schema
+  int32_t nOwnCols = pEntry->own.nOwnCols;
+  // Grow all arrays into freshly allocated buffers and commit them to pEntry->own only after
+  // every allocation succeeded, so a failure leaves the entry untouched and never breaks the
+  // 1:1 position-alignment invariant between pOwnColSchemas/pOwnColRefs/pOwnColExtSchemas and
+  // nOwnCols. realloc cannot provide this: a succeeded realloc consumes the old block, so a
+  // later failure could not restore the original pointer. The ext array is grown only when the
+  // new column (or an existing one) carries a typeMod; otherwise it stays NULL.
+  bool        needExt = (pReq->flags & COL_HAS_TYPE_MOD) || (pEntry->own.pOwnColExtSchemas != NULL);
+  SSchema    *pNewSchemas = taosMemoryMalloc((nOwnCols + 1) * sizeof(SSchema));
+  SColRef    *pNewRefs = NULL;
+  SExtSchema *pNewExt = NULL;
+  if (NULL != pNewSchemas) {
+    if (nOwnCols > 0) {
+      memcpy(pNewSchemas, pEntry->own.pOwnColSchemas, nOwnCols * sizeof(SSchema));
+    }
+    pNewRefs = taosMemoryMalloc((nOwnCols + 1) * sizeof(SColRef));
+  }
+  if (NULL != pNewRefs && nOwnCols > 0) {
+    memcpy(pNewRefs, pEntry->own.pOwnColRefs, nOwnCols * sizeof(SColRef));
+  }
+  if (NULL != pNewSchemas && NULL != pNewRefs && needExt) {
+    // calloc also covers the first decimal own column: prior non-decimal own columns get a
+    // valid typeMod (0), matching the COL_HAS_TYPE_MOD==false semantics.
+    pNewExt = taosMemoryCalloc(nOwnCols + 1, sizeof(SExtSchema));
+    if (NULL != pNewExt && pEntry->own.pOwnColExtSchemas != NULL) {
+      memcpy(pNewExt, pEntry->own.pOwnColExtSchemas, nOwnCols * sizeof(SExtSchema));
+    }
+  }
+  if (NULL == pNewSchemas || NULL == pNewRefs || (needExt && NULL == pNewExt)) {
+    code = terrno;
+    metaError("vgId:%d, %s failed at %s:%d since %s, version:%" PRId64, TD_VID(pMeta->pVnode), __func__, __FILE__,
+              __LINE__, tstrerror(code), version);
+    // the entry still owns its original arrays; just release the freshly allocated buffers
+    taosMemoryFree(pNewSchemas);
+    taosMemoryFree(pNewRefs);
+    taosMemoryFree(pNewExt);
+    goto _return;
+  }
+  taosMemoryFree(pEntry->own.pOwnColSchemas);
+  taosMemoryFree(pEntry->own.pOwnColRefs);
+  taosMemoryFree(pEntry->own.pOwnColExtSchemas);
+  pEntry->own.pOwnColSchemas = pNewSchemas;
+  pEntry->own.pOwnColRefs = pNewRefs;
+  pEntry->own.pOwnColExtSchemas = pNewExt;
+
+  SSchema *pColumn = &pEntry->own.pOwnColSchemas[nOwnCols];
+  pColumn->bytes = pReq->bytes;
+  pColumn->type = pReq->type;
+  pColumn->flags = pReq->flags;
+  pColumn->colId = (col_id_t)newColId;
+  tstrncpy(pColumn->name, pReq->colName, TSDB_COL_NAME_LEN);
+  if (pEntry->own.pOwnColExtSchemas != NULL) {
+    pEntry->own.pOwnColExtSchemas[nOwnCols].typeMod = (pReq->flags & COL_HAS_TYPE_MOD) ? pReq->typeMod : 0;
+  }
+
+  SColRef *pOwnRef = &pEntry->own.pOwnColRefs[nOwnCols];
+  memset(pOwnRef, 0, sizeof(SColRef));
+  pOwnRef->hasRef = true;
+  pOwnRef->id = (col_id_t)newColId;
+  pOwnRef->refType = pReq->refType;
+  if (pReq->refSourceName && pReq->refSourceName[0] != '\0') {
+    tstrncpy(pOwnRef->refSourceName, pReq->refSourceName, TSDB_EXT_SOURCE_NAME_LEN);
+  }
+  tstrncpy(pOwnRef->refDbName, pReq->refDbName, TSDB_DB_NAME_LEN);
+  if (NULL != pReq->refSchemaName && '\0' != pReq->refSchemaName[0]) {
+    tstrncpy(pOwnRef->refSchemaName, pReq->refSchemaName, TSDB_EXT_SOURCE_SCHEMA_LEN);
+  }
+  tstrncpy(pOwnRef->refTableName, pReq->refTbName, TSDB_TABLE_NAME_LEN);
+  tstrncpy(pOwnRef->refColName, pReq->refColName, TSDB_COL_NAME_LEN);
+  pEntry->own.nOwnCols = nOwnCols + 1;
+  QUERY_CHECK_CONDITION(pReq->filterCondLen >= 0, code, lino, _return, TSDB_CODE_INVALID_MSG);
+  if (pReq->filterCondLen > 0) {
+    QUERY_CHECK_NULL(pReq->filterCondJson, code, lino, _return, TSDB_CODE_INVALID_MSG);
+    pOwnRef->filterCondJson = taosStrdup(pReq->filterCondJson);
+    QUERY_CHECK_NULL(pOwnRef->filterCondJson, code, lino, _return, terrno);
+    pOwnRef->filterCondLen = pReq->filterCondLen;
+  }
+
+  pEntry->version = version;
+  pEntry->colRef.version++;  // rversion bump: drives client catalog cache invalidation
+
+  // do handle entry
+  code = metaHandleReferenceEntry(pMeta, pEntry, pReq);
+  if (code) {
+    metaError("vgId:%d, %s failed at %s:%d since %s, uid:%" PRId64 " name:%s version:%" PRId64, TD_VID(pMeta->pVnode),
+              __func__, __FILE__, __LINE__, tstrerror(code), pEntry->uid, pReq->tbName, version);
+    goto _return;
+  }
+  metaInfo(KEYOP("vtable-alter", "END")
+               "vgId:%d, table %s uid %" PRId64 " added own column %s colId %d, version:%" PRId64,
+           TD_VID(pMeta->pVnode), pReq->tbName, pEntry->uid, pReq->colName, newColId, version);
+
+  // build the merged response (vstb schema + own columns) so the client catalog cache refreshes
+  code = metaUpdateVtbMetaRsp(pEntry, pReq->tbName, pStbSchema, &pSuper->stbEntry.schemaTag, &pEntry->colRef, pSuper->pExtSchemas,
+                              pSuper->stbEntry.ownerId, pRsp, pEntry->type);
+  if (code) {
+    metaError("vgId:%d, %s failed at %s:%d since %s, uid:%" PRId64 " name:%s version:%" PRId64, TD_VID(pMeta->pVnode),
+              __func__, __FILE__, __LINE__, tstrerror(code), pEntry->uid, pReq->tbName, version);
+  }
+
+_return:
+  if (TSDB_CODE_SUCCESS != code && lino != 0) {
+    qError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
+  }
+  metaFetchEntryFree(&pSuper);
+  metaFetchEntryFree(&pEntry);
+  TAOS_RETURN(code);
+}
+
+// Drop an own (extension) column from a virtual child table. The column must exist in the vchild's
+// own schema area (SMetaEntry.own); a vstb cascaded column name is rejected as not-found. The own
+// schema, its 1:1 position-aligned ref array and the typeMod (ext) array are shrunk in lockstep.
+// Own columns carry no compression metadata, so colCmpr is untouched.
+static int32_t metaDropVChildOwnColumn(SMeta *pMeta, int64_t version, SVAlterTbReq *pReq, SMetaEntry *pEntry,
+                                       STableMetaRsp *pRsp) {
+  int32_t code = TSDB_CODE_SUCCESS;
+
+  metaInfo(KEYOP("vtable-alter", "START") "vgId:%d, table %s drop own column %s, version:%" PRId64,
+           TD_VID(pMeta->pVnode), pReq->tbName, pReq->colName, version);
+
+  // locate the own column by name
+  int32_t idx = -1;
+  for (int32_t i = 0; i < pEntry->own.nOwnCols; i++) {
+    if (strncmp(pEntry->own.pOwnColSchemas[i].name, pReq->colName, TSDB_COL_NAME_LEN) == 0) {
+      idx = i;
+      break;
+    }
+  }
+  if (idx < 0) {
+    metaError("vgId:%d, %s failed at %s:%d since own column %s not found in table %s, version:%" PRId64,
+              TD_VID(pMeta->pVnode), __func__, __FILE__, __LINE__, pReq->colName, pReq->tbName, version);
+    metaFetchEntryFree(&pEntry);
+    TAOS_RETURN(TSDB_CODE_VND_COL_NOT_EXISTS);
+  }
+  col_id_t droppedColId = pEntry->own.pOwnColSchemas[idx].colId;
+
+  // shrink pOwnColSchemas[], pOwnColRefs[] and pOwnColExtSchemas[] in lockstep (1:1
+  // position-aligned); skipping the ext shift would pair the surviving decimal column with the
+  // dropped column's typeMod slot and persist it as DECIMAL(0,0)
+  int32_t nOwnCols = pEntry->own.nOwnCols;
+  // Release owned conditions before this slot is moved or removed.
+  tFreeSColRefArray(&pEntry->own.pOwnColRefs[idx], 1);
+  if (nOwnCols - idx - 1 > 0) {
+    memmove(pEntry->own.pOwnColSchemas + idx, pEntry->own.pOwnColSchemas + idx + 1,
+            (nOwnCols - idx - 1) * sizeof(SSchema));
+    memmove(pEntry->own.pOwnColRefs + idx, pEntry->own.pOwnColRefs + idx + 1,
+            (nOwnCols - idx - 1) * sizeof(SColRef));
+    if (pEntry->own.pOwnColExtSchemas != NULL) {
+      memmove(pEntry->own.pOwnColExtSchemas + idx, pEntry->own.pOwnColExtSchemas + idx + 1,
+              (nOwnCols - idx - 1) * sizeof(SExtSchema));
+    }
+  }
+  pEntry->own.nOwnCols = nOwnCols - 1;
+  // shrink the arrays to the new size, or release them entirely when empty, so they stay
+  // consistent with the create path's "empty == NULL" convention. A failed shrink realloc keeps
+  // the old (valid, merely oversized) buffer; nOwnCols defines the logical length either way.
+  if (pEntry->own.nOwnCols == 0) {
+    taosMemoryFreeClear(pEntry->own.pOwnColSchemas);
+    taosMemoryFreeClear(pEntry->own.pOwnColRefs);
+    taosMemoryFreeClear(pEntry->own.pOwnColExtSchemas);
+  } else {
+    SSchema *pSchemas = taosMemoryRealloc(pEntry->own.pOwnColSchemas, pEntry->own.nOwnCols * sizeof(SSchema));
+    if (pSchemas != NULL) pEntry->own.pOwnColSchemas = pSchemas;
+    SColRef *pRefs = taosMemoryRealloc(pEntry->own.pOwnColRefs, pEntry->own.nOwnCols * sizeof(SColRef));
+    if (pRefs != NULL) pEntry->own.pOwnColRefs = pRefs;
+    if (pEntry->own.pOwnColExtSchemas != NULL) {
+      SExtSchema *pExt = taosMemoryRealloc(pEntry->own.pOwnColExtSchemas, pEntry->own.nOwnCols * sizeof(SExtSchema));
+      if (pExt != NULL) pEntry->own.pOwnColExtSchemas = pExt;
+    }
+  }
+
+  pEntry->version = version;
+  pEntry->colRef.version++;  // rversion bump: drives client catalog cache invalidation
+
+  // fetch super entry (vstb): the merged response source
+  // (metaRLock guards metaFetchEntryByUid's tdb reads against a concurrent WLock/vacuum commit)
+  SMetaEntry *pSuper = NULL;
+  metaRLock(pMeta);
+  code = metaFetchEntryByUid(pMeta, pEntry->ctbEntry.suid, &pSuper);
+  metaULock(pMeta);
+  if (code) {
+    metaError("vgId:%d, %s failed at %s:%d since super table uid %" PRId64 " not found, version:%" PRId64,
+              TD_VID(pMeta->pVnode), __func__, __FILE__, __LINE__, pEntry->ctbEntry.suid, version);
+    goto _exit;
+  }
+
+  // do handle entry
+  code = metaHandleReferenceEntry(pMeta, pEntry, pReq);
+  if (code) {
+    metaError("vgId:%d, %s failed at %s:%d since %s, uid:%" PRId64 " name:%s version:%" PRId64, TD_VID(pMeta->pVnode),
+              __func__, __FILE__, __LINE__, tstrerror(code), pEntry->uid, pReq->tbName, version);
+    goto _exit;
+  }
+  metaInfo(KEYOP("vtable-alter", "END")
+               "vgId:%d, table %s uid %" PRId64 " dropped own column %s colId %d, version:%" PRId64,
+           TD_VID(pMeta->pVnode), pReq->tbName, pEntry->uid, pReq->colName, droppedColId, version);
+
+  // build the merged response (vstb schema + remaining own columns) so the client catalog cache refreshes
+  code = metaUpdateVtbMetaRsp(pEntry, pReq->tbName, &pSuper->stbEntry.schemaRow, &pSuper->stbEntry.schemaTag,
+                              &pEntry->colRef, pSuper->pExtSchemas, pSuper->stbEntry.ownerId, pRsp, pEntry->type);
+  if (code) {
+    metaError("vgId:%d, %s failed at %s:%d since %s, uid:%" PRId64 " name:%s version:%" PRId64, TD_VID(pMeta->pVnode),
+              __func__, __FILE__, __LINE__, tstrerror(code), pEntry->uid, pReq->tbName, version);
+  }
+
+_exit:
+  metaFetchEntryFree(&pSuper);
+  metaFetchEntryFree(&pEntry);
+  TAOS_RETURN(code);
+}
+
+// Rebuild the shared tag blob of a virtual child table with the merged tag schema (vstb tags
+// followed by own tags). Stored values are carried over by colId; schema tags without a stored
+// value stay NULL (absent from the blob). tTagNew sorts by colId and own tag colIds are always
+// greater than any vstb colId, so the blob order always matches the merged schema order.
+static int32_t metaRebuildVChildTagBlob(SMetaEntry *pEntry, const SSchemaWrapper *pMergedTagSchema) {
+  int32_t     code = TSDB_CODE_SUCCESS;
+  const STag *pOldTag = (const STag *)pEntry->ctbEntry.pTags;
+  SArray     *pTagArray = taosArrayInit(pMergedTagSchema->nCols, sizeof(STagVal));
+  if (NULL == pTagArray) {
+    return terrno;
+  }
+
+  for (int32_t i = 0; i < pMergedTagSchema->nCols; i++) {
+    SSchema *pCol = &pMergedTagSchema->pSchema[i];
+    STagVal  value = {.cid = pCol->colId};
+    if (!tTagGet(pOldTag, &value)) {
+      continue;  // NULL value: not present in the blob
+    }
+    if (taosArrayPush(pTagArray, &value) == NULL) {
+      code = terrno;
+      goto _exit;
+    }
+  }
+
+  // Rebuild unconditionally. tTagNew yields a valid empty STag (nTag==0) for an empty array,
+  // which is the correct outcome when no remaining tag has a stored value  -  e.g. after dropping
+  // the only tag that had a literal. Short-circuiting here would leave the old blob (which may
+  // still physically contain a just-dropped colId/value) as orphaned stale data.
+  STag *pNewTag = NULL;
+  code = tTagNew(pTagArray, pMergedTagSchema->version, false, &pNewTag);
+  if (code) {
+    goto _exit;
+  }
+  // tTagNew serialized every value out of the old blob, it is safe to release it now
+  taosMemoryFree(pEntry->ctbEntry.pTags);
+  pEntry->ctbEntry.pTags = (uint8_t *)pNewTag;
+
+_exit:
+  taosArrayDestroy(pTagArray);
+  return code;
+}
+
+// Add an own (extension) tag to a virtual child table. The tag does not exist in the vstb
+// schema; only its schema is stored in the vchild's own schema area (SMetaEntry.own). The
+// initial value is NULL; a literal value (stored in the shared ctbEntry.pTags blob) or a tag
+// reference (stored in the sparse colRef.pTagRef array by colId) can be attached later via
+// SET TAG / ALTER TAG SET REF. The colId is allocated from TSDB_VCHILD_OWN_COL_ID_BASE upwards
+// (shared with own columns) so it can never collide with vstb-assigned colIds.
+int32_t metaAddVChildOwnTag(SMeta *pMeta, int64_t version, SVAlterTbReq *pReq, STableMetaRsp *pRsp) {
+  int32_t code = TSDB_CODE_SUCCESS;
+
+  metaInfo(KEYOP("vtable-alter", "START") "vgId:%d, table %s add own tag %s, version:%" PRId64, TD_VID(pMeta->pVnode),
+           pReq->tbName, pReq->colName, version);
+
+  if (NULL == pReq->colName || strlen(pReq->colName) == 0) {
+    metaError("vgId:%d, %s failed at %s:%d since invalid tag name:%s, version:%" PRId64, TD_VID(pMeta->pVnode),
+              __func__, __FILE__, __LINE__, pReq->colName, version);
+    TAOS_RETURN(TSDB_CODE_INVALID_MSG);
+  }
+
+  // fetch old entry
+  SMetaEntry *pEntry = NULL;
+  metaRLock(pMeta);
+  code = metaFetchEntryByName(pMeta, pReq->tbName, &pEntry);
+  metaULock(pMeta);
+  if (code) {
+    metaError("vgId:%d, %s failed at %s:%d since table %s not found, version:%" PRId64, TD_VID(pMeta->pVnode), __func__,
+              __FILE__, __LINE__, pReq->tbName, version);
+    TAOS_RETURN(code);
+  }
+
+  // only virtual child tables may add an own tag
+  if (pEntry->type != TSDB_VIRTUAL_CHILD_TABLE) {
+    metaError("vgId:%d, %s failed at %s:%d since table %s type %d does not support add tag, version:%" PRId64,
+              TD_VID(pMeta->pVnode), __func__, __FILE__, __LINE__, pReq->tbName, pEntry->type, version);
+    metaFetchEntryFree(&pEntry);
+    TAOS_RETURN(TSDB_CODE_VND_INVALID_TABLE_ACTION);
+  }
+  if (pEntry->version >= version) {
+    metaError("vgId:%d, %s failed at %s:%d since table %s version %" PRId64 " is not less than %" PRId64,
+              TD_VID(pMeta->pVnode), __func__, __FILE__, __LINE__, pReq->tbName, pEntry->version, version);
+    metaFetchEntryFree(&pEntry);
+    TAOS_RETURN(TSDB_CODE_INVALID_PARA);
+  }
+
+  // fetch super entry (vstb): name-dup check against its schema and the merged response source
+  // (metaRLock guards metaFetchEntryByUid's tdb reads against a concurrent WLock/vacuum commit)
+  SMetaEntry *pSuper = NULL;
+  metaRLock(pMeta);
+  code = metaFetchEntryByUid(pMeta, pEntry->ctbEntry.suid, &pSuper);
+  metaULock(pMeta);
+  if (code) {
+    metaError("vgId:%d, %s failed at %s:%d since super table uid %" PRId64 " not found, version:%" PRId64,
+              TD_VID(pMeta->pVnode), __func__, __FILE__, __LINE__, pEntry->ctbEntry.suid, version);
+    metaFetchEntryFree(&pEntry);
+    TAOS_RETURN(TSDB_CODE_INTERNAL_ERROR);
+  }
+
+  // tag type restrictions, same rules as super table ADD TAG
+  if (pReq->type == TSDB_DATA_TYPE_JSON) {
+    metaError("vgId:%d, %s failed at %s:%d since json type is not allowed for own tag %s, version:%" PRId64,
+              TD_VID(pMeta->pVnode), __func__, __FILE__, __LINE__, pReq->colName, version);
+    code = TSDB_CODE_PAR_ONLY_ONE_JSON_TAG;
+    goto _exit;
+  }
+  if (IS_DECIMAL_TYPE(pReq->type)) {
+    metaError("vgId:%d, %s failed at %s:%d since decimal type is not allowed for own tag %s, version:%" PRId64,
+              TD_VID(pMeta->pVnode), __func__, __FILE__, __LINE__, pReq->colName, version);
+    code = TSDB_CODE_PAR_INVALID_COLUMN;
+    goto _exit;
+  }
+  if ((pReq->type == TSDB_DATA_TYPE_VARCHAR || pReq->type == TSDB_DATA_TYPE_VARBINARY ||
+       pReq->type == TSDB_DATA_TYPE_NCHAR || pReq->type == TSDB_DATA_TYPE_GEOMETRY) &&
+      pReq->bytes > TSDB_MAX_TAGS_LEN) {
+    metaError("vgId:%d, %s failed at %s:%d since tag %s bytes %d > %d, version:%" PRId64, TD_VID(pMeta->pVnode),
+              __func__, __FILE__, __LINE__, pReq->colName, pReq->bytes, TSDB_MAX_TAGS_LEN, version);
+    code = TSDB_CODE_PAR_INVALID_VAR_COLUMN_LEN;
+    goto _exit;
+  }
+
+  // duplicate name check: vstb row schema + vstb tag schema + existing own columns/tags
+  SSchemaWrapper *pStbSchema = &pSuper->stbEntry.schemaRow;
+  for (int32_t i = 0; i < pStbSchema->nCols; i++) {
+    if (strncmp(pStbSchema->pSchema[i].name, pReq->colName, TSDB_COL_NAME_LEN) == 0) {
+      metaError("vgId:%d, %s failed at %s:%d since tag %s already exists as column in super table %s, version:%" PRId64,
+                TD_VID(pMeta->pVnode), __func__, __FILE__, __LINE__, pReq->colName, pSuper->name, version);
+      code = TSDB_CODE_VND_COL_ALREADY_EXISTS;
+      goto _exit;
+    }
+  }
+  SSchemaWrapper *pStbTagSchema = &pSuper->stbEntry.schemaTag;
+  int32_t         tagsLen = 0;
+  for (int32_t i = 0; i < pStbTagSchema->nCols; i++) {
+    if (strncmp(pStbTagSchema->pSchema[i].name, pReq->colName, TSDB_COL_NAME_LEN) == 0) {
+      metaError("vgId:%d, %s failed at %s:%d since tag %s already exists in super table %s, version:%" PRId64,
+                TD_VID(pMeta->pVnode), __func__, __FILE__, __LINE__, pReq->colName, pSuper->name, version);
+      code = TSDB_CODE_VND_COL_ALREADY_EXISTS;
+      goto _exit;
+    }
+    tagsLen += pStbTagSchema->pSchema[i].bytes;
+  }
+  // the shared tag blob is rebuilt with the merged tag schema, which does not support a vstb
+  // JSON tag; refuse to mix an own tag with it
+  if (pStbTagSchema->nCols == 1 && pStbTagSchema->pSchema[0].type == TSDB_DATA_TYPE_JSON) {
+    metaError("vgId:%d, %s failed at %s:%d since super table %s has json tag, version:%" PRId64, TD_VID(pMeta->pVnode),
+              __func__, __FILE__, __LINE__, pSuper->name, version);
+    code = TSDB_CODE_PAR_ONLY_ONE_JSON_TAG;
+    goto _exit;
+  }
+  col_id_t maxOwnColId = TSDB_VCHILD_OWN_COL_ID_BASE - 1;
+  for (int32_t i = 0; i < pEntry->own.nOwnCols; i++) {
+    SSchema *pColumn = &pEntry->own.pOwnColSchemas[i];
+    if (strncmp(pColumn->name, pReq->colName, TSDB_COL_NAME_LEN) == 0) {
+      metaError("vgId:%d, %s failed at %s:%d since tag %s already exists as own column in table %s, version:%" PRId64,
+                TD_VID(pMeta->pVnode), __func__, __FILE__, __LINE__, pReq->colName, pReq->tbName, version);
+      code = TSDB_CODE_VND_COL_ALREADY_EXISTS;
+      goto _exit;
+    }
+    if (pColumn->colId > maxOwnColId) {
+      maxOwnColId = pColumn->colId;
+    }
+  }
+  for (int32_t i = 0; i < pEntry->own.nOwnTags; i++) {
+    SSchema *pTag = &pEntry->own.pOwnTagSchemas[i];
+    if (strncmp(pTag->name, pReq->colName, TSDB_COL_NAME_LEN) == 0) {
+      metaError("vgId:%d, %s failed at %s:%d since tag %s already exists in table %s, version:%" PRId64,
+                TD_VID(pMeta->pVnode), __func__, __FILE__, __LINE__, pReq->colName, pReq->tbName, version);
+      code = TSDB_CODE_VND_COL_ALREADY_EXISTS;
+      goto _exit;
+    }
+    tagsLen += pTag->bytes;
+    if (pTag->colId > maxOwnColId) {
+      maxOwnColId = pTag->colId;
+    }
+  }
+
+  // limits are checked against the merged view (vstb tags + existing own tags + the new one)
+  if (tagsLen + pReq->bytes > TSDB_MAX_TAGS_LEN) {
+    metaError("vgId:%d, %s failed at %s:%d since tags length %d + %d > %d, version:%" PRId64, TD_VID(pMeta->pVnode),
+              __func__, __FILE__, __LINE__, tagsLen, pReq->bytes, TSDB_MAX_TAGS_LEN, version);
+    code = TSDB_CODE_PAR_INVALID_TAGS_LENGTH;
+    goto _exit;
+  }
+  if (pStbTagSchema->nCols + pEntry->own.nOwnTags + 1 > TSDB_MAX_TAGS) {
+    metaError("vgId:%d, %s failed at %s:%d since tag count %d + %d + 1 > %d, version:%" PRId64, TD_VID(pMeta->pVnode),
+              __func__, __FILE__, __LINE__, pStbTagSchema->nCols, pEntry->own.nOwnTags, TSDB_MAX_TAGS, version);
+    code = TSDB_CODE_PAR_INVALID_TAGS_NUM;
+    goto _exit;
+  }
+
+  int32_t newColId = (int32_t)maxOwnColId + 1;
+  if (newColId > INT16_MAX) {
+    metaError("vgId:%d, %s failed at %s:%d since column id %d exceeds max column id %d, version:%" PRId64,
+              TD_VID(pMeta->pVnode), __func__, __FILE__, __LINE__, newColId, INT16_MAX, version);
+    code = TSDB_CODE_VND_EXCEED_MAX_COL_ID;
+    goto _exit;
+  }
+
+  // append the own tag schema
+  int32_t  nOwnTags = pEntry->own.nOwnTags;
+  SSchema *pNewSchemas = taosMemoryRealloc(pEntry->own.pOwnTagSchemas, (nOwnTags + 1) * sizeof(SSchema));
+  if (NULL == pNewSchemas) {
+    code = terrno;
+    metaError("vgId:%d, %s failed at %s:%d since %s, version:%" PRId64, TD_VID(pMeta->pVnode), __func__, __FILE__,
+              __LINE__, tstrerror(code), version);
+    goto _exit;
+  }
+  pEntry->own.pOwnTagSchemas = pNewSchemas;
+
+  SSchema *pTag = &pEntry->own.pOwnTagSchemas[nOwnTags];
+  pTag->bytes = pReq->bytes;
+  pTag->type = pReq->type;
+  pTag->flags = 0;
+  pTag->colId = (col_id_t)newColId;
+  tstrncpy(pTag->name, pReq->colName, TSDB_COL_NAME_LEN);
+  pEntry->own.nOwnTags = nOwnTags + 1;
+
+  // rebuild the shared tag blob with the merged tag schema (vstb tags + own tags); the new tag
+  // has no stored value yet (NULL), so this only normalizes the blob to the merged schema
+  int32_t  nMergedTags = pStbTagSchema->nCols + pEntry->own.nOwnTags;
+  SSchema *pMergedTags = taosMemoryMalloc(nMergedTags * sizeof(SSchema));
+  if (NULL == pMergedTags) {
+    code = terrno;
+    metaError("vgId:%d, %s failed at %s:%d since %s, version:%" PRId64, TD_VID(pMeta->pVnode), __func__, __FILE__,
+              __LINE__, tstrerror(code), version);
+    goto _exit;
+  }
+  memcpy(pMergedTags, pStbTagSchema->pSchema, pStbTagSchema->nCols * sizeof(SSchema));
+  memcpy(pMergedTags + pStbTagSchema->nCols, pEntry->own.pOwnTagSchemas, pEntry->own.nOwnTags * sizeof(SSchema));
+  SSchemaWrapper mergedTagSchema = {
+      .nCols = nMergedTags, .version = pStbTagSchema->version, .pSchema = pMergedTags};
+  code = metaRebuildVChildTagBlob(pEntry, &mergedTagSchema);
+  taosMemoryFree(pMergedTags);
+  if (code) {
+    metaError("vgId:%d, %s failed at %s:%d since %s, version:%" PRId64, TD_VID(pMeta->pVnode), __func__, __FILE__,
+              __LINE__, tstrerror(code), version);
+    goto _exit;
+  }
+
+  pEntry->version = version;
+  pEntry->colRef.version++;  // rversion bump: drives client catalog cache invalidation
+
+  // do handle entry
+  code = metaHandleEntry2(pMeta, pEntry);
+  if (code) {
+    metaError("vgId:%d, %s failed at %s:%d since %s, uid:%" PRId64 " name:%s version:%" PRId64, TD_VID(pMeta->pVnode),
+              __func__, __FILE__, __LINE__, tstrerror(code), pEntry->uid, pReq->tbName, version);
+    goto _exit;
+  }
+  metaInfo(KEYOP("vtable-alter", "END")
+               "vgId:%d, table %s uid %" PRId64 " added own tag %s colId %d, version:%" PRId64,
+           TD_VID(pMeta->pVnode), pReq->tbName, pEntry->uid, pReq->colName, newColId, version);
+
+  // build the merged response (vstb schema + own columns/tags) so the client catalog cache refreshes
+  code = metaUpdateVtbMetaRsp(pEntry, pReq->tbName, pStbSchema, pStbTagSchema, &pEntry->colRef, pSuper->pExtSchemas,
+                              pSuper->stbEntry.ownerId, pRsp, pEntry->type);
+  if (code) {
+    metaError("vgId:%d, %s failed at %s:%d since %s, uid:%" PRId64 " name:%s version:%" PRId64, TD_VID(pMeta->pVnode),
+              __func__, __FILE__, __LINE__, tstrerror(code), pEntry->uid, pReq->tbName, version);
+  }
+
+_exit:
+  metaFetchEntryFree(&pSuper);
+  metaFetchEntryFree(&pEntry);
+  TAOS_RETURN(code);
+}
+
+// Drop an own (extension) tag from a virtual child table. The tag schema is removed from the own
+// area, its reference (if any) is compacted out of the sparse colRef.pTagRef array, and the shared
+// tag blob is rebuilt with the trimmed merged schema  -  metaRebuildVChildTagBlob drops the stored
+// literal value because its colId is no longer in the merged schema. Only virtual child tables
+// reach here (enforced by the parser / dispatcher).
+int32_t metaDropVChildOwnTag(SMeta *pMeta, int64_t version, SVAlterTbReq *pReq, STableMetaRsp *pRsp) {
+  int32_t code = TSDB_CODE_SUCCESS;
+
+  metaInfo(KEYOP("vtable-alter", "START") "vgId:%d, table %s drop own tag %s, version:%" PRId64,
+           TD_VID(pMeta->pVnode), pReq->tbName, pReq->colName, version);
+
+  if (NULL == pReq->colName || strlen(pReq->colName) == 0) {
+    metaError("vgId:%d, %s failed at %s:%d since invalid tag name:%s, version:%" PRId64, TD_VID(pMeta->pVnode),
+              __func__, __FILE__, __LINE__, pReq->colName, version);
+    TAOS_RETURN(TSDB_CODE_INVALID_MSG);
+  }
+
+  // fetch old entry
+  SMetaEntry *pEntry = NULL;
+  metaRLock(pMeta);
+  code = metaFetchEntryByName(pMeta, pReq->tbName, &pEntry);
+  metaULock(pMeta);
+  if (code) {
+    metaError("vgId:%d, %s failed at %s:%d since table %s not found, version:%" PRId64, TD_VID(pMeta->pVnode), __func__,
+              __FILE__, __LINE__, pReq->tbName, version);
+    TAOS_RETURN(code);
+  }
+
+  if (pEntry->type != TSDB_VIRTUAL_CHILD_TABLE) {
+    metaError("vgId:%d, %s failed at %s:%d since table %s type %d does not support drop tag, version:%" PRId64,
+              TD_VID(pMeta->pVnode), __func__, __FILE__, __LINE__, pReq->tbName, pEntry->type, version);
+    metaFetchEntryFree(&pEntry);
+    TAOS_RETURN(TSDB_CODE_VND_INVALID_TABLE_ACTION);
+  }
+  if (pEntry->version >= version) {
+    metaError("vgId:%d, %s failed at %s:%d since table %s version %" PRId64 " is not less than %" PRId64,
+              TD_VID(pMeta->pVnode), __func__, __FILE__, __LINE__, pReq->tbName, pEntry->version, version);
+    metaFetchEntryFree(&pEntry);
+    TAOS_RETURN(TSDB_CODE_INVALID_PARA);
+  }
+
+  // locate the own tag by name
+  int32_t idx = -1;
+  for (int32_t i = 0; i < pEntry->own.nOwnTags; i++) {
+    if (strncmp(pEntry->own.pOwnTagSchemas[i].name, pReq->colName, TSDB_COL_NAME_LEN) == 0) {
+      idx = i;
+      break;
+    }
+  }
+  if (idx < 0) {
+    metaError("vgId:%d, %s failed at %s:%d since own tag %s not found in table %s, version:%" PRId64,
+              TD_VID(pMeta->pVnode), __func__, __FILE__, __LINE__, pReq->colName, pReq->tbName, version);
+    metaFetchEntryFree(&pEntry);
+    TAOS_RETURN(TSDB_CODE_VND_COL_NOT_EXISTS);
+  }
+  col_id_t droppedColId = pEntry->own.pOwnTagSchemas[idx].colId;
+
+  // fetch super entry (vstb): name resolution and the merged response source
+  // (metaRLock guards metaFetchEntryByUid's tdb reads against a concurrent WLock/vacuum commit)
+  SMetaEntry *pSuper = NULL;
+  metaRLock(pMeta);
+  code = metaFetchEntryByUid(pMeta, pEntry->ctbEntry.suid, &pSuper);
+  metaULock(pMeta);
+  if (code) {
+    metaError("vgId:%d, %s failed at %s:%d since super table uid %" PRId64 " not found, version:%" PRId64,
+              TD_VID(pMeta->pVnode), __func__, __FILE__, __LINE__, pEntry->ctbEntry.suid, version);
+    metaFetchEntryFree(&pEntry);
+    TAOS_RETURN(TSDB_CODE_INTERNAL_ERROR);
+  }
+  SSchemaWrapper *pStbTagSchema = &pSuper->stbEntry.schemaTag;
+
+  // shrink pOwnTagSchemas[]
+  int32_t nOwnTags = pEntry->own.nOwnTags;
+  if (nOwnTags - idx - 1 > 0) {
+    memmove(pEntry->own.pOwnTagSchemas + idx, pEntry->own.pOwnTagSchemas + idx + 1,
+            (nOwnTags - idx - 1) * sizeof(SSchema));
+  }
+  pEntry->own.nOwnTags = nOwnTags - 1;
+  // shrink the array to the new size, or release it entirely when empty, so it stays
+  // consistent with the create path's "empty == NULL" convention. A failed shrink realloc
+  // keeps the old (valid, merely oversized) buffer; nOwnTags defines the logical length.
+  if (pEntry->own.nOwnTags == 0) {
+    taosMemoryFreeClear(pEntry->own.pOwnTagSchemas);
+  } else {
+    SSchema *pSchemas = taosMemoryRealloc(pEntry->own.pOwnTagSchemas, pEntry->own.nOwnTags * sizeof(SSchema));
+    if (pSchemas != NULL) pEntry->own.pOwnTagSchemas = pSchemas;
+  }
+
+  // compact out the dropped tag's reference from the sparse colRef.pTagRef[] (by colId)
+  for (int32_t r = 0; r < pEntry->colRef.nTagRefs; r++) {
+    if (pEntry->colRef.pTagRef[r].id == droppedColId) {
+      taosMemoryFreeClear(pEntry->colRef.pTagRef[r].tagCondJson);
+      int32_t left = (pEntry->colRef.nTagRefs - r - 1) * sizeof(SColRef);
+      if (left > 0) {
+        memmove(pEntry->colRef.pTagRef + r, pEntry->colRef.pTagRef + r + 1, left);
+      }
+      pEntry->colRef.nTagRefs--;
+      pEntry->colRef.version++;
+      break;
+    }
+  }
+
+  // rebuild the shared tag blob with the trimmed merged schema (vstb tags + remaining own tags);
+  // the dropped tag's literal value is dropped because its colId is absent from the merged schema
+  int32_t  nMergedTags = pStbTagSchema->nCols + pEntry->own.nOwnTags;
+  SSchema *pMergedTags = taosMemoryMalloc(nMergedTags * sizeof(SSchema));
+  if (NULL == pMergedTags) {
+    code = terrno;
+    metaError("vgId:%d, %s failed at %s:%d since %s, version:%" PRId64, TD_VID(pMeta->pVnode), __func__, __FILE__,
+              __LINE__, tstrerror(code), version);
+    goto _exit;
+  }
+  memcpy(pMergedTags, pStbTagSchema->pSchema, pStbTagSchema->nCols * sizeof(SSchema));
+  // after dropping the last own tag pOwnTagSchemas is NULL, so guard the copy
+  if (pEntry->own.nOwnTags > 0) {
+    memcpy(pMergedTags + pStbTagSchema->nCols, pEntry->own.pOwnTagSchemas, pEntry->own.nOwnTags * sizeof(SSchema));
+  }
+  SSchemaWrapper mergedTagSchema = {
+      .nCols = nMergedTags, .version = pStbTagSchema->version, .pSchema = pMergedTags};
+  code = metaRebuildVChildTagBlob(pEntry, &mergedTagSchema);
+  taosMemoryFree(pMergedTags);
+  if (code) {
+    metaError("vgId:%d, %s failed at %s:%d since %s, version:%" PRId64, TD_VID(pMeta->pVnode), __func__, __FILE__,
+              __LINE__, tstrerror(code), version);
+    goto _exit;
+  }
+
+  pEntry->version = version;
+  pEntry->colRef.version++;  // rversion bump: drives client catalog cache invalidation
+
+  // do handle entry
+  code = metaHandleEntry2(pMeta, pEntry);
+  if (code) {
+    metaError("vgId:%d, %s failed at %s:%d since %s, uid:%" PRId64 " name:%s version:%" PRId64, TD_VID(pMeta->pVnode),
+              __func__, __FILE__, __LINE__, tstrerror(code), pEntry->uid, pReq->tbName, version);
+    goto _exit;
+  }
+  metaInfo(KEYOP("vtable-alter", "END")
+               "vgId:%d, table %s uid %" PRId64 " dropped own tag %s colId %d, version:%" PRId64,
+           TD_VID(pMeta->pVnode), pReq->tbName, pEntry->uid, pReq->colName, droppedColId, version);
+
+  // build the merged response (vstb schema + remaining own columns/tags) so the client catalog cache refreshes
+  code = metaUpdateVtbMetaRsp(pEntry, pReq->tbName, &pSuper->stbEntry.schemaRow, pStbTagSchema, &pEntry->colRef,
+                              pSuper->pExtSchemas, pSuper->stbEntry.ownerId, pRsp, pEntry->type);
+  if (code) {
+    metaError("vgId:%d, %s failed at %s:%d since %s, uid:%" PRId64 " name:%s version:%" PRId64, TD_VID(pMeta->pVnode),
+              __func__, __FILE__, __LINE__, tstrerror(code), pEntry->uid, pReq->tbName, version);
+  }
+
+_exit:
+  metaFetchEntryFree(&pSuper);
+  metaFetchEntryFree(&pEntry);
+  TAOS_RETURN(code);
+}
+
 int32_t metaAddTableColumn(SMeta *pMeta, int64_t version, SVAlterTbReq *pReq, STableMetaRsp *pRsp) {
   int32_t code = TSDB_CODE_SUCCESS;
 
@@ -859,7 +2918,9 @@ int32_t metaAddTableColumn(SMeta *pMeta, int64_t version, SVAlterTbReq *pReq, ST
 
   // fetch old entry
   SMetaEntry *pEntry = NULL;
+  metaRLock(pMeta);
   code = metaFetchEntryByName(pMeta, pReq->tbName, &pEntry);
+  metaULock(pMeta);
   if (code) {
     metaError("vgId:%d, %s failed at %s:%d since table %s not found, version:%" PRId64, TD_VID(pMeta->pVnode), __func__,
               __FILE__, __LINE__, pReq->tbName, version);
@@ -870,6 +2931,26 @@ int32_t metaAddTableColumn(SMeta *pMeta, int64_t version, SVAlterTbReq *pReq, ST
               TD_VID(pMeta->pVnode), __func__, __FILE__, __LINE__, pReq->tbName, pEntry->version, version);
     metaFetchEntryFree(&pEntry);
     TAOS_RETURN(TSDB_CODE_INVALID_PARA);
+  }
+
+  // virtual child table: only ADD COLUMN with an origin reference is allowed; the column goes
+  // into the vchild's own (extension) schema area, not the vstb schema. Plain child tables
+  // (reaching here via TSDB_ALTER_TABLE_ADD_COLUMN_WITH_COLUMN_REF) are still rejected.
+  if (pEntry->type == TSDB_VIRTUAL_CHILD_TABLE) {
+    if (pReq->action != TSDB_ALTER_TABLE_ADD_COLUMN_WITH_COLUMN_REF) {
+      metaError("vgId:%d, %s failed at %s:%d since virtual child table %s add column %s must carry a reference, "
+                "version:%" PRId64,
+                TD_VID(pMeta->pVnode), __func__, __FILE__, __LINE__, pReq->tbName, pReq->colName, version);
+      metaFetchEntryFree(&pEntry);
+      TAOS_RETURN(TSDB_CODE_VND_INVALID_TABLE_ACTION);
+    }
+    TAOS_RETURN(metaAddVChildOwnColumn(pMeta, version, pReq, pEntry, pRsp));
+  }
+  if (pEntry->type != TSDB_NORMAL_TABLE && pEntry->type != TSDB_VIRTUAL_NORMAL_TABLE) {
+    metaError("vgId:%d, %s failed at %s:%d since table %s type %d does not support add column, version:%" PRId64,
+              TD_VID(pMeta->pVnode), __func__, __FILE__, __LINE__, pReq->tbName, pEntry->type, version);
+    metaFetchEntryFree(&pEntry);
+    TAOS_RETURN(TSDB_CODE_VND_INVALID_TABLE_ACTION);
   }
 
   // do add column
@@ -930,18 +3011,58 @@ int32_t metaAddTableColumn(SMeta *pMeta, int64_t version, SVAlterTbReq *pReq, ST
   extSchema.typeMod = pReq->typeMod;
   tstrncpy(pColumn->name, pReq->colName, TSDB_COL_NAME_LEN);
   if (pEntry->type == TSDB_VIRTUAL_NORMAL_TABLE) {
-    SColRef tmpRef;
+    SColRef tmpRef = {0};
     if (TSDB_ALTER_TABLE_ADD_COLUMN == pReq->action) {
       tmpRef.hasRef = false;
       tmpRef.id = pColumn->colId;
     } else {
       tmpRef.hasRef = true;
       tmpRef.id = pColumn->colId;
+      tmpRef.refType = pReq->refType;
+      if (pReq->refSourceName && pReq->refSourceName[0] != '\0') {
+        tstrncpy(tmpRef.refSourceName, pReq->refSourceName, TSDB_EXT_SOURCE_NAME_LEN);
+      } else {
+        tmpRef.refSourceName[0] = '\0';
+      }
+      if (NULL != pReq->refSchemaName && '\0' != pReq->refSchemaName[0]) {
+        tstrncpy(tmpRef.refSchemaName, pReq->refSchemaName, TSDB_EXT_SOURCE_SCHEMA_LEN);
+      } else {
+        tmpRef.refSchemaName[0] = '\0';
+      }
       tstrncpy(tmpRef.refDbName, pReq->refDbName, TSDB_DB_NAME_LEN);
       tstrncpy(tmpRef.refTableName, pReq->refTbName, TSDB_TABLE_NAME_LEN);
       tstrncpy(tmpRef.refColName, pReq->refColName, TSDB_COL_NAME_LEN);
+      tmpRef.tagCondLen = 0;
+      tmpRef.tagCondJson = NULL;
+      if (pReq->filterCondLen > 0 && pReq->filterCondJson) {
+        tmpRef.filterCondJson = taosStrdup(pReq->filterCondJson);
+        if (NULL == tmpRef.filterCondJson) {
+          metaFetchEntryFree(&pEntry);
+          TAOS_RETURN(terrno);
+        }
+        tmpRef.filterCondLen = pReq->filterCondLen;
+      }
+      // Same series lookup the ALTER COLUMN REF path uses. It has to stay the same rule in both
+      // places: metaColRefMatchesAlterReq compares the stored tag condition against what the
+      // ALTER would resolve, so a divergence here would make the first rebind of a column created
+      // by this path look like a real change.
+      const char *pSeriesTagCondJson = NULL;
+      int32_t     seriesTagCondLen = 0;
+      metaResolveColRefTagCond(pEntry, pReq, &pSeriesTagCondJson, &seriesTagCondLen);
+      if (NULL != pSeriesTagCondJson) {
+        tmpRef.tagCondJson = taosStrdup(pSeriesTagCondJson);
+        if (NULL == tmpRef.tagCondJson) {
+          code = terrno;
+          taosMemoryFree(tmpRef.filterCondJson);
+          metaFetchEntryFree(&pEntry);
+          TAOS_RETURN(code);
+        }
+        tmpRef.tagCondLen = seriesTagCondLen;
+      }
     }
     code = updataTableColRef(&pEntry->colRef, pColumn, 1, &tmpRef);
+    taosMemoryFreeClear(tmpRef.tagCondJson);
+    taosMemoryFreeClear(tmpRef.filterCondJson);
     if (code) {
       metaError("vgId:%d, %s failed at %s:%d since %s, version:%" PRId64, TD_VID(pMeta->pVnode), __func__, __FILE__,
                 __LINE__, tstrerror(code), version);
@@ -953,7 +3074,8 @@ int32_t metaAddTableColumn(SMeta *pMeta, int64_t version, SVAlterTbReq *pReq, ST
     if (TSDB_ALTER_TABLE_ADD_COLUMN == pReq->action) {
       compress = createDefaultColCmprByType(pColumn->type);
     } else {
-      code = validColCmprByType(pColumn->type, pReq->compress);
+      compress = pReq->compress;
+      code = validAndNormalizeColCmprByType(pColumn->type, &compress);
       if (code != TSDB_CODE_SUCCESS) {
         metaError("vgId:%d, %s failed at %s:%d since %s, col:%s version:%" PRId64,
                   TD_VID(pMeta->pVnode), __func__, __FILE__, __LINE__,
@@ -961,7 +3083,6 @@ int32_t metaAddTableColumn(SMeta *pMeta, int64_t version, SVAlterTbReq *pReq, ST
         metaFetchEntryFree(&pEntry);
         TAOS_RETURN(code);
       }
-      compress = pReq->compress;
     }
     code = updataTableColCmpr(&pEntry->colCmpr, pColumn, 1, compress);
     if (code) {
@@ -980,7 +3101,7 @@ int32_t metaAddTableColumn(SMeta *pMeta, int64_t version, SVAlterTbReq *pReq, ST
   }
 
   // do handle entry
-  code = metaHandleEntry2(pMeta, pEntry);
+  code = metaHandleReferenceEntry(pMeta, pEntry, pReq);
   if (code) {
     metaError("vgId:%d, %s failed at %s:%d since %s, uid:%" PRId64 " name:%s version:%" PRId64, TD_VID(pMeta->pVnode),
               __func__, __FILE__, __LINE__, tstrerror(code), pEntry->uid, pReq->tbName, version);
@@ -992,7 +3113,7 @@ int32_t metaAddTableColumn(SMeta *pMeta, int64_t version, SVAlterTbReq *pReq, ST
   }
 
   if (pEntry->type == TSDB_VIRTUAL_NORMAL_TABLE) {
-    code = metaUpdateVtbMetaRsp(pEntry, pReq->tbName, pSchema, &pEntry->colRef, pEntry->pExtSchemas,
+    code = metaUpdateVtbMetaRsp(pEntry, pReq->tbName, pSchema, NULL, &pEntry->colRef, pEntry->pExtSchemas,
                                 pEntry->ntbEntry.ownerId, pRsp, pEntry->type);
     if (code) {
       metaError("vgId:%d, %s failed at %s:%d since %s, uid:%" PRId64 " name:%s version:%" PRId64, TD_VID(pMeta->pVnode),
@@ -1003,6 +3124,9 @@ int32_t metaAddTableColumn(SMeta *pMeta, int64_t version, SVAlterTbReq *pReq, ST
         pRsp->pColRefs[i].hasRef = p->hasRef;
         pRsp->pColRefs[i].id = p->id;
         if (p->hasRef) {
+          pRsp->pColRefs[i].refType = p->refType;
+          tstrncpy(pRsp->pColRefs[i].refSourceName, p->refSourceName, TSDB_EXT_SOURCE_NAME_LEN);
+          tstrncpy(pRsp->pColRefs[i].refSchemaName, p->refSchemaName, TSDB_EXT_SOURCE_SCHEMA_LEN);
           tstrncpy(pRsp->pColRefs[i].refDbName, p->refDbName, TSDB_DB_NAME_LEN);
           tstrncpy(pRsp->pColRefs[i].refTableName, p->refTableName, TSDB_TABLE_NAME_LEN);
           tstrncpy(pRsp->pColRefs[i].refColName, p->refColName, TSDB_COL_NAME_LEN);
@@ -1010,7 +3134,7 @@ int32_t metaAddTableColumn(SMeta *pMeta, int64_t version, SVAlterTbReq *pReq, ST
       }
     }
   } else {
-    code = metaUpdateMetaRsp(pEntry->uid, pReq->tbName, pSchema, pEntry->ntbEntry.ownerId, pRsp);
+    code = metaUpdateMetaRsp(pEntry->uid, pReq->tbName, pSchema, pEntry->pExtSchemas, pEntry->ntbEntry.ownerId, pRsp);
     if (code) {
       metaError("vgId:%d, %s failed at %s:%d since %s, uid:%" PRId64 " name:%s version:%" PRId64, TD_VID(pMeta->pVnode),
                 __func__, __FILE__, __LINE__, tstrerror(code), pEntry->uid, pReq->tbName, version);
@@ -1020,6 +3144,371 @@ int32_t metaAddTableColumn(SMeta *pMeta, int64_t version, SVAlterTbReq *pReq, ST
         pRsp->pSchemaExt[i].colId = p->id;
         pRsp->pSchemaExt[i].compress = p->alg;
       }
+    }
+  }
+
+  // Owned tags live in ntbEntry.schemaTag for a normal / virtual-normal table, and every meta
+  // response for such a table must carry that schema. ctgWriteTbMetaToCache only skips an update
+  // when sversion, tversion and rversion are all non-regressing; a column ALTER advances sversion
+  // while this response reports tversion 0, so the tag-less meta is accepted and replaces the
+  // cached one, and the connection then fails every tag access (WHERE <tag>, RENAME/DROP/SET TAG,
+  // GRANT) with "Invalid tag name" until some later RPC refreshes the cache. CREATE
+  // (metaBuildCreateNormalTableRsp) and the tag-alter paths (metaFillNtbTableMetaRsp) already
+  // append it; the column-alter paths used to omit it.
+  if (code == TSDB_CODE_SUCCESS &&
+      (pEntry->type == TSDB_NORMAL_TABLE || pEntry->type == TSDB_VIRTUAL_NORMAL_TABLE)) {
+    // The ALTER is already persisted at this point, so a failure to append the tag schema must not
+    // turn into a failed ALTER: reporting an error here would tell the client the DDL did not take
+    // effect while the change is on disk and in the WAL. Log it and return success with an
+    // incomplete response instead - the client then simply refetches the meta on its next RPC.
+    int32_t rspCode = metaAppendNtbTagSchemaToRsp(pEntry, pRsp);
+    if (rspCode != TSDB_CODE_SUCCESS) {
+      metaError("vgId:%d, %s failed to append owned tag schema at %s:%d since %s, uid:%" PRId64
+                " name:%s version:%" PRId64,
+                TD_VID(pMeta->pVnode), __func__, __FILE__, __LINE__, tstrerror(rspCode), pEntry->uid, pReq->tbName,
+                version);
+    }
+  }
+
+  metaFetchEntryFree(&pEntry);
+  TAOS_RETURN(code);
+}
+
+// Keep colRef.pTagRef sized to schemaTag (one slot per tag), so each tag  -  owned or ref  -  has a
+// matching entry (owned entries stay hasRef=false). New slots are zeroed except id = tag colId.
+static int32_t metaEnsureTagRefSize(SColRefWrapper *pColRef, SSchemaWrapper *pTagSchema) {
+  int32_t nTags = pTagSchema->nCols;
+  if (pColRef->nTagRefs >= nTags) return TSDB_CODE_SUCCESS;
+  SColRef *pNew = (SColRef *)taosMemoryRealloc(pColRef->pTagRef, sizeof(SColRef) * nTags);
+  if (pNew == NULL) return terrno;
+  pColRef->pTagRef = pNew;
+  for (int32_t i = pColRef->nTagRefs; i < nTags; i++) {
+    SColRef *p = &pColRef->pTagRef[i];
+    memset(p, 0, sizeof(SColRef));  // zero all fields including owned condition pointers
+    p->id = pTagSchema->pSchema[i].colId;
+  }
+  pColRef->nTagRefs = nTags;
+  return TSDB_CODE_SUCCESS;
+}
+
+int32_t metaAddTableTag(SMeta *pMeta, int64_t version, SVAlterTbReq *pReq, STableMetaRsp *pRsp) {
+  int32_t code = TSDB_CODE_SUCCESS;
+
+  // fetch old entry
+  SMetaEntry *pEntry = NULL;
+  metaRLock(pMeta);
+  code = metaFetchEntryByName(pMeta, pReq->tbName, &pEntry);
+  metaULock(pMeta);
+  if (code) {
+    metaError("vgId:%d, %s failed at %s:%d since table %s not found, version:%" PRId64, TD_VID(pMeta->pVnode), __func__,
+              __FILE__, __LINE__, pReq->tbName, version);
+    TAOS_RETURN(code);
+  }
+  if (pEntry->version >= version) {
+    metaError("vgId:%d, %s failed at %s:%d since table %s version %" PRId64 " is not less than %" PRId64,
+              TD_VID(pMeta->pVnode), __func__, __FILE__, __LINE__, pReq->tbName, pEntry->version, version);
+    metaFetchEntryFree(&pEntry);
+    TAOS_RETURN(TSDB_CODE_INVALID_PARA);
+  }
+
+  // only normal and virtual normal tables own tags (super tables use mnd; child tables inherit
+  // tags from the super table)
+  if (pEntry->type != TSDB_VIRTUAL_NORMAL_TABLE && pEntry->type != TSDB_NORMAL_TABLE) {
+    metaFetchEntryFree(&pEntry);
+    TAOS_RETURN(TSDB_CODE_VND_INVALID_TABLE_ACTION);
+  }
+
+  // tag-refs are virtual-normal-table only; a ref request on a plain normal table must be
+  // rejected here, not silently degraded to an owned tag (parser already gates this  -  this is
+  // the vnode-side backstop, mirroring metaAlterTagRef's type gate)
+  if (pEntry->type == TSDB_NORMAL_TABLE && pReq->refDbName != NULL) {
+    metaError("vgId:%d, %s failed at %s:%d since tag-ref on normal table %s is not supported, version:%" PRId64,
+              TD_VID(pMeta->pVnode), __func__, __FILE__, __LINE__, pReq->tbName, version);
+    metaFetchEntryFree(&pEntry);
+    TAOS_RETURN(TSDB_CODE_VND_INVALID_TABLE_ACTION);
+  }
+
+  pEntry->version = version;
+  SSchemaWrapper *pTagSchema = &pEntry->ntbEntry.schemaTag;
+
+  // duplicate tag name + total tag bytes
+  int32_t tagsLen = 0;
+  for (int32_t i = 0; i < pTagSchema->nCols; i++) {
+    if (strncmp(pTagSchema->pSchema[i].name, pReq->colName, TSDB_COL_NAME_LEN) == 0) {
+      metaError("vgId:%d, %s failed at %s:%d since tag %s already exists in table %s, version:%" PRId64,
+                TD_VID(pMeta->pVnode), __func__, __FILE__, __LINE__, pReq->colName, pReq->tbName, version);
+      metaFetchEntryFree(&pEntry);
+      TAOS_RETURN(TSDB_CODE_VND_COL_ALREADY_EXISTS);
+    }
+    tagsLen += pTagSchema->pSchema[i].bytes;
+  }
+  if (pTagSchema->nCols + 1 > TSDB_MAX_TAGS) {
+    metaFetchEntryFree(&pEntry);
+    TAOS_RETURN(TSDB_CODE_PAR_INVALID_TAGS_NUM);
+  }
+  if (tagsLen + pReq->bytes > TSDB_MAX_TAGS_LEN) {
+    metaFetchEntryFree(&pEntry);
+    TAOS_RETURN(TSDB_CODE_PAR_INVALID_TAGS_LENGTH);
+  }
+  // validate the column-id budget up front, before mutating the schema
+  if (pEntry->ntbEntry.ncid > INT16_MAX) {
+    metaError("vgId:%d, %s failed at %s:%d since column id %d exceeds max column id %d, version:%" PRId64,
+              TD_VID(pMeta->pVnode), __func__, __FILE__, __LINE__, pEntry->ntbEntry.ncid, INT16_MAX, version);
+    metaFetchEntryFree(&pEntry);
+    TAOS_RETURN(TSDB_CODE_VND_EXCEED_MAX_COL_ID);
+  }
+
+  // append the new tag to schemaTag
+  SSchema *pNewSchema = taosMemoryRealloc(pTagSchema->pSchema, sizeof(SSchema) * (pTagSchema->nCols + 1));
+  if (pNewSchema == NULL) {
+    metaFetchEntryFree(&pEntry);
+    TAOS_RETURN(terrno);
+  }
+  pTagSchema->pSchema = pNewSchema;
+  pTagSchema->version++;
+  pTagSchema->nCols++;
+  SSchema *pNewTag = &pTagSchema->pSchema[pTagSchema->nCols - 1];
+  pNewTag->bytes = pReq->bytes;
+  pNewTag->type = pReq->type;
+  pNewTag->flags = pReq->flags;
+  pNewTag->colId = pEntry->ntbEntry.ncid++;
+  tstrncpy(pNewTag->name, pReq->colName, TSDB_COL_NAME_LEN);
+
+  // For virtual normal tables, keep colRef.pTagRef in sync with schemaTag and  -  for a tag-ref
+  // (pReq->refDbName set)  -  record the source reference on the new tag's slot. Normal tables have
+  // no colRef and never carry tag-refs (the parser gates tag-refs to virtual normal tables).
+  if (pEntry->type == TSDB_VIRTUAL_NORMAL_TABLE) {
+    code = metaEnsureTagRefSize(&pEntry->colRef, pTagSchema);
+    if (code) {
+      metaFetchEntryFree(&pEntry);
+      TAOS_RETURN(code);
+    }
+    // Always (re)stamp the slot: after a drop the slot at nCols-1 may be a stale leftover of the
+    // dropped tag (wrong id, or hasRef still set), and lookups match by colId.
+    SColRef *pTagRefEntry = &pEntry->colRef.pTagRef[pTagSchema->nCols - 1];
+    memset(pTagRefEntry, 0, sizeof(SColRef));  // reset a possibly stale slot (after a drop) incl. ext fields (tagCondJson ptr etc.)
+    pTagRefEntry->id = pNewTag->colId;
+    tstrncpy(pTagRefEntry->colName, pReq->colName, TSDB_COL_NAME_LEN);  // tmq json meta reads colName
+    if (pReq->refDbName != NULL) {
+      pTagRefEntry->hasRef = true;
+      tstrncpy(pTagRefEntry->refDbName, pReq->refDbName, TSDB_DB_NAME_LEN);
+      tstrncpy(pTagRefEntry->refTableName, pReq->refTbName, TSDB_TABLE_NAME_LEN);
+      tstrncpy(pTagRefEntry->refColName, pReq->refColName, TSDB_COL_NAME_LEN);
+    } else {
+      pTagRefEntry->hasRef = false;
+      pTagRefEntry->refDbName[0] = '\0';
+      pTagRefEntry->refTableName[0] = '\0';
+      pTagRefEntry->refColName[0] = '\0';
+    }
+    pEntry->colRef.version++;
+  }
+
+  // rebuild pTags: STag is a sparse KV  -  copy existing non-null values (read via tTagGet),
+  // the new tag stays absent (NULL). Rebuild with the bumped schemaTag.version for consistency.
+  const STag *pOldTag = (const STag *)pEntry->ntbEntry.pTags;
+  SArray     *pTagArray = taosArrayInit(pTagSchema->nCols, sizeof(STagVal));
+  if (pTagArray == NULL) {
+    metaFetchEntryFree(&pEntry);
+    TAOS_RETURN(TSDB_CODE_OUT_OF_MEMORY);
+  }
+  for (int32_t i = 0; i < pTagSchema->nCols - 1; i++) {
+    SSchema *pCol = &pTagSchema->pSchema[i];
+    STagVal  value = {.cid = pCol->colId};
+    if (pOldTag != NULL && tTagGet(pOldTag, &value)) {
+      if (taosArrayPush(pTagArray, &value) == NULL) {
+        taosArrayDestroy(pTagArray);
+        metaFetchEntryFree(&pEntry);
+        TAOS_RETURN(TSDB_CODE_OUT_OF_MEMORY);
+      }
+    }
+  }
+
+  STag *pNewTagVal = NULL;
+  code = tTagNew(pTagArray, pTagSchema->version, false, &pNewTagVal);
+  taosArrayDestroy(pTagArray);
+  if (code) {
+    metaFetchEntryFree(&pEntry);
+    TAOS_RETURN(code);
+  }
+  taosMemoryFree(pEntry->ntbEntry.pTags);
+  pEntry->ntbEntry.pTags = (uint8_t *)pNewTagVal;
+
+  // persist
+  code = metaHandleEntry2(pMeta, pEntry);
+  if (code) {
+    metaError("vgId:%d, %s failed at %s:%d since %s, uid:%" PRId64 " name:%s version:%" PRId64, TD_VID(pMeta->pVnode),
+              __func__, __FILE__, __LINE__, tstrerror(code), pEntry->uid, pReq->tbName, version);
+  } else {
+    metaInfo("vgId:%d, table %s uid %" PRId64 " tag added, version:%" PRId64, TD_VID(pMeta->pVnode), pReq->tbName,
+             pEntry->uid, version);
+  }
+
+  // response: full meta (columns + colRef + owned-tag schema) so the client catalog does not
+  // cache a tag-less/stale meta after ALTER ADD TAG. Only build it after a successful persist --
+  // otherwise pRsp would describe changes that were not actually persisted.
+  if (code == TSDB_CODE_SUCCESS) {
+    int32_t rspCode = metaFillNtbTableMetaRsp(pEntry, pReq->tbName, pRsp);
+    if (rspCode) {
+      metaError("vgId:%d, %s failed at %s:%d since %s, uid:%" PRId64 " name:%s version:%" PRId64, TD_VID(pMeta->pVnode),
+                __func__, __FILE__, __LINE__, tstrerror(rspCode), pEntry->uid, pReq->tbName, version);
+      code = rspCode;
+    }
+  }
+
+  metaFetchEntryFree(&pEntry);
+  TAOS_RETURN(code);
+}
+
+int32_t metaDropTableTag(SMeta *pMeta, int64_t version, SVAlterTbReq *pReq, STableMetaRsp *pRsp) {
+  int32_t code = TSDB_CODE_SUCCESS;
+
+  // fetch old entry
+  SMetaEntry *pEntry = NULL;
+  metaRLock(pMeta);
+  code = metaFetchEntryByName(pMeta, pReq->tbName, &pEntry);
+  metaULock(pMeta);
+  if (code) {
+    metaError("vgId:%d, %s failed at %s:%d since table %s not found, version:%" PRId64, TD_VID(pMeta->pVnode), __func__,
+              __FILE__, __LINE__, pReq->tbName, version);
+    TAOS_RETURN(code);
+  }
+  if (pEntry->version >= version) {
+    metaError("vgId:%d, %s failed at %s:%d since table %s version %" PRId64 " is not less than %" PRId64,
+              TD_VID(pMeta->pVnode), __func__, __FILE__, __LINE__, pReq->tbName, pEntry->version, version);
+    metaFetchEntryFree(&pEntry);
+    TAOS_RETURN(TSDB_CODE_INVALID_PARA);
+  }
+
+  // only normal and virtual normal tables own tags; child tables inherit tags from the super table
+  if (pEntry->type != TSDB_VIRTUAL_NORMAL_TABLE && pEntry->type != TSDB_NORMAL_TABLE) {
+    metaFetchEntryFree(&pEntry);
+    TAOS_RETURN(TSDB_CODE_VND_INVALID_TABLE_ACTION);
+  }
+
+  pEntry->version = version;
+  SSchemaWrapper *pTagSchema = &pEntry->ntbEntry.schemaTag;
+
+  // find the tag by name (resolve by name  -  robust whether colId was supplied by the catalog)
+  int32_t dropIdx = -1;
+  for (int32_t i = 0; i < pTagSchema->nCols; i++) {
+    if (strncmp(pTagSchema->pSchema[i].name, pReq->colName, TSDB_COL_NAME_LEN) == 0) {
+      dropIdx = i;
+      break;
+    }
+  }
+  if (dropIdx < 0) {
+    metaError("vgId:%d, %s failed at %s:%d since tag %s not found in table %s, version:%" PRId64, TD_VID(pMeta->pVnode),
+              __func__, __FILE__, __LINE__, pReq->colName, pReq->tbName, version);
+    metaFetchEntryFree(&pEntry);
+    TAOS_RETURN(TSDB_CODE_PAR_INVALID_TAG_NAME);
+  }
+
+  // remove the tag schema entry (memmove + shrink)
+  col_id_t dropColId = pTagSchema->pSchema[dropIdx].colId;
+  if (dropIdx < pTagSchema->nCols - 1) {
+    memmove(&pTagSchema->pSchema[dropIdx], &pTagSchema->pSchema[dropIdx + 1],
+            sizeof(SSchema) * (pTagSchema->nCols - 1 - dropIdx));
+  }
+  pTagSchema->version++;
+  pTagSchema->nCols--;
+  if (pTagSchema->nCols > 0) {
+    SSchema *pShrunk = taosMemoryRealloc(pTagSchema->pSchema, sizeof(SSchema) * pTagSchema->nCols);
+    if (pShrunk != NULL) pTagSchema->pSchema = pShrunk;  // on failure keep the (over-sized) buffer
+  } else {
+    // last tag dropped: the schema goes empty but version stays monotonic  -  a reset to 0 would
+    // make the alter response look stale to the client catalog cache (ctgWriteTbMetaToCache
+    // ignores updates whose sversion/tversion/rversion do not advance) and would be lost on
+    // restart anyway, breaking every later tag alter on the same connection.
+    taosMemoryFreeClear(pTagSchema->pSchema);
+  }
+
+  // For virtual normal tables, keep colRef.pTagRef in sync with schemaTag: remove the dropped
+  // tag's slot (matched by colId) so the positional mapping and id-based lookups stay consistent.
+  if (pEntry->type == TSDB_VIRTUAL_NORMAL_TABLE && pEntry->colRef.pTagRef != NULL) {
+    SColRefWrapper *pColRef = &pEntry->colRef;
+    for (int32_t i = 0; i < pColRef->nTagRefs; i++) {
+      if (pColRef->pTagRef[i].id == dropColId) {
+        taosMemoryFreeClear(pColRef->pTagRef[i].tagCondJson);  // free owned tag-cond JSON before the slot is moved/forgotten
+        taosMemoryFreeClear(pColRef->pTagRef[i].filterCondJson);
+        if (i < pColRef->nTagRefs - 1) {
+          memmove(&pColRef->pTagRef[i], &pColRef->pTagRef[i + 1], sizeof(SColRef) * (pColRef->nTagRefs - 1 - i));
+        }
+        pColRef->nTagRefs--;
+        if (pColRef->nTagRefs == 0) {
+          taosMemoryFreeClear(pColRef->pTagRef);
+        }
+        pColRef->version++;
+        break;
+      }
+    }
+  }
+
+  // rebuild pTags from the remaining tags (the dropped one is naturally absent)
+  const STag *pOldTag = (const STag *)pEntry->ntbEntry.pTags;
+  if (pTagSchema->nCols > 0) {
+    SArray *pTagArray = taosArrayInit(pTagSchema->nCols, sizeof(STagVal));
+    if (pTagArray == NULL) {
+      metaFetchEntryFree(&pEntry);
+      TAOS_RETURN(TSDB_CODE_OUT_OF_MEMORY);
+    }
+    for (int32_t i = 0; i < pTagSchema->nCols; i++) {
+      SSchema *pCol = &pTagSchema->pSchema[i];
+      STagVal  value = {.cid = pCol->colId};
+      if (pOldTag != NULL && tTagGet(pOldTag, &value)) {
+        if (taosArrayPush(pTagArray, &value) == NULL) {
+          taosArrayDestroy(pTagArray);
+          metaFetchEntryFree(&pEntry);
+          TAOS_RETURN(TSDB_CODE_OUT_OF_MEMORY);
+        }
+      }
+    }
+    STag *pNewTagVal = NULL;
+    code = tTagNew(pTagArray, pTagSchema->version, false, &pNewTagVal);
+    taosArrayDestroy(pTagArray);
+    if (code) {
+      metaFetchEntryFree(&pEntry);
+      TAOS_RETURN(code);
+    }
+    taosMemoryFree(pEntry->ntbEntry.pTags);
+    pEntry->ntbEntry.pTags = (uint8_t *)pNewTagVal;
+  } else {
+    // last tag dropped: keep a valid (empty) STag instead of NULL  -  the entry's tag trailer is
+    // still written (schemaTag.version stays monotonic) and must stay encodable.
+    SArray *pTagArray = taosArrayInit(1, sizeof(STagVal));
+    if (pTagArray == NULL) {
+      metaFetchEntryFree(&pEntry);
+      TAOS_RETURN(TSDB_CODE_OUT_OF_MEMORY);
+    }
+    STag *pNewTagVal = NULL;
+    code = tTagNew(pTagArray, pTagSchema->version, false, &pNewTagVal);
+    taosArrayDestroy(pTagArray);
+    if (code) {
+      metaFetchEntryFree(&pEntry);
+      TAOS_RETURN(code);
+    }
+    taosMemoryFree(pEntry->ntbEntry.pTags);
+    pEntry->ntbEntry.pTags = (uint8_t *)pNewTagVal;
+  }
+
+  // persist
+  code = metaHandleEntry2(pMeta, pEntry);
+  if (code) {
+    metaError("vgId:%d, %s failed at %s:%d since %s, uid:%" PRId64 " name:%s version:%" PRId64, TD_VID(pMeta->pVnode),
+              __func__, __FILE__, __LINE__, tstrerror(code), pEntry->uid, pReq->tbName, version);
+  } else {
+    metaInfo("vgId:%d, table %s uid %" PRId64 " tag dropped, version:%" PRId64, TD_VID(pMeta->pVnode), pReq->tbName,
+             pEntry->uid, version);
+  }
+
+  // response: full meta (columns + colRef + owned-tag schema) so the client catalog does not
+  // cache a stale meta after ALTER DROP TAG. Only build it after a successful persist --
+  // otherwise pRsp would describe changes that were not actually persisted.
+  if (code == TSDB_CODE_SUCCESS) {
+    int32_t rspCode = metaFillNtbTableMetaRsp(pEntry, pReq->tbName, pRsp);
+    if (rspCode) {
+      metaError("vgId:%d, %s failed at %s:%d since %s, uid:%" PRId64 " name:%s version:%" PRId64, TD_VID(pMeta->pVnode),
+                __func__, __FILE__, __LINE__, tstrerror(rspCode), pEntry->uid, pReq->tbName, version);
+      code = rspCode;
     }
   }
 
@@ -1038,7 +3527,9 @@ int32_t metaDropTableColumn(SMeta *pMeta, int64_t version, SVAlterTbReq *pReq, S
 
   // fetch old entry
   SMetaEntry *pEntry = NULL;
+  metaRLock(pMeta);
   code = metaFetchEntryByName(pMeta, pReq->tbName, &pEntry);
+  metaULock(pMeta);
   if (code) {
     metaError("vgId:%d, %s failed at %s:%d since table %s not found, version:%" PRId64, TD_VID(pMeta->pVnode), __func__,
               __FILE__, __LINE__, pReq->tbName, version);
@@ -1050,6 +3541,12 @@ int32_t metaDropTableColumn(SMeta *pMeta, int64_t version, SVAlterTbReq *pReq, S
               TD_VID(pMeta->pVnode), __func__, __FILE__, __LINE__, pReq->tbName, pEntry->version, version);
     metaFetchEntryFree(&pEntry);
     TAOS_RETURN(TSDB_CODE_INVALID_PARA);
+  }
+
+  // virtual child table: only an own (extension) column may be dropped; cascaded columns belong
+  // to the vstb and are rejected as not-found in the own schema.
+  if (pEntry->type == TSDB_VIRTUAL_CHILD_TABLE) {
+    TAOS_RETURN(metaDropVChildOwnColumn(pMeta, version, pReq, pEntry, pRsp));
   }
 
   // search the column to drop
@@ -1127,7 +3624,7 @@ int32_t metaDropTableColumn(SMeta *pMeta, int64_t version, SVAlterTbReq *pReq, S
   }
 
   // do handle entry
-  code = metaHandleEntry2(pMeta, pEntry);
+  code = metaHandleReferenceEntry(pMeta, pEntry, pReq);
   if (code) {
     metaError("vgId:%d, %s failed at %s:%d since %s, uid:%" PRId64 " name:%s version:%" PRId64, TD_VID(pMeta->pVnode),
               __func__, __FILE__, __LINE__, tstrerror(code), pEntry->uid, pReq->tbName, version);
@@ -1140,7 +3637,7 @@ int32_t metaDropTableColumn(SMeta *pMeta, int64_t version, SVAlterTbReq *pReq, S
 
   // build response
   if (pEntry->type == TSDB_VIRTUAL_NORMAL_TABLE) {
-    code = metaUpdateVtbMetaRsp(pEntry, pReq->tbName, pSchema, &pEntry->colRef, pEntry->pExtSchemas,
+    code = metaUpdateVtbMetaRsp(pEntry, pReq->tbName, pSchema, NULL, &pEntry->colRef, pEntry->pExtSchemas,
                                 pEntry->ntbEntry.ownerId, pRsp, pEntry->type);
     if (code) {
       metaError("vgId:%d, %s failed at %s:%d since %s, uid:%" PRId64 " name:%s version:%" PRId64, TD_VID(pMeta->pVnode),
@@ -1151,6 +3648,9 @@ int32_t metaDropTableColumn(SMeta *pMeta, int64_t version, SVAlterTbReq *pReq, S
         pRsp->pColRefs[i].hasRef = p->hasRef;
         pRsp->pColRefs[i].id = p->id;
         if (p->hasRef) {
+          pRsp->pColRefs[i].refType = p->refType;
+          tstrncpy(pRsp->pColRefs[i].refSourceName, p->refSourceName, TSDB_EXT_SOURCE_NAME_LEN);
+          tstrncpy(pRsp->pColRefs[i].refSchemaName, p->refSchemaName, TSDB_EXT_SOURCE_SCHEMA_LEN);
           tstrncpy(pRsp->pColRefs[i].refDbName, p->refDbName, TSDB_DB_NAME_LEN);
           tstrncpy(pRsp->pColRefs[i].refTableName, p->refTableName, TSDB_TABLE_NAME_LEN);
           tstrncpy(pRsp->pColRefs[i].refColName, p->refColName, TSDB_COL_NAME_LEN);
@@ -1158,7 +3658,7 @@ int32_t metaDropTableColumn(SMeta *pMeta, int64_t version, SVAlterTbReq *pReq, S
       }
     }
   } else {
-    code = metaUpdateMetaRsp(pEntry->uid, pReq->tbName, pSchema, pEntry->ntbEntry.ownerId, pRsp);
+    code = metaUpdateMetaRsp(pEntry->uid, pReq->tbName, pSchema, pEntry->pExtSchemas, pEntry->ntbEntry.ownerId, pRsp);
     if (code) {
       metaError("vgId:%d, %s failed at %s:%d since %s, uid:%" PRId64 " name:%s version:%" PRId64, TD_VID(pMeta->pVnode),
                 __func__, __FILE__, __LINE__, tstrerror(code), pEntry->uid, pReq->tbName, version);
@@ -1168,6 +3668,29 @@ int32_t metaDropTableColumn(SMeta *pMeta, int64_t version, SVAlterTbReq *pReq, S
         pRsp->pSchemaExt[i].colId = p->id;
         pRsp->pSchemaExt[i].compress = p->alg;
       }
+    }
+  }
+
+  // Owned tags live in ntbEntry.schemaTag for a normal / virtual-normal table, and every meta
+  // response for such a table must carry that schema. ctgWriteTbMetaToCache only skips an update
+  // when sversion, tversion and rversion are all non-regressing; a column ALTER advances sversion
+  // while this response reports tversion 0, so the tag-less meta is accepted and replaces the
+  // cached one, and the connection then fails every tag access (WHERE <tag>, RENAME/DROP/SET TAG,
+  // GRANT) with "Invalid tag name" until some later RPC refreshes the cache. CREATE
+  // (metaBuildCreateNormalTableRsp) and the tag-alter paths (metaFillNtbTableMetaRsp) already
+  // append it; the column-alter paths used to omit it.
+  if (code == TSDB_CODE_SUCCESS &&
+      (pEntry->type == TSDB_NORMAL_TABLE || pEntry->type == TSDB_VIRTUAL_NORMAL_TABLE)) {
+    // The ALTER is already persisted at this point, so a failure to append the tag schema must not
+    // turn into a failed ALTER: reporting an error here would tell the client the DDL did not take
+    // effect while the change is on disk and in the WAL. Log it and return success with an
+    // incomplete response instead - the client then simply refetches the meta on its next RPC.
+    int32_t rspCode = metaAppendNtbTagSchemaToRsp(pEntry, pRsp);
+    if (rspCode != TSDB_CODE_SUCCESS) {
+      metaError("vgId:%d, %s failed to append owned tag schema at %s:%d since %s, uid:%" PRId64
+                " name:%s version:%" PRId64,
+                TD_VID(pMeta->pVnode), __func__, __FILE__, __LINE__, tstrerror(rspCode), pEntry->uid, pReq->tbName,
+                version);
     }
   }
 
@@ -1192,7 +3715,9 @@ int32_t metaAlterTableColumnName(SMeta *pMeta, int64_t version, SVAlterTbReq *pR
 
   // fetch old entry
   SMetaEntry *pEntry = NULL;
+  metaRLock(pMeta);
   code = metaFetchEntryByName(pMeta, pReq->tbName, &pEntry);
+  metaULock(pMeta);
   if (code) {
     metaError("vgId:%d, %s failed at %s:%d since table %s not found, version:%" PRId64, TD_VID(pMeta->pVnode), __func__,
               __FILE__, __LINE__, pReq->tbName, version);
@@ -1245,7 +3770,7 @@ int32_t metaAlterTableColumnName(SMeta *pMeta, int64_t version, SVAlterTbReq *pR
 
   // build response
   if (pEntry->type == TSDB_VIRTUAL_NORMAL_TABLE) {
-    code = metaUpdateVtbMetaRsp(pEntry, pReq->tbName, pSchema, &pEntry->colRef, pEntry->pExtSchemas,
+    code = metaUpdateVtbMetaRsp(pEntry, pReq->tbName, pSchema, NULL, &pEntry->colRef, pEntry->pExtSchemas,
                                 pEntry->ntbEntry.ownerId, pRsp, pEntry->type);
     if (code) {
       metaError("vgId:%d, %s failed at %s:%d since %s, uid:%" PRId64 " name:%s version:%" PRId64, TD_VID(pMeta->pVnode),
@@ -1256,6 +3781,9 @@ int32_t metaAlterTableColumnName(SMeta *pMeta, int64_t version, SVAlterTbReq *pR
         pRsp->pColRefs[i].hasRef = p->hasRef;
         pRsp->pColRefs[i].id = p->id;
         if (p->hasRef) {
+          pRsp->pColRefs[i].refType = p->refType;
+          tstrncpy(pRsp->pColRefs[i].refSourceName, p->refSourceName, TSDB_EXT_SOURCE_NAME_LEN);
+          tstrncpy(pRsp->pColRefs[i].refSchemaName, p->refSchemaName, TSDB_EXT_SOURCE_SCHEMA_LEN);
           tstrncpy(pRsp->pColRefs[i].refDbName, p->refDbName, TSDB_DB_NAME_LEN);
           tstrncpy(pRsp->pColRefs[i].refTableName, p->refTableName, TSDB_TABLE_NAME_LEN);
           tstrncpy(pRsp->pColRefs[i].refColName, p->refColName, TSDB_COL_NAME_LEN);
@@ -1263,7 +3791,7 @@ int32_t metaAlterTableColumnName(SMeta *pMeta, int64_t version, SVAlterTbReq *pR
       }
     }
   } else {
-    code = metaUpdateMetaRsp(pEntry->uid, pReq->tbName, pSchema, pEntry->ntbEntry.ownerId, pRsp);
+    code = metaUpdateMetaRsp(pEntry->uid, pReq->tbName, pSchema, pEntry->pExtSchemas, pEntry->ntbEntry.ownerId, pRsp);
     if (code) {
       metaError("vgId:%d, %s failed at %s:%d since %s, uid:%" PRId64 " name:%s version:%" PRId64, TD_VID(pMeta->pVnode),
                 __func__, __FILE__, __LINE__, tstrerror(code), pEntry->uid, pReq->tbName, version);
@@ -1273,6 +3801,155 @@ int32_t metaAlterTableColumnName(SMeta *pMeta, int64_t version, SVAlterTbReq *pR
         pRsp->pSchemaExt[i].colId = p->id;
         pRsp->pSchemaExt[i].compress = p->alg;
       }
+    }
+  }
+
+  // Owned tags live in ntbEntry.schemaTag for a normal / virtual-normal table, and every meta
+  // response for such a table must carry that schema. ctgWriteTbMetaToCache only skips an update
+  // when sversion, tversion and rversion are all non-regressing; a column ALTER advances sversion
+  // while this response reports tversion 0, so the tag-less meta is accepted and replaces the
+  // cached one, and the connection then fails every tag access (WHERE <tag>, RENAME/DROP/SET TAG,
+  // GRANT) with "Invalid tag name" until some later RPC refreshes the cache. CREATE
+  // (metaBuildCreateNormalTableRsp) and the tag-alter paths (metaFillNtbTableMetaRsp) already
+  // append it; the column-alter paths used to omit it.
+  if (code == TSDB_CODE_SUCCESS &&
+      (pEntry->type == TSDB_NORMAL_TABLE || pEntry->type == TSDB_VIRTUAL_NORMAL_TABLE)) {
+    // The ALTER is already persisted at this point, so a failure to append the tag schema must not
+    // turn into a failed ALTER: reporting an error here would tell the client the DDL did not take
+    // effect while the change is on disk and in the WAL. Log it and return success with an
+    // incomplete response instead - the client then simply refetches the meta on its next RPC.
+    int32_t rspCode = metaAppendNtbTagSchemaToRsp(pEntry, pRsp);
+    if (rspCode != TSDB_CODE_SUCCESS) {
+      metaError("vgId:%d, %s failed to append owned tag schema at %s:%d since %s, uid:%" PRId64
+                " name:%s version:%" PRId64,
+                TD_VID(pMeta->pVnode), __func__, __FILE__, __LINE__, tstrerror(rspCode), pEntry->uid, pReq->tbName,
+                version);
+    }
+  }
+
+  metaFetchEntryFree(&pEntry);
+  TAOS_RETURN(code);
+}
+
+// Rename an owned tag of a normal / virtual-normal table (ALTER TABLE ... RENAME TAG old new).
+// Only the tag's display name changes: colId stays, so the STag values, the virtual-normal table's
+// pTagRef slots and any stream binding keep resolving. Super-table tags never reach here - they are
+// renamed on the mnode (mndAlterStbTagName); child tables inherit their super table's tags.
+int32_t metaAlterTableTagName(SMeta *pMeta, int64_t version, SVAlterTbReq *pReq, STableMetaRsp *pRsp) {
+  int32_t code = TSDB_CODE_SUCCESS;
+
+  if (NULL == pReq->colName || strlen(pReq->colName) == 0 || NULL == pReq->colNewName ||
+      strlen(pReq->colNewName) == 0) {
+    metaError("vgId:%d, %s failed at %s:%d since invalid tag name, version:%" PRId64, TD_VID(pMeta->pVnode), __func__,
+              __FILE__, __LINE__, version);
+    TAOS_RETURN(TSDB_CODE_INVALID_MSG);
+  }
+
+  // fetch old entry
+  SMetaEntry *pEntry = NULL;
+  metaRLock(pMeta);
+  code = metaFetchEntryByName(pMeta, pReq->tbName, &pEntry);
+  metaULock(pMeta);
+  if (code) {
+    metaError("vgId:%d, %s failed at %s:%d since table %s not found, version:%" PRId64, TD_VID(pMeta->pVnode), __func__,
+              __FILE__, __LINE__, pReq->tbName, version);
+    TAOS_RETURN(code);
+  }
+  if (pEntry->version >= version) {
+    metaError("vgId:%d, %s failed at %s:%d since table %s version %" PRId64 " is not less than %" PRId64,
+              TD_VID(pMeta->pVnode), __func__, __FILE__, __LINE__, pReq->tbName, pEntry->version, version);
+    metaFetchEntryFree(&pEntry);
+    TAOS_RETURN(TSDB_CODE_INVALID_PARA);
+  }
+
+  // only normal and virtual normal tables own tags (the parser gates this too; this is the backstop)
+  if (pEntry->type != TSDB_VIRTUAL_NORMAL_TABLE && pEntry->type != TSDB_NORMAL_TABLE) {
+    metaFetchEntryFree(&pEntry);
+    TAOS_RETURN(TSDB_CODE_VND_INVALID_TABLE_ACTION);
+  }
+  SSchemaWrapper *pTagSchema = &pEntry->ntbEntry.schemaTag;
+
+  // locate the tag to rename
+  SSchema *pTag = NULL;
+  for (int32_t i = 0; i < pTagSchema->nCols; i++) {
+    if (strncmp(pTagSchema->pSchema[i].name, pReq->colName, TSDB_COL_NAME_LEN) == 0) {
+      pTag = &pTagSchema->pSchema[i];
+      break;
+    }
+  }
+  if (NULL == pTag) {
+    metaError("vgId:%d, %s failed at %s:%d since tag %s not found in table %s, version:%" PRId64, TD_VID(pMeta->pVnode),
+              __func__, __FILE__, __LINE__, pReq->colName, pReq->tbName, version);
+    metaFetchEntryFree(&pEntry);
+    TAOS_RETURN(TSDB_CODE_PAR_INVALID_TAG_NAME);
+  }
+  // The new-name collision scan must be independent of the old-name lookup above: folding the two
+  // into one if/else chain makes them mutually exclusive per slot, so renaming a tag to its own
+  // current name matches the old-name branch and never reaches the collision check at all. The
+  // parser rejects that case (getColSchema spans columns and tags), but this function is also the
+  // backstop for requests that never pass through it - a tmq raw-meta replay via taosAlterTable
+  // builds SVAlterTbReq straight from the decoded message.
+  for (int32_t i = 0; i < pTagSchema->nCols; i++) {
+    if (strncmp(pTagSchema->pSchema[i].name, pReq->colNewName, TSDB_COL_NAME_LEN) == 0) {
+      metaError("vgId:%d, %s failed at %s:%d since tag %s already exists in table %s, version:%" PRId64,
+                TD_VID(pMeta->pVnode), __func__, __FILE__, __LINE__, pReq->colNewName, pReq->tbName, version);
+      metaFetchEntryFree(&pEntry);
+      TAOS_RETURN(TSDB_CODE_VND_COL_ALREADY_EXISTS);
+    }
+  }
+  for (int32_t i = 0; i < pEntry->ntbEntry.schemaRow.nCols; i++) {
+    if (strncmp(pEntry->ntbEntry.schemaRow.pSchema[i].name, pReq->colNewName, TSDB_COL_NAME_LEN) == 0) {
+      metaError("vgId:%d, %s failed at %s:%d since column %s already exists in table %s, version:%" PRId64,
+                TD_VID(pMeta->pVnode), __func__, __FILE__, __LINE__, pReq->colNewName, pReq->tbName, version);
+      metaFetchEntryFree(&pEntry);
+      TAOS_RETURN(TSDB_CODE_VND_COL_ALREADY_EXISTS);
+    }
+  }
+
+  // rename: colId is preserved, so the STag payload needs no rebuild
+  col_id_t colId = pTag->colId;
+  pEntry->version = version;
+  tstrncpy(pTag->name, pReq->colNewName, TSDB_COL_NAME_LEN);
+  pTagSchema->version++;
+
+  // Virtual normal tables mirror each tag's name in its colRef.pTagRef slot (the planner resolves a
+  // tag-ref by that name, and tmq's json meta reads it), so keep the slot in sync with the schema.
+  if (pEntry->type == TSDB_VIRTUAL_NORMAL_TABLE && pEntry->colRef.pTagRef != NULL) {
+    for (int32_t i = 0; i < pEntry->colRef.nTagRefs; i++) {
+      if (pEntry->colRef.pTagRef[i].id == colId) {
+        tstrncpy(pEntry->colRef.pTagRef[i].colName, pReq->colNewName, TSDB_COL_NAME_LEN);
+        pEntry->colRef.version++;
+        break;
+      }
+    }
+  }
+  // pTags is deliberately left untouched. A rename changes neither the set of tags nor any value,
+  // and the values are keyed by colId (or, for a JSON tag, by the inner JSON key) - none of which
+  // the rename touches. Rebuilding it would also be wrong for a JSON tag: tTagGet on a JSON STag
+  // compares by STagVal.pKey, so the {.cid = ...} probe used by the add/drop paths reads an
+  // uninitialised key pointer and crashes. STag.ver may therefore trail schemaTag.version here,
+  // exactly as it does after SET TAG on the super-table path; no reader compares the two.
+
+  // persist
+  code = metaHandleEntry2(pMeta, pEntry);
+  if (code) {
+    metaError("vgId:%d, %s failed at %s:%d since %s, uid:%" PRId64 " name:%s version:%" PRId64, TD_VID(pMeta->pVnode),
+              __func__, __FILE__, __LINE__, tstrerror(code), pEntry->uid, pReq->tbName, version);
+  } else {
+    metaInfo("vgId:%d, table %s uid %" PRId64 " tag %s renamed to %s, version:%" PRId64, TD_VID(pMeta->pVnode),
+             pReq->tbName, pEntry->uid, pReq->colName, pReq->colNewName, version);
+  }
+
+  // response: full meta (columns + colRef + owned-tag schema) so the client catalog refreshes to the
+  // new tag name instead of keeping the old one cached. Built only after a successful persist, and a
+  // failure here does not fail the ALTER - the rename is already on disk, so returning an error
+  // would report a DDL as rejected while it actually took effect. The client refetches the meta on
+  // its next RPC.
+  if (code == TSDB_CODE_SUCCESS) {
+    int32_t rspCode = metaFillNtbTableMetaRsp(pEntry, pReq->tbName, pRsp);
+    if (rspCode) {
+      metaError("vgId:%d, %s failed at %s:%d since %s, uid:%" PRId64 " name:%s version:%" PRId64, TD_VID(pMeta->pVnode),
+                __func__, __FILE__, __LINE__, tstrerror(rspCode), pEntry->uid, pReq->tbName, version);
     }
   }
 
@@ -1291,7 +3968,9 @@ int32_t metaAlterTableColumnBytes(SMeta *pMeta, int64_t version, SVAlterTbReq *p
 
   // fetch old entry
   SMetaEntry *pEntry = NULL;
+  metaRLock(pMeta);
   code = metaFetchEntryByName(pMeta, pReq->tbName, &pEntry);
+  metaULock(pMeta);
   if (code) {
     metaError("vgId:%d, %s failed at %s:%d since table %s not found, version:%" PRId64, TD_VID(pMeta->pVnode), __func__,
               __FILE__, __LINE__, pReq->tbName, version);
@@ -1361,7 +4040,7 @@ int32_t metaAlterTableColumnBytes(SMeta *pMeta, int64_t version, SVAlterTbReq *p
 
   // build response
   if (pEntry->type == TSDB_VIRTUAL_NORMAL_TABLE) {
-    code = metaUpdateVtbMetaRsp(pEntry, pReq->tbName, pSchema, &pEntry->colRef, pEntry->pExtSchemas,
+    code = metaUpdateVtbMetaRsp(pEntry, pReq->tbName, pSchema, NULL, &pEntry->colRef, pEntry->pExtSchemas,
                                 pEntry->ntbEntry.ownerId, pRsp, pEntry->type);
     if (code) {
       metaError("vgId:%d, %s failed at %s:%d since %s, uid:%" PRId64 " name:%s version:%" PRId64, TD_VID(pMeta->pVnode),
@@ -1372,6 +4051,9 @@ int32_t metaAlterTableColumnBytes(SMeta *pMeta, int64_t version, SVAlterTbReq *p
         pRsp->pColRefs[i].hasRef = p->hasRef;
         pRsp->pColRefs[i].id = p->id;
         if (p->hasRef) {
+          pRsp->pColRefs[i].refType = p->refType;
+          tstrncpy(pRsp->pColRefs[i].refSourceName, p->refSourceName, TSDB_EXT_SOURCE_NAME_LEN);
+          tstrncpy(pRsp->pColRefs[i].refSchemaName, p->refSchemaName, TSDB_EXT_SOURCE_SCHEMA_LEN);
           tstrncpy(pRsp->pColRefs[i].refDbName, p->refDbName, TSDB_DB_NAME_LEN);
           tstrncpy(pRsp->pColRefs[i].refTableName, p->refTableName, TSDB_TABLE_NAME_LEN);
           tstrncpy(pRsp->pColRefs[i].refColName, p->refColName, TSDB_COL_NAME_LEN);
@@ -1379,7 +4061,7 @@ int32_t metaAlterTableColumnBytes(SMeta *pMeta, int64_t version, SVAlterTbReq *p
       }
     }
   } else {
-    code = metaUpdateMetaRsp(pEntry->uid, pReq->tbName, pSchema, pEntry->ntbEntry.ownerId, pRsp);
+    code = metaUpdateMetaRsp(pEntry->uid, pReq->tbName, pSchema, pEntry->pExtSchemas, pEntry->ntbEntry.ownerId, pRsp);
     if (code) {
       metaError("vgId:%d, %s failed at %s:%d since %s, uid:%" PRId64 " name:%s version:%" PRId64, TD_VID(pMeta->pVnode),
                 __func__, __FILE__, __LINE__, tstrerror(code), pEntry->uid, pReq->tbName, version);
@@ -1389,6 +4071,29 @@ int32_t metaAlterTableColumnBytes(SMeta *pMeta, int64_t version, SVAlterTbReq *p
         pRsp->pSchemaExt[i].colId = p->id;
         pRsp->pSchemaExt[i].compress = p->alg;
       }
+    }
+  }
+
+  // Owned tags live in ntbEntry.schemaTag for a normal / virtual-normal table, and every meta
+  // response for such a table must carry that schema. ctgWriteTbMetaToCache only skips an update
+  // when sversion, tversion and rversion are all non-regressing; a column ALTER advances sversion
+  // while this response reports tversion 0, so the tag-less meta is accepted and replaces the
+  // cached one, and the connection then fails every tag access (WHERE <tag>, RENAME/DROP/SET TAG,
+  // GRANT) with "Invalid tag name" until some later RPC refreshes the cache. CREATE
+  // (metaBuildCreateNormalTableRsp) and the tag-alter paths (metaFillNtbTableMetaRsp) already
+  // append it; the column-alter paths used to omit it.
+  if (code == TSDB_CODE_SUCCESS &&
+      (pEntry->type == TSDB_NORMAL_TABLE || pEntry->type == TSDB_VIRTUAL_NORMAL_TABLE)) {
+    // The ALTER is already persisted at this point, so a failure to append the tag schema must not
+    // turn into a failed ALTER: reporting an error here would tell the client the DDL did not take
+    // effect while the change is on disk and in the WAL. Log it and return success with an
+    // incomplete response instead - the client then simply refetches the meta on its next RPC.
+    int32_t rspCode = metaAppendNtbTagSchemaToRsp(pEntry, pRsp);
+    if (rspCode != TSDB_CODE_SUCCESS) {
+      metaError("vgId:%d, %s failed to append owned tag schema at %s:%d since %s, uid:%" PRId64
+                " name:%s version:%" PRId64,
+                TD_VID(pMeta->pVnode), __func__, __FILE__, __LINE__, tstrerror(rspCode), pEntry->uid, pReq->tbName,
+                version);
     }
   }
 
@@ -1439,14 +4144,18 @@ static int32_t updatedTagValueArrayToHashMap(SSchemaWrapper* pTagSchema, SArray*
     SUpdatedTagVal *pTagVal = taosArrayGet(arr, i);
     if (taosHashGet(*hashMap, &pTagVal->colId, sizeof(pTagVal->colId)) != NULL) {
       metaError("%s failed at %s:%d since duplicate tags %s", __func__, __FILE__, __LINE__, pTagVal->tagName);
-      taosHashCleanup(*hashMap);
       return TSDB_CODE_INVALID_MSG;
     }
 
+    for (int32_t i = 0; i < pTagSchema->nCols; i++) { // update colId accrodding colName
+      if (strcmp(pTagSchema->pSchema[i].name, pTagVal->tagName) == 0) {
+        pTagVal->colId = pTagSchema->pSchema[i].colId;
+      }
+    }
+    
     int32_t code = taosHashPut(*hashMap, &pTagVal->colId, sizeof(pTagVal->colId), pTagVal, sizeof(*pTagVal));
     if (code) {
       metaError("%s failed at %s:%d since %s", __func__, __FILE__, __LINE__, tstrerror(code));
-      taosHashCleanup(*hashMap);
       return code;
     }
   }
@@ -1460,7 +4169,6 @@ static int32_t updatedTagValueArrayToHashMap(SSchemaWrapper* pTagSchema, SArray*
   }
   if (changed < numOfTags) {
     metaError("%s failed at %s:%d since tag count mismatch, %d:%d", __func__, __FILE__, __LINE__, changed, numOfTags);
-    taosHashCleanup(*hashMap);
     return TSDB_CODE_VND_COL_NOT_EXISTS;
   }
 
@@ -1473,6 +4181,20 @@ static int32_t metaUpdateTableJsonTagValue(SMeta* pMeta, SMetaEntry* pTable, SSc
   SSchema *pCol = &pTagSchema->pSchema[0];
   int32_t colId = pCol->colId;
   SUpdatedTagVal *pTagVal = taosHashGet(pUpdatedTagVals, &colId, sizeof(colId));
+  if (pTagVal == NULL) {
+    const char *msgFmt = "vgId:%d, %s failed at %s:%d since tag value not found, version:%" PRId64;
+    metaError(msgFmt, TD_VID(pMeta->pVnode), __func__, __FILE__, __LINE__, pTable->version);
+    return TSDB_CODE_INVALID_MSG;
+  }
+
+  // The client-supplied JSON-tag blob is persisted verbatim and re-read on every query, so its header and every entry
+  // must lie inside the bytes we actually store.
+  if (tTagValidate(pTagVal->pTagVal, pTagVal->nTagVal) != TSDB_CODE_SUCCESS) {
+    const char *msgFmt = "vgId:%d, %s failed at %s:%d since invalid JSON tag blob, version:%" PRId64;
+    metaError(msgFmt, TD_VID(pMeta->pVnode), __func__, __FILE__, __LINE__, pTable->version);
+    return TSDB_CODE_INVALID_MSG;
+  }
+
   void *pNewTag = taosMemoryRealloc(pTable->ctbEntry.pTags, pTagVal->nTagVal);
   if (pNewTag == NULL) {
     const char* msgFmt = "vgId:%d, %s failed at %s:%d since %s, version:%" PRId64;
@@ -1521,6 +4243,14 @@ static int32_t metaUpdateTableNormalTagValue(SMeta* pMeta, SMetaEntry* pTable, S
       }
     } else {
       value.type = pCol->type;
+      // nTagVal comes from the request; check the width of a fixed-size value before anything reads it
+      if (!pNewVal->isNull && !IS_VAR_DATA_TYPE(pCol->type) &&
+          (pNewVal->pTagVal == NULL || pNewVal->nTagVal != tDataTypes[pCol->type].bytes)) {
+        metaError("vgId:%d, %s failed at %s:%d since invalid tag val len %d for tag %s, version:%" PRId64,
+                  TD_VID(pMeta->pVnode), __func__, __FILE__, __LINE__, pNewVal->nTagVal, pCol->name, pTable->version);
+        taosArrayDestroy(pTagArray);
+        TAOS_RETURN(TSDB_CODE_INVALID_MSG);
+      }
       if (tagValueChanged(pNewVal, pOldTag)) {
         allSame = false;
       }
@@ -1623,12 +4353,10 @@ static int32_t regexReplaceBuildSubstitution(const char *pReplace, const regmatc
   return TSDB_CODE_SUCCESS;
 }
 
-static int32_t regexReplace(const char *pStr, const char *pPattern, const char *pReplace, char **ppResult) {
-  regex_t *regex = NULL;
-  int32_t  code = threadGetRegComp(&regex, pPattern);
-  if (code != 0) {
-    return code;
-  }
+static int32_t regexReplace(const char *pStr, const char *pPattern, const char *pReplace,
+                            char **ppResult, void *charsetCxt) {
+  int32_t code = taosCheckRegexCharset(pPattern, charsetCxt);
+  if (code != 0) return code;
 
   size_t strLen = strlen(pStr);
   size_t resultCap = strLen + 1;
@@ -1644,8 +4372,8 @@ static int32_t regexReplace(const char *pStr, const char *pPattern, const char *
   int32_t       execFlags = 0;
 
   while (*cursor != '\0') {
-    int ret = regexec(regex, cursor, nmatch, pmatch, execFlags);
-    if (ret == REG_NOMATCH) {
+    int ret = taosExecRegexCapturesCharset(cursor, pPattern, nmatch, pmatch, execFlags, charsetCxt);
+    if (ret == 1) {
       break;
     }
     if (ret != 0) {
@@ -1672,17 +4400,20 @@ static int32_t regexReplace(const char *pStr, const char *pPattern, const char *
     }
 
     if (pmatch[0].rm_so == pmatch[0].rm_eo) {
-      if (resultLen + 1 >= resultCap) {
-        resultCap = resultCap * 2 + 1;
+      const char *next = cursor + pmatch[0].rm_eo;
+      if (*next == 0) { cursor = next; break; }
+      int32_t bytes = 0;
+      code = taosMbsCharOffset(next, strlen(next), 1, charsetCxt, &bytes);
+      if (code != 0) { taosMemoryFree(result); return code; }
+      if (resultLen + bytes + 1 > resultCap) {
+        resultCap = (resultLen + bytes) * 2 + 1;
         char *tmp = taosMemoryRealloc(result, resultCap);
-        if (NULL == tmp) {
-          taosMemoryFree(result);
-          return TSDB_CODE_OUT_OF_MEMORY;
-        }
+        if (tmp == NULL) { taosMemoryFree(result); return TSDB_CODE_OUT_OF_MEMORY; }
         result = tmp;
       }
-      result[resultLen++] = cursor[pmatch[0].rm_eo];
-      cursor += pmatch[0].rm_eo + 1;
+      memcpy(result + resultLen, next, bytes);
+      resultLen += bytes;
+      cursor = next + bytes;
     } else {
       cursor += pmatch[0].rm_eo;
     }
@@ -1711,6 +4442,11 @@ static int32_t regexReplace(const char *pStr, const char *pPattern, const char *
 
 
 static int32_t computeNewTagValViaRegexReplace(const STag* pOldTag, SUpdatedTagVal* pNewVal) {
+  if (pNewVal->charset == NULL || pNewVal->charset[0] == 0) return TSDB_CODE_CHARSET_CONVERT_ERROR;
+  void *charsetCxt = taosConvInit(pNewVal->charset);
+  if (charsetCxt == NULL) return TSDB_CODE_CHARSET_CONVERT_ERROR;
+  int32_t localeCode = taosCheckRegexLocale(charsetCxt);
+  if (localeCode != 0) return localeCode;
   STagVal oldTagVal = {.cid = pNewVal->colId};
   if (!tTagGet(pOldTag, &oldTagVal)) {
     pNewVal->isNull = 1;
@@ -1729,7 +4465,8 @@ static int32_t computeNewTagValViaRegexReplace(const STag* pOldTag, SUpdatedTagV
     if (oldStr == NULL) {
       return TSDB_CODE_OUT_OF_MEMORY;
     }
-    int32_t ret = taosUcs4ToMbs((TdUcs4*)oldTagVal.pData, oldTagVal.nData, oldStr, NULL);
+    // Decode and encode tag text using the originating connection charset.
+    int32_t ret = taosUcs4ToMbs((TdUcs4*)oldTagVal.pData, oldTagVal.nData, oldStr, charsetCxt);
     if (ret < 0) {
       taosMemoryFree(oldStr);
       return ret;
@@ -1746,7 +4483,7 @@ static int32_t computeNewTagValViaRegexReplace(const STag* pOldTag, SUpdatedTagV
   }
 
   char* newStr = NULL;
-  int32_t code = regexReplace(oldStr, pNewVal->regexp, pNewVal->replacement, &newStr);
+  int32_t code = regexReplace(oldStr, pNewVal->regexp, pNewVal->replacement, &newStr, charsetCxt);
   taosMemoryFree(oldStr);
   if (code != TSDB_CODE_SUCCESS) {
     return code;
@@ -1763,7 +4500,7 @@ static int32_t computeNewTagValViaRegexReplace(const STag* pOldTag, SUpdatedTagV
     }
 
     int32_t ucs4Len = 0;
-    bool    cvtOk = taosMbsToUcs4(newStr, newStrLen, (TdUcs4*)ucs4Buf, ucs4BufLen, &ucs4Len, NULL);
+    bool    cvtOk = taosMbsToUcs4(newStr, newStrLen, (TdUcs4*)ucs4Buf, ucs4BufLen, &ucs4Len, charsetCxt);
     taosMemoryFree(newStr);
     if (!cvtOk) {
       taosMemoryFree(ucs4Buf);
@@ -1784,7 +4521,8 @@ static int32_t computeNewTagValViaRegexReplace(const STag* pOldTag, SUpdatedTagV
 
 
 
-static int32_t metaUpdateTableTagValueImpl(SMeta* pMeta, SMetaEntry* pTable, SSchemaWrapper* pTagSchema, SHashObj* pUpdatedTagVals) {
+static int32_t metaUpdateTableTagValueImpl(SMeta* pMeta, SMetaEntry* pTable,
+                                           SSchemaWrapper* pTagSchema, SHashObj* pUpdatedTagVals) {
   if (pTagSchema->nCols == 1 && pTagSchema->pSchema[0].type == TSDB_DATA_TYPE_JSON) {
     return metaUpdateTableJsonTagValue(pMeta, pTable, pTagSchema, pUpdatedTagVals);
   }
@@ -1873,29 +4611,165 @@ _exit:
 
 
 
-static int32_t metaUpdateTableTagValue(SMeta *pMeta, int64_t version, const char* tbName, SArray* tags) {
+// Set tag values on a normal/virtual-normal table (owned tags in ntbEntry.pTags).
+// Mirrors metaUpdateTableNormalTagValue but operates on ntbEntry.pTags; no regex/json (v1).
+// Setting a static value on a tag-ref converts it back to an owned tag: the reference is cleared
+// (*pTagRefCleared set) so the caller can refresh the client catalog.
+static int32_t metaUpdateNtbTagValueImpl(SMeta *pMeta, SMetaEntry *pTable, SSchemaWrapper *pTagSchema,
+                                         SHashObj *pUpdatedTagVals, bool *pTagRefCleared) {
+  int32_t     code = TSDB_CODE_SUCCESS;
+  const STag *pOldTag = (const STag *)pTable->ntbEntry.pTags;
+  SArray     *pTagArray = taosArrayInit(pTagSchema->nCols, sizeof(STagVal));
+  if (pTagArray == NULL) {
+    metaError("vgId:%d, %s failed at %s:%d since OOM, uid:%" PRId64 " version:%" PRId64, TD_VID(pMeta->pVnode), __func__,
+              __FILE__, __LINE__, pTable->uid, pTable->version);
+    TAOS_RETURN(TSDB_CODE_OUT_OF_MEMORY);
+  }
+
+  for (int32_t i = 0; i < pTagSchema->nCols; i++) {
+    SSchema        *pCol = &pTagSchema->pSchema[i];
+    int32_t         colId = pCol->colId;
+    SUpdatedTagVal *pNewVal = taosHashGet(pUpdatedTagVals, &colId, sizeof(colId));
+
+    if (pNewVal != NULL) {
+      // Setting a static value on a tag-ref converts it back to an owned tag: clear the reference
+      // (the value no longer follows the source table).
+      if (pTable->type == TSDB_VIRTUAL_NORMAL_TABLE && pTable->colRef.pTagRef != NULL) {
+        for (int32_t r = 0; r < pTable->colRef.nTagRefs; r++) {
+          if (pTable->colRef.pTagRef[r].hasRef && pTable->colRef.pTagRef[r].id == colId) {
+            pTable->colRef.pTagRef[r].hasRef = false;
+            // Free the owned tag-cond JSON before clearing the ref, same as metaDropTableTag,
+            // otherwise a ref carrying a tag condition leaks it on every such conversion.
+            taosMemoryFreeClear(pTable->colRef.pTagRef[r].tagCondJson);
+            taosMemoryFreeClear(pTable->colRef.pTagRef[r].filterCondJson);
+            pTable->colRef.pTagRef[r].filterCondLen = 0;
+            pTable->colRef.pTagRef[r].tagCondLen = 0;
+            memset(pTable->colRef.pTagRef[r].refDbName, 0, TSDB_DB_NAME_LEN);
+            memset(pTable->colRef.pTagRef[r].refTableName, 0, TSDB_TABLE_NAME_LEN);
+            memset(pTable->colRef.pTagRef[r].refColName, 0, TSDB_COL_NAME_LEN);
+            pTable->colRef.version++;
+            if (pTagRefCleared != NULL) *pTagRefCleared = true;
+            metaInfo("vgId:%d, table %s uid %" PRId64 " tag %s (colId:%d) ref cleared by SET TAG, version:%" PRId64,
+                     TD_VID(pMeta->pVnode), pTable->name, pTable->uid, pCol->name, colId, pTable->version);
+            break;
+          }
+        }
+      }
+      if (pNewVal->isNull) {
+        continue;  // explicitly set NULL -> absent in the sparse STag
+      }
+      STagVal value = {.cid = pCol->colId, .type = pCol->type};
+      if (IS_VAR_DATA_TYPE(pCol->type)) {
+        if ((int32_t)pNewVal->nTagVal > (pCol->bytes - VARSTR_HEADER_SIZE)) {
+          taosArrayDestroy(pTagArray);
+          TAOS_RETURN(TSDB_CODE_PAR_VALUE_TOO_LONG);
+        }
+        value.pData = pNewVal->pTagVal;
+        value.nData = pNewVal->nTagVal;
+      } else {
+        if (IS_INVALID_TYPE(pCol->type) || pNewVal->pTagVal == NULL ||
+            (int32_t)pNewVal->nTagVal != tDataTypes[pCol->type].bytes) {
+          metaError("vgId:%d, %s failed at %s:%d since invalid tag val len %d for tag %s, version:%" PRId64,
+                    TD_VID(pMeta->pVnode), __func__, __FILE__, __LINE__, pNewVal->nTagVal, pCol->name, pTable->version);
+          taosArrayDestroy(pTagArray);
+          TAOS_RETURN(TSDB_CODE_INVALID_MSG);
+        }
+        memcpy(&value.i64, pNewVal->pTagVal, pNewVal->nTagVal);
+      }
+      if (taosArrayPush(pTagArray, &value) == NULL) {
+        taosArrayDestroy(pTagArray);
+        TAOS_RETURN(TSDB_CODE_OUT_OF_MEMORY);
+      }
+    } else {
+      // no update for this tag: keep its existing value (if present)
+      STagVal value = {.cid = pCol->colId, .type = pCol->type};
+      if (pOldTag != NULL && tTagGet(pOldTag, &value)) {
+        if (taosArrayPush(pTagArray, &value) == NULL) {
+          taosArrayDestroy(pTagArray);
+          TAOS_RETURN(TSDB_CODE_OUT_OF_MEMORY);
+        }
+      }
+      // else: existing tag was NULL (absent) -> stays absent
+    }
+  }
+
+  STag *pNewTag = NULL;
+  code = tTagNew(pTagArray, pTagSchema->version, false, &pNewTag);
+  taosArrayDestroy(pTagArray);
+  if (code) {
+    TAOS_RETURN(code);
+  }
+  taosMemoryFree(pTable->ntbEntry.pTags);
+  pTable->ntbEntry.pTags = (uint8_t *)pNewTag;
+
+  code = metaHandleEntry2(pMeta, pTable);
+  TAOS_RETURN(code);
+}
+
+static int32_t metaUpdateTableTagValue(SMeta *pMeta, int64_t version, const char* tbName, SArray* tags,
+                                       STableMetaRsp *pMetaRsp) {
   int32_t code = TSDB_CODE_SUCCESS;
   SMetaEntry *pChild = NULL;
   SMetaEntry *pSuper = NULL;
-  SHashObj* pUpdatedTagVals = NULL;
+  SHashObj*   pUpdatedTagVals = NULL;
+  SSchema    *pMergedTags = NULL;
+  bool        tagRefCleared = false;
+
+  // Declared and initialized at function scope: the ntb/vntb branch jumps to _exit before the
+  // vchild-only merge block below -- a mid-function `= NULL` initializer would be skipped there
+  // and _exit would free an uninitialized pointer.
+  SSchemaWrapper  mergedTagSchema = {0};
 
   // fetch child entry
+  metaRLock(pMeta);
   code = metaFetchEntryByName(pMeta, tbName, &pChild);
+  metaULock(pMeta);
   if (code) {
     const char* msgFmt = "vgId:%d, %s failed at %s:%d since table %s not found, version:%" PRId64;
     metaError(msgFmt, TD_VID(pMeta->pVnode), __func__, __FILE__, __LINE__, tbName, version);
     goto _exit;
   }
 
-  if (pChild->type != TSDB_CHILD_TABLE && pChild->type != TSDB_VIRTUAL_CHILD_TABLE) {
-    const char* msgFmt = "vgId:%d, %s failed at %s:%d since table %s is not a child table, version:%" PRId64;
+  if (pChild->type != TSDB_CHILD_TABLE && pChild->type != TSDB_VIRTUAL_CHILD_TABLE &&
+      pChild->type != TSDB_VIRTUAL_NORMAL_TABLE && pChild->type != TSDB_NORMAL_TABLE) {
+    const char* msgFmt = "vgId:%d, %s failed at %s:%d since table %s is not a child/virtual/normal table, version:%" PRId64;
     metaError(msgFmt, TD_VID(pMeta->pVnode), __func__, __FILE__, __LINE__, tbName, version);
     code = TSDB_CODE_VND_INVALID_TABLE_ACTION;
     goto _exit;
   }
 
+  // normal and virtual normal tables own their tags in ntbEntry (no super table to fetch)
+  if (pChild->type == TSDB_VIRTUAL_NORMAL_TABLE || pChild->type == TSDB_NORMAL_TABLE) {
+    SSchemaWrapper *pTagSchema = &pChild->ntbEntry.schemaTag;
+    code = updatedTagValueArrayToHashMap(pTagSchema, tags, &pUpdatedTagVals);
+    if (code) {
+      const char* msgFmt = "vgId:%d, %s failed at %s:%d since %s, version:%" PRId64;
+      metaError(msgFmt, TD_VID(pMeta->pVnode), __func__, __FILE__, __LINE__, tstrerror(code), version);
+      goto _exit;
+    }
+    pChild->version = version;
+    code = metaUpdateNtbTagValueImpl(pMeta, pChild, pTagSchema, pUpdatedTagVals, &tagRefCleared);
+    if (code) {
+      const char* msgFmt = "vgId:%d, %s failed at %s:%d since %s, name:%s version:%" PRId64;
+      metaError(msgFmt, TD_VID(pMeta->pVnode), __func__, __FILE__, __LINE__, tstrerror(code), tbName, version);
+      goto _exit;
+    }
+    // SET TAG on a tag-ref cleared the reference: return the updated meta (colRef without the ref)
+    // so the client catalog stops resolving the tag from the source table.
+    if (tagRefCleared && pMetaRsp) {
+      code = metaFillNtbTableMetaRsp(pChild, tbName, pMetaRsp);
+      if (code) {
+        metaError("vgId:%d, %s failed to build meta response for %s, version:%" PRId64, TD_VID(pMeta->pVnode), __func__,
+                  tbName, version);
+      }
+    }
+    goto _exit;
+  }
+
   // fetch super entry
+  metaRLock(pMeta);
   code = metaFetchEntryByUid(pMeta, pChild->ctbEntry.suid, &pSuper);
+  metaULock(pMeta);
   if (code) {
     const char* msgFmt = "vgId:%d, %s failed at %s:%d since super table uid %" PRId64 " not found, version:%" PRId64;
     metaError(msgFmt, TD_VID(pMeta->pVnode), __func__, __FILE__, __LINE__, pChild->ctbEntry.suid, version);
@@ -1903,8 +4777,24 @@ static int32_t metaUpdateTableTagValue(SMeta *pMeta, int64_t version, const char
     goto _exit;
   }
 
-  // search the tags to update
+  // search the tags to update; for a virtual child table use the merged tag view (vstb tags
+  // followed by own tags) so own tags can be located by name and the shared tag blob is
+  // rebuilt with the merged schema (keeping own tag values, whose colIds sort after all vstb
+  // colIds, intact)
   SSchemaWrapper *pTagSchema = &pSuper->stbEntry.schemaTag;
+  if (pChild->type == TSDB_VIRTUAL_CHILD_TABLE && pChild->own.nOwnTags > 0) {
+    int32_t nMergedTags = 0;
+    code = metaBuildMergedTagView(pChild, &pSuper->stbEntry.schemaTag, &pMergedTags, &nMergedTags);
+    if (code) {
+      const char* msgFmt = "vgId:%d, %s failed at %s:%d since %s, version:%" PRId64;
+      metaError(msgFmt, TD_VID(pMeta->pVnode), __func__, __FILE__, __LINE__, tstrerror(code), version);
+      goto _exit;
+    }
+    mergedTagSchema.nCols = nMergedTags;
+    mergedTagSchema.version = pSuper->stbEntry.schemaTag.version;
+    mergedTagSchema.pSchema = pMergedTags;
+    pTagSchema = &mergedTagSchema;
+  }
 
   code = updatedTagValueArrayToHashMap(pTagSchema, tags, &pUpdatedTagVals);
   if (code) {
@@ -1913,16 +4803,62 @@ static int32_t metaUpdateTableTagValue(SMeta *pMeta, int64_t version, const char
     goto _exit;
   }
 
+  // For virtual child tables, clear tag-ref when setting static value. This must run AFTER
+  // updatedTagValueArrayToHashMap: the request arrives with colId unset and the helper has
+  // just resolved it by tag name -- matching refs on the raw request colId never hits, the
+  // ref survives, and it silently overrides the new literal at query time.
+  if (pChild->type == TSDB_VIRTUAL_CHILD_TABLE &&
+      pChild->colRef.nTagRefs > 0 && pChild->colRef.pTagRef) {
+    for (int32_t r = 0; r < pChild->colRef.nTagRefs; r++) {
+      if (pChild->colRef.pTagRef[r].hasRef) {
+        // widen to int32_t: the hash is keyed by SUpdatedTagVal.colId (int32_t) while
+        // SColRef.id is col_id_t (int16_t) -- a 2-byte lookup never matches
+        int32_t refColId = pChild->colRef.pTagRef[r].id;
+        if (taosHashGet(pUpdatedTagVals, &refColId, sizeof(refColId)) != NULL) {
+          pChild->colRef.pTagRef[r].hasRef = false;
+          // heap field must be released like the sibling clear paths do
+          // (metaUpdateNtbTagValueImpl / the drop-tag compaction): a ref carrying a tag
+          // condition would leak its json blob on every SET TAG overwrite otherwise
+          taosMemoryFreeClear(pChild->colRef.pTagRef[r].tagCondJson);
+          pChild->colRef.pTagRef[r].tagCondLen = 0;
+          memset(pChild->colRef.pTagRef[r].refDbName, 0, TSDB_DB_NAME_LEN);
+          memset(pChild->colRef.pTagRef[r].refTableName, 0, TSDB_TABLE_NAME_LEN);
+          memset(pChild->colRef.pTagRef[r].refColName, 0, TSDB_COL_NAME_LEN);
+          pChild->colRef.version++;
+          tagRefCleared = true;
+        }
+      }
+    }
+  }
+
   // change tag values
   pChild->version = version;
   code = metaUpdateTableTagValueImpl(pMeta, pChild, pTagSchema, pUpdatedTagVals);
+  if (code == TSDB_CODE_VND_SAME_TAG && tagRefCleared) {
+    // clearing a ref IS a meta change even when the literal equals the stored value
+    // (a state older builds could leave behind) -- persist it instead of reporting a no-op
+    code = metaHandleEntry2(pMeta, pChild);
+  }
   if (code) {
     const char* msgFmt = "vgId:%d, %s failed at %s:%d since %s, name:%s version:%" PRId64;
     metaError(msgFmt, TD_VID(pMeta->pVnode), __func__, __FILE__, __LINE__, tstrerror(code), tbName, version);
     goto _exit;
   }
 
+  // When tag-ref was cleared, return updated meta so client catalog gets refreshed
+  if (tagRefCleared && pMetaRsp) {
+    code = metaUpdateVtbMetaRsp(pChild, (char*)tbName, &pSuper->stbEntry.schemaRow, (pChild->type == TSDB_VIRTUAL_CHILD_TABLE) ? &pSuper->stbEntry.schemaTag : NULL,
+                                &pChild->colRef, pSuper->pExtSchemas,
+                                pSuper->stbEntry.ownerId, pMetaRsp, pChild->type);
+    if (code) {
+      metaError("vgId:%d, %s failed to build meta response for %s, version:%" PRId64,
+                TD_VID(pMeta->pVnode), __func__, tbName, version);
+      goto _exit;
+    }
+  }
+
 _exit:
+  taosMemoryFree(pMergedTags);
   taosHashCleanup(pUpdatedTagVals);
   metaFetchEntryFree(&pSuper);
   metaFetchEntryFree(&pChild);
@@ -1931,7 +4867,8 @@ _exit:
 
 
 
-int32_t metaUpdateTableMultiTableTagValue(SMeta *pMeta, int64_t version, SVAlterTbReq *pReq) {
+int32_t metaUpdateTableMultiTableTagValue(SMeta *pMeta, int64_t version, SVAlterTbReq *pReq,
+                                          STableMetaRsp *pMetaRsp) {
   int32_t code = TSDB_CODE_SUCCESS;
   SArray* uidList = NULL;
   SArray* tagListArray = NULL;
@@ -1955,7 +4892,7 @@ int32_t metaUpdateTableMultiTableTagValue(SMeta *pMeta, int64_t version, SVAlter
 
   for (int32_t i = 0; i < nTables; i++) {
     SUpdateTableTagVal *pTable = taosArrayGet(pReq->tables, i);
-    code = metaUpdateTableTagValue(pMeta, version, pTable->tbName, pTable->tags);
+    code = metaUpdateTableTagValue(pMeta, version, pTable->tbName, pTable->tags, pMetaRsp);
     if (code == TSDB_CODE_VND_SAME_TAG) {
       // we are updating multiple tables, if one table has same tag,
       // just skip it and continue to update other tables,
@@ -1986,7 +4923,7 @@ int32_t metaUpdateTableMultiTableTagValue(SMeta *pMeta, int64_t version, SVAlter
   }
 
   if (taosArrayGetSize(uidList) > 0) {
-    vnodeAlterTagForTmq(pMeta->pVnode, uidList, NULL, tagListArray);
+    vnodeAlterTagForQuerySub(pMeta->pVnode, uidList, NULL, tagListArray);
   }
 
   taosArrayDestroy(uidList);
@@ -2102,7 +5039,9 @@ static int32_t metaIsChildTableQualified(SMeta *pMeta, tb_uid_t uid, SNode *pTag
 
   *pQualified = false;
 
+  metaRLock(pMeta);
   code = metaFetchEntryByUid(pMeta, uid, &pEntry);
+  metaULock(pMeta);
   if (code != TSDB_CODE_SUCCESS || pEntry == NULL) {
     return TSDB_CODE_SUCCESS;
   }
@@ -2142,9 +5081,28 @@ static int32_t metaIsChildTableQualified(SMeta *pMeta, tb_uid_t uid, SNode *pTag
   return TSDB_CODE_SUCCESS;
 }
 
-
-
-static int32_t metaGetChildUidsByTagCond(SMeta *pMeta, tb_uid_t suid, SNode *pTagCond, SNode *pTagIndexCond, SArray *pUidList) {
+// maxUids > 0 bounds the RESULT set: more than maxUids children qualifying causes
+// TSDB_CODE_TXN_TOO_MANY_DDL_OPS, so an over-budget bulk tag update is rejected without
+// evaluating the remaining candidates once the budget is blown. The bound is checked BEFORE
+// pushing, so exactly maxUids matches still succeed and a successful return carries at most
+// maxUids entries. maxUids is a ceiling of the txn budget share (ceil(remaining / nVgroups)),
+// not an exact allowance - being conservative there is fine.
+//
+// The bound is on qualified children, NOT on the candidate set feeding them. With a tag
+// condition present a candidate may fail pTagCond, so the candidate array still grows to the
+// index match set (Step 1) or to the full child set (Step 2, capped there only when
+// pTagCond == NULL). Truncating candidates at maxUids is not a valid shortcut - the budget
+// could then be evaded by a predicate whose true reach exceeds maxUids but whose first
+// maxUids candidates happen to qualify. Bounding the candidates as well would require
+// doFilterTag to stream/abort, which it cannot do.
+//
+// Invariant relied on by Step 3: pTagIndexCond != NULL implies pTagCond != NULL, because
+// callers pass through both outputs of filterPartitionCond, which clones a
+// COND_TYPE_TAG_INDEX condition into both (see its two branches). So the uncapped
+// "all candidates qualify" branch cannot be reached with an index condition.
+// maxUids <= 0 is unlimited (the non-txn path).
+static int32_t metaGetChildUidsByTagCond(SMeta *pMeta, tb_uid_t suid, SNode *pTagCond, SNode *pTagIndexCond,
+                                         SArray *pUidList, int32_t maxUids) {
   int32_t       code = TSDB_CODE_SUCCESS;
   int32_t       lino = 0;
   SVnode       *pVnode = pMeta->pVnode;
@@ -2192,7 +5150,7 @@ static int32_t metaGetChildUidsByTagCond(SMeta *pMeta, tb_uid_t suid, SNode *pTa
       TAOS_CHECK_GOTO(TSDB_CODE_OUT_OF_MEMORY, &lino, _end);
     }
 
-    SMCtbCursor *pCur = metaOpenCtbCursor(pVnode, suid, 1);
+    SMCtbCursor *pCur = metaOpenCtbCursor(pVnode, suid, 1, 0);
     if (pCur == NULL) {
       TAOS_CHECK_GOTO(terrno, &lino, _end);
     }
@@ -2201,6 +5159,13 @@ static int32_t metaGetChildUidsByTagCond(SMeta *pMeta, tb_uid_t suid, SNode *pTa
       tb_uid_t uid = metaCtbCursorNext(pCur);
       if (uid == 0) {
         break;
+      }
+      // Without a tag condition every candidate qualifies, so the cap applies here directly.
+      // With one, candidates are still only candidates - the cap is enforced after filtering.
+      if (maxUids > 0 && pTagCond == NULL && taosArrayGetSize(pCandidateUids) >= maxUids) {
+        metaCloseCtbCursor(pCur);
+        code = TSDB_CODE_TXN_TOO_MANY_DDL_OPS;
+        TAOS_CHECK_GOTO(code, &lino, _end);
       }
       if (taosArrayPush(pCandidateUids, &uid) == NULL) {
         code = terrno;
@@ -2213,7 +5178,7 @@ static int32_t metaGetChildUidsByTagCond(SMeta *pMeta, tb_uid_t suid, SNode *pTa
 
   // Step 3: Apply pTagCond to filter the candidate UIDs
   if (pTagCond == NULL) {
-    // No tag condition — all candidates qualify
+    // No tag condition  -  all candidates qualify
     taosArraySwap(pUidList, pCandidateUids);
   } else {
     // Evaluate pTagCond per child table
@@ -2227,8 +5192,14 @@ static int32_t metaGetChildUidsByTagCond(SMeta *pMeta, tb_uid_t suid, SNode *pTa
         TAOS_CHECK_GOTO(code, &lino, _end);
       }
 
-      if (qualified && taosArrayPush(pUidList, &uid) == NULL) {
-        TAOS_CHECK_GOTO(terrno, &lino, _end);
+      if (qualified) {
+        if (maxUids > 0 && taosArrayGetSize(pUidList) >= maxUids) {
+          code = TSDB_CODE_TXN_TOO_MANY_DDL_OPS;
+          TAOS_CHECK_GOTO(code, &lino, _end);
+        }
+        if (taosArrayPush(pUidList, &uid) == NULL) {
+          TAOS_CHECK_GOTO(terrno, &lino, _end);
+        }
       }
     }
   }
@@ -2245,14 +5216,15 @@ _end:
 
 // Convenience wrapper: partition a raw WHERE condition into tag-related parts,
 // then call metaGetChildUidsByTagCond to get the filtered child table UIDs.
-int32_t metaGetChildUidsByWhere(SMeta *pMeta, tb_uid_t suid, SNode *pWhere, SArray *pUidList) {
+// maxUids bounds the match set; see metaGetChildUidsByTagCond. Pass 0 for unlimited.
+int32_t metaGetChildUidsByWhere(SMeta *pMeta, tb_uid_t suid, SNode *pWhere, SArray *pUidList, int32_t maxUids) {
   int32_t code = TSDB_CODE_SUCCESS;
   SNode  *pTagCond = NULL;
   SNode  *pTagIndexCond = NULL;
 
   if (pWhere == NULL) {
-    // No WHERE condition — return all child table UIDs
-    return metaGetChildUidsByTagCond(pMeta, suid, NULL, NULL, pUidList);
+    // No WHERE condition  -  return all child table UIDs
+    return metaGetChildUidsByTagCond(pMeta, suid, NULL, NULL, pUidList, maxUids);
   }
 
   // Clone pWhere so the caller's node is not destroyed by filterPartitionCond
@@ -2269,7 +5241,7 @@ int32_t metaGetChildUidsByWhere(SMeta *pMeta, tb_uid_t suid, SNode *pWhere, SArr
   }
 
   // Call the core filtering function
-  code = metaGetChildUidsByTagCond(pMeta, suid, pTagCond, pTagIndexCond, pUidList);
+  code = metaGetChildUidsByTagCond(pMeta, suid, pTagCond, pTagIndexCond, pUidList, maxUids);
 
 _cleanup:
   nodesDestroyNode(pTagCond);
@@ -2278,9 +5250,115 @@ _cleanup:
   return code;
 }
 
+// Pre-scan to collect affected child table UIDs and their current versions
+// for TSDB_ALTER_TABLE_UPDATE_CHILD_TABLE_TAG_VAL transactional path.
+int32_t metaPreScanChildTableTagUpdate(SMeta *pMeta, SVAlterTbReq *pReq, SArray *pUids, SArray *pVersions,
+                                       SArray *pNames) {
+  int32_t     code = TSDB_CODE_SUCCESS;
+  SNode      *pWhere = NULL;
+  SMetaEntry *pSuper = NULL;
+  SArray     *pChildUids = NULL;
 
+  if (pReq->tbName == NULL || strlen(pReq->tbName) == 0) {
+    return TSDB_CODE_INVALID_MSG;
+  }
 
-int32_t metaUpdateTableChildTableTagValue(SMeta *pMeta, int64_t version, SVAlterTbReq *pReq) {
+  if (pReq->whereLen > 0) {
+    // nodesMsgToNode() byte-swaps the TLV headers of its input buffer IN PLACE (tlvGetNextTlv
+    // does ntohs/ntohl on pBuf despite the const contract). This prescan is the FIRST of two
+    // decodes of pReq->where within one txn apply  -  the authoritative metaUpdateTableChildTable
+    // TagValue() decodes it again. Decoding the original here would corrupt it and make the
+    // second decode fail ("invalid where condition"). Decode a private copy so pReq->where stays
+    // pristine for the real update. (Non-txn path has no prescan, so it never hit this.)
+    char *whereCopy = taosMemoryMalloc(pReq->whereLen);
+    if (whereCopy == NULL) {
+      return terrno;
+    }
+    memcpy(whereCopy, pReq->where, pReq->whereLen);
+    code = nodesMsgToNode(whereCopy, pReq->whereLen, &pWhere);
+    taosMemoryFree(whereCopy);
+    if (code) {
+      return code;
+    }
+  }
+
+  metaRLock(pMeta);
+  code = metaFetchEntryByName(pMeta, pReq->tbName, &pSuper);
+  metaULock(pMeta);
+  if (code) {
+    goto _exit;
+  }
+
+  if (pSuper->type != TSDB_SUPER_TABLE) {
+    code = TSDB_CODE_VND_INVALID_TABLE_ACTION;
+    goto _exit;
+  }
+
+  pChildUids = taosArrayInit(16, sizeof(int64_t));
+  if (pChildUids == NULL) {
+    code = terrno;
+    goto _exit;
+  }
+
+  // Bound the match set by this vnode's share of the txn's remaining DDL budget, so an
+  // over-budget predicate fails fast instead of building a multi-million-entry array here.
+  code = metaGetChildUidsByWhere(pMeta, pSuper->uid, pWhere, pChildUids, pReq->txnDdlQuota);
+  if (code) {
+    goto _exit;
+  }
+
+  // Hold read lock across all fetches for a consistent snapshot of versions.
+  // metaGetChildUidsByWhere above uses its own cursor-level locking internally.
+  int32_t nChildren = taosArrayGetSize(pChildUids);
+  if (nChildren > 0) {
+    metaRLock(pMeta);
+    for (int32_t i = 0; i < nChildren; ++i) {
+      tb_uid_t    uid = *(tb_uid_t *)TARRAY_GET_ELEM(pChildUids, i);
+      SMetaEntry *pChild = NULL;
+      code = metaFetchEntryByUid(pMeta, uid, &pChild);
+      if (code || pChild == NULL) {
+        code = TSDB_CODE_SUCCESS;
+        continue;  // child may have been dropped concurrently
+      }
+      // Preserve the ORIGINAL pre-txn version across repeated ALTERs of the same uid within one
+      // txn. If this child is already PRE_ALTER from the same txn, pChild->version is an
+      // intermediate in-txn version; capturing it would make outside readers redirect to (and
+      // rollback restore) an uncommitted value. Reuse the already-recorded original txnOrigVer.
+      int64_t ver = pChild->version;
+      if (pChild->txnStatus == META_TXN_PRE_ALTER && pChild->txnId == pReq->txnId && pChild->txnOrigVer >= 0) {
+        ver = pChild->txnOrigVer;
+      }
+      if (taosArrayPush(pUids, &uid) == NULL || taosArrayPush(pVersions, &ver) == NULL) {
+        metaFetchEntryFree(&pChild);
+        metaULock(pMeta);
+        code = terrno;
+        goto _exit;
+      }
+      // Collect the name too when requested, so the caller can take the per-table txn lock.
+      // Keep pNames index-aligned with pUids: push only after both pushes above succeeded.
+      if (pNames != NULL) {
+        char nameBuf[TSDB_TABLE_NAME_LEN] = {0};
+        tstrncpy(nameBuf, pChild->name, TSDB_TABLE_NAME_LEN);
+        if (taosArrayPush(pNames, nameBuf) == NULL) {
+          metaFetchEntryFree(&pChild);
+          metaULock(pMeta);
+          code = terrno;
+          goto _exit;
+        }
+      }
+      metaFetchEntryFree(&pChild);
+    }
+    metaULock(pMeta);
+  }
+
+_exit:
+  taosArrayDestroy(pChildUids);
+  metaFetchEntryFree(&pSuper);
+  nodesDestroyNode(pWhere);
+  return code;
+}
+int32_t metaUpdateTableChildTableTagValue(SMeta *pMeta, int64_t version, SVAlterTbReq *pReq,
+                                          STableMetaRsp *pMetaRsp) {
   int32_t code = TSDB_CODE_SUCCESS;
   SNode* pWhere = NULL;
   SMetaEntry *pSuper = NULL;
@@ -2305,7 +5383,9 @@ int32_t metaUpdateTableChildTableTagValue(SMeta *pMeta, int64_t version, SVAlter
     }
   }
 
+  metaRLock(pMeta);
   code = metaFetchEntryByName(pMeta, pReq->tbName, &pSuper);
+  metaULock(pMeta);
   if (code) {
     const char* fmt = "vgId:%d, %s failed at %s:%d since table %s not found, version:%" PRId64;
     metaError(fmt, TD_VID(pMeta->pVnode), __func__, __FILE__, __LINE__, pReq->tbName, version);
@@ -2333,7 +5413,9 @@ int32_t metaUpdateTableChildTableTagValue(SMeta *pMeta, int64_t version, SVAlter
     metaError(fmt, TD_VID(pMeta->pVnode), __func__, __FILE__, __LINE__, tstrerror(code), version);
     goto _exit;
   }
-  code = metaGetChildUidsByWhere(pMeta, pSuper->uid, pWhere, pUids);
+  // The authoritative apply. Unbounded: by this point the pre-scan already enforced the
+  // budget, and the non-txn path has no budget to enforce.
+  code = metaGetChildUidsByWhere(pMeta, pSuper->uid, pWhere, pUids, 0);
   if (code) {
     const char* fmt = "vgId:%d, %s failed at %s:%d since %s, version:%" PRId64;
     metaError(fmt, TD_VID(pMeta->pVnode), __func__, __FILE__, __LINE__, tstrerror(code), version);
@@ -2360,8 +5442,53 @@ int32_t metaUpdateTableChildTableTagValue(SMeta *pMeta, int64_t version, SVAlter
       goto _exit;
     }
 
+    // For virtual child tables, clear tag-ref when setting static value
+    bool tagRefCleared = false;
+    if (pChild->type == TSDB_VIRTUAL_CHILD_TABLE &&
+        pChild->colRef.nTagRefs > 0 && pChild->colRef.pTagRef) {
+      for (int32_t r = 0; r < pChild->colRef.nTagRefs; r++) {
+        if (pChild->colRef.pTagRef[r].hasRef) {
+          int32_t refColId = pChild->colRef.pTagRef[r].id;
+          if (taosHashGet(pUpdatedTagVals, &refColId, sizeof(int32_t))) {
+            pChild->colRef.pTagRef[r].hasRef = false;
+            memset(pChild->colRef.pTagRef[r].refDbName, 0, TSDB_DB_NAME_LEN);
+            memset(pChild->colRef.pTagRef[r].refTableName, 0, TSDB_TABLE_NAME_LEN);
+            memset(pChild->colRef.pTagRef[r].refColName, 0, TSDB_COL_NAME_LEN);
+            pChild->colRef.version++;
+            tagRefCleared = true;
+          }
+        }
+      }
+    }
+
     pChild->version = version;
-    code = metaUpdateTableTagValueImpl(pMeta, pChild, &pSuper->stbEntry.schemaTag, pUpdatedTagVals);
+    // For a virtual child table with own (extension) tags the shared tag blob must be rebuilt
+    // with the merged tag schema (vstb tags + own tags); rebuilding with the vstb-only schema
+    // would silently drop the stored values of the own tags
+    SSchema        *pMergedTags = NULL;
+    SSchemaWrapper  mergedTagSchema = {0};
+    SSchemaWrapper *pChildTagSchema = &pSuper->stbEntry.schemaTag;
+    if (pChild->type == TSDB_VIRTUAL_CHILD_TABLE && pChild->own.nOwnTags > 0) {
+      int32_t nMergedTags = 0;
+      code = metaBuildMergedTagView(pChild, &pSuper->stbEntry.schemaTag, &pMergedTags, &nMergedTags);
+      if (code) {
+        const char* fmt = "vgId:%d, %s failed at %s:%d since %s, version:%" PRId64;
+        metaError(fmt, TD_VID(pMeta->pVnode), __func__, __FILE__, __LINE__, tstrerror(code), version);
+        // metaBuildMergedTagView either fills pMergedTags fully or leaves it NULL on failure;
+        // this function's _exit does not free it (unlike metaUpdateTableTagValue's), so release
+        // it here. pMergedTags is loop-scoped and re-initialized to NULL each iteration, so the
+        // taosMemoryFree on the success path cannot double-free.
+        taosMemoryFree(pMergedTags);
+        metaFetchEntryFree(&pChild);
+        goto _exit;
+      }
+      mergedTagSchema.nCols = nMergedTags;
+      mergedTagSchema.version = pSuper->stbEntry.schemaTag.version;
+      mergedTagSchema.pSchema = pMergedTags;
+      pChildTagSchema = &mergedTagSchema;
+    }
+    code = metaUpdateTableTagValueImpl(pMeta, pChild, pChildTagSchema, pUpdatedTagVals);
+    taosMemoryFree(pMergedTags);
     if (code == TSDB_CODE_VND_SAME_TAG) {
       // we are updating multiple tables, if one table has same tag,
       // just skip it and continue to update other tables,
@@ -2378,6 +5505,19 @@ int32_t metaUpdateTableChildTableTagValue(SMeta *pMeta, int64_t version, SVAlter
         const char* fmt = "vgId:%d, %s failed at %s:%d since %s, version:%" PRId64;
         metaError(fmt, TD_VID(pMeta->pVnode), __func__, __FILE__, __LINE__, terrstr, version);
       }
+      // Return updated meta for the first table with cleared tag-ref
+      if (tagRefCleared && pMetaRsp && pMetaRsp->pSchemas == NULL) {
+        int32_t rc = metaUpdateVtbMetaRsp(pChild, pChild->name, &pSuper->stbEntry.schemaRow, (pChild->type == TSDB_VIRTUAL_CHILD_TABLE) ? &pSuper->stbEntry.schemaTag : NULL,
+                                          &pChild->colRef, pSuper->pExtSchemas,
+                                          pSuper->stbEntry.ownerId, pMetaRsp, pChild->type);
+        if (rc) {
+          metaError("vgId:%d, %s failed to build meta response for %s, version:%" PRId64,
+                    TD_VID(pMeta->pVnode), __func__, pChild->name, version);
+          code = rc;
+          metaFetchEntryFree(&pChild);
+          goto _exit;
+        }
+      }
     }
 
     metaFetchEntryFree(&pChild);
@@ -2386,7 +5526,7 @@ int32_t metaUpdateTableChildTableTagValue(SMeta *pMeta, int64_t version, SVAlter
 _exit:
   DestoryThreadLocalRegComp();
   if (taosArrayGetSize(uidListForTmq) > 0) {
-    vnodeAlterTagForTmq(pMeta->pVnode, uidListForTmq, pReq->pMultiTag, NULL);
+    vnodeAlterTagForQuerySub(pMeta->pVnode, uidListForTmq, pReq->pMultiTag, NULL);
   }
   taosArrayDestroy(pUids);
   taosArrayDestroy(uidListForTmq);
@@ -2407,6 +5547,15 @@ static int32_t metaCheckUpdateTableOptionsReq(SMeta *pMeta, int64_t version, SVA
     TAOS_RETURN(TSDB_CODE_INVALID_MSG);
   }
 
+  // newComment is copied with newCommentLen + 1 bytes: it must really be that long
+  if (pReq->newCommentLen > 0 &&
+      (pReq->newCommentLen >= TSDB_TB_COMMENT_LEN || pReq->newComment == NULL ||
+       strnlen(pReq->newComment, (size_t)pReq->newCommentLen + 1) != (size_t)pReq->newCommentLen)) {
+    metaError("vgId:%d, %s failed at %s:%d since invalid comment length:%d, version:%" PRId64, TD_VID(pMeta->pVnode),
+              __func__, __FILE__, __LINE__, pReq->newCommentLen, version);
+    TAOS_RETURN(TSDB_CODE_INVALID_MSG);
+  }
+
   return code;
 }
 
@@ -2420,7 +5569,9 @@ int32_t metaUpdateTableOptions2(SMeta *pMeta, int64_t version, SVAlterTbReq *pRe
 
   // fetch entry
   SMetaEntry *pEntry = NULL;
+  metaRLock(pMeta);
   code = metaFetchEntryByName(pMeta, pReq->tbName, &pEntry);
+  metaULock(pMeta);
   if (code) {
     metaError("vgId:%d, %s failed at %s:%d since table %s not found, version:%" PRId64, TD_VID(pMeta->pVnode), __func__,
               __FILE__, __LINE__, pReq->tbName, version);
@@ -2504,7 +5655,9 @@ int32_t metaUpdateTableColCompress2(SMeta *pMeta, int64_t version, SVAlterTbReq 
   }
 
   SMetaEntry *pEntry = NULL;
+  metaRLock(pMeta);
   code = metaFetchEntryByName(pMeta, pReq->tbName, &pEntry);
+  metaULock(pMeta);
   if (code) {
     metaError("vgId:%d, %s failed at %s:%d since table %s not found, version:%" PRId64, TD_VID(pMeta->pVnode), __func__,
               __FILE__, __LINE__, pReq->tbName, version);
@@ -2536,10 +5689,11 @@ int32_t metaUpdateTableColCompress2(SMeta *pMeta, int64_t version, SVAlterTbReq 
     if (p->id == pReq->colId) {
       // validate the new compress algorithm
       bool foundInSchema = false;
+      uint32_t newCompress = pReq->compress;
       for (int32_t j = 0; j < pSchemaWrapper->nCols; j++) {
         if (pSchemaWrapper->pSchema[j].colId == pReq->colId) {
           foundInSchema = true;
-          code = validColCmprByType(pSchemaWrapper->pSchema[j].type, pReq->compress);
+          code = validAndNormalizeColCmprByType(pSchemaWrapper->pSchema[j].type, &newCompress);
           if (code != TSDB_CODE_SUCCESS) {
             metaError("vgId:%d, %s failed at %s:%d since %s, colId:%d version:%" PRId64,
                       TD_VID(pMeta->pVnode), __func__, __FILE__, __LINE__,
@@ -2557,7 +5711,7 @@ int32_t metaUpdateTableColCompress2(SMeta *pMeta, int64_t version, SVAlterTbReq 
         TAOS_RETURN(TSDB_CODE_VND_COL_NOT_EXISTS);
       }
       uint32_t dst = 0;
-      updated = tUpdateCompress(p->alg, pReq->compress, TSDB_COLVAL_COMPRESS_DISABLED, TSDB_COLVAL_LEVEL_DISABLED,
+      updated = tUpdateCompress(p->alg, newCompress, TSDB_COLVAL_COMPRESS_DISABLED, TSDB_COLVAL_LEVEL_DISABLED,
                                 TSDB_COLVAL_LEVEL_MEDIUM, &dst);
       if (updated > 0) {
         p->alg = dst;
@@ -2597,8 +5751,80 @@ int32_t metaUpdateTableColCompress2(SMeta *pMeta, int64_t version, SVAlterTbReq 
   TAOS_RETURN(code);
 }
 
+void metaResolveColRefTagCond(const SMetaEntry *pEntry, const SVAlterTbReq *pReq, const char **ppTagCondJson,
+                              int32_t *pTagCondLen) {
+  *ppTagCondJson = NULL;
+  *pTagCondLen = 0;
+
+  // Only external refs carry a series tag condition.
+  if (NULL == pEntry || NULL == pReq || pReq->refType != 1 || pEntry->series.nSeries <= 0) {
+    return;
+  }
+
+  for (int32_t i = 0; i < pEntry->series.nSeries; i++) {
+    const SSeriesEntry *s = &pEntry->series.pSeries[i];
+    bool                matched = false;
+    if (pReq->seriesAlias && pReq->seriesAlias[0] != '\0') {
+      matched = (strcasecmp(s->alias, pReq->seriesAlias) == 0);
+    } else {
+      matched = (strcasecmp(s->sourceName, pReq->refSourceName ? pReq->refSourceName : "") == 0 &&
+                 strcasecmp(s->dbName, pReq->refDbName ? pReq->refDbName : "") == 0 &&
+                 strcasecmp(s->measurementName, pReq->refTbName ? pReq->refTbName : "") == 0);
+    }
+    if (matched) {
+      if (s->tagCondLen > 0 && s->tagCondJson) {
+        *ppTagCondJson = s->tagCondJson;
+        *pTagCondLen = s->tagCondLen;
+      }
+      break;
+    }
+  }
+}
+
+// Treats two NULL pointers as equal, which is how an absent JSON condition is stored.
+static bool metaColRefStrEqual(const char *a, const char *b) {
+  if (a == b) return true;
+  if (NULL == a || NULL == b) return false;
+  return strcmp(a, b) == 0;
+}
+
+bool metaColRefMatchesAlterReq(const SColRef *pColRef, const SVAlterTbReq *pReq, col_id_t colId,
+                               const char *pNewTagCondJson, int32_t newTagCondLen) {
+  if (NULL == pColRef || NULL == pReq) return false;
+
+  // metaAlterTableColumnRef rejects these before reaching here; a missing name can never compare
+  // equal to a stored one, so refuse to call it idempotent instead of dereferencing NULL.
+  if (NULL == pReq->refDbName || NULL == pReq->refTbName || NULL == pReq->refColName) return false;
+
+  if (!pColRef->hasRef || pColRef->id != colId || pColRef->refType != pReq->refType) return false;
+
+  // The write path normalises an absent source/schema name to the empty string, so compare against
+  // the same normalised form rather than against the raw request.
+  const char *refSourceName = pReq->refSourceName ? pReq->refSourceName : "";
+  const char *refSchemaName = (pReq->refSchemaName && '\0' != pReq->refSchemaName[0]) ? pReq->refSchemaName : "";
+  if (strncmp(pColRef->refSourceName, refSourceName, TSDB_EXT_SOURCE_NAME_LEN) != 0) return false;
+  if (strncmp(pColRef->refSchemaName, refSchemaName, TSDB_EXT_SOURCE_SCHEMA_LEN) != 0) return false;
+  if (strncmp(pColRef->refDbName, pReq->refDbName, TSDB_DB_NAME_LEN) != 0) return false;
+  if (strncmp(pColRef->refTableName, pReq->refTbName, TSDB_TABLE_NAME_LEN) != 0) return false;
+  if (strncmp(pColRef->refColName, pReq->refColName, TSDB_COL_NAME_LEN) != 0) return false;
+
+  // Mirror the write path exactly: it stores pReq->filterCondLen verbatim but only duplicates the
+  // JSON when both the length and the pointer are set.
+  const char *pNewFilterCondJson = (pReq->filterCondLen > 0 && pReq->filterCondJson) ? pReq->filterCondJson : NULL;
+  if (pColRef->filterCondLen != pReq->filterCondLen) return false;
+  if (!metaColRefStrEqual(pColRef->filterCondJson, pNewFilterCondJson)) return false;
+
+  if (pColRef->tagCondLen != newTagCondLen) return false;
+  if (!metaColRefStrEqual(pColRef->tagCondJson, pNewTagCondJson)) return false;
+
+  return true;
+}
+
 int32_t metaAlterTableColumnRef(SMeta *pMeta, int64_t version, SVAlterTbReq *pReq, STableMetaRsp *pRsp) {
   int32_t code = TSDB_CODE_SUCCESS;
+
+  metaInfo(KEYOP("vtable-alter", "START") "vgId:%d, table %s alter column ref %s, version:%" PRId64,
+           TD_VID(pMeta->pVnode), pReq->tbName, pReq->colName, version);
 
   // check request
   code = metaCheckAlterTableColumnReq(pMeta, version, pReq);
@@ -2626,7 +5852,9 @@ int32_t metaAlterTableColumnRef(SMeta *pMeta, int64_t version, SVAlterTbReq *pRe
 
   // fetch old entry
   SMetaEntry *pEntry = NULL;
+  metaRLock(pMeta);
   code = metaFetchEntryByName(pMeta, pReq->tbName, &pEntry);
+  metaULock(pMeta);
   if (code) {
     metaError("vgId:%d, %s failed at %s:%d since table %s not found, version:%" PRId64, TD_VID(pMeta->pVnode), __func__,
               __FILE__, __LINE__, pReq->tbName, version);
@@ -2655,13 +5883,281 @@ int32_t metaAlterTableColumnRef(SMeta *pMeta, int64_t version, SVAlterTbReq *pRe
   // search the column to update
   SSchemaWrapper *pSchema =
       pEntry->type == TSDB_VIRTUAL_CHILD_TABLE ? &pSuper->stbEntry.schemaRow : &pEntry->ntbEntry.schemaRow;
-  SColRef *pColRef = NULL;
-  int32_t  iColumn = 0;
-  for (int32_t i = 0; i < pSchema->nCols; i++) {
+  SColRef       *pColRef = NULL;
+  const SSchema *pColSchema = NULL;
+  // colRef is parallel to the schema but its length comes from the persisted entry
+  for (int32_t i = 0; i < pSchema->nCols && i < pEntry->colRef.nCols; i++) {
     if (strncmp(pSchema->pSchema[i].name, pReq->colName, TSDB_COL_NAME_LEN) == 0) {
       pColRef = &pEntry->colRef.pColRef[i];
-      iColumn = i;
+      pColSchema = &pSchema->pSchema[i];
       break;
+    }
+  }
+
+  // fall back to the vchild's own (extension) columns: an own column is not part of the vstb row
+  // schema, its schema and its ref live in the entry's own area (same fallback rule as the own-tag
+  // lookup in metaAlterTagRef). Without it every ALTER COLUMN ... SET on an own column failed with
+  // TSDB_CODE_VND_COL_NOT_EXISTS because the name is resolvable only in the own area.
+  // Note: tag names (own tags and vstb tags) resolve on the parser side but are no columns;
+  // ALTER COLUMN on them keeps failing here with TSDB_CODE_VND_COL_NOT_EXISTS - the pre-existing
+  // behavior of the column actions, unchanged by the own-column support.
+  // Defensive: a decoder-built entry keeps nOwnCols and the arrays consistent; guard the
+  // dereference anyway (same guard as metaBuildMergedColView/metaUpdateVtbMetaRsp).
+  bool isOwnCol = false;
+  if (NULL == pColRef && pEntry->type == TSDB_VIRTUAL_CHILD_TABLE && pEntry->own.nOwnCols > 0 &&
+      NULL != pEntry->own.pOwnColSchemas && NULL != pEntry->own.pOwnColRefs) {
+    for (int32_t i = 0; i < pEntry->own.nOwnCols; i++) {
+      if (strncmp(pEntry->own.pOwnColSchemas[i].name, pReq->colName, TSDB_COL_NAME_LEN) == 0) {
+        pColRef = &pEntry->own.pOwnColRefs[i];
+        pColSchema = &pEntry->own.pOwnColSchemas[i];
+        isOwnCol = true;
+        break;
+      }
+    }
+  }
+
+  if (NULL == pColRef) {
+    metaError("vgId:%d, %s failed at %s:%d since column id %d not found in table %s, version:%" PRId64,
+              TD_VID(pMeta->pVnode), __func__, __FILE__, __LINE__, pReq->colId, pReq->tbName, version);
+    metaFetchEntryFree(&pEntry);
+    metaFetchEntryFree(&pSuper);
+    TAOS_RETURN(TSDB_CODE_VND_COL_NOT_EXISTS);
+  }
+
+  // Resolve the tag condition this request would install before touching anything: it is derived
+  // from the entry's own series list, so it is part of "would this ALTER change anything".
+  const char *pNewTagCondJson = NULL;
+  int32_t     newTagCondLen = 0;
+  metaResolveColRefTagCond(pEntry, pReq, &pNewTagCondJson, &newTagCondLen);
+
+  // IDMP re-binds every `ans*` virtual table every 6 hours without diffing first, so the vast
+  // majority of these ALTERs would write back exactly what is already stored. Applying them anyway
+  // bumps the row-schema and colRef versions, which makes the mnode broadcast a new super table
+  // version and every client drop its cached meta for a vstb that can have tens of thousands of
+  // children. Skipping the no-op keeps that churn - and the entry write - out of the system.
+  //
+  // Exception: inside a batch meta txn the table may have been created by this very txn
+  // (META_TXN_PRE_CREATE). The txn machinery marks the entry PRE_ALTER in place after the ALTER
+  // and relies on a newer entry version existing, so that ROLLBACK deletes it and restores the
+  // PRE_CREATE mark for the create chain-delete. Skipping the write would overwrite the mark on
+  // the create version itself and the entry would be cleared to NORMAL on rollback - the new
+  // table would wrongly survive the ROLLBACK. Take the versioned write path in that case, which
+  // behaves exactly like any real change. Applies to cascaded and own columns alike.
+  bool sameTxnPreCreate =
+      (pReq->txnId != 0 && pEntry->txnStatus == META_TXN_PRE_CREATE && pEntry->txnId == pReq->txnId);
+  bool sameBinding = true;
+  if (pReq->hasExpectedRversion) {
+    const SVtableBindingLink *pOld = tVtableBindingForColumn(&pEntry->referenceExt, pColSchema->colId);
+    const SVtableBindingLink *pNew = tVtableBindingForColumn(&pReq->referenceExt, pColSchema->colId);
+    sameBinding = (pOld == NULL && pNew == NULL) ||
+        (pOld != NULL && pNew != NULL && pOld->bindingKind == pNew->bindingKind &&
+         strcmp(pOld->alias, pNew->alias) == 0);
+  }
+  if (!sameTxnPreCreate && sameBinding &&
+      metaColRefMatchesAlterReq(pColRef, pReq, pColSchema->colId, pNewTagCondJson, newTagCondLen)) {
+    metaInfo(KEYOP("vtable-alter", "SKIP") "vgId:%d, table %s column %s ref unchanged, version:%" PRId64,
+             TD_VID(pMeta->pVnode), pReq->tbName, pReq->colName, version);
+  } else {
+    // do update column ref. Both JSON payloads are duplicated up front, before any field of
+    // pColRef is touched, so a failed allocation leaves the stored ref exactly as it was instead
+    // of half-applied.
+    char *pFilterCondJson = NULL;
+    if (pReq->filterCondLen > 0 && pReq->filterCondJson) {
+      pFilterCondJson = taosStrdup(pReq->filterCondJson);
+      if (NULL == pFilterCondJson) {
+        metaFetchEntryFree(&pEntry);
+        metaFetchEntryFree(&pSuper);
+        TAOS_RETURN(terrno);
+      }
+    }
+    char *pTagCondJson = NULL;
+    if (NULL != pNewTagCondJson) {
+      pTagCondJson = taosStrdup(pNewTagCondJson);
+      if (NULL == pTagCondJson) {
+        // Persisting the ref without the series tag condition and still reporting success would
+        // silently widen what this column resolves to, so fail the ALTER rather than drop it.
+        code = terrno;
+        taosMemoryFree(pFilterCondJson);
+        metaFetchEntryFree(&pEntry);
+        metaFetchEntryFree(&pSuper);
+        TAOS_RETURN(code);
+      }
+    }
+    pEntry->version = version;
+    pColRef->hasRef = true;
+    pColRef->id = pColSchema->colId;
+    pColRef->refType = pReq->refType;
+    tstrncpy(pColRef->refSourceName, pReq->refSourceName ? pReq->refSourceName : "", TSDB_EXT_SOURCE_NAME_LEN);
+    if (NULL != pReq->refSchemaName && '\0' != pReq->refSchemaName[0]) {
+      tstrncpy(pColRef->refSchemaName, pReq->refSchemaName, TSDB_EXT_SOURCE_SCHEMA_LEN);
+    } else {
+      pColRef->refSchemaName[0] = '\0';
+    }
+    tstrncpy(pColRef->refDbName, pReq->refDbName, TSDB_DB_NAME_LEN);
+    tstrncpy(pColRef->refTableName, pReq->refTbName, TSDB_TABLE_NAME_LEN);
+    tstrncpy(pColRef->refColName, pReq->refColName, TSDB_COL_NAME_LEN);
+    taosMemoryFreeClear(pColRef->filterCondJson);
+    pColRef->filterCondJson = pFilterCondJson;
+    pColRef->filterCondLen = pReq->filterCondLen;
+
+    // If external ref, store the tag condition of the matching series resolved above.
+    taosMemoryFreeClear(pColRef->tagCondJson);
+    pColRef->tagCondJson = pTagCondJson;
+    pColRef->tagCondLen = (NULL != pTagCondJson) ? newTagCondLen : 0;
+    // An own column lives in the vchild entry, not in the vstb row schema: bump only the entry's
+    // colRef version (rversion), exactly like the add/drop own-column paths, and leave the vstb
+    // row-schema version alone. For a cascaded column the pSchema bump is kept for response
+    // compatibility (for a vchild it is an in-memory copy; only the entry is persisted).
+    if (!isOwnCol) {
+      pSchema->version++;
+    }
+    pEntry->colRef.version++;
+
+    // do handle entry
+    code = metaHandleReferenceEntry(pMeta, pEntry, pReq);
+    if (code) {
+      metaError("vgId:%d, %s failed at %s:%d since %s, uid:%" PRId64 " name:%s version:%" PRId64, TD_VID(pMeta->pVnode),
+                __func__, __FILE__, __LINE__, tstrerror(code), pEntry->uid, pReq->tbName, version);
+      metaFetchEntryFree(&pEntry);
+      metaFetchEntryFree(&pSuper);
+      TAOS_RETURN(code);
+    } else {
+      metaInfo(KEYOP("vtable-alter", "END") "vgId:%d, table %s uid %" PRId64 " is updated, version:%" PRId64,
+               TD_VID(pMeta->pVnode), pReq->tbName,
+               pEntry->uid, version);
+    }
+  }
+
+  // The meta response is built on both paths: the skip path leaves the schema versions untouched, so
+  // the catalog simply ignores an identical response (ctgWriteTbMetaToCache), while a client whose
+  // cache happens to be older still gets refreshed. Only the version bump above invalidates other
+  // clients' caches, and that is exactly what the skip path avoids.
+
+  // build response
+  code = metaUpdateVtbMetaRsp(
+      pEntry, pReq->tbName, pSchema, (pEntry->type == TSDB_VIRTUAL_CHILD_TABLE) ? &pSuper->stbEntry.schemaTag : NULL, &pEntry->colRef,
+      pEntry->type == TSDB_VIRTUAL_CHILD_TABLE ? pSuper->pExtSchemas : pEntry->pExtSchemas,
+      pEntry->type == TSDB_VIRTUAL_CHILD_TABLE ? pSuper->stbEntry.ownerId : pEntry->ntbEntry.ownerId, pRsp,
+      pEntry->type);
+  if (code) {
+    metaError("vgId:%d, %s failed at %s:%d since %s, uid:%" PRId64 " name:%s version:%" PRId64, TD_VID(pMeta->pVnode),
+              __func__, __FILE__, __LINE__, tstrerror(code), pEntry->uid, pReq->tbName, version);
+  } else {
+    for (int32_t i = 0; i < pEntry->colRef.nCols; i++) {
+      SColRef *p = &pEntry->colRef.pColRef[i];
+      pRsp->pColRefs[i].hasRef = p->hasRef;
+      pRsp->pColRefs[i].id = p->id;
+      if (p->hasRef) {
+        pRsp->pColRefs[i].refType = p->refType;
+        tstrncpy(pRsp->pColRefs[i].refSourceName, p->refSourceName, TSDB_EXT_SOURCE_NAME_LEN);
+        tstrncpy(pRsp->pColRefs[i].refSchemaName, p->refSchemaName, TSDB_EXT_SOURCE_SCHEMA_LEN);
+        tstrncpy(pRsp->pColRefs[i].refDbName, p->refDbName, TSDB_DB_NAME_LEN);
+        tstrncpy(pRsp->pColRefs[i].refTableName, p->refTableName, TSDB_TABLE_NAME_LEN);
+        tstrncpy(pRsp->pColRefs[i].refColName, p->refColName, TSDB_COL_NAME_LEN);
+      }
+    }
+  }
+
+  // Same rule as the column-alter sites above: a normal / virtual-normal table owns its tag schema
+  // (ntbEntry.schemaTag) and every meta response must carry it. ctgWriteTbMetaToCache accepts this
+  // response because the row schema version advanced, so omitting the tag schema here would replace
+  // the cached meta with a tag-less one and break later tag access on the same connection. The
+  // virtual-CHILD branch already receives the super table's tag schema, so the guard keeps it out.
+  if (code == TSDB_CODE_SUCCESS &&
+      (pEntry->type == TSDB_NORMAL_TABLE || pEntry->type == TSDB_VIRTUAL_NORMAL_TABLE)) {
+    // The ALTER is already persisted at this point, so a failure to append the tag schema must not
+    // turn into a failed ALTER: reporting an error here would tell the client the DDL did not take
+    // effect while the change is on disk and in the WAL. Log it and return success with an
+    // incomplete response instead - the client then simply refetches the meta on its next RPC.
+    int32_t rspCode = metaAppendNtbTagSchemaToRsp(pEntry, pRsp);
+    if (rspCode != TSDB_CODE_SUCCESS) {
+      metaError("vgId:%d, %s failed to append owned tag schema at %s:%d since %s, uid:%" PRId64
+                " name:%s version:%" PRId64,
+                TD_VID(pMeta->pVnode), __func__, __FILE__, __LINE__, tstrerror(rspCode), pEntry->uid, pReq->tbName,
+                version);
+    }
+  }
+
+  metaFetchEntryFree(&pEntry);
+  metaFetchEntryFree(&pSuper);
+  TAOS_RETURN(code);
+}
+
+int32_t metaRemoveTableColumnRef(SMeta *pMeta, int64_t version, SVAlterTbReq *pReq, STableMetaRsp *pRsp) {
+  int32_t code = TSDB_CODE_SUCCESS;
+
+  metaInfo(KEYOP("vtable-alter", "START") "vgId:%d, table %s remove column ref %s, version:%" PRId64,
+           TD_VID(pMeta->pVnode), pReq->tbName, pReq->colName, version);
+
+  // check request
+  code = metaCheckAlterTableColumnReq(pMeta, version, pReq);
+  if (code) {
+    TAOS_RETURN(code);
+  }
+
+  // fetch old entry
+  SMetaEntry *pEntry = NULL;
+  metaRLock(pMeta);
+  code = metaFetchEntryByName(pMeta, pReq->tbName, &pEntry);
+  metaULock(pMeta);
+  if (code) {
+    metaError("vgId:%d, %s failed at %s:%d since table %s not found, version:%" PRId64, TD_VID(pMeta->pVnode), __func__,
+              __FILE__, __LINE__, pReq->tbName, version);
+    TAOS_RETURN(code);
+  }
+
+  if (pEntry->version >= version) {
+    metaError("vgId:%d, %s failed at %s:%d since table %s version %" PRId64 " is not less than %" PRId64,
+              TD_VID(pMeta->pVnode), __func__, __FILE__, __LINE__, pReq->tbName, pEntry->version, version);
+    metaFetchEntryFree(&pEntry);
+    TAOS_RETURN(TSDB_CODE_INVALID_PARA);
+  }
+
+  // fetch super entry
+  SMetaEntry *pSuper = NULL;
+  if (pEntry->type == TSDB_VIRTUAL_CHILD_TABLE) {
+    code = metaFetchEntryByUid(pMeta, pEntry->ctbEntry.suid, &pSuper);
+    if (code) {
+      metaError("vgId:%d, %s failed at %s:%d since super table uid %" PRId64 " not found, version:%" PRId64,
+                TD_VID(pMeta->pVnode), __func__, __FILE__, __LINE__, pEntry->ctbEntry.suid, version);
+      metaFetchEntryFree(&pEntry);
+      TAOS_RETURN(TSDB_CODE_INTERNAL_ERROR);
+    }
+  }
+
+  // search the column to update
+  SSchemaWrapper *pSchema =
+      pEntry->type == TSDB_VIRTUAL_CHILD_TABLE ? &pSuper->stbEntry.schemaRow : &pEntry->ntbEntry.schemaRow;
+  SColRef       *pColRef = NULL;
+  const SSchema *pColSchema = NULL;
+  // colRef is parallel to the schema but its length comes from the persisted entry
+  for (int32_t i = 0; i < pSchema->nCols && i < pEntry->colRef.nCols; i++) {
+    if (strncmp(pSchema->pSchema[i].name, pReq->colName, TSDB_COL_NAME_LEN) == 0) {
+      pColRef = &pEntry->colRef.pColRef[i];
+      pColSchema = &pSchema->pSchema[i];
+      break;
+    }
+  }
+
+  // fall back to the vchild's own (extension) columns: an own column is not part of the vstb row
+  // schema, its schema and its ref live in the entry's own area (same fallback rule as the own-tag
+  // lookup in metaAlterTagRef). Without it every ALTER COLUMN ... SET NULL on an own column failed
+  // with TSDB_CODE_VND_COL_NOT_EXISTS even though no source column is involved at all.
+  // Note: tag names (own tags and vstb tags) resolve on the parser side but are no columns;
+  // SET NULL on them keeps failing here with TSDB_CODE_VND_COL_NOT_EXISTS - the pre-existing
+  // behavior of the column actions, unchanged by the own-column support.
+  // Defensive: a decoder-built entry keeps nOwnCols and the arrays consistent; guard the
+  // dereference anyway (same guard as metaBuildMergedColView/metaUpdateVtbMetaRsp).
+  bool isOwnCol = false;
+  if (NULL == pColRef && pEntry->type == TSDB_VIRTUAL_CHILD_TABLE && pEntry->own.nOwnCols > 0 &&
+      NULL != pEntry->own.pOwnColSchemas && NULL != pEntry->own.pOwnColRefs) {
+    for (int32_t i = 0; i < pEntry->own.nOwnCols; i++) {
+      if (strncmp(pEntry->own.pOwnColSchemas[i].name, pReq->colName, TSDB_COL_NAME_LEN) == 0) {
+        pColRef = &pEntry->own.pOwnColRefs[i];
+        pColSchema = &pEntry->own.pOwnColSchemas[i];
+        isOwnCol = true;
+        break;
+      }
     }
   }
 
@@ -2675,16 +6171,22 @@ int32_t metaAlterTableColumnRef(SMeta *pMeta, int64_t version, SVAlterTbReq *pRe
 
   // do update column name
   pEntry->version = version;
-  pColRef->hasRef = true;
-  pColRef->id = pSchema->pSchema[iColumn].colId;
-  tstrncpy(pColRef->refDbName, pReq->refDbName, TSDB_DB_NAME_LEN);
-  tstrncpy(pColRef->refTableName, pReq->refTbName, TSDB_TABLE_NAME_LEN);
-  tstrncpy(pColRef->refColName, pReq->refColName, TSDB_COL_NAME_LEN);
-  pSchema->version++;
+  pColRef->hasRef = false;
+  pColRef->id = pColSchema->colId;
+  taosMemoryFreeClear(pColRef->tagCondJson);
+  pColRef->tagCondLen = 0;
+  taosMemoryFreeClear(pColRef->filterCondJson);
+  pColRef->filterCondLen = 0;
+  // An own column lives in the vchild entry, not in the vstb row schema: bump only the entry's
+  // colRef version (rversion), exactly like the add/drop own-column paths; the vstb row-schema
+  // version must not advance for an own column's change.
+  if (!isOwnCol) {
+    pSchema->version++;
+  }
   pEntry->colRef.version++;
 
   // do handle entry
-  code = metaHandleEntry2(pMeta, pEntry);
+  code = metaHandleReferenceEntry(pMeta, pEntry, pReq);
   if (code) {
     metaError("vgId:%d, %s failed at %s:%d since %s, uid:%" PRId64 " name:%s version:%" PRId64, TD_VID(pMeta->pVnode),
               __func__, __FILE__, __LINE__, tstrerror(code), pEntry->uid, pReq->tbName, version);
@@ -2692,13 +6194,14 @@ int32_t metaAlterTableColumnRef(SMeta *pMeta, int64_t version, SVAlterTbReq *pRe
     metaFetchEntryFree(&pSuper);
     TAOS_RETURN(code);
   } else {
-    metaInfo("vgId:%d, table %s uid %" PRId64 " is updated, version:%" PRId64, TD_VID(pMeta->pVnode), pReq->tbName,
+    metaInfo(KEYOP("vtable-alter", "END") "vgId:%d, table %s uid %" PRId64 " is updated, version:%" PRId64,
+             TD_VID(pMeta->pVnode), pReq->tbName,
              pEntry->uid, version);
   }
 
   // build response
   code = metaUpdateVtbMetaRsp(
-      pEntry, pReq->tbName, pSchema, &pEntry->colRef,
+      pEntry, pReq->tbName, pSchema, (pEntry->type == TSDB_VIRTUAL_CHILD_TABLE) ? &pSuper->stbEntry.schemaTag : NULL, &pEntry->colRef,
       pEntry->type == TSDB_VIRTUAL_CHILD_TABLE ? pSuper->pExtSchemas : pEntry->pExtSchemas,
       pEntry->type == TSDB_VIRTUAL_CHILD_TABLE ? pSuper->stbEntry.ownerId : pEntry->ntbEntry.ownerId, pRsp,
       pEntry->type);
@@ -2711,10 +6214,33 @@ int32_t metaAlterTableColumnRef(SMeta *pMeta, int64_t version, SVAlterTbReq *pRe
       pRsp->pColRefs[i].hasRef = p->hasRef;
       pRsp->pColRefs[i].id = p->id;
       if (p->hasRef) {
+        pRsp->pColRefs[i].refType = p->refType;
+        tstrncpy(pRsp->pColRefs[i].refSourceName, p->refSourceName, TSDB_EXT_SOURCE_NAME_LEN);
+        tstrncpy(pRsp->pColRefs[i].refSchemaName, p->refSchemaName, TSDB_EXT_SOURCE_SCHEMA_LEN);
         tstrncpy(pRsp->pColRefs[i].refDbName, p->refDbName, TSDB_DB_NAME_LEN);
         tstrncpy(pRsp->pColRefs[i].refTableName, p->refTableName, TSDB_TABLE_NAME_LEN);
         tstrncpy(pRsp->pColRefs[i].refColName, p->refColName, TSDB_COL_NAME_LEN);
       }
+    }
+  }
+
+  // Same rule as the column-alter sites above: a normal / virtual-normal table owns its tag schema
+  // (ntbEntry.schemaTag) and every meta response must carry it. ctgWriteTbMetaToCache accepts this
+  // response because the row schema version advanced, so omitting the tag schema here would replace
+  // the cached meta with a tag-less one and break later tag access on the same connection. The
+  // virtual-CHILD branch already receives the super table's tag schema, so the guard keeps it out.
+  if (code == TSDB_CODE_SUCCESS &&
+      (pEntry->type == TSDB_NORMAL_TABLE || pEntry->type == TSDB_VIRTUAL_NORMAL_TABLE)) {
+    // The ALTER is already persisted at this point, so a failure to append the tag schema must not
+    // turn into a failed ALTER: reporting an error here would tell the client the DDL did not take
+    // effect while the change is on disk and in the WAL. Log it and return success with an
+    // incomplete response instead - the client then simply refetches the meta on its next RPC.
+    int32_t rspCode = metaAppendNtbTagSchemaToRsp(pEntry, pRsp);
+    if (rspCode != TSDB_CODE_SUCCESS) {
+      metaError("vgId:%d, %s failed to append owned tag schema at %s:%d since %s, uid:%" PRId64
+                " name:%s version:%" PRId64,
+                TD_VID(pMeta->pVnode), __func__, __FILE__, __LINE__, tstrerror(rspCode), pEntry->uid, pReq->tbName,
+                version);
     }
   }
 
@@ -2723,22 +6249,171 @@ int32_t metaAlterTableColumnRef(SMeta *pMeta, int64_t version, SVAlterTbReq *pRe
   TAOS_RETURN(code);
 }
 
-int32_t metaRemoveTableColumnRef(SMeta *pMeta, int64_t version, SVAlterTbReq *pReq, STableMetaRsp *pRsp) {
+// Local-segment walk of a new tag-ref chain (backstop for the parser-side full check; a direct
+// vnode RPC bypasses the parser, and SET TAG re-pointing is the only runtime cycle-making
+// entry). Walks only tables resolvable on this vnode -- a table on another vnode (or dropped)
+// terminates the walk as SUCCESS: the full chain is validated at DDL time by the parser.
+// Rejects cycles back to any visited table and chains deeper than TSDB_MAX_VTABLE_REF_DEPTH.
+// UNIFIED DEPTH SEMANTICS: three walkers of one tag-ref chain must stay in lock-step --
+// this vnode backstop, the DDL-time pre-check (checkRefChainDepthAndCircular,
+// parTranslater.c) and the executor resolver (resolveTagRefChain, sysscanoperator.c).
+// Operative boundary with TSDB_MAX_VTABLE_REF_DEPTH = 32: a legal chain has at most 33
+// REFERENCE EDGES (34 tables incl. the starting one), the 34th edge is rejected. This
+// walker seeds the altered table into visited[] and walks hop = 0..MAX over the tables
+// AFTER it (t1..t33), which lands exactly on the 33-edge boundary; the executor
+// resolver receives t1 as its input (the source's own edge is not an iteration to it)
+// and runs hop = 0..MAX over the same tables -- identical boundary. Any change here
+// must be mirrored in the other two walkers -- pinned by test_vtable_tag_ref_depth_boundary.py.
+static int32_t metaCheckTagRefChainLocal(SMeta *pMeta, const char *pSrcTbName, const char *pRefDbName,
+                                         const char *pRefTbName, const char *pRefColName) {
   int32_t code = TSDB_CODE_SUCCESS;
+  (void)pRefDbName;  // local meta is per-vnode; table names are unique within it
 
-  // check request
-  code = metaCheckAlterTableColumnReq(pMeta, version, pReq);
-  if (code) {
-    TAOS_RETURN(code);
+  char    visited[TSDB_MAX_VTABLE_REF_DEPTH + 2][TSDB_TABLE_NAME_LEN] = {0};
+  int32_t nVisited = 0;
+  tstrncpy(visited[nVisited++], pSrcTbName, TSDB_TABLE_NAME_LEN);  // seed: the table being altered
+
+  // zero-init: tstrncpy does not clear the tail, and the fixed-width strncmp against the
+  // zero-padded visited[] rows would otherwise compare leftover garbage bytes
+  char curTable[TSDB_TABLE_NAME_LEN] = {0};
+  char curCol[TSDB_COL_NAME_LEN] = {0};
+  tstrncpy(curTable, pRefTbName, TSDB_TABLE_NAME_LEN);
+  tstrncpy(curCol, pRefColName, TSDB_COL_NAME_LEN);
+
+  for (int32_t hop = 0; hop <= TSDB_MAX_VTABLE_REF_DEPTH; ++hop) {
+    for (int32_t i = 0; i < nVisited; ++i) {
+      if (strncmp(visited[i], curTable, TSDB_TABLE_NAME_LEN) == 0) {
+        metaError("vgId:%d, %s failed since circular tag-ref at table %s", TD_VID(pMeta->pVnode), __func__, curTable);
+        TAOS_RETURN(TSDB_CODE_VTABLE_CIRCULAR_REF);
+      }
+    }
+    if (nVisited < (int32_t)(sizeof(visited) / sizeof(visited[0]))) {
+      tstrncpy(visited[nVisited++], curTable, TSDB_TABLE_NAME_LEN);
+    } else {
+      // capacity exhausted (theoretically unreachable: the loop bound is one below the
+      // array capacity): fail loudly instead of silently dropping the visit record,
+      // which would degrade later hops' cycle detection to the depth backstop only
+      metaError("vgId:%d, %s failed since tag-ref chain depth exceeds %d", TD_VID(pMeta->pVnode), __func__,
+                TSDB_MAX_VTABLE_REF_DEPTH);
+      TAOS_RETURN(TSDB_CODE_VTABLE_REF_DEPTH_EXCEEDED);
+    }
+
+    SMetaEntry *pEnt = NULL;
+    // each fetch individually RLock-guarded (same pattern as the other fetch sites in
+    // this file, e.g. metaGetTableMeta): metaFetchEntryByName itself takes no meta lock,
+    // and an unguarded read can race concurrent vacuum/rollback mutations
+    metaRLock(pMeta);
+    code = metaFetchEntryByName(pMeta, curTable, &pEnt);
+    metaULock(pMeta);
+    if (code == TSDB_CODE_PAR_TABLE_NOT_EXIST || code == TSDB_CODE_NOT_FOUND) {
+      // not local / dropped -- tdb reports plain NOT_FOUND, meta PAR_TABLE_NOT_EXIST;
+      // the parser validated the full chain at DDL time
+      TAOS_RETURN(TSDB_CODE_SUCCESS);
+    }
+    if (code != TSDB_CODE_SUCCESS) {
+      // real internal failure: a silently-passing backstop is worse than a loud error
+      TAOS_RETURN(code);
+    }
+
+    bool    advanced = false;
+    col_id_t colId = -1;
+    if (pEnt->type == TSDB_VIRTUAL_NORMAL_TABLE) {
+      for (int32_t i = 0; i < pEnt->ntbEntry.schemaTag.nCols; ++i) {
+        if (strncmp(pEnt->ntbEntry.schemaTag.pSchema[i].name, curCol, TSDB_COL_NAME_LEN) == 0) {
+          colId = pEnt->ntbEntry.schemaTag.pSchema[i].colId;
+          break;
+        }
+      }
+    } else if (pEnt->type == TSDB_VIRTUAL_CHILD_TABLE) {
+      // inherited (vstb) tags first (same resolution order as metaAlterTagRef): a shared
+      // tag referenced through a vchild hop must resolve too, or the local walk would
+      // stop early and miss cycles/deeper chains beyond this vchild
+      SMetaEntry* pSuper = NULL;
+      bool        superFetched = false;
+      if (pEnt->ctbEntry.suid != 0) {
+        int32_t fetchCode = TSDB_CODE_SUCCESS;
+        metaRLock(pMeta);
+        fetchCode = metaFetchEntryByUid(pMeta, pEnt->ctbEntry.suid, &pSuper);
+        metaULock(pMeta);
+        if (fetchCode != TSDB_CODE_SUCCESS) {
+          // fetch failed: no super schema to consult, fall through to own tags below
+          pSuper = NULL;
+        }
+      }
+      if (pSuper != NULL) {
+        superFetched = true;
+        for (int32_t i = 0; i < pSuper->stbEntry.schemaTag.nCols; ++i) {
+          if (strncmp(pSuper->stbEntry.schemaTag.pSchema[i].name, curCol, TSDB_COL_NAME_LEN) == 0) {
+            colId = pSuper->stbEntry.schemaTag.pSchema[i].colId;
+            break;
+          }
+        }
+      }
+      for (int32_t i = 0; colId < 0 && i < pEnt->own.nOwnTags; ++i) {
+        if (strncmp(pEnt->own.pOwnTagSchemas[i].name, curCol, TSDB_COL_NAME_LEN) == 0) {
+          colId = pEnt->own.pOwnTagSchemas[i].colId;
+          break;
+        }
+      }
+      // free only at the very end of pSuper's scope: a release right after the colId
+      // copy-out works today (colId is a by-value scalar) but is fragile against later
+      // maintenance adding deferred pSuper reads anywhere above this point
+      if (superFetched) {
+        metaFetchEntryFree(&pSuper);
+      }
+    }
+    if (colId >= 0 && pEnt->colRef.pTagRef != NULL) {
+      for (int32_t k = 0; k < pEnt->colRef.nTagRefs; ++k) {
+        SColRef *pNext = &pEnt->colRef.pTagRef[k];
+        if (pNext->hasRef && pNext->id == colId) {
+          // clear before copying: a shorter name would otherwise leave residual bytes
+          // from the previous hop and break the fixed-width cycle comparison above
+          memset(curTable, 0, TSDB_TABLE_NAME_LEN);
+          memset(curCol, 0, TSDB_COL_NAME_LEN);
+          tstrncpy(curTable, pNext->refTableName, TSDB_TABLE_NAME_LEN);
+          tstrncpy(curCol, pNext->refColName, TSDB_COL_NAME_LEN);
+          advanced = true;
+          break;
+        }
+      }
+    }
+    metaFetchEntryFree(&pEnt);
+    if (!advanced) {
+      TAOS_RETURN(TSDB_CODE_SUCCESS);  // terminal reached (owned/child/vchild or no ref)
+    }
   }
 
-  // fetch old entry
+  metaError("vgId:%d, %s failed since tag-ref chain depth exceeds %d", TD_VID(pMeta->pVnode), __func__,
+            TSDB_MAX_VTABLE_REF_DEPTH);
+  TAOS_RETURN(TSDB_CODE_VTABLE_REF_DEPTH_EXCEEDED);
+}
+
+int32_t metaAlterTagRef(SMeta *pMeta, int64_t version, SVAlterTbReq *pReq, STableMetaRsp *pRsp) {
+  int32_t code = TSDB_CODE_SUCCESS;
+
+  metaInfo(KEYOP("vtable-alter", "START") "vgId:%d, table %s alter tag ref %s, version:%" PRId64,
+           TD_VID(pMeta->pVnode), pReq->tbName, pReq->colName, version);
+
+  if (NULL == pReq->colName || NULL == pReq->refDbName || NULL == pReq->refTbName || NULL == pReq->refColName) {
+    metaError("vgId:%d, %s failed at %s:%d since invalid request params, version:%" PRId64, TD_VID(pMeta->pVnode),
+              __func__, __FILE__, __LINE__, version);
+    TAOS_RETURN(TSDB_CODE_INVALID_MSG);
+  }
+
+  // fetch child entry
   SMetaEntry *pEntry = NULL;
   code = metaFetchEntryByName(pMeta, pReq->tbName, &pEntry);
   if (code) {
     metaError("vgId:%d, %s failed at %s:%d since table %s not found, version:%" PRId64, TD_VID(pMeta->pVnode), __func__,
               __FILE__, __LINE__, pReq->tbName, version);
     TAOS_RETURN(code);
+  }
+
+  if (pEntry->type != TSDB_VIRTUAL_CHILD_TABLE && pEntry->type != TSDB_VIRTUAL_NORMAL_TABLE) {
+    metaError("vgId:%d, %s failed at %s:%d since table %s is not virtual child/normal table, version:%" PRId64,
+              TD_VID(pMeta->pVnode), __func__, __FILE__, __LINE__, pReq->tbName, version);
+    metaFetchEntryFree(&pEntry);
+    TAOS_RETURN(TSDB_CODE_VND_INVALID_TABLE_ACTION);
   }
 
   if (pEntry->version >= version) {
@@ -2748,8 +6423,10 @@ int32_t metaRemoveTableColumnRef(SMeta *pMeta, int64_t version, SVAlterTbReq *pR
     TAOS_RETURN(TSDB_CODE_INVALID_PARA);
   }
 
-  // fetch super entry
-  SMetaEntry *pSuper = NULL;
+  // virtual child tables resolve the tag colId from the super table's tag schema; virtual normal
+  // tables own their tag schema in ntbEntry.
+  SMetaEntry     *pSuper = NULL;
+  SSchemaWrapper *pTagSchema = NULL;
   if (pEntry->type == TSDB_VIRTUAL_CHILD_TABLE) {
     code = metaFetchEntryByUid(pMeta, pEntry->ctbEntry.suid, &pSuper);
     if (code) {
@@ -2758,68 +6435,148 @@ int32_t metaRemoveTableColumnRef(SMeta *pMeta, int64_t version, SVAlterTbReq *pR
       metaFetchEntryFree(&pEntry);
       TAOS_RETURN(TSDB_CODE_INTERNAL_ERROR);
     }
+    pTagSchema = &pSuper->stbEntry.schemaTag;
+  } else {
+    pTagSchema = &pEntry->ntbEntry.schemaTag;
   }
 
-  // search the column to update
-  SSchemaWrapper *pSchema =
-      pEntry->type == TSDB_VIRTUAL_CHILD_TABLE ? &pSuper->stbEntry.schemaRow : &pEntry->ntbEntry.schemaRow;
-  SColRef *pColRef = NULL;
-  int32_t  iColumn = 0;
-  for (int32_t i = 0; i < pSchema->nCols; i++) {
-    if (strncmp(pSchema->pSchema[i].name, pReq->colName, TSDB_COL_NAME_LEN) == 0) {
-      pColRef = &pEntry->colRef.pColRef[i];
-      iColumn = i;
+  // find tag colId from the tag schema (for a virtual child table this is the super table's tag
+  // schema, selected above)
+  col_id_t tagColId = -1;
+  for (int32_t i = 0; i < pTagSchema->nCols; i++) {
+    if (strncmp(pTagSchema->pSchema[i].name, pReq->colName, TSDB_COL_NAME_LEN) == 0) {
+      tagColId = pTagSchema->pSchema[i].colId;
       break;
     }
   }
-
-  if (NULL == pColRef) {
-    metaError("vgId:%d, %s failed at %s:%d since column id %d not found in table %s, version:%" PRId64,
-              TD_VID(pMeta->pVnode), __func__, __FILE__, __LINE__, iColumn + 1, pReq->tbName, version);
+  if (tagColId < 0) {
+    // fall back to the vchild's own (extension) tag schemas: an own tag's reference lives in the
+    // same sparse pTagRef array, indexed by its colId (allocated from TSDB_VCHILD_OWN_COL_ID_BASE
+    // upwards, never colliding with vstb tag colIds). No-op for non-vchild tables (nOwnTags==0).
+    for (int32_t i = 0; i < pEntry->own.nOwnTags; i++) {
+      if (strncmp(pEntry->own.pOwnTagSchemas[i].name, pReq->colName, TSDB_COL_NAME_LEN) == 0) {
+        tagColId = pEntry->own.pOwnTagSchemas[i].colId;
+        break;
+      }
+    }
+  }
+  if (tagColId < 0) {
+    metaError("vgId:%d, %s failed at %s:%d since tag %s not found in table %s, version:%" PRId64,
+              TD_VID(pMeta->pVnode), __func__, __FILE__, __LINE__, pReq->colName, pReq->tbName, version);
     metaFetchEntryFree(&pEntry);
     metaFetchEntryFree(&pSuper);
     TAOS_RETURN(TSDB_CODE_VND_COL_NOT_EXISTS);
   }
 
-  // do update column name
+  // virtual normal tables keep colRef.pTagRef sized to schemaTag (one slot per tag)
+  if (pEntry->type == TSDB_VIRTUAL_NORMAL_TABLE) {
+    code = metaEnsureTagRefSize(&pEntry->colRef, pTagSchema);
+    if (code) {
+      metaFetchEntryFree(&pEntry);
+      metaFetchEntryFree(&pSuper);
+      TAOS_RETURN(code);
+    }
+  }
+
+  // find or create pTagRef entry
+  SColRef *pTagRef = NULL;
+  for (int32_t i = 0; i < pEntry->colRef.nTagRefs; i++) {
+    if (pEntry->colRef.pTagRef[i].id == tagColId) {
+      pTagRef = &pEntry->colRef.pTagRef[i];
+      break;
+    }
+  }
+
+  if (NULL == pTagRef) {
+    // expand pTagRef array
+    int32_t  newCount = pEntry->colRef.nTagRefs + 1;
+    SColRef *pNew = (SColRef *)taosMemoryRealloc(pEntry->colRef.pTagRef, newCount * sizeof(SColRef));
+    if (NULL == pNew) {
+      metaFetchEntryFree(&pEntry);
+      metaFetchEntryFree(&pSuper);
+      TAOS_RETURN(terrno);
+    }
+    pEntry->colRef.pTagRef = pNew;
+    pTagRef = &pEntry->colRef.pTagRef[pEntry->colRef.nTagRefs];
+    memset(pTagRef, 0, sizeof(SColRef));
+    pTagRef->id = tagColId;
+    pEntry->colRef.nTagRefs = newCount;
+  }
+
+  // local-segment chain check: the parser validates the full chain at DDL time; this backstop
+  // guards direct vnode RPCs against cycles / over-depth introduced by SET TAG re-pointing
+  code = metaCheckTagRefChainLocal(pMeta, pReq->tbName, pReq->refDbName, pReq->refTbName, pReq->refColName);
+  if (code) {
+    metaFetchEntryFree(&pEntry);
+    metaFetchEntryFree(&pSuper);
+    TAOS_RETURN(code);
+  }
+
+  // set tag-ref
   pEntry->version = version;
-  pColRef->hasRef = false;
-  pColRef->id = pSchema->pSchema[iColumn].colId;
-  pSchema->version++;
+  pTagRef->hasRef = true;
+  tstrncpy(pTagRef->colName, pReq->colName, TSDB_COL_NAME_LEN);  // tmq json meta reads colName
+  tstrncpy(pTagRef->refDbName, pReq->refDbName, TSDB_DB_NAME_LEN);
+  tstrncpy(pTagRef->refTableName, pReq->refTbName, TSDB_TABLE_NAME_LEN);
+  tstrncpy(pTagRef->refColName, pReq->refColName, TSDB_COL_NAME_LEN);
   pEntry->colRef.version++;
 
-  // do handle entry
+  // set tag value to NULL (ref resolves dynamically)
+  // For virtual child tables the tag value is in ctbEntry.pTags  -  we leave it as-is,
+  // query-time resolution will override with source value.
+  // For virtual normal tables, drop the static value from ntbEntry.pTags so the value
+  // fully follows the source (and never resurfaces as a stale literal).
+  if (pEntry->type == TSDB_VIRTUAL_NORMAL_TABLE && pEntry->ntbEntry.pTags != NULL) {
+    const STag *pOldTag = (const STag *)pEntry->ntbEntry.pTags;
+    SArray     *pTagArray = taosArrayInit(pTagSchema->nCols, sizeof(STagVal));
+    if (NULL == pTagArray) {
+      metaFetchEntryFree(&pEntry);
+      metaFetchEntryFree(&pSuper);
+      TAOS_RETURN(terrno);
+    }
+    for (int32_t i = 0; i < pTagSchema->nCols; i++) {
+      SSchema *pCol = &pTagSchema->pSchema[i];
+      if (pCol->colId == tagColId) continue;  // the new ref carries no static value
+      STagVal value = {.cid = pCol->colId};
+      if (tTagGet(pOldTag, &value)) {
+        if (taosArrayPush(pTagArray, &value) == NULL) {
+          taosArrayDestroy(pTagArray);
+          metaFetchEntryFree(&pEntry);
+          metaFetchEntryFree(&pSuper);
+          TAOS_RETURN(TSDB_CODE_OUT_OF_MEMORY);
+        }
+      }
+    }
+    STag *pNewTagVal = NULL;
+    code = tTagNew(pTagArray, pTagSchema->version, false, &pNewTagVal);
+    taosArrayDestroy(pTagArray);
+    if (code) {
+      metaFetchEntryFree(&pEntry);
+      metaFetchEntryFree(&pSuper);
+      TAOS_RETURN(code);
+    }
+    taosMemoryFree(pEntry->ntbEntry.pTags);
+    pEntry->ntbEntry.pTags = (uint8_t *)pNewTagVal;
+  }
+
+  // persist
   code = metaHandleEntry2(pMeta, pEntry);
   if (code) {
     metaError("vgId:%d, %s failed at %s:%d since %s, uid:%" PRId64 " name:%s version:%" PRId64, TD_VID(pMeta->pVnode),
               __func__, __FILE__, __LINE__, tstrerror(code), pEntry->uid, pReq->tbName, version);
-    metaFetchEntryFree(&pEntry);
-    metaFetchEntryFree(&pSuper);
-    TAOS_RETURN(code);
   } else {
-    metaInfo("vgId:%d, table %s uid %" PRId64 " is updated, version:%" PRId64, TD_VID(pMeta->pVnode), pReq->tbName,
-             pEntry->uid, version);
+    metaInfo(KEYOP("vtable-alter", "END") "vgId:%d, table %s uid %" PRId64 " tag ref updated, version:%" PRId64,
+             TD_VID(pMeta->pVnode), pReq->tbName, pEntry->uid, version);
   }
 
   // build response
-  code = metaUpdateVtbMetaRsp(
-      pEntry, pReq->tbName, pSchema, &pEntry->colRef,
-      pEntry->type == TSDB_VIRTUAL_CHILD_TABLE ? pSuper->pExtSchemas : pEntry->pExtSchemas,
-      pEntry->type == TSDB_VIRTUAL_CHILD_TABLE ? pSuper->stbEntry.ownerId : pEntry->ntbEntry.ownerId, pRsp,
-      pEntry->type);
-  if (code) {
-    metaError("vgId:%d, %s failed at %s:%d since %s, uid:%" PRId64 " name:%s version:%" PRId64, TD_VID(pMeta->pVnode),
-              __func__, __FILE__, __LINE__, tstrerror(code), pEntry->uid, pReq->tbName, version);
-  } else {
-    for (int32_t i = 0; i < pEntry->colRef.nCols; i++) {
-      SColRef *p = &pEntry->colRef.pColRef[i];
-      pRsp->pColRefs[i].hasRef = p->hasRef;
-      pRsp->pColRefs[i].id = p->id;
-      if (p->hasRef) {
-        tstrncpy(pRsp->pColRefs[i].refDbName, p->refDbName, TSDB_DB_NAME_LEN);
-        tstrncpy(pRsp->pColRefs[i].refTableName, p->refTableName, TSDB_TABLE_NAME_LEN);
-        tstrncpy(pRsp->pColRefs[i].refColName, p->refColName, TSDB_COL_NAME_LEN);
-      }
+  if (TSDB_CODE_SUCCESS == code) {
+    if (pEntry->type == TSDB_VIRTUAL_CHILD_TABLE) {
+      SSchemaWrapper *pSchemaRow = &pSuper->stbEntry.schemaRow;
+      code = metaUpdateVtbMetaRsp(pEntry, pReq->tbName, pSchemaRow, &pSuper->stbEntry.schemaTag, &pEntry->colRef,
+                                  pSuper->pExtSchemas, pSuper->stbEntry.ownerId, pRsp, pEntry->type);
+    } else {
+      code = metaFillNtbTableMetaRsp(pEntry, pReq->tbName, pRsp);
     }
   }
 
@@ -2828,6 +6585,225 @@ int32_t metaRemoveTableColumnRef(SMeta *pMeta, int64_t version, SVAlterTbReq *pR
   TAOS_RETURN(code);
 }
 
+static int32_t metaFillBindingMetaRsp(SMeta *pMeta, SMetaEntry *pEntry, const char *tbName,
+                                       STableMetaRsp *pRsp) {
+  if (pRsp == NULL) return TSDB_CODE_SUCCESS;
+  if (pEntry->type != TSDB_VIRTUAL_CHILD_TABLE) return metaFillNtbTableMetaRsp(pEntry, tbName, pRsp);
+
+  SMetaEntry *pSuper = NULL;
+  int32_t code = metaFetchEntryByUid(pMeta, pEntry->ctbEntry.suid, &pSuper);
+  if (code == TSDB_CODE_SUCCESS) {
+    code = metaUpdateVtbMetaRsp(pEntry, (char *)tbName, &pSuper->stbEntry.schemaRow,
+                               &pSuper->stbEntry.schemaTag, &pEntry->colRef, pSuper->pExtSchemas,
+                               pSuper->stbEntry.ownerId, pRsp, pEntry->type);
+  }
+  metaFetchEntryFree(&pSuper);
+  return code;
+}
+
+static const SReferenceEntry *metaFindReference(const SVtableReferenceExt *pExt, const char *alias) {
+  for (int32_t i = 0; i < pExt->nReferences; ++i) {
+    if (strcmp(pExt->pReferences[i].alias, alias) == 0) return &pExt->pReferences[i];
+  }
+  return NULL;
+}
+
+int32_t metaAlterTableReference(SMeta *pMeta, int64_t version, SVAlterTbReq *pReq, STableMetaRsp *pRsp) {
+  if (!pReq->hasExpectedRversion || pReq->seriesAlias == NULL || pReq->seriesAlias[0] == '\0') {
+    return TSDB_CODE_INVALID_MSG;
+  }
+  SMetaEntry *pEntry = NULL;
+  int32_t code = metaFetchEntryByName(pMeta, pReq->tbName, &pEntry);
+  if (code != TSDB_CODE_SUCCESS) return code;
+  if (!hasColRef(pEntry->type) || pEntry->version >= version) {
+    code = TSDB_CODE_VND_INVALID_TABLE_ACTION;
+    goto _exit;
+  }
+  const SReferenceEntry *pOld = metaFindReference(&pEntry->referenceExt, pReq->seriesAlias);
+  const SReferenceEntry *pNew = metaFindReference(&pReq->referenceExt, pReq->seriesAlias);
+  bool adding = pReq->action == TSDB_ALTER_TABLE_ADD_REFERENCE;
+  bool removing = pReq->action == TSDB_ALTER_TABLE_REMOVE_REFERENCE;
+  if ((adding && pOld != NULL) || (!adding && pOld == NULL) ||
+      (removing ? pNew != NULL : pNew == NULL) ||
+      pReq->referenceExt.nReferences != pEntry->referenceExt.nReferences + (adding ? 1 : removing ? -1 : 0)) {
+    code = TSDB_CODE_INVALID_MSG;
+    goto _exit;
+  }
+  if (removing) {
+    for (int32_t i = 0; i < pEntry->referenceExt.nBindings; ++i) {
+      const SVtableBindingLink *pLink = &pEntry->referenceExt.pBindings[i];
+      if (pLink->bindingKind == VTABLE_BINDING_REFERENCE && strcmp(pLink->alias, pReq->seriesAlias) == 0) {
+        code = TSDB_CODE_VND_INVALID_TABLE_ACTION;
+        goto _exit;
+      }
+    }
+  }
+  code = metaApplyReferenceCandidate(pEntry, pReq);
+  if (code != TSDB_CODE_SUCCESS) goto _exit;
+  pEntry->version = version;
+  ++pEntry->colRef.version;
+  code = metaFillBindingMetaRsp(pMeta, pEntry, pReq->tbName, pRsp);
+  if (code == TSDB_CODE_SUCCESS) code = metaHandleEntry2(pMeta, pEntry);
+_exit:
+  metaFetchEntryFree(&pEntry);
+  return code;
+}
+
+int32_t metaAddTableSeries(SMeta *pMeta, int64_t version, SVAlterTbReq *pReq, STableMetaRsp *pRsp) {
+  int32_t code = TSDB_CODE_SUCCESS;
+
+  if (NULL == pReq->seriesAlias || pReq->seriesAlias[0] == '\0') {
+    TAOS_RETURN(TSDB_CODE_INVALID_MSG);
+  }
+
+  SMetaEntry *pEntry = NULL;
+  code = metaFetchEntryByName(pMeta, pReq->tbName, &pEntry);
+  if (code) {
+    metaError("vgId:%d, %s failed since table %s not found", TD_VID(pMeta->pVnode), __func__, pReq->tbName);
+    TAOS_RETURN(code);
+  }
+
+  if (pEntry->type != TSDB_VIRTUAL_NORMAL_TABLE && pEntry->type != TSDB_VIRTUAL_CHILD_TABLE) {
+    metaFetchEntryFree(&pEntry);
+    TAOS_RETURN(TSDB_CODE_VND_INVALID_TABLE_ACTION);
+  }
+
+  if (pEntry->version >= version) {
+    metaFetchEntryFree(&pEntry);
+    TAOS_RETURN(TSDB_CODE_INVALID_PARA);
+  }
+
+  // check alias doesn't already exist
+  for (int32_t i = 0; i < pEntry->series.nSeries; i++) {
+    if (strncmp(pEntry->series.pSeries[i].alias, pReq->seriesAlias, TSDB_COL_NAME_LEN) == 0) {
+      metaFetchEntryFree(&pEntry);
+      TAOS_RETURN(TSDB_CODE_VND_COL_ALREADY_EXISTS);
+    }
+  }
+
+  // grow series array
+  int32_t newCount = pEntry->series.nSeries + 1;
+  SSeriesEntry *pNew = taosMemoryRealloc(pEntry->series.pSeries, newCount * sizeof(SSeriesEntry));
+  if (!pNew) {
+    metaFetchEntryFree(&pEntry);
+    TAOS_RETURN(terrno);
+  }
+  pEntry->series.pSeries = pNew;
+
+  SSeriesEntry *pSeries = &pEntry->series.pSeries[pEntry->series.nSeries];
+  memset(pSeries, 0, sizeof(SSeriesEntry));
+  tstrncpy(pSeries->alias, pReq->seriesAlias, TSDB_COL_NAME_LEN);
+  tstrncpy(pSeries->sourceName, pReq->seriesSourceName ? pReq->seriesSourceName : "", TSDB_EXT_SOURCE_NAME_LEN);
+  tstrncpy(pSeries->dbName, pReq->seriesDbName ? pReq->seriesDbName : "", TSDB_DB_NAME_LEN);
+  tstrncpy(pSeries->measurementName, pReq->seriesMeasurementName ? pReq->seriesMeasurementName : "", TSDB_TABLE_NAME_LEN);
+  if (pReq->seriesTagCondLen > 0 && pReq->seriesTagCondJson) {
+    pSeries->tagCondJson = taosStrdup(pReq->seriesTagCondJson);
+    pSeries->tagCondLen = pReq->seriesTagCondLen;
+  }
+  pEntry->series.nSeries = newCount;
+
+  pEntry->version = version;
+  pEntry->colRef.version++;
+
+  code = metaApplyReferenceCandidate(pEntry, pReq);
+  if (code == TSDB_CODE_SUCCESS) code = metaFillBindingMetaRsp(pMeta, pEntry, pReq->tbName, pRsp);
+  if (code == TSDB_CODE_SUCCESS) code = metaHandleEntry2(pMeta, pEntry);
+  if (code) {
+    metaError("vgId:%d, %s failed since %s, table:%s", TD_VID(pMeta->pVnode), __func__, tstrerror(code), pReq->tbName);
+  } else {
+    metaInfo("vgId:%d, table %s added series %s", TD_VID(pMeta->pVnode), pReq->tbName, pReq->seriesAlias);
+  }
+
+  metaFetchEntryFree(&pEntry);
+  TAOS_RETURN(code);
+}
+
+int32_t metaRemoveTableSeries(SMeta *pMeta, int64_t version, SVAlterTbReq *pReq, STableMetaRsp *pRsp) {
+  int32_t code = TSDB_CODE_SUCCESS;
+
+  if (NULL == pReq->seriesAlias || pReq->seriesAlias[0] == '\0') {
+    TAOS_RETURN(TSDB_CODE_INVALID_MSG);
+  }
+
+  SMetaEntry *pEntry = NULL;
+  code = metaFetchEntryByName(pMeta, pReq->tbName, &pEntry);
+  if (code) {
+    metaError("vgId:%d, %s failed since table %s not found", TD_VID(pMeta->pVnode), __func__, pReq->tbName);
+    TAOS_RETURN(code);
+  }
+
+  if (pEntry->type != TSDB_VIRTUAL_NORMAL_TABLE && pEntry->type != TSDB_VIRTUAL_CHILD_TABLE) {
+    metaFetchEntryFree(&pEntry);
+    TAOS_RETURN(TSDB_CODE_VND_INVALID_TABLE_ACTION);
+  }
+
+  if (pEntry->version >= version) {
+    metaFetchEntryFree(&pEntry);
+    TAOS_RETURN(TSDB_CODE_INVALID_PARA);
+  }
+
+  // find the series by alias
+  int32_t idx = -1;
+  for (int32_t i = 0; i < pEntry->series.nSeries; i++) {
+    if (strncmp(pEntry->series.pSeries[i].alias, pReq->seriesAlias, TSDB_COL_NAME_LEN) == 0) {
+      idx = i;
+      break;
+    }
+  }
+  if (idx < 0) {
+    metaFetchEntryFree(&pEntry);
+    TAOS_RETURN(TSDB_CODE_VND_COL_NOT_EXISTS);
+  }
+
+  // check no column references this series
+  SSeriesEntry *pTarget = &pEntry->series.pSeries[idx];
+  for (int32_t i = 0; i < pEntry->colRef.nCols + pEntry->own.nOwnCols; i++) {
+    SColRef *p = i < pEntry->colRef.nCols ? &pEntry->colRef.pColRef[i] :
+        &pEntry->own.pOwnColRefs[i - pEntry->colRef.nCols];
+    const SVtableBindingLink *link = tVtableBindingForColumn(&pEntry->referenceExt, p->id);
+    if (link != NULL) {
+      if (link->bindingKind == VTABLE_BINDING_SERIES && strcmp(link->alias, pReq->seriesAlias) == 0) {
+        metaFetchEntryFree(&pEntry);
+        return TSDB_CODE_VND_INVALID_TABLE_ACTION;
+      }
+      continue;
+    }
+    bool sameTagCond = p->tagCondLen == pTarget->tagCondLen;
+    if (sameTagCond && p->tagCondLen > 0) {
+      sameTagCond = p->tagCondJson != NULL && pTarget->tagCondJson != NULL &&
+                    strncmp(p->tagCondJson, pTarget->tagCondJson, p->tagCondLen) == 0;
+    }
+    if (p->hasRef &&
+        strncmp(p->refSourceName, pTarget->sourceName, TSDB_EXT_SOURCE_NAME_LEN) == 0 &&
+        strncmp(p->refDbName, pTarget->dbName, TSDB_DB_NAME_LEN) == 0 &&
+        strncmp(p->refTableName, pTarget->measurementName, TSDB_TABLE_NAME_LEN) == 0 && sameTagCond) {
+      metaFetchEntryFree(&pEntry);
+      TAOS_RETURN(TSDB_CODE_VND_INVALID_TABLE_ACTION);
+    }
+  }
+
+  // free and remove
+  taosMemoryFreeClear(pEntry->series.pSeries[idx].tagCondJson);
+  if (idx < pEntry->series.nSeries - 1) {
+    memmove(&pEntry->series.pSeries[idx], &pEntry->series.pSeries[idx + 1],
+            (pEntry->series.nSeries - idx - 1) * sizeof(SSeriesEntry));
+  }
+  pEntry->series.nSeries--;
+
+  pEntry->version = version;
+  ++pEntry->colRef.version;
+  code = metaApplyReferenceCandidate(pEntry, pReq);
+  if (code == TSDB_CODE_SUCCESS) code = metaFillBindingMetaRsp(pMeta, pEntry, pReq->tbName, pRsp);
+  if (code == TSDB_CODE_SUCCESS) code = metaHandleEntry2(pMeta, pEntry);
+  if (code) {
+    metaError("vgId:%d, %s failed since %s, table:%s", TD_VID(pMeta->pVnode), __func__, tstrerror(code), pReq->tbName);
+  } else {
+    metaInfo("vgId:%d, table %s removed series %s", TD_VID(pMeta->pVnode), pReq->tbName, pReq->seriesAlias);
+  }
+
+  metaFetchEntryFree(&pEntry);
+  TAOS_RETURN(code);
+}
 int32_t metaAddIndexToSuperTable(SMeta *pMeta, int64_t version, SVCreateStbReq *pReq) {
   int32_t code = TSDB_CODE_SUCCESS;
 
@@ -2838,7 +6814,9 @@ int32_t metaAddIndexToSuperTable(SMeta *pMeta, int64_t version, SVCreateStbReq *
   }
 
   SMetaEntry *pEntry = NULL;
+  metaRLock(pMeta);
   code = metaFetchEntryByName(pMeta, pReq->name, &pEntry);
+  metaULock(pMeta);
   if (code) {
     metaError("vgId:%d, %s failed at %s:%d since table %s not found, version:%" PRId64, TD_VID(pMeta->pVnode), __func__,
               __FILE__, __LINE__, pReq->name, version);
@@ -2958,7 +6936,9 @@ int32_t metaDropIndexFromSuperTable(SMeta *pMeta, int64_t version, SDropIndexReq
   }
 
   SMetaEntry *pEntry = NULL;
+  metaRLock(pMeta);
   code = metaFetchEntryByUid(pMeta, pReq->stbUid, &pEntry);
+  metaULock(pMeta);
   if (code) {
     metaError("vgId:%d, %s failed at %s:%d since table %s not found, version:%" PRId64, TD_VID(pMeta->pVnode), __func__,
               __FILE__, __LINE__, pReq->stb, version);
@@ -3032,7 +7012,9 @@ int32_t metaAlterSuperTable(SMeta *pMeta, int64_t version, SVCreateStbReq *pReq)
   }
 
   SMetaEntry *pEntry = NULL;
+  metaRLock(pMeta);
   code = metaFetchEntryByName(pMeta, pReq->name, &pEntry);
+  metaULock(pMeta);
   if (code) {
     metaError("vgId:%d, %s failed at %s:%d since table %s not found, version:%" PRId64, TD_VID(pMeta->pVnode), __func__,
               __FILE__, __LINE__, pReq->name, version);
@@ -3044,6 +7026,24 @@ int32_t metaAlterSuperTable(SMeta *pMeta, int64_t version, SVCreateStbReq *pReq)
               __func__, __FILE__, __LINE__, pReq->name, pEntry->type, version);
     metaFetchEntryFree(&pEntry);
     TAOS_RETURN(TSDB_CODE_VND_INVALID_TABLE_ACTION);
+  }
+
+  // the request is applied under its own suid: it must be the one of the named table
+  if (pReq->suid != pEntry->uid) {
+    metaError("vgId:%d, %s failed at %s:%d since request suid:%" PRId64 " does not match table %s uid:%" PRId64
+              ", version:%" PRId64,
+              TD_VID(pMeta->pVnode), __func__, __FILE__, __LINE__, pReq->suid, pReq->name, pEntry->uid, version);
+    metaFetchEntryFree(&pEntry);
+    TAOS_RETURN(TSDB_CODE_INVALID_MSG);
+  }
+
+  code = metaCheckSchemaWrapper(&pReq->schemaRow, false);
+  if (code == TSDB_CODE_SUCCESS) code = metaCheckSchemaWrapper(&pReq->schemaTag, true);
+  if (code) {
+    metaError("vgId:%d, %s failed at %s:%d since invalid schema of table %s, version:%" PRId64, TD_VID(pMeta->pVnode),
+              __func__, __FILE__, __LINE__, pReq->name, version);
+    metaFetchEntryFree(&pEntry);
+    TAOS_RETURN(code);
   }
 
   SMetaEntry entry = {
@@ -3068,6 +7068,19 @@ int32_t metaAlterSuperTable(SMeta *pMeta, int64_t version, SVCreateStbReq *pReq)
     entry.stbEntry.rsmaParam = pEntry->stbEntry.rsmaParam;
   }
 
+  // batch-meta-txn: mark STB as PRE_ALTER with the ORIGINAL pre-txn version for rollback.
+  // On a repeated ALTER of the same STB within one txn, pEntry->version is an intermediate
+  // in-txn version; reuse the already-recorded original txnOrigVer instead so rollback and
+  // outside readers see the pre-txn value.
+  if (pReq->txnId != 0) {
+    entry.txnId = pReq->txnId;
+    entry.txnStatus = META_TXN_PRE_ALTER;
+    entry.txnOrigVer = pEntry->version;
+    if (pEntry->txnStatus == META_TXN_PRE_ALTER && pEntry->txnId == pReq->txnId && pEntry->txnOrigVer >= 0) {
+      entry.txnOrigVer = pEntry->txnOrigVer;
+    }
+  }
+
   // do handle the entry
   code = metaHandleEntry2(pMeta, &entry);
   if (code) {
@@ -3076,8 +7089,21 @@ int32_t metaAlterSuperTable(SMeta *pMeta, int64_t version, SVCreateStbReq *pReq)
     metaFetchEntryFree(&pEntry);
     TAOS_RETURN(code);
   } else {
-    metaInfo("vgId:%d, table %s uid %" PRId64 " is updated, version:%" PRId64, TD_VID(pMeta->pVnode), pReq->name,
-             pReq->suid, version);
+    metaInfo("vgId:%d, table %s uid %" PRId64 " is updated, version:%" PRId64 " txnId:%" PRIu64, TD_VID(pMeta->pVnode),
+             pReq->name, pReq->suid, version, pReq->txnId);
+    // batch-meta-txn: add to txn.idx for COMMIT/ROLLBACK handling.
+    // Use the preserved pre-txn original version (entry.txnOrigVer), NOT pEntry->version:
+    // on a repeated ALTER of the same STB within one txn, pEntry->version is an intermediate
+    // in-txn version. txn.idx feeds pAlterPrevVers, which rollback prefers over the B+ tree
+    // entry's txnOrigVer, so passing the intermediate version would roll back to the wrong
+    // (in-txn) version. This mirrors the non-STB paths in vnodeSvr.c that pass prevVer/alterPrevVer.
+    if (pReq->txnId != 0) {
+      code = metaTxnIdxUpsert(pMeta, pReq->suid, pReq->txnId, META_TXN_PRE_ALTER, entry.txnOrigVer);
+      if (code != TSDB_CODE_SUCCESS) {
+        metaError("vgId:%d, failed to upsert txn.idx for ALTER stb:%s uid:%" PRId64 " since %s", TD_VID(pMeta->pVnode),
+                  pReq->name, pReq->suid, tstrerror(code));
+      }
+    }
   }
 
   metaFetchEntryFree(&pEntry);
@@ -3133,7 +7159,9 @@ int metaCreateRsma(SMeta *pMeta, int64_t version, SVCreateRsmaReq *pReq) {
   }
 
   SMetaEntry *pEntry = NULL;
+  metaRLock(pMeta);
   code = metaFetchEntryByName(pMeta, pReq->tbName, &pEntry);
+  metaULock(pMeta);
   if (code) {
     metaError("vgId:%d, failed at %d to create rsma %s since table %s not found, version:%" PRId64,
               TD_VID(pMeta->pVnode), __LINE__, pReq->name, pReq->tbName, version);
@@ -3208,7 +7236,9 @@ int metaDropRsma(SMeta *pMeta, int64_t version, SVDropRsmaReq *pReq) {
   }
 
   SMetaEntry *pEntry = NULL;
+  metaRLock(pMeta);
   code = metaFetchEntryByName(pMeta, pReq->tbName, &pEntry);
+  metaULock(pMeta);
   if (code) {
     metaWarn("vgId:%d, %s no need at %d to drop %s since table %s not found, version:%" PRId64, TD_VID(pMeta->pVnode),
              __func__, __LINE__, pReq->name, pReq->tbName, version);
@@ -3288,7 +7318,9 @@ int metaAlterRsma(SMeta *pMeta, int64_t version, SVAlterRsmaReq *pReq) {
   }
 
   SMetaEntry *pEntry = NULL;
+  metaRLock(pMeta);
   code = metaFetchEntryByName(pMeta, pReq->tbName, &pEntry);
+  metaULock(pMeta);
   if (code) {
     metaError("vgId:%d, failed at %d to alter rsma %s since table %s not found, version:%" PRId64,
               TD_VID(pMeta->pVnode), __LINE__, pReq->name, pReq->tbName, version);

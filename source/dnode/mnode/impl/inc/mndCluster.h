@@ -1,6 +1,8 @@
 /*
  * Copyright (c) 2019 TAOS Data, Inc. <jhtao@taosdata.com>
  *
+ * SPDX-License-Identifier: AGPL-3.0-or-later
+ *
  * This program is free software: you can use, redistribute, and/or modify
  * it under the terms of the GNU Affero General Public License, version 3
  * or later ("AGPL"), as published by the Free Software Foundation.
@@ -28,6 +30,7 @@ int32_t mndGetClusterName(SMnode *pMnode, char *clusterName, int32_t len);
 int64_t mndGetClusterId(SMnode *pMnode);
 int64_t mndGetClusterCreateTime(SMnode *pMnode);
 int64_t mndGetClusterUpTime(SMnode *pMnode);
+int32_t mndRestoreClusterId(SMnode *pMnode, int64_t clusterId);
 
 #ifdef __cplusplus
 }

@@ -1,6 +1,8 @@
 /*
  * Copyright (c) 2019 TAOS Data, Inc. <jhtao@taosdata.com>
  *
+ * SPDX-License-Identifier: AGPL-3.0-or-later
+ *
  * This program is free software: you can use, redistribute, and/or modify
  * it under the terms of the GNU Affero General Public License, version 3
  * or later ("AGPL"), as published by the Free Software Foundation.
@@ -546,6 +548,7 @@ char *taosVariantGet(SVariant *pVar, int32_t type) {
     case TSDB_DATA_TYPE_INT:
     case TSDB_DATA_TYPE_BIGINT:
     case TSDB_DATA_TYPE_TIMESTAMP:
+    case TSDB_DATA_TYPE_DECIMAL64:
       return (char *)&pVar->i;
     case TSDB_DATA_TYPE_UTINYINT:
     case TSDB_DATA_TYPE_USMALLINT:
@@ -562,6 +565,7 @@ char *taosVariantGet(SVariant *pVar, int32_t type) {
     case TSDB_DATA_TYPE_MEDIUMBLOB:
     case TSDB_DATA_TYPE_JSON:
     case TSDB_DATA_TYPE_GEOMETRY:
+    case TSDB_DATA_TYPE_DECIMAL:
       return (char *)pVar->pz;
     case TSDB_DATA_TYPE_NCHAR:
       return (char *)pVar->ucs4;

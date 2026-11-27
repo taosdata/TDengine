@@ -1,3 +1,20 @@
+/*
+ * Copyright (c) 2024 TAOS Data, Inc. <jhtao@taosdata.com>
+ *
+ * SPDX-License-Identifier: AGPL-3.0-or-later
+ *
+ * This program is free software: you can use, redistribute, and/or modify
+ * it under the terms of the GNU Affero General Public License, version 3
+ * or later ("AGPL"), as published by the Free Software Foundation.
+ *
+ * This program is distributed in the hope that it will be useful, but WITHOUT
+ * ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+ * FITNESS FOR A PARTICULAR PURPOSE.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program. If not, see <http://www.gnu.org/licenses/>.
+ */
+
 package com.taos.example;
 
 import com.taosdata.jdbc.ws.TSWSPreparedStatement;
@@ -9,6 +26,13 @@ import java.util.Random;
 import com.taosdata.jdbc.common.TDBlob;
 
 // ANCHOR: para_bind
+/**
+ * @deprecated This demo mixes the extension API (setTableName/setTagXxx) with the
+ * standard single-value setters, which only works on the legacy row-based path
+ * (stmtBindMode=traditional). Use the standard JDBC parameter binding interface
+ * instead; see WSParameterBindingStdInterfaceDemo.
+ */
+@Deprecated
 public class WSParameterBindingFullDemo {
     private static final String host = "127.0.0.1";
     private static final Random random = new Random(System.currentTimeMillis());
@@ -56,7 +80,7 @@ public class WSParameterBindingFullDemo {
 
     public static void main(String[] args) throws SQLException {
 
-        String jdbcUrl = "jdbc:TAOS-WS://" + host + ":6041/?varcharAsString=true";
+        String jdbcUrl = "jdbc:TAOS-WS://" + host + ":6041/?varcharAsString=true&stmtBindMode=traditional";
 
         try (Connection conn = DriverManager.getConnection(jdbcUrl, "root", "taosdata")) {
 

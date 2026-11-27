@@ -1,6 +1,8 @@
 /*
  * Copyright (c) 2019 TAOS Data, Inc. <jhtao@taosdata.com>
  *
+ * SPDX-License-Identifier: AGPL-3.0-or-later
+ *
  * This program is free software: you can use, redistribute, and/or modify
  * it under the terms of the GNU Affero General Public License, version 3
  * or later ("AGPL"), as published by the Free Software Foundation.
@@ -12,6 +14,7 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
+
 #define _DEFAULT_SOURCE
 #include <stdio.h>
 #include <stdint.h>
@@ -26,6 +29,10 @@ int taosFormatTotp(int32_t totp, int digits, char *buffer, size_t size) {
 
 int32_t taosGenerateTotpCode(const uint8_t *secret, size_t secretLen, int digits) {
   return 0;
+}
+
+int32_t taosGenerateTotpCodeAt(const uint8_t *secret, size_t secretLen, uint64_t tm, int digits) {
+  return -1;
 }
 
 int taosVerifyTotpCode(const uint8_t *secret, size_t secretLen, int32_t userCode, int digits, int window) {

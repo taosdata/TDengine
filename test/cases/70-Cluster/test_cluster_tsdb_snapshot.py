@@ -1,17 +1,21 @@
-###################################################################
-#           Copyright (c) 2016 by TAOS Technologies, Inc.
-#                     All rights reserved.
+# Copyright (c) 2016 TAOS Data, Inc. <jhtao@taosdata.com>
 #
-#  This file is proprietary and confidential to TAOS Technologies.
-#  No part of this file may be reproduced, stored, transmitted,
-#  disclosed or used in any form or by any means other than as
-#  expressly provided by the written permission from Jianhui Tao
+# SPDX-License-Identifier: AGPL-3.0-or-later
 #
-###################################################################
+# This program is free software: you can use, redistribute, and/or modify
+# it under the terms of the GNU Affero General Public License, version 3
+# or later ("AGPL"), as published by the Free Software Foundation.
+#
+# This program is distributed in the hope that it will be useful, but WITHOUT
+# ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+# FITNESS FOR A PARTICULAR PURPOSE.
+#
+# You should have received a copy of the GNU Affero General Public License
+# along with this program. If not, see <http://www.gnu.org/licenses/>.
 
 # -*- coding: utf-8 -*-
 
-from new_test_framework.utils import tdLog, tdSql, epath, sc, tdCom, cluster
+from new_test_framework.utils import etool, tdLog, tdSql, epath, sc, tdCom, cluster
 import time
 import os
 import glob
@@ -126,7 +130,8 @@ class TestClusterTsdbSnapshot:
             with open(json_file, 'w') as f:
                 f.write(json_content)
         # Use subprocess.run() to wait for the command to finish
-        subprocess.run(f'taosBenchmark -f {json_file}', shell=True, check=True)
+        with etool.benchmark_write_log() as cfg_dir:
+            subprocess.run(f'taosBenchmark -f {json_file} -c "{cfg_dir}"', shell=True, check=True)
 
     def _write_bulk_data2(self):
         tdLog.info("============== write bulk data ===============")
@@ -221,6 +226,7 @@ class TestClusterTsdbSnapshot:
             with open(json_file, 'w') as f:
                 f.write(json_content)
         # Use subprocess.run() to wait for the command to finish
+        # Dnode 3 is deliberately stopped here; keep its diagnostic configuration.
         subprocess.run(f'taosBenchmark -f {json_file}', shell=True, check=True)
 
     def test_tsdb_snapshot(self):
@@ -239,7 +245,7 @@ class TestClusterTsdbSnapshot:
         
         Since: v3.0.0.0
 
-        Labels: common,ci
+        Labels: common,ci,integration,functional
 
         Jira: None
 

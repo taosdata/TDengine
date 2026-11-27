@@ -1,5 +1,8 @@
 /*
- * Copyright (c) 2019 TAOS Data, Inc. <jhtao@taosdata.com> *
+ * Copyright (c) 2019 TAOS Data, Inc. <jhtao@taosdata.com>
+ *
+ * SPDX-License-Identifier: AGPL-3.0-or-later
+ *
  * This program is free software: you can use, redistribute, and/or modify
  * it under the terms of the GNU Affero General Public License, version 3
  * or later ("AGPL"), as published by the Free Software Foundation.
@@ -11,6 +14,7 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
+
 #ifndef __INDEX_CACHE_H__
 #define __INDEX_CACHE_H__
 
@@ -69,7 +73,7 @@ void idxCacheDestroy(void* cache);
 void idxCacheBroadcast(void* cache);
 void idxCacheWait(void* cache);
 
-Iterate* idxCacheIteratorCreate(IndexCache* cache);
+int32_t idxCacheIteratorCreate(IndexCache* cache, Iterate** out);
 void     idxCacheIteratorDestroy(Iterate* iiter);
 
 int idxCachePut(void* cache, SIndexTerm* term, uint64_t uid);

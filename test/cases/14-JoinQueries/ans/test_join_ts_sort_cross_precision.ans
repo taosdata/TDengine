@@ -1,0 +1,48 @@
+
+taos> use test_join_tt_sort_ms;
+Database changed.
+
+taos> select 'X1_cross_precision_left_desc_limit_2', a.ts, a.val, b.val from (select ts, val from test_join_tt_sort_ms.t_ms order by val desc limit 2) a left join (select ts, val from test_join_tt_sort_us.t_us order by val desc limit 2) b on a.ts = b.ts order by a.ts desc;
+ 'X1_cross_precision_left_desc_limit_2' |           ts            |     val     |     val     |
+===============================================================================================
+ X1_cross_precision_left_desc_limit_2   | 2024-01-02 00:00:00.000 |          20 |          30 |
+ X1_cross_precision_left_desc_limit_2   | 2024-01-01 06:00:00.000 |          30 | NULL        |
+
+taos> select 'X2_cross_precision_right_asc_limit_2', a.val, b.val from (select ts, val from test_join_tt_sort_ms.t_ms order by val desc limit 2) a right join (select ts, val from test_join_tt_sort_us.t_us order by val limit 2) b on a.ts = b.ts order by b.val desc;
+ 'X2_cross_precision_right_asc_limit_2' |     val     |     val     |
+=====================================================================
+ X2_cross_precision_right_asc_limit_2   | NULL        |          20 |
+ X2_cross_precision_right_asc_limit_2   |          30 |          10 |
+
+taos> select 'X3_cross_precision_right_desc_limit_2', a.val, b.val from (select ts, val from test_join_tt_sort_ms.t_ms order by val limit 2) a right join (select ts, val from test_join_tt_sort_us.t_us order by val desc limit 2) b on a.ts = b.ts order by b.val;
+ 'X3_cross_precision_right_desc_limit_2' |     val     |     val     |
+======================================================================
+ X3_cross_precision_right_desc_limit_2   |          10 |          20 |
+ X3_cross_precision_right_desc_limit_2   |          20 |          30 |
+
+taos> select 'X4_cross_precision_left_no_limit_mixed_order', a.ts, a.val, b.val from (select ts, val from test_join_tt_sort_ms.t_ms order by val) a left join (select ts, val from test_join_tt_sort_us.t_us order by val desc) b on a.ts = b.ts order by a.ts desc;
+ 'X4_cross_precision_left_no_limit_mixed_order' |           ts            |     val     |     val     |
+=======================================================================================================
+ X4_cross_precision_left_no_limit_mixed_order   | 2024-01-02 00:00:00.000 |          20 |          30 |
+ X4_cross_precision_left_no_limit_mixed_order   | 2024-01-01 06:00:00.000 |          30 |          10 |
+ X4_cross_precision_left_no_limit_mixed_order   | 2024-01-01 00:00:00.000 |          10 |          20 |
+
+taos> select 'X5_cross_precision_right_no_limit_mixed_order', a.val, b.val from (select ts, val from test_join_tt_sort_ms.t_ms order by val desc) a right join (select ts, val from test_join_tt_sort_us.t_us order by val) b on a.ts = b.ts order by b.val desc;
+ 'X5_cross_precision_right_no_limit_mixed_order' |     val     |     val     |
+==============================================================================
+ X5_cross_precision_right_no_limit_mixed_order   |          20 |          30 |
+ X5_cross_precision_right_no_limit_mixed_order   |          10 |          20 |
+ X5_cross_precision_right_no_limit_mixed_order   |          30 |          10 |
+
+taos> select 'X6_cross_precision_left_asc_limit_outer_desc', a.ts, a.val, b.val from (select ts, val from test_join_tt_sort_ms.t_ms order by val limit 2) a left join (select ts, val from test_join_tt_sort_us.t_us order by val desc limit 2) b on a.ts = b.ts order by a.val desc;
+ 'X6_cross_precision_left_asc_limit_outer_desc' |           ts            |     val     |     val     |
+=======================================================================================================
+ X6_cross_precision_left_asc_limit_outer_desc   | 2024-01-02 00:00:00.000 |          20 |          30 |
+ X6_cross_precision_left_asc_limit_outer_desc   | 2024-01-01 00:00:00.000 |          10 |          20 |
+
+taos> select 'X7_cross_precision_right_desc_limit_outer_asc', a.val, b.val from (select ts, val from test_join_tt_sort_ms.t_ms order by val desc limit 2) a right join (select ts, val from test_join_tt_sort_us.t_us order by val desc limit 2) b on a.ts = b.ts order by b.val;
+ 'X7_cross_precision_right_desc_limit_outer_asc' |     val     |     val     |
+==============================================================================
+ X7_cross_precision_right_desc_limit_outer_asc   | NULL        |          20 |
+ X7_cross_precision_right_desc_limit_outer_asc   |          20 |          30 |
+

@@ -1,6 +1,8 @@
 /*
  * Copyright (c) 2019 TAOS Data, Inc. <jhtao@taosdata.com>
  *
+ * SPDX-License-Identifier: AGPL-3.0-or-later
+ *
  * This program is free software: you can use, redistribute, and/or modify
  * it under the terms of the GNU Affero General Public License, version 3
  * or later ("AGPL"), as published by the Free Software Foundation.
@@ -233,6 +235,14 @@ void    monSetSmInfo(SMonSmInfo *pInfo);
 void    monSetBmInfo(SMonBmInfo *pInfo);
 void    monGenAndSendReport();
 void    monSendContent(char *pCont, const char* uri);
+
+/**
+ * @brief Report the first error that stops and redeploys a stream.
+ *
+ * Delivery is best-effort. The function does not retain streamName and does
+ * not propagate reporting failures to the caller.
+ */
+void monReportStreamFailure(int64_t ts, int64_t streamId, const char *streamName, int32_t errorCode);
 
 void tFreeSMonMmInfo(SMonMmInfo *pInfo);
 void tFreeSMonVmInfo(SMonVmInfo *pInfo);

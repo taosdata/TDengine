@@ -1,3 +1,18 @@
+# Copyright (c) 2026 TAOS Data, Inc. <jhtao@taosdata.com>
+#
+# SPDX-License-Identifier: AGPL-3.0-or-later
+#
+# This program is free software: you can use, redistribute, and/or modify
+# it under the terms of the GNU Affero General Public License, version 3
+# or later ("AGPL"), as published by the Free Software Foundation.
+#
+# This program is distributed in the hope that it will be useful, but WITHOUT
+# ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+# FITNESS FOR A PARTICULAR PURPOSE.
+#
+# You should have received a copy of the GNU Affero General Public License
+# along with this program. If not, see <http://www.gnu.org/licenses/>.
+
 from new_test_framework.utils import tdLog, tdSql, tdDnodes, cluster
 import time
 import platform
@@ -74,8 +89,7 @@ class TestTaosdSelfAudit:
   
         Since: v3.4.0.0
 
-        Labels: common,ci
-
+        Labels: common,ci,integration,functional
         Jira: None
 
         History:
@@ -99,22 +113,10 @@ class TestTaosdSelfAudit:
         sql = "create user test pass '123456Ab@' sysinfo 0;"
         tdSql.execute(sql, queryTimes = 1)
 
-        tdLog.info("check create user")
-        sql = "select * from audit.operations where operation = 'createUser' and resource = 'test';"
-        tdSql.query(sql)
-        tdSql.checkRows(1)
-
-
         # 2 create stb
         tdLog.info("create stb")
         sql = "create table db.stb (ts timestamp, f int) tags (t int)"
         tdSql.execute(sql, queryTimes = 1)
-
-        tdLog.info("check create stb")
-        sql = "select * from audit.operations where operation = 'createStb' and resource = 'stb';"
-        tdSql.query(sql)
-        tdSql.checkRows(1)
-
 
         # 3 create tb, insert tb, select stb
         tdLog.info("create tb")
@@ -129,7 +131,22 @@ class TestTaosdSelfAudit:
         sql = "SELECT * FROM db.stb;"
         tdSql.query(sql)
 
+        # 4 delete tb
+        tdLog.info("delete tb")
+        sql = "delete from db.tb"
+        tdSql.execute(sql, queryTimes = 1)
+
         time.sleep(6)
+
+        tdLog.info("check create user")
+        sql = "select * from audit.operations where operation = 'createUser' and resource = 'test';"
+        tdSql.query(sql)
+        tdSql.checkRows(1)
+
+        tdLog.info("check create stb")
+        sql = "select * from audit.operations where operation = 'createStb' and resource = 'stb';"
+        tdSql.query(sql)
+        tdSql.checkRows(1)
 
         tdLog.info("check create tb")
         sql = "select * from audit.operations where operation = 'createTable';"
@@ -145,14 +162,6 @@ class TestTaosdSelfAudit:
         sql = "select * from audit.operations where operation = 'select' and resource = 'stb';"
         tdSql.query(sql)
         tdSql.checkRows(1)
-
-        # 4 delete tb
-        tdLog.info("delete tb")
-        sql = "delete from db.tb"
-        tdSql.execute(sql, queryTimes = 1)
-
-        time.sleep(6)
-
         tdLog.info("check delete tb")
         sql = "select * from audit.operations where operation = 'delete' and resource = 'tb';"
         tdSql.query(sql)

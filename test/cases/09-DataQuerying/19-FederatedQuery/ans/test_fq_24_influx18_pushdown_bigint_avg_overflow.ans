@@ -1,0 +1,137 @@
+taos> set max_binary_display_width 1024;
+taos> alter local "timezone" "UTC";
+
+taos> SELECT avg(i) FROM fq24_influx18_pushdown_gate.fq24_influx18_pushdown.rows WHERE site = 'positive';
+          avg(i)           |
+============================
+      4.61168601842739e+18 |
+
+taos> EXPLAIN VERBOSE TRUE SELECT avg(i) FROM fq24_influx18_pushdown_gate.fq24_influx18_pushdown.rows WHERE site = 'positive';
+QUERY_PLAN |
+============
+ -> Aggregate (functions=1 width=8 input_order=unknown) |
+       Output: columns=1 width=8 blocking=1 |
+       Merge ResBlocks: True |
+    -> Federated Scan on fq24_influx18_pushdown_gate.rows (influxdb-1.8) (width=65527) |
+          InfluxDB version=1.8 RP=autogen |
+          Output: columns=2 width=65527 |
+          Source: <host>:<port> user=<user> |
+          Remote SQL: SELECT "time", "anchor", "d", "flag", "i", "label", "site" FROM "fq24_influx18_pushdown"."autogen"."rows" WHERE (("site" = 'positive')) |
+
+taos> SELECT avg(i) FROM fq24_influx18_pushdown_gate.fq24_influx18_pushdown.rows WHERE site = 'negative';
+          avg(i)           |
+============================
+     -4.61168601842739e+18 |
+
+taos> EXPLAIN VERBOSE TRUE SELECT avg(i) FROM fq24_influx18_pushdown_gate.fq24_influx18_pushdown.rows WHERE site = 'negative';
+QUERY_PLAN |
+============
+ -> Aggregate (functions=1 width=8 input_order=unknown) |
+       Output: columns=1 width=8 blocking=1 |
+       Merge ResBlocks: True |
+    -> Federated Scan on fq24_influx18_pushdown_gate.rows (influxdb-1.8) (width=65527) |
+          InfluxDB version=1.8 RP=autogen |
+          Output: columns=2 width=65527 |
+          Source: <host>:<port> user=<user> |
+          Remote SQL: SELECT "time", "anchor", "d", "flag", "i", "label", "site" FROM "fq24_influx18_pushdown"."autogen"."rows" WHERE (("site" = 'negative')) |
+
+taos> SELECT CAST(site AS NCHAR(8)) AS site, avg(i) FROM fq24_influx18_pushdown_gate.fq24_influx18_pushdown.rows GROUP BY site ORDER BY site;
+                site                |          avg(i)           |
+=================================================================
+ negative                           |     -4.61168601842739e+18 |
+ positive                           |      4.61168601842739e+18 |
+
+taos> EXPLAIN VERBOSE TRUE SELECT CAST(site AS NCHAR(8)) AS site, avg(i) FROM fq24_influx18_pushdown_gate.fq24_influx18_pushdown.rows GROUP BY site ORDER BY site;
+QUERY_PLAN |
+============
+ -> Projection (columns=2 width=42 input_order=unknown) |
+       Output: columns=2 width=42 |
+       Output: Ignore Group Id: true |
+       Merge ResBlocks: True |
+    -> Sort input_order=unknown output_order=unknown  (columns=2 width=65527) |
+          Output: columns=2 width=65527 |
+       -> GroupAggregate (functions=1 width=65561 groups=1 input_order=unknown) |
+             Output: columns=3 width=65561 blocking=1 |
+             Merge ResBlocks: True |
+          -> Federated Scan on fq24_influx18_pushdown_gate.rows (influxdb-1.8) (width=65527) |
+                InfluxDB version=1.8 RP=autogen |
+                Output: columns=2 width=65527 |
+                Source: <host>:<port> user=<user> |
+                Remote SQL: SELECT "time", "anchor", "d", "flag", "i", "label", "site" FROM "fq24_influx18_pushdown"."autogen"."rows" |
+
+taos> SELECT CAST(site AS NCHAR(8)) AS site, avg(i) FROM fq24_influx18_pushdown_gate.fq24_influx18_pushdown.rows PARTITION BY site ORDER BY site;
+                site                |          avg(i)           |
+=================================================================
+ negative                           |     -4.61168601842739e+18 |
+ positive                           |      4.61168601842739e+18 |
+
+taos> EXPLAIN VERBOSE TRUE SELECT CAST(site AS NCHAR(8)) AS site, avg(i) FROM fq24_influx18_pushdown_gate.fq24_influx18_pushdown.rows PARTITION BY site ORDER BY site;
+QUERY_PLAN |
+============
+ -> Projection (columns=2 width=42 input_order=unknown) |
+       Output: columns=2 width=42 |
+       Output: Ignore Group Id: false |
+       Merge ResBlocks: True |
+    -> Sort input_order=unknown output_order=unknown  (columns=2 width=65527) |
+          Output: columns=2 width=65527 |
+       -> GroupAggregate (functions=2 width=131080 groups=1 input_order=unknown) |
+             Output: columns=3 width=65561 blocking=1 |
+             Merge ResBlocks: True |
+          -> Federated Scan on fq24_influx18_pushdown_gate.rows (influxdb-1.8) (width=65527) |
+                InfluxDB version=1.8 RP=autogen |
+                Output: columns=2 width=65527 |
+                Source: <host>:<port> user=<user> |
+                Remote SQL: SELECT "time", "anchor", "d", "flag", "i", "label", "site" FROM "fq24_influx18_pushdown"."autogen"."rows" |
+
+taos> SELECT CAST(_wstart AS BIGINT), avg(i) FROM fq24_influx18_pushdown_gate.fq24_influx18_pushdown.rows WHERE time >= 1700000000000000000 AND time < 1700000004000000000 INTERVAL(2s);
+ cast(_wstart as bigint) |          avg(i)           |
+======================================================
+     1700000000000000000 |      4.61168601842739e+18 |
+     1700000002000000000 |     -4.61168601842739e+18 |
+
+taos> EXPLAIN VERBOSE TRUE SELECT CAST(_wstart AS BIGINT), avg(i) FROM fq24_influx18_pushdown_gate.fq24_influx18_pushdown.rows WHERE time >= 1700000000000000000 AND time < 1700000004000000000 INTERVAL(2s);
+QUERY_PLAN |
+============
+ -> Projection (columns=2 width=16 input_order=unknown) |
+       Output: columns=2 width=16 |
+       Output: Ignore Group Id: true |
+       Merge ResBlocks: True |
+    -> Interval on Column time (functions=2 width=16 input_order=unknown output_order=asc) |
+          Output: columns=2 width=16 |
+          Time Range: [1700000000000000000, 1700000003999999999] |
+          Time Window: interval=2s offset=0b sliding=2s |
+          Merge ResBlocks: True |
+       -> Federated Scan on fq24_influx18_pushdown_gate.rows (influxdb-1.8) (width=16) |
+             InfluxDB version=1.8 RP=autogen |
+             Output: columns=2 width=16 |
+             Source: <host>:<port> user=<user> |
+             Remote SQL: SELECT "time", "anchor", "d", "flag", "i", "label" FROM "fq24_influx18_pushdown"."autogen"."rows" WHERE (((time >= 1700000000000000000) AND (time <= 1700000003999999999))) ORDER BY time ASC |
+
+taos> SELECT CAST(site AS NCHAR(8)) AS site, CAST(_wstart AS BIGINT), avg(i) FROM fq24_influx18_pushdown_gate.fq24_influx18_pushdown.rows WHERE time >= 1700000000000000000 AND time < 1700000004000000000 PARTITION BY site INTERVAL(2s) ORDER BY site, _wstart;
+                site                | cast(_wstart as bigint) |          avg(i)           |
+===========================================================================================
+ negative                           |     1700000002000000000 |     -4.61168601842739e+18 |
+ positive                           |     1700000000000000000 |      4.61168601842739e+18 |
+
+taos> EXPLAIN VERBOSE TRUE SELECT CAST(site AS NCHAR(8)) AS site, CAST(_wstart AS BIGINT), avg(i) FROM fq24_influx18_pushdown_gate.fq24_influx18_pushdown.rows WHERE time >= 1700000000000000000 AND time < 1700000004000000000 PARTITION BY site INTERVAL(2s) ORDER BY site, _wstart;
+QUERY_PLAN |
+============
+ -> Projection (columns=3 width=50 input_order=unknown) |
+       Output: columns=3 width=50 |
+       Output: Ignore Group Id: false |
+       Merge ResBlocks: True |
+    -> Sort input_order=unknown output_order=unknown  (columns=3 width=65535) |
+          Output: columns=3 width=65535 |
+       -> Interval on Column time (functions=3 width=65569 input_order=unknown output_order=asc) |
+             Output: columns=4 width=65569 |
+             Time Range: [1700000000000000000, 1700000003999999999] |
+             Time Window: interval=2s offset=0b sliding=2s |
+             Merge ResBlocks: True |
+          -> Partition on Column site (width=65535) |
+                Output: columns=3 width=65535 |
+                Partition Key: partitions=1 |
+             -> Federated Scan on fq24_influx18_pushdown_gate.rows (influxdb-1.8) (width=65535) |
+                   InfluxDB version=1.8 RP=autogen |
+                   Output: columns=3 width=65535 |
+                   Source: <host>:<port> user=<user> |
+                   Remote SQL: SELECT "time", "anchor", "d", "flag", "i", "label", "site" FROM "fq24_influx18_pushdown"."autogen"."rows" WHERE (((time >= 1700000000000000000) AND (time <= 1700000003999999999))) ORDER BY time ASC |

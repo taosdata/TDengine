@@ -1,9 +1,19 @@
-import time
-import math
-import random
-from new_test_framework.utils import tdLog, tdSql, tdStream, etool
-from datetime import datetime
-from datetime import date
+# Copyright (c) 2025 TAOS Data, Inc. <jhtao@taosdata.com>
+#
+# SPDX-License-Identifier: AGPL-3.0-or-later
+#
+# This program is free software: you can use, redistribute, and/or modify
+# it under the terms of the GNU Affero General Public License, version 3
+# or later ("AGPL"), as published by the Free Software Foundation.
+#
+# This program is distributed in the hope that it will be useful, but WITHOUT
+# ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+# FITNESS FOR A PARTICULAR PURPOSE.
+#
+# You should have received a copy of the GNU Affero General Public License
+# along with this program. If not, see <http://www.gnu.org/licenses/>.
+
+from new_test_framework.utils import tdLog, tdSql, tdStream
 
 
 class Test_IDMP_Meters:
@@ -21,8 +31,7 @@ class Test_IDMP_Meters:
 
         Since: v3.3.7.6
 
-        Labels: common,ci
-
+        Labels: common,ci,integration,functional
         Jira: TS-7152
 
         History:
@@ -122,13 +131,13 @@ class Test_IDMP_Meters:
     # 5. verify results
     #
     def verifyResults(self):
-        # sleep
-        time.sleep(5)
-
         # result_stream8
         result_sql = f"select * from test.`ana_vt_电子皮带秤_07_564885_anaEnd_ana_1914678932738560_1` "
 
-        tdSql.query(result_sql)
-        tdSql.checkRows(1)
+        tdSql.checkResultsByFunc(
+            sql=result_sql,
+            func=lambda: tdSql.checkRows(1),
+            retry=60,
+        )
 
         tdLog.info(f"verify stream ................................. successfully.")

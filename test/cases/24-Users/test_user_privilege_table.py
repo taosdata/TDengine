@@ -1,3 +1,18 @@
+# Copyright (c) 2025 TAOS Data, Inc. <jhtao@taosdata.com>
+#
+# SPDX-License-Identifier: AGPL-3.0-or-later
+#
+# This program is free software: you can use, redistribute, and/or modify
+# it under the terms of the GNU Affero General Public License, version 3
+# or later ("AGPL"), as published by the Free Software Foundation.
+#
+# This program is distributed in the hope that it will be useful, but WITHOUT
+# ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+# FITNESS FOR A PARTICULAR PURPOSE.
+#
+# You should have received a copy of the GNU Affero General Public License
+# along with this program. If not, see <http://www.gnu.org/licenses/>.
+
 import time
 from new_test_framework.utils import tdLog, tdSql, sc, clusterComCheck, clusterComCheck
 
@@ -17,8 +32,7 @@ class TestUserPrivilegeTable:
 
         Since: v3.0.0.0
 
-        Labels: common,ci
-
+        Labels: common,ci,integration,functional,security
         Jira: None
 
         History:
@@ -148,6 +162,8 @@ class TestUserPrivilegeTable:
 
         tdSql.execute(f"revoke insert on test.st1 from wxy;")
         tdSql.execute(f"grant insert on test.st1 with id = 1 to wxy;")
+        # auto-create a ctb via INSERT...USING requires CREATE TABLE privilege in addition to INSERT
+        tdSql.execute(f"grant create table on database test to wxy;")
         tdSql.query(f"show test.stables;")
         tdSql.checkRows(2)
 
@@ -177,6 +193,7 @@ class TestUserPrivilegeTable:
         tdSql.connect("root")
 
         tdSql.execute(f"revoke insert on test.st1 with id = 1 from wxy;")
+        tdSql.execute(f"revoke create table on database test from wxy;")
         tdSql.execute(f"grant select on test.* to wxy;")
         tdSql.execute(f"grant show on table test.* to wxy;")
         tdSql.query(f"show test.stables;")
@@ -444,8 +461,7 @@ class TestUserPrivilegeTable:
 
         Since: v3.0.0.0
 
-        Labels: common,ci
-
+        Labels: common,ci,integration,functional,security
         Jira: None
 
         """

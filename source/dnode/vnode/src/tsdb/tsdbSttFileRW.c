@@ -1,6 +1,8 @@
 /*
  * Copyright (c) 2019 TAOS Data, Inc. <jhtao@taosdata.com>
  *
+ * SPDX-License-Identifier: AGPL-3.0-or-later
+ *
  * This program is free software: you can use, redistribute, and/or modify
  * it under the terms of the GNU Affero General Public License, version 3
  * or later ("AGPL"), as published by the Free Software Foundation.
@@ -54,7 +56,7 @@ int32_t tsdbSttFileReaderOpen(const char *fname, const SSttFileReaderConfig *con
   if (fname) {
     TAOS_CHECK_GOTO(tsdbOpenFile(fname, config->tsdb, TD_FILE_READ, &reader[0]->fd, 0), &lino, _exit);
   } else {
-    char fname1[TSDB_FILENAME_LEN];
+    char fname1[TSDB_PATH_LEN];
     tsdbTFileName(config->tsdb, config->file, fname1);
     TAOS_CHECK_GOTO(tsdbOpenFile(fname1, config->tsdb, TD_FILE_READ, &reader[0]->fd, 0), &lino, _exit);
   }
@@ -70,9 +72,8 @@ int32_t tsdbSttFileReaderOpen(const char *fname, const SSttFileReaderConfig *con
   SEncryptData *pEncryptData = &(config->tsdb->pVnode->config.tsdbCfg.encryptData);
 
 #if 1
-  TAOS_CHECK_GOTO(
-      tsdbReadFile(reader[0]->fd, offset, (uint8_t *)(reader[0]->footer), sizeof(SSttFooter), 0, pEncryptData), &lino,
-      _exit);
+  code = tsdbReadFile(reader[0]->fd, offset, (uint8_t *)(reader[0]->footer), sizeof(SSttFooter), 0, pEncryptData);
+  TAOS_CHECK_GOTO(code, &lino, _exit);
 #else
   int64_t size = config->file->size;
 
@@ -102,15 +103,37 @@ _exit:
 
 void tsdbSttFileReaderClose(SSttFileReader **reader) {
   if (reader[0]) {
-    for (int32_t i = 0; i < ARRAY_SIZE(reader[0]->local); ++i) {
-      tBufferDestroy(reader[0]->local + i);
-    }
+    tsdbSttFileReaderTrimBuffers(reader[0]);
     tsdbCloseFile(&reader[0]->fd);
     TARRAY2_DESTROY(reader[0]->tombBlkArray, NULL);
     TARRAY2_DESTROY(reader[0]->statisBlkArray, NULL);
     TARRAY2_DESTROY(reader[0]->sttBlkArray, NULL);
     taosMemoryFree(reader[0]);
     reader[0] = NULL;
+  }
+}
+
+/*
+ * Release the reader's local page I/O buffers (reader->local[]) to reduce
+ * memory footprint when the reader is idle between groups in a Table Merge
+ * Scan.
+ *
+ * These buffers are temporary staging areas used during read operations
+ * (tsdbSttFileReadBlockData, tsdbSttFileReadStatisBlock, etc.).  They hold
+ * decompressed page data and are re-allocated on demand, so releasing them
+ * has no correctness impact.
+ *
+ * The file descriptor (fd), footer, block index arrays (sttBlkArray,
+ * statisBlkArray, tombBlkArray), and the SSttBlockLoadInfo (held separately
+ * in SLDataIter) are NOT touched  -  they remain valid and avoid the need to
+ * re-open the file or re-read metadata on the next access.
+ */
+void tsdbSttFileReaderTrimBuffers(SSttFileReader *reader) {
+  if (reader == NULL) {
+    return;
+  }
+  for (int32_t i = 0; i < ARRAY_SIZE(reader->local); ++i) {
+    tBufferDestroy(reader->local + i);
   }
 }
 
@@ -234,12 +257,12 @@ int32_t tsdbSttFileReadBlockData(SSttFileReader *reader, const SSttBlk *sttBlk, 
 
   // load data
   tBufferClear(buffer0);
-  TAOS_CHECK_GOTO(
-      tsdbReadFileToBuffer(reader->fd, sttBlk->bInfo.offset, sttBlk->bInfo.szBlock, buffer0, 0, pEncryptData), &lino,
-      _exit);
+  code = tsdbReadFileToBuffer(reader->fd, sttBlk->bInfo.offset, sttBlk->bInfo.szBlock, buffer0, 0, pEncryptData);
+  TAOS_CHECK_GOTO(code, &lino, _exit);
 
   SBufferReader br = BUFFER_READER_INITIALIZER(0, buffer0);
-  TAOS_CHECK_GOTO(tBlockDataDecompress(&br, bData, assist), &lino, _exit);
+  code = tBlockDataDecompress(&br, bData, assist);
+  TAOS_CHECK_GOTO(code, &lino, _exit);
 
 _exit:
   if (code) {
@@ -263,12 +286,13 @@ int32_t tsdbSttFileReadBlockDataByColumn(SSttFileReader *reader, const SSttBlk *
 
   // load key part
   tBufferClear(buffer0);
-  TAOS_CHECK_GOTO(tsdbReadFileToBuffer(reader->fd, sttBlk->bInfo.offset, sttBlk->bInfo.szKey, buffer0, 0, pEncryptData),
-                  &lino, _exit);
+  code = tsdbReadFileToBuffer(reader->fd, sttBlk->bInfo.offset, sttBlk->bInfo.szKey, buffer0, 0, pEncryptData);
+  TAOS_CHECK_GOTO(code, &lino, _exit);
 
   // decode header
   SBufferReader br = BUFFER_READER_INITIALIZER(0, buffer0);
-  TAOS_CHECK_GOTO(tGetDiskDataHdr(&br, &hdr), &lino, _exit);
+  code = tGetDiskDataHdr(&br, &hdr);
+  TAOS_CHECK_GOTO(code, &lino, _exit);
 
   if (hdr.delimiter != TSDB_FILE_DLMT) {
     tsdbError("vgId:%d %s failed at %s:%d since disk data header delimiter is invalid, fname:%s",
@@ -283,7 +307,8 @@ int32_t tsdbSttFileReadBlockDataByColumn(SSttFileReader *reader, const SSttBlk *
   bData->nRow = hdr.nRow;
 
   // key part
-  TAOS_CHECK_GOTO(tBlockDataDecompressKeyPart(&hdr, &br, bData, assist), &lino, _exit);
+  code = tBlockDataDecompressKeyPart(&hdr, &br, bData, assist);
+  TAOS_CHECK_GOTO(code, &lino, _exit);
   if (br.offset != buffer0->size) {
     tsdbError("vgId:%d %s failed at %s:%d since key part size mismatch, expected:%u, actual:%u, fname:%s",
               TD_VID(reader->config->tsdb->pVnode), __func__, __FILE__, __LINE__, buffer0->size, br.offset,
@@ -305,9 +330,9 @@ int32_t tsdbSttFileReadBlockDataByColumn(SSttFileReader *reader, const SSttBlk *
 
   // load SBlockCol part
   tBufferClear(buffer0);
-  TAOS_CHECK_GOTO(tsdbReadFileToBuffer(reader->fd, sttBlk->bInfo.offset + sttBlk->bInfo.szKey, hdr.szBlkCol, buffer0, 0,
-                                       pEncryptData),
-                  &lino, _exit);
+  code = tsdbReadFileToBuffer(reader->fd, sttBlk->bInfo.offset + sttBlk->bInfo.szKey, hdr.szBlkCol, buffer0, 0,
+                              pEncryptData);
+  TAOS_CHECK_GOTO(code, &lino, _exit);
 
   // load each column
   SBlockCol blockCol = {
@@ -327,7 +352,8 @@ int32_t tsdbSttFileReadBlockDataByColumn(SSttFileReader *reader, const SSttBlk *
         break;
       }
 
-      TAOS_CHECK_GOTO(tGetBlockCol(&br, &blockCol, hdr.fmtVer, hdr.cmprAlg), &lino, _exit);
+      code = tGetBlockCol(&br, &blockCol, hdr.fmtVer, hdr.cmprAlg);
+      TAOS_CHECK_GOTO(code, &lino, _exit);
     }
 
     if (cid < blockCol.cid) {
@@ -344,18 +370,20 @@ int32_t tsdbSttFileReadBlockDataByColumn(SSttFileReader *reader, const SSttBlk *
           .szValue = 0,
           .offset = 0,
       };
-      TAOS_CHECK_GOTO(tBlockDataDecompressColData(&hdr, &none, &br, bData, assist), &lino, _exit);
+      code = tBlockDataDecompressColData(&hdr, &none, &br, bData, assist);
+      TAOS_CHECK_GOTO(code, &lino, _exit);
     } else if (cid == blockCol.cid) {
       // load from file
       tBufferClear(buffer1);
-      TAOS_CHECK_GOTO(
+      code =
           tsdbReadFileToBuffer(reader->fd, sttBlk->bInfo.offset + sttBlk->bInfo.szKey + hdr.szBlkCol + blockCol.offset,
-                               blockCol.szBitmap + blockCol.szOffset + blockCol.szValue, buffer1, 0, pEncryptData),
-          &lino, _exit);
+                               blockCol.szBitmap + blockCol.szOffset + blockCol.szValue, buffer1, 0, pEncryptData);
+      TAOS_CHECK_GOTO(code, &lino, _exit);
 
       // decode the buffer
       SBufferReader br1 = BUFFER_READER_INITIALIZER(0, buffer1);
-      TAOS_CHECK_GOTO(tBlockDataDecompressColData(&hdr, &blockCol, &br1, bData, assist), &lino, _exit);
+      code = tBlockDataDecompressColData(&hdr, &blockCol, &br1, bData, assist);
+      TAOS_CHECK_GOTO(code, &lino, _exit);
     }
   }
 
@@ -378,12 +406,14 @@ int32_t tsdbSttFileReadTombBlock(SSttFileReader *reader, const STombBlk *tombBlk
 
   // load
   tBufferClear(buffer0);
-  TAOS_CHECK_GOTO(tsdbReadFileToBuffer(reader->fd, tombBlk->dp->offset, tombBlk->dp->size, buffer0, 0, pEncryptData),
-                  &lino, _exit);
+  code = tsdbReadFileToBuffer(reader->fd, tombBlk->dp->offset, tombBlk->dp->size, buffer0, 0, pEncryptData);
+  TAOS_CHECK_GOTO(code, &lino, _exit);
 
   // decode
   int32_t       size = 0;
   SBufferReader br = BUFFER_READER_INITIALIZER(0, buffer0);
+  code = tsdbCheckBlkDescSizes(tombBlk->size, ARRAY_SIZE(tombBlk->size), tombBlk->numRec, buffer0->size);
+  TAOS_CHECK_GOTO(code, &lino, _exit);
   tTombBlockClear(tombBlock);
   tombBlock->numOfRecords = tombBlk->numRec;
   for (int32_t i = 0; i < ARRAY_SIZE(tombBlock->buffers); ++i) {
@@ -415,8 +445,8 @@ int32_t tsdbSttFileReadStatisBlock(SSttFileReader *reader, const SStatisBlk *sta
   int32_t code = 0;
   int32_t lino = 0;
 
-  if (statisBlk->numOfPKs > TD_MAX_PK_COLS) {
-    tsdbError("vgId:%d %s failed at %s:%d since statis block numOfPKs %d exceeds max %d (file corrupted)",
+  if (statisBlk->numOfPKs < 0 || statisBlk->numOfPKs > TD_MAX_PK_COLS) {
+    tsdbError("vgId:%d %s failed at %s:%d since statis block numOfPKs %d is out of range [0, %d] (file corrupted)",
               TD_VID(reader->config->tsdb->pVnode), __func__, __FILE__, __LINE__, (int)statisBlk->numOfPKs,
               (int)TD_MAX_PK_COLS);
     TSDB_CHECK_CODE(code = TSDB_CODE_FILE_CORRUPTED, lino, _exit);
@@ -429,11 +459,12 @@ int32_t tsdbSttFileReadStatisBlock(SSttFileReader *reader, const SStatisBlk *sta
 
   // load data
   tBufferClear(buffer0);
-  TAOS_CHECK_GOTO(
-      tsdbReadFileToBuffer(reader->fd, statisBlk->dp->offset, statisBlk->dp->size, buffer0, 0, pEncryptData), &lino,
-      _exit);
+  code = tsdbReadFileToBuffer(reader->fd, statisBlk->dp->offset, statisBlk->dp->size, buffer0, 0, pEncryptData);
+  TAOS_CHECK_GOTO(code, &lino, _exit);
 
   // decode data
+  code = tsdbCheckBlkDescSizes(statisBlk->size, ARRAY_SIZE(statisBlk->size), statisBlk->numRec, buffer0->size);
+  TAOS_CHECK_GOTO(code, &lino, _exit);
   tStatisBlockClear(statisBlock);
   statisBlock->numOfPKs = statisBlk->numOfPKs;
   statisBlock->numOfRecords = statisBlk->numRec;
@@ -446,7 +477,8 @@ int32_t tsdbSttFileReadStatisBlock(SSttFileReader *reader, const SStatisBlk *sta
         .originalSize = statisBlk->numRec * sizeof(int64_t),
     };
 
-    TAOS_CHECK_GOTO(tDecompressDataToBuffer(BR_PTR(&br), &info, &statisBlock->buffers[i], assist), &lino, _exit);
+    code = tDecompressDataToBuffer(BR_PTR(&br), &info, &statisBlock->buffers[i], assist);
+    TAOS_CHECK_GOTO(code, &lino, _exit);
     br.offset += statisBlk->size[i];
   }
 
@@ -456,23 +488,39 @@ int32_t tsdbSttFileReadStatisBlock(SSttFileReader *reader, const SStatisBlk *sta
 
     // decode compress info
     for (int32_t i = 0; i < statisBlk->numOfPKs; i++) {
-      TAOS_CHECK_GOTO(tValueColumnCompressInfoDecode(&br, &firstKeyInfos[i]), &lino, _exit);
+      code = tValueColumnCompressInfoDecode(&br, &firstKeyInfos[i]);
+      TAOS_CHECK_GOTO(code, &lino, _exit);
     }
 
     for (int32_t i = 0; i < statisBlk->numOfPKs; i++) {
-      TAOS_CHECK_GOTO(tValueColumnCompressInfoDecode(&br, &lastKeyInfos[i]), &lino, _exit);
+      code = tValueColumnCompressInfoDecode(&br, &lastKeyInfos[i]);
+      TAOS_CHECK_GOTO(code, &lino, _exit);
+    }
+    {
+      int64_t totalPk = 0;
+      for (int32_t i = 0; i < statisBlk->numOfPKs; i++) {
+        code = tsdbCheckValueColInfo(&firstKeyInfos[i], statisBlk->numRec);
+        TAOS_CHECK_GOTO(code, &lino, _exit);
+        code = tsdbCheckValueColInfo(&lastKeyInfos[i], statisBlk->numRec);
+        TAOS_CHECK_GOTO(code, &lino, _exit);
+        totalPk += (int64_t)firstKeyInfos[i].dataCompressedSize + firstKeyInfos[i].offsetCompressedSize +
+                   lastKeyInfos[i].dataCompressedSize + lastKeyInfos[i].offsetCompressedSize;
+      }
+      if (totalPk > (int64_t)(buffer0->size - br.offset)) {
+        TSDB_CHECK_CODE(code = TSDB_CODE_FILE_CORRUPTED, lino, _exit);
+      }
     }
 
     // decode value columns
     for (int32_t i = 0; i < statisBlk->numOfPKs; i++) {
-      TAOS_CHECK_GOTO(tValueColumnDecompress(BR_PTR(&br), firstKeyInfos + i, &statisBlock->firstKeyPKs[i], assist),
-                      &lino, _exit);
+      code = tValueColumnDecompress(BR_PTR(&br), firstKeyInfos + i, &statisBlock->firstKeyPKs[i], assist);
+      TAOS_CHECK_GOTO(code, &lino, _exit);
       br.offset += (firstKeyInfos[i].dataCompressedSize + firstKeyInfos[i].offsetCompressedSize);
     }
 
     for (int32_t i = 0; i < statisBlk->numOfPKs; i++) {
-      TAOS_CHECK_GOTO(tValueColumnDecompress(BR_PTR(&br), &lastKeyInfos[i], &statisBlock->lastKeyPKs[i], assist), &lino,
-                      _exit);
+      code = tValueColumnDecompress(BR_PTR(&br), &lastKeyInfos[i], &statisBlock->lastKeyPKs[i], assist);
+      TAOS_CHECK_GOTO(code, &lino, _exit);
       br.offset += (lastKeyInfos[i].dataCompressedSize + lastKeyInfos[i].offsetCompressedSize);
     }
   }
@@ -522,7 +570,8 @@ struct SSttFileWriter {
 
 static int32_t tsdbFileDoWriteSttBlockData(STsdbFD *fd, SBlockData *blockData, SColCompressInfo *info,
                                            int64_t *fileSize, TSttBlkArray *sttBlkArray, SBuffer *buffers,
-                                           SVersionRange *range, SEncryptData *encryptData) {
+                                           SVersionRange *range, SEncryptData *encryptData,
+                                           SThrottle *throttle) {
   if (blockData->nRow == 0) return 0;
 
   int32_t code = 0;
@@ -553,6 +602,7 @@ static int32_t tsdbFileDoWriteSttBlockData(STsdbFD *fd, SBlockData *blockData, S
   sttBlk->bInfo.szBlock = buffers[2].size + buffers[3].size + sttBlk->bInfo.szKey;
   for (int i = 0; i < 4; i++) {
     if (buffers[i].size) {
+      tsdbThrottleConsume(throttle, buffers[i].size);
       TAOS_CHECK_RETURN(tsdbWriteFile(fd, *fileSize, buffers[i].data, buffers[i].size, encryptData));
       *fileSize += buffers[i].size;
     }
@@ -577,7 +627,8 @@ static int32_t tsdbSttFileDoWriteBlockData(SSttFileWriter *writer) {
   SEncryptData *pEncryptData = &(writer->config->tsdb->pVnode->config.tsdbCfg.encryptData);
 
   TAOS_CHECK_GOTO(tsdbFileDoWriteSttBlockData(writer->fd, writer->blockData, &info, &writer->file->size,
-                                              writer->sttBlkArray, writer->buffers, &writer->ctx->range, pEncryptData),
+                                              writer->sttBlkArray, writer->buffers, &writer->ctx->range, pEncryptData,
+                                              writer->config->throttle),
                   &lino, _exit);
 
 _exit:
@@ -820,7 +871,7 @@ static int32_t tsdbSttFWriterDoOpen(SSttFileWriter *writer) {
 
   // open file
   int32_t flag = TD_FILE_READ | TD_FILE_WRITE | TD_FILE_CREATE | TD_FILE_TRUNC;
-  char    fname[TSDB_FILENAME_LEN];
+  char    fname[TSDB_PATH_LEN];
 
   tsdbTFileName(writer->config->tsdb, writer->file, fname);
   TAOS_CHECK_GOTO(tsdbOpenFile(fname, writer->config->tsdb, flag, &writer->fd, 0), &lino, _exit);
@@ -900,7 +951,7 @@ _exit:
 }
 
 static int32_t tsdbSttFWriterCloseAbort(SSttFileWriter *writer) {
-  char fname[TSDB_FILENAME_LEN];
+  char fname[TSDB_PATH_LEN];
   tsdbTFileName(writer->config->tsdb, writer->file, fname);
   tsdbCloseFile(&writer->fd);
   tsdbRemoveFile(fname);

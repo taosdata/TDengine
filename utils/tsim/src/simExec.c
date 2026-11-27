@@ -1,6 +1,8 @@
 /*
  * Copyright (c) 2019 TAOS Data, Inc. <jhtao@taosdata.com>
  *
+ * SPDX-License-Identifier: AGPL-3.0-or-later
+ *
  * This program is free software: you can use, redistribute, and/or modify
  * it under the terms of the GNU Affero General Public License, version 3
  * or later ("AGPL"), as published by the Free Software Foundation.
@@ -187,7 +189,7 @@ char *simGetVariable(SScript *script, char *varName, int32_t varLen) {
   }
 
   if (script->varLen >= MAX_VAR_LEN) {
-    simError("script:%s, too many varialbes:%d", script->fileName, script->varLen);
+    simError("script:%s, too many variables:%d", script->fileName, script->varLen);
     exit(0);
   }
 
@@ -646,7 +648,7 @@ bool simCreateNativeConnect(SScript *script, char *user, char *pass) {
                attempt);
       taosMsleep(1000);
     } else {
-      simDebug("script:%s, user:%s connect taosd successed, attempt:%d", script->fileName, user, attempt);
+      simDebug("script:%s, user:%s connect taosd succeeded, attempt:%d", script->fileName, user, attempt);
       break;
     }
   }
@@ -658,7 +660,7 @@ bool simCreateNativeConnect(SScript *script, char *user, char *pass) {
   }
 
   script->taos = taos;
-  simDebug("script:%s, connect taosd successed, taos:%p", script->fileName, taos);
+  simDebug("script:%s, connect taosd succeeded, taos:%p", script->fileName, taos);
 
   return true;
 }

@@ -205,7 +205,11 @@ int util__random_bytes(void *bytes, int count) {
   int i;
 
   for (i = 0; i < count; i++) {
+#ifdef WIN32
+    ((uint8_t *)bytes)[i] = (uint8_t)(rand() & 0xFF);
+#else
     ((uint8_t *)bytes)[i] = (uint8_t)(random() & 0xFF);
+#endif
   }
   rc = TTQ_ERR_SUCCESS;
 #endif

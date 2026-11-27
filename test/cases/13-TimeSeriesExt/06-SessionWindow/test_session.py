@@ -1,3 +1,18 @@
+# Copyright (c) 2025 TAOS Data, Inc. <jhtao@taosdata.com>
+#
+# SPDX-License-Identifier: AGPL-3.0-or-later
+#
+# This program is free software: you can use, redistribute, and/or modify
+# it under the terms of the GNU Affero General Public License, version 3
+# or later ("AGPL"), as published by the Free Software Foundation.
+#
+# This program is distributed in the hope that it will be useful, but WITHOUT
+# ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+# FITNESS FOR A PARTICULAR PURPOSE.
+#
+# You should have received a copy of the GNU Affero General Public License
+# along with this program. If not, see <http://www.gnu.org/licenses/>.
+
 from new_test_framework.utils import tdLog, tdSql, sc, clusterComCheck
 
 
@@ -17,8 +32,7 @@ class TestSession:
 
         Since: v3.0.0.0
 
-        Labels: common,ci
-
+        Labels: common,ci,integration,functional
         Jira: None
 
         History:
@@ -136,10 +150,9 @@ class TestSession:
         tdLog.info(
             f"================> syntax error check not active ================> reactive"
         )
-        tdSql.error(f"select * from dev_001 session(ts,1w)")
-        tdLog.info(
-            f"disable this temporarily, session can not be directly applied to super table."
-        )
+        tdSql.query(f"select * from dev_001 session(ts,1w)")
+        tdSql.checkRows(16)
+
         # sql_error select count(*) from st session(ts,1w)
         tdSql.error(f"select count(*) from dev_001 group by tagtype session(ts,1w)")
         tdSql.error(f"sql select count(*) from dev_001 session(ts,1n)")
@@ -192,7 +205,8 @@ class TestSession:
         tdSql.checkData(3, 2, 1)
         
         sql = "select _wstart, _wend, 1, ts from dev_001 session(ts,1d)"
-        tdSql.error(sql)
+        tdSql.query(sql)
+        tdSql.checkRows(16)
         
         sql = "select _wstart, _wend, 1, dev from dev_001 session(ts,1d)"
         tdSql.query(sql)

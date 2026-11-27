@@ -1,6 +1,8 @@
 /*
  * Copyright (c) 2019 TAOS Data, Inc. <jhtao@taosdata.com>
  *
+ * SPDX-License-Identifier: AGPL-3.0-or-later
+ *
  * This program is free software: you can use, redistribute, and/or modify
  * it under the terms of the GNU Affero General Public License, version 3
  * or later ("AGPL"), as published by the Free Software Foundation.
@@ -31,15 +33,92 @@ typedef struct SPhysiPlanContext {
   int64_t       nextDataBlockId;
   SArray*       pLocationHelper;
   SArray*       pProjIdxLocHelper;
+  bool          hasFederatedScan;  // set when SCAN_TYPE_EXTERNAL subplan is built
+  // Batch meta txn: txn-local super table schemas, fetched lazily by the first system table scan that needs them
+  // (see SPlanContext.getTxnStbSchemas) and shared by every such scan of this plan. Owned by this context.
+  char*         pTxnStbSchemas;
+  int32_t       txnStbSchemasLen;
+  bool          txnStbSchemasLoaded;
 } SPhysiPlanContext;
 
-#define planFatal(param, ...)  qFatal ("plan " param, ##__VA_ARGS__)
-#define planError(param, ...)  qError ("plan " param, ##__VA_ARGS__)
-#define planWarn(param, ...)   qWarn  ("plan " param, ##__VA_ARGS__)
-#define planInfo(param, ...)   qInfo  ("plan " param, ##__VA_ARGS__)
-#define planDebug(param, ...)  qDebug ("plan " param, ##__VA_ARGS__)
-#define planDebugL(param, ...) qDebugL("plan " param, ##__VA_ARGS__)
-#define planTrace(param, ...)  qTrace ("plan " param, ##__VA_ARGS__)
+// Stable-table join rewrites keep the two logical inputs below a single
+// GROUP_CACHE node.  Physical plans use the same shape with a physical
+// GROUP_CACHE node.  Keep the unwrapping and arity check in one place so
+// callers cannot silently treat an invalid one-child join as a normal join.
+static inline int32_t planGetJoinInputs(SNodeList* pChildren, int32_t groupCacheType,
+                                        SNodeList** ppInputs) {
+  if (NULL == pChildren || NULL == ppInputs) {
+    return TSDB_CODE_PLAN_INTERNAL_ERROR;
+  }
+
+  SNodeList* pInputs = pChildren;
+  if (1 == LIST_LENGTH(pInputs) &&
+      NULL != nodesListGetNode(pInputs, 0) &&
+      groupCacheType == nodeType(nodesListGetNode(pInputs, 0))) {
+    SNode* pGroupCache = nodesListGetNode(pInputs, 0);
+    if (QUERY_NODE_LOGIC_PLAN_GROUP_CACHE == groupCacheType) {
+      pInputs = ((SGroupCacheLogicNode*)pGroupCache)->node.pChildren;
+    } else if (QUERY_NODE_PHYSICAL_PLAN_GROUP_CACHE == groupCacheType) {
+      pInputs = ((SGroupCachePhysiNode*)pGroupCache)->node.pChildren;
+    } else {
+      return TSDB_CODE_PLAN_INTERNAL_ERROR;
+    }
+  }
+  if (2 != LIST_LENGTH(pInputs)) {
+    return TSDB_CODE_PLAN_INTERNAL_ERROR;
+  }
+
+  *ppInputs = pInputs;
+  return TSDB_CODE_SUCCESS;
+}
+
+typedef enum EJoinInputSide {
+  JOIN_INPUT_SIDE_NONE = 0,
+  JOIN_INPUT_SIDE_LEFT,
+  JOIN_INPUT_SIDE_RIGHT,
+} EJoinInputSide;
+
+typedef struct SJoinColId {
+  uint64_t relationId;
+  uint64_t columnId;
+} SJoinColId;
+
+typedef struct SJoinOrderProp {
+  SJoinColId id;
+  EOrder     order;
+  bool       global;
+} SJoinOrderProp;
+
+typedef struct SJoinOutputCol {
+  SJoinColId     id;
+  SNode*         pExpr;
+  SDataType      type;
+  int32_t        outputIndex;
+  EJoinInputSide sourceSide;
+  bool           nullable;
+  bool           primaryTimestamp;
+} SJoinOutputCol;
+
+typedef struct SJoinInputProps {
+  const SLogicNode* pNode;
+  SArray*           pOutputCols;
+  SArray*           pTimeCandidates;
+  SArray*           pOrderProps;
+  SSHashObj*        pColIds;
+  SSHashObj*        pNames;
+  SSHashObj*        pInputNames;
+  SSHashObj*        pMaterialized;
+} SJoinInputProps;
+
+#define planFatal(...)  qFatal ("plan " __VA_ARGS__)
+#define planError(...)  qError ("plan " __VA_ARGS__)
+#define planWarn(...)   qWarn  ("plan " __VA_ARGS__)
+#define planInfo(...)   qInfo  ("plan " __VA_ARGS__)
+#define planDebug(...)  qDebug ("plan " __VA_ARGS__)
+#define planDebugL(...) qDebugL("plan " __VA_ARGS__)
+#define planTrace(...)  qTrace ("plan " __VA_ARGS__)
+
+#define IMPLICIT_PARTITION_KEY_ALIAS "#implicit_partition"
 
 #define PLAN_ERR_RET(c)                \
   do {                                 \
@@ -70,37 +149,133 @@ typedef struct SPhysiPlanContext {
 int32_t generateUsageErrMsg(char* pBuf, int32_t len, int32_t errCode, ...);
 int32_t createColumnByRewriteExprs(SNodeList* pExprs, SNodeList** pList);
 int32_t createColumnByRewriteExpr(SNode* pExpr, SNodeList** pList);
+int32_t            createRemoteOutputTargets(const SNodesRemoteSelectOutputs* pOutputs, SNodeList** pList);
+int32_t replaceProjectLogicProjections(SLogicNode* pNode, const SNodeList* pExprs);
 int32_t replaceLogicNode(SLogicSubplan* pSubplan, SLogicNode* pOld, SLogicNode* pNew);
 int32_t adjustLogicNodeDataRequirement(SLogicNode* pNode, EDataOrderLevel requirement);
+SLogicNode*    planGetSubqueryRenderLogic(const SPlanContext* pCxt, int32_t subQIdx, ENodeType remoteNodeType);
+bool           planIsSubqueryPushedDown(const SPlanContext* pCxt, int32_t subQIdx);
+bool           planIsSharedSubquery(const SPlanContext* pCxt, int32_t subQIdx);
+bool           planSubqueryCanShare(const SNode* pLeft, const SNode* pRight);
+static inline bool planSubqueryTypeEqual(SDataType a, SDataType b) {
+  return a.type == b.type && a.bytes == b.bytes && a.precision == b.precision && a.scale == b.scale;
+}
+bool           planIsExternalWindowSubquery(const SPlanContext* pCxt, int32_t subQIdx);
+int32_t        planMarkSubqueryPushedDown(SPlanContext* pCxt, int32_t subQIdx);
 
 int32_t createLogicPlan(SPlanContext* pCxt, SLogicSubplan** pLogicSubplan);
+int32_t planCollectTaskSubqueryDeps(SPlanContext* pCxt, SLogicNode* pRoot, SSubplan* pSubplan);
+bool planCanDecorrelateSelect(SNode* pAst, bool inner);
+int32_t planDecorrelateScalar(SPlanContext* ctx, SLogicSubplan* outer, SLogicSubplan* inner,
+                              const SCorrelatedSubqueryNode* call, bool onlySubquery, bool rewriteFilters);
+int32_t planFinalizeScalarRewrite(SPlanContext* ctx, SLogicNode* root);
+void planWalkLogicExprFields(SLogicNode* pNode, FNodeWalker walker,
+                             void* pContext);
+int32_t planCreateJoinPropsStore(SPlanContext* pCxt);
+void    planDestroyJoinPropsStore(SPlanContext* pCxt);
+int32_t planRebuildJoinInputProps(SPlanContext* pCxt, SLogicNode* pRoot);
+int32_t planRefreshJoinRewriteInputs(SPlanContext* pCxt, SLogicNode* pRoot);
+int32_t planCheckJoinRewriteConditions(SPlanContext* pCxt, SLogicNode* pRoot,
+                                       bool* pSupported);
+void    planResetJoinRewriteFlags(SLogicNode* pNode);
+int32_t planFinalizeTemporalJoins(SPlanContext* pCxt, SLogicNode* pRoot);
+int32_t planBindTemporalJoinTimeKeys(SPlanContext* pCxt,
+                                     SJoinLogicNode* pJoin);
+int32_t planRewriteJoinParallel(SPlanContext* pCxt, SLogicSubplan* pSubplan,
+                                bool* pChanged);
+bool planJoinParallelQuerySupported(const SPlanContext* pCxt);
+// Only common expression dependencies; callers own traversal boundaries.
+bool planExprIsRuntimeDependent(const SNode* pNode);
+bool planJoinColumnNamesEqual(const SColumnNode* pLeft,
+                              const SColumnNode* pRight);
+// True if StableJoin may still convert the JOIN.
+bool    planJoinMayBeStableJoin(const SJoinLogicNode* pJoin);
+// Valid until the next property rebuild or query-context cleanup.
+const SJoinInputProps* planGetJoinInputProps(
+    const SPlanContext* pCxt, const SLogicNode* pNode);
+// Resolver bits identify NULL extensions that make the column NULL.
+// Return zero when the column's ownership is unknown.
+typedef uint64_t (*FPlanNullColumnResolver)(const SColumnNode* pColumn,
+                                            const void* pContext);
+// Returns bits proving the condition cannot be TRUE after that extension.
+// Borrows the expression/context; unknown expressions contribute no proof.
+uint64_t planCondRejectsNull(const SNode* pCondition, uint64_t inputs,
+                             FPlanNullColumnResolver resolver,
+                             const void* pContext);
+// Call after classifying conditions and refreshing rewritten children.
+void    planRefreshJoinRewriteOrder(SJoinLogicNode* pJoin);
+int32_t planPrepareAsofJoinTimeCondition(SJoinLogicNode* pJoin);
+int32_t planRetainJoinTimeKeyTarget(SLogicNode* pChild, SNode* pKey);
 int32_t optimizeLogicPlan(SPlanContext* pCxt, SLogicSubplan* pLogicSubplan);
+int32_t planPushDownReferenceLimit(SLogicSubplan* pLogicSubplan, bool* pOptimized);
+int32_t planEliminateTemporalInputSort(SLogicSubplan* pSubplan,
+                                       bool* pOptimized);
+int32_t planMaterializeVirtualScanSources(SVirtualScanLogicNode* pScan);
+int32_t planMaterializeVirtualSourcesInTree(SLogicNode* pRoot);
 int32_t splitLogicPlan(SPlanContext* pCxt, SLogicSubplan* pLogicSubplan);
-int32_t scaleOutLogicPlan(SPlanContext* pCxt, SLogicSubplan* pLogicSubplan, SQueryLogicPlan** pLogicPlan);
+int32_t postSplitOptimize(SPlanContext* pCxt, SLogicSubplan* pLogicSubplan);
+int32_t scaleOutLogicPlan(SPlanContext* pCxt, SLogicSubplan* pLogicSubplan, bool disableTemplateScaleOut,
+                          SQueryLogicPlan** pLogicPlan);
 int32_t createPhysiPlan(SPlanContext* pCxt, SQueryLogicPlan* pLogicPlan, SQueryPlan** pPlan, SArray* pExecNodeList);
 int32_t validateQueryPlan(SPlanContext* pCxt, SQueryPlan* pPlan);
+int32_t planCheckRequiredExtColumns(const SExtTableNode* pExtNode, const SNodeList* pScanCols);
+bool    planFqOuterJoinNeedsNestedFallback(const SJoinLogicNode* pJoin);
+bool    planFqInflux18ExprIsPushable(SNode* pExpr, SScanLogicNode* pScan,
+                                    const SExtSourceCapability* pCap, const SExtCapSessionOverlay* pOverlay);
 
 bool        getBatchScanOptionFromHint(SNodeList* pList);
 bool        getSortForGroupOptHint(SNodeList* pList);
 bool        getParaTablesSortOptHint(SNodeList* pList);
 bool        getSmallDataTsSortOptHint(SNodeList* pList);
-bool        getHashJoinOptHint(SNodeList* pList);
+bool        getSmallDataScanSortOptHint(SNodeList* pList);
+EJoinAlgorithm getJoinAlgoHint(SNodeList* pList);
 bool        getOptHint(SNodeList* pList, EHintOption hint);
 SLogicNode* getLogicNodeRootNode(SLogicNode* pCurr);
 int32_t     collectTableAliasFromNodes(SNode* pNode, SSHashObj** ppRes);
+// Collect only aliases that identify scan sources, excluding expression references.
+int32_t     collectSourceTableAliasFromNodes(SNode* pNode, SSHashObj** ppRes);
 bool        isPartTableAgg(SAggLogicNode* pAgg);
+bool        isLastRowPartTableAgg(SAggLogicNode* pAgg);
 bool        isPartTagAgg(SAggLogicNode* pAgg);
 bool        isPartTableWinodw(SWindowLogicNode* pWindow);
+bool        isPartTableInterp(SInterpFuncLogicNode* pInterp);
+// Call before splitting, while pParent still spans the full consumer chain.
+// Checks consumers of merged groups, including their ordering requirements;
+// callers must separately check producer and query-context restrictions.
+bool planCanMergeOutputGroups(const SLogicNode* pNode);
+void        planPromoteScanToTableMerge(SScanLogicNode* pScan, EDataOrderLevel requireLevel,
+                                        EDataOrderLevel resultLevel);
+int32_t     planReplaceMergeWithSort(SScanLogicNode* pScan, bool* pReplaced);
+bool        scanIsSmallDataScanSortHinted(const SScanLogicNode* pScan);
+// The operator holding a temporal join's effective-time keys, or NULL.
+SNode* planGetTemporalJoinTimeCond(const SJoinLogicNode* pJoin);
+// Clones pExpr; the caller owns the returned condition on success.
+int32_t planCreateIsNotNullCond(const SNode* pExpr, SNode** ppCond);
+int32_t planCreateJoinInputSort(SLogicNode* pChild, SNode* pKey, EOrder order,
+                                SLogicNode** ppSort);
+void planSetParentOrder(SLogicNode* pNode, EOrder order,
+                        SLogicNode* pNodeForcePropagate);
+// Defined in planSpliter.c; shared so planReplaceMergeWithSort builds the same
+// scan sort keys as the table-merge-scan split path instead of duplicating them.
+int32_t     stbSplFindPrimaryKeyFromScan(SScanLogicNode* pScan, SNode** ppNode);
+int32_t     stbSplFindPkFromScan(SScanLogicNode* pScan, SNode** ppNode);
+int32_t     stbSplCreateMergeKeysByExpr(SNode* pExpr, EOrder order, SNodeList** pMergeKeys);
 bool        keysHasCol(SNodeList* pKeys);
+bool        keysHasTagOrTbname(SNodeList* pKeys);
+bool        partitionKeyHasOrdinaryColumn(SNode* pKey);
+bool        partitionKeyHasTagOrTbname(SNode* pKey);
+bool        partitionKeysAreOrdinaryColumns(SNodeList* pKeys);
 bool        keysHasTbname(SNodeList* pKeys);
+bool        planAggFuncsHasFirst(SNodeList* pFuncs);
 bool        projectCouldMergeUnsortDataBlock(SProjectLogicNode* pProject);
-SFunctionNode* createGroupKeyAggFunc(SColumnNode* pGroupCol);
+SFunctionNode* createGroupKeyAggFunc(SExprNode* pGroupExpr);
 int32_t getTimeRangeFromNode(SNode** pPrimaryKeyCond, STimeWindow* pTimeRange, bool* pIsStrict);
 int32_t tagScanSetExecutionMode(SScanLogicNode* pScan);
 
 #define CLONE_LIMIT 1
 #define CLONE_SLIMIT 1 << 1
 #define CLONE_LIMIT_SLIMIT (CLONE_LIMIT | CLONE_SLIMIT)
+bool    limitHasFiniteRows(const SNode* pLimit);
 int32_t cloneLimit(SLogicNode* pParent, SLogicNode* pChild, uint8_t cloneWhat, bool* pCloned);
 int32_t sortPriKeyOptGetSequencingNodesImpl(SLogicNode* pNode, bool groupSort, SSortLogicNode* pSort,
                                                    bool* pNotOptimize, SNodeList** pSequencingNodes, bool* keepSort);

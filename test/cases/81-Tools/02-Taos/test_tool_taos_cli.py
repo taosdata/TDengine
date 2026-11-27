@@ -1,22 +1,27 @@
-###################################################################
-#           Copyright (c) 2016 by TAOS Technologies, Inc.
-#                     All rights reserved.
+# Copyright (c) 2016 TAOS Data, Inc. <jhtao@taosdata.com>
 #
-#  This file is proprietary and confidential to TAOS Technologies.
-#  No part of this file may be reproduced, stored, transmitted,
-#  disclosed or used in any form or by any means other than as
-#  expressly provided by the written permission from Jianhui Tao
+# SPDX-License-Identifier: AGPL-3.0-or-later
 #
-###################################################################
+# This program is free software: you can use, redistribute, and/or modify
+# it under the terms of the GNU Affero General Public License, version 3
+# or later ("AGPL"), as published by the Free Software Foundation.
+#
+# This program is distributed in the hope that it will be useful, but WITHOUT
+# ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+# FITNESS FOR A PARTICULAR PURPOSE.
+#
+# You should have received a copy of the GNU Affero General Public License
+# along with this program. If not, see <http://www.gnu.org/licenses/>.
 
 # -*- coding: utf-8 -*-
 
-from new_test_framework.utils import tdLog, tdSql, etool, AutoGen
+from new_test_framework.utils import tdLog, tdSql, tdCom, etool, AutoGen
 import os
 import time
 import datetime 
 import platform
 import pyotp
+import subprocess
 
 class TestTaosCli:
     updatecfgDict = {
@@ -321,8 +326,15 @@ class TestTaosCli:
 
 
     def checkExceptCmd(self):
+        # Modification history:
+        #   - 2026-06-23: use local unreachable DSN + -T 5 for network-related cases.
+        #     Reason: checkExcept() calls os.system() without timeout; -X to
+        #     gw.cloud.taosdata.com blocked ~13min per command in CI (MR 791).
+        #
         # exe
         taos = etool.taosFile()
+        # cap WebSocket/connect wait; only appended to DSN cases below
+        ws_timeout = " -T 5"
         # option
         options = [
             "-Z native -X http://127.0.0.1:6041",
@@ -330,10 +342,13 @@ class TestTaosCli:
             "-Z abcdefg",
             "-X",
             "-X  ",
-            "-X 127.0.0.1:6041",
-            "-X https://gw.cloud.taosdata.com?token617ffdf...",
-            "-Z 1 -X https://gw.cloud.taosdata.com?token=617ffdf...",
-            "-X http://127.0.0.1:6042"
+            "-X 127.0.0.1:6041" + ws_timeout,
+            # Historical (slow in CI, real outbound connect to cloud gateway):
+            # "-X https://gw.cloud.taosdata.com?token617ffdf...",
+            # "-Z 1 -X https://gw.cloud.taosdata.com?token=617ffdf...",
+            "-X http://127.0.0.1:1?token617ffdf..." + ws_timeout,
+            "-Z 1 -X http://127.0.0.1:1?token=617ffdf..." + ws_timeout,
+            "-X http://127.0.0.1:6042" + ws_timeout,
         ]
 
         # do check
@@ -501,11 +516,21 @@ class TestTaosCli:
 
     def pipe_taos(self, command, show=True, checkRun=False):
         taosFile = etool.taosFile()
-        if platform.system().lower() == "windows":
-            cmdstr = f'echo {command};q; | {taosFile} -r '
-        else:
-            cmdstr = f"echo '{command};q;' | {taosFile} -r "
-        return etool.runRetList(cmdstr, checkRun=checkRun, show=show)
+        # Send SQL and quit on separate lines. cmd.exe echo pipelines can
+        # leave the Windows interactive client waiting for more input.
+        result = subprocess.run(
+            [taosFile, "-c", tdCom.getClientCfgPath(), "-r"],
+            input=f"{command};\nq;\n", text=True, encoding="utf-8",
+            errors="replace", stdout=subprocess.PIPE, stderr=subprocess.PIPE,
+            timeout=120,
+        )
+        if show:
+            tdLog.info(result.stdout)
+        if checkRun and result.returncode != 0:
+            raise Exception(
+                f"interactive taos failed: {result.returncode}: {result.stderr}"
+            )
+        return result.stdout.splitlines()
         
     def checkIsShowWhole(self):
         # insert data
@@ -559,13 +584,16 @@ class TestTaosCli:
 
         Since: v3.0.0.0
 
-        Labels: common,ci
+        Labels: common,ci,integration,functional
 
         Jira: None
 
         History:
             - 2025-10-23 Alex Duan Migrated from uncatalog/army/cmdline/test_taos_cli.py
             - 2025-12-25 Alex Duan Add totp code and token login check
+            - 2026-06-23 checkExceptCmd: replace cloud DSN with local unreachable
+              endpoint and add -T 5; avoid ~13min/blocking connect in CI
+            - 2026-06-23 trivial touch for incremental CI probe (cases.task edit)
 
         """
         tdLog.debug(f"start to excute {__file__}")

@@ -1,10 +1,19 @@
 #!/bin/bash
 
-##################################################
+# Copyright (c) 2025 TAOS Data, Inc. <jhtao@taosdata.com>
 #
-# Do simulation test
+# SPDX-License-Identifier: AGPL-3.0-or-later
 #
-##################################################
+# This program is free software: you can use, redistribute, and/or modify
+# it under the terms of the GNU Affero General Public License, version 3
+# or later ("AGPL"), as published by the Free Software Foundation.
+#
+# This program is distributed in the hope that it will be useful, but WITHOUT
+# ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+# FITNESS FOR A PARTICULAR PURPOSE.
+#
+# You should have received a copy of the GNU Affero General Public License
+# along with this program. If not, see <http://www.gnu.org/licenses/>.
 
 set +e
 # set -x
@@ -29,6 +38,20 @@ SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 # set test code directory
 TEST_CODE_DIR="$(dirname "$SCRIPT_DIR")"
 
+# In native CI the case container owns the provider and its data directory.
+# Leased jobs and standalone window tests borrow a running service.
+if [[ ${FQ_CI_CASE_CONTAINER:-0} == 1 && ${FQ_ENV_MODE:-local} == local &&
+      ${1:-} == pytest && ${2:-} =~ /19-FederatedQuery/test_fq_(mysql|pg|oracle)_window_order\.py(::|$) ]]; then
+  provider=${BASH_REMATCH[1]}
+  if [[ ,${FQ_REQUIRED_SERVICES:-$provider}, == *",$provider,"* ]]; then
+    FQ_BASE_DIR=$(mktemp -d /opt/fq-window.XXXXXXXX) || exit 1
+    chmod 755 "$FQ_BASE_DIR" || exit 1
+    export FQ_BASE_DIR
+    env -u LD_PRELOAD -u LD_LIBRARY_PATH FQ_SERVICES_TO_RESET="$provider" \
+      bash "$TEST_CODE_DIR/cases/09-DataQuerying/19-FederatedQuery/ensure_ext_env.sh" || exit $?
+  fi
+fi
+
 IN_TDINTERNAL="community"
 if [[ "${SCRIPT_DIR}" == *"taos-community"* ]]; then
   TOP_DIR="${TEST_CODE_DIR}/../../../"
@@ -48,6 +71,19 @@ else
 fi
 
 declare -x BUILD_DIR=$TOP_DIR/$BIN_DIR
+export PATH="${BUILD_DIR}/build/bin${PATH:+:${PATH}}"
+
+if [ -d "${BUILD_DIR}/build/lib" ]; then
+  export LD_LIBRARY_PATH="${BUILD_DIR}/build/lib${LD_LIBRARY_PATH:+:${LD_LIBRARY_PATH}}"
+  echo "LD_LIBRARY_PATH: ${LD_LIBRARY_PATH}"
+fi
+
+FQ_RUNTIME_HELPER="${TEST_CODE_DIR}/cases/09-DataQuerying/19-FederatedQuery/fq_runtime_libs.sh"
+if [ -f "${FQ_RUNTIME_HELPER}" ]; then
+  # shellcheck source=/dev/null
+  source "${FQ_RUNTIME_HELPER}"
+  fq_runtime_libs_setup "${BUILD_DIR}" "$@"
+fi
 
 # Derive SIM_DIR from taosd binary path: place 'sim' alongside 'debug' directory
 if [ -n "$TAOSD_DIR" ]; then
@@ -91,38 +127,105 @@ mkdir -p "${PRG_DIR}"
 mkdir -p "${ASAN_DIR}"
 
 cd "${TEST_CODE_DIR}" || exit
-ulimit -n 600000
+# Ensure a high open-files limit for the test client. The pytest process opens
+# many TDengine connections (each self.login() reconnects to every dnode) plus
+# allure result files; a low fd ceiling causes two failure modes under parallel
+# CI + ASAN, both rooted in fd exhaustion:
+#   - client socket/fd exhaustion -> 0x012f "third party error" at connect time
+#   - pytest/allure -> "OSError: [Errno 24] Too many open files" aborting the
+#     whole session with an INTERNALERROR
+# Previously `ulimit -S -n 600000` failed with EINVAL ("cannot modify limit:
+# Invalid argument") whenever the hard limit was below 600000, silently leaving
+# the soft limit at its low default. This container runs --privileged, so raise
+# the hard limit first (best effort), then set the soft limit clamped to
+# whatever the hard limit actually allows.
+want_nofile=1048576
+ulimit -H -n "$want_nofile" 2>/dev/null || true
+hard_nofile=$(ulimit -H -n)
+if [ "$hard_nofile" = "unlimited" ] || [ "$hard_nofile" -gt "$want_nofile" ]; then
+  ulimit -S -n "$want_nofile"
+else
+  ulimit -S -n "$hard_nofile"
+fi
+echo "open files limit: soft=$(ulimit -S -n) hard=$(ulimit -H -n)"
 ulimit -c unlimited
 
 # sudo sysctl -w kernel.core_pattern=$TOP_DIR/core.%p.%e
 echo "ExcuteCmd:" "$@"
 
+_ci_pytest_start_ms=$(date +%s%3N)
+echo "[ci-timing] stage=pytest event=start (includes fixtures and external-service setup)"
 if [[ "$TD_OS" == "Alpine" ]]; then
   "$@"
+  echo "[ci-timing] stage=pytest elapsed_ms=$(( $(date +%s%3N) - _ci_pytest_start_ms ))"
 else
   AsanFile="${ASAN_DIR}/psim.info"
   echo "AsanFile:" "$AsanFile"
 
   unset LD_PRELOAD
+  AsanStdoutTmp=$(mktemp "${TMPDIR:-/tmp}/psim.stdout.XXXXXX") || exit 1
+  AsanStderrTmp=$(mktemp "${TMPDIR:-/tmp}/psim.stderr.XXXXXX") || exit 1
+
+  # 用例的 stderr 里有 taosBenchmark/taosdump 等 C 工具的关键报错（"ERROR:"/"SUCC:"），
+  # 以及客户端进程的 ASAN 输出。以前只把它重定向进 AsanStderrTmp(→psim.info)，
+  # 于是 CI artifact / job log 只有 stdout，失败时看不到真正的失败原因。
+  # 现在改成 FIFO + 显式 tee：stderr 同时写 psim.info 和 console。
+  # 用 FIFO 是为了能在用例结束后精确 wait，避免 psim.info 被截断；
+  # mkfifo 不可用时退回原来的纯文件重定向。
+  AsanStderrFifo="${AsanStderrTmp}.fifo"
+  if ! mkfifo "${AsanStderrFifo}" 2>/dev/null; then
+    AsanStderrFifo=""
+  fi
+
+  run_case_pytest() {
+    if [[ -n "${AsanStderrFifo}" ]]; then
+      tee "${AsanStderrTmp}" <"${AsanStderrFifo}" >&2 &
+      local tee_pid=$!
+      "$@" 2>"${AsanStderrFifo}" | tee "${AsanStdoutTmp}"
+      # 等 stderr 全部落盘：正常情况 pytest 退出、写端全部关闭后 tee 立刻结束；
+      # 若仍有子进程持有写端，最多等 2s 就收掉 tee，避免给用例墙钟额外加时间
+      # （drain 阶段的收割窗口是按 CASE_TIMEOUT 预算算的，不能让这里拖长）。
+      for _ in $(seq 1 20); do
+        if ! kill -0 "${tee_pid}" 2>/dev/null; then
+          break
+        fi
+        sleep 0.1
+      done
+      if kill -0 "${tee_pid}" 2>/dev/null; then
+        echo "[pytest.sh] WARN: stderr writer still open after 2s, closing mirror tee" >&2
+      fi
+      kill "${tee_pid}" 2>/dev/null || true
+      wait "${tee_pid}" 2>/dev/null || true
+      rm -f "${AsanStderrFifo}"
+      AsanStderrFifo=""
+    else
+      "$@" 2>"${AsanStderrTmp}" | tee "${AsanStdoutTmp}"
+    fi
+  }
+
   if [[ "${CI_ASAN_BUILD}" == "1" ]]; then
     # ASAN 构建（others:latest GCC14, libasan.so.8 与测试容器匹配）
     LD_PRELOAD="$(realpath "$(gcc -print-file-name=libasan.so)") $(realpath "$(gcc -print-file-name=libstdc++.so)")"
     export LD_PRELOAD
     echo "Preload AsanSo: LD_PRELOAD=${LD_PRELOAD} (CI_ASAN_BUILD=1)"
-    "$@" -A 2>"${AsanFile}.tmp" | tee "$AsanFile"
+    run_case_pytest "$@" -A
   elif [[ "${CI_NO_ASAN}" == "1" ]]; then
     echo "Preload AsanSo: skipped (CI_NO_ASAN=1)"
-    "$@" 2>"${AsanFile}.tmp" | tee "$AsanFile"
+    run_case_pytest "$@"
   else
     # 兜底：legacy 路径（本地开发环境）
     LD_PRELOAD="$(realpath "$(gcc -print-file-name=libasan.so)") $(realpath "$(gcc -print-file-name=libstdc++.so)")"
     export LD_PRELOAD
     echo "Preload AsanSo: LD_PRELOAD=${LD_PRELOAD}"
-    "$@" -A 2>"${AsanFile}.tmp" | tee "$AsanFile"
+    run_case_pytest "$@" -A
   fi
-  # Append stderr (ASAN) to psim.info for checkAsan.sh compatibility
-  cat "${AsanFile}.tmp" >> "$AsanFile" 2>/dev/null
-  rm -f "${AsanFile}.tmp"
+  echo "[ci-timing] stage=pytest elapsed_ms=$(( $(date +%s%3N) - _ci_pytest_start_ms ))"
+  # pytest --clean may recreate SIM_DIR while tee is running, so stage output
+  # outside SIM_DIR and publish it after pytest exits.
+  mkdir -p "${ASAN_DIR}"
+  cat "${AsanStdoutTmp}" > "$AsanFile" 2>/dev/null
+  cat "${AsanStderrTmp}" >> "$AsanFile" 2>/dev/null
+  rm -f "${AsanStdoutTmp}" "${AsanStderrTmp}"
 
   unset LD_PRELOAD
   for ((i = 1; i <= 20; i++)); do

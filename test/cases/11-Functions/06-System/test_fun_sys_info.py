@@ -1,13 +1,17 @@
-###################################################################
-#           Copyright (c) 2016 by TAOS Technologies, Inc.
-#                     All rights reserved.
+# Copyright (c) 2016 TAOS Data, Inc. <jhtao@taosdata.com>
 #
-#  This file is proprietary and confidential to TAOS Technologies.
-#  No part of this file may be reproduced, stored, transmitted,
-#  disclosed or used in any form or by any means other than as
-#  expressly provided by the written permission from Jianhui Tao
+# SPDX-License-Identifier: AGPL-3.0-or-later
 #
-###################################################################
+# This program is free software: you can use, redistribute, and/or modify
+# it under the terms of the GNU Affero General Public License, version 3
+# or later ("AGPL"), as published by the Free Software Foundation.
+#
+# This program is distributed in the hope that it will be useful, but WITHOUT
+# ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+# FITNESS FOR A PARTICULAR PURPOSE.
+#
+# You should have received a copy of the GNU Affero General Public License
+# along with this program. If not, see <http://www.gnu.org/licenses/>.
 
 # -*- coding: utf-8 -*-
 
@@ -15,6 +19,7 @@
 import os
 import subprocess
 import time
+import re
 
 from new_test_framework.utils import tdDnodes, tdLog, tdSql
 
@@ -42,13 +47,11 @@ class TestSysinfo:
                 os.path.dirname(os.getcwd()), "cmake", "version.cmake"
             )
             tdLog.info(f"version_c_file: {version_c_file}")
-            version_info = str(
-                subprocess.run(
-                    f'cat {version_c_file} |grep "SET(BUILD_VER_NUMBER "',
-                    shell=True,
-                    capture_output=True,
-                ).stdout.decode("utf8")
-            ).split('"')[1]
+            with open(version_c_file, encoding='utf-8') as version_file:
+                match = re.search(r'SET\(BUILD_VER_NUMBER\s+"([^"]+)"', version_file.read(), re.IGNORECASE)
+            if match is None:
+                raise RuntimeError(f'BUILD_VER_NUMBER not found in {version_c_file}')
+            version_info = match.group(1)
             version_info = version_info + ".enterprise"
             tdSql.checkData(0, 0, version_info)
 
@@ -77,7 +80,7 @@ class TestSysinfo:
 
         Since: v3.0.0.0
 
-        Labels: common,ci
+        Labels: common,ci,integration,functional
 
         Jira: None
 
@@ -95,7 +98,7 @@ class TestSysinfo:
 
         Since: v3.0.0.0
 
-        Labels: common,ci
+        Labels: common,ci,integration,functional
 
         Jira: None
 
@@ -113,7 +116,7 @@ class TestSysinfo:
 
         Since: v3.0.0.0
 
-        Labels: common,ci
+        Labels: common,ci,integration,functional
 
         Jira: None
 
@@ -133,7 +136,7 @@ class TestSysinfo:
 
         Since: v3.0.0.0
 
-        Labels: common,ci
+        Labels: common,ci,integration,functional
 
         Jira: None
 
@@ -154,7 +157,7 @@ class TestSysinfo:
 
         Since: v3.0.0.0
 
-        Labels: common,ci
+        Labels: common,ci,integration,functional
 
         Jira: None
 

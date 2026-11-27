@@ -1,6 +1,8 @@
 /*
  * Copyright (c) 2019 TAOS Data, Inc. <jhtao@taosdata.com>
  *
+ * SPDX-License-Identifier: AGPL-3.0-or-later
+ *
  * This program is free software: you can use, redistribute, and/or modify
  * it under the terms of the GNU Affero General Public License, version 3
  * or later ("AGPL"), as published by the Free Software Foundation.
@@ -24,8 +26,15 @@
 
 #define _DEFAULT_SOURCE
 
+#ifdef WINDOWS
+#ifndef _WIN32_WINNT
+#define _WIN32_WINNT 0x0602  // GetSystemTimePreciseAsFileTime requires Windows 8.
+#endif
+#endif
+
 #include "os.h"
 #include "osInt.h"
+#include "taoserror.h"
 
 #ifdef WINDOWS
 // Declare timezone variable for Windows (not available in Windows CRT)
@@ -351,35 +360,138 @@ char *taosStrpTime(const char *buf, const char *fmt, struct tm *tm) {
 #endif
 }
 
-size_t taosStrfTime(char *s, size_t maxsize, char const *format, struct tm const *t) {
-  if (!s || !format || !t) return 0;
-  return strftime(s, maxsize, format, t);
+#ifdef WINDOWS
+static bool formatNeedsTimezone(const char *format) {
+  for (const char *p = format; *p != '\0'; ++p) {
+    if (*p != '%') continue;
+    ++p;
+    if (*p == 'E' || *p == 'O') ++p;
+    if (*p == '\0') break;
+    if (*p == 'z' || *p == 'Z' || *p == 's') return true;
+  }
+  return false;
+}
+#endif
+
+#ifdef DARWIN
+static size_t formatDarwinTime(char *s, size_t size, const char *format,
+                               const struct tm *value) {
+  // Darwin's UNIX03 strftime reads process-global offsets for %z, ignoring
+  // tm_gmtoff. Expand it before libc formats the remaining date fields.
+  if (strchr(format, 'z') == NULL) return strftime(s, size, format, value);
+
+  char offsets[3][32] = {{0}};
+  if (value->tm_isdst >= 0) {
+    long minutes = value->tm_gmtoff / 60;
+    char sign = value->tm_gmtoff < 0 ? '-' : '+';
+    if (minutes < 0) minutes = -minutes;
+    long hhmm = (minutes / 60) * 100 + minutes % 60;
+    (void)snprintf(offsets[0], sizeof(offsets[0]), "%c%04ld", sign, hhmm);
+    (void)snprintf(offsets[1], sizeof(offsets[1]), "%c%ld", sign, hhmm);
+    (void)snprintf(offsets[2], sizeof(offsets[2]), "%c%4ld", sign, hhmm);
+  }
+  size_t length = strlen(format);
+  size_t extra = strlen(offsets[0]);
+  extra = extra > 2 ? extra - 2 : 0;
+  if (extra != 0 && length / 2 > (SIZE_MAX - length - 1) / extra) return 0;
+  size_t capacity = length + 1 + (length / 2) * extra;
+  char *expanded = taosMemoryMalloc(capacity);
+  if (expanded == NULL) return 0;
+
+  char *out = expanded;
+  for (const char *p = format; *p != '\0';) {
+    if (*p != '%' || p[1] == '\0') {
+      *out++ = *p++;
+      continue;
+    }
+    const char *conversion = p + 1;
+    int padding = 0;
+    while (*conversion != '\0' && strchr("EO-_0", *conversion) != NULL) {
+      if (*conversion == '-') padding = 1;
+      if (*conversion == '_') padding = 2;
+      if (*conversion == '0') padding = 0;
+      ++conversion;
+    }
+    if (*conversion == 'z') {
+      size_t offsetLength = strlen(offsets[padding]);
+      memcpy(out, offsets[padding], offsetLength);
+      out += offsetLength;
+      p = conversion + 1;
+    } else {
+      // Preserve the entire conversion, including escaped %%z literals.
+      size_t count = (size_t)(conversion - p) + (*conversion != '\0');
+      memcpy(out, p, count);
+      out += count;
+      p += count;
+    }
+  }
+  *out = '\0';
+  size_t result = strftime(s, size, expanded, value);
+  taosMemoryFree(expanded);
+  return result;
+}
+#endif
+
+size_t taosStrfTime(char *s, size_t size, const char *format,
+                    const struct tm *value) {
+  if (s == NULL || format == NULL || value == NULL) return 0;
+#ifdef WINDOWS
+  // Plain date formats need no zone lookup and work for UTC callers too.
+  if (!formatNeedsTimezone(format)) {
+    return taosTzStrftime(s, size, format, value, NULL);
+  }
+  timezone_t tz = taosAcquireDefaultTimezone();
+  size_t result = tz != NULL
+      ? taosTzStrftime(s, size, format, value, taosTimezoneRules(tz)) : 0;
+  tzfree(tz);
+  return result;
+#elif defined(DARWIN)
+  return formatDarwinTime(s, size, format, value);
+#else
+  return strftime(s, size, format, value);
+#endif
+}
+
+size_t taosStrfTimeAt(char *s, size_t size, const char *format,
+                      const time_t *stamp, timezone_t tz) {
+  if (s == NULL || format == NULL || stamp == NULL) return 0;
+#ifdef WINDOWS
+  bool owned = tz == NULL;
+  if (owned) tz = taosAcquireDefaultTimezone();
+  size_t result = tz != NULL
+      ? taosTzStrftimeAt(s, size, format, stamp, taosTimezoneRules(tz)) : 0;
+  if (owned) tzfree(tz);
+  return result;
+#else
+  struct tm local;
+  if (taosLocalTime(stamp, &local, NULL, 0, tz) == NULL) return 0;
+#ifdef DARWIN
+  return formatDarwinTime(s, size, format, &local);
+#else
+  return strftime(s, size, format, &local);
+#endif
+#endif
 }
 
 int32_t taosGetTimeOfDay(struct timeval *tv) {
   if (tv == NULL) {
     return TSDB_CODE_INVALID_PARA;
   }
-  int32_t code = 0;
-#ifdef WINDOWS
-  LARGE_INTEGER t;
-  FILETIME      f;
-
-  GetSystemTimeAsFileTime(&f);
-  t.QuadPart = f.dwHighDateTime;
-  t.QuadPart <<= 32;
-  t.QuadPart |= f.dwLowDateTime;
-
-  t.QuadPart -= TIMEEPOCH;
-  tv->tv_sec = t.QuadPart / 10000000;
-  tv->tv_usec = (t.QuadPart % 10000000) / 10;
+  struct timespec systemTime = {0};
+  int32_t code = taosClockGetTime(CLOCK_REALTIME, &systemTime);
+  if (code != 0) {
+    return code;
+  }
+  tv->tv_sec = systemTime.tv_sec;
+  tv->tv_usec = systemTime.tv_nsec / NANOSECOND_PER_USEC;
   return 0;
-#else
-  code = gettimeofday(tv, NULL);
-  return (-1 == code) ? (terrno = TAOS_SYSTEM_ERROR(ERRNO)) : 0;
-#endif
 }
 
+// Second-level helpers use time() instead of CLOCK_REALTIME for
+// performance. On Linux, time() returns the seconds the kernel cached at
+// the last tick through the vDSO without reading the hardware clock, so
+// it is about 10x faster. The cached value may lag CLOCK_REALTIME by up
+// to one tick, so near a second boundary it can be one second behind.
 int32_t taosTime(time_t *t) {
   if (t == NULL) {
     return TSDB_CODE_INVALID_PARA;
@@ -432,30 +544,37 @@ int64_t user_mktime64(const uint32_t year, const uint32_t mon, const uint32_t da
 }
 
 time_t taosMktime(struct tm *timep, timezone_t tz) {
-#ifdef WINDOWS
-  // Get timezone offset (correctly use the passed tz parameter)
-  int64_t tzw = 0;
-  if (tz != NULL) {
-    WindowsTimezoneObj* tz_obj = (WindowsTimezoneObj*)tz;
-    taosThreadMutexLock(&tz_obj->mutex);
-    tzw = tz_obj->offset_seconds;
-    taosThreadMutexUnlock(&tz_obj->mutex);
-  } else {
-    // Use getWindowsTimezoneOffset which reads from TZ environment variable
-    tzw = getWindowsTimezoneOffset();
+  if (timep == NULL) {
+    errno = EINVAL;
+    return (time_t)-1;
   }
-
-  // Calculate timestamp using user_mktime64
-  time_t result = user_mktime64(timep->tm_year + 1900, timep->tm_mon + 1, timep->tm_mday,
-                                 timep->tm_hour, timep->tm_min, timep->tm_sec, tzw);
-
-  // Set global timezone variable
-  timezone = tzw;
-
+#ifdef WINDOWS
+  bool owned = tz == NULL;
+  if (owned) tz = taosAcquireDefaultTimezone();
+  if (tz == NULL) return (time_t)-1;
+  errno = 0;
+  long offset = 0;
+  time_t result = taosTzMktime(taosTimezoneRules(tz), timep, &offset);
+  int savedErrno = errno;
+  if (owned) tzfree(tz);
+  errno = savedErrno;
+  if (result == (time_t)-1 && errno != 0) {
+    terrno = TAOS_SYSTEM_ERROR(ERRNO);
+  } else {
+    timezone = -offset;
+  }
   return result;
 #elif defined(TD_ASTRA)
+  /*
+   * Clear errno first so the caller-side TAOS_MKTIME_FAILED() macro can reliably
+   * distinguish a genuine mktime failure from a (time_t)-1 return for a valid
+   * time: -1 is also the valid epoch 1969-12-31 23:59:59 UTC, so failure is
+   * detected by errno != TSDB_CODE_SUCCESS, not by the return value alone.
+   * Do not remove this reset.
+   */
+  errno = TSDB_CODE_SUCCESS;
   time_t r =  mktime(timep);
-  if (r == (time_t)-1) {
+  if (r == (time_t)-1 && errno != TSDB_CODE_SUCCESS) {
     terrno = TAOS_SYSTEM_ERROR(ERRNO);
   }
   return r;
@@ -463,8 +582,21 @@ time_t taosMktime(struct tm *timep, timezone_t tz) {
   if (tz == NULL) {
     tz = getGlobalDefaultTZ();
   }
+  /*
+   * Clear errno first so the caller-side TAOS_MKTIME_FAILED() macro can reliably
+   * distinguish a genuine mktime failure from a (time_t)-1 return for a valid
+   * time: -1 is also the valid epoch 1969-12-31 23:59:59 UTC, so failure is
+   * detected by errno != TSDB_CODE_SUCCESS, not by the return value alone.
+   * Do not remove this reset.
+   */
+  errno = TSDB_CODE_SUCCESS;
+  // tzcode can reject normalization without setting errno.
+  timep->tm_wday = -1;
   time_t r = (tz != NULL ? mktime_z(tz, timep) : mktime(timep));
-  if (r == (time_t)-1) {
+  if (r == (time_t)-1 && timep->tm_wday < 0 && errno == 0) {
+    errno = EOVERFLOW;
+  }
+  if (r == (time_t)-1 && errno != TSDB_CODE_SUCCESS) {
     terrno = TAOS_SYSTEM_ERROR(ERRNO);
   }
   timezone = -timep->tm_gmtoff;
@@ -472,13 +604,21 @@ time_t taosMktime(struct tm *timep, timezone_t tz) {
 #endif
 }
 
+#ifdef WINDOWS
+/* POSIX mktime_z for Windows: use the same complete rules as taosMktime.
+ * The providers
+ * (MySQL / PostgreSQL binary temporal values) call mktime_z directly. */
+time_t mktime_z(timezone_t tz, struct tm *timep) {
+  return taosMktime(timep, tz);
+}
+#endif
+
 struct tm *taosGmTimeR(const time_t *timep, struct tm *result) {
   if (timep == NULL || result == NULL) {
     return NULL;
   }
 #ifdef WINDOWS
-  errno_t code = gmtime_s(result, timep);
-  return (code == 0) ? result : NULL;
+  return taosTzGmtime(timep, result);
 #else
   return gmtime_r(timep, result);
 #endif
@@ -489,7 +629,8 @@ time_t taosTimeGm(struct tm *tmp) {
     return -1;
   }
 #ifdef WINDOWS
-  return _mkgmtime(tmp);
+  errno = 0;
+  return taosTzTimegm(tmp);
 #elif defined(TD_ASTRA)
   time_t    local = mktime(tmp);
   struct tm local_tm = {0};
@@ -504,12 +645,6 @@ time_t taosTimeGm(struct tm *tmp) {
 #endif
 }
 
-#ifdef WINDOWS
-static int calcDayOfYear(int y, int m, int d) {
-  static const int days[] = {0, 31, 59, 90, 120, 151, 181, 212, 243, 273, 304, 334};
-  return days[m - 1] + d + ((m > 2 && ((y % 4 == 0 && y % 100 != 0) || (y % 400 == 0))) ? 1 : 0);
-}
-#endif
 
 struct tm *taosLocalTime(const time_t *timep, struct tm *result, char *buf, int32_t bufSize, timezone_t tz) {
   struct tm *res = NULL;
@@ -517,84 +652,17 @@ struct tm *taosLocalTime(const time_t *timep, struct tm *result, char *buf, int3
     return NULL;
   }
 #ifdef WINDOWS
-  // Get timezone offset (correctly use the passed tz parameter)
-  int64_t tz_offset = 0;
-  if (tz != NULL) {
-    WindowsTimezoneObj* tz_obj = (WindowsTimezoneObj*)tz;
-    taosThreadMutexLock(&tz_obj->mutex);
-    tz_offset = tz_obj->offset_seconds;
-    taosThreadMutexUnlock(&tz_obj->mutex);
-  } else {
-    // Use getWindowsTimezoneOffset which reads from TZ environment variable
-    tz_offset = getWindowsTimezoneOffset();
+  bool owned = tz == NULL;
+  if (owned) tz = taosAcquireDefaultTimezone();
+  long offset = 0;
+  res = tz != NULL
+      ? taosTzLocaltime(taosTimezoneRules(tz), timep, result, &offset) : NULL;
+  if (owned) tzfree(tz);
+  if (res == NULL && buf != NULL) {
+    (void)snprintf(buf, bufSize, "NaN");
   }
-
-  // Convert UTC timestamp to local time.
-  // tz_offset is east-negative (POSIX `timezone` convention), so:
-  //   local = utc - tz_offset  =  utc + |east_offset|
-  // e.g. East 8 (UTC+8): tz_offset = -28800, adjusted_time = *timep + 28800.
-  time_t adjusted_time = *timep + (-tz_offset);
-
-  // Convert to struct tm (keep existing logic)
-  if (adjusted_time < -2208988800LL) {
-    if (buf != NULL) {
-      snprintf(buf, bufSize, "NaN");
-    }
-    return NULL;
-  } else if (adjusted_time < 0) {
-    SYSTEMTIME ss, s;
-    FILETIME   ff, f;
-
-    LARGE_INTEGER offset;
-    struct tm     tm1;
-    time_t        tt = 0;
-    if (gmtime_s(&tm1, &tt) != 0) {
-      if (buf != NULL) {
-        snprintf(buf, bufSize, "NaN");
-      }
-      return NULL;
-    }
-    ss.wYear = tm1.tm_year + 1900;
-    ss.wMonth = tm1.tm_mon + 1;
-    ss.wDay = tm1.tm_mday;
-    ss.wHour = tm1.tm_hour;
-    ss.wMinute = tm1.tm_min;
-    ss.wSecond = tm1.tm_sec;
-    ss.wMilliseconds = 0;
-    SystemTimeToFileTime(&ss, &ff);
-    offset.QuadPart = ff.dwHighDateTime;
-    offset.QuadPart <<= 32;
-    offset.QuadPart |= ff.dwLowDateTime;
-    offset.QuadPart += adjusted_time * 10000000;
-    f.dwLowDateTime = offset.QuadPart & 0xffffffff;
-    f.dwHighDateTime = (offset.QuadPart >> 32) & 0xffffffff;
-    FileTimeToSystemTime(&f, &s);
-    result->tm_sec = s.wSecond;
-    result->tm_min = s.wMinute;
-    result->tm_hour = s.wHour;
-    result->tm_mday = s.wDay;
-    result->tm_mon = s.wMonth - 1;
-    result->tm_year = s.wYear - 1900;
-    result->tm_wday = s.wDayOfWeek;
-    result->tm_yday = calcDayOfYear(s.wYear, s.wMonth, s.wDay);
-    result->tm_isdst = 0;
-  } else {
-    if (gmtime_s(result, &adjusted_time) != 0) {
-      if (buf != NULL) {
-        snprintf(buf, bufSize, "NaN");
-      }
-      return NULL;
-    }
-  }
-
-  // Update the global `timezone` variable (POSIX convention: east-negative, west-positive).
-  // On non-Windows: set as `timezone = -result->tm_gmtoff` (see #else branch below).
-  // On Windows: tz_offset already carries the east-negative value (from tz_obj->offset_seconds
-  // or getWindowsTimezoneOffset()), so assigning it directly gives the same semantics.
-  // External callers needing east-positive values should use taosGetTZOffsetSeconds().
-  timezone = tz_offset;
-
-  return result;
+  if (res != NULL) timezone = -offset;
+  return res;
 #elif defined(TD_ASTRA)
   res = localtime_r(timep, result);
   if (res == NULL && buf != NULL) {
@@ -614,7 +682,41 @@ struct tm *taosLocalTime(const time_t *timep, struct tm *result, char *buf, int3
 #endif
 }
 
+// Uses time() for performance; see taosTime().
 int32_t taosGetTimestampSec() { return (int32_t)time(NULL); }
+
+int32_t taosGetMonotonicClockId(char *clockId, size_t capacity) {
+  if (clockId == NULL || capacity == 0) return -1;
+  clockId[0] = 0;
+#if defined(__linux__)
+  char bootId[38] = {0};
+  FILE *bootFile = fopen("/proc/sys/kernel/random/boot_id", "r");
+  if (bootFile == NULL) return -1;
+  bool haveBootId = fgets(bootId, sizeof(bootId), bootFile) != NULL;
+  (void)fclose(bootFile);
+  if (!haveBootId || strlen(bootId) != 37 || bootId[36] != '\n') return -1;
+  bootId[36] = 0;
+  for (size_t index = 0; index < 36; ++index) {
+    bool separator = index == 8 || index == 13 || index == 18 || index == 23;
+    if (separator ? bootId[index] != '-' : !isxdigit((unsigned char)bootId[index])) return -1;
+  }
+
+  char namespaceId[32] = {0};
+  ssize_t namespaceLength = readlink("/proc/self/ns/time", namespaceId, sizeof(namespaceId) - 1);
+  if (namespaceLength < 0) {
+    if (errno != ENOENT) return -1;
+    strcpy(namespaceId, "initial");
+  } else {
+    namespaceId[namespaceLength] = 0;
+    if (namespaceLength >= (ssize_t)sizeof(namespaceId) - 1 ||
+        strncmp(namespaceId, "time:[", 6) != 0 || namespaceId[namespaceLength - 1] != ']') return -1;
+  }
+  int32_t length = snprintf(clockId, capacity, "linux:%s:%s", bootId, namespaceId);
+  if (length > 0 && (size_t)length < capacity) return 0;
+  clockId[0] = 0;
+#endif
+  return -1;
+}
 
 int32_t taosClockGetTime(int clock_id, struct timespec *pTS) {
   int32_t code = 0;
@@ -628,7 +730,7 @@ int32_t taosClockGetTime(int clock_id, struct timespec *pTS) {
         freq_init = TRUE;
     }
     QueryPerformanceCounter(&t);
-    // 转换为秒和纳秒
+     // Convert to seconds and nanoseconds.
     pTS->tv_sec = (time_t)(t.QuadPart / freq.QuadPart);
     pTS->tv_nsec = (long)(((t.QuadPart % freq.QuadPart) * 1000000000LL) / freq.QuadPart);
     return 0;
@@ -636,7 +738,10 @@ int32_t taosClockGetTime(int clock_id, struct timespec *pTS) {
     LARGE_INTEGER t;
     FILETIME      f;
 
-    GetSystemTimeAsFileTime(&f);
+    // Stream output can use wall-clock nanoseconds as a composite key. The
+    // coarse system clock may return the same value for separate windows in
+    // one calculation batch, causing the later row to replace the earlier one.
+    GetSystemTimePreciseAsFileTime(&f);
     t.QuadPart = f.dwHighDateTime;
     t.QuadPart <<= 32;
     t.QuadPart |= f.dwLowDateTime;

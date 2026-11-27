@@ -1,0 +1,38 @@
+set max_binary_display_width 1024;
+alter local "timezone" "UTC";
+
+SELECT CAST(time AS BIGINT), i FROM fq24_influx18_pushdown_gate.fq24_influx18_pushdown.rows WHERE d + 0.5 >= 3.0 ORDER BY time;
+EXPLAIN VERBOSE TRUE SELECT CAST(time AS BIGINT), i FROM fq24_influx18_pushdown_gate.fq24_influx18_pushdown.rows WHERE d + 0.5 >= 3.0 ORDER BY time;
+
+SELECT CAST(time AS BIGINT), i FROM fq24_influx18_pushdown_gate.fq24_influx18_pushdown.rows WHERE d / 2 >= 1.0 ORDER BY time;
+EXPLAIN VERBOSE TRUE SELECT CAST(time AS BIGINT), i FROM fq24_influx18_pushdown_gate.fq24_influx18_pushdown.rows WHERE d / 2 >= 1.0 ORDER BY time;
+
+SELECT CAST(time AS BIGINT), i FROM fq24_influx18_pushdown_gate.fq24_influx18_pushdown.rows WHERE label LIKE 'a%' ORDER BY time;
+EXPLAIN VERBOSE TRUE SELECT CAST(time AS BIGINT), i FROM fq24_influx18_pushdown_gate.fq24_influx18_pushdown.rows WHERE label LIKE 'a%' ORDER BY time;
+
+SELECT CAST(time AS BIGINT), i FROM fq24_influx18_pushdown_gate.fq24_influx18_pushdown.rows WHERE label NOT LIKE 'a._' ORDER BY time;
+EXPLAIN VERBOSE TRUE SELECT CAST(time AS BIGINT), i FROM fq24_influx18_pushdown_gate.fq24_influx18_pushdown.rows WHERE label NOT LIKE 'a._' ORDER BY time;
+
+SELECT CAST(time AS BIGINT), i FROM fq24_influx18_pushdown_gate.fq24_influx18_pushdown.rows WHERE label LIKE 'a/_' ORDER BY time;
+EXPLAIN VERBOSE TRUE SELECT CAST(time AS BIGINT), i FROM fq24_influx18_pushdown_gate.fq24_influx18_pushdown.rows WHERE label LIKE 'a/_' ORDER BY time;
+
+SELECT CAST(time AS BIGINT), i FROM fq24_influx18_pushdown_gate.fq24_influx18_pushdown.rows WHERE site LIKE 'a%' ORDER BY time;
+EXPLAIN VERBOSE TRUE SELECT CAST(time AS BIGINT), i FROM fq24_influx18_pushdown_gate.fq24_influx18_pushdown.rows WHERE site LIKE 'a%' ORDER BY time;
+
+SELECT CAST(time AS BIGINT), i FROM fq24_influx18_pushdown_gate.fq24_influx18_pushdown.rows WHERE label LIKE '中%' ORDER BY time;
+EXPLAIN VERBOSE TRUE SELECT CAST(time AS BIGINT), i FROM fq24_influx18_pushdown_gate.fq24_influx18_pushdown.rows WHERE label LIKE '中%' ORDER BY time;
+
+SELECT CAST(time AS BIGINT), i FROM fq24_influx18_pushdown_gate.fq24_influx18_pushdown.rows WHERE i + 1 > 2 ORDER BY time;
+EXPLAIN VERBOSE TRUE SELECT CAST(time AS BIGINT), i FROM fq24_influx18_pushdown_gate.fq24_influx18_pushdown.rows WHERE i + 1 > 2 ORDER BY time;
+
+SELECT CAST(time AS BIGINT), i FROM fq24_influx18_pushdown_gate.fq24_influx18_pushdown.rows WHERE i / 0 IS NULL ORDER BY time;
+EXPLAIN VERBOSE TRUE SELECT CAST(time AS BIGINT), i FROM fq24_influx18_pushdown_gate.fq24_influx18_pushdown.rows WHERE i / 0 IS NULL ORDER BY time;
+
+SELECT CAST(time AS BIGINT), i FROM fq24_influx18_pushdown_gate.fq24_influx18_pushdown.rows WHERE d / i > 1 ORDER BY time;
+EXPLAIN VERBOSE TRUE SELECT CAST(time AS BIGINT), i FROM fq24_influx18_pushdown_gate.fq24_influx18_pushdown.rows WHERE d / i > 1 ORDER BY time;
+
+SELECT CAST(time AS BIGINT), i FROM fq24_influx18_pushdown_gate.fq24_influx18_pushdown.rows WHERE site = CAST('a' AS NCHAR(16)) ORDER BY time;
+EXPLAIN VERBOSE TRUE SELECT CAST(time AS BIGINT), i FROM fq24_influx18_pushdown_gate.fq24_influx18_pushdown.rows WHERE site = CAST('a' AS NCHAR(16)) ORDER BY time;
+
+SELECT CAST(time AS BIGINT), i FROM fq24_influx18_pushdown_gate.fq24_influx18_pushdown.rows WHERE label = CAST('中文' AS NCHAR(32)) ORDER BY time;
+EXPLAIN VERBOSE TRUE SELECT CAST(time AS BIGINT), i FROM fq24_influx18_pushdown_gate.fq24_influx18_pushdown.rows WHERE label = CAST('中文' AS NCHAR(32)) ORDER BY time;

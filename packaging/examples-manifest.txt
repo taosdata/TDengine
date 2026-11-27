@@ -1,0 +1,86 @@
+# 安装包 examples 目录的显式拷贝清单
+#
+# 格式（空白分隔）：<group> <包内目录> <docs/examples 下的相对路径>
+#
+# group 取值：
+#   all     社区 tarball、社区 deb/rpm、企业 deb/rpm 都拷贝
+#   debrpm  仅社区 deb/rpm 拷贝（rust 示例只有它带）
+#
+# 清单由来：按旧安装包每个语言目录覆盖的「示例用途」挑选对应文件，只保留原生连接
+# 变体（旧包的语言示例全部是原生连接），使包内 examples 体积不超过改动前的安装包。
+# 包内目录名沿用安装包历史命名（C#、nodejs），与仓库中的目录名（csharp、node）不同。
+#
+# 新增示例请注意体积上限：48 个 all 文件 + 5 个 debrpm 文件，合计需分别小于改动前
+# 安装包的 205413 B（不含 rust）与 222354 B（含 rust）；当前 all 组合计 149191 B。
+
+# ---- C ----
+# 与文档一致的 Makefile 工程：只发 Makefile 的 9 个 target 需要的源文件，保证包内
+# `cd examples/c && make` 可以直接编过；另外发一份 CMakeLists.txt，让装了 CMake 的
+# 用户也能在包内直接 `cmake -S examples/c -B build`。
+all   c   c/Makefile
+all   c   c/CMakeLists.txt
+all   c   c/connect_example.c
+all   c   c/create_db_demo.c
+all   c   c/insert_data_demo.c
+all   c   c/query_data_demo.c
+all   c   c/with_reqid_demo.c
+all   c   c/sml_insert_demo.c
+all   c   c/stmt_insert_demo.c
+all   c   c/stmt2_insert_demo.c
+all   c   c/tmq_demo.c
+
+# ---- C# ----
+all   C#  csharp/connect/Program.cs
+all   C#  csharp/connect/connect.csproj
+all   C#  csharp/query/Program.cs
+all   C#  csharp/query/query.csproj
+all   C#  csharp/sqlInsert/Program.cs
+all   C#  csharp/sqlInsert/sqlinsert.csproj
+all   C#  csharp/stmtInsert/Program.cs
+all   C#  csharp/stmtInsert/stmtinsert.csproj
+all   C#  csharp/subscribe/Program.cs
+all   C#  csharp/subscribe/subscribe.csproj
+all   C#  csharp/nativesml/Program.cs
+all   C#  csharp/nativesml/nativesml.csproj
+
+# ---- Go ----
+all   go      go/go.mod
+all   go      go/go.sum
+all   go      go/connect/cgoexample/main.go
+all   go      go/insert/sql/main.go
+all   go      go/query/sync/main.go
+all   go      go/stmt/native/main.go
+all   go      go/stmt2/native/main.go
+all   go      go/schemaless/native/main.go
+all   go      go/tmq/native/main.go
+
+# ---- MATLAB ----
+all   matlab  matlab/TDengineDemo.m
+
+# ---- Node.js ----
+all   nodejs  node/package.json
+all   nodejs  node/nativeexample/connect.js
+all   nodejs  node/nativeexample/insert_example.js
+all   nodejs  node/nativeexample/param_bind_example.js
+all   nodejs  node/nativeexample/query_example.js
+all   nodejs  node/nativeexample/influxdb_line_example.js
+all   nodejs  node/nativeexample/subscribe_demo.js
+
+# ---- Python ----
+all   python  python/connect_example.py
+all   python  python/create_db_native.py
+all   python  python/insert_native.py
+all   python  python/query_native.py
+all   python  python/stmt_native.py
+all   python  python/schemaless_native.py
+all   python  python/tmq_native.py
+
+# ---- R ----
+all   R   R/connect_native.r
+
+# ---- Rust（仅社区 deb/rpm）----
+debrpm  rust  rust/nativeexample/Cargo.toml
+debrpm  rust  rust/nativeexample/examples/bind.rs
+debrpm  rust  rust/nativeexample/examples/bind_tags.rs
+debrpm  rust  rust/nativeexample/examples/query.rs
+debrpm  rust  rust/nativeexample/examples/subscribe.rs

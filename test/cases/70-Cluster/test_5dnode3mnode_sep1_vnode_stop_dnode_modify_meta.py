@@ -1,3 +1,18 @@
+# Copyright (c) 2022 TAOS Data, Inc. <jhtao@taosdata.com>
+#
+# SPDX-License-Identifier: AGPL-3.0-or-later
+#
+# This program is free software: you can use, redistribute, and/or modify
+# it under the terms of the GNU Affero General Public License, version 3
+# or later ("AGPL"), as published by the Free Software Foundation.
+#
+# This program is distributed in the hope that it will be useful, but WITHOUT
+# ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+# FITNESS FOR A PARTICULAR PURPOSE.
+#
+# You should have received a copy of the GNU Affero General Public License
+# along with this program. If not, see <http://www.gnu.org/licenses/>.
+
 from new_test_framework.utils import tdLog, tdSql, cluster, tdCom
 import sys
 import os
@@ -9,6 +24,9 @@ import inspect
 import ctypes
 
 class Test5dnode3mnodeSep1VnodeStopDnodeModifyMeta:
+    updatecfgDict = {
+        "sDebugFlag": 143,
+    }
 
     def setup_class(cls):
         tdLog.debug(f"start to excute {__file__}")
@@ -121,7 +139,7 @@ class Test5dnode3mnodeSep1VnodeStopDnodeModifyMeta:
             elif stopRole == "dnode":
                 for i in range(dnodeNumbers):
                     tdDnodes[i].stoptaosd()
-                    clusterComCheck.checkDbRows(dbNumbers)
+                    clusterComCheck.checkDbRows(dbNumbers, retryTimes=20)
                     if i == 0 :
                         stableName= '%s_%d'%(paraDict['stbName'],0)
                         newTdSql=tdCom.newTdSql()
@@ -143,7 +161,7 @@ class Test5dnode3mnodeSep1VnodeStopDnodeModifyMeta:
 
 
         clusterComCheck.checkDnodes(dnodeNumbers)
-        clusterComCheck.checkDbRows(dbNumbers)
+        clusterComCheck.checkDbRows(dbNumbers, retryTimes=20)
         # clusterComCheck.checkDb(dbNumbers,1,paraDict["dbName"])
 
         # tdSql.execute("use %s" %(paraDict["dbName"]))
@@ -171,8 +189,8 @@ class Test5dnode3mnodeSep1VnodeStopDnodeModifyMeta:
 
         Since: v3.0.0.0
 
-        Labels: common,ci
-
+        Labels: common,ci,integration,functional
+        
         Jira: None
 
         History:

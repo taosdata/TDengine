@@ -1,3 +1,18 @@
+# Copyright (c) 2025 TAOS Data, Inc. <jhtao@taosdata.com>
+#
+# SPDX-License-Identifier: AGPL-3.0-or-later
+#
+# This program is free software: you can use, redistribute, and/or modify
+# it under the terms of the GNU Affero General Public License, version 3
+# or later ("AGPL"), as published by the Free Software Foundation.
+#
+# This program is distributed in the hope that it will be useful, but WITHOUT
+# ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+# FITNESS FOR A PARTICULAR PURPOSE.
+#
+# You should have received a copy of the GNU Affero General Public License
+# along with this program. If not, see <http://www.gnu.org/licenses/>.
+
 import os
 import re
 import winrm
@@ -5,6 +20,8 @@ from threading import Thread
 import platform
 import subprocess
 import psutil
+import time
+from concurrent.futures import ThreadPoolExecutor
 from ..util.file import dict2toml, dict2file
 from ..util.remote import Remote
 from ..util.common import TDCom
@@ -15,6 +32,7 @@ class TaosAdapter:
         self._tmp_dir = "/tmp"
         self.logger = remote._logger
         self._local_host = platform.node()
+        self._processes = {}
     def install(self, host, version):
         installFlag = False
         result = self._remote.cmd(host, ["which taosadapter"])
@@ -48,11 +66,49 @@ class TaosAdapter:
         self._remote.mkdir(node, config_dir)
         self._remote.put(node, os.path.join(tmp_dir, config_file), config_dir)
         taosadapter_path = nodeDict["spec"]["taosadapterPath"] if "taosadapterPath" in nodeDict["spec"] else "/usr/bin/taosadapter"
-        if platform.system().lower() == "windows":
+        if platform.system().lower() == "windows" and node in ("localhost", self._local_host):
+            process = subprocess.Popen(
+                [taosadapter_path, "-c", nodeDict['spec']['config_file']],
+                stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+            )
+            self._processes[node] = process
+            time.sleep(5)
+            if process.poll() is not None:
+                raise RuntimeError(f"taosadapter exited during startup: {process.returncode}")
+        elif platform.system().lower() == "windows":
             start_cmd = f"mintty -h never {taosadapter_path} -c  {nodeDict['spec']['config_file']}"
             self._remote.cmd_windows(node, [start_cmd, "sleep 5s"])
         else:
             self._remote.cmd(node, [f"screen -d -m {taosadapter_path} -c {nodeDict['spec']['config_file']}", "sleep 5s"])
+            # `screen -d -m` reports success even when the child dies right away,
+            # so a dead adapter used to stay unnoticed until the first WebSocket
+            # operation failed minutes later with an opaque "connection refused".
+            # Report it here with the adapter log; this stays a warning because
+            # many cases never touch the adapter and must keep running.
+            self._verify_started(node, taosadapter_path, nodeDict)
+
+    def _adapter_log_tail(self, node, nodeDict, lines=50):
+        log_dir = nodeDict["spec"]["adapter_config"]["log"]["path"]
+        cmd = (f'f=$(ls -t {log_dir}/taosadapter*.log 2>/dev/null | head -n1); '
+               f'if [ -n "$f" ]; then echo "----- tail of $f -----"; tail -n {lines} "$f"; fi; true')
+        return (self._remote.cmd(node, cmd) or "").strip()
+
+    def _verify_started(self, node, taosadapter_path, nodeDict, retries=15):
+        pattern = f"{taosadapter_path} -c {nodeDict['spec']['config_file']}"
+        # Poll in one remote round trip; echoes "yes" once the process shows up.
+        # The binary name is split into two adjacent literals ("taos""adapter")
+        # so that this very command line does not contain the pattern it greps
+        # for, otherwise `ps -ef` would always match the shell running the check.
+        cmd = (f'running=no; p="taos""adapter -c {nodeDict["spec"]["config_file"]}"; '
+               f'for i in $(seq 1 {retries}); do '
+               f'if ps -ef | grep -F "$p" | grep -v grep >/dev/null; then running=yes; break; fi; '
+               f'sleep 1; done; echo $running')
+        out = (self._remote.cmd(node, cmd) or "").strip()
+        if not out.endswith("yes"):
+            tail = self._adapter_log_tail(node, nodeDict)
+            self.logger.error(f"taosadapter is not running after startup on {node} "
+                              f"(config: {nodeDict['spec']['config_file']}, expected process: {pattern}); "
+                              f"cases that need the REST/WebSocket port will fail:\n{tail}")
 
     def configure_and_start(self, tmp_dir, nodeDict):
         config_dir, config_file = os.path.split(nodeDict["spec"]["config_file"])
@@ -61,17 +117,18 @@ class TaosAdapter:
         self.logger.debug(f"nodeDict['spec']['adapter_config']: {nodeDict['spec']['adapter_config']}")
         self.logger.debug(f"nodeDict['spec']: {nodeDict['spec']}")
         # dict2file(tmp_dir, "taos.cfg", nodeDict["spec"]["taos_config"])
-        threads = []
-        for i in nodeDict["fqdn"]:
-            if "system" in nodeDict["spec"] and nodeDict["spec"]["system"].lower() == "windows":
-                t = Thread(target = self._configure_and_start_windows, args = (i, tmp_dir, nodeDict, config_dir, config_file))
-                pass
-            else:
-                t = Thread(target = self._configure_and_start, args = (i, tmp_dir, nodeDict, config_dir, config_file))
-            t.start()
-            threads.append(t)
-        for thread in threads:
-            thread.join()
+        with ThreadPoolExecutor(max_workers=max(1, len(nodeDict["fqdn"]))) as executor:
+            futures = []
+            for node in nodeDict["fqdn"]:
+                configure = self._configure_and_start
+                if ("system" in nodeDict["spec"]
+                        and nodeDict["spec"]["system"].lower() == "windows"
+                        and not (platform.system().lower() == "windows"
+                                 and node in ("localhost", self._local_host))):
+                    configure = self._configure_and_start_windows
+                futures.append(executor.submit(configure, node, tmp_dir, nodeDict, config_dir, config_file))
+            for future in futures:
+                future.result()
 
     def uninstall(self):
         pass
@@ -88,6 +145,16 @@ class TaosAdapter:
     def destroy(self, nodeDict):
         tmpDict = nodeDict["spec"]
         for i in nodeDict["fqdn"]:
+            if platform.system().lower() == "windows" and i in ("localhost", self._local_host):
+                process = self._processes.pop(i, None)
+                if process is not None and process.poll() is None:
+                    process.terminate()
+                    try:
+                        process.wait(timeout=30)
+                    except subprocess.TimeoutExpired:
+                        process.kill()
+                        process.wait(timeout=5)
+                continue
             if platform.system().lower() == "windows":
                 if "asanDir" in i:
                     self.logger.info("Windows not support asan test yet")

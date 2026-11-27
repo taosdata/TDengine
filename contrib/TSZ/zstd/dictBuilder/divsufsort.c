@@ -25,11 +25,15 @@
  */
 
 /*- Compiler specifics -*/
+#ifdef __clang__
+#pragma clang diagnostic ignored "-Wshorten-64-to-32"
+#endif
 
 #if defined(_MSC_VER)
 #  pragma warning(disable : 4244)
 #  pragma warning(disable : 4127)    /* C4127 : Condition expression is constant */
 #endif
+
 
 /*- Dependencies -*/
 #include <assert.h>
@@ -1633,7 +1637,7 @@ construct_SA(const unsigned char *T, int *SA,
             if(0 <= c2) { BUCKET_B(c2, c1) = k - SA; }
             k = SA + BUCKET_B(c2 = c0, c1);
           }
-          assert(k < j);
+          assert(k < j); assert(k != NULL);
           *k-- = s;
         } else {
           assert(((s == 0) && (T[s] == c1)) || (s < 0));
@@ -1697,7 +1701,7 @@ construct_BWT(const unsigned char *T, int *SA,
             if(0 <= c2) { BUCKET_B(c2, c1) = k - SA; }
             k = SA + BUCKET_B(c2 = c0, c1);
           }
-          assert(k < j);
+          assert(k < j); assert(k != NULL);
           *k-- = s;
         } else if(s != 0) {
           *j = ~s;
@@ -1781,7 +1785,7 @@ construct_BWT_indexes(const unsigned char *T, int *SA,
             if(0 <= c2) { BUCKET_B(c2, c1) = k - SA; }
             k = SA + BUCKET_B(c2 = c0, c1);
           }
-          assert(k < j);
+          assert(k < j); assert(k != NULL);
           *k-- = s;
         } else if(s != 0) {
           *j = ~s;

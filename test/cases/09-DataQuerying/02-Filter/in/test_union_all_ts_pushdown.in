@@ -1,0 +1,199 @@
+use uts_adv_db;
+
+select ts, v from (select _rowts ts, v from dev_a union all select _rowts ts, v from dev_b) u where u.ts < '2024-02-01 00:00:00' or u.ts > '2024-09-01 00:00:00' order by ts asc;
+explain verbose true select ts, v from (select _rowts ts, v from dev_a union all select _rowts ts, v from dev_b) u where u.ts < '2024-02-01 00:00:00' or u.ts > '2024-09-01 00:00:00' order by ts asc\G;
+
+select ts, v from (select _rowts ts, v from dev_a where _rowts >= '2024-01-01 00:00:00' and _rowts <= '2024-12-31 23:59:59' union all select _rowts ts, v from dev_b where _rowts >= '2023-06-01 00:00:00' and _rowts <= '2024-06-30 23:59:59') u where u.ts >= '2024-05-01 00:00:00' and u.ts <= '2024-07-31 23:59:59' order by ts asc;
+explain verbose true select ts, v from (select _rowts ts, v from dev_a where _rowts >= '2024-01-01 00:00:00' and _rowts <= '2024-12-31 23:59:59' union all select _rowts ts, v from dev_b where _rowts >= '2023-06-01 00:00:00' and _rowts <= '2024-06-30 23:59:59') u where u.ts >= '2024-05-01 00:00:00' and u.ts <= '2024-07-31 23:59:59' order by ts asc\G;
+
+select ts, v from (select ts, v from (select _rowts ts, v from dev_a union all select _rowts ts, v from dev_b) inner_u union all select _rowts ts, v from dev_c) outer_u where outer_u.ts >= '2024-03-01 00:00:00' and outer_u.ts <= '2024-09-30 23:59:59' order by ts asc;
+explain verbose true select ts, v from (select ts, v from (select _rowts ts, v from dev_a union all select _rowts ts, v from dev_b) inner_u union all select _rowts ts, v from dev_c) outer_u where outer_u.ts >= '2024-03-01 00:00:00' and outer_u.ts <= '2024-09-30 23:59:59' order by ts asc\G;
+
+select ts, total from (select _wstart ts, sum(v) total from dev_a interval(1s) union all select _wstart ts, sum(v) total from dev_b interval(1s)) u where u.ts >= '2024-03-01 00:00:00' and u.ts <= '2024-09-30 23:59:59' order by ts asc;
+explain verbose true select ts, total from (select _wstart ts, sum(v) total from dev_a interval(1s) union all select _wstart ts, sum(v) total from dev_b interval(1s)) u where u.ts >= '2024-03-01 00:00:00' and u.ts <= '2024-09-30 23:59:59' order by ts asc\G;
+
+select ts, v from (select _rowts ts, v from dev_a union all select _rowts ts, v from dev_b) u where u.ts >= '2024-03-01 00:00:00' and u.ts <= '2024-09-30 23:59:59' and u.v > 102 order by ts asc;
+explain verbose true select ts, v from (select _rowts ts, v from dev_a union all select _rowts ts, v from dev_b) u where u.ts >= '2024-03-01 00:00:00' and u.ts <= '2024-09-30 23:59:59' and u.v > 102 order by ts asc\G;
+
+select ts, v from (select _rowts ts, v from dev_a union all select _rowts ts, v from dev_b) u where u.ts >= '2024-03-01 00:00:00' order by ts asc;
+explain verbose true select ts, v from (select _rowts ts, v from dev_a union all select _rowts ts, v from dev_b) u where u.ts >= '2024-03-01 00:00:00' order by ts asc\G;
+
+select ts, v from (select _rowts ts, v from dev_a union all select _rowts ts, v from dev_b union all select _rowts ts, v from dev_c) u where u.ts >= '2024-05-01 00:00:00' and u.ts <= '2024-09-30 23:59:59' order by ts asc;
+explain verbose true select ts, v from (select _rowts ts, v from dev_a union all select _rowts ts, v from dev_b union all select _rowts ts, v from dev_c) u where u.ts >= '2024-05-01 00:00:00' and u.ts <= '2024-09-30 23:59:59' order by ts asc\G;
+
+## case21: 3 branches each with a DIFFERENT inner time range; outer WHERE clips each
+## differently so the EXPLAIN plan shows three distinct scan Time Ranges.
+## dev_a inner[Jan,Jun30] outer[Mar,Sep30] -> scan[Mar,Jun30]
+## dev_b inner[Apr,Dec31] outer[Mar,Sep30] -> scan[Apr,Sep30]
+## dev_c inner[Jul,Dec31] outer[Mar,Sep30] -> scan[Jul,Sep30]
+## 4 rows: 102 103 204 302
+select ts, v from (select _rowts ts, v from dev_a where _rowts >= '2024-01-01 00:00:00' and _rowts <= '2024-06-30 23:59:59' union all select _rowts ts, v from dev_b where _rowts >= '2024-04-01 00:00:00' and _rowts <= '2024-12-31 23:59:59' union all select _rowts ts, v from dev_c where _rowts >= '2024-07-01 00:00:00' and _rowts <= '2024-12-31 23:59:59') u where u.ts >= '2024-03-01 00:00:00' and u.ts <= '2024-09-30 23:59:59' order by ts asc;
+explain verbose true select ts, v from (select _rowts ts, v from dev_a where _rowts >= '2024-01-01 00:00:00' and _rowts <= '2024-06-30 23:59:59' union all select _rowts ts, v from dev_b where _rowts >= '2024-04-01 00:00:00' and _rowts <= '2024-12-31 23:59:59' union all select _rowts ts, v from dev_c where _rowts >= '2024-07-01 00:00:00' and _rowts <= '2024-12-31 23:59:59') u where u.ts >= '2024-03-01 00:00:00' and u.ts <= '2024-09-30 23:59:59' order by ts asc\G;
+
+## case22: 2 branches with different inner ranges; outer is tighter than dev_a's inner
+## but dev_c inner lower bound is tighter than outer.
+## dev_a inner[Jan,Dec31] outer[Mar,Sep30] -> scan[Mar,Sep30]
+## dev_c inner[Jul,Dec31] outer[Mar,Sep30] -> scan[Jul,Sep30]
+## 4 rows: 102 103 302 104
+select ts, v from (select _rowts ts, v from dev_a where _rowts >= '2024-01-01 00:00:00' and _rowts <= '2024-12-31 23:59:59' union all select _rowts ts, v from dev_c where _rowts >= '2024-07-01 00:00:00' and _rowts <= '2024-12-31 23:59:59') u where u.ts >= '2024-03-01 00:00:00' and u.ts <= '2024-09-30 23:59:59' order by ts asc;
+explain verbose true select ts, v from (select _rowts ts, v from dev_a where _rowts >= '2024-01-01 00:00:00' and _rowts <= '2024-12-31 23:59:59' union all select _rowts ts, v from dev_c where _rowts >= '2024-07-01 00:00:00' and _rowts <= '2024-12-31 23:59:59') u where u.ts >= '2024-03-01 00:00:00' and u.ts <= '2024-09-30 23:59:59' order by ts asc\G;
+
+## case23: 3 branches; dev_a and dev_c have inner filters, dev_b has none.
+## outer[Jun,Sep30] pushed to all three; each gets different scan range.
+## dev_a inner[May,Dec31] -> scan[Jun,Sep30]
+## dev_b no inner -> scan[Jun,Sep30]
+## dev_c inner[Jan,Aug31] -> scan[Jun,Aug31]
+## 5 rows: 301 103 204 302 104
+select ts, v from (select _rowts ts, v from dev_a where _rowts >= '2024-05-01 00:00:00' and _rowts <= '2024-12-31 23:59:59' union all select _rowts ts, v from dev_b union all select _rowts ts, v from dev_c where _rowts >= '2024-01-01 00:00:00' and _rowts <= '2024-08-31 23:59:59') u where u.ts >= '2024-06-01 00:00:00' and u.ts <= '2024-09-30 23:59:59' order by ts asc;
+explain verbose true select ts, v from (select _rowts ts, v from dev_a where _rowts >= '2024-05-01 00:00:00' and _rowts <= '2024-12-31 23:59:59' union all select _rowts ts, v from dev_b union all select _rowts ts, v from dev_c where _rowts >= '2024-01-01 00:00:00' and _rowts <= '2024-08-31 23:59:59') u where u.ts >= '2024-06-01 00:00:00' and u.ts <= '2024-09-30 23:59:59' order by ts asc\G;
+
+## case24: INTERVAL branches each with inner _rowts filter.
+## inner _rowts filter -> pushed as scan Time Range (primary key).
+## outer WHERE on _wstart (not primary key) -> stays as Filter on Interval node.
+## dev_d inner[Jan,Jun30] scan[Jan,Jun30]; dev_e inner[May,Dec31] scan[May,Dec31].
+## outer[Mar,Sep30] filters interval output only.
+## 9 rows: 13 14 15 150 16 160 170 180 190
+select ts, total from (select _wstart ts, sum(v) total from dev_d where _rowts >= '2024-01-01 00:00:00' and _rowts <= '2024-06-30 23:59:59' interval(1s) union all select _wstart ts, sum(v) total from dev_e where _rowts >= '2024-05-01 00:00:00' and _rowts <= '2024-12-31 23:59:59' interval(1s)) u where u.ts >= '2024-03-01 00:00:00' and u.ts <= '2024-09-30 23:59:59' order by ts asc;
+explain verbose true select ts, total from (select _wstart ts, sum(v) total from dev_d where _rowts >= '2024-01-01 00:00:00' and _rowts <= '2024-06-30 23:59:59' interval(1s) union all select _wstart ts, sum(v) total from dev_e where _rowts >= '2024-05-01 00:00:00' and _rowts <= '2024-12-31 23:59:59' interval(1s)) u where u.ts >= '2024-03-01 00:00:00' and u.ts <= '2024-09-30 23:59:59' order by ts asc\G;
+
+## case25: SESSION_WINDOW branches. Rows are ~30 days apart so 10d gap makes each
+## row its own session. ts aliases _wstart -> outer WHERE NOT pushed to scan.
+## 14 rows: 7 from dev_d + 7 from dev_e, interleaved
+select ts, total from (select _wstart ts, sum(v) total from dev_d session(ts, 10d) union all select _wstart ts, sum(v) total from dev_e session(ts, 10d)) u where u.ts >= '2024-03-01 00:00:00' and u.ts <= '2024-09-30 23:59:59' order by ts asc;
+explain verbose true select ts, total from (select _wstart ts, sum(v) total from dev_d session(ts, 10d) union all select _wstart ts, sum(v) total from dev_e session(ts, 10d)) u where u.ts >= '2024-03-01 00:00:00' and u.ts <= '2024-09-30 23:59:59' order by ts asc\G;
+
+## case26: COUNT_WINDOW(3) branches. Each 3-row window has _wstart = first row ts.
+## dev_d windows: [Jan-Mar sum36 wstart=Jan15], [Apr-Jun sum45 wstart=Apr15],
+##                [Jul-Sep sum54 wstart=Jul15], [Oct-Dec sum63 wstart=Oct15]
+## Filter [Mar,Sep30]: Apr15(45) Jul15(54)
+## dev_e windows: [Jan-Mar 360 wstart=Jan15+3h], [Apr-Jun 450 wstart=Apr15+3h],
+##                [Jul-Sep 540 wstart=Jul15+3h], [Oct-Dec 630 wstart=Oct15+3h]
+## Filter [Mar,Sep30]: Apr15+3h(450) Jul15+3h(540)
+## 4 rows
+select ts, total from (select _wstart ts, sum(v) total from dev_d count_window(3) union all select _wstart ts, sum(v) total from dev_e count_window(3)) u where u.ts >= '2024-03-01 00:00:00' and u.ts <= '2024-09-30 23:59:59' order by ts asc;
+explain verbose true select ts, total from (select _wstart ts, sum(v) total from dev_d count_window(3) union all select _wstart ts, sum(v) total from dev_e count_window(3)) u where u.ts >= '2024-03-01 00:00:00' and u.ts <= '2024-09-30 23:59:59' order by ts asc\G;
+
+## case27: INTERVAL branches with OR ts condition. OR cannot form a contiguous range
+## so the condition stays as Filter; scan Time Ranges remain full.
+## 10 rows: Jan/Feb/Oct/Nov/Dec from each of dev_d, dev_e
+select ts, total from (select _wstart ts, sum(v) total from dev_d interval(1s) union all select _wstart ts, sum(v) total from dev_e interval(1s)) u where u.ts < '2024-03-01 00:00:00' or u.ts > '2024-09-30 23:59:59' order by ts asc;
+explain verbose true select ts, total from (select _wstart ts, sum(v) total from dev_d interval(1s) union all select _wstart ts, sum(v) total from dev_e interval(1s)) u where u.ts < '2024-03-01 00:00:00' or u.ts > '2024-09-30 23:59:59' order by ts asc\G;
+
+## case28: mixed INTERVAL + raw scan branches.
+## dev_d branch: INTERVAL, ts=_wstart not primary key -> outer ts NOT pushed to scan.
+## dev_c branch: raw scan, ts=_rowts primary key -> outer ts IS pushed to scan.
+## dev_d [Jun,Sep] from filter: 16 17 18 19
+## dev_c scan pushed [Jun1,Sep30]: 301 302
+## 6 rows
+select ts, v from (select _wstart ts, sum(v) v from dev_d interval(1s) union all select _rowts ts, v from dev_c) u where u.ts >= '2024-06-01 00:00:00' and u.ts <= '2024-09-30 23:59:59' order by ts asc;
+explain verbose true select ts, v from (select _wstart ts, sum(v) v from dev_d interval(1s) union all select _rowts ts, v from dev_c) u where u.ts >= '2024-06-01 00:00:00' and u.ts <= '2024-09-30 23:59:59' order by ts asc\G;
+
+## case29: GROUP BY _rowts branches. _rowts is primary key so outer ts should be
+## pushed to the scan. Each row forms its own group with count=1.
+## 14 rows: 7 from dev_d + 7 from dev_e in [Mar,Sep30]
+select ts, cnt from (select _rowts ts, count(*) cnt from dev_d group by _rowts union all select _rowts ts, count(*) cnt from dev_e group by _rowts) u where u.ts >= '2024-03-01 00:00:00' and u.ts <= '2024-09-30 23:59:59' order by ts asc;
+explain verbose true select ts, cnt from (select _rowts ts, count(*) cnt from dev_d group by _rowts union all select _rowts ts, count(*) cnt from dev_e group by _rowts) u where u.ts >= '2024-03-01 00:00:00' and u.ts <= '2024-09-30 23:59:59' order by ts asc\G;
+
+## case30: GROUP BY _rowts with different inner ranges per branch.
+## dev_d inner[Jan,Jun30] -> scan intersected; dev_e inner[May,Dec31] -> scan intersected.
+## dev_d in [Mar,Jun]: 4 rows; dev_e in [May,Sep]: 5 rows
+## 9 rows
+select ts, total from (select _rowts ts, sum(v) total from dev_d where _rowts >= '2024-01-01 00:00:00' and _rowts <= '2024-06-30 23:59:59' group by _rowts union all select _rowts ts, sum(v) total from dev_e where _rowts >= '2024-05-01 00:00:00' and _rowts <= '2024-12-31 23:59:59' group by _rowts) u where u.ts >= '2024-03-01 00:00:00' and u.ts <= '2024-09-30 23:59:59' order by ts asc;
+explain verbose true select ts, total from (select _rowts ts, sum(v) total from dev_d where _rowts >= '2024-01-01 00:00:00' and _rowts <= '2024-06-30 23:59:59' group by _rowts union all select _rowts ts, sum(v) total from dev_e where _rowts >= '2024-05-01 00:00:00' and _rowts <= '2024-12-31 23:59:59' group by _rowts) u where u.ts >= '2024-03-01 00:00:00' and u.ts <= '2024-09-30 23:59:59' order by ts asc\G;
+
+## case31: GROUP BY _rowts with OR condition (not pushed).
+## 10 rows: Jan/Feb/Oct/Nov/Dec from dev_d + dev_e
+select ts, total from (select _rowts ts, sum(v) total from dev_d group by _rowts union all select _rowts ts, sum(v) total from dev_e group by _rowts) u where u.ts < '2024-03-01 00:00:00' or u.ts > '2024-09-30 23:59:59' order by ts asc;
+explain verbose true select ts, total from (select _rowts ts, sum(v) total from dev_d group by _rowts union all select _rowts ts, sum(v) total from dev_e group by _rowts) u where u.ts < '2024-03-01 00:00:00' or u.ts > '2024-09-30 23:59:59' order by ts asc\G;
+
+## case32: GROUP BY, 3 branches mixed (two with inner ranges, one raw).
+## dev_d inner[Jan,Jun30] -> intersect [May,Sep30] = [May,Jun30]: 2 rows
+## dev_e inner[Apr,Dec31] -> intersect [May,Sep30] = [May,Sep30]: 5 rows
+## dev_c raw -> scan [May,Sep30]: 301(Jun01) 302(Aug15)
+## 9 rows
+select ts, total from (select _rowts ts, sum(v) total from dev_d where _rowts >= '2024-01-01 00:00:00' and _rowts <= '2024-06-30 23:59:59' group by _rowts union all select _rowts ts, sum(v) total from dev_e where _rowts >= '2024-04-01 00:00:00' and _rowts <= '2024-12-31 23:59:59' group by _rowts union all select _rowts ts, v total from dev_c) u where u.ts >= '2024-05-01 00:00:00' and u.ts <= '2024-09-30 23:59:59' order by ts asc;
+explain verbose true select ts, total from (select _rowts ts, sum(v) total from dev_d where _rowts >= '2024-01-01 00:00:00' and _rowts <= '2024-06-30 23:59:59' group by _rowts union all select _rowts ts, sum(v) total from dev_e where _rowts >= '2024-04-01 00:00:00' and _rowts <= '2024-12-31 23:59:59' group by _rowts union all select _rowts ts, v total from dev_c) u where u.ts >= '2024-05-01 00:00:00' and u.ts <= '2024-09-30 23:59:59' order by ts asc\G;
+
+## case33: one branch inner range completely disjoint from outer.
+## dev_a inner[Jan,Feb28] ends before outer[May,Sep30] starts -> impossible intersection.
+## dev_a scan gets Time Range [TSKEY_MAX,TSKEY_MIN] -> 0 rows from dev_a.
+## dev_b (no inner) scan gets outer [May,Sep30] -> only 2024-06-15+1h(204) qualifies.
+## 1 row
+select ts, v from (select _rowts ts, v from dev_a where _rowts >= '2024-01-01 00:00:00' and _rowts <= '2024-02-28 23:59:59' union all select _rowts ts, v from dev_b) u where u.ts >= '2024-05-01 00:00:00' and u.ts <= '2024-09-30 23:59:59' order by ts asc;
+explain verbose true select ts, v from (select _rowts ts, v from dev_a where _rowts >= '2024-01-01 00:00:00' and _rowts <= '2024-02-28 23:59:59' union all select _rowts ts, v from dev_b) u where u.ts >= '2024-05-01 00:00:00' and u.ts <= '2024-09-30 23:59:59' order by ts asc\G;
+
+## case34: same table used twice as self-union with different inner ranges.
+## branch1: dev_d inner[Jan,Jun30] intersect outer[Apr,Sep30] = [Apr,Jun30] -> Apr15(14),May15(15),Jun15(16)
+## branch2: dev_d inner[Jul,Dec31] intersect outer[Apr,Sep30] = [Jul,Sep30] -> Jul15(17),Aug15(18),Sep15(19)
+## plan shows two separate scan nodes for dev_d with different Time Ranges.
+## 6 rows
+select ts, v from (select _rowts ts, v from dev_d where _rowts >= '2024-01-01 00:00:00' and _rowts <= '2024-06-30 23:59:59' union all select _rowts ts, v from dev_d where _rowts >= '2024-07-01 00:00:00' and _rowts <= '2024-12-31 23:59:59') u where u.ts >= '2024-04-01 00:00:00' and u.ts <= '2024-09-30 23:59:59' order by ts asc;
+explain verbose true select ts, v from (select _rowts ts, v from dev_d where _rowts >= '2024-01-01 00:00:00' and _rowts <= '2024-06-30 23:59:59' union all select _rowts ts, v from dev_d where _rowts >= '2024-07-01 00:00:00' and _rowts <= '2024-12-31 23:59:59') u where u.ts >= '2024-04-01 00:00:00' and u.ts <= '2024-09-30 23:59:59' order by ts asc\G;
+
+## case35: 3-level deep nested UNION ALL with inner conditions at innermost level.
+## inner_u: dev_a inner[Jan,Jun30] union dev_b inner[Apr,Dec31]
+## mid_u: inner_u union dev_c (no inner)
+## outer WHERE[May,Sep30] must propagate through 3 levels to each scan.
+## dev_a: [Jan,Jun30] intersect [May,Sep30]=[May,Jun30] -> Jun15(103)
+## dev_b: [Apr,Dec31] intersect [May,Sep30]=[May,Sep30] -> Jun15+1h(204)
+## dev_c: raw -> scan[May,Sep30] -> Jun01+2h(301),Aug15+2h(302)
+## 4 rows
+select ts, v from (select ts, v from (select _rowts ts, v from dev_a where _rowts >= '2024-01-01 00:00:00' and _rowts <= '2024-06-30 23:59:59' union all select _rowts ts, v from dev_b where _rowts >= '2024-04-01 00:00:00' and _rowts <= '2024-12-31 23:59:59') inner_u union all select _rowts ts, v from dev_c) mid_u where mid_u.ts >= '2024-05-01 00:00:00' and mid_u.ts <= '2024-09-30 23:59:59' order by ts asc;
+explain verbose true select ts, v from (select ts, v from (select _rowts ts, v from dev_a where _rowts >= '2024-01-01 00:00:00' and _rowts <= '2024-06-30 23:59:59' union all select _rowts ts, v from dev_b where _rowts >= '2024-04-01 00:00:00' and _rowts <= '2024-12-31 23:59:59') inner_u union all select _rowts ts, v from dev_c) mid_u where mid_u.ts >= '2024-05-01 00:00:00' and mid_u.ts <= '2024-09-30 23:59:59' order by ts asc\G;
+
+## case36: 4-branch UNION ALL each with different inner ranges -> 4 distinct scan Time Ranges.
+## dev_a inner[Jan,Jun30] intersect outer[May,Sep30]=[May,Jun30] -> Jun15(103)
+## dev_b inner[Apr,Dec31] intersect outer[May,Sep30]=[May,Sep30] -> Jun15+1h(204)
+## dev_c raw -> scan[May,Sep30] -> Jun01+2h(301),Aug15+2h(302)
+## dev_d inner[Jun01,Sep30] intersect outer[May,Sep30]=[Jun01,Sep30] -> Jun15(16),Jul15(17),Aug15(18),Sep15(19)
+## 8 rows (ORDER BY ts ASC, v ASC to break ties at same ts)
+select ts, v from (select _rowts ts, v from dev_a where _rowts >= '2024-01-01 00:00:00' and _rowts <= '2024-06-30 23:59:59' union all select _rowts ts, v from dev_b where _rowts >= '2024-04-01 00:00:00' and _rowts <= '2024-12-31 23:59:59' union all select _rowts ts, v from dev_c union all select _rowts ts, v from dev_d where _rowts >= '2024-06-01 00:00:00' and _rowts <= '2024-09-30 23:59:59') u where u.ts >= '2024-05-01 00:00:00' and u.ts <= '2024-09-30 23:59:59' order by ts asc, v asc;
+explain verbose true select ts, v from (select _rowts ts, v from dev_a where _rowts >= '2024-01-01 00:00:00' and _rowts <= '2024-06-30 23:59:59' union all select _rowts ts, v from dev_b where _rowts >= '2024-04-01 00:00:00' and _rowts <= '2024-12-31 23:59:59' union all select _rowts ts, v from dev_c union all select _rowts ts, v from dev_d where _rowts >= '2024-06-01 00:00:00' and _rowts <= '2024-09-30 23:59:59') u where u.ts >= '2024-05-01 00:00:00' and u.ts <= '2024-09-30 23:59:59' order by ts asc, v asc\G;
+
+## case37: one-sided upper bound (ts <= only, no lower bound).
+## outer WHERE ts <= '2024-06-30' pushed as upper-only scan range.
+## dev_a: Jan15(101),Mar15(102),Jun15(103) -- 3 rows
+## dev_b: all 4 rows (201-204) are <= Jun30 2024 -- 4 rows
+## 7 rows
+select ts, v from (select _rowts ts, v from dev_a union all select _rowts ts, v from dev_b) u where u.ts <= '2024-06-30 23:59:59' order by ts asc;
+explain verbose true select ts, v from (select _rowts ts, v from dev_a union all select _rowts ts, v from dev_b) u where u.ts <= '2024-06-30 23:59:59' order by ts asc\G;
+
+## case38: OR with non-ts condition prevents all pushdown.
+## WHERE ts >= Mar OR v > 200 -- cannot push because OR connects ts with non-ts predicate.
+## plan shows Filter node at exchange; both scans keep full Time Range.
+## dev_a: ts>=Mar(102,103,104,105) OR v>200(none) -> 4 rows
+## dev_b: all 4 rows satisfy v>200 -> 4 rows
+## 8 rows
+select ts, v from (select _rowts ts, v from dev_a union all select _rowts ts, v from dev_b) u where u.ts >= '2024-03-01 00:00:00' or u.v > 200 order by ts asc;
+explain verbose true select ts, v from (select _rowts ts, v from dev_a union all select _rowts ts, v from dev_b) u where u.ts >= '2024-03-01 00:00:00' or u.v > 200 order by ts asc\G;
+
+## case39: two-level WHERE wrapping UNION ALL compounds the pushdown.
+## inner_u WHERE[Jan,Sep30] AND outer WHERE[Mar,Jul31] -> scan gets intersection [Mar,Jul31].
+## dev_a in [Mar,Jul31]: Mar15(102),Jun15(103) -- 2 rows
+## dev_b in [Mar,Jul31]: Mar15+1h(203),Jun15+1h(204) -- 2 rows
+## 4 rows
+select ts, v from (select ts, v from (select _rowts ts, v from dev_a union all select _rowts ts, v from dev_b) inner_u where inner_u.ts >= '2024-01-01 00:00:00' and inner_u.ts <= '2024-09-30 23:59:59') mid where mid.ts >= '2024-03-01 00:00:00' and mid.ts <= '2024-07-31 23:59:59' order by ts asc;
+explain verbose true select ts, v from (select ts, v from (select _rowts ts, v from dev_a union all select _rowts ts, v from dev_b) inner_u where inner_u.ts >= '2024-01-01 00:00:00' and inner_u.ts <= '2024-09-30 23:59:59') mid where mid.ts >= '2024-03-01 00:00:00' and mid.ts <= '2024-07-31 23:59:59' order by ts asc\G;
+
+## case40: all branches disjoint from outer range -> 0 total rows.
+## dev_a inner[Jan,Jun30] and dev_b inner[Jan,Jun30] both end before outer[Aug,Dec31] starts.
+## both scans get impossible Time Range [TSKEY_MAX, TSKEY_MIN] -> 0 rows each.
+## 0 rows
+select ts, v from (select _rowts ts, v from dev_a where _rowts >= '2024-01-01 00:00:00' and _rowts <= '2024-06-30 23:59:59' union all select _rowts ts, v from dev_b where _rowts >= '2024-01-01 00:00:00' and _rowts <= '2024-06-30 23:59:59') u where u.ts >= '2024-08-01 00:00:00' and u.ts <= '2024-12-31 23:59:59' order by ts asc;
+explain verbose true select ts, v from (select _rowts ts, v from dev_a where _rowts >= '2024-01-01 00:00:00' and _rowts <= '2024-06-30 23:59:59' union all select _rowts ts, v from dev_b where _rowts >= '2024-01-01 00:00:00' and _rowts <= '2024-06-30 23:59:59') u where u.ts >= '2024-08-01 00:00:00' and u.ts <= '2024-12-31 23:59:59' order by ts asc\G;
+
+## case41: one branch uses _rowts+3600000 alias -> that branch skipped from pushdown.
+## dev_a projects _rowts+3600000 as ts; outer WHERE ts in [Mar15 00:30, Jun15 00:30].
+## dev_a scan: full range (no pushdown, filter at setop) -> v=102 (_rowts=Mar15 00:00, alias=01:00 in range)
+## dev_b scan: pushed Time Range [Mar15 00:30, Jun15 00:30] -> v=203 (_rowts=Mar15 01:00 in range)
+## 2 rows
+select ts, v from (select _rowts+3600000 ts, v from dev_a union all select _rowts ts, v from dev_b) u where u.ts >= '2024-03-15 00:30:00' and u.ts <= '2024-06-15 00:30:00' order by ts asc, v asc;
+explain verbose true select ts, v from (select _rowts+3600000 ts, v from dev_a union all select _rowts ts, v from dev_b) u where u.ts >= '2024-03-15 00:30:00' and u.ts <= '2024-06-15 00:30:00' order by ts asc, v asc\G;
+
+## case42: pk column at index 1 (v, _rowts+offset ts) -- optimizer checks pkIdx=1, not index 0.
+## dev_a: v at index 0, _rowts+3600000 ts at index 1 -> pkIdx=1 is arithmetic -> no pushdown
+## dev_b: v at index 0, _rowts ts at index 1 -> pkIdx=1 is plain _rowts -> pushed
+## dev_a scan: full range, dev_b scan: pushed [Mar15 00:30, Jun15 00:30]
+## 2 rows: v=102 (dev_a _rowts=Mar15 00:00 -> alias=01:00) and v=203 (dev_b _rowts=Mar15 01:00)
+select ts, v from (select v, _rowts+3600000 ts from dev_a union all select v, _rowts ts from dev_b) u where u.ts >= '2024-03-15 00:30:00' and u.ts <= '2024-06-15 00:30:00' order by ts asc, v asc;
+explain verbose true select ts, v from (select v, _rowts+3600000 ts from dev_a union all select v, _rowts ts from dev_b) u where u.ts >= '2024-03-15 00:30:00' and u.ts <= '2024-06-15 00:30:00' order by ts asc, v asc\G;

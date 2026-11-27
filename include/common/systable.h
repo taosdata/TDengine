@@ -1,6 +1,8 @@
 /*
  * Copyright (c) 2019 TAOS Data, Inc. <jhtao@taosdata.com>
  *
+ * SPDX-License-Identifier: AGPL-3.0-or-later
+ *
  * This program is free software: you can use, redistribute, and/or modify
  * it under the terms of the GNU Affero General Public License, version 3
  * or later ("AGPL"), as published by the Free Software Foundation.
@@ -48,6 +50,7 @@ extern "C" {
 #define TSDB_INS_TABLE_COLS                "ins_columns"
 #define TSDB_INS_TABLE_VC_COLS             "ins_virtual_child_columns"
 #define TSDB_INS_TABLE_TABLE_DISTRIBUTED   "ins_table_distributed"
+#define TSDB_INS_TABLE_TABLE_FIXED_DISTRIBUTED "ins_table_fixed_distributed"
 #define TSDB_INS_TABLE_USERS               "ins_users"
 #define TSDB_INS_TABLE_USERS_FULL          "ins_users_full"
 #define TSDB_INS_TABLE_TOKENS              "ins_tokens"
@@ -56,6 +59,7 @@ extern "C" {
 #define TSDB_INS_TABLE_VNODES              "ins_vnodes"
 #define TSDB_INS_TABLE_CONFIGS             "ins_configs"
 #define TSDB_INS_TABLE_DNODE_VARIABLES     "ins_dnode_variables"
+#define TSDB_INS_TABLE_CPU_ALLOCATION             "ins_cpu_allocation"
 #define TSDB_INS_TABLE_SUBSCRIPTIONS       "ins_subscriptions"
 #define TSDB_INS_TABLE_TOPICS              "ins_topics"
 #define TSDB_INS_TABLE_STREAMS             "ins_streams"
@@ -66,14 +70,18 @@ extern "C" {
 #define TSDB_INS_TABLE_COMPACTS            "ins_compacts"
 #define TSDB_INS_TABLE_COMPACT_DETAILS     "ins_compact_details"
 #define TSDB_INS_TABLE_SSMIGRATES          "ins_ssmigrates"
+#define TSDB_INS_TABLE_BACKUPS             "ins_backups"
 #define TSDB_INS_TABLE_GRANTS_FULL         "ins_grants_full"
 #define TSDB_INS_TABLE_GRANTS_LOGS         "ins_grants_logs"
 #define TSDB_INS_TABLE_MACHINES            "ins_machines"
 #define TSDB_INS_TABLE_ENCRYPTIONS         "ins_encryptions"
 #define TSDB_INS_TABLE_TSMAS               "ins_tsmas"
 #define TSDB_INS_DISK_USAGE                "ins_disk_usage"
+#define TSDB_INS_TABLE_LAST_CACHE_STATS    "ins_last_cache_stats"
 #define TSDB_INS_TABLE_FILESETS            "ins_filesets"
 #define TSDB_INS_TABLE_TRANSACTION_DETAILS "ins_transaction_details"
+#define TSDB_INS_TABLE_SNAP_SEND_VNODES     "ins_snap_send_vnodes"
+#define TSDB_INS_TABLE_SNAP_SEND_FILESETS   "ins_snap_send_filesets"
 #define TSDB_INS_TABLE_MOUNTS              "ins_mounts"
 #define TSDB_INS_TABLE_SCANS               "ins_scans"
 #define TSDB_INS_TABLE_SCAN_DETAILS        "ins_scan_details"
@@ -86,7 +94,12 @@ extern "C" {
 #define TSDB_INS_TABLE_ROLE_PRIVILEGES     "ins_role_privileges"
 #define TSDB_INS_TABLE_ROLE_COL_PRIVILEGES "ins_role_column_privileges"
 #define TSDB_INS_TABLE_VIRTUAL_TABLES_REFERENCING "ins_virtual_tables_referencing"
+#define TSDB_INS_TABLE_VSTABLE_INHERITS "ins_vstable_inherits"
+#define TSDB_INS_TABLE_EXT_SOURCES                "ins_ext_sources"  // federated query: external data sources
 #define TSDB_INS_TABLE_SECURITY_POLICIES   "ins_security_policies"
+#define TSDB_INS_TABLE_TRANSACTIONS        "ins_transactions"
+#define TSDB_INS_TABLE_TRANSACTION_LOGS    "ins_transaction_logs"
+#define TSDB_INS_TABLE_TRANSACTION_ORPHANS "ins_transaction_orphans"
 
 #define TSDB_PERFORMANCE_SCHEMA_DB     "performance_schema"
 #define TSDB_PERFS_TABLE_SMAS          "perf_smas"

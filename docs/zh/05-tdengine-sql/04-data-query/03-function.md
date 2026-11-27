@@ -1,0 +1,6094 @@
+---
+sidebar_label: 内置函数
+title: 内置函数
+description: 内置函数分类、语法与使用说明
+toc_max_heading_level: 4
+---
+
+## 分类说明
+
+### 表达式函数的三类：标量、聚合、集合
+
+表达式函数按 **输入→输出行数关系** 分为三类，这是表达式函数分类的主维度：
+
+1. **标量函数（Scalar）**：每行输入产生一行输出（1 → 1）。每行计算仅依赖当前行的输入值。
+
+2. **聚合函数（Aggregate）**：多行输入产出单一结果值（N → 1）。需要看到全部输入行后才能产出结果。
+
+3. **集合函数（Set）**：多行输入产出一行或多行结果（N → M，其中 M ≥ 1）。输出行数由函数语义、参数或数据决定；M=1 是退化情形（如 `TOP(col,1)`）。与聚合函数的区别是：聚合函数输出行数固定为 1，集合函数的 M 可以大于 1。与标量函数的区别是：集合函数每行结果可能依赖多行输入（如相邻行上下文），标量函数每行仅依赖当前行。
+
+### 表函数（Table Function）
+
+除上述三类用于表达式的函数外，函数还包含 **表函数**。表函数返回一个行集，作为查询表源使用；其参数（包括是否接收表）由具体函数定义，与标量、聚合、集合函数按行数关系的分类相互独立。
+
+| 函数类型 | 输出 | 使用位置 | 代表函数 |
+| --- | --- | --- | --- |
+| 表函数 | 行集 | `FROM` 子句中的 `TABLE(...)` | `TIME_ALIGN` |
+
+表函数具有以下特点：
+
+- 只能在 `FROM` 子句中通过 `TABLE(...)` 调用，不能出现在 `SELECT` 列表、`WHERE`、`GROUP BY`、`HAVING`、`ORDER BY` 等表达式中，也不能作为标量、聚合或集合函数的参数。
+- 返回的行集可以像表一样参与 `JOIN`、子查询、`UNION`、聚合、窗口、排序和 `LIMIT` 等查询。
+- 表函数不适用下文的函数嵌套规则和并列共存规则。
+
+表函数的列表、参数和输出列见 [表函数](#表函数)。
+
+### 管道函数（Pipeline Function）说明
+
+在三类主分类之外，部分函数还具有一个 **正交属性——管道（Pipeline）**：
+
+> **管道函数**：函数的每个输出行都与某条输入行保持对应关系，因此同一输出行上的标量表达式或普通列可以继续使用该输入行的时间戳及其他列值。管道函数本身可以直接返回对应输入行的值，也可以基于该输入行、相邻行、累计状态、滑动窗口或候选集合计算结果。
+
+管道属性可出现在聚合和集合两类函数中：
+
+- **管道聚合函数**（N→1）：`FIRST`、`LAST`、`LAST_ROW`、`MAX`、`MIN`、`MODE`
+- **管道集合函数**（N→M）：`LAG`、`LEAD`、`FILL_FORWARD`、`CSUM`、`MAVG`、`STATECOUNT`、`STATEDURATION`、`DIFF`、`DERIVATIVE`、`TOP`、`BOTTOM`、`SAMPLE`、`TAIL`、`UNIQUE`、`COLS`
+
+#### 核心特点
+
+管道函数区别于普通聚合函数的本质特征是 **执行在标量之前，输出会作为同级标量/普通列的输入，且输出与输入存在行对应关系**——每个输出行都对应原始输入中的某一行，该输入行的时间戳以及其他列值可以参与后续标量运算。
+
+管道函数根据计算模式分为两类：
+
+| 模式 | 描述 | 代表函数 |
+|------|------|---------|
+| **逐行变换型** | 按顺序逐行扫描输入，每行经函数计算后产生对应输出行；计算可依赖上下文（相邻行、累积状态、滑动窗口等），但输出行与输入行保持位置对应 | `LAG`、`LEAD`、`FILL_FORWARD`、`CSUM`、`MAVG`、`STATECOUNT`、`STATEDURATION`、`DIFF`、`DERIVATIVE` |
+| **子集选取型** | 从全量输入中按排序、随机、位置等条件挑选若干原始行输出；选出的每行仍是完整原始行，时间戳和列值均未改变 | `FIRST`、`LAST`、`LAST_ROW`、`MAX`、`MIN`、`MODE`、`TOP`、`BOTTOM`、`SAMPLE`、`TAIL`、`UNIQUE` |
+
+#### 与其他函数共存时的运算顺序
+
+多个函数并列出现于同一 `SELECT` 时，执行分两个阶段：
+
+1. **第一阶段：非标量函数独立并行计算**
+
+管道函数及其他聚合函数、集合函数各自 **独立、并行** 地处理同一份输入序列，互不干扰。注意，和其他非标量函数嵌套的标量函数也在这一阶段执行。
+
+2. **第二阶段：标量函数后处理**
+
+并列共存的标量函数不参与第一阶段，而是在第一阶段由管道函数确定了输出行集合后，**在每个输出行上独立逐行求值**，相当于对前一阶段结果做“后处理”。标量表达式引用的原始列值，取自当前输出行所对应的那条输入行。有多个管道函数时，约束及行为见“标量与管道函数共存时的唯一性约束”。
+
+3. **完整示例**
+
+```sql
+SELECT
+  ABS(voltage),
+  CSUM(current),
+  LAG(voltage, 1)
+FROM meters;
+```
+
+假设输入 4 行：
+
+| ts | voltage | current |
+|----|---------|----------|
+| t1 | 220     | 1.0     |
+| t2 | 215     | 1.5     |
+| t3 | 225     | 2.0     |
+| t4 | 210     | 1.2     |
+
+**第一阶段**：`CSUM(current)` 与 `LAG(voltage, 1)` 各自独立扫描相同输入，均输出 N=4 行；两者均为逐行变换型，第 i 行来自同一输入行，按时间戳对齐拼接：
+
+| ts | CSUM(current) | LAG(voltage,1) | voltage（原始列，供标量使用）|
+|----|--------------|----------------|------------------------------|
+| t1 | 1.0          | NULL           | 220 |
+| t2 | 2.5          | 220            | 215 |
+| t3 | 4.5          | 215            | 225 |
+| t4 | 5.7          | 225            | 210 |
+
+**第二阶段**：`abs(voltage)` 在每个输出行上取当行 voltage 求绝对值（此处 voltage 均为正值，结果不变，仅作示意）：
+
+| ts | abs(voltage) | CSUM(current) | LAG(voltage,1) |
+|----|-------------|--------------|----------------|
+| t1 | 220         | 1.0          | NULL           |
+| t2 | 215         | 2.5          | 220            |
+| t3 | 225         | 4.5          | 215            |
+| t4 | 210         | 5.7          | 225            |
+
+## 函数使用规则
+
+以下嵌套规则和并列共存规则适用于在表达式中使用的标量、聚合和集合函数，不适用于表函数。
+
+### 嵌套规则
+
+1. **标量可与任何表达式函数嵌套**：只要满足参数要求即可：
+   - 标量可以作为聚合、集合或其他标量函数的参数（标量为内层）：`SUM(abs(voltage))`
+   - 聚合、集合或其他标量函数的结果可以作为标量函数的参数（标量为外层）：`abs(SUM(voltage))`、`ROUND(AVG(voltage), 2)`、`abs(TOP(voltage, 1))`
+2. **聚合与集合之间不可嵌套**：聚合函数与集合函数之间互相不能直接或间接嵌套，没有例外。
+
+### 并列共存规则
+
+1. **标量 ↔ 标量**：可以共存。
+2. **聚合 ↔ 聚合**（聚合并列共存规则）：可以共存，管道聚合函数与非管道聚合函数之间亦可混用。合法：`SELECT MAX(voltage), SUM(current), COUNT(*) FROM meters`
+3. **集合 ↔ 集合**（集合并列共存规则）：输出行数相等时可以共存，行数不等则不允许。
+4. **标量 ↔ 聚合**（标量聚合并列共存规则）：标量表达式需要管道聚合函数为其提供行锚点。
+   - **SELECT 中有管道聚合函数**：标量可与其共存；同一 SELECT 中的非管道聚合函数也可通过聚合并列共存规则共存。合法：`SELECT abs(voltage), MAX(voltage) FROM meters`、`SELECT abs(voltage), MAX(voltage), SUM(current) FROM meters`
+   - **SELECT 中只有非管道聚合函数（无管道聚合函数）**：标量不可并列，无行锚点。非法：`SELECT abs(voltage), SUM(voltage) FROM meters`
+5. **标量 ↔ 集合**（标量集合并列共存规则），分两种情况：
+   - **标量 ↔ 管道集合函数**：可以共存，不需要考虑行数。合法：`SELECT abs(voltage), TOP(voltage, 5) FROM meters`、`SELECT voltage + 1, DIFF(voltage) FROM meters`
+   - **标量 ↔ 非管道集合函数（HISTOGRAM 等）**：**不可以共存**。非法：`SELECT abs(voltage), HISTOGRAM(voltage, 'linear_bin', '...', 0) FROM meters`
+6. **聚合 ↔ 集合**（聚合集合并列共存规则）：输出行数相等时可以共存，行数不等则不允许。
+
+### 标量与管道函数共存时的唯一性约束
+
+存在管道函数的同时，如果 SELECT 子句中同时存在标量表达式时，从输入中 **选取特定子集** 的管道函数（FIRST、LAST、LAST_ROW、MAX、MIN、MODE、TOP、BOTTOM、SAMPLE、TAIL、UNIQUE）至多只能有 **一个**；对输入行进行 **逐行变换** 的管道集合函数（LAG、LEAD、FILL_FORWARD、CSUM、MAVG、STATECOUNT、STATEDURATION、DIFF、DERIVATIVE）不受此约束，但多个集合函数共存仍需满足输出行数相等要求。
+
+> - 合法：`SELECT abs(voltage), MAX(voltage) FROM meters` — 仅一个子集选取型管道函数，行上下文明确
+> - 非法：`SELECT abs(voltage), MAX(voltage), MIN(current) FROM meters` — 两个子集选取型管道函数，各自锚定不同行，标量行上下文不明确
+> - 非法：`SELECT abs(voltage), TOP(voltage,5), TOP(current,5) FROM meters` — 两个子集选取型管道函数，各自选出不同原始行集
+> - 合法：`SELECT voltage + 1, LAG(voltage, 1), CSUM(current) FROM meters` — 均为逐行变换型管道集合函数，不受唯一性约束（但需满足集合并列共存规则，LAG 与 CSUM 均输出 N 行）
+
+## 数学函数
+
+数学函数均为 **标量函数**。
+
+### ABS
+
+```sql
+ABS(expr)
+```
+
+**函数分类**：标量函数。
+
+**功能说明**：获得指定字段的绝对值。
+
+**返回结果类型**：与指定字段的原始数据类型一致。
+
+**适用数据类型**：数值类型。
+
+**嵌套子查询支持**：适用于内层查询和外层查询。
+
+**适用于**：表和超级表。
+
+**使用说明**：只能与普通列，选择（Selection）、投影（Projection）函数一起使用，不能与聚合（Aggregation）函数一起使用。
+
+### ACOS
+
+```sql
+ACOS(expr)
+```
+
+**函数分类**：标量函数。
+
+**功能说明**：获得指定字段的反余弦结果。
+
+**返回结果类型**：`DOUBLE`。
+
+**适用数据类型**：数值类型。
+
+**嵌套子查询支持**：适用于内层查询和外层查询。
+
+**适用于**：表和超级表。
+
+**使用说明**：只能与普通列，选择（Selection）、投影（Projection）函数一起使用，不能与聚合（Aggregation）函数一起使用。
+
+### ASIN
+
+```sql
+ASIN(expr)
+```
+
+**函数分类**：标量函数。
+
+**功能说明**：获得指定字段的反正弦结果。
+
+**返回结果类型**：`DOUBLE`。
+
+**适用数据类型**：数值类型。
+
+**嵌套子查询支持**：适用于内层查询和外层查询。
+
+**适用于**：表和超级表。
+
+**使用说明**：只能与普通列，选择（Selection）、投影（Projection）函数一起使用，不能与聚合（Aggregation）函数一起使用。
+
+### ATAN
+
+```sql
+ATAN(expr)
+```
+
+**函数分类**：标量函数。
+
+**功能说明**：获得指定字段的反正切结果。
+
+**返回结果类型**：`DOUBLE`。
+
+**适用数据类型**：数值类型。
+
+**嵌套子查询支持**：适用于内层查询和外层查询。
+
+**适用于**：表和超级表。
+
+**使用说明**：只能与普通列，选择（Selection）、投影（Projection）函数一起使用，不能与聚合（Aggregation）函数一起使用。
+
+### BIT_COUNT
+
+```sql
+BIT_COUNT(expr)
+```
+
+**函数分类**：标量函数。
+
+**功能说明**：返回 `expr` 二进制表示中值为 1 的位数（population count）。数值、时间与文本参数按 64 位整数计数，二进制参数按字节序列计数。
+
+**版本**：`v3.5.0.0`
+
+**返回结果类型**：`BIGINT`。数值、时间与文本参数的取值范围为 0～64；`VARBINARY`、`BLOB`、`MEDIUMBLOB` 参数的上限为 8 × 字节长度，可以超过 64。
+
+**适用数据类型**
+
+- `expr`：TINYINT、SMALLINT、INT、BIGINT 及其无符号类型、BOOL、FLOAT、DOUBLE、DECIMAL、VARCHAR、NCHAR、VARBINARY、BLOB、MEDIUMBLOB、TIMESTAMP。
+- 不支持 JSON、GEOMETRY。
+
+**嵌套子查询支持**：适用于内层查询和外层查询。
+
+**适用于**：表和超级表。
+
+**使用说明**
+
+- 若 `expr` 为 NULL，返回 NULL。
+- 有符号整数按 64 位补码计数，例如 `BIT_COUNT(-1)` 返回 64，`BIT_COUNT(-2)` 返回 63。
+- 无符号整数按 64 位零扩展计数。
+- BOOL 的 TRUE 视为 1，FALSE 视为 0。
+- FLOAT、DOUBLE、DECIMAL 先四舍五入到最近的整数（恰好为半值时远离 0），再按 64 位补码计数；NaN、正负无穷以及四舍五入后超出 BIGINT 范围的值返回 NULL。例如 `BIT_COUNT(2.9)` 返回 2（2.9 舍入为 3，3 有 2 个置位），`BIT_COUNT(-2.9)` 返回 63（舍入为 -3）。
+- VARCHAR、NCHAR 按十进制整数前缀解析：跳过前导空白，识别可选正负号，遇到非数字字符即结束；无法解析时返回 0，整数部分溢出时饱和到 BIGINT 边界，不产生告警。
+- VARBINARY、BLOB、MEDIUMBLOB 按原始字节逐位计数，不做数值解析和字符集转换；空串返回 0，结果可能超过 64。
+- TIMESTAMP 按连接时区格式化为 `YYYYMMDDHHMMSS` 十进制数值（MySQL 的 `+0` 数值上下文），小数秒四舍五入到秒，`.5` 及以上进位；再对该数值按 64 位补码计数。同一时间戳文本在不同时区会话下结果相同；同一 epoch 数值在不同时区会话下结果可能不同。
+
+**与 MySQL 8.0 的兼容性差异**
+
+- 返回类型：MySQL 文档描述为无符号 64 位整数，TDengine 返回 `BIGINT`，数值语义一致。
+- 浮点与定点参数：两端都四舍五入到最近的整数（半值远离 0），结果一致。
+- TIMESTAMP：两端都使用 `+0` 的 `YYYYMMDDHHMMSS` 数值上下文；MySQL `DATETIME` 支持公元 1000～9999 年，TDengine 的 `TIMESTAMP` 范围由引擎定义，超出范围的文本在 `CAST` 阶段报错。
+- 浮点特殊值与越界值：NaN、正负无穷以及四舍五入后超出 64 位整数范围的值在 TDengine 返回 NULL，MySQL 的结果随版本和转换规则变化。
+- 文本参数：TDengine 不产生逐行告警，整数部分溢出时饱和到有符号 64 位边界；MySQL 按无符号 64 位及其告警规则处理。
+- 二进制参数：两端都对二进制值逐位计数，结果都可能超过 64；TDengine 不支持 `b'...'` 位字面量，需要先 `CAST(... AS VARBINARY)`。
+- 其他类型：TDengine 在翻译期拒绝 JSON、GEOMETRY 参数。
+
+**示例**
+
+```sql
+taos> select bit_count(29);
+ bit_count(29) |
+================
+             4 |
+
+taos> select bit_count(0), bit_count(-1), bit_count(-2);
+ bit_count(0) | bit_count(-1) | bit_count(-2) |
+==============================================
+            0 |            64 |            63 |
+
+taos> select bit_count(2.9), bit_count(2.5), bit_count(-2.9);
+ bit_count(2.9) | bit_count(2.5) | bit_count(-2.9) |
+===================================================
+              2 |              2 |               63 |
+
+taos> select bit_count(cast(2.9 as decimal(5,1)));
+ bit_count(cast(2.9 as decimal(5,1))) |
+=======================================
+                                     2 |
+
+taos> select bit_count(cast('ABCD' as varbinary));
+ bit_count(cast('ABCD' as varbinary)) |
+=======================================
+                                     9 |
+
+taos> select bit_count(cast('2026-11-23 15:45:22' as timestamp));
+ bit_count(cast('2026-11-23 15:45:22' as timestamp)) |
+======================================================
+                                                   20 |
+
+taos> select bit_count(cast(2.9 as double)), bit_count('12abc'), bit_count('abc');
+ bit_count(cast(2.9 as double)) | bit_count('12abc') | bit_count('abc') |
+=========================================================================
+                              2 |                  2 |                0 |
+
+taos> select bit_count(null);
+ bit_count(null) |
+==================
+ NULL            |
+
+taos> select bit_count(1e308);
+ bit_count(1e308) |
+===================
+ NULL             |
+```
+
+### CEIL
+
+```sql
+CEIL(expr)
+```
+
+**函数分类**：标量函数。
+
+**功能说明**：获得指定字段的向上取整数的结果。
+
+**返回结果类型**：与指定字段的原始数据类型一致。
+
+**适用数据类型**：数值类型。
+
+**适用于**：表和超级表。
+
+**嵌套子查询支持**：适用于内层查询和外层查询。
+
+**使用说明**：只能与普通列，选择（Selection）、投影（Projection）函数一起使用，不能与聚合（Aggregation）函数一起使用。
+
+### CORR
+
+```sql
+CORR(expr1, expr2)
+```
+
+**函数分类**：聚合函数。
+
+**功能说明**：计算两列数据之间的皮尔逊相关系数（Pearson correlation coefficient），该数值反映了两个序列之间的线性关系强度和方向，返回结果在 -1 和 1 之间。
+
+**版本**：`v3.3.8.0`
+
+**返回结果类型**：`DOUBLE`。
+
+**适用数据类型**
+
+- `expr1`：数值类型。
+- `expr2`：数值类型。
+
+**嵌套子查询支持**：适用于内层查询和外层查询。
+
+**适用于**：表和超级表。
+
+**使用说明**
+
+- 若 `expr1` 或 `expr2` 为 NULL，返回 NULL。
+
+**示例**
+
+```sql
+taos> SELECT
+        k,
+        j
+      FROM test_corr;
+      k      |      j      |
+============================
+           1 |           2 |
+           2 |           3 |
+           3 |           5 |
+           4 |           7 |
+           5 |           8 |
+Query OK, 5 row(s) in set
+
+taos> SELECT CORR(k, j)
+      FROM test_corr;
+         corr(k,j)         |
+============================
+         0.992277876713668 |
+Query OK, 1 row(s) in set
+```
+
+### COS
+
+```sql
+COS(expr)
+```
+
+**函数分类**：标量函数。
+
+**功能说明**：获得指定字段的余弦结果。
+
+**返回结果类型**：`DOUBLE`。
+
+**适用数据类型**：数值类型。
+
+**嵌套子查询支持**：适用于内层查询和外层查询。
+
+**适用于**：表和超级表。
+
+**使用说明**：只能与普通列，选择（Selection）、投影（Projection）函数一起使用，不能与聚合（Aggregation）函数一起使用。
+
+### DEGREES
+
+```sql
+DEGREES(expr)
+```
+
+**函数分类**：标量函数。
+
+**功能说明**：计算指定参数由弧度值转为角度后的值。
+
+**版本**：`v3.3.3.0`
+
+**返回结果类型**：`DOUBLE`。
+
+**适用数据类型**：数值类型。
+
+**嵌套子查询支持**：适用于内层查询和外层查询。
+
+**适用于**：表和超级表。
+
+**使用说明**
+
+- 如果 `expr` 为 NULL，则返回 NULL。
+- degree = radian * 180 / π。
+- 只能与普通列，选择（Selection）、投影（Projection）函数一起使用，不能与聚合（Aggregation）函数一起使用。
+
+**示例**
+
+```sql
+taos> SELECT DEGREES(PI());
+       degrees(pi())       |
+============================
+       180.000000000000000 |
+Query OK, 1 row(s) in set
+```
+
+### EXP
+
+```sql
+EXP(expr)
+```
+
+**函数分类**：标量函数。
+
+**功能说明**：返回 e（自然对数的底）的指定乘方后的值。
+
+**版本**：`v3.3.3.0`
+
+**返回结果类型**：`DOUBLE`。
+
+**适用数据类型**：数值类型。
+
+**嵌套子查询支持**：适用于内层查询和外层查询。
+
+**适用于**：表和超级表。
+
+**使用说明**
+
+- 如果 `expr` 为 NULL，返回 NULL。
+- 只能与普通列，选择（Selection）、投影（Projection）函数一起使用，不能与聚合（Aggregation）函数一起使用。
+
+**示例**
+
+```sql
+taos> SELECT EXP(2);
+          exp(2)           |
+============================
+         7.389056098930650 |
+Query OK, 1 row(s) in set
+```
+
+### FLOOR
+
+```sql
+FLOOR(expr)
+```
+
+**函数分类**：标量函数。
+
+**功能说明**：获得指定字段的向下取整数的结果。其他使用说明参见 [CEIL](#ceil) 函数描述。
+
+### GREATEST
+
+```sql
+GREATEST(expr1, expr2[, expr]...)
+```
+
+**函数分类**：标量函数。
+
+**功能说明**：获得输入的所有参数中的最大值。该函数最小参数个数为 2 个。
+
+**使用说明**：`v3.3.6.0`
+
+**返回结果类型**：参考比较规则，比较类型即为最终返回类型。
+
+**适用数据类型**
+
+- 数值类型：包括 bool 型，整型和浮点型
+- 字符串类型：包括 nchar 和 varchar 类型。
+
+**比较规则**：以下规则描述了比较操作的转换方式：
+
+- 如果有任何一个参数为 NULL，则比较结果为 NULL。（如需跳过 NULL 参数，参见下方 `ignoreNullInGreatest` 配置项。）
+- 如果比较操作中的所有参数都是字符串类型，按照字符串类型比较
+- 如果所有参数都是数值类型，则将它们作为数值类型进行比较。
+- 如果参数中既有字符串类型，也有数值类型，根据 compareAsStrInGreatest 配置项，统一作为字符串或者数值进行比较。默认按照字符串比较。
+- 在所有情况下，不同类型比较，比较类型会选择范围更大的类型进行比较，例如作为整数类型比较时，如果存在 BIGINT 类型，必定会选择 BIGINT 作为比较类型。
+
+**相关配置项**
+
+- `compareAsStrInGreatest`（客户端配置）：为 `1` 表示同时存在字符串类型和数值类型时统一转为字符串比较，为 `0` 表示统一转为数值类型比较。默认为 `1`。
+- `ignoreNullInGreatest`（客户端配置，自 `v3.4.2.0` 起支持）：为 `0`（默认）时任一参数为 NULL 则结果为 NULL；为 `1` 时跳过 NULL 参数，仅在非 NULL 值之间进行比较，若所有参数均为 NULL 仍返回 NULL。该项与 `compareAsStrInGreatest` 正交，仅影响 NULL 参数的处理，非 NULL 值之间的比较规则不变。
+
+### LEAST
+
+```sql
+LEAST(expr1, expr2[, expr]...)
+```
+
+**函数分类**：标量函数。
+
+**功能说明**：获得输入的所有参数中的最小值。其余部分说明同 [GREATEST](#greatest) 函数。
+
+### LN
+
+```sql
+LN(expr)
+```
+
+**函数分类**：标量函数。
+
+**功能说明**：返回指定参数的自然对数。
+
+**版本**：`v3.3.3.0`
+
+**返回结果类型**：`DOUBLE`。
+
+**适用数据类型**：数值类型。
+
+**嵌套子查询支持**：适用于内层查询和外层查询。
+
+**适用于**：表和超级表。
+
+**使用说明**
+
+- 如果 `expr` 为 NULL，返回 NULL。
+- 如果 `epxr` 小于等于 0，返回 NULL。
+- 只能与普通列，选择（Selection）、投影（Projection）函数一起使用，不能与聚合（Aggregation）函数一起使用。
+
+**示例**
+
+```sql
+taos> SELECT LN(10);
+          ln(10)           |
+============================
+         2.302585092994046 |
+Query OK, 1 row(s) in set
+```
+
+### LOG
+
+```sql
+LOG(expr1[, expr2])
+```
+
+**函数分类**：标量函数。
+
+**功能说明**：获得 expr1 对于底数 expr2 的对数。如果 expr2 参数省略，则返回指定字段的自然对数值。
+
+**返回结果类型**：`DOUBLE`。
+
+**适用数据类型**：数值类型。
+
+**嵌套子查询支持**：适用于内层查询和外层查询。
+
+**适用于**：表和超级表。
+
+**使用说明**：只能与普通列，选择（Selection）、投影（Projection）函数一起使用，不能与聚合（Aggregation）函数一起使用。
+
+### MOD
+
+```sql
+MOD(expr1, expr2)
+```
+
+**函数分类**：标量函数。
+
+**功能说明**：计算 expr1 % expr2 的结果。
+
+**版本**：`v3.3.3.0`
+
+**返回结果类型**：`DOUBLE`。
+
+**适用数据类型**：数值类型。
+
+**嵌套子查询支持**：适用于内层查询和外层查询。
+
+**适用于**：表和超级表。
+
+**使用说明**
+
+- 如果 `expr2` 为 0 则返回 NULL。
+- 如果 `expr1` 或 `expr2` 为 NULL，返回 NULL。
+- 只能与普通列，选择（Selection）、投影（Projection）函数一起使用，不能与聚合（Aggregation）函数一起使用。
+
+**示例**
+
+``` sql
+taos> SELECT MOD(10, 3);
+         mod(10,3)         |
+============================
+         1.000000000000000 |
+Query OK, 1 row(s) in set
+
+taos> SELECT MOD(1, 0);
+         mod(1,0)          |
+============================
+ NULL                      |
+Query OK, 1 row(s) in set
+```
+
+### PI
+
+```sql
+PI()
+```
+
+**函数分类**：标量函数。
+
+**功能说明**：返回圆周率 π 的值。
+
+**版本**：`v3.3.3.0`
+
+**返回结果类型**：`DOUBLE`。
+
+**适用数据类型**：无。
+
+**嵌套子查询支持**：适用于内层查询和外层查询。
+
+**适用于**：表和超级表。
+
+**使用说明**
+
+- π ≈ 3.141592653589793。
+- 只能与普通列，选择（Selection）、投影（Projection）函数一起使用，不能与聚合（Aggregation）函数一起使用。
+
+**示例**
+
+```sql
+taos> SELECT PI();
+           pi()            |
+============================
+         3.141592653589793 |
+Query OK, 1 row(s) in set
+```
+
+### POW
+
+```sql
+POW(expr1, expr2)
+```
+
+**函数分类**：标量函数。
+
+**功能说明**：获得 expr1 的指数为 expr2 的幂。
+
+**返回结果类型**：`DOUBLE`。
+
+**适用数据类型**：数值类型。
+
+**嵌套子查询支持**：适用于内层查询和外层查询。
+
+**适用于**：表和超级表。
+
+**使用说明**：只能与普通列，选择（Selection）、投影（Projection）函数一起使用，不能与聚合（Aggregation）函数一起使用。
+
+### RADIANS
+
+```sql
+RADIANS(expr)
+```
+
+**函数分类**：标量函数。
+
+**功能说明**：计算指定参数由角度值转为弧度后的值。
+
+**版本**：`v3.3.3.0`
+
+**返回结果类型**：`DOUBLE`。
+
+**适用数据类型**：数值类型。
+
+**嵌套子查询支持**：适用于内层查询和外层查询。
+
+**适用于**：表和超级表。
+
+**使用说明**
+
+- 如果 `expr` 为 NULL，则返回 NULL。
+- radian = degree * π / 180。
+- 只能与普通列，选择（Selection）、投影（Projection）函数一起使用，不能与聚合（Aggregation）函数一起使用。
+
+**示例**
+
+```sql
+taos> SELECT RADIANS(180);
+       radians(180)        |
+============================
+         3.141592653589793 |
+Query OK, 1 row(s) in set
+```
+
+### RAND
+
+```sql
+RAND([seed])
+```
+
+**函数分类**：标量函数。
+
+**功能说明**：返回一个从 0 到 1 均匀分布的随机数。
+
+**版本**：`v3.3.3.0`
+
+**返回结果类型**：`DOUBLE`。
+
+**适用数据类型**
+
+- `seed`：INTEGER。
+
+**嵌套子查询支持**：适用于内层查询和外层查询。
+
+**适用于**：表和超级表。
+
+**使用说明**
+
+- 如果指定了 `seed` 值，那么将会用指定的 `seed` 作为随机种子，确保生成的随机数序列具有确定性。
+- 只能与普通列，选择（Selection）、投影（Projection）函数一起使用，不能与聚合（Aggregation）函数一起使用。
+
+**示例**
+
+``` sql
+taos> SELECT RAND();
+          rand()           |
+============================
+         0.202092426923147 |
+Query OK, 1 row(s) in set
+
+taos> SELECT RAND();
+          rand()           |
+============================
+         0.131537788143166 |
+Query OK, 1 row(s) in set
+
+taos> SELECT RAND(1);
+          rand(1)          |
+============================
+         0.000007826369259 |
+Query OK, 1 row(s) in set
+
+taos> SELECT RAND(1);
+          rand(1)          |
+============================
+         0.000007826369259 |
+Query OK, 1 row(s) in set
+```
+
+### ROUND
+
+```sql
+ROUND(expr[, digits])
+```
+
+**函数分类**：标量函数。
+
+**功能说明**：获得指定字段的四舍五入的结果。
+
+**返回结果类型**：与指定字段的原始数据类型一致。
+
+**适用数据类型**
+
+- `expr`：数值类型。
+- `digits`：数值类型。
+
+**嵌套子查询支持**：适用于内层查询和外层查询。
+
+**适用于**：表和超级表。
+
+**使用说明**
+
+- 若 `expr` 或 `digits` 为 NULL，返回 NULL。
+- 若指定了`digits`，则会保留 `digits` 位小数，默认为 0。
+- 若输入值是 INTEGER 类型，无论 `digits` 值为多少，都只会返回 INTEGER 类型，不会保留小数。
+- `digits` 大于零表示对小数位进行操作，四舍五入到 `digits` 位小数。若小数位数小于 `digits` 位，不进行四舍五入操作，直接返回。
+- `digits` 小于零表示丢掉小数位，并将数字四舍五入到小数点左侧 `digits` 位。若小数点左侧的位数小于 `digits`位，返回 0。
+- 由于暂未支持 DECIMAL 类型，所以该函数会用 DOUBLE 和 FLOAT 来表示包含小数的结果，但是 DOUBLE 和 FLOAT 是有精度上限的，当位数太多时使用该函数可能没有意义。
+- 只能与普通列，选择（Selection）、投影（Projection）函数一起使用，不能与聚合（Aggregation）函数一起使用。
+- `digits` 从 `v3.3.3.0` 开始支持。
+
+**示例**
+
+```sql
+taos> SELECT ROUND(8888.88);
+      round(8888.88)       |
+============================
+      8889.000000000000000 |
+Query OK, 1 row(s) in set
+
+taos> SELECT ROUND(8888.88, -1);
+     round(8888.88,-1)     |
+============================
+      8890.000000000000000 |
+Query OK, 1 row(s) in set
+```
+
+### SIGN
+
+```sql
+SIGN(expr)
+```
+
+**函数分类**：标量函数。
+
+**功能说明**：返回指定参数的符号。
+
+**版本**：`v3.3.3.0`
+
+**返回结果类型**：与指定字段的原始数据类型一致。
+
+**适用数据类型**：数值类型。
+
+**嵌套子查询支持**：适用于内层查询和外层查询。
+
+**适用于**：表和超级表。
+
+**使用说明**
+
+- 如果 `expr` 为负，返回 -1。
+- 如果 `expr` 为正，返回 1。
+- 如果 `expr` 为 0，返回 0。
+- 如果 `expr` 为 NULL，返回 NULL。
+- 只能与普通列，选择（Selection）、投影（Projection）函数一起使用，不能与聚合（Aggregation）函数一起使用。
+
+**示例**
+
+```sql
+taos> SELECT SIGN(-1);
+       sign(-1)        |
+========================
+                    -1 |
+Query OK, 1 row(s) in set
+
+taos> SELECT SIGN(1);
+        sign(1)        |
+========================
+                     1 |
+Query OK, 1 row(s) in set
+
+taos> SELECT SIGN(0);
+        sign(0)        |
+========================
+                     0 |
+Query OK, 1 row(s) in set
+```
+
+### SIN
+
+```sql
+SIN(expr)
+```
+
+**函数分类**：标量函数。
+
+**功能说明**：获得指定字段的正弦结果。
+
+**返回结果类型**：`DOUBLE`。
+
+**适用数据类型**：数值类型。
+
+**嵌套子查询支持**：适用于内层查询和外层查询。
+
+**适用于**：表和超级表。
+
+**使用说明**：只能与普通列，选择（Selection）、投影（Projection）函数一起使用，不能与聚合（Aggregation）函数一起使用。
+
+### SQRT
+
+```sql
+SQRT(expr)
+```
+
+**函数分类**：标量函数。
+
+**功能说明**：获得指定字段的平方根。
+
+**返回结果类型**：`DOUBLE`。
+
+**适用数据类型**：数值类型。
+
+**嵌套子查询支持**：适用于内层查询和外层查询。
+
+**适用于**：表和超级表。
+
+**使用说明**：只能与普通列，选择（Selection）、投影（Projection）函数一起使用，不能与聚合（Aggregation）函数一起使用。
+
+### TAN
+
+```sql
+TAN(expr)
+```
+
+**函数分类**：标量函数。
+
+**功能说明**：获得指定字段的正切结果。
+
+**返回结果类型**：`DOUBLE`。
+
+**适用数据类型**：数值类型。
+
+**嵌套子查询支持**：适用于内层查询和外层查询。
+
+**适用于**：表和超级表。
+
+**使用说明**：只能与普通列，选择（Selection）、投影（Projection）函数一起使用，不能与聚合（Aggregation）函数一起使用。
+
+### TRUNCATE
+
+```sql
+TRUNCATE(expr, digits)
+```
+
+**函数分类**：标量函数。
+
+**功能说明**：获得指定字段按照指定位数截断的值。
+
+**版本**：`v3.3.3.0`
+
+**返回结果类型**：与 `expr` 字段的原始数据类型一致。
+
+**适用数据类型**
+
+- `expr`：数值类型。
+- `digits`：数值类型。
+
+**嵌套子查询支持**：适用于内层查询和外层查询。
+
+**适用于**：表和超级表。
+
+**使用说明**
+
+- 若 `expr` 或 `digits` 为 NULL，返回 NULL。
+- 截取指按保留位数直接进行截取，没有四舍五入。
+- `digits` 大于零表示对小数位进行操作，截取到 `digits` 位小数，若小数位数小于 `digits` 位，不进行截取操作，直接返回。
+- `digits` 等于零表示丢掉小数位。
+- `digits` 小于零表示丢掉小数位，并将小数点左侧 `digits` 位置 `0`。若小数点左侧的位数小于 `digits`位，返回 0。
+- 由于暂未支持 DECIMAL 类型，所以该函数会用 DOUBLE 和 FLOAT 来表示包含小数的结果，但是 DOUBLE 和 FLOAT 是有精度上限的，当位数太多时使用该函数可能没有意义。
+- 只能与普通列，选择（Selection）、投影（Projection）函数一起使用，不能与聚合（Aggregation）函数一起使用。
+
+**示例**
+
+```sql
+taos> SELECT TRUNCATE(8888.88, 0);
+ truncate(8888.88, 0)    |
+============================
+    8888.000000000000000 |
+Query OK, 1 row(s) in set
+
+taos> SELECT TRUNCATE(8888.88, -1);
+ truncate(8888.88, -1)   |
+============================
+    8880.000000000000000 |
+Query OK, 1 row(s) in set
+```
+
+## 字符串函数
+
+处理 VARCHAR 字符串时，`CHAR_LENGTH`、`SUBSTRING/SUBSTR`、`SUBSTRING_INDEX`、`POSITION`、`REPLACE` 和指定移除字符串的 `TRIM` 使用当前连接的字符集进行字符计数、截取或匹配。
+
+字符串函数均为 **标量函数**。
+字符串函数的输入参数为字符串类型，返回结果为数值类型或字符串类型。
+
+### ASCII
+
+```sql
+ASCII(expr)
+```
+
+**函数分类**：标量函数。
+
+**功能说明**：返回字符串第一个字符的 ASCII 码。
+
+**版本**：`v3.3.3.0`
+
+**返回结果类型**：`BIGINT`。
+
+**适用数据类型**：VARCHAR、NCHAR。
+
+**嵌套子查询支持**：适用于内层查询和外层查询。
+
+**适用于**：表和超级表。
+
+**使用说明**
+
+- 如果 `expr` 为 NULL，返回 NULL。
+- 如果 `expr` 的第一个字符为多字节字符，只会返回该字符第一个字节的值对应的 ASCII 码。
+
+**示例**
+
+```sql
+taos> SELECT ASCII('testascii');
+ ascii('testascii') |
+=====================
+                116 |
+Query OK, 1 row(s) in set
+```
+
+### CHAR
+
+```sql
+CHAR(expr1 [, expr2] [, epxr3] ...)
+```
+
+**函数分类**：标量函数。
+
+**功能说明**：将输入参数当作整数，并返回这些整数在 ASCII 编码中对应的字符。
+
+**版本**：`v3.3.3.0`
+
+**返回结果类型**：`VARCHAR`。
+
+**适用数据类型**：整数类型，VARCHAR、NCHAR。
+
+**嵌套子查询支持**：适用于内层查询和外层查询。
+
+**适用于**：表和超级表。
+
+**使用说明**
+
+- 输入的值超过 255 会被转化成多字节的结果，如 `CHAR(256)` 等同于 `CHAR(1,0)`、`CHAR(256 * 256)` 等同于 `CHAR(1,0,0)`。
+- 输入参数的 NULL 值会被跳过。
+- 输入参数若为字符串类型，会将其转换为数值类型处理。
+- 若输入的参数对应的字符为不可打印字符，返回值中仍有该参数对应的字符，但是可能无法显示出来。
+- 输入参数的个数上限为 2^31 - 1 个。
+
+**示例**
+
+```sql
+taos> SELECT CHAR(77);
+ char(77) |
+===========
+ M        |
+Query OK, 1 row(s) in set
+
+taos> SELECT CHAR(77, 77);
+ char(77,77) |
+==============
+ MM          |
+Query OK, 1 row(s) in set
+
+taos> SELECT CHAR(77 * 256 + 77);
+ char(77 * 256 + 77) |
+======================
+ MM                  |
+Query OK, 1 row(s) in set
+
+taos> SELECT CHAR(77, NULL, 77);
+ char(77,null,77) |
+===================
+ MM               |
+Query OK, 1 row(s) in set
+```
+
+### STRCMP
+
+```sql
+STRCMP(expr1, expr2)
+```
+
+**函数分类**：标量函数。
+
+**功能说明**：比较两个字符串，相等返回 0，`expr1` 小于 `expr2` 返回 -1，否则返回 1。
+
+**返回结果类型**：`INT`。
+
+**适用数据类型**：`expr1`、`expr2` 为 VARCHAR 或 NCHAR 类型。
+
+**嵌套子查询支持**：适用于内层查询和外层查询。
+
+**适用于**：表和超级表。
+
+**使用说明**
+
+- 任一参数为 NULL 时返回 NULL；空串不是 NULL，空串小于任何非空串。
+- 按二进制比较，区分大小写，不忽略尾部空格，`STRCMP('A', 'a')` 返回 -1。与 MySQL 默认排序规则下不区分大小写的行为不同，如需不区分大小写可先使用 `LOWER()` 处理。
+- VARCHAR 与 NCHAR 混合比较时，VARCHAR 按 UTF-8 转换为 NCHAR 后按码点比较。若 VARCHAR 含非法 UTF-8 序列，转换失败并报错。
+- 如果已存在名为 `STRCMP` 的 UDF，升级后将被内置函数遮蔽，请提前重命名。
+
+**示例**
+
+```sql
+taos> select strcmp('abc', 'abe');
+ strcmp('abc', 'abe') |
+=======================
+                   -1 |
+```
+
+### CHAR_LENGTH
+
+```sql
+CHAR_LENGTH(expr)
+```
+
+**函数分类**：标量函数。
+
+**功能说明**：以字符计数的字符串长度。
+
+**返回结果类型**：`BIGINT`。
+
+**适用数据类型**：VARCHAR、NCHAR。
+
+**嵌套子查询支持**：适用于内层查询和外层查询。
+
+**适用于**：表和超级表。
+
+**嵌套子查询支持**：适用于内层查询和外层查询。
+
+**适用于**：表和超级表。
+
+**使用说明**
+
+- `CHAR_LENGTH()` 返回字符数，`LENGTH()` 返回字节数。例如，对于 VARCHAR 字符串 `'你好'`，`CHAR_LENGTH()` 返回 2；`LENGTH()` 在 UTF-8 编码下返回 6，在 GBK 编码下返回 4。
+- 如果 `expr` 为 NULL，返回 NULL。
+
+**示例**
+
+```sql
+taos> SELECT CHAR_LENGTH('Hello world');
+ char_length('Hello world') |
+=============================
+                         11 |
+Query OK, 1 row(s) in set
+
+taos> SELECT CHAR_LENGTH('你好 世界');
+      char_length('你好 世界') |
+===============================
+                            5 |
+Query OK, 1 row(s) in set
+```
+
+### CONCAT
+
+```sql
+CONCAT(expr1, expr2 [, expr] ... )
+```
+
+**函数分类**：标量函数。
+
+**功能说明**：字符串连接函数。
+
+**返回结果类型**：如果所有参数均为 VARCHAR 类型，则结果类型为 VARCHAR。如果参数包含 NCHAR 类型，则结果类型为 NCHAR。如果参数包含 NULL 值，则输出值为 NULL。
+
+**适用数据类型**：VARCHAR、NCHAR。该函数最小参数个数为 2 个，最大参数个数为 8 个。
+
+**嵌套子查询支持**：适用于内层查询和外层查询。
+
+**适用于**：表和超级表。
+
+### CONCAT_WS
+
+```sql
+CONCAT_WS(separator_expr, expr1, expr2 [, expr] ...)
+```
+
+**函数分类**：标量函数。
+
+**功能说明**：带分隔符的字符串连接函数。
+
+**返回结果类型**：如果所有参数均为 VARCHAR 类型，则结果类型为 VARCHAR。如果参数包含 NCHAR 类型，则结果类型为 NCHAR。如果参数包含 NULL 值，则输出值为 NULL。
+
+**适用数据类型**：VARCHAR、NCHAR。该函数最小参数个数为 3 个，最大参数个数为 9 个。
+
+**嵌套子查询支持**：适用于内层查询和外层查询。
+
+**适用于**：表和超级表。
+
+### FIND_IN_SET
+
+```sql
+FIND_IN_SET(expr1, expr2[, expr3])
+```
+
+**函数分类**：标量函数。
+
+**功能说明**：将 expr2 以 expr3 为分隔符切分为一个字符串列表，返回 expr1 在该列表中的序号，如存在多个，则返回第一个的序号，不存在则返回 0。expr3 不可以是 NULL 或空串，如未提供该数，其默认值为 `,`。
+
+**返回结果类型**：`BIGINT`。如果参数 expr1 或 expr2 包含 NULL 值，则输出值为 NULL。
+
+**适用数据类型**：VARCHAR、NCHAR。该函数最小参数个数为 2 个，最大参数个数为 3 个。
+
+**嵌套子查询支持**：适用于内层查询和外层查询。
+
+**适用于**：表和超级表。
+
+### LENGTH
+
+```sql
+LENGTH(expr)
+```
+
+**函数分类**：标量函数。
+
+**功能说明**：以字节计数的长度。
+
+**返回结果类型**：`BIGINT`。
+
+**适用数据类型**：VARCHAR、NCHAR、VARBINARY。
+
+**嵌套子查询支持**：适用于内层查询和外层查询。
+
+**适用于**：表和超级表。
+
+### LIKE_IN_SET
+
+```sql
+LIKE_IN_SET(expr1, expr2[, expr3])
+```
+
+**函数分类**：标量函数。
+
+**功能说明**：将 expr2 以 expr3 为分隔符切分为一个字符串列表，将 expr1 使用 `LIKE` 运算符的语义与列表中的字符串进行匹配，返回第一个匹配项的序号，无匹配项则返回 0。expr3 不可以是 NULL 或空串，如未提供该数，其默认值为 `,`。
+
+**返回结果类型**：`BIGINT`。如果参数 expr1 或 expr2 包含 NULL 值，则输出值为 NULL。
+
+**适用数据类型**：VARCHAR、NCHAR。该函数最小参数个数为 2 个，最大参数个数为 3 个。
+
+**嵌套子查询支持**：适用于内层查询和外层查询。
+
+**适用于**：表和超级表。
+
+### LOWER
+
+```sql
+LOWER(expr)
+```
+
+**函数分类**：标量函数。
+
+**功能说明**：将字符串参数值转换为全小写字母。
+
+**返回结果类型**：与输入字段的原始类型相同。
+
+**适用数据类型**：VARCHAR、NCHAR。
+
+**嵌套子查询支持**：适用于内层查询和外层查询。
+
+**适用于**：表和超级表。
+
+### LTRIM
+
+```sql
+LTRIM(expr)
+```
+
+**函数分类**：标量函数。
+
+**功能说明**：返回清除左边空格后的字符串。
+
+**返回结果类型**：与输入字段的原始类型相同。
+
+**适用数据类型**：VARCHAR、NCHAR。
+
+**嵌套子查询支持**：适用于内层查询和外层查询。
+
+**适用于**：表和超级表。
+
+### POSITION
+
+```sql
+POSITION(expr1 IN expr2)
+```
+
+**函数分类**：标量函数。
+
+**功能说明**：计算字符串 `expr1` 在字符串 `expr2` 中的位置。
+
+**版本**：`v3.3.3.0`
+
+**返回结果类型**：`BIGINT`。
+
+**适用数据类型**
+
+- `expr1`：VARCHAR、NCHAR。
+- `expr2`：VARCHAR、NCHAR。
+
+**嵌套子查询支持**：适用于内层查询和外层查询。
+
+**适用于**：表和超级表。
+
+**使用说明**
+
+- 若 `expr1` 或 `expr2` 为 NULL，返回 NULL。
+- 若 `expr1` 在 `expr2` 中不存在，返回 0。
+- 若 `expr1` 为空串，认为 `expr1` 在 `expr2` 中总能匹配成功，返回 1。
+- 返回的位置是 1-base 的。
+- 该函数是多字节安全的。
+
+**示例**
+
+```sql
+taos> SELECT POSITION('a' IN 'cba');
+ position('a' in 'cba') |
+=========================
+                      3 |
+Query OK, 1 row(s) in set
+
+taos> SELECT POSITION('' IN 'cba');
+ position('' in 'cba') |
+========================
+                     1 |
+Query OK, 1 row(s) in set
+
+taos> SELECT POSITION('d' IN 'cba');
+ position('d' in 'cba') |
+=========================
+                      0 |
+Query OK, 1 row(s) in set
+```
+
+### REGEXP_EXTRACT
+
+```sql
+REGEXP_EXTRACT(expr, pattern [, group_idx])
+```
+
+**函数分类**：标量函数。
+
+**功能说明**：对 `expr` 应用 POSIX 扩展正则表达式 `pattern`，返回第 `group_idx` 个捕获组匹配的子串。无匹配、`expr` 或 `pattern` 为 NULL 时返回 NULL。
+
+**返回结果类型**：与 `expr` 相同（VARCHAR 或 NCHAR）。
+
+**适用数据类型**：`expr`：VARCHAR、NCHAR；`pattern`：VARCHAR、NCHAR。
+
+**嵌套子查询支持**：适用于内层查询和外层查询。
+
+**适用于**：表和超级表。
+
+**使用说明**
+
+- `group_idx` 通常为非负整数常量，默认为 `1`。`0` 返回整个匹配串，`1` 返回第一个捕获组，`2` 返回第二个，以此类推，最大值为 512。若 `group_idx` 为 SQL `NULL`，则返回 `NULL`。
+- 若 `group_idx` 超过 `pattern` 中的捕获组数量，或对应捕获组未参与匹配，返回 NULL。
+- `pattern` 必须为常量（字面量或预处理占位符），不可引用列；不支持 `concat('a','b')` 这类常量表达式。
+
+**示例**
+
+```sql
+taos> SELECT REGEXP_EXTRACT('2026-04-22', '([0-9]{4})-([0-9]{2})-([0-9]{2})', 1);
+ regexp_extract('2026-04-22', '([0-9]{4})-([0-9]{2})-([0-9]{2})', 1) |
+=======================================================================
+ 2026                                                                  |
+Query OK, 1 row(s) in set
+
+taos> SELECT REGEXP_EXTRACT('2026-04-22', '([0-9]{4})-([0-9]{2})-([0-9]{2})', 0);
+ regexp_extract('2026-04-22', '([0-9]{4})-([0-9]{2})-([0-9]{2})', 0) |
+=======================================================================
+ 2026-04-22                                                            |
+Query OK, 1 row(s) in set
+
+taos> SELECT REGEXP_EXTRACT('no-digits-here', '[0-9]+', 1);
+ regexp_extract('no-digits-here', '[0-9]+', 1) |
+===============================================
+ NULL                                          |
+Query OK, 1 row(s) in set
+```
+
+### REGEXP_IN_SET
+
+```sql
+REGEXP_IN_SET(expr1, expr2[, expr3])
+```
+
+**函数分类**：标量函数。
+
+**功能说明**：将 expr2 以 expr3 为分隔符切分为一个字符串列表，将 expr1 作为正则表达式匹配列表中的字符串，返回第一个匹配项的序号，无匹配项则返回 0。expr3 不可以是 NULL 或空串，如未提供该数，其默认值为 `,`。
+
+**返回结果类型**：`BIGINT`。如果参数 expr1 或 expr2 包含 NULL 值，则输出值为 NULL。
+
+**适用数据类型**：VARCHAR、NCHAR。该函数最小参数个数为 2 个，最大参数个数为 3 个。
+
+**嵌套子查询支持**：适用于内层查询和外层查询。
+
+**适用于**：表和超级表。
+
+### REPEAT
+
+```sql
+REPEAT(expr, count)
+```
+
+**函数分类**：标量函数。
+
+**功能说明**：返回将字符串重复指定次数得到的字符串。
+
+**版本**：`v3.3.3.0`
+
+**返回结果类型**：与输入字段 `expr` 的原始类型相同。
+
+**适用数据类型**
+
+- `expr`：VARCHAR、NCHAR。
+- `count`：INTEGER。
+
+**嵌套子查询支持**：适用于内层查询和外层查询。
+
+**适用于**：表和超级表。
+
+**使用说明**
+
+- 若 `count < 1`，返回空串。
+- 若 `expr` 或 `count` 为 NULL，返回 NULL。
+
+**示例**
+
+```sql
+taos> SELECT REPEAT('abc', 5);
+      repeat('abc',5)      |
+============================
+ abcabcabcabcabc           |
+Query OK, 1 row(s) in set
+
+taos> SELECT REPEAT('abc', -1);
+ repeat('abc',-1) |
+===================
+                  |
+Query OK, 1 row(s) in set
+```
+
+### REPLACE
+
+```sql
+REPLACE(expr, from_str, to_str)
+```
+
+**函数分类**：标量函数。
+
+**功能说明**：将字符串中的 `from_str` 全部替换为 `to_str`。
+
+**版本**：`v3.3.3.0`
+
+**返回结果类型**：与输入字段 `expr` 的原始类型相同。
+
+**适用数据类型**
+
+- `expr`：VARCHAR、NCHAR。
+- `from_str`：VARCHAR、NCHAR。
+- `to_str`：VARCHAR、NCHAR。
+
+**嵌套子查询支持**：适用于内层查询和外层查询。
+
+**适用于**：表和超级表。
+
+**使用说明**
+
+- 该函数是大小写敏感的。
+- 任意参数为 NULL，返回 NULL。
+- 该函数是多字节安全的。
+
+**示例**
+
+```sql
+taos> SELECT REPLACE('aabbccAABBCC', 'AA', 'DD');
+ replace('aabbccAABBCC', 'AA', 'DD') |
+======================================
+ aabbccDDBBCC                        |
+Query OK, 1 row(s) in set
+```
+
+### RTRIM
+
+```sql
+RTRIM(expr)
+```
+
+**函数分类**：标量函数。
+
+**功能说明**：返回清除右边空格后的字符串。
+
+**返回结果类型**：与输入字段的原始类型相同。
+
+**适用数据类型**：VARCHAR、NCHAR。
+
+**嵌套子查询支持**：适用于内层查询和外层查询。
+
+**适用于**：表和超级表。
+
+### SUBSTRING/SUBSTR
+
+```sql
+SUBSTRING/SUBSTR(expr, pos [, len])
+SUBSTRING/SUBSTR(expr FROM pos [FOR len])
+```
+
+**函数分类**：标量函数。
+
+**功能说明**：返回字符串 `expr` 在 `pos` 位置开始的子串，若指定了 `len`，则返回在 `pos` 位置开始，长度为 `len` 的子串。
+
+**返回结果类型**：与输入字段 `expr` 的原始类型相同。
+
+**适用数据类型**
+
+- `expr`：VARCHAR、NCHAR。
+- `pos`：整数类型。
+- `len`：整数类型。
+
+**嵌套子查询支持**：适用于内层查询和外层查询。
+
+**适用于**：表和超级表。
+
+**使用说明**
+
+- 若 `pos` 为正数，则返回的结果为 `expr` 从左到右开始数 `pos` 位置开始的右侧的子串。
+- 若 `pos` 为负数，则返回的结果为 `expr` 从右到左开始数 `pos` 位置开始的右侧的子串。
+- 任意参数为 NULL，返回 NULL。
+- 该函数是多字节安全的。
+- 若 `len` 小于 1，返回空串。
+- `pos` 是 1-base 的，若 `pos` 为 0，返回空串。
+- 若 `pos` + `len` 大于 `len(expr)`，返回从 `pos` 开始到字符串结尾的子串，等同于执行 `substring(expr, pos)`。
+- `SUBSTRING` 函数等价于 `SUBSTR`，从 `v3.3.3.0` 开始支持。
+- `SUBSTRING/SUBSTR(expr FROM pos [FOR len])` 语法从 `v3.3.3.0` 开始支持。
+
+**示例**
+
+```sql
+taos> SELECT SUBSTRING('tdengine', 0);
+ substring('tdengine', 0) |
+===========================
+                          |
+Query OK, 1 row(s) in set
+
+taos> SELECT SUBSTRING('tdengine', 3);
+ substring('tdengine', 3) |
+===========================
+ engine                   |
+Query OK, 1 row(s) in set
+
+taos> SELECT SUBSTRING('tdengine', 3, 3);
+ substring('tdengine', 3,3) |
+=============================
+ eng                        |
+Query OK, 1 row(s) in set
+
+taos> SELECT SUBSTRING('tdengine', -3, 3);
+ substring('tdengine', -3,3) |
+==============================
+ ine                         |
+Query OK, 1 row(s) in set
+
+taos> SELECT SUBSTRING('tdengine', -3, -3);
+ substring('tdengine', -3,-3) |
+===============================
+                              |
+Query OK, 1 row(s) in set
+```
+
+### SUBSTRING_INDEX
+
+```sql
+SUBSTRING_INDEX(expr, delim, count)
+```
+
+**函数分类**：标量函数。
+
+**功能说明**：返回字符串 `expr` 在出现指定次数分隔符的位置截取的子串。
+
+**版本**：`v3.3.3.0`
+
+**返回结果类型**：与输入字段 `expr` 的原始类型相同。
+
+**适用数据类型**
+
+- `expr`：VARCHAR、NCHAR。
+- `delim`：VARCHAR、NCHAR。
+- `count`：INTEGER。
+
+**嵌套子查询支持**：适用于内层查询和外层查询。
+
+**适用于**：表和超级表。
+
+**使用说明**
+
+- 若 `count` 为正数，则返回的结果为 `expr` 从左到右开始数第 `count` 次 出现 `delim` 的位置左侧的字符串。
+- 若 `count` 为负数，则返回的结果为 `expr` 从右到左开始数第 `count` 的绝对值次 出现 `delim` 的位置右侧的字符串。
+- 任意参数为 NULL，返回 NULL。
+- 该函数是多字节安全的。
+
+**示例**
+
+```sql
+taos> SELECT SUBSTRING_INDEX('www.taosdata.com', '.', 2);
+ substring_index('www.taosdata.com','.',2) |
+============================================
+ www.taosdata                              |
+Query OK, 1 row(s) in set
+
+taos> SELECT SUBSTRING_INDEX('www.taosdata.com', '.', -2);
+ substring_index('www.taosdata.com','.',-2) |
+=============================================
+ taosdata.com                               |
+Query OK, 1 row(s) in set
+```
+
+### TRIM
+
+```sql
+TRIM([{LEADING | TRAILING | BOTH} [remstr] FROM] expr)
+TRIM([remstr FROM] expr)
+```
+
+**函数分类**：标量函数。
+
+**功能说明**：返回去掉了所有 remstr 前缀或后缀的字符串 epxr。
+
+**版本**：`v3.3.3.0`
+
+**返回结果类型**：与输入字段 epxr 的原始类型相同。
+
+**适用数据类型**
+
+- remstr：VARCHAR、NCHAR。
+- epxr：VARCHAR、NCHAR。
+
+**嵌套子查询支持**：适用于内层查询和外层查询。
+
+**适用于**：表和超级表。
+
+**使用说明**
+
+- 第一个可选变量[LEADING | BOTH | TRAILING]指定要剪裁字符串的哪一侧：
+  - LEADING 将移除字符串开头的指定字符。
+  - TRAILING 将移除字符串末尾的指定字符。
+  - BOTH（默认值）将移除字符串开头和末尾的指定字符。
+- 第二个可选变量[remstr]指定要裁剪掉的字符串：
+  - 如果不指定 remstr，默认裁剪空格。
+  - remstr 可以指定多个字符，如 trim('ab' from 'abacd')，此时会将 'ab' 看做一个整体来裁剪，得到裁剪结果 'acd'。
+- 若 expr 为 NULL，返回 NULL。
+- 该函数是多字节安全的。
+
+**示例**
+
+```sql
+taos> SELECT TRIM('        a         ');
+ trim('        a         ') |
+=============================
+ a                          |
+Query OK, 1 row(s) in set
+
+taos> SELECT TRIM(leading FROM '        a         ');
+ trim(leading from '        a         ') |
+==========================================
+ a                                       |
+Query OK, 1 row(s) in set
+
+taos> SELECT TRIM(leading 'b' FROM 'bbbbbbbba         ');
+ trim(leading 'b' from 'bbbbbbbba         ') |
+==============================================
+ a                                           |
+Query OK, 1 row(s) in set
+
+taos> SELECT TRIM(both 'b' FROM 'bbbbbabbbbbb');
+ trim(both 'b' from 'bbbbbabbbbbb') |
+=====================================
+ a                                  |
+Query OK, 1 row(s) in set
+```
+
+### UPPER
+
+```sql
+UPPER(expr)
+```
+
+**函数分类**：标量函数。
+
+**功能说明**：将字符串参数值转换为全大写字母。
+
+**返回结果类型**：与输入字段的原始类型相同。
+
+**适用数据类型**：VARCHAR、NCHAR。
+
+**嵌套子查询支持**：适用于内层查询和外层查询。
+
+**适用于**：表和超级表。
+
+## 数据安全与编解码
+
+数据安全与编解码函数均为 **标量函数**。
+
+### 编码函数
+
+#### TO_BASE64
+
+```sql
+TO_BASE64(expr)
+```
+
+**函数分类**：标量函数。
+
+**功能说明**: 返回 `expr` 的 Base64 编码。对于非字符串类型，先将值转换为字符串表示再进行编码。
+
+**返回结果类型**: VARCHAR
+
+**适用数据类型**
+
+- `expr`: BOOL、数值类型、TIMESTAMP、VARCHAR、NCHAR。
+
+**嵌套子查询支持**：适用于内层查询和外层查询。
+
+**适用于**：表和超级表。
+
+**使用说明**
+
+- 若 expr 为 NULL，返回 NULL。
+- 若 Base64 编码结果超过 VARCHAR 最大长度，返回错误。
+- BOOL 类型：TRUE 视为字符串 `'1'`、FALSE 视为字符串 `'0'`。
+- TIMESTAMP 类型：始终以 UTC 时区格式化为 `yyyy-mm-dd hh24:mi:ss.{精度}+00`（精度根据列定义为 ms/us/ns），编码结果与会话时区无关且保留完整精度。
+
+**示例**
+
+```sql
+taos> SELECT TO_BASE64(NULL);
+ to_base64(null) |
+==================
+ NULL            |
+Query OK, 1 row(s) in set
+
+taos> SELECT TO_BASE64("");
+ to_base64("") |
+================
+               |
+Query OK, 1 row(s) in set
+
+taos> SELECT TO_BASE64(14324);
+ to_base64(14324) |
+=====================
+ MTQzMjQ=         |
+Query OK, 1 row(s) in set
+
+taos> SELECT TO_BASE64("14324");
+ to_base64("14324") |
+=====================
+ MTQzMjQ=          |
+Query OK, 1 row(s) in set
+
+taos> SELECT TO_BASE64("Hello, world!");
+ to_base64("Hello, world!") |
+=============================
+ SGVsbG8sIHdvcmxkIQ==       |
+Query OK, 1 row(s) in set
+
+taos> SELECT TO_BASE64("你好 世界");
+ to_base64("你好 世界")      |
+==============================
+ 5L2g5aW9IOS4lueVjA==        |
+Query OK, 1 row(s) in set
+```
+
+#### FROM_BASE64
+
+```sql
+FROM_BASE64(expr)
+```
+
+**函数分类**：标量函数。
+
+**功能说明**: 解码 base64 编码的字符串。
+
+**返回结果类型**: VARCHAR
+
+**适用数据类型**
+
+- `expr`: VARCHAR
+
+**嵌套子查询支持**：适用于内层查询和外层查询。
+
+**适用于**：表和超级表。
+
+**使用说明**
+
+- 若 expr 为 NULL，返回 NULL。
+
+**示例**
+
+```sql
+taos> SELECT FROM_BASE64("SGVsbG8sIHdvcmxkIQ==");
+ from_base64("SGVsbG8sIHdvcmxkIQ==") |
+======================================
+ Hello, world!                       |
+Query OK, 1 row(s) in set
+```
+
+### 哈希函数
+
+#### CRC32
+
+```sql
+CRC32(expr)
+```
+
+**函数分类**：标量函数。
+
+**功能说明**: 传回代表循环冗余检查 (CRC) 的无符号 32 位整数。
+
+**返回结果类型**: 无符号 32 位整数。
+
+**适用数据类型**: 适用于任何类型。
+
+**嵌套子查询支持**: 适用于内层查询和外层查询。
+
+**适用于**: 表和超级表。
+
+**使用说明**
+
+- 如果 expr 为 NULL，则返回 NULL。
+- 如果 expr 是空字符串，返回 0。
+- 如果 `expr` 是非字符串，则将其解释为字符串后进行计算。
+- 该函数是多字节安全的。
+
+**示例**
+
+```sql
+taos> SELECT CRC32(NULL);
+ crc32(null) |
+==============
+ NULL        |
+Query OK, 1 row(s) in set
+
+taos> SELECT CRC32("");
+  crc32("")  |
+==============
+           0 |
+Query OK, 1 row(s) in set
+
+taos> SELECT CRC32(123);
+ crc32(123)  |
+==============
+  2286445522 |
+Query OK, 1 row(s) in set
+
+taos> SELECT CRC32(123.456);
+ crc32(123.456) |
+=================
+      844093190 |
+Query OK, 1 row(s) in set
+
+taos> SELECT CRC32(TO_TIMESTAMP("2000-01-01", "yyyy-mm-dd hh24:mi:ss"));
+ crc32(to_timestamp("2000-01-01", "yyyy-mm-dd hh24:mi:ss")) |
+=============================================================
+                                                 2274736693 |
+Query OK, 1 row(s) in set
+
+taos> SELECT CRC32("This is a string");
+ crc32("This is a string") |
+============================
+                 141976383 |
+Query OK, 1 row(s) in set
+
+taos> SELECT CRC32("这是一个字符串");
+ crc32("这是一个字符串") |
+========================
+            1902862441 |
+Query OK, 1 row(s) in set
+
+taos> SELECT CRC32(col_name)
+      FROM ins_columns
+      LIMIT 10;
+ crc32(col_name) |
+==================
+      3208210256 |
+      3292663675 |
+      3081158046 |
+      1063017838 |
+      2063623452 |
+      3996452140 |
+      2559042119 |
+      3485334036 |
+      3208210256 |
+      3292663675 |
+Query OK, 10 row(s) in set
+```
+
+#### MD5
+
+```sql
+MD5(expr)
+```
+
+**函数分类**：标量函数。
+
+**功能说明**: 计算字符串的 MD5 128 位校验和。
+
+**返回结果类型**: VARCHAR
+
+**适用数据类型**
+
+- `expr`: VARCHAR.
+
+**嵌套子查询支持**：适用于内层查询和外层查询。
+
+**适用于**：表和超级表。
+
+**使用说明**
+
+- 若 expr 为 NULL，返回 NULL。
+
+**示例**
+
+```sql
+taos> SELECT MD5('mytext') \G;
+*************************** 1.row ***************************
+md5('mytext'): 947ef8c8db156a568d5974d71f7638f4
+Query OK, 1 row(s) in set
+
+taos> INSERT INTO db.tb
+      VALUES (now, MD5('mytext'));
+Insert OK, 1 row(s) affected
+```
+
+#### SHA1 / SHA
+
+```sql
+SHA1(expr)
+```
+
+**函数分类**：标量函数。
+
+**功能说明**: 计算 SHA1 160 位校验和，具体可参考 RFC 3174。
+
+**返回结果类型**: VARCHAR
+
+**适用数据类型**
+
+- `expr`: VARCHAR
+
+**嵌套子查询支持**：适用于内层查询和外层查询。
+
+**适用于**：表和超级表。
+
+**使用说明**
+
+- 若 expr 为 NULL，返回 NULL。
+- SHA 与 SHA1 是同义词。
+
+**示例**
+
+```sql
+taos> SELECT SHA('mytext') \G;
+*************************** 1.row ***************************
+sha('mytext'): 65d922aad93c7e165ed888a2ab85befe9841fd39
+Query OK, 1 row(s) in set
+```
+
+#### SHA2
+
+```sql
+SHA2(expr, hash_length)
+```
+
+**函数分类**：标量函数。
+
+**功能说明**: 计算 SHA2 系列的哈希函数（SHA-224, SHA-256, SHA-384, and SHA-512）。
+
+**返回结果类型**: VARCHAR
+
+**适用数据类型**
+
+- `expr`: VARCHAR
+- `hash_length`: 224, 256, 384, 512
+
+**嵌套子查询支持**：适用于内层查询和外层查询。
+
+**适用于**：表和超级表。
+
+**使用说明**
+
+- 若 expr 为 NULL，返回 NULL。
+
+**示例**
+
+```sql
+taos> SELECT SHA2('mytext', 224) \G;
+*************************** 1.row ***************************
+sha2('mytext', 224): 576e8f2cf59ebc59dd7659c48916f162ae0cf35937563999d5a7800e
+Query OK, 1 row(s) in set
+```
+
+#### SM3
+
+```sql
+SM3(expr)
+```
+
+**函数分类**：标量函数。
+
+**功能说明**: 使用国密 SM3 杂凑算法（GB/T 32905-2016）计算 `expr` 的摘要，以 64 个字符的小写十六进制字符串返回 256 位摘要值。
+
+**返回结果类型**: VARCHAR
+
+**适用数据类型**
+
+- `expr`: VARCHAR、NCHAR、VARBINARY
+
+**嵌套子查询支持**：适用于内层查询和外层查询。
+
+**适用于**：表和超级表。
+
+**使用说明**
+
+- 若 `expr` 为 NULL，返回 NULL。
+- `NCHAR` 类型按 UTF-8 编码后计算摘要。
+- 可用于数据比对与完整性校验，例如在源库和 TDengine 中分别计算同一字段的摘要后比较。
+
+**示例**
+
+```sql
+taos> SELECT sm3('abc') \G;
+*************************** 1.row ***************************
+sm3('abc'): 66c7f0f462eeedd9d1f2d46bdc10e4e24167c4875cf2f7a2297da02b8f4ba8e0
+Query OK, 1 row(s) in set
+```
+
+### 脱敏函数
+
+TDengine 提供两种数据脱敏方式，适用于不同场景：
+
+| 方式 | 说明 | 典型用法 |
+|------|------|----------|
+| **脱敏函数**（本节） | 在 SQL 查询中由用户 **显式调用**，对指定表达式做脱敏转换后返回结果。任何有查询权限的用户均可使用，脱敏逻辑由查询语句本身决定。 | `SELECT MASK_FULL(phone, '*') FROM t;` |
+| **授权列脱敏**（`GRANT MASK(col)`） | 由管理员通过 `GRANT` 语句将列绑定脱敏策略，对 **特定用户** 透明生效。该用户查询该列时，系统自动将原始值替换为 `'*'`，无需用户在 SQL 中显式调用函数。**仅企业版支持。** | `GRANT SELECT (MASK(phone)) ON db.t TO user1;` |
+
+授权列脱敏的详细语法及行为说明，请参阅 [GRANT — 列权限（脱敏）](../07-user-and-privilege/02-grant.md#列权限)。
+
+#### MASK_FULL
+
+```sql
+MASK_FULL(str, replace_value)
+```
+
+**函数分类**：标量函数。
+
+**功能说明**: 将目标数据进行全脱敏处理。
+
+**返回结果类型**: VARCHAR
+
+**适用数据类型**
+
+- `str`: VARCHAR.
+
+**嵌套子查询支持**：适用于内层查询和外层查询。
+
+**适用于**：表和超级表。
+
+**示例**
+
+```sql
+taos> SELECT MASK_FULL('mytext', 'CONFIDENTIAL');
+ mask_full('mytext', 'CONFIDENTIAL') |
+======================================
+ CONFIDENTIAL                        |
+Query OK, 1 row(s) in set
+```
+
+#### MASK_PARTIAL
+
+```sql
+MASK_PARTIAL(str, prefix_length, suffix_length, mask_char)
+```
+
+**函数分类**：标量函数。
+
+**功能说明**: 将目标数据进行部分脱敏处理。
+
+**返回结果类型**: VARCHAR
+
+**适用数据类型**
+
+- `str`: VARCHAR.
+- `prefix_length`: 从字符串开头要屏蔽的字符数。
+- `suffix_length`: 从字符串末尾要屏蔽的字符数。
+
+**嵌套子查询支持**：适用于内层查询和外层查询。
+
+**适用于**：表和超级表。
+
+**示例**
+
+```sql
+taos> SELECT MASK_PARTIAL('mytext', 1, 2, '*');
+ mask_partial('mytext', 1, 2, '*') |
+====================================
+ *yte**                            |
+Query OK, 1 row(s) in set
+```
+
+#### MASK_NONE
+
+```sql
+MASK_NONE(str)
+```
+
+**函数分类**：标量函数。
+
+**功能说明**: 将目标数据进行空脱敏处理。
+
+**返回结果类型**: VARCHAR
+
+**适用数据类型**
+
+- `str`: VARCHAR.
+
+**嵌套子查询支持**：适用于内层查询和外层查询。
+
+**适用于**：表和超级表。
+
+**使用说明**
+
+- 若 expr 为 NULL，返回 NULL。
+
+**示例**
+
+```sql
+taos> SELECT MASK_NONE('mytext');
+ mask_none('mytext') |
+======================
+ mytext              |
+Query OK, 1 row(s) in set
+```
+
+### 加密函数
+
+#### SM4_ENCRYPT
+
+```sql
+SM4_ENCRYPT(str, key_str)
+```
+
+**函数分类**：标量函数。
+
+**功能说明**: 使用 SM4 算法对数据进行加密
+
+**返回结果类型**: VARCHAR
+
+**适用数据类型**
+
+- `str`: VARCHAR.
+- `key_str`: 字符串密钥
+
+**嵌套子查询支持**：适用于内层查询和外层查询。
+
+**适用于**：表和超级表。
+
+**使用说明**
+
+- 支持在 INSERT 和 SELECT 语句中使用
+- 仅企业版支持
+
+**示例**
+
+```sql
+taos> SELECT SM4_DECRYPT(SM4_ENCRYPT('mytext', 'mykeystring'), 'mykeystring');
+ sm4_decrypt(sm4_encrypt('mytext', 'mykeystring'), 'mykeystring') |
+===================================================================
+ mytext                                                           |
+Query OK, 1 row(s) in set
+```
+
+#### SM4_DECRYPT
+
+```sql
+SM4_DECRYPT(str, key_str)
+```
+
+**函数分类**：标量函数。
+
+**功能说明**: 使用 SM4 算法对数据进行解密
+
+**返回结果类型**: VARCHAR
+
+**适用数据类型**
+
+- `str`: VARCHAR.
+- `key_str`: 字符串密钥
+
+**嵌套子查询支持**：适用于内层查询和外层查询。
+
+**适用于**：表和超级表。
+
+**使用说明**
+
+- 支持在 INSERT 和 SELECT 语句中使用
+- 仅企业版支持
+
+**示例**
+见 `sm4_encrypt`。
+
+#### AES_ENCRYPT
+
+```sql
+AES_ENCRYPT(str, key_str[, init_vector])
+```
+
+**函数分类**：标量函数。
+
+**功能说明**: 使用 AES-128-CBC 或 AES-128-ECB 模式对数据进行加密
+
+**返回结果类型**: VARCHAR
+
+**适用数据类型**
+
+- `str`: VARCHAR.
+- `key_str`: 字符串密钥
+- `init_vector`: 初始化向量
+
+**嵌套子查询支持**：适用于内层查询和外层查询。
+
+**适用于**：表和超级表。
+
+**使用说明**
+
+- 支持在 INSERT 和 SELECT 语句中使用
+
+**示例**
+
+```sql
+taos> SELECT AES_DECRYPT(AES_ENCRYPT('mytext', 'mykeystring'), 'mykeystring');
+ aes_decrypt(aes_encrypt('mytext', 'mykeystring'), 'mykeystring') |
+===================================================================
+ mytext                                                           |
+Query OK, 1 row(s) in set
+```
+
+#### AES_DECRYPT
+
+```sql
+AES_DECRYPT(str, key_str[, init_vector[, iv_mode]])
+```
+
+**函数分类**：标量函数。
+
+**功能说明**: 使用 AES-128-CBC 或 AES-128-ECB 模式对数据进行解密
+
+**返回结果类型**: VARCHAR
+
+**适用数据类型**
+
+- `str`: VARCHAR.
+- `key_str`: 字符串密钥
+- `init_vector`：16 字节的初始化向量，省略时使用 ECB 模式。
+- `iv_mode`：可选的 VARCHAR 常量，取值为 `'raw'`（默认）或 `'legacy'`，不区分大小写。指定该参数时必须提供 `init_vector`。
+
+**嵌套子查询支持**：适用于内层查询和外层查询。
+
+**适用于**：表和超级表。
+
+**使用说明**
+
+- 支持在 INSERT 和 SELECT 语句中使用
+
+**旧版 CBC 密文的读取与迁移**
+
+标量 IV 修正前，SELECT 表达式中的 `AES_ENCRYPT` 使用两字节字符串长度头和 `init_vector` 的前 14 字节作为 IV，`INSERT INTO ... SELECT ...` 也受此影响。读取通过该路径保存的密文时，应向 `AES_DECRYPT` 传入原密钥、原 16 字节 IV 和 `'legacy'`：
+
+```sql
+SELECT AES_DECRYPT(FROM_BASE64('0vM8V2C54mB2YM8inkTVhaTDob2wkxRfXkptoX7n6FwOM6NY0jQclzGL1FLq4FYm'), '0123456789abcdef', '0123456789abcdef', 'legacy');
+```
+
+该示例返回 `0123456789abcdef0123456789abcdef`。兼容模式使用解密主机的字符串长度头表示方式重现旧 IV；示例密文生成于小端主机。
+
+`'legacy'` 仅用于受影响的旧标量路径密文。ECB 密文、通过 `INSERT ... VALUES` 生成的密文和修正后生成的密文，使用正常的两参数或三参数调用；CBC 也可显式指定 `'raw'`。密文不包含格式标记，应根据数据来源选择模式。不能依靠填充校验区分格式，选错模式可能静默改变明文的第一个分组。
+
+升级读取已保存标量 CBC 密文的应用前，应识别这些数据，并将其读取调用改为 `'legacy'`。若要转换为当前格式，先创建包含时间戳列和足够宽 VARCHAR 密文列的目标表，再解密并重新加密：
+
+```sql
+INSERT INTO migrated_data
+SELECT
+  ts,
+  AES_ENCRYPT(AES_DECRYPT(cipher, '0123456789abcdef', '0123456789abcdef', 'legacy'), '0123456789abcdef', '0123456789abcdef')
+FROM legacy_data;
+```
+
+迁移后使用默认模式读取。若同一数据集混存两种格式，应保存格式标记。解密使用原密钥和 IV，重新加密使用目标密钥和 IV。
+
+**示例**
+见 `aes_encrypt`。
+
+## 类型转换函数
+
+转换函数将值从一种数据类型转换为另一种数据类型，均为 **标量函数**。
+
+### CAST
+
+```sql
+CAST(expr AS type_name)
+```
+
+**函数分类**：标量函数。
+
+**功能说明**：数据类型转换函数，返回 expr 转换为 type_name 指定的类型后的结果。
+
+**返回结果类型**：CAST 中指定的类型（type_name)。
+
+**适用数据类型**：输入参数 expr 的类型可以是除 JSON 和 VARBINARY 外的所有类型。如果 type_name 为 VARBINARY，则 expr 只能是 VARCHAR 类型。
+
+**嵌套子查询支持**：适用于内层查询和外层查询。
+
+**适用于**：表和超级表。
+
+**使用说明**
+
+- 对于不能支持的类型转换会直接报错。
+- 对于类型支持但某些值无法正确转换的情况，对应的转换后的值以转换函数输出为准。目前可能遇到的几种情况：
+  - 字符串类型转换数值类型时可能出现的无效字符情况，例如 "a" 可能转为 0，但不会报错。
+  - 转换到数值类型时，数值大于 type_name 可表示的范围时，则会溢出，但不会报错。
+  - 转换到字符串类型时，如果转换后长度超过 type_name 中指定的长度，则会截断，但不会报错。
+- 将 `VARCHAR` 转换为 `NCHAR(n)` 时，最多保留解码后的前 `n` 个字符。解码满 `n` 个字符之前遇到非法字节会报转换错误。解码满 `n` 个字符后，其余字节会被丢弃。
+- DECIMAL 类型不支持与 JSON、VARBINARY、GEOMETRY 类型的互转。
+
+### TO_CHAR
+
+```sql
+TO_CHAR(ts, format_str_literal [, timezone])
+```
+
+**函数分类**：标量函数。
+
+**功能说明**：将 timestamp 类型按照指定格式转换为字符串。
+
+**使用说明**：vv3.2.2.0
+
+**返回结果类型**：`VARCHAR`。
+
+**适用数据类型**：TIMESTAMP。
+
+**嵌套子查询支持**：适用于内层查询和外层查询。
+
+**适用于**：表和超级表。
+
+**支持的格式**
+
+| **格式**            | **说明**                                  | **例子**                  |
+| ------------------- | ----------------------------------------- | ------------------------- |
+| AM,am,PM,pm         | 无点分隔的上午下午                        | 07:00:00am                |
+| A.M.,a.m.,P.M.,p.m. | 有点分隔的上午下午                        | 07:00:00a.m.              |
+| YYYY,yyyy           | 年，4 个及以上数字                         | 2023                      |
+| YYY,yyy             | 年，最后 3 位数字                           | 023                       |
+| YY,yy               | 年，最后 2 位数字                           | 23                        |
+| Y,y                 | 年，最后一位数字                          | 3                         |
+| MONTH               | 月，全大写                                | 2023-JANUARY-01           |
+| Month               | 月，首字母大写                            | 2023-January-01           |
+| month               | 月，全小写                                | 2023-january-01           |
+| MON                 | 月，缩写，全大写 (三个字符)                | JAN、SEP                  |
+| Mon                 | 月，缩写，首字母大写                      | Jan、Sep                  |
+| mon                 | 月，缩写，全小写                          | jan、sep                  |
+| MM,mm               | 月，数字 01-12                            | 2023-01-01                |
+| DD,dd               | 月日，01-31                               |                           |
+| DAY                 | 周日，全大写                              | MONDAY                    |
+| Day                 | 周日，首字符大写                          | Monday                    |
+| day                 | 周日，全小写                              | monday                    |
+| DY                  | 周日，缩写，全大写                        | MON                       |
+| Dy                  | 周日，缩写，首字符大写                    | Mon                       |
+| dy                  | 周日，缩写，全小写                        | mon                       |
+| DDD                 | 年日，001-366                             |                           |
+| D,d                 | 周日，数字，1-7，Sunday(1) to Saturday(7) |                           |
+| HH24,hh24           | 小时，00-23                               | 2023-01-30 23:59:59       |
+| hh12,HH12,hh,HH     | 小时，01-12                               | 2023-01-30 12:59:59PM     |
+| MI,mi               | 分钟，00-59                               |                           |
+| SS,ss               | 秒，00-59                                 |                           |
+| MS,ms               | 毫秒，000-999                             |                           |
+| US,us               | 微秒，000000-999999                       |                           |
+| NS,ns               | 纳秒，000000000-999999999                 |                           |
+| TZH,tzh             | 时区小时                                  | 2023-01-30 11:59:59PM +08 |
+| TZ,tz               | 时区小时和分钟                            | 2023-01-30 11:59:59PM +08:00 |
+
+**使用说明**
+
+- 格式串中的 `MM`、`mm` 表示月份，`MI`、`mi` 表示分钟。
+- `Month`、`Day`等的输出格式是左对齐的，右侧添加空格，如 `2023-OCTOBER  -01`、`2023-SEPTEMBER-01`，9 月是月份中英文字母数最长的，因此 9 月没有空格。星期类似。
+- 使用`ms`、`us`、`ns`时，以上三种格式的输出只在精度上不同，比如 ts 为 `1697182085123`，`ms` 的输出为 `123`，`us` 的输出为 `123000`，`ns` 的输出为 `123000000`。
+- 时间格式中无法匹配规则的内容会直接输出。如果想要在格式串中指定某些能够匹配规则的部分不做转换，可以使用双引号，如 `to_char(ts, 'yyyy-mm-dd "is formatted by yyyy-mm-dd"')`。如果想要输出双引号，那么在双引号之前加一个反斜杠，如 `to_char(ts, '\"yyyy-mm-dd\"')` 将会输出 `"2023-10-10"`。
+- 那些输出是数字的格式，如`YYYY`、`DD`，大写与小写意义相同，即 `yyyy` 和 `YYYY` 可以互换。
+- 若指定 `timezone`，支持的格式见[支持的时区格式](../10-time/01-timezone.md#支持的时区格式)。
+- 若未指定 `timezone`，使用当前连接时区。
+- IANA 时区参数按目标时间点感知 DST，输出偏移会随夏令时变化。
+- 输入时间戳的精度由所查询表的精度确定，若未指定表，则精度为毫秒。
+
+### TO_ISO8601
+
+```sql
+TO_ISO8601(expr [, timezone])
+```
+
+**函数分类**：标量函数。
+
+**功能说明**：将时间戳转换成 ISO8601 标准日期时间格式并附加时区信息。`timezone` 参数可显式指定输出时区；省略时优先使用当前连接时区，若连接未设置则使用客户端时区，仍不可用时使用系统默认时区。
+
+**返回结果类型**：`VARCHAR`。类型。
+
+**适用数据类型**：INTEGER、TIMESTAMP。
+
+**嵌套子查询支持**：适用于内层查询和外层查询。
+
+**适用于**：表和超级表。
+
+**使用说明**
+
+- `timezone` 支持的格式见[支持的时区格式](../10-time/01-timezone.md#支持的时区格式)。**仅 `TO_ISO8601` 中时区按 ISO 8601 格式解析**（`local = UTC + offset`，即 `'+08:00'` = 东八区），`'+0800'`/`'UTC+8'`/`'UTC+0800'`/`'UTC+08:00'` 行为完全一致。详见[ISO 8601 符号约定](../10-time/01-timezone.md#to_iso8601)。
+- 若未指定 `timezone`，使用当前连接时区。
+- IANA 时区参数按目标时间点感知 DST，输出偏移会随夏令时变化。
+- 输入时间戳的精度由所查询表的精度确定，若未指定表，则精度为毫秒。
+
+### TO_JSON
+
+```sql
+TO_JSON(str_literal)
+```
+
+**函数分类**：标量函数。
+
+**功能说明**：将字符串常量转换为 JSON 类型。
+
+**返回结果类型**：`JSON`。
+
+**适用数据类型**：JSON 字符串，形如 '\{ "literal" : literal }'。'\{}'表示空值。键必须为字符串字面量，值可以为数值字面量、字符串字面量、布尔字面量或空值字面量。str_literal 中不支持转义符。
+
+**嵌套子查询支持**：适用于内层查询和外层查询。
+
+**适用于**：表和超级表。
+
+### TO_TIMESTAMP
+
+```sql
+TO_TIMESTAMP(ts_str_literal, format_str_literal)
+```
+
+**函数分类**：标量函数。
+
+**功能说明**：将字符串按照指定格式转化为时间戳。
+
+**使用说明**：v3.2.2.0
+
+**返回结果类型**：`TIMESTAMP`。
+
+**适用数据类型**：VARCHAR。
+
+**嵌套子查询支持**：适用于内层查询和外层查询。
+
+**适用于**：表和超级表。
+
+**使用说明**：与 `to_char` 相同。
+
+**使用说明**
+
+- 若 `ms`、`us`、`ns` 同时指定，那么结果时间戳包含上述三个字段的和，如 `to_timestamp('2023-10-10 10:10:10.123.000456.000000789', 'yyyy-mm-dd hh:mi:ss.ms.us.ns')` 输出为 `2023-10-10 10:10:10.123456789`对应的时间戳。
+- `MONTH`、`MON`、`DAY`、`DY` 以及其他输出为数字的格式的大小写意义相同，如 `to_timestamp('2023-JANUARY-01', 'YYYY-month-dd')`，`month`可以被替换为 `MONTH` 或者 `Month`。
+- 如果同一字段被指定了多次，那么前面的指定将会被覆盖，如 `to_timestamp('2023-22-10-10', 'yyyy-yy-MM-dd')`，输出年份是 `2022`。
+- 未指定时区时使用连接级时区；若需使用非连接级时区，可以在输入时间字符串中携带时区信息，例如 '2023-10-10 10:10:10+08'。
+- 如果没有指定完整的时间，那么默认时间值为指定或默认时区的 `1970-01-01 00:00:00`，未指定部分使用该默认值中的对应部分。暂不支持只指定年日而不指定月日的格式，如 'yyyy-mm-DDD'，支持'yyyy-mm-DD'。
+- 如果格式串中有`AM`、`PM`等，那么小时必须是 12 小时制，范围必须是 01-12。
+- `to_timestamp` 转换具有一定的容错机制，在格式串和时间戳串不完全对应时，有时也可转换，如 `to_timestamp('200101/2', 'yyyyMM1/dd')`，格式串中多出来的 1 会被丢弃。格式串与时间戳串中多余的空格字符 (空格、tab 等) 也会被自动忽略，如 `to_timestamp('  23 年 - 1 月 - 01 日  ', 'yy 年-MM月-dd日')` 可以被成功转换。虽然 `MM` 等字段需要两个数字对应 (只有一位时前面补 0), 在 `to_timestamp` 时，一个数字也可以成功转换。
+- 输出时间戳的精度与查询表的精度相同，若查询未指定表，则输出精度为毫秒，如 `select to_timestamp('2023-08-1 10:10:10.123456789', 'yyyy-mm-dd hh:mi:ss.ns')` 的输出将会把微秒和纳秒进行截断、如果指定一张纳秒表，那么就不会发生截断，如 `select to_timestamp('2023-08-1 10:10:10.123456789', 'yyyy-mm-dd hh:mi:ss.ns') from db_ns.table_ns limit 1`。
+
+### TO_UNIXTIMESTAMP
+
+```sql
+TO_UNIXTIMESTAMP(expr [, return_timestamp])
+
+return_timestamp: {
+    0
+  | 1
+}
+```
+
+**函数分类**：标量函数。
+
+**功能说明**：将日期时间格式的字符串转换成为时间戳。
+
+**返回结果类型**：`BIGINT`。、TIMESTAMP。
+
+**应用字段**：VARCHAR、NCHAR。
+
+**嵌套子查询支持**：适用于内层查询和外层查询。
+
+**适用于**：表和超级表。
+
+**使用说明**
+
+- 输入的日期时间字符串须符合 ISO8601/RFC3339 标准，无法转换的字符串格式将返回 NULL。
+- 返回的时间戳精度与当前 DATABASE 设置的时间精度一致。
+- return_timestamp 指定函数返回值是否为时间戳类型，设置为 1 时返回 TIMESTAMP 类型，设置为 0 时返回 BIGINT 类型。如不指定缺省返回 BIGINT 类型。
+- 未指定时区的输入字符串按当前连接时区解析；若需使用非连接级时区，可以在输入时间字符串中携带时区信息，此时以字符串携带的时区为准。
+
+## 时间和日期函数
+
+时间和日期函数对时间戳类型进行操作，均为 **标量函数**。
+
+所有返回当前时间的函数，如 NOW、TODAY、TIMEZONE、CURDATE、CURTIME、CURRENT_TIMESTAMP 和无参数的 UNIX_TIMESTAMP，在一条 SQL 语句中不论出现多少次都只会被计算一次。
+
+### CURDATE
+
+```sql
+CURDATE()
+```
+
+**函数分类**：标量函数。
+
+**功能说明**：以 `YYYY-MM-DD` 格式返回当前连接时区的当前日期。
+
+**版本**：`v3.4.3.12`
+
+**返回结果类型**：`VARCHAR`。
+
+**适用数据类型**：无参数。
+
+**嵌套子查询支持**：适用于内层查询和外层查询。
+
+**适用于**：表和超级表。
+
+**使用说明**
+
+- 在一条 SQL 语句中不论出现多少次，均取语句开始执行时的同一时刻。
+- 当前日期按当前连接时区确定，时区设置参见 [TIMEZONE](#timezone)。
+- TDengine 没有独立的日期和时间类型，因此结果以 VARCHAR 文本返回，不能直接当作 TIMESTAMP 使用，但可作为其他函数的日期时间文本参数继续计算。
+
+**示例**
+
+(注意：输出结果取决于执行时刻和连接时区)
+
+```sql
+taos> SELECT curdate();
+  curdate()   |
+===============
+ 2026-11-16   |
+```
+
+### CURRENT_DATE
+
+```sql
+CURRENT_DATE()
+CURRENT_DATE
+```
+
+**函数分类**：标量函数。
+
+与 [CURDATE](#curdate) 函数的行为相同，可省略括号，从 `v3.4.3.12` 版本开始支持。
+
+### CURRENT_TIME
+
+```sql
+CURRENT_TIME([fsp])
+CURRENT_TIME
+```
+
+**函数分类**：标量函数。
+
+与 [CURTIME](#curtime) 函数的行为相同，可省略括号，从 `v3.4.3.12` 版本开始支持。
+
+### CURRENT_TIMESTAMP
+
+```sql
+CURRENT_TIMESTAMP([fsp])
+CURRENT_TIMESTAMP
+```
+
+**函数分类**：标量函数。
+
+**功能说明**：返回语句开始执行时的当前时间戳，小数秒保留 `fsp` 位。
+
+**版本**：`v3.4.3.12`
+
+**返回结果类型**：`TIMESTAMP`。
+
+**适用数据类型**
+
+- `fsp`：小数秒位数，必须为 `0`～`6` 的整数常量，缺省为 `0`。
+
+**嵌套子查询支持**：适用于内层查询和外层查询。
+
+**适用于**：表和超级表。
+
+**使用说明**
+
+- 可省略括号，写作 `CURRENT_TIMESTAMP`，等同于 `CURRENT_TIMESTAMP(0)`。
+- 超出 `fsp` 的小数秒部分被截断；例如 `fsp` 为 `0` 时结果精确到秒。这一点与保留完整精度的 [NOW](#now) 不同。
+- 可用的小数位数受数据库时间精度限制，例如毫秒精度的数据库中最多保留 3 位；未指定表时按毫秒精度处理。
+- 在一条 SQL 语句中不论出现多少次，均取语句开始执行时的同一时刻。
+- `fsp` 超出范围或不是常量时报错。
+
+**示例**
+
+(注意：输出结果取决于执行时刻和连接时区，精度为毫秒)
+
+```sql
+taos> SELECT
+        current_timestamp,
+        current_timestamp(3);
+    current_timestamp    |  current_timestamp(3)   |
+====================================================
+ 2026-11-16 18:30:15.000 | 2026-11-16 18:30:15.123 |
+```
+
+### CURTIME
+
+```sql
+CURTIME([fsp])
+```
+
+**函数分类**：标量函数。
+
+**功能说明**：以 `HH:MM:SS[.fraction]` 格式返回当前连接时区的当前时间，小数秒保留 `fsp` 位。
+
+**版本**：`v3.4.3.12`
+
+**返回结果类型**：`VARCHAR`。
+
+**适用数据类型**
+
+- `fsp`：小数秒位数，必须为 `0`～`6` 的整数常量，缺省为 `0`。
+
+**嵌套子查询支持**：适用于内层查询和外层查询。
+
+**适用于**：表和超级表。
+
+**使用说明**
+
+- `fsp` 为 `0` 时不输出小数点和小数部分。
+- 在一条 SQL 语句中不论出现多少次，均取语句开始执行时的同一时刻。
+- 当前时间按当前连接时区确定。
+- `fsp` 超出范围或不是常量时报错。
+- TDengine 没有独立的日期和时间类型，因此结果以 VARCHAR 文本返回，不能直接当作 TIMESTAMP 使用，但可作为其他函数的日期时间文本参数继续计算。
+
+**示例**
+
+(注意：输出结果取决于执行时刻和连接时区)
+
+```sql
+taos> SELECT
+        curtime(),
+        curtime(3);
+     curtime()     |    curtime(3)     |
+========================================
+ 18:30:15          | 18:30:15.123      |
+```
+
+### DATE
+
+```sql
+DATE(expr)
+```
+
+**函数分类**：标量函数。
+
+**功能说明**：返回输入时间表达式的日期。
+
+**版本**：`v3.3.8.0`
+
+**返回结果类型**：`VARCHAR`。
+
+**适用数据类型**：表示时间戳的 BIGINT、TIMESTAMP 类型，或符合 ISO8601/RFC3339 标准的日期时间格式的 VARCHAR、NCHAR 类型。
+
+**嵌套子查询支持**：适用于内层查询和外层查询。
+
+**适用于**：表和超级表。
+
+**使用说明**
+
+- 返回日期的格式为 `yyyy-mm-dd`。
+- 若 `expr` 为 NULL，返回 NULL。
+- 若 `expr` 为 VARCHAR、NCHAR 类型但不符合 ISO8601/RFC3339 标准，返回 NULL。
+- 输入时间表达式的精度由所查询表的精度确定，未指定表，则精度为毫秒。
+- 输入字符串携带时区时，该时区用于确定其对应的绝对时刻；未携带时区时，按连接级时区解析。不论输入是否携带时区，计算并返回日期时均使用连接级时区。
+
+**示例**
+
+(注意：例中语句在 UTC+0800 时区执行，精度为毫秒)
+
+```sql
+taos> SELECT DATE(946656000000);
+       date(946656000000)       |
+=================================
+ 2000-01-01                     |
+Query OK, 1 row(s) in set
+
+taos> SELECT DATE('2000-01-01 12:00:00.000');
+ date('2000-01-01 12:00:00.000') |
+==================================
+ 2000-01-01                      |
+Query OK, 1 row(s) in set
+```
+
+### DATE_FORMAT
+
+```sql
+DATE_FORMAT(date, format)
+```
+
+**函数分类**：标量函数。
+
+**功能说明**：按 `%` 格式符将日期时间 `date` 格式化为文本。
+
+**版本**：`v3.4.3.12`
+
+**返回结果类型**：`VARCHAR`。
+
+**适用数据类型**
+
+- `date`：TIMESTAMP 类型，或日期时间格式的 VARCHAR、NCHAR 类型。
+- `format`：VARCHAR、NCHAR 类型的格式字符串。
+
+**嵌套子查询支持**：适用于内层查询和外层查询。
+
+**适用于**：表和超级表。
+
+**使用说明**
+
+- `format` 使用 `%` 格式符，与 [TO_CHAR](#to_char) 的 `yyyy-mm-dd` 格式规则不同。支持的格式符如下：
+
+| 格式符 | 含义 |
+| --- | --- |
+| `%a` | 星期英文缩写（`Sun`～`Sat`） |
+| `%b` | 月份英文缩写（`Jan`～`Dec`） |
+| `%c` | 月份数字，不补零（`0`～`12`） |
+| `%D` | 带英文序数后缀的月内日（`0th`、`1st`、`2nd`、`3rd`…） |
+| `%d` | 月内日，两位（`00`～`31`） |
+| `%e` | 月内日，不补零（`0`～`31`） |
+| `%f` | 微秒，六位（`000000`～`999999`） |
+| `%H` | 24 小时制小时，两位（`00`～`23`） |
+| `%h` | 12 小时制小时，两位（`01`～`12`） |
+| `%I` | 12 小时制小时，两位（`01`～`12`） |
+| `%i` | 分钟，两位（`00`～`59`） |
+| `%j` | 年内日，三位（`001`～`366`） |
+| `%k` | 24 小时制小时，不补零（`0`～`23`） |
+| `%l` | 12 小时制小时，不补零（`1`～`12`） |
+| `%M` | 月份英文全名（`January`～`December`） |
+| `%m` | 月份，两位（`00`～`12`） |
+| `%p` | `AM` 或 `PM` |
+| `%r` | 12 小时制时间，`hh:mm:ss` 后接 `AM` 或 `PM` |
+| `%S` | 秒，两位（`00`～`59`） |
+| `%s` | 秒，两位（`00`～`59`） |
+| `%T` | 24 小时制时间，`hh:mm:ss` |
+| `%U` | 周数（`00`～`53`），每周第一天为周日，等同 `WEEK` 的 `mode` 0 |
+| `%u` | 周数（`00`～`53`），每周第一天为周一，等同 `WEEK` 的 `mode` 1 |
+| `%V` | 周数（`01`～`53`），每周第一天为周日，等同 `WEEK` 的 `mode` 2，与 `%X` 配合使用 |
+| `%v` | 周数（`01`～`53`），每周第一天为周一，等同 `WEEK` 的 `mode` 3，与 `%x` 配合使用 |
+| `%W` | 星期英文全名（`Sunday`～`Saturday`） |
+| `%w` | 星期数字（`0` 为周日，`6` 为周六） |
+| `%X` | 周所属年，四位，每周第一天为周日，与 `%V` 配合使用 |
+| `%x` | 周所属年，四位，每周第一天为周一，与 `%v` 配合使用 |
+| `%Y` | 年，四位 |
+| `%y` | 年，两位 |
+| `%%` | 字面量 `%` |
+
+- `%` 后接上表以外的字符时，输出该字符本身，例如 `%q` 输出 `q`。
+- 星期和月份名称固定为英文。
+- `format` 为空字符串时返回 NULL。
+- 月份为 `0` 时，`%M`、`%b` 返回 NULL；日期为零日期（如 `0000-00-00`）时，`%W`、`%a`、`%w` 等依赖星期的格式符返回 NULL。
+- `date` 或 `format` 为 NULL 时返回 NULL。
+- 文本参数支持 `YYYY-MM-DD[ HH:MM:SS[.ffffff]]` 格式，也支持两位年份（`00`～`69` 对应 2000～2069 年，`70`～`99` 对应 1970～1999 年）和 `/`、`^`、`@` 等分隔符；超过六位的小数秒四舍五入到微秒。
+- 不带时区的文本按当前连接时区解析；带 `Z` 或偏移量的文本先确定其绝对时刻，再按当前连接时区计算。TIMESTAMP 输入按当前连接时区确定本地日期和时间。
+
+**示例**
+
+```sql
+taos> SELECT date_format('2009-10-04 22:23:00', '%W %M %Y');
+ date_format('2009-10-04 22:23:00', '%W %M %Y') |
+=================================================
+ Sunday October 2009                            |
+
+taos> SELECT date_format('2024-02-29 23:04:05', '%r');
+ date_format('2024-02-29 23:04:05', '%r') |
+===========================================
+ 11:04:05 PM                              |
+
+taos> SELECT date_format('2024-02-29', '%D %j %%');
+ date_format('2024-02-29', '%D %j %%') |
+========================================
+ 29th 060 %                            |
+```
+
+### DATEDIFF
+
+```sql
+DATEDIFF(expr1, expr2)
+```
+
+**函数分类**：标量函数。
+
+**功能说明**：返回 `expr1` 与 `expr2` 两个日期相差的天数（`expr1` - `expr2`），结果可能为负。
+
+**版本**：`v3.4.3.12`
+
+**返回结果类型**：`BIGINT`。
+
+**适用数据类型**
+
+- `expr1`：TIMESTAMP 类型，或日期时间格式的 VARCHAR、NCHAR 类型。
+- `expr2`：TIMESTAMP 类型，或日期时间格式的 VARCHAR、NCHAR 类型。
+
+**嵌套子查询支持**：适用于内层查询和外层查询。
+
+**适用于**：表和超级表。
+
+**使用说明**
+
+- 只比较日期部分，忽略时、分、秒；因此跨午夜但相隔不足 24 小时的两个时刻也相差 1 天。
+- 与 [TIMEDIFF](#timediff) 不同，`DATEDIFF` 不支持指定时间单位，结果固定以天为单位。
+- 任一参数为 NULL、无法解析或为无效日期（如 `2023-02-29`）时返回 NULL。
+- 文本参数支持 `YYYY-MM-DD[ HH:MM:SS[.ffffff]]` 格式，也支持两位年份（`00`～`69` 对应 2000～2069 年，`70`～`99` 对应 1970～1999 年）和 `/`、`^`、`@` 等分隔符；超过六位的小数秒四舍五入到微秒。
+- 不带时区的文本按当前连接时区解析；带 `Z` 或偏移量的文本先确定其绝对时刻，再按当前连接时区计算。TIMESTAMP 输入按当前连接时区确定本地日期和时间。
+
+**示例**
+
+```sql
+taos> SELECT datediff('2007-12-31 23:59:59', '2007-12-30');
+ datediff('2007-12-31 23:59:59', '2007-12-30') |
+================================================
+                                             1 |
+
+taos> SELECT datediff('2010-11-30 23:59:59', '2010-12-31');
+ datediff('2010-11-30 23:59:59', '2010-12-31') |
+================================================
+                                           -31 |
+```
+
+### DAY
+
+```sql
+DAY(date)
+```
+
+**函数分类**：标量函数。
+
+**功能说明**：返回日期的月内日。
+
+**版本**：`v3.4.3.12`
+
+**返回结果类型**：`BIGINT`。
+
+**适用数据类型**：TIMESTAMP 类型，或日期时间格式的 VARCHAR、NCHAR 类型。
+
+**嵌套子查询支持**：适用于内层查询和外层查询。
+
+**适用于**：表和超级表。
+
+**使用说明**
+
+- 有效日期的返回值范围为 `1`～`31`；日为 `0` 的日期（如 `0000-00-00`）返回 `0`。
+- 若 `date` 为 NULL、无法解析或为无效日期（如 `2023-02-29`），返回 NULL。
+- 文本参数支持 `YYYY-MM-DD[ HH:MM:SS[.ffffff]]` 格式，也支持两位年份（`00`～`69` 对应 2000～2069 年，`70`～`99` 对应 1970～1999 年）和 `/`、`^`、`@` 等分隔符；超过六位的小数秒四舍五入到微秒。
+- 不带时区的文本按当前连接时区解析；带 `Z` 或偏移量的文本先确定其绝对时刻，再按当前连接时区计算。TIMESTAMP 输入按当前连接时区确定本地日期和时间。
+
+**示例**
+
+```sql
+taos> SELECT day('2024-02-29');
+   day('2024-02-29')   |
+========================
+                    29 |
+```
+
+### DAYNAME
+
+```sql
+DAYNAME(date)
+```
+
+**函数分类**：标量函数。
+
+**功能说明**：返回日期对应的星期英文全名。
+
+**版本**：`v3.4.3.12`
+
+**返回结果类型**：`VARCHAR`。
+
+**适用数据类型**：TIMESTAMP 类型，或日期时间格式的 VARCHAR、NCHAR 类型。
+
+**嵌套子查询支持**：适用于内层查询和外层查询。
+
+**适用于**：表和超级表。
+
+**使用说明**
+
+- 返回值为 `Sunday`～`Saturday` 之一，固定为英文。
+- 若 `date` 为 NULL、无法解析或为无效日期（如 `2023-02-29`），返回 NULL。
+- 文本参数支持 `YYYY-MM-DD[ HH:MM:SS[.ffffff]]` 格式，也支持两位年份（`00`～`69` 对应 2000～2069 年，`70`～`99` 对应 1970～1999 年）和 `/`、`^`、`@` 等分隔符；超过六位的小数秒四舍五入到微秒。
+- 不带时区的文本按当前连接时区解析；带 `Z` 或偏移量的文本先确定其绝对时刻，再按当前连接时区计算。TIMESTAMP 输入按当前连接时区确定本地日期和时间。
+
+**示例**
+
+```sql
+taos> SELECT dayname('2024-02-29');
+ dayname('2024-02-29') |
+========================
+ Thursday              |
+```
+
+### DAYOFMONTH
+
+```sql
+DAYOFMONTH(date)
+```
+
+**函数分类**：标量函数。
+
+与 [DAY](#day) 函数的行为相同，从 `v3.4.3.12` 版本开始支持。
+
+### DAYOFWEEK
+
+```sql
+DAYOFWEEK(expr)
+```
+
+**函数分类**：标量函数。
+
+**功能说明**：返回输入日期是周几。
+
+**版本**：`v3.3.3.0`
+
+**返回结果类型**：`BIGINT`。
+
+**适用数据类型**：表示时间戳的 BIGINT、TIMESTAMP 类型，或符合 ISO8601/RFC3339 标准的日期时间格式的 VARCHAR、NCHAR 类型。
+
+**嵌套子查询支持**：适用于内层查询和外层查询。
+
+**适用于**：表和超级表。
+
+**使用说明**
+
+- 返回值 1 代表周日，2 代表周一 ... 7 代表周六
+- 若 `expr` 为 NULL，返回 NULL。
+- 输入时间戳的精度由所查询表的精度确定，若未指定表，则精度为毫秒。
+- 对于表示固定时刻的 BIGINT、TIMESTAMP 输入，按当前连接时区确定其对应的本地日历日期后再计算；对于字符串输入，携带时区时该时区仅用于确定其对应的绝对时刻，未携带时区时按连接级时区解析、结果与时区无关。不论输入是否携带时区，均使用连接级时区确定本地日历日期后再计算。
+
+**示例**
+
+```sql
+taos> SELECT DAYOFWEEK('2000-01-01');
+ dayofweek('2000-01-01') |
+==========================
+                       7 |
+Query OK, 1 row(s) in set
+```
+
+### DAYOFYEAR
+
+```sql
+DAYOFYEAR(date)
+```
+
+**函数分类**：标量函数。
+
+**功能说明**：返回日期是一年中的第几天。
+
+**版本**：`v3.4.3.12`
+
+**返回结果类型**：`BIGINT`。
+
+**适用数据类型**：TIMESTAMP 类型，或日期时间格式的 VARCHAR、NCHAR 类型。
+
+**嵌套子查询支持**：适用于内层查询和外层查询。
+
+**适用于**：表和超级表。
+
+**使用说明**
+
+- 返回值范围为 `1`～`366`。
+- 若 `date` 为 NULL、无法解析或为无效日期（如 `2023-02-29`），返回 NULL。
+- 文本参数支持 `YYYY-MM-DD[ HH:MM:SS[.ffffff]]` 格式，也支持两位年份（`00`～`69` 对应 2000～2069 年，`70`～`99` 对应 1970～1999 年）和 `/`、`^`、`@` 等分隔符；超过六位的小数秒四舍五入到微秒。
+- 不带时区的文本按当前连接时区解析；带 `Z` 或偏移量的文本先确定其绝对时刻，再按当前连接时区计算。TIMESTAMP 输入按当前连接时区确定本地日期和时间。
+
+**示例**
+
+```sql
+taos> SELECT dayofyear('2024-02-29');
+ dayofyear('2024-02-29') |
+==========================
+                      60 |
+```
+
+### EXTRACT
+
+```sql
+EXTRACT(unit FROM date)
+```
+
+**函数分类**：标量函数。
+
+**功能说明**：按 `unit` 指定的单位，从日期时间中提取单个字段或多个字段的组合。
+
+**版本**：`v3.4.3.12`
+
+**返回结果类型**：`BIGINT`。
+
+**适用数据类型**
+
+- `unit`：时间单位关键字，取值见使用说明。
+- `date`：TIMESTAMP 类型，或日期时间格式的 VARCHAR、NCHAR 类型。也支持 `[-]HH:MM:SS[.ffffff]` 格式的时间文本。
+
+**嵌套子查询支持**：适用于内层查询和外层查询。
+
+**适用于**：表和超级表。
+
+**使用说明**
+
+- `unit` 为关键字，不加引号，不区分大小写。支持的单位如下：
+
+| `unit` | 提取的字段 | `'2019-07-02 01:02:03.123456'` 的结果 |
+| --- | --- | --- |
+| `MICROSECOND` | 微秒 | `123456` |
+| `SECOND` | 秒 | `3` |
+| `MINUTE` | 分钟 | `2` |
+| `HOUR` | 小时 | `1` |
+| `DAY` | 月内日 | `2` |
+| `WEEK` | 周数，规则同 `WEEK(date, 0)` | `26` |
+| `MONTH` | 月 | `7` |
+| `QUARTER` | 季度 | `3` |
+| `YEAR` | 年 | `2019` |
+| `SECOND_MICROSECOND` | 秒和微秒 | `3123456` |
+| `MINUTE_MICROSECOND` | 分钟、秒和微秒 | `203123456` |
+| `MINUTE_SECOND` | 分钟和秒 | `203` |
+| `HOUR_MICROSECOND` | 小时、分钟、秒和微秒 | `10203123456` |
+| `HOUR_SECOND` | 小时、分钟和秒 | `10203` |
+| `HOUR_MINUTE` | 小时和分钟 | `102` |
+| `DAY_MICROSECOND` | 日、小时、分钟、秒和微秒 | `2010203123456` |
+| `DAY_SECOND` | 日、小时、分钟和秒 | `2010203` |
+| `DAY_MINUTE` | 日、小时和分钟 | `20102` |
+| `DAY_HOUR` | 日和小时 | `201` |
+| `YEAR_MONTH` | 年和月 | `201907` |
+
+- 组合单位按字段的十进制位宽依次拼接，例如 `HOUR_MINUTE` 中的分钟占两位。
+- `date` 为纯日期文本时，时、分、秒和微秒按 `0` 处理；为纯时间文本时，`DAY`、`WEEK`、`MONTH`、`QUARTER`、`YEAR`、`YEAR_MONTH` 等日期单位返回 NULL。
+- 负的时间文本按负值拼接，例如 `EXTRACT(HOUR_MINUTE FROM '-25:34:56')` 返回 `-2534`。时间文本的范围限制参见 [HOUR](#hour)。
+- `unit` 不在上表中时报错；`date` 为 NULL 或无效时返回 NULL。
+- 文本参数支持 `YYYY-MM-DD[ HH:MM:SS[.ffffff]]` 格式，也支持两位年份（`00`～`69` 对应 2000～2069 年，`70`～`99` 对应 1970～1999 年）和 `/`、`^`、`@` 等分隔符；超过六位的小数秒四舍五入到微秒。
+- 不带时区的文本按当前连接时区解析；带 `Z` 或偏移量的文本先确定其绝对时刻，再按当前连接时区计算。TIMESTAMP 输入按当前连接时区确定本地日期和时间。
+
+**示例**
+
+```sql
+taos> SELECT extract(year_month FROM '2019-07-02 01:02:03');
+ extract(year_month from '2019-07-02 01:02:03') |
+=================================================
+                                         201907 |
+
+taos> SELECT extract(day_minute FROM '2019-07-02 01:02:03');
+ extract(day_minute from '2019-07-02 01:02:03') |
+=================================================
+                                          20102 |
+```
+
+### FROM_DAYS
+
+```sql
+FROM_DAYS(N)
+```
+
+**函数分类**：标量函数。
+
+**功能说明**：将日序号 `N` 转换为 `YYYY-MM-DD` 格式的日期，是 [TO_DAYS](#to_days) 的逆运算。
+
+**版本**：`v3.4.3.12`
+
+**返回结果类型**：`VARCHAR`。
+
+**适用数据类型**：数值类型（整数、浮点数和 DECIMAL）。
+
+**嵌套子查询支持**：适用于内层查询和外层查询。
+
+**适用于**：表和超级表。
+
+**使用说明**
+
+- 日序号从公元 0 年起计算。
+- `N` 为小数时四舍五入到整数。
+- TDengine 没有独立的日期和时间类型，因此结果以 VARCHAR 文本返回，不能直接当作 TIMESTAMP 使用，但可作为其他函数的日期时间文本参数继续计算。
+- `N` 小于 `366` 时返回 `0000-00-00`；`366` 对应 `0001-01-01`；最大支持 `3652424`（`9999-12-31`），超过时返回 NULL。
+- 若 `N` 为 NULL，返回 NULL。
+
+**示例**
+
+```sql
+taos> SELECT from_days(730669);
+ from_days(730669) |
+====================
+ 2000-07-03        |
+
+taos> SELECT from_days(365);
+ from_days(365) |
+=================
+ 0000-00-00     |
+```
+
+### FROM_UNIXTIME
+
+```sql
+FROM_UNIXTIME(unix_timestamp [, format])
+```
+
+**函数分类**：标量函数。
+
+**功能说明**：将以秒为单位的 Unix 时间戳转换为当前连接时区的日期时间文本。
+
+**版本**：`v3.4.3.12`
+
+**返回结果类型**：`VARCHAR`。
+
+**适用数据类型**
+
+- `unix_timestamp`：数值类型（整数、浮点数和 DECIMAL），单位为秒，可带小数。
+- `format`：VARCHAR、NCHAR 类型的格式字符串，格式符同 [DATE_FORMAT](#date_format)。
+
+**嵌套子查询支持**：适用于内层查询和外层查询。
+
+**适用于**：表和超级表。
+
+**使用说明**
+
+- 未指定 `format` 时，返回 `YYYY-MM-DD HH:MM:SS` 格式；`unix_timestamp` 带小数时追加六位小数秒。
+- `unix_timestamp` 的单位固定为秒，不会把 13 位的毫秒时间戳自动按毫秒解释。如需转换毫秒时间戳，请先除以 1000。
+- `unix_timestamp` 为负数或超出可表示范围时返回 NULL。
+- `format` 为空字符串时返回 NULL。
+- 任一参数为 NULL 时返回 NULL。
+- TDengine 没有独立的日期和时间类型，因此结果以 VARCHAR 文本返回，不能直接当作 TIMESTAMP 使用，但可作为其他函数的日期时间文本参数继续计算。
+
+**示例**
+
+(注意：例中语句在 UTC 时区执行)
+
+```sql
+taos> SELECT from_unixtime(0);
+       from_unixtime(0)       |
+===============================
+ 1970-01-01 00:00:00          |
+
+taos> SELECT from_unixtime(1.123456);
+   from_unixtime(1.123456)    |
+===============================
+ 1970-01-01 00:00:01.123456   |
+
+taos> SELECT from_unixtime(1, '%Y-%m-%d %H:%i:%s');
+ from_unixtime(1, '%Y-%m-%d %H:%i:%s') |
+========================================
+ 1970-01-01 00:00:01                   |
+```
+
+### HOUR
+
+```sql
+HOUR(time)
+```
+
+**函数分类**：标量函数。
+
+**功能说明**：返回时间的小时部分。
+
+**版本**：`v3.4.3.12`
+
+**返回结果类型**：`BIGINT`。
+
+**适用数据类型**：TIMESTAMP 类型，或日期时间格式的 VARCHAR、NCHAR 类型；也支持 `[-]HH:MM:SS[.ffffff]` 和 `[-]D HH:MM:SS[.ffffff]` 格式的时间文本。
+
+**嵌套子查询支持**：适用于内层查询和外层查询。
+
+**适用于**：表和超级表。
+
+**使用说明**
+
+- 日期时间输入的返回值范围为 `0`～`23`；时间文本的小时可以大于 23，例如 `HOUR('272:59:59')` 返回 `272`。
+- 负的时间文本返回小时的绝对值。
+- 合法的时间文本超出 `-838:59:59`～`838:59:59` 时，截断到同符号的边界值，微秒清零。例如 `839:00:00` 按 `838:59:59` 处理。
+- 分钟或秒大于 `59` 属于非法输入，返回 NULL，不做截断。
+- 输入为纯日期文本时，时、分、秒和微秒按 `0` 处理，例如 `MINUTE('2024-02-29')` 返回 `0`。
+- 若 `time` 为 NULL 或无效，返回 NULL。
+- 文本参数支持 `YYYY-MM-DD[ HH:MM:SS[.ffffff]]` 格式，也支持两位年份（`00`～`69` 对应 2000～2069 年，`70`～`99` 对应 1970～1999 年）和 `/`、`^`、`@` 等分隔符；超过六位的小数秒四舍五入到微秒。
+- 不带时区的文本按当前连接时区解析；带 `Z` 或偏移量的文本先确定其绝对时刻，再按当前连接时区计算。TIMESTAMP 输入按当前连接时区确定本地日期和时间。
+
+**示例**
+
+```sql
+taos> SELECT hour('10:05:03');
+   hour('10:05:03')    |
+========================
+                    10 |
+
+taos> SELECT hour('272:59:59');
+   hour('272:59:59')   |
+========================
+                   272 |
+
+taos> SELECT hour('839:00:00');
+   hour('839:00:00')   |
+========================
+                   838 |
+```
+
+### MICROSECOND
+
+```sql
+MICROSECOND(expr)
+```
+
+**函数分类**：标量函数。
+
+**功能说明**：返回时间的微秒部分。
+
+**版本**：`v3.4.3.12`
+
+**返回结果类型**：`BIGINT`。
+
+**适用数据类型**：TIMESTAMP 类型，或日期时间格式的 VARCHAR、NCHAR 类型；也支持 `[-]HH:MM:SS[.ffffff]` 和 `[-]D HH:MM:SS[.ffffff]` 格式的时间文本。
+
+**嵌套子查询支持**：适用于内层查询和外层查询。
+
+**适用于**：表和超级表。
+
+**使用说明**
+
+- 返回值范围为 `0`～`999999`。
+- TIMESTAMP 输入的小数秒受数据库精度限制：毫秒精度的数据库返回值为 1000 的整数倍；纳秒精度的数据库截取到微秒。
+- 合法的时间文本超出 `-838:59:59`～`838:59:59` 时，截断到同符号的边界值，微秒清零。例如 `839:00:00` 按 `838:59:59` 处理。
+- 分钟或秒大于 `59` 属于非法输入，返回 NULL，不做截断。
+- 输入为纯日期文本时，时、分、秒和微秒按 `0` 处理，例如 `MINUTE('2024-02-29')` 返回 `0`。
+- 若 `expr` 为 NULL 或无效，返回 NULL。
+- 文本参数支持 `YYYY-MM-DD[ HH:MM:SS[.ffffff]]` 格式，也支持两位年份（`00`～`69` 对应 2000～2069 年，`70`～`99` 对应 1970～1999 年）和 `/`、`^`、`@` 等分隔符；超过六位的小数秒四舍五入到微秒。
+- 不带时区的文本按当前连接时区解析；带 `Z` 或偏移量的文本先确定其绝对时刻，再按当前连接时区计算。TIMESTAMP 输入按当前连接时区确定本地日期和时间。
+
+**示例**
+
+```sql
+taos> SELECT microsecond('12:00:00.123456');
+ microsecond('12:00:00.123456') |
+=================================
+                         123456 |
+
+taos> SELECT microsecond('2019-12-31 23:59:59.000010');
+ microsecond('2019-12-31 23:59:59.000010') |
+============================================
+                                        10 |
+```
+
+### MINUTE
+
+```sql
+MINUTE(time)
+```
+
+**函数分类**：标量函数。
+
+**功能说明**：返回时间的分钟部分。
+
+**版本**：`v3.4.3.12`
+
+**返回结果类型**：`BIGINT`。
+
+**适用数据类型**：TIMESTAMP 类型，或日期时间格式的 VARCHAR、NCHAR 类型；也支持 `[-]HH:MM:SS[.ffffff]` 和 `[-]D HH:MM:SS[.ffffff]` 格式的时间文本。
+
+**嵌套子查询支持**：适用于内层查询和外层查询。
+
+**适用于**：表和超级表。
+
+**使用说明**
+
+- 返回值范围为 `0`～`59`。
+- 合法的时间文本超出 `-838:59:59`～`838:59:59` 时，截断到同符号的边界值，微秒清零。例如 `839:00:00` 按 `838:59:59` 处理。
+- 分钟或秒大于 `59` 属于非法输入，返回 NULL，不做截断。
+- 输入为纯日期文本时，时、分、秒和微秒按 `0` 处理，例如 `MINUTE('2024-02-29')` 返回 `0`。
+- 若 `time` 为 NULL 或无效，返回 NULL。
+- 文本参数支持 `YYYY-MM-DD[ HH:MM:SS[.ffffff]]` 格式，也支持两位年份（`00`～`69` 对应 2000～2069 年，`70`～`99` 对应 1970～1999 年）和 `/`、`^`、`@` 等分隔符；超过六位的小数秒四舍五入到微秒。
+- 不带时区的文本按当前连接时区解析；带 `Z` 或偏移量的文本先确定其绝对时刻，再按当前连接时区计算。TIMESTAMP 输入按当前连接时区确定本地日期和时间。
+
+**示例**
+
+```sql
+taos> SELECT minute('10:05:03');
+  minute('10:05:03')   |
+========================
+                     5 |
+
+taos> SELECT minute('839:00:00');
+  minute('839:00:00')  |
+========================
+                    59 |
+```
+
+### MONTH
+
+```sql
+MONTH(date)
+```
+
+**函数分类**：标量函数。
+
+**功能说明**：返回日期的月份。
+
+**版本**：`v3.4.3.12`
+
+**返回结果类型**：`BIGINT`。
+
+**适用数据类型**：TIMESTAMP 类型，或日期时间格式的 VARCHAR、NCHAR 类型。
+
+**嵌套子查询支持**：适用于内层查询和外层查询。
+
+**适用于**：表和超级表。
+
+**使用说明**
+
+- 有效日期的返回值范围为 `1`～`12`；月为 `0` 的日期（如 `0000-00-00`）返回 `0`。
+- 若 `date` 为 NULL、无法解析或为无效日期（如 `2023-02-29`），返回 NULL。
+- 文本参数支持 `YYYY-MM-DD[ HH:MM:SS[.ffffff]]` 格式，也支持两位年份（`00`～`69` 对应 2000～2069 年，`70`～`99` 对应 1970～1999 年）和 `/`、`^`、`@` 等分隔符；超过六位的小数秒四舍五入到微秒。
+- 不带时区的文本按当前连接时区解析；带 `Z` 或偏移量的文本先确定其绝对时刻，再按当前连接时区计算。TIMESTAMP 输入按当前连接时区确定本地日期和时间。
+
+**示例**
+
+```sql
+taos> SELECT month('2008-02-03');
+  month('2008-02-03')  |
+========================
+                     2 |
+```
+
+### MONTHNAME
+
+```sql
+MONTHNAME(date)
+```
+
+**函数分类**：标量函数。
+
+**功能说明**：返回日期对应的月份英文全名。
+
+**版本**：`v3.4.3.12`
+
+**返回结果类型**：`VARCHAR`。
+
+**适用数据类型**：TIMESTAMP 类型，或日期时间格式的 VARCHAR、NCHAR 类型。
+
+**嵌套子查询支持**：适用于内层查询和外层查询。
+
+**适用于**：表和超级表。
+
+**使用说明**
+
+- 返回值为 `January`～`December` 之一，固定为英文。
+- 若 `date` 为 NULL、无法解析或为无效日期（如 `2023-02-29`），返回 NULL。
+- 文本参数支持 `YYYY-MM-DD[ HH:MM:SS[.ffffff]]` 格式，也支持两位年份（`00`～`69` 对应 2000～2069 年，`70`～`99` 对应 1970～1999 年）和 `/`、`^`、`@` 等分隔符；超过六位的小数秒四舍五入到微秒。
+- 不带时区的文本按当前连接时区解析；带 `Z` 或偏移量的文本先确定其绝对时刻，再按当前连接时区计算。TIMESTAMP 输入按当前连接时区确定本地日期和时间。
+
+**示例**
+
+```sql
+taos> SELECT monthname('2008-02-03');
+ monthname('2008-02-03') |
+==========================
+ February                |
+```
+
+### NOW
+
+```sql
+NOW()
+```
+
+**函数分类**：标量函数。
+
+**功能说明**：返回客户端当前系统时间。
+
+**返回结果类型**：`TIMESTAMP`。
+
+**应用字段**：在 WHERE 或 INSERT 语句中使用时只能作用于 TIMESTAMP 类型的字段。
+
+**适用于**：表和超级表。
+
+**嵌套子查询支持**：适用于内层查询和外层查询。
+
+**使用说明**
+
+- 支持时间加减操作，如 NOW() + 1s，支持的时间单位参见[时间单位](../01-datatype.md#时间单位)（仅支持毫秒至周）。
+- 返回的时间戳精度与当前 DATABASE 设置的时间精度一致。
+- `NOW()` / `NOW` 的显示会跟随当前连接时区变化。
+- 固定偏移字符串的方向容易误解：`SET TIMEZONE '+08:00'` 后，`SELECT NOW()` 显示的是“比 UTC 慢 8 小时”的效果；`SET TIMEZONE '-08:00'` 后，显示的才是“比 UTC 快 8 小时”的效果。
+- 如果你想明确使用北京时间，建议直接设置 `SET TIMEZONE 'Asia/Shanghai'`，不要写 `+08:00`。
+- 如果你想确认连接当前使用的是哪个时区，可以使用 `SELECT TIMEZONE()`；如果想同时看到当前时间和偏移量，可以使用 `SELECT TO_ISO8601(NOW())`。
+
+### QUARTER
+
+```sql
+QUARTER(date)
+```
+
+**函数分类**：标量函数。
+
+**功能说明**：返回日期所在的季度。
+
+**版本**：`v3.4.3.12`
+
+**返回结果类型**：`BIGINT`。
+
+**适用数据类型**：TIMESTAMP 类型，或日期时间格式的 VARCHAR、NCHAR 类型。
+
+**嵌套子查询支持**：适用于内层查询和外层查询。
+
+**适用于**：表和超级表。
+
+**使用说明**
+
+- 返回值范围为 `1`～`4`。
+- 若 `date` 为 NULL、无法解析或为无效日期（如 `2023-02-29`），返回 NULL。
+- 文本参数支持 `YYYY-MM-DD[ HH:MM:SS[.ffffff]]` 格式，也支持两位年份（`00`～`69` 对应 2000～2069 年，`70`～`99` 对应 1970～1999 年）和 `/`、`^`、`@` 等分隔符；超过六位的小数秒四舍五入到微秒。
+- 不带时区的文本按当前连接时区解析；带 `Z` 或偏移量的文本先确定其绝对时刻，再按当前连接时区计算。TIMESTAMP 输入按当前连接时区确定本地日期和时间。
+
+**示例**
+
+```sql
+taos> SELECT quarter('2008-04-01');
+ quarter('2008-04-01') |
+========================
+                     2 |
+```
+
+### SECOND
+
+```sql
+SECOND(time)
+```
+
+**函数分类**：标量函数。
+
+**功能说明**：返回时间的秒部分。
+
+**版本**：`v3.4.3.12`
+
+**返回结果类型**：`BIGINT`。
+
+**适用数据类型**：TIMESTAMP 类型，或日期时间格式的 VARCHAR、NCHAR 类型；也支持 `[-]HH:MM:SS[.ffffff]` 和 `[-]D HH:MM:SS[.ffffff]` 格式的时间文本。
+
+**嵌套子查询支持**：适用于内层查询和外层查询。
+
+**适用于**：表和超级表。
+
+**使用说明**
+
+- 返回值范围为 `0`～`59`。
+- 合法的时间文本超出 `-838:59:59`～`838:59:59` 时，截断到同符号的边界值，微秒清零。例如 `839:00:00` 按 `838:59:59` 处理。
+- 分钟或秒大于 `59` 属于非法输入，返回 NULL，不做截断。
+- 输入为纯日期文本时，时、分、秒和微秒按 `0` 处理，例如 `MINUTE('2024-02-29')` 返回 `0`。
+- 若 `time` 为 NULL 或无效，返回 NULL。
+- 文本参数支持 `YYYY-MM-DD[ HH:MM:SS[.ffffff]]` 格式，也支持两位年份（`00`～`69` 对应 2000～2069 年，`70`～`99` 对应 1970～1999 年）和 `/`、`^`、`@` 等分隔符；超过六位的小数秒四舍五入到微秒。
+- 不带时区的文本按当前连接时区解析；带 `Z` 或偏移量的文本先确定其绝对时刻，再按当前连接时区计算。TIMESTAMP 输入按当前连接时区确定本地日期和时间。
+
+**示例**
+
+```sql
+taos> SELECT second('10:05:03');
+  second('10:05:03')   |
+========================
+                     3 |
+```
+
+### STR_TO_DATE
+
+```sql
+STR_TO_DATE(str, format)
+```
+
+**函数分类**：标量函数。
+
+**功能说明**：按 `%` 格式符将文本 `str` 解析为日期、时间或日期时间，是 [DATE_FORMAT](#date_format) 的逆运算。
+
+**版本**：`v3.4.3.12`
+
+**返回结果类型**：`VARCHAR`。
+
+**适用数据类型**
+
+- `str`：VARCHAR、NCHAR 类型。
+- `format`：VARCHAR、NCHAR 类型的格式字符串，格式符同 [DATE_FORMAT](#date_format)。
+
+**嵌套子查询支持**：适用于内层查询和外层查询。
+
+**适用于**：表和超级表。
+
+**使用说明**
+
+- 返回结果的形式由 `format` 决定：只含日期格式符时返回 `YYYY-MM-DD`；只含时间格式符时返回 `HH:MM:SS`；两者都有时返回 `YYYY-MM-DD HH:MM:SS`。`format` 含 `%f` 时追加六位小数秒。
+- 从左向右按 `format` 解析 `str`：`str` 的开头必须与 `format` 匹配，否则返回 NULL；`format` 已解析完而 `str` 还有剩余字符时，忽略剩余字符。
+- `str` 已解析完而 `format` 还有剩余时，忽略剩余格式，未解析的字段按 `0` 处理。例如 `STR_TO_DATE('2024-02-29', '%Y-%m-%d %H:%i:%s')` 返回 `2024-02-29 00:00:00`。仅剩 `%p` 时不增加时间部分，例如 `STR_TO_DATE('2024-02-29', '%Y-%m-%d %p')` 返回 `2024-02-29`。
+- `format` 中未包含的日期字段按 `0` 处理，例如 `STR_TO_DATE('abc', 'abc')` 返回 `0000-00-00`。
+- `%%` 只能用于 DATE_FORMAT 的输出格式；STR_TO_DATE 解析时遇到 `%%` 返回 NULL。
+- 解析出的完整日期无效时返回 NULL，例如 `STR_TO_DATE('2021-11-31', '%Y-%m-%d')`。
+- TDengine 没有独立的日期和时间类型，因此结果以 VARCHAR 文本返回，不能直接当作 TIMESTAMP 使用，但可作为其他函数的日期时间文本参数继续计算。
+- 任一参数为 NULL 时返回 NULL。
+
+**示例**
+
+```sql
+taos> SELECT str_to_date('May 1, 2013', '%M %d, %Y');
+ str_to_date('May 1, 2013', '%M %d, %Y') |
+==========================================
+ 2013-05-01                              |
+
+taos> SELECT str_to_date('2024 060', '%Y %j');
+ str_to_date('2024 060', '%Y %j') |
+===================================
+ 2024-02-29                       |
+
+taos> SELECT str_to_date('12:34:56.123456', '%T.%f');
+ str_to_date('12:34:56.123456', '%T.%f') |
+==========================================
+ 12:34:56.123456                         |
+
+taos> SELECT str_to_date('2021-11-31', '%Y-%m-%d');
+ str_to_date('2021-11-31', '%Y-%m-%d') |
+========================================
+ NULL                                  |
+```
+
+### TIMEDIFF
+
+```sql
+TIMEDIFF(expr1, expr2 [, time_unit])
+```
+
+**函数分类**：标量函数。
+
+**功能说明**：返回时间戳 `expr1` - `expr2` 的结果，结果可能为负，并近似到 `time_unit` 指定的时间单位。
+
+**返回结果类型**：`BIGINT`。
+
+**适用数据类型**
+
+- `expr1`：表示时间戳的 BIGINT、TIMESTAMP 类型，或符合 ISO8601/RFC3339 标准的日期时间格式的 VARCHAR、NCHAR 类型。
+- `expr2`：表示时间戳的 BIGINT、TIMESTAMP 类型，或符合 ISO8601/RFC3339 标准的日期时间格式的 VARCHAR、NCHAR 类型。
+- `time_unit`：见使用说明。
+- v3.3.3.0 之前该函数结果为时间戳 `expr1` 和 `expr2` 的差值的绝对值，结果为正数。
+
+**嵌套子查询支持**：适用于内层查询和外层查询。
+
+**适用于**：表和超级表。
+
+**使用说明**
+
+- `expr1` 或 `expr2` 为 NULL，返回 NULL。
+- 输入包含不符合时间日期格式的字符串则返回 NULL。
+- 输入时间戳的精度由所查询表的精度确定，若未指定表，则精度为毫秒。
+- 返回值的时间单位由 `time_unit` 参数指定，最小是数据库的时间分辨率。`time_unit` 参数未指定时，以数据库的时间分辨率为时间单位。支持的时间单位参见[时间单位](../01-datatype.md#时间单位)（仅支持毫秒至周）。
+- `time_unit` 为 NULL，等同于未指定时间单位。
+
+**示例**
+
+```sql
+taos> SELECT TIMEDIFF('2022-01-01 08:00:00', '2022-01-01 08:00:01', 1s);
+ timediff('2022-01-01 08:00:00', '2022-01-01 08:00:01',1s) |
+============================================================
+                                                        -1 |
+Query OK, 1 row(s) in set
+
+taos> SELECT TIMEDIFF('2022-01-01 08:00:01', '2022-01-01 08:00:00', 1s);
+ timediff('2022-01-01 08:00:01', '2022-01-01 08:00:00',1s) |
+============================================================
+                                                         1 |
+Query OK, 1 row(s) in set
+
+taos> SELECT TIMEDIFF(now, now - 1w, 1d);
+ timediff(now, now-1w, 1d) |
+============================
+                         7 |
+Query OK, 1 row(s) in set
+```
+
+### TIMETRUNCATE
+
+```sql
+TIMETRUNCATE(expr, time_unit [, timezone_or_flag])
+```
+
+**函数分类**：标量函数。
+
+**功能说明**：将时间戳按照指定时间单位 time_unit 进行截断。
+
+**返回结果类型**：`TIMESTAMP`。
+
+**应用字段**：表示时间戳的 BIGINT、TIMESTAMP 类型，或符合 ISO8601/RFC3339 标准的日期时间格式的 VARCHAR、NCHAR 类型。
+
+**适用于**：表和超级表。
+
+**使用说明**
+
+- 支持的时间单位 time_unit 参见[时间单位](../01-datatype.md#时间单位)。
+- 返回的时间戳精度与当前 DATABASE 设置的时间精度一致。
+- 输入时间戳的精度由所查询表的精度确定，若未指定表，则精度为毫秒。
+- 输入包含不符合时间日期格式的字符串则返回 NULL。
+- 第三个参数同时支持整数标志位与字符串时区。
+  - 整数 `0`：按 UTC 时间轴的固定边界截断；例如 `1d` 对齐到 UTC 的 `00:00`，`1w` 对齐到 UTC 周边界，返回结果仍按当前连接时区显示。
+  - 整数 `1`：按当前连接时区的本地日历边界截断。
+  - 字符串时区：支持的格式见[支持的时区格式](../10-time/01-timezone.md#支持的时区格式)。
+- 未指定第三参数时，优先使用当前连接时区。
+- `1w` 截断按 `firstDayOfWeek` 对齐。`firstDayOfWeek` 的初始化来源与平台差异，参见 [firstDayOfWeek](../../12-operations-and-tooling/03-components/02-taosc.md#firstdayofweek)。
+- `GMT` / `GMT±...` 与有歧义的时区缩写（如 `CST`）会被拒绝。
+
+### TIMEZONE
+
+```sql
+TIMEZONE()
+```
+
+**函数分类**：标量函数。
+
+**功能说明**：返回当前连接当前生效的时区字符串；优先使用连接级设置，未设置时回退到该连接创建时快照的客户端全局时区，再回退到系统默认时区。
+
+**返回结果类型**：`VARCHAR`。
+
+**应用字段**：无。
+
+**适用于**：表和超级表。
+
+### TO_DAYS
+
+```sql
+TO_DAYS(date)
+```
+
+**函数分类**：标量函数。
+
+**功能说明**：返回日期从公元 0 年起的日序号。
+
+**版本**：`v3.4.3.12`
+
+**返回结果类型**：`BIGINT`。
+
+**适用数据类型**：TIMESTAMP 类型，或日期时间格式的 VARCHAR、NCHAR 类型。
+
+**嵌套子查询支持**：适用于内层查询和外层查询。
+
+**适用于**：表和超级表。
+
+**使用说明**
+
+- `0000-01-01` 的日序号为 `1`，`9999-12-31` 的日序号为 `3652424`。
+- 只计算日期部分，忽略时、分、秒。
+- 公元 0 年按非闰年处理，`0000-02-29` 返回 NULL；零日期 `0000-00-00` 也返回 NULL。
+- 若 `date` 为 NULL、无法解析或为无效日期（如 `2023-02-29`），返回 NULL。
+- 文本参数支持 `YYYY-MM-DD[ HH:MM:SS[.ffffff]]` 格式，也支持两位年份（`00`～`69` 对应 2000～2069 年，`70`～`99` 对应 1970～1999 年）和 `/`、`^`、`@` 等分隔符；超过六位的小数秒四舍五入到微秒。
+- 不带时区的文本按当前连接时区解析；带 `Z` 或偏移量的文本先确定其绝对时刻，再按当前连接时区计算。TIMESTAMP 输入按当前连接时区确定本地日期和时间。
+
+**示例**
+
+```sql
+taos> SELECT to_days('1970-01-01');
+ to_days('1970-01-01') |
+========================
+                719528 |
+
+taos> SELECT to_days('0000-01-01');
+ to_days('0000-01-01') |
+========================
+                     1 |
+```
+
+### TO_SECONDS
+
+```sql
+TO_SECONDS(expr)
+```
+
+**函数分类**：标量函数。
+
+**功能说明**：返回日期时间从公元 0 年起的秒序号。
+
+**版本**：`v3.4.3.12`
+
+**返回结果类型**：`BIGINT`。
+
+**适用数据类型**：TIMESTAMP 类型，或日期时间格式的 VARCHAR、NCHAR 类型。
+
+**嵌套子查询支持**：适用于内层查询和外层查询。
+
+**适用于**：表和超级表。
+
+**使用说明**
+
+- `0000-01-01 00:00:00` 的秒序号为 `86400`，即 `TO_DAYS(expr) * 86400` 再加上当天已过的秒数。
+- 小数秒被舍弃。
+- 若 `expr` 为 NULL、无法解析或为无效日期（如 `2023-02-29`），返回 NULL。
+- 文本参数支持 `YYYY-MM-DD[ HH:MM:SS[.ffffff]]` 格式，也支持两位年份（`00`～`69` 对应 2000～2069 年，`70`～`99` 对应 1970～1999 年）和 `/`、`^`、`@` 等分隔符；超过六位的小数秒四舍五入到微秒。
+- 不带时区的文本按当前连接时区解析；带 `Z` 或偏移量的文本先确定其绝对时刻，再按当前连接时区计算。TIMESTAMP 输入按当前连接时区确定本地日期和时间。
+
+**示例**
+
+```sql
+taos> SELECT to_seconds('1970-01-01 00:00:01');
+ to_seconds('1970-01-01 00:00:01') |
+====================================
+                       62167219201 |
+
+taos> SELECT to_seconds('0000-01-01');
+ to_seconds('0000-01-01') |
+===========================
+                    86400 |
+```
+
+### TODAY
+
+```sql
+TODAY()
+```
+
+**函数分类**：标量函数。
+
+**功能说明**：返回客户端当日零时的系统时间。
+
+**返回结果类型**：`TIMESTAMP`。
+
+**应用字段**：在 WHERE 或 INSERT 语句中使用时只能作用于 TIMESTAMP 类型的字段。
+
+**适用于**：表和超级表。
+
+**使用说明**
+
+- 支持时间加减操作，如 TODAY() + 1s，支持的时间单位参见[时间单位](../01-datatype.md#时间单位)（仅支持毫秒至周）。
+- 返回的时间戳精度与当前 DATABASE 设置的时间精度一致。
+- 时区解析优先使用当前连接时区；若连接未设置，则使用客户端时区；仍不可用时使用系统默认时区。
+
+### UNIX_TIMESTAMP
+
+```sql
+UNIX_TIMESTAMP([date])
+```
+
+**函数分类**：标量函数。
+
+**功能说明**：无参数时返回当前时间的 Unix 时间戳；指定 `date` 时返回该日期时间的 Unix 时间戳。单位均为秒。
+
+**版本**：`v3.4.3.12`
+
+**返回结果类型**：无参数时为 `BIGINT`，指定 `date` 时为 `DECIMAL(17,6)`。
+
+**适用数据类型**：TIMESTAMP 类型，或日期时间格式的 VARCHAR、NCHAR 类型。
+
+**嵌套子查询支持**：适用于内层查询和外层查询。
+
+**适用于**：表和超级表。
+
+**使用说明**
+
+- 无参数时，在一条 SQL 语句中不论出现多少次，均取语句开始执行时的同一时刻。
+- 指定 `date` 时结果保留六位小数，即微秒；`date` 为 TIMESTAMP 类型或文本列时也返回 `DECIMAL(17,6)`。
+- 文本落在夏令时向前跳变产生的不存在区间时，返回跳变后第一个有效时刻的 Unix 时间戳，并保留输入的微秒。
+- 早于 `1970-01-01 00:00:00 UTC` 的日期时间返回 NULL。
+- 与 [TO_UNIXTIMESTAMP](#to_unixtimestamp) 不同，UNIX_TIMESTAMP 的结果单位固定为秒，不随数据库精度变化。
+- 若 `date` 为 NULL、无法解析或为无效日期（如 `2023-02-29`），返回 NULL。
+- 文本参数支持 `YYYY-MM-DD[ HH:MM:SS[.ffffff]]` 格式，也支持两位年份（`00`～`69` 对应 2000～2069 年，`70`～`99` 对应 1970～1999 年）和 `/`、`^`、`@` 等分隔符；超过六位的小数秒四舍五入到微秒。
+- 不带时区的文本按当前连接时区解析；带 `Z` 或偏移量的文本先确定其绝对时刻，再按当前连接时区计算。TIMESTAMP 输入按当前连接时区确定本地日期和时间。
+
+**示例**
+
+(注意：例中语句在 UTC 时区执行)
+
+```sql
+taos> SELECT unix_timestamp('1970-01-01 00:00:01');
+  unix_timestamp('1970-01-01 00:00:01')   |
+===========================================
+                                 1.000000 |
+
+taos> SELECT unix_timestamp('1970-01-01 00:00:01.123456');
+ unix_timestamp('1970-01-01 00:00:01.123456') |
+===============================================
+                                     1.123456 |
+
+taos> SELECT unix_timestamp('2024-03-10T02:30:00-05:00');
+ unix_timestamp('2024-03-10T02:30:00-05:00') |
+==============================================
+                           1710055800.000000 |
+```
+
+### WEEK
+
+```sql
+WEEK(expr [, mode])
+```
+
+**函数分类**：标量函数。
+
+**功能说明**：返回输入日期的周数。
+
+**版本**：`v3.3.3.0`
+
+**返回结果类型**：`BIGINT`。
+
+**适用数据类型**
+
+- `expr`：表示时间戳的 BIGINT、TIMESTAMP 类型，或符合 ISO8601/RFC3339 标准的日期时间格式的 VARCHAR、NCHAR 类型。
+- `mode`：0 - 7 之间的整数。
+
+**嵌套子查询支持**：适用于内层查询和外层查询。
+
+**适用于**：表和超级表。
+
+**使用说明**
+
+- 若 `expr` 为 NULL，返回 NULL。
+- 输入时间戳的精度由所查询表的精度确定，若未指定表，则精度为毫秒。
+- `mode` 用来指定一周是从周日开始还是周一开始，以及指定返回值范围是 1 - 53 还是 0 - 53。下表详细描述不同的 mode 对应的计算方法：
+
+| Mode | 每周的第一天 | 返回值范围  | 第 1 周的计算方法         |
+| ---- | ------ | ------ | ------------------ |
+| 0    | 周日     | 0 - 53 | 第一个包含周日的周为第 1 周    |
+| 1    | 周一     | 0 - 53 | 第一个包含四天及以上的周为第 1 周 |
+| 2    | 周日     | 1 - 53 | 第一个包含周日的周为第 1 周    |
+| 3    | 周一     | 1 - 53 | 第一个包含四天及以上的周为第 1 周 |
+| 4    | 周日     | 0 - 53 | 第一个包含四天及以上的周为第 1 周 |
+| 5    | 周一     | 0 - 53 | 第一个包含周一的周为第 1 周    |
+| 6    | 周日     | 1 - 53 | 第一个包含四天及以上的周为第 1 周 |
+| 7    | 周一     | 1 - 53 | 第一个包含周一的周为第 1 周    |
+
+- 当返回值范围为 0 - 53 时，第 1 周之前的日期为第 0 周。
+- 当返回值范围为 1 - 53 时，第 1 周之前的日期为上一年的最后一周。
+- 以`2000-01-01`为例，
+  - 在 `mode=0` 时返回值为 `0`，因为该年第一个周日为 `2000-01-02`，从 `2000-01-02` 起才是第 1 周，所以 `2000-01-01` 为第 0 周，返回 0。
+  - 在 `mode=1` 时返回值为 `0`，因为 `2000-01-01` 所在的周只有两天，分别是 `2000-01-01(周六)` 和 `2000-01-02(周日)`，所以 `2000-01-03` 起才是第一周，`2000-01-01`为第 0 周，返回 0。
+  - 在 `mode=2` 时返回值为 `52`，因为从 `2000-01-02` 起才是第 1 周，并且返回值范围为 1-53，所以 `2000-01-01` 算做上一年的最后一周，即 1999 年的第 52 周，返回 52。
+- 对于表示固定时刻的 BIGINT、TIMESTAMP 输入，按当前连接时区确定其对应的本地日历日期后再计算；对于字符串输入，携带时区时该时区仅用于确定其对应的绝对时刻，未携带时区时按连接级时区解析、结果与时区无关。不论输入是否携带时区，均使用连接级时区确定本地日历日期后再计算。
+
+**示例**
+
+```sql
+taos> SELECT WEEK('2000-01-01', 0);
+ week('2000-01-01',0)  |
+========================
+                     0 |
+Query OK, 1 row(s) in set
+
+taos> SELECT WEEK('2000-01-01', 1);
+ week('2000-01-01',1)  |
+========================
+                     0 |
+Query OK, 1 row(s) in set
+
+taos> SELECT WEEK('2000-01-01', 2);
+ week('2000-01-01',2)  |
+========================
+                    52 |
+Query OK, 1 row(s) in set
+
+taos> SELECT WEEK('2000-01-01', 3);
+ week('2000-01-01',3)  |
+========================
+                    52 |
+Query OK, 1 row(s) in set
+```
+
+### WEEKDAY
+
+```sql
+WEEKDAY(expr)
+```
+
+**函数分类**：标量函数。
+
+**功能说明**：返回输入日期是周几。
+
+**版本**：`v3.3.3.0`
+
+**返回结果类型**：`BIGINT`。
+
+**适用数据类型**：表示时间戳的 BIGINT、TIMESTAMP 类型，或符合 ISO8601/RFC3339 标准的日期时间格式的 VARCHAR、NCHAR 类型。
+
+**嵌套子查询支持**：适用于内层查询和外层查询。
+
+**适用于**：表和超级表。
+
+**使用说明**
+
+- 返回值 0 代表周一，1 代表周二 ... 6 代表周日。
+- 若 `expr` 为 NULL，返回 NULL。
+- 输入时间戳的精度由所查询表的精度确定，若未指定表，则精度为毫秒。
+- 对于表示固定时刻的 BIGINT、TIMESTAMP 输入，按当前连接时区确定其对应的本地日历日期后再计算；对于字符串输入，携带时区时该时区仅用于确定其对应的绝对时刻，未携带时区时按连接级时区解析、结果与时区无关。不论输入是否携带时区，均使用连接级时区确定本地日历日期后再计算。
+
+**示例**
+
+```sql
+taos> SELECT WEEKDAY('2000-01-01');
+ weekday('2000-01-01') |
+========================
+                     5 |
+Query OK, 1 row(s) in set
+```
+
+### WEEKOFYEAR
+
+```sql
+WEEKOFYEAR(expr)
+```
+
+**函数分类**：标量函数。
+
+**功能说明**：返回输入日期的周数。
+
+**版本**：`v3.3.3.0`
+
+**返回结果类型**：`BIGINT`。
+
+**适用数据类型**：表示时间戳的 BIGINT、TIMESTAMP 类型，或符合 ISO8601/RFC3339 标准的日期时间格式的 VARCHAR、NCHAR 类型。
+
+**嵌套子查询支持**：适用于内层查询和外层查询。
+
+**适用于**：表和超级表。
+
+**使用说明**
+
+- 等同于`WEEK(expr, 3)`，即在每周第一天是周一，返回值范围为 1 - 53，第一个包含四天及以上的周为第 1 周的条件下判断输入日期的周数。
+- 若 `expr` 为 NULL，返回 NULL。
+- 输入时间戳的精度由所查询表的精度确定，未指定表，则精度为毫秒。
+- 对于表示固定时刻的 BIGINT、TIMESTAMP 输入，按当前连接时区确定其对应的本地日历日期后再计算；对于字符串输入，携带时区时该时区仅用于确定其对应的绝对时刻，未携带时区时按连接级时区解析、结果与时区无关。不论输入是否携带时区，均使用连接级时区确定本地日历日期后再计算。
+
+**示例**
+
+```sql
+taos> SELECT WEEKOFYEAR('2000-01-01');
+ weekofyear('2000-01-01') |
+===========================
+                       52 |
+Query OK, 1 row(s) in set
+```
+
+### YEAR
+
+```sql
+YEAR(date)
+```
+
+**函数分类**：标量函数。
+
+**功能说明**：返回日期的年份。
+
+**版本**：`v3.4.3.12`
+
+**返回结果类型**：`BIGINT`。
+
+**适用数据类型**：TIMESTAMP 类型，或日期时间格式的 VARCHAR、NCHAR 类型。
+
+**嵌套子查询支持**：适用于内层查询和外层查询。
+
+**适用于**：表和超级表。
+
+**使用说明**
+
+- 返回值范围为 `0`～`9999`。
+- 若 `date` 为 NULL、无法解析或为无效日期（如 `2023-02-29`），返回 NULL。
+- 文本参数支持 `YYYY-MM-DD[ HH:MM:SS[.ffffff]]` 格式，也支持两位年份（`00`～`69` 对应 2000～2069 年，`70`～`99` 对应 1970～1999 年）和 `/`、`^`、`@` 等分隔符；超过六位的小数秒四舍五入到微秒。
+- 不带时区的文本按当前连接时区解析；带 `Z` 或偏移量的文本先确定其绝对时刻，再按当前连接时区计算。TIMESTAMP 输入按当前连接时区确定本地日期和时间。
+
+**示例**
+
+```sql
+taos> SELECT year('1987-01-01');
+  year('1987-01-01')   |
+========================
+                  1987 |
+```
+
+### YEARWEEK
+
+```sql
+YEARWEEK(date [, mode])
+```
+
+**函数分类**：标量函数。
+
+**功能说明**：返回日期所在周的周所属年和周数，结果为 `周所属年 * 100 + 周数`。
+
+**版本**：`v3.4.3.12`
+
+**返回结果类型**：`BIGINT`。
+
+**适用数据类型**
+
+- `date`：TIMESTAMP 类型，或日期时间格式的 VARCHAR、NCHAR 类型。
+- `mode`：`0`～`7` 之间的整数，缺省为 `0`。
+
+**嵌套子查询支持**：适用于内层查询和外层查询。
+
+**适用于**：表和超级表。
+
+**使用说明**
+
+- `mode` 的含义与 [WEEK](#week) 相同，用于指定每周的第一天和第 1 周的计算方法。
+- 周数范围始终为 `1`～`53`：年初不属于本年第 1 周的日期，计入上一年的最后一周。因此周所属年可能与日期本身的年份不同。
+- 若 `date` 为 NULL、无法解析或为无效日期（如 `2023-02-29`），返回 NULL。
+- 文本参数支持 `YYYY-MM-DD[ HH:MM:SS[.ffffff]]` 格式，也支持两位年份（`00`～`69` 对应 2000～2069 年，`70`～`99` 对应 1970～1999 年）和 `/`、`^`、`@` 等分隔符；超过六位的小数秒四舍五入到微秒。
+- 不带时区的文本按当前连接时区解析；带 `Z` 或偏移量的文本先确定其绝对时刻，再按当前连接时区计算。TIMESTAMP 输入按当前连接时区确定本地日期和时间。
+
+**示例**
+
+```sql
+taos> SELECT yearweek('2000-01-01');
+ yearweek('2000-01-01') |
+=========================
+                 199952 |
+
+taos> SELECT yearweek('2021-01-01', 1);
+ yearweek('2021-01-01', 1) |
+============================
+                    202053 |
+```
+
+## 选择函数
+
+选择函数根据语义在查询结果集中选择一行或多行结果返回。用户可以同时指定输出 ts 列或其他列（包括 tbname 和标签列），这样就可以方便地知道被选出的值是源于哪个数据行的。
+选择函数从语义上都是 **管道函数**，从分类上不同函数因输出行数的不同属于不同类别，具体分类如下：
+
+| 函数 | 类型 | 说明 |
+|------|------|------|
+| FIRST, LAST, LAST_ROW, MAX, MIN, MODE | **聚合函数**（N→1） | 选取并返回特定原始行（含时间戳） |
+| TOP, BOTTOM, SAMPLE, TAIL | **集合函数**（N→K） | 选取并返回 K 条原始行，K 由参数决定 |
+| UNIQUE | **集合函数**（N→M，不定） | 返回所有唯一值行，行数取决于数据 |
+| COLS | **集合函数** | 第一参数必须为选择函数，输出选中行的附加列 |
+
+### BOTTOM
+
+```sql
+BOTTOM(expr, k)
+```
+
+**函数分类**：管道集合函数。
+
+**功能说明**：统计表/超级表中某列的值最小 **k** 个非 NULL 值。如果多条数据取值一样，全部取用又会超出 k 条限制时，系统会从相同值中随机选取符合要求的数量返回。
+
+**返回结果类型**：同应用的字段。
+
+**适用数据类型**：数值类型。
+
+**适用于**：表和超级表。
+
+**使用说明**
+
+- *k* 值取值范围 1≤*k*≤100。
+- 系统同时返回该记录关联的时间戳列。
+- 限制：BOTTOM 函数不支持 FILL 子句。
+
+### COLS
+
+```sql
+COLS(func(expr), output_expr1, [, output_expr2] ... )
+```
+
+**函数分类**：管道集合函数。
+
+**功能说明**：在选择函数 func(expr) 执行结果所在数据行上，执行表达式 output_expr1, [, output_expr2]，返回其结果，func(expr) 结果不输出。
+
+**返回结果类型**：返回多列数据，每列数据类型为对应表达式返回结果的类型。
+
+**适用数据类型**：全部类型字段。
+
+**适用于**：表和超级表。
+
+**使用说明**
+
+- func 函数类型：必须是单行选择函数（输出结果为一行的选择函数，例如 last 是单行选择函数，但 top 是多行选择函数）。
+- 主要用于一个 sql 中获取多个选择函数结果关联列的场景，例如 `select cols(max(c0), ts), cols(max(c1), ts) from ...` 可用于获取 c0、c1 列最大值的不同 ts 值。
+- 注意，函数 func 的结果并没有返回，如需输出 func 结果，可额外增加输出列，如 `select first(ts), cols(first(ts), c1) from ...`
+- 输出只有一列时，可以对 cols 函数设置别名。例如 `select cols(first(ts), c1) as c11 from ...`
+- 输出一列或者多列时，可以对 cols 函数的每个输出列设置命名。例如 `select cols(first(ts), c1 as c11, c2 as c22)`
+
+### FIRST
+
+```sql
+FIRST(expr)
+```
+
+**函数分类**：管道聚合函数。
+
+**功能说明**：返回有效时间线上最早一行中、该列的非 NULL 值。比较的是有效时间线，不是参数列本身。参数列即使是非主键 `TIMESTAMP`，也不会按该列的值排序。
+
+**返回结果类型**：同应用的字段。
+
+**适用数据类型**：所有字段。
+
+**适用于**：表和超级表。
+
+**使用说明**
+
+- 如果要返回各个列的首个（有效时间线最早）非 NULL 值，可以使用 `FIRST(*)`。查询超级表，且 `multiResultFunctionStarReturnTags` 设置为 0（默认值）时，`FIRST(*)` 只返回超级表的普通列；设置为 1 时，返回超级表的普通列和标签列。
+- `FIRST(expr)` 不等价于 `ORDER BY expr ASC LIMIT 1`。直接查询表或超级表时，有效时间线是主键时间戳。要取某个非主键时间戳列最小的那一行，对该列使用 `ORDER BY ... ASC LIMIT 1`。有效时间线的选取见 [时间线](./01-query.md#时间线)。
+- 如果结果集中的某列全部为 NULL 值，则该列的返回结果也是 NULL；
+- 如果结果集中所有列全部为 NULL 值，则不返回结果。
+- 对于存在复合主键的表的查询，若最小时间戳的数据有多条，则只有对应的复合主键最小的数据被返回。
+- 当有效时间线为退化时间线时，NULL 时间行不参与时间值比较（跳过），取非 NULL 时间最小的行。全部时间为 NULL 时返回空。当输入中不存在任何 TIMESTAMP 列时，按输入行顺序返回第一行。
+
+**示例**
+
+表 `t` 的主键是 `ts`，`pub_ts` 是普通时间戳列：
+
+```sql
+taos> SELECT
+        ts,
+        pub_ts,
+        val
+      FROM t;
+           ts            |         pub_ts          | val |
+==========================================================
+ 2026-01-01 00:00:00.000 | 2026-01-03 00:00:00.000 | a   |
+ 2026-01-02 00:00:00.000 | 2026-01-01 00:00:00.000 | b   |
+Query OK, 2 row(s) in set
+
+taos> SELECT FIRST(ts)
+      FROM t;
+        first(ts)        |
+==========================
+ 2026-01-01 00:00:00.000 |
+Query OK, 1 row(s) in set
+
+taos> SELECT FIRST(pub_ts)
+      FROM t;
+      first(pub_ts)      |
+==========================
+ 2026-01-03 00:00:00.000 |
+Query OK, 1 row(s) in set
+```
+
+`FIRST(ts)` 返回最早的主键时间戳 `2026-01-01 00:00:00.000`。`FIRST(pub_ts)` 返回这一行上的 `pub_ts`，也就是 `2026-01-03 00:00:00.000`。按 `pub_ts` 本身取最早一行，使用：
+
+```sql
+SELECT
+  pub_ts,
+  val
+FROM t
+ORDER BY pub_ts ASC
+LIMIT 1;
+```
+
+该语句返回 `pub_ts` 为 `2026-01-01 00:00:00.000`、`val` 为 `b` 的那一行。
+
+### LAST
+
+```sql
+LAST(expr)
+```
+
+**函数分类**：管道聚合函数。
+
+**功能说明**：与 [FIRST](#first) 相同，但取有效时间线上最晚一行中该列的非 NULL 值。参数列不参与排序，也不等价于 `ORDER BY expr DESC LIMIT 1`。
+
+**返回结果类型**：同应用的字段。
+
+**适用数据类型**：所有字段。
+
+**适用于**：表和超级表。
+
+**使用说明**
+
+- 如果要返回各个列的最后（有效时间线最晚）一个非 NULL 值，可以使用 LAST(\*) 查询超级表，且 multiResultFunctionStarReturnTags 设置为 0 (默认值) 时，LAST(\*) 只返回超级表的普通列；设置为 1 时，返回超级表的普通列和标签列。
+- 如果结果集中的某列全部为 NULL 值，则该列的返回结果也是 NULL；如果结果集中所有列全部为 NULL 值，则不返回结果。
+- 在用于超级表时，时间戳完全一样且同为最大的数据行可能有多个，那么会从中随机返回一条，而并不保证多次运行所挑选的数据行必然一致。
+- 对于存在复合主键的表的查询，若最大时间戳的数据有多条，则只有对应的复合主键最大的数据被返回。
+- 当有效时间线为退化时间线时，NULL 时间行不参与时间值比较（跳过），取非 NULL 时间最大的行。全部时间为 NULL 时返回空。当输入中不存在任何 TIMESTAMP 列时，按输入行顺序返回最后一行。
+
+### LAST_ROW
+
+```sql
+LAST_ROW(expr)
+```
+
+**函数分类**：管道聚合函数。
+
+**功能说明**：返回表/超级表的最后一条记录。
+
+**返回结果类型**：同应用的字段。
+
+**适用数据类型**：所有字段。
+
+**适用于**：表和超级表。
+
+**使用说明**
+
+- 如果要返回各个列的最后一条记录（时间戳最大），可以使用 LAST_ROW(\*) 查询超级表，且 multiResultFunctionStarReturnTags 设置为 0 (默认值) 时，LAST_ROW(\*) 只返回超级表的普通列；设置为 1 时，返回超级表的普通列和标签列。
+- 在用于超级表时，时间戳完全一样且同为最大的数据行可能有多个，那么会从中随机返回一条，而并不保证多次运行所挑选的数据行必然一致。
+- 与 LAST 函数一样，对于存在复合主键的表的查询，若最大时间戳的数据有多条，则只有对应的复合主键最大的数据被返回。
+- 当有效时间线为退化时间线时，NULL 时间行不参与时间值比较（跳过），取非 NULL 时间最大的行。行为与 LAST 一致。当输入中不存在任何 TIMESTAMP 列时，按输入行顺序返回最后一行。
+
+### MAX
+
+```sql
+MAX(expr)
+```
+
+**函数分类**：管道聚合函数。
+
+**功能说明**：统计表/超级表中某列的值最大值。
+
+**返回结果类型**：同应用的字段。
+
+**适用数据类型**：数值类型、VARCHAR、NCHAR。
+
+**适用于**：表和超级表。
+
+**使用说明**
+
+- max 函数可以接受字符串作为输入参数，当输入参数为字符串类型时，返回最大的字符串值，从 `v3.3.3.0` 开始支持，之前的版本不支持字符串参数。
+
+### MIN
+
+```sql
+MIN(expr)
+```
+
+**函数分类**：管道聚合函数。
+
+**功能说明**：统计表/超级表中某列的值最小值。
+
+**返回结果类型**：同应用的字段。
+
+**适用数据类型**：数值类型、VARCHAR、NCHAR。
+
+**适用于**：表和超级表。
+
+**使用说明**
+
+- min 函数可以接受字符串作为输入参数，当输入参数为字符串类型时，返回最小的字符串值，从 `v3.3.3.0` 开始支持，之前的版本不支持字符串参数。
+
+### MODE
+
+```sql
+MODE(expr)
+```
+
+**函数分类**：管道聚合函数。
+
+**功能说明**：返回出现频率最高的值，若存在多个频率相同的最高值，则随机输出其中某个值。
+
+**返回结果类型**：与输入数据类型一致。
+
+**适用数据类型**：全部类型字段。
+
+**适用于**：表和超级表。
+
+### SAMPLE
+
+```sql
+SAMPLE(expr, k)
+```
+
+**函数分类**：管道集合函数。
+
+**功能说明**：获取数据的 k 个采样值。参数 k 的合法输入范围是 1≤ k ≤ 1000。
+
+**返回结果类型**：同原始数据类型。
+
+**适用数据类型**：全部类型字段。
+
+**嵌套子查询支持**：适用于内层查询和外层查询。
+
+**适用于**：表和超级表。
+
+### TAIL
+
+```sql
+TAIL(expr, k [, offset_rows])
+```
+
+**函数分类**：管道集合函数。
+
+**功能说明**：返回跳过最后 offset_val 个，然后取连续 k 个记录，不忽略 NULL 值。offset_val 可以不输入。此时返回最后的 k 个记录。当有 offset_val 输入的情况下，该函数功能等效于 `order by ts desc LIMIT k OFFSET offset_val`。
+
+**参数范围**：k: [1,100] offset_val: [0,100]。
+
+**返回结果类型**：同应用的字段。
+
+**适用数据类型**：适合于除时间主键列外的任何类型。
+
+**适用于**：表、超级表。
+
+### TOP
+
+```sql
+TOP(expr, k)
+```
+
+**函数分类**：管道集合函数。
+
+**功能说明**：统计表/超级表中某列的值最大 **k** 个非 NULL 值。如果多条数据取值一样，全部取用又会超出 k 条限制时，系统会从相同值中随机选取符合要求的数量返回。
+
+**返回结果类型**：同应用的字段。
+
+**适用数据类型**：数值类型。
+
+**适用于**：表和超级表。
+
+**使用说明**
+
+- *k* 值取值范围 1≤*k*≤100。
+- 系统同时返回该记录关联的时间戳列。
+- 限制：TOP 函数不支持 FILL 子句。
+
+### UNIQUE
+
+```sql
+UNIQUE(expr)
+```
+
+**函数分类**：管道集合函数。
+
+**功能说明**：返回表达式去重后的代表行。该函数功能与 `DISTINCT` 相似。存在有效时间线时，对于相同的 `expr` 值，返回时间戳最小的一条；对于存在复合主键的表的查询，若最小时间戳的数据有多条，则只有对应的复合主键最小的数据被返回。无时间列模式下的代表行选择规则见使用说明。
+
+**返回结果类型**：同应用的字段。
+
+**适用数据类型**：全部类型字段。
+
+**适用于**：表和超级表。
+
+**使用说明**：
+
+- 对于相同的 `expr` 值，`UNIQUE` 只返回一条代表行。查询同时返回其他普通列或标量表达式时，这些结果均来自该代表行。
+- 当输入结果集中不存在任何 `TIMESTAMP` 类型列时，即无时间列模式，`UNIQUE` 按上游查询算子的输入行序去重，每个值使用实际输入行序中最先出现的行作为代表行。
+- 无时间列模式下，`UNIQUE` 不额外引入排序。需要稳定代表行时，应在子查询中显式使用 `ORDER BY` 指定输入行序；需要稳定展示顺序时，应在外层查询中显式使用 `ORDER BY`。
+
+## 统计聚合函数
+
+统计聚合函数大部分为 **聚合函数**，唯一例外的是 HISTOGRAM 函数为 **集合函数**。
+
+### DISTINCT 聚合
+
+聚合函数支持 `DISTINCT` 关键字，对指定列去重后再进行聚合计算。语法如下：
+
+```sql
+AGG_FUNC(DISTINCT expr)
+```
+
+**支持的聚合函数**：`COUNT`、`SUM`、`AVG`、`MIN`、`MAX`。
+
+**适用数据类型**：`expr` 可以是普通列或表达式，数据类型需满足对应聚合函数的要求。
+
+**适用于**：表和超级表。
+
+**使用说明**
+
+- `COUNT(DISTINCT expr)` 返回去重后的非 NULL 值数量。
+- `SUM(DISTINCT expr)` 对去重后的值求和。
+- 支持与 `GROUP BY`、`PARTITION BY`、窗口子句组合使用。
+- 支持 `INTERVAL`、`SESSION`、`STATE_WINDOW`、`EVENT_WINDOW`、`COUNT_WINDOW` 和 `EXTERNAL_WINDOW`，在每个窗口内独立去重。
+- 同一查询中可混合使用带 DISTINCT 和不带 DISTINCT 的聚合函数，例如：
+
+  ```sql
+  SELECT
+    COUNT(DISTINCT voltage),
+    AVG(current)
+  FROM meters;
+  ```
+
+- 当去重数据量超过内存阈值（`pqSortMemThreshold`，默认 16MB）时，自动切换为排序去重模式，利用磁盘缓冲完成计算，无需用户干预。
+
+**限制**
+
+- 仅 `COUNT`、`SUM`、`AVG`、`MIN`、`MAX` 支持 DISTINCT，对其他函数使用将返回错误码 `0x26B4`（"Function does not support DISTINCT"）。
+
+**示例**
+
+```sql
+-- 统计不同电压值的数量
+SELECT COUNT(DISTINCT voltage)
+FROM meters;
+
+-- 每 10 分钟窗口内的不同电压值数量
+SELECT
+  _wstart,
+  COUNT(DISTINCT voltage)
+FROM meters
+INTERVAL(10m);
+
+-- 按分组统计去重后的电压之和
+SELECT
+  location,
+  SUM(DISTINCT voltage)
+FROM meters
+GROUP BY location;
+```
+
+### 基础数值聚合
+
+#### AVG
+
+```sql
+AVG(expr)
+```
+
+**函数分类**：聚合函数。
+
+**功能说明**：统计指定字段的平均值。
+
+**返回结果类型**：`DOUBLE`。、DECIMAL。
+
+**适用数据类型**：数值类型。
+
+**适用于**：表和超级表。
+
+**说明**: 当输入类型为 DECIMAL 类型时，输出类型也为 DECIMAL 类型，输出的 precision 和 scale 大小符合数据类型章节中的描述规则，通过计算 SUM 类型和 UINT64 的除法得到结果类型，若 SUM 的结果导致 DECIMAL 类型溢出，则报 DECIMAL OVERFLOW 错误。
+
+#### COUNT
+
+```sql
+COUNT({* | expr})
+```
+
+**函数分类**：聚合函数。
+
+**功能说明**：统计指定字段的记录行数。
+
+**返回结果类型**：`BIGINT`。
+
+**适用数据类型**：全部类型字段。
+
+**适用于**：表和超级表。
+
+**使用说明**
+
+- 可以使用星号 (\*) 来替代具体的字段，使用星号 (\*) 返回全部记录数量。
+- 如果统计字段是具体的列，则返回该列中非 NULL 值的记录数量。
+
+#### LEASTSQUARES
+
+```sql
+LEASTSQUARES(expr, start_val, step_val)
+```
+
+**函数分类**：聚合函数。
+
+**功能说明**：统计表中某列的值的拟合直线方程。start_val 是自变量初始值，step_val 是自变量的步长值。
+
+**返回结果类型**：字符串表达式（斜率、截距）。
+
+**适用数据类型**：expr 必须是数值类型。
+
+**适用于**：表。
+
+#### SUM
+
+```sql
+SUM(expr)
+```
+
+**函数分类**：聚合函数。
+
+**功能说明**：统计表/超级表中某列的和。
+
+**返回结果类型**：`DOUBLE`。、BIGINT、DECIMAL。
+
+**适用数据类型**：数值类型。
+
+**适用于**：表和超级表。
+
+**说明**: 输入类型为 DECIMAL 类型时，输出类型为 DECIMAL(38, scale) ，precision 为当前支持的最大值，scale 为输入类型的 scale，若 SUM 的结果溢出时，报 DECIMAL OVERFLOW 错误。
+
+### 离散度度量
+
+#### STDDEV
+
+```sql
+STDDEV
+```
+
+**函数分类**：聚合函数。
+
+**功能说明**：统计表中某列的总体标准差。
+
+**返回结果类型**：`DOUBLE`。
+
+**适用数据类型**：数值类型。
+
+**适用于**：表和超级表。
+
+**说明**
+
+- `STDDEV_POP` 函数等价于 `STDDEV` 函数，从 `v3.3.3.0` 开始支持。
+
+**示例**
+
+```sql
+taos> SELECT id
+      FROM test_stddev;
+     id      |
+==============
+           1 |
+           2 |
+           3 |
+           4 |
+           5 |
+Query OK, 5 row(s) in set
+
+taos> SELECT STDDEV_POP(id)
+      FROM test_stddev;
+      stddev_pop(id)       |
+============================
+         1.414213562373095 |
+Query OK, 1 row(s) in set
+```
+
+#### STD
+
+**函数分类**：聚合函数。
+
+与 [STDDEV](#stddev)  函数的行为相同，从 `v3.3.8.0` 版本开始支持。
+
+#### STDDEV_POP
+
+**函数分类**：聚合函数。
+
+与 [STDDEV](#stddev)  函数的行为相同
+
+#### STDDEV_SAMP
+
+```sql
+STDDEV_SAMP
+```
+
+**函数分类**：聚合函数。
+
+**功能说明**：统计表中某列的样本标准差。
+
+**版本**：`v3.3.8.0`
+
+**返回结果类型**：`DOUBLE`。
+
+**适用数据类型**：数值类型。
+
+**适用于**：表和超级表。
+
+**示例**
+
+```sql
+taos> SELECT id
+      FROM test_stddev;
+     id      |
+==============
+           1 |
+           2 |
+           3 |
+           4 |
+           5 |
+Query OK, 5 row(s) in set
+
+taos> SELECT STDDEV_SAMP(id)
+      FROM test_stddev;
+      stddev_samp(id)       |
+============================
+         1.58113883008419   |
+Query OK, 1 row(s) in set
+```
+
+#### VARIANCE
+
+```sql
+VARIANCE(expr)
+```
+
+**函数分类**：聚合函数。
+
+**功能说明**：统计表中某列的总体方差。
+
+**版本**：`v3.3.3.0`
+
+**返回结果类型**：`DOUBLE`。
+
+**适用数据类型**：数值类型。
+
+**适用于**：表和超级表。
+
+**示例**
+
+```sql
+taos> SELECT id
+      FROM test_var;
+     id      |
+==============
+           3 |
+           1 |
+           2 |
+           4 |
+           5 |
+Query OK, 5 row(s) in set
+
+taos> SELECT VARIANCE(id)
+      FROM test_var;
+       variance(id)        |
+============================
+         2.000000000000000 |
+Query OK, 1 row(s) in set
+```
+
+#### VAR_POP
+
+**函数分类**：聚合函数。
+
+与 [VARIANCE](#variance)  函数的行为相同
+
+#### VAR_SAMP
+
+```sql
+VAR_SAMP(expr)
+```
+
+**函数分类**：聚合函数。
+
+**功能说明**：统计表中某列的样本方差。
+
+**版本**：`v3.3.8.0`
+
+**返回结果类型**：`DOUBLE`。
+
+**适用数据类型**：数值类型。
+
+**适用于**：表和超级表。
+
+**示例**
+
+```sql
+taos> SELECT id
+      FROM test_var;
+     id      |
+==============
+           3 |
+           1 |
+           2 |
+           4 |
+           5 |
+Query OK, 5 row(s) in set
+
+taos> SELECT VAR_SAMP(id)
+      FROM test_var;
+        var_samp(id)        |
+============================
+         2.500000000000000 |
+Query OK, 1 row(s) in set
+```
+
+#### SPREAD
+
+```sql
+SPREAD(expr)
+```
+
+**函数分类**：聚合函数。
+
+**功能说明**：统计表中某列的最大值和最小值之差。
+
+**返回结果类型**：`DOUBLE`。
+
+**适用数据类型**：INTEGER、TIMESTAMP。
+
+**适用于**：表和超级表。
+
+### 分位数与基数估算
+
+#### APERCENTILE
+
+```sql
+APERCENTILE(expr, p [, algo_type])
+
+algo_type: {
+    "default"
+  | "t-digest"
+}
+```
+
+**函数分类**：聚合函数。
+
+**功能说明**：统计表/超级表中指定列的值的近似百分比分位数，与 PERCENTILE 函数相似，但是返回近似结果。
+
+**返回结果类型**：`DOUBLE`。
+
+**适用数据类型**：数值类型。
+
+**适用于**：表和超级表。
+
+**说明**
+
+- p 值范围是 [0,100]，当为 0 时等同 于 MIN，为 100 时等同于 MAX。
+- algo_type 取值为 "default" 或 "t-digest"。输入为 "default" 时函数使用基于直方图算法进行计算。输入为 "t-digest" 时使用 t-digest 算法计算分位数的近似结果。如果不指定 algo_type 则使用 "default" 算法。
+- t-digest 算法的近似结果对于输入数据顺序敏感，对超级表查询时不同的输入排序结果可能会有微小的误差。
+
+#### HYPERLOGLOG
+
+```sql
+HYPERLOGLOG(expr)
+```
+
+**函数分类**：聚合函数。
+
+**功能说明**
+
+- 采用 hyperloglog 算法，返回某列的基数。该算法在数据量很大的情况下，可以明显降低内存的占用，求出来的基数是个估算值，标准误差（标准误差是多次实验，每次的平均数的标准差，不是与真实结果的误差）为 0.81%。
+- 在数据量较少的时候该算法不是很准确，可以使用 `select count(data) from (select unique(col) as data from table)` 的方法。
+
+**返回结果类型**：`INT`。EGER。
+
+**适用数据类型**：任何类型。
+
+**适用于**：表和超级表。
+
+#### PERCENTILE
+
+```sql
+PERCENTILE(expr, p [, p1] ... )
+```
+
+**函数分类**：聚合函数。
+
+**功能说明**：统计表中某列的值百分比分位数。
+
+**返回结果类型**：该函数最小参数个数为 2 个，最大参数个数为 11 个。可以最多同时返回 10 个百分比分位数。当参数个数为 2 时，返回一个分位数，类型为 DOUBLE，当参数个数大于 2 时，返回类型为 VARCHAR，格式为包含多个返回值的 JSON 数组。
+
+**应用字段**：数值类型。
+
+**适用于**：表。
+
+**使用说明**
+
+- PERCENTILE 函数不支持虚拟表。
+- *P* 值取值范围 0≤*P*≤100，为 0 的时候等同于 MIN，为 100 的时候等同于 MAX;
+- 同时计算针对同一列的多个分位数时，建议使用一个 PERCENTILE 函数和多个参数的方式，能很大程度上降低查询的响应时间。
+  比如，使用查询 `SELECT percentile(col, 90, 95, 99) FROM table`，性能会优于 `SELECT percentile(col, 90), percentile(col, 95), percentile(col, 99) from table`。
+
+### 字符串聚合
+
+#### GROUP_CONCAT
+
+```sql
+GROUP_CONCAT(expr)
+```
+
+**函数分类**：聚合函数。
+
+**功能说明**：将多个字段值连接为一个字符串。
+
+**版本**：`v3.3.8.0`
+
+**返回结果类型**：`VARCHAR`。
+
+**适用数据类型**：字符串类型。
+
+**适用于**：表和超级表。
+
+**示例**
+
+```sql
+taos> SELECT
+        str1,
+        str2
+      FROM test_var;
+     id      |      id      |
+=============================
+          a1 |       b1     |
+          a2 |       b2     |
+          a3 |       b3     |
+Query OK, 3 row(s) in set
+
+taos> SELECT GROUP_CONCAT(str1, str2, ':')
+      FROM test_var;
+         group_concat(str1, str2, ':')   |
+==========================================
+         a1b1:a2b2:a3b3                  |
+Query OK, 1 row(s) in set
+```
+
+### 区间统计
+
+区间统计函数为 **集合函数**（N→K），将输入数据按区间归箱，输出每个区间的统计结果。K 由 bins 参数在解析期确定。
+
+#### HISTOGRAM
+
+```sql
+HISTOGRAM(expr，bin_type, bin_description, normalized)
+```
+
+**函数分类**：集合函数。
+
+**功能说明**：统计数据按照用户指定区间的分布。
+
+**返回结果类型**：如归一化参数 normalized 设置为 1，返回结果为 DOUBLE 类型，否则为 BIGINT 类型。
+
+**适用数据类型**：数值型字段。
+
+**适用于**：表和超级表。
+
+**详细说明**
+
+- bin_type 用户指定的分桶类型，有效输入类型为 "user_input"、"linear_bin"、"log_bin"。
+- bin_description 描述如何生成分桶区间，针对三种桶类型，分别为以下描述格式 (均为 JSON 格式字符串)：
+  - "user_input": "[1, 3, 5, 7]"
+       用户指定 bin 的具体数值。
+
+  - "linear_bin": "\{"start": 0.0, "width": 5.0, "count": 5, "infinity": true}"
+       "start" 表示数据起始点，"width" 表示每次 bin 偏移量，"count" 为 bin 的总数，"infinity" 表示是否添加（-inf, inf）作为区间起点和终点，
+       生成区间为[-inf, 0.0, 5.0, 10.0, 15.0, 20.0, +inf]。
+
+  - "log_bin": "\{"start":1.0, "factor": 2.0, "count": 5, "infinity": true}"
+       "start" 表示数据起始点，"factor" 表示按指数递增的因子，"count" 为 bin 的总数，"infinity" 表示是否添加（-inf, inf）作为区间起点和终点，
+       生成区间为[-inf, 1.0, 2.0, 4.0, 8.0, 16.0, +inf]。
+- normalized 是否将返回结果归一化到 0~1 之间。有效输入为 0 和 1。
+
+## 比较函数
+
+比较函数均为 **标量函数**。
+
+### IF
+
+```sql
+IF(expr1, expr2, expr3)
+```
+
+**函数分类**：标量函数。
+
+**功能说明**：如果 expr1 为真，返回 expr2，否则返回 expr3。
+
+**返回结果类型**：依赖于使用的上下文。
+
+**适用于**：表达式。
+
+**使用说明**
+
+- 类似于 CASE 表达式。
+
+**示例**
+
+```sql
+taos> SELECT IF(1 > 2, 2, 3);
+      if(1>2,2,3)      |
+========================
+                     3 |
+Query OK, 1 row(s) in set
+```
+
+### IFNULL
+
+```sql
+IFNULL(expr1, expr2)
+```
+
+**函数分类**：标量函数。
+
+**功能说明**：如果 expr1 非空真，返回 expr1，否则返回 expr2。
+
+**返回结果类型**：依赖于使用的上下文。
+
+**适用于**：表达式。
+
+**示例**
+
+```sql
+taos> SELECT IFNULL(1, 0);
+      ifnull(1,0)      |
+========================
+                     1 |
+Query OK, 1 row(s) in set
+```
+
+### NVL
+
+**函数分类**：标量函数。
+
+与 [IFNULL](#ifnull)  函数的行为相同
+
+### NULLIF
+
+```sql
+NULLIF(expr1, expr2)
+```
+
+**函数分类**：标量函数。
+
+**功能说明**：如果 expr1 = expr2，返回 NULL，否则返回 expr1。
+
+**返回结果类型**：依赖于使用的上下文。
+
+**适用于**：表达式。
+
+**示例**
+
+```sql
+taos> SELECT NULLIF(1, 1);
+      nullif(1,1)      |
+========================
+ NULL                  |
+Query OK, 1 row(s) in set
+```
+
+### NVL2
+
+```sql
+NVL2(expr1, expr2, expr3)
+```
+
+**函数分类**：标量函数。
+
+**功能说明**：如果 expr1 非空值，返回 expr2，否则返回 expr3。
+
+**返回结果类型**：依赖于使用的上下文。
+
+**适用于**：表达式。
+
+**示例**
+
+```sql
+taos> SELECT NVL2(NULL, 1, 2);
+    nvl2(null,1,2)     |
+========================
+                     2 |
+Query OK, 1 row(s) in set
+```
+
+## 序列分析函数
+
+序列分析函数均为 **集合函数**，也均为 **管道函数**，按输入行序对序列进行逐行变换或滑动计算。
+
+当输入结果集中不存在任何 `TIMESTAMP` 类型列时，`DIFF`、`CSUM`、`MAVG`、`STATECOUNT`、`LAG`、`LEAD`、`FILL_FORWARD` 支持按上游查询算子的输入行序执行。如果需要稳定的行序结果，应在子查询中显式使用 `ORDER BY`；否则行序由执行计划的自然输出顺序决定，不保证跨执行、跨版本或跨数据分布稳定。
+
+### CSUM
+
+```sql
+CSUM(expr)
+```
+
+**函数分类**：管道集合函数。
+
+**功能说明**：累加和（Cumulative sum），忽略 NULL 值。
+
+与 `PARTITION BY` 一起使用时，`CSUM` 在每个分区中独立累加，累加状态不会跨分区延续。分区内按照有效时间线顺序累加；如果输入中不存在 `TIMESTAMP` 类型列，则按照上游输入行序累加。需要稳定行序时，应在子查询中显式使用 `ORDER BY`。
+
+例如，以下查询分别计算每个子表的电流累加值。查询允许时，分区表达式也可以是标签或普通列。
+
+```sql
+SELECT
+  tbname,
+  ts,
+  CSUM(current) AS cumulative_current
+FROM meters
+PARTITION BY tbname
+ORDER BY tbname, ts;
+```
+
+**返回结果类型**：输入列如果是整数类型返回值为长整型（bigint），浮点数返回值为双精度浮点数（double）。无符号整数类型返回值为无符号长整型（unsigned bigint）。
+
+**适用数据类型**：数值类型。
+
+**嵌套子查询支持**：适用于内层查询和外层查询。
+
+**适用于**：表和超级表。
+
+**使用说明**
+
+- 不支持 +、-、*、/ 运算，如 csum(col1) + csum(col2)。
+- 不能与聚合（Aggregation）函数一起使用。该函数可以应用在普通表和超级表上。
+- 当有效时间线为退化时间线时，csum 不依赖时间值，按行顺序累积，结果有意义。对真正的（非 NULL）重复时间戳仍报错；NULL 时间行不参与重复时间戳判断。
+- 当输入结果集中不存在任何 `TIMESTAMP` 类型列时，`CSUM` 按输入行序累积。
+
+### DERIVATIVE
+
+```sql
+DERIVATIVE(expr, time_interval, ignore_negative)
+
+ignore_negative: {
+    0
+  | 1
+}
+```
+
+**函数分类**：管道集合函数。
+
+**功能说明**：统计表中某列数值的单位变化率。其中单位时间区间的长度可以通过 time_interval 参数指定，最小可以是 1 秒（1s）；ignore_negative 参数的值可以是 0 或 1，为 1 时表示忽略负值。对于存在复合主键的表的查询，若时间戳相同的数据存在多条，则只有对应的复合主键最小的数据参与运算。
+
+**返回结果类型**：`DOUBLE`。
+
+**适用数据类型**：数值类型。
+
+**适用于**：表和超级表。
+
+**使用说明**
+
+- 可以与选择相关联的列一起使用。例如 `select \_rowts, DERIVATIVE(col1, 1s, 1) from tb1`。
+- 当有效时间线为退化时间线时，遇到重复时间戳行输出 NULL（避免除以零），不更新前值；遇到 NULL 时间行也输出 NULL。输出行数始终保持 N-1。
+- 当有效时间线乱序时，derivative 仍可执行，但由于时间差正负交替，斜率结果无物理意义。用户应通过 `ORDER BY` 保证时间线有序。
+- 在 `CREATE STREAM ... AS SELECT` 中，`time_interval` 可以直接引用原生测点的 Tag，例如 `DERIVATIVE(current, rate_interval, 0)`。超级表触发须按 `tbname` 分区；固定子表触发可省略分区。支持 `%%tbname`、`%%trows` 及原样透传 Tag 的单源子查询，普通 `SELECT` 不支持 Tag 参数。第二参数不接受普通列或 Tag 计算表达式，`ignore_negative` 仍须为字面量 `0` 或 `1`。
+- 字符串 Tag（`VARCHAR`、`BINARY`、`NCHAR`）使用带单位的正整数时长，支持 `b`、`u`、`a`、`s`、`m`、`h`、`d`、`w`；整型 Tag 使用源数据库精度下的时间刻度。时长须至少为 1 秒，能以源精度准确表示，且换算后不超过 `INT64_MAX`。时间单位不改变窗口宽度：相同输入使用 `'2s'` 的结果为使用 `'1s'` 时的两倍。
+- Tag 参数适用于单层 `INTERVAL`、`SESSION`、`COUNT_WINDOW`、`STATE_WINDOW` 和 `EVENT_WINDOW`，不适用于父子窗口、多个 START 条件、`PERIOD` 或纯 `SLIDING`。非法 Tag 值使引用它的变化率结果为 NULL，其他合法结果列和测点继续计算。未显式作为分区键的时间间隔 Tag 可通过 `SET TAG` 修改，后续计算采用生效后的值；修改本身不主动重算历史结果。活跃流引用的时间间隔 Tag 不能直接删除。
+
+### DIFF
+
+```sql
+DIFF(expr [, ignore_option])
+
+ignore_option: {
+    0
+  | 1
+  | 2
+  | 3
+}
+```
+
+**函数分类**：管道集合函数。
+
+**功能说明**：统计表中特定列与之前行的当前列有效值之差。ignore_option 取值为 0-3，可以不填，默认值为 0。
+
+- `0` 表示 diff 结果不忽略负值不忽略 null 值
+- `1` 表示 diff 结果的负值作为 null 值
+- `2` 表示 diff 结果不忽略负值但忽略 null 值
+- `3` 表示 diff 结果忽略负值且忽略 null 值
+- 对于存在复合主键的表的查询，若时间戳相同的数据存在多条，则只有对应的复合主键最小的数据参与运算。
+
+**返回结果类型**：bool、时间戳及整型数值类型均返回 bigint，浮点类型返回 double，若 diff 结果溢出则返回溢出后的值。
+
+**适用数据类型**：数值类型、时间戳和 bool 类型。
+
+**适用于**：表和超级表。
+
+**使用说明**
+
+- diff 是计算本行特定列与同列的前一个有效数据的差值，同列的前一个有效数据：指的是同一列中时间戳较小的最临近的非空值。
+- 数值类型 diff 结果为对应的算术差值；时间戳类型根据数据库的时间戳精度进行差值计算；bool 类型计算差值时 true 视为 1，false 视为 0。
+- 如当前行数据为 null 或者没有找到同列前一个有效数据时，diff 结果为 null。
+- 忽略负值时（ignore_option 设置为 1 或 3），如果 diff 结果为负值，则结果设置为 null，然后根据 null 值过滤规则进行过滤。
+- 当 diff 结果发生溢出时，结果是否是 `应该忽略的负值` 取决于逻辑运算结果是正数还是负数，例如 9223372036854775800  - (-9223372036854775806) 的值超出 BIGINT 的范围，diff 结果会显示溢出值 -10，但并不会被作为负值忽略。
+- 单个语句中可以使用单个或者多个 diff，并且每个 diff 可以指定相同或不同的 ignore_option，当单个语句中存在多个 diff 时当且仅当某行所有 diff 的结果都为 null，并且 ignore_option 都设置为忽略 null 值，该行才从结果集中剔除。
+- 可以选择与相关联的列一起使用。例如 `select _rowts, DIFF() from`。
+- 当没有复合主键时，如果不同的子表有相同时间戳的数据，会提示 "Duplicate timestamps not allowed"。
+- 当使用复合主键时，不同子表的时间戳和主键组合可能相同，使用哪一行取决于先找到哪一行，这意味着在这种情况下多次运行 diff() 的结果可能会不同。
+- 当有效时间线为退化时间线时，遇到重复时间戳行输出 NULL，不更新前值（下一非重复行用上一有效行计算）；遇到 NULL 时间行也输出 NULL。输出行数始终保持 N-1。
+- 当输入结果集中不存在任何 `TIMESTAMP` 类型列时，`DIFF` 按输入行序计算相邻行差值，输出行数仍为 N-1。
+
+### FILL_FORWARD
+
+```sql
+FILL_FORWARD(expr)
+```
+
+**函数分类**：管道集合函数。
+
+**功能说明**：遇到空值时使用上一个非空值，如果之前的数据均为空值，则保持空值不变。
+
+**返回结果类型**：与输入类型一致。
+
+**适用数据类型**：数值类型，字符串类型。
+
+**适用于**：表和超级表。
+
+**使用说明**
+
+- 支持 +、-、*、/ 运算，如 fill_forward(col1) + fill_forward(col2);
+- 当输入结果集中不存在任何 `TIMESTAMP` 类型列时，`FILL_FORWARD` 按输入行序使用前一个非 NULL 值填充。
+
+**示例**
+
+```sql
+taos> SELECT
+        _rowts,
+        f1,
+        f2,
+        FILL_FORWARD(f1),
+        FILL_FORWARD(f2),
+        FILL_FORWARD(f1) * FILL_FORWARD(f2)
+      FROM db.tb;
+         _rowts          |     f1      |       f2       |   fill_forward(f1)   |   fill_forward(f2)     | fill_forward(f1)*fill_forward(f2) |
+============================================================================================================================================
+ 2025-12-02 01:01:01.000 |           1 |       2.000000 |                    1 |               2.000000 |                          2.000000 |
+ 2025-12-02 01:01:02.000 |        NULL |       4.000000 |                    1 |               4.000000 |                          4.000000 |
+ 2025-12-02 01:01:03.000 |           5 |           NULL |                    5 |               4.000000 |                         20.000000 |
+ 2025-12-02 01:01:04.000 |           7 |       8.000000 |                    7 |               8.000000 |                         56.000000 |
+Query OK, 4 row(s) in set
+```
+
+### LAG
+
+```sql
+LAG(expr, offset[, default_val])
+```
+
+**函数分类**：管道集合函数。
+
+**功能说明**：返回当前行之前第 `offset` 行的 `expr` 值。
+
+**返回结果类型**：与 `expr` 的数据类型一致。
+
+**适用数据类型**：全部数据类型。
+
+**适用于**：表和超级表。
+
+**使用说明**
+
+- `offset` 必须为大于 0 的整数。
+- `default_val` 可选；当目标行不存在时返回该值，未指定时返回 `NULL`。
+- `default_val` 需要与 `expr` 类型兼容。
+- `LAG` 按输入结果集的行序计算；可以结合 `ORDER BY` 改变计算顺序。
+- 当输入结果集中不存在任何 `TIMESTAMP` 类型列时，`LAG` 仍按输入行序取前第 `offset` 行。
+- 支持与 `_rowts`、`tbname`、标签列等一起查询，也支持在子查询和 `PARTITION BY` 场景中使用。
+- 与窗口一起使用时，`LAG` 仅在当前窗口内部按窗口内结果顺序计算，不会跨窗口继承上一窗口的状态。
+- `LAG` 也可以作为 SQL 标准窗口函数，配合 `OVER` 子句使用，此时参数规则略有不同（`offset` 可以为 0），详见[窗口函数](./07-window-function.md#取值类窗口函数)。
+
+### LEAD
+
+```sql
+LEAD(expr, offset[, default_val])
+```
+
+**函数分类**：管道集合函数。
+
+**功能说明**：返回当前行之后第 `offset` 行的 `expr` 值。
+
+**返回结果类型**：与 `expr` 的数据类型一致。
+
+**适用数据类型**：全部数据类型。
+
+**适用于**：表和超级表。
+
+**使用说明**
+
+- `offset` 必须为大于 0 的整数。
+- `default_val` 可选；当目标行不存在时返回该值，未指定时返回 `NULL`。
+- `default_val` 需要与 `expr` 类型兼容。
+- `LEAD` 按输入结果集的行序计算；可以结合 `ORDER BY` 改变计算顺序。
+- 当输入结果集中不存在任何 `TIMESTAMP` 类型列时，`LEAD` 仍按输入行序取后第 `offset` 行。
+- 支持与 `_rowts`、`tbname`、标签列等一起查询，也支持在子查询和 `PARTITION BY` 场景中使用。
+- 与窗口一起使用时，`LEAD` 仅在当前窗口内部按窗口内结果顺序计算，不会跨窗口读取下一窗口的数据。
+- `LEAD` 也可以作为 SQL 标准窗口函数，配合 `OVER` 子句使用，此时参数规则略有不同（`offset` 可以为 0），详见[窗口函数](./07-window-function.md#取值类窗口函数)。
+
+### MAVG
+
+```sql
+MAVG(expr, k)
+```
+
+**函数分类**：管道集合函数。
+
+**功能说明**：计算连续 k 个值的移动平均数（moving average）。如果输入行数小于 k，则无结果输出。参数 k 的合法输入范围是 1≤ k ≤ 1000。
+
+**返回结果类型**：`DOUBLE`。
+
+**适用数据类型**：数值类型。
+
+**嵌套子查询支持**：适用于内层查询和外层查询。
+
+**适用于**：表和超级表。
+
+**使用说明**
+
+- 不支持 +、-、*、/ 运算，如 mavg(col1, k1) + mavg(col2, k1);
+- 只能与普通列，选择（Selection）、投影（Projection）函数一起使用，不能与聚合（Aggregation）函数一起使用；
+- 当输入结果集中不存在任何 `TIMESTAMP` 类型列时，`MAVG` 按输入行序滑动计算移动平均。
+- 与窗口一起使用时，`MAVG` 仅在当前窗口内部按样本顺序计算，不会跨窗口延续上一窗口的样本状态。
+
+### STATECOUNT
+
+```sql
+STATECOUNT(expr, oper, val)
+```
+
+**函数分类**：管道集合函数。
+
+**功能说明**：返回满足某个条件的连续记录的个数，结果作为新的一列追加在每行后面。条件根据参数计算，如果条件为 true 则加 1，条件为 false 则重置为 -1，如果数据为 NULL，跳过该条数据。
+
+**参数范围**
+
+- oper："LT" (小于)、"GT"（大于）、"LE"（小于等于）、"GE"（大于等于）、"NE"（不等于）、"EQ"（等于），不区分大小写。
+- val：数值型
+
+**返回结果类型**：`INT`。EGER。
+
+**适用数据类型**：数值类型。
+
+**嵌套子查询支持**：适用于内层查询和外层查询。
+
+**适用于**：表和超级表。
+
+**使用说明**
+
+- 当输入结果集中不存在任何 `TIMESTAMP` 类型列时，`STATECOUNT` 按输入行序计算连续状态计数。
+- 与窗口一起使用时，`STATECOUNT` 仅统计当前窗口内部的连续记录，不会跨窗口累计。
+
+### STATEDURATION
+
+```sql
+STATEDURATION(expr, oper, val, unit)
+```
+
+**函数分类**：管道集合函数。
+
+**功能说明**：返回满足某个条件的连续记录的时间长度，结果作为新的一列追加在每行后面。条件根据参数计算，如果条件为 true 则加上两个记录之间的时间长度（第一个满足条件的记录时间长度记为 0），条件为 false 则重置为 -1，如果数据为 NULL，跳过该条数据。
+
+**参数范围**
+
+- oper：`'LT'` (小于)、`'GT'`（大于）、`'LE'`（小于等于）、`'GE'`（大于等于）、`'NE'`（不等于）、`'EQ'`（等于），不区分大小写，但需要用 `''` 包括。
+- val：数值型
+- unit：时间长度的单位，可取值时间单位：1b(纳秒)、1u(微秒)、1a(毫秒)、1s(秒)、1m(分)、1h(小时)、1d(天)、1w(周)。如果省略，默认为当前数据库精度。
+
+**返回结果类型**：`INT`。EGER。
+
+**适用数据类型**：数值类型。
+
+**嵌套子查询支持**：不支持应用在子查询上。
+
+**适用于**：表和超级表。
+
+**使用说明**
+
+- 与窗口一起使用时，`STATEDURATION` 仅统计当前窗口内部满足条件的连续时长，不会跨窗口累计。
+- 当有效时间线为退化时间线时，NULL 时间行输出 -1（不参与时间差计算）。
+- 当有效时间线乱序时，stateduration 仍可执行，但由于时间差可能为负，持续时间结果可能出现负值或方向突变，无物理意义。用户应通过 `ORDER BY` 保证时间线有序。
+
+## 时序特殊聚合函数
+
+时序特殊聚合函数均为 **聚合函数**，计算结果依赖输入数据的时间戳分布（如时间权重、时间区间长度或瞬时变化率）。
+
+### ELAPSED
+
+```sql
+ELAPSED(ts_primary_key [, time_unit])
+```
+
+**函数分类**：聚合函数。
+
+**功能说明**：`elapsed` 函数表达了统计周期内连续的时间长度，和 twa 函数配合使用可以计算统计曲线下的面积。在通过 INTERVAL 子句指定窗口的情况下，统计在给定时间范围内的每个窗口内有数据覆盖的时间范围；如果没有 INTERVAL 子句，则返回整个给定时间范围内的有数据覆盖的时间范围。注意，ELAPSED 返回的并不是时间范围的绝对值，而是绝对值除以 time_unit 所得到的单位个数。
+
+**返回结果类型**：`DOUBLE`。
+
+**适用数据类型**：TIMESTAMP。
+
+**适用于**：表、超级表、嵌套查询的外层查询。
+
+**说明**
+
+- `ts_primary_key` 参数可以是主键列，也可以是子查询输出的普通 TIMESTAMP 列。当子查询未输出主键列时，elapsed 可以使用退化时间线列（输出 schema 中第一个 TIMESTAMP 列）作为参数。
+- elapsed 可以指定与当前有效时间线不同的 TIMESTAMP 列作为参数，此时 elapsed 按指定列计算时间跨度，不影响同一查询中其他函数的时间线选择。
+- 返回值的时间单位由 `time_unit` 参数指定，最小是数据库的时间分辨率。`time_unit` 参数未指定时，以数据库的时间分辨率为时间单位。支持的时间单位 `time_unit` 如下：1b(纳秒)、1u(微秒)、1a(毫秒)、1s(秒)、1m(分)、1h(小时)、1d(天)、1w(周)。
+- 可以和 interval 组合使用，返回每个时间窗口的时间戳差值。需要特别注意的是，除第一个时间窗口和最后一个时间窗口外，中间窗口的时间戳差值均为窗口长度。
+- order by asc/desc 不影响差值的计算结果。
+- 对于超级表，需要和 group by tbname 子句组合使用，不可以直接使用。
+- 对于普通表，不支持和 group by 子句组合使用。
+- 对于嵌套查询，当内层查询输出 TIMESTAMP 列时，elapsed 可以使用该列作为参数。如果内层查询未输出任何 TIMESTAMP 列，则 elapsed 无法使用。
+- 当有效时间线为乱序退化时间线时，elapsed 的结果取决于输入行顺序中首末行的时间差，可能不等于实际时间跨度。用户应通过 `ORDER BY` 保证时间线有序。
+- 不支持与 leastsquares、diff、derivative、top、bottom、last_row、interp 等函数混合使用。
+
+### IRATE
+
+```sql
+IRATE(expr)
+```
+
+**函数分类**：聚合函数。
+
+**功能说明**：计算瞬时增长率。使用时间区间中最后两个样本数据来计算瞬时增长速率；如果这两个值呈递减关系，那么只取最后一个数用于计算，而不是使用二者差值。对于存在复合主键的表的查询，若时间戳相同的数据存在多条，则只有对应的复合主键最小的数据参与运算。
+
+**返回结果类型**：`DOUBLE`。
+
+**适用数据类型**：数值类型。
+
+**适用于**：表和超级表。
+
+**使用说明**
+
+- 当有效时间线为退化时间线时，遇到重复时间戳点跳过；所有时间戳相同时返回 0。遇到 NULL 时间行跳过，不参与计算。
+- irate 内部按时间值取最大的两个不同时间点计算斜率，不依赖输入行顺序，因此在乱序场景下结果仍有意义。
+
+### TWA
+
+```sql
+TWA(expr)
+```
+
+**函数分类**：聚合函数。
+
+**功能说明**：时间加权平均函数。统计表中某列在一段时间内的时间加权平均。对于存在复合主键的表的查询，若时间戳相同的数据存在多条，则只有对应的复合主键最小的数据参与运算。
+
+**返回结果类型**：`DOUBLE`。
+
+**适用数据类型**：数值类型。
+
+**适用于**：表和超级表。
+
+**使用说明**
+
+- 当有效时间线为退化时间线时，遇到重复时间戳点跳过（面积贡献为 0）；遇到 NULL 时间行跳过不参与加权计算。
+- 当有效时间线乱序时，twa 仍可执行，但由于时间差可能为负导致权重为负，加权平均结果可能偏离真实均值，无物理意义。用户应通过 `ORDER BY` 保证时间线有序。
+
+### TWAVG_LINEAR/TWAVG_LOCF
+
+```sql
+TWAVG_LINEAR(expr)
+TWAVG_LOCF(expr)
+```
+
+**函数分类**：聚合函数。
+
+**版本**：v3.4.3.0。
+
+**功能说明**：时间加权平均函数，即时间积分 `∫v dt` 除以时间跨度。两者区别仅在于相邻两点 `[t0,t1]`（值 `v0→v1`）之间及窗口边界处的取值方式：`TWAVG_LINEAR` 采用线性插值（梯形，`(t1-t0)(v0+v1)/2`），`TWAVG_LOCF` 采用前值保持（LOCF，最近观测值保持不变，矩形 `v0*(t1-t0)`）。`TWAVG_LINEAR` 与 `TWA` 完全等价。
+
+**返回数据类型**：DOUBLE。
+
+**适用数据类型**：数值类型（含 DECIMAL）。
+
+**适用于**：表和超级表。
+
+**使用说明**：
+
+- 支持 `INTERVAL ... FILL` 窗口，`_linear` 在窗口边界做线性插值，`_locf` 在窗口边界保持前一个点的值。
+- 单点窗口返回该点自身的值；时间线退化/乱序时的处理与 `TWA` 一致。
+- 输入 DECIMAL 类型时按 DOUBLE 参与计算，返回类型仍为 DOUBLE（不同于 `AVG` 保留 DECIMAL 输出）。
+
+### TWSUM_LINEAR/TWSUM_LOCF
+
+```sql
+TWSUM_LINEAR(expr [, time_unit])
+TWSUM_LOCF(expr [, time_unit])
+```
+
+**函数分类**：聚合函数。
+
+**版本**：v3.4.3.0。
+
+**功能说明**：时间加权求和函数，即时间积分 `∫v dt`。`_linear` 使用梯形积分，`_locf` 使用前值保持（矩形）积分。结果带时间量纲：可选参数 `time_unit` 指定输出的时间单位（如 `1s`、`1m`、`1a`），缺省为 1 秒（`1s`）。
+
+**返回数据类型**：DOUBLE。
+
+**适用数据类型**：数值类型（含 DECIMAL）；`time_unit` 为时间单位（`1b`/`1u`/`1a`/`1s`/`1m`/`1h`/`1d`/`1w`），且不得小于数据库时间精度。
+
+**适用于**：表和超级表。
+
+**使用说明**：
+
+- 与 `TWAVG` 不同，`TWSUM` 不除以时间跨度，因此结果随所选 `time_unit` 缩放。
+- 单点窗口的时间跨度为 0，返回 0；`INTERVAL ... FILL` 与边界插值行为同 `TWAVG`。
+- 输入 DECIMAL 类型时按 DOUBLE 参与计算，返回类型仍为 DOUBLE。
+
+### TWVAR_LINEAR/TWVAR_LOCF
+
+```sql
+TWVAR_LINEAR(expr)
+TWVAR_LOCF(expr)
+```
+
+**函数分类**：聚合函数。
+
+**版本**：v3.4.3.0。
+
+**功能说明**：时间加权总体方差函数，`Var = (1/T)·∫(v-μ)² dt = (1/T)∫v² dt - μ²`，其中 `μ` 为对应的时间加权平均（`TWA`）。`_linear` 每段积分 `∫v²dt = (t1-t0)(v0²+v0v1+v1²)/3`；`_locf` 每段 `∫v²dt = v0²·(t1-t0)`。
+
+**返回数据类型**：DOUBLE。
+
+**适用数据类型**：数值类型（含 DECIMAL）。
+
+**适用于**：表和超级表。
+
+**使用说明**：
+
+- 为总体方差（除以总时间跨度 `T`），非样本方差。
+- 单点窗口返回 0；`INTERVAL ... FILL` 与边界插值行为同 `TWAVG`。
+- 输入 DECIMAL 类型时按 DOUBLE 参与计算，返回类型仍为 DOUBLE。
+
+### BIT_DURATION
+
+```sql
+BIT_DURATION(expr [, mask [, flag]])
+```
+
+**函数分类**：聚合函数。
+
+**版本**：v3.4.3.7。
+
+**功能说明**：统计整型测点的二进制位持续时长。`mask` 默认值为 `1`，取值范围为 `1` 至 `INT64_MAX`；`flag` 默认值为 `0`。
+
+- `flag=0`：累计掩码状态为非 0 的持续时长。
+- `flag=1`：累计掩码状态为 0 的持续时长。
+- `flag=2`：返回第一条有效记录到最后一条有效记录的总时长。
+
+**返回数据类型**：BIGINT。
+
+**适用数据类型**：TINYINT、SMALLINT、INT、BIGINT、对应无符号类型和 BOOL。
+
+**适用于**：表和超级表。
+
+**使用说明**：
+
+- 返回值单位为数据库时间精度。
+- 时间窗口以 LOCF 方式把窗口左边界之前的上一条有效状态延续到窗口起点。普通非窗口执行计划不提供范围外前驱时，从聚合输入中第一条有效记录开始计算。
+- 时间窗口存在右侧边界记录时，以 LOCF 方式把最后状态延续到窗口结束边界；边界掩码直接使用原始整型值计算，不经过浮点转换。窗口、分组和超级表子表之间不共享状态。
+- NULL 行会被跳过，不改变前一条有效状态。空表不输出结果行；普通聚合有输入但全为 NULL 时返回 0。窗口有有效前驱时，按窗口边界的状态延续规则计算。
+- `flag=2` 仅返回首末有效时间戳差，`mask` 仅为保持参数形式一致而接受，不影响结果；有效记录少于两条时返回 0。
+- `mask` 和 `flag` 必须为常量；`mask` 不能为 0，`flag` 只能为 0、1 或 2。浮点、字符串、二进制、JSON 和时间戳输入不支持。
+- 输入必须按时间戳升序排列；降序或其他非法时间线会报错。
+
+### VALUE_CHANGES
+
+```sql
+VALUE_CHANGES(expr [, ignore_null])
+
+ignore_null: {
+    0
+  | 1
+}
+```
+
+**函数分类**：聚合函数。
+
+**版本**：v3.4.3.0。
+
+**功能说明**：统计一列在有效时间线上相邻取值发生变化的次数。沿时间戳升序逐行与前一个参与比较的值比对，不相等则计 1，首行不计数。可选参数 `ignore_null` 控制 NULL 的处理，缺省为 `1`。
+
+- `1`（默认）：忽略 NULL，仅在相邻的两个非空值之间比较，NULL 行透明跳过。
+- `0`：NULL 参与比较，非空值↔NULL 视为一次变化，NULL↔NULL 不计为变化。
+
+**返回数据类型**：BIGINT。
+
+**适用数据类型**：全部类型（数值类型、时间戳、BOOL、VARCHAR、NCHAR、VARBINARY、DECIMAL）。
+
+**适用于**：表和超级表。
+
+**使用说明**：
+
+- 首行没有前驱，不计入变化次数；`n` 行至多产生 `n-1` 次变化。
+- 相等性比较复用引擎内建的按类型比较：浮点采用 epsilon 容差相等，相邻的 `NaN` 与 `NaN` 视为未变化，`NaN` 与数值互相视为变化；字符串与 VARBINARY 按字节比较；BOOL 按 0/1 比较；DECIMAL 经 DOUBLE 比较。
+- 与窗口（`INTERVAL`/`STATE_WINDOW`/`SESSION`/`EVENT_WINDOW`/`COUNT_WINDOW`）一起使用时，各窗口独立计数，窗口首行不与上一窗口末行比较。
+- 用于 `PARTITION BY`/`GROUP BY` 时各分组独立计数，不跨分组比较。
+- 对于存在复合主键的表的查询，若时间戳相同的数据存在多条，则只有对应的复合主键最小的数据参与运算；无复合主键时遇到重复时间戳会提示 "Duplicate timestamps not allowed"。
+- 当有效时间线乱序时报错，应在子查询中通过 `ORDER BY ts` 保证时间线有序后再计算。
+- 不能用于系统表。
+
+**举例**：
+
+```sql
+taos> SELECT VALUE_CHANGES(current)
+      FROM meters;
+ value_changes(current) |
+=========================
+                      2 |
+
+taos> SELECT VALUE_CHANGES(current, 0)
+      FROM meters;
+ value_changes(current, 0) |
+============================
+                         4 |
+```
+
+### BIT_CHANGES
+
+```sql
+BIT_CHANGES(expr [, mask [, flag]])
+
+mask: 非负整型常量，范围为 0 至 INT64_MAX，默认值为 1
+
+flag: {
+    0
+  | 1
+  | 2
+}
+```
+
+**函数分类**：聚合函数。
+
+**版本**：v3.4.3.0。
+
+**功能说明**：统计整型测点指定二进制位的变化次数。函数先对每行的 `expr` 执行 `expr & mask`，再将当前掩码值与前一个有效行的掩码值比较，并按照 `flag` 统计变化方向。第一行没有前值，不计入结果。
+
+**参数说明**：
+
+- `expr`：必选，支持 `TINYINT`、`SMALLINT`、`INT`、`BIGINT`、对应无符号整型以及 `BOOL`。
+- `mask`：可选，必须是整型常量，默认值为 `1`，表示只检查最低位。`mask=0` 时所有掩码结果均为 0，函数返回 0。
+- `flag`：可选，必须是常量 `0`、`1` 或 `2`，默认值为 `0`。
+  - `0`：统计掩码值从 `0` 变为非 `0` 的变化（0→非 0）。
+  - `1`：统计掩码值从非 `0` 变为 `0` 的变化（非 0→0）。
+  - `2`：两个方向的变化都统计。
+
+**返回数据类型**：BIGINT。
+
+**适用于**：表和超级表。
+
+**使用说明**：
+
+- NULL/None 行会被跳过，不参与比较，也不会重置前一个有效值。例如 `1, NULL, 0` 在 `flag=2` 下只统计一次变化。
+- `n` 行最多产生 `n-1` 次比较；空表不返回结果行，单行或全 NULL 输入返回 0。
+- 与 `PARTITION BY` 或 `GROUP BY` 一起使用时，每个分组独立计数，不跨分组比较。
+- 与窗口一起使用时，每个窗口独立计数，窗口首行不与上一窗口末行比较。
+- `mask` 和 `flag` 必须是常量，不能使用列引用、字符串或浮点表达式。
+- 非整型 `expr`、非法 `mask`/`flag` 或系统表输入会报错。
+
+**举例**：
+
+假设 `status_bits` 的值依次为 `0, 1, 3, 2, 0`：
+
+```sql
+-- 默认检查最低位，统计 0 -> 非 0
+SELECT BIT_CHANGES(status_bits)
+FROM device_status;
+
+-- 检查低 4 位，两个方向都统计
+SELECT BIT_CHANGES(status_bits, 15, 2)
+FROM device_status;
+
+-- 按子表独立统计告警位清除次数
+SELECT
+  tbname,
+  BIT_CHANGES(status_bits, 4, 1)
+FROM meters
+PARTITION BY tbname;
+
+-- 每个 10 分钟窗口独立统计
+SELECT
+  _wstart,
+  BIT_CHANGES(status_bits, 1, 2)
+FROM device_status
+INTERVAL(10m);
+```
+
+## 插值函数
+
+### INTERP
+
+```sql
+INTERP(expr [, ignore_null_values])
+
+ignore_null_values: {
+    0
+  | 1
+}
+```
+
+**函数分类**：集合函数。
+
+**功能说明**：返回指定时间截面上指定列的记录值或插值。`ignore_null_values` 取值可为 `0` 或 `1`：为 `1` 时忽略 `NULL` 值，缺省为 `0`。当 `ignore_null_values` 为 `1` 时，插值会忽略采样数据中的其他 `NULL` 值。
+
+**返回结果类型**：与字段类型相同。
+
+**适用数据类型**：数值类型。
+
+**适用于**：表和超级表。
+
+**使用说明**
+
+- `INTERP` 不能与其他集合函数混用；必须配合 `RANGE` / `EVERY` / `FILL` 子句。
+- `INTERP` 用于在指定时间断面获取指定列的记录值，使用时有专用语法（`interp_clause`），详见 [INTERP 子句](01-query.md#interp-子句)。
+- 当指定时间断面不存在符合条件的行数据时，`INTERP` 会根据 [FILL 子句](01-query.md#fill-子句) 的设定进行插值。
+- `INTERP` 作用于超级表时，会将该超级表下所有子表数据按主键列排序后插值；也可搭配 `PARTITION BY tbname`，将结果规约到单条时间线。
+- `INTERP` 在 `FILL PREV` / `NEXT` / `NEAR` 时，与窗口查询行为有所不同：寻找相邻有效数据时会受 `ignore_null_values` 影响；若忽略 `NULL`，则不会使用相邻 `NULL` 插值，而是继续向周围寻找非 `NULL` 值。
+- `INTERP` 可与伪列 `_irowts` 一起使用，返回插值点对应的时间戳（`v3.0.2.0` 以后支持）。
+- `INTERP` 可与伪列 `_isfilled` 一起使用，标识结果是原始记录还是插值结果（`v3.0.3.0` 以后支持）。
+- 当有效时间线为退化时间线时，`NULL` 时间行会被跳过，改用非 `NULL` 时间行插值。时间线乱序时 `INTERP` 仍可执行，但因相邻点时间不连续，线性插值结果可能无物理意义。应在子查询中通过 `ORDER BY` 保证时间线有序。
+- 仅在 `FILL PREV` / `NEXT` / `NEAR` 模式下可使用伪列 `_irowts_origin`，用于返回插值所用原始数据的时间戳；范围内无值时返回 `NULL`。`_irowts_origin` 自 `v3.3.4.9` 起支持。
+- 对带复合主键的表，若存在相同时间戳的数据，仅复合主键最小的那一行参与运算。
+
+## 表函数
+
+表函数返回一个行集，在 `FROM` 子句中通过 `TABLE(...)` 调用。表函数结果可以像表一样参与 `JOIN`、子查询、聚合、窗口、排序和 `LIMIT` 等查询。
+
+表函数不是表达式函数：不能出现在 `SELECT` 列表、`WHERE`、`GROUP BY`、`HAVING`、`ORDER BY` 等位置，也不能作为标量、聚合或集合函数的参数。表函数结果只读，不支持订阅。本地虚拟表可通过 TIME_ALIGN 用作流触发源。
+
+### TIME_ALIGN
+
+函数参数形式为 `TIME_ALIGN([db_name.]table_name [, output_raw] [, 'column_list'])`；在查询中通过 `FROM` 子句的 `TABLE(...)` 调用。
+
+```sql
+TABLE(TIME_ALIGN([db_name.]table_name [, output_raw] [, 'column_list']))
+
+output_raw: {
+    TRUE
+  | FALSE
+}
+
+column_list:
+  column_def [';' column_def ...]
+
+column_def:
+  column_name [':' [method]] [':' suffix]
+
+method:
+  (PREV | NEXT) ['(' duration ')']
+
+duration:
+  non_negative_integer time_unit
+
+time_unit:
+  b | u | a | s | m | h | d | w | n | q | y
+```
+
+**函数分类**：表函数。
+
+**功能说明**：`TIME_ALIGN` 是一个表函数，用于对输入表（虚拟表、非虚拟表、视图）中指定的单个、多个或所有列进行空值填充，目前支持前向与后向填充，可选是否输出原始列，可选增加填值列名字后缀，可选限定插值原始值的时间距离范围。
+
+**版本**：`v3.4.3.12`。
+
+**返回结果类型**：行集。
+
+**嵌套子查询支持**：可以作为子查询的 `FROM` 表源。
+
+**适用于**：普通表、子表、超级表、虚拟表、虚拟子表、虚拟超级表、外部表和视图。
+
+#### 参数说明
+
+| 参数 | 必选 | 类型 | 默认值 | 说明 |
+| --- | --- | --- | --- | --- |
+| `table_name` | 是 | `[db_name.]table_name` | 无 | 输入表，直接写表名，可带数据库名或外部表引用路径。 |
+| `output_raw` | 否 | `TRUE` / `FALSE` | `FALSE` | 是否输出原始数据列。 |
+| `column_list` | 否 | 字符串 | `*:PREV:` | 列定义列表，多个列定义用 `;` 分隔。 |
+
+- 参数顺序固定为 `output_raw`、`column_list`。
+- 省略 `output_raw` 时，列定义字符串可以直接作为第二个实参；一旦给出第三个实参，第二个实参必须是 `output_raw`，且只能是 `TRUE` 或 `FALSE`。
+- 省略 `output_raw` 和 `column_list` 时等价于 `TIME_ALIGN(t, FALSE, '*:PREV:')`。
+- `output_raw=TRUE` 且省略列定义时，默认列定义后缀为空，会与原始列重名；此时必须显式给出带非空后缀的列定义。
+
+示例：
+
+```sql
+TIME_ALIGN(t)
+TIME_ALIGN(t, FALSE)
+TIME_ALIGN(t, 'v:PREV:_p')
+TIME_ALIGN(t, TRUE, 'v:PREV:_p')
+TIME_ALIGN(power.t, FALSE, '*::_a')
+```
+
+#### 列定义
+
+列定义写在字符串参数中，多个列定义用 `;` 分隔，至少提供一个。
+
+```sql
+column_def:
+  column_name [':' [method]] [':' suffix]
+```
+
+| 写法 | 方法 | 后缀 | 等价写法 |
+| --- | --- | --- | --- |
+| `col` | `PREV` | 空 | `col:PREV:` |
+| `col:` | `PREV` | 空 | `col:PREV:` |
+| `col::` | `PREV` | 空 | `col:PREV:` |
+| `col:METHOD` | `METHOD` | 空 | `col:METHOD:` |
+| `col::suffix` | `PREV` | `suffix` | `col:PREV:suffix` |
+| `col:METHOD:suffix` | `METHOD` | `suffix` | 同左 |
+| `col:PREV(duration)` | `PREV`，带时间范围 | 空 | `col:PREV(duration):` |
+| `col:METHOD(duration):suffix` | `METHOD`，带时间范围 | `suffix` | 同左 |
+
+- `METHOD` 只能是 `PREV` 或 `NEXT`，不区分大小写。
+- 省略方法时默认为 `PREV`，省略后缀时后缀为空。
+- 只想指定后缀时必须写 `::`，例如 `*::_a`；`*:_a` 会把 `_a` 当作方法名并报错。
+- `col` 可以是列名或 `*`。表输入中 `*` 展开全部数据列，不包含主键时间戳列和标签列；视图输入中 `*` 展开视图的全部输出列，包括时间戳列和标签列；外部表没有主键时按视图输入处理，`*` 展开外部表的全部输出列。`*` 可以重复出现，也可以与其他列定义并存。
+- 列名支持反引号引用的标识符；分隔符扫描忽略反引号内的 `:` 和 `;`。后缀不能包含 `:` 或 `;`。
+- 列定义中列名、方法和后缀两侧的空白会被忽略；方法名与左括号之间、括号内两侧的空白也会被忽略。
+- 列定义最多三段，第 4 段及以后报错。
+- 同一源列可以定义多次，但每个定义产生的输出列名必须唯一。
+- 表输入中，主键时间戳列和标签列不能作为插值列；视图输入中，所有输出列都可以作为插值列；外部表没有主键时按视图输入处理，所有输出列都可以作为插值列。
+- 表输入的输出列名不能与原始列（`output_raw=TRUE` 时）、标签列或主键时间戳列重名；视图输入和没有主键的外部表，输出列名不能与原始输出列重名（`output_raw=TRUE` 时）。
+
+#### 输出列
+
+表输入的输出列顺序如下：
+
+1. 主键时间戳列：始终输出且只输出一次，位于第一列；列名和类型与输入表一致，不参与插值，不加后缀。
+2. 原始列：`output_raw=TRUE` 时输出输入表的全部数据列，顺序与输入表一致；未在列定义中出现的列也输出，不改名、不加后缀。
+3. 插值列：按列定义顺序输出；`*` 按输入表列顺序展开；同一源列可以产生多个插值列。
+4. 标签列：`output_raw=TRUE` 且输入为超级表时，在末尾输出标签列；输入为子表时不输出标签列。
+
+外部表没有主键时按视图输入处理：不强制输出时间戳列；`output_raw=TRUE` 时先输出外部表的全部列，再输出插值列；`output_raw=FALSE` 时只输出插值列。具体规则见下文“视图输入”。
+
+表输入中的标签列不参与插值，也不能被列定义引用。无论 `output_raw` 取值如何，标签列都可以在表函数结果上按列名查询、过滤和分组；`output_raw=FALSE` 时 `SELECT *` 不包含表输入的标签列。超级表的 `tbname` 伪列可以用于分组（例如 `PARTITION BY tbname`）。
+
+#### 插值规则
+
+表输入对每个输出行（设时间戳为 t）的每个插值列：
+
+- `PREV`：取同序列中输入时间戳小于等于 t 且时间戳最大的非 `NULL` 值；没有候选时输出 `NULL`。
+- `NEXT`：取同序列中输入时间戳大于等于 t 且时间戳最小的非 `NULL` 值；没有候选时输出 `NULL`。
+- 当前行该列本身有非 `NULL` 值时，直接输出该值，不进行插值。
+- 源列的 `NULL` 视为无值并跳过；`NULL` 行仍保留在输出行集中。
+- 插值按序列独立进行，不跨序列传播值。超级表按子表划分序列，虚拟超级表按虚拟子表划分序列，带标签的普通表按标签组合划分序列。
+- 同一个源列可以定义多个插值列，每个插值列按自己的方法和时间范围独立计算。
+
+#### 时间范围参数
+
+方法后可以带一个可选的时间范围参数，写法为 `PREV(duration)` 或 `NEXT(duration)`。表输入按以下规则生效；视图输入和没有主键的外部表不生效，规则见下文“视图输入”。
+
+- `duration` 为非负整数加时间单位。单位支持 `b`（纳秒）、`u`（微秒）、`a`（毫秒）、`s`（秒）、`m`（分）、`h`（时）、`d`（天）、`w`（周）、`n`（月）、`q`（季）、`y`（年），不区分大小写。
+- 不支持负数、小数、复合时长和省略单位；例如 `PREV(8)`、`PREV(-8s)`、`PREV(1.5s)`、`PREV(8x)`、`PREV()`、`PREV(8s,1h)` 都报错。
+- `PREV(0s)` 和 `NEXT(0s)` 合法，只接受同一时间戳上的候选值。
+- 省略括号表示不限制时间距离。
+- 时间范围只对需要插值的 `NULL` 行生效；当前行有非 `NULL` 值时直接输出该值。
+- 距离按闭区间判断：距离等于 `duration` 时仍使用该候选值。
+- 只考虑最近的候选值：如果最近候选超出范围，输出 `NULL`，不使用更远的候选值。
+- 固定单位 `b`、`u`、`a`、`s`、`m`、`h`、`d`、`w` 按输入时间轴的精度换算；单位小于时间轴精度时按精度取整，可能为 0。
+- 日历单位 `n`、`q`、`y` 按日历推进，`q` 按 3 个月计算；`PREV` 以候选值的时间戳为基准，`NEXT` 以当前行的时间戳为基准。
+- 每个列定义独立携带自己的时间范围；同一源列可以同时定义不同的方向和时间范围。
+
+#### 行集
+
+表输入的输出行集由引用的源列决定；视图输入直接使用视图输出的全部行；外部表没有主键时按视图输入处理。外层 `SELECT` 只投影部分列时，行集和插值结果不变。
+
+表输入：
+
+| 配置 | 参与行集的列 |
+| --- | --- |
+| `output_raw=TRUE` | 全部数据列；对虚拟表，是全部原始数据列对应源表时间戳的并集 |
+| `output_raw=FALSE` | 列定义引用的源列；同一源列重复定义只计一次 |
+| `output_raw=FALSE` 且列定义包含 `*` | 全部数据列，即输入表的完整行集 |
+
+- 普通表的所有数据列共享同一时间轴，`output_raw` 不改变行集。
+- 虚拟表的时间轴是所引用列的并集，`output_raw` 或列定义不同可能得到不同行数。
+- 列定义引用的列在输入表中没有数据时，输出为空集。
+- 默认参数下 `*` 覆盖全部数据列，因此默认输出完整行集。
+- 输出行顺序不保证按时间戳有序；需要稳定顺序时，使用 `ORDER BY`。
+
+#### 视图输入
+
+视图不区分列类型，所有输出列都可以作为插值列，包括 `TIMESTAMP` 列和标签列。`TIME_ALIGN` 按视图输出行序插值，不按时间戳或主键列重新排序。
+
+外部表没有主键时与视图输入规则相同：不要求存在 `TIMESTAMP` 列，按外部扫描的输出行序插值，时间范围参数被忽略。
+
+- `PREV` 取当前输出行的前一行（跳过 `NULL`），`NEXT` 取后一行（跳过 `NULL`）。视图输出为时间戳降序时，也按该降序行序计算，不做方向补偿。
+- `output_raw=TRUE` 时，先按视图输出顺序输出视图的全部列（含标签列），再输出插值列。
+- `output_raw=FALSE` 时，只输出列定义产生的插值列。`*` 展开视图的全部输出列（含时间戳列和标签列）；显式列定义只输出被引用的列。
+- 视图自身的过滤、`LIMIT`、`ORDER BY`、聚合和窗口先执行，`TIME_ALIGN` 在视图输出行上执行；视图的 `LIMIT` 会限制参与插值的行。
+- 视图声明了 `PARTITION BY` 或 `GROUP BY`，且视图自身没有 `ORDER BY` 或 `DISTINCT` 时，每个分组是独立的序列，`PREV` 和 `NEXT` 不跨分组取值。
+- 视图自身有 `ORDER BY` 或 `DISTINCT` 时，整个视图输出作为一个序列处理。
+- 没有分组的视图，整个输出作为一个序列处理。
+- 时间范围参数在视图输入上无效（忽略）。
+
+#### 与查询子句的关系
+
+- `TIME_ALIGN` 先于外层 `WHERE` 求值；`WHERE` 只过滤输出行，不改变参与插值的输入行，也不改变插值结果。
+- 外层 `GROUP BY`、聚合函数、窗口、`ORDER BY` 和 `LIMIT` 作用于表函数输出的行集。
+- `COUNT(*)` 统计表函数输出的行数；`COUNT(col)` 统计插值后非 `NULL` 的行数。
+- `LIMIT` 作用于表函数输出行，不会截断插值输入。
+- 如需限制插值使用的数据范围，应通过带过滤条件的输入视图限制；外层 `WHERE` 不改变插值输入。
+- `TIME_ALIGN` 结果可以作为 `JOIN` 的一侧、子查询的 `FROM` 表源、`UNION` 的一侧，也可以封装为视图后再次作为 `TIME_ALIGN` 的输入。
+- `TIME_ALIGN` 不能直接嵌套在另一个 `TIME_ALIGN` 的表参数中；需要嵌套时先创建视图。
+
+#### 降序与复合主键
+
+- 表输入按时间戳降序查询时（例如 `ORDER BY ts DESC`），`PREV` 和 `NEXT` 的取值与升序查询一致，只有输出行顺序不同。
+- 表输入有复合主键时，升序扫描按“时间戳、复合主键”升序排列。对同一时间戳的多行，`PREV` 使用主键顺序更靠前的行，`NEXT` 使用更靠后的行；降序扫描时该顺序随之翻转，但仍保持上述时间语义。
+- 复合主键表的虚拟表引用受引擎限制，不能引用复合主键源。
+
+#### 支持范围与限制
+
+支持的输入：
+
+- 普通表、子表、超级表。
+- 虚拟表、虚拟子表、虚拟超级表。
+- 外部表。
+- 视图。
+
+限制：
+
+- 除按视图输入处理的外部表外，表输入必须有且只有一个主键时间戳列（使用复合主键时，主键中只能有一个时间戳列）。
+- 外部表没有主键时按视图输入处理：不要求存在 `TIMESTAMP` 列，按输出行序插值，时间范围参数被忽略；外部表有主键时按表输入处理。
+- 视图输入不区分列类型，也不要求存在 `TIMESTAMP` 列；时间范围参数被忽略。
+- 系统表、流、主题不能作为输入。
+- 表输入中，标签列和主键时间戳列不能作为插值列；视图输入和没有主键的外部表中，所有输出列都可以作为插值列。
+- 虚拟表不能引用复合主键源，因此该类源只能通过普通表或超级表使用时间对齐。
+- 流触发源支持本地虚拟表上的 `PREV` 和 `PREV(duration)`。计算查询可独立指定 TIME_ALIGN。详见[建流语法](../../07-stream-processing/01-syntax.md)。
+- 不支持在 `INSERT INTO ... SELECT`、`CREATE TOPIC`、`CREATE VTABLE`、`ALTER VTABLE` 的列引用、`DELETE`、`CREATE TABLE ... AS` 等位置使用。
+- 默认列定义 `*:PREV:` 引用的列较多；需要减少扫描列时，应显式给出只包含所需列的列定义。
+
+#### 权限
+
+执行 `TIME_ALIGN` 需要对输入表或视图具有 `SELECT` 权限；权限模型与直接查询该表或视图一致，不提升权限。
+
+#### 示例
+
+```sql
+-- 输入表：meters(ts TIMESTAMP, voltage INT, current FLOAT)
+-- 默认参数：输出时间戳和全部数据列的 PREV 插值列
+SELECT *
+FROM TABLE (TIME_ALIGN(meters))
+ORDER BY ts;
+
+-- 同时输出原始列，并为不同列指定不同方法和后缀
+SELECT
+  ts,
+  voltage,
+  current,
+  voltage_p,
+  current_n
+FROM TABLE (TIME_ALIGN(meters, TRUE, 'voltage:PREV:_p;current:NEXT:_n')) t
+ORDER BY ts;
+
+-- 时间范围：只使用距离不超过 5 秒的候选值
+SELECT
+  ts,
+  voltage_p,
+  voltage_n
+FROM TABLE (TIME_ALIGN(meters, 'voltage:PREV(5s):_p;voltage:NEXT(5s):_n')) t
+ORDER BY ts;
+
+-- 超级表 meters_st(ts TIMESTAMP, voltage INT, current FLOAT) TAGS(site INT)：
+-- 按子表独立插值，并使用标签分组
+SELECT
+  site,
+  ts,
+  voltage_p
+FROM TABLE (TIME_ALIGN(meters_st, 'voltage:PREV:_p')) t
+PARTITION BY site
+ORDER BY site, ts;
+
+-- 视图：视图自身的过滤先执行，外层 WHERE 不影响插值输入
+CREATE VIEW v_meters
+  AS
+    SELECT
+      ts,
+      voltage
+    FROM meters
+    WHERE voltage IS NOT NULL;
+
+SELECT
+  ts,
+  voltage_p
+FROM TABLE (TIME_ALIGN(v_meters, TRUE, 'voltage:PREV:_p')) t
+ORDER BY ts;
+
+-- 视图所有输出列都可插值，包括 TAG 列；时间范围参数被忽略
+CREATE VIEW v_meters_tag
+  AS
+    SELECT
+      site,
+      ts,
+      voltage
+    FROM meters_st;
+
+SELECT
+  site_p,
+  ts_tp,
+  voltage_p
+FROM TABLE (TIME_ALIGN(v_meters_tag, 'site:PREV:_p;ts:PREV:_tp;voltage:PREV(5s):_p')) t
+ORDER BY ts_tp;
+
+-- 降序输出：插值结果与升序一致，仅输出顺序不同
+SELECT
+  ts,
+  voltage_p
+FROM TABLE (TIME_ALIGN(meters, 'voltage:PREV:_p')) t
+ORDER BY ts DESC;
+```
+
+## 系统与元信息函数
+
+### 数据库环境信息
+
+#### CLIENT_VERSION
+
+```sql
+SELECT CLIENT_VERSION();
+```
+
+**函数分类**：标量函数。
+
+**说明**：返回客户端版本。
+
+#### CURRENT_USER
+
+```sql
+SELECT CURRENT_USER();
+```
+
+**函数分类**：标量函数。
+
+**说明**：获取当前用户。
+
+#### DATABASE
+
+```sql
+SELECT DATABASE();
+```
+
+**函数分类**：标量函数。
+
+**说明**：返回当前登录的数据库。如果登录时未指定默认数据库，且未使用 `USE` 切换数据库，则返回 `NULL`。
+
+#### SERVER_VERSION
+
+```sql
+SELECT SERVER_VERSION();
+```
+
+**函数分类**：标量函数。
+
+**说明**：返回服务端版本。
+
+### 系统控制与状态
+
+#### SERVER_STATUS
+
+```sql
+SELECT SERVER_STATUS();
+```
+
+**函数分类**：标量函数。
+
+**说明**：检测服务端是否所有 dnode 都在线；若是则返回成功，否则返回无法建立连接的错误。查询集群状态时推荐使用 `SHOW CLUSTER ALIVE`。与 `SELECT SERVER_STATUS()` 不同，当集群中部分节点不可用时，它不会返回错误，而是返回不同状态码，详见 [SHOW CLUSTER ALIVE](../09-system-info/03-show.md#show-cluster-alive)。
+
+#### SLEEP
+
+```sql
+SELECT SLEEP(seconds);
+```
+
+**函数分类**：标量函数。
+
+**说明**：暂停执行指定的秒数。在表查询中，`SLEEP` 对每行各求值一次，总等待时间等于各行 duration 之和。
+
+**参数**
+
+- `seconds`：DOUBLE - 休眠的秒数（支持小数，如 0.5）；负数或 NULL 跳过休眠并返回 0；非数值类型报类型不匹配错误
+
+**返回值**：INT - 正常结束或参数为负数/NULL 时返回 0
+
+**示例**
+
+```sql
+-- 休眠 2 秒
+SELECT SLEEP(2);
+
+-- 休眠 500 毫秒
+SELECT SLEEP(0.5);
+
+-- 负数参数立即返回 0
+SELECT SLEEP(-1);
+
+-- NULL 参数立即返回 0
+SELECT SLEEP(NULL);
+
+-- 表查询中对每行各求值一次，此例总等待约 N 秒（N = 行数）
+SELECT
+  SLEEP(1),
+  col1
+FROM table1;
+```
+
+## 地理信息函数
+
+地理信息函数均为 **标量函数**。
+
+### 空间对象构造
+
+#### ST_GeomFromText
+
+```sql
+ST_GeomFromText(VARCHAR WKT expr)
+```
+
+**函数分类**：标量函数。
+
+**功能说明**：根据 Well-Known Text (WKT) 表示从指定的几何值创建几何数据。
+
+**返回结果类型**：`GEOMETRY`。
+
+**适用数据类型**：VARCHAR。
+
+**适用表类型**：标准表和超表。
+
+**使用说明**：输入可以是 WKT 字符串之一，例如点（POINT）、线串（LINESTRING）、多边形（POLYGON）、多点集（MULTIPOINT）、多线串（MULTILINESTRING）、多多边形（MULTIPOLYGON）、几何集合（GEOMETRYCOLLECTION）。输出是以二进制字符串形式定义的 GEOMETRY 数据类型。
+
+### 空间数据输出
+
+#### ST_AsText
+
+```sql
+ST_AsText(GEOMETRY geom)
+```
+
+**函数分类**：标量函数。
+
+**功能说明**：从几何数据中返回指定的 Well-Known Text (WKT) 表示。
+
+**返回结果类型**：`VARCHAR`。
+
+**适用数据类型**：GEOMETRY。
+
+**适用表类型**：标准表和超表。
+
+**使用说明**：输出可以是 WKT 字符串之一，例如点（POINT）、线串（LINESTRING）、多边形（POLYGON）、多点集（MULTIPOINT）、多线串（MULTILINESTRING）、多多边形（MULTIPOLYGON）、几何集合（GEOMETRYCOLLECTION）。
+
+### 空间关系判断
+
+#### ST_Contains
+
+```sql
+ST_Contains(GEOMETRY geomA, GEOMETRY geomB)
+```
+
+**函数分类**：标量函数。
+
+**功能说明**：如果 A 包含 B，描述：如果几何形状 A 包含几何形状 B，则返回 TRUE。
+
+**返回结果类型**：`BOOL`。
+
+**适用数据类型**：GEOMETRY、GEOMETRY。
+
+**适用表类型**：标准表和超表。
+
+**使用说明**：A 包含 B 当且仅当 B 的所有点位于 A 的内部（即位于内部或边界上）（或等效地，B 的没有点位于 A 的外部），并且 A 和 B 的内部至少有一个公共点。
+
+#### ST_ContainsProperly
+
+```sql
+ST_ContainsProperly(GEOMETRY geomA, GEOMETRY geomB)
+```
+
+**函数分类**：标量函数。
+
+**功能说明**：如果 B 的每个点都位于 A 内部，则返回 TRUE。
+
+**返回结果类型**：`BOOL`。
+
+**适用数据类型**：GEOMETRY、GEOMETRY。
+
+**适用表类型**：标准表和超表。
+
+**使用说明**：B 的没有点位于 A 的边界或外部。
+
+#### ST_Covers
+
+```sql
+ST_Covers(GEOMETRY geomA, GEOMETRY geomB)
+```
+
+**函数分类**：标量函数。
+
+**功能说明**：如果 B 中的每个点都位于几何形状 A 内部（与内部或边界相交），则返回 TRUE。
+
+**返回结果类型**：`BOOL`。
+
+**适用数据类型**：GEOMETRY、GEOMETRY。
+
+**适用表类型**：标准表和超表。
+
+**使用说明**：A 包含 B 意味着 B 中的没有点位于 A 的外部（在外部）。
+
+#### ST_Equals
+
+```sql
+ST_Equals(GEOMETRY geomA, GEOMETRY geomB)
+```
+
+**函数分类**：标量函数。
+
+**功能说明**：如果给定的几何对象是"空间相等"的，则返回 TRUE。
+
+**返回结果类型**：`BOOL`。
+
+**适用数据类型**：GEOMETRY、GEOMETRY。
+
+**适用表类型**：标准表和超表。
+
+**使用说明**："空间相等"意味着 ST_Contains(A,B) = true 和 ST_Contains(B,A) = true，并且点的顺序可能不同，但表示相同的几何结构。
+
+#### ST_Intersects
+
+```sql
+ST_Intersects(GEOMETRY geomA, GEOMETRY geomB)
+```
+
+**函数分类**：标量函数。
+
+**功能说明**：比较两个几何对象，并在它们相交时返回 true。
+
+**返回结果类型**：`BOOL`。
+
+**适用数据类型**：GEOMETRY、GEOMETRY。
+
+**适用表类型**：标准表和超表。
+
+**使用说明**：如果两个几何对象有任何一个共享点，则它们相交。
+
+#### ST_Touches
+
+```sql
+ST_Touches(GEOMETRY geomA, GEOMETRY geomB)
+```
+
+**函数分类**：标量函数。
+
+**功能说明**：如果 A 和 B 相交，但它们的内部不相交，则返回 TRUE。
+
+**返回结果类型**：`BOOL`。
+
+**适用数据类型**：GEOMETRY、GEOMETRY。
+
+**适用表类型**：标准表和超表。
+
+**使用说明**：A 和 B 至少有一个公共点，并且这些公共点位于至少一个边界中。对于点/点输入，关系始终为 FALSE，因为点没有边界。

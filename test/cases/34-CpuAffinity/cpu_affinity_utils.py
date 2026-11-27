@@ -1,0 +1,220 @@
+# Copyright (c) 2019 TAOS Data, Inc. <jhtao@taosdata.com>
+#
+# SPDX-License-Identifier: AGPL-3.0-or-later
+#
+# This program is free software: you can use, redistribute, and/or modify
+# it under the terms of the GNU Affero General Public License, version 3
+# or later ("AGPL"), as published by the Free Software Foundation.
+#
+# This program is distributed in the hope that it will be useful, but WITHOUT
+# ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+# FITNESS FOR A PARTICULAR PURPOSE.
+#
+# You should have received a copy of the GNU Affero General Public License
+# along with this program. If not, see <http://www.gnu.org/licenses/>.
+
+import os
+import re
+import subprocess
+
+
+def get_taosd_pid():
+    """Get the PID of the running taosd process."""
+    if os.name == "nt":
+        import psutil
+        from new_test_framework.utils import sc
+
+        config = os.path.normcase(os.path.abspath(
+            os.path.join(sc.clusterRootPath(), "dnode1", "cfg")))
+        for proc in psutil.process_iter(["name", "cmdline"]):
+            try:
+                if (proc.info["name"] or "").lower() != "taosd.exe":
+                    continue
+                args = proc.info["cmdline"] or []
+                if "-c" in args:
+                    index = args.index("-c") + 1
+                    if index < len(args) and os.path.normcase(
+                            os.path.abspath(args[index])) == config:
+                        return proc.pid
+            except psutil.NoSuchProcess:
+                continue
+        raise RuntimeError(f"No test taosd process found for {config}")
+    result = subprocess.run(
+        ["pidof", "taosd"], capture_output=True, text=True
+    )
+    pids = result.stdout.strip().split()
+    if not pids:
+        return None
+    # Return the first (or only) PID
+    return int(pids[0])
+
+
+def get_system_cpu_count():
+    """Get the number of CPUs available to this process (cgroup-aware)."""
+    return len(get_full_cpu_set())
+
+
+def get_all_thread_affinities(pid):
+    """Read CPU affinity masks for all threads of a given PID.
+
+    Returns a list of dicts:
+      [{"tid": int, "name": str, "cpus_allowed": set_of_ints}, ...]
+    """
+    if os.name == "nt":
+        return _get_windows_thread_affinities(pid)
+
+    task_dir = f"/proc/{pid}/task"
+    if not os.path.isdir(task_dir):
+        return []
+
+    threads = []
+    for tid_name in os.listdir(task_dir):
+        tid = int(tid_name)
+        info = {"tid": tid, "name": "", "cpus_allowed": set()}
+
+        # Read thread name
+        comm_path = os.path.join(task_dir, tid_name, "comm")
+        try:
+            with open(comm_path, "r") as f:
+                info["name"] = f.read().strip()
+        except (IOError, OSError):
+            pass
+
+        # Read Cpus_allowed from status
+        status_path = os.path.join(task_dir, tid_name, "status")
+        try:
+            with open(status_path, "r") as f:
+                for line in f:
+                    if line.startswith("Cpus_allowed:"):
+                        hex_mask = line.split(":")[1].strip()
+                        info["cpus_allowed"] = parse_cpu_hex_mask(hex_mask)
+                        break
+        except (IOError, OSError):
+            pass
+
+        threads.append(info)
+
+    return threads
+
+
+def _get_windows_thread_affinities(pid):
+    import ctypes
+    from ctypes import wintypes
+    import psutil
+
+    class GroupAffinity(ctypes.Structure):
+        _fields_ = [("Mask", ctypes.c_size_t), ("Group", wintypes.WORD),
+                    ("Reserved", wintypes.WORD * 3)]
+
+    kernel = ctypes.WinDLL("kernel32", use_last_error=True)
+    kernel.OpenThread.argtypes = [wintypes.DWORD, wintypes.BOOL, wintypes.DWORD]
+    kernel.OpenThread.restype = wintypes.HANDLE
+    kernel.GetThreadGroupAffinity.argtypes = [
+        wintypes.HANDLE, ctypes.POINTER(GroupAffinity)]
+    kernel.GetThreadGroupAffinity.restype = wintypes.BOOL
+    kernel.GetThreadDescription.argtypes = [
+        wintypes.HANDLE, ctypes.POINTER(ctypes.c_wchar_p)]
+    kernel.GetThreadDescription.restype = wintypes.LONG
+    kernel.LocalFree.argtypes = [ctypes.c_void_p]
+    kernel.LocalFree.restype = ctypes.c_void_p
+    kernel.CloseHandle.argtypes = [wintypes.HANDLE]
+    threads = []
+    for thread in psutil.Process(pid).threads():
+        handle = kernel.OpenThread(0x0800, False, thread.id)
+        if not handle:
+            error = ctypes.get_last_error()
+            if error == 87:  # A thread may exit during enumeration.
+                continue
+            raise ctypes.WinError(error)
+        try:
+            affinity = GroupAffinity()
+            if not kernel.GetThreadGroupAffinity(handle, ctypes.byref(affinity)):
+                raise ctypes.WinError(ctypes.get_last_error())
+            # Windows processor groups contain at most 64 logical processors.
+            cpus = {64 * affinity.Group + bit for bit in range(64)
+                    if affinity.Mask & (1 << bit)}
+            description = ctypes.c_wchar_p()
+            result = kernel.GetThreadDescription(handle, ctypes.byref(description))
+            if result < 0:
+                raise OSError(f"GetThreadDescription failed: {result:#x}")
+            try:
+                name = description.value or ""
+            finally:
+                kernel.LocalFree(ctypes.cast(description, ctypes.c_void_p))
+            threads.append({"tid": thread.id, "name": name,
+                            "cpus_allowed": cpus})
+        finally:
+            kernel.CloseHandle(handle)
+    if not threads:
+        raise RuntimeError(f"No thread affinity information for process {pid}")
+    return threads
+
+
+def get_thread_affinity(pid, thread_name_pattern):
+    """Get CPU affinity sets for threads matching a name pattern.
+
+    Args:
+        pid: Process ID
+        thread_name_pattern: regex pattern to match thread comm name
+
+    Returns:
+        List of (tid, name, cpu_set) tuples for matching threads
+    """
+    pattern = re.compile(thread_name_pattern)
+    all_threads = get_all_thread_affinities(pid)
+    return [
+        (t["tid"], t["name"], t["cpus_allowed"])
+        for t in all_threads
+        if pattern.search(t["name"])
+    ]
+
+
+def parse_cpu_hex_mask(hex_mask):
+    """Parse a hex CPU mask (e.g., 'ff' or 'ff,ffffffff') into a set of core IDs.
+
+    The mask may contain commas separating groups of 8 hex digits (32 bits each).
+    """
+    # Remove commas — Linux uses them to group every 32 bits
+    clean = hex_mask.replace(",", "")
+    value = int(clean, 16)
+    cores = set()
+    bit = 0
+    while value > 0:
+        if value & 1:
+            cores.add(bit)
+        value >>= 1
+        bit += 1
+    return cores
+
+
+def get_full_cpu_set():
+    """Get the full set of CPU core IDs available to this process."""
+    if os.name == "nt":
+        import psutil
+        return set(psutil.Process().cpu_affinity())
+    return os.sched_getaffinity(0)
+
+
+def has_restricted_affinity(cpu_set, total_cpus=None):
+    """Check if a CPU set is restricted (not using all available cores).
+
+    Args:
+        cpu_set: set of CPU core IDs
+        total_cpus: total number of CPUs (defaults to system available)
+
+    Returns:
+        True if the thread is restricted to a subset of available cores
+    """
+    if total_cpus is None:
+        total_cpus = get_system_cpu_count()
+    return len(cpu_set) < total_cpus
+
+
+def parse_core_ids_string(core_ids_str):
+    """Parse a core_ids string from SHOW CPU_ALLOCATION (e.g., '0,1,2') into a set of ints.
+
+    Returns empty set for '-' (disabled).
+    """
+    if core_ids_str.strip() == "-":
+        return set()
+    return set(int(x.strip()) for x in core_ids_str.split(","))

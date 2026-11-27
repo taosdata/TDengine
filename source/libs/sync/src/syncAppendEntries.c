@@ -1,6 +1,8 @@
 /*
  * Copyright (c) 2019 TAOS Data, Inc. <jhtao@taosdata.com>
  *
+ * SPDX-License-Identifier: AGPL-3.0-or-later
+ *
  * This program is free software: you can use, redistribute, and/or modify
  * it under the terms of the GNU Affero General Public License, version 3
  * or later ("AGPL"), as published by the Free Software Foundation.
@@ -96,6 +98,23 @@ int32_t syncNodeOnAppendEntries(SSyncNode* ths, const SRpcMsg* pRpcMsg) {
   SSyncRaftEntry*    pEntry = NULL;
   bool               resetElect = false;
 
+  // GHSA-q86r-32wm-qwpg (CWE-125): the RPC dispatch path (vmWorker.c /
+  // mmWorker.c) only guarantees contLen >= sizeof(SMsgHead) (8 bytes), which is
+  // far smaller than the full SyncAppendEntries header (~90 bytes). The handler
+  // below dereferences pMsg->srcId, pMsg->term and pMsg->prevLogIndex, all of
+  // which sit inside that header. Reading those fields from a frame shorter than
+  // the header would be a heap out-of-bounds read. The finding (item 261) requires
+  // contLen >= sizeof(SyncAppendEntries) *before any field access*, so reject a
+  // too-short frame here, before dereferencing anything. A legitimate
+  // SyncAppendEntries always carries contLen >= sizeof(SyncAppendEntries)
+  // (syncBuildAppendEntriesFromRaftEntry sets contLen = sizeof + dataLen, with
+  // dataLen >= 0), so this never rejects a well-formed message.
+  if ((uint32_t)pRpcMsg->contLen < (uint32_t)sizeof(SyncAppendEntries)) {
+    sError("vgId:%d, append entries frame too short for header. contLen:%d, need at least:%zu", ths->vgId,
+           pRpcMsg->contLen, sizeof(SyncAppendEntries));
+    goto _IGNORE;
+  }
+
   // if already drop replica, do not process
   if (!syncNodeInRaftGroup(ths, &(pMsg->srcId))) {
     syncLogRecvAppendEntries(ths, pMsg, "not in my config", &pRpcMsg->info.traceId);
@@ -138,9 +157,31 @@ int32_t syncNodeOnAppendEntries(SSyncNode* ths, const SRpcMsg* pRpcMsg) {
     resetElect = true;
   }
 
+  // GHSA-q86r-32wm-qwpg (CWE-125): the declared entry length must fit inside the
+  // actual RPC receive buffer. Otherwise syncEntryBuildFromAppendEntries() would
+  // memcpy beyond the RPC buffer (heap out-of-bounds read) or even crash.
+  // The message embeds a 'bytes' field that must equal the real RPC buffer length.
   if (pMsg->dataLen < sizeof(SSyncRaftEntry)) {
     sError("vgId:%d, incomplete append entries received. prev index:%" PRId64 ", term:%" PRId64 ", datalen:%d",
            ths->vgId, pMsg->prevLogIndex, pMsg->prevLogTerm, pMsg->dataLen);
+    goto _IGNORE;
+  }
+
+  // Reject when the declared entry data does not fit in the received RPC buffer,
+  // or when the embedded 'bytes' field is inconsistent with the real buffer size.
+  // Note: contLen >= sizeof(SyncAppendEntries) is already guaranteed by the early
+  // header-size check at the top of this function, so the subtraction below
+  // cannot underflow and the first clause of the original check is now redundant.
+  if (pMsg->dataLen > (uint32_t)pRpcMsg->contLen - (uint32_t)sizeof(SyncAppendEntries)) {
+    sError("vgId:%d, append entries dataLen overflows RPC buffer. prev index:%" PRId64 ", term:%" PRId64
+           ", datalen:%u, contLen:%d",
+           ths->vgId, pMsg->prevLogIndex, pMsg->prevLogTerm, pMsg->dataLen, pRpcMsg->contLen);
+    goto _IGNORE;
+  }
+  if (pMsg->bytes != (uint32_t)pRpcMsg->contLen) {
+    sError("vgId:%d, append entries 'bytes' field mismatch with RPC buffer. prev index:%" PRId64 ", term:%" PRId64
+           ", bytes:%u, contLen:%d",
+           ths->vgId, pMsg->prevLogIndex, pMsg->prevLogTerm, pMsg->bytes, pRpcMsg->contLen);
     goto _IGNORE;
   }
 

@@ -1,6 +1,8 @@
 /*
  * Copyright (c) 2019 TAOS Data, Inc. <jhtao@taosdata.com>
  *
+ * SPDX-License-Identifier: AGPL-3.0-or-later
+ *
  * This program is free software: you can use, redistribute, and/or modify
  * it under the terms of the GNU Affero General Public License, version 3
  * or later ("AGPL"), as published by the Free Software Foundation.
@@ -13,6 +15,7 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
+#include "alignstage.h"
 #include "executorInt.h"
 #include "filter.h"
 #include "functionMgt.h"
@@ -20,6 +23,17 @@
 #include "querytask.h"
 #include "taoserror.h"
 #include "tdatablock.h"
+
+typedef struct SAlignCopyCol {
+  int32_t srcSlot;
+  int32_t dstSlot;
+} SAlignCopyCol;
+
+typedef struct SProjectProcessByRowState {
+  SqlFunctionCtx* pCtx;
+  uint64_t        baseGId;
+  int32_t         winOutIdx;
+} SProjectProcessByRowState;
 
 typedef struct SProjectOperatorInfo {
   SOptrBasicInfo binfo;
@@ -30,6 +44,24 @@ typedef struct SProjectOperatorInfo {
   SSDataBlock*   pFinalRes;
   bool           inputIgnoreGroup;
   bool           outputIgnoreGroup;
+  SArray*                 pInputWinIdx;
+  SArray*                 pOutputWinIdx;
+  SStreamRuntimeFuncInfo* pPublishedStream;
+  SArray*                 pProcessByRowStates;
+  bool                    pendingEog;
+  uint64_t                pendingEogGroupId;
+  bool                    drainingZeroRows;
+  uint64_t                drainGroupId;
+  uint64_t                bufferedGroupId;
+  // TIME_ALIGN projection host (views / external tables).
+  bool                    alignMode;
+  bool                    alignOutputOrder;  // view: follow the view's output row order
+  SAlignStage*            pAlignStage;
+  SArray*                 pAlignPassThrough;  // SAlignCopyCol: input slot -> output slot
+  SSDataBlock*            pAlignStaging;      // output-schema block fed to the align stage
+  SSDataBlock*            pAlignPendingIn;    // downstream block waiting for a phase flush
+  int8_t                  alignPhase;
+  bool                    alignPhaseValid;
 } SProjectOperatorInfo;
 
 typedef struct SIndefOperatorInfo {
@@ -43,8 +75,35 @@ typedef struct SIndefOperatorInfo {
 
 static int32_t      doGenerateSourceData(SOperatorInfo* pOperator);
 static int32_t      doProjectOperation(SOperatorInfo* pOperator, SSDataBlock** pResBlock);
+static int32_t      doAlignProjectOperation(SOperatorInfo* pOperator, SSDataBlock** pResBlock);
+static int32_t      createProjectAlignHost(SProjectOperatorInfo* pInfo, SExprInfo* pExprInfo, int32_t numOfExprs,
+                                           SProjectPhysiNode* pProjPhyNode, SExecTaskInfo* pTaskInfo);
 static int32_t      doApplyIndefinitFunction(SOperatorInfo* pOperator, SSDataBlock** pResBlock);
-int32_t projectApplyOperator(SExprInfo* pExpr, SSDataBlock* pResult, SSDataBlock* pSrcBlock, int32_t outputSlotId, int32_t* numOfRows, bool createNewColModel, const void* pExtraParams);
+static int32_t      resetProcessByRowCtx(SqlFunctionCtx* pCtx);
+static int32_t      projectResetProcessByRowStates(SProjectOperatorInfo* pInfo);
+static int32_t      projectApplyFunctionsWithLineage(SExprInfo* pExpr, SSDataBlock* pResult, SSDataBlock* pSrcBlock,
+                                                     SqlFunctionCtx* pCtx, int32_t numOfOutput, SArray* pPseudoList,
+                                                     const void* pExtraParams, bool doSelectFunc, bool hasIndefRowsFunc,
+                                                     SExecTaskInfo* pTaskInfo, const SArray* pInputWinIdx,
+                                                     SArray* pOutputWinIdx, SProjectOperatorInfo* pProjectInfo);
+int32_t projectApplyOperator(SExprInfo* pExpr, SSDataBlock* pResult, SSDataBlock* pSrcBlock, int32_t outputSlotId,
+                             int64_t* numOfRows, bool createNewColModel, const void* pExtraParams,
+                             const SScalarExtraInfo* pScalarExtra);
+
+static bool isMainFirstScanOperator(const SOperatorInfo* pOperator) {
+  if (pOperator == NULL || pOperator->pPhyNode == NULL) {
+    return false;
+  }
+  if (pOperator->operatorType != QUERY_NODE_PHYSICAL_PLAN_TABLE_SCAN &&
+      pOperator->operatorType != QUERY_NODE_PHYSICAL_PLAN_TABLE_MERGE_SCAN) {
+    return false;
+  }
+
+  const STableScanPhysiNode* pScanNode =
+      (const STableScanPhysiNode*)pOperator->pPhyNode;
+  return pScanNode->interpMode == INTERP_MODE_MAIN_FIRST ||
+         pScanNode->interpMode == INTERP_MODE_GROUP_FIRST;
+}
 
 static bool hasLagLeadFunc(const SExprSupp* pSup) {
   if (pSup == NULL || pSup->pCtx == NULL) {
@@ -61,17 +120,369 @@ static bool hasLagLeadFunc(const SExprSupp* pSup) {
   return false;
 }
 
+static bool projectUsesStrictMultiGroupProtocol(const SOperatorInfo* pOperator) {
+  const SStreamRuntimeFuncInfo* pStream =
+      pOperator == NULL || pOperator->pTaskInfo == NULL ? NULL : GET_STM_RTINFO(pOperator->pTaskInfo);
+  return pOperator != NULL && pOperator->pTaskInfo != NULL &&
+         pOperator->pTaskInfo->execModel == OPTR_EXEC_MODEL_STREAM && isStaticMultiGroupJoinQualified(pOperator) &&
+         pStream != NULL && pStream->isMultiGroupCalc;
+}
+
+static int32_t projectValidateMultiGroupProtocolMode(const SOperatorInfo* pOperator) {
+  if (pOperator == NULL || pOperator->pTaskInfo == NULL || pOperator->pTaskInfo->execModel != OPTR_EXEC_MODEL_STREAM ||
+      !isStaticMultiGroupJoinQualified(pOperator)) {
+    return TSDB_CODE_SUCCESS;
+  }
+
+  const SStreamRuntimeFuncInfo* pStream = GET_STM_RTINFO(pOperator->pTaskInfo);
+  if (pStream == NULL || !pStream->isMultiGroupCalc) {
+    return TSDB_CODE_STREAM_INTERNAL_ERROR;
+  }
+  return TSDB_CODE_SUCCESS;
+}
+
+static int32_t projectEnsureLineageArray(SArray** ppLineage) {
+  if (*ppLineage == NULL) {
+    *ppLineage = taosArrayInit(4, sizeof(int64_t));
+    if (*ppLineage == NULL) {
+      return terrno;
+    }
+  }
+  return TSDB_CODE_SUCCESS;
+}
+
+static void projectDecodeLineageSegment(const int64_t* pValue, int32_t* pWinOutIdx, int32_t* pRowStartIdx) {
+  const int32_t* pPair = (const int32_t*)pValue;
+  *pWinOutIdx = pPair[0];
+  *pRowStartIdx = pPair[1];
+}
+
+static int32_t projectAppendLineageSegment(SArray* pLineage, int32_t winOutIdx, int32_t rowStartIdx) {
+  int32_t size = taosArrayGetSize(pLineage);
+  if (size > 0) {
+    int64_t* pLast = taosArrayGet(pLineage, size - 1);
+    if (pLast == NULL) {
+      return TSDB_CODE_STREAM_INTERNAL_ERROR;
+    }
+    int32_t lastWinOutIdx = 0;
+    int32_t lastRowStartIdx = 0;
+    projectDecodeLineageSegment(pLast, &lastWinOutIdx, &lastRowStartIdx);
+    if (lastWinOutIdx == winOutIdx) {
+      return TSDB_CODE_SUCCESS;
+    }
+    if (rowStartIdx <= lastRowStartIdx) {
+      return TSDB_CODE_STREAM_INTERNAL_ERROR;
+    }
+  }
+
+  int64_t  value = 0;
+  int32_t* pPair = (int32_t*)&value;
+  pPair[0] = winOutIdx;
+  pPair[1] = rowStartIdx;
+  return taosArrayPush(pLineage, &value) == NULL ? terrno : TSDB_CODE_SUCCESS;
+}
+
+static int32_t projectValidateLineage(const SArray* pLineage, int32_t rows) {
+  if (rows < 0 || (rows == 0 && pLineage != NULL && taosArrayGetSize(pLineage) != 0) ||
+      (rows > 0 && (pLineage == NULL || taosArrayGetSize(pLineage) == 0))) {
+    return TSDB_CODE_STREAM_INTERNAL_ERROR;
+  }
+  if (rows == 0) {
+    return TSDB_CODE_SUCCESS;
+  }
+
+  int32_t previousStart = -1;
+  int32_t size = taosArrayGetSize(pLineage);
+  for (int32_t i = 0; i < size; ++i) {
+    int64_t* pValue = taosArrayGet(pLineage, i);
+    if (pValue == NULL) {
+      return TSDB_CODE_STREAM_INTERNAL_ERROR;
+    }
+    int32_t winOutIdx = 0;
+    int32_t rowStartIdx = 0;
+    projectDecodeLineageSegment(pValue, &winOutIdx, &rowStartIdx);
+    if ((i == 0 && rowStartIdx != 0) || rowStartIdx <= previousStart || rowStartIdx >= rows) {
+      return TSDB_CODE_STREAM_INTERNAL_ERROR;
+    }
+    previousStart = rowStartIdx;
+  }
+  return TSDB_CODE_SUCCESS;
+}
+
+static int32_t projectCopyLineage(SArray** ppOutput, const SArray* pInput, int32_t rows) {
+  int32_t code = projectValidateLineage(pInput, rows);
+  if (code != TSDB_CODE_SUCCESS) {
+    return code;
+  }
+  code = projectEnsureLineageArray(ppOutput);
+  if (code != TSDB_CODE_SUCCESS) {
+    return code;
+  }
+
+  taosArrayClear(*ppOutput);
+  for (int32_t i = 0; i < taosArrayGetSize(pInput); ++i) {
+    int64_t* pValue = taosArrayGet(pInput, i);
+    int32_t  winOutIdx = 0;
+    int32_t  rowStartIdx = 0;
+    projectDecodeLineageSegment(pValue, &winOutIdx, &rowStartIdx);
+    code = projectAppendLineageSegment(*ppOutput, winOutIdx, rowStartIdx);
+    if (code != TSDB_CODE_SUCCESS) {
+      taosArrayClear(*ppOutput);
+      return code;
+    }
+  }
+  return TSDB_CODE_SUCCESS;
+}
+
+static int32_t projectSnapshotInputLineage(SProjectOperatorInfo* pInfo, const SArray* pChildIdx, int32_t rows) {
+  int32_t code = projectCopyLineage(&pInfo->pInputWinIdx, pChildIdx, rows);
+  if (code != TSDB_CODE_SUCCESS && pInfo->pInputWinIdx != NULL) {
+    taosArrayClear(pInfo->pInputWinIdx);
+  }
+  return code;
+}
+
+static int32_t projectReplaceLineage(SArray* pDest, SArray* pSource) {
+  taosArrayClear(pDest);
+  int32_t size = taosArrayGetSize(pSource);
+  if (size > 0 && taosArrayAddBatch(pDest, TARRAY_DATA(pSource), size) == NULL) {
+    taosArrayClear(pDest);
+    return terrno;
+  }
+  return TSDB_CODE_SUCCESS;
+}
+
+static int32_t projectRebuildLineageByFilter(SProjectOperatorInfo* pInfo, int32_t rowsBefore,
+                                             const SColumnInfoData* pFilterResult) {
+  if (pInfo == NULL || pInfo->pOutputWinIdx == NULL || pFilterResult == NULL || rowsBefore <= 0) {
+    return TSDB_CODE_STREAM_INTERNAL_ERROR;
+  }
+  int32_t code = projectValidateLineage(pInfo->pOutputWinIdx, rowsBefore);
+  if (code != TSDB_CODE_SUCCESS) {
+    return code;
+  }
+
+  SArray* pRebuilt = taosArrayInit(taosArrayGetSize(pInfo->pOutputWinIdx), sizeof(int64_t));
+  if (pRebuilt == NULL) {
+    return terrno;
+  }
+
+  const int8_t* pIndicator = (const int8_t*)pFilterResult->pData;
+  int32_t       outputRow = 0;
+  int32_t       segmentCount = taosArrayGetSize(pInfo->pOutputWinIdx);
+  for (int32_t i = 0; i < segmentCount && code == TSDB_CODE_SUCCESS; ++i) {
+    int64_t* pCurrent = taosArrayGet(pInfo->pOutputWinIdx, i);
+    int32_t  winOutIdx = 0;
+    int32_t  rowStartIdx = 0;
+    projectDecodeLineageSegment(pCurrent, &winOutIdx, &rowStartIdx);
+    int32_t rowEndIdx = rowsBefore;
+    if (i + 1 < segmentCount) {
+      int64_t* pNext = taosArrayGet(pInfo->pOutputWinIdx, i + 1);
+      int32_t  nextWinOutIdx = 0;
+      projectDecodeLineageSegment(pNext, &nextWinOutIdx, &rowEndIdx);
+    }
+    for (int32_t row = rowStartIdx; row < rowEndIdx; ++row) {
+      if (pIndicator[row]) {
+        code = projectAppendLineageSegment(pRebuilt, winOutIdx, outputRow++);
+        if (code != TSDB_CODE_SUCCESS) {
+          break;
+        }
+      }
+    }
+  }
+
+  if (code == TSDB_CODE_SUCCESS) {
+    code = projectReplaceLineage(pInfo->pOutputWinIdx, pRebuilt);
+  }
+  taosArrayDestroy(pRebuilt);
+  return code;
+}
+
+static int32_t projectSliceLineageArray(SArray* pLineage, int32_t startRow, int32_t rows) {
+  if (pLineage == NULL || startRow < 0 || rows < 0) {
+    return TSDB_CODE_STREAM_INTERNAL_ERROR;
+  }
+  if (rows == 0) {
+    taosArrayClear(pLineage);
+    return TSDB_CODE_SUCCESS;
+  }
+
+  int32_t segmentCount = taosArrayGetSize(pLineage);
+  SArray* pSliced = taosArrayInit(segmentCount, sizeof(int64_t));
+  if (pSliced == NULL) {
+    return terrno;
+  }
+
+  int32_t code = TSDB_CODE_SUCCESS;
+  int32_t sliceEnd = startRow + rows;
+  int32_t previousStart = -1;
+  for (int32_t i = 0; i < segmentCount && code == TSDB_CODE_SUCCESS; ++i) {
+    int64_t* pCurrent = taosArrayGet(pLineage, i);
+    if (pCurrent == NULL) {
+      code = TSDB_CODE_STREAM_INTERNAL_ERROR;
+      break;
+    }
+    int32_t winOutIdx = 0;
+    int32_t rowStartIdx = 0;
+    projectDecodeLineageSegment(pCurrent, &winOutIdx, &rowStartIdx);
+    if ((i == 0 && rowStartIdx != 0) || rowStartIdx <= previousStart) {
+      code = TSDB_CODE_STREAM_INTERNAL_ERROR;
+      break;
+    }
+    previousStart = rowStartIdx;
+    int32_t rowEndIdx = sliceEnd;
+    if (i + 1 < segmentCount) {
+      int64_t* pNext = taosArrayGet(pLineage, i + 1);
+      if (pNext == NULL) {
+        code = TSDB_CODE_STREAM_INTERNAL_ERROR;
+        break;
+      }
+      int32_t nextWinOutIdx = 0;
+      projectDecodeLineageSegment(pNext, &nextWinOutIdx, &rowEndIdx);
+    }
+    int32_t retainedStart = TMAX(rowStartIdx, startRow);
+    int32_t retainedEnd = TMIN(rowEndIdx, sliceEnd);
+    if (retainedEnd > retainedStart) {
+      code = projectAppendLineageSegment(pSliced, winOutIdx, retainedStart - startRow);
+    }
+  }
+
+  if (code == TSDB_CODE_SUCCESS) {
+    code = projectReplaceLineage(pLineage, pSliced);
+  }
+  taosArrayDestroy(pSliced);
+  return code;
+}
+
+static int32_t projectSliceLineage(SProjectOperatorInfo* pInfo, int32_t startRow, int32_t rows) {
+  return pInfo == NULL ? TSDB_CODE_STREAM_INTERNAL_ERROR
+                       : projectSliceLineageArray(pInfo->pOutputWinIdx, startRow, rows);
+}
+
+static int32_t projectAppendMergedLineage(SProjectOperatorInfo* pInfo, const SArray* pSource, int32_t sourceRows,
+                                          int32_t outputOffset) {
+  if (pInfo == NULL || outputOffset < 0) {
+    return TSDB_CODE_STREAM_INTERNAL_ERROR;
+  }
+  int32_t code = projectEnsureLineageArray(&pInfo->pOutputWinIdx);
+  if (code != TSDB_CODE_SUCCESS) {
+    return code;
+  }
+  code = projectValidateLineage(pSource, sourceRows);
+  if (code != TSDB_CODE_SUCCESS) {
+    return code;
+  }
+  for (int32_t i = 0; i < taosArrayGetSize(pSource); ++i) {
+    int64_t* pValue = taosArrayGet(pSource, i);
+    int32_t  winOutIdx = 0;
+    int32_t  rowStartIdx = 0;
+    projectDecodeLineageSegment(pValue, &winOutIdx, &rowStartIdx);
+    code = projectAppendLineageSegment(pInfo->pOutputWinIdx, winOutIdx, outputOffset + rowStartIdx);
+    if (code != TSDB_CODE_SUCCESS) {
+      return code;
+    }
+  }
+  return TSDB_CODE_SUCCESS;
+}
+
+static int32_t projectPublishLineage(SProjectOperatorInfo* pInfo, SStreamRuntimeFuncInfo* pStream, int32_t outputRows) {
+  if (pInfo == NULL || pStream == NULL || pInfo->pOutputWinIdx == NULL) {
+    return TSDB_CODE_STREAM_INTERNAL_ERROR;
+  }
+  int32_t code = projectValidateLineage(pInfo->pOutputWinIdx, outputRows);
+  if (code != TSDB_CODE_SUCCESS) {
+    return code;
+  }
+  pStream->pStreamBlkWinIdx = pInfo->pOutputWinIdx;
+  pInfo->pPublishedStream = pStream;
+  return TSDB_CODE_SUCCESS;
+}
+
+static int32_t projectPrepareEog(SProjectOperatorInfo* pInfo, SStreamRuntimeFuncInfo* pStream, SSDataBlock* pResult,
+                                 uint64_t baseGId) {
+  int32_t code = projectResetProcessByRowStates(pInfo);
+  if (code != TSDB_CODE_SUCCESS) {
+    return code;
+  }
+  blockDataCleanup(pResult);
+  code = projectEnsureLineageArray(&pInfo->pOutputWinIdx);
+  if (code != TSDB_CODE_SUCCESS) {
+    return code;
+  }
+  code = qSetMultiGroupEogBlock(pResult, baseGId);
+  if (code != TSDB_CODE_SUCCESS) {
+    return code;
+  }
+  taosArrayClear(pInfo->pOutputWinIdx);
+  return projectPublishLineage(pInfo, pStream, 0);
+}
+
+static void projectClearZeroRowDrain(SProjectOperatorInfo* pInfo) {
+  pInfo->drainingZeroRows = false;
+  pInfo->drainGroupId = 0;
+}
+
+static int32_t projectStartZeroRowDrain(SProjectOperatorInfo* pInfo, uint64_t baseGId) {
+  if (pInfo == NULL || baseGId == 0 || (pInfo->drainingZeroRows && pInfo->drainGroupId != baseGId)) {
+    return TSDB_CODE_STREAM_INTERNAL_ERROR;
+  }
+  pInfo->drainingZeroRows = true;
+  pInfo->drainGroupId = baseGId;
+  return TSDB_CODE_SUCCESS;
+}
+
+static int32_t projectValidateZeroRowDrainInput(const SProjectOperatorInfo* pInfo, const SSDataBlock* pBlock) {
+  if (pInfo == NULL || pBlock == NULL || !pInfo->drainingZeroRows) {
+    return TSDB_CODE_SUCCESS;
+  }
+  return pBlock->info.id.baseGId == pInfo->drainGroupId && pBlock->info.id.groupId == pInfo->drainGroupId
+             ? TSDB_CODE_SUCCESS
+             : TSDB_CODE_STREAM_INTERNAL_ERROR;
+}
+
+static int32_t projectStartGroupBuffer(SProjectOperatorInfo* pInfo, const SSDataBlock* pBlock) {
+  if (pInfo == NULL || pBlock == NULL || pBlock->info.id.baseGId == 0 ||
+      pBlock->info.id.groupId != pBlock->info.id.baseGId ||
+      (pInfo->bufferedGroupId != 0 && pInfo->bufferedGroupId != pBlock->info.id.baseGId)) {
+    return TSDB_CODE_STREAM_INTERNAL_ERROR;
+  }
+  pInfo->bufferedGroupId = pBlock->info.id.baseGId;
+  return TSDB_CODE_SUCCESS;
+}
+
+static int32_t projectValidateGroupBufferInput(const SProjectOperatorInfo* pInfo, const SSDataBlock* pBlock) {
+  if (pInfo == NULL || pBlock == NULL || pInfo->bufferedGroupId == 0) {
+    return TSDB_CODE_SUCCESS;
+  }
+  return pBlock->info.id.baseGId == pInfo->bufferedGroupId && pBlock->info.id.groupId == pInfo->bufferedGroupId
+             ? TSDB_CODE_SUCCESS
+             : TSDB_CODE_STREAM_INTERNAL_ERROR;
+}
+
 static void destroyProjectOperatorInfo(void* param) {
   if (NULL == param) {
     return;
   }
 
   SProjectOperatorInfo* pInfo = (SProjectOperatorInfo*)param;
+  if (pInfo->pPublishedStream != NULL && (pInfo->pPublishedStream->pStreamBlkWinIdx == pInfo->pInputWinIdx ||
+                                          pInfo->pPublishedStream->pStreamBlkWinIdx == pInfo->pOutputWinIdx)) {
+    pInfo->pPublishedStream->pStreamBlkWinIdx = NULL;
+  }
   cleanupBasicInfo(&pInfo->binfo);
   cleanupAggSup(&pInfo->aggSup);
   taosArrayDestroy(pInfo->pPseudoColInfo);
+  taosArrayDestroy(pInfo->pInputWinIdx);
+  taosArrayDestroy(pInfo->pOutputWinIdx);
+  taosArrayDestroy(pInfo->pProcessByRowStates);
 
   blockDataDestroy(pInfo->pFinalRes);
+  alignStageDestroy(pInfo->pAlignStage);
+  pInfo->pAlignStage = NULL;
+  blockDataDestroy(pInfo->pAlignStaging);
+  pInfo->pAlignStaging = NULL;
+  taosArrayDestroy(pInfo->pAlignPassThrough);
+  pInfo->pAlignPassThrough = NULL;
   taosMemoryFreeClear(param);
 }
 
@@ -89,17 +500,6 @@ static void destroyIndefinitOperatorInfo(void* param) {
   taosMemoryFreeClear(param);
 }
 
-static void cleanupProcessByRowIter(SqlFunctionCtx* pCtx) {
-  SFuncInputRowIter* pIter = &pCtx->rowIter;
-
-  if (pIter->pPrevRowBlock != NULL) {
-    blockDataDestroy(pIter->pPrevRowBlock);
-  }
-  taosMemoryFreeClear(pIter->pPrevData);
-  taosMemoryFreeClear(pIter->pPrevPk);
-  memset(pIter, 0, sizeof(*pIter));
-}
-
 static int32_t resetProcessByRowCtx(SqlFunctionCtx* pCtx) {
   SResultRowEntryInfo* pResInfo = GET_RES_INFO(pCtx);
   char*                pOutput = pCtx->pOutput;
@@ -108,7 +508,7 @@ static int32_t resetProcessByRowCtx(SqlFunctionCtx* pCtx) {
     pCtx->fpSet.cleanup(pCtx);
   }
 
-  cleanupProcessByRowIter(pCtx);
+  funcInputRowIterCleanup(&pCtx->rowIter);
   pResInfo->initialized = false;
   pResInfo->numOfRes = 0;
   pCtx->bInputFinished = false;
@@ -117,6 +517,64 @@ static int32_t resetProcessByRowCtx(SqlFunctionCtx* pCtx) {
   int32_t code = pCtx->fpSet.init(pCtx, pResInfo);
   pCtx->pOutput = pOutput;
   return code;
+}
+
+static int32_t projectPrepareProcessByRowCtx(SProjectOperatorInfo* pInfo, SqlFunctionCtx* pCtx, uint64_t baseGId,
+                                             int32_t winOutIdx) {
+  if (pInfo == NULL || pCtx == NULL || baseGId == 0) {
+    return TSDB_CODE_STREAM_INTERNAL_ERROR;
+  }
+  if (pInfo->pProcessByRowStates == NULL) {
+    pInfo->pProcessByRowStates = taosArrayInit(4, sizeof(SProjectProcessByRowState));
+    if (pInfo->pProcessByRowStates == NULL) {
+      return terrno;
+    }
+  }
+
+  SProjectProcessByRowState* pState = NULL;
+  for (int32_t i = 0; i < taosArrayGetSize(pInfo->pProcessByRowStates); ++i) {
+    SProjectProcessByRowState* pCurrent = taosArrayGet(pInfo->pProcessByRowStates, i);
+    if (pCurrent != NULL && pCurrent->pCtx == pCtx) {
+      pState = pCurrent;
+      break;
+    }
+  }
+  if (pState != NULL && pState->baseGId == baseGId && pState->winOutIdx == winOutIdx) {
+    return TSDB_CODE_SUCCESS;
+  }
+
+  int32_t code = resetProcessByRowCtx(pCtx);
+  if (code != TSDB_CODE_SUCCESS) {
+    return code;
+  }
+  if (pState != NULL) {
+    pState->baseGId = baseGId;
+    pState->winOutIdx = winOutIdx;
+    return TSDB_CODE_SUCCESS;
+  }
+
+  SProjectProcessByRowState state = {.pCtx = pCtx, .baseGId = baseGId, .winOutIdx = winOutIdx};
+  return taosArrayPush(pInfo->pProcessByRowStates, &state) == NULL ? terrno : TSDB_CODE_SUCCESS;
+}
+
+static int32_t projectResetProcessByRowStates(SProjectOperatorInfo* pInfo) {
+  if (pInfo == NULL || pInfo->pProcessByRowStates == NULL) {
+    return TSDB_CODE_SUCCESS;
+  }
+
+  int32_t code = TSDB_CODE_SUCCESS;
+  for (int32_t i = 0; i < taosArrayGetSize(pInfo->pProcessByRowStates); ++i) {
+    SProjectProcessByRowState* pState = taosArrayGet(pInfo->pProcessByRowStates, i);
+    if (pState == NULL || pState->pCtx == NULL) {
+      return TSDB_CODE_STREAM_INTERNAL_ERROR;
+    }
+    code = resetProcessByRowCtx(pState->pCtx);
+    if (code != TSDB_CODE_SUCCESS) {
+      return code;
+    }
+  }
+  taosArrayClear(pInfo->pProcessByRowStates);
+  return TSDB_CODE_SUCCESS;
 }
 
 static bool allProcessByRowCtxSameFuncId(SArray* pProcessByRowFunctionCtx) {
@@ -136,17 +594,58 @@ static bool allProcessByRowCtxSameFuncId(SArray* pProcessByRowFunctionCtx) {
       return false;
     }
   }
+  return true;
+}
 
+static int32_t projectValidateProcessByRowResultRows(SArray* pGroupedCtxArray, uint64_t inputRows,
+                                                     uint64_t* pOutputRows) {
+  if (pGroupedCtxArray == NULL || pOutputRows == NULL || taosArrayGetSize(pGroupedCtxArray) <= 0) {
+    return TSDB_CODE_STREAM_INTERNAL_ERROR;
+  }
+
+  uint64_t rows = 0;
+  for (int32_t i = 0; i < taosArrayGetSize(pGroupedCtxArray); ++i) {
+    SqlFunctionCtx** ppCtx = taosArrayGet(pGroupedCtxArray, i);
+    if (ppCtx == NULL || *ppCtx == NULL || (*ppCtx)->resultInfo == NULL) {
+      return TSDB_CODE_STREAM_INTERNAL_ERROR;
+    }
+
+    uint64_t currentRows = (*ppCtx)->resultInfo->numOfRes;
+    if (currentRows > inputRows || (i > 0 && currentRows != rows)) {
+      qError("strict Project process-by-row contract violated, functionId:%d, inputRows:%" PRIu64
+             ", outputRows:%" PRIu64,
+             (*ppCtx)->functionId, inputRows, currentRows);
+      return TSDB_CODE_STREAM_INTERNAL_ERROR;
+    }
+    rows = currentRows;
+  }
+
+  *pOutputRows = rows;
+  return TSDB_CODE_SUCCESS;
+}
+
+static bool projectLineageEqual(const SArray* pLeft, const SArray* pRight) {
+  if (pLeft == NULL || pRight == NULL || taosArrayGetSize(pLeft) != taosArrayGetSize(pRight)) {
+    return false;
+  }
+  for (int32_t i = 0; i < taosArrayGetSize(pLeft); ++i) {
+    const int64_t* pLeftValue = taosArrayGet(pLeft, i);
+    const int64_t* pRightValue = taosArrayGet(pRight, i);
+    if (pLeftValue == NULL || pRightValue == NULL || *pLeftValue != *pRightValue) {
+      return false;
+    }
+  }
   return true;
 }
 
 static int32_t processByRowInExternalWindows(SArray* pGroupedCtxArray, SSDataBlock* pSrcBlock,
-                                             SStreamRuntimeFuncInfo* pStreamInfo) {
+                                             const SArray* pSourceWinIdx, SArray* pOutputWinIdx,
+                                             SProjectOperatorInfo* pProjectInfo) {
   int32_t code = TSDB_CODE_SUCCESS;
   int32_t lino = 0;
 
   int32_t  ctxNum = taosArrayGetSize(pGroupedCtxArray);
-  int32_t  idxNum = taosArrayGetSize(pStreamInfo->pStreamBlkWinIdx);
+  int32_t  idxNum = taosArrayGetSize(pSourceWinIdx);
   int32_t  totalRows = 0;
   SArray*  pInputWinIdx = NULL;
   int32_t* pStartRows = NULL;
@@ -155,8 +654,7 @@ static int32_t processByRowInExternalWindows(SArray* pGroupedCtxArray, SSDataBlo
 
   pInputWinIdx = taosArrayInit(idxNum, sizeof(int64_t));
   TSDB_CHECK_NULL(pInputWinIdx, code, lino, _exit, terrno);
-  TSDB_CHECK_NULL(taosArrayAddBatch(pInputWinIdx, TARRAY_DATA(pStreamInfo->pStreamBlkWinIdx), idxNum), code, lino,
-                  _exit, terrno);
+  TSDB_CHECK_NULL(taosArrayAddBatch(pInputWinIdx, TARRAY_DATA(pSourceWinIdx), idxNum), code, lino, _exit, terrno);
 
   pStartRows = taosMemoryCalloc(ctxNum, sizeof(int32_t));
   TSDB_CHECK_NULL(pStartRows, code, lino, _exit, terrno);
@@ -174,7 +672,7 @@ static int32_t processByRowInExternalWindows(SArray* pGroupedCtxArray, SSDataBlo
     pOffsets[i] = (*ppCtx)->offset;
   }
 
-  taosArrayClear(pStreamInfo->pStreamBlkWinIdx);
+  taosArrayClear(pOutputWinIdx);
 
   for (int32_t i = 0; i < idxNum; ++i) {
     int64_t* pCurr = taosArrayGet(pInputWinIdx, i);
@@ -199,20 +697,39 @@ static int32_t processByRowInExternalWindows(SArray* pGroupedCtxArray, SSDataBlo
       pCtx->input.startRowIndex = rowStart;
       pCtx->input.numOfRows = rowEnd - rowStart;
       pCtx->offset = pOffsets[j] + totalRows;
-      TAOS_CHECK_EXIT(resetProcessByRowCtx(pCtx));
+      if (pProjectInfo != NULL) {
+        TAOS_CHECK_EXIT(projectPrepareProcessByRowCtx(pProjectInfo, pCtx, pSrcBlock->info.id.baseGId, winIdx));
+      } else {
+        TAOS_CHECK_EXIT(resetProcessByRowCtx(pCtx));
+      }
     }
 
     SqlFunctionCtx** ppFirstCtx = taosArrayGet(pGroupedCtxArray, 0);
     TAOS_CHECK_EXIT((*ppFirstCtx)->fpSet.processFuncByRow(pGroupedCtxArray));
 
-    int32_t winRows = (*ppFirstCtx)->resultInfo->numOfRes;
+    // Strict Project reserves one result row per logical input row. Every registered process-by-row callback must
+    // honor that bound before writing because the callback interface has no capacity preflight hook. Keep this
+    // executable postcondition before publishing row counts or lineage.
+    uint64_t winRows = 0;
+    if (pProjectInfo != NULL) {
+      TAOS_CHECK_EXIT(projectValidateProcessByRowResultRows(pGroupedCtxArray, (uint64_t)(rowEnd - rowStart), &winRows));
+    } else {
+      winRows = (*ppFirstCtx)->resultInfo->numOfRes;
+    }
     if (winRows > 0) {
+      if (winRows > INT32_MAX - totalRows) {
+        qError("external window process-by-row result rows overflow, totalRows:%d, winRows:%" PRIu64, totalRows,
+               winRows);
+        code = TSDB_CODE_OUT_OF_RANGE;
+        goto _exit;
+      }
+
       int64_t  val = 0;
       int32_t* pOutPair = (int32_t*)&val;
       pOutPair[0] = winIdx;
       pOutPair[1] = totalRows;
-      TSDB_CHECK_NULL(taosArrayPush(pStreamInfo->pStreamBlkWinIdx, &val), code, lino, _exit, terrno);
-      totalRows += winRows;
+      TSDB_CHECK_NULL(taosArrayPush(pOutputWinIdx, &val), code, lino, _exit, terrno);
+      totalRows += (int32_t)winRows;
     }
   }
 
@@ -236,16 +753,16 @@ _exit:
 }
 
 static int32_t assignPlaceHolderInExternalWindows(SColumnInfoData* pResColData, int64_t offset, int64_t rows,
-                                                  int16_t funcId, SStreamRuntimeFuncInfo* pInfo, SNode* pParamNode) {
+                                                  int16_t funcId, SStreamRuntimeFuncInfo* pInfo,
+                                                  const SArray* pSourceWinIdx, SNode* pParamNode) {
   int32_t code = TSDB_CODE_SUCCESS;
   int32_t lino = 0;
 
   int32_t originIdx = pInfo->curIdx;
-  int32_t idxNum = taosArrayGetSize(pInfo->pStreamBlkWinIdx);
+  int32_t idxNum = taosArrayGetSize(pSourceWinIdx);
   SArray* pInputWinIdx = taosArrayInit(idxNum, sizeof(int64_t));
   TSDB_CHECK_NULL(pInputWinIdx, code, lino, _exit, terrno);
-  TSDB_CHECK_NULL(taosArrayAddBatch(pInputWinIdx, TARRAY_DATA(pInfo->pStreamBlkWinIdx), idxNum), code, lino, _exit,
-                  terrno);
+  TSDB_CHECK_NULL(taosArrayAddBatch(pInputWinIdx, TARRAY_DATA(pSourceWinIdx), idxNum), code, lino, _exit, terrno);
 
   for (int32_t i = 0; i < idxNum; ++i) {
     int64_t* pCurr = taosArrayGet(pInputWinIdx, i);
@@ -300,14 +817,34 @@ static int32_t resetProjectOperState(SOperatorInfo* pOper) {
   initLimitInfo(pPhynode->node.pLimit, pPhynode->node.pSlimit, &pProject->limitInfo);
 
   blockDataCleanup(pProject->pFinalRes);
+  int32_t code = projectResetProcessByRowStates(pProject);
+  if (code != TSDB_CODE_SUCCESS) {
+    return code;
+  }
+  taosArrayClear(pProject->pInputWinIdx);
+  taosArrayClear(pProject->pOutputWinIdx);
+  pProject->pendingEog = false;
+  pProject->pendingEogGroupId = 0;
+  projectClearZeroRowDrain(pProject);
+  pProject->bufferedGroupId = 0;
+  if (pProject->pAlignStage != NULL) {
+    alignStageReset(pProject->pAlignStage);
+    pProject->pAlignPendingIn = NULL;
+    pProject->alignPhaseValid = false;
+  }
+  if (pProject->pPublishedStream != NULL && (pProject->pPublishedStream->pStreamBlkWinIdx == pProject->pInputWinIdx ||
+                                             pProject->pPublishedStream->pStreamBlkWinIdx == pProject->pOutputWinIdx)) {
+    pProject->pPublishedStream->pStreamBlkWinIdx = NULL;
+  }
+  pProject->pPublishedStream = NULL;
 
-  int32_t code = resetAggSup(&pOper->exprSupp, &pProject->aggSup, pTaskInfo, pPhynode->pProjections, NULL,
-    sizeof(int64_t) * 2 + POINTER_BYTES, pTaskInfo->id.str, NULL,
-    &pTaskInfo->storageAPI.functionStore);
-  if (code == 0){
+  code =
+      resetAggSup(&pOper->exprSupp, &pProject->aggSup, pTaskInfo, pPhynode->pProjections, NULL,
+                  sizeof(int64_t) * 2 + POINTER_BYTES, pTaskInfo->id.str, NULL, &pTaskInfo->storageAPI.functionStore);
+  if (code == 0) {
     code = setFunctionResultOutput(pOper, &pProject->binfo, &pProject->aggSup, MAIN_SCAN, pOper->exprSupp.numOfExprs);
   }
-  return 0;
+  return code;
 }
 
 int32_t createProjectOperatorInfo(SOperatorInfo* downstream, SProjectPhysiNode* pProjPhyNode, SExecTaskInfo* pTaskInfo,
@@ -340,8 +877,7 @@ int32_t createProjectOperatorInfo(SOperatorInfo* downstream, SProjectPhysiNode* 
   code = createOneDataBlock(pResBlock, false, &pInfo->pFinalRes);
   TSDB_CHECK_CODE(code, lino, _error);
 
-  pInfo->binfo.inputTsOrder = pProjPhyNode->node.inputTsOrder;
-  pInfo->binfo.outputTsOrder = pProjPhyNode->node.outputTsOrder;
+  setOptrBasicInfoOrder(&pInfo->binfo, &pProjPhyNode->node);
   pInfo->inputIgnoreGroup = pProjPhyNode->inputIgnoreGroup;
   pInfo->outputIgnoreGroup = pProjPhyNode->ignoreGroupId;
 
@@ -353,6 +889,11 @@ int32_t createProjectOperatorInfo(SOperatorInfo* downstream, SProjectPhysiNode* 
     } else {
       pInfo->mergeDataBlocks = pProjPhyNode->mergeDataBlock;
     }
+  }
+  if (isMainFirstScanOperator(downstream)) {
+    // scanPhase is a block boundary. Combining phases would relabel earlier
+    // rows with the last input block's phase before TimeSlice sees them.
+    pInfo->mergeDataBlocks = false;
   }
 
   int32_t numOfRows = 4096;
@@ -370,6 +911,10 @@ int32_t createProjectOperatorInfo(SOperatorInfo* downstream, SProjectPhysiNode* 
   SExprInfo* pExprInfo = NULL;
   code = createExprInfo(pProjPhyNode->pProjections, NULL, &pExprInfo, &numOfCols);
   TSDB_CHECK_CODE(code, lino, _error);
+  if (pProjPhyNode->timeAlignProject) {
+    code = createProjectAlignHost(pInfo, pExprInfo, numOfCols, pProjPhyNode, pTaskInfo);
+    TSDB_CHECK_CODE(code, lino, _error);
+  }
   code = initAggSup(&pOperator->exprSupp, &pInfo->aggSup, pExprInfo, numOfCols, keyBufSize, pTaskInfo->id.str,
                     NULL, &pTaskInfo->storageAPI.functionStore);
   TSDB_CHECK_CODE(code, lino, _error);
@@ -484,10 +1029,321 @@ static int32_t doIngroupLimitOffset(SLimitInfo* pLimitInfo, uint64_t groupId, SS
   return PROJECT_RETRIEVE_DONE;
 }
 
+static bool projectExprIsFillFunc(const SExprInfo* pExpr) {
+  if (pExpr == NULL || pExpr->pExpr == NULL || QUERY_NODE_FUNCTION != pExpr->pExpr->nodeType) return false;
+  const char* name = pExpr->pExpr->_function.functionName;
+  return strcmp(name, "fill_forward") == 0 || strcmp(name, "fill_next") == 0;
+}
+
+// TIME_ALIGN projection host: all non-fill projections are pass-through
+// columns, every fill function is fed by one of them.  The align stage keeps
+// the deferred-output state; the Project only builds the staging block and
+// evaluates WHERE on the published result.
+static int32_t createProjectAlignHost(SProjectOperatorInfo* pInfo, SExprInfo* pExprInfo, int32_t numOfExprs,
+                                      SProjectPhysiNode* pProjPhyNode, SExecTaskInfo* pTaskInfo) {
+  int32_t             numOfAlign = 0;
+  SDataBlockDescNode* pDescNode = pProjPhyNode->node.pOutputDataBlockDesc;
+  SArray*             pPass = taosArrayInit(4, sizeof(SAlignCopyCol));
+  if (pPass == NULL) return terrno;
+
+  SAlignStageCol* pCols = taosMemoryCalloc(numOfExprs, sizeof(SAlignStageCol));
+  if (pCols == NULL) {
+    taosArrayDestroy(pPass);
+    return terrno;
+  }
+
+  int32_t tsSlotId = -1;
+  int32_t firstTsOutSlot = -1;
+  // Pass 1: pass-through columns.  The staging block is laid out in the
+  // project's output order, so every input slot is remapped to its output slot.
+  for (int32_t i = 0; i < numOfExprs; ++i) {
+    SExprInfo* pExpr = &pExprInfo[i];
+    if (projectExprIsFillFunc(pExpr) || pExpr->pExpr->nodeType != QUERY_NODE_COLUMN) continue;
+    int32_t        outSlot = pExpr->base.resSchema.slotId;
+    SAlignCopyCol copy = {.srcSlot = pExpr->base.pParam[0].pCol->slotId, .dstSlot = outSlot};
+    if (NULL == taosArrayPush(pPass, &copy)) {
+      taosMemoryFree(pCols);
+      taosArrayDestroy(pPass);
+      return terrno;
+    }
+    if (TSDB_DATA_TYPE_TIMESTAMP == pExpr->base.resSchema.type) {
+      if (firstTsOutSlot < 0) firstTsOutSlot = outSlot;
+      if (!pProjPhyNode->timeAlignOutputOrder && tsSlotId < 0) tsSlotId = outSlot;
+    }
+  }
+
+  // Pass 2: fill functions read their source value from the staging slot that
+  // carries the corresponding pass-through column.  Projection pruning may
+  // remove a source pass-through that only the fill function needs, so fall
+  // back to copying the downstream column straight into the fill output slot.
+  int32_t spanTsSlotId = -1;
+  char    tzName[TD_TIMEZONE_LEN] = {0};
+  bool    mono = true;
+  bool    spanFound = false;
+  int32_t numOfPass = (int32_t)taosArrayGetSize(pPass);
+  for (int32_t i = 0; i < numOfExprs; ++i) {
+    SExprInfo* pExpr = &pExprInfo[i];
+    if (!projectExprIsFillFunc(pExpr)) continue;
+    int32_t inputSlot = pExpr->base.numOfParams > 0 ? pExpr->base.pParam[0].pCol->slotId : -1;
+    if (inputSlot < 0) {
+      taosMemoryFree(pCols);
+      taosArrayDestroy(pPass);
+      return TSDB_CODE_QRY_EXECUTOR_INTERNAL_ERROR;
+    }
+    int32_t stagingSlot = -1;
+    for (int32_t k = 0; k < numOfPass; ++k) {
+      SAlignCopyCol* pCopy = taosArrayGet(pPass, k);
+      if (pCopy->srcSlot == inputSlot) {
+        stagingSlot = pCopy->dstSlot;
+        break;
+      }
+    }
+    if (stagingSlot < 0) {
+      stagingSlot = pExpr->base.resSchema.slotId;
+      SAlignCopyCol copy = {.srcSlot = inputSlot, .dstSlot = stagingSlot};
+      if (NULL == taosArrayPush(pPass, &copy)) {
+        taosMemoryFree(pCols);
+        taosArrayDestroy(pPass);
+        return terrno;
+      }
+    }
+
+    SAlignStageCol* pCol = &pCols[numOfAlign++];
+    pCol->srcSlotId = stagingSlot;
+    pCol->outSlotId = pExpr->base.resSchema.slotId;
+    pCol->type.type = pExpr->base.resSchema.type;
+    pCol->type.bytes = pExpr->base.resSchema.bytes;
+    pCol->type.precision = pExpr->base.resSchema.precision;
+    pCol->type.scale = pExpr->base.resSchema.scale;
+    pCol->method = (strcmp(pExpr->pExpr->_function.functionName, "fill_next") == 0) ? ALIGN_METHOD_NEXT
+                                                                                   : ALIGN_METHOD_PREV;
+    tstrncpy(pCol->name, pExpr->base.resSchema.name, TSDB_COL_NAME_LEN);
+
+    // Optional time-range parameter: the planner appended
+    // (ts, spanValue, spanUnit, tzName, mono) to the fill expression.
+    if (pExpr->base.numOfParams == 6 && pExpr->base.pParam[1].type == FUNC_PARAM_TYPE_COLUMN &&
+        pExpr->base.pParam[1].pCol != NULL && pExpr->base.pParam[2].type == FUNC_PARAM_TYPE_VALUE &&
+        pExpr->base.pParam[3].type == FUNC_PARAM_TYPE_VALUE) {
+      pCol->hasSpan = true;
+      pCol->spanValue = pExpr->base.pParam[2].param.i;
+      pCol->spanUnit = (int8_t)pExpr->base.pParam[3].param.i;
+
+      if (!spanFound) {
+        spanFound = true;
+        int32_t tsInSlot = pExpr->base.pParam[1].pCol->slotId;
+        for (int32_t k = 0; k < numOfPass; ++k) {
+          SAlignCopyCol* pCopy = taosArrayGet(pPass, k);
+          if (pCopy->srcSlot == tsInSlot) {
+            spanTsSlotId = pCopy->dstSlot;
+            break;
+          }
+        }
+        if (spanTsSlotId < 0) {
+          // External/federated plans can report the time-axis projection under
+          // a different input slot than the one the fill parameter carries.
+          // Re-point that pass-through to the fill parameter's slot, which the
+          // planner selected as the time axis.
+          int32_t tsOutSlot = (tsSlotId >= 0) ? tsSlotId : firstTsOutSlot;
+          if (tsOutSlot >= 0) {
+            bool replaced = false;
+            for (int32_t k = 0; k < numOfPass; ++k) {
+              SAlignCopyCol* pCopy = taosArrayGet(pPass, k);
+              if (pCopy->dstSlot == tsOutSlot) {
+                pCopy->srcSlot = tsInSlot;
+                replaced = true;
+                break;
+              }
+            }
+            if (!replaced) {
+              SAlignCopyCol copy = {.srcSlot = tsInSlot, .dstSlot = tsOutSlot};
+              if (NULL == taosArrayPush(pPass, &copy)) {
+                taosMemoryFree(pCols);
+                taosArrayDestroy(pPass);
+                return terrno;
+              }
+              ++numOfPass;
+            }
+            spanTsSlotId = tsOutSlot;
+          }
+        }
+        if (pExpr->base.pParam[4].type == FUNC_PARAM_TYPE_VALUE &&
+            pExpr->base.pParam[4].param.pz != NULL) {
+          const char* name = varDataVal(pExpr->base.pParam[4].param.pz);
+          if (name != NULL) tstrncpy(tzName, name, sizeof(tzName));
+        }
+        if (pExpr->base.pParam[5].type == FUNC_PARAM_TYPE_VALUE) {
+          mono = (pExpr->base.pParam[5].param.i != 0);
+        }
+      }
+    }
+  }
+
+  if (numOfAlign == 0) {
+    taosMemoryFree(pCols);
+    taosArrayDestroy(pPass);
+    return TSDB_CODE_SUCCESS;
+  }
+  if (spanFound && spanTsSlotId < 0) {
+    qError("TIME_ALIGN: time-axis column is missing from the align projection input");
+    taosMemoryFree(pCols);
+    taosArrayDestroy(pPass);
+    return TSDB_CODE_QRY_EXECUTOR_INTERNAL_ERROR;
+  }
+
+  // Table input compensates a descending sort pushed below the align Projection
+  // so the filled values stay identical to ascending timestamp order.  View
+  // input follows its own output row order, so PREV/NEXT always mean the
+  // previous/next output row and no direction compensation is applied.
+  int8_t order = (!pProjPhyNode->timeAlignOutputOrder &&
+                  pProjPhyNode->node.inputTsOrder == TSDB_ORDER_DESC)
+                     ? TSDB_ORDER_DESC
+                     : TSDB_ORDER_ASC;
+  int32_t code = alignStageCreate(&pInfo->pAlignStage, pCols, numOfAlign, tsSlotId, spanTsSlotId, tzName, mono,
+                                  order, pTaskInfo);
+  taosMemoryFree(pCols);
+  if (TSDB_CODE_SUCCESS != code) {
+    taosArrayDestroy(pPass);
+    return code;
+  }
+  pInfo->pAlignPassThrough = pPass;
+  pInfo->alignMode = true;
+  pInfo->alignOutputOrder = pProjPhyNode->timeAlignOutputOrder;
+  pInfo->pAlignStaging = createDataBlockFromDescNode(pDescNode);
+  if (pInfo->pAlignStaging == NULL) {
+    return terrno;
+  }
+  return TSDB_CODE_SUCCESS;
+}
+
+static int32_t doAlignProjectFilter(SOperatorInfo* pOperator, SProjectOperatorInfo* pInfo, SSDataBlock* pBlock,
+                                    bool* pEmpty) {
+  *pEmpty = false;
+  if (pBlock == NULL) return TSDB_CODE_SUCCESS;
+  if (pOperator->exprSupp.pFilterInfo != NULL) {
+    int32_t code = doFilterWithTaskCorrelation(pBlock, pOperator->exprSupp.pFilterInfo, NULL, NULL,
+                                               pOperator->pTaskInfo);
+    if (TSDB_CODE_SUCCESS != code) return code;
+  }
+  if (pBlock->info.rows == 0) {
+    *pEmpty = true;
+    return TSDB_CODE_SUCCESS;
+  }
+  bool limitReached = applyLimitOffset(&pInfo->limitInfo, pBlock, pOperator->pTaskInfo);
+  if (limitReached) {
+    setOperatorCompleted(pOperator);
+  }
+  if (pBlock->info.rows == 0) {
+    *pEmpty = true;
+  }
+  return TSDB_CODE_SUCCESS;
+}
+
+static int32_t doAlignProjectOperation(SOperatorInfo* pOperator, SSDataBlock** pResBlock) {
+  SProjectOperatorInfo* pInfo = pOperator->info;
+  SExecTaskInfo*        pTaskInfo = pOperator->pTaskInfo;
+  int32_t               code = TSDB_CODE_SUCCESS;
+
+  *pResBlock = NULL;
+  if (pOperator->status == OP_EXEC_DONE) {
+    return TSDB_CODE_SUCCESS;
+  }
+  while (1) {
+    SSDataBlock* pIn = pInfo->pAlignPendingIn;
+    pInfo->pAlignPendingIn = NULL;
+    if (pIn == NULL) {
+      pIn = getNextBlockFromDownstream(pOperator, 0);
+    }
+
+    if (pIn == NULL) {
+      SSDataBlock* pReady = NULL;
+      code = alignStageFlushNext(pInfo->pAlignStage, &pReady);
+      if (TSDB_CODE_SUCCESS != code) return code;
+      if (pReady == NULL) {
+        setOperatorCompleted(pOperator);
+        return TSDB_CODE_SUCCESS;
+      }
+      bool empty = false;
+      code = doAlignProjectFilter(pOperator, pInfo, pReady, &empty);
+      if (TSDB_CODE_SUCCESS != code) return code;
+      if (empty) continue;
+      *pResBlock = pReady;
+      return TSDB_CODE_SUCCESS;
+    }
+
+    int8_t phase = pIn->info.scanFlag;
+    if (pInfo->alignPhaseValid && phase != pInfo->alignPhase) {
+      SSDataBlock* pReady = NULL;
+      code = alignStageFlushNext(pInfo->pAlignStage, &pReady);
+      if (TSDB_CODE_SUCCESS != code) return code;
+      if (pReady != NULL) {
+        pInfo->pAlignPendingIn = pIn;
+        bool empty = false;
+        code = doAlignProjectFilter(pOperator, pInfo, pReady, &empty);
+        if (TSDB_CODE_SUCCESS != code) return code;
+        if (empty) continue;
+        *pResBlock = pReady;
+        return TSDB_CODE_SUCCESS;
+      }
+      pInfo->alignPhase = phase;
+      pInfo->alignPhaseValid = true;
+    } else if (!pInfo->alignPhaseValid) {
+      pInfo->alignPhase = phase;
+      pInfo->alignPhaseValid = true;
+    }
+
+    // Build the staging block in the project's output schema: pass-through
+    // columns are copied, align outputs stay empty for the fill functions.
+    blockDataCleanup(pInfo->pAlignStaging);
+    code = blockDataEnsureCapacity(pInfo->pAlignStaging, pIn->info.rows);
+    if (TSDB_CODE_SUCCESS != code) return code;
+    int32_t capacity = (int32_t)pInfo->pAlignStaging->info.capacity;
+    for (int32_t i = 0; i < (int32_t)taosArrayGetSize(pInfo->pAlignPassThrough); ++i) {
+      SAlignCopyCol*   pCopy = taosArrayGet(pInfo->pAlignPassThrough, i);
+      SColumnInfoData* pDst = taosArrayGet(pInfo->pAlignStaging->pDataBlock, pCopy->dstSlot);
+      SColumnInfoData* pSrc = taosArrayGet(pIn->pDataBlock, pCopy->srcSlot);
+      if (pDst == NULL || pSrc == NULL) {
+        return TSDB_CODE_QRY_EXECUTOR_INTERNAL_ERROR;
+      }
+      code = colDataMergeCol(pDst, 0, &capacity, pSrc, pIn->info.rows);
+      if (TSDB_CODE_SUCCESS != code) return code;
+    }
+    // Preserve the staging block's own capacity: only the identity/phase/row
+    // metadata follows the downstream block.
+    pInfo->pAlignStaging->info.rows = pIn->info.rows;
+    pInfo->pAlignStaging->info.id = pIn->info.id;
+    pInfo->pAlignStaging->info.scanFlag = pIn->info.scanFlag;
+    if (pIn->info.parTbName[0] != '\0') {
+      tstrncpy(pInfo->pAlignStaging->info.parTbName, pIn->info.parTbName, TSDB_TABLE_NAME_LEN);
+    }
+
+    // Views follow their output order: a reliable block groupId keeps its
+    // series separate, while DISTINCT/ordered projections with no grouping
+    // share one sequence keyed 0.
+    uint64_t key = pInfo->alignOutputOrder
+                       ? pIn->info.id.groupId
+                       : ((pIn->info.id.groupId != 0) ? pIn->info.id.groupId : pIn->info.id.uid);
+    SSDataBlock* pReady = NULL;
+    code = alignStageFeed(pInfo->pAlignStage, key, phase, pInfo->pAlignStaging, &pReady);
+    if (TSDB_CODE_SUCCESS != code) return code;
+    if (pReady == NULL) {
+      continue;
+    }
+    bool empty = false;
+    code = doAlignProjectFilter(pOperator, pInfo, pReady, &empty);
+    if (TSDB_CODE_SUCCESS != code) return code;
+    if (empty) continue;
+    *pResBlock = pReady;
+    return TSDB_CODE_SUCCESS;
+  }
+}
+
 int32_t doProjectOperation(SOperatorInfo* pOperator, SSDataBlock** pResBlock) {
   QRY_PARAM_CHECK(pResBlock);
 
   SProjectOperatorInfo* pProjectInfo = pOperator->info;
+  if (pProjectInfo->alignMode) {
+    return doAlignProjectOperation(pOperator, pResBlock);
+  }
   SOptrBasicInfo*       pInfo = &pProjectInfo->binfo;
   SExprSupp*            pSup = &pOperator->exprSupp;
   SSDataBlock*          pRes = pInfo->pRes;
@@ -496,14 +1352,45 @@ int32_t doProjectOperation(SOperatorInfo* pOperator, SSDataBlock** pResBlock) {
   int32_t               lino = 0;
   int32_t               order = pInfo->inputTsOrder;
   int32_t               scanFlag = 0;
+  SArray*               pCurrentWinIdx = NULL;
+  SColumnInfoData*      pFilterRes = NULL;
 
+  *pResBlock = NULL;
+  detachOperatorRoutingParam(pOperator);
+  if (pOperator->numOfDownstream > 0 &&
+      pOperator->pDownstreamGetParams != NULL &&
+      pOperator->pDownstreamGetParams[0] != NULL) {
+    pOperator->pDownstreamGetParams[0]->reUse = true;
+  }
   blockDataCleanup(pFinalRes);
-  SExecTaskInfo* pTaskInfo = pOperator->pTaskInfo;
-  bool           withExternalWindow = pTaskInfo->pStreamRuntimeInfo != NULL &&
-                                      pTaskInfo->pStreamRuntimeInfo->funcInfo.withExternalWindow;
+  SExecTaskInfo*          pTaskInfo = pOperator->pTaskInfo;
+  SStreamRuntimeFuncInfo* pStream = GET_STM_RTINFO(pTaskInfo);
+  bool withExternalWindow = pStream != NULL && pStream->withExternalWindow;
+  bool multiGroupProject = projectUsesStrictMultiGroupProtocol(pOperator);
+  bool groupCompleteProject = multiGroupProject && hasLagLeadFunc(pSup);
+  bool mergeProjectOutput = pProjectInfo->mergeDataBlocks && !groupCompleteProject;
+  bool finalizeBufferedGroup = false;
 
-  if (pOperator->status == OP_EXEC_DONE) {
-    return code;
+  code = projectValidateMultiGroupProtocolMode(pOperator);
+  QUERY_CHECK_CODE(code, lino, _end);
+  if (multiGroupProject) {
+    taosArrayClear(pProjectInfo->pInputWinIdx);
+    taosArrayClear(pProjectInfo->pOutputWinIdx);
+  }
+
+  if (multiGroupProject && pProjectInfo->pendingEog) {
+    code = projectPrepareEog(pProjectInfo, pStream, pRes, pProjectInfo->pendingEogGroupId);
+    QUERY_CHECK_CODE(code, lino, _end);
+    pProjectInfo->pendingEog = false;
+    pProjectInfo->pendingEogGroupId = 0;
+    projectClearZeroRowDrain(pProjectInfo);
+    pProjectInfo->bufferedGroupId = 0;
+    *pResBlock = pRes;
+    goto _end;
+  }
+
+  if (pOperator->status == OP_EXEC_DONE && !(multiGroupProject && pProjectInfo->drainingZeroRows)) {
+    goto _end;
   }
 
   SOperatorInfo* downstream = pOperator->numOfDownstream > 0 ? pOperator->pDownstream[0] : NULL;
@@ -518,26 +1405,82 @@ int32_t doProjectOperation(SOperatorInfo* pOperator, SSDataBlock** pResBlock) {
     }
 
     *pResBlock = (pRes->info.rows > 0)? pRes:NULL;
-    return code;
+    goto _end;
   }
 
   while (1) {
     while (1) {
-      blockDataCleanup(pRes);
+      if (!groupCompleteProject || pProjectInfo->bufferedGroupId == 0) {
+        blockDataCleanup(pRes);
+      }
 
       // The downstream exec may change the value of the newgroup, so use a local variable instead.
       SSDataBlock* pBlock = getNextBlockFromDownstream(pOperator, 0);
       if (pBlock == NULL) {
+        if (multiGroupProject && (pProjectInfo->drainingZeroRows || pProjectInfo->bufferedGroupId != 0)) {
+          code = TSDB_CODE_STREAM_INTERNAL_ERROR;
+          QUERY_CHECK_CODE(code, lino, _end);
+        }
         qDebug("set op close, exec %d, status %d rows %" PRId64 , pTaskInfo->execModel, pOperator->status, pFinalRes->info.rows);
         setOperatorCompleted(pOperator);
         break;
+      }
+
+      if (multiGroupProject) {
+        code = projectValidateZeroRowDrainInput(pProjectInfo, pBlock);
+        QUERY_CHECK_CODE(code, lino, _end);
+      }
+      if (groupCompleteProject) {
+        code = projectValidateGroupBufferInput(pProjectInfo, pBlock);
+        QUERY_CHECK_CODE(code, lino, _end);
+      }
+
+      if (multiGroupProject && qIsMultiGroupEogBlock(pBlock)) {
+        if (groupCompleteProject && pProjectInfo->bufferedGroupId != 0) {
+          pProjectInfo->pendingEog = true;
+          pProjectInfo->pendingEogGroupId = pBlock->info.id.baseGId;
+          pProjectInfo->bufferedGroupId = 0;
+          finalizeBufferedGroup = true;
+          break;
+        }
+        if (mergeProjectOutput && pFinalRes->info.rows > 0) {
+          if (pFinalRes->info.id.baseGId != pBlock->info.id.baseGId ||
+              pFinalRes->info.id.groupId != pBlock->info.id.baseGId) {
+            code = TSDB_CODE_STREAM_INTERNAL_ERROR;
+            QUERY_CHECK_CODE(code, lino, _end);
+          }
+          pProjectInfo->pendingEog = true;
+          pProjectInfo->pendingEogGroupId = pBlock->info.id.baseGId;
+          break;
+        }
+        code = projectPrepareEog(pProjectInfo, pStream, pRes, pBlock->info.id.baseGId);
+        QUERY_CHECK_CODE(code, lino, _end);
+        projectClearZeroRowDrain(pProjectInfo);
+        *pResBlock = pRes;
+        goto _end;
+      }
+
+      // Every strict DATA starts a group protocol, even if it is discarded or later filtered to zero rows.
+      if (multiGroupProject) {
+        if (pBlock->info.id.baseGId == 0 || pBlock->info.id.groupId != pBlock->info.id.baseGId) {
+          code = TSDB_CODE_STREAM_INTERNAL_ERROR;
+          QUERY_CHECK_CODE(code, lino, _end);
+        }
+        code = projectStartZeroRowDrain(pProjectInfo, pBlock->info.id.baseGId);
+        QUERY_CHECK_CODE(code, lino, _end);
+      }
+
+      if (!multiGroupProject && pStream != NULL && pStream->isMultiGroupCalc && withExternalWindow &&
+          pStream->curGrpCalc != NULL && pBlock->info.rows == 0) {
+        *pResBlock = pBlock;
+        goto _end;
       }
 //      if (pTaskInfo->execModel == OPTR_EXEC_MODEL_QUEUE) {
 //        qDebug("set status recv");
 //        pOperator->status = OP_EXEC_RECV;
 //      }
 
-      if (pProjectInfo->inputIgnoreGroup) {
+      if (pProjectInfo->inputIgnoreGroup && !multiGroupProject) {
         pBlock->info.id.groupId = 0;
       }
 
@@ -548,13 +1491,37 @@ int32_t doProjectOperation(SOperatorInfo* pOperator, SSDataBlock** pResBlock) {
 
       (void) setInfoForNewGroup(pBlock, pLimitInfo, pOperator);
       if (pOperator->status == OP_EXEC_DONE) {
+        if (multiGroupProject && pProjectInfo->drainingZeroRows) {
+          continue;
+        }
         break;
       }
 
-      if (pProjectInfo->mergeDataBlocks) {
+      if (mergeProjectOutput) {
         pFinalRes->info.scanFlag = scanFlag = pBlock->info.scanFlag;
+        pFinalRes->info.scanPhase = pBlock->info.scanPhase;
       } else {
         pRes->info.scanFlag = scanFlag = pBlock->info.scanFlag;
+        pRes->info.scanPhase = pBlock->info.scanPhase;
+      }
+
+      SArray* pProjectedWinIdx = NULL;
+      if (multiGroupProject && pBlock->info.rows > 0) {
+        code = projectSnapshotInputLineage(pProjectInfo, pStream->pStreamBlkWinIdx, pBlock->info.rows);
+        QUERY_CHECK_CODE(code, lino, _end);
+        if (groupCompleteProject) {
+          code = projectStartGroupBuffer(pProjectInfo, pBlock);
+          QUERY_CHECK_CODE(code, lino, _end);
+        }
+        if (mergeProjectOutput || groupCompleteProject) {
+          code = projectCopyLineage(&pCurrentWinIdx, pProjectInfo->pInputWinIdx, pBlock->info.rows);
+          QUERY_CHECK_CODE(code, lino, _end);
+          pProjectedWinIdx = pCurrentWinIdx;
+        } else {
+          code = projectCopyLineage(&pProjectInfo->pOutputWinIdx, pProjectInfo->pInputWinIdx, pBlock->info.rows);
+          QUERY_CHECK_CODE(code, lino, _end);
+          pProjectedWinIdx = pProjectInfo->pOutputWinIdx;
+        }
       }
 
       code = setInputDataBlock(pSup, pBlock, order, scanFlag, false);
@@ -563,11 +1530,48 @@ int32_t doProjectOperation(SOperatorInfo* pOperator, SSDataBlock** pResBlock) {
       code = blockDataEnsureCapacity(pInfo->pRes, pInfo->pRes->info.rows + pBlock->info.rows);
       QUERY_CHECK_CODE(code, lino, _end);
 
-      code = projectApplyFunctions(pSup->pExprInfo, pInfo->pRes, pBlock, pSup->pCtx, pSup->numOfExprs,
-                                   pProjectInfo->pPseudoColInfo, GET_STM_RTINFO(pOperator->pTaskInfo));
+      int32_t outputOffset = pInfo->pRes->info.rows;
+      if (multiGroupProject && pBlock->info.rows > 0) {
+        code = projectApplyFunctionsWithLineage(pSup->pExprInfo, pInfo->pRes, pBlock, pSup->pCtx, pSup->numOfExprs,
+                                                pProjectInfo->pPseudoColInfo, GET_STM_RTINFO(pOperator->pTaskInfo),
+                                                false, true, pOperator->pTaskInfo, pProjectInfo->pInputWinIdx,
+                                                pProjectedWinIdx, pProjectInfo);
+      } else {
+        code = projectApplyFunctions(pSup->pExprInfo, pInfo->pRes, pBlock, pSup->pCtx, pSup->numOfExprs,
+                                     pProjectInfo->pPseudoColInfo, GET_STM_RTINFO(pOperator->pTaskInfo),
+                                     pOperator->pTaskInfo);
+      }
       QUERY_CHECK_CODE(code, lino, _end);
 
+      if (groupCompleteProject) {
+        int32_t appendedRows = pInfo->pRes->info.rows - outputOffset;
+        if (appendedRows < 0) {
+          code = TSDB_CODE_STREAM_INTERNAL_ERROR;
+          QUERY_CHECK_CODE(code, lino, _end);
+        }
+        code = projectAppendMergedLineage(pProjectInfo, pCurrentWinIdx, appendedRows, outputOffset);
+        QUERY_CHECK_CODE(code, lino, _end);
+        continue;
+      }
+
+      int32_t rowsBeforeLimit = pInfo->pRes->info.rows;
+      int64_t offsetBeforeLimit = pLimitInfo->remainOffset;
       status = doIngroupLimitOffset(pLimitInfo, pBlock->info.id.groupId, pInfo->pRes, pOperator);
+      if (multiGroupProject && rowsBeforeLimit > 0) {
+        int32_t startRow = offsetBeforeLimit > 0 ? (int32_t)TMIN(offsetBeforeLimit, rowsBeforeLimit) : 0;
+        code = projectValidateLineage(pProjectedWinIdx, rowsBeforeLimit);
+        QUERY_CHECK_CODE(code, lino, _end);
+        if (startRow > 0 || pInfo->pRes->info.rows != rowsBeforeLimit) {
+          code = mergeProjectOutput ? projectSliceLineageArray(pProjectedWinIdx, startRow, pInfo->pRes->info.rows)
+                                    : projectSliceLineage(pProjectInfo, startRow, pInfo->pRes->info.rows);
+          QUERY_CHECK_CODE(code, lino, _end);
+        }
+      }
+      if (multiGroupProject && pInfo->pRes->info.rows == 0) {
+        code = projectStartZeroRowDrain(pProjectInfo, pBlock->info.id.baseGId);
+        QUERY_CHECK_CODE(code, lino, _end);
+        continue;
+      }
       if (status == PROJECT_RETRIEVE_CONTINUE) {
         continue;
       }
@@ -575,25 +1579,79 @@ int32_t doProjectOperation(SOperatorInfo* pOperator, SSDataBlock** pResBlock) {
       break;
     }
 
-    if (pProjectInfo->mergeDataBlocks) {
+    if (mergeProjectOutput) {
       if (pRes->info.rows > 0) {
-        pFinalRes->info.id.groupId = 0;  // clear groupId
+        int32_t outputOffset = pFinalRes->info.rows;
+        if (multiGroupProject) {
+          if (pRes->info.id.baseGId == 0 || pRes->info.id.groupId != pRes->info.id.baseGId ||
+              (outputOffset > 0 && pFinalRes->info.id.baseGId != pRes->info.id.baseGId)) {
+            code = TSDB_CODE_STREAM_INTERNAL_ERROR;
+            QUERY_CHECK_CODE(code, lino, _end);
+          }
+          if (outputOffset == 0) {
+            pFinalRes->info.id = pRes->info.id;
+          }
+        } else {
+          pFinalRes->info.id.groupId = 0;  // clear groupId
+        }
         pFinalRes->info.version = pRes->info.version;
         // keep baseGId from current upstream block; already set above for this merge round
 
         // continue merge data, ignore the group id
         code = blockDataMerge(pFinalRes, pRes);
         QUERY_CHECK_CODE(code, lino, _end);
+        if (multiGroupProject) {
+          code = projectAppendMergedLineage(pProjectInfo, pCurrentWinIdx, pRes->info.rows, outputOffset);
+          QUERY_CHECK_CODE(code, lino, _end);
+        }
 
+        // Bound the accumulation by bytes as well: the row-count threshold alone is no bound
+        // at all for large values (a 16MB BLOB fills the per-block byte budget in 16 rows and
+        // overflows the int32 range of the per-row offsets in 128).
+        //
+        // This runs AFTER the merge above, so pFinalRes already contains pRes and adding
+        // pRes's length again deliberately over-counts.  What it actually asks is "would one
+        // more block of this size still fit?", which stops the accumulation slightly earlier
+        // than strictly necessary.  That is intentional and harmless: it only moves the block
+        // boundaries, the returned rows are unaffected.  It also has to be this way, because
+        // pRes comes from getNextBlockFromDownstream() and is already consumed here - it could
+        // not be left for the next call without a pending-block mechanism.
         if (!withExternalWindow && pFinalRes->info.rows + pRes->info.rows <= pOperator->resultInfo.threshold &&
-            (pOperator->status != OP_EXEC_DONE)) {
+            (pOperator->status != OP_EXEC_DONE) && !blockDataMergeExceedLimit(pFinalRes, pRes)) {
           continue;
         }
       }
 
       // do apply filter
-      code = doFilter(pFinalRes, pOperator->exprSupp.pFilterInfo, NULL, NULL);
+      if (pOperator->exprSupp.pFilterInfo != NULL) {
+        filterSetExecContext(pOperator->exprSupp.pFilterInfo, pOperator->pTaskInfo, isTaskKilled);
+      }
+      int32_t rowsBeforeFilter = pFinalRes->info.rows;
+      code = doFilterWithTaskCorrelation(pFinalRes, pOperator->exprSupp.pFilterInfo, NULL,
+                                         multiGroupProject ? &pFilterRes : NULL, pOperator->pTaskInfo);
       QUERY_CHECK_CODE(code, lino, _end);
+      if (multiGroupProject && pFinalRes->info.rows < rowsBeforeFilter) {
+        if (pFilterRes == NULL) {
+          code = TSDB_CODE_STREAM_INTERNAL_ERROR;
+          QUERY_CHECK_CODE(code, lino, _end);
+        }
+        code = projectRebuildLineageByFilter(pProjectInfo, rowsBeforeFilter, pFilterRes);
+        QUERY_CHECK_CODE(code, lino, _end);
+      }
+      colDataDestroy(pFilterRes);
+      taosMemoryFreeClear(pFilterRes);
+
+      if (multiGroupProject && pProjectInfo->pendingEog && pFinalRes->info.rows == 0) {
+        code = projectStartZeroRowDrain(pProjectInfo, pProjectInfo->pendingEogGroupId);
+        QUERY_CHECK_CODE(code, lino, _end);
+        code = projectPrepareEog(pProjectInfo, pStream, pRes, pProjectInfo->pendingEogGroupId);
+        QUERY_CHECK_CODE(code, lino, _end);
+        pProjectInfo->pendingEog = false;
+        pProjectInfo->pendingEogGroupId = 0;
+        projectClearZeroRowDrain(pProjectInfo);
+        *pResBlock = pRes;
+        goto _end;
+      }
 
       // when apply the limit/offset for each group, pRes->info.rows may be 0, due to limit constraint.
       if (pFinalRes->info.rows > 0 || (pOperator->status == OP_EXEC_DONE)) {
@@ -601,12 +1659,63 @@ int32_t doProjectOperation(SOperatorInfo* pOperator, SSDataBlock** pResBlock) {
         break;
       }
     } else {
+      if (groupCompleteProject && finalizeBufferedGroup) {
+        int32_t rowsBeforeLimit = pRes->info.rows;
+        int64_t offsetBeforeLimit = pLimitInfo->remainOffset;
+        (void)doIngroupLimitOffset(pLimitInfo, pProjectInfo->pendingEogGroupId, pRes, pOperator);
+        if (rowsBeforeLimit > 0) {
+          int32_t startRow = offsetBeforeLimit > 0 ? (int32_t)TMIN(offsetBeforeLimit, rowsBeforeLimit) : 0;
+          code = projectValidateLineage(pProjectInfo->pOutputWinIdx, rowsBeforeLimit);
+          QUERY_CHECK_CODE(code, lino, _end);
+          if (startRow > 0 || pRes->info.rows != rowsBeforeLimit) {
+            code = projectSliceLineage(pProjectInfo, startRow, pRes->info.rows);
+            QUERY_CHECK_CODE(code, lino, _end);
+          }
+        }
+        if (pRes->info.rows == 0 && pProjectInfo->pendingEog) {
+          taosArrayClear(pProjectInfo->pOutputWinIdx);
+          code = projectPrepareEog(pProjectInfo, pStream, pRes, pProjectInfo->pendingEogGroupId);
+          QUERY_CHECK_CODE(code, lino, _end);
+          pProjectInfo->pendingEog = false;
+          pProjectInfo->pendingEogGroupId = 0;
+          projectClearZeroRowDrain(pProjectInfo);
+          *pResBlock = pRes;
+          goto _end;
+        }
+      }
+
       // do apply filter
       if (pRes->info.rows > 0) {
-        code = doFilter(pRes, pOperator->exprSupp.pFilterInfo, NULL, NULL);
+        int32_t rowsBeforeFilter = pRes->info.rows;
+        code = doFilterWithTaskCorrelation(pRes, pOperator->exprSupp.pFilterInfo, NULL,
+                                           multiGroupProject ? &pFilterRes : NULL, pOperator->pTaskInfo);
         QUERY_CHECK_CODE(code, lino, _end);
+        if (multiGroupProject && pRes->info.rows < rowsBeforeFilter) {
+          if (pFilterRes == NULL) {
+            code = TSDB_CODE_STREAM_INTERNAL_ERROR;
+            QUERY_CHECK_CODE(code, lino, _end);
+          }
+          code = projectRebuildLineageByFilter(pProjectInfo, rowsBeforeFilter, pFilterRes);
+          QUERY_CHECK_CODE(code, lino, _end);
+        }
+        colDataDestroy(pFilterRes);
+        taosMemoryFreeClear(pFilterRes);
 
         if (pRes->info.rows == 0) {
+          if (multiGroupProject) {
+            taosArrayClear(pProjectInfo->pOutputWinIdx);
+            if (groupCompleteProject && pProjectInfo->pendingEog) {
+              code = projectPrepareEog(pProjectInfo, pStream, pRes, pProjectInfo->pendingEogGroupId);
+              QUERY_CHECK_CODE(code, lino, _end);
+              pProjectInfo->pendingEog = false;
+              pProjectInfo->pendingEogGroupId = 0;
+              projectClearZeroRowDrain(pProjectInfo);
+              *pResBlock = pRes;
+              goto _end;
+            }
+            code = projectStartZeroRowDrain(pProjectInfo, pRes->info.id.baseGId);
+            QUERY_CHECK_CODE(code, lino, _end);
+          }
           continue;
         }
       }
@@ -616,21 +1725,40 @@ int32_t doProjectOperation(SOperatorInfo* pOperator, SSDataBlock** pResBlock) {
     }
   }
 
-  SSDataBlock* p = pProjectInfo->mergeDataBlocks ? pFinalRes : pRes;
+  SSDataBlock* p = mergeProjectOutput ? pFinalRes : pRes;
   p->info.dataLoad = 1;
 
-  if (pProjectInfo->outputIgnoreGroup) {
+  if (pProjectInfo->outputIgnoreGroup && !multiGroupProject) {
     p->info.id.groupId = 0;
   }
 
+  if (multiGroupProject && p->info.rows > 0) {
+    if (p->info.id.baseGId == 0 || p->info.id.groupId != p->info.id.baseGId) {
+      code = TSDB_CODE_STREAM_INTERNAL_ERROR;
+      QUERY_CHECK_CODE(code, lino, _end);
+    }
+    code = projectPublishLineage(pProjectInfo, pStream, p->info.rows);
+    QUERY_CHECK_CODE(code, lino, _end);
+  }
+
   if (pTaskInfo->execModel == OPTR_EXEC_MODEL_STREAM) {
-    printDataBlock(p, getStreamOpName(pOperator->operatorType), GET_TASKID(pTaskInfo), pTaskInfo->id.queryId);
+    printDataBlock(p, getStreamOpName(pOperator->operatorType), GET_TASKID(pTaskInfo), pTaskInfo->id.queryId, pTaskInfo->charsetCxt);
   }
 
   *pResBlock = (p->info.rows > 0)? p:NULL;
 
 _end:
+  colDataDestroy(pFilterRes);
+  taosMemoryFree(pFilterRes);
+  taosArrayDestroy(pCurrentWinIdx);
   if (code != TSDB_CODE_SUCCESS) {
+    pProjectInfo->bufferedGroupId = 0;
+    pProjectInfo->pendingEog = false;
+    pProjectInfo->pendingEogGroupId = 0;
+    projectClearZeroRowDrain(pProjectInfo);
+    blockDataCleanup(pRes);
+    taosArrayClear(pProjectInfo->pInputWinIdx);
+    taosArrayClear(pProjectInfo->pOutputWinIdx);
     qError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
     pTaskInfo->code = code;
     T_LONG_JMP(pTaskInfo->env, code);
@@ -729,8 +1857,7 @@ int32_t createIndefinitOutputOperatorInfo(SOperatorInfo* downstream, SPhysiNode*
   TSDB_CHECK_CODE(code, lino, _error);
 
   pInfo->binfo.pRes = pResBlock;
-  pInfo->binfo.inputTsOrder = pNode->inputTsOrder;
-  pInfo->binfo.outputTsOrder = pNode->outputTsOrder;
+  setOptrBasicInfoOrder(&pInfo->binfo, pNode);
   code = setRowTsColumnOutputInfo(pSup->pCtx, numOfExpr, &pInfo->pPseudoColInfo);
   TSDB_CHECK_CODE(code, lino, _error);
 
@@ -769,7 +1896,8 @@ static void doHandleDataBlock(SOperatorInfo* pOperator, SSDataBlock* pBlock, SOp
   SExprSupp* pScalarSup = &pIndefInfo->scalarSup;
   if (pScalarSup->pExprInfo != NULL) {
     code = projectApplyFunctions(pScalarSup->pExprInfo, pBlock, pBlock, pScalarSup->pCtx, pScalarSup->numOfExprs,
-                                 pIndefInfo->pPseudoColInfo, GET_STM_RTINFO(pOperator->pTaskInfo));
+                                 pIndefInfo->pPseudoColInfo, GET_STM_RTINFO(pOperator->pTaskInfo),
+                                 pOperator->pTaskInfo);
     if (code != TSDB_CODE_SUCCESS) {
       T_LONG_JMP(pTaskInfo->env, code);
     }
@@ -786,7 +1914,8 @@ static void doHandleDataBlock(SOperatorInfo* pOperator, SSDataBlock* pBlock, SOp
   }
 
   code = projectApplyFunctions(pSup->pExprInfo, pInfo->pRes, pBlock, pSup->pCtx, pSup->numOfExprs,
-                               pIndefInfo->pPseudoColInfo, GET_STM_RTINFO(pOperator->pTaskInfo));
+                               pIndefInfo->pPseudoColInfo, GET_STM_RTINFO(pOperator->pTaskInfo),
+                               pOperator->pTaskInfo);
   if (code != TSDB_CODE_SUCCESS) {
     T_LONG_JMP(pTaskInfo->env, code);
   }
@@ -863,7 +1992,8 @@ int32_t doApplyIndefinitFunction(SOperatorInfo* pOperator, SSDataBlock** pResBlo
       }
     }
 
-    code = doFilter(pInfo->pRes, pOperator->exprSupp.pFilterInfo, NULL, NULL);
+    code = doFilterWithTaskCorrelation(pInfo->pRes, pOperator->exprSupp.pFilterInfo, NULL, NULL,
+                                       pOperator->pTaskInfo);
     QUERY_CHECK_CODE(code, lino, _end);
 
     size_t rows = pInfo->pRes->info.rows;
@@ -967,6 +2097,9 @@ int32_t doGenerateSourceData(SOperatorInfo* pOperator) {
   SSDataBlock* pRes = pProjectInfo->binfo.pRes;
   SExprInfo*   pExpr = pSup->pExprInfo;
   SExecTaskInfo* pTaskInfo = pOperator->pTaskInfo;
+  SCorrelationEvalContext correlation = {0};
+  SCorrelationWaitHooks wait = {0};
+  const SCorrelationEvalContext* pCorrelation = initTaskCorrelationEvalContext(pTaskInfo, &correlation, &wait);
 
   int32_t code = blockDataEnsureCapacity(pRes, pOperator->resultInfo.capacity);
   if (code) {
@@ -1002,7 +2135,15 @@ int32_t doGenerateSourceData(SOperatorInfo* pOperator) {
           return terrno;
         }
 
-        void* px = taosArrayPush(pBlockList, &pRes);
+        SNode* pFunction = (SNode*)pExpr[k].pExpr->_function.pFunctNode;
+        bool hasCorrelation = NULL != pCorrelation && nodesExprHasCorrelation(pFunction);
+        SSDataBlock virtualInput = {0};
+        SSDataBlock* pInput = pRes;
+        if (hasCorrelation) {
+          virtualInput.info.rows = 1;
+          pInput = &virtualInput;
+        }
+        void* px = taosArrayPush(pBlockList, &pInput);
         if (px == NULL) {
           return terrno;
         }
@@ -1015,9 +2156,14 @@ int32_t doGenerateSourceData(SOperatorInfo* pOperator) {
         SColumnInfoData  idata = {.info = pResColData->info, .hasNull = true};
 
         SScalarParam dest = {.columnData = &idata};
-        gTaskScalarExtra.pStreamInfo = GET_STM_RTINFO(pOperator->pTaskInfo);
+        gTaskScalarExtra.pStreamInfo  = GET_STM_RTINFO(pOperator->pTaskInfo);
         gTaskScalarExtra.pStreamRange = NULL;
-        code = scalarCalculate((SNode*)pExpr[k].pExpr->_function.pFunctNode, pBlockList, &dest, &gTaskScalarExtra);
+        gTaskScalarExtra.pTaskInfo    = pOperator->pTaskInfo;
+        gTaskScalarExtra.isTaskKilled = isTaskKilled;
+        SScalarExtraInfo scalarExtra = gTaskScalarExtra;
+        scalarExtra.pCorrelation = pCorrelation;
+        code = scalarCalculate(pFunction, pBlockList, &dest,
+                               hasCorrelation ? &scalarExtra : &gTaskScalarExtra);
         if (code != TSDB_CODE_SUCCESS) {
           taosArrayDestroy(pBlockList);
           return code;
@@ -1036,17 +2182,22 @@ int32_t doGenerateSourceData(SOperatorInfo* pOperator) {
         colDataDestroy(&idata);
         taosArrayDestroy(pBlockList);
       } else {
+        qError("%s: unsupported scalar expression node type at line %d, since %s", __func__, __LINE__, tstrerror(TSDB_CODE_OPS_NOT_SUPPORT));
         return TSDB_CODE_OPS_NOT_SUPPORT;
       }
     } else if (pExpr[k].pExpr->nodeType == QUERY_NODE_OPERATOR) {
-      TAOS_CHECK_RETURN(projectApplyOperator(&pExpr[k], pRes, NULL, outputSlotId, NULL, false, &gTaskScalarExtra));
+      SScalarExtraInfo scalarExtra = gTaskScalarExtra;
+      scalarExtra.pCorrelation = pCorrelation;
+      TAOS_CHECK_RETURN(projectApplyOperator(&pExpr[k], pRes, NULL, outputSlotId, NULL, false,
+                                             &gTaskScalarExtra, NULL == pCorrelation ? NULL : &scalarExtra));
     } else {
+      qError("%s: unsupported expression node type at line %d, since %s", __func__, __LINE__, tstrerror(TSDB_CODE_OPS_NOT_SUPPORT));
       return TSDB_CODE_OPS_NOT_SUPPORT;
     }
   }
 
   pRes->info.rows = 1;
-  code = doFilter(pRes, pOperator->exprSupp.pFilterInfo, NULL, NULL);
+  code = doFilterWithTaskCorrelation(pRes, pOperator->exprSupp.pFilterInfo, NULL, NULL, pTaskInfo);
   if (code) {
     pTaskInfo->code = code;
     return code;
@@ -1069,7 +2220,35 @@ static void setPseudoOutputColInfo(SSDataBlock* pResult, SqlFunctionCtx* pCtx, S
   }
 }
 
-int32_t projectApplyColumn(SSDataBlock* pResult, SSDataBlock* pSrcBlock, int32_t outputSlotId, SqlFunctionCtx* pfCtx, int32_t* numOfRows, bool createNewColModel) {
+static int32_t projectAssignColumn(SColumnInfoData* pDst, const SColumnInfoData* pSrc, int32_t rows,
+                                   const SDataBlockInfo* pBlockInfo) {
+  uint8_t precision = pDst->info.precision;
+  uint8_t scale = pDst->info.scale;
+  int32_t plannedBytes = pDst->info.bytes;
+  if (IS_DECIMAL_TYPE(pDst->info.type) && precision != 0 &&
+      (pSrc->info.precision != 0 || pSrc->info.scale != 0) &&
+      (precision != pSrc->info.precision || scale != pSrc->info.scale)) {
+    return TSDB_CODE_INVALID_MSG;
+  }
+
+  int32_t code = colDataAssign(pDst, pSrc, rows, pBlockInfo);
+  if (code == TSDB_CODE_SUCCESS && IS_DECIMAL_TYPE(pDst->info.type) && precision != 0) {
+    // colDataAssign copies source metadata; Project's declared decimal type owns the output schema.
+    pDst->info.precision = precision;
+    pDst->info.scale = scale;
+  }
+  if (code == TSDB_CODE_SUCCESS && IS_VAR_DATA_TYPE(pDst->info.type)) {
+    // colDataAssign also adopts the source column width.  For a varlen output column the
+    // plan may declare the result wider than the input block carries (e.g. a set-op
+    // operand widened to the union's maximum width), and the emitted block must keep the
+    // planned width: the data sink validates every block against the plan's schema.
+    pDst->info.bytes = plannedBytes;
+  }
+  return code;
+}
+
+int32_t projectApplyColumn(SSDataBlock* pResult, SSDataBlock* pSrcBlock, int32_t outputSlotId,
+                           SqlFunctionCtx* pfCtx, int64_t* numOfRows, bool createNewColModel) {
   int32_t code = 0, lino = 0;
   SInputColumnInfoData* pInputData = &pfCtx->input;
   SColumnInfoData* pColInfoData = taosArrayGet(pResult->pDataBlock, outputSlotId);
@@ -1100,13 +2279,13 @@ int32_t projectApplyColumn(SSDataBlock* pResult, SSDataBlock* pSrcBlock, int32_t
     SColumnInfoData* pInput = taosArrayGet(pSrcBlock->pDataBlock, slotId);
     TSDB_CHECK_NULL(pInput, code, lino, _exit, terrno);
 
-    TAOS_CHECK_EXIT(colDataAssign(pColInfoData, pInput, pSrcBlock->info.rows, &pResult->info));
+    TAOS_CHECK_EXIT(projectAssignColumn(pColInfoData, pInput, pSrcBlock->info.rows, &pResult->info));
     *numOfRows = pSrcBlock->info.rows;
 
     return code;
   }
   
-  TAOS_CHECK_EXIT(colDataAssign(pColInfoData, pInputData->pData[0], pInputData->numOfRows, &pResult->info));
+  TAOS_CHECK_EXIT(projectAssignColumn(pColInfoData, pInputData->pData[0], pInputData->numOfRows, &pResult->info));
   *numOfRows = pInputData->numOfRows;
 
 _exit:
@@ -1119,7 +2298,8 @@ _exit:
 }
 
 
-int32_t projectApplyValue(SExprInfo* pExpr, SSDataBlock* pResult, SSDataBlock* pSrcBlock, int32_t outputSlotId, int32_t* numOfRows, bool createNewColModel) {
+int32_t projectApplyValue(SExprInfo* pExpr, SSDataBlock* pResult, SSDataBlock* pSrcBlock, int32_t outputSlotId,
+                          int64_t* numOfRows, bool createNewColModel) {
   int32_t code = 0, lino = 0;
   SColumnInfoData* pColInfoData = taosArrayGet(pResult->pDataBlock, outputSlotId);
   TSDB_CHECK_NULL(pColInfoData, code, lino, _exit, terrno);
@@ -1148,25 +2328,34 @@ _exit:
 
 
 
-int32_t projectApplyOperator(SExprInfo* pExpr, SSDataBlock* pResult, SSDataBlock* pSrcBlock, int32_t outputSlotId, int32_t* numOfRows, bool createNewColModel, const void* pExtraParams) {
-  int32_t code = 0, lino = 0;
-  SArray* pBlockList = NULL;
-  if (NULL != pSrcBlock) {
-    pBlockList = taosArrayInit(4, POINTER_BYTES);
-    TSDB_CHECK_NULL(pBlockList, code, lino, _exit, terrno);
+int32_t projectApplyOperator(SExprInfo* pExpr, SSDataBlock* pResult, SSDataBlock* pSrcBlock, int32_t outputSlotId,
+                             int64_t* numOfRows, bool createNewColModel, const void* pExtraParams,
+                             const SScalarExtraInfo* pScalarExtra) {
+  int32_t     code = 0, lino = 0;
+  SSDataBlock scalarBlock = {0};
+  SArray*     pBlockList = taosArrayInit(4, POINTER_BYTES);
+  TSDB_CHECK_NULL(pBlockList, code, lino, _exit, terrno);
 
-    void* px = taosArrayPush(pBlockList, &pSrcBlock);
-    TSDB_CHECK_NULL(px, code, lino, _exit, terrno);
+  if (NULL == pSrcBlock) {
+    // Source-less SELECT still emits one row, so scalar expressions must not
+    // be evaluated against an empty input range.
+    scalarBlock.info.rows = 1;
+    pSrcBlock = &scalarBlock;
   }
+
+  void* px = taosArrayPush(pBlockList, &pSrcBlock);
+  TSDB_CHECK_NULL(px, code, lino, _exit, terrno);
   
   SColumnInfoData* pResColData = taosArrayGet(pResult->pDataBlock, outputSlotId);
   TSDB_CHECK_NULL(pResColData, code, lino, _exit, terrno);
 
   SColumnInfoData idata = {.info = pResColData->info, .hasNull = true};
   SScalarParam dest = {.columnData = &idata};
-  gTaskScalarExtra.pStreamInfo = (void*)pExtraParams;
-  gTaskScalarExtra.pStreamRange = NULL;
-  TAOS_CHECK_EXIT(scalarCalculate(pExpr->pExpr->_optrRoot.pRootNode, pBlockList, &dest, &gTaskScalarExtra));
+  SScalarExtraInfo extra = pScalarExtra ? *pScalarExtra : gTaskScalarExtra;
+  SScalarExtraInfo* pExtra = pScalarExtra ? &extra : &gTaskScalarExtra;
+  pExtra->pStreamInfo = (void*)pExtraParams;
+  pExtra->pStreamRange = NULL;
+  TAOS_CHECK_EXIT(scalarCalculate(pExpr->pExpr->_optrRoot.pRootNode, pBlockList, &dest, pExtra));
 
   if (pResult->info.rows > 0 && !createNewColModel) {
     code = colDataMergeCol(pResColData, pResult->info.rows, (int32_t*)&pResult->info.capacity, &idata, dest.numOfRows);
@@ -1192,10 +2381,11 @@ _exit:
   return code;
 }
 
-
-int32_t projectApplyFunction(SqlFunctionCtx* pCtx, SqlFunctionCtx* pfCtx, SExprInfo* pExpr, SSDataBlock* pResult, SSDataBlock* pSrcBlock, 
-                                    int32_t outputSlotId, int32_t* numOfRows, bool createNewColModel, const void* pExtraParams, 
-                                    SArray* pPseudoList, SArray** processByRowFunctionCtx, bool doSelectFunc) {
+static int32_t projectApplyFunctionWithLineage(SqlFunctionCtx* pCtx, SqlFunctionCtx* pfCtx, SExprInfo* pExpr,
+                                               SSDataBlock* pResult, SSDataBlock* pSrcBlock, int32_t outputSlotId,
+                                               int64_t* numOfRows, bool createNewColModel, const void* pExtraParams,
+                                               SArray* pPseudoList, SArray** processByRowFunctionCtx, bool doSelectFunc,
+                                               const SArray* pInputWinIdx, const SScalarExtraInfo* pScalarExtra) {
   int32_t code = 0, lino = 0;
   SArray* pBlockList = NULL;
   SColumnInfoData* pResColData = taosArrayGet(pResult->pDataBlock, outputSlotId);
@@ -1204,10 +2394,12 @@ int32_t projectApplyFunction(SqlFunctionCtx* pCtx, SqlFunctionCtx* pfCtx, SExprI
   if (fmIsPlaceHolderFunc(pfCtx->functionId) && pExtraParams && pfCtx->pExpr->base.pParamList && 1 == pfCtx->pExpr->base.pParamList->length) {
     SNode* pParamNode = nodesListGetNode(pfCtx->pExpr->base.pParamList, 0);
     SStreamRuntimeFuncInfo* pStreamInfo = (SStreamRuntimeFuncInfo*)pExtraParams;
-    if (pStreamInfo != NULL && pStreamInfo->withExternalWindow && pStreamInfo->pStreamBlkWinIdx != NULL &&
-        taosArrayGetSize(pStreamInfo->pStreamBlkWinIdx) > 1) {
+    const SArray*           pSourceWinIdx =
+        pInputWinIdx != NULL ? pInputWinIdx : (pStreamInfo == NULL ? NULL : pStreamInfo->pStreamBlkWinIdx);
+    if (pStreamInfo != NULL && pStreamInfo->withExternalWindow && pSourceWinIdx != NULL &&
+        taosArrayGetSize(pSourceWinIdx) > 1) {
       TAOS_CHECK_EXIT(assignPlaceHolderInExternalWindows(pResColData, pResult->info.rows, pSrcBlock->info.rows,
-                                                         pfCtx->functionId, pStreamInfo, pParamNode));
+                                                         pfCtx->functionId, pStreamInfo, pSourceWinIdx, pParamNode));
     } else {
       TAOS_CHECK_EXIT(scalarAssignPlaceHolderRes(pResColData, pResult->info.rows, pSrcBlock->info.rows,
                                                  pfCtx->functionId, pExtraParams, pParamNode));
@@ -1226,9 +2418,11 @@ int32_t projectApplyFunction(SqlFunctionCtx* pCtx, SqlFunctionCtx* pfCtx, SExprI
 
     SColumnInfoData idata = {.info = pResColData->info, .hasNull = true};
     SScalarParam dest = {.columnData = &idata};
-    gTaskScalarExtra.pStreamInfo = (void*)pExtraParams;
-    gTaskScalarExtra.pStreamRange = NULL;
-    TAOS_CHECK_EXIT(scalarCalculate((SNode*)pExpr->pExpr->_function.pFunctNode, pBlockList, &dest, &gTaskScalarExtra));
+    SScalarExtraInfo extra = pScalarExtra ? *pScalarExtra : gTaskScalarExtra;
+    SScalarExtraInfo* pExtra = pScalarExtra ? &extra : &gTaskScalarExtra;
+    pExtra->pStreamInfo = (void*)pExtraParams;
+    pExtra->pStreamRange = NULL;
+    TAOS_CHECK_EXIT(scalarCalculate((SNode*)pExpr->pExpr->_function.pFunctNode, pBlockList, &dest, pExtra));
 
     if (pResult->info.rows > 0 && !createNewColModel) {
       code = colDataMergeCol(pResColData, pResult->info.rows, (int32_t*)&pResult->info.capacity, &idata, dest.numOfRows);
@@ -1241,6 +2435,7 @@ int32_t projectApplyFunction(SqlFunctionCtx* pCtx, SqlFunctionCtx* pfCtx, SExprI
 
     colDataDestroy(&idata);
     taosArrayDestroy(pBlockList);
+    pBlockList = NULL;
     TAOS_CHECK_EXIT(code);
 
     *numOfRows = dest.numOfRows;
@@ -1280,7 +2475,7 @@ int32_t projectApplyFunction(SqlFunctionCtx* pCtx, SqlFunctionCtx* pfCtx, SExprI
     }
 
     *numOfRows = pResInfo->numOfRes;
-    
+
     if (fmIsProcessByRowFunc(pfCtx->functionId)) {
       if (NULL == *processByRowFunctionCtx) {
         *processByRowFunctionCtx = taosArrayInit(1, sizeof(SqlFunctionCtx*));
@@ -1342,12 +2537,37 @@ _exit:
   return code;
 }
 
+int32_t projectApplyFunction(SqlFunctionCtx* pCtx, SqlFunctionCtx* pfCtx, SExprInfo* pExpr, SSDataBlock* pResult,
+                             SSDataBlock* pSrcBlock, int32_t outputSlotId, int64_t* numOfRows, bool createNewColModel,
+                             const void* pExtraParams, SArray* pPseudoList, SArray** processByRowFunctionCtx,
+                             bool doSelectFunc) {
+  return projectApplyFunctionWithLineage(pCtx, pfCtx, pExpr, pResult, pSrcBlock, outputSlotId, numOfRows,
+                                         createNewColModel, pExtraParams, pPseudoList, processByRowFunctionCtx,
+                                         doSelectFunc, NULL, NULL);
+}
 
-int32_t projectApplyFunctionsWithSelect(SExprInfo* pExpr, SSDataBlock* pResult, SSDataBlock* pSrcBlock,
-                                        SqlFunctionCtx* pCtx, int32_t numOfOutput, SArray* pPseudoList,
-                                        const void* pExtraParams, bool doSelectFunc, bool hasIndefRowsFunc) {
+static int32_t projectApplyFunctionsWithLineage(SExprInfo* pExpr, SSDataBlock* pResult, SSDataBlock* pSrcBlock,
+                                                SqlFunctionCtx* pCtx, int32_t numOfOutput, SArray* pPseudoList,
+                                                const void* pExtraParams, bool doSelectFunc, bool hasIndefRowsFunc,
+                                                SExecTaskInfo* pTaskInfo, const SArray* pInputWinIdx,
+                                                SArray* pOutputWinIdx, SProjectOperatorInfo* pProjectInfo) {
   int32_t lino = 0;
   int32_t code = TSDB_CODE_SUCCESS;
+
+  SExecTaskInfo* savedTaskInfo = gTaskScalarExtra.pTaskInfo;
+  sclIsTaskKilled savedIsTaskKilled = gTaskScalarExtra.isTaskKilled;
+
+  if (pTaskInfo != NULL) {
+    gTaskScalarExtra.pTaskInfo    = pTaskInfo;
+    gTaskScalarExtra.isTaskKilled = isTaskKilled;
+  }
+
+  SCorrelationEvalContext correlation = {0};
+  SCorrelationWaitHooks wait = {0};
+  const SCorrelationEvalContext* pCorrelation = initTaskCorrelationEvalContext(pTaskInfo, &correlation, &wait);
+  SScalarExtraInfo scalarExtra = gTaskScalarExtra;
+  scalarExtra.pCorrelation = pCorrelation;
+
   if (hasIndefRowsFunc) {
     setPseudoOutputColInfo(pResult, pCtx, pPseudoList);
   }
@@ -1356,6 +2576,7 @@ int32_t projectApplyFunctionsWithSelect(SExprInfo* pExpr, SSDataBlock* pResult, 
   SArray* processByRowFunctionCtx = NULL;
   SArray* pProcessedFuncIds = NULL;
   SArray* pGroupedCtxArray = NULL;
+  SArray* pGroupOutputWinIdx = NULL;
   if (pSrcBlock == NULL) {
     for (int32_t k = 0; k < numOfOutput; ++k) {
       int32_t outputSlotId = pExpr[k].base.resSchema.slotId;
@@ -1381,6 +2602,7 @@ int32_t projectApplyFunctionsWithSelect(SExprInfo* pExpr, SSDataBlock* pResult, 
 
   if (pResult != pSrcBlock) {
     pResult->info.id.groupId = pSrcBlock->info.id.groupId;
+    pResult->info.id.baseGId = pSrcBlock->info.id.baseGId;
     if (pSrcBlock->info.parTbName[0]) {
       tstrncpy(pResult->info.parTbName, pSrcBlock->info.parTbName, TSDB_TABLE_NAME_LEN);
     }
@@ -1394,11 +2616,11 @@ int32_t projectApplyFunctionsWithSelect(SExprInfo* pExpr, SSDataBlock* pResult, 
     TAOS_CHECK_EXIT(blockDataEnsureCapacity(pResult, pResult->info.rows));
   }
 
-  int32_t numOfRows = 0;
+  int64_t numOfRows = 0;
 
   for (int32_t k = 0; k < numOfOutput; ++k) {
-    int32_t               outputSlotId = pExpr[k].base.resSchema.slotId;
-    SqlFunctionCtx*       pfCtx = &pCtx[k];
+    int32_t         outputSlotId = pExpr[k].base.resSchema.slotId;
+    SqlFunctionCtx* pfCtx = &pCtx[k];
     switch (pExpr[k].pExpr->nodeType) {
       case QUERY_NODE_COLUMN: {
         TAOS_CHECK_EXIT(projectApplyColumn(pResult, pSrcBlock, outputSlotId, pfCtx, &numOfRows, createNewColModel));
@@ -1409,11 +2631,21 @@ int32_t projectApplyFunctionsWithSelect(SExprInfo* pExpr, SSDataBlock* pResult, 
         break;
       } 
       case QUERY_NODE_OPERATOR: {
-        TAOS_CHECK_EXIT(projectApplyOperator(&pExpr[k], pResult, pSrcBlock, outputSlotId, &numOfRows, createNewColModel, pExtraParams));
+        SNode* pRoot = pExpr[k].pExpr->_optrRoot.pRootNode;
+        const SScalarExtraInfo* pScalarExtra =
+            NULL != pCorrelation && nodesExprHasCorrelation(pRoot) ? &scalarExtra : NULL;
+        TAOS_CHECK_EXIT(projectApplyOperator(&pExpr[k], pResult, pSrcBlock, outputSlotId, &numOfRows,
+                                             createNewColModel, pExtraParams, pScalarExtra));
         break;
       } 
       case QUERY_NODE_FUNCTION: {
-        TAOS_CHECK_EXIT(projectApplyFunction(pCtx, pfCtx, &pExpr[k], pResult, pSrcBlock, outputSlotId, &numOfRows, createNewColModel, pExtraParams, pPseudoList, &processByRowFunctionCtx, doSelectFunc));
+        SNode* pFunction = (SNode*)pExpr[k].pExpr->_function.pFunctNode;
+        const SScalarExtraInfo* pScalarExtra =
+            NULL != pCorrelation && nodesExprHasCorrelation(pFunction) ? &scalarExtra : NULL;
+        TAOS_CHECK_EXIT(projectApplyFunctionWithLineage(pCtx, pfCtx, &pExpr[k], pResult, pSrcBlock, outputSlotId,
+                                                        &numOfRows, createNewColModel, pExtraParams, pPseudoList,
+                                                        &processByRowFunctionCtx, doSelectFunc, pInputWinIdx,
+                                                        pScalarExtra));
         break;
       }
       default: {
@@ -1426,12 +2658,18 @@ int32_t projectApplyFunctionsWithSelect(SExprInfo* pExpr, SSDataBlock* pResult, 
   if (processByRowFunctionCtx && taosArrayGetSize(processByRowFunctionCtx) > 0) {
     int32_t processByRowSize = taosArrayGetSize(processByRowFunctionCtx);
     SStreamRuntimeFuncInfo* pStreamInfo = (SStreamRuntimeFuncInfo*)pExtraParams;
+    bool                    hasOwnedLineage = pInputWinIdx != NULL && pOutputWinIdx != NULL;
+    const SArray*           pSourceWinIdx =
+        hasOwnedLineage ? pInputWinIdx : (pStreamInfo == NULL ? NULL : pStreamInfo->pStreamBlkWinIdx);
+    SArray* pTargetWinIdx =
+        hasOwnedLineage ? pOutputWinIdx : (pStreamInfo == NULL ? NULL : pStreamInfo->pStreamBlkWinIdx);
     bool splitByExternalWindow = pSrcBlock != NULL && pStreamInfo != NULL && pStreamInfo->withExternalWindow &&
-                                 pStreamInfo->pStreamBlkWinIdx != NULL &&
-                                 taosArrayGetSize(pStreamInfo->pStreamBlkWinIdx) > 1 &&
-                                 allProcessByRowCtxSameFuncId(processByRowFunctionCtx);
+                                 pSourceWinIdx != NULL && pTargetWinIdx != NULL &&
+                                 taosArrayGetSize(pSourceWinIdx) > (hasOwnedLineage ? 0 : 1) &&
+                                 (hasOwnedLineage || allProcessByRowCtxSameFuncId(processByRowFunctionCtx));
     pProcessedFuncIds = taosArrayInit(4, sizeof(int32_t));
     TSDB_CHECK_NULL(pProcessedFuncIds, code, lino, _exit, terrno);
+    int64_t expectedProcessByRowRows = -1;
 
     for (int32_t i = 0; i < processByRowSize; ++i) {
       SqlFunctionCtx** ppCurrCtx = taosArrayGet(processByRowFunctionCtx, i);
@@ -1467,18 +2705,50 @@ int32_t projectApplyFunctionsWithSelect(SExprInfo* pExpr, SSDataBlock* pResult, 
         }
       }
 
+      SArray* pGroupTargetWinIdx = pTargetWinIdx;
+      if (splitByExternalWindow && expectedProcessByRowRows >= 0) {
+        pGroupOutputWinIdx = taosArrayInit(TMAX(taosArrayGetSize(pSourceWinIdx), 1), sizeof(int64_t));
+        TSDB_CHECK_NULL(pGroupOutputWinIdx, code, lino, _exit, terrno);
+        pGroupTargetWinIdx = pGroupOutputWinIdx;
+      }
+
+      uint64_t groupOutputRows = 0;
       if (splitByExternalWindow) {
-        TAOS_CHECK_EXIT(processByRowInExternalWindows(pGroupedCtxArray, pSrcBlock, pStreamInfo));
+        TAOS_CHECK_EXIT(processByRowInExternalWindows(pGroupedCtxArray, pSrcBlock, pSourceWinIdx, pGroupTargetWinIdx,
+                                                      pProjectInfo));
+        groupOutputRows = (*ppCurrCtx)->resultInfo->numOfRes;
       } else {
         TAOS_CHECK_EXIT((*ppCurrCtx)->fpSet.processFuncByRow(pGroupedCtxArray));
+        if (pProjectInfo != NULL) {
+          TAOS_CHECK_EXIT(
+              projectValidateProcessByRowResultRows(pGroupedCtxArray, pSrcBlock->info.rows, &groupOutputRows));
+        } else {
+          groupOutputRows = (*ppCurrCtx)->resultInfo->numOfRes;
+        }
       }
+
+      if (pProjectInfo == NULL) {
+        expectedProcessByRowRows = (int64_t)groupOutputRows;
+      } else if (expectedProcessByRowRows < 0) {
+        expectedProcessByRowRows = (int64_t)groupOutputRows;
+      } else if ((uint64_t)expectedProcessByRowRows != groupOutputRows ||
+                 (splitByExternalWindow && !projectLineageEqual(pTargetWinIdx, pGroupTargetWinIdx))) {
+        qError("strict Project process-by-row function groups produced inconsistent rows, expected:%" PRId64
+               ", actual:%" PRIu64,
+               expectedProcessByRowRows, groupOutputRows);
+        code = TSDB_CODE_STREAM_INTERNAL_ERROR;
+        goto _exit;
+      }
+      taosArrayDestroy(pGroupOutputWinIdx);
+      pGroupOutputWinIdx = NULL;
       taosArrayDestroy(pGroupedCtxArray);
       pGroupedCtxArray = NULL;
 
-      void* px = taosArrayPush(pProcessedFuncIds, &(*ppCurrCtx)->functionId);
+      int32_t functionId = (*ppCurrCtx)->functionId;
+      void*   px = taosArrayPush(pProcessedFuncIds, &functionId);
       TSDB_CHECK_NULL(px, code, lino, _exit, terrno);
 
-      numOfRows = (*ppCurrCtx)->resultInfo->numOfRes;
+      numOfRows = expectedProcessByRowRows;
     }
 
     taosArrayDestroy(pProcessedFuncIds);
@@ -1486,13 +2756,24 @@ int32_t projectApplyFunctionsWithSelect(SExprInfo* pExpr, SSDataBlock* pResult, 
   }
 
   if (!createNewColModel) {
-    pResult->info.rows += numOfRows;
+    if (numOfRows > INT32_MAX - pResult->info.rows) {
+      code = TSDB_CODE_OUT_OF_RANGE;
+      qError("project output rows overflow, currentRows:%" PRId64 ", appendRows:%" PRId64,
+             (int64_t)pResult->info.rows, numOfRows);
+      goto _exit;
+    }
+
+    pResult->info.rows += (int32_t)numOfRows;
   }
 
 _exit:
+  gTaskScalarExtra.pTaskInfo    = savedTaskInfo;
+  gTaskScalarExtra.isTaskKilled = savedIsTaskKilled;
+
   if (pGroupedCtxArray) {
     taosArrayDestroy(pGroupedCtxArray);
   }
+  taosArrayDestroy(pGroupOutputWinIdx);
   if (pProcessedFuncIds) {
     taosArrayDestroy(pProcessedFuncIds);
   }
@@ -1505,7 +2786,98 @@ _exit:
   return code;
 }
 
+int32_t projectApplyFunctionsWithSelect(SExprInfo* pExpr, SSDataBlock* pResult, SSDataBlock* pSrcBlock,
+                                        SqlFunctionCtx* pCtx, int32_t numOfOutput, SArray* pPseudoList,
+                                        const void* pExtraParams, bool doSelectFunc, bool hasIndefRowsFunc,
+                                        SExecTaskInfo* pTaskInfo) {
+  return projectApplyFunctionsWithLineage(pExpr, pResult, pSrcBlock, pCtx, numOfOutput, pPseudoList, pExtraParams,
+                                          doSelectFunc, hasIndefRowsFunc, pTaskInfo, NULL, NULL, NULL);
+}
+
 int32_t projectApplyFunctions(SExprInfo* pExpr, SSDataBlock* pResult, SSDataBlock* pSrcBlock, SqlFunctionCtx* pCtx,
-                              int32_t numOfOutput, SArray* pPseudoList, const void* pExtraParams) {
-  return projectApplyFunctionsWithSelect(pExpr, pResult, pSrcBlock, pCtx, numOfOutput, pPseudoList, pExtraParams, false, true);
+                              int32_t numOfOutput, SArray* pPseudoList, const void* pExtraParams,
+                              SExecTaskInfo* pTaskInfo) {
+  return projectApplyFunctionsWithSelect(pExpr, pResult, pSrcBlock, pCtx, numOfOutput, pPseudoList, pExtraParams,
+                                         false, true, pTaskInfo);
+}
+
+int32_t projectResolveStreamJoinFilter(SOperatorInfo* pOperator, SStreamJoinFilterSpec* pSpec, bool* pEligible) {
+  if (pOperator == NULL || pSpec == NULL || pEligible == NULL || pSpec->pColumns == NULL ||
+      pSpec->pColumns->elemSize != sizeof(SStreamJoinFilterColumn))
+    return TSDB_CODE_INVALID_PARA;
+  *pEligible = false;
+  const SProjectPhysiNode* pNode = pOperator->pPhyNode;
+  if (pNode == NULL || pNode->node.pConditions != NULL || pOperator->exprSupp.pFilterInfo != NULL ||
+      pNode->node.pLimit != NULL || pNode->node.pSlimit != NULL || pNode->isUnionDedup ||
+      !projectUsesStrictMultiGroupProtocol(pOperator) || pOperator->numOfDownstream != 1 ||
+      pOperator->pDownstream == NULL || pOperator->pDownstream[0] == NULL)
+    return TSDB_CODE_SUCCESS;
+  const SPhysiNode* pChild = pOperator->pDownstream[0]->pPhyNode;
+  if (pChild == NULL || pChild->pOutputDataBlockDesc == NULL || pNode->node.pOutputDataBlockDesc == NULL)
+    return TSDB_CODE_SUCCESS;
+  if (pSpec->inputBlockId != pNode->node.pOutputDataBlockDesc->dataBlockId)
+    return TSDB_CODE_QRY_EXECUTOR_INTERNAL_ERROR;
+  SNode* pProj = NULL;
+  FOREACH(pProj, pNode->pProjections) {
+    if (nodeType(pProj) != QUERY_NODE_TARGET || ((STargetNode*)pProj)->pExpr == NULL ||
+        nodeType(((STargetNode*)pProj)->pExpr) != QUERY_NODE_COLUMN)
+      return TSDB_CODE_SUCCESS;
+  }
+  for (int32_t i = 0; i < taosArrayGetSize(pSpec->pColumns);) {
+    SStreamJoinFilterColumn* pCol = taosArrayGet(pSpec->pColumns, i);
+    const SColumnNode*       pSource = NULL;
+    FOREACH(pProj, pNode->pProjections) {
+      const STargetNode* pTarget = (const STargetNode*)pProj;
+      if (pTarget->slotId == pCol->inputSlot) {
+        if (pTarget->dataBlockId != pSpec->inputBlockId || pSource != NULL)
+          return TSDB_CODE_QRY_EXECUTOR_INTERNAL_ERROR;
+        pSource = (const SColumnNode*)pTarget->pExpr;
+      }
+    }
+    if (pSource == NULL || pSource->dataBlockId != pChild->pOutputDataBlockDesc->dataBlockId)
+      return TSDB_CODE_QRY_EXECUTOR_INTERNAL_ERROR;
+    const SSlotDescNode* pInputSlot = NULL;
+    const SSlotDescNode* pOutputSlot = NULL;
+    SNode*               pEntry = NULL;
+    FOREACH(pEntry, pChild->pOutputDataBlockDesc->pSlots) {
+      if (((SSlotDescNode*)pEntry)->slotId == pSource->slotId) pInputSlot = (const SSlotDescNode*)pEntry;
+    }
+    FOREACH(pEntry, pNode->node.pOutputDataBlockDesc->pSlots) {
+      if (((SSlotDescNode*)pEntry)->slotId == pCol->inputSlot) pOutputSlot = (const SSlotDescNode*)pEntry;
+    }
+    if (pInputSlot == NULL || pOutputSlot == NULL || pSource->slotId < 0 || pCol->inputSlot < 0)
+      return TSDB_CODE_QRY_EXECUTOR_INTERNAL_ERROR;
+    const SDataType* pTypes[] = {&pSource->node.resType, &pInputSlot->dataType, &pOutputSlot->dataType};
+    bool             compatible = true;
+    for (int32_t j = 0; j < 3; ++j) {
+      const SDataType* pType = pTypes[j];
+      if (pType->type != pCol->probeType.type || pType->bytes != pCol->probeType.bytes ||
+          pType->scale != pCol->probeType.scale ||
+          (pType->type == TSDB_DATA_TYPE_TIMESTAMP && pType->precision != pCol->probeType.precision))
+        compatible = false;
+    }
+    if (!compatible) {
+      taosArrayRemove(pSpec->pColumns, i);
+      continue;
+    }
+    pCol->inputSlot = pSource->slotId;
+    ++i;
+  }
+  if (taosArrayGetSize(pSpec->pColumns) == 0) return TSDB_CODE_SUCCESS;
+  pSpec->inputBlockId = pChild->pOutputDataBlockDesc->dataBlockId;
+  SOperatorInfo* pDownstream = pOperator->pDownstream[0];
+  switch (pDownstream->operatorType) {
+    case QUERY_NODE_PHYSICAL_PLAN_PROJECT:
+      return projectResolveStreamJoinFilter(pDownstream, pSpec, pEligible);
+    case QUERY_NODE_PHYSICAL_PLAN_EXTERNAL_WINDOW:
+      return extWinResolveStreamJoinFilter(pDownstream, pSpec, pEligible);
+    default:
+      return TSDB_CODE_SUCCESS;
+  }
+}
+
+int32_t projectInstallStreamJoinFilter(SOperatorInfo* pOperator, SStreamJoinFilter** ppFilter) {
+  if (pOperator == NULL || ppFilter == NULL || *ppFilter == NULL) return TSDB_CODE_INVALID_PARA;
+  if (pOperator->numOfDownstream != 1 || pOperator->pDownstream == NULL) return TSDB_CODE_QRY_EXECUTOR_INTERNAL_ERROR;
+  return optrInstallStreamJoinFilter(pOperator->pDownstream[0], ppFilter);
 }

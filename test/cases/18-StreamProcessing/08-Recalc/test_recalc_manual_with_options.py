@@ -1,3 +1,18 @@
+# Copyright (c) 2025 TAOS Data, Inc. <jhtao@taosdata.com>
+#
+# SPDX-License-Identifier: AGPL-3.0-or-later
+#
+# This program is free software: you can use, redistribute, and/or modify
+# it under the terms of the GNU Affero General Public License, version 3
+# or later ("AGPL"), as published by the Free Software Foundation.
+#
+# This program is distributed in the hope that it will be useful, but WITHOUT
+# ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+# FITNESS FOR A PARTICULAR PURPOSE.
+#
+# You should have received a copy of the GNU Affero General Public License
+# along with this program. If not, see <http://www.gnu.org/licenses/>.
+
 import subprocess
 import time
 from new_test_framework.utils import tdLog, tdSql, clusterComCheck, tdStream, StreamItem
@@ -38,9 +53,10 @@ class TestStreamRecalcWithOptions:
 
         Since: v3.3.7.0
 
-        Labels: common,ci
+        Labels: common,ci,integration,functional
 
         Jira: None
+        Feishu: https://project.feishu.cn/taosdata_td/defect/detail/7073750299
 
         History:
             - 2025-07-23 Beryl Created
@@ -293,7 +309,7 @@ class TestStreamRecalcWithOptions:
         tdSql.checkResultsByFunc(
                 sql=f"select ts, cnt, avg_val from rdb.r_expired_interval",
                 func=lambda: (
-                    tdSql.getRows() == 4
+                    tdSql.getRows() == 5
                     and tdSql.compareData(0, 0, "2025-01-01 02:04:00")
                     and tdSql.compareData(0, 1, 400)
                     and tdSql.compareData(0, 2, 249.5)
@@ -306,6 +322,9 @@ class TestStreamRecalcWithOptions:
                     and tdSql.compareData(3, 0, "2025-01-01 02:10:00")
                     and tdSql.compareData(3, 1, 400)
                     and tdSql.compareData(3, 2, 261.5)
+                    and tdSql.compareData(4, 0, "2025-01-01 02:12:00")
+                    and tdSql.compareData(4, 1, 400)
+                    and tdSql.compareData(4, 2, 265.5)
                 )
             )
 
@@ -336,13 +355,16 @@ class TestStreamRecalcWithOptions:
         tdSql.checkResultsByFunc(
                 sql=f"select ts, cnt, avg_val from rdb.r_disorder_interval",
                 func=lambda: (
-                    tdSql.getRows() == 2
+                    tdSql.getRows() == 3
                     and tdSql.compareData(0, 0, "2025-01-01 02:18:00")
                     and tdSql.compareData(0, 1, 400)
                     and tdSql.compareData(0, 2, 277.5)
                     and tdSql.compareData(1, 0, "2025-01-01 02:20:00")
                     and tdSql.compareData(1, 1, 400)
                     and tdSql.compareData(1, 2, 281.5)
+                    and tdSql.compareData(2, 0, "2025-01-01 02:22:00")
+                    and tdSql.compareData(2, 1, 400)
+                    and tdSql.compareData(2, 2, 285.5)
                 )
             )
         time.sleep(2)
@@ -370,12 +392,15 @@ class TestStreamRecalcWithOptions:
         tdSql.checkResultsByFunc(
                 sql=f"select ts, cnt, avg_val from rdb.r_delete_interval",
                 func=lambda: (
-                    tdSql.getRows() == 2
+                    tdSql.getRows() == 3
                     and tdSql.compareData(0, 0, "2025-01-01 02:30:00")
                     and tdSql.compareData(0, 1, 0)
                     and tdSql.compareData(0, 2, None)
                     and tdSql.compareData(1, 0, "2025-01-01 02:31:00")
                     and tdSql.compareData(1, 1, 0)
                     and tdSql.compareData(1, 2, None)
+                    and tdSql.compareData(2, 0, "2025-01-01 02:31:50")
+                    and tdSql.compareData(2, 1, 100)
+                    and tdSql.compareData(2, 2, 304.0)
                 )
             )

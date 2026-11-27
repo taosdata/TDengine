@@ -1,6 +1,8 @@
 /*
  * Copyright (c) 2019 TAOS Data, Inc. <jhtao@taosdata.com>
  *
+ * SPDX-License-Identifier: AGPL-3.0-or-later
+ *
  * This program is free software: you can use, redistribute, and/or modify
  * it under the terms of the GNU Affero General Public License, version 3
  * or later ("AGPL"), as published by the Free Software Foundation.
@@ -71,7 +73,10 @@ static void    mndCancelGetNextDb(SMnode *pMnode, void *pIter);
 static int32_t mndProcessGetDbCfgReq(SRpcMsg *pReq);
 
 #ifndef TD_ENTERPRISE
-int32_t mndProcessCompactDbReq(SRpcMsg *pReq) { return TSDB_CODE_OPS_NOT_SUPPORT; }
+int32_t mndProcessCompactDbReq(SRpcMsg *pReq) {
+  mError("failed to process compact db req since %s", tstrerror(TSDB_CODE_OPS_NOT_SUPPORT));
+  return TSDB_CODE_OPS_NOT_SUPPORT;
+}
 #endif
 
 int32_t mndInitDb(SMnode *pMnode) {
@@ -533,7 +538,13 @@ int32_t mndCheckDbCfg(SMnode *pMnode, SDbCfg *pCfg) {
   if (pCfg->minRows > pCfg->maxRows) return code;
   if (pCfg->walFsyncPeriod < TSDB_MIN_FSYNC_PERIOD || pCfg->walFsyncPeriod > TSDB_MAX_FSYNC_PERIOD) return code;
   if (pCfg->walLevel < TSDB_MIN_WAL_LEVEL || pCfg->walLevel > TSDB_MAX_WAL_LEVEL) return code;
-  if (pCfg->precision < TSDB_MIN_PRECISION && pCfg->precision > TSDB_MAX_PRECISION) return code;
+  // [Security fix for finding 180] The range test must use ||, not &&: precision is valid only
+  // when it is within [TSDB_MIN_PRECISION, TSDB_MAX_PRECISION] (0..2). The previous `&&` made the
+  // condition unsatisfiable, so an out-of-range precision (e.g. 3..127) was accepted, persisted in
+  // the SDB_DB row, propagated to every vnode, and later used as an index into the 3-element
+  // global tick tables (tsTickPerMin/tsTickPerHour/tsSecTimes). That caused out-of-bounds reads and
+  // potential SIGFPE (division by a zero/garbage slot) which terminated the whole taosd process.
+  if (pCfg->precision < TSDB_MIN_PRECISION || pCfg->precision > TSDB_MAX_PRECISION) return code;
   if (pCfg->compression < TSDB_MIN_COMP_LEVEL || pCfg->compression > TSDB_MAX_COMP_LEVEL) return code;
   if (pCfg->replications < TSDB_MIN_DB_REPLICA || pCfg->replications > TSDB_MAX_DB_REPLICA) return code;
 #ifdef TD_ENTERPRISE
@@ -866,6 +877,11 @@ static int32_t mndSetCreateDbRedoActions(SMnode *pMnode, STrans *pTrans, SDbObj 
       SVnodeGid *pVgid = pVgroup->vnodeGid + vn;
       TAOS_CHECK_RETURN(mndAddCreateVnodeAction(pMnode, pTrans, pDb, pVgroup, pVgid));
     }
+
+    // TDMT_VND_ALTER_CONFIRM is a sync write, so it only succeeds once the vgroup has a leader.
+    // Without this action the trans reaches commit (CREATING -> READY, visible to sdbFetch) while
+    // some vgroups are still leaderless, so `show cluster alive` can transiently report 2.
+    TAOS_CHECK_RETURN(mndAddAlterVnodeConfirmAction(pMnode, pTrans, pDb, pVgroup));
   }
 
   TAOS_RETURN(code);
@@ -1014,7 +1030,7 @@ static int32_t mndCreateDb(SMnode *pMnode, SRpcMsg *pReq, SCreateDbReq *pCreate,
     if (strncasecmp(pCreate->encryptAlgrName, "none", TSDB_ENCRYPT_ALGR_NAME_LEN) == 0) {
       if (pCreate->isAudit == 1) {
         code = TSDB_CODE_AUDIT_MUST_ENCRYPT;
-        mError("db:%s, failed to create, encrypt algorithm not match for audit db, %s", pCreate->db,
+        mError("db:%s, failed to create, encrypt algorithm does not match for audit db, %s", pCreate->db,
                pCreate->encryptAlgrName);
         TAOS_RETURN(code);
       }
@@ -1024,14 +1040,14 @@ static int32_t mndCreateDb(SMnode *pMnode, SRpcMsg *pReq, SCreateDbReq *pCreate,
       if (pEncryptAlgr != NULL) {
         if (pEncryptAlgr->type != ENCRYPT_ALGR_TYPE__SYMMETRIC_CIPHERS) {
           code = TSDB_CODE_MNODE_ENCRYPT_TYPE_NOT_MATCH;
-          mError("db:%s, failed to create, encrypt algorithm not match, %s, expect type %d", pCreate->db,
+          mError("db:%s, failed to create, encrypt algorithm does not match, %s, expect type %d", pCreate->db,
                  pCreate->encryptAlgrName, ENCRYPT_ALGR_TYPE__SYMMETRIC_CIPHERS);
           TAOS_RETURN(code);
         }
         dbObj.cfg.encryptAlgorithm = pEncryptAlgr->id;
       } else {
         code = TSDB_CODE_MNODE_ENCRYPT_ALGR_NOT_EXIST;
-        mError("db:%s, failed to create, encrypt algorithm not exist, %s", pCreate->db, pCreate->encryptAlgrName);
+        mError("db:%s, failed to create, encrypt algorithm does not exist, %s", pCreate->db, pCreate->encryptAlgrName);
         TAOS_RETURN(code);
       }
       if (tsDataKey[0] == '\0') {
@@ -1043,7 +1059,7 @@ static int32_t mndCreateDb(SMnode *pMnode, SRpcMsg *pReq, SCreateDbReq *pCreate,
   } else {
     if (pCreate->isAudit == 1) {
       code = TSDB_CODE_AUDIT_MUST_ENCRYPT;
-      mError("db:%s, failed to create, encrypt algorithm not match for audit db, %s", pCreate->db,
+      mError("db:%s, failed to create, encrypt algorithm does not match for audit db, %s", pCreate->db,
              pCreate->encryptAlgrName);
       TAOS_RETURN(code);
     }
@@ -1054,12 +1070,12 @@ static int32_t mndCreateDb(SMnode *pMnode, SRpcMsg *pReq, SCreateDbReq *pCreate,
   if (pCreate->isAudit == 1) {
     if (dbObj.cfg.daysToKeep2 < 2628000) {
       code = TSDB_CODE_AUDIT_MUST_KEEPFORCE;
-      mError("db:%s, failed to create, keep not match for audit db, %d", pCreate->db, dbObj.cfg.daysToKeep2);
+      mError("db:%s, failed to create, keep does not match for audit db, %d", pCreate->db, dbObj.cfg.daysToKeep2);
       TAOS_RETURN(code);
     }
     if (dbObj.cfg.walLevel != 2) {
       code = TSDB_CODE_AUDIT_MUST_WALFORCE;
-      mError("db:%s, failed to create, walLevel not match for audit db, %d", pCreate->db, dbObj.cfg.walLevel);
+      mError("db:%s, failed to create, walLevel does not match for audit db, %d", pCreate->db, dbObj.cfg.walLevel);
       TAOS_RETURN(code);
     }
   }
@@ -1172,6 +1188,12 @@ static int32_t mndCreateDb(SMnode *pMnode, SRpcMsg *pReq, SCreateDbReq *pCreate,
   mInfo("trans:%d, used to create db:%s", pTrans->id, pCreate->db);
 
   mndTransSetDbName(pTrans, dbObj.name, NULL);
+
+  // Group-parallel groups redo actions by groupId (= vgId) and runs each group's actions in order,
+  // so a vgroup's alter-confirm is only sent after its own create-vnode completes, while different
+  // vgroups still elect leaders concurrently.
+  mndTransSetGroupParallel(pTrans);
+
   TAOS_CHECK_GOTO(mndTransCheckConflict(pMnode, pTrans), NULL, _OVER);
 
   void   *pIter = NULL;
@@ -1246,7 +1268,7 @@ static int32_t mndCheckDbEncryptKey(SMnode *pMnode, SCreateDbReq *pReq) {
         (online = mndIsDnodeOnline(pDnode, curMs))) {
       code = TSDB_CODE_MND_INVALID_ENCRYPT_KEY;
       mError("db:%s, failed to check encryption key:%" PRIi8
-             "-%u in dnode:%d since it's inconsitent with mnode leader:%" PRIi8 "-%u",
+             "-%u in dnode:%d since it is inconsistent with mnode leader:%" PRIi8 "-%u",
              pReq->db, pDnode->encryptionKeyStat, pDnode->encryptionKeyChksum, pDnode->id, tsEncryptionKeyStat,
              tsEncryptionKeyChksum);
       sdbCancelFetch(pSdb, pIter);
@@ -1322,6 +1344,22 @@ static int32_t mndProcessCreateDbReq(SRpcMsg *pReq) {
   }
 
   TAOS_CHECK_GOTO(mndCheckDbPrivilege(pMnode, RPC_MSG_USER(pReq), RPC_MSG_TOKEN(pReq), MND_OPER_CREATE_DB, NULL), &lino, _OVER);
+
+#ifdef TD_ENTERPRISE
+  /* Reject CREATE DATABASE if an external source with the same bare name exists.
+   * External source names use the bare database name (no acctId prefix). */
+  {
+    const char *dotPos   = strchr(createReq.db, '.');
+    const char *bareName = (dotPos != NULL) ? dotPos + 1 : createReq.db;
+    void       *pExtSrc  = sdbAcquire(pMnode->pSdb, SDB_EXT_SOURCE, bareName);
+    if (pExtSrc != NULL) {
+      sdbRelease(pMnode->pSdb, pExtSrc);
+      code = TSDB_CODE_EXT_SOURCE_NAME_CONFLICT;
+      goto _OVER;
+    }
+    if (terrno == TSDB_CODE_SDB_OBJ_NOT_THERE) terrno = 0;
+  }
+#endif
 
   TAOS_CHECK_GOTO(grantCheck(TSDB_GRANT_DB), &lino, _OVER);
 
@@ -1492,6 +1530,12 @@ static int32_t mndSetDbCfgFromAlterDbReq(SDbObj *pDb, SAlterDbReq *pAlter) {
 
   if (pAlter->minRows > 0 && pAlter->minRows != pDb->cfg.minRows) {
     pDb->cfg.minRows = pAlter->minRows;
+    pDb->vgVersion++;
+    code = 0;
+  }
+
+  if (pAlter->maxRows > 0 && pAlter->maxRows != pDb->cfg.maxRows) {
+    pDb->cfg.maxRows = pAlter->maxRows;
     pDb->vgVersion++;
     code = 0;
   }
@@ -1672,7 +1716,7 @@ _err:
   TAOS_RETURN(code);
 }
 
-static int32_t mndAlterDb(SMnode *pMnode, SRpcMsg *pReq, SDbObj *pOld, SDbObj *pNew) {
+static int32_t mndAlterDb(SMnode *pMnode, SRpcMsg *pReq, SDbObj *pOld, SDbObj *pNew, int32_t parallel) {
   int32_t code = -1;
   STrans *pTrans = mndTransCreate(pMnode, TRN_POLICY_RETRY, TRN_CONFLICT_DB, pReq, "alter-db");
   if (pTrans == NULL) {
@@ -1685,6 +1729,9 @@ static int32_t mndAlterDb(SMnode *pMnode, SRpcMsg *pReq, SDbObj *pOld, SDbObj *p
 
   mndTransSetDbName(pTrans, pOld->name, NULL);
   mndTransSetGroupParallel(pTrans);
+  if (parallel > 0) {
+    mndTransSetGroupParallelNum(pTrans, parallel);
+  }
   TAOS_CHECK_GOTO(mndTransCheckConflict(pMnode, pTrans), NULL, _OVER);
   TAOS_CHECK_GOTO(mndTransCheckConflictWithCompact(pMnode, pTrans), NULL, _OVER);
   TAOS_CHECK_GOTO(mndTransCheckConflictWithRetention(pMnode, pTrans), NULL, _OVER);
@@ -1784,12 +1831,12 @@ static int32_t mndProcessAlterDbReq(SRpcMsg *pReq) {
   if (pDb->cfg.isAudit == 1) {
     if (alterReq.daysToKeep2 > -1 && alterReq.daysToKeep2 < 2628000) {
       code = TSDB_CODE_AUDIT_MUST_KEEPFORCE;
-      mError("db:%s, failed to alter, keep not match for audit db, %d", alterReq.db, alterReq.daysToKeep2);
+      mError("db:%s, failed to alter, keep does not match for audit db, %d", alterReq.db, alterReq.daysToKeep2);
       goto _OVER;
     }
     if (alterReq.walLevel > -1 && alterReq.walLevel != 2) {
       code = TSDB_CODE_AUDIT_MUST_WALFORCE;
-      mError("db:%s, failed to alter, walLevel not match for audit db, %d", alterReq.db, alterReq.walLevel);
+      mError("db:%s, failed to alter, walLevel does not match for audit db, %d", alterReq.db, alterReq.walLevel);
       goto _OVER;
     }
     if (alterReq.isAudit == 0) {
@@ -1805,7 +1852,7 @@ static int32_t mndProcessAlterDbReq(SRpcMsg *pReq) {
   }
 
   if (strlen(alterReq.encryptAlgrName) > 0) {
-    mInfo("db:%s, check encryt algr:%s", alterReq.db, alterReq.encryptAlgrName);
+    mInfo("db:%s, check encrypt algorithm:%s", alterReq.db, alterReq.encryptAlgrName);
 
     if (strncasecmp(alterReq.encryptAlgrName, "none", TSDB_ENCRYPT_ALGR_NAME_LEN) == 0) {
       if (pDb->cfg.encryptAlgorithm != 0) {
@@ -1818,7 +1865,7 @@ static int32_t mndProcessAlterDbReq(SRpcMsg *pReq) {
       if (pEncryptAlgr != NULL) {
         if (pEncryptAlgr->type != ENCRYPT_ALGR_TYPE__SYMMETRIC_CIPHERS) {
           code = TSDB_CODE_MNODE_ENCRYPT_TYPE_NOT_MATCH;
-          mError("db:%s, failed to alter, encrypt algorithm not match, %s, expect type %d", alterReq.db,
+          mError("db:%s, failed to alter, encrypt algorithm does not match, %s, expect type %d", alterReq.db,
                  alterReq.encryptAlgrName, ENCRYPT_ALGR_TYPE__SYMMETRIC_CIPHERS);
           goto _OVER;
         }
@@ -1829,7 +1876,7 @@ static int32_t mndProcessAlterDbReq(SRpcMsg *pReq) {
         }
       } else {
         code = TSDB_CODE_MNODE_ENCRYPT_ALGR_NOT_EXIST;
-        mError("db:%s, failed to alter, encrypt algorithm not exist, %s", alterReq.db, alterReq.encryptAlgrName);
+        mError("db:%s, failed to alter, encrypt algorithm does not exist, %s", alterReq.db, alterReq.encryptAlgrName);
         goto _OVER;
       }
     }
@@ -1867,7 +1914,7 @@ static int32_t mndProcessAlterDbReq(SRpcMsg *pReq) {
 
   dbObj.cfgVersion++;
   dbObj.updateTime = taosGetTimestampMs();
-  code = mndAlterDb(pMnode, pReq, pDb, &dbObj);
+  code = mndAlterDb(pMnode, pReq, pDb, &dbObj, alterReq.parallel);
 
   if (dbObj.cfg.replications != pDb->cfg.replications) {
     // return quickly, operation executed asynchronously
@@ -2396,8 +2443,13 @@ void mndBuildDBVgroupInfo(SDbObj *pDb, SMnode *pMnode, SArray *pVgList) {
       vgInfo.hashBegin = pVgroup->hashBegin;
       vgInfo.hashEnd = pVgroup->hashEnd;
       vgInfo.numOfTable = pVgroup->numOfTables / TSDB_TABLE_NUM_UNIT;
-      vgInfo.epSet.numOfEps = pVgroup->replica;
-      for (int32_t gid = 0; gid < pVgroup->replica; ++gid) {
+      // The SEpSet.eps array has only TSDB_MAX_REPLICA slots, while pVgroup->replica may (with
+      // learners, by design) count more than TSDB_MAX_REPLICA vnodeGids. Clamp the number of
+      // endpoints we build so we never write past the fixed-size eps[] on this stack frame; a raw
+      // carrying an oversized replica would otherwise overflow the stack buffer on every USE DB /
+      // heartbeat read path.
+      vgInfo.epSet.numOfEps = (pVgroup->replica > TSDB_MAX_REPLICA) ? TSDB_MAX_REPLICA : pVgroup->replica;
+      for (int32_t gid = 0; gid < vgInfo.epSet.numOfEps; ++gid) {
         SVnodeGid *pVgid = &pVgroup->vnodeGid[gid];
         SEp       *pEp = &vgInfo.epSet.eps[gid];
         SDnodeObj *pDnode = mndAcquireDnode(pMnode, pVgid->dnodeId);
@@ -2449,6 +2501,7 @@ int32_t mndExtractDbInfo(SMnode *pMnode, SDbObj *pDb, SUseDbRsp *pRsp, const SUs
   pRsp->hashPrefix = pDb->cfg.hashPrefix;
   pRsp->hashSuffix = pDb->cfg.hashSuffix;
   pRsp->flags = pDb->cfg.flags;
+  pRsp->precision = pDb->cfg.precision;
   TAOS_RETURN(code);
 }
 
@@ -2700,7 +2753,7 @@ static int32_t mndSetTrimDbRedoActions(SMnode *pMnode, STrans *pTrans, SDbObj *p
       SVgObj *pVgroup = mndAcquireVgroup(pMnode, vgId);
 
       if (pVgroup == NULL) {
-        mError("db:%s, vgroup:%" PRId64 " not exist", pDb->name, vgId);
+        mError("db:%s, vgroup:%" PRId64 " does not exist", pDb->name, vgId);
         TAOS_CHECK_EXIT(TSDB_CODE_MND_VGROUP_NOT_EXIST);
       } else if (pVgroup->dbUid != pDb->uid) {
         mError("db:%s, vgroup:%" PRId64 " not belong to db:%s", pDb->name, vgId, pDb->name);
@@ -3107,6 +3160,10 @@ _OVER:
 }
 
 const char *mndGetDbStr(const char *src) {
+  // [FIX-198] Guard against NULL input. streamDB of a legacy/corrupt stream object
+  // persisted in sdb before the required-field check may be NULL; SHOW STREAMS
+  // (mstSetStreamAttrResBlock) passes it here, and strstr(NULL) would crash the mnode.
+  if (src == NULL) return "";
   char *pos = strstr(src, TS_PATH_DELIMITER);
   if (pos != NULL) ++pos;
   if (pos == NULL) return src;
@@ -3241,6 +3298,8 @@ bool mndIsDbReady(SMnode *pMnode, SDbObj *pDb) {
 
   return isReady;
 }
+
+#define MND_DB_NTABLES_COL_IDX 3  // position of `ntables` in userDBSchema
 
 static void mndDumpDbInfoData(SMnode *pMnode, SSDataBlock *pBlock, SDbObj *pDb, SShowObj *pShow, int32_t rows,
                               int64_t numOfTables, bool sysDb, ESdbStatus objStatus, bool sysinfo,
@@ -3534,14 +3593,42 @@ static void setPerfSchemaDbCfg(SMnode *pMnode, SDbObj *pDbObj) {
   pDbObj->cfg.precision = TSDB_TIME_PRECISION_MILLI;
 }
 
-static bool mndGetTablesOfDbFp(SMnode *pMnode, void *pObj, void *p1, void *p2, void *p3) {
-  SVgObj  *pVgroup = pObj;
-  int32_t *numOfTables = p1;
-  int64_t  uid = *(int64_t *)p2;
-  if (pVgroup->dbUid == uid) {
-    *numOfTables += pVgroup->numOfTables;
+static bool mndSumTablesOfDbFp(SMnode *pMnode, void *pObj, void *p1, void *p2, void *p3) {
+  SVgObj    *pVgroup = pObj;
+  SSHashObj *pTables = p1;
+  int32_t   *pCode = p2;
+
+  int64_t *pNum = tSimpleHashGet(pTables, &pVgroup->dbUid, sizeof(pVgroup->dbUid));
+  if (pNum != NULL) {
+    *pNum += pVgroup->numOfTables;
+    return true;
+  }
+
+  int32_t code = tSimpleHashPut(pTables, &pVgroup->dbUid, sizeof(pVgroup->dbUid), &pVgroup->numOfTables,
+                                sizeof(pVgroup->numOfTables));
+  if (code != 0) {
+    *pCode = code;
+    return false;
   }
   return true;
+}
+
+static int32_t mndBuildDbTablesHash(SMnode *pMnode, SSHashObj **ppTables) {
+  SSHashObj *pTables =
+      tSimpleHashInit(sdbGetSize(pMnode->pSdb, SDB_DB), taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT));
+  if (pTables == NULL) {
+    TAOS_RETURN(terrno);
+  }
+
+  int32_t code = 0;
+  sdbTraverse(pMnode->pSdb, SDB_VGROUP, mndSumTablesOfDbFp, pTables, &code, NULL);
+  if (code != 0) {
+    tSimpleHashCleanup(pTables);
+    TAOS_RETURN(code);
+  }
+
+  *ppTables = pTables;
+  TAOS_RETURN(code);
 }
 
 static int32_t mndRetrieveDbs(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBlock, int32_t rowsCapacity) {
@@ -3552,6 +3639,7 @@ static int32_t mndRetrieveDbs(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBloc
   SUserObj  *pOperUser = NULL;
   ESdbStatus objStatus = 0;
   SSHashObj *pUidNames = NULL;
+  SSHashObj *pDbTables = NULL;
 
   (void)mndAcquireUser(pMnode, RPC_MSG_USER(pReq), &pOperUser);
   if (pOperUser == NULL) return 0;
@@ -3581,12 +3669,25 @@ static int32_t mndRetrieveDbs(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBloc
     pShow->sysDbRsp = true;
   }
 
+  bool needTables = mndShowColRequested(pShow, MND_DB_NTABLES_COL_IDX);
   while (numOfRows < rowsCapacity) {
     pShow->pIter = sdbFetchAll(pSdb, SDB_DB, pShow->pIter, (void **)&pDb, &objStatus, true);
     if (pShow->pIter == NULL) break;
     if (showAnyDb || mndCheckDbPrivilege(pMnode, RPC_MSG_USER(pReq), RPC_MSG_TOKEN(pReq), MND_OPER_SHOW_DATABASES, pDb) == 0) {
-      int32_t numOfTables = 0;
-      sdbTraverse(pSdb, SDB_VGROUP, mndGetTablesOfDbFp, &numOfTables, &pDb->uid, NULL);
+      if (needTables && pDbTables == NULL) {
+        int32_t code = mndBuildDbTablesHash(pMnode, &pDbTables);
+        if (code != 0) {
+          mError("failed to build db tables hash since %s", tstrerror(code));
+          sdbRelease(pSdb, pDb);
+          sdbCancelFetchByType(pSdb, pShow->pIter, SDB_DB);
+          pShow->pIter = NULL;
+          mndReleaseUser(pMnode, pOperUser);
+          tSimpleHashCleanup(pUidNames);
+          return code;
+        }
+      }
+      int64_t *pNum = pDbTables != NULL ? tSimpleHashGet(pDbTables, &pDb->uid, sizeof(pDb->uid)) : NULL;
+      int64_t  numOfTables = pNum != NULL ? *pNum : 0;
       mndDumpDbInfoData(pMnode, pBlock, pDb, pShow, numOfRows, numOfTables, false, objStatus, sysinfo, &pUidNames);
       numOfRows++;
     }
@@ -3597,6 +3698,7 @@ static int32_t mndRetrieveDbs(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBloc
   pShow->numOfRows += numOfRows;
   mndReleaseUser(pMnode, pOperUser);
   tSimpleHashCleanup(pUidNames);
+  tSimpleHashCleanup(pDbTables);
   return numOfRows;
 }
 

@@ -1,0 +1,25 @@
+use text_union_db;
+DROP STABLE IF EXISTS meters;
+CREATE STABLE meters(ts TIMESTAMP, volt INT) TAGS(loc NCHAR(8));
+CREATE TABLE m1 USING meters TAGS('f1');
+INSERT INTO m1 VALUES ('2026-04-01 00:00:00',100)('2026-04-01 00:01:00',200)('2026-04-01 00:02:00',300);
+# U1-old: no-ts UNION ALL (now rejected — first col must be TIMESTAMP)
+SELECT * FROM (SELECT id, name FROM TEXT(id INT, name VARCHAR(8)) VALUES (1,'alpha')(2,'beta') t UNION ALL SELECT id, name FROM TEXT(id INT, name VARCHAR(8)) VALUES (3,'gamma')(4,'delta') t2) sub ORDER BY id;
+# U1: UNION ALL two TEXT sources with ts
+SELECT * FROM (SELECT ts, name FROM TEXT(ts TIMESTAMP, name VARCHAR(8)) VALUES ('2024-01-01 00:00:00','alpha')('2024-01-02 00:00:00','beta') t UNION ALL SELECT ts, name FROM TEXT(ts TIMESTAMP, name VARCHAR(8)) VALUES ('2024-01-03 00:00:00','gamma')('2024-01-04 00:00:00','delta') t2) sub ORDER BY ts;
+# U2-old: no-ts UNION dedup (now rejected)
+SELECT * FROM (SELECT id FROM TEXT(id INT) VALUES (1)(2)(2) t UNION SELECT id FROM TEXT(id INT) VALUES (2)(3) t2) sub ORDER BY id;
+# U2: UNION dedup two TEXT sources with ts
+SELECT * FROM (SELECT ts, id FROM TEXT(ts TIMESTAMP, id INT) VALUES ('2024-01-01 00:00:00',1)('2024-01-02 00:00:00',2) t UNION SELECT ts, id FROM TEXT(ts TIMESTAMP, id INT) VALUES ('2024-01-02 00:00:00',2)('2024-01-03 00:00:00',3) t2) sub ORDER BY id;
+# U3-old: no-ts TEXT UNION ALL real table (now rejected)
+SELECT * FROM (SELECT volt FROM TEXT(volt INT) VALUES (400)(500) t UNION ALL SELECT volt FROM m1) sub ORDER BY volt;
+# U3: TEXT UNION ALL real table with ts
+SELECT * FROM (SELECT ts, volt FROM TEXT(ts TIMESTAMP, volt INT) VALUES ('2026-04-01 00:03:00',400)('2026-04-01 00:04:00',500) t UNION ALL SELECT ts, volt FROM m1) sub ORDER BY volt, ts;
+# U4-old: no-ts subquery wrapping UNION ALL (now rejected)
+SELECT * FROM (SELECT id FROM TEXT(id INT) VALUES (3)(1) t UNION ALL SELECT id FROM TEXT(id INT) VALUES (4)(2) t2) sub ORDER BY id;
+# U4: subquery wrapping UNION ALL with ts
+SELECT * FROM (SELECT ts, id FROM TEXT(ts TIMESTAMP, id INT) VALUES ('2024-01-03 00:00:00',3)('2024-01-01 00:00:00',1) t UNION ALL SELECT ts, id FROM TEXT(ts TIMESTAMP, id INT) VALUES ('2024-01-04 00:00:00',4)('2024-01-02 00:00:00',2) t2) sub ORDER BY id;
+# U6-old: no-ts UNION ALL combining two GROUP BY results (now rejected)
+SELECT id, COUNT(*) cnt FROM TEXT(id INT, val INT) VALUES (1,10)(1,20)(2,30) t GROUP BY id UNION ALL SELECT id, COUNT(*) cnt FROM TEXT(id INT, val INT) VALUES (3,40)(3,50) t2 GROUP BY id ORDER BY id;
+# U6: UNION ALL combining two GROUP BY results with ts
+SELECT ts, id, COUNT(*) cnt FROM TEXT(ts TIMESTAMP, id INT, val INT) VALUES ('2024-01-01 00:00:00',1,10)('2024-01-01 00:00:01',1,20)('2024-01-01 00:00:02',2,30) t GROUP BY ts, id UNION ALL SELECT ts, id, COUNT(*) cnt FROM TEXT(ts TIMESTAMP, id INT, val INT) VALUES ('2024-01-01 00:00:03',3,40)('2024-01-01 00:00:04',3,50) t2 GROUP BY ts, id ORDER BY id, ts;

@@ -1,6 +1,8 @@
 /*
  * Copyright (c) 2019 TAOS Data, Inc. <jhtao@taosdata.com>
  *
+ * SPDX-License-Identifier: AGPL-3.0-or-later
+ *
  * This program is free software: you can use, redistribute, and/or modify
  * it under the terms of the GNU Affero General Public License, version 3
  * or later ("AGPL"), as published by the Free Software Foundation.
@@ -55,6 +57,9 @@ int32_t tsdbFSCreateCopyRangedSnapshot(STFileSystem *fs, TFileSetRangeArray *pEx
 void    tsdbFSDestroyCopyRangedSnapshot(TFileSetArray **fsetArr);
 int32_t tsdbFSCreateRefRangedSnapshot(STFileSystem *fs, int64_t sver, int64_t ever, TFileSetRangeArray *pRanges,
                                       TFileSetRangeArray **fsrArr);
+int32_t tsdbFSCreateRefRangedSnapshotWithFilesets(STFileSystem *fs, int64_t sver, int64_t ever,
+                                                 TFileSetRangeArray *pRanges, TFileSetRangeArray **fsrArr,
+                                                 TFileSetArray **fsetArr);
 void    tsdbFSDestroyRefRangedSnapshot(TFileSetRangeArray **fsrArr);
 //  txn
 int64_t tsdbFSAllocEid(STFileSystem *fs);

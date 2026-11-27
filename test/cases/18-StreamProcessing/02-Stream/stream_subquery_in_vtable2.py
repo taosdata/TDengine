@@ -1,5 +1,19 @@
-import time
-from new_test_framework.utils import (tdLog, tdSql, tdStream, StreamCheckItem, waitForRows)
+# Copyright (c) 2026 TAOS Data, Inc. <jhtao@taosdata.com>
+#
+# SPDX-License-Identifier: AGPL-3.0-or-later
+#
+# This program is free software: you can use, redistribute, and/or modify
+# it under the terms of the GNU Affero General Public License, version 3
+# or later ("AGPL"), as published by the Free Software Foundation.
+#
+# This program is distributed in the hope that it will be useful, but WITHOUT
+# ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+# FITNESS FOR A PARTICULAR PURPOSE.
+#
+# You should have received a copy of the GNU Affero General Public License
+# along with this program. If not, see <http://www.gnu.org/licenses/>.
+
+from new_test_framework.utils import (tdLog, tdSql, tdCom, tdStream, StreamCheckItem, waitForRows)
 
 
 class TestStreamSubQueryInVtable2:
@@ -17,7 +31,7 @@ class TestStreamSubQueryInVtable2:
 
         Since: v3.3.4.0
 
-        Labels: common, ci
+        Labels: stream, vtable
 
         Jira: None
 
@@ -26,9 +40,15 @@ class TestStreamSubQueryInVtable2:
             - 2026-03-20 Split into two files for CI stability
         """
 
-        tdStream.createSnode()
+        tdCom.create_snode_if_not_exists()
         tdSql.execute(f"alter all dnodes 'debugflag 135';")
         tdSql.execute(f"alter all dnodes 'stdebugflag 135';")
+
+        # Clean up databases from previous runs
+        for db in ["test_in_vtable_null2", "ref_db_null2", "test_in_vtable_large2", "ref_db_large2",
+                   "test_in_vtable_nested2", "ref_db_nested12", "ref_db_nested22",
+                   "test_in_vtable_join2", "ref_db_join2", "test_in_vtable_multicond2", "ref_db_multicond2"]:
+            tdSql.execute(f"drop database if exists {db}")
 
         streams = []
 
@@ -116,12 +136,16 @@ class TestStreamSubQueryInVtable2:
                 tdSql.execute(f"insert into {self.db}.{self.triggertb} values {values}")
 
         def check1(self):
-            for i in range(60):
-                tdSql.query(f"select * from {self.db}.{self.restb} order by ts")
-                if tdSql.queryRows > 0:
-                    break
-                time.sleep(1)
-            assert tdSql.queryRows > 0
+            tdSql.query(
+                f"select ts, id, val from {self.db}.{self.triggertb} "
+                f"where id in (select id from {self.db}.{self.vtb} where category = 1) order by ts"
+            )
+            tdSql.checkRows(68)
+            expected_rows = list(tdSql.queryResult)
+            waitForRows(f"select * from {self.db}.{self.restb} order by ts", 68)
+            for row_index, expected_row in enumerate(expected_rows):
+                for column_index, expected_value in enumerate(expected_row):
+                    tdSql.checkData(row_index, column_index, expected_value)
 
     class InSubqueryNestedVirtualTables(StreamCheckItem):
         """Test nested IN subqueries with multiple virtual tables"""

@@ -1,6 +1,8 @@
 /*
  * Copyright (c) 2019 TAOS Data, Inc. <jhtao@taosdata.com>
  *
+ * SPDX-License-Identifier: AGPL-3.0-or-later
+ *
  * This program is free software: you can use, redistribute, and/or modify
  * it under the terms of the GNU Affero General Public License, version 3
  * or later ("AGPL"), as published by the Free Software Foundation.
@@ -46,6 +48,7 @@ typedef enum {
   DND_CS_VNODE_WAL = 2,
   DND_CS_SDB = 4,
   DND_CS_MNODE_WAL = 8,
+  DND_CS_QUERY_SPILL = 16,  // encrypt query spill (paged buffer) temp files
 } EEncryptScope;
 
 extern SConfig *tsCfg;
@@ -58,6 +61,8 @@ extern char          tsLocalEp[];
 extern char          tsVersionName[];
 extern uint16_t      tsServerPort;
 extern int32_t       tsVersion;
+// Encoded version of the connected server (0 = not a client connection). See tglobal.c.
+extern int32_t       tsServerVerInt;
 extern int32_t       tsdmConfigVersion;
 extern int32_t       tsConfigInited;
 extern int32_t        tsEncryptKeysStatus;
@@ -65,7 +70,7 @@ extern int32_t       tsLocalKeyVersion;
 extern int32_t       tsStatusInterval;
 extern int32_t       tsStatusIntervalMs;
 extern int32_t       tsStatusSRTimeoutMs;
-extern int32_t       tsStatusTimeoutMs;
+extern int32_t        tsStatusTimeoutMs;
 extern int32_t       tsNumOfSupportVnodes;
 extern uint16_t      tsMqttPort;
 extern char          tsEncryptAlgorithm[];
@@ -83,6 +88,14 @@ extern char tsTLSSvrCertPath[];
 extern char tsTLSSvrKeyPath[];
 extern char tsTLSCliCertPath[];
 extern char tsTLSCliKeyPath[];
+
+typedef struct SEnvelopePublicKey SEnvelopePublicKey;
+
+extern int32_t tsXnodeDsnProtection;
+extern char    tsXnodeDsnPublicKeyFile[];
+extern char    tsXnodedDsnPrivateKeyFile[];
+
+const SEnvelopePublicKey *taosGetXnodeDsnPublicKey(void);
 extern int8_t tsEnableTLS;
 extern int8_t tsEnableSasl;
 
@@ -94,11 +107,15 @@ extern int64_t tsTickPerMin[3];
 extern int64_t tsTickPerHour[3];
 extern int64_t tsSecTimes[3];
 extern int32_t tsCountAlwaysReturnValue;
+extern int32_t tsDefaultFirstDayOfWeek;  // 0-6; shared default for firstDayOfWeek
+extern int32_t tsFirstDayOfWeek;  // 0-6; int32_t required by config framework (cfgAddInt32)
 extern float   tsSelectivityRatio;
 extern int32_t tsTagFilterResCacheSize;
 extern int32_t tsBypassFlag;
 extern int64_t tsMetaEntryCacheSize;
 extern char    tsMetaEntryCache;
+extern int64_t tsStreamVcColsCacheSize;  // bytes; 0 disables the vc_cols result cache
+extern bool    tsStreamVcColsCache;      // master switch; false disables the vc_cols result cache
 
 // queue & threads
 extern int32_t tsQueryMinConcurrentTaskNum;
@@ -134,15 +151,24 @@ extern int64_t tsQueueMemoryUsed;
 extern int64_t tsApplyMemoryAllowed;
 extern int64_t tsApplyMemoryUsed;
 extern int32_t tsRetentionSpeedLimitMB;
+extern int32_t tsCompactSpeedLimitMB;
 extern int32_t tsNumOfMnodeStreamMgmtThreads;
 extern int32_t tsNumOfStreamMgmtThreads;
 extern int32_t tsNumOfVnodeStreamReaderThreads;
 extern int32_t tsNumOfStreamTriggerThreads;
 extern int32_t tsNumOfStreamRunnerThreads;
+extern int32_t tsNumOfStreamRunnerDeploys;
+extern int32_t tsNumOfStreamRunnerReplicas;
 
 extern int32_t tsNumOfCompactThreads;
 extern int32_t tsNumOfRetentionThreads;
 extern int32_t tsSecureEraseMode;
+
+// cpu affinity
+extern bool    tsEnableCpuAffinity;
+extern int32_t tsManagementCpuCores;
+extern int32_t tsReadCpuCores;
+extern int32_t tsOtherCpuCores;
 
 // sync raft
 extern int32_t tsElectInterval;
@@ -153,8 +179,13 @@ extern int32_t tsMnodeElectIntervalMs;
 extern int32_t tsMnodeHeartbeatIntervalMs;
 extern int32_t tsHeartbeatTimeout;
 extern int32_t tsSnapReplMaxWaitN;
+extern int32_t tsSnapshotRateLimit;
+extern bool    tsSnapshotMediumOnLag;  // use MEDIUM (file-level) snap replication when a follower owns data but lags behind
+extern int32_t tsSnapshotMediumDiskStrategy;  // MEDIUM disk allocation: 0=round-robin, 1=least-used
+extern bool    tsSnapshotMediumOnIncomplete;  // use MEDIUM (file-level) snap replication when the FSM is incomplete
 extern int64_t tsLogBufferMemoryAllowed;  // maximum allowed log buffer size in bytes for each dnode
 extern int64_t tsSyncApplyQueueSize;
+extern int32_t tsSyncNegotiationWin;  // negotiation window size for sync module
 extern int32_t tsRoutineReportInterval;
 extern bool    tsSyncLogHeartbeat;
 extern int32_t tsSyncTimeout;
@@ -182,8 +213,11 @@ extern char tsSnodeAddress[];  // 127.0.0.1:873
 extern int64_t tsMndSdbWriteDelta;
 extern int64_t tsMndLogRetention;
 extern bool    tsMndSkipGrant;
+extern int32_t tsTxnTimeout;
 extern bool    tsEnableWhiteList;
+extern bool    tsAnodeAllowInternalUrl;
 extern bool    tsForceKillTrans;
+extern bool    tsForceScram;
 extern int8_t  tsSodEnforceMode;  // 0: not enforce, 1: enforce mandatory SoD
 
 // dnode
@@ -278,7 +312,9 @@ extern int32_t tsQueryNodeChunkSize;
 extern bool    tsQueryUseNodeAllocator;
 extern bool    tsKeepColumnName;
 extern bool    tsEnableQueryHb;
+extern bool    tsEnableFollowerRead;
 extern bool    tsEnableScience;
+extern bool    tsRpcCrcEnable;
 extern bool    tsSqlSecurityEnabled;
 extern int32_t tsSqlSecurityWhitelistMode;  // 0:disable,1:whitelist,2:blacklist,3:both
 extern bool    tsSqlSecurityStringCheck;
@@ -293,6 +329,10 @@ extern int32_t tsRedirectPeriod;
 extern int32_t tsRedirectFactor;
 extern int32_t tsRedirectMaxPeriod;
 extern int32_t tsMaxRetryWaitTime;
+extern int32_t tsMaxRetryTimes;
+extern int32_t tsAuthMech;
+extern int32_t tsRetryOnOverloadBaseInterval;
+extern int32_t tsRetryOnOverloadTimeout;
 extern bool    tsUseAdapter;
 extern int32_t tsMetaCacheMaxSize;
 extern int32_t tsSlowLogThreshold;
@@ -334,6 +374,13 @@ extern bool tsStartUdfd;
 extern char tsUdfdResFuncs[];
 extern char tsUdfdLdLibPath[512];
 
+// workload record and replay (WLR). client scope, startup-only: see
+// docs: client workload recording and replay, DS 6.1. Changing any of these requires
+// restarting the target client process.
+extern int32_t tsWorkloadRecord;             // 0=off, 1=on; reserved values disable recording with a warning
+extern char    tsWorkloadRecordDir[PATH_MAX]; // defaults to ${logDir}/workload
+extern int32_t tsWorkloadRecordBufferSize;  // MB, 16..4096
+
 // schemaless
 extern char tsSmlChildTableName[];
 extern char tsSmlAutoChildTableNameDelimiter[];
@@ -355,11 +402,14 @@ extern int64_t tsWalFsyncDataSizeLimit;
 extern bool    tsWalForceRepair;
 extern bool    tsWalDeleteOnCorruption;
 extern char    tsWalCorruptionBackupDir[];
+extern bool    tsWalMultiMountEnable;
 
 // internal
 extern bool    tsDiskIDCheckEnabled;
 extern int32_t tsTransPullupInterval;
 extern int32_t tsCompactPullupInterval;
+extern int32_t tsBackupPullupInterval;
+extern int32_t tsSnapSendPullupInterval;
 extern int32_t tsScanPullupInterval;
 extern int32_t tsInstancePullupInterval;
 extern int32_t tsMqRebalanceInterval;
@@ -374,6 +424,7 @@ extern int32_t tsUptimeInterval;
 extern bool    tsUpdateCacheBatch;
 extern bool    tsDisableStream;
 extern int32_t tsStreamBufferSize;
+extern int32_t tsStreamTriggerMaxPendingParams;
 extern int64_t tsStreamBufferSizeBytes;
 extern bool    tsStreamPerfLogEnabled;
 extern bool    tsFilterScalarMode;
@@ -381,7 +432,11 @@ extern int32_t tsPQSortMemThreshold;
 extern int32_t tsStreamNotifyMessageSize;
 extern int32_t tsStreamNotifyFrameSize;
 extern int32_t tsStreamBatchRequestWaitMs;
+extern int32_t tsStreamNotifyWorkerNum;        // number of async notify worker threads per snode
+extern int32_t tsStreamNotifyBatchIntervalMs;  // max wait before flushing a notify batch (ms)
+extern int32_t tsStreamNotifyParamPoolSize;   // KB, total SStreamNotifyPendingItem obj pool size (all streams)
 extern bool    tsCompareAsStrInGreatest;
+extern bool    tsIgnoreNullInGreatest;
 extern bool    tsShowFullCreateTableColumn;  // 0: show create table, and not include column compress info
 extern int32_t tsRpcRecvLogThreshold;        // in seconds, default 3
 
@@ -393,6 +448,18 @@ extern int32_t tsSsUploadDelaySec;
 extern int32_t tsSsBlockSize;
 extern int32_t tsSsBlockCacheSize;
 extern int32_t tsSsPageCacheSize;
+
+// last cache rocksdb engine tuning
+// block cache size is derived per-vnode from CACHESIZE (see tsdbOpenRocksCache), not a global dnode config.
+#define TSDB_LAST_CACHE_COMPRESSION_TYPE_LEN 16
+#define TSDB_LAST_CACHE_OPTIONS_OVERRIDE_LEN 1024
+extern int32_t tsLastCacheWriteBufferSize;
+extern int32_t tsLastCacheMaxWriteBufferNumber;
+extern int32_t tsLastCacheBackgroundThreads;
+extern int32_t tsLastCacheBloomFilterBits;
+extern int32_t tsLastCacheMaxOpenFiles;
+extern char    tsLastCacheCompressionType[TSDB_LAST_CACHE_COMPRESSION_TYPE_LEN];
+extern char    tsLastCacheOptionsOverride[TSDB_LAST_CACHE_OPTIONS_OVERRIDE_LEN];
 
 extern int32_t sessionPerUser; 
 extern int32_t sessionConnTime; 
@@ -424,6 +491,8 @@ extern int32_t tsClsRefreshInterval;
 extern char    tsClsLastSucTime[];
 extern char    tsClsLastReqTime[];
 extern char    tsClsLastFailReason[];
+
+extern char    tsRegisterEmail[];
 extern int32_t gGrantClsPreRefreshInterval;
 #define GRANT_CLS_CLOSING 1
 #define GRANT_CLS_OPENING 2
@@ -462,6 +531,15 @@ int32_t setAllConfigs(SConfig *pCfg);
 bool    isConifgItemLazyMode(SConfigItem *item);
 int32_t taosUpdateTfsItemDisable(SConfig *pCfg, const char *value, void *pTfs);
 void    taosSetSkipKeyCheckMode(void);
+
+// federated query configuration
+extern bool    tsFederatedQueryEnable;                // master switch for federated query; default false
+extern int32_t tsFederatedQueryConnectTimeoutMs;      // connector TCP connect timeout (ms); default 5000; server only
+extern int32_t tsFederatedQueryQueryTimeoutMs;        // external query execution timeout (ms); default 1000000000 (~11.6d, effectively no timeout); server only
+extern int32_t tsFederatedQueryMaxPoolSizePerSource;  // max connections per external source; default 64; server only
+extern int32_t tsFederatedQueryIdleConnTtlSec;        // idle connection time-to-live (sec); default 600; server only
+extern int32_t tsFederatedQueryProbeTimeoutMs;        // liveness probe timeout (ms); default 5000; server only
+
 #ifdef __cplusplus
 }
 #endif

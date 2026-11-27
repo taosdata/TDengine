@@ -2,6 +2,8 @@
 /*
  * Copyright (c) 2019 TAOS Data, Inc. <jhtao@taosdata.com>
  *
+ * SPDX-License-Identifier: AGPL-3.0-or-later
+ *
  * This program is free software: you can use, redistribute, and/or modify
  * it under the terms of the GNU Affero General Public License, version 3
  * or later ("AGPL"), as published by the Free Software Foundation.
@@ -96,6 +98,8 @@ typedef struct SConfigItem {
   int8_t       scope;
   int8_t       dynScope;
   int8_t       category;
+  int8_t       restartRequired;  // set when the *_LAZY item's value no longer matches restartBaseline*
+  int8_t       restartBaselineValid;  // whether restartBaseline* holds the value in effect since process start
   char        *name;
   union {
     bool    bval;
@@ -103,6 +107,13 @@ typedef struct SConfigItem {
     int32_t i32;
     int64_t i64;
     char   *str;
+  };
+  union {
+    bool    restartBaselineBval;
+    float   restartBaselineFval;
+    int32_t restartBaselineI32;
+    int64_t restartBaselineI64;
+    char   *restartBaselineStr;
   };
   union {
     int64_t imin;
@@ -134,6 +145,14 @@ SConfigItem *cfgGetItem(SConfig *pCfg, const char *pName);
 int32_t      cfgSetItem(SConfig *pCfg, const char *name, const char *value, ECfgSrcType stype, bool lock);
 int32_t cfgGetAndSetItem(SConfig *pCfg, SConfigItem **ppItem, const char *name, const char *value, ECfgSrcType stype,
                          bool lock);
+/* Publish an already-resolved DIR value without applying word/path expansion again.
+ * The caller must supply the final absolute, normalized path shorter than PATH_MAX. Variables,
+ * shell syntax, and invalid path components are stored literally and are not expanded
+ * or otherwise validated. stype is retained for display and persistence but does
+ * not participate in restart tracking. This clears any
+ * saved lazy-dynamic restart baseline and restartRequired state, and is therefore
+ * restricted to CFG_DYN_NONE items. */
+int32_t cfgSetDirResolved(SConfig *pCfg, const char *name, const char *value, ECfgSrcType stype, bool lock);
 int32_t cfgCheckRangeForDynUpdate(SConfig *pCfg, const char *name, const char *pVal, bool isServer,
                                   CfgAlterType alterType);
 
@@ -162,6 +181,7 @@ const char *cfgDtypeStr(ECfgDataType type);
 int32_t cfgDumpItemValue(SConfigItem *pItem, char *buf, int32_t bufSize, int32_t *pLen);
 int32_t cfgDumpItemScope(SConfigItem *pItem, char *buf, int32_t bufSize, int32_t *pLen);
 int32_t cfgDumpItemCategory(SConfigItem *pItem, char *buf, int32_t bufSize, int32_t *pLen);
+int32_t cfgDumpItemRestart(SConfigItem *pItem, char *buf, int32_t bufSize, int32_t *pLen);
 
 void cfgDumpCfg(SConfig *pCfg, bool tsc, bool dump);
 

@@ -1,6 +1,8 @@
 /*
  * Copyright (c) 2019 TAOS Data, Inc. <jhtao@taosdata.com>
  *
+ * SPDX-License-Identifier: AGPL-3.0-or-later
+ *
  * This program is free software: you can use, redistribute, and/or modify
  * it under the terms of the GNU Affero General Public License, version 3
  * or later ("AGPL"), as published by the Free Software Foundation.
@@ -25,7 +27,7 @@
 
 char* result1[] = {
 "{\"type\":\"create\",\"tableType\":\"super\",\"tableName\":\"st\",\"columns\":[{\"name\":\"ts\",\"type\":9,\"isPrimarykey\":false,\"encode\":\"delta-i\",\"compress\":\"lz4\",\"level\":\"medium\"},{\"name\":\"id\",\"type\":4,\"isPrimarykey\":false,\"encode\":\"simple8b\",\"compress\":\"lz4\",\"level\":\"medium\"}],\"tags\":[{\"name\":\"t1\",\"type\":4}]}",
-"{\"type\":\"create\",\"tableType\":\"child\",\"tableName\":\"t1\",\"using\":\"st\",\"tagNum\":1,\"tags\":[{\"name\":\"t1\",\"type\":4,\"value\":1}],\"createList\":[]}",
+"{\"type\":\"create\",\"tableType\":\"child\",\"tableName\":\"t2\",\"using\":\"st\",\"tagNum\":1,\"tags\":[{\"name\":\"t1\",\"type\":4,\"value\":2}],\"createList\":[]}",
 "{\"type\":\"create\",\"tableType\":\"child\",\"tableName\":\"t3\",\"using\":\"st\",\"tagNum\":1,\"tags\":[{\"name\":\"t1\",\"type\":4,\"value\":2}],\"createList\":[]}",
 "{\"type\":\"alter\",\"tableType\":\"child\",\"tableName\":\"\",\"alterType\":19,\"tables\":[{\"tableName\":\"t1\",\"tags\":[{\"colName\":\"t1\",\"colValue\":\"2\",\"colValueNull\":false}]}]}"
 };

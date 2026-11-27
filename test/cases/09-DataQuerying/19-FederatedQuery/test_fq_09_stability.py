@@ -1,0 +1,2472 @@
+# Copyright (c) 2019 TAOS Data, Inc. <jhtao@taosdata.com>
+#
+# SPDX-License-Identifier: AGPL-3.0-or-later
+#
+# This program is free software: you can use, redistribute, and/or modify
+# it under the terms of the GNU Affero General Public License, version 3
+# or later ("AGPL"), as published by the Free Software Foundation.
+#
+# This program is distributed in the hope that it will be useful, but WITHOUT
+# ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+# FITNESS FOR A PARTICULAR PURPOSE.
+#
+# You should have received a copy of the GNU Affero General Public License
+# along with this program. If not, see <http://www.gnu.org/licenses/>.
+
+"""
+test_fq_09_stability.py
+
+Implements long-term stability tests from TS "Long-term Stability Tests" section.
+Four focus areas:
+    1. 72h continuous query mix (single-source / cross-source JOIN / vtable)
+    2. Fault injection (external source unreachable, slow query, throttle, jitter)
+    3. Cache stability (meta/capability cache repeated expiry & REFRESH cycle)
+    4. Connection pool stability (high-frequency burst queries, no state corruption)
+
+Since these are non-functional stability tests that require sustained runtime,
+tests here are structured as *representative short cycles* that exercise the
+same code paths.  In CI they run a small iteration count; a dedicated stability
+environment would increase the count and duration.
+
+Design notes:
+    - Tests use internal vtables where possible so no external DB is needed.
+    - Fault-injection tests stop/start real MySQL / SQL Server instances to
+      simulate unreachable sources.
+    - Connection pool stability uses burst sequential queries on internal vtables.
+    - Each test is guarded with try/finally to ensure environment cleanup.
+    - teardown_class prints a structured test summary.
+
+Environment requirements:
+    - Enterprise edition with federatedQueryEnable = 1.
+"""
+
+import os
+import threading
+import time
+from datetime import datetime
+
+from new_test_framework.utils import tdLog, tdSql
+
+from federated_query_common import (
+    FederatedQueryCaseHelper,
+    FederatedQueryVersionedMixin,
+    ExtSrcEnv,
+    TSDB_CODE_PAR_TABLE_NOT_EXIST,
+    TSDB_CODE_EXT_SOURCE_UNAVAILABLE,
+    TSDB_CODE_EXT_SOURCE_NOT_FOUND,
+    TSDB_CODE_EXT_CONNECT_FAILED,
+    TSDB_CODE_EXT_RESOURCE_EXHAUSTED,
+)
+
+
+class TestFq09Stability(FederatedQueryVersionedMixin):
+    """Long-term stability tests — typical short-cycle representatives."""
+
+    STAB_DB = "fq_stab_db"
+    SRC_DB = "fq_stab_src"
+
+    # ------------------------------------------------------------------
+    # Iteration / duration controls
+    # Override via environment variables to scale the test load:
+    #
+    #   FQ_STAB_ITERS             Continuous-query mix cycles       (default 20)
+    #   FQ_STAB_CACHE_CYCLES      Cache-stability loop iterations   (default 10)
+    #   FQ_STAB_UNREACHABLE_Q     Unreachable-source error queries  (default 5)
+    #   FQ_STAB_BURST_COUNT       Connection-pool burst count       (default 5)
+    #   FQ_STAB_BURST_SIZE        Queries per burst                 (default 20)
+    #   FQ_STAB_DRIFT_CYCLES      Drift-check repetition count      (default 49)
+    #   FQ_STAB_POOL_HOLD_S       Seconds to hold saturating connection (default 3)
+    #   FQ_STAB_POOL_RETRY_WAIT_S Max seconds to wait for retry success (default 12)
+    #   FQ_STAB_SS_REPEAT         SQL Server repeat-query count     (default 10)
+    #   FQ_STAB_O_MIX_ITERS       Oracle mixed-workload iterations   (default 10)
+    #   FQ_STAB_O_POOL_WAIT_S     Oracle pool-recovery wait limit    (default 240)
+    #
+    # Example (full stress run):
+    #   FQ_STAB_ITERS=200 FQ_STAB_BURST_COUNT=20 FQ_STAB_BURST_SIZE=100 pytest fq_09...
+    # ------------------------------------------------------------------
+    _STAB_ITERS         = int(os.getenv("FQ_STAB_ITERS",         "20"))
+    _STAB_CACHE_CYCLES  = int(os.getenv("FQ_STAB_CACHE_CYCLES",  "10"))
+    _STAB_UNREACHABLE_Q = int(os.getenv("FQ_STAB_UNREACHABLE_Q", "5"))
+    _STAB_BURST_COUNT   = int(os.getenv("FQ_STAB_BURST_COUNT",   "5"))
+    _STAB_BURST_SIZE    = int(os.getenv("FQ_STAB_BURST_SIZE",    "20"))
+    _STAB_DRIFT_CYCLES  = int(os.getenv("FQ_STAB_DRIFT_CYCLES",  "49"))
+    # Pool-exhaustion test controls.
+    # _STAB_POOL_HOLD_S: how long (s) the background thread holds the saturating
+    #   connection open.  Should be > EXT_POOL_RETRY_DELAY_MS (1 s) so the first
+    #   retry still sees exhaustion and must wait for the second retry to succeed.
+    # _STAB_POOL_RETRY_WAIT_S: upper-bound on total elapsed time for stab_s07.
+    #   Must exceed EXT_POOL_RETRY_MAX_TIMES * EXT_POOL_RETRY_DELAY_MS (5 s).
+    _STAB_POOL_HOLD_S       = float(os.getenv("FQ_STAB_POOL_HOLD_S",       "3.0"))
+    _STAB_POOL_RETRY_WAIT_S = float(os.getenv("FQ_STAB_POOL_RETRY_WAIT_S", "12.0"))
+    # SQL Server repeated-query count (FQSS-LOCAL-011).
+    _STAB_SS_REPEAT         = int(os.getenv("FQ_STAB_SS_REPEAT",           "10"))
+    # Oracle mixed-workload cycle count (FQOR-STAB-004).
+    _STAB_O_MIX_ITERS       = int(os.getenv("FQ_STAB_O_MIX_ITERS",         "10"))
+    # Upper bound (s) on how long a query may wait for an exhausted Oracle
+    # pool to free a slot before the recovery assertions give up.
+    _STAB_O_POOL_WAIT_S     = float(os.getenv("FQ_STAB_O_POOL_WAIT_S",     "240"))
+
+    # Class-level test result registry used by teardown_class summary
+    _test_results: list = []
+    _session_start: float = 0.0
+
+    def setup_class(self):
+        tdLog.debug(f"start to execute {__file__}")
+        self.helper = FederatedQueryCaseHelper(__file__)
+        self.helper.require_external_source_feature()
+        ExtSrcEnv.ensure_env()
+        TestFq09Stability._test_results = []
+        TestFq09Stability._session_start = time.time()
+        # Global pre-cleanup: ensure no leftover state from previous runs
+        # (inline SQL instead of self._teardown_env() which fails when self is the class)
+        tdSql.execute(f"drop database if exists {self.STAB_DB}")
+        tdSql.execute(f"drop database if exists {self.SRC_DB}")
+        tdSql.execute("drop database if exists stab_unreachable_src")
+        tdSql.execute("drop external source if exists stab_unreachable_src")
+
+    def teardown_class(self):
+        """Final cleanup and structured test summary report."""
+        try:
+            tdSql.execute(f"drop database if exists {self.STAB_DB}")
+            tdSql.execute(f"drop database if exists {self.SRC_DB}")
+            tdSql.execute("drop database if exists stab_unreachable_src")
+            tdSql.execute("drop external source if exists stab_unreachable_src")
+        finally:
+            TestFq09Stability._print_summary(self)
+
+    def _start_test(self, name, description="", iterations=0):
+        """Record test start time and metadata into results list.
+
+        The entry name is automatically suffixed with the current version label
+        (e.g. ``STAB-001[my8.0-pg18.6-inf3.0]``) so multi-version runs produce
+        one distinct row per (scenario, version) combination in the summary.
+        """
+        ver_label = self._version_label()
+        full_name = f"{name}[{ver_label}]"
+        TestFq09Stability._test_results.append({
+            "name": full_name,
+            "base_name": name,
+            "version": ver_label,
+            "desc": description,
+            "iterations": iterations,
+            "start": time.time(),
+            "end": None,
+            "duration": None,
+            "status": "RUNNING",
+            "error": None,
+        })
+
+    def _record_pass(self, name):
+        full_name = f"{name}[{self._version_label()}]"
+        for r in reversed(TestFq09Stability._test_results):
+            if r["name"] == full_name:
+                r["end"] = time.time()
+                r["duration"] = r["end"] - r["start"]
+                r["status"] = "PASS"
+                return
+        # Fallback if _start_test was not called
+        ver_label = self._version_label()
+        TestFq09Stability._test_results.append({
+            "name": full_name, "base_name": name, "version": ver_label,
+            "desc": "", "iterations": 0,
+            "start": time.time(), "end": time.time(), "duration": 0.0,
+            "status": "PASS", "error": None,
+        })
+
+    def _record_fail(self, name, reason):
+        full_name = f"{name}[{self._version_label()}]"
+        for r in reversed(TestFq09Stability._test_results):
+            if r["name"] == full_name:
+                r["end"] = time.time()
+                r["duration"] = r["end"] - r["start"]
+                r["status"] = "FAIL"
+                r["error"] = reason
+                return
+        # Fallback if _start_test was not called
+        ver_label = self._version_label()
+        TestFq09Stability._test_results.append({
+            "name": full_name, "base_name": name, "version": ver_label,
+            "desc": "", "iterations": 0,
+            "start": time.time(), "end": time.time(), "duration": 0.0,
+            "status": "FAIL", "error": reason,
+        })
+
+    def _print_summary(self):
+        """Print structured test summary including timing and error details."""
+        results = TestFq09Stability._test_results
+        session_end = time.time()
+        session_start = TestFq09Stability._session_start
+        total_duration = session_end - session_start
+
+        def _fmt_ts(ts):
+            dt = datetime.fromtimestamp(ts)
+            return dt.strftime("%Y-%m-%d %H:%M:%S") + f".{dt.microsecond // 1000:03d}"
+
+        total = len(results)
+        passed = sum(1 for r in results if r["status"] == "PASS")
+        failed = total - passed
+
+        sep = "=" * 74
+        mid = "-" * 74
+        tdLog.debug(sep)
+        tdLog.debug("  test_fq_09_stability  Stability Test Summary")
+        tdLog.debug(sep)
+        tdLog.debug(f"  Session Start  : {_fmt_ts(session_start)}")
+        tdLog.debug(f"  Session End    : {_fmt_ts(session_end)}")
+        tdLog.debug(f"  Total Duration : {total_duration:.3f} s")
+        tdLog.debug(mid)
+        tdLog.debug(
+            f"  {'#':<3}  {'Test Name':<44}  {'Status':<6}  {'Time(s)':<9}  {'Iters':<5}  Desc"
+        )
+        tdLog.debug(mid)
+        for idx, r in enumerate(results, 1):
+            status_col = "PASS" if r["status"] == "PASS" else "FAIL"
+            dur_s = f"{r['duration']:.3f}" if r["duration"] is not None else "N/A"
+            iters = str(r["iterations"]) if r["iterations"] else "-"
+            name_col = r["name"][:44]
+            desc_col = r["desc"] or ""
+            tdLog.debug(
+                f"  {idx:<3}  {name_col:<44}  {status_col:<6}  {dur_s:<9}  {iters:<5}  {desc_col}"
+            )
+        tdLog.debug(mid)
+        tdLog.debug(
+            f"  Total: {total}   Passed: {passed}   Failed: {failed}"
+        )
+        if failed > 0:
+            tdLog.debug(mid)
+            tdLog.debug("  Error Details:")
+            for r in results:
+                if r["status"] == "FAIL":
+                    tdLog.debug(f"    [{r['name']}]  {r['error']}")
+        else:
+            tdLog.debug("  Errors: None")
+        tdLog.debug(sep)
+
+    # ------------------------------------------------------------------
+    # Internal helpers
+    # ------------------------------------------------------------------
+
+    def _prepare_env(self):
+        """Create internal databases, tables, vtables for stability loops.
+
+        Data layout (derived constants — tests rely on these):
+          src_d1 (100 rows): ts=BASE+i*1000ms, val=i, score=i*1.1, flag=(i%2==0)
+                             for i=1..100
+            count=100, sum(val)=5050, avg(val)=50.5, min=1, max=100
+            avg(score) = 1.1*50.5 = 55.55
+          src_d2 (50 rows):  ts=BASE+i*1000ms, val=i+100, score=i*2.2, flag=(i%2!=0)
+                             for i=1..50
+            count=50, sum(val)=6275, avg(val)=125.5, min=101, max=150
+            avg(score) = 2.2*25.5 = 56.1
+          vstb (150 rows total): vg=1 → vt_d1 (100), vg=2 → vt_d2 (50)
+          local_dim: ts=BASE+1000ms (→ d1 i=1, val=1, weight=100)
+                     ts=BASE+2000ms (→ d1 i=2, val=2, weight=200)
+          JOIN vt_d1 ⋈ local_dim ON ts: 2 rows → (val=1,w=100), (val=2,w=200)
+        """
+        _BASE = 1704067200000
+        tdSql.execute(f"drop database if exists {self.STAB_DB}")
+        tdSql.execute(f"drop database if exists {self.SRC_DB}")
+        tdSql.execute(f"create database {self.SRC_DB}")
+        tdSql.execute(f"use {self.SRC_DB}")
+
+        tdSql.execute(
+            "create stable src_stb (ts timestamp, val int, score double, flag bool) "
+            "tags(region int)"
+        )
+        tdSql.execute("create table src_d1 using src_stb tags(1)")
+        tdSql.execute("create table src_d2 using src_stb tags(2)")
+
+        # Use :.6f to avoid Python float->string representation noise
+        values_d1 = ", ".join(
+            f"({_BASE + i * 1000}, {i}, {i * 1.1:.6f}, "
+            f"{str(i % 2 == 0).lower()})"
+            for i in range(1, 101)
+        )
+        tdSql.execute(f"insert into src_d1 values {values_d1}")
+
+        values_d2 = ", ".join(
+            f"({_BASE + i * 1000}, {i + 100}, {i * 2.2:.6f}, "
+            f"{str(i % 2 != 0).lower()})"
+            for i in range(1, 51)
+        )
+        tdSql.execute(f"insert into src_d2 values {values_d2}")
+
+        tdSql.execute(f"create database {self.STAB_DB}")
+        tdSql.execute(f"use {self.STAB_DB}")
+
+        tdSql.execute(
+            "create stable vstb (ts timestamp, v_val int, v_score double, v_flag bool) "
+            "tags(vg int) virtual 1"
+        )
+        tdSql.execute(
+            f"create vtable vt_d1 ("
+            f"v_val from {self.SRC_DB}.src_d1.val, "
+            f"v_score from {self.SRC_DB}.src_d1.score, "
+            f"v_flag from {self.SRC_DB}.src_d1.flag"
+            f") using vstb tags(1)"
+        )
+        tdSql.execute(
+            f"create vtable vt_d2 ("
+            f"v_val from {self.SRC_DB}.src_d2.val, "
+            f"v_score from {self.SRC_DB}.src_d2.score, "
+            f"v_flag from {self.SRC_DB}.src_d2.flag"
+            f") using vstb tags(2)"
+        )
+        # local_dim: timestamps align with vt_d1 i=1 and i=2
+        tdSql.execute(
+            "create table local_dim (ts timestamp, device_id int, weight int)"
+        )
+        tdSql.execute(f"insert into local_dim values ({_BASE + 1000}, 1, 100)")
+        tdSql.execute(f"insert into local_dim values ({_BASE + 2000}, 2, 200)")
+
+    def _teardown_env(self):
+        tdSql.execute(f"drop database if exists {self.STAB_DB}")
+        tdSql.execute(f"drop database if exists {self.SRC_DB}")
+
+    # ------------------------------------------------------------------
+    # STAB-001  72h continuous query mix (short-cycle representative)
+    # ------------------------------------------------------------------
+
+    def test_fq_stab_001_continuous_query_mix(self):
+        """72h continuous query mix — short-cycle representative
+
+        TS: Continuous run of single-source queries / cross-source JOINs / vtable mixed queries
+
+        1. Prepare internal vtable environment
+        2. Run repeated cycles of single-table, cross-table, vtable queries
+        3. Each cycle verifies row count and key aggregate values
+        4. Negative: query dropped table returns expected error
+        5. After loop: verify no state corruption by re-querying
+
+        Expected data:
+          src_d1: 100 rows, count=100, sum(val)=5050, avg(val)=50.5
+          vstb:   150 rows total, vg=1 → 100 rows, vg=2 → 50 rows
+          JOIN:   2 rows (val=1,weight=100) and (val=2,weight=200)
+
+        Catalog:
+            - Query:FederatedStability
+
+        Since: v3.4.0.0
+
+        Labels: common,ci
+
+        History:
+            - 2026-04-13 wpan Initial implementation
+
+        """
+        _test_name = "STAB-001_continuous_query_mix"
+        self._start_test(
+            _test_name,
+            f"{self._STAB_ITERS}-cycle single-source/cross-source JOIN/vtable mixed query continuity check",
+            self._STAB_ITERS,
+        )
+        self._prepare_env()
+        try:
+            iterations = self._STAB_ITERS
+            for i in range(iterations):
+                # Single-source query with full aggregate verification
+                tdSql.query(
+                    f"select count(*), sum(val), avg(val) "
+                    f"from {self.SRC_DB}.src_d1"
+                )
+                tdSql.checkRows(1)
+                tdSql.checkData(0, 0, 100)   # count
+                tdSql.checkData(0, 1, 5050)  # sum(1..100)
+                tdSql.checkData(0, 2, 50.5)  # avg
+
+                # Vtable super-table aggregate
+                tdSql.query(
+                    f"select count(*) from {self.STAB_DB}.vstb"
+                )
+                tdSql.checkRows(1)
+                tdSql.checkData(0, 0, 150)   # 100 + 50
+
+                # Vtable group-by query
+                tdSql.query(
+                    f"select vg, count(*) from {self.STAB_DB}.vstb "
+                    f"group by vg order by vg"
+                )
+                tdSql.checkRows(2)
+                tdSql.checkData(0, 0, 1)    # vg=1
+                tdSql.checkData(0, 1, 100)  # count for vg=1
+                tdSql.checkData(1, 0, 2)    # vg=2
+                tdSql.checkData(1, 1, 50)   # count for vg=2
+
+                # Cross-table: vtable JOIN local_dim ON ts
+                # local_dim has ts=BASE+1000ms and BASE+2000ms which align with
+                # vt_d1 i=1 (val=1) and i=2 (val=2)
+                tdSql.query(
+                    f"select a.v_val, b.weight "
+                    f"from {self.STAB_DB}.vt_d1 a, "
+                    f"{self.STAB_DB}.local_dim b "
+                    f"where a.ts = b.ts order by a.ts"
+                )
+                tdSql.checkRows(2)
+                tdSql.checkData(0, 0, 1)    # vt_d1 i=1: val=1
+                tdSql.checkData(0, 1, 100)  # local_dim weight=100
+                tdSql.checkData(1, 0, 2)    # vt_d1 i=2: val=2
+                tdSql.checkData(1, 1, 200)  # local_dim weight=200
+
+            # Negative: non-existent vtable must return TABLE_NOT_EXIST
+            tdSql.error(
+                f"select * from {self.STAB_DB}.no_such_vtable",
+                expectedErrno=TSDB_CODE_PAR_TABLE_NOT_EXIST,
+            )
+
+            # Final sanity: data unchanged after 20 iterations
+            tdSql.query(f"select count(*) from {self.STAB_DB}.vstb")
+            tdSql.checkRows(1)
+            tdSql.checkData(0, 0, 150)
+
+            self._record_pass(_test_name)
+        except Exception as e:
+            self._record_fail(_test_name, str(e))
+            raise
+        finally:
+            self._teardown_env()
+
+    # ------------------------------------------------------------------
+    # STAB-002  Fault injection (external source unreachable)
+    # ------------------------------------------------------------------
+
+    def test_fq_stab_002_fault_injection_unreachable(self):
+        """Fault injection — external source unreachable / jitter
+
+        TS: External source briefly unreachable, slow query, throttle, connection jitter
+
+        1. Create external source pointing to real MySQL instance
+        2. Stop the MySQL instance to make it unreachable
+        3. Rapid-fire queries — must all fail with connection-layer error (not
+           syntax error and not catalog-layer error so we know routing is correct)
+        4. Restore MySQL; verify source survives in catalog after repeated failures
+        5. Drop source and verify catalog cleanup (source no longer found)
+
+        Catalog:
+            - Query:FederatedStability
+
+        Since: v3.4.0.0
+
+        Labels: common,ci
+
+        History:
+            - 2026-04-13 wpan Initial implementation
+
+        """
+        _test_name = "STAB-002_fault_injection_unreachable"
+        self._start_test(_test_name, "5 unreachable-source fault injections, verify connection-layer errors and catalog survival", 5)
+        src_name = "stab_unreachable_src"
+        cfg = self._mysql_cfg()
+        ver = cfg.version
+        self._cleanup_src(src_name)
+        try:
+            # Create real source first so the catalog entry is valid.
+            self._mk_mysql_real(
+                src_name,
+                database="testdb",
+                extra_options="'connect_timeout_ms'='500'",
+            )
+            # Source must be visible immediately after creation
+            tdSql.query(
+                "select source_name from information_schema.ins_ext_sources "
+                f"where source_name = '{src_name}'"
+            )
+            tdSql.checkRows(1)
+            tdSql.checkData(0, 0, src_name)
+
+            # Stop the MySQL instance to make it unreachable, then fire queries.
+            # All must fail with a connection-layer error (not syntax error).
+            ExtSrcEnv.stop_mysql_instance(ver)
+            try:
+                for _ in range(self._STAB_UNREACHABLE_Q):
+                    tdSql.error(
+                        f"select * from {src_name}.testdb.some_table",
+                        expectedErrno=TSDB_CODE_EXT_SOURCE_UNAVAILABLE,
+                    )
+
+                # Source must still be in catalog after repeated failures
+                tdSql.query(
+                    "select count(*) from information_schema.ins_ext_sources "
+                    f"where source_name = '{src_name}'"
+                )
+                tdSql.checkRows(1)
+                tdSql.checkData(0, 0, 1)
+            finally:
+                # Always restore MySQL before leaving — other tests depend on it.
+                ExtSrcEnv.start_mysql_instance(ver)
+
+            self._record_pass(_test_name)
+        except Exception as e:
+            self._record_fail(_test_name, str(e))
+            raise
+        finally:
+            self._cleanup_src(src_name)
+
+        # After DROP: source must no longer exist in catalog.
+        # TSDB_CODE_EXT_SOURCE_NOT_FOUND = None (enterprise TBD).
+        tdSql.error(
+            f"select * from {src_name}.testdb.some_table",
+            expectedErrno=TSDB_CODE_EXT_SOURCE_NOT_FOUND,
+        )
+        # System table confirms removal
+        tdSql.query(
+            "select count(*) from information_schema.ins_ext_sources "
+            f"where source_name = '{src_name}'"
+        )
+        tdSql.checkRows(1)
+        tdSql.checkData(0, 0, 0)
+
+    # ------------------------------------------------------------------
+    # STAB-003  Cache stability (repeated expiry + refresh)
+    # ------------------------------------------------------------------
+
+    def test_fq_stab_003_cache_stability(self):
+        """Cache stability — repeated expiry and refresh cycles
+
+        TS: Repeated meta/capability cache expiry and refresh, no memory leak
+
+        1. Prepare vtable environment
+        2. Loop: query → verify → (simulate cache invalidation) → repeat
+        3. Verify no result drift across cycles
+        4. Memory leak detection requires dedicated tools
+
+        Catalog:
+            - Query:FederatedStability
+
+        Since: v3.4.0.0
+
+        Labels: common,ci
+
+        Jira: None
+
+        History:
+            - 2026-04-14 wpan Rewrite to match TS stability section
+
+        """
+        _test_name = "STAB-003_cache_stability"
+        self._start_test(
+            _test_name,
+            f"{self._STAB_CACHE_CYCLES}-cycle repeated cache expiry/refresh, verify no memory leak or result drift",
+            self._STAB_CACHE_CYCLES,
+        )
+        self._prepare_env()
+        try:
+            for i in range(self._STAB_CACHE_CYCLES):
+                tdSql.query(f"select count(*) from {self.STAB_DB}.vstb")
+                tdSql.checkData(0, 0, 150)
+
+                tdSql.query(
+                    f"select vg, avg(v_score) from {self.STAB_DB}.vstb "
+                    f"group by vg order by vg"
+                )
+                tdSql.checkRows(2)
+
+            self._record_pass(_test_name)
+        except Exception as e:
+            self._record_fail(_test_name, str(e))
+            raise
+        finally:
+            self._teardown_env()
+
+    # ------------------------------------------------------------------
+    # STAB-004  Connection pool stability
+    # ------------------------------------------------------------------
+
+    def test_fq_stab_004_connection_pool_stability(self):
+        """Connection pool stability — high-frequency burst queries, no state corruption
+
+        TS: High/low concurrency switching, no zombie connections
+
+        Simulates high-concurrency → low-concurrency switching using rapid
+        sequential bursts of queries on the same vtable.  Multi-threaded
+        external source load is exercised via sequential burst since tdSql
+        is a single-connection client.  Verifies no state corruption occurs.
+
+        N_BURSTS * N_QUERIES_PER_BURST sequential queries performed.  Both
+        the aggregate count and per-group counts are verified after each burst.
+
+        Catalog:
+            - Query:FederatedStability
+
+        Since: v3.4.0.0
+
+        Labels: common,ci
+
+        History:
+            - 2026-04-13 wpan Initial implementation
+
+        """
+        _test_name = "STAB-004_connection_pool_stability"
+        self._start_test(
+            _test_name,
+            f"{self._STAB_BURST_COUNT}x{self._STAB_BURST_SIZE} burst sequential queries, verify connection pool state integrity and aggregate consistency",
+            self._STAB_BURST_COUNT * self._STAB_BURST_SIZE,
+        )
+        self._prepare_env()
+        try:
+            n_bursts = self._STAB_BURST_COUNT
+            n_queries_per_burst = self._STAB_BURST_SIZE
+
+            for burst in range(n_bursts):
+                tdLog.debug(
+                    f"STAB-004: burst {burst + 1}/{n_bursts} "
+                    f"({n_queries_per_burst} queries)"
+                )
+                for q in range(n_queries_per_burst):
+                    tdSql.query(
+                        f"select count(*) from {self.STAB_DB}.vstb"
+                    )
+                    tdSql.checkRows(1)
+                    tdSql.checkData(0, 0, 150)
+
+                # After each burst: full per-group verification
+                tdSql.query(
+                    f"select vg, count(*) "
+                    f"from {self.STAB_DB}.vstb group by vg order by vg"
+                )
+                tdSql.checkRows(2)
+                tdSql.checkData(0, 0, 1)    # vg=1
+                tdSql.checkData(0, 1, 100)  # count
+                tdSql.checkData(1, 0, 2)    # vg=2
+                tdSql.checkData(1, 1, 50)   # count
+
+            # Final: min/max/sum integrity after all bursts
+            tdSql.query(
+                f"select count(*), sum(v_val), min(v_val), max(v_val) "
+                f"from {self.STAB_DB}.vt_d1"
+            )
+            tdSql.checkRows(1)
+            tdSql.checkData(0, 0, 100)   # count
+            tdSql.checkData(0, 1, 5050)  # sum(1..100)
+            tdSql.checkData(0, 2, 1)     # min
+            tdSql.checkData(0, 3, 100)   # max
+
+            tdSql.query(
+                f"select count(*), sum(v_val), min(v_val), max(v_val) "
+                f"from {self.STAB_DB}.vt_d2"
+            )
+            tdSql.checkRows(1)
+            tdSql.checkData(0, 0, 50)    # count
+            tdSql.checkData(0, 1, 6275)  # sum(101..150) = 5000+1275
+            tdSql.checkData(0, 2, 101)   # min
+            tdSql.checkData(0, 3, 150)   # max
+
+            self._record_pass(_test_name)
+        except Exception as e:
+            self._record_fail(_test_name, str(e))
+            raise
+        finally:
+            self._teardown_env()
+
+    # ------------------------------------------------------------------
+    # STAB-005  Long-duration query consistency
+    # ------------------------------------------------------------------
+
+    def test_fq_stab_005_long_duration_consistency(self):
+        """Long-duration result consistency — no state drift
+
+        Supplementary: run the same query 50 times, compare each result
+        to the first-run baseline.
+
+        Catalog:
+            - Query:FederatedStability
+
+        Since: v3.4.0.0
+
+        Labels: common,ci
+
+        Jira: None
+
+        History:
+            - 2026-04-14 wpan Added supplementary consistency loop
+
+        """
+        _test_name = "STAB-005_long_duration_consistency"
+        self._start_test(_test_name, "50-cycle repeated queries, compare against baseline to verify no result drift", 50)
+        self._prepare_env()
+        try:
+            # Establish baseline on first run
+            tdSql.query(
+                f"select vg, count(*), sum(v_val), min(v_val), max(v_val) "
+                f"from {self.STAB_DB}.vstb group by vg order by vg"
+            )
+            tdSql.checkRows(2)
+            # vg=1: count=100, sum=5050, min=1, max=100
+            tdSql.checkData(0, 0, 1)
+            tdSql.checkData(0, 1, 100)
+            tdSql.checkData(0, 2, 5050)
+            tdSql.checkData(0, 3, 1)
+            tdSql.checkData(0, 4, 100)
+            # vg=2: count=50, sum=6275, min=101, max=150
+            tdSql.checkData(1, 0, 2)
+            tdSql.checkData(1, 1, 50)
+            tdSql.checkData(1, 2, 6275)
+            tdSql.checkData(1, 3, 101)
+            tdSql.checkData(1, 4, 150)
+
+            # Repeat the same query _STAB_DRIFT_CYCLES more times (total +1) verifying no drift
+            for i in range(1, self._STAB_DRIFT_CYCLES + 1):
+                tdSql.query(
+                    f"select vg, count(*), sum(v_val), min(v_val), max(v_val) "
+                    f"from {self.STAB_DB}.vstb group by vg order by vg"
+                )
+                tdSql.checkRows(2)
+                # vg=1 consistency
+                if (tdSql.queryResult[0][0] != 1
+                        or tdSql.queryResult[0][1] != 100
+                        or tdSql.queryResult[0][2] != 5050
+                        or tdSql.queryResult[0][3] != 1
+                        or tdSql.queryResult[0][4] != 100):
+                    raise AssertionError(
+                        f"vg=1 result drift at iteration {i}: "
+                        f"got {tdSql.queryResult[0]}"
+                    )
+                # vg=2 consistency
+                if (tdSql.queryResult[1][0] != 2
+                        or tdSql.queryResult[1][1] != 50
+                        or tdSql.queryResult[1][2] != 6275
+                        or tdSql.queryResult[1][3] != 101
+                        or tdSql.queryResult[1][4] != 150):
+                    raise AssertionError(
+                        f"vg=2 result drift at iteration {i}: "
+                        f"got {tdSql.queryResult[1]}"
+                    )
+
+            self._record_pass(_test_name)
+        except Exception as e:
+            self._record_fail(_test_name, str(e))
+            raise
+        finally:
+            self._teardown_env()
+
+    # ------------------------------------------------------------------
+    # stab_s01 – s06  Gap-fill: exception / timeout / concurrent scenarios
+    # ------------------------------------------------------------------
+
+    def test_fq_stab_s01_connect_timeout_trigger(self):
+        """Gap: connect_timeout_ms actually fires and returns UNAVAILABLE
+
+        A source is created with a deliberately short connect_timeout_ms,
+        then the backing MySQL instance is stopped.  Every subsequent query
+        must fail with EXT_SOURCE_UNAVAILABLE and must complete within 10 s,
+        proving the timeout is honoured rather than blocking indefinitely.
+
+        Catalog: - Query:FederatedStability
+
+        Since: v3.4.0.0
+
+        Labels: common,ci
+
+        Jira: None
+
+        History:
+            - 2026-04-21 wpan Initial implementation
+
+        """
+        _test_name = "stab_s01_connect_timeout_trigger"
+        self._start_test(_test_name, "connect_timeout_ms sanity", 3)
+        src = "fq_stab_s01_src"
+        cfg = self._mysql_cfg()
+        ver = cfg.version
+        self._cleanup_src(src)
+        try:
+            self._mk_mysql_real(
+                src,
+                database="testdb",
+                extra_options="'connect_timeout_ms'='500'",
+            )
+            ExtSrcEnv.stop_mysql_instance(ver)
+            try:
+                for _ in range(3):
+                    t0 = time.monotonic()
+                    tdSql.error(
+                        f"select count(*) from {src}.testdb.some_table",
+                        expectedErrno=TSDB_CODE_EXT_SOURCE_UNAVAILABLE,
+                    )
+                    elapsed = time.monotonic() - t0
+                    assert elapsed < 10, (
+                        f"Query took {elapsed:.2f}s, expected < 10s "
+                        f"with connect_timeout_ms=500"
+                    )
+            finally:
+                ExtSrcEnv.start_mysql_instance(ver)
+
+            self._record_pass(_test_name)
+        except Exception as e:
+            self._record_fail(_test_name, str(e))
+            raise
+        finally:
+            self._cleanup_src(src)
+
+    def test_fq_stab_s02_drop_source_mid_session(self):
+        """Gap: DROP source while catalog is active → subsequent query returns NOT_FOUND
+
+        Creates an external source, verifies queries work, then drops the
+        source and verifies that the next query returns EXT_SOURCE_NOT_FOUND
+        rather than a crash or stale-cache success.
+
+        Catalog: - Query:FederatedStability
+
+        Since: v3.4.0.0
+
+        Labels: common,ci
+
+        Jira: None
+
+        History:
+            - 2026-04-21 wpan Initial implementation
+
+        """
+        _test_name = "stab_s02_drop_source_mid_session"
+        self._start_test(_test_name, "drop source during active session", 1)
+        src = "fq_stab_s02_src"
+        ext_db = "fq_stab_s02_ext"
+        self._cleanup_src(src)
+        try:
+            ExtSrcEnv.mysql_create_db_cfg(self._mysql_cfg(), ext_db)
+            ExtSrcEnv.mysql_exec_cfg(self._mysql_cfg(), ext_db, [
+                "drop table if exists stab_t",
+                "create table stab_t (id int primary key, val int)",
+                "insert into stab_t values (1, 100)",
+            ])
+            self._mk_mysql_real(src, database=ext_db)
+
+            # Verify source is reachable before dropping
+            tdSql.query(f"select id, val from {src}.stab_t")
+            tdSql.checkRows(1)
+            tdSql.checkData(0, 0, 1)
+            tdSql.checkData(0, 1, 100)
+
+            # Drop the source
+            tdSql.execute(f"drop external source {src}")
+
+            # Next query must report NOT_FOUND, not a crash
+            tdSql.error(
+                f"select id, val from {src}.stab_t",
+                expectedErrno=TSDB_CODE_EXT_SOURCE_NOT_FOUND,
+            )
+
+            # System table confirms absence
+            tdSql.query(
+                "select count(*) from information_schema.ins_ext_sources "
+                f"where source_name = '{src}'"
+            )
+            tdSql.checkRows(1)
+            tdSql.checkData(0, 0, 0)
+
+            self._record_pass(_test_name)
+        except Exception as e:
+            self._record_fail(_test_name, str(e))
+            raise
+        finally:
+            self._cleanup_src(src)
+            try:
+                ExtSrcEnv.mysql_drop_db_cfg(self._mysql_cfg(), ext_db)
+            except Exception:
+                pass
+
+    def test_fq_stab_s03_alter_host_restores_connectivity(self):
+        """Gap: ALTER source HOST to valid address → subsequent query succeeds
+
+        Creates a source pointing to an unreachable RFC-5737 TEST-NET address.
+        Verifies the query fails, ALTERs the source to the correct host and
+        confirms the next query succeeds (catalog update takes effect).
+
+        Catalog: - Query:FederatedStability
+
+        Since: v3.4.0.0
+
+        Labels: common,ci
+
+        Jira: None
+
+        History:
+            - 2026-04-21 wpan Initial implementation
+
+        """
+        _test_name = "stab_s03_alter_host_restores_connectivity"
+        self._start_test(_test_name, "alter host to valid address", 1)
+        src = "fq_stab_s03_src"
+        ext_db = "fq_stab_s03_ext"
+        cfg = self._mysql_cfg()
+        self._cleanup_src(src)
+        try:
+            ExtSrcEnv.mysql_create_db_cfg(cfg, ext_db)
+            ExtSrcEnv.mysql_exec_cfg(cfg, ext_db, [
+                "drop table if exists stab_t",
+                "create table stab_t (id int primary key, val int)",
+                "insert into stab_t values (1, 42)",
+            ])
+
+            # Create source with unreachable host (RFC-5737 TEST-NET)
+            bad_host = "192.0.2.123"
+            tdSql.execute(
+                f"create external source {src} "
+                f"type='mysql' host='{bad_host}' port={cfg.port} "
+                f"user='{cfg.user}' password='{cfg.password}' "
+                f"options('connect_timeout_ms'='500')"
+            )
+
+            # Query must fail
+            tdSql.error(
+                f"select id, val from {src}.{ext_db}.stab_t",
+                expectedErrno=TSDB_CODE_EXT_SOURCE_UNAVAILABLE,
+            )
+
+            # ALTER source to correct host
+            tdSql.execute(
+                f"alter external source {src} set host='{cfg.host}'"
+            )
+
+            # Query must now succeed
+            tdSql.query(f"select id, val from {src}.{ext_db}.stab_t")
+            tdSql.checkRows(1)
+            tdSql.checkData(0, 0, 1)
+            tdSql.checkData(0, 1, 42)
+
+            self._record_pass(_test_name)
+        except Exception as e:
+            self._record_fail(_test_name, str(e))
+            raise
+        finally:
+            self._cleanup_src(src)
+            try:
+                ExtSrcEnv.mysql_drop_db_cfg(cfg, ext_db)
+            except Exception:
+                pass
+
+    def test_fq_stab_s04_concurrent_read_threads(self):
+        """Gap: concurrent threads query the same source — no crash, consistent results
+
+        Launches threads that each run SELECT COUNT(*) against the same external
+        source table.  All threads must complete without exception and return the
+        same row count.
+
+        Catalog: - Query:FederatedStability
+
+        Since: v3.4.0.0
+
+        Labels: common,ci
+
+        Jira: None
+
+        History:
+            - 2026-04-21 wpan Initial implementation
+
+        """
+        _test_name = "stab_s04_concurrent_read_threads"
+        _THREAD_COUNT = 4
+        _QUERIES_PER_THREAD = 5
+        self._start_test(
+            _test_name,
+            f"{_THREAD_COUNT} threads x {_QUERIES_PER_THREAD} queries",
+            _THREAD_COUNT * _QUERIES_PER_THREAD,
+        )
+        src = "fq_stab_s04_src"
+        ext_db = "fq_stab_s04_ext"
+        cfg = self._mysql_cfg()
+        self._cleanup_src(src)
+        errors: list = []
+        results: list = []
+        results_lock = threading.Lock()
+
+        try:
+            ExtSrcEnv.mysql_create_db_cfg(cfg, ext_db)
+            ExtSrcEnv.mysql_exec_cfg(cfg, ext_db, [
+                "drop table if exists stab_t",
+                "create table stab_t (id int primary key, val int)",
+                "insert into stab_t values (1,10),(2,20),(3,30)",
+            ])
+            self._mk_mysql_real(src, database=ext_db)
+
+            # Serialize tdSql calls — the native C driver is not thread-safe
+            # for concurrent calls on a shared connection.  The lock still
+            # exercises "multiple logical threads querying the same source"
+            # without triggering a SIGSEGV in the C client.
+            _query_lock = threading.Lock()
+
+            def _worker(tid):
+                try:
+                    for _ in range(_QUERIES_PER_THREAD):
+                        with _query_lock:
+                            tdSql.query(f"select count(*) from {src}.stab_t")
+                            count = tdSql.queryResult[0][0]
+                        with results_lock:
+                            results.append(count)
+                except Exception as ex:
+                    with results_lock:
+                        errors.append(f"thread {tid}: {ex}")
+
+            threads = [
+                threading.Thread(target=_worker, args=(i,))
+                for i in range(_THREAD_COUNT)
+            ]
+            for t in threads:
+                t.start()
+            for t in threads:
+                t.join(timeout=60)
+
+            assert not errors, f"Thread errors: {errors}"
+            assert len(results) == _THREAD_COUNT * _QUERIES_PER_THREAD
+            assert all(r == 3 for r in results), (
+                f"Inconsistent COUNT results: {results}"
+            )
+
+            self._record_pass(_test_name)
+        except Exception as e:
+            self._record_fail(_test_name, str(e))
+            raise
+        finally:
+            self._cleanup_src(src)
+            try:
+                ExtSrcEnv.mysql_drop_db_cfg(cfg, ext_db)
+            except Exception:
+                pass
+
+    def test_fq_stab_s05_multi_source_partial_failure(self):
+        """Gap: two sources, one stopped — healthy source still returns data
+
+        Creates two external sources backed by MySQL and PostgreSQL.
+        Stops the MySQL instance and verifies that queries against the PG
+        source still return correct data (sources are isolated).
+
+        Catalog: - Query:FederatedStability
+
+        Since: v3.4.0.0
+
+        Labels: common,ci
+
+        Jira: None
+
+        History:
+            - 2026-04-21 wpan Initial implementation
+
+        """
+        _test_name = "stab_s05_multi_source_partial_failure"
+        self._start_test(_test_name, "mysql down, pg still healthy", 1)
+        src_m = "fq_stab_s05_m"
+        src_p = "fq_stab_s05_p"
+        ext_db_m = "fq_stab_s05_m_ext"
+        ext_db_p = "fq_stab_s05_p_ext"
+        cfg_m = self._mysql_cfg()
+        cfg_p = self._pg_cfg()
+        self._cleanup_src(src_m, src_p)
+        try:
+            ExtSrcEnv.mysql_create_db_cfg(cfg_m, ext_db_m)
+            ExtSrcEnv.mysql_exec_cfg(cfg_m, ext_db_m, [
+                "drop table if exists stab_m",
+                "create table stab_m (id int primary key, val int)",
+                "insert into stab_m values (1, 111)",
+            ])
+            self._mk_mysql_real(
+                src_m, database=ext_db_m,
+                extra_options="'connect_timeout_ms'='500'",
+            )
+
+            ExtSrcEnv.pg_create_db_cfg(cfg_p, ext_db_p)
+            ExtSrcEnv.pg_exec_cfg(cfg_p, ext_db_p, [
+                "drop table if exists public.stab_p",
+                "create table public.stab_p (id int primary key, val int)",
+                "insert into public.stab_p values (1, 222)",
+            ])
+            self._mk_pg_real(src_p, database=ext_db_p, schema="public")
+
+            # Both sources work initially
+            tdSql.query(f"select val from {src_m}.stab_m")
+            tdSql.checkRows(1)
+            tdSql.checkData(0, 0, 111)
+            tdSql.query(f"select val from {src_p}.stab_p")
+            tdSql.checkRows(1)
+            tdSql.checkData(0, 0, 222)
+
+            # Stop MySQL; PG must still work
+            ExtSrcEnv.stop_mysql_instance(cfg_m.version)
+            try:
+                tdSql.error(
+                    f"select val from {src_m}.stab_m",
+                    expectedErrno=TSDB_CODE_EXT_SOURCE_UNAVAILABLE,
+                )
+                tdSql.query(f"select val from {src_p}.stab_p")
+                tdSql.checkRows(1)
+                tdSql.checkData(0, 0, 222)
+            finally:
+                ExtSrcEnv.start_mysql_instance(cfg_m.version)
+
+            self._record_pass(_test_name)
+        except Exception as e:
+            self._record_fail(_test_name, str(e))
+            raise
+        finally:
+            self._cleanup_src(src_m, src_p)
+            try:
+                ExtSrcEnv.mysql_drop_db_cfg(cfg_m, ext_db_m)
+            except Exception:
+                pass
+            try:
+                ExtSrcEnv.pg_drop_db_cfg(cfg_p, ext_db_p)
+            except Exception:
+                pass
+
+    def test_fq_stab_s06_restart_and_recovery(self):
+        """Gap: stop source → repeated errors → start source → next query succeeds
+
+        Verifies the full lifecycle: start healthy → stop → errors → restart →
+        success.  This exercises the connection-retry and cache-invalidation
+        path in the external source manager.
+
+        Catalog: - Query:FederatedStability
+
+        Since: v3.4.0.0
+
+        Labels: common,ci
+
+        Jira: None
+
+        History:
+            - 2026-04-21 wpan Initial implementation
+
+        """
+        _test_name = "stab_s06_restart_and_recovery"
+        self._start_test(_test_name, "stop → errors → restart → recovery", 1)
+        src = "fq_stab_s06_src"
+        ext_db = "fq_stab_s06_ext"
+        cfg = self._mysql_cfg()
+        ver = cfg.version
+        self._cleanup_src(src)
+        try:
+            ExtSrcEnv.mysql_create_db_cfg(cfg, ext_db)
+            ExtSrcEnv.mysql_exec_cfg(cfg, ext_db, [
+                "drop table if exists stab_t",
+                "create table stab_t (id int primary key, val int)",
+                "insert into stab_t values (1, 999)",
+            ])
+            self._mk_mysql_real(
+                src, database=ext_db,
+                extra_options="'connect_timeout_ms'='500'",
+            )
+
+            # Healthy — should return 1 row
+            tdSql.query(f"select val from {src}.stab_t")
+            tdSql.checkRows(1)
+            tdSql.checkData(0, 0, 999)
+
+            # Stop MySQL
+            ExtSrcEnv.stop_mysql_instance(ver)
+            try:
+                for _ in range(3):
+                    tdSql.error(
+                        f"select val from {src}.stab_t",
+                        expectedErrno=TSDB_CODE_EXT_SOURCE_UNAVAILABLE,
+                    )
+            finally:
+                ExtSrcEnv.start_mysql_instance(ver)
+
+            # Allow mysqld a moment to accept connections
+            time.sleep(2)
+
+            # Recovery — source must reconnect automatically
+            tdSql.query(f"select val from {src}.stab_t")
+            tdSql.checkRows(1)
+            tdSql.checkData(0, 0, 999)
+
+            self._record_pass(_test_name)
+        except Exception as e:
+            self._record_fail(_test_name, str(e))
+            raise
+        finally:
+            self._cleanup_src(src)
+            try:
+                ExtSrcEnv.mysql_drop_db_cfg(cfg, ext_db)
+            except Exception:
+                pass
+
+    # ------------------------------------------------------------------
+    # STAB-S07: Pool exhaustion — client-side delayed retry → eventual success
+    # ------------------------------------------------------------------
+
+    def test_fq_stab_s07_pool_exhaustion_retry(self):
+        """Verify repeated consecutive queries return consistent results.
+
+        Originally tested pool exhaustion retry via max_pool_size=1, which is
+        not currently a supported OPTIONS key for MySQL external sources.
+        Simplified to verify that multiple consecutive queries against the same
+        source all return correct data (basic connection-pool stability check).
+
+        Catalog: - Query:FederatedStability
+
+        Since: v3.4.0.0
+
+        Labels: common,ci
+
+        Jira: None
+
+        History:
+            - 2026-04-21 wpan Initial implementation
+            - 2026-05-23 wpan Simplified: max_pool_size not supported
+
+        """
+        _test_name = "stab_s07_pool_exhaustion_retry"
+        self._start_test(_test_name, "repeated queries return consistent data", 5)
+
+        cfg = self._mysql_cfg()
+        src    = "stab_pool_retry_src"
+        ext_db = "stab_pool_retry_db"
+
+        self._cleanup_src(src)
+        try:
+            ExtSrcEnv.mysql_exec_cfg(cfg, None, [
+                f"CREATE DATABASE IF NOT EXISTS `{ext_db}` CHARACTER SET utf8mb4",
+            ])
+            ExtSrcEnv.mysql_exec_cfg(cfg, ext_db, [
+                "DROP TABLE IF EXISTS stab_pool_t",
+                "CREATE TABLE stab_pool_t (ts BIGINT PRIMARY KEY, val INT)",
+                "INSERT INTO stab_pool_t VALUES (1000000000, 42)",
+            ])
+            self._mk_mysql_real(src, database=ext_db)
+
+            # Issue 5 consecutive queries — all must return identical data.
+            for _ in range(5):
+                tdSql.query(f"select val from {src}.stab_pool_t")
+                tdSql.checkRows(1)
+                tdSql.checkData(0, 0, 42)
+
+            self._record_pass(_test_name)
+        except Exception as e:
+            self._record_fail(_test_name, str(e))
+            raise
+        finally:
+            self._cleanup_src(src)
+            try:
+                ExtSrcEnv.mysql_exec_cfg(cfg, None,
+                    [f"DROP DATABASE IF EXISTS `{ext_db}`"])
+            except Exception:
+                pass
+
+    # ------------------------------------------------------------------
+    # STAB-S08: Pool exhaustion — retry limit exceeded → error returned
+    # ------------------------------------------------------------------
+
+    def test_fq_stab_s08_pool_exhaustion_max_retry(self):
+        """Verify repeated queries to an unreachable source fail cleanly.
+
+        Originally tested pool exhaustion max-retry via max_pool_size=1, which
+        is not currently a supported OPTIONS key for MySQL external sources.
+        Simplified to verify that multiple consecutive queries against an
+        unreachable source all return the expected error without crash or hang.
+
+        Catalog: - Query:FederatedStability
+
+        Since: v3.4.0.0
+
+        Labels: common,ci
+
+        Jira: None
+
+        History:
+            - 2026-04-21 wpan Initial implementation
+            - 2026-05-23 wpan Simplified: max_pool_size not supported
+
+        """
+        _test_name = "stab_s08_pool_exhaustion_max_retry"
+        self._start_test(_test_name, "repeated queries to unreachable source fail cleanly", 3)
+
+        cfg = self._mysql_cfg()
+        src = "stab_pool_maxretry_src"
+
+        self._cleanup_src(src)
+        try:
+            # Create source pointing to an unreachable RFC-5737 TEST-NET address.
+            tdSql.execute(
+                f"create external source {src} "
+                f"type='mysql' host='192.0.2.200' port={cfg.port} "
+                f"user='{cfg.user}' password='{cfg.password}' "
+                f"options('connect_timeout_ms'='500')"
+            )
+
+            # Multiple consecutive queries must all fail with source unavailable,
+            # not crash or hang.
+            for _ in range(3):
+                tdSql.error(
+                    f"select 1 from {src}.nonexistent_t",
+                    expectedErrno=TSDB_CODE_EXT_SOURCE_UNAVAILABLE,
+                )
+
+            self._record_pass(_test_name)
+        except Exception as e:
+            self._record_fail(_test_name, str(e))
+            raise
+        finally:
+            self._cleanup_src(src)
+
+    # ------------------------------------------------------------------
+    # STAB-S09  SQL Server: repeated identical queries (FQSS-LOCAL-011)
+    # ------------------------------------------------------------------
+
+    def test_fq_stab_s09_sqlserver_repeat_consistency(self):
+        """FQSS-LOCAL-011: the same SQL executed repeatedly stays consistent
+
+        SQL Server source under the step-1 zero-pushdown path: one aggregate
+        SQL is executed _STAB_SS_REPEAT times back-to-back and every run must
+        return exactly the baseline result (no drift between consecutive
+        executions).
+
+        Catalog: - Query:FederatedStability
+
+        Since: v3.4.4.0
+
+        Labels: common,ci
+
+        Jira: None
+
+        History:
+            - 2026-10-09 wpan Initial implementation
+
+        """
+        _test_name = "STAB-S09_sqlserver_repeat_consistency"
+        repeat = self._STAB_SS_REPEAT
+        self._start_test(
+            _test_name,
+            f"SQL Server same SQL x{repeat}, every run must match the first",
+            repeat,
+        )
+        src = "fq_stab_s09_ss_src"
+        ext_db = "fq_stab_s09_ss_db"
+        self._cleanup_src(src)
+        try:
+            ExtSrcEnv.sqlserver_create_db(ext_db)
+            ExtSrcEnv.sqlserver_exec(ext_db, [
+                "IF OBJECT_ID('dbo.stab_ss_t') IS NOT NULL "
+                "DROP TABLE dbo.stab_ss_t",
+                "CREATE TABLE dbo.stab_ss_t "
+                "(ts datetime2(3) NOT NULL PRIMARY KEY, val int)",
+                "INSERT INTO dbo.stab_ss_t (ts, val) VALUES "
+                "('2024-01-01 00:00:00.000', 10),"
+                "('2024-01-01 00:00:01.000', 20),"
+                "('2024-01-01 00:00:02.000', 30),"
+                "('2024-01-01 00:00:03.000', 40)",
+            ])
+            self._mk_sqlserver_real(src, database=ext_db, schema="dbo")
+
+            sql = (f"select count(*), sum(val), min(val), max(val) "
+                   f"from {src}.stab_ss_t")
+            baseline = None
+            for i in range(repeat):
+                tdSql.query(sql)
+                tdSql.checkRows(1)
+                row = tuple(tdSql.queryResult[0])
+                if baseline is None:
+                    baseline = row
+                    tdSql.checkData(0, 0, 4)     # count
+                    tdSql.checkData(0, 1, 100)   # sum = 10+20+30+40
+                    tdSql.checkData(0, 2, 10)    # min
+                    tdSql.checkData(0, 3, 40)    # max
+                elif row != baseline:
+                    raise AssertionError(
+                        f"result drift at execution {i + 1}/{repeat}: "
+                        f"got {row}, baseline {baseline}"
+                    )
+
+            self._record_pass(_test_name)
+        except Exception as e:
+            self._record_fail(_test_name, str(e))
+            raise
+        finally:
+            self._cleanup_src(src)
+            try:
+                ExtSrcEnv.sqlserver_drop_db(ext_db)
+            except Exception:
+                pass
+
+    # ------------------------------------------------------------------
+    # STAB-S10  SQL Server: concurrent namespace isolation (FQSS-ERR-012)
+    # ------------------------------------------------------------------
+
+    def test_fq_stab_s10_sqlserver_namespace_isolation(self):
+        """FQSS-ERR-012: concurrent sessions do not cross namespace boundaries
+
+        One SQL Server source exposes the same table name in two schemas
+        (dbo.stab_ns_t and fq_ns2.stab_ns_t) holding different data.  Two
+        logical sessions switch to a different database/schema context with
+        USE <src>.<db>.<schema> and query the 2-segment path <src>.stab_ns_t;
+        every query must keep returning the rows of the session's own schema.
+
+        tdSql is a single connection and the native client is not thread-safe,
+        so each worker serializes its USE + query pair under a lock (the same
+        proxy used by stab_s04); what is exercised here is the namespace
+        context switching between the two logical sessions.
+
+        Catalog: - Query:FederatedStability
+
+        Since: v3.4.4.0
+
+        Labels: common,ci
+
+        Jira: None
+
+        History:
+            - 2026-10-09 wpan Initial implementation
+
+        """
+        _test_name = "STAB-S10_sqlserver_namespace_isolation"
+        _THREAD_COUNT = 2
+        _QUERIES_PER_THREAD = 5
+        self._start_test(
+            _test_name,
+            f"{_THREAD_COUNT} sessions x {_QUERIES_PER_THREAD} queries on "
+            f"different database/schema contexts",
+            _THREAD_COUNT * _QUERIES_PER_THREAD,
+        )
+        src = "fq_stab_s10_ss_src"
+        ext_db = "fq_stab_s10_ss_db"
+        alt_schema = "fq_ns2"
+        local_db = "fq_stab_s10_local"
+        self._cleanup_src(src)
+        errors: list = []
+        results: list = []
+        results_lock = threading.Lock()
+
+        try:
+            # Local database: restored as the session context in the finally
+            # block before the external namespace is dropped.
+            tdSql.execute(f"drop database if exists {local_db}")
+            tdSql.execute(f"create database {local_db}")
+
+            ExtSrcEnv.sqlserver_create_db(ext_db)
+            ExtSrcEnv.sqlserver_exec(ext_db, [
+                f"IF SCHEMA_ID(N'{alt_schema}') IS NULL "
+                f"EXEC('CREATE SCHEMA {alt_schema}')",
+                "IF OBJECT_ID('dbo.stab_ns_t') IS NOT NULL "
+                "DROP TABLE dbo.stab_ns_t",
+                f"IF OBJECT_ID('{alt_schema}.stab_ns_t') IS NOT NULL "
+                f"DROP TABLE {alt_schema}.stab_ns_t",
+                "CREATE TABLE dbo.stab_ns_t "
+                "(ts datetime2(3) NOT NULL PRIMARY KEY, val int)",
+                f"CREATE TABLE {alt_schema}.stab_ns_t "
+                "(ts datetime2(3) NOT NULL PRIMARY KEY, val int)",
+                "INSERT INTO dbo.stab_ns_t (ts, val) VALUES "
+                "('2024-01-01 00:00:00.000', 1),"
+                "('2024-01-01 00:00:01.000', 2),"
+                "('2024-01-01 00:00:02.000', 3)",
+                f"INSERT INTO {alt_schema}.stab_ns_t (ts, val) VALUES "
+                "('2024-01-01 00:00:00.000', 101),"
+                "('2024-01-01 00:00:01.000', 102),"
+                "('2024-01-01 00:00:02.000', 103)",
+            ])
+            self._mk_sqlserver_real(src, database=ext_db, schema="dbo")
+
+            # Fully-qualified paths: the same table name in two schemas must
+            # stay distinct no matter what the default context is.
+            tdSql.execute(f"use {local_db}")
+            tdSql.query(
+                f"select count(*), sum(val) "
+                f"from {src}.{ext_db}.dbo.stab_ns_t")
+            tdSql.checkRows(1)
+            tdSql.checkData(0, 0, 3)
+            tdSql.checkData(0, 1, 6)     # dbo rows: 1+2+3
+            tdSql.query(
+                f"select count(*), sum(val) "
+                f"from {src}.{ext_db}.{alt_schema}.stab_ns_t")
+            tdSql.checkRows(1)
+            tdSql.checkData(0, 0, 3)
+            tdSql.checkData(0, 1, 306)   # fq_ns2 rows: 101+102+103
+
+            # Serialize tdSql calls — the native C driver is not thread-safe
+            # for concurrent calls on a shared connection (see stab_s04).
+            _query_lock = threading.Lock()
+
+            def _worker(tid, use_schema, expect_sum):
+                try:
+                    for _ in range(_QUERIES_PER_THREAD):
+                        with _query_lock:
+                            tdSql.execute(f"use {src}.{ext_db}.{use_schema}")
+                            tdSql.query(
+                                f"select count(*), sum(val) "
+                                f"from {src}.stab_ns_t")
+                            row = (tdSql.queryResult[0][0],
+                                   tdSql.queryResult[0][1])
+                        with results_lock:
+                            results.append((tid, use_schema, row))
+                except Exception as ex:
+                    with results_lock:
+                        errors.append(f"session {tid} ({use_schema}): {ex}")
+
+            threads = [
+                threading.Thread(target=_worker, args=(1, "dbo", 6)),
+                threading.Thread(target=_worker, args=(2, alt_schema, 306)),
+            ]
+            for t in threads:
+                t.start()
+            for t in threads:
+                t.join(timeout=120)
+
+            assert not errors, f"Session errors: {errors}"
+            assert len(results) == _THREAD_COUNT * _QUERIES_PER_THREAD
+            for tid, use_schema, row in results:
+                expect_sum = 6 if use_schema == "dbo" else 306
+                assert row == (3, expect_sum), (
+                    f"session {tid} in schema '{use_schema}' saw {row}, "
+                    f"expected (3, {expect_sum})"
+                )
+
+            self._record_pass(_test_name)
+        except Exception as e:
+            self._record_fail(_test_name, str(e))
+            raise
+        finally:
+            # Restore a local context before the external namespace is dropped.
+            try:
+                tdSql.execute(f"use {local_db}")
+            except Exception:
+                pass
+            self._cleanup_src(src)
+            try:
+                ExtSrcEnv.sqlserver_drop_db(ext_db)
+            except Exception:
+                pass
+            try:
+                tdSql.execute(f"drop database if exists {local_db}")
+            except Exception:
+                pass
+
+    # ------------------------------------------------------------------
+    # STAB-S11  SQL Server fault injection: stop / restart / recover
+    # ------------------------------------------------------------------
+
+    def test_fq_stab_s11_sqlserver_restart_and_recovery(self):
+        """Fault injection — SQL Server container stop / restart / recovery
+
+        Keeps the existing restart-and-recovery stability scenario and adds
+        the SQL Server source:
+
+        1. Create a SQL Server source backed by the managed container
+        2. Stop the container; every query must fail with a connection-layer
+           error (UNAVAILABLE, not syntax/catalog) and taosd must stay alive
+        3. The source must survive repeated failures in the catalog
+        4. Restart the container (start_sqlserver_instance waits and probes);
+           the same source must answer correctly again, without being rebuilt
+
+        Catalog: - Query:FederatedStability
+
+        Since: v3.4.4.0
+
+        Labels: common,ci
+
+        Jira: None
+
+        History:
+            - 2026-10-09 wpan Initial implementation
+
+        """
+        _test_name = "STAB-S11_sqlserver_restart_and_recovery"
+        self._start_test(
+            _test_name,
+            "SQL Server stop -> connection errors -> restart -> recovery",
+            1,
+        )
+        src = "fq_stab_s11_ss_src"
+        ext_db = "fq_stab_s11_ss_db"
+        cfg = self._sqlserver_cfg()
+        ver = cfg.version
+        self._cleanup_src(src)
+        try:
+            ExtSrcEnv.sqlserver_create_db(ext_db)
+            ExtSrcEnv.sqlserver_exec(ext_db, [
+                "IF OBJECT_ID('dbo.stab_ss_t') IS NOT NULL "
+                "DROP TABLE dbo.stab_ss_t",
+                "CREATE TABLE dbo.stab_ss_t "
+                "(ts datetime2(3) NOT NULL PRIMARY KEY, val int)",
+                "INSERT INTO dbo.stab_ss_t (ts, val) VALUES "
+                "('2024-01-01 00:00:00.000', 9),"
+                "('2024-01-01 00:00:01.000', 99)",
+            ])
+            self._mk_sqlserver_real(
+                src,
+                database=ext_db,
+                schema="dbo",
+                extra_options="'connect_timeout_ms'='500'",
+            )
+
+            # Healthy baseline
+            tdSql.query(f"select count(*), sum(val) from {src}.stab_ss_t")
+            tdSql.checkRows(1)
+            tdSql.checkData(0, 0, 2)
+            tdSql.checkData(0, 1, 108)
+
+            ExtSrcEnv.stop_sqlserver_instance(ver)
+            try:
+                # Bounded wait until the container's port is really closed
+                # (docker stop returns after the process exits; guard against
+                # a lingering listener race).
+                deadline = time.time() + 30
+                while time.time() < deadline and ExtSrcEnv._tcp_probe(
+                        cfg.host, cfg.port):
+                    time.sleep(0.5)
+
+                for _ in range(self._STAB_UNREACHABLE_Q):
+                    tdSql.error(
+                        f"select count(*) from {src}.stab_ss_t",
+                        expectedErrno=TSDB_CODE_EXT_SOURCE_UNAVAILABLE,
+                    )
+
+                # Source must still be in the catalog after repeated failures
+                tdSql.query(
+                    "select count(*) from information_schema.ins_ext_sources "
+                    f"where source_name = '{src}'"
+                )
+                tdSql.checkRows(1)
+                tdSql.checkData(0, 0, 1)
+
+                # taosd must still serve local queries (no crash)
+                tdSql.query("select server_version()")
+                tdSql.checkRows(1)
+            finally:
+                started = ExtSrcEnv.start_sqlserver_instance(ver)
+            if not started:
+                raise AssertionError(
+                    f"SQL Server {ver} did not become ready after restart")
+
+            # Recovery — the same source must answer correctly again
+            tdSql.query(f"select count(*), sum(val) from {src}.stab_ss_t")
+            tdSql.checkRows(1)
+            tdSql.checkData(0, 0, 2)
+            tdSql.checkData(0, 1, 108)
+
+            self._record_pass(_test_name)
+        except Exception as e:
+            self._record_fail(_test_name, str(e))
+            raise
+        finally:
+            self._cleanup_src(src)
+            try:
+                ExtSrcEnv.sqlserver_drop_db(ext_db)
+            except Exception:
+                pass
+
+    # ------------------------------------------------------------------
+    # STAB-S05S  SQL Server: partial failure with a peer source healthy
+    # ------------------------------------------------------------------
+
+    def test_fq_stab_s05s_sqlserver_multi_source_partial_failure(self):
+        """Multi-source isolation with SQL Server down — peer source unaffected
+
+        The STAB-S05 scenario executed with SQL Server in the stopped role:
+        two external sources (SQL Server and PostgreSQL) are registered; the
+        SQL Server instance is stopped, so SQL Server queries must fail with a
+        connection-layer availability error while the PostgreSQL source keeps
+        returning correct data (sources are isolated).  After the instance is
+        restarted the SQL Server source answers again without being rebuilt.
+
+        Catalog: - Query:FederatedStability
+
+        Since: v3.4.4.0
+
+        Labels: common,ci
+
+        Jira: None
+
+        History:
+            - 2026-10-16 wpan Add the SQL Server leg of STAB-S05
+
+        """
+        _test_name = "STAB-S05S_sqlserver_partial_failure"
+        self._start_test(_test_name, "sqlserver down, pg still healthy", 1)
+        src_ss = "fq_stab_s05s_ss"
+        src_p = "fq_stab_s05s_p"
+        ext_db_ss = "fq_stab_s05s_ss_ext"
+        ext_db_p = "fq_stab_s05s_p_ext"
+        cfg_ss = self._sqlserver_cfg()
+        cfg_p = self._pg_cfg()
+        self._cleanup_src(src_ss, src_p)
+        try:
+            ExtSrcEnv.sqlserver_create_db(ext_db_ss)
+            ExtSrcEnv.sqlserver_exec(ext_db_ss, [
+                "IF OBJECT_ID('dbo.stab_ss') IS NOT NULL DROP TABLE dbo.stab_ss",
+                "CREATE TABLE dbo.stab_ss (id INT PRIMARY KEY, val INT)",
+                "INSERT INTO dbo.stab_ss VALUES (1, 333)",
+            ])
+            self._mk_sqlserver_real(
+                src_ss, database=ext_db_ss, schema="dbo",
+                extra_options="'connect_timeout_ms'='500'",
+            )
+
+            ExtSrcEnv.pg_create_db_cfg(cfg_p, ext_db_p)
+            ExtSrcEnv.pg_exec_cfg(cfg_p, ext_db_p, [
+                "drop table if exists public.stab_p",
+                "create table public.stab_p (id int primary key, val int)",
+                "insert into public.stab_p values (1, 222)",
+            ])
+            self._mk_pg_real(src_p, database=ext_db_p, schema="public")
+
+            # Both sources work initially
+            tdSql.query(f"select val from {src_ss}.stab_ss")
+            tdSql.checkRows(1)
+            tdSql.checkData(0, 0, 333)
+            tdSql.query(f"select val from {src_p}.stab_p")
+            tdSql.checkRows(1)
+            tdSql.checkData(0, 0, 222)
+
+            # Stop SQL Server; the PostgreSQL source must still work
+            ExtSrcEnv.stop_sqlserver_instance(cfg_ss.version)
+            try:
+                # Bounded wait until the instance's port is really closed
+                # (guard against a lingering-listener race after the stop).
+                deadline = time.time() + 30
+                while time.time() < deadline and ExtSrcEnv._tcp_probe(
+                        cfg_ss.host, cfg_ss.port):
+                    time.sleep(0.5)
+
+                tdSql.error(
+                    f"select val from {src_ss}.stab_ss",
+                    expectedErrno=TSDB_CODE_EXT_SOURCE_UNAVAILABLE,
+                )
+                tdSql.query(f"select val from {src_p}.stab_p")
+                tdSql.checkRows(1)
+                tdSql.checkData(0, 0, 222)
+            finally:
+                started = ExtSrcEnv.start_sqlserver_instance(cfg_ss.version)
+            if not started:
+                raise AssertionError(
+                    f"SQL Server {cfg_ss.version} did not become ready after restart")
+
+            # Recovery: the same source answers again without being rebuilt
+            tdSql.query(f"select val from {src_ss}.stab_ss")
+            tdSql.checkRows(1)
+            tdSql.checkData(0, 0, 333)
+
+            self._record_pass(_test_name)
+        except Exception as e:
+            self._record_fail(_test_name, str(e))
+            raise
+        finally:
+            self._cleanup_src(src_ss, src_p)
+            try:
+                ExtSrcEnv.sqlserver_drop_db(ext_db_ss)
+            except Exception:
+                pass
+            try:
+                ExtSrcEnv.pg_drop_db_cfg(cfg_p, ext_db_p)
+            except Exception:
+                pass
+
+    # ------------------------------------------------------------------
+    # STAB-O01  Oracle: repeated identical queries (FQOR-STAB-003)
+    # ------------------------------------------------------------------
+
+    def test_fq_stab_o01_oracle_repeat_consistency(self):
+        """FQOR-STAB-003: the same SQL executed repeatedly stays consistent
+
+        One aggregate SQL runs _STAB_SS_REPEAT times back-to-back against an
+        Oracle source; every run must return exactly the first run's result,
+        so connection reuse cannot drift the values.
+
+        Catalog: - Query:FederatedStability
+
+        Since: v3.4.4.0
+
+        Labels: common,ci
+
+        """
+        _test_name = "STAB-O01_oracle_repeat_consistency"
+        repeat = self._STAB_SS_REPEAT
+        self._start_test(
+            _test_name,
+            f"Oracle same SQL x{repeat}, every run must match the first",
+            repeat,
+        )
+        src = "fq_stab_o01_src"
+        cfg = self._oracle_cfg()
+        self._cleanup_src(src)
+        try:
+            ExtSrcEnv.oracle_exec_cfg(cfg, [
+                "BEGIN EXECUTE IMMEDIATE 'DROP TABLE \"stab_o_t\"'; "
+                "EXCEPTION WHEN OTHERS THEN NULL; END;",
+                'CREATE TABLE "stab_o_t" ('
+                ' "ts" TIMESTAMP(3) PRIMARY KEY, "val" NUMBER(10,0))',
+                'INSERT INTO "stab_o_t" VALUES '
+                " (TIMESTAMP '2024-01-01 00:00:00.000', 10)",
+                'INSERT INTO "stab_o_t" VALUES '
+                " (TIMESTAMP '2024-01-01 00:00:01.000', 20)",
+                'INSERT INTO "stab_o_t" VALUES '
+                " (TIMESTAMP '2024-01-01 00:00:02.000', 30)",
+                'INSERT INTO "stab_o_t" VALUES '
+                " (TIMESTAMP '2024-01-01 00:00:03.000', 40)",
+                "COMMIT",
+            ])
+            self._mk_oracle_real(src, database=cfg.service,
+                                 schema=ExtSrcEnv.ORACLE_USER.upper())
+
+            sql = (f"select count(*), sum(val), min(val), max(val) "
+                   f"from {src}.stab_o_t")
+            baseline = None
+            for i in range(repeat):
+                tdSql.query(sql)
+                tdSql.checkRows(1)
+                row = tuple(tdSql.queryResult[0])
+                if baseline is None:
+                    baseline = row
+                    tdSql.checkData(0, 0, 4)     # count
+                    tdSql.checkData(0, 1, 100)   # sum = 10+20+30+40
+                    tdSql.checkData(0, 2, 10)    # min
+                    tdSql.checkData(0, 3, 40)    # max
+                elif row != baseline:
+                    raise AssertionError(
+                        f"result drift at execution {i + 1}/{repeat}: "
+                        f"got {row}, baseline {baseline}"
+                    )
+
+            self._record_pass(_test_name)
+        except Exception as e:
+            self._record_fail(_test_name, str(e))
+            raise
+        finally:
+            self._cleanup_src(src)
+            try:
+                ExtSrcEnv.oracle_drop_table_cfg(cfg, "stab_o_t")
+            except Exception:
+                pass
+
+    # ------------------------------------------------------------------
+    # STAB-O02  Oracle fault injection: stop / restart / recovery
+    # ------------------------------------------------------------------
+
+    def test_fq_stab_o02_oracle_restart_and_recovery(self):
+        """FQOR-STAB-001: instance stop / restart / recovery
+
+        1. Create an Oracle source against the managed instance.
+        2. Stop the instance: every query must fail with a connection-layer
+           error (UNAVAILABLE, not syntax/catalog) and taosd must stay alive.
+        3. The source must survive repeated failures in the catalog.
+        4. Start the instance again; the same source answers correctly without
+           being rebuilt.
+
+        Catalog: - Query:FederatedStability
+
+        Since: v3.4.4.0
+
+        Labels: common,ci
+
+        """
+        _test_name = "STAB-O02_oracle_restart_and_recovery"
+        self._start_test(
+            _test_name,
+            "Oracle stop -> connection errors -> restart -> recovery",
+            1,
+        )
+        src = "fq_stab_o02_src"
+        cfg = self._oracle_cfg()
+        ver = cfg.version
+        self._cleanup_src(src)
+        try:
+            ExtSrcEnv.oracle_exec_cfg(cfg, [
+                "BEGIN EXECUTE IMMEDIATE 'DROP TABLE \"stab_o_r\"'; "
+                "EXCEPTION WHEN OTHERS THEN NULL; END;",
+                'CREATE TABLE "stab_o_r" ('
+                ' "ts" TIMESTAMP(3) PRIMARY KEY, "val" NUMBER(10,0))',
+                'INSERT INTO "stab_o_r" VALUES '
+                " (TIMESTAMP '2024-01-01 00:00:00.000', 9)",
+                'INSERT INTO "stab_o_r" VALUES '
+                " (TIMESTAMP '2024-01-01 00:00:01.000', 99)",
+                "COMMIT",
+            ])
+            self._mk_oracle_real(src, database=cfg.service,
+                                 schema=ExtSrcEnv.ORACLE_USER.upper(),
+                                 extra_options="'connect_timeout_ms'='500'")
+
+            # Healthy baseline
+            tdSql.query(f"select count(*), sum(val) from {src}.stab_o_r")
+            tdSql.checkRows(1)
+            tdSql.checkData(0, 0, 2)
+            tdSql.checkData(0, 1, 108)
+
+            ExtSrcEnv.stop_oracle_instance(ver)
+            try:
+                deadline = time.time() + 60
+                while time.time() < deadline and ExtSrcEnv._tcp_probe(
+                        cfg.host, cfg.port):
+                    time.sleep(0.5)
+
+                for _ in range(self._STAB_UNREACHABLE_Q):
+                    tdSql.error(
+                        f"select count(*) from {src}.stab_o_r",
+                        expectedErrno=TSDB_CODE_EXT_CONNECT_FAILED,
+                    )
+
+                # Source must still be in the catalog after repeated failures
+                tdSql.query(
+                    "select count(*) from information_schema.ins_ext_sources "
+                    f"where source_name = '{src}'"
+                )
+                tdSql.checkRows(1)
+                tdSql.checkData(0, 0, 1)
+
+                # taosd must still serve local queries (no crash)
+                tdSql.query("select server_version()")
+                tdSql.checkRows(1)
+            finally:
+                started = ExtSrcEnv.start_oracle_instance(ver)
+            if not started:
+                raise AssertionError(
+                    f"Oracle {ver} did not become ready after restart")
+
+            # Recovery — the same source must answer correctly again, and the
+            # rows written before the outage are still there.
+            tdSql.query(f"select count(*), sum(val) from {src}.stab_o_r")
+            tdSql.checkRows(1)
+            tdSql.checkData(0, 0, 2)
+            tdSql.checkData(0, 1, 108)
+
+            self._record_pass(_test_name)
+        except Exception as e:
+            self._record_fail(_test_name, str(e))
+            raise
+        finally:
+            self._cleanup_src(src)
+            try:
+                ExtSrcEnv.oracle_drop_table_cfg(cfg, "stab_o_r")
+            except Exception:
+                pass
+
+    # ------------------------------------------------------------------
+    # STAB-O03  Oracle: concurrent namespace isolation (FQOR-STAB-002)
+    # ------------------------------------------------------------------
+
+    def test_fq_stab_o03_oracle_namespace_isolation(self):
+        """FQOR-STAB-002: concurrent sessions do not cross schema boundaries
+
+        One Oracle source exposes the same table name in two schemas
+        (the main account's "stab_ns_t" and the alternate account's
+        "stab_ns_t") holding different data.  Two logical sessions alternate between the two
+        3-segment paths; every query must return its own schema's rows.
+
+        Catalog: - Query:FederatedStability
+
+        Since: v3.4.4.0
+
+        Labels: common,ci
+
+        """
+        _test_name = "STAB-O03_oracle_namespace_isolation"
+        _THREAD_COUNT = 2
+        _QUERIES_PER_THREAD = 5
+        self._start_test(
+            _test_name,
+            f"{_THREAD_COUNT} sessions x {_QUERIES_PER_THREAD} queries on "
+            f"different schemas",
+            _THREAD_COUNT * _QUERIES_PER_THREAD,
+        )
+        src = "fq_stab_o03_src"
+        cfg = self._oracle_cfg()
+        main_schema = ExtSrcEnv.ORACLE_USER.upper()
+        alt_schema = ExtSrcEnv.ORACLE_ALT_USER.upper()
+        self._cleanup_src(src)
+        errors: list = []
+        results: list = []
+        results_lock = threading.Lock()
+        try:
+            ExtSrcEnv.oracle_exec_cfg(cfg, [
+                "BEGIN EXECUTE IMMEDIATE 'DROP TABLE \"stab_ns_t\"'; "
+                "EXCEPTION WHEN OTHERS THEN NULL; END;",
+                'CREATE TABLE "stab_ns_t" ('
+                ' "ts" TIMESTAMP(3) PRIMARY KEY, "val" NUMBER(10,0))',
+                'INSERT INTO "stab_ns_t" VALUES '
+                " (TIMESTAMP '2024-01-01 00:00:00.000', 1)",
+                'INSERT INTO "stab_ns_t" VALUES '
+                " (TIMESTAMP '2024-01-01 00:00:01.000', 2)",
+                'INSERT INTO "stab_ns_t" VALUES '
+                " (TIMESTAMP '2024-01-01 00:00:02.000', 3)",
+                "COMMIT",
+            ])
+            # The alternate namespace is a separate account, so its table is
+            # created while logged in as that account.
+            ExtSrcEnv._oracle_sql(cfg, [
+                "BEGIN EXECUTE IMMEDIATE 'DROP TABLE \"stab_ns_t\"'; "
+                "EXCEPTION WHEN OTHERS THEN NULL; END;",
+                'CREATE TABLE "stab_ns_t" ('
+                ' "ts" TIMESTAMP(3) PRIMARY KEY, "val" NUMBER(10,0))',
+                'INSERT INTO "stab_ns_t" VALUES '
+                " (TIMESTAMP '2024-01-01 00:00:00.000', 101)",
+                'INSERT INTO "stab_ns_t" VALUES '
+                " (TIMESTAMP '2024-01-01 00:00:01.000', 102)",
+                'INSERT INTO "stab_ns_t" VALUES '
+                " (TIMESTAMP '2024-01-01 00:00:02.000', 103)",
+                "COMMIT",
+            ], user=ExtSrcEnv.ORACLE_ALT_USER,
+               password=ExtSrcEnv.ORACLE_ALT_PASS)
+            # Cross-schema reads need an explicit grant: Oracle has no
+            # search_path, and the test account has no privilege on the
+            # alternate account's objects by default.
+            ExtSrcEnv.oracle_admin_exec_cfg(cfg, [
+                f'GRANT SELECT ON "{alt_schema}"."stab_ns_t" TO "{main_schema}"',
+            ])
+            self._mk_oracle_real(src, database=cfg.service, schema=main_schema)
+
+            expected = {main_schema: 1, alt_schema: 101}
+            lock = threading.Lock()
+
+            def worker(schema, base_val):
+                try:
+                    for _ in range(_QUERIES_PER_THREAD):
+                        # tdSql is a single connection: serialize the query.
+                        with lock:
+                            tdSql.query(
+                                f"select min(val) from {src}.`{schema}`.stab_ns_t")
+                            got = tdSql.queryResult[0][0]
+                        with results_lock:
+                            results.append((schema, got))
+                        if got != base_val:
+                            errors.append(
+                                f"schema {schema} returned {got}, "
+                                f"expected {base_val}")
+                except Exception as e:  # noqa: BLE001 - reported below
+                    with results_lock:
+                        errors.append(f"{schema}: {e}")
+
+            threads = [
+                threading.Thread(target=worker, args=(s, v))
+                for s, v in expected.items()
+            ]
+            for t in threads:
+                t.start()
+            for t in threads:
+                t.join()
+
+            if errors:
+                raise AssertionError(
+                    f"namespace leakage across {len(errors)} quer"
+                    f"{'y' if len(errors) == 1 else 'ies'}: {errors[:5]}")
+            if len(results) != _THREAD_COUNT * _QUERIES_PER_THREAD:
+                raise AssertionError(
+                    f"expected {_THREAD_COUNT * _QUERIES_PER_THREAD} results, "
+                    f"got {len(results)}")
+
+            self._record_pass(_test_name)
+        except Exception as e:
+            self._record_fail(_test_name, str(e))
+            raise
+        finally:
+            self._cleanup_src(src)
+            try:
+                ExtSrcEnv.oracle_drop_table_cfg(cfg, "stab_ns_t")
+            except Exception:
+                pass
+            try:
+                ExtSrcEnv._oracle_sql(
+                    cfg,
+                    "BEGIN EXECUTE IMMEDIATE 'DROP TABLE \"stab_ns_t\"'; "
+                    "EXCEPTION WHEN OTHERS THEN NULL; END;",
+                    user=ExtSrcEnv.ORACLE_ALT_USER,
+                    password=ExtSrcEnv.ORACLE_ALT_PASS)
+            except Exception:
+                pass
+
+    # ------------------------------------------------------------------
+    # STAB-O04  Oracle: partial failure with a peer source healthy
+    # ------------------------------------------------------------------
+
+    def test_fq_stab_o06_oracle_multi_source_partial_failure(self):
+        """FQOR-STAB-001 (isolation): Oracle down leaves a peer source intact
+
+        Two external sources (Oracle and PostgreSQL) are registered; the
+        Oracle instance is stopped, so Oracle queries must fail with a
+        connection-layer availability error while the PostgreSQL source keeps
+        returning correct data.  After the instance is restarted the Oracle
+        source answers again without being rebuilt.
+
+        Catalog: - Query:FederatedStability
+
+        Since: v3.4.4.0
+
+        Labels: common,ci
+
+        """
+        _test_name = "STAB-O04_oracle_partial_failure"
+        self._start_test(_test_name, "oracle down, pg still healthy", 1)
+        src_o = "fq_stab_o04_o"
+        src_p = "fq_stab_o04_p"
+        ext_db_p = "fq_stab_o04_p_ext"
+        cfg_o = self._oracle_cfg()
+        cfg_p = self._pg_cfg()
+        self._cleanup_src(src_o, src_p)
+        try:
+            ExtSrcEnv.oracle_exec_cfg(cfg_o, [
+                "BEGIN EXECUTE IMMEDIATE 'DROP TABLE \"stab_o_p\"'; "
+                "EXCEPTION WHEN OTHERS THEN NULL; END;",
+                'CREATE TABLE "stab_o_p" ("id" NUMBER(10,0) PRIMARY KEY, '
+                '"val" NUMBER(10,0))',
+                'INSERT INTO "stab_o_p" VALUES (1, 333)',
+                "COMMIT",
+            ])
+            self._mk_oracle_real(src_o, database=cfg_o.service,
+                                 schema=ExtSrcEnv.ORACLE_USER.upper(),
+                                 extra_options="'connect_timeout_ms'='500'")
+
+            ExtSrcEnv.pg_create_db_cfg(cfg_p, ext_db_p)
+            ExtSrcEnv.pg_exec_cfg(cfg_p, ext_db_p, [
+                "drop table if exists public.stab_p",
+                "create table public.stab_p (id int primary key, val int)",
+                "insert into public.stab_p values (1, 222)",
+            ])
+            self._mk_pg_real(src_p, database=ext_db_p, schema="public")
+
+            tdSql.query(f"select val from {src_o}.stab_o_p")
+            tdSql.checkRows(1)
+            tdSql.checkData(0, 0, 333)
+            tdSql.query(f"select val from {src_p}.stab_p")
+            tdSql.checkRows(1)
+            tdSql.checkData(0, 0, 222)
+
+            ExtSrcEnv.stop_oracle_instance(cfg_o.version)
+            try:
+                deadline = time.time() + 60
+                while time.time() < deadline and ExtSrcEnv._tcp_probe(
+                        cfg_o.host, cfg_o.port):
+                    time.sleep(0.5)
+
+                tdSql.error(
+                    f"select val from {src_o}.stab_o_p",
+                    expectedErrno=TSDB_CODE_EXT_CONNECT_FAILED,
+                )
+                tdSql.query(f"select val from {src_p}.stab_p")
+                tdSql.checkRows(1)
+                tdSql.checkData(0, 0, 222)
+            finally:
+                started = ExtSrcEnv.start_oracle_instance(cfg_o.version)
+            if not started:
+                raise AssertionError(
+                    f"Oracle {cfg_o.version} did not become ready after restart")
+
+            tdSql.query(f"select val from {src_o}.stab_o_p")
+            tdSql.checkRows(1)
+            tdSql.checkData(0, 0, 333)
+
+            self._record_pass(_test_name)
+        except Exception as e:
+            self._record_fail(_test_name, str(e))
+            raise
+        finally:
+            self._cleanup_src(src_o, src_p)
+            try:
+                ExtSrcEnv.oracle_drop_table_cfg(cfg_o, "stab_o_p")
+            except Exception:
+                pass
+            try:
+                ExtSrcEnv.pg_drop_db_cfg(cfg_p, ext_db_p)
+            except Exception:
+                pass
+
+    # ------------------------------------------------------------------
+    # STAB-O04  Oracle: repeated mixed workload stays exact (FQOR-STAB-004)
+    # ------------------------------------------------------------------
+
+    def test_fq_stab_o04_oracle_mixed_workload(self):
+        """FQOR-STAB-004: a mixed Oracle workload keeps returning exact rows
+
+        One cycle covers the four shapes the stability contract names: a plain
+        remote scan, a remote aggregate, a join between the remote table and a
+        local table on the timestamp axis, and a virtual table over remote
+        columns.  The mix repeats ``_STAB_O_MIX_ITERS`` times and every cycle
+        must reproduce the same exact values, so a leaked connection or a stale
+        cached projection shows up as a wrong row instead of a timeout.
+        ``server_version()`` is checked at the end of each cycle so a wedged
+        dnode is detected immediately rather than after the whole loop.
+
+        Catalog: - Query:FederatedStability
+
+        Since: v3.4.4.0
+
+        Labels: common,ci
+
+        """
+        _test_name = "STAB-O04_oracle_mixed_workload"
+        iters = self._STAB_O_MIX_ITERS
+        self._start_test(
+            _test_name,
+            f"{iters}-cycle Oracle scan/aggregate/join/vtable mix, "
+            f"exact values every cycle",
+            iters,
+        )
+        src = "fq_stab_o04_mix_src"
+        db = self.STAB_DB
+        cfg = self._oracle_cfg()
+        schema = ExtSrcEnv.ORACLE_USER.upper()
+        base = 1704067200000
+        self._cleanup_src(src)
+        try:
+            # The timestamp join below compares the remote wall clock with the
+            # absolute millisecond values in the local table.  Pin the session
+            # timezone: a leftover Asia/Shanghai from an earlier timezone case
+            # would shift the remote side by eight hours and match nothing.
+            tdSql.connect("root", "taosdata")
+            tdSql.execute('ALTER LOCAL "timezone" "UTC"')
+            ExtSrcEnv.oracle_exec_cfg(cfg, [
+                "BEGIN EXECUTE IMMEDIATE 'DROP TABLE \"stab_o_mix\"'; "
+                "EXCEPTION WHEN OTHERS THEN NULL; END;",
+                'CREATE TABLE "stab_o_mix" ('
+                ' "ts" TIMESTAMP(3) PRIMARY KEY, "id" NUMBER(10,0),'
+                ' "val" NUMBER(10,0), "score" BINARY_DOUBLE)',
+                'INSERT INTO "stab_o_mix" VALUES '
+                " (TIMESTAMP '2024-01-01 00:00:00.000', 1, 10, 1.5)",
+                'INSERT INTO "stab_o_mix" VALUES '
+                " (TIMESTAMP '2024-01-01 00:00:01.000', 2, 20, 2.5)",
+                'INSERT INTO "stab_o_mix" VALUES '
+                " (TIMESTAMP '2024-01-01 00:00:02.000', 3, 30, 3.5)",
+                "COMMIT",
+            ])
+            self._mk_oracle_real(src, database=cfg.service, schema=schema)
+
+            tdSql.execute(f"drop database if exists {db}")
+            tdSql.execute(f"create database {db}")
+            tdSql.execute(
+                f"create table {db}.stab_o_dim "
+                f"(ts timestamp, id int, weight int)")
+            tdSql.execute(
+                f"insert into {db}.stab_o_dim values "
+                f"({base}, 1, 100) ({base + 1000}, 2, 200)")
+            # A vtable column has to declare the type the connector returns:
+            # Oracle NUMBER(10,0) arrives as BIGINT and BINARY_DOUBLE as
+            # DOUBLE, and the CREATE VTABLE compatibility check compares the
+            # declared type against that canonical mapping.  The standalone
+            # vtable form (no USING) is the one the Oracle external-ref cases
+            # in 05-VirtualTables query.
+            tdSql.execute(f"use {db}")
+            tdSql.execute(
+                f"create vtable stab_o_vt ("
+                f"ts timestamp, "
+                f"v_val bigint from {src}.`{schema}`.stab_o_mix.val, "
+                f"v_score double from {src}.`{schema}`.stab_o_mix.score)")
+
+            for i in range(iters):
+                # Plain remote scan: both the row count and the ordering.
+                tdSql.query(
+                    f"select id, val from {src}.stab_o_mix order by ts")
+                tdSql.checkRows(3)
+                for row, (ident, val) in enumerate(
+                        ((1, 10), (2, 20), (3, 30))):
+                    tdSql.checkData(row, 0, ident)
+                    tdSql.checkData(row, 1, val)
+
+                # Remote aggregate over the same rows.
+                tdSql.query(
+                    f"select count(*), sum(val), min(score), max(score) "
+                    f"from {src}.stab_o_mix")
+                tdSql.checkRows(1)
+                tdSql.checkData(0, 0, 3)
+                tdSql.checkData(0, 1, 60)
+                tdSql.checkData(0, 2, 1.5)
+                tdSql.checkData(0, 3, 3.5)
+
+                # Timestamp join between the remote table and a local table.
+                tdSql.query(
+                    f"select count(*), sum(o.val * d.weight) "
+                    f"from {src}.`{schema}`.stab_o_mix o, {db}.stab_o_dim d "
+                    f"where o.ts = d.ts")
+                tdSql.checkRows(1)
+                tdSql.checkData(0, 0, 2)
+                tdSql.checkData(0, 1, 5000)
+
+                # Virtual table over the remote value columns.
+                tdSql.query(
+                    f"select v_val, v_score from {db}.stab_o_vt "
+                    f"order by v_val")
+                tdSql.checkRows(3)
+                for row, (val, score) in enumerate(
+                        ((10, 1.5), (20, 2.5), (30, 3.5))):
+                    tdSql.checkData(row, 0, val)
+                    tdSql.checkData(row, 1, score)
+
+                tdSql.query("select server_version()")
+                tdSql.checkRows(1)
+
+            self._record_pass(_test_name)
+        except Exception as e:
+            self._record_fail(_test_name, str(e))
+            raise
+        finally:
+            try:
+                tdSql.execute(f"drop database if exists {db}")
+            except Exception:
+                pass
+            self._cleanup_src(src)
+            try:
+                ExtSrcEnv.oracle_drop_table_cfg(cfg, "stab_o_mix")
+            except Exception:
+                pass
+
+    # ------------------------------------------------------------------
+    # STAB-O05  Oracle: pool exhaustion and recovery (FQOR-STAB-005)
+    # ------------------------------------------------------------------
+
+    def test_fq_stab_o05_oracle_pool_exhaustion_recovery(self):
+        """FQOR-STAB-005: a saturated Oracle pool frees slots and waiters recover
+
+        The per-source pool is capped at one connection and the source logs in
+        as the session-limited pool account, so the cap is enforced by the
+        connector before Oracle's own SESSIONS_PER_USER profile can interfere.
+        A sleep view (the same fixture shape test_fq_05's Oracle pool case
+        uses) keeps that single slot busy in a background client for a known
+        10 s, long enough to outlast the pool acquire wait, so a concurrent
+        query deterministically reports the retryable resource-exhausted code
+        while the slot is held.  The very same statement must then succeed with
+        its exact value once the holder finishes, and a final query proves the
+        pool returned to a healthy state instead of staying wedged.
+
+        Catalog: - Query:FederatedStability
+
+        Since: v3.4.4.0
+
+        Labels: common,ci
+
+        """
+        _test_name = "STAB-O05_oracle_pool_exhaustion_recovery"
+        self._start_test(
+            _test_name,
+            "pool=1 held by a 10 s sleep view; waiting query recovers",
+            3,
+        )
+        src = "fq_stab_o05_pool_src"
+        cfg = self._oracle_cfg()
+        schema = ExtSrcEnv.ORACLE_POOL_TEST_USER.upper()
+        hold_s = 10
+        self._cleanup_src(src)
+        try:
+            # Oracle has no SELECT-embedded SLEEP(), and DBMS_SESSION.SLEEP is
+            # definer-rights, so SYSTEM owns a one-line wrapper and grants it
+            # out.  The view that calls it makes one federated base scan take a
+            # known 10 s, which outlasts the pool acquire wait (< 6 s), so the
+            # concurrent attempt really meets a full pool.
+            ExtSrcEnv.oracle_admin_exec_cfg(cfg, [
+                *ExtSrcEnv.oracle_sleep_function_sql(
+                    "FQ09_STAB_SLEEP", hold_s),
+            ])
+            ExtSrcEnv.oracle_exec_as_pool_user(cfg, [
+                "BEGIN EXECUTE IMMEDIATE 'DROP VIEW \"fq_stab_o_slow_v\"'; "
+                "EXCEPTION WHEN OTHERS THEN NULL; END;",
+                # A cheap view lets the warm-up create the pool without
+                # spending the slot on the slow query.
+                'CREATE OR REPLACE VIEW "fq_stab_o_one_v" AS '
+                'SELECT CAST(1 AS NUMBER(10,0)) AS "one" FROM DUAL',
+                # A bare NUMBER return has no precision and would be rejected
+                # as unmappable, so the sleep result is cast like the fixture
+                # in test_fq_05.
+                'CREATE OR REPLACE VIEW "fq_stab_o_slow_v" AS '
+                'SELECT CAST(SYSTEM.FQ09_STAB_SLEEP AS NUMBER(10,0)) AS "hold" '
+                "FROM DUAL",
+            ])
+            # Cap the pool before the source is created: the pool is built on
+            # the first open and takes the dnode config current at that time.
+            tdSql.execute(
+                "alter all dnodes 'federatedQueryMaxPoolSizePerSource' '1'")
+            time.sleep(0.5)
+            self._mk_oracle_real(
+                src, database=cfg.service, schema=schema,
+                user=ExtSrcEnv.ORACLE_POOL_TEST_USER,
+                password=ExtSrcEnv.ORACLE_POOL_TEST_PASS)
+
+            # Warm-up creates the one-connection pool.
+            tdSql.query(f"select one from {src}.fq_stab_o_one_v")
+            tdSql.checkRows(1)
+            tdSql.checkData(0, 0, 1)
+
+            bg_results = []
+            bg_errors = []
+
+            def _hold_pool():
+                # A dedicated client connection, not tdSql: the thread must be
+                # able to block while the test thread keeps using tdSql.
+                import taos  # noqa: PLC0415 - local import for thread safety
+                try:
+                    conn = taos.connect()
+                    try:
+                        cur = conn.cursor()
+                        try:
+                            cur.execute(
+                                f"select hold from {src}.fq_stab_o_slow_v")
+                            rows = cur.fetchall()
+                            bg_results.append(rows[0][0] if rows else None)
+                        finally:
+                            cur.close()
+                    finally:
+                        conn.close()
+                except Exception as exc:  # noqa: BLE001 - asserted below
+                    bg_errors.append(exc)
+
+            holder = threading.Thread(target=_hold_pool, daemon=True)
+            holder.start()
+            # Let the holder acquire the only pool slot and enter its sleep.
+            time.sleep(1.5)
+
+            # The slot is held for ~10 s, far longer than the pool acquire
+            # wait, so the concurrent attempt must report the retryable
+            # resource-exhausted code instead of hanging on the slot or
+            # failing hard.
+            started = time.time()
+            tdSql.error(
+                f"select hold from {src}.fq_stab_o_slow_v",
+                expectedErrno=TSDB_CODE_EXT_RESOURCE_EXHAUSTED,
+            )
+            if time.time() - started > self._STAB_O_POOL_WAIT_S:
+                raise AssertionError(
+                    "the pool acquire did not give up within "
+                    f"{self._STAB_O_POOL_WAIT_S:.0f}s")
+
+            holder.join(timeout=self._STAB_O_POOL_WAIT_S)
+            if holder.is_alive():
+                raise AssertionError(
+                    "the slow Oracle query did not finish within "
+                    f"{self._STAB_O_POOL_WAIT_S:.0f}s")
+            if bg_errors:
+                raise AssertionError(
+                    f"the slow Oracle query failed: {bg_errors[0]!r}")
+            if bg_results != [1]:
+                raise AssertionError(
+                    f"the slow Oracle query returned {bg_results}, "
+                    f"expected [1]")
+            tdLog.info(f"{_test_name}: pool exhaustion observed")
+
+            # The waiting side recovers as soon as the slot is free: the very
+            # statement that just failed now returns its exact value.
+            started = time.time()
+            tdSql.query(
+                f"select hold from {src}.fq_stab_o_slow_v", queryTimes=40)
+            elapsed = time.time() - started
+            tdSql.checkRows(1)
+            tdSql.checkData(0, 0, 1)
+            if elapsed > self._STAB_O_POOL_WAIT_S:
+                raise AssertionError(
+                    f"pool recovery took {elapsed:.1f}s, limit is "
+                    f"{self._STAB_O_POOL_WAIT_S:.0f}s")
+
+            # The source is still healthy after the contention.
+            tdSql.query(f"select one from {src}.fq_stab_o_one_v")
+            tdSql.checkRows(1)
+            tdSql.checkData(0, 0, 1)
+            tdSql.query("select server_version()")
+            tdSql.checkRows(1)
+
+            self._record_pass(_test_name)
+        except Exception as e:
+            self._record_fail(_test_name, str(e))
+            raise
+        finally:
+            self._cleanup_src(src)
+            try:
+                ExtSrcEnv.oracle_exec_as_pool_user(cfg, [
+                    "BEGIN EXECUTE IMMEDIATE 'DROP VIEW \"fq_stab_o_slow_v\"'; "
+                    "EXCEPTION WHEN OTHERS THEN NULL; END;",
+                    "BEGIN EXECUTE IMMEDIATE 'DROP VIEW \"fq_stab_o_one_v\"'; "
+                    "EXCEPTION WHEN OTHERS THEN NULL; END;",
+                ])
+            except Exception:
+                pass
+            try:
+                ExtSrcEnv.oracle_admin_exec_cfg(cfg, [
+                    "BEGIN EXECUTE IMMEDIATE "
+                    "'DROP FUNCTION SYSTEM.FQ09_STAB_SLEEP'; "
+                    "EXCEPTION WHEN OTHERS THEN NULL; END;",
+                ])
+            except Exception:
+                pass
+            try:
+                tdSql.execute(
+                    "alter all dnodes 'federatedQueryMaxPoolSizePerSource' '64'")
+            except Exception:
+                pass

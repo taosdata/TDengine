@@ -4,6 +4,7 @@
 #!escape_char: true
 #!loose_mode: false
 #!charset: UTF-8
+
 CREATE DATABASE IF NOT EXISTS idmp_sample_pv REPLICA 1   DURATION 10d KEEP 3650d,3650d,3650d     PRECISION 'ms'   MINROWS 100 MAXROWS 4096 COMP 2 ;
 
 CREATE TABLE IF NOT EXISTS `idmp_sample_pv`.`weather_sensors` (`ts` TIMESTAMP ENCODE 'delta-i' COMPRESS 'lz4' LEVEL 'medium', `ambient_temperature` DOUBLE ENCODE 'delta-d' COMPRESS 'lz4' LEVEL 'medium', `module_temperature` DOUBLE ENCODE 'delta-d' COMPRESS 'lz4' LEVEL 'medium', `irradiation` DOUBLE ENCODE 'delta-d' COMPRESS 'lz4' LEVEL 'medium') TAGS (`pv_asset` NCHAR(128), `plant_id` VARCHAR(10), `weather_sensor_id` VARCHAR(20))

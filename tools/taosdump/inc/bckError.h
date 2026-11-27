@@ -1,0 +1,46 @@
+/*
+ * Copyright (c) 2025 TAOS Data, Inc. <jhtao@taosdata.com>
+ *
+ * SPDX-License-Identifier: AGPL-3.0-or-later
+ *
+ * This program is free software: you can use, redistribute, and/or modify
+ * it under the terms of the GNU Affero General Public License, version 3
+ * or later ("AGPL"), as published by the Free Software Foundation.
+ *
+ * This program is distributed in the hope that it will be useful, but WITHOUT
+ * ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+ * FITNESS FOR A PARTICULAR PURPOSE.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program. If not, see <http://www.gnu.org/licenses/>.
+ */
+
+#ifndef INC_BCKERROR_H_
+#define INC_BCKERROR_H_
+
+#include "taoserror.h"
+
+// ---------------- taosdump error code range 0xA000-0xA100  ----------------
+
+#define TSDB_CODE_BCK_INVALID_PARAM           TAOS_DEF_ERROR_CODE(0, 0xA000)
+#define TSDB_CODE_BCK_MALLOC_FAILED           TAOS_DEF_ERROR_CODE(0, 0xA001)
+#define TSDB_CODE_BCK_CREATE_THREAD_FAILED    TAOS_DEF_ERROR_CODE(0, 0xA002)
+#define TSDB_CODE_BCK_CREATE_FILE_FAILED      TAOS_DEF_ERROR_CODE(0, 0xA003)
+#define TSDB_CODE_BCK_NO_FIELDS               TAOS_DEF_ERROR_CODE(0, 0xA004)
+#define TSDB_CODE_BCK_FETCH_FIELDS_FAILED     TAOS_DEF_ERROR_CODE(0, 0xA005)
+#define TSDB_CODE_BCK_COMPRESS_FAILED         TAOS_DEF_ERROR_CODE(0, 0xA006)
+#define TSDB_CODE_BCK_WRITE_FILE_FAILED       TAOS_DEF_ERROR_CODE(0, 0xA007)
+#define TSDB_CODE_BCK_CONN_POOL_EXHAUSTED     TAOS_DEF_ERROR_CODE(0, 0xA008)
+#define TSDB_CODE_BCK_READ_FILE_FAILED        TAOS_DEF_ERROR_CODE(0, 0xA009)
+#define TSDB_CODE_BCK_INVALID_FILE            TAOS_DEF_ERROR_CODE(0, 0xA00A)
+#define TSDB_CODE_BCK_STMT_FAILED             TAOS_DEF_ERROR_CODE(0, 0xA00B)
+#define TSDB_CODE_BCK_DECOMPRESS_FAILED       TAOS_DEF_ERROR_CODE(0, 0xA00C)
+#define TSDB_CODE_BCK_OPEN_DIR_FAILED         TAOS_DEF_ERROR_CODE(0, 0xA00D)
+#define TSDB_CODE_BCK_EXEC_SQL_FAILED         TAOS_DEF_ERROR_CODE(0, 0xA00E)
+#define TSDB_CODE_BCK_USER_CANCEL             TAOS_DEF_ERROR_CODE(0, 0xA00F)
+#define TSDB_CODE_BCK_SPEC_TABLE_NOT_FOUND    TAOS_DEF_ERROR_CODE(0, 0xA010)
+#define TSDB_CODE_BCK_INVALID_COMBINATION     TAOS_DEF_ERROR_CODE(0, 0xA011)
+#define TSDB_CODE_BCK_INCOMPLETE_DATA         TAOS_DEF_ERROR_CODE(0, 0xA012)
+#define TSDB_CODE_BCK_CHILD_TABLE_MISSING     TAOS_DEF_ERROR_CODE(0, 0xA013)
+
+#endif  // INC_BCKERROR_H_

@@ -1,5 +1,20 @@
 #!/bin/bash
 
+# Copyright (c) 2025 TAOS Data, Inc. <jhtao@taosdata.com>
+#
+# SPDX-License-Identifier: AGPL-3.0-or-later
+#
+# This program is free software: you can use, redistribute, and/or modify
+# it under the terms of the GNU Affero General Public License, version 3
+# or later ("AGPL"), as published by the Free Software Foundation.
+#
+# This program is distributed in the hope that it will be useful, but WITHOUT
+# ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+# FITNESS FOR A PARTICULAR PURPOSE.
+#
+# You should have received a copy of the GNU Affero General Public License
+# along with this program. If not, see <http://www.gnu.org/licenses/>.
+
 function usage() {
     echo "$0"
     echo -e "\t -d work dir"
@@ -84,7 +99,7 @@ docker run \
     -v $REP_MOUNT_DEBUG \
     -v $scan_changefile_temp_path:$docker_can_changefile_temp_path \
     -v $scan_log_temp_path:$docker_scan_log_temp_path \
-    --rm --ulimit core=-1 ${DOCKER_IMAGE_NAME:-tdengine-ci:0.3} python3  $scan_scripts -b "${branch_name_id}"  -f "${scan_file_name}" -w ${web_server}
+    --rm --ulimit core=-1 ${DOCKER_IMAGE_NAME:-harbor.tdengine.net/tsdb-ci/tdengine-ci:0.5} python3  $scan_scripts -b "${branch_name_id}"  -f "${scan_file_name}" -w ${web_server}
 EOF
 docker run \
     -v /root/.cos-local.1:/root/.cos-local.2 \
@@ -92,7 +107,7 @@ docker run \
     -v $REP_MOUNT_DEBUG \
     -v $scan_changefile_temp_path:$docker_can_changefile_temp_path \
     -v $scan_log_temp_path:$docker_scan_log_temp_path \
-    --rm --ulimit core=-1 ${DOCKER_IMAGE_NAME:-tdengine-ci:0.3} python3  $scan_scripts -b "${branch_name_id}"  -f "${scan_file_name}" -w ${web_server}
+    --rm --ulimit core=-1 ${DOCKER_IMAGE_NAME:-harbor.tdengine.net/tsdb-ci/tdengine-ci:0.5} python3  $scan_scripts -b "${branch_name_id}"  -f "${scan_file_name}" -w ${web_server}
 
 
 ret=$?

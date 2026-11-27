@@ -1,13 +1,17 @@
-###################################################################
-#           Copyright (c) 2016 by TAOS Technologies, Inc.
-#                     All rights reserved.
+# Copyright (c) 2016 TAOS Data, Inc. <jhtao@taosdata.com>
 #
-#  This file is proprietary and confidential to TAOS Technologies.
-#  No part of this file may be reproduced, stored, transmitted,
-#  disclosed or used in any form or by any means other than as
-#  expressly provided by the written permission from Jianhui Tao
+# SPDX-License-Identifier: AGPL-3.0-or-later
 #
-###################################################################
+# This program is free software: you can use, redistribute, and/or modify
+# it under the terms of the GNU Affero General Public License, version 3
+# or later ("AGPL"), as published by the Free Software Foundation.
+#
+# This program is distributed in the hope that it will be useful, but WITHOUT
+# ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+# FITNESS FOR A PARTICULAR PURPOSE.
+#
+# You should have received a copy of the GNU Affero General Public License
+# along with this program. If not, see <http://www.gnu.org/licenses/>.
 
 # -*- coding: utf-8 -*-
 
@@ -35,11 +39,11 @@ class TDSimClient:
         self.cfgDict = {
             "fqdn": "localhost",
             "numOfLogLines": "100000000",
-            "locale": "en_US.UTF-8",
+            **({} if platform.system().lower() == "windows" else {"locale": "en_US.UTF-8"}),
             "charset": "UTF-8",
             "asyncLog": "0",
             "rpcDebugFlag": "135",
-            "tmrDebugFlag": "131",
+            "tmrDebugFlag": "135",
             "cDebugFlag": "135",
             "uDebugFlag": "135",
             "jniDebugFlag": "135",
@@ -47,9 +51,11 @@ class TDSimClient:
             "supportVnodes": "1024",
             "enableQueryHb": "1",
             "telemetryReporting": "0",
+            "federatedQueryEnable": "1",
             "tqDebugflag": "135",
-            "wDebugflag":"135",
+            "wDebugflag": "135",
             "maxRetryWaitTime": "10000",
+            "tsQueryPlannerTrace": "1",
         }
 
     def getLogDir(self):
@@ -77,17 +83,31 @@ class TDSimClient:
         self.cfgPath = os.path.join(self.path,"psim","cfg","taos.cfg")
 
         if os.path.exists(self.logDir):
-            shutil.rmtree(self.logDir)
-
-        os.makedirs(self.logDir)
-
+            # Truncate in place instead of removing the directory.  The client
+            # library opens its taoslog file on first use and keeps the file
+            # descriptor for the life of the pytest process, so a redeploy
+            # between two test classes (one class = one deploy) would leave it
+            # writing into an unlinked inode: the directory looks empty even
+            # though the client just logged the diagnostics a case asserts on.
+            for name in os.listdir(self.logDir):
+                path = os.path.join(self.logDir, name)
+                try:
+                    if os.path.isfile(path) and not os.path.islink(path):
+                        open(path, "w").close()
+                except OSError:
+                    pass
+        else:
+            os.makedirs(self.logDir)
         if os.path.exists(self.cfgDir):
-            shutil.rmtree(self.cfgDir)
+            try:
+                shutil.rmtree(self.cfgDir)
+            except PermissionError:
+                pass
 
         # cmd = "mkdir -p " + self.cfgDir
         # if os.system(cmd) != 0:
         #     tdLog.exit(cmd)
-        os.makedirs(self.cfgDir)
+        os.makedirs(self.cfgDir, exist_ok=True)
 
         with open(self.cfgPath, "a"):
             os.utime(self.cfgPath, None)

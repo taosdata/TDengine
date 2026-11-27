@@ -1,6 +1,8 @@
 /*
  * Copyright (c) 2019 TAOS Data, Inc. <jhtao@taosdata.com>
  *
+ * SPDX-License-Identifier: AGPL-3.0-or-later
+ *
  * This program is free software: you can use, redistribute, and/or modify
  * it under the terms of the GNU Affero General Public License, version 3
  * or later ("AGPL"), as published by the Free Software Foundation.
@@ -294,6 +296,17 @@ void test_offset(TAOS* pConn){
   tmq_consumer_close(tmq);
 }
 
+// Metadata and empty data blocks may not advance the consumer position.
+static int32_t resultHasDataRow(TAOS_RES* pRes) {
+  if (tmq_get_res_type(pRes) != TMQ_RES_DATA) {
+    return 0;
+  }
+
+  return taos_fetch_row(pRes) != NULL;
+}
+
+#define OFFSET_PROGRESS_TIMEOUT_MS 10000
+
 // run taosBenchmark first
 void test_ts3756(TAOS* pConn){
   TAOS_RES*pRes = taos_query(pConn, "use test");
@@ -336,12 +349,14 @@ void test_ts3756(TAOS* pConn){
 
   tmq_topic_assignment* pAssign = NULL;
   int32_t numOfAssign = 0;
+  int64_t lastOffsetProgressTime = 0;
 
   while (1) {
 //    printf("start to poll\n");
 
     pRes = tmq_consumer_poll(tmq, timeout);
     if (pRes) {
+      int32_t hasDataRow = resultHasDataRow(pRes);
       tmq_topic_assignment* pAssignTmp = NULL;
       int32_t numOfAssignTmp = 0;
 
@@ -353,21 +368,50 @@ void test_ts3756(TAOS* pConn){
         ASSERT(0);
       }
 
-      if(numOfAssign != 0){
-        int i = 0;
-        for(; i < numOfAssign; i++){
-          if(pAssign[i].currentOffset != pAssignTmp[i].currentOffset){
-            break;
+      if (hasDataRow) {
+        int32_t offsetAdvanced = 0;
+        int32_t offsetRegressed = 0;
+
+        if (numOfAssign != 0) {
+          for (int32_t i = 0; i < numOfAssign; ++i) {
+            if (pAssignTmp[i].currentOffset > pAssign[i].currentOffset) {
+              offsetAdvanced = 1;
+            } else if (pAssignTmp[i].currentOffset < pAssign[i].currentOffset) {
+              offsetRegressed = 1;
+            }
           }
         }
-        if(i == numOfAssign){
+
+        if (offsetRegressed) {
+          printf("offset regressed after data poll, vgId:%d previous:%lld current:%lld\n", pAssign[0].vgId,
+                 (long long)pAssign[0].currentOffset, (long long)pAssignTmp[0].currentOffset);
           ASSERT(0);
         }
-        tmq_free_assignment(pAssign);
+
+        if (numOfAssign == 0 || offsetAdvanced) {
+          if (numOfAssign != 0) {
+            tmq_free_assignment(pAssign);
+          }
+          numOfAssign = numOfAssignTmp;
+          pAssign = pAssignTmp;
+          lastOffsetProgressTime = taosGetTimestampMs();
+        } else {
+          tmq_free_assignment(pAssignTmp);
+          if (lastOffsetProgressTime == 0) {
+            lastOffsetProgressTime = taosGetTimestampMs();
+          }
+        }
+      } else {
+        tmq_free_assignment(pAssignTmp);
       }
-      numOfAssign = numOfAssignTmp;
-      pAssign = pAssignTmp;
       taos_free_result(pRes);
+    }
+
+    if (numOfAssign != 0 && lastOffsetProgressTime != 0 &&
+        taosGetTimestampMs() - lastOffsetProgressTime >= OFFSET_PROGRESS_TIMEOUT_MS) {
+      printf("offset did not advance within %d ms, vgId:%d offset:%lld\n", OFFSET_PROGRESS_TIMEOUT_MS,
+             pAssign[0].vgId, (long long)pAssign[0].currentOffset);
+      ASSERT(0);
     }
   }
 

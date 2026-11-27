@@ -1,3 +1,18 @@
+# Copyright (c) 2025 TAOS Data, Inc. <jhtao@taosdata.com>
+#
+# SPDX-License-Identifier: AGPL-3.0-or-later
+#
+# This program is free software: you can use, redistribute, and/or modify
+# it under the terms of the GNU Affero General Public License, version 3
+# or later ("AGPL"), as published by the Free Software Foundation.
+#
+# This program is distributed in the hope that it will be useful, but WITHOUT
+# ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+# FITNESS FOR A PARTICULAR PURPOSE.
+#
+# You should have received a copy of the GNU Affero General Public License
+# along with this program. If not, see <http://www.gnu.org/licenses/>.
+
 import time
 import platform
 from new_test_framework.utils import tdLog, tdSql, sc, clusterComCheck, clusterComCheck,tdCom
@@ -343,6 +358,98 @@ class TestUserPrivilegeSysinfo:
         print("do TS-5130 ............................ [passed]")
     
     #
+    # ------------------- sysinfo <-> SYSINFO_x role linkage ----------------
+    #
+    def _get_user_sysinfo_and_roles(self, uname):
+        """Return (sysinfo:int, role_names:list[str]) for the given user from `show users`."""
+        tdSql.query("show users")
+        # columns: name, super, enable, sysinfo, createdb, create_time, totp,
+        #          allowed_host, allowed_datetime, roles, sec_levels
+        for i in range(tdSql.getRows()):
+            if tdSql.getData(i, 0) == uname:
+                roles = str(tdSql.getData(i, 9))
+                return int(tdSql.getData(i, 3)), [r.strip() for r in roles.split(",")]
+        tdLog.exit(f"user {uname} not found in show users")
+
+    def _check(self, uname, exp_sysinfo, has_roles=None, no_roles=None):
+        """Assert sysinfo flag and presence/absence of specific roles."""
+        sysinfo, role_names = self._get_user_sysinfo_and_roles(uname)
+        tdLog.info(f"user {uname}: sysinfo={sysinfo}, roles={role_names}")
+        if sysinfo != exp_sysinfo:
+            tdLog.exit(f"user {uname}: expect sysinfo {exp_sysinfo}, got {sysinfo}")
+        for r in (has_roles or []):
+            if r not in role_names:
+                tdLog.exit(f"user {uname}: expect role {r} present, roles={role_names}")
+        for r in (no_roles or []):
+            if r in role_names:
+                tdLog.exit(f"user {uname}: expect role {r} absent, roles={role_names}")
+
+    def do_sysinfo_role_linkage(self):
+        tdLog.info("=============== sysinfo <-> SYSINFO/high-order role linkage")
+        tdSql.connect("root")
+        tdSql.execute("drop user if exists ulink")
+        tdSql.execute("create user ulink pass 'AAbb1122'")
+
+        # newly created user defaults to sysinfo 1 / role SYSINFO_1
+        self._check("ulink", 1, has_roles=["SYSINFO_1"], no_roles=["SYSINFO_0"])
+
+        # Rule 1 at create time: `create user ... sysinfo {0|1}` must assign the
+        # matching baseline role, not the hardcoded default (regression for the bug
+        # where `create ... sysinfo 0` still got SYSINFO_1).
+        tdSql.execute("drop user if exists ulink0")
+        tdSql.execute("create user ulink0 pass 'AAbb1122' sysinfo 0")
+        self._check("ulink0", 0, has_roles=["SYSINFO_0"], no_roles=["SYSINFO_1"])
+        tdSql.execute("drop user ulink0")
+
+        tdSql.execute("drop user if exists ulink1")
+        tdSql.execute("create user ulink1 pass 'AAbb1122' sysinfo 1")
+        self._check("ulink1", 1, has_roles=["SYSINFO_1"], no_roles=["SYSINFO_0"])
+        tdSql.execute("drop user ulink1")
+
+        # Rule 2: alter sysinfo 0 -> force flag 0; SYSINFO_1 demoted to SYSINFO_0
+        tdSql.execute("alter user ulink sysinfo 0")
+        self._check("ulink", 0, has_roles=["SYSINFO_0"], no_roles=["SYSINFO_1"])
+
+        # Rule 1: alter sysinfo 1 -> force flag 1; ensure SYSINFO_1, remove SYSINFO_0
+        tdSql.execute("alter user ulink sysinfo 1")
+        self._check("ulink", 1, has_roles=["SYSINFO_1"], no_roles=["SYSINFO_0"])
+
+        # Rule 3: grant SYSINFO_0 -> add role, sysinfo unchanged; SYSINFO_0/1 may coexist
+        tdSql.execute("alter user ulink sysinfo 0")   # baseline: sysinfo 0, only SYSINFO_0
+        tdSql.execute("grant role `SYSINFO_1` to ulink")   # Rule 4: sysinfo -> 1
+        self._check("ulink", 1, has_roles=["SYSINFO_1"])
+        tdSql.execute("grant role `SYSINFO_0` to ulink")   # Rule 3: coexist, sysinfo unchanged
+        self._check("ulink", 1, has_roles=["SYSINFO_0", "SYSINFO_1"])
+
+        # Rule 7: revoke never changes sysinfo (even revoking SYSINFO_1)
+        tdSql.execute("revoke role `SYSINFO_1` from ulink")
+        self._check("ulink", 1, has_roles=["SYSINFO_0"], no_roles=["SYSINFO_1"])
+
+        # Rule 5: grant high-order system role -> sysinfo forced to 1
+        tdSql.execute("alter user ulink sysinfo 0")   # back to baseline 0
+        self._check("ulink", 0)
+        tdSql.execute("grant role `SYSDBA` to ulink")
+        self._check("ulink", 1, has_roles=["SYSDBA"])
+
+        # Rule 7 + irreversibility: revoke SYSDBA keeps sysinfo at 1 (does NOT fall back to 0)
+        tdSql.execute("revoke role `SYSDBA` from ulink")
+        self._check("ulink", 1, no_roles=["SYSDBA"])
+
+        # Rule 6: granting a user-defined role does not change sysinfo
+        tdSql.execute("alter user ulink sysinfo 0")
+        tdSql.execute("create role if not exists udrole")
+        tdSql.execute("grant role `udrole` to ulink")
+        self._check("ulink", 0, has_roles=["udrole"])
+
+        # Rule 7: revoking a user-defined role likewise does not change sysinfo
+        tdSql.execute("revoke role `udrole` from ulink")
+        self._check("ulink", 0, no_roles=["udrole"])
+
+        tdSql.execute("drop role if exists udrole")
+        tdSql.execute("drop user ulink")
+        print("do sysinfo-role linkage ............... [passed]")
+
+    #
     # ------------------- main ----------------
     #
     def test_user_privilege_sysinfo(self):
@@ -353,8 +460,7 @@ class TestUserPrivilegeSysinfo:
 
         Since: v3.0.0.0
 
-        Labels: common,ci
-
+        Labels: common,ci,integration,functional,security
         Jira: None
 
         History:
@@ -364,3 +470,4 @@ class TestUserPrivilegeSysinfo:
         """
         self.do_user_privilege_sysinfo()
         self.do_ts_5130()
+        self.do_sysinfo_role_linkage()

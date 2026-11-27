@@ -1,6 +1,8 @@
 /*
  * Copyright (c) 2019 TAOS Data, Inc. <jhtao@taosdata.com>
  *
+ * SPDX-License-Identifier: AGPL-3.0-or-later
+ *
  * This program is free software: you can use, redistribute, and/or modify
  * it under the terms of the GNU Affero General Public License, version 3
  * or later ("AGPL"), as published by the Free Software Foundation.
@@ -41,7 +43,7 @@ int32_t tmsgGetQueueSize(const SMsgCb* msgcb, int32_t vgId, EQueueType qtype) {
 }
 
 int32_t tmsgSendReq(const SEpSet* epSet, SRpcMsg* pMsg) {
-  int32_t code = (*defaultMsgCb.sendReqFp)(epSet, pMsg);
+  int32_t code = defaultMsgCb.sendReqFp ? (*defaultMsgCb.sendReqFp)(epSet, pMsg) : TSDB_CODE_APP_IS_STARTING;
   if (code != 0) {
     rpcFreeCont(pMsg->pCont);
     pMsg->pCont = NULL;

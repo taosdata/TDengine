@@ -1,6 +1,8 @@
 /*
  * Copyright (c) 2019 TAOS Data, Inc. <jhtao@taosdata.com>
  *
+ * SPDX-License-Identifier: AGPL-3.0-or-later
+ *
  * This program is free software: you can use, redistribute, and/or modify
  * it under the terms of the GNU Affero General Public License, version 3
  * or later ("AGPL"), as published by the Free Software Foundation.
@@ -26,7 +28,7 @@ int32_t tsdbForceRepair(STFileSystem *fs);
 
 typedef struct STFileHashEntry {
   struct STFileHashEntry *next;
-  char                    fname[TSDB_FILENAME_LEN];
+  char                    fname[TSDB_PATH_LEN];
 } STFileHashEntry;
 
 typedef struct {
@@ -77,9 +79,9 @@ static void destroy_fs(STFileSystem **fs) {
 void current_fname(STsdb *pTsdb, char *fname, EFCurrentT ftype) {
   int32_t offset = 0;
 
-  vnodeGetPrimaryPath(pTsdb->pVnode, false, fname, TSDB_FILENAME_LEN);
+  vnodeGetPrimaryPath(pTsdb->pVnode, false, fname, TSDB_PATH_LEN);
   offset = strlen(fname);
-  snprintf(fname + offset, TSDB_FILENAME_LEN - offset - 1, "%s%s%s%s", TD_DIRSEP, pTsdb->name, TD_DIRSEP,
+  snprintf(fname + offset, TSDB_PATH_LEN - offset - 1, "%s%s%s%s", TD_DIRSEP, pTsdb->name, TD_DIRSEP,
            gCurrentFname[ftype]);
 }
 
@@ -283,8 +285,8 @@ _exit:
 }
 
 static int32_t commit_edit(STFileSystem *fs) {
-  char current[TSDB_FILENAME_LEN];
-  char current_t[TSDB_FILENAME_LEN];
+  char current[TSDB_PATH_LEN];
+  char current_t[TSDB_PATH_LEN];
 
   current_fname(fs->tsdb, current, TSDB_FCURRENT);
   if (fs->etype == TSDB_FEDIT_COMMIT) {
@@ -315,7 +317,7 @@ static int32_t tsdbFSDoSanAndFix(STFileSystem *fs);
 static int32_t apply_abort(STFileSystem *fs) { return tsdbFSDoSanAndFix(fs); }
 
 static int32_t abort_edit(STFileSystem *fs) {
-  char fname[TSDB_FILENAME_LEN];
+  char fname[TSDB_PATH_LEN];
 
   if (fs->etype == TSDB_FEDIT_COMMIT) {
     current_fname(fs->tsdb, fname, TSDB_FCURRENT_C);
@@ -352,7 +354,7 @@ static int32_t tsdbFSDoScanAndFixFile(STFileSystem *fs, const STFileObj *fobj) {
     bool found = false;
 
     if (tsSsEnabled && fobj->f->lcn > 1) {
-      char fname1[TSDB_FILENAME_LEN];
+      char fname1[TSDB_PATH_LEN];
       tsdbTFileLastChunkName(fs->tsdb, fobj->f, fname1);
       if (!taosCheckExistFile(fname1)) {
         code = TSDB_CODE_FILE_CORRUPTED;
@@ -379,7 +381,7 @@ static int32_t tsdbFSAddEntryToFileObjHash(STFileHash *hash, const char *fname) 
   STFileHashEntry *entry = taosMemoryMalloc(sizeof(*entry));
   if (entry == NULL) return terrno;
 
-  tstrncpy(entry->fname, fname, TSDB_FILENAME_LEN);
+  tstrncpy(entry->fname, fname, TSDB_PATH_LEN);
 
   uint32_t idx = MurmurHash3_32(fname, strlen(fname)) % hash->numBucket;
 
@@ -393,7 +395,7 @@ static int32_t tsdbFSAddEntryToFileObjHash(STFileHash *hash, const char *fname) 
 static int32_t tsdbFSCreateFileObjHash(STFileSystem *fs, STFileHash *hash) {
   int32_t code = 0;
   int32_t lino;
-  char    fname[TSDB_FILENAME_LEN];
+  char    fname[TSDB_PATH_LEN];
 
   // init hash table
   hash->numFile = 0;
@@ -420,7 +422,7 @@ static int32_t tsdbFSCreateFileObjHash(STFileSystem *fs, STFileHash *hash) {
         if (TSDB_FTYPE_DATA == i && fset->farr[i]->f->lcn > 0) {
           STFileObj *fobj = fset->farr[i];
           int32_t    lcn = fobj->f->lcn;
-          char       lcn_name[TSDB_FILENAME_LEN];
+          char       lcn_name[TSDB_PATH_LEN];
 
           snprintf(lcn_name, TSDB_FQDN_LEN, "%s", fobj->fname);
           char *dot = strrchr(lcn_name, '.');
@@ -598,9 +600,9 @@ static int32_t open_fs(STFileSystem *fs, int8_t rollback) {
   int32_t lino = 0;
   STsdb  *pTsdb = fs->tsdb;
 
-  char fCurrent[TSDB_FILENAME_LEN];
-  char cCurrent[TSDB_FILENAME_LEN];
-  char mCurrent[TSDB_FILENAME_LEN];
+  char fCurrent[TSDB_PATH_LEN];
+  char cCurrent[TSDB_PATH_LEN];
+  char mCurrent[TSDB_PATH_LEN];
 
   current_fname(pTsdb, fCurrent, TSDB_FCURRENT);
   current_fname(pTsdb, cCurrent, TSDB_FCURRENT_C);
@@ -858,7 +860,7 @@ void tsdbFSUpdateEid(STFileSystem *fs, int64_t cid) {
 int32_t tsdbFSEditBegin(STFileSystem *fs, const TFileOpArray *opArray, EFEditT etype) {
   int32_t code = 0;
   int32_t lino;
-  char    current_t[TSDB_FILENAME_LEN];
+  char    current_t[TSDB_PATH_LEN];
 
   if (etype == TSDB_FEDIT_COMMIT) {
     current_fname(fs->tsdb, current_t, TSDB_FCURRENT_C);
@@ -883,6 +885,10 @@ _exit:
   if (code) {
     tsdbError("vgId:%d %s failed at line %d since %s, etype:%d", TD_VID(fs->tsdb->pVnode), __func__, lino,
               tstrerror(code), etype);
+    TARRAY2_CLEAR(fs->fSetArrTmp, tsdbTFileSetClear);
+    if (tsem_post(&fs->canEdit) != 0) {
+      tsdbError("vgId:%d failed to post semaphore", TD_VID(fs->tsdb->pVnode));
+    }
   } else {
     tsdbInfo("vgId:%d %s done, etype:%d", TD_VID(fs->tsdb->pVnode), __func__, etype);
   }
@@ -1059,6 +1065,7 @@ int32_t tsdbFSCreateRefSnapshotWithoutLock(STFileSystem *fs, TFileSetArray **fse
     code = tsdbTFileSetInitRef(fs->tsdb, fset, &fset1);
     if (code) break;
 
+    fset1->maxVerValid = fset->maxVerValid;
     code = TARRAY2_APPEND(fsetArr[0], fset1);
     if (code) {
       tsdbTFileSetClear(&fset1);
@@ -1094,6 +1101,11 @@ static SHashObj *tsdbFSetRangeArrayToHash(TFileSetRangeArray *pRanges) {
     STFileSetRange *u = TARRAY2_GET(pRanges, i);
     int32_t         fid = u->fid;
     int32_t         code = taosHashPut(pHash, &fid, sizeof(fid), u, sizeof(*u));
+    if (code != 0) {
+      taosHashCleanup(pHash);
+      terrno = code;
+      return NULL;
+    }
     tsdbDebug("range diff hash fid:%d, sver:%" PRId64 ", ever:%" PRId64, u->fid, u->sver, u->ever);
   }
   return pHash;
@@ -1113,7 +1125,7 @@ int32_t tsdbFSCreateCopyRangedSnapshot(STFileSystem *fs, TFileSetRangeArray *pRa
   if (pRanges) {
     pHash = tsdbFSetRangeArrayToHash(pRanges);
     if (pHash == NULL) {
-      code = TSDB_CODE_OUT_OF_MEMORY;
+      code = terrno;
       goto _out;
     }
   }
@@ -1152,13 +1164,15 @@ _out:
 
 void tsdbFSDestroyCopyRangedSnapshot(TFileSetArray **fsetArr) { tsdbFSDestroyCopySnapshot(fsetArr); }
 
-int32_t tsdbFSCreateRefRangedSnapshot(STFileSystem *fs, int64_t sver, int64_t ever, TFileSetRangeArray *pRanges,
-                                      TFileSetRangeArray **fsrArr) {
+int32_t tsdbFSCreateRefRangedSnapshotWithFilesets(STFileSystem *fs, int64_t sver, int64_t ever,
+                                                 TFileSetRangeArray *pRanges, TFileSetRangeArray **fsrArr,
+                                                 TFileSetArray **fsetArr) {
   int32_t         code = 0;
   STFileSet      *fset;
   STFileSetRange *fsr1 = NULL;
   SHashObj       *pHash = NULL;
 
+  if (fsetArr) *fsetArr = NULL;
   fsrArr[0] = taosMemoryCalloc(1, sizeof(*fsrArr[0]));
   if (fsrArr[0] == NULL) {
     code = terrno;
@@ -1169,12 +1183,17 @@ int32_t tsdbFSCreateRefRangedSnapshot(STFileSystem *fs, int64_t sver, int64_t ev
   if (pRanges) {
     pHash = tsdbFSetRangeArrayToHash(pRanges);
     if (pHash == NULL) {
-      code = TSDB_CODE_OUT_OF_MEMORY;
+      code = terrno;
       goto _out;
     }
   }
 
   (void)taosThreadMutexLock(&fs->tsdb->mutex);
+  if (fsetArr) code = tsdbFSCreateRefSnapshotWithoutLock(fs, fsetArr);
+  if (code) {
+    (void)taosThreadMutexUnlock(&fs->tsdb->mutex);
+    goto _out;
+  }
   TARRAY2_FOREACH(fs->fSetArr, fset) {
     int64_t sver1 = sver;
     int64_t ever1 = ever;
@@ -1205,18 +1224,24 @@ int32_t tsdbFSCreateRefRangedSnapshot(STFileSystem *fs, int64_t sver, int64_t ev
   }
   (void)taosThreadMutexUnlock(&fs->tsdb->mutex);
 
-  if (code) {
-    tsdbTFileSetRangeClear(&fsr1);
-    TARRAY2_DESTROY(fsrArr[0], tsdbTFileSetRangeClear);
-    fsrArr[0] = NULL;
-  }
-
 _out:
+  if (code && fsrArr[0]) {
+    tsdbTFileSetRangeClear(&fsr1);
+    tsdbTFileSetRangeArrayDestroy(fsrArr);
+  }
+  // A failure inside tsdbFSCreateRefSnapshotWithoutLock already leaves fsetArr[0] NULL, but a
+  // failure in the following loop leaves a fully built snapshot behind.
+  if (code && fsetArr) tsdbFSDestroyRefSnapshot(fsetArr);
   if (pHash) {
     taosHashCleanup(pHash);
     pHash = NULL;
   }
   return code;
+}
+
+int32_t tsdbFSCreateRefRangedSnapshot(STFileSystem *fs, int64_t sver, int64_t ever, TFileSetRangeArray *pRanges,
+                                      TFileSetRangeArray **fsrArr) {
+  return tsdbFSCreateRefRangedSnapshotWithFilesets(fs, sver, ever, pRanges, fsrArr, NULL);
 }
 
 void tsdbFSDestroyRefRangedSnapshot(TFileSetRangeArray **fsrArr) { tsdbTFileSetRangeArrayDestroy(fsrArr); }

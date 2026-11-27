@@ -1,6 +1,8 @@
 /*
  * Copyright (c) 2019 TAOS Data, Inc. <jhtao@taosdata.com>
  *
+ * SPDX-License-Identifier: AGPL-3.0-or-later
+ *
  * This program is free software: you can use, redistribute, and/or modify
  * it under the terms of the GNU Affero General Public License, version 3
  * or later ("AGPL"), as published by the Free Software Foundation.
@@ -34,6 +36,7 @@ extern "C" {
 #define GRANT_FLAG_ALL       (0x01)
 #define GRANT_FLAG_AUDIT     (0x02)
 #define GRANT_FLAG_VIEW      (0x04)
+#define GRANT_FLAG_QRY       (0x08)
 // ...
 #define GRANT_FLAG_EX_MULTI_TIER (0x10000)
 #define GRANT_FLAG_EX_VNODE      (0x20000)
@@ -69,6 +72,9 @@ typedef enum {
   TSDB_GRANT_VNODE,
   TSDB_GRANT_MOUNT,
   TSDB_GRANT_XNODE,
+  TSDB_GRANT_EXT_SOURCE,  // federated query: external data source
+  TSDB_GRANT_QRY_RESTRICTED,
+  TSDB_GRANT_TD_GPT_NUM,  // anode count limit only; ignores basic / TDgpt expiry
 } EGrantType;
 
 int32_t checkAndGetCryptKey(const char *encryptCode, const char *machineId, char **key);
@@ -79,6 +85,24 @@ int32_t grantCheckEx(EGrantType grant, void *param);
 int32_t grantCheckExpire(EGrantType grant);
 int32_t tGetMachineId(char **result);
 bool    grantCheckDualReplicaDnodes(void *pMnode);
+bool    grantIsTimeSeriesExcluded(void *pVnode);
+
+/*
+ * A machine code is a fixed-width base64 string whose first byte is the index of the
+ * hardware source the grant library derived the digest from - the "machine code(N)"
+ * that `taosd -k` prints - followed by that source's digest. A release may change
+ * which source the library prefers, so the same machine reports a different code
+ * after an upgrade.
+ *
+ * taosMachineCodeSourceVariant() returns that index, or -1 when the value is not a
+ * machine code this build understands. taosMachineCodeVariantMovedForward() reports
+ * whether the two values are one of the source migrations a release actually shipped
+ * (see the table in tgrant.c), i.e. the same machine after an upgrade rather than a
+ * forged or rolled-back heartbeat. Any other difference stays a mismatch even when the
+ * incoming variant is numerically larger.
+ */
+int32_t taosMachineCodeSourceVariant(const char *machineId);
+bool    taosMachineCodeVariantMovedForward(const char *stored, const char *incoming);
 
 // #ifndef GRANTS_CFG
 #ifdef TD_ENTERPRISE

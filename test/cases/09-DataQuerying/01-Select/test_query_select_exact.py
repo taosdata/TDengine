@@ -1,15 +1,21 @@
-###################################################################
-#           Copyright (c) 2016 by TAOS Technologies, Inc.
-#                     All rights reserved.
+# Copyright (c) 2016 TAOS Data, Inc. <jhtao@taosdata.com>
 #
-#  This file is proprietary and confidential to TAOS Technologies.
-#  No part of this file may be reproduced, stored, transmitted,
-#  disclosed or used in any form or by any means other than as
-#  expressly provided by the written permission from Jianhui Tao
+# SPDX-License-Identifier: AGPL-3.0-or-later
 #
-###################################################################
+# This program is free software: you can use, redistribute, and/or modify
+# it under the terms of the GNU Affero General Public License, version 3
+# or later ("AGPL"), as published by the Free Software Foundation.
+#
+# This program is distributed in the hope that it will be useful, but WITHOUT
+# ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+# FITNESS FOR A PARTICULAR PURPOSE.
+#
+# You should have received a copy of the GNU Affero General Public License
+# along with this program. If not, see <http://www.gnu.org/licenses/>.
 
 # -*- coding: utf-8 -*-
+import time
+
 from new_test_framework.utils import tdLog, tdSql, etool, tdCom
 
 
@@ -23,11 +29,32 @@ class TestQueryBasic:
     }
 
 
+    def waitDbVgroupsReady(self, dbname, seconds=60, interval=1):
+        for count in range(seconds):
+            tdSql.query(f"show {dbname}.vgroups")
+            leader_num = 0
+            for row in tdSql.queryResult:
+                if "leader" in (row[4], row[7], row[10]):
+                    leader_num += 1
+
+            if leader_num == tdSql.queryRows:
+                tdLog.info(f"{dbname} vgroups are ready after {count}s.")
+                return
+
+            tdLog.info(
+                f"waiting for {dbname} vgroups leader election: "
+                f"{leader_num}/{tdSql.queryRows} ready after {count}s."
+            )
+            time.sleep(interval)
+
+        tdLog.exit(f"{dbname} vgroups are not ready within {seconds}s.")
+
+
     def insertData(self):
         tdLog.info(f"insert data.")
         # taosBenchmark run
         jfile = etool.curFile(__file__, "select_exact.json")
-        etool.benchMark(json = jfile)
+        etool.benchMark(json=jfile, low_log=True)
 
         tdSql.execute(f"use {self.db}")
         tdSql.execute("select database();")
@@ -39,8 +66,11 @@ class TestQueryBasic:
 
         # write again disorder
         self.flushDb()
+        if not self.waitTransactionZero(seconds=120):
+            tdLog.exit("transactions did not drain after flush before disorder write")
+        self.waitDbVgroupsReady(self.db)
         jfile = etool.curFile(__file__, "cselect_exact.json")
-        etool.benchMark(json = jfile)
+        etool.benchMark(json=jfile, low_log=True)
 
 
     def genTime(self, preCnt, cnt):
@@ -431,7 +461,7 @@ class TestQueryBasic:
 
         Since: v3.0.0.0
 
-        Labels: common,ci
+        Labels: common,ci,integration,functional
 
         Jira: None
 
@@ -455,6 +485,5 @@ class TestQueryBasic:
 
         # check null
         self.checkNull()
-
 
 

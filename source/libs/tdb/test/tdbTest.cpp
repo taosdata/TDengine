@@ -1,3 +1,20 @@
+/*
+ * Copyright (c) 2022 TAOS Data, Inc. <jhtao@taosdata.com>
+ *
+ * SPDX-License-Identifier: AGPL-3.0-or-later
+ *
+ * This program is free software: you can use, redistribute, and/or modify
+ * it under the terms of the GNU Affero General Public License, version 3
+ * or later ("AGPL"), as published by the Free Software Foundation.
+ *
+ * This program is distributed in the hope that it will be useful, but WITHOUT
+ * ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+ * FITNESS FOR A PARTICULAR PURPOSE.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program. If not, see <http://www.gnu.org/licenses/>.
+ */
+
 #include <gtest/gtest.h>
 
 #define ALLOW_FORBID_FUNC
@@ -744,4 +761,73 @@ TEST(tdb_test, DISABLED_multi_thread1) {
   // Close Env
   tdbClose(pEnv);
 #endif
+}
+
+TEST(tdb_test, batch_get) {
+  const int32_t kNumOfEntries = 256;
+  char          keys[kNumOfEntries][16] = {0};
+  char          values[kNumOfEntries][16] = {0};
+  TDB          *pEnv = NULL;
+  TTB          *pDb = NULL;
+  TXN          *pTxn = NULL;
+  SPoolMem     *pPool = NULL;
+
+  taosRemoveDir("tdb_batch_get");
+  ASSERT_EQ(tdbOpen("tdb_batch_get", 512, 64, &pEnv, 0, NULL), 0);
+  ASSERT_EQ(tdbTbOpen("db.db", -1, -1, NULL, pEnv, &pDb, 0), 0);
+
+  pPool = openPool();
+  ASSERT_NE(pPool, nullptr);
+  ASSERT_EQ(tdbBegin(pEnv, &pTxn, poolMalloc, poolFree, pPool, TDB_TXN_WRITE | TDB_TXN_READ_UNCOMMITTED), 0);
+  for (int32_t i = 0; i < kNumOfEntries; ++i) {
+    snprintf(keys[i], sizeof(keys[i]), "key-%03d", i);
+    snprintf(values[i], sizeof(values[i]), "value-%03d", i);
+    ASSERT_EQ(tdbTbInsert(pDb, keys[i], strlen(keys[i]), values[i], strlen(values[i]), pTxn), 0);
+  }
+  ASSERT_EQ(tdbCommit(pEnv, pTxn), 0);
+  ASSERT_EQ(tdbPostCommit(pEnv, pTxn), 0);
+  closePool(pPool);
+
+  STdbTbBatchGetArg args[6] = {0};
+  args[0].pKey = keys[0];
+  args[0].kLen = (int32_t)strlen(keys[0]);
+  args[1].pKey = "key-missing";
+  args[1].kLen = (int32_t)strlen((const char *)args[1].pKey);
+  args[2].pKey = keys[kNumOfEntries - 1];
+  args[2].kLen = (int32_t)strlen(keys[kNumOfEntries - 1]);
+  args[3].pKey = keys[0];
+  args[3].kLen = (int32_t)strlen(keys[0]);
+  args[5].pKey = keys[kNumOfEntries / 2];
+  args[5].kLen = (int32_t)strlen(keys[kNumOfEntries / 2]);
+
+  EXPECT_EQ(tdbTbGetBatch(NULL, args, 1), TSDB_CODE_INVALID_PARA);
+  EXPECT_EQ(tdbTbGetBatch(pDb, NULL, 1), TSDB_CODE_INVALID_PARA);
+  EXPECT_EQ(tdbTbGetBatch(pDb, args, -1), TSDB_CODE_INVALID_PARA);
+  ASSERT_EQ(tdbTbGetBatch(pDb, args, 6), TSDB_CODE_SUCCESS);
+
+  EXPECT_EQ(args[0].code, TSDB_CODE_SUCCESS);
+  EXPECT_EQ(args[0].vLen, (int32_t)strlen(values[0]));
+  EXPECT_EQ(memcmp(args[0].pVal, values[0], args[0].vLen), 0);
+  EXPECT_EQ(args[1].code, TSDB_CODE_NOT_FOUND);
+  EXPECT_EQ(args[1].pVal, nullptr);
+  EXPECT_EQ(args[2].code, TSDB_CODE_SUCCESS);
+  EXPECT_EQ(memcmp(args[2].pVal, values[kNumOfEntries - 1], args[2].vLen), 0);
+  EXPECT_EQ(args[3].code, TSDB_CODE_SUCCESS);
+  EXPECT_EQ(memcmp(args[3].pVal, values[0], args[3].vLen), 0);
+  EXPECT_EQ(args[4].code, TSDB_CODE_INVALID_PARA);
+  EXPECT_EQ(args[5].code, TSDB_CODE_SUCCESS);
+  EXPECT_EQ(memcmp(args[5].pVal, values[kNumOfEntries / 2], args[5].vLen), 0);
+
+  args[0].pKey = keys[kNumOfEntries - 1];
+  args[0].kLen = (int32_t)strlen(keys[kNumOfEntries - 1]);
+  ASSERT_EQ(tdbTbGetBatch(pDb, args, 1), TSDB_CODE_SUCCESS);
+  EXPECT_EQ(args[0].code, TSDB_CODE_SUCCESS);
+  EXPECT_EQ(memcmp(args[0].pVal, values[kNumOfEntries - 1], args[0].vLen), 0);
+
+  for (int32_t i = 0; i < 6; ++i) {
+    tdbFree(args[i].pVal);
+  }
+  tdbTbClose(pDb);
+  tdbClose(pEnv);
+  taosRemoveDir("tdb_batch_get");
 }

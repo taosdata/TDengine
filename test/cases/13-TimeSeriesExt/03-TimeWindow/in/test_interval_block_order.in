@@ -1,0 +1,21 @@
+use db_interval_block_order;
+
+####  CASE 1: EXPLAIN count/sum - should have input_order=asc, no Sort #### 
+SELECT count(*), sum(v) FROM st PARTITION BY tbname INTERVAL(2s) ORDER BY tbname, _wstart;
+explain verbose true SELECT count(*), sum(v) FROM st PARTITION BY tbname INTERVAL(2s)\G;
+
+####  CASE 2: Query result count/sum #### 
+SELECT count(*), sum(v) FROM st PARTITION BY tbname INTERVAL(2s) ORDER BY tbname, _wstart;
+explain verbose true SELECT count(*), sum(v) FROM st PARTITION BY tbname INTERVAL(2s) ORDER BY tbname, _wstart\G;
+
+####  CASE 3: EXPLAIN avg/min/max - should have input_order=asc ####
+SELECT avg(v), min(v), max(v) FROM st PARTITION BY tbname INTERVAL(2s) ORDER BY tbname, _wstart;
+explain verbose true SELECT avg(v), min(v), max(v) FROM st PARTITION BY tbname INTERVAL(2s)\G;
+
+####  CASE 4: EXPLAIN first/last - should have input_order=asc ####
+SELECT first(v), last(v) FROM st PARTITION BY tbname INTERVAL(2s) ORDER BY tbname, _wstart;
+explain verbose true SELECT first(v), last(v) FROM st PARTITION BY tbname INTERVAL(2s)\G;
+
+####  CASE 5: EXPLAIN elapsed (timeline function) - should still produce valid plan ####
+SELECT elapsed(ts) FROM st PARTITION BY tbname INTERVAL(2s) ORDER BY tbname, _wstart
+explain verbose true SELECT elapsed(ts) FROM st PARTITION BY tbname INTERVAL(2s)\G;

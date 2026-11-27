@@ -1,6 +1,8 @@
 /*
  * Copyright (c) 2019 TAOS Data, Inc. <jhtao@taosdata.com>
  *
+ * SPDX-License-Identifier: AGPL-3.0-or-later
+ *
  * This program is free software: you can use, redistribute, and/or modify
  * it under the terms of the GNU Affero General Public License, version 3
  * or later ("AGPL"), as published by the Free Software Foundation.
@@ -36,7 +38,7 @@ int32_t schValidateRspMsgType(SSchJob *pJob, SSchTask *pTask, int32_t msgType) {
     case TDMT_SCH_FETCH_RSP:
     case TDMT_SCH_MERGE_FETCH_RSP:
       if (lastMsgType != reqMsgType) {
-        SCH_TASK_ELOG("rsp msg type mis-match, last sent msgType:%s, rspType:%s", TMSG_INFO(lastMsgType),
+        SCH_TASK_ELOG("rsp msg type mismatch, last sent msgType:%s, rspType:%s", TMSG_INFO(lastMsgType),
                       TMSG_INFO(msgType));
         SCH_ERR_RET(TSDB_CODE_QW_MSG_ERROR);
       }
@@ -55,6 +57,8 @@ int32_t schValidateRspMsgType(SSchJob *pJob, SSchTask *pTask, int32_t msgType) {
     case TDMT_VND_SUBMIT_RSP:
     case TDMT_VND_DELETE_RSP:
     case TDMT_VND_COMMIT_RSP:
+    case TDMT_VND_TXN_COMMIT_RSP:
+    case TDMT_VND_TXN_ROLLBACK_RSP:
       break;
     default:
       SCH_TASK_ELOG("unknown rsp msg, type:%s, status:%s", TMSG_INFO(msgType), jobTaskStatusStr(taskStatus));
@@ -62,7 +66,7 @@ int32_t schValidateRspMsgType(SSchJob *pJob, SSchTask *pTask, int32_t msgType) {
   }
 
   if (lastMsgType != reqMsgType) {
-    SCH_TASK_ELOG("rsp msg type mis-match, last sent msgType:%s, rspType:%s", TMSG_INFO(lastMsgType),
+    SCH_TASK_ELOG("rsp msg type mismatch, last sent msgType:%s, rspType:%s", TMSG_INFO(lastMsgType),
                   TMSG_INFO(msgType));
     SCH_ERR_RET(TSDB_CODE_QW_MSG_ERROR);
   }
@@ -149,9 +153,17 @@ int32_t schProcessResponseMsg(SSchJob *pJob, SSchTask *pTask, SDataBuf *pMsg, in
   int32_t code = 0;
   int32_t msgSize = pMsg->len;
   int32_t msgType = pMsg->msgType;
+  SQueryTableRsp queryRsp = {0};
+  bool           hasQueryRsp = false;
 
   switch (msgType) {
     case TDMT_VND_COMMIT_RSP: {
+      SCH_ERR_JRET(rspCode);
+      SCH_ERR_JRET(schProcessOnTaskSuccess(pJob, pTask));
+      break;
+    }
+    case TDMT_VND_TXN_COMMIT_RSP:
+    case TDMT_VND_TXN_ROLLBACK_RSP: {
       SCH_ERR_JRET(rspCode);
       SCH_ERR_JRET(schProcessOnTaskSuccess(pJob, pTask));
       break;
@@ -244,14 +256,30 @@ int32_t schProcessResponseMsg(SSchJob *pJob, SSchTask *pTask, SDataBuf *pMsg, in
         tDecoderInit(&coder, pMsg->pData, msgSize);
         code = tDecodeSVAlterTbRsp(&coder, &rsp);
         tDecoderClear(&coder);
-        SCH_ERR_JRET(code);
         if (rsp.code == TSDB_CODE_VND_SAME_TAG) {
           rsp.code = TSDB_CODE_SUCCESS;
         }
+        if (TSDB_CODE_SUCCESS != code || TSDB_CODE_SUCCESS != rsp.code) {
+          tFreeSTableMetaRsp(rsp.pMeta);
+          taosMemoryFreeClear(rsp.pMeta);
+        }
+        SCH_ERR_JRET(code);
         SCH_ERR_JRET(rsp.code);
 
-        pJob->execRes.res = rsp.pMeta;
-        pJob->execRes.msgType = TDMT_VND_ALTER_TABLE;
+        if (rsp.numTouched > 0) {
+          (void)atomic_add_fetch_32(&pJob->resNumTouchedObjects, rsp.numTouched);
+        }
+
+        if (rsp.pMeta) {
+          SCH_LOCK(SCH_WRITE, &pJob->resLock);
+          if (pJob->execRes.res) {
+            tFreeSTableMetaRsp(pJob->execRes.res);
+            taosMemoryFree(pJob->execRes.res);
+          }
+          pJob->execRes.res = rsp.pMeta;
+          pJob->execRes.msgType = TDMT_VND_ALTER_TABLE;
+          SCH_UNLOCK(SCH_WRITE, &pJob->resLock);
+        }
       }
 
       SCH_ERR_JRET(rspCode);
@@ -357,8 +385,8 @@ int32_t schProcessResponseMsg(SSchJob *pJob, SSchTask *pTask, SDataBuf *pMsg, in
     }
     case TDMT_SCH_QUERY_RSP:
     case TDMT_SCH_MERGE_QUERY_RSP: {
-      SCH_ERR_JRET(rspCode);
       if (NULL == pMsg->pData) {
+        SCH_ERR_JRET(rspCode);
         SCH_ERR_JRET(TSDB_CODE_QRY_INVALID_INPUT);
       }
 
@@ -370,21 +398,30 @@ int32_t schProcessResponseMsg(SSchJob *pJob, SSchTask *pTask, SDataBuf *pMsg, in
         }
       }
 
-      SQueryTableRsp rsp = {0};
-      if (tDeserializeSQueryTableRsp(pMsg->pData, msgSize, &rsp) < 0) {
+      if (tDeserializeSQueryTableRsp(pMsg->pData, msgSize, &queryRsp) < 0) {
         SCH_TASK_ELOG("tDeserializeSQueryTableRsp failed, msgSize:%d", msgSize);
+        SCH_ERR_JRET(rspCode);
         SCH_ERR_JRET(TSDB_CODE_QRY_INVALID_MSG);
       }
-      
-      SCH_ERR_JRET(rsp.code);
+      hasQueryRsp = true;
 
-      SCH_ERR_JRET(schSaveJobExecRes(pJob, &rsp));
+      // extract the detail text before the code check aborts the path
+      SCH_ERR_JRET(schSaveJobExecRes(pJob, &queryRsp));
 
-      (void)atomic_add_fetch_64(&pJob->resNumOfRows, rsp.affectedRows);
+      SCH_ERR_JRET(rspCode);
+
+      SCH_ERR_JRET(queryRsp.code);
+
+      (void)atomic_add_fetch_64(&pJob->resNumOfRows, queryRsp.affectedRows);
 
       taosMemoryFreeClear(pMsg->pData);
 
       SCH_ERR_JRET(schProcessOnTaskSuccess(pJob, pTask));
+
+      hasQueryRsp = false;
+      taosArrayDestroy(queryRsp.tbVerInfo);
+      taosMemoryFreeClear(queryRsp.extErrMsg);
+      taosMemoryFreeClear(queryRsp.extPushdownDiag);
 
       break;
     }
@@ -405,9 +442,10 @@ int32_t schProcessResponseMsg(SSchJob *pJob, SSchTask *pTask, SDataBuf *pMsg, in
       }
 
       SExplainRsp rsp = {0};
-      if (tDeserializeSExplainRsp(pMsg->pData, msgSize, &rsp)) {
+      int32_t decodeCode = tDeserializeSExplainRsp(pMsg->pData, msgSize, &rsp);
+      if (decodeCode != TSDB_CODE_SUCCESS) {
         tFreeSExplainRsp(&rsp);
-        SCH_ERR_JRET(TSDB_CODE_OUT_OF_MEMORY);
+        SCH_ERR_JRET(decodeCode);
       }
 
       SCH_ERR_JRET(schProcessExplainRsp(pJob, pTask, &rsp));
@@ -417,6 +455,17 @@ int32_t schProcessResponseMsg(SSchJob *pJob, SSchTask *pTask, SDataBuf *pMsg, in
     }
     case TDMT_SCH_FETCH_RSP:
     case TDMT_SCH_MERGE_FETCH_RSP: {
+      if (TSDB_CODE_SUCCESS == rspCode) {
+        if (NULL == pMsg->pData || pMsg->len < (int32_t)sizeof(SRetrieveTableRsp)) {
+          rspCode = TSDB_CODE_QRY_INVALID_MSG;
+        } else {
+          const SRetrieveTableRsp* pRsp = (const SRetrieveTableRsp*)pMsg->pData;
+          int32_t compLen = ntohl((uint32_t)pRsp->compLen);
+          if (compLen < 0 || compLen > pMsg->len - (int32_t)sizeof(SRetrieveTableRsp)) {
+            rspCode = TSDB_CODE_QRY_INVALID_MSG;
+          }
+        }
+      }
       code = schProcessFetchRsp(pJob, pTask, pMsg->pData, rspCode);
       pMsg->pData = NULL;
       SCH_ERR_JRET(code);
@@ -453,6 +502,12 @@ int32_t schProcessResponseMsg(SSchJob *pJob, SSchTask *pTask, SDataBuf *pMsg, in
 
 _return:
 
+  if (hasQueryRsp) {
+    taosArrayDestroy(queryRsp.tbVerInfo);
+    taosMemoryFreeClear(queryRsp.extErrMsg);
+    taosMemoryFreeClear(queryRsp.extPushdownDiag);
+  }
+
   taosMemoryFreeClear(pMsg->pData);
 
   SCH_RET(schProcessOnTaskFailure(pJob, pTask, code));
@@ -468,6 +523,13 @@ int32_t schHandleResponseMsg(SSchJob *pJob, SSchTask *pTask, uint64_t seriesId, 
   if (SCH_IS_QUERY_JOB(pJob)) {
     SCH_ERR_JRET(schUpdateTaskHandle(pJob, pTask, dropExecNode, pMsg->handle, seriesId, execId));
   }
+
+  if (SCH_PARENT_JOB(pJob)->concurrentSubJobs && TSDB_CODE_SUCCESS == rspCode &&
+      (TDMT_SCH_QUERY_RSP == msgType || TDMT_SCH_MERGE_QUERY_RSP == msgType) &&
+      SCH_TASK_EXEC_DONE(pTask)) {
+    taosMemoryFreeClear(pMsg->pData);
+    return TSDB_CODE_SCH_IGNORE_ERROR;
+  }
   
   SCH_ERR_JRET(schValidateRspMsgType(pJob, pTask, msgType));
 
@@ -478,6 +540,10 @@ int32_t schHandleResponseMsg(SSchJob *pJob, SSchTask *pTask, uint64_t seriesId, 
 
   int32_t reqType = IsReq(pMsg) ? pMsg->msgType : (pMsg->msgType - 1);
 
+  // Retry the job so exchange consumers and a pending FETCH follow the new attempt.
+  if (pJob->earlyMainTasks && atomic_load_8(&pTask->outputPublished) && SCH_TASK_NEED_RETRY(reqType, rspCode)) {
+    SCH_RET(schHandleJobRetry(pJob, pTask, pMsg, rspCode));
+  }
   if (SCH_DATA_BIND_TASK_NEED_RETRY(pJob, pTask,reqType, rspCode)) {
     SCH_RET(schProcessOnTaskFailure(pJob, pTask, rspCode));
   } else if (SCH_JOB_NEED_RETRY(pJob, pTask, reqType, rspCode)) {
@@ -503,6 +569,9 @@ int32_t schHandleCallback(void *param, SDataBuf *pMsg, int32_t rspCode) {
          tstrerror(rspCode));
 
   SCH_ERR_JRET(schProcessOnCbBegin(&pJob, &pTask, pParam->queryId, pParam->refId, pParam->subJobId, pParam->taskId));
+  // A task response proves RPC accepted work, even if it arrives before the
+  // send call returns. Record this before processing can complete the job.
+  atomic_store_8(&pJob->execDispatched, 1);
   code = schHandleResponseMsg(pJob, pTask, pParam->seriesId, pParam->execId, pMsg, rspCode);
   pMsg->pData = NULL;
 
@@ -692,7 +761,7 @@ int32_t schGenerateCallBackInfo(SSchJob *pJob, SSchTask *pTask, void *msg, uint3
     SCH_ERR_JRET(taosGetSystemUUIDU64(&msgSendInfo->requestId));
   }
 
-  qDebug("ahandle %p alloced, QID:0x%" PRIx64, msgSendInfo, msgSendInfo->requestId);
+  qDebug("ahandle %p allocated, QID:0x%" PRIx64, msgSendInfo, msgSendInfo->requestId);
 
   if (TDMT_SCH_LINK_BROKEN != msgType) {
     msgSendInfo->msgInfo.pData = msg;
@@ -728,6 +797,8 @@ int32_t schGetCallbackFp(int32_t msgType, __async_send_cb_fn_t *fp) {
     case TDMT_SCH_EXPLAIN:
     case TDMT_SCH_FETCH:
     case TDMT_SCH_MERGE_FETCH:
+    case TDMT_VND_TXN_COMMIT:
+    case TDMT_VND_TXN_ROLLBACK:
       *fp = schHandleCallback;
       break;
     case TDMT_SCH_DROP_TASK:
@@ -1051,8 +1122,14 @@ int32_t schAsyncSendMsg(SSchJob *pJob, SSchTask *pTask, SSchTrans *trans, SQuery
     SCH_ERR_JRET(code);
   }
 
+  // Synchronous failures in qcom or transport have not accepted this task.
+  // The callback also marks dispatch, covering completion before this return.
+  if (pJob != NULL && pTask != NULL && pTask->plan != NULL && msgType == pTask->plan->msgType) {
+    atomic_store_8(&pJob->execDispatched, 1);
+  }
+
   if (pJob) {
-    SCH_TASK_TLOG("req msg sent, type:%d, %s", msgType, TMSG_INFO(msgType));
+    SCH_TASK_TLOG("request was sent, type:%d, %s, payloadBytes:%u", msgType, TMSG_INFO(msgType), msgSize);
   } else {
     qTrace("req msg sent, type:%d, %s", msgType, TMSG_INFO(msgType));
   }
@@ -1142,18 +1219,43 @@ _return:
 int32_t schBuildSubJobEndpoints(SSchTask *pTask, SArray** ppRes, SSchJob* pTarget) {
   *ppRes = NULL;
   int32_t code = TSDB_CODE_SUCCESS;
-  SSchJob* pJob = NULL;
+  SSchJob* pJob = pTarget;
+  SDownstreamSourceNode* pSource = NULL;
   
   if (SCH_IS_PARENT_JOB(pTarget) && !SCH_JOB_GOT_SUB_JOBS(pTarget)) {
-    pJob = pTarget;
-    SCH_TASK_DLOG("task query without subEndPoints, pJob:%p", pTarget);
+    const SArray* pExternal = pTarget->pExternalSubquerySources;
+    if (0 == taosArrayGetSize(pExternal)) {
+      SCH_TASK_DLOG("task query without subEndPoints, pJob:%p", pTarget);
+      return TSDB_CODE_SUCCESS;
+    }
+    *ppRes = taosArrayInit(taosArrayGetSize(pExternal), POINTER_BYTES);
+    if (NULL == *ppRes) {
+      SCH_ERR_RET(terrno);
+    }
+    for (int32_t i = 0; i < taosArrayGetSize(pExternal); ++i) {
+      const SNode* pNode = taosArrayGetP(pExternal, i);
+      if (NULL == pNode || QUERY_NODE_DOWNSTREAM_SOURCE != nodeType(pNode)) {
+        SCH_ERR_JRET(TSDB_CODE_QRY_INVALID_CORRELATION_NODE);
+      }
+      SCH_ERR_JRET(nodesCloneNode(pNode, (SNode**)&pSource));
+      if (NULL == taosArrayPush(*ppRes, &pSource)) {
+        nodesDestroyNode((SNode*)pSource);
+        pSource = NULL;
+        SCH_ERR_JRET(terrno);
+      }
+      pSource = NULL;
+    }
     return TSDB_CODE_SUCCESS;
   }
   
   int32_t subJobNum = SCH_IS_PARENT_JOB(pTarget) ? pTarget->subJobs->size : pTarget->subJobId;
   SSchJob* pParent = SCH_IS_PARENT_JOB(pTarget) ? pTarget : (SSchJob*)pTarget->parent;
-  SDownstreamSourceNode* pSource = NULL;
 
+  SArray* deps = pParent->concurrentSubJobs ? pTarget->pDag->pSubqueryDeps : NULL;
+  if (pTarget->earlyMainTasks && pTask && pTask->plan->subqueryDepsKnown) {
+    deps = pTask->plan->pSubqueryDeps;
+    if (0 == taosArrayGetSize(deps)) return TSDB_CODE_SUCCESS;
+  }
   if (subJobNum > 0) {
     *ppRes = taosArrayInit(subJobNum, POINTER_BYTES);
     if (NULL == *ppRes) {
@@ -1162,25 +1264,39 @@ int32_t schBuildSubJobEndpoints(SSchTask *pTask, SArray** ppRes, SSchJob* pTarge
   }
   
   for (int32_t i = 0; i < subJobNum; ++i) {
+    SCH_ERR_JRET(nodesMakeNode(QUERY_NODE_DOWNSTREAM_SOURCE, (SNode**)&pSource));
+    // Correlated requests carry a producer ID for every wire slot. An unused
+    // slot still has fetchMsgType == 0 and cannot be fetched by the executor.
+    if (pTarget->correlation.rootExecutionId) pSource->producerQueryId = pTarget->queryId;
+    if (NULL == taosArrayPush(*ppRes, &pSource)) SCH_ERR_JRET(terrno);
+    pSource = NULL;
+  }
+
+  // Keep wire slots in global index order even when the plan lists dependencies out of order.
+  int32_t required = pParent->concurrentSubJobs ? (int32_t)taosArrayGetSize(deps) : subJobNum;
+  for (int32_t j = 0; j < required; ++j) {
+    int32_t i = deps ? *(int32_t*)taosArrayGet(deps, j) : j;
+    SDownstreamSourceNode* endpoint = taosArrayGetP(*ppRes, i);
+    if (NULL == endpoint) SCH_ERR_JRET(TSDB_CODE_PLAN_INTERNAL_ERROR);
+    SCH_LOCK(SCH_READ, &pParent->subJobLock);
     pJob = taosArrayGetP(pParent->subJobs, i);
-    if (NULL == pJob || NULL == pJob->fetchTask) {
+    if (NULL == pJob || NULL == pJob->fetchTask ||
+        (pParent->concurrentSubJobs && !pJob->resultReady)) {
+      SCH_UNLOCK(SCH_READ, &pParent->subJobLock);
       SCH_JOB_ELOG("no fetchTask set in job, pJob:%p, fetchTask:%p", pJob, pJob ? pJob->fetchTask : NULL);
       SCH_ERR_JRET(TSDB_CODE_SCH_INTERNAL_ERROR);
     }
 
-    SCH_ERR_JRET(nodesMakeNode(QUERY_NODE_DOWNSTREAM_SOURCE, (SNode**)&pSource));
-    
-    memcpy(&pSource->addr, &pJob->resNode, sizeof(pSource->addr));
-    pSource->clientId = pJob->fetchTask->clientId;
-    pSource->taskId = pJob->fetchTask->taskId;
-    pSource->sId = pJob->fetchTask->seriesId;
-    pSource->execId = pJob->fetchTask->execId;
-    pSource->fetchMsgType = SCH_FETCH_TYPE(pJob->fetchTask);
-    pSource->localExec = pJob->attr.localExec;
-    if (NULL == taosArrayPush(*ppRes, &pSource)) {
-      nodesDestroyNode((SNode *)pSource);
-      SCH_ERR_JRET(terrno);
-    }
+    memcpy(&endpoint->addr, &pJob->resNode, sizeof(endpoint->addr));
+    endpoint->clientId = pJob->fetchTask->clientId;
+    endpoint->producerQueryId = pJob->queryId;
+    endpoint->taskId = pJob->fetchTask->taskId;
+    endpoint->sId = pJob->fetchTask->seriesId;
+    endpoint->execId = pJob->fetchTask->execId;
+    endpoint->fetchMsgType = SCH_FETCH_TYPE(pJob->fetchTask);
+    endpoint->localExec = pJob->attr.localExec;
+    endpoint->allowFollowerRead = schTaskAllowFollowerRead(pJob, pJob->fetchTask);
+    SCH_UNLOCK(SCH_READ, &pParent->subJobLock);
   }
 
   pJob = pTarget;
@@ -1188,6 +1304,7 @@ int32_t schBuildSubJobEndpoints(SSchTask *pTask, SArray** ppRes, SSchJob* pTarge
 
 _return:
 
+  nodesDestroyNode((SNode*)pSource);
   if (code) {
     taosArrayDestroyP(*ppRes, (FDelete)nodesDestroyNode);
     *ppRes = NULL;
@@ -1220,7 +1337,9 @@ int32_t schBuildAndSendMsg(SSchJob *pJob, SSchTask *pTask, SQueryNodeAddr *addr,
     case TDMT_VND_DROP_TABLE:
     case TDMT_VND_ALTER_TABLE:
     case TDMT_VND_SUBMIT:
-    case TDMT_VND_COMMIT: {
+    case TDMT_VND_COMMIT:
+    case TDMT_VND_TXN_COMMIT:
+    case TDMT_VND_TXN_ROLLBACK: {
       msgSize = pTask->msgLen;
       msg = pTask->msg;
       pTask->msg = NULL;
@@ -1261,11 +1380,45 @@ int32_t schBuildAndSendMsg(SSchJob *pJob, SSchTask *pTask, SQueryNodeAddr *addr,
     case TDMT_SCH_QUERY:
     case TDMT_SCH_MERGE_QUERY: {
       int32_t newPhase = (TDMT_SCH_QUERY == msgType) ? QUERY_PHASE_EXEC_DATA_QUERY : QUERY_PHASE_EXEC_MERGE_QUERY;
-      SCH_UPDATE_JOB_PHASE_IF_CHANGED(pJob, newPhase);
+      // CAS on the sampled value so a concurrent path that already finished the
+      // job (DONE), promoted a parent to waiting_children, or entered the fetch
+      // stage is not overwritten. The sample and the CAS are not atomic
+      // together: if another path moves the phase in between (e.g. to fetch),
+      // the CAS fails on purpose and the newer phase is kept.
+      //
+      // The guard is main-phase based so every fetch sub-phase is covered, not
+      // just the coarse FETCH value: re-stamping EXEC_DATA_QUERY/EXEC_MERGE_QUERY
+      // over FETCH_IN_PROGRESS/FETCH_RETURNED would move a query backwards, and
+      // schLaunchJobImpl() applies the same monotonicity rule.
+      //
+      // EXEC_WAITING_CHILDREN has two meanings and only one of them may block
+      // this update:
+      //  - A parent job waiting for its subjobs. That coarse marker is set by
+      //    schPromoteParentForSubJobs() and must survive while subjobs run.
+      //  - A multi-level plan whose child task finished before its parent task
+      //    was launched (schProcessOnTaskSuccess). Reaching this code means the
+      //    parent task message is being sent now, so the job is executing
+      //    rather than waiting: the real data/merge sub-phase must be stamped,
+      //    otherwise show queries keeps reporting execute/waiting until fetch.
+      int32_t curPhase = SCH_GET_JOB_PHASE(pJob);
+      bool waitingSubJobs = !pJob->earlyMainTasks && curPhase == QUERY_PHASE_EXEC_WAITING_CHILDREN && SCH_JOB_GOT_SUB_JOBS(pJob) &&
+                            !SCH_SUB_JOBS_EXEC_FINISHED(pJob, atomic_load_32(&pJob->subJobDoneNum));
+      if (curPhase != newPhase && !waitingSubJobs && schGetMainPhase(curPhase) <= QUERY_PHASE_EXECUTE) {
+        if (!schCasJobPhase(pJob, curPhase, newPhase, false)) {
+          SCH_JOB_DLOG("exec phase stamp skipped, phase %d changed concurrently", curPhase);
+        }
+      }
+      // Subjobs are not registered in jobRef. Promote the parent only now,
+      // when a subjob query message is actually dispatched, so the parent
+      // reports execute while the subjob runs; queued-but-not-started tasks
+      // keep it in the schedule phase.
+      if (pJob->parent != NULL) {
+        schPromoteParentForSubJobs(pJob->parent);
+      }
 
       SCH_ERR_RET(schMakeQueryRpcCtx(pJob, pTask, &rpcCtx));
 
-      SSubQueryMsg qMsg;
+      SSubQueryMsg qMsg = {0};
       qMsg.header.vgId = addr->nodeId;
       qMsg.header.contLen = 0;
       qMsg.sId = pTask->seriesId;
@@ -1286,6 +1439,16 @@ int32_t schBuildAndSendMsg(SSchJob *pJob, SSchTask *pTask, SQueryNodeAddr *addr,
       qMsg.sql = pJob->sql;
       qMsg.msgLen = pTask->msgLen;
       qMsg.msg = pTask->msg;
+      qMsg.txnId = pJob->txnId;
+      qMsg.correlation = pJob->correlation;
+      qMsg.pCorrelationParamDefs = pJob->pCorrelationParamDefs;
+      qMsg.pCorrelationParamValues = pJob->pCorrelationParamValues;
+      qMsg.pCorrelationTemplates = pJob->pCorrelationTemplates;
+      qMsg.correlationTemplatesLen = pJob->correlationTemplatesLen;
+      qMsg.pCorrelationTimeInit = pJob->pCorrelationTimeInit;
+      qMsg.correlationTimeInitLen = pJob->correlationTimeInitLen;
+      qMsg.pCorrelationNodeList = NULL != pJob->pCorrelationTemplates ? pJob->nodeList : NULL;
+      qMsg.allowFollowerRead = schTaskAllowFollowerRead(pJob, pTask);
 
       if (strcmp(tsLocalFqdn, GET_ACTIVE_EP(&addr->epSet)->fqdn) == 0) {
         qMsg.compress = 0;
@@ -1294,6 +1457,8 @@ int32_t schBuildAndSendMsg(SSchJob *pJob, SSchTask *pTask, SQueryNodeAddr *addr,
       }
 
       SCH_ERR_JRET(schBuildSubJobEndpoints(pTask, &qMsg.subEndPoints, pJob));
+
+      qMsg.firstDayOfWeek = pJob->firstDayOfWeek;
 
       msgSize = tSerializeSSubQueryMsg(NULL, 0, &qMsg);
       if (msgSize < 0) {
@@ -1319,14 +1484,6 @@ int32_t schBuildAndSendMsg(SSchJob *pJob, SSchTask *pTask, SQueryNodeAddr *addr,
       taosArrayDestroyP(qMsg.subEndPoints, (FDelete)nodesDestroyNode);
 
       persistHandle = true;
-      int64_t refId = 0;
-      code = rpcAllocHandle(&refId);
-      if (code != 0) {
-        SCH_TASK_ELOG("rpcAllocHandle failed, code:%x", code);
-        SCH_ERR_JRET(code);
-      }
-
-      SCH_SET_TASK_HANDLE(pTask, (void *)refId);
       break;
     }
     case TDMT_SCH_FETCH:
@@ -1339,6 +1496,7 @@ int32_t schBuildAndSendMsg(SSchJob *pJob, SSchTask *pTask, SQueryNodeAddr *addr,
       req.taskId = pTask->taskId;
       req.execId = pTask->execId;
       req.reset = true;
+      req.allowFollowerRead = schTaskAllowFollowerRead(pJob, pTask);
 
       msgSize = tSerializeSResFetchReq(NULL, 0, &req, false, false);
       if (msgSize < 0) {
@@ -1459,7 +1617,10 @@ int32_t schBuildAndSendMsg(SSchJob *pJob, SSchTask *pTask, SQueryNodeAddr *addr,
     SCH_ERR_RET(schProcessOnTaskSuccess(pJob, pTask));
   } else {
     if (msgType == TDMT_SCH_QUERY || msgType == TDMT_SCH_MERGE_QUERY) {
-      SCH_ERR_JRET(schAppendTaskExecNode(pJob, pTask, addr, pTask->execId));
+      if (SCH_PARENT_JOB(pJob)->concurrentSubJobs && schJobNeedToStop(pJob, NULL)) {
+        SCH_ERR_JRET(TSDB_CODE_SCH_IGNORE_ERROR);
+      }
+      SCH_ERR_JRET(schAllocTaskExecNode(pJob, pTask, addr));
     }
 
     SSchTrans trans = {.pTrans = pJob->conn.pTrans, .pHandle = SCH_GET_TASK_HANDLE(pTask)};
@@ -1471,6 +1632,10 @@ int32_t schBuildAndSendMsg(SSchJob *pJob, SSchTask *pTask, SQueryNodeAddr *addr,
     code = schAsyncSendMsg(pJob, pTask, &trans, addr, msgType, msg, (uint32_t)msgSize, persistHandle, (rpcCtx.args ? &rpcCtx : NULL));
     msg = NULL;
     SCH_ERR_JRET(code);
+    if ((msgType == TDMT_SCH_QUERY || msgType == TDMT_SCH_MERGE_QUERY) &&
+        SCH_PARENT_JOB(pJob)->concurrentSubJobs && schJobNeedToStop(pJob, NULL)) {
+      schDropTaskOnExecNode(pJob, pTask);
+    }
   }
 
   return TSDB_CODE_SUCCESS;

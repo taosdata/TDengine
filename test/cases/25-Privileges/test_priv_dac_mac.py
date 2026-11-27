@@ -1,3 +1,18 @@
+# Copyright (c) 2026 TAOS Data, Inc. <jhtao@taosdata.com>
+#
+# SPDX-License-Identifier: AGPL-3.0-or-later
+#
+# This program is free software: you can use, redistribute, and/or modify
+# it under the terms of the GNU Affero General Public License, version 3
+# or later ("AGPL"), as published by the Free Software Foundation.
+#
+# This program is distributed in the hope that it will be useful, but WITHOUT
+# ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+# FITNESS FOR A PARTICULAR PURPOSE.
+#
+# You should have received a copy of the GNU Affero General Public License
+# along with this program. If not, see <http://www.gnu.org/licenses/>.
+
 from new_test_framework.utils import tdLog, tdSql, tdDnodes, etool, TDSetSql
 from new_test_framework.utils.sqlset import TDSetSql
 from itertools import product
@@ -36,7 +51,7 @@ class TestCase:
         tdSql.checkRows(1)
         tdSql.checkData(0, 0, "root")
         tdSql.checkData(0, 9, "SYSAUDIT,SYSDBA,SYSSEC")
-        tdSql.checkData(0, 10, "[0,4]")        
+        tdSql.checkData(0, 10, "[0,4]")
         tdSql.query("select name,sec_levels from information_schema.ins_users where name='root'")
         tdSql.checkRows(1)
         tdSql.checkData(0, 0, "root")
@@ -133,16 +148,16 @@ class TestCase:
         tdSql.error("alter user root enable 1", expectErrInfo="Insufficient privilege for operation", fullMatched=False)
         # revoke role from user restricted in SoD mandatory mode
         tdSql.error("revoke role `SYSDBA` from u1", expectErrInfo="No enabled non-root user with SYSDBA role found to satisfy SoD policy", fullMatched=False)
-        tdSql.error("revoke role `SYSSEC` from u2", expectErrInfo="Permission denied or target object not exist", fullMatched=False)
-        tdSql.error("revoke role `SYSAUDIT` from u3", expectErrInfo="Permission denied or target object not exist", fullMatched=False)
+        tdSql.error("revoke role `SYSSEC` from u2", expectErrInfo="Permission denied or the target object does not exist", fullMatched=False)
+        tdSql.error("revoke role `SYSAUDIT` from u3", expectErrInfo="Permission denied or the target object does not exist", fullMatched=False)
         tdSql.connect(user="u2", password=self.test_pass)
         tdSql.error("revoke role `SYSSEC` from u2", expectErrInfo="No enabled non-root user with SYSSEC role found to satisfy SoD policy", fullMatched=False)
-        tdSql.error("revoke role `SYSAUDIT` from u3", expectErrInfo="Permission denied or target object not exist", fullMatched=False)
-        tdSql.error("revoke role `SYSDBA` from u1", expectErrInfo="Permission denied or target object not exist", fullMatched=False)
+        tdSql.error("revoke role `SYSAUDIT` from u3", expectErrInfo="Permission denied or the target object does not exist", fullMatched=False)
+        tdSql.error("revoke role `SYSDBA` from u1", expectErrInfo="Permission denied or the target object does not exist", fullMatched=False)
         tdSql.connect(user="u3", password=self.test_pass)
         tdSql.error("revoke role `SYSAUDIT` from u3", expectErrInfo="No enabled non-root user with SYSAUDIT role found to satisfy SoD policy", fullMatched=False)
-        tdSql.error("revoke role `SYSSEC` from u2", expectErrInfo="Permission denied or target object not exist", fullMatched=False)
-        tdSql.error("revoke role `SYSDBA` from u1", expectErrInfo="Permission denied or target object not exist", fullMatched=False)
+        tdSql.error("revoke role `SYSSEC` from u2", expectErrInfo="Permission denied or the target object does not exist", fullMatched=False)
+        tdSql.error("revoke role `SYSDBA` from u1", expectErrInfo="Permission denied or the target object does not exist", fullMatched=False)
 
 
         tdSql.connect(user="u1", password=self.test_pass)
@@ -204,6 +219,7 @@ class TestCase:
         self.do_check_mac_user_security_level()
         self.do_check_mac_db_nru()
         self.do_check_mac_select_nru()
+        self.do_check_mac_vtable_tag_ref_nru()
         self.do_check_mac_insert_nwd()  # includes do_check_mac_insert_nwd_fresh_conn
         self.do_check_mac_insert_file_nwd()
         self.do_check_mac_insert_into_select()
@@ -620,6 +636,49 @@ class TestCase:
         tdSql.error("select * from d_mac2.ctb_d2",
                      expectErrInfo="Insufficient", fullMatched=False)
 
+    def do_check_mac_vtable_tag_ref_nru(self):
+        """Test that virtual-table tag references preserve MAC NRU errors."""
+        db = "d_mac_vtag"
+        user = "u_mac_vtag"
+
+        tdSql.connect(user="u_dba2", password=self.test_pass)
+        tdSql.execute(f"drop database if exists {db}")
+        tdSql.execute(f"drop user if exists {user}")
+        try:
+            tdSql.execute(f"create database {db} keep 36500")
+            tdSql.execute(
+                f"create stable {db}.src_stb (ts timestamp, v int) "
+                "tags (source_tag int)"
+            )
+            tdSql.execute(f"create table {db}.src using {db}.src_stb tags (1)")
+            tdSql.execute(
+                f"create stable {db}.vst (ts timestamp, v int) "
+                "tags (source_tag int) virtual 1"
+            )
+            tdSql.execute(f"create user {user} pass '{self.test_pass}'")
+
+            tdSql.connect(user="u2", password=self.test_pass)
+            tdSql.execute(f"alter user {user} security_level 0,1")
+            tdSql.execute(f"alter database {db} security_level 0")
+            tdSql.execute(f"alter table {db}.src_stb security_level 2")
+            tdSql.execute(f"grant use database on database {db} to {user}")
+            tdSql.execute(f"grant create table on database {db} to {user}")
+            tdSql.execute(f"grant select on table {db}.src_stb to {user}")
+
+            tdSql.connect(user=user, password=self.test_pass)
+            tdSql.error(
+                f"create vtable {db}.vt using {db}.vst tags "
+                f"(source_tag from {db}.src.source_tag)",
+                expectErrInfo="Insufficient user security level",
+                fullMatched=False,
+            )
+        finally:
+            tdSql.connect(user="u_dba2", password=self.test_pass)
+            tdSql.execute(f"drop database if exists {db}")
+            tdSql.execute(f"drop user if exists {user}")
+
+        tdLog.info("MAC virtual-table tag-reference NRU error verified")
+
     def do_check_mac_insert_nwd(self):
         """Test NWD+NRU for INSERT: user.min <= table.secLvl <= user.max"""
         # u_mac_low (min=0, max=1) INSERT ctb_l2 (level=2): NRU blocks (1 < 2)
@@ -714,8 +773,9 @@ class TestCase:
 
         # Prepare CSV file with valid data
         csv_dir = tempfile.mkdtemp(prefix="mac_file_test_")
-        csv_file = os.path.join(csv_dir, "test_insert.csv")
-        with open(csv_file, 'w') as f:
+        # SQL string literals interpret backslashes as escapes.
+        csv_file = os.path.join(csv_dir, "test_insert.csv").replace(os.sep, '/')
+        with open(csv_file, 'w', encoding='utf-8') as f:
             f.write("now,100\n")
 
         try:
@@ -1543,14 +1603,14 @@ class TestCase:
     #
     def test_priv_dac_mac(self):
         """Test basic privileges of Discretionary Access Control and Mandatory Access Control
-        
+
         1. Test mandatory SoD(Separation of Duty).
         2. Test mandatory access control with security levels.
         3. Test CREATE with SECURITY_LEVEL and ALTER SECURITY POLICY.
-        
+
         Since: v3.4.1.0
 
-        Labels: basic,ci
+        Labels: ci,basic,integration,functional,security
 
         Jira: 6670071929,6671585124
 
@@ -1562,5 +1622,5 @@ class TestCase:
         self.do_check_init_env()
         self.do_check_sod()
         self.do_check_mac()
-    
+
         tdLog.debug("finish executing %s" % __file__)

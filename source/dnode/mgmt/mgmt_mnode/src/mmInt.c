@@ -1,6 +1,8 @@
 /*
  * Copyright (c) 2019 TAOS Data, Inc. <jhtao@taosdata.com>
  *
+ * SPDX-License-Identifier: AGPL-3.0-or-later
+ *
  * This program is free software: you can use, redistribute, and/or modify
  * it under the terms of the GNU Affero General Public License, version 3
  * or later ("AGPL"), as published by the Free Software Foundation.
@@ -10,7 +12,7 @@
  * FITNESS FOR A PARTICULAR PURPOSE.
  *
  * You should have received a copy of the GNU Affero General Public License
- * along with this program. If not, see <http:www.gnu.org/licenses/>.
+ * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
 #define _DEFAULT_SOURCE
@@ -163,7 +165,11 @@ static int32_t mmStart(SMnodeMgmt *pMgmt) {
   SMnodeOpt option = {0};
   if ((code = mmReadFile(pMgmt->path, &option)) != 0) {
     dError("failed to read file since %s", tstrerror(code));
-    mmClose(pMgmt);
+    // startFp must not free the management handle: once mmOpen() returns it via
+    // SMgmtOutputOpt, the owning wrapper releases it through closeFp (dmCloseNode ->
+    // mmClose). Freeing it here would leave the wrapper's pMgmt dangling while the
+    // wrapper is still `deployed`, so later messages would dereference freed memory
+    // in mmAcquire().
     return code;
   }
   if ((code = mndStart(pMgmt->pMnode)) != 0) {

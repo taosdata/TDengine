@@ -1,0 +1,57 @@
+USE hash_join_snap;
+
+SELECT CAST(a.ts AS BIGINT), a.device, a.val, b.metric FROM l_norm a LEFT JOIN r_norm b ON a.ts = b.ts AND a.device = b.device ORDER BY 1, 2, 3, 4;
+
+SELECT CAST(b.ts AS BIGINT), b.device, a.val, b.metric FROM l_norm a RIGHT JOIN r_norm b ON a.ts = b.ts AND a.device = b.device ORDER BY 1, 2, 3, 4;
+
+SELECT CAST(a.ts AS BIGINT), a.device, a.val, b.metric FROM l_norm a LEFT JOIN r_norm b ON a.ts = b.ts AND a.device = b.device AND b.status = 1 ORDER BY 1, 2, 3, 4;
+
+SELECT CAST(b.ts AS BIGINT), b.device, a.val, b.metric FROM l_norm a RIGHT JOIN r_norm b ON a.ts = b.ts AND a.device = b.device AND a.val > 10 ORDER BY 1, 2, 3, 4;
+
+SELECT CAST(a.ts AS BIGINT), a.device, a.val, b.metric FROM l_norm a LEFT JOIN r_norm b ON a.ts = b.ts AND a.device = b.device WHERE b.metric IS NULL ORDER BY 1, 2, 3, 4;
+
+SELECT CAST(a.ts AS BIGINT), a.device, a.val, b.metric FROM sl a LEFT JOIN sr b ON a.ts = b.ts AND a.device = b.device ORDER BY 1, 2, 3, 4;
+
+SELECT CAST(b.ts AS BIGINT), b.device, a.val, b.metric FROM sl a RIGHT JOIN sr b ON a.ts = b.ts AND a.device = b.device ORDER BY 1, 2, 3, 4;
+
+SELECT CAST(a.ts AS BIGINT), a.device, a.val, CAST(b.ts AS BIGINT), b.device, b.metric FROM l_norm a FULL JOIN r_norm b ON a.ts = b.ts AND a.device = b.device ORDER BY 1, 2, 3, 4, 5, 6;
+
+SELECT CAST(a.ts AS BIGINT), a.device, a.val, CAST(b.ts AS BIGINT), b.device, b.metric, b.status FROM l_norm a FULL JOIN r_norm b ON a.ts = b.ts AND a.device = b.device AND b.status = 1 ORDER BY 1, 2, 3, 4, 5, 6, 7;
+
+SELECT CAST(a.ts AS BIGINT), a.device, a.val, CAST(b.ts AS BIGINT), b.device, b.metric FROM sl a FULL JOIN sr b ON a.ts = b.ts AND a.device = b.device ORDER BY 1, 2, 3, 4, 5, 6;
+
+SELECT CAST(a.ts AS BIGINT), a.device, a.val, CAST(b.ts AS BIGINT), b.device, b.metric, b.status FROM l_full_partial a FULL JOIN r_full_partial b ON a.device = b.device AND b.status = 1 ORDER BY 1, 2, 3, 4, 5, 6, 7;
+
+SELECT CAST(a.ts AS BIGINT), a.device, a.val FROM l_norm a LEFT SEMI JOIN r_norm b ON a.ts = b.ts AND a.device = b.device ORDER BY 1, 2, 3;
+
+SELECT CAST(a.ts AS BIGINT), a.device, a.val FROM l_norm a LEFT ANTI JOIN r_norm b ON a.ts = b.ts AND a.device = b.device ORDER BY 1, 2, 3;
+
+SELECT CAST(a.ts AS BIGINT), a.device, a.val FROM l_norm a LEFT SEMI JOIN r_norm b ON a.ts = b.ts AND a.device = b.device AND b.status = 1 ORDER BY 1, 2, 3;
+
+SELECT CAST(a.ts AS BIGINT), a.device, a.val FROM l_norm a LEFT ANTI JOIN r_norm b ON a.ts = b.ts AND a.device = b.device AND b.status = 1 ORDER BY 1, 2, 3;
+
+SELECT CAST(b.ts AS BIGINT), b.device, b.metric FROM l_norm a RIGHT SEMI JOIN r_norm b ON a.ts = b.ts AND a.device = b.device ORDER BY 1, 2, 3;
+
+SELECT CAST(b.ts AS BIGINT), b.device, b.metric FROM l_norm a RIGHT ANTI JOIN r_norm b ON a.ts = b.ts AND a.device = b.device ORDER BY 1, 2, 3;
+
+SELECT CAST(b.ts AS BIGINT), b.device, b.metric FROM l_norm a RIGHT SEMI JOIN r_norm b ON a.ts = b.ts AND a.device = b.device AND a.val > 10 ORDER BY 1, 2, 3;
+
+SELECT CAST(b.ts AS BIGINT), b.device, b.metric FROM l_norm a RIGHT ANTI JOIN r_norm b ON a.ts = b.ts AND a.device = b.device AND a.val > 10 ORDER BY 1, 2, 3;
+
+SELECT a.device, a.val, b.metric FROM l_norm a JOIN r_norm b ON a.device = b.device ORDER BY 1, 2, 3;
+
+SELECT a.device, a.val, b.metric FROM l_norm a JOIN r_norm b ON a.ts = b.ts AND a.val > b.metric ORDER BY 1, 2, 3;
+
+SELECT a.device, a.val, b.metric FROM l_norm a JOIN r_norm b ON a.ts = b.ts AND a.val + 90 = b.metric ORDER BY 1, 2, 3;
+
+SELECT a.device, a.val, b.metric FROM l_norm a JOIN r_norm b ON a.ts = b.ts AND a.device = 'd1' ORDER BY 1, 2, 3;
+
+SELECT a.device, a.val, b.metric FROM l_norm a JOIN r_norm b ON a.val > b.metric ORDER BY 1, 2, 3;
+
+SELECT a.device, a.val, b.metric FROM l_norm a JOIN r_norm b ON a.val + 90 = b.metric ORDER BY 1, 2, 3;
+
+SELECT a.device, a.val, b.metric FROM l_norm a JOIN r_norm b ON a.device = 'd1' ORDER BY 1, 2, 3;
+
+SELECT a.ts, a.device, b.metric FROM l_norm a LEFT ASOF JOIN r_norm b ON a.ts = b.ts;
+
+SELECT a.ts, a.device, b.metric FROM l_norm a LEFT WINDOW JOIN r_norm b ON a.device = b.device WINDOW_OFFSET(-1s, 1s) ORDER BY a.ts, b.ts;

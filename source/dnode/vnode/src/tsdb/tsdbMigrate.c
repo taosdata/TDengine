@@ -1,6 +1,8 @@
 /*
  * Copyright (c) 2019 TAOS Data, Inc. <jhtao@taosdata.com>
  *
+ * SPDX-License-Identifier: AGPL-3.0-or-later
+ *
  * This program is free software: you can use, redistribute, and/or modify
  * it under the terms of the GNU Affero General Public License, version 3
  * or later ("AGPL"), as published by the Free Software Foundation.
@@ -19,6 +21,7 @@
 #include "tsdbFSet2.h"
 #include "vnd.h"
 #include "tsdbInt.h"
+#include "tlogKeyOp.h"
 
 extern int32_t tsdbAsyncCompact(STsdb* tsdb, const STimeWindow* tw, ETsdbOpType type, bool force);
 
@@ -150,6 +153,43 @@ int32_t tsdbSsFidLevel(int32_t fid, STsdbKeepCfg *pKeepCfg, int32_t ssKeepLocal,
 }
 
 
+// a remote manifest is only usable if it carries data, head and sma files and the expected fid
+int32_t tsdbValidateRemoteFset(const STFileSet* pFset, int32_t fid) {
+  if (pFset == NULL) {
+    return TSDB_CODE_INVALID_PARA;
+  }
+  if (pFset->fid != fid) {
+    return TSDB_CODE_FILE_CORRUPTED;
+  }
+  if (pFset->farr[TSDB_FTYPE_DATA] == NULL || pFset->farr[TSDB_FTYPE_HEAD] == NULL ||
+      pFset->farr[TSDB_FTYPE_SMA] == NULL) {
+    return TSDB_CODE_FILE_CORRUPTED;
+  }
+  return TSDB_CODE_SUCCESS;
+}
+
+// return the base name of a listing key, or NULL if the key contains no separator or ends with one
+const char* tsdbSsKeyBasename(const char* key) {
+  if (key == NULL) {
+    return NULL;
+  }
+  const char* sep = strrchr(key, '/');
+#ifdef WINDOWS
+  // The fs backend returns paths relative to baseDir. On Windows the directory prefix uses '/' while the backend
+  // appends the local '\\' separator, so a returned path can be "vnode2/f1736/\v2f1736...". Take the last of either
+  // separator, otherwise the leading '\\' stays in the name and every file (manifests.json included) fails to match
+  // and is deleted as garbage.
+  const char* altSep = strrchr(key, '\\');
+  if (altSep != NULL && (sep == NULL || altSep > sep)) {
+    sep = altSep;
+  }
+#endif
+  if (sep == NULL || sep[1] == '\0') {
+    return NULL;
+  }
+  return sep + 1;
+}
+
 static int32_t downloadManifest(SVnode* pVnode, int32_t fid, STFileSet** ppFileSet) {
   int32_t code = 0, vid = TD_VID(pVnode);
 
@@ -163,6 +203,9 @@ static int32_t downloadManifest(SVnode* pVnode, int32_t fid, STFileSet** ppFileS
   }
 
   char* buf = taosMemoryMalloc(size + 1);
+  if (buf == NULL) {
+    return terrno != 0 ? terrno : TSDB_CODE_OUT_OF_MEMORY;
+  }
   code = tssReadFileFromDefault(path, 0, buf, &size);
   if (code != TSDB_CODE_SUCCESS) {
     tsdbError("vgId:%d, fid:%d, failed to read manifest from shared storage since %s", vid, fid, tstrerror(code));
@@ -186,13 +229,10 @@ static int32_t downloadManifest(SVnode* pVnode, int32_t fid, STFileSet** ppFileS
   }
 
   STFileSet* fset = *ppFileSet;
-  if (fset->fid != fid) {
-    tsdbError("vgId:%d, fid:%d, mismatch fid, manifest fid is %d", vid, fid, fset->fid);
-    tsdbTFileSetClear(ppFileSet);
-    return TSDB_CODE_FILE_CORRUPTED;
-  }
-  if (fset->farr[TSDB_FTYPE_DATA] == NULL) {
-    tsdbError("vgId:%d, fid:%d, data file not found in manifest", vid, fid);
+  code = tsdbValidateRemoteFset(fset, fid);
+  if (code != TSDB_CODE_SUCCESS) {
+    tsdbError("vgId:%d, fid:%d, invalid manifest (fid mismatch or data/head/sma file missing), manifest fid:%d", vid,
+              fid, fset ? fset->fid : -1);
     tsdbTFileSetClear(ppFileSet);
     return TSDB_CODE_FILE_CORRUPTED;
   }
@@ -289,7 +329,7 @@ static int32_t uploadFile(SRTNer* rtner, STFileObj* fobj) {
   int32_t vid = TD_VID(rtner->tsdb->pVnode), mid = getSsMigrateId(rtner->tsdb);
   STFile* f = fobj->f;
   
-  char path[TSDB_FILENAME_LEN];
+  char path[TSDB_PATH_LEN];
   snprintf(path, sizeof(path), "vnode%d/f%d/v%df%dver%" PRId64 ".m%d%s", vid, f->fid, vid, f->fid, f->cid, mid, ext);
 
   int code = tssUploadFileToDefault(path, fobj->fname, 0, -1);
@@ -308,11 +348,16 @@ static int32_t downloadFile(SRTNer* rtner, STFileObj* fobj) {
     return TSDB_CODE_SUCCESS;
   }
 
-  const char* fname = strrchr(fobj->fname, TD_DIRSEP_CHAR) + 1;
+  const char* sep = strrchr(fobj->fname, TD_DIRSEP_CHAR);
+  if (sep == NULL) {
+    tsdbError("invalid file name %s, no directory separator", fobj->fname);
+    return TSDB_CODE_FILE_CORRUPTED;
+  }
+  const char* fname = sep + 1;
   int32_t vid = TD_VID(rtner->tsdb->pVnode);
   STFile* f = fobj->f;
   
-  char path[TSDB_FILENAME_LEN];
+  char path[TSDB_PATH_LEN];
   snprintf(path, sizeof(path), "vnode%d/f%d/%s", vid, f->fid, fname);
   int code = tssDownloadFileFromDefault(path, fobj->fname, 0, -1);
   if (code != TSDB_CODE_SUCCESS) {
@@ -325,7 +370,7 @@ static int32_t downloadFile(SRTNer* rtner, STFileObj* fobj) {
 
 
 static void tsdbRemoveSsGarbageFiles(int32_t vid, STFileSet* fset) {
-  char prefix[TSDB_FILENAME_LEN];
+  char prefix[TSDB_PATH_LEN];
   snprintf(prefix, sizeof(prefix), "vnode%d/f%d/", vid, fset->fid);
 
   SArray* paths = taosArrayInit(10, sizeof(char*));
@@ -339,7 +384,7 @@ static void tsdbRemoveSsGarbageFiles(int32_t vid, STFileSet* fset) {
   for(int i = 0; i < taosArrayGetSize(paths); i++) {
       char* p = *(char**)taosArrayGet(paths, i);
       const char* ext = strrchr(p, '.');
-      const char* rname = strrchr(p, '/') + 1;
+      const char* rname = tsdbSsKeyBasename(p);
       bool remove = true;
       int32_t vgId = 0, fid = 0, mid = 0, cn = 0;
       int64_t cid = 0;
@@ -347,7 +392,14 @@ static void tsdbRemoveSsGarbageFiles(int32_t vid, STFileSet* fset) {
       // NOTE: when compare file name, don't use strcmp(fobj->fname, rname) because 'fobj->fname' may not
       // contain the migration id. that's why we use sscanf to parse the file name.
 
-      if (ext == NULL) {
+      if (rname == NULL) {
+        // the key has no base name, skip it rather than guess
+        tsdbWarn("vgId:%d, fid:%d, skip listing key without base name: %s", vid, fset->fid, p);
+        taosMemoryFree(p);
+        continue;
+      }
+
+      if (ext == NULL || ext < rname) {
         // no extension, remove
       } else if (taosStrcasecmp(ext, ".head") == 0) {
         STFileObj* fobj = fset->farr[TSDB_FTYPE_HEAD];
@@ -418,7 +470,7 @@ static int32_t downloadDataFileLastChunk(SRTNer* rtner, STFileObj* fobj) {
   SVnodeCfg *pCfg = &rtner->tsdb->pVnode->config;
   STFile *f = fobj->f;
 
-  char lpath[TSDB_FILENAME_LEN], rpath[TSDB_FILENAME_LEN];
+  char lpath[TSDB_PATH_LEN], rpath[TSDB_PATH_LEN];
   tsdbTFileLastChunkName(rtner->tsdb, f, lpath);
   char* fname = strrchr(lpath, TD_DIRSEP_CHAR) + 1;
 
@@ -449,7 +501,7 @@ static int32_t uploadDataFile(SRTNer* rtner, STFileObj* fobj) {
   STFile *f = fobj->f;
   STFileOp op = {.optype = TSDB_FOP_MODIFY, .fid = f->fid, .of = *f};
 
-  char path[TSDB_FILENAME_LEN];
+  char path[TSDB_PATH_LEN];
   if (f->lcn <= 1) {
     tstrncpy(path, fobj->fname, sizeof(path));
   } else {
@@ -483,7 +535,7 @@ static int32_t uploadDataFile(SRTNer* rtner, STFileObj* fobj) {
     }
 
     // only include the migration id in the last chunk filename
-    char rpath[TSDB_FILENAME_LEN];
+    char rpath[TSDB_PATH_LEN];
     if (i == totalChunks) {
         snprintf(rpath, sizeof(rpath), "vnode%d/f%d/v%df%dver%" PRId64 ".m%d.%d.data", vid, f->fid, vid, f->fid, f->cid,
                  mid, i);
@@ -521,7 +573,7 @@ static int32_t uploadDataFile(SRTNer* rtner, STFileObj* fobj) {
   tsdbRemoveSsGarbageFiles(vid, rtner->fset);
 
   setMigrationState(rtner->tsdb, SSMIGRATE_FILESET_STATE_SUCCEEDED);
-  tsdbInfo("vgId:%d, fid:%d, leader migration succeeded", vid, f->fid);
+  tsdbInfo(KEYOP("ss-migrate", "END") "vgId:%d, fid:%d, leader migration succeeded", vid, f->fid);
 
   // no new chunks generated, no need to copy the last chunk
   if (totalChunks == lcn) {
@@ -529,7 +581,7 @@ static int32_t uploadDataFile(SRTNer* rtner, STFileObj* fobj) {
   }
 
   // copy the last chunk to the new file
-  char newPath[TSDB_FILENAME_LEN];
+  char newPath[TSDB_PATH_LEN];
   tsdbTFileLastChunkName(rtner->tsdb, &op.nf, newPath);
 
   int64_t offset = (int64_t)(totalChunks - lcn) * szChunk;
@@ -573,7 +625,7 @@ static bool shouldMigrate(SRTNer *rtner, int32_t *pCode) {
 
   *pCode = 0;
   if (!flocal) {
-    tsdbInfo("vgId:%d, fid:%d, migration cancelled, local data file not exist", vid, pLocalFset->fid);
+    tsdbInfo("vgId:%d, fid:%d, migration cancelled, local data file does not exist", vid, pLocalFset->fid);
     setMigrationState(rtner->tsdb, SSMIGRATE_FILESET_STATE_SKIPPED);
     return false;
   }
@@ -598,7 +650,7 @@ static bool shouldMigrate(SRTNer *rtner, int32_t *pCode) {
     return false; // compact in progress
   }
 
-  char path[TSDB_FILENAME_LEN];
+  char path[TSDB_PATH_LEN];
   if (flocal->f->lcn <= 1) {
     tstrncpy(path, flocal->fname, sizeof(path));
   } else {
@@ -625,7 +677,7 @@ static bool shouldMigrate(SRTNer *rtner, int32_t *pCode) {
   // be skipped, so we also check 'mtime > pLocalFset->lastCompact / 1000 || !pCfg->ssCompact', note
   // this is not an acurate condition, but is simple and good enough.
   if (mtime >= rtner->tw.ekey - tsSsUploadDelaySec && (mtime > pLocalFset->lastCompact / 1000 || !pCfg->ssCompact)) {
-    tsdbInfo("vgId:%d, fid:%d, migration skipped, data file is active writting, modified at %" PRId64, vid, pLocalFset->fid, mtime);
+    tsdbInfo("vgId:%d, fid:%d, migration skipped, data file is being actively written, modified at %" PRId64, vid, pLocalFset->fid, mtime);
     setMigrationState(rtner->tsdb, SSMIGRATE_FILESET_STATE_SKIPPED);
     return false; // still active writing, postpone migration
   }
@@ -749,8 +801,17 @@ static int32_t tsdbFollowerDoSsMigrate(SRTNer *rtner) {
   tsdbInfo("vgId:%d, fid:%d, follower migration started, begin downloading manifest...", vid, fset->fid);
   STFileSet *pRemoteFset = NULL;
   code = downloadManifest(rtner->tsdb->pVnode, fset->fid, &pRemoteFset);
-  if (code == TSDB_CODE_NOT_FOUND) {
+  if (code != TSDB_CODE_SUCCESS) {
     tsdbTFileSetClear(&pRemoteFset);
+    tsdbError("vgId:%d, fid:%d, follower migration failed to download manifest since %s", vid, fset->fid,
+              tstrerror(code));
+    return code == TSDB_CODE_NOT_FOUND ? TSDB_CODE_FILE_CORRUPTED : code;
+  }
+
+  if (fset->farr[TSDB_FTYPE_HEAD] == NULL || fset->farr[TSDB_FTYPE_SMA] == NULL ||
+      fset->farr[TSDB_FTYPE_DATA] == NULL) {
+    tsdbTFileSetClear(&pRemoteFset);
+    tsdbError("vgId:%d, fid:%d, follower migration failed, local head/sma/data file missing", vid, fset->fid);
     return TSDB_CODE_FILE_CORRUPTED;
   }
 
@@ -859,7 +920,7 @@ static int32_t tsdbFollowerDoSsMigrate(SRTNer *rtner) {
     return code;
   }
 
-  tsdbInfo("vgId:%d, fid:%d, data file downloaded", vid, fset->fid);
+  tsdbInfo(KEYOP("ss-migrate", "END") "vgId:%d, fid:%d, data file downloaded", vid, fset->fid);
   tsdbTFileSetClear(&pRemoteFset);
   return 0;
 }
@@ -931,6 +992,9 @@ static int32_t tsdbLeaderDoSsMigrate(SRTNer *rtner) {
 
 
 int32_t tsdbDoSsMigrate(SRTNer *rtner) {
+  tsdbInfo(KEYOP("ss-migrate", "START") "vgId:%d, fid:%d, start ss migration", TD_VID(rtner->tsdb->pVnode),
+           rtner->fset->fid);
+
   // note: leader is decided when the task is scheduled, the actual leader may change after that,
   // but this is ok.
   if (rtner->nodeId == vnodeNodeId(rtner->tsdb->pVnode)) {
@@ -967,7 +1031,7 @@ int32_t tsdbListSsMigrateFileSets(STsdb *tsdb, SArray* fidArr) {
       continue;
     }
 
-    char path[TSDB_FILENAME_LEN];
+    char path[TSDB_PATH_LEN];
     if (fdata->f->lcn <= 1) {
       tstrncpy(path, fdata->fname, sizeof(path));
     } else {

@@ -1,3 +1,18 @@
+# Copyright (c) 2022 TAOS Data, Inc. <jhtao@taosdata.com>
+#
+# SPDX-License-Identifier: AGPL-3.0-or-later
+#
+# This program is free software: you can use, redistribute, and/or modify
+# it under the terms of the GNU Affero General Public License, version 3
+# or later ("AGPL"), as published by the Free Software Foundation.
+#
+# This program is distributed in the hope that it will be useful, but WITHOUT
+# ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+# FITNESS FOR A PARTICULAR PURPOSE.
+#
+# You should have received a copy of the GNU Affero General Public License
+# along with this program. If not, see <http://www.gnu.org/licenses/>.
+
 import time
 import threading
 import math
@@ -106,7 +121,7 @@ class TestCase:
         topicList    = topicNameList[0]
         ifcheckdata  = 1
         ifManualCommit = 1
-        keyList      = 'group.id:cgrp1, enable.auto.commit:true, auto.commit.interval.ms:1000, auto.offset.reset:earliest'
+        keyList      = 'group.id:cgrp1, enable.auto.commit:true, auto.commit.interval.ms:1000, auto.offset.reset:earliest, session.timeout.ms:12000'
         tmqCom.insertConsumerInfo(consumerId, expectrowcnt,topicList,keyList,ifcheckdata,ifManualCommit)
 
         consumerId   = 4
@@ -180,7 +195,7 @@ class TestCase:
         topicList    = topicNameList[0]
         ifcheckdata  = 1
         ifManualCommit = 1
-        keyList      = 'group.id:cgrp1, enable.auto.commit:true, auto.commit.interval.ms:100, auto.offset.reset:earliest'
+        keyList      = 'group.id:cgrp1, enable.auto.commit:true, auto.commit.interval.ms:100, auto.offset.reset:earliest, session.timeout.ms:12000'
         tmqCom.insertConsumerInfo(consumerId, expectrowcnt,topicList,keyList,ifcheckdata,ifManualCommit)
 
         tdLog.info("start consume processor 0")
@@ -194,7 +209,9 @@ class TestCase:
         tdLog.info("pkill consume processor")
         tdCom.killProcessor("tmq_sim")
 
-        # time.sleep(10)
+        # wait until the killed consumer is evicted by mnode
+        # (session.timeout.ms=12000) before starting a new consumer
+        time.sleep(15)
 
         # reinit consume info, and start tmq_sim, then check consume result
         tmqCom.initConsumerTable()
@@ -232,7 +249,7 @@ class TestCase:
         
         Since: v3.0.0.0
 
-        Labels: common,ci
+        Labels: common,ci,integration,functional
 
         Jira: None
 

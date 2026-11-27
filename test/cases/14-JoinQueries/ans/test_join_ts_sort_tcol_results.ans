@@ -1,0 +1,83 @@
+
+taos> use test_join_tcol;
+Database changed.
+
+taos> select 'A1_inner_join_on_ts', count(*) from ct1 a join ct2 b on a.ts = b.ts;
+ 'A1_inner_join_on_ts' |       count(*)        |
+================================================
+ A1_inner_join_on_ts   |                     3 |
+
+taos> select 'A2_left_join_on_ts', count(*) from ct1 a left join ct2 b on a.ts = b.ts;
+ 'A2_left_join_on_ts' |       count(*)        |
+===============================================
+ A2_left_join_on_ts   |                     4 |
+
+taos> select 'A3_full_join_on_ts', count(*) from ct1 a full join ct2 b on a.ts = b.ts;
+ 'A3_full_join_on_ts' |       count(*)        |
+===============================================
+ A3_full_join_on_ts   |                     5 |
+
+taos> select 'A4_asof_join_on_ts', count(*) from ct1 a left asof join ct2 b on a.ts >= b.ts;
+ 'A4_asof_join_on_ts' |       count(*)        |
+===============================================
+ A4_asof_join_on_ts   |                     4 |
+
+taos> select 'A5_window_join_on_ts', count(*) from (select a.ts, a.val, b.val from ct1 a left window join ct2 b window_offset(-1h, 1h));
+ 'A5_window_join_on_ts' |       count(*)        |
+=================================================
+ A5_window_join_on_ts   |                     9 |
+
+taos> select 'C1_ts_primary_tcol_equal_secondary', count(*) from ct1 a join ct2 b on a.ts = b.ts and a.t_col = b.t_col;
+ 'C1_ts_primary_tcol_equal_secondary' |       count(*)        |
+===============================================================
+ C1_ts_primary_tcol_equal_secondary   |                     2 |
+
+taos> select 'C2_ts_primary_tcol_gt_secondary', count(*) from ct1 a join ct2 b on a.ts = b.ts and a.t_col > b.t_col;
+ 'C2_ts_primary_tcol_gt_secondary' |       count(*)        |
+============================================================
+ C2_ts_primary_tcol_gt_secondary   |                     0 |
+
+taos> select 'D1_window_join_on_tcol', count(*) from (select a.ts, a.t_col, a.val, b.ts, b.t_col, b.val from ct1 a left window join ct2 b on a.t_col = b.t_col window_offset(-1h, 1h));
+ 'D1_window_join_on_tcol' |       count(*)        |
+===================================================
+ D1_window_join_on_tcol   |                     4 |
+
+taos> select 'D2_window_join_on_tcol_wider_offset', count(*) from (select a.ts, a.t_col, a.val, b.ts, b.t_col, b.val from ct1 a left window join ct2 b on a.t_col = b.t_col window_offset(-2h, 2h));
+ 'D2_window_join_on_tcol_wider_offset' |       count(*)        |
+================================================================
+ D2_window_join_on_tcol_wider_offset   |                     4 |
+
+taos> select 'D3_window_join_on_tcol_zero_offset', count(*) from (select a.ts, a.t_col, a.val, b.ts, b.t_col, b.val from ct1 a left window join ct2 b on a.t_col = b.t_col window_offset(0h, 0h));
+ 'D3_window_join_on_tcol_zero_offset' |       count(*)        |
+===============================================================
+ D3_window_join_on_tcol_zero_offset   |                     4 |
+
+taos> select 'F1_supertable_join_on_ts', count(*) from stb a join stb b on a.ts = b.ts and a.g = 1 and b.g = 2;
+ 'F1_supertable_join_on_ts' |       count(*)        |
+=====================================================
+ F1_supertable_join_on_ts   |                     3 |
+
+taos> create table ct3 using stb tags(3);
+Create OK, 0 row(s) affected 
+
+taos> insert into ct3 values ('2024-01-01 00:00:00', NULL, 100) ('2024-01-01 01:00:00', '2024-01-01 10:00:00', 200);
+Insert OK, 2 row(s) affected 
+
+taos> select 'D4_window_join_on_tcol_with_null', count(*) from (select a.ts, a.t_col, a.val, b.val from ct3 a left window join ct2 b on a.t_col = b.t_col window_offset(-1h, 1h));
+ 'D4_window_join_on_tcol_with_null' |       count(*)        |
+=============================================================
+ D4_window_join_on_tcol_with_null   |                     2 |
+
+taos> select 'G1_fallback_timeline_first_last', first(val), last(val) from (select t_col, val from ct1);
+ 'G1_fallback_timeline_first_last' | first(val)  |  last(val)  |
+================================================================
+ G1_fallback_timeline_first_last   |           1 |           3 |
+
+taos> select 'G2_fallback_timeline_order_by', t_col, val from (select t_col, val from ct1 order by t_col) order by t_col, val;
+ 'G2_fallback_timeline_order_by' |          t_col          |     val     |
+==========================================================================
+ G2_fallback_timeline_order_by   | 2024-01-01 10:00:00.000 |           1 |
+ G2_fallback_timeline_order_by   | 2024-01-01 10:00:00.000 |           4 |
+ G2_fallback_timeline_order_by   | 2024-01-01 11:00:00.000 |           2 |
+ G2_fallback_timeline_order_by   | 2024-01-01 12:00:00.000 |           3 |
+

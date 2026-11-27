@@ -220,8 +220,8 @@ int ttqHandleSub(struct tmqtt *context) {
       */
       {
         const char *sharename = NULL;
-        char       *local_sub;
-        char      **topics;
+        char       *local_sub = NULL;
+        char      **topics = NULL;
         size_t      topiclen;
 
         rc2 = ttqSubTopicTokenise(sub, &local_sub, &topics, &sharename);
@@ -230,6 +230,14 @@ int ttqHandleSub(struct tmqtt *context) {
           ttq_free(topics);
           ttq_free(sub);
           return rc2;
+        }
+
+        if (topics == NULL || topics[0] == NULL || topics[1] == NULL || topics[1][0] == '\0') {
+          qos = MQTT_RC_TOPIC_FILTER_INVALID;
+          allowed = false;
+          ttq_free(local_sub);
+          ttq_free(topics);
+          goto subscribe_bridge_done;
         }
 
         topiclen = strlen(topics[0]);
@@ -249,6 +257,8 @@ int ttqHandleSub(struct tmqtt *context) {
         ttq_free(local_sub);
         ttq_free(topics);
       }
+
+subscribe_bridge_done:
 
       if (allowed) {
         rc2 = ttqSubAdd(context, sub, qos, subscription_identifier, subscription_options);
@@ -437,8 +447,8 @@ int ttqHandleUnsub(struct tmqtt *context) {
 
     {
       const char *sharename = NULL;
-      char       *local_sub;
-      char      **topics;
+      char       *local_sub = NULL;
+      char      **topics = NULL;
       size_t      topiclen;
       int         rc2;
 
@@ -448,6 +458,14 @@ int ttqHandleUnsub(struct tmqtt *context) {
         ttq_free(topics);
         ttq_free(sub);
         return rc2;
+      }
+
+      if (topics == NULL || topics[0] == NULL || topics[1] == NULL || topics[1][0] == '\0') {
+        reason = MQTT_RC_TOPIC_NAME_INVALID;
+        allowed = false;
+        ttq_free(local_sub);
+        ttq_free(topics);
+        goto unsubscribe_bridge_done;
       }
 
       topiclen = strlen(topics[0]);
@@ -467,6 +485,8 @@ int ttqHandleUnsub(struct tmqtt *context) {
       ttq_free(local_sub);
       ttq_free(topics);
     }
+
+unsubscribe_bridge_done:
 
     ttq_log(NULL, TTQ_LOG_DEBUG, "\t%s", sub);
     if (allowed) {

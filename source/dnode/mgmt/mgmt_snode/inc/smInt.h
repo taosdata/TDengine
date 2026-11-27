@@ -1,6 +1,8 @@
 /*
  * Copyright (c) 2019 TAOS Data, Inc. <jhtao@taosdata.com>
  *
+ * SPDX-License-Identifier: AGPL-3.0-or-later
+ *
  * This program is free software: you can use, redistribute, and/or modify
  * it under the terms of the GNU Affero General Public License, version 3
  * or later ("AGPL"), as published by the Free Software Foundation.
@@ -52,6 +54,10 @@ void smUpdateSnodeInfo(SDCreateSnodeReq* pReq);
 // smWorker.c
 int32_t smStartWorker(SSnodeMgmt *pMgmt);
 void    smStopWorker(SSnodeMgmt *pMgmt);
+/* Queue free hook: releases the cont and, for stream trigger responses, the
+ * send handle of the trigger task that issued the request.
+ * Exported for unit tests (dsnodeTest); not a general-purpose API. */
+void    smFreeRpcQitem(void *pItem);
 int32_t smPutMsgToQueue(SSnodeMgmt *pMgmt, EQueueType qtype, SRpcMsg *pMsg);
 int32_t smPutMsgToRunnerQueue(SSnodeMgmt *pMgmt, SRpcMsg *pMsg);
 int32_t smPutMsgToTriggerQueue(SSnodeMgmt *pMgmt, SRpcMsg *pMsg);

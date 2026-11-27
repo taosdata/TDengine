@@ -1,6 +1,8 @@
 /*
  * Copyright (c) 2019 TAOS Data, Inc. <jhtao@taosdata.com>
  *
+ * SPDX-License-Identifier: AGPL-3.0-or-later
+ *
  * This program is free software: you can use, redistribute, and/or modify
  * it under the terms of the GNU Affero General Public License, version 3
  * or later ("AGPL"), as published by the Free Software Foundation.
@@ -20,6 +22,7 @@
 extern "C" {
 #endif
 #include "catalog.h"
+#include "clientWlr.h"
 /*
 typedef enum {
 STMT_TYPE_INSERT = 1,
@@ -86,6 +89,24 @@ STableDataCxt *pCurrBlock;
 SSubmitTbData *pCurrTbData;
 } SStmtExecInfo;
 */
+typedef struct SStmt2LiteralCtx {
+  tsem_t   sem;
+
+  int32_t  code;
+
+  uint8_t  sem_valid:1;       // sem valid or not
+  uint8_t  prepared:1;        // literal statement prepared by stmt2 or not
+  uint8_t  executing:1;       // literal statement executing by stmt2 or not
+  uint8_t  executed:1;        // literal statement executed by stmt2 or not
+  uint8_t  has_result_set:1;  // literal statement generates result set or not
+} SStmt2LiteralCtx;
+
+typedef struct SStmt2ExecResult {
+  int32_t code;
+  bool    valid;
+  char    msg[TSDB_ERROR_MSG_LEN];
+} SStmt2ExecResult;
+
 typedef struct {
   bool              stbInterlaceMode;
   STMT_TYPE         type;
@@ -94,6 +115,7 @@ typedef struct {
   uint64_t          runTimes;
   SHashObj         *pTableCache;  // SHash<SStmtTableCache>
   SQuery           *pQuery;
+  bool              reparseAfterExecError;
   char             *sqlStr;
   int32_t           sqlLen;
   SArray           *nodeList;
@@ -113,6 +135,7 @@ typedef struct {
   bool              cachedIsInsert;
   bool              cachedHasTbnameColumn;
   int               cachedTbnameColIdx;
+  SSHashObj        *predicateCols;
 } SStmtSQLInfo2;
 /*
 typedef struct SStmtStatInfo {
@@ -148,6 +171,11 @@ typedef struct {
   int32_t           col_idx;
   __taos_async_fn_t fp;
   void             *param;
+  uint64_t          wlrCallId;
+  int64_t           wlrBeginMonoNs;
+  uint64_t          wlrStmtId;
+  uint16_t          wlrApiType;
+  bool              wlrReturnReady;
   bool              is_columnar;  // true for columnar binding, false for row binding
   union {
     TAOS_STMT2_BINDV         *bindv;         // row binding (when is_columnar=false)
@@ -168,6 +196,8 @@ typedef struct {
   uint32_t          seqId;
   uint32_t          seqIds[STMT_MAX];
   bool              bindThreadInUse;
+  bool              bindQueueInited;
+  bool              asyncBindParamInited;
   TdThread          bindThread;
   TAOS_STMT2_OPTION options;
   bool              stbInterlaceMode;
@@ -177,15 +207,29 @@ typedef struct {
   SStmtExecInfo exec;
   SStmtBindInfo bInfo;
 
-  char          *db;
-  int64_t        reqid;
-  int32_t        errCode;
-  tsem_t         asyncExecSem;
-  bool           execSemWaited;
-  AsyncBindParam asyncBindParam;
-  bool           asyncResultAvailable;
-  SStmtStatInfo  stat;
-  SArray*        pVgDataBlocksForRetry;  // SArray<SVgDataBlocks*> saved serialized data for NEED_CLIENT_HANDLE_ERROR retry
+  char            *db;
+  int64_t          reqid;
+  int32_t          errCode;
+  SStmt2ExecResult lastExec;  // Retained after request cleanup for taos_stmt2_error().
+  tsem_t           asyncExecSem;
+  bool             asyncExecSemInited;
+  bool             execSemWaited;
+  AsyncBindParam   asyncBindParam;
+  bool             asyncResultAvailable;
+  SStmtStatInfo    stat;
+  SArray   *pVgDataBlocksForRetry;  // SArray<SVgDataBlocks*> saved serialized data for NEED_CLIENT_HANDLE_ERROR retry
+  SHashObj *pRetryTagHash;          // table name -> deep-copied tag binds used only by TABLE_NOT_EXIST retry
+
+  char                      msgBuf[128];
+  SStmt2LiteralCtx          ctx;
+  uint8_t                   literal:1;
+  // Workload recorder: logical statement identity, minted at init. STMT1 and STMT2
+  // share one ID space so a session's statement IDs stay unique regardless of which
+  // API produced them (DS 6.9).
+  uint64_t wlrStmtId;
+  uint64_t wlrExecCallId;
+  int64_t  wlrExecBeginMonoNs;
+  uint16_t wlrExecApiType;
 } STscStmt2;
 /*
 extern char *gStmtStatusStr[];
@@ -264,11 +308,14 @@ extern char *gStmt2StatusStr[];
 
 TAOS_STMT2 *stmtInit2(STscObj *taos, TAOS_STMT2_OPTION *pOptions);
 int         stmtClose2(TAOS_STMT2 *stmt);
-int         stmtExec2(TAOS_STMT2 *stmt, int *affected_rows);
+int         stmtExec2(TAOS_STMT2 *stmt, int *affected_rows, const SWorkloadCallToken *wlrToken);
 int         stmtPrepare2(TAOS_STMT2 *stmt, const char *sql, unsigned long length);
+int         stmtBindLiteral2(TAOS_STMT2 *stmt);
 int         stmtSetTbName2(TAOS_STMT2 *stmt, const char *tbName);
 int         stmtSetTbTags2(TAOS_STMT2 *stmt, TAOS_STMT2_BIND *tags, SVCreateTbReq **pCreateTbReq);
 int         stmtCheckTags2(TAOS_STMT2 *stmt, SVCreateTbReq **pCreateTbReq);
+bool        stmt2TableExistsInCache(TAOS_STMT2 *stmt);
+int         stmt2CacheRetryTags(TAOS_STMT2 *stmt, TAOS_STMT2_BIND *tags, bool fixedTags);
 int         stmtBindBatch2(TAOS_STMT2 *stmt, TAOS_STMT2_BIND *bind, int32_t colIdx, SVCreateTbReq *pCreateTbReq);
 int         stmtGetStbColFields2(TAOS_STMT2 *stmt, int *nums, TAOS_FIELD_ALL **fields);
 int         stmtEnsureColumnFieldCache2(TAOS_STMT2 *stmt);
@@ -279,8 +326,14 @@ TAOS_RES   *stmtUseResult2(TAOS_STMT2 *stmt);
 const char *stmt2Errstr(TAOS_STMT2 *stmt);
 int         stmt2AsyncBind(TAOS_STMT2 *stmt, TAOS_STMT2_BINDV *bindv, int32_t col_idx, __taos_async_fn_t fp, void *param);
 int         stmtAsyncBindThreadFunc(void *args);
+/* Internal non-instrumented bind entries implemented beside the public wrappers in clientMain.c. */
+int         stmt2BindParamImpl(TAOS_STMT2 *stmt, TAOS_STMT2_BINDV *bindv, int32_t col_idx);
+int         stmt2BindParamColumnImpl(TAOS_STMT2 *stmt, TAOS_STMT2_COLUMN_BINDV *bindv);
 void        stmtBuildErrorMsg(STscStmt2 *pStmt, const char *msg);
 int32_t     stmtBuildErrorMsgWithCode(STscStmt2 *pStmt, const char *msg, int32_t errorCode);
+
+
+int         stmtIsLiteral(TAOS_STMT2 *stmt);
 
 #ifdef __cplusplus
 }

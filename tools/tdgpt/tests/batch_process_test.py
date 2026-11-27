@@ -1,16 +1,37 @@
+# Copyright (c) 2025 TAOS Data, Inc. <jhtao@taosdata.com>
+#
+# SPDX-License-Identifier: AGPL-3.0-or-later
+#
+# This program is free software: you can use, redistribute, and/or modify
+# it under the terms of the GNU Affero General Public License, version 3
+# or later ("AGPL"), as published by the Free Software Foundation.
+#
+# This program is distributed in the hope that it will be useful, but WITHOUT
+# ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+# FITNESS FOR A PARTICULAR PURPOSE.
+#
+# You should have received a copy of the GNU Affero General Public License
+# along with this program. If not, see <http://www.gnu.org/licenses/>.
+
 import os
+import sys
+
 import numpy as np
 import pytest
-from pathlib import Path
-import sys
 
 sys.path.append(os.path.dirname(os.path.abspath(__file__)) + "/..")
 
-from taosanalytics.algo.tool.batch import do_batch_process, get_default_config
+from lib.taosanalytics.algo.envelop.batch_env import (
+    derivative_check,
+    gen_batch_envelop,
+    get_default_config,
+    normalize_progress,
+)
 
 ############################################
 # boundary test cases
 ############################################
+
 
 class TestBoundaryConditions:
     """Tests for boundary conditions"""
@@ -22,7 +43,7 @@ class TestBoundaryConditions:
         windows = [(0, 10)]
         config = get_default_config()
 
-        center, lower, upper, batches = do_batch_process(time, values, windows, config)
+        center, lower, upper, batches = gen_batch_envelop(time, values, windows, config)
 
         assert len(batches) == 0
         assert len(center) == 0
@@ -36,7 +57,7 @@ class TestBoundaryConditions:
         windows = []
         config = get_default_config()
 
-        center, lower, upper, batches = do_batch_process(time, values, windows, config)
+        center, lower, upper, batches = gen_batch_envelop(time, values, windows, config)
 
         assert len(batches) == 0
         assert len(center) == 0
@@ -49,7 +70,7 @@ class TestBoundaryConditions:
         config = get_default_config()
 
         # less than threshold (< 10)
-        center, lower, upper, batches = do_batch_process(time, values, windows, config)
+        center, lower, upper, batches = gen_batch_envelop(time, values, windows, config)
 
         assert len(batches) == 0
 
@@ -60,7 +81,7 @@ class TestBoundaryConditions:
         windows = [(0, 10)]
         config = get_default_config()
 
-        center, lower, upper, batches = do_batch_process(time, values, windows, config)
+        center, lower, upper, batches = gen_batch_envelop(time, values, windows, config)
 
         # 10 points should be processed
         assert len(batches) == 1
@@ -73,7 +94,7 @@ class TestBoundaryConditions:
         config = get_default_config()
 
         # 9 points should be filtered out
-        center, lower, upper, batches = do_batch_process(time, values, windows, config)
+        center, lower, upper, batches = gen_batch_envelop(time, values, windows, config)
 
         assert len(batches) == 0
 
@@ -84,7 +105,7 @@ class TestBoundaryConditions:
         windows = [(20, 30)]  # out of range
         config = get_default_config()
 
-        center, lower, upper, batches = do_batch_process(time, values, windows, config)
+        center, lower, upper, batches = gen_batch_envelop(time, values, windows, config)
 
         assert len(batches) == 0
 
@@ -92,14 +113,10 @@ class TestBoundaryConditions:
         """test case: overlapping time windows"""
         time = np.linspace(0, 100, 1000)
         values = np.sin(time / 10)
-        windows = [
-            (0, 50),
-            (25, 75),  # overlap with first window
-            (50, 100)
-        ]
+        windows = [(0, 50), (25, 75), (50, 100)]  # overlap with first window
         config = get_default_config()
 
-        center, lower, upper, batches = do_batch_process(time, values, windows, config)
+        center, lower, upper, batches = gen_batch_envelop(time, values, windows, config)
 
         assert len(batches) == 3
 
@@ -107,14 +124,10 @@ class TestBoundaryConditions:
         """test case: adjacent time windows"""
         time = np.linspace(0, 100, 1000)
         values = np.sin(time / 10)
-        windows = [
-            (0, 33),
-            (33, 66),
-            (66, 100)
-        ]
+        windows = [(0, 33), (33, 66), (66, 100)]
         config = get_default_config()
 
-        center, lower, upper, batches = do_batch_process(time, values, windows, config)
+        center, lower, upper, batches = gen_batch_envelop(time, values, windows, config)
 
         assert len(batches) == 3
 
@@ -125,7 +138,7 @@ class TestBoundaryConditions:
         windows = [(0, 100)]
         config = get_default_config()
 
-        center, lower, upper, batches = do_batch_process(time, values, windows, config)
+        center, lower, upper, batches = gen_batch_envelop(time, values, windows, config)
 
         assert len(batches) == 1
         assert len(center) == config["normalize"]["target_len"]
@@ -137,20 +150,16 @@ class TestBoundaryConditions:
         windows = [(50, 50.1)]  # very small window
         config = get_default_config()
 
-        center, lower, upper, batches = do_batch_process(time, values, windows, config)
-
+        center, lower, upper, batches = gen_batch_envelop(time, values, windows, config)
 
     def test_window_at_data_boundary(self):
         """test case: time window at data boundary"""
         time = np.linspace(0, 100, 1000)
         values = np.sin(time / 10)
-        windows = [
-            (0, 10),  # start boundary
-            (90, 100)  # end boundary
-        ]
+        windows = [(0, 10), (90, 100)]  # start boundary  # end boundary
         config = get_default_config()
 
-        center, lower, upper, batches = do_batch_process(time, values, windows, config)
+        center, lower, upper, batches = gen_batch_envelop(time, values, windows, config)
 
         assert len(batches) == 2
 
@@ -160,11 +169,11 @@ class TestBoundaryConditions:
         values = np.sin(time / 10)
         windows = [
             (-10, 10),  # partially out of range
-            (90, 110)  # partially out of range
+            (90, 110),  # partially out of range
         ]
         config = get_default_config()
 
-        center, lower, upper, batches = do_batch_process(time, values, windows, config)
+        center, lower, upper, batches = gen_batch_envelop(time, values, windows, config)
 
         # should process overlapping data
         assert len(batches) <= 2
@@ -173,6 +182,7 @@ class TestBoundaryConditions:
 ############################################
 # exceptional cases
 ############################################
+
 
 class TestExceptionHandling:
     """exceptional cases handling"""
@@ -186,7 +196,7 @@ class TestExceptionHandling:
 
         # should raise exception or handle mismatch
         with pytest.raises((ValueError, IndexError)):
-            do_batch_process(time, values, windows, config)
+            gen_batch_envelop(time, values, windows, config)
 
     def test_nan_in_values(self):
         """test case: NaN values in data"""
@@ -198,7 +208,9 @@ class TestExceptionHandling:
 
         # NaN may cause issues, should handle or raise exception
         try:
-            center, lower, upper, batches = do_batch_process(time, values, windows, config)
+            center, lower, upper, batches = gen_batch_envelop(
+                time, values, windows, config
+            )
             # if no exception raised, check results for NaN
             if len(batches) > 0:
                 assert not np.any(np.isnan(batches[0]))
@@ -215,7 +227,9 @@ class TestExceptionHandling:
         config = get_default_config()
 
         try:
-            center, lower, upper, batches = do_batch_process(time, values, windows, config)
+            center, lower, upper, batches = gen_batch_envelop(
+                time, values, windows, config
+            )
             if len(batches) > 0:
                 assert not np.any(np.isinf(batches[0]))
         except (ValueError, RuntimeError):
@@ -230,7 +244,9 @@ class TestExceptionHandling:
 
         # may cause interpolation issues
         try:
-            center, lower, upper, batches = do_batch_process(time, values, windows, config)
+            center, lower, upper, batches = gen_batch_envelop(
+                time, values, windows, config
+            )
         except (ValueError, RuntimeError):
             pass
 
@@ -238,14 +254,11 @@ class TestExceptionHandling:
         """test case: invalid time window format"""
         time = np.linspace(0, 100, 1000)
         values = np.sin(time / 10)
-        windows = [
-            (10,),  # missing end time
-            (20, 30, 40)  # extra parameter
-        ]
+        windows = [(10,), (20, 30, 40)]  # missing end time  # extra parameter
         config = get_default_config()
 
         with pytest.raises((ValueError, IndexError, TypeError)):
-            do_batch_process(time, values, windows, config)
+            gen_batch_envelop(time, values, windows, config)
 
     def test_reversed_window(self):
         """test case: reversed time window (end < start)"""
@@ -254,7 +267,7 @@ class TestExceptionHandling:
         windows = [(50, 20)]  # end time < start time
         config = get_default_config()
 
-        center, lower, upper, batches = do_batch_process(time, values, windows, config)
+        center, lower, upper, batches = gen_batch_envelop(time, values, windows, config)
 
         # should have no data or handle correctly
         assert len(batches) == 0
@@ -267,7 +280,7 @@ class TestExceptionHandling:
         config = {}  # empty config
 
         with pytest.raises((KeyError, ValueError)):
-            do_batch_process(time, values, windows, config)
+            gen_batch_envelop(time, values, windows, config)
 
     def test_invalid_hampel_window_size(self):
         """test case: invalid Hampel window size"""
@@ -280,7 +293,7 @@ class TestExceptionHandling:
         config["hampel"]["window_size"] = -5
 
         with pytest.raises((ValueError, RuntimeError)):
-            do_batch_process(time, values, windows, config)
+            gen_batch_envelop(time, values, windows, config)
 
     def test_invalid_savgol_parameters(self):
         """test case: invalid Savitzky-Golay filter parameters"""
@@ -294,7 +307,7 @@ class TestExceptionHandling:
         config["savgol"]["polyorder"] = 5
 
         with pytest.raises((ValueError, RuntimeError)):
-            do_batch_process(time, values, windows, config)
+            gen_batch_envelop(time, values, windows, config)
 
     def test_even_savgol_window(self):
         """test case: even Savitzky-Golay window size"""
@@ -307,7 +320,7 @@ class TestExceptionHandling:
         config["savgol"]["window"] = 10
 
         with pytest.raises((ValueError, RuntimeError)):
-            do_batch_process(time, values, windows, config)
+            gen_batch_envelop(time, values, windows, config)
 
     def test_zero_target_length(self):
         """test case: normalization target length is zero"""
@@ -319,7 +332,7 @@ class TestExceptionHandling:
         config["normalize"]["target_len"] = 0
 
         with pytest.raises((ValueError, RuntimeError)):
-            do_batch_process(time, values, windows, config)
+            gen_batch_envelop(time, values, windows, config)
 
     def test_negative_target_length(self):
         """test case: negative normalization target length"""
@@ -331,12 +344,13 @@ class TestExceptionHandling:
         config["normalize"]["target_len"] = -100
 
         with pytest.raises((ValueError, RuntimeError)):
-            do_batch_process(time, values, windows, config)
+            gen_batch_envelop(time, values, windows, config)
 
 
 ############################################
 # Special cases
 ############################################
+
 
 class TestSpecialScenarios:
     """Special scenarios"""
@@ -350,7 +364,7 @@ class TestSpecialScenarios:
         windows = [(i, i + 0.5) for i in range(0, 100, 10)]
         config = get_default_config()
 
-        center, lower, upper, batches = do_batch_process(time, values, windows, config)
+        center, lower, upper, batches = gen_batch_envelop(time, values, windows, config)
 
         assert len(batches) == 0
         assert len(center) == 0
@@ -363,7 +377,7 @@ class TestSpecialScenarios:
         windows = [(0, 100)]
         config = get_default_config()
 
-        center, lower, upper, batches = do_batch_process(time, values, windows, config)
+        center, lower, upper, batches = gen_batch_envelop(time, values, windows, config)
 
         # Hampel filter should handle outliers
         assert len(batches) > 0
@@ -376,7 +390,7 @@ class TestSpecialScenarios:
         windows = [(0, 100)]
         config = get_default_config()
 
-        center, lower, upper, batches = do_batch_process(time, values, windows, config)
+        center, lower, upper, batches = gen_batch_envelop(time, values, windows, config)
 
         assert len(batches) > 0
         # constant should be preserved
@@ -389,7 +403,7 @@ class TestSpecialScenarios:
         windows = [(0, 100)]
         config = get_default_config()
 
-        center, lower, upper, batches = do_batch_process(time, values, windows, config)
+        center, lower, upper, batches = gen_batch_envelop(time, values, windows, config)
 
         assert len(batches) > 0
         # Savgol filter should smooth high frequency noise
@@ -402,22 +416,24 @@ class TestSpecialScenarios:
         windows = [(0, 100)]
         config = get_default_config()
 
-        center, lower, upper, batches = do_batch_process(time, values, windows, config)
+        center, lower, upper, batches = gen_batch_envelop(time, values, windows, config)
 
         assert len(batches) > 0
 
     def test_multiple_batches_different_characteristics(self):
         """test case: multiple batches with different characteristics"""
         time = np.linspace(0, 300, 3000)
-        values = np.concatenate([
-            np.sin(time[:1000] / 10),  # sine wave
-            np.random.randn(1000) * 2,  # random noise
-            np.linspace(0, 10, 1000)  # linear trend
-        ])
+        values = np.concatenate(
+            [
+                np.sin(time[:1000] / 10),  # sine wave
+                np.random.randn(1000) * 2,  # random noise
+                np.linspace(0, 10, 1000),  # linear trend
+            ]
+        )
         windows = [(0, 100), (100, 200), (200, 300)]
         config = get_default_config()
 
-        center, lower, upper, batches = do_batch_process(time, values, windows, config)
+        center, lower, upper, batches = gen_batch_envelop(time, values, windows, config)
 
         assert len(batches) == 3
         # Golden batch should handle batches with different characteristics
@@ -429,7 +445,7 @@ class TestSpecialScenarios:
         windows = [(0, 1000)]
         config = get_default_config()
 
-        center, lower, upper, batches = do_batch_process(time, values, windows, config)
+        center, lower, upper, batches = gen_batch_envelop(time, values, windows, config)
 
         assert len(batches) > 0
 
@@ -442,11 +458,10 @@ class TestSpecialScenarios:
 
         config["normalize"]["method"] = "cubic"
 
-        center, lower, upper, batches = do_batch_process(time, values, windows, config)
+        center, lower, upper, batches = gen_batch_envelop(time, values, windows, config)
 
         # should fallback to linear interpolation when fewer than 4 points
         assert len(batches) > 0
-
 
     def test_zero_derivative_rate_limit(self):
         """test case: derivative rate limitation is zero"""
@@ -456,7 +471,7 @@ class TestSpecialScenarios:
         config = get_default_config()
         config["derivative"]["max_rate"] = 0
 
-        center, lower, upper, batches = do_batch_process(time, values, windows, config)
+        center, lower, upper, batches = gen_batch_envelop(time, values, windows, config)
 
         # all data points should be filtered out
         assert len(batches) == 0 or len(batches[0]) < 10
@@ -465,6 +480,7 @@ class TestSpecialScenarios:
 ############################################
 # Data quality tests
 ############################################
+
 
 class TestDataQuality:
     """Data quality tests"""
@@ -477,7 +493,7 @@ class TestDataQuality:
         config = get_default_config()
 
         # may be filtered due to insufficient points
-        center, lower, upper, batches = do_batch_process(time, values, windows, config)
+        center, lower, upper, batches = gen_batch_envelop(time, values, windows, config)
 
     def test_irregular_sampling(self):
         """test case: irregular sampling"""
@@ -486,21 +502,24 @@ class TestDataQuality:
         windows = [(0, 100)]
         config = get_default_config()
 
-        center, lower, upper, batches = do_batch_process(time, values, windows, config)
+        center, lower, upper, batches = gen_batch_envelop(time, values, windows, config)
 
         assert len(batches) > 0
 
     def test_duplicate_timestamps(self):
-        """test case: duplicate timestamps"""
+        """A repeated timestamp must not turn the batch into NaN/Inf."""
         time = np.array([0, 1, 2, 2, 3, 4, 5, 6, 7, 8, 9, 10])
         values = np.random.randn(12)
         windows = [(0, 10)]
         config = get_default_config()
 
-        try:
-            center, lower, upper, batches = do_batch_process(time, values, windows, config)
-        except (ValueError, RuntimeError):
-            pass  # interpolation may fail
+        center, lower, upper, batches = gen_batch_envelop(
+            time, values, windows, config
+        )
+
+        assert len(batches) > 0
+        for series in (center, lower, upper):
+            assert np.all(np.isfinite(series))
 
     def test_missing_data_segments(self):
         """test case: missing data segments"""
@@ -511,7 +530,7 @@ class TestDataQuality:
         windows = [(0, 100)]
         config = get_default_config()
 
-        center, lower, upper, batches = do_batch_process(time, values, windows, config)
+        center, lower, upper, batches = gen_batch_envelop(time, values, windows, config)
 
         assert len(batches) > 0
 
@@ -519,6 +538,7 @@ class TestDataQuality:
 ############################################
 # Configuration parameter tests
 ############################################
+
 
 class TestConfigurationParameters:
     """Configuration parameter tests"""
@@ -534,7 +554,9 @@ class TestConfigurationParameters:
         config1["golden"]["method"] = "mean_std"
         config1["golden"]["n_std"] = 2
 
-        center1, lower1, upper1, batches1 = do_batch_process(time, values, windows, config1)
+        center1, lower1, upper1, batches1 = gen_batch_envelop(
+            time, values, windows, config1
+        )
 
         # test median_percentile method
         config2 = get_default_config()
@@ -542,7 +564,9 @@ class TestConfigurationParameters:
         config2["golden"]["lower_percentile"] = 10
         config2["golden"]["upper_percentile"] = 90
 
-        center2, lower2, upper2, batches2 = do_batch_process(time, values, windows, config2)
+        center2, lower2, upper2, batches2 = gen_batch_envelop(
+            time, values, windows, config2
+        )
 
         # both methods should produce results
         assert len(batches1) == 2
@@ -559,7 +583,7 @@ class TestConfigurationParameters:
         config["golden"]["lower_percentile"] = 0
         config["golden"]["upper_percentile"] = 100
 
-        center, lower, upper, batches = do_batch_process(time, values, windows, config)
+        center, lower, upper, batches = gen_batch_envelop(time, values, windows, config)
 
         assert len(batches) == 2
 
@@ -571,6 +595,103 @@ class TestConfigurationParameters:
         config = get_default_config()
         config["plot"] = False
 
-        center, lower, upper, batches = do_batch_process(time, values, windows, config)
+        center, lower, upper, batches = gen_batch_envelop(time, values, windows, config)
 
         assert len(batches) > 0
+
+
+class TestZeroIntervalGuard:
+    """A step whose timestamps do not advance must not become inf/nan.
+
+    `derivative_check` divides by `np.diff(time)`; a window with `end == start`,
+    or a repeated timestamp, gives a zero denominator. Left unguarded the rate is
+    inf/nan, and the threshold comparison then keeps or drops the point by
+    accident -- which is also how NaN reached the envelope.
+    """
+
+    def test_zero_interval_is_not_a_rate(self):
+        time = np.array([0.0, 1.0, 2.0, 3.0])
+        values = np.array([0.0, 10.0, 20.0, 30.0])
+
+        t_out, v_out = derivative_check(time, values, max_rate=100.0)
+
+        assert np.all(np.isfinite(v_out))
+        assert t_out.size == v_out.size
+
+    def test_repeated_timestamp_keeps_the_point(self):
+        """A zero-width step is "no change", so the point survives the filter."""
+        time = np.array([0.0, 0.0, 1.0, 2.0])
+        values = np.array([1.0, 1.0, 2.0, 3.0])
+
+        t_out, v_out = derivative_check(time, values, max_rate=100.0)
+
+        assert np.all(np.isfinite(v_out))
+        assert v_out.size == 4
+
+    def test_fractional_rate_is_not_truncated(self):
+        """With integer values the rate must still be a real number."""
+        time = np.array([0, 10, 20])
+        values = np.array([0, 1, 2])
+
+        t_out, v_out = derivative_check(time, values, max_rate=0.05)
+
+        # rate is 0.1, above the 0.05 threshold: truncating it to 0 would keep it.
+        assert v_out.size == 1
+
+
+class TestNormalizeDegenerateBatches:
+    """`interp1d` needs a strictly increasing grid; the normalizer must supply one."""
+
+    def test_repeated_timestamps_are_collapsed(self):
+        time = np.array([0.0, 0.0, 1.0, 1.0, 2.0])
+        values = np.array([1.0, 2.0, 3.0, 4.0, 5.0])
+
+        t_norm, v_norm = normalize_progress(time, values, target_len=100)
+
+        assert t_norm.size == 100
+        assert v_norm.size == 100
+        assert np.all(np.isfinite(v_norm))
+
+    def test_a_single_timestamp_yields_a_flat_curve(self):
+        time = np.array([5.0, 5.0, 5.0])
+        values = np.array([2.0, 4.0, 6.0])
+
+        t_norm, v_norm = normalize_progress(time, values, target_len=50)
+
+        assert t_norm.size == 50
+        assert np.allclose(v_norm, 4.0)
+
+
+class TestOutOfOrderTimestamps:
+    """Out-of-order input is reported, never silently trimmed.
+
+    Collapsing repeated timestamps with `np.diff(t_norm) > 0` also dropped every
+    point that followed a decrease, so `[0, 3, 1, 2]` became `[0, 3]` and the
+    interpolated curve had nothing to do with the batch. The pipeline does not
+    sort, so the condition has to be rejected instead.
+    """
+
+    def test_normalization_rejects_a_decreasing_step(self):
+        time = np.array([0.0, 3.0, 1.0, 2.0])
+        values = np.array([1.0, 2.0, 3.0, 4.0])
+
+        with pytest.raises(ValueError, match="ascending"):
+            normalize_progress(time, values, target_len=100)
+
+    def test_normalization_still_collapses_equal_steps(self):
+        time = np.array([0.0, 0.0, 1.0, 2.0])
+        values = np.array([1.0, 2.0, 3.0, 4.0])
+
+        t_norm, v_norm = normalize_progress(time, values, target_len=100)
+
+        assert t_norm.size == 100
+        assert np.all(np.isfinite(v_norm))
+
+    def test_batch_pipeline_reports_unsorted_input(self):
+        time = np.array([0.0, 3.0, 1.0, 2.0, 4.0, 5.0, 6.0, 7.0, 8.0, 9.0])
+        values = np.random.randn(10)
+        windows = [(0, 10)]
+        config = get_default_config()
+
+        with pytest.raises(ValueError, match="ascending"):
+            gen_batch_envelop(time, values, windows, config)

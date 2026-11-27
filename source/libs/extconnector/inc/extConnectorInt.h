@@ -1,0 +1,347 @@
+/*
+ * Copyright (c) 2019 TAOS Data, Inc. <jhtao@taosdata.com>
+ *
+ * SPDX-License-Identifier: AGPL-3.0-or-later
+ *
+ * This program is free software: you can use, redistribute, and/or modify
+ * it under the terms of the GNU Affero General Public License, version 3
+ * or later ("AGPL"), as published by the Free Software Foundation.
+ *
+ * This program is distributed in the hope that it will be useful, but WITHOUT
+ * ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+ * FITNESS FOR A PARTICULAR PURPOSE.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program. If not, see <http://www.gnu.org/licenses/>.
+ */
+
+// extConnectorInt.h  -  module-internal types for the External Connector
+//
+// Location: source/libs/extconnector/inc/extConnectorInt.h
+// Included by: enterprise connector source files only; NOT exported in the public API.
+
+#ifndef _TD_EXT_CONNECTOR_INT_H_
+#define _TD_EXT_CONNECTOR_INT_H_
+
+#ifdef __cplusplus
+extern "C" {
+#endif
+
+#include "extConnector.h"
+#include "plannodes.h"
+#include "taos.h"
+#include "taoserror.h"
+#include "tdef.h"
+#include "thash.h"
+#include "tlog.h"
+#include "tmsg.h"
+#include "tthread.h"
+#include "ttime.h"
+#include "osTimezone.h"
+
+// ============================================================
+// Provider SPI (Strategy pattern  -  DS section 4.2 + section 6.1.2)
+// ============================================================
+
+// Forward declarations for SExtProvider callback parameters
+typedef struct SExtProvider SExtProvider;
+
+typedef struct SExtProvider {
+  EExtSourceType type;
+  const char    *name;  // "mysql" / "postgresql" / "influxdb"
+
+  // Connection management (DS section 6.1.2.2)
+  // mnode decrypts the stored password before SGetExtSourceRsp is returned.
+  // cfg contains plaintext credentials; providers must not decrypt it again.
+  int32_t (*connect)(const SExtSourceCfg *cfg, void **ppConn);
+  void    (*disconnect)(void *pConn);
+  bool    (*isAlive)(void *pConn);  // probe conn before reuse; NULL = skip probe
+
+  // Metadata (DS section 6.1.2.3)  -  keep extTypeName as raw external type name
+  int32_t (*getTableSchema)(void *pConn, const SExtTableNode *pTable, SExtTableMeta **ppOut);
+  int32_t (*getCapabilities)(void *pConn, const SExtTableNode *pTable,
+                             SExtSourceCapability *pOut);
+
+  // Query execution (DS section 6.1.2.4)
+  int32_t (*execQuery)(void *pConn, const char *sql, timezone_t clientTz, void **ppResult);
+  int32_t (*fetchBlock)(void *pResult, const SExtColTypeMapping *pColMappings,
+                        int32_t numColMappings, SSDataBlock **ppOut);
+  void    (*closeResult)(void *pResult);
+
+  // Namespace (database/schema) existence check (FS section 3.5.7)
+  // dbName: database name (MySQL/InfluxDB) or schema name (PG).
+  // schemaName: only used for PG 3-seg form (USE src.db.schema); NULL for others.
+  // Returns TSDB_CODE_SUCCESS, TSDB_CODE_EXT_DB_NOT_EXIST, or TSDB_CODE_OPS_NOT_SUPPORT.
+  int32_t (*checkNamespace)(void *pConn, const char *dbName, const char *schemaName);
+
+  // Error mapping (DS section 5.3.11): fills pOutErr from native driver state
+  int32_t (*mapError)(void *pConn, SExtConnectorError *pOutErr);
+
+  // Return whether this connection can convert timezone-naive values using
+  // the supplied timezone name. NULL means unsupported.
+  int32_t (*supportsTimezoneConversion)(void *pConn, const char *timezone,
+                                        bool *pSupported);
+} SExtProvider;
+
+// EXT_SOURCE_TYPE_COUNT  -  must match the EExtSourceType enum in tmsg.h
+#define EXT_SOURCE_TYPE_COUNT  6   // MYSQL=0, POSTGRESQL=1, INFLUXDB=2, TDENGINE=3(reserved), SQLSERVER=4, ORACLE=5
+
+// Global provider table (indexed by EExtSourceType).
+// The table is indexed by the raw source-type value, so EXT_SOURCE_TYPE_COUNT
+// lagging behind the enum is an out-of-bounds access, not a compile error.
+extern SExtProvider gExtProviders[EXT_SOURCE_TYPE_COUNT];
+#if defined(__cplusplus)
+static_assert(EXT_SOURCE_TYPE_COUNT == (EXT_SOURCE_ORACLE + 1),
+              "EXT_SOURCE_TYPE_COUNT must match the highest EExtSourceType value (tmsg.h)");
+#else
+typedef char SExtProviderCountCheck[(EXT_SOURCE_TYPE_COUNT == (EXT_SOURCE_ORACLE + 1)) ? 1 : -1];
+#endif
+
+// ============================================================
+// Connection pool entry state
+// ============================================================
+
+typedef enum {
+  EXT_ENTRY_FREE   = 0,  // slot unoccupied; lives in freeList
+  EXT_ENTRY_IDLE   = 1,  // connected, waiting to be reused; lives in idleList
+  EXT_ENTRY_IN_USE = 2,  // borrowed by a caller; not in any stack
+} EExtEntryState;
+
+// ============================================================
+// Connection pool entry
+//
+// An entry has two separate 'next' links so it can be safely
+// on idleList while eviction modifies freeNext (or vice-versa).
+// Each entry belongs to exactly one logical owner at a time
+// (freeList, idleList, or a caller), enforced by CAS on state.
+// =============================================================
+
+typedef struct SExtPoolEntry {
+  struct SExtPoolEntry *idleNext;       // idleList Treiber stack link
+  struct SExtPoolEntry *freeNext;       // freeList Treiber stack link
+  volatile int32_t      state;          // EExtEntryState  -  modified only via atomic CAS
+  void                 *pConn;          // native connection handle
+  int64_t               lastActiveTime; // ms timestamp of last use
+  int64_t               generation;     // drainGeneration value at open() time
+  char                  timezoneConversionName[TD_TIMEZONE_LEN];
+  bool                  timezoneConversionSupported;
+} SExtPoolEntry;
+
+// ============================================================
+// Memory slab  -  fixed array of entries
+//
+// Slabs are allocated on demand and freed only by destroyPool.
+// The slab chain (slabHead) is append-only; once attached via CAS
+// a slab's 'next' pointer never changes, making traversal safe
+// without any extra locking.
+// ============================================================
+
+typedef struct SExtSlab {
+  struct SExtSlab *next;      // next slab in pool's chain (stable after CAS attach)
+  int32_t          capacity;  // number of entries in this slab
+  SExtPoolEntry    entries[]; // flexible array member
+} SExtSlab;
+
+// ============================================================
+// Per-source/database connection pool (fully lock-free, no mutex)
+//
+// Concurrency model:
+//   idleHead    -  Treiber stack (idleNext links).  May contain FREE zombies
+//                after eviction.  open() discards zombies via CAS on state.
+//   freeHead    -  Treiber stack (freeNext links).  Always contains FREE entries.
+//   slabHead    -  append-only slab chain.  Traversed by eviction and destroyPool.
+//   idleCount   -  accurate: incremented on every IDLE <- IN_USE transition,
+//                decremented on every IDLE -> IN_USE or IDLE -> FREE transition.
+//   inUseCount  -  accurate: incremented on successful open(), decremented on close().
+//   cfgVersion  -  CAS in open() ensures only one thread calls checkAndDrainPool.
+//   drainGeneration  -  bumped on conn-field change; entry.generation < this  ->  drain.
+//   destroying  -  set to 1 before destroyPool; causes open() to fail fast and
+//                close() to recycle to freeList instead of idleList.
+// ============================================================
+
+typedef struct SExtConnPool {
+  char             sourceName[TSDB_EXT_SOURCE_NAME_LEN];
+  SExtSourceCfg    cfg;             // deep copy of SGetExtSourceRsp (password is already decrypted)
+  volatile int64_t cfgVersion;      // meta_version at last pool update
+  volatile int64_t drainGeneration; // bumped on conn-field change
+  SExtProvider    *pProvider;       // pointer into gExtProviders[]
+  SExtPoolEntry   *idleHead;        // Treiber stack  -  IDLE entries (may have FREE zombies)
+  SExtPoolEntry   *freeHead;        // Treiber stack  -  guaranteed FREE entries
+  SExtSlab        *slabHead;        // append-only slab chain
+  volatile int32_t idleCount;       // approximate count of IDLE entries (used for soft cap only)
+  volatile int32_t inUseCount;      // accurate count of IN_USE entries
+  int32_t          slabSize;        // entries per expansion slab (= maxPoolSize initially)
+  int32_t          maxPoolSize;     // soft cap on (idleCount + inUseCount)
+  volatile int32_t destroying;      // 1 = pool shutting down (set by destroyPool)
+  volatile int64_t lastActiveTime;  // ms timestamp of last successful open()/close() activity
+  // 1.8 namespace metadata is shared across leases; connection borrowing stays lock-free.
+  SHashObj*        pInfluxRpCache;
+  TdThreadMutex    influxRpMutex;
+  int64_t          influxRpVersion;
+} SExtConnPool;
+
+// ============================================================
+// Internal test/diagnostic hooks
+// ============================================================
+
+// Number of pools currently registered in the pool hash (diagnostic/test use).
+int32_t extConnectorPoolCount(void);
+
+// Reclaim pools that no longer hold any connection and whose last activity is
+// older than ttlMs.  Runs on the eviction thread; exposed so unit tests can
+// exercise the reclaim path without waiting for the eviction interval.
+void extConnectorReclaimExpiredEmptyPools(int64_t nowMs, int64_t ttlMs);
+// ============================================================
+// Opaque handle types (declared in extConnector.h, defined here)
+// ============================================================
+
+struct SInfluxV1Scan;
+
+struct SExtConnectorHandle {
+  SExtConnPool  *pPool;
+  SExtPoolEntry *pEntry;
+  int64_t       metaVersion; // caller's namespace-cache version, even if the pool is later refreshed
+  void          *pAcquiredData;  // value returned by taosHashAcquire; passed to taosHashRelease in Close
+  struct SInfluxV1Scan *pInfluxV1Scan;
+  bool                 influxV1Active;
+};
+
+struct SExtQueryHandle {
+  SExtConnectorHandle *pConnHandle;
+  void                *pResult;    // native result set handle
+  SExtProvider        *pProvider;
+  timezone_t           clientTz;   // client timezone for no-tz type conversion (DS section 5.1 bullet 11)
+  bool                 ownsTz;     // whether clientTz was allocated by us (must tzfree on close)
+  bool                 eof;
+};
+
+// ============================================================
+// Internal helpers
+// ============================================================
+
+/*
+ * Validate a remote type or charset string before copying it into fixed
+ * metadata. The capacity includes the terminating NUL. A truncated type
+ * string could select a different TDengine type, so reject it as unmappable.
+ */
+static inline int32_t extValidateMetadataTypeString(const char* kind, const char* value, int64_t valueLen,
+                                                    int32_t capacity) {
+  if (value == NULL || valueLen < 0 || capacity <= 1) {
+    uError("ExtConnector: invalid %s metadata string, value:%p len:%lld capacity:%d",
+           kind ? kind : "external", value, (long long)valueLen, capacity);
+    return TSDB_CODE_INVALID_PARA;
+  }
+
+  if (valueLen >= capacity) {
+    uError("ExtConnector: external %s metadata type string exceeds TDengine limit, len:%lld max:%d",
+           kind ? kind : "object", (long long)valueLen, capacity - 1);
+    return TSDB_CODE_EXT_TYPE_NOT_MAPPABLE;
+  }
+
+  return TSDB_CODE_SUCCESS;
+}
+
+/*
+ * Validate an identifier before copying it into a fixed TDengine name buffer.
+ * The capacity includes the terminating NUL. Metadata providers must use the
+ * original remote length so a long identifier cannot become a truncated cache
+ * key, lookup key, or remote SQL identifier.
+ */
+static inline int32_t extValidateMetadataIdentifier(const char* kind, const char* value, int64_t valueLen,
+                                                    int32_t capacity) {
+  if (value == NULL || valueLen < 0 || capacity <= 1) {
+    uError("ExtConnector: invalid %s identifier metadata, value:%p len:%lld capacity:%d",
+           kind ? kind : "external", value, (long long)valueLen, capacity);
+    return TSDB_CODE_INVALID_PARA;
+  }
+
+  if (valueLen >= capacity) {
+    uError("ExtConnector: external %s identifier exceeds TDengine limit, len:%lld max:%d",
+           kind ? kind : "object", (long long)valueLen, capacity - 1);
+    return TSDB_CODE_EXT_IDENTIFIER_TOO_LONG;
+  }
+
+  return TSDB_CODE_SUCCESS;
+}
+
+/*
+ * PostgreSQL binary jsonb values start with a one-byte wire-format version.
+ * Return only the JSON text payload after validating the currently supported
+ * version so a protocol marker can never become part of the SQL result.
+ */
+static inline int32_t extDecodePostgresqlJsonb(const char *rawValue, int32_t rawLen,
+                                               const char **ppJsonValue, int32_t *pJsonLen) {
+  if (rawValue == NULL || rawLen <= 1 || ppJsonValue == NULL || pJsonLen == NULL ||
+      (uint8_t)rawValue[0] != 1) {
+    return TSDB_CODE_EXT_TYPE_CONVERT_FAILED;
+  }
+
+  *ppJsonValue = rawValue + 1;
+  *pJsonLen = rawLen - 1;
+  return TSDB_CODE_SUCCESS;
+}
+
+// Password encrypt/decrypt (AES-128-CBC with fixed enterprise key)
+void encryptExtSourcePassword(const char *plaintext, char *outBuf);
+void decryptExtSourcePassword(const char *cipherBuf, char *outPlain);
+
+// Source type -> dialect: use extResolveDialectBySource() (extDialect.h), which
+// returns an error code for an unknown source type.  The former
+// extDialectFromSourceType() was removed: it had no error channel and answered
+// "MySQL" for any type it did not know, which would have rendered MySQL SQL
+// (backticks, LIMIT) against a server that cannot parse it (Oracle DS 9.1.2).
+
+// ============================================================
+// Provider forward declarations (implemented per-provider)
+// ============================================================
+
+#ifdef TD_ENTERPRISE
+extern SExtProvider mysqlProvider;
+extern SExtProvider pgProvider;
+bool mysqlProviderInit(void);
+void mysqlProviderCleanup(void);
+void mysqlProviderThreadCleanup(void);
+bool pgProviderInit(void);
+void pgProviderCleanup(void);
+extern SExtProvider sqlserverProvider;
+bool sqlserverProviderInit(void);
+extern SExtProvider oracleProvider;
+bool oracleProviderInit(void);
+void oracleProviderCleanup(void);
+bool influxProviderInit(SExtProvider *pProvider);
+void influxProviderCleanup(void);
+bool influxProviderIsV1(const SExtProvider *provider, const void *connection);
+bool influxProviderVersionAvailable(const char *options);
+int32_t influxProviderPrepareV1(void *connection, const SExtInfluxScanSpec *spec, struct SInfluxV1Scan **out);
+int32_t influxProviderExecV1(void *connection, struct SInfluxV1Scan *scan, void **out);
+int32_t influxProviderSeriesSnapshot(void *connection, const SExtTableNode *table,
+                                     const SExtTableMeta *meta, const char *const *tagNames,
+                                     int32_t numTags, const SNode *seriesFilter,
+                                     const SNode *rowFilter, bool first, int8_t precision,
+                                     SSDataBlock **out);
+int32_t influxProviderSeriesSnapshotAfter(void *connection, const SExtTableNode *table,
+                                          const SExtTableMeta *meta,
+                                          const char *const *tagNames, int32_t numTags,
+                                          const SNode *seriesFilter, const SNode *rowFilter,
+                                          bool first, int8_t precision, int64_t timeLower,
+                                          SSDataBlock **out);
+const char *influxV1ScanSQL(const struct SInfluxV1Scan *scan);
+void influxV1FreeScan(struct SInfluxV1Scan *scan);
+void *extConnectorLoadRuntimeLibrary(const char *const *names, int32_t numNames, const char **pLoadedName);
+void *extConnectorLoadRuntimeSymbol(void *handle, const char *symbol);
+void extConnectorCloseRuntimeLibrary(void *handle);
+#endif
+
+// ============================================================
+// Value conversion (extConnectorQuery.c)
+// ============================================================
+
+int32_t extValueConvert(EExtSourceType srcType, int8_t tdType,
+                        const void *srcVal, int32_t srcLen,
+                        SColumnInfoData *pColData, int32_t rowIdx);
+
+#ifdef __cplusplus
+}
+#endif
+
+#endif  // _TD_EXT_CONNECTOR_INT_H_

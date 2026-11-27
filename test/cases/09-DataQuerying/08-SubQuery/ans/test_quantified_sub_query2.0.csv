@@ -89997,7 +89997,7 @@ taos> select f1 from cts1 where f19 < ALL (select f9 from ctt1 WHERE 1 = 0);
 
 taos> select f1 from cts1 where f19 < ALL (select f9 from ctt1 WHERE f9 IS NULL);
 
-DB error: Geometry not support in this operator [0x80000731] 
+DB error: Geometry is not supported by this operator [0x80000731] 
 taos> select f1 from cts1 where f19 < ALL (select f9 from ctt1 WHERE f9 IS NOT NULL);
 
 DB error: Operation not supported between data types [0x80003250] 
@@ -90259,7 +90259,7 @@ taos> select f1 from cts1 where f19 < ANY (select f9 from ctt1 WHERE 1 = 0);
 
 taos> select f1 from cts1 where f19 < ANY (select f9 from ctt1 WHERE f9 IS NULL);
 
-DB error: Geometry not support in this operator [0x80000731] 
+DB error: Geometry is not supported by this operator [0x80000731] 
 taos> select f1 from cts1 where f19 < ANY (select f9 from ctt1 WHERE f9 IS NOT NULL);
 
 DB error: Operation not supported between data types [0x80003250] 
@@ -90481,7 +90481,7 @@ taos> select f1 from cts1 where f19 < SOME (select f9 from ctt1 WHERE 1 = 0);
 
 taos> select f1 from cts1 where f19 < SOME (select f9 from ctt1 WHERE f9 IS NULL);
 
-DB error: Geometry not support in this operator [0x80000731] 
+DB error: Geometry is not supported by this operator [0x80000731] 
 taos> select f1 from cts1 where f19 < SOME (select f9 from ctt1 WHERE f9 IS NOT NULL);
 
 DB error: Operation not supported between data types [0x80003250] 
@@ -90753,7 +90753,7 @@ taos> select f1 from cts1 where f19 <= ALL (select f9 from ctt1 WHERE 1 = 0);
 
 taos> select f1 from cts1 where f19 <= ALL (select f9 from ctt1 WHERE f9 IS NULL);
 
-DB error: Geometry not support in this operator [0x80000731] 
+DB error: Geometry is not supported by this operator [0x80000731] 
 taos> select f1 from cts1 where f19 <= ALL (select f9 from ctt1 WHERE f9 IS NOT NULL);
 
 DB error: Operation not supported between data types [0x80003250] 
@@ -91015,7 +91015,7 @@ taos> select f1 from cts1 where f19 <= ANY (select f9 from ctt1 WHERE 1 = 0);
 
 taos> select f1 from cts1 where f19 <= ANY (select f9 from ctt1 WHERE f9 IS NULL);
 
-DB error: Geometry not support in this operator [0x80000731] 
+DB error: Geometry is not supported by this operator [0x80000731] 
 taos> select f1 from cts1 where f19 <= ANY (select f9 from ctt1 WHERE f9 IS NOT NULL);
 
 DB error: Operation not supported between data types [0x80003250] 
@@ -91237,7 +91237,7 @@ taos> select f1 from cts1 where f19 <= SOME (select f9 from ctt1 WHERE 1 = 0);
 
 taos> select f1 from cts1 where f19 <= SOME (select f9 from ctt1 WHERE f9 IS NULL);
 
-DB error: Geometry not support in this operator [0x80000731] 
+DB error: Geometry is not supported by this operator [0x80000731] 
 taos> select f1 from cts1 where f19 <= SOME (select f9 from ctt1 WHERE f9 IS NOT NULL);
 
 DB error: Operation not supported between data types [0x80003250] 
@@ -91509,7 +91509,7 @@ taos> select f1 from cts1 where f19 > ALL (select f9 from ctt1 WHERE 1 = 0);
 
 taos> select f1 from cts1 where f19 > ALL (select f9 from ctt1 WHERE f9 IS NULL);
 
-DB error: Geometry not support in this operator [0x80000731] 
+DB error: Geometry is not supported by this operator [0x80000731] 
 taos> select f1 from cts1 where f19 > ALL (select f9 from ctt1 WHERE f9 IS NOT NULL);
 
 DB error: Operation not supported between data types [0x80003250] 
@@ -91771,7 +91771,7 @@ taos> select f1 from cts1 where f19 > ANY (select f9 from ctt1 WHERE 1 = 0);
 
 taos> select f1 from cts1 where f19 > ANY (select f9 from ctt1 WHERE f9 IS NULL);
 
-DB error: Geometry not support in this operator [0x80000731] 
+DB error: Geometry is not supported by this operator [0x80000731] 
 taos> select f1 from cts1 where f19 > ANY (select f9 from ctt1 WHERE f9 IS NOT NULL);
 
 DB error: Operation not supported between data types [0x80003250] 
@@ -91993,7 +91993,7 @@ taos> select f1 from cts1 where f19 > SOME (select f9 from ctt1 WHERE 1 = 0);
 
 taos> select f1 from cts1 where f19 > SOME (select f9 from ctt1 WHERE f9 IS NULL);
 
-DB error: Geometry not support in this operator [0x80000731] 
+DB error: Geometry is not supported by this operator [0x80000731] 
 taos> select f1 from cts1 where f19 > SOME (select f9 from ctt1 WHERE f9 IS NOT NULL);
 
 DB error: Operation not supported between data types [0x80003250] 
@@ -92265,7 +92265,7 @@ taos> select f1 from cts1 where f19 >= ALL (select f9 from ctt1 WHERE 1 = 0);
 
 taos> select f1 from cts1 where f19 >= ALL (select f9 from ctt1 WHERE f9 IS NULL);
 
-DB error: Geometry not support in this operator [0x80000731] 
+DB error: Geometry is not supported by this operator [0x80000731] 
 taos> select f1 from cts1 where f19 >= ALL (select f9 from ctt1 WHERE f9 IS NOT NULL);
 
 DB error: Operation not supported between data types [0x80003250] 
@@ -92527,7 +92527,7 @@ taos> select f1 from cts1 where f19 >= ANY (select f9 from ctt1 WHERE 1 = 0);
 
 taos> select f1 from cts1 where f19 >= ANY (select f9 from ctt1 WHERE f9 IS NULL);
 
-DB error: Geometry not support in this operator [0x80000731] 
+DB error: Geometry is not supported by this operator [0x80000731] 
 taos> select f1 from cts1 where f19 >= ANY (select f9 from ctt1 WHERE f9 IS NOT NULL);
 
 DB error: Operation not supported between data types [0x80003250] 
@@ -92749,7 +92749,7 @@ taos> select f1 from cts1 where f19 >= SOME (select f9 from ctt1 WHERE 1 = 0);
 
 taos> select f1 from cts1 where f19 >= SOME (select f9 from ctt1 WHERE f9 IS NULL);
 
-DB error: Geometry not support in this operator [0x80000731] 
+DB error: Geometry is not supported by this operator [0x80000731] 
 taos> select f1 from cts1 where f19 >= SOME (select f9 from ctt1 WHERE f9 IS NOT NULL);
 
 DB error: Operation not supported between data types [0x80003250] 

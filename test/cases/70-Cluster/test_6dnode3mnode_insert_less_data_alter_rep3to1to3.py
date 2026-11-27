@@ -1,3 +1,18 @@
+# Copyright (c) 2023 TAOS Data, Inc. <jhtao@taosdata.com>
+#
+# SPDX-License-Identifier: AGPL-3.0-or-later
+#
+# This program is free software: you can use, redistribute, and/or modify
+# it under the terms of the GNU Affero General Public License, version 3
+# or later ("AGPL"), as published by the Free Software Foundation.
+#
+# This program is distributed in the hope that it will be useful, but WITHOUT
+# ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+# FITNESS FOR A PARTICULAR PURPOSE.
+#
+# You should have received a copy of the GNU Affero General Public License
+# along with this program. If not, see <http://www.gnu.org/licenses/>.
+
 from new_test_framework.utils import tdLog, tdSql, cluster, tdCom
 import sys
 import time
@@ -139,6 +154,9 @@ class Test6dnode3mnodeInsertLessDataAlterRep3to1to3:
         clusterComCheck.checkDbRows(dbNumbers)
         # clusterComCheck.checkDb(dbNumbers,1,paraDict["dbName"])
 
+        # Wait for replica reduction before querying data on the remaining vnodes.
+        clusterComCheck.check_vgroups_status(vgroup_numbers=paraDict["vgroups"],db_replica=replica1,db_name=paraDict["dbName"],count_number=100)
+
         # tdSql.execute("use %s" %(paraDict["dbName"]))
         tdSql.query("show %s.stables"%(paraDict["dbName"]))
         tdSql.checkRows(paraDict["stbNumbers"])
@@ -147,7 +165,6 @@ class Test6dnode3mnodeInsertLessDataAlterRep3to1to3:
             tdSql.query("select count(*) from %s"%stableName)
             tdSql.checkData(0,0,rowsPerStb)
         
-        clusterComCheck.check_vgroups_status(vgroup_numbers=paraDict["vgroups"],db_replica=replica1,db_name=paraDict["dbName"],count_number=100)
         time.sleep(5)
         tdLog.info(f"show transactions;alter database db0_0 replica {replica3};")
         TdSqlEx.execute(f'show transactions;')
@@ -162,19 +179,20 @@ class Test6dnode3mnodeInsertLessDataAlterRep3to1to3:
         3. Create database with replica 3
         4. Create stable and child table, insert less data
         5. Alter database replica to 1
-        6. Ensure cluster work well
+        6. Wait for replica 1 vgroups to converge before checking row counts
         7. Alter database replica to 3
         8. Ensure cluster work well
         9. Except check some error operations
 
         Since: v3.0.0.0
 
-        Labels: common,ci
+        Labels: common,ci,integration,functional
 
         Jira: None
 
         History:
             - 2025-11-01 Alex Duan Migrated from uncatalog/system-test/6-cluster/test_6dnode3mnode_insert_less_data_alter_rep3to1to3.py
+            - 2026-11-25 Haoran Chen Wait for replica 1 vgroups before querying data
 
         """
         # print(self.master_dnode.cfgDict)

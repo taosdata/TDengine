@@ -1,6 +1,8 @@
 /*
  * Copyright (c) 2019 TAOS Data, Inc. <jhtao@taosdata.com>
  *
+ * SPDX-License-Identifier: AGPL-3.0-or-later
+ *
  * This program is free software: you can use, redistribute, and/or modify
  * it under the terms of the GNU Affero General Public License, version 3
  * or later ("AGPL"), as published by the Free Software Foundation.
@@ -98,9 +100,15 @@ typedef struct SUdfResponse {
 
 int32_t encodeUdfRequest(void **buf, const SUdfRequest *request);
 void   *decodeUdfRequest(const void *buf, SUdfRequest *request);
+// Bounded decoders require the complete frame length and clear the destination
+// before decoding. On success nested blocks/state buffers are owned by the
+// caller and must be released with blockDataFreeRes/freeUdfInterBuf; on failure
+// allocations made by the decoder are released before returning.
+int32_t decodeUdfRequestBounded(const void *buf, int32_t bufLen, SUdfRequest *request);
 
 int32_t encodeUdfResponse(void **buf, const SUdfResponse *response);
 void   *decodeUdfResponse(const void *buf, SUdfResponse *response);
+int32_t decodeUdfResponseBounded(const void *buf, int32_t bufLen, SUdfResponse *response);
 
 void freeUdfColumnData(SUdfColumnData *data, SUdfColumnMeta *meta);
 void freeUdfColumn(SUdfColumn *col);

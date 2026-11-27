@@ -1,3 +1,18 @@
+# Copyright (c) 2025 TAOS Data, Inc. <jhtao@taosdata.com>
+#
+# SPDX-License-Identifier: AGPL-3.0-or-later
+#
+# This program is free software: you can use, redistribute, and/or modify
+# it under the terms of the GNU Affero General Public License, version 3
+# or later ("AGPL"), as published by the Free Software Foundation.
+#
+# This program is distributed in the hope that it will be useful, but WITHOUT
+# ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+# FITNESS FOR A PARTICULAR PURPOSE.
+#
+# You should have received a copy of the GNU Affero General Public License
+# along with this program. If not, see <http://www.gnu.org/licenses/>.
+
 """
 container components
 容器组件
@@ -134,7 +149,7 @@ class Container:
             self.remote.cmd(config["fqdn"][0], [f'docker exec -d {container_name} sh -c \'echo "{ip}\t{host}" >> /etc/hosts && sort -u /etc/hosts -o /etc/hosts && sed -i "s/# firstEp                   hostname:6030/firstEp {firstEp}/g" /etc/taos/taos.cfg && sed -i "s/# fqdn                      hostname/fqdn {container_name}/g" /etc/taos/taos.cfg\''])
 
     def config_bashrc(self, config, container_name):
-        self.remote.cmd(config["fqdn"][0], [f'docker exec -d {container_name} sh -c \'echo "if [ \`ps -ef | grep taosd | grep -v grep | wc -l\` -eq 0 ];then nohup taosd -c /etc/taos >/dev/null 2>&1 & fi" >> ~/.bashrc\''])
+        self.remote.cmd(config["fqdn"][0], [f'docker exec -d {container_name} sh -c \'echo "if [ `ps -ef | grep taosd | grep -v grep | wc -l` -eq 0 ];then nohup taosd -c /etc/taos >/dev/null 2>&1 & fi" >> ~/.bashrc\''])
 
     def run_container_taosd(self, config, container_name):
         self.remote.cmd(config["fqdn"][0], [f'docker exec -d {container_name} sh -c \'taosd\''])

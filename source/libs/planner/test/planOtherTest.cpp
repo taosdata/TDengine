@@ -1,6 +1,8 @@
 /*
  * Copyright (c) 2019 TAOS Data, Inc. <jhtao@taosdata.com>
  *
+ * SPDX-License-Identifier: AGPL-3.0-or-later
+ *
  * This program is free software: you can use, redistribute, and/or modify
  * it under the terms of the GNU Affero General Public License, version 3
  * or later ("AGPL"), as published by the Free Software Foundation.
@@ -82,6 +84,28 @@ TEST_F(PlanOtherTest, delete) {
   run("DELETE FROM st1");
 
   run("DELETE FROM st1 WHERE ts > now - 2d and ts < now - 1d AND tag1 = 10");
+}
+
+// With an ordinary column filter the plan drops the count/first/last aggregation and lets the
+// deleter derive precise ranges from the scanned rows instead.
+TEST_F(PlanOtherTest, deleteColumnFilter) {
+  useDb("root", "test");
+
+  run("DELETE FROM t1 WHERE c1 > 10");
+  ASSERT_EQ(0, countPlanNode("Agg"));
+  ASSERT_TRUE(findPlanNode("Delete"));
+
+  run("DELETE FROM t1 WHERE ts > now - 2d and ts < now - 1d AND c1 > 10");
+  ASSERT_EQ(0, countPlanNode("Agg"));
+  ASSERT_TRUE(findPlanNode("Delete"));
+
+  run("DELETE FROM st1 WHERE tag1 = 10 AND c1 > 10");
+  ASSERT_EQ(0, countPlanNode("Agg"));
+  ASSERT_TRUE(findPlanNode("Delete"));
+
+  run("DELETE FROM t1 WHERE c1 > 10 OR c1 < 0");
+  ASSERT_EQ(0, countPlanNode("Agg"));
+  ASSERT_TRUE(findPlanNode("Delete"));
 }
 
 TEST_F(PlanOtherTest, insert) {

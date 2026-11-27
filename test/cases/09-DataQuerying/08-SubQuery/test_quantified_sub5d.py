@@ -1,3 +1,18 @@
+# Copyright (c) 2026 TAOS Data, Inc. <jhtao@taosdata.com>
+#
+# SPDX-License-Identifier: AGPL-3.0-or-later
+#
+# This program is free software: you can use, redistribute, and/or modify
+# it under the terms of the GNU Affero General Public License, version 3
+# or later ("AGPL"), as published by the Free Software Foundation.
+#
+# This program is distributed in the hope that it will be useful, but WITHOUT
+# ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+# FITNESS FOR A PARTICULAR PURPOSE.
+#
+# You should have received a copy of the GNU Affero General Public License
+# along with this program. If not, see <http://www.gnu.org/licenses/>.
+
 import time
 import math
 import os
@@ -42,7 +57,7 @@ class TestQuantifiedSubQuery5d:
         "select {quantifiedSql}, avg(f1) from {tableName} SESSION(ts, 1d)",
         "select {quantifiedSql} from {tableName} SESSION(ts, 1d)",
         "select sum(case when {quantifiedSql} then 1 else 2 end) from {tableName} STATE_WINDOW(f1)",
-        "select sum(case when f1 = 1 then cast({quantifiedSql} as bigint) else 2 end) from {tableName} EVENT_WINDOW START WITH f1 >= 1 END WITH f1 <= 2",
+        "select sum(case when f1 = 1 then cast({quantifiedSql} as bigint) else 2 end) from {tableName} partition by tbname EVENT_WINDOW START WITH f1 >= 1 END WITH f1 <= 2 order by tbname",
         "select sum(case when f1 = 1 then 1 else {quantifiedSql} end + 1) from {tableName} COUNT_WINDOW(2)",
         "select {quantifiedSql} from {tableName} partition by tbname interval(1d)",
         "select {quantifiedSql} from {tableName} partition by f1 interval(1d)",
@@ -95,8 +110,7 @@ class TestQuantifiedSubQuery5d:
         
         Since: v3.4.1.0
 
-        Labels: common,ci
-
+        Labels: common,ci,integration,functional
         Jira: None
 
         History:
@@ -190,4 +204,3 @@ class TestQuantifiedSubQuery5d:
         self.rmoveSqlTmpFiles()
 
         return True
-

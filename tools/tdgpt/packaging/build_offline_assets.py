@@ -1,4 +1,20 @@
 #!/usr/bin/env python3
+
+# Copyright (c) 2025 TAOS Data, Inc. <jhtao@taosdata.com>
+#
+# SPDX-License-Identifier: AGPL-3.0-or-later
+#
+# This program is free software: you can use, redistribute, and/or modify
+# it under the terms of the GNU Affero General Public License, version 3
+# or later ("AGPL"), as published by the Free Software Foundation.
+#
+# This program is distributed in the hope that it will be useful, but WITHOUT
+# ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+# FITNESS FOR A PARTICULAR PURPOSE.
+#
+# You should have received a copy of the GNU Affero General Public License
+# along with this program. If not, see <http://www.gnu.org/licenses/>.
+
 """Build TDgpt Windows offline asset bundles."""
 
 from __future__ import annotations
@@ -7,17 +23,11 @@ import argparse
 import copy
 import datetime
 import io
-import os
-import subprocess
-import sys
 import tarfile
-import tempfile
 import time
 from pathlib import Path
 from typing import Iterable, Optional
 
-
-DEFAULT_UV_EXE = Path(__file__).resolve().parent / "bin" / "uv.exe"
 MODEL_NAME_ALIASES = {
     "tdtsfm": "tdtsfm",
     "timemoe": "timemoe",
@@ -42,75 +52,6 @@ def fail(message: str) -> RuntimeError:
     return RuntimeError(message)
 
 
-def run_command(cmd: list[str], env: Optional[dict[str, str]] = None) -> None:
-    result = subprocess.run(cmd, capture_output=True, text=True, env=env, check=False)
-    if result.returncode == 0:
-        return
-    if result.stdout:
-        print(result.stdout, file=sys.stderr, end="")
-    if result.stderr:
-        print(result.stderr, file=sys.stderr, end="")
-    raise fail(f"Command failed with exit code {result.returncode}: {' '.join(cmd)}")
-
-
-def resolve_uv_exe(cli_value: str) -> Path:
-    if cli_value:
-        candidate = Path(cli_value).resolve()
-        if candidate.exists():
-            return candidate
-        raise FileNotFoundError(f"uv.exe not found: {candidate}")
-
-    if DEFAULT_UV_EXE.exists():
-        return DEFAULT_UV_EXE.resolve()
-
-    result = subprocess.run(["where", "uv"], capture_output=True, text=True, check=False)
-    if result.returncode == 0:
-        first = result.stdout.splitlines()[0].strip()
-        if first:
-            return Path(first).resolve()
-
-    raise FileNotFoundError(
-        "uv.exe was not found. Provide --uv-exe or place uv.exe under packaging/bin/."
-    )
-
-
-def find_python_runtime_home(root_dir: Path) -> Path:
-    candidates: list[Path] = []
-    for python_exe in root_dir.rglob("python.exe"):
-        parent = python_exe.parent
-        if parent.name.lower() == "scripts":
-            continue
-        if (parent / "Lib").exists():
-            candidates.append(parent)
-    if not candidates:
-        raise FileNotFoundError(f"Unable to locate a Python runtime under {root_dir}")
-    candidates.sort(key=lambda item: (len(item.parts), len(str(item))))
-    return candidates[0]
-
-
-def prepare_runtime_source(
-    python_runtime_dir: Optional[Path],
-    uv_exe: str,
-    python_version: str,
-    work_dir: Path,
-) -> Path:
-    if python_runtime_dir is not None:
-        runtime_dir = python_runtime_dir.resolve()
-        if not (runtime_dir / "python.exe").exists():
-            raise FileNotFoundError(f"python.exe not found under --python-runtime-dir: {runtime_dir}")
-        return runtime_dir
-
-    uv_path = resolve_uv_exe(uv_exe)
-    uv_store = work_dir / "uv-python-store"
-    env = os.environ.copy()
-    env["UV_PYTHON_INSTALL_DIR"] = str(uv_store)
-    info(f"Installing Python {python_version} with uv into {uv_store}")
-    run_command([str(uv_path), "python", "install", python_version], env=env)
-    runtime_dir = find_python_runtime_home(uv_store)
-    info(f"Resolved Python runtime: {runtime_dir}")
-    return runtime_dir
-
-
 def ensure_directory(path: Path, label: str) -> Path:
     resolved = path.resolve()
     if not resolved.exists():
@@ -120,7 +61,9 @@ def ensure_directory(path: Path, label: str) -> Path:
     return resolved
 
 
-def add_directory_to_tar(tar_obj: tarfile.TarFile, source_dir: Path, arcname: str) -> None:
+def add_directory_to_tar(
+    tar_obj: tarfile.TarFile, source_dir: Path, arcname: str
+) -> None:
     tar_obj.add(source_dir, arcname=arcname)
 
 
@@ -185,7 +128,7 @@ def collect_seed_models(source_tar: Path) -> list[str]:
                 continue
             if not member_name.startswith("model/"):
                 continue
-            remainder = member_name[len("model/"):]
+            remainder = member_name[len("model/") :]
             model_name, _, _ = remainder.partition("/")
             if model_name:
                 models.add(model_name)
@@ -206,9 +149,13 @@ def copy_tar_members(
             member_name = remap_seed_member_name(member.name)
             if not member_name:
                 continue
-            if include_normalized and not any(matches_pattern(member_name, prefix) for prefix in include_normalized):
+            if include_normalized and not any(
+                matches_pattern(member_name, prefix) for prefix in include_normalized
+            ):
                 continue
-            if exclude_normalized and any(matches_pattern(member_name, prefix) for prefix in exclude_normalized):
+            if exclude_normalized and any(
+                matches_pattern(member_name, prefix) for prefix in exclude_normalized
+            ):
                 continue
             member = copy.copy(member)
             member.name = member_name
@@ -227,12 +174,15 @@ def create_manifest_lines(
     main_venv_dir: Optional[Path],
     extra_venvs: Iterable[Path],
     bundle_kind: str,
+    flavor: str,
 ) -> str:
     lines = [
         "TDgpt offline assets manifest",
         "",
-        "generated_at=" + datetime.datetime.now().astimezone().isoformat(timespec="seconds"),
+        "generated_at="
+        + datetime.datetime.now().astimezone().isoformat(timespec="seconds"),
         f"bundle_kind={bundle_kind}",
+        f"flavor={flavor}",
         f"main_venv={main_venv_dir or ''}",
         "runtime=provided-by-installer",
     ]
@@ -252,6 +202,8 @@ def resolve_tar_write_mode(output_file: Path) -> str:
     suffixes = "".join(output_file.suffixes).lower()
     if suffixes.endswith(".tar.gz") or suffixes.endswith(".tgz"):
         return "w:gz"
+    if suffixes.endswith((".tar.xz", ".txz")):
+        return "w:xz"
     return "w"
 
 
@@ -261,6 +213,7 @@ def build_bundle(
     main_venv_dir: Optional[Path],
     extra_venvs: list[Path],
     bundle_kind: str,
+    flavor: str,
 ) -> Path:
     output_file.parent.mkdir(parents=True, exist_ok=True)
     if output_file.exists():
@@ -287,7 +240,9 @@ def build_bundle(
         if bundle_kind in {"venv", "combined"}:
             if "venvs/venv/" in existing_prefixes:
                 info("Adding main venv from seed package")
-                copied = copy_tar_members(seed_package, tar_obj, include_prefixes=["venvs/venv"])
+                copied = copy_tar_members(
+                    seed_package, tar_obj, include_prefixes=["venvs/venv"]
+                )
                 info(f"Copied {copied} main venv members from seed package")
             else:
                 info(f"Adding main venv from {main_venv_dir}")
@@ -298,7 +253,9 @@ def build_bundle(
                 prefix = f"venvs/{extra_venv.name}/"
                 if prefix in existing_prefixes:
                     info(f"Adding extra venv from seed package: {prefix[:-1]}")
-                    copied = copy_tar_members(seed_package, tar_obj, include_prefixes=[prefix[:-1]])
+                    copied = copy_tar_members(
+                        seed_package, tar_obj, include_prefixes=[prefix[:-1]]
+                    )
                     info(f"Copied {copied} members for {prefix[:-1]} from seed package")
                     continue
                 info(f"Adding extra venv from {extra_venv}")
@@ -310,7 +267,9 @@ def build_bundle(
                 exclude_prefixes.extend(seed_handled_prefixes)
             else:
                 exclude_prefixes.extend(["venvs/venv", *seed_handled_prefixes])
-            info(f"Streaming seed package model payloads after runtime and venvs: {seed_package}")
+            info(
+                f"Streaming seed package model payloads after runtime and venvs: {seed_package}"
+            )
             copied = copy_tar_members(
                 seed_package,
                 tar_obj,
@@ -318,7 +277,9 @@ def build_bundle(
             )
             info(f"Copied {copied} members from seed package")
 
-        manifest = create_manifest_lines(seed_package, main_venv_dir, extra_venvs, bundle_kind)
+        manifest = create_manifest_lines(
+            seed_package, main_venv_dir, extra_venvs, bundle_kind, flavor
+        )
         data = manifest.encode("utf-8")
         info("Adding offline assets manifest")
         manifest_info = tarfile.TarInfo(name="offline-assets-manifest.txt")
@@ -337,16 +298,24 @@ def parse_args() -> argparse.Namespace:
         "--bundle-kind",
         choices=["venv", "model", "combined"],
         default="combined",
-        help="Bundle type: venv = only venvs/venv, model = model payloads and optional model venvs, combined = legacy combined bundle.",
+        help="Bundle type: venv = only venvs/venv, model = model payloads and optional model venvs, "
+        "combined = legacy combined bundle.",
+    )
+    parser.add_argument(
+        "--flavor",
+        choices=["standard", "lite"],
+        default="standard",
+        help="Offline asset flavor recorded in offline-assets-manifest.txt.",
     )
     parser.add_argument(
         "--output-file",
         required=True,
-        help="Output tar path, for example D:\\tdgpt-pkg-test\\deliverables\\full-package\\tdengine-tdgpt-offline-assets-3.4.1.0.0325-windows-x64.tar",
+        help="Output tar path, for example "
+        "D:\\tdgpt-pkg-test\\deliverables\\full-package\\tdengine-tdgpt-offline-assets-3.4.1.0.0325-windows-x64.tar",
     )
     parser.add_argument(
         "--seed-package",
-        help="Existing tar/tar.gz package that already contains offline model payloads and optional model venvs.",
+        help="Existing tar/tar.gz/tar.xz package that already contains offline model payloads and optional model venvs.",
     )
     parser.add_argument(
         "--main-venv-dir",
@@ -371,10 +340,22 @@ def main() -> int:
 
     main_venv_dir = None
     if args.main_venv_dir:
-        main_venv_dir = ensure_directory(Path(args.main_venv_dir), "Main venv directory")
-    extra_venvs = [ensure_directory(Path(item), "Extra venv directory") for item in args.extra_venv_dir]
+        main_venv_dir = ensure_directory(
+            Path(args.main_venv_dir), "Main venv directory"
+        )
+    extra_venvs = [
+        ensure_directory(Path(item), "Extra venv directory")
+        for item in args.extra_venv_dir
+    ]
 
-    bundle_path = build_bundle(output_file, seed_package, main_venv_dir, extra_venvs, args.bundle_kind)
+    bundle_path = build_bundle(
+        output_file,
+        seed_package,
+        main_venv_dir,
+        extra_venvs,
+        args.bundle_kind,
+        args.flavor,
+    )
 
     ok(f"Offline assets package created: {bundle_path}")
     return 0

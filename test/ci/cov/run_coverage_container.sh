@@ -1,18 +1,33 @@
 #!/bin/bash
 
+# Copyright (c) 2025 TAOS Data, Inc. <jhtao@taosdata.com>
+#
+# SPDX-License-Identifier: AGPL-3.0-or-later
+#
+# This program is free software: you can use, redistribute, and/or modify
+# it under the terms of the GNU Affero General Public License, version 3
+# or later ("AGPL"), as published by the Free Software Foundation.
+#
+# This program is distributed in the hope that it will be useful, but WITHOUT
+# ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+# FITNESS FOR A PARTICULAR PURPOSE.
+#
+# You should have received a copy of the GNU Affero General Public License
+# along with this program. If not, see <http://www.gnu.org/licenses/>.
+
 function usage() {
     echo "$0"
     echo -e "\t -d work dir (default: /var/lib/jenkins/workspace)"
     echo -e "\t -b branch id for coverage (required)"
     echo -e "\t -l test log dir (optional, for collecting gcda from test cases)"
     echo -e "\t -c container name (default: taos_coverage_tdengine)"
-    echo -e "\t -i docker image (default: ${DOCKER_IMAGE_NAME:-tdengine-ci:0.3})"
+    echo -e "\t -i docker image (default: ${DOCKER_IMAGE_NAME:-harbor.tdengine.net/tsdb-ci/tdengine-ci:0.5})"
     echo -e "\t -h help"
 }
 
 WORKDIR="/var/lib/jenkins/workspace"
 CONTAINER_NAME="taos_coverage_tdengine"
-DOCKER_IMAGE="${DOCKER_IMAGE_NAME:-tdengine-ci:0.3}"
+DOCKER_IMAGE="${DOCKER_IMAGE_NAME:-harbor.tdengine.net/tsdb-ci/tdengine-ci:0.5}"
 branch_name_id=""
 test_log_dir=""
 

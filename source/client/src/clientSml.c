@@ -1,6 +1,8 @@
 /*
  * Copyright (c) 2019 TAOS Data, Inc. <jhtao@taosdata.com>
  *
+ * SPDX-License-Identifier: AGPL-3.0-or-later
+ *
  * This program is free software: you can use, redistribute, and/or modify
  * it under the terms of the GNU Affero General Public License, version 3
  * or later ("AGPL"), as published by the Free Software Foundation.
@@ -19,24 +21,29 @@
 #include <string.h>
 
 #include "clientSml.h"
+#include "clientWlr.h"
 #include "osRand.h"
 #include "thash.h"
 
 #define SML_RETRY_MAX_TIMES     30
 #define SML_RETRY_BASE_MS       100u
-#define SML_RETRY_MAX_SLEEP_MS  12000u  // hard cap on base backoff; actual sleep ≤ SML_RETRY_MAX_SLEEP_MS with jitter
+#define SML_RETRY_MAX_SLEEP_MS  12000u  // hard cap on base backoff; actual sleep  <=  SML_RETRY_MAX_SLEEP_MS with jitter
 #define SML_RETRY_MAX_SHIFT     7u      // 100ms << 7 = 12800ms, then capped by SML_RETRY_MAX_SLEEP_MS
 
 // Exponential backoff with full-jitter: base doubles each attempt (capped at SML_RETRY_MAX_SLEEP_MS),
-// then perturbed ±25% so concurrent threads do not stampede in lockstep.
+// then perturbed +/-25% so concurrent threads do not stampede in lockstep.
 // Uses a per-thread seed via taosRandR() to avoid global rand() lock contention.
 // Worst-case total wait per call site (SML_RETRY_MAX_TIMES=30):
-//   retries 1–7:  100+200+400+800+1600+3200+6400 = 12700 ms
-//   retries 8–30: 23 × 12000                     = 276000 ms
-//   total ≈ 289 s (≈ 4.8 min) per call site.
-// smlModifyDBSchemas loop allows up to superTables×SML_RETRY_MAX_TIMES retries.
+//   retries 1-7:  100+200+400+800+1600+3200+6400 = 12700 ms
+//   retries 8-30: 23 x 12000                     = 276000 ms
+//   total  ~=  289 s ( ~=  4.8 min) per call site.
+// smlModifyDBSchemas loop allows up to superTables * SML_RETRY_MAX_TIMES retries.
 static inline uint32_t smlComputeBackoffMs(uint32_t retryIdx) {
+#ifdef _WIN32
+  static __declspec(thread) uint32_t tlSeed = 0;
+#else
   static __thread uint32_t tlSeed = 0;
+#endif
   if (tlSeed == 0) tlSeed = (uint32_t)taosGetTimestampUs();
   uint32_t shift   = retryIdx > SML_RETRY_MAX_SHIFT ? SML_RETRY_MAX_SHIFT : retryIdx;
   uint32_t backoff = SML_RETRY_BASE_MS << shift;
@@ -48,7 +55,7 @@ static inline uint32_t smlComputeBackoffMs(uint32_t retryIdx) {
 }
 
 #define RETURN_FALSE                                 \
-  smlBuildInvalidDataMsg(msg, "invalid data", pVal); \
+  smlBuildInvalidDataMsgLen(msg, "invalid data", pVal, len); \
   return false;
 
 #define SET_DOUBLE                     \
@@ -57,7 +64,7 @@ static inline uint32_t smlComputeBackoffMs(uint32_t retryIdx) {
 
 #define SET_FLOAT                                                                              \
   if (!IS_VALID_FLOAT(result)) {                                                               \
-    smlBuildInvalidDataMsg(msg, "float out of range[-3.402823466e+38,3.402823466e+38]", pVal); \
+    smlBuildInvalidDataMsgLen(msg, "float out of range[-3.402823466e+38,3.402823466e+38]", pVal, len); \
     return false;                                                                              \
   }                                                                                            \
   kvVal->type = TSDB_DATA_TYPE_FLOAT;                                                          \
@@ -67,7 +74,7 @@ static inline uint32_t smlComputeBackoffMs(uint32_t retryIdx) {
   SET_ERRNO(0);                                                                                          \
   int64_t tmp = taosStr2Int64(pVal, &endptr, 10);                                                        \
   if (ERRNO == ERANGE) {                                                                                 \
-    smlBuildInvalidDataMsg(msg, "big int out of range[-9223372036854775808,9223372036854775807]", pVal); \
+    smlBuildInvalidDataMsgLen(msg, "big int out of range[-9223372036854775808,9223372036854775807]", pVal, len); \
     return false;                                                                                        \
   }                                                                                                      \
   kvVal->type = TSDB_DATA_TYPE_BIGINT;                                                                   \
@@ -75,7 +82,7 @@ static inline uint32_t smlComputeBackoffMs(uint32_t retryIdx) {
 
 #define SET_INT                                                                    \
   if (!IS_VALID_INT(result)) {                                                     \
-    smlBuildInvalidDataMsg(msg, "int out of range[-2147483648,2147483647]", pVal); \
+    smlBuildInvalidDataMsgLen(msg, "int out of range[-2147483648,2147483647]", pVal, len); \
     return false;                                                                  \
   }                                                                                \
   kvVal->type = TSDB_DATA_TYPE_INT;                                                \
@@ -83,7 +90,7 @@ static inline uint32_t smlComputeBackoffMs(uint32_t retryIdx) {
 
 #define SET_SMALL_INT                                                          \
   if (!IS_VALID_SMALLINT(result)) {                                            \
-    smlBuildInvalidDataMsg(msg, "small int our of range[-32768,32767]", pVal); \
+    smlBuildInvalidDataMsgLen(msg, "small int our of range[-32768,32767]", pVal, len); \
     return false;                                                              \
   }                                                                            \
   kvVal->type = TSDB_DATA_TYPE_SMALLINT;                                       \
@@ -93,7 +100,7 @@ static inline uint32_t smlComputeBackoffMs(uint32_t retryIdx) {
   SET_ERRNO(0);                                                                                 \
   uint64_t tmp = taosStr2UInt64(pVal, &endptr, 10);                                             \
   if (ERRNO == ERANGE || result < 0) {                                                          \
-    smlBuildInvalidDataMsg(msg, "unsigned big int out of range[0,18446744073709551615]", pVal); \
+    smlBuildInvalidDataMsgLen(msg, "unsigned big int out of range[0,18446744073709551615]", pVal, len); \
     return false;                                                                               \
   }                                                                                             \
   kvVal->type = TSDB_DATA_TYPE_UBIGINT;                                                         \
@@ -101,7 +108,7 @@ static inline uint32_t smlComputeBackoffMs(uint32_t retryIdx) {
 
 #define SET_UINT                                                                  \
   if (!IS_VALID_UINT(result)) {                                                   \
-    smlBuildInvalidDataMsg(msg, "unsigned int out of range[0,4294967295]", pVal); \
+    smlBuildInvalidDataMsgLen(msg, "unsigned int out of range[0,4294967295]", pVal, len); \
     return false;                                                                 \
   }                                                                               \
   kvVal->type = TSDB_DATA_TYPE_UINT;                                              \
@@ -109,7 +116,7 @@ static inline uint32_t smlComputeBackoffMs(uint32_t retryIdx) {
 
 #define SET_USMALL_INT                                                            \
   if (!IS_VALID_USMALLINT(result)) {                                              \
-    smlBuildInvalidDataMsg(msg, "unsigned small int out of rang[0,65535]", pVal); \
+    smlBuildInvalidDataMsgLen(msg, "unsigned small int out of rang[0,65535]", pVal, len); \
     return false;                                                                 \
   }                                                                               \
   kvVal->type = TSDB_DATA_TYPE_USMALLINT;                                         \
@@ -117,7 +124,7 @@ static inline uint32_t smlComputeBackoffMs(uint32_t retryIdx) {
 
 #define SET_TINYINT                                                       \
   if (!IS_VALID_TINYINT(result)) {                                        \
-    smlBuildInvalidDataMsg(msg, "tiny int out of range[-128,127]", pVal); \
+    smlBuildInvalidDataMsgLen(msg, "tiny int out of range[-128,127]", pVal, len); \
     return false;                                                         \
   }                                                                       \
   kvVal->type = TSDB_DATA_TYPE_TINYINT;                                   \
@@ -125,7 +132,7 @@ static inline uint32_t smlComputeBackoffMs(uint32_t retryIdx) {
 
 #define SET_UTINYINT                                                            \
   if (!IS_VALID_UTINYINT(result)) {                                             \
-    smlBuildInvalidDataMsg(msg, "unsigned tiny int out of range[0,255]", pVal); \
+    smlBuildInvalidDataMsgLen(msg, "unsigned tiny int out of range[0,255]", pVal, len); \
     return false;                                                               \
   }                                                                             \
   kvVal->type = TSDB_DATA_TYPE_UTINYINT;                                        \
@@ -165,7 +172,7 @@ static int32_t smlCheckAuth(SSmlHandle *info, SRequestConnInfo *conn, const char
              : code;
 }
 
-void smlBuildInvalidDataMsg(SSmlMsgBuf *pBuf, const char *msg1, const char *msg2) {
+void smlBuildInvalidDataMsgLen(SSmlMsgBuf *pBuf, const char *msg1, const char *msg2, size_t msg2Len) {
   if (pBuf->buf == NULL) {
     return;
   }
@@ -174,10 +181,20 @@ void smlBuildInvalidDataMsg(SSmlMsgBuf *pBuf, const char *msg1, const char *msg2
     (void)strncat(pBuf->buf, msg1, pBuf->len - 1);
   }
   int32_t left = pBuf->len - strlen(pBuf->buf);
-  if (left > 2 && msg2) {
+  if (left > 2 && msg2 && msg2Len > 0) {
     (void)strncat(pBuf->buf, ":", left - 1);
-    (void)strncat(pBuf->buf, msg2, left - 2);
+    // msg2 usually points into the (possibly unterminated) payload; never read
+    // past its declared end
+    (void)strncat(pBuf->buf, msg2, TMIN(msg2Len, (size_t)(left - 2)));
   }
+}
+
+void smlBuildInvalidDataMsg(SSmlMsgBuf *pBuf, const char *msg1, const char *msg2) {
+  if (pBuf->buf == NULL) {
+    return;
+  }
+  // msg2 from this entry point is a literal or otherwise NUL-terminated
+  smlBuildInvalidDataMsgLen(pBuf, msg1, msg2, msg2 ? strnlen(msg2, pBuf->len) : 0);
 }
 
 int64_t smlGetTimeValue(const char *value, int32_t len, uint8_t fromPrecision, uint8_t toPrecision) {
@@ -412,8 +429,6 @@ int32_t smlProcessChildTable(SSmlHandle *info, SSmlLineInfo *elements) {
   SSmlTableInfo *tinfo = NULL;
   if (unlikely(oneTable == NULL)) {
     SML_CHECK_CODE(smlBuildTableInfo(1, elements->measure, elements->measureLen, &tinfo));
-    SML_CHECK_CODE(
-        taosHashPut(info->childTables, elements->measureTag, elements->measureTagsLen, &tinfo, POINTER_BYTES));
 
     tinfo->tags = taosArrayDup(info->preLineTagKV, NULL);
     SML_CHECK_NULL(tinfo->tags);
@@ -430,6 +445,9 @@ int32_t smlProcessChildTable(SSmlHandle *info, SSmlLineInfo *elements) {
       info->currSTableMeta->uid = tinfo->uid;
       SML_CHECK_CODE(smlInitTableDataCtx(info->pQuery, info->currSTableMeta, &tinfo->tableDataCtx));
     }
+    // Publish only fully initialized tables; the hash owns them after this succeeds.
+    SML_CHECK_CODE(
+        taosHashPut(info->childTables, elements->measureTag, elements->measureTagsLen, &tinfo, POINTER_BYTES));
   } else {
     tinfo = *oneTable;
   }
@@ -437,7 +455,7 @@ int32_t smlProcessChildTable(SSmlHandle *info, SSmlLineInfo *elements) {
   return TSDB_CODE_SUCCESS;
 
 END:
-  smlDestroyTableInfo(&tinfo);
+  if (tinfo != NULL) smlDestroyTableInfo(&tinfo);
   RETURN
 }
 
@@ -516,6 +534,11 @@ static int32_t smlParseTableName(SArray *tags, char *childTableName, char *tbnam
     for (int i = 0; i < taosArrayGetSize(tags); i++) {
       SSmlKv *tag = (SSmlKv *)taosArrayGet(tags, i);
       SML_CHECK_NULL(tag);
+      // SSmlKv.value aliases the numeric union members for non-var types; only
+      // string-like tags may be read as char*
+      if (!IS_VAR_DATA_TYPE(tag->type)) {
+        SML_CHECK_CODE(TSDB_CODE_SML_INVALID_DATA);
+      }
       (void)strncat(childTableName, tag->value, TMIN(tag->length, TSDB_TABLE_NAME_LEN - 1 - strlen(childTableName)));
       if (i != taosArrayGetSize(tags) - 1) {
         (void)strncat(childTableName, tsSmlAutoChildTableNameDelimiter,
@@ -537,6 +560,11 @@ static int32_t smlParseTableName(SArray *tags, char *childTableName, char *tbnam
       SML_CHECK_NULL(tag);
       // handle child table name
       if (childTableNameLen == tag->keyLen && strncmp(tag->key, tbnameKey, tag->keyLen) == 0) {
+        // same union restriction as the auto-name path: a numeric/bool tag must
+        // not be dereferenced as the name string
+        if (!IS_VAR_DATA_TYPE(tag->type)) {
+          SML_CHECK_CODE(TSDB_CODE_SML_INVALID_DATA);
+        }
         tstrncpy(childTableName, tag->value, TMIN(TSDB_TABLE_NAME_LEN, tag->length + 1));
         if (tsSmlDot2Underline) {
           smlStrReplace(childTableName, strlen(childTableName));
@@ -584,6 +612,10 @@ END:
 int32_t getTableUid(SSmlHandle *info, SSmlLineInfo *currElement, SSmlTableInfo *tinfo) {
   char   key[TSDB_TABLE_NAME_LEN * 2 + 1] = {0};
   size_t nLen = strlen(tinfo->childTableName);
+  // The hash key is length-delimited: it needs the separator, but no trailing NUL.
+  if (currElement->measureLen < 0 || (size_t)currElement->measureLen + 1 + nLen > sizeof(key)) {
+    return TSDB_CODE_TSC_INVALID_TABLE_ID_LENGTH;
+  }
   (void)memcpy(key, currElement->measure, currElement->measureLen);
   if (tsSmlDot2Underline) {
     smlStrReplace(key, currElement->measureLen);
@@ -713,7 +745,7 @@ int32_t smlGetMeta(SSmlHandle *info, const void *measure, int32_t measureLen, ST
   conn.requestObjRefId = info->pRequest->self;
   conn.mgmtEps = getEpSet_s(&info->taos->pAppInfo->mgmtEp);
   int32_t len = TMIN(measureLen, TSDB_TABLE_NAME_LEN - 1);
-  (void)memcpy(pName.tname, measure, measureLen);
+  (void)memcpy(pName.tname, measure, len);
   pName.tname[len] = 0;
 
   return catalogGetSTableMeta(info->pCatalog, &conn, &pName, pTableMeta);
@@ -1281,7 +1313,7 @@ static int32_t smlUpdateMeta(SHashObj *metaHash, SArray *metaArray, SArray *cols
         continue;
       }
       if (kv->type != value->type) {
-        smlBuildInvalidDataMsg(msg, "the type is not the same like before", kv->key);
+        smlBuildInvalidDataMsgLen(msg, "the type is not the same like before", kv->key, kv->keyLen);
         SML_CHECK_CODE(TSDB_CODE_SML_NOT_SAME_TYPE);
       }
 
@@ -1291,7 +1323,7 @@ static int32_t smlUpdateMeta(SHashObj *metaHash, SArray *metaArray, SArray *cols
     } else {
       size_t tmp = taosArrayGetSize(metaArray);
       if (tmp > INT16_MAX) {
-        smlBuildInvalidDataMsg(msg, "too many cols or tags", kv->key);
+        smlBuildInvalidDataMsgLen(msg, "too many cols or tags", kv->key, kv->keyLen);
         SML_CHECK_CODE(TSDB_CODE_SML_INVALID_DATA);
       }
       int16_t size = tmp;
@@ -1456,7 +1488,7 @@ static int32_t smlParseEnd(SSmlHandle *info) {
 
     if (tinfo == NULL) {
       uError("SML:0x%" PRIx64 ", get oneTable failed, line num:%d", info->id, i);
-      smlBuildInvalidDataMsg(&info->msgBuf, "get oneTable failed", elements->measure);
+      smlBuildInvalidDataMsgLen(&info->msgBuf, "get oneTable failed", elements->measure, elements->measureLen);
       return TSDB_CODE_SML_INVALID_DATA;
     }
 
@@ -1530,8 +1562,9 @@ static int32_t smlInsertData(SSmlHandle *info) {
       PROCESS_SLASH_IN_MEASUREMENT(measure, measureLen);
     }
     smlStrReplace(measure, measureLen);
-    (void)memcpy(pName.tname, measure, measureLen);
-    pName.tname[measureLen] = '\0';
+    int len = TMIN(measureLen, TSDB_TABLE_NAME_LEN - 1);
+    (void)memcpy(pName.tname, measure, len);
+    pName.tname[len] = '\0';
 
     if (info->pRequest->tableList == NULL) {
       info->pRequest->tableList = taosArrayInit(1, sizeof(SName));
@@ -1890,7 +1923,7 @@ TAOS_RES *taos_schemaless_insert_inner(TAOS *taos, char *lines[], char *rawLine,
       uInfo("SML:0x%" PRIx64
             " retry:%d/%d, ver is old retry or object is creating, sleep:%ums, code:%d, msg:%s",
             info->id, cnt, SML_RETRY_MAX_TIMES, sleepMs, code, tstrerror(code));
-      code = refreshMeta(request->pTscObj, request);
+      code = refreshMeta(request->pTscObj, request, code);
       if (code != 0) {
         uInfo("SML:0x%" PRIx64 " refresh meta error code:%d, msg:%s", info->id, code, tstrerror(code));
       }
@@ -1905,8 +1938,103 @@ TAOS_RES *taos_schemaless_insert_inner(TAOS *taos, char *lines[], char *rawLine,
   }
 
 END:
+  if (request == NULL && code != TSDB_CODE_SUCCESS) terrno = code;
   smlDestroyInfo(info);
   return (TAOS_RES *)request;
+}
+
+/*
+ * Shared body for the five line-based schemaless entry points.
+ *
+ * The public symbols call this directly rather than chaining through each other:
+ * chaining would record every variant under whichever type the innermost one
+ * hardcodes, and the depth guard would suppress the rest. Replay needs to reissue
+ * the symbol the application actually called (FS 4.1, DS 6.7.1), so the API type
+ * is a parameter.
+ */
+static uint64_t smlResolveWlrConnId(TAOS *taos) {
+  if (taos == NULL) return 0;
+  if (wlrRecorderState() != WLR_STATE_RUNNING) return 0;
+
+  int64_t  refId = *(int64_t *)taos;
+  STscObj *pObj = acquireTscObj(refId);
+  if (pObj == NULL) return 0;
+
+  uint64_t connId = pObj->wlrConnId;
+  releaseTscObj(refId);
+  return connId;
+}
+
+static void smlWlrReturn(SWorkloadCallToken *token, TAOS_RES *res, int32_t code, uint64_t connId) {
+  SWorkloadReturnArgs ret = {0};
+  ret.code = code;
+  ret.logicalConnId = connId;
+  if (res != NULL && TD_RES_QUERY(res)) {
+    SRequestObj *request = (SRequestObj *)res;
+    if (token->recorded) {
+      if (request->wlrResultId == 0) request->wlrResultId = wlrNextResultId();
+      ret.logicalResultId = request->wlrResultId;
+    }
+    ret.affectedRows = taos_affected_rows(res);
+  }
+  wlrApiReturn(token, &ret);
+}
+
+static TAOS_RES *smlInsertLines(TAOS *taos, char *lines[], int numLines, int protocol, int precision, int32_t ttl,
+                                int64_t reqid, char *tbnameKey, uint16_t wlrApiType) {
+  if (taos == NULL || lines == NULL || numLines < 0) {
+    terrno = TSDB_CODE_INVALID_PARA;
+    return NULL;
+  }
+  if (protocol == TSDB_SML_JSON_PROTOCOL && lines[0] == NULL) {
+    terrno = TSDB_CODE_INVALID_PARA;
+    return NULL;
+  }
+  for (int32_t i = 0; i < numLines; i++) {
+    if (lines[i] == NULL) {
+      terrno = TSDB_CODE_INVALID_PARA;
+      return NULL;
+    }
+  }
+  SWorkloadCallToken wlrTok = {0};
+  uint64_t wlrConnId = smlResolveWlrConnId(taos);
+  if (wlrConnId == 0) {
+    return taos_schemaless_insert_inner(taos, lines, NULL, NULL, numLines, protocol, precision, ttl, reqid,
+                                        tbnameKey);
+  }
+  /* Line-based variant: the payload is an array of strings with no contiguous
+   * source buffer, so it is encoded as count + per-entry lengths + bytes
+   * (wlrEncodeSmlLines, DS 6.10). Protocol/precision/ttl and row count are
+   * recorded alongside it; an over-large payload degrades to metadata-only.
+   *
+   * Calls with no resolvable connection are skipped above because the schema requires
+   * CONN_ID on the matching RETURN event. */
+  SWorkloadBeginArgs wlrArgs = {0};
+  wlrArgs.apiType = wlrApiType;
+  wlrArgs.logicalConnId = wlrConnId;
+  /* FS 4.5 lists reqid among the schemaless fields. It matters for replay because a
+   * caller-supplied reqid is how an application correlates its own logs with server
+   * traces; regenerating one would break that correspondence. */
+  wlrArgs.reqid = reqid;
+  wlrArgs.smlProtocol = protocol;
+  wlrArgs.smlPrecision = precision;
+  wlrArgs.smlTtl = ttl;
+  wlrArgs.smlTbnameKey = tbnameKey;
+  if (protocol == TSDB_SML_JSON_PROTOCOL) {
+    wlrArgs.smlLines = (const char *const *)lines;
+    wlrArgs.smlCount = 1;
+  } else {
+    wlrArgs.smlLines = (const char *const *)lines;
+    wlrArgs.smlCount = numLines;
+  }
+  (void)wlrApiBegin(&wlrArgs, &wlrTok);
+
+  TAOS_RES *res =
+      taos_schemaless_insert_inner(taos, lines, NULL, NULL, numLines, protocol, precision, ttl, reqid, tbnameKey);
+
+  int32_t wlrCode = res != NULL ? taos_errno(res) : terrno;
+  smlWlrReturn(&wlrTok, res, wlrCode, wlrConnId);
+  return res;
 }
 
 /**
@@ -1930,37 +2058,30 @@ END:
 
 TAOS_RES *taos_schemaless_insert_ttl_with_reqid_tbname_key(TAOS *taos, char *lines[], int numLines, int protocol,
                                                            int precision, int32_t ttl, int64_t reqid, char *tbnameKey) {
-  if (taos == NULL || lines == NULL || numLines < 0) {
-    terrno = TSDB_CODE_INVALID_PARA;
-    return NULL;
-  }
-  for (int i = 0; i < numLines; i++) {
-    if (lines[i] == NULL) {
-      terrno = TSDB_CODE_INVALID_PARA;
-      return NULL;
-    }
-  }
-  return taos_schemaless_insert_inner(taos, lines, NULL, NULL, numLines, protocol, precision, ttl, reqid, tbnameKey);
+  return smlInsertLines(taos, lines, numLines, protocol, precision, ttl, reqid, tbnameKey,
+                        WLR_API_SML_INSERT_TTL_WITH_REQID_TBNAME_KEY);
 }
 
 TAOS_RES *taos_schemaless_insert_ttl_with_reqid(TAOS *taos, char *lines[], int numLines, int protocol, int precision,
                                                 int32_t ttl, int64_t reqid) {
-  return taos_schemaless_insert_ttl_with_reqid_tbname_key(taos, lines, numLines, protocol, precision, ttl, reqid, NULL);
+  return smlInsertLines(taos, lines, numLines, protocol, precision, ttl, reqid, NULL,
+                        WLR_API_SML_INSERT_TTL_WITH_REQID);
 }
 
 TAOS_RES *taos_schemaless_insert(TAOS *taos, char *lines[], int numLines, int protocol, int precision) {
-  return taos_schemaless_insert_ttl_with_reqid(taos, lines, numLines, protocol, precision, TSDB_DEFAULT_TABLE_TTL, 0);
+  return smlInsertLines(taos, lines, numLines, protocol, precision, TSDB_DEFAULT_TABLE_TTL, 0, NULL,
+                        WLR_API_SML_INSERT);
 }
 
 TAOS_RES *taos_schemaless_insert_ttl(TAOS *taos, char *lines[], int numLines, int protocol, int precision,
                                      int32_t ttl) {
-  return taos_schemaless_insert_ttl_with_reqid(taos, lines, numLines, protocol, precision, ttl, 0);
+  return smlInsertLines(taos, lines, numLines, protocol, precision, ttl, 0, NULL, WLR_API_SML_INSERT_TTL);
 }
 
 TAOS_RES *taos_schemaless_insert_with_reqid(TAOS *taos, char *lines[], int numLines, int protocol, int precision,
                                             int64_t reqid) {
-  return taos_schemaless_insert_ttl_with_reqid(taos, lines, numLines, protocol, precision, TSDB_DEFAULT_TABLE_TTL,
-                                               reqid);
+  return smlInsertLines(taos, lines, numLines, protocol, precision, TSDB_DEFAULT_TABLE_TTL, reqid, NULL,
+                        WLR_API_SML_INSERT_WITH_REQID);
 }
 
 static int32_t getRawLineLen(char *lines, int len, int protocol) {
@@ -1977,9 +2098,10 @@ static int32_t getRawLineLen(char *lines, int len, int protocol) {
   return numLines;
 }
 
-TAOS_RES *taos_schemaless_insert_raw_ttl_with_reqid_tbname_key(TAOS *taos, char *lines, int len, int32_t *totalRows,
-                                                               int protocol, int precision, int32_t ttl, int64_t reqid,
-                                                               char *tbnameKey) {
+/* Shared body for the five raw schemaless entry points; see smlInsertLines for why
+ * the API type is a parameter rather than a constant. */
+static TAOS_RES *smlInsertRaw(TAOS *taos, char *lines, int len, int32_t *totalRows, int protocol, int precision,
+                              int32_t ttl, int64_t reqid, char *tbnameKey, uint16_t wlrApiType) {
   if (taos == NULL || lines == NULL || len < 0) {
     terrno = TSDB_CODE_INVALID_PARA;
     return NULL;
@@ -1988,28 +2110,60 @@ TAOS_RES *taos_schemaless_insert_raw_ttl_with_reqid_tbname_key(TAOS *taos, char 
   if (totalRows != NULL) {
     *totalRows = numLines;
   }
-  return taos_schemaless_insert_inner(taos, NULL, lines, lines + len, numLines, protocol, precision, ttl, reqid,
-                                      tbnameKey);
+  SWorkloadCallToken wlrTok = {0};
+  uint64_t wlrConnId = smlResolveWlrConnId(taos);
+  if (wlrConnId == 0) {
+    return taos_schemaless_insert_inner(taos, NULL, lines, lines + len, numLines, protocol, precision, ttl,
+                                        reqid, tbnameKey);
+  }
+  /* Raw variant: the payload IS contiguous, so it is recorded verbatim -- replay
+   * must resubmit the identical bytes, not a reconstruction (DS 6.10). */
+  SWorkloadBeginArgs wlrArgs = {0};
+  wlrArgs.apiType = wlrApiType;
+  wlrArgs.logicalConnId = wlrConnId;
+  wlrArgs.reqid = reqid;
+  wlrArgs.smlProtocol = protocol;
+  wlrArgs.smlPrecision = precision;
+  wlrArgs.smlTtl = ttl;
+  wlrArgs.smlTbnameKey = tbnameKey;
+  wlrArgs.smlRaw = lines;
+  wlrArgs.smlRawLen = len;
+  (void)wlrApiBegin(&wlrArgs, &wlrTok);
+
+  TAOS_RES *res = taos_schemaless_insert_inner(taos, NULL, lines, lines + len, numLines, protocol, precision,
+                                               ttl, reqid, tbnameKey);
+
+  int32_t wlrCode = res != NULL ? taos_errno(res) : terrno;
+  smlWlrReturn(&wlrTok, res, wlrCode, wlrConnId);
+  return res;
+}
+
+TAOS_RES *taos_schemaless_insert_raw_ttl_with_reqid_tbname_key(TAOS *taos, char *lines, int len, int32_t *totalRows,
+                                                               int protocol, int precision, int32_t ttl, int64_t reqid,
+                                                               char *tbnameKey) {
+  return smlInsertRaw(taos, lines, len, totalRows, protocol, precision, ttl, reqid, tbnameKey,
+                      WLR_API_SML_INSERT_RAW_TTL_WITH_REQID_TBNAME_KEY);
 }
 
 TAOS_RES *taos_schemaless_insert_raw_ttl_with_reqid(TAOS *taos, char *lines, int len, int32_t *totalRows, int protocol,
                                                     int precision, int32_t ttl, int64_t reqid) {
-  return taos_schemaless_insert_raw_ttl_with_reqid_tbname_key(taos, lines, len, totalRows, protocol, precision, ttl,
-                                                              reqid, NULL);
+  return smlInsertRaw(taos, lines, len, totalRows, protocol, precision, ttl, reqid, NULL,
+                      WLR_API_SML_INSERT_RAW_TTL_WITH_REQID);
 }
 
 TAOS_RES *taos_schemaless_insert_raw_with_reqid(TAOS *taos, char *lines, int len, int32_t *totalRows, int protocol,
                                                 int precision, int64_t reqid) {
-  return taos_schemaless_insert_raw_ttl_with_reqid(taos, lines, len, totalRows, protocol, precision,
-                                                   TSDB_DEFAULT_TABLE_TTL, reqid);
+  return smlInsertRaw(taos, lines, len, totalRows, protocol, precision, TSDB_DEFAULT_TABLE_TTL, reqid, NULL,
+                      WLR_API_SML_INSERT_RAW_WITH_REQID);
 }
+
 TAOS_RES *taos_schemaless_insert_raw_ttl(TAOS *taos, char *lines, int len, int32_t *totalRows, int protocol,
                                          int precision, int32_t ttl) {
-  return taos_schemaless_insert_raw_ttl_with_reqid(taos, lines, len, totalRows, protocol, precision, ttl, 0);
+  return smlInsertRaw(taos, lines, len, totalRows, protocol, precision, ttl, 0, NULL, WLR_API_SML_INSERT_RAW_TTL);
 }
 
 TAOS_RES *taos_schemaless_insert_raw(TAOS *taos, char *lines, int len, int32_t *totalRows, int protocol,
                                      int precision) {
-  return taos_schemaless_insert_raw_ttl_with_reqid(taos, lines, len, totalRows, protocol, precision,
-                                                   TSDB_DEFAULT_TABLE_TTL, 0);
+  return smlInsertRaw(taos, lines, len, totalRows, protocol, precision, TSDB_DEFAULT_TABLE_TTL, 0, NULL,
+                      WLR_API_SML_INSERT_RAW);
 }

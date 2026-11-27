@@ -1,6 +1,8 @@
 /*
  * Copyright (c) 2019 TAOS Data, Inc. <jhtao@taosdata.com>
  *
+ * SPDX-License-Identifier: AGPL-3.0-or-later
+ *
  * This program is free software: you can use, redistribute, and/or modify
  * it under the terms of the GNU Affero General Public License, version 3
  * or later ("AGPL"), as published by the Free Software Foundation.
@@ -124,6 +126,10 @@ int32_t tStartDecode(SDecoder* pCoder) {
 
   TAOS_CHECK_RETURN(tDecodeI32(pCoder, &len));
 
+  if (len < 0 || pCoder->pos > pCoder->size || (uint32_t)len > pCoder->size - pCoder->pos) {
+    TAOS_RETURN(TSDB_CODE_OUT_OF_RANGE);
+  }
+
   pNode = tDecoderMalloc(pCoder, sizeof(*pNode));
   if (pNode == NULL) {
     TAOS_RETURN(terrno);
@@ -145,6 +151,10 @@ int32_t tStartDecode(SDecoder* pCoder) {
 
 void tEndDecode(SDecoder* pCoder) {
   SDecoderNode* pNode;
+
+  if (pCoder->dStack == NULL) {
+    return;
+  }
 
   pNode = pCoder->dStack;
   pCoder->dStack = pNode->pNext;

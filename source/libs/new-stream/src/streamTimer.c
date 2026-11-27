@@ -1,6 +1,8 @@
 /*
  * Copyright (c) 2019 TAOS Data, Inc. <jhtao@taosdata.com>
  *
+ * SPDX-License-Identifier: AGPL-3.0-or-later
+ *
  * This program is free software: you can use, redistribute, and/or modify
  * it under the terms of the GNU Affero General Public License, version 3
  * or later ("AGPL"), as published by the Free Software Foundation.
@@ -21,11 +23,11 @@ int32_t streamTimerInit(void** ppTimer) {
   *ppTimer = taosTmrInit(1000, 100, 10000, "STREAM");
   if (*ppTimer == NULL) {
     stError("init stream timer failed, code:%s", tstrerror(terrno));
-    return -1;
+    return terrno != TSDB_CODE_SUCCESS ? terrno : TSDB_CODE_FAILED;
   }
 
-  stInfo("init stream timer, %p", &ppTimer);
-  return 0;
+  stInfo("init stream timer, %p", *ppTimer);
+  return TSDB_CODE_SUCCESS;
 }
 
 int32_t streamTimerGetInstance(tmr_h* pTmr) {
@@ -46,14 +48,18 @@ void streamTmrStart(TAOS_TMR_CALLBACK fp, int32_t mseconds, void* pParam, void* 
   }
 
   if (*pTmrId == NULL) {
+    terrno = TSDB_CODE_SUCCESS;
     *pTmrId = taosTmrStart(fp, mseconds, pParam, pHandle);
     if (*pTmrId == NULL) {
       stError("start %s tmr failed, code:%s", pMsg, tstrerror(terrno));
       return;
     }
   } else {
-    bool ret = taosTmrReset(fp, mseconds, pParam, pHandle, pTmrId);
-    if (ret) {
+    // The return value reports whether the previous timer was stopped, not
+    // whether the new timer was started.
+    terrno = TSDB_CODE_SUCCESS;
+    TAOS_UNUSED(taosTmrReset(fp, mseconds, pParam, pHandle, pTmrId));
+    if (*pTmrId == NULL) {
       stError("start %s tmr failed, code:%s", pMsg, tstrerror(terrno));
       return;
     }
@@ -118,4 +124,3 @@ void streamTimerCleanUp() {
   taosTmrCleanUp(gStreamMgmt.timer);
   gStreamMgmt.timer = NULL;
 }
-

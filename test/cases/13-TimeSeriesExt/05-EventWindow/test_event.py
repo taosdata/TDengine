@@ -1,3 +1,18 @@
+# Copyright (c) 2025 TAOS Data, Inc. <jhtao@taosdata.com>
+#
+# SPDX-License-Identifier: AGPL-3.0-or-later
+#
+# This program is free software: you can use, redistribute, and/or modify
+# it under the terms of the GNU Affero General Public License, version 3
+# or later ("AGPL"), as published by the Free Software Foundation.
+#
+# This program is distributed in the hope that it will be useful, but WITHOUT
+# ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+# FITNESS FOR A PARTICULAR PURPOSE.
+#
+# You should have received a copy of the GNU Affero General Public License
+# along with this program. If not, see <http://www.gnu.org/licenses/>.
+
 from new_test_framework.utils import tdLog, tdSql, sc, clusterComCheck
 
 
@@ -17,8 +32,7 @@ class TestEvent:
 
         Since: v3.0.0.0
 
-        Labels: common,ci
-
+        Labels: common,ci,integration,functional
         Jira: None
 
         History:
@@ -103,32 +117,38 @@ class TestEvent:
         tdSql.checkData(0, 0, 2)
         tdSql.checkData(1, 0, 4)
 
-        # super table: no window
-        # duplicate timestamp
-        tdSql.error(
+        # super table: no window; duplicate timestamps across child tables are allowed.
+        tdSql.query(
             f"select count(*) from sta event_window start with f1 = 0 end with f2 = 'c';"
         )
+        tdSql.checkRows(0)
 
         # super table: single row window
         tdLog.info(
             f"====> select count(*) from sta event_window start with f1 = 0 end with f3 = false;"
         )
-        tdSql.error(
+        tdSql.query(
             f"select count(*) from sta event_window start with f1 = 0 end with f3 = false;"
         )
+        if tdSql.queryRows <= 0:
+            tdLog.exit("super table event_window expected non-empty result")
 
         # super table: multi rows window
-        tdSql.error(
+        tdSql.query(
             f"select count(*) from sta event_window start with f1 = 0 end with f2 = 'b';"
         )
+        if tdSql.queryRows <= 0:
+            tdLog.exit("super table event_window expected non-empty result")
 
         # super table: multi windows
         tdLog.info(
             f"====> select count(*) from sta event_window start with f1 >= 0 end with f3 = true;"
         )
-        tdSql.error(
+        tdSql.query(
             f"select count(*) from sta event_window start with f1 >= 0 end with f3 = true;"
         )
+        if tdSql.queryRows <= 0:
+            tdLog.exit("super table event_window expected non-empty result")
         # multi-child table: no window
         tdSql.query(
             f"select tbname, count(*) from sta partition by tbname event_window start with f1 = 0 end with f2 = 'c';"
@@ -230,9 +250,10 @@ class TestEvent:
         tdSql.checkData(0, 1, 2)
         tdSql.checkData(1, 1, 2)
 
-        tdSql.error(
+        tdSql.query(
             f"select f1, f2 from sta event_window start with f1 >0 end with f2 > 0;"
         )
+        tdSql.checkRows(7)
         tdSql.error(
             f"select count(*) from sta event_window start with f1 >0 end with f2 > 0 partition by tbname;"
         )
@@ -299,5 +320,3 @@ class TestEvent:
         tdSql.checkRows(4)
         tdSql.checkData(0, 0, 3)
                 
-
-

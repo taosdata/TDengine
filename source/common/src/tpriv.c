@@ -1,6 +1,8 @@
 /*
  * Copyright (c) 2019 TAOS Data, Inc. <jhtao@taosdata.com>
  *
+ * SPDX-License-Identifier: AGPL-3.0-or-later
+ *
  * This program is free software: you can use, redistribute, and/or modify
  * it under the terms of the GNU Affero General Public License, version 3
  * or later ("AGPL"), as published by the Free Software Foundation.
@@ -25,6 +27,8 @@ typedef struct {
   const char* name;
   int32_t     level;
 } SPrivObjInfo;
+
+const char* const __builtinRoles[TSDB_BUILTIN_ROLE_NUM] = {TSDB_BUILTIN_ROLE_LIST(TSDB_BUILTIN_ROLE_NAME)};
 
 static const SPrivObjInfo __privObjInfo[] = {
     {"CLUSTER", 0}, {"NODE", 0},  {"DATABASE", 0}, {"TABLE", 1}, {"FUNCTION", 0}, {"INDEX", 1},
@@ -238,6 +242,10 @@ static SPrivInfo privInfoTable[] = {
     {PRIV_CM_SHOW, PRIV_CATEGORY_OBJECT, PRIV_OBJ_VIEW, 1, SYS_ADMIN_INFO_ROLES, 1, "", "SHOW VIEWS"},
     {PRIV_CM_SHOW_CREATE, PRIV_CATEGORY_OBJECT, PRIV_OBJ_VIEW, 1, SYS_ADMIN_INFO_ROLES, 1, "", "SHOW CREATE VIEW"},
     {PRIV_VIEW_SELECT, PRIV_CATEGORY_OBJECT, PRIV_OBJ_VIEW, 1, 0, 1, "", "SELECT VIEW"},
+
+    // Backup Privileges
+    {PRIV_BACKUP_CREATE, PRIV_CATEGORY_SYSTEM, 0, 0, T_ROLE_SYSDBA, 0, "", "CREATE BACKUP"},
+    {PRIV_SHOW_BACKUPS, PRIV_CATEGORY_SYSTEM, 0, 0, SYS_ADMIN_INFO1_ROLES, 0, "", "SHOW BACKUPS"},
 
     // Topic Privileges
     {PRIV_TOPIC_CREATE, PRIV_CATEGORY_OBJECT, PRIV_OBJ_DB, 0, T_ROLE_SYSDBA, 2, "", "CREATE TOPIC"},
@@ -536,14 +544,14 @@ int32_t privObjKeyParse(const char* str, EPrivObjType* pObjType, char* db, int32
 }
 
 const char* privObjGetName(EPrivObjType objType) {
-  if (objType < PRIV_OBJ_CLUSTER || objType >= PRIV_OBJ_MAX) {
+  if (objType < PRIV_OBJ_CLUSTER || objType >= (int32_t)tListLen(__privObjInfo)) {
     return "UNKNOWN";
   }
   return __privObjInfo[objType].name;
 }
 
 int32_t privObjGetLevel(EPrivObjType objType) {
-  if (objType < PRIV_OBJ_CLUSTER || objType >= PRIV_OBJ_MAX) {
+  if (objType < PRIV_OBJ_CLUSTER || objType >= (int32_t)tListLen(__privObjInfo)) {
     return -1;
   }
   return __privObjInfo[objType].level;
@@ -676,7 +684,7 @@ bool privHasObjPrivilege(SHashObj* privs, int32_t acctId, const char* objName, c
                          const SPrivInfo* privInfo, bool recursive) {
   if (tbName != NULL) {
     if (privInfo->objLevel == 0 || privInfo->objType <= PRIV_OBJ_DB) {
-      uError("invalid privilege info for table level check, privType:%d, objType:%d, objLevel:%d\n", privInfo->privType,
+      uTrace("invalid privilege info for table level check, privType:%d, objType:%d, objLevel:%d\n", privInfo->privType,
              privInfo->objType, privInfo->objLevel);
     }
   }

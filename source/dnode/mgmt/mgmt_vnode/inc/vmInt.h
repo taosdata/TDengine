@@ -1,6 +1,8 @@
 /*
  * Copyright (c) 2019 TAOS Data, Inc. <jhtao@taosdata.com>
  *
+ * SPDX-License-Identifier: AGPL-3.0-or-later
+ *
  * This program is free software: you can use, redistribute, and/or modify
  * it under the terms of the GNU Affero General Public License, version 3
  * or later ("AGPL"), as published by the Free Software Foundation.
@@ -33,6 +35,7 @@ typedef struct SVnodeMgmt {
   SQueryAutoQWorkerPool queryPool;
   SQueryAutoQWorkerPool streamReaderPool;
   SWWorkerPool          fetchPool;
+  SWWorkerPool          backupPool;
   SSingleWorker         mgmtWorker;
   SSingleWorker         mgmtMultiWorker;
   SHashObj             *runngingHash;
@@ -89,6 +92,7 @@ typedef struct {
   SMultiWorker pApplyW;
   STaosQueue  *pQueryQ;
   STaosQueue  *pFetchQ;
+  STaosQueue  *pBackupQ;
   STaosQueue  *pStreamReaderQ;
 } SVnodeObj;
 
@@ -121,6 +125,8 @@ bool       vmReleaseMountTfs(SVnodeMgmt *pMgmt, int64_t mountId, int32_t minRef)
 
 // vmHandle.c
 SArray *vmGetMsgHandles();
+bool    vmIsReplicaCfgValid(int32_t vgId, int32_t replica, int32_t selfIndex, int32_t learnerReplica,
+                            int32_t learnerSelfIndex);
 int32_t vmProcessCreateVnodeReq(SVnodeMgmt *pMgmt, SRpcMsg *pMsg);
 int32_t vmProcessDropVnodeReq(SVnodeMgmt *pMgmt, SRpcMsg *pMsg);
 int32_t vmProcessAlterVnodeReplicaReq(SVnodeMgmt *pMgmt, SRpcMsg *pMsg);
@@ -133,6 +139,8 @@ int32_t vmProcessArbHeartBeatReq(SVnodeMgmt *pMgmt, SRpcMsg *pMsg);
 int32_t vmProcessRetrieveMountPathReq(SVnodeMgmt *pMgmt, SRpcMsg *pMsg);
 int32_t vmProcessMountVnodeReq(SVnodeMgmt *pMgmt, SRpcMsg *pMsg);
 int32_t vmProcessAlterVnodeElectBaselineReq(SVnodeMgmt *pMgmt, SRpcMsg *pMsg);
+int32_t vmProcessCloseVnodeReq(SVnodeMgmt *pMgmt, SRpcMsg *pMsg);
+int32_t vmProcessOpenVnodeReq(SVnodeMgmt *pMgmt, SRpcMsg *pMsg);
 
 // vmFile.c
 int32_t vmGetVnodeListFromFile(SVnodeMgmt *pMgmt, SWrapperCfg **ppCfgs, int32_t *numOfVnodes);
@@ -159,6 +167,7 @@ int32_t vmPutMsgToSyncQueue(SVnodeMgmt *pMgmt, SRpcMsg *pMsg);
 int32_t vmPutMsgToSyncRdQueue(SVnodeMgmt *pMgmt, SRpcMsg *pMsg);
 int32_t vmPutMsgToQueryQueue(SVnodeMgmt *pMgmt, SRpcMsg *pMsg);
 int32_t vmPutMsgToFetchQueue(SVnodeMgmt *pMgmt, SRpcMsg *pMsg);
+int32_t vmPutMsgToBackupQueue(SVnodeMgmt *pMgmt, SRpcMsg *pMsg);
 int32_t vmPutMsgToStreamReaderQueue(SVnodeMgmt *pMgmt, SRpcMsg *pMsg);
 int32_t vmPutMsgToStreamCtrlQueue(SVnodeMgmt *pMgmt, SRpcMsg *pMsg);
 int32_t vmPutMsgToStreamLongExecQueue(SVnodeMgmt *pMgmt, SRpcMsg *pMsg);
@@ -167,6 +176,8 @@ int32_t vmPutMsgToStreamChkQueue(SVnodeMgmt *pMgmt, SRpcMsg *pMsg);
 int32_t vmPutMsgToMergeQueue(SVnodeMgmt *pMgmt, SRpcMsg *pMsg);
 int32_t vmPutMsgToMgmtQueue(SVnodeMgmt *pMgmt, SRpcMsg *pMsg);
 int32_t vmPutMsgToMultiMgmtQueue(SVnodeMgmt *pMgmt, SRpcMsg *pMsg);
+
+int32_t vmProcessDnodeQueryCompactProgressReq(SVnodeMgmt *pMgmt, SRpcMsg *pMsg);
 
 #ifdef __cplusplus
 }

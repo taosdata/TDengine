@@ -90,6 +90,9 @@ TDengine 提供了一个功能强大的安装脚本 `install.sh`，用于在 Lin
 
 # 安装服务器并禁用 FQDN 交互
 ./install.sh -e no
+
+# 构建镜像：非交互安装，保留地址默认配置，跳过服务注册、启停和进程清理
+./install.sh --image-build
 ```
 
 #### 3.3.2 客户端模式安装 (暂不支持)

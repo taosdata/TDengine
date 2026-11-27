@@ -1,6 +1,8 @@
 /*
  * Copyright (c) 2019 TAOS Data, Inc. <jhtao@taosdata.com>
  *
+ * SPDX-License-Identifier: AGPL-3.0-or-later
+ *
  * This program is free software: you can use, redistribute, and/or modify
  * it under the terms of the GNU Affero General Public License, version 3
  * or later ("AGPL"), as published by the Free Software Foundation.
@@ -189,11 +191,35 @@ static void destroySGcBlkCacheInfo(SGcBlkCacheInfo* pBlkCache) {
   taosHashCleanup(pBlkCache->pReadBlk);
 }
 
+// Forward declarations needed by destroyGroupCacheOperator and groupCacheTwoPassGetNext.
+static int32_t releaseBaseBlockToList(SGcDownstreamCtx* pCtx, SSDataBlock* pBlock);
+static int32_t acquireBaseBlockFromList(SGcDownstreamCtx* pCtx, SSDataBlock** ppRes);
+static int32_t buildGroupCacheResultBlock(SGroupCacheOperatorInfo* pGCache, int32_t downstreamIdx, void* pBuf, SSDataBlock** ppRes);
+static int32_t buildGroupCacheBaseBlock(SSDataBlock** ppDst, SSDataBlock* pSrc);
+
 static void destroyGroupCacheOperator(void* param) {
   SGroupCacheOperatorInfo* pGrpCacheOperator = (SGroupCacheOperatorInfo*)param;
 
   logGroupCacheExecInfo(pGrpCacheOperator);
   
+  // twoPassMode: release in-flight MAIN_SCAN block before downstream ctx is destroyed
+  if (pGrpCacheOperator->twoPassMode && pGrpCacheOperator->pTwoPassCurBlock != NULL &&
+      pGrpCacheOperator->pDownstreams != NULL) {
+    (void)releaseBaseBlockToList(&pGrpCacheOperator->pDownstreams[0], pGrpCacheOperator->pTwoPassCurBlock);
+    pGrpCacheOperator->pTwoPassCurBlock = NULL;
+  }
+  // twoPassMode: free cached block buffers
+  if (pGrpCacheOperator->pTwoPassBlocks != NULL) {
+    int32_t n = (int32_t)taosArrayGetSize(pGrpCacheOperator->pTwoPassBlocks);
+    for (int32_t i = 0; i < n; ++i) {
+      // SGcTwoPassBlkBuf is defined below; pBuf is the first field
+      void** ppBuf = (void**)taosArrayGet(pGrpCacheOperator->pTwoPassBlocks, i);
+      if (ppBuf && *ppBuf) taosMemoryFree(*ppBuf);
+    }
+    taosArrayDestroy(pGrpCacheOperator->pTwoPassBlocks);
+    pGrpCacheOperator->pTwoPassBlocks = NULL;
+  }
+
   taosMemoryFree(pGrpCacheOperator->groupColsInfo.pColsInfo);
   taosMemoryFree(pGrpCacheOperator->groupColsInfo.pBuf);
 
@@ -206,9 +232,8 @@ static void destroyGroupCacheOperator(void* param) {
   taosMemoryFreeClear(param);
 }
 
-static FORCE_INLINE int32_t initOpenCacheFile(SGroupCacheFileFd* pFileFd, char* filename) {
-  TdFilePtr newFd = taosOpenFile(filename, TD_FILE_CREATE|TD_FILE_READ|TD_FILE_WRITE|TD_FILE_AUTO_DEL);
-  //TdFilePtr newFd = taosOpenFile(filename, TD_FILE_CREATE|TD_FILE_READ|TD_FILE_WRITE);
+static FORCE_INLINE int32_t initOpenCacheFile(SGroupCacheFileFd* pFileFd) {
+  TdFilePtr newFd = taosOpenTempFile(tsTempDir, "group-cache");
   if (NULL == newFd) {
     QRY_ERR_RET(terrno);
   }
@@ -219,12 +244,13 @@ static FORCE_INLINE int32_t initOpenCacheFile(SGroupCacheFileFd* pFileFd, char* 
     QRY_ERR_RET(code);
   }
 
-  qTrace("file path %s created", filename);
-  
   return TSDB_CODE_SUCCESS;
 }
 
-static int32_t acquireFdFromFileCtx(SGcFileCacheCtx* pFileCtx, int32_t fileId, SGroupCacheFileFd** ppFd, bool* pDeleted) {
+static int32_t acquireFdFromFileCtx(SGcFileCacheCtx* pFileCtx, int32_t fileId,
+                                    SGroupCacheFileFd** ppFd, bool* pDeleted,
+                                    const char* taskId, int32_t downstreamIdx,
+                                    int32_t vgId) {
   int32_t code = TSDB_CODE_SUCCESS;
   if (NULL == pFileCtx->pCacheFile) {
     pFileCtx->pCacheFile = taosHashInit(10, taosGetDefaultHashFunction(TSDB_DATA_TYPE_INT), false, HASH_ENTRY_LOCK);
@@ -236,8 +262,6 @@ static int32_t acquireFdFromFileCtx(SGcFileCacheCtx* pFileCtx, int32_t fileId, S
   
   SGroupCacheFileInfo* pTmp = taosHashGet(pFileCtx->pCacheFile, &fileId, sizeof(fileId));
   if (NULL == pTmp) {
-    (void)snprintf(&pFileCtx->baseFilename[pFileCtx->baseNameLen], sizeof(pFileCtx->baseFilename) - pFileCtx->baseNameLen, "_%d", fileId);
-
     SGroupCacheFileInfo newFile = {0};
     if (taosHashPut(pFileCtx->pCacheFile, &fileId, sizeof(fileId), &newFile, sizeof(newFile))) {
       QRY_ERR_RET(terrno);
@@ -255,10 +279,12 @@ static int32_t acquireFdFromFileCtx(SGcFileCacheCtx* pFileCtx, int32_t fileId, S
   }
 
   if (NULL == pTmp->fd.fd) {
-    code = initOpenCacheFile(&pTmp->fd, pFileCtx->baseFilename);
+    code = initOpenCacheFile(&pTmp->fd);
     if (code) {
       return code;
     }
+    qTrace("%s cache file created, downstreamIdx:%d, vgId:%d, fileId:%d",
+           taskId, downstreamIdx, vgId, fileId);
   }
 
   (void)taosThreadMutexLock(&pTmp->fd.mutex);
@@ -274,7 +300,9 @@ static FORCE_INLINE void releaseFdToFileCtx(SGroupCacheFileFd* pFd) {
   (void)taosThreadMutexUnlock(&pFd->mutex);
 }
 
-static int32_t saveBlocksToDisk(SGroupCacheOperatorInfo* pGCache, SGcDownstreamCtx* pCtx, SGcBlkBufInfo* pHead) {
+static int32_t saveBlocksToDisk(SGroupCacheOperatorInfo* pGCache,
+                                SGcDownstreamCtx* pCtx, SGcBlkBufInfo* pHead,
+                                const char* taskId) {
   int32_t code = TSDB_CODE_SUCCESS;
   SGroupCacheFileFd *pFd = NULL;
   SGcFileCacheCtx* pFileCtx = NULL;
@@ -313,7 +341,9 @@ static int32_t saveBlocksToDisk(SGroupCacheOperatorInfo* pGCache, SGcDownstreamC
     }
 
     bool deleted = false;
-    code = acquireFdFromFileCtx(pFileCtx, pHead->basic.fileId, &pFd, &deleted);
+    int32_t vgId = pGroup ? pGroup->vgId : GROUP_CACHE_DEFAULT_VGID;
+    code = acquireFdFromFileCtx(pFileCtx, pHead->basic.fileId, &pFd, &deleted,
+                                taskId, pHead->pCtx->id, vgId);
     if (code) {
       goto _return;
     }
@@ -382,14 +412,19 @@ void freeGcBlkBufInfo(void* ptr) {
 }
 
 
-static int32_t addBlkToDirtyBufList(SGroupCacheOperatorInfo* pGCache, SGcDownstreamCtx* pCtx, SGcBlkCacheInfo* pCache, SGcBlkBufInfo* pBufInfo) {
+static int32_t addBlkToDirtyBufList(SGroupCacheOperatorInfo* pGCache,
+                                    SGcDownstreamCtx* pCtx,
+                                    SGcBlkCacheInfo* pCache,
+                                    SGcBlkBufInfo* pBufInfo,
+                                    const char* taskId) {
   if (0 != taosHashPut(pCache->pDirtyBlk, &pBufInfo->basic.blkId, sizeof(pBufInfo->basic.blkId), pBufInfo, sizeof(*pBufInfo))) {
     freeGcBlkBufInfo(pBufInfo);
     return terrno;
   }
-  pBufInfo = taosHashGet(pCache->pDirtyBlk, &pBufInfo->basic.blkId, sizeof(pBufInfo->basic.blkId));
+  int64_t blkId = pBufInfo->basic.blkId;
+  pBufInfo = taosHashGet(pCache->pDirtyBlk, &blkId, sizeof(blkId));
   if (NULL == pBufInfo) {
-    qError("fail to get blk %" PRId64 " from pCache->pDirtyBlk", pBufInfo->basic.blkId);
+    qError("fail to get blk %" PRId64 " from pCache->pDirtyBlk", blkId);
     QRY_ERR_RET(TSDB_CODE_QRY_EXECUTOR_INTERNAL_ERROR);
   }
   int32_t code = TSDB_CODE_SUCCESS;
@@ -424,7 +459,7 @@ static int32_t addBlkToDirtyBufList(SGroupCacheOperatorInfo* pGCache, SGcDownstr
   taosWUnLockLatch(&pCache->dirtyLock);
 
   if (NULL != pWriteHead) {
-    code = saveBlocksToDisk(pGCache, pCtx, pWriteHead);
+    code = saveBlocksToDisk(pGCache, pCtx, pWriteHead, taskId);
   }
 
   return code;
@@ -438,13 +473,6 @@ static FORCE_INLINE void chkRemoveVgroupCurrFile(SGcFileCacheCtx* pFileCtx, int3
   
   if (0 == pFileInfo->groupNum) {
     removeGroupCacheFile(pFileInfo);
-
-#if 0  
-    /* debug only */
-    snprintf(&pFileCtx->baseFilename[pFileCtx->baseNameLen], sizeof(pFileCtx->baseFilename) - pFileCtx->baseNameLen, "_%d", pFileCtx->fileId);
-    taosRemoveFile(pFileCtx->baseFilename);
-    /* debug only */
-#endif
 
     qTrace("FileId:%d-%d-%d removed", downstreamIdx, vgId, pFileCtx->fileId);
     //taosHashRemove(pFileCtx->pCacheFile, &pGroup->fileId, sizeof(pGroup->fileId));
@@ -467,7 +495,8 @@ static FORCE_INLINE void groupCacheSwitchNewFile(SGcFileCacheCtx* pFileCtx, int3
 
 static int32_t addBlkToBufCache(struct SOperatorInfo* pOperator, SSDataBlock* pBlock, SGcDownstreamCtx* pCtx, SGroupCacheData* pGroup, SGcBlkBufInfo* pBufInfo) {
   SGroupCacheOperatorInfo* pGCache = pOperator->info;
-  int64_t bufSize = blockDataGetSize(pBlock) + sizeof(int32_t) + taosArrayGetSize(pBlock->pDataBlock) * sizeof(int32_t);
+  int64_t bufSize = blockDataGetSize(pBlock) + sizeof(int32_t) +
+                    taosArrayGetSize(pBlock->pDataBlock) * (sizeof(int32_t) + 2 * sizeof(uint8_t));
   pBufInfo->pBuf = taosMemoryMalloc(bufSize);
   if (NULL == pBufInfo->pBuf) {
     qError("group cache add block to cache failed, size:%" PRId64, bufSize);
@@ -489,7 +518,9 @@ static int32_t addBlkToBufCache(struct SOperatorInfo* pOperator, SSDataBlock* pB
     groupCacheSwitchNewFile(pFileCtx, pCtx->id, pGroup->vgId, false);
   }
 
-  int32_t code = addBlkToDirtyBufList(pGCache, pCtx, &pGCache->blkCache, pBufInfo);
+  int32_t code = addBlkToDirtyBufList(pGCache, pCtx, &pGCache->blkCache,
+                                      pBufInfo,
+                                      GET_TASKID(pOperator->pTaskInfo));
 
   return code;
 }
@@ -521,12 +552,15 @@ static int32_t buildGroupCacheBaseBlock(SSDataBlock** ppDst, SSDataBlock* pSrc) 
     return terrno;
   }
   (*ppDst)->pBlockAgg = NULL;
+  (*ppDst)->pBlockAggBuf = NULL;
+  (*ppDst)->pBlockAggBufSize = 0;
   (*ppDst)->pDataBlock = taosArrayDup(pSrc->pDataBlock, NULL);
   if (NULL == (*ppDst)->pDataBlock) {
     taosMemoryFree(*ppDst);
     return terrno;
   }
   TAOS_MEMCPY(&(*ppDst)->info, &pSrc->info, sizeof(pSrc->info));
+  (*ppDst)->info.pBlockAgg = NULL;
   blockDataDeepClear(*ppDst);
   
   return TSDB_CODE_SUCCESS;
@@ -567,11 +601,15 @@ static int32_t buildGroupCacheResultBlock(SGroupCacheOperatorInfo* pGCache, int3
   return blockDataFromBuf(*ppRes, pBuf);
 }
 
-static int32_t readBlockFromDisk(SGroupCacheOperatorInfo* pGCache, SGroupCacheData* pGrp, SGcBlkBufBasic* pBasic, void** ppBuf) {
+static int32_t readBlockFromDisk(SGroupCacheOperatorInfo* pGCache,
+                                 SGroupCacheData* pGrp, SGcBlkBufBasic* pBasic,
+                                 void** ppBuf, const char* taskId) {
   SGroupCacheFileFd *pFileFd = NULL;
   SGcFileCacheCtx* pFileCtx = pGCache->batchFetch ? &pGCache->pDownstreams[pGrp->downstreamIdx].fileCtx : &pGrp->pVgCtx->fileCtx;
   bool deleted = false;
-  int32_t code = acquireFdFromFileCtx(pFileCtx, pBasic->fileId, &pFileFd, &deleted);
+  int32_t code = acquireFdFromFileCtx(pFileCtx, pBasic->fileId, &pFileFd,
+                                      &deleted, taskId, pGrp->downstreamIdx,
+                                      pGrp->vgId);
   if (code) {
     return code;
   }
@@ -608,14 +646,18 @@ _return:
   return code;
 }
 
-static int32_t retrieveBlkFromBufCache(SGroupCacheOperatorInfo* pGCache, SGroupCacheData* pGrp, int64_t sessionId, SGcBlkBufBasic* pBasic, SSDataBlock** ppRes) {
+static int32_t retrieveBlkFromBufCache(SGroupCacheOperatorInfo* pGCache,
+                                       SGroupCacheData* pGrp, int64_t sessionId,
+                                       SGcBlkBufBasic* pBasic,
+                                       SSDataBlock** ppRes,
+                                       const char* taskId) {
   int32_t code = TSDB_CODE_SUCCESS;
   SGcBlkCacheInfo* pCache = &pGCache->blkCache;
   void* pBuf = NULL;
 
   SGcBlkBufInfo* pBufInfo = taosHashAcquire(pCache->pDirtyBlk, &pBasic->blkId, sizeof(pBasic->blkId));
   if (NULL == pBufInfo) {
-    code = readBlockFromDisk(pGCache, pGrp, pBasic, &pBuf);
+    code = readBlockFromDisk(pGCache, pGrp, pBasic, &pBuf, taskId);
     if (code) {
       return code;
     }
@@ -638,17 +680,13 @@ static int32_t retrieveBlkFromBufCache(SGroupCacheOperatorInfo* pGCache, SGroupC
   return TSDB_CODE_SUCCESS;
 }
 
-static FORCE_INLINE void initGcVgroupCtx(SOperatorInfo* pOperator, SGcVgroupCtx* pVgCtx, int32_t downstreamId, int32_t vgId, SArray* pTbList) {
+static FORCE_INLINE void initGcVgroupCtx(SGcVgroupCtx* pVgCtx, int32_t vgId,
+                                         SArray* pTbList) {
   pVgCtx->pTbList = pTbList;
   pVgCtx->id = vgId;
-  (void)snprintf(pVgCtx->fileCtx.baseFilename, sizeof(pVgCtx->fileCtx.baseFilename) - 1, "%s/gc_%d_%" PRIx64 "_%" PRIu64 "_%p_%d_%d", 
-     tsTempDir, taosGetPId(), pOperator->pTaskInfo->id.queryId, pOperator->pTaskInfo->id.taskId, pOperator, downstreamId, vgId);
-  pVgCtx->fileCtx.baseFilename[sizeof(pVgCtx->fileCtx.baseFilename) - 1] = 0;
-
-  pVgCtx->fileCtx.baseNameLen = strlen(pVgCtx->fileCtx.baseFilename);
 }
 
-static int32_t addNewGroupToVgHash(SOperatorInfo* pOperator, SSHashObj* pHash, SGcNewGroupInfo* pNew) {
+static int32_t addNewGroupToVgHash(SSHashObj* pHash, SGcNewGroupInfo* pNew) {
   SGcVgroupCtx* pVgCtx = pNew->pGroup->pVgCtx;
   if (NULL == pVgCtx) {
     SArray* pList = taosArrayInit(10, sizeof(*pNew));
@@ -660,7 +698,7 @@ static int32_t addNewGroupToVgHash(SOperatorInfo* pOperator, SSHashObj* pHash, S
     }
     
     SGcVgroupCtx vgCtx = {0};
-    initGcVgroupCtx(pOperator, &vgCtx, pNew->pGroup->downstreamIdx, pNew->vgId, pList);
+    initGcVgroupCtx(&vgCtx, pNew->vgId, pList);
     QRY_ERR_RET(tSimpleHashPut(pHash, &pNew->vgId, sizeof(pNew->vgId), &vgCtx, sizeof(vgCtx)));
     
     pNew->pGroup->pVgCtx = tSimpleHashGet(pHash, &pNew->vgId, sizeof(pNew->vgId));
@@ -699,7 +737,7 @@ static FORCE_INLINE int32_t appendNewGroupToDownstream(struct SOperatorInfo* pOp
     }
     
     if (!pGCache->batchFetch) {
-      code = addNewGroupToVgHash(pOperator, pCtx->pVgTbHash, pNew);
+      code = addNewGroupToVgHash(pCtx->pVgTbHash, pNew);
       if (code) {
         goto _return;
       }
@@ -815,8 +853,6 @@ static int32_t addFileRefTableNum(SGcFileCacheCtx* pFileCtx, int32_t fileId, int
   
   SGroupCacheFileInfo* pTmp = taosHashGet(pFileCtx->pCacheFile, &fileId, sizeof(fileId));
   if (NULL == pTmp) {
-    (void)snprintf(&pFileCtx->baseFilename[pFileCtx->baseNameLen], sizeof(pFileCtx->baseFilename) - pFileCtx->baseNameLen, "_%u", fileId);
-
     SGroupCacheFileInfo newFile = {0};
     newFile.groupNum = 1;
     QRY_ERR_RET(taosHashPut(pFileCtx->pCacheFile, &fileId, sizeof(fileId), &newFile, sizeof(newFile)));
@@ -1102,14 +1138,18 @@ static int32_t getBlkFromSessionCacheImpl(struct SOperatorInfo* pOperator, int64
         if (blkNum > 0) {
           SGcBlkBufBasic* pBasic = taosArrayGet(pBlkList->pList, 0);
           taosRUnLockLatch(&pBlkList->lock);
-          code = retrieveBlkFromBufCache(pGCache, pSession->pGroupData, sessionId, pBasic, ppRes);
+          code = retrieveBlkFromBufCache(pGCache, pSession->pGroupData,
+                                         sessionId, pBasic, ppRes,
+                                         GET_TASKID(pOperator->pTaskInfo));
           pSession->lastBlkId = 0;
           return code;
         }
       } else if ((pSession->lastBlkId + 1) < blkNum) {
         SGcBlkBufBasic* pBasic = taosArrayGet(pBlkList->pList, pSession->lastBlkId + 1);
         taosRUnLockLatch(&pBlkList->lock);
-        code = retrieveBlkFromBufCache(pGCache, pSession->pGroupData, sessionId, pBasic, ppRes);
+        code = retrieveBlkFromBufCache(pGCache, pSession->pGroupData, sessionId,
+                                       pBasic, ppRes,
+                                       GET_TASKID(pOperator->pTaskInfo));
         pSession->lastBlkId++;
         return code;
       }
@@ -1378,13 +1418,6 @@ static void freeRemoveGroupCacheData(void* p) {
       if (0 == remainNum && pGroup->fileId != pFileCtx->fileId) {
         removeGroupCacheFile(pFileInfo);
 
-#if 0
-        /* debug only */
-        snprintf(&pFileCtx->baseFilename[pFileCtx->baseNameLen], sizeof(pFileCtx->baseFilename) - pFileCtx->baseNameLen, "_%d", pGroup->fileId);
-        taosRemoveFile(pFileCtx->baseFilename);
-        /* debug only */
-#endif
-
         qTrace("FileId:%d-%d-%d removed", pGroup->downstreamIdx, pGroup->vgId, pFileCtx->fileId);
         //taosHashRemove(pFileCtx->pCacheFile, &pGroup->fileId, sizeof(pGroup->fileId));
       }
@@ -1422,7 +1455,7 @@ static int32_t initGroupCacheDownstreamCtx(SOperatorInfo*          pOperator) {
     if (pInfo->batchFetch) {
       int32_t defaultVg = 0;
       SGcVgroupCtx vgCtx = {0};
-      initGcVgroupCtx(pOperator, &vgCtx, pCtx->id, defaultVg, NULL);      
+      initGcVgroupCtx(&vgCtx, defaultVg, NULL);
       QRY_ERR_RET(tSimpleHashPut(pCtx->pVgTbHash, &defaultVg, sizeof(defaultVg), &vgCtx, sizeof(vgCtx)));
     }
     
@@ -1453,13 +1486,88 @@ static int32_t initGroupCacheDownstreamCtx(SOperatorInfo*          pOperator) {
     if (pCtx->pWaitSessions == NULL) {
       return terrno;
     }
-
-    (void)snprintf(pCtx->fileCtx.baseFilename, sizeof(pCtx->fileCtx.baseFilename) - 1, "%s/gc_%d_%" PRIx64 "_%" PRIu64 "_%p_%d", 
-      tsTempDir, taosGetPId(), pOperator->pTaskInfo->id.queryId, pOperator->pTaskInfo->id.taskId, pOperator, pCtx->id);
-    pCtx->fileCtx.baseFilename[sizeof(pCtx->fileCtx.baseFilename) - 1] = 0;
-    pCtx->fileCtx.baseNameLen = strlen(pCtx->fileCtx.baseFilename);
   }
 
+  return TSDB_CODE_SUCCESS;
+}
+
+// --- twoPassMode two-pass getNextFn -----------------------------------------
+// Used when GroupCache is injected for repeat-scan functions (e.g. PERCENTILE).
+// Phase 1 (PRE_SCAN):  fetch all blocks from downstream FedScan, serialize and
+//                       cache them in memory, return each to AGG with PRE_SCAN flag.
+// Phase 2 (MAIN_SCAN): replay cached blocks (deserialized via buildGroupCacheResultBlock)
+//                       to AGG with MAIN_SCAN flag.
+// This gives the AGG two complete passes over the data without FedScan being called twice.
+// -----------------------------------------------------------------------------
+
+// Each entry in SGroupCacheOperatorInfo.pTwoPassBlocks stores a serialized block.
+typedef struct SGcTwoPassBlkBuf {
+  void*   pBuf;     // serialized block data (malloc'd; freed in destroyGroupCacheOperator)
+  int64_t bufSize;  // size of pBuf in bytes
+} SGcTwoPassBlkBuf;
+
+static int32_t groupCacheTwoPassGetNext(SOperatorInfo* pOperator, SSDataBlock** ppRes) {
+  SGroupCacheOperatorInfo* pInfo = pOperator->info;
+  *ppRes = NULL;
+
+  // Release previously returned MAIN_SCAN block back to the free pool.
+  if (pInfo->pTwoPassCurBlock != NULL) {
+    (void)releaseBaseBlockToList(&pInfo->pDownstreams[0], pInfo->pTwoPassCurBlock);
+    pInfo->pTwoPassCurBlock = NULL;
+  }
+
+  if (!pInfo->twoPassPhase1Done) {
+    // -- Phase 1 (PRE_SCAN) --
+    SSDataBlock* pBlock = NULL;
+    int32_t code = pOperator->pDownstream[0]->fpSet.getNextFn(pOperator->pDownstream[0], &pBlock);
+    if (code) return code;
+
+    if (pBlock != NULL) {
+      // Initialize pBaseBlock on first block so buildGroupCacheResultBlock works in Phase 2.
+      if (NULL == pInfo->pDownstreams[0].pBaseBlock) {
+        code = buildGroupCacheBaseBlock(&pInfo->pDownstreams[0].pBaseBlock, pBlock);
+        if (code) return code;
+        if (NULL == taosArrayPush(pInfo->pDownstreams[0].pFreeBlock, &pInfo->pDownstreams[0].pBaseBlock)) {
+          return terrno;
+        }
+      }
+      // Serialize block for Phase 2 replay.
+      int64_t bufSize = blockDataGetSize(pBlock) + sizeof(int32_t) +
+                        (int64_t)taosArrayGetSize(pBlock->pDataBlock) *
+                            (int64_t)(sizeof(int32_t) + 2 * sizeof(uint8_t));
+      SGcTwoPassBlkBuf entry = {.pBuf = taosMemoryMalloc(bufSize), .bufSize = bufSize};
+      if (NULL == entry.pBuf) return terrno;
+      code = blockDataToBuf(entry.pBuf, pBlock);
+      if (code) { taosMemoryFree(entry.pBuf); return code; }
+      if (NULL == taosArrayPush(pInfo->pTwoPassBlocks, &entry)) {
+        taosMemoryFree(entry.pBuf);
+        return terrno;
+      }
+      // Return block to AGG with PRE_SCAN so repeat-scan functions do their first pass.
+      pBlock->info.scanFlag = PRE_SCAN;
+      *ppRes = pBlock;
+      return TSDB_CODE_SUCCESS;
+    }
+
+    // Downstream EOF  -  Phase 1 complete.
+    pInfo->twoPassPhase1Done = true;
+    pInfo->twoPassNextIdx    = 0;
+  }
+
+  // -- Phase 2 (MAIN_SCAN) --
+  int32_t n = (int32_t)taosArrayGetSize(pInfo->pTwoPassBlocks);
+  if (pInfo->twoPassNextIdx < n) {
+    SGcTwoPassBlkBuf* pEntry = taosArrayGet(pInfo->pTwoPassBlocks, pInfo->twoPassNextIdx++);
+    SSDataBlock*      pResult = NULL;
+    int32_t code = buildGroupCacheResultBlock(pInfo, 0, pEntry->pBuf, &pResult);
+    if (code) return code;
+    pResult->info.scanFlag  = MAIN_SCAN;
+    pInfo->pTwoPassCurBlock = pResult;
+    *ppRes = pResult;
+    return TSDB_CODE_SUCCESS;
+  }
+
+  // Both phases complete  -  signal EOF.
   return TSDB_CODE_SUCCESS;
 }
 
@@ -1530,7 +1638,7 @@ static int32_t resetGroupCacheDownstreamCtx(SOperatorInfo* pOper) {
     if (pInfo->batchFetch) {
       int32_t defaultVg = 0;
       SGcVgroupCtx vgCtx = {0};
-      initGcVgroupCtx(pOper, &vgCtx, pCtx->id, defaultVg, NULL);      
+      initGcVgroupCtx(&vgCtx, defaultVg, NULL);
       TAOS_CHECK_EXIT(tSimpleHashPut(pCtx->pVgTbHash, &defaultVg, sizeof(defaultVg), &vgCtx, sizeof(vgCtx)));
     }
     
@@ -1602,11 +1710,20 @@ int32_t createGroupCacheOperatorInfo(SOperatorInfo** pDownstream, int32_t numOfD
   pInfo->grpByUid = pPhyciNode->grpByUid;
   pInfo->globalGrp = pPhyciNode->globalGrp;
   pInfo->batchFetch = pPhyciNode->batchFetch;
+  pInfo->twoPassMode = pPhyciNode->twoPassMode;
   
-  if (!pInfo->grpByUid) {
+  if (!pInfo->grpByUid && !pInfo->twoPassMode) {
     qError("only group cache by uid is supported now");
     code = TSDB_CODE_INVALID_PARA;
     goto _error;
+  }
+
+  if (pInfo->twoPassMode) {
+    pInfo->pTwoPassBlocks = taosArrayInit(16, sizeof(SGcTwoPassBlkBuf));
+    if (NULL == pInfo->pTwoPassBlocks) {
+      code = terrno;
+      goto _error;
+    }
   }
   
   if (pPhyciNode->pGroupCols) {
@@ -1645,7 +1762,10 @@ int32_t createGroupCacheOperatorInfo(SOperatorInfo** pDownstream, int32_t numOfD
     goto _error;
   }
 
-  pOperator->fpSet = createOperatorFpSet(optrDummyOpenFn, NULL, NULL, destroyGroupCacheOperator, optrDefaultBufFn, NULL, groupCacheGetNext, groupCacheTableCacheEnd);
+  pOperator->fpSet = createOperatorFpSet(optrDummyOpenFn,
+                                         pInfo->twoPassMode ? groupCacheTwoPassGetNext : NULL,
+                                         NULL, destroyGroupCacheOperator, optrDefaultBufFn, NULL,
+                                         pInfo->twoPassMode ? NULL : groupCacheGetNext, groupCacheTableCacheEnd);
 
   setOperatorResetStateFn(pOperator, resetGroupCacheOperState);
 

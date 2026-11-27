@@ -1,3 +1,18 @@
+# Copyright (c) 2025 TAOS Data, Inc. <jhtao@taosdata.com>
+#
+# SPDX-License-Identifier: AGPL-3.0-or-later
+#
+# This program is free software: you can use, redistribute, and/or modify
+# it under the terms of the GNU Affero General Public License, version 3
+# or later ("AGPL"), as published by the Free Software Foundation.
+#
+# This program is distributed in the hope that it will be useful, but WITHOUT
+# ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+# FITNESS FOR A PARTICULAR PURPOSE.
+#
+# You should have received a copy of the GNU Affero General Public License
+# along with this program. If not, see <http://www.gnu.org/licenses/>.
+
 import taos
 import sys
 import time
@@ -7,7 +22,7 @@ import threading
 import subprocess
 from  datetime import datetime
 
-from new_test_framework.utils import tdLog, tdSql, etool, tdCom, tdDnodes
+from new_test_framework.utils import tdLog, tdSql, etool, tdCom, tdDnodes, tmqCom
 from taos.tmq import *
 from taos import *
 
@@ -39,11 +54,11 @@ class TestTmqBugs:
         tdSql.query("select * from st")
         tdSql.checkRows(8)
         
-        tdSql.error(f'create topic t1 with meta as database d2', expectErrInfo="Database not exist")
-        tdSql.error(f'create topic t1 as database d2', expectErrInfo="Database not exist")
+        tdSql.error(f'create topic t1 with meta as database d2', expectErrInfo="Database does not exist")
+        tdSql.error(f'create topic t1 as database d2', expectErrInfo="Database does not exist")
         tdSql.error(f'create topic t2 as select * from st2', expectErrInfo="Table does not exist")
-        tdSql.error(f'create topic t3 as stable st2', expectErrInfo="STable not exist")
-        tdSql.error(f'create topic t3 with meta as stable st2', expectErrInfo="STable not exist")
+        tdSql.error(f'create topic t3 as stable st2', expectErrInfo="STable does not exist")
+        tdSql.error(f'create topic t3 with meta as stable st2', expectErrInfo="STable does not exist")
 
         tdSql.execute(f'create topic t1 with meta as database d1')
         
@@ -155,7 +170,8 @@ class TestTmqBugs:
         buildPath = tdCom.getBuildPath()
         cmdStr = '%s/build/bin/tmq_td32187'%(buildPath)
         tdLog.info(cmdStr)
-        os.system(cmdStr)
+        if os.system(cmdStr) != 0:
+            tdLog.exit(cmdStr)
         
         print("bug TD-32187 ................ [passed]")
 
@@ -294,7 +310,8 @@ class TestTmqBugs:
         buildPath = tdCom.getBuildPath()
         cmdStr = '%s/build/bin/tmq_td35698'%(buildPath)
         tdLog.info(cmdStr)
-        os.system(cmdStr)
+        if os.system(cmdStr) != 0:
+            tdLog.exit(cmdStr)
         
         print("bug TD-35698 ................ [passed]")
 
@@ -433,7 +450,8 @@ class TestTmqBugs:
         cmdStr = '%s/build/bin/tmq_td38404'%(buildPath)
         # cmdStr = '/Users/mingming/code/TDengine2/debug/build/bin/tmq_td38404'
         tdLog.info(cmdStr)
-        os.system(cmdStr)
+        if os.system(cmdStr) != 0:
+            tdLog.exit(cmdStr)
         
         print("bug TD-38404 ................ [passed]")
 
@@ -556,7 +574,18 @@ class TestTmqBugs:
     #
     # ------------------- 12 ----------------
     #
-    def do_ts5466(self):
+    def insert(self):
+        # create new connector for new tdSql instance in my thread
+        newTdSql = tdCom.newTdSql()
+        for i in range(10):
+            newTdSql.execute(f'insert into db_5466.tt{i}(ts, c1, c2) using db_5466.s5466 tags("__devicid__") values(1669092069068, 0, 1)')
+            newTdSql.execute(f'alter table db_5466.tt{i} set tag t = "hello"')
+            time.sleep(0.5)
+
+        return
+    
+    def do_ts5466(self, snapshot_enable="true"):
+        tdSql.execute(f'alter dnode 1 "debugflag 135"')
         tdSql.execute(f'create database if not exists db_taosx')
         tdSql.execute(f'create database if not exists db_5466')
         tdSql.execute(f'use db_5466')
@@ -571,12 +600,23 @@ class TestTmqBugs:
 
         tdSql.execute("create topic db_5466_topic with meta as database db_5466")
         buildPath = tdCom.getBuildPath()
-        cmdStr = '%s/build/bin/tmq_ts5466'%(buildPath)
+        cmdStr = '%s/build/bin/tmq_ts5466 %s'%(buildPath, snapshot_enable)
         tdLog.info(cmdStr)
-        os.system(cmdStr)
+
+        pThread = threading.Thread(target=self.insert)
+        pThread.start()
+
+        if os.system(cmdStr) != 0:
+            tdLog.exit(cmdStr)
         
+        pThread.join()
+        tdSql.checkResultsBySql(
+            sql="select tbname,t from db_5466.s5466 order by tbname",
+            exp_sql="select tbname,t from db_taosx.s5466 order by tbname",
+            retry=1,
+        )
         print("bug TS-5466 ................ [passed]")
-    
+
     #
     # ------------------- 13 ----------------
     #
@@ -822,6 +862,7 @@ class TestTmqBugs:
     # ------------------- 16 ----------------
     #
     def do_ts7402(self):
+        tdSql.execute(f'alter dnode 1 "debugflag 135"')
         tdSql.execute(f'drop topic if exists topic1')
         tdSql.execute(f'drop topic if exists topic2')
         tdSql.execute(f'drop database if exists test')
@@ -877,36 +918,6 @@ class TestTmqBugs:
     #
     # ------------------- 18 ----------------
     #
-    def get_leader(self):
-        tdLog.debug("get leader")
-        tdSql.query("show vnodes")
-        for result in tdSql.queryResult:
-            if result[3] == 'leader':
-                tdLog.debug("leader is %d"%(result[0]))
-                return result[0]
-        return -1
-
-    def balance_vnode(self):
-        leader_before = self.get_leader()
-        
-        while True:
-            leader_after = -1
-            tdLog.info("balancing vgroup leader")
-            tdSql.execute("balance vgroup leader")
-            while True:
-                tdLog.info("get new vgroup leader")
-                leader_after = self.get_leader()
-                if leader_after != -1 :
-                    break
-                else:
-                    time.sleep(1)
-            if leader_after != leader_before:
-                tdLog.info("leader changed")
-                break
-            else :
-                time.sleep(1)
-                tdLog.info("leader not changed")
-
     def do_ts4674(self):
         tdSql.execute(f'create database d1 replica 3 vgroups 1')
         tdSql.execute(f'use d1')
@@ -945,7 +956,7 @@ class TestTmqBugs:
                             # continue
                         else :
                             break
-                    self.balance_vnode()
+                    tmqCom.balance_vnode('d1')
                     balance = True
                     tdSql.execute(f'insert into t1 using st tags(1) values(now+5s, 11) (now+10s, 12)')
                     continue
@@ -1052,6 +1063,64 @@ class TestTmqBugs:
 
         print("test tmq_token ................ [passed]")       
 
+    def do_consumer_owner_check(self, *arguments):
+        buildPath = tdCom.getBuildPath()
+        cmdStr = '%s/build/bin/tmq_consumer_owner_check' % buildPath
+        tdLog.info(f"Running consumer owner check: {cmdStr} {arguments}")
+        result = subprocess.run([cmdStr, *arguments], capture_output=True, text=True, timeout=120)
+        tdLog.info(result.stdout.strip())
+        if result.returncode != 0:
+            tdLog.error(result.stderr.strip())
+            tdLog.exit(f"Consumer owner check failed with exit code {result.returncode}")
+        print("consumer owner check ........... [passed]")
+
+    def test_consumer_owner_check(self):
+        """Reject cross-user TMQ endpoint requests.
+
+        1. Issue 7059626859:
+         - Verify that the owning user can request endpoints using their consumer ID.
+         - Verify that a different user cannot request endpoints with the owner's consumer ID.
+         - Verify that a different user cannot resubscribe or unsubscribe the owner.
+
+        Catalog:
+            - DataSubscription
+
+        Since: v3.4.0.0
+
+        Labels: common,ci,integration,functional,security
+
+        Jira: None
+
+        History:
+            - 2026-09-16 Mingming Wang Added an independent TMQ consumer owner authorization check.
+
+        """
+        self.do_consumer_owner_check()
+
+    def test_consumer_owner_recovery(self):
+        """Recover a token consumer after a legacy owner mismatch.
+
+        1. Model a persisted root owner and commit a consumed row.
+        2. Reject the token user's request for that consumer without changing its owner.
+        3. Close the rejected handle and retire the modeled legacy consumer.
+        4. Recreate the token consumer with the same group and topic.
+        5. Verify that the committed offset survives and only the next row is consumed.
+
+        Catalog:
+            - DataSubscription
+
+        Since: v3.4.0.0
+
+        Labels: common,ci,integration,functional,security
+
+        Jira: None
+
+        History:
+            - 2026-09-22 Mingming Wang Added legacy token consumer recovery coverage.
+
+        """
+        self.do_consumer_owner_check("--token-recovery")
+
     #
     # ------------------- main ----------------
     #
@@ -1100,8 +1169,8 @@ class TestTmqBugs:
 
         Since: v3.0.0.0
 
-        Labels: common,ci
-
+        Labels: common,ci,integration,functional
+        
         Jira: None
 
         History:
@@ -1139,7 +1208,7 @@ class TestTmqBugs:
         self.do_td37436()
         self.do_td38404()
         self.do_ts4563()
-        self.do_ts5466()
+        self.do_ts5466("true")
         self.do_ts5906()
         self.do_ts6115()
         self.do_ts6392()

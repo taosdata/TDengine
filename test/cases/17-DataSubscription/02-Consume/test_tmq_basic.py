@@ -1,4 +1,19 @@
 
+# Copyright (c) 2022 TAOS Data, Inc. <jhtao@taosdata.com>
+#
+# SPDX-License-Identifier: AGPL-3.0-or-later
+#
+# This program is free software: you can use, redistribute, and/or modify
+# it under the terms of the GNU Affero General Public License, version 3
+# or later ("AGPL"), as published by the Free Software Foundation.
+#
+# This program is distributed in the hope that it will be useful, but WITHOUT
+# ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+# FITNESS FOR A PARTICULAR PURPOSE.
+#
+# You should have received a copy of the GNU Affero General Public License
+# along with this program. If not, see <http://www.gnu.org/licenses/>.
+
 import taos
 import sys
 import time
@@ -8,7 +23,7 @@ import threading
 import platform
 from taos.tmq import Consumer
 
-from new_test_framework.utils import tdLog, tdSql, tdDnodes, tdCom
+from new_test_framework.utils import tdLog, tdSql, tdDnodes, tdCom, tmqCom
 from new_test_framework.utils.sqlset import TDSetSql
 
 class TestBasic5:
@@ -180,16 +195,15 @@ class TestBasic5:
         showMsg   = 1
         showRow   = 1
 
-        if (platform.system().lower() == 'windows'):
-            shellCmd = 'mintty -h never -w hide ' + buildPath + '\\build\\bin\\tmq_sim.exe -c ' + cfgPath
-            shellCmd += " -y %d -d %s -g %d -r %d -w %s "%(pollDelay, parameterDict["dbName"], showMsg, showRow, cdbName)
-            shellCmd += "> nul 2>&1 &"
+        if platform.system().lower() == 'windows':
+            tmqCom.startTmqSimProcess(pollDelay, parameterDict["dbName"],
+                                      showMsg=showMsg, showRow=showRow, cdbName=cdbName)
         else:
             shellCmd = 'nohup ' + buildPath + '/build/bin/tmq_sim -c ' + cfgPath
             shellCmd += " -y %d -d %s -g %d -r %d -w %s "%(pollDelay, parameterDict["dbName"], showMsg, showRow, cdbName)
             shellCmd += "> /dev/null 2>&1 &"
-        tdLog.info(shellCmd)
-        os.system(shellCmd)
+            tdLog.info(shellCmd)
+            os.system(shellCmd)
 
         # wait for data ready
         # prepareEnvThread.join()
@@ -332,16 +346,15 @@ class TestBasic5:
         pollDelay = 100
         showMsg   = 1
         showRow   = 1
-        if (platform.system().lower() == 'windows'):
-            shellCmd = 'mintty -h never -w hide ' + buildPath + '\\build\\bin\\tmq_sim.exe -c ' + cfgPath
-            shellCmd += " -y %d -d %s -g %d -r %d -w %s "%(pollDelay, parameterDict["dbName"], showMsg, showRow, cdbName)
-            shellCmd += "> nul 2>&1 &"
+        if platform.system().lower() == 'windows':
+            tmqCom.startTmqSimProcess(pollDelay, parameterDict["dbName"],
+                                      showMsg=showMsg, showRow=showRow, cdbName=cdbName)
         else:
             shellCmd = 'nohup ' + buildPath + '/build/bin/tmq_sim -c ' + cfgPath
             shellCmd += " -y %d -d %s -g %d -r %d -w %s "%(pollDelay, parameterDict["dbName"], showMsg, showRow, cdbName)
             shellCmd += "> /dev/null 2>&1 &"
-        tdLog.info(shellCmd)
-        os.system(shellCmd)
+            tdLog.info(shellCmd)
+            os.system(shellCmd)
 
         # create new child table and insert data
         newCtbName = 'newctb'
@@ -505,16 +518,15 @@ class TestBasic5:
         showMsg   = 1
         showRow   = 1
 
-        if (platform.system().lower() == 'windows'):
-            shellCmd = 'mintty -h never -w hide ' + buildPath + '\\build\\bin\\tmq_sim.exe -c ' + cfgPath
-            shellCmd += " -y %d -d %s -g %d -r %d -w %s "%(pollDelay, parameterDict["dbName"], showMsg, showRow, cdbName)
-            shellCmd += "> nul 2>&1 &"
+        if platform.system().lower() == 'windows':
+            tmqCom.startTmqSimProcess(pollDelay, parameterDict["dbName"],
+                                      showMsg=showMsg, showRow=showRow, cdbName=cdbName)
         else:
             shellCmd = 'nohup ' + buildPath + '/build/bin/tmq_sim -c ' + cfgPath
             shellCmd += " -y %d -d %s -g %d -r %d -w %s "%(pollDelay, parameterDict["dbName"], showMsg, showRow, cdbName)
             shellCmd += "> /dev/null 2>&1 &"
-        tdLog.info(shellCmd)
-        os.system(shellCmd)
+            tdLog.info(shellCmd)
+            os.system(shellCmd)
 
         # start the second thread to create new child table and insert data
         prepareEnvThread2 = threading.Thread(target=self.prepareEnv, kwargs=parameterDict2)
@@ -630,11 +642,11 @@ class TestBasic5:
             "auto.offset.reset": "earliest",
         }
         consumer = Consumer(consumer_dict)
-        tdSql.query("show connections")
-        tdSql.checkRows(2)
+        tdSql.query("select * from performance_schema.perf_connections where type = 'TMQ'")
+        tdSql.checkRows(1)
         time.sleep(10)
-        tdSql.query("show connections")
-        tdSql.checkRows(2)
+        tdSql.query("select * from performance_schema.perf_connections where type = 'TMQ'")
+        tdSql.checkRows(1)
 
         consumer.close()
     #
@@ -653,7 +665,7 @@ class TestBasic5:
         
         Since: v3.0.0.0
 
-        Labels: common,ci
+        Labels: common,ci,integration,functional
 
         Jira: None
 

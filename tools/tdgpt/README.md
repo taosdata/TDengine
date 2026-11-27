@@ -2,6 +2,7 @@
 
 1. [Introduction](#1-introduction)
 1. [Documentation](#2-documentation)
+    - [AI Skills](#21-ai-skills)
 1. [Prerequisites](#3-prerequisites)
 1. [Building](#4-building)
 1. [Packaging](#5-packaging)
@@ -19,6 +20,19 @@ TDgpt: an analytic platform for TDengine
 # 2. Documentation
 
 For user manual, system design and architecture, please refer to [TDengine Documentation](https://docs.tdengine.com/next) ([TDengine 文档](https://docs.taosdata.com/next)).
+
+## 2.1 AI Skills
+
+TDgpt publishes agent skills under [`skills/`](skills/):
+
+- [`tdgpt-custom-algorithm`](skills/tdgpt-custom-algorithm/SKILL.md): deploy
+  user-defined anomaly detection, forecast, classification, regression and
+  batch envelope algorithms. It generates an Adapter when the user model does
+  not follow the TDgpt class hierarchy, checks the main venv for missing
+  dependencies, deploys to native, Docker or SSH targets, and verifies
+  registration with curl. The deployment
+  script targets Linux/macOS execution hosts and Linux, Docker or SSH targets;
+  Windows native deployment is not supported.
 
 # 3. Prerequisites
 
@@ -86,10 +100,10 @@ Please use the following commands to install taosanode in your system.
 ```bash
 # enter the release directory and then unpack the tarball
 cd ./release
-tar -zxvf ./tdengine-tdgpt-oss-3.3.7.0.alpha-linux-x64.tar.gz
+tar -zxvf ./tdengine-tdgpt-oss-3.3.7.0-linux-x64.tar.gz
 
 # enter into the package
-cd tdengine-tdgpt-oss-3.3.7.0.alpha-linux-x64
+cd tdengine-tdgpt-oss-3.3.7.0-linux-x64
 
 # execute the install script
 ./install.sh

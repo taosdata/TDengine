@@ -1,3 +1,18 @@
+# Copyright (c) 2025 TAOS Data, Inc. <jhtao@taosdata.com>
+#
+# SPDX-License-Identifier: AGPL-3.0-or-later
+#
+# This program is free software: you can use, redistribute, and/or modify
+# it under the terms of the GNU Affero General Public License, version 3
+# or later ("AGPL"), as published by the Free Software Foundation.
+#
+# This program is distributed in the hope that it will be useful, but WITHOUT
+# ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+# FITNESS FOR A PARTICULAR PURPOSE.
+#
+# You should have received a copy of the GNU Affero General Public License
+# along with this program. If not, see <http://www.gnu.org/licenses/>.
+
 import time
 import math
 from new_test_framework.utils import tdLog, tdSql, clusterComCheck, tdStream, StreamItem
@@ -27,12 +42,13 @@ class TestStreamSubqueryLimit:
 
         Since: v3.3.3.7
 
-        Labels: common,ci
+        Labels: common,ci,integration,functional
 
         Jira: None
 
         History:
             - 2025-7-8 Simon Guan Created
+            - 2026-11-11 Keep direct trigger rows JOIN negative coverage for WINDOW_OPEN
 
         """
 
@@ -45,7 +61,9 @@ class TestStreamSubqueryLimit:
 
     def createSnode(self):
         tdLog.info("create snode")
-        tdStream.createSnode(1)
+        tdSql.query("show snodes")
+        if tdSql.getRows() == 0:
+            tdStream.createSnode(1)
 
     def createDatabase(self):
         tdLog.info(f"create database")
@@ -136,7 +154,8 @@ class TestStreamSubqueryLimit:
             "create stream rdb.s88 interval(5m) sliding(5m) from tdb.v1 into rdb.r88 as select _twstart tw, cbool, cast(avg(cint) as int) from qdb.view1 where cts >= _twstart and cts < _twend and cbool = true group by cbool having avg(cint) > 0 order by tw",
             "create stream rdb.s91 interval(5m) sliding(5m) from tdb.triggers partition by id, name into rdb.r91 as select _twstart, id cid, name cname, sum(c1) amount from %%trows where id=%%1 and name=%%1 partition by id, name having sum(c1) <= 5;",
             "create stream rdb.s124 interval(5m) sliding(5m) from tdb.triggers partition by tbname into rdb.r124 as select _wstart ts, count(c1), sum(c2) from %%trows where ts >= _twstart and ts < _twend interval(1m) fill(prev)",
-            "create stream rdb.s131 interval(5m) sliding(5m) from tdb.triggers partition by id into rdb.r131 as select ta.ts tats, tb.cts tbts, ta.c1 tac1, ta.c2 tac2, tb.cint tbc1, tb.cuint tbc2, _twstart, _twend from %%trows ta right join qdb.t1 tb on ta.ts=tb.cts where ta.ts >= _twstart and ta.ts < _twend;",
+            # Trigger rows remain unavailable for WINDOW_OPEN, including direct JOIN inputs.
+            "create stream rdb.s131 interval(5m) sliding(5m) from tdb.triggers partition by id stream_options(event_type(window_open)) into rdb.r131 as select ta.ts tats, tb.cts tbts, ta.c1 tac1, ta.c2 tac2, tb.cint tbc1, tb.cuint tbc2, _twstart, _twend from %%trows ta right join qdb.t1 tb on ta.ts=tb.cts where ta.ts >= _twstart and ta.ts < _twend;",
             # "create stream rdb.s109 interval(5m) sliding(5m) from tdb.v1 into rdb.r109 as select _twstart, count(ta.c1), count(ta.c2), sum(ta.c2), count(tb.c1), count(tb.c2), sum(tb.c2) from %%tbname ta join tdb.t2 tb on ta.ts = tb.ts where ta.ts >= _twstart and ta.ts < _twend group by ta.c2 having sum(tb.c2) > 130;",
             "create stream rdb.s114 interval(5m) sliding(5m) from tdb.v1 into rdb.r114 as show dnode 1 variables like 'bypassFlag'",
         ]

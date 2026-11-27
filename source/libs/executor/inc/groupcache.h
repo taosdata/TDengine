@@ -1,6 +1,8 @@
 /*
  * Copyright (c) 2019 TAOS Data, Inc. <jhtao@taosdata.com>
  *
+ * SPDX-License-Identifier: AGPL-3.0-or-later
+ *
  * This program is free software: you can use, redistribute, and/or modify
  * it under the terms of the GNU Affero General Public License, version 3
  * or later ("AGPL"), as published by the Free Software Foundation.
@@ -12,6 +14,7 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
+
 #ifndef TDENGINE_GROUPCACHE_H
 #define TDENGINE_GROUPCACHE_H
 
@@ -48,8 +51,6 @@ typedef struct SGcFileCacheCtx {
   int64_t         fileSize;
   int32_t         fileId;
   SHashObj*       pCacheFile;
-  int32_t         baseNameLen;
-  char            baseFilename[256];  
 } SGcFileCacheCtx;
 
 typedef struct SGcDownstreamCtx {
@@ -164,6 +165,12 @@ typedef struct SGroupCacheOperatorInfo {
   bool              globalGrp;
   bool              grpByUid;
   bool              batchFetch;
+  // twoPassMode: single-group two-pass for repeat-scan functions (e.g. PERCENTILE over FedScan)
+  bool              twoPassMode;
+  bool              twoPassPhase1Done;    // false=PRE_SCAN phase collecting data, true=MAIN_SCAN replay
+  int32_t           twoPassNextIdx;       // index into pTwoPassBlocks for MAIN_SCAN replay
+  SSDataBlock*      pTwoPassCurBlock;     // currently returned MAIN_SCAN block (released on next call)
+  SArray*           pTwoPassBlocks;       // array of SGcTwoPassBlkBuf (serialized blocks for replay)
   int32_t           downstreamNum;
   SGcDownstreamCtx* pDownstreams;
   SGcBlkCacheInfo   blkCache;

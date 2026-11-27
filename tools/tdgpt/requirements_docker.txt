@@ -4,22 +4,32 @@ pandas==2.2.0 ; python_version >= "3.12"
 waitress==3.0.1; sys_platform == "win32"
 scipy==1.15.0
 wheel==0.38.1
+urllib3==2.8.0
 scikit-learn==1.5.2
+# CPU distribution provides the same xgboost imports and manylinux2014 wheels.
+# The GPU distribution selects manylinux_2_28 and pulls NCCL on Linux x64.
+# Avoid bundling an unused GPU runtime; Linux Lite requires glibc >= 2.28.
+xgboost-cpu==3.0.1
 outlier-utils==0.0.5
-statsmodels==0.14.4
+statsmodels==0.14.6
+# Direct StatsForecast runtime dependencies are pinned explicitly in this file:
+# pandas, scipy, scikit-learn, and numpy.
+statsforecast==2.1.1
+# Keep the validated Lite dependency line; Linux Lite requires glibc >= 2.28.
+pyarrow<19
 pyculiarity==0.0.7
 Cython==3.0.11
 pmdarima==2.0.4
-blinker==1.9.0
-Flask==3.0.3
+Flask==3.1.3
+requests==2.33
 matplotlib==3.9.2
-gunicorn==23.0.0
---only-binary h5py
-h5py>=3.10,<3.13 
-keras==3.12.0
-taospy
+gunicorn==23.0.0; sys_platform != "win32"
 cmdstanpy==1.2.0
 fastdtw==0.3.4
 prophet==1.1.7
 numpy==1.26.4
-xlsxwriter==3.2.1
+pycatch22==1.0.1
+mlxtend>=0.23.0
+pyod==2.0.5
+numba==0.66.0
+llvmlite==0.48.0

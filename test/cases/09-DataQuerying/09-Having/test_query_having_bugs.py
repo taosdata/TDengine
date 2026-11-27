@@ -1,3 +1,18 @@
+# Copyright (c) 2025 TAOS Data, Inc. <jhtao@taosdata.com>
+#
+# SPDX-License-Identifier: AGPL-3.0-or-later
+#
+# This program is free software: you can use, redistribute, and/or modify
+# it under the terms of the GNU Affero General Public License, version 3
+# or later ("AGPL"), as published by the Free Software Foundation.
+#
+# This program is distributed in the hope that it will be useful, but WITHOUT
+# ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+# FITNESS FOR A PARTICULAR PURPOSE.
+#
+# You should have received a copy of the GNU Affero General Public License
+# along with this program. If not, see <http://www.gnu.org/licenses/>.
+
 from new_test_framework.utils import tdLog, tdSql, etool
 import random
 import string
@@ -20,8 +35,7 @@ class TestHavingBugs:
 
         Since: v3.3.0.0
 
-        Labels: common,ci
-
+        Labels: common,ci,integration,functional
         Jira: TS-4806
 
         History:
@@ -92,8 +106,7 @@ class TestHavingBugs:
 
         Since: v3.3.0.0
 
-        Labels: last_row
-
+        Labels: last_row,integration,functional
         Jira: TD-31880
 
         History:
@@ -128,8 +141,7 @@ class TestHavingBugs:
 
         Since: v3.3.0.0
 
-        Labels: percentile, windows
-
+        Labels: percentile,windows,integration,functional
         Jira: TD-31966
 
         History:
@@ -169,15 +181,17 @@ class TestHavingBugs:
         tdSql.checkData(2, 2, 100)
         tdSql.checkData(3, 2, 100)
         # percentile min for state window
-        tdSql.query("select _wstart, _wend, percentile(c2,0) from tb1 state_window(1);")
-        tdSql.checkRows(1)
+        tdSql.query("select _wstart, _wend, percentile(c2,0) from tb1 state_window(c1);")
+        tdSql.checkRows(2)
         tdSql.checkData(0, 2, 1)
+        tdSql.checkData(1, 2, 1)
         # percentile max for state window
         tdSql.query(
-            "select _wstart, _wend, percentile(c2,100) from tb1 state_window(1);"
+            "select _wstart, _wend, percentile(c2,100) from tb1 state_window(c1);"
         )
-        tdSql.checkRows(1)
+        tdSql.checkRows(2)
         tdSql.checkData(0, 2, 100)
+        tdSql.checkData(1, 2, 100)
         # percentile min for session window
         tdSql.query("select _wstart, _wend, percentile(c2,0) from tb1 session(ts, 3s);")
         tdSql.checkRows(2)
@@ -198,8 +212,7 @@ class TestHavingBugs:
 
         Since: v3.3.0.0
 
-        Labels: having
-
+        Labels: having,integration,functional
         Jira: TD-32059
 
         History:

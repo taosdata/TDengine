@@ -1,6 +1,8 @@
 /*
  * Copyright (c) 2019 TAOS Data, Inc. <jhtao@taosdata.com>
  *
+ * SPDX-License-Identifier: AGPL-3.0-or-later
+ *
  * This program is free software: you can use, redistribute, and/or modify
  * it under the terms of the GNU Affero General Public License, version 3
  * or later ("AGPL"), as published by the Free Software Foundation.
@@ -310,6 +312,7 @@ int32_t shellSubscribe(char *command) {
       int32_t     numFields = taos_field_count(pRes);
       TAOS_FIELD *fields = taos_fetch_fields(pRes);
       int32_t     precision = taos_result_precision(pRes);
+      timezone_t  tz = (timezone_t)taos_get_result_tz(pRes);
       int32_t    *length = taos_fetch_lengths(pRes);
 
       if (!headerPrinted && fields != NULL && numFields > 0) {
@@ -324,7 +327,7 @@ int32_t shellSubscribe(char *command) {
         for (int32_t i = 0; i < numFields; i++) {
           putchar(' ');
           shellPrintField((const char *)row[i], fields + i, width[i],
-                          length ? length[i] : 0, precision);
+                          length ? length[i] : 0, precision, tz);
           putchar(' ');
           putchar('|');
         }

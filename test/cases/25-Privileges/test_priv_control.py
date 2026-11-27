@@ -1,9 +1,25 @@
+# Copyright (c) 2026 TAOS Data, Inc. <jhtao@taosdata.com>
+#
+# SPDX-License-Identifier: AGPL-3.0-or-later
+#
+# This program is free software: you can use, redistribute, and/or modify
+# it under the terms of the GNU Affero General Public License, version 3
+# or later ("AGPL"), as published by the Free Software Foundation.
+#
+# This program is distributed in the hope that it will be useful, but WITHOUT
+# ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+# FITNESS FOR A PARTICULAR PURPOSE.
+#
+# You should have received a copy of the GNU Affero General Public License
+# along with this program. If not, see <http://www.gnu.org/licenses/>.
+
 from new_test_framework.utils import tdLog, tdSql, TDCom, etool
 from taos.tmq import Consumer
 import time
 import socket
 import os
 import platform
+import pytest
 
 TSDB_CODE_NO_SUCH_FILE                        = 0x02
 #define TSDB_CODE_OPS_NOT_SUPPORT               TAOS_DEF_ERROR_CODE(0, 0x0100)
@@ -63,15 +79,32 @@ class TestPrivControl:
     #
     # --------------------------- base function ----------------------------
     #
-    def login(self, user=None, password=None):
-        # Login with specified user or root by default
-        if user is None:
-            if password is None:
-                tdSql.connect()
-            else:
-                tdSql.connect(password=password)
-        else:
-            tdSql.connect(user, password=password)
+    # Transport-layer error (libuv/socket) that can transiently occur at connect
+    # time under heavy parallel CI load; it is NOT an auth/permission error.
+    TSDB_CODE_THIRDPARTY_ERROR = 0x012F
+
+    def login(self, user=None, password=None, nRetry=10):
+        # Login with specified user or root by default.
+        # Retry ONLY on transient transport errors (0x012f); any other error
+        # (e.g. auth failure) is re-raised immediately so login_failed() and
+        # other expected-failure paths keep working unchanged.
+        for i in range(nRetry):
+            try:
+                if user is None:
+                    if password is None:
+                        tdSql.connect()
+                    else:
+                        tdSql.connect(password=password)
+                else:
+                    tdSql.connect(user, password=password)
+                return
+            except Exception as e:
+                actual = normalize_errno(errno_from_exception(e))
+                if actual == self.TSDB_CODE_THIRDPARTY_ERROR and i < nRetry - 1:
+                    tdLog.info(f"Login retry {i + 1}/{nRetry} on transient 0x012f for user={user}: {e}")
+                    time.sleep(1)
+                    continue
+                raise
     
     def login_failed(self, user, password):
         # Verify that login should fail
@@ -1572,7 +1605,7 @@ class TestPrivControl:
         self.exec_sql(f"SELECT c2 FROM {db_name}.st1")
         self.exec_sql_failed(f"SELECT c1 FROM {db_name}.st1")  # Role privilege should not apply
         
-        # Test 2: User privilege granted first, then role privilege (role should win if later)
+        # Test 2: User privilege granted first, then role privilege (user always win)
         self.login()
         self.revoke_privilege("SELECT", f"{db_name}.st1", user)
         self.revoke_privilege("SELECT", f"{db_name}.st1", role)
@@ -1581,11 +1614,11 @@ class TestPrivControl:
         self.grant_privilege("SELECT(c2)", f"{db_name}.st1", role)  # Role: c2 later
         
         self.login(user, pwd)
-        # Role privilege (c2) should win because it's later
-        self.exec_sql(f"SELECT c2 FROM {db_name}.st1")
-        self.exec_sql_failed(f"SELECT c1 FROM {db_name}.st1")  # User privilege should not apply
+        time.sleep(5) # wait catalog update to propagate
+        self.exec_sql(f"SELECT c1 FROM {db_name}.st1")
+        self.exec_sql_failed(f"SELECT c2 FROM {db_name}.st1")  # Role privilege should not apply
         
-        # Test 3: Same update time, user privilege should win
+        # Test 3: User privilege wins regardless of grant order.
         self.login()
         self.revoke_privilege("SELECT", f"{db_name}.st1", user)
         self.revoke_privilege("SELECT", f"{db_name}.st1", role)
@@ -1594,15 +1627,38 @@ class TestPrivControl:
         self.grant_privilege("SELECT(c2)", f"{db_name}.st1", role)
         
         self.login(user, pwd)
-        # User privilege should win when update times are same
+        tdSql.execute(f"reset query cache")
+        # User privilege should win
         self.exec_sql(f"SELECT c1 FROM {db_name}.st1")
         self.exec_sql_failed(f"SELECT c2 FROM {db_name}.st1")  # Role privilege should not apply
+        
+        # Test 4: Two roles both set row/column rules on the same table, the
+        # later-updated role wins (FS 4.2.3, 2.7.3). The user must have NO
+        # user-level rule on st1 here, otherwise the user privilege would win
+        # regardless of roles. role2 is granted after role, so role2's c2 rule
+        # should take effect over role's earlier c1 rule.
+        role2 = "test_role_2"
+        self.login()
+        self.revoke_privilege("SELECT", f"{db_name}.st1", user)  # clear user-level rule
+        self.revoke_privilege("SELECT", f"{db_name}.st1", role)
+        self.create_role(role2)
+        self.grant_role(role2, user)
+        self.grant_privilege("SELECT(c1)", f"{db_name}.st1", role)  # role: c1 first
+        time.sleep(0.1)
+        self.grant_privilege("SELECT(c2)", f"{db_name}.st1", role2)  # role2: c2 later
+        
+        self.login(user, pwd)
+        tdSql.execute(f"reset query cache")
+        # Later-updated role2 (c2) should win over role (c1)
+        self.exec_sql(f"SELECT c2 FROM {db_name}.st1")
+        self.exec_sql_failed(f"SELECT c1 FROM {db_name}.st1")  # Earlier role rule should not apply
         
         # Cleanup
         self.login()
         self.drop_database(db_name)
         self.drop_user(user)
         self.drop_role(role)
+        self.drop_role(role2)
         
         print("Privilege Update Time Priority ........ [ passed ] ")
 
@@ -2474,21 +2530,91 @@ class TestPrivControl:
         self.exec_sql("DROP MNODE ON DNODE 2")
         self.exec_sql("DROP SNODE ON DNODE 2")
         self.exec_sql("DROP QNODE ON DNODE 2")
-        
+
         # Cleanup
         self.login()
         self.drop_user(test_user)
-        
+
         print("Node Management Privileges ........... [ passed ] ")
     
 
     
+    def do_user_crud_privileges(self):
+        """Test CREATE USER / DROP USER / SHOW USERS / ALTER USER / LOCK USER / UNLOCK USER
+        as individually-granted system privileges (PRIV_USER_CREATE/DROP/SHOW/ALTER/LOCK/UNLOCK).
+        """
+        tdLog.info("=== Testing User CRUD System Privileges ===")
+        self.login()  # Login as root
+
+        mgr    = "priv_usr_mgr"     # user that will receive each privilege
+        victim = "priv_usr_victim"  # target user for DROP/ALTER/LOCK/UNLOCK
+        self.create_user(mgr, pwd)
+        self.create_user(victim, pwd)
+        self.revoke_role("`SYSINFO_1`", mgr)  # revoke default role
+
+        # ── Phase 1: verify all operations are DENIED before any privilege is granted ──
+        # No sleep needed here: mgr was just created with no extra privileges.
+        self.login(mgr, pwd)
+        self.exec_sql_failed("SHOW USERS", TSDB_CODE_PAR_PERMISSION_DENIED)
+        self.exec_sql_failed(f"CREATE USER priv_usr_new PASS '{pwd}'", TSDB_CODE_PAR_PERMISSION_DENIED)
+        self.exec_sql_failed(f"DROP USER {victim}",                     TSDB_CODE_PAR_PERMISSION_DENIED)
+        self.exec_sql_failed(f"ALTER USER {victim} ENABLE 0",           TSDB_CODE_PAR_PERMISSION_DENIED)
+        self.exec_sql_failed(f"ALTER USER {victim} ENABLE 1",           TSDB_CODE_PAR_PERMISSION_DENIED)
+
+        # ── Phase 2: grant all privileges, wait once, verify all operations SUCCEED ──
+        self.login()
+        self.grant_privilege("SHOW USERS",  None, mgr)
+        self.grant_privilege("CREATE USER", None, mgr)
+        self.grant_privilege("DROP USER",   None, mgr)
+        self.grant_privilege("ALTER USER",  None, mgr)
+        self.grant_privilege("LOCK USER",   None, mgr)
+        self.grant_privilege("UNLOCK USER", None, mgr)
+
+        self.login(mgr, pwd)
+        time.sleep(5)  # wait for privilege propagation
+
+        self.exec_sql("SHOW USERS")
+        self.exec_sql(f"CREATE USER priv_usr_new PASS '{pwd}'")  # CREATE USER
+        self.exec_sql(f"DROP USER priv_usr_new")                 # DROP USER (drop the one we just created)
+        # LOCK USER / UNLOCK USER → ALTER USER ENABLE 0/1
+        self.exec_sql(f"ALTER USER {victim} ENABLE 0")  # lock
+        self.exec_sql(f"ALTER USER {victim} ENABLE 1")  # unlock
+
+        # ── Phase 3: revoke all privileges, wait once, verify all operations are DENIED again ──
+        self.login()
+        self.revoke_privilege("SHOW USERS",  None, mgr)
+        self.revoke_privilege("CREATE USER", None, mgr)
+        self.revoke_privilege("DROP USER",   None, mgr)
+        self.revoke_privilege("LOCK USER",   None, mgr)
+        self.revoke_privilege("UNLOCK USER", None, mgr)
+
+        self.login(mgr, pwd)
+        time.sleep(5)  # wait for privilege revocation to propagate
+
+        self.exec_sql_failed("SHOW USERS", TSDB_CODE_PAR_PERMISSION_DENIED)
+        self.exec_sql_failed(f"CREATE USER priv_usr_new2 PASS '{pwd}'", TSDB_CODE_PAR_PERMISSION_DENIED)
+        self.exec_sql_failed(f"DROP USER {victim}",                      TSDB_CODE_PAR_PERMISSION_DENIED)
+        self.exec_sql_failed(f"ALTER USER {victim} ENABLE 0",            TSDB_CODE_PAR_PERMISSION_DENIED)
+        self.exec_sql_failed(f"ALTER USER {victim} ENABLE 1",            TSDB_CODE_PAR_PERMISSION_DENIED)
+
+        # Cleanup
+        self.login()
+        self.drop_user(mgr)
+        self.drop_user(victim)
+
+        print("User CRUD Privileges ................. [ passed ] ")
+
     def do_mount_management_privileges(self):
         # Test mount management privileges
         tdLog.info("=== Testing Mount Management Privileges ===")
         self.login()  # Login as root
         test_user = "test_user"
-        sql_mount = f"CREATE MOUNT mnt1 ON dnode 1 FROM '/root/errorPath'"    
+        # Use a path under /tmp (traversable by any test runner, root or not) rather
+        # than /root: on non-root CI/dev boxes /root is 0700 and unreadable by taosd,
+        # so the mount-source check fails with EACCES ("permission denied") before it
+        # ever gets to check existence, instead of the ENOENT ("no such file") this
+        # test expects.
+        sql_mount = f"CREATE MOUNT mnt1 ON dnode 1 FROM '/tmp/priv_control_mount_errorPath_does_not_exist'"
         
         # Create users
         self.create_user(test_user, pwd)
@@ -2849,31 +2975,78 @@ class TestPrivControl:
     # --------------------------- Function and Index Privileges Tests ----------------------------
     #
     def do_create_function_privilege(self):
-        # Test CREATE FUNCTION privilege
-        tdLog.info("=== Testing CREATE FUNCTION Privilege ===")
+        # Test CREATE FUNCTION / DROP FUNCTION / SHOW FUNCTIONS privileges
+        tdLog.info("=== Testing CREATE/DROP/SHOW FUNCTION Privileges ===")
         self.login()  # Login as root
-        
+
         user = "test_user"
         self.create_user(user, pwd)
-        
-        # Test: user cannot create function without privilege
+        self.revoke_role("`SYSINFO_1`", user)  # revoke default role
+
+        # --- SHOW FUNCTIONS ---
+        # Without privilege: denied
         self.login(user, pwd)
-        # Note: actual UDF creation syntax may vary
-        # self.exec_sql_failed("CREATE FUNCTION test_func AS ...")
-        
-        # Grant CREATE FUNCTION privilege (system privilege, no target)
+        self.exec_sql_failed("SHOW FUNCTIONS", TSDB_CODE_PAR_PERMISSION_DENIED)
+
+        self.login()
+        self.grant_privilege("SHOW FUNCTIONS", None, user)
+        self.login(user, pwd)
+        self.exec_sql("SHOW FUNCTIONS")  # rows may be 0, that is fine
+
+        self.login()
+        self.revoke_privilege("SHOW FUNCTIONS", None, user)
+        self.login(user, pwd)
+        self.exec_sql_failed("SHOW FUNCTIONS", TSDB_CODE_PAR_PERMISSION_DENIED)
+
+        # --- CREATE FUNCTION ---
+        # Without privilege: denied at parser layer.
+        # We use a nonexistent .so path so the command fails with a file-not-found
+        # error AFTER passing the privilege gate, not a permission error.
+        self.login(user, pwd)
+        self.exec_sql_failed(
+            "CREATE FUNCTION priv_test_udf AS '/nonexistent/priv_test_udf.so' OUTPUTTYPE INT",
+            TSDB_CODE_PAR_PERMISSION_DENIED)
+
         self.login()
         self.grant_privilege("CREATE FUNCTION", None, user)
-        
-        # Test: user can create function with privilege
-        # self.login(user, pwd)
-        # self.exec_sql("CREATE FUNCTION test_func AS ...")
-        
+        self.login(user, pwd)
+        # Privilege gate cleared; the command reaches mnode and fails on the
+        # missing .so path — any error code other than PAR_PERMISSION_DENIED is
+        # acceptable here, so we pass no errno to exec_sql_failed.
+        self.exec_sql_failed(
+            "CREATE FUNCTION priv_test_udf AS '/nonexistent/priv_test_udf.so' OUTPUTTYPE INT",
+            queryTimes=1)
+
+        self.login()
+        self.revoke_privilege("CREATE FUNCTION", None, user)
+        self.login(user, pwd)
+        self.exec_sql_failed(
+            "CREATE FUNCTION priv_test_udf AS '/nonexistent/priv_test_udf.so' OUTPUTTYPE INT",
+            TSDB_CODE_PAR_PERMISSION_DENIED)
+
+        # --- DROP FUNCTION ---
+        # Without privilege: denied
+        self.login(user, pwd)
+        self.exec_sql_failed("DROP FUNCTION IF EXISTS priv_test_udf",
+                             TSDB_CODE_PAR_PERMISSION_DENIED)
+
+        self.login()
+        self.grant_privilege("DROP FUNCTION", None, user)
+        self.login(user, pwd)
+        # Privilege gate cleared; IF EXISTS means success even when udf absent
+        self.exec_sql("DROP FUNCTION IF EXISTS priv_test_udf")
+
+        self.login()
+        self.revoke_privilege("DROP FUNCTION", None, user)
+        self.login(user, pwd)
+        self.exec_sql_failed("DROP FUNCTION IF EXISTS priv_test_udf",
+                             TSDB_CODE_PAR_PERMISSION_DENIED)
+
         # Cleanup
         self.login()
         self.drop_user(user)
-        
-        print("CREATE FUNCTION ...................... [ passed ] ")
+
+        print("CREATE/DROP/SHOW FUNCTION ............ [ passed ] ")
     
     def do_create_index_privilege(self):
         # Test CREATE INDEX privilege
@@ -4137,6 +4310,117 @@ class TestPrivControl:
         
         print("Constraint ............................ [ passed ] ")
 
+    def do_check_rename_alter_priv(self):
+        """The RESTRICT round trip is itself authorized: a non-root user needs ALTER on the table.
+
+        checkColRefByPriv sends TDMT_MND_CHECK_COL_REF_BY_PRIV to the mnode, whose handler answers
+        whether a given (table, colId) is referenced by a user policy or by a role policy. That
+        reply would let any connected user probe someone else's RBAC configuration, so the handler
+        first requires the same two privileges the rename itself needs (DB_USE + table ALTER). This
+        case is what actually exercises those two checks: the sibling privilege cases all issue the
+        rename as root, and root is a superUser for which both checks return early without
+        evaluating anything.
+
+        Both directions matter. With ALTER granted, RENAME COLUMN / RENAME TAG must still succeed —
+        a wrong privilege/object-type combination in the handler would reject a legitimate rename,
+        and only a non-root caller would ever show it. Without ALTER, the rename must be refused.
+
+        Catalog:
+            - NormalTable
+            - VirtualTable
+
+        Since: v3.4.3.0
+
+        Labels: normal_table, virtual_table, column, tag, rename, privilege, auth
+
+        Jira: None
+
+        History:
+            - 2026-09-16 Created: covers the auth gate added to mndProcessCheckColRefReq
+        """
+        db_name = "td_vntb_rename_nonroot"
+        user = "u_rename_nr"
+
+        try:
+            self.login()  # root: create the fixtures, then hand the privileges out below
+            tdSql.execute(f"DROP DATABASE IF EXISTS {db_name};")
+            tdSql.execute(f"DROP USER IF EXISTS {user};")
+            tdSql.execute(f"CREATE USER {user} PASS '{pwd}';")
+            tdSql.execute(f"CREATE DATABASE {db_name};")
+            tdSql.execute(f"USE {db_name};")
+            # a normal table with an owned tag: RENAME COLUMN and RENAME TAG both end up in the
+            # same vnode-side RESTRICT round trip (buildRenameColReq / buildRenameTagReq)
+            tdSql.execute("CREATE TABLE ntb_nr (ts TIMESTAMP, c1 INT, c2 INT) TAGS (tg INT = 4);")
+            tdSql.execute("INSERT INTO ntb_nr VALUES (1700000000000, 1, 2);")
+
+            try:
+                self.grant_privilege("USE", f"DATABASE {db_name}", user)
+            except Exception as e:
+                # GRANT is enterprise-only: the OSS parser rejects it with TSDB_CODE_OPS_NOT_SUPPORT
+                # ("GRANT statement is only supported in TDengine Enterprise edition"), and without
+                # it a non-root user cannot even reach the table, so neither direction of this gate
+                # is testable there — skip visibly. Every other failure (connect loss, syntax error,
+                # an already-existing grant, ...) is a real defect: re-raise so it cannot hide
+                # behind a skip.
+                if normalize_errno(errno_from_exception(e)) != TSDB_CODE_OPS_NOT_SUPPORT:
+                    raise
+                pytest.skip(f"GRANT not supported on this build, cannot test the rename auth gate: {e}")
+
+            # ---- denied: USE on the db, but no ALTER on the table ----
+            self.login(user, pwd)
+            tdSql.execute("reset query cache")
+            tdSql.execute(f"USE {db_name};")
+            tdSql.error("ALTER TABLE ntb_nr RENAME COLUMN c1 c1_nr;")
+            tdSql.error("ALTER TABLE ntb_nr RENAME TAG tg tg_nr;")
+            tdLog.info("  PASS: rename denied for a non-root user without ALTER on the table")
+
+            # ---- allowed: with ALTER, both rename forms go through the authorized round trip ----
+            self.login()
+            self.grant_privilege("ALTER", f"{db_name}.ntb_nr", user)
+            self.login(user, pwd)
+            tdSql.execute("reset query cache")
+            tdSql.execute(f"USE {db_name};")
+            tdSql.execute("ALTER TABLE ntb_nr RENAME COLUMN c1 c1_nr;")
+            tdSql.execute("ALTER TABLE ntb_nr RENAME TAG tg tg_nr;")
+            tdLog.info("  PASS: rename succeeds for a non-root user holding ALTER")
+
+            # Read the renamed column/tag back as root. The non-root user holds USE + ALTER only —
+            # exactly the gate under test — so a SELECT probe on this connection would be refused
+            # (0x2644), and granting it a table-level SELECT would both weaken the gate and collide
+            # with the column-level GRANT SELECT(c2) in the RESTRICT phase below (overlapping grants
+            # are rejected with TSDB_CODE_MND_PRIVILEGE_EXIST). The two renames above already ran on
+            # the non-root connection, so it is the gate that let them through; root then confirms
+            # the schema and values really changed.
+            self.login()
+            tdSql.execute(f"USE {db_name};")
+            tdSql.query("SELECT c1_nr, tg_nr FROM ntb_nr;")
+            tdSql.checkData(0, 0, 1)
+            tdSql.checkData(0, 1, 4)
+            tdLog.info("  PASS: renamed column + tag carry the original values")
+
+            # ---- RESTRICT still applies to a non-root caller: the reply code must reach them ----
+            self.login()
+            self.grant_privilege("SELECT(c2)", f"{db_name}.ntb_nr", user)
+            self.login(user, pwd)
+            tdSql.execute("reset query cache")
+            tdSql.execute(f"USE {db_name};")
+            tdSql.error("ALTER TABLE ntb_nr RENAME COLUMN c2 c2_nr;",
+                        expectErrInfo="referenced by user privilege", fullMatched=False)
+            tdLog.info("  PASS: RESTRICT verdict reaches a non-root caller unchanged")
+
+            # ---- revoking ALTER closes the gate again ----
+            self.login()
+            self.revoke_privilege("ALTER", f"{db_name}.ntb_nr", user)
+            self.login(user, pwd)
+            tdSql.execute("reset query cache")
+            tdSql.execute(f"USE {db_name};")
+            tdSql.error("ALTER TABLE ntb_nr RENAME TAG tg_nr tg_nr2;")
+            tdLog.info("  PASS: rename denied again after ALTER is revoked")
+        finally:
+            self.login()
+            tdSql.execute(f"DROP DATABASE IF EXISTS {db_name};")
+            tdSql.execute(f"DROP USER IF EXISTS {user};")
+
     #
     # --------------------------- main ----------------------------
     #
@@ -4217,7 +4501,7 @@ class TestPrivControl:
         
         Since: v3.4.0.0
 
-        Labels: common,ci,privilege
+        Labels: common,ci,privilege,integration,functional,security
 
         Jira: TS-7232
 
@@ -4297,6 +4581,7 @@ class TestPrivControl:
         print("")
         print("[System Privileges]")
         self.do_user_management_privileges()
+        self.do_user_crud_privileges()
         self.do_token_management_privileges()
         self.do_totp_management_privileges()
         self.do_password_management_privileges()
@@ -4311,7 +4596,7 @@ class TestPrivControl:
         # Function/index/tsrma/rsma privilege tests
         print("")
         print("[Function and Index Privileges]")
-        self.do_create_function_privilege()
+        self.do_create_function_privilege()  # covers CREATE/DROP/SHOW FUNCTION
         self.do_create_index_privilege()
         if platform.system().lower() != 'windows':
             # windows does not support tsma
@@ -4346,3 +4631,10 @@ class TestPrivControl:
         self.do_role_separation_best_practice()
         self.do_daily_operations_without_root()
         self.do_constraint()
+
+        # Rename auth gate: RENAME COLUMN / RENAME TAG on a normal table require ALTER on the
+        # table — the server-side gate on TDMT_MND_CHECK_COL_REF_BY_PRIV. Kept as a helper called
+        # from here rather than a standalone test case, so it runs as part of this suite.
+        print("")
+        print("[Rename Auth Gate]")
+        self.do_check_rename_alter_priv()

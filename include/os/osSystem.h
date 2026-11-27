@@ -1,6 +1,8 @@
 /*
  * Copyright (c) 2019 TAOS Data, Inc. <jhtao@taosdata.com>
  *
+ * SPDX-License-Identifier: AGPL-3.0-or-later
+ *
  * This program is free software: you can use, redistribute, and/or modify
  * it under the terms of the GNU Affero General Public License, version 3
  * or later ("AGPL"), as published by the Free Software Foundation.
@@ -37,6 +39,8 @@ extern "C" {
 typedef struct TdCmd *TdCmdPtr;
 
 TdCmdPtr taosOpenCmd(const char *cmd);
+
+bool taosCmdIsValid(const char *cmd);
 
 int64_t taosGetsCmd(TdCmdPtr pCmd, int32_t maxSize, char *__restrict buf);
 
@@ -174,8 +178,8 @@ int32_t taosResetTerminalMode();
   }
 #else
 
+#include "osWindows.h"
 #include <dbghelp.h>
-#include <windows.h>
 
 #define taosLogTraceToBuf(buf, bufSize, ignoreNum)                                                                   \
   {                                                                                                                  \

@@ -1,0 +1,89 @@
+
+taos> USE test_no_timeline_row_order;
+Database changed.
+
+taos> SELECT v, seq, bucket, aux, marker FROM (SELECT unique(label) AS v, seq, bucket, aux, marker FROM (SELECT seq, bucket, aux, marker, label FROM t_unique ORDER BY seq)) ORDER BY v NULLS FIRST;
+               v                |     seq     |   bucket    |     aux     |             marker             |
+============================================================================================================
+ NULL                           |           6 |           3 |         606 | n-first                        |
+ alpha                          |           1 |           1 |         101 | a-first                        |
+ beta                           |           2 |           1 |         202 | b-first                        |
+ gamma                          |           4 |           2 |         404 | g-first                        |
+
+taos> SELECT v, seq, bucket, aux, marker FROM (SELECT unique(label) AS v, seq, bucket, aux, marker FROM (SELECT seq, bucket, aux, marker, label FROM t_unique ORDER BY seq DESC)) ORDER BY v NULLS FIRST;
+               v                |     seq     |   bucket    |     aux     |             marker             |
+============================================================================================================
+ NULL                           |           6 |           3 |         606 | n-first                        |
+ alpha                          |           3 |           9 |         909 | a-later                        |
+ beta                           |           5 |           8 |         808 | b-later                        |
+ gamma                          |           4 |           2 |         404 | g-first                        |
+
+taos> SELECT v, seq, label, nullable_label, bucket, aux, marker FROM (SELECT unique(val) AS v, seq, label, nullable_label, bucket, aux, marker FROM (SELECT seq, val, label, nullable_label, bucket, aux, marker FROM t_unique ORDER BY seq)) ORDER BY v;
+      v      |     seq     |             label              |         nullable_label         |   bucket    |     aux     |             marker             |
+===========================================================================================================================================================
+          10 |           1 | alpha                          | NULL                           |           1 |         101 | a-first                        |
+          20 |           2 | beta                           | beta                           |           1 |         202 | b-first                        |
+          30 |           6 | NULL                           | NULL                           |           3 |         606 | n-first                        |
+
+taos> SELECT v, seq, label, bucket, aux, marker FROM (SELECT unique(val) AS v, seq, label, bucket, aux, marker FROM (SELECT seq, val, label, bucket, aux, marker FROM t_unique ORDER BY seq DESC)) ORDER BY v;
+      v      |     seq     |             label              |   bucket    |     aux     |             marker             |
+==========================================================================================================================
+          10 |           4 | gamma                          |           2 |         404 | g-first                        |
+          20 |           5 | beta                           |           8 |         808 | b-later                        |
+          30 |           6 | NULL                           |           3 |         606 | n-first                        |
+
+taos> SELECT v, seq, label, marker FROM (SELECT unique(nullable_label) AS v, seq, label, marker FROM (SELECT seq, nullable_label, label, marker FROM t_unique ORDER BY seq)) ORDER BY v NULLS FIRST;
+               v                |     seq     |             label              |             marker             |
+=================================================================================================================
+ NULL                           |           1 | alpha                          | a-first                        |
+ alpha-later                    |           3 | alpha                          | a-later                        |
+ beta                           |           2 | beta                           | b-first                        |
+ beta-later                     |           5 | beta                           | b-later                        |
+
+taos> SELECT v, seq, marker FROM (SELECT unique(label) AS v, seq, marker FROM (SELECT seq, label, marker FROM t_unique ORDER BY seq LIMIT 4)) ORDER BY v;
+               v                |     seq     |             marker             |
+================================================================================
+ alpha                          |           1 | a-first                        |
+ beta                           |           2 | b-first                        |
+ gamma                          |           4 | g-first                        |
+
+taos> SELECT v, seq, val, bucket, marker FROM (SELECT unique(val + bucket) AS v, seq, val, bucket, marker FROM (SELECT seq, val, bucket, marker FROM t_unique ORDER BY seq)) ORDER BY v;
+             v             |     seq     |     val     |   bucket    |             marker             |
+=======================================================================================================
+                        11 |           1 |          10 |           1 | a-first                        |
+                        12 |           4 |          10 |           2 | g-first                        |
+                        19 |           3 |          10 |           9 | a-later                        |
+                        21 |           2 |          20 |           1 | b-first                        |
+                        28 |           5 |          20 |           8 | b-later                        |
+                        33 |           6 |          30 |           3 | n-first                        |
+
+taos> SELECT v, seq, bucket, aux, marker FROM (SELECT unique(label) AS v, seq, bucket, aux, marker FROM (SELECT ts, seq, bucket, aux, marker, label FROM t_unique ORDER BY seq)) WHERE v = 'alpha';
+               v                |     seq     |   bucket    |     aux     |             marker             |
+============================================================================================================
+ alpha                          |           3 |           9 |         909 | a-later                        |
+
+taos> SELECT v, seq, marker FROM (SELECT unique(label) AS v, seq, marker FROM (SELECT 2 seq, 'b' label, 'b-first' marker UNION ALL SELECT 1, 'a', 'a-first' UNION ALL SELECT 3, 'b', 'b-later' ORDER BY seq)) ORDER BY v;
+  v  |          seq          |  marker   |
+==========================================
+ a   |                     1 | a-first   |
+ b   |                     2 | b-first   |
+
+taos> SELECT v, seq, marker FROM (SELECT unique(label) AS v, seq, marker FROM (SELECT seq, label, marker FROM TEXT(ts TIMESTAMP, seq INT, label NCHAR(16), marker NCHAR(16)) VALUES ('2024-01-01 00:00:01', 2, 'b', 'b-first') ('2024-01-01 00:00:02', 1, 'a', 'a-first') ('2024-01-01 00:00:03', 3, 'b', 'b-later') t ORDER BY seq)) ORDER BY v;
+               v                |     seq     |             marker             |
+================================================================================
+ a                              |           1 | a-first                        |
+ b                              |           2 | b-first                        |
+
+taos> SELECT v, seq, marker FROM (SELECT unique(label) AS v, seq, marker FROM (SELECT seq, label, marker FROM (SELECT seq, label, marker FROM t_unique WHERE label IS NOT NULL ORDER BY seq DESC) s WHERE seq >= 2)) ORDER BY v;
+               v                |     seq     |             marker             |
+================================================================================
+ alpha                          |           3 | a-later                        |
+ beta                           |           5 | b-later                        |
+ gamma                          |           4 | g-first                        |
+
+taos> SELECT v, seq, marker FROM (SELECT unique(label) AS v, seq, marker FROM (SELECT seq, label, marker FROM FILE('cases/11-Functions/04-Timeseries/data/test_unique_no_timeline_row_order.csv', 'ts TIMESTAMP, seq INT, label NCHAR(16), marker NCHAR(16)') f ORDER BY seq)) ORDER BY v;
+               v                |     seq     |             marker             |
+================================================================================
+ a                              |           1 | a-first                        |
+ b                              |           2 | b-first                        |
+

@@ -1,6 +1,8 @@
 /*
  * Copyright (c) 2019 TAOS Data, Inc. <jhtao@taosdata.com>
  *
+ * SPDX-License-Identifier: AGPL-3.0-or-later
+ *
  * This program is free software: you can use, redistribute, and/or modify
  * it under the terms of the GNU Affero General Public License, version 3
  * or later ("AGPL"), as published by the Free Software Foundation.
@@ -17,6 +19,8 @@
 #include <iostream>
 
 #include "query.h"
+#include "extTypeMap.h"
+#include "tdef.h"
 #include "tmsg.h"
 #include "trpc.h"
 
@@ -83,6 +87,517 @@ TEST(testCase, error_in_async_test) {
   taosAsyncExec(testPrintError, p, &code);
   taosMsleep(1);
   printf("Error code:%d after asynchronously exec function\n", code);
+}
+
+TEST(ExternalTypeMapTest, NormalizesBoundaryDeclarationsForAllProviders) {
+  SDataType type = {0};
+
+  ASSERT_EQ(TSDB_CODE_SUCCESS,
+            extTypeNameToTDengineType(EXT_SOURCE_MYSQL, "varchar(999999999999999999999)", "utf8mb4", &type));
+  EXPECT_EQ(TSDB_DATA_TYPE_NCHAR, type.type);
+  EXPECT_EQ(TSDB_MAX_NCHAR_LEN, type.bytes);
+  EXPECT_EQ(0, type.precision);
+  EXPECT_EQ(0, type.scale);
+
+  type = {};
+  ASSERT_EQ(TSDB_CODE_SUCCESS,
+            extTypeNameToTDengineType(EXT_SOURCE_POSTGRESQL, "numeric(999999999999999999999,999999999999999999999)",
+                                       "UTF8", &type));
+  EXPECT_EQ(TSDB_DECIMAL_MAX_PRECISION, type.precision);
+  EXPECT_EQ(TSDB_DECIMAL_MAX_PRECISION, type.scale);
+  EXPECT_EQ(DECIMAL128_BYTES, type.bytes);
+
+  type = {};
+  ASSERT_EQ(TSDB_CODE_SUCCESS,
+            extTypeNameToTDengineType(EXT_SOURCE_INFLUXDB, "LargeUtf8", NULL, &type));
+  EXPECT_EQ(TSDB_DATA_TYPE_NCHAR, type.type);
+  EXPECT_EQ(TSDB_MAX_NCHAR_LEN, type.bytes);
+
+  type = {};
+  ASSERT_EQ(TSDB_CODE_SUCCESS,
+            extTypeNameToTDengineType(EXT_SOURCE_INFLUXDB, "LargeBinary", NULL, &type));
+  EXPECT_EQ(TSDB_DATA_TYPE_VARBINARY, type.type);
+  EXPECT_EQ(TSDB_MAX_VARBINARY_LEN, type.bytes);
+
+  type = {};
+  ASSERT_EQ(TSDB_CODE_SUCCESS,
+            extTypeNameToTDengineType(EXT_SOURCE_INFLUXDB, "Decimal256(999999999999999999999,999999999999999999999)",
+                                       NULL, &type));
+  EXPECT_EQ(TSDB_DECIMAL_MAX_PRECISION, type.precision);
+  EXPECT_EQ(TSDB_DECIMAL_MAX_PRECISION, type.scale);
+  EXPECT_EQ(DECIMAL128_BYTES, type.bytes);
+}
+
+TEST(ExternalTypeMapTest, OracleColumnNamesCompareExactly) {
+  // TDengine applies its identifier grammar before the reference reaches this
+  // helper: unquoted text is lower-cased by the client and backticked text
+  // keeps its spelling.  Oracle therefore matches the resolved spelling byte
+  // for byte, exactly like PostgreSQL and InfluxDB (DS 5.3.6 R1).
+  EXPECT_TRUE(extColumnNameEqual(EXT_SOURCE_ORACLE, "EMP", "EMP"));
+  EXPECT_TRUE(extColumnNameEqual(EXT_SOURCE_ORACLE, "emp", "emp"));
+  EXPECT_FALSE(extColumnNameEqual(EXT_SOURCE_ORACLE, "EMP", "emp"));
+  EXPECT_FALSE(extColumnNameEqual(EXT_SOURCE_ORACLE, "emp", "EMP"));
+  EXPECT_TRUE(extColumnNameEqual(EXT_SOURCE_ORACLE, "MiXeDCol", "MiXeDCol"));
+  EXPECT_FALSE(extColumnNameEqual(EXT_SOURCE_ORACLE, "mixedcol", "MiXeDCol"));
+  EXPECT_FALSE(extColumnNameEqual(EXT_SOURCE_ORACLE, "MiXeDCol", "MIXEDCOL"));
+
+  // A literal double quote or backtick is part of the name and must not be
+  // interpreted as quoting syntax.
+  EXPECT_TRUE(extColumnNameEqual(EXT_SOURCE_ORACLE, "a\"b", "a\"b"));
+  EXPECT_FALSE(extColumnNameEqual(EXT_SOURCE_ORACLE, "a\"b", "ab"));
+  EXPECT_TRUE(extColumnNameEqual(EXT_SOURCE_ORACLE, "a`b", "a`b"));
+  EXPECT_FALSE(extColumnNameEqual(EXT_SOURCE_ORACLE, "a`b", "ab"));
+
+  // MySQL / SQL Server keep their catalog's case-insensitive matching.
+  EXPECT_TRUE(extColumnNameEqual(EXT_SOURCE_MYSQL, "EMP", "emp"));
+  EXPECT_TRUE(extColumnNameEqual(EXT_SOURCE_SQLSERVER, "EMP", "emp"));
+
+  // PostgreSQL / InfluxDB are case-sensitive as before.
+  EXPECT_TRUE(extColumnNameEqual(EXT_SOURCE_POSTGRESQL, "emp", "emp"));
+  EXPECT_FALSE(extColumnNameEqual(EXT_SOURCE_POSTGRESQL, "EMP", "emp"));
+  EXPECT_TRUE(extColumnNameEqual(EXT_SOURCE_INFLUXDB, "emp", "emp"));
+  EXPECT_FALSE(extColumnNameEqual(EXT_SOURCE_INFLUXDB, "EMP", "emp"));
+
+  // NULL handling: identical NULLs compare equal, one NULL never does.
+  EXPECT_TRUE(extColumnNameEqual(EXT_SOURCE_ORACLE, NULL, NULL));
+  EXPECT_FALSE(extColumnNameEqual(EXT_SOURCE_ORACLE, NULL, "emp"));
+  EXPECT_FALSE(extColumnNameEqual(EXT_SOURCE_ORACLE, "emp", NULL));
+}
+
+TEST(ExternalTypeMapTest, DecimalBoundariesRemainLegalAndUnknownTypesFail) {
+  SDataType type = {0};
+
+  ASSERT_EQ(TSDB_CODE_SUCCESS,
+            extTypeNameToTDengineType(EXT_SOURCE_MYSQL, "decimal(1,0)", NULL, &type));
+  EXPECT_EQ(1, type.precision);
+  EXPECT_EQ(0, type.scale);
+
+  type = {};
+  ASSERT_EQ(TSDB_CODE_SUCCESS,
+            extTypeNameToTDengineType(EXT_SOURCE_POSTGRESQL, "numeric(38,39)", "UTF8", &type));
+  EXPECT_EQ(TSDB_DECIMAL_MAX_PRECISION, type.precision);
+  EXPECT_EQ(TSDB_DECIMAL_MAX_PRECISION, type.scale);
+
+  type = {};
+  EXPECT_EQ(TSDB_CODE_EXT_TYPE_NOT_MAPPABLE,
+            extTypeNameToTDengineType(EXT_SOURCE_INFLUXDB, "UnknownArrowExtension", NULL, &type));
+}
+
+TEST(ExternalTypeMapTest, MapsMysqlInformationSchemaTablesColumnTypes) {
+  struct TypeCase {
+    const char* declaration;
+    const char* charset;
+  };
+
+  // MySQL 8 INFORMATION_SCHEMA.TABLES combines text, enum, signed and unsigned
+  // numeric, and temporal columns. Keep these declarations mapped so catalog
+  // queries can select any individual field without rejecting the whole table.
+  const TypeCase cases[] = {
+      {"varchar(64)", "utf8mb3"},
+      {"enum('BASE TABLE','VIEW','SYSTEM VIEW')", "utf8mb3"},
+      {"int", NULL},
+      {"enum('Fixed','Dynamic','Compressed','Redundant','Compact','Paged')", "utf8mb3"},
+      {"bigint unsigned", NULL},
+      {"timestamp", NULL},
+      {"datetime", NULL},
+      {"bigint", NULL},
+      {"varchar(256)", "utf8mb3"},
+      {"text", "utf8mb3"},
+  };
+
+  for (const TypeCase& test : cases) {
+    SDataType type = {0};
+    EXPECT_EQ(TSDB_CODE_SUCCESS,
+              extTypeNameToTDengineType(EXT_SOURCE_MYSQL, test.declaration, test.charset, &type))
+        << test.declaration;
+  }
+}
+
+TEST(ExternalTypeMapTest, InvalidModifiersNormalizeToLegalSchemaForAllProviders) {
+  struct TypeCase {
+    EExtSourceType source;
+    const char*    declaration;
+    const char*    charset;
+    int8_t         expectedType;
+    int32_t        expectedBytes;
+    uint8_t        expectedPrecision;
+    uint8_t        expectedScale;
+  };
+
+  const TypeCase cases[] = {
+      {EXT_SOURCE_MYSQL, "varchar(-1)", "utf8mb4", TSDB_DATA_TYPE_NCHAR, TSDB_MAX_NCHAR_LEN, 0, 0},
+      {EXT_SOURCE_MYSQL, "varchar(not-a-number)", "utf8mb4", TSDB_DATA_TYPE_NCHAR, TSDB_MAX_NCHAR_LEN, 0, 0},
+      {EXT_SOURCE_POSTGRESQL, "numeric(-1,not-a-number)", "UTF8", TSDB_DATA_TYPE_DECIMAL,
+       DECIMAL128_BYTES, TSDB_DECIMAL_MAX_PRECISION, 6},
+      {EXT_SOURCE_POSTGRESQL, "numeric(1", "UTF8", TSDB_DATA_TYPE_DECIMAL64,
+       DECIMAL64_BYTES, 1, 0},
+      {EXT_SOURCE_INFLUXDB, "Decimal256(-1,broken)", NULL, TSDB_DATA_TYPE_DECIMAL,
+       DECIMAL128_BYTES, TSDB_DECIMAL_MAX_PRECISION, 6},
+  };
+
+  for (const TypeCase& test : cases) {
+    SDataType type = {0};
+    ASSERT_EQ(TSDB_CODE_SUCCESS,
+              extTypeNameToTDengineType(test.source, test.declaration, test.charset, &type))
+        << test.declaration;
+    EXPECT_EQ(test.expectedType, type.type) << test.declaration;
+    EXPECT_EQ(test.expectedBytes, type.bytes) << test.declaration;
+    EXPECT_EQ(test.expectedPrecision, type.precision) << test.declaration;
+    EXPECT_EQ(test.expectedScale, type.scale) << test.declaration;
+  }
+}
+
+TEST(testCase, virtual_table_meta_rejects_mismatched_col_ref_count) {
+  STableMetaRsp rsp = {0};
+  SSchema       schema = {0};
+  SSchemaExt    schemaExt = {0};
+  SColRef       colRefs[2] = {};
+  STableMetaOutput output = {0};
+
+  rsp.numOfColumns = 1;
+  rsp.tableType = TSDB_VIRTUAL_NORMAL_TABLE;
+  rsp.numOfColRefs = 2;
+  rsp.pSchemas = &schema;
+  rsp.pSchemaExt = &schemaExt;
+  rsp.pColRefs = colRefs;
+  schema.type = TSDB_DATA_TYPE_TIMESTAMP;
+  schema.colId = PRIMARYKEY_TIMESTAMP_COL_ID;
+  schema.bytes = sizeof(int64_t);
+
+  int32_t msgLen = tSerializeSTableMetaRsp(NULL, 0, &rsp);
+  ASSERT_GT(msgLen, 0);
+
+  char* pMsg = (char*)taosMemoryMalloc(msgLen);
+  ASSERT_NE(pMsg, nullptr);
+  ASSERT_GT(tSerializeSTableMetaRsp(pMsg, msgLen, &rsp), 0);
+
+  initQueryModuleMsgHandle();
+  ASSERT_EQ(queryProcessMsgRsp[TMSG_INDEX(TDMT_VND_TABLE_META)](&output, pMsg, msgLen),
+            TSDB_CODE_INVALID_MSG);
+  ASSERT_EQ(output.tbMeta, nullptr);
+  ASSERT_EQ(output.vctbMeta, nullptr);
+
+  taosMemoryFree(pMsg);
+}
+
+TEST(testCase, clone_normal_create_table_req_preserves_metadata) {
+  SSchema schema[2] = {};
+  schema[0].type = TSDB_DATA_TYPE_TIMESTAMP;
+  schema[0].bytes = sizeof(int64_t);
+  schema[1].type = TSDB_DATA_TYPE_DECIMAL;
+  schema[1].bytes = 16;
+
+  SColCmpr colCmpr[2] = {};
+  colCmpr[0].id = 0;
+  colCmpr[0].alg = 1;
+  colCmpr[1].id = 1;
+  colCmpr[1].alg = 2;
+
+  SExtSchema extSchemas[2] = {};
+  extSchemas[1].typeMod = 4;
+  char       sql[] = "create table t0 (ts timestamp, v decimal(10, 2))";
+
+  SVCreateTbReq src = {};
+  src.name = (char*)"t0";
+  src.type = TSDB_NORMAL_TABLE;
+  src.sql = sql;
+  src.sqlLen = strlen(sql);
+  src.txnId = 9;
+  src.txnStatus = 1;
+  src.ntb.schemaRow.nCols = 2;
+  src.ntb.schemaRow.version = 7;
+  src.ntb.schemaRow.pSchema = schema;
+  src.ntb.userId = 42;
+  src.colCmpr.nCols = 2;
+  src.colCmpr.version = 3;
+  src.colCmpr.pColCmpr = colCmpr;
+  src.pExtSchemas = extSchemas;
+
+  SVCreateTbReq* dst = nullptr;
+  ASSERT_EQ(cloneSVreateTbReq(&src, &dst), TSDB_CODE_SUCCESS);
+  ASSERT_NE(dst, nullptr);
+  ASSERT_EQ(dst->ntb.schemaRow.version, src.ntb.schemaRow.version);
+  ASSERT_NE(dst->ntb.schemaRow.pSchema, src.ntb.schemaRow.pSchema);
+  ASSERT_EQ(memcmp(dst->ntb.schemaRow.pSchema, src.ntb.schemaRow.pSchema, sizeof(schema)), 0);
+  ASSERT_EQ(dst->colCmpr.nCols, src.colCmpr.nCols);
+  ASSERT_EQ(dst->colCmpr.version, src.colCmpr.version);
+  ASSERT_NE(dst->colCmpr.pColCmpr, src.colCmpr.pColCmpr);
+  ASSERT_EQ(memcmp(dst->colCmpr.pColCmpr, src.colCmpr.pColCmpr, sizeof(colCmpr)), 0);
+  ASSERT_NE(dst->pExtSchemas, src.pExtSchemas);
+  ASSERT_EQ(memcmp(dst->pExtSchemas, src.pExtSchemas, sizeof(extSchemas)), 0);
+  ASSERT_EQ(dst->ntb.userId, src.ntb.userId);
+  ASSERT_EQ(dst->sqlLen, src.sqlLen);
+  ASSERT_NE(dst->sql, src.sql);
+  ASSERT_EQ(memcmp(dst->sql, src.sql, src.sqlLen), 0);
+  ASSERT_EQ(dst->txnId, src.txnId);
+  ASSERT_EQ(dst->txnStatus, src.txnStatus);
+
+  tdDestroySVCreateTbReq(dst);
+  taosMemoryFree(dst);
+}
+
+TEST(testCase, clone_create_table_req_rejects_inconsistent_sql) {
+  SSchema schema = {};
+  schema.type = TSDB_DATA_TYPE_TIMESTAMP;
+  schema.bytes = sizeof(int64_t);
+
+  SVCreateTbReq src = {};
+  src.name = (char*)"t0";
+  src.type = TSDB_NORMAL_TABLE;
+  src.ntb.schemaRow.nCols = 1;
+  src.ntb.schemaRow.pSchema = &schema;
+  // sqlLen claims content while sql is absent
+  src.sqlLen = 16;
+  src.sql = nullptr;
+
+  terrno = TSDB_CODE_SUCCESS;
+  SVCreateTbReq* dst = nullptr;
+  ASSERT_NE(cloneSVreateTbReq(&src, &dst), TSDB_CODE_SUCCESS);
+  ASSERT_EQ(dst, nullptr);
+}
+
+TEST(TableMetaTest, rejectsInvalidCountsBeforeConstructingCachedMeta) {
+  SSchema schema = {};
+  schema.type = TSDB_DATA_TYPE_TIMESTAMP;
+  schema.bytes = sizeof(int64_t);
+  STableMetaRsp msg = {};
+  msg.tableType = TSDB_NORMAL_TABLE;
+  msg.numOfColumns = 2;
+  msg.numOfTags = -1;
+  msg.pSchemas = &schema;
+
+  STableMeta* meta = reinterpret_cast<STableMeta*>(0x1);
+  EXPECT_EQ(queryCreateTableMetaFromMsg(&msg, false, &meta), TSDB_CODE_TSC_INVALID_VALUE);
+  EXPECT_EQ(meta, nullptr);
+}
+
+TEST(TableMetaTest, extendedConstructorRejectsInvalidCountsBeforeAllocation) {
+  STableMetaRsp msg = {};
+  msg.tableType = TSDB_NORMAL_TABLE;
+  msg.numOfColumns = 2;
+  msg.numOfTags = -1;
+
+  STableMeta* meta = reinterpret_cast<STableMeta*>(0x1);
+  EXPECT_EQ(queryCreateTableMetaExFromMsg(&msg, false, &meta), TSDB_CODE_TSC_INVALID_VALUE);
+  EXPECT_EQ(meta, nullptr);
+}
+
+TEST(TableMetaTest, acceptsValidCountsAndCopiesSchema) {
+  SSchema schemas[2] = {};
+  schemas[0].type = TSDB_DATA_TYPE_TIMESTAMP;
+  schemas[0].bytes = sizeof(int64_t);
+  strcpy(schemas[0].name, "ts");
+  schemas[1].type = TSDB_DATA_TYPE_INT;
+  schemas[1].bytes = sizeof(int32_t);
+  strcpy(schemas[1].name, "value");
+  STableMetaRsp msg = {};
+  msg.tableType = TSDB_NORMAL_TABLE;
+  msg.numOfColumns = 2;
+  msg.numOfTags = 0;
+  msg.pSchemas = schemas;
+
+  STableMeta* meta = nullptr;
+  ASSERT_EQ(queryCreateTableMetaFromMsg(&msg, false, &meta), TSDB_CODE_SUCCESS);
+  ASSERT_NE(meta, nullptr);
+  EXPECT_EQ(meta->tableInfo.numOfColumns, 2);
+  EXPECT_EQ(meta->schema[1].type, TSDB_DATA_TYPE_INT);
+  taosMemoryFree(meta);
+}
+
+TEST(TableMetaTest, rejectsInvalidSchemaBeforeConstructingCachedMeta) {
+  SSchema schemas[2] = {};
+  schemas[0].type = TSDB_DATA_TYPE_INT;
+  schemas[0].bytes = sizeof(int32_t);
+  strcpy(schemas[0].name, "ts");
+  schemas[1].type = TSDB_DATA_TYPE_INT;
+  schemas[1].bytes = sizeof(int32_t);
+  strcpy(schemas[1].name, "value");
+  STableMetaRsp msg = {};
+  msg.tableType = TSDB_NORMAL_TABLE;
+  msg.numOfColumns = 2;
+  msg.pSchemas = schemas;
+
+  STableMeta* meta = reinterpret_cast<STableMeta*>(0x1);
+  EXPECT_EQ(queryCreateTableMetaFromMsg(&msg, false, &meta), TSDB_CODE_TSC_INVALID_VALUE);
+  EXPECT_EQ(meta, nullptr);
+}
+
+TEST(TableMetaTest, rejectsInvalidReferenceCountsBeforeAllocation) {
+  SSchema schemas[2] = {};
+  schemas[0].type = TSDB_DATA_TYPE_TIMESTAMP;
+  schemas[0].bytes = sizeof(int64_t);
+  strcpy(schemas[0].name, "ts");
+  schemas[1].type = TSDB_DATA_TYPE_INT;
+  schemas[1].bytes = sizeof(int32_t);
+  strcpy(schemas[1].name, "value");
+  STableMetaRsp msg = {};
+  msg.tableType = TSDB_VIRTUAL_NORMAL_TABLE;
+  msg.numOfColumns = 2;
+  msg.pSchemas = schemas;
+  msg.numOfColRefs = -1;
+
+  STableMeta* meta = reinterpret_cast<STableMeta*>(0x1);
+  EXPECT_EQ(queryCreateTableMetaFromMsg(&msg, false, &meta), TSDB_CODE_TSC_INVALID_VALUE);
+  EXPECT_EQ(meta, nullptr);
+  msg.numOfColRefs = 1;
+  EXPECT_EQ(queryCreateTableMetaFromMsg(&msg, false, &meta), TSDB_CODE_TSC_INVALID_VALUE);
+  EXPECT_EQ(meta, nullptr);
+}
+
+TEST(TableMetaTest, acceptsHistoricalTagReferenceSlots) {
+  SSchema schemas[3] = {};
+  schemas[0].type = TSDB_DATA_TYPE_TIMESTAMP;
+  schemas[0].bytes = sizeof(int64_t);
+  strcpy(schemas[0].name, "ts");
+  schemas[1].type = TSDB_DATA_TYPE_INT;
+  schemas[1].bytes = sizeof(int32_t);
+  strcpy(schemas[1].name, "value");
+  schemas[2].type = TSDB_DATA_TYPE_INT;
+  schemas[2].bytes = sizeof(int32_t);
+  strcpy(schemas[2].name, "tag");
+  SColRef tagRefs[2] = {};
+  tagRefs[0].id = 3;
+  tagRefs[1].id = 4;
+
+  STableMetaRsp msg = {};
+  msg.tableType = TSDB_VIRTUAL_NORMAL_TABLE;
+  msg.numOfColumns = 2;
+  msg.numOfTags = 1;
+  msg.pSchemas = schemas;
+  msg.numOfTagRefs = 2;
+  msg.pTagRefs = tagRefs;
+
+  STableMeta* meta = nullptr;
+  ASSERT_EQ(queryCreateTableMetaFromMsg(&msg, false, &meta), TSDB_CODE_SUCCESS);
+  ASSERT_NE(meta, nullptr);
+  EXPECT_EQ(meta->numOfTagRefs, 2);
+  EXPECT_EQ(meta->tableInfo.numOfTags, 1);
+  taosMemoryFree(meta);
+}
+
+TEST(TableMetaTest, rejectsInvalidVirtualChildMetaBeforeAllocation) {
+  SSchema schema = {};
+  schema.type = TSDB_DATA_TYPE_TIMESTAMP;
+  schema.bytes = sizeof(int64_t);
+  strcpy(schema.name, "ts");
+  SColRef colRef = {};
+  STableMetaRsp msg = {};
+  msg.tableType = TSDB_VIRTUAL_CHILD_TABLE;
+  msg.numOfColumns = 1;
+  msg.pSchemas = &schema;
+  msg.numOfColRefs = 1;
+  msg.pColRefs = &colRef;
+
+  SVCTableMeta* meta = reinterpret_cast<SVCTableMeta*>(0x1);
+  msg.numOfColRefs = -1;
+  EXPECT_EQ(queryCreateVCTableMetaFromMsg(&msg, &meta), TSDB_CODE_TSC_INVALID_VALUE);
+  EXPECT_EQ(meta, nullptr);
+
+  msg.numOfColRefs = 1;
+  msg.pSchemas = nullptr;
+  meta = reinterpret_cast<SVCTableMeta*>(0x1);
+  EXPECT_EQ(queryCreateVCTableMetaFromMsg(&msg, &meta), TSDB_CODE_TSC_INVALID_VALUE);
+  EXPECT_EQ(meta, nullptr);
+
+  msg.pSchemas = &schema;
+  msg.numOfSeries = 1;
+  meta = reinterpret_cast<SVCTableMeta*>(0x1);
+  EXPECT_EQ(queryCreateVCTableMetaFromMsg(&msg, &meta), TSDB_CODE_TSC_INVALID_VALUE);
+  EXPECT_EQ(meta, nullptr);
+}
+
+TEST(TableMetaTest, acceptsVirtualChildWithoutColumnReferences) {
+  SSchema schemas[2] = {};
+  schemas[0].type = TSDB_DATA_TYPE_TIMESTAMP;
+  schemas[0].bytes = sizeof(int64_t);
+  strcpy(schemas[0].name, "ts");
+  schemas[1].type = TSDB_DATA_TYPE_INT;
+  schemas[1].bytes = sizeof(int32_t);
+  strcpy(schemas[1].name, "value");
+  STableMetaRsp msg = {};
+  msg.tableType = TSDB_VIRTUAL_CHILD_TABLE;
+  msg.numOfColumns = 2;
+  msg.pSchemas = schemas;
+
+  SVCTableMeta* meta = nullptr;
+  ASSERT_EQ(queryCreateVCTableMetaFromMsg(&msg, &meta), TSDB_CODE_SUCCESS);
+  ASSERT_NE(meta, nullptr);
+  EXPECT_EQ(meta->numOfColRefs, 0);
+  taosMemoryFree(meta);
+}
+
+TEST(TableMetaTest, referenceDeclarationsBelongToChildMetadata) {
+  SSchema schemas[2] = {};
+  schemas[0].type = TSDB_DATA_TYPE_TIMESTAMP;
+  schemas[0].bytes = sizeof(int64_t);
+  schemas[0].colId = 1;
+  strcpy(schemas[0].name, "ts");
+  schemas[1].type = TSDB_DATA_TYPE_INT;
+  schemas[1].bytes = sizeof(int32_t);
+  schemas[1].colId = 2;
+  strcpy(schemas[1].name, "value");
+
+  SReferenceEntry reference = {};
+  strcpy(reference.alias, "r");
+  strcpy(reference.sourceName, "src");
+  strcpy(reference.objectName, "readings");
+  strcpy(reference.timeColumn, "event_time");
+  SVtableDeclOrder declaration = {};
+  declaration.bindingKind = VTABLE_BINDING_REFERENCE;
+  strcpy(declaration.alias, "r");
+
+  STableMetaRsp msg = {};
+  msg.tableType = TSDB_VIRTUAL_CHILD_TABLE;
+  msg.numOfColumns = 2;
+  msg.pSchemas = schemas;
+  msg.referenceExt.nReferences = 1;
+  msg.referenceExt.pReferences = &reference;
+  msg.referenceExt.nDeclarations = 1;
+  msg.referenceExt.pDeclarations = &declaration;
+
+  for (auto constructor : {queryCreateTableMetaFromMsg, queryCreateTableMetaExFromMsg}) {
+    for (bool isStb : {false, true}) {
+      STableMeta* meta = nullptr;
+      ASSERT_EQ(constructor(&msg, isStb, &meta), TSDB_CODE_SUCCESS);
+      ASSERT_NE(meta, nullptr);
+      EXPECT_EQ(meta->referenceExt.nReferences, isStb ? 0 : 1);
+      EXPECT_EQ(meta->referenceExt.nDeclarations, isStb ? 0 : 1);
+      EXPECT_NE(meta->referenceExt.pReferences, &reference);
+      queryFreeTableMeta(meta);
+    }
+  }
+
+  SVCTableMeta* child = nullptr;
+  ASSERT_EQ(queryCreateVCTableMetaFromMsg(&msg, &child), TSDB_CODE_SUCCESS);
+  ASSERT_NE(child, nullptr);
+  EXPECT_EQ(child->referenceExt.nReferences, 1);
+  EXPECT_EQ(child->referenceExt.nDeclarations, 1);
+  EXPECT_NE(child->referenceExt.pReferences, &reference);
+  queryFreeTableMeta(reinterpret_cast<STableMeta*>(child));
+}
+
+TEST(ExtTimestampTypePrecisionTest, rejectsSubMicrosecondFraction) {
+  // SQL Server datetime2/datetimeoffset accept 7 fractional digits and default
+  // to 7 when the modifier is omitted.  The connector transports microseconds,
+  // so a stream reader cannot walk such a column with a microsecond cursor.
+  EXPECT_TRUE(extTimestampTypeHasSubMicroFraction(EXT_SOURCE_SQLSERVER, "datetime2(7)"));
+  EXPECT_TRUE(extTimestampTypeHasSubMicroFraction(EXT_SOURCE_SQLSERVER, "datetimeoffset(7)"));
+  EXPECT_TRUE(extTimestampTypeHasSubMicroFraction(EXT_SOURCE_SQLSERVER, "datetime2"));
+  EXPECT_TRUE(extTimestampTypeHasSubMicroFraction(EXT_SOURCE_SQLSERVER, "datetimeoffset"));
+
+  EXPECT_FALSE(extTimestampTypeHasSubMicroFraction(EXT_SOURCE_SQLSERVER, "datetime2(6)"));
+  EXPECT_FALSE(extTimestampTypeHasSubMicroFraction(EXT_SOURCE_SQLSERVER, "datetimeoffset(6)"));
+  EXPECT_FALSE(extTimestampTypeHasSubMicroFraction(EXT_SOURCE_SQLSERVER, "datetime2(0)"));
+  EXPECT_FALSE(extTimestampTypeHasSubMicroFraction(EXT_SOURCE_SQLSERVER, "datetime"));
+  EXPECT_FALSE(extTimestampTypeHasSubMicroFraction(EXT_SOURCE_SQLSERVER, "smalldatetime"));
+  EXPECT_FALSE(extTimestampTypeHasSubMicroFraction(EXT_SOURCE_SQLSERVER, "date"));
+
+  // Other providers never declare more than 6 fractional digits, and the
+  // InfluxDB reader keeps its native nanosecond resolution.
+  EXPECT_FALSE(extTimestampTypeHasSubMicroFraction(EXT_SOURCE_MYSQL, "datetime(6)"));
+  EXPECT_FALSE(extTimestampTypeHasSubMicroFraction(EXT_SOURCE_POSTGRESQL, "timestamp(6)"));
+  EXPECT_FALSE(extTimestampTypeHasSubMicroFraction(EXT_SOURCE_INFLUXDB, "timestamp"));
+  EXPECT_FALSE(extTimestampTypeHasSubMicroFraction(EXT_SOURCE_SQLSERVER, nullptr));
 }
 
 #pragma GCC diagnostic pop

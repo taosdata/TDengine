@@ -27,10 +27,10 @@ bool SZ_compress_args_float_NoCkRngeNoGzip_1D( unsigned char* newByteData, float
 size_t dataLength, double realPrecision, size_t *outSize, float valueRangeSize, float medianValue_f);
 
 
-void SZ_compress_args_float_withinRange(unsigned char* newByteData, float *oriData, size_t dataLength, size_t *outSize);
+int SZ_compress_args_float_withinRange(unsigned char* newByteData, size_t newByteDataCapacity, float *oriData, size_t dataLength, size_t *outSize);
 
 
-int SZ_compress_args_float(float *oriData, size_t r1, unsigned char* newByteData, size_t *outSize, sz_params* params);
+int SZ_compress_args_float(float *oriData, size_t r1, unsigned char* newByteData, size_t *outSize, size_t newByteDataCapacity, sz_params* params);
 
 #ifdef __cplusplus
 }

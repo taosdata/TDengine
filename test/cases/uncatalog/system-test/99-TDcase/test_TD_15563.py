@@ -1,4 +1,19 @@
 
+# Copyright (c) 2022 TAOS Data, Inc. <jhtao@taosdata.com>
+#
+# SPDX-License-Identifier: AGPL-3.0-or-later
+#
+# This program is free software: you can use, redistribute, and/or modify
+# it under the terms of the GNU Affero General Public License, version 3
+# or later ("AGPL"), as published by the Free Software Foundation.
+#
+# This program is distributed in the hope that it will be useful, but WITHOUT
+# ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+# FITNESS FOR A PARTICULAR PURPOSE.
+#
+# You should have received a copy of the GNU Affero General Public License
+# along with this program. If not, see <http://www.gnu.org/licenses/>.
+
 import taos
 import sys
 import time
@@ -6,7 +21,7 @@ import socket
 import os
 import threading
 
-from new_test_framework.utils import tdLog, tdSql, tdCom
+from new_test_framework.utils import tdLog, tdSql, tdCom, tmqCom
 
 class TestCase:
     hostname = socket.gethostname()
@@ -44,34 +59,6 @@ class TestCase:
         tdLog.info("consume info sql: %s"%sql)
         tdSql.query(sql)
 
-    def selectConsumeResult(self,expectRows,cdbName='cdb'):
-        resultList=[]
-        while 1:
-            tdSql.query("select * from %s.consumeresult"%cdbName)
-            #tdLog.info("row: %d, %l64d, %l64d"%(tdSql.getData(0, 1),tdSql.getData(0, 2),tdSql.getData(0, 3))
-            if tdSql.getRows() == expectRows:
-                break
-            else:
-                time.sleep(5)
-
-        for i in range(expectRows):
-            tdLog.info ("consume id: %d, consume msgs: %d, consume rows: %d"%(tdSql.getData(i , 1), tdSql.getData(i , 2), tdSql.getData(i , 3)))
-            resultList.append(tdSql.getData(i , 3))
-
-        return resultList
-
-    def startTmqSimProcess(self,buildPath,cfgPath,pollDelay,dbName,showMsg=1,showRow=1,cdbName='cdb',valgrind=0):
-        shellCmd = 'nohup '
-        if valgrind == 1:
-            logFile = cfgPath + '/../log/valgrind-tmq.log'
-            shellCmd = 'nohup valgrind --log-file=' + logFile
-            shellCmd += '--tool=memcheck --leak-check=full --show-reachable=no --track-origins=yes --show-leak-kinds=all --num-callers=20 -v --workaround-gcc296-bugs=yes '
-
-        shellCmd += buildPath + '/build/bin/tmq_sim -c ' + cfgPath
-        shellCmd += " -y %d -d %s -g %d -r %d -w %s "%(pollDelay, dbName, showMsg, showRow, cdbName)
-        shellCmd += "> /dev/null 2>&1 &"
-        tdLog.info(shellCmd)
-        os.system(shellCmd)
 
     def create_tables(self,tsql, dbName,vgroups,stbName,ctbNum,rowsPerTbl):
         tsql.execute("create database if not exists %s vgroups %d wal_retention_period 3600"%(dbName, vgroups))
@@ -181,14 +168,14 @@ class TestCase:
         pollDelay = 5
         showMsg   = 1
         showRow   = 1
-        self.startTmqSimProcess(buildPath,cfgPath,pollDelay,parameterDict["dbName"],showMsg, showRow)
+        tmqCom.startTmqSimProcess(pollDelay,parameterDict["dbName"],showMsg, showRow)
 
         # wait for data ready
         prepareEnvThread.join()
 
         tdLog.info("insert process end, and start to check consume result")
         expectRows = 1
-        resultList = self.selectConsumeResult(expectRows)
+        resultList = tmqCom.selectConsumeResult(expectRows, pollInterval=5)
         totalConsumeRows = 0
         for i in range(expectRows):
             totalConsumeRows += resultList[i]
@@ -247,14 +234,14 @@ class TestCase:
         pollDelay = 5
         showMsg   = 1
         showRow   = 1
-        self.startTmqSimProcess(buildPath,cfgPath,pollDelay,parameterDict["dbName"],showMsg, showRow)
+        tmqCom.startTmqSimProcess(pollDelay,parameterDict["dbName"],showMsg, showRow)
 
         # wait for data ready
         prepareEnvThread.join()
 
         tdLog.info("insert process end, and start to check consume result")
         expectRows = 2
-        resultList = self.selectConsumeResult(expectRows)
+        resultList = tmqCom.selectConsumeResult(expectRows, pollInterval=5)
         totalConsumeRows = 0
         for i in range(expectRows):
             totalConsumeRows += resultList[i]
@@ -326,7 +313,7 @@ class TestCase:
         pollDelay = 5
         showMsg   = 1
         showRow   = 1
-        self.startTmqSimProcess(buildPath,cfgPath,pollDelay,parameterDict["dbName"],showMsg, showRow)
+        tmqCom.startTmqSimProcess(pollDelay,parameterDict["dbName"],showMsg, showRow)
 
         # wait for data ready
         prepareEnvThread.join()
@@ -334,7 +321,7 @@ class TestCase:
 
         tdLog.info("insert process end, and start to check consume result")
         expectRows = 1
-        resultList = self.selectConsumeResult(expectRows)
+        resultList = tmqCom.selectConsumeResult(expectRows, pollInterval=5)
         totalConsumeRows = 0
         for i in range(expectRows):
             totalConsumeRows += resultList[i]
@@ -354,7 +341,7 @@ class TestCase:
 
         Since: xxx
 
-        Labels: xxx
+        Labels: common,ci,integration,functional
 
         Jira: xxx
 

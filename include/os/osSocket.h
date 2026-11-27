@@ -1,6 +1,8 @@
 /*
  * Copyright (c) 2019 TAOS Data, Inc. <jhtao@taosdata.com>
  *
+ * SPDX-License-Identifier: AGPL-3.0-or-later
+ *
  * This program is free software: you can use, redistribute, and/or modify
  * it under the terms of the GNU Affero General Public License, version 3
  * or later ("AGPL"), as published by the Free Software Foundation.
@@ -140,6 +142,7 @@ int32_t taosShutDownSocketServerRDWR(TdSocketServerPtr pSocketServer);
 int32_t taosSetNonblocking(TdSocketPtr pSocket, int32_t on);
 int32_t taosSetSockOpt(TdSocketPtr pSocket, int32_t level, int32_t optname, void *optval, int32_t optlen);
 int32_t taosSetSockOpt2(int32_t fd);
+int32_t taosSetTcpKeepalive(int fd, int keepalive_sec);
 int32_t taosGetSockOpt(TdSocketPtr pSocket, int32_t level, int32_t optname, void *optval, int32_t *optlen);
 int32_t taosWriteMsg(TdSocketPtr pSocket, void *ptr, int32_t nbytes);
 int32_t taosReadMsg(TdSocketPtr pSocket, void *ptr, int32_t nbytes);
@@ -186,6 +189,9 @@ typedef struct {
 int32_t taosGetIpv6FromFqdn(const char *fqdn, SIpAddr *ip);
 
 int32_t taosGetIp4FromFqdn(const char *fqdn, SIpAddr *addr);
+
+bool taosIsPrivateIp(const struct sockaddr *addr);
+bool taosIsPrivateUrl(const char *url);
 int32_t taosGetIpFromFqdn(int8_t enableIpv6, const char *fqdn, SIpAddr *addr);
 
 #define IP_ADDR_STR(ip) ((ip)->type == 0 ? (ip)->ipv4 : (ip)->ipv6)

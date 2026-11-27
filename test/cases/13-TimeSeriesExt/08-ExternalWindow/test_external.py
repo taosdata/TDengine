@@ -1,4 +1,20 @@
+# Copyright (c) 2026 TAOS Data, Inc. <jhtao@taosdata.com>
+#
+# SPDX-License-Identifier: AGPL-3.0-or-later
+#
+# This program is free software: you can use, redistribute, and/or modify
+# it under the terms of the GNU Affero General Public License, version 3
+# or later ("AGPL"), as published by the Free Software Foundation.
+#
+# This program is distributed in the hope that it will be useful, but WITHOUT
+# ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+# FITNESS FOR A PARTICULAR PURPOSE.
+#
+# You should have received a copy of the GNU Affero General Public License
+# along with this program. If not, see <http://www.gnu.org/licenses/>.
+
 import os
+from collections import Counter
 
 import taos
 from taos import new_bind_params
@@ -6,6 +22,335 @@ from new_test_framework.utils import tdLog, tdSql, sc, clusterComCheck, tdCom
 
 
 class TestExternal:
+    def do_partition_batch_hint_regression(self):
+        database = "extwin_partition_batch_case"
+        base = 1700000000000
+        tdSql.execute(f"drop database if exists {database}")
+        tdSql.execute(f"create database {database} vgroups 3")
+        tdSql.execute(f"use {database}")
+        tdSql.execute("create stable readings(ts timestamp, v int, status int) tags(region int)")
+        tdSql.execute("create table windows(ts timestamp, end_ts timestamp)")
+        windows = [(0, 29000), (15000, 44000), (45000, 75000),
+                   (76000, 119000), (150000, 160000)]
+        tdSql.execute("insert into windows values " + " ".join(
+            f"({base + start},{base + end})" for start, end in windows))
+
+        for table in range(12):
+            tdSql.execute(f"create table d{table} using readings tags({table % 3})")
+            if table == 11:
+                continue
+            for start in range(0, 120, 20):
+                values = []
+                for row in range(start, start + 20):
+                    status = "NULL" if row % 9 == 0 else row % 4
+                    values.append(
+                        f"({base + row * 1000},{table * 100 + row},{status})")
+                tdSql.execute(f"insert into d{table} values " + " ".join(values))
+
+        window_clause = "external_window((select ts,end_ts from windows) w)"
+        bodies = {
+            "aggregate": (
+                "tbname,status,_wstart,count(*),sum(v),min(v),max(v) "
+                f"from readings partition by tbname,status {window_clause}"),
+            "aggregate_filtered": (
+                "tbname,status,_wstart,count(*),sum(v) from readings "
+                "where v >= 500 and v < 900 "
+                f"partition by tbname,status {window_clause}"),
+            "aggregate_empty": (
+                "tbname,status,_wstart,count(*),sum(v) from readings "
+                "where v > 10000 "
+                f"partition by tbname,status {window_clause}"),
+            "scalar": (
+                "tbname,status,ts,v from readings "
+                f"partition by tbname,status {window_clause}"),
+            "fill": (
+                "tbname,status,_wstart,count(*),sum(v) from readings "
+                f"partition by tbname,status {window_clause} fill(null)"),
+            "grouped_windows": (
+                "tbname,status,_wstart,count(*) from readings "
+                "partition by tbname,status "
+                "external_window((select _wstart,_wend from readings "
+                "partition by tbname,status interval(30s)) w)"),
+            "single_table": (
+                "tbname,status,_wstart,count(*) from d0 "
+                f"partition by tbname,status {window_clause}"),
+            "fallback_tag": (
+                "region,status,_wstart,count(*) from readings "
+                f"partition by region,status {window_clause}"),
+            "fallback_column": (
+                "status,_wstart,count(*) from readings "
+                f"partition by status {window_clause}"),
+            "fallback_order": (
+                "tbname,status,_wstart,count(*) from readings "
+                f"partition by tbname,status {window_clause} "
+                "order by tbname,status,_wstart"),
+            "fallback_having": (
+                "tbname,status,_wstart,count(*) from readings "
+                f"partition by tbname,status {window_clause} "
+                "having count(*) > 0"),
+            "fallback_limit": (
+                "tbname,status,_wstart,count(*) from readings "
+                f"partition by tbname,status {window_clause} limit 10"),
+        }
+        for name, body in bodies.items():
+            off = "select /*+ NO_EXTWIN_PARTITION_BATCH() */ " + body
+            default = "select " + body
+            on = "select /*+ EXTWIN_PARTITION_BATCH() */ " + body
+            conflict = ("select /*+ EXTWIN_PARTITION_BATCH(), "
+                        "NO_EXTWIN_PARTITION_BATCH() */ " + body)
+            reverse_conflict = ("select /*+ NO_EXTWIN_PARTITION_BATCH(), "
+                                "EXTWIN_PARTITION_BATCH() */ " + body)
+            duplicate_on = ("select /*+ EXTWIN_PARTITION_BATCH(), "
+                            "EXTWIN_PARTITION_BATCH() */ " + body)
+            duplicate_off = ("select /*+ NO_EXTWIN_PARTITION_BATCH(), "
+                             "NO_EXTWIN_PARTITION_BATCH() */ " + body)
+            duplicate_conflict = ("select /*+ EXTWIN_PARTITION_BATCH(), "
+                                  "EXTWIN_PARTITION_BATCH(), "
+                                  "NO_EXTWIN_PARTITION_BATCH() */ " + body)
+            tdSql.query(off)
+            expected = Counter(tuple(row) for row in tdSql.queryResult)
+            tdSql.query("explain verbose true " + off)
+            off_plan = "\n".join(row[0] for row in tdSql.queryResult)
+            assert "mode=seq_grp_order" not in off_plan, name
+            for variant, sql in (("default", default), ("on", on),
+                                 ("conflict", conflict),
+                                 ("reverse_conflict", reverse_conflict),
+                                 ("duplicate_on", duplicate_on),
+                                 ("duplicate_off", duplicate_off),
+                                 ("duplicate_conflict", duplicate_conflict)):
+                tdSql.query(sql)
+                actual = Counter(tuple(row) for row in tdSql.queryResult)
+                if name != "fallback_limit":
+                    assert actual == expected, (name, variant)
+                tdSql.query("explain verbose true " + sql)
+                plan = "\n".join(row[0] for row in tdSql.queryResult)
+                eligible = name in ("aggregate", "aggregate_filtered",
+                                    "aggregate_empty", "fill", "grouped_windows")
+                expected_mode = eligible and variant in ("default", "on", "duplicate_on")
+                assert ("mode=seq_grp_order" in plan) == expected_mode, (name, variant)
+
+        tdSql.execute(f"drop database {database}")
+        print("external window partition batch default and hint .. [ passed ]")
+
+    def test_partition_batch_hint(self):
+        """External Window: drain complete tbname batches from Partition.
+
+        1. Compare default, explicit on and off for aggregation, projection, FILL and
+           grouped window subqueries.
+        2. Verify that unsupported grouping shapes keep the original plan.
+
+        Catalog:
+            - TimeSeriesExt:ExternalWindow
+
+        Since: v3.4.4.0
+
+        Labels: common,ci
+
+        Jira: None
+
+        History:
+            - 2026-10-27 Codex Added grouped Partition batch regression
+
+        """
+        self.do_partition_batch_hint_regression()
+
+    def do_set_function_windows(self):
+        tdSql.execute("drop database if exists ext_set_functions")
+        tdSql.execute("create database ext_set_functions")
+        tdSql.execute("use ext_set_functions")
+        tdSql.execute("create table samples(ts timestamp, v bigint)")
+        tdSql.execute("create table windows(ts timestamp, end_ts timestamp, label int)")
+        base = 1600000000000
+        values = [1, 2, 4, 8, None, 16]
+        tdSql.execute("insert into samples values " + " ".join(
+            f"({base + i * 1000}, {'NULL' if v is None else v})"
+            for i, v in enumerate(values)
+        ))
+        windows = [(0, 3000), (2000, 6000), (6000, 7000)]
+        tdSql.execute("insert into windows values " + " ".join(
+            f"({base + start}, {base + end - 1}, {i})"
+            for i, (start, end) in enumerate(windows)
+        ))
+        clause = "external_window((select ts, end_ts, label from windows order by ts) w)"
+        functions = [
+            "diff(v)", "derivative(v, 1s, 0)", "csum(v)", "mavg(v, 2)",
+            "statecount(v, 'GT', 0)", "stateduration(v, 'GT', 0, 1s)",
+            "lag(v, 1)", "lead(v, 1)", "fill_forward(v)",
+            "top(v, 2)", "bottom(v, 2)",
+            "histogram(v, 'user_input', '[0,3,10,20]', 0)",
+            "csum(v), csum(v * 2)", "lag(v, 1), lead(v, 1)",
+            "mavg(v, 2), mavg(v * 2, 2)",
+        ]
+        natural_results = {}
+        for function in functions:
+            expected = []
+            for start, end in windows:
+                # A single interval over the same input is the existing window baseline.
+                tdSql.query(
+                    f"select {function} from samples where ts >= {base + start} "
+                    f"and ts < {base + end} interval(1d)"
+                )
+                expected.extend((base + start, *row) for row in tdSql.queryResult)
+            tdSql.query(f"select cast(_wstart as bigint), {function} from samples {clause}")
+            assert tdSql.queryResult == expected, function
+            natural_results[function] = list(expected)
+
+        tdSql.query(f"select w.label, cast(ts as bigint), sample(v, 2) from samples {clause}")
+        tdSql.checkRows(4)
+        values_by_ts = {base + i * 1000: value for i, value in enumerate(values)}
+        for label, ts, value in tdSql.queryResult:
+            assert label in (0, 1)
+            assert base + (0 if label == 0 else 2000) <= ts < base + (3000 if label == 0 else 6000)
+            assert value == values_by_ts[ts]
+
+        # Check window attributes and original-row association for selection results.
+        tdSql.query(f"select w.label, cast(ts as bigint), top(v, 2) from samples {clause}")
+        assert sorted(tdSql.queryResult) == [
+            (0, base + 1000, 2), (0, base + 2000, 4),
+            (1, base + 3000, 8), (1, base + 5000, 16),
+        ]
+        for function in [
+            "tail(v, 2)", "unique(v)", "interp(v)",
+            "csum(v), lag(v, 1)", "diff(v), derivative(v, 1s, 0)",
+            "mavg(v, 2), mavg(v, 3)", "sum(v), top(v, 2)",
+            "top(v, 2), bottom(v, 3)",
+        ]:
+            for window in ["interval(1d)", clause]:
+                tdSql.error(f"select {function} from samples {window}")
+        for function in ["top(v, 2)", "bottom(v, 2)", "sample(v, 2)",
+                         "histogram(v, 'user_input', '[0,3,10,20]', 0)"]:
+            for fill in ["none", "null", "null_f", "value, 7", "value_f, 7", "prev", "next", "linear"]:
+                for window in ["interval(1d)", clause]:
+                    tdSql.error(f"select {function} from samples {window} fill({fill})")
+
+        for function in functions[:9]:
+            natural = natural_results[function]
+            for fill, value in [("none", None), ("null", None), ("null_f", None),
+                                ("value, 7", 7), ("value_f, 7", 7)]:
+                expected = natural + ([] if fill == "none" else [(base + 6000, value)])
+                tdSql.query(f"select cast(_wstart as bigint), {function} from samples {clause} fill({fill})")
+                assert tdSql.queryResult == expected, (function, fill)
+            for fill in ["prev", "next", "linear"]:
+                for window in ["interval(1d)", clause]:
+                    tdSql.error(f"select {function} from samples where ts >= {base} "
+                                f"and ts < {base + 7000} {window} fill({fill})")
+
+        projected = [(1, base), (3, base), (7, base),
+                     (4, base + 2000), (12, base + 2000), (28, base + 2000)]
+        tdSql.query(f"select abs(csum(v)), cast(_wstart as bigint) from samples {clause}")
+        assert tdSql.queryResult == projected
+        tdSql.query(f"select cast(_wstart as bigint), abs(csum(v)) from samples {clause}")
+        assert tdSql.queryResult == [(ws, value) for value, ws in projected]
+        for projection in ["lag(v, 1), abs(csum(v))", "csum(v), abs(lag(v, 1))"]:
+            tdSql.error(f"select {projection} from samples {clause}")
+
+        tdSql.query(f"select cast(_wstart as bigint), abs(csum(v)) + 1 from samples {clause} fill(value, 7)")
+        assert tdSql.queryResult == [
+            (base, 2), (base, 4), (base, 8),
+            (base + 2000, 5), (base + 2000, 13), (base + 2000, 29),
+            (base + 6000, 7),
+        ]
+
+        # Forced fill emits empty windows even when no input matches any window.
+        for fill, value in [("none", None), ("null", None), ("value, 7", 7),
+                            ("null_f", None), ("value_f, 7", 7)]:
+            tdSql.query(f"select cast(_wstart as bigint), csum(v) from samples "
+                        f"where ts > {base + 10000} {clause} fill({fill})")
+            expected = [(base + start, value) for start, _ in windows] if "_f" in fill else []
+            assert tdSql.queryResult == expected, fill
+
+        tdSql.execute("delete from windows")
+        tdSql.execute(f"insert into windows values ({base}, {base}, 0) "
+                      f"({base + 1000}, {base + 3000}, 1)")
+        tdSql.query(f"select cast(_wstart as bigint), mavg(v, 2) from samples {clause}")
+        assert tdSql.queryResult == [(base + 1000, 3.0), (base + 1000, 6.0)]
+        tdSql.execute("drop database ext_set_functions")
+        print("external window set functions ......................... [ passed ]")
+
+    def do_set_function_partition_blocks(self):
+        tdSql.execute("drop database if exists ext_set_blocks")
+        tdSql.execute("create database ext_set_blocks vgroups 2")
+        tdSql.execute("use ext_set_blocks")
+        tdSql.execute("create stable samples(ts timestamp, v int) tags(device int)")
+        base = 1600000000000
+        for device in (1, 2):
+            tdSql.execute(f"create table d{device} using samples tags({device})")
+            for start in range(0, 5000, 500):
+                rows = " ".join(
+                    f"({base + i}, {'NULL' if i % 997 == 0 else device})"
+                    for i in range(start, start + 500)
+                )
+                tdSql.execute(f"insert into d{device} values {rows}")
+        tdSql.execute("create table windows(ts timestamp, end_ts timestamp)")
+        ranges = [(0, 4999), (2500, 4999)]
+        tdSql.execute("insert into windows values " + " ".join(
+            f"({base + start}, {base + end})" for start, end in ranges
+        ))
+        for function in [
+            "csum(v)", "mavg(v, 3)", "diff(v)", "lag(v, 1)", "lead(v, 1)",
+            "statecount(v, 'GT', 0)", "stateduration(v, 'GT', 0, 1s)",
+        ]:
+            expected = []
+            for device in (1, 2):
+                for start, end in ranges:
+                    if function == "lead(v, 1)":
+                        # Use explicit values: the existing INTERVAL cross-block LEAD path
+                        # has an independent out-of-bounds pending-output bug.
+                        expected.extend(
+                            (device, base + start,
+                             None if i == end or (i + 1) % 997 == 0 else device)
+                            for i in range(start, end + 1)
+                        )
+                    else:
+                        tdSql.query(
+                            f"select {function} from d{device} "
+                            f"where ts >= {base + start} and ts <= {base + end} interval(1d)"
+                        )
+                        expected.extend((device, base + start, *row) for row in tdSql.queryResult)
+            tdSql.query(
+                f"select device, cast(_wstart as bigint), {function} from samples "
+                "partition by tbname, device external_window((select ts, end_ts from windows order by ts) w)"
+            )
+            actual_groups = {}
+            expected_groups = {}
+            for row in tdSql.queryResult:
+                actual_groups.setdefault(row[:2], []).append(row[2:])
+            for row in expected:
+                expected_groups.setdefault(row[:2], []).append(row[2:])
+            assert actual_groups == expected_groups, function
+        tdSql.execute(f"insert into windows values ({base + 6000}, {base + 7000})")
+        tdSql.query(
+            "select device, cast(_wstart as bigint), csum(v) from samples "
+            "partition by tbname, device external_window((select ts, end_ts from windows order by ts) w) fill(value, 7)"
+        )
+        filled = [row for row in tdSql.queryResult if row[1] == base + 6000]
+        assert sorted(filled) == [(1, base + 6000, 7), (2, base + 6000, 7)]
+        tdSql.execute("drop database ext_set_blocks")
+        print("external window partitioned set functions ......................... [ passed ]")
+
+    def test_set_function_windows(self):
+        """External window set functions follow existing window rules.
+
+        1. Compare sequence, selection and histogram results with interval queries.
+        2. Check overlapping windows, NULLs, empty windows and companion columns.
+        3. Preserve existing invalid function and coexistence rules.
+        4. Compare partitioned windows spanning multiple input and output blocks.
+
+        Catalog:
+            - Timeseries:ExternalWindow
+
+        Since: v3.4.3.0
+
+        Labels: common,ci
+
+        Jira: None
+
+        History:
+            - 2026-09-16 xsren: Open external window set functions and verify results.
+        """
+        self.do_set_function_windows()
+        self.do_set_function_partition_blocks()
+
     def _check_no_sort_rows(self, sql_rows):
         for sql, rows in sql_rows:
             tdSql.query(sql)
@@ -42,13 +387,12 @@ class TestExternal:
 
         Since: v3.4.0.0
 
-        Labels: common,ci
+        Labels: common,ci,integration,functional
 
         Jira: None
 
         History:
             - 2026-02-06 xs Ren Created file
-
         """
 
         tdLog.debug(f"start to execute {__file__}")
@@ -73,8 +417,50 @@ class TestExternal:
         self.large_block_and_time_condition_regression()
         self.vtable_external_window_regression()
         self.stmt_external_window_regression()
-        self.fill_external_window_negative()
+        self.stmt2_external_window_regression()
+        self.fill_external_window_regression()
         self.scenario_regression()
+        self.text_source_as_window_regression()
+
+    def test_external_multitable_order_level(self):
+        """External: multitable order level regression
+
+        Validate that external_window on a multi-table source still returns the
+        expected windows when the source is not treated as globally ordered.
+        This protects the unordered fallback path after inputHasOrder is derived
+        from actual upstream order properties.
+
+        Catalog:
+            - TimeSeriesExt:ExternalWindow
+
+        Since: v3.4.0.0
+
+        Labels: common,ci
+
+        Jira: None
+
+        History:
+            - 2026-09-01 Jin Minglei Created
+        """
+
+        tdLog.debug(f"start to execute {__file__} multi-table order level regression")
+        self.dbName = "test"
+        self.prepare_data()
+        self.prepare_for_orderby_and_alias()
+
+        tdSql.query(
+            "select cast(_wstart as bigint) as ws, count(*) as c "
+            "from ext_ord_src external_window((select ts, endtime, mark from ext_ord_win_all) w)"
+        )
+        tdSql.checkRows(4)
+        tdSql.checkData(0, 0, 1700100000000)
+        tdSql.checkData(0, 1, 2)
+        tdSql.checkData(1, 0, 1700100600000)
+        tdSql.checkData(1, 1, 3)
+        tdSql.checkData(2, 0, 1700101200000)
+        tdSql.checkData(2, 1, 1)
+        tdSql.checkData(3, 0, 1700101800000)
+        tdSql.checkData(3, 1, 2)
 
     def mock_test_external_window_single_block(self):
         dbName = "external_window_test_single_block"
@@ -1269,74 +1655,75 @@ class TestExternal:
             fullMatched=False,
         )
 
-    def fill_external_window_negative(self):
-        """Test that FILL clause is rejected for external_window."""
-        tdLog.info("=============== external window: fill negative regression")
-        tdSql.execute(f"use {self.dbName}")
+    def fill_external_window_regression(self):
+        """Test external_window FILL support matrix and negative cases."""
+        tdLog.info("=============== external window: fill regression")
 
-        # FILL NONE — semantic error (grammar accepts fill_mode: none/null/null_f/linear)
+        self._check_no_sort_rows([
+            ("select cast(_wstart as bigint) as ws, count(*) as c from ext_cx_src external_window((select ts, endtime, mark from ext_cx_win) w) fill(none)", 4),
+            ("select cast(_wstart as bigint) as ws, count(*) as c from ext_cx_src external_window((select ts, endtime, mark from ext_cx_win) w) fill(null)", 4),
+            ("select cast(_wstart as bigint) as ws, count(*) as c, sum(v) as sv from ext_cx_src external_window((select ts, endtime, mark from ext_cx_win) w) fill(value, 0, 0)", 4),
+            ("select cast(_wstart as bigint) as ws, count(*) as c from ext_cx_src external_window((select ts, endtime, mark from ext_cx_win) w) fill(prev)", 4),
+            ("select cast(_wstart as bigint) as ws, count(*) as c from ext_cx_src external_window((select ts, endtime, mark from ext_cx_win) w) fill(next)", 4),
+            ("select t1, cast(_wstart as bigint) as ws, count(*) as c from ext_cx_src partition by t1 external_window((select ts, endtime, mark from ext_cx_win) w) fill(null)", 8),
+        ])
+
+        self.sqlFile = os.path.join(os.path.dirname(__file__), "in", "fill_regression.in")
+        self.ansFile = os.path.join(os.path.dirname(__file__), "ans", "fill_regression.ans")
+        tdCom.compare_testcase_result(self.sqlFile, self.ansFile, "fill_regression")
+
+        # FILL LINEAR remains unsupported
         tdSql.error(
             "select cast(_wstart as bigint) as ws, count(*) as c "
             "from ext_cx_src "
-            "external_window((select ts, endtime, mark from ext_cx_win) w "
-            "fill(none))",
-            expectedErrno=0x80002657,
-            expectErrInfo="Fill not allowed in external window query",
+            "external_window((select ts, endtime, mark from ext_cx_win) w) "
+            "fill(linear)",
+            expectedErrno=0x800026AC,
+            expectErrInfo="LINEAR/NEAR fill is not supported with external window",
             fullMatched=False,
         )
 
-        # FILL NULL
+        # FILL NEAR remains unsupported
         tdSql.error(
             "select cast(_wstart as bigint) as ws, count(*) as c "
             "from ext_cx_src "
-            "external_window((select ts, endtime, mark from ext_cx_win) w "
-            "fill(null))",
-            expectedErrno=0x80002657,
-            expectErrInfo="Fill not allowed in external window query",
+            "external_window((select ts, endtime, mark from ext_cx_win) w) "
+            "fill(near)",
+            expectedErrno=0x800026AC,
+        )
+
+        # SURROUND remains unsupported
+        tdSql.error(
+            "select cast(_wstart as bigint) as ws, count(*) as c "
+            "from ext_cx_src "
+            "external_window((select ts, endtime, mark from ext_cx_win) w) "
+            "fill(prev) surround(1m)",
+            expectedErrno=0x800026AE,
+        )
+
+        # VALUE count mismatch — too many fill values
+        tdSql.error(
+            "select cast(_wstart as bigint) as ws, count(*) as c, sum(v) as sv "
+            "from ext_cx_src "
+            "external_window((select ts, endtime, mark from ext_cx_win) w) "
+            "fill(value, 0, 0, 0)",
+            expectedErrno=0x80002605,
+            expectErrInfo="Too many fill values specified",
             fullMatched=False,
         )
 
-        # FILL LINEAR
+        # Non-aggregate query with fill is rejected
         tdSql.error(
-            "select cast(_wstart as bigint) as ws, count(*) as c "
+            "select cast(_wstart as bigint) as ws, ts "
             "from ext_cx_src "
-            "external_window((select ts, endtime, mark from ext_cx_win) w "
-            "fill(linear))",
+            "external_window((select ts, endtime, mark from ext_cx_win) w) "
+            "fill(null)",
             expectedErrno=0x80002657,
-            expectErrInfo="Fill not allowed in external window query",
+            expectErrInfo="Fill only supports aggregate query with external window",
             fullMatched=False,
         )
 
-        # FILL PREV — syntax error (prev/next/near not in external_window_fill_opt grammar)
-        tdSql.error(
-            "select cast(_wstart as bigint) as ws, count(*) as c "
-            "from ext_cx_src "
-            "external_window((select ts, endtime, mark from ext_cx_win) w "
-            "fill(prev))",
-            expectedErrno=0x80002600,
-        )
-
-        # FILL NEXT — syntax error
-        tdSql.error(
-            "select cast(_wstart as bigint) as ws, count(*) as c "
-            "from ext_cx_src "
-            "external_window((select ts, endtime, mark from ext_cx_win) w "
-            "fill(next))",
-            expectedErrno=0x80002600,
-        )
-
-        # FILL NULL with partition by — semantic error
-        tdSql.error(
-            "select t1, cast(_wstart as bigint) as ws, count(*) as c "
-            "from ext_cx_src partition by t1 "
-            "external_window((select ts, endtime, mark from ext_cx_win) w "
-            "fill(null))",
-            expectedErrno=0x80002657,
-            expectErrInfo="Fill not allowed in external window query",
-            fullMatched=False,
-        )
-
-        tdLog.info("=============== external window: fill negative regression done")
+        tdLog.info("=============== external window: fill regression done")
 
     def complex_agg_and_filter_no_sort(self):
         tdLog.info("=============== external window: complex agg and filter no sort")
@@ -1409,15 +1796,30 @@ class TestExternal:
             "as (select _wstart as ws, first(v) as fv, last(v) as lv from ext_cx_src partition "
             "by t1 external_window((select ts, endtime, mark from ext_cx_win) w) order by t1, ws);",
             fullMatched=False,
-            expectErrInfo="External window query can not be used in stream query"
+            expectErrInfo="External window query cannot be used in a stream query"
         )
+
+        for function in [
+            "diff(v)", "derivative(v, 1s, 0)", "csum(v)", "mavg(v, 2)",
+            "statecount(v, 'GT', 0)", "stateduration(v, 'GT', 0, 1s)",
+            "lag(v, 1)", "lead(v, 1)", "fill_forward(v)",
+            "top(v, 2)", "bottom(v, 2)", "sample(v, 2)",
+            "histogram(v, 'user_input', '[0,10,20,30]', 0)",
+        ]:
+            tdSql.error(
+                f"create stream stream_ext_set interval(10m) sliding(10m) "
+                "from ext_win into stream_out_a as (select _wstart, "
+                f"{function} from ext_cx_src external_window((select ts, endtime from ext_cx_win) w))",
+                fullMatched=False,
+                expectErrInfo="External window query cannot be used in a stream query",
+            )
 
         tdSql.error(
             "create stream stream1 interval(10m) sliding(10m) from ext_win into stream_out_a "
             "as (select cast(_wstart as bigint) as ws, first(v) as fv, last(v) as lv from ext_cx_src partition "
             "by t1 external_window((select ts, endtime, mark from ext_cx_win) w) order by t1, ws)",
             fullMatched=False,
-            expectErrInfo="External window query can not be used in stream query"
+            expectErrInfo="External window query cannot be used in a stream query"
         )
         
         tdSql.error(
@@ -1425,21 +1827,32 @@ class TestExternal:
             "as ws, first(v) as fv, last(v) as lv from ext_cx_src partition by t1 "
             "external_window((select ts, endtime, mark from ext_cx_win) w) order by t1, ws)",
             fullMatched=False,
-            expectErrInfo="External window query can not be used in topic query"
+            expectErrInfo="External window query cannot be used in a topic query"
         )
 
-        tdSql.error(
+        for function in [
+            "diff(v)", "derivative(v, 1s, 0)", "csum(v)", "mavg(v, 2)",
+            "statecount(v, 'GT', 0)", "stateduration(v, 'GT', 0, 1s)",
+            "lag(v, 1)", "lead(v, 1)", "fill_forward(v)",
+            "top(v, 2)", "bottom(v, 2)", "sample(v, 2)",
+            "histogram(v, 'user_input', '[0,10,20,30]', 0)",
+        ]:
+            tdSql.error(
+                f"create topic topic_ext_set as select _wstart, {function} "
+                "from ext_cx_src external_window((select ts, endtime from ext_cx_win) w)",
+                expectedErrno=0x80002639,
+            )
+
+        tdSql.query(
             "select cast(_wstart as bigint) as ws, top(v, 2) "
             "from ext_cx_src external_window((select ts, endtime, mark from ext_cx_win) w) "
             "order by ws",
-            fullMatched=False,
         )
 
-        tdSql.error(
+        tdSql.query(
             "select cast(_wstart as bigint) as ws, bottom(v, 2) "
             "from ext_cx_src external_window((select ts, endtime, mark from ext_cx_win) w) "
             "order by ws",
-            fullMatched=False,
         )
 
         tdSql.error(
@@ -1449,11 +1862,10 @@ class TestExternal:
             fullMatched=False,
         )
 
-        tdSql.error(
+        tdSql.noError(
             "select cast(_wstart as bigint) as ws, count(distinct v) "
             "from ext_cx_src external_window((select ts, endtime, mark from ext_cx_win) w) "
-            "order by ws",
-            fullMatched=False,
+            "order by ws"
         )
 
         tdSql.error(
@@ -1501,6 +1913,8 @@ class TestExternal:
             ("select cast(_wstart as bigint) as ws, elapsed(ts) as el from ext_cx_src external_window((select ts, endtime, mark from ext_cx_win) w);", 4),
             # LEASTSQUARES on child table
             ("select cast(_wstart as bigint) as ws, leastsquares(v, 1, 1) as ls from ext_cx_src_1 external_window((select ts, endtime, mark from ext_cx_win) w);", 4),
+            # COUNT DISTINCT
+            ("select t1, cast(_wstart as bigint) as ws, count(distinct v) as cd from ext_cx_src partition by t1 external_window((select ts, endtime, mark from ext_cx_win) w);", 8),
             # partition by + SPREAD
             ("select t1, cast(_wstart as bigint) as ws, spread(v) as sp from ext_cx_src partition by t1 external_window((select ts, endtime, mark from ext_cx_win) w);", 8),
             # partition by + GROUP_CONCAT
@@ -1512,11 +1926,32 @@ class TestExternal:
             ("select cast(_wstart as bigint) as ws, leastsquares(v, 1, 1) as ls from ext_cx_src external_window((select ts, endtime, mark from ext_cx_win) w);", 4),
         ])
 
-        # HISTOGRAM produces multi-row output per group, not compatible with window queries
-        tdSql.error(
+        tdSql.query(
+            "select t1, cast(_wstart as bigint) as ws, count(distinct v) as cd "
+            "from ext_cx_src partition by t1 "
+            "external_window((select ts, endtime, mark from ext_cx_win) w) "
+            "order by t1, ws"
+        )
+        tdSql.checkRows(8)
+        expected = [
+            (1, 1700400000000, 2),
+            (1, 1700400300000, 2),
+            (1, 1700400600000, 1),
+            (1, 1700400900000, 1),
+            (2, 1700400000000, 1),
+            (2, 1700400300000, 2),
+            (2, 1700400600000, 1),
+            (2, 1700400900000, 1),
+        ]
+        for row, (t1, ws, cd) in enumerate(expected):
+            tdSql.checkData(row, 0, t1)
+            tdSql.checkData(row, 1, ws)
+            tdSql.checkData(row, 2, cd)
+
+        # HISTOGRAM returns one row per bin in each external window.
+        tdSql.query(
             "select cast(_wstart as bigint) as ws, histogram(v, 'user_input', '[0,10,20,30]', 0) "
             "from ext_cx_src external_window((select ts, endtime, mark from ext_cx_win) w);",
-            fullMatched=False,
         )
 
     def complex_semantics_regression(self):
@@ -1537,7 +1972,77 @@ class TestExternal:
         self.function_matrix_no_sort()
         self.special_function_negative_matrix()
         self.agg_function_coverage_no_sort()
+        self.external_window_count_distinct_dedup_regression()
         self.complex_partition_and_having_no_sort()
+
+    def external_window_count_distinct_dedup_regression(self):
+        """Verify global and partitioned COUNT(DISTINCT) deduplication.
+
+        Since: v3.4.2.3
+        """
+        tdLog.info("=============== external window: count distinct dedup regression")
+        tdSql.execute(f"use {self.dbName}")
+
+        tdSql.execute("drop table if exists ext_cd_src")
+        tdSql.execute("drop table if exists ext_cd_win")
+        tdSql.execute("create table ext_cd_src (ts timestamp, v int) tags(t1 int)")
+        tdSql.execute("create table ext_cd_win (ts timestamp, endtime timestamp, mark int)")
+        tdSql.execute("create table ext_cd_src_1 using ext_cd_src tags(1)")
+        tdSql.execute("create table ext_cd_src_2 using ext_cd_src tags(2)")
+
+        t0 = 1700600000000
+        tdSql.execute(
+            f"insert into ext_cd_win values"
+            f"({t0}, {t0 + 300000}, 1)"
+            f"({t0 + 300000}, {t0 + 600000}, 2)"
+        )
+        tdSql.execute(
+            f"insert into ext_cd_src_1 values"
+            f"({t0 + 60000}, 1)"
+            f"({t0 + 120000}, 1)"
+            f"({t0 + 180000}, 2)"
+            f"({t0 + 360000}, 3)"
+            f"({t0 + 420000}, 3)"
+            f"({t0 + 480000}, 4)"
+        )
+        tdSql.execute(
+            f"insert into ext_cd_src_2 values"
+            f"({t0 + 60000}, 2)"
+            f"({t0 + 120000}, 2)"
+            f"({t0 + 180000}, 3)"
+            f"({t0 + 360000}, 4)"
+            f"({t0 + 420000}, 4)"
+            f"({t0 + 480000}, 5)"
+        )
+
+        tdSql.query(
+            "select cast(_wstart as bigint) as ws, count(distinct v) as cd "
+            "from ext_cd_src external_window((select ts, endtime, mark from ext_cd_win) w) "
+            "order by ws"
+        )
+        tdSql.checkRows(2)
+        tdSql.checkData(0, 0, t0)
+        tdSql.checkData(0, 1, 3)
+        tdSql.checkData(1, 0, t0 + 300000)
+        tdSql.checkData(1, 1, 3)
+
+        tdSql.query(
+            "select t1, cast(_wstart as bigint) as ws, count(distinct v) as cd "
+            "from ext_cd_src partition by t1 "
+            "external_window((select ts, endtime, mark from ext_cd_win) w) "
+            "order by t1, ws"
+        )
+        tdSql.checkRows(4)
+        expected = [
+            (1, t0, 2),
+            (1, t0 + 300000, 2),
+            (2, t0, 2),
+            (2, t0 + 300000, 2),
+        ]
+        for row, (t1, ws, cd) in enumerate(expected):
+            tdSql.checkData(row, 0, t1)
+            tdSql.checkData(row, 1, ws)
+            tdSql.checkData(row, 2, cd)
 
     def cross_mix_and_join_regression(self):
         tdLog.info("=============== external window: cross mix and join regression")
@@ -1549,9 +2054,10 @@ class TestExternal:
         tdCom.compare_testcase_result(self.sqlFile, self.ansFile, "cross_mix_and_join")
         self.cross_mix_and_join_no_sort()
 
-        # Join over derived subqueries that each contain EXTERNAL_WINDOW is still
-        # rejected by planner/executor with 0x80002664. Keep as negative coverage.
-        tdSql.error(
+        # The first derived EXTERNAL_WINDOW subquery returns no rows; joining it
+        # with another derived EXTERNAL_WINDOW subquery should succeed with an
+        # empty result.
+        tdSql.query(
             "SELECT "
             "a.ws, "
             "a.c AS c_a, "
@@ -1577,10 +2083,10 @@ class TestExternal:
             ") b "
             "ON a.ws = b.ws "
             "ORDER BY a.ws",
-            expectedErrno=0x80002664,
         )
+        tdSql.checkRows(0)
 
-        tdSql.error(
+        tdSql.query(
             "SELECT "
             "a.ws, "
             "a.c AS c_a, "
@@ -1606,8 +2112,8 @@ class TestExternal:
             ") b "
             "ON a.ws = b.ws "
             "ORDER BY a.ws",
-            expectedErrno=0x80002664,
         )
+        tdSql.checkRows(0)
 
     def cross_mix_and_join_no_sort(self):
         tdLog.info("=============== external window: cross mix and join no sort")
@@ -2127,24 +2633,56 @@ class TestExternal:
         config = buildPath + "../sim/dnode1/cfg/"
         return taos.connect(host="localhost", config=config)
 
-    def _assert_stmt_external_window_error(self, conn, sql, params, case_label):
-        """Assert that a STMT query with external_window raises an error."""
+    def _run_stmt_query(self, conn, sql, params=None):
+        """Execute a parameterised STMT query and return all rows.
+
+        params must be a non-None bind_params list; STMT SELECT without '?'
+        placeholders is not supported and will fail with [0x022a].
+        """
         stmt = conn.statement(sql)
         try:
-            stmt.bind_param(params)
+            if params is not None:
+                stmt.bind_param(params)
             stmt.execute()
-            raise AssertionError(f"{case_label}: expected error but succeeded")
-        except Exception as err:
-            err_msg = str(err)
-            tdLog.info(f"{case_label}: got expected error: {err_msg}")
-            if "External window query can not be used in stmt query" not in err_msg:
-                raise AssertionError(
-                    f"{case_label}: unexpected error message: {err_msg}"
-                )
+            result = stmt.use_result()
+            try:
+                return result.fetch_all()
+            finally:
+                result.close()
+        finally:
+            stmt.close()
+
+    def _check_stmt_rows(self, rows, expected, case_label):
+        """Compare STMT result rows against a list of expected tuples (result-file style)."""
+        if len(rows) != len(expected):
+            tdLog.exit(
+                f"{case_label}: row count mismatch: got {len(rows)}, expected {len(expected)}"
+            )
+        for i, (got, exp) in enumerate(zip(rows, expected)):
+            for j, exp_val in enumerate(exp):
+                if got[j] != exp_val:
+                    tdLog.exit(
+                        f"{case_label}: row {i} col {j}: got {got[j]!r}, expected {exp_val!r}"
+                    )
+        tdLog.info(f"{case_label}: passed ({len(rows)} rows)")
 
     def stmt_external_window_regression(self):
-        """Test that external_window is forbidden in STMT (parameterised) queries."""
-        tdLog.info("=============== external window: stmt negative regression")
+        """Test that external_window works correctly in STMT (parameterised) queries.
+
+        Uses result-file style comparison: expected values are hard-coded from the
+        ext_cx_* dataset created by cross_mix_and_join_regression().
+
+        Dataset recap (t0 = 1700400000000):
+          ext_cx_win:  [t0,   t0+300k)  mark=101
+                       [t0+300k, t0+600k) mark=102
+                       [t0+600k, t0+900k) mark=103
+                       [t0+900k, t0+1200k) mark=104
+          ext_cx_src_1 (t1=1): +60k v=10, +120k v=11, +360k v=12,
+                                +420k v=13, +660k v=14, +960k v=15
+          ext_cx_src_2 (t1=2): +180k v=20, +480k v=21, +540k v=22,
+                                +780k v=23, +1020k v=24
+        """
+        tdLog.info("=============== external window: stmt regression")
         tdSql.execute(f"use {self.dbName}")
 
         conn = self._stmt_conn()
@@ -2152,8 +2690,10 @@ class TestExternal:
 
         t0 = 1700400000000  # same base as ext_cx_* tables
 
-        # ---- 1. STMT with bind param in outer WHERE ----
-        sql = (
+        # ---- case 1: bind param in outer WHERE (ts >= ?) ----
+        # Windows whose start >= t0+300k: win2 (4 rows, sv=68), win3 (2 rows, sv=37),
+        # win4 (2 rows, sv=39).  win1 rows all have ts < t0+300k so win1 is empty.
+        stmt_sql = (
             "select cast(_wstart as bigint) as ws, count(*) as c, sum(v) as sv "
             "from ext_cx_src "
             "where ts >= ? "
@@ -2162,10 +2702,16 @@ class TestExternal:
         )
         params = new_bind_params(1)
         params[0].timestamp(t0 + 300000)
-        self._assert_stmt_external_window_error(conn, sql, params, "stmt case 1")
+        rows = self._run_stmt_query(conn, stmt_sql, params)
+        self._check_stmt_rows(rows, [
+            (t0 + 300000, 4, 68),
+            (t0 + 600000, 2, 37),
+            (t0 + 900000, 2, 39),
+        ], "stmt case 1")
 
-        # ---- 2. STMT with bind param in subquery WHERE ----
-        sql = (
+        # ---- case 2: bind param in subquery WHERE (mark >= ?) ----
+        # mark >= 103 → windows 3 and 4 only.
+        stmt_sql = (
             "select cast(_wstart as bigint) as ws, count(*) as c, sum(v) as sv "
             "from ext_cx_src "
             "external_window((select ts, endtime, mark from ext_cx_win where mark >= ?) w) "
@@ -2173,10 +2719,15 @@ class TestExternal:
         )
         params = new_bind_params(1)
         params[0].int(103)
-        self._assert_stmt_external_window_error(conn, sql, params, "stmt case 2")
+        rows = self._run_stmt_query(conn, stmt_sql, params)
+        self._check_stmt_rows(rows, [
+            (t0 + 600000, 2, 37),
+            (t0 + 900000, 2, 39),
+        ], "stmt case 2")
 
-        # ---- 3. STMT with bind params in both outer and subquery ----
-        sql = (
+        # ---- case 3: bind params in both outer WHERE and subquery WHERE ----
+        # ts >= t0+300k AND mark <= 103 → windows 2 and 3; win1 rows all filtered by outer WHERE.
+        stmt_sql = (
             "select cast(_wstart as bigint) as ws, count(*) as c "
             "from ext_cx_src "
             "where ts >= ? "
@@ -2186,10 +2737,15 @@ class TestExternal:
         params = new_bind_params(2)
         params[0].timestamp(t0 + 300000)
         params[1].int(103)
-        self._assert_stmt_external_window_error(conn, sql, params, "stmt case 3")
+        rows = self._run_stmt_query(conn, stmt_sql, params)
+        self._check_stmt_rows(rows, [
+            (t0 + 300000, 4),
+            (t0 + 600000, 2),
+        ], "stmt case 3")
 
-        # ---- 4. STMT aggregate with partition by ----
-        sql = (
+        # ---- case 4: aggregate with PARTITION BY, bind param in subquery (mark >= ?) ----
+        # mark >= 101 → all 4 windows; partition by t1 => 8 output rows ordered by t1, ws.
+        stmt_sql = (
             "select t1, cast(_wstart as bigint) as ws, count(*) as c, sum(v) as sv "
             "from ext_cx_src partition by t1 "
             "external_window((select ts, endtime, mark from ext_cx_win where mark >= ?) w) "
@@ -2197,10 +2753,21 @@ class TestExternal:
         )
         params = new_bind_params(1)
         params[0].int(101)
-        self._assert_stmt_external_window_error(conn, sql, params, "stmt case 4")
+        rows = self._run_stmt_query(conn, stmt_sql, params)
+        self._check_stmt_rows(rows, [
+            (1, t0,           2, 21),
+            (1, t0 + 300000,  2, 25),
+            (1, t0 + 600000,  1, 14),
+            (1, t0 + 900000,  1, 15),
+            (2, t0,           1, 20),
+            (2, t0 + 300000,  2, 43),
+            (2, t0 + 600000,  1, 23),
+            (2, t0 + 900000,  1, 24),
+        ], "stmt case 4")
 
-        # ---- 5. STMT projection path ----
-        sql = (
+        # ---- case 5: projection path, bind param in subquery (mark <= ?) ----
+        # mark <= 102 → windows 1 (mark=101) and 2 (mark=102); 7 source rows total.
+        stmt_sql = (
             "select cast(_wstart as bigint) as ws, w.mark, cast(ts as bigint) as ts64, v "
             "from ext_cx_src "
             "external_window((select ts, endtime, mark from ext_cx_win where mark <= ?) w) "
@@ -2208,25 +2775,335 @@ class TestExternal:
         )
         params = new_bind_params(1)
         params[0].int(102)
-        self._assert_stmt_external_window_error(conn, sql, params, "stmt case 5")
+        rows = self._run_stmt_query(conn, stmt_sql, params)
+        self._check_stmt_rows(rows, [
+            (t0,            101, t0 + 60000,  10),
+            (t0,            101, t0 + 120000, 11),
+            (t0,            101, t0 + 180000, 20),
+            (t0 + 300000,   102, t0 + 360000, 12),
+            (t0 + 300000,   102, t0 + 420000, 13),
+            (t0 + 300000,   102, t0 + 480000, 21),
+            (t0 + 300000,   102, t0 + 540000, 22),
+        ], "stmt case 5")
 
-        # ---- 6. STMT with no bind params (pure external_window, still via stmt path) ----
-        sql = (
+        # ---- case 6: no '?' bind params — should fail with API error ----
+        # Queries without '?' are not supported in STMT mode; the state machine
+        # should return [0x022a] (Stmt API usage error) when execute() is called.
+        stmt_sql = (
             "select cast(_wstart as bigint) as ws, count(*) as c "
             "from ext_cx_src "
-            "external_window((select ts, endtime, mark from ext_cx_win) w) "
+            "external_window((select ts, endtime from ext_cx_win) w) "
             "order by ws"
         )
-        stmt = conn.statement(sql)
+        stmt = conn.statement(stmt_sql)
         try:
-            stmt.execute()
-            raise AssertionError("stmt case 6: expected error but succeeded")
+            stmt.execute()  # no bind_param, no '?' — should fail
+            tdLog.exit("stmt case 6: expected error for no-param STMT SELECT but succeeded")
         except Exception as err:
-            err_msg = str(err)
-            tdLog.info(f"stmt case 6: got expected error: {err_msg}")
+            err_str = str(err)
+            if "[0x022a]" not in err_str:
+                tdLog.exit(f"stmt case 6: expected [0x022a] API usage error, got: {err_str}")
+            tdLog.info(f"stmt case 6: got expected error: {err_str}")
+        finally:
+            try:
+                stmt.close()
+            except Exception:
+                pass
+
+        # ---- case 7: max / min aggregates via STMT bind ----
+        # Exercises a different aggregate code path (not count/sum).
+        # With ts >= t0 all source rows fall into one of the 4 windows.
+        # win1: v=10,11,20 → max=20 min=10
+        # win2: v=12,13,21,22 → max=22 min=12
+        # win3: v=14,23      → max=23 min=14
+        # win4: v=15,24      → max=24 min=15
+        stmt_sql = (
+            "select cast(_wstart as bigint) as ws, max(v), min(v) "
+            "from ext_cx_src "
+            "where ts >= ? "
+            "external_window((select ts, endtime from ext_cx_win) w) "
+            "order by ws"
+        )
+        params = new_bind_params(1)
+        params[0].timestamp(t0)
+        rows = self._run_stmt_query(conn, stmt_sql, params)
+        self._check_stmt_rows(rows, [
+            (t0,          20, 10),
+            (t0 + 300000, 22, 12),
+            (t0 + 600000, 23, 14),
+            (t0 + 900000, 24, 15),
+        ], "stmt case 7")
+
+        # ---- case 8: STMT re-use — same stmt object, different param values ----
+        # Verifies that pSubquery ownership and pPrepareRoot cloning are correct
+        # across multiple bind→execute cycles on the same prepared statement.
+        # Run 1: mark >= 104 → only win4 (2 rows, sum=39)
+        # Run 2: mark >= 103 → win3 + win4 (2+2 rows, sum=37+39)
+        reuse_sql = (
+            "select cast(_wstart as bigint) as ws, count(*) as c, sum(v) as sv "
+            "from ext_cx_src "
+            "external_window((select ts, endtime, mark from ext_cx_win where mark >= ?) w) "
+            "order by ws"
+        )
+        stmt = conn.statement(reuse_sql)
+        try:
+            params = new_bind_params(1)
+            params[0].int(104)
+            stmt.bind_param(params)
+            stmt.execute()
+            result = stmt.use_result()
+            try:
+                rows = result.fetch_all()
+            finally:
+                result.close()
+            self._check_stmt_rows(rows, [
+                (t0 + 900000, 2, 39),
+            ], "stmt case 8 run1")
+
+            params = new_bind_params(1)
+            params[0].int(103)
+            stmt.bind_param(params)
+            stmt.execute()
+            result = stmt.use_result()
+            try:
+                rows = result.fetch_all()
+            finally:
+                result.close()
+            self._check_stmt_rows(rows, [
+                (t0 + 600000, 2, 37),
+                (t0 + 900000, 2, 39),
+            ], "stmt case 8 run2")
+        finally:
+            stmt.close()
+
+        # ---- case 9: negative — execute without bind when SQL has '?' params ----
+        # Our shortcut path in stmtExec detects placeholderNum > 0 and returns
+        # TSDB_CODE_TSC_STMT_API_ERROR instead of executing with unbound params.
+        neg_sql = (
+            "select cast(_wstart as bigint) as ws, count(*) as c "
+            "from ext_cx_src "
+            "where ts >= ? "
+            "external_window((select ts, endtime from ext_cx_win) w) "
+            "order by ws"
+        )
+        stmt = conn.statement(neg_sql)
+        try:
+            stmt.execute()  # no bind_param — should fail
+            tdLog.exit("stmt case 9: expected error for unbound params but succeeded")
+        except Exception as err:
+            err_str = str(err)
+            if "[0x022a]" not in err_str:
+                tdLog.exit(f"stmt case 9: expected [0x022a] API usage error, got: {err_str}")
+            tdLog.info(f"stmt case 9: got expected error: {err_str}")
+        finally:
+            try:
+                stmt.close()
+            except Exception:
+                pass
 
         conn.close()
-        tdLog.info("=============== external window: stmt negative regression done")
+        tdLog.info("=============== external window: stmt regression done")
+
+    # ------------------------------------------------------------------
+    # STMT2 API helpers and regression
+    # ------------------------------------------------------------------
+
+    def _run_stmt2_query(self, conn, sql, param_values=None):
+        """Execute a parameterised STMT2 query and return all rows.
+
+        param_values: flat list of scalar values matching the '?' placeholders,
+        e.g. [103] for one int param or [t0 + 300000, 103] for two params.
+        STMT2 SELECT also supports literal SQL without '?' placeholders.
+        """
+        stmt2 = conn.statement2(sql)
+        try:
+            if param_values is not None:
+                # STMT2 query bind format: datas is a list-of-tables where each
+                # table is a list-of-columns and each column is a list-of-values.
+                # For a single-row query bind with N params we supply one
+                # "table" entry whose columns are [[v1], [v2], ...].
+                col_data = [[v] for v in param_values]
+                stmt2.bind_param(None, None, [col_data])
+            stmt2.execute()
+            result = stmt2.result()
+            return result.fetch_all()
+        finally:
+            stmt2.close()
+
+    def stmt2_external_window_regression(self):
+        """Test external_window via the STMT2 API (taos_stmt2_*).
+
+        Mirrors a subset of stmt_external_window_regression() to verify that
+        the clientStmt2 changes (stmtSwitchStatus PREPARE allowance, the
+        prepare→execute shortcut, and qStmtBindParams2 cloning) all work.
+        Same ext_cx_* dataset; same hard-coded expected values.
+        """
+        tdLog.info("=============== external window: stmt2 regression")
+        tdSql.execute(f"use {self.dbName}")
+
+        conn = self._stmt_conn()
+        conn.select_db(self.dbName)
+
+        t0 = 1700400000000  # same base as ext_cx_* tables
+
+        # ---- case 1: bind param in outer WHERE (ts >= ?) ----
+        rows = self._run_stmt2_query(
+            conn,
+            "select cast(_wstart as bigint) as ws, count(*) as c, sum(v) as sv "
+            "from ext_cx_src "
+            "where ts >= ? "
+            "external_window((select ts, endtime, mark from ext_cx_win) w) "
+            "order by ws",
+            [t0 + 300000],
+        )
+        self._check_stmt_rows(rows, [
+            (t0 + 300000, 4, 68),
+            (t0 + 600000, 2, 37),
+            (t0 + 900000, 2, 39),
+        ], "stmt2 case 1")
+
+        # ---- case 2: bind param in subquery WHERE (mark >= ?) ----
+        rows = self._run_stmt2_query(
+            conn,
+            "select cast(_wstart as bigint) as ws, count(*) as c, sum(v) as sv "
+            "from ext_cx_src "
+            "external_window((select ts, endtime, mark from ext_cx_win where mark >= ?) w) "
+            "order by ws",
+            [103],
+        )
+        self._check_stmt_rows(rows, [
+            (t0 + 600000, 2, 37),
+            (t0 + 900000, 2, 39),
+        ], "stmt2 case 2")
+
+        # ---- case 3: bind params in both outer WHERE and subquery WHERE ----
+        rows = self._run_stmt2_query(
+            conn,
+            "select cast(_wstart as bigint) as ws, count(*) as c "
+            "from ext_cx_src "
+            "where ts >= ? "
+            "external_window((select ts, endtime, mark from ext_cx_win where mark <= ?) w) "
+            "order by ws",
+            [t0 + 300000, 103],
+        )
+        self._check_stmt_rows(rows, [
+            (t0 + 300000, 4),
+            (t0 + 600000, 2),
+        ], "stmt2 case 3")
+
+        # ---- case 4: no '?' params, literal STMT2 SELECT ----
+        # STMT2 supports literal SQL, so a SELECT without bind parameters should
+        # execute successfully and return the same external_window result.
+        rows = self._run_stmt2_query(
+            conn,
+            "select cast(_wstart as bigint) as ws, count(*) as c "
+            "from ext_cx_src "
+            "external_window((select ts, endtime from ext_cx_win) w) "
+            "order by ws",
+        )
+        self._check_stmt_rows(rows, [
+            (t0,          3),
+            (t0 + 300000, 4),
+            (t0 + 600000, 2),
+            (t0 + 900000, 2),
+        ], "stmt2 case 4")
+
+        # ---- case 5: PARTITION BY aggregate (mirrors stmt case 4) ----
+        # mark >= 101 → all 4 windows; partition by t1 → 8 output rows ordered by t1, ws.
+        rows = self._run_stmt2_query(
+            conn,
+            "select t1, cast(_wstart as bigint) as ws, count(*) as c, sum(v) as sv "
+            "from ext_cx_src partition by t1 "
+            "external_window((select ts, endtime, mark from ext_cx_win where mark >= ?) w) "
+            "order by t1, ws",
+            [101],
+        )
+        self._check_stmt_rows(rows, [
+            (1, t0,           2, 21),
+            (1, t0 + 300000,  2, 25),
+            (1, t0 + 600000,  1, 14),
+            (1, t0 + 900000,  1, 15),
+            (2, t0,           1, 20),
+            (2, t0 + 300000,  2, 43),
+            (2, t0 + 600000,  1, 23),
+            (2, t0 + 900000,  1, 24),
+        ], "stmt2 case 5")
+
+        # ---- case 6: projection path (mirrors stmt case 5) ----
+        # mark <= 102 → windows 1 and 2; 7 source rows emitted as individual rows.
+        rows = self._run_stmt2_query(
+            conn,
+            "select cast(_wstart as bigint) as ws, w.mark, cast(ts as bigint) as ts64, v "
+            "from ext_cx_src "
+            "external_window((select ts, endtime, mark from ext_cx_win where mark <= ?) w) "
+            "order by ws, ts64",
+            [102],
+        )
+        self._check_stmt_rows(rows, [
+            (t0,            101, t0 + 60000,  10),
+            (t0,            101, t0 + 120000, 11),
+            (t0,            101, t0 + 180000, 20),
+            (t0 + 300000,   102, t0 + 360000, 12),
+            (t0 + 300000,   102, t0 + 420000, 13),
+            (t0 + 300000,   102, t0 + 480000, 21),
+            (t0 + 300000,   102, t0 + 540000, 22),
+        ], "stmt2 case 6")
+
+        # ---- case 7: STMT2 re-use — same stmt2 object, different param values ----
+        # Run 1: mark >= 104 → only win4 (2 rows, sum=39)
+        # Run 2: mark >= 103 → win3 + win4 (2+2 rows, sum=37+39)
+        reuse2_sql = (
+            "select cast(_wstart as bigint) as ws, count(*) as c, sum(v) as sv "
+            "from ext_cx_src "
+            "external_window((select ts, endtime, mark from ext_cx_win where mark >= ?) w) "
+            "order by ws"
+        )
+        stmt2 = conn.statement2(reuse2_sql)
+        try:
+            stmt2.bind_param(None, None, [[[104]]])
+            stmt2.execute()
+            result = stmt2.result()
+            rows = result.fetch_all()
+            self._check_stmt_rows(rows, [
+                (t0 + 900000, 2, 39),
+            ], "stmt2 case 7 run1")
+
+            stmt2.bind_param(None, None, [[[103]]])
+            stmt2.execute()
+            result = stmt2.result()
+            rows = result.fetch_all()
+            self._check_stmt_rows(rows, [
+                (t0 + 600000, 2, 37),
+                (t0 + 900000, 2, 39),
+            ], "stmt2 case 7 run2")
+        finally:
+            stmt2.close()
+
+        # ---- case 8: negative — execute without bind when SQL has '?' params ----
+        neg_sql = (
+            "select cast(_wstart as bigint) as ws, count(*) as c "
+            "from ext_cx_src "
+            "where ts >= ? "
+            "external_window((select ts, endtime from ext_cx_win) w) "
+            "order by ws"
+        )
+        stmt2 = conn.statement2(neg_sql)
+        try:
+            stmt2.execute()  # no bind_param — should fail
+            tdLog.exit("stmt2 case 8: expected error for unbound params but succeeded")
+        except Exception as err:
+            err_str = str(err).lower()
+            if "bind" not in err_str and "param" not in err_str and "stmt" not in err_str:
+                tdLog.exit(f"stmt2 case 8: expected stmt API usage error for unbound params, got: {err}")
+            tdLog.info(f"stmt2 case 8: got expected error: {err}")
+        finally:
+            try:
+                stmt2.close()
+            except Exception:
+                pass
+
+        conn.close()
+        tdLog.info("=============== external window: stmt2 regression done")
 
     # ==================================================================
     # Scenario-based regression tests (5.1–5.4 from requirements doc)
@@ -2730,14 +3607,14 @@ class TestExternal:
         tdSql.checkData(3, 0, ft0 + 120000)
         tdSql.checkData(5, 0, ft0 + 600000)
 
-        # FILL error: FILL not allowed with external_window
+        # FILL error:  Fill only supports aggregate query with external window
         tdSql.error(
             "select cast(_wstart as bigint) as ws, w.event, w.val, cast(ts as bigint), val "
             "from alarm1 "
             "where event = 6 "
             "external_window("
-            "(select ts, ts + 60s, event, val from fault1 where event = 1) w "
-            "fill(none))",
+            "(select ts, ts + 60s, event, val from fault1 where event = 1) w) "
+            "fill(none)",
             expectedErrno=0x80002657,
         )
 
@@ -3754,3 +4631,27 @@ class TestExternal:
         self.scenario_doc_smart_meter_example()
         self.scenario_nested_layered_aggregation()
         tdLog.info("=============== scenario regression: done")
+
+    def text_source_as_window_regression(self):
+        """Test TEXT inline table as EXTERNAL_WINDOW subquery source for window definitions.
+
+        Cases:
+        - Basic TEXT window (ts, endtime) with agg outer query (count, sum)
+        - TEXT window with extra w.mark column in outer projection
+        - TEXT window subquery with WHERE filter
+        - TEXT window + outer PARTITION BY tbname on super table
+        - Projection path: TEXT window drives raw-row output
+        - Unsorted TEXT rows auto-sorted at parse time
+        - Single-row TEXT window covering full data range
+        - Empty result when window is outside data range
+        - Source-side WHERE combined with TEXT window
+        - w.mark used in arithmetic expression (w.mark * 10)
+        """
+        tdLog.info("=============== external window: TEXT table as window source regression")
+        tdSql.execute(f"use {self.dbName}")
+
+        self.sqlFile = os.path.join(os.path.dirname(__file__), "in", "text_as_window.in")
+        self.ansFile = os.path.join(os.path.dirname(__file__), "ans", "text_as_window.ans")
+        tdCom.compare_testcase_result(self.sqlFile, self.ansFile, "text_as_window")
+
+        tdLog.info("=============== external window: TEXT table as window source regression done")

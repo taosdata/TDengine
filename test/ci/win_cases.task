@@ -1,12 +1,123 @@
-#caseID,rerunTimes,Run with Sanitizer,casePath,caseCommand
-#NA,NA,y or n,.,./ci/pytest.sh pytest cases/01-DataTypes/test_datatype_bigint.py
+#caseID,maxAttempts,Run with Sanitizer,casePath,caseCommand
+#NA,NA,y or n,.,./ci/pytest.sh pytest cases/01-DataTypes/test_datatype_column_values.py
 
 
-,,y,.,./ci/pytest.sh pytest cases/02-Databases/04-Query/test_db_show_create_db.py
+,,y,.,./ci/pytest.sh pytest cases/02-Databases/04-Query/test_db_show_metadata.py::TestDatabaseShowMetadata::test_database_show_create_db
 ,,y,.,./ci/pytest.sh pytest cases/10-Operators/04-Set/test_union_basic.py
 ,,y,.,./ci/pytest.sh pytest cases/13-TimeSeriesExt/07-CountWindow/test_count.py
 ,,y,.,./ci/pytest.sh pytest cases/14-JoinQueries/test_join_full.py
 ,,y,.,./ci/pytest.sh pytest cases/70-Cluster/test_cluster_kill_restore_dnode.py -N 5
 ,,y,.,./ci/pytest.sh pytest cases/70-Cluster/test_5dnode3mnode_sep1_vnode_stop_vnode_create_db.py -N 6 -M 3 --replica 3
 ,,y,.,./ci/pytest.sh pytest cases/17-DataSubscription/02-Consume/test_tmq_snapshot_basic.py
+,,y,.,./ci/pytest.sh pytest cases/11-Functions/03-Selection/test_fun_select_first_last.py
+,,y,.,./ci/pytest.sh pytest cases/11-Functions/01-Scalar/test_scalar_time.py
+,,y,.,./ci/pytest.sh pytest cases/11-Functions/01-Scalar/test_timezone_dst_refresh.py
+,,y,.,./ci/pytest.sh pytest cases/11-Functions/01-Scalar/test_tz_config_display.py
+,,y,.,./ci/pytest.sh pytest cases/11-Functions/01-Scalar/test_tz_scalar_functions.py
+,,y,.,./ci/pytest.sh pytest cases/13-TimeSeriesExt/03-TimeWindow/test_tz_interval.py
+,,y,.,./ci/pytest.sh pytest cases/11-Functions/01-Scalar/test_tz_rest_windows_fallback.py -R
+,,y,.,./ci/pytest.sh pytest cases/50-Others/test_wrapper_colocated_windows.py -R
+,,y,.,./ci/pytest.sh pytest cases/50-Others/test_wrapper_config_dir_logs.py
+,,y,.,./ci/pytest.sh pytest cases/81-Tools/02-Taos/test_timezone_websocket.py -B
+
+## Native TLS over OpenSSL.  This job builds the enterprise edition; on a
+## community build the case prints "SKIPPED: ..." with the reason so a
+## zero-coverage run is visible instead of silently green.  -N 2 exercises
+## dnode-to-dnode traffic over TLS in addition to taosc/taosd.
+,,y,.,./ci/pytest.sh pytest cases/73-TLS/test_tls.py -N 2
+
 ,,n,.,pytest cases/18-StreamProcessing/30-OldPyCases/test_oldcase_taosdShell.py
+
+## 06-Backup
+,,y,.,./ci/pytest.sh pytest cases/81-Tools/06-TaosBackup/test_taosbackup_allnull.py -B
+,,y,.,./ci/pytest.sh pytest cases/81-Tools/06-TaosBackup/test_taosbackup_bugs.py -B
+,,y,.,./ci/pytest.sh pytest cases/81-Tools/06-TaosBackup/test_taosbackup_chinese.py -B
+,,y,.,./ci/pytest.sh pytest cases/81-Tools/06-TaosBackup/test_taosbackup_precision.py -B
+,,y,.,./ci/pytest.sh pytest cases/81-Tools/06-TaosBackup/test_taosbackup_primarykey.py -B
+,,y,.,./ci/pytest.sh pytest cases/81-Tools/06-TaosBackup/test_taosbackup_schema_change.py -B
+
+## Representative stream smoke coverage (full suites remain in cases.task)
+,,y,.,./ci/pytest.sh pytest cases/18-StreamProcessing/03-TriggerMode/test_interval_const_filter_twstart.py
+,,y,.,./ci/pytest.sh pytest cases/18-StreamProcessing/03-TriggerMode/test_fill_history.py
+,,y,.,./ci/pytest.sh pytest cases/18-StreamProcessing/04-Options/test_options_vtable.py
+
+## Oracle dependency package / install script (no database required)
+## The Windows selection script is exercised against a fake installed tree.
+#,,n,.,env FQ_REQUIRED_SERVICES=none ./ci/pytest.sh pytest ../packaging/test_fq_oracle_install_windows.py,600
+
+## FQ entries below remain disabled in smoke, as on main. The full suite
+## reads cases.task with Windows version filtering: InfluxDB 3.0 and Oracle
+## 26ai only. Oracle 11g has no downloadable Windows server package.
+#,,n,.,env FQ_INFLUX_VERSIONS=3.0 FQ_ORACLE_VERSIONS=26ai ./ci/pytest.sh pytest cases/09-DataQuerying/19-FederatedQuery/test_fq_01_external_source.py,7200
+#,,n,.,./ci/pytest.sh pytest cases/09-DataQuerying/19-FederatedQuery/test_fq_02_path_resolution.py,3600
+#,,n,.,./ci/pytest.sh pytest cases/09-DataQuerying/19-FederatedQuery/test_fq_03_type_mapping.py,3600
+#,,n,.,./ci/pytest.sh pytest cases/09-DataQuerying/19-FederatedQuery/test_fq_04_timezone_precision.py,3600
+#,,n,.,./ci/pytest.sh pytest cases/09-DataQuerying/19-FederatedQuery/test_fq_05_config_effectiveness.py,3600
+#,,n,.,./ci/pytest.sh pytest cases/09-DataQuerying/19-FederatedQuery/test_fq_06_retry_policy.py,3600
+#,,n,.,./ci/pytest.sh pytest cases/09-DataQuerying/19-FederatedQuery/test_fq_07_boundary_contracts.py,3600
+#,,n,.,./ci/pytest.sh pytest cases/09-DataQuerying/19-FederatedQuery/test_fq_08_system_observability.py,3600
+#,,n,.,./ci/pytest.sh pytest cases/09-DataQuerying/19-FederatedQuery/test_fq_09_stability.py,3600
+#,,n,.,./ci/pytest.sh pytest cases/09-DataQuerying/19-FederatedQuery/test_fq_10_performance.py,3600
+#,,n,.,./ci/pytest.sh pytest cases/09-DataQuerying/19-FederatedQuery/test_fq_11_security.py,3600
+#,,n,.,./ci/pytest.sh pytest cases/09-DataQuerying/19-FederatedQuery/test_fq_12_compatibility.py,3600
+#,,n,.,./ci/pytest.sh pytest cases/09-DataQuerying/19-FederatedQuery/test_fq_13_explain.py,3600
+#,,n,.,./ci/pytest.sh pytest cases/09-DataQuerying/19-FederatedQuery/test_fq_14_result_parity.py,3600
+#,,n,.,./ci/pytest.sh pytest cases/09-DataQuerying/19-FederatedQuery/test_fq_15_service_disruption.py,3600
+#,,n,.,./ci/pytest.sh pytest cases/09-DataQuerying/19-FederatedQuery/test_fq_16_multi_table_parity.py,3600
+#,,n,.,./ci/pytest.sh pytest cases/09-DataQuerying/19-FederatedQuery/test_fq_17_unsupported_ops.py,3600
+#,,n,.,./ci/pytest.sh pytest cases/09-DataQuerying/19-FederatedQuery/test_fq_18_source_specific.py,3600
+#,,n,.,./ci/pytest.sh pytest cases/09-DataQuerying/19-FederatedQuery/test_fq_19_runtime_libs.py,3600
+#,,n,.,./ci/pytest.sh pytest cases/09-DataQuerying/19-FederatedQuery/test_fq_20_sqlserver_semantics.py,3600
+#,,n,.,./ci/pytest.sh pytest cases/09-DataQuerying/19-FederatedQuery/test_fq_21_sqlserver_vtable_fallback.py,3600
+#,,n,.,./ci/pytest.sh pytest cases/09-DataQuerying/19-FederatedQuery/test_fq_22_runtime_package.py,1800
+#,,n,.,./ci/pytest.sh pytest cases/09-DataQuerying/19-FederatedQuery/test_fq_23_runtime_missing_windows.py,3600
+
+## External-source virtual-table suites (alignment with cases.task)
+#,,n,.,./ci/pytest.sh pytest cases/05-VirtualTables/01-DDL/03-ExtSource/test_vtable_create_ext_source.py,3600
+#,,n,.,./ci/pytest.sh pytest cases/05-VirtualTables/01-DDL/03-ExtSource/test_vtable_alter_ext_source.py,3600
+#,,n,.,./ci/pytest.sh pytest cases/05-VirtualTables/01-DDL/03-ExtSource/test_vtable_drop_ext_source.py,3600
+#,,n,.,./ci/pytest.sh pytest cases/05-VirtualTables/01-DDL/03-ExtSource/test_vtable_ddl_persistence.py,3600
+#,,n,.,./ci/pytest.sh pytest cases/05-VirtualTables/01-DDL/03-ExtSource/test_vtable_filter_ext_source.py,3600
+#,,n,.,./ci/pytest.sh pytest cases/05-VirtualTables/01-DDL/03-ExtSource/test_vtable_meta_ext_source.py,3600
+#,,n,.,./ci/pytest.sh pytest cases/05-VirtualTables/01-DDL/03-ExtSource/test_vtable_series_ext_source.py,3600
+#,,n,.,./ci/pytest.sh pytest cases/05-VirtualTables/02-Auth/test_vtable_auth_ext_source.py,3600
+#,,n,.,./ci/pytest.sh pytest cases/05-VirtualTables/04-Query/03-ExtSource/test_vtable_query_ext_source_ctb.py,3600
+#,,n,.,./ci/pytest.sh pytest cases/05-VirtualTables/04-Query/03-ExtSource/test_vtable_query_ext_source_filter.py,3600
+#,,n,.,./ci/pytest.sh pytest cases/05-VirtualTables/04-Query/03-ExtSource/test_vtable_query_ext_source_filter_batch.py,3600
+#,,n,.,./ci/pytest.sh pytest cases/05-VirtualTables/04-Query/03-ExtSource/test_vtable_query_ext_source_mysql_timestamp_pushdown.py,3600
+#,,n,.,./ci/pytest.sh pytest cases/05-VirtualTables/04-Query/03-ExtSource/test_vtable_query_ext_source_ntb.py,3600
+#,,n,.,./ci/pytest.sh pytest cases/05-VirtualTables/04-Query/03-ExtSource/test_vtable_query_ext_source_oracle_timestamp_pushdown.py,3600
+#,,n,.,./ci/pytest.sh pytest cases/05-VirtualTables/04-Query/03-ExtSource/test_vtable_query_ext_source_postgres_timestamp_pushdown.py,3600
+#,,n,.,./ci/pytest.sh pytest cases/05-VirtualTables/04-Query/03-ExtSource/test_vtable_query_ext_source_resilience.py,3600
+#,,n,.,./ci/pytest.sh pytest cases/05-VirtualTables/04-Query/03-ExtSource/test_vtable_query_ext_source_runtime_libs.py,3600
+#,,n,.,./ci/pytest.sh pytest cases/05-VirtualTables/04-Query/03-ExtSource/test_vtable_query_ext_source_series.py,3600
+#,,n,.,./ci/pytest.sh pytest cases/05-VirtualTables/04-Query/03-ExtSource/test_vtable_query_ext_source_sqlserver.py,3600
+## The stb suite runs one class per invocation, like cases.task on Linux: the
+## whole file needs well over the 7200s single-case budget on a debug build
+## (locally it was still in the Agg classes when that budget expired).
+#,,n,.,env FQ_REQUIRED_SERVICES=influx ./ci/pytest.sh pytest cases/05-VirtualTables/04-Query/03-ExtSource/test_vtable_query_ext_source_stb.py::TestVTableQueryExtSourceInfluxStbBasic,3600
+#,,n,.,env FQ_REQUIRED_SERVICES=mysql ./ci/pytest.sh pytest cases/05-VirtualTables/04-Query/03-ExtSource/test_vtable_query_ext_source_stb.py::TestVTableQueryExtSourceMysqlStbBasic,3600
+#,,n,.,env FQ_REQUIRED_SERVICES=pg ./ci/pytest.sh pytest cases/05-VirtualTables/04-Query/03-ExtSource/test_vtable_query_ext_source_stb.py::TestVTableQueryExtSourcePgStbBasic,3600
+#,,n,.,env FQ_REQUIRED_SERVICES=sqlserver ./ci/pytest.sh pytest cases/05-VirtualTables/04-Query/03-ExtSource/test_vtable_query_ext_source_stb.py::TestVTableQueryExtSourceSqlserverStbBasic,3600
+## Oracle stb classes are included through cases.task in the full suite.
+#,,n,.,env FQ_REQUIRED_SERVICES=influx ./ci/pytest.sh pytest cases/05-VirtualTables/04-Query/03-ExtSource/test_vtable_query_ext_source_stb.py::TestVTableQueryExtSourceInfluxMixedStbBasic,3600
+#,,n,.,env FQ_REQUIRED_SERVICES=mysql ./ci/pytest.sh pytest cases/05-VirtualTables/04-Query/03-ExtSource/test_vtable_query_ext_source_stb.py::TestVTableQueryExtSourceMysqlMixedStbBasic,3600
+#,,n,.,env FQ_REQUIRED_SERVICES=pg ./ci/pytest.sh pytest cases/05-VirtualTables/04-Query/03-ExtSource/test_vtable_query_ext_source_stb.py::TestVTableQueryExtSourcePgMixedStbBasic,3600
+#,,n,.,env FQ_REQUIRED_SERVICES=sqlserver ./ci/pytest.sh pytest cases/05-VirtualTables/04-Query/03-ExtSource/test_vtable_query_ext_source_stb.py::TestVTableQueryExtSourceSqlserverMixedStbBasic,3600
+#,,n,.,./ci/pytest.sh pytest cases/05-VirtualTables/04-Query/03-ExtSource/test_vtable_query_ext_source_stb.py::TestVTableQueryExtSourceAllStbBasic,3600
+#,,n,.,env FQ_REQUIRED_SERVICES=influx ./ci/pytest.sh pytest cases/05-VirtualTables/04-Query/03-ExtSource/test_vtable_query_ext_source_stb.py::TestVTableQueryExtSourceInfluxStbAgg,3600
+#,,n,.,env FQ_REQUIRED_SERVICES=mysql ./ci/pytest.sh pytest cases/05-VirtualTables/04-Query/03-ExtSource/test_vtable_query_ext_source_stb.py::TestVTableQueryExtSourceMysqlStbAgg,3600
+#,,n,.,env FQ_REQUIRED_SERVICES=pg ./ci/pytest.sh pytest cases/05-VirtualTables/04-Query/03-ExtSource/test_vtable_query_ext_source_stb.py::TestVTableQueryExtSourcePgStbAgg,3600
+#,,n,.,env FQ_REQUIRED_SERVICES=sqlserver ./ci/pytest.sh pytest cases/05-VirtualTables/04-Query/03-ExtSource/test_vtable_query_ext_source_stb.py::TestVTableQueryExtSourceSqlserverStbAgg,3600
+#,,n,.,env FQ_REQUIRED_SERVICES=influx ./ci/pytest.sh pytest cases/05-VirtualTables/04-Query/03-ExtSource/test_vtable_query_ext_source_stb.py::TestVTableQueryExtSourceInfluxMixedStbAgg,3600
+#,,n,.,env FQ_REQUIRED_SERVICES=mysql ./ci/pytest.sh pytest cases/05-VirtualTables/04-Query/03-ExtSource/test_vtable_query_ext_source_stb.py::TestVTableQueryExtSourceMysqlMixedStbAgg,3600
+#,,n,.,env FQ_REQUIRED_SERVICES=pg ./ci/pytest.sh pytest cases/05-VirtualTables/04-Query/03-ExtSource/test_vtable_query_ext_source_stb.py::TestVTableQueryExtSourcePgMixedStbAgg,3600
+#,,n,.,env FQ_REQUIRED_SERVICES=sqlserver ./ci/pytest.sh pytest cases/05-VirtualTables/04-Query/03-ExtSource/test_vtable_query_ext_source_stb.py::TestVTableQueryExtSourceSqlserverMixedStbAgg,3600
+#,,n,.,./ci/pytest.sh pytest cases/05-VirtualTables/04-Query/03-ExtSource/test_vtable_query_ext_source_stb.py::TestVTableQueryExtSourceAllStbAgg,3600
+## Federated plan cases use the Windows-supported server versions.
+#,,n,.,./ci/pytest.sh pytest cases/05-VirtualTables/05-Plan/test_vtable_plan_pushdown_agg_ext_source.py,3600
+#,,n,.,./ci/pytest.sh pytest cases/05-VirtualTables/05-Plan/test_vtable_plan_pushdown_ext_source_ts_precision.py,3600
+#,,n,.,./ci/pytest.sh pytest cases/05-VirtualTables/05-Plan/test_vtable_plan_window_ext_source.py,3600
+#,,n,.,./ci/pytest.sh pytest cases/05-VirtualTables/05-Plan/test_vtable_plan_agg_federated.py,3600
+#,,n,.,./ci/pytest.sh pytest cases/05-VirtualTables/05-Plan/test_vtable_plan_window_federated_batch.py,3600
+#,,n,.,./ci/pytest.sh pytest cases/05-VirtualTables/04-Query/03-ExtSource/test_vtable_query_ext_source_vtb_ref_stb.py,3600

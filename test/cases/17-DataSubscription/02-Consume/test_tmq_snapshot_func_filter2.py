@@ -1,3 +1,18 @@
+# Copyright (c) 2022 TAOS Data, Inc. <jhtao@taosdata.com>
+#
+# SPDX-License-Identifier: AGPL-3.0-or-later
+#
+# This program is free software: you can use, redistribute, and/or modify
+# it under the terms of the GNU Affero General Public License, version 3
+# or later ("AGPL"), as published by the Free Software Foundation.
+#
+# This program is distributed in the hope that it will be useful, but WITHOUT
+# ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+# FITNESS FOR A PARTICULAR PURPOSE.
+#
+# You should have received a copy of the GNU Affero General Public License
+# along with this program. If not, see <http://www.gnu.org/licenses/>.
+
 import time
 import threading
 import math
@@ -212,8 +227,11 @@ class TestCase:
             tdLog.exit("%d tmq consume rows error!"%consumerId)
 
         time.sleep(10)
+        # consumer 0 was killed with -9 and never unsubscribed, so mnode keeps its subscription until it is
+        # judged lost (session timeout, ~45s after the kill); DROP TOPIC is refused with "Topic subscribed
+        # cannot be dropped" until then. Give the default 10 retries (~10s) more room.
         for i in range(len(topicNameList)):
-            tdSql.query("drop topic %s"%topicNameList[i])
+            tdSql.query("drop topic %s"%topicNameList[i], queryTimes=30)
 
         tdLog.printNoPrefix("======== test case 4 end ...... ")
 
@@ -228,7 +246,7 @@ class TestCase:
         
         Since: v3.0.0.0
 
-        Labels: common,ci
+        Labels: common,ci,integration,functional
 
         Jira: None
 

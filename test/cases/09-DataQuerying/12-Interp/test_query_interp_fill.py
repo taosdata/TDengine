@@ -1,13 +1,17 @@
-###################################################################
-#           Copyright (c) 2016 by TAOS Technologies, Inc.
-#                     All rights reserved.
+# Copyright (c) 2016 TAOS Data, Inc. <jhtao@taosdata.com>
 #
-#  This file is proprietary and confidential to TAOS Technologies.
-#  No part of this file may be reproduced, stored, transmitted,
-#  disclosed or used in any form or by any means other than as
-#  expressly provided by the written permission from Jianhui Tao
+# SPDX-License-Identifier: AGPL-3.0-or-later
 #
-###################################################################
+# This program is free software: you can use, redistribute, and/or modify
+# it under the terms of the GNU Affero General Public License, version 3
+# or later ("AGPL"), as published by the Free Software Foundation.
+#
+# This program is distributed in the hope that it will be useful, but WITHOUT
+# ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+# FITNESS FOR A PARTICULAR PURPOSE.
+#
+# You should have received a copy of the GNU Affero General Public License
+# along with this program. If not, see <http://www.gnu.org/licenses/>.
 
 # -*- coding: utf-8 -*-
 from new_test_framework.utils.eutil import findTaosdLog
@@ -15,6 +19,8 @@ from new_test_framework.utils.streamUtil import StreamItem, tdStream
 from new_test_framework.utils import tdLog, tdSql, etool, tdCom
 from new_test_framework.utils.common import TDCom, tdCom
 import os
+import re
+from datetime import datetime, timedelta
 from random import randrange
 import subprocess
 from tzlocal import get_localzone
@@ -40,6 +46,9 @@ class TestInterpFill:
         "qDebugFlag": 135
     }
     check_failed: bool = False
+    merge_groups = 8201
+    merge_start = 1788192000000
+    merge_start_time = datetime.fromtimestamp(merge_start / 1000)
 
     def setup_class(cls):
         tdLog.printNoPrefix("==========step1:create table")
@@ -114,9 +123,10 @@ class TestInterpFill:
 
         cmd = f"taosBenchmark -f {os.path.dirname(os.path.realpath(__file__))}/in/insert_config.json"
         tdLog.info(f"Running command: {cmd}")
-        process = subprocess.Popen(cmd, shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-        _, err = process.communicate()
-        assert process.returncode == 0, f"taosBenchmark failed: {err.decode()}"
+        with etool.benchmark_write_log() as cfg_dir:
+            process = subprocess.Popen(f'{cmd} -c "{cfg_dir}"', shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+            _, err = process.communicate()
+            assert process.returncode == 0, f"taosBenchmark failed: {err.decode()}"
 
         # insert data for surrounding time test
         tdSql.execute("create database test_surround keep 36500")
@@ -173,7 +183,7 @@ class TestInterpFill:
 
         Since: v3.3.0.0
 
-        Labels: common,ci
+        Labels: common,ci,integration,functional
 
         History:
             - 2024-10-30 Jing Sima Created
@@ -198,7 +208,7 @@ class TestInterpFill:
 
         Since: v3.3.0.0
 
-        Labels: common,ci
+        Labels: common,ci,integration,functional
 
         History:
             - 2024-10-30 Jing Sima Created
@@ -223,6 +233,13 @@ class TestInterpFill:
         tdSql.error("select interp(c1) from test.td32861 range('2020-01-01 00:00:00.000', '2020-01-01 00:00:30.000', 1n) every(2s) fill(prev, 99);")
         tdSql.error("select interp(c1) from test.td32861 range('2020-01-01 00:00:00.000', '2020-01-01 00:00:30.000', 1y) every(2s) fill(prev, 99);")
         tdSql.error("select interp(c1) from test.td32861 range('2020-01-01 00:00:00.000', '2020-01-01 00:00:30.000', 1) every(2s) fill(prev, 99);")
+        # calendar units (n/y and their uppercase aliases N/Y, plus quarter q/Q) must be rejected in EVERY clause
+        tdSql.error("select interp(c1) from test.td32861 range('2020-01-01 00:00:00.000', '2021-01-01 00:00:00.000') every(1n) fill(prev);", expectErrInfo="Unsupported time unit in EVERY clause")
+        tdSql.error("select interp(c1) from test.td32861 range('2020-01-01 00:00:00.000', '2021-01-01 00:00:00.000') every(1N) fill(prev);", expectErrInfo="Unsupported time unit in EVERY clause")
+        tdSql.error("select interp(c1) from test.td32861 range('2020-01-01 00:00:00.000', '2021-01-01 00:00:00.000') every(1y) fill(prev);", expectErrInfo="Unsupported time unit in EVERY clause")
+        tdSql.error("select interp(c1) from test.td32861 range('2020-01-01 00:00:00.000', '2021-01-01 00:00:00.000') every(1Y) fill(prev);", expectErrInfo="Unsupported time unit in EVERY clause")
+        tdSql.error("select interp(c1) from test.td32861 range('2020-01-01 00:00:00.000', '2021-01-01 00:00:00.000') every(1q) fill(prev);", expectErrInfo="Unsupported time unit in EVERY clause")
+        tdSql.error("select interp(c1) from test.td32861 range('2020-01-01 00:00:00.000', '2021-01-01 00:00:00.000') every(1Q) fill(prev);", expectErrInfo="Unsupported time unit in EVERY clause")
         tdSql.error("create stream s1 trigger force_window_close into test.s1res as select _irowts, interp(c1), interp(c2)from test.td32727 partition by tbname range('2020-01-01 00:00:00.000', '2020-01-01 00:00:30.000', 1s) every(1s) fill(near, 1, 1);")
 
     def test_interp_fill_ignore_null(self):
@@ -236,7 +253,7 @@ class TestInterpFill:
 
         Since: v3.4.1.0
 
-        Labels: common,ci
+        Labels: common,ci,integration,functional
 
         History:
             - 2025-12-12 Tony Zhang created
@@ -261,7 +278,7 @@ class TestInterpFill:
 
         Since: v3.4.1.0
 
-        Labels: common,ci
+        Labels: common,ci,integration,functional
 
         History:
             - 2025-12-22 Tony Zhang created
@@ -343,7 +360,7 @@ class TestInterpFill:
 
         Since: v3.4.1.0
 
-        Labels: common,ci
+        Labels: common,ci,integration,functional
 
         History:
             - 2025-12-22 Tony Zhang created
@@ -935,7 +952,7 @@ class TestInterpFill:
 
         Since: v3.4.1.0
 
-        Labels: common,ci
+        Labels: common,ci,integration,functional
 
         History:
             - 2026-01-08 Tony Zhang created
@@ -1299,7 +1316,7 @@ class TestInterpFill:
 
         Since: v3.4.1.0
 
-        Labels: common,ci
+        Labels: common,ci,integration,functional
 
         History:
             - 2026-01-12 Tony Zhang created
@@ -1335,6 +1352,517 @@ class TestInterpFill:
         tdSql.checkData(0, 0, "2026-01-07 00:00:00.000")
         tdSql.checkData(0, 2, "2026-01-06 18:53:19.000")
         tdSql.checkData(0, 3, True)
+
+    def get_table_scan_check_rows(self, sql: str) -> int:
+        """Run `explain analyze` on the given sql and extract the check_rows
+        counter of the (single) table scan operator from the output."""
+        tdSql.query(f"explain analyze verbose true {sql}")
+        for row in tdSql.queryResult:
+            m = re.search(r"check_rows=(\d+)", row[0])
+            if m:
+                return int(m.group(1))
+        raise AssertionError("check_rows not found in explain analyze output")
+
+    def test_main_scan_early_stop(self):
+        """Interp stops the main-window scan early once output is complete
+
+        1. An interp query on a single child table uses a plain table scan
+        with the three-step external reader (prev/main/next windows pushed
+        down from the RANGE clause). Once all interpolation points are
+        produced (current passes the range end), the timeslice operator
+        notifies the reader via tsdReaderStepDone so the remaining
+        main-window data is skipped instead of being scanned and discarded.
+        2. Verify the query result stays correct, and use explain analyze to
+        assert the scanned row count stays far below a full-table scan:
+        ctb0 holds 500,000 rows while EVERY(7d) yields a single
+        interpolation point at the range start, so the expected cost is
+        roughly one batch of the main window plus one block of the
+        next-window scan.
+
+        Catalog:
+            - Query:Interp
+
+        Since: v3.4.2.0
+
+        Labels: common,ci
+
+        History:
+            - 2026-06-11 Tony Zhang created
+
+        """
+        tdSql.execute("use fill_interp_test")
+
+        # ctb0: 500,000 rows, one per second,
+        # 2026-01-01 00:00:00.000 .. 2026-01-06 18:53:19.000
+        queries = (
+            (
+                """select _irowts, interp(v) from ctb0
+                   range('2026-01-01 00:00:00',
+                         '2026-01-06 18:00:00')
+                   every(7d) fill(prev)""",
+                "2026-01-01 00:00:00.000",
+            ),
+            (
+                """select _irowts, interp(v) from ctb0
+                   range('2026-01-01 00:00:00.500',
+                         '2026-01-06 18:00:00')
+                   every(7d) fill(next)""",
+                "2026-01-01 00:00:00.500",
+            ),
+        )
+
+        for sql, expected_ts in queries:
+            tdSql.query(sql)
+            tdSql.checkRows(1)
+            tdSql.checkData(0, 0, expected_ts)
+
+            check_rows = self.get_table_scan_check_rows(sql)
+            assert check_rows < 100000, (
+                "main-window scan was not stopped early, "
+                f"check_rows={check_rows}"
+            )
+
+    def test_ext_window_early_stop(self):
+        """Interp early-stop on the prev/next external-reader segments
+
+        Counterpart to test_main_scan_early_stop, exercising the prev/next
+        extension windows of the three-step external reader on a single
+        child table (plain table scan):
+
+        1. fill(next) on a single-instant range with no exact row: the fill
+           reference is the first row after the instant, which lives in the
+           NEXT extension. The reader reaches it in the EXTERNAL_ROWS_NEXT
+           step; tsdbReaderStepDone must finalize the reader to
+           EXTERNAL_ROWS_DONE (asserted via the "step: NEXT done" tsdb debug
+           marker) instead of leaving it stuck at NEXT + currentStepDone.
+        2. fill(prev) on the same instant: the reference is the closest row
+           in the PREV extension; the prev segment must stop at that row
+           rather than draining the whole pre-range region.
+
+        Both assert the result value against the bounding row and bound the
+        scan cost with explain analyze check_rows.
+
+        Catalog:
+            - Query:Interp
+
+        Since: v3.4.2.0
+
+        Labels: common,ci
+
+        History:
+            - 2026-06-17 Tony Zhang created
+            - 2026-11-04 Tony Zhang cover flushed STT data
+
+        """
+        tdSql.execute("use fill_interp_test")
+        # Exercise STT cursors even when all benchmark data fits in memory.
+        tdSql.execute("flush database fill_interp_test")
+        # the prev/next finalize markers are emitted by the tsdb reader
+        tdSql.execute("alter dnode 1 'tsdbDebugFlag 135'")
+        try:
+            # Work relative to the first row so the test is timezone
+            # independent.
+            tdSql.query("select cast(first(ts) as bigint) from ctb0")
+            t0 = tdSql.queryResult[0][0]
+            # A sub-second instant 100,000s into the data has no exact row.
+            inst = t0 + 100000 * 1000 + 500
+
+            tdSql.query(f"select v from ctb0 where ts = {inst - 500}")
+            prev_ref = tdSql.queryResult[0][0]
+            tdSql.query(f"select v from ctb0 where ts = {inst + 500}")
+            next_ref = tdSql.queryResult[0][0]
+
+            # fill(next): reference in NEXT, then NEXT -> DONE.
+            next_done_base = findTaosdLog(
+                "step: NEXT done", retry=1
+            )
+            sql = (
+                "select cast(_irowts as bigint), _isfilled, "
+                f"interp(v) from ctb0 range({inst}) fill(next)"
+            )
+            tdSql.query(f"explain {sql}")
+            has_exchange = any(
+                "Exchange" in str(row[0])
+                for row in tdSql.queryResult
+            )
+            # One bounded remote fetch can already be in flight.
+            scan_limit = 65536 if has_exchange else 50000
+            tdSql.query(sql)
+            tdSql.checkRows(1)
+            tdSql.checkData(0, 0, inst)
+            tdSql.checkData(0, 1, True)
+            assert tdSql.queryResult[0][2] == next_ref, (
+                "fill(next) did not take the next-extension reference row"
+            )
+
+            check_rows = self.get_table_scan_check_rows(sql)
+            assert check_rows < scan_limit, (
+                "next-extension scan was not stopped early, "
+                f"check_rows={check_rows}, limit={scan_limit}"
+            )
+            assert (
+                findTaosdLog("step: NEXT done") > next_done_base
+            ), "NEXT step did not finalize"
+
+            # fill(prev): stop after the PREV reference is resolved.
+            sql = (
+                "select cast(_irowts as bigint), _isfilled, "
+                f"interp(v) from ctb0 range({inst}) fill(prev)"
+            )
+            tdSql.query(sql)
+            tdSql.checkRows(1)
+            tdSql.checkData(0, 0, inst)
+            tdSql.checkData(0, 1, True)
+            assert tdSql.queryResult[0][2] == prev_ref, (
+                "fill(prev) did not take the prev-extension reference row"
+            )
+
+            check_rows = self.get_table_scan_check_rows(sql)
+            assert check_rows < scan_limit, (
+                "prev-extension scan was not stopped early, "
+                f"check_rows={check_rows}, limit={scan_limit}"
+            )
+        finally:
+            tdSql.execute("alter dnode 1 'tsdbDebugFlag 131'")
+
+    def get_scan_operator_type(self, sql: str) -> str:
+        """Run `explain` and return 'merge' if the scan is a Table Merge Scan,
+        'table' if it is a plain Table Scan."""
+        tdSql.query(f"explain {sql}")
+        for row in tdSql.queryResult:
+            # "Table Merge Scan" must be tested first: "Table Scan" would also
+            # match the plain-scan branch, so check the more specific name.
+            if "Table Merge Scan" in row[0]:
+                return "merge"
+            if "Table Scan" in row[0]:
+                return "table"
+        raise AssertionError(f"no scan operator found in explain of: {sql}")
+
+    def test_interp_partition_by_tbname_plain_scan(self):
+        """Interp RANGE PARTITION BY tbname degenerates to a plain Table Scan
+
+        1. PARTITION BY tbname makes every group a single child table, whose
+        data lives entirely on one vnode, so no Table Merge Scan is needed: the
+        planner uses a plain Table Scan and reuses the per-table RANGE-pruning
+        path. Each group opens its own external (prev/main/next) reader, so all
+        child tables sharing a vnode must come back, not just the first.
+        2. Use a single-vgroup database with several child tables in the one
+        vnode (the case that exercises the per-group external-reader reuse) and
+        check every fill mode returns all tables with the right reference rows.
+        3. Assert the plan: PARTITION BY tbname uses Table Scan, while
+        PARTITION BY tag and the unpartitioned super-table interp still use
+        Table Merge Scan.
+
+        Catalog:
+            - Query:Interp
+
+        Since: v3.4.2.0
+
+        Labels: common,ci
+
+        History:
+            - 2026-06-16 Tony Zhang created
+
+        """
+        tdSql.execute("drop database if exists interp_tbname_scan")
+        tdSql.execute("create database interp_tbname_scan vgroups 1")
+        tdSql.execute("use interp_tbname_scan")
+        tdSql.execute("create table stb (ts timestamp, v int) tags (gid int)")
+        # Distinct prev/next values per table so a dropped group is caught.
+        # Every child table has one row before and one row after the RANGE,
+        # so the external reader must read both the prev and next windows.
+        rows = {"c0": (10, 100), "c1": (20, 200), "c2": (30, 300), "c3": (40, 400)}
+        for tb, (lo, hi) in rows.items():
+            gid = int(tb[1:])
+            tdSql.execute(f"create table {tb} using stb tags ({gid})")
+            tdSql.execute(
+                f"insert into {tb} values ('2024-01-01 01:00:00', {lo}) "
+                f"('2024-01-01 03:00:00', {hi})")
+        names = sorted(rows)  # c0, c1, c2, c3
+
+        rng = "range('2024-01-01 02:00:00', '2024-01-01 02:01:00') every(1m)"
+
+        # fill(prev): both points of each table take the table's prev row
+        tdSql.query(
+            f"select tbname, interp(v) from stb partition by tbname {rng} "
+            f"fill(prev) order by tbname")
+        tdSql.checkRows(2 * len(rows))
+        for i, tb in enumerate(names):
+            lo = rows[tb][0]
+            tdSql.checkData(2 * i, 0, tb)
+            tdSql.checkData(2 * i, 1, lo)
+            tdSql.checkData(2 * i + 1, 1, lo)
+
+        # fill(next): both points take the table's next row
+        tdSql.query(
+            f"select tbname, interp(v) from stb partition by tbname {rng} "
+            f"fill(next) order by tbname")
+        tdSql.checkRows(2 * len(rows))
+        for i, tb in enumerate(names):
+            hi = rows[tb][1]
+            tdSql.checkData(2 * i, 0, tb)
+            tdSql.checkData(2 * i, 1, hi)
+            tdSql.checkData(2 * i + 1, 1, hi)
+
+        # fill(linear): every table still produces both points, interpolated
+        # strictly between its prev (lo) and next (hi) rows
+        tdSql.query(
+            f"select tbname, interp(v) from stb partition by tbname {rng} "
+            f"fill(linear) order by tbname")
+        tdSql.checkRows(2 * len(rows))
+        for i, tb in enumerate(names):
+            lo, hi = rows[tb]
+            for r in (2 * i, 2 * i + 1):
+                tdSql.checkData(r, 0, tb)
+                val = tdSql.queryResult[r][1]
+                assert lo < val < hi, \
+                    f"{tb} linear value {val} not between {lo} and {hi}"
+
+        # Plan assertions: tbname partition -> plain Table Scan; tag/column partition
+        # and no partition -> Table Merge Scan (unchanged).
+        assert self.get_scan_operator_type(
+            f"select interp(v) from stb partition by tbname {rng} fill(prev)"
+        ) == "table", "PARTITION BY tbname interp should use a plain Table Scan"
+        assert self.get_scan_operator_type(
+            f"select interp(v) from stb partition by gid {rng} fill(prev)"
+        ) == "merge", "PARTITION BY tag interp should keep the Table Merge Scan"
+        assert self.get_scan_operator_type(
+            f"select interp(v) from stb partition by v {rng} fill(prev)"
+        ) == "merge", "PARTITION BY column interp should keep the Table Merge Scan"
+        assert self.get_scan_operator_type(
+            f"select interp(v) from stb {rng} fill(prev)"
+        ) == "merge", "Unpartitioned super-table interp should keep the Table Merge Scan"
+
+        tdSql.execute("drop database interp_tbname_scan")
+
+    def do_merge_prepare(self):
+        tdSql.prepare("interp_merge_resblock", drop=True, vgroups=2)
+        tdSql.execute(
+            "create stable meters(ts timestamp, current int, voltage int) "
+            "tags(t int)"
+        )
+        for start in range(0, self.merge_groups, 100):
+            tables = []
+            for i in range(start, min(start + 100, self.merge_groups)):
+                current = "null" if i % 7 == 0 else str(i)
+                voltage = "null" if i % 3 == 0 else str(i * 10)
+                tables.append(
+                    f"d{i} using meters tags({i}) values"
+                    f"({self.merge_start},{current},{voltage})"
+                    f"({self.merge_start + 2000},{i + 4},{i * 10 + 20})"
+                )
+            tdSql.execute("insert into " + " ".join(tables))
+
+    def merge_point_sql(self, mode):
+        return (
+            "select _irowts,tbname,interp(current),interp(voltage) "
+            "from meters partition by tbname "
+            f"range({self.merge_start + 1000}) fill({mode})"
+        )
+
+    def check_interp_merge_flag(self, sql, expected):
+        tdSql.query("explain verbose true " + sql)
+        interp = False
+        flags = []
+        for row in tdSql.queryResult:
+            line = row[0]
+            if "-> " in line:
+                interp = "-> Interp " in line
+            elif interp and "Merge ResBlocks:" in line:
+                flags.append("True" in line)
+        assert flags and all(flag == expected for flag in flags), (
+            sql, tdSql.queryResult
+        )
+
+    def do_merge_point_results(self):
+        for mode in ("prev", "next", "linear", "null", "value,17,23"):
+            sql = self.merge_point_sql(mode)
+            self.check_interp_merge_flag(sql, True)
+            tdSql.query(sql)
+            tdSql.checkRows(self.merge_groups)
+            seen = set()
+            for ts, name, current, voltage in tdSql.queryResult:
+                i = int(name[1:])
+                assert i not in seen
+                seen.add(i)
+                assert ts == self.merge_start_time + timedelta(seconds=1)
+                if mode == "next":
+                    expected = (i + 4, i * 10 + 20)
+                elif mode == "null":
+                    expected = (None, None)
+                elif mode == "value,17,23":
+                    expected = (17, 23)
+                else:
+                    delta = 2 if mode == "linear" else 0
+                    expected = (
+                        None if i % 7 == 0 else i + delta,
+                        None if i % 3 == 0 else i * 10 + delta * 5,
+                    )
+                assert (current, voltage) == expected, (mode, name)
+            assert seen == set(range(self.merge_groups))
+        tdLog.info("interp merged point results ................ [passed]")
+
+    def do_merge_block_count(self):
+        tdSql.query(
+            "explain analyze verbose true " + self.merge_point_sql("prev")
+        )
+        plan = [row[0] for row in tdSql.queryResult]
+        assert "-> Data Exchange" in plan[0], plan
+        exchange_cost = next(line for line in plan if "Exec cost:" in line)
+        calls = float(re.search(r"times=([\d.]+)", exchange_cost)[1])
+        assert calls < self.merge_groups / 100, plan
+        tdLog.info("interp merged exchange block count .......... [passed]")
+
+    def do_merge_range_and_tail(self):
+        sql = (
+            "select _irowts,tbname,interp(current) from meters "
+            "partition by tbname "
+            f"range({self.merge_start},{self.merge_start + 3000}) "
+            "every(1s) fill(prev) order by tbname,_irowts"
+        )
+        self.check_interp_merge_flag(sql, True)
+        tdSql.query(sql)
+        tdSql.checkRows(self.merge_groups * 4)
+        expected_names = sorted(f"d{i}" for i in range(self.merge_groups))
+        for group, name in enumerate(expected_names):
+            i = int(name[1:])
+            for step in range(4):
+                ts, actual_name, value = tdSql.queryResult[group * 4 + step]
+                assert actual_name == name
+                assert ts == self.merge_start_time + timedelta(seconds=step)
+                expected = i + 4 if step >= 2 else (
+                    None if i % 7 == 0 else i
+                )
+                assert value == expected, (name, step, value)
+
+        tdSql.query(
+            "select _irowts,interp(current) from d1 "
+            f"range({self.merge_start},{self.merge_start + 10000}) "
+            "every(1a) fill(prev)"
+        )
+        tdSql.checkRows(10001)
+        for index, (ts, value) in enumerate(tdSql.queryResult):
+            assert ts == self.merge_start_time + timedelta(milliseconds=index)
+            assert value == (1 if index < 2000 else 5)
+        tdLog.info("interp range, large group and tail .......... [passed]")
+
+    def do_merge_consumer_requirements(self):
+        sql = self.merge_point_sql("prev")
+        for suffix in (" limit 1", " slimit 2", " limit 1 offset 1"):
+            self.check_interp_merge_flag(sql + suffix, False)
+
+        inner = (
+            "select _irowts as ts,tbname as name,interp(current) as v "
+            "from meters partition by tbname "
+            f"range({self.merge_start + 1000}) fill(prev)"
+        )
+        aggregate = f"select count(*),sum(v) from ({inner})"
+        self.check_interp_merge_flag(aggregate, False)
+        tdSql.query(aggregate)
+        tdSql.checkRows(1)
+        tdSql.checkData(0, 0, self.merge_groups)
+        tdSql.checkData(0, 1, sum(i for i in range(self.merge_groups) if i % 7))
+
+        for predicate in ("v > 8180", "v < 0"):
+            filtered = f"select * from ({inner}) where {predicate}"
+            self.check_interp_merge_flag(filtered, True)
+            tdSql.query(filtered)
+            expected = [i for i in range(8181, self.merge_groups) if i % 7]
+            if predicate == "v < 0":
+                expected = []
+            assert sorted(row[2] for row in tdSql.queryResult) == expected
+
+        inner = (
+            "select _irowts as ts,tbname as name,interp(current) as v "
+            "from meters where t in (1,2) partition by tbname "
+            f"range({self.merge_start},{self.merge_start + 2000}) "
+            "every(1s) fill(prev)"
+        )
+        diff = f"select name,diff(v) from ({inner}) partition by name"
+        self.check_interp_merge_flag(diff, False)
+        tdSql.query(diff)
+        assert sorted(tdSql.queryResult) == [
+            ("d1", 0), ("d1", 4), ("d2", 0), ("d2", 4)
+        ]
+        interval = (
+            f"select name,_wstart,count(*) from ({inner}) "
+            "partition by name interval(1s)"
+        )
+        self.check_interp_merge_flag(interval, False)
+        tdSql.query(interval)
+        expected = [
+            (name, self.merge_start_time + timedelta(seconds=step), 1)
+            for name in ("d1", "d2") for step in range(3)
+        ]
+        assert sorted(tdSql.queryResult) == expected
+        tdLog.info("interp consumer requirements and filtering .. [passed]")
+
+    def do_merge_dense_input(self):
+        tdSql.execute(
+            "create stable dense_meters(ts timestamp, v int) tags(t int)"
+        )
+        counts = (1, 10001, 10001)
+        for group, count in enumerate(counts):
+            for start in range(0, count, 500):
+                values = "".join(
+                    f"({self.merge_start + i},{group * 20000 + i})"
+                    for i in range(start, min(start + 500, count))
+                )
+                tdSql.execute(
+                    f"insert into m{group} using dense_meters "
+                    f"tags({group}) values {values}"
+                )
+
+        sql = (
+            "select _irowts,tbname,interp(v) from dense_meters "
+            "partition by tbname "
+            f"range({self.merge_start},{self.merge_start + 10000}) "
+            "every(1a) fill(next)"
+        )
+        self.check_interp_merge_flag(sql, True)
+        tdSql.query(sql)
+        tdSql.checkRows(sum(counts))
+        expected = [
+            (self.merge_start_time + timedelta(milliseconds=i), f"m{group}",
+             group * 20000 + i)
+            for group, count in enumerate(counts) for i in range(count)
+        ]
+        assert sorted(tdSql.queryResult) == sorted(expected)
+
+        ordered = sql + " order by _irowts desc,tbname"
+        self.check_interp_merge_flag(ordered, True)
+        tdSql.query(ordered)
+        expected.sort(key=lambda row: row[1])
+        expected.sort(key=lambda row: row[0], reverse=True)
+        assert tdSql.queryResult == expected
+        tdLog.info("interp dense input, group switch and order .. [passed]")
+
+    def test_interp_merge_resblock(self):
+        """Interp: merge result blocks across independent groups
+
+        1. Check values, NULLs and group keys across merged blocks
+        2. Check Exchange calls, multiple points and the final partial block
+        3. Preserve consumer grouping requirements and filtered results
+        4. Resume dense input across blocks and preserve global sorting
+
+        Catalog:
+            - Query
+
+        Since: v3.4.2.8
+
+        Labels: common,ci
+
+        Jira: None
+
+        History:
+            - 2026-09-09 Add interpolation result block merge coverage
+        """
+        self.do_merge_prepare()
+        self.do_merge_point_results()
+        self.do_merge_block_count()
+        self.do_merge_range_and_tail()
+        self.do_merge_consumer_requirements()
+        self.do_merge_dense_input()
 
     #
     # ------------------- extend ----------------
@@ -1464,7 +1992,7 @@ class TestInterpFill:
 
         Since: v3.0.0.0
 
-        Labels: common,ci
+        Labels: common,ci,integration,functional
 
         Jira: None
 
@@ -1548,7 +2076,21 @@ class TestInterpFill:
     ## select_all_results must be sorted by ts in ascending order
     def check_result_for_near(self, interp_results, select_all_results, sql, sql_select_all):
         #tdLog.info(f"check_result_for_near for sql: {sql}, sql_select_all: {sql_select_all}, interp_results: {interp_results}")
+        point_range = re.search(r"range\((\d+),\s*1h\)\s*fill\(near,\s*1,\s*2\)", sql)
+        if point_range:
+            assert len(interp_results) == (1 if select_all_results else 0), (sql, interp_results)
         for row in interp_results:
+            irowts = self.datetime_add_tz(row[1])
+            if point_range:
+                assert round(irowts.timestamp() * 1000) == int(point_range.group(1)), (sql, row)
+                # WHERE bounds need not coincide with actual source timestamps.
+                # The nearest surviving row can lie beyond the one-hour limit.
+                has_near_source = any(self.distance(source[0], irowts) <= timedelta(hours=1)
+                                      for source in select_all_results)
+                if not has_near_source:
+                    assert row[0] is None and tuple(row[2:]) == (1, 2, True), (sql, row)
+                    continue
+            assert row[0] is not None, (sql, row, sql_select_all)
             #tdLog.info(f"row: {row}")
             if row[0].tzinfo is None or row[0].tzinfo.utcoffset(row[0]) is None:
                 irowts_origin = row[0].replace(tzinfo=get_localzone())
@@ -1865,7 +2407,7 @@ class TestInterpFill:
 
         Since: v3.4.1.0
 
-        Labels: common,ci
+        Labels: common,ci,integration,functional
 
         History:
             - 2026-01-19 Tony Zhang created
@@ -1891,13 +2433,14 @@ class TestInterpFill:
 
         Since: v3.4.1.0
 
-        Labels: common,ci
+        Labels: common,ci,integration,functional
 
         History:
             - 2026-01-19 Tony Zhang created
 
         """
         tdSql.execute("use test_surround")
+        tdStream.ensureSnode()
         tdSql.execute("create table triggertb (ts timestamp, c1 int)")
         streams: list[StreamItem] = []
 
@@ -2001,7 +2544,7 @@ class TestInterpFill:
 
         Since: v3.4.1.0
 
-        Labels: common,ci
+        Labels: common,ci,integration,functional
 
         History:
             - 2026-01-19 Tony Zhang created

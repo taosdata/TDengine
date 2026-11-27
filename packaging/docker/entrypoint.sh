@@ -1,6 +1,19 @@
 #!/bin/bash
 
-# docker run -d --name tdgpt -p 6090:6090 -p 5000:5000 -p 5001:5001 tdengine/tdengine-tdgpt-full:3.3.6.0
+# Copyright (c) 2025 TAOS Data, Inc. <jhtao@taosdata.com>
+#
+# SPDX-License-Identifier: AGPL-3.0-or-later
+#
+# This program is free software: you can use, redistribute, and/or modify
+# it under the terms of the GNU Affero General Public License, version 3
+# or later ("AGPL"), as published by the Free Software Foundation.
+#
+# This program is distributed in the hope that it will be useful, but WITHOUT
+# ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+# FITNESS FOR A PARTICULAR PURPOSE.
+#
+# You should have received a copy of the GNU Affero General Public License
+# along with this program. If not, see <http://www.gnu.org/licenses/>.
 
 export PATH="/var/lib/taos/taosanode/venv/bin:$PATH"
 export LANG=en_US.UTF-8
@@ -66,22 +79,22 @@ execute_startup() {
     activate_venv "${model}"
 
     # Execute startup script if exists
-    local script_path="/usr/local/taos/taosanode/lib/taosanalytics/tsfmservice"
-    local startup_script="${script_path}/${model}-server.py"
+    local script_path="/usr/local/taos/taosanode/lib/tsfm/service"
+    local startup_script="${script_path}/${model}_server.py"
     if [ -f "${startup_script}" ]; then
         echo "Running startup script: ${startup_script}"
         cd "${script_path}" || exit
         echo "Current directory: $(pwd)"
         if [ "${model}" == "tdtsfm" ]; then
-            echo "Running command: nohup python3 /usr/local/taos/taosanode/lib/taosanalytics/tsfmservice/${model}-server.py &"
-            nohup python3 "${model}-server.py" --action server &
+            echo "Running command: nohup python3 /usr/local/taos/taosanode/lib/tsfm/service/${model}_server.py &"
+            nohup python3 "${model}_server.py" --action server &
         else
             model_args=(--model-folder "${subdir}" --model-name "${model_name}")
             if [ "${ENDPOINT_ENABLE}" == "True" ]; then
                 model_args+=(--enable-ep)
             fi
-            echo "Running command: nohup python3 ${model}-server.py ${model_args[*]} &"
-            nohup python3 "${model}-server.py" "${model_args[@]}" &
+            echo "Running command: nohup python3 ${model}_server.py ${model_args[*]} &"
+            nohup python3 "${model}_server.py" "${model_args[@]}" &
         fi
         SERVER_PID=$!
         if ps -p ${SERVER_PID} > /dev/null; then
@@ -220,5 +233,6 @@ if [ ! -f "${CONFIG_FILE}" ]; then
 fi
 
 echo "Starting Gunicorn with config: $CONFIG_FILE"
-cd /usr/local/taos/taosanode/lib/taosanalytics/ || exit 1
-exec /usr/local/bin/gunicorn -c "$CONFIG_FILE"
+export TDGPT_CONF="${CONFIG_FILE}"
+cd /usr/local/taos/taosanode || exit 1
+exec /usr/local/bin/gunicorn -c "$CONFIG_FILE" --pythonpath /usr/local/taos/taosanode lib.app:app

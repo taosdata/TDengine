@@ -1,13 +1,17 @@
-###################################################################
-#           Copyright (c) 2016 by TAOS Technologies, Inc.
-#                     All rights reserved.
+# Copyright (c) 2016 TAOS Data, Inc. <jhtao@taosdata.com>
 #
-#  This file is proprietary and confidential to TAOS Technologies.
-#  No part of this file may be reproduced, stored, transmitted,
-#  disclosed or used in any form or by any means other than as
-#  expressly provided by the written permission from Jianhui Tao
+# SPDX-License-Identifier: AGPL-3.0-or-later
 #
-###################################################################
+# This program is free software: you can use, redistribute, and/or modify
+# it under the terms of the GNU Affero General Public License, version 3
+# or later ("AGPL"), as published by the Free Software Foundation.
+#
+# This program is distributed in the hope that it will be useful, but WITHOUT
+# ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+# FITNESS FOR A PARTICULAR PURPOSE.
+#
+# You should have received a copy of the GNU Affero General Public License
+# along with this program. If not, see <http://www.gnu.org/licenses/>.
 
 # -*- coding: utf-8 -*-
 
@@ -18,8 +22,9 @@ import time
 import sys
 import subprocess
 import importlib.util
+import pytest
 from pathlib import Path
-from new_test_framework.utils import tdLog, tdSql, tdStream, cluster, tdCom
+from new_test_framework.utils import tdLog, tdSql, tdStream, tdCb, cluster, tdCom
 
 # Import enterprise package downloader
 current_dir = os.path.dirname(os.path.realpath(__file__))
@@ -27,7 +32,6 @@ enterprise_downloader_path = os.path.abspath(os.path.join(current_dir, "../../..
 
 # Check if enterprise downloader exists
 if not os.path.exists(enterprise_downloader_path):
-    import pytest
     pytest.skip("Enterprise package downloader not available (community-only CI)", allow_module_level=True)
 
 # Load the module
@@ -136,7 +140,7 @@ class TestStreamCompatibility:
 
         Since: v3.3.7.0
 
-        Labels: common,ci
+        Labels: common,ci,integration,functional,compatibility
 
         Jira: None
 
@@ -155,8 +159,7 @@ class TestStreamCompatibility:
             tdLog.info("Cannot import distro module, skipping distro check")
 
         if platform.system().lower() == 'windows':
-            tdLog.info(f"Windows skip stream compatibility test")
-            return
+            pytest.skip("Historical stream upgrade lifecycle is not implemented on Windows")
 
         bPath = os.path.join(tdCom.getBuildPath(), "build")
         cPath = self.getCfgPath()
@@ -186,26 +189,11 @@ class TestStreamCompatibility:
             tdLog.printNoPrefix(f"Stream compatibility test with base version {base_version} completed successfully")
                 
             # Cleanup between version tests
-            self.killAllDnodes()
+            tdCb.stopTaosdCompletely()
             
             tdLog.info(f"Completed testing version {base_version}, moving to next version...")
         
         tdLog.printNoPrefix(f"========== All stream compatibility tests completed for {len(BASE_VERSIONS)} versions ==========")
-
-    def checkProcessPid(self, processName):
-        """Check if process is stopped"""
-        tdLog.info(f"checkProcessPid {processName}")
-        i = 0
-        while i < 60:
-            tdLog.info(f"wait stop {processName}")
-            processPid = subprocess.getstatusoutput(f'ps aux|grep {processName} |grep -v "grep"|awk \'{{print $2}}\'')[1]
-            tdLog.info(f"times:{i},{processName}-pid:{processPid}")
-            if processPid == "":
-                break
-            i += 1
-            time.sleep(1)
-        else:
-            tdLog.info(f'this processName is not stopped in 60s')
 
     def installTaosd(self, bPath, cPath, base_version):
         """Extract specific version of TDengine and start using extracted binaries"""
@@ -213,28 +201,19 @@ class TestStreamCompatibility:
 
         # Use enterprise package downloader (extract-only, no install.sh)
         downloader = EnterprisePackageDownloader()
-        tdLog.info(f"Downloading and extracting enterprise version {base_version}")
+        
+        tdLog.info(f"Downloading and installing enterprise version {base_version}")
         bin_dir, lib_dir = downloader.download_and_extract(base_version, "enterprise")
         self.old_bin_dir = bin_dir
         self.old_lib_dir = lib_dir
         tdLog.info(f"Using extracted binaries: bin={bin_dir}, lib={lib_dir}")
+        
+        tdCb.stopTaosdCompletely()
 
-        os.system(f"pkill -9 taosd")
-        self.checkProcessPid("taosd")
 
         print(f"rm -rf {dataPath}* && LD_LIBRARY_PATH={lib_dir} nohup {bin_dir}/taosd -c {cPath} &")
         os.system(f"rm -rf {dataPath}* && LD_LIBRARY_PATH={lib_dir} nohup {bin_dir}/taosd -c {cPath} &")
         time.sleep(5)
-
-    def killAllDnodes(self):
-        """Kill all TDengine processes"""
-        tdLog.info("kill all dnodes")
-        tdLog.info("kill taosd")
-        os.system(f"pkill -9 taosd")
-        tdLog.info("kill taos")
-        os.system(f"pkill -9 taos") 
-        tdLog.info("check taosd")
-        self.checkProcessPid("taosd")
 
     def createStreamOnOldVersion(self, base_version):
         """Create snode and streams on old version"""
@@ -299,7 +278,7 @@ class TestStreamCompatibility:
         tdLog.printNoPrefix("==========Attempting to start with new version (should fail)==========")
         
         # Kill old taosd
-        self.killAllDnodes()
+        tdCb.stopTaosdCompletely()
         time.sleep(2)
         
         cPath = bPath + "/../sim/dnode1/cfg/"
@@ -323,8 +302,9 @@ class TestStreamCompatibility:
             return False
 
     def restartTaosd(self, cPath):
-        """Restart old-version taosd using extracted binaries"""
-        self.killAllDnodes()
+        """Restart taosd"""
+        tdCb.stopTaosdCompletely()
+
         time.sleep(2)
         os.system(f"LD_LIBRARY_PATH={self.old_lib_dir} nohup {self.old_bin_dir}/taosd -c {cPath} &")
         time.sleep(5)
@@ -376,7 +356,7 @@ class TestStreamCompatibility:
         os.system(f"{tp} -s 'show databases;'")
         
         # Stop taosd before filesystem cleanup
-        self.killAllDnodes()
+        tdCb.stopTaosdCompletely()
         time.sleep(2)
         
         # Remove snode directories from filesystem
@@ -403,7 +383,7 @@ class TestStreamCompatibility:
         tdLog.printNoPrefix("==========Creating new streams on new version==========")
         
         # Kill old version
-        self.killAllDnodes()
+        tdCb.stopTaosdCompletely()
         time.sleep(2)
         
         # Start new version

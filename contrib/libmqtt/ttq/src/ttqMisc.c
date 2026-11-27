@@ -8,10 +8,12 @@
 #include <stdlib.h>
 #include <string.h>
 
+#ifndef WIN32
 #include <grp.h>
 #include <pwd.h>
-#include <sys/stat.h>
 #include <unistd.h>
+#endif
+#include <sys/stat.h>
 
 #include "ttqLogging.h"
 
@@ -20,11 +22,15 @@ FILE *tmqtt__fopen(const char *path, const char *mode, bool restrict_read) {
   struct stat statbuf;
 
   if (restrict_read) {
+#ifdef WIN32
+    fptr = fopen(path, mode);
+#else
     mode_t old_mask;
 
     old_mask = umask(0077);
     fptr = fopen(path, mode);
     UNUSED(umask(old_mask));
+#endif
   } else {
     fptr = fopen(path, mode);
   }
@@ -35,6 +41,7 @@ FILE *tmqtt__fopen(const char *path, const char *mode, bool restrict_read) {
     return NULL;
   }
 
+#ifndef WIN32
   if (restrict_read) {
     if (statbuf.st_mode & S_IRWXO) {
       ttq_log(NULL, TTQ_LOG_WARNING,
@@ -72,6 +79,13 @@ FILE *tmqtt__fopen(const char *path, const char *mode, bool restrict_read) {
     fclose(fptr);
     return NULL;
   }
+#else
+  if (!(statbuf.st_mode & S_IFREG)) {
+    ttq_log(NULL, TTQ_LOG_ERR, "Error: %s is not a file.", path);
+    fclose(fptr);
+    return NULL;
+  }
+#endif
   return fptr;
 }
 

@@ -1,6 +1,8 @@
 /*
  * Copyright (c) 2019 TAOS Data, Inc. <jhtao@taosdata.com>
  *
+ * SPDX-License-Identifier: AGPL-3.0-or-later
+ *
  * This program is free software: you can use, redistribute, and/or modify
  * it under the terms of the GNU Affero General Public License, version 3
  * or later ("AGPL"), as published by the Free Software Foundation.
@@ -17,12 +19,25 @@
 
 #include "gtest/gtest.h"
 #include <iostream>
+#include <memory>
+#include <string>
+#include <vector>
 #include "clientInt.h"
+#include "clientRawBlockWrite.h"
+#include "clientTmq.h"
 #include "osSemaphore.h"
+#include "tglobal.h"
 #include "taoserror.h"
 #include "tarray.h"
 #include "thash.h"
 #include "totp.h"
+#include "tref.h"
+#include "tdatablock.h"
+#include "tcompression.h"
+#include "tconv.h"
+#if defined(LINUX) || defined(WINDOWS)
+#include "stub.h"
+#endif
 
 // clang-format on
 
@@ -37,6 +52,24 @@
 namespace {
 
 #define nDup 10
+
+struct TmqCloseTestContext {
+  tmq_t   tmq = {0};
+  int32_t unsubscribeCount = 0;
+  int32_t releaseCount = 0;
+};
+
+void countTmqCloseRelease(void* param) {
+  TmqCloseTestContext* context = static_cast<TmqCloseTestContext*>(param);
+  context->releaseCount++;
+}
+
+int32_t failTmqUnsubscribe(tmq_t* tmq) {
+  TmqCloseTestContext* context = reinterpret_cast<TmqCloseTestContext*>(tmq);
+  context->unsubscribeCount++;
+  return TSDB_CODE_TMQ_INVALID_STATUS;
+}
+
 static int32_t queryDB(TAOS* taos, char* command) {
   int       i;
   TAOS_RES* pSql = NULL;
@@ -184,6 +217,32 @@ void queryCallback(void* param, void* res, int32_t code) {
   taos_free_result(res);
   tsem_t* sem = (tsem_t*)param;
   tsem_post(sem);
+}
+
+typedef struct {
+  tsem_t  sem;
+  int32_t code;
+} SAsyncExecResult;
+
+void execCallback(void* param, void* res, int32_t code) {
+  SAsyncExecResult* result = (SAsyncExecResult*)param;
+  result->code = code;
+  if (res != NULL) {
+    taos_free_result((TAOS_RES*)res);
+  }
+  tsem_post(&result->sem);
+}
+
+static void execAsyncSql(TAOS* pConn, const char* sql) {
+  SAsyncExecResult result = {0};
+  (void)tsem_init(&result.sem, 0, 0);
+  result.code = INT32_MIN;
+
+  taos_query_a(pConn, sql, execCallback, &result);
+  tsem_wait(&result.sem);
+  tsem_destroy(&result.sem);
+
+  ASSERT_EQ(result.code, TSDB_CODE_SUCCESS) << sql;
 }
 
 void createNewTable(TAOS* pConn, int32_t index, int32_t numOfRows, int64_t startTs, const char* pVarchar) {
@@ -374,7 +433,259 @@ TEST(clientCase, driverInit_Test) {
   // taosInitGlobalCfg();
   //  taos_init();
 }
-TEST(clientCase, sessControl) { testSessionCtrl(); }
+
+TEST(clientCase, killCheckPreservesRetainedRequest) {
+  struct RefPool {
+    const int32_t original = clientReqRefPool;
+    const int32_t temporary = taosOpenRef(1, [](void*) {});
+
+    ~RefPool() {
+      clientReqRefPool = original;
+      if (temporary > 0) {
+        taosCloseRef(temporary);
+      }
+    }
+  } pool;
+  ASSERT_GT(pool.temporary, 0);
+  clientReqRefPool = pool.temporary;
+
+  SRequestObj request = {};
+  const int64_t rid = taosAddRef(pool.temporary, &request);
+  ASSERT_GT(rid, 0);
+  void* param = reinterpret_cast<void*>(static_cast<intptr_t>(rid));
+  EXPECT_FALSE(chkRequestKilled(param));
+  request.killed = true;
+  EXPECT_TRUE(chkRequestKilled(param));
+
+  // The heartbeat can retain a request after its owner removes it.
+  EXPECT_EQ(acquireRequest(rid), &request);
+  EXPECT_EQ(removeRequest(rid), TSDB_CODE_SUCCESS);
+  EXPECT_TRUE(chkRequestKilled(param));
+
+  int32_t released = 0;
+  EXPECT_EQ(taosReleaseRefEx(pool.temporary, rid, &released), TSDB_CODE_SUCCESS);
+  EXPECT_EQ(released, 1);
+}
+
+TEST(clientCase, tmq_close_releases_creator_ref_after_unsubscribe_failure) {
+  SMqMgmt mgmt = {0};
+  ASSERT_EQ(taosThreadMutexInit(&mgmt.lock, NULL), 0);
+  mgmt.rsetId = taosOpenRef(1, countTmqCloseRelease);
+  ASSERT_GT(mgmt.rsetId, 0);
+
+  TmqCloseTestContext context = {};
+  context.tmq.consumerId = 0x1234;
+  atomic_store_8(&context.tmq.status, TMQ_CONSUMER_STATUS__READY);
+  context.tmq.refId = taosAddRef(mgmt.rsetId, &context);
+  ASSERT_GT(context.tmq.refId, 0);
+
+  tmq_t* retained = static_cast<tmq_t*>(
+      taosAcquireRef(mgmt.rsetId, context.tmq.refId));
+  ASSERT_EQ(retained, &context.tmq);
+
+  EXPECT_EQ(
+      tmqConsumerCloseImpl(&context.tmq, &mgmt, failTmqUnsubscribe), 0);
+  EXPECT_EQ(context.unsubscribeCount, 1);
+  EXPECT_EQ(atomic_load_8(&context.tmq.status), TMQ_CONSUMER_STATUS__CLOSED);
+  EXPECT_EQ(context.tmq.creatorRefRemoved, 1);
+  EXPECT_EQ(taosAcquireRef(mgmt.rsetId, context.tmq.refId), nullptr);
+  EXPECT_EQ(context.releaseCount, 0);
+
+  EXPECT_EQ(
+      tmqConsumerCloseImpl(&context.tmq, &mgmt, failTmqUnsubscribe), 0);
+  EXPECT_EQ(context.unsubscribeCount, 1);
+  EXPECT_EQ(context.releaseCount, 0);
+
+  EXPECT_EQ(taosReleaseRef(mgmt.rsetId, context.tmq.refId), 0);
+  EXPECT_EQ(context.releaseCount, 1);
+  taosCloseRef(mgmt.rsetId);
+  EXPECT_EQ(taosThreadMutexDestroy(&mgmt.lock), 0);
+}
+
+TEST(clientCase, tmq_close_removes_creator_ref_when_already_closed) {
+  SMqMgmt mgmt = {0};
+  ASSERT_EQ(taosThreadMutexInit(&mgmt.lock, NULL), 0);
+  mgmt.rsetId = taosOpenRef(1, countTmqCloseRelease);
+  ASSERT_GT(mgmt.rsetId, 0);
+
+  TmqCloseTestContext context = {};
+  context.tmq.consumerId = 0x5678;
+  atomic_store_8(&context.tmq.status, TMQ_CONSUMER_STATUS__CLOSED);
+  context.tmq.refId = taosAddRef(mgmt.rsetId, &context);
+  ASSERT_GT(context.tmq.refId, 0);
+
+  tmq_t* retained = static_cast<tmq_t*>(
+      taosAcquireRef(mgmt.rsetId, context.tmq.refId));
+  ASSERT_EQ(retained, &context.tmq);
+
+  EXPECT_EQ(
+      tmqConsumerCloseImpl(&context.tmq, &mgmt, failTmqUnsubscribe), 0);
+  EXPECT_EQ(context.unsubscribeCount, 0);
+  EXPECT_EQ(context.tmq.creatorRefRemoved, 1);
+  EXPECT_EQ(taosAcquireRef(mgmt.rsetId, context.tmq.refId), nullptr);
+  EXPECT_EQ(context.releaseCount, 0);
+
+  EXPECT_EQ(taosReleaseRef(mgmt.rsetId, context.tmq.refId), 0);
+  EXPECT_EQ(context.releaseCount, 1);
+  taosCloseRef(mgmt.rsetId);
+  EXPECT_EQ(taosThreadMutexDestroy(&mgmt.lock), 0);
+}
+
+TEST(clientCase, tmq_close_retries_creator_ref_removal_after_failure) {
+  SMqMgmt mgmt = {0};
+  ASSERT_EQ(taosThreadMutexInit(&mgmt.lock, NULL), 0);
+  mgmt.rsetId = taosOpenRef(1, countTmqCloseRelease);
+  ASSERT_GT(mgmt.rsetId, 0);
+
+  TmqCloseTestContext context = {};
+  context.tmq.consumerId = 0x9abc;
+  atomic_store_8(&context.tmq.status, TMQ_CONSUMER_STATUS__READY);
+  context.tmq.refId = 1;
+
+  EXPECT_EQ(tmqConsumerCloseImpl(&context.tmq, &mgmt,
+                                 failTmqUnsubscribe),
+            TSDB_CODE_REF_NOT_EXIST);
+  EXPECT_EQ(context.unsubscribeCount, 1);
+  EXPECT_EQ(atomic_load_8(&context.tmq.status), TMQ_CONSUMER_STATUS__CLOSED);
+  EXPECT_EQ(context.tmq.creatorRefRemoved, 0);
+
+  EXPECT_EQ(tmqConsumerCloseImpl(&context.tmq, &mgmt,
+                                 failTmqUnsubscribe),
+            TSDB_CODE_REF_NOT_EXIST);
+  EXPECT_EQ(context.unsubscribeCount, 1);
+  EXPECT_EQ(context.tmq.creatorRefRemoved, 0);
+
+  taosCloseRef(mgmt.rsetId);
+  EXPECT_EQ(taosThreadMutexDestroy(&mgmt.lock), 0);
+}
+
+TEST(clientCase, sessControl) {
+#ifdef TD_ENTERPRISE
+  testSessionCtrl();
+#else
+  GTEST_SKIP() << "Session limits and GRANT privileges require TDengine Enterprise edition";
+#endif
+}
+
+TEST(clientMetaRefresh, refreshScopeByError) {
+  EXPECT_EQ(clientGetMetaRefreshScope(TSDB_CODE_SUCCESS), CLIENT_META_REFRESH_NONE);
+
+  EXPECT_EQ(clientGetMetaRefreshScope(TSDB_CODE_PAR_TABLE_NOT_EXIST), CLIENT_META_REFRESH_TABLE);
+  EXPECT_EQ(clientGetMetaRefreshScope(TSDB_CODE_TDB_TABLE_NOT_EXIST), CLIENT_META_REFRESH_TABLE);
+  EXPECT_EQ(clientGetMetaRefreshScope(TSDB_CODE_TDB_INVALID_TABLE_ID), CLIENT_META_REFRESH_TABLE);
+  EXPECT_EQ(clientGetMetaRefreshScope(TSDB_CODE_TDB_INVALID_TABLE_SCHEMA_VER), CLIENT_META_REFRESH_TABLE);
+  EXPECT_EQ(clientGetMetaRefreshScope(TSDB_CODE_MND_INVALID_SCHEMA_VER), CLIENT_META_REFRESH_TABLE);
+
+  EXPECT_EQ(clientGetMetaRefreshScope(TSDB_CODE_VND_HASH_MISMATCH), CLIENT_META_REFRESH_FULL);
+  EXPECT_EQ(clientGetMetaRefreshScope(TSDB_CODE_VND_INVALID_VGROUP_ID), CLIENT_META_REFRESH_FULL);
+  EXPECT_EQ(clientGetMetaRefreshScope(TSDB_CODE_SCH_DATA_SRC_EP_MISS), CLIENT_META_REFRESH_FULL);
+}
+
+#if defined(LINUX) || defined(WINDOWS)
+struct AsyncParseRetryContext {
+  SRequestObj request = {};
+  STscObj connection = {};
+  SSqlCallbackWrapper wrapper = {};
+  SParseContext parse = {};
+  SCatalogReq catalog = {};
+  SQuery query = {};
+  SNode root = {};
+  catalogCallback callback = nullptr;
+  void* callbackParam = nullptr;
+  EClientMetaRefreshScope scope = CLIENT_META_REFRESH_NONE;
+  int32_t parseCode = 0;
+  int32_t prepareCount = 0;
+  int32_t destroyCount = 0;
+  int32_t callbackCount = 0;
+  int32_t callbackCode = 0;
+};
+
+static AsyncParseRetryContext* asyncParseRetry;
+
+static int32_t prepareAsyncParseRetry(SSqlCallbackWrapper** wrapper, SRequestObj* request,
+                                      EClientMetaRefreshScope scope) {
+  auto* context = asyncParseRetry;
+  context->scope = scope;
+  ++context->prepareCount;
+  context->root.type = QUERY_NODE_INSERT_STMT;
+  context->query.pRoot = &context->root;
+  context->query.execStage = QUERY_EXEC_STAGE_PARSE;
+  context->wrapper.pRequest = request;
+  context->wrapper.pParseCtx = &context->parse;
+  context->wrapper.pCatalogReq = &context->catalog;
+  request->pQuery = &context->query;
+  request->pWrapper = &context->wrapper;
+  request->pTscObj = &context->connection;
+  *wrapper = &context->wrapper;
+  return 0;
+}
+
+static int32_t captureAsyncParseMeta(SCatalog*, SRequestConnInfo*, const SCatalogReq*, catalogCallback callback,
+                                     void* param, int64_t*) {
+  asyncParseRetry->callback = callback;
+  asyncParseRetry->callbackParam = param;
+  return 0;
+}
+
+static int32_t failAsyncContinueParse(SParseContext*, SCatalogReq*, SMetaData*, SQuery*) {
+  return asyncParseRetry->parseCode;
+}
+
+static void destroyAsyncParseWrapper(SSqlCallbackWrapper*) { ++asyncParseRetry->destroyCount; }
+static void destroyAsyncParseContext(SRequestObj* request) {
+  EXPECT_EQ(request->pWrapper, nullptr);
+  request->pQuery = nullptr;
+}
+static SRequestObj* acquireAsyncParseRequest(int64_t) { return &asyncParseRetry->request; }
+static int32_t releaseAsyncParseRequest(int64_t) { return 0; }
+static void captureAsyncParseResult(SRequestObj*, int32_t code) {
+  ++asyncParseRetry->callbackCount;
+  asyncParseRetry->callbackCode = code;
+}
+
+TEST(clientMetaRefresh, asyncInsertParseRoutingRetryIsBounded) {
+  Stub stub;
+  stub.set(prepareAndParseSqlSyntax, prepareAsyncParseRetry);
+  stub.set(catalogAsyncGetAllMeta, captureAsyncParseMeta);
+  stub.set(qContinueParseSql, failAsyncContinueParse);
+  stub.set(destorySqlCallbackWrapper, destroyAsyncParseWrapper);
+  stub.set(destroyCtxInRequest, destroyAsyncParseContext);
+  stub.set(acquireRequest, acquireAsyncParseRequest);
+  stub.set(releaseRequest, releaseAsyncParseRequest);
+  stub.set(doRequestCallback, captureAsyncParseResult);
+
+  for (int32_t code : {TSDB_CODE_VND_HASH_MISMATCH, TSDB_CODE_VND_INVALID_VGROUP_ID,
+                       TSDB_CODE_SCH_DATA_SRC_EP_MISS, TSDB_CODE_PAR_INVALID_COLUMN}) {
+    for (int32_t stmtVersion : {0, 1, 2}) {
+      for (bool catalogError : {false, true}) {
+        AsyncParseRetryContext context;
+        asyncParseRetry = &context;
+        context.request.stmtBindVersion = stmtVersion;
+        context.parseCode = code;
+        doAsyncQuery(&context.request, CLIENT_META_REFRESH_TABLE);
+        ASSERT_NE(context.callback, nullptr);
+        bool retry = stmtVersion == 0 && clientGetMetaRefreshScope(code) == CLIENT_META_REFRESH_FULL;
+        int32_t attempts = retry ? REQUEST_TOTAL_EXEC_TIMES + 1 : 1;
+        for (int32_t attempt = 0; attempt < attempts; ++attempt) {
+          ASSERT_EQ(context.callbackCount, 0);
+          context.callback(nullptr, context.callbackParam, catalogError ? code : 0);
+          if (retry && attempt + 1 < attempts) {
+            EXPECT_EQ(context.scope, CLIENT_META_REFRESH_FULL);
+            EXPECT_EQ(context.prepareCount, attempt + 2);
+          }
+        }
+        EXPECT_EQ(context.callbackCount, 1);
+        EXPECT_EQ(context.callbackCode, code);
+        EXPECT_EQ(context.prepareCount, attempts);
+        EXPECT_EQ(context.destroyCount, attempts);
+        EXPECT_EQ(context.request.pWrapper, nullptr);
+      }
+    }
+  }
+  asyncParseRetry = nullptr;
+}
+
+#endif
 
 TEST(clientCase, connect_Test) {
   taos_options(TSDB_OPTION_CONFIGDIR, "~/first/cfg");
@@ -442,6 +753,15 @@ TEST(clientCase, connect_totp_Test) {
     (void)printf("failed to create totp secret, reason:%s\n", taos_errstr(NULL));
   }
   ASSERT_NE(pRes, nullptr);
+#ifndef TD_ENTERPRISE
+  EXPECT_EQ(taos_errno(pRes), TSDB_CODE_OSS_NOT_SUPPORT);
+  taos_free_result(pRes);
+  pRes = taos_query(pConn, "drop user totp_u");
+  EXPECT_EQ(taos_errno(pRes), TSDB_CODE_SUCCESS);
+  taos_free_result(pRes);
+  taos_close(pConn);
+  return;
+#endif
   ASSERT_EQ(taos_errno(pRes), 0);
 
   char secretStr[64] = {0};
@@ -499,6 +819,12 @@ TEST(clientCase, connect_token_Test) {
     (void)printf("failed to create token, reason:%s\n", taos_errstr(NULL));
   }
   ASSERT_NE(pRes, nullptr);
+#ifndef TD_ENTERPRISE
+  EXPECT_EQ(taos_errno(pRes), TSDB_CODE_OSS_NOT_SUPPORT);
+  taos_free_result(pRes);
+  taos_close(pConn);
+  return;
+#endif
   ASSERT_EQ(taos_errno(pRes), 0);
 
   TAOS_ROW row = taos_fetch_row(pRes);
@@ -1905,6 +2231,38 @@ TEST(clientCase, timezone_Test) {
   }
 }
 
+TEST(clientCase, async_local_set_cmd_test) {
+  TAOS* pConn = taos_connect("localhost", "root", "taosdata", NULL, 0);
+  ASSERT_NE(pConn, nullptr);
+
+  STscObj* pObj = acquireTscObj(*(int64_t*)pConn);
+  ASSERT_NE(pObj, nullptr);
+  ASSERT_EQ(pObj->optionInfo.firstDayOfWeek, tsFirstDayOfWeek);  /* snapshotted from tsFirstDayOfWeek */
+  ASSERT_NE(pObj->optionInfo.timezone, nullptr);
+  releaseTscObj(*(int64_t*)pConn);
+
+  execAsyncSql(pConn, "SET TIMEZONE 'UTC'");
+
+  pObj = acquireTscObj(*(int64_t*)pConn);
+  ASSERT_NE(pObj, nullptr);
+  ASSERT_NE(pObj->optionInfo.timezone, nullptr);
+  {
+    char *name = (char *)taosHashGet((SHashObj*)pTimezoneNameMap, &pObj->optionInfo.timezone, sizeof(timezone_t));
+    ASSERT_NE(name, nullptr);
+    ASSERT_TRUE(strstr(name, "UTC") != nullptr) << "timezone name: " << name;
+  }
+  releaseTscObj(*(int64_t*)pConn);
+
+  execAsyncSql(pConn, "SET FIRST_DAY_OF_WEEK 3");
+
+  pObj = acquireTscObj(*(int64_t*)pConn);
+  ASSERT_NE(pObj, nullptr);
+  ASSERT_EQ(pObj->optionInfo.firstDayOfWeek, 3);
+  releaseTscObj(*(int64_t*)pConn);
+
+  taos_close(pConn);
+}
+
 void initTestEnv(const char* database, const char* stb, TAOS** pConnect, TAOS** pUserConnect, char userBuf[]) {
   int32_t code = 0;
 
@@ -2231,6 +2589,265 @@ void testSessionCtrl() {
   testSessionConnIdleTime();
   testSessionConncurentCall();
   testSessionMaxVnodeCall();
+}
+
+class ResultBlockValidationTest : public ::testing::Test {
+ protected:
+  void TearDown() override { doFreeReqResultInfo(&result_); }
+
+  void setField(int8_t type, int32_t bytes, bool isStmt = false) {
+    SSchema schema = {};
+    schema.type = type;
+    schema.bytes = bytes;
+    ASSERT_EQ(setResSchemaInfo(&result_, &schema, 1, nullptr, isStmt), TSDB_CODE_SUCCESS);
+  }
+
+  void encode(int8_t type, int32_t bytes, const char* value, uint8_t precision = 0, uint8_t scale = 0) {
+    SSDataBlock* block = nullptr;
+    ASSERT_EQ(createDataBlock(&block), TSDB_CODE_SUCCESS);
+    std::unique_ptr<SSDataBlock, decltype(&blockDataDestroy)> owner(block, blockDataDestroy);
+    SColumnInfoData col = createColumnInfoData(type, bytes, 1);
+    col.info.precision = precision;
+    col.info.scale = scale;
+    ASSERT_EQ(blockDataAppendColInfo(block, &col), TSDB_CODE_SUCCESS);
+    ASSERT_EQ(blockDataEnsureCapacity(block, 1), TSDB_CODE_SUCCESS);
+    ASSERT_EQ(colDataSetVal(static_cast<SColumnInfoData*>(taosArrayGet(block->pDataBlock, 0)), 0, value,
+                            value == nullptr), TSDB_CODE_SUCCESS);
+    block->info.rows = 1;
+    encoded_.resize(blockGetEncodeSize(block));
+    int32_t len = blockEncode(block, encoded_.data(), encoded_.size(), 1);
+    ASSERT_GT(len, 0);
+    encoded_.resize(len);
+    result_.pData = encoded_.data();
+    result_.payloadLen = len;
+    result_.numOfRows = 1;
+    result_.current = 0;
+  }
+
+  SReqResultInfo result_ = {};
+  std::vector<char> encoded_;
+};
+
+TEST_F(ResultBlockValidationTest, PreservesVariableValuesAcrossDifferentSchemaWidths) {
+  for (int8_t type : {TSDB_DATA_TYPE_VARCHAR, TSDB_DATA_TYPE_VARBINARY}) {
+    for (int32_t fieldBytes : {8, 200}) {
+      SCOPED_TRACE(::testing::Message() << "type=" << static_cast<int>(type) << ", fieldBytes=" << fieldBytes);
+      ASSERT_NO_FATAL_FAILURE(setField(type, fieldBytes));
+      char value[80] = {};
+      std::string payload(60, 'x');
+      STR_TO_VARSTR(value, payload.c_str());
+      ASSERT_NO_FATAL_FAILURE(encode(type, sizeof(value), value));
+      ASSERT_EQ(setResultDataPtr(&result_, false, false), TSDB_CODE_SUCCESS);
+      doSetOneRowPtr(&result_);
+      ASSERT_EQ(result_.length[0], static_cast<int32_t>(payload.size()));
+      EXPECT_EQ(std::string(static_cast<const char*>(result_.row[0]), result_.length[0]), payload);
+    }
+  }
+}
+
+TEST_F(ResultBlockValidationTest, ConvertsNcharWiderThanVirtualFieldWithoutTruncation) {
+  ASSERT_NO_FATAL_FAILURE(setField(TSDB_DATA_TYPE_NCHAR, VARSTR_HEADER_SIZE + 4));
+  TdUcs4 characters[] = {0x4e2d, 0x6587, 0x1f600};
+  char value[VARSTR_HEADER_SIZE + sizeof(characters)] = {};
+  varDataSetLen(value, sizeof(characters));
+  memcpy(varDataVal(value), characters, sizeof(characters));
+  ASSERT_NO_FATAL_FAILURE(encode(TSDB_DATA_TYPE_NCHAR, sizeof(value), value));
+  result_.charsetCxt = taosConvInit("UTF-8");
+  ASSERT_NE(result_.charsetCxt, nullptr);
+  ASSERT_EQ(setResultDataPtr(&result_, true, false), TSDB_CODE_SUCCESS);
+  doSetOneRowPtr(&result_);
+  EXPECT_EQ(std::string(static_cast<const char*>(result_.row[0]), result_.length[0]),
+            "\xe4\xb8\xad\xe6\x96\x87\xf0\x9f\x98\x80");
+}
+
+TEST_F(ResultBlockValidationTest, AcceptsDecimalBlocksAfterStringConversion) {
+  for (int8_t type : {TSDB_DATA_TYPE_DECIMAL64, TSDB_DATA_TYPE_DECIMAL}) {
+    ASSERT_NO_FATAL_FAILURE(setField(type, tDataTypes[type].bytes));
+    char value[16] = {};
+    for (int32_t block = 0; block < 2; ++block) {
+      SCOPED_TRACE(::testing::Message() << "type=" << static_cast<int>(type) << ", block=" << block);
+      ASSERT_NO_FATAL_FAILURE(encode(type, tDataTypes[type].bytes, value, 10, 2));
+      ASSERT_EQ(setResultDataPtr(&result_, true, false), TSDB_CODE_SUCCESS);
+      EXPECT_EQ(result_.fields[0].bytes, 64);
+      doSetOneRowPtr(&result_);
+      EXPECT_STREQ(static_cast<const char*>(result_.row[0]), "0");
+      EXPECT_EQ(result_.fields[0].precision, 10);
+      EXPECT_EQ(result_.fields[0].scale, 2);
+    }
+  }
+}
+
+TEST_F(ResultBlockValidationTest, UsesResultMetadataWhenDecimalBlockMetadataIsAbsent) {
+  for (int8_t type : {TSDB_DATA_TYPE_DECIMAL64, TSDB_DATA_TYPE_DECIMAL}) {
+    SCOPED_TRACE(static_cast<int>(type));
+    SSchema schema = {};
+    schema.type = type;
+    schema.bytes = tDataTypes[type].bytes;
+    SExtSchema ext = {};
+    uint8_t precision = type == TSDB_DATA_TYPE_DECIMAL64 ? 18 : 20;
+    ext.typeMod = decimalCalcTypeMod(precision, 2);
+    ASSERT_EQ(setResSchemaInfo(&result_, &schema, 1, &ext, false), TSDB_CODE_SUCCESS);
+    DecimalWord value[2] = {125, 0};
+    for (int32_t batch = 0; batch < 2; ++batch) {
+      ASSERT_NO_FATAL_FAILURE(encode(type, schema.bytes, reinterpret_cast<const char*>(value)));
+      ASSERT_EQ(setResultDataPtr(&result_, true, false), TSDB_CODE_SUCCESS);
+      doSetOneRowPtr(&result_);
+      EXPECT_STREQ(static_cast<const char*>(result_.row[0]), "1.25");
+      EXPECT_EQ(result_.fields[0].precision, precision);
+      EXPECT_EQ(result_.fields[0].scale, 2);
+    }
+
+    // Supplied block metadata must still agree with the SQL result metadata.
+    ASSERT_NO_FATAL_FAILURE(encode(type, schema.bytes, reinterpret_cast<const char*>(value), precision - 1, 2));
+    EXPECT_EQ(setResultDataPtr(&result_, true, false), TSDB_CODE_INVALID_MSG);
+    ASSERT_NO_FATAL_FAILURE(encode(type, schema.bytes, reinterpret_cast<const char*>(value), precision, 1));
+    EXPECT_EQ(setResultDataPtr(&result_, true, false), TSDB_CODE_INVALID_MSG);
+    ASSERT_NO_FATAL_FAILURE(encode(type, schema.bytes, reinterpret_cast<const char*>(value), 0, 2));
+    EXPECT_EQ(setResultDataPtr(&result_, true, false), TSDB_CODE_INVALID_MSG);
+  }
+}
+
+TEST_F(ResultBlockValidationTest, RejectsMalformedBlocksAndIncompatibleTypes) {
+  ASSERT_NO_FATAL_FAILURE(setField(TSDB_DATA_TYPE_VARCHAR, 32));
+  char value[32] = {};
+  STR_TO_VARSTR(value, "valid");
+  ASSERT_NO_FATAL_FAILURE(encode(TSDB_DATA_TYPE_VARCHAR, sizeof(value), value));
+  --result_.payloadLen;
+  EXPECT_EQ(setResultDataPtr(&result_, false, false), TSDB_CODE_INVALID_MSG);
+
+  ASSERT_NO_FATAL_FAILURE(encode(TSDB_DATA_TYPE_VARCHAR, sizeof(value), value));
+  int32_t invalidOffset = INT32_MAX;
+  size_t offsets = sizeof(int32_t) * 5 + sizeof(uint64_t) + sizeof(int8_t) + sizeof(int32_t) * 2;
+  memcpy(encoded_.data() + offsets, &invalidOffset, sizeof(invalidOffset));
+  EXPECT_EQ(setResultDataPtr(&result_, false, false), TSDB_CODE_INVALID_MSG);
+
+  ASSERT_NO_FATAL_FAILURE(encode(TSDB_DATA_TYPE_VARCHAR, sizeof(value), value));
+  VarDataLenT invalidLength = UINT16_MAX;
+  memcpy(encoded_.data() + offsets + sizeof(int32_t), &invalidLength, sizeof(invalidLength));
+  EXPECT_EQ(setResultDataPtr(&result_, false, false), TSDB_CODE_INVALID_MSG);
+
+  int64_t number = 1;
+  ASSERT_NO_FATAL_FAILURE(setField(TSDB_DATA_TYPE_BIGINT, sizeof(number)));
+  ASSERT_NO_FATAL_FAILURE(encode(TSDB_DATA_TYPE_INT, sizeof(int32_t), reinterpret_cast<char*>(&number)));
+  EXPECT_EQ(setResultDataPtr(&result_, false, false), TSDB_CODE_INVALID_MSG);
+  ASSERT_NO_FATAL_FAILURE(setField(TSDB_DATA_TYPE_INT, sizeof(number)));
+  ASSERT_NO_FATAL_FAILURE(encode(TSDB_DATA_TYPE_INT, sizeof(int32_t), reinterpret_cast<char*>(&number)));
+  EXPECT_EQ(setResultDataPtr(&result_, false, false), TSDB_CODE_INVALID_MSG);
+}
+
+TEST_F(ResultBlockValidationTest, AcceptsEmptyVariableColumnsAndLegacyNullOffsets) {
+  const int8_t types[] = {TSDB_DATA_TYPE_VARCHAR, TSDB_DATA_TYPE_NCHAR, TSDB_DATA_TYPE_VARBINARY,
+                          TSDB_DATA_TYPE_JSON, TSDB_DATA_TYPE_BLOB};
+  for (int8_t type : types) {
+    SCOPED_TRACE(static_cast<int>(type));
+    int32_t bytes = type == TSDB_DATA_TYPE_BLOB ? BLOBSTR_HEADER_SIZE : 16;
+    ASSERT_NO_FATAL_FAILURE(setField(type, bytes));
+    ASSERT_NO_FATAL_FAILURE(encode(type, bytes, nullptr));
+    int32_t zero = 0;
+    size_t offsets = sizeof(int32_t) * 5 + sizeof(uint64_t) + sizeof(int8_t) + sizeof(int32_t) * 2;
+    memcpy(encoded_.data() + offsets, &zero, sizeof(zero));
+    ASSERT_EQ(setResultDataPtr(&result_, true, false), TSDB_CODE_SUCCESS);
+    doSetOneRowPtr(&result_);
+    EXPECT_EQ(result_.row[0], nullptr);
+    EXPECT_EQ(result_.length[0], 0);
+  }
+  ASSERT_NO_FATAL_FAILURE(setField(TSDB_DATA_TYPE_VARCHAR, 0));
+  ASSERT_NO_FATAL_FAILURE(encode(TSDB_DATA_TYPE_VARCHAR, 0, nullptr));
+  ASSERT_EQ(setResultDataPtr(&result_, false, false), TSDB_CODE_SUCCESS);
+  doSetOneRowPtr(&result_);
+  EXPECT_EQ(result_.row[0], nullptr);
+}
+
+TEST_F(ResultBlockValidationTest, AcceptsCompressedAndUncompressedResponses) {
+  for (bool compressed : {false, true}) {
+    ASSERT_NO_FATAL_FAILURE(setField(TSDB_DATA_TYPE_VARCHAR, 8));
+    char value[80] = {};
+    STR_TO_VARSTR(value, "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa");
+    ASSERT_NO_FATAL_FAILURE(encode(TSDB_DATA_TYPE_VARCHAR, sizeof(value), value));
+    std::vector<char> wire(encoded_.size() + 1);
+    int32_t rawLen = static_cast<int32_t>(encoded_.size());
+    int32_t wireLen = rawLen;
+    if (compressed) {
+      wireLen = tsCompressString(encoded_.data(), rawLen, 1, wire.data(), wire.size(), ONE_STAGE_COMP, nullptr, 0);
+      ASSERT_GT(wireLen, 0);
+      ASSERT_LT(wireLen, rawLen);
+    } else {
+      memcpy(wire.data(), encoded_.data(), rawLen);
+    }
+    auto* rsp = static_cast<SRetrieveTableRsp*>(
+        taosMemoryCalloc(1, sizeof(SRetrieveTableRsp) + PAYLOAD_PREFIX_LEN + wireLen));
+    ASSERT_NE(rsp, nullptr);
+    rsp->numOfRows = htobe64(1);
+    rsp->completed = 1;
+    rsp->compressed = compressed;
+    rsp->payloadLen = htonl(PAYLOAD_PREFIX_LEN + rawLen);
+    rsp->compLen = htonl(PAYLOAD_PREFIX_LEN + wireLen);
+    SET_PAYLOAD_LEN(rsp->data, wireLen, rawLen);
+    memcpy(rsp->data + PAYLOAD_PREFIX_LEN, wire.data(), wireLen);
+    ASSERT_EQ(setQueryResultFromRsp(&result_, rsp, false, false), TSDB_CODE_SUCCESS);
+    doSetOneRowPtr(&result_);
+    EXPECT_EQ(result_.length[0], varDataLen(value));
+    EXPECT_EQ(memcmp(result_.row[0], varDataVal(value), result_.length[0]), 0);
+  }
+}
+
+TEST_F(ResultBlockValidationTest, AcceptsBothNullWidthsAndVersionTwoBlocks) {
+  const int32_t nullWidths[] = {CHAR_BYTES, TYPE_BYTES[TSDB_DATA_TYPE_NULL]};
+  for (int32_t width : nullWidths) {
+    int32_t fieldWidth = width == CHAR_BYTES ? TYPE_BYTES[TSDB_DATA_TYPE_NULL] : CHAR_BYTES;
+    ASSERT_NO_FATAL_FAILURE(setField(TSDB_DATA_TYPE_NULL, fieldWidth));
+    ASSERT_NO_FATAL_FAILURE(encode(TSDB_DATA_TYPE_INT, sizeof(int32_t), nullptr));
+    size_t schemaType = sizeof(int32_t) * 5 + sizeof(uint64_t);
+    encoded_[schemaType] = TSDB_DATA_TYPE_NULL;
+    size_t schemaBytes = schemaType + sizeof(int8_t);
+    memcpy(encoded_.data() + schemaBytes, &width, sizeof(width));
+    int32_t zero = 0;
+    memcpy(encoded_.data() + schemaBytes + sizeof(int32_t), &zero, sizeof(zero));
+    // NULL columns carry a bitmap and no fixed-width values in either layout.
+    size_t values = schemaBytes + sizeof(int32_t) * 2 + BitmapLen(1);
+    encoded_.erase(encoded_.begin() + values, encoded_.begin() + values + sizeof(int32_t));
+    result_.payloadLen = static_cast<int32_t>(encoded_.size());
+    memcpy(encoded_.data() + sizeof(int32_t), &result_.payloadLen, sizeof(result_.payloadLen));
+    ASSERT_EQ(setResultDataPtr(&result_, false, false), TSDB_CODE_SUCCESS);
+    doSetOneRowPtr(&result_);
+    EXPECT_EQ(result_.row[0], nullptr);
+  }
+  ASSERT_NO_FATAL_FAILURE(setField(TSDB_DATA_TYPE_INT, sizeof(int32_t)));
+  int32_t value = 42;
+  ASSERT_NO_FATAL_FAILURE(encode(TSDB_DATA_TYPE_INT, sizeof(value), reinterpret_cast<char*>(&value)));
+  int32_t version = BLOCK_VERSION_2;
+  memcpy(encoded_.data(), &version, sizeof(version));
+  size_t colLengths = sizeof(int32_t) * 5 + sizeof(uint64_t) + sizeof(int8_t) + sizeof(int32_t);
+  int32_t columnLength = sizeof(value);
+  memcpy(encoded_.data() + colLengths, &columnLength, sizeof(columnLength));
+  ASSERT_EQ(setResultDataPtr(&result_, false, false), TSDB_CODE_SUCCESS);
+  doSetOneRowPtr(&result_);
+  ASSERT_NE(result_.row[0], nullptr);
+  EXPECT_EQ(memcmp(result_.row[0], &value, sizeof(value)), 0);
+}
+
+TEST(ClientDeleteReplayTest, QuotesLegalIdentifiersAndChecksOutputCapacity) {
+  SDeleteRes req = {};
+  char table[] = "table`name";
+  char column[] = "ts`name";
+  tstrncpy(req.tableFName, table, sizeof(req.tableFName));
+  tstrncpy(req.tsColName, column, sizeof(req.tsColName));
+  req.skey = INT64_MIN;
+  req.ekey = INT64_MAX;
+  char sql[RAW_BLOCK_DELETE_SQL_LEN] = {};
+  ASSERT_EQ(rawBlockBuildDeleteSql(sql, sizeof(sql), &req), TSDB_CODE_SUCCESS);
+  EXPECT_STREQ(sql, "delete from `table``name` where `ts``name` >= -9223372036854775808 "
+                   "and `ts``name` <= 9223372036854775807");
+  EXPECT_EQ(rawBlockBuildDeleteSql(sql, 8, &req), TSDB_CODE_OUT_OF_BUFFER);
+
+  std::string longTable(TSDB_TABLE_NAME_LEN - 1, '`');
+  std::string longColumn(TSDB_COL_NAME_LEN - 1, '`');
+  tstrncpy(req.tableFName, longTable.c_str(), sizeof(req.tableFName));
+  tstrncpy(req.tsColName, longColumn.c_str(), sizeof(req.tsColName));
+  EXPECT_EQ(rawBlockBuildDeleteSql(sql, sizeof(sql), &req), TSDB_CODE_SUCCESS);
+  EXPECT_GT(strlen(sql), static_cast<size_t>(256));
+  req.tableFName[0] = '\0';
+  EXPECT_EQ(rawBlockBuildDeleteSql(sql, sizeof(sql), &req), TSDB_CODE_INVALID_MSG);
 }
 
 // Security tests for SMqMetaRsp integer underflow prevention

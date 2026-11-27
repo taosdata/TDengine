@@ -1,0 +1,19 @@
+import Admonition from '@theme/Admonition';
+
+export const AddDataSource = ({ connectorName }) => (
+  <ol>
+    <li>In a web browser, open TDengine TSDB Explorer. This interface is located on port 6060 on the hostname or IP address running TDengine TSDB.</li>
+    <li>In the main menu on the left, click <b>Data In</b> and then click <b>Add Task</b>.</li>
+    <li>In the <b>Name</b> field, enter a unique name for the data ingestion task.</li>
+    <li>From the <b>Type</b> drop-down list, select <b>{connectorName}</b>.</li>
+    <li>(Optional) If this data ingestion task requires an agent, select the agent from the <b>Agent</b> drop-down list. You can also click <b>Create New Agent</b> to create the agent now.
+    <p>For more information, see <a href="https://docs.tdengine.com/advanced/data-in/install-agent/">Install taosX-Agent</a>.</p></li>
+    <li>From the <b>Target DB</b> drop-down list, select the database in which you want to store data ingested by this task. You can also click <b>Create Database</b> to create the database now.</li>
+  </ol>
+);
+
+export const Enterprise = () => (
+  <Admonition type="info" title="ENTERPRISE FEATURE">
+    <p>The features or components discussed in this document are available in <b>TDengine TSDB-Enterprise only</b>. TDengine TSDB-OSS does not include these features or components.</p>
+  </Admonition>
+);

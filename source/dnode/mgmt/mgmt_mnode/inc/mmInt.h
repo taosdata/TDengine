@@ -1,6 +1,8 @@
 /*
  * Copyright (c) 2019 TAOS Data, Inc. <jhtao@taosdata.com>
  *
+ * SPDX-License-Identifier: AGPL-3.0-or-later
+ *
  * This program is free software: you can use, redistribute, and/or modify
  * it under the terms of the GNU Affero General Public License, version 3
  * or later ("AGPL"), as published by the Free Software Foundation.
@@ -36,6 +38,7 @@ typedef struct SMnodeMgmt {
   SSingleWorker  readWorker;
   SSingleWorker  statusWorker;
   SSingleWorker  writeWorker;
+  SSingleWorker  xnodeCreateWorker;
   SSingleWorker  arbWorker;
   SSingleWorker  syncWorker;
   SSingleWorker  syncRdWorker;
@@ -62,6 +65,7 @@ int32_t mmProcessDropReq(const SMgmtInputOpt *pInput, SRpcMsg *pMsg);
 int32_t mmStartWorker(SMnodeMgmt *pMgmt);
 void    mmStopWorker(SMnodeMgmt *pMgmt);
 int32_t mmPutMsgToWriteQueue(SMnodeMgmt *pMgmt, SRpcMsg *pMsg);
+int32_t mmPutMsgToXnodeCreateQueue(SMnodeMgmt *pMgmt, SRpcMsg *pMsg);
 int32_t mmPutMsgToArbQueue(SMnodeMgmt *pMgmt, SRpcMsg *pMsg);
 int32_t mmPutMsgToSyncQueue(SMnodeMgmt *pMgmt, SRpcMsg *pMsg);
 int32_t mmPutMsgToSyncRdQueue(SMnodeMgmt *pMgmt, SRpcMsg *pMsg);

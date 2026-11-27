@@ -1,16 +1,20 @@
 /*
  * Copyright (c) 2019 TAOS Data, Inc. <jhtao@taosdata.com>
  *
+ * SPDX-License-Identifier: AGPL-3.0-or-later
+ *
  * This program is free software: you can use, redistribute, and/or modify
  * it under the terms of the GNU Affero General Public License, version 3
  * or later ("AGPL"), as published by the Free Software Foundation.
  *
  * This program is distributed in the hope that it will be useful, but WITHOUT
  * ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
- * FITNESS FOR A PARTICULAR PURPOSE.  *
+ * FITNESS FOR A PARTICULAR PURPOSE.
+ *
  * You should have received a copy of the GNU Affero General Public License
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
+
 #ifndef _TD_TRANSPORT_COMM_H
 #define _TD_TRANSPORT_COMM_H
 
@@ -226,8 +230,11 @@ typedef struct {
   int32_t retryCode;
   int8_t  retryInit;
   int8_t  epsetRetryCnt;
+
+  int64_t overloadRetryStartTs;   // timestamp when overload retry first started
+  int32_t overloadRetryLastInterval;  // last retry interval for exponential backoff
 } SReqCtx;
-typedef enum { Normal, Quit, Release, Register, Update, FreeById, ReloadTLS } STransMsgType;
+typedef enum { Normal, Quit, Release, Register, Update, FreeById, ReloadTLS, CloseConn } STransMsgType;
 typedef enum { ConnNormal, ConnAcquire, ConnRelease, ConnBroken, ConnInPool } ConnStatus;
 
 #define container_of(ptr, type, member) ((type*)((char*)(ptr)-offsetof(type, member)))
@@ -291,6 +298,8 @@ typedef struct {
 int32_t transAsyncPoolCreate(uv_loop_t* loop, int sz, void* arg, AsyncCB cb, SAsyncPool** pPool);
 void    transAsyncPoolDestroy(SAsyncPool* pool);
 int     transAsyncSend(SAsyncPool* pool, queue* mq);
+int     transAsyncSendWithIdx(SAsyncPool* pool, queue* mq, int32_t* pIdx);
+int     transAsyncSendToIdx(SAsyncPool* pool, int32_t idx, queue* mq);
 bool    transAsyncPoolIsEmpty(SAsyncPool* pool);
 
 #define TRANS_DESTROY_ASYNC_POOL_MSG(pool, msgType, freeFunc, param) \
@@ -315,7 +324,7 @@ bool    transAsyncPoolIsEmpty(SAsyncPool* pool);
     if (id > 0) {                                                                        \
       SExHandle* exh2 = transAcquireExHandle(idMgt, id);                                 \
       if (exh2 == NULL || exh1 != exh2 || (exh2 != NULL && exh2->refId != id)) {         \
-        tDebug("handle not match, exh1:%p, exh2:%p, refId:%" PRId64 "", exh1, exh2, id); \
+        tDebug("handle does not match, exh1:%p, exh2:%p, refId:%" PRId64 "", exh1, exh2, id); \
         code = TSDB_CODE_INVALID_MSG;                                                    \
         goto _return1;                                                                   \
       }                                                                                  \
@@ -362,6 +371,19 @@ int32_t transGetRefCount(void* handle);
 int32_t transReleaseCliHandle(void* handle, int32_t status);
 int32_t transReleaseSrvHandle(void* handle, int32_t status);
 
+/**
+ * Synchronously close the underlying physical connection referenced by the RPC handle info.
+ *
+ * The connection is marked broken so that no further message can be queued on it, the real
+ * socket is closed in the transport loop thread and (when called from another thread) this
+ * function waits until the connection has been destroyed. This guarantees that a client
+ * waiting for a response either receives it or observes a broken link.
+ *
+ * @param handle SRpcHandleInfo* of the connection.
+ * @return 0 on success, otherwise an error code.
+ */
+int32_t transCloseConnSync(void* handle);
+
 int32_t transSendRequest2(void* pInit, const SEpSet* pEpSet, STransMsg* pReq, STransCtx* pCtx);
 int32_t transSendRecv2(void* pInit, const SEpSet* pEpSet, STransMsg* pReq, STransMsg* pRsp);
 int32_t transSendRecvWithTimeout2(void* pInit, SEpSet* pEpSet, STransMsg* pReq, STransMsg* pRsp, int8_t* epUpdated,
@@ -404,6 +426,19 @@ int32_t transGetRefCount(void* handle);
 
 int32_t transReleaseCliHandle(void* handle, int32_t status);
 int32_t transReleaseSrvHandle(void* handle, int32_t status);
+
+/**
+ * Synchronously close the underlying physical connection referenced by the RPC handle info.
+ *
+ * The connection is marked broken so that no further message can be queued on it, the real
+ * socket is closed in the transport loop thread and (when called from another thread) this
+ * function waits until the connection has been destroyed. This guarantees that a client
+ * waiting for a response either receives it or observes a broken link.
+ *
+ * @param handle SRpcHandleInfo* of the connection.
+ * @return 0 on success, otherwise an error code.
+ */
+int32_t transCloseConnSync(void* handle);
 
 int32_t transReloadTlsConfig(void* handle, int8_t type);
 
@@ -547,7 +582,14 @@ void    transPrintEpSet(SEpSet* pEpSet);
 
 void    transFreeMsg(void* msg);
 int32_t transCompressMsg(char* msg, int32_t len);
+/* `len` must be the exact length of one framed packet, including the head; the
+ * header's declared msgLen has to match it (TD-SEC-2026-045). Uncompressed
+ * input is returned as is and stays owned by the caller; a compressed input is
+ * freed on success and *msg is replaced by the decompressed packet. */
 int32_t transDecompressMsg(char** msg, int32_t* len);
+/* Same length contract as transDecompressMsg, but the frame must be compressed
+ * (uncompressed input is rejected) and the caller keeps ownership of `msg`;
+ * the decompressed packet is returned through `out`. */
 int32_t transDecompressMsgExt(char const* msg, int32_t len, char** out, int32_t* outLen);
 
 int32_t transOpenRefMgt(int size, void (*func)(void*));
@@ -556,6 +598,8 @@ int64_t transAddExHandle(int32_t refMgt, void* p);
 void    transRemoveExHandle(int32_t refMgt, int64_t refId);
 void*   transAcquireExHandle(int32_t refMgt, int64_t refId);
 void    transReleaseExHandle(int32_t refMgt, int64_t refId);
+// Diagnostic hook: records client ref-set operations for a qid rid (TD_DIAG_QID_STATE=1).
+void    transDiagRefEvent(int32_t refMgt, int64_t refId, int32_t op);
 void    transDestroyExHandle(void* handle);
 
 int32_t transGetRefMgt();
@@ -590,7 +634,7 @@ bool transUtilCheckDualIp(SIpRange* range, SIpRange* ip);
     if (id > 0) {                                                                        \
       SExHandle* exh2 = transAcquireExHandle(idMgt, id);                                 \
       if (exh2 == NULL || exh1 != exh2 || (exh2 != NULL && exh2->refId != id)) {         \
-        tDebug("handle not match, exh1:%p, exh2:%p, refId:%" PRId64 "", exh1, exh2, id); \
+        tDebug("handle does not match, exh1:%p, exh2:%p, refId:%" PRId64 "", exh1, exh2, id); \
         code = TSDB_CODE_INVALID_MSG;                                                    \
         goto _return1;                                                                   \
       }                                                                                  \
@@ -609,8 +653,8 @@ int32_t transSendResp(const SRpcMsg* pMsg);
 enum { REQ_STATUS_INIT = 0, REQ_STATUS_PROCESSING };
 
 #if defined(WINDOWS) || defined(DARWIN)
-#define BUFFER_LIMIT       1
-#define STATE_BUFFER_LIMIT 1
+#define BUFFER_LIMIT       16
+#define STATE_BUFFER_LIMIT 16
 #else
 #define BUFFER_LIMIT       4
 #define STATE_BUFFER_LIMIT 8

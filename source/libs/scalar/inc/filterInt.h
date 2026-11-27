@@ -1,6 +1,8 @@
 /*
  * Copyright (c) 2019 TAOS Data, Inc. <jhtao@taosdata.com>
  *
+ * SPDX-License-Identifier: AGPL-3.0-or-later
+ *
  * This program is free software: you can use, redistribute, and/or modify
  * it under the terms of the GNU Affero General Public License, version 3
  * or later ("AGPL"), as published by the Free Software Foundation.
@@ -15,6 +17,8 @@
 
 #ifndef TDENGINE_FILTER_INT_H
 #define TDENGINE_FILTER_INT_H
+
+#include <stdbool.h>
 
 #ifdef __cplusplus
 extern "C" {
@@ -200,6 +204,7 @@ typedef struct SFilterUnit {
   SFilterFieldId left;
   SFilterFieldId right;
   SFilterFieldId right2;
+  void          *charsetCxt;  // Borrowed process-cached context; never serialized or freed here. NULL uses the process default.
 } SFilterUnit;
 
 typedef struct SFilterComUnit {
@@ -212,10 +217,12 @@ typedef struct SFilterComUnit {
   uint8_t  optr;
   int8_t   func;
   int8_t   rfunc;
+  void    *charsetCxt;  // Borrowed process-cached context; never serialized or freed here. NULL uses the process default.
 } SFilterComUnit;
 
 typedef struct SFilterPCtx {
   SHashObj *valHash;
+  SHashObj *inHash;
   SHashObj *unitHash;
 } SFilterPCtx;
 
@@ -223,13 +230,26 @@ typedef struct SFltTreeStat {
   int32_t      code;
   int8_t       precision;
   bool         scalarMode;
-  SArray      *nodeList;
   SFilterInfo *info;
 } SFltTreeStat;
 
+// Defined and dereferenced only in filter.c; freed on rebuild or by filterFreeInfo.
+typedef struct SFltSclRangeExpr SFltSclRangeExpr;
+
 typedef struct SFltScalarCtx {
-  SNode  *node;
-  SArray *fltSclRange;
+  // Borrowed AST node; the filter does not own its lifetime.
+  SNode            *node;
+  SArray           *fltSclRange;
+  // Owned by this context; NULL until built. A shallow copy must not create
+  // two owners of the same range tree.
+  SFltSclRangeExpr *orRangeExpr;
+  SFltSclRangeExpr *remoteRange;
+  STimeWindow       remoteWindow;
+  void             *remoteContext;
+  bool              remoteRangePrepared;
+  // Meaningful after range optimization: OR exists or detection reached its
+  // depth limit. Without a usable tree, callers assume the full time window.
+  bool              hasOrCondition;
 } SFltScalarCtx;
 
 typedef struct SFltBuildGroupCtx {
@@ -243,6 +263,14 @@ typedef struct {
   SColumnNode *colNode;
   SArray      *points;
 } SFltSclColumnRange;
+
+typedef struct {
+  col_id_t colId;
+} SFltBlkNotNullItem;
+
+typedef struct {
+  SArray *pItems;
+} SFltBlkNotNullGroup;
 
 struct SFilterInfo {
   bool              scalarMode;
@@ -260,6 +288,7 @@ struct SFilterInfo {
   uint8_t          *unitRes;    // result
   uint8_t          *unitFlags;  // got result
   SFilterRangeCtx **colRange;
+  SArray           *pBlkOrNotNullGroups;
   filter_exec_func  func;
   uint8_t           blkFlag;
   uint32_t          blkGroupNum;
@@ -272,11 +301,13 @@ struct SFilterInfo {
 
   SFilterPCtx pctx;
   const void*      pStreamRtInfo;
+  void*            pTaskInfo;    // opaque task handle for kill-check in scalar eval
+  sclIsTaskKilled  isTaskKilled; // kill-check callback; NULL = not interruptible
 };
 
 #define FILTER_NO_MERGE_DATA_TYPE(t)                                                                 \
   ((t) == TSDB_DATA_TYPE_BINARY || (t) == TSDB_DATA_TYPE_VARBINARY || (t) == TSDB_DATA_TYPE_NCHAR || \
-   (t) == TSDB_DATA_TYPE_JSON || (t) == TSDB_DATA_TYPE_GEOMETRY)
+   (t) == TSDB_DATA_TYPE_JSON || (t) == TSDB_DATA_TYPE_GEOMETRY || (t) == TSDB_DATA_TYPE_BLOB)
 #define FILTER_NO_MERGE_OPTR(o) ((o) == OP_TYPE_IS_NULL || (o) == OP_TYPE_IS_NOT_NULL || (o) == FILTER_DUMMY_EMPTY_OPTR)
 
 #define MR_EMPTY_RES(ctx) (ctx->rs == NULL)
@@ -504,6 +535,7 @@ struct SFilterInfo {
 #define FILTER_EMPTY_RES(i) FILTER_GET_FLAG((i)->status, FI_STATUS_EMPTY)
 
 extern bool          filterDoCompare(__compar_fn_t func, uint8_t optr, void *left, void *right);
+// See filter.h for the MATCH/NMATCH success-with-NULL contract.
 extern int32_t       filterGetCompFunc(__compar_fn_t *func, int32_t type, int32_t optr);
 extern __compar_fn_t filterGetCompFuncEx(int32_t lType, int32_t rType, int32_t optr);
 

@@ -1,3 +1,18 @@
+# Copyright (c) 2021 TAOS Data, Inc. <jhtao@taosdata.com>
+#
+# SPDX-License-Identifier: AGPL-3.0-or-later
+#
+# This program is free software: you can use, redistribute, and/or modify
+# it under the terms of the GNU Affero General Public License, version 3
+# or later ("AGPL"), as published by the Free Software Foundation.
+#
+# This program is distributed in the hope that it will be useful, but WITHOUT
+# ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+# FITNESS FOR A PARTICULAR PURPOSE.
+#
+# You should have received a copy of the GNU Affero General Public License
+# along with this program. If not, see <http://www.gnu.org/licenses/>.
+
 # vnode
 add_library(vnode STATIC "")
 if(TD_USE_ROCKSDB)
@@ -24,7 +39,10 @@ set(
     "src/vnd/vnodeApi.c"
     "src/vnd/vnodeHash.c"
     "src/vnd/vnodeStream.c"
+    "src/vnd/vnodeStreamVTable.c"
     "src/vnd/vnodeScan.c"
+    "src/vnd/vnodeTxn.c"
+    "src/vnd/vnodeTxnWalMgr.c"
     # meta
     "src/meta/metaOpen.c"
     "src/meta/metaTable.c"
@@ -70,10 +88,9 @@ set(
     "src/tq/tqUtil.c"
     "src/tq/tqScan.c"
     "src/tq/tqMeta.c"
-    "src/tq/tqRead.c"
     "src/tq/tqOffset.c"
-    "src/tq/tqSink.c"
     "src/tq/tqSnapshot.c"
+    "src/tq/tqInterface.c"
 
     #bse
     "src/bse/bseMgt.c"
@@ -170,5 +187,6 @@ if(TD_USE_ROCKSDB)
 endif()
 
 if(BUILD_TEST)
+    target_compile_definitions(vnode PRIVATE BUILD_TEST)
     add_subdirectory(test)
 endif()

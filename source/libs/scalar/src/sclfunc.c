@@ -1,17 +1,38 @@
+/*
+ * Copyright (c) 2021 TAOS Data, Inc. <jhtao@taosdata.com>
+ *
+ * SPDX-License-Identifier: AGPL-3.0-or-later
+ *
+ * This program is free software: you can use, redistribute, and/or modify
+ * it under the terms of the GNU Affero General Public License, version 3
+ * or later ("AGPL"), as published by the Free Software Foundation.
+ *
+ * This program is distributed in the hope that it will be useful, but WITHOUT
+ * ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+ * FITNESS FOR A PARTICULAR PURPOSE.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program. If not, see <http://www.gnu.org/licenses/>.
+ */
+
 #include <stdint.h>
 #include "cJSON.h"
 #include "crypt.h"
 #include "decimal.h"
 #include "filter.h"
 #include "function.h"
+#include "osThread.h"
 #include "scalar.h"
 #include "sclInt.h"
 #include "sclvector.h"
+#include "streamMsg.h"
 #include "tbase64.h"
 #include "tcompare.h"
 #include "tdatablock.h"
 #include "tdef.h"
 #include "tjson.h"
+#include "tglobal.h"
+#include "thash.h"
 #include "totp.h"
 #include "ttime.h"
 
@@ -22,7 +43,309 @@ typedef double (*_double_fn_2)(double, double);
 typedef int (*_conv_fn)(int);
 typedef void (*_trim_space_fn)(char *, char *, int32_t, int32_t, void *);
 typedef int32_t (*_trim_fn)(char *, char *, char *, int32_t, int32_t, void *);
-typedef int32_t (*_len_fn)(char *, int32_t, void *);
+typedef int32_t (*_len_fn)(char *, int32_t, void *, void *);
+
+enum { SCALAR_HISTOGRAM_MAX_BINS_NUM = 1000 };
+
+static uint32_t streamDerivativeDurationChar(const char *data, int32_t width, int32_t index) {
+  if (width == 1) return (uint8_t)varDataVal(data)[index];
+  uint32_t ch = 0;
+  memcpy(&ch, varDataVal(data) + index * width, width);
+  return ch;
+}
+
+// Return source-precision ticks without truncation, calendar units or overflow.
+const char* scalarStreamDerivativeDuration(const char *data, int8_t type, int32_t precision, int64_t *ticks) {
+  if (IS_INTEGER_TYPE(type)) {
+    if (IS_UNSIGNED_NUMERIC_TYPE(type)) {
+      uint64_t value = 0;
+      GET_TYPED_DATA(value, uint64_t, type, data, 0);
+      if (value > INT64_MAX) return "duration overflows INT64 ticks";
+      *ticks = (int64_t)value;
+    } else {
+      GET_TYPED_DATA(*ticks, int64_t, type, data, 0);
+    }
+    return *ticks >= TSDB_TICK_PER_SECOND(precision) ? NULL : "duration is less than one second";
+  }
+
+  int32_t width = type == TSDB_DATA_TYPE_NCHAR ? TSDB_NCHAR_SIZE : 1;
+  int32_t bytes = varDataLen(data);
+  int32_t length = bytes / width;
+  if (bytes % width != 0 || length < 2) return "expected a positive integer and fixed duration unit";
+  int64_t nanos = 0;
+  switch (streamDerivativeDurationChar(data, width, length - 1)) {
+    case 'b':
+      nanos = 1;
+      break;
+    case 'u':
+      nanos = 1000;
+      break;
+    case 'a':
+      nanos = 1000000;
+      break;
+    case 's':
+      nanos = 1000000000;
+      break;
+    case 'm':
+      nanos = INT64_C(60) * 1000000000;
+      break;
+    case 'h':
+      nanos = INT64_C(3600) * 1000000000;
+      break;
+    case 'd':
+      nanos = INT64_C(86400) * 1000000000;
+      break;
+    case 'w':
+      nanos = INT64_C(604800) * 1000000000;
+      break;
+    default:
+      return "unsupported duration unit";
+  }
+  int64_t nanosPerTick = INT64_C(1000000000) / TSDB_TICK_PER_SECOND(precision);
+  int32_t digits = length - 1;
+  // Discard only exact trailing zeroes when the unit is finer than the DB.
+  // This also accepts large decimal nanosecond strings whose final ticks fit.
+  for (int64_t divisor = nanosPerTick / nanos; divisor > 1; divisor /= 10) {
+    if (digits == 0 || streamDerivativeDurationChar(data, width, digits - 1) != '0') {
+      return "duration is not exactly representable at source precision";
+    }
+    --digits;
+  }
+  int64_t multiplier = TMAX(INT64_C(1), nanos / nanosPerTick);
+  int64_t value = 0;
+  for (int32_t i = 0; i < digits; ++i) {
+    uint32_t ch = streamDerivativeDurationChar(data, width, i);
+    if (ch < '0' || ch > '9') return "expected a positive integer before the unit";
+    if (value > (INT64_MAX / multiplier - (ch - '0')) / 10) return "duration overflows INT64 ticks";
+    value = value * 10 + ch - '0';
+  }
+  *ticks = value * multiplier;
+  return *ticks >= TSDB_TICK_PER_SECOND(precision) ? NULL : "duration is less than one second";
+}
+
+// Escape the source value so malformed tags cannot inject extra log lines.
+static void streamDerivativeValueText(SColumnInfoData* pCol, int32_t row, char* buf, int32_t size) {
+  if (colDataIsNull_s(pCol, row)) {
+    tstrncpy(buf, "NULL", size);
+    return;
+  }
+  const char* data = colDataGetData(pCol, row);
+  int8_t type = pCol->info.type;
+  if (IS_UNSIGNED_NUMERIC_TYPE(type)) {
+    uint64_t value = 0;
+    GET_TYPED_DATA(value, uint64_t, type, data, 0);
+    (void)snprintf(buf, size, "%" PRIu64, value);
+  } else if (IS_INTEGER_TYPE(type)) {
+    int64_t value = 0;
+    GET_TYPED_DATA(value, int64_t, type, data, 0);
+    (void)snprintf(buf, size, "%" PRId64, value);
+  } else {
+    int32_t width = type == TSDB_DATA_TYPE_NCHAR ? TSDB_NCHAR_SIZE : 1;
+    int32_t count = varDataLen(data) / width;
+    int32_t offset = 0;
+    for (int32_t i = 0; i < count && offset + 12 < size; ++i) {
+      uint32_t ch = streamDerivativeDurationChar(data, width, i);
+      if (ch >= ' ' && ch <= '~' && ch != '\\') {
+        buf[offset++] = (char)ch;
+      } else {
+        int32_t written = snprintf(buf + offset, size - offset, "\\u%04x", ch);
+        if (written < 0 || written >= size - offset) break;
+        offset += written;
+      }
+      if (i + 1 < count && offset + 12 >= size) {
+        tstrncpy(buf + offset, "...", size - offset);
+        return;
+      }
+    }
+    buf[offset] = 0;
+  }
+}
+
+static void logStreamDerivativeTag(SScalarParam* pInput, int32_t inputNum, int32_t row, const char* reason) {
+  char value[256] = {0};
+  streamDerivativeValueText(pInput[0].columnData, row, value, sizeof(value));
+  if (inputNum >= 6) {
+    const char* tag = colDataGetData(pInput[3].columnData, 0);
+    const char* stream = colDataGetData(pInput[4].columnData, 0);
+    const char* point = colDataGetData(pInput[5].columnData, pInput[5].numOfRows == 1 ? 0 : row);
+    sclError("stream DERIVATIVE invalid time_interval, stream:%.*s, point:%.*s, tag:%.*s, value:%s, reason:%s; returning NULL",
+             (int)varDataLen(stream), varDataVal(stream), (int)varDataLen(point), varDataVal(point),
+             (int)varDataLen(tag), varDataVal(tag), value, reason);
+  } else {
+    // Retain execution compatibility with plans created before diagnostic arguments.
+    sclError("stream DERIVATIVE invalid time_interval, value:%s, reason:%s; returning NULL", value, reason);
+  }
+}
+
+struct SStreamDerivativeLogState {
+  TdThreadMutex lock;
+  SHashObj*     pInvalidTags;
+};
+
+enum { STREAM_DERIVATIVE_LOG_MAX_ENTRIES = 1024 };
+
+int32_t scalarCreateStreamDerivativeLogState(SStreamDerivativeLogState** ppState) {
+  SStreamDerivativeLogState* pState = taosMemoryCalloc(1, sizeof(*pState));
+  if (pState == NULL) return terrno;
+  pState->pInvalidTags = taosHashInit(16, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), true, HASH_NO_LOCK);
+  if (pState->pInvalidTags == NULL) {
+    taosMemoryFree(pState);
+    return terrno;
+  }
+  int32_t code = taosThreadMutexInit(&pState->lock, NULL);
+  if (code != TSDB_CODE_SUCCESS) {
+    taosHashCleanup(pState->pInvalidTags);
+    taosMemoryFree(pState);
+    return code;
+  }
+  *ppState = pState;
+  return TSDB_CODE_SUCCESS;
+}
+
+void scalarDestroyStreamDerivativeLogState(SStreamDerivativeLogState* pState) {
+  if (pState == NULL) return;
+  taosHashCleanup(pState->pInvalidTags);
+  (void)taosThreadMutexDestroy(&pState->lock);
+  taosMemoryFree(pState);
+}
+
+// Bound diagnostic retention when points retire without a subsequent valid
+// calculation. Evicted configurations can report again if encountered later.
+// History rounds and realtime snapshots have independent keys; execution slots
+// share the lock and neither values nor keys are borrowed.
+static bool streamDerivativeShouldLog(SScalarParam* pInput, int32_t inputNum, int32_t row, bool invalid) {
+  const SStreamRuntimeFuncInfo* pRuntime = pInput[0].param;
+  if (inputNum < 6 || pRuntime == NULL || pRuntime->pDerivativeLogState == NULL) return invalid;
+  SStreamDerivativeLogState* pState = pRuntime->pDerivativeLogState;
+  struct {
+    char sessionId[sizeof(pRuntime->sessionId)];
+    char epoch[sizeof(pRuntime->derivativeLogEpoch)];
+    char point[TSDB_TABLE_NAME_LEN];
+    char tag[TSDB_COL_NAME_LEN];
+  } key = {0};
+  memcpy(key.sessionId, &pRuntime->sessionId, sizeof(key.sessionId));
+  int64_t epoch = tStreamDerivativeLogEpoch(pRuntime);
+  memcpy(key.epoch, &epoch, sizeof(key.epoch));
+  const char* tag = colDataGetData(pInput[3].columnData, 0);
+  const char* point = colDataGetData(pInput[5].columnData, pInput[5].numOfRows == 1 ? 0 : row);
+  if (tag == NULL || point == NULL || varDataLen(tag) >= sizeof(key.tag) || varDataLen(point) >= sizeof(key.point)) {
+    return invalid;
+  }
+  memcpy(key.tag, varDataVal(tag), varDataLen(tag));
+  memcpy(key.point, varDataVal(point), varDataLen(point));
+  if (taosThreadMutexLock(&pState->lock) != TSDB_CODE_SUCCESS) return invalid;
+  char* pOld = taosHashGet(pState->pInvalidTags, &key, sizeof(key));
+  bool report = invalid;
+  if (!invalid) {
+    if (pOld != NULL) {
+      int32_t code = taosHashRemove(pState->pInvalidTags, &key, sizeof(key));
+      if (code != TSDB_CODE_SUCCESS) {
+        sclError("failed to remove stream DERIVATIVE diagnostic, code:%s", tstrerror(code));
+      }
+    }
+  } else {
+    SColumnInfoData* pCol = pInput[0].columnData;
+    bool isNull = colDataIsNull_s(pCol, row);
+    const char* data = isNull ? NULL : colDataGetData(pCol, row);
+    int32_t bytes = isNull ? 0 : (IS_VAR_DATA_TYPE(pCol->info.type) ? varDataTLen(data) : pCol->info.bytes);
+    if (pOld != NULL && taosHashGetValueSize(pOld) == bytes + 2 && pOld[0] == pCol->info.type &&
+        pOld[1] == isNull && (bytes == 0 || memcmp(pOld + 2, data, bytes) == 0)) {
+      report = false;
+    } else {
+      char* pValue = taosMemoryMalloc(bytes + 2);
+      if (pValue != NULL) {
+        pValue[0] = pCol->info.type;
+        pValue[1] = isNull;
+        if (bytes > 0) memcpy(pValue + 2, data, bytes);
+        int32_t code = TSDB_CODE_SUCCESS;
+        if (pOld == NULL && taosHashGetSize(pState->pInvalidTags) >= STREAM_DERIVATIVE_LOG_MAX_ENTRIES) {
+          void* pVictim = taosHashIterate(pState->pInvalidTags, NULL);
+          if (pVictim != NULL) {
+            char victimKey[sizeof(key)];
+            memcpy(victimKey, taosHashGetKey(pVictim, NULL), sizeof(victimKey));
+            taosHashCancelIterate(pState->pInvalidTags, pVictim);
+            code = taosHashRemove(pState->pInvalidTags, victimKey, sizeof(victimKey));
+            if (code != TSDB_CODE_SUCCESS) {
+              sclError("failed to evict stream DERIVATIVE diagnostic, code:%s", tstrerror(code));
+            }
+          }
+        }
+        // Cache admission failures are diagnostic-only; the SQL result does
+        // not depend on retaining this configuration.
+        if (code == TSDB_CODE_SUCCESS) {
+          code = taosHashPut(pState->pInvalidTags, &key, sizeof(key), pValue, bytes + 2);
+          if (code != TSDB_CODE_SUCCESS) {
+            sclError("failed to cache stream DERIVATIVE diagnostic, code:%s", tstrerror(code));
+          }
+        }
+        taosMemoryFree(pValue);
+      }
+    }
+  }
+  (void)taosThreadMutexUnlock(&pState->lock);
+  return report;
+}
+
+// Only generated for stream DERIVATIVE tag arguments. Ordinary DERIVATIVE is unchanged.
+int32_t streamDerivativeFactorFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput) {
+  if (pInput[2].numOfRows == 0) {
+    pOutput->numOfRows = 0;
+    return TSDB_CODE_SUCCESS;
+  }
+  int32_t precision = 0;
+  GET_TYPED_DATA(precision, int32_t, pInput[1].columnData->info.type, pInput[1].columnData->pData, 0);
+  if (precision < TSDB_TIME_PRECISION_MILLI || precision > TSDB_TIME_PRECISION_NANO) {
+    return TSDB_CODE_FUNC_FUNTION_PARA_VALUE;
+  }
+  bool preScaled = false;
+  if (inputNum == 7) {
+    int32_t flag = 0;
+    GET_TYPED_DATA(flag, int32_t, pInput[6].columnData->info.type, pInput[6].columnData->pData, 0);
+    preScaled = flag != 0;
+  }
+  SColumnInfoData *input = pInput[0].columnData;
+  SColumnInfoData *rates = pInput[2].columnData;
+  int32_t          rows = TMAX(pInput[0].numOfRows, pInput[2].numOfRows);
+  bool             reported = false;
+  int64_t          ticks = 0;
+  const char*      reason = NULL;
+  for (int32_t i = 0; i < rows; ++i) {
+    int32_t tagRow = pInput[0].numOfRows == 1 ? 0 : i;
+    int32_t rateRow = pInput[2].numOfRows == 1 ? 0 : i;
+    bool report = false;
+    // A single-row tag is broadcast over the rate vector; parse it only once.
+    if (i == 0 || pInput[0].numOfRows != 1) {
+      ticks = 0;
+      reason = colDataIsNull_s(input, tagRow)
+                   ? "NULL duration tag"
+                   : scalarStreamDerivativeDuration(colDataGetData(input, tagRow), input->info.type, precision, &ticks);
+      report = streamDerivativeShouldLog(pInput, inputNum, tagRow, reason != NULL);
+    }
+    if (reason != NULL) {
+      colDataSetNULL(pOutput->columnData, i);
+      if (!reported && report) {
+        logStreamDerivativeTag(pInput, inputNum, tagRow, reason);
+        reported = true;
+      }
+    } else if (colDataIsNull_s(rates, rateRow)) {
+      colDataSetNULL(pOutput->columnData, i);
+    } else {
+      double rate = 0;
+      GET_TYPED_DATA(rate, double, rates->info.type, colDataGetData(rates, rateRow), 0);
+      // Older stored plans supply a per-second rate. New plans apply the
+      // frozen unit inside DERIVATIVE, before rounding and negative filtering.
+      if (!preScaled) rate *= (double)ticks / TSDB_TICK_PER_SECOND(precision);
+      if (isinf(rate) || isnan(rate)) {
+        colDataSetNULL(pOutput->columnData, i);
+        continue;
+      }
+      int32_t code = colDataSetVal(pOutput->columnData, i, (const char *)&rate, false);
+      if (code != TSDB_CODE_SUCCESS) return code;
+    }
+  }
+  pOutput->numOfRows = rows;
+  return TSDB_CODE_SUCCESS;
+}
 
 /** Math functions **/
 static double tlog(double v) { return log(v); }
@@ -144,6 +467,275 @@ int32_t absFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutpu
 
   pOutput->numOfRows = pInput->numOfRows;
   return TSDB_CODE_SUCCESS;
+}
+
+// 2^63, the first magnitude that a signed 64-bit integer cannot represent.
+#define BIT_COUNT_INT64_EXCLUSIVE_ABS 9223372036854775808.0
+
+// Portable population count: compiler emits a single POPCNT instruction where available.
+static int32_t bitCountPopcount(uint64_t v) {
+  v = v - ((v >> 1) & UINT64_C(0x5555555555555555));
+  v = (v & UINT64_C(0x3333333333333333)) + ((v >> 2) & UINT64_C(0x3333333333333333));
+  v = (v + (v >> 4)) & UINT64_C(0x0F0F0F0F0F0F0F0F);
+  return (int32_t)((v * UINT64_C(0x0101010101010101)) >> 56);
+}
+
+// Round half away from zero, the conversion MySQL applies to floating point and
+// fixed point values used in an integer context.
+static bool bitCountFloatToInt64(double v, int64_t *pValue) {
+  if (isnan(v) || isinf(v)) {
+    return false;
+  }
+  double rounded = round(v);
+  if (rounded >= BIT_COUNT_INT64_EXCLUSIVE_ABS || rounded < -BIT_COUNT_INT64_EXCLUSIVE_ABS) {
+    return false;
+  }
+  *pValue = (int64_t)rounded;
+  return true;
+}
+
+// Round the textual representation of a DECIMAL value to the nearest integer
+// (half away from zero) without losing precision through a double round trip.
+static bool bitCountDecimalTextToInt64(const char *text, int64_t *pValue) {
+  const char *p = text;
+  bool        negative = false;
+  while (*p == ' ') {
+    ++p;
+  }
+  if (*p == '+' || *p == '-') {
+    negative = (*p == '-');
+    ++p;
+  }
+
+  uint64_t limit = negative ? (uint64_t)INT64_MAX + 1 : (uint64_t)INT64_MAX;
+  uint64_t magnitude = 0;
+  bool     overflow = false;
+  while (*p >= '0' && *p <= '9') {
+    uint64_t digit = (uint64_t)(*p - '0');
+    if (!overflow) {
+      if (magnitude > (limit - digit) / 10) {
+        overflow = true;
+      } else {
+        magnitude = magnitude * 10 + digit;
+      }
+    }
+    ++p;
+  }
+
+  if (*p == '.' && p[1] >= '5' && p[1] <= '9') {
+    if (overflow || magnitude == limit) {
+      overflow = true;
+    } else {
+      magnitude += 1;
+    }
+  }
+  if (overflow) {
+    return false;
+  }
+
+  if (negative) {
+    *pValue = (magnitude == (uint64_t)INT64_MAX + 1) ? INT64_MIN : -(int64_t)magnitude;
+  } else {
+    *pValue = (int64_t)magnitude;
+  }
+  return true;
+}
+
+static bool bitCountDecimalToInt64(const void *data, int8_t type, int8_t precision, int8_t scale,
+                                   int64_t *pValue) {
+  // Each digit, the sign and the decimal point fit well below this bound, which
+  // also matches the fixed buffer used by decimalToStr internally.
+  char text[64] = {0};
+  if (precision < 0 || precision > TSDB_DECIMAL_MAX_PRECISION) {
+    return false;
+  }
+  if (decimalToStr((const DecimalType *)data, type, precision, scale, text, (int32_t)sizeof(text)) != 0) {
+    return false;
+  }
+  return bitCountDecimalTextToInt64(text, pValue);
+}
+
+// MySQL treats a temporal value in a numeric context as YYYYMMDDHHMMSS in the
+// session time zone, with the fractional second rounded half away from zero.
+static bool bitCountTimestampToInt64(int64_t ticks, int32_t precision, timezone_t tz, int64_t *pValue) {
+  int64_t ticksPerSecond = TSDB_TICK_PER_SECOND(precision);
+  int64_t seconds = ticks / ticksPerSecond;
+  int64_t fraction = ticks % ticksPerSecond;
+  if (fraction < 0) {
+    --seconds;
+    fraction += ticksPerSecond;
+  }
+  if (fraction * 2 >= ticksPerSecond) {
+    ++seconds;
+  }
+
+  time_t    epochSeconds = (time_t)seconds;
+  struct tm local = {0};
+  if (taosLocalTime(&epochSeconds, &local, NULL, 0, tz) == NULL) {
+    return false;
+  }
+  int64_t year = (int64_t)local.tm_year + 1900;
+  if (year < 0 || year > 9999) {
+    return false;
+  }
+
+  int64_t value = year;
+  value = value * 100 + (local.tm_mon + 1);
+  value = value * 100 + local.tm_mday;
+  value = value * 100 + local.tm_hour;
+  value = value * 100 + local.tm_min;
+  value = value * 100 + local.tm_sec;
+  *pValue = value;
+  return true;
+}
+
+static int64_t bitCountBytes(const uint8_t *data, int64_t len) {
+  int64_t bits = 0;
+  for (int64_t i = 0; i < len; ++i) {
+    bits += bitCountPopcount(data[i]);
+  }
+  return bits;
+}
+
+static int32_t bitCountParseString(int8_t inputType, char *input, char **pBuf, int32_t *pBufLen,
+                                   void *charsetCxt, int64_t *pValue) {
+  int32_t len = (int32_t)varDataLen(input);
+  int32_t need = len + 1;
+  if (*pBufLen < need) {
+    char *tmp = taosMemoryRealloc(*pBuf, need);
+    if (tmp == NULL) {
+      return terrno;
+    }
+    *pBuf = tmp;
+    *pBufLen = need;
+  }
+
+  if (inputType == TSDB_DATA_TYPE_NCHAR) {
+    int32_t mbsLen = taosUcs4ToMbs((TdUcs4 *)varDataVal(input), len, *pBuf, charsetCxt);
+    if (mbsLen < 0) {
+      return TSDB_CODE_SCALAR_CONVERT_NCHAR_ERROR;
+    }
+    (*pBuf)[mbsLen] = 0;
+  } else {
+    (void)memcpy(*pBuf, varDataVal(input), len);
+    (*pBuf)[len] = 0;
+  }
+
+  // strtoll skips leading blanks, accepts an optional sign, stops at the first
+  // non-digit and saturates on overflow: the conversion contract of this function.
+  *pValue = taosStr2Int64(*pBuf, NULL, 10);
+  return TSDB_CODE_SUCCESS;
+}
+
+int32_t bitCountFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput) {
+  SColumnInfoData *pInputData = pInput->columnData;
+  SColumnInfoData *pOutputData = pOutput->columnData;
+  int8_t           inputType = (int8_t)GET_PARAM_TYPE(&pInput[0]);
+  int64_t         *out = (int64_t *)pOutputData->pData;
+
+  int32_t    timePrecision = pInputData->info.precision;
+  int8_t     decimalPrecision = GET_PARAM_PRECISON(&pInput[0]);
+  int8_t     decimalScale = GET_PARAM_SCALE(&pInput[0]);
+  timezone_t tz = pInput->tz;
+
+  int32_t code = TSDB_CODE_SUCCESS;
+  char   *convBuf = NULL;
+  int32_t convBufLen = 0;
+
+  for (int32_t i = 0; i < pInput->numOfRows; ++i) {
+    if (colDataIsNull_s(pInputData, i)) {
+      colDataSetNULL(pOutputData, i);
+      continue;
+    }
+
+    char    *input = colDataGetData(pInputData, i);
+    uint64_t bits = 0;
+    int64_t  result = 0;
+
+    switch (inputType) {
+      case TSDB_DATA_TYPE_BOOL:
+      case TSDB_DATA_TYPE_TINYINT:
+      case TSDB_DATA_TYPE_SMALLINT:
+      case TSDB_DATA_TYPE_INT:
+      case TSDB_DATA_TYPE_BIGINT:
+      case TSDB_DATA_TYPE_UTINYINT:
+      case TSDB_DATA_TYPE_USMALLINT:
+      case TSDB_DATA_TYPE_UINT:
+      case TSDB_DATA_TYPE_UBIGINT:
+        GET_TYPED_DATA(bits, uint64_t, inputType, input, 0);
+        result = bitCountPopcount(bits);
+        break;
+
+      case TSDB_DATA_TYPE_TIMESTAMP: {
+        int64_t ticks = 0;
+        GET_TYPED_DATA(ticks, int64_t, inputType, input, 0);
+        int64_t value = 0;
+        if (!bitCountTimestampToInt64(ticks, timePrecision, tz, &value)) {
+          colDataSetNULL(pOutputData, i);
+          continue;
+        }
+        result = bitCountPopcount((uint64_t)value);
+        break;
+      }
+
+      case TSDB_DATA_TYPE_FLOAT:
+      case TSDB_DATA_TYPE_DOUBLE: {
+        double  val = (inputType == TSDB_DATA_TYPE_FLOAT) ? (double)GET_FLOAT_VAL(input) : GET_DOUBLE_VAL(input);
+        int64_t ival = 0;
+        if (!bitCountFloatToInt64(val, &ival)) {
+          colDataSetNULL(pOutputData, i);
+          continue;
+        }
+        result = bitCountPopcount((uint64_t)ival);
+        break;
+      }
+
+      case TSDB_DATA_TYPE_DECIMAL64:
+      case TSDB_DATA_TYPE_DECIMAL: {
+        int64_t ival = 0;
+        if (!bitCountDecimalToInt64(input, inputType, decimalPrecision, decimalScale, &ival)) {
+          colDataSetNULL(pOutputData, i);
+          continue;
+        }
+        result = bitCountPopcount((uint64_t)ival);
+        break;
+      }
+
+      case TSDB_DATA_TYPE_VARCHAR:
+      case TSDB_DATA_TYPE_NCHAR: {
+        int64_t ival = 0;
+        code = bitCountParseString(inputType, input, &convBuf, &convBufLen, pInput->charsetCxt, &ival);
+        if (code != TSDB_CODE_SUCCESS) {
+          goto _return;
+        }
+        result = bitCountPopcount((uint64_t)ival);
+        break;
+      }
+
+      case TSDB_DATA_TYPE_VARBINARY:
+        result = bitCountBytes((const uint8_t *)varDataVal(input), (int64_t)varDataLen(input));
+        break;
+
+      case TSDB_DATA_TYPE_BLOB:
+      case TSDB_DATA_TYPE_MEDIUMBLOB:
+        result = bitCountBytes((const uint8_t *)blobDataVal(input), (int64_t)blobDataLen(input));
+        break;
+
+      default:
+        // Translate-time validation is the primary gate, but do not degrade to
+        // per-row NULL if the whitelist and this switch ever diverge.
+        code = TSDB_CODE_FUNC_FUNTION_PARA_TYPE;
+        goto _return;
+    }
+
+    out[i] = result;
+  }
+
+  pOutput->numOfRows = pInput->numOfRows;
+
+_return:
+  taosMemoryFree(convBuf);
+  return code;
 }
 
 int32_t signFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput) {
@@ -312,7 +904,7 @@ static int32_t doScalarFunctionUnique(SScalarParam *pInput, int32_t inputNum, SS
       continue;
     }
     double tmp = 0;
-    SCL_ERR_RET(getValueFn(pInputData->pData, i, &tmp));
+    SCL_ERR_RET(getValueFn(pInputData->pData, i, &tmp, pInput[0].charsetCxt));
     double result = valFn(tmp);
     if (isinf(result) || isnan(result)) {
       colDataSetNULL(pOutputData, i);
@@ -350,8 +942,8 @@ static int32_t doScalarFunctionUnique2(SScalarParam *pInput, int32_t inputNum, S
       }
       double val1 = 0;
       double val2 = 0;
-      SCL_ERR_RET(getValueFn[0](pInputData[0]->pData, i, &val1));
-      SCL_ERR_RET(getValueFn[1](pInputData[1]->pData, i, &val2));
+      SCL_ERR_RET(getValueFn[0](pInputData[0]->pData, i, &val1, pInput[0].charsetCxt));
+      SCL_ERR_RET(getValueFn[1](pInputData[1]->pData, i, &val2, pInput[1].charsetCxt));
       result = valFn(val1, val2);
       if (isinf(result) || isnan(result)) {
         colDataSetNULL(pOutputData, i);
@@ -370,8 +962,8 @@ static int32_t doScalarFunctionUnique2(SScalarParam *pInput, int32_t inputNum, S
         }
         double val1 = 0;
         double val2 = 0;
-        SCL_ERR_RET(getValueFn[0](pInputData[0]->pData, 0, &val1));
-        SCL_ERR_RET(getValueFn[1](pInputData[1]->pData, i, &val2));
+        SCL_ERR_RET(getValueFn[0](pInputData[0]->pData, 0, &val1, pInput[0].charsetCxt));
+        SCL_ERR_RET(getValueFn[1](pInputData[1]->pData, i, &val2, pInput[1].charsetCxt));
         result = valFn(val1, val2);
         if (isinf(result) || isnan(result)) {
           colDataSetNULL(pOutputData, i);
@@ -392,8 +984,8 @@ static int32_t doScalarFunctionUnique2(SScalarParam *pInput, int32_t inputNum, S
         }
         double val1 = 0;
         double val2 = 0;
-        SCL_ERR_RET(getValueFn[0](pInputData[0]->pData, i, &val1));
-        SCL_ERR_RET(getValueFn[1](pInputData[1]->pData, 0, &val2));
+        SCL_ERR_RET(getValueFn[0](pInputData[0]->pData, i, &val1, pInput[0].charsetCxt));
+        SCL_ERR_RET(getValueFn[1](pInputData[1]->pData, 0, &val2, pInput[1].charsetCxt));
         result = valFn(val1, val2);
         if (isinf(result) || isnan(result)) {
           colDataSetNULL(pOutputData, i);
@@ -462,7 +1054,7 @@ static int32_t doScalarFunction(SScalarParam *pInput, int32_t inputNum, SScalarP
 }
 
 /** String functions **/
-static int32_t tlength(char *input, int32_t type, void *len) {
+static int32_t tlength(char *input, int32_t type, void *len, void *charsetCxt) {
   if (IS_STR_DATA_BLOB(type)) {
     *(BlobDataLenT *)len = blobDataLen(input);
   } else {
@@ -471,34 +1063,30 @@ static int32_t tlength(char *input, int32_t type, void *len) {
   return TSDB_CODE_SUCCESS;
 }
 
-uint8_t getCharLen(const unsigned char *str) {
-  if (strcasecmp(tsCharset, "UTF-8") != 0) {
-    return 1;
-  }
-  if ((str[0] & 0x80) == 0) {
-    return 1;
-  } else if ((str[0] & 0xE0) == 0xC0) {
-    return 2;
-  } else if ((str[0] & 0xF0) == 0xE0) {
-    return 3;
-  } else if ((str[0] & 0xF8) == 0xF0) {
-    return 4;
+// Byte offsets remain in the original encoding, including reverse searches.
+static int32_t scalarCharBoundaries(const char *str, int32_t len, bool isNchar,
+                                     void *charsetCxt, uint8_t **boundaries) {
+  *boundaries = taosMemoryCalloc((size_t)len + 1, 1);
+  if (*boundaries == NULL) return terrno;
+  int32_t code = TSDB_CODE_SUCCESS;
+  if (isNchar) {
+    for (int32_t i = 0; i <= len; i += TSDB_NCHAR_SIZE) (*boundaries)[i] = 1;
   } else {
-    return 1;
+    code = taosMbsCharBoundaries(str, len, charsetCxt, *boundaries);
   }
+  if (code != TSDB_CODE_SUCCESS) taosMemoryFreeClear(*boundaries);
+  return code;
 }
 
-static int32_t tcharlength(char *input, int32_t type, void *len) {
+static int32_t tcharlength(char *input, int32_t type, void *len, void *charsetCxt) {
   if (type == TSDB_DATA_TYPE_VARCHAR) {
-    // calculate the number of characters in the string considering the multi-byte character
-    char       *str = varDataVal(input);
-    VarDataLenT strLen = 0;
-    VarDataLenT pos = 0;
-    while (pos < varDataLen(input)) {
-      strLen++;
-      pos += getCharLen((unsigned char *)(str + pos));
-    }
-    *(VarDataLenT *)len = strLen;
+    uint8_t *boundaries = NULL;
+    SCL_ERR_RET(scalarCharBoundaries(varDataVal(input), varDataLen(input), false,
+                                     charsetCxt, &boundaries));
+    VarDataLenT count = 0;
+    for (int32_t i = 0; i < varDataLen(input); ++i) count += boundaries[i];
+    taosMemoryFree(boundaries);
+    *(VarDataLenT *)len = count;
     return TSDB_CODE_SUCCESS;
   } else if (type == TSDB_DATA_TYPE_GEOMETRY) {
     *(VarDataLenT *)len = varDataLen(input);
@@ -601,51 +1189,33 @@ static void tlrtrimspace(char *input, char *output, int32_t type, int32_t charLe
   varDataSetLen(output, resLen);
 }
 
-static bool isCharStart(char c) { return strcasecmp(tsCharset, "UTF-8") == 0 ? ((c & 0xC0) != 0x80) : true; }
-
-static int32_t trimHelper(char *orgStr, char *remStr, int32_t orgLen, int32_t remLen, bool trimLeft, bool isNchar) {
+static int32_t trimHelper(char *orgStr, char *remStr, int32_t orgLen,
+                            int32_t remLen, bool trimLeft, bool isNchar,
+                            void *charsetCxt) {
+  uint8_t *boundaries = NULL;
+  SCL_ERR_RET(scalarCharBoundaries(orgStr, orgLen, isNchar, charsetCxt, &boundaries));
+  int32_t pos = trimLeft ? 0 : orgLen;
   if (trimLeft) {
-    int32_t pos = 0;
-    for (int32_t i = 0; i < orgLen - remLen; i += remLen) {
-      if (memcmp(orgStr + i, remStr, remLen) == 0) {
-        if (isCharStart(orgStr[i + remLen]) || isNchar) {
-          pos = i + remLen;
-          continue;
-        } else {
-          return pos;
-        }
-      } else {
-        return pos;
-      }
-    }
-    return pos;
+    while (pos <= orgLen - remLen && boundaries[pos + remLen] &&
+           memcmp(orgStr + pos, remStr, remLen) == 0) pos += remLen;
   } else {
-    int32_t pos = orgLen;
-    for (int32_t i = orgLen - remLen; i >= 0; i -= remLen) {
-      if (memcmp(orgStr + i, remStr, remLen) == 0) {
-        if (isCharStart(orgStr[i]) || isNchar) {
-          pos = i;
-          continue;
-        } else {
-          return pos;
-        }
-      } else {
-        return pos;
-      }
-    }
-    return pos;
+    while (pos >= remLen && boundaries[pos - remLen] &&
+           memcmp(orgStr + pos - remLen, remStr, remLen) == 0) pos -= remLen;
   }
+  taosMemoryFree(boundaries);
+  return pos;
 }
 
 static int32_t convVarcharToNchar(char *input, char **output, int32_t inputLen, int32_t *outputLen, void *charsetCxt) {
-  *output = taosMemoryCalloc(inputLen * TSDB_NCHAR_SIZE, 1);
+  // allocate at least one byte so an empty input never depends on calloc(0, 1) returning non-NULL
+  *output = taosMemoryCalloc(inputLen > 0 ? inputLen * TSDB_NCHAR_SIZE : 1, 1);
   if (NULL == *output) {
     return terrno;
   }
   bool ret = taosMbsToUcs4(input, inputLen, (TdUcs4 *)*output, inputLen * TSDB_NCHAR_SIZE, outputLen, charsetCxt);
   if (!ret) {
     taosMemoryFreeClear(*output);
-    return TSDB_CODE_SCALAR_CONVERT_ERROR;
+    return TSDB_CODE_SCALAR_CONVERT_NCHAR_ERROR;
   }
   return TSDB_CODE_SUCCESS;
 }
@@ -658,7 +1228,7 @@ static int32_t convNcharToVarchar(char *input, char **output, int32_t inputLen, 
   *outputLen = taosUcs4ToMbs((TdUcs4 *)input, inputLen, *output, charsetCxt);
   if (*outputLen < 0) {
     taosMemoryFree(*output);
-    return TSDB_CODE_SCALAR_CONVERT_ERROR;
+    return TSDB_CODE_SCALAR_CONVERT_NCHAR_ERROR;
   }
   return TSDB_CODE_SUCCESS;
 }
@@ -692,14 +1262,17 @@ static int32_t tltrim(char *input, char *remInput, char *output, int32_t inputTy
   if (remLen == 0 || remLen > orgLen) {
     (void)memcpy(varDataVal(output), orgStr, orgLen);
     varDataSetLen(output, orgLen);
+    if (needFree) taosMemoryFree(remStr);
     return TSDB_CODE_SUCCESS;
   }
 
-  pos = trimHelper(orgStr, remStr, orgLen, remLen, true, inputType == TSDB_DATA_TYPE_NCHAR);
+  pos = trimHelper(orgStr, remStr, orgLen, remLen, true, inputType == TSDB_DATA_TYPE_NCHAR, charsetCxt);
 
   if (needFree) {
     taosMemoryFree(remStr);
   }
+
+  if (pos < 0) return pos;
 
   int32_t resLen = orgLen - pos;
   (void)memcpy(varDataVal(output), orgStr + pos, resLen);
@@ -757,14 +1330,17 @@ static int32_t trtrim(char *input, char *remInput, char *output, int32_t inputTy
   if (remLen == 0 || remLen > orgLen) {
     (void)memcpy(varDataVal(output), orgStr, orgLen);
     varDataSetLen(output, orgLen);
+    if (needFree) taosMemoryFree(remStr);
     return TSDB_CODE_SUCCESS;
   }
 
-  pos = trimHelper(orgStr, remStr, orgLen, remLen, false, inputType == TSDB_DATA_TYPE_NCHAR);
+  pos = trimHelper(orgStr, remStr, orgLen, remLen, false, inputType == TSDB_DATA_TYPE_NCHAR, charsetCxt);
 
   if (needFree) {
     taosMemoryFree(remStr);
   }
+
+  if (pos < 0) return pos;
 
   (void)memcpy(varDataVal(output), orgStr, pos);
   varDataSetLen(output, pos);
@@ -799,12 +1375,15 @@ static int32_t tlrtrim(char *input, char *remInput, char *output, int32_t inputT
     return TSDB_CODE_SUCCESS;
   }
 
-  int32_t leftPos = trimHelper(orgStr, remStr, orgLen, remLen, true, inputType == TSDB_DATA_TYPE_NCHAR);
-  int32_t rightPos = trimHelper(orgStr, remStr, orgLen, remLen, false, inputType == TSDB_DATA_TYPE_NCHAR);
+  int32_t leftPos = trimHelper(orgStr, remStr, orgLen, remLen, true, inputType == TSDB_DATA_TYPE_NCHAR, charsetCxt);
+  int32_t rightPos = trimHelper(orgStr, remStr, orgLen, remLen, false, inputType == TSDB_DATA_TYPE_NCHAR, charsetCxt);
 
   if (needFree) {
     taosMemoryFree(remStr);
   }
+
+  if (leftPos < 0) return leftPos;
+  if (rightPos < 0) return rightPos;
 
   if (leftPos >= rightPos) {
     varDataSetLen(output, 0);
@@ -831,9 +1410,9 @@ static int32_t doLengthFunction(SScalarParam *pInput, int32_t inputNum, SScalarP
 
     char *in = colDataGetData(pInputData, i);
     if (IS_STR_DATA_BLOB(type)) {
-      SCL_ERR_RET(lenFn(in, type, (BlobDataLenT *)&(out[i])));
+      SCL_ERR_RET(lenFn(in, type, (BlobDataLenT *)&(out[i]), pInput->charsetCxt));
     } else {
-      SCL_ERR_RET(lenFn(in, type, (VarDataLenT *)&(out[i])));
+      SCL_ERR_RET(lenFn(in, type, (VarDataLenT *)&(out[i]), pInput->charsetCxt));
     }
   }
 
@@ -841,8 +1420,13 @@ static int32_t doLengthFunction(SScalarParam *pInput, int32_t inputNum, SScalarP
   return TSDB_CODE_SUCCESS;
 }
 
-static int32_t concatCopyHelper(const char *input, char *output, bool hasNchar, int32_t type, VarDataLenT *dataLen,
-                                void *charsetCxt) {
+static int32_t concatCopyHelper(const char *input, char **outputBuf, bool hasNchar, int32_t type, VarDataLenT *dataLen,
+                                void *charsetCxt, int32_t *payloadCap) {
+  // The scratch buffer is initially sized by the declared column widths; a virtual table
+  // column may carry a value wider than declared (full source value by design), so grow the
+  // buffer on demand instead of overrunning it.  The accumulated length feeds a uint16
+  // varstr length prefix, so bound the growth by the maximum payload it can express.
+  const int32_t maxPayload = TSDB_MAX_FIELD_LEN - (int32_t)VARSTR_HEADER_SIZE;
   if (hasNchar && type == TSDB_DATA_TYPE_VARCHAR) {
     TdUcs4 *newBuf = taosMemoryCalloc((varDataLen(input) + 1) * TSDB_NCHAR_SIZE, 1);
     if (NULL == newBuf) {
@@ -853,13 +1437,42 @@ static int32_t concatCopyHelper(const char *input, char *output, bool hasNchar, 
         taosMbsToUcs4(varDataVal(input), len, newBuf, (varDataLen(input) + 1) * TSDB_NCHAR_SIZE, &len, charsetCxt);
     if (!ret) {
       taosMemoryFree(newBuf);
-      return TSDB_CODE_SCALAR_CONVERT_ERROR;
+      return TSDB_CODE_SCALAR_CONVERT_NCHAR_ERROR;
     }
-    (void)memcpy(varDataVal(output) + *dataLen, newBuf, len);
+    if ((int32_t)*dataLen + len > maxPayload) {
+      qError("concat result needs %d bytes, buffer capacity is %d", (int32_t)*dataLen + len, maxPayload);
+      taosMemoryFree(newBuf);
+      return TSDB_CODE_QRY_NOT_ENOUGH_BUFFER;
+    }
+    if (*dataLen + len > *payloadCap) {
+      int32_t newCap = *dataLen + len;
+      char   *tmp = taosMemoryRealloc(*outputBuf, newCap + VARSTR_HEADER_SIZE);
+      if (NULL == tmp) {
+        taosMemoryFree(newBuf);
+        return terrno;
+      }
+      *outputBuf = tmp;
+      *payloadCap = newCap;
+    }
+    (void)memcpy(varDataVal(*outputBuf) + *dataLen, newBuf, len);
     *dataLen += len;
     taosMemoryFree(newBuf);
   } else {
-    (void)memcpy(varDataVal(output) + *dataLen, varDataVal(input), varDataLen(input));
+    if ((int32_t)*dataLen + (int32_t)varDataLen(input) > maxPayload) {
+      qError("concat result needs %d bytes, buffer capacity is %d",
+             (int32_t)*dataLen + (int32_t)varDataLen(input), maxPayload);
+      return TSDB_CODE_QRY_NOT_ENOUGH_BUFFER;
+    }
+    if (*dataLen + varDataLen(input) > *payloadCap) {
+      int32_t newCap = *dataLen + varDataLen(input);
+      char   *tmp = taosMemoryRealloc(*outputBuf, newCap + VARSTR_HEADER_SIZE);
+      if (NULL == tmp) {
+        return terrno;
+      }
+      *outputBuf = tmp;
+      *payloadCap = newCap;
+    }
+    (void)memcpy(varDataVal(*outputBuf) + *dataLen, varDataVal(input), varDataLen(input));
     *dataLen += varDataLen(input);
   }
   return TSDB_CODE_SUCCESS;
@@ -917,6 +1530,7 @@ int32_t concatFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOu
   if (NULL == outputBuf) {
     SCL_ERR_JRET(terrno);
   }
+  int32_t payloadCap = outputLen - VARSTR_HEADER_SIZE;
 
   for (int32_t k = 0; k < numOfRows; ++k) {
     bool hasNull = false;
@@ -933,15 +1547,14 @@ int32_t concatFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOu
     }
 
     VarDataLenT dataLen = 0;
-    char       *output = outputBuf;
     for (int32_t i = 0; i < inputNum; ++i) {
       int32_t rowIdx = (pInput[i].numOfRows == 1) ? 0 : k;
       input[i] = colDataGetData(pInputData[i], rowIdx);
 
-      SCL_ERR_JRET(
-          concatCopyHelper(input[i], output, hasNchar, GET_PARAM_TYPE(&pInput[i]), &dataLen, pInput->charsetCxt));
+      SCL_ERR_JRET(concatCopyHelper(input[i], &outputBuf, hasNchar, GET_PARAM_TYPE(&pInput[i]), &dataLen,
+                                    pInput->charsetCxt, &payloadCap));
     }
-    varDataSetLen(output, dataLen);
+    varDataSetLen(outputBuf, dataLen);
     SCL_ERR_JRET(colDataSetVal(pOutputData, k, outputBuf, false));
   }
 
@@ -951,7 +1564,6 @@ _return:
   taosMemoryFree(input);
   taosMemoryFree(outputBuf);
   taosMemoryFree(pInputData);
-
   SCL_RET(code);
 }
 
@@ -996,6 +1608,7 @@ int32_t concatWsFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *p
   if (NULL == outputBuf) {
     SCL_ERR_JRET(terrno);
   }
+  int32_t payloadCap = outputLen - VARSTR_HEADER_SIZE;
 
   for (int32_t k = 0; k < numOfRows; ++k) {
     if (colDataIsNull_s(pInputData[0], k) || IS_NULL_TYPE(GET_PARAM_TYPE(&pInput[0]))) {
@@ -1005,7 +1618,6 @@ int32_t concatWsFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *p
 
     VarDataLenT dataLen = 0;
     bool        hasNull = false;
-    char       *output = outputBuf;
     for (int32_t i = 1; i < inputNum; ++i) {
       if (colDataIsNull_s(pInputData[i], k) || IS_NULL_TYPE(GET_PARAM_TYPE(&pInput[i]))) {
         hasNull = true;
@@ -1014,22 +1626,23 @@ int32_t concatWsFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *p
 
       int32_t rowIdx = (pInput[i].numOfRows == 1) ? 0 : k;
 
-      SCL_ERR_JRET(concatCopyHelper(colDataGetData(pInputData[i], rowIdx), output, hasNchar, GET_PARAM_TYPE(&pInput[i]),
-                                    &dataLen, pInput->charsetCxt));
+      SCL_ERR_JRET(concatCopyHelper(colDataGetData(pInputData[i], rowIdx), &outputBuf, hasNchar,
+                                    GET_PARAM_TYPE(&pInput[i]), &dataLen, pInput->charsetCxt, &payloadCap));
 
       if (i < inputNum - 1) {
         // insert the separator
         char *sep = (pInput[0].numOfRows == 1) ? colDataGetData(pInputData[0], 0) : colDataGetData(pInputData[0], k);
-        SCL_ERR_JRET(concatCopyHelper(sep, output, hasNchar, GET_PARAM_TYPE(&pInput[0]), &dataLen, pInput->charsetCxt));
+        SCL_ERR_JRET(concatCopyHelper(sep, &outputBuf, hasNchar, GET_PARAM_TYPE(&pInput[0]), &dataLen,
+                                      pInput->charsetCxt, &payloadCap));
       }
     }
 
     if (hasNull) {
       colDataSetNULL(pOutputData, k);
-      (void)memset(output, 0, dataLen);
+      (void)memset(outputBuf, 0, dataLen);
     } else {
-      varDataSetLen(output, dataLen);
-      SCL_ERR_JRET(colDataSetVal(pOutputData, k, output, false));
+      varDataSetLen(outputBuf, dataLen);
+      SCL_ERR_JRET(colDataSetVal(pOutputData, k, outputBuf, false));
     }
   }
 
@@ -1048,7 +1661,7 @@ static int32_t doCaseConvFunction(SScalarParam *pInput, int32_t inputNum, SScala
   SColumnInfoData *pInputData = pInput->columnData;
   SColumnInfoData *pOutputData = pOutput->columnData;
 
-  int32_t outputLen = pInputData->varmeta.length;
+  int32_t outputLen = colDataGetLength(pInputData, pInput->numOfRows);
   char   *outputBuf = taosMemoryCalloc(outputLen, 1);
   if (outputBuf == NULL) {
     SCL_ERR_RET(terrno);
@@ -1104,12 +1717,11 @@ static int32_t doTrimFunction(SScalarParam *pInput, int32_t inputNum, SScalarPar
     outputLen = pInputData[0]->info.bytes;
     numOfRows = pInput[0].numOfRows;
   }
-  char *outputBuf = taosMemoryCalloc(outputLen, 1);
+  int32_t bufLen = outputLen;
+  char   *outputBuf = taosMemoryCalloc(bufLen, 1);
   if (outputBuf == NULL) {
     SCL_ERR_RET(terrno);
   }
-
-  char *output = outputBuf;
 
   if (inputNum == 3) {
     bool hasNullType = (IS_NULL_TYPE(GET_PARAM_TYPE(&pInput[0])) || IS_NULL_TYPE(GET_PARAM_TYPE(&pInput[1])));
@@ -1126,8 +1738,20 @@ static int32_t doTrimFunction(SScalarParam *pInput, int32_t inputNum, SScalarPar
         colDataSetNULL(pOutputData, i);
         continue;
       }
-      SCL_ERR_JRET(trimFn(colDataGetData(pInputData[1], colIdx2), colDataGetData(pInputData[0], colIdx1), output,
-                          GET_PARAM_TYPE(&pInput[1]), GET_PARAM_TYPE(&pInput[0]), pInput->charsetCxt));
+      char *input = colDataGetData(pInputData[1], colIdx2);
+      // The output buffer is sized by the declared column width; a virtual table column may
+      // carry a value wider than declared (full source value by design) -- grow it per row.
+      if (bufLen < varDataLen(input) + VARSTR_HEADER_SIZE) {
+        bufLen = varDataLen(input) + VARSTR_HEADER_SIZE;
+        char *tmp = taosMemoryRealloc(outputBuf, bufLen);
+        if (tmp == NULL) {
+          SCL_ERR_JRET(terrno);
+        }
+        outputBuf = tmp;
+      }
+      char *output = outputBuf;
+      SCL_ERR_JRET(trimFn(input, colDataGetData(pInputData[0], colIdx1), output, GET_PARAM_TYPE(&pInput[1]),
+                          GET_PARAM_TYPE(&pInput[0]), pInput->charsetCxt));
       SCL_ERR_JRET(colDataSetVal(pOutputData, i, output, false));
     }
   } else {
@@ -1138,6 +1762,17 @@ static int32_t doTrimFunction(SScalarParam *pInput, int32_t inputNum, SScalarPar
       }
       int32_t type = GET_PARAM_TYPE(pInput);
       char   *input = colDataGetData(pInputData[0], i);
+      // The output buffer is sized by the declared column width; a virtual table column may
+      // carry a value wider than declared (full source value by design) -- grow it per row.
+      if (bufLen < varDataLen(input) + VARSTR_HEADER_SIZE) {
+        bufLen = varDataLen(input) + VARSTR_HEADER_SIZE;
+        char *tmp = taosMemoryRealloc(outputBuf, bufLen);
+        if (tmp == NULL) {
+          SCL_ERR_JRET(terrno);
+        }
+        outputBuf = tmp;
+      }
+      char   *output = outputBuf;
       int32_t len = varDataLen(input);
       int32_t charLen = (type == TSDB_DATA_TYPE_VARCHAR) ? len : len / TSDB_NCHAR_SIZE;
       trimSpaceFn(input, output, type, charLen, pInput->charsetCxt);
@@ -1150,55 +1785,27 @@ _return:
   return code;
 }
 
-static int32_t findPosBytes(char *orgStr, char *delimStr, int32_t orgLen, int32_t delimLen, int32_t charNums,
-                            bool isNchar) {
-  int32_t charCount = 0;
-  if (charNums > 0) {
-    for (int32_t pos = 0; pos < orgLen; pos++) {
-      if (delimStr) {
-        if (pos + delimLen > orgLen) {
-          return orgLen;
-        }
-        if ((isCharStart(orgStr[pos]) || isNchar) && memcmp(orgStr + pos, delimStr, delimLen) == 0) {
-          charCount++;
-          if (charCount == charNums) {
-            return pos;
-          }
-          pos = pos + delimLen - 1;
-        }
-      } else {
-        if ((isCharStart(orgStr[pos]) || isNchar)) {
-          charCount++;
-          if (charCount == charNums) {
-            return pos;
-          }
-        }
-      }
+static int32_t findPosBytes(char *orgStr, char *delimStr, int32_t orgLen,
+                            int32_t delimLen, int32_t charNums, bool isNchar,
+                            void *charsetCxt) {
+  uint8_t *boundaries = NULL;
+  SCL_ERR_RET(scalarCharBoundaries(orgStr, orgLen, isNchar, charsetCxt, &boundaries));
+  int64_t count = charNums > 0 ? (int64_t)charNums : -(int64_t)charNums;
+  int32_t result = charNums > 0 ? orgLen : 0;
+  int32_t pos = charNums > 0 ? 0 : orgLen - (delimStr ? delimLen : 1);
+  int32_t step = charNums > 0 ? 1 : -1;
+  for (; pos >= 0 && pos < orgLen; pos += step) {
+    if (!boundaries[pos]) continue;
+    if (delimStr && (pos + delimLen > orgLen || !boundaries[pos + delimLen] ||
+                     memcmp(orgStr + pos, delimStr, delimLen) != 0)) continue;
+    if (--count == 0) {
+      result = pos + (charNums < 0 && delimStr ? delimLen : 0);
+      break;
     }
-    return orgLen;
-  } else {
-    if (delimStr) {
-      for (int32_t pos = orgLen - delimLen; pos >= 0; pos--) {
-        if ((isCharStart(orgStr[pos]) || isNchar) && memcmp(orgStr + pos, delimStr, delimLen) == 0) {
-          charCount++;
-          if (charCount == -charNums) {
-            return pos + delimLen;
-          }
-          pos = pos - delimLen + 1;
-        }
-      }
-    } else {
-      for (int32_t pos = orgLen - 1; pos >= 0; pos--) {
-        if ((isCharStart(orgStr[pos]) || isNchar)) {
-          charCount++;
-          if (charCount == -charNums) {
-            return pos;
-          }
-        }
-      }
-    }
-    return 0;
+    if (delimStr) pos += step * (delimLen - 1);
   }
+  taosMemoryFree(boundaries);
+  return result;
 }
 
 int32_t substrFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput) {
@@ -1215,9 +1822,10 @@ int32_t substrFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOu
   int16_t outputType = GET_PARAM_TYPE(&pOutput[0]);
   bool    isBlob = IS_STR_DATA_BLOB(inputType) || IS_STR_DATA_BLOB(outputType);
 
-  // For BLOB: use max size to handle 4-byte header
+  // For BLOB: TSDB_MAX_BLOB_LEN is the total on-disk size including the 4-byte
+  // BLOBSTR_HEADER_SIZE, so it is exactly the output buffer capacity.
   // For non-BLOB: use original approach with input data size
-  int32_t outputLen = isBlob ? (TSDB_MAX_BLOB_LEN + BLOBSTR_HEADER_SIZE): pInputData[0]->info.bytes;
+  int32_t outputLen = isBlob ? TSDB_MAX_BLOB_LEN : pInputData[0]->info.bytes;
   char   *outputBuf = taosMemoryMalloc(outputLen);
   if (outputBuf == NULL) {
     qError("substr function memory allocation failure. size: %d", outputLen);
@@ -1306,20 +1914,27 @@ int32_t substrFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOu
       // VARCHAR/NCHAR character position logic
       if (subPos > 0) {
         startPosBytes = (inputType == TSDB_DATA_TYPE_VARCHAR)
-                            ? findPosBytes(dataStart, NULL, len, -1, subPos, false)
+                            ? findPosBytes(dataStart, NULL, len, -1, subPos, false, pInput->charsetCxt)
                             : (subPos - 1) * TSDB_NCHAR_SIZE;
+        if (startPosBytes < 0 && inputType == TSDB_DATA_TYPE_VARCHAR) SCL_ERR_JRET(startPosBytes);
         startPosBytes = TMIN(startPosBytes, len);
       } else {
         startPosBytes = (inputType == TSDB_DATA_TYPE_VARCHAR)
-                            ? findPosBytes(dataStart, NULL, len, -1, subPos, false)
+                            ? findPosBytes(dataStart, NULL, len, -1, subPos, false, pInput->charsetCxt)
                             : len + subPos * TSDB_NCHAR_SIZE;
+        if (startPosBytes < 0 && inputType == TSDB_DATA_TYPE_VARCHAR) SCL_ERR_JRET(startPosBytes);
         startPosBytes = TMAX(startPosBytes, 0);
       }
       if (inputNum == 3) {
-        endPosBytes = (inputType == TSDB_DATA_TYPE_VARCHAR)
-                          ? startPosBytes + findPosBytes(dataStart + startPosBytes, NULL,
-                                                         len - startPosBytes, -1, subLen + 1, false)
-                          : startPosBytes + subLen * TSDB_NCHAR_SIZE;
+        if (inputType == TSDB_DATA_TYPE_VARCHAR) {
+          int32_t bytes = findPosBytes(dataStart + startPosBytes, NULL,
+                                       len - startPosBytes, -1, subLen + 1,
+                                       false, pInput->charsetCxt);
+          if (bytes < 0) SCL_ERR_JRET(bytes);
+          endPosBytes = startPosBytes + bytes;
+        } else {
+          endPosBytes = startPosBytes + subLen * TSDB_NCHAR_SIZE;
+        }
         endPosBytes = TMIN(endPosBytes, len);
       }
     }
@@ -1329,10 +1944,19 @@ int32_t substrFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOu
     int32_t outputType = GET_PARAM_TYPE(pOutput);
 
     // Safety check: ensure result fits in output buffer
-    int32_t maxDataLen = !(IS_STR_DATA_BLOB(outputType)) ? TSDB_MAX_FIELD_LEN : TSDB_MAX_BLOB_LEN;
+    int32_t maxDataLen = !(IS_STR_DATA_BLOB(outputType)) ? TSDB_MAX_FIELD_LEN
+                                                         : TSDB_MAX_BLOB_LEN - BLOBSTR_HEADER_SIZE;
     if (resLen > maxDataLen) {
       qError("substr result too large: %d, max allowed: %d", resLen, maxDataLen);
       resLen = maxDataLen;
+    }
+
+    // The output buffer is sized by the declared column width; a virtual table column may
+    // carry a value wider than declared (full source value by design) -- refuse to overrun.
+    int32_t headerSize = IS_STR_DATA_BLOB(outputType) ? BLOBSTR_HEADER_SIZE : VARSTR_HEADER_SIZE;
+    if (resLen + headerSize > outputLen) {
+      qError("substr result needs %d bytes, buffer width is %d", resLen + headerSize, outputLen);
+      SCL_ERR_JRET(TSDB_CODE_QRY_NOT_ENOUGH_BUFFER);
     }
 
     // Additional safety: ensure startPosBytes is within input data bounds
@@ -1413,7 +2037,7 @@ static int32_t matchInSetFunction(SScalarParam *pInput, int32_t inputNum, SScala
   if (sepNum == 0) {
     // use default seperator if was not provided, but we may need to convert it to nchar.
     if (setType == TSDB_DATA_TYPE_NCHAR) {
-      SCL_ERR_RET(convVarcharToNchar(sepstr, &sepstr, 1, &sepLen, NULL));
+      SCL_ERR_JRET(convVarcharToNchar(sepstr, &sepstr, 1, &sepLen, pInput->charsetCxt));
       needFreeSep = true;
     }
   } else if (sepNum > 1) {
@@ -1431,7 +2055,8 @@ static int32_t matchInSetFunction(SScalarParam *pInput, int32_t inputNum, SScala
     }
   }
 
-  bool utf8 = strcasecmp(pInput[1].charsetCxt ? pInput[1].charsetCxt : tsCharset, "UTF-8") == 0;
+  bool utf8 = strcasecmp(taosConvCharset(pInput[1].charsetCxt),
+                         DEFAULT_MBS_ENCODEC) == 0;
 
   for (int32_t i = 0; i < numOfRows; ++i) {
     int64_t offset = 0;
@@ -1548,11 +2173,13 @@ int32_t findInSetFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *
 }
 
 static bool likeInSetCompare(const char *a, int32_t aLen, const char *b, int32_t bLen) {
+  // a = pattern, b = input string from set
   SPatternCompareInfo pInfo = PATTERN_COMPARE_INFO_INITIALIZER;
   return patternMatch(a, aLen, b, bLen, &pInfo) == TSDB_PATTERN_MATCH;
 }
 
 static bool wcsLikeInSetCompare(const char *a, int32_t aLen, const char *b, int32_t bLen) {
+  // a = pattern, b = input string from set
   SPatternCompareInfo pInfo = PATTERN_COMPARE_INFO_INITIALIZER;
   return wcsPatternMatch((TdUcs4 *)a, aLen / TSDB_NCHAR_SIZE, (TdUcs4 *)b, bLen / TSDB_NCHAR_SIZE, &pInfo) ==
          TSDB_PATTERN_MATCH;
@@ -1567,16 +2194,25 @@ int32_t likeInSetFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *
 
 // to improve performance, the implementation of regexp_in_set is a little different from
 // find_in_set & like_in_set.
-int32_t threadGetRegComp(regex_t **regex, const char *pPattern);
 
-static bool regexpInSetCompare(const char *a, int32_t aLen, const char *b, int32_t bLen) {
-  char patBuf[256], strBuf[256], msgbuf[256];
+static int32_t regexpInSetCompare(const char *a, int32_t aLen, const char *b, int32_t bLen, void *charsetCxt,
+                                  bool *matched) {
+  // a = regex pattern, b = input string from set
+  char patBuf[256], strBuf[256];
+  *matched = false;
+
+  // An empty pattern matches nothing. Linux returns the same result because the
+  // shared regex cache refuses zero-length keys; without this guard engines
+  // that accept "" (e.g. the MSVC build) report a match on the first element.
+  if (aLen <= 0) {
+    return TSDB_CODE_SUCCESS;
+  }
 
   char *pattern = patBuf, *str = strBuf;
   if (aLen >= sizeof(patBuf)) {
     pattern = taosMemoryMalloc(aLen + 1);
     if (NULL == pattern) {
-      return false;  // terrno has been set
+      return terrno;  // terrno has been set
     }
   }
   (void)memcpy(pattern, a, aLen);
@@ -1588,25 +2224,15 @@ static bool regexpInSetCompare(const char *a, int32_t aLen, const char *b, int32
       if (pattern != patBuf) {
         taosMemoryFree(pattern);
       }
-      return false;  // terrno has been set
+      return terrno;  // terrno has been set
     }
   }
   (void)memcpy(str, b, bLen);
   str[bLen] = 0;
 
-  regex_t *regex = NULL;
-  int32_t  ret = threadGetRegComp(&regex, pattern);
-  if (ret != 0) {
-    goto _return;
-  }
-
-  regmatch_t pmatch[1];
-  ret = regexec(regex, str, 1, pmatch, 0);
-  if (ret != 0 && ret != REG_NOMATCH) {
-    terrno = TSDB_CODE_PAR_REGULAR_EXPRESSION_ERROR;
-    (void)regerror(ret, regex, msgbuf, sizeof(msgbuf));
-    qDebug("Failed to match %s with pattern %s, reason %s", str, pattern, msgbuf);
-  }
+  // taosExecRegexMatchCharset() picks the engine: PCRE2 in UTF mode on Windows (the CRT
+  // engine there is byte oriented) and the POSIX engine everywhere else.
+  int32_t ret = taosExecRegexMatchCharset(str, pattern, charsetCxt);
 
 _return:
   if (str != strBuf) {
@@ -1616,178 +2242,239 @@ _return:
     taosMemoryFree(pattern);
   }
 
-  return ret == 0;
+  if (ret == 0) {
+    *matched = true;
+  } else if (ret != 1) {
+    return ret;  // regex error
+  }
+  return TSDB_CODE_SUCCESS;
+}
+
+static int32_t regexpInSetToUcs4(const SScalarParam *pParam, int32_t row,
+                                 char **ppUcs4, int32_t *pUcs4Len) {
+  *ppUcs4 = NULL;
+  *pUcs4Len = 0;
+  char   *value = colDataGetData(pParam->columnData, row);
+  char   *input = varDataVal(value);
+  int32_t inputLen = varDataLen(value);
+  int32_t cap = GET_PARAM_TYPE(pParam) == TSDB_DATA_TYPE_NCHAR
+                    ? inputLen
+                    : inputLen * TSDB_NCHAR_SIZE;
+
+  *ppUcs4 = taosMemoryCalloc(cap > 0 ? cap : 1, 1);
+  if (*ppUcs4 == NULL) {
+    return terrno;
+  }
+
+  if (GET_PARAM_TYPE(pParam) == TSDB_DATA_TYPE_NCHAR) {
+    if (inputLen % TSDB_NCHAR_SIZE != 0) {
+      taosMemoryFreeClear(*ppUcs4);
+      return TSDB_CODE_SCALAR_CONVERT_NCHAR_ERROR;
+    }
+    memcpy(*ppUcs4, input, inputLen);
+    *pUcs4Len = inputLen;
+    return TSDB_CODE_SUCCESS;
+  }
+
+  if (!taosMbsToUcs4(input, inputLen, (TdUcs4 *)*ppUcs4, cap, pUcs4Len,
+                     pParam->charsetCxt)) {
+    taosMemoryFreeClear(*ppUcs4);
+    return TSDB_CODE_SCALAR_CONVERT_NCHAR_ERROR;
+  }
+  return TSDB_CODE_SUCCESS;
+}
+
+static int32_t regexpInSetUcs4ToMbs(const char *pUcs4, int32_t ucs4Len,
+                                    char **ppMbs, int32_t *pMbsLen, void *charsetCxt) {
+  *ppMbs = taosMemoryCalloc((size_t)ucs4Len + 1, 1);
+  if (*ppMbs == NULL) {
+    return terrno;
+  }
+  *pMbsLen = taosUcs4ToMbs((TdUcs4 *)pUcs4, ucs4Len, *ppMbs, charsetCxt);
+  if (*pMbsLen < 0) {
+    taosMemoryFreeClear(*ppMbs);
+    return TSDB_CODE_SCALAR_CONVERT_NCHAR_ERROR;
+  }
+  return TSDB_CODE_SUCCESS;
+}
+
+static bool regexpInSetNextToken(const char* setUcs4, int32_t setLen,
+                                 const char* sepUcs4, int32_t sepLen,
+                                 int32_t* pNext, const char** ppToken,
+                                 int32_t* pTokenLen) {
+  if (*pNext < 0) {
+    return false;
+  }
+  if (setLen == 0 && sepLen != 0) {
+    return false;
+  }
+  if (setLen != 0 && *pNext == setLen) {
+    return false;
+  }
+
+  *ppToken = setUcs4 + *pNext;
+  int32_t end = *pNext;
+  if (sepLen == 0) {
+    end = setLen;
+  } else {
+    while (end + sepLen <= setLen &&
+           memcmp(setUcs4 + end, sepUcs4, sepLen) != 0) {
+      end += TSDB_NCHAR_SIZE;
+    }
+    if (end + sepLen > setLen) {
+      end = setLen;
+    }
+  }
+
+  *pTokenLen = end - *pNext;
+  *pNext = sepLen == 0 || end == setLen ? -1 : end + sepLen;
+  return true;
+}
+
+// Match one row after converting it once. Separators are first compacted to
+// NUL UCS-4 code points, which remain safe MBS token boundaries after iconv.
+static int32_t regexpInSetMatchUcs4Tokens(const char* patMbs, int32_t patMbsLen,
+                                          char* setUcs4, int32_t setLen,
+                                          const char* sepUcs4, int32_t sepLen,
+                                          int64_t* pOffset, void *charsetCxt) {
+  *pOffset = 0;
+  if (sepLen != 0) {
+    int32_t next = 0;
+    int32_t write = 0;
+    const char* tokenUcs4 = NULL;
+    int32_t tokenLen = 0;
+
+    while (regexpInSetNextToken(setUcs4, setLen, sepUcs4, sepLen, &next,
+                                &tokenUcs4, &tokenLen)) {
+      memmove(setUcs4 + write, tokenUcs4, tokenLen);
+      write += tokenLen;
+      if (next >= 0) {
+        memset(setUcs4 + write, 0, TSDB_NCHAR_SIZE);
+        write += TSDB_NCHAR_SIZE;
+      }
+    }
+    setLen = write;
+  }
+
+  char* setMbs = NULL;
+  int32_t setMbsLen = 0;
+  int32_t code = regexpInSetUcs4ToMbs(setUcs4, setLen, &setMbs, &setMbsLen, charsetCxt);
+  if (code != TSDB_CODE_SUCCESS) {
+    return code;
+  }
+
+  if (sepLen == 0) {
+    bool matched = false;
+    int32_t ret = regexpInSetCompare(patMbs, patMbsLen, setMbs, setMbsLen, charsetCxt, &matched);
+    if (ret != TSDB_CODE_SUCCESS) code = ret;
+    *pOffset = matched ? 1 : 0;
+  } else {
+    int32_t start = 0;
+    int32_t tokenIndex = 0;
+    while (start < setMbsLen) {
+      int32_t end = start;
+      while (end < setMbsLen && setMbs[end] != '\0') {
+        ++end;
+      }
+      bool matched = false;
+      int32_t ret = regexpInSetCompare(patMbs, patMbsLen, setMbs + start, end - start, charsetCxt, &matched);
+      if (ret != TSDB_CODE_SUCCESS) { code = ret; break; }
+      if (matched) {
+        *pOffset = tokenIndex + 1;
+        break;
+      }
+      ++tokenIndex;
+      start = end + 1;
+    }
+  }
+
+  taosMemoryFree(setMbs);
+  return code;
 }
 
 int32_t regexpInSetFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput) {
+  void *regexCharset = pInput[0].charsetCxt;
+
   int32_t code = TSDB_CODE_SUCCESS;
 
-  SColumnInfoData *pats = pInput[0].columnData, *sets = pInput[1].columnData, *seps = NULL;
-  char            *patstr = NULL, *setstr = NULL, *sepstr = ",";  // "," is the default seperator
-  int32_t          patLen = 0, setLen = 0, sepLen = 1;
-  int32_t          patNum = pInput[0].numOfRows, setNum = pInput[1].numOfRows, sepNum = 0;
-  bool             needFreePat = false, needFreeSet = false, needFreeSep = false;
-
-  if (inputNum == 3) {
-    sepNum = pInput[2].numOfRows;
-    seps = pInput[2].columnData;
-  }
+  SColumnInfoData *pats = pInput[0].columnData;
+  SColumnInfoData *sets = pInput[1].columnData;
+  SColumnInfoData *seps = inputNum == 3 ? pInput[2].columnData : NULL;
+  int32_t patNum = pInput[0].numOfRows;
+  int32_t setNum = pInput[1].numOfRows;
+  int32_t sepNum = inputNum == 3 ? pInput[2].numOfRows : 0;
   int32_t numOfRows = TMAX(TMAX(patNum, setNum), sepNum);
 
-  if ((IS_NULL_TYPE(GET_PARAM_TYPE(&pInput[0])) || IS_NULL_TYPE(GET_PARAM_TYPE(&pInput[1])) ||
-       (patNum == 1 && colDataIsNull_s(pats, 0)) || (setNum == 1 && colDataIsNull_s(sets, 0)))) {
+  if (IS_NULL_TYPE(GET_PARAM_TYPE(&pInput[0])) ||
+      IS_NULL_TYPE(GET_PARAM_TYPE(&pInput[1]))) {
     colDataSetNNULL(pOutput->columnData, 0, numOfRows);
     pOutput->numOfRows = numOfRows;
     return code;
   }
 
-  // if there's only one pat/set/sep, get it now to improve performance
-  if (patNum == 1) {
-    patLen = varDataLen(colDataGetData(pats, 0));
-    patstr = varDataVal(colDataGetData(pats, 0));
-    if (GET_PARAM_TYPE(&pInput[0]) == TSDB_DATA_TYPE_NCHAR) {
-      SCL_ERR_RET(convNcharToVarchar(patstr, &patstr, patLen, &patLen, pInput[0].charsetCxt));
-      needFreePat = true;
-    }
-  }
-
-  if (setNum == 1) {
-    setLen = varDataLen(colDataGetData(sets, 0));
-    setstr = varDataVal(colDataGetData(sets, 0));
-    if (GET_PARAM_TYPE(&pInput[0]) == TSDB_DATA_TYPE_NCHAR) {
-      SCL_ERR_RET(convNcharToVarchar(patstr, &patstr, patLen, &patLen, pInput[0].charsetCxt));
-      needFreeSet = true;
-    }
-  }
-
-  if (sepNum != 1) {
-    // do nothing in this case
-  } else if (colDataIsNull_s(seps, 0)) {
-    // treat null seperator as empty
-    sepstr = NULL;
-    sepLen = 0;
-  } else {
-    sepLen = varDataLen(colDataGetData(seps, 0));
-    sepstr = varDataVal(colDataGetData(seps, 0));
-    if (sepLen > 0 && GET_PARAM_TYPE(&pInput[2]) == TSDB_DATA_TYPE_NCHAR) {
-      SCL_ERR_RET(convNcharToVarchar(sepstr, &sepstr, sepLen, &sepLen, pInput[2].charsetCxt));
-      needFreeSep = true;
-    }
-  }
-
-  bool utf8 = strcasecmp(tsCharset, "UTF-8") == 0;
+  TdUcs4 defaultSep = ',';
 
   for (int32_t i = 0; i < numOfRows; ++i) {
+    int32_t patRow = patNum == 1 ? 0 : i;
+    int32_t setRow = setNum == 1 ? 0 : i;
+    int32_t sepRow = sepNum == 1 ? 0 : i;
     int64_t offset = 0;
+    char   *patUcs4 = NULL;
+    char   *setUcs4 = NULL;
+    char   *sepUcs4 = inputNum == 3 ? NULL : (char *)&defaultSep;
+    char   *patMbs = NULL;
+    int32_t patLen = 0;
+    int32_t setLen = 0;
+    int32_t sepLen = inputNum == 3 ? 0 : TSDB_NCHAR_SIZE;
+    int32_t patMbsLen = 0;
 
-    if (patNum > 1) {
-      if (colDataIsNull_s(pats, i)) {
-        colDataSetNULL(pOutput->columnData, i);
-        continue;
-      }
-      if (needFreePat) {
-        taosMemoryFree(patstr);
-        needFreePat = false;
-      }
-      patstr = varDataVal(colDataGetData(pats, i));
-      patLen = varDataLen(colDataGetData(pats, i));
-      if (patLen > 0 && GET_PARAM_TYPE(&pInput[0]) == TSDB_DATA_TYPE_NCHAR) {
-        SCL_ERR_RET(convNcharToVarchar(patstr, &patstr, patLen, &patLen, pInput[0].charsetCxt));
-        needFreePat = true;
-      }
-    }
-
-    if (setNum > 1) {
-      if (colDataIsNull_s(sets, i)) {
-        colDataSetNULL(pOutput->columnData, i);
-        continue;
-      }
-      if (needFreeSet) {
-        taosMemoryFree(setstr);
-        needFreeSet = false;
-      }
-      setstr = varDataVal(colDataGetData(sets, i));
-      setLen = varDataLen(colDataGetData(sets, i));
-      if (setLen > 0 && GET_PARAM_TYPE(&pInput[1]) == TSDB_DATA_TYPE_NCHAR) {
-        SCL_ERR_RET(convNcharToVarchar(setstr, &setstr, setLen, &setLen, pInput[1].charsetCxt));
-        needFreeSet = true;
-      }
-    }
-
-    if (sepNum > 1) {
-      if (needFreeSep) {
-        taosMemoryFree(sepstr);
-        needFreeSep = false;
-      }
-      if (colDataIsNull_s(seps, i)) {
-        sepstr = NULL;
-        sepLen = 0;
-      } else {
-        sepLen = varDataLen(colDataGetData(seps, i));
-        sepstr = varDataVal(colDataGetData(seps, i));
-        if (sepLen > 0 && GET_PARAM_TYPE(&pInput[2]) != TSDB_DATA_TYPE_NCHAR) {
-          SCL_ERR_RET(convNcharToVarchar(sepstr, &sepstr, sepLen, &sepLen, pInput[2].charsetCxt));
-          needFreeSep = true;
-        }
-      }
-    }
-
-    // match pat & set directly when seperator is empty
-    if (sepLen == 0) {
-      if (regexpInSetCompare(patstr, patLen, setstr, setLen)) {
-        offset = 1;
-      }
-      colDataSetInt64(pOutput->columnData, i, &offset);
+    if (colDataIsNull_s(pats, patRow) || colDataIsNull_s(sets, setRow)) {
+      colDataSetNULL(pOutput->columnData, i);
       continue;
     }
 
-    char *start = setstr;
-    for (int32_t j = 0; start < setstr + setLen; j++) {
-      char *end = start;
-
-      while (true) {
-        // set [end] to the end of [setstr] if not enough characters for a seperator
-        if (end + sepLen > setstr + setLen) {
-          end = setstr + setLen;
-          break;
-        }
-        // a seperator is found
-        if (memcmp(end, sepstr, sepLen) == 0) {
-          break;
-        }
-        // not a seperator, advance one character
-        if (utf8) {
-          for (end++; end - setstr < setLen && ((*end & 0xC0) == 0x80); end++)
-            ;
-        } else {
-          end++;
-        }
-      }
-
-      if (regexpInSetCompare(patstr, patLen, start, end - start)) {
-        offset = j + 1;
-        break;
-      }
-
-      start = end + sepLen;
+    code = regexpInSetToUcs4(&pInput[0], patRow, &patUcs4, &patLen);
+    if (code != TSDB_CODE_SUCCESS) {
+      goto _row_return;
+    }
+    code = regexpInSetUcs4ToMbs(patUcs4, patLen, &patMbs, &patMbsLen, regexCharset);
+    if (code != TSDB_CODE_SUCCESS) {
+      goto _row_return;
+    }
+    code = regexpInSetToUcs4(&pInput[1], setRow, &setUcs4, &setLen);
+    if (code != TSDB_CODE_SUCCESS) {
+      goto _row_return;
     }
 
-    colDataSetInt64(pOutput->columnData, i, &offset);
+    if (inputNum == 3 && !colDataIsNull_s(seps, sepRow)) {
+      code = regexpInSetToUcs4(&pInput[2], sepRow, &sepUcs4, &sepLen);
+      if (code != TSDB_CODE_SUCCESS) {
+        goto _row_return;
+      }
+    }
+
+    // setUcs4 is private to this row, so token compaction cannot affect a
+    // broadcast value used by another row.
+    code = regexpInSetMatchUcs4Tokens(patMbs, patMbsLen, setUcs4, setLen,
+                                      sepUcs4, sepLen, &offset, regexCharset);
+
+    if (code == TSDB_CODE_SUCCESS) {
+      colDataSetInt64(pOutput->columnData, i, &offset);
+    }
+
+_row_return:
+    taosMemoryFree(patUcs4);
+    taosMemoryFree(patMbs);
+    taosMemoryFree(setUcs4);
+    if (sepUcs4 != (char *)&defaultSep) {
+      taosMemoryFree(sepUcs4);
+    }
+    if (code != TSDB_CODE_SUCCESS) {
+      break;
+    }
   }
 
   pOutput->numOfRows = numOfRows;
-
-_return:
-  if (needFreePat) {
-    taosMemoryFree(patstr);
-  }
-  if (needFreeSet) {
-    taosMemoryFree(setstr);
-  }
-  if (needFreeSep) {
-    taosMemoryFree(sepstr);
-  }
-
   return code;
 }
 
@@ -1815,6 +2502,242 @@ static int32_t base32Encode(const uint8_t *in, int32_t inLen, char *out) {
 
   out[outLen] = '\0';
   return outLen;
+}
+
+int32_t regexpExtractFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput) {
+  void *regexCharset = pInput[0].charsetCxt;
+
+  int32_t code = TSDB_CODE_SUCCESS;
+
+  int32_t          numOfRows  = pInput[0].numOfRows;
+  SColumnInfoData *pStrData   = pInput[0].columnData;
+  SColumnInfoData *pPatData   = pInput[1].columnData;
+  SColumnInfoData *pOutputData = pOutput->columnData;
+
+  if (numOfRows == 0) {
+    pOutput->numOfRows = 0;
+    return TSDB_CODE_SUCCESS;
+  }
+
+  if (IS_NULL_TYPE(GET_PARAM_TYPE(&pInput[0])) || IS_NULL_TYPE(GET_PARAM_TYPE(&pInput[1]))) {
+    colDataSetNNULL(pOutputData, 0, numOfRows);
+    pOutput->numOfRows = numOfRows;
+    return TSDB_CODE_SUCCESS;
+  }
+
+  if (colDataIsNull_s(pPatData, 0)) {
+    colDataSetNNULL(pOutputData, 0, numOfRows);
+    pOutput->numOfRows = numOfRows;
+    return TSDB_CODE_SUCCESS;
+  }
+
+  // Get group_idx (default 1; param[2] is an optional integer constant).
+  // Read into int64_t first to avoid silent truncation/wrap for BIGINT/UBIGINT
+  // placeholder values before the range check, then cast after validation.
+  // An explicit SQL NULL group_idx propagates NULL to all output rows.
+  int64_t groupIdxRaw = 1;
+  if (inputNum == 3) {
+    if (IS_NULL_TYPE(GET_PARAM_TYPE(&pInput[2])) || colDataIsNull_s(pInput[2].columnData, 0)) {
+      colDataSetNNULL(pOutputData, 0, numOfRows);
+      pOutput->numOfRows = numOfRows;
+      return TSDB_CODE_SUCCESS;
+    }
+    GET_TYPED_DATA(groupIdxRaw, int64_t, GET_PARAM_TYPE(&pInput[2]),
+                   colDataGetData(pInput[2].columnData, 0),
+                   typeGetTypeModFromColInfo(&pInput[2].columnData->info));
+  }
+  if (groupIdxRaw < 0 || groupIdxRaw > REGEXP_EXTRACT_MAX_GROUP_IDX) {
+    pOutput->numOfRows = numOfRows;
+    SCL_ERR_RET(TSDB_CODE_FUNC_FUNTION_PARA_VALUE);
+  }
+  int32_t groupIdx = (int32_t)groupIdxRaw;
+
+  // Build the pattern in the query charset used by the matching locale.
+  char    patBuf[512];
+  char   *patStr     = patBuf;
+  int32_t patLen     = 0;
+  bool    needFreePat = false;
+  {
+    char   *rawPat    = varDataVal(colDataGetData(pPatData, 0));
+    int32_t rawPatLen = varDataLen(colDataGetData(pPatData, 0));
+    if (GET_PARAM_TYPE(&pInput[1]) == TSDB_DATA_TYPE_NCHAR) {
+      if (rawPatLen == 0) {
+        patLen = 0;
+        patStr = patBuf;
+        patStr[0] = '\0';
+      } else {
+        patStr = NULL;  // ensure the conversion helper always mallocs a fresh heap buffer
+        code = convNcharToVarchar(rawPat, &patStr, rawPatLen, &patLen, regexCharset);
+        if (code != TSDB_CODE_SUCCESS) goto _exit;
+        needFreePat = true;
+        // The conversion helper allocates rawPatLen bytes (no +1 for NUL); when the
+        // MBS output fills the buffer entirely there is no room for a terminator.
+        // The regex engine requires a NUL-terminated string - grow by one byte.
+        char *tmp = taosMemoryRealloc(patStr, patLen + 1);
+        if (tmp == NULL) {
+          taosMemoryFree(patStr);
+          needFreePat = false;
+          code = terrno;
+          goto _exit;
+        }
+        patStr = tmp;
+        patStr[patLen] = '\0';
+      }
+    } else {
+      patLen = rawPatLen;
+      if (patLen >= (int32_t)sizeof(patBuf)) {
+        patStr = taosMemoryMalloc(patLen + 1);
+        if (patStr == NULL) {
+          code = terrno;
+          goto _exit;
+        }
+        needFreePat = true;
+      }
+      (void)memcpy(patStr, rawPat, patLen);
+      patStr[patLen] = '\0';
+    }
+  }
+
+  // Validate the pattern once: it is constant, so a malformed pattern fails the
+  // statement before any row is visited. The per-row matching goes through the
+  // shared matcher below.
+  code = taosCheckRegexCharset(patStr, regexCharset);
+  if (code != 0) {
+    terrno = code;
+    goto _exit;
+  }
+
+  // Each output cell is a VarData value, and for var-length types info.bytes
+  // already includes the VARSTR_HEADER_SIZE length prefix plus payload space.
+  int32_t outBufLen = pStrData->info.bytes;
+  char   *outBuf    = taosMemoryMalloc(outBufLen);
+  if (outBuf == NULL) {
+    code = terrno;
+    goto _exit;
+  }
+
+  int32_t strType = GET_PARAM_TYPE(&pInput[0]);
+  bool    isNchar = (strType == TSDB_DATA_TYPE_NCHAR);
+
+  // Null-termination buffer shared across rows  -  grown via realloc only when needed
+  char   *strNt    = NULL;
+  int32_t strNtCap = 0;
+
+  for (int32_t i = 0; i < numOfRows; i++) {
+    if (colDataIsNull_s(pStrData, i)) {
+      colDataSetNULL(pOutputData, i);
+      continue;
+    }
+
+    char   *strRaw = colDataGetData(pStrData, i);
+    char   *strVal = varDataVal(strRaw);
+    int32_t strLen = varDataLen(strRaw);
+
+    // Grow the null-termination buffer only when the current row needs more space.
+    // For NCHAR: MBS output is at most strLen bytes (UCS-4 byte count >= MBS byte count),
+    // so strLen + 1 is a safe upper bound for both NCHAR and VARCHAR paths.
+    if (strLen + 1 > strNtCap) {
+      char *tmp = taosMemoryRealloc(strNt, strLen + 1);
+      if (tmp == NULL) {
+        code = terrno;
+        break;
+      }
+      strNt    = tmp;
+      strNtCap = strLen + 1;
+    }
+
+    // Convert input into a NUL-terminated scratch buffer in the query charset.
+    // For NCHAR: convert UCS-4 directly into strNt - avoids per-row malloc/free.
+    // For VARCHAR: preserve its raw byte semantics and just copy it.
+    int32_t strMbsLen;
+    if (isNchar) {
+      strMbsLen = taosUcs4ToMbs((TdUcs4 *)strVal, strLen, strNt, regexCharset);
+      if (strMbsLen < 0) {
+        code = TSDB_CODE_SCALAR_CONVERT_NCHAR_ERROR;
+        terrno = code;
+        break;
+      }
+    } else {
+      (void)memcpy(strNt, strVal, strLen);
+      strMbsLen = strLen;
+    }
+    strNt[strMbsLen] = '\0';
+
+    // taosExecRegexGroupsCharset() keeps the code point semantics: on Windows the
+    // CRT engine counts bytes, so a group like '(.)' would return a single byte
+    // of a multi byte character and the UCS-4 conversion below would fail.
+    int32_t matchStart = -1;
+    int32_t matchLen   = 0;
+    int     ret        = taosExecRegexGroupsCharset(strNt, patStr, groupIdx, &matchStart, &matchLen, regexCharset);
+    if (ret == 1 || (ret == 0 && matchStart < 0)) {
+      // no match, or the requested capture group did not participate
+      colDataSetNULL(pOutputData, i);
+    } else if (ret != 0) {
+      qDebug("REGEXP_EXTRACT: match failed for pattern '%s', code: %d", patStr, ret);
+      code = ret;
+      terrno = code;
+      break;
+    } else {
+
+      if (isNchar) {
+        // Convert matched query-charset bytes back to NCHAR (UCS-4) directly into outBuf
+        // to avoid a per-row malloc/free cycle.  The ucs4 output needs up to
+        // matchLen * TSDB_NCHAR_SIZE bytes; outBuf is sized by the input column's declared
+        // width, and a virtual table column may carry a value wider than declared (full
+        // source value by design) -- grow the buffer to fit instead of overrunning it.
+        if (matchLen * TSDB_NCHAR_SIZE + (int32_t)VARSTR_HEADER_SIZE > outBufLen) {
+          int32_t newLen = matchLen * TSDB_NCHAR_SIZE + (int32_t)VARSTR_HEADER_SIZE;
+          char   *tmp = taosMemoryRealloc(outBuf, newLen);
+          if (NULL == tmp) {
+            code = terrno;
+            break;
+          }
+          outBuf = tmp;
+          outBufLen = newLen;
+        }
+        int32_t matchedNcharLen = 0;
+        bool    ok = taosMbsToUcs4(strNt + matchStart, matchLen,
+                                                      (TdUcs4 *)(outBuf + VARSTR_HEADER_SIZE),
+                                                      outBufLen - VARSTR_HEADER_SIZE,
+                                                      &matchedNcharLen, regexCharset);
+        if (!ok) {
+          code = TSDB_CODE_SCALAR_CONVERT_NCHAR_ERROR;
+          terrno = code;
+          break;
+        }
+        *(VarDataLenT *)outBuf = matchedNcharLen;
+        code = colDataSetVal(pOutputData, i, outBuf, false);
+        if (code != TSDB_CODE_SUCCESS) terrno = code;
+      } else {
+        // outBuf is sized by the input column's declared width; a virtual table column
+        // may carry a value wider than declared (full source value by design) -- grow the
+        // buffer to fit the actual match instead of overrunning it.
+        if (matchLen + (int32_t)VARSTR_HEADER_SIZE > outBufLen) {
+          int32_t newLen = matchLen + (int32_t)VARSTR_HEADER_SIZE;
+          char   *tmp = taosMemoryRealloc(outBuf, newLen);
+          if (NULL == tmp) {
+            code = terrno;
+            break;
+          }
+          outBuf = tmp;
+          outBufLen = newLen;
+        }
+        *(VarDataLenT *)outBuf = matchLen;
+        (void)memcpy(outBuf + VARSTR_HEADER_SIZE, strNt + matchStart, matchLen);
+        code = colDataSetVal(pOutputData, i, outBuf, false);
+        if (code != TSDB_CODE_SUCCESS) terrno = code;
+      }
+    }
+
+    if (code != TSDB_CODE_SUCCESS) break;
+  }
+
+  taosMemoryFree(strNt);
+  taosMemoryFree(outBuf);
+_exit:
+  if (needFreePat) taosMemoryFree(patStr);
+  pOutput->numOfRows = numOfRows;
+  return code;
 }
 
 int32_t generateTotpSecretFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput) {
@@ -1961,11 +2884,14 @@ int32_t md5Function(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutpu
     char *input = colDataGetData(pInput[0].columnData, i);
     if (bufLen < varDataLen(input) + VARSTR_HEADER_SIZE) {
       bufLen = varDataLen(input) + VARSTR_HEADER_SIZE;
-      pOutputBuf = taosMemoryRealloc(pOutputBuf, bufLen);
-      if (!pOutputBuf) {
+      // realloc failure leaves the original pOutputBuf intact; free it before bailing.
+      char *tmp = taosMemoryRealloc(pOutputBuf, bufLen);
+      if (!tmp) {
+        taosMemoryFree(pOutputBuf);
         qError("md5 function alloc memory failed");
         return terrno;
       }
+      pOutputBuf = tmp;
     }
     char *output = pOutputBuf;
     (void)memcpy(varDataVal(output), varDataVal(input), varDataLen(input));
@@ -1999,11 +2925,14 @@ int32_t shaFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutpu
     char *input = colDataGetData(pInput[0].columnData, i);
     if (bufLen < varDataLen(input) + VARSTR_HEADER_SIZE) {
       bufLen = varDataLen(input) + VARSTR_HEADER_SIZE;
-      pOutputBuf = taosMemoryRealloc(pOutputBuf, bufLen);
-      if (!pOutputBuf) {
+      // realloc failure leaves the original pOutputBuf intact; free it before bailing.
+      char *tmp = taosMemoryRealloc(pOutputBuf, bufLen);
+      if (!tmp) {
+        taosMemoryFree(pOutputBuf);
         qError("sha function alloc memory failed");
         return terrno;
       }
+      pOutputBuf = tmp;
     }
     char *output = pOutputBuf;
     (void)memcpy(varDataVal(output), varDataVal(input), varDataLen(input));
@@ -2037,17 +2966,21 @@ int32_t sha2Function(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutp
     char *input = colDataGetData(pInput[0].columnData, i);
     if (bufLen < varDataLen(input) + VARSTR_HEADER_SIZE) {
       bufLen = varDataLen(input) + VARSTR_HEADER_SIZE;
-      pOutputBuf = taosMemoryRealloc(pOutputBuf, bufLen);
-      if (!pOutputBuf) {
+      // realloc failure leaves the original pOutputBuf intact; free it before bailing.
+      char *tmp = taosMemoryRealloc(pOutputBuf, bufLen);
+      if (!tmp) {
+        taosMemoryFree(pOutputBuf);
         qError("sha2 function alloc memory failed");
         return terrno;
       }
+      pOutputBuf = tmp;
     }
     char *output = pOutputBuf;
     (void)memcpy(varDataVal(output), varDataVal(input), varDataLen(input));
 
     uint32_t digestLen = SHA512_DIGEST_SIZE;
-    GET_TYPED_DATA(digestLen, uint32_t, GET_PARAM_TYPE(&pInput[1]), colDataGetData(pInput[1].columnData, i),
+    int32_t  digestIdx = (pInput[1].numOfRows == 1) ? 0 : i;
+    GET_TYPED_DATA(digestLen, uint32_t, GET_PARAM_TYPE(&pInput[1]), colDataGetData(pInput[1].columnData, digestIdx),
                    typeGetTypeModFromColInfo(&pInput[1].columnData->info));
 
     int32_t len = taosCreateSHA2Hash(varDataVal(output), varDataLen(input), digestLen, bufLen - VARSTR_HEADER_SIZE);
@@ -2151,6 +3084,8 @@ int32_t crc32Function(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOut
       SCL_ERR_JRET(taosTs2Char(format, &formats, *(int64_t *)input, 0, pOutputBuf, bufLen, pInput->tz));
       out[i] = crc32(pOutputBuf, strlen(pOutputBuf));
       taosArrayDestroy(formats);
+    } else if (IS_STR_DATA_BLOB(inputType)) {
+      out[i] = crc32(blobDataVal(input), blobDataLen(input));
     } else {
       out[i] = crc32(varDataVal(input), varDataLen(input));
     }
@@ -2199,16 +3134,20 @@ int32_t charFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutp
         num = taosStr2Int32(varDataVal(colDataGetData(pInput[j].columnData, colIdx)), NULL, 10);
         getAsciiChar(num, &output);
       } else if (TSDB_DATA_TYPE_NCHAR == GET_PARAM_TYPE(&pInput[j])) {
-        char *convBuf = taosMemoryMalloc(GET_PARAM_BYTES(&pInput[j]));
+        char *ncharData = colDataGetData(pInput[j].columnData, colIdx);
+        // The conversion buffer is sized by the declared column width; a virtual table
+        // column may carry a value wider than declared (full source value by design) --
+        // grow it to the actual value length before ucs4-to-mbs conversion.
+        int32_t convLen = varDataLen(ncharData) + 1;
+        char   *convBuf = taosMemoryMalloc(TMAX(GET_PARAM_BYTES(&pInput[j]), convLen));
         if (convBuf == NULL) {
           SCL_ERR_RET(terrno);
         }
         int32_t len =
-            taosUcs4ToMbs((TdUcs4 *)varDataVal(colDataGetData(pInput[j].columnData, colIdx)),
-                          varDataLen(colDataGetData(pInput[j].columnData, colIdx)), convBuf, pInput->charsetCxt);
+            taosUcs4ToMbs((TdUcs4 *)varDataVal(ncharData), varDataLen(ncharData), convBuf, pInput->charsetCxt);
         if (len < 0) {
           taosMemoryFree(convBuf);
-          code = TSDB_CODE_SCALAR_CONVERT_ERROR;
+          code = TSDB_CODE_SCALAR_CONVERT_NCHAR_ERROR;
           goto _return;
         }
         convBuf[len] = 0;
@@ -2236,7 +3175,7 @@ int32_t asciiFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOut
   SColumnInfoData *pInputData = pInput->columnData;
   SColumnInfoData *pOutputData = pOutput->columnData;
 
-  uint8_t *out = (uint8_t *)pOutputData->pData;
+  int64_t *out = (int64_t *)pOutputData->pData;
 
   for (int32_t i = 0; i < pInput->numOfRows; ++i) {
     if (colDataIsNull_s(pInputData, i)) {
@@ -2261,21 +3200,22 @@ int32_t asciiFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOut
   return TSDB_CODE_SUCCESS;
 }
 
-static int32_t findPosChars(char *orgStr, char *delimStr, int32_t orgLen, int32_t delimLen, bool isNchar) {
+static int32_t findPosChars(char *orgStr, char *delimStr, int32_t orgLen,
+                            int32_t delimLen, bool isNchar, void *charsetCxt) {
+  uint8_t *boundaries = NULL;
+  SCL_ERR_RET(scalarCharBoundaries(orgStr, orgLen, isNchar, charsetCxt, &boundaries));
   int32_t charCount = 0;
-  for (int32_t pos = 0; pos < orgLen; pos += isNchar ? TSDB_NCHAR_SIZE : 1) {
-    if (isNchar || isCharStart(orgStr[pos])) {
-      if (pos + delimLen > orgLen) {
-        return 0;
-      }
-      if (memcmp(orgStr + pos, delimStr, delimLen) == 0) {
-        return charCount + 1;
-      } else {
-        charCount++;
-      }
+  int32_t result = 0;
+  for (int32_t pos = 0; pos + delimLen <= orgLen; ++pos) {
+    if (!boundaries[pos]) continue;
+    ++charCount;
+    if (boundaries[pos + delimLen] && memcmp(orgStr + pos, delimStr, delimLen) == 0) {
+      result = charCount;
+      break;
     }
   }
-  return 0;
+  taosMemoryFree(boundaries);
+  return result;
 }
 
 int32_t positionFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput) {
@@ -2321,11 +3261,95 @@ int32_t positionFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *p
       needFreeSub = true;
     }
 
-    offset = findPosChars(orgstr, substr, orgLen, subLen, GET_PARAM_TYPE(&pInput[1]) == TSDB_DATA_TYPE_NCHAR);
+    offset = findPosChars(orgstr, substr, orgLen, subLen, GET_PARAM_TYPE(&pInput[1]) == TSDB_DATA_TYPE_NCHAR, pInput->charsetCxt);
     if (needFreeSub) {
       taosMemoryFree(substr);
     }
+    if (offset < 0) return (int32_t)offset;
     colDataSetInt64(pOutput->columnData, i, &offset);
+  }
+
+  pOutput->numOfRows = numOfRows;
+  return code;
+}
+
+static int32_t strcmpBytes(const char *a, int32_t aLen, const char *b, int32_t bLen) {
+  int32_t minLen = TMIN(aLen, bLen);
+  int32_t r = (minLen > 0) ? memcmp(a, b, minLen) : 0;
+  if (r == 0) {
+    r = (aLen < bLen) ? -1 : ((aLen > bLen) ? 1 : 0);
+  }
+  return r < 0 ? -1 : (r > 0 ? 1 : 0);
+}
+
+static int32_t strcmpUcs4(const TdUcs4 *a, int32_t aLen, const TdUcs4 *b, int32_t bLen) {
+  int32_t minLen = TMIN(aLen, bLen);
+  for (int32_t i = 0; i < minLen; ++i) {
+    if (a[i] != b[i]) {
+      return (uint32_t)a[i] < (uint32_t)b[i] ? -1 : 1;
+    }
+  }
+  return (aLen < bLen) ? -1 : ((aLen > bLen) ? 1 : 0);
+}
+
+int32_t strcmpFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput) {
+  int32_t          code = TSDB_CODE_SUCCESS;
+  SColumnInfoData *pOutputData = pOutput[0].columnData;
+  int32_t          numOfRows = TMAX(pInput[0].numOfRows, pInput[1].numOfRows);
+  int32_t          type0 = GET_PARAM_TYPE(&pInput[0]);
+  int32_t          type1 = GET_PARAM_TYPE(&pInput[1]);
+
+  if (IS_NULL_TYPE(type0) || IS_NULL_TYPE(type1)) {
+    colDataSetNNULL(pOutputData, 0, numOfRows);
+    pOutput->numOfRows = numOfRows;
+    return TSDB_CODE_SUCCESS;
+  }
+
+  SColumnInfoData *pData0 = pInput[0].columnData;
+  SColumnInfoData *pData1 = pInput[1].columnData;
+  bool             mixed = (type0 != type1);
+
+  for (int32_t i = 0; i < numOfRows; ++i) {
+    int32_t idx0 = (pInput[0].numOfRows == 1) ? 0 : i;
+    int32_t idx1 = (pInput[1].numOfRows == 1) ? 0 : i;
+    if (colDataIsNull_s(pData0, idx0) || colDataIsNull_s(pData1, idx1)) {
+      colDataSetNULL(pOutputData, i);
+      continue;
+    }
+
+    char   *p0 = colDataGetData(pData0, idx0);
+    char   *p1 = colDataGetData(pData1, idx1);
+    char   *s0 = varDataVal(p0);
+    char   *s1 = varDataVal(p1);
+    int32_t l0 = varDataLen(p0);
+    int32_t l1 = varDataLen(p1);
+    char   *conv = NULL;
+    int32_t res = 0;
+
+    if (mixed) {
+      // convert the VARCHAR side to NCHAR, then compare by code point
+      // a zero-length VARCHAR is an empty NCHAR, no conversion needed
+      if (type0 == TSDB_DATA_TYPE_NCHAR) {
+        if (l1 > 0) {
+          code = convVarcharToNchar(s1, &conv, l1, &l1, pInput[1].charsetCxt);
+          s1 = conv;
+        }
+      } else {
+        if (l0 > 0) {
+          code = convVarcharToNchar(s0, &conv, l0, &l0, pInput[0].charsetCxt);
+          s0 = conv;
+        }
+      }
+      SCL_ERR_RET(code);
+    }
+
+    if (type0 == TSDB_DATA_TYPE_NCHAR || type1 == TSDB_DATA_TYPE_NCHAR) {
+      res = strcmpUcs4((TdUcs4 *)s0, l0 / TSDB_NCHAR_SIZE, (TdUcs4 *)s1, l1 / TSDB_NCHAR_SIZE);
+    } else {
+      res = strcmpBytes(s0, l0, s1, l1);
+    }
+    taosMemoryFree(conv);
+    colDataSetInt32(pOutputData, i, &res);
   }
 
   pOutput->numOfRows = numOfRows;
@@ -2377,7 +3401,10 @@ int32_t replaceFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pO
   if (orgType == TSDB_DATA_TYPE_NCHAR && toType != orgType) {
     toLength = toLength * TSDB_NCHAR_SIZE;
   }
-  outputLen = toLength == 0 ? orgLength : TMIN(TSDB_MAX_FIELD_LEN, orgLength * toLength);
+  const int32_t maxPayload = TSDB_MAX_FIELD_LEN - VARSTR_HEADER_SIZE;
+  outputLen = toLength == 0
+                  ? TMIN(orgLength, maxPayload)
+                  : (int32_t)TMIN((int64_t)maxPayload, (int64_t)orgLength * toLength);
 
   if (GET_PARAM_TYPE(&pInput[0]) == TSDB_DATA_TYPE_NULL || GET_PARAM_TYPE(&pInput[1]) == TSDB_DATA_TYPE_NULL ||
       GET_PARAM_TYPE(&pInput[2]) == TSDB_DATA_TYPE_NULL ||
@@ -2394,7 +3421,9 @@ int32_t replaceFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pO
     SCL_ERR_RET(terrno);
   }
 
+  uint8_t *boundaries = NULL;
   for (int32_t i = 0; i < numOfRows; ++i) {
+    taosMemoryFreeClear(boundaries);
     int32_t colIdx1 = (pInput[0].numOfRows == 1) ? 0 : i;
     int32_t colIdx2 = (pInput[1].numOfRows == 1) ? 0 : i;
     int32_t colIdx3 = (pInput[2].numOfRows == 1) ? 0 : i;
@@ -2416,6 +3445,13 @@ int32_t replaceFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pO
     bool    needFreeTo = false;
 
     if (fromLen == 0 || orgLen == 0) {
+      // The output buffer is sized by the declared column widths; a virtual table column
+      // may carry a value wider than declared (full source value by design) -- refuse to
+      // overrun it.
+      if (orgLen > outputLen) {
+        qError("replace result needs %d bytes, buffer width is %d", orgLen, outputLen);
+        SCL_ERR_JRET(TSDB_CODE_FUNC_INVALID_RES_LENGTH);
+      }
       (void)memcpy(output, orgStr, orgLen);
       totalLen = orgLen;
       varDataSetLen(outputBuf, totalLen);
@@ -2423,6 +3459,8 @@ int32_t replaceFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pO
       continue;
     }
 
+    SCL_ERR_JRET(scalarCharBoundaries(orgStr, orgLen, orgType == TSDB_DATA_TYPE_NCHAR,
+                                      pInput->charsetCxt, &boundaries));
     if (GET_PARAM_TYPE(&pInput[1]) != GET_PARAM_TYPE(&pInput[0])) {
       SCL_ERR_JRET(convBetweenNcharAndVarchar(varDataVal(colDataGetData(pInputData[1], colIdx2)), &fromStr,
                                               varDataLen(colDataGetData(pInputData[1], colIdx2)), &fromLen,
@@ -2443,23 +3481,55 @@ int32_t replaceFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pO
     }
 
     int32_t pos = 0;
+    // The output buffer is sized by the declared column widths; a virtual table column may
+    // carry a value wider than declared (full source value by design) -- check every
+    // accumulating copy and refuse to overrun it.
     while (pos < orgLen) {
       if (orgLen - pos < fromLen) {
+        if (totalLen + (orgLen - pos) > outputLen) {
+          qError("replace result needs %d bytes, buffer width is %d", totalLen + (orgLen - pos), outputLen);
+          if (needFreeTo) {
+            taosMemoryFree(toStr);
+          }
+          if (needFreeFrom) {
+            taosMemoryFree(fromStr);
+          }
+          SCL_ERR_JRET(TSDB_CODE_FUNC_INVALID_RES_LENGTH);
+        }
         (void)memcpy(output, orgStr + pos, orgLen - pos);
         output += orgLen - pos;
         totalLen += orgLen - pos;
         break;
       }
       if (memcmp(orgStr + pos, fromStr, fromLen) == 0 &&
-          (pos + fromLen == orgLen || isCharStart(orgStr[pos + fromLen]) ||
-           GET_PARAM_TYPE(&pInput[0]) == TSDB_DATA_TYPE_NCHAR)) {
+          boundaries[pos + fromLen]) {
+        if (totalLen + toLen > outputLen) {
+          qError("replace result needs %d bytes, buffer width is %d", totalLen + toLen, outputLen);
+          if (needFreeTo) {
+            taosMemoryFree(toStr);
+          }
+          if (needFreeFrom) {
+            taosMemoryFree(fromStr);
+          }
+          SCL_ERR_JRET(TSDB_CODE_FUNC_INVALID_RES_LENGTH);
+        }
         (void)memcpy(output, toStr, toLen);
         output += toLen;
         pos += fromLen;
         totalLen += toLen;
       } else {
-        int32_t charLen =
-            GET_PARAM_TYPE(&pInput[0]) == TSDB_DATA_TYPE_NCHAR ? TSDB_NCHAR_SIZE : getCharLen(orgStr + pos);
+        int32_t charLen = 1;
+        while (pos + charLen < orgLen && !boundaries[pos + charLen]) ++charLen;
+        if (totalLen + charLen > outputLen) {
+          qError("replace result needs %d bytes, buffer width is %d", totalLen + charLen, outputLen);
+          if (needFreeTo) {
+            taosMemoryFree(toStr);
+          }
+          if (needFreeFrom) {
+            taosMemoryFree(fromStr);
+          }
+          SCL_ERR_JRET(TSDB_CODE_FUNC_INVALID_RES_LENGTH);
+        }
         (void)memcpy(output, orgStr + pos, charLen);
         output += charLen;
         totalLen += charLen;
@@ -2472,14 +3542,12 @@ int32_t replaceFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pO
     if (needFreeFrom) {
       taosMemoryFree(fromStr);
     }
-    if (totalLen > TSDB_MAX_FIELD_LEN) {
-      SCL_ERR_JRET(TSDB_CODE_FUNC_INVALID_RES_LENGTH);
-    }
     varDataSetLen(outputBuf, totalLen);
     SCL_ERR_JRET(colDataSetVal(pOutputData, i, outputBuf, false));
   }
   pOutput->numOfRows = numOfRows;
 _return:
+  taosMemoryFree(boundaries);
   taosMemoryFree(outputBuf);
   return code;
 }
@@ -2532,6 +3600,13 @@ int32_t maskFullFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *p
     bool    needFreeFrom = false;
 
     if (fromLen == 0 || orgLen == 0) {
+      // The output buffer is sized by the declared column widths; a virtual table column
+      // may carry a value wider than declared (full source value by design) -- refuse to
+      // overrun it.
+      if (fromLen > outputLen) {
+        qError("mask output needs %d bytes, buffer width is %d", fromLen, outputLen);
+        SCL_ERR_JRET(TSDB_CODE_QRY_NOT_ENOUGH_BUFFER);
+      }
       (void)memcpy(output, fromStr, fromLen);
       varDataSetLen(outputBuf, fromLen);
       SCL_ERR_JRET(colDataSetVal(pOutputData, i, outputBuf, false));
@@ -2543,6 +3618,17 @@ int32_t maskFullFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *p
                                               varDataLen(colDataGetData(pInputData[1], colIdx2)), &fromLen,
                                               GET_PARAM_TYPE(&pInput[0]), pInput->charsetCxt));
       needFreeFrom = true;
+    }
+
+    // The output buffer is sized by the declared column widths; a virtual table column
+    // may carry a value wider than declared (full source value by design) -- refuse to
+    // overrun it.
+    if (fromLen > outputLen) {
+      qError("mask output needs %d bytes, buffer width is %d", fromLen, outputLen);
+      if (needFreeFrom) {
+        taosMemoryFree(fromStr);
+      }
+      SCL_ERR_JRET(TSDB_CODE_QRY_NOT_ENOUGH_BUFFER);
     }
 
     (void)memcpy(output, fromStr, fromLen);
@@ -2572,6 +3658,9 @@ int32_t maskPartialFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam
                  typeGetTypeModFromColInfo(&pInput[1].columnData->info));
   GET_TYPED_DATA(finalLen, int32_t, GET_PARAM_TYPE(&pInput[2]), colDataGetData(pInput[2].columnData, 0),
                  typeGetTypeModFromColInfo(&pInput[2].columnData->info));
+  if (initialLen < 0 || finalLen < 0) {
+    return TSDB_CODE_FUNC_FUNTION_PARA_VALUE;
+  }
 
   pInputData[0] = pInput[0].columnData;
   pInputData[1] = pInput[3].columnData;
@@ -2593,7 +3682,7 @@ int32_t maskPartialFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam
     maskLen = maskLen * TSDB_NCHAR_SIZE;
   }
 
-  int32_t outLen = TMAX(orgLength, 1);
+  int32_t outLen = TMAX(orgLength, maskLen);
   char   *outputBuf = taosMemoryCalloc(outLen + VARSTR_HEADER_SIZE, 1);
   if (NULL == outputBuf) {
     SCL_ERR_RET(terrno);
@@ -2611,13 +3700,16 @@ int32_t maskPartialFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam
     char   *output = outputBuf + VARSTR_HEADER_SIZE;
     char   *orgStr = varDataVal(colDataGetData(pInputData[0], colIdx1));
     int32_t orgLen = varDataLen(colDataGetData(pInputData[0], colIdx1));
+    // Convert byte length to character count (maskLen > 1 only for NCHAR where each char = 4 bytes)
+    int32_t orgLenChars = (maskLen > 1) ? (orgLen / maskLen) : orgLen;
     char   *fromStr = varDataVal(colDataGetData(pInputData[1], colIdx2));
-    int32_t fromLen = maskLen;
+    int32_t fromLen = varDataLen(colDataGetData(pInputData[1], colIdx2));
     bool    needFreeFrom = false;
 
     if (fromLen == 0 || orgLen == 0) {
-      (void)memcpy(output, fromStr, fromLen);
-      varDataSetLen(outputBuf, fromLen);
+      int32_t resultLen = TMIN(fromLen, maskLen);
+      (void)memcpy(output, fromStr, resultLen);
+      varDataSetLen(outputBuf, resultLen);
       SCL_ERR_JRET(colDataSetVal(pOutputData, i, outputBuf, false));
       continue;
     }
@@ -2628,15 +3720,34 @@ int32_t maskPartialFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam
                                               GET_PARAM_TYPE(&pInput[0]), pInput->charsetCxt));
       needFreeFrom = true;
     }
+    if (fromLen < maskLen) {
+      if (needFreeFrom) {
+        taosMemoryFree(fromStr);
+      }
+      SCL_ERR_JRET(TSDB_CODE_FUNC_FUNTION_PARA_VALUE);
+    }
 
-    for (int initialIdx = 0; initialIdx < initialLen && initialIdx < outLen; ++initialIdx) {
-      (void)memcpy(output + initialIdx * maskLen, fromStr, maskLen);
+    // The output buffer is sized by the declared column width; a virtual table column may
+    // carry a value wider than declared (full source value by design) -- refuse to overrun
+    // it (same guard as maskFullFunction/maskNoneFunction).
+    if (orgLen > orgLength) {
+      qError("mask_partial result needs %d bytes, buffer width is %d", orgLen, orgLength);
+      if (needFreeFrom) {
+        taosMemoryFree(fromStr);
+      }
+      SCL_ERR_JRET(TSDB_CODE_QRY_NOT_ENOUGH_BUFFER);
     }
-    for (int initialIdx = initialLen; initialIdx < orgLen - finalLen && initialIdx < outLen; ++initialIdx) {
-      (void)memcpy(output + initialIdx * maskLen, orgStr + initialIdx * maskLen, maskLen);
+
+    int32_t prefixEnd = TMIN(initialLen, orgLenChars);
+    int32_t suffixStart = TMAX(prefixEnd, orgLenChars - TMIN(finalLen, orgLenChars));
+    for (int32_t charIndex = 0; charIndex < prefixEnd; ++charIndex) {
+      (void)memcpy(output + charIndex * maskLen, fromStr, maskLen);
     }
-    for (int initialIdx = orgLen - finalLen; initialIdx < orgLen && initialIdx < outLen; ++initialIdx) {
-      (void)memcpy(output + initialIdx * maskLen, fromStr, maskLen);
+    for (int32_t charIndex = prefixEnd; charIndex < suffixStart; ++charIndex) {
+      (void)memcpy(output + charIndex * maskLen, orgStr + charIndex * maskLen, maskLen);
+    }
+    for (int32_t charIndex = suffixStart; charIndex < orgLenChars; ++charIndex) {
+      (void)memcpy(output + charIndex * maskLen, fromStr, maskLen);
     }
 
     if (needFreeFrom) {
@@ -2693,6 +3804,13 @@ int32_t maskNoneFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *p
       continue;
     }
 
+    // The output buffer is sized by the declared column width; a virtual table column may
+    // carry a value wider than declared (full source value by design) -- refuse to overrun.
+    if (orgLen > outputLen) {
+      qError("mask output needs %d bytes, buffer width is %d", orgLen, outputLen);
+      SCL_ERR_JRET(TSDB_CODE_QRY_NOT_ENOUGH_BUFFER);
+    }
+
     (void)memcpy(output, orgStr, orgLen);
 
     varDataSetLen(outputBuf, orgLen);
@@ -2713,13 +3831,30 @@ int32_t aesFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutpu
   char            *iv = NULL;
 
   pInputData[0] = pInput[0].columnData;
+  if (GET_PARAM_TYPE(&pInput[0]) == TSDB_DATA_TYPE_NULL) {
+    colDataSetNNULL(pOutputData, 0, numOfRows);
+    pOutput->numOfRows = numOfRows;
+    return TSDB_CODE_SUCCESS;
+  }
+  if (!IS_VAR_DATA_TYPE(GET_PARAM_TYPE(&pInput[0])) ||
+      !IS_VAR_DATA_TYPE(GET_PARAM_TYPE(&pInput[1])) ||
+      (inputNum > 2 && !IS_VAR_DATA_TYPE(GET_PARAM_TYPE(&pInput[2])))) {
+    return TSDB_CODE_FUNC_FUNTION_PARA_TYPE;
+  }
   if (inputNum > 2) {
-    iv = colDataGetData(pInput[2].columnData, 0);
+    char *ivVar = colDataGetData(pInput[2].columnData, 0);
+    if (ivVar == NULL || varDataLen(ivVar) != TAOS_AES_BLOCK_LEN) {
+      return TSDB_CODE_FUNC_FUNTION_PARA_VALUE;
+    }
+    iv = varDataVal(ivVar);
   }
 
   char   *keyVar = colDataGetData(pInput[1].columnData, 0);
   int32_t keylen = varDataLen(keyVar);
   int32_t keypaddedlen = taes_encrypt_len(keylen);
+  if (keypaddedlen == 0) {
+    return TSDB_CODE_FUNC_FUNTION_PARA_VALUE;
+  }
   char   *pKeyPaddingBuf = taosMemoryMalloc(keypaddedlen);
   if (!pKeyPaddingBuf) {
     qError("aes function alloc memory failed");
@@ -2727,8 +3862,13 @@ int32_t aesFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutpu
   }
   (void)memcpy(pKeyPaddingBuf, varDataVal(keyVar), keylen);
 
-  int32_t bufLen = pInputData[0]->info.bytes;
-  char   *pOutputBuf = taosMemoryMalloc(taes_encrypt_len(bufLen) + VARSTR_HEADER_SIZE);
+  int32_t bufLen = TMAX(pInputData[0]->info.bytes, VARSTR_HEADER_SIZE);
+  uint32_t initialOutputLen = taes_encrypt_len(bufLen);
+  if (initialOutputLen == 0) {
+    taosMemoryFree(pKeyPaddingBuf);
+    return TSDB_CODE_FUNC_FUNTION_PARA_VALUE;
+  }
+  char   *pOutputBuf = taosMemoryMalloc(initialOutputLen + VARSTR_HEADER_SIZE);
   if (!pOutputBuf) {
     qError("aes function alloc memory failed");
     return terrno;
@@ -2741,9 +3881,35 @@ int32_t aesFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutpu
     }
 
     char *input = colDataGetData(pInput[0].columnData, i);
+    // The output buffer is sized by the declared column width; a virtual table column may
+    // carry a value wider than declared (full source value by design) -- grow it per row;
+    // the in-place encryption pads up to taes_encrypt_len of the actual length.
+    if (bufLen < varDataLen(input)) {
+      bufLen = varDataLen(input);
+      uint32_t outputLen = taes_encrypt_len(bufLen);
+      if (outputLen == 0) {
+        taosMemoryFree(pOutputBuf);
+        taosMemoryFree(pKeyPaddingBuf);
+        return TSDB_CODE_FUNC_FUNTION_PARA_VALUE;
+      }
+      char *tmp = taosMemoryRealloc(pOutputBuf, outputLen + VARSTR_HEADER_SIZE);
+      if (!tmp) {
+        // realloc failure leaves the original pOutputBuf intact; free both before bailing.
+        taosMemoryFree(pOutputBuf);
+        taosMemoryFree(pKeyPaddingBuf);
+        qError("aes function alloc memory failed");
+        return terrno;
+      }
+      pOutputBuf = tmp;
+    }
     char *output = pOutputBuf;
     (void)memcpy(varDataVal(output), varDataVal(input), varDataLen(input));
     int32_t len = taosAesEncrypt(pKeyPaddingBuf, keylen, varDataVal(output), varDataLen(input), iv);
+    if (len < 0) {
+      taosMemoryFree(pOutputBuf);
+      taosMemoryFree(pKeyPaddingBuf);
+      return TSDB_CODE_FUNC_FUNTION_PARA_VALUE;
+    }
 
     varDataSetLen(output, len);
     int32_t code = colDataSetVal(pOutputData, i, output, false);
@@ -2762,20 +3928,58 @@ int32_t aesFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutpu
 }
 
 int32_t aesDeFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput) {
+  if (inputNum < 2 || inputNum > 4) {
+    return TSDB_CODE_FUNC_FUNTION_PARA_NUM;
+  }
+
   int32_t          code = TSDB_CODE_SUCCESS;
   int32_t          numOfRows = TMAX(pInput[0].numOfRows, pInput[1].numOfRows);
   SColumnInfoData *pOutputData = pOutput[0].columnData;
   SColumnInfoData *pInputData[1];
   char            *iv = NULL;
+  char            *ivVar = NULL;
+  bool             legacyIv = false;
+
+  if (inputNum == 4) {
+    if (GET_PARAM_TYPE(&pInput[3]) != TSDB_DATA_TYPE_VARCHAR || pInput[3].numOfRows != 1) {
+      return TSDB_CODE_FUNC_FUNTION_PARA_TYPE;
+    }
+    char *mode = colDataGetData(pInput[3].columnData, 0);
+    if (mode == NULL) {
+      return TSDB_CODE_FUNC_FUNTION_PARA_VALUE;
+    }
+    if (varDataLen(mode) == 6 && strncasecmp(varDataVal(mode), "legacy", 6) == 0) {
+      legacyIv = true;
+    } else if (varDataLen(mode) != 3 || strncasecmp(varDataVal(mode), "raw", 3) != 0) {
+      return TSDB_CODE_FUNC_FUNTION_PARA_VALUE;
+    }
+  }
 
   pInputData[0] = pInput[0].columnData;
+  if (GET_PARAM_TYPE(&pInput[0]) == TSDB_DATA_TYPE_NULL) {
+    colDataSetNNULL(pOutputData, 0, numOfRows);
+    pOutput->numOfRows = numOfRows;
+    return TSDB_CODE_SUCCESS;
+  }
+  if (!IS_VAR_DATA_TYPE(GET_PARAM_TYPE(&pInput[0])) ||
+      !IS_VAR_DATA_TYPE(GET_PARAM_TYPE(&pInput[1])) ||
+      (inputNum > 2 && !IS_VAR_DATA_TYPE(GET_PARAM_TYPE(&pInput[2])))) {
+    return TSDB_CODE_FUNC_FUNTION_PARA_TYPE;
+  }
   if (inputNum > 2) {
-    iv = colDataGetData(pInput[2].columnData, 0);
+    ivVar = colDataGetData(pInput[2].columnData, 0);
+    if (ivVar == NULL || varDataLen(ivVar) != TAOS_AES_BLOCK_LEN) {
+      return TSDB_CODE_FUNC_FUNTION_PARA_VALUE;
+    }
+    iv = varDataVal(ivVar);
   }
 
   char   *keyVar = colDataGetData(pInput[1].columnData, 0);
   int32_t keylen = varDataLen(keyVar);
   int32_t keypaddedlen = taes_encrypt_len(keylen);
+  if (keypaddedlen == 0) {
+    return TSDB_CODE_FUNC_FUNTION_PARA_VALUE;
+  }
   char   *pKeyPaddingBuf = taosMemoryMalloc(keypaddedlen);
   if (!pKeyPaddingBuf) {
     qError("aes function alloc memory failed");
@@ -2783,7 +3987,7 @@ int32_t aesDeFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOut
   }
   (void)memcpy(pKeyPaddingBuf, varDataVal(keyVar), keylen);
 
-  int32_t bufLen = pInputData[0]->info.bytes;
+  int32_t bufLen = TMAX(pInputData[0]->info.bytes, VARSTR_HEADER_SIZE);
   char   *pOutputBuf = taosMemoryMalloc(bufLen);
   if (!pOutputBuf) {
     qError("aes function alloc memory failed");
@@ -2797,19 +4001,34 @@ int32_t aesDeFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOut
     }
 
     char *input = colDataGetData(pInput[0].columnData, i);
+    if (varDataLen(input) <= 0 || varDataLen(input) % TAOS_AES_BLOCK_LEN != 0) {
+      taosMemoryFree(pOutputBuf);
+      taosMemoryFree(pKeyPaddingBuf);
+      return TSDB_CODE_FUNC_FUNTION_PARA_VALUE;
+    }
     if (bufLen < varDataLen(input) + VARSTR_HEADER_SIZE) {
       bufLen = varDataLen(input) + VARSTR_HEADER_SIZE;
-      pOutputBuf = taosMemoryRealloc(pOutputBuf, bufLen);
-      if (!pOutputBuf) {
+      // realloc failure leaves the original pOutputBuf intact; free both before bailing.
+      char *tmp = taosMemoryRealloc(pOutputBuf, bufLen);
+      if (!tmp) {
+        taosMemoryFree(pOutputBuf);
         taosMemoryFree(pKeyPaddingBuf);
         qError("aes function alloc memory failed");
         return terrno;
       }
+      pOutputBuf = tmp;
     }
 
     char *output = pOutputBuf;
     (void)memcpy(varDataVal(output), varDataVal(input), varDataLen(input));
-    int32_t len = taosAesDecrypt(pKeyPaddingBuf, keylen, varDataVal(output), varDataLen(input), iv);
+    int32_t len = legacyIv
+                      ? taosAesDecryptLegacyVarDataIv(pKeyPaddingBuf, keylen, varDataVal(output), varDataLen(input), ivVar)
+                      : taosAesDecrypt(pKeyPaddingBuf, keylen, varDataVal(output), varDataLen(input), iv);
+    if (len < 0) {
+      taosMemoryFree(pOutputBuf);
+      taosMemoryFree(pKeyPaddingBuf);
+      return TSDB_CODE_FUNC_FUNTION_PARA_VALUE;
+    }
 
     varDataSetLen(output, len);
     int32_t code = colDataSetVal(pOutputData, i, output, false);
@@ -2834,10 +4053,22 @@ int32_t sm4Function(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutpu
   SColumnInfoData *pInputData[1];
 
   pInputData[0] = pInput[0].columnData;
+  if (GET_PARAM_TYPE(&pInput[0]) == TSDB_DATA_TYPE_NULL) {
+    colDataSetNNULL(pOutputData, 0, numOfRows);
+    pOutput->numOfRows = numOfRows;
+    return TSDB_CODE_SUCCESS;
+  }
+  if (!IS_VAR_DATA_TYPE(GET_PARAM_TYPE(&pInput[0])) ||
+      !IS_VAR_DATA_TYPE(GET_PARAM_TYPE(&pInput[1]))) {
+    return TSDB_CODE_FUNC_FUNTION_PARA_TYPE;
+  }
 
   char   *keyVar = colDataGetData(pInput[1].columnData, 0);
   int32_t keylen = varDataLen(keyVar);
   int32_t keypaddedlen = tsm4_encrypt_len(keylen);
+  if (keypaddedlen == 0) {
+    return TSDB_CODE_FUNC_FUNTION_PARA_VALUE;
+  }
   char   *pKeyPaddingBuf = taosMemoryMalloc(keypaddedlen);
   if (!pKeyPaddingBuf) {
     qError("sm4 function alloc memory failed");
@@ -2845,8 +4076,13 @@ int32_t sm4Function(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutpu
   }
   (void)memcpy(pKeyPaddingBuf, varDataVal(keyVar), keylen);
 
-  int32_t bufLen = pInputData[0]->info.bytes;
-  char   *pOutputBuf = taosMemoryMalloc(tsm4_encrypt_len(bufLen) + VARSTR_HEADER_SIZE);
+  int32_t bufLen = TMAX(pInputData[0]->info.bytes, VARSTR_HEADER_SIZE);
+  uint32_t initialOutputLen = tsm4_encrypt_len(bufLen);
+  if (initialOutputLen == 0) {
+    taosMemoryFree(pKeyPaddingBuf);
+    return TSDB_CODE_FUNC_FUNTION_PARA_VALUE;
+  }
+  char   *pOutputBuf = taosMemoryMalloc(initialOutputLen + VARSTR_HEADER_SIZE);
   if (!pOutputBuf) {
     qError("sm4 function alloc memory failed");
     return terrno;
@@ -2859,9 +4095,35 @@ int32_t sm4Function(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutpu
     }
 
     char *input = colDataGetData(pInput[0].columnData, i);
+    // The output buffer is sized by the declared column width; a virtual table column may
+    // carry a value wider than declared (full source value by design) -- grow it per row;
+    // the in-place encryption pads up to tsm4_encrypt_len of the actual length.
+    if (bufLen < varDataLen(input)) {
+      bufLen = varDataLen(input);
+      uint32_t outputLen = tsm4_encrypt_len(bufLen);
+      if (outputLen == 0) {
+        taosMemoryFree(pOutputBuf);
+        taosMemoryFree(pKeyPaddingBuf);
+        return TSDB_CODE_FUNC_FUNTION_PARA_VALUE;
+      }
+      char *tmp = taosMemoryRealloc(pOutputBuf, outputLen + VARSTR_HEADER_SIZE);
+      if (!tmp) {
+        // realloc failure leaves the original pOutputBuf intact; free both before bailing.
+        taosMemoryFree(pOutputBuf);
+        taosMemoryFree(pKeyPaddingBuf);
+        qError("sm4 function alloc memory failed");
+        return terrno;
+      }
+      pOutputBuf = tmp;
+    }
     char *output = pOutputBuf;
     (void)memcpy(varDataVal(output), varDataVal(input), varDataLen(input));
     int32_t len = taosSm4Encrypt(pKeyPaddingBuf, keylen, varDataVal(output), varDataLen(input));
+    if (len < 0) {
+      taosMemoryFree(pOutputBuf);
+      taosMemoryFree(pKeyPaddingBuf);
+      return TSDB_CODE_FUNC_FUNTION_PARA_VALUE;
+    }
 
     varDataSetLen(output, len);
     int32_t code = colDataSetVal(pOutputData, i, output, false);
@@ -2886,10 +4148,22 @@ int32_t sm4DeFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOut
   SColumnInfoData *pInputData[1];
 
   pInputData[0] = pInput[0].columnData;
+  if (GET_PARAM_TYPE(&pInput[0]) == TSDB_DATA_TYPE_NULL) {
+    colDataSetNNULL(pOutputData, 0, numOfRows);
+    pOutput->numOfRows = numOfRows;
+    return TSDB_CODE_SUCCESS;
+  }
+  if (!IS_VAR_DATA_TYPE(GET_PARAM_TYPE(&pInput[0])) ||
+      !IS_VAR_DATA_TYPE(GET_PARAM_TYPE(&pInput[1]))) {
+    return TSDB_CODE_FUNC_FUNTION_PARA_TYPE;
+  }
 
   char   *keyVar = colDataGetData(pInput[1].columnData, 0);
   int32_t keylen = varDataLen(keyVar);
   int32_t keypaddedlen = tsm4_encrypt_len(keylen);
+  if (keypaddedlen == 0) {
+    return TSDB_CODE_FUNC_FUNTION_PARA_VALUE;
+  }
   char   *pKeyPaddingBuf = taosMemoryMalloc(keypaddedlen);
   if (!pKeyPaddingBuf) {
     qError("sm4 function alloc memory failed");
@@ -2897,7 +4171,7 @@ int32_t sm4DeFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOut
   }
   (void)memcpy(pKeyPaddingBuf, varDataVal(keyVar), keylen);
 
-  int32_t bufLen = pInputData[0]->info.bytes;
+  int32_t bufLen = TMAX(pInputData[0]->info.bytes, VARSTR_HEADER_SIZE);
   char   *pOutputBuf = taosMemoryMalloc(bufLen);
   if (!pOutputBuf) {
     qError("sm4 function alloc memory failed");
@@ -2911,19 +4185,32 @@ int32_t sm4DeFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOut
     }
 
     char *input = colDataGetData(pInput[0].columnData, i);
+    if (varDataLen(input) <= 0 || varDataLen(input) % TAOS_SM4_BLOCK_LEN != 0) {
+      taosMemoryFree(pOutputBuf);
+      taosMemoryFree(pKeyPaddingBuf);
+      return TSDB_CODE_FUNC_FUNTION_PARA_VALUE;
+    }
     if (bufLen < varDataLen(input) + VARSTR_HEADER_SIZE) {
       bufLen = varDataLen(input) + VARSTR_HEADER_SIZE;
-      pOutputBuf = taosMemoryRealloc(pOutputBuf, bufLen);
-      if (!pOutputBuf) {
+      // realloc failure leaves the original pOutputBuf intact; free both before bailing.
+      char *tmp = taosMemoryRealloc(pOutputBuf, bufLen);
+      if (!tmp) {
+        taosMemoryFree(pOutputBuf);
         taosMemoryFree(pKeyPaddingBuf);
         qError("sm4 function alloc memory failed");
         return terrno;
       }
+      pOutputBuf = tmp;
     }
 
     char *output = pOutputBuf;
     (void)memcpy(varDataVal(output), varDataVal(input), varDataLen(input));
     int32_t len = taosSm4Decrypt(pKeyPaddingBuf, keylen, varDataVal(output), varDataLen(input));
+    if (len < 0) {
+      taosMemoryFree(pOutputBuf);
+      taosMemoryFree(pKeyPaddingBuf);
+      return TSDB_CODE_FUNC_FUNTION_PARA_VALUE;
+    }
 
     varDataSetLen(output, len);
     int32_t code = colDataSetVal(pOutputData, i, output, false);
@@ -3005,17 +4292,34 @@ int32_t substrIdxFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *
     if (count > 0) {
       startPosBytes = 0;
       endPosBytes =
-          findPosBytes(orgStr, delimStr, orgLen, delimLen, count, GET_PARAM_TYPE(&pInput[0]) == TSDB_DATA_TYPE_NCHAR);
+          findPosBytes(orgStr, delimStr, orgLen, delimLen, count, GET_PARAM_TYPE(&pInput[0]) == TSDB_DATA_TYPE_NCHAR, pInput->charsetCxt);
     } else if (count < 0) {
       startPosBytes =
-          findPosBytes(orgStr, delimStr, orgLen, delimLen, count, GET_PARAM_TYPE(&pInput[0]) == TSDB_DATA_TYPE_NCHAR);
+          findPosBytes(orgStr, delimStr, orgLen, delimLen, count, GET_PARAM_TYPE(&pInput[0]) == TSDB_DATA_TYPE_NCHAR, pInput->charsetCxt);
       endPosBytes = orgLen;
     } else {
       startPosBytes = endPosBytes = 0;
     }
 
+    if (startPosBytes < 0 || endPosBytes < 0) {
+      if (needFreeDelim) taosMemoryFree(delimStr);
+      SCL_ERR_JRET(startPosBytes < 0 ? startPosBytes : endPosBytes);
+    }
+
     char   *output = outputBuf;
     int32_t resLen = endPosBytes - startPosBytes;
+    // The output buffer is sized by the declared column width; a virtual table column may
+    // carry a value wider than declared (full source value by design) -- refuse to overrun.
+    int32_t resTotalLen = resLen + (int32_t)VARSTR_HEADER_SIZE;
+    // The buffer holds outputLen payload bytes (allocated as outputLen + VARSTR_HEADER),
+    // so the payload itself is the bound -- do not subtract the header twice.
+    if (resLen > 0 && resLen > outputLen) {
+      qError("substr index result needs %d bytes, buffer width is %d", resTotalLen, outputLen);
+      if (needFreeDelim) {
+        taosMemoryFree(delimStr);
+      }
+      SCL_ERR_JRET(TSDB_CODE_QRY_NOT_ENOUGH_BUFFER);
+    }
     if (resLen > 0) {
       (void)memcpy(varDataVal(output), orgStr + startPosBytes, resLen);
       varDataSetLen(output, resLen);
@@ -3162,114 +4466,72 @@ _return:
   return code;
 }
 
-static int32_t repeatStringHelper(char *input, int32_t inputLen, int32_t count, char *output) {
-  for (int32_t i = 0; i < count; ++i) {
-    (void)memcpy(output, input, inputLen);
-    output += inputLen;
+static int32_t repeatResultLength(int32_t inputLen, uint64_t count, int32_t *resultLen) {
+  if (resultLen == NULL || inputLen < 0) return TSDB_CODE_INVALID_PARA;
+  if (count == 0 || inputLen == 0) {
+    *resultLen = 0;
+    return TSDB_CODE_SUCCESS;
   }
+  if (count > (TSDB_MAX_FIELD_LEN - VARSTR_HEADER_SIZE) / inputLen) {
+    return TSDB_CODE_FUNC_INVALID_RES_LENGTH;
+  }
+  *resultLen = inputLen * count;
   return TSDB_CODE_SUCCESS;
 }
 
 int32_t repeatFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput) {
-  int32_t          code = TSDB_CODE_SUCCESS;
-  SColumnInfoData *pInputData[2];
-  SColumnInfoData *pOutputData = pOutput[0].columnData;
-  int32_t          outputLen;
-  int32_t          numOfRows;
-  int32_t          maxCount = 0;
+  int32_t code = TSDB_CODE_SUCCESS;
+  SColumnInfoData *pStrings = pInput[0].columnData;
+  SColumnInfoData *pCounts = pInput[1].columnData;
+  int32_t numOfRows = TMAX(pInput[0].numOfRows, pInput[1].numOfRows);
+  int32_t capacity = 0;
+  char *outputBuf = NULL;
+  bool hasNullType = IS_NULL_TYPE(GET_PARAM_TYPE(&pInput[0])) ||
+                     IS_NULL_TYPE(GET_PARAM_TYPE(&pInput[1]));
 
-  for (int32_t i = 0; i < pInput[1].numOfRows; i++) {
-    int32_t tmpCount = 0;
-    if (colDataIsNull_s(pInput[1].columnData, i)) {
+  for (int32_t i = 0; i < numOfRows; ++i) {
+    int32_t stringRow = pInput[0].numOfRows == 1 ? 0 : i;
+    int32_t countRow = pInput[1].numOfRows == 1 ? 0 : i;
+    if (hasNullType || colDataIsNull_s(pStrings, stringRow) ||
+        colDataIsNull_s(pCounts, countRow)) {
+      colDataSetNULL(pOutput->columnData, i);
       continue;
     }
-    GET_TYPED_DATA(tmpCount, int32_t, GET_PARAM_TYPE(&pInput[1]), colDataGetData(pInput[1].columnData, i),
-                   typeGetTypeModFromColInfo(&pInput[1].columnData->info));
-    maxCount = TMAX(maxCount, tmpCount);
-  }
-  pInputData[0] = pInput[0].columnData;
-  pInputData[1] = pInput[1].columnData;
-  outputLen = (int32_t)(pInputData[0]->info.bytes * maxCount + VARSTR_HEADER_SIZE);
-  if (outputLen > TSDB_MAX_FIELD_LEN) {
-    return TSDB_CODE_FUNC_INVALID_RES_LENGTH;
-  }
-  numOfRows = TMAX(pInput[0].numOfRows, pInput[1].numOfRows);
-  char *outputBuf = taosMemoryCalloc(outputLen, 1);
-  if (outputBuf == NULL) {
-    SCL_ERR_RET(terrno);
-  }
 
-  char *output = outputBuf;
+    uint64_t count = 0;
+    if (IS_UNSIGNED_NUMERIC_TYPE(GET_PARAM_TYPE(&pInput[1]))) {
+      GET_TYPED_DATA(count, uint64_t, GET_PARAM_TYPE(&pInput[1]),
+                     colDataGetData(pCounts, countRow),
+                     typeGetTypeModFromColInfo(&pCounts->info));
+    } else {
+      int64_t signedCount = 0;
+      GET_TYPED_DATA(signedCount, int64_t, GET_PARAM_TYPE(&pInput[1]),
+                     colDataGetData(pCounts, countRow),
+                     typeGetTypeModFromColInfo(&pCounts->info));
+      count = signedCount > 0 ? (uint64_t)signedCount : 0;
+    }
 
-  bool hasNullType = (IS_NULL_TYPE(GET_PARAM_TYPE(&pInput[0])) || IS_NULL_TYPE(GET_PARAM_TYPE(&pInput[1])));
-  if (pInput[0].numOfRows == pInput[1].numOfRows) {
-    for (int32_t i = 0; i < numOfRows; ++i) {
-      output = outputBuf;
-      if (colDataIsNull_s(pInputData[0], i) || colDataIsNull_s(pInputData[1], i) || hasNullType) {
-        colDataSetNULL(pOutputData, i);
-        continue;
+    char *orgStr = colDataGetData(pStrings, stringRow);
+    int32_t inputLen = varDataLen(orgStr);
+    int32_t resultLen = 0;
+    // Check actual payload bytes before allocation, multiplication or copying.
+    SCL_ERR_JRET(repeatResultLength(inputLen, count, &resultLen));
+    int32_t needed = resultLen + VARSTR_HEADER_SIZE;
+    if (needed > capacity) {
+      char *newBuf = taosMemoryRealloc(outputBuf, needed);
+      if (newBuf == NULL) {
+        code = terrno;
+        goto _return;
       }
-      int32_t count = 0;
-      GET_TYPED_DATA(count, int32_t, GET_PARAM_TYPE(&pInput[1]), colDataGetData(pInput[1].columnData, i),
-                     typeGetTypeModFromColInfo(&pInput[1].columnData->info));
-      if (count <= 0) {
-        varDataSetLen(output, 0);
-        SCL_ERR_JRET(colDataSetVal(pOutputData, i, outputBuf, false));
-      } else {
-        char *orgStr = colDataGetData(pInputData[0], i);
-        varDataSetLen(output, varDataLen(orgStr) * count);
-        SCL_ERR_JRET(repeatStringHelper(varDataVal(orgStr), varDataLen(orgStr), count, varDataVal(output)));
-        SCL_ERR_JRET(colDataSetVal(pOutputData, i, outputBuf, false));
-      }
+      outputBuf = newBuf;
+      capacity = needed;
     }
-  } else if (pInput[0].numOfRows == 1) {
-    if (colDataIsNull_s(pInputData[0], 0) || hasNullType) {
-      colDataSetNNULL(pOutputData, 0, pInput[1].numOfRows);
-    } else {
-      for (int32_t i = 0; i < numOfRows; ++i) {
-        output = outputBuf;
-        if (colDataIsNull_s(pInputData[1], i)) {
-          colDataSetNULL(pOutputData, i);
-          continue;
-        }
-        int32_t count = 0;
-        GET_TYPED_DATA(count, int32_t, GET_PARAM_TYPE(&pInput[1]), colDataGetData(pInput[1].columnData, i),
-                       typeGetTypeModFromColInfo(&pInput[1].columnData->info));
-        if (count <= 0) {
-          varDataSetLen(output, 0);
-          SCL_ERR_JRET(colDataSetVal(pOutputData, i, outputBuf, false));
-        } else {
-          char *orgStr = colDataGetData(pInputData[0], 0);
-          varDataSetLen(output, varDataLen(orgStr) * count);
-          SCL_ERR_JRET(repeatStringHelper(varDataVal(orgStr), varDataLen(orgStr), count, varDataVal(output)));
-          SCL_ERR_JRET(colDataSetVal(pOutputData, i, outputBuf, false));
-        }
-      }
+    varDataSetLen(outputBuf, resultLen);
+    // Empty strings must not loop over a potentially enormous repeat count.
+    for (int32_t offset = 0; offset < resultLen; offset += inputLen) {
+      memcpy(varDataVal(outputBuf) + offset, varDataVal(orgStr), inputLen);
     }
-  } else if (pInput[1].numOfRows == 1) {
-    if (colDataIsNull_s(pInputData[1], 0) || hasNullType) {
-      colDataSetNNULL(pOutputData, 0, pInput[0].numOfRows);
-    } else {
-      for (int32_t i = 0; i < numOfRows; ++i) {
-        output = outputBuf;
-        if (colDataIsNull_s(pInputData[0], i)) {
-          colDataSetNULL(pOutputData, i);
-          continue;
-        }
-        int32_t count = 0;
-        GET_TYPED_DATA(count, int32_t, GET_PARAM_TYPE(&pInput[1]), colDataGetData(pInput[1].columnData, 0),
-                       typeGetTypeModFromColInfo(&pInput[1].columnData->info));
-        if (count <= 0) {
-          varDataSetLen(output, 0);
-          SCL_ERR_JRET(colDataSetVal(pOutputData, i, outputBuf, false));
-        } else {
-          char *orgStr = colDataGetData(pInputData[0], i);
-          varDataSetLen(output, varDataLen(orgStr) * count);
-          SCL_ERR_JRET(repeatStringHelper(varDataVal(orgStr), varDataLen(orgStr), count, varDataVal(output)));
-          SCL_ERR_JRET(colDataSetVal(pOutputData, i, outputBuf, false));
-        }
-      }
-    }
+    SCL_ERR_JRET(colDataSetVal(pOutput->columnData, i, outputBuf, false));
   }
 
   pOutput->numOfRows = numOfRows;
@@ -3287,11 +4549,12 @@ int32_t castFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutp
 
   int32_t code = TSDB_CODE_SUCCESS;
   char   *convBuf = taosMemoryMalloc(inputLen);
+  int32_t convBufLen = inputLen;
   int32_t bufSize = TSDB_MAX_FIELD_LEN + 1;
   int32_t allocLen = outputLen + TSDB_NCHAR_SIZE;
   if (IS_STR_DATA_BLOB(outputType)) {
-    allocLen = TSDB_MAX_BLOB_LEN + BLOBSTR_HEADER_SIZE;
-    bufSize = allocLen;
+    // TSDB_MAX_BLOB_LEN already includes BLOBSTR_HEADER_SIZE, so it is the full capacity.
+    allocLen = TSDB_MAX_BLOB_LEN;
   }
   char   *output = taosMemoryCalloc(1, allocLen);
   char   *buf = taosMemoryMalloc(bufSize);
@@ -3308,17 +4571,37 @@ int32_t castFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutp
 
     char *input = colDataGetData(pInput[0].columnData, i);
 
+    // The conversion buffer is sized by the declared column width; a virtual table column
+    // may carry a value wider than declared (full source value by design) -- grow it per
+    // row; taosUcs4ToMbs plus the NUL terminator needs varDataLen + 1 bytes.
+    if (inputType == TSDB_DATA_TYPE_NCHAR && convBufLen < varDataLen(input) + 1) {
+      convBufLen = varDataLen(input) + 1;
+      char *tmp = taosMemoryRealloc(convBuf, convBufLen);
+      if (tmp == NULL) {
+        code = terrno;
+        goto _end;
+      }
+      convBuf = tmp;
+    }
+
     switch (outputType) {
       case TSDB_DATA_TYPE_TINYINT: {
         if (inputType == TSDB_DATA_TYPE_BINARY) {
+          // The parse buffer is a fixed TSDB_MAX_FIELD_LEN block; a virtual table column
+          // may carry a value wider than declared -- reject instead of overrunning it
+          // (same guard as the BLOB branch below).
+          if ((int32_t)varDataLen(input) >= bufSize) {
+            code = TSDB_CODE_SCALAR_CONVERT_ERROR;
+            goto _end;
+          }
           (void)memcpy(buf, varDataVal(input), varDataLen(input));
           buf[varDataLen(input)] = 0;
           *(int8_t *)output = taosStr2Int8(buf, NULL, 10);
         } else if (IS_STR_DATA_BLOB(inputType)) {
           BlobDataLenT bLen = blobDataLen(input);
-          size_t       bufSize = sizeof(buf);
 
-          /* Prevent buffer overflow when converting large BLOBs to numeric types. */
+          /* A BLOB can be far larger than buf; only a leading part of it could be parsed as a
+             number, and a value that does not fit must be rejected, not truncated. */
           if (bLen >= (BlobDataLenT)bufSize) {
             code = TSDB_CODE_SCALAR_CONVERT_ERROR;
             goto _end;
@@ -3329,7 +4612,7 @@ int32_t castFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutp
         } else if (inputType == TSDB_DATA_TYPE_NCHAR) {
           int32_t len = taosUcs4ToMbs((TdUcs4 *)varDataVal(input), varDataLen(input), convBuf, pInput->charsetCxt);
           if (len < 0) {
-            code = TSDB_CODE_SCALAR_CONVERT_ERROR;
+            code = TSDB_CODE_SCALAR_CONVERT_NCHAR_ERROR;
             goto _end;
           }
 
@@ -3343,18 +4626,29 @@ int32_t castFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutp
       }
       case TSDB_DATA_TYPE_SMALLINT: {
         if (inputType == TSDB_DATA_TYPE_BINARY) {
+          // The parse buffer is a fixed TSDB_MAX_FIELD_LEN block; a virtual table column
+          // may carry a value wider than declared -- reject instead of overrunning it
+          // (same guard as the BLOB branch below).
+          if ((int32_t)varDataLen(input) >= bufSize) {
+            code = TSDB_CODE_SCALAR_CONVERT_ERROR;
+            goto _end;
+          }
           (void)memcpy(buf, varDataVal(input), varDataLen(input));
           buf[varDataLen(input)] = 0;
           *(int16_t *)output = taosStr2Int16(buf, NULL, 10);
         } else if (IS_STR_DATA_BLOB(inputType)) {
           BlobDataLenT bLen = blobDataLen(input);
+          if (bLen >= (BlobDataLenT)bufSize) {
+            code = TSDB_CODE_SCALAR_CONVERT_ERROR;
+            goto _end;
+          }
           (void)memcpy(buf, blobDataVal(input), bLen);
           buf[bLen] = 0;
           *(int16_t *)output = taosStr2Int16(buf, NULL, 10);
         } else if (inputType == TSDB_DATA_TYPE_NCHAR) {
           int32_t len = taosUcs4ToMbs((TdUcs4 *)varDataVal(input), varDataLen(input), convBuf, pInput->charsetCxt);
           if (len < 0) {
-            code = TSDB_CODE_SCALAR_CONVERT_ERROR;
+            code = TSDB_CODE_SCALAR_CONVERT_NCHAR_ERROR;
             goto _end;
           }
           convBuf[len] = 0;
@@ -3367,18 +4661,29 @@ int32_t castFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutp
       }
       case TSDB_DATA_TYPE_INT: {
         if (inputType == TSDB_DATA_TYPE_BINARY) {
+          // The parse buffer is a fixed TSDB_MAX_FIELD_LEN block; a virtual table column
+          // may carry a value wider than declared -- reject instead of overrunning it
+          // (same guard as the BLOB branch below).
+          if ((int32_t)varDataLen(input) >= bufSize) {
+            code = TSDB_CODE_SCALAR_CONVERT_ERROR;
+            goto _end;
+          }
           (void)memcpy(buf, varDataVal(input), varDataLen(input));
           buf[varDataLen(input)] = 0;
           *(int32_t *)output = taosStr2Int32(buf, NULL, 10);
         } else if (IS_STR_DATA_BLOB(inputType)) {
           BlobDataLenT bLen = blobDataLen(input);
+          if (bLen >= (BlobDataLenT)bufSize) {
+            code = TSDB_CODE_SCALAR_CONVERT_ERROR;
+            goto _end;
+          }
           (void)memcpy(buf, blobDataVal(input), bLen);
           buf[bLen] = 0;
           *(int32_t *)output = taosStr2Int32(buf, NULL, 10);
         } else if (inputType == TSDB_DATA_TYPE_NCHAR) {
           int32_t len = taosUcs4ToMbs((TdUcs4 *)varDataVal(input), varDataLen(input), convBuf, pInput->charsetCxt);
           if (len < 0) {
-            code = TSDB_CODE_SCALAR_CONVERT_ERROR;
+            code = TSDB_CODE_SCALAR_CONVERT_NCHAR_ERROR;
             goto _end;
           }
 
@@ -3392,18 +4697,29 @@ int32_t castFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutp
       }
       case TSDB_DATA_TYPE_BIGINT: {
         if (inputType == TSDB_DATA_TYPE_BINARY) {
+          // The parse buffer is a fixed TSDB_MAX_FIELD_LEN block; a virtual table column
+          // may carry a value wider than declared -- reject instead of overrunning it
+          // (same guard as the BLOB branch below).
+          if ((int32_t)varDataLen(input) >= bufSize) {
+            code = TSDB_CODE_SCALAR_CONVERT_ERROR;
+            goto _end;
+          }
           (void)memcpy(buf, varDataVal(input), varDataLen(input));
           buf[varDataLen(input)] = 0;
           *(int64_t *)output = taosStr2Int64(buf, NULL, 10);
         } else if (IS_STR_DATA_BLOB(inputType)) {
           BlobDataLenT bLen = blobDataLen(input);
+          if (bLen >= (BlobDataLenT)bufSize) {
+            code = TSDB_CODE_SCALAR_CONVERT_ERROR;
+            goto _end;
+          }
           (void)memcpy(buf, blobDataVal(input), bLen);
           buf[bLen] = 0;
           *(int64_t *)output = taosStr2Int64(buf, NULL, 10);
         } else if (inputType == TSDB_DATA_TYPE_NCHAR) {
           int32_t len = taosUcs4ToMbs((TdUcs4 *)varDataVal(input), varDataLen(input), convBuf, pInput->charsetCxt);
           if (len < 0) {
-            code = TSDB_CODE_SCALAR_CONVERT_ERROR;
+            code = TSDB_CODE_SCALAR_CONVERT_NCHAR_ERROR;
             goto _end;
           }
           convBuf[len] = 0;
@@ -3416,18 +4732,29 @@ int32_t castFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutp
       }
       case TSDB_DATA_TYPE_UTINYINT: {
         if (inputType == TSDB_DATA_TYPE_BINARY) {
+          // The parse buffer is a fixed TSDB_MAX_FIELD_LEN block; a virtual table column
+          // may carry a value wider than declared -- reject instead of overrunning it
+          // (same guard as the BLOB branch below).
+          if ((int32_t)varDataLen(input) >= bufSize) {
+            code = TSDB_CODE_SCALAR_CONVERT_ERROR;
+            goto _end;
+          }
           (void)memcpy(buf, varDataVal(input), varDataLen(input));
           buf[varDataLen(input)] = 0;
           *(uint8_t *)output = taosStr2UInt8(buf, NULL, 10);
         } else if (IS_STR_DATA_BLOB(inputType)) {
           BlobDataLenT bLen = blobDataLen(input);
+          if (bLen >= (BlobDataLenT)bufSize) {
+            code = TSDB_CODE_SCALAR_CONVERT_ERROR;
+            goto _end;
+          }
           (void)memcpy(buf, blobDataVal(input), bLen);
           buf[bLen] = 0;
           *(uint8_t *)output = taosStr2UInt8(buf, NULL, 10);
         } else if (inputType == TSDB_DATA_TYPE_NCHAR) {
           int32_t len = taosUcs4ToMbs((TdUcs4 *)varDataVal(input), varDataLen(input), convBuf, pInput->charsetCxt);
           if (len < 0) {
-            code = TSDB_CODE_SCALAR_CONVERT_ERROR;
+            code = TSDB_CODE_SCALAR_CONVERT_NCHAR_ERROR;
             goto _end;
           }
           convBuf[len] = 0;
@@ -3440,18 +4767,29 @@ int32_t castFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutp
       }
       case TSDB_DATA_TYPE_USMALLINT: {
         if (inputType == TSDB_DATA_TYPE_BINARY) {
+          // The parse buffer is a fixed TSDB_MAX_FIELD_LEN block; a virtual table column
+          // may carry a value wider than declared -- reject instead of overrunning it
+          // (same guard as the BLOB branch below).
+          if ((int32_t)varDataLen(input) >= bufSize) {
+            code = TSDB_CODE_SCALAR_CONVERT_ERROR;
+            goto _end;
+          }
           (void)memcpy(buf, varDataVal(input), varDataLen(input));
           buf[varDataLen(input)] = 0;
           *(uint16_t *)output = taosStr2UInt16(buf, NULL, 10);
         } else if (IS_STR_DATA_BLOB(inputType)) {
           BlobDataLenT bLen = blobDataLen(input);
+          if (bLen >= (BlobDataLenT)bufSize) {
+            code = TSDB_CODE_SCALAR_CONVERT_ERROR;
+            goto _end;
+          }
           (void)memcpy(buf, blobDataVal(input), bLen);
           buf[bLen] = 0;
           *(uint16_t *)output = taosStr2UInt16(buf, NULL, 10);
         } else if (inputType == TSDB_DATA_TYPE_NCHAR) {
           int32_t len = taosUcs4ToMbs((TdUcs4 *)varDataVal(input), varDataLen(input), convBuf, pInput->charsetCxt);
           if (len < 0) {
-            code = TSDB_CODE_SCALAR_CONVERT_ERROR;
+            code = TSDB_CODE_SCALAR_CONVERT_NCHAR_ERROR;
             goto _end;
           }
           convBuf[len] = 0;
@@ -3464,18 +4802,29 @@ int32_t castFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutp
       }
       case TSDB_DATA_TYPE_UINT: {
         if (inputType == TSDB_DATA_TYPE_BINARY) {
+          // The parse buffer is a fixed TSDB_MAX_FIELD_LEN block; a virtual table column
+          // may carry a value wider than declared -- reject instead of overrunning it
+          // (same guard as the BLOB branch below).
+          if ((int32_t)varDataLen(input) >= bufSize) {
+            code = TSDB_CODE_SCALAR_CONVERT_ERROR;
+            goto _end;
+          }
           (void)memcpy(buf, varDataVal(input), varDataLen(input));
           buf[varDataLen(input)] = 0;
           *(uint32_t *)output = taosStr2UInt32(buf, NULL, 10);
         } else if (IS_STR_DATA_BLOB(inputType)) {
           BlobDataLenT bLen = blobDataLen(input);
+          if (bLen >= (BlobDataLenT)bufSize) {
+            code = TSDB_CODE_SCALAR_CONVERT_ERROR;
+            goto _end;
+          }
           (void)memcpy(buf, blobDataVal(input), bLen);
           buf[bLen] = 0;
           *(uint32_t *)output = taosStr2UInt32(buf, NULL, 10);
         } else if (inputType == TSDB_DATA_TYPE_NCHAR) {
           int32_t len = taosUcs4ToMbs((TdUcs4 *)varDataVal(input), varDataLen(input), convBuf, pInput->charsetCxt);
           if (len < 0) {
-            code = TSDB_CODE_SCALAR_CONVERT_ERROR;
+            code = TSDB_CODE_SCALAR_CONVERT_NCHAR_ERROR;
             goto _end;
           }
           convBuf[len] = 0;
@@ -3488,18 +4837,29 @@ int32_t castFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutp
       }
       case TSDB_DATA_TYPE_UBIGINT: {
         if (inputType == TSDB_DATA_TYPE_BINARY) {
+          // The parse buffer is a fixed TSDB_MAX_FIELD_LEN block; a virtual table column
+          // may carry a value wider than declared -- reject instead of overrunning it
+          // (same guard as the BLOB branch below).
+          if ((int32_t)varDataLen(input) >= bufSize) {
+            code = TSDB_CODE_SCALAR_CONVERT_ERROR;
+            goto _end;
+          }
           (void)memcpy(buf, varDataVal(input), varDataLen(input));
           buf[varDataLen(input)] = 0;
           *(uint64_t *)output = taosStr2UInt64(buf, NULL, 10);
         } else if (IS_STR_DATA_BLOB(inputType)) {
           BlobDataLenT bLen = blobDataLen(input);
+          if (bLen >= (BlobDataLenT)bufSize) {
+            code = TSDB_CODE_SCALAR_CONVERT_ERROR;
+            goto _end;
+          }
           (void)memcpy(buf, blobDataVal(input), bLen);
           buf[bLen] = 0;
           *(uint64_t *)output = taosStr2UInt64(buf, NULL, 10);
         } else if (inputType == TSDB_DATA_TYPE_NCHAR) {
           int32_t len = taosUcs4ToMbs((TdUcs4 *)varDataVal(input), varDataLen(input), convBuf, pInput->charsetCxt);
           if (len < 0) {
-            code = TSDB_CODE_SCALAR_CONVERT_ERROR;
+            code = TSDB_CODE_SCALAR_CONVERT_NCHAR_ERROR;
             goto _end;
           }
 
@@ -3513,18 +4873,29 @@ int32_t castFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutp
       }
       case TSDB_DATA_TYPE_FLOAT: {
         if (inputType == TSDB_DATA_TYPE_BINARY) {
+          // The parse buffer is a fixed TSDB_MAX_FIELD_LEN block; a virtual table column
+          // may carry a value wider than declared -- reject instead of overrunning it
+          // (same guard as the BLOB branch below).
+          if ((int32_t)varDataLen(input) >= bufSize) {
+            code = TSDB_CODE_SCALAR_CONVERT_ERROR;
+            goto _end;
+          }
           (void)memcpy(buf, varDataVal(input), varDataLen(input));
           buf[varDataLen(input)] = 0;
           *(float *)output = taosStr2Float(buf, NULL);
         } else if (IS_STR_DATA_BLOB(inputType)) {
           BlobDataLenT bLen = blobDataLen(input);
+          if (bLen >= (BlobDataLenT)bufSize) {
+            code = TSDB_CODE_SCALAR_CONVERT_ERROR;
+            goto _end;
+          }
           (void)memcpy(buf, blobDataVal(input), bLen);
           buf[bLen] = 0;
           *(float *)output = taosStr2Float(buf, NULL);
         } else if (inputType == TSDB_DATA_TYPE_NCHAR) {
           int32_t len = taosUcs4ToMbs((TdUcs4 *)varDataVal(input), varDataLen(input), convBuf, pInput->charsetCxt);
           if (len < 0) {
-            code = TSDB_CODE_SCALAR_CONVERT_ERROR;
+            code = TSDB_CODE_SCALAR_CONVERT_NCHAR_ERROR;
             goto _end;
           }
           convBuf[len] = 0;
@@ -3537,18 +4908,29 @@ int32_t castFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutp
       }
       case TSDB_DATA_TYPE_DOUBLE: {
         if (inputType == TSDB_DATA_TYPE_BINARY) {
+          // The parse buffer is a fixed TSDB_MAX_FIELD_LEN block; a virtual table column
+          // may carry a value wider than declared -- reject instead of overrunning it
+          // (same guard as the BLOB branch below).
+          if ((int32_t)varDataLen(input) >= bufSize) {
+            code = TSDB_CODE_SCALAR_CONVERT_ERROR;
+            goto _end;
+          }
           (void)memcpy(buf, varDataVal(input), varDataLen(input));
           buf[varDataLen(input)] = 0;
           *(double *)output = taosStr2Double(buf, NULL);
         } else if (IS_STR_DATA_BLOB(inputType)) {
           BlobDataLenT bLen = blobDataLen(input);
+          if (bLen >= (BlobDataLenT)bufSize) {
+            code = TSDB_CODE_SCALAR_CONVERT_ERROR;
+            goto _end;
+          }
           (void)memcpy(buf, blobDataVal(input), bLen);
           buf[bLen] = 0;
           *(double *)output = taosStr2Double(buf, NULL);
         } else if (inputType == TSDB_DATA_TYPE_NCHAR) {
           int32_t len = taosUcs4ToMbs((TdUcs4 *)varDataVal(input), varDataLen(input), convBuf, pInput->charsetCxt);
           if (len < 0) {
-            code = TSDB_CODE_SCALAR_CONVERT_ERROR;
+            code = TSDB_CODE_SCALAR_CONVERT_NCHAR_ERROR;
             goto _end;
           }
           convBuf[len] = 0;
@@ -3561,18 +4943,29 @@ int32_t castFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutp
       }
       case TSDB_DATA_TYPE_BOOL: {
         if (inputType == TSDB_DATA_TYPE_BINARY) {
+          // The parse buffer is a fixed TSDB_MAX_FIELD_LEN block; a virtual table column
+          // may carry a value wider than declared -- reject instead of overrunning it
+          // (same guard as the BLOB branch below).
+          if ((int32_t)varDataLen(input) >= bufSize) {
+            code = TSDB_CODE_SCALAR_CONVERT_ERROR;
+            goto _end;
+          }
           (void)memcpy(buf, varDataVal(input), varDataLen(input));
           buf[varDataLen(input)] = 0;
           *(bool *)output = taosStr2Int8(buf, NULL, 10);
         } else if (IS_STR_DATA_BLOB(inputType)) {
           BlobDataLenT bLen = blobDataLen(input);
+          if (bLen >= (BlobDataLenT)bufSize) {
+            code = TSDB_CODE_SCALAR_CONVERT_ERROR;
+            goto _end;
+          }
           (void)memcpy(buf, blobDataVal(input), bLen);
           buf[bLen] = 0;
           *(bool *)output = taosStr2Int8(buf, NULL, 10);
         } else if (inputType == TSDB_DATA_TYPE_NCHAR) {
           int32_t len = taosUcs4ToMbs((TdUcs4 *)varDataVal(input), varDataLen(input), convBuf, pInput->charsetCxt);
           if (len < 0) {
-            code = TSDB_CODE_SCALAR_CONVERT_ERROR;
+            code = TSDB_CODE_SCALAR_CONVERT_NCHAR_ERROR;
             goto _end;
           }
           convBuf[len] = 0;
@@ -3622,20 +5015,28 @@ int32_t castFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutp
         } else if (inputType == TSDB_DATA_TYPE_NCHAR) {
           int32_t len = taosUcs4ToMbs((TdUcs4 *)varDataVal(input), varDataLen(input), convBuf, pInput->charsetCxt);
           if (len < 0) {
-            code = TSDB_CODE_SCALAR_CONVERT_ERROR;
+            code = TSDB_CODE_SCALAR_CONVERT_NCHAR_ERROR;
             goto _end;
           }
           len = TMIN(len, outputLen - VARSTR_HEADER_SIZE);
           (void)memcpy(varDataVal(output), convBuf, len);
           varDataSetLen(output, len);
         } else {
+          // outputSize reserves one byte for the NUL terminator added below; the truncated
+          // value still fills the full target width.
           int32_t outputSize =
               (outputLen - VARSTR_HEADER_SIZE) < bufSize ? (outputLen - VARSTR_HEADER_SIZE + 1) : bufSize;
+          if (outputSize < 1) {
+            outputSize = 1;
+          }
           if (IS_DECIMAL_TYPE(inputType)) {
             if (outputType == TSDB_DATA_TYPE_GEOMETRY) return TSDB_CODE_FUNC_FUNTION_PARA_TYPE;
             uint8_t inputPrec = GET_PARAM_PRECISON(&pInput[0]), inputScale = GET_PARAM_SCALE(&pInput[0]);
             code = decimalToStr(input, inputType, inputPrec, inputScale, buf, outputSize);
             if (code != 0) goto _end;
+            // decimalToStr copies the truncated prefix without a terminator when the value
+            // does not fit; terminate it here before the strlen below reads the buffer.
+            buf[outputSize - 1] = 0;
           } else {
             NUM_TO_STRING(inputType, input, outputSize, buf);
           }
@@ -3672,17 +5073,17 @@ int32_t castFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutp
           bool ret = taosMbsToUcs4(tmp, len, (TdUcs4 *)varDataVal(output), outputLen - VARSTR_HEADER_SIZE, &len,
                                    pInput->charsetCxt);
           if (!ret) {
-            code = TSDB_CODE_SCALAR_CONVERT_ERROR;
+            code = TSDB_CODE_SCALAR_CONVERT_NCHAR_ERROR;
             goto _end;
           }
 
           varDataSetLen(output, len);
         } else if (inputType == TSDB_DATA_TYPE_BINARY) {
-          len = outputCharLen > varDataLen(input) ? varDataLen(input) : outputCharLen;
-          bool ret = taosMbsToUcs4(input + VARSTR_HEADER_SIZE, len, (TdUcs4 *)varDataVal(output),
-                                   outputLen - VARSTR_HEADER_SIZE, &len, pInput->charsetCxt);
-          if (!ret) {
-            code = TSDB_CODE_SCALAR_CONVERT_ERROR;
+          int32_t ucs4Capacity = outputCharLen * TSDB_NCHAR_SIZE;
+          if (!taosMbsToUcs4Prefix(varDataVal(input), varDataLen(input),
+                                   varDataVal(output), ucs4Capacity, &len,
+                                   pInput->charsetCxt)) {
+            code = TSDB_CODE_SCALAR_CONVERT_NCHAR_ERROR;
             goto _end;
           }
           varDataSetLen(output, len);
@@ -3692,7 +5093,7 @@ int32_t castFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutp
           bool ret = taosMbsToUcs4(blobDataVal(input), len, (TdUcs4 *)varDataVal(output),
                                    outputLen - VARSTR_HEADER_SIZE, &len, pInput->charsetCxt);
           if (!ret) {
-            code = TSDB_CODE_SCALAR_CONVERT_ERROR;
+            code = TSDB_CODE_SCALAR_CONVERT_NCHAR_ERROR;
             goto _end;
           }
           varDataSetLen(output, len);
@@ -3713,7 +5114,7 @@ int32_t castFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutp
           bool ret = taosMbsToUcs4(buf, len, (TdUcs4 *)varDataVal(output), outputLen - VARSTR_HEADER_SIZE, &len,
                                    pInput->charsetCxt);
           if (!ret) {
-            code = TSDB_CODE_SCALAR_CONVERT_ERROR;
+            code = TSDB_CODE_SCALAR_CONVERT_NCHAR_ERROR;
             goto _end;
           }
           varDataSetLen(output, len);
@@ -3732,7 +5133,7 @@ int32_t castFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutp
         if (inputType == TSDB_DATA_TYPE_NCHAR) {
           int32_t len = taosUcs4ToMbs((TdUcs4 *)(varDataVal(input)), varDataLen(input), convBuf, pInput->charsetCxt);
           if (len < 0) {
-            code = TSDB_CODE_SCALAR_CONVERT_ERROR;
+            code = TSDB_CODE_SCALAR_CONVERT_NCHAR_ERROR;
             goto _end;
           }
           convBuf[len] = 0;
@@ -3761,21 +5162,21 @@ int32_t castFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutp
         if (inputType == TSDB_DATA_TYPE_BINARY || inputType == TSDB_DATA_TYPE_VARCHAR ||
             inputType == TSDB_DATA_TYPE_VARBINARY) {
           VarDataLenT varLen = varDataLen(input);
-          blobLen = TMIN((BlobDataLenT)varLen, TSDB_MAX_BLOB_LEN);
+          blobLen = TMIN((BlobDataLenT)varLen, TSDB_MAX_BLOB_LEN - BLOBSTR_HEADER_SIZE);
           blobDataSetLen(output, blobLen);
           if (blobLen > 0) {
             (void)memcpy(blobDataVal(output), varDataVal(input), blobLen);
           }
         } else if (IS_STR_DATA_BLOB(inputType)) {
           BlobDataLenT srcLen = blobDataLen(input);
-          blobLen = TMIN(srcLen, TSDB_MAX_BLOB_LEN);
+          blobLen = TMIN(srcLen, TSDB_MAX_BLOB_LEN - BLOBSTR_HEADER_SIZE);
           blobDataSetLen(output, blobLen);
           if (blobLen > 0) {
             (void)memmove(blobDataVal(output), blobDataVal(input), blobLen);
           }
         } else if (inputType == TSDB_DATA_TYPE_NCHAR) {
           VarDataLenT varLen = varDataLen(input);
-          blobLen = TMIN((BlobDataLenT)varLen, TSDB_MAX_BLOB_LEN);
+          blobLen = TMIN((BlobDataLenT)varLen, TSDB_MAX_BLOB_LEN - BLOBSTR_HEADER_SIZE);
           blobDataSetLen(output, blobLen);
           if (blobLen > 0) {
             (void)memcpy(blobDataVal(output), varDataVal(input), blobLen);
@@ -3786,11 +5187,16 @@ int32_t castFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutp
             uint8_t inputPrec = GET_PARAM_PRECISON(&pInput[0]), inputScale = GET_PARAM_SCALE(&pInput[0]);
             code = decimalToStr(input, inputType, inputPrec, inputScale, buf, outputSize);
             if (code != 0) goto _end;
+          } else if (inputType == TSDB_DATA_TYPE_BOOL) {
+            // NUM_TO_STRING only covers the numeric types; BOOL has no case in it and would
+            // fall into its default, which reads a 4-byte integer out of a 1-byte value.
+            // Format it the same way the VARCHAR/NCHAR branches do.
+            snprintf(buf, outputSize, "%s", *(int8_t *)input ? "true" : "false");
           } else {
             NUM_TO_STRING(inputType, input, outputSize, buf);
           }
           int32_t len = (int32_t)strlen(buf);
-          blobLen = TMIN((BlobDataLenT)len, TSDB_MAX_BLOB_LEN);
+          blobLen = TMIN((BlobDataLenT)len, TSDB_MAX_BLOB_LEN - BLOBSTR_HEADER_SIZE);
           blobDataSetLen(output, blobLen);
           if (blobLen > 0) {
             (void)memcpy(blobDataVal(output), buf, blobLen);
@@ -3820,16 +5226,116 @@ _end:
   return code;
 }
 
-int32_t toISO8601Function(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput) {
-  int32_t type = GET_PARAM_TYPE(pInput);
-
-  bool    tzPresent = (inputNum == 2) ? true : false;
-  char    tz[20] = {0};
-  int32_t tzLen = 0;
-  if (tzPresent) {
-    tzLen = varDataLen(pInput[1].columnData->pData);
-    (void)memcpy(tz, varDataVal(pInput[1].columnData->pData), tzLen);
+static int32_t extractTimezoneParamString(SScalarParam *pInput, int32_t idx, char *tzBuf, int32_t bufLen) {
+  if (bufLen <= 0) {
+    sclError("%s failed at line %d, timezone buffer is unavailable, idx:%d, "
+             "bufLen:%d", __func__, __LINE__, idx, bufLen);
+    SCL_ERR_RET(TSDB_CODE_INTERNAL_ERROR);
   }
+
+  int32_t tzLen = varDataLen(pInput[idx].columnData->pData);
+  if (tzLen <= 0 || tzLen >= bufLen) {
+    sclError("%s failed at line %d, invalid timezone parameter length: %d, idx: %d",
+             __func__, __LINE__, tzLen, idx);
+    SCL_ERR_RET(TSDB_CODE_QRY_INVALID_INPUT);
+  }
+
+  (void)memcpy(tzBuf, varDataVal(pInput[idx].columnData->pData), tzLen);
+  tzBuf[tzLen] = '\0';
+  return TSDB_CODE_SUCCESS;
+}
+
+static int32_t resolveTimezoneParam(SScalarParam *pInput, int32_t idx, char *tzBuf, int32_t bufLen, timezone_t *pTz) {
+  int32_t code = extractTimezoneParamString(pInput, idx, tzBuf, bufLen);
+  if (code != TSDB_CODE_SUCCESS) {
+    return code;
+  }
+
+  return taosValidateTimezone(tzBuf, pTz);
+}
+
+int32_t toISO8601Function(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput) {
+  int32_t    code = TSDB_CODE_SUCCESS;
+  int32_t    type = GET_PARAM_TYPE(pInput);
+
+  /*
+   * Translator always injects a second parameter: either the user-supplied
+   * timezone string or the connection timezone IANA name.  So inputNum is
+   * always 2 here.  We parse the timezone from that parameter uniformly.
+   *
+   * Two code paths exist depending on the timezone parameter format:
+   *  - Fixed offset (e.g. "+0800"): output offset is constant, NOT DST-aware.
+   *  - IANA name (e.g. "Asia/Shanghai"): output offset is DST-aware for the
+   *    target timestamp.  This is the default path when connection timezone
+   *    is injected as an IANA name.
+   */
+  bool       hasTzParam = (inputNum == 2);
+  char       tzStr[TD_TIMEZONE_LEN] = {0};
+  timezone_t explicitTz = NULL;
+  bool       useFixedOffset = false;
+  int64_t    fixedOffset = 0;
+
+  if (hasTzParam) {
+    code = extractTimezoneParamString(pInput, 1, tzStr, sizeof(tzStr));
+    if (code != TSDB_CODE_SUCCESS) {
+      goto _return;
+    }
+
+    /*
+     * TO_ISO8601 uses ISO 8601 sign convention for fixed offsets:
+     *   local_time = UTC + offset   ('+08:00' = east-8 = Beijing)
+     *
+     * All fixed-offset forms  -  bare ('+0800') and UTC-prefixed
+     * ('UTC+8', 'UTC+0800', 'UTC+08:00')  -  are parsed identically.
+     * For UTC-prefixed forms, the 'UTC' prefix is stripped so the
+     * offset suffix in the output follows ISO 8601 (e.g. '+0800').
+     */
+    char *offStr = tzStr;
+
+    /* strip 'UTC' prefix if present, keeping the sign character */
+    if ((strncasecmp(tzStr, "UTC+", 4) == 0 || strncasecmp(tzStr, "UTC-", 4) == 0)) {
+      offStr = tzStr + 3;
+      /* single-digit hour (UTC+8): strip 'UTC' prefix and pad hour to two
+       * digits: '+8'  ->  '+08'.  No minutes suffix is added  -  UTC-prefixed
+       * forms without an explicit minute part output +/-HH only. */
+      if (offStr[1] >= '0' && offStr[1] <= '9' && offStr[2] == '\0') {
+        char padded[TD_TIMEZONE_LEN];
+        snprintf(padded, sizeof(padded), "%c0%c", offStr[0], offStr[1]);
+        memmove(tzStr, padded, strlen(padded) + 1);
+        offStr = tzStr;
+      } else {
+        memmove(tzStr, offStr, strlen(offStr) + 1);
+        offStr = tzStr;
+      }
+    }
+
+    if (strcmp(offStr, "z") == 0 || strcmp(offStr, "Z") == 0) {
+      useFixedOffset = true;
+      fixedOffset = 0;
+    } else if (offStr[0] == '+' || offStr[0] == '-') {
+      /* fixed-offset format  -  parse offset for time adjustment,
+       * and preserve the (possibly normalized) string for the ISO8601 suffix */
+      int64_t parsedOffset = 0;
+      if (offsetOfTimezone(offStr, &parsedOffset) == 0) {
+        useFixedOffset = true;
+        fixedOffset = parsedOffset;
+      } else {
+        /* unparseable offset string; try as IANA name */
+        code = taosValidateTimezone(offStr, &explicitTz);
+        if (code != TSDB_CODE_SUCCESS) {
+          goto _return;
+        }
+      }
+    } else {
+      /* IANA name or other format  -  try to validate and use DST-aware conversion */
+      code = taosValidateTimezone(tzStr, &explicitTz);
+      if (code != TSDB_CODE_SUCCESS) {
+        goto _return;
+      }
+    }
+  }
+
+  timezone_t activeTz = hasTzParam ? explicitTz : pInput->tz;
 
   for (int32_t i = 0; i < pInput[0].numOfRows; ++i) {
     if (colDataIsNull_s(pInput[0].columnData, i)) {
@@ -3838,41 +5344,32 @@ int32_t toISO8601Function(SScalarParam *pInput, int32_t inputNum, SScalarParam *
     }
 
     char *input = colDataGetData(pInput[0].columnData, i);
-    char  fraction[20] = {0};
-    bool  hasFraction = false;
-    NUM_TO_STRING(type, input, sizeof(fraction), fraction);
     int32_t fractionLen;
 
     char    buf[TD_TIME_STR_LEN] = {0};
     int64_t timeVal;
     char   *format = NULL;
     int64_t quot = 0;
-    long    mod = 0;
+    int64_t mod = 0;
 
     GET_TYPED_DATA(timeVal, int64_t, type, input, typeGetTypeModFromColInfo(&pInput[0].columnData->info));
 
     switch (pInput->columnData[0].info.precision) {
       case TSDB_TIME_PRECISION_MILLI: {
-        quot = timeVal / 1000;
         fractionLen = 5;
         format = ".%03" PRId64;
-        mod = timeVal % 1000;
         break;
       }
 
       case TSDB_TIME_PRECISION_MICRO: {
-        quot = timeVal / 1000000;
         fractionLen = 8;
         format = ".%06" PRId64;
-        mod = timeVal % 1000000;
         break;
       }
 
       case TSDB_TIME_PRECISION_NANO: {
-        quot = timeVal / 1000000000;
         fractionLen = 11;
         format = ".%09" PRId64;
-        mod = timeVal % 1000000000;
         break;
       }
 
@@ -3882,44 +5379,84 @@ int32_t toISO8601Function(SScalarParam *pInput, int32_t inputNum, SScalarParam *
       }
     }
 
-    // trans current timezone's unix ts to dest timezone
-    // offset = delta from dest timezone to zero
-    // delta from zero to current timezone = 3600 * (cur)tsTimezone
-    int64_t offset = 0;
-    if (0 != offsetOfTimezone(tz, &offset)) {
-      goto _end;
-    }
-    quot -= offset;
+    taosTsSplit(timeVal, pInput->columnData[0].info.precision, &quot, &mod);
 
     struct tm tmInfo;
-    if (taosGmTimeR((const time_t *)&quot, &tmInfo) == NULL) {
-      goto _end;
-    }
+    int32_t   len = 0;
 
-    int32_t len = (int32_t)taosStrfTime(buf, sizeof(buf), "%Y-%m-%dT%H:%M:%S", &tmInfo);
+    if (hasTzParam && useFixedOffset) {
+      /* fixed offset: existing logic */
+      int64_t adjQuot = quot - fixedOffset;
+      if (taosGmTimeR((const time_t *)&adjQuot, &tmInfo) == NULL) {
+        goto _end;
+      }
+      len = (int32_t)taosStrfTime(buf, sizeof(buf), "%Y-%m-%dT%H:%M:%S", &tmInfo);
+      len += snprintf(buf + len, fractionLen, format, mod);
+      /* append user-provided timezone string directly to preserve original format */
+      len += snprintf(buf + len, sizeof(buf) - len, "%s", tzStr);
+    } else {
+      /* IANA timezone (explicit or connection)  -  DST-aware */
+      int64_t gmtoff = 0;
 
-    len += snprintf(buf + len, fractionLen, format, mod);
-
-    // add timezone string
-    if (tzLen > 0) {
-      (void)snprintf(buf + len, tzLen + 1, "%s", tz);
-      len += tzLen;
+      if (taosLocalTime((const time_t *)&quot, &tmInfo, NULL, 0, activeTz) == NULL) {
+        goto _end;
+      }
+      /* derive offset from the already-populated tmInfo instead of calling
+       * taosGetTimezoneOffsetAtSeconds (which would repeat the localtime_rz). */
+      gmtoff = (int64_t)(taosTimeGm(&tmInfo) - quot);
+      len = (int32_t)taosStrfTime(buf, sizeof(buf), "%Y-%m-%dT%H:%M:%S", &tmInfo);
+      len += snprintf(buf + len, fractionLen, format, mod);
+      /* build offset suffix from the target instant's UTC offset */
+      if (gmtoff == 0) {
+        len += snprintf(buf + len, sizeof(buf) - len, "+0000");
+      } else {
+        char    sign = (gmtoff >= 0) ? '+' : '-';
+        int64_t absOff = (gmtoff >= 0) ? gmtoff : -gmtoff;
+        int     offH = (int)(absOff / 3600);
+        int     offM = (int)((absOff % 3600) / 60);
+        len += snprintf(buf + len, sizeof(buf) - len, "%c%02d%02d", sign, offH, offM);
+      }
     }
 
     memmove(buf + VARSTR_HEADER_SIZE, buf, len);
     varDataSetLen(buf, len);
 
   _end:
-    SCL_ERR_RET(colDataSetVal(pOutput->columnData, i, buf, false));
+    code = colDataSetVal(pOutput->columnData, i, buf, false);
+    if (code != TSDB_CODE_SUCCESS) {
+      terrno = code;
+      goto _return;
+    }
   }
 
   pOutput->numOfRows = pInput->numOfRows;
 
-  return TSDB_CODE_SUCCESS;
+_return:
+  if (explicitTz != NULL) {
+    tzfree(explicitTz);
+  }
+  return code;
 }
 
 int32_t toUnixtimestampFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput) {
   int32_t type = GET_PARAM_TYPE(pInput);
+
+  /* TIMESTAMP is already a unix timestamp (int64) -- pass through directly */
+  if (IS_TIMESTAMP_TYPE(type)) {
+    for (int32_t i = 0; i < pInput[0].numOfRows; ++i) {
+      if (colDataIsNull_s(pInput[0].columnData, i)) {
+        colDataSetNULL(pOutput->columnData, i);
+        continue;
+      }
+      int64_t tsVal;
+      GET_TYPED_DATA(tsVal, int64_t, type, colDataGetData(pInput[0].columnData, i),
+                     typeGetTypeModFromColInfo(&pInput[0].columnData->info));
+      SCL_ERR_RET(colDataSetVal(pOutput->columnData, i, (char *)&tsVal, false));
+    }
+    pOutput->numOfRows = pInput[0].numOfRows;
+    return TSDB_CODE_SUCCESS;
+  }
+
   int64_t timePrec;
   int32_t idx = (inputNum == 2) ? 1 : 2;
   GET_TYPED_DATA(timePrec, int64_t, GET_PARAM_TYPE(&pInput[idx]), pInput[idx].columnData->pData,
@@ -4002,6 +5539,8 @@ int32_t toTimestampFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam
   char   *format = taosMemoryMalloc(TS_FORMAT_MAX_LEN);
   int32_t len, code = TSDB_CODE_SUCCESS;
   SArray *formats = NULL;
+  bool    inputIsNchar = (GET_PARAM_TYPE(pInput) == TSDB_DATA_TYPE_NCHAR);
+  int32_t tsStrCap = TS_FORMAT_MAX_LEN;
 
   if (tsStr == NULL || format == NULL) {
     SCL_ERR_JRET(terrno);
@@ -4014,9 +5553,34 @@ int32_t toTimestampFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam
 
     char *tsData = colDataGetData(pInput[0].columnData, i);
     char *formatData = colDataGetData(pInput[1].columnData, pInput[1].numOfRows > 1 ? i : 0);
-    len = TMIN(TS_FORMAT_MAX_LEN - 1, varDataLen(tsData));
-    (void)TAOS_STRNCPY(tsStr, varDataVal(tsData), len);  // No need to handle the return value.
-    tsStr[len] = '\0';
+
+    if (inputIsNchar) {
+      // NCHAR data is UCS-4; convert to UTF-8 so taosChar2Ts can parse the string.
+      // taosUcs4ToMbs takes no output capacity and its MBS output never exceeds the
+      // UCS-4 input byte count; a virtual table column may carry a value wider than
+      // declared (full source value by design), so grow the buffer to the actual value
+      // length before converting.
+      int32_t needLen = varDataLen(tsData) + 1;
+      if (needLen > tsStrCap) {
+        char *tmp = taosMemoryRealloc(tsStr, needLen);
+        if (NULL == tmp) {
+          SCL_ERR_JRET(terrno);
+        }
+        tsStr = tmp;
+        tsStrCap = needLen;
+      }
+      int32_t mbsLen = taosUcs4ToMbs((TdUcs4 *)varDataVal(tsData), varDataLen(tsData), tsStr, pInput->charsetCxt);
+      if (mbsLen < 0) {
+        SCL_ERR_JRET(TSDB_CODE_SCALAR_CONVERT_NCHAR_ERROR);
+      }
+      len = TMIN(tsStrCap - 1, mbsLen);
+      tsStr[len] = '\0';
+    } else {
+      len = TMIN(TS_FORMAT_MAX_LEN - 1, varDataLen(tsData));
+      (void)TAOS_STRNCPY(tsStr, varDataVal(tsData), len);  // No need to handle the return value.
+      tsStr[len] = '\0';
+    }
+
     len = TMIN(TS_FORMAT_MAX_LEN - 1, varDataLen(formatData));
     if (pInput[1].numOfRows > 1 || i == 0) {
       (void)TAOS_STRNCPY(format, varDataVal(formatData), len);  // No need to handle the return value.
@@ -4094,10 +5658,23 @@ int32_t toCharFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOu
   int32_t len;
   SArray *formats = NULL;
   int32_t code = 0;
+  timezone_t explicitTz = NULL;
 
   if (format == NULL || out == NULL) {
     SCL_ERR_JRET(terrno);
   }
+
+  /* resolve timezone: explicit (param 3) or connection (pInput->tz) */
+  timezone_t activeTz = pInput->tz;
+  if (inputNum == 3) {
+    char tzBuf[TD_TIMEZONE_LEN] = {0};
+    code = resolveTimezoneParam(pInput, 2, tzBuf, sizeof(tzBuf), &explicitTz);
+    if (code != TSDB_CODE_SUCCESS) {
+      SCL_ERR_JRET(code);
+    }
+    activeTz = explicitTz;
+  }
+
   for (int32_t i = 0; i < pInput[0].numOfRows; ++i) {
     if (colDataIsNull_s(pInput[1].columnData, i) || colDataIsNull_s(pInput[0].columnData, i)) {
       colDataSetNULL(pOutput->columnData, i);
@@ -4117,7 +5694,7 @@ int32_t toCharFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOu
     }
     int32_t precision = pInput[0].columnData->info.precision;
     SCL_ERR_JRET(
-        taosTs2Char(format, &formats, *(int64_t *)ts, precision, varDataVal(out), TS_FORMAT_MAX_LEN, pInput->tz));
+        taosTs2Char(format, &formats, *(int64_t *)ts, precision, varDataVal(out), TS_FORMAT_MAX_LEN, activeTz));
     varDataSetLen(out, strlen(varDataVal(out)));
     SCL_ERR_JRET(colDataSetVal(pOutput->columnData, i, out, false));
   }
@@ -4126,6 +5703,9 @@ _return:
   if (formats) taosArrayDestroy(formats);
   taosMemoryFree(format);
   taosMemoryFree(out);
+  if (explicitTz != NULL) {
+    tzfree(explicitTz);
+  }
   return code;
 }
 
@@ -4140,28 +5720,243 @@ int64_t offsetFromTz(char *timezoneStr, int64_t factor) {
   return seconds * factor;
 }
 
-int32_t timeTruncateFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput) {
-  int32_t type = GET_PARAM_TYPE(&pInput[0]);
+static bool isFixedOffsetTimezoneLiteral(const char *timezoneStr) {
+  if (timezoneStr == NULL) {
+    return false;
+  }
 
-  int64_t timeUnit, timePrec, timeVal = 0;
-  bool    ignoreTz = true;
-  char    timezoneStr[20] = {0};
+  char buf[TD_TIMEZONE_LEN] = {0};
+  tstrncpy(buf, timezoneStr, sizeof(buf));
+  int64_t offset = 0;
+  return offsetOfTimezone(buf, &offset) == TSDB_CODE_SUCCESS;
+}
+
+static int64_t offsetFromTimezoneLiteral(const char *timezoneStr, int64_t factor) {
+  char buf[TD_TIMEZONE_LEN] = {0};
+  tstrncpy(buf, timezoneStr, sizeof(buf));
+
+  // Bare TIMETRUNCATE offsets follow the POSIX sign convention used by taosValidateTimezone.
+  int64_t offsetSeconds = 0;
+  if (offsetOfTimezone(buf, &offsetSeconds) != TSDB_CODE_SUCCESS) {
+    return 0;
+  }
+
+  return offsetSeconds * factor;
+}
+
+static int32_t offsetFromTimezoneHandle(timezone_t tz, int64_t timeVal, int32_t timePrec, int64_t *pOffset) {
+  int64_t factor = TSDB_TICK_PER_SECOND(timePrec);
+  int64_t tSec = timeVal / factor;
+
+  if (timeVal < 0 && timeVal % factor != 0) {
+    tSec -= 1;
+  }
+
+  int64_t offsetSeconds = 0;
+  int32_t code = taosGetTimezoneOffsetAtSeconds((time_t)tSec, tz, &offsetSeconds);
+  if (code != TSDB_CODE_SUCCESS) {
+    return code;
+  }
+
+  *pOffset = offsetSeconds * factor;
+  return TSDB_CODE_SUCCESS;
+}
+
+/*
+ * --- timeTruncateFunction helper: convert timeVal to seconds with floor division ---
+ */
+static time_t timeTruncTicksToSec(int64_t timeVal, int64_t timePrec) {
+  time_t t = (time_t)(timeVal / TSDB_TICK_PER_SECOND(timePrec));
+  if (timeVal < 0 && timeVal % TSDB_TICK_PER_SECOND(timePrec) != 0) {
+    t--;
+  }
+  return t;
+}
+
+/*
+ * --- timeTruncateFunction helper: calendar unit truncation (n/y) ---
+ * Returns true if truncation succeeded (timeVal updated); false  ->  set NULL.
+ */
+static bool truncateCalendarUnit(int64_t *pTimeVal, int64_t timeUnit, char unitCh,
+                                 int64_t timePrec, timezone_t tz) {
+  time_t    t = timeTruncTicksToSec(*pTimeVal, timePrec);
+  struct tm tmInfo;
+  if (taosLocalTime(&t, &tmInfo, NULL, 0, tz) == NULL) {
+    return false;
+  }
+  tmInfo.tm_sec = 0;
+  tmInfo.tm_min = 0;
+  tmInfo.tm_hour = 0;
+  tmInfo.tm_mday = 1;
+
+  int32_t totalMonths = (unitCh == 'y' || unitCh == 'Y')
+                        ? (int32_t)timeUnit * 12
+                        : (int32_t)timeUnit;
+  int32_t absMonth = tmInfo.tm_year * 12 + tmInfo.tm_mon;
+  int32_t epochMonth = 70 * 12 + 0;
+  int32_t relMonth = absMonth - epochMonth;
+  int32_t alignedRel = (relMonth / totalMonths) * totalMonths;
+  if (relMonth < 0 && relMonth % totalMonths != 0) {
+    alignedRel -= totalMonths;
+  }
+  int32_t alignedAbs = epochMonth + alignedRel;
+  tmInfo.tm_year = alignedAbs / 12;
+  tmInfo.tm_mon  = alignedAbs % 12;
+  if (tmInfo.tm_mon < 0) {
+    tmInfo.tm_mon += 12;
+    tmInfo.tm_year--;
+  }
+
+  tmInfo.tm_isdst = -1;
+  time_t truncated = taosMktime(&tmInfo, tz);
+  if (truncated == (time_t)-1) {
+    return false;
+  }
+  *pTimeVal = truncated * TSDB_TICK_PER_SECOND(timePrec);
+  return true;
+}
+
+/*
+ * --- timeTruncateFunction helper: week truncation (1w) using firstDayOfWeek ---
+ * Returns true if truncation succeeded (timeVal updated); false  ->  set NULL.
+ */
+static bool truncateWeekUnit(int64_t *pTimeVal, int64_t timePrec, int8_t fdow, timezone_t tz) {
+  time_t    t = timeTruncTicksToSec(*pTimeVal, timePrec);
+  struct tm tmInfo;
+  if (taosLocalTime(&t, &tmInfo, NULL, 0, tz) == NULL) {
+    return false;
+  }
+  int32_t daysBack = (tmInfo.tm_wday - (int32_t)fdow + 7) % 7;
+  tmInfo.tm_mday -= daysBack;
+  tmInfo.tm_hour = 0;
+  tmInfo.tm_min  = 0;
+  tmInfo.tm_sec  = 0;
+  tmInfo.tm_isdst = -1;
+  time_t truncated = taosMktime(&tmInfo, tz);
+  if (truncated == (time_t)-1) {
+    return false;
+  }
+  *pTimeVal = truncated * TSDB_TICK_PER_SECOND(timePrec);
+  return true;
+}
+
+/*
+ * --- timeTruncateFunction helper: day truncation (1d) to local midnight ---
+ * Returns true if truncation succeeded (timeVal updated); false  ->  set NULL.
+ */
+static bool truncateDayUnit(int64_t *pTimeVal, int64_t timePrec, timezone_t tz) {
+  time_t    t = timeTruncTicksToSec(*pTimeVal, timePrec);
+  struct tm tmInfo;
+  if (taosLocalTime(&t, &tmInfo, NULL, 0, tz) == NULL) {
+    return false;
+  }
+  tmInfo.tm_hour = 0;
+  tmInfo.tm_min  = 0;
+  tmInfo.tm_sec  = 0;
+  tmInfo.tm_isdst = -1;
+  time_t truncated = taosMktime(&tmInfo, tz);
+  if (truncated == (time_t)-1) {
+    return false;
+  }
+  *pTimeVal = truncated * TSDB_TICK_PER_SECOND(timePrec);
+  return true;
+}
+
+static bool truncateTimeWithOffset(int64_t *pTimeVal, int64_t timeUnit,
+                                   int64_t offset) {
+  // Reduce before shifting so boundary timestamps cannot overflow.
+  int64_t rem = *pTimeVal % timeUnit;
+  int64_t offsetRem = offset % timeUnit;
+  if (rem < 0) rem += timeUnit;
+  if (offsetRem < 0) offsetRem += timeUnit;
+  int64_t distance = timeUnit - offsetRem;
+  rem = rem >= distance ? rem - distance : rem + offsetRem;
+  if (*pTimeVal < INT64_MIN + rem) return false;
+  *pTimeVal -= rem;
+  return true;
+}
+
+/*
+ * Unified 7-parameter layout (always inputNum == 7):
+ *   [0] ts, [1] unit, [2] use_curr_tz, [3] precision,
+ *   [4] tz_name, [5] fdow, [6] unitCh
+ */
+int32_t timeTruncateFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput) {
+  int32_t    code = TSDB_CODE_SUCCESS;
+  int32_t    type = GET_PARAM_TYPE(&pInput[0]);
+
+  int64_t    timeUnit, timePrec, timeVal = 0;
+  bool       useCurrentTz = true;
+  char       timezoneStr[TD_TIMEZONE_LEN] = {0};
+  bool       hasStringTz = false;
+  bool       hasFixedOffsetTz = false;
+  int64_t    fixedOffset = 0;
+  timezone_t explicitTz = NULL;
+  timezone_t fallbackTz = NULL;
 
   GET_TYPED_DATA(timeUnit, int64_t, GET_PARAM_TYPE(&pInput[1]), pInput[1].columnData->pData,
                  typeGetTypeModFromColInfo(&pInput[1].columnData->info));
 
-  int32_t timePrecIdx = 2, timeZoneIdx = 3;
-  if (inputNum == 5) {
-    timePrecIdx += 1;
-    timeZoneIdx += 1;
-    GET_TYPED_DATA(ignoreTz, bool, GET_PARAM_TYPE(&pInput[2]), pInput[2].columnData->pData,
-                   typeGetTypeModFromColInfo(&pInput[2].columnData->info));
+  /* [2] use_curr_tz */
+  GET_TYPED_DATA(useCurrentTz, bool, GET_PARAM_TYPE(&pInput[2]), pInput[2].columnData->pData,
+                 typeGetTypeModFromColInfo(&pInput[2].columnData->info));
+
+  /* [6] unitCh */
+  int64_t unitChRaw = 0;
+  GET_TYPED_DATA(unitChRaw, int64_t, GET_PARAM_TYPE(&pInput[6]), pInput[6].columnData->pData,
+                 typeGetTypeModFromColInfo(&pInput[6].columnData->info));
+  char unitCh = (char)(unitChRaw & 0xFF);
+
+  /* [5] fdow */
+  int8_t fdow = (int8_t)tsDefaultFirstDayOfWeek;
+  {
+    int64_t fdowRaw = tsDefaultFirstDayOfWeek;
+    GET_TYPED_DATA(fdowRaw, int64_t, GET_PARAM_TYPE(&pInput[5]), pInput[5].columnData->pData,
+                   typeGetTypeModFromColInfo(&pInput[5].columnData->info));
+    fdow = (int8_t)(fdowRaw & 0x07);
   }
 
-  GET_TYPED_DATA(timePrec, int64_t, GET_PARAM_TYPE(&pInput[timePrecIdx]), pInput[timePrecIdx].columnData->pData,
-                 typeGetTypeModFromColInfo(&pInput[timePrecIdx].columnData->info));
-  (void)memcpy(timezoneStr, varDataVal(pInput[timeZoneIdx].columnData->pData),
-               varDataLen(pInput[timeZoneIdx].columnData->pData));
+  /* [3] precision */
+  GET_TYPED_DATA(timePrec, int64_t, GET_PARAM_TYPE(&pInput[3]), pInput[3].columnData->pData,
+                 typeGetTypeModFromColInfo(&pInput[3].columnData->info));
+
+  /* [4] tz_name */
+  code = extractTimezoneParamString(pInput, 4, timezoneStr, sizeof(timezoneStr));
+  if (code != TSDB_CODE_SUCCESS) {
+    goto _return;
+  }
+
+  /*
+   * Resolve explicit timezone strings before row evaluation. IANA/UTC/GMT
+   * names use a timezone handle; bare offsets (+0800 / -0530) use fixed
+   * offset arithmetic.
+   *
+   * Skip when user explicitly set use_current_timezone=0,
+   * which means truncate by UTC epoch.
+   */
+  if (useCurrentTz && isFixedOffsetTimezoneLiteral(timezoneStr)) {
+    hasFixedOffsetTz = true;
+    fixedOffset = offsetFromTimezoneLiteral(timezoneStr, TSDB_TICK_PER_SECOND(timePrec));
+  } else if (useCurrentTz && taosIsNamedTimezoneLiteral(timezoneStr)) {
+    int32_t tzCode = taosValidateTimezone(timezoneStr, &explicitTz);
+    if (tzCode == TSDB_CODE_SUCCESS) {
+      hasStringTz = true;
+    }
+  }
+
+  /* Determine effective timezone for calendar unit computation */
+  timezone_t activeTz = hasStringTz ? explicitTz : pInput->tz;
+
+  /* Calendar units: n=month, y=year ('q' is converted to 'n' by parseNatualDuration) */
+  bool isCalendarUnit = (unitCh == 'n' || unitCh == 'y' ||
+                         unitCh == 'N' || unitCh == 'Y');
+
+  /* Calendar units require a valid timezone; fall back to server tz if no session tz */
+  if (isCalendarUnit && activeTz == NULL && timezoneStr[0] != '\0') {
+    if (taosValidateTimezone(timezoneStr, &fallbackTz) == TSDB_CODE_SUCCESS) {
+      activeTz = fallbackTz;
+    }
+  }
 
   for (int32_t i = 0; i < pInput[0].numOfRows; ++i) {
     if (colDataIsNull_s(pInput[0].columnData, i)) {
@@ -4171,34 +5966,128 @@ int32_t timeTruncateFunction(SScalarParam *pInput, int32_t inputNum, SScalarPara
 
     char *input = colDataGetData(pInput[0].columnData, i);
 
-    if (IS_VAR_DATA_TYPE(type)) { /* datetime format strings */
+    if (IS_VAR_DATA_TYPE(type)) {
       int32_t ret = convertStringToTimestamp(type, input, timePrec, &timeVal, pInput->tz, pInput->charsetCxt);
       if (ret != TSDB_CODE_SUCCESS) {
         colDataSetNULL(pOutput->columnData, i);
         continue;
       }
-    } else if (type == TSDB_DATA_TYPE_BIGINT) { /* unix timestamp */
-      GET_TYPED_DATA(timeVal, int64_t, type, input, typeGetTypeModFromColInfo(&pInput[0].columnData->info));
-    } else if (type == TSDB_DATA_TYPE_TIMESTAMP) { /* timestamp column*/
+    } else {
       GET_TYPED_DATA(timeVal, int64_t, type, input, typeGetTypeModFromColInfo(&pInput[0].columnData->info));
     }
 
-    char buf[20] = {0};
-    NUM_TO_STRING(TSDB_DATA_TYPE_BIGINT, &timeVal, sizeof(buf), buf);
+    int64_t seconds = (isCalendarUnit ? 0 : timeUnit / TSDB_TICK_PER_SECOND(timePrec));
 
-    // truncate the timestamp to time_unit precision
-    int64_t seconds = timeUnit / TSDB_TICK_PER_SECOND(timePrec);
-    if (ignoreTz && (seconds == 604800 || seconds == 86400)) {
-      timeVal = timeVal - (timeVal + offsetFromTz(timezoneStr, TSDB_TICK_PER_SECOND(timePrec))) % timeUnit;
+    if (isCalendarUnit && activeTz != NULL) {
+      if (!truncateCalendarUnit(&timeVal, timeUnit, unitCh, timePrec, activeTz)) {
+        colDataSetNULL(pOutput->columnData, i);
+        continue;
+      }
+    } else if (hasFixedOffsetTz && seconds == 604800) {
+      int64_t weekShift = ((int64_t)fdow - 4) * 86400LL * TSDB_TICK_PER_SECOND(timePrec);
+      int64_t rem = (timeVal + fixedOffset - weekShift) % timeUnit;
+      if (rem < 0) {
+        rem += timeUnit;
+      }
+      timeVal -= rem;
+    } else if (hasFixedOffsetTz) {
+      int64_t rem = (timeVal + fixedOffset) % timeUnit;
+      if (rem < 0) {
+        rem += timeUnit;
+      }
+      timeVal -= rem;
+    } else if (hasStringTz && seconds == 604800) {
+      if (!truncateWeekUnit(&timeVal, timePrec, fdow, explicitTz)) {
+        colDataSetNULL(pOutput->columnData, i);
+        continue;
+      }
+    } else if (hasStringTz && seconds == 86400) {
+      if (!truncateDayUnit(&timeVal, timePrec, explicitTz)) {
+        colDataSetNULL(pOutput->columnData, i);
+        continue;
+      }
+    } else if (hasStringTz) {
+      /* generic DST-aware offset truncation for sub-day units */
+      int64_t tzOffset = 0;
+      if (offsetFromTimezoneHandle(explicitTz, timeVal, (int32_t)timePrec, &tzOffset) != TSDB_CODE_SUCCESS) {
+        colDataSetNULL(pOutput->columnData, i);
+        continue;
+      }
+      if (!truncateTimeWithOffset(&timeVal, timeUnit, tzOffset)) {
+        colDataSetNULL(pOutput->columnData, i);
+        continue;
+      }
+    } else if (useCurrentTz && seconds == 604800) {
+      /* week truncation using connection-level timezone */
+      timezone_t weekTz = pInput->tz;
+      if (weekTz != NULL) {
+        if (!truncateWeekUnit(&timeVal, timePrec, fdow, weekTz)) {
+          colDataSetNULL(pOutput->columnData, i);
+          continue;
+        }
+      } else {
+        /*
+         * Fallback path (notably on Windows where session tz handle can be NULL):
+         * keep fixed-offset alignment but honor firstDayOfWeek instead of
+         * implicit epoch-Thursday alignment.
+         */
+        char tzOffsetStr[TD_TIMEZONE_LEN] = {0};
+        tstrncpy(tzOffsetStr, timezoneStr, sizeof(tzOffsetStr));
+        int64_t tzOffset = offsetFromTz(tzOffsetStr, TSDB_TICK_PER_SECOND(timePrec));
+        int64_t weekShift = ((int64_t)fdow - 4) * 86400LL * TSDB_TICK_PER_SECOND(timePrec);
+        int64_t rem = (timeVal + tzOffset - weekShift) % timeUnit;
+        if (rem < 0) {
+          rem += timeUnit;
+        }
+        timeVal -= rem;
+      }
+    } else if (useCurrentTz && seconds == 86400) {
+      timezone_t dayTz = pInput->tz;
+      if (dayTz != NULL) {
+        if (!truncateDayUnit(&timeVal, timePrec, dayTz)) {
+          colDataSetNULL(pOutput->columnData, i);
+          continue;
+        }
+      } else {
+        char tzOffsetStr[TD_TIMEZONE_LEN] = {0};
+        tstrncpy(tzOffsetStr, timezoneStr, sizeof(tzOffsetStr));
+        int64_t offset = offsetFromTz(tzOffsetStr,
+                                      TSDB_TICK_PER_SECOND(timePrec));
+        if (!truncateTimeWithOffset(&timeVal, timeUnit, offset)) {
+          colDataSetNULL(pOutput->columnData, i);
+          continue;
+        }
+      }
+    } else if (seconds == 604800) {
+      /* Week truncation without timezone: align to UTC week boundary honoring firstDayOfWeek.
+       * Epoch (1970-01-01) is Thursday (wday=4); shift so that FDOW becomes the boundary. */
+      int64_t weekShift = ((int64_t)fdow - 4) * 86400LL * TSDB_TICK_PER_SECOND(timePrec);
+      int64_t rem = (timeVal - weekShift) % timeUnit;
+      if (rem < 0) {
+        rem += timeUnit;
+      }
+      timeVal -= rem;
     } else {
       timeVal = timeVal / timeUnit * timeUnit;
     }
-    SCL_ERR_RET(colDataSetVal(pOutput->columnData, i, (char *)&timeVal, false));
+
+    code = colDataSetVal(pOutput->columnData, i, (char *)&timeVal, false);
+    if (code != TSDB_CODE_SUCCESS) {
+      terrno = code;
+      goto _return;
+    }
   }
 
   pOutput->numOfRows = pInput->numOfRows;
 
-  return TSDB_CODE_SUCCESS;
+_return:
+  if (fallbackTz != NULL) {
+    tzfree(fallbackTz);
+  }
+  if (explicitTz != NULL) {
+    tzfree(explicitTz);
+  }
+  return code;
 }
 
 int32_t timeDiffFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput) {
@@ -4234,7 +6123,10 @@ int32_t timeDiffFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *p
           hasNull = true;
           break;
         }
-      } else if (type == TSDB_DATA_TYPE_BIGINT || type == TSDB_DATA_TYPE_TIMESTAMP) { /* unix timestamp or ts column */
+      } else if (type == TSDB_DATA_TYPE_TIMESTAMP) {
+        GET_TYPED_DATA(timeVal[k], int64_t, type, input[k], typeGetTypeModFromColInfo(&pInput[k].columnData->info));
+        timeVal[k] = convertTimePrecision(timeVal[k], pInput[k].columnData->info.precision, timePrec);
+      } else if (type == TSDB_DATA_TYPE_BIGINT) { /* unix timestamp */
         GET_TYPED_DATA(timeVal[k], int64_t, type, input[k], typeGetTypeModFromColInfo(&pInput[k].columnData->info));
       }
     }
@@ -4288,20 +6180,60 @@ int32_t todayFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOut
 int32_t timezoneFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput) {
   char  output[TD_TIMEZONE_LEN + VARSTR_HEADER_SIZE] = {0};
   char *tmp = NULL;
+  // Stored displays carry the abbreviation and offset of when they were
+  // formatted; re-render them so they follow DST transitions.
   if (pInput->tz == NULL) {
-    (void)memcpy(varDataVal(output), tsTimezoneStr, TD_TIMEZONE_LEN);
+    if (taosRefreshTimezoneStr(tsTimezoneStr, NULL, varDataVal(output)) != TSDB_CODE_SUCCESS) {
+      (void)memcpy(varDataVal(output), tsTimezoneStr, TD_TIMEZONE_LEN);
+    }
   } else {
     char *tzName = (char *)taosHashGet(pTimezoneNameMap, &pInput->tz, sizeof(timezone_t));
-    if (tzName == NULL) {
-      tzName = TZ_UNKNOWN;
+    if (tzName != NULL) {
+      if (taosRefreshTimezoneStr(tzName, pInput->tz, varDataVal(output)) != TSDB_CODE_SUCCESS) {
+        tstrncpy(varDataVal(output), tzName, TD_TIMEZONE_LEN);
+      }
+    } else {
+      // pTimezoneNameMap is only populated on the client side; on taosd, fall back to
+      // rebuilding the formatted string from the IANA name carried in pInput->tzName.
+      if (pInput->tzName[0] != '\0') {
+        time_t tx1 = taosGetTimestampSec();
+        char   tmpBuf[TD_TIMEZONE_LEN] = {0};
+        (void)taosFormatTimezoneStr(tx1, pInput->tzName, pInput->tz, tmpBuf);
+        if (tmpBuf[0] != '\0') {
+          tstrncpy(varDataVal(output), tmpBuf, TD_TIMEZONE_LEN);
+        } else {
+          tstrncpy(varDataVal(output), pInput->tzName, strlen(pInput->tzName) + 1);
+        }
+      } else {
+        tzName = TZ_UNKNOWN;
+        tstrncpy(varDataVal(output), tzName, strlen(tzName) + 1);
+      }
     }
-    tstrncpy(varDataVal(output), tzName, strlen(tzName) + 1);
   }
 
-  varDataSetLen(output, strlen(varDataVal(output)));
+  int32_t outLen = (int32_t)strlen(varDataVal(output));
+  // The column width was sized at translation; a DST transition in between
+  // can change the abbreviation length.
+  int32_t maxLen = pOutput->columnData->info.bytes - VARSTR_HEADER_SIZE;
+  if (maxLen > 0 && outLen > maxLen) {
+    outLen = maxLen;
+  }
+  varDataSetLen(output, outLen);
   for (int32_t i = 0; i < pInput->numOfRows; ++i) {
     SCL_ERR_RET(colDataSetVal(pOutput->columnData, i, output, false));
   }
+  pOutput->numOfRows = pInput->numOfRows;
+  return TSDB_CODE_SUCCESS;
+}
+
+int32_t firstDayOfWeekFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput) {
+  int64_t fdow = (pInput->firstDayOfWeek >= 0 && pInput->firstDayOfWeek <= 6) ? pInput->firstDayOfWeek :
+                 tsFirstDayOfWeek;
+
+  for (int32_t i = 0; i < pInput->numOfRows; ++i) {
+    colDataSetInt64(pOutput->columnData, i, &fdow);
+  }
+
   pOutput->numOfRows = pInput->numOfRows;
   return TSDB_CODE_SUCCESS;
 }
@@ -4472,6 +6404,8 @@ int32_t weekofyearFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam 
   int64_t timePrec;
   GET_TYPED_DATA(timePrec, int64_t, GET_PARAM_TYPE(&pInput[1]), pInput[1].columnData->pData,
                  typeGetTypeModFromColInfo(&pInput[1].columnData->info));
+  /* WEEKOFYEAR is always equivalent to MySQL WEEK(date,3): Monday-first, ISO
+   * week numbering.  It must not be affected by the firstDayOfWeek setting. */
   return weekFunctionImpl(pInput, inputNum, pOutput, timePrec, 3);
 }
 
@@ -4538,6 +6472,45 @@ int32_t randFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutp
     double random_value = (double)(taosRand() % RAND_MAX) / RAND_MAX;
     colDataSetDouble(pOutput->columnData, i, &random_value);
   }
+  pOutput->numOfRows = numOfRows;
+  return TSDB_CODE_SUCCESS;
+}
+
+int32_t sleepFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput) {
+  int32_t numOfRows = pInput[0].numOfRows;
+  if (numOfRows == 0) {
+    pOutput->numOfRows = 0;
+    return TSDB_CODE_SUCCESS;
+  }
+
+  for (int32_t i = 0; i < numOfRows; i++) {
+    if (colDataIsNull_s(pInput[0].columnData, i)) {
+      int32_t zero = 0;
+      colDataSetInt32(pOutput->columnData, i, &zero);
+      continue;
+    }
+
+    double sleepSec;
+    GET_TYPED_DATA(sleepSec, double, GET_PARAM_TYPE(&pInput[0]), colDataGetData(pInput[0].columnData, i),
+                   typeGetTypeModFromColInfo(&pInput[0].columnData->info));
+
+    int32_t result = 0;
+    if (sleepSec > 0) {
+      int64_t totalMs = (int64_t)(TMIN(sleepSec, (double)(INT64_MAX / 1000 - 1)) * 1000);
+      int64_t elapsed = 0;
+      while (elapsed < totalMs) {
+        if (gTaskScalarExtra.isTaskKilled && gTaskScalarExtra.isTaskKilled(gTaskScalarExtra.pTaskInfo)) {
+          result = 1;
+          break;
+        }
+        int32_t chunk = (int32_t)TMIN(100LL, totalMs - elapsed);
+        taosMsleep(chunk);
+        elapsed += chunk;
+      }
+    }
+    colDataSetInt32(pOutput->columnData, i, &result);
+  }
+
   pOutput->numOfRows = numOfRows;
   return TSDB_CODE_SUCCESS;
 }
@@ -4823,13 +6796,46 @@ int32_t isWinFilledFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam
 }
 
 int32_t qPseudoTagFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput) {
-  char   *p = colDataGetData(pInput->columnData, 0);
-  int32_t code = colDataSetNItems(pOutput->columnData, pOutput->numOfRows, p, pInput->numOfRows, 1, true);
-  if (code) {
+  char*       p = NULL;
+  const char* tbName = NULL;
+  int32_t     numOfRows = 0;
+  char        tbNameBuf[TSDB_TABLE_FNAME_LEN + VARSTR_HEADER_SIZE] = {0};
+
+  if (inputNum > 0 && pInput != NULL) {
+    numOfRows = pInput->numOfRows;
+    if (pInput->columnData != NULL) {
+      p = colDataGetData(pInput->columnData, 0);
+    } else if (pInput->param != NULL) {
+      tbName = (const char*)pInput->param;
+    }
+  }
+
+  if (tbName == NULL && pOutput != NULL && pOutput->param != NULL) {
+    tbName = (const char*)pOutput->param;
+  }
+  if (numOfRows <= 0 && pOutput != NULL) {
+    numOfRows = pOutput->numOfRows;
+  }
+
+  if (p == NULL && tbName != NULL) {
+    STR_TO_VARSTR(tbNameBuf, tbName);
+    p = tbNameBuf;
+  }
+
+  if (p == NULL || numOfRows <= 0) {
+    qError("qPseudoTagFunction invalid inputNum:%d inRows:%d outRows:%d inParam:%p outParam:%p tbName:%s",
+           inputNum, pInput ? pInput->numOfRows : -1, pOutput ? pOutput->numOfRows : -1,
+           pInput ? pInput->param : NULL, pOutput ? pOutput->param : NULL,
+           tbName ? tbName : "(null)");
+    return TSDB_CODE_QRY_INVALID_INPUT;
+  }
+
+  int32_t code = colDataSetNItems(pOutput->columnData, pOutput->numOfRows, p, numOfRows, 1, true);
+  if (code != TSDB_CODE_SUCCESS) {
     return code;
   }
 
-  pOutput->numOfRows += pInput->numOfRows;
+  pOutput->numOfRows += numOfRows;
   return TSDB_CODE_SUCCESS;
 }
 
@@ -4837,6 +6843,12 @@ int32_t qPseudoTagFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam 
 int32_t countScalarFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput) {
   SColumnInfoData *pInputData = pInput->columnData;
   SColumnInfoData *pOutputData = pOutput->columnData;
+  int32_t          code = TSDB_CODE_SUCCESS;
+
+  code = colInfoDataEnsureCapacity(pOutputData, 1, false);
+  if (code != TSDB_CODE_SUCCESS) {
+    return code;
+  }
 
   int64_t *out = (int64_t *)pOutputData->pData;
   *out = 0;
@@ -5424,8 +7436,8 @@ int32_t leastSQRScalarFunction(SScalarParam *pInput, int32_t inputNum, SScalarPa
 
     // For '%f' (or '%F') in 'printf' functions, the C99 standard states:
     //   A double argument representing an infinity is converted in one of the styles [-]inf
-    //   or [-]infinity — which style is implementation-defined. A double argument representing
-    //   a NaN is converted in one of the styles [-]nan or [-]nan(n-char-sequence) — which style,
+    //   or [-]infinity  -  which style is implementation-defined. A double argument representing
+    //   a NaN is converted in one of the styles [-]nan or [-]nan(n-char-sequence)  -  which style,
     //   and the meaning of any n-char-sequence, is implementation-defined.
     //
     // To make the behavior consistent across different compilers and avoid issues like TD-37674,
@@ -5963,6 +7975,10 @@ static int32_t getHistogramBinDesc(SHistoFuncBin **bins, int32_t *binNum, char *
       SCL_ERR_RET(TSDB_CODE_FAILED);
     }
     numOfBins = cJSON_GetArraySize(binDesc);
+    if (numOfBins < 2 || numOfBins > SCALAR_HISTOGRAM_MAX_BINS_NUM + 1) {
+      cJSON_Delete(binDesc);
+      SCL_ERR_RET(TSDB_CODE_FAILED);
+    }
     intervals = taosMemoryCalloc(numOfBins, sizeof(double));
     if (NULL == intervals) {
       cJSON_Delete(binDesc);
@@ -6155,8 +8171,44 @@ void freeSCovertScarlarParams(SCovertScarlarParam *pCovertParams, int32_t num) {
   taosMemoryFree(pCovertParams);
 }
 
-static int32_t vectorCompareAndSelect(SCovertScarlarParam *pParams, int32_t numOfRows, int numOfCols,
-                                      int32_t *resultColIndex, EOperatorType optr) {
+static int32_t convertTimestampScalarParamPrecision(SScalarParam *pInput, SScalarParam *pOutput, uint8_t targetPrec) {
+  if (pInput == NULL || pInput->columnData == NULL || pOutput == NULL) {
+    qError("convertTimestampScalarParamPrecision invalid param, input:%p output:%p", pInput, pOutput);
+    return TSDB_CODE_INVALID_PARA;
+  }
+
+  SDataType outType = {
+      .type = TSDB_DATA_TYPE_TIMESTAMP,
+      .bytes = tDataTypes[TSDB_DATA_TYPE_TIMESTAMP].bytes,
+      .precision = targetPrec,
+  };
+
+  int32_t code = sclCreateColumnInfoData(&outType, pInput->numOfRows, pOutput);
+  if (code != TSDB_CODE_SUCCESS) {
+    qError("convertTimestampScalarParamPrecision create output column failed, rows:%d prec:%u code:%d",
+           pInput->numOfRows, targetPrec, code);
+    return code;
+  }
+
+  int8_t srcPrec = pInput->columnData->info.precision;
+  for (int32_t i = 0; i < pInput->numOfRows; ++i) {
+    if (colDataIsNull_s(pInput->columnData, i)) {
+      colDataSetNULL(pOutput->columnData, i);
+      continue;
+    }
+
+    int64_t rawTs = 0;
+    GET_TYPED_DATA(rawTs, int64_t, GET_PARAM_TYPE(pInput), colDataGetData(pInput->columnData, i),
+                   typeGetTypeModFromColInfo(&pInput->columnData->info));
+    int64_t convertedTs = convertTimePrecision(rawTs, srcPrec, targetPrec);
+    colDataSetInt64(pOutput->columnData, i, &convertedTs);
+  }
+
+  pOutput->numOfRows = pInput->numOfRows;
+  return TSDB_CODE_SUCCESS;
+}
+static int32_t vectorCompareAndSelect(SCovertScarlarParam *pParams, int32_t numOfRows, int32_t numOfCols,
+                                      int32_t *resultColIndex, EOperatorType optr, bool ignoreNull) {
   int32_t code = TSDB_CODE_SUCCESS;
   int32_t type = GET_PARAM_TYPE(pParams[0].param);
 
@@ -6168,27 +8220,35 @@ static int32_t vectorCompareAndSelect(SCovertScarlarParam *pParams, int32_t numO
   }
 
   for (int32_t i = 0; i < numOfRows; i++) {
-    int selectIndex = 0;
-    if (colDataIsNull_s(pParams[selectIndex].param->columnData, i)) {
-      resultColIndex[i] = -1;
-      continue;
-    }
-    for (int32_t j = 1; j < numOfCols; j++) {
-      if (colDataIsNull_s(pParams[j].param->columnData, i)) {
-        resultColIndex[i] = -1;
-        break;
-      } else {
-        int32_t leftRowNo = pParams[selectIndex].param->numOfRows == 1 ? 0 : i;
-        int32_t rightRowNo = pParams[j].param->numOfRows == 1 ? 0 : i;
-        char   *pLeftData = colDataGetData(pParams[selectIndex].param->columnData, leftRowNo);
-        char   *pRightData = colDataGetData(pParams[j].param->columnData, rightRowNo);
-        bool    pRes = filterDoCompare(fp, optr, pLeftData, pRightData);
-        if (!pRes) {
-          selectIndex = j;
+    int32_t selectIndex = -1;
+    for (int32_t j = 0; j < numOfCols; j++) {
+      // Constant inputs (numOfRows==1, e.g. CAST(NULL AS <type>) or any
+      // literal) only have slot 0 populated; reading slot i would walk
+      // past their null bitmap / varmeta.  Compute the broadcast index
+      // once and reuse it for both the NULL check and the data read.
+      int32_t rowNo = pParams[j].param->numOfRows == 1 ? 0 : i;
+      if (colDataIsNull_s(pParams[j].param->columnData, rowNo)) {
+        if (ignoreNull) {
+          // Skip NULL inputs and keep scanning the remaining columns; result
+          // is NULL only when every column on this row is NULL.
+          continue;
         }
+        selectIndex = -1;
+        break;
       }
-      resultColIndex[i] = selectIndex;
+      if (selectIndex < 0) {
+        selectIndex = j;
+        continue;
+      }
+      int32_t leftRowNo = pParams[selectIndex].param->numOfRows == 1 ? 0 : i;
+      char   *pLeftData = colDataGetData(pParams[selectIndex].param->columnData, leftRowNo);
+      char   *pRightData = colDataGetData(pParams[j].param->columnData, rowNo);
+      bool    pRes = filterDoCompare(fp, optr, pLeftData, pRightData);
+      if (!pRes) {
+        selectIndex = j;
+      }
     }
+    resultColIndex[i] = selectIndex;
   }
 
   return code;
@@ -6198,25 +8258,52 @@ static int32_t greatestLeastImpl(SScalarParam *pInput, int32_t inputNum, SScalar
   int32_t          code = TSDB_CODE_SUCCESS;
   SColumnInfoData *pOutputData = pOutput[0].columnData;
   int16_t          outputType = GET_PARAM_TYPE(&pOutput[0]);
-  int64_t          outputLen = GET_PARAM_BYTES(&pOutput[0]);
-
   SCovertScarlarParam *pCovertParams = NULL;
   int32_t             *resultColIndex = NULL;
+  uint8_t              ignoreNullFlag = 0;
 
+  if (pInput[inputNum - 1].columnData == NULL ||
+      pInput[inputNum - 1].columnData->pData == NULL) {
+    qError("greatestLeast: ignoreNullInGreatest flag column missing, func:%s", __FUNCTION__);
+    code = TSDB_CODE_TSC_INTERNAL_ERROR;
+    goto _return;
+  }
+  GET_TYPED_DATA(ignoreNullFlag, uint8_t, GET_PARAM_TYPE(&pInput[inputNum - 1]),
+                 pInput[inputNum - 1].columnData->pData,
+                 typeGetTypeModFromColInfo(&pInput[inputNum - 1].columnData->info));
+  bool    ignoreNull = ignoreNullFlag != 0;
+  int32_t dataInputNum = inputNum - 1;
   int32_t numOfRows = 0;
+  int32_t effectiveNum = 0;  // number of non-NULL-typed input columns
   bool    IsNullType = outputType == TSDB_DATA_TYPE_NULL ? true : false;
-  // If any column is NULL type, the output is NULL type
-  for (int32_t i = 0; i < inputNum; i++) {
-    if (IsNullType) {
-      break;
-    }
+  // Always compute numOfRows from the data inputs, even when the
+  // output type was already pinned to NULL by the translator (e.g.,
+  // ignoreNullInGreatest=0 with a NULL literal).  Otherwise the
+  // IsNullType short-circuit below would mark zero rows NULL while
+  // the caller has allocated `rowNum` slots in the output column.
+  for (int32_t i = 0; i < dataInputNum; i++) {
     if (numOfRows != 0 && numOfRows != pInput[i].numOfRows && pInput[i].numOfRows != 1 && numOfRows != 1) {
-      qError("input rows not match, func:%s, rows:%d, %d", __FUNCTION__, numOfRows, pInput[i].numOfRows);
+      qError("input rows do not match, func:%s, rows:%d, %d", __FUNCTION__, numOfRows, pInput[i].numOfRows);
       code = TSDB_CODE_TSC_INTERNAL_ERROR;
       goto _return;
     }
     numOfRows = TMAX(numOfRows, pInput[i].numOfRows);
-    IsNullType |= IS_NULL_TYPE(GET_PARAM_TYPE(&pInput[i]));
+    if (IsNullType) {
+      // Still walk the loop to keep numOfRows correct, but skip the
+      // per-input bookkeeping that only matters for the live path.
+      continue;
+    }
+    if (IS_NULL_TYPE(GET_PARAM_TYPE(&pInput[i]))) {
+      if (!ignoreNull) {
+        IsNullType = true;
+      }
+    } else {
+      effectiveNum++;
+    }
+  }
+  // ignoreNullInGreatest=1: every input was a NULL literal.
+  if (ignoreNull && effectiveNum == 0) {
+    IsNullType = true;
   }
 
   if (IsNullType) {
@@ -6224,24 +8311,53 @@ static int32_t greatestLeastImpl(SScalarParam *pInput, int32_t inputNum, SScalar
     pOutput->numOfRows = numOfRows;
     return TSDB_CODE_SUCCESS;
   }
-  pCovertParams = taosMemoryMalloc(inputNum * sizeof(SCovertScarlarParam));
-  for (int32_t j = 0; j < inputNum; j++) {
+
+  if (!ignoreNull) {
+    effectiveNum = dataInputNum;
+  }
+  if (numOfRows == 0) {
+    pOutput->numOfRows = 0;
+    return TSDB_CODE_SUCCESS;
+  }
+
+  pCovertParams = taosMemoryCalloc(effectiveNum, sizeof(SCovertScarlarParam));
+  if (pCovertParams == NULL) {
+    SCL_ERR_JRET(terrno);
+  }
+  int32_t outIdx = 0;
+  for (int32_t j = 0; j < dataInputNum; j++) {
+    if (ignoreNull && IS_NULL_TYPE(GET_PARAM_TYPE(&pInput[j]))) {
+      continue;
+    }
     SScalarParam *pParam = &pInput[j];
     int16_t       oldType = GET_PARAM_TYPE(&pInput[j]);
-    if (oldType != outputType) {
-      pCovertParams[j].covertParam = (SScalarParam){0};
-      setTzCharset(&pCovertParams[j].covertParam, pParam->tz, pParam->charsetCxt);
-      SCL_ERR_JRET(vectorConvertSingleCol(pParam, &pCovertParams[j].covertParam, outputType, 0, 0, pParam->numOfRows));
-      pCovertParams[j].param = &pCovertParams[j].covertParam;
-      pCovertParams[j].converted = true;
+    bool          needTsPrecConvert =
+        oldType == TSDB_DATA_TYPE_TIMESTAMP && outputType == TSDB_DATA_TYPE_TIMESTAMP &&
+        pParam->columnData != NULL && pParam->columnData->info.precision != pOutputData->info.precision;
+    if (oldType != outputType || needTsPrecConvert) {
+      pCovertParams[outIdx].covertParam = (SScalarParam){0};
+      setTzCharset(&pCovertParams[outIdx].covertParam, pParam->tz, pParam->charsetCxt);
+      if (needTsPrecConvert) {
+        SCL_ERR_JRET(
+            convertTimestampScalarParamPrecision(pParam, &pCovertParams[outIdx].covertParam, pOutputData->info.precision));
+      } else {
+        SCL_ERR_JRET(
+            vectorConvertSingleCol(pParam, &pCovertParams[outIdx].covertParam, outputType, 0, 0, pParam->numOfRows));
+      }
+      pCovertParams[outIdx].param = &pCovertParams[outIdx].covertParam;
+      pCovertParams[outIdx].converted = true;
     } else {
-      pCovertParams[j].param = pParam;
-      pCovertParams[j].converted = false;
+      pCovertParams[outIdx].param = pParam;
+      pCovertParams[outIdx].converted = false;
     }
+    outIdx++;
   }
 
   resultColIndex = taosMemoryCalloc(numOfRows, sizeof(int32_t));
-  SCL_ERR_JRET(vectorCompareAndSelect(pCovertParams, numOfRows, inputNum, resultColIndex, order));
+  if (resultColIndex == NULL) {
+    SCL_ERR_JRET(terrno);
+  }
+  SCL_ERR_JRET(vectorCompareAndSelect(pCovertParams, numOfRows, effectiveNum, resultColIndex, order, ignoreNull));
 
   for (int32_t i = 0; i < numOfRows; i++) {
     int32_t index = resultColIndex[i];
@@ -6257,7 +8373,7 @@ static int32_t greatestLeastImpl(SScalarParam *pInput, int32_t inputNum, SScalar
   pOutput->numOfRows = numOfRows;
 
 _return:
-  freeSCovertScarlarParams(pCovertParams, inputNum);
+  freeSCovertScarlarParams(pCovertParams, effectiveNum);
   taosMemoryFree(resultColIndex);
   return code;
 }
@@ -6284,9 +8400,12 @@ int32_t streamCalcCurrWinTimeRange(STimeRangeNode *node, void *pStRtFuncInfo, ST
     gTaskScalarExtra.pStreamInfo = pStRtFuncInfo;
     gTaskScalarExtra.pStreamRange = &timeStartParas;
     TAOS_CHECK_EXIT(scalarCalculate(node->pStart, NULL, NULL, &gTaskScalarExtra));
-    
+
+    if (timeStartParas.isNull) goto _empty;
+
     if (timeStartParas.opType == OP_TYPE_GREATER_THAN) {
       // For greater than or lower than, used different param, rigth or left.
+      TAOS_CHECK_EXIT(timeStartParas.timeValue == INT64_MAX ? TSDB_CODE_OUT_OF_RANGE : TSDB_CODE_SUCCESS);
       pWinRange->skey = timeStartParas.timeValue + 1;
     } else if (timeStartParas.opType == OP_TYPE_GREATER_EQUAL) {
       pWinRange->skey = timeStartParas.timeValue;
@@ -6302,10 +8421,13 @@ int32_t streamCalcCurrWinTimeRange(STimeRangeNode *node, void *pStRtFuncInfo, ST
     gTaskScalarExtra.pStreamInfo = pStRtFuncInfo;
     gTaskScalarExtra.pStreamRange = &timeEndParas;
     TAOS_CHECK_EXIT(scalarCalculate(node->pEnd, NULL, NULL, &gTaskScalarExtra));
-    
+
+    if (timeEndParas.isNull) goto _empty;
+
     if (timeEndParas.opType == OP_TYPE_LOWER_THAN) {
       pWinRange->ekey = timeEndParas.timeValue;
     } else if (timeEndParas.opType == OP_TYPE_LOWER_EQUAL) {
+      TAOS_CHECK_EXIT(timeEndParas.timeValue == INT64_MAX ? TSDB_CODE_OUT_OF_RANGE : TSDB_CODE_SUCCESS);
       pWinRange->ekey = timeEndParas.timeValue + 1;
     } else {
       qError("end time range error, opType:%d", timeEndParas.opType);
@@ -6315,6 +8437,17 @@ int32_t streamCalcCurrWinTimeRange(STimeRangeNode *node, void *pStRtFuncInfo, ST
     pWinRange->ekey = INT64_MAX;
   }
 
+  goto _done;
+
+_empty:
+  // A complete predicate with a NULL bound has no input. Keep it valid and
+  // explicitly empty; false validity restores the original reader range.
+  // Partial bounds build a batch envelope from different windows: a NULL in
+  // the first/last window must not exclude other windows in that batch.
+  *pWinRange = type == 3
+                   ? (STimeWindow){.skey = INT64_MAX, .ekey = INT64_MIN + 1}
+                   : (STimeWindow){.skey = INT64_MIN, .ekey = INT64_MAX};
+_done:
   qDebug("%s, stream curr win calc range, skey:%" PRId64 ", ekey:%" PRId64, __func__, pWinRange->skey, pWinRange->ekey);
   if (winRangeValid) {
     *winRangeValid = true;
@@ -6327,4 +8460,35 @@ _exit:
   }
 
   return code;
+}
+
+// __timestamp_scale(expr, target_precision)  -  internal scalar function
+// Scales a TIMESTAMP column from its source precision to target precision
+// using convertTimePrecision(). Parser auto-inserts this for cross-precision comparisons.
+int32_t timestampScaleFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput) {
+  SColumnInfoData *pInputData  = pInput[0].columnData;
+  SColumnInfoData *pOutputData = pOutput->columnData;
+
+  // Second parameter is a constant: the target precision (0=ms, 1=micros, 2=ns)
+  int8_t targetPrec = 0;
+  if (pInput[1].numOfRows == 1 && !colDataIsNull_s(pInput[1].columnData, 0)) {
+    targetPrec = *(int8_t *)colDataGetData(pInput[1].columnData, 0);
+  }
+
+  int8_t srcPrec = pInputData->info.precision;
+  pOutputData->info.precision = targetPrec;
+
+  int64_t *in  = (int64_t *)pInputData->pData;
+  int64_t *out = (int64_t *)pOutputData->pData;
+
+  for (int32_t i = 0; i < pInput[0].numOfRows; ++i) {
+    if (colDataIsNull_s(pInputData, i)) {
+      colDataSetNULL(pOutputData, i);
+      continue;
+    }
+    out[i] = convertTimePrecision(in[i], srcPrec, targetPrec);
+  }
+
+  pOutput->numOfRows = pInput[0].numOfRows;
+  return TSDB_CODE_SUCCESS;
 }

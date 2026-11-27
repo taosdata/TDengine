@@ -1,13 +1,17 @@
-###################################################################
-#           Copyright (c) 2016 by TAOS Technologies, Inc.
-#                     All rights reserved.
+# Copyright (c) 2016 TAOS Data, Inc. <jhtao@taosdata.com>
 #
-#  This file is proprietary and confidential to TAOS Technologies.
-#  No part of this file may be reproduced, stored, transmitted,
-#  disclosed or used in any form or by any means other than as
-#  expressly provided by the written permission from Jianhui Tao
+# SPDX-License-Identifier: AGPL-3.0-or-later
 #
-###################################################################
+# This program is free software: you can use, redistribute, and/or modify
+# it under the terms of the GNU Affero General Public License, version 3
+# or later ("AGPL"), as published by the Free Software Foundation.
+#
+# This program is distributed in the hope that it will be useful, but WITHOUT
+# ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+# FITNESS FOR A PARTICULAR PURPOSE.
+#
+# You should have received a copy of the GNU Affero General Public License
+# along with this program. If not, see <http://www.gnu.org/licenses/>.
 
 # -*- coding: utf-8 -*-
 
@@ -27,7 +31,8 @@ import psutil
 from fabric2 import Connection
 from shutil import which
 import signal
-from .win_process import start_taosd_windows, stop_taosd_windows
+from pathlib import Path
+from .win_process import start_taosd_windows, stop_taosd_windows, force_stop_taosd_windows
 
 # self
 from ..log import *
@@ -49,7 +54,7 @@ class TDDnode:
             "fqdn": "localhost",
             "monitor": "0",
             "maxShellConns": "30000",
-            "locale": "en_US.UTF-8",
+            **({} if platform.system().lower() == "windows" else {"locale": "en_US.UTF-8"}),
             "charset": "UTF-8",
             "asyncLog": "0",
             "mDebugFlag": "135",
@@ -169,19 +174,23 @@ class TDDnode:
         self.cfgDir = os.path.join(self.path, "dnode%d" % self.index, "cfg")
         self.cfgPath = os.path.join(self.cfgDir, "taos.cfg")
 
-        for eDir in self.dataDir:
-            cmd = "rm -rf " + eDir
-            tdLog.info(cmd)
-            if os.system(cmd) != 0:
-                tdLog.exit(cmd)
+        if platform.system().lower() == "windows":
+            for directory in [path.split(" ")[0] for path in self.dataDir] + [
+                self.logDir, self.cfgDir
+            ]:
+                if os.path.exists(directory):
+                    shutil.rmtree(directory)
+        else:
+            for eDir in self.dataDir:
+                cmd = "rm -rf " + eDir
+                tdLog.info(cmd)
+                if os.system(cmd) != 0:
+                    tdLog.exit(cmd)
 
-        cmd = "rm -rf " + self.logDir
-        if os.system(cmd) != 0:
-            tdLog.exit(cmd)
-
-        cmd = "rm -rf " + self.cfgDir
-        if os.system(cmd) != 0:
-            tdLog.exit(cmd)
+            for directory in (self.logDir, self.cfgDir):
+                cmd = "rm -rf " + directory
+                if os.system(cmd) != 0:
+                    tdLog.exit(cmd)
 
         # cmd = "mkdir -p " + self.dataDir
         # if os.system(cmd) != 0:
@@ -199,9 +208,12 @@ class TDDnode:
         #     tdLog.exit(cmd)
         os.makedirs(self.cfgDir)
 
-        cmd = "touch " + self.cfgPath
-        if os.system(cmd) != 0:
-            tdLog.exit(cmd)
+        if platform.system().lower() == "windows":
+            Path(self.cfgPath).touch()
+        else:
+            cmd = "touch " + self.cfgPath
+            if os.system(cmd) != 0:
+                tdLog.exit(cmd)
 
         if self.testCluster:
             self.startIP()
@@ -214,6 +226,10 @@ class TDDnode:
             self.cfg("privateIp", "192.168.0.%d" % (self.index))
         self.cfgDict["dataDir"] = self.dataDir
         self.cfgDict["logDir"] = self.logDir
+        # CI containers share host memory; use a fixed reserve before case overrides.
+        ci_memory_reserve = os.environ.get("CI_MIN_RESERVED_MEMORY_MB")
+        if ci_memory_reserve is not None:
+            self.cfgDict["minReservedMemorySize"] = ci_memory_reserve
         # self.cfg("dataDir",self.dataDir)
         # self.cfg("logDir",self.logDir)
         # print(updatecfgDict)
@@ -460,7 +476,6 @@ class TDDnode:
             if self.valgrind == 0:
                 time.sleep(0.1)
                 key = "from offline to online"
-                bkey = bytes(key, encoding="utf8")
                 logFile = os.path.join(self.logDir, "taosdlog.0")
                 i = 0
                 while not os.path.exists(logFile):
@@ -468,17 +483,24 @@ class TDDnode:
                     i += 1
                     if i > 50:
                         break
-                with open(logFile) as f:
-                    _asan_build = os.environ.get("CI_ASAN_BUILD", "0") == "1"
-                    _start_timeout = 60 if _asan_build else 20
-                    timeout = time.time() + _start_timeout
-                    while True:
-                        line = f.readline().encode("utf-8")
-                        if bkey in line:
-                            break
-                        if time.time() > timeout:
-                            tdLog.exit("wait too long for taosd start")
-                    tdLog.debug("the dnode:%d has been started." % (self.index))
+                if not os.path.exists(logFile):
+                    tdLog.exit(f"wait too long for taosd startup log: {logFile}")
+                _asan_build = os.environ.get("CI_ASAN_BUILD", "0") == "1"
+                _start_timeout = 60 if _asan_build else 20
+                timeout = time.time() + _start_timeout
+                while True:
+                    # Startup can replace or truncate the log. Reopen it so a
+                    # stale handle/offset cannot hide the online marker.
+                    try:
+                        with open(logFile) as f:
+                            if key in f.read():
+                                break
+                    except FileNotFoundError:
+                        pass  # The logger may be replacing the file.
+                    if time.time() > timeout:
+                        tdLog.exit("wait too long for taosd start")
+                    sleep(0.1)
+                tdLog.debug("the dnode:%d has been started." % (self.index))
             else:
                 tdLog.debug("wait 10 seconds for the dnode:%d to start." % (self.index))
                 time.sleep(10)
@@ -559,7 +581,7 @@ class TDDnode:
         start_taosd_windows(taosd, cfg, log=tdLog)
 
     def stopOnWindows(self):
-        stop_taosd_windows(self.index, log=tdLog)
+        stop_taosd_windows(config_dir=self.cfgDir, log=tdLog)
 
     def stop(self):
         if self.asan:
@@ -695,7 +717,7 @@ class TDDnode:
                             name_match = "valgrind" in proc.info["name"]
                         if name_match:
                             if proc.info["cmdline"] and any(
-                                f"dnode{self.index}" in str(arg)
+                                f"dnode{self.index}" in str(arg).replace("\\", "/").strip('"').split("/")
                                 for arg in proc.info["cmdline"]
                             ):
                                 still_running = True
@@ -737,15 +759,13 @@ class TDDnode:
 
         if self.running != 0:
             if platform.system().lower() == "windows":
-                psCmd = (
-                    "for /f %%a in ('wmic process where \"name='taosd.exe' and CommandLine like '%%dnode%d%%'\" get processId ^| xargs echo ^| awk ^'{print $2}^' ^&^& echo aa') do @(ps | grep %%a | awk '{print $1}' | xargs)"
-                    % (self.index)
-                )
-            else:
-                psCmd = (
-                    "ps -efww | grep -w %s | grep dnode%d | grep -v grep | awk '{print $2}' | xargs"
-                    % (toBeKilled, self.index)
-                )
+                force_stop_taosd_windows(self.cfgDir, log=tdLog)
+                self.running = 0
+                return
+            psCmd = (
+                "ps -efww | grep -w %s | grep dnode%d | grep -v grep | awk '{print $2}' | xargs"
+                % (toBeKilled, self.index)
+            )
             processID = (
                 subprocess.check_output(psCmd, shell=True).decode("utf-8").strip()
             )

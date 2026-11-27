@@ -1,0 +1,304 @@
+---
+title: Maintaining Your Cluster
+---
+
+This section introduces advanced cluster maintenance methods provided in TDengine Enterprise, which can make the TDengine cluster run more robustly and efficiently over the long term.
+
+## Node Management
+
+For how to manage cluster nodes, please refer to [Node Management](../../05-tdengine-sql/08-cluster-management/01-node.md)
+
+## Data Reorganization
+
+TDengine is designed for various writing scenarios, and many of these scenarios can lead to data storage amplification or data file holes in TDengine's storage. This not only affects the efficiency of data storage but also impacts query performance. To address these issues, TDengine Enterprise offers a data reorganization feature, namely the DATA COMPACT function, which reorganizes stored data files, removes file holes and invalid data, improves data organization, and thus enhances storage and query efficiency. The data reorganization feature was first released in version 3.0.3.0 and has since undergone several iterations of optimization. It is recommended to use the latest version.
+
+**Syntax**
+
+```sql
+COMPACT DATABASE db_name [start with 'XXXX'] [end with 'YYYY'] [META_ONLY] [FORCE];
+COMPACT [db_name.]VGROUPS IN (vgroup_id1, vgroup_id2, ...) [start with 'XXXX'] [end with 'YYYY'] [META_ONLY] [FORCE];
+SHOW COMPACTS;
+SHOW COMPACT compact_id;
+KILL COMPACT compact_id;
+KILL COMPACT compact_id FORCE;
+```
+
+**Effects**
+
+- Scans and compresses all data files in all VGROUP VNODEs of the specified DB
+- COMPACT will delete data that has been deleted and data from deleted tables
+- COMPACT will merge multiple STT files
+- You can specify the start time of the COMPACT data with the start with keyword
+- You can specify the end time of the COMPACT data with the end with keyword
+- You can specify the META_ONLY keyword to only compact the meta data which are not compacted by default. Meta data compaction can block write and the database compacting meta should stop write and query
+- A file group will not be compacted if no new data has been written since the last compaction, unless the FORCE keyword is specified  
+- The COMPACT command will return the ID of the COMPACT task
+- COMPACT tasks are executed asynchronously in the background, and you can view the progress of COMPACT tasks using the SHOW COMPACTS command
+- The SHOW command will return the ID of the COMPACT task, and you can terminate the COMPACT task using the KILL COMPACT command
+
+**Additional Information**
+
+- COMPACT is asynchronous; after executing the COMPACT command, it returns without waiting for the COMPACT to finish. If a previous COMPACT has not completed, it will wait for the previous task to finish before returning.
+- COMPACT may block writing, especially in databases where stt_trigger = 1, but it does not block queries.
+- `KILL COMPACT compact_id FORCE` bypasses the normal mnode-driven cleanup of a compact task and forcefully removes the compact record from the SDB. This allows the task to be terminated immediately even when a dnode is offline, without waiting for it to recover. **This operation carries risk**: data files being modified during compaction may be left in an intermediate state, as forceful record deletion does not trigger cleanup on the offline node, which can result in data file corruption. **Use this command only when a node is completely broken and cannot be recovered.** If the node can still be started, it is strongly recommended to bring it back online first and then terminate the task with `KILL COMPACT` (without `FORCE`).
+
+## Scanning Data
+
+```sql
+SCAN DATABASE db_name [start with 'XXXX'] [end with 'YYYY'];
+SCAN [db_name.]VGROUPS IN (vgroup_id1, vgroup_id2, ...) [start with 'XXXX'] [end with 'YYYY'];
+SHOW SCANS;
+SHOW SCAN <scan_id>;
+KILL SCAN <scan_id>;
+```
+
+**Effects**
+
+- Scans all time-series data files of all VGROUP VNODEs in the specified DB. If there are issues with the data files, they will be output in the corresponding server logs.
+- Scans all time-series data files of all VGROUP VNODEs in the specified list of VGROUPS in the DB. If db_name is empty, the current database is used by default. If there are issues with the data files, they will be output in the corresponding server logs.
+- You can specify the start time of the SCAN data with the start with keyword
+- You can specify the end time of the SCAN data with the end with keyword
+- SCAN tasks are executed asynchronously in the background, and you can view the list of SCAN tasks using the SHOW SCANS command
+- The SHOW command will return the ID of the SCAN task, and you can terminate the SCAN task using the KILL SCAN command
+
+**Additional Information**
+
+- SCAN is asynchronous; after executing the SCAN command, it returns without waiting for the SCAN to finish. If a previous SCAN has not completed, it will wait for the previous task to finish before returning.
+
+## VGroup Leader Rebalancing
+
+When one or more nodes in a multi-replica cluster restart due to upgrades or other reasons, it may lead to an imbalance in the load among the various dnodes in the cluster. In extreme cases, all vgroup leaders may be located on the same dnode. To solve this problem, you can use the following commands, which were first released in version 3.0.4.0. It is recommended to use the latest version as much as possible.
+
+```sql
+balance vgroup leader;
+
+# Rebalance ALL vgroup leaders(random mode) balance vgroup leader ON < vgroup_id >;
+
+# Rebalance a vgroup leader(random mode) balance vgroup leader DATABASE < database_name >;
+
+# Rebalance ALL vgroup leaders within a DATABASE(random mode)
+
+balance vgroup leader force;
+
+# Force - rebalance ALL vgroup leaders(forced mode) balance vgroup leader ON < vgroup_id > force;
+
+# Force - rebalance a vgroup leader(forced mode) balance vgroup leader DATABASE < database_name > force;
+
+# Force - rebalance ALL vgroup leaders within a DATABASE(forced mode)
+```
+
+**Functionality**
+
+There are two modes of leader rebalancing:
+
+- **Random mode** (without the `force` keyword): Triggers a re-election of the vgroup. The current leader steps down, and all replicas compete equally in the new election. Because the election is inherently random, the resulting leader distribution is probabilistic and may not be perfectly even. This mode never leaves a vgroup without a leader.
+- **Forced mode** (with the `force` keyword): Deterministically biases the election so that the leader is placed on a specific replica, achieving an even distribution across replica nodes. This is the behavior of earlier versions.
+
+**Note**
+
+- In **random mode**, the even distribution produced by re-election is probabilistic and not perfectly even, because vgroup elections are inherently random.
+- In **forced mode**, if the target replica lags too far behind the others, it may be unable to win a majority during the biased election, and the vgroup may temporarily fail to elect a leader. If this happens, simply run the `balance vgroup leader ... force` command again to retry, or wait 2 minutes for it to recover automatically.
+- The side effect of both modes is that they affect queries and writing; during the vgroup re-election, from the start of the election to the election of a new leader, this vgroup cannot be written to or queried. The election process generally completes within seconds. All vgroups will be re-elected one by one sequentially.
+
+## Restore Data Node
+
+If the data on a data node (dnode) in the cluster is completely lost or damaged, such as due to disk damage or directory deletion, you can use the restore dnode command to recover some or all logical nodes on that data node. This feature relies on data replication from other replicas in the cluster, so it only works when the number of dnodes in the cluster is three or more and the number of replicas is three.
+
+```sql
+restore dnode <dnode_id>;
+
+# Restore mnode, ALL vnodes, AND qnode ON dnode restore dnode <dnode_id> parallel <n>;
+
+# Restore WITH n concurrent vnodes, 0 for unlimited restore mnode ON dnode <dnode_id>;
+
+# Restore mnode ON dnode restore vnode ON dnode <dnode_id>;
+
+# Restore ALL vnodes ON dnode restore vnode ON dnode <dnode_id> parallel <n>;
+
+# Restore vnodes WITH n concurrent, 0 for unlimited restore vnode ON dnode <dnode_id> ON vgroup <vgroup_id>;
+
+# Restore one vnode ON dnode restore qnode ON dnode <dnode_id>;
+
+# Restore qnode ON dnode
+```
+
+**PARALLEL Parameter**
+
+The `restore dnode` and `restore vnode on dnode` commands support a `PARALLEL` parameter to control the number of vnodes restored concurrently.
+
+- `PARALLEL <n>`: Specifies that up to `n` vnodes are restored concurrently, where `n` is a positive integer.
+- `PARALLEL 0`: Indicates no limit on concurrency; all vnodes start restoring simultaneously.
+- When `PARALLEL` is not specified, the default behavior applies (no limit on concurrency).
+
+This parameter is useful when a dnode has many vnodes and you want to control the recovery concurrency to avoid excessive resource usage.
+
+**Limitations**
+
+- This feature is based on the recovery of existing replication capabilities, not disaster recovery or backup recovery. Therefore, for the mnode and vnode to be recovered, the prerequisite for using this command is that the other two replicas of the mnode or vnode can still function normally.
+- This command cannot repair individual files in the data directory that are damaged or lost. For example, if individual files or data in an mnode or vnode are damaged, it is not possible to recover a specific file or block of data individually. In this case, you can choose to completely clear the data of that mnode/vnode and then perform recovery.
+
+## Local Repair Mode
+
+If the issue is limited to local files on one node and you want TDengine to perform repair checks during startup, you can start `taosd` in local repair mode:
+
+```bash
+taosd -r --mode force --node-type vnode \
+  --repair-target meta:vnode=3
+```
+
+You can also declare multiple repair targets in one startup:
+
+```bash
+taosd -r --mode force --node-type vnode --backup-path /tmp/repair-bak \
+  --repair-target meta:vnode=3 \
+  --repair-target tsdb:vnode=5:fileid=1809 \
+  --repair-target wal:vnode=6
+```
+
+You can repair all TSDB file sets in one vnode with one target:
+
+```bash
+taosd -r --mode force --node-type vnode \
+  --repair-target 'tsdb:vnode=5:fileid=*'
+```
+
+Current limitations:
+
+- Only `--mode force` is supported.
+- Only `--node-type vnode` is supported.
+- `tsdb` repair targets must include `fileid`, which can be one explicit file set ID or `*` for all file sets in the vnode.
+- `fileid=*` cannot be combined with explicit `fileid=<n>` targets in the same vnode.
+- `wal` repair targets currently do not support `strategy`.
+- The default TSDB strategy `drop_invalid_only` only handles missing-file style damage; size-mismatch recovery requires an explicit deep strategy such as `head_only_rebuild` or `full_rebuild`.
+
+For the complete CLI grammar, supported keys, default strategies, and more examples, see [taosd Reference](../03-components/01-taosd.md).
+
+## Editing mnode Metadata Offline
+
+When cluster metadata is wrong and cannot be repaired with SQL, you can export the mnode metadata to a JSON file, edit it, and import it back. Typical cases are a dnode address change after a move, a bad global configuration that prevents the mnode from starting, a leftover transaction that blocks cluster operations, and an abnormal arbitration group in a two-replica database. This is supported starting from `v3.4.2.8`.
+
+:::warning
+
+This operation changes cluster metadata directly and is high risk. Back up the `<dataDir>/mnode` directory first. Prefer SQL when it can fix the problem.
+
+:::
+
+### When the Cluster Is Running
+
+```bash
+# 1. In the taos shell, write metadata to disk and truncate the WAL. taosd keeps running.
+#    FLUSH MNODE;
+# 2. Stop taosd on the node that hosts the mnode leader
+systemctl stop taosd
+# 3. Back up the mnode directory
+cp -r <dataDir>/mnode <dataDir>/mnode.bak
+# 4. Export metadata. This creates sdb.json in the current working directory
+taosd -s
+# 5. Edit the target records in sdb.json
+# 6. Import the file and write sdb.data
+taosd -mSdb ./sdb.json
+# 7. Start taosd
+systemctl start taosd
+```
+
+### When taosd Cannot Start
+
+```bash
+# 1. Stop taosd on every mnode
+systemctl stop taosd
+# 2. Back up the mnode directory
+cp -r <dataDir>/mnode <dataDir>/mnode.bak
+# 3. Write metadata to disk offline and truncate the WAL
+taosd -fMnode
+# 4. Export, edit, and import
+taosd -s
+taosd -mSdb ./sdb.json
+# 5. Start taosd
+systemctl start taosd
+```
+
+`taosd -s` and `taosd -mSdb` do not replay the WAL, so run `FLUSH MNODE` or `taosd -fMnode` first. Otherwise the export may not be the latest state, and changes still in the WAL overwrite the manual edits after restart.
+
+### Common Changes
+
+- **Change a dnode address**: Edit `fields.fqdn` and `fields.port` on the record whose `type` is `dnode`.
+- **Correct vgroup replica placement**: Edit `fields.replicas[].dnodeId` on the record whose `type` is `vgroup`.
+- **Repair a bad global configuration**: Edit `fields.value` on the record whose `type` is `config`, and add 1 to `fields.value` of the `tsmmConfigVersion` record in the same import. Otherwise the change does not take effect. Only Boolean, integer, and floating-point configuration can be changed this way.
+- **Remove leftover transactions**: Run `taosd -dTxn` to delete every transaction. To delete one transaction, remove its `trans` record from `sdb.json` and import the file.
+- **Remove a stuck compact task**: Remove its `compact` record from `sdb.json` and import the file.
+- **Remove an extra mnode**: Remove its `mnode` record from `sdb.json` and import the file.
+- **Correct a two-replica arbitration group**: Edit the record whose `type` is `arb_group`. For example, set `fields.isSync` to `"1"`, or, after a dnode is replaced, correct `fields.member0.dnodeId` or `fields.assignedLeader.assignedDnodeId`. This is supported starting from `v3.4.3.12`. After restart, check the result with `SHOW ARBGROUPS`.
+
+To change the port of dnode 1 to 6031, change only `port` in `fields` and leave the rest unchanged:
+
+```json
+{
+  "type": "dnode",
+  "status": "4",
+  "sver": "2",
+  "fields": {
+    "id": "1",
+    "createdTime": "1700000000000",
+    "updateTime": "1700000001000",
+    "port": "6031",
+    "fqdn": "node1.example.com"
+  },
+  "rawData": "..."
+}
+```
+
+When editing:
+
+- Keep every value as a quoted string, such as `"6031"`.
+- Do not change `rawData`, `status`, or `sver`.
+- Import replaces the full metadata set. A record deleted from `sdb.json` is deleted from the metadata. Do not delete unrelated records.
+
+### Rebuild a Multi-Replica mnode
+
+When a multi-replica mnode cluster cannot elect a leader and cannot be rebuilt with `DROP MNODE` or `CREATE MNODE`, pick one node as the source and copy its metadata over the other replicas:
+
+1. Stop taosd on every mnode.
+2. On the source node, run `taosd -fMnode`.
+3. Copy `<dataDir>/mnode/data/sdb.data` from the source node to the same path on every other mnode.
+4. Empty `<dataDir>/mnode/wal/` and `<dataDir>/mnode/sync/` on every other mnode.
+5. Start taosd on the source node first, then start the other nodes one by one.
+6. Run `SHOW MNODES;` and confirm that every mnode is healthy.
+
+Do not skip step 4. Raft membership and term are stored in `sync/` and are not derived from `sdb.data`. If you copy only `sdb.data`, the node joins with its old Raft state. Log checks can fail, or the cluster state can diverge.
+
+### Common Problems
+
+| Symptom | Cause | Action |
+| --- | --- | --- |
+| The change is missing after import and restart | `FLUSH MNODE` or `taosd -fMnode` was skipped, and WAL replay overwrote the change | Follow the procedure above: flush first, then export, edit, and import again |
+| A changed field becomes 0 | The value was written as an unquoted number | Restore the backup and edit the value as a string |
+| A `config` change never takes effect | `tsmmConfigVersion` was not increased | In the same import, add 1 to `value` of `tsmmConfigVersion` |
+| `taosd -mSdb` reports a JSON format error | The structure of `sdb.json` is broken | Check the JSON syntax, or export again from the backup and edit that file |
+| `taosd -fMnode` or `taosd -mSdb` says taosd is running | taosd on this node is still running | Stop taosd and retry |
+| After `taosd -fMnode`, a transaction that was running before the stop is still unfinished | The offline flush neither continues nor rolls back a transaction | Start taosd normally. The mnode continues the transaction |
+
+For the commands, the `sdb.json` format, and the editable fields of each type, see [taosd Reference](../03-components/01-taosd.md#exporting-and-importing-metadata).
+
+## Splitting Virtual Groups
+
+When a vgroup is overloaded with CPU or Disk resource usage due to too many subtables, after adding a dnode, you can split the vgroup into two virtual groups using the `split vgroup` command. After the split, the newly created two vgroups will undertake the read and write services originally provided by one vgroup. This command was first released in version 3.0.6.0, and it is recommended to use the latest version whenever possible.
+
+```sql
+split vgroup <vgroup_id>
+```
+
+**Note**
+
+- For single-replica vgroups, after the split, the total disk space usage of historical time-series data may double. Therefore, before performing this operation, ensure there are sufficient CPU and disk resources in the cluster by adding dnode nodes to avoid resource shortages.
+- This command is a DB-level transaction; during execution, other management transactions of the current DB will be rejected. Other DBs in the cluster are not affected.
+- During the split task, read and write services can continue; however, there may be a perceptible brief interruption in read and write operations.
+- Streams and subscriptions are not supported during the splitting process. After the split ends, historical WAL will be cleared.
+- During the split process, node crash restart fault tolerance is supported; however, node disk failure fault tolerance is not supported.
+
+## Online Cluster Configuration Update
+
+Starting from version 3.1.1.0, TDengine Enterprise supports online hot updates of the very important dnode configuration parameter `supportVnodes`. This parameter, originally configured in the `taos.cfg` file, represents the maximum number of vnodes that the dnode can support. When a database is created, new vnodes are allocated, and when a database is deleted, its vnodes are destroyed.
+
+However, online updates of `supportVnodes` do not persist, and after a system restart, the maximum number of vnodes allowed will still be determined by the `supportVnodes` configured in taos.cfg.
+
+If the `supportVnodes` set through online updates or configuration files is less than the current actual number of vnodes on the dnode, the existing vnodes will not be affected. However, whether a new database can be successfully created will still depend on the actual effective `supportVnodes` parameter.

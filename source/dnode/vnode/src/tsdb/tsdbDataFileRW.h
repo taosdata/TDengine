@@ -1,6 +1,8 @@
 /*
  * Copyright (c) 2019 TAOS Data, Inc. <jhtao@taosdata.com>
  *
+ * SPDX-License-Identifier: AGPL-3.0-or-later
+ *
  * This program is free software: you can use, redistribute, and/or modify
  * it under the terms of the GNU Affero General Public License, version 3
  * or later ("AGPL"), as published by the Free Software Foundation.
@@ -42,6 +44,8 @@ typedef struct SDataFileReader SDataFileReader;
 typedef struct SDataFileReaderConfig {
   STsdb  *tsdb;
   int32_t szPage;
+  // Defaults to false; only the data FD receives this permission.
+  bool    enableBatchRead;
   struct {
     bool   exist;
     STFile file;
@@ -52,32 +56,65 @@ typedef struct SDataFileReaderConfig {
 int32_t tsdbDataFileReaderOpen(const char *fname[/* TSDB_FTYPE_MAX */], const SDataFileReaderConfig *config,
                                SDataFileReader **reader);
 void    tsdbDataFileReaderClose(SDataFileReader **reader);
+int32_t tsdbRetainDataBlockPages(SDataFileReader *reader, bool retain);
+void    tsdbDataFileReaderSetBatchRead(SDataFileReader *reader, bool enabled);
 // .head
 int32_t tsdbDataFileReadBrinBlk(SDataFileReader *reader, const TBrinBlkArray **brinBlkArray);
 int32_t tsdbDataFileReadBrinBlock(SDataFileReader *reader, const SBrinBlk *brinBlk, SBrinBlock *brinBlock);
 // .data
 int32_t tsdbDataFileReadBlockData(SDataFileReader *reader, const SBrinRecord *record, SBlockData *bData);
+int32_t tsdbDataFileReadBlockKeys(SDataFileReader *reader,
+                                  const SBrinRecord *record,
+                                  SBlockData *bData, SDiskDataHdr *hdr);
+// Retain the reader/block and the hdr/bData returned by ReadBlockKeys.
+// Column IDs may repeat or be unsorted; this entry sorts and deduplicates them.
+int32_t tsdbDataFileReadBlockColumns(SDataFileReader *reader,
+                                     const SBrinRecord *record,
+                                     SBlockData *bData, STSchema *schema,
+                                     const SDiskDataHdr *hdr,
+                                     const int16_t *cids, int32_t ncid);
 int32_t tsdbDataFileReadBlockDataByColumn(SDataFileReader *reader, const SBrinRecord *record, SBlockData *bData,
                                           STSchema *pTSchema, int16_t cids[], int32_t ncid);
 // .sma
 int32_t tsdbDataFileReadBlockSma(SDataFileReader *reader, const SBrinRecord *record,
                                  TColumnDataAggArray *columnDataAggArray);
+// Whether the file set served by this reader still has its sma file. A head-only repair drops
+// the file when it cannot be read, and such a file set carries no block statistics at all.
+bool tsdbDataFileReaderHasSma(const SDataFileReader *reader);
 // .tomb
 int32_t tsdbDataFileReadTombBlk(SDataFileReader *reader, const TTombBlkArray **tombBlkArray);
 int32_t tsdbDataFileReadTombBlock(SDataFileReader *reader, const STombBlk *tombBlk, STombBlock *tData);
 
+// SThrottle ===============================================
+// Simple deadline-based throttle shared by all compact tasks at process level:
+// each consume advances a "next allowed" deadline by the quota consumed
+// (bytes / limitBytes seconds) and, if the current time is earlier than the
+// deadline, sleeps until it. A sub-ms remainder is carried over across writes
+// so that a long run of tiny writes (each too small to move the ms deadline by
+// itself) still accumulates and stays throttled on average. This keeps the
+// total write rate of all compact tasks at limitBytes/s. limitBytes <= 0
+// means no limit. Full struct definition lives in tsdbDataFileRW.c.
+typedef struct SThrottle SThrottle;
+
+// returns the process-level throttle bucket shared by all compact tasks
+// (compact/rollup/ss migrate)
+SThrottle *tsdbCompactThrottle(void);
+
+void tsdbThrottleConsume(SThrottle *throttle, int64_t bytes);
+
 // SDataFileWriter =============================================
 typedef struct SDataFileWriter SDataFileWriter;
 typedef struct SDataFileWriterConfig {
-  STsdb   *tsdb;
-  uint32_t cmprAlg;
-  int32_t  maxRow;
-  int32_t  szPage;
-  int32_t  fid;
-  int64_t  cid;
-  int32_t  expLevel;
-  int64_t  compactVersion;
-  int32_t  lcn;
+  STsdb     *tsdb;
+  uint32_t   cmprAlg;
+  int32_t    maxRow;
+  int32_t    szPage;
+  int32_t    fid;
+  int64_t    cid;
+  int32_t    expLevel;
+  int64_t    compactVersion;
+  int32_t    lcn;
+  SThrottle *throttle;  // write throttle, may be NULL (no limit)
   struct {
     bool   exist;
     STFile file;

@@ -1,5 +1,27 @@
+# Copyright (c) 2021 TAOS Data, Inc. <jhtao@taosdata.com>
+#
+# SPDX-License-Identifier: AGPL-3.0-or-later
+#
+# This program is free software: you can use, redistribute, and/or modify
+# it under the terms of the GNU Affero General Public License, version 3
+# or later ("AGPL"), as published by the Free Software Foundation.
+#
+# This program is distributed in the hope that it will be useful, but WITHOUT
+# ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+# FITNESS FOR A PARTICULAR PURPOSE.
+#
+# You should have received a copy of the GNU Affero General Public License
+# along with this program. If not, see <http://www.gnu.org/licenses/>.
 
 MESSAGE(STATUS "build parser unit test")
+
+add_executable(tmysqltimeTest "tmysqltimeTest.c" "../src/tmysqltime.c")
+target_include_directories(
+    tmysqltimeTest PRIVATE
+    "${TD_SOURCE_DIR}/include/common"
+    "${TD_SOURCE_DIR}/include/os"
+)
+add_test(NAME tmysqltimeTest COMMAND tmysqltimeTest)
 
 # GoogleTest requires at least C++11
 SET(CMAKE_CXX_STANDARD 11)
@@ -8,6 +30,7 @@ if(TD_LINUX)
     add_executable(commonTest "commonTests.cpp")
     DEP_ext_gtest(commonTest)
     target_link_libraries(commonTest PRIVATE os util common)
+    DEP_ext_ssl(commonTest)
     target_include_directories(
         commonTest
         PUBLIC "${TD_SOURCE_DIR}/include/libs/common/"
@@ -33,6 +56,20 @@ add_test(
     COMMAND dataformatTest
 )
 
+add_executable(timezoneTest "timezoneTest.cpp")
+DEP_ext_gtest(timezoneTest)
+target_link_libraries(timezoneTest PRIVATE common)
+target_include_directories(timezoneTest PRIVATE
+    "${TD_SOURCE_DIR}/source/os/inc")
+add_test(NAME timezoneTest COMMAND timezoneTest)
+if(TD_WINDOWS)
+    foreach(_dll timezoneTestA timezoneTestB)
+        add_library(${_dll} SHARED "timezoneTestDll.c")
+        target_link_libraries(${_dll} PRIVATE common)
+        add_dependencies(timezoneTest ${_dll})
+    endforeach()
+endif()
+
 # ttimeNaturalUnitsTest.cpp
 add_executable(ttimeNaturalUnitsTest "ttimeNaturalUnitsTest.cpp")
 DEP_ext_gtest(ttimeNaturalUnitsTest)
@@ -46,6 +83,74 @@ add_test(
     NAME ttimeNaturalUnitsTest
     COMMAND ttimeNaturalUnitsTest
 )
+
+# streamMsgTest.cpp
+add_executable(streamMsgTest "streamMsgTest.cpp")
+DEP_ext_gtest(streamMsgTest)
+target_link_libraries(streamMsgTest PRIVATE os util common)
+target_include_directories(
+    streamMsgTest
+    PUBLIC "${TD_SOURCE_DIR}/include/common"
+    PUBLIC "${TD_SOURCE_DIR}/include/util"
+)
+add_test(
+    NAME streamMsgTest
+    COMMAND streamMsgTest
+)
+
+add_executable(subQueryMsgTest "subQueryMsgTest.cpp")
+DEP_ext_gtest(subQueryMsgTest)
+target_link_libraries(subQueryMsgTest PRIVATE os util common nodes planner parser catalog transport function qcom extconnector)
+if(TD_GRANT)
+    target_link_libraries(subQueryMsgTest PRIVATE grant)
+endif()
+add_test(NAME subQueryMsgTest COMMAND subQueryMsgTest)
+
+# subStatusFormatTest.cpp
+add_executable(subStatusFormatTest "subStatusFormatTest.cpp")
+DEP_ext_gtest(subStatusFormatTest)
+target_link_libraries(subStatusFormatTest PRIVATE os util common)
+target_include_directories(
+    subStatusFormatTest
+    PUBLIC "${TD_SOURCE_DIR}/include/common"
+    PUBLIC "${TD_SOURCE_DIR}/include/util"
+)
+add_test(NAME subStatusFormatTest COMMAND subStatusFormatTest)
+
+# ttimeQuarterParseTest.cpp
+add_executable(ttimeQuarterParseTest "ttimeQuarterParseTest.cpp")
+DEP_ext_gtest(ttimeQuarterParseTest)
+target_link_libraries(ttimeQuarterParseTest PRIVATE common)
+target_include_directories(
+    ttimeQuarterParseTest
+    PUBLIC "${TD_SOURCE_DIR}/include/common"
+    PUBLIC "${TD_SOURCE_DIR}/include/util"
+)
+add_test(
+    NAME ttimeQuarterParseTest
+    COMMAND ttimeQuarterParseTest
+)
+
+# machineCodeTest.cpp - format helpers behind the dnode heartbeat identity gate
+add_executable(machineCodeTest "machineCodeTest.cpp")
+DEP_ext_gtest(machineCodeTest)
+target_link_libraries(machineCodeTest PRIVATE os util common)
+target_include_directories(
+    machineCodeTest
+    PUBLIC "${TD_SOURCE_DIR}/include/common"
+    PUBLIC "${TD_SOURCE_DIR}/include/os"
+    PUBLIC "${TD_SOURCE_DIR}/include/util"
+)
+add_test(
+    NAME machineCodeTest
+    COMMAND machineCodeTest
+)
+
+add_executable(streamWindowPlanTest "streamWindowPlanTest.cpp")
+DEP_ext_gtest(streamWindowPlanTest)
+DEP_ext_cppstub(streamWindowPlanTest)
+target_link_libraries(streamWindowPlanTest PRIVATE os util common nodes)
+add_test(NAME streamWindowPlanTest COMMAND streamWindowPlanTest)
 
 # # cosCpTest.cpp
 # add_executable(cosCpTest "cosCpTest.cpp")
@@ -81,10 +186,13 @@ if(TD_LINUX)
     # tmsg test
     add_executable(tmsgTest "")
     DEP_ext_gtest(tmsgTest)
+    DEP_ext_cppstub(tmsgTest)
     target_sources(tmsgTest
         PRIVATE
         "tmsgTest.cpp"
         "../src/msg/tmsg.c"
+        "../src/msg/streamMsg.c"
+        "../src/msg/xnode.c"
     )
     target_include_directories(tmsgTest PUBLIC "${TD_SOURCE_DIR}/include/common/")
     target_link_libraries(tmsgTest PUBLIC os util)
@@ -97,5 +205,19 @@ if(TD_LINUX)
     SET(MSG_TBL_FILE ${CMAKE_CURRENT_SOURCE_DIR}/msgTypeTable.ini)
     add_custom_command(TARGET tmsgTest POST_BUILD
         COMMAND ${CMAKE_COMMAND} -E copy_if_different ${MSG_TBL_FILE} $<TARGET_FILE_DIR:tmsgTest>
+    )
+endif()
+
+# curlResolverFdTest.cpp: regression test for CVE-2025-0665 (libcurl 8.11.1 closes the resolver's eventfd twice).
+# Linux only: it relies on eventfd and on the GNU ld --wrap option, which also reaches the static libcurl objects.
+if(TD_LINUX)
+    add_executable(curlResolverFdTest "curlResolverFdTest.cpp")
+    DEP_ext_gtest(curlResolverFdTest)
+    DEP_ext_curl(curlResolverFdTest)   # also links ext_ssl and ext_zlib
+    target_link_libraries(curlResolverFdTest PRIVATE dl)
+    target_link_options(curlResolverFdTest PRIVATE -Wl,--wrap=close -Wl,--wrap=getaddrinfo)
+    add_test(
+        NAME curlResolverFdTest
+        COMMAND curlResolverFdTest
     )
 endif()

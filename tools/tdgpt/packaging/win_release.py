@@ -1,4 +1,20 @@
 #!/usr/bin/env python3
+
+# Copyright (c) 2025 TAOS Data, Inc. <jhtao@taosdata.com>
+#
+# SPDX-License-Identifier: AGPL-3.0-or-later
+#
+# This program is free software: you can use, redistribute, and/or modify
+# it under the terms of the GNU Affero General Public License, version 3
+# or later ("AGPL"), as published by the Free Software Foundation.
+#
+# This program is distributed in the hope that it will be useful, but WITHOUT
+# ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+# FITNESS FOR A PARTICULAR PURPOSE.
+#
+# You should have received a copy of the GNU Affero General Public License
+# along with this program. If not, see <http://www.gnu.org/licenses/>.
+
 """
 TDgpt Windows Packaging Script
 Generate install package for Windows Platform using Inno Setup
@@ -14,15 +30,15 @@ Options:
     --resource-package-version : resource package version used in the default download URL
 """
 
-import os
-import sys
 import argparse
-import shutil
-import logging
 import datetime
-import re
 import json
+import logging
+import os
+import re
+import shutil
 import subprocess
+import sys
 
 # Configure logging
 timestamp = datetime.datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
@@ -46,12 +62,15 @@ class InstallInfo:
         self.package_name = ""
         self.product_name = ""
         self.app_name = "TDengine TDgpt-OSS"
+        self.legacy_app_name = "TDengine TDgpt-OSS"
         self.product_full_name = "TDengine TDgpt-OSS - TDengine Analytics Node"
         self.model_dir = ""
         self.all_models = False
         self.iscc_path = ""
         self.skip_model_check = False
         self.python_runtime_dir = ""
+        self.bundle_python_runtime = False
+        self.lite = False
         self.resource_package_version = ""
         self.resource_package_url = ""
 
@@ -98,11 +117,16 @@ def parse_arguments():
     parser.add_argument('--skip-model-check', action='store_true',
                         help='Skip model validation (for testing only, NOT for production)')
     parser.add_argument('--python-runtime-dir', type=str, default="",
-                        help='Existing Python runtime directory to bundle into install/python/runtime')
+                        help='Python runtime directory used as the source when --bundle-python-runtime is enabled')
+    parser.add_argument('--bundle-python-runtime', action='store_true',
+                        help='Bundle a Python runtime into install/python/runtime; disabled by default')
+    parser.add_argument('--lite', action='store_true',
+                        help='Build a Lite installer without model files or model dependencies')
     parser.add_argument('--resource-package-version', type=str, default=DEFAULT_RESOURCE_PACKAGE_VERSION,
                         help='Resource package version used to build the default resource package URL (default: 1.0)')
     parser.add_argument('--resource-package-url', type=str, default="",
-                        help='Default remote TDgpt resource package URL used by the installer UI; overrides --resource-package-version when provided')
+                        help='Default remote TDgpt resource package URL used by the installer UI; '
+                             'overrides --resource-package-version when provided')
 
     version_pattern = re.compile(r'^[0-9]+\.([0-9]+\.){1,3}[0-9]+$')
     args = parser.parse_args()
@@ -130,6 +154,10 @@ def parse_arguments():
     else:
         install_info.product_name = "tdengine-tdgpt-oss"
         install_info.app_name = "TDengine TDgpt-OSS"
+    install_info.legacy_app_name = install_info.app_name
+    if args.lite:
+        install_info.product_name += "-lite"
+        install_info.app_name += " Lite"
     install_info.product_full_name = f"{install_info.app_name} - TDengine Analytics Node"
 
     install_info.source_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -141,8 +169,13 @@ def parse_arguments():
     install_info.iscc_path = args.iscc_path
     install_info.skip_model_check = args.skip_model_check
     install_info.python_runtime_dir = args.python_runtime_dir
+    install_info.bundle_python_runtime = args.bundle_python_runtime
+    install_info.lite = args.lite
     install_info.resource_package_version = args.resource_package_version.strip() or DEFAULT_RESOURCE_PACKAGE_VERSION
-    install_info.resource_package_url = args.resource_package_url.strip() or build_default_resource_package_url(install_info.resource_package_version)
+    install_info.resource_package_url = (
+        args.resource_package_url.strip()
+        or build_default_resource_package_url(install_info.resource_package_version)
+    )
 
     return args
 
@@ -164,6 +197,8 @@ def print_params():
     logging.info(f"Model Directory: {install_info.model_dir}")
     logging.info(f"All Models: {install_info.all_models}")
     logging.info(f"Python Runtime Directory: {install_info.python_runtime_dir or '(auto)'}")
+    logging.info(f"Bundle Python Runtime: {install_info.bundle_python_runtime}")
+    logging.info(f"Lite: {install_info.lite}")
     logging.info(f"Resource Package Version: {install_info.resource_package_version or '(custom url)'}")
     logging.info(f"Resource Package URL: {install_info.resource_package_url or '(none)'}")
     logging.info("=" * 60)
@@ -195,7 +230,7 @@ def resolve_python_runtime_source():
 
 
 def copy_packaged_python_runtime():
-    """Copy the packaged Python runtime that the installer always carries."""
+    """Copy the packaged Python runtime into install/python/runtime."""
     source_runtime = resolve_python_runtime_source()
     runtime_dir = os.path.join(install_info.install_dir, "python", "runtime")
     os.makedirs(os.path.dirname(runtime_dir), exist_ok=True)
@@ -243,7 +278,7 @@ def copy_config_files():
         "package_name": install_info.package_name,
         "product_name": install_info.product_name,
         "version": tdgpt_version.version,
-        "resource_package_url": install_info.resource_package_url,
+        "resource_package_url": "" if install_info.lite else install_info.resource_package_url,
     }
     metadata_file = os.path.join(cfg_dir, "package-metadata.json")
     with open(metadata_file, "w", encoding="utf-8") as file_obj:
@@ -261,16 +296,18 @@ def copy_python_files():
 
     source_dir = install_info.source_dir
 
-    # Copy taosanalytics directory
-    src_analytics = os.path.join(source_dir, "taosanalytics")
+    # Match the Linux payload: shared loaders plus analytics, dynamic and TSFM.
+    # Copy from the current lib/ layout, not the historical source root.
+    source_lib = os.path.join(source_dir, "lib")
+    if not os.path.isfile(os.path.join(source_lib, "service_registry.py")):
+        raise FileNotFoundError(f"Missing TDgpt runtime library: {source_lib}")
     dst_analytics = os.path.join(lib_dir, "taosanalytics")
 
-    if os.path.exists(dst_analytics):
-        shutil.rmtree(dst_analytics)
-
     # Copy directory, excluding __pycache__ and .pyc files
-    shutil.copytree(src_analytics, dst_analytics,
+    shutil.copytree(source_lib, lib_dir, dirs_exist_ok=True,
                     ignore=shutil.ignore_patterns('__pycache__', '*.pyc', '.git*'))
+    # Legacy package markers must not overwrite user files before migration.
+    shutil.rmtree(os.path.join(dst_analytics, 'algo', 'custom'), ignore_errors=True)
     logging.info(f"Copied taosanalytics to {dst_analytics}")
 
     # Update version in __init__.py
@@ -278,29 +315,17 @@ def copy_python_files():
     if os.path.exists(init_file):
         with open(init_file, 'r', encoding='utf-8') as f:
             content = f.read()
-        content = re.sub(r"^__version__ = .*", f"__version__ = '{tdgpt_version.version}'", content)
+        content = re.sub(
+            r"^__version__ = .*",
+            f"__version__ = '{tdgpt_version.version}'",
+            content,
+            flags=re.MULTILINE,
+        )
         with open(init_file, 'w', encoding='utf-8') as f:
             f.write(content)
         logging.info(f"Updated version to {tdgpt_version.version} in __init__.py")
 
     logging.info("Python files copied")
-
-
-def copy_resource_files():
-    """Copy resource files"""
-    resource_dir = os.path.join(install_info.install_dir, "resource")
-    os.makedirs(resource_dir, exist_ok=True)
-
-    source_resource = os.path.join(install_info.source_dir, "resource")
-    if os.path.exists(source_resource):
-        for item in os.listdir(source_resource):
-            src = os.path.join(source_resource, item)
-            dst = os.path.join(resource_dir, item)
-            if os.path.isdir(src):
-                shutil.copytree(src, dst, dirs_exist_ok=True)
-            else:
-                shutil.copy2(src, dst)
-        logging.info("Copied resource files")
 
 
 def copy_requirements():
@@ -310,7 +335,8 @@ def copy_requirements():
     os.makedirs(requirements_dir, exist_ok=True)
 
     copied = 0
-    for req_file in os.listdir(source_dir):
+    requirement_names = ["requirements_docker.txt"] if install_info.lite else os.listdir(source_dir)
+    for req_file in requirement_names:
         if req_file.startswith("requirements") and req_file.endswith(".txt"):
             src = os.path.join(source_dir, req_file)
             if os.path.isfile(src):
@@ -323,6 +349,9 @@ def copy_requirements():
 
 def copy_model_files():
     """Copy packaged model archives if model directory is specified."""
+    if install_info.lite:
+        logging.info("Lite installer does not include model files")
+        return
     if not install_info.model_dir or not os.path.exists(install_info.model_dir):
         logging.info("No model directory specified or directory does not exist, skipping model files")
         return
@@ -353,14 +382,20 @@ def copy_model_files():
     logging.info("Model files copied")
 
 
+def resolve_taos_internal_path(*parts):
+    """Resolve paths under the GitLab monorepo taos-internal checkout."""
+    return os.path.join(install_info.source_dir, "..", "..", "..", "taos-internal", *parts)
+
+
 def copy_enterprise_files():
     """Copy enterprise-specific files"""
     if tdgpt_version.ver_type != "enterprise":
         return
 
     # Copy enterprise tools from outside
-    enterprise_src = os.path.join(install_info.source_dir, "..", "..", "..", "enterprise",
-                                  "src", "kit", "tools", "tdgpt", "taosanalytics", "misc")
+    enterprise_src = resolve_taos_internal_path(
+        "source", "kit", "tools", "tdgpt", "taosanalytics", "misc"
+    )
     enterprise_dst = os.path.join(install_info.install_dir, "lib", "taosanalytics", "misc")
 
     if os.path.exists(enterprise_src) and os.path.exists(enterprise_dst):
@@ -386,6 +421,41 @@ def copy_service_scripts():
         shutil.copy2(src_service, dst_service)
         logging.info("Copied taosanode_service.py")
 
+    src_manifest = os.path.join(source_script_dir, "resource_manifest.py")
+    dst_manifest = os.path.join(bin_dir, "resource_manifest.py")
+    if os.path.exists(src_manifest):
+        shutil.copy2(src_manifest, dst_manifest)
+        logging.info("Copied resource_manifest.py")
+
+    src_resource_manager = os.path.join(source_script_dir, "resource_manager.py")
+    dst_resource_manager = os.path.join(bin_dir, "resource_manager.py")
+    if os.path.exists(src_resource_manager):
+        shutil.copy2(src_resource_manager, dst_resource_manager)
+        logging.info("Copied resource_manager.py")
+
+    src_runtime_upgrade = os.path.join(source_script_dir, "runtime_upgrade.py")
+    dst_runtime_upgrade = os.path.join(bin_dir, "runtime_upgrade.py")
+    if os.path.exists(src_runtime_upgrade):
+        shutil.copy2(src_runtime_upgrade, dst_runtime_upgrade)
+        logging.info("Copied runtime_upgrade.py")
+
+    src_release_manifest = os.path.join(
+        install_info.source_dir, "packaging", "tdengine-tdgpt-tsfm-release-1.0.1.json"
+    )
+    release_metadata_dir = os.path.join(install_info.install_dir, "share", "tsfm")
+    os.makedirs(release_metadata_dir, exist_ok=True)
+    dst_release_manifest = os.path.join(release_metadata_dir, "tsfm-release.json")
+    if not os.path.isfile(src_release_manifest):
+        raise FileNotFoundError(f"Missing TSFM release manifest: {src_release_manifest}")
+    shutil.copy2(src_release_manifest, dst_release_manifest)
+    logging.info("Copied TSFM release manifest")
+
+    src_ctl = os.path.join(source_script_dir, "taosanodectl.py")
+    dst_ctl = os.path.join(bin_dir, "taosanodectl.py")
+    if os.path.exists(src_ctl):
+        shutil.copy2(src_ctl, dst_ctl)
+        logging.info("Copied taosanodectl.py")
+
     # Copy install.py (installation script)
     src_install = os.path.join(source_script_dir, "install.py")
     dst_install = os.path.join(install_info.install_dir, "install.py")
@@ -407,8 +477,7 @@ def copy_service_scripts():
 def copy_icon_file():
     """Copy icon file from enterprise packaging"""
     # Try to find icon file from enterprise packaging
-    enterprise_icon = os.path.join(install_info.source_dir, "..", "..", "..", "enterprise",
-                                   "packaging", "windows", "favicon.ico")
+    enterprise_icon = resolve_taos_internal_path("packaging", "windows", "favicon.ico")
 
     if os.path.exists(enterprise_icon):
         dst_icon = os.path.join(install_info.install_dir, "favicon.ico")
@@ -609,11 +678,26 @@ exit /b %errorlevel%
 """)
     logging.info("Created status-model.bat")
 
+    ctl_bat = os.path.join(bin_dir, "taosanodectl.bat")
+    with open(ctl_bat, 'w', encoding='utf-8') as f:
+        f.write("""@echo off
+chcp 65001 >nul
+set "PYTHON_EXE=%~dp0..\\venvs\\venv\\Scripts\\python.exe"
+if not exist "%PYTHON_EXE%" (
+    echo ERROR: Main Python environment not found: %PYTHON_EXE%
+    exit /b 1
+)
+"%PYTHON_EXE%" "%~dp0taosanodectl.py" %*
+exit /b %errorlevel%
+""")
+    logging.info("Created taosanodectl.bat")
+
 
 def create_install_script():
     """Create install.bat for post-installation setup"""
     install_bat = os.path.join(install_info.install_dir, "install.bat")
     all_models_flag = "-a" if install_info.all_models else ""
+    lite_flag = "--lite" if install_info.lite else ""
 
     with open(install_bat, 'w', encoding='utf-8') as f:
         f.write(f"""@echo off
@@ -629,29 +713,49 @@ set "PROGRESS_FILE=%TDGPT_PROGRESS_FILE%"
 set "PYTHONUTF8=1"
 set "PYTHONIOENCODING=utf-8"
 set "TDGPT_LOG_REDIRECTED=1"
+set "TDGPT_PYTHON_RUNTIME_DIR=%TDGPT_PYTHON_RUNTIME_DIR%"
 set "EXISTING_VENV_PYTHON=%INSTALL_DIR%\\venvs\\venv\\Scripts\\python.exe"
 set "PACKAGED_PYTHON=%INSTALL_DIR%\\python\\runtime\\python.exe"
 set "PYTHON_CMD="
+set "PYTHON_RUNTIME_DIR="
+
+call :parse_runtime_arg %*
+if not defined PYTHON_RUNTIME_DIR if defined TDGPT_PYTHON_RUNTIME_DIR set "PYTHON_RUNTIME_DIR=%TDGPT_PYTHON_RUNTIME_DIR%"
 
 call :append_progress running 1 "Initializing {install_info.app_name} setup" "Preparing installation environment"
-REM Priority 1: packaged runtime Python carried by the installer.
+REM Priority 1: external runtime explicitly provided by the caller.
+if defined PYTHON_RUNTIME_DIR (
+    set "TDGPT_PYTHON_RUNTIME_DIR=%PYTHON_RUNTIME_DIR%"
+    if not exist "%PYTHON_RUNTIME_DIR%\\python.exe" (
+        echo ERROR: The requested external Python runtime is invalid: %PYTHON_RUNTIME_DIR%\\python.exe
+        call :append_progress error 100 "Installation failed" "External Python runtime not found"
+        exit /b 1
+    )
+    call :try_python "%PYTHON_RUNTIME_DIR%\\python.exe"
+    if defined PYTHON_CMD goto :run_install
+    echo ERROR: The requested external Python runtime could not be executed: %PYTHON_RUNTIME_DIR%\\python.exe
+    call :append_progress error 100 "Installation failed" "External Python runtime is unusable"
+    exit /b 1
+)
+
+REM Priority 2: packaged runtime Python carried by the installer.
 if exist "%PACKAGED_PYTHON%" (
     call :try_python "%PACKAGED_PYTHON%"
     if defined PYTHON_CMD goto :run_install
 )
 
-REM Priority 2: existing venv Python from a previous install.
+REM Priority 3: existing venv Python from a previous install.
 if exist "%EXISTING_VENV_PYTHON%" (
     call :try_python "%EXISTING_VENV_PYTHON%"
     if defined PYTHON_CMD goto :run_install
 )
 
-REM Priority 3: system Python in PATH as a last-resort fallback.
+REM Priority 4: system Python in PATH as a last-resort fallback.
 call :resolve_python
 if defined PYTHON_CMD goto :run_install
 
 echo ERROR: No Python interpreter available.
-echo The installer did not find its bundled Python runtime under python\\runtime.
+echo The installer did not find a usable external runtime, bundled runtime, existing venv Python, or system Python.
 echo Rebuild or reinstall the package, or provide Python 3.10/3.11/3.12 in PATH as a fallback.
 call :append_progress error 100 "Installation failed" "No Python interpreter available"
 exit /b 1
@@ -664,9 +768,10 @@ exit /b 1
 >> "%LOG_FILE%" echo Command args: %*
 
 if "%PROGRESS_FILE%"=="" (
-    "%PYTHON_CMD%" "%INSTALL_DIR%\\install.py" --log-file "%LOG_FILE%" {all_models_flag} %* >> "%LOG_FILE%" 2>&1
+    "%PYTHON_CMD%" "%INSTALL_DIR%\\install.py" --log-file "%LOG_FILE%" {all_models_flag} {lite_flag} %* >> "%LOG_FILE%" 2>&1
 ) else (
-    "%PYTHON_CMD%" "%INSTALL_DIR%\\install.py" --log-file "%LOG_FILE%" {all_models_flag} --progress-file "%PROGRESS_FILE%" %* >> "%LOG_FILE%" 2>&1
+    "%PYTHON_CMD%" "%INSTALL_DIR%\\install.py" --log-file "%LOG_FILE%" {all_models_flag} {lite_flag} ^
+        --progress-file "%PROGRESS_FILE%" %* >> "%LOG_FILE%" 2>&1
 )
 
 if errorlevel 1 (
@@ -683,6 +788,15 @@ exit /b 0
 if "%PROGRESS_FILE%"=="" exit /b 0
 >> "%PROGRESS_FILE%" echo %~1^|%~2^|%~3^|%~4
 exit /b 0
+
+:parse_runtime_arg
+if "%~1"=="" exit /b 0
+if /I "%~1"=="--python-runtime-dir" (
+    set "PYTHON_RUNTIME_DIR=%~2"
+    exit /b 0
+)
+shift
+goto :parse_runtime_arg
 
 :ensure_error_progress
 if "%PROGRESS_FILE%"=="" exit /b 0
@@ -751,8 +865,9 @@ if exist "%PACKAGED_PYTHON%" (
 REM Check if uninstall.py exists
 if exist "%INSTALL_DIR%\\uninstall.py" (
     "%PYTHON_CMD%" "%INSTALL_DIR%\\uninstall.py" --log-file "%LOG_FILE%" >> "%LOG_FILE%" 2>&1
+    set "TDGPT_UNINSTALL_EXIT_CODE=%errorlevel%"
     >> "%LOG_FILE%" echo [%date% %time%] uninstall.py completed
-    exit /b 0
+    exit /b %TDGPT_UNINSTALL_EXIT_CODE%
 )
 
 REM Fallback: Stop services using taosanode_service.py
@@ -814,7 +929,8 @@ def create_iss_script():
     iss_path = os.path.join(install_info.release_dir, "tdgpt.iss")
 
     # Read template file
-    template_path = os.path.join(os.path.dirname(__file__), "installer", "tdgpt.iss")
+    template_name = "tdgpt-lite.iss" if install_info.lite else "tdgpt.iss"
+    template_path = os.path.join(os.path.dirname(__file__), "installer", template_name)
     with open(template_path, 'r', encoding='utf-8') as f:
         iss_content = f.read()
 
@@ -828,12 +944,14 @@ def create_iss_script():
     # Replace placeholders
     iss_content = iss_content.replace('{{VERSION}}', tdgpt_version.version)
     iss_content = iss_content.replace('{{APP_NAME}}', install_info.app_name)
+    iss_content = iss_content.replace('{{LEGACY_APP_NAME}}', install_info.legacy_app_name)
     iss_content = iss_content.replace('{{PRODUCT_FULL_NAME}}', install_info.product_full_name)
     iss_content = iss_content.replace('{{PACKAGE_NAME}}', install_info.package_name)
     iss_content = iss_content.replace('{{SOURCE_DIR}}', install_dir_iss)
     iss_content = iss_content.replace('{{OUTPUT_DIR}}', release_dir_iss)
     iss_content = iss_content.replace('{{ICON_FILE}}', icon_file)
     iss_content = iss_content.replace('{{RESOURCE_PACKAGE_URL}}', install_info.resource_package_url)
+    iss_content = iss_content.replace('{{LITE}}', '1' if install_info.lite else '0')
 
     with open(iss_path, 'w', encoding='utf-8') as f:
         f.write(iss_content)
@@ -932,12 +1050,18 @@ def main():
     # Clean and prepare release directory
     clean_release_dir()
 
+    # AI skills under skills/ are intentionally not packaged on Windows: the
+    # deployment script requires a POSIX shell and coreutils and supports only
+    # Linux, Docker or SSH targets. See skills/README.md.
+
     # Copy all necessary files
     copy_config_files()
     copy_python_files()
-    copy_resource_files()
     copy_requirements()
-    copy_packaged_python_runtime()
+    if install_info.bundle_python_runtime:
+        copy_packaged_python_runtime()
+    else:
+        logging.info("Skipping bundled Python runtime; installer will expect --python-runtime-dir or a compatible Python in PATH.")
     copy_model_files()
     copy_enterprise_files()
     copy_service_scripts()  # New unified service scripts

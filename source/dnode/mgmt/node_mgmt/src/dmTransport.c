@@ -1,6 +1,8 @@
 /*
  * Copyright (c) 2019 TAOS Data, Inc. <jhtao@taosdata.com>
  *
+ * SPDX-License-Identifier: AGPL-3.0-or-later
+ *
  * This program is free software: you can use, redistribute, and/or modify
  * it under the terms of the GNU Affero General Public License, version 3
  * or later ("AGPL"), as published by the Free Software Foundation.
@@ -15,10 +17,10 @@
 
 #define _DEFAULT_SOURCE
 #include "dmMgmt.h"
+#include "dmCorrelation.h"
 #include "qworker.h"
 #include "tanalytics.h"
 #include "tversion.h"
-#define IS_STREAM_TRIGGER_RSP_MSG(_msg) (TDMT_STREAM_TRIGGER_CALC_RSP == (_msg) || TDMT_STREAM_TRIGGER_PULL_RSP == (_msg) || TDMT_STREAM_TRIGGER_DROP_RSP == (_msg))
 
 static inline void dmSendRsp(SRpcMsg *pMsg) {
   if (rpcSendResponse(pMsg) != 0) {
@@ -69,6 +71,13 @@ static inline void dmBuildMnodeRedirectRsp(SDnode *pDnode, SRpcMsg *pMsg) {
 int32_t dmProcessNodeMsg(SMgmtWrapper *pWrapper, SRpcMsg *pMsg) {
   const STraceId *trace = &pMsg->info.traceId;
 
+  // msgType comes from the wire and is used as an index into msgFps[TDMT_MAX]; an undefined
+  // segment code or an out-of-range sequence byte would read past the table.
+  if (!tmsgIsValid(pMsg->msgType)) {
+    dGError("msg:%p, not processed since msg type:%u is invalid", pMsg, pMsg->msgType);
+    return TSDB_CODE_INVALID_MSG;
+  }
+
   NodeMsgFp msgFp = pWrapper->msgFps[TMSG_INDEX(pMsg->msgType)];
   if (msgFp == NULL) {
     // terrno = TSDB_CODE_MSG_NOT_PROCESSED;
@@ -78,6 +87,18 @@ int32_t dmProcessNodeMsg(SMgmtWrapper *pWrapper, SRpcMsg *pMsg) {
 
   dGTrace("msg:%p, will be processed by %s", pMsg, pWrapper->name);
   pMsg->info.wrapper = pWrapper;
+
+  // dmOpenNode() publishes pMgmt before `deployed`, but the pointer write is not
+  // synchronized with this read and a node type could legitimately return success
+  // without a management handle. A NULL pMgmt here would be dereferenced by every
+  // node handler (e.g. mmPutMsgToSyncRdQueue -> mmAcquire), so reject the message
+  // as "still starting" instead of crashing the daemon.
+  if (pWrapper->pMgmt == NULL) {
+    dGError("msg:%p, not processed since %s has no mgmt yet, type:%s", pMsg, pWrapper->name,
+            TMSG_INFO(pMsg->msgType));
+    return TSDB_CODE_APP_IS_STARTING;
+  }
+
   return (*msgFp)(pWrapper->pMgmt, pMsg);
 }
 
@@ -164,9 +185,23 @@ static void dmProcessRpcMsg(SDnode *pDnode, SRpcMsg *pRpc, SEpSet *pEpSet) {
   int32_t       code = -1;
   SRpcMsg      *pMsg = NULL;
   SMgmtWrapper *pWrapper = NULL;
-  SDnodeHandle *pHandle = &pTrans->msgHandles[TMSG_INDEX(pRpc->msgType)];
+  SDnodeHandle *pHandle = NULL;
 
   const STraceId *trace = &pRpc->info.traceId;
+
+  // The peer fully controls msgType, and TMSG_INDEX() expands to
+  // tMsgDict[(type & 0xff00) >> 8] + (type & 0xff). An undefined segment code reads past
+  // tMsgDict, and the garbage index is then used to read SDnodeHandle and msgFps. Refuse the
+  // frame before any of those tables is touched. The type is not trustworthy enough to answer
+  // with msgType + 1 either, so just drop it.
+  if (!tmsgIsValid(pRpc->msgType)) {
+    dGError("msg:%p, is discarded since msg type:%u is invalid, ip:%s", pRpc, pRpc->msgType,
+            IP_ADDR_STR(&pRpc->info.conn.cliAddr));
+    rpcFreeCont(pRpc->pCont);
+    pRpc->pCont = NULL;
+    return;
+  }
+  pHandle = &pTrans->msgHandles[TMSG_INDEX(pRpc->msgType)];
   dGDebug("msg:%s is received, handle:%p len:%d code:0x%x app:%p refId:%" PRId64 " %" PRIx64 ":%" PRIx64, TMSG_INFO(pRpc->msgType),
           pRpc->info.handle, pRpc->contLen, pRpc->code, pRpc->info.ahandle, pRpc->info.refId, TRACE_GET_ROOTID(trace), TRACE_GET_MSGID(trace));
 
@@ -193,16 +228,28 @@ static void dmProcessRpcMsg(SDnode *pDnode, SRpcMsg *pRpc, SEpSet *pEpSet) {
       return;
     case TDMT_MND_SYSTABLE_RETRIEVE_RSP:
     case TDMT_DND_SYSTABLE_RETRIEVE_RSP:
+    case TDMT_SCH_QUERY_RSP:
+    case TDMT_SCH_MERGE_QUERY_RSP:
+    case TDMT_SCH_QUERY_CONTINUE_RSP:
+    case TDMT_SCH_QUERY_HEARTBEAT_RSP:
     case TDMT_SCH_FETCH_RSP:
     case TDMT_SCH_MERGE_FETCH_RSP:
+    case TDMT_SCH_CANCEL_TASK_RSP:
+    case TDMT_SCH_DROP_TASK_RSP:
+    case TDMT_SCH_EXPLAIN_RSP:
+    case TDMT_SCH_TASK_NOTIFY_RSP:
+    case TDMT_SCH_TASK_RELEASE_RSP:
     case TDMT_VND_SUBMIT_RSP:
     case TDMT_MND_GET_DB_INFO_RSP:
     case TDMT_VND_TABLE_META_RSP:
+    case TDMT_VND_VTB_TAG_COND_RSP:
     case TDMT_STREAM_FETCH_RSP:
     case TDMT_STREAM_FETCH_FROM_RUNNER_RSP:
     case TDMT_STREAM_FETCH_FROM_CACHE_RSP:
+    case TDMT_STREAM_FETCH_EXT_RSP:  /* P4-E1: EXT fetch response from ETR */
     case TDMT_VND_SNODE_DROP_TABLE_RSP:
-      code = qWorkerProcessRspMsg(NULL, NULL, pRpc, 0);
+    case TDMT_VND_VTABLE_REF_RESOLVE_RSP:
+      code = qWorkerProcessRspMsg(NULL, NULL, pRpc, pEpSet, 0);
       return;
     case TDMT_MND_STATUS_RSP:
       if (pEpSet != NULL) {
@@ -268,7 +315,7 @@ static void dmProcessRpcMsg(SDnode *pDnode, SRpcMsg *pRpc, SEpSet *pEpSet) {
 
   pWrapper = &pDnode->wrappers[pHandle->defaultNtype];
   if (pHandle->needCheckVgId) {
-    if (pRpc->contLen > 0) {
+    if (pRpc->contLen >= (int32_t)sizeof(SMsgHead)) {
       const SMsgHead *pHead = pRpc->pCont;
       const int32_t   vgId = ntohl(pHead->vgId);
       switch (vgId) {
@@ -285,7 +332,7 @@ static void dmProcessRpcMsg(SDnode *pDnode, SRpcMsg *pRpc, SEpSet *pEpSet) {
           break;
       }
     } else {
-      dGError("msg:%p, type:%s contLen is 0", pRpc, TMSG_INFO(pRpc->msgType));
+      dGError("msg:%p, type:%s invalid header length:%d", pRpc, TMSG_INFO(pRpc->msgType), pRpc->contLen);
       code = TSDB_CODE_INVALID_MSG_LEN;
       goto _OVER;
     }
@@ -338,9 +385,18 @@ _OVER:
           dError("failed to send response, msg:%p", &rsp);
         }
       }
-    } else if (NULL == pMsg && IS_STREAM_TRIGGER_RSP_MSG(pRpc->msgType)) {
+    } else if (pRpc->info.ahandle != NULL && tmsgIsStreamTriggerRsp(pRpc->msgType)) {
+      /*
+       * The response never reached the snode trigger worker (queue item
+       * allocation, dispatch or enqueue failed), so nothing else will release
+       * the send handle allocated by the trigger task.  A successful dispatch
+       * transfers ownership to the worker, which releases it exactly once.
+       */
+      dDebug("msg:%p, type:%s ahandle %p freed since dispatch failed, code:%s, trace:0x%" PRIx64 ":0x%" PRIx64,
+             pMsg, TMSG_INFO(pRpc->msgType), pRpc->info.ahandle, tstrerror(code), TRACE_GET_ROOTID(trace),
+             TRACE_GET_MSGID(trace));
       destroyAhandle(pRpc->info.ahandle);
-      dDebug("msg:%s ahandle freed", TMSG_INFO(pRpc->msgType));
+      pRpc->info.ahandle = NULL;
     }
 
     if (pMsg != NULL) {
@@ -451,13 +507,38 @@ static bool rpcNoDelayMsg(tmsg_t msgType) {
   }
   return false;
 }
+static void dmProcessClientRpcMsg(SDnode *pDnode, SRpcMsg *pRpc, SEpSet *pEpSet) {
+  dmProcessRpcMsg(pDnode, pRpc, pEpSet);
+}
+
+static void dmProcessServerRpcMsg(SDnode *pDnode, SRpcMsg *pRpc, SEpSet *pEpSet) {
+  // dmProcessRpcMsg is shared by the inbound server listener and by the dnode's own client
+  // transports, and SRpcMsg carries no indication of which side a frame arrived on. Only
+  // request types can legitimately arrive here: a response to a request this dnode sent comes
+  // back on the client transport that sent it. Without this gate any peer able to reach the
+  // listener could forge mnode replies - TDMT_MND_RETRIEVE_IP_WHITELIST_DUAL_RSP,
+  // TDMT_MND_RETRIEVE_DATETIME_WHITELIST_RSP, TDMT_MND_RETRIEVE_ANAL_ALGO_RSP,
+  // TDMT_MND_STREAM_HEARTBEAT_RSP - and have them applied as trusted configuration.
+  // Note every explicitly named type in tmsgdef.h is odd (TD_DEF_MSG_TYPE emits TYPE and
+  // TYPE##_RSP in pairs after TYPE##_MIN = seg << 8), so sync messages such as
+  // TDMT_SYNC_HEARTBEAT_REPLY and TDMT_SYNC_SNAPSHOT_RSP are requests and still pass.
+  if (!tmsgIsValid(pRpc->msgType) || !IsReq(pRpc)) {
+    dError("msg:%p, type:%u is discarded since a response frame cannot be a server request, ip:%s", pRpc,
+           pRpc->msgType, IP_ADDR_STR(&pRpc->info.conn.cliAddr));
+    rpcFreeCont(pRpc->pCont);
+    pRpc->pCont = NULL;
+    return;
+  }
+  dmProcessRpcMsg(pDnode, pRpc, pEpSet);
+}
+
 int32_t dmInitClient(SDnode *pDnode) {
   SDnodeTrans *pTrans = &pDnode->trans;
 
   SRpcInit rpcInit = {0};
   rpcInit.label = "DNODE-CLI";
   rpcInit.numOfThreads = tsNumOfRpcThreads / 2;
-  rpcInit.cfp = (RpcCfp)dmProcessRpcMsg;
+  rpcInit.cfp = (RpcCfp)dmProcessClientRpcMsg;
   rpcInit.sessions = 1024;
   rpcInit.connType = TAOS_CONN_CLIENT;
   rpcInit.user = TSDB_DEFAULT_USER;
@@ -520,7 +601,7 @@ int32_t dmInitStatusClient(SDnode *pDnode) {
   SRpcInit rpcInit = {0};
   rpcInit.label = "DNODE-STA-CLI";
   rpcInit.numOfThreads = 1;
-  rpcInit.cfp = (RpcCfp)dmProcessRpcMsg;
+  rpcInit.cfp = (RpcCfp)dmProcessClientRpcMsg;
   rpcInit.sessions = 1024;
   rpcInit.connType = TAOS_CONN_CLIENT;
   rpcInit.user = TSDB_DEFAULT_USER;
@@ -579,7 +660,7 @@ int32_t dmInitSyncClient(SDnode *pDnode) {
   SRpcInit rpcInit = {0};
   rpcInit.label = "DNODE-SYNC-CLI";
   rpcInit.numOfThreads = tsNumOfRpcThreads / 2;
-  rpcInit.cfp = (RpcCfp)dmProcessRpcMsg;
+  rpcInit.cfp = (RpcCfp)dmProcessClientRpcMsg;
   rpcInit.sessions = 1024;
   rpcInit.connType = TAOS_CONN_CLIENT;
   rpcInit.user = TSDB_DEFAULT_USER;
@@ -666,7 +747,7 @@ int32_t dmInitServer(SDnode *pDnode) {
   rpcInit.localPort = tsServerPort;
   rpcInit.label = "DND-S";
   rpcInit.numOfThreads = tsNumOfRpcThreads;
-  rpcInit.cfp = (RpcCfp)dmProcessRpcMsg;
+  rpcInit.cfp = (RpcCfp)dmProcessServerRpcMsg;
   rpcInit.sessions = tsMaxShellConns;
   rpcInit.connType = TAOS_CONN_SERVER;
   rpcInit.idleTime = tsShellActivityTimer * 1000;
@@ -712,6 +793,8 @@ SMsgCb dmGetMsgcb(SDnode *pDnode) {
       .serverRpc = pDnode->trans.serverRpc,
       .statusRpc = pDnode->trans.statusRpc,
       .syncRpc = pDnode->trans.syncRpc,
+      .pCorrelationRuntime = pDnode->pCorrelationRuntime,
+      .pCorrelationOps = NULL == pDnode->pCorrelationRuntime ? NULL : &gDmCorrelationRuntimeOps,
       .sendReqFp = dmSendReq,
       .sendSyncReqFp = dmSendSyncReq,
       .sendRspFp = dmSendRsp,

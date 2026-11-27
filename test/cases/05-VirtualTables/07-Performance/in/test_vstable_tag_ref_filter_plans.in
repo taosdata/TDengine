@@ -1,0 +1,11 @@
+SET max_binary_display_width 500;
+USE vt_tag_filter_idmp;
+
+# Tag-only metadata uses Tag Scan; a volatile projection requires data rows.
+EXPLAIN SELECT DISTINCT tbname FROM vst WHERE `手机` LIKE '1380%';
+EXPLAIN SELECT DISTINCT tbname, rand() FROM vst WHERE tbname = 'vt_000001';
+
+# Referenced JSON tags retain the data-scan path.
+CREATE VTABLE json_ref (v FROM vt_tag_filter_source.json_data.v) USING json_vst TAGS (j FROM vt_tag_filter_source.json_data.j);
+EXPLAIN SELECT DISTINCT tbname, j FROM json_vst;
+DROP TABLE json_ref;

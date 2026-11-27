@@ -1,6 +1,22 @@
+# Copyright (c) 2025 TAOS Data, Inc. <jhtao@taosdata.com>
+#
+# SPDX-License-Identifier: AGPL-3.0-or-later
+#
+# This program is free software: you can use, redistribute, and/or modify
+# it under the terms of the GNU Affero General Public License, version 3
+# or later ("AGPL"), as published by the Free Software Foundation.
+#
+# This program is distributed in the hope that it will be useful, but WITHOUT
+# ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+# FITNESS FOR A PARTICULAR PURPOSE.
+#
+# You should have received a copy of the GNU Affero General Public License
+# along with this program. If not, see <http://www.gnu.org/licenses/>.
+
 from new_test_framework.utils import (
     tdLog, tdSql, tdStream, sc, clusterComCheck, etool, StreamItem)
 from new_test_framework.utils.common import tdCom
+from new_test_framework.utils.interval_hints import assert_supported_interval_hint_modes
 
 
 class TestInterval:
@@ -93,6 +109,7 @@ class TestInterval:
         tdSql.checkRows(rowNum)
         tdSql.checkData(0, 5, 1)
         tdSql.checkData(0, 2, 60000)
+        assert_supported_interval_hint_modes()
 
         tdLog.info(f"================ step10")
         tdLog.info(f"-------- create database and table")
@@ -1219,8 +1236,10 @@ class TestInterval:
         tdSql.query(f"select derivative(k, 6m, 1) from tm0")
         tdSql.checkRows(3)
 
-        tdSql.error(f"select derivative(k, 6m, 1) from tm0 interval(1s)")
-        tdSql.error(f"select derivative(k, 6m, 1) from tm0 session(ts, 1s)")
+        tdSql.query(f"select derivative(k, 6m, 1) from tm0 interval(1s)")
+        tdSql.checkRows(0)
+        tdSql.query(f"select derivative(k, 6m, 1) from tm0 session(ts, 1s)")
+        tdSql.checkRows(0)
         tdSql.error(f"select derivative(k, 6m, 1) from tm0 group by k")
 
         tdSql.execute(f"drop table if exists tm0")
@@ -1937,7 +1956,7 @@ class TestInterval:
 
         Since: v3.0.0.0
 
-        Labels: common,ci
+        Labels: common,ci,integration,functional
 
         Jira: None
 
@@ -1967,7 +1986,7 @@ class TestInterval:
 
         Since: v3.4.1.0
 
-        Labels: common,ci
+        Labels: common,ci,integration,functional
 
         History:
             - 2026-01-19 Tony Zhang created
@@ -2656,3 +2675,60 @@ class TestInterval:
             first(c1), max(c1), count(c1) from %%tbname
             where ts >= _twstart and ts < _twend interval(8h) fill(near)
             surround(12h, 100, 100, 100)""")
+
+    def test_interval_block_order_no_sort(self):
+        """Interval: block-ordered execution without pre-sort
+
+        Validates that interval with non-timeline aggregate functions (count, sum,
+        avg, min, max) on a super table with PARTITION BY tbname uses block-ordered
+        input (input_order=asc) instead of unknown order. This confirms that the
+        planner correctly propagates ts order through the partition-tags optimization
+        so the executor can use the efficient sorted path without requiring a Sort node.
+
+        Since: v3.4.0.0
+
+        Labels: common,ci
+
+        Jira: None
+
+        History:
+            - 2025-05-29 xs Ren Created
+        """
+        db = "db_interval_block_order"
+        tdSql.execute(f"drop database if exists {db}")
+        tdSql.execute(f"create database {db} VGROUPS 2")
+        tdSql.execute(f"use {db}")
+        tdSql.execute("create stable st(ts timestamp, v int) tags(g int)")
+        tdSql.execute("create table t1 using st tags(1)")
+        tdSql.execute("create table t2 using st tags(2)")
+        tdSql.execute("create table t3 using st tags(3)")
+        tdSql.execute(
+            "insert into t1 values "
+            "('2024-01-01 00:00:00', 1) "
+            "('2024-01-01 00:00:01', 2) "
+            "('2024-01-01 00:00:02', 3) "
+            "('2024-01-01 00:00:03', 4) "
+            "('2024-01-01 00:00:04', 5)"
+        )
+        tdSql.execute(
+            "insert into t2 values "
+            "('2024-01-01 00:00:00', 10) "
+            "('2024-01-01 00:00:01', 20) "
+            "('2024-01-01 00:00:02', 30) "
+            "('2024-01-01 00:00:03', 40) "
+            "('2024-01-01 00:00:04', 50)"
+        )
+        tdSql.execute(
+            "insert into t3 values "
+            "('2024-01-01 00:00:00', 100) "
+            "('2024-01-01 00:00:01', 200) "
+            "('2024-01-01 00:00:02', 300) "
+            "('2024-01-01 00:00:03', 400) "
+            "('2024-01-01 00:00:04', 500)"
+        )
+
+        sqlFile = etool.curFile(__file__, "in/test_interval_block_order.in")
+        ansFile = etool.curFile(__file__, "ans/test_interval_block_order.ans")
+        tdCom.compare_testcase_result(sqlFile, ansFile, "test_interval_block_order")
+
+        tdSql.execute(f"drop database {db}")

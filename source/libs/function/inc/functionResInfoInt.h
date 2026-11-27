@@ -1,6 +1,8 @@
 /*
  * Copyright (c) 2019 TAOS Data, Inc. <jhtao@taosdata.com>
  *
+ * SPDX-License-Identifier: AGPL-3.0-or-later
+ *
  * This program is free software: you can use, redistribute, and/or modify
  * it under the terms of the GNU Affero General Public License, version 3
  * or later ("AGPL"), as published by the Free Software Foundation.
@@ -21,6 +23,7 @@ extern "C" {
 #endif
 
 #include "decimal.h"
+#include "fillPrev.h"
 #include "functionResInfo.h"
 #include "os.h"
 #include "tdigest.h"
@@ -44,7 +47,8 @@ typedef struct SSumRes {
   int16_t type;
   int64_t prevTs;
   bool    isPrevTsSet;
-  bool    overflow;  // if overflow is true, dsum to be used for any type;
+  bool    overflow;  // floating-point accumulation became inf/NaN and must be output as NULL;
+  bool    hasResult;  // at least one non-NULL value has been accumulated
 } SSumRes;
 
 typedef struct SDecimalSumRes {
@@ -116,19 +120,37 @@ typedef struct SMinmaxResInfo {
   int16_t   type;
 } SMinmaxResInfo;
 
-typedef struct SFillforwardInfo {
-  union {
-    struct {
-      int64_t v;
-      float   fv;
-      double  dv;
-      char*   str;
-    };
-    int64_t dec[2];  // for decimal types
-  };
+// TIME_ALIGN optional time-range parameter state.  Fixed units are converted
+// to ticks of the input time axis precision with getDuration(); calendar units
+// (n/y) keep the period count and advance timestamps with taosTimeAdd().
+typedef struct SFillSpanInfo {
+  SFillPrevRange range;
+  bool           spanReady;
+  bool           mono;
+  bool           desc;
+} SFillSpanInfo;
 
-  bool nonnull;
+typedef struct SFillforwardInfo {
+  SFillPrevValue value;
+  SFillSpanInfo  span;
 } SFillforwardInfo;
+
+// One output position whose successor value is not known yet, together with
+// the row timestamp used by the optional time-range parameter.
+typedef struct SFillNextPending {
+  int32_t pos;    // absolute output position in the host result block
+  int64_t rowTs;  // timestamp of the pending row
+} SFillNextPending;
+
+// NEXT keeps the output positions whose successor is not known yet.  The
+// positions are absolute row indexes in the host result block (the block that
+// accumulates rows across input blocks, see projectApplyFunctions), so a value
+// found in a later input block can be written back in place.
+typedef struct SFillNextInfo {
+  SArray* pPending;     // SArray<SFillNextPending>, ascending output positions
+  int32_t pendingHead;  // first unresolved entry (monotonic inputs only)
+  SFillSpanInfo span;
+} SFillNextInfo;
 
 typedef struct SOldMinMaxResInfo {
   bool      assign;  // assign the first value or not
@@ -286,7 +308,7 @@ typedef struct SDecimalAvgRes {
 
 // structs above are used in stream
 
-#define HISTOGRAM_MAX_BINS_NUM 1000
+#define HISTOGRAM_MAX_BINS_NUM 1000  // N bins accept at most N + 1 user boundaries
 #define MAVG_MAX_POINTS_NUM    1000
 #define TAIL_MAX_POINTS_NUM    100
 #define TAIL_MAX_OFFSET        100
@@ -376,8 +398,6 @@ typedef struct SDiffInfo {
     int64_t i64;
     double  d64;
   } prev;
-
-  int64_t prevTs;
 } SDiffInfo;
 
 typedef struct SElapsedInfo {
@@ -393,7 +413,88 @@ typedef struct STwaInfo {
   int64_t     numOfElems;
   SPoint1     p;
   STimeWindow win;
+  int8_t      tsOrder;
 } STwaInfo;
+
+// value_changes: count of adjacent value changes on the timeline. `count` is the
+// finalize output slot (must be first). Equality is delegated to a per-type comparator
+// (getComparFunc with OP_TYPE_EQUAL); NaN==NaN and epsilon float equality come for free.
+// prevData is a flexible buffer holding the previous compared cell (varData incl. length
+// prefix for var types), sized by getValueChangesFuncEnv from the input column bytes.
+typedef struct SValueChangesInfo {
+  int64_t       count;       // output slot (BIGINT), must be first
+  int64_t       numOfElems;  // rows seen (incl. NULL) - distinguishes empty table from all-equal
+  bool          hasPrev;     // a previous compared value exists
+  bool          prevIsNull;  // the previous compared value is NULL (ignore_null=0 path)
+  int8_t        ignoreNull;  // 1 (default): skip NULL transparently; 0: NULL participates
+  int8_t        inputType;   // resolved input column type (0 = not yet resolved)
+  STypeMod      typeMod;     // DECIMAL precision/scale; FS mandates decimal compared as DOUBLE
+  __compar_fn_t comparFn;    // resolved equality comparator (DOUBLE comparator for decimal input)
+  TSKEY         prevTs;      // for DUP_TIMESTAMP detection
+  bool          hasPrevTs;
+  int32_t       prevBytes;   // valid bytes currently stored in prevData
+  char          prevData[];  // previous compared value (fixed value or varData)
+} SValueChangesInfo;
+
+typedef struct SBitChangesInfo {
+  int64_t  count;       // finalized change-count output slot (BIGINT), must be first
+  int64_t  numOfElems;  // rows seen (including NULL), distinguishes empty input
+  uint64_t mask;
+  int8_t   flag;
+  int8_t   inputType;
+  bool     hasPrev;
+  uint64_t prevMasked;
+  TSKEY    prevTs;
+  bool     hasPrevTs;
+} SBitChangesInfo;
+
+typedef struct SBitDurationInfo {
+  // functionFinalize reads the first field as the BIGINT output. TOTAL derives it from
+  // firstTs/totalLastTs; other modes copy duration here before finalization.
+  int64_t  result;      // finalized duration output slot, must remain first
+  int64_t  duration;    // NONZERO/ZERO accumulated duration in native timestamp ticks
+  int64_t  numOfRows;  // rows seen, including NULL rows; distinguishes empty input
+  uint64_t mask;
+  int8_t   mode;
+  int8_t   inputType;          // resolved TSDB_DATA_TYPE_* value
+  bool     inputTypeResolved;  // inputType was established by a non-NULL typed column
+  bool     hasPrev;     // valid value state exists
+  bool     hasPrevTs;   // prevTs is set for duplicate/order checks
+  bool     seedPending;      // segmentStartTs still comes from the interpolation seed
+  bool     startSeedApplied; // external-window predecessor was accounted for
+  bool     hasFirstTs;  // firstTs is set; seeding can set only hasPrev
+  // ASC PK iterator state is reusable only by the next block in the same group.
+  bool     hasPendingPkTs;
+  bool     prevNonZero;
+  TSKEY    prevTs;
+  TSKEY    pendingPkTs;
+  uint64_t pendingPkGroupId;  // owner group; a different group discards pendingPkTs
+  TSKEY    firstTs;
+  TSKEY    totalLastTs;    // TOTAL mode: timestamp of the last valid row
+  TSKEY    segmentStartTs; // NONZERO/ZERO: pending segment start, or one tick past a settled end
+} SBitDurationInfo;
+
+// Time-weighted sum: raw time-integral (INT v dt) accumulated in native ticks. The output
+// unit divisor is derived from the params at finalize (see twsumResolveTimeUnit), not stored.
+typedef struct STwsumInfo {
+  double      dTwsumRes;  // finalize output slot (must be first)
+  double      dOutput;    // accumulated integral (value * ticks)
+  int64_t     numOfElems;
+  SPoint1     p;
+  STimeWindow win;
+  int8_t      tsOrder;
+} STwsumInfo;
+
+// Time-weighted population variance: (1/T)*INT v^2 dt - mu^2, mu = twa.
+typedef struct STwvarInfo {
+  double      dTwvarRes;  // finalize output slot (must be first)
+  double      dOutput;    // accumulated INT v dt
+  double      d2Output;   // accumulated INT v^2 dt
+  int64_t     numOfElems;
+  SPoint1     p;
+  STimeWindow win;
+  int8_t      tsOrder;
+} STwvarInfo;
 
 typedef struct SHistoFuncBin {
   double  lower;
@@ -416,6 +517,7 @@ typedef struct SStateInfo {
   };
   int64_t prevTs;
   bool    isPrevTsSet;
+  int8_t  tsOrder;
 } SStateInfo;
 
 typedef struct SMavgInfo {
@@ -433,7 +535,7 @@ typedef struct SSampleInfo {
   int64_t  totalPoints;
   int32_t  numSampled;
   uint8_t  colType;
-  uint16_t colBytes;
+  int32_t  colBytes;
 
   STuplePos nullTuplePos;
   bool      nullTupleSaved;
@@ -443,9 +545,10 @@ typedef struct SSampleInfo {
 } SSampleInfo;
 
 typedef struct STailItem {
-  int64_t timestamp;
-  bool    isNull;
-  char    data[];
+  int64_t   timestamp;
+  bool      isNull;
+  STuplePos tuplePos;
+  char      data[];
 } STailItem;
 
 typedef struct STailInfo {
@@ -454,6 +557,8 @@ typedef struct STailInfo {
   int32_t     offset;
   uint8_t     colType;
   uint16_t    colBytes;
+  STuplePos   nullTuplePos;
+  bool        nullTupleSaved;
   STailItem** pItems;
 } STailInfo;
 
@@ -495,6 +600,7 @@ typedef struct SDerivInfo {
   bool    ignoreNegative;  // ignore the negative value
   int64_t tsWindow;        // time window for derivative
   bool    valueSet;        // the value has been set already
+  int8_t  tsOrder;
 } SDerivInfo;
 
 typedef struct SRateInfo {

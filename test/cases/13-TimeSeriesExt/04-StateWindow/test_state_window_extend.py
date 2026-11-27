@@ -1,13 +1,17 @@
-###################################################################
-#           Copyright (c) 2025 by TAOS Technologies, Inc.
-#                     All rights reserved.
+# Copyright (c) 2025 TAOS Data, Inc. <jhtao@taosdata.com>
 #
-#  This file is proprietary and confidential to TAOS Technologies.
-#  No part of this file may be reproduced, stored, transmitted,
-#  disclosed or used in any form or by any means other than as
-#  expressly provided by the written permission from Jianhui Tao
+# SPDX-License-Identifier: AGPL-3.0-or-later
 #
-###################################################################
+# This program is free software: you can use, redistribute, and/or modify
+# it under the terms of the GNU Affero General Public License, version 3
+# or later ("AGPL"), as published by the Free Software Foundation.
+#
+# This program is distributed in the hope that it will be useful, but WITHOUT
+# ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+# FITNESS FOR A PARTICULAR PURPOSE.
+#
+# You should have received a copy of the GNU Affero General Public License
+# along with this program. If not, see <http://www.gnu.org/licenses/>.
 
 # -*- coding: utf-8 -*-
 
@@ -27,8 +31,7 @@ class TestStateWindowExtend:
 
         Since: v3.3.8.0
 
-        Labels: state window, extend, stream
-
+        Labels: extend,state window,stream,integration,functional
         Jira: TS-7129
 
         Catalog:
@@ -145,7 +148,7 @@ class TestStateWindowExtend:
         # extend = 0
         tdSql.query('''select _wstart, _wduration, _wend, count(*), count(s), count(v),
                     avg(v), first(v), cols(last(v), ts), cols(last_row(v), ts), s
-                    from ntb state_window(s, 0)''', show=True)
+                    from ntb state_window(s) extend(0)''', show=True)
         tdSql.checkRows(4)
         tdSql.checkData(0, 0, '''2025-09-01 10:00:01.000''')
         tdSql.checkData(0, 1, 164000)
@@ -195,7 +198,7 @@ class TestStateWindowExtend:
         # extend = 1
         tdSql.query('''select _wstart, _wduration, _wend, count(*), count(s), count(v),
                     avg(v), first(v), cols(last(v), ts), cols(last_row(v), ts), s
-                    from ntb state_window(s, 1)''', show=True)
+                    from ntb state_window(s) extend(1)''', show=True)
         tdSql.checkRows(4)
         tdSql.checkData(0, 0, '''2025-09-01 10:00:01.000''')
         tdSql.checkData(0, 1, 3668999)
@@ -247,7 +250,7 @@ class TestStateWindowExtend:
                     avg(v), first(v), cols(last(v), ts), cols(last_row(v), ts), s
                     from ntb where ts >= '2025-09-01 11:00:00.000'
                     and ts <= '2025-09-01 13:00:00.000'
-                    state_window(s, 1)''', show=True)
+                    state_window(s) extend(1)''', show=True)
         tdSql.checkRows(2)
         tdSql.checkData(0, 0, '''2025-09-01 11:01:10.000''')
         tdSql.checkData(0, 1, 4748999)
@@ -271,7 +274,7 @@ class TestStateWindowExtend:
         # extend = 2
         tdSql.query('''select _wstart, _wduration, _wend, count(*), count(s), count(v),
                     avg(v), first(v), cols(last(v), ts), cols(last_row(v), ts), s
-                    from ntb state_window(s, 2)''', show=True)
+                    from ntb state_window(s) extend(2)''', show=True)
         tdSql.checkRows(4)
         tdSql.checkData(0, 0, '''2025-09-01 10:00:00.000''')
         tdSql.checkData(0, 1, 165000)
@@ -323,7 +326,7 @@ class TestStateWindowExtend:
                     avg(v), first(v), cols(last(v), ts), cols(last_row(v), ts), s
                     from ntb where ts >= '2025-09-01 11:00:00.000'
                     and ts <= '2025-09-01 14:00:00.000'
-                    state_window(s, 2)''', show=True)
+                    state_window(s) extend(2)''', show=True)
         tdSql.checkRows(2)
         tdSql.checkData(0, 0, '''2025-09-01 11:01:10.000''')
         tdSql.checkData(0, 1, 3732000)
@@ -403,7 +406,7 @@ class TestStateWindowExtend:
         # extend = 0
         tdSql.query('''select _wstart, _wduration, _wend, count(*), count(s), count(v),
                     avg(v), first(v), cols(last(v), ts), cols(last_row(v), ts), s
-                    from stb state_window(s, 0)''', show=True)
+                    from stb state_window(s) extend(0)''', show=True)
         tdSql.checkRows(4)
         tdSql.checkData(0, 0, '''2025-09-01 10:00:01.000''')
         tdSql.checkData(0, 1, 164000)
@@ -455,7 +458,7 @@ class TestStateWindowExtend:
                     avg(v), first(v), cols(last(v), ts), cols(last_row(v), ts), s
                     from stb where ts >= '2025-09-01 11:00:00.000'
                     and ts <= '2025-09-01 13:00:00.000'
-                    state_window(s, 1)''', show=True)
+                    state_window(s) extend(1)''', show=True)
         tdSql.checkRows(2)
         tdSql.checkData(0, 0, '''2025-09-01 11:01:10.000''')
         tdSql.checkData(0, 1, 4748999)
@@ -479,7 +482,7 @@ class TestStateWindowExtend:
         # extend = 2
         tdSql.query('''select _wstart, _wduration, _wend, count(*), count(s), count(v),
                     avg(v), first(v), cols(last(v), ts), cols(last_row(v), ts), s
-                    from stb state_window(s, 2)''', show=True)
+                    from stb state_window(s) extend(2)''', show=True)
         tdSql.checkRows(4)
         tdSql.checkData(0, 0, '''2025-09-01 10:00:00.000''')
         tdSql.checkData(0, 1, 165000)
@@ -531,7 +534,7 @@ class TestStateWindowExtend:
                     avg(v), first(v), cols(last(v), ts), cols(last_row(v), ts), s
                     from stb where ts >= '2025-09-01 11:00:00.000'
                     and ts <= '2025-09-01 14:00:00.000'
-                    state_window(s, 2)''', show=True)
+                    state_window(s) extend(2)''', show=True)
         tdSql.checkRows(2)
         tdSql.checkData(0, 0, '''2025-09-01 11:01:10.000''')
         tdSql.checkData(0, 1, 3732000)
@@ -561,7 +564,7 @@ class TestStateWindowExtend:
         # extend = 1
         tdSql.query('''select _wstart, _wduration, _wend, count(*), count(s), count(v),
                     avg(v), first(v), cols(last(v), ts), cols(last_row(v), ts), s
-                    from testdb_ns.ntb state_window(s, 1)''', show=True)
+                    from testdb_ns.ntb state_window(s) extend(1)''', show=True)
         tdSql.checkRows(4)
         tdSql.checkData(0, 0, '''2025-09-01 10:00:01.000000000''')
         tdSql.checkData(0, 1, 3668999999999)
@@ -610,20 +613,20 @@ class TestStateWindowExtend:
 
     def check_wrong_input(self):
         tdSql.execute('''use testdb''')
-        tdSql.error('''select count(*) from ntb state_window(s, -1)''')
-        tdSql.error('''select count(*) from ntb state_window(s, 3)''')
-        tdSql.error('''select count(*) from ntb state_window(s, '3')''')
-        tdSql.error('''select count(*) from ntb state_window(s, '1')''')
-        tdSql.error('''select count(*) from ntb state_window(s, 'abc')''')
-        tdSql.error('''select count(*) from ntb state_window(s, true)''')
-        tdSql.error('''select count(*) from ntb state_window(s, 1d)''')
-        tdSql.error('''select count(*) from ntb state_window(s, 1.5)''')
-        tdSql.error('''select count(*) from ntb state_window(s, *)''')
-        tdSql.error('''select count(*) from ntb state_window(s, '2025-09-03')''')
-        tdSql.error('''select count(*) from ntb state_window(s, 1, a)''')
-        tdSql.error('''select count(*) from ntb state_window(s, 1+1)''')
-        tdSql.error('''select count(*) from ntb state_window(s, 1*1)''')
-        tdSql.error('''select count(*) from ntb state_window(s, case when now < 2025-01-01 then 0 else 1)''')
+        tdSql.error('''select count(*) from ntb state_window(s) extend(-1)''')
+        tdSql.error('''select count(*) from ntb state_window(s) extend(3)''')
+        tdSql.error('''select count(*) from ntb state_window(s) extend('3')''')
+        tdSql.error('''select count(*) from ntb state_window(s) extend('1')''')
+        tdSql.error('''select count(*) from ntb state_window(s) extend('abc')''')
+        tdSql.error('''select count(*) from ntb state_window(s) extend(true)''')
+        tdSql.error('''select count(*) from ntb state_window(s) extend(1d)''')
+        tdSql.error('''select count(*) from ntb state_window(s) extend(1.5)''')
+        tdSql.error('''select count(*) from ntb state_window(s) extend(*)''')
+        tdSql.error('''select count(*) from ntb state_window(s) extend('2025-09-03')''')
+        tdSql.error('''select count(*) from ntb state_window(s) extend(1) zeroth_state(a)''')
+        tdSql.error('''select count(*) from ntb state_window(s) extend(1+1)''')
+        tdSql.error('''select count(*) from ntb state_window(s) extend(1*1)''')
+        tdSql.error('''select count(*) from ntb state_window(s) extend(case when now < 2025-01-01 then 0 else 1)''')
 
     def check_stream_computing_normal_table(self):
         tdSql.execute('''use testdb''')
@@ -636,7 +639,7 @@ class TestStateWindowExtend:
                         select _wstart, _wduration, _wend, _twstart, _twend, 
                         count(*) cnt_all, count(s) cnt_s, count(v) cnt_v, avg(v) avg_v, s 
                         from ntb where ts >= _twstart and ts <= _twend 
-                        state_window(s, 0)''',
+                        state_window(s) extend(0)''',
             res_query='''select _wstart, _wduration, _wend, cnt_all, cnt_s, cnt_v, avg_v, s from res_scn0 
                         where _wend <= "2025-09-02 08:00:04.000"''',
             exp_query='''select _wstart, _wduration, _wend, count(*), count(s), count(v), avg(v), s from ntb 
@@ -650,11 +653,11 @@ class TestStateWindowExtend:
                         select _wstart, _wduration, _wend, _twstart, _twend, 
                         count(*) cnt_all, count(s) cnt_s, count(v) cnt_v, avg(v) avg_v, s 
                         from ntb where ts >= _twstart and ts <= _twend 
-                        state_window(s, 1)''',
+                        state_window(s) extend(1)''',
             res_query='''select _wstart, _wduration, _wend, cnt_all, cnt_s, cnt_v, avg_v, s from res_scn1 
                         where _wend <= "2025-09-02 08:00:04.000"''',
             exp_query='''select _wstart, _wduration, _wend, count(*), count(s), count(v), avg(v), s from ntb 
-                        where ts >= "2025-09-02 08:00:00.000" and ts <= "2025-09-02 08:00:04.000" state_window(s, 1)''',
+                        where ts >= "2025-09-02 08:00:00.000" and ts <= "2025-09-02 08:00:04.000" state_window(s) extend(1)''',
         )
         streams.append(stream)
 
@@ -664,11 +667,11 @@ class TestStateWindowExtend:
                         select _wstart, _wduration, _wend, _twstart, _twend,
                         count(*) cnt_all, count(s) cnt_s, count(v) cnt_v, avg(v) avg_v, s
                         from ntb where ts >= _twstart and ts <= _twend
-                        state_window(s, 2)''',
+                        state_window(s) extend(2)''',
             res_query='''select _wstart, _wduration, _wend, cnt_all, cnt_s, cnt_v, avg_v, s from res_scn2 
                         where _wend <= "2025-09-02 08:00:04.000"''',
             exp_query='''select _wstart, _wduration, _wend, count(*), count(s), count(v), avg(v), s from ntb 
-                        where ts >= "2025-09-02 08:00:00.000" and ts <= "2025-09-02 08:00:04.000" state_window(s, 2)''',
+                        where ts >= "2025-09-02 08:00:00.000" and ts <= "2025-09-02 08:00:04.000" state_window(s) extend(2)''',
         )
         streams.append(stream)
 
@@ -706,7 +709,7 @@ class TestStateWindowExtend:
                         select _wstart, _wduration, _wend, _twstart, _twend, 
                         count(*) cnt_all, count(s) cnt_s, count(v) cnt_v, avg(v) avg_v, s 
                         from %%tbname where ts >= _twstart and ts < _twend 
-                        state_window(s, 0)''',
+                        state_window(s) extend(0)''',
             res_query='''select _wstart, _wduration, _wend, cnt_all, cnt_s, cnt_v, avg_v, s from res_scs0 
                         where _wend < "2025-09-02 08:00:05.000"''',
             exp_query='''select _wstart, _wduration, _wend, count(*), count(s), count(v), avg(v), s from ctb1 
@@ -721,11 +724,11 @@ class TestStateWindowExtend:
                         select _wstart, _wduration, _wend, _twstart, _twend, 
                         count(*) cnt_all, count(s) cnt_s, count(v) cnt_v, avg(v) avg_v, s 
                         from %%tbname where ts >= _twstart and ts < _twend 
-                        state_window(s, 1)''',
+                        state_window(s) extend(1)''',
             res_query='''select _wstart, _wduration, _wend, cnt_all, cnt_s, cnt_v, avg_v, s from res_scs1 
                         where _wend < "2025-09-02 08:00:05.000"''',
             exp_query='''select _wstart, _wduration, _wend, count(*), count(s), count(v), avg(v), s from ctb1 
-                        where ts >= "2025-09-02 08:00:00.000" and ts < "2025-09-02 08:00:05.000" state_window(s, 1)''',
+                        where ts >= "2025-09-02 08:00:00.000" and ts < "2025-09-02 08:00:05.000" state_window(s) extend(1)''',
         )
         streams.append(stream)
 
@@ -736,11 +739,11 @@ class TestStateWindowExtend:
                         select _wstart, _wduration, _wend, _twstart, _twend, 
                         count(*) cnt_all, count(s) cnt_s, count(v) cnt_v, avg(v) avg_v, s 
                         from %%tbname where ts >= _twstart and ts < _twend 
-                        state_window(s, 2)''',
+                        state_window(s) extend(2)''',
             res_query='''select _wstart, _wduration, _wend, cnt_all, cnt_s, cnt_v, avg_v, s from res_scs2 
                         where _wend < "2025-09-02 08:00:05.000"''',
             exp_query='''select _wstart, _wduration, _wend, count(*), count(s), count(v), avg(v), s from ctb1 
-                        where ts >= "2025-09-02 08:00:00.000" and ts < "2025-09-02 08:00:05.000" state_window(s, 2)''',
+                        where ts >= "2025-09-02 08:00:00.000" and ts < "2025-09-02 08:00:05.000" state_window(s) extend(2)''',
         )
         streams.append(stream)
 
@@ -773,7 +776,7 @@ class TestStateWindowExtend:
         streams: list[StreamItem] = []
         stream = StreamItem (
             id=6,
-            stream='''create stream stn0 state_window(s, 0) from ntb stream_options(fill_history) into res_stn0 as
+            stream='''create stream stn0 state_window(s) extend(0) from ntb stream_options(fill_history) into res_stn0 as
                         select _twstart wstart, _twduration wdur, _twend wend, count(*) cnt_all, count(s) cnt_s,
                         count(v) cnt_v, avg(v) avg_v from ntb where ts >= _twstart and ts <= _twend''',
             res_query='''select wstart, wdur, wend, cnt_all, cnt_s, cnt_v, avg_v from res_stn0''',
@@ -783,21 +786,21 @@ class TestStateWindowExtend:
 
         stream = StreamItem (
             id=7,
-            stream='''create stream stn1 state_window(s, 1) from ntb stream_options(fill_history) into res_stn1 as
+            stream='''create stream stn1 state_window(s) extend(1) from ntb stream_options(fill_history) into res_stn1 as
                 select _twstart wstart, _twduration wdur, _twend wend, count(*) cnt_all, count(s) cnt_s,
                 count(v) cnt_v, avg(v) avg_v from ntb where ts >= _twstart and ts <= _twend''',
             res_query='''select wstart, wdur, wend, cnt_all, cnt_s, cnt_v, avg_v from res_stn1''',
-            exp_query='''select _wstart wstart, _wduration wdur, _wend wend, count(*), count(s), count(v), avg(v) from ntb state_window(s, 1) limit 15''',
+            exp_query='''select _wstart wstart, _wduration wdur, _wend wend, count(*), count(s), count(v), avg(v) from ntb state_window(s) extend(1) limit 15''',
         )
         streams.append(stream)
 
         stream = StreamItem (
             id=8,
-            stream='''create stream stn2 state_window(s, 2) from ntb stream_options(fill_history) into res_stn2 as 
+            stream='''create stream stn2 state_window(s) extend(2) from ntb stream_options(fill_history) into res_stn2 as 
                         select _twstart wstart, _twduration wdur, _twend wend, count(*) cnt_all, count(s) cnt_s, 
                         count(v) cnt_v, avg(v) avg_v from ntb where ts >= _twstart and ts <= _twend''',
             res_query='''select wstart, wdur, wend, cnt_all, cnt_s, cnt_v, avg_v from res_stn2 where _c0 <> "2025-09-03 08:00:00.000"''',  # ignore first window of realtime calc
-            exp_query='''select _wstart wstart, _wduration wdur, _wend wend, count(*), count(s), count(v), avg(v) from ntb state_window(s, 2) limit 15''',
+            exp_query='''select _wstart wstart, _wduration wdur, _wend wend, count(*), count(s), count(v), avg(v) from ntb state_window(s) extend(2) limit 15''',
         )
         streams.append(stream)
 
@@ -832,7 +835,7 @@ class TestStateWindowExtend:
         streams: list[StreamItem] = []
         stream = StreamItem (
             id=9,
-            stream='''create stream sts0 state_window(s, 0) from stb partition by tbname stream_options(fill_history) into res_sts0 as 
+            stream='''create stream sts0 state_window(s) extend(0) from stb partition by tbname stream_options(fill_history) into res_sts0 as 
                         select _twstart wstart, _twduration wdur, _twend wend, count(*) cnt_all, count(s) cnt_s, 
                         count(v) cnt_v, avg(v) avg_v from %%tbname where ts >= _twstart and ts <= _twend''',
             res_query='''select wstart, wdur, wend, cnt_all, cnt_s, cnt_v, avg_v from res_sts0 where tag_tbname = "ctb1"''',
@@ -842,21 +845,21 @@ class TestStateWindowExtend:
 
         stream = StreamItem (
             id=10,
-            stream='''create stream sts1 state_window(s, 1) from stb partition by tbname stream_options(fill_history) into res_sts1 as 
+            stream='''create stream sts1 state_window(s) extend(1) from stb partition by tbname stream_options(fill_history) into res_sts1 as 
                         select _twstart wstart, _twduration wdur, _twend wend, count(*) cnt_all, count(s) cnt_s, 
                         count(v) cnt_v, avg(v) avg_v from %%tbname where ts >= _twstart and ts <= _twend''',
             res_query='''select wstart, wdur, wend, cnt_all, cnt_s, cnt_v, avg_v from res_sts1 where tag_tbname = "ctb1"''',
-            exp_query='''select _wstart wstart, _wduration wdur, _wend wend, count(*), count(s), count(v), avg(v) from ctb1 state_window(s, 1) limit 15''',
+            exp_query='''select _wstart wstart, _wduration wdur, _wend wend, count(*), count(s), count(v), avg(v) from ctb1 state_window(s) extend(1) limit 15''',
         )
         streams.append(stream)
 
         stream = StreamItem (
             id=11,
-            stream='''create stream sts2 state_window(s, 2) from stb partition by tbname stream_options(fill_history) into res_sts2 as 
+            stream='''create stream sts2 state_window(s) extend(2) from stb partition by tbname stream_options(fill_history) into res_sts2 as 
                         select _twstart wstart, _twduration wdur, _twend wend, count(*) cnt_all, count(s) cnt_s, 
                         count(v) cnt_v, avg(v) avg_v from %%tbname where ts >= _twstart and ts <= _twend''',
             res_query='''select wstart, wdur, wend, cnt_all, cnt_s, cnt_v, avg_v from res_sts2 where tag_tbname = "ctb1" and _c0 <> "2025-09-03 08:00:00.000"''',  # ignore first window of realtime calc
-            exp_query='''select _wstart wstart, _wduration wdur, _wend wend, count(*), count(s), count(v), avg(v) from ctb1 state_window(s, 2) limit 15''',
+            exp_query='''select _wstart wstart, _wduration wdur, _wend wend, count(*), count(s), count(v), avg(v) from ctb1 state_window(s) extend(2) limit 15''',
         )
         streams.append(stream)
 

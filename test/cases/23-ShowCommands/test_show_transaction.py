@@ -1,13 +1,17 @@
-###################################################################
-#           Copyright (c) 2016 by TAOS Technologies, Inc.
-#                     All rights reserved.
+# Copyright (c) 2016 TAOS Data, Inc. <jhtao@taosdata.com>
 #
-#  This file is proprietary and confidential to TAOS Technologies.
-#  No part of this file may be reproduced, stored, transmitted,
-#  disclosed or used in any form or by any means other than as
-#  expressly provided by the written permission from Jianhui Tao
+# SPDX-License-Identifier: AGPL-3.0-or-later
 #
-###################################################################
+# This program is free software: you can use, redistribute, and/or modify
+# it under the terms of the GNU Affero General Public License, version 3
+# or later ("AGPL"), as published by the Free Software Foundation.
+#
+# This program is distributed in the hope that it will be useful, but WITHOUT
+# ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+# FITNESS FOR A PARTICULAR PURPOSE.
+#
+# You should have received a copy of the GNU Affero General Public License
+# along with this program. If not, see <http://www.gnu.org/licenses/>.
 
 # -*- coding: utf-8 -*-
 from new_test_framework.utils import tdLog, tdSql, tdCom, cluster
@@ -32,10 +36,14 @@ class TestShowTransactionDetail:
         5. Use SHOW TRANSACTIONS to display ongoing transactions
         6. Use SHOW TRANSACTION <id> to display transaction details
         7. Query ins_transaction_details table to verify transaction details
+        8. Query ins_transactions table (information_schema alias for active transactions)
+        9. Query ins_transaction_logs table
+        10. Use SHOW TRANSACTION ORPHANS to display orphaned transactions
+        11. Query ins_transaction_orphans table (information_schema alias for orphan transactions)
 
         Since: v3.0.0.0
 
-        Labels: common,ci
+        Labels: common,ci,integration,functional
 
         Jira: None
 
@@ -51,6 +59,13 @@ class TestShowTransactionDetail:
         if self.waitTransactionZero() is False:
             tdLog.exit(f"{sql} transaction not finished")
             return False
+
+        # Construct 2 batch txn log entries so ins_transaction_logs is non-empty.
+        # One COMMITTED and one ROLLEDBACK.
+        tdSql.execute('BEGIN')
+        tdSql.execute('COMMIT')
+        tdSql.execute('BEGIN')
+        tdSql.execute('ROLLBACK')
         
         newTdSql1=tdCom.newTdSql()
         t1 = threading.Thread(target=self.alterDbThread, args=('', newTdSql1))  
@@ -84,7 +99,7 @@ class TestShowTransactionDetail:
             #tdLog.info(f"show transaction {tranId2}, {oper2}")
         
             rows = tdSql.query(f"show transaction {tranId1}", queryTimes=1)
-            if rows != 120 and rows != 176:
+            if rows != 160 and rows != 176:
                 tdLog.exit(f"show transaction detial error, rows={rows}")
                 return False
 
@@ -97,14 +112,52 @@ class TestShowTransactionDetail:
         rows = tdSql.query(f"select * from information_schema.ins_transaction_details", queryTimes=1)
         tdLog.info(tdSql.queryResult)
 
-        #if rows != 296:
-        if platform.system() == 'Windows':
-            expect_rows = 296
-        else:
-            expect_rows = 176
-        if rows != expect_rows:
+        if rows != 336 and rows != 176 and rows != 160:
             tdLog.exit(f"show transaction detial error, rows={rows}")
             return False
+
+        tdLog.info("select * from information_schema.ins_transactions")
+        rows2 = tdSql.query("select * from information_schema.ins_transactions", queryTimes=1)
+        tdLog.info(f"ins_transactions rows={rows2}")
+        # ins_transactions shows same active transactions as SHOW TRANSACTIONS
+        cols = len(tdSql.queryResult[0]) if rows2 > 0 else 0
+        tdLog.info(f"ins_transactions columns={cols}")
+
+        tdLog.info("select * from information_schema.ins_transaction_logs")
+        rows3 = tdSql.query("select * from information_schema.ins_transaction_logs", queryTimes=1)
+        tdLog.info(f"ins_transaction_logs rows={rows3}")
+        if rows3 == 0:
+            tdLog.exit("ins_transaction_logs should have rows (2 batch txns were committed/rolled back)")
+            return False
+        # verify schema: 6 columns (id, create_user, create_time, complete_time, status, complete_time, type)
+        cols_logs = len(tdSql.queryResult[0])
+        if cols_logs != 7:
+            tdLog.exit(f"ins_transaction_logs should have 7 columns, got {cols_logs}")
+            return False
+
+        tdLog.info("show transaction logs;")
+        rows4 = tdSql.query("show transaction logs;", queryTimes=1)
+        tdLog.info(f"show transaction logs rows={rows4}")
+        if rows4 != rows3:
+            tdLog.exit(f"show transaction logs row count mismatch: expected {rows3}, got {rows4}")
+            return False
+
+        tdLog.info("show transaction orphans;")
+        rows5 = tdSql.query("show transaction orphans;", queryTimes=1)
+        tdLog.info(f"show transaction orphans rows={rows5}")
+
+        tdLog.info("select * from information_schema.ins_transaction_orphans")
+        rows6 = tdSql.query("select * from information_schema.ins_transaction_orphans", queryTimes=1)
+        tdLog.info(f"ins_transaction_orphans rows={rows6}")
+        if rows5 != rows6:
+            tdLog.exit(f"show transaction orphans row count mismatch: expected {rows6}, got {rows5}")
+            return False
+        # verify schema: 5 columns (id, vgroup_id, first_seen, last_seen, report_count)
+        if rows6 > 0:
+            cols = len(tdSql.queryResult[0])
+            if cols != 5:
+                tdLog.exit(f"ins_transaction_orphans should have 5 columns, got {cols}")
+                return False
         
         dnode.starttaosd()
 

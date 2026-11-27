@@ -1,3 +1,18 @@
+# Copyright (c) 2019 TAOS Data, Inc. <jhtao@taosdata.com>
+#
+# SPDX-License-Identifier: AGPL-3.0-or-later
+#
+# This program is free software: you can use, redistribute, and/or modify
+# it under the terms of the GNU Affero General Public License, version 3
+# or later ("AGPL"), as published by the Free Software Foundation.
+#
+# This program is distributed in the hope that it will be useful, but WITHOUT
+# ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+# FITNESS FOR A PARTICULAR PURPOSE.
+#
+# You should have received a copy of the GNU Affero General Public License
+# along with this program. If not, see <http://www.gnu.org/licenses/>.
+
 import time
 import threading
 import math
@@ -31,6 +46,9 @@ class TestCase:
 
         tdLog.info("subscribe success")
         tdSql.execute("ALTER TABLE tb1 SET TAG id = 10, t1 = 0")
+        tdSql.execute("ALTER TABLE tb3 SET TAG id = 1, t1 = 0")
+        tdSql.execute("drop TABLE tb1")
+        tdSql.execute("drop TABLE tb3")
 
         cnt = 0
         try:
@@ -46,7 +64,7 @@ class TestCase:
         finally:
             consumer.close()
 
-        if cnt != 3:
+        if cnt != 2:
             tdLog.exit(f"consume 1 error, cnt: {cnt}")
         tdLog.info(f"consume1 completed, total rows: {cnt}")
 
@@ -86,6 +104,7 @@ class TestCase:
             consumer.close()
         if cnt != 2:
             tdLog.exit(f"consume 2 error, cnt: {cnt}")
+        tdSql.execute(f'drop topic t1')
         tdLog.info(f"consume2 completed, total rows: {cnt}")
 
     def consume3(self):
@@ -124,9 +143,11 @@ class TestCase:
             consumer.close()
         if cnt != 2:
             tdLog.exit(f"consume 2 error, cnt: {cnt}")
+        tdSql.execute(f'drop topic t2')
         tdLog.info(f"consume2 completed, total rows: {cnt}")
 
     def insertData(self):
+        tdSql.execute("drop database if exists db_alter_tag")
         tdSql.execute("create database db_alter_tag vgroups 1")
         tdSql.execute("use db_alter_tag")
         tdSql.execute("create table stb (ts timestamp, val double) tags (id int, t1 int)")
@@ -146,8 +167,7 @@ class TestCase:
         
         Since: v3.0.0.0
 
-        Labels: common,ci
-
+        Labels: common,ci,integration,functional
         Jira: None
 
         History:
@@ -156,8 +176,9 @@ class TestCase:
         """
         tdSql.prepare()
         self.insertData()
-        self.consume1()
         self.consume2()
         self.consume3()
+        self.insertData()
+        self.consume1()
 
 event = threading.Event()

@@ -1,0 +1,1 @@
+{"version":1,"name":"meters","cols": [{"name":"ts", "type":9},{"name":"ic", "type":4},{"name":"usi", "type":12},{"name":"var1", "type":16},{"name":"var2", "type":16},{"name":"var3", "type":16}],"tags": [{"name":"tvar1", "type":16},{"name":"tvar2", "type":16}]}

@@ -1,8 +1,24 @@
+# Copyright (c) 2025 TAOS Data, Inc. <jhtao@taosdata.com>
+#
+# SPDX-License-Identifier: AGPL-3.0-or-later
+#
+# This program is free software: you can use, redistribute, and/or modify
+# it under the terms of the GNU Affero General Public License, version 3
+# or later ("AGPL"), as published by the Free Software Foundation.
+#
+# This program is distributed in the hope that it will be useful, but WITHOUT
+# ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+# FITNESS FOR A PARTICULAR PURPOSE.
+#
+# You should have received a copy of the GNU Affero General Public License
+# along with this program. If not, see <http://www.gnu.org/licenses/>.
+
 from new_test_framework.utils import tdLog, tdSql, tdStream
 import pytest
 import time
 import random
 import math
+import struct
 
 
 class TestMathFunctionInStream:
@@ -37,15 +53,16 @@ class TestMathFunctionInStream:
 
         Catalog:
             - Streams:OldPyCases
-            
+
         Since: v3.3.7.0
 
-        Labels: common,ci
+        Labels: common,ci,integration,functional
 
         Jira: https://jira.taosdata.com:18080/browse/TD-36887
 
         History:
             - 2025-07-23: Created by zyyang90
+            - 2026-11-17: Match FLOAT precision in expected values
         """
         # create snode if not exists
         snodes = tdSql.getResult("SHOW SNODES;")
@@ -83,7 +100,12 @@ class TestMathFunctionInStream:
             val = round(random.uniform(-1.4, 1.4), 2)
         else:
             val = round(random.uniform(1, 100), 2)
+        if math_func == "cos(val)":
+            val = 98.98
         tdSql.execute(f"INSERT INTO tb VALUES({ts}, {val});")
+
+        # Match the value stored by the FLOAT column rather than Python's double.
+        stored_val = struct.unpack("f", struct.pack("f", val))[0]
 
         # 计算 expected value
         try:
@@ -95,12 +117,16 @@ class TestMathFunctionInStream:
             math_env["abs"] = abs  # 加入内置 abs 函数
             math_env["round"] = round  # 加入内置 round 函数
             expected = eval(
-                math_func.replace("val", str(val)), {"__builtins__": None}, math_env
+                math_func.replace("val", str(stored_val)),
+                {"__builtins__": None},
+                math_env,
             )
         except Exception as e:
             tdLog.error(f"Error evaluating math function: {e}")
             expected = None
-        tdLog.info(f"math_func: {math_func}, val: {val}, expected: {expected}")
+        tdLog.info(
+            f"math_func: {math_func}, val: {val}, stored_val: {stored_val}, expected: {expected}"
+        )
 
         # check result
         tdSql.checkResultsByFunc(

@@ -71,16 +71,28 @@ size_t convertIntArray2ByteArray_fast_1b_to_result(unsigned char* intArray, size
 }
 
 
-void convertByteArray2IntArray_fast_2b(size_t stepLength, unsigned char* byteArray, size_t byteArrayLength, unsigned char **intArray)
+int convertByteArray2IntArray_fast_2b(size_t stepLength, unsigned char* byteArray, size_t byteArrayLength, unsigned char **intArray)
 {
-	if(stepLength > byteArrayLength*4)
+	if(intArray == NULL || (byteArray == NULL && byteArrayLength > 0))
+		return SZ_FORMAT_ERR;
+	if(stepLength == 0 && byteArrayLength > 0) //no lead number is expected here: the encoder never emits it
+	{
+		*intArray = NULL;
+		return SZ_FORMAT_ERR;
+	}
+	if(stepLength > byteArrayLength*4) //inconsistent lead-number array coming from the payload
 	{
 		printf("Error: stepLength > byteArray.length*4\n");
 		printf("stepLength=%zu, byteArray.length=%zu\n", stepLength, byteArrayLength);
-		exit(0);
+		*intArray = NULL;
+		return SZ_FORMAT_ERR;
 	}
 	if(stepLength>0)
+	{
 		*intArray = (unsigned char*)malloc(stepLength*sizeof(unsigned char));
+		if(*intArray == NULL)
+			return SZ_FORMAT_ERR;
+	}
 	else
 		*intArray = NULL;
 	size_t i, n = 0;
@@ -100,6 +112,8 @@ void convertByteArray2IntArray_fast_2b(size_t stepLength, unsigned char* byteArr
 		if(n==stepLength)
 			break;
 	}
+
+	return SZ_SUCCESS;
 }
 
 /**

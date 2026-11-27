@@ -1,6 +1,8 @@
 /*
  * Copyright (c) 2019 TAOS Data, Inc. <jhtao@taosdata.com>
  *
+ * SPDX-License-Identifier: AGPL-3.0-or-later
+ *
  * This program is free software: you can use, redistribute, and/or modify
  * it under the terms of the GNU Affero General Public License, version 3
  * or later ("AGPL"), as published by the Free Software Foundation.
@@ -31,10 +33,14 @@ typedef struct SBlockOrderInfo {
   int32_t          slotId;
   void*            compFn;
   SColumnInfoData* pColData;
+  bool             jsonQueryKey;
 } SBlockOrderInfo;
 
 #define BLOCK_VERSION_1 1
 #define BLOCK_VERSION_2 2
+#define BLOCK_RECYCLE_TIMEOUT_MS 60000
+
+SConstTagColumn* blockDataGetConstTagColumn(const SSDataBlock* pBlock, int32_t slotId);
 
 #define NBIT                     (3u)
 #define BitPos(_n)               ((_n) & ((1 << NBIT) - 1))
@@ -63,6 +69,41 @@ typedef struct SBlockOrderInfo {
     colDataSetNull_f((c_)->nullbitmap, r_);                                            \
     (void)memset(((char*)(c_)->pData) + (c_)->info.bytes * (r_), 0, (c_)->info.bytes); \
   } while (0)
+
+// True when a non-NULL value can be moved from pSrc to pDst with one memcpy:
+// both are the same fixed-width type with the same width and scale, the source
+// column carries no NULL (no bitmap bits, no NULL payload) and both buffers
+// exist. A false return means "use the generic per-value path"; it never means
+// the value is missing.
+// The predicate is read-only and says nothing about the destination's own
+// state. Clearing the destination row's NULL bit, and keeping pDst->hasNull
+// consistent with the bits actually written, remain the caller's job: the flag
+// may stay conservatively set after this fast path, but it must never be
+// cleared while a bit is set. nullbitmap and varmeta are a union, so the
+// destination must be fixed-width.
+// The caller must also have sized pDst for the row it writes: this predicate
+// checks buffer existence, not capacity, so the destination block has to be
+// ensured with blockDataEnsureCapacity(pDst, numOfRows) before the copy. The
+// fields this predicate inspects cannot stand in for that call, so a caller
+// that skips it writes past the end of pDst->pData. Both current callers
+// (sortoperator.c appendOneRowToDataBlock and tsort.c appendOneRowToDataBlock)
+// perform the ensure first.
+// The width whitelist keeps the memcpy width meaningful: a fixed-width column
+// whose declared bytes is outside {1,2,4,8,16} answers false and takes the
+// generic per-value path instead of copying an odd-sized value as if it were a
+// regular fixed type.
+// scale only carries meaning for DECIMAL; on other types it is unused but is
+// still compared, which can only send such a pair down the generic path.
+static inline bool colDataCanCopyFixed(const SColumnInfoData* pDst, const SColumnInfoData* pSrc) {
+  return pSrc != NULL && pDst != NULL && !pSrc->hasNull && pSrc->pData != NULL && pDst->pData != NULL &&
+         !IS_VAR_DATA_TYPE(pDst->info.type) && pDst->info.type == pSrc->info.type &&
+         pDst->info.bytes == pSrc->info.bytes &&
+         (pDst->info.bytes == 1 || pDst->info.bytes == 2 || pDst->info.bytes == 4 || pDst->info.bytes == 8 ||
+          pDst->info.bytes == 16) &&
+         // DECIMAL stores an unscaled integer: a different scale means a
+         // different value even when type and width match.
+         pDst->info.scale == pSrc->info.scale;
+}
 
 #define colDataClearNull_f(bm_, r_)                             \
   do {                                                          \
@@ -194,7 +235,11 @@ static FORCE_INLINE void colDataSetDouble(SColumnInfoData* pColumnInfoData, uint
 }
 
 int32_t getJsonValueLen(const char* data);
-int32_t blockDataGetPagedColumnReservedBytes(const SColumnInfoData* pColumnInfoData);
+int32_t compareJsonQueryKeys(const void* left, const void* right, bool nullFirst, int32_t order);
+
+static FORCE_INLINE const void* blockJsonQueryKey(const SColumnInfoData* col, int32_t row) {
+  return col->pData && !colDataIsNull_s(col, row) ? colDataGetVarData(col, row) : NULL;
+}
 
 // For the VAR_DATA_TYPE type, new data is inserted strictly according to the position of SVarColAttr.length.
 // If the same row is inserted repeatedly, data holes will result.
@@ -205,8 +250,11 @@ int32_t colDataSetValOrCover(SColumnInfoData* pColumnInfoData, uint32_t rowIndex
 int32_t varColSetVarData(SColumnInfoData* pColumnInfoData, uint32_t rowIndex, const char* pVarData, int32_t varDataLen,
                          bool isNull);
 int32_t colDataReassignVal(SColumnInfoData* pColumnInfoData, uint32_t dstRowIdx, uint32_t srcRowIdx, const char* pData);
+// Callers reserve rowIndex + numOfRows offset entries for variable-width columns.
+// capacity multiplies payload reservation; zero reserves at least the written rows.
 int32_t colDataSetNItems(SColumnInfoData* pColumnInfoData, uint32_t rowIndex, const char* pData, uint32_t numOfRows, uint32_t capacity,
                          bool trimValue);
+// The caller must reserve offset entries through currentRow + numOfRows for variable-width columns.
 int32_t doCopyNItems(struct SColumnInfoData* pColumnInfoData, int32_t currentRow, const char* pData,
                             int32_t itemLen, int32_t numOfRows, bool trimValue);                         
 void    colDataSetNItemsNull(SColumnInfoData* pColumnInfoData, uint32_t currentRow, uint32_t numOfRows);
@@ -218,9 +266,20 @@ int32_t colDataAssign(SColumnInfoData* pColumnInfoData, const SColumnInfoData* p
                       const SDataBlockInfo* pBlockInfo);
 int32_t colDataAssignNRows(SColumnInfoData* pDst, int32_t dstIdx, const SColumnInfoData* pSrc, int32_t srcIdx,
                            int32_t numOfRows);
+void    blockDataUpdateHasNull(SSDataBlock* pDataBlock);
 int32_t blockDataUpdateTsWindow(SSDataBlock* pDataBlock, int32_t tsColumnIndex);
 int32_t blockDataUpdatePkRange(SSDataBlock* pDataBlock, int32_t pkColumnIndex, bool asc);
 
+// Recomputes hasNull from the column's null metadata - the offset array
+// for var-length types, the null bitmap otherwise. Any decoder that loads
+// that metadata from a serialized buffer must call this: the target block
+// is reused across blocks, so its hasNull is whatever the previous block
+// left (blockDataCleanup clears it), and a stale false makes
+// colDataIsNull_s report every row as non-NULL without ever reading the
+// metadata. Touches only the metadata, so it may be called before the
+// payload is allocated.
+void    colDataUpdateHasNull(SColumnInfoData* pColumnInfoData,
+                             int32_t numOfRows);
 int32_t colDataGetLength(const SColumnInfoData* pColumnInfoData, int32_t numOfRows);
 
 int32_t colDataGetRowLength(const SColumnInfoData* pColumnInfoData, int32_t rowIdx);
@@ -232,30 +291,116 @@ size_t blockDataGetNumOfRows(const SSDataBlock* pBlock);
 void blockDataTransform(SSDataBlock* pDest, const SSDataBlock* pSrc);
 int32_t blockDataMerge(SSDataBlock* pDest, const SSDataBlock* pSrc);
 int32_t blockDataMergeNRows(SSDataBlock* pDest, const SSDataBlock* pSrc, int32_t srcIdx, int32_t numOfRows);
+bool    blockDataBlobExceedLimit(const SSDataBlock* pBlock);
+
+// A table can carry at most one BLOB column (CREATE TABLE rejects more), so the row-append
+// loops only ever have to bound a single column.  Resolve it once per block instead of
+// walking every column of the block for every appended row.
+typedef struct SBlobColInfo {
+  const SColumnInfoData* pCol;           // the BLOB column; NULL when the block has none or several
+  int32_t                numOfBlobCols;  // number of BLOB columns in the block
+} SBlobColInfo;
+
+SBlobColInfo blockDataGetBlobCol(const SSDataBlock* pBlock);
+
+// Hot path of the row-append loops: pInfo comes from blockDataGetBlobCol(), so normally only
+// the accumulated payload of that one column is compared against the per-block budget.
+// Leaving room for one more maximum sized value keeps the appended row safe.  When the block
+// holds several BLOB columns that single column cannot bound it, so this falls back to
+// blockDataBlobExceedLimit(), which walks all columns.
+static inline bool blockDataBlobInfoExceedLimit(const SBlobColInfo* pInfo, const SSDataBlock* pBlock) {
+  if (pInfo->numOfBlobCols > 1) {
+    return blockDataBlobExceedLimit(pBlock);
+  }
+  return pInfo->pCol != NULL && (uint64_t)pInfo->pCol->varmeta.length + (uint64_t)TSDB_MAX_BLOB_LEN >
+                                    (uint64_t)TSDB_MAX_BLOB_BYTES_PER_BLOCK;
+}
+
+bool    blockDataMergeExceedLimit(const SSDataBlock* pDest, const SSDataBlock* pSrc);
 void    blockDataShrinkNRows(SSDataBlock* pBlock, int32_t numOfRows);
 int32_t blockDataSplitRows(SSDataBlock* pBlock, bool hasVarCol, int32_t startIndex, int32_t* stopIndex,
                            int32_t pageSize);
 int32_t blockDataToBuf(char* buf, const SSDataBlock* pBlock);
+// Exact number of bytes blockDataToBuf writes for pBlock; sizing a buffer
+// with anything else risks drifting from the serialized layout.
+size_t blockDataGetBufSize(const SSDataBlock* pBlock);
+// Reads back the compact layout blockDataToBuf writes: a row count
+// followed by per-column regions packed to that row count with no slack.
+// Sizes pBlock itself.
 int32_t blockDataFromBuf(SSDataBlock* pBlock, const char* buf);
-int32_t blockDataFromBuf1(SSDataBlock* pBlock, const char* buf, size_t capacity);
+// Decode numOfCols blockDataToBuf columns while verifying that every read stays within capacity.
+int32_t blockDataFromBufWithCapacity(SSDataBlock* pBlock, const char* buf, size_t capacity, int32_t numOfCols);
+// Bounded variant for deserializing from untrusted storage (e.g. spill
+// files): validates the full serialized layout against bufSize before any
+// allocation or copy, returning TSDB_CODE_FILE_CORRUPTED on violations.
+// bufSize must be the exact serialized length; trailing bytes are rejected.
+// Schemas containing noData columns are rejected with TSDB_CODE_INVALID_PARA
+// (blockDataToBuf serializes them but blockDataFromBuf skips them, so no
+// consistent bounded parse exists).
+int32_t blockDataFromBufBounded(SSDataBlock* pBlock, const char* buf,
+                                int32_t bufSize);
 int32_t blockDataExtractBlock(SSDataBlock* pBlock, int32_t startIndex, int32_t rowCount, SSDataBlock** pResBlock);
 
 size_t blockDataGetSize(const SSDataBlock* pBlock);
+size_t blockDataGetMemorySize(const SSDataBlock* pBlock);
 size_t blockDataGetRowSize(SSDataBlock* pBlock);
 double blockDataGetSerialRowSize(const SSDataBlock* pBlock);
 size_t blockDataGetSerialMetaSize(uint32_t numOfCols);
 
 int32_t blockDataSort(SSDataBlock* pDataBlock, SArray* pOrderInfo);
+
+// Opaque per-caller scratch (sort index + gather column buffers) reused across
+// blockDataSortEx calls. NULL makes the call self-contained (allocate + free);
+// a non-NULL *ppScratch is grown in place and stays owned by the caller, who
+// must release it with blockDataSortFreeScratch() (or the request leaks).
+// *ppScratch must be initialized to NULL before the first use; the callees
+// read it before writing it, so an uninitialized value is used as a handle.
+// Not thread-safe: one instance per sort handle / operator, never shared.
+//
+// The scratch keeps the column buffers it received from one block instance in
+// exchange for the gathered ones, and records their row capacity. It is
+// therefore bound to that block: if the block is destroyed, or its capacity is
+// lowered / its column buffers replaced by someone else, free the scratch and
+// let the next sort build a fresh one instead of reusing stale capacities.
+typedef struct SBlockSortScratch SBlockSortScratch;
+// Sorts pDataBlock in place and returns TSDB_CODE_SUCCESS or a negative error
+// code. With a non-NULL ppScratch the buffers are cached across calls; passing
+// NULL uses a stack scratch that is rebuilt on every call (no buffers are
+// cached between calls, so it allocates each time). A single fixed-width key
+// may have its conservative hasNull flag cleared when the probe proves the
+// column NULL-free (see blockDataGetSortedRowsEx).
+int32_t blockDataSortEx(SSDataBlock* pDataBlock, SArray* pOrderInfo, SBlockSortScratch** ppScratch);
+// Releases *ppScratch (buffers and struct) and sets it to NULL. Safe to call
+// with a NULL pointer or an already-freed (NULL) scratch.
+void    blockDataSortFreeScratch(SBlockSortScratch** ppScratch);
 /**
- * @brief find how many rows already in order start from first row
+ * @brief count the leading rows of the block that are already in the order
+ *        described by pOrderInfo.
+ *
+ * Return contract: the value is the number of ordered leading rows, in
+ * [1, pDataBlock->info.rows] for a non-empty block (an empty block keeps its
+ * historical answer of 1). A negative value is an error code (terrno holds the
+ * matching error) and must never be used as a row count. A NULL block or order
+ * array yields 0.
+ *
+ * The Ex form reuses caller-owned scratch storage (the same instance a caller
+ * keeps for blockDataSortEx), so repeated calls in a hot loop allocate nothing
+ * once the key cells have grown. Passing NULL is equivalent to the plain form.
+ *
+ * The probe may clear a sort key column's conservative hasNull flag (it
+ * rewrites the flag on pDataBlock's own column when the scan proves the rows
+ * NULL-free). The block and its columns are otherwise left untouched.
  */
 int32_t blockDataGetSortedRows(SSDataBlock* pDataBlock, SArray* pOrderInfo);
+int32_t blockDataGetSortedRowsEx(SSDataBlock* pDataBlock, SArray* pOrderInfo, SBlockSortScratch** ppScratch);
 int32_t blockDataCheck(const SSDataBlock* pDataBlock);
 
 int32_t colInfoDataEnsureCapacity(SColumnInfoData* pColumn, uint32_t numOfRows, bool clearPayload);
 int32_t blockDataEnsureCapacity(SSDataBlock* pDataBlock, uint32_t numOfRows);
 
 void    colInfoDataCleanup(SColumnInfoData* pColumn, uint32_t numOfRows);
+void    colInfoDataResetFlags(SColumnInfoData* pColumn);
+void    blockDataResetColFlags(SSDataBlock* pDataBlock);
 void    blockDataCleanup(SSDataBlock* pDataBlock);
 void    blockDataReset(SSDataBlock* pDataBlock);
 void    blockDataEmpty(SSDataBlock* pDataBlock);
@@ -265,6 +410,9 @@ int32_t doEnsureCapacity(SColumnInfoData* pColumn, const SDataBlockInfo* pBlockI
 size_t blockDataGetCapacityInRow(const SSDataBlock* pBlock, size_t pageSize, int32_t extraSize);
 
 int32_t blockDataTrimFirstRows(SSDataBlock* pBlock, size_t n);
+// Same as blockDataTrimFirstRows(), but also reclaims the payload of the trimmed rows of
+// variable-length columns instead of leaving it in the block for the encoder to ship.
+int32_t blockDataTrimFirstRowsCompact(SSDataBlock* pBlock, size_t n);
 void    blockDataKeepFirstNRows(SSDataBlock* pBlock, size_t n);
 
 int32_t assignOneDataBlock(SSDataBlock* dst, const SSDataBlock* src);
@@ -272,9 +420,19 @@ int32_t copyDataBlock(SSDataBlock* pDst, const SSDataBlock* pSrc);
 
 int32_t createDataBlock(SSDataBlock** pResBlock);
 void    blockDataDestroy(SSDataBlock* pBlock);
+// Recycle a completed block for later reuse. The block must no longer be referenced by any operator.
+void    blockDataRecycle(SSDataBlock* pBlock);
+// Updates the coarse clock used when a completed block enters the recycle list.
+void    blockDataRecycleSetCurrentTime(int64_t currentTime);
+// Releases recycle-list blocks that have been idle for at least BLOCK_RECYCLE_TIMEOUT_MS.
+void    blockDataRecycleTrimExpired(int64_t currentTime);
+// Releases every recycle-list block after query execution has stopped during process shutdown.
+void    blockDataRecycleCleanup(void);
 void    blockDataFreeRes(SSDataBlock* pBlock);
 void    blockDataFreeCols(SSDataBlock* pBlock);
 int32_t createOneDataBlock(const SSDataBlock* pDataBlock, bool copyData, SSDataBlock** pResBlock);
+// Acquire an empty block with the template schema, reusing retained column capacity when available.
+int32_t createOneDataBlockFromRecycle(const SSDataBlock* pDataBlock, SSDataBlock** pResBlock, bool* pReused);
 int32_t createOneDataBlockWithColArray(const SSDataBlock* pDataBlock, SArray* pColArray, SSDataBlock** pResBlock);
 int32_t createOneDataBlockWithTwoBlock(const SSDataBlock* pSrcBlock, const SSDataBlock* pTemplateBlock, SArray* pColMap,
                                        SSDataBlock** pResBlock);
@@ -289,11 +447,32 @@ int32_t blockGetEncodeSize(const SSDataBlock* pBlock);
 int32_t blockGetInternalEncodeSize(const SSDataBlock* pBlock);
 int32_t blockEncodeInternal(const SSDataBlock* pBlock, char* data, size_t dataBuflen, int32_t numOfCols);
 int32_t blockEncode(const SSDataBlock* pBlock, char* data, size_t dataLen, int32_t numOfCols);
+/**
+ * @warning UNSAFE, not recommended for new code: pData is NOT validated and the length fields inside it are trusted,
+ * so a malformed or corrupted buffer causes out-of-bounds reads/writes. Prefer blockDecodeBounded /
+ * blockDecodeInternalBounded, which run blockValidateEncoding first. Data from the network, disk or another node must
+ * never be passed here.
+ */
 int32_t blockDecodeInternal(SSDataBlock* pBlock, const char* pData, const char** pEndPos);
+int32_t blockDecodeInternalBounded(SSDataBlock* pBlock, const char* pData, size_t dataLen, const char** pEndPos);
+int32_t blockIsSingleNullColumnEncoded(const char* pData, size_t dataLen, bool* pIsNull);
+/**
+ * @warning UNSAFE, not recommended for new code: pData is NOT validated and the length fields inside it are trusted,
+ * so a malformed or corrupted buffer causes out-of-bounds reads/writes. Prefer blockDecodeBounded /
+ * blockDecodeInternalBounded, which run blockValidateEncoding first. Data from the network, disk or another node must
+ * never be passed here.
+ */
 int32_t blockDecode(SSDataBlock* pBlock, const char* pData, const char** pEndPos);
+// Validates one variable-width value in pData[0, remaining) and returns its encoded length.
+bool blockDataValidateVariableValue(int8_t type, const char* pData, size_t remaining, size_t* pValueLen);
+// Validates one normal encoded block without materializing its columns.
+int32_t blockDataValidateEncoding(const char* pData, size_t dataLen);
+// Decodes one normal block from pData[0, dataLen). On success, pEndPos, when non-NULL, points to the byte after the
+// encoded block; callers retain ownership of pBlock and must release it with blockDataDestroy.
+int32_t blockDecodeBounded(SSDataBlock* pBlock, const char* pData, size_t dataLen, const char** pEndPos);
 
 // for debug
-int32_t dumpBlockData(SSDataBlock* pDataBlock, const char* flag, char** dumpBuf, const char* taskIdStr, int64_t qId);
+int32_t dumpBlockData(SSDataBlock* pDataBlock, const char* flag, char** dumpBuf, const char* taskIdStr, int64_t qId, void *charsetCxt);
 
 int32_t buildSubmitReqFromDataBlock(SSubmitReq2** pReq, const SSDataBlock* pDataBlocks, const STSchema* pTSchema,
                                     int64_t uid, int32_t vgId, tb_uid_t suid);
@@ -310,10 +489,15 @@ int32_t trimDataBlock(SSDataBlock* pBlock, int32_t totalRows, const bool* pBoolL
 int32_t copyPkVal(SDataBlockInfo* pDst, const SDataBlockInfo* pSrc);
 
 int32_t calcStrBytesByType(int8_t type, char* data);
-int32_t blockGetEncodeSizeOfRows(const SSDataBlock* pBlock, int32_t startIndex, int32_t endIndex);
+int64_t blockGetEncodeSizeOfRows(const SSDataBlock* pBlock, int32_t startIndex, int32_t endIndex);
 int32_t blockEncodeAsRows(const SSDataBlock* pBlock, char* data, size_t dataLen, int32_t numOfCols, int32_t startIndex,
                           int32_t endIndex, int32_t* pLen);
 int32_t blockSpecialDecodeLaterPart(SSDataBlock* pBlock, const char* pData, int32_t tsColSlotId, TSKEY start, TSKEY end);
+// Decodes rows whose timestamp is within [start, end] from one normal block in pData[0, dataLen).
+// pEndPos is optional and has the same meaning as blockDecodeBounded; callers retain ownership of pBlock and must
+// release it with blockDataDestroy.
+int32_t blockSpecialDecodeLaterPartBounded(SSDataBlock* pBlock, const char* pData, size_t dataLen, int32_t tsColSlotId,
+                                           TSKEY start, TSKEY end, const char** pEndPos);
 int32_t getStreamBlockTS(SSDataBlock* pBlock, int32_t tsColSlotId, int32_t row, TSKEY* ts);
 
 #ifdef __cplusplus

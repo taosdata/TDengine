@@ -1,13 +1,17 @@
-###################################################################
-#           Copyright (c) 2016 by TAOS Technologies, Inc.
-#                     All rights reserved.
+# Copyright (c) 2016 TAOS Data, Inc. <jhtao@taosdata.com>
 #
-#  This file is proprietary and confidential to TAOS Technologies.
-#  No part of this file may be reproduced, stored, transmitted,
-#  disclosed or used in any form or by any means other than as
-#  expressly provided by the written permission from Jianhui Tao
+# SPDX-License-Identifier: AGPL-3.0-or-later
 #
-###################################################################
+# This program is free software: you can use, redistribute, and/or modify
+# it under the terms of the GNU Affero General Public License, version 3
+# or later ("AGPL"), as published by the Free Software Foundation.
+#
+# This program is distributed in the hope that it will be useful, but WITHOUT
+# ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+# FITNESS FOR A PARTICULAR PURPOSE.
+#
+# You should have received a copy of the GNU Affero General Public License
+# along with this program. If not, see <http://www.gnu.org/licenses/>.
 
 # -*- coding: utf-8 -*-
 
@@ -143,7 +147,8 @@ class RestoreBasic:
         # stop dnode
         tdLog.info(f"stop dnode {index}")
         dnode.stoptaosd()
-        time.sleep(1)
+        # Do not mistake the previous process's unexpired heartbeat for readiness.
+        self.wait_dnode_status(index, "offline")
 
         # remove dnode folder
         try:
@@ -153,6 +158,23 @@ class RestoreBasic:
             tdLog.exit(f"remove path {dnode.dataDir} error : {x.strerror}")
 
         dnode.starttaosd()
+        self.wait_dnode_status(index, "ready")
+
+    def wait_dnode_status(self, index, status, timeout=60):
+        deadline = time.monotonic() + timeout
+        last_status = None
+        while time.monotonic() < deadline:
+            tdSql.query("show dnodes", queryTimes=1)
+            last_status = next(
+                (row[4] for row in tdSql.queryResult if str(row[0]) == str(index)),
+                None,
+            )
+            if last_status == status:
+                return
+            time.sleep(0.2)
+        raise TimeoutError(
+            f"dnode {index} did not become {status}; last status: {last_status}"
+        )
         
     def restore_dnode_exec(self, index):
         # exec restore
@@ -311,7 +333,7 @@ class RestoreBasic:
         # path exist
         qfile = f"{del_dir}/qnode.json"
         if os.path.exists(qfile) == False:
-            tdLog.exit(f"qnode restore failed. qnode.json is not exist. {qfile}")
+            tdLog.exit(f"qnode restore failed. qnode.json does not exist. {qfile}")
         else:
             tdLog.info(f"check qnode.json restore ok. {qfile}")
     

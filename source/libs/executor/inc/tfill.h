@@ -1,6 +1,8 @@
 /*
  * Copyright (c) 2019 TAOS Data, Inc. <jhtao@taosdata.com>
  *
+ * SPDX-License-Identifier: AGPL-3.0-or-later
+ *
  * This program is free software: you can use, redistribute, and/or modify
  * it under the terms of the GNU Affero General Public License, version 3
  * or later ("AGPL"), as published by the Free Software Foundation.
@@ -101,6 +103,8 @@ typedef struct SFillInfo {
   SArray*          pColFillProgress;
   int64_t          surroundingTime;  // surrounding time for fill PREV/NEXT
   bool             ascNextOrDescPrev;
+  bool             indefRowsMode;
+  bool             indefWindowActive;
 } SFillInfo;
 
 typedef struct SResultCellData {
@@ -162,7 +166,8 @@ int32_t taosCreateFillInfo(TSKEY skey, int32_t numOfFillCols,
                            int32_t fillType, struct SFillColInfo* pCol,
                            int32_t primaryTsSlotId, int32_t order,
                            const char* id, SExecTaskInfo* pTaskInfo,
-                           int64_t surroundingTime, SFillInfo** ppFillInfo);
+                           int64_t surroundingTime, bool indefRowsMode,
+                           SFillInfo** ppFillInfo);
 
 void*   taosDestroyFillInfo(struct SFillInfo* pFillInfo);
 int32_t taosFillResultDataBlock(struct SFillInfo* pFillInfo, SSDataBlock* pDstBlock, int32_t capacity, bool *wantMoreBlock);

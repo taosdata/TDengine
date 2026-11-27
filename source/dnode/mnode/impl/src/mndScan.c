@@ -1,6 +1,8 @@
 /*
  * Copyright (c) 2019 TAOS Data, Inc. <jhtao@taosdata.com>
  *
+ * SPDX-License-Identifier: AGPL-3.0-or-later
+ *
  * This program is free software: you can use, redistribute, and/or modify
  * it under the terms of the GNU Affero General Public License, version 3
  * or later ("AGPL"), as published by the Free Software Foundation.
@@ -12,6 +14,7 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
+
 #include "mndScan.h"
 #include "audit.h"
 #include "mndDb.h"
@@ -533,7 +536,9 @@ static int32_t mndProcessKillScanReq(SRpcMsg *pReq) {
     TAOS_RETURN(code);
   }
 
-  TAOS_CHECK_GOTO(mndCheckOperPrivilege(pMnode, RPC_MSG_USER(pReq), RPC_MSG_TOKEN(pReq), MND_OPER_SCAN_DB), &lino, _OVER);
+  TAOS_CHECK_GOTO(mndCheckDbPrivilegeByName(pMnode, RPC_MSG_USER(pReq), RPC_MSG_TOKEN(pReq), MND_OPER_SCAN_DB,
+                                            pScan->dbname, false),
+                  &lino, _OVER);
 
   TAOS_CHECK_GOTO(mndKillScan(pMnode, pReq, pScan), &lino, _OVER);
 
@@ -1045,7 +1050,7 @@ static int32_t mndSetScanDbRedoActions(SMnode *pMnode, STrans *pTrans, SDbObj *p
       SVgObj *pVgroup = mndAcquireVgroup(pMnode, vgId);
 
       if (pVgroup == NULL) {
-        mError("db:%s, vgroup:%" PRId64 " not exist", pDb->name, vgId);
+        mError("db:%s, vgroup:%" PRId64 " does not exist", pDb->name, vgId);
         TAOS_RETURN(TSDB_CODE_MND_VGROUP_NOT_EXIST);
       } else if (pVgroup->dbUid != pDb->uid) {
         mError("db:%s, vgroup:%" PRId64 " not belong to db:%s", pDb->name, vgId, pDb->name);

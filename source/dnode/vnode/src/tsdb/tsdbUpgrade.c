@@ -1,6 +1,8 @@
 /*
  * Copyright (c) 2019 TAOS Data, Inc. <jhtao@taosdata.com>
  *
+ * SPDX-License-Identifier: AGPL-3.0-or-later
+ *
  * This program is free software: you can use, redistribute, and/or modify
  * it under the terms of the GNU Affero General Public License, version 3
  * or later ("AGPL"), as published by the Free Software Foundation.
@@ -72,7 +74,7 @@ static int32_t tsdbUpgradeHead(STsdb *tsdb, SDFileSet *pDFileSet, SDataFReader *
     TAOS_CHECK_GOTO(tsdbTFileObjInit(tsdb, &file, &fset->farr[TSDB_FTYPE_HEAD]), &lino, _exit);
 
     // open fd
-    char fname[TSDB_FILENAME_LEN];
+    char fname[TSDB_PATH_LEN];
     tsdbTFileName(tsdb, &file, fname);
 
     TAOS_CHECK_GOTO(tsdbOpenFile(fname, tsdb, TD_FILE_READ | TD_FILE_WRITE, &ctx->fd, 0), &lino, _exit);
@@ -401,7 +403,7 @@ static int32_t tsdbUpgradeOpenTombFile(STsdb *tsdb, STFileSet *fset, STsdbFD **f
     TAOS_CHECK_GOTO(TARRAY2_APPEND(lvl->fobjArr, fobj[0]), &lino, _exit);
   }
 
-  char fname[TSDB_FILENAME_LEN] = {0};
+  char fname[TSDB_PATH_LEN] = {0};
   TAOS_CHECK_GOTO(
       tsdbOpenFile(fobj[0]->fname, tsdb, TD_FILE_READ | TD_FILE_WRITE | TD_FILE_TRUNC | TD_FILE_CREATE, fd, 0), &lino,
       _exit);
@@ -595,7 +597,7 @@ static int32_t tsdbUpgradeFileSystem(STsdb *tsdb, int8_t rollback) {
   TAOS_CHECK_GOTO(tsdbFSClose(tsdb), &lino, _exit);
 
   // save new file system
-  char fname[TSDB_FILENAME_LEN];
+  char fname[TSDB_PATH_LEN];
   current_fname(tsdb, fname, TSDB_FCURRENT);
   TAOS_CHECK_GOTO(save_fs(fileSetArray, fname), &lino, _exit);
 
@@ -609,7 +611,7 @@ _exit:
 }
 
 int32_t tsdbCheckAndUpgradeFileSystem(STsdb *tsdb, int8_t rollback) {
-  char fname[TSDB_FILENAME_LEN];
+  char fname[TSDB_PATH_LEN];
 
   tsdbGetCurrentFName(tsdb, fname, NULL);
   if (!taosCheckExistFile(fname)) return 0;

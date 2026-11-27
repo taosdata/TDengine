@@ -1,13 +1,28 @@
+# Copyright (c) 2025 TAOS Data, Inc. <jhtao@taosdata.com>
+#
+# SPDX-License-Identifier: AGPL-3.0-or-later
+#
+# This program is free software: you can use, redistribute, and/or modify
+# it under the terms of the GNU Affero General Public License, version 3
+# or later ("AGPL"), as published by the Free Software Foundation.
+#
+# This program is distributed in the hope that it will be useful, but WITHOUT
+# ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+# FITNESS FOR A PARTICULAR PURPOSE.
+#
+# You should have received a copy of the GNU Affero General Public License
+# along with this program. If not, see <http://www.gnu.org/licenses/>.
+
 [project]
 name = "test"
 version = "0.1.0"
 description = "Add your description here"
 readme = "README.md"
-requires-python = ">=3.9"
+requires-python = ">=3.12.16"
 dependencies = [
-    "asyncssh>=2.20.0",
+    "asyncssh>=2.23.1",
     "pynacl>=1.6.2",
-    "certifi==2025.1.31",
+    "certifi==2026.10.19",
     "charset-normalizer==2.0.12",
     "colorama==0.4.4",
     "coverage==7.6.12",
@@ -20,16 +35,15 @@ dependencies = [
     "pluggy==1.5.0",
     "pytest-cov==4.1.0",
     "pytest>=8.3.4",
-    "taos-ws-py>=0.6.9",
+    "taos-ws-py>=0.7.1",
     "pytest-xdist>=3.6.1",
     "pytz==2025.1",
-    "requests==2.32.4",
-    "taospy>=2.8.9",
-    "tomli==2.2.1",
-    "urllib3==2.6.3",
+    "requests==2.34.2",
+    "taospy>=2.8.10",
+    "urllib3==2.8.0",
     "pywinrm>=0.5.0",
-    "patchwork>=1.0.1",
-    "fabric2>=2.7.1",
+    "fabric2>=3.0",
+    "decorator>=5.2.1,<6.0",
     "toml>=0.10.2",
     "prometheus-client>=0.21.1",
     "psutil>=7.0.0",

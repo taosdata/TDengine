@@ -1,4 +1,19 @@
 
+# Copyright (c) 2023 TAOS Data, Inc. <jhtao@taosdata.com>
+#
+# SPDX-License-Identifier: AGPL-3.0-or-later
+#
+# This program is free software: you can use, redistribute, and/or modify
+# it under the terms of the GNU Affero General Public License, version 3
+# or later ("AGPL"), as published by the Free Software Foundation.
+#
+# This program is distributed in the hope that it will be useful, but WITHOUT
+# ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+# FITNESS FOR A PARTICULAR PURPOSE.
+#
+# You should have received a copy of the GNU Affero General Public License
+# along with this program. If not, see <http://www.gnu.org/licenses/>.
+
 import taos
 import sys
 import time
@@ -8,7 +23,7 @@ import threading
 from enum import Enum
 import platform
 
-from new_test_framework.utils import tdLog, tdSql, tdDnodes, tdCom
+from new_test_framework.utils import tdLog, tdSql, tdDnodes, tdCom, tmqCom
 
 class actionType(Enum):
     CREATE_DATABASE = 0
@@ -56,38 +71,6 @@ class TestCase:
         tdLog.info("consume info sql: %s"%sql)
         tdSql.query(sql)
 
-    def selectConsumeResult(self,expectRows,cdbName='cdb'):
-        resultList=[]
-        while 1:
-            tdSql.query("select * from %s.consumeresult"%cdbName)
-            #tdLog.info("row: %d, %l64d, %l64d"%(tdSql.getData(0, 1),tdSql.getData(0, 2),tdSql.getData(0, 3))
-            if tdSql.getRows() == expectRows:
-                break
-            else:
-                time.sleep(5)
-
-        for i in range(expectRows):
-            tdLog.info ("consume id: %d, consume msgs: %d, consume rows: %d"%(tdSql.getData(i , 1), tdSql.getData(i , 2), tdSql.getData(i , 3)))
-            resultList.append(tdSql.getData(i , 3))
-
-        return resultList
-
-    def startTmqSimProcess(self,buildPath,cfgPath,pollDelay,dbName,showMsg=1,showRow=1,cdbName='cdb',valgrind=0):
-        if valgrind == 1:
-            logFile = cfgPath + '/../log/valgrind-tmq.log'
-            shellCmd = 'nohup valgrind --log-file=' + logFile
-            shellCmd += '--tool=memcheck --leak-check=full --show-reachable=no --track-origins=yes --show-leak-kinds=all --num-callers=20 -v --workaround-gcc296-bugs=yes '
-
-        if (platform.system().lower() == 'windows'):
-            shellCmd = 'mintty -h never -w hide ' + buildPath + '\\build\\bin\\tmq_sim.exe -c ' + cfgPath
-            shellCmd += " -y %d -d %s -g %d -r %d -w %s "%(pollDelay, dbName, showMsg, showRow, cdbName)
-            shellCmd += "> nul 2>&1 &"
-        else:
-            shellCmd = 'nohup ' + buildPath + '/build/bin/tmq_sim -c ' + cfgPath
-            shellCmd += " -y %d -d %s -g %d -r %d -w %s "%(pollDelay, dbName, showMsg, showRow, cdbName)
-            shellCmd += "> /dev/null 2>&1 &"
-        tdLog.info(shellCmd)
-        os.system(shellCmd)
 
     def create_database(self,tsql, dbName,dropFlag=1,vgroups=4,replica=1):
         if dropFlag == 1:
@@ -207,7 +190,7 @@ class TestCase:
         pollDelay = 20
         showMsg   = 1
         showRow   = 1
-        self.startTmqSimProcess(buildPath,cfgPath,pollDelay,parameterDict["dbName"],showMsg, showRow)
+        tmqCom.startTmqSimProcess(pollDelay,parameterDict["dbName"],showMsg, showRow)
 
         tdLog.info("start show subscriptions 1")
         while(1):
@@ -250,7 +233,7 @@ class TestCase:
 
         tdLog.info("insert process end, and start to check consume result")
         expectRows = 1
-        resultList = self.selectConsumeResult(expectRows)
+        resultList = tmqCom.selectConsumeResult(expectRows, pollInterval=5)
 
         time.sleep(2)
         tdLog.info("start show subscriptions 3")
@@ -278,7 +261,7 @@ class TestCase:
 
         Since: xxx
 
-        Labels: xxx
+        Labels: common,ci,integration,functional
 
         Jira: xxx
 

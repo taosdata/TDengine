@@ -15,9 +15,247 @@
 
 #include <gtest/gtest.h>
 
+#include <string>
+#include <vector>
+#include <cstring>
+#include <memory>
+#include <string>
+
 #include "nodes.h"
+#include "os.h"
 #include "plannodes.h"
 #include "querynodes.h"
+#include "taoserror.h"
+#include "tconv.h"
+
+extern "C" void nodesTestSetStrictAppendFailOnce(void);
+extern "C" void nodesTestSetCollectColumnsHashFailOnce(void);
+extern "C" int64_t nodesTestGetLiveAllocations(void);
+
+static void eraseJsonField(std::string* pJson, const char* pField) {
+  const std::string field = std::string("\"") + pField + "\":";
+  const size_t      start = pJson->find(field);
+  ASSERT_NE(start, std::string::npos);
+  // The member ends at whichever comes first: the next separator, or the
+  // closing brace when it is the last member of its object.
+  const size_t comma = pJson->find(',', start);
+  const size_t brace = pJson->find('}', start);
+  ASSERT_NE(brace, std::string::npos);
+  if (comma < brace) {
+    pJson->erase(start, comma - start + 1);
+    return;
+  }
+  // Last member: there is no trailing separator, so consume the leading one
+  // instead -- unless this is the object's only member, where '{' precedes it
+  // and erasing that would break the braces.
+  ASSERT_GT(start, 0u);
+  const size_t from = ('{' == (*pJson)[start - 1]) ? start : start - 1;
+  pJson->erase(from, brace - from);
+}
+
+static void freeTestBuffer(char* pBuffer) { taosMemoryFreeClear(pBuffer); }
+
+TEST(NodesCodeTest, legacyStreamTimeRangeKeepsBoundsAfterReload) {
+  // The pre-3.4.2 JSON format used NodeType 50 for TimeRange. The physical
+  // operator's ID did not change, so its nested range must be resolved separately.
+  const char* legacy = R"({"NodeType":"1164","Name":"PhysiExternalWindow","PhysiExternalWindow":{
+    "TimeRangeExpr":{"NodeType":"50","Name":"TimeRange","TimeRange":{
+      "start":{"NodeType":"3","Name":"Operator","Operator":{
+        "OpType":"41","Left":{"NodeType":"1","Name":"Column","Column":{"ColName":"ts"}},
+        "Right":{"NodeType":"5","Name":"Function","Function":{"Name":"_twstart","Id":"178","Type":"3524"}}}},
+      "end":{"NodeType":"3","Name":"Operator","Operator":{
+        "OpType":"42","Left":{"NodeType":"1","Name":"Column","Column":{"ColName":"ts"}},
+        "Right":{"NodeType":"5","Name":"Function","Function":{"Name":"_twend","Id":"179","Type":"3525"}}}},
+      "NeedCalc":false}}}})";
+  SNode*      decoded = nullptr;
+  ASSERT_EQ(TSDB_CODE_SUCCESS, nodesStringToNode(legacy, &decoded));
+  std::unique_ptr<SNode, decltype(&nodesDestroyNode)> plan(decoded, nodesDestroyNode);
+  ASSERT_NE(nullptr, decoded);
+  ASSERT_EQ(QUERY_NODE_PHYSICAL_PLAN_HASH_EXTERNAL, nodeType(decoded));
+  auto* rangeNode = reinterpret_cast<SExternalWindowPhysiNode*>(decoded)->pTimeRange;
+  ASSERT_NE(nullptr, rangeNode);
+  ASSERT_EQ(QUERY_NODE_TIME_RANGE, nodeType(rangeNode));
+  auto* range = reinterpret_cast<STimeRangeNode*>(rangeNode);
+  ASSERT_NE(nullptr, range->pStart);
+  ASSERT_NE(nullptr, range->pEnd);
+  ASSERT_EQ(QUERY_NODE_OPERATOR, nodeType(range->pStart));
+  ASSERT_EQ(QUERY_NODE_OPERATOR, nodeType(range->pEnd));
+  auto* start = reinterpret_cast<SOperatorNode*>(range->pStart);
+  auto* end = reinterpret_cast<SOperatorNode*>(range->pEnd);
+  EXPECT_EQ(OP_TYPE_GREATER_EQUAL, start->opType);
+  EXPECT_EQ(OP_TYPE_LOWER_THAN, end->opType);
+  ASSERT_NE(nullptr, start->pRight);
+  ASSERT_NE(nullptr, end->pRight);
+  ASSERT_EQ(QUERY_NODE_FUNCTION, nodeType(start->pRight));
+  ASSERT_EQ(QUERY_NODE_FUNCTION, nodeType(end->pRight));
+  EXPECT_STREQ("_twstart", reinterpret_cast<SFunctionNode*>(start->pRight)->functionName);
+  EXPECT_STREQ("_twend", reinterpret_cast<SFunctionNode*>(end->pRight)->functionName);
+  EXPECT_FALSE(range->needCalc);
+
+  char* encoded = nullptr;
+  ASSERT_EQ(TSDB_CODE_SUCCESS, nodesNodeToString(decoded, false, &encoded, nullptr));
+  std::unique_ptr<char, decltype(&freeTestBuffer)> json(encoded, freeTestBuffer);
+  SNode*                                           reloaded = nullptr;
+  ASSERT_EQ(TSDB_CODE_SUCCESS, nodesStringToNode(encoded, &reloaded));
+  std::unique_ptr<SNode, decltype(&nodesDestroyNode)> restored(reloaded, nodesDestroyNode);
+  ASSERT_NE(nullptr, reloaded);
+  ASSERT_EQ(QUERY_NODE_PHYSICAL_PLAN_HASH_EXTERNAL, nodeType(reloaded));
+  auto* restoredRangeNode = reinterpret_cast<SExternalWindowPhysiNode*>(reloaded)->pTimeRange;
+  ASSERT_NE(nullptr, restoredRangeNode);
+  ASSERT_EQ(QUERY_NODE_TIME_RANGE, nodeType(restoredRangeNode));
+  auto* restoredRange = reinterpret_cast<STimeRangeNode*>(restoredRangeNode);
+  EXPECT_TRUE(nodesEqualNode(range->pStart, restoredRange->pStart));
+  EXPECT_TRUE(nodesEqualNode(range->pEnd, restoredRange->pEnd));
+}
+
+TEST(NodesCodeTest, legacyAndCurrentNodesCanShareOneList) {
+  const char* json = R"([
+    {"NodeType":"49","Name":"PlaceHolderTable","PlaceHolderTable":{}},
+    {"NodeType":"50","Name":"TimeRange","TimeRange":{"NeedCalc":true}},
+    {"NodeType":"50","Name":"ExternalWindow","ExternalWindow":{}},
+    {"NodeType":"53","Name":"TimeRange","TimeRange":{"NeedCalc":false}},
+    {"NodeType":"58","Name":"RemoteValue","RemoteValue":{"subQIdx":"7"}},
+    {"NodeType":"34","Name":"OldWindowOffset","WindowOffset":{}},
+    {"NodeType":"35","Name":"CountWindow","CountWindow":{}},
+    {"NodeType":"70","Name":"TagRefColumn","TagRefColumn":{}},
+    {"NodeType":"71","Name":"OldFileTable","FileTable":{}}
+  ])";
+  SNodeList*  decoded = nullptr;
+  ASSERT_EQ(TSDB_CODE_SUCCESS, nodesStringToList(json, &decoded));
+  std::unique_ptr<SNodeList, decltype(&nodesDestroyList)> list(decoded, nodesDestroyList);
+  ASSERT_EQ(9, LIST_LENGTH(decoded));
+  EXPECT_EQ(QUERY_NODE_PLACE_HOLDER_TABLE, nodeType(nodesListGetNode(decoded, 0)));
+  ASSERT_EQ(QUERY_NODE_TIME_RANGE, nodeType(nodesListGetNode(decoded, 1)));
+  EXPECT_TRUE(reinterpret_cast<STimeRangeNode*>(nodesListGetNode(decoded, 1))->needCalc);
+  EXPECT_EQ(QUERY_NODE_EXTERNAL_WINDOW, nodeType(nodesListGetNode(decoded, 2)));
+  ASSERT_EQ(QUERY_NODE_TIME_RANGE, nodeType(nodesListGetNode(decoded, 3)));
+  EXPECT_FALSE(reinterpret_cast<STimeRangeNode*>(nodesListGetNode(decoded, 3))->needCalc);
+  EXPECT_EQ(QUERY_NODE_REMOTE_VALUE, nodeType(nodesListGetNode(decoded, 4)));
+  EXPECT_EQ(QUERY_NODE_WINDOW_OFFSET, nodeType(nodesListGetNode(decoded, 5)));
+  EXPECT_EQ(QUERY_NODE_COUNT_WINDOW, nodeType(nodesListGetNode(decoded, 6)));
+  EXPECT_EQ(QUERY_NODE_TAG_REF_COLUMN, nodeType(nodesListGetNode(decoded, 7)));
+  EXPECT_EQ(QUERY_NODE_FILE_TABLE, nodeType(nodesListGetNode(decoded, 8)));
+}
+
+TEST(NodesCodeTest, currentSharedNamesPreserveNodeIdentity) {
+  for (ENodeType type : {QUERY_NODE_PHYSICAL_PLAN_EXTERNAL_WINDOW, QUERY_NODE_PHYSICAL_PLAN_HASH_EXTERNAL,
+                         QUERY_NODE_LOGIC_PLAN_WINDOW_FUNC, QUERY_NODE_PHYSICAL_PLAN_WINDOW_FUNC}) {
+    SCOPED_TRACE(type);
+    const std::string name = nodesNodeName(type);
+    const std::string json =
+        "{\"NodeType\":\"" + std::to_string(type) + "\",\"Name\":\"" + name + "\",\"" + name + "\":{}}";
+    SNode* decoded = nullptr;
+    ASSERT_EQ(TSDB_CODE_SUCCESS, nodesStringToNode(json.c_str(), &decoded));
+    std::unique_ptr<SNode, decltype(&nodesDestroyNode)> node(decoded, nodesDestroyNode);
+    ASSERT_NE(nullptr, decoded);
+    EXPECT_EQ(type, nodeType(decoded));
+  }
+}
+
+TEST(NodesCodeTest, nonLegacyNodeNamesDoNotOverrideType) {
+  const char* inputs[] = {
+      R"({"NodeType":"1","Name":"OldColumn","Column":{"ColName":"ts"}})",
+      R"({"NodeType":"1164","Name":"PhysiMergeAlignedExternalWindow","PhysiExternalWindow":{"StartTime":"1000"}})",
+  };
+  const ENodeType types[] = {QUERY_NODE_COLUMN, QUERY_NODE_PHYSICAL_PLAN_HASH_EXTERNAL};
+  for (size_t i = 0; i < sizeof(inputs) / sizeof(inputs[0]); ++i) {
+    SCOPED_TRACE(inputs[i]);
+    SNode* decoded = nullptr;
+    ASSERT_EQ(TSDB_CODE_SUCCESS, nodesStringToNode(inputs[i], &decoded));
+    std::unique_ptr<SNode, decltype(&nodesDestroyNode)> node(decoded, nodesDestroyNode);
+    ASSERT_NE(nullptr, decoded);
+    EXPECT_EQ(types[i], nodeType(decoded));
+    if (QUERY_NODE_COLUMN == types[i]) {
+      EXPECT_STREQ("ts", reinterpret_cast<SColumnNode*>(decoded)->colName);
+    } else {
+      EXPECT_EQ(1000, reinterpret_cast<SExternalWindowPhysiNode*>(decoded)->timeRange.skey);
+    }
+  }
+}
+
+TEST(NodesCodeTest, legacyNodeIdentityRejectsUnrecognizedOrMissingPayload) {
+  const char* invalid[] = {
+      R"({"NodeType":"49","Name":"TimeRange","TimeRange":{}})",
+      R"({"NodeType":"50","Name":"TimeRange"})",
+      R"({"NodeType":"50","Name":"TimeRange","TimeRange":null})",
+      R"({"NodeType":"50","Name":"TimeRange","TimeRange":[]})",
+      R"({"NodeType":"50","Name":"TimeRange","ExternalWindow":{}})",
+  };
+  for (const char* json : invalid) {
+    SCOPED_TRACE(json);
+    SNode*                                              decoded = nullptr;
+    const int32_t                                       code = nodesStringToNode(json, &decoded);
+    std::unique_ptr<SNode, decltype(&nodesDestroyNode)> node(decoded, nodesDestroyNode);
+    EXPECT_EQ(TSDB_CODE_INVALID_JSON_FORMAT, code);
+    EXPECT_EQ(nullptr, decoded);
+  }
+}
+
+constexpr int32_t kLastRowScanTestFuncType = 1234;
+
+enum {
+  kValueCodeExprBase = 1,
+  kExprCodeResType = 1,
+  kDataTypeCodeType = 1,
+  kDataTypeCodeBytes = 4,
+};
+
+static char* getTlvValue(char* pMsg, int32_t msgLen, int16_t expectedType, int32_t* pValueLen) {
+  constexpr int32_t kTlvHeaderSize = sizeof(int16_t) + sizeof(int32_t);
+  if (msgLen < kTlvHeaderSize) {
+    return NULL;
+  }
+
+  int16_t type = 0;
+  int32_t len = 0;
+  memcpy(&type, pMsg, sizeof(type));
+  memcpy(&len, pMsg + sizeof(type), sizeof(len));
+  type = ntohs(type);
+  len = ntohl(len);
+  if (type != expectedType || len < 0 || len > msgLen - kTlvHeaderSize) {
+    return NULL;
+  }
+
+  *pValueLen = len;
+  return pMsg + kTlvHeaderSize;
+}
+
+static char* getValueNodeDataTypeBytes(char* pMsg, int32_t msgLen, int32_t* pValueLen) {
+  int32_t valueNodeLen = 0;
+  char*   pValueNode = getTlvValue(pMsg, msgLen, QUERY_NODE_VALUE, &valueNodeLen);
+  if (NULL == pValueNode) {
+    return NULL;
+  }
+
+  int32_t exprLen = 0;
+  char*   pExpr = getTlvValue(pValueNode, valueNodeLen, kValueCodeExprBase, &exprLen);
+  if (NULL == pExpr) {
+    return NULL;
+  }
+
+  int32_t dataTypeLen = 0;
+  char*   pDataType = getTlvValue(pExpr, exprLen, kExprCodeResType, &dataTypeLen);
+  if (NULL == pDataType) {
+    return NULL;
+  }
+
+  constexpr int32_t kTlvHeaderSize = sizeof(int16_t) + sizeof(int32_t);
+  int32_t           offset = 0;
+  for (int16_t type = kDataTypeCodeType; type <= kDataTypeCodeBytes; ++type) {
+    int32_t fieldLen = 0;
+    char*   pField = getTlvValue(pDataType + offset, dataTypeLen - offset, type, &fieldLen);
+    if (NULL == pField) {
+      return NULL;
+    }
+    if (kDataTypeCodeBytes == type) {
+      *pValueLen = fieldLen;
+      return pField;
+    }
+    offset += kTlvHeaderSize + fieldLen;
+  }
+
+  return NULL;
+}
 
 class NodesCloneTest : public testing::Test {
  public:
@@ -33,6 +271,774 @@ class NodesCloneTest : public testing::Test {
  private:
   std::function<void(const SNode*, const SNode*)> checkFunc_;
 };
+
+TEST_F(NodesCloneTest, sortPreservesGroupKeyPrefix) {
+  SNode* pNode = nullptr;
+  ASSERT_EQ(nodesMakeNode(QUERY_NODE_LOGIC_PLAN_SORT, &pNode), TSDB_CODE_SUCCESS);
+  std::unique_ptr<SNode, void (*)(SNode*)> src(pNode, nodesDestroyNode);
+  SSortLogicNode*                          pSort = (SSortLogicNode*)pNode;
+  pSort->calcGroupId = true;
+  pSort->numOfGroupKeys = 2;
+
+  SNode* pClone = nullptr;
+  ASSERT_EQ(nodesCloneNode(pNode, &pClone), TSDB_CODE_SUCCESS);
+  std::unique_ptr<SNode, void (*)(SNode*)> clone(pClone, nodesDestroyNode);
+  EXPECT_TRUE(((SSortLogicNode*)pClone)->calcGroupId);
+  EXPECT_EQ(((SSortLogicNode*)pClone)->numOfGroupKeys, 2);
+}
+
+TEST_F(NodesCloneTest, anomalyWindowOwnsClonedExpressionList) {
+  for (int32_t numOfColumns : {0, 1, 2}) {
+    SCOPED_TRACE(numOfColumns);
+    const int64_t allocations = nodesTestGetLiveAllocations();
+    SNode* pNode = nullptr;
+    ASSERT_EQ(nodesMakeNode(QUERY_NODE_LOGIC_PLAN_WINDOW, &pNode), TSDB_CODE_SUCCESS);
+    std::unique_ptr<SNode, decltype(&nodesDestroyNode)> source(pNode, nodesDestroyNode);
+    auto* window = reinterpret_cast<SWindowLogicNode*>(pNode);
+    window->winType = WINDOW_TYPE_ANOMALY;
+    tstrncpy(window->anomalyOpt, "algo=lof", sizeof(window->anomalyOpt));
+    for (int32_t i = 0; i < numOfColumns; ++i) {
+      SNode* column = nullptr;
+      ASSERT_EQ(nodesMakeNode(QUERY_NODE_COLUMN, &column), TSDB_CODE_SUCCESS);
+      reinterpret_cast<SColumnNode*>(column)->colId = i + 1;
+      ASSERT_EQ(nodesListMakeStrictAppend(&window->pAnomalyExpr, column), TSDB_CODE_SUCCESS);
+    }
+
+    SNode* pClone = nullptr;
+    ASSERT_EQ(nodesCloneNode(pNode, &pClone), TSDB_CODE_SUCCESS);
+    std::unique_ptr<SNode, decltype(&nodesDestroyNode)> clone(pClone, nodesDestroyNode);
+    auto* copy = reinterpret_cast<SWindowLogicNode*>(pClone);
+    EXPECT_EQ(copy->winType, WINDOW_TYPE_ANOMALY);
+    EXPECT_STREQ(copy->anomalyOpt, "algo=lof");
+    ASSERT_EQ(LIST_LENGTH(copy->pAnomalyExpr), numOfColumns);
+    if (numOfColumns > 0) {
+      ASSERT_NE(copy->pAnomalyExpr, window->pAnomalyExpr);
+      ASSERT_NE(copy->pAnomalyExpr->pHead, window->pAnomalyExpr->pHead);
+      ASSERT_NE(copy->pAnomalyExpr->pTail, window->pAnomalyExpr->pTail);
+    }
+    for (int32_t i = 0; i < numOfColumns; ++i) {
+      SNode* original = nodesListGetNode(window->pAnomalyExpr, i);
+      SNode* copied = nodesListGetNode(copy->pAnomalyExpr, i);
+      ASSERT_NE(copied, original);
+      EXPECT_TRUE(nodesEqualNode(original, copied));
+    }
+
+    source.reset();
+    for (int32_t i = 0; i < numOfColumns; ++i) {
+      SNode* column = nodesListGetNode(copy->pAnomalyExpr, i);
+      ASSERT_EQ(nodeType(column), QUERY_NODE_COLUMN);
+      EXPECT_EQ(reinterpret_cast<SColumnNode*>(column)->colId, i + 1);
+    }
+    clone.reset();
+    EXPECT_EQ(nodesTestGetLiveAllocations(), allocations);
+  }
+}
+
+TEST(NodesCodeTest, sortGroupKeyPrefixRoundTrip) {
+  for (int32_t numOfGroupKeys : {0, 1, 2}) {
+    SCOPED_TRACE(numOfGroupKeys);
+    SNode* pNode = nullptr;
+    ASSERT_EQ(nodesMakeNode(QUERY_NODE_PHYSICAL_PLAN_SORT, &pNode), TSDB_CODE_SUCCESS);
+    std::unique_ptr<SNode, void (*)(SNode*)> src(pNode, nodesDestroyNode);
+    SSortPhysiNode*                          pSort = (SSortPhysiNode*)pNode;
+    pSort->calcGroupId = true;
+    pSort->excludePkCol = true;
+    pSort->numOfGroupKeys = numOfGroupKeys;
+
+    char* pJson = nullptr;
+    ASSERT_EQ(nodesNodeToString(pNode, false, &pJson, nullptr), TSDB_CODE_SUCCESS);
+    std::unique_ptr<char, void (*)(char*)> json(pJson, freeTestBuffer);
+    SNode*                                 pJsonNode = nullptr;
+    ASSERT_EQ(nodesStringToNode(pJson, &pJsonNode), TSDB_CODE_SUCCESS);
+    std::unique_ptr<SNode, void (*)(SNode*)> jsonNode(pJsonNode, nodesDestroyNode);
+    EXPECT_TRUE(((SSortPhysiNode*)pJsonNode)->calcGroupId);
+    EXPECT_TRUE(((SSortPhysiNode*)pJsonNode)->excludePkCol);
+    EXPECT_EQ(((SSortPhysiNode*)pJsonNode)->numOfGroupKeys, numOfGroupKeys);
+
+    char*   pMsg = nullptr;
+    int32_t len = 0;
+    ASSERT_EQ(nodesNodeToMsg(pNode, &pMsg, &len), TSDB_CODE_SUCCESS);
+    std::unique_ptr<char, void (*)(char*)> msg(pMsg, freeTestBuffer);
+    SNode*                                 pMsgNode = nullptr;
+    ASSERT_EQ(nodesMsgToNode(pMsg, len, &pMsgNode), TSDB_CODE_SUCCESS);
+    std::unique_ptr<SNode, void (*)(SNode*)> msgNode(pMsgNode, nodesDestroyNode);
+    EXPECT_TRUE(((SSortPhysiNode*)pMsgNode)->calcGroupId);
+    EXPECT_TRUE(((SSortPhysiNode*)pMsgNode)->excludePkCol);
+    EXPECT_EQ(((SSortPhysiNode*)pMsgNode)->numOfGroupKeys, numOfGroupKeys);
+  }
+}
+
+// inputOrderedBySortKeys makes the executor skip a whole block suffix without
+// re-validating it, so the plan transfers must never lose or invent it. The
+// JSON/TLV encoders omit the field when it is false to keep existing plan
+// text goldens stable, so cover both values and (below) the explicit
+// "field absent in an older plan" decode.
+TEST(NodesCodeTest, sortInputOrderedBySortKeysRoundTrip) {
+  for (bool inputOrdered : {false, true}) {
+    SCOPED_TRACE(inputOrdered);
+    SNode* pNode = nullptr;
+    ASSERT_EQ(nodesMakeNode(QUERY_NODE_PHYSICAL_PLAN_SORT, &pNode), TSDB_CODE_SUCCESS);
+    std::unique_ptr<SNode, void (*)(SNode*)> src(pNode, nodesDestroyNode);
+    SSortPhysiNode* pSort = (SSortPhysiNode*)pNode;
+    pSort->inputOrderedBySortKeys = inputOrdered;
+
+    char* pJson = nullptr;
+    ASSERT_EQ(nodesNodeToString(pNode, false, &pJson, nullptr), TSDB_CODE_SUCCESS);
+    std::unique_ptr<char, void (*)(char*)> json(pJson, freeTestBuffer);
+    EXPECT_EQ(strstr(pJson, "InputOrderedBySortKeys") != nullptr, inputOrdered);
+    SNode* pJsonNode = nullptr;
+    ASSERT_EQ(nodesStringToNode(pJson, &pJsonNode), TSDB_CODE_SUCCESS);
+    std::unique_ptr<SNode, void (*)(SNode*)> jsonNode(pJsonNode, nodesDestroyNode);
+    EXPECT_EQ(((SSortPhysiNode*)pJsonNode)->inputOrderedBySortKeys, inputOrdered);
+
+    char*   pMsg = nullptr;
+    int32_t len = 0;
+    ASSERT_EQ(nodesNodeToMsg(pNode, &pMsg, &len), TSDB_CODE_SUCCESS);
+    std::unique_ptr<char, void (*)(char*)> msg(pMsg, freeTestBuffer);
+    SNode* pMsgNode = nullptr;
+    ASSERT_EQ(nodesMsgToNode(pMsg, len, &pMsgNode), TSDB_CODE_SUCCESS);
+    std::unique_ptr<SNode, void (*)(SNode*)> msgNode(pMsgNode, nodesDestroyNode);
+    EXPECT_EQ(((SSortPhysiNode*)pMsgNode)->inputOrderedBySortKeys, inputOrdered);
+  }
+}
+
+// An older planner/subplan has no InputOrderedBySortKeys field at all. The
+// executor treats a false flag as permission to keep the row-wise path, so a
+// missing field must decode to false: anything else would let a cross-version
+// plan skip a block suffix that nobody proved ordered.
+TEST(NodesCodeTest, sortInputOrderedBySortKeysDefaultsFalseWhenAbsent) {
+  // JSON: serialize a plan that does carry the field, then drop it. This is
+  // byte-for-byte the text an older producer emits.
+  {
+    SNode* pNode = nullptr;
+    ASSERT_EQ(nodesMakeNode(QUERY_NODE_PHYSICAL_PLAN_SORT, &pNode), TSDB_CODE_SUCCESS);
+    std::unique_ptr<SNode, void (*)(SNode*)> src(pNode, nodesDestroyNode);
+    ((SSortPhysiNode*)pNode)->inputOrderedBySortKeys = true;
+
+    char* pJson = nullptr;
+    ASSERT_EQ(nodesNodeToString(pNode, false, &pJson, nullptr), TSDB_CODE_SUCCESS);
+    std::unique_ptr<char, void (*)(char*)> json(pJson, freeTestBuffer);
+    ASSERT_NE(strstr(pJson, "InputOrderedBySortKeys"), nullptr);
+
+    std::string legacy(pJson);
+    eraseJsonField(&legacy, "InputOrderedBySortKeys");
+    EXPECT_EQ(legacy.find("InputOrderedBySortKeys"), std::string::npos);
+
+    SNode* pLegacyNode = nullptr;
+    ASSERT_EQ(nodesStringToNode(legacy.c_str(), &pLegacyNode), TSDB_CODE_SUCCESS);
+    std::unique_ptr<SNode, void (*)(SNode*)> legacyNode(pLegacyNode, nodesDestroyNode);
+    EXPECT_FALSE(((SSortPhysiNode*)pLegacyNode)->inputOrderedBySortKeys);
+  }
+
+  // TLV: a false value omits the tag, so its encoding is exactly the old wire
+  // format. Decode it and check the flag defaults to false.
+  {
+    SNode* pNode = nullptr;
+    ASSERT_EQ(nodesMakeNode(QUERY_NODE_PHYSICAL_PLAN_SORT, &pNode), TSDB_CODE_SUCCESS);
+    std::unique_ptr<SNode, void (*)(SNode*)> src(pNode, nodesDestroyNode);
+    ((SSortPhysiNode*)pNode)->inputOrderedBySortKeys = false;
+
+    char*   pMsg = nullptr;
+    int32_t len = 0;
+    ASSERT_EQ(nodesNodeToMsg(pNode, &pMsg, &len), TSDB_CODE_SUCCESS);
+    std::unique_ptr<char, void (*)(char*)> msg(pMsg, freeTestBuffer);
+
+    SNode* pLegacyNode = nullptr;
+    ASSERT_EQ(nodesMsgToNode(pMsg, len, &pLegacyNode), TSDB_CODE_SUCCESS);
+    std::unique_ptr<SNode, void (*)(SNode*)> legacyNode(pLegacyNode, nodesDestroyNode);
+    EXPECT_FALSE(((SSortPhysiNode*)pLegacyNode)->inputOrderedBySortKeys);
+  }
+}
+
+// queryNodeSortKeysAreAscPrimTsPk is the single predicate that authorises both
+// the planner's ordered-input proof and the executor's block-suffix
+// short-circuit. A false positive lets the executor skip rows that it cannot
+// prove are ordered, so pin every shape constraint it relies on.
+namespace {
+
+struct SortKeySpec {
+  bool       isColumn = true;  // false builds a non-column expression node
+  bool       hasExpr = true;   // false leaves pExpr NULL
+  bool       isPrimTs = true;
+  bool       isPk = false;
+  col_id_t   colId = 0;
+  int8_t     type = TSDB_DATA_TYPE_INT;
+  EOrder     order = ORDER_ASC;
+  ENullOrder nullOrder = NULL_ORDER_DEFAULT;
+};
+
+SOrderByExprNode* makeSortKeyNode(const SortKeySpec& spec) {
+  SNode* pNode = nullptr;
+  if (nodesMakeNode(QUERY_NODE_ORDER_BY_EXPR, &pNode) != TSDB_CODE_SUCCESS) {
+    return nullptr;
+  }
+  SOrderByExprNode* pKey = (SOrderByExprNode*)pNode;
+  pKey->order = spec.order;
+  pKey->nullOrder = spec.nullOrder;
+  if (!spec.hasExpr) {
+    return pKey;
+  }
+
+  SNode* pExpr = nullptr;
+  if (spec.isColumn) {
+    if (nodesMakeNode(QUERY_NODE_COLUMN, &pExpr) != TSDB_CODE_SUCCESS) {
+      nodesDestroyNode(pNode);
+      return nullptr;
+    }
+    SColumnNode* pCol = (SColumnNode*)pExpr;
+    pCol->isPrimTs = spec.isPrimTs;
+    pCol->isPk = spec.isPk;
+    pCol->colId = spec.colId;
+    pCol->node.resType.type = spec.type;
+  } else {
+    if (nodesMakeNode(QUERY_NODE_VALUE, &pExpr) != TSDB_CODE_SUCCESS) {
+      nodesDestroyNode(pNode);
+      return nullptr;
+    }
+    ((SValueNode*)pExpr)->node.resType.type = spec.type;
+  }
+  pKey->pExpr = pExpr;
+  return pKey;
+}
+
+SNodeList* makeSortKeyList(const SortKeySpec& ts, const SortKeySpec& pk) {
+  SNodeList* pList = nullptr;
+  if (nodesMakeList(&pList) != TSDB_CODE_SUCCESS) {
+    return nullptr;
+  }
+  SNode* pTsKey = (SNode*)makeSortKeyNode(ts);
+  if (pTsKey == nullptr || nodesListAppend(pList, pTsKey) != TSDB_CODE_SUCCESS) {
+    nodesDestroyNode(pTsKey);
+    nodesDestroyList(pList);
+    return nullptr;
+  }
+  SNode* pPkKey = (SNode*)makeSortKeyNode(pk);
+  if (pPkKey == nullptr || nodesListAppend(pList, pPkKey) != TSDB_CODE_SUCCESS) {
+    nodesDestroyNode(pPkKey);
+    nodesDestroyList(pList);
+    return nullptr;
+  }
+  return pList;
+}
+
+SortKeySpec tsKeySpec() {
+  SortKeySpec spec;
+  spec.isPrimTs = true;
+  spec.colId = PRIMARYKEY_TIMESTAMP_COL_ID;
+  spec.type = TSDB_DATA_TYPE_TIMESTAMP;
+  return spec;
+}
+
+SortKeySpec pkKeySpec() {
+  SortKeySpec spec;
+  spec.isPrimTs = false;
+  spec.isPk = true;
+  spec.colId = 2;
+  spec.type = TSDB_DATA_TYPE_INT;
+  return spec;
+}
+
+}  // namespace
+
+TEST(NodesSortKeyPredicateTest, acceptsAscendingFixedWidthPrimTsPk) {
+  std::unique_ptr<SNodeList, void (*)(SNodeList*)> keys(makeSortKeyList(tsKeySpec(), pkKeySpec()), nodesDestroyList);
+  ASSERT_NE(keys.get(), nullptr);
+  EXPECT_TRUE(queryNodeSortKeysAreAscPrimTsPk(keys.get()));
+
+  // NULL ordering cannot matter for two NOT NULL primary-key columns.
+  SortKeySpec ts = tsKeySpec();
+  SortKeySpec pk = pkKeySpec();
+  ts.nullOrder = NULL_ORDER_LAST;
+  pk.nullOrder = NULL_ORDER_FIRST;
+  std::unique_ptr<SNodeList, void (*)(SNodeList*)> nullOrderKeys(makeSortKeyList(ts, pk), nodesDestroyList);
+  ASSERT_NE(nullOrderKeys.get(), nullptr);
+  EXPECT_TRUE(queryNodeSortKeysAreAscPrimTsPk(nullOrderKeys.get()));
+}
+
+TEST(NodesSortKeyPredicateTest, rejectsMalformedKeyLists) {
+  EXPECT_FALSE(queryNodeSortKeysAreAscPrimTsPk(nullptr));
+
+  // Exactly two keys are required: neither one nor three keys is enough.
+  {
+    std::unique_ptr<SNodeList, void (*)(SNodeList*)> one(makeSortKeyList(tsKeySpec(), pkKeySpec()), nodesDestroyList);
+    ASSERT_NE(one.get(), nullptr);
+    ASSERT_EQ(one->length, 2);
+    SNode* pLast = one->pTail->pNode;
+    one->pTail->pNode = nullptr;
+    one->length = 1;
+    EXPECT_FALSE(queryNodeSortKeysAreAscPrimTsPk(one.get()));
+    nodesDestroyNode(pLast);
+  }
+  {
+    SortKeySpec third = pkKeySpec();
+    third.colId = 3;
+    std::unique_ptr<SNodeList, void (*)(SNodeList*)> two(makeSortKeyList(tsKeySpec(), pkKeySpec()), nodesDestroyList);
+    ASSERT_NE(two.get(), nullptr);
+    SNode* pExtra = (SNode*)makeSortKeyNode(third);
+    ASSERT_NE(pExtra, nullptr);
+    ASSERT_EQ(nodesListAppend(two.get(), pExtra), TSDB_CODE_SUCCESS);
+    EXPECT_FALSE(queryNodeSortKeysAreAscPrimTsPk(two.get()));
+  }
+
+  // A NULL list cell must not be dereferenced.
+  {
+    std::unique_ptr<SNodeList, void (*)(SNodeList*)> keys(makeSortKeyList(tsKeySpec(), pkKeySpec()), nodesDestroyList);
+    ASSERT_NE(keys.get(), nullptr);
+    SNode* pPkKey = keys->pTail->pNode;
+    keys->pTail->pNode = nullptr;
+    EXPECT_FALSE(queryNodeSortKeysAreAscPrimTsPk(keys.get()));
+    nodesDestroyNode(pPkKey);
+  }
+
+  // A key without an expression, and a non-column expression, are rejected.
+  {
+    SortKeySpec ts = tsKeySpec();
+    ts.hasExpr = false;
+    std::unique_ptr<SNodeList, void (*)(SNodeList*)> keys(makeSortKeyList(ts, pkKeySpec()), nodesDestroyList);
+    ASSERT_NE(keys.get(), nullptr);
+    EXPECT_FALSE(queryNodeSortKeysAreAscPrimTsPk(keys.get()));
+  }
+  {
+    SortKeySpec pk = pkKeySpec();
+    pk.isColumn = false;
+    std::unique_ptr<SNodeList, void (*)(SNodeList*)> keys(makeSortKeyList(tsKeySpec(), pk), nodesDestroyList);
+    ASSERT_NE(keys.get(), nullptr);
+    EXPECT_FALSE(queryNodeSortKeysAreAscPrimTsPk(keys.get()));
+  }
+
+  // Both keys must be ascending.
+  {
+    SortKeySpec ts = tsKeySpec();
+    ts.order = ORDER_DESC;
+    std::unique_ptr<SNodeList, void (*)(SNodeList*)> keys(makeSortKeyList(ts, pkKeySpec()), nodesDestroyList);
+    ASSERT_NE(keys.get(), nullptr);
+    EXPECT_FALSE(queryNodeSortKeysAreAscPrimTsPk(keys.get()));
+  }
+  {
+    SortKeySpec pk = pkKeySpec();
+    pk.order = ORDER_DESC;
+    std::unique_ptr<SNodeList, void (*)(SNodeList*)> keys(makeSortKeyList(tsKeySpec(), pk), nodesDestroyList);
+    ASSERT_NE(keys.get(), nullptr);
+    EXPECT_FALSE(queryNodeSortKeysAreAscPrimTsPk(keys.get()));
+  }
+}
+
+TEST(NodesSortKeyPredicateTest, rejectsTsAndPkShapeViolations) {
+  // The first key must be the primary timestamp column.
+  {
+    SortKeySpec ts = tsKeySpec();
+    ts.isPrimTs = false;
+    std::unique_ptr<SNodeList, void (*)(SNodeList*)> keys(makeSortKeyList(ts, pkKeySpec()), nodesDestroyList);
+    ASSERT_NE(keys.get(), nullptr);
+    EXPECT_FALSE(queryNodeSortKeysAreAscPrimTsPk(keys.get()));
+  }
+  {
+    SortKeySpec ts = tsKeySpec();
+    ts.colId = 2;
+    std::unique_ptr<SNodeList, void (*)(SNodeList*)> keys(makeSortKeyList(ts, pkKeySpec()), nodesDestroyList);
+    ASSERT_NE(keys.get(), nullptr);
+    EXPECT_FALSE(queryNodeSortKeysAreAscPrimTsPk(keys.get()));
+  }
+  {
+    SortKeySpec ts = tsKeySpec();
+    ts.type = TSDB_DATA_TYPE_BIGINT;
+    std::unique_ptr<SNodeList, void (*)(SNodeList*)> keys(makeSortKeyList(ts, pkKeySpec()), nodesDestroyList);
+    ASSERT_NE(keys.get(), nullptr);
+    EXPECT_FALSE(queryNodeSortKeysAreAscPrimTsPk(keys.get()));
+  }
+
+  // The second key must be a primary key column.
+  {
+    SortKeySpec pk = pkKeySpec();
+    pk.isPk = false;
+    std::unique_ptr<SNodeList, void (*)(SNodeList*)> keys(makeSortKeyList(tsKeySpec(), pk), nodesDestroyList);
+    ASSERT_NE(keys.get(), nullptr);
+    EXPECT_FALSE(queryNodeSortKeysAreAscPrimTsPk(keys.get()));
+  }
+
+  // ts and pk must be distinct columns: the same column is not a two-key order.
+  {
+    SortKeySpec pk = pkKeySpec();
+    pk.colId = PRIMARYKEY_TIMESTAMP_COL_ID;
+    std::unique_ptr<SNodeList, void (*)(SNodeList*)> keys(makeSortKeyList(tsKeySpec(), pk), nodesDestroyList);
+    ASSERT_NE(keys.get(), nullptr);
+    EXPECT_FALSE(queryNodeSortKeysAreAscPrimTsPk(keys.get()));
+  }
+
+  // A variable-width primary key cannot be compared as a fixed-width key.
+  {
+    SortKeySpec pk = pkKeySpec();
+    pk.type = TSDB_DATA_TYPE_VARCHAR;
+    std::unique_ptr<SNodeList, void (*)(SNodeList*)> keys(makeSortKeyList(tsKeySpec(), pk), nodesDestroyList);
+    ASSERT_NE(keys.get(), nullptr);
+    EXPECT_FALSE(queryNodeSortKeysAreAscPrimTsPk(keys.get()));
+  }
+}
+
+TEST(NodesCodeTest, queryPlanJsonRoundTripPreservesAllSubplanLevels) {
+  SNode* pNode = nullptr;
+  ASSERT_EQ(TSDB_CODE_SUCCESS, nodesMakeNode(QUERY_NODE_PHYSICAL_PLAN, &pNode));
+  std::unique_ptr<SNode, void (*)(SNode*)> planGuard(pNode, nodesDestroyNode);
+
+  SQueryPlan* pPlan = (SQueryPlan*)pNode;
+  SSubplan* subplans[3] = {nullptr};
+  pPlan->queryId = 1;
+  ASSERT_EQ(TSDB_CODE_SUCCESS, nodesMakeList(&pPlan->pSubplans));
+
+  for (int32_t level = 0; level < 2; ++level) {
+    SNode* pLevelNode = nullptr;
+    ASSERT_EQ(TSDB_CODE_SUCCESS, nodesMakeNode(QUERY_NODE_NODE_LIST, &pLevelNode));
+    SNodeListNode* pLevel = (SNodeListNode*)pLevelNode;
+    ASSERT_EQ(TSDB_CODE_SUCCESS, nodesMakeList(&pLevel->pNodeList));
+
+    const int32_t subplanNum = (0 == level) ? 1 : 2;
+    for (int32_t i = 0; i < subplanNum; ++i) {
+      SNode* pSubplanNode = nullptr;
+      ASSERT_EQ(TSDB_CODE_SUCCESS, nodesMakeNode(QUERY_NODE_PHYSICAL_SUBPLAN, &pSubplanNode));
+      SSubplan* pSubplan = (SSubplan*)pSubplanNode;
+      pSubplan->id.queryId = pPlan->queryId;
+      pSubplan->id.groupId = 1;
+      pSubplan->id.subplanId = pPlan->numOfSubplans + 1;
+      pSubplan->level = level;
+      subplans[pPlan->numOfSubplans] = pSubplan;
+      ASSERT_EQ(TSDB_CODE_SUCCESS, nodesListStrictAppend(pLevel->pNodeList, pSubplanNode));
+      ++pPlan->numOfSubplans;
+    }
+
+    ASSERT_EQ(TSDB_CODE_SUCCESS, nodesListStrictAppend(pPlan->pSubplans, pLevelNode));
+  }
+
+  ASSERT_EQ(TSDB_CODE_SUCCESS, nodesListMakeAppend(&subplans[0]->pChildren, (SNode*)subplans[1]));
+  ASSERT_EQ(TSDB_CODE_SUCCESS, nodesListMakeAppend(&subplans[0]->pChildren, (SNode*)subplans[2]));
+  ASSERT_EQ(TSDB_CODE_SUCCESS, nodesListMakeAppend(&subplans[1]->pParents, (SNode*)subplans[0]));
+  ASSERT_EQ(TSDB_CODE_SUCCESS, nodesListMakeAppend(&subplans[2]->pParents, (SNode*)subplans[0]));
+  ASSERT_EQ(TSDB_CODE_SUCCESS,
+            nodesMakeNode(QUERY_NODE_PHYSICAL_PLAN_DISPATCH, (SNode**)&subplans[0]->pDataSink));
+
+  char* pJson = nullptr;
+  ASSERT_EQ(TSDB_CODE_SUCCESS, nodesNodeToString((SNode*)pPlan, false, &pJson, nullptr));
+  ASSERT_NE(nullptr, pJson);
+
+  SNode* pRoundTripNode = nullptr;
+  ASSERT_EQ(TSDB_CODE_SUCCESS, nodesStringToNode(pJson, &pRoundTripNode));
+  taosMemoryFreeClear(pJson);
+  std::unique_ptr<SNode, void (*)(SNode*)> roundTripGuard(pRoundTripNode, nodesDestroyNode);
+
+  ASSERT_EQ(QUERY_NODE_PHYSICAL_PLAN, nodeType(pRoundTripNode));
+  SQueryPlan* pRoundTrip = (SQueryPlan*)pRoundTripNode;
+  ASSERT_EQ(3, pRoundTrip->numOfSubplans);
+  ASSERT_EQ(2, LIST_LENGTH(pRoundTrip->pSubplans));
+  ASSERT_EQ(1, LIST_LENGTH(((SNodeListNode*)nodesListGetNode(pRoundTrip->pSubplans, 0))->pNodeList));
+  ASSERT_EQ(2, LIST_LENGTH(((SNodeListNode*)nodesListGetNode(pRoundTrip->pSubplans, 1))->pNodeList));
+
+  SSubplan* pRoundTripParent = (SSubplan*)nodesListGetNode(
+      ((SNodeListNode*)nodesListGetNode(pRoundTrip->pSubplans, 0))->pNodeList, 0);
+  SSubplan* pRoundTripChild1 = (SSubplan*)nodesListGetNode(
+      ((SNodeListNode*)nodesListGetNode(pRoundTrip->pSubplans, 1))->pNodeList, 0);
+  SSubplan* pRoundTripChild2 = (SSubplan*)nodesListGetNode(
+      ((SNodeListNode*)nodesListGetNode(pRoundTrip->pSubplans, 1))->pNodeList, 1);
+  ASSERT_NE(nullptr, pRoundTripParent);
+  ASSERT_NE(nullptr, pRoundTripParent->pDataSink);
+  ASSERT_EQ(QUERY_NODE_PHYSICAL_PLAN_DISPATCH, nodeType(pRoundTripParent->pDataSink));
+  ASSERT_EQ((SNode*)pRoundTripChild1, nodesListGetNode(pRoundTripParent->pChildren, 0));
+  ASSERT_EQ((SNode*)pRoundTripChild2, nodesListGetNode(pRoundTripParent->pChildren, 1));
+  ASSERT_EQ((SNode*)pRoundTripParent, nodesListGetNode(pRoundTripChild1->pParents, 0));
+  ASSERT_EQ((SNode*)pRoundTripParent, nodesListGetNode(pRoundTripChild2->pParents, 0));
+}
+
+static int8_t* interpModeRef(SNode* pNode) {
+  switch (nodeType(pNode)) {
+    case QUERY_NODE_LOGIC_PLAN_SCAN:
+      return &((SScanLogicNode*)pNode)->interpMode;
+    case QUERY_NODE_LOGIC_PLAN_INTERP_FUNC:
+      return &((SInterpFuncLogicNode*)pNode)->interpMode;
+    case QUERY_NODE_PHYSICAL_PLAN_TABLE_SCAN:
+      return &((STableScanPhysiNode*)pNode)->interpMode;
+    case QUERY_NODE_PHYSICAL_PLAN_INTERP_FUNC:
+      return &((SInterpFuncPhysiNode*)pNode)->interpMode;
+    default:
+      return nullptr;
+  }
+}
+
+// The msg codec only covers physical plan nodes, so logic nodes are checked
+// through clone + JSON only.
+template <typename T>
+static void checkNodeFieldRoundTrips(ENodeType type, bool checkMsg,
+                                     T expected,
+                                     T* (*fieldRef)(SNode*)) {
+  SNode* pNode = nullptr;
+  ASSERT_EQ(TSDB_CODE_SUCCESS, nodesMakeNode(type, &pNode));
+  std::unique_ptr<SNode, void (*)(SNode*)> src(pNode, nodesDestroyNode);
+  ASSERT_NE(nullptr, fieldRef(src.get()));
+  *fieldRef(src.get()) = expected;
+
+  SNode* pClone = nullptr;
+  ASSERT_EQ(TSDB_CODE_SUCCESS, nodesCloneNode(src.get(), &pClone));
+  std::unique_ptr<SNode, void (*)(SNode*)> clone(pClone, nodesDestroyNode);
+  ASSERT_EQ(type, nodeType(clone.get()));
+  ASSERT_NE(nullptr, fieldRef(clone.get()));
+  EXPECT_EQ(expected, *fieldRef(clone.get()));
+
+  char*   pStr = nullptr;
+  int32_t len = 0;
+  ASSERT_EQ(TSDB_CODE_SUCCESS,
+            nodesNodeToString(src.get(), false, &pStr, &len));
+  SNode* pJsonNode = nullptr;
+  ASSERT_EQ(TSDB_CODE_SUCCESS, nodesStringToNode(pStr, &pJsonNode));
+  taosMemoryFreeClear(pStr);
+  std::unique_ptr<SNode, void (*)(SNode*)> jsonNode(pJsonNode,
+                                                    nodesDestroyNode);
+  ASSERT_EQ(type, nodeType(jsonNode.get()));
+  ASSERT_NE(nullptr, fieldRef(jsonNode.get()));
+  EXPECT_EQ(expected, *fieldRef(jsonNode.get()));
+
+  if (!checkMsg) {
+    return;
+  }
+
+  ASSERT_EQ(TSDB_CODE_SUCCESS, nodesNodeToMsg(src.get(), &pStr, &len));
+  SNode* pMsgNode = nullptr;
+  ASSERT_EQ(TSDB_CODE_SUCCESS, nodesMsgToNode(pStr, len, &pMsgNode));
+  taosMemoryFreeClear(pStr);
+  std::unique_ptr<SNode, void (*)(SNode*)> msgNode(pMsgNode,
+                                                   nodesDestroyNode);
+  ASSERT_EQ(type, nodeType(msgNode.get()));
+  ASSERT_NE(nullptr, fieldRef(msgNode.get()));
+  EXPECT_EQ(expected, *fieldRef(msgNode.get()));
+}
+
+static void checkInterpModeRoundTrips(ENodeType type, bool checkMsg) {
+  for (int8_t mode : {INTERP_MODE_MULTI_GROUP, INTERP_MODE_GROUP_FIRST}) {
+    checkNodeFieldRoundTrips(type, checkMsg, mode, interpModeRef);
+  }
+}
+
+TEST(NodesInterpModeTest, cloneAndSerializationRoundTrips) {
+  checkInterpModeRoundTrips(QUERY_NODE_LOGIC_PLAN_SCAN, false);
+  checkInterpModeRoundTrips(QUERY_NODE_LOGIC_PLAN_INTERP_FUNC, false);
+  checkInterpModeRoundTrips(QUERY_NODE_PHYSICAL_PLAN_TABLE_SCAN, true);
+  checkInterpModeRoundTrips(QUERY_NODE_PHYSICAL_PLAN_INTERP_FUNC, true);
+}
+
+TEST(NodesInterpModeTest, missingJsonFieldDefaultsToLegacy) {
+  for (ENodeType type : {QUERY_NODE_LOGIC_PLAN_SCAN,
+                         QUERY_NODE_LOGIC_PLAN_INTERP_FUNC,
+                         QUERY_NODE_PHYSICAL_PLAN_TABLE_SCAN,
+                         QUERY_NODE_PHYSICAL_PLAN_INTERP_FUNC}) {
+    SNode* pNode = nullptr;
+    ASSERT_EQ(nodesMakeNode(type, &pNode), TSDB_CODE_SUCCESS);
+    std::unique_ptr<SNode, void (*)(SNode*)> src(pNode, nodesDestroyNode);
+    ASSERT_NE(nullptr, interpModeRef(src.get()));
+    *interpModeRef(src.get()) = INTERP_MODE_MULTI_GROUP;
+
+    char*   pStr = nullptr;
+    int32_t len = 0;
+    ASSERT_EQ(nodesNodeToString(src.get(), false, &pStr, &len),
+              TSDB_CODE_SUCCESS);
+    std::string json(pStr);
+    taosMemoryFreeClear(pStr);
+
+    eraseJsonField(&json, "InterpMode");
+
+    SNode* pDecoded = nullptr;
+    ASSERT_EQ(nodesStringToNode(json.c_str(), &pDecoded),
+              TSDB_CODE_SUCCESS);
+    std::unique_ptr<SNode, void (*)(SNode*)> decoded(
+        pDecoded, nodesDestroyNode);
+    ASSERT_EQ(nodeType(decoded.get()), type);
+    ASSERT_NE(nullptr, interpModeRef(decoded.get()));
+    EXPECT_EQ(*interpModeRef(decoded.get()), INTERP_MODE_LEGACY);
+  }
+}
+
+static bool* interpRequireMainMembershipRef(SNode* pNode) {
+  switch (nodeType(pNode)) {
+    case QUERY_NODE_LOGIC_PLAN_INTERP_FUNC:
+      return &((SInterpFuncLogicNode*)pNode)->requireMainMembership;
+    case QUERY_NODE_PHYSICAL_PLAN_INTERP_FUNC:
+      return &((SInterpFuncPhysiNode*)pNode)->requireMainMembership;
+    default:
+      return nullptr;
+  }
+}
+
+static void checkInterpRequireMainMembershipRoundTrips(ENodeType type,
+                                                       bool checkMsg) {
+  checkNodeFieldRoundTrips(type, checkMsg, true,
+                           interpRequireMainMembershipRef);
+}
+
+TEST(NodesInterpMembershipTest, cloneAndSerializationRoundTrips) {
+  checkInterpRequireMainMembershipRoundTrips(
+      QUERY_NODE_LOGIC_PLAN_INTERP_FUNC, false);
+  checkInterpRequireMainMembershipRoundTrips(
+      QUERY_NODE_PHYSICAL_PLAN_INTERP_FUNC, true);
+}
+
+TEST(NodesInterpMembershipTest, missingJsonFieldDefaultsToFalse) {
+  for (ENodeType type : {QUERY_NODE_LOGIC_PLAN_INTERP_FUNC,
+                         QUERY_NODE_PHYSICAL_PLAN_INTERP_FUNC}) {
+    SNode* pNode = nullptr;
+    ASSERT_EQ(nodesMakeNode(type, &pNode), TSDB_CODE_SUCCESS);
+    std::unique_ptr<SNode, void (*)(SNode*)> src(pNode, nodesDestroyNode);
+    ASSERT_NE(nullptr, interpRequireMainMembershipRef(src.get()));
+    *interpRequireMainMembershipRef(src.get()) = true;
+
+    char*   pStr = nullptr;
+    int32_t len = 0;
+    ASSERT_EQ(nodesNodeToString(src.get(), false, &pStr, &len),
+              TSDB_CODE_SUCCESS);
+    std::string json(pStr);
+    taosMemoryFreeClear(pStr);
+
+    eraseJsonField(&json, "RequireMainMembership");
+
+    SNode* pDecoded = nullptr;
+    ASSERT_EQ(nodesStringToNode(json.c_str(), &pDecoded),
+              TSDB_CODE_SUCCESS);
+    std::unique_ptr<SNode, void (*)(SNode*)> decoded(
+        pDecoded, nodesDestroyNode);
+    ASSERT_EQ(nodeType(decoded.get()), type);
+    ASSERT_NE(nullptr, interpRequireMainMembershipRef(decoded.get()));
+    EXPECT_FALSE(*interpRequireMainMembershipRef(decoded.get()));
+  }
+}
+
+static bool* partitionPhasedModeRef(SNode* pNode) {
+  switch (nodeType(pNode)) {
+    case QUERY_NODE_LOGIC_PLAN_PARTITION:
+      return &((SPartitionLogicNode*)pNode)->phasedMode;
+    case QUERY_NODE_PHYSICAL_PLAN_PARTITION:
+      return &((SPartitionPhysiNode*)pNode)->phasedMode;
+    default:
+      return nullptr;
+  }
+}
+
+static void checkPartitionPhasedModeRoundTrips(ENodeType type,
+                                               bool checkMsg) {
+  checkNodeFieldRoundTrips(type, checkMsg, true, partitionPhasedModeRef);
+}
+
+TEST(NodesPartitionPhasedModeTest, cloneAndSerializationRoundTrips) {
+  checkPartitionPhasedModeRoundTrips(QUERY_NODE_LOGIC_PLAN_PARTITION, false);
+  checkPartitionPhasedModeRoundTrips(QUERY_NODE_PHYSICAL_PLAN_PARTITION,
+                                     true);
+}
+
+static bool* partitionExtWinGroupBatchRef(SNode* pNode) {
+  switch (nodeType(pNode)) {
+    case QUERY_NODE_LOGIC_PLAN_PARTITION:
+      return &((SPartitionLogicNode*)pNode)->extWinGroupBatch;
+    case QUERY_NODE_PHYSICAL_PLAN_PARTITION:
+      return &((SPartitionPhysiNode*)pNode)->extWinGroupBatch;
+    default:
+      return nullptr;
+  }
+}
+
+TEST(NodesPartitionExtWinGroupBatchTest, cloneAndSerializationRoundTrips) {
+  checkNodeFieldRoundTrips(QUERY_NODE_LOGIC_PLAN_PARTITION, false, true,
+                           partitionExtWinGroupBatchRef);
+  checkNodeFieldRoundTrips(QUERY_NODE_PHYSICAL_PLAN_PARTITION, true, true,
+                           partitionExtWinGroupBatchRef);
+  checkNodeFieldRoundTrips(QUERY_NODE_PHYSICAL_PLAN_PARTITION, true, false,
+                           partitionExtWinGroupBatchRef);
+}
+
+TEST(NodesPartitionExtWinGroupBatchTest, missingJsonFieldDefaultsToFalse) {
+  for (ENodeType type : {QUERY_NODE_LOGIC_PLAN_PARTITION,
+                         QUERY_NODE_PHYSICAL_PLAN_PARTITION}) {
+    SNode* pNode = nullptr;
+    ASSERT_EQ(nodesMakeNode(type, &pNode), TSDB_CODE_SUCCESS);
+    std::unique_ptr<SNode, void (*)(SNode*)> src(pNode, nodesDestroyNode);
+    ASSERT_NE(nullptr, partitionExtWinGroupBatchRef(src.get()));
+    *partitionExtWinGroupBatchRef(src.get()) = true;
+
+    char* pStr = nullptr;
+    int32_t len = 0;
+    ASSERT_EQ(nodesNodeToString(src.get(), false, &pStr, &len),
+              TSDB_CODE_SUCCESS);
+    std::string json(pStr);
+    taosMemoryFreeClear(pStr);
+    eraseJsonField(&json, "ExtWinGroupBatch");
+
+    SNode* pDecoded = nullptr;
+    ASSERT_EQ(nodesStringToNode(json.c_str(), &pDecoded),
+              TSDB_CODE_SUCCESS);
+    std::unique_ptr<SNode, void (*)(SNode*)> decoded(pDecoded,
+                                                    nodesDestroyNode);
+    ASSERT_EQ(nodeType(decoded.get()), type);
+    ASSERT_NE(nullptr, partitionExtWinGroupBatchRef(decoded.get()));
+    EXPECT_FALSE(*partitionExtWinGroupBatchRef(decoded.get()));
+  }
+}
+
+// checkNodeFieldRoundTrips is unusable here: QUERY_NODE_PHYSICAL_PLAN_MERGE
+// has no clone case in nodesCloneFuncs.c, and the logic node's JSON codec
+// carries neither field. Clone is checked on the logic node, JSON and msg
+// on the physical node.
+TEST(NodesMergeOuterGroupPhaseModeTest,
+     cloneAndSerializationRoundTrips) {
+  SNode* pLogicNode = nullptr;
+  ASSERT_EQ(TSDB_CODE_SUCCESS,
+            nodesMakeNode(QUERY_NODE_LOGIC_PLAN_MERGE, &pLogicNode));
+  std::unique_ptr<SNode, void (*)(SNode*)> logicNode(
+      pLogicNode, nodesDestroyNode);
+  SMergeLogicNode* pLogic = (SMergeLogicNode*)logicNode.get();
+  pLogic->inputWithGroupId = true;
+  pLogic->outerGroupPhaseMode = true;
+
+  SNode* pLogicClone = nullptr;
+  ASSERT_EQ(TSDB_CODE_SUCCESS,
+            nodesCloneNode(logicNode.get(), &pLogicClone));
+  std::unique_ptr<SNode, void (*)(SNode*)> logicClone(
+      pLogicClone, nodesDestroyNode);
+  ASSERT_EQ(QUERY_NODE_LOGIC_PLAN_MERGE, nodeType(logicClone.get()));
+  SMergeLogicNode* pClonedLogic =
+      (SMergeLogicNode*)logicClone.get();
+  EXPECT_TRUE(pClonedLogic->inputWithGroupId);
+  EXPECT_TRUE(pClonedLogic->outerGroupPhaseMode);
+
+  SNode* pPhysiNode = nullptr;
+  ASSERT_EQ(TSDB_CODE_SUCCESS,
+            nodesMakeNode(QUERY_NODE_PHYSICAL_PLAN_MERGE, &pPhysiNode));
+  std::unique_ptr<SNode, void (*)(SNode*)> physiNode(
+      pPhysiNode, nodesDestroyNode);
+  SMergePhysiNode* pPhysi = (SMergePhysiNode*)physiNode.get();
+  pPhysi->inputWithGroupId = true;
+  pPhysi->outerGroupPhaseMode = true;
+
+  char* pEncoded = nullptr;
+  int32_t len = 0;
+  ASSERT_EQ(TSDB_CODE_SUCCESS,
+            nodesNodeToString(physiNode.get(), false, &pEncoded, &len));
+  SNode* pJsonNode = nullptr;
+  ASSERT_EQ(TSDB_CODE_SUCCESS,
+            nodesStringToNode(pEncoded, &pJsonNode));
+  taosMemoryFreeClear(pEncoded);
+  std::unique_ptr<SNode, void (*)(SNode*)> jsonNode(
+      pJsonNode, nodesDestroyNode);
+  ASSERT_EQ(QUERY_NODE_PHYSICAL_PLAN_MERGE, nodeType(jsonNode.get()));
+  SMergePhysiNode* pJsonMerge =
+      (SMergePhysiNode*)jsonNode.get();
+  EXPECT_TRUE(pJsonMerge->inputWithGroupId);
+  EXPECT_TRUE(pJsonMerge->outerGroupPhaseMode);
+
+  ASSERT_EQ(TSDB_CODE_SUCCESS,
+            nodesNodeToMsg(physiNode.get(), &pEncoded, &len));
+  SNode* pMsgNode = nullptr;
+  ASSERT_EQ(TSDB_CODE_SUCCESS,
+            nodesMsgToNode(pEncoded, len, &pMsgNode));
+  taosMemoryFreeClear(pEncoded);
+  std::unique_ptr<SNode, void (*)(SNode*)> msgNode(
+      pMsgNode, nodesDestroyNode);
+  ASSERT_EQ(QUERY_NODE_PHYSICAL_PLAN_MERGE, nodeType(msgNode.get()));
+  SMergePhysiNode* pMsgMerge = (SMergePhysiNode*)msgNode.get();
+  EXPECT_TRUE(pMsgMerge->inputWithGroupId);
+  EXPECT_TRUE(pMsgMerge->outerGroupPhaseMode);
+}
 
 TEST_F(NodesCloneTest, tempTable) {
   registerCheckFunc([](const SNode* pSrc, const SNode* pDst) {
@@ -90,7 +1096,8 @@ TEST_F(NodesCloneTest, stateWindow) {
     SStateWindowNode* pSrcNode = (SStateWindowNode*)pSrc;
     SStateWindowNode* pDstNode = (SStateWindowNode*)pDst;
     ASSERT_EQ(nodeType(pSrcNode->pCol), nodeType(pDstNode->pCol));
-    ASSERT_EQ(nodeType(pSrcNode->pExpr), nodeType(pDstNode->pExpr));
+    ASSERT_EQ(LIST_LENGTH(pSrcNode->pExprList), LIST_LENGTH(pDstNode->pExprList));
+    ASSERT_EQ(nodeType(nodesListGetNode(pSrcNode->pExprList, 0)), nodeType(nodesListGetNode(pDstNode->pExprList, 0)));
     ASSERT_EQ(nodeType(pSrcNode->pTrueForLimit), nodeType(pDstNode->pTrueForLimit));
   });
 
@@ -102,10 +1109,116 @@ TEST_F(NodesCloneTest, stateWindow) {
     srcNode.reset(pNew);
     SStateWindowNode* pNode = (SStateWindowNode*)srcNode.get();
     code = nodesMakeNode(QUERY_NODE_COLUMN, &pNode->pCol);
-    code = nodesMakeNode(QUERY_NODE_OPERATOR, &pNode->pExpr);
+    SNode* pExpr = NULL;
+    code = nodesMakeNode(QUERY_NODE_OPERATOR, &pExpr);
+    code = nodesListMakeAppend(&pNode->pExprList, pExpr);
     code = nodesMakeNode(QUERY_NODE_VALUE, &pNode->pTrueForLimit);
     return srcNode.get();
   }());
+}
+
+TEST_F(NodesCloneTest, eventStartLeaf) {
+  registerCheckFunc([](const SNode* pSrc, const SNode* pDst) {
+    ASSERT_EQ(nodeType(pSrc), QUERY_NODE_EVENT_START_LEAF);
+    ASSERT_EQ(nodeType(pDst), QUERY_NODE_EVENT_START_LEAF);
+    const SEventStartLeafNode* pSrcLeaf = (const SEventStartLeafNode*)pSrc;
+    const SEventStartLeafNode* pDstLeaf = (const SEventStartLeafNode*)pDst;
+    ASSERT_NE(pDstLeaf->pCond, nullptr);
+    ASSERT_NE(pDstLeaf->pTrueFor, nullptr);
+    EXPECT_NE(pDstLeaf->pCond, pSrcLeaf->pCond);
+    EXPECT_NE(pDstLeaf->pTrueFor, pSrcLeaf->pTrueFor);
+    EXPECT_EQ(nodeType(pDstLeaf->pCond), nodeType(pSrcLeaf->pCond));
+    EXPECT_EQ(nodeType(pDstLeaf->pTrueFor), nodeType(pSrcLeaf->pTrueFor));
+    EXPECT_EQ(((const STrueForNode*)pDstLeaf->pTrueFor)->count, 3);
+  });
+
+  std::unique_ptr<SNode, void (*)(SNode*)> srcNode(nullptr, nodesDestroyNode);
+
+  run([&]() {
+    SNode*  pNew = nullptr;
+    int32_t code = nodesMakeNode(QUERY_NODE_EVENT_START_LEAF, &pNew);
+    EXPECT_EQ(code, TSDB_CODE_SUCCESS);
+    srcNode.reset(pNew);
+    SEventStartLeafNode* pLeaf = (SEventStartLeafNode*)srcNode.get();
+    code = nodesMakeNode(QUERY_NODE_OPERATOR, &pLeaf->pCond);
+    EXPECT_EQ(code, TSDB_CODE_SUCCESS);
+    code = nodesMakeNode(QUERY_NODE_TRUE_FOR, &pLeaf->pTrueFor);
+    EXPECT_EQ(code, TSDB_CODE_SUCCESS);
+    ((STrueForNode*)pLeaf->pTrueFor)->trueForType = TRUE_FOR_COUNT_ONLY;
+    ((STrueForNode*)pLeaf->pTrueFor)->count = 3;
+    return srcNode.get();
+  }());
+}
+
+TEST_F(NodesCloneTest, eventStartLeafJsonRoundTripWithTrueFor) {
+  std::unique_ptr<SNode, void (*)(SNode*)> srcNode(nullptr, nodesDestroyNode);
+  std::unique_ptr<SNode, void (*)(SNode*)> dstNode(nullptr, nodesDestroyNode);
+
+  SNode*  pNew = nullptr;
+  int32_t code = nodesMakeNode(QUERY_NODE_EVENT_START_LEAF, &pNew);
+  ASSERT_EQ(code, TSDB_CODE_SUCCESS);
+  srcNode.reset(pNew);
+  SEventStartLeafNode* pLeaf = (SEventStartLeafNode*)srcNode.get();
+  code = nodesMakeNode(QUERY_NODE_OPERATOR, &pLeaf->pCond);
+  ASSERT_EQ(code, TSDB_CODE_SUCCESS);
+  code = nodesMakeNode(QUERY_NODE_TRUE_FOR, &pLeaf->pTrueFor);
+  ASSERT_EQ(code, TSDB_CODE_SUCCESS);
+  ((STrueForNode*)pLeaf->pTrueFor)->trueForType = TRUE_FOR_COUNT_ONLY;
+  ((STrueForNode*)pLeaf->pTrueFor)->count = 3;
+
+  char*   pStr = nullptr;
+  int32_t len = 0;
+  code = nodesNodeToString(srcNode.get(), false, &pStr, &len);
+  ASSERT_EQ(code, TSDB_CODE_SUCCESS);
+  ASSERT_NE(pStr, nullptr);
+  ASSERT_GT(len, 0);
+
+  SNode* pRoundTrip = nullptr;
+  code = nodesStringToNode(pStr, &pRoundTrip);
+  taosMemoryFreeClear(pStr);
+  ASSERT_EQ(code, TSDB_CODE_SUCCESS);
+  dstNode.reset(pRoundTrip);
+
+  ASSERT_EQ(nodeType(dstNode.get()), QUERY_NODE_EVENT_START_LEAF);
+  const SEventStartLeafNode* pDstLeaf = (const SEventStartLeafNode*)dstNode.get();
+  ASSERT_NE(pDstLeaf->pCond, nullptr);
+  ASSERT_NE(pDstLeaf->pTrueFor, nullptr);
+  EXPECT_EQ(nodeType(pDstLeaf->pCond), QUERY_NODE_OPERATOR);
+  EXPECT_EQ(nodeType(pDstLeaf->pTrueFor), QUERY_NODE_TRUE_FOR);
+  EXPECT_EQ(((const STrueForNode*)pDstLeaf->pTrueFor)->trueForType, TRUE_FOR_COUNT_ONLY);
+  EXPECT_EQ(((const STrueForNode*)pDstLeaf->pTrueFor)->count, 3);
+}
+
+TEST_F(NodesCloneTest, eventStartLeafJsonRoundTripWithoutTrueFor) {
+  std::unique_ptr<SNode, void (*)(SNode*)> srcNode(nullptr, nodesDestroyNode);
+  std::unique_ptr<SNode, void (*)(SNode*)> dstNode(nullptr, nodesDestroyNode);
+
+  SNode*  pNew = nullptr;
+  int32_t code = nodesMakeNode(QUERY_NODE_EVENT_START_LEAF, &pNew);
+  ASSERT_EQ(code, TSDB_CODE_SUCCESS);
+  srcNode.reset(pNew);
+  SEventStartLeafNode* pLeaf = (SEventStartLeafNode*)srcNode.get();
+  code = nodesMakeNode(QUERY_NODE_OPERATOR, &pLeaf->pCond);
+  ASSERT_EQ(code, TSDB_CODE_SUCCESS);
+
+  char*   pStr = nullptr;
+  int32_t len = 0;
+  code = nodesNodeToString(srcNode.get(), false, &pStr, &len);
+  ASSERT_EQ(code, TSDB_CODE_SUCCESS);
+  ASSERT_NE(pStr, nullptr);
+  ASSERT_GT(len, 0);
+
+  SNode* pRoundTrip = nullptr;
+  code = nodesStringToNode(pStr, &pRoundTrip);
+  taosMemoryFreeClear(pStr);
+  ASSERT_EQ(code, TSDB_CODE_SUCCESS);
+  dstNode.reset(pRoundTrip);
+
+  ASSERT_EQ(nodeType(dstNode.get()), QUERY_NODE_EVENT_START_LEAF);
+  const SEventStartLeafNode* pDstLeaf = (const SEventStartLeafNode*)dstNode.get();
+  ASSERT_NE(pDstLeaf->pCond, nullptr);
+  EXPECT_EQ(pDstLeaf->pTrueFor, nullptr);
+  EXPECT_EQ(nodeType(pDstLeaf->pCond), QUERY_NODE_OPERATOR);
 }
 
 TEST_F(NodesCloneTest, sessionWindow) {
@@ -196,6 +1309,116 @@ TEST_F(NodesCloneTest, fill) {
   }());
 }
 
+TEST_F(NodesCloneTest, lastRowScanPhysiNode) {
+  registerCheckFunc([](const SNode* pSrc, const SNode* pDst) {
+    ASSERT_EQ(nodeType(pSrc), nodeType(pDst));
+    const SLastRowScanPhysiNode* pSrcNode = (const SLastRowScanPhysiNode*)pSrc;
+    const SLastRowScanPhysiNode* pDstNode = (const SLastRowScanPhysiNode*)pDst;
+    ASSERT_TRUE(pDstNode->batchMultiTableRead);
+    ASSERT_NE(pDstNode->pFuncTypes, nullptr);
+    ASSERT_NE(pSrcNode->pFuncTypes, pDstNode->pFuncTypes);
+    ASSERT_EQ(1, taosArrayGetSize(pDstNode->pFuncTypes));
+    ASSERT_EQ(kLastRowScanTestFuncType, *(int32_t*)taosArrayGet(pDstNode->pFuncTypes, 0));
+  });
+
+  std::unique_ptr<SNode, void (*)(SNode*)> srcNode(nullptr, nodesDestroyNode);
+  SNode* pNew = NULL;
+  ASSERT_EQ(TSDB_CODE_SUCCESS, nodesMakeNode(QUERY_NODE_PHYSICAL_PLAN_LAST_ROW_SCAN, &pNew));
+  srcNode.reset(pNew);
+
+  SLastRowScanPhysiNode* pNode = (SLastRowScanPhysiNode*)srcNode.get();
+  pNode->batchMultiTableRead = true;
+  pNode->pFuncTypes = taosArrayInit(1, sizeof(int32_t));
+  ASSERT_NE(pNode->pFuncTypes, nullptr);
+  const int32_t funcType = kLastRowScanTestFuncType;
+  ASSERT_NE(taosArrayPush(pNode->pFuncTypes, &funcType), nullptr);
+
+  run(srcNode.get());
+}
+
+// The view expansion path clones an untranslated SELECT statement, so the
+// clone must carry every field the parser has already filled in. RANGE /
+// EVERY / FILL are set while building the AST, dropping them makes an INTERP
+// view fail with "Missing RANGE clause, EVERY clause or FILL clause".
+TEST_F(NodesCloneTest, selectStmtKeepsInterpClauses) {
+  registerCheckFunc([](const SNode* pSrc, const SNode* pDst) {
+    ASSERT_EQ(nodeType(pSrc), nodeType(pDst));
+    SSelectStmt* pSrcNode = (SSelectStmt*)pSrc;
+    SSelectStmt* pDstNode = (SSelectStmt*)pDst;
+    // Non-fatal assertions: every clause has to report on its own, a fatal
+    // one would hide the clauses checked after the first missing field.
+    EXPECT_NE(pDstNode->pRange, nullptr);
+    EXPECT_NE(pDstNode->pRangeAround, nullptr);
+    EXPECT_NE(pDstNode->pEvery, nullptr);
+    EXPECT_NE(pDstNode->pFill, nullptr);
+    if (NULL != pDstNode->pRange) {
+      EXPECT_EQ(nodeType(pSrcNode->pRange), nodeType(pDstNode->pRange));
+    }
+    if (NULL != pDstNode->pRangeAround) {
+      EXPECT_EQ(nodeType(pSrcNode->pRangeAround),
+                nodeType(pDstNode->pRangeAround));
+    }
+    if (NULL != pDstNode->pEvery) {
+      EXPECT_EQ(nodeType(pSrcNode->pEvery), nodeType(pDstNode->pEvery));
+    }
+    if (NULL != pDstNode->pFill) {
+      EXPECT_EQ(nodeType(pSrcNode->pFill), nodeType(pDstNode->pFill));
+    }
+  });
+
+  std::unique_ptr<SNode, void (*)(SNode*)> srcNode(nullptr, nodesDestroyNode);
+  {
+    SNode* pNew = NULL;
+    ASSERT_EQ(TSDB_CODE_SUCCESS, nodesMakeNode(QUERY_NODE_SELECT_STMT, &pNew));
+    srcNode.reset(pNew);
+    SSelectStmt* pNode = (SSelectStmt*)srcNode.get();
+    ASSERT_EQ(TSDB_CODE_SUCCESS,
+              nodesMakeNode(QUERY_NODE_OPERATOR, &pNode->pRange));
+    ASSERT_EQ(TSDB_CODE_SUCCESS,
+              nodesMakeNode(QUERY_NODE_RANGE_AROUND, &pNode->pRangeAround));
+    ASSERT_EQ(TSDB_CODE_SUCCESS,
+              nodesMakeNode(QUERY_NODE_VALUE, &pNode->pEvery));
+    ASSERT_EQ(TSDB_CODE_SUCCESS,
+              nodesMakeNode(QUERY_NODE_FILL, &pNode->pFill));
+  }
+  run(srcNode.get());
+}
+
+// The parser initializes several fields to something else than the calloc
+// default: lastProcessByRowFuncId to -1 ("no process-by-row function seen
+// yet"), timeRange to TSWINDOW_INITIALIZER. A clone leaving them at zero
+// makes lastProcessByRowFuncId point at builtin function id 0 (count),
+// which the parser then rejects as an illegal function combination.
+TEST_F(NodesCloneTest, selectStmtKeepsParseTimeDefaults) {
+  registerCheckFunc([](const SNode* pSrc, const SNode* pDst) {
+    ASSERT_EQ(nodeType(pSrc), nodeType(pDst));
+    SSelectStmt* pSrcNode = (SSelectStmt*)pSrc;
+    SSelectStmt* pDstNode = (SSelectStmt*)pDst;
+    EXPECT_EQ(pSrcNode->lastProcessByRowFuncId,
+              pDstNode->lastProcessByRowFuncId);
+    EXPECT_EQ(pSrcNode->onlyHasKeepOrderFunc, pDstNode->onlyHasKeepOrderFunc);
+    EXPECT_EQ(pSrcNode->tagScan, pDstNode->tagScan);
+    EXPECT_EQ(pSrcNode->timeRange.skey, pDstNode->timeRange.skey);
+    EXPECT_EQ(pSrcNode->timeRange.ekey, pDstNode->timeRange.ekey);
+  });
+
+  std::unique_ptr<SNode, void (*)(SNode*)> srcNode(nullptr, nodesDestroyNode);
+  {
+    SNode* pNew = NULL;
+    ASSERT_EQ(TSDB_CODE_SUCCESS, nodesMakeNode(QUERY_NODE_SELECT_STMT, &pNew));
+    srcNode.reset(pNew);
+    SSelectStmt* pNode = (SSelectStmt*)srcNode.get();
+    pNode->lastProcessByRowFuncId = -1;
+    pNode->onlyHasKeepOrderFunc = true;
+    pNode->tagScan = true;
+    // TSWINDOW_INITIALIZER is a C compound literal, which MSVC rejects in
+    // C++ (C4576), so spell the same value out here.
+    STimeWindow initRange = {INT64_MIN, INT64_MAX};
+    TAOS_SET_OBJ_ALIGNED(&pNode->timeRange, initRange);
+  }
+  run(srcNode.get());
+}
+
 TEST_F(NodesCloneTest, logicSubplan) {
   registerCheckFunc([](const SNode* pSrc, const SNode* pDst) {
     ASSERT_EQ(nodeType(pSrc), nodeType(pDst));
@@ -216,6 +1439,249 @@ TEST_F(NodesCloneTest, logicSubplan) {
     SLogicSubplan* pNode = (SLogicSubplan*)srcNode.get();
     return srcNode.get();
   }());
+}
+
+TEST(NodesDownstreamSourceTest, optionalFlagsMessageRoundTrip) {
+  std::unique_ptr<SNode, void (*)(SNode*)> source(nullptr, nodesDestroyNode);
+  SNode* pNew = NULL;
+  ASSERT_EQ(TSDB_CODE_SUCCESS, nodesMakeNode(QUERY_NODE_DOWNSTREAM_SOURCE, &pNew));
+  source.reset(pNew);
+
+  SDownstreamSourceNode* pSource = (SDownstreamSourceNode*)source.get();
+  pSource->clientId = 1;
+  pSource->taskId = 2;
+  pSource->sId = 3;
+  pSource->execId = 4;
+  pSource->localExec = true;
+  pSource->allowFollowerRead = true;
+
+  std::unique_ptr<char, void (*)(char*)> msg(nullptr, freeTestBuffer);
+  int32_t msgLen = 0;
+  char* pMsg = NULL;
+  ASSERT_EQ(TSDB_CODE_SUCCESS, nodesNodeToMsg(source.get(), &pMsg, &msgLen));
+  msg.reset(pMsg);
+
+  std::unique_ptr<SNode, void (*)(SNode*)> decoded(nullptr, nodesDestroyNode);
+  pNew = NULL;
+  ASSERT_EQ(TSDB_CODE_SUCCESS, nodesMsgToNode(msg.get(), msgLen, &pNew));
+  decoded.reset(pNew);
+  ASSERT_TRUE(((SDownstreamSourceNode*)decoded.get())->localExec);
+  ASSERT_TRUE(((SDownstreamSourceNode*)decoded.get())->allowFollowerRead);
+}
+
+TEST(NodesSubplanTest, delayFreeTaskCloneAndMessageRoundTrip) {
+  std::unique_ptr<SNode, void (*)(SNode*)> subplan(nullptr, nodesDestroyNode);
+  SNode* pNew = NULL;
+  ASSERT_EQ(TSDB_CODE_SUCCESS, nodesMakeNode(QUERY_NODE_PHYSICAL_SUBPLAN, &pNew));
+  subplan.reset(pNew);
+  SSubplan* pSubplan = (SSubplan*)subplan.get();
+  pSubplan->subplanType = SUBPLAN_TYPE_SCAN;
+  pSubplan->delayFreeTask = true;
+  pSubplan->execOnChildNode = true;
+
+  std::unique_ptr<SNode, void (*)(SNode*)> interval(nullptr, nodesDestroyNode);
+  pNew = NULL;
+  ASSERT_EQ(TSDB_CODE_SUCCESS,
+            nodesMakeNode(QUERY_NODE_PHYSICAL_PLAN_HASH_INTERVAL, &pNew));
+  interval.reset(pNew);
+  SIntervalPhysiNode* pInterval = (SIntervalPhysiNode*)interval.release();
+  pInterval->exInterval = true;
+  pSubplan->pNode = (SPhysiNode*)pInterval;
+
+  std::unique_ptr<SNode, void (*)(SNode*)> clone(nullptr, nodesDestroyNode);
+  pNew = NULL;
+  ASSERT_EQ(TSDB_CODE_SUCCESS, nodesCloneNode((SNode*)pSubplan, &pNew));
+  clone.reset(pNew);
+  ASSERT_NE(clone, nullptr);
+  ASSERT_TRUE(((SSubplan*)clone.get())->delayFreeTask);
+  ASSERT_TRUE(((SSubplan*)clone.get())->execOnChildNode);
+  ASSERT_TRUE(((SIntervalPhysiNode*)((SSubplan*)clone.get())->pNode)->exInterval);
+
+  std::unique_ptr<char, void (*)(char*)> json(nullptr, freeTestBuffer);
+  int32_t jsonLen = 0;
+  char* pJson = NULL;
+  ASSERT_EQ(TSDB_CODE_SUCCESS, nodesNodeToString((SNode*)pSubplan, false, &pJson, &jsonLen));
+  json.reset(pJson);
+  ASSERT_NE(json, nullptr);
+  ASSERT_NE(std::string(json.get()).find("\"DelayFreeTask\":true"), std::string::npos);
+  ASSERT_NE(std::string(json.get()).find("\"ExecOnChildNode\":true"), std::string::npos);
+  std::unique_ptr<SNode, void (*)(SNode*)> jsonNode(nullptr, nodesDestroyNode);
+  pNew = NULL;
+  ASSERT_EQ(TSDB_CODE_SUCCESS, nodesStringToNode(json.get(), &pNew));
+  jsonNode.reset(pNew);
+  ASSERT_TRUE(((SSubplan*)jsonNode.get())->delayFreeTask);
+  ASSERT_TRUE(((SSubplan*)jsonNode.get())->execOnChildNode);
+
+  std::string legacyJson(json.get());
+  size_t delayPos = legacyJson.find("\"DelayFreeTask\":true,");
+  ASSERT_NE(delayPos, std::string::npos);
+  legacyJson.erase(delayPos, strlen("\"DelayFreeTask\":true,"));
+  jsonNode.reset();
+  pNew = NULL;
+  ASSERT_EQ(TSDB_CODE_SUCCESS, nodesStringToNode(legacyJson.c_str(), &pNew));
+  jsonNode.reset(pNew);
+  ASSERT_FALSE(((SSubplan*)jsonNode.get())->delayFreeTask);
+
+  std::unique_ptr<char, void (*)(char*)> msg(nullptr, freeTestBuffer);
+  int32_t msgLen = 0;
+  char* pMsg = NULL;
+  ASSERT_EQ(TSDB_CODE_SUCCESS, nodesNodeToMsg((SNode*)pSubplan, &pMsg, &msgLen));
+  msg.reset(pMsg);
+  ASSERT_NE(msg, nullptr);
+  std::unique_ptr<SNode, void (*)(SNode*)> msgNode(nullptr, nodesDestroyNode);
+  pNew = NULL;
+  ASSERT_EQ(TSDB_CODE_SUCCESS, nodesMsgToNode(msg.get(), msgLen, &pNew));
+  msgNode.reset(pNew);
+  ASSERT_TRUE(((SSubplan*)msgNode.get())->delayFreeTask);
+  ASSERT_TRUE(((SSubplan*)msgNode.get())->execOnChildNode);
+  ASSERT_FALSE(((SSubplan*)msgNode.get())->inheritedMultiGroupJoin);
+}
+
+TEST(NodesSubplanTest, subplanFlagsMessageRoundTrip) {
+  std::unique_ptr<SNode, void (*)(SNode*)> subplan(nullptr, nodesDestroyNode);
+  SNode* pNew = NULL;
+  ASSERT_EQ(TSDB_CODE_SUCCESS, nodesMakeNode(QUERY_NODE_PHYSICAL_SUBPLAN, &pNew));
+  subplan.reset(pNew);
+  SSubplan* pSubplan = (SSubplan*)subplan.get();
+  pSubplan->delayFreeTask = true;
+  pSubplan->inheritedMultiGroupJoin = true;
+
+  std::unique_ptr<char, void (*)(char*)> msg(nullptr, freeTestBuffer);
+  int32_t msgLen = 0;
+  char* pMsg = NULL;
+  ASSERT_EQ(TSDB_CODE_SUCCESS, nodesNodeToMsg((SNode*)pSubplan, &pMsg, &msgLen));
+  msg.reset(pMsg);
+  ASSERT_NE(msg, nullptr);
+
+  std::unique_ptr<SNode, void (*)(SNode*)> decoded(nullptr, nodesDestroyNode);
+  pNew = NULL;
+  ASSERT_EQ(TSDB_CODE_SUCCESS, nodesMsgToNode(msg.get(), msgLen, &pNew));
+  decoded.reset(pNew);
+  ASSERT_TRUE(((SSubplan*)decoded.get())->delayFreeTask);
+  ASSERT_TRUE(((SSubplan*)decoded.get())->inheritedMultiGroupJoin);
+}
+
+TEST(NodesSubplanTest, intervalOptimizationFlagsDefaultWhenAbsentFromJson) {
+  std::unique_ptr<SNode, void (*)(SNode*)> subplan(nullptr, nodesDestroyNode);
+  SNode* pNew = NULL;
+  ASSERT_EQ(TSDB_CODE_SUCCESS, nodesMakeNode(QUERY_NODE_PHYSICAL_SUBPLAN, &pNew));
+  subplan.reset(pNew);
+  SSubplan* pSubplan = (SSubplan*)subplan.get();
+
+  std::unique_ptr<SNode, void (*)(SNode*)> interval(nullptr, nodesDestroyNode);
+  pNew = NULL;
+  ASSERT_EQ(TSDB_CODE_SUCCESS,
+            nodesMakeNode(QUERY_NODE_PHYSICAL_PLAN_HASH_INTERVAL, &pNew));
+  interval.reset(pNew);
+  SIntervalPhysiNode* pInterval = (SIntervalPhysiNode*)interval.release();
+  pInterval->fastInterval = true;
+  pInterval->exInterval = true;
+  pSubplan->pNode = (SPhysiNode*)pInterval;
+
+  std::unique_ptr<char, void (*)(char*)> json(nullptr, freeTestBuffer);
+  char* pJson = NULL;
+  ASSERT_EQ(TSDB_CODE_SUCCESS, nodesNodeToString((SNode*)pSubplan, false, &pJson, NULL));
+  json.reset(pJson);
+  ASSERT_NE(json, nullptr);
+  std::string legacyJson(json.get());
+  eraseJsonField(&legacyJson, "FastInterval");
+  eraseJsonField(&legacyJson, "ExInterval");
+
+  std::unique_ptr<SNode, void (*)(SNode*)> decoded(nullptr, nodesDestroyNode);
+  pNew = NULL;
+  ASSERT_EQ(TSDB_CODE_SUCCESS, nodesStringToNode(legacyJson.c_str(), &pNew));
+  decoded.reset(pNew);
+  SIntervalPhysiNode* pDecodedInterval = (SIntervalPhysiNode*)((SSubplan*)decoded.get())->pNode;
+  ASSERT_FALSE(pDecodedInterval->fastInterval);
+  ASSERT_FALSE(pDecodedInterval->exInterval);
+}
+
+TEST(NodesSubplanTest, tableScanOptimizationFlagsDefaultWhenAbsentFromJson) {
+  std::unique_ptr<SNode, void (*)(SNode*)> subplan(nullptr, nodesDestroyNode);
+  SNode* pNew = NULL;
+  ASSERT_EQ(TSDB_CODE_SUCCESS, nodesMakeNode(QUERY_NODE_PHYSICAL_SUBPLAN, &pNew));
+  subplan.reset(pNew);
+  SSubplan* pSubplan = (SSubplan*)subplan.get();
+
+  std::unique_ptr<SNode, void (*)(SNode*)> scan(nullptr, nodesDestroyNode);
+  pNew = NULL;
+  ASSERT_EQ(TSDB_CODE_SUCCESS,
+            nodesMakeNode(QUERY_NODE_PHYSICAL_PLAN_TABLE_SCAN, &pNew));
+  scan.reset(pNew);
+  STableScanPhysiNode* pScan = (STableScanPhysiNode*)scan.release();
+  pScan->fastInterval = true;
+  pScan->exInterval = true;
+  pSubplan->pNode = (SPhysiNode*)pScan;
+
+  std::unique_ptr<char, void (*)(char*)> json(nullptr, freeTestBuffer);
+  char* pJson = NULL;
+  ASSERT_EQ(TSDB_CODE_SUCCESS, nodesNodeToString((SNode*)pSubplan, false, &pJson, NULL));
+  json.reset(pJson);
+  ASSERT_NE(json, nullptr);
+  std::string legacyJson(json.get());
+  eraseJsonField(&legacyJson, "FastInterval");
+  eraseJsonField(&legacyJson, "ExInterval");
+
+  std::unique_ptr<SNode, void (*)(SNode*)> decoded(nullptr, nodesDestroyNode);
+  pNew = NULL;
+  ASSERT_EQ(TSDB_CODE_SUCCESS, nodesStringToNode(legacyJson.c_str(), &pNew));
+  decoded.reset(pNew);
+  STableScanPhysiNode* pDecodedScan = (STableScanPhysiNode*)((SSubplan*)decoded.get())->pNode;
+  ASSERT_FALSE(pDecodedScan->fastInterval);
+  ASSERT_FALSE(pDecodedScan->exInterval);
+}
+
+TEST(NodesSubplanTest, eraseJsonFieldHandlesLastAndOnlyMembers) {
+  std::string middle = R"({"A":1,"Flag":false,"B":2})";
+  eraseJsonField(&middle, "Flag");
+  EXPECT_EQ(middle, R"({"A":1,"B":2})");
+
+  std::string last = R"({"O":{"X":1,"Flag":true},"After":9})";
+  eraseJsonField(&last, "Flag");
+  EXPECT_EQ(last, R"({"O":{"X":1},"After":9})");
+
+  std::string only = R"({"Flag":true})";
+  eraseJsonField(&only, "Flag");
+  EXPECT_EQ(only, R"({})");
+
+  std::string nestedOnly = R"({"O":{"Flag":true},"After":9})";
+  eraseJsonField(&nestedOnly, "Flag");
+  EXPECT_EQ(nestedOnly, R"({"O":{},"After":9})");
+}
+
+TEST(InterpNodesTest, mergeFlagSerialization) {
+  SNode* pNode = nullptr;
+  ASSERT_EQ(0, nodesMakeNode(QUERY_NODE_PHYSICAL_PLAN_INTERP_FUNC, &pNode));
+  std::unique_ptr<SNode, void (*)(SNode*)> node(pNode, nodesDestroyNode);
+  auto* pInterp = reinterpret_cast<SInterpFuncPhysiNode*>(pNode);
+
+  for (bool merge : {false, true}) {
+    pInterp->mergeDataBlock = merge;
+    char* pBuffer = nullptr;
+    int32_t length = 0;
+    ASSERT_EQ(0, nodesNodeToMsg(pNode, &pBuffer, &length));
+    std::unique_ptr<char, void (*)(char*)> message(pBuffer, freeTestBuffer);
+    SNode* pDecoded = nullptr;
+    ASSERT_EQ(0, nodesMsgToNode(message.get(), length, &pDecoded));
+    std::unique_ptr<SNode, void (*)(SNode*)> decoded(pDecoded,
+                                                     nodesDestroyNode);
+    auto* pDecodedInterp = reinterpret_cast<SInterpFuncPhysiNode*>(pDecoded);
+    EXPECT_EQ(merge, pDecodedInterp->mergeDataBlock);
+
+    ASSERT_EQ(0, nodesNodeToString(pNode, false, &pBuffer, nullptr));
+    std::unique_ptr<char, void (*)(char*)> json(pBuffer, freeTestBuffer);
+    ASSERT_EQ(0, nodesStringToNode(json.get(), &pDecoded));
+    decoded.reset(pDecoded);
+    pDecodedInterp = reinterpret_cast<SInterpFuncPhysiNode*>(pDecoded);
+    EXPECT_EQ(merge, pDecodedInterp->mergeDataBlock);
+
+    std::string legacy(json.get());
+    eraseJsonField(&legacy, "MergeDataBlock");
+    ASSERT_EQ(0, nodesStringToNode(legacy.c_str(), &pDecoded));
+    decoded.reset(pDecoded);
+    EXPECT_FALSE(
+        reinterpret_cast<SInterpFuncPhysiNode*>(pDecoded)->mergeDataBlock);
+  }
 }
 
 TEST_F(NodesCloneTest, physiScan) {
@@ -248,6 +1714,9 @@ TEST_F(NodesCloneTest, physiSystemTableScan) {
     ASSERT_EQ(pSrcNode->showRewrite, pDstNode->showRewrite);
     ASSERT_EQ(pSrcNode->accountId, pDstNode->accountId);
     ASSERT_EQ(pSrcNode->sysInfo, pDstNode->sysInfo);
+    // The client charset name must survive clone (plain char[] field copied by
+    // physiSysTableScanCopy); without it a cloned/pushed-down plan loses it.
+    ASSERT_STREQ(pSrcNode->charsetName, pDstNode->charsetName);
   });
 
   std::unique_ptr<SNode, void (*)(SNode*)> srcNode(nullptr, nodesDestroyNode);
@@ -257,8 +1726,214 @@ TEST_F(NodesCloneTest, physiSystemTableScan) {
       int32_t code = nodesMakeNode(QUERY_NODE_PHYSICAL_PLAN_SYSTABLE_SCAN, &pNew);
     srcNode.reset(pNew);
     SSystemTableScanPhysiNode* pNode = (SSystemTableScanPhysiNode*)srcNode.get();
+    tstrncpy(pNode->charsetName, "GBK", TD_CHARSET_LEN);
     return srcNode.get();
   }());
+}
+
+TEST(NodesCollectTest, collectColumnsAppendFailureDoesNotDoubleFree) {
+  SNode* pNode = NULL;
+  ASSERT_EQ(TSDB_CODE_SUCCESS, nodesMakeNode(QUERY_NODE_COLUMN, &pNode));
+  std::unique_ptr<SNode, void (*)(SNode*)> nodeGuard(pNode, nodesDestroyNode);
+
+  SColumnNode* pCol = (SColumnNode*)pNode;
+  pCol->colType = COLUMN_TYPE_COLUMN;
+  snprintf(pCol->tableAlias, sizeof(pCol->tableAlias), "%s", "t1");
+  snprintf(pCol->colName, sizeof(pCol->colName), "%s", "c1");
+
+  SNodeList* pCols = NULL;
+  nodesTestSetStrictAppendFailOnce();
+  int32_t code = nodesCollectColumnsFromNode(pNode, "t1", COLLECT_COL_TYPE_ALL, &pCols);
+
+  EXPECT_EQ(code, TSDB_CODE_OUT_OF_MEMORY);
+  EXPECT_EQ(pCols, nullptr);
+}
+
+static SNode* makeNamedCollectNode(ENodeType type, const char* pName, int32_t funcId = 0) {
+  SNode* pNode = nullptr;
+  if (TSDB_CODE_SUCCESS != nodesMakeNode(type, &pNode)) {
+    return nullptr;
+  }
+  if (QUERY_NODE_COLUMN == type) {
+    SColumnNode* pColumn = (SColumnNode*)pNode;
+    pColumn->colType = COLUMN_TYPE_COLUMN;
+    tstrncpy(pColumn->colName, pName, sizeof(pColumn->colName));
+  } else {
+    SFunctionNode* pFunction = (SFunctionNode*)pNode;
+    pFunction->funcId = funcId;
+    tstrncpy(pFunction->functionName, pName, sizeof(pFunction->functionName));
+  }
+  return pNode;
+}
+
+static bool collectEveryFunction(int32_t funcId) {
+  (void)funcId;
+  return true;
+}
+
+static SSelectStmt* makeCollectSelect(const char* pColumnName, const char* pFunctionName, int32_t funcId) {
+  SSelectStmt* pSelect = nullptr;
+  if (TSDB_CODE_SUCCESS != nodesMakeNode(QUERY_NODE_SELECT_STMT, (SNode**)&pSelect)) {
+    return nullptr;
+  }
+  if (TSDB_CODE_SUCCESS !=
+      nodesListMakeStrictAppend(&pSelect->pProjectionList, makeNamedCollectNode(QUERY_NODE_COLUMN, pColumnName))) {
+    nodesDestroyNode((SNode*)pSelect);
+    return nullptr;
+  }
+  if (TSDB_CODE_SUCCESS !=
+      nodesListMakeStrictAppend(&pSelect->pProjectionList,
+                                makeNamedCollectNode(QUERY_NODE_FUNCTION, pFunctionName, funcId))) {
+    nodesDestroyNode((SNode*)pSelect);
+    return nullptr;
+  }
+  return pSelect;
+}
+
+static SSelectStmt* makeOuterCollectSelect() {
+  SSelectStmt* pOuter = makeCollectSelect("outer_col", "outer_func", 1);
+  if (pOuter == nullptr) {
+    return nullptr;
+  }
+
+  STempTableNode* pTempTable = nullptr;
+  if (TSDB_CODE_SUCCESS != nodesMakeNode(QUERY_NODE_TEMP_TABLE, (SNode**)&pTempTable)) {
+    nodesDestroyNode((SNode*)pOuter);
+    return nullptr;
+  }
+  SSetOperator* pSet = nullptr;
+  if (TSDB_CODE_SUCCESS != nodesMakeNode(QUERY_NODE_SET_OPERATOR, (SNode**)&pSet)) {
+    nodesDestroyNode((SNode*)pTempTable);
+    nodesDestroyNode((SNode*)pOuter);
+    return nullptr;
+  }
+  if (TSDB_CODE_SUCCESS !=
+          nodesListMakeStrictAppend(&pSet->pProjectionList, makeNamedCollectNode(QUERY_NODE_COLUMN, "inner_set_col")) ||
+      TSDB_CODE_SUCCESS != nodesListMakeStrictAppend(&pSet->pProjectionList,
+                                                     makeNamedCollectNode(QUERY_NODE_FUNCTION, "inner_set_func", 2))) {
+    nodesDestroyNode((SNode*)pSet);
+    nodesDestroyNode((SNode*)pTempTable);
+    nodesDestroyNode((SNode*)pOuter);
+    return nullptr;
+  }
+  pTempTable->pSubquery = (SNode*)pSet;
+  pOuter->pFromTable = (SNode*)pTempTable;
+
+  SSelectStmt* pScalarSubquery = makeCollectSelect("inner_scalar_col", "inner_scalar_func", 3);
+  if (pScalarSubquery == nullptr) {
+    nodesDestroyNode((SNode*)pOuter);
+    return nullptr;
+  }
+  if (TSDB_CODE_SUCCESS != nodesListMakeStrictAppend(&pOuter->pSubQueries, (SNode*)pScalarSubquery)) {
+    nodesDestroyNode((SNode*)pOuter);
+    return nullptr;
+  }
+  return pOuter;
+}
+
+TEST(NodesCollectTest, columnsStayWithinOuterQueryBlock) {
+  std::unique_ptr<SNode, void (*)(SNode*)> selectGuard((SNode*)makeOuterCollectSelect(), nodesDestroyNode);
+  ASSERT_NE(selectGuard.get(), nullptr);
+
+  SNodeList* pColumns = nullptr;
+  ASSERT_EQ(
+      nodesCollectColumns((SSelectStmt*)selectGuard.get(), SQL_CLAUSE_FROM, nullptr, COLLECT_COL_TYPE_ALL, &pColumns),
+      TSDB_CODE_SUCCESS);
+  std::unique_ptr<SNodeList, void (*)(SNodeList*)> columnsGuard(pColumns, nodesDestroyList);
+  ASSERT_NE(pColumns, nullptr);
+  ASSERT_EQ(LIST_LENGTH(pColumns), 1);
+  EXPECT_STREQ(((SColumnNode*)nodesListGetNode(pColumns, 0))->colName, "outer_col");
+}
+
+TEST(NodesCollectTest, functionsStayWithinOuterQueryBlock) {
+  std::unique_ptr<SNode, void (*)(SNode*)> selectGuard((SNode*)makeOuterCollectSelect(), nodesDestroyNode);
+  ASSERT_NE(selectGuard.get(), nullptr);
+
+  SNodeList* pFunctions = nullptr;
+  ASSERT_EQ(
+      nodesCollectFuncs((SSelectStmt*)selectGuard.get(), SQL_CLAUSE_FROM, nullptr, collectEveryFunction, &pFunctions),
+      TSDB_CODE_SUCCESS);
+  std::unique_ptr<SNodeList, void (*)(SNodeList*)> functionsGuard(pFunctions, nodesDestroyList);
+  ASSERT_NE(pFunctions, nullptr);
+  ASSERT_EQ(LIST_LENGTH(pFunctions), 1);
+  EXPECT_STREQ(((SFunctionNode*)nodesListGetNode(pFunctions, 0))->functionName, "outer_func");
+}
+
+using CollectNodePtr = std::unique_ptr<SNode, decltype(&nodesDestroyNode)>;
+using CollectListPtr = std::unique_ptr<SNodeList, decltype(&nodesDestroyList)>;
+
+struct ColumnCollector {
+  const char* name;
+  int32_t (*collect)(SSelectStmt*, SNodeList**);
+};
+
+static const ColumnCollector kColumnCollectors[] = {
+    {"select", [](SSelectStmt* select, SNodeList** columns) {
+       return nodesCollectColumns(select, SQL_CLAUSE_FROM, nullptr,
+                                  COLLECT_COL_TYPE_ALL, columns);
+     }},
+    {"selectExt", [](SSelectStmt* select, SNodeList** columns) {
+       return nodesCollectColumnsExt(select, SQL_CLAUSE_FROM, nullptr,
+                                     COLLECT_COL_TYPE_ALL, columns);
+     }},
+    {"node", [](SSelectStmt* select, SNodeList** columns) {
+       SNode* node = nodesListGetNode(select->pProjectionList, 0);
+       return nodesCollectColumnsFromNode(node, nullptr, COLLECT_COL_TYPE_ALL,
+                                          columns);
+     }},
+    {"multiNodes", [](SSelectStmt* select, SNodeList** columns) {
+       SNode* node = nodesListGetNode(select->pProjectionList, 0);
+       return nodesCollectColumnsFromMultiNodes(&node, 1, nullptr,
+                                                COLLECT_COL_TYPE_ALL, columns);
+     }},
+};
+
+TEST(NodesCollectTest, hashInitFailureReclaimsNewColumnList) {
+  for (const auto& collector : kColumnCollectors) {
+    SCOPED_TRACE(collector.name);
+    CollectNodePtr select((SNode*)makeCollectSelect("c1", "f1", 1),
+                          nodesDestroyNode);
+    ASSERT_NE(select.get(), nullptr);
+    const int64_t allocations = nodesTestGetLiveAllocations();
+    SNodeList* columns = nullptr;
+
+    nodesTestSetCollectColumnsHashFailOnce();
+    EXPECT_EQ(TSDB_CODE_OUT_OF_MEMORY,
+              collector.collect((SSelectStmt*)select.get(), &columns));
+    EXPECT_EQ(columns, nullptr);
+    EXPECT_EQ(allocations, nodesTestGetLiveAllocations());
+
+    ASSERT_EQ(TSDB_CODE_SUCCESS,
+              collector.collect((SSelectStmt*)select.get(), &columns));
+    CollectListPtr columnList(columns, nodesDestroyList);
+    ASSERT_EQ(1, LIST_LENGTH(columns));
+    EXPECT_STREQ("c1", ((SColumnNode*)nodesListGetNode(columns, 0))->colName);
+  }
+}
+
+TEST(NodesCollectTest, hashInitFailurePreservesExistingColumnList) {
+  for (const auto& collector : kColumnCollectors) {
+    SCOPED_TRACE(collector.name);
+    CollectNodePtr select((SNode*)makeCollectSelect("c1", "f1", 1),
+                          nodesDestroyNode);
+    ASSERT_NE(select.get(), nullptr);
+    SNodeList* columns = nullptr;
+    ASSERT_EQ(TSDB_CODE_SUCCESS,
+              collector.collect((SSelectStmt*)select.get(), &columns));
+    CollectListPtr columnList(columns, nodesDestroyList);
+    ASSERT_EQ(1, LIST_LENGTH(columns));
+    SNode* column = nodesListGetNode(columns, 0);
+    const int64_t allocations = nodesTestGetLiveAllocations();
+
+    nodesTestSetCollectColumnsHashFailOnce();
+    EXPECT_EQ(TSDB_CODE_OUT_OF_MEMORY,
+              collector.collect((SSelectStmt*)select.get(), &columns));
+    ASSERT_EQ(columnList.get(), columns);
+    ASSERT_EQ(1, LIST_LENGTH(columns));
+    EXPECT_EQ(column, nodesListGetNode(columns, 0));
+    EXPECT_STREQ("c1", ((SColumnNode*)column)->colName);
+    EXPECT_EQ(allocations, nodesTestGetLiveAllocations());
+  }
 }
 
 TEST_F(NodesCloneTest, physiPartition) {
@@ -277,4 +1952,570 @@ TEST_F(NodesCloneTest, physiPartition) {
     SPartitionPhysiNode* pNode = (SPartitionPhysiNode*)srcNode.get();
     return srcNode.get();
   }());
+}
+
+TEST_F(NodesCloneTest, sqlWindowSpec) {
+  registerCheckFunc([](const SNode* pSrc, const SNode* pDst) {
+    ASSERT_EQ(nodeType(pSrc), nodeType(pDst));
+    const SWindowSpecNode* src = (const SWindowSpecNode*)pSrc;
+    const SWindowSpecNode* dst = (const SWindowSpecNode*)pDst;
+    ASSERT_EQ(LIST_LENGTH(src->pPartitionByList), LIST_LENGTH(dst->pPartitionByList));
+    ASSERT_EQ(LIST_LENGTH(src->pOrderByList), LIST_LENGTH(dst->pOrderByList));
+    ASSERT_NE(dst->pFrame, nullptr);
+    const SWindowFrameNode* srcFrame = (const SWindowFrameNode*)src->pFrame;
+    const SWindowFrameNode* dstFrame = (const SWindowFrameNode*)dst->pFrame;
+    ASSERT_EQ(srcFrame->frameUnit, dstFrame->frameUnit);
+    ASSERT_EQ(srcFrame->start.boundType, dstFrame->start.boundType);
+    ASSERT_EQ(srcFrame->end.boundType, dstFrame->end.boundType);
+  });
+
+  std::unique_ptr<SNode, void (*)(SNode*)> srcNode(nullptr, nodesDestroyNode);
+  {
+    SNode*  pNew = NULL;
+    int32_t code = nodesMakeNode(QUERY_NODE_SQL_WINDOW_SPEC, &pNew);
+    ASSERT_EQ(TSDB_CODE_SUCCESS, code);
+    srcNode.reset(pNew);
+
+    SWindowSpecNode* spec = (SWindowSpecNode*)srcNode.get();
+    SNode*           partCol = NULL;
+    ASSERT_EQ(TSDB_CODE_SUCCESS, nodesMakeNode(QUERY_NODE_COLUMN, &partCol));
+    ASSERT_EQ(TSDB_CODE_SUCCESS, nodesListMakeAppend(&spec->pPartitionByList, partCol));
+
+    SOrderByExprNode* order = NULL;
+    ASSERT_EQ(TSDB_CODE_SUCCESS, nodesMakeNode(QUERY_NODE_ORDER_BY_EXPR, (SNode**)&order));
+    ASSERT_EQ(TSDB_CODE_SUCCESS, nodesMakeNode(QUERY_NODE_COLUMN, &order->pExpr));
+    order->order = ORDER_ASC;
+    order->nullOrder = NULL_ORDER_FIRST;
+    ASSERT_EQ(TSDB_CODE_SUCCESS, nodesListMakeAppend(&spec->pOrderByList, (SNode*)order));
+
+    ASSERT_EQ(TSDB_CODE_SUCCESS, nodesMakeNode(QUERY_NODE_SQL_WINDOW_FRAME, &spec->pFrame));
+    SWindowFrameNode* frame = (SWindowFrameNode*)spec->pFrame;
+    frame->frameUnit = WINDOW_FRAME_UNIT_ROWS;
+    frame->start.boundType = WINDOW_BOUND_N_PRECEDING;
+    ASSERT_EQ(TSDB_CODE_SUCCESS, nodesMakeNode(QUERY_NODE_VALUE, &frame->start.pOffset));
+    frame->end.boundType = WINDOW_BOUND_CURRENT_ROW;
+  }
+  run(srcNode.get());
+}
+
+TEST(NodesCodeTest, auxiliaryFunctionRowCountRoundTrip) {
+  SNode* pNode = nullptr;
+  ASSERT_EQ(TSDB_CODE_SUCCESS, nodesMakeNode(QUERY_NODE_FUNCTION, &pNode));
+  std::unique_ptr<SNode, void (*)(SNode*)> source(pNode, nodesDestroyNode);
+  auto*                                    function = reinterpret_cast<SFunctionNode*>(pNode);
+  tstrncpy(function->functionName, "_group_key", TSDB_FUNC_NAME_LEN);
+
+  for (bool ignore : {false, true}) {
+    SCOPED_TRACE(ignore);
+    function->ignoreResultRowCount = ignore;
+    SNode* pCopy = nullptr;
+    ASSERT_EQ(TSDB_CODE_SUCCESS, nodesCloneNode(pNode, &pCopy));
+    std::unique_ptr<SNode, void (*)(SNode*)> copy(pCopy, nodesDestroyNode);
+    EXPECT_EQ(ignore, reinterpret_cast<SFunctionNode*>(pCopy)->ignoreResultRowCount);
+    EXPECT_TRUE(nodesEqualNode(pNode, pCopy));
+    reinterpret_cast<SFunctionNode*>(pCopy)->ignoreResultRowCount = !ignore;
+    EXPECT_FALSE(nodesEqualNode(pNode, pCopy));
+
+    char* pBuffer = nullptr;
+    ASSERT_EQ(TSDB_CODE_SUCCESS, nodesNodeToString(pNode, false, &pBuffer, nullptr));
+    std::unique_ptr<char, void (*)(char*)> json(pBuffer, freeTestBuffer);
+    SNode*                                 pDecoded = nullptr;
+    ASSERT_EQ(TSDB_CODE_SUCCESS, nodesStringToNode(json.get(), &pDecoded));
+    std::unique_ptr<SNode, void (*)(SNode*)> decoded(pDecoded, nodesDestroyNode);
+    EXPECT_EQ(ignore, reinterpret_cast<SFunctionNode*>(pDecoded)->ignoreResultRowCount);
+
+    int32_t length = 0;
+    ASSERT_EQ(TSDB_CODE_SUCCESS, nodesNodeToMsg(pNode, &pBuffer, &length));
+    std::unique_ptr<char, void (*)(char*)> message(pBuffer, freeTestBuffer);
+    ASSERT_EQ(TSDB_CODE_SUCCESS, nodesMsgToNode(message.get(), length, &pDecoded));
+    decoded.reset(pDecoded);
+    EXPECT_EQ(ignore, reinterpret_cast<SFunctionNode*>(pDecoded)->ignoreResultRowCount);
+
+    if (ignore) {
+      std::string legacy(json.get());
+      eraseJsonField(&legacy, "IgnoreResultRowCount");
+      ASSERT_EQ(TSDB_CODE_SUCCESS, nodesStringToNode(legacy.c_str(), &pDecoded));
+      decoded.reset(pDecoded);
+      EXPECT_FALSE(reinterpret_cast<SFunctionNode*>(pDecoded)->ignoreResultRowCount);
+    }
+  }
+}
+
+TEST_F(NodesCloneTest, functionWithOverSpec) {
+  registerCheckFunc([](const SNode* pSrc, const SNode* pDst) {
+    ASSERT_EQ(nodeType(pSrc), nodeType(pDst));
+    const SFunctionNode* src = (const SFunctionNode*)pSrc;
+    const SFunctionNode* dst = (const SFunctionNode*)pDst;
+    ASSERT_NE(src->pOver, nullptr);
+    ASSERT_NE(dst->pOver, nullptr);
+    ASSERT_EQ(nodeType(src->pOver), nodeType(dst->pOver));
+  });
+
+  std::unique_ptr<SNode, void (*)(SNode*)> srcNode(nullptr, nodesDestroyNode);
+  {
+    SNode* pNew = NULL;
+    ASSERT_EQ(TSDB_CODE_SUCCESS, nodesMakeNode(QUERY_NODE_FUNCTION, &pNew));
+    srcNode.reset(pNew);
+    SFunctionNode* func = (SFunctionNode*)srcNode.get();
+    tstrncpy(func->functionName, "avg", TSDB_FUNC_NAME_LEN);
+    ASSERT_EQ(TSDB_CODE_SUCCESS, nodesMakeNode(QUERY_NODE_SQL_WINDOW_SPEC, &func->pOver));
+  }
+  run(srcNode.get());
+}
+
+// ---- per-node charset propagation (feat/charset) ----
+//
+// value/operator/function/case-when nodes carry a charsetCxt stamped at parse
+// time; it drives NCHAR<->MBS conversion for the querying client. It is a bare
+// void* into the process-wide conv registry, propagated as a scalar on clone
+// and serialized by charset NAME in both codecs (rebuilt via taosConvInit on
+// decode). If any path drops it, a remote vnode silently falls back to the
+// server charset and a non-UTF-8 client gets wrong results. These tests pin
+// clone + the JSON and TLV round-trips for all four bearer types.
+
+namespace {
+
+// The four expression node types that carry charsetCxt.
+const ENodeType kCharsetBearingTypes[] = {
+    QUERY_NODE_VALUE,
+    QUERY_NODE_OPERATOR,
+    QUERY_NODE_FUNCTION,
+    QUERY_NODE_CASE_WHEN,
+};
+
+SNode* makeCharsetStampedNode(ENodeType type, void* charsetCxt) {
+  SNode*  pNode = nullptr;
+  int32_t code = nodesMakeNode(type, &pNode);
+  EXPECT_EQ(code, TSDB_CODE_SUCCESS);
+  EXPECT_NE(pNode, nullptr);
+  if (pNode == nullptr) return nullptr;
+  switch (type) {
+    case QUERY_NODE_VALUE: {
+      SValueNode* value = (SValueNode*)pNode;
+      value->charsetCxt = charsetCxt;
+      value->translate = true;
+      value->node.resType.type = TSDB_DATA_TYPE_VARCHAR;
+      value->node.resType.bytes = VARSTR_HEADER_SIZE + 4;
+      // The JSON codec reads the datum as a C string; the terminator is not part of resType.bytes.
+      value->datum.p = (char*)taosMemoryCalloc(1, value->node.resType.bytes + 1);
+      EXPECT_NE(value->datum.p, nullptr);
+      if (value->datum.p == nullptr) return pNode;
+      varDataSetLen(value->datum.p, 4);
+      memcpy(varDataVal(value->datum.p), "\xd6\xd0\xce\xc4", 4);
+      value->literal = taosStrdup("\xd6\xd0\xce\xc4");
+      EXPECT_NE(value->literal, nullptr);
+      break;
+    }
+    case QUERY_NODE_OPERATOR:
+      ((SOperatorNode*)pNode)->charsetCxt = charsetCxt;
+      break;
+    case QUERY_NODE_FUNCTION:
+      ((SFunctionNode*)pNode)->charsetCxt = charsetCxt;
+      break;
+    case QUERY_NODE_CASE_WHEN:
+      ((SCaseWhenNode*)pNode)->charsetCxt = charsetCxt;
+      break;
+    default:
+      break;
+  }
+  return pNode;
+}
+
+void checkRawGbkValuePreserved(const SNode* pNode) {
+  const SValueNode* value = (const SValueNode*)pNode;
+  ASSERT_EQ(value->node.resType.type, TSDB_DATA_TYPE_VARCHAR);
+  ASSERT_NE(value->datum.p, nullptr);
+  EXPECT_EQ(varDataLen(value->datum.p), 4);
+  EXPECT_EQ(memcmp(varDataVal(value->datum.p), "\xd6\xd0\xce\xc4", 4), 0);
+  ASSERT_NE(value->literal, nullptr);
+  EXPECT_EQ(memcmp(value->literal, "\xd6\xd0\xce\xc4", 4), 0);
+}
+
+const void* getExprCharsetCxt(const SNode* pNode) {
+  switch (nodeType(pNode)) {
+    case QUERY_NODE_VALUE:
+      return ((const SValueNode*)pNode)->charsetCxt;
+    case QUERY_NODE_OPERATOR:
+      return ((const SOperatorNode*)pNode)->charsetCxt;
+    case QUERY_NODE_FUNCTION:
+      return ((const SFunctionNode*)pNode)->charsetCxt;
+    case QUERY_NODE_CASE_WHEN:
+      return ((const SCaseWhenNode*)pNode)->charsetCxt;
+    default:
+      return nullptr;
+  }
+}
+
+#pragma pack(push, 1)
+struct TestTlvHeader {
+  int16_t type;
+  int32_t len;
+};
+#pragma pack(pop)
+
+}  // namespace
+
+TEST(NodesCharsetTest, cloneCarriesCharsetCxt) {
+  void* gbk = taosConvInit("GBK");
+  ASSERT_NE(gbk, nullptr);
+
+  for (ENodeType type : kCharsetBearingTypes) {
+    std::unique_ptr<SNode, void (*)(SNode*)> src(
+        makeCharsetStampedNode(type, gbk), nodesDestroyNode);
+    ASSERT_NE(src.get(), nullptr);
+    ASSERT_EQ(getExprCharsetCxt(src.get()), gbk);
+
+    SNode*  pClone = nullptr;
+    int32_t code = nodesCloneNode(src.get(), &pClone);
+    ASSERT_EQ(code, TSDB_CODE_SUCCESS);
+    std::unique_ptr<SNode, void (*)(SNode*)> dst(pClone, nodesDestroyNode);
+
+    // The fix copies charsetCxt as a scalar field; without it the clone keeps
+    // the zero-initialized NULL and loses the connection charset.
+    EXPECT_EQ(getExprCharsetCxt(dst.get()), gbk)
+        << "charsetCxt not cloned for node type " << type;
+    if (type == QUERY_NODE_VALUE) checkRawGbkValuePreserved(dst.get());
+  }
+}
+
+class NodesCharsetCodecTest : public testing::Test {
+ protected:
+  void SetUp() override {
+    // A dropped charset decodes to NULL, whose effective name is tsCharset;
+    // decode also collapses a stamped name equal to tsCharset back to NULL.
+    // Pin tsCharset to something other than the stamped charset so a codec
+    // regression is observable (NULL -> "UTF-8" != "GBK").
+    tstrncpy(savedCharset_, tsCharset, sizeof(savedCharset_));
+    tstrncpy(tsCharset, "UTF-8", TD_CHARSET_LEN);
+  }
+  void TearDown() override {
+    tstrncpy(tsCharset, savedCharset_, TD_CHARSET_LEN);
+  }
+
+  static void checkCharsetPreserved(const SNode* pOut) {
+    const void* outCxt = getExprCharsetCxt(pOut);
+    ASSERT_NE(outCxt, nullptr);
+    EXPECT_STREQ(((const SConvInfo*)outCxt)->charset, "GBK");
+  }
+
+  char savedCharset_[TD_CHARSET_LEN] = {0};
+};
+
+TEST_F(NodesCharsetCodecTest, jsonRoundTripPreservesCharset) {
+  void* gbk = taosConvInit("GBK");
+  ASSERT_NE(gbk, nullptr);
+  ASSERT_STREQ(((const SConvInfo*)gbk)->charset, "GBK");
+
+  for (ENodeType type : kCharsetBearingTypes) {
+    std::unique_ptr<SNode, void (*)(SNode*)> src(
+        makeCharsetStampedNode(type, gbk), nodesDestroyNode);
+    ASSERT_NE(src.get(), nullptr);
+
+    char*   pStr = nullptr;
+    int32_t len = 0;
+    ASSERT_EQ(nodesNodeToString(src.get(), false, &pStr, &len),
+              TSDB_CODE_SUCCESS);
+    ASSERT_NE(pStr, nullptr);
+
+    SNode*  pOut = nullptr;
+    int32_t code = nodesStringToNode(pStr, &pOut);
+    taosMemoryFreeClear(pStr);
+    ASSERT_EQ(code, TSDB_CODE_SUCCESS);
+    std::unique_ptr<SNode, void (*)(SNode*)> out(pOut, nodesDestroyNode);
+
+    SCOPED_TRACE("json node type " + std::to_string((int)type));
+    checkCharsetPreserved(out.get());
+    if (type == QUERY_NODE_VALUE) checkRawGbkValuePreserved(out.get());
+  }
+}
+
+TEST_F(NodesCharsetCodecTest, jsonRejectsOverlongCharsetNameWithMessageLengthError) {
+  void* gbk = taosConvInit("GBK");
+  ASSERT_NE(gbk, nullptr);
+  std::unique_ptr<SNode, void (*)(SNode*)> src(
+      makeCharsetStampedNode(QUERY_NODE_VALUE, gbk), nodesDestroyNode);
+
+  char*   pStr = nullptr;
+  int32_t len = 0;
+  ASSERT_EQ(nodesNodeToString(src.get(), false, &pStr, &len),
+            TSDB_CODE_SUCCESS);
+  ASSERT_NE(pStr, nullptr);
+  std::string json(pStr);
+  taosMemoryFreeClear(pStr);
+
+  const std::string original = "\"CharsetName\":\"GBK\"";
+  size_t            pos = json.find(original);
+  ASSERT_NE(pos, std::string::npos);
+  json.replace(pos, original.size(),
+               "\"CharsetName\":\"" + std::string(TD_CHARSET_LEN, 'A') + "\"");
+
+  SNode* pOut = nullptr;
+  EXPECT_EQ(nodesStringToNode(json.c_str(), &pOut),
+            TSDB_CODE_INVALID_MSG_LEN);
+  EXPECT_EQ(pOut, nullptr);
+}
+
+TEST_F(NodesCharsetCodecTest, msgRoundTripPreservesCharset) {
+  void* gbk = taosConvInit("GBK");
+  ASSERT_NE(gbk, nullptr);
+
+  for (ENodeType type : kCharsetBearingTypes) {
+    std::unique_ptr<SNode, void (*)(SNode*)> src(
+        makeCharsetStampedNode(type, gbk), nodesDestroyNode);
+    ASSERT_NE(src.get(), nullptr);
+
+    char*   pMsg = nullptr;
+    int32_t len = 0;
+    ASSERT_EQ(nodesNodeToMsg(src.get(), &pMsg, &len), TSDB_CODE_SUCCESS);
+    ASSERT_NE(pMsg, nullptr);
+
+    SNode*  pOut = nullptr;
+    int32_t code = nodesMsgToNode(pMsg, len, &pOut);
+    taosMemoryFreeClear(pMsg);
+    ASSERT_EQ(code, TSDB_CODE_SUCCESS);
+    std::unique_ptr<SNode, void (*)(SNode*)> out(pOut, nodesDestroyNode);
+
+    SCOPED_TRACE("msg node type " + std::to_string((int)type));
+    checkCharsetPreserved(out.get());
+    if (type == QUERY_NODE_VALUE) checkRawGbkValuePreserved(out.get());
+  }
+}
+
+TEST_F(NodesCharsetCodecTest, msgRejectsOverlongCharsetNameWithMessageLengthError) {
+  void* gbk = taosConvInit("GBK");
+  ASSERT_NE(gbk, nullptr);
+  std::unique_ptr<SNode, void (*)(SNode*)> src(
+      makeCharsetStampedNode(QUERY_NODE_VALUE, gbk), nodesDestroyNode);
+
+  char*   pMsg = nullptr;
+  int32_t len = 0;
+  ASSERT_EQ(nodesNodeToMsg(src.get(), &pMsg, &len), TSDB_CODE_SUCCESS);
+  ASSERT_NE(pMsg, nullptr);
+
+  auto* root = (TestTlvHeader*)pMsg;
+  ASSERT_EQ((int32_t)sizeof(TestTlvHeader) + ntohl(root->len), len);
+  int32_t fieldOffset = sizeof(TestTlvHeader);
+  int32_t lastOffset = -1;
+  while (fieldOffset < len) {
+    auto* field = (TestTlvHeader*)(pMsg + fieldOffset);
+    int32_t fieldLen = ntohl(field->len);
+    ASSERT_GE(fieldLen, 0);
+    ASSERT_LE(fieldOffset + (int32_t)sizeof(TestTlvHeader) + fieldLen, len);
+    lastOffset = fieldOffset;
+    fieldOffset += sizeof(TestTlvHeader) + fieldLen;
+  }
+  ASSERT_EQ(fieldOffset, len);
+  ASSERT_GE(lastOffset, 0);
+
+  auto* charsetField = (TestTlvHeader*)(pMsg + lastOffset);
+  ASSERT_EQ(ntohl(charsetField->len), 3);
+  ASSERT_EQ(memcmp(pMsg + lastOffset + sizeof(TestTlvHeader), "GBK", 3), 0);
+
+  int32_t delta = TD_CHARSET_LEN - 3;
+  std::vector<char> malformed(len + delta);
+  memcpy(malformed.data(), pMsg, lastOffset + sizeof(TestTlvHeader));
+  memset(malformed.data() + lastOffset + sizeof(TestTlvHeader), 'A', TD_CHARSET_LEN);
+  taosMemoryFreeClear(pMsg);
+
+  root = (TestTlvHeader*)malformed.data();
+  root->len = htonl(ntohl(root->len) + delta);
+  charsetField = (TestTlvHeader*)(malformed.data() + lastOffset);
+  charsetField->len = htonl(TD_CHARSET_LEN);
+
+  SNode* pOut = nullptr;
+  EXPECT_EQ(nodesMsgToNode(malformed.data(), (int32_t)malformed.size(), &pOut),
+            TSDB_CODE_INVALID_MSG_LEN);
+  EXPECT_EQ(pOut, nullptr);
+}
+
+// The system-table scan physical node carries the query charset as a NAME
+// (SSystemTableScanPhysiNode.charsetName), serialized directly (not decoded to a
+// charsetCxt) in both codecs; the sysscan operator restores it via taosConvInit
+// to render NCHAR/JSON tag values in the client charset. These pin the TLV and
+// JSON round-trips, including the absent-field (old plan) empty-name fallback.
+namespace {
+
+SSystemTableScanPhysiNode* makeSysScanNode(const char* charsetName) {
+  SNode*  pNode = nullptr;
+  int32_t code = nodesMakeNode(QUERY_NODE_PHYSICAL_PLAN_SYSTABLE_SCAN, &pNode);
+  EXPECT_EQ(code, TSDB_CODE_SUCCESS);
+  EXPECT_NE(pNode, nullptr);
+  if (pNode == nullptr) return nullptr;
+  SSystemTableScanPhysiNode* pScan = (SSystemTableScanPhysiNode*)pNode;
+  tstrncpy(pScan->charsetName, charsetName, TD_CHARSET_LEN);
+  return pScan;
+}
+
+}  // namespace
+
+TEST(NodesSysScanCharsetTest, msgRoundTripPreservesCharsetName) {
+  std::unique_ptr<SNode, void (*)(SNode*)> src((SNode*)makeSysScanNode("GBK"),
+                                               nodesDestroyNode);
+  ASSERT_NE(src.get(), nullptr);
+
+  char*   pMsg = nullptr;
+  int32_t len = 0;
+  ASSERT_EQ(nodesNodeToMsg(src.get(), &pMsg, &len), TSDB_CODE_SUCCESS);
+  ASSERT_NE(pMsg, nullptr);
+
+  SNode*  pOut = nullptr;
+  int32_t code = nodesMsgToNode(pMsg, len, &pOut);
+  taosMemoryFreeClear(pMsg);
+  ASSERT_EQ(code, TSDB_CODE_SUCCESS);
+  std::unique_ptr<SNode, void (*)(SNode*)> out(pOut, nodesDestroyNode);
+  EXPECT_STREQ(((SSystemTableScanPhysiNode*)out.get())->charsetName, "GBK");
+}
+
+TEST(NodesSysScanCharsetTest, jsonRoundTripPreservesCharsetName) {
+  std::unique_ptr<SNode, void (*)(SNode*)> src((SNode*)makeSysScanNode("GBK"),
+                                               nodesDestroyNode);
+  ASSERT_NE(src.get(), nullptr);
+
+  char*   pStr = nullptr;
+  int32_t len = 0;
+  ASSERT_EQ(nodesNodeToString(src.get(), false, &pStr, &len), TSDB_CODE_SUCCESS);
+  ASSERT_NE(pStr, nullptr);
+
+  SNode*  pOut = nullptr;
+  int32_t code = nodesStringToNode(pStr, &pOut);
+  taosMemoryFreeClear(pStr);
+  ASSERT_EQ(code, TSDB_CODE_SUCCESS);
+  std::unique_ptr<SNode, void (*)(SNode*)> out(pOut, nodesDestroyNode);
+  EXPECT_STREQ(((SSystemTableScanPhysiNode*)out.get())->charsetName, "GBK");
+}
+
+TEST(NodesSysScanCharsetTest, emptyCharsetNameRoundTrips) {
+  // Old plans carry no charset (empty name); it must round-trip to empty, which
+  // the operator maps to the server default tsCharsetCxt.
+  std::unique_ptr<SNode, void (*)(SNode*)> src((SNode*)makeSysScanNode(""),
+                                               nodesDestroyNode);
+  ASSERT_NE(src.get(), nullptr);
+
+  char*   pMsg = nullptr;
+  int32_t len = 0;
+  ASSERT_EQ(nodesNodeToMsg(src.get(), &pMsg, &len), TSDB_CODE_SUCCESS);
+  ASSERT_NE(pMsg, nullptr);
+  SNode*  pOut = nullptr;
+  int32_t code = nodesMsgToNode(pMsg, len, &pOut);
+  taosMemoryFreeClear(pMsg);
+  ASSERT_EQ(code, TSDB_CODE_SUCCESS);
+  std::unique_ptr<SNode, void (*)(SNode*)> out(pOut, nodesDestroyNode);
+  EXPECT_STREQ(((SSystemTableScanPhysiNode*)out.get())->charsetName, "");
+}
+
+TEST(NodesBroadcastReuseTest, CloneJsonAndTlvRoundTrip) {
+  for (bool reusable : {false, true}) {
+    SNode* raw = nullptr;
+    ASSERT_EQ(0, nodesMakeNode(QUERY_NODE_PHYSICAL_PLAN_EXTERNAL_WINDOW, &raw));
+    std::unique_ptr<SNode, decltype(&nodesDestroyNode)> source(raw, nodesDestroyNode);
+    reinterpret_cast<SExternalWindowPhysiNode*>(raw)->broadcastInputReusable = reusable;
+    SNode* copy = nullptr;
+    ASSERT_EQ(0, nodesCloneNode(raw, &copy));
+    EXPECT_EQ(reusable, reinterpret_cast<SExternalWindowPhysiNode*>(copy)->broadcastInputReusable);
+    nodesDestroyNode(copy);
+    char* json = nullptr;
+    ASSERT_EQ(0, nodesNodeToString(raw, false, &json, nullptr));
+    ASSERT_EQ(0, nodesStringToNode(json, &copy));
+    EXPECT_EQ(reusable, reinterpret_cast<SExternalWindowPhysiNode*>(copy)->broadcastInputReusable);
+    nodesDestroyNode(copy);
+    std::string oldJson(json);
+    taosMemoryFree(json);
+    const std::string field = ",\"BroadcastInputReusable\":" + std::string(reusable ? "true" : "false");
+    const auto        pos = oldJson.find(field);
+    ASSERT_NE(std::string::npos, pos);
+    oldJson.erase(pos, field.size());
+    ASSERT_EQ(0, nodesStringToNode(oldJson.c_str(), &copy));
+    EXPECT_FALSE(reinterpret_cast<SExternalWindowPhysiNode*>(copy)->broadcastInputReusable);
+    nodesDestroyNode(copy);
+    char*   msg = nullptr;
+    int32_t len = 0;
+    ASSERT_EQ(0, nodesNodeToMsg(raw, &msg, &len));
+    ASSERT_EQ(0, nodesMsgToNode(msg, len, &copy));
+    EXPECT_EQ(reusable, reinterpret_cast<SExternalWindowPhysiNode*>(copy)->broadcastInputReusable);
+    nodesDestroyNode(copy);
+    // The decoder converts headers in place; obtain a fresh wire payload.
+    taosMemoryFree(msg);
+    ASSERT_EQ(0, nodesNodeToMsg(raw, &msg, &len));
+    // Remove appended fields 19 and 20 to emulate a plan before reuse qualification.
+    ASSERT_GE(len, 20);
+    EXPECT_EQ(0, msg[len - 14]);
+    EXPECT_EQ(19, msg[len - 13]);
+    uint32_t oldLength = htonl(len - 14 - 6);
+    memcpy(msg + 2, &oldLength, sizeof(oldLength));
+    ASSERT_EQ(0, nodesMsgToNode(msg, len - 14, &copy));
+    EXPECT_FALSE(reinterpret_cast<SExternalWindowPhysiNode*>(copy)->broadcastInputReusable);
+    nodesDestroyNode(copy);
+    taosMemoryFree(msg);
+  }
+}
+
+TEST(NodesBroadcastReuseTest, DimensionBatchCloneJsonAndTlvRoundTrip) {
+  for (bool enabled : {false, true}) {
+    SNode* raw = nullptr;
+    ASSERT_EQ(0, nodesMakeNode(QUERY_NODE_PHYSICAL_PLAN_EXTERNAL_WINDOW, &raw));
+    std::unique_ptr<SNode, decltype(&nodesDestroyNode)> source(raw, nodesDestroyNode);
+    auto*                                               window = reinterpret_cast<SExternalWindowPhysiNode*>(raw);
+    window->broadcastReaderBatch = enabled;
+    SNode* copy = nullptr;
+    ASSERT_EQ(0, nodesCloneNode(raw, &copy));
+    EXPECT_EQ(enabled, reinterpret_cast<SExternalWindowPhysiNode*>(copy)->broadcastReaderBatch);
+    nodesDestroyNode(copy);
+    char* json = nullptr;
+    ASSERT_EQ(0, nodesNodeToString(raw, false, &json, nullptr));
+    ASSERT_EQ(0, nodesStringToNode(json, &copy));
+    EXPECT_EQ(enabled, reinterpret_cast<SExternalWindowPhysiNode*>(copy)->broadcastReaderBatch);
+    nodesDestroyNode(copy);
+    std::string oldJson(json);
+    taosMemoryFree(json);
+    const std::string field = ",\"BroadcastReaderBatch\":" + std::string(enabled ? "true" : "false");
+    const auto        pos = oldJson.find(field);
+    ASSERT_NE(std::string::npos, pos);
+    oldJson.erase(pos, field.size());
+    ASSERT_EQ(0, nodesStringToNode(oldJson.c_str(), &copy));
+    EXPECT_FALSE(reinterpret_cast<SExternalWindowPhysiNode*>(copy)->broadcastReaderBatch);
+    nodesDestroyNode(copy);
+    char*   msg = nullptr;
+    int32_t len = 0;
+    ASSERT_EQ(0, nodesNodeToMsg(raw, &msg, &len));
+    ASSERT_EQ(0, nodesMsgToNode(msg, len, &copy));
+    EXPECT_EQ(enabled, reinterpret_cast<SExternalWindowPhysiNode*>(copy)->broadcastReaderBatch);
+    nodesDestroyNode(copy);
+    taosMemoryFree(msg);
+    ASSERT_EQ(0, nodesNodeToMsg(raw, &msg, &len));
+    ASSERT_GE(len, 13);
+    EXPECT_EQ(0, msg[len - 7]);
+    EXPECT_EQ(20, msg[len - 6]);
+    uint32_t oldLength = htonl(len - 7 - 6);
+    memcpy(msg + 2, &oldLength, sizeof(oldLength));
+    ASSERT_EQ(0, nodesMsgToNode(msg, len - 7, &copy));
+    EXPECT_FALSE(reinterpret_cast<SExternalWindowPhysiNode*>(copy)->broadcastReaderBatch);
+    nodesDestroyNode(copy);
+    taosMemoryFree(msg);
+  }
+}
+
+TEST(NodesCodeTest, subplanConnectionCharsetSurvivesCloneAndCodecs) {
+  SNode* input = nullptr;
+  ASSERT_EQ(TSDB_CODE_SUCCESS, nodesMakeNode(QUERY_NODE_PHYSICAL_SUBPLAN, &input));
+  std::unique_ptr<SNode, void (*)(SNode*)> source(input, nodesDestroyNode);
+  tstrncpy(((SSubplan*)input)->charsetName, "GBK", TD_CHARSET_LEN);
+  for (int mode = 0; mode < 3; ++mode) {
+    SCOPED_TRACE(mode);
+    SNode* output = nullptr;
+    char* buffer = nullptr;
+    int32_t length = 0;
+    if (mode == 0) {
+      ASSERT_EQ(TSDB_CODE_SUCCESS, nodesCloneNode(input, &output));
+    } else if (mode == 1) {
+      ASSERT_EQ(TSDB_CODE_SUCCESS, nodesNodeToString(input, false, &buffer, &length));
+      ASSERT_EQ(TSDB_CODE_SUCCESS, nodesStringToNode(buffer, &output));
+    } else {
+      ASSERT_EQ(TSDB_CODE_SUCCESS, nodesNodeToMsg(input, &buffer, &length));
+      ASSERT_EQ(TSDB_CODE_SUCCESS, nodesMsgToNode(buffer, length, &output));
+    }
+    std::unique_ptr<char, void (*)(char*)> data(buffer, freeTestBuffer);
+    std::unique_ptr<SNode, void (*)(SNode*)> result(output, nodesDestroyNode);
+    ASSERT_NE(nullptr, output);
+    EXPECT_STREQ("GBK", ((SSubplan*)output)->charsetName);
+  }
 }

@@ -1,6 +1,8 @@
 /*
  * Copyright (c) 2019 TAOS Data, Inc. <jhtao@taosdata.com>
  *
+ * SPDX-License-Identifier: AGPL-3.0-or-later
+ *
  * This program is free software: you can use, redistribute, and/or modify
  * it under the terms of the GNU Affero General Public License, version 3
  * or later ("AGPL"), as published by the Free Software Foundation.
@@ -392,13 +394,27 @@ int32_t schValidateSubplan(SSchJob *pJob, SSubplan *pSubplan, int32_t level, int
   }
 
   if (pSubplan->level != level) {
-    SCH_JOB_ELOG("plan level %d mis-match with current level %d", pSubplan->level, level);
+    SCH_JOB_ELOG("plan level %d mismatch with current level %d", pSubplan->level, level);
     SCH_ERR_RET(TSDB_CODE_QRY_INVALID_INPUT);
   }
 
+  const int32_t numOfTargets = taosArrayGetSize(pSubplan->pExecTargets);
+  if (numOfTargets > 1 && LIST_LENGTH(pSubplan->pChildren) > 0) {
+    SCH_ERR_RET(TSDB_CODE_QRY_INVALID_INPUT);
+  }
+  for (int32_t i = 0; i < numOfTargets; ++i) {
+    const SSubplanTarget *target = taosArrayGet(pSubplan->pExecTargets, i);
+    const SEpSet *eps = &target->execNode.epSet;
+    if (eps->numOfEps <= 0 && SCH_IS_DATA_BIND_PLAN(pSubplan)) {
+      SCH_ERR_RET(TSDB_CODE_SCH_DATA_SRC_EP_MISS);
+    }
+    if (eps->numOfEps <= 0 || eps->numOfEps > TSDB_MAX_REPLICA || eps->inUse < 0 || eps->inUse >= eps->numOfEps) {
+      SCH_ERR_RET(TSDB_CODE_QRY_INVALID_INPUT);
+    }
+  }
   if (SCH_IS_DATA_BIND_PLAN(pSubplan)) {
     if (pSubplan->execNode.epSet.numOfEps <= 0) {
-      SCH_JOB_ELOG("no execNode specifed for data src plan %d, numOfEps:%d", pSubplan->subplanType,
+      SCH_JOB_ELOG("no execNode specified for data src plan %d, numOfEps:%d", pSubplan->subplanType,
                    pSubplan->execNode.epSet.numOfEps);
       SCH_ERR_RET(TSDB_CODE_SCH_DATA_SRC_EP_MISS);
     }
@@ -438,7 +454,7 @@ void schStopTaskDelayTimer(SSchJob *pJob, SSchTask *pTask, bool syncOp) {
 
       SCH_TASK_DLOG("task delayTimer %" PRIuPTR " is stopped", (uintptr_t)delayTimer);
     } else {
-      SCH_TASK_WLOG("stop task delayTimer %" PRIuPTR " failed, may stopped, status:%d", (uintptr_t)delayTimer, pTask->status);
+      SCH_TASK_WLOG("stop task delayTimer %" PRIuPTR " failed, may have stopped, status:%d", (uintptr_t)delayTimer, pTask->status);
     }
   }
 }

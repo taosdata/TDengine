@@ -1,6 +1,8 @@
 /*
  * Copyright (c) 2019 TAOS Data, Inc. <jhtao@taosdata.com>
  *
+ * SPDX-License-Identifier: AGPL-3.0-or-later
+ *
  * This program is free software: you can use, redistribute, and/or modify
  * it under the terms of the GNU Affero General Public License, version 3
  * or later ("AGPL"), as published by the Free Software Foundation.
@@ -16,9 +18,9 @@
 #ifndef _TD_UTIL_WORKER_H_
 #define _TD_UTIL_WORKER_H_
 
+#include "tarray.h"
 #include "tlist.h"
 #include "tqueue.h"
-#include "tarray.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -41,6 +43,7 @@ typedef struct SQWorkerPool {
   const char   *name;
   SQueueWorker *workers;
   TdThreadMutex mutex;
+  int32_t       threadCategory;  // EThreadCategory or -1 for no affinity
 } SQWorkerPool;
 
 typedef struct SAutoQWorkerPool {
@@ -49,6 +52,7 @@ typedef struct SAutoQWorkerPool {
   const char   *name;
   SArray       *workers;
   TdThreadMutex mutex;
+  int32_t       threadCategory;  // EThreadCategory or -1 for no affinity
 } SAutoQWorkerPool;
 
 typedef struct SWWorker {
@@ -67,6 +71,7 @@ struct SWWorkerPool {
   const char   *name;
   SWWorker     *workers;
   TdThreadMutex mutex;
+  int32_t       threadCategory;  // EThreadCategory or -1 for no affinity
 };
 
 int32_t     tQWorkerInit(SQWorkerPool *pool);
@@ -97,6 +102,7 @@ typedef struct {
   void            *param;
   SQWorkerPoolType poolType;
   bool             stopNoWaitQueue;
+  int32_t          threadCategory;  // EThreadCategory or -1 for no affinity
 } SSingleWorkerCfg;
 
 typedef struct {
@@ -112,6 +118,7 @@ typedef struct {
   int32_t     max;
   FItems      fp;
   void       *param;
+  int32_t     threadCategory;  // EThreadCategory or -1 for no affinity
 } SMultiWorkerCfg;
 
 typedef struct {
@@ -141,6 +148,8 @@ typedef struct SQueryAutoQWorkerPool {
   int32_t       min;
   int32_t       maxInUse;
 
+  // Serialize execution-slot transfers with waiter registration.
+  TdThreadMutex schedulingLock;
   int64_t       activeRunningN; // 4 bytes for activeN, 4 bytes for runningN
   // activeN are running workers and workers waiting at reading new queue msgs
   // runningN are workers processing queue msgs, not include blocking/waitingAfterBlock/waitingBeforeProcessMsg workers.
@@ -167,6 +176,7 @@ typedef struct SQueryAutoQWorkerPool {
   struct SQueryAutoQWorkerPoolCB *pCb;
   bool                            stopNoWaitQueue;
   volatile bool                   exit;
+  int32_t                         threadCategory;  // EThreadCategory or -1 for no affinity
 } SQueryAutoQWorkerPool;
 
 int32_t     tQueryAutoQWorkerInit(SQueryAutoQWorkerPool *pPool);
@@ -203,6 +213,7 @@ typedef struct SDispatchWorkerPool {
   DispatchFp       dispatchFp;
   TdThreadMutex    poolLock;
   bool             exit;
+  int32_t          threadCategory;  // EThreadCategory or -1 for no affinity
 } SDispatchWorkerPool;
 
 int32_t tDispatchWorkerInit(SDispatchWorkerPool *pPool);

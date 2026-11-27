@@ -1,7 +1,22 @@
+# Copyright (c) 2026 TAOS Data, Inc. <jhtao@taosdata.com>
+#
+# SPDX-License-Identifier: AGPL-3.0-or-later
+#
+# This program is free software: you can use, redistribute, and/or modify
+# it under the terms of the GNU Affero General Public License, version 3
+# or later ("AGPL"), as published by the Free Software Foundation.
+#
+# This program is distributed in the hope that it will be useful, but WITHOUT
+# ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+# FITNESS FOR A PARTICULAR PURPOSE.
+#
+# You should have received a copy of the GNU Affero General Public License
+# along with this program. If not, see <http://www.gnu.org/licenses/>.
+
 import time
 import math
 import random
-from new_test_framework.utils import tdLog, tdSql, tdStream, streamUtil,StreamTableType, StreamTable, cluster
+from new_test_framework.utils import etool, tdLog, tdSql, tdStream, streamUtil,StreamTableType, StreamTable, cluster
 from random import randint
 import os
 import subprocess
@@ -41,7 +56,6 @@ class TestStreamFetch:
         tdLog.info(f"prepare data")
 
         sqls = [
-            "alter dnode 1 'debugflag 135';",
             "create snode on dnode 1;",
             "create database db vgroups 4;",
             "create table db.meters (ts timestamp, current int) tags(`groupid` int);"
@@ -53,7 +67,9 @@ class TestStreamFetch:
             for i in range(0, 12000000, 1000):
                 sqls.append(f"insert into db.d{t} values({ts+i},{i})")
 
-        tdSql.executes(sqls)
+        tdSql.execute("alter dnode 1 'debugflag 135';")
+        with etool.data_write_log():
+            tdSql.executes(sqls)
         tdLog.info(f"create successfully.")
 
     def createIntervalStream(self):
@@ -100,7 +116,6 @@ class TestStreamFetch:
         tdLog.info(f"prepare count data")
 
         sqls = [
-            "alter dnode 1 'debugflag 135';",
             "drop database db",
             "create database db vgroups 4;",
             "create table db.meters (ts timestamp, current int) tags(`groupid` int);"
@@ -112,7 +127,9 @@ class TestStreamFetch:
             for i in range(0, 4000000, 1000):
                 sqls.append(f"insert into db.d{t} values({ts+i},{i})")
 
-        tdSql.executes(sqls)
+        tdSql.execute("alter dnode 1 'debugflag 135';")
+        with etool.data_write_log():
+            tdSql.executes(sqls)
         tdLog.info(f"create tables successfully.")
 
     def createCountStream(self):

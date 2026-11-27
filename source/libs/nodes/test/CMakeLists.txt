@@ -1,3 +1,17 @@
+# Copyright (c) 2022 TAOS Data, Inc. <jhtao@taosdata.com>
+#
+# SPDX-License-Identifier: AGPL-3.0-or-later
+#
+# This program is free software: you can use, redistribute, and/or modify
+# it under the terms of the GNU Affero General Public License, version 3
+# or later ("AGPL"), as published by the Free Software Foundation.
+#
+# This program is distributed in the hope that it will be useful, but WITHOUT
+# ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+# FITNESS FOR A PARTICULAR PURPOSE.
+#
+# You should have received a copy of the GNU Affero General Public License
+# along with this program. If not, see <http://www.gnu.org/licenses/>.
 
 MESSAGE(STATUS "build nodes unit test")
 
@@ -8,11 +22,13 @@ IF(NOT TD_DARWIN)
     
     ADD_EXECUTABLE(nodesTest ${SOURCE_LIST})
     DEP_ext_gtest(nodesTest)
+    target_compile_definitions(nodesTest PRIVATE BUILD_TEST)
     
     TARGET_INCLUDE_DIRECTORIES(
         nodesTest
         PUBLIC "${TD_SOURCE_DIR}/include/nodes/"
-        PRIVATE "${TD_SOURCE_DIR}/source/nodes/inc"
+        PRIVATE "${TD_SOURCE_DIR}/source/libs/nodes/inc"
+                "${TD_SOURCE_DIR}/include/libs/function"
     )
     
     TARGET_LINK_LIBRARIES(
@@ -24,4 +40,13 @@ IF(NOT TD_DARWIN)
         NAME nodesTest
         COMMAND nodesTest
     )
+ENDIF()
+
+IF(TD_DARWIN)
+    ADD_EXECUTABLE(nodesCorrelationTest "nodesCorrelationTest.cpp" "nodesPlanDecodeTest.cpp" "nodesRemotePlanToInfluxQLTest.cpp")
+    DEP_ext_gtest(nodesCorrelationTest)
+    TARGET_INCLUDE_DIRECTORIES(nodesCorrelationTest PRIVATE "${TD_SOURCE_DIR}/source/libs/nodes/inc"
+                                                  "${TD_SOURCE_DIR}/include/libs/function")
+    TARGET_LINK_LIBRARIES(nodesCorrelationTest PRIVATE os util common nodes qcom function)
+    add_test(NAME nodesCorrelationTest COMMAND nodesCorrelationTest)
 ENDIF()

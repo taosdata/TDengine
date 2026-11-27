@@ -1,6 +1,8 @@
 /*
  * Copyright (c) 2019 TAOS Data, Inc. <jhtao@taosdata.com>
  *
+ * SPDX-License-Identifier: AGPL-3.0-or-later
+ *
  * This program is free software: you can use, redistribute, and/or modify
  * it under the terms of the GNU Affero General Public License, version 3
  * or later ("AGPL"), as published by the Free Software Foundation.
@@ -29,6 +31,27 @@ extern "C" {
 
 /* ------------------------ TYPES EXPOSED ------------------------ */
 typedef struct SMnode SMnode;
+
+typedef struct {
+  int32_t sourceId;
+  int32_t id;
+  int64_t clusterId;
+  SEp     ep;
+} SMnodeRestoreDnode;
+
+int32_t mndRestoreMapDnodeId(const SArray *pDnodes, int32_t sourceId);
+// Reads the snapshot of a stopped instance, appending one SDnodeEp per dnode to
+// `dnodes`, which must already be an SArray of SDnodeEp. `transactions` counts
+// unfinished transactions. The out parameters are written only on success, and
+// a failure leaves `dnodes` as it was.
+int32_t mndInspectSdb(const char *path, bool encrypted, SArray *dnodes,
+                      int64_t *index, int64_t *term, int32_t *transactions);
+int32_t mndInspectTxnSeq(const void *body, int32_t len, bool *safe);
+// Rewrites the dnode endpoints in the snapshot of a stopped instance, in place.
+// `pEndpoints` holds the new endpoint of every dnode. `rewritten` is written
+// only on success and counts the dnode rows that changed.
+int32_t mndRewriteSdbDnodes(const char *path, bool encrypted,
+                            const SArray *pEndpoints, int32_t *rewritten);
 
 typedef struct {
   int32_t  dnodeId;
@@ -131,6 +154,9 @@ int32_t mndDumpSdb();
 int32_t mndDeleteTrans();
 
 int32_t mndModifySdb(char *path);
+int32_t mndRestoreUpdateMetadata(const SArray *pDnodes);
+
+int32_t mndFlushMnode();
 
 #ifdef __cplusplus
 }

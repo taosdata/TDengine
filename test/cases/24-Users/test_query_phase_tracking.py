@@ -1,3 +1,19 @@
+# Copyright (c) 2026 TAOS Data, Inc. <jhtao@taosdata.com>
+#
+# SPDX-License-Identifier: AGPL-3.0-or-later
+#
+# This program is free software: you can use, redistribute, and/or modify
+# it under the terms of the GNU Affero General Public License, version 3
+# or later ("AGPL"), as published by the Free Software Foundation.
+#
+# This program is distributed in the hope that it will be useful, but WITHOUT
+# ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+# FITNESS FOR A PARTICULAR PURPOSE.
+#
+# You should have received a copy of the GNU Affero General Public License
+# along with this program. If not, see <http://www.gnu.org/licenses/>.
+
+import re
 import time
 import threading
 from new_test_framework.utils import tdLog, tdSql
@@ -38,7 +54,7 @@ class TestQueryPhaseTracking:
 
         Since: v3.3.0.0
 
-        Labels: common,ci
+        Labels: common,ci,integration,functional,security
 
         Jira: None
 
@@ -72,7 +88,7 @@ class TestQueryPhaseTracking:
 
         Since: v3.3.0.0
 
-        Labels: common,ci
+        Labels: common,ci,integration,functional,security
 
         Jira: None
 
@@ -112,7 +128,7 @@ class TestQueryPhaseTracking:
 
         Since: v3.3.0.0
 
-        Labels: common,ci
+        Labels: common,ci,integration,functional,security
 
         Jira: None
 
@@ -144,7 +160,7 @@ class TestQueryPhaseTracking:
 
         Since: v3.3.0.0
 
-        Labels: common,ci
+        Labels: common,ci,integration,functional,security
 
         Jira: None
 
@@ -177,7 +193,7 @@ class TestQueryPhaseTracking:
 
         Since: v3.3.0.0
 
-        Labels: common,ci
+        Labels: common,ci,integration,functional,security
 
         Jira: None
 
@@ -212,22 +228,25 @@ class TestQueryPhaseTracking:
         print("test phase timing accuracy ....................... [passed]")
 
     def test_sub_status_timing_format(self):
-        """SubTask: Verify sub_status includes timing info with human-readable time
+        """SubTask: Verify sub_status reports start offsets with a unit
 
         1. Create a supertable with multiple child tables to generate sub-tasks
         2. Execute a distributed query to trigger sub-plan execution
-        3. Verify sub_status format contains tid:status:startTime
-           where startTime is human-readable (e.g. 2026-03-12 10:00:00.123) or "-"
+        3. Verify sub_status format contains tid:status:offset, where offset is
+           the task start time relative to the query create_time in milliseconds
+           (e.g. +58ms) or "-" for a task that never started
 
         Since: v3.3.0.0
 
-        Labels: common,ci
+        Labels: common,ci,integration,functional,security
 
         Jira: None
 
         History:
             - 2026-3-10 Created for sub-task timing tracking feature
             - 2026-3-12 Changed time format from unix ms to human-readable
+            - 2026-11-16 Use a per-query relative offset like +58ms instead of
+              repeating the absolute date time for every task
 
         """
         tdLog.info("=============== test sub status timing format")
@@ -287,8 +306,8 @@ class TestQueryPhaseTracking:
                             assert type_part in valid_types, \
                                 f"task type should be one of {valid_types}, got: {type_part}"
                             if start_time != "-":
-                                assert "." in start_time, \
-                                    f"startTime should be human-readable (YYYY-MM-DD HH:MM:SS.ms) or '-', got: {start_time}"
+                                assert re.fullmatch(r"\+\d+ms", start_time), \
+                                    f"start offset should look like '+58ms' (relative to create_time) or '-', got: {start_time}"
 
         tdSql.execute(f"drop database if exists db2")
         print("test sub status timing format ....................... [passed]")
@@ -302,7 +321,7 @@ class TestQueryPhaseTracking:
 
         Since: v3.3.0.0
 
-        Labels: common,ci
+        Labels: common,ci,integration,functional,security
 
         Jira: None
 
@@ -327,20 +346,22 @@ class TestQueryPhaseTracking:
         print("test phase state max length ....................... [passed]")
 
     def test_fetch_state_transitions(self):
-        """Fetch: Verify phase transitions during fetch operations
+        """Fetch: Verify the reported phase during fetch operations
 
         1. Execute a query with multiple rows
-        2. Verify state transitions between fetch/done and fetch/in_progress
-        3. Each fetch call should set phase to in_progress, then back to done
+        2. Verify show queries reports the main fetch phase (or done)
+        3. The fetch/in_progress and fetch/returned sub-states are internal and
+           must not leak into show queries
 
         Since: v3.3.0.0
 
-        Labels: common,ci
+        Labels: common,ci,integration,functional,security
 
         Jira: None
 
         History:
             - 2026-3-18 Created for simplified fetch state verification
+            - 2026-11-07 Yihao Deng fetch sub-states hidden behind main phase (7159092216)
 
         """
         tdLog.info("=============== test fetch state transitions")
@@ -365,10 +386,11 @@ class TestQueryPhaseTracking:
                 sql_val = tdSql.getData(row, sql_idx) if sql_idx >= 0 else ""
                 if "test_fetch_trans" in sql_val:
                     tdLog.info(f"Query state: phase={phase_value}")
-                    # Should be one of: fetch/returned, fetch/in_progress, done
-                    valid_fetch_phases = ["fetch/returned", "fetch/in_progress", "done"]
+                    # show queries reports the fetch stage as one main phase;
+                    # the per-block sub-states stay internal.
+                    valid_fetch_phases = ["fetch", "done"]
                     assert phase_value in valid_fetch_phases, \
-                        f"Phase should be a valid fetch phase, got '{phase_value}'"
+                        f"Phase should be 'fetch' or 'done', got '{phase_value}'"
                     break
 
         print("test fetch state transitions ..................... [passed]")

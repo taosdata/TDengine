@@ -40,4 +40,3 @@ sql.c
 
 tsdbRead2.c
 planOptimizer.c
-parTranslater.c

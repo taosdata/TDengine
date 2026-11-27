@@ -1,0 +1,213 @@
+
+taos> use db_interval_block_order;
+Database changed.
+
+taos> SELECT count(*), sum(v) FROM st PARTITION BY tbname INTERVAL(2s) ORDER BY tbname, _wstart;
+       count(*)        |        sum(v)         |
+================================================
+                     2 |                     3 |
+                     2 |                     7 |
+                     1 |                     5 |
+                     2 |                    30 |
+                     2 |                    70 |
+                     1 |                    50 |
+                     2 |                   300 |
+                     2 |                   700 |
+                     1 |                   500 |
+
+taos> explain verbose true SELECT count(*), sum(v) FROM st PARTITION BY tbname INTERVAL(2s)\G;
+*************************** 1.row ***************************
+QUERY_PLAN: -> Data Exchange 2:1 (width=16)
+*************************** 2.row ***************************
+QUERY_PLAN:       Output: columns=2 width=16
+*************************** 3.row ***************************
+QUERY_PLAN:    -> Interval on Column ts (functions=2 width=16 input_order=asc output_order=asc)
+*************************** 4.row ***************************
+QUERY_PLAN:          Output: columns=2 width=16
+*************************** 5.row ***************************
+QUERY_PLAN:          Time Range: [-9223372036854775808, 9223372036854775807]
+*************************** 6.row ***************************
+QUERY_PLAN:          Time Window: interval=2s offset=0a sliding=2s
+*************************** 7.row ***************************
+QUERY_PLAN:          Merge ResBlocks: True
+*************************** 8.row ***************************
+QUERY_PLAN:       -> Table Scan on st (columns=2 width=12 order=[asc|1 desc|0] mode=ts_order data_load=sma)
+*************************** 9.row ***************************
+QUERY_PLAN:             Output: columns=2 width=12
+*************************** 10.row ***************************
+QUERY_PLAN:             Time Range: [-9223372036854775808, 9223372036854775807]
+*************************** 11.row ***************************
+QUERY_PLAN:             Partition Key: partitions=1
+
+taos> SELECT count(*), sum(v) FROM st PARTITION BY tbname INTERVAL(2s) ORDER BY tbname, _wstart;
+       count(*)        |        sum(v)         |
+================================================
+                     2 |                     3 |
+                     2 |                     7 |
+                     1 |                     5 |
+                     2 |                    30 |
+                     2 |                    70 |
+                     1 |                    50 |
+                     2 |                   300 |
+                     2 |                   700 |
+                     1 |                   500 |
+
+taos> explain verbose true SELECT count(*), sum(v) FROM st PARTITION BY tbname INTERVAL(2s) ORDER BY tbname, _wstart\G;
+*************************** 1.row ***************************
+QUERY_PLAN: -> Sort input_order=unknown output_order=unknown  (columns=2 width=16)
+*************************** 2.row ***************************
+QUERY_PLAN:       Output: columns=2 width=16
+*************************** 3.row ***************************
+QUERY_PLAN:    -> Data Exchange 2:1 (width=296)
+*************************** 4.row ***************************
+QUERY_PLAN:          Output: columns=4 width=296
+*************************** 5.row ***************************
+QUERY_PLAN:       -> Interval on Column ts (functions=4 width=296 input_order=asc output_order=asc)
+*************************** 6.row ***************************
+QUERY_PLAN:             Output: columns=4 width=296
+*************************** 7.row ***************************
+QUERY_PLAN:             Time Range: [-9223372036854775808, 9223372036854775807]
+*************************** 8.row ***************************
+QUERY_PLAN:             Time Window: interval=2s offset=0a sliding=2s
+*************************** 9.row ***************************
+QUERY_PLAN:             Merge ResBlocks: True
+*************************** 10.row ***************************
+QUERY_PLAN:          -> Table Scan on st (columns=2 pseudo_columns=1 width=284 order=[asc|1 desc|0] mode=ts_order data_load=sma)
+*************************** 11.row ***************************
+QUERY_PLAN:                Output: columns=3 width=284
+*************************** 12.row ***************************
+QUERY_PLAN:                Time Range: [-9223372036854775808, 9223372036854775807]
+*************************** 13.row ***************************
+QUERY_PLAN:                Partition Key: partitions=1
+
+taos> SELECT avg(v), min(v), max(v) FROM st PARTITION BY tbname INTERVAL(2s) ORDER BY tbname, _wstart;
+          avg(v)           |   min(v)    |   max(v)    |
+========================================================
+                       1.5 |           1 |           2 |
+                       3.5 |           3 |           4 |
+                         5 |           5 |           5 |
+                        15 |          10 |          20 |
+                        35 |          30 |          40 |
+                        50 |          50 |          50 |
+                       150 |         100 |         200 |
+                       350 |         300 |         400 |
+                       500 |         500 |         500 |
+
+taos> explain verbose true SELECT avg(v), min(v), max(v) FROM st PARTITION BY tbname INTERVAL(2s)\G;
+*************************** 1.row ***************************
+QUERY_PLAN: -> Data Exchange 2:1 (width=16)
+*************************** 2.row ***************************
+QUERY_PLAN:       Output: columns=3 width=16
+*************************** 3.row ***************************
+QUERY_PLAN:    -> Interval on Column ts (functions=3 width=16 input_order=asc output_order=asc)
+*************************** 4.row ***************************
+QUERY_PLAN:          Output: columns=3 width=16
+*************************** 5.row ***************************
+QUERY_PLAN:          Time Range: [-9223372036854775808, 9223372036854775807]
+*************************** 6.row ***************************
+QUERY_PLAN:          Time Window: interval=2s offset=0a sliding=2s
+*************************** 7.row ***************************
+QUERY_PLAN:          Merge ResBlocks: True
+*************************** 8.row ***************************
+QUERY_PLAN:       -> Table Scan on st (columns=2 width=12 order=[asc|1 desc|0] mode=ts_order data_load=sma)
+*************************** 9.row ***************************
+QUERY_PLAN:             Output: columns=2 width=12
+*************************** 10.row ***************************
+QUERY_PLAN:             Time Range: [-9223372036854775808, 9223372036854775807]
+*************************** 11.row ***************************
+QUERY_PLAN:             Partition Key: partitions=1
+
+taos> SELECT first(v), last(v) FROM st PARTITION BY tbname INTERVAL(2s) ORDER BY tbname, _wstart;
+  first(v)   |   last(v)   |
+============================
+           1 |           2 |
+           3 |           4 |
+           5 |           5 |
+          10 |          20 |
+          30 |          40 |
+          50 |          50 |
+         100 |         200 |
+         300 |         400 |
+         500 |         500 |
+
+taos> explain verbose true SELECT first(v), last(v) FROM st PARTITION BY tbname INTERVAL(2s)\G;
+*************************** 1.row ***************************
+QUERY_PLAN: -> Data Exchange 2:1 (width=8)
+*************************** 2.row ***************************
+QUERY_PLAN:       Output: columns=2 width=8
+*************************** 3.row ***************************
+QUERY_PLAN:    -> Interval on Column ts (functions=2 width=8 input_order=asc output_order=asc)
+*************************** 4.row ***************************
+QUERY_PLAN:          Output: columns=2 width=8
+*************************** 5.row ***************************
+QUERY_PLAN:          Time Range: [-9223372036854775808, 9223372036854775807]
+*************************** 6.row ***************************
+QUERY_PLAN:          Time Window: interval=2s offset=0a sliding=2s
+*************************** 7.row ***************************
+QUERY_PLAN:          Merge ResBlocks: True
+*************************** 8.row ***************************
+QUERY_PLAN:       -> Table Scan on st (columns=2 width=12 order=[asc|1 desc|0] mode=ts_order data_load=data)
+*************************** 9.row ***************************
+QUERY_PLAN:             Output: columns=2 width=12
+*************************** 10.row ***************************
+QUERY_PLAN:             Time Range: [-9223372036854775808, 9223372036854775807]
+*************************** 11.row ***************************
+QUERY_PLAN:             Partition Key: partitions=1
+
+taos> SELECT elapsed(ts) FROM st PARTITION BY tbname INTERVAL(2s) ORDER BY tbname, _wstart
+        elapsed(ts)        |
+============================
+                      2000 |
+                      2000 |
+                         0 |
+                      2000 |
+                      2000 |
+                         0 |
+                      2000 |
+                      2000 |
+                         0 |
+
+taos> explain verbose true SELECT elapsed(ts) FROM st PARTITION BY tbname INTERVAL(2s)\G;
+*************************** 1.row ***************************
+QUERY_PLAN: -> Interval on Column ts (functions=1 width=8 input_order=asc output_order=asc)
+*************************** 2.row ***************************
+QUERY_PLAN:       Output: columns=1 width=8
+*************************** 3.row ***************************
+QUERY_PLAN:       Time Range: [-9223372036854775808, 9223372036854775807]
+*************************** 4.row ***************************
+QUERY_PLAN:       Time Window: interval=2s offset=0a sliding=2s
+*************************** 5.row ***************************
+QUERY_PLAN:       Merge ResBlocks: True
+*************************** 6.row ***************************
+QUERY_PLAN:    -> Merge (columns=1 width=8 input_order=asc output_order=asc mode=sort)
+*************************** 7.row ***************************
+QUERY_PLAN:          Output: columns=1 width=8
+*************************** 8.row ***************************
+QUERY_PLAN:          Output: Ignore Group Id: false
+*************************** 9.row ***************************
+QUERY_PLAN:          Merge Key: _group_id asc, ts asc
+*************************** 10.row ***************************
+QUERY_PLAN:       -> Data Exchange 1:1 (width=8)
+*************************** 11.row ***************************
+QUERY_PLAN:             Output: columns=1 width=8
+*************************** 12.row ***************************
+QUERY_PLAN:          -> Table Merge Scan on st (columns=1 width=8 order=[asc|1 desc|0] mode=ts_order data_load=sma)
+*************************** 13.row ***************************
+QUERY_PLAN:                Output: columns=1 width=8
+*************************** 14.row ***************************
+QUERY_PLAN:                Time Range: [-9223372036854775808, 9223372036854775807]
+*************************** 15.row ***************************
+QUERY_PLAN:                Partition Key: partitions=1
+*************************** 16.row ***************************
+QUERY_PLAN:       -> Data Exchange 1:1 (width=8)
+*************************** 17.row ***************************
+QUERY_PLAN:             Output: columns=1 width=8
+*************************** 18.row ***************************
+QUERY_PLAN:          -> Table Merge Scan on st (columns=1 width=8 order=[asc|1 desc|0] mode=ts_order data_load=sma)
+*************************** 19.row ***************************
+QUERY_PLAN:                Output: columns=1 width=8
+*************************** 20.row ***************************
+QUERY_PLAN:                Time Range: [-9223372036854775808, 9223372036854775807]
+*************************** 21.row ***************************
+QUERY_PLAN:                Partition Key: partitions=1
+

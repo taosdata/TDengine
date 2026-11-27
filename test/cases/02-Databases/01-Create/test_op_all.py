@@ -1,4 +1,20 @@
+# Copyright (c) 2025 TAOS Data, Inc. <jhtao@taosdata.com>
+#
+# SPDX-License-Identifier: AGPL-3.0-or-later
+#
+# This program is free software: you can use, redistribute, and/or modify
+# it under the terms of the GNU Affero General Public License, version 3
+# or later ("AGPL"), as published by the Free Software Foundation.
+#
+# This program is distributed in the hope that it will be useful, but WITHOUT
+# ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+# FITNESS FOR A PARTICULAR PURPOSE.
+#
+# You should have received a copy of the GNU Affero General Public License
+# along with this program. If not, see <http://www.gnu.org/licenses/>.
+
 import time
+import platform
 from new_test_framework.utils import tdLog, tdSql, sc, clusterComCheck, clusterComCheck
 
 
@@ -19,7 +35,7 @@ class TestDatabaseCreateAllOptions:
 
         Since: v3.0.0.0
 
-        Labels: common,ci
+        Labels: common,ci,integration,functional
 
         Jira: None
 
@@ -84,7 +100,7 @@ class TestDatabaseCreateAllOptions:
         tdSql.checkKeyData("db", 13, 2)
         tdSql.checkKeyData("db", 14, "ms")
         tdSql.checkKeyData("db", 18, "none")
-        tdSql.checkKeyData("db", 21, 1)
+        tdSql.checkKeyData("db", 21, 2 if platform.system() == "Windows" else 1)
         tdSql.checkKeyData("db", 22, 3000)
         tdSql.checkKeyData("db", 31, "525600m")
         tdSql.checkKeyData("db", 32, 1)

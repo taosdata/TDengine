@@ -1,6 +1,8 @@
 /*
  * Copyright (c) 2019 TAOS Data, Inc. <jhtao@taosdata.com>
  *
+ * SPDX-License-Identifier: AGPL-3.0-or-later
+ *
  * This program is free software: you can use, redistribute, and/or modify
  * it under the terms of the GNU Affero General Public License, version 3
  * or later ("AGPL"), as published by the Free Software Foundation.
@@ -55,6 +57,13 @@ void mndCleanupAcct(SMnode *pMnode) {}
 
 static int32_t mndCreateDefaultAcct(SMnode *pMnode) {
   int32_t  code = 0;
+
+  SAcctObj *pExist = (SAcctObj *)sdbAcquire(pMnode->pSdb, SDB_ACCT, TSDB_DEFAULT_USER);
+  if (pExist != NULL) {
+    sdbRelease(pMnode->pSdb, pExist);
+    TAOS_RETURN(0);
+  }
+
   SAcctObj acctObj = {0};
   tstrncpy(acctObj.acct, TSDB_DEFAULT_USER, TSDB_USER_LEN);
   acctObj.createdTime = taosGetTimestampMs();

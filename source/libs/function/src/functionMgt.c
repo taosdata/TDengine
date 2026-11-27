@@ -1,6 +1,8 @@
 /*
  * Copyright (c) 2019 TAOS Data, Inc. <jhtao@taosdata.com>
  *
+ * SPDX-License-Identifier: AGPL-3.0-or-later
+ *
  * This program is free software: you can use, redistribute, and/or modify
  * it under the terms of the GNU Affero General Public License, version 3
  * or later ("AGPL"), as published by the Free Software Foundation.
@@ -23,6 +25,7 @@
 #include "taos.h"
 #include "taoserror.h"
 #include "thash.h"
+#include "tmsg.h"
 #include "tudf.h"
 
 typedef struct SFuncMgtService {
@@ -112,10 +115,31 @@ bool canCoexistIndefiniteRowsFunc(int32_t funcId1, int32_t funcId2) {
   if (funcId1 == funcId2) {
     return true;
   }
-  if ((funcMgtBuiltins[funcId1].type == FUNCTION_TYPE_LAG || funcMgtBuiltins[funcId1].type == FUNCTION_TYPE_LEAD) &&
-      (funcMgtBuiltins[funcId2].type == FUNCTION_TYPE_LAG || funcMgtBuiltins[funcId2].type == FUNCTION_TYPE_LEAD)) {
+  EFunctionType type1 = funcMgtBuiltins[funcId1].type;
+  EFunctionType type2 = funcMgtBuiltins[funcId2].type;
+
+  // DIFF/DERIVATIVE can coexist with each other (both are N-1 row PROCESS_BY_ROW funcs)
+  bool isDiffDeriv1 = (type1 == FUNCTION_TYPE_DIFF || type1 == FUNCTION_TYPE_DERIVATIVE);
+  bool isDiffDeriv2 = (type2 == FUNCTION_TYPE_DIFF || type2 == FUNCTION_TYPE_DERIVATIVE);
+  if (isDiffDeriv1 && isDiffDeriv2) {
     return true;
   }
+
+  // N-row INDEFINITE_ROWS functions can coexist with each other.
+  // MAVG outputs N-K+1 rows and is handled by the translator's MAVG-specific K check,
+  // so it must not be added to this N-row coexistence whitelist.
+  bool isNRow1 = (type1 == FUNCTION_TYPE_CSUM || type1 == FUNCTION_TYPE_FILL_FORWARD ||
+                  type1 == FUNCTION_TYPE_FILL_NEXT ||
+                  type1 == FUNCTION_TYPE_STATE_COUNT || type1 == FUNCTION_TYPE_STATE_DURATION ||
+                  type1 == FUNCTION_TYPE_LAG || type1 == FUNCTION_TYPE_LEAD);
+  bool isNRow2 = (type2 == FUNCTION_TYPE_CSUM || type2 == FUNCTION_TYPE_FILL_FORWARD ||
+                  type2 == FUNCTION_TYPE_FILL_NEXT ||
+                  type2 == FUNCTION_TYPE_STATE_COUNT || type2 == FUNCTION_TYPE_STATE_DURATION ||
+                  type2 == FUNCTION_TYPE_LAG || type2 == FUNCTION_TYPE_LEAD);
+  if (isNRow1 && isNRow2) {
+    return true;
+  }
+
   return false;
 }
 
@@ -136,6 +160,16 @@ EFunctionType fmGetFuncTypeFromId(int32_t funcId) {
     return funcMgtBuiltins[funcId].type;
   }
   return FUNCTION_TYPE_UDF;
+}
+
+bool fmIsCanonicalTbnameFunction(const SNode* pNode) {
+  if (pNode == NULL || nodeType(pNode) != QUERY_NODE_FUNCTION) return false;
+
+  const SFunctionNode* pFunction = (const SFunctionNode*)pNode;
+  const int32_t        canonicalId = fmGetFuncId(pFunction->functionName);
+  return canonicalId >= 0 && canonicalId == pFunction->funcId &&
+         fmGetFuncTypeFromId(canonicalId) == FUNCTION_TYPE_TBNAME &&
+         fmGetFuncTypeFromId(pFunction->funcId) == FUNCTION_TYPE_TBNAME;
 }
 
 EFuncDataRequired fmFuncDataRequired(SFunctionNode* pFunc, STimeWindow* pTimeWindow) {
@@ -176,6 +210,7 @@ int32_t fmGetFuncExecFuncs(int32_t funcId, SFuncExecFuncs* pFpSet) {
   pFpSet->finalize = funcMgtBuiltins[funcId].finalizeFunc;
   pFpSet->combine = funcMgtBuiltins[funcId].combineFunc;
   pFpSet->processFuncByRow = funcMgtBuiltins[funcId].processFuncByRow;
+  pFpSet->hasPending = funcMgtBuiltins[funcId].hasPending;
   pFpSet->cleanup = funcMgtBuiltins[funcId].cleanupFunc;
   return TSDB_CODE_SUCCESS;
 }
@@ -204,6 +239,124 @@ int32_t fmGetScalarFuncExecFuncs(int32_t funcId, SScalarFuncExecFuncs* pFpSet) {
   return TSDB_CODE_SUCCESS;
 }
 
+static int32_t validateMySqlTimeRuntimeContext(const SFunctionNode* pFunc) {
+  int32_t count = LIST_LENGTH(pFunc->pParameterList);
+  if (count < 3) return TSDB_CODE_FUNC_FUNTION_PARA_NUM;
+  const int8_t types[] = {TSDB_DATA_TYPE_TINYINT, TSDB_DATA_TYPE_TINYINT, TSDB_DATA_TYPE_BIGINT};
+  for (int32_t i = 0; i < 3; ++i) {
+    SNode* node = nodesListGetNode(pFunc->pParameterList, count - 3 + i);
+    if (node == NULL || nodeType(node) != QUERY_NODE_VALUE) return TSDB_CODE_QRY_INVALID_INPUT;
+    SValueNode* value = (SValueNode*)node;
+    if (value->node.resType.type != types[i] || value->isNull) return TSDB_CODE_FUNC_FUNTION_PARA_TYPE;
+    if (i == 0 && (value->datum.i < TSDB_TIME_PRECISION_MILLI || value->datum.i > TSDB_TIME_PRECISION_NANO)) {
+      return TSDB_CODE_FUNC_FUNTION_PARA_VALUE;
+    }
+    // The shared callback dispatches on this value, so it must match the validated function ID.
+    if (i == 1 && value->datum.i != funcMgtBuiltins[pFunc->funcId].type - FUNCTION_TYPE_MYSQL_CURDATE) {
+      return TSDB_CODE_FUNC_FUNTION_PARA_VALUE;
+    }
+  }
+  return TSDB_CODE_SUCCESS;
+}
+
+int32_t fmValidateFuncNode(SFunctionNode* pFunc, char* pErrBuf, int32_t len) {
+  if (pFunc != NULL && fmIsUserDefinedFunc(pFunc->funcId)) {
+    return TSDB_CODE_SUCCESS;
+  }
+  bool   valid = pFunc != NULL && pFunc->funcId >= 0 && pFunc->funcId < funcMgtBuiltinsNum;
+  size_t nameLen = valid ? strnlen(pFunc->functionName, TSDB_FUNC_NAME_LEN) : 0;
+  if (valid && nameLen > 0) {
+    valid = nameLen < TSDB_FUNC_NAME_LEN &&
+            strcmp(funcMgtBuiltins[pFunc->funcId].name, pFunc->functionName) == 0;
+  }
+  if (!valid) {
+    if (pErrBuf != NULL && len > 0) {
+      const char* name = pFunc == NULL ? "<null>" :
+                         nameLen >= TSDB_FUNC_NAME_LEN ? "<unterminated>" : pFunc->functionName;
+      TAOS_UNUSED(snprintf(pErrBuf, len, "invalid function node, id:%d, name:%s",
+                           pFunc == NULL ? -1 : pFunc->funcId, name));
+    }
+    return TSDB_CODE_QRY_INVALID_INPUT;
+  }
+  int32_t funcType = funcMgtBuiltins[pFunc->funcId].type;
+  if (funcType >= FUNCTION_TYPE_MYSQL_CURDATE && funcType <= FUNCTION_TYPE_MYSQL_YEARWEEK) {
+    return validateMySqlTimeRuntimeContext(pFunc);
+  }
+  return TSDB_CODE_SUCCESS;
+}
+
+static int32_t validateTrailingRuntimeParam(int32_t funcId, const int8_t* pTypes, int32_t numOfParams,
+                                            int8_t runtimeType) {
+  if (numOfParams <= 0) {
+    return TSDB_CODE_FUNC_FUNTION_PARA_NUM;
+  }
+  if (pTypes[numOfParams - 1] != runtimeType) {
+    return TSDB_CODE_FUNC_FUNTION_PARA_TYPE;
+  }
+  return validateBuiltinFuncInputTypes(funcId, pTypes, numOfParams - 1);
+}
+
+int32_t fmValidateFuncInputTypes(int32_t funcId, const int8_t* pTypes, int32_t numOfParams) {
+  if (fmIsUserDefinedFunc(funcId)) {
+    return TSDB_CODE_SUCCESS;
+  }
+  if (funcId < 0 || funcId >= funcMgtBuiltinsNum || numOfParams < 0 ||
+      (numOfParams > 0 && pTypes == NULL)) {
+    return TSDB_CODE_QRY_INVALID_INPUT;
+  }
+  if (fmIsPseudoColumnFunc(funcId)) {
+    return TSDB_CODE_SUCCESS;
+  }
+
+  int32_t funcType = funcMgtBuiltins[funcId].type;
+  if (funcType >= FUNCTION_TYPE_MYSQL_CURDATE && funcType <= FUNCTION_TYPE_MYSQL_YEARWEEK) {
+    if (numOfParams < 3) return TSDB_CODE_FUNC_FUNTION_PARA_NUM;
+    if (pTypes[numOfParams - 3] != TSDB_DATA_TYPE_TINYINT ||
+        pTypes[numOfParams - 2] != TSDB_DATA_TYPE_TINYINT ||
+        pTypes[numOfParams - 1] != TSDB_DATA_TYPE_BIGINT) {
+      return TSDB_CODE_FUNC_FUNTION_PARA_TYPE;
+    }
+    return validateBuiltinFuncInputTypes(funcId, pTypes, numOfParams - 3);
+  }
+
+  switch (funcType) {
+    case FUNCTION_TYPE_CAST:
+    case FUNCTION_TYPE_IRATE:
+    case FUNCTION_TYPE_IRATE_MERGE:
+    case FUNCTION_TYPE_TRIM:
+    case FUNCTION_TYPE_TO_UNIXTIMESTAMP:
+    case FUNCTION_TYPE_NOW:
+    case FUNCTION_TYPE_TIMEDIFF:
+    case FUNCTION_TYPE_TODAY:
+    case FUNCTION_TYPE_WEEK:
+    case FUNCTION_TYPE_WEEKDAY:
+    case FUNCTION_TYPE_WEEKOFYEAR:
+    case FUNCTION_TYPE_DAYOFWEEK:
+    case FUNCTION_TYPE_DATE:
+    case FUNCTION_TYPE_GREATEST:
+    case FUNCTION_TYPE_LEAST:
+    case FUNCTION_TYPE_TWSUM_LINEAR:
+    case FUNCTION_TYPE_TWSUM_LOCF:
+      return validateTrailingRuntimeParam(funcId, pTypes, numOfParams, TSDB_DATA_TYPE_TINYINT);
+    case FUNCTION_TYPE_RAND:
+      if (numOfParams == 2) {
+        return validateTrailingRuntimeParam(funcId, pTypes, numOfParams, TSDB_DATA_TYPE_NULL);
+      }
+      return validateBuiltinFuncInputTypes(funcId, pTypes, numOfParams);
+    case FUNCTION_TYPE_TIMETRUNCATE:
+      if (numOfParams == 7) {
+        if (pTypes[3] != TSDB_DATA_TYPE_TINYINT || pTypes[4] != TSDB_DATA_TYPE_VARCHAR ||
+            pTypes[5] != TSDB_DATA_TYPE_TINYINT || pTypes[6] != TSDB_DATA_TYPE_TINYINT) {
+          return TSDB_CODE_FUNC_FUNTION_PARA_TYPE;
+        }
+        return validateBuiltinFuncInputTypes(funcId, pTypes, 3);
+      }
+      return validateBuiltinFuncInputTypes(funcId, pTypes, numOfParams);
+    default:
+      return validateBuiltinFuncInputTypes(funcId, pTypes, numOfParams);
+  }
+}
+
 bool fmIsAggFunc(int32_t funcId) { return isSpecificClassifyFunc(funcId, FUNC_MGT_AGG_FUNC); }
 
 bool fmIsScalarFunc(int32_t funcId) { return isSpecificClassifyFunc(funcId, FUNC_MGT_SCALAR_FUNC); }
@@ -216,6 +369,25 @@ bool fmIsSelectFunc(int32_t funcId) { return isSpecificClassifyFunc(funcId, FUNC
 
 bool fmIsTimelineFunc(int32_t funcId) { return isSpecificClassifyFunc(funcId, FUNC_MGT_TIMELINE_FUNC); }
 
+bool fmSupportsNoTimelineRowOrder(int32_t funcId) {
+  switch (fmGetFuncTypeFromId(funcId)) {
+    case FUNCTION_TYPE_FIRST:
+    case FUNCTION_TYPE_LAST:
+    case FUNCTION_TYPE_LAST_ROW:
+    case FUNCTION_TYPE_DIFF:
+    case FUNCTION_TYPE_CSUM:
+    case FUNCTION_TYPE_MAVG:
+    case FUNCTION_TYPE_STATE_COUNT:
+    case FUNCTION_TYPE_LAG:
+    case FUNCTION_TYPE_LEAD:
+    case FUNCTION_TYPE_FILL_FORWARD:
+    case FUNCTION_TYPE_UNIQUE:
+      return true;
+    default:
+      return false;
+  }
+}
+
 bool fmIsDateTimeFunc(int32_t funcId) { return isSpecificClassifyFunc(funcId, FUNC_MGT_DATETIME_FUNC); }
 
 bool fmIsPseudoColumnFunc(int32_t funcId) { return isSpecificClassifyFunc(funcId, FUNC_MGT_PSEUDO_COLUMN_FUNC); }
@@ -225,6 +397,8 @@ bool fmIsScanPseudoColumnFunc(int32_t funcId) { return isSpecificClassifyFunc(fu
 bool fmIsWindowPseudoColumnFunc(int32_t funcId) { return isSpecificClassifyFunc(funcId, FUNC_MGT_WINDOW_PC_FUNC); }
 
 bool fmIsWindowClauseFunc(int32_t funcId) { return fmIsAggFunc(funcId) || fmIsWindowPseudoColumnFunc(funcId); }
+
+bool fmIsWindowIndefRowsFunc(int32_t funcId) { return fmIsVectorFunc(funcId) || fmIsWindowPseudoColumnFunc(funcId); }
 
 bool fmIsStreamWindowClauseFunc(int32_t funcId) { return fmIsWindowClauseFunc(funcId) || fmIsPlaceHolderFunc(funcId); }
 
@@ -278,6 +452,10 @@ bool fmIsKeepOrderFunc(SFunctionNode* pFunc) {
 }
 
 bool fmIsCumulativeFunc(int32_t funcId) { return isSpecificClassifyFunc(funcId, FUNC_MGT_CUMULATIVE_FUNC); }
+
+bool fmIsCumulativeSqlWindowFunc(int32_t funcId) {
+  return fmIsCumulativeFunc(funcId) && isSpecificClassifyFunc(funcId, FUNC_MGT_SQL_WINDOW_AGG_FUNC);
+}
 
 bool fmIsForbidSysTableFunc(int32_t funcId) { return isSpecificClassifyFunc(funcId, FUNC_MGT_FORBID_SYSTABLE_FUNC); }
 
@@ -375,6 +553,35 @@ bool fmIsElapsedFunc(int32_t funcId) {
   return FUNCTION_TYPE_ELAPSED == funcMgtBuiltins[funcId].type;
 }
 
+// True for the three last-observation-carried-forward (locf/step) time-weighted variants.
+// Used to select rectangle (hold last value) integration and carry-forward window-boundary
+// interpolation, as opposed to the default linear (trapezoid) behavior.
+bool fmIsTwLocfFunc(int32_t funcId) {
+  if (funcId < 0 || funcId >= funcMgtBuiltinsNum) {
+    return false;
+  }
+  int32_t type = funcMgtBuiltins[funcId].type;
+  return FUNCTION_TYPE_TWAVG_LOCF == type || FUNCTION_TYPE_TWSUM_LOCF == type ||
+         FUNCTION_TYPE_TWVAR_LOCF == type;
+}
+
+bool fmIsBitDurationFunc(int32_t funcId) {
+  if (funcId < 0 || funcId >= funcMgtBuiltinsNum) {
+    return false;
+  }
+  return FUNCTION_TYPE_BIT_DURATION == funcMgtBuiltins[funcId].type;
+}
+
+bool fmBitDurationNeedsPrevRow(const SqlFunctionCtx* pCtx) {
+  if (pCtx == NULL || !fmIsBitDurationFunc(pCtx->functionId)) {
+    return false;
+  }
+  if (pCtx->param == NULL || pCtx->numOfParams <= 2 || pCtx->param[2].type != FUNC_PARAM_TYPE_VALUE) {
+    return true;
+  }
+  return pCtx->param[2].param.i != BIT_DURATION_FLAG_TOTAL;
+}
+
 bool fmIsBlockDistFunc(int32_t funcId) {
   if (funcId < 0 || funcId >= funcMgtBuiltinsNum) {
     return false;
@@ -391,7 +598,32 @@ bool fmIsDBUsageFunc(int32_t funcId) {
 
 bool fmIsProcessByRowFunc(int32_t funcId) { return isSpecificClassifyFunc(funcId, FUNC_MGT_PROCESS_BY_ROW); }
 
+bool fmIsDegradedTimelineRowOrderFunc(int32_t funcId) {
+  return isSpecificClassifyFunc(funcId, FUNC_MGT_DEGRADED_TIMELINE_ROW_ORDER_FUNC);
+}
+
+bool fmIsVolatileFunc(int32_t funcId) { return isSpecificClassifyFunc(funcId, FUNC_MGT_VOLATILE_FUNC); }
+
+bool fmIsNoPushdownFunc(int32_t funcId) { return isSpecificClassifyFunc(funcId, FUNC_MGT_NO_PUSHDOWN_FUNC); }
+
 bool fmIsIgnoreNullFunc(int32_t funcId) { return isSpecificClassifyFunc(funcId, FUNC_MGT_IGNORE_NULL_FUNC); }
+
+static bool fmIsSpecificClassifyFuncByName(const char* pFuncName, uint64_t classification) {
+  int32_t funcId = fmGetFuncId(pFuncName);
+  return isSpecificClassifyFunc(funcId, classification);
+}
+
+bool fmIsSqlWindowFunc(const char* pFuncName) {
+  return fmIsSpecificClassifyFuncByName(pFuncName, FUNC_MGT_SQL_WINDOW_FUNC);
+}
+
+bool fmIsSqlWindowOrderRequiredFunc(const char* pFuncName) {
+  return fmIsSpecificClassifyFuncByName(pFuncName, FUNC_MGT_SQL_WINDOW_ORDER_FUNC);
+}
+
+bool fmCanUseAsSqlWindowAgg(const char* pFuncName) {
+  return fmIsSpecificClassifyFuncByName(pFuncName, FUNC_MGT_SQL_WINDOW_AGG_FUNC);
+}
 
 void fmFuncMgtDestroy() {
   void* m = gFunMgtService.pFuncNameHashTable;
@@ -457,7 +689,7 @@ bool fmIsPlaceHolderFuncForExternalWin(int32_t funcId) {
 
 void getLastCacheDataType(SDataType* pType, int32_t pkBytes) {
   // TODO: do it later.
-  pType->bytes = getFirstLastInfoSize(pType->bytes, pkBytes) + VARSTR_HEADER_SIZE;
+  pType->bytes = getFirstLastInfoSize(getMaxValueBytes(pType->type, pType->bytes), pkBytes) + VARSTR_HEADER_SIZE;
   pType->type = TSDB_DATA_TYPE_BINARY;
 }
 
@@ -497,6 +729,7 @@ int32_t createFunctionWithSrcFunc(const char* pName, const SFunctionNode* pSrcFu
   }
 
   (*ppFunc)->hasPk = pSrcFunc->hasPk;
+  (*ppFunc)->ignoreResultRowCount = pSrcFunc->ignoreResultRowCount;
   (*ppFunc)->pkBytes = pSrcFunc->pkBytes;
   (*ppFunc)->pSrcFuncRef = pSrcFunc;
 
@@ -549,6 +782,7 @@ static int32_t createPartialFunction(const SFunctionNode* pSrcFunc, SFunctionNod
   }
   (*pPartialFunc)->hasOriginalFunc = true;
   (*pPartialFunc)->originalFuncId = pSrcFunc->hasOriginalFunc ? pSrcFunc->originalFuncId : pSrcFunc->funcId;
+  (*pPartialFunc)->isDistinct = pSrcFunc->isDistinct;
   char name[TSDB_FUNC_NAME_LEN + TSDB_NAME_DELIMITER_LEN + TSDB_POINTER_PRINT_BYTES + 1] = {0};
 
   int32_t len = snprintf(name, sizeof(name), "%s.%p", (*pPartialFunc)->functionName, pSrcFunc);
@@ -627,7 +861,7 @@ static int32_t createMergeFunction(const SFunctionNode* pSrcFunc, const SFunctio
 
 int32_t fmGetDistMethod(const SFunctionNode* pFunc, SFunctionNode** pPartialFunc, SFunctionNode** pMidFunc,
                         SFunctionNode** pMergeFunc) {
-  if (!fmIsDistExecFunc(pFunc->funcId)) {
+  if (!fmIsDistExecFunc(pFunc->funcId) || pFunc->isDistinct) {
     return TSDB_CODE_FAILED;
   }
 
@@ -833,19 +1067,27 @@ const void* fmGetExternalWindowColumnFuncVal(const SStreamRuntimeFuncInfo* pStre
 }
 
 const void* fmGetStreamPesudoFuncVal(int32_t funcId, const SStreamRuntimeFuncInfo* pStreamRuntimeFuncInfo) {
-  switch (funcMgtBuiltins[funcId].type) {
+  if (funcId < 0 || funcId >= funcMgtBuiltinsNum || pStreamRuntimeFuncInfo == NULL) {
+    return NULL;
+  }
+  int32_t type = funcMgtBuiltins[funcId].type;
+  switch (type) {
     case FUNCTION_TYPE_TGRPID:
       return &pStreamRuntimeFuncInfo->groupId;
     case FUNCTION_TYPE_PLACEHOLDER_COLUMN:
       return pStreamRuntimeFuncInfo->pStreamPartColVals;
     case FUNCTION_TYPE_PLACEHOLDER_TBNAME:
       return pStreamRuntimeFuncInfo->pStreamPartColVals;
+    case FUNCTION_TYPE_PLACEHOLDER_ROLLUP_TAG:
+      return pStreamRuntimeFuncInfo->pStreamPartColVals;
+    case FUNCTION_TYPE_PLACEHOLDER_ROLLUP_TBCOUNT:
+      return &pStreamRuntimeFuncInfo->rollupTbCount;
     default:
       break;
   }
 
   SSTriggerCalcParam *pParams = taosArrayGet(pStreamRuntimeFuncInfo->pStreamPesudoFuncVals, pStreamRuntimeFuncInfo->curIdx);
-  switch (funcMgtBuiltins[funcId].type) {
+  switch (type) {
     case FUNCTION_TYPE_TPREV_TS:
       return &pParams->prevTs;
     case FUNCTION_TYPE_TCURRENT_TS:
@@ -856,22 +1098,22 @@ const void* fmGetStreamPesudoFuncVal(int32_t funcId, const SStreamRuntimeFuncInf
       return &pParams->wstart;
     case FUNCTION_TYPE_TWEND:
       return &pParams->wend;
+    case FUNCTION_TYPE_TPREV_WSTART:
+      return &pParams->prevWstart;
+    case FUNCTION_TYPE_TPREV_WEND:
+      return &pParams->prevWend;
     case FUNCTION_TYPE_TWDURATION:
       return &pParams->wduration;
     case FUNCTION_TYPE_TWROWNUM:
       return &pParams->wrownum;
+    case FUNCTION_TYPE_TEVENT_CONDITION_PATH:
+      return pParams->eventConditionPath;
     case FUNCTION_TYPE_TPREV_LOCALTIME:
       return &pParams->prevLocalTime;
     case FUNCTION_TYPE_TLOCALTIME:
       return &pParams->triggerTime;
     case FUNCTION_TYPE_TNEXT_LOCALTIME:
       return &pParams->nextLocalTime;
-    case FUNCTION_TYPE_TGRPID:
-      return &pStreamRuntimeFuncInfo->groupId;
-    case FUNCTION_TYPE_PLACEHOLDER_COLUMN:
-      return pStreamRuntimeFuncInfo->pStreamPartColVals;
-    case FUNCTION_TYPE_PLACEHOLDER_TBNAME:
-      return pStreamRuntimeFuncInfo->pStreamPartColVals;
     case FUNCTION_TYPE_TIDLESTART:
       return &pParams->idlestart;
     case FUNCTION_TYPE_TIDLEEND:
@@ -882,12 +1124,171 @@ const void* fmGetStreamPesudoFuncVal(int32_t funcId, const SStreamRuntimeFuncInf
   return NULL;
 }
 
+static int32_t fmGetWindowPlaceholderValue(int32_t funcId, const SStreamRuntimeFuncInfo* pInfo, int32_t layerIndex,
+                                           const void** ppValue, bool* pIsNull) {
+  if (ppValue == NULL || pIsNull == NULL) return TSDB_CODE_STREAM_INVALID_PLACE_HOLDER;
+  *ppValue = NULL;
+  *pIsNull = false;
+  if (pInfo == NULL || funcId < 0 || funcId >= funcMgtBuiltinsNum || layerIndex < 0) {
+    return TSDB_CODE_STREAM_INVALID_PLACE_HOLDER;
+  }
+
+  int64_t requiredMask = 0;
+  bool    sliding = false;
+  switch (funcMgtBuiltins[funcId].type) {
+    case FUNCTION_TYPE_TPREV_TS:
+      requiredMask = PLACE_HOLDER_PREV_TS;
+      sliding = true;
+      break;
+    case FUNCTION_TYPE_TCURRENT_TS:
+      requiredMask = PLACE_HOLDER_CURRENT_TS;
+      sliding = true;
+      break;
+    case FUNCTION_TYPE_TNEXT_TS:
+      requiredMask = PLACE_HOLDER_NEXT_TS;
+      sliding = true;
+      break;
+    case FUNCTION_TYPE_TWSTART:
+      requiredMask = PLACE_HOLDER_WSTART;
+      break;
+    case FUNCTION_TYPE_TWEND:
+      requiredMask = PLACE_HOLDER_WEND;
+      break;
+    case FUNCTION_TYPE_TPREV_WSTART:
+      requiredMask = PLACE_HOLDER_PREV_WSTART;
+      break;
+    case FUNCTION_TYPE_TPREV_WEND:
+      requiredMask = PLACE_HOLDER_PREV_WEND;
+      break;
+    case FUNCTION_TYPE_TWDURATION:
+      requiredMask = PLACE_HOLDER_WDURATION;
+      break;
+    case FUNCTION_TYPE_TWROWNUM:
+      requiredMask = PLACE_HOLDER_WROWNUM;
+      break;
+    default:
+      return TSDB_CODE_STREAM_INVALID_PLACE_HOLDER;
+  }
+
+  const SStreamAncestorParamContext* pMatch = NULL;
+  if (tLookupStreamAncestorParam(pInfo->pAncestorContext, pInfo->groupId, pInfo->curIdx, &pMatch) !=
+          TSDB_CODE_SUCCESS ||
+      pMatch->pSnapshots == NULL || pMatch->pSnapshots->elemSize != sizeof(SWindowAncestorSnapshot)) {
+    return TSDB_CODE_STREAM_INVALID_PLACE_HOLDER;
+  }
+
+  const int32_t snapshotCount = taosArrayGetSize(pMatch->pSnapshots);
+  if (layerIndex > snapshotCount) return TSDB_CODE_STREAM_INVALID_PLACE_HOLDER;
+  if (layerIndex == snapshotCount) {
+    const int32_t type = funcMgtBuiltins[funcId].type;
+    if (type == FUNCTION_TYPE_TPREV_WSTART || type == FUNCTION_TYPE_TPREV_WEND) {
+      const SSTriggerCalcParam* pParam = taosArrayGet(pInfo->pStreamPesudoFuncVals, pInfo->curIdx);
+      if (pParam == NULL) return TSDB_CODE_STREAM_INVALID_PLACE_HOLDER;
+      *pIsNull = !pParam->hasPrevWindow;
+    }
+    *ppValue = fmGetStreamPesudoFuncVal(funcId, pInfo);
+    return *ppValue == NULL ? TSDB_CODE_STREAM_INVALID_PLACE_HOLDER : TSDB_CODE_SUCCESS;
+  }
+
+  const SWindowAncestorSnapshot* pSnapshot = taosArrayGet(pMatch->pSnapshots, layerIndex);
+  if (pSnapshot == NULL || pSnapshot->layerIndex != layerIndex ||
+      !BIT_FLAG_TEST_MASK(pSnapshot->placeholderMask, requiredMask)) {
+    return TSDB_CODE_STREAM_INVALID_PLACE_HOLDER;
+  }
+  if (sliding) {
+    if (pSnapshot->triggerType != WINDOW_TYPE_INTERVAL) return TSDB_CODE_STREAM_INVALID_PLACE_HOLDER;
+  } else if (pSnapshot->triggerType != WINDOW_TYPE_INTERVAL && pSnapshot->triggerType != WINDOW_TYPE_SESSION &&
+             pSnapshot->triggerType != WINDOW_TYPE_STATE && pSnapshot->triggerType != WINDOW_TYPE_EVENT &&
+             pSnapshot->triggerType != WINDOW_TYPE_COUNT) {
+    return TSDB_CODE_STREAM_INVALID_PLACE_HOLDER;
+  }
+
+  switch (funcMgtBuiltins[funcId].type) {
+    case FUNCTION_TYPE_TPREV_TS:
+      *ppValue = &pSnapshot->values.sliding.prevTs;
+      break;
+    case FUNCTION_TYPE_TCURRENT_TS:
+      *ppValue = &pSnapshot->values.sliding.currentTs;
+      break;
+    case FUNCTION_TYPE_TNEXT_TS:
+      *ppValue = &pSnapshot->values.sliding.nextTs;
+      break;
+    case FUNCTION_TYPE_TWSTART:
+      *ppValue = &pSnapshot->values.window.start;
+      break;
+    case FUNCTION_TYPE_TWEND:
+      *ppValue = &pSnapshot->values.window.end;
+      break;
+    case FUNCTION_TYPE_TPREV_WSTART:
+      *pIsNull = !pSnapshot->values.window.hasPrevWindow;
+      *ppValue = &pSnapshot->values.window.prevStart;
+      break;
+    case FUNCTION_TYPE_TPREV_WEND:
+      *pIsNull = !pSnapshot->values.window.hasPrevWindow;
+      *ppValue = &pSnapshot->values.window.prevEnd;
+      break;
+    case FUNCTION_TYPE_TWDURATION:
+      *ppValue = &pSnapshot->values.window.duration;
+      break;
+    case FUNCTION_TYPE_TWROWNUM:
+      *ppValue = &pSnapshot->values.window.rownum;
+      break;
+    default:
+      return TSDB_CODE_STREAM_INVALID_PLACE_HOLDER;
+  }
+  return TSDB_CODE_SUCCESS;
+}
+
+static int32_t fmSetRollupTagValue(SValueNode* pNode, SArray* pVals) {
+  SStreamGroupValue* pValue = taosArrayGet(pVals, 0);
+  if (pValue == NULL) {
+    uError("failed to set rollup tag, invalid group column value");
+    return TSDB_CODE_INTERNAL_ERROR;
+  }
+
+  if (pValue->isNull) {
+    pNode->isNull = true;
+    return TSDB_CODE_SUCCESS;
+  }
+
+  if (pValue->data.type != pNode->node.resType.type) {
+    uError("failed to set rollup tag, source type:%d mismatch result type:%d", pValue->data.type,
+           pNode->node.resType.type);
+    return TSDB_CODE_INTERNAL_ERROR;
+  }
+
+  const char* pLeaf = NULL;
+  int32_t     leafLen = 0;
+  int32_t     code = tGetStreamRollupGroupLeaf(pValue, &pLeaf, &leafLen);
+  if (code != TSDB_CODE_SUCCESS) {
+    uError("failed to set rollup tag, invalid source type:%d, data length:%d", pValue->data.type, pValue->data.nData);
+    return TSDB_CODE_INTERNAL_ERROR;
+  }
+
+  int32_t bufSize = leafLen + VARSTR_HEADER_SIZE;
+  char*   tmp = taosMemoryCalloc(1, bufSize);
+  if (tmp == NULL) {
+    return terrno;
+  }
+
+  if (leafLen > 0) {
+    (void)memcpy(varDataVal(tmp), pLeaf, leafLen);
+  }
+
+  taosMemFree(pNode->datum.p);
+  pNode->datum.p = tmp;
+  varDataSetLen(pNode->datum.p, leafLen);
+  pNode->isNull = false;
+  return TSDB_CODE_SUCCESS;
+}
+
 bool fmIsStreamPesudoColVal(int32_t funcId) {
   if (funcId < 0 || funcId >= funcMgtBuiltinsNum) {
     return false;
   }
-  return funcMgtBuiltins[funcId].type == FUNCTION_TYPE_PLACEHOLDER_COLUMN
-         || funcMgtBuiltins[funcId].type == FUNCTION_TYPE_PLACEHOLDER_TBNAME;
+  return funcMgtBuiltins[funcId].type == FUNCTION_TYPE_PLACEHOLDER_COLUMN ||
+         funcMgtBuiltins[funcId].type == FUNCTION_TYPE_PLACEHOLDER_TBNAME ||
+         funcMgtBuiltins[funcId].type == FUNCTION_TYPE_PLACEHOLDER_ROLLUP_TAG;
 }
 
 int32_t fmGetStreamPesudoFuncEnv(int32_t funcId, SNodeList* pParamNodes, SFuncExecEnv *pEnv) {
@@ -910,13 +1311,25 @@ int32_t fmGetStreamPesudoFuncEnv(int32_t funcId, SNodeList* pParamNodes, SFuncEx
 
 
 int32_t fmSetStreamPseudoFuncParamVal(int32_t funcId, SNodeList* pParamNodes, const SStreamRuntimeFuncInfo* pStreamRuntimeInfo) {
-  if (!pStreamRuntimeInfo) {
-    uError("internal error, should have pVals for stream pseudo funcs");
+  if (funcId < 0 || funcId >= funcMgtBuiltinsNum) {
+    uError("invalid stream pseudo function id:%d", funcId);
+    return TSDB_CODE_INTERNAL_ERROR;
+  }
+  if (pParamNodes == NULL) {
+    uError("missing parameter nodes for stream pseudo function id:%d", funcId);
+    return TSDB_CODE_INTERNAL_ERROR;
+  }
+  if (pStreamRuntimeInfo == NULL) {
+    uError("missing runtime info for stream pseudo function id:%d", funcId);
     return TSDB_CODE_INTERNAL_ERROR;
   }
   int32_t code = 0;
   SArray *pVals1 = NULL;
   SNode* pFirstParam = nodesListGetNode(pParamNodes, 0);
+  if (pFirstParam == NULL) {
+    uError("missing first parameter for stream pseudo function id:%d", funcId);
+    return TSDB_CODE_INTERNAL_ERROR;
+  }
   if (nodeType(pFirstParam) != QUERY_NODE_VALUE) {
     uError("invalid param node type: %d for func: %d", nodeType(pFirstParam), funcId);
     return TSDB_CODE_INTERNAL_ERROR;
@@ -925,9 +1338,13 @@ int32_t fmSetStreamPseudoFuncParamVal(int32_t funcId, SNodeList* pParamNodes, co
   int32_t t = funcMgtBuiltins[funcId].type;
   uDebug("set stream pseudo func param val, functype: %d, pStreamRuntimeInfo: %p", t, pStreamRuntimeInfo);
   if (FUNCTION_TYPE_TGRPID == t) {
+    const int64_t* pVal = (const int64_t*)fmGetStreamPesudoFuncVal(funcId, pStreamRuntimeInfo);
+    if (pVal == NULL) {
+      return TSDB_CODE_INTERNAL_ERROR;
+    }
     SValue v = {0};
     v.type = TSDB_DATA_TYPE_BIGINT;
-    v.val = *(int64_t*)fmGetStreamPesudoFuncVal(funcId, pStreamRuntimeInfo);
+    v.val = *pVal;
     
     code = nodesSetValueNodeValue((SValueNode*)pFirstParam, VALUE_GET_DATUM(&v, pFirstParam->type));
     if (code != 0) {
@@ -936,11 +1353,14 @@ int32_t fmSetStreamPseudoFuncParamVal(int32_t funcId, SNodeList* pParamNodes, co
     }
   } else if (FUNCTION_TYPE_PLACEHOLDER_COLUMN == t) {
     SNode* pSecondParam = nodesListGetNode(pParamNodes, 1);
-    if (nodeType(pSecondParam) != QUERY_NODE_VALUE) {
-      uError("invalid param node type: %d for func: %d", nodeType(pSecondParam), funcId);
+    if (pSecondParam == NULL || nodeType(pSecondParam) != QUERY_NODE_VALUE) {
+      uError("invalid second param node for func: %d", funcId);
       return TSDB_CODE_INTERNAL_ERROR;
     }
     SArray* pVal = (SArray*)fmGetStreamPesudoFuncVal(funcId, pStreamRuntimeInfo);
+    if (pVal == NULL) {
+      return TSDB_CODE_INTERNAL_ERROR;
+    }
     int32_t idx = ((SValueNode*)pSecondParam)->datum.i;
     if (idx - 1 < 0 || idx - 1 >= taosArrayGetSize(pVal)) {
       uError("invalid idx: %d for func: %d, should be in [1, %d]", idx, funcId, (int32_t)taosArrayGetSize(pVal));
@@ -963,15 +1383,41 @@ int32_t fmSetStreamPseudoFuncParamVal(int32_t funcId, SNodeList* pParamNodes, co
         }
         taosMemoryFree(((SValueNode*)pFirstParam)->datum.p);
         ((SValueNode*)pFirstParam)->datum.p = tmp;
-        memcpy(varDataVal(((SValueNode*)pFirstParam)->datum.p), pValue->data.pData, pValue->data.nData);
+        if (pValue->data.nData > 0) {
+          memcpy(varDataVal(((SValueNode*)pFirstParam)->datum.p), pValue->data.pData, pValue->data.nData);
+        }
         varDataLen(((SValueNode*)pFirstParam)->datum.p) = pValue->data.nData;
       } else {
         code = nodesSetValueNodeValue((SValueNode*)pFirstParam, VALUE_GET_DATUM(&pValue->data, pValue->data.type));
       }
     }
     ((SValueNode*)pFirstParam)->isNull = pValue->isNull;
+  } else if (FUNCTION_TYPE_PLACEHOLDER_ROLLUP_TAG == t) {
+    SArray* pVal = (SArray*)fmGetStreamPesudoFuncVal(funcId, pStreamRuntimeInfo);
+    if (pVal == NULL) {
+      return TSDB_CODE_INTERNAL_ERROR;
+    }
+    code = fmSetRollupTagValue((SValueNode*)pFirstParam, pVal);
+    if (code != 0) {
+      return code;
+    }
+  } else if (FUNCTION_TYPE_PLACEHOLDER_ROLLUP_TBCOUNT == t) {
+    const int32_t* pVal = (const int32_t*)fmGetStreamPesudoFuncVal(funcId, pStreamRuntimeInfo);
+    if (pVal == NULL) {
+      uError("failed to set stream pseudo func param val, NULL val for funcId: %d", funcId);
+      return TSDB_CODE_INTERNAL_ERROR;
+    }
+
+    code = nodesSetValueNodeValue((SValueNode*)pFirstParam, (void*)pVal);
+    if (code != 0) {
+      uError("failed to set value node value: %s", tstrerror(code));
+      return code;
+    }
   } else if (FUNCTION_TYPE_PLACEHOLDER_TBNAME == t) {
     SArray* pVal = (SArray*)fmGetStreamPesudoFuncVal(funcId, pStreamRuntimeInfo);
+    if (pVal == NULL) {
+      return TSDB_CODE_INTERNAL_ERROR;
+    }
     for (int32_t i = 0; i < taosArrayGetSize(pVal); ++i) {
       SStreamGroupValue* pValue = taosArrayGet(pVal, i);
       if (pValue != NULL && pValue->isTbname) {
@@ -986,7 +1432,30 @@ int32_t fmSetStreamPseudoFuncParamVal(int32_t funcId, SNodeList* pParamNodes, co
         break;
       }
     }
-  } else if(FUNCTION_TYPE_EXTERNAL_WINDOW_COLUMN == t) {
+  } else if (FUNCTION_TYPE_TEVENT_CONDITION_PATH == t) {
+    SValueNode* pFirstVal = (SValueNode*)pFirstParam;
+    if (!IS_VAR_DATA_TYPE(pFirstVal->node.resType.type)) {
+      uError("invalid value type: %d for func: %d, should be varstr", pFirstVal->node.resType.type, funcId);
+      return TSDB_CODE_INTERNAL_ERROR;
+    }
+
+    const char* path = (const char*)fmGetStreamPesudoFuncVal(funcId, pStreamRuntimeInfo);
+    if (path == NULL) {
+      path = "";
+    }
+    int32_t pathLen = (int32_t)strlen(path);
+    char*   buf = taosMemoryCalloc(1, pathLen + VARSTR_HEADER_SIZE);
+    if (buf == NULL) {
+      return terrno;
+    }
+    if (pathLen > 0) {
+      memcpy(varDataVal(buf), path, pathLen);
+    }
+    varDataSetLen(buf, pathLen);
+    taosMemoryFreeClear(pFirstVal->datum.p);
+    pFirstVal->datum.p = buf;
+    pFirstVal->isNull = false;
+  } else if (FUNCTION_TYPE_EXTERNAL_WINDOW_COLUMN == t) {
     if (NULL == pParamNodes || LIST_LENGTH(pParamNodes) < 2) {
       uError("invalid stream external window column param list %p, len: %d", pParamNodes,
              pParamNodes ? LIST_LENGTH(pParamNodes) : 0);
@@ -1029,14 +1498,43 @@ int32_t fmSetStreamPseudoFuncParamVal(int32_t funcId, SNodeList* pParamNodes, co
       return code;
     }
   } else if (LIST_LENGTH(pParamNodes) == 1) {
-    // twstart, twend
+    // twstart, twend, tpre_wstart, tpre_wend
+    SSTriggerCalcParam* pParams =
+        taosArrayGet(pStreamRuntimeInfo->pStreamPesudoFuncVals, pStreamRuntimeInfo->curIdx);
+    if (pParams == NULL) {
+      uError("failed to set stream pseudo func param val, missing calc param for funcId: %d", funcId);
+      return TSDB_CODE_INTERNAL_ERROR;
+    }
     const void* pVal = fmGetStreamPesudoFuncVal(funcId, pStreamRuntimeInfo);
     if (!pVal) {
       uError("failed to set stream pseudo func param val, NULL val for funcId: %d", funcId);
       return TSDB_CODE_INTERNAL_ERROR;
     }
+    if ((t == FUNCTION_TYPE_TPREV_WSTART || t == FUNCTION_TYPE_TPREV_WEND) && !pParams->hasPrevWindow) {
+      ((SValueNode*)pFirstParam)->isNull = true;
+      return TSDB_CODE_SUCCESS;
+    }
+    ((SValueNode*)pFirstParam)->isNull = false;
     code = nodesSetValueNodeValue((SValueNode*)pFirstParam, (void*)pVal);
     if (code != 0) {
+      uError("failed to set value node value: %s", tstrerror(code));
+      return code;
+    }
+  } else if (LIST_LENGTH(pParamNodes) == 2) {
+    SNode* pSecondParam = nodesListGetNode(pParamNodes, 1);
+    if (pSecondParam == NULL || nodeType(pSecondParam) != QUERY_NODE_VALUE ||
+        ((SValueNode*)pSecondParam)->node.resType.type != TSDB_DATA_TYPE_INT) {
+      return TSDB_CODE_STREAM_INVALID_PLACE_HOLDER;
+    }
+    const void* pVal = NULL;
+    bool        isNull = false;
+    code =
+        fmGetWindowPlaceholderValue(funcId, pStreamRuntimeInfo, ((SValueNode*)pSecondParam)->datum.i, &pVal, &isNull);
+    if (code != TSDB_CODE_SUCCESS) return code;
+    ((SValueNode*)pFirstParam)->isNull = isNull;
+    if (isNull) return TSDB_CODE_SUCCESS;
+    code = nodesSetValueNodeValue((SValueNode*)pFirstParam, (void*)pVal);
+    if (code != TSDB_CODE_SUCCESS) {
       uError("failed to set value node value: %s", tstrerror(code));
       return code;
     }
@@ -1044,7 +1542,81 @@ int32_t fmSetStreamPseudoFuncParamVal(int32_t funcId, SNodeList* pParamNodes, co
     uError("invalid placeholder function type: %d", t);
     return TSDB_CODE_INTERNAL_ERROR;
   }
-  
+
   return code;
 }
+// --- FQ push-down capability bitmap lookup ---
+// Returns the uint32_t bitmap from funcMgtBuiltins[funcId].fqPushCap.
+// UDFs (funcId > FUNC_UDF_ID_START) and out-of-range ids return FQ_CAP_NONE.
+uint32_t fqFuncCapBitmap(int32_t funcId) {
+  if (fmIsUserDefinedFunc(funcId) || funcId < 0 || funcId >= funcMgtBuiltinsNum) {
+    return FQ_CAP_NONE;
+  }
+  return funcMgtBuiltins[funcId].fqPushCap;
+}
 
+uint32_t fqFuncArg0NcharCapBitmap(int32_t funcId) {
+  if (fmIsUserDefinedFunc(funcId) || funcId < 0 || funcId >= funcMgtBuiltinsNum) {
+    return FQ_CAP_NONE;
+  }
+
+  return funcMgtBuiltins[funcId].fqArg0NcharPushCapSet ? funcMgtBuiltins[funcId].fqArg0NcharPushCap
+                                                       : funcMgtBuiltins[funcId].fqPushCap;
+}
+
+bool fqFuncIsPushable(int32_t funcId, int32_t dialect,
+                      const SExtCapSessionOverlay* pOverlay) {
+  uint32_t cap = fqFuncCapBitmap(funcId);
+  uint32_t bit = fqDialectBit(dialect);
+  if (bit == 0) return false;
+
+  // Session-level override: high half (bits 16-31) disables the corresponding dialect.
+  if (pOverlay != NULL) {
+    uint32_t sessionDisable = (uint32_t)(cap >> FQ_CAP_SESSION_SHIFT);
+    if (sessionDisable & bit) return false;
+  }
+
+  return (cap & bit) != 0;
+}
+
+bool fqFuncArg0NcharIsPushable(int32_t funcId, int32_t dialect,
+                               const SExtCapSessionOverlay* pOverlay) {
+  uint32_t cap = fqFuncArg0NcharCapBitmap(funcId);
+  uint32_t bit = fqDialectBit(dialect);
+  if (bit == 0) return false;
+
+  if (pOverlay != NULL) {
+    uint32_t sessionDisable = (uint32_t)(cap >> FQ_CAP_SESSION_SHIFT);
+    if (sessionDisable & bit) return false;
+  }
+
+  return (cap & bit) != 0;
+}
+
+bool fqFuncSubCapIsPushable(int32_t funcId, int32_t subCapShift, int32_t dialect,
+                             const SExtCapSessionOverlay* pOverlay) {
+  uint32_t cap = fqFuncCapBitmap(funcId);
+  uint32_t bit = fqDialectBit(dialect);
+  if (bit == 0) return false;
+
+  /* The sub-capability band (bits 3-5, session band 19-21) is derived from the
+   * first three dialects only. SQL Server, Oracle and InfluxDB 1.8 sit
+   * outside that band and have no shift-derived sub-capability; deriving one
+   * for them would read an unrelated capability bit. */
+  if (dialect == EXT_SQL_DIALECT_SQLSERVER || dialect == EXT_SQL_DIALECT_ORACLE ||
+      dialect == EXT_SQL_DIALECT_INFLUXDB_1_8) {
+    return false;
+  }
+
+  // Default band for the sub-capability (low half, bits subCapShift..subCapShift+2).
+  uint32_t subDefault = (uint32_t)(cap >> subCapShift);
+
+  // Session-override band sits in the high half at the same relative position:
+  // (subCapShift + FQ_CAP_SESSION_SHIFT).
+  if (pOverlay != NULL) {
+    uint32_t subSession = (uint32_t)(cap >> (subCapShift + FQ_CAP_SESSION_SHIFT));
+    if (subSession & bit) return false;
+  }
+
+  return (subDefault & bit) != 0;
+}

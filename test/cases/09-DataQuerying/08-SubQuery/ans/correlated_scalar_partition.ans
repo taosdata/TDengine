@@ -1,0 +1,404 @@
+
+taos> use correlated_scalar_positions;
+Database changed.
+
+taos> select sum(r.v) as total from readings r partition by (select max(t.lim) from thresholds t where t.device = r.device) order by total;
+         total         |
+========================
+                    30 |
+                    30 |
+                    40 |
+
+taos> select sum(r.v) as total from readings r partition by (select max(t.lim) from thresholds t where t.device = r.device ) order by total;
+         total         |
+========================
+                    30 |
+                    30 |
+                    40 |
+
+taos> select sum(r.v) as total from readings r partition by (select max(t.lim) from thresholds t where t.lim < r.v ) order by total;
+         total         |
+========================
+                    10 |
+                    20 |
+                    70 |
+
+taos> select sum(r.v) as total from readings r partition by (select max(t.lim) from thresholds t where t.ts <= r.ts ) order by total;
+         total         |
+========================
+                    30 |
+                    70 |
+
+taos> select sum(r.v) as total from readings r partition by (select max(t.lim) from thresholds t where t.device = r.device and t.lim < r.v ) order by total;
+         total         |
+========================
+                    20 |
+                    30 |
+                    50 |
+
+taos> select sum(r.v) as total from readings r partition by (select count(*) from thresholds t where t.device = r.device ) order by total;
+         total         |
+========================
+                    40 |
+                    60 |
+
+taos> select sum(r.v) as total from readings r partition by (select count(*) from thresholds t where t.lim < r.v ) order by total;
+         total         |
+========================
+                    10 |
+                    20 |
+                    70 |
+
+taos> select sum(r.v) as total from readings r partition by (select count(*) from thresholds t where t.ts <= r.ts ) order by total;
+         total         |
+========================
+                    30 |
+                    70 |
+
+taos> select sum(r.v) as total from readings r partition by (select count(*) from thresholds t where t.device = r.device and t.lim < r.v ) order by total;
+         total         |
+========================
+                    50 |
+                    50 |
+
+taos> select sum(r.v) as total from readings r partition by (select min(t.lim) from thresholds t where t.device = r.device ) order by total;
+         total         |
+========================
+                    30 |
+                    30 |
+                    40 |
+
+taos> select sum(r.v) as total from readings r partition by (select min(t.lim) from thresholds t where t.lim < r.v ) order by total;
+         total         |
+========================
+                    10 |
+                    90 |
+
+taos> select sum(r.v) as total from readings r partition by (select min(t.lim) from thresholds t where t.ts <= r.ts ) order by total;
+         total         |
+========================
+                   100 |
+
+taos> select sum(r.v) as total from readings r partition by (select min(t.lim) from thresholds t where t.device = r.device and t.lim < r.v ) order by total;
+         total         |
+========================
+                    20 |
+                    30 |
+                    50 |
+
+taos> select sum(r.v) as total from readings r partition by (select sum(t.lim) from thresholds t where t.device = r.device ) order by total;
+         total         |
+========================
+                    30 |
+                    30 |
+                    40 |
+
+taos> select sum(r.v) as total from readings r partition by (select sum(t.lim) from thresholds t where t.lim < r.v ) order by total;
+         total         |
+========================
+                    10 |
+                    20 |
+                    70 |
+
+taos> select sum(r.v) as total from readings r partition by (select sum(t.lim) from thresholds t where t.ts <= r.ts ) order by total;
+         total         |
+========================
+                    30 |
+                    70 |
+
+taos> select sum(r.v) as total from readings r partition by (select sum(t.lim) from thresholds t where t.device = r.device and t.lim < r.v ) order by total;
+         total         |
+========================
+                    20 |
+                    30 |
+                    50 |
+
+taos> select sum(r.v) as total from readings r partition by (select t.lim from thresholds t where t.device = r.device order by t.ts desc limit 1) order by total;
+         total         |
+========================
+                    30 |
+                    30 |
+                    40 |
+
+taos> select sum(r.v) as total from readings r partition by (select t.lim from thresholds t where t.lim < r.v order by t.ts desc limit 1) order by total;
+         total         |
+========================
+                    10 |
+                    20 |
+                    70 |
+
+taos> select sum(r.v) as total from readings r partition by (select t.lim from thresholds t where t.ts <= r.ts order by t.ts desc limit 1) order by total;
+         total         |
+========================
+                    30 |
+                    70 |
+
+taos> select sum(r.v) as total from readings r partition by (select t.lim from thresholds t where t.device = r.device and t.lim < r.v order by t.ts desc limit 1) order by total;
+         total         |
+========================
+                    20 |
+                    30 |
+                    50 |
+
+taos> select sum(r.v) as total from readings r partition by (select (select max(t.lim) from thresholds t where t.device = r.device ) from thresholds m limit 1) order by total;
+         total         |
+========================
+                    30 |
+                    30 |
+                    40 |
+
+taos> select sum(r.v) as total from readings r partition by (select (select max(t.lim) from thresholds t where t.lim < r.v ) from thresholds m limit 1) order by total;
+         total         |
+========================
+                    10 |
+                    20 |
+                    70 |
+
+taos> select sum(r.v) as total from readings r partition by (select (select max(t.lim) from thresholds t where t.ts <= r.ts ) from thresholds m limit 1) order by total;
+         total         |
+========================
+                    30 |
+                    70 |
+
+taos> select sum(r.v) as total from readings r partition by (select (select max(t.lim) from thresholds t where t.device = r.device and t.lim < r.v ) from thresholds m limit 1) order by total;
+         total         |
+========================
+                    20 |
+                    30 |
+                    50 |
+
+taos> select sum(r.v) as total from readings r partition by (select (select count(*) from thresholds t where t.device = r.device ) from thresholds m limit 1) order by total;
+         total         |
+========================
+                    40 |
+                    60 |
+
+taos> select sum(r.v) as total from readings r partition by (select (select count(*) from thresholds t where t.lim < r.v ) from thresholds m limit 1) order by total;
+         total         |
+========================
+                    10 |
+                    20 |
+                    70 |
+
+taos> select sum(r.v) as total from readings r partition by (select (select count(*) from thresholds t where t.ts <= r.ts ) from thresholds m limit 1) order by total;
+         total         |
+========================
+                    30 |
+                    70 |
+
+taos> select sum(r.v) as total from readings r partition by (select (select count(*) from thresholds t where t.device = r.device and t.lim < r.v ) from thresholds m limit 1) order by total;
+         total         |
+========================
+                    50 |
+                    50 |
+
+taos> select sum(r.v) as total from readings r partition by (select (select min(t.lim) from thresholds t where t.device = r.device ) from thresholds m limit 1) order by total;
+         total         |
+========================
+                    30 |
+                    30 |
+                    40 |
+
+taos> select sum(r.v) as total from readings r partition by (select (select min(t.lim) from thresholds t where t.lim < r.v ) from thresholds m limit 1) order by total;
+         total         |
+========================
+                    10 |
+                    90 |
+
+taos> select sum(r.v) as total from readings r partition by (select (select min(t.lim) from thresholds t where t.ts <= r.ts ) from thresholds m limit 1) order by total;
+         total         |
+========================
+                   100 |
+
+taos> select sum(r.v) as total from readings r partition by (select (select min(t.lim) from thresholds t where t.device = r.device and t.lim < r.v ) from thresholds m limit 1) order by total;
+         total         |
+========================
+                    20 |
+                    30 |
+                    50 |
+
+taos> select sum(r.v) as total from readings r partition by (select (select sum(t.lim) from thresholds t where t.device = r.device ) from thresholds m limit 1) order by total;
+         total         |
+========================
+                    30 |
+                    30 |
+                    40 |
+
+taos> select sum(r.v) as total from readings r partition by (select (select sum(t.lim) from thresholds t where t.lim < r.v ) from thresholds m limit 1) order by total;
+         total         |
+========================
+                    10 |
+                    20 |
+                    70 |
+
+taos> select sum(r.v) as total from readings r partition by (select (select sum(t.lim) from thresholds t where t.ts <= r.ts ) from thresholds m limit 1) order by total;
+         total         |
+========================
+                    30 |
+                    70 |
+
+taos> select sum(r.v) as total from readings r partition by (select (select sum(t.lim) from thresholds t where t.device = r.device and t.lim < r.v ) from thresholds m limit 1) order by total;
+         total         |
+========================
+                    20 |
+                    30 |
+                    50 |
+
+taos> select sum(r.v) as total from readings r partition by (select (select t.lim from thresholds t where t.device = r.device order by t.ts desc limit 1) from thresholds m limit 1) order by total;
+         total         |
+========================
+                    30 |
+                    30 |
+                    40 |
+
+taos> select sum(r.v) as total from readings r partition by (select (select t.lim from thresholds t where t.lim < r.v order by t.ts desc limit 1) from thresholds m limit 1) order by total;
+         total         |
+========================
+                    10 |
+                    20 |
+                    70 |
+
+taos> select sum(r.v) as total from readings r partition by (select (select t.lim from thresholds t where t.ts <= r.ts order by t.ts desc limit 1) from thresholds m limit 1) order by total;
+         total         |
+========================
+                    30 |
+                    70 |
+
+taos> select sum(r.v) as total from readings r partition by (select (select t.lim from thresholds t where t.device = r.device and t.lim < r.v order by t.ts desc limit 1) from thresholds m limit 1) order by total;
+         total         |
+========================
+                    20 |
+                    30 |
+                    50 |
+
+taos> select sum(r.v) as total from readings r partition by (select (select (select max(t.lim) from thresholds t where t.device = r.device ) from thresholds m limit 1) from thresholds n limit 1) order by total;
+         total         |
+========================
+                    30 |
+                    30 |
+                    40 |
+
+taos> select sum(r.v) as total from readings r partition by (select (select (select max(t.lim) from thresholds t where t.lim < r.v ) from thresholds m limit 1) from thresholds n limit 1) order by total;
+         total         |
+========================
+                    10 |
+                    20 |
+                    70 |
+
+taos> select sum(r.v) as total from readings r partition by (select (select (select max(t.lim) from thresholds t where t.ts <= r.ts ) from thresholds m limit 1) from thresholds n limit 1) order by total;
+         total         |
+========================
+                    30 |
+                    70 |
+
+taos> select sum(r.v) as total from readings r partition by (select (select (select max(t.lim) from thresholds t where t.device = r.device and t.lim < r.v ) from thresholds m limit 1) from thresholds n limit 1) order by total;
+         total         |
+========================
+                    20 |
+                    30 |
+                    50 |
+
+taos> select sum(r.v) as total from readings r partition by (select (select (select count(*) from thresholds t where t.device = r.device ) from thresholds m limit 1) from thresholds n limit 1) order by total;
+         total         |
+========================
+                    40 |
+                    60 |
+
+taos> select sum(r.v) as total from readings r partition by (select (select (select count(*) from thresholds t where t.lim < r.v ) from thresholds m limit 1) from thresholds n limit 1) order by total;
+         total         |
+========================
+                    10 |
+                    20 |
+                    70 |
+
+taos> select sum(r.v) as total from readings r partition by (select (select (select count(*) from thresholds t where t.ts <= r.ts ) from thresholds m limit 1) from thresholds n limit 1) order by total;
+         total         |
+========================
+                    30 |
+                    70 |
+
+taos> select sum(r.v) as total from readings r partition by (select (select (select count(*) from thresholds t where t.device = r.device and t.lim < r.v ) from thresholds m limit 1) from thresholds n limit 1) order by total;
+         total         |
+========================
+                    50 |
+                    50 |
+
+taos> select sum(r.v) as total from readings r partition by (select (select (select min(t.lim) from thresholds t where t.device = r.device ) from thresholds m limit 1) from thresholds n limit 1) order by total;
+         total         |
+========================
+                    30 |
+                    30 |
+                    40 |
+
+taos> select sum(r.v) as total from readings r partition by (select (select (select min(t.lim) from thresholds t where t.lim < r.v ) from thresholds m limit 1) from thresholds n limit 1) order by total;
+         total         |
+========================
+                    10 |
+                    90 |
+
+taos> select sum(r.v) as total from readings r partition by (select (select (select min(t.lim) from thresholds t where t.ts <= r.ts ) from thresholds m limit 1) from thresholds n limit 1) order by total;
+         total         |
+========================
+                   100 |
+
+taos> select sum(r.v) as total from readings r partition by (select (select (select min(t.lim) from thresholds t where t.device = r.device and t.lim < r.v ) from thresholds m limit 1) from thresholds n limit 1) order by total;
+         total         |
+========================
+                    20 |
+                    30 |
+                    50 |
+
+taos> select sum(r.v) as total from readings r partition by (select (select (select sum(t.lim) from thresholds t where t.device = r.device ) from thresholds m limit 1) from thresholds n limit 1) order by total;
+         total         |
+========================
+                    30 |
+                    30 |
+                    40 |
+
+taos> select sum(r.v) as total from readings r partition by (select (select (select sum(t.lim) from thresholds t where t.lim < r.v ) from thresholds m limit 1) from thresholds n limit 1) order by total;
+         total         |
+========================
+                    10 |
+                    20 |
+                    70 |
+
+taos> select sum(r.v) as total from readings r partition by (select (select (select sum(t.lim) from thresholds t where t.ts <= r.ts ) from thresholds m limit 1) from thresholds n limit 1) order by total;
+         total         |
+========================
+                    30 |
+                    70 |
+
+taos> select sum(r.v) as total from readings r partition by (select (select (select sum(t.lim) from thresholds t where t.device = r.device and t.lim < r.v ) from thresholds m limit 1) from thresholds n limit 1) order by total;
+         total         |
+========================
+                    20 |
+                    30 |
+                    50 |
+
+taos> select sum(r.v) as total from readings r partition by (select (select (select t.lim from thresholds t where t.device = r.device order by t.ts desc limit 1) from thresholds m limit 1) from thresholds n limit 1) order by total;
+         total         |
+========================
+                    30 |
+                    30 |
+                    40 |
+
+taos> select sum(r.v) as total from readings r partition by (select (select (select t.lim from thresholds t where t.lim < r.v order by t.ts desc limit 1) from thresholds m limit 1) from thresholds n limit 1) order by total;
+         total         |
+========================
+                    10 |
+                    20 |
+                    70 |
+
+taos> select sum(r.v) as total from readings r partition by (select (select (select t.lim from thresholds t where t.ts <= r.ts order by t.ts desc limit 1) from thresholds m limit 1) from thresholds n limit 1) order by total;
+         total         |
+========================
+                    30 |
+                    70 |
+
+taos> select sum(r.v) as total from readings r partition by (select (select (select t.lim from thresholds t where t.device = r.device and t.lim < r.v order by t.ts desc limit 1) from thresholds m limit 1) from thresholds n limit 1) order by total;
+         total         |
+========================
+                    20 |
+                    30 |
+                    50 |
+

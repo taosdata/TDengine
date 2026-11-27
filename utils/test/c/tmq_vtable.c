@@ -1,6 +1,8 @@
 /*
  * Copyright (c) 2019 TAOS Data, Inc. <jhtao@taosdata.com>
  *
+ * SPDX-License-Identifier: AGPL-3.0-or-later
+ *
  * This program is free software: you can use, redistribute, and/or modify
  * it under the terms of the GNU Affero General Public License, version 3
  * or later ("AGPL"), as published by the Free Software Foundation.
@@ -69,8 +71,11 @@ static void msg_process(TAOS_RES* msg) {
   TAOS* pConn = use_db();
   int32_t ret = tmq_write_raw(pConn, raw);
   printf("write raw data: %s\n", tmq_err2str(ret));
-  if(ret != 0){
-    exit(ret);
+  if (ret != 0) {
+    printf("write raw data failed, exit with error\n");
+    tmq_free_raw(raw);
+    taos_close(pConn);
+    exit(1);
   }
 
   tmq_free_raw(raw);

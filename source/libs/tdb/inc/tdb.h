@@ -1,6 +1,8 @@
 /*
  * Copyright (c) 2019 TAOS Data, Inc. <jhtao@taosdata.com>
  *
+ * SPDX-License-Identifier: AGPL-3.0-or-later
+ *
  * This program is free software: you can use, redistribute, and/or modify
  * it under the terms of the GNU Affero General Public License, version 3
  * or later ("AGPL"), as published by the Free Software Foundation.
@@ -32,6 +34,14 @@ typedef struct STTB TTB;
 typedef struct STBC TBC;
 typedef struct STxn TXN;
 
+typedef struct {
+  const void *pKey;
+  int32_t     kLen;
+  void       *pVal;
+  int32_t     vLen;
+  int32_t     code;
+} STdbTbBatchGetArg;
+
 // TDB
 int32_t tdbOpen(const char *dbname, int szPage, int pages, TDB **ppDb, int8_t rollback, SEncryptData *encryptData);
 void    tdbClose(TDB *pDb);
@@ -54,6 +64,7 @@ int32_t tdbTbInsert(TTB *pTb, const void *pKey, int keyLen, const void *pVal, in
 int32_t tdbTbDelete(TTB *pTb, const void *pKey, int kLen, TXN *pTxn);
 int32_t tdbTbUpsert(TTB *pTb, const void *pKey, int kLen, const void *pVal, int vLen, TXN *pTxn);
 int32_t tdbTbGet(TTB *pTb, const void *pKey, int kLen, void **ppVal, int *vLen);
+int32_t tdbTbGetBatch(TTB *pTb, STdbTbBatchGetArg *pArgs, int32_t numOfArgs);
 int32_t tdbTbPGet(TTB *pTb, const void *pKey, int kLen, void **ppKey, int *pkLen, void **ppVal, int *vLen);
 int32_t tdbTbTraversal(TTB *pTb, void *data,
                        int32_t (*func)(const void *pKey, int keyLen, const void *pVal, int valLen, void *data));

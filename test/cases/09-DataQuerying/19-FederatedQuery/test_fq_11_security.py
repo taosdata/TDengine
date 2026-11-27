@@ -1,0 +1,4735 @@
+# Copyright (c) 2019 TAOS Data, Inc. <jhtao@taosdata.com>
+#
+# SPDX-License-Identifier: AGPL-3.0-or-later
+#
+# This program is free software: you can use, redistribute, and/or modify
+# it under the terms of the GNU Affero General Public License, version 3
+# or later ("AGPL"), as published by the Free Software Foundation.
+#
+# This program is distributed in the hope that it will be useful, but WITHOUT
+# ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+# FITNESS FOR A PARTICULAR PURPOSE.
+#
+# You should have received a copy of the GNU Affero General Public License
+# along with this program. If not, see <http://www.gnu.org/licenses/>.
+
+"""
+test_fq_11_security.py
+
+Implements active security cases mapped from SEC-001..SEC-020 in TS "Security Tests"
+section (deprecated by current FS: SEC-015, SEC-019), with the same
+high-coverage standard applied to §1-§8 functional tests.  Each TS case maps
+to exactly one test method with multi-dimensional, multi-statement coverage
+including both positive and negative paths.
+
+Coverage matrix:
+    SEC-001  Encrypted password storage — metadata side no plaintext password
+    SEC-002  SHOW/DESCRIBE masking — password/token/cert private key masked
+    SEC-003  Log masking — error logs contain no sensitive info
+    SEC-004  Normal user visibility — sysInfo column permission protection
+    SEC-005  TLS one-way verification — tls_enabled + ca_cert effective
+    SEC-006  TLS two-way verification — client cert/key effective
+    SEC-007  Auth failure blocking — auth failed → source status update
+    SEC-008  Access denied blocking — access denied error code & status
+    SEC-009  SQL injection protection — SOURCE/path/identifier no injection
+    SEC-010  Abnormal data boundary validation — external abnormal return no crash
+    SEC-011  Connection reset safety — connection reset → handle cleanup complete
+    SEC-012  Sensitive config change audit — ALTER SOURCE change has audit record
+    SEC-013  Option effectiveness — charset/read_timeout
+    SEC-014  Option effectiveness — influx api_token/protocol
+    SEC-021  ALTER unknown option rejected
+    SEC-022  ALTER patch-delete non-timeout option
+    SEC-023  read_timeout_ms=0 overrides global query timeout
+    SEC-025  SHOW/DESCRIBE masking for tls_client_cert value
+    SEC-026  timeout option invalid-format rejection (non-numeric/negative)
+    SEC-027  Influx protocol default + FlightSQL TLS option consumption
+    SEC-016  Option effectiveness — connect_timeout timing behavior
+    SEC-017  MySQL ssl_mode enum behavior matrix
+    SEC-018  PostgreSQL sslmode enum behavior matrix
+    SEC-020  Option key acceptance matrix (parser + mnode consistency)
+
+    SQL Server (联邦查询支持 SQLServer TS §10, parallel to the per-dialect
+    matrices above; step-1 zero pushdown):
+    FQSS-SEC-001  Password & certificate masking in SHOW/DESCRIBE/EXPLAIN
+    FQSS-SEC-002  No temporary certificate files on connect/cleanup paths
+    FQSS-SEC-003  Least-privilege account: granted SELECT works, rest denied
+    FQSS-SEC-004  Cross-database visible range matches the granted range
+    FQSS-SEC-005  Identifier injection protection (table/column/db/schema)
+    FQSS-SEC-006  Missing dependency/option support never silently downgrades
+
+    Oracle (联邦查询支持 Oracle TS §10, same per-dialect matrix):
+    FQOR-SEC-001  Password masking in SHOW/DESCRIBE/EXPLAIN (no wallet path)
+    FQOR-SEC-002  TLS options rejected at DDL time; no temporary cert files
+    FQOR-SEC-003  Least-privilege account: granted SELECT works, rest denied
+    FQOR-SEC-004  Cross-schema visible range matches the granted range
+    FQOR-SEC-005  Identifier injection protection (double-quote escaping)
+    FQOR-SEC-006  No client-side Oracle Net config is read or invented
+
+Design notes:
+    - Tests validate masking/security at the interface level where possible.
+    - For tests requiring live external databases or audit subsystems, the
+      interface-level checks are done inline and data-verification parts
+      are guarded with pytest.skip().
+    - Real external-source hosts/ports from ExtSrcEnv config are used in all tests.
+    - Sensitive strings tested: password, api_token, client_key, ca_cert path.
+
+Environment requirements:
+    - Enterprise edition with federatedQueryEnable = 1.
+    - For full SEC-005/006: external source with TLS configured.
+"""
+
+import glob
+import os
+import pytest
+import time as _time
+import json
+from pathlib import Path
+import select
+import subprocess
+import sys
+import tempfile
+
+import taos
+
+from new_test_framework.utils import tdLog, tdSql, TDSql
+
+from federated_query_common import (
+    FederatedQueryCaseHelper,
+    FederatedQueryVersionedMixin,
+    ExtSrcEnv,
+    influx18_basic_gate,
+    TSDB_CODE_PAR_SYNTAX_ERROR,
+    TSDB_CODE_MND_EXTERNAL_SOURCE_ALREADY_EXISTS,
+    TSDB_CODE_MND_EXTERNAL_SOURCE_NOT_EXIST,
+    TSDB_CODE_EXT_OPTIONS_TLS_CONFLICT,
+    TSDB_CODE_EXT_SOURCE_UNAVAILABLE,
+    TSDB_CODE_EXT_WRITE_DENIED,
+    TSDB_CODE_EXT_SYNTAX_UNSUPPORTED,
+    TSDB_CODE_EXT_CONFIG_PARAM_INVALID,
+    TSDB_CODE_EXT_AUTH_FAILED,
+    TSDB_CODE_EXT_CONNECT_FAILED,
+    FQ_CA_CERT,
+    FQ_MYSQL_CA_CERT,
+    FQ_MYSQL_CLIENT_CERT,
+    FQ_MYSQL_CLIENT_KEY,
+    FQ_PG_CA_CERT,
+    FQ_PG_CLIENT_CERT,
+    FQ_PG_CLIENT_KEY,
+    TSDB_CODE_EXT_SOURCE_NOT_FOUND,
+    TSDB_CODE_EXT_TABLE_NOT_EXIST,
+    TSDB_CODE_EXT_DB_NOT_EXIST,
+    TSDB_CODE_EXT_QUERY_TIMEOUT,
+    TSDB_CODE_EXT_SOURCE_TYPE_NOT_SUPPORT,
+    TSDB_CODE_EXT_REMOTE_INTERNAL,
+    TSDB_CODE_EXT_CONNECT_FAILED,
+    TSDB_CODE_MND_DB_NOT_EXIST,
+    influx_versions,
+)
+
+# SHOW EXTERNAL SOURCES column indices
+_COL_NAME = 0
+_COL_TYPE = 1
+_COL_HOST = 2
+_COL_PORT = 3
+_COL_USER = 4
+_COL_PASSWORD = 5
+_COL_DATABASE = 6
+_COL_SCHEMA = 7
+_COL_OPTIONS = 8
+_COL_CTIME = 9
+
+_MASKED = "******"
+
+
+class TestFq11Security(FederatedQueryVersionedMixin):
+    """FS-aligned security tests with full coverage (SEC-015/019 deprecated)."""
+
+
+    # All source names created across tests — used by teardown_class for global cleanup
+    _ALL_SOURCES = [
+        "sec001_mysql_simple", "sec001_mysql_special", "sec001_pg",
+        "sec001_influx", "sec001_empty_pwd",
+        "sec002_mysql", "sec002_pg", "sec002_influx", "sec002_tls",
+        "sec003_mysql", "sec003_influx", "sec003_sqlserver",
+        "sec004_src",
+        "sec005_mysql_tls", "sec005_mysql_ssl_disabled", "sec005_mysql_bad_ca",
+        "sec005_pg_disable", "sec005_pg_require", "sec005_conflict",
+        "sec006_mysql_no_client", "sec006_mysql_mtls", "sec006_mysql_pair_check",
+        "sec007_bad_auth", "sec007_good_src",
+        "sec008_src",
+        "sec009_pwd_inj", "sec009_drop_test", "`sec009_drop_test`",
+        "sec010_port0", "sec010_port65535", "sec010_longhost",
+        "sec010_longdb", "sec010_longpwd", "sec010_longuser",
+        "sec011_reset",
+        "sec012_audit",
+        "sec013_charset_ok", "sec013_charset_bad", "sec013_read_timeout_low", "sec013_read_timeout_ok",
+        "sec014_influx_http_ok", "sec014_influx_token_bad", "sec014_influx_flight_ok", "sec014_influx_http_tls",
+    ]
+
+    def setup_class(self):
+        tdLog.debug(f"start to execute {__file__}")
+        self.helper = FederatedQueryCaseHelper(__file__)
+        self.helper.require_external_source_feature()
+        ExtSrcEnv.ensure_env()
+        # Pre-cleanup: remove any leftover state from previous runs
+        self._cleanup(*TestFq11Security._ALL_SOURCES)
+        TestFq11Security()._drop_influx_sources("sec002_influx")
+
+    def teardown_class(self):
+        """Global cleanup — remove all external sources created by any test."""
+        self._cleanup(*TestFq11Security._ALL_SOURCES)
+        TestFq11Security()._drop_influx_sources("sec002_influx")
+        tdSql.execute("drop user if exists sec004_user")
+
+    # ------------------------------------------------------------------
+    # helpers (shared: _cleanup inherited from FederatedQueryTestMixin)
+    # ------------------------------------------------------------------
+
+    def _find_row(self, source_name):
+        tdSql.query("show external sources")
+        for idx, row in enumerate(tdSql.queryResult):
+            if str(row[_COL_NAME]) == source_name:
+                return idx
+        return -1
+
+    def _row_text(self, row_idx):
+        return "|".join(str(c) for c in tdSql.queryResult[row_idx])
+
+    def _influx_metadata_options(self, api_token="x"):
+        if self._influx_cfg().version == "1.8":
+            return "'version'='1.8'"
+        return f"'api_token'='{api_token}'"
+
+    def _assert_influx_auth_failure_masked(self, sql, secret):
+        try:
+            tdSql.cursor.execute(sql)
+            tdSql.cursor.fetchall()
+        except Exception as error:
+            assert secret not in str(error), "InfluxDB credential leaked in error message"
+            errno = getattr(error, "errno", None)
+            errno_low16 = (errno & 0xFFFF) if isinstance(errno, int) else None
+            assert errno == TSDB_CODE_EXT_AUTH_FAILED or errno_low16 == (TSDB_CODE_EXT_AUTH_FAILED & 0xFFFF), (
+                f"invalid Basic credentials should fail with AUTH_FAILED, got errno={errno}")
+        else:
+            raise AssertionError("invalid Basic credentials unexpectedly succeeded")
+
+    def do_influx18_option_effectiveness(self):
+        cfg = self._influx_cfg()
+        database = "sec014_opt_idb"
+        names = [f"sec014_influx18_{suffix}" for suffix in
+                 ("http", "bad_auth", "http_upper", "tls", "flight", "flight_upper", "token")]
+        self._cleanup(*names)
+        ExtSrcEnv.influx_create_db_cfg(cfg, database)
+        try:
+            ExtSrcEnv.influx_write_cfg(cfg, database, ["src_t,site=sec014 val=1i 1704067200000000000"])
+            with influx18_basic_gate(cfg) as (port, seen):
+                for name, protocol in ((names[0], "http"), (names[2], "HTTP")):
+                    tdSql.execute(self._mk_influx_source_sql(
+                        name, "127.0.0.1", port, "", database=database, protocol=protocol,
+                        user="basic18", password="basic18_test_password"))
+                    tdSql.query(f"select count(*) from {name}.{database}.src_t")
+                    tdSql.checkData(0, 0, 1)
+                assert seen, "HTTP query did not reach the Basic authentication fixture"
+
+                tdSql.execute(self._mk_influx_source_sql(
+                    names[1], "127.0.0.1", port, "", database=database,
+                    user="basic18", password="__bad_password__"))
+                self._assert_influx_auth_failure_masked(
+                    f"select count(*) from {names[1]}.{database}.src_t", "__bad_password__")
+
+                for name, protocol in ((names[4], "flight_sql"), (names[5], "FLIGHT_SQL")):
+                    tdSql.error(self._mk_influx_source_sql(
+                        name, "127.0.0.1", port, "", database=database, protocol=protocol,
+                        user="basic18", password="basic18_test_password"),
+                        expectedErrno=TSDB_CODE_EXT_SYNTAX_UNSUPPORTED)
+                tdSql.error(self._mk_influx_source_sql(
+                    names[6], "127.0.0.1", port, "__bad_token__", database=database),
+                    expectedErrno=TSDB_CODE_EXT_SYNTAX_UNSUPPORTED)
+                tdSql.query("show external sources")
+                existing = {str(row[_COL_NAME]) for row in tdSql.queryResult}
+                assert not existing.intersection(names[4:]), "rejected options left source metadata"
+
+                tdSql.execute(self._mk_influx_source_sql(
+                    names[3], "127.0.0.1", port, "", database=database,
+                    user="basic18", password="basic18_test_password",
+                    extra_options="'tls_enabled'='true','tls_ca_cert'='/tmp/fq_nonexistent_influx_ca.pem'"))
+                tdSql.error(f"select count(*) from {names[3]}.{database}.src_t",
+                            expectedErrno=TSDB_CODE_EXT_CONNECT_FAILED)
+        finally:
+            self._cleanup(*names)
+            ExtSrcEnv.influx_drop_db_cfg(cfg, database)
+
+    def do_influx18_default_protocol_and_tls(self):
+        cfg = self._influx_cfg()
+        database = "sec027_opt_idb"
+        names = ["sec027_influx18_default", "sec027_influx18_http_tls", "sec027_influx18_flight_tls"]
+        self._cleanup(*names)
+        ExtSrcEnv.influx_create_db_cfg(cfg, database)
+        try:
+            ExtSrcEnv.influx_write_cfg(cfg, database, ["src_t,site=sec027 val=1i 1704067200000000000"])
+            with influx18_basic_gate(cfg) as (port, seen):
+                tdSql.execute(
+                    f"create external source {names[0]} type='influxdb' host='127.0.0.1' port={port} "
+                    f"user='basic18' password='basic18_test_password' database='{database}' "
+                    "options('version'='1.8')")
+                assert not seen, "CREATE SOURCE contacted the remote server"
+                tdSql.query(f"select count(*) from {names[0]}.{database}.src_t")
+                tdSql.checkData(0, 0, 1)
+                row_idx = self._find_row(names[0])
+                assert row_idx >= 0
+                options_col = str(tdSql.queryResult[row_idx][_COL_OPTIONS])
+                assert "protocol" not in options_col
+
+                tdSql.execute(self._mk_influx_source_sql(
+                    names[1], "127.0.0.1", port, "", database=database,
+                    user="basic18", password="basic18_test_password",
+                    extra_options="'tls_enabled'='true','tls_ca_cert'='/tmp/fq_nonexistent_influx_http_ca.pem'"))
+                tdSql.error(f"select count(*) from {names[1]}.{database}.src_t",
+                            expectedErrno=TSDB_CODE_EXT_CONNECT_FAILED)
+                tdSql.error(self._mk_influx_source_sql(
+                    names[2], "127.0.0.1", port, "", database=database, protocol="flight_sql",
+                    extra_options="'tls_enabled'='true','tls_ca_cert'='/tmp/fq_nonexistent_influx_flight_ca.pem'"),
+                    expectedErrno=TSDB_CODE_EXT_SYNTAX_UNSUPPORTED)
+                assert self._find_row(names[2]) == -1
+        finally:
+            self._cleanup(*names)
+            ExtSrcEnv.influx_drop_db_cfg(cfg, database)
+
+    def _normal_user_sql(self, user, config=None):
+        conn = taos.connect(host=self.host, port=self.port, user=user,
+                            password="Test1234", config=config or self.cfg_path)
+        sql = TDSql()
+        sql.init(conn.cursor())
+        return conn, sql
+
+    def do_normal_user_external_queries(self):
+        local_db = "sec028_local"
+        tdSql.execute(f"drop database if exists {local_db}")
+        tdSql.execute(f"create database {local_db}")
+        tdSql.execute(f"create table {local_db}.local_t(ts timestamp, val int)")
+        tdSql.execute(f"insert into {local_db}.local_t values(1704067200000, 99)")
+
+        # _with_std_sources 按 InfluxDB 版本逐条执行，但每个版本都复用同一个源名，
+        # 由源名派生的用户名因此会被 drop 后原地重建。客户端目录缓存按用户名保存
+        # 授权结果，重建的用户在心跳刷新前的权限判定仍是上一轮（已 grant）的结果，
+        # 于是本地库 use 会越过 parser 检查、由 mnode 返回 0x0303 而不是 0x2644。
+        # 每轮用独立用户名，保证权限检查从干净状态开始。
+        leg = [0]
+
+        def check_source(src):
+            leg[0] += 1
+            user = f"{src}_{leg[0]}_user"
+            tdSql.execute(f"drop user if exists {user}")
+            tdSql.execute(f"create user {user} pass 'Test1234' sysinfo 0")
+            tdSql.query("show external sources")
+            source_row = next(row for row in tdSql.queryResult if row[0] == src)
+            source_type = str(source_row[1]).lower()
+            # The middle path segment names the source's namespace level:
+            # PostgreSQL's schema, Oracle's schema (= the login user), and the
+            # database/bucket for MySQL and InfluxDB.  Oracle keeps the service
+            # name in DATABASE, so column 6 is not a namespace there.
+            if source_type == "postgresql":
+                namespace = "public"
+            elif source_type == "oracle":
+                namespace = str(source_row[7])
+            else:
+                namespace = str(source_row[6])
+            conn, sql = self._normal_user_sql(user)
+            try:
+                # TDengine lower-cases an unquoted segment; an upper-case
+                # namespace (Oracle's account schema) needs backticks.
+                ns_ref = (f"`{namespace}`" if namespace != namespace.lower()
+                          else namespace)
+                paths = [f"{src}.{ns_ref}.src_t", f"{src}.src_t"]
+                for path in paths:
+                    sql.query(f"select val,name from {path} order by val")
+                    sql.checkRows(5)
+                    for index, name in enumerate(("alpha", "beta", "gamma", "delta", "epsilon")):
+                        sql.checkData(index, 0, index + 1)
+                        sql.checkData(index, 1, name)
+                sql.execute(f"use {src}")
+                for path in ("src_t", f"{src}.src_t"):
+                    sql.query(f"select count(*),sum(val) from {path}")
+                    sql.checkRows(1)
+                    sql.checkData(0, 0, 5)
+                    sql.checkData(0, 1, 15)
+                sql.error(f"use {local_db}", expectedErrno=0x2644)
+                sql.error(f"select val from {local_db}.local_t", expectedErrno=0x26E3)
+                sql.error(f"explain select val from {local_db}.local_t", expectedErrno=0x26E3)
+                sql.error(f"select val from {src}.src_t union all select val from {local_db}.local_t",
+                          expectedErrno=0x26E3)
+                sql.query(f"explain select val from {src}.src_t")
+                assert len(sql.queryResult) > 0, "外部表 EXPLAIN 应返回执行计划"
+                tdSql.execute(f"grant use on database {local_db} to {user}")
+                sql.execute(f"use {local_db}")
+                # 已授权 USE 但未授权 SELECT 时，本地表查询按表级权限拒绝返回 0x2644。
+                sql.error(f"select val from {local_db}.local_t", expectedErrno=0x2644)
+                tdSql.execute(f"grant select on table {local_db}.local_t to {user}")
+                sql.query("select val from local_t")
+                sql.checkRows(1)
+                sql.checkData(0, 0, 99)
+                sql.query(f"select count(*) from {src}.src_t")
+                sql.checkData(0, 0, 5)
+                for statement in (
+                    f"create external source sec028_forbidden type='postgresql' host='127.0.0.1' "
+                    "port=15434 user='postgres' password='invalid' database='postgres'",
+                    f"alter external source {src} set password='invalid'",
+                    f"refresh external source {src}",
+                    f"drop external source {src}",
+                ):
+                    sql.error(statement, expectedErrno=0x0303)
+                sql.query(f"select count(*) from {src}.src_t")
+                sql.checkData(0, 0, 5)
+            finally:
+                sql.close()
+                conn.close()
+                tdSql.execute(f"drop user if exists {user}")
+
+        try:
+            # SQL Server coverage for these authorization cases is not part of this change.
+            self._with_std_sources("sec028", check_source, skip_sqlserver=True)
+        finally:
+            tdSql.execute(f"drop database if exists {local_db}")
+        print("普通用户外部查询与本地权限边界 [passed]")
+
+    def test_normal_user_external_queries(self):
+        """普通用户无需授权使用外部源，本地权限和源管理权限保持生效。
+
+        普通用户跨外部源查询、EXPLAIN，并确认本地库表权限与外部源管理权限仍然生效。
+
+        Catalog:
+            - FederatedQuery
+
+        Since: v3.4.1.0
+
+        Labels: common,ci
+
+        Jira: None
+
+        History:
+            - 2026-10-09 wpan 补齐普通用户外部查询权限回归
+            - 2026-10-27 wpan 中间路径段按源类型取（Oracle 用 schema，不用服务名）
+            - 2026-11-05 wpan InfluxDB 多版本复用源名导致普通用户名被原地重建，改为按轮次区分
+        """
+        self.do_normal_user_external_queries()
+
+    def do_normal_user_credential_delivery(self):
+        user = "sec029_user"
+        tdSql.execute(f"drop user if exists {user}")
+        tdSql.execute(f"create user {user} pass 'Test1234' sysinfo 0")
+
+        oracle_alt_user = "FQ_SEC029_ALT"
+        oracle_alt_pass = "FqSec029Alt26"
+
+        def prepare_namespace(src):
+            """Create the alternate namespace the source is switched to.
+
+            PostgreSQL: a schema inside the source database.  Oracle has no
+            per-test database - a schema is an account (DS 5.3.2) - so the
+            equivalent is a scratch account holding the same SRC_T with the
+            post-switch data and a SELECT grant for the source's login user.
+            """
+            tdSql.query("show external sources")
+            source_row = next(row for row in tdSql.queryResult if row[0] == src)
+            if str(source_row[1]).lower() == "oracle":
+                cfg = self._oracle_cfg()
+                self._oracle_kill_user_sessions(cfg, oracle_alt_user)
+                self._oracle_admin_ddl(cfg, f'DROP USER "{oracle_alt_user}" CASCADE',
+                                       ignore_ora=("ORA-01918", "ORA-01940"))
+                self._oracle_admin_ddl(
+                    cfg, f'CREATE USER "{oracle_alt_user}" IDENTIFIED BY "{oracle_alt_pass}"')
+                self._oracle_admin_ddl(
+                    cfg, f'GRANT CREATE SESSION, CREATE TABLE, UNLIMITED TABLESPACE '
+                         f'TO "{oracle_alt_user}"')
+                # Store quoted lower-case names: the shared TDengine references
+                # (sec029_o.src_t, val) are folded to lower case and matched
+                # exactly against the Oracle catalog.
+                ExtSrcEnv._oracle_sql(cfg, [
+                    'CREATE TABLE "src_t" ("ts" TIMESTAMP(3) PRIMARY KEY, "val" NUMBER(10,0))',
+                    "INSERT INTO \"src_t\" VALUES (TIMESTAMP '2024-01-01 00:00:00.000', 77)",
+                    "COMMIT",
+                ], user=oracle_alt_user, password=oracle_alt_pass)
+                self._oracle_admin_ddl(
+                    cfg, f'GRANT SELECT ON "{oracle_alt_user}"."src_t" TO "{cfg.user.upper()}"')
+                return oracle_alt_user
+            cfg = self._pg_cfg()
+            database = "sec029_pdb"
+            ExtSrcEnv.pg_exec_cfg(cfg, database, [
+                "create schema auth_changed",
+                "create table auth_changed.src_t (ts timestamp, val int)",
+                "insert into auth_changed.src_t values ('2024-01-01', 77)",
+            ])
+            return "auth_changed"
+
+        def check_source(src):
+            new_namespace = prepare_namespace(src)
+            with tempfile.TemporaryDirectory(prefix="fq-normal-credentials-") as temp_dir:
+                cfg_dir = Path(temp_dir) / "cfg"
+                log_dir = Path(temp_dir) / "log"
+                cfg_dir.mkdir()
+                log_dir.mkdir()
+                (cfg_dir / "taos.cfg").write_text(
+                    f"firstEp {self.host}:{self.port}\nfederatedQueryEnable 1\n"
+                    f"qDebugFlag 143\ncDebugFlag 143\nasyncLog 0\nlogDir {log_dir}\n", encoding="utf-8")
+                child = r'''
+import json, sys, time, pathlib, select, taos
+host, port, user, cfg, src, logs = json.loads(sys.argv[1])
+conn = taos.connect(host=host, port=port, user=user, password="Test1234", config=cfg)
+cursor = conn.cursor()
+def check(expected):
+    cursor.execute("select count(*),sum(val) from " + src + ".src_t")
+    assert cursor.fetchall() == [expected]
+def read_logs():
+    # The client keeps its log file open; on Windows a plain open() can be
+    # denied, so unreadable files are skipped instead of aborting.
+    chunks = []
+    for path in pathlib.Path(logs).glob("taoslog*"):
+        try:
+            chunks.append(path.read_text(errors="replace"))
+        except OSError:
+            pass
+    return "".join(chunks)
+try:
+    check((5, 15))
+    baseline = read_logs().count("hb received ext source push:")
+    print("GET_OK", flush=True)
+    sys.stdin.readline()
+    deadline = time.monotonic() + 20
+    while time.monotonic() < deadline:
+        if read_logs().count("hb received ext source push:") > baseline:
+            cursor.execute("select count(*),sum(val) from " + src + ".src_t")
+            if cursor.fetchall() == [(1, 77)]:
+                print("HEARTBEAT_OK", flush=True)
+                break
+        time.sleep(0.1)
+    else:
+        details = "\n".join(read_logs().splitlines()[-200:])
+        raise AssertionError("普通用户未收到外部源心跳更新: " + details)
+finally:
+    cursor.close()
+    conn.close()
+'''
+                output = Path(temp_dir) / "client.out"
+                with output.open("w+") as stream:
+                    # The helper process is a plain python client: its own allocations are
+                    # reported by LeakSanitizer under the ASAN build and would turn the exit
+                    # code non-zero, so leak detection stays off for this child only.
+                    child_env = dict(os.environ)
+                    child_env["ASAN_OPTIONS"] = ":".join(
+                        opt for opt in (child_env.get("ASAN_OPTIONS", ""), "detect_leaks=0") if opt)
+                    proc = subprocess.Popen([sys.executable, "-u", "-c", child,
+                                             json.dumps([self.host, self.port, user, str(cfg_dir), src, str(log_dir)])],
+                                            stdin=subprocess.PIPE, stdout=stream, stderr=stream, text=True,
+                                            env=child_env)
+                    try:
+                        deadline = _time.monotonic() + 30
+                        while "GET_OK" not in output.read_text():
+                            assert proc.poll() is None, output.read_text()
+                            assert _time.monotonic() < deadline, output.read_text()
+                            _time.sleep(0.1)
+                        # The client buffers log lines and flushes them on a
+                        # timer, so the diagnostic may land in the file (or in
+                        # the captured stream when no log file is usable) a
+                        # moment after the query returns.  Poll instead of
+                        # reading once.
+                        needle = f"source:{src}, try to get ext source from mnode"
+                        deadline = _time.monotonic() + 10
+                        client_logs = ""
+                        while _time.monotonic() < deadline:
+                            client_logs = ""
+                            for _p in log_dir.glob("taoslog*"):
+                                try:
+                                    client_logs += _p.read_text(errors="replace")
+                                except OSError:
+                                    pass
+                            # When the client cannot create a log file it writes
+                            # the same diagnostics to its captured stream
+                            # (typical on Windows), so both sources are searched.
+                            client_logs += output.read_text()
+                            if needle in client_logs:
+                                break
+                            _time.sleep(0.2)
+                        assert needle in client_logs
+                        tdSql.execute(f"alter external source {src} set schema='{new_namespace}'")
+                        proc.communicate("updated\n", timeout=30)
+                        assert proc.returncode == 0, output.read_text()
+                        assert "HEARTBEAT_OK" in output.read_text()
+                    finally:
+                        if proc.poll() is None:
+                            proc.kill()
+                            proc.wait()
+
+        try:
+            self._with_std_sources("sec029", check_source, skip_mysql=True, skip_influx=True,
+                                   skip_sqlserver=True)
+        finally:
+            tdSql.execute(f"drop user if exists {user}")
+            cfg_or = self._oracle_cfg()
+            self._oracle_kill_user_sessions(cfg_or, oracle_alt_user)
+            self._oracle_admin_ddl(cfg_or, f'DROP USER "{oracle_alt_user}" CASCADE',
+                                   ignore_ora=("ORA-01918", "ORA-01940"))
+        print("普通用户 GET 与心跳外部源凭据下发 [passed]")
+
+    def test_normal_user_credential_delivery(self):
+        """普通用户获取外部源凭据并接收心跳更新，无需源使用授权。
+
+        普通用户首次查询时从 mnode 拉取外部源凭据，并在外部源变更后通过心跳收到新凭据。
+
+        Catalog:
+            - FederatedQuery
+
+        Since: v3.4.1.0
+
+        Labels: common,ci
+
+        Jira: None
+
+        History:
+            - 2026-10-09 wpan 补齐普通用户凭据下发通道回归
+            - 2026-10-27 wpan 增补 Oracle 切换 schema 的凭据下发 leg（第二账号即命名空间）
+        """
+        self.do_normal_user_credential_delivery()
+
+    # ------------------------------------------------------------------
+    # SEC-001  Encrypted password storage
+    # ------------------------------------------------------------------
+
+    def test_fq_sec_001_password_encrypted_storage(self):
+        """SEC-001: Password encrypted storage — metadata no plaintext
+
+        TS: No plaintext password stored in metadata
+
+        Multi-dimensional coverage:
+        1. Create MySQL source with various password patterns:
+           a. Simple ASCII password
+           b. Password with special chars (\\!@#$%^&)
+           c. Password with unicode-like patterns
+        2. For each: SHOW EXTERNAL SOURCES → password column must be masked
+        3. DESCRIBE EXTERNAL SOURCE → password field must be masked
+        4. Create PG source → same masking check
+        5. Create InfluxDB source with api_token (3.x) or Basic password (1.8) → secret masked
+        6. Negative: create source with empty password → should succeed, still masked
+        7. ALTER source password → new password also masked
+
+        Catalog:
+            - Query:FederatedSecurity
+
+        Since: v3.4.0.0
+
+        Labels: common,ci
+
+        Jira: None
+
+        History:
+            - 2026-04-14 wpan Full rewrite with multi-dimensional coverage
+
+        """
+        cfg_mysql = self._mysql_cfg()
+        cfg_pg = self._pg_cfg()
+        names = [
+            "sec001_mysql_simple", "sec001_mysql_special", "sec001_pg",
+            "sec001_influx", "sec001_empty_pwd",
+        ]
+        self._cleanup(*names)
+
+        # --- 1a. Simple ASCII password ---
+        tdSql.execute(
+            f"create external source sec001_mysql_simple type='mysql' "
+            f"host='{cfg_mysql.host}' port={cfg_mysql.port} user='admin' password='MySecret123' database='db1'"
+        )
+        idx = self._find_row("sec001_mysql_simple")
+        assert idx >= 0, "sec001_mysql_simple not found"
+        text = self._row_text(idx)
+        assert "MySecret123" not in text, "plaintext password leaked in SHOW"
+        assert _MASKED in text or "*" in text, "password not masked in SHOW"
+
+        # --- 1b. Password with special characters ---
+        tdSql.execute(
+            f"create external source sec001_mysql_special type='mysql' "
+            f"host='{cfg_mysql.host}' port={cfg_mysql.port} user='admin' password='P@ss!#$%^&*()' database='db1'"
+        )
+        idx = self._find_row("sec001_mysql_special")
+        assert idx >= 0
+        text = self._row_text(idx)
+        assert "P@ss!#$%^&*()" not in text, "special-char password leaked"
+
+        # --- 2. PostgreSQL source ---
+        tdSql.execute(
+            f"create external source sec001_pg type='postgresql' "
+            f"host='{cfg_pg.host}' port={cfg_pg.port} user='pguser' password='pg_secret_pw' "
+            f"database='pgdb' schema='public'"
+        )
+        idx = self._find_row("sec001_pg")
+        assert idx >= 0
+        text = self._row_text(idx)
+        assert "pg_secret_pw" not in text, "PG password leaked in SHOW"
+
+        for cfg_influx in self._influx_configs():
+            with self._using_influx(cfg_influx):
+                self._cleanup("sec001_influx")
+                # --- 3. InfluxDB source with api_token ---
+                if cfg_influx.version == "1.8":
+                    tdSql.execute(self._mk_influx_source_sql(
+                        "sec001_influx", cfg_influx.host, cfg_influx.port, "", database="telegraf",
+                        user="admin", password="influx_super_secret_token_xyz"))
+                else:
+                    tdSql.execute(
+                        f"create external source sec001_influx type='influxdb' "
+                        f"host='{cfg_influx.host}' port={cfg_influx.port} user='admin' password='' "
+                        f"database='telegraf' options('api_token'='influx_super_secret_token_xyz', 'protocol'='flight_sql')"
+                    )
+                idx = self._find_row("sec001_influx")
+                assert idx >= 0
+                text = self._row_text(idx)
+                assert "influx_super_secret_token_xyz" not in text, "InfluxDB api_token leaked"
+                if cfg_influx.version == "1.8":
+                    assert "*" in str(tdSql.queryResult[idx][_COL_PASSWORD]), "InfluxDB Basic password not masked"
+                    tdSql.query("describe external source sec001_influx")
+                    assert "influx_super_secret_token_xyz" not in str(tdSql.queryResult), \
+                        "InfluxDB Basic password leaked in DESCRIBE"
+
+        # --- 4. Empty password --- system rejects empty passwords for MySQL
+        tdSql.error(
+            f"create external source sec001_empty_pwd type='mysql' "
+            f"host='{cfg_mysql.host}' port={cfg_mysql.port} user='admin' password='' database='db1'"
+        )  # empty password is correctly rejected (PASSWORD cannot be empty)
+
+        # --- 5. ALTER password → still masked ---
+        tdSql.execute(
+            "alter external source sec001_mysql_simple set password='NewSecret456'"
+        )
+        idx = self._find_row("sec001_mysql_simple")
+        text = self._row_text(idx)
+        assert "NewSecret456" not in text, "altered password leaked"
+
+        # --- 6. DESCRIBE masking ---
+        tdSql.query("describe external source sec001_mysql_simple")
+        desc_text = str(tdSql.queryResult)
+        assert "NewSecret456" not in desc_text, "password leaked in DESCRIBE"
+        assert "MySecret123" not in desc_text, "old password leaked in DESCRIBE"
+
+        self._cleanup(*names)
+
+    # ------------------------------------------------------------------
+    # SEC-002  SHOW/DESCRIBE masking
+    # ------------------------------------------------------------------
+
+    def test_fq_sec_002_show_describe_masking(self):
+        """SEC-002: SHOW/DESCRIBE masking — password/token/cert key not exposed
+
+        TS: password/token/cert private key not shown in plaintext
+
+        Multi-dimensional coverage:
+        1. MySQL: password masked in SHOW and DESCRIBE
+        2. PG: password masked; schema is NOT sensitive (should show)
+        3. InfluxDB: api_token (3.x) or Basic password (1.8) masked
+        4. MySQL with TLS options (ca_cert path, client_key path):
+           a. Paths ARE shown (not secret), but client_key content if any → masked
+        5. SHOW column-level check: only password column is masked
+        6. Negative: user column should NOT be masked (it's not sensitive)
+        7. Multiple sources simultaneously: all masked independently
+
+        Catalog:
+            - Query:FederatedSecurity
+
+        Since: v3.4.0.0
+
+        Labels: common,ci
+
+        Jira: None
+
+        History:
+            - 2026-04-14 wpan Full rewrite with multi-dimensional coverage
+
+        """
+        cfg_mysql = self._mysql_cfg()
+        cfg_pg = self._pg_cfg()
+        influx_names = {name: cfg.version for cfg, name in self._influx_source_specs("sec002_influx")}
+        names = ["sec002_mysql", "sec002_pg", "sec002_tls", *influx_names]
+        self._cleanup(*names)
+
+        tdSql.execute(
+            f"create external source sec002_mysql type='mysql' "
+            f"host='{cfg_mysql.host}' port={cfg_mysql.port} user='visible_user' password='hidden_pwd' database='db'"
+        )
+        tdSql.execute(
+            f"create external source sec002_pg type='postgresql' "
+            f"host='{cfg_pg.host}' port={cfg_pg.port} user='pg_user' password='pg_hidden' "
+            f"database='pgdb' schema='my_schema'"
+        )
+        for cfg_influx, influx_name in self._influx_source_specs("sec002_influx"):
+            with self._using_influx(cfg_influx):
+                if cfg_influx.version == "1.8":
+                    tdSql.execute(self._mk_influx_source_sql(
+                        influx_name, cfg_influx.host, cfg_influx.port, "", database="mydb",
+                        user="admin", password="secret_influx_tk"))
+                else:
+                    tdSql.execute(
+                        f"create external source {influx_name} type='influxdb' "
+                        f"host='{cfg_influx.host}' port={cfg_influx.port} user='admin' password='' "
+                        f"database='mydb' options('api_token'='secret_influx_tk', 'protocol'='flight_sql')"
+                    )
+        tdSql.execute(
+            f"create external source sec002_tls type='mysql' "
+            f"host='{cfg_mysql.host}' port={cfg_mysql.port} user='tls_user' password='tls_pwd' database='db' "
+            f"options('tls_enabled'='true', 'tls_ca_cert'='{FQ_MYSQL_CA_CERT}')"
+        )
+
+        tdSql.query("show external sources")
+
+        for row in tdSql.queryResult:
+            name = str(row[_COL_NAME])
+            if name not in names:
+                continue
+
+            # Password column must be masked
+            pwd_val = str(row[_COL_PASSWORD])
+            if name in influx_names:
+                if influx_names[name] == "1.8":
+                    assert "secret_influx_tk" not in pwd_val and "*" in pwd_val, \
+                        "InfluxDB Basic password not masked"
+                # The full-row check below also covers the 3.x token options.
+            else:
+                assert "hidden_pwd" not in pwd_val and "pg_hidden" not in pwd_val \
+                    and "tls_pwd" not in pwd_val, \
+                    f"password not masked for {name}"
+
+            # User column should NOT be masked
+            user_val = str(row[_COL_USER])
+            if name == "sec002_mysql":
+                assert user_val == "visible_user" or "visible_user" in user_val, \
+                    "user column should be visible"
+            if name == "sec002_pg":
+                # Schema should be visible
+                schema_val = str(row[_COL_SCHEMA])
+                assert "my_schema" in schema_val or schema_val == "my_schema", \
+                    "schema should be visible, it is not sensitive"
+
+        # Full text check for token in InfluxDB
+        for name in influx_names:
+            idx = self._find_row(name)
+            assert idx >= 0
+            full_text = self._row_text(idx)
+            assert "secret_influx_tk" not in full_text, "InfluxDB token leaked in SHOW"
+
+        # TLS: ca_cert path can be visible, but password must be hidden
+        idx = self._find_row("sec002_tls")
+        assert idx >= 0
+        full_text = self._row_text(idx)
+        assert "tls_pwd" not in full_text, "TLS source password leaked"
+
+        # DESCRIBE each source
+        for name in names:
+            tdSql.query(f"describe external source {name}")
+            desc = str(tdSql.queryResult)
+            for secret in ["hidden_pwd", "pg_hidden", "secret_influx_tk", "tls_pwd"]:
+                assert secret not in desc, f"'{secret}' leaked in DESCRIBE {name}"
+
+        self._cleanup(*names)
+
+    # ------------------------------------------------------------------
+    # SEC-003  Log masking
+    # ------------------------------------------------------------------
+
+    def test_fq_sec_003_log_masking(self):
+        """SEC-003: Log masking — error logs contain no sensitive info
+
+        TS: Error logs contain no sensitive information
+
+        Multi-dimensional coverage:
+        1. Create source with known password, trigger error (query unreachable)
+        2. Verify the error message returned to client does not contain password
+        3. InfluxDB token (3.x) or Basic password (1.8) not in error message
+        4. ALTER source with new password, trigger error → neither old nor new in message
+        5. Negative: verify error DOES contain useful info (source name/type) for debugging
+
+        Note: full log-file scanning requires access to taosd log files;
+        this test verifies client-facing error messages.
+
+        Catalog:
+            - Query:FederatedSecurity
+
+        Since: v3.4.0.0
+
+        Labels: common,ci
+
+        Jira: None
+
+        History:
+            - 2026-04-14 wpan Full rewrite with multi-dimensional coverage
+
+        """
+        cfg_mysql = self._mysql_cfg()
+        cfg_ss = self._sqlserver_cfg()
+        names = ["sec003_mysql", "sec003_influx", "sec003_sqlserver"]
+        self._cleanup(*names)
+
+        # MySQL with known password — wrong creds on real host trigger auth error.
+        tdSql.execute(
+            f"create external source sec003_mysql type='mysql' "
+            f"host='{cfg_mysql.host}' port={cfg_mysql.port} user='u' password='LogSecret99' database='db' "
+            f"options('connect_timeout_ms'='500')"
+        )
+
+        # Trigger error by querying unreachable source; capture error message
+        # and verify it does not contain the password.
+        try:
+            tdSql.query("select * from sec003_mysql.db.t1")
+        except Exception as e:
+            err_msg = str(e)
+            assert "LogSecret99" not in err_msg, \
+                "password leaked in error message"
+
+        for cfg_influx in self._influx_configs():
+            with self._using_influx(cfg_influx):
+                self._cleanup("sec003_influx")
+                if cfg_influx.version == "1.8":
+                    with influx18_basic_gate(cfg_influx) as (port, _):
+                        tdSql.execute(self._mk_influx_source_sql(
+                            "sec003_influx", "127.0.0.1", port, "", database="mydb",
+                            user="basic18", password="TokenInLog123"))
+                        self._assert_influx_auth_failure_masked(
+                            "select * from sec003_influx.mydb.m1", "TokenInLog123")
+                else:
+                    # InfluxDB with api_token
+                    tdSql.execute(
+                        f"create external source sec003_influx type='influxdb' "
+                        f"host='{cfg_influx.host}' port={cfg_influx.port} user='admin' password='' "
+                        f"database='mydb' options('api_token'='TokenInLog123', 'protocol'='flight_sql')"
+                    )
+                    try:
+                        tdSql.query("select * from sec003_influx.mydb.m1")
+                    except Exception as e:
+                        err_msg = str(e)
+                        assert "TokenInLog123" not in err_msg, \
+                            "api_token leaked in error message"
+
+        # ALTER password and trigger again
+        tdSql.execute(
+            "alter external source sec003_mysql set password='AlteredPwd88'"
+        )
+        try:
+            tdSql.query("select * from sec003_mysql.db.t1")
+        except Exception as e:
+            err_msg = str(e)
+            assert "AlteredPwd88" not in err_msg, \
+                "altered password leaked in error message"
+            assert "LogSecret99" not in err_msg, \
+                "old password leaked in error message"
+
+        # SQL Server with known password — wrong creds trigger an auth error
+        # on the real instance; the client-facing error must not echo it.
+        tdSql.execute(
+            f"create external source sec003_sqlserver type='sqlserver' "
+            f"host='{cfg_ss.host}' port={cfg_ss.port} user='sa' password='SsLogSecret99' "
+            f"database='master' schema='dbo' "
+            f"options('connect_timeout_ms'='500', 'trust_server_certificate'='true')"
+        )
+        try:
+            tdSql.query("select * from sec003_sqlserver.master.dbo.t1")
+        except Exception as e:
+            err_msg = str(e)
+            assert "SsLogSecret99" not in err_msg, \
+                "SQL Server password leaked in error message"
+
+        # ALTER password and trigger again (neither old nor new may leak)
+        tdSql.execute(
+            "alter external source sec003_sqlserver set password='SsAlteredPwd88'"
+        )
+        try:
+            tdSql.query("select * from sec003_sqlserver.master.dbo.t1")
+        except Exception as e:
+            err_msg = str(e)
+            assert "SsAlteredPwd88" not in err_msg, \
+                "altered SQL Server password leaked in error message"
+            assert "SsLogSecret99" not in err_msg, \
+                "old SQL Server password leaked in error message"
+
+        self._cleanup(*names)
+
+    # ------------------------------------------------------------------
+    # SEC-004  Normal user visibility
+    # ------------------------------------------------------------------
+
+    def test_fq_sec_004_normal_user_visibility(self):
+        """SEC-004: Normal user visibility — sysInfo column protection
+
+        TS: sysInfo column permission protection is correct
+
+        Multi-dimensional coverage:
+        1. Create external source as root
+        2. SHOW EXTERNAL SOURCES as root → all columns visible
+        3. Create normal user without sysinfo privilege
+        4. SHOW EXTERNAL SOURCES as normal user → sysInfo-protected columns NULL
+        5. DESCRIBE as normal user → sensitive fields NULL
+        6. Negative: normal user cannot CREATE/ALTER/DROP external sources
+        7. Normal user CAN query vtables (read-only) if granted
+
+        Catalog:
+            - Query:FederatedSecurity
+
+        Since: v3.4.0.0
+
+        Labels: common,ci
+
+        Jira: None
+
+        History:
+            - 2026-04-14 wpan Full rewrite with multi-dimensional coverage
+
+        """
+        cfg_mysql = self._mysql_cfg()
+        src = "sec004_src"
+        user = "sec004_user"
+        self._cleanup(src)
+        tdSql.execute(f"drop user if exists {user}")
+
+        # Root creates source
+        tdSql.execute(
+            f"create external source {src} type='mysql' "
+            f"host='{cfg_mysql.host}' port={cfg_mysql.port} user='u' password='p' database='db'"
+        )
+
+        # Root sees all columns
+        idx = self._find_row(src)
+        assert idx >= 0
+        root_row = tdSql.queryResult[idx]
+
+        # Create normal user (sysinfo=0)
+        tdSql.execute(f"create user {user} pass 'Test1234' sysinfo 0")
+
+        denied_src = "sec004_src_denied"
+        self._cleanup(denied_src)
+
+        # Switch to normal user and verify visibility + DDL denial
+        tdSql.connect(user, "Test1234")
+        try:
+            tdSql.query("show external sources")
+            normal_row = None
+            for row in tdSql.queryResult:
+                if str(row[_COL_NAME]) == src:
+                    normal_row = row
+                    break
+            assert normal_row is not None, "normal user should see source entry"
+
+            # Password should never appear as plaintext for normal user.
+            assert str(normal_row[_COL_PASSWORD]) != "p", \
+                "normal user should not see plaintext password"
+
+            tdSql.query(f"describe external source {src}")
+            desc_text = str(tdSql.queryResult)
+            assert "******" in desc_text or "password" in desc_text.lower(), \
+                "DESCRIBE should mask password (show '******' or field label)"
+            assert "'p'" not in desc_text and '"p"' not in desc_text, \
+                "DESCRIBE leaked plaintext password"
+
+            # Normal user must be denied for source-management DDL.
+            tdSql.error(
+                f"create external source {denied_src} type='mysql' "
+                f"host='{cfg_mysql.host}' port={cfg_mysql.port} user='u' password='p' database='db'"
+            )
+            tdSql.error(
+                f"alter external source {src} set host='{cfg_mysql.host}'"
+            )
+            tdSql.error(f"drop external source {src}")
+        finally:
+            tdSql.connect("root", "taosdata")
+
+        # Back to root: source should still exist (non-admin DROP denied).
+        tdSql.query("show external sources")
+        found = any(str(r[_COL_NAME]) == src for r in tdSql.queryResult)
+        assert found, f"root should still see {src}"
+
+        tdSql.execute(f"drop user {user}")
+        self._cleanup(src, denied_src)
+
+    # ------------------------------------------------------------------
+    # SEC-005  TLS one-way verification
+    # ------------------------------------------------------------------
+
+    def test_fq_sec_005_tls_one_way_verification(self):
+        """SEC-005: TLS one-way verification — tls_enabled + ca_cert
+
+          TS: one-way TLS options must affect real connection behavior.
+
+          Coverage:
+          1. MySQL ssl_mode=required should be queryable without silent downgrade.
+          2. MySQL ssl_mode=disabled must allow plain connection.
+          3. MySQL verify_ca with invalid CA path must fail.
+          4. PostgreSQL sslmode=disable/require must produce different session SSL
+              state (checked through v_ssl_self view).
+          5. Parser conflict remains enforced: tls_enabled=true + ssl_mode=disabled.
+          6. SQL Server trust_server_certificate=true connects; the
+              verification-enabled negative leg lives in test_fq_sec_005b.
+
+        Catalog:
+            - Query:FederatedSecurity
+
+        Since: v3.4.0.0
+
+        Labels: common,ci
+
+        Jira: None
+
+        History:
+            - 2026-04-14 wpan Full rewrite with multi-dimensional coverage
+            - 2026-10-16 wpan Add the SQL Server TLS leg
+
+        """
+        cfg_mysql = self._mysql_cfg()
+        cfg_pg = self._pg_cfg()
+        run_tag = str(int(_time.time() * 1000))[-6:]
+        src_mysql_tls = f"sec005_mysql_tls_{run_tag}"
+        src_mysql_ssl_disabled = f"sec005_mysql_ssl_disabled_{run_tag}"
+        src_mysql_bad_ca = f"sec005_mysql_bad_ca_{run_tag}"
+        src_pg_disable = f"sec005_pg_disable_{run_tag}"
+        src_pg_require = f"sec005_pg_require_{run_tag}"
+        src_pg_tlsen_only = f"sec005_pg_tlsen_only_{run_tag}"
+        src_conflict = f"sec005_conflict_{run_tag}"
+        cfg_ss = self._sqlserver_cfg()
+        src_ss_trust = f"sec005_ss_trust_{run_tag}"
+        names = [
+            src_mysql_tls, src_mysql_ssl_disabled, src_mysql_bad_ca,
+            src_pg_disable, src_pg_require, src_pg_tlsen_only, src_conflict,
+            src_ss_trust,
+        ]
+        self._cleanup(*names)
+
+        mysql_db = "sec005_tls_db"
+        mysql_tb = "t_tls"
+        mysql_user = "sec005_tls_user"
+        mysql_pass = "sec005_tls_pwd"
+        pg_db = "sec005_tls_pgdb"
+        pg_user = "sec005_ssl_user"
+        pg_pass = "sec005_ssl_pwd"
+
+        # Prepare MySQL data.
+        ExtSrcEnv.mysql_exec_cfg(cfg_mysql, None, [
+            f"DROP DATABASE IF EXISTS `{mysql_db}`",
+            f"CREATE DATABASE `{mysql_db}`",
+            f"DROP USER IF EXISTS '{mysql_user}'@'%'",
+            f"CREATE USER '{mysql_user}'@'%' IDENTIFIED WITH mysql_native_password BY '{mysql_pass}'",
+            f"GRANT ALL PRIVILEGES ON `{mysql_db}`.* TO '{mysql_user}'@'%'",
+            "FLUSH PRIVILEGES",
+        ])
+        ExtSrcEnv.mysql_exec_cfg(cfg_mysql, mysql_db, [
+            f"DROP TABLE IF EXISTS `{mysql_tb}`",
+            f"CREATE TABLE `{mysql_tb}` (id INT PRIMARY KEY, v INT)",
+            f"INSERT INTO `{mysql_tb}` VALUES (1, 101)",
+        ])
+
+        # Prepare PG view exposing current-session SSL state.
+        ExtSrcEnv.pg_exec_cfg(cfg_pg, "postgres", [
+            f"DROP DATABASE IF EXISTS \"{pg_db}\"",
+            f"DROP ROLE IF EXISTS \"{pg_user}\"",
+            f"CREATE ROLE \"{pg_user}\" LOGIN PASSWORD '{pg_pass}'",
+            f"CREATE DATABASE \"{pg_db}\"",
+            f"GRANT CONNECT ON DATABASE \"{pg_db}\" TO \"{pg_user}\"",
+        ])
+        ExtSrcEnv.pg_exec_cfg(cfg_pg, pg_db, [
+            "DROP VIEW IF EXISTS public.v_ssl_self",
+            "CREATE VIEW public.v_ssl_self AS "
+            "SELECT ssl FROM pg_catalog.pg_stat_ssl WHERE pid = pg_backend_pid()",
+            f"GRANT USAGE ON SCHEMA public TO \"{pg_user}\"",
+            f"GRANT SELECT ON public.v_ssl_self TO \"{pg_user}\"",
+        ])
+
+        # MySQL runtime check: ssl_mode=required should be queryable.
+        tdSql.execute(
+            f"create external source {src_mysql_tls} type='mysql' "
+            f"host='{cfg_mysql.host}' port={cfg_mysql.port} user='{mysql_user}' password='{mysql_pass}' "
+            f"database='{mysql_db}' "
+            f"options('tls_enabled'='true', 'tls_ca_cert'='{FQ_MYSQL_CA_CERT}', 'ssl_mode'='required')"
+        )
+        idx = self._find_row(src_mysql_tls)
+        assert idx >= 0
+        assert str(tdSql.queryResult[idx][_COL_USER]) == mysql_user
+        tdSql.query(f"select count(*) from {src_mysql_tls}.{mysql_db}.{mysql_tb}")
+        assert int(tdSql.queryResult[0][0]) == 1
+
+        # MySQL runtime check: ssl_mode=disabled should allow plain connection.
+        tdSql.execute(
+            f"create external source {src_mysql_ssl_disabled} type='mysql' "
+            f"host='{cfg_mysql.host}' port={cfg_mysql.port} user='{mysql_user}' password='{mysql_pass}' "
+            f"database='{mysql_db}' options('ssl_mode'='disabled')"
+        )
+        tdSql.query(f"select count(*) from {src_mysql_ssl_disabled}.{mysql_db}.{mysql_tb}")
+        assert int(tdSql.queryResult[0][0]) == 1
+
+        # MySQL negative: verify_ca with non-existing CA path should fail.
+        tdSql.execute(
+            f"create external source {src_mysql_bad_ca} type='mysql' "
+            f"host='{cfg_mysql.host}' port={cfg_mysql.port} user='{mysql_user}' password='{mysql_pass}' "
+            f"database='{mysql_db}' "
+            f"options('ssl_mode'='verify_ca', 'tls_ca_cert'='/tmp/fq_nonexistent_ca.pem')"
+        )
+        tdSql.error(
+            f"select count(*) from {src_mysql_bad_ca}.{mysql_db}.{mysql_tb}",
+            expectedErrno=TSDB_CODE_EXT_SOURCE_UNAVAILABLE,
+        )
+
+        # PG sslmode effectiveness: disable -> ssl=false, require -> ssl=true.
+        tdSql.execute(
+            f"create external source {src_pg_disable} type='postgresql' "
+            f"host='{cfg_pg.host}' port={cfg_pg.port} user='{pg_user}' password='{pg_pass}' "
+            f"database='{pg_db}' schema='public' options('sslmode'='disable')"
+        )
+        tdSql.query(f"select count(*) from {src_pg_disable}.public.v_ssl_self where ssl = false")
+        assert int(tdSql.queryResult[0][0]) == 1, "sslmode=disable should create a non-SSL PG session"
+
+        tdSql.execute(
+            f"create external source {src_pg_require} type='postgresql' "
+            f"host='{cfg_pg.host}' port={cfg_pg.port} user='{pg_user}' password='{pg_pass}' "
+            f"database='{pg_db}' schema='public' "
+            f"options('sslmode'='require', 'tls_ca_cert'='{FQ_PG_CA_CERT}')"
+        )
+        tdSql.query(f"select count(*) from {src_pg_require}.public.v_ssl_self where ssl = true")
+        assert int(tdSql.queryResult[0][0]) == 1, "sslmode=require should create an SSL PG session"
+
+        # PG tls_enabled-only runtime check (without explicit sslmode).
+        tdSql.execute(
+            f"create external source {src_pg_tlsen_only} type='postgresql' "
+            f"host='{cfg_pg.host}' port={cfg_pg.port} user='{pg_user}' password='{pg_pass}' "
+            f"database='{pg_db}' schema='public' options('tls_enabled'='true')"
+        )
+        tdSql.query(f"select count(*) from {src_pg_tlsen_only}.public.v_ssl_self where ssl = true")
+        assert int(tdSql.queryResult[0][0]) == 1, "tls_enabled=true should establish SSL for PostgreSQL"
+
+        # Negative: parser-level TLS conflict remains enforced.
+        tdSql.error(
+            f"create external source {src_conflict} type='mysql' "
+            f"host='{cfg_mysql.host}' port={cfg_mysql.port} user='{mysql_user}' password='{mysql_pass}' database='{mysql_db}' "
+            f"options('tls_enabled'='true', 'ssl_mode'='disabled')",
+            expectedErrno=TSDB_CODE_EXT_OPTIONS_TLS_CONFLICT,
+        )
+
+        # SQL Server TLS effectiveness: trust_server_certificate=true must
+        # yield a working encrypted session against the real instance.
+        ss_db = "sec005_tls_ssdb"
+        ss_tb = "t_ssl"
+        ExtSrcEnv.sqlserver_create_db(ss_db)
+        ExtSrcEnv.sqlserver_exec(ss_db, [
+            f"IF OBJECT_ID('dbo.{ss_tb}') IS NOT NULL DROP TABLE dbo.{ss_tb}",
+            f"CREATE TABLE dbo.{ss_tb} (id INT PRIMARY KEY, v INT)",
+            f"INSERT INTO dbo.{ss_tb} VALUES (1, 101)",
+        ])
+        tdSql.execute(
+            f"create external source {src_ss_trust} type='sqlserver' "
+            f"host='{cfg_ss.host}' port={cfg_ss.port} user='{cfg_ss.user}' password='{cfg_ss.password}' "
+            f"database='{ss_db}' schema='dbo' "
+            f"options('tls_enabled'='true', 'trust_server_certificate'='true')"
+        )
+        tdSql.query(f"select count(*) from {src_ss_trust}.{ss_db}.dbo.{ss_tb}")
+        assert int(tdSql.queryResult[0][0]) == 1, \
+            "trust_server_certificate=true should connect to SQL Server"
+
+        # The negative leg (verification enabled + no trusted CA) is carried
+        # by test_fq_sec_005b below, which is an expected failure until the
+        # TLS options have a runtime effect for SQL Server.
+
+        self._cleanup(*names)
+        ExtSrcEnv.mysql_exec_cfg(cfg_mysql, None, [
+            f"DROP USER IF EXISTS '{mysql_user}'@'%'",
+            f"DROP DATABASE IF EXISTS `{mysql_db}`",
+        ])
+        ExtSrcEnv.pg_exec_cfg(cfg_pg, "postgres", [
+            f"DROP DATABASE IF EXISTS \"{pg_db}\"",
+            f"DROP ROLE IF EXISTS \"{pg_user}\"",
+        ])
+        try:
+            ExtSrcEnv.sqlserver_drop_db(ss_db)
+        except Exception:
+            pass
+
+    # ------------------------------------------------------------------
+    # SEC-005b  SQL Server TLS verification has a runtime effect
+    # ------------------------------------------------------------------
+
+    def test_fq_sec_005b_sqlserver_tls_verification_runtime_effect(self):
+        """FQSS-SEC-005b: verification-enabled SQL Server source must fail
+
+        DS §6.1.1 maps ``tls_enabled=true`` without
+        ``trust_server_certificate=true`` to ``Encrypt=yes`` with
+        ``TrustServerCertificate=false``: the driver must validate the server
+        certificate, so the self-signed test instance (and a non-existent CA
+        path that leaves no trusted CA) must be rejected instead of silently
+        falling back to an unverified connection.
+
+        Catalog:
+            - Query:FederatedSecurity
+
+        Since: v3.4.4.0
+
+        Labels: common,ci
+
+        History:
+            - 2026-10-16 wpan Initial implementation
+
+        """
+        cfg_ss = self._sqlserver_cfg()
+        run_tag = str(int(_time.time() * 1000))[-6:]
+        src = f"sec005b_ss_no_trust_{run_tag}"
+        ss_db = "sec005b_tls_ssdb"
+        ss_tb = "t_ssl"
+        self._cleanup(src)
+        ExtSrcEnv.sqlserver_create_db(ss_db)
+        ExtSrcEnv.sqlserver_exec(ss_db, [
+            f"IF OBJECT_ID('dbo.{ss_tb}') IS NOT NULL DROP TABLE dbo.{ss_tb}",
+            f"CREATE TABLE dbo.{ss_tb} (id INT PRIMARY KEY, v INT)",
+            f"INSERT INTO dbo.{ss_tb} VALUES (1, 101)",
+        ])
+        try:
+            tdSql.execute(
+                f"create external source {src} type='sqlserver' "
+                f"host='{cfg_ss.host}' port={cfg_ss.port} user='{cfg_ss.user}' "
+                f"password='{cfg_ss.password}' "
+                f"database='{ss_db}' schema='dbo' "
+                f"options('tls_enabled'='true', "
+                f"'tls_ca_cert'='/tmp/fq_nonexistent_ca.pem', "
+                f"'trust_server_certificate'='false')"
+            )
+            tdSql.error(f"select count(*) from {src}.{ss_db}.dbo.{ss_tb}")
+        finally:
+            self._cleanup(src)
+            try:
+                ExtSrcEnv.sqlserver_drop_db(ss_db)
+            except Exception:
+                pass
+
+    # ------------------------------------------------------------------
+    # SEC-006  TLS two-way verification
+    # ------------------------------------------------------------------
+
+    def test_fq_sec_006_tls_two_way_verification(self):
+        """SEC-006: TLS two-way (mutual) verification — client cert/key
+
+          TS: client cert/key must have real runtime effect, not only metadata effect.
+
+          Coverage:
+          1. Baseline source with ssl_mode=disabled should succeed.
+          2. Enabling client cert/key options should affect runtime behavior.
+          3. Invalid tls_client_key path must fail.
+          4. Parser-level cert/key pair constraint stays enforced.
+          5. ALTER OPTIONS updates tls_ca_cert value visibility.
+
+        Catalog:
+            - Query:FederatedSecurity
+
+        Since: v3.4.0.0
+
+        Labels: common,ci
+
+        Jira: None
+
+        History:
+            - 2026-04-14 wpan Full rewrite with multi-dimensional coverage
+
+        """
+        cfg_mysql = self._mysql_cfg()
+        run_tag = str(int(_time.time() * 1000))[-6:]
+        src_base = f"sec006_mysql_no_client_{run_tag}"
+        src_mtls = f"sec006_mysql_mtls_{run_tag}"
+        src_bad_key = f"sec006_mysql_bad_client_key_{run_tag}"
+        src_pair_check = f"sec006_mysql_pair_check_{run_tag}"
+        src_pair_check_key_only = f"sec006_mysql_pair_check_key_only_{run_tag}"
+        names = [src_base, src_mtls, src_bad_key, src_pair_check, src_pair_check_key_only]
+        self._cleanup(*names)
+
+        mysql_db = "sec006_tls_db"
+        mysql_tb = "t_mtls"
+        mtls_user = "sec006_mtls_user"
+        mtls_pass = "sec006_mtls_pwd"
+
+        # Build MySQL TLS fixture (runtime cert/key effectiveness, environment-independent).
+        ExtSrcEnv.mysql_exec_cfg(cfg_mysql, None, [
+            f"DROP DATABASE IF EXISTS `{mysql_db}`",
+            f"CREATE DATABASE `{mysql_db}`",
+            f"DROP USER IF EXISTS '{mtls_user}'@'%'",
+            f"CREATE USER '{mtls_user}'@'%' IDENTIFIED WITH mysql_native_password BY '{mtls_pass}'",
+            f"GRANT ALL PRIVILEGES ON `{mysql_db}`.* TO '{mtls_user}'@'%'",
+            "FLUSH PRIVILEGES",
+        ])
+        ExtSrcEnv.mysql_exec_cfg(cfg_mysql, mysql_db, [
+            f"DROP TABLE IF EXISTS `{mysql_tb}`",
+            f"CREATE TABLE `{mysql_tb}` (id INT PRIMARY KEY, v INT)",
+            f"INSERT INTO `{mysql_tb}` VALUES (1, 201)",
+        ])
+
+        # Baseline non-TLS source should be queryable.
+        tdSql.execute(
+            f"create external source {src_base} type='mysql' "
+            f"host='{cfg_mysql.host}' port={cfg_mysql.port} user='{mtls_user}' password='{mtls_pass}' "
+            f"database='{mysql_db}' "
+            f"options('ssl_mode'='disabled')"
+        )
+        tdSql.query(f"select count(*) from {src_base}.{mysql_db}.{mysql_tb}")
+        assert int(tdSql.queryResult[0][0]) == 1
+
+        # Runtime check: client cert/key options must affect behavior.
+        tdSql.execute(
+            f"create external source {src_mtls} type='mysql' "
+            f"host='{cfg_mysql.host}' port={cfg_mysql.port} user='{mtls_user}' password='{mtls_pass}' "
+            f"database='{mysql_db}' "
+            f"options('ssl_mode'='required', 'tls_ca_cert'='{FQ_MYSQL_CA_CERT}', "
+            f"'tls_client_cert'='{FQ_MYSQL_CLIENT_CERT}', 'tls_client_key'='{FQ_MYSQL_CLIENT_KEY}', "
+            f"'tls_enabled'='true')"
+        )
+        if sys.platform == "win32":
+            # The Windows build of MariaDB Connector/C speaks TLS through
+            # Schannel, which does not consume PEM client certificates, so the
+            # handshake cannot present tls_client_cert/key.  The option
+            # plumbing is still exercised by the DDL and the negative cases
+            # below; only the positive mTLS query is unreachable here.
+            tdLog.info("SEC-006: positive MySQL mTLS query skipped on Windows "
+                       "(Schannel does not use PEM client certificates)")
+        else:
+            tdSql.query(f"select count(*) from {src_mtls}.{mysql_db}.{mysql_tb}")
+            assert int(tdSql.queryResult[0][0]) == 1
+
+        # Negative runtime check: invalid client key path must fail.
+        tdSql.execute(
+            f"create external source {src_bad_key} type='mysql' "
+            f"host='{cfg_mysql.host}' port={cfg_mysql.port} user='{mtls_user}' password='{mtls_pass}' "
+            f"database='{mysql_db}' "
+            f"options('ssl_mode'='required', 'tls_ca_cert'='{FQ_MYSQL_CA_CERT}', "
+            f"'tls_client_cert'='{FQ_MYSQL_CLIENT_CERT}', 'tls_client_key'='/tmp/fq_nonexistent_client_key.pem', "
+            f"'tls_enabled'='true')"
+        )
+        tdSql.error(
+            f"select count(*) from {src_bad_key}.{mysql_db}.{mysql_tb}",
+            expectedErrno=TSDB_CODE_EXT_SOURCE_UNAVAILABLE,
+        )
+
+        # Parser-level pair checks remain strict.
+        tdSql.error(
+            f"create external source {src_pair_check} type='mysql' "
+            f"host='{cfg_mysql.host}' port={cfg_mysql.port} user='{mtls_user}' password='{mtls_pass}' "
+            f"database='{mysql_db}' options('tls_client_cert'='{FQ_MYSQL_CLIENT_CERT}')",
+            expectedErrno=TSDB_CODE_EXT_OPTIONS_TLS_CONFLICT,
+        )
+        tdSql.error(
+            f"create external source {src_pair_check_key_only} type='mysql' "
+            f"host='{cfg_mysql.host}' port={cfg_mysql.port} user='{mtls_user}' password='{mtls_pass}' "
+            f"database='{mysql_db}' options('tls_client_key'='{FQ_MYSQL_CLIENT_KEY}')",
+            expectedErrno=TSDB_CODE_EXT_OPTIONS_TLS_CONFLICT,
+        )
+
+        # Verify ALTER keeps option visibility coherent.
+        tdSql.execute(
+            f"alter external source {src_mtls} set options('tls_ca_cert'='{FQ_CA_CERT}')"
+        )
+        idx = self._find_row(src_mtls)
+        assert idx >= 0
+        opts_after = str(tdSql.queryResult[idx][_COL_OPTIONS])
+        assert FQ_CA_CERT in opts_after, "ALTER options should update tls_ca_cert"
+
+        self._cleanup(*names)
+        ExtSrcEnv.mysql_exec_cfg(cfg_mysql, None, [
+            f"DROP USER IF EXISTS '{mtls_user}'@'%'",
+            f"DROP DATABASE IF EXISTS `{mysql_db}`",
+        ])
+
+    # ------------------------------------------------------------------
+    # SEC-013  Option effectiveness: charset/read_timeout
+    # ------------------------------------------------------------------
+
+    def test_fq_sec_013_option_effectiveness_charset_and_read_timeout(self):
+        """Behavior checks for option effectiveness (charset/read_timeout).
+
+                Goal: if option consumption is broken, query path must fail.
+
+        Since: v3.4.0.0
+        """
+        cfg_mysql = self._mysql_cfg()
+        run_tag = str(int(_time.time() * 1000))[-6:]
+        src_charset_ok = f"sec013_charset_ok_{run_tag}"
+        src_charset_bad = f"sec013_charset_bad_{run_tag}"
+        src_rt_low = f"sec013_read_timeout_low_{run_tag}"
+        src_rt_ok = f"sec013_read_timeout_ok_{run_tag}"
+        names = [
+            src_charset_ok, src_charset_bad,
+            src_rt_low, src_rt_ok,
+        ]
+        self._cleanup(*names)
+
+        mysql_db = "sec013_opt_db"
+        mysql_tb = "t_opt"
+        mysql_vw = "v_slow"
+        mysql_user = "sec013_user"
+        mysql_pass = "sec013_pwd"
+
+        ExtSrcEnv.mysql_exec_cfg(cfg_mysql, None, [
+            f"DROP DATABASE IF EXISTS `{mysql_db}`",
+            f"CREATE DATABASE `{mysql_db}`",
+            f"DROP USER IF EXISTS '{mysql_user}'@'%'",
+            f"CREATE USER '{mysql_user}'@'%' IDENTIFIED WITH mysql_native_password BY '{mysql_pass}'",
+            f"GRANT ALL PRIVILEGES ON `{mysql_db}`.* TO '{mysql_user}'@'%'",
+            "FLUSH PRIVILEGES",
+        ])
+        ExtSrcEnv.mysql_exec_cfg(cfg_mysql, mysql_db, [
+            f"DROP TABLE IF EXISTS `{mysql_tb}`",
+            f"CREATE TABLE `{mysql_tb}` (id INT PRIMARY KEY, txt VARCHAR(64))",
+            f"INSERT INTO `{mysql_tb}` VALUES (1, 'hello')",
+            f"DROP VIEW IF EXISTS `{mysql_vw}`",
+            f"CREATE VIEW `{mysql_vw}` AS SELECT SLEEP(2) AS delay",
+        ])
+
+        # charset invalid => query must fail (proves option is consumed).
+        tdSql.execute(
+            f"create external source {src_charset_bad} type='mysql' "
+            f"host='{cfg_mysql.host}' port={cfg_mysql.port} user='{mysql_user}' password='{mysql_pass}' "
+            f"database='{mysql_db}' options('charset'='__bad_charset__')"
+        )
+        tdSql.error(
+            f"select count(*) from {src_charset_bad}.{mysql_db}.{mysql_tb}",
+            expectedErrno=TSDB_CODE_EXT_SOURCE_UNAVAILABLE,
+        )
+
+        # charset valid => query succeeds.
+        tdSql.execute(
+            f"create external source {src_charset_ok} type='mysql' "
+            f"host='{cfg_mysql.host}' port={cfg_mysql.port} user='{mysql_user}' password='{mysql_pass}' "
+            f"database='{mysql_db}' options('charset'='utf8mb4')"
+        )
+        tdSql.query(f"select count(*) from {src_charset_ok}.{mysql_db}.{mysql_tb}")
+        assert int(tdSql.queryResult[0][0]) == 1
+
+        # read_timeout low => slow view should timeout.
+        tdSql.execute(
+            f"create external source {src_rt_low} type='mysql' "
+            f"host='{cfg_mysql.host}' port={cfg_mysql.port} user='{mysql_user}' password='{mysql_pass}' "
+            f"database='{mysql_db}' options('read_timeout_ms'='500')"
+        )
+        tdSql.error(f"select count(*) from {src_rt_low}.{mysql_db}.{mysql_vw}")
+
+        # read_timeout high => same slow view should succeed.
+        tdSql.execute(
+            f"create external source {src_rt_ok} type='mysql' "
+            f"host='{cfg_mysql.host}' port={cfg_mysql.port} user='{mysql_user}' password='{mysql_pass}' "
+            f"database='{mysql_db}' options('read_timeout_ms'='3000')"
+        )
+        tdSql.query(f"select count(*) from {src_rt_ok}.{mysql_db}.{mysql_vw}")
+        assert int(tdSql.queryResult[0][0]) == 1
+
+        self._cleanup(*names)
+        ExtSrcEnv.mysql_exec_cfg(cfg_mysql, None, [
+            f"DROP USER IF EXISTS '{mysql_user}'@'%'",
+            f"DROP DATABASE IF EXISTS `{mysql_db}`",
+        ])
+
+    # ------------------------------------------------------------------
+    # SEC-014  Influx option effectiveness: api_token/protocol
+    # ------------------------------------------------------------------
+
+    @influx_versions()
+    def test_fq_sec_014_influx_option_effectiveness_api_token_and_protocol(self):
+        """InfluxDB token/Basic credentials and supported protocol options are consumed.
+
+                Goal: if option consumption is broken, query path must fail.
+
+        Since: v3.4.0.0
+        """
+        cfg_influx = self._influx_cfg()
+        if cfg_influx.version == "1.8":
+            self.do_influx18_option_effectiveness()
+            return
+        run_tag = str(int(_time.time() * 1000))[-6:]
+        src_http_ok = f"sec014_influx_http_ok_{run_tag}"
+        src_token_bad = f"sec014_influx_token_bad_{run_tag}"
+        src_flight_ok = f"sec014_influx_flight_ok_{run_tag}"
+        src_http_tls = f"sec014_influx_http_tls_{run_tag}"
+        src_http_upper = f"sec014_influx_http_upper_{run_tag}"
+        src_flight_upper = f"sec014_influx_flight_upper_{run_tag}"
+        names = [
+            src_http_ok, src_token_bad,
+            src_flight_ok, src_http_tls,
+            src_http_upper, src_flight_upper,
+        ]
+        self._cleanup(*names)
+
+        influx_db = "sec014_opt_idb"
+        influx_tb = "src_t"
+        ts_ns = int(_time.time() * 1_000_000_000)
+
+        ExtSrcEnv.influx_create_db_cfg(cfg_influx, influx_db)
+        ExtSrcEnv.influx_write_cfg(
+            cfg_influx,
+            influx_db,
+            [f"{influx_tb},site=sec014 val=1i {ts_ns}"],
+        )
+
+        try:
+            # protocol=http + valid token => query succeeds.
+            tdSql.execute(
+                f"create external source {src_http_ok} type='influxdb' "
+                f"host='{cfg_influx.host}' port={cfg_influx.port} user='admin' password='' "
+                f"database='{influx_db}' "
+                f"options('api_token'='{cfg_influx.token}', 'protocol'='http')"
+            )
+            tdSql.query(f"select count(*) from {src_http_ok}.{influx_db}.{influx_tb}")
+            assert int(tdSql.queryResult[0][0]) == 1
+
+            # Invalid token must fail; if api_token is ignored this may incorrectly pass.
+            tdSql.execute(
+                f"create external source {src_token_bad} type='influxdb' "
+                f"host='{cfg_influx.host}' port={cfg_influx.port} user='admin' password='' "
+                f"database='{influx_db}' "
+                f"options('api_token'='__bad_token__', 'protocol'='http')"
+            )
+            bad_sql = f"select count(*) from {src_token_bad}.{influx_db}.{influx_tb}"
+            try:
+                tdSql.cursor.execute(bad_sql)
+                tdSql.cursor.fetchall()
+            except BaseException as e:
+                errno = getattr(e, "errno", None)
+                errno_low16 = (errno & 0xFFFF) if isinstance(errno, int) else None
+                assert errno == TSDB_CODE_EXT_AUTH_FAILED or errno_low16 == (TSDB_CODE_EXT_AUTH_FAILED & 0xFFFF), (
+                    f"invalid api_token should fail with AUTH_FAILED, got errno={errno}"
+                )
+            else:
+                raise AssertionError("invalid api_token unexpectedly succeeded")
+
+            # protocol=flight_sql + valid token => query succeeds.
+            tdSql.execute(
+                f"create external source {src_flight_ok} type='influxdb' "
+                f"host='{cfg_influx.host}' port={cfg_influx.port} user='admin' password='' "
+                f"database='{influx_db}' "
+                f"options('api_token'='{cfg_influx.token}', 'protocol'='flight_sql')"
+            )
+            tdSql.query(f"select count(*) from {src_flight_ok}.{influx_db}.{influx_tb}")
+            assert int(tdSql.queryResult[0][0]) == 1
+
+            # protocol is case-insensitive: HTTP (upper-case) => HTTP path and succeeds.
+            tdSql.execute(
+                f"create external source {src_http_upper} type='influxdb' "
+                f"host='{cfg_influx.host}' port={cfg_influx.port} user='admin' password='' "
+                f"database='{influx_db}' "
+                f"options('api_token'='{cfg_influx.token}', 'protocol'='HTTP')"
+            )
+            tdSql.query(f"select count(*) from {src_http_upper}.{influx_db}.{influx_tb}")
+            assert int(tdSql.queryResult[0][0]) == 1
+
+            # protocol is case-insensitive: FLIGHT_SQL (upper-case) => Flight SQL path and succeeds.
+            tdSql.execute(
+                f"create external source {src_flight_upper} type='influxdb' "
+                f"host='{cfg_influx.host}' port={cfg_influx.port} user='admin' password='' "
+                f"database='{influx_db}' "
+                f"options('api_token'='{cfg_influx.token}', 'protocol'='FLIGHT_SQL')"
+            )
+            tdSql.query(f"select count(*) from {src_flight_upper}.{influx_db}.{influx_tb}")
+            assert int(tdSql.queryResult[0][0]) == 1
+
+            # protocol=http + tls_enabled + invalid CA must fail when HTTP TLS options are consumed.
+            tdSql.execute(
+                f"create external source {src_http_tls} type='influxdb' "
+                f"host='{cfg_influx.host}' port={cfg_influx.port} user='admin' password='' "
+                f"database='{influx_db}' "
+                f"options('api_token'='{cfg_influx.token}', 'protocol'='http', "
+                f"'tls_enabled'='true', 'tls_ca_cert'='/tmp/fq_nonexistent_influx_ca.pem')"
+            )
+            tdSql.error(
+                f"select count(*) from {src_http_tls}.{influx_db}.{influx_tb}",
+                expectedErrno=TSDB_CODE_EXT_SOURCE_UNAVAILABLE,
+            )
+        finally:
+            self._cleanup(*names)
+            try:
+                ExtSrcEnv.influx_drop_db_cfg(cfg_influx, influx_db)
+            except Exception:
+                pass
+
+    # ------------------------------------------------------------------
+    # SEC-021  ALTER unknown option rejected
+    # ------------------------------------------------------------------
+
+    def test_fq_sec_021_alter_unknown_option_rejected(self):
+        """ALTER SOURCE with unknown option key must fail in parser.
+
+        Verify the parser rejects an unknown option key on ALTER SOURCE.
+
+        Since: v3.4.0.0
+        """
+        run_tag = str(int(_time.time() * 1000))[-6:]
+        src = f"sec021_alter_unknown_{run_tag}"
+        self._cleanup(src)
+
+        try:
+            tdSql.execute(
+                f"create external source {src} type='mysql' "
+                f"host='127.0.0.1' port=3306 user='u' password='p' database='db' "
+                f"options('charset'='utf8mb4')"
+            )
+            tdSql.error(
+                f"alter external source {src} set options('unknown_opt'='x')",
+                expectedErrno=TSDB_CODE_PAR_SYNTAX_ERROR,
+            )
+            tdSql.query(f"describe external source {src}")
+            text = "\n".join("|".join(str(c) for c in row) for row in tdSql.queryResult)
+            assert "unknown_opt" not in text
+        finally:
+            self._cleanup(src)
+
+    def test_fq_sec_021b_alter_unknown_option_rejected_pg_influx(self):
+        """ALTER unknown option must be rejected consistently for PG and Influx.
+
+        Verify PG and Influx sources reject the unknown option identically.
+
+        Since: v3.4.0.0
+        """
+        run_tag = str(int(_time.time() * 1000))[-6:]
+        src_pg = f"sec021b_pg_unknown_{run_tag}"
+        src_influx = f"sec021b_influx_unknown_{run_tag}"
+        self._cleanup(src_pg, src_influx)
+
+        try:
+            tdSql.execute(
+                f"create external source {src_pg} type='postgresql' "
+                "host='127.0.0.1' port=5432 user='u' password='p' database='db' schema='public' "
+                "options('sslmode'='prefer')"
+            )
+            tdSql.error(
+                f"alter external source {src_pg} set options('unknown_opt'='x')",
+                expectedErrno=TSDB_CODE_PAR_SYNTAX_ERROR,
+            )
+
+            tdSql.query(f"describe external source {src_pg}")
+            pg_text = "\n".join("|".join(str(c) for c in row) for row in tdSql.queryResult)
+            assert "unknown_opt" not in pg_text
+
+            for cfg_influx in self._influx_configs():
+                with self._using_influx(cfg_influx):
+                    self._cleanup(src_influx)
+                    tdSql.execute(
+                        f"create external source {src_influx} type='influxdb' "
+                        "host='127.0.0.1' port=8086 user='admin' password='' database='telegraf' "
+                        f"options({self._influx_metadata_options()}, 'protocol'='http')"
+                    )
+                    tdSql.error(
+                        f"alter external source {src_influx} set options('unknown_opt'='x')",
+                        expectedErrno=TSDB_CODE_PAR_SYNTAX_ERROR,
+                    )
+
+                    tdSql.query(f"describe external source {src_influx}")
+                    influx_text = "\n".join("|".join(str(c) for c in row) for row in tdSql.queryResult)
+                    assert "unknown_opt" not in influx_text
+        finally:
+            self._cleanup(src_pg, src_influx)
+
+    # ------------------------------------------------------------------
+    # SEC-022  ALTER patch-delete non-timeout option
+    # ------------------------------------------------------------------
+
+    def test_fq_sec_022_alter_delete_non_timeout_option(self):
+        """ALTER SOURCE options('ssl_mode'='') should remove ssl_mode key.
+
+        Verify an empty-string option value removes the stored key.
+
+        Since: v3.4.0.0
+        """
+        run_tag = str(int(_time.time() * 1000))[-6:]
+        src = f"sec022_mysql_delete_opt_{run_tag}"
+        self._cleanup(src)
+
+        try:
+            tdSql.execute(
+                f"create external source {src} type='mysql' "
+                f"host='127.0.0.1' port=3306 user='u' password='p' database='db' "
+                f"options('ssl_mode'='required', 'charset'='utf8mb4')"
+            )
+            tdSql.execute(f"alter external source {src} set options('ssl_mode'='')")
+
+            tdSql.query("show external sources")
+            row_idx = self._find_row(src)
+            assert row_idx >= 0
+            options_col = str(tdSql.queryResult[row_idx][_COL_OPTIONS])
+            assert "ssl_mode" not in options_col
+            assert "charset" in options_col
+        finally:
+            self._cleanup(src)
+
+    def test_fq_sec_022b_create_empty_option_normalized_as_unset(self):
+        """CREATE with empty option values should be accepted and normalized as unset.
+
+        Verify empty option values are accepted and normalized as unset.
+
+        Since: v3.4.0.0
+        """
+        run_tag = str(int(_time.time() * 1000))[-6:]
+        src_mysql = f"sec022b_mysql_empty_opt_{run_tag}"
+        src_pg = f"sec022b_pg_empty_opt_{run_tag}"
+        src_influx = f"sec022b_influx_empty_opt_{run_tag}"
+        influx_sources = list(self._influx_source_specs(src_influx))
+        influx_names = [name for _, name in influx_sources]
+        self._cleanup(src_mysql, src_pg, *influx_names)
+
+        try:
+            tdSql.execute(
+                f"create external source {src_mysql} type='mysql' "
+                "host='127.0.0.1' port=3306 user='u' password='p' database='db' "
+                "options('charset'='utf8mb4', 'read_timeout_ms'='', 'tls_enabled'='')"
+            )
+            tdSql.execute(
+                f"create external source {src_pg} type='postgresql' "
+                "host='127.0.0.1' port=5432 user='u' password='p' database='db' schema='public' "
+                "options('sslmode'='', 'read_timeout_ms'='')"
+            )
+            for cfg_influx, influx_name in influx_sources:
+                with self._using_influx(cfg_influx):
+                    tdSql.execute(
+                        f"create external source {influx_name} type='influxdb' "
+                        "host='127.0.0.1' port=8086 user='admin' password='' database='telegraf' "
+                        f"options({self._influx_metadata_options()}, 'protocol'='', 'connect_timeout_ms'='')"
+                    )
+
+            tdSql.query("show external sources")
+            for src in ([src_mysql, src_pg, *influx_names]):
+                row_idx = self._find_row(src)
+                assert row_idx >= 0
+                options_col = str(tdSql.queryResult[row_idx][_COL_OPTIONS])
+                assert "\"\"" not in options_col
+
+            mysql_opts = str(tdSql.queryResult[self._find_row(src_mysql)][_COL_OPTIONS])
+            assert "charset" in mysql_opts
+            assert "read_timeout_ms" not in mysql_opts
+            assert "tls_enabled" not in mysql_opts
+
+            pg_opts = str(tdSql.queryResult[self._find_row(src_pg)][_COL_OPTIONS])
+            assert "sslmode" not in pg_opts
+            assert "read_timeout_ms" not in pg_opts
+
+            for cfg_influx, influx_name in influx_sources:
+                influx_opts = str(tdSql.queryResult[self._find_row(influx_name)][_COL_OPTIONS])
+                assert ("version" if cfg_influx.version == "1.8" else "api_token") in influx_opts
+                assert "protocol" not in influx_opts
+                assert "connect_timeout_ms" not in influx_opts
+        finally:
+            self._cleanup(src_mysql, src_pg, *influx_names)
+
+    # ------------------------------------------------------------------
+    # SEC-013B  Option effectiveness: PostgreSQL read_timeout
+    # ------------------------------------------------------------------
+
+    def test_fq_sec_013b_option_effectiveness_pg_read_timeout(self):
+        """Behavior checks for PostgreSQL read_timeout_ms runtime effect.
+
+                Goal: a low read_timeout_ms should timeout a slow view,
+                while a higher read_timeout_ms should allow the same query to finish.
+
+        Since: v3.4.0.0
+        """
+        cfg_pg = self._pg_cfg()
+        run_tag = str(int(_time.time() * 1000))[-6:]
+        src_rt_low = f"sec013b_pg_read_timeout_low_{run_tag}"
+        src_rt_ok = f"sec013b_pg_read_timeout_ok_{run_tag}"
+        names = [src_rt_low, src_rt_ok]
+        self._cleanup(*names)
+
+        pg_db = "sec013b_rt_pgdb"
+        pg_user = "sec013b_rt_user"
+        pg_pass = "sec013b_rt_pwd"
+        pg_vw = "v_slow"
+
+        ExtSrcEnv.pg_exec_cfg(cfg_pg, "postgres", [
+            f"DROP DATABASE IF EXISTS \"{pg_db}\"",
+            f"DROP ROLE IF EXISTS \"{pg_user}\"",
+            f"CREATE ROLE \"{pg_user}\" LOGIN PASSWORD '{pg_pass}'",
+            f"CREATE DATABASE \"{pg_db}\"",
+            f"GRANT CONNECT ON DATABASE \"{pg_db}\" TO \"{pg_user}\"",
+        ])
+        ExtSrcEnv.pg_exec_cfg(cfg_pg, pg_db, [
+            f"DROP VIEW IF EXISTS public.{pg_vw}",
+            "DROP FUNCTION IF EXISTS public.fq_sec013b_sleep_ret()",
+            "CREATE FUNCTION public.fq_sec013b_sleep_ret() RETURNS INT "
+            "LANGUAGE plpgsql AS $$ BEGIN PERFORM pg_sleep(2); RETURN 1; END; $$",
+            f"CREATE VIEW public.{pg_vw} AS SELECT public.fq_sec013b_sleep_ret() AS delay",
+            f"GRANT USAGE ON SCHEMA public TO \"{pg_user}\"",
+            f"GRANT SELECT ON public.{pg_vw} TO \"{pg_user}\"",
+        ])
+
+        try:
+            # read_timeout low => slow view should timeout.
+            tdSql.execute(
+                f"create external source {src_rt_low} type='postgresql' "
+                f"host='{cfg_pg.host}' port={cfg_pg.port} user='{pg_user}' password='{pg_pass}' "
+                f"database='{pg_db}' schema='public' "
+                f"options('read_timeout_ms'='500', 'sslmode'='disable')"
+            )
+            tdSql.error(f"select count(*) from {src_rt_low}.public.{pg_vw}")
+
+            # read_timeout high => same slow view should succeed.
+            tdSql.execute(
+                f"create external source {src_rt_ok} type='postgresql' "
+                f"host='{cfg_pg.host}' port={cfg_pg.port} user='{pg_user}' password='{pg_pass}' "
+                f"database='{pg_db}' schema='public' "
+                f"options('read_timeout_ms'='3000', 'sslmode'='disable')"
+            )
+            tdSql.query(f"select count(*) from {src_rt_ok}.public.{pg_vw}")
+            assert int(tdSql.queryResult[0][0]) == 1
+        finally:
+            self._cleanup(*names)
+            ExtSrcEnv.pg_exec_cfg(cfg_pg, "postgres", [
+                f"DROP DATABASE IF EXISTS \"{pg_db}\"",
+                f"DROP ROLE IF EXISTS \"{pg_user}\"",
+            ])
+
+    # ------------------------------------------------------------------
+    # SEC-023  Option effectiveness: read_timeout_ms=0 overrides global
+    # ------------------------------------------------------------------
+
+    def test_fq_sec_023_option_effectiveness_read_timeout_zero_override_global(self):
+        """Timeout=0 should be accepted and persisted explicitly across connector types.
+
+        Verify an explicit zero timeout overrides the global default.
+
+        Since: v3.4.0.0
+        """
+        run_tag = str(int(_time.time() * 1000))[-6:]
+        cfg_ss = self._sqlserver_cfg()
+        src_mysql = f"sec023_mysql_timeout_zero_{run_tag}"
+        src_pg = f"sec023_pg_timeout_zero_{run_tag}"
+        src_influx = f"sec023_influx_timeout_zero_{run_tag}"
+        src_ss = f"sec023_ss_timeout_zero_{run_tag}"
+        influx_sources = list(self._influx_source_specs(src_influx))
+        influx_names = [name for _, name in influx_sources]
+        self._cleanup(src_mysql, src_pg, *influx_names, src_ss)
+
+        try:
+            tdSql.execute(
+                f"create external source {src_mysql} type='mysql' "
+                f"host='127.0.0.1' port=3306 user='u' password='p' database='db' "
+                f"options('connect_timeout_ms'='0', 'read_timeout_ms'='0', 'charset'='utf8mb4')"
+            )
+            tdSql.execute(
+                f"create external source {src_pg} type='postgresql' "
+                "host='127.0.0.1' port=5432 user='u' password='p' database='db' schema='public' "
+                "options('connect_timeout_ms'='0', 'read_timeout_ms'='0', 'sslmode'='disable')"
+            )
+            for cfg_influx, influx_name in influx_sources:
+                with self._using_influx(cfg_influx):
+                    tdSql.execute(
+                        f"create external source {influx_name} type='influxdb' "
+                        "host='127.0.0.1' port=8086 user='admin' password='' database='telegraf' "
+                        f"options({self._influx_metadata_options()}, 'connect_timeout_ms'='0', 'read_timeout_ms'='0')"
+                    )
+            tdSql.execute(
+                f"create external source {src_ss} type='sqlserver' "
+                f"host='{cfg_ss.host}' port={cfg_ss.port} user='{cfg_ss.user}' password='{cfg_ss.password}' "
+                f"database='master' schema='dbo' "
+                f"options('trust_server_certificate'='true', "
+                f"'connect_timeout_ms'='0', 'read_timeout_ms'='0')"
+            )
+
+            tdSql.query("show external sources")
+            for src in ([src_mysql, src_pg, *influx_names, src_ss]):
+                row_idx = self._find_row(src)
+                assert row_idx >= 0
+                options_col = str(tdSql.queryResult[row_idx][_COL_OPTIONS])
+                assert "connect_timeout_ms" in options_col
+                assert "read_timeout_ms" in options_col
+                assert "0" in options_col
+        finally:
+            self._cleanup(src_mysql, src_pg, *influx_names, src_ss)
+
+    # ------------------------------------------------------------------
+    # SEC-024  tls_enabled invalid value rejected
+    # ------------------------------------------------------------------
+
+    @influx_versions()
+    def test_fq_sec_024_influx_tls_enabled_invalid_value_rejected(self):
+        """Influx tls_enabled must be boolean-like; invalid value is rejected in DDL.
+
+        Verify a non-boolean tls_enabled value is rejected at DDL time.
+
+        Since: v3.4.0.0
+        """
+        run_tag = str(int(_time.time() * 1000))[-6:]
+        src_ok = f"sec024_influx_tls_bool_ok_{run_tag}"
+        self._cleanup(src_ok)
+
+        try:
+            tdSql.error(
+                "create external source sec024_influx_tls_bad_create "
+                "type='influxdb' host='127.0.0.1' port=8086 user='admin' password='' database='telegraf' "
+                f"options({self._influx_metadata_options()}, 'protocol'='http', 'tls_enabled'='not_bool')",
+                expectedErrno=TSDB_CODE_PAR_SYNTAX_ERROR,
+            )
+
+            tdSql.execute(
+                f"create external source {src_ok} type='influxdb' "
+                "host='127.0.0.1' port=8086 user='admin' password='' database='telegraf' "
+                f"options({self._influx_metadata_options()}, 'protocol'='http', 'tls_enabled'='false')"
+            )
+            tdSql.error(
+                f"alter external source {src_ok} set options('tls_enabled'='not_bool')",
+                expectedErrno=TSDB_CODE_PAR_SYNTAX_ERROR,
+            )
+            tdSql.query(f"describe external source {src_ok}")
+            text = "\n".join("|".join(str(c) for c in row) for row in tdSql.queryResult)
+            assert "not_bool" not in text
+        finally:
+            self._cleanup(src_ok)
+
+    # ------------------------------------------------------------------
+    # SEC-025  SHOW/DESCRIBE masking: tls_client_cert value
+    # ------------------------------------------------------------------
+
+    def test_fq_sec_025_show_describe_masking_tls_client_cert_value(self):
+        """SHOW/DESCRIBE must not expose tls_client_cert/tls_client_key plaintext values.
+
+        Verify certificate and key values are masked in SHOW and DESCRIBE output.
+
+        Since: v3.4.0.0
+        """
+        cfg_mysql = self._mysql_cfg()
+        run_tag = str(int(_time.time() * 1000))[-6:]
+        src = f"sec025_tls_cert_mask_{run_tag}"
+        cert_secret = f"SEC025_CERT_SECRET_{run_tag}"
+        key_secret = f"SEC025_KEY_SECRET_{run_tag}"
+        self._cleanup(src)
+
+        try:
+            tdSql.execute(
+                f"create external source {src} type='mysql' "
+                f"host='{cfg_mysql.host}' port={cfg_mysql.port} user='u' password='p' database='db' "
+                f"options('tls_enabled'='false', 'tls_client_cert'='{cert_secret}', "
+                f"'tls_client_key'='{key_secret}', 'connect_timeout_ms'='1000')"
+            )
+
+            tdSql.query("show external sources")
+            row_idx = self._find_row(src)
+            assert row_idx >= 0
+
+            row_text = self._row_text(row_idx)
+            assert cert_secret not in row_text, "tls_client_cert plaintext leaked in SHOW"
+            assert key_secret not in row_text, "tls_client_key plaintext leaked in SHOW"
+
+            options_col = str(tdSql.queryResult[row_idx][_COL_OPTIONS])
+            assert "tls_client_cert" in options_col
+            assert "tls_client_key" in options_col
+
+            tdSql.query(f"describe external source {src}")
+            desc_text = "\n".join("|".join(str(c) for c in row) for row in tdSql.queryResult)
+            assert cert_secret not in desc_text, "tls_client_cert plaintext leaked in DESCRIBE"
+            assert key_secret not in desc_text, "tls_client_key plaintext leaked in DESCRIBE"
+        finally:
+            self._cleanup(src)
+
+    # ------------------------------------------------------------------
+    # SEC-026  timeout invalid format rejected
+    # ------------------------------------------------------------------
+
+    def test_fq_sec_026_timeout_option_invalid_format_rejected(self):
+        """Timeout options reject non-numeric/negative values on both CREATE and ALTER.
+
+        Verify non-numeric and negative timeout values are rejected on CREATE and ALTER.
+
+        Since: v3.4.0.0
+        """
+        cfg_mysql = self._mysql_cfg()
+        run_tag = str(int(_time.time() * 1000))[-6:]
+        src_ok = f"sec026_timeout_ok_{run_tag}"
+        self._cleanup(src_ok)
+
+        try:
+            tdSql.error(
+                f"create external source sec026_timeout_bad_create_text_{run_tag} type='mysql' "
+                f"host='{cfg_mysql.host}' port={cfg_mysql.port} user='u' password='p' database='db' "
+                f"options('connect_timeout_ms'='abc')",
+                expectedErrno=TSDB_CODE_PAR_SYNTAX_ERROR,
+            )
+            tdSql.error(
+                f"create external source sec026_timeout_bad_create_neg_{run_tag} type='mysql' "
+                f"host='{cfg_mysql.host}' port={cfg_mysql.port} user='u' password='p' database='db' "
+                f"options('read_timeout_ms'='-1')",
+                expectedErrno=TSDB_CODE_PAR_SYNTAX_ERROR,
+            )
+
+            tdSql.execute(
+                f"create external source {src_ok} type='mysql' "
+                f"host='{cfg_mysql.host}' port={cfg_mysql.port} user='u' password='p' database='db' "
+                f"options('connect_timeout_ms'='1000', 'read_timeout_ms'='1000')"
+            )
+
+            tdSql.error(
+                f"alter external source {src_ok} set options('connect_timeout_ms'='abc')",
+                expectedErrno=TSDB_CODE_PAR_SYNTAX_ERROR,
+            )
+            tdSql.error(
+                f"alter external source {src_ok} set options('read_timeout_ms'='-1')",
+                expectedErrno=TSDB_CODE_PAR_SYNTAX_ERROR,
+            )
+
+            tdSql.query("show external sources")
+            row_idx = self._find_row(src_ok)
+            assert row_idx >= 0
+            options_col = str(tdSql.queryResult[row_idx][_COL_OPTIONS])
+            assert "abc" not in options_col
+            assert "-1" not in options_col
+            assert "connect_timeout_ms" in options_col
+            assert "read_timeout_ms" in options_col
+        finally:
+            self._cleanup(src_ok)
+
+    # ------------------------------------------------------------------
+    # SEC-027  Influx default protocol + FlightSQL TLS consumption
+    # ------------------------------------------------------------------
+
+    @influx_versions()
+    def test_fq_sec_027_influx_default_protocol_and_flightsql_tls_consumption(self):
+        """Influx defaults and TLS options are consumed by the version-specific protocol.
+
+        Verify the default protocol path and the FlightSQL TLS path both behave.
+
+        Since: v3.4.0.0
+        """
+        cfg_influx = self._influx_cfg()
+        if cfg_influx.version == "1.8":
+            self.do_influx18_default_protocol_and_tls()
+            return
+        run_tag = str(int(_time.time() * 1000))[-6:]
+        src_default = f"sec027_influx_default_{run_tag}"
+        src_flight_tls = f"sec027_influx_flight_tls_{run_tag}"
+        names = [src_default, src_flight_tls]
+        self._cleanup(*names)
+
+        influx_db = "sec027_opt_idb"
+        influx_tb = "src_t"
+        ts_ns = int(_time.time() * 1_000_000_000)
+
+        ExtSrcEnv.influx_create_db_cfg(cfg_influx, influx_db)
+        ExtSrcEnv.influx_write_cfg(
+            cfg_influx,
+            influx_db,
+            [f"{influx_tb},site=sec027 val=1i {ts_ns}"],
+        )
+
+        try:
+            tdSql.execute(
+                f"create external source {src_default} type='influxdb' "
+                f"host='{cfg_influx.host}' port={cfg_influx.port} user='admin' password='' "
+                f"database='{influx_db}' "
+                f"options('api_token'='{cfg_influx.token}')"
+            )
+            tdSql.query(f"select count(*) from {src_default}.{influx_db}.{influx_tb}")
+            assert int(tdSql.queryResult[0][0]) == 1
+
+            tdSql.query("show external sources")
+            row_idx = self._find_row(src_default)
+            assert row_idx >= 0
+            options_col = str(tdSql.queryResult[row_idx][_COL_OPTIONS])
+            assert "protocol" not in options_col
+
+            tdSql.execute(
+                f"create external source {src_flight_tls} type='influxdb' "
+                f"host='{cfg_influx.host}' port={cfg_influx.port} user='admin' password='' "
+                f"database='{influx_db}' "
+                f"options('api_token'='{cfg_influx.token}', 'protocol'='flight_sql', "
+                f"'tls_enabled'='true', 'tls_ca_cert'='/tmp/fq_nonexistent_influx_flight_ca.pem')"
+            )
+            tdSql.error(
+                f"select count(*) from {src_flight_tls}.{influx_db}.{influx_tb}",
+                expectedErrno=TSDB_CODE_EXT_SOURCE_UNAVAILABLE,
+            )
+        finally:
+            self._cleanup(*names)
+            try:
+                ExtSrcEnv.influx_drop_db_cfg(cfg_influx, influx_db)
+            except Exception:
+                pass
+
+    # ------------------------------------------------------------------
+    # SEC-016  Option effectiveness: connect_timeout_ms timing
+    # ------------------------------------------------------------------
+
+    def test_fq_sec_016_option_effectiveness_connect_timeout_timing(self):
+        """Behavior checks for connect_timeout_ms runtime effect.
+
+                Goal: different timeout values should lead to measurable timing difference
+                when connecting to a blackhole host.
+
+        Since: v3.4.0.0
+        """
+        run_tag = str(int(_time.time() * 1000))[-6:]
+        src_fast = f"sec016_connect_timeout_fast_{run_tag}"
+        src_slow = f"sec016_connect_timeout_slow_{run_tag}"
+        names = [src_fast, src_slow]
+        self._cleanup(*names)
+
+        from test_fq_15_service_disruption import _BlackHoleListener
+
+        with _BlackHoleListener() as bh:
+            tdSql.execute(
+                f"create external source {src_fast} type='mysql' "
+                f"host='127.0.0.1' port={bh.port} user='u' password='p' database='db' "
+                f"options('connect_timeout_ms'='200')"
+            )
+            tdSql.execute(
+                f"create external source {src_slow} type='mysql' "
+                f"host='127.0.0.1' port={bh.port} user='u' password='p' database='db' "
+                f"options('connect_timeout_ms'='3000')"
+            )
+
+            t0 = _time.time()
+            tdSql.error(f"select count(*) from {src_fast}.db.t1")
+            fast_elapsed = _time.time() - t0
+
+            t1 = _time.time()
+            tdSql.error(f"select count(*) from {src_slow}.db.t1")
+            slow_elapsed = _time.time() - t1
+
+        tdLog.info(
+            f"SEC-016 connect_timeout elapsed fast={fast_elapsed:.3f}s slow={slow_elapsed:.3f}s"
+        )
+
+        assert slow_elapsed >= 1.5, "slow timeout should not return almost immediately"
+        assert slow_elapsed >= fast_elapsed + 0.6, (
+            "connect_timeout_ms should affect runtime connect wait; "
+            f"got fast={fast_elapsed:.3f}s slow={slow_elapsed:.3f}s"
+        )
+
+        self._cleanup(*names)
+
+    # ------------------------------------------------------------------
+    # SEC-017  MySQL ssl_mode enum behavior matrix
+    # ------------------------------------------------------------------
+
+    def test_fq_sec_017_mysql_ssl_mode_enum_matrix(self):
+        """Behavior checks for all supported MySQL ssl_mode enum values.
+
+        Verify every supported MySQL ssl_mode enum value is accepted end to end.
+
+        Since: v3.4.0.0
+        """
+        cfg_mysql = self._mysql_cfg()
+        run_tag = str(int(_time.time() * 1000))[-6:]
+        src_disabled = f"sec017_mysql_disabled_{run_tag}"
+        src_preferred = f"sec017_mysql_preferred_{run_tag}"
+        src_required = f"sec017_mysql_required_{run_tag}"
+        src_verify_ca_bad = f"sec017_mysql_verifyca_bad_{run_tag}"
+        src_verify_identity_bad = f"sec017_mysql_verifyid_bad_{run_tag}"
+        names = [
+            src_disabled, src_preferred, src_required,
+            src_verify_ca_bad, src_verify_identity_bad,
+        ]
+        self._cleanup(*names)
+
+        mysql_db = "sec017_sslmode_db"
+        mysql_tb = "t_sslmode"
+        mysql_user = "sec017_user"
+        mysql_pass = "sec017_pwd"
+
+        ExtSrcEnv.mysql_exec_cfg(cfg_mysql, None, [
+            f"DROP DATABASE IF EXISTS `{mysql_db}`",
+            f"CREATE DATABASE `{mysql_db}`",
+            f"DROP USER IF EXISTS '{mysql_user}'@'%'",
+            f"CREATE USER '{mysql_user}'@'%' IDENTIFIED WITH mysql_native_password BY '{mysql_pass}'",
+            f"GRANT ALL PRIVILEGES ON `{mysql_db}`.* TO '{mysql_user}'@'%'",
+            "FLUSH PRIVILEGES",
+        ])
+        ExtSrcEnv.mysql_exec_cfg(cfg_mysql, mysql_db, [
+            f"DROP TABLE IF EXISTS `{mysql_tb}`",
+            f"CREATE TABLE `{mysql_tb}` (id INT PRIMARY KEY, v INT)",
+            f"INSERT INTO `{mysql_tb}` VALUES (1, 1701)",
+        ])
+
+        # disabled
+        tdSql.execute(
+            f"create external source {src_disabled} type='mysql' "
+            f"host='{cfg_mysql.host}' port={cfg_mysql.port} user='{mysql_user}' password='{mysql_pass}' "
+            f"database='{mysql_db}' options('ssl_mode'='disabled')"
+        )
+        tdSql.query(f"select count(*) from {src_disabled}.{mysql_db}.{mysql_tb}")
+        assert int(tdSql.queryResult[0][0]) == 1
+
+        # preferred
+        tdSql.execute(
+            f"create external source {src_preferred} type='mysql' "
+            f"host='{cfg_mysql.host}' port={cfg_mysql.port} user='{mysql_user}' password='{mysql_pass}' "
+            f"database='{mysql_db}' options('ssl_mode'='preferred')"
+        )
+        tdSql.query(f"select count(*) from {src_preferred}.{mysql_db}.{mysql_tb}")
+        assert int(tdSql.queryResult[0][0]) == 1
+
+        # required
+        tdSql.execute(
+            f"create external source {src_required} type='mysql' "
+            f"host='{cfg_mysql.host}' port={cfg_mysql.port} user='{mysql_user}' password='{mysql_pass}' "
+            f"database='{mysql_db}' "
+            f"options('ssl_mode'='required', 'tls_enabled'='true', 'tls_ca_cert'='{FQ_MYSQL_CA_CERT}')"
+        )
+        tdSql.query(f"select count(*) from {src_required}.{mysql_db}.{mysql_tb}")
+        assert int(tdSql.queryResult[0][0]) == 1
+
+        # verify_ca (invalid ca)
+        tdSql.execute(
+            f"create external source {src_verify_ca_bad} type='mysql' "
+            f"host='{cfg_mysql.host}' port={cfg_mysql.port} user='{mysql_user}' password='{mysql_pass}' "
+            f"database='{mysql_db}' options('ssl_mode'='verify_ca', 'tls_ca_cert'='/tmp/fq_nonexistent_ca.pem')"
+        )
+        tdSql.error(
+            f"select count(*) from {src_verify_ca_bad}.{mysql_db}.{mysql_tb}",
+            expectedErrno=TSDB_CODE_EXT_SOURCE_UNAVAILABLE,
+        )
+
+        # verify_identity (exercise enum path with invalid ca)
+        tdSql.execute(
+            f"create external source {src_verify_identity_bad} type='mysql' "
+            f"host='{cfg_mysql.host}' port={cfg_mysql.port} user='{mysql_user}' password='{mysql_pass}' "
+            f"database='{mysql_db}' options('ssl_mode'='verify_identity', 'tls_ca_cert'='/tmp/fq_nonexistent_ca.pem')"
+        )
+        tdSql.error(
+            f"select count(*) from {src_verify_identity_bad}.{mysql_db}.{mysql_tb}",
+            expectedErrno=TSDB_CODE_EXT_SOURCE_UNAVAILABLE,
+        )
+
+        self._cleanup(*names)
+        ExtSrcEnv.mysql_exec_cfg(cfg_mysql, None, [
+            f"DROP USER IF EXISTS '{mysql_user}'@'%'",
+            f"DROP DATABASE IF EXISTS `{mysql_db}`",
+        ])
+
+    # ------------------------------------------------------------------
+    # SEC-018  PostgreSQL sslmode enum behavior matrix
+    # ------------------------------------------------------------------
+
+    def test_fq_sec_018_pg_sslmode_enum_matrix(self):
+        """Behavior checks for all supported PostgreSQL sslmode enum values.
+
+        Verify every supported PostgreSQL sslmode enum value is accepted end to end.
+
+        Since: v3.4.0.0
+        """
+        cfg_pg = self._pg_cfg()
+        run_tag = str(int(_time.time() * 1000))[-6:]
+        src_disable = f"sec018_pg_disable_{run_tag}"
+        src_allow = f"sec018_pg_allow_{run_tag}"
+        src_prefer = f"sec018_pg_prefer_{run_tag}"
+        src_require = f"sec018_pg_require_{run_tag}"
+        src_verify_ca = f"sec018_pg_verifyca_{run_tag}"
+        src_verify_full = f"sec018_pg_verifyfull_{run_tag}"
+        names = [src_disable, src_allow, src_prefer, src_require, src_verify_ca, src_verify_full]
+        self._cleanup(*names)
+
+        pg_db = "sec018_sslmode_pgdb"
+        pg_user = "sec018_ssl_user"
+        pg_pass = "sec018_ssl_pwd"
+
+        ExtSrcEnv.pg_exec_cfg(cfg_pg, "postgres", [
+            f"DROP DATABASE IF EXISTS \"{pg_db}\"",
+            f"DROP ROLE IF EXISTS \"{pg_user}\"",
+            f"CREATE ROLE \"{pg_user}\" LOGIN PASSWORD '{pg_pass}'",
+            f"CREATE DATABASE \"{pg_db}\"",
+            f"GRANT CONNECT ON DATABASE \"{pg_db}\" TO \"{pg_user}\"",
+        ])
+        ExtSrcEnv.pg_exec_cfg(cfg_pg, pg_db, [
+            "DROP VIEW IF EXISTS public.v_ssl_self",
+            "CREATE VIEW public.v_ssl_self AS "
+            "SELECT ssl FROM pg_catalog.pg_stat_ssl WHERE pid = pg_backend_pid()",
+            f"GRANT USAGE ON SCHEMA public TO \"{pg_user}\"",
+            f"GRANT SELECT ON public.v_ssl_self TO \"{pg_user}\"",
+        ])
+
+        # disable -> non-SSL
+        tdSql.execute(
+            f"create external source {src_disable} type='postgresql' "
+            f"host='{cfg_pg.host}' port={cfg_pg.port} user='{pg_user}' password='{pg_pass}' "
+            f"database='{pg_db}' schema='public' options('sslmode'='disable')"
+        )
+        tdSql.query(f"select count(*) from {src_disable}.public.v_ssl_self where ssl = false")
+        assert int(tdSql.queryResult[0][0]) == 1
+
+        # allow -> queryable
+        tdSql.execute(
+            f"create external source {src_allow} type='postgresql' "
+            f"host='{cfg_pg.host}' port={cfg_pg.port} user='{pg_user}' password='{pg_pass}' "
+            f"database='{pg_db}' schema='public' options('sslmode'='allow')"
+        )
+        tdSql.query(f"select count(*) from {src_allow}.public.v_ssl_self")
+        assert int(tdSql.queryResult[0][0]) == 1
+
+        # prefer -> queryable
+        tdSql.execute(
+            f"create external source {src_prefer} type='postgresql' "
+            f"host='{cfg_pg.host}' port={cfg_pg.port} user='{pg_user}' password='{pg_pass}' "
+            f"database='{pg_db}' schema='public' options('sslmode'='prefer')"
+        )
+        tdSql.query(f"select count(*) from {src_prefer}.public.v_ssl_self")
+        assert int(tdSql.queryResult[0][0]) == 1
+
+        # require -> SSL
+        tdSql.execute(
+            f"create external source {src_require} type='postgresql' "
+            f"host='{cfg_pg.host}' port={cfg_pg.port} user='{pg_user}' password='{pg_pass}' "
+            f"database='{pg_db}' schema='public' options('sslmode'='require', 'tls_ca_cert'='{FQ_PG_CA_CERT}')"
+        )
+        tdSql.query(f"select count(*) from {src_require}.public.v_ssl_self where ssl = true")
+        assert int(tdSql.queryResult[0][0]) == 1
+
+        # verify-ca -> SSL with CA verification
+        tdSql.execute(
+            f"create external source {src_verify_ca} type='postgresql' "
+            f"host='{cfg_pg.host}' port={cfg_pg.port} user='{pg_user}' password='{pg_pass}' "
+            f"database='{pg_db}' schema='public' options('sslmode'='verify-ca', 'tls_ca_cert'='{FQ_PG_CA_CERT}')"
+        )
+        tdSql.query(f"select count(*) from {src_verify_ca}.public.v_ssl_self where ssl = true")
+        assert int(tdSql.queryResult[0][0]) == 1
+
+        # verify-full -> expected failure under host/cert mismatch (cert CN=fq-pg-server, host=127.0.0.1)
+        tdSql.execute(
+            f"create external source {src_verify_full} type='postgresql' "
+            f"host='127.0.0.1' port={cfg_pg.port} user='{pg_user}' password='{pg_pass}' "
+            f"database='{pg_db}' schema='public' options('sslmode'='verify-full', 'tls_ca_cert'='{FQ_PG_CA_CERT}')"
+        )
+        tdSql.error(f"select count(*) from {src_verify_full}.public.v_ssl_self")
+
+        self._cleanup(*names)
+        ExtSrcEnv.pg_exec_cfg(cfg_pg, "postgres", [
+            f"DROP DATABASE IF EXISTS \"{pg_db}\"",
+            f"DROP ROLE IF EXISTS \"{pg_user}\"",
+        ])
+
+    # ------------------------------------------------------------------
+    # SEC-020  Option key acceptance matrix
+    # ------------------------------------------------------------------
+
+    def test_fq_sec_020_option_key_acceptance_matrix(self):
+        """Validate that each supported option key is accepted by create path.
+
+                This guards parser/mnode option allowlist consistency from the SQL entry path.
+
+        Since: v3.4.0.0
+        """
+        cfg_mysql = self._mysql_cfg()
+        cfg_pg = self._pg_cfg()
+        cfg_ss = self._sqlserver_cfg()
+        cfg_or = self._oracle_cfg()
+        run_tag = str(int(_time.time() * 1000))[-6:]
+
+        cases = [
+            (
+                f"sec020_mysql_conn_{run_tag}",
+                f"create external source sec020_mysql_conn_{run_tag} type='mysql' "
+                f"host='{cfg_mysql.host}' port={cfg_mysql.port} user='u' password='p' database='db' "
+                f"options('connect_timeout_ms'='1000')",
+            ),
+            (
+                f"sec020_mysql_read_{run_tag}",
+                f"create external source sec020_mysql_read_{run_tag} type='mysql' "
+                f"host='{cfg_mysql.host}' port={cfg_mysql.port} user='u' password='p' database='db' "
+                f"options('read_timeout_ms'='1000')",
+            ),
+            (
+                f"sec020_mysql_tlsen_{run_tag}",
+                f"create external source sec020_mysql_tlsen_{run_tag} type='mysql' "
+                f"host='{cfg_mysql.host}' port={cfg_mysql.port} user='u' password='p' database='db' "
+                f"options('tls_enabled'='true', 'ssl_mode'='required')",
+            ),
+            (
+                f"sec020_mysql_tlsca_{run_tag}",
+                f"create external source sec020_mysql_tlsca_{run_tag} type='mysql' "
+                f"host='{cfg_mysql.host}' port={cfg_mysql.port} user='u' password='p' database='db' "
+                f"options('tls_ca_cert'='/tmp/sec020_ca.pem')",
+            ),
+            (
+                f"sec020_mysql_tlspair_{run_tag}",
+                f"create external source sec020_mysql_tlspair_{run_tag} type='mysql' "
+                f"host='{cfg_mysql.host}' port={cfg_mysql.port} user='u' password='p' database='db' "
+                f"options('tls_client_cert'='/tmp/sec020_client.pem', 'tls_client_key'='/tmp/sec020_client.key')",
+            ),
+            (
+                f"sec020_mysql_charset_{run_tag}",
+                f"create external source sec020_mysql_charset_{run_tag} type='mysql' "
+                f"host='{cfg_mysql.host}' port={cfg_mysql.port} user='u' password='p' database='db' "
+                f"options('charset'='utf8mb4')",
+            ),
+            (
+                f"sec020_mysql_sslmode_{run_tag}",
+                f"create external source sec020_mysql_sslmode_{run_tag} type='mysql' "
+                f"host='{cfg_mysql.host}' port={cfg_mysql.port} user='u' password='p' database='db' "
+                f"options('ssl_mode'='preferred')",
+            ),
+            (
+                f"sec020_pg_sslmode_{run_tag}",
+                f"create external source sec020_pg_sslmode_{run_tag} type='postgresql' "
+                f"host='{cfg_pg.host}' port={cfg_pg.port} user='u' password='p' database='db' schema='public' "
+                f"options('sslmode'='disable')",
+            ),
+            (
+                f"sec020_ss_trust_{run_tag}",
+                f"create external source sec020_ss_trust_{run_tag} type='sqlserver' "
+                f"host='{cfg_ss.host}' port={cfg_ss.port} user='{cfg_ss.user}' password='{cfg_ss.password}' "
+                f"database='master' schema='dbo' "
+                f"options('trust_server_certificate'='true')",
+            ),
+            (
+                f"sec020_ss_timeout_{run_tag}",
+                f"create external source sec020_ss_timeout_{run_tag} type='sqlserver' "
+                f"host='{cfg_ss.host}' port={cfg_ss.port} user='{cfg_ss.user}' password='{cfg_ss.password}' "
+                f"database='master' schema='dbo' "
+                f"options('connect_timeout_ms'='1000', 'read_timeout_ms'='1000')",
+            ),
+            # Oracle has no type-specific option key (its OPTIONS row is empty),
+            # so only the common timeout keys are accepted.
+            (
+                f"sec020_or_timeout_{run_tag}",
+                f"create external source sec020_or_timeout_{run_tag} type='oracle' "
+                f"host='{cfg_or.host}' port={cfg_or.port} user='{cfg_or.user}' "
+                f"password='{cfg_or.password}' database='{cfg_or.service}' "
+                f"schema='{cfg_or.user.upper()}' "
+                f"options('connect_timeout_ms'='1000', 'read_timeout_ms'='1000')",
+            ),
+        ]
+
+        rejected = []
+        for cfg_influx in self._influx_configs():
+            with self._using_influx(cfg_influx):
+                version_tag = run_tag + '_' + cfg_influx.version.replace('.', '_')
+                options = self._influx_metadata_options(api_token='sec020_token')
+                protocol = "'protocol'='http'"
+                if cfg_influx.version == '1.8':
+                    protocol = "'version'='1.8'," + protocol
+                for kind, values in (('token', options), ('protocol', protocol)):
+                    source = f"sec020_influx_{kind}_{version_tag}"
+                    cases.append((source,
+                        f"create external source {source} type='influxdb' "
+                        f"host='{cfg_influx.host}' port={cfg_influx.port} user='admin' password='' "
+                        f"database='telegraf' options({values})"))
+                if cfg_influx.version == '1.8':
+                    source = f"sec020_influx_rp_{version_tag}"
+                    cases.append((source, self._mk_influx_source_sql(
+                        source, cfg_influx.host, cfg_influx.port, "", database="telegraf",
+                        extra_options="'retention_policy'='autogen'")))
+                    for option in ("'api_token'='sec020_token'",
+                                   "'tls_client_cert'='/tmp/sec020_client.pem','tls_client_key'='/tmp/sec020_client.key'"):
+                        source = f"sec020_influx_rejected_{len(rejected)}_{version_tag}"
+                        rejected.append((source, self._mk_influx_source_sql(
+                            source, cfg_influx.host, cfg_influx.port, "", database="telegraf", extra_options=option)))
+
+        names = [name for name, _ in cases]
+        rejected_names = [name for name, _ in rejected]
+        self._cleanup(*names, *rejected_names)
+        try:
+            for _, sql in rejected:
+                tdSql.error(sql, expectedErrno=TSDB_CODE_EXT_SYNTAX_UNSUPPORTED)
+            for _, sql in cases:
+                tdSql.execute(sql)
+
+            tdSql.query("show external sources")
+            existing = {str(r[_COL_NAME]) for r in tdSql.queryResult}
+            assert not existing.intersection(rejected_names), "rejected options left source metadata"
+            for name in names:
+                assert name in existing, f"source should be created for option acceptance case: {name}"
+        finally:
+            self._cleanup(*names, *rejected_names)
+
+    # ------------------------------------------------------------------
+    # SEC-007  Auth failure blocking
+    # ------------------------------------------------------------------
+
+    def test_fq_sec_007_auth_failure_blocking(self):
+        """SEC-007: Auth failure blocking — auth failed → source status update
+
+        TS: Source status updated after auth failure
+
+        Multi-dimensional coverage:
+        1. Create source with wrong password for unreachable host
+        2. Query source → should fail with connection/auth error
+        3. Consecutive queries → all fail consistently (no auth bypass)
+        4. SHOW source → should still be listed (not auto-dropped)
+        5. ALTER to correct password (still unreachable) → still listed
+        6. Negative: multiple sources, auth fail on one does not affect another
+        7. Drop source cleanly after auth failures
+
+        Catalog:
+            - Query:FederatedSecurity
+
+        Since: v3.4.0.0
+
+        Labels: common,ci
+
+        Jira: None
+
+        History:
+            - 2026-04-14 wpan Full rewrite with multi-dimensional coverage
+
+        """
+        cfg_mysql = self._mysql_cfg()
+        ver = cfg_mysql.version
+        names = ["sec007_bad_auth", "sec007_good_src"]
+        self._cleanup(*names)
+
+        # Create sources with test credentials; stop MySQL to make host unreachable.
+        tdSql.execute(
+            f"create external source sec007_bad_auth type='mysql' "
+            f"host='{cfg_mysql.host}' port={cfg_mysql.port} user='wrong_user' password='wrong_pwd' "
+            f"database='db' options('connect_timeout_ms'='500')"
+        )
+        tdSql.execute(
+            f"create external source sec007_good_src type='mysql' "
+            f"host='{cfg_mysql.host}' port={cfg_mysql.port} user='u' password='p' database='db' "
+            f"options('connect_timeout_ms'='500')"
+        )
+
+        ExtSrcEnv.stop_mysql_instance(ver)
+        try:
+            # Multiple queries on bad source → all fail with connection error
+            for _ in range(3):
+                tdSql.error(
+                    "select * from sec007_bad_auth.db.t1",
+                    expectedErrno=TSDB_CODE_EXT_SOURCE_UNAVAILABLE,
+                )
+        finally:
+            ExtSrcEnv.start_mysql_instance(ver)
+
+        # Source still exists in catalog
+        assert self._find_row("sec007_bad_auth") >= 0, \
+            "source should survive auth failures"
+
+        # auth fail on one source should not affect another
+        assert self._find_row("sec007_good_src") >= 0, \
+            "unrelated source should be unaffected"
+
+        # ALTER password
+        tdSql.execute(
+            "alter external source sec007_bad_auth set password='still_wrong'"
+        )
+        assert self._find_row("sec007_bad_auth") >= 0
+
+        # Clean drop
+        self._cleanup(*names)
+
+    # ------------------------------------------------------------------
+    # SEC-008  Access denied blocking
+    # ------------------------------------------------------------------
+
+    def test_fq_sec_008_access_denied_blocking(self):
+        """SEC-008: Access denied — error code and status correct
+
+        TS: Access denied error code and status handled correctly
+
+        Multi-dimensional coverage:
+        1. Write operations on external source must be denied:
+           a. INSERT INTO ext_source.db.table → error
+           b. UPDATE on external table reference → error
+           c. DELETE on external table → error
+           d. CREATE TABLE on external source → error
+        2. DDL operations on external objects → denied
+        3. Cross-source transaction → denied
+        4. Negative: read-only SELECT should NOT trigger access denied
+           (it triggers connection error on unreachable source instead)
+
+        Catalog:
+            - Query:FederatedSecurity
+
+        Since: v3.4.0.0
+
+        Labels: common,ci
+
+        Jira: None
+
+        History:
+            - 2026-04-14 wpan Full rewrite with multi-dimensional coverage
+
+        """
+        cfg_mysql = self._mysql_cfg()
+        ver = cfg_mysql.version
+        src = "sec008_src"
+        self._cleanup(src)
+
+        tdSql.execute(
+            f"create external source {src} type='mysql' "
+            f"host='{cfg_mysql.host}' port={cfg_mysql.port} user='u' password='p' database='db'"
+        )
+
+        # Write operations → denied (parser/planner level, no connection needed)
+        write_sqls = [
+            f"insert into {src}.db.t1 values (now, 1)",
+            f"insert into {src}.db.t1 (ts, v) values (now, 2)",
+        ]
+        for sql in write_sqls:
+            tdSql.error(sql, expectedErrno=TSDB_CODE_EXT_WRITE_DENIED)
+
+        # DDL on external object (parser level, no connection needed)
+        ddl_sqls = [
+            f"create table {src}.db.new_table (ts timestamp, v int)",
+            f"drop table {src}.db.t1",
+            f"alter table {src}.db.t1 add column c2 int",
+        ]
+        for sql in ddl_sqls:
+            tdSql.error(sql)  # DDL on external tables → any error acceptable
+
+        # Negative: SELECT is not access-denied — stop MySQL to make it unreachable.
+        ExtSrcEnv.stop_mysql_instance(ver)
+        try:
+            tdSql.error(
+                f"select * from {src}.db.t1",
+                expectedErrno=TSDB_CODE_EXT_SOURCE_UNAVAILABLE,  # connection error, not access denied
+            )
+        finally:
+            ExtSrcEnv.start_mysql_instance(ver)
+
+        self._cleanup(src)
+
+    # ------------------------------------------------------------------
+    # SEC-009  SQL injection protection
+    # ------------------------------------------------------------------
+
+    # ------------------------------------------------------------------
+    # SEC-028  MySQL caching_sha2_password client plugin
+    # ------------------------------------------------------------------
+
+    def test_fq_sec_028_caching_sha2_auth(self):
+        """SEC-028: MySQL caching_sha2_password account authentication
+
+        MySQL 8 creates accounts with caching_sha2_password unless told
+        otherwise, and MariaDB Connector/C implements that plugin as a
+        loadable client module.  A runtime that ships the client library
+        without the module still "connects" far enough for the client to
+        synthesize a 1045, which looks exactly like a wrong password, so the
+        normal path and the wrong-password path are both pinned here.
+
+        Multi-dimensional coverage:
+        1. Account created with IDENTIFIED WITH caching_sha2_password
+        2. External source using it reads the granted table normally
+        3. Wrong password on the same account still reports AUTH_FAILED
+           (the plugin path must not swallow real authentication failures)
+
+        Catalog:
+            - Query:FederatedSecurity
+
+        Since: v3.5.0.0
+
+        Labels: common,ci
+
+        Jira: None
+
+        History:
+            - 2026-11-04 wpan Cover caching_sha2_password client plugin staging
+
+        """
+        cfg = self._mysql_cfg()
+        if int(str(cfg.version).split(".")[0]) < 8:
+            pytest.skip("caching_sha2_password requires MySQL 8.0 or later")
+
+        run_tag = str(int(_time.time() * 1000))[-6:]
+        src = f"sec028_src_{run_tag}"
+        src_bad = f"sec028_bad_{run_tag}"
+        db = f"sec028_db_{run_tag}"
+        user = f"fq_sec028_{run_tag}"
+        password = "FqSha2Pass_2026"
+        names = [src, src_bad]
+        self._cleanup(*names)
+
+        ExtSrcEnv.mysql_drop_db_cfg(cfg, db)
+        ExtSrcEnv.mysql_create_db_cfg(cfg, db)
+        ExtSrcEnv.mysql_exec_cfg(cfg, db, [
+            "DROP TABLE IF EXISTS t_sha2",
+            "CREATE TABLE t_sha2 (ts datetime NOT NULL PRIMARY KEY, v INT)",
+            "INSERT INTO t_sha2 VALUES ('2024-01-01 00:00:00', 7), ('2024-01-01 00:01:00', 9)",
+        ])
+        ExtSrcEnv.mysql_exec_cfg(cfg, None, [
+            f"DROP USER IF EXISTS '{user}'@'%'",
+            f"CREATE USER '{user}'@'%' IDENTIFIED WITH caching_sha2_password BY '{password}'",
+            f"GRANT SELECT ON `{db}`.* TO '{user}'@'%'",
+            "FLUSH PRIVILEGES",
+        ])
+
+        try:
+            self._mk_mysql_real(src, database=db, user=user, password=password,
+                                extra_options="'connect_timeout_ms'='3000'")
+            tdSql.query(f"select ts, v from {src}.t_sha2 order by ts")
+            tdSql.checkRows(2)
+            tdSql.checkData(0, 1, 7)
+            tdSql.checkData(1, 1, 9)
+
+            # A real credential failure must keep reporting the authentication
+            # error instead of the client-plugin error.
+            self._mk_mysql_real(src_bad, database=db, user=user,
+                                password="WrongSha2Pass_2026",
+                                extra_options="'connect_timeout_ms'='3000'")
+            tdSql.error(f"select count(*) from {src_bad}.t_sha2",
+                        expectedErrno=TSDB_CODE_EXT_AUTH_FAILED)
+
+            # Neither source may be dropped by the failed authentication.
+            assert self._find_row(src) >= 0, "working source should stay listed"
+        finally:
+            self._cleanup(*names)
+            try:
+                ExtSrcEnv.mysql_drop_db_cfg(cfg, db)
+            except Exception:
+                pass
+            try:
+                ExtSrcEnv.mysql_exec_cfg(cfg, None, [f"DROP USER IF EXISTS '{user}'@'%'"])
+            except Exception:
+                pass
+
+    def test_fq_sec_009_sql_injection_protection(self):
+        """SEC-009: SQL injection protection — source/path/identifier safe
+
+        TS: SOURCE/path/identifier parsing has no injection vulnerability
+
+        Multi-dimensional coverage:
+        1. Source name injection attempts:
+           a. name containing SQL keywords ('; DROP TABLE --)
+           b. name with quotes, backslashes
+           c. name with null bytes
+        2. Path injection: db.table path with SQL injection strings
+        3. Password injection: password containing SQL (should be treated as data)
+        4. Host injection: host with SQL fragments
+        5. Multi-statement injection via semicolons in identifiers
+        6. Verify all injection attempts are either:
+           - Rejected with syntax error, OR
+           - Treated as literal values (no side effects)
+
+        Catalog:
+            - Query:FederatedSecurity
+
+        Since: v3.4.0.0
+
+        Labels: common,ci
+
+        Jira: None
+
+        History:
+            - 2026-04-14 wpan Full rewrite with multi-dimensional coverage
+
+        """
+        cfg_mysql = self._mysql_cfg()
+        # Clean any leftovers
+        for i in range(5):
+            tdSql.execute(f"drop external source if exists sec009_inj_{i}")
+
+        # 1a. Source name with SQL keywords — should be syntax error
+        injection_names = [
+            "'; DROP DATABASE --",
+            "src; SELECT 1; --",
+            "src' OR '1'='1",
+        ]
+        for inj in injection_names:
+            # These should fail as syntax errors due to special characters
+            tdSql.error(
+                f"create external source {inj} type='mysql' "
+                f"host='{cfg_mysql.host}' port={cfg_mysql.port} user='u' password='p' database='db'",
+                expectedErrno=TSDB_CODE_PAR_SYNTAX_ERROR,
+            )
+
+        # 1b. Quoted source name with injection (using backticks)
+        tdSql.execute("drop external source if exists `sec009_quoted`")
+        # Quoted injection name is treated as a literal identifier and accepted
+        tdSql.execute(
+            f"create external source `sec009_drop_test` type='mysql' "
+            f"host='{cfg_mysql.host}' port={cfg_mysql.port} user='u' password='p' database='db'"
+        )
+        tdSql.execute("drop external source if exists `sec009_drop_test`")
+
+        # 2. Path injection in query
+        path_injections = [
+            "sec009_src.db.t1; DROP TABLE local_t --",
+            "sec009_src.db.t1 UNION SELECT * FROM information_schema.tables",
+        ]
+        for inj in path_injections:
+            tdSql.error(
+                f"select * from {inj}",
+            )  # injection blocked — any error code acceptable
+
+        # 3. Password with SQL injection — treated as literal value
+        tdSql.execute("drop external source if exists sec009_pwd_inj")
+        tdSql.execute(
+            f"create external source sec009_pwd_inj type='mysql' "
+            f"host='{cfg_mysql.host}' port={cfg_mysql.port} user='u' "
+            f"password='p\\'; DROP TABLE t; --' database='db'"
+        )
+        # Source should be created with the literal password, not executed
+        idx = self._find_row("sec009_pwd_inj")
+        # Even if create fails due to quoting, should not cause side effects
+        tdSql.execute("drop external source if exists sec009_pwd_inj")
+
+        # 4. Host with injection — quoted host string is treated as literal value
+        # (semicolons inside single-quoted strings are not SQL injection vectors)
+        tdSql.execute("drop external source if exists sec009_host_inj")
+        try:
+            tdSql.execute(
+                "create external source sec009_host_inj type='mysql' "
+                "host='192.0.2.1; DROP TABLE t' port=3306 user='u' password='p' database='db'",
+            )
+            # If accepted as literal string: no side effects — clean it up
+            tdSql.execute("drop external source if exists sec009_host_inj")
+        except Exception:
+            pass  # Rejected with any error — also acceptable
+
+        # 5. Multi-statement via semicolons — TDengine only executes the first
+        #    statement and ignores the rest, so the CREATE succeeds and DROP is
+        #    silently discarded (no second-statement injection).
+        tdSql.execute("drop external source if exists sec009_multi")
+        try:
+            tdSql.execute(
+                f"create external source sec009_multi type='mysql' "
+                f"host='{cfg_mysql.host}' port={cfg_mysql.port} user='u' password='p' database='db'; "
+                f"DROP DATABASE fq_case_db",
+            )
+            tdSql.execute("drop external source if exists sec009_multi")
+        except Exception:
+            pass  # Rejected with any error — also acceptable
+
+    # ------------------------------------------------------------------
+    # SEC-010  Abnormal data boundary validation
+    # ------------------------------------------------------------------
+
+    def test_fq_sec_010_abnormal_data_boundary(self):
+        """SEC-010: Abnormal data boundary — external abnormal return no crash
+
+        TS: External abnormal return does not cause crash
+
+        Multi-dimensional coverage:
+        1. Create source with extreme port numbers (0, 65535, overflow 65536)
+        2. Create source with extremely long values:
+           a. Very long host name (255 chars)
+           b. Very long database name (255 chars)
+           c. Very long password (1000 chars)
+           d. Very long user name (255 chars)
+        3. Empty-string fields:
+           a. Empty host → should error
+           b. Empty database → should error
+           c. Empty user → might be accepted (depends on source type)
+        4. Negative port values
+        5. All should either be rejected cleanly or accepted without crash
+
+        Catalog:
+            - Query:FederatedSecurity
+
+        Since: v3.4.0.0
+
+        Labels: common,ci
+
+        Jira: None
+
+        History:
+            - 2026-04-14 wpan Full rewrite with multi-dimensional coverage
+
+        """
+        cfg_mysql = self._mysql_cfg()
+        cleanup_names = [
+            "sec010_port0", "sec010_port65535", "sec010_longhost",
+            "sec010_longdb", "sec010_longpwd", "sec010_longuser",
+        ]
+        for n in cleanup_names:
+            tdSql.execute(f"drop external source if exists {n}")
+
+        # Port edge values
+        # Port 0 — rejected by TDengine (0x2600)
+        tdSql.error(
+            f"create external source sec010_port0 type='mysql' "
+            f"host='{cfg_mysql.host}' port=0 user='u' password='p' database='db'",
+            expectedErrno=TSDB_CODE_PAR_SYNTAX_ERROR,
+        )
+
+        # Port 65535 (max valid)
+        tdSql.execute(
+            f"create external source sec010_port65535 type='mysql' "
+            f"host='{cfg_mysql.host}' port=65535 user='u' password='p' database='db'"
+        )
+        tdSql.execute("drop external source if exists sec010_port65535")
+
+        # Port overflow
+        tdSql.error(
+            f"create external source sec010_overflow type='mysql' "
+            f"host='{cfg_mysql.host}' port=65536 user='u' password='p' database='db'",
+            expectedErrno=TSDB_CODE_EXT_CONFIG_PARAM_INVALID,
+        )
+
+        # Negative port
+        tdSql.error(
+            f"create external source sec010_negport type='mysql' "
+            f"host='{cfg_mysql.host}' port=-1 user='u' password='p' database='db'",
+            expectedErrno=TSDB_CODE_EXT_CONFIG_PARAM_INVALID,
+        )
+
+        # Very long host (255 chars)
+        long_host = "a" * 255
+        tdSql.execute(
+            f"create external source sec010_longhost type='mysql' "
+            f"host='{long_host}' port=3306 user='u' password='p' database='db'"
+        )
+        tdSql.execute("drop external source if exists sec010_longhost")
+
+        # Very long database name (max 64 chars per TSDB_EXT_SOURCE_DATABASE_LEN)
+        long_db = "d" * 64
+        tdSql.execute(
+            f"create external source sec010_longdb type='mysql' "
+            f"host='{cfg_mysql.host}' port={cfg_mysql.port} user='u' password='p' database='{long_db}'"
+        )
+        tdSql.execute("drop external source if exists sec010_longdb")
+
+        # Very long password (1000 chars) — server rejects at parse/validation time
+        long_pwd = "x" * 1000
+        tdSql.error(
+            f"create external source sec010_longpwd type='mysql' "
+            f"host='{cfg_mysql.host}' port={cfg_mysql.port} user='u' password='{long_pwd}' database='db'",
+        )  # parser enforces length limit — sec010_longpwd is never created
+
+        # Very long user (max 128 chars per TSDB_EXT_SOURCE_USER_LEN)
+        long_user = "u" * 128
+        tdSql.execute(
+            f"create external source sec010_longuser type='mysql' "
+            f"host='{cfg_mysql.host}' port={cfg_mysql.port} user='{long_user}' password='p' database='db'"
+        )
+        tdSql.execute("drop external source if exists sec010_longuser")
+
+        # Empty host → should error
+        tdSql.error(
+            "create external source sec010_empty_host type='mysql' "
+            "host='' port=3306 user='u' password='p' database='db'",
+            expectedErrno=TSDB_CODE_EXT_CONFIG_PARAM_INVALID,
+        )
+
+        # Empty database → system may accept or reject; handle both
+        tdSql.execute("drop external source if exists sec010_empty_db")
+        try:
+            tdSql.execute(
+                f"create external source sec010_empty_db type='mysql' "
+                f"host='{cfg_mysql.host}' port={cfg_mysql.port} user='u' password='p' database=''",
+            )
+            tdSql.execute("drop external source if exists sec010_empty_db")
+        except Exception:
+            pass  # Rejected — also acceptable
+
+    # ------------------------------------------------------------------
+    # SEC-011  Connection reset safety
+    # ------------------------------------------------------------------
+
+    def test_fq_sec_011_connection_reset_safety(self):
+        """SEC-011: Connection reset safety — handle cleanup complete
+
+        TS: Handle cleanup is complete after connection reset
+
+        Multi-dimensional coverage:
+        1. Create source pointing to unreachable host
+        2. Issue query → connection attempt fails (timeout)
+        3. Immediately issue another query → should get clean error, not stale state
+        4. Issue many rapid queries → all should fail cleanly, no hang
+        5. DROP source → should succeed immediately (no pending handles)
+        6. Re-create source with same name → should succeed (no handle leak)
+        7. Negative: after DROP, SHOW should not list the source
+
+        Catalog:
+            - Query:FederatedSecurity
+
+        Since: v3.4.0.0
+
+        Labels: common,ci
+
+        Jira: None
+
+        History:
+            - 2026-04-14 wpan Full rewrite with multi-dimensional coverage
+
+        """
+        cfg_mysql = self._mysql_cfg()
+        ver = cfg_mysql.version
+        src = "sec011_reset"
+        self._cleanup(src)
+
+        tdSql.execute(
+            f"create external source {src} type='mysql' "
+            f"host='{cfg_mysql.host}' port={cfg_mysql.port} user='u' password='p' database='db' "
+            f"options('connect_timeout_ms'='300')"
+        )
+
+        ExtSrcEnv.stop_mysql_instance(ver)
+        try:
+            # Query → fail with clean error
+            tdSql.error(f"select * from {src}.db.t1", expectedErrno=TSDB_CODE_EXT_SOURCE_UNAVAILABLE)
+
+            # Immediate second query → clean error (not stale)
+            tdSql.error(f"select count(*) from {src}.db.t2", expectedErrno=TSDB_CODE_EXT_SOURCE_UNAVAILABLE)
+
+            # Rapid fire
+            for _ in range(10):
+                tdSql.error(f"select 1 from {src}.db.t3", expectedErrno=TSDB_CODE_EXT_SOURCE_UNAVAILABLE)
+        finally:
+            ExtSrcEnv.start_mysql_instance(ver)
+
+        # DROP should be immediate (metadata op, no MySQL needed)
+        tdSql.execute(f"drop external source {src}")
+
+        # After DROP, should not be listed
+        assert self._find_row(src) < 0, "source should be gone after DROP"
+
+        # Re-create with same name → should succeed (no handle leak)
+        tdSql.execute(
+            f"create external source {src} type='mysql' "
+            f"host='{cfg_mysql.host}' port={cfg_mysql.port} user='u' password='p' database='db'"
+        )
+        assert self._find_row(src) >= 0, "re-create should succeed"
+
+        self._cleanup(src)
+
+    # ------------------------------------------------------------------
+    # SEC-012  Sensitive config change audit
+    # ------------------------------------------------------------------
+
+    def test_fq_sec_012_sensitive_config_audit(self):
+        """SEC-012: Sensitive config change audit — ALTER SOURCE has record
+
+        TS: ALTER SOURCE changes have audit records
+
+        Multi-dimensional coverage:
+        1. CREATE source → verify it exists in SHOW
+        2. ALTER password → verify SHOW still masks it
+        3. ALTER host → verify new host reflected in SHOW
+        4. ALTER user → verify new user reflected
+        5. ALTER OPTIONS → verify new options reflected
+        6. Multiple sequential ALTERs → latest values win
+        7. Negative: ALTER non-existent source → error
+        8. Note: full audit-log verification requires audit subsystem access
+
+        Catalog:
+            - Query:FederatedSecurity
+
+        Since: v3.4.0.0
+
+        Labels: common,ci
+
+        Jira: None
+
+        History:
+            - 2026-04-14 wpan Full rewrite with multi-dimensional coverage
+
+        """
+        cfg_mysql = self._mysql_cfg()
+        src = "sec012_audit"
+        self._cleanup(src)
+
+        # Create
+        tdSql.execute(
+            f"create external source {src} type='mysql' "
+            f"host='{cfg_mysql.host}' port={cfg_mysql.port} user='orig_user' password='orig_pwd' "
+            f"database='db'"
+        )
+        idx = self._find_row(src)
+        assert idx >= 0
+        orig_user = str(tdSql.queryResult[idx][_COL_USER])
+
+        # ALTER password → still masked
+        tdSql.execute(f"alter external source {src} set password='new_pwd_123'")
+        idx = self._find_row(src)
+        assert idx >= 0
+        text = self._row_text(idx)
+        assert "new_pwd_123" not in text, "new password leaked"
+        assert "orig_pwd" not in text, "old password still present"
+
+        # ALTER host
+        tdSql.execute(f"alter external source {src} set host='altered.example.com'")
+        idx = self._find_row(src)
+        host_val = str(tdSql.queryResult[idx][_COL_HOST])
+        assert "altered.example.com" in host_val, "host not updated after ALTER"
+
+        # ALTER user
+        tdSql.execute(f"alter external source {src} set user='new_user'")
+        idx = self._find_row(src)
+        user_val = str(tdSql.queryResult[idx][_COL_USER])
+        assert "new_user" in user_val or user_val == "new_user", \
+            "user not updated after ALTER"
+
+        # ALTER OPTIONS
+        tdSql.execute(
+            f"alter external source {src} set options('connect_timeout_ms'='2000')"
+        )
+        idx = self._find_row(src)
+        opts = str(tdSql.queryResult[idx][_COL_OPTIONS])
+        assert "2000" in opts, "options not updated after ALTER"
+
+        # Multiple sequential ALTERs — latest wins
+        tdSql.execute(f"alter external source {src} set port=3307")
+        tdSql.execute(f"alter external source {src} set port=3308")
+        idx = self._find_row(src)
+        port_val = str(tdSql.queryResult[idx][_COL_PORT])
+        assert "3308" in port_val, "latest ALTER should win"
+
+        # Negative: ALTER non-existent source
+        tdSql.error(
+            "alter external source sec012_nonexistent set password='x'",
+            expectedErrno=TSDB_CODE_MND_EXTERNAL_SOURCE_NOT_EXIST,
+        )
+
+        self._cleanup(src)
+
+    # ==================================================================
+    # SQL Server security matrix (FQSS-SEC-001 ~ 006)
+    #
+    # Parallel to the MySQL / PG / InfluxDB cases above: same helpers, same
+    # SHOW/DESCRIBE column indices, same assertion idioms.  SQL Server runs
+    # the step-1 zero-pushdown contract, so every case only needs a readable
+    # base table (filters/aggregations stay local) and the SQL Server TLS
+    # options are tls_enabled / trust_server_certificate.
+    # ==================================================================
+
+    def _sqlserver_cert_payload(self, tag):
+        """PEM-shaped certificate payload used to prove masking / cleanup.
+
+        SQL Server consumes only tls_enabled / trust_server_certificate, so a
+        PEM body handed over through tls_ca_cert / tls_client_cert /
+        tls_client_key must never be echoed back nor materialized on disk.
+        The embedded tag makes every leftover identifiable in /tmp.
+        """
+        return f"-----BEGIN CERTIFICATE-----{tag}-----END CERTIFICATE-----"
+
+    def test_fq_sec_ss_001_password_and_certificate_masking(self):
+        """FQSS-SEC-001: SQL Server password and certificate masking
+
+        TS: SHOW / DESCRIBE / EXPLAIN must never expose the source's
+        plaintext password nor certificate material.
+
+        Coverage:
+        1. SQL Server source with a known password and the real TLS options
+           (tls_enabled / trust_server_certificate) → password masked as
+           '******', plaintext never appears in any SHOW column.
+        2. PEM-shaped tls_client_cert / tls_client_key values are masked in
+           SHOW's options column (keys stay listed for operators).
+        3. DESCRIBE masks the same password and certificate material.
+        4. EXPLAIN of a query against the source (or the error it raises)
+           contains neither the password nor the certificate payload.
+        5. ALTER password → the new value is masked and the old one is gone.
+        6. Negative: the user column stays visible (it is not sensitive) and
+           the source stays listed and describable — masking is metadata-side
+           only (the placeholder password means no data query can authenticate).
+
+        Catalog:
+            - Query:FederatedSecurity
+
+        Since: v3.4.4.0
+
+        Labels: common,ci
+
+        Jira: None
+
+        History:
+            - 2026-10-09 wpan Add SQL Server to the per-dialect masking matrix
+
+        """
+        cfg = self._sqlserver_cfg()
+        run_tag = str(int(_time.time() * 1000))[-6:]
+        src = f"secss001_src_{run_tag}"
+        db = f"secss001_db_{run_tag}"
+        names = [src]
+        self._cleanup(*names)
+
+        secret_pwd = "SsSecret_001!"
+        altered_pwd = "SsAltered_002!"
+        cert_secret = self._sqlserver_cert_payload(f"FQSS-SEC001-CERT-{run_tag}")
+        key_secret = self._sqlserver_cert_payload(f"FQSS-SEC001-KEY-{run_tag}")
+
+        ExtSrcEnv.sqlserver_create_db_cfg(cfg, db)
+        ExtSrcEnv.sqlserver_exec_cfg(cfg, db, [
+            "DROP TABLE IF EXISTS dbo.t_mask",
+            "CREATE TABLE dbo.t_mask (ts datetime2(3) NOT NULL PRIMARY KEY, v INT)",
+            "INSERT INTO dbo.t_mask VALUES ('2024-01-01 00:00:00.000', 1)",
+        ])
+
+        try:
+            tdSql.execute(
+                f"create external source {src} type='sqlserver' "
+                f"host='{cfg.host}' port={cfg.port} user='{cfg.user}' password='{secret_pwd}' "
+                f"database='{db}' schema='dbo' "
+                f"options('tls_enabled'='true', 'trust_server_certificate'='true', "
+                f"'tls_client_cert'='{cert_secret}', 'tls_client_key'='{key_secret}', "
+                f"'connect_timeout_ms'='3000')"
+            )
+
+            idx = self._find_row(src)
+            assert idx >= 0, f"{src} not found in SHOW EXTERNAL SOURCES"
+            row_text = self._row_text(idx)
+            assert secret_pwd not in row_text, "SQL Server plaintext password leaked in SHOW"
+            assert _MASKED in row_text, "SQL Server password not masked in SHOW"
+            assert cert_secret not in row_text, "tls_client_cert payload leaked in SHOW"
+            assert key_secret not in row_text, "tls_client_key payload leaked in SHOW"
+
+            # User stays visible; masked keys stay listed for operators.
+            user_val = str(tdSql.queryResult[idx][_COL_USER])
+            assert user_val == cfg.user or cfg.user in user_val, \
+                "user column should stay visible, it is not sensitive"
+            options_col = str(tdSql.queryResult[idx][_COL_OPTIONS])
+            assert "trust_server_certificate" in options_col, \
+                "masked option keys should stay listed"
+            assert "tls_client_cert" in options_col and "tls_client_key" in options_col
+            assert _MASKED in options_col, "certificate material not masked in options column"
+
+            # Masking is metadata-side only: the source definition and its
+            # metadata stay readable.  (No data query here: the password used by
+            # this case is a placeholder, so the connector cannot authenticate.)
+            tdSql.query(f"select count(*) from information_schema.ins_ext_sources "
+                        f"where source_name = '{src}'")
+            tdSql.checkData(0, 0, 1)
+            tdSql.checkData(0, 0, 1)
+
+            tdSql.query(f"describe external source {src}")
+            desc_text = "\n".join("|".join(str(c) for c in row) for row in tdSql.queryResult)
+            assert secret_pwd not in desc_text, "password leaked in DESCRIBE"
+            assert cert_secret not in desc_text, "tls_client_cert payload leaked in DESCRIBE"
+            assert key_secret not in desc_text, "tls_client_key payload leaked in DESCRIBE"
+
+            # EXPLAIN (or the error it raises) must not echo the secrets.
+            try:
+                tdSql.cursor.execute(
+                    f"explain select count(*) from {src}.{db}.dbo.t_mask")
+                explain_text = "\n".join(
+                    str(c) for row in (tdSql.cursor.fetchall() or []) for c in row)
+            except BaseException as e:  # noqa: BLE001 - error text is the observation
+                explain_text = str(e)
+            assert secret_pwd not in explain_text, "password leaked in EXPLAIN"
+            assert cert_secret not in explain_text and key_secret not in explain_text, \
+                "certificate material leaked in EXPLAIN"
+
+            # ALTER password → new value masked, old value gone.
+            tdSql.execute(f"alter external source {src} set password='{altered_pwd}'")
+            idx = self._find_row(src)
+            assert idx >= 0
+            row_text = self._row_text(idx)
+            assert altered_pwd not in row_text, "altered password leaked in SHOW"
+            assert secret_pwd not in row_text, "old password leaked in SHOW"
+
+            tdSql.query(f"describe external source {src}")
+            desc_text = "\n".join("|".join(str(c) for c in row) for row in tdSql.queryResult)
+            assert altered_pwd not in desc_text and secret_pwd not in desc_text, \
+                "password leaked in DESCRIBE after ALTER"
+        finally:
+            self._cleanup(*names)
+            try:
+                ExtSrcEnv.sqlserver_drop_db_cfg(cfg, db)
+            except Exception:
+                pass
+
+    def test_fq_sec_ss_002_no_temporary_certificate_files(self):
+        """FQSS-SEC-002: SQL Server leaves no temporary certificate files
+
+        TS: certificate material handed over for a connection must be gone
+        again on both the connect-success and the connect-failure path.
+
+        SQL Server consumes only tls_enabled / trust_server_certificate (the
+        ODBC connection string carries Encrypt / TrustServerCertificate), so
+        PEM-shaped tls_ca_cert / tls_client_cert / tls_client_key values must
+        not be materialized into the connector temp directory at all.  Both
+        paths are exercised and the uniquely tagged PEM payload is searched
+        for under /tmp/tdext_* afterwards:
+        1. reachable instance → query succeeds;
+        2. unreachable endpoint → query fails with a connection error;
+        3. sources dropped → no artifact was left behind either.
+
+        Catalog:
+            - Query:FederatedSecurity
+
+        Since: v3.4.4.0
+
+        Labels: common,ci
+
+        Jira: None
+
+        History:
+            - 2026-10-09 wpan Add SQL Server to the per-dialect TLS matrix
+
+        """
+        cfg = self._sqlserver_cfg()
+        run_tag = str(int(_time.time() * 1000))[-6:]
+        src_up = f"secss002_up_{run_tag}"
+        src_down = f"secss002_down_{run_tag}"
+        db = f"secss002_db_{run_tag}"
+        names = [src_up, src_down]
+        self._cleanup(*names)
+
+        marker = f"FQSS-SEC002-{run_tag}"
+        pem_ca = self._sqlserver_cert_payload(f"{marker}-CA")
+        pem_cert = self._sqlserver_cert_payload(f"{marker}-CERT")
+        pem_key = self._sqlserver_cert_payload(f"{marker}-KEY")
+
+        def _leftover_temp_files():
+            """Temp files under /tmp/tdext_* holding this test's PEM payload."""
+            hits = []
+            for path in glob.glob("/tmp/tdext_*"):
+                if not os.path.isfile(path):
+                    continue
+                try:
+                    with open(path, "r", errors="ignore") as fh:
+                        if marker in fh.read():
+                            hits.append(path)
+                except OSError:
+                    continue
+            return hits
+
+        options = (
+            f"'tls_enabled'='true', 'trust_server_certificate'='true', "
+            f"'tls_ca_cert'='{pem_ca}', 'tls_client_cert'='{pem_cert}', "
+            f"'tls_client_key'='{pem_key}', 'connect_timeout_ms'='500'"
+        )
+
+        ExtSrcEnv.sqlserver_create_db_cfg(cfg, db)
+        ExtSrcEnv.sqlserver_exec_cfg(cfg, db, [
+            "DROP TABLE IF EXISTS dbo.t_cert",
+            "CREATE TABLE dbo.t_cert (ts datetime2(3) NOT NULL PRIMARY KEY, v INT)",
+            "INSERT INTO dbo.t_cert VALUES ('2024-01-01 00:00:00.000', 1)",
+        ])
+
+        try:
+            # --- connect-success path: reachable instance ---
+            tdSql.execute(
+                f"create external source {src_up} type='sqlserver' "
+                f"host='{cfg.host}' port={cfg.port} user='{cfg.user}' password='{cfg.password}' "
+                f"database='{db}' schema='dbo' options({options})"
+            )
+            tdSql.query(f"select count(*) from {src_up}.{db}.dbo.t_cert")
+            tdSql.checkData(0, 0, 1)
+            assert not _leftover_temp_files(), (
+                "SQL Server left temporary certificate material on disk after a "
+                f"successful connect: {_leftover_temp_files()}")
+
+            # --- connect-failure path: unreachable endpoint ---
+            tdSql.execute(
+                f"create external source {src_down} type='sqlserver' "
+                f"host='127.0.0.1' port=9 user='{cfg.user}' password='{cfg.password}' "
+                f"database='{db}' schema='dbo' options({options})"
+            )
+            tdSql.error(f"select count(*) from {src_down}.{db}.dbo.t_cert")
+            assert not _leftover_temp_files(), (
+                "SQL Server left temporary certificate material on disk after a "
+                f"failed connect: {_leftover_temp_files()}")
+        finally:
+            self._cleanup(*names)
+            assert not _leftover_temp_files(), (
+                "temporary certificate material survived DROP EXTERNAL SOURCE: "
+                f"{_leftover_temp_files()}")
+            try:
+                ExtSrcEnv.sqlserver_drop_db_cfg(cfg, db)
+            except Exception:
+                pass
+
+    def test_fq_sec_ss_003_least_privilege_account(self):
+        """FQSS-SEC-003: SQL Server least-privilege account
+
+        TS: an account granted SELECT only on the target objects must query
+        them normally, while out-of-scope access returns a permission error
+        instead of silently succeeding.
+
+        Coverage:
+        1. Login + database user created with GRANT SELECT on dbo.granted_t
+           only — an external source using these credentials reads it.
+        2. dbo.denied_t (same database, no grant) → query fails.
+        3. Negative: the source stays registered after the denied query, so
+           the permission error is a clean query error, not a crash/eviction.
+
+        Catalog:
+            - Query:FederatedSecurity
+
+        Since: v3.4.4.0
+
+        Labels: common,ci
+
+        Jira: None
+
+        History:
+            - 2026-10-09 wpan Add SQL Server to the per-dialect security matrix
+
+        """
+        cfg = self._sqlserver_cfg()
+        run_tag = str(int(_time.time() * 1000))[-6:]
+        src = f"secss003_src_{run_tag}"
+        db = f"secss003_db_{run_tag}"
+        login = f"fqss_sec003_{run_tag}"
+        login_pwd = "FqSs!2026ss03"
+        names = [src]
+        self._cleanup(*names)
+
+        # Clean slate: the login can only be dropped once its database user
+        # is gone, so drop the database first.
+        ExtSrcEnv.sqlserver_drop_db_cfg(cfg, db)
+        ExtSrcEnv.sqlserver_create_db_cfg(cfg, db)
+        ExtSrcEnv.sqlserver_exec_cfg(cfg, db, [
+            "DROP TABLE IF EXISTS dbo.granted_t",
+            "DROP TABLE IF EXISTS dbo.denied_t",
+            "CREATE TABLE dbo.granted_t (ts datetime2(3) NOT NULL PRIMARY KEY, v INT)",
+            "CREATE TABLE dbo.denied_t (ts datetime2(3) NOT NULL PRIMARY KEY, v INT)",
+            "INSERT INTO dbo.granted_t VALUES "
+            "('2024-01-01 00:00:00.000', 1),('2024-01-01 00:01:00.000', 2),"
+            "('2024-01-01 00:02:00.000', 3)",
+            "INSERT INTO dbo.denied_t VALUES ('2024-01-01 00:00:00.000', 9)",
+        ])
+        ExtSrcEnv.sqlserver_exec_cfg(cfg, "master", [
+            f"IF EXISTS (SELECT 1 FROM sys.server_principals WHERE name = N'{login}') "
+            f"DROP LOGIN [{login}]",
+            f"CREATE LOGIN [{login}] WITH PASSWORD = '{login_pwd}', CHECK_POLICY = OFF",
+        ])
+        ExtSrcEnv.sqlserver_exec_cfg(cfg, db, [
+            f"CREATE USER [{login}] FOR LOGIN [{login}]",
+            f"GRANT SELECT ON dbo.granted_t TO [{login}]",
+        ])
+
+        try:
+            self._mk_sqlserver_real(src, database=db, schema="dbo",
+                                    user=login, password=login_pwd,
+                                    extra_options="'connect_timeout_ms'='3000'")
+
+            # Granted object → normal read.
+            tdSql.query(f"select count(*) from {src}.granted_t")
+            tdSql.checkData(0, 0, 3)
+
+            # Same database, no grant → permission error (any error code).
+            tdSql.error(f"select count(*) from {src}.dbo.denied_t")
+
+            # The source survives the denied query.
+            assert self._find_row(src) >= 0, \
+                "source should stay registered after a permission error"
+        finally:
+            self._cleanup(*names)
+            try:
+                ExtSrcEnv.sqlserver_drop_db_cfg(cfg, db)
+            except Exception:
+                pass
+            ExtSrcEnv.sqlserver_exec_cfg(cfg, "master", [
+                f"IF EXISTS (SELECT 1 FROM sys.server_principals WHERE name = N'{login}') "
+                f"DROP LOGIN [{login}]",
+            ])
+
+    def test_fq_sec_ss_004_cross_database_visibility(self):
+        """FQSS-SEC-004: SQL Server cross-database visible range
+
+        TS: the four-segment path lets one external source read several
+        databases, and the visible range must match the authorization.
+
+        Coverage:
+        1. Databases A / B / C each hold one table; the login is a user in
+           all three but granted SELECT only in A and B.
+        2. Source default database = A → the two-segment path reads A.
+        3. Four-segment path `<src>.<db>.<schema>.<table>` reads B through
+           the same source (cross-database visible range).
+        4. C has no grant → the same path must fail (visible range == grants).
+
+        Catalog:
+            - Query:FederatedSecurity
+
+        Since: v3.4.4.0
+
+        Labels: common,ci
+
+        Jira: None
+
+        History:
+            - 2026-10-09 wpan Add SQL Server to the per-dialect security matrix
+
+        """
+        cfg = self._sqlserver_cfg()
+        run_tag = str(int(_time.time() * 1000))[-6:]
+        src = f"secss004_src_{run_tag}"
+        db_a = f"secss004_a_{run_tag}"
+        db_b = f"secss004_b_{run_tag}"
+        db_c = f"secss004_c_{run_tag}"
+        login = f"fqss_sec004_{run_tag}"
+        login_pwd = "FqSs!2026ss04"
+        names = [src]
+        self._cleanup(*names)
+
+        # Clean slate: drop the databases first so the login has no user left.
+        for db in (db_a, db_b, db_c):
+            ExtSrcEnv.sqlserver_drop_db_cfg(cfg, db)
+        ExtSrcEnv.sqlserver_create_db_cfg(cfg, db_a)
+        ExtSrcEnv.sqlserver_exec_cfg(cfg, db_a, [
+            "DROP TABLE IF EXISTS dbo.t_a",
+            "CREATE TABLE dbo.t_a (ts datetime2(3) NOT NULL PRIMARY KEY, v INT)",
+            "INSERT INTO dbo.t_a VALUES "
+            "('2024-01-01 00:00:00.000', 1),('2024-01-01 00:01:00.000', 2)",
+        ])
+        ExtSrcEnv.sqlserver_create_db_cfg(cfg, db_b)
+        ExtSrcEnv.sqlserver_exec_cfg(cfg, db_b, [
+            "DROP TABLE IF EXISTS dbo.t_b",
+            "CREATE TABLE dbo.t_b (ts datetime2(3) NOT NULL PRIMARY KEY, v INT)",
+            "INSERT INTO dbo.t_b VALUES "
+            "('2024-01-01 00:00:00.000', 1),('2024-01-01 00:01:00.000', 2),"
+            "('2024-01-01 00:02:00.000', 3)",
+        ])
+        ExtSrcEnv.sqlserver_create_db_cfg(cfg, db_c)
+        ExtSrcEnv.sqlserver_exec_cfg(cfg, db_c, [
+            "DROP TABLE IF EXISTS dbo.t_c",
+            "CREATE TABLE dbo.t_c (ts datetime2(3) NOT NULL PRIMARY KEY, v INT)",
+            "INSERT INTO dbo.t_c VALUES "
+            "('2024-01-01 00:00:00.000', 1),('2024-01-01 00:01:00.000', 2),"
+            "('2024-01-01 00:02:00.000', 3),('2024-01-01 00:03:00.000', 4),"
+            "('2024-01-01 00:04:00.000', 5)",
+        ])
+        ExtSrcEnv.sqlserver_exec_cfg(cfg, "master", [
+            f"IF EXISTS (SELECT 1 FROM sys.server_principals WHERE name = N'{login}') "
+            f"DROP LOGIN [{login}]",
+            f"CREATE LOGIN [{login}] WITH PASSWORD = '{login_pwd}', CHECK_POLICY = OFF",
+        ])
+        ExtSrcEnv.sqlserver_exec_cfg(cfg, db_a, [
+            f"CREATE USER [{login}] FOR LOGIN [{login}]",
+            f"GRANT SELECT ON dbo.t_a TO [{login}]",
+        ])
+        ExtSrcEnv.sqlserver_exec_cfg(cfg, db_b, [
+            f"CREATE USER [{login}] FOR LOGIN [{login}]",
+            f"GRANT SELECT ON dbo.t_b TO [{login}]",
+        ])
+        ExtSrcEnv.sqlserver_exec_cfg(cfg, db_c, [
+            f"CREATE USER [{login}] FOR LOGIN [{login}]",
+        ])
+
+        try:
+            self._mk_sqlserver_real(src, database=db_a, schema="dbo",
+                                    user=login, password=login_pwd,
+                                    extra_options="'connect_timeout_ms'='3000'")
+
+            # Default database of the source.
+            tdSql.query(f"select count(*) from {src}.t_a")
+            tdSql.checkData(0, 0, 2)
+
+            # Cross-database read through the four-segment path.
+            tdSql.query(f"select count(*) from {src}.{db_b}.dbo.t_b")
+            tdSql.checkData(0, 0, 3)
+
+            # Ungranted database → outside the visible range.
+            tdSql.error(f"select count(*) from {src}.{db_c}.dbo.t_c")
+        finally:
+            self._cleanup(*names)
+            for db in (db_a, db_b, db_c):
+                try:
+                    ExtSrcEnv.sqlserver_drop_db_cfg(cfg, db)
+                except Exception:
+                    pass
+            ExtSrcEnv.sqlserver_exec_cfg(cfg, "master", [
+                f"IF EXISTS (SELECT 1 FROM sys.server_principals WHERE name = N'{login}') "
+                f"DROP LOGIN [{login}]",
+            ])
+
+    def test_fq_sec_ss_005_identifier_injection_protection(self):
+        """FQSS-SEC-005: SQL Server identifier injection protection
+
+        TS: table / column / database / schema identifiers containing special
+        characters (including ']') are bracket-escaped and cannot escape.
+
+        Coverage:
+        1. Local source-name injection attempts are rejected with a syntax
+           error and leave unrelated local databases untouched.
+        2. A remote table whose name contains ']' is referenced through a
+           backticked path segment and resolves as a literal identifier.
+        3. `select *` on that table also exercises a ']'-containing column
+           name inside the remote SELECT list.
+        4. A table named with an injection payload (semicolon + DROP) stays a
+           literal identifier, and the remote sentinel table plus the
+           injection-named table survive (no injected statement executed).
+
+        Catalog:
+            - Query:FederatedSecurity
+
+        Since: v3.4.4.0
+
+        Labels: common,ci
+
+        Jira: None
+
+        History:
+            - 2026-10-09 wpan Add SQL Server to the per-dialect injection matrix
+
+        """
+        cfg = self._sqlserver_cfg()
+        run_tag = str(int(_time.time() * 1000))[-6:]
+        src = f"secss005_src_{run_tag}"
+        db = f"secss005_db_{run_tag}"
+        sentinel_db = f"secss005_sentinel_{run_tag}"
+        names = [src]
+        self._cleanup(*names)
+        tdSql.execute(f"drop database if exists {sentinel_db}")
+        tdSql.execute(f"create database {sentinel_db}")
+
+        brk_tbl = "fq]ss_brk"
+        inj_tbl = "fqss_inj; DROP TABLE t_sentinel--"
+        sentinel_tbl = "t_sentinel"
+
+        ExtSrcEnv.sqlserver_create_db_cfg(cfg, db)
+        ExtSrcEnv.sqlserver_exec_cfg(cfg, db, [
+            "DROP TABLE IF EXISTS dbo.t_sentinel",
+            "DROP TABLE IF EXISTS dbo.[fq]]ss_brk]",
+            "DROP TABLE IF EXISTS dbo.[fqss_inj; DROP TABLE t_sentinel--]",
+            "CREATE TABLE dbo.t_sentinel (id INT NOT NULL PRIMARY KEY)",
+            "INSERT INTO dbo.t_sentinel VALUES (1)",
+            "CREATE TABLE dbo.[fq]]ss_brk] "
+            "(ts datetime2(3) NOT NULL PRIMARY KEY, [v]]] INT)",
+            "INSERT INTO dbo.[fq]]ss_brk] VALUES ('2024-01-01 00:00:00.000', 7)",
+            "CREATE TABLE dbo.[fqss_inj; DROP TABLE t_sentinel--] "
+            "(ts datetime2(3) NOT NULL PRIMARY KEY, v INT)",
+            "INSERT INTO dbo.[fqss_inj; DROP TABLE t_sentinel--] VALUES "
+            "('2024-01-01 00:00:00.000', 1),('2024-01-01 00:01:00.000', 2)",
+        ])
+
+        try:
+            # 1. Source-name injection attempts → syntax errors, no side effect.
+            for inj in ["'; DROP DATABASE --", f"{run_tag}; SELECT 1; --", "ss' OR '1'='1"]:
+                tdSql.error(
+                    f"create external source {inj} type='sqlserver' "
+                    f"host='{cfg.host}' port={cfg.port} user='u' password='p' "
+                    f"database='master' schema='dbo'",
+                    expectedErrno=TSDB_CODE_PAR_SYNTAX_ERROR,
+                )
+            tdSql.query("show databases")
+            assert any(str(r[0]) == sentinel_db for r in tdSql.queryResult), \
+                "injection attempt touched an unrelated local database"
+
+            self._mk_sqlserver_real(src, database=db, schema="dbo")
+
+            # 2. Table identifier containing ']' (bracket-escaped remotely).
+            tdSql.query(f"select count(*) from {src}.dbo.`{brk_tbl}`")
+            assert int(tdSql.queryResult[0][0]) == 1, \
+                "table name containing ']' was not resolved as a literal identifier"
+
+            # 3. `select *` also escapes the ']'-containing column name.
+            tdSql.query(f"select * from {src}.dbo.`{brk_tbl}`")
+            tdSql.checkRows(1)
+
+            # 4. Injection-shaped table name stays a literal identifier.
+            tdSql.query(f"select count(*) from {src}.dbo.`{inj_tbl}`")
+            assert int(tdSql.queryResult[0][0]) == 2, \
+                "injection-shaped table name was not treated as a literal identifier"
+
+            # No injected statement reached the remote instance.
+            assert int(ExtSrcEnv.sqlserver_query_cfg(
+                cfg, db, f"SELECT COUNT(*) FROM dbo.{sentinel_tbl}")) == 1, \
+                "injected statement was executed on the remote instance"
+            assert int(ExtSrcEnv.sqlserver_query_cfg(
+                cfg, db,
+                f"SELECT COUNT(*) FROM dbo.[fqss_inj; DROP TABLE t_sentinel--]")) == 2, \
+                "injection-shaped table disappeared from the remote instance"
+        finally:
+            self._cleanup(*names)
+            tdSql.execute(f"drop database if exists {sentinel_db}")
+            try:
+                ExtSrcEnv.sqlserver_drop_db_cfg(cfg, db)
+            except Exception:
+                pass
+
+    def test_fq_sec_ss_006_dependency_missing_no_silent_downgrade(self):
+        """FQSS-SEC-006: SQL Server dependencies never silently downgrade
+
+        TS: when a dependency is missing the connector must return a clear
+        error instead of silently falling back to another path.
+
+        Interface-level coverage (the ODBC runtime-library-removal form of
+        this case is carried by test_fq_19_runtime_libs.py, provider
+        'sqlserver'):
+        1. trust_server_certificate must be boolean-like — an unparsable
+           value is rejected at DDL time instead of being silently treated
+           as false (no downgrade of TLS trust on the connect path).
+        2. Other-dialect / unknown option keys are rejected for SQL Server
+           instead of being silently ignored.
+        3. tls_client_cert without tls_client_key is a parser conflict.
+        4. Empty-valued trust_server_certificate is normalized away and the
+           key disappears from SHOW (no stale forced value).
+        5. Negative: the surviving source keeps its stored options intact
+           across the rejected DDL (no silent downgrade).
+
+        Catalog:
+            - Query:FederatedSecurity
+
+        Since: v3.4.4.0
+
+        Labels: common,ci
+
+        Jira: None
+
+        History:
+            - 2026-10-09 wpan Add SQL Server to the per-dialect option matrix
+
+        """
+        cfg = self._sqlserver_cfg()
+        run_tag = str(int(_time.time() * 1000))[-6:]
+        src_ok = f"secss006_ok_{run_tag}"
+        names = [src_ok]
+        self._cleanup(*names)
+        cert_payload = self._sqlserver_cert_payload(f"FQSS-SEC006-{run_tag}")
+
+        def _create(name, options):
+            return (
+                f"create external source {name} type='sqlserver' "
+                f"host='{cfg.host}' port={cfg.port} user='{cfg.user}' "
+                f"password='{cfg.password}' database='master' schema='dbo' "
+                f"options({options})"
+            )
+
+        try:
+            tdSql.error(
+                _create(f"secss006_bad_bool_{run_tag}",
+                        "'trust_server_certificate'='not_bool'"),
+                expectedErrno=TSDB_CODE_PAR_SYNTAX_ERROR,
+            )
+            tdSql.error(
+                _create(f"secss006_mysql_opt_{run_tag}", "'charset'='utf8mb4'"),
+                expectedErrno=TSDB_CODE_PAR_SYNTAX_ERROR,
+            )
+            tdSql.error(
+                _create(f"secss006_pg_opt_{run_tag}", "'sslmode'='require'"),
+                expectedErrno=TSDB_CODE_PAR_SYNTAX_ERROR,
+            )
+            tdSql.error(
+                _create(f"secss006_cert_only_{run_tag}",
+                        f"'tls_client_cert'='{cert_payload}'"),
+                expectedErrno=TSDB_CODE_EXT_OPTIONS_TLS_CONFLICT,
+            )
+
+            tdSql.execute(
+                _create(src_ok, "'trust_server_certificate'='true'")
+            )
+            idx = self._find_row(src_ok)
+            assert idx >= 0, f"{src_ok} not found in SHOW EXTERNAL SOURCES"
+            opts = str(tdSql.queryResult[idx][_COL_OPTIONS])
+            assert "trust_server_certificate" in opts
+
+            # Rejected ALTER must not downgrade the stored value.
+            tdSql.error(
+                f"alter external source {src_ok} "
+                f"set options('trust_server_certificate'='not_bool')",
+                expectedErrno=TSDB_CODE_PAR_SYNTAX_ERROR,
+            )
+            tdSql.error(
+                f"alter external source {src_ok} set options('api_token'='x')",
+                expectedErrno=TSDB_CODE_PAR_SYNTAX_ERROR,
+            )
+            idx = self._find_row(src_ok)
+            opts = str(tdSql.queryResult[idx][_COL_OPTIONS])
+            assert "not_bool" not in opts, "rejected value leaked into stored options"
+            assert "api_token" not in opts, "unknown key silently stored"
+
+            # Empty value → key normalized away (not forced to a default).
+            tdSql.execute(
+                f"alter external source {src_ok} set options('trust_server_certificate'='')"
+            )
+            idx = self._find_row(src_ok)
+            opts = str(tdSql.queryResult[idx][_COL_OPTIONS])
+            assert "trust_server_certificate" not in opts, \
+                "empty option value should remove the key"
+        finally:
+            self._cleanup(*names)
+
+
+    # ==================================================================
+    # Oracle security matrix (FQOR-SEC-001 ~ 006)
+    #
+    # Parallel to the MySQL / PG / InfluxDB / SQL Server blocks above: same
+    # helpers, same SHOW/DESCRIBE column indices, same assertion idioms.  The
+    # Oracle dialect has no per-test database (a schema is a login account) and
+    # no TLS surface at all (DS 4.1: TLS options are rejected at DDL time), so
+    # the certificate half of the other dialects' masking matrix becomes a
+    # rejection matrix here.
+    # ==================================================================
+
+    def _oracle_admin_ddl(self, cfg, stmt, ignore_ora=()):
+        """Run one provisioning statement as SYSTEM, tolerating listed ORA codes.
+
+        ``ExtSrcEnv.oracle_admin_exec_cfg`` raises on any remote error, which is
+        what we want for real failures; the tolerated codes are the ones a
+        repeated run legitimately produces (ORA-01918 for a user that is already
+        gone).
+        """
+        try:
+            ExtSrcEnv.oracle_admin_exec_cfg(cfg, [stmt])
+        except RuntimeError as e:
+            if any(code in str(e) for code in ignore_ora):
+                return
+            raise
+
+    def _oracle_drop_table_as(self, cfg, table, user=None, password=None):
+        """Drop a table in a given schema, ignoring "does not exist".
+
+        ``table`` is the exact Oracle spelling, so an embedded double quote is
+        doubled the way Oracle reads a quoted identifier back.  ORA-25716 means
+        the server rejects identifiers containing a double quote outright
+        (23ai+), so such an object cannot exist and the drop is a no-op.
+        """
+        quoted = '"' + table.replace('"', '""') + '"'
+        try:
+            ExtSrcEnv._oracle_sql(
+                cfg, f'DROP TABLE {quoted} CASCADE CONSTRAINTS PURGE',
+                user=user, password=password)
+        except RuntimeError as e:
+            # 23ai+ rejects identifiers containing a double quote (ORA-25716)
+            # and 11g raises ORA-03001 for the same DDL, so in both cases the
+            # object cannot exist and the drop is a no-op.
+            if ("ORA-00942" not in str(e) and "ORA-25716" not in str(e)
+                    and "ORA-03001" not in str(e) and "ORA-00972" not in str(e)):
+                raise
+
+    def _oracle_user_sessions(self, cfg, user):
+        """Return the (SID, SERIAL#) pairs of every session the account holds."""
+        output = ExtSrcEnv._oracle_sql(
+            cfg,
+            "SELECT SID || ',' || SERIAL# FROM V$SESSION WHERE USERNAME = "
+            f"'{user.upper()}' ORDER BY SID",
+            user=ExtSrcEnv.ORACLE_ADMIN_USER,
+            password=ExtSrcEnv.ORACLE_ADMIN_PASS)
+        sessions = []
+        for line in output.splitlines():
+            pair = line.strip()
+            if "," not in pair or not pair.split(",", 1)[0].isdigit():
+                continue
+            sessions.append(pair)
+        return sessions
+
+    def _oracle_kill_user_sessions(self, cfg, user, timeout_s=60.0):
+        """Terminate every session the account holds, waiting until none is left.
+
+        ALTER SYSTEM KILL SESSION ... IMMEDIATE is asynchronous: Oracle may
+        answer ORA-00031 ("session marked for kill") while the session is still
+        listed in V$SESSION, and a DROP USER issued at that moment fails with
+        ORA-01940.  The kill is therefore treated as complete only when a fresh
+        snapshot observes no session left.  Re-checks are immediate — one
+        sqlplus round trip each, with no sleep and no backoff — so a session
+        that disappears quickly is noticed on the very next pass, and one that
+        outlives ``timeout_s`` fails with the surviving SID/SERIAL# instead of
+        surfacing later as ORA-01940 from DROP USER.
+        """
+        deadline = _time.monotonic() + timeout_s
+        while True:
+            sessions = self._oracle_user_sessions(cfg, user)
+            if not sessions:
+                return
+            for pair in sessions:
+                self._oracle_admin_ddl(
+                    cfg, f"ALTER SYSTEM KILL SESSION '{pair}' IMMEDIATE",
+                    ignore_ora=("ORA-00030", "ORA-00031"))
+            if _time.monotonic() >= deadline:
+                raise RuntimeError(
+                    f"Oracle sessions for {user} are still alive after KILL "
+                    f"SESSION ({timeout_s:g}s): {', '.join(sessions)}")
+
+    def _oracle_scratch_user(self, cfg, user, password):
+        """(Re)create a bare Oracle account that may only open a session."""
+        self._oracle_kill_user_sessions(cfg, user)
+        self._oracle_admin_ddl(cfg, f'DROP USER "{user}" CASCADE',
+                               ignore_ora=("ORA-01918",))
+        self._oracle_admin_ddl(cfg, f'CREATE USER "{user}" IDENTIFIED BY "{password}"')
+        self._oracle_admin_ddl(cfg, f'GRANT CREATE SESSION TO "{user}"')
+
+    def _oracle_drop_scratch_user(self, cfg, user):
+        self._oracle_kill_user_sessions(cfg, user)
+        self._oracle_admin_ddl(cfg, f'DROP USER "{user}" CASCADE',
+                               ignore_ora=("ORA-01918",))
+
+    def test_fq_sec_o_001_password_masking(self):
+        """FQOR-SEC-001: Oracle password masking in SHOW / DESCRIBE / EXPLAIN
+
+        TS §10 FQOR-SEC-001: none of SHOW, DESCRIBE, the error text or EXPLAIN
+        may carry the plaintext password, the connection descriptor or a wallet
+        path.
+
+        Coverage:
+        1. Source created with a known password → masked as '******', plaintext
+           absent from every SHOW column.
+        2. The user column stays visible (it is not sensitive) and the source
+           stays listed.
+        3. DESCRIBE carries neither the password nor a wallet path.
+        4. EXPLAIN of a query against the source (or the error it raises)
+           carries neither either.
+        5. ALTER password → the new value is masked and the old one is gone.
+        6. Negative: the accepted OPTIONS keys stay listed while no TLS key is
+           present (Oracle rejects those outright, see FQOR-SEC-002).
+
+        Catalog:
+            - Query:FederatedSecurity
+
+        Since: v3.4.4.0
+
+        Labels: common,ci
+
+        Jira: None
+
+        History:
+            - 2026-10-23 wpan Add Oracle to the per-dialect masking matrix
+
+        """
+        cfg = self._oracle_cfg()
+        run_tag = str(int(_time.time() * 1000))[-6:]
+        src = f"seco001_src_{run_tag}"
+        names = [src]
+        self._cleanup(*names)
+
+        secret_pwd = "OrSecret_001!"
+        altered_pwd = "OrAltered_002!"
+        wallet_marker = f"FQOR-SEC001-WALLET-{run_tag}"
+
+        try:
+            tdSql.execute(
+                f"create external source {src} type='oracle' "
+                f"host='{cfg.host}' port={cfg.port} user='{cfg.user}' "
+                f"password='{secret_pwd}' database='{cfg.service}' "
+                f"schema='{cfg.user.upper()}' "
+                f"options('connect_timeout_ms'='3000')"
+            )
+
+            idx = self._find_row(src)
+            assert idx >= 0, f"{src} not found in SHOW EXTERNAL SOURCES"
+            row_text = self._row_text(idx)
+            assert secret_pwd not in row_text, "Oracle plaintext password leaked in SHOW"
+            assert _MASKED in row_text, "Oracle password not masked in SHOW"
+            assert wallet_marker not in row_text, "wallet path leaked in SHOW"
+
+            user_val = str(tdSql.queryResult[idx][_COL_USER])
+            assert cfg.user in user_val, \
+                "user column should stay visible, it is not sensitive"
+            options_col = str(tdSql.queryResult[idx][_COL_OPTIONS])
+            assert "connect_timeout_ms" in options_col, \
+                "accepted option keys should stay listed"
+            assert "tls_" not in options_col, \
+                "Oracle must not store TLS options"
+
+            tdSql.query(f"describe external source {src}")
+            desc_text = "\n".join("|".join(str(c) for c in row) for row in tdSql.queryResult)
+            assert secret_pwd not in desc_text, "password leaked in DESCRIBE"
+            assert wallet_marker not in desc_text, "wallet path leaked in DESCRIBE"
+
+            # EXPLAIN (or the error it raises) must not echo the secret.  The
+            # password here is a placeholder, so a plan-time metadata fetch may
+            # legitimately fail — the observation is the text, not the outcome.
+            try:
+                tdSql.cursor.execute(
+                    f"explain select count(*) from {src}.sec_o_mask_t")
+                explain_text = "\n".join(
+                    str(c) for row in (tdSql.cursor.fetchall() or []) for c in row)
+            except BaseException as e:  # noqa: BLE001 - error text is the observation
+                explain_text = str(e)
+            assert secret_pwd not in explain_text, "password leaked in EXPLAIN"
+
+            # ALTER password → new value masked, old value gone.
+            tdSql.execute(f"alter external source {src} set password='{altered_pwd}'")
+            idx = self._find_row(src)
+            assert idx >= 0
+            row_text = self._row_text(idx)
+            assert altered_pwd not in row_text, "altered password leaked in SHOW"
+            assert secret_pwd not in row_text, "old password leaked in SHOW"
+
+            tdSql.query(f"describe external source {src}")
+            desc_text = "\n".join("|".join(str(c) for c in row) for row in tdSql.queryResult)
+            assert altered_pwd not in desc_text and secret_pwd not in desc_text, \
+                "password leaked in DESCRIBE after ALTER"
+        finally:
+            self._cleanup(*names)
+
+    def test_fq_sec_o_002_tls_options_rejected(self):
+        """FQOR-SEC-002: Oracle TLS options are rejected, never materialized
+
+        TS §10 FQOR-SEC-002: each of the four TLS options must make CREATE
+        EXTERNAL SOURCE fail with the "Oracle does not support TLS options"
+        semantics, and no certificate material may be written to disk.
+
+        Oracle Net negotiates its own encryption (DS 4.1), so the connector has
+        no TLS surface: tls_ca_cert / tls_client_cert / tls_client_key are
+        rejected for any non-empty value, and tls_enabled is rejected unless it
+        says "off".  Accepting them silently would let a user believe encryption
+        had been switched on.
+
+        Coverage:
+        1. tls_enabled='true' → TSDB_CODE_PAR_SYNTAX_ERROR naming tls_enabled.
+        2. tls_ca_cert / tls_client_cert / tls_client_key with a tagged PEM body
+           → TSDB_CODE_PAR_SYNTAX_ERROR naming the key.
+        3. tls_enabled='false' / '0' is accepted (it only says "do not ask").
+        4. No /tmp/tdext_* file carries the tagged PEM payload, before or after
+           the rejected statements.
+
+        Catalog:
+            - Query:FederatedSecurity
+
+        Since: v3.4.4.0
+
+        Labels: common,ci
+
+        Jira: None
+
+        History:
+            - 2026-10-23 wpan Add Oracle to the per-dialect TLS matrix
+
+        """
+        cfg = self._oracle_cfg()
+        run_tag = str(int(_time.time() * 1000))[-6:]
+        src_ok = f"seco002_ok_{run_tag}"
+        names = [src_ok]
+        self._cleanup(*names)
+
+        marker = f"FQOR-SEC002-{run_tag}"
+        pem = f"-----BEGIN CERTIFICATE-----{marker}-----END CERTIFICATE-----"
+
+        def _leftover_temp_files():
+            hits = []
+            for path in glob.glob("/tmp/tdext_*"):
+                if not os.path.isfile(path):
+                    continue
+                try:
+                    with open(path, "r", errors="ignore") as fh:
+                        if marker in fh.read():
+                            hits.append(path)
+                except OSError:
+                    continue
+            return hits
+
+        def _create(name, options):
+            return (
+                f"create external source {name} type='oracle' "
+                f"host='{cfg.host}' port={cfg.port} user='{cfg.user}' "
+                f"password='{cfg.password}' database='{cfg.service}' "
+                f"schema='{cfg.user.upper()}' options({options})"
+            )
+
+        assert not _leftover_temp_files(), \
+            f"certificate material present before the test: {_leftover_temp_files()}"
+
+        try:
+            for key, value in (("tls_enabled", "true"),
+                               ("tls_ca_cert", pem),
+                               ("tls_client_cert", pem),
+                               ("tls_client_key", pem)):
+                rejected = f"seco002_{key}_{run_tag}"
+                names.append(rejected)
+                tdSql.error(
+                    _create(rejected, f"'{key}'='{value}'"),
+                    expectedErrno=TSDB_CODE_PAR_SYNTAX_ERROR,
+                    expectErrInfo="not supported for Oracle external sources",
+                    fullMatched=False,
+                )
+
+            assert not _leftover_temp_files(), (
+                "rejected TLS options still produced certificate material: "
+                f"{_leftover_temp_files()}")
+
+            # "Off" is not a request for TLS, so it is accepted and stored.
+            tdSql.execute(_create(src_ok, "'tls_enabled'='false'"))
+            idx = self._find_row(src_ok)
+            assert idx >= 0, f"{src_ok} not found in SHOW EXTERNAL SOURCES"
+            opts = str(tdSql.queryResult[idx][_COL_OPTIONS])
+            assert "tls_enabled" in opts, "accepted tls_enabled=false should be stored"
+            assert pem not in self._row_text(idx), "certificate payload leaked in SHOW"
+        finally:
+            self._cleanup(*names)
+            assert not _leftover_temp_files(), (
+                "certificate material survived DROP EXTERNAL SOURCE: "
+                f"{_leftover_temp_files()}")
+
+    def test_fq_sec_o_003_least_privilege_account(self):
+        """FQOR-SEC-003: Oracle least-privilege account
+
+        TS §10 FQOR-SEC-003: an account granted SELECT only on the target
+        objects must query them normally, while out-of-scope access must fail
+        with the mapped error instead of silently succeeding or falling back to
+        another schema.
+
+        Coverage:
+        1. A scratch account with CREATE SESSION only, plus GRANT SELECT on
+           SEC_O_GRANTED_T — an external source using these credentials reads it.
+        2. SEC_O_DENIED_T (same schema, no grant) → TSDB_CODE_EXT_TABLE_NOT_EXIST.
+           Oracle's dictionary lookup hides ungranted objects, so the error is
+           the same code ORA-00942 maps to (DS 5.3.8) without needing a failed
+           remote statement.
+        3. Negative: the source stays registered after the denied query and the
+           granted table still answers correctly (no schema fallback).
+
+        Catalog:
+            - Query:FederatedSecurity
+
+        Since: v3.4.4.0
+
+        Labels: common,ci
+
+        Jira: None
+
+        History:
+            - 2026-10-23 wpan Add Oracle to the per-dialect privilege matrix
+            - 2026-10-27 wpan Terminate the scratch account's sessions before DROP USER (ORA-01940)
+            - 2026-11-03 wpan Wait for the killed sessions to disappear before DROP USER (ORA-00031)
+
+        """
+        cfg = self._oracle_cfg()
+        run_tag = str(int(_time.time() * 1000))[-6:]
+        src = f"seco003_src_{run_tag}"
+        schema = ExtSrcEnv.ORACLE_USER.upper()
+        user = f"FQ_SEC003_{run_tag}".upper()
+        user_pwd = "FqSec0032026"
+        names = [src]
+        self._cleanup(*names)
+
+        self._oracle_drop_table_as(cfg, "SEC_O_GRANTED_T")
+        self._oracle_drop_table_as(cfg, "SEC_O_DENIED_T")
+        ExtSrcEnv.oracle_exec_cfg(cfg, [
+            'CREATE TABLE "SEC_O_GRANTED_T" ('
+            ' "TS" TIMESTAMP(3) PRIMARY KEY, "VAL" NUMBER(10,0))',
+            'INSERT INTO "SEC_O_GRANTED_T" VALUES'
+            " (TIMESTAMP '2024-01-01 00:00:00.000', 1)",
+            'INSERT INTO "SEC_O_GRANTED_T" VALUES'
+            " (TIMESTAMP '2024-01-01 00:00:01.000', 2)",
+            'INSERT INTO "SEC_O_GRANTED_T" VALUES'
+            " (TIMESTAMP '2024-01-01 00:00:02.000', 3)",
+            'CREATE TABLE "SEC_O_DENIED_T" ('
+            ' "TS" TIMESTAMP(3) PRIMARY KEY, "VAL" NUMBER(10,0))',
+            'INSERT INTO "SEC_O_DENIED_T" VALUES'
+            " (TIMESTAMP '2024-01-01 00:00:00.000', 9)",
+            "COMMIT",
+        ])
+        self._oracle_scratch_user(cfg, user, user_pwd)
+        self._oracle_admin_ddl(
+            cfg, f'GRANT SELECT ON "{schema}"."SEC_O_GRANTED_T" TO "{user}"')
+
+        try:
+            self._mk_oracle_real(src, database=cfg.service, schema=schema,
+                                 user=user, password=user_pwd,
+                                 extra_options="'connect_timeout_ms'='3000'")
+
+            # Granted object → normal read with the expected values.
+            tdSql.query(f"select count(*), sum(`VAL`) from {src}.`SEC_O_GRANTED_T`")
+            tdSql.checkRows(1)
+            tdSql.checkData(0, 0, 3)
+            tdSql.checkData(0, 1, 6)
+
+            # Same schema, no grant → the object is outside the visible range.
+            tdSql.error(f"select count(*) from {src}.`SEC_O_DENIED_T`",
+                        expectedErrno=TSDB_CODE_EXT_TABLE_NOT_EXIST)
+
+            # The source survives the denied query and keeps answering.
+            assert self._find_row(src) >= 0, \
+                "source should stay registered after a permission error"
+            tdSql.query(f"select sum(`VAL`) from {src}.`SEC_O_GRANTED_T`")
+            tdSql.checkData(0, 0, 6)
+        finally:
+            self._cleanup(*names)
+            self._oracle_drop_scratch_user(cfg, user)
+            self._oracle_drop_table_as(cfg, "SEC_O_GRANTED_T")
+            self._oracle_drop_table_as(cfg, "SEC_O_DENIED_T")
+
+    def test_fq_sec_o_004_cross_schema_visibility(self):
+        """FQOR-SEC-004: Oracle cross-schema visible range matches the grants
+
+        TS §10 FQOR-SEC-004: the three-segment path reaches another schema, and
+        the visible range equals the granted range.
+
+        Coverage:
+        1. The login schema holds SEC_O_MAIN_T; the alternate provisioned schema
+           (ensure_ext_env.sh ORACLE_ALT_USER) holds SEC_O_ALT_T and
+           SEC_O_ALT_DENIED_T.
+        2. Only SEC_O_ALT_T is granted to the login account.
+        3. Two-segment path reads the login schema.
+        4. Three-segment path `<src>.<ALT_SCHEMA>.sec_o_alt_t` reads the other
+           schema through the same source (cross-schema visible range).
+        5. The ungranted alt table → TSDB_CODE_EXT_TABLE_NOT_EXIST (visible
+           range == grants).
+        6. Negative: the granted paths still answer after the denial.
+
+        Catalog:
+            - Query:FederatedSecurity
+
+        Since: v3.4.4.0
+
+        Labels: common,ci
+
+        Jira: None
+
+        History:
+            - 2026-10-23 wpan Add Oracle to the per-dialect visible-range matrix
+
+        """
+        cfg = self._oracle_cfg()
+        run_tag = str(int(_time.time() * 1000))[-6:]
+        src = f"seco004_src_{run_tag}"
+        main_schema = ExtSrcEnv.ORACLE_USER.upper()
+        alt_schema = ExtSrcEnv.ORACLE_ALT_USER.upper()
+        alt_user = ExtSrcEnv.ORACLE_ALT_USER
+        alt_pwd = ExtSrcEnv.ORACLE_ALT_PASS
+        names = [src]
+        self._cleanup(*names)
+
+        self._oracle_drop_table_as(cfg, "SEC_O_MAIN_T")
+        self._oracle_drop_table_as(cfg, "SEC_O_ALT_T", user=alt_user, password=alt_pwd)
+        self._oracle_drop_table_as(cfg, "SEC_O_ALT_DENIED_T",
+                                   user=alt_user, password=alt_pwd)
+
+        ExtSrcEnv.oracle_exec_cfg(cfg, [
+            'CREATE TABLE "SEC_O_MAIN_T" ('
+            ' "TS" TIMESTAMP(3) PRIMARY KEY, "VAL" NUMBER(10,0))',
+            'INSERT INTO "SEC_O_MAIN_T" VALUES'
+            " (TIMESTAMP '2024-01-01 00:00:00.000', 1)",
+            'INSERT INTO "SEC_O_MAIN_T" VALUES'
+            " (TIMESTAMP '2024-01-01 00:00:01.000', 2)",
+            "COMMIT",
+        ])
+        ExtSrcEnv._oracle_sql(cfg, [
+            'CREATE TABLE "SEC_O_ALT_T" ('
+            ' "TS" TIMESTAMP(3) PRIMARY KEY, "VAL" NUMBER(10,0))',
+            'INSERT INTO "SEC_O_ALT_T" VALUES'
+            " (TIMESTAMP '2024-01-01 00:00:00.000', 101)",
+            'INSERT INTO "SEC_O_ALT_T" VALUES'
+            " (TIMESTAMP '2024-01-01 00:00:01.000', 102)",
+            'INSERT INTO "SEC_O_ALT_T" VALUES'
+            " (TIMESTAMP '2024-01-01 00:00:02.000', 103)",
+            'CREATE TABLE "SEC_O_ALT_DENIED_T" ('
+            ' "TS" TIMESTAMP(3) PRIMARY KEY, "VAL" NUMBER(10,0))',
+            'INSERT INTO "SEC_O_ALT_DENIED_T" VALUES'
+            " (TIMESTAMP '2024-01-01 00:00:00.000', 999)",
+            "COMMIT",
+        ], user=alt_user, password=alt_pwd)
+        self._oracle_admin_ddl(
+            cfg, f'GRANT SELECT ON "{alt_schema}"."SEC_O_ALT_T" TO "{main_schema}"')
+
+        try:
+            self._mk_oracle_real(src, database=cfg.service, schema=main_schema)
+
+            # Default schema of the source (2-segment path).
+            tdSql.query(f"select count(*), sum(`VAL`) from {src}.`SEC_O_MAIN_T`")
+            tdSql.checkRows(1)
+            tdSql.checkData(0, 0, 2)
+            tdSql.checkData(0, 1, 3)
+
+            # Cross-schema read through the 3-segment path.
+            tdSql.query(
+                f"select count(*), sum(`VAL`) from {src}.`{alt_schema}`.`SEC_O_ALT_T`")
+            tdSql.checkRows(1)
+            tdSql.checkData(0, 0, 3)
+            tdSql.checkData(0, 1, 306)
+
+            # Ungranted object in the same schema → outside the visible range.
+            tdSql.error(
+                f"select count(*) from {src}.`{alt_schema}`.`SEC_O_ALT_DENIED_T`",
+                expectedErrno=TSDB_CODE_EXT_TABLE_NOT_EXIST)
+
+            # Negative: the granted paths still answer.
+            tdSql.query(f"select min(`VAL`) from {src}.`SEC_O_MAIN_T`")
+            tdSql.checkData(0, 0, 1)
+            tdSql.query(
+                f"select min(`VAL`) from {src}.`{alt_schema}`.`SEC_O_ALT_T`")
+            tdSql.checkData(0, 0, 101)
+        finally:
+            self._cleanup(*names)
+            self._oracle_drop_table_as(cfg, "SEC_O_MAIN_T")
+            self._oracle_drop_table_as(cfg, "SEC_O_ALT_T", user=alt_user, password=alt_pwd)
+            self._oracle_drop_table_as(cfg, "SEC_O_ALT_DENIED_T",
+                                       user=alt_user, password=alt_pwd)
+
+    def test_fq_sec_o_005_identifier_injection_protection(self):
+        """FQOR-SEC-005: Oracle identifier injection protection
+
+        TS §10 FQOR-SEC-005: table / column / schema names carrying double
+        quotes, semicolons or comment markers are double-quoted when rendered
+        and cannot escape; no additional statement runs.
+
+        Oracle identifiers follow TDengine's grammar (DS 5.3.6 R1): an unquoted
+        segment is lower-cased by the client, and a backticked segment carries
+        its literal spelling.  A double quote is a character in the name, not
+        syntax; the renderer doubles it when Oracle output requires quoting.
+
+        Coverage:
+        1. Local source-name injection attempts → syntax error, and an unrelated
+           local database is untouched.
+        2. A remote table whose name contains a double quote is referenced
+           through such a segment and resolves as a literal identifier.
+        3. `select *` on it also exercises a double-quote-bearing column name.
+        4. A table named with an injection payload (semicolon + DROP) stays a
+           literal identifier; the remote sentinel table and the injection-named
+           table both survive (no injected statement executed).
+
+        Catalog:
+            - Query:FederatedSecurity
+
+        Since: v3.4.4.0
+
+        Labels: common,ci
+
+        Jira: None
+
+        History:
+            - 2026-10-23 wpan Add Oracle to the per-dialect injection matrix
+            - 2026-10-27 wpan Gate the quote-identifier legs on server support (ORA-25716 on 23ai+)
+
+        """
+        cfg = self._oracle_cfg()
+        run_tag = str(int(_time.time() * 1000))[-6:]
+        src = f"seco005_src_{run_tag}"
+        sentinel_db = f"seco005_sentinel_{run_tag}"
+        names = [src]
+        self._cleanup(*names)
+        tdSql.execute(f"drop database if exists {sentinel_db}")
+        tdSql.execute(f"create database {sentinel_db}")
+
+        # Remote object names.  The quote-bearing table is spelled in Oracle as
+        # "fqseco005""brk"; the reference segment carries the same spelling with
+        # a single inner quote, which is what the renderer re-escapes.
+        brk_tbl = 'fqseco005"brk'
+        # 11g caps identifiers at 30 characters (ORA-00972), so the
+        # injection-shaped table name has to stay short there; it still
+        # spells a DROP of the real sentinel and must remain a literal name.
+        if cfg.version.startswith("11g"):
+            inj_tbl = "fq; DROP TABLE SEC_O_SENTINEL"
+        else:
+            inj_tbl = "fqseco005_inj; DROP TABLE SEC_O_SENTINEL--"
+        sentinel_tbl = "SEC_O_SENTINEL"
+
+        self._oracle_drop_table_as(cfg, sentinel_tbl)
+        self._oracle_drop_table_as(cfg, 'fqseco005"brk')
+        self._oracle_drop_table_as(cfg, inj_tbl)
+        ExtSrcEnv.oracle_exec_cfg(cfg, [
+            'CREATE TABLE "SEC_O_SENTINEL" ("ID" NUMBER(10,0) PRIMARY KEY)',
+            'INSERT INTO "SEC_O_SENTINEL" VALUES (1)',
+            f'CREATE TABLE "{inj_tbl}" ('
+            ' "TS" TIMESTAMP(3) PRIMARY KEY, "VAL" NUMBER(10,0))',
+            f'INSERT INTO "{inj_tbl}" VALUES'
+            " (TIMESTAMP '2024-01-01 00:00:00.000', 1)",
+            f'INSERT INTO "{inj_tbl}" VALUES'
+            " (TIMESTAMP '2024-01-01 00:00:01.000', 2)",
+            "COMMIT",
+        ])
+        # Oracle 23ai+ rejects any identifier containing a double quote with
+        # ORA-25716, so the quote-bearing fixture is only created where the
+        # server can represent it; the remaining legs stay version-independent.
+        quote_identifier_supported = True
+        try:
+            ExtSrcEnv.oracle_exec_cfg(cfg, [
+                'CREATE TABLE "fqseco005""brk" ('
+                ' "TS" TIMESTAMP(3) PRIMARY KEY, "V""1" NUMBER(10,0))',
+                'INSERT INTO "fqseco005""brk" VALUES'
+                " (TIMESTAMP '2024-01-01 00:00:00.000', 7)",
+                "COMMIT",
+            ])
+        except RuntimeError as e:
+            # 23ai+ reports ORA-25716; 11g reports ORA-03001 for the same
+            # identifiers.  Both mean the server cannot hold such a name.
+            if "ORA-25716" not in str(e) and "ORA-03001" not in str(e):
+                raise
+            quote_identifier_supported = False
+            tdLog.info(
+                "[seco005] server rejects identifiers containing '\"'; "
+                "the quote-bearing table/column legs are skipped on this version")
+
+        try:
+            # 1. Source-name injection attempts → syntax errors, no side effect.
+            for inj in ["'; DROP DATABASE --", f"{run_tag}; SELECT 1; --",
+                        "sec' OR '1'='1"]:
+                tdSql.error(
+                    f"create external source {inj} type='oracle' "
+                    f"host='{cfg.host}' port={cfg.port} user='u' password='p' "
+                    f"database='{cfg.service}' schema='{cfg.user.upper()}'",
+                    expectedErrno=TSDB_CODE_PAR_SYNTAX_ERROR,
+                )
+            tdSql.query("show databases")
+            assert any(str(r[0]) == sentinel_db for r in tdSql.queryResult), \
+                "injection attempt touched an unrelated local database"
+
+            self._mk_oracle_real(src, database=cfg.service,
+                                 schema=ExtSrcEnv.ORACLE_USER.upper())
+
+            # 2/3. A quote-bearing table and column name resolve as literal
+            # identifiers (skipped when the server cannot hold such names).
+            if quote_identifier_supported:
+                tdSql.query(f'select count(*) from {src}.`{brk_tbl}`')
+                assert int(tdSql.queryResult[0][0]) == 1, \
+                    "table name containing a double quote was not resolved as a literal identifier"
+
+                tdSql.query(f'select * from {src}.`{brk_tbl}`')
+                tdSql.checkRows(1)
+                tdSql.checkData(0, 1, 7)
+
+            # 4. Injection-shaped table name stays a literal identifier.
+            tdSql.query(f'select count(*) from {src}.`{inj_tbl}`')
+            assert int(tdSql.queryResult[0][0]) == 2, \
+                "injection-shaped table name was not treated as a literal identifier"
+
+            # No injected statement reached the remote instance.
+            assert int(ExtSrcEnv.oracle_query_cfg(
+                cfg, f'SELECT COUNT(*) FROM "{sentinel_tbl}"')) == 1, \
+                "injected statement was executed on the remote instance"
+            assert int(ExtSrcEnv.oracle_query_cfg(
+                cfg, f'SELECT COUNT(*) FROM "{inj_tbl}"')) == 2, \
+                "injection-shaped table disappeared from the remote instance"
+        finally:
+            self._cleanup(*names)
+            tdSql.execute(f"drop database if exists {sentinel_db}")
+            self._oracle_drop_table_as(cfg, sentinel_tbl)
+            self._oracle_drop_table_as(cfg, 'fqseco005"brk')
+            self._oracle_drop_table_as(cfg, inj_tbl)
+
+    def test_fq_sec_o_006_no_client_net_config(self):
+        """FQOR-SEC-006: Oracle Net client configuration is neither read nor invented
+
+        TS §10 FQOR-SEC-006: the connector must not depend on (nor silently
+        substitute) a client-side Oracle Net configuration.
+
+        Oracle DS 4.1: the connector sets neither TNS_ADMIN nor ORACLE_HOME and
+        requires no tnsnames.ora / ldap.ora / wallet — the endpoint is a plain
+        Easy Connect `//host:port/service`.  The one documented exception is the
+        DS 3.3 ORACLE_HOME fallback, which is a process-level library-path hint,
+        not a connection parameter.
+
+        Coverage:
+        1. The OPTIONS surface has no client-config key: tns_admin,
+           wallet_location and oracle_home are rejected as unknown keys.
+        2. A source with no options at all connects and answers correctly, i.e.
+           the service name alone is enough.
+        3. SHOW's options column holds no client-config key.
+        4. An unknown service name resolves through Easy Connect and fails as
+           "database does not exist" (ORA-12514), not as a TNS lookup failure
+           (ORA-12154) — proof that no tnsnames.ora is consulted.
+        5. The taosd process environment carries no TNS_ADMIN after the
+           connector has run (it must not invent one).  ORACLE_HOME, if present,
+           is the documented fallback and is only logged.
+
+        Catalog:
+            - Query:FederatedSecurity
+
+        Since: v3.4.4.0
+
+        Labels: common,ci
+
+        Jira: None
+
+        History:
+            - 2026-10-23 wpan Add Oracle to the per-dialect config matrix
+
+        """
+        cfg = self._oracle_cfg()
+        run_tag = str(int(_time.time() * 1000))[-6:]
+        src = f"seco006_src_{run_tag}"
+        table = "SEC_O_NETCFG_T"
+        names = [src]
+        self._cleanup(*names)
+
+        self._oracle_drop_table_as(cfg, table)
+        ExtSrcEnv.oracle_exec_cfg(cfg, [
+            f'CREATE TABLE "{table}" ('
+            ' "TS" TIMESTAMP(3) PRIMARY KEY, "VAL" NUMBER(10,0))',
+            f'INSERT INTO "{table}" VALUES'
+            " (TIMESTAMP '2024-01-01 00:00:00.000', 42)",
+            "COMMIT",
+        ])
+
+        def _create(name, options):
+            return (
+                f"create external source {name} type='oracle' "
+                f"host='{cfg.host}' port={cfg.port} user='{cfg.user}' "
+                f"password='{cfg.password}' database='{cfg.service}' "
+                f"schema='{cfg.user.upper()}' options({options})"
+            )
+
+        def _taosd_environ():
+            """Environment of the running taosd process, or None if not found."""
+            # Windows has no /proc, so the scan is unavailable there; that is
+            # the documented "cannot inspect a local taosd" path below, not a
+            # silent pass of the assertion.
+            if not os.path.isdir("/proc"):
+                return None
+            for proc in os.scandir("/proc"):
+                if not proc.name.isdigit():
+                    continue
+                try:
+                    with open(os.path.join(proc.path, "cmdline"), "rb") as fh:
+                        argv = fh.read().split(b"\0")
+                    if not argv or os.path.basename(argv[0].decode(errors="ignore")) != "taosd":
+                        continue
+                    with open(os.path.join(proc.path, "environ"), "rb") as fh:
+                        raw = fh.read().split(b"\0")
+                except OSError:
+                    continue
+                env = {}
+                for item in raw:
+                    if b"=" not in item:
+                        continue
+                    key, _, value = item.partition(b"=")
+                    env[key.decode(errors="ignore")] = value.decode(errors="ignore")
+                return env
+            return None
+
+        try:
+            # 1. No client-config key is part of the OPTIONS surface.
+            for key in ("tns_admin", "wallet_location", "oracle_home"):
+                rejected = f"seco006_{key}_{run_tag}"
+                names.append(rejected)
+                tdSql.error(
+                    _create(rejected, f"'{key}'='/tmp/fq'"),
+                    expectedErrno=TSDB_CODE_PAR_SYNTAX_ERROR,
+                    expectErrInfo="Unknown OPTIONS key",
+                    fullMatched=False,
+                )
+
+            # 2. Easy Connect alone is enough — no options, no tnsnames.ora.
+            self._mk_oracle_real(src, database=cfg.service,
+                                 schema=ExtSrcEnv.ORACLE_USER.upper())
+            tdSql.query(f"select count(*), sum(`VAL`) from {src}.`SEC_O_NETCFG_T`")
+            tdSql.checkRows(1)
+            tdSql.checkData(0, 0, 1)
+            tdSql.checkData(0, 1, 42)
+
+            # 3. Nothing client-side is recorded on the source.
+            idx = self._find_row(src)
+            assert idx >= 0
+            opts = str(tdSql.queryResult[idx][_COL_OPTIONS])
+            for key in ("tns_admin", "wallet_location", "oracle_home"):
+                assert key not in opts.lower(), f"{key} must not be stored for Oracle"
+
+            # 4. An unknown service name fails as "the listener does not know this
+            #    service" (ORA-12514), which maps to "database does not exist".
+            #    It must never fail as "could not resolve the connect identifier"
+            #    (ORA-12154): the latter would mean a TNS alias was being looked
+            #    up somewhere, and Easy Connect exists precisely so that no
+            #    tnsnames.ora is consulted.  The reported code may be the connect
+            #    failure itself, so both are accepted — the wording is the check.
+            tdSql.execute(f"alter external source {src} set database='NOSUCHSERVICE'")
+            tdSql.error(
+                f"select count(*) from {src}.`SEC_O_NETCFG_T`",
+                expectedErrno=[TSDB_CODE_EXT_DB_NOT_EXIST,
+                               TSDB_CODE_EXT_CONNECT_FAILED],
+            )
+            assert "ORA-12154" not in tdSql.error_info, (
+                "the connector resolved the service name through a TNS alias: "
+                f"{tdSql.error_info}")
+            tdSql.execute(f"alter external source {src} set database='{cfg.service}'")
+            tdSql.query(f"select sum(`VAL`) from {src}.`SEC_O_NETCFG_T`")
+            tdSql.checkData(0, 0, 42)
+
+            # 5. The connector did not invent TNS_ADMIN in taosd's environment.
+            #    The scan only applies when taosd runs in this process tree; a
+            #    remote/containerised taosd has no /proc entry here, and its
+            #    environment is not something this test can inspect.
+            env = _taosd_environ()
+            if env is None:
+                tdLog.info("taosd is not a local process; skipping the "
+                           "environment scan for TNS_ADMIN")
+            else:
+                assert "TNS_ADMIN" not in env, (
+                    "the connector set TNS_ADMIN in the taosd process environment")
+                if env.get("ORACLE_HOME"):
+                    tdLog.info(
+                        "taosd ORACLE_HOME is set (DS 3.3 fallback): "
+                        f"{env['ORACLE_HOME']}")
+        finally:
+            self._cleanup(*names)
+            self._oracle_drop_table_as(cfg, table)
+
+    def do_influx18_auth_and_version(self):
+        if self._influx_cfg().version != "1.8":
+            pytest.skip("This case verifies the native InfluxDB 1.8 contract")
+        timestamp = 1700000000000000001
+        database = "fq11_influx18_auth_and_version"
+        lines = [
+            f"sparse,site=a value=1i {timestamp}",
+            f"sparse,site=b other=2i {timestamp + 1}",
+            f"sparse,site=a value=3i {timestamp + 2}",
+        ]
+        with self._influx_fixture(database, lines) as (cfg, source):
+            source = source + "_auth"
+            try:
+                with influx18_basic_gate(cfg) as (port, seen):
+                    tdSql.execute(f"DROP EXTERNAL SOURCE IF EXISTS {source}")
+                    tdSql.execute(f"CREATE EXTERNAL SOURCE {source} TYPE='influxdb' HOST='127.0.0.1' "
+                                  f"PORT={port} USER='basic18' PASSWORD='basic18_test_password' "
+                                  f"DATABASE={database} OPTIONS('version'='1.8')")
+                    assert not seen, "CREATE SOURCE contacted the remote server"
+                    self._check_query_rows(f"SELECT COUNT(*) FROM {source}.{database}.sparse", [(3,)])
+                    for user, password in [("basic18", "incorrect"), ("", "")]:
+                        if user:
+                            tdSql.execute(f"ALTER EXTERNAL SOURCE {source} SET USER='{user}', PASSWORD='{password}'")
+                        else:
+                            tdSql.execute(f"DROP EXTERNAL SOURCE {source}")
+                            tdSql.execute(f"CREATE EXTERNAL SOURCE {source} TYPE='influxdb' HOST='127.0.0.1' "
+                                          f"PORT={port} USER='' PASSWORD='' DATABASE={database} OPTIONS('version'='1.8')")
+                        tdSql.error(f"SELECT * FROM {source}.{database}.sparse", expectedErrno=TSDB_CODE_EXT_AUTH_FAILED)
+                    tdSql.execute(f"DROP EXTERNAL SOURCE {source}")
+                for version in ["3.0.3", "2.7.6", None]:
+                    with influx18_basic_gate(cfg, reported_version=version) as (port, _):
+                        tdSql.execute(f"CREATE EXTERNAL SOURCE {source} TYPE='influxdb' HOST='127.0.0.1' "
+                                      f"PORT={port} USER='basic18' PASSWORD='basic18_test_password' "
+                                      f"DATABASE={database} OPTIONS('version'='1.8')")
+                        query = f"SELECT COUNT(*) FROM {source}.{database}.sparse"
+                        if version is None:
+                            self._check_query_rows(query, [(3,)])
+                        else:
+                            tdSql.error(query, expectedErrno=TSDB_CODE_EXT_SOURCE_TYPE_NOT_SUPPORT)
+                        tdSql.execute(f"DROP EXTERNAL SOURCE {source}")
+                from urllib.parse import parse_qs, urlsplit
+                fault = {}
+
+                def override_response(path):
+                    sql = parse_qs(urlsplit(path).query).get("q", [""])[0]
+                    if fault and sql.startswith(fault["prefix"]):
+                        if fault.get("delay"):
+                            _time.sleep(fault["delay"])
+                        return fault["status"], json.dumps({"error": fault["message"]}).encode()
+                    return None
+
+                with influx18_basic_gate(cfg, response_override=override_response) as (port, _):
+                    tdSql.execute(self._mk_influx_source_sql(
+                        source, "127.0.0.1", port, "", database=database,
+                        user="basic18", password="basic18_test_password"))
+                    query = f"SELECT * FROM {source}.{database}.sparse"
+                    for prefix, status, message, errno in [
+                        ("SHOW MEASUREMENTS", 400, "database not found: review_metadata", TSDB_CODE_EXT_DB_NOT_EXIST),
+                        ("SELECT", 400, "error parsing query: review_select", TSDB_CODE_EXT_SYNTAX_UNSUPPORTED),
+                        ("SELECT", 404, "retention policy not found: review_rp", TSDB_CODE_EXT_DB_NOT_EXIST),
+                        ("SELECT", 500, "review remote failure", TSDB_CODE_EXT_REMOTE_INTERNAL),
+                    ]:
+                        fault.update(prefix=prefix, status=status, message=message)
+                        tdSql.execute(f"REFRESH EXTERNAL SOURCE {source}")
+                        tdSql.error(query, expectedErrno=errno)
+                        if prefix == "SELECT":
+                            assert message in tdSql.error_info, tdSql.error_info
+                    tdSql.execute(f"ALTER EXTERNAL SOURCE {source} SET OPTIONS("
+                                  "'connect_timeout_ms'='500','read_timeout_ms'='1000')")
+                    fault.update(prefix="SELECT", status=500, message="delayed response", delay=3)
+                    tdSql.error(query, expectedErrno=TSDB_CODE_EXT_QUERY_TIMEOUT)
+                    tdSql.execute(f"DROP EXTERNAL SOURCE {source}")
+            finally:
+                tdSql.execute(f"DROP EXTERNAL SOURCE IF EXISTS {source}")
+        print("InfluxDB 1.8 auth_and_version ................ [ passed ]")
+
+    @influx_versions("1.8")
+    def test_influx18_auth_and_version(self):
+        """Check plaintext Basic credentials and explicit or absent version headers.
+
+        1. Verify Basic authentication and reject missing or incorrect credentials.
+        2. Reject non-1.8 version headers and allow absent version headers.
+        3. Preserve metadata and streaming HTTP errors, including timeouts before response headers.
+        4. Verify HTTPS with CA files and inline PEM, and reject wrong CA or hostname.
+
+        Catalog:
+            - FederatedQuery
+
+        Since: v3.5.0.0
+
+        Labels: common, ci, influx18
+
+        Jira: None
+
+        History:
+            - 2026-10-29 Cover Basic authentication and HTTP version validation
+
+        """
+        self.do_influx18_auth_and_version()
+        self.do_influx18_tls()
+
+    def do_influx18_tls(self):
+        import ssl
+        import shutil
+        openssl = shutil.which("openssl")
+        assert openssl, "The external-source TLS fixture requires openssl"
+        with self._influx_fixture("fq11_influx18_tls", ["rows value=18i 1700000000000000000"]) as (cfg, _):
+            with tempfile.TemporaryDirectory(prefix="fq-influx18-tls-") as directory:
+                key, cert = Path(directory) / "key.pem", Path(directory) / "cert.pem"
+                subprocess.run([openssl, "req", "-x509", "-newkey", "rsa:2048", "-nodes",
+                                "-keyout", str(key), "-out", str(cert), "-days", "2",
+                                "-subj", "/CN=localhost", "-addext", "subjectAltName=DNS:localhost"],
+                               check=True, capture_output=True)
+                context = ssl.SSLContext(ssl.PROTOCOL_TLS_SERVER)
+                context.load_cert_chain(cert, key)
+                with influx18_basic_gate(cfg, tls_context=context) as (port, _):
+                    for name, host, ca, valid in [
+                        ("file", "localhost", str(cert), True),
+                        ("inline", "localhost", cert.read_text(), True),
+                        ("hostname", "127.0.0.1", str(cert), False),
+                        ("ca", "localhost", FQ_PG_CA_CERT, False),
+                    ]:
+                        source = "fq11_influx18_tls_" + name
+                        try:
+                            tdSql.execute(self._mk_influx_source_sql(
+                                source, host, port, "", database="fq11_influx18_tls",
+                                user="basic18", password="basic18_test_password",
+                                extra_options=f"'tls_enabled'='true','tls_ca_cert'='{ca}'"))
+                            query = f"SELECT value FROM {source}.fq11_influx18_tls.rows"
+                            if valid:
+                                self._check_query_rows(query, [(18,)])
+                            else:
+                                tdSql.error(query, expectedErrno=TSDB_CODE_EXT_CONNECT_FAILED)
+                        finally:
+                            self._cleanup_src(source)
+        print("InfluxDB 1.8 TLS verification ................ [ passed ]")

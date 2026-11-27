@@ -1,6 +1,8 @@
 /*
  * Copyright (c) 2019 TAOS Data, Inc. <jhtao@taosdata.com>
  *
+ * SPDX-License-Identifier: AGPL-3.0-or-later
+ *
  * This program is free software: you can use, redistribute, and/or modify
  * it under the terms of the GNU Affero General Public License, version 3
  * or later ("AGPL"), as published by the Free Software Foundation.
@@ -73,6 +75,7 @@ struct SIndex {
   TdThreadMutex mtx;
   tsem_t        sem;
   bool          quit;
+  int32_t       flushError;  // First asynchronous flush failure, sticky until close.
 };
 
 struct SIndexMultiTermQuery {
@@ -111,6 +114,7 @@ typedef struct Iterate {
   IterateValue val;
   bool (*next)(Iterate* iter);
   IterateValue* (*getValue)(Iterate* iter);
+  int32_t error;  // A failed advance must not be treated as end of input during flush.
 } Iterate;
 
 void iterateValueDestroy(IterateValue* iv, bool destroy);

@@ -1,8 +1,23 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 
+# Copyright (c) 2026 TAOS Data, Inc. <jhtao@taosdata.com>
+#
+# SPDX-License-Identifier: AGPL-3.0-or-later
+#
+# This program is free software: you can use, redistribute, and/or modify
+# it under the terms of the GNU Affero General Public License, version 3
+# or later ("AGPL"), as published by the Free Software Foundation.
+#
+# This program is distributed in the hope that it will be useful, but WITHOUT
+# ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+# FITNESS FOR A PARTICULAR PURPOSE.
+#
+# You should have received a copy of the GNU Affero General Public License
+# along with this program. If not, see <http://www.gnu.org/licenses/>.
+
 import time
-from new_test_framework.utils import tdLog, tdSql, tdStream, cluster
+from new_test_framework.utils import clusterComCheck, tdLog, tdSql, tdStream
 
 class TestStreamIdleTrigger:
     """Stream idle trigger test suite
@@ -37,7 +52,7 @@ class TestStreamIdleTrigger:
 
         Since: v3.3.4.0
 
-        Labels: stream, idle-trigger, ci
+        Labels: ci,idle-trigger,stream,integration,functional
 
         Jira: None
 
@@ -76,26 +91,30 @@ class TestStreamIdleTrigger:
     def test_resume_detection_basic(self):
         """Basic resume detection - trigger RESUME event after idle
 
-        Test that a partition group triggers a RESUME event when data
-        is received after being in IDLE state.
+        Wait for d001's first IDLE result before inserting resume data.
+        Verify that d001 emits a later result for the same idle period.
 
         Since: v3.3.4.0
 
-        Labels: stream, idle-trigger, ci
+        Labels: ci,idle-trigger,stream,integration,functional
 
         Jira: None
 
         History:
             - 2026-03-17 Created
         """
+        self.do_resume_detection_basic()
+
+    def do_resume_detection_basic(self):
         tdLog.info("=== Test: Basic resume detection ===")
 
-        # Create database and source table
-        self.init_test_database("resume_basic")
+        # Keep the event timestamp distinct even if IDLE and RESUME land within one millisecond.
+        db_name = f"{self.dbname}_resume_basic"
+        tdSql.prepare(dbname=db_name, vgroups=tdStream.vgroups, precision="ns")
+        clusterComCheck.checkDbReady(db_name)
         tdSql.execute("create table st (ts timestamp, v int) tags (gid int)")
         tdSql.execute("create table d001 using st tags (1)")
 
-        # Create stream with IDLE_TIMEOUT(3s) and EVENT_TYPE(IDLE|RESUME)
         stream_name = "s_resume_basic"
         self.create_stream_and_wait(
             stream_name,
@@ -103,21 +122,27 @@ class TestStreamIdleTrigger:
             f"sliding(1s) from st partition by tbname "
             f"stream_options(idle_timeout(3s) | event_type(idle|resume)) "
             f"into out_resume "
-            f"as select cast(_tidlestart/1000000 as timestamp), cast(_tidleend/1000000 as timestamp), tbname from st"
+            f"as select _tidleend as event_time, _tidlestart as idle_start from st"
         )
 
-        # Insert initial data
-        tdSql.execute("insert into d001 values (now, 1)")
-
-        # Wait for idle timeout, then insert new data to trigger RESUME
-        tdLog.info("Waiting for idle timeout...")
-        time.sleep(5)
-        tdSql.execute("insert into d001 values (now, 2)")
-
-        # Check if both IDLE and RESUME events were triggered
+        base_ts = 1760000000000000000
+        tdSql.execute(f"insert into d001 values ({base_ts}, 1)")
+        events_sql = (
+            "select cast(event_time as bigint), cast(idle_start as bigint) "
+            "from out_resume where tag_tbname = 'd001'"
+        )
         tdSql.checkResultsByFunc(
-            sql="select * from out_resume",
-            func=lambda: tdSql.getRows() >= 2,
+            sql=f"{events_sql} and event_time > idle_start",
+            func=lambda: tdSql.getRows() == 1,
+        )
+        first_idle_end, first_idle_start = tdSql.getData(0, 0), tdSql.getData(0, 1)
+
+        tdSql.execute(f"insert into d001 values ({base_ts + 1_000_000_000}, 2)")
+
+        # RESUME shares the first IDLE's start. The next IDLE starts at the resumed input.
+        tdSql.checkResultsByFunc(
+            sql=f"{events_sql} and idle_start = {first_idle_start} and event_time > {first_idle_end}",
+            func=lambda: tdSql.getRows() == 1,
         )
         tdLog.success("✓ IDLE and RESUME events triggered successfully")
 
@@ -129,7 +154,7 @@ class TestStreamIdleTrigger:
 
         Since: v3.3.4.0
 
-        Labels: stream, idle-trigger, ci
+        Labels: ci,idle-trigger,stream,integration,functional
 
         Jira: None
 
@@ -183,7 +208,7 @@ class TestStreamIdleTrigger:
 
         Since: v3.3.4.0
 
-        Labels: stream, idle-trigger, ci
+        Labels: ci,idle-trigger,stream,integration,functional
 
         Jira: None
 
@@ -281,7 +306,7 @@ class TestStreamIdleTrigger:
 
         Since: v3.3.4.0
 
-        Labels: stream, idle-trigger, ci
+        Labels: ci,idle-trigger,stream,integration,functional
 
         Jira: None
 
@@ -329,7 +354,7 @@ class TestStreamIdleTrigger:
 
         Since: v3.3.4.0
 
-        Labels: stream, idle-trigger, ci
+        Labels: ci,idle-trigger,stream,integration,functional
 
         Jira: None
 
@@ -421,7 +446,7 @@ class TestStreamIdleTrigger:
 
         Since: v3.3.4.0
 
-        Labels: stream, idle-trigger, ci
+        Labels: ci,idle-trigger,stream,integration,functional
 
         Jira: None
 
@@ -460,13 +485,16 @@ class TestStreamIdleTrigger:
 
         Since: v3.3.4.0
 
-        Labels: stream, idle-trigger, ci
+        Labels: ci,idle-trigger,stream,integration,functional
 
         Jira: None
 
         History:
             - 2026-03-17 Created
         """
+        self.do_idle_resume_cycle()
+
+    def do_idle_resume_cycle(self):
         tdLog.info("=== Test: Multiple idle-resume cycles ===")
 
         self.init_test_database("idle_resume_cycle")
@@ -480,26 +508,33 @@ class TestStreamIdleTrigger:
             f"sliding(1s) from st partition by tbname "
             f"stream_options(idle_timeout(2s) | event_type(idle|resume)) "
             f"into out_cycles "
-            f"as select cast(_tidlestart/1000000 as timestamp), cast(_tidleend/1000000 as timestamp), tbname from st"
+            f"as select cast(_tidleend/1000000 as timestamp) as event_time, "
+            f"cast(_tidlestart/1000000 as timestamp) as idle_start, tbname from st"
         )
 
-        # Cycle 1: IDLE -> RESUME
         tdSql.execute("insert into d001 values (now, 1)")
-        time.sleep(5)  # IDLE
-        tdSql.execute("insert into d001 values (now, 2)")  # RESUME
+        for cycle in range(1, 4):
+            tdLog.debug(f"Idle-resume cycle {cycle}: waiting for idle timeout before resuming")
+            # Snapshot the idle-event count BEFORE this cycle: the guard below must wait for THIS
+            # cycle's idle event, not for a cumulative total that an earlier cycle can satisfy.
+            tdSql.query("select count(*) from out_cycles where idle_start is not null")
+            cycle_base = tdSql.getData(0, 0)
+            time.sleep(5)
+            tdSql.execute(f"insert into d001 values (now, {cycle + 1})")
+            tdLog.debug(f"Idle-resume cycle {cycle}: resume data inserted")
+            # Wait for this cycle's idle event to land before starting the next cycle: on a slow
+            # engine the next resume row could otherwise arrive before the idle event is emitted
+            # and be folded into this cycle's group, leaving it with a single row forever.
+            tdSql.checkResultsByFunc(
+                sql="select count(*) from out_cycles where idle_start is not null",
+                func=lambda base=cycle_base: tdSql.getData(0, 0) >= base + 1,
+                retry=60,
+            )
 
-        # Cycle 2: IDLE -> RESUME
-        time.sleep(5)  # IDLE again
-        tdSql.execute("insert into d001 values (now, 3)")  # RESUME again
-
-        # Cycle 3: IDLE -> RESUME
-        time.sleep(5)  # IDLE again
-        tdSql.execute("insert into d001 values (now, 4)")  # RESUME again
-
-        # Wait for all 3 cycles (3 IDLE + 3 RESUME)
         tdSql.checkResultsByFunc(
-            sql="select * from out_cycles",
-            func=lambda: tdSql.getRows() >= 3,
+            sql="select idle_start, count(*) from out_cycles group by idle_start having count(*) = 2",
+            func=lambda: tdSql.getRows() == 3,
+            retry=60,
         )
         tdLog.success("✓ Multiple idle-resume cycles work correctly")
 
@@ -511,7 +546,7 @@ class TestStreamIdleTrigger:
 
         Since: v3.3.4.0
 
-        Labels: stream, idle-trigger, ci
+        Labels: ci,idle-trigger,stream,integration,functional
 
         Jira: None
 
@@ -546,7 +581,7 @@ class TestStreamIdleTrigger:
 
         Since: v3.3.4.0
 
-        Labels: stream, idle-trigger, ci
+        Labels: ci,idle-trigger,stream,integration,functional
 
         Jira: None
 

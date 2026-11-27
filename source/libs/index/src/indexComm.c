@@ -1,9 +1,11 @@
 /*
  * Copyright (c) 2019 TAOS Data, Inc. <jhtao@taosdata.com>
  *
+ * SPDX-License-Identifier: AGPL-3.0-or-later
+ *
  * This program is free software: you can use, redistribute, and/or modify
- * it under the terms of the GNU Affero General Public License, version 3 * or later ("AGPL"), as published by the Free
- * Software Foundation.
+ * it under the terms of the GNU Affero General Public License, version 3
+ * or later ("AGPL"), as published by the Free Software Foundation.
  *
  * This program is distributed in the hope that it will be useful, but WITHOUT
  * ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
@@ -444,13 +446,22 @@ int32_t idxConvertDataToStr(void* src, int8_t type, void** dst) {
       tlen = strlen(*dst);
       break;
     case TSDB_DATA_TYPE_NCHAR: {
-      tlen = taosEncodeBinary(NULL, varDataVal(src), varDataLen(src));
-      *dst = taosMemoryCalloc(1, tlen + 1);
-      if (*dst == NULL) {
-        return terrno;
+      // Four ordered, nonzero bytes per UCS-4 code point. The FST and cache
+      // use C-string keys; native UCS-4 would be truncated at embedded zeroes.
+      // Seven bits per byte plus one preserves code-point order and key size.
+      tlen = varDataLen(src);
+      if (taosValidateUcs4((TdUcs4 *)varDataVal(src), tlen) != 0) {
+        return TSDB_CODE_INVALID_DATA_FMT;
       }
-      tlen = taosEncodeBinary(dst, varDataVal(src), varDataLen(src));
-      *dst = (char*)*dst - tlen;
+      *dst = taosMemoryCalloc(1, (size_t)tlen + 1);
+      if (*dst == NULL) return terrno;
+      for (int32_t i = 0; i < tlen; i += sizeof(TdUcs4)) {
+        TdUcs4 cp = 0;
+        memcpy(&cp, varDataVal(src) + i, sizeof(cp));
+        for (int32_t j = 0; j < 4; ++j) {
+          ((uint8_t *)*dst)[i + j] = ((cp >> (21 - 7 * j)) & 0x7f) + 1;
+        }
+      }
       break;
     }
     case TSDB_DATA_TYPE_VARCHAR:  // TSDB_DATA_TYPE_BINARY

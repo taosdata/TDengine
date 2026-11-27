@@ -1,6 +1,8 @@
 /*
  * Copyright (c) 2019 TAOS Data, Inc. <jhtao@taosdata.com>
  *
+ * SPDX-License-Identifier: AGPL-3.0-or-later
+ *
  * This program is free software: you can use, redistribute, and/or modify
  * it under the terms of the GNU Affero General Public License, version 3
  * or later ("AGPL"), as published by the Free Software Foundation.
@@ -150,6 +152,7 @@ int  tdbBtreeInsert(SBTree *pBt, const void *pKey, int kLen, const void *pVal, i
 int  tdbBtreeDelete(SBTree *pBt, const void *pKey, int kLen, TXN *pTxn);
 // int tdbBtreeUpsert(SBTree *pBt, const void *pKey, int nKey, const void *pData, int nData, TXN *pTxn);
 int tdbBtreeGet(SBTree *pBt, const void *pKey, int kLen, void **ppVal, int *vLen);
+int tdbBtreeGetBatch(SBTree *pBt, STdbTbBatchGetArg *pArgs, int32_t numOfArgs);
 int tdbBtreePGet(SBTree *pBt, const void *pKey, int kLen, void **ppKey, int *pkLen, void **ppVal, int *vLen);
 int tdbFreeOvflPage(SPgno pgno, int nSize, TXN *pTxn, SBTree *pBt);
 
@@ -202,12 +205,15 @@ int  tdbPagerInsertFreePage(SPager *pPager, SPage *pPage, TXN *pTxn);
 int tdbPagerRestoreJournals(SPager *pPager);
 int tdbPagerRollback(SPager *pPager);
 
+#define PAGE_FLAG_ANCHOR 1
+#define PAGE_FLAG_LOCAL  2
+#define PAGE_FLAG_DIRTY  4
+#define PAGE_FLAG_FREE   8
+#define PAGE_FLAG_FORCE  16 // force allocated
+
 // tdbPCache.c ====================================
 #define TDB_PCACHE_PAGE    \
-  u8           isAnchor;   \
-  u8           isLocal;    \
-  u8           isDirty;    \
-  u8           isFree;     \
+  volatile i32 flags;      \
   volatile i32 nRef;       \
   i32          id;         \
   SPage       *pFreeNext;  \
@@ -343,6 +349,18 @@ int     tdbPageDropCell(SPage *pPage, int idx, TXN *pTxn, SBTree *pBt);
 int     tdbPageUpdateCell(SPage *pPage, int idx, SCell *pCell, int szCell, TXN *pTxn, SBTree *pBt);
 int32_t tdbPageCopy(SPage *pFromPage, SPage *pToPage, int deepCopyOvfl);
 int     tdbPageCapacity(int pageSize, int amHdrSize);
+
+static inline void tdbPageSetFlag(SPage* pPage, i32 flag) {
+  atomic_or_fetch_32(&pPage->flags, flag);
+}
+
+static inline void tdbPageClearFlag(SPage* pPage, i32 flag) {
+  atomic_and_fetch_32(&pPage->flags, ~flag);
+}
+
+static inline bool tdbPageGetFlag(SPage* pPage, i32 flag) {
+  return (atomic_load_32(&pPage->flags) & flag) != 0;
+}
 
 static inline SCell *tdbPageGetCell(SPage *pPage, int idx) {
   SCell *pCell;

@@ -1,0 +1,578 @@
+/*
+ * Copyright (c) 2019 TAOS Data, Inc. <jhtao@taosdata.com>
+ *
+ * SPDX-License-Identifier: AGPL-3.0-or-later
+ *
+ * This program is free software: you can use, redistribute, and/or modify
+ * it under the terms of the GNU Affero General Public License, version 3
+ * or later ("AGPL"), as published by the Free Software Foundation.
+ *
+ * This program is distributed in the hope that it will be useful, but WITHOUT
+ * ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+ * FITNESS FOR A PARTICULAR PURPOSE.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program. If not, see <http://www.gnu.org/licenses/>.
+ */
+
+#include "extError.h"
+
+#include <ctype.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+
+#include "extConnector.h"
+#include "osString.h"
+#include "taoserror.h"
+
+static bool extContainsNoCase(const char* text, const char* needle) {
+  if (NULL == text || NULL == needle || '\0' == needle[0]) {
+    return false;
+  }
+
+  size_t textLen = strlen(text);
+  size_t needleLen = strlen(needle);
+  if (textLen == 0 || needleLen == 0 || needleLen > textLen) {
+    return false;
+  }
+
+  for (size_t i = 0; i + needleLen <= textLen; ++i) {
+    size_t j = 0;
+    for (; j < needleLen; ++j) {
+      if (tolower((unsigned char)text[i + j]) != tolower((unsigned char)needle[j])) {
+        break;
+      }
+    }
+    if (j == needleLen) {
+      return true;
+    }
+  }
+
+  return false;
+}
+
+static bool extExtractTokenValue(const char* pMsg, const char* pToken, char* pBuf, int32_t bufLen) {
+  if (NULL == pMsg || NULL == pToken || NULL == pBuf || bufLen <= 0) {
+    return false;
+  }
+
+  pBuf[0] = '\0';
+  const char* pPos = taosStrCaseStr(pMsg, pToken);
+  if (NULL == pPos) {
+    return false;
+  }
+
+  pPos += strlen(pToken);
+  while (*pPos == ' ' || *pPos == '\'' || *pPos == '"') {
+    ++pPos;
+  }
+
+  int32_t i = 0;
+  while (*pPos != '\0' && *pPos != ',' && *pPos != ']' && !isspace((unsigned char)*pPos) && i < (bufLen - 1)) {
+    pBuf[i++] = *pPos++;
+  }
+  while (i > 0 && (pBuf[i - 1] == '\'' || pBuf[i - 1] == '"')) {
+    --i;
+  }
+  pBuf[i] = '\0';
+  return i > 0;
+}
+
+static bool extExtractTokenInt(const char* pMsg, const char* pToken, int32_t* pVal) {
+  if (NULL == pVal) {
+    return false;
+  }
+
+  char buf[64] = {0};
+  if (!extExtractTokenValue(pMsg, pToken, buf, sizeof(buf))) {
+    return false;
+  }
+
+  char* end = NULL;
+  int64_t v = taosStr2Int64(buf, &end, 10);
+  if (NULL == end || *end != '\0') {
+    return false;
+  }
+
+  *pVal = (int32_t)v;
+  return true;
+}
+
+/* Oracle prefixes every error text with its number, e.g.
+ *   "ORA-00942: table or view does not exist"
+ * The ODBC driver reports all of them under SQLSTATE 42000, so the number is
+ * the only way to tell a rendering mismatch apart from a real failure
+ * (DS 5.3.8.1).  Returns 0 when the text carries no ORA number. */
+static int32_t extParseOraNumber(const char* pMsg) {
+  if (NULL == pMsg) {
+    return 0;
+  }
+
+  const char* pPos = taosStrCaseStr(pMsg, "ORA-");
+  if (NULL == pPos) {
+    return 0;
+  }
+
+  pPos += 4;
+  int32_t value = 0;
+  int32_t digits = 0;
+  while (isdigit((unsigned char)*pPos)) {
+    if (digits < 6) {
+      value = value * 10 + (*pPos - '0');
+      ++digits;
+    }
+    ++pPos;
+  }
+  return (digits > 0) ? value : 0;
+}
+
+static bool extExtractFuncNameFallback(const char* pMsg, char* pBuf, int32_t bufLen) {
+  if (NULL == pMsg || NULL == pBuf || bufLen <= 0) {
+    return false;
+  }
+
+  /* SQL Server names the object inside quotes rather than after "function ",
+   * and its wording ("built-in function name") contains the generic marker -
+   * the scanner below would return "name" instead of the function.  Extract
+   * the quoted token directly first:
+   *   195:  "'FOO' is not a recognized built-in function name."
+   *   2812: "Could not find stored procedure 'FOO'." */
+  if (NULL != taosStrCaseStr(pMsg, "is not a recognized built-in function name") ||
+      NULL != taosStrCaseStr(pMsg, "could not find stored procedure")) {
+    const char* pOpen = strchr(pMsg, '\'');
+    if (NULL != pOpen) {
+      const char* pClose = strchr(pOpen + 1, '\'');
+      if (NULL != pClose && pClose > pOpen + 1) {
+        int32_t len = (int32_t)(pClose - pOpen - 1);
+        if (len > bufLen - 1) {
+          len = bufLen - 1;
+        }
+        memcpy(pBuf, pOpen + 1, (size_t)len);
+        pBuf[len] = '\0';
+        return true;
+      }
+    }
+    return false;
+  }
+
+  const char* pPos = taosStrCaseStr(pMsg, "function ");
+  if (NULL == pPos) {
+    pPos = taosStrCaseStr(pMsg, "unknown function");
+    if (NULL == pPos) {
+      return false;
+    }
+    pPos += strlen("unknown function");
+  } else {
+    pPos += strlen("function ");
+  }
+
+  while (*pPos != '\0' && (*pPos == '\'' || *pPos == '"' || *pPos == '`' || isspace((unsigned char)*pPos))) {
+    ++pPos;
+  }
+
+  int32_t i = 0;
+  while (*pPos != '\0' && (isalnum((unsigned char)*pPos) || *pPos == '_' || *pPos == '.') && i < (bufLen - 1)) {
+    pBuf[i++] = *pPos++;
+  }
+  pBuf[i] = '\0';
+  return i > 0;
+}
+
+static EExtClauseKind extInferClauseFromMessage(const char* pMsg) {
+  if (NULL == pMsg || '\0' == pMsg[0]) {
+    return EXT_CLAUSE_FILTER;
+  }
+
+  if (NULL != taosStrCaseStr(pMsg, "order by") || NULL != taosStrCaseStr(pMsg, "clause=order")) {
+    return EXT_CLAUSE_ORDER;
+  }
+  if (NULL != taosStrCaseStr(pMsg, "group by") || NULL != taosStrCaseStr(pMsg, "having") ||
+      NULL != taosStrCaseStr(pMsg, "clause=agg")) {
+    return EXT_CLAUSE_AGG;
+  }
+  if (NULL != taosStrCaseStr(pMsg, "limit") || NULL != taosStrCaseStr(pMsg, "clause=limit")) {
+    return EXT_CLAUSE_LIMIT;
+  }
+  if (NULL != taosStrCaseStr(pMsg, " join ") || NULL != taosStrCaseStr(pMsg, "clause=join")) {
+    return EXT_CLAUSE_JOIN;
+  }
+  if (NULL != taosStrCaseStr(pMsg, "select") || NULL != taosStrCaseStr(pMsg, "projection") ||
+      NULL != taosStrCaseStr(pMsg, "clause=projection")) {
+    return EXT_CLAUSE_PROJECTION;
+  }
+
+  return EXT_CLAUSE_FILTER;
+}
+
+static void extFillDiagnosticDetail(SExtPushdownDiagnostic* pDiag, const char* pMsg) {
+  if (NULL == pDiag) {
+    return;
+  }
+
+  int32_t intVal = 0;
+  switch (pDiag->suggestedDemoteKind) {
+    case EXT_DEMOTE_KIND_FUNC:
+      if (!extExtractTokenValue(pMsg, "func=", pDiag->detail.funcName, sizeof(pDiag->detail.funcName))) {
+        (void)extExtractFuncNameFallback(pMsg, pDiag->detail.funcName, sizeof(pDiag->detail.funcName));
+      }
+      break;
+    case EXT_DEMOTE_KIND_OP:
+      if (extExtractTokenInt(pMsg, "op=", &intVal)) {
+        pDiag->detail.opType = (EOperatorType)intVal;
+      }
+      break;
+    case EXT_DEMOTE_KIND_CLAUSE:
+      if (extExtractTokenInt(pMsg, "clause=", &intVal) && intVal >= 0 && intVal < EXT_CLAUSE_MAX) {
+        pDiag->detail.clauseKind = (EExtClauseKind)intVal;
+      } else {
+        pDiag->detail.clauseKind = extInferClauseFromMessage(pMsg);
+      }
+      break;
+    case EXT_DEMOTE_KIND_TYPE:
+      if (extExtractTokenInt(pMsg, "type=", &intVal) && intVal >= INT8_MIN && intVal <= INT8_MAX) {
+        pDiag->detail.tsdbTypeCode = (int8_t)intVal;
+      }
+      break;
+    default:
+      break;
+  }
+}
+
+static void extSetDemoteByCode(int32_t tdCode, SExtPushdownDiagnostic* pDiag) {
+  switch (tdCode) {
+    case TSDB_CODE_EXT_PUSHDOWN_DEMOTE_FUNC:
+      pDiag->reasonCode = EXT_DEMOTE_REASON_REMOTE_FUNC_MISS;
+      pDiag->suggestedDemoteKind = EXT_DEMOTE_KIND_FUNC;
+      break;
+    case TSDB_CODE_EXT_PUSHDOWN_DEMOTE_OP:
+      pDiag->reasonCode = EXT_DEMOTE_REASON_REMOTE_SYNTAX_PRECISE;
+      pDiag->suggestedDemoteKind = EXT_DEMOTE_KIND_OP;
+      break;
+    case TSDB_CODE_EXT_PUSHDOWN_DEMOTE_CLAUSE:
+      pDiag->reasonCode = EXT_DEMOTE_REASON_REMOTE_SYNTAX_PRECISE;
+      pDiag->suggestedDemoteKind = EXT_DEMOTE_KIND_CLAUSE;
+      break;
+    case TSDB_CODE_EXT_PUSHDOWN_DEMOTE_TYPE:
+      pDiag->reasonCode = EXT_DEMOTE_REASON_REMOTE_TYPE_MISMATCH;
+      pDiag->suggestedDemoteKind = EXT_DEMOTE_KIND_TYPE;
+      break;
+    case TSDB_CODE_EXT_PUSHDOWN_DEMOTE_OVERLAY:
+      pDiag->reasonCode = EXT_DEMOTE_REASON_REMOTE_UNKNOWN;
+      pDiag->suggestedDemoteKind = EXT_DEMOTE_KIND_NONE;
+      break;
+    case TSDB_CODE_EXT_QUERY_TIMEOUT:
+      pDiag->reasonCode = EXT_DEMOTE_REASON_REMOTE_TIMEOUT;
+      pDiag->suggestedDemoteKind = EXT_DEMOTE_KIND_NONE;
+      break;
+    case TSDB_CODE_EXT_CONNECT_FAILED:
+      pDiag->reasonCode = EXT_DEMOTE_REASON_REMOTE_NETWORK;
+      pDiag->suggestedDemoteKind = EXT_DEMOTE_KIND_NONE;
+      break;
+    case TSDB_CODE_EXT_REMOTE_INTERNAL:
+    case TSDB_CODE_EXT_FETCH_FAILED:
+      pDiag->reasonCode = EXT_DEMOTE_REASON_REMOTE_INTERNAL;
+      pDiag->suggestedDemoteKind = EXT_DEMOTE_KIND_NONE;
+      break;
+    default:
+      pDiag->reasonCode = EXT_DEMOTE_REASON_REMOTE_UNKNOWN;
+      pDiag->suggestedDemoteKind = EXT_DEMOTE_KIND_NONE;
+      break;
+  }
+}
+
+bool extIsRetryableCode(int32_t errCode) {
+  switch (errCode) {
+    case TSDB_CODE_EXT_CONNECT_FAILED:
+    case TSDB_CODE_EXT_QUERY_TIMEOUT:
+    case TSDB_CODE_EXT_RESOURCE_EXHAUSTED:
+      return true;
+    default:
+      return false;
+  }
+}
+
+int32_t extClassifyRemoteError(int32_t tdCode, const char* remoteSqlState, int32_t remoteCode,
+                               int32_t httpStatus, const char* remoteMessage,
+                               SExtPushdownDiagnostic* pDiag) {
+  if (NULL == pDiag) {
+    return TSDB_CODE_INVALID_PARA;
+  }
+
+  memset(pDiag, 0, sizeof(*pDiag));
+  pDiag->classifiedCode = tdCode;
+  pDiag->remoteCode = remoteCode;
+  pDiag->httpStatus = httpStatus;
+  extSetDemoteByCode(tdCode, pDiag);
+
+  if (NULL != remoteSqlState && remoteSqlState[0] != '\0') {
+    tstrncpy(pDiag->remoteSqlState, remoteSqlState, sizeof(pDiag->remoteSqlState));
+  }
+  if (NULL != remoteMessage && remoteMessage[0] != '\0') {
+    tstrncpy(pDiag->remoteMessage, remoteMessage, sizeof(pDiag->remoteMessage));
+  }
+
+  int32_t reasonToken = 0;
+  int32_t kindToken = 0;
+  if (extExtractTokenInt(remoteMessage, "reason=", &reasonToken) && reasonToken > 0) {
+    pDiag->reasonCode = (EExtDemoteReason)reasonToken;
+  }
+  if (extExtractTokenInt(remoteMessage, "diag_kind=", &kindToken) &&
+      kindToken >= EXT_DEMOTE_KIND_NONE && kindToken <= EXT_DEMOTE_KIND_TYPE) {
+    pDiag->suggestedDemoteKind = (EExtCapDemoteKind)kindToken;
+  }
+
+  if (pDiag->suggestedDemoteKind != EXT_DEMOTE_KIND_NONE) {
+    extFillDiagnosticDetail(pDiag, remoteMessage);
+    return TSDB_CODE_SUCCESS;
+  }
+
+  if (extContainsNoCase(remoteMessage, "function") &&
+      (extContainsNoCase(remoteMessage, "does not exist") ||
+       extContainsNoCase(remoteMessage, "unknown function") ||
+       extContainsNoCase(remoteMessage, "invalid function") ||
+       extContainsNoCase(remoteMessage, "no function matches"))) {
+    // PostgreSQL: "function xxx does not exist"
+    // DataFusion/InfluxDB 3: "Invalid function 'xxx'" / "No function matches ..."
+    pDiag->reasonCode = EXT_DEMOTE_REASON_REMOTE_FUNC_MISS;
+    pDiag->suggestedDemoteKind = EXT_DEMOTE_KIND_FUNC;
+    extFillDiagnosticDetail(pDiag, remoteMessage);
+    return TSDB_CODE_SUCCESS;
+  }
+
+  // SQL Server 195/2812: "'xxx' is not a recognized built-in function name" /
+  // "Could not find stored procedure 'xxx'" - the pushed expression named a
+  // function T-SQL does not have (DS 5.3.8.1, precise -> catalog demote).
+  if (extContainsNoCase(remoteMessage, "is not a recognized built-in function name") ||
+      extContainsNoCase(remoteMessage, "could not find stored procedure")) {
+    pDiag->reasonCode = EXT_DEMOTE_REASON_REMOTE_FUNC_MISS;
+    pDiag->suggestedDemoteKind = EXT_DEMOTE_KIND_FUNC;
+    extFillDiagnosticDetail(pDiag, remoteMessage);
+    return TSDB_CODE_SUCCESS;
+  }
+
+  // PostgreSQL/InfluxDB: column not in GROUP BY - the pushed-down AGG clause is invalid.
+  // SQL Server 8120/8121: "Column 'x' is invalid in the select list because it is not
+  // contained in either an aggregate function or the GROUP BY [HAVING] clause."
+  if (extContainsNoCase(remoteMessage, "must appear in the group by clause") ||
+      extContainsNoCase(remoteMessage, "not in group by clause") ||
+      extContainsNoCase(remoteMessage, "not contained in either an aggregate function") ||
+      extContainsNoCase(remoteMessage, "schema error: no field named")) {
+    pDiag->reasonCode = EXT_DEMOTE_REASON_REMOTE_SYNTAX_PRECISE;
+    pDiag->suggestedDemoteKind = EXT_DEMOTE_KIND_CLAUSE;
+    pDiag->detail.clauseKind = EXT_CLAUSE_AGG;
+    return TSDB_CODE_SUCCESS;
+  }
+
+  if (extContainsNoCase(remoteMessage, "operator does not exist") ||
+      extContainsNoCase(remoteMessage, "unsupported operator")) {
+    pDiag->reasonCode = EXT_DEMOTE_REASON_REMOTE_SYNTAX_PRECISE;
+    pDiag->suggestedDemoteKind = EXT_DEMOTE_KIND_OP;
+    extFillDiagnosticDetail(pDiag, remoteMessage);
+    return TSDB_CODE_SUCCESS;
+  }
+
+  if (extContainsNoCase(remoteMessage, "type mismatch") ||
+      extContainsNoCase(remoteMessage, "cannot cast") ||
+      extContainsNoCase(remoteMessage, "incompatible type") ||
+      // SQL Server 206/241/8114/8115: "Operand type clash ..." /
+      // "Conversion failed when converting ..." (DS 5.3.8.1).  Error 245 also
+      // lands here: the demote chain can re-render the offending comparison
+      // and recover.  When demoting cannot help -- a failure inside the remote
+      // object itself, e.g. a view whose CAST fails on a row value -- the
+      // client's bounded pushdown-attempt budget stops the retries and surfaces
+      // the error instead of restarting forever (DS 5.3.10).
+      extContainsNoCase(remoteMessage, "operand type clash") ||
+      extContainsNoCase(remoteMessage, "conversion failed when converting")) {
+    pDiag->reasonCode = EXT_DEMOTE_REASON_REMOTE_TYPE_MISMATCH;
+    pDiag->suggestedDemoteKind = EXT_DEMOTE_KIND_TYPE;
+    extFillDiagnosticDetail(pDiag, remoteMessage);
+    return TSDB_CODE_SUCCESS;
+  }
+
+  /* Oracle (DS 5.3.8.1).  Every parse and semantic error arrives as SQLSTATE
+   * 42000, so the generic fallback below could only demote the whole session.
+   * The ORA number identifies the construct that failed, which keeps the demote
+   * precise: the retry drops just that function or clause and keeps the rest of
+   * the pushdown. */
+  switch (extParseOraNumber(remoteMessage)) {
+    case 904:   // invalid identifier
+    case 933:   // SQL command not properly ended
+    case 936:   // missing expression
+    case 900:   // invalid SQL statement
+    case 923:   // FROM keyword not found where expected
+      /* Deliberately vague (DS 5.3.8.1): an invalid identifier is either a
+       * function Oracle does not have (the capability bit was wrong) or a
+       * column name the renderer got wrong.  A precise demote would persist
+       * "this function is unavailable" into the capability state, which would
+       * hide a rendering defect instead of surfacing it.  The session overlay
+       * still falls back for the current statement. */
+      pDiag->reasonCode = EXT_DEMOTE_REASON_REMOTE_SYNTAX_VAGUE;
+      pDiag->suggestedDemoteKind = EXT_DEMOTE_KIND_NONE;
+      return TSDB_CODE_SUCCESS;
+    case 934:   // group function is not allowed here
+    case 937:   // not a single-group group function
+    case 979:   // not a GROUP BY expression
+      pDiag->reasonCode = EXT_DEMOTE_REASON_REMOTE_SYNTAX_PRECISE;
+      pDiag->suggestedDemoteKind = EXT_DEMOTE_KIND_CLAUSE;
+      pDiag->detail.clauseKind = EXT_CLAUSE_AGG;
+      return TSDB_CODE_SUCCESS;
+    case 918:   // column ambiguously defined
+      pDiag->reasonCode = EXT_DEMOTE_REASON_REMOTE_SYNTAX_PRECISE;
+      pDiag->suggestedDemoteKind = EXT_DEMOTE_KIND_CLAUSE;
+      pDiag->detail.clauseKind = EXT_CLAUSE_JOIN;
+      return TSDB_CODE_SUCCESS;
+    case 1791:  // not a SELECTed expression: DISTINCT plus ORDER BY on a hidden key
+      pDiag->reasonCode = EXT_DEMOTE_REASON_REMOTE_SYNTAX_PRECISE;
+      pDiag->suggestedDemoteKind = EXT_DEMOTE_KIND_CLAUSE;
+      pDiag->detail.clauseKind = EXT_CLAUSE_ORDER;
+      return TSDB_CODE_SUCCESS;
+    case 1795:  // maximum number of expressions in a list is 1000
+      /* Fallback only: the renderer splits long IN lists into groups of 1000
+       * (dynAppendOracleInList), so this fires only when that rewrite did not
+       * take effect.  It is a filter-shape problem, hence FILTER. */
+      pDiag->reasonCode = EXT_DEMOTE_REASON_REMOTE_SYNTAX_PRECISE;
+      pDiag->suggestedDemoteKind = EXT_DEMOTE_KIND_CLAUSE;
+      pDiag->detail.clauseKind = EXT_CLAUSE_FILTER;
+      return TSDB_CODE_SUCCESS;
+    case 932:   // inconsistent datatypes
+    case 1722:  // invalid number
+    case 1861:  // literal does not match format string
+      pDiag->reasonCode = EXT_DEMOTE_REASON_REMOTE_TYPE_MISMATCH;
+      pDiag->suggestedDemoteKind = EXT_DEMOTE_KIND_TYPE;
+      extFillDiagnosticDetail(pDiag, remoteMessage);
+      return TSDB_CODE_SUCCESS;
+    case 909:   // invalid number of arguments
+    case 938:   // not enough arguments for function
+      pDiag->reasonCode = EXT_DEMOTE_REASON_REMOTE_FUNC_MISS;
+      pDiag->suggestedDemoteKind = EXT_DEMOTE_KIND_FUNC;
+      extFillDiagnosticDetail(pDiag, remoteMessage);
+      return TSDB_CODE_SUCCESS;
+    default:
+      break;
+  }
+
+  if ((NULL != remoteSqlState && strncmp(remoteSqlState, "42", 2) == 0) ||
+      extContainsNoCase(remoteMessage, "syntax error")) {
+    pDiag->reasonCode = EXT_DEMOTE_REASON_REMOTE_SYNTAX_VAGUE;
+    pDiag->suggestedDemoteKind = EXT_DEMOTE_KIND_NONE;
+    return TSDB_CODE_SUCCESS;
+  }
+
+  if (extContainsNoCase(remoteMessage, "timeout")) {
+    pDiag->reasonCode = EXT_DEMOTE_REASON_REMOTE_TIMEOUT;
+  } else if (extContainsNoCase(remoteMessage, "network") ||
+             extContainsNoCase(remoteMessage, "connection reset") ||
+             extContainsNoCase(remoteMessage, "broken pipe")) {
+    pDiag->reasonCode = EXT_DEMOTE_REASON_REMOTE_NETWORK;
+  }
+
+  return TSDB_CODE_SUCCESS;
+}
+
+int32_t extBuildPushdownDiagnostic(int32_t tdCode, const SExtConnectorError* pErr,
+                                   const char* generatedSql, SExtPushdownDiagnostic* pDiag) {
+  if (NULL == pDiag) {
+    return TSDB_CODE_INVALID_PARA;
+  }
+
+  int32_t code = extClassifyRemoteError(tdCode,
+                                        (NULL != pErr) ? pErr->remoteSqlstate : NULL,
+                                        (NULL != pErr) ? pErr->remoteCode : 0,
+                                        (NULL != pErr) ? pErr->httpStatus : 0,
+                                        (NULL != pErr) ? pErr->remoteMessage : NULL,
+                                        pDiag);
+  if (TSDB_CODE_SUCCESS != code) {
+    return code;
+  }
+
+  if (NULL != generatedSql && generatedSql[0] != '\0') {
+    tstrncpy(pDiag->generatedSql, generatedSql, sizeof(pDiag->generatedSql));
+  }
+
+  return TSDB_CODE_SUCCESS;
+}
+
+int32_t extMapDiagnosticToCode(int32_t tdCode, const SExtPushdownDiagnostic* pDiag) {
+  if (NULL == pDiag) {
+    return tdCode;
+  }
+
+  if (tdCode == TSDB_CODE_EXT_PUSHDOWN_DEMOTE_FUNC || tdCode == TSDB_CODE_EXT_PUSHDOWN_DEMOTE_OP ||
+      tdCode == TSDB_CODE_EXT_PUSHDOWN_DEMOTE_CLAUSE || tdCode == TSDB_CODE_EXT_PUSHDOWN_DEMOTE_TYPE ||
+      tdCode == TSDB_CODE_EXT_PUSHDOWN_DEMOTE_OVERLAY) {
+    return tdCode;
+  }
+
+  if (tdCode != TSDB_CODE_EXT_FETCH_FAILED && tdCode != TSDB_CODE_EXT_PUSHDOWN_FAILED &&
+      tdCode != TSDB_CODE_EXT_SYNTAX_UNSUPPORTED && tdCode != TSDB_CODE_EXT_REMOTE_INTERNAL) {
+    return tdCode;
+  }
+
+  if (EXT_REASON_IS_PRECISE(pDiag->reasonCode)) {
+    switch (pDiag->suggestedDemoteKind) {
+      case EXT_DEMOTE_KIND_FUNC:
+        return TSDB_CODE_EXT_PUSHDOWN_DEMOTE_FUNC;
+      case EXT_DEMOTE_KIND_OP:
+        return TSDB_CODE_EXT_PUSHDOWN_DEMOTE_OP;
+      case EXT_DEMOTE_KIND_CLAUSE:
+        return TSDB_CODE_EXT_PUSHDOWN_DEMOTE_CLAUSE;
+      case EXT_DEMOTE_KIND_TYPE:
+        return TSDB_CODE_EXT_PUSHDOWN_DEMOTE_TYPE;
+      default:
+        return TSDB_CODE_EXT_PUSHDOWN_DEMOTE_OVERLAY;
+    }
+  }
+
+  if (pDiag->reasonCode == EXT_DEMOTE_REASON_REMOTE_SYNTAX_VAGUE) {
+    return TSDB_CODE_EXT_PUSHDOWN_DEMOTE_OVERLAY;
+  }
+
+  /*
+   * Runtime connector failures such as EXT_REMOTE_INTERNAL / EXT_FETCH_FAILED
+   * must still surface to the client when classification cannot prove a
+   * pushdown-only incompatibility. Demoting these vague internal/unknown
+   * errors to overlay causes the client to restart the same statement instead
+   * of honoring NEED_CLIENT_RETURN_EXT_SOURCE_ERROR semantics.
+   */
+  if (pDiag->reasonCode == EXT_DEMOTE_REASON_REMOTE_INTERNAL ||
+      pDiag->reasonCode == EXT_DEMOTE_REASON_REMOTE_UNKNOWN) {
+    return tdCode;
+  }
+
+  return tdCode;
+}
+
+int32_t extFormatPushdownDiagnosticHint(const SExtPushdownDiagnostic* pDiag, char* pBuf, int32_t bufLen) {
+  if (NULL == pDiag || NULL == pBuf || bufLen <= 0) {
+    return TSDB_CODE_INVALID_PARA;
+  }
+
+  int32_t offset = snprintf(pBuf, bufLen, "diag_kind=%d, reason=%d",
+                            (int32_t)pDiag->suggestedDemoteKind, (int32_t)pDiag->reasonCode);
+  if (offset < 0 || offset >= bufLen) {
+    pBuf[bufLen - 1] = '\0';
+    return TSDB_CODE_SUCCESS;
+  }
+
+  switch (pDiag->suggestedDemoteKind) {
+    case EXT_DEMOTE_KIND_FUNC:
+      if (pDiag->detail.funcName[0] != '\0') {
+        (void)snprintf(pBuf + offset, bufLen - offset, ", func=%s", pDiag->detail.funcName);
+      }
+      break;
+    case EXT_DEMOTE_KIND_OP:
+      (void)snprintf(pBuf + offset, bufLen - offset, ", op=%d", (int32_t)pDiag->detail.opType);
+      break;
+    case EXT_DEMOTE_KIND_CLAUSE:
+      (void)snprintf(pBuf + offset, bufLen - offset, ", clause=%d", (int32_t)pDiag->detail.clauseKind);
+      break;
+    case EXT_DEMOTE_KIND_TYPE:
+      (void)snprintf(pBuf + offset, bufLen - offset, ", type=%d", (int32_t)pDiag->detail.tsdbTypeCode);
+      break;
+    default:
+      break;
+  }
+
+  return TSDB_CODE_SUCCESS;
+}

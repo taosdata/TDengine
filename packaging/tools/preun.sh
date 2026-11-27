@@ -1,6 +1,19 @@
 #!/bin/bash
+
+# Copyright (c) 2019 TAOS Data, Inc. <jhtao@taosdata.com>
 #
-# Script to stop the service and uninstall TSDB
+# SPDX-License-Identifier: AGPL-3.0-or-later
+#
+# This program is free software: you can use, redistribute, and/or modify
+# it under the terms of the GNU Affero General Public License, version 3
+# or later ("AGPL"), as published by the Free Software Foundation.
+#
+# This program is distributed in the hope that it will be useful, but WITHOUT
+# ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+# FITNESS FOR A PARTICULAR PURPOSE.
+#
+# You should have received a copy of the GNU Affero General Public License
+# along with this program. If not, see <http://www.gnu.org/licenses/>.
 
 RED='\033[0;31m'
 GREEN='\033[1;32m'
@@ -162,6 +175,7 @@ ${csudo}rm -f ${bin_link_dir}/taoskeeper  || :
 ${csudo}rm -f ${bin_link_dir}/taos-explorer  || :
 ${csudo}rm -f ${bin_link_dir}/start-all.sh  || :
 ${csudo}rm -f ${bin_link_dir}/stop-all.sh  || :
+${csudo}rm -f ${bin_link_dir}/reconcile-tsdb-nodes.sh || :
 ${csudo}rm -f ${cfg_link_dir}/*.new      || :
 ${csudo}rm -f ${inc_link_dir}/taos.h     || :
 ${csudo}rm -f ${inc_link_dir}/taosdef.h  || :

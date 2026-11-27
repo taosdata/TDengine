@@ -1,7 +1,19 @@
 #!/usr/bin/env python3
-# filepath: hot_update/config.py
+
+# Copyright (c) 2026 TAOS Data, Inc. <jhtao@taosdata.com>
 #
-# Global configuration for rolling upgrade test
+# SPDX-License-Identifier: AGPL-3.0-or-later
+#
+# This program is free software: you can use, redistribute, and/or modify
+# it under the terms of the GNU Affero General Public License, version 3
+# or later ("AGPL"), as published by the Free Software Foundation.
+#
+# This program is distributed in the hope that it will be useful, but WITHOUT
+# ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+# FITNESS FOR A PARTICULAR PURPOSE.
+#
+# You should have received a copy of the GNU Affero General Public License
+# along with this program. If not, see <http://www.gnu.org/licenses/>.
 
 import os
 
@@ -57,6 +69,34 @@ TSMA_NAME = "tsma_compat_meters"  # TSMA on meters stable (sum/avg/min/max/count
 STREAM_NAME      = "stream_compat_meters"  # PERIOD stream aggregating from meters stable
 STREAM_OUT_TABLE = "stream_compat_out"     # output table for stream results
 
+# ==================== Virtual table ====================
+# A plain source table plus a virtual normal table that references two of its
+# columns.  CREATE VTABLE and local column references exist on every base
+# version used by the upgrade matrix (3.3.6.0 / 3.3.8.0 / 3.4.0.0 / 3.4.1.0 /
+# 3.4.2.1 / 3.4.3.0), so this resource is created on the BASE version and queried
+# again after the upgrade.  The post-upgrade query is the point: it makes the
+# client fetch the virtual table's metadata, which is where a changed metadata
+# frame shows up as an incompatible message instead of a silent pass.
+VTABLE_MIN_VERSION = "3.3.6.0"   # lowest verified base version; raise when a
+                                 # lower baseline is added to the matrix
+VTABLE_SRC_TABLE  = "vsrc_compat"
+VTABLE_NAME       = "vtb_compat_local"
+VTABLE_ROWS       = 3
+
+# Virtual super table plus a virtual child table on top of it.  Both carry
+# their own persisted metadata (the child stores column bindings and tags), so
+# they are the second shape the upgrade has to replay correctly.
+VTABLE_STB_NAME   = "vstb_compat"
+VTABLE_CHILD_NAME = "vctb_compat"
+VTABLE_CHILD_TAG  = "beijing"
+
+# ALTER VTABLE is issued after the upgrade, so it exercises the ALTER request
+# path (SVAlterTbReq) instead of the already created resources.  The request
+# carries the virtual-table reference fields on every ALTER, so this crosses the
+# version boundary without needing an external database.
+VTABLE_ALTER_COL     = "voltage_alt"
+VTABLE_ALTER_REF_COL = "voltage"   # source column re-bound by ALTER COLUMN ... SET
+
 # ==================== Runtime thresholds ====================
 MAX_WRITE_LATENCY_S  = 2.0     # 写入延时上限（秒）
 MAX_QUERY_LATENCY_S  = 2.0     # 查询延时上限（秒）
@@ -69,6 +109,7 @@ MAX_CONSECUTIVE_RETRIES = 30   # 连续失败超过此次数 → 计为 1 次真
 RETRY_MAX_DURATION_S    = 150  # 单次 SQL 重试超过此秒数 → 也计为 1 次真正失败
 SUBSCRIBE_NO_DATA_TIMEOUT_S = 180  # 订阅：超过此秒数未收到任何数据判定不通过
 SUBSCRIBE_DRAIN_WAIT_S      = 60   # Phase 5 结束前等待订阅追上写入的最大时间（秒）
+SUBSCRIBE_READY_TIMEOUT_S   = 120  # Max seconds to wait for the subscriber handshake before Phase 5 starts
 
 # ==================== Upgrade ====================
 NODE_INSTALL_SLEEP_S  = 20    # STOP 后模拟安装新软件包的等待时间（秒）

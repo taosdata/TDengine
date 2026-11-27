@@ -1,0 +1,67 @@
+/*
+ * Copyright (c) 2025 TAOS Data, Inc. <jhtao@taosdata.com>
+ *
+ * SPDX-License-Identifier: AGPL-3.0-or-later
+ *
+ * This program is free software: you can use, redistribute, and/or modify
+ * it under the terms of the GNU Affero General Public License, version 3
+ * or later ("AGPL"), as published by the Free Software Foundation.
+ *
+ * This program is distributed in the hope that it will be useful, but WITHOUT
+ * ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+ * FITNESS FOR A PARTICULAR PURPOSE.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program. If not, see <http://www.gnu.org/licenses/>.
+ */
+
+#ifndef INC_RESTOREMETA_H_
+#define INC_RESTOREMETA_H_
+
+#include "bck.h"
+#include "restore.h"
+
+//
+// ---------------- struct ----------------
+//
+
+// restore tag thread
+typedef struct {
+    DBInfo*   dbInfo;
+    StbInfo*  stbInfo;
+    int       index;       // thread index (1-based)
+    TAOS*     conn;
+    TdThread  pid;
+    char      tagFile[MAX_PATH_LEN];  // tag data file to restore
+    int32_t   code;    // first error code from this thread
+} RestoreTagThread;
+
+
+//
+// ---------------- interface ----------------
+//
+
+// restore database meta: create db, create stb, create child tables with tags
+int restoreDatabaseMeta(const char *dbName);
+
+// restore database extended meta: virtual tables, streams, topics.
+// Must be called only after every database's physical tables (and, for
+// --content=ext-meta, the databases themselves) exist, because a virtual table
+// or a stream's INTO target may reference another database.
+//
+// Split into a "prepare" phase and an "apply" phase so restoreMain() can
+// create EVERY database (prepare) before applying ANY DDL (apply).  Applying
+// DDL per-database in discovery order fails with "Database does not exist" whenever
+// a cross-database stream/virtual table is restored before the database it
+// references — and the discovery order comes from raw readdir() and is
+// filesystem-dependent.
+int restoreDatabaseExtMetaPrepare(const char *dbName);
+int restoreDatabaseExtMetaApply(const char *dbName);
+
+// Validate that every user-specified table name (positional args) exists in
+// the backup files for the given database.  Must be called BEFORE any restore
+// work begins.  Returns TSDB_CODE_SUCCESS if all tables are found, or
+// TSDB_CODE_BCK_SPEC_TABLE_NOT_FOUND listing every missing name.
+int validateSpecTablesForRestore(const char *dbName);
+
+#endif  // INC_RESTOREMETA_H_

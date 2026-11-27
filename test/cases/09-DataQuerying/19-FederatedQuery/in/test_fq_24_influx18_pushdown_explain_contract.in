@@ -1,0 +1,18 @@
+set max_binary_display_width 1024;
+alter local "timezone" "UTC";
+
+SELECT i,d FROM fq24_influx18_pushdown_gate.fq24_influx18_pushdown.rows WHERE i >= 3 ORDER BY time DESC LIMIT 2 OFFSET 1;
+EXPLAIN VERBOSE TRUE SELECT i,d FROM fq24_influx18_pushdown_gate.fq24_influx18_pushdown.rows WHERE i >= 3 ORDER BY time DESC LIMIT 2 OFFSET 1;
+EXPLAIN ANALYZE VERBOSE TRUE SELECT i,d FROM fq24_influx18_pushdown_gate.fq24_influx18_pushdown.rows WHERE i >= 3 ORDER BY time DESC LIMIT 2 OFFSET 1;
+
+SELECT sum(i) FROM fq24_influx18_pushdown_gate.fq24_influx18_pushdown.rows;
+EXPLAIN VERBOSE TRUE SELECT sum(i) FROM fq24_influx18_pushdown_gate.fq24_influx18_pushdown.rows;
+EXPLAIN ANALYZE VERBOSE TRUE SELECT sum(i) FROM fq24_influx18_pushdown_gate.fq24_influx18_pushdown.rows;
+
+SELECT site,sum(i) FROM fq24_influx18_pushdown_gate.fq24_influx18_pushdown.rows PARTITION BY site ORDER BY site;
+EXPLAIN VERBOSE TRUE SELECT site,sum(i) FROM fq24_influx18_pushdown_gate.fq24_influx18_pushdown.rows PARTITION BY site ORDER BY site;
+EXPLAIN ANALYZE VERBOSE TRUE SELECT site,sum(i) FROM fq24_influx18_pushdown_gate.fq24_influx18_pushdown.rows PARTITION BY site ORDER BY site;
+
+SELECT _wstart,sum(i) FROM fq24_influx18_pushdown_gate.fq24_influx18_pushdown.rows WHERE time >= 1700000000000000000 AND time < 1700000007000000000 INTERVAL(2s);
+EXPLAIN VERBOSE TRUE SELECT _wstart,sum(i) FROM fq24_influx18_pushdown_gate.fq24_influx18_pushdown.rows WHERE time >= 1700000000000000000 AND time < 1700000007000000000 INTERVAL(2s);
+EXPLAIN ANALYZE VERBOSE TRUE SELECT _wstart,sum(i) FROM fq24_influx18_pushdown_gate.fq24_influx18_pushdown.rows WHERE time >= 1700000000000000000 AND time < 1700000007000000000 INTERVAL(2s);

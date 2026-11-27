@@ -1,3 +1,18 @@
+# Copyright (c) 2023 TAOS Data, Inc. <jhtao@taosdata.com>
+#
+# SPDX-License-Identifier: AGPL-3.0-or-later
+#
+# This program is free software: you can use, redistribute, and/or modify
+# it under the terms of the GNU Affero General Public License, version 3
+# or later ("AGPL"), as published by the Free Software Foundation.
+#
+# This program is distributed in the hope that it will be useful, but WITHOUT
+# ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+# FITNESS FOR A PARTICULAR PURPOSE.
+#
+# You should have received a copy of the GNU Affero General Public License
+# along with this program. If not, see <http://www.gnu.org/licenses/>.
+
 import taos
 import sys
 import time
@@ -231,7 +246,9 @@ class TestTS_3821:
         tdSql.checkRows(6)
 
         # status window
-        tdSql.error("select _wstart, count(*) from st state_window(t_bool);")
+        tdSql.query("select _wstart, count(*) from st state_window(t_bool);")
+        tdSql.checkRows(100)
+        tdSql.checkData(0, 1, 6)
         tdSql.query("select _wstart, count(*) from st partition by tbname state_window(c_bool);")
         tdSql.checkRows(5)
         tdSql.checkData(0, 1, 100)
@@ -242,7 +259,9 @@ class TestTS_3821:
         tdSql.checkData(0, 1, 100)
 
         # event window
-        tdSql.error("select _wstart, _wend, count(*) from (select * from st order by ts, tbname) event_window start with t_bool=true end with t_bool=false;")
+        tdSql.query("select _wstart, _wend, count(*) from (select * from st order by ts, tbname) event_window start with t_bool=true end with t_bool=false;")
+        tdSql.checkRows(200)
+        tdSql.checkData(0, 2, 2)
 
     def check_query_with_union(self):
         tdSql.query("select count(ts) from (select * from ct1 union select * from ct2 union select * from ct3);")
@@ -828,8 +847,7 @@ class TestTS_3821:
         
         Since: v3.0.0.0
 
-        Labels: common,ci
-
+        Labels: common,ci,integration,functional
         Jira: None
 
         History:

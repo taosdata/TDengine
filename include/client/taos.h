@@ -1,6 +1,8 @@
 /*
  * Copyright (c) 2019 TAOS Data, Inc. <jhtao@taosdata.com>
  *
+ * SPDX-License-Identifier: AGPL-3.0-or-later
+ *
  * This program is free software: you can use, redistribute, and/or modify
  * it under the terms of the GNU Affero General Public License, version 3
  * or later ("AGPL"), as published by the Free Software Foundation.
@@ -263,6 +265,9 @@ DLL_EXPORT TAOS *taos_connect_totp(const char *ip, const char *user, const char 
 DLL_EXPORT int   taos_connect_test(const char *ip, const char *user, const char *pass, const char* totp, const char *db, uint16_t port);
 DLL_EXPORT TAOS *taos_connect_token(const char *ip, const char *token, const char *db, uint16_t port);
 DLL_EXPORT void  taos_close(TAOS *taos);
+DLL_EXPORT int   taos_txn_begin(TAOS *taos);     // only supported in Enterprise Edition currently
+DLL_EXPORT int   taos_txn_commit(TAOS *taos);    // only supported in Enterprise Edition currently
+DLL_EXPORT int   taos_txn_rollback(TAOS *taos);  // only supported in Enterprise Edition currently
 
 DLL_EXPORT const char *taos_data_type(int type);
 
@@ -399,6 +404,9 @@ DLL_EXPORT const char *taos_get_server_info(TAOS *taos);
 DLL_EXPORT const char *taos_get_client_info();
 DLL_EXPORT int         taos_get_current_db(TAOS *taos, char *database, int len, int *required);
 DLL_EXPORT int         taos_get_connection_info(TAOS *taos, TSDB_CONNECTION_INFO info, char* buffer, int* len);
+/* Return the timezone handle captured when the result was created.
+ * The handle is owned internally; caller must NOT call tzfree() on it. */
+DLL_EXPORT void       *taos_get_result_tz(TAOS_RES *res);
 
 DLL_EXPORT const char *taos_errstr(TAOS_RES *res);
 DLL_EXPORT int         taos_errno(TAOS_RES *res);
@@ -514,7 +522,7 @@ DLL_EXPORT int32_t   tmq_unsubscribe(tmq_t *tmq);
 DLL_EXPORT int32_t   tmq_subscription(tmq_t *tmq, tmq_list_t **topics);
 DLL_EXPORT TAOS_RES *tmq_consumer_poll(tmq_t *tmq, int64_t timeout);
 DLL_EXPORT int32_t   tmq_consumer_close(tmq_t *tmq);
-DLL_EXPORT int32_t   tmq_commit_sync(tmq_t *tmq, const TAOS_RES *msg);  // Commit the msg’s offset + 1
+DLL_EXPORT int32_t   tmq_commit_sync(tmq_t *tmq, const TAOS_RES *msg);  // Commit the msg's offset + 1
 DLL_EXPORT void      tmq_commit_async(tmq_t *tmq, const TAOS_RES *msg, tmq_commit_cb *cb, void *param);
 DLL_EXPORT int32_t   tmq_commit_offset_sync(tmq_t *tmq, const char *pTopicName, int32_t vgId, int64_t offset);
 DLL_EXPORT void      tmq_commit_offset_async(tmq_t *tmq, const char *pTopicName, int32_t vgId, int64_t offset,

@@ -1,0 +1,20 @@
+set max_binary_display_width 1024;
+alter local "timezone" "UTC";
+
+SELECT avg(i) FROM fq24_influx18_pushdown_gate.fq24_influx18_pushdown.rows WHERE site = 'positive';
+EXPLAIN VERBOSE TRUE SELECT avg(i) FROM fq24_influx18_pushdown_gate.fq24_influx18_pushdown.rows WHERE site = 'positive';
+
+SELECT avg(i) FROM fq24_influx18_pushdown_gate.fq24_influx18_pushdown.rows WHERE site = 'negative';
+EXPLAIN VERBOSE TRUE SELECT avg(i) FROM fq24_influx18_pushdown_gate.fq24_influx18_pushdown.rows WHERE site = 'negative';
+
+SELECT CAST(site AS NCHAR(8)) AS site, avg(i) FROM fq24_influx18_pushdown_gate.fq24_influx18_pushdown.rows GROUP BY site ORDER BY site;
+EXPLAIN VERBOSE TRUE SELECT CAST(site AS NCHAR(8)) AS site, avg(i) FROM fq24_influx18_pushdown_gate.fq24_influx18_pushdown.rows GROUP BY site ORDER BY site;
+
+SELECT CAST(site AS NCHAR(8)) AS site, avg(i) FROM fq24_influx18_pushdown_gate.fq24_influx18_pushdown.rows PARTITION BY site ORDER BY site;
+EXPLAIN VERBOSE TRUE SELECT CAST(site AS NCHAR(8)) AS site, avg(i) FROM fq24_influx18_pushdown_gate.fq24_influx18_pushdown.rows PARTITION BY site ORDER BY site;
+
+SELECT CAST(_wstart AS BIGINT), avg(i) FROM fq24_influx18_pushdown_gate.fq24_influx18_pushdown.rows WHERE time >= 1700000000000000000 AND time < 1700000004000000000 INTERVAL(2s);
+EXPLAIN VERBOSE TRUE SELECT CAST(_wstart AS BIGINT), avg(i) FROM fq24_influx18_pushdown_gate.fq24_influx18_pushdown.rows WHERE time >= 1700000000000000000 AND time < 1700000004000000000 INTERVAL(2s);
+
+SELECT CAST(site AS NCHAR(8)) AS site, CAST(_wstart AS BIGINT), avg(i) FROM fq24_influx18_pushdown_gate.fq24_influx18_pushdown.rows WHERE time >= 1700000000000000000 AND time < 1700000004000000000 PARTITION BY site INTERVAL(2s) ORDER BY site, _wstart;
+EXPLAIN VERBOSE TRUE SELECT CAST(site AS NCHAR(8)) AS site, CAST(_wstart AS BIGINT), avg(i) FROM fq24_influx18_pushdown_gate.fq24_influx18_pushdown.rows WHERE time >= 1700000000000000000 AND time < 1700000004000000000 PARTITION BY site INTERVAL(2s) ORDER BY site, _wstart;

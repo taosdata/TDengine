@@ -1,3 +1,18 @@
+# Copyright (c) 2025 TAOS Data, Inc. <jhtao@taosdata.com>
+#
+# SPDX-License-Identifier: AGPL-3.0-or-later
+#
+# This program is free software: you can use, redistribute, and/or modify
+# it under the terms of the GNU Affero General Public License, version 3
+# or later ("AGPL"), as published by the Free Software Foundation.
+#
+# This program is distributed in the hope that it will be useful, but WITHOUT
+# ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+# FITNESS FOR A PARTICULAR PURPOSE.
+#
+# You should have received a copy of the GNU Affero General Public License
+# along with this program. If not, see <http://www.gnu.org/licenses/>.
+
 from new_test_framework.utils import tdLog, tdSql, tdStream, sc, clusterComCheck, etool
 import time
 
@@ -61,7 +76,7 @@ class TestLimit:
 
         Since: v3.0.0.0
 
-        Labels: common,ci
+        Labels: common,ci,integration,functional
 
         Jira: None
 
@@ -279,7 +294,8 @@ class TestLimit:
 
         tdSql.error(f"select * from {tb} limit")
         tdSql.error(f"select * from {tb} offset")
-        tdSql.error(f"select * from {tb} offset 1")
+        tdSql.query(f"select * from {tb} offset 1")
+        tdSql.checkRows(rowNum - 1)
         tdSql.error(f"select * from {tb} offset 1 limit 5")
         tdSql.error(f"select * from {tb} offset 1 limit -1")
 
@@ -1478,7 +1494,8 @@ class TestLimit:
 
         tdSql.error(f"select * from {tb} limit")
         tdSql.error(f"select * from {tb} offset")
-        tdSql.error(f"select * from {tb} offset 1")
+        tdSql.query(f"select * from {tb} offset 1")
+        tdSql.checkRows(rowNum - 1)
         tdSql.error(f"select * from {tb} offset 1 limit 5")
         tdSql.error(f"select * from {tb} offset 1 limit -1")
 
@@ -3159,8 +3176,10 @@ class TestLimit:
         tdSql.error(f"select k+1;")
         tdSql.error(f"select abc();")
         tdSql.query(f"select 1 where 1=2;")
+        tdSql.checkRows(0)
         tdSql.query(f"select 1 limit 1;")
         tdSql.query(f"select 1 slimit 1;")
+        tdSql.checkRows(1)
         tdSql.query(f"select 1 interval(1h);")
         tdSql.error(f"select count(*);")
         tdSql.error(f"select sum(k);")

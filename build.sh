@@ -1,55 +1,19 @@
 #!/bin/bash
 
-# beg =========================
-# senario 1: give it a try for the first time
-#   ./build.sh first-try
+# Copyright (c) 2022 TAOS Data, Inc. <jhtao@taosdata.com>
 #
-# senario 2: building release version, for internal use only, or take you own risk
-#            still under development
-#   TD_CONFIG=Release ./build.sh gen -DVERNUMBER=xxxx ....
-#   TD_CONFIG=Release ./build.sh bld
+# SPDX-License-Identifier: AGPL-3.0-or-later
 #
-# senario 3: daily routine for development, after you have tried ./build.sh gen
-#   ./build.sh bld
-#   ./build.sh install
-#   ./build.sh start
-#   ./build.sh test
+# This program is free software: you can use, redistribute, and/or modify
+# it under the terms of the GNU Affero General Public License, version 3
+# or later ("AGPL"), as published by the Free Software Foundation.
 #
-# senario 4: specify different options to build the systme
-#   # set xxx of type to yyy, and configure the build system
-#   ./build.sh gen -Dxxx:type=yyy
-#   # what types are valid: cmake --help-command set | less
+# This program is distributed in the hope that it will be useful, but WITHOUT
+# ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+# FITNESS FOR A PARTICULAR PURPOSE.
 #
-#   # clear the xxx out of cmake cache, and let the build system automatically choose correct value for xxx
-#   ./build.sh gen -Uxxx
-#
-#   # combine all in one execution
-#   ./build.sh gen -Dxxx:type=yyy -Uzzz -Dmmm:type=nnn
-#
-# senario 5: list targets of this build system
-#   ./build.sh bld --target help
-#
-# senario 6: build specific target, taking `shell` as example:
-#   ./build.sh bld --target shell
-#
-# senario 7: checkout specific branch/tag of taosadapter.git and build upon
-#   ./build.sh gen -DTAOSADAPTER_GIT_TAG:STRING=ver-3.3.6.0
-#   ./build.sh bld
-#
-# senario 8: build taosadapter with specific go build options, taking `-a -x` as example:
-#   ./build.sh gen -DTAOSADAPTER_BUILD_OPTIONS:STRING="-a:-x"
-#   ./build.sh bld
-#
-# senario 9: using Conan for dependency management (NEW)
-#   # Install dependencies using Conan
-#   ./build.sh conan-install
-#   # Configure with Conan (uses CMakePresets)
-#   ./build.sh conan-gen
-#   # Build with Conan
-#   ./build.sh conan-bld
-#   # Or do all in one step:
-#   ./build.sh conan-build-all
-# end =========================
+# You should have received a copy of the GNU Affero General Public License
+# along with this program. If not, see <http://www.gnu.org/licenses/>.
 
 # export TD_CONFIG=Debug/Release before calling this script
 

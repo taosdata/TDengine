@@ -1,6 +1,8 @@
 /*
  * Copyright (c) 2019 TAOS Data, Inc. <jhtao@taosdata.com>
  *
+ * SPDX-License-Identifier: AGPL-3.0-or-later
+ *
  * This program is free software: you can use, redistribute, and/or modify
  * it under the terms of the GNU Affero General Public License, version 3
  * or later ("AGPL"), as published by the Free Software Foundation.
@@ -1841,7 +1843,9 @@ TEST(stmt2ColumnCase, insert_stb_get_fields_Test_columnar) {
   {
     const char* sql = "insert into stmt2_testdb_2.nstb values(?,?,?,?,?)";
     printf("case 6 : %s\n", sql);
-    getFieldsError(taos, sql, TSDB_CODE_TSC_STMT_TBNAME_ERROR, "Table does not exist");
+    // A concrete table name that does not exist is reported as-is; only a
+    // missing tbname placeholder is mapped to TSDB_CODE_TSC_STMT_TBNAME_ERROR.
+    getFieldsError(taos, sql, TSDB_CODE_PAR_TABLE_NOT_EXIST, "Table does not exist");
   }
 
   // case 7 :  no col
@@ -5424,6 +5428,7 @@ TEST(stmt2ColumnCase, exec_retry_columnar) {
 
   taos_stmt2_close(stmt);
   do_query(taos, "drop database if exists stmt2_testdb_21");
+  taos_close(taos);
 }
 
 void stmtAsyncQueryCb4(void* param, TAOS_RES* pRes, int code) { ASSERT_EQ(code, TSDB_CODE_SUCCESS); }

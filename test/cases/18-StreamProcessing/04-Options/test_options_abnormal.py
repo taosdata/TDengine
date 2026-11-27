@@ -1,3 +1,18 @@
+# Copyright (c) 2025 TAOS Data, Inc. <jhtao@taosdata.com>
+#
+# SPDX-License-Identifier: AGPL-3.0-or-later
+#
+# This program is free software: you can use, redistribute, and/or modify
+# it under the terms of the GNU Affero General Public License, version 3
+# or later ("AGPL"), as published by the Free Software Foundation.
+#
+# This program is distributed in the hope that it will be useful, but WITHOUT
+# ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+# FITNESS FOR A PARTICULAR PURPOSE.
+#
+# You should have received a copy of the GNU Affero General Public License
+# along with this program. If not, see <http://www.gnu.org/licenses/>.
+
 import time
 from new_test_framework.utils import (tdLog,tdSql,tdStream,StreamCheckItem,)
 
@@ -18,7 +33,7 @@ class TestStreamOptionsAbnormal:
 
         Since: v3.3.3.7
 
-        Labels: common,ci
+        Labels: common,ci,integration,functional
 
         Jira: None
 
@@ -60,11 +75,12 @@ class TestStreamOptionsAbnormal:
             tdSql.execute(f"create table ct102 using {self.stbName2} tags(2)")
             
             # must not create stb/ctb/ntb using create vtable
+            # valueless TAGS is rejected at CREATE VTABLE (explicit value required)
             tdSql.error(f"create vtable if not exists err_stb1  (cts timestamp, cint int) tags (tint int)")
             tdSql.error(f"create vtable if not exists err_ct1 using {self.stbName2} tags(100)")
             
             tdSql.execute(f"create vtable if not exists null_vntb1 (cts timestamp, cint int)")
-            tdSql.error(f"alter table null_vntb1 alter column cint set {self.ntbName}.cint")
+            tdSql.execute(f"alter table null_vntb1 alter column cint set {self.ntbName}.cint")
             tdSql.execute(f"alter vtable null_vntb1 alter column cint set {self.ntbName}.cint")
             tdSql.error(f"alter vtable null_vntb1 alter column cint set {self.ntbName}.cdouble")
             # drop table can be used to drop any type of table

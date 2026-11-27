@@ -1,4 +1,19 @@
-from new_test_framework.utils import tdLog, tdSql, tdCom, TDSetSql, TDSql
+# Copyright (c) 2023 TAOS Data, Inc. <jhtao@taosdata.com>
+#
+# SPDX-License-Identifier: AGPL-3.0-or-later
+#
+# This program is free software: you can use, redistribute, and/or modify
+# it under the terms of the GNU Affero General Public License, version 3
+# or later ("AGPL"), as published by the Free Software Foundation.
+#
+# This program is distributed in the hope that it will be useful, but WITHOUT
+# ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+# FITNESS FOR A PARTICULAR PURPOSE.
+#
+# You should have received a copy of the GNU Affero General Public License
+# along with this program. If not, see <http://www.gnu.org/licenses/>.
+
+from new_test_framework.utils import tdLog, tdSql, tdCom, TDSetSql, TDSql, tmqCom
 import taos
 import os
 import sys
@@ -95,37 +110,6 @@ class TestViewBasic:
         tdLog.info("consume info sql: %s"%sql)
         tdSql.query(sql)
     
-    def startTmqSimProcess(self,pollDelay,dbName,showMsg=1,showRow=1,cdbName='cdb',valgrind=0,alias=0,snapshot=0):
-        buildPath = tdCom.getBuildPath()
-        cfgPath = tdCom.getClientCfgPath()
-        if valgrind == 1:
-            logFile = cfgPath + '/../log/valgrind-tmq.log'
-            shellCmd = 'nohup valgrind --log-file=' + logFile
-            shellCmd += '--tool=memcheck --leak-check=full --show-reachable=no --track-origins=yes --show-leak-kinds=all --num-callers=20 -v --workaround-gcc296-bugs=yes '
-
-        if (platform.system().lower() == 'windows'):
-            processorName = buildPath + '\\build\\bin\\tmq_sim.exe'
-            if alias != 0:
-                processorNameNew = buildPath + '\\build\\bin\\tmq_sim_new.exe'
-                shellCmd = 'cp %s %s'%(processorName, processorNameNew)
-                os.system(shellCmd)
-                processorName = processorNameNew
-            shellCmd = 'mintty -h never ' + processorName + ' -c ' + cfgPath
-            shellCmd += " -y %d -d %s -g %d -r %d -w %s -e %d "%(pollDelay, dbName, showMsg, showRow, cdbName, snapshot)
-            shellCmd += "> nul 2>&1 &"
-        else:
-            processorName = buildPath + '/build/bin/tmq_sim'
-            if alias != 0:
-                processorNameNew = buildPath + '/build/bin/tmq_sim_new'
-                shellCmd = 'cp %s %s'%(processorName, processorNameNew)
-                os.system(shellCmd)
-                processorName = processorNameNew
-            shellCmd = 'nohup ' + processorName + ' -c ' + cfgPath
-            shellCmd += " -y %d -d %s -g %d -r %d -w %s -e %d "%(pollDelay, dbName, showMsg, showRow, cdbName, snapshot)
-            shellCmd += "> /dev/null 2>&1 &"
-        tdLog.info(shellCmd)
-        os.system(shellCmd)
-
     def checkFileContent(self, consumerId, queryString, skipRowsOfCons=0):
         buildPath = tdCom.getBuildPath()
         cfgPath = tdCom.getClientCfgPath()
@@ -179,21 +163,6 @@ class TestViewBasic:
         self.insert_data(tdSql, para_dic["dbName"], para_dic["ctbPrefix"], para_dic["ctbNum"], para_dic["rowsPerTbl"], para_dic["batchNum"], para_dic["startTs"])
         tdLog.info("Finish to prepare the tmq data")
     
-    def selectConsumeResult(self,expectRows,cdbName='cdb'):
-        resultList=[]
-        while 1:
-            tdSql.query("select * from %s.consumeresult"%cdbName)
-            #tdLog.info("row: %d, %l64d, %l64d"%(tdSql.getData(0, 1),tdSql.getData(0, 2),tdSql.getData(0, 3))
-            if tdSql.getRows() == expectRows:
-                break
-            else:
-                time.sleep(0.5)
-
-        for i in range(expectRows):
-            tdLog.info ("consume id: %d, consume msgs: %d, consume rows: %d"%(tdSql.getData(i , 1), tdSql.getData(i , 2), tdSql.getData(i , 3)))
-            resultList.append(tdSql.getData(i , 3))
-
-        return resultList
         
     def check_view_num(self, num):
         tdSql.query("show views;")
@@ -230,7 +199,7 @@ class TestViewBasic:
         tdSql.execute(f"create view v1 as select * from {self.stbname};")
         self.check_view_num(1)
         tdSql.error(f'create view v1 as select * from {self.stbname};', expectErrInfo='view already exists in db')
-        tdSql.error(f'create view db2.v2 as select * from {self.stbname};', expectErrInfo='Database not exist')
+        tdSql.error(f'create view db2.v2 as select * from {self.stbname};', expectErrInfo='Database does not exist')
         tdSql.error(f'create view v2 as select c2 from {self.stbname};', expectErrInfo='Invalid column name: c2')
         tdSql.error(f'create view v2 as select ts, col1 from tt1;', expectErrInfo='Table does not exist')
 
@@ -322,11 +291,11 @@ class TestViewBasic:
         tdSql.query("select * from information_schema.ins_views;")
         res = tdSql.queryResult
         assert(res[0][0] == 'v1' and res[0][1] == 'view_db' and res[0][2] == 'root' and res[0][4] == 'NORMAL' and res[0][5] == 'select * from ct1;')
-        tdSql.error("show db3.views;", expectErrInfo='Database not exist')
+        tdSql.error("show db3.views;", expectErrInfo='Database does not exist')
         tdSql.error("desc viewx;", expectErrInfo='Table does not exist')
-        tdSql.error(f"show create view {self.dbname}.viewx;", expectErrInfo='view not exists in db')
+        tdSql.error(f"show create view {self.dbname}.viewx;", expectErrInfo='View does not exist in the database')
         tdSql.execute(f"drop database {self.dbname}")
-        tdSql.error("show views;", expectErrInfo='Database not exist')
+        tdSql.error("show views;", expectErrInfo='Database does not exist')
         tdLog.info("Finish test case 'test_show_view'")
 
     def run_drop_view(self):
@@ -342,7 +311,7 @@ class TestViewBasic:
         # delete view with database name
         tdSql.execute("drop view view_db.v1;")
         # delete non exist view
-        tdSql.error("drop view view_db.v11;", expectErrInfo='view not exists in db')
+        tdSql.error("drop view view_db.v11;", expectErrInfo='View does not exist in the database')
         tdSql.execute("drop database view_db")
         tdSql.execute("drop database view_db2;")
         self.dbname = "view_db"
@@ -429,7 +398,7 @@ class TestViewBasic:
         self.create_user(username, password)
         tdSql.execute("grant create database to view_test;")
         conn = taos.connect(user=username, password=password)
-        time.sleep(2) # wait for user privileges to take effect
+        time.sleep(4) # wait for user privileges to take effect
         self.prepare_data(conn)
         cursor = conn.cursor()
         testSql = TDSql()
@@ -441,12 +410,12 @@ class TestViewBasic:
         try:
             testSql.execute("create view v2 as select * from v1;")
         except Exception as ex:
-            assert("[0x2644]: Permission denied or target object not exist" in str(ex))
+            assert("[0x2644]: Permission denied or the target object does not exist" in str(ex))
         # query from view permission error
         try:
             testSql.query("select * from v1;")
         except Exception as ex:
-            assert("[0x2644]: Permission denied or target object not exist" in str(ex))
+            assert("[0x2644]: Permission denied or the target object does not exist" in str(ex))
         # view query permission
         testSql.query("show views;")
         testSql.checkRows(2)
@@ -480,7 +449,7 @@ class TestViewBasic:
         self.create_user(username, password)
         tdSql.execute("grant create database to view_test;")
         conn = taos.connect(user=username, password=password)
-        time.sleep(2) # wait for user privileges to take effect
+        time.sleep(4) # wait for user privileges to take effect
         self.prepare_data()
         cursor = conn.cursor()
         testSql = TDSql()
@@ -506,7 +475,7 @@ class TestViewBasic:
         try:
             testSql.execute("drop view v1;")
         except Exception as ex:
-            assert("Permission denied or target object not exist" in str(ex))
+            assert("Permission denied or the target object does not exist" in str(ex))
         tdSql.execute("revoke select on view view_db.v1 from view_test;")
         tdSql.execute("revoke insert on view_db.* from view_test;")
         tdSql.execute(f"drop database {self.dbname}")
@@ -533,7 +502,7 @@ class TestViewBasic:
             testSql.execute(f"use {self.dbname};")
             testSql.execute("select * from v1;")
         except Exception as ex:
-            assert("Permission denied or target object not exist" in str(ex))
+            assert("Permission denied or the target object does not exist" in str(ex))
         testSql.execute("drop view v1;")
         tdSql.execute("revoke insert on view_db.* from view_test;")
         tdSql.execute(f"drop database {self.dbname}")
@@ -560,7 +529,7 @@ class TestViewBasic:
             testSql.execute(f"use {self.dbname};")
             testSql.execute("create view v2 as select * from v1;")
         except Exception as ex:
-            assert("Permission denied or target object not exist" in str(ex))
+            assert("Permission denied or the target object does not exist" in str(ex))
         testSql.query("select * from v1;")
         testSql.checkRows(20)
         testSql.execute("drop view v1;")
@@ -589,7 +558,7 @@ class TestViewBasic:
             testSql.execute(f"use {self.dbname};")
             testSql.execute("select * from v1;")
         except Exception as ex:
-            assert("Permission denied or target object not exist" in str(ex))
+            assert("Permission denied or the target object does not exist" in str(ex))
             
         testSql.execute("drop view v1;")
         tdSql.execute("revoke select on view_db.* from view_test;")
@@ -619,7 +588,7 @@ class TestViewBasic:
         try:
             testSql.execute("drop view v1;")
         except Exception as ex:
-            assert("Permission denied or target object not exist" in str(ex))
+            assert("Permission denied or the target object does not exist" in str(ex))
         tdSql.execute("revoke select on view_db.* from view_test;")
         tdSql.execute("revoke select on view view_db.v1 from view_test;")
         tdSql.execute(f"drop database {self.dbname}")
@@ -736,11 +705,11 @@ class TestViewBasic:
         self.insertConsumerInfo(consumerId, expectrowcnt, topicList, keyList, ifcheckdata, ifManualCommit)
 
         tdLog.info("start consume processor")
-        self.startTmqSimProcess(paraDict['pollDelay'], paraDict["dbName"], paraDict['showMsg'], paraDict['showRow'])
+        tmqCom.startTmqSimProcess(paraDict['pollDelay'], paraDict["dbName"], paraDict['showMsg'], paraDict['showRow'])
 
         tdLog.info("wait the consume result")
         expectRows = 1
-        resultList = self.selectConsumeResult(expectRows)
+        resultList = tmqCom.selectConsumeResult(expectRows, pollInterval=0.5)
         if expectRowsList[0] != resultList[0]:
             tdLog.info("expect consume rows: %d, act consume rows: %d"%(expectRowsList[0], resultList[0]))
             tdLog.exit("1 tmq consume rows error!")
@@ -757,6 +726,100 @@ class TestViewBasic:
         tdSql.execute(f"drop database {paraDict['dbName']}")
         tdSql.execute("drop database cdb;")
         tdLog.info("Finish test case 'test_tmq_from_view'")
+
+    def run_view_interp(self):
+        """This test case is used to verify the query from a view whose body
+        is an interp query. A view is stored as SQL text and re-parsed on
+        every read, and the parsed statement reaches translate as a clone.
+        When the clone drops the RANGE / EVERY / FILL clauses, create view
+        still succeeds but reading the view fails with 'Missing RANGE
+        clause, EVERY clause or FILL clause', while the very same select
+        runs fine on its own.
+        """
+        dbname = "view_interp_db"
+        tdSql.execute(f"create database {dbname}")
+        tdSql.execute(f"use {dbname}")
+        tdSql.execute("create table ct1 (ts timestamp, val double)")
+        tdSql.execute(
+            "insert into ct1 values"
+            " ('2026-08-12 17:34:00', 1.0)"
+            " ('2026-08-12 17:36:00', 3.0)"
+            " ('2026-08-12 17:38:00', 5.0)"
+        )
+        tdSql.execute("create stable stb_interp (ts timestamp, val double) tags (gid int)")
+        tdSql.execute("create table c1 using stb_interp tags(1)")
+        tdSql.execute("create table c2 using stb_interp tags(2)")
+        tdSql.execute(
+            "insert into c1 values ('2026-08-12 17:34:00', 1.0)('2026-08-12 17:38:00', 5.0)"
+            " c2 values ('2026-08-12 17:34:00', 2.0)('2026-08-12 17:38:00', 6.0)"
+        )
+
+        range_sql = (
+            "select _irowts, interp(val) from ct1"
+            " range('2026-08-12 17:34:00', '2026-08-12 17:38:00')"
+            " every(60s) fill(linear)"
+        )
+        tdSql.query(range_sql)
+        tdSql.checkRows(5)
+        tdSql.checkData(0, 1, 1.0)
+        tdSql.checkData(4, 1, 5.0)
+
+        tdSql.execute(f"create view v_interp_range as {range_sql}")
+        tdSql.query("select * from v_interp_range")
+        tdSql.checkRows(5)
+        tdSql.checkData(0, 0, '2026-08-12 17:34:00.000')
+        tdSql.checkData(0, 1, 1.0)
+        tdSql.checkData(4, 0, '2026-08-12 17:38:00.000')
+        tdSql.checkData(4, 1, 5.0)
+        tdLog.info("Verify the query from interp view with range/every/fill successfully")
+
+        # single point range, where the every clause can be omitted
+        point_sql = (
+            "select _irowts, interp(val) from ct1"
+            " range('2026-08-12 17:35:00') fill(prev)"
+        )
+        tdSql.query(point_sql)
+        tdSql.checkRows(1)
+        tdSql.checkData(0, 1, 1.0)
+
+        tdSql.execute(f"create view v_interp_point as {point_sql}")
+        tdSql.query("select * from v_interp_point")
+        tdSql.checkRows(1)
+        tdSql.checkData(0, 1, 1.0)
+        tdLog.info("Verify the query from interp view with single point range successfully")
+
+        # interp partitioned by table name
+        part_sql = (
+            "select _irowts, tbname, interp(val) from stb_interp"
+            " partition by tbname"
+            " range('2026-08-12 17:34:00', '2026-08-12 17:38:00')"
+            " every(60s) fill(linear)"
+        )
+        tdSql.query(part_sql)
+        tdSql.checkRows(10)
+
+        tdSql.execute(f"create view v_interp_part as {part_sql}")
+        tdSql.query("select * from v_interp_part")
+        tdSql.checkRows(10)
+        tdLog.info("Verify the query from interp view with partition by successfully")
+
+        # interp nested in a subquery
+        nested_sql = f"select * from ({range_sql})"
+        tdSql.query(nested_sql)
+        tdSql.checkRows(5)
+
+        tdSql.execute(f"create view v_interp_nested as {nested_sql}")
+        tdSql.query("select * from v_interp_nested")
+        tdSql.checkRows(5)
+        tdSql.checkData(0, 1, 1.0)
+        tdSql.checkData(4, 1, 5.0)
+        tdLog.info("Verify the query from interp view nested in a subquery successfully")
+
+        for view in ["v_interp_range", "v_interp_point", "v_interp_part", "v_interp_nested"]:
+            tdSql.execute(f"drop view {view};")
+        tdSql.execute(f"drop database {dbname}")
+        tdLog.info("Finish test case 'test_view_interp'")
+
     def run_TD_33390(self):
         tdSql.execute('create database test')
         tdSql.execute('create table test.nt(ts timestamp, c1 int)')
@@ -780,15 +843,17 @@ class TestViewBasic:
         8. Query from view
         9. TMQ consume from view
         10. Verify bug TD-33390
+        11. Query from a view whose body is an interp query
 
         Since: v3.3.7.0
 
-        Lables: common,ci,mount
+        Labels: common,ci,mount,integration,functional
 
         Jira: TS-5868
 
         History:
             - 2025-11-04 Alex Duan Migrated from uncatalog/system-test/0-others/test_view_basic.py
+            - 2026-08-13 clone of the parsed AST dropped the interp clauses
 
         """
         self.run_TD_33390()
@@ -807,6 +872,4 @@ class TestViewBasic:
         self.run_view_permission_db_read_view_read()
         self.run_query_from_view()
         self.run_tmq_from_view()
-
-
-
+        self.run_view_interp()

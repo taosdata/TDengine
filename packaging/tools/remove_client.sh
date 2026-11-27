@@ -1,6 +1,20 @@
 #!/bin/bash
+
+# Copyright (c) 2019 TAOS Data, Inc. <jhtao@taosdata.com>
 #
-# Script to stop the client and uninstall database, but retain the config and log files.
+# SPDX-License-Identifier: AGPL-3.0-or-later
+#
+# This program is free software: you can use, redistribute, and/or modify
+# it under the terms of the GNU Affero General Public License, version 3
+# or later ("AGPL"), as published by the Free Software Foundation.
+#
+# This program is distributed in the hope that it will be useful, but WITHOUT
+# ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+# FITNESS FOR A PARTICULAR PURPOSE.
+#
+# You should have received a copy of the GNU Affero General Public License
+# along with this program. If not, see <http://www.gnu.org/licenses/>.
+
 set -e
 # set -x
 
@@ -192,8 +206,12 @@ function clean_env_file() {
   escaped_bin=$(printf '%s' "${bin_link_dir}" | sed 's/[.[\\/^$*]/\\&/g')
   escaped_lib=$(printf '%s' "${lib_link_dir}" | sed 's/[.[\\/^$*]/\\&/g')
   sed -e "/^# ${productName} install path$/d" \
+      -e "/^# taos bin env$/d" \
+      -e "/^# taos lib env$/d" \
       -e "\|^export PATH=\"${escaped_bin}:.*\"|d" \
+      -e "\|^export PATH=${escaped_bin}:.*|d" \
       -e "\|^export LD_LIBRARY_PATH=\"${escaped_lib}:.*\"|d" \
+      -e "\|^export LD_LIBRARY_PATH=${escaped_lib}$|d" \
       "$env_file" > "$tmp_file" && mv "$tmp_file" "$env_file" || rm -f "$tmp_file"
 }
 clean_env_file

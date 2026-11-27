@@ -1,6 +1,19 @@
 #!/bin/bash
-# Wrapper that preserves the Linux stop-model.sh entry point while delegating
-# model lifecycle management to taosanode_service.py.
+
+# Copyright (c) 2025 TAOS Data, Inc. <jhtao@taosdata.com>
+#
+# SPDX-License-Identifier: AGPL-3.0-or-later
+#
+# This program is free software: you can use, redistribute, and/or modify
+# it under the terms of the GNU Affero General Public License, version 3
+# or later ("AGPL"), as published by the Free Software Foundation.
+#
+# This program is distributed in the hope that it will be useful, but WITHOUT
+# ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+# FITNESS FOR A PARTICULAR PURPOSE.
+#
+# You should have received a copy of the GNU Affero General Public License
+# along with this program. If not, see <http://www.gnu.org/licenses/>.
 
 set -e
 
@@ -75,6 +88,8 @@ resolve_config() {
 resolve_python() {
   local candidate
   for candidate in \
+    "${INSTALL_DIR}/data/venv/bin/python3" \
+    "${INSTALL_DIR}/data/venv/bin/python" \
     "${INSTALL_DIR}/venv/bin/python3" \
     "${INSTALL_DIR}/venv/bin/python"
   do
@@ -97,7 +112,7 @@ main() {
 
   local python_cmd
   python_cmd=$(resolve_python) || {
-    echo "ERROR: Main Python environment not found under ${INSTALL_DIR}/venv/bin/." >&2
+    echo "ERROR: Main Python environment not found under ${INSTALL_DIR}/data/venv/bin or ${INSTALL_DIR}/venv/bin." >&2
     echo "Run install.sh again to recreate the TDgpt environment." >&2
     exit 1
   }

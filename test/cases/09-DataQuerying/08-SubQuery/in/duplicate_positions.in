@@ -1,0 +1,242 @@
+# Prepare data.
+drop database if exists duplicate_positions;
+create database duplicate_positions vgroups 2 keep 36500;
+use duplicate_positions;
+create table matrix_readings (ts timestamp, k int, v int, d double);
+create table matrix_history (ts timestamp, k int, v int);
+create table matrix_other (ts timestamp, k int, v int);
+insert into matrix_readings values (1760000000000, 1, 10, 10);
+insert into matrix_readings values (1760000001000, 2, 20, 20);
+insert into matrix_readings values (1760000002000, 3, 30, 30);
+insert into matrix_readings values (1760000003000, 2, null, null);
+insert into matrix_readings values (1760000004000, null, 40, 40);
+insert into matrix_history values (1760000000000, 1, 5);
+insert into matrix_history values (1760000001000, 1, 15);
+insert into matrix_history values (1760000002000, 2, 20);
+insert into matrix_history values (1760000003000, 3, null);
+insert into matrix_other values (1760000000000, 1, 100);
+
+# Scalar positions.
+select (select max(h.v) from matrix_history h), (select max(h.v) from matrix_history h) from matrix_readings r order by r.ts;
+# Expected InitPlans 1, correlated templates 0.
+explain verbose true select (select max(h.v) from matrix_history h), (select max(h.v) from matrix_history h) from matrix_readings r order by r.ts\G;
+explain analyze verbose true select (select max(h.v) from matrix_history h), (select max(h.v) from matrix_history h) from matrix_readings r order by r.ts\G;
+select r.v, (select max(h.v) from matrix_history h) from matrix_readings r where r.v <= (select max(h.v) from matrix_history h) order by r.ts;
+# Expected InitPlans 1, correlated templates 0.
+explain verbose true select r.v, (select max(h.v) from matrix_history h) from matrix_readings r where r.v <= (select max(h.v) from matrix_history h) order by r.ts\G;
+explain analyze verbose true select r.v, (select max(h.v) from matrix_history h) from matrix_readings r where r.v <= (select max(h.v) from matrix_history h) order by r.ts\G;
+select r.k, sum(r.v), (select max(h.v) from matrix_history h) from matrix_readings r group by r.k having sum(r.v) >= (select max(h.v) from matrix_history h) order by sum(r.v);
+# Expected InitPlans 1, correlated templates 0.
+explain verbose true select r.k, sum(r.v), (select max(h.v) from matrix_history h) from matrix_readings r group by r.k having sum(r.v) >= (select max(h.v) from matrix_history h) order by sum(r.v)\G;
+explain analyze verbose true select r.k, sum(r.v), (select max(h.v) from matrix_history h) from matrix_readings r group by r.k having sum(r.v) >= (select max(h.v) from matrix_history h) order by sum(r.v)\G;
+select r.v, (select max(h.v) from matrix_history h) from matrix_readings r order by (select max(h.v) from matrix_history h), r.ts;
+# Expected InitPlans 1, correlated templates 0.
+explain verbose true select r.v, (select max(h.v) from matrix_history h) from matrix_readings r order by (select max(h.v) from matrix_history h), r.ts\G;
+explain analyze verbose true select r.v, (select max(h.v) from matrix_history h) from matrix_readings r order by (select max(h.v) from matrix_history h), r.ts\G;
+select (select max(h.v) from matrix_history h), count(*) from matrix_readings r group by (select max(h.v) from matrix_history h);
+# Expected InitPlans 1, correlated templates 0.
+explain verbose true select (select max(h.v) from matrix_history h), count(*) from matrix_readings r group by (select max(h.v) from matrix_history h)\G;
+explain analyze verbose true select (select max(h.v) from matrix_history h), count(*) from matrix_readings r group by (select max(h.v) from matrix_history h)\G;
+select sum((select max(h.v) from matrix_history h)), max((select max(h.v) from matrix_history h)) from matrix_readings r;
+# Expected InitPlans 1, correlated templates 0.
+explain verbose true select sum((select max(h.v) from matrix_history h)), max((select max(h.v) from matrix_history h)) from matrix_readings r\G;
+explain analyze verbose true select sum((select max(h.v) from matrix_history h)), max((select max(h.v) from matrix_history h)) from matrix_readings r\G;
+select case when r.v < (select max(h.v) from matrix_history h) then (select max(h.v) from matrix_history h) else r.v end from matrix_readings r order by r.ts;
+# Expected InitPlans 1, correlated templates 0.
+explain verbose true select case when r.v < (select max(h.v) from matrix_history h) then (select max(h.v) from matrix_history h) else r.v end from matrix_readings r order by r.ts\G;
+explain analyze verbose true select case when r.v < (select max(h.v) from matrix_history h) then (select max(h.v) from matrix_history h) else r.v end from matrix_readings r order by r.ts\G;
+select r.v, j.v, (select max(h.v) from matrix_history h) from matrix_readings r join matrix_history j on r.ts = j.ts and r.v <= (select max(h.v) from matrix_history h) order by r.ts;
+# Expected InitPlans 1, correlated templates 0.
+explain verbose true select r.v, j.v, (select max(h.v) from matrix_history h) from matrix_readings r join matrix_history j on r.ts = j.ts and r.v <= (select max(h.v) from matrix_history h) order by r.ts\G;
+explain analyze verbose true select r.v, j.v, (select max(h.v) from matrix_history h) from matrix_readings r join matrix_history j on r.ts = j.ts and r.v <= (select max(h.v) from matrix_history h) order by r.ts\G;
+select x.v, x.s, y.s from (select ts, v, (select max(h.v) from matrix_history h) as s from matrix_readings) x join (select ts, (select max(h.v) from matrix_history h) as s from matrix_readings) y on x.ts = y.ts order by x.ts;
+# Expected InitPlans 1, correlated templates 0.
+explain verbose true select x.v, x.s, y.s from (select ts, v, (select max(h.v) from matrix_history h) as s from matrix_readings) x join (select ts, (select max(h.v) from matrix_history h) as s from matrix_readings) y on x.ts = y.ts order by x.ts\G;
+explain analyze verbose true select x.v, x.s, y.s from (select ts, v, (select max(h.v) from matrix_history h) as s from matrix_readings) x join (select ts, (select max(h.v) from matrix_history h) as s from matrix_readings) y on x.ts = y.ts order by x.ts\G;
+select k, (select max(h.v) from matrix_history h) from matrix_readings where k = 1 union all select k, (select max(h.v) from matrix_history h) from matrix_readings where k = 3 order by k;
+# Expected InitPlans 1, correlated templates 0.
+explain verbose true select k, (select max(h.v) from matrix_history h) from matrix_readings where k = 1 union all select k, (select max(h.v) from matrix_history h) from matrix_readings where k = 3 order by k\G;
+explain analyze verbose true select k, (select max(h.v) from matrix_history h) from matrix_readings where k = 1 union all select k, (select max(h.v) from matrix_history h) from matrix_readings where k = 3 order by k\G;
+select count(*), (select max(h.v) from matrix_history h) from matrix_readings interval(10s) having count(*) < (select max(h.v) from matrix_history h);
+# Expected InitPlans 1, correlated templates 0.
+explain verbose true select count(*), (select max(h.v) from matrix_history h) from matrix_readings interval(10s) having count(*) < (select max(h.v) from matrix_history h)\G;
+explain analyze verbose true select count(*), (select max(h.v) from matrix_history h) from matrix_readings interval(10s) having count(*) < (select max(h.v) from matrix_history h)\G;
+# Sort output rows for deterministic comparison.
+select r.v, (select max(h.v) from matrix_history h) from matrix_readings r partition by (select max(h.v) from matrix_history h) order by 1 nulls first, 2 nulls first;
+# Expected InitPlans 1, correlated templates 0.
+explain verbose true select r.v, (select max(h.v) from matrix_history h) from matrix_readings r partition by (select max(h.v) from matrix_history h)\G;
+explain analyze verbose true select r.v, (select max(h.v) from matrix_history h) from matrix_readings r partition by (select max(h.v) from matrix_history h)\G;
+
+# Predicate positions.
+select r.v in (select h.v from matrix_history h where h.v is not null), r.v in (select h.v from matrix_history h where h.v is not null) from matrix_readings r order by r.ts;
+# Expected InitPlans 1, correlated templates 0.
+explain verbose true select r.v in (select h.v from matrix_history h where h.v is not null), r.v in (select h.v from matrix_history h where h.v is not null) from matrix_readings r order by r.ts\G;
+explain analyze verbose true select r.v in (select h.v from matrix_history h where h.v is not null), r.v in (select h.v from matrix_history h where h.v is not null) from matrix_readings r order by r.ts\G;
+select r.v, r.v in (select h.v from matrix_history h where h.v is not null) from matrix_readings r where r.v in (select h.v from matrix_history h where h.v is not null) order by r.ts;
+# Expected InitPlans 1, correlated templates 0.
+explain verbose true select r.v, r.v in (select h.v from matrix_history h where h.v is not null) from matrix_readings r where r.v in (select h.v from matrix_history h where h.v is not null) order by r.ts\G;
+explain analyze verbose true select r.v, r.v in (select h.v from matrix_history h where h.v is not null) from matrix_readings r where r.v in (select h.v from matrix_history h where h.v is not null) order by r.ts\G;
+select case when r.v in (select h.v from matrix_history h where h.v is not null) then 1 when not (r.v in (select h.v from matrix_history h where h.v is not null)) then 0 else null end from matrix_readings r order by r.ts;
+# Expected InitPlans 1, correlated templates 0.
+explain verbose true select case when r.v in (select h.v from matrix_history h where h.v is not null) then 1 when not (r.v in (select h.v from matrix_history h where h.v is not null)) then 0 else null end from matrix_readings r order by r.ts\G;
+explain analyze verbose true select case when r.v in (select h.v from matrix_history h where h.v is not null) then 1 when not (r.v in (select h.v from matrix_history h where h.v is not null)) then 0 else null end from matrix_readings r order by r.ts\G;
+select r.v, r.v in (select h.v from matrix_history h where h.v is not null) from matrix_readings r order by case when r.v in (select h.v from matrix_history h where h.v is not null) then 1 when not (r.v in (select h.v from matrix_history h where h.v is not null)) then 0 else null end nulls first, r.ts;
+# Expected InitPlans 1, correlated templates 0.
+explain verbose true select r.v, r.v in (select h.v from matrix_history h where h.v is not null) from matrix_readings r order by case when r.v in (select h.v from matrix_history h where h.v is not null) then 1 when not (r.v in (select h.v from matrix_history h where h.v is not null)) then 0 else null end nulls first, r.ts\G;
+explain analyze verbose true select r.v, r.v in (select h.v from matrix_history h where h.v is not null) from matrix_readings r order by case when r.v in (select h.v from matrix_history h where h.v is not null) then 1 when not (r.v in (select h.v from matrix_history h where h.v is not null)) then 0 else null end nulls first, r.ts\G;
+# Sort output rows for deterministic comparison.
+select r.v, r.v in (select h.v from matrix_history h where h.v is not null) from matrix_readings r group by r.v having r.v in (select h.v from matrix_history h where h.v is not null) order by 1 nulls first, 2 nulls first;
+# Expected InitPlans 1, correlated templates 0.
+explain verbose true select r.v, r.v in (select h.v from matrix_history h where h.v is not null) from matrix_readings r group by r.v having r.v in (select h.v from matrix_history h where h.v is not null)\G;
+explain analyze verbose true select r.v, r.v in (select h.v from matrix_history h where h.v is not null) from matrix_readings r group by r.v having r.v in (select h.v from matrix_history h where h.v is not null)\G;
+select r.v not in (select h.v from matrix_history h where h.v is not null), r.v not in (select h.v from matrix_history h where h.v is not null) from matrix_readings r order by r.ts;
+# Expected InitPlans 1, correlated templates 0.
+explain verbose true select r.v not in (select h.v from matrix_history h where h.v is not null), r.v not in (select h.v from matrix_history h where h.v is not null) from matrix_readings r order by r.ts\G;
+explain analyze verbose true select r.v not in (select h.v from matrix_history h where h.v is not null), r.v not in (select h.v from matrix_history h where h.v is not null) from matrix_readings r order by r.ts\G;
+select r.v, r.v not in (select h.v from matrix_history h where h.v is not null) from matrix_readings r where r.v not in (select h.v from matrix_history h where h.v is not null) order by r.ts;
+# Expected InitPlans 1, correlated templates 0.
+explain verbose true select r.v, r.v not in (select h.v from matrix_history h where h.v is not null) from matrix_readings r where r.v not in (select h.v from matrix_history h where h.v is not null) order by r.ts\G;
+explain analyze verbose true select r.v, r.v not in (select h.v from matrix_history h where h.v is not null) from matrix_readings r where r.v not in (select h.v from matrix_history h where h.v is not null) order by r.ts\G;
+select case when r.v not in (select h.v from matrix_history h where h.v is not null) then 1 when not (r.v not in (select h.v from matrix_history h where h.v is not null)) then 0 else null end from matrix_readings r order by r.ts;
+# Expected InitPlans 1, correlated templates 0.
+explain verbose true select case when r.v not in (select h.v from matrix_history h where h.v is not null) then 1 when not (r.v not in (select h.v from matrix_history h where h.v is not null)) then 0 else null end from matrix_readings r order by r.ts\G;
+explain analyze verbose true select case when r.v not in (select h.v from matrix_history h where h.v is not null) then 1 when not (r.v not in (select h.v from matrix_history h where h.v is not null)) then 0 else null end from matrix_readings r order by r.ts\G;
+select r.v, r.v not in (select h.v from matrix_history h where h.v is not null) from matrix_readings r order by case when r.v not in (select h.v from matrix_history h where h.v is not null) then 1 when not (r.v not in (select h.v from matrix_history h where h.v is not null)) then 0 else null end nulls first, r.ts;
+# Expected InitPlans 1, correlated templates 0.
+explain verbose true select r.v, r.v not in (select h.v from matrix_history h where h.v is not null) from matrix_readings r order by case when r.v not in (select h.v from matrix_history h where h.v is not null) then 1 when not (r.v not in (select h.v from matrix_history h where h.v is not null)) then 0 else null end nulls first, r.ts\G;
+explain analyze verbose true select r.v, r.v not in (select h.v from matrix_history h where h.v is not null) from matrix_readings r order by case when r.v not in (select h.v from matrix_history h where h.v is not null) then 1 when not (r.v not in (select h.v from matrix_history h where h.v is not null)) then 0 else null end nulls first, r.ts\G;
+# Sort output rows for deterministic comparison.
+select r.v, r.v not in (select h.v from matrix_history h where h.v is not null) from matrix_readings r group by r.v having r.v not in (select h.v from matrix_history h where h.v is not null) order by 1 nulls first, 2 nulls first;
+# Expected InitPlans 1, correlated templates 0.
+explain verbose true select r.v, r.v not in (select h.v from matrix_history h where h.v is not null) from matrix_readings r group by r.v having r.v not in (select h.v from matrix_history h where h.v is not null)\G;
+explain analyze verbose true select r.v, r.v not in (select h.v from matrix_history h where h.v is not null) from matrix_readings r group by r.v having r.v not in (select h.v from matrix_history h where h.v is not null)\G;
+select r.v = any (select h.v from matrix_history h where h.v is not null), r.v = any (select h.v from matrix_history h where h.v is not null) from matrix_readings r order by r.ts;
+# Expected InitPlans 1, correlated templates 0.
+explain verbose true select r.v = any (select h.v from matrix_history h where h.v is not null), r.v = any (select h.v from matrix_history h where h.v is not null) from matrix_readings r order by r.ts\G;
+explain analyze verbose true select r.v = any (select h.v from matrix_history h where h.v is not null), r.v = any (select h.v from matrix_history h where h.v is not null) from matrix_readings r order by r.ts\G;
+select r.v, r.v = any (select h.v from matrix_history h where h.v is not null) from matrix_readings r where r.v = any (select h.v from matrix_history h where h.v is not null) order by r.ts;
+# Expected InitPlans 1, correlated templates 0.
+explain verbose true select r.v, r.v = any (select h.v from matrix_history h where h.v is not null) from matrix_readings r where r.v = any (select h.v from matrix_history h where h.v is not null) order by r.ts\G;
+explain analyze verbose true select r.v, r.v = any (select h.v from matrix_history h where h.v is not null) from matrix_readings r where r.v = any (select h.v from matrix_history h where h.v is not null) order by r.ts\G;
+select case when r.v = any (select h.v from matrix_history h where h.v is not null) then 1 when not (r.v = any (select h.v from matrix_history h where h.v is not null)) then 0 else null end from matrix_readings r order by r.ts;
+# Expected InitPlans 1, correlated templates 0.
+explain verbose true select case when r.v = any (select h.v from matrix_history h where h.v is not null) then 1 when not (r.v = any (select h.v from matrix_history h where h.v is not null)) then 0 else null end from matrix_readings r order by r.ts\G;
+explain analyze verbose true select case when r.v = any (select h.v from matrix_history h where h.v is not null) then 1 when not (r.v = any (select h.v from matrix_history h where h.v is not null)) then 0 else null end from matrix_readings r order by r.ts\G;
+select r.v, r.v = any (select h.v from matrix_history h where h.v is not null) from matrix_readings r order by case when r.v = any (select h.v from matrix_history h where h.v is not null) then 1 when not (r.v = any (select h.v from matrix_history h where h.v is not null)) then 0 else null end nulls first, r.ts;
+# Expected InitPlans 1, correlated templates 0.
+explain verbose true select r.v, r.v = any (select h.v from matrix_history h where h.v is not null) from matrix_readings r order by case when r.v = any (select h.v from matrix_history h where h.v is not null) then 1 when not (r.v = any (select h.v from matrix_history h where h.v is not null)) then 0 else null end nulls first, r.ts\G;
+explain analyze verbose true select r.v, r.v = any (select h.v from matrix_history h where h.v is not null) from matrix_readings r order by case when r.v = any (select h.v from matrix_history h where h.v is not null) then 1 when not (r.v = any (select h.v from matrix_history h where h.v is not null)) then 0 else null end nulls first, r.ts\G;
+# Sort output rows for deterministic comparison.
+select r.v, r.v = any (select h.v from matrix_history h where h.v is not null) from matrix_readings r group by r.v having r.v = any (select h.v from matrix_history h where h.v is not null) order by 1 nulls first, 2 nulls first;
+# Expected InitPlans 1, correlated templates 0.
+explain verbose true select r.v, r.v = any (select h.v from matrix_history h where h.v is not null) from matrix_readings r group by r.v having r.v = any (select h.v from matrix_history h where h.v is not null)\G;
+explain analyze verbose true select r.v, r.v = any (select h.v from matrix_history h where h.v is not null) from matrix_readings r group by r.v having r.v = any (select h.v from matrix_history h where h.v is not null)\G;
+select r.v <> all (select h.v from matrix_history h where h.v is not null), r.v <> all (select h.v from matrix_history h where h.v is not null) from matrix_readings r order by r.ts;
+# Expected InitPlans 1, correlated templates 0.
+explain verbose true select r.v <> all (select h.v from matrix_history h where h.v is not null), r.v <> all (select h.v from matrix_history h where h.v is not null) from matrix_readings r order by r.ts\G;
+explain analyze verbose true select r.v <> all (select h.v from matrix_history h where h.v is not null), r.v <> all (select h.v from matrix_history h where h.v is not null) from matrix_readings r order by r.ts\G;
+select r.v, r.v <> all (select h.v from matrix_history h where h.v is not null) from matrix_readings r where r.v <> all (select h.v from matrix_history h where h.v is not null) order by r.ts;
+# Expected InitPlans 1, correlated templates 0.
+explain verbose true select r.v, r.v <> all (select h.v from matrix_history h where h.v is not null) from matrix_readings r where r.v <> all (select h.v from matrix_history h where h.v is not null) order by r.ts\G;
+explain analyze verbose true select r.v, r.v <> all (select h.v from matrix_history h where h.v is not null) from matrix_readings r where r.v <> all (select h.v from matrix_history h where h.v is not null) order by r.ts\G;
+select case when r.v <> all (select h.v from matrix_history h where h.v is not null) then 1 when not (r.v <> all (select h.v from matrix_history h where h.v is not null)) then 0 else null end from matrix_readings r order by r.ts;
+# Expected InitPlans 1, correlated templates 0.
+explain verbose true select case when r.v <> all (select h.v from matrix_history h where h.v is not null) then 1 when not (r.v <> all (select h.v from matrix_history h where h.v is not null)) then 0 else null end from matrix_readings r order by r.ts\G;
+explain analyze verbose true select case when r.v <> all (select h.v from matrix_history h where h.v is not null) then 1 when not (r.v <> all (select h.v from matrix_history h where h.v is not null)) then 0 else null end from matrix_readings r order by r.ts\G;
+select r.v, r.v <> all (select h.v from matrix_history h where h.v is not null) from matrix_readings r order by case when r.v <> all (select h.v from matrix_history h where h.v is not null) then 1 when not (r.v <> all (select h.v from matrix_history h where h.v is not null)) then 0 else null end nulls first, r.ts;
+# Expected InitPlans 1, correlated templates 0.
+explain verbose true select r.v, r.v <> all (select h.v from matrix_history h where h.v is not null) from matrix_readings r order by case when r.v <> all (select h.v from matrix_history h where h.v is not null) then 1 when not (r.v <> all (select h.v from matrix_history h where h.v is not null)) then 0 else null end nulls first, r.ts\G;
+explain analyze verbose true select r.v, r.v <> all (select h.v from matrix_history h where h.v is not null) from matrix_readings r order by case when r.v <> all (select h.v from matrix_history h where h.v is not null) then 1 when not (r.v <> all (select h.v from matrix_history h where h.v is not null)) then 0 else null end nulls first, r.ts\G;
+# Sort output rows for deterministic comparison.
+select r.v, r.v <> all (select h.v from matrix_history h where h.v is not null) from matrix_readings r group by r.v having r.v <> all (select h.v from matrix_history h where h.v is not null) order by 1 nulls first, 2 nulls first;
+# Expected InitPlans 1, correlated templates 0.
+explain verbose true select r.v, r.v <> all (select h.v from matrix_history h where h.v is not null) from matrix_readings r group by r.v having r.v <> all (select h.v from matrix_history h where h.v is not null)\G;
+explain analyze verbose true select r.v, r.v <> all (select h.v from matrix_history h where h.v is not null) from matrix_readings r group by r.v having r.v <> all (select h.v from matrix_history h where h.v is not null)\G;
+select r.v > any (select h.v from matrix_history h where h.v is not null), r.v > any (select h.v from matrix_history h where h.v is not null) from matrix_readings r order by r.ts;
+# Expected InitPlans 1, correlated templates 0.
+explain verbose true select r.v > any (select h.v from matrix_history h where h.v is not null), r.v > any (select h.v from matrix_history h where h.v is not null) from matrix_readings r order by r.ts\G;
+explain analyze verbose true select r.v > any (select h.v from matrix_history h where h.v is not null), r.v > any (select h.v from matrix_history h where h.v is not null) from matrix_readings r order by r.ts\G;
+select r.v, r.v > any (select h.v from matrix_history h where h.v is not null) from matrix_readings r where r.v > any (select h.v from matrix_history h where h.v is not null) order by r.ts;
+# Expected InitPlans 1, correlated templates 0.
+explain verbose true select r.v, r.v > any (select h.v from matrix_history h where h.v is not null) from matrix_readings r where r.v > any (select h.v from matrix_history h where h.v is not null) order by r.ts\G;
+explain analyze verbose true select r.v, r.v > any (select h.v from matrix_history h where h.v is not null) from matrix_readings r where r.v > any (select h.v from matrix_history h where h.v is not null) order by r.ts\G;
+select case when r.v > any (select h.v from matrix_history h where h.v is not null) then 1 when not (r.v > any (select h.v from matrix_history h where h.v is not null)) then 0 else null end from matrix_readings r order by r.ts;
+# Expected InitPlans 1, correlated templates 0.
+explain verbose true select case when r.v > any (select h.v from matrix_history h where h.v is not null) then 1 when not (r.v > any (select h.v from matrix_history h where h.v is not null)) then 0 else null end from matrix_readings r order by r.ts\G;
+explain analyze verbose true select case when r.v > any (select h.v from matrix_history h where h.v is not null) then 1 when not (r.v > any (select h.v from matrix_history h where h.v is not null)) then 0 else null end from matrix_readings r order by r.ts\G;
+select r.v, r.v > any (select h.v from matrix_history h where h.v is not null) from matrix_readings r order by case when r.v > any (select h.v from matrix_history h where h.v is not null) then 1 when not (r.v > any (select h.v from matrix_history h where h.v is not null)) then 0 else null end nulls first, r.ts;
+# Expected InitPlans 1, correlated templates 0.
+explain verbose true select r.v, r.v > any (select h.v from matrix_history h where h.v is not null) from matrix_readings r order by case when r.v > any (select h.v from matrix_history h where h.v is not null) then 1 when not (r.v > any (select h.v from matrix_history h where h.v is not null)) then 0 else null end nulls first, r.ts\G;
+explain analyze verbose true select r.v, r.v > any (select h.v from matrix_history h where h.v is not null) from matrix_readings r order by case when r.v > any (select h.v from matrix_history h where h.v is not null) then 1 when not (r.v > any (select h.v from matrix_history h where h.v is not null)) then 0 else null end nulls first, r.ts\G;
+# Sort output rows for deterministic comparison.
+select r.v, r.v > any (select h.v from matrix_history h where h.v is not null) from matrix_readings r group by r.v having r.v > any (select h.v from matrix_history h where h.v is not null) order by 1 nulls first, 2 nulls first;
+# Expected InitPlans 1, correlated templates 0.
+explain verbose true select r.v, r.v > any (select h.v from matrix_history h where h.v is not null) from matrix_readings r group by r.v having r.v > any (select h.v from matrix_history h where h.v is not null)\G;
+explain analyze verbose true select r.v, r.v > any (select h.v from matrix_history h where h.v is not null) from matrix_readings r group by r.v having r.v > any (select h.v from matrix_history h where h.v is not null)\G;
+select r.v > all (select h.v from matrix_history h where h.v is not null), r.v > all (select h.v from matrix_history h where h.v is not null) from matrix_readings r order by r.ts;
+# Expected InitPlans 1, correlated templates 0.
+explain verbose true select r.v > all (select h.v from matrix_history h where h.v is not null), r.v > all (select h.v from matrix_history h where h.v is not null) from matrix_readings r order by r.ts\G;
+explain analyze verbose true select r.v > all (select h.v from matrix_history h where h.v is not null), r.v > all (select h.v from matrix_history h where h.v is not null) from matrix_readings r order by r.ts\G;
+select r.v, r.v > all (select h.v from matrix_history h where h.v is not null) from matrix_readings r where r.v > all (select h.v from matrix_history h where h.v is not null) order by r.ts;
+# Expected InitPlans 1, correlated templates 0.
+explain verbose true select r.v, r.v > all (select h.v from matrix_history h where h.v is not null) from matrix_readings r where r.v > all (select h.v from matrix_history h where h.v is not null) order by r.ts\G;
+explain analyze verbose true select r.v, r.v > all (select h.v from matrix_history h where h.v is not null) from matrix_readings r where r.v > all (select h.v from matrix_history h where h.v is not null) order by r.ts\G;
+select case when r.v > all (select h.v from matrix_history h where h.v is not null) then 1 when not (r.v > all (select h.v from matrix_history h where h.v is not null)) then 0 else null end from matrix_readings r order by r.ts;
+# Expected InitPlans 1, correlated templates 0.
+explain verbose true select case when r.v > all (select h.v from matrix_history h where h.v is not null) then 1 when not (r.v > all (select h.v from matrix_history h where h.v is not null)) then 0 else null end from matrix_readings r order by r.ts\G;
+explain analyze verbose true select case when r.v > all (select h.v from matrix_history h where h.v is not null) then 1 when not (r.v > all (select h.v from matrix_history h where h.v is not null)) then 0 else null end from matrix_readings r order by r.ts\G;
+select r.v, r.v > all (select h.v from matrix_history h where h.v is not null) from matrix_readings r order by case when r.v > all (select h.v from matrix_history h where h.v is not null) then 1 when not (r.v > all (select h.v from matrix_history h where h.v is not null)) then 0 else null end nulls first, r.ts;
+# Expected InitPlans 1, correlated templates 0.
+explain verbose true select r.v, r.v > all (select h.v from matrix_history h where h.v is not null) from matrix_readings r order by case when r.v > all (select h.v from matrix_history h where h.v is not null) then 1 when not (r.v > all (select h.v from matrix_history h where h.v is not null)) then 0 else null end nulls first, r.ts\G;
+explain analyze verbose true select r.v, r.v > all (select h.v from matrix_history h where h.v is not null) from matrix_readings r order by case when r.v > all (select h.v from matrix_history h where h.v is not null) then 1 when not (r.v > all (select h.v from matrix_history h where h.v is not null)) then 0 else null end nulls first, r.ts\G;
+# Sort output rows for deterministic comparison.
+select r.v, r.v > all (select h.v from matrix_history h where h.v is not null) from matrix_readings r group by r.v having r.v > all (select h.v from matrix_history h where h.v is not null) order by 1 nulls first, 2 nulls first;
+# Expected InitPlans 1, correlated templates 0.
+explain verbose true select r.v, r.v > all (select h.v from matrix_history h where h.v is not null) from matrix_readings r group by r.v having r.v > all (select h.v from matrix_history h where h.v is not null)\G;
+explain analyze verbose true select r.v, r.v > all (select h.v from matrix_history h where h.v is not null) from matrix_readings r group by r.v having r.v > all (select h.v from matrix_history h where h.v is not null)\G;
+select exists (select h.v from matrix_history h where h.v is not null), exists (select h.v from matrix_history h where h.v is not null) from matrix_readings r order by r.ts;
+# Expected InitPlans 1, correlated templates 0.
+explain verbose true select exists (select h.v from matrix_history h where h.v is not null), exists (select h.v from matrix_history h where h.v is not null) from matrix_readings r order by r.ts\G;
+explain analyze verbose true select exists (select h.v from matrix_history h where h.v is not null), exists (select h.v from matrix_history h where h.v is not null) from matrix_readings r order by r.ts\G;
+select r.v, exists (select h.v from matrix_history h where h.v is not null) from matrix_readings r where exists (select h.v from matrix_history h where h.v is not null) order by r.ts;
+# Expected InitPlans 1, correlated templates 0.
+explain verbose true select r.v, exists (select h.v from matrix_history h where h.v is not null) from matrix_readings r where exists (select h.v from matrix_history h where h.v is not null) order by r.ts\G;
+explain analyze verbose true select r.v, exists (select h.v from matrix_history h where h.v is not null) from matrix_readings r where exists (select h.v from matrix_history h where h.v is not null) order by r.ts\G;
+select case when exists (select h.v from matrix_history h where h.v is not null) then 1 when not (exists (select h.v from matrix_history h where h.v is not null)) then 0 else null end from matrix_readings r order by r.ts;
+# Expected InitPlans 1, correlated templates 0.
+explain verbose true select case when exists (select h.v from matrix_history h where h.v is not null) then 1 when not (exists (select h.v from matrix_history h where h.v is not null)) then 0 else null end from matrix_readings r order by r.ts\G;
+explain analyze verbose true select case when exists (select h.v from matrix_history h where h.v is not null) then 1 when not (exists (select h.v from matrix_history h where h.v is not null)) then 0 else null end from matrix_readings r order by r.ts\G;
+select r.v, exists (select h.v from matrix_history h where h.v is not null) from matrix_readings r order by case when exists (select h.v from matrix_history h where h.v is not null) then 1 when not (exists (select h.v from matrix_history h where h.v is not null)) then 0 else null end nulls first, r.ts;
+# Expected InitPlans 1, correlated templates 0.
+explain verbose true select r.v, exists (select h.v from matrix_history h where h.v is not null) from matrix_readings r order by case when exists (select h.v from matrix_history h where h.v is not null) then 1 when not (exists (select h.v from matrix_history h where h.v is not null)) then 0 else null end nulls first, r.ts\G;
+explain analyze verbose true select r.v, exists (select h.v from matrix_history h where h.v is not null) from matrix_readings r order by case when exists (select h.v from matrix_history h where h.v is not null) then 1 when not (exists (select h.v from matrix_history h where h.v is not null)) then 0 else null end nulls first, r.ts\G;
+# Sort output rows for deterministic comparison.
+select r.v, exists (select h.v from matrix_history h where h.v is not null) from matrix_readings r group by r.v having exists (select h.v from matrix_history h where h.v is not null) order by 1 nulls first, 2 nulls first;
+# Expected InitPlans 1, correlated templates 0.
+explain verbose true select r.v, exists (select h.v from matrix_history h where h.v is not null) from matrix_readings r group by r.v having exists (select h.v from matrix_history h where h.v is not null)\G;
+explain analyze verbose true select r.v, exists (select h.v from matrix_history h where h.v is not null) from matrix_readings r group by r.v having exists (select h.v from matrix_history h where h.v is not null)\G;
+select not exists (select h.v from matrix_history h where h.v is not null), not exists (select h.v from matrix_history h where h.v is not null) from matrix_readings r order by r.ts;
+# Expected InitPlans 1, correlated templates 0.
+explain verbose true select not exists (select h.v from matrix_history h where h.v is not null), not exists (select h.v from matrix_history h where h.v is not null) from matrix_readings r order by r.ts\G;
+explain analyze verbose true select not exists (select h.v from matrix_history h where h.v is not null), not exists (select h.v from matrix_history h where h.v is not null) from matrix_readings r order by r.ts\G;
+select r.v, not exists (select h.v from matrix_history h where h.v is not null) from matrix_readings r where not exists (select h.v from matrix_history h where h.v is not null) order by r.ts;
+# Expected InitPlans 1, correlated templates 0.
+explain verbose true select r.v, not exists (select h.v from matrix_history h where h.v is not null) from matrix_readings r where not exists (select h.v from matrix_history h where h.v is not null) order by r.ts\G;
+explain analyze verbose true select r.v, not exists (select h.v from matrix_history h where h.v is not null) from matrix_readings r where not exists (select h.v from matrix_history h where h.v is not null) order by r.ts\G;
+select case when not exists (select h.v from matrix_history h where h.v is not null) then 1 when not (not exists (select h.v from matrix_history h where h.v is not null)) then 0 else null end from matrix_readings r order by r.ts;
+# Expected InitPlans 1, correlated templates 0.
+explain verbose true select case when not exists (select h.v from matrix_history h where h.v is not null) then 1 when not (not exists (select h.v from matrix_history h where h.v is not null)) then 0 else null end from matrix_readings r order by r.ts\G;
+explain analyze verbose true select case when not exists (select h.v from matrix_history h where h.v is not null) then 1 when not (not exists (select h.v from matrix_history h where h.v is not null)) then 0 else null end from matrix_readings r order by r.ts\G;
+select r.v, not exists (select h.v from matrix_history h where h.v is not null) from matrix_readings r order by case when not exists (select h.v from matrix_history h where h.v is not null) then 1 when not (not exists (select h.v from matrix_history h where h.v is not null)) then 0 else null end nulls first, r.ts;
+# Expected InitPlans 1, correlated templates 0.
+explain verbose true select r.v, not exists (select h.v from matrix_history h where h.v is not null) from matrix_readings r order by case when not exists (select h.v from matrix_history h where h.v is not null) then 1 when not (not exists (select h.v from matrix_history h where h.v is not null)) then 0 else null end nulls first, r.ts\G;
+explain analyze verbose true select r.v, not exists (select h.v from matrix_history h where h.v is not null) from matrix_readings r order by case when not exists (select h.v from matrix_history h where h.v is not null) then 1 when not (not exists (select h.v from matrix_history h where h.v is not null)) then 0 else null end nulls first, r.ts\G;
+select r.v, not exists (select h.v from matrix_history h where h.v is not null) from matrix_readings r group by r.v having not exists (select h.v from matrix_history h where h.v is not null);
+# Expected InitPlans 1, correlated templates 0.
+explain verbose true select r.v, not exists (select h.v from matrix_history h where h.v is not null) from matrix_readings r group by r.v having not exists (select h.v from matrix_history h where h.v is not null)\G;
+explain analyze verbose true select r.v, not exists (select h.v from matrix_history h where h.v is not null) from matrix_readings r group by r.v having not exists (select h.v from matrix_history h where h.v is not null)\G;
+select r.v, j.v, r.v in (select h.v from matrix_history h where h.v is not null) from matrix_readings r join matrix_history j on r.ts = j.ts and r.v in (select h.v from matrix_history h where h.v is not null) order by r.ts;
+# Expected InitPlans 1, correlated templates 0.
+explain verbose true select r.v, j.v, r.v in (select h.v from matrix_history h where h.v is not null) from matrix_readings r join matrix_history j on r.ts = j.ts and r.v in (select h.v from matrix_history h where h.v is not null) order by r.ts\G;
+explain analyze verbose true select r.v, j.v, r.v in (select h.v from matrix_history h where h.v is not null) from matrix_readings r join matrix_history j on r.ts = j.ts and r.v in (select h.v from matrix_history h where h.v is not null) order by r.ts\G;
+drop database duplicate_positions;

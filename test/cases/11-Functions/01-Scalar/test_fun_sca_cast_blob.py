@@ -1,3 +1,18 @@
+# Copyright (c) 2026 TAOS Data, Inc. <jhtao@taosdata.com>
+#
+# SPDX-License-Identifier: AGPL-3.0-or-later
+#
+# This program is free software: you can use, redistribute, and/or modify
+# it under the terms of the GNU Affero General Public License, version 3
+# or later ("AGPL"), as published by the Free Software Foundation.
+#
+# This program is distributed in the hope that it will be useful, but WITHOUT
+# ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+# FITNESS FOR A PARTICULAR PURPOSE.
+#
+# You should have received a copy of the GNU Affero General Public License
+# along with this program. If not, see <http://www.gnu.org/licenses/>.
+
 from new_test_framework.utils import tdLog, tdSql
 
 
@@ -147,6 +162,55 @@ class TestBlobCastFunc:
 
         tdSql.query(f"select cast(v_big as blob) from {DB}.tnum where id=1")
         tdSql.checkData(0, 0, b'100')
+
+    def cast_decimal_to_blob(self):
+        tdSql.query("select cast(cast(1.50 as decimal(10,2)) as blob)")
+        tdSql.checkRows(1)
+        tdSql.checkData(0, 0, b"1.50")
+
+        cases = [
+            ("decimal(10,2)", "1.50", b"1.50"),
+            ("decimal(10,2)", "-1234.56", b"-1234.56"),
+            ("decimal(10,2)", "0.00", b"0"),
+            ("decimal(18,0)", "999999999999999999", b"999999999999999999"),
+            ("decimal(18,18)", "-0.000000000000000001", b"-0.000000000000000001"),
+            (
+                "decimal(38,18)",
+                "12345678901234567890.123456789012345678",
+                b"12345678901234567890.123456789012345678",
+            ),
+            (
+                "decimal(38,18)",
+                "-12345678901234567890.123456789012345678",
+                b"-12345678901234567890.123456789012345678",
+            ),
+            ("decimal(38,18)", "0.000000000000000000", b"0"),
+        ]
+        for index, (data_type, value, expected) in enumerate(cases):
+            table = f"{DB}.t_decimal_{index}"
+            tdSql.execute(f"create table {table} (ts timestamp, v {data_type})")
+            tdSql.execute(
+                f"insert into {table} values (1735689600000, '{value}') "
+                "(1735689600001, NULL) (1735689600002, '0')"
+            )
+            widths = sorted({1, 3, max(1, len(expected) - 1), len(expected), len(expected) + 1, 128})
+            targets = [("blob", None)]
+            targets.extend(
+                (f"{kind}({width})", width)
+                for kind in ("varchar", "binary", "nchar")
+                for width in widths
+            )
+            for target, width in targets:
+                want = expected if target == "blob" else expected.decode("ascii")[:width]
+                tdSql.query(f"select cast(cast('{value}' as {data_type}) as {target})")
+                tdSql.checkRows(1)
+                tdSql.checkData(0, 0, want)
+                tdSql.query(f"select cast(v as {target}) from {table} order by ts")
+                tdSql.checkRows(3)
+                tdSql.checkData(0, 0, want)
+                tdSql.checkData(1, 0, None)
+                tdSql.checkData(2, 0, b"0" if target == "blob" else "0")
+        tdLog.info("decimal to blob and strings ................ [ passed ]")
 
 
     def cast_blob_to_nchar(self):
@@ -355,15 +419,19 @@ class TestBlobCastFunc:
         15. BLOB in WHERE clause with CAST
         16. Aggregate functions with LENGTH(BLOB)
         17. GROUP BY with BLOB substr/cast (expect error)
+        18. CAST DECIMAL constants and columns to BLOB/VARCHAR/BINARY/NCHAR with NULL and boundary values
+        19. Truncate DECIMAL strings at one byte, below/exactly/above their formatted length, and across rows
 
         Since: v3.0.0.0
 
-        Labels: common,ci
+        Labels: common,ci,integration,functional
 
         Jira: None
 
         History:
             - 2026-03-20 Created BLOB cast/substr/length function tests
+            - 2026-10-21 Cover DECIMAL formatting with different output capacities
+            - 2026-10-29 Cover short DECIMAL string casts without reading unterminated buffers
 
         """
         self._prepare_db()
@@ -375,6 +443,7 @@ class TestBlobCastFunc:
         self.cast_blob_to_float()
         self.cast_blob_to_bool()
         self.cast_numeric_to_blob()
+        self.cast_decimal_to_blob()
         self.cast_blob_to_nchar()
         self.cast_blob_to_binary()
         self.cast_null_blob()

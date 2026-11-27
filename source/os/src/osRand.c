@@ -1,6 +1,8 @@
 /*
  * Copyright (c) 2019 TAOS Data, Inc. <jhtao@taosdata.com>
  *
+ * SPDX-License-Identifier: AGPL-3.0-or-later
+ *
  * This program is free software: you can use, redistribute, and/or modify
  * it under the terms of the GNU Affero General Public License, version 3
  * or later ("AGPL"), as published by the Free Software Foundation.
@@ -12,6 +14,7 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
+
 #define ALLOW_FORBID_FUNC
 #define _DEFAULT_SOURCE
 #include "os.h"
@@ -72,33 +75,27 @@ uint32_t taosSafeRand(void) {
 #endif
 }
 
-void taosSafeRandBytes(uint8_t* pBuf, int32_t size) {
+bool taosSecureRandBytes(uint8_t* pBuf, int32_t size) {
+  if (!pBuf || size <= 0) return false;
 #ifdef WINDOWS
-  HCRYPTPROV hCryptProv;
-  if (!CryptAcquireContext(&hCryptProv, NULL, NULL, PROV_RSA_FULL, CRYPT_NEWKEYSET)) {
-    goto _error;
-  }
-  if (!CryptGenRandom(hCryptProv, size, pBuf)) {
-    CryptReleaseContext(hCryptProv, 0);
-    goto _error;
-  }
-  CryptReleaseContext(hCryptProv, 0);
-  return;
-#elif !defined(TD_ASTRA)
-  TdFilePtr pFile;
-  pFile = taosOpenFile("/dev/urandom", TD_FILE_READ);
-  if (pFile == NULL) {
-    goto _error;
-  }
-  if (taosReadFile(pFile, pBuf, size) < 0) {
-    TAOS_SKIP_ERROR(taosCloseFile(&pFile));
-    goto _error;
-  }
-  TAOS_SKIP_ERROR(taosCloseFile(&pFile));
-  return;
+  HCRYPTPROV provider;
+  if (!CryptAcquireContext(&provider, NULL, NULL, PROV_RSA_FULL, CRYPT_VERIFYCONTEXT)) return false;
+  bool ok = CryptGenRandom(provider, size, pBuf) != 0;
+  CryptReleaseContext(provider, 0);
+  return ok;
+#else
+  TdFilePtr file = taosOpenFile("/dev/urandom", TD_FILE_READ);
+  if (!file) return false;
+  bool ok = taosReadFile(file, pBuf, size) == size;
+  TAOS_SKIP_ERROR(taosCloseFile(&file));
+  return ok;
 #endif
+}
 
-_error:
+void taosSafeRandBytes(uint8_t* pBuf, int32_t size) {
+#ifndef TD_ASTRA
+  if (taosSecureRandBytes(pBuf, size)) return;
+#endif
   for (int32_t i = 0; i < size; ++i) {
     pBuf[i] = (uint8_t)(taosRand() % 256);
   }

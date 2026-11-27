@@ -1,3 +1,18 @@
+# Copyright (c) 2025 TAOS Data, Inc. <jhtao@taosdata.com>
+#
+# SPDX-License-Identifier: AGPL-3.0-or-later
+#
+# This program is free software: you can use, redistribute, and/or modify
+# it under the terms of the GNU Affero General Public License, version 3
+# or later ("AGPL"), as published by the Free Software Foundation.
+#
+# This program is distributed in the hope that it will be useful, but WITHOUT
+# ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+# FITNESS FOR A PARTICULAR PURPOSE.
+#
+# You should have received a copy of the GNU Affero General Public License
+# along with this program. If not, see <http://www.gnu.org/licenses/>.
+
 import time
 from new_test_framework.utils import tdLog, tdSql, tdStream, sc, clusterComCheck
 
@@ -17,7 +32,7 @@ class TestString:
 
         Since: v3.0.0.0
 
-        Labels: common,ci
+        Labels: common,ci,integration,functional
 
         Jira: None
 
@@ -735,6 +750,26 @@ class TestString:
         tdSql.query(f'select regexp_in_set("Jinhui.*", enname, "，") from {self.tbname}')
         tdSql.checkData(2, 0, 0)
 
+        tdLog.info(f"====> regexp_in_set with blank nchar pat/set (single row)")
+        tdSql.execute(f'create table if not exists {self.tbname}_blank(ts timestamp, blank_pat nchar(10), blank_set nchar(10))')
+        tdSql.execute(f'insert into {self.tbname}_blank values(now(), "", "")')
+        tdSql.query(f'select regexp_in_set(blank_pat, blank_set) from {self.tbname}_blank')
+        tdSql.checkData(0, 0, 0)
+        tdSql.query(f'select regexp_in_set("", blank_set) from {self.tbname}_blank')
+        tdSql.checkData(0, 0, 0)
+        tdSql.query(f'select regexp_in_set(blank_pat, "a,b,c") from {self.tbname}_blank')
+        tdSql.checkData(0, 0, 0)
+
+        tdLog.info(f"====> regexp_in_set with multi-row nchar separator")
+        tdSql.execute(f'create table if not exists {self.tbname}_sep(ts timestamp, setv nchar(100), sepv nchar(10))')
+        tdSql.execute(f'insert into {self.tbname}_sep values(now(), "aa|bb", "|")')
+        tdSql.execute(f'insert into {self.tbname}_sep values(now(), "cc|dd", "|")')
+        tdSql.execute(f'insert into {self.tbname}_sep values(now(), "ee|ff", "|")')
+        tdSql.query(f'select regexp_in_set("bb", setv, sepv) from {self.tbname}_sep')
+        tdSql.checkData(0, 0, 2)
+        tdSql.checkData(1, 0, 0)
+        tdSql.checkData(2, 0, 0)
+
     def test_fun_sca_find_in_set(self):
         """ Fun: find_in_set()
 
@@ -746,7 +781,7 @@ class TestString:
 
         Since: v3.3.0.0
 
-        Labels: common,ci
+        Labels: common,ci,integration,functional
 
         History:
             - 2025-10-14 Alex Duan add doc
@@ -765,7 +800,7 @@ class TestString:
 
         Since: v3.3.0.0
 
-        Labels: common,ci
+        Labels: common,ci,integration,functional
 
         History:
             - 2025-10-15 Alex Duan add doc

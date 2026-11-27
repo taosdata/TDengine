@@ -1,6 +1,8 @@
 /*
  * Copyright (c) 2019 TAOS Data, Inc. <jhtao@taosdata.com>
  *
+ * SPDX-License-Identifier: AGPL-3.0-or-later
+ *
  * This program is free software: you can use, redistribute, and/or modify
  * it under the terms of the GNU Affero General Public License, version 3
  * or later ("AGPL"), as published by the Free Software Foundation.
@@ -15,6 +17,7 @@
 
 #define _DEFAULT_SOURCE
 #include "syncEnv.h"
+#include "syncSnapshot.h"
 #include "syncUtil.h"
 #include "tref.h"
 
@@ -52,6 +55,14 @@ int32_t syncInit() {
 
   sDebug("sync hbdata rset is open, rsetId:%d", gHbDataRefId);
 
+  SSnapshotRateLimiter *pRateLimiter = NULL;
+  int32_t               rlCode = snapshotRateLimiterCreate(&pRateLimiter);
+  if (rlCode != 0) {
+    sError("failed to create snapshot rate limiter since %s", tstrerror(rlCode));
+    syncCleanUp();
+    return rlCode;
+  }
+
   atomic_store_8(&gSyncEnv.isStart, 1);
   return 0;
 }
@@ -72,6 +83,8 @@ void syncCleanUp() {
     taosCloseRef(gHbDataRefId);
     gHbDataRefId = -1;
   }
+
+  snapshotRateLimiterCleanUp();
 }
 
 int64_t syncNodeAdd(SSyncNode *pNode) {

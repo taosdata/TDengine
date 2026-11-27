@@ -1,0 +1,176 @@
+### xjoin-01 POS
+SQL: SELECT a.id, a.val, b.bid, b.val2 FROM {tbl}.ta a INNER JOIN {tbl}.tb b ON a.time = b.time ORDER BY a.time
+RESULT
+1|10|1|15
+2|20|2|25
+3|30|3|30
+6|10|4|45
+---
+### xjoin-02 POS
+SQL: SELECT a.id, a.val, b.bid, b.val2 FROM {tbl}.ta a LEFT JOIN {tbl}.tb b ON a.time = b.time ORDER BY a.time
+RESULT
+1|10|1|15
+2|20|2|25
+3|30|3|30
+4|40|NULL|NULL
+5|50|NULL|NULL
+6|10|4|45
+---
+### xjoin-03 POS
+SQL: SELECT a.id, a.val, b.bid, b.val2 FROM {tbl}.ta a FULL JOIN {tbl}.tb b ON a.time = b.time
+RESULT
+1|10|1|15
+2|20|2|25
+3|30|3|30
+4|40|NULL|NULL
+5|50|NULL|NULL
+6|10|4|45
+NULL|NULL|5|50
+---
+### xjoin-04 POS
+SQL: SELECT a.id, a.val, b.val2 FROM {tbl}.ta a LEFT ASOF JOIN {tbl}.tb b ON a.time >= b.time ORDER BY a.time
+RESULT
+1|10|15
+2|20|25
+3|30|30
+4|40|30
+5|50|30
+6|10|45
+---
+### xjoin-05 POS
+SQL: SELECT a.id, a.val, b.val2 FROM {tbl}.ta a LEFT ASOF JOIN {tbl}.tb b ON a.time >= b.time JLIMIT 1 ORDER BY a.time
+RESULT
+1|10|15
+2|20|25
+3|30|30
+4|40|30
+5|50|30
+6|10|45
+---
+### xjoin-06 POS
+SQL: SELECT a.val, b.bid, b.val2 FROM {tbl}.ta a RIGHT ASOF JOIN {tbl}.tb b ON b.time >= a.time ORDER BY b.time
+RESULT
+10|1|15
+20|2|25
+30|3|30
+10|4|45
+10|5|50
+---
+### xjoin-07 POS
+SQL: SELECT a.id, a.val, b.val2 FROM {tbl}.ta a LEFT WINDOW JOIN {tbl}.tb b WINDOW_OFFSET(-1m, 1m) ORDER BY a.time, b.time
+RESULT
+1|10|15
+1|10|25
+2|20|15
+2|20|25
+2|20|30
+3|30|25
+3|30|30
+4|40|30
+5|50|45
+6|10|45
+6|10|50
+---
+### xjoin-08 POS
+SQL: SELECT a.id, a.val, b.val2 FROM {tbl}.ta a LEFT WINDOW JOIN {tbl}.tb b WINDOW_OFFSET(-1m, 1m) JLIMIT 1 ORDER BY a.time
+RESULT
+1|10|15
+2|20|15
+3|30|25
+4|40|30
+5|50|45
+6|10|45
+---
+### xjoin-09 POS
+SQL: SELECT a.val, b.bid, b.val2 FROM {tbl}.ta a RIGHT WINDOW JOIN {tbl}.tb b WINDOW_OFFSET(-1m, 1m) ORDER BY b.time, a.time
+RESULT
+10|1|15
+20|1|15
+10|2|25
+20|2|25
+30|2|25
+20|3|30
+30|3|30
+40|3|30
+50|4|45
+10|4|45
+10|5|50
+---
+### xsub-01 POS
+SQL: SELECT id, val FROM {tbl}.ta WHERE id IN (SELECT ref_id FROM {tbl}.tb) ORDER BY id
+RESULT
+1|10
+2|20
+3|30
+5|50
+---
+### xsub-02 POS
+SQL: SELECT id, val FROM {tbl}.ta WHERE id NOT IN (SELECT ref_id FROM {tbl}.tb) ORDER BY id
+RESULT
+4|40
+6|10
+---
+### xsub-03 POS
+SQL: SELECT id, val FROM {tbl}.ta WHERE val > ANY (SELECT val2 FROM {tbl}.tb WHERE flag = 1) ORDER BY id
+RESULT
+2|20
+3|30
+4|40
+5|50
+---
+### xsub-04 POS
+SQL: SELECT id, val FROM {tbl}.ta WHERE val > ALL (SELECT val2 FROM {tbl}.tb WHERE flag = 1) ORDER BY id
+RESULT
+5|50
+---
+### xsub-05 POS
+SQL: SELECT id, val FROM {tbl}.ta WHERE val = SOME (SELECT val2 FROM {tbl}.tb) ORDER BY id
+RESULT
+3|30
+5|50
+---
+### xsub-06 POS
+SQL: SELECT id, val FROM {tbl}.ta WHERE val > (SELECT MAX(val2) FROM {tbl}.tb WHERE flag = 1) ORDER BY id
+RESULT
+5|50
+---
+### xunion-01 POS
+SQL: SELECT id, val FROM {tbl}.ta UNION ALL SELECT bid, val2 FROM {tbl}.tb ORDER BY 1, 2
+RESULT
+1|10
+1|15
+2|20
+2|25
+3|30
+3|30
+4|40
+4|45
+5|50
+5|50
+6|10
+---
+### xunion-02 POS
+SQL: SELECT id, val FROM {tbl}.ta UNION SELECT bid, val2 FROM {tbl}.tb ORDER BY 1, 2
+RESULT
+1|10
+1|15
+2|20
+2|25
+3|30
+4|40
+4|45
+5|50
+6|10
+---
+### xagg-01 POS
+SQL: SELECT a.label, COUNT(*) AS cnt FROM {tbl}.ta a INNER JOIN {tbl}.tb b ON a.time = b.time GROUP BY a.label ORDER BY a.label
+RESULT
+a|2
+b|2
+---
+### xagg-02 POS
+SQL: SELECT a.label, SUM(b.val2) AS total FROM {tbl}.ta a INNER JOIN {tbl}.tb b ON a.time = b.time GROUP BY a.label ORDER BY a.label
+RESULT
+a|45
+b|70
+---

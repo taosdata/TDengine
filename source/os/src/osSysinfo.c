@@ -1,6 +1,8 @@
 /*
  * Copyright (c) 2019 TAOS Data, Inc. <jhtao@taosdata.com>
  *
+ * SPDX-License-Identifier: AGPL-3.0-or-later
+ *
  * This program is free software: you can use, redistribute, and/or modify
  * it under the terms of the GNU Affero General Public License, version 3
  * or later ("AGPL"), as published by the Free Software Foundation.
@@ -13,6 +15,9 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
+#ifndef _GNU_SOURCE
+#define _GNU_SOURCE
+#endif
 #define _DEFAULT_SOURCE
 #include "os.h"
 #include "taoserror.h"
@@ -142,6 +147,41 @@ static void taosWinWriteStackTrace(HANDLE hFile, PEXCEPTION_POINTERS ep) {
   SymCleanup(hProcess);
 }
 
+// Split the running executable's full path into a directory (with trailing
+// backslash) and a base file name with its extension stripped, e.g.
+// "C:\TDengine\taosdump.exe" -> dir="C:\TDengine\", name="taosdump". This
+// mechanism is shared by every TDengine binary (taosd, taosdump, taos, ...),
+// so the dump/log file name must reflect the actual crashing process instead
+// of being hardcoded. Falls back to "taosd" only if the module path cannot
+// be resolved at all, so a dump/log is still produced.
+static void taosWinGetExeDirAndName(TdWchar* dir, size_t dirCap, TdWchar* name, size_t nameCap) {
+  TdWchar exePath[MAX_PATH];
+  DWORD   len = GetModuleFileNameW(NULL, exePath, MAX_PATH);
+
+  DWORD dirEnd = len;
+  while (dirEnd > 0 && exePath[dirEnd - 1] != L'\\') dirEnd--;
+
+  DWORD dirCopyLen = dirEnd < (DWORD)(dirCap - 1) ? dirEnd : (DWORD)(dirCap - 1);
+  wmemcpy(dir, exePath, dirCopyLen);
+  dir[dirCopyLen] = L'\0';
+
+  DWORD nameEnd = len;
+  for (DWORD i = len; i > dirEnd; i--) {
+    if (exePath[i - 1] == L'.') {
+      nameEnd = i - 1;
+      break;
+    }
+  }
+  DWORD nameLen     = (len > dirEnd && nameEnd > dirEnd) ? (nameEnd - dirEnd) : 0;
+  DWORD nameCopyLen = nameLen < (DWORD)(nameCap - 1) ? nameLen : (DWORD)(nameCap - 1);
+  if (nameCopyLen > 0) {
+    wmemcpy(name, exePath + dirEnd, nameCopyLen);
+    name[nameCopyLen] = L'\0';
+  } else {
+    wcsncpy_s(name, nameCap, L"taosd", _TRUNCATE);
+  }
+}
+
 LONG WINAPI FlCrashDump(PEXCEPTION_POINTERS ep) {
   // Only handle fatal exceptions, let others pass through for vectored handler
   DWORD code = ep->ExceptionRecord->ExceptionCode;
@@ -157,7 +197,7 @@ LONG WINAPI FlCrashDump(PEXCEPTION_POINTERS ep) {
                                              IN CONST PMINIDUMP_USER_STREAM_INFORMATION UserStreamParam,
                                              IN CONST PMINIDUMP_CALLBACK_INFORMATION    CallbackParam);
 
-  // ── 1. load dbghelp ──────────────────────────────────────────────────────
+  // -- 1. load dbghelp ------------------------------------------------------
   HMODULE dll = LoadLibraryA("dbghelp.dll");
   if (dll == NULL) return EXCEPTION_CONTINUE_SEARCH;
   FxMiniDumpWriteDump mdwd = (FxMiniDumpWriteDump)(GetProcAddress(dll, "MiniDumpWriteDump"));
@@ -166,29 +206,27 @@ LONG WINAPI FlCrashDump(PEXCEPTION_POINTERS ep) {
     return EXCEPTION_CONTINUE_SEARCH;
   }
 
-  // ── 2. build timestamped file paths next to the running executable ───────
+  // -- 2. build timestamped file paths next to the running executable -------
   //      Keeping dumps beside the exe makes them easy to find.
   SYSTEMTIME st;
   GetLocalTime(&st);
 
-  TdWchar exePath[MAX_PATH];
-  DWORD   exeLen = GetModuleFileNameW(NULL, exePath, MAX_PATH);
-  /* strip the executable filename, keep the trailing backslash */
-  while (exeLen > 0 && exePath[exeLen - 1] != L'\\') exeLen--;
-  exePath[exeLen] = L'\0';  /* exePath is now the directory with trailing '\' */
+  TdWchar exeDir[MAX_PATH];
+  TdWchar exeName[MAX_PATH];
+  taosWinGetExeDirAndName(exeDir, MAX_PATH, exeName, MAX_PATH);
 
   TdWchar dmpPath[MAX_PATH];
   TdWchar logPath[MAX_PATH];
   _snwprintf_s(dmpPath, MAX_PATH, _TRUNCATE,
-               L"%staosd_%04d%02d%02d_%02d%02d%02d.dmp",
-               exePath, st.wYear, st.wMonth, st.wDay,
+               L"%s%s_%04d%02d%02d_%02d%02d%02d.dmp",
+               exeDir, exeName, st.wYear, st.wMonth, st.wDay,
                st.wHour, st.wMinute, st.wSecond);
   _snwprintf_s(logPath, MAX_PATH, _TRUNCATE,
-               L"%staosd_%04d%02d%02d_%02d%02d%02d_stack.log",
-               exePath, st.wYear, st.wMonth, st.wDay,
+               L"%s%s_%04d%02d%02d_%02d%02d%02d_stack.log",
+               exeDir, exeName, st.wYear, st.wMonth, st.wDay,
                st.wHour, st.wMinute, st.wSecond);
 
-  // ── 3. write MiniDump with comprehensive type ─────────────────────────────
+  // -- 3. write MiniDump with comprehensive type -----------------------------
   HANDLE dmpFile = CreateFileW(dmpPath, GENERIC_WRITE, 0, NULL,
                                CREATE_ALWAYS, FILE_ATTRIBUTE_NORMAL, NULL);
   if (dmpFile != INVALID_HANDLE_VALUE) {
@@ -212,7 +250,7 @@ LONG WINAPI FlCrashDump(PEXCEPTION_POINTERS ep) {
     CloseHandle(dmpFile);
   }
 
-  // ── 4. write stack trace text log (usable without PDB on developer side) ──
+  // -- 4. write stack trace text log (usable without PDB on developer side) --
   HANDLE logFile = CreateFileW(logPath, GENERIC_WRITE, 0, NULL,
                                CREATE_ALWAYS, FILE_ATTRIBUTE_NORMAL, NULL);
   if (logFile != INVALID_HANDLE_VALUE) {
@@ -236,11 +274,12 @@ LONG WINAPI FlCrashDump(PEXCEPTION_POINTERS ep) {
   // Return EXCEPTION_CONTINUE_SEARCH so that Windows Error Reporting (WER /
   // WerFault.exe) can write an out-of-process dump as a fallback.  WerFault
   // runs in a separate process and is therefore immune to stack/heap corruption
-  // in this process — it will still produce a valid dump even when
+  // in this process  -  it will still produce a valid dump even when
   // MiniDumpWriteDump above failed (e.g. due to stack overflow or heap
   // corruption that zeroed out our stack frame).
-  // Configure the WER dump directory via:
-  //   HKLM\SOFTWARE\Microsoft\Windows\Windows Error Reporting\LocalDumps\taosd.exe
+  // Configure the WER dump directory via (per crashing executable name, e.g.
+  // taosd.exe / taosdump.exe / taos.exe):
+  //   HKLM\SOFTWARE\Microsoft\Windows\Windows Error Reporting\LocalDumps\<exe name>
   //     DumpFolder  REG_EXPAND_SZ  <path>
   //     DumpType    REG_DWORD      2        (full user-mode dump)
   //     DumpCount   REG_DWORD      10
@@ -283,15 +322,14 @@ static void FlCrashDumpNoException(const char* reason) {
   SYSTEMTIME st;
   GetLocalTime(&st);
 
-  TdWchar exePath[MAX_PATH];
-  DWORD   exeLen = GetModuleFileNameW(NULL, exePath, MAX_PATH);
-  while (exeLen > 0 && exePath[exeLen - 1] != L'\\') exeLen--;
-  exePath[exeLen] = L'\0';
+  TdWchar exeDir[MAX_PATH];
+  TdWchar exeName[MAX_PATH];
+  taosWinGetExeDirAndName(exeDir, MAX_PATH, exeName, MAX_PATH);
 
   TdWchar dmpPath[MAX_PATH];
   _snwprintf_s(dmpPath, MAX_PATH, _TRUNCATE,
-               L"%staosd_%04d%02d%02d_%02d%02d%02d.dmp",
-               exePath, st.wYear, st.wMonth, st.wDay,
+               L"%s%s_%04d%02d%02d_%02d%02d%02d.dmp",
+               exeDir, exeName, st.wYear, st.wMonth, st.wDay,
                st.wHour, st.wMinute, st.wSecond);
 
   HANDLE dmpFile = CreateFileW(dmpPath, GENERIC_WRITE, 0, NULL,
@@ -308,8 +346,8 @@ static void FlCrashDumpNoException(const char* reason) {
   // Write reason to log file
   TdWchar logPath[MAX_PATH];
   _snwprintf_s(logPath, MAX_PATH, _TRUNCATE,
-               L"%staosd_%04d%02d%02d_%02d%02d%02d_stack.log",
-               exePath, st.wYear, st.wMonth, st.wDay,
+               L"%s%s_%04d%02d%02d_%02d%02d%02d_stack.log",
+               exeDir, exeName, st.wYear, st.wMonth, st.wDay,
                st.wHour, st.wMinute, st.wSecond);
   HANDLE logFile = CreateFileW(logPath, GENERIC_WRITE, 0, NULL,
                                CREATE_ALWAYS, FILE_ATTRIBUTE_NORMAL, NULL);
@@ -730,8 +768,10 @@ int32_t taosGetOsReleaseName(char *releaseName, char* sName, char* ver, int32_t 
       continue;
     }
     if (!dest) continue;
-    const char *p = strchr(line, '=') + 1;
-    if (*p == '"') {
+    const char *eq = strchr(line, '=');
+    if (eq == NULL) continue;  // malformed line, no '='
+    const char *p = eq + 1;
+    if (*p == '"' && size >= 2) {
       p++;
       line[size - 2] = 0;
     }
@@ -1926,7 +1966,7 @@ void taosSetCoreDump(bool enable) {
 
   old_len = sizeof(old_usespid);
 
-#ifndef __loongarch64
+#if !defined(__loongarch64) && defined(SYS__sysctl)
   if (syscall(SYS__sysctl, &args) == -1) {
     // printf("_sysctl(kern_core_uses_pid) set fail: %s", strerror(ERRNO));
   }
@@ -1944,7 +1984,7 @@ void taosSetCoreDump(bool enable) {
 
   old_len = sizeof(old_usespid);
 
-#ifndef __loongarch64
+#if !defined(__loongarch64) && defined(SYS__sysctl)
   if (syscall(SYS__sysctl, &args) == -1) {
     // printf("_sysctl(kern_core_uses_pid) get fail: %s", strerror(ERRNO));
   }
@@ -2073,3 +2113,232 @@ int32_t taosGetlocalhostname(char *hostname, size_t maxLen) {
   return r;
 #endif
 }
+
+// --- CPU Affinity Management ---
+
+// Forward-declare config variables from tglobal.h to avoid circular dependency
+extern bool    tsEnableCpuAffinity;
+extern int32_t tsManagementCpuCores;
+extern int32_t tsReadCpuCores;
+extern int32_t tsOtherCpuCores;
+
+static SCpuAllocStatus gCpuAllocStatus = {0};
+
+#ifdef __linux__
+int32_t taosGetAvailableCpuSet(cpu_set_t *cpuset) {
+  CPU_ZERO(cpuset);
+  if (sched_getaffinity(0, sizeof(cpu_set_t), cpuset) != 0) {
+    // Fallback: set all cores based on tsNumOfCores
+    for (int i = 0; i < (int)tsNumOfCores; i++) {
+      CPU_SET(i, cpuset);
+    }
+    return (int32_t)tsNumOfCores;
+  }
+  return CPU_COUNT(cpuset);
+}
+#endif
+
+int32_t taosInitCpuAllocation(void) {
+  memset(&gCpuAllocStatus, 0, sizeof(gCpuAllocStatus));
+
+  if (!tsEnableCpuAffinity) {
+    gCpuAllocStatus.enabled = false;
+    uInfo("CPU affinity disabled by configuration (enableCpuAffinity=0)");
+    return 0;
+  }
+
+#ifdef __linux__
+  cpu_set_t availSet;
+  int32_t   totalCores = taosGetAvailableCpuSet(&availSet);
+  if (totalCores > TAOS_MAX_CPU_CORES) {
+    uWarn("System has %d cores, but TDengine CPU affinity only supports up to %d. Capping to %d.", totalCores,
+          TAOS_MAX_CPU_CORES, TAOS_MAX_CPU_CORES);
+    totalCores = TAOS_MAX_CPU_CORES;
+  }
+#else
+  int32_t totalCores = (int32_t)tsNumOfCores;
+  if (totalCores > TAOS_MAX_CPU_CORES) totalCores = TAOS_MAX_CPU_CORES;
+#endif
+
+  gCpuAllocStatus.totalCores = totalCores;
+
+  // Disable affinity if fewer than 3 cores available
+  if (totalCores < 3) {
+    gCpuAllocStatus.enabled = false;
+    uWarn("CPU affinity disabled: only %d cores available, need >= 3", totalCores);
+    return 0;
+  }
+
+  // Validate: managementCpuCores must leave at least 2 for write + read
+  if (tsManagementCpuCores > totalCores - 2) {
+    uError("managementCpuCores %d exceeds maximum %d (totalCores=%d)", tsManagementCpuCores, totalCores - 2,
+           totalCores);
+    return TSDB_CODE_INVALID_CFG_VALUE;
+  }
+
+  int32_t mgmt = tsManagementCpuCores;
+
+  // Use explicit core counts from config
+  int32_t readCount = tsReadCpuCores;
+  int32_t writeCount = tsOtherCpuCores;
+
+  // Validate sum does not exceed available cores
+  if (mgmt + readCount + writeCount > totalCores) {
+    uError("CPU core sum exceeds total: management=%d + read=%d + write=%d > total=%d", mgmt, readCount, writeCount,
+           totalCores);
+    return TSDB_CODE_INVALID_CFG_VALUE;
+  }
+
+  // Collect available core IDs in sorted order
+  int32_t coreIds[TAOS_MAX_CPU_CORES];
+  int32_t nCores = 0;
+#ifdef __linux__
+  for (int i = 0; i < CPU_SETSIZE && nCores < totalCores; i++) {
+    if (CPU_ISSET(i, &availSet)) {
+      coreIds[nCores++] = i;
+    }
+  }
+#else
+  for (int i = 0; i < totalCores && i < TAOS_MAX_CPU_CORES; i++) {
+    coreIds[nCores++] = i;
+  }
+#endif
+
+  // Assign core IDs: management first, then write, then read
+  int32_t idx = 0;
+
+  // Management set
+  gCpuAllocStatus.sets[THREAD_CAT_MANAGEMENT].category = THREAD_CAT_MANAGEMENT;
+  gCpuAllocStatus.sets[THREAD_CAT_MANAGEMENT].count = mgmt;
+#ifdef __linux__
+  CPU_ZERO(&gCpuAllocStatus.sets[THREAD_CAT_MANAGEMENT].mask);
+#endif
+  for (int32_t i = 0; i < mgmt; i++, idx++) {
+    gCpuAllocStatus.sets[THREAD_CAT_MANAGEMENT].coreIds[i] = coreIds[idx];
+#ifdef __linux__
+    CPU_SET(coreIds[idx], &gCpuAllocStatus.sets[THREAD_CAT_MANAGEMENT].mask);
+#endif
+  }
+
+  // Write set
+  gCpuAllocStatus.sets[THREAD_CAT_WRITE].category = THREAD_CAT_WRITE;
+  gCpuAllocStatus.sets[THREAD_CAT_WRITE].count = writeCount;
+#ifdef __linux__
+  CPU_ZERO(&gCpuAllocStatus.sets[THREAD_CAT_WRITE].mask);
+#endif
+  for (int32_t i = 0; i < writeCount; i++, idx++) {
+    gCpuAllocStatus.sets[THREAD_CAT_WRITE].coreIds[i] = coreIds[idx];
+#ifdef __linux__
+    CPU_SET(coreIds[idx], &gCpuAllocStatus.sets[THREAD_CAT_WRITE].mask);
+#endif
+  }
+
+  // Read set
+  gCpuAllocStatus.sets[THREAD_CAT_READ].category = THREAD_CAT_READ;
+  gCpuAllocStatus.sets[THREAD_CAT_READ].count = readCount;
+#ifdef __linux__
+  CPU_ZERO(&gCpuAllocStatus.sets[THREAD_CAT_READ].mask);
+#endif
+  for (int32_t i = 0; i < readCount; i++, idx++) {
+    gCpuAllocStatus.sets[THREAD_CAT_READ].coreIds[i] = coreIds[idx];
+#ifdef __linux__
+    CPU_SET(coreIds[idx], &gCpuAllocStatus.sets[THREAD_CAT_READ].mask);
+#endif
+  }
+
+  gCpuAllocStatus.enabled = true;
+
+  // Startup logging
+  char mgmtIds[512] = {0}, writeIds[512] = {0}, readIds[512] = {0};
+  int  off;
+
+  off = 0;
+  for (int32_t i = 0; i < gCpuAllocStatus.sets[THREAD_CAT_MANAGEMENT].count; i++) {
+    off += snprintf(mgmtIds + off, sizeof(mgmtIds) - off, "%s%d", i > 0 ? "," : "",
+                    gCpuAllocStatus.sets[THREAD_CAT_MANAGEMENT].coreIds[i]);
+  }
+  off = 0;
+  for (int32_t i = 0; i < gCpuAllocStatus.sets[THREAD_CAT_WRITE].count; i++) {
+    off += snprintf(writeIds + off, sizeof(writeIds) - off, "%s%d", i > 0 ? "," : "",
+                    gCpuAllocStatus.sets[THREAD_CAT_WRITE].coreIds[i]);
+  }
+  off = 0;
+  for (int32_t i = 0; i < gCpuAllocStatus.sets[THREAD_CAT_READ].count; i++) {
+    off += snprintf(readIds + off, sizeof(readIds) - off, "%s%d", i > 0 ? "," : "",
+                    gCpuAllocStatus.sets[THREAD_CAT_READ].coreIds[i]);
+  }
+
+  uInfo("CPU affinity enabled: management=%d cores [%s], write=%d cores [%s], read=%d cores [%s]", mgmt, mgmtIds,
+        writeCount, writeIds, readCount, readIds);
+
+  return 0;
+}
+
+void taosSetCpuAffinity(EThreadCategory category) {
+  if (!gCpuAllocStatus.enabled) {
+    return;
+  }
+
+  if (category < 0 || category >= THREAD_CAT_COUNT) {
+    uError("failed to set CPU affinity for category:%d", category);
+    return;
+  }
+
+#ifdef __linux__
+  int rc = pthread_setaffinity_np(pthread_self(), sizeof(cpu_set_t), &gCpuAllocStatus.sets[category].mask);
+  if (rc != 0) {
+    uError("failed to set CPU affinity for category %d: %s", category, strerror(rc));
+    return;
+  }
+#elif defined(WINDOWS)
+  // A Windows affinity mask is DWORD_PTR wide and is relative to the thread's
+  // processor group, which is the group the assigned core ids are taken from
+  // (they are enumerated by taosGetSystemInfo() for the current group).
+  const SCpuCoreSet *pSet = &gCpuAllocStatus.sets[category];
+  const int32_t      bits = (int32_t)(sizeof(DWORD_PTR) * 8);
+
+  DWORD_PTR mask = 0;
+  int32_t   applied = 0;
+  int32_t   dropped = 0;
+  for (int32_t i = 0; i < pSet->count; i++) {
+    int32_t id = pSet->coreIds[i];
+    if (id < 0 || id >= bits) {
+      dropped++;
+      continue;
+    }
+    mask |= ((DWORD_PTR)1 << id);
+    applied++;
+  }
+
+  if (applied == 0) {
+    uError("failed to set CPU affinity for category %d: no valid core id assigned", category);
+    return;
+  }
+
+  if (SetThreadAffinityMask(GetCurrentThread(), mask) == 0) {
+    uError("failed to set CPU affinity for category %d, mask %" PRIu64 ": error %d", category, (uint64_t)mask,
+           (int32_t)GetLastError());
+    return;
+  }
+
+  if (dropped > 0) {
+    static int32_t logged = 0;
+    if (logged == 0) {
+      logged = 1;
+      uWarn("CPU affinity: %d assigned core(s) are outside the current processor group and cannot be bound on "
+            "Windows",
+            dropped);
+    }
+  }
+#else
+  static bool logged = false;
+  if (!logged) {
+    uInfo("CPU affinity not supported on this platform");
+    logged = true;
+  }
+#endif
+
+  return;
+}
+
+const SCpuAllocStatus *taosGetCpuAllocStatus(void) { return &gCpuAllocStatus; }

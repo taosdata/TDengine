@@ -1,6 +1,8 @@
 /*
  * Copyright (c) 2019 TAOS Data, Inc. <jhtao@taosdata.com>
  *
+ * SPDX-License-Identifier: AGPL-3.0-or-later
+ *
  * This program is free software: you can use, redistribute, and/or modify
  * it under the terms of the GNU Affero General Public License, version 3
  * or later ("AGPL"), as published by the Free Software Foundation.
@@ -14,8 +16,10 @@
  */
 
 #include "meta.h"
+#include "tdTestSeam.h"
 #include "storageapi.h"
 #include "vnodeInt.h"
+#include "vnodeStreamVTable.h"
 
 static void initTsdbReaderAPI(TsdReader* pReader);
 static void initMetadataAPI(SStoreMeta* pMeta);
@@ -25,7 +29,14 @@ static void initMetaFilterAPI(SMetaDataFilterAPI* pFilter);
 static void initCacheFn(SStoreCacheReader* pCache);
 static void initSnapshotFn(SStoreSnapshotFn* pSnapshot);
 
+static int32_t tsVnodeDnodeId = 0;
+
+void vnodeSetDnodeId(int32_t dnodeId) { atomic_store_32(&tsVnodeDnodeId, dnodeId); }
+
+int32_t vnodeGetDnodeId(void) { return atomic_load_32(&tsVnodeDnodeId); }
+
 void initStorageAPI(SStorageAPI* pAPI) {
+  TD_SEAM_VOID(initStorageAPI, void (*)(SStorageAPI*), (pAPI));
   initTsdbReaderAPI(&pAPI->tsdReader);
   initMetadataAPI(&pAPI->metaFn);
   initMetaReaderAPI(&pAPI->metaReaderFn);
@@ -37,6 +48,8 @@ void initStorageAPI(SStorageAPI* pAPI) {
 
 void initTsdbReaderAPI(TsdReader* pReader) {
   pReader->tsdReaderOpen = tsdbReaderOpen2;
+  pReader->tsdReaderOpenGroup = tsdbReaderOpenGroup2;
+  pReader->tsdReaderActivateGroup = tsdbReaderActivateGroup2;
   pReader->tsdReaderClose = tsdbReaderClose2;
 
   pReader->tsdNextDataBlock = tsdbNextDataBlock2;
@@ -45,6 +58,11 @@ void initTsdbReaderAPI(TsdReader* pReader) {
   pReader->tsdReaderReleaseDataBlock = tsdbReleaseDataBlock2;
 
   pReader->tsdReaderRetrieveBlockSMAInfo = tsdbRetrieveDatablockSMA2;
+  pReader->tsdReaderGetFilterBlock = tsdbReaderGetFilterBlock;
+  pReader->tsdReaderSetLastScanCandidate = tsdbReaderSetLastScanCandidate;
+  pReader->tsdReaderRetrieveSelectedDataBlock =
+      tsdbReaderRetrieveSelectedDataBlock;
+  pReader->tsdReaderSetBlockSmaMode = tsdbReaderSetBlockSmaMode;
 
   pReader->tsdReaderNotifyClosing = (void (*)(void*))tsdbReaderSetCloseFlag;
   pReader->tsdReaderResetStatus = tsdbReaderReset2;
@@ -86,8 +104,11 @@ void initMetadataAPI(SStoreMeta* pMeta) {
   pMeta->cursorPrev = metaTbCursorPrev;
 
   pMeta->getBasicInfo = vnodeGetInfo;
+  pMeta->tbNameInHashRange = vnodeTbNameInHashRange;
   pMeta->getSecurityLevel = vnodeGetSecurityLevel;
+  pMeta->getVnodePrecision = vnodeGetTsdbPrecision;
   pMeta->getNumOfChildTables = metaGetStbStats;
+  pMeta->getVtableGen = metaGetVtableGenFromVnode;
 
   pMeta->getChildTableList = vnodeGetCtbIdList;
 
@@ -96,9 +117,13 @@ void initMetadataAPI(SStoreMeta* pMeta) {
 
   pMeta->extractTagVal = (const void* (*)(const void*, int16_t, STagVal*))metaGetTableTagVal;
   pMeta->getTableTags = metaGetTableTags;
-  pMeta->getTableTagsByUid = metaGetTableTagsByUids;
+  pMeta->getTableTagsByUidVersion = metaGetTableTagsByUidsVersion;
+  pMeta->resolveVTableTagChain    = vnodeResolveVTableTagChain;
+  pMeta->isVirtualSuperTable      = vnodeIsVirtualSuperTable;
 
   pMeta->getTableUidByName = metaGetTableUidByName;
+  pMeta->getTableUidsByNames = metaGetTableUidsByNames;
+  pMeta->getTableInfosByNames = metaGetTableInfosByNames;
   pMeta->getTableTypeSuidByName = metaGetTableTypeSuidByName;
   pMeta->getTableNameByUid = metaGetTableNameByUid;
 
@@ -108,6 +133,7 @@ void initMetadataAPI(SStoreMeta* pMeta) {
   pMeta->getCachedTableList = metaGetCachedTableUidList;
   pMeta->putCachedTableList = metaUidFilterCachePut;
   pMeta->getStableCachedTableList = metaStableTagFilterCacheGet;
+  pMeta->warmupStableCachedTableList = metaWarmupStableTagFilterCache;
   pMeta->putStableCachedTableList = metaStableTagFilterCachePut;
 
   pMeta->metaGetCachedTbGroup = metaGetCachedTbGroup;
@@ -119,9 +145,13 @@ void initMetadataAPI(SStoreMeta* pMeta) {
   pMeta->closeCtbCursor = metaCloseCtbCursor;
   pMeta->ctbCursorNext = metaCtbCursorNext;
   pMeta->getDBSize = vnodeGetDBSize;
+  pMeta->getLastCacheStats = vnodeGetLastCacheStats;
 
   pMeta->metaGetCachedRefDbs = metaGetCachedRefDbs;
   pMeta->metaPutRefDbsToCache = metaPutRefDbsToCache;
+  pMeta->hasPendingTxnEntries = vnodeHasPendingTxnEntries;
+  pMeta->metaGetCachedExtSources = metaGetCachedExtSources;
+  pMeta->metaPutExtSourcesToCache = metaPutExtSourcesToCache;
 }
 
 void initTqAPI(SStoreTqReader* pTq) {

@@ -1,3 +1,18 @@
+REM Copyright (c) 2022 TAOS Data, Inc. <jhtao@taosdata.com>
+REM
+REM SPDX-License-Identifier: AGPL-3.0-or-later
+REM
+REM This program is free software: you can use, redistribute, and/or modify
+REM it under the terms of the GNU Affero General Public License, version 3
+REM or later ("AGPL"), as published by the Free Software Foundation.
+REM
+REM This program is distributed in the hope that it will be useful, but WITHOUT
+REM ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+REM FITNESS FOR A PARTICULAR PURPOSE.
+REM
+REM You should have received a copy of the GNU Affero General Public License
+REM along with this program. If not, see <http://www.gnu.org/licenses/>.
+
 @echo off
 
 for /F %%a in ('echo prompt $E ^| cmd') do set "ESC=%%a"
@@ -32,6 +47,8 @@ set binary_dir=%binary_dir:/=\\%
 set osType=%4
 set verNumber=%5
 set Enterprise=%6
+set install_fq_runtime_libs=%TD_INSTALL_FQ_RUNTIME_LIBS%
+set build_with_odbc=%TD_BUILD_WITH_ODBC%
 set target_dir=C:\\TDengine
 
 if not exist %target_dir% (
@@ -64,7 +81,6 @@ copy %source_dir%\\include\\client\\taos.h %target_dir%\\include > nul
 copy %source_dir%\\include\\util\\taoserror.h %target_dir%\\include > nul
 copy %source_dir%\\include\\libs\\function\\taosudf.h %target_dir%\\include > nul
 copy %binary_dir%\\build\\lib\\taos.lib %target_dir%\\driver > nul
-copy %binary_dir%\\build\\lib\\taos_static.lib %target_dir%\\driver > nul
 copy %binary_dir%\\build\\bin\\taos.dll %target_dir%\\ > nul
 copy %binary_dir%\\build\\bin\\taosnative.dll %target_dir%\\ > nul
 copy %binary_dir%\\build\\bin\\pthreadVC3.dll %target_dir%\\ > nul
@@ -121,7 +137,45 @@ if /I "%Enterprise%"=="TRUE" (
 )
 
 copy %binary_dir%\\build\\bin\\taosd.exe %target_dir% > nul
+call "%source_dir%\\packaging\\tools\\stage_mimalloc.bat" "%TD_MIMALLOC_BIN_DIR%" "%target_dir%" "%TD_MIMALLOC_NAME%"
+if errorlevel 1 exit /b 1
 copy %binary_dir%\\build\\bin\\taosudf.exe %target_dir% > nul
+copy %binary_dir%\\build\\bin\\taosmqtt.exe %target_dir% > nul
+
+rem // ── Federated-query dependency package ──────────────────────────────────
+rem //   When INSTALL_FQ_RUNTIME_LIBS is ON the build stages the provider
+rem //   client DLLs and the SQL Server ODBC driver MSI in build\bin.  Copy
+rem //   them into the installation tree so the installer carries them.
+if /I "%install_fq_runtime_libs%"=="ON" (
+    if exist "%source_dir%\\packaging\\tools\\stage_fq_runtime.bat" (
+        call "%source_dir%\\packaging\\tools\\stage_fq_runtime.bat" "%binary_dir%\\build\\bin" "%target_dir%" "%build_with_odbc%" "%build_with_odbc%"
+        if errorlevel 1 (
+            echo Failed to stage the federated-query runtime dependencies
+            exit /b 1
+        )
+    ) else (
+        echo Missing federated-query staging script: %source_dir%\\packaging\\tools\\stage_fq_runtime.bat
+        exit /b 1
+    )
+    rem // Oracle Instant Client selection (install.sh parity): the fixed
+    rem // server-family -> client mapping is applied to the staged tree.
+    rem // TD_ORACLE_SERVER_VERSION is 11g/12c/18c/19c/21c/23ai/26ai/none;
+    rem // TD_ORACLE_CLIENT optionally forces 19c/23ai where allowed.  An
+    rem // empty selection keeps the package default (23ai when both trees
+    rem // are present, otherwise the only staged generation).
+    if exist "%target_dir%\\driver\\oracle\\active" (
+        if exist "%source_dir%\\packaging\\tools\\stage_oracle_client.bat" (
+            call "%source_dir%\\packaging\\tools\\stage_oracle_client.bat" "%target_dir%" "%TD_ORACLE_SERVER_VERSION%" "%TD_ORACLE_CLIENT%"
+            if errorlevel 1 (
+                echo Failed to select the Oracle Instant Client generation
+                exit /b 1
+            )
+        ) else (
+            echo Missing Oracle client selection script: %source_dir%\\packaging\\tools\\stage_oracle_client.bat
+            exit /b 1
+        )
+    )
+)
 rem // ── Archive PDB files for crash-dump symbolication ──────────────────────
 rem //   PDBs are NOT shipped to end-users.  They must be stored internally,
 rem //   keyed by version number, so that field crash dumps can be analysed.

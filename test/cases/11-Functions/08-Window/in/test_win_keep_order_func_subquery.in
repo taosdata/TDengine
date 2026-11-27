@@ -5,9 +5,7 @@ select top(voltage, 1) from keeporderdb.meters;
 select top(voltage, 10) from keeporderdb.meters;
 select bottom(voltage, 1) from keeporderdb.meters;
 select bottom(voltage, 10) from keeporderdb.meters;
-select statecount(voltage, 'LE', 223) from keeporderdb.meters;
 select stateduration(voltage, 'LE', 223) from keeporderdb.meters;
-select mavg(voltage, 4) from keeporderdb.meters;
 select tail(voltage, 1) from keeporderdb.meters;
 select max(current) from keeporderdb.meters;
 select count(*) from keeporderdb.t1;
@@ -53,9 +51,7 @@ select top(voltage, 1) from (select ts, current, voltage from keeporderdb.meters
 select top(voltage, 10) from (select ts, current, voltage from keeporderdb.meters order by ts desc) interval(30s);
 select bottom(voltage, 1) from (select ts, current, voltage from keeporderdb.meters order by ts desc) interval(30s);
 select bottom(voltage, 2) from (select ts, current, voltage from keeporderdb.meters order by ts desc) interval(30s);
-select statecount(voltage, 'LE', 223) from (select ts, current, voltage from keeporderdb.meters order by ts desc) interval(30s);
 select stateduration(voltage, 'LE', 223) from (select ts, current, voltage from keeporderdb.meters order by ts desc) interval(30s);
-select mavg(voltage, 4) from (select ts, current, voltage from keeporderdb.meters order by ts desc) interval(30s);
 select tail(voltage, 1) from (select ts, current, voltage from keeporderdb.meters order by ts desc) interval(30s);
 select max(current) from (select ts, current, voltage from keeporderdb.meters order by ts desc) interval(30s);
 

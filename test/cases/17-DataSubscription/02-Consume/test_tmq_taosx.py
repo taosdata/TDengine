@@ -1,4 +1,19 @@
 
+# Copyright (c) 2022 TAOS Data, Inc. <jhtao@taosdata.com>
+#
+# SPDX-License-Identifier: AGPL-3.0-or-later
+#
+# This program is free software: you can use, redistribute, and/or modify
+# it under the terms of the GNU Affero General Public License, version 3
+# or later ("AGPL"), as published by the Free Software Foundation.
+#
+# This program is distributed in the hope that it will be useful, but WITHOUT
+# ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+# FITNESS FOR A PARTICULAR PURPOSE.
+#
+# You should have received a copy of the GNU Affero General Public License
+# along with this program. If not, see <http://www.gnu.org/licenses/>.
+
 import taos
 import sys
 import time
@@ -23,21 +38,59 @@ class TestCase:
 
         consumeFile = open(srcFile, mode='r')
         queryFile = open(dstFile, mode='r')
+        srcLines = consumeFile.readlines()
+        dstLines = queryFile.readlines()
+        consumeFile.close()
+        queryFile.close()
 
-        index = 0
-        while True:
-            dst = queryFile.readline()
-            src = consumeFile.readline()
-            if src:
-                if dst != src:
-                    tdLog.exit("line:%d compare error: %s != %s"%(index, src, dst))
-            else:
-                break
-            index += 1
+        # Reject empty, partial and over-delivered results: both files must
+        # contain the same complete line sequence, otherwise a consumer that
+        # stops early (e.g. exits on the first empty poll) would silently pass.
+        if not srcLines:
+            tdLog.exit("compare error: %s is empty, expected %d line(s)"%(srcFile, len(dstLines)))
+        if len(srcLines) != len(dstLines):
+            tdLog.exit("compare error: %s has %d line(s), %s has %d line(s)"%(srcFile, len(srcLines), dstFile, len(dstLines)))
+
+        for index, (src, dst) in enumerate(zip(srcLines, dstLines)):
+            if src != dst:
+                tdLog.exit("line:%d compare error: %s != %s"%(index, src, dst))
+        return
+    
+    def checkDataFilterStb(self):
+        tdSql.execute('use db_dst')
+        tdSql.query("show tables")
+        tdSql.checkRows(2)
+
+        tdSql.query("select * from ct2")
+        tdSql.checkRows(2)
+        tdSql.checkData(0, 0, '2021-07-11 20:33:53.600')
+        tdSql.checkData(1, 0, '2021-07-11 20:33:53.611')
+
+        tdSql.query("select * from ct3")
+        tdSql.checkRows(1)
+        tdSql.checkData(0, 0, '2021-07-11 20:33:53.600')
+
+        return
+    
+    def checkDataStb(self):
+        tdSql.execute('use db_dst')
+        tdSql.query("show tables")
+        tdSql.checkRows(2)
+
+        tdSql.checkResultsBySql(
+            sql="select * from db_src.ct0",
+            exp_sql="select * from db_dst.ct0",
+        )
+
+        tdSql.checkResultsBySql(
+            sql="select * from db_src.ct2",
+            exp_sql="select * from db_dst.ct2",
+        )
+
         return
 
     def checkDropData(self, drop):
-        tdSql.execute('use db_taosx')
+        tdSql.execute('use db_dst')
         tdSql.query("show tables")
         if drop:
             tdSql.checkRows(11)
@@ -68,7 +121,7 @@ class TestCase:
         tdSql.checkData(0, 5, "stt3")
         tdSql.checkData(2, 5, "stt4")
 
-        tdSql.execute('use abc1')
+        tdSql.execute('use db_src')
         tdSql.query("show tables")
         if drop:
             tdSql.checkRows(11)
@@ -102,7 +155,7 @@ class TestCase:
         return
 
     def checkData(self):
-        tdSql.execute('use db_taosx')
+        tdSql.execute('use db_dst')
         tdSql.query("select * from tb1")
         tdSql.checkRows(1)
         tdSql.checkData(0, 1, 0)
@@ -192,7 +245,8 @@ class TestCase:
         cfgPath = tdCom.getClientCfgPath()
         cmdStr = '%s/build/bin/tmq_taosx_ci -c %s -sv 1 -dv 1'%(buildPath, cfgPath)
         tdLog.info(cmdStr)
-        os.system(cmdStr)
+        if os.system(cmdStr) != 0:
+            tdLog.exit(cmdStr)
 
         self.checkJson(cfgPath, "tmq_taosx_tmp")
         self.checkData()
@@ -205,10 +259,61 @@ class TestCase:
         cfgPath = tdCom.getClientCfgPath()
         cmdStr = '%s/build/bin/tmq_taosx_ci -c %s -sv 1 -dv 1 -d -onlymeta'%(buildPath, cfgPath)
         tdLog.info(cmdStr)
-        os.system(cmdStr)
+        if os.system(cmdStr) != 0:
+            tdLog.exit(cmdStr)
 
         self.checkJson(cfgPath, "tmq_taosx_tmp")
 
+        return
+    
+    def checkWal1VgroupFilterTable(self):
+        buildPath = tdCom.getBuildPath()
+        cfgPath = tdCom.getClientCfgPath()
+        cmdStr = '%s/build/bin/tmq_taosx_ci -c %s -sv 1 -dv 1 -t -f'%(buildPath, cfgPath)
+        tdLog.info(cmdStr)
+        if os.system(cmdStr) != 0:
+            tdLog.exit(cmdStr)
+
+        self.checkJson(cfgPath, "tmq_taosx_tmp")
+        self.checkDataFilterStb()
+        return
+
+    def checkSnapshotOnlyMetaTbnameFilter(self):
+        """Regression: ONLY META topic with tbname like 'f1%' filter.
+
+        The topic is created over stable st1 with 3 'f1_' child tables and 3
+        non-f1 child tables already existing. With the filter applied only the
+        'f1_' child tables' create events should be delivered in the meta
+        snapshot stage. If non-f1 child tables appear in the consumed meta json,
+        the defect still exists.
+        """
+        buildPath = tdCom.getBuildPath()
+        cfgPath = tdCom.getClientCfgPath()
+        cmdStr = '%s/build/bin/tmq_taosx_ci -c %s -sv 1 -dv 1 -s -t -onlymeta -tb'%(buildPath, cfgPath)
+        tdLog.info(cmdStr)
+        if os.system(cmdStr) != 0:
+            tdLog.exit(cmdStr)
+
+        self.checkTbnameFilterSet()
+        return
+
+    def checkTbnameFilterSet(self):
+        """Verify the ONLY META tbname-filter snapshot consumed result.
+
+        Compare the complete set of table names delivered in the snapshot
+        against the expected super table plus the three matching child tables.
+        The check rejects an empty result, missing tables and extra tables, and
+        is order-insensitive because the delivery order depends on the engine
+        snapshot iteration order.
+        """
+        cfgPath = tdCom.getClientCfgPath()
+        srcFile = '%s/../log/tmq_taosx_tmp_snapshot.source'%(cfgPath)
+
+        with open(srcFile, mode='r') as f:
+            actual = sorted(line.strip() for line in f if line.strip())
+        expected = sorted(['st1', 'f1_ctb_0', 'f1_ctb_1', 'f1_ctb_2'])
+        if actual != expected:
+            tdLog.exit("compare error: %s consumed table names %s != expected %s"%(srcFile, actual, expected))
         return
 
     def checkWal1VgroupTable(self):
@@ -216,17 +321,19 @@ class TestCase:
         cfgPath = tdCom.getClientCfgPath()
         cmdStr = '%s/build/bin/tmq_taosx_ci -c %s -sv 1 -dv 1 -t'%(buildPath, cfgPath)
         tdLog.info(cmdStr)
-        os.system(cmdStr)
+        if os.system(cmdStr) != 0:
+            tdLog.exit(cmdStr)
 
         self.checkJson(cfgPath, "tmq_taosx_tmp")
-    
+        self.checkDataStb()
         return
 
     def checkWalMultiVgroups(self):
         buildPath = tdCom.getBuildPath()
         cmdStr = '%s/build/bin/tmq_taosx_ci -sv 3 -dv 5'%(buildPath)
         tdLog.info(cmdStr)
-        os.system(cmdStr)
+        if os.system(cmdStr) != 0:
+            tdLog.exit(cmdStr)
 
         self.checkData()
         self.checkDropData(False)
@@ -237,7 +344,8 @@ class TestCase:
         buildPath = tdCom.getBuildPath()
         cmdStr = '%s/build/bin/tmq_taosx_ci -sv 3 -dv 5 -raw'%(buildPath)
         tdLog.info(cmdStr)
-        os.system(cmdStr)
+        if os.system(cmdStr) != 0:
+            tdLog.exit(cmdStr)
 
         self.checkData()
         self.checkDropData(False)
@@ -248,7 +356,8 @@ class TestCase:
         buildPath = tdCom.getBuildPath()
         cmdStr = '%s/build/bin/tmq_taosx_ci -sv 3 -dv 5 -d'%(buildPath)
         tdLog.info(cmdStr)
-        os.system(cmdStr)
+        if os.system(cmdStr) != 0:
+            tdLog.exit(cmdStr)
 
         self.checkDropData(True)
 
@@ -259,7 +368,8 @@ class TestCase:
         cfgPath = tdCom.getClientCfgPath()
         cmdStr = '%s/build/bin/tmq_taosx_ci -c %s -sv 1 -dv 1 -s'%(buildPath, cfgPath)
         tdLog.info(cmdStr)
-        os.system(cmdStr)
+        if os.system(cmdStr) != 0:
+            tdLog.exit(cmdStr)
 
         self.checkJson(cfgPath, "tmq_taosx_tmp_snapshot")
         self.checkData()
@@ -272,7 +382,8 @@ class TestCase:
         cfgPath = tdCom.getClientCfgPath()
         cmdStr = '%s/build/bin/tmq_taosx_ci -c %s -sv 1 -dv 1 -s -bt'%(buildPath, cfgPath)
         tdLog.info(cmdStr)
-        os.system(cmdStr)
+        if os.system(cmdStr) != 0:
+            tdLog.exit(cmdStr)
 
         self.checkJson(cfgPath, "tmq_taosx_tmp_snapshot")
         self.checkData()
@@ -285,7 +396,8 @@ class TestCase:
         cfgPath = tdCom.getClientCfgPath()
         cmdStr = '%s/build/bin/tmq_taosx_ci -c %s -sv 1 -dv 1 -s -t'%(buildPath, cfgPath)
         tdLog.info(cmdStr)
-        os.system(cmdStr)
+        if os.system(cmdStr) != 0:
+            tdLog.exit(cmdStr)
 
         self.checkJson(cfgPath, "tmq_taosx_tmp_snapshot")
 
@@ -296,7 +408,8 @@ class TestCase:
         cfgPath = tdCom.getClientCfgPath()
         cmdStr = '%s/build/bin/tmq_taosx_ci -c %s -sv 1 -dv 1 -s -t -bt'%(buildPath, cfgPath)
         tdLog.info(cmdStr)
-        os.system(cmdStr)
+        if os.system(cmdStr) != 0:
+            tdLog.exit(cmdStr)
 
         self.checkJson(cfgPath, "tmq_taosx_tmp_snapshot")
 
@@ -306,7 +419,8 @@ class TestCase:
         buildPath = tdCom.getBuildPath()
         cmdStr = '%s/build/bin/tmq_taosx_ci -sv 2 -dv 4 -s'%(buildPath)
         tdLog.info(cmdStr)
-        os.system(cmdStr)
+        if os.system(cmdStr) != 0:
+            tdLog.exit(cmdStr)
 
         self.checkData()
         self.checkDropData(False)
@@ -317,7 +431,8 @@ class TestCase:
         buildPath = tdCom.getBuildPath()
         cmdStr = '%s/build/bin/tmq_taosx_ci -sv 2 -dv 4 -s -bt'%(buildPath)
         tdLog.info(cmdStr)
-        os.system(cmdStr)
+        if os.system(cmdStr) != 0:
+            tdLog.exit(cmdStr)
 
         self.checkData()
         self.checkDropData(False)
@@ -328,7 +443,8 @@ class TestCase:
         buildPath = tdCom.getBuildPath()
         cmdStr = '%s/build/bin/tmq_taosx_ci -sv 2 -dv 4 -s -d'%(buildPath)
         tdLog.info(cmdStr)
-        os.system(cmdStr)
+        if os.system(cmdStr) != 0:
+            tdLog.exit(cmdStr)
 
         self.checkDropData(True)
 
@@ -338,7 +454,8 @@ class TestCase:
         buildPath = tdCom.getBuildPath()
         cmdStr = '%s/build/bin/tmq_taosx_ci -sv 2 -dv 4 -s -d -bt'%(buildPath)
         tdLog.info(cmdStr)
-        os.system(cmdStr)
+        if os.system(cmdStr) != 0:
+            tdLog.exit(cmdStr)
 
         self.checkDropData(True)
 
@@ -715,7 +832,7 @@ class TestCase:
         
         Since: v3.0.0.0
 
-        Labels: common,ci
+        Labels: common,ci,integration,functional
 
         Jira: None
 
@@ -723,7 +840,7 @@ class TestCase:
             - 2025-12-23 Alex Duan Migrated from uncatalog/system-test/7-tmq/test_tmq_taosx.py
 
         """
-        # self.consumeTest_6376()
+        self.consumeTest_6376()
         self.consume_TS_5067_Test()
         self.consumeTest()
         self.consume_ts_4544()
@@ -732,25 +849,28 @@ class TestCase:
         self.consume_td_31283()
 
         tdSql.prepare()
+
+        # -----stb sub-----
+        self.checkWal1VgroupFilterTable()
+        self.checkSnapshotOnlyMetaTbnameFilter()
+        self.checkWal1VgroupTable()
+        self.checkSnapshot1VgroupTable()
+
+        # -----db sub-----
         self.checkWal1VgroupOnlyMeta()
 
         self.checkWal1Vgroup()
         self.checkSnapshot1Vgroup()
-
-        self.checkWal1VgroupTable()
-        self.checkSnapshot1VgroupTable()
 
         self.checkWalMultiVgroups()
         # self.checkWalMultiVgroupsRawData()
         self.checkSnapshotMultiVgroups()
 
         self.checkWalMultiVgroupsWithDropTable()
-
         self.checkSnapshotMultiVgroupsWithDropTable()
 
+        # ----- batch meta ------
         self.checkSnapshot1VgroupBtmeta()
         self.checkSnapshot1VgroupTableBtmeta()
         self.checkSnapshotMultiVgroupsBtmeta()
         self.checkSnapshotMultiVgroupsWithDropTableBtmeta()
-
-

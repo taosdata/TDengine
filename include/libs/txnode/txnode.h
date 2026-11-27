@@ -1,6 +1,8 @@
 /*
  * Copyright (c) 2019 TAOS Data, Inc. <jhtao@taosdata.com>
  *
+ * SPDX-License-Identifier: AGPL-3.0-or-later
+ *
  * This program is free software: you can use, redistribute, and/or modify
  * it under the terms of the GNU Affero General Public License, version 3
  * or later ("AGPL"), as published by the Free Software Foundation.
@@ -44,9 +46,10 @@ extern "C" {
 
 #define TAOS_UV_CHECK_ERRNO(CODE) \
   do {                            \
-    if (0 != CODE) {              \
+    int32_t _uvCode = (CODE);     \
+    if (0 != _uvCode) {           \
       terrln = __LINE__;          \
-      terrno = (CODE);            \
+      terrno = _uvCode;           \
       goto _exit;                 \
     }                             \
   } while (0)

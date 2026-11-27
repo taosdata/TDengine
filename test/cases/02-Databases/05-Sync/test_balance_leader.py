@@ -1,3 +1,18 @@
+# Copyright (c) 2025 TAOS Data, Inc. <jhtao@taosdata.com>
+#
+# SPDX-License-Identifier: AGPL-3.0-or-later
+#
+# This program is free software: you can use, redistribute, and/or modify
+# it under the terms of the GNU Affero General Public License, version 3
+# or later ("AGPL"), as published by the Free Software Foundation.
+#
+# This program is distributed in the hope that it will be useful, but WITHOUT
+# ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+# FITNESS FOR A PARTICULAR PURPOSE.
+#
+# You should have received a copy of the GNU Affero General Public License
+# along with this program. If not, see <http://www.gnu.org/licenses/>.
+
 import time
 from new_test_framework.utils import tdLog, tdSql, sc, clusterComCheck, clusterComCheck
 
@@ -6,6 +21,41 @@ class TestBalanceLeader:
 
     def setup_class(cls):
         tdLog.debug(f"start to execute {__file__}")
+
+    def check_balance_leader(self):
+        tdSql.query(f"show d1.vgroups", show = True)
+        c1 = 0
+        if tdSql.checkDataV2(0, 4, "leader", True) == True:
+            c1 = c1 + 1
+        if tdSql.checkDataV2(1, 4, "leader", True) == True:
+            c1 = c1 + 1
+        if tdSql.checkDataV2(2, 4, "leader", True) == True:
+            c1 = c1 + 1
+        if c1 != 1:
+            return 1
+
+        c2 = 0
+        if tdSql.checkDataV2(0, 7, "leader", True) == True:
+            c2 = c2 + 1
+        if tdSql.checkDataV2(1, 7, "leader", True) == True:
+            c2 = c2 + 1
+        if tdSql.checkDataV2(2, 7, "leader", True) == True:
+            c2 = c2 + 1
+        if c2 != 1:
+            return 2
+
+        c3 = 0
+        if tdSql.checkDataV2(0, 10, "leader", True) == True:
+            c3 = c3 + 1
+        if tdSql.checkDataV2(1, 10, "leader", True) == True:
+            c3 = c3 + 1
+        if tdSql.checkDataV2(2, 10, "leader", True) == True:
+            c3 = c3 + 1
+        if c3 != 1:
+            return 3
+
+        # success
+        return 0
 
     def test_balance_leader(self):
         """balance leader
@@ -17,7 +67,7 @@ class TestBalanceLeader:
 
         Since: v3.3.7.0
 
-        Labels: common,ci
+        Labels: common,ci,integration,functional
 
         Jira: TS-6480
 
@@ -47,41 +97,20 @@ class TestBalanceLeader:
         tdSql.execute(f"create database d1 replica 3 vgroups 3")
         clusterComCheck.checkDbReady("d1")
 
-        tdSql.execute(f"balance vgroup leader")
+        tdSql.execute(f"balance vgroup leader force")
 
         clusterComCheck.checkTransactions()
         tdSql.query(f"show transactions")
         tdSql.checkRows(0)
 
         clusterComCheck.checkDbReady("d1")
-        
-        tdSql.query(f"show d1.vgroups", show = True)
-        c1 = 0
-        if tdSql.checkDataV2(0, 4, "leader", True) == True:
-            c1 = c1 + 1
-        if tdSql.checkDataV2(1, 4, "leader", True) == True:
-            c1 = c1 + 1
-        if tdSql.checkDataV2(2, 4, "leader", True) == True:
-            c1 = c1 + 1
-        if c1 != 1:
-            tdLog.exit("balance vgroup leader failed c1")
 
-        c2 = 0
-        if tdSql.checkDataV2(0, 7, "leader", True) == True:
-            c2 = c2 + 1
-        if tdSql.checkDataV2(1, 7, "leader", True) == True:
-            c2 = c2 + 1
-        if tdSql.checkDataV2(2, 7, "leader", True) == True:
-            c2 = c2 + 1
-        if c2 != 1:
-            tdLog.exit("balance vgroup leader failed c2")
-
-        c3 = 0
-        if tdSql.checkDataV2(0, 10, "leader", True) == True:
-            c3 = c3 + 1
-        if tdSql.checkDataV2(1, 10, "leader", True) == True:
-            c3 = c3 + 1
-        if tdSql.checkDataV2(2, 10, "leader", True) == True:
-            c3 = c3 + 1
-        if c3 != 1:
-            tdLog.exit("balance vgroup leader failed c3")
+        tdLog.info(f"========== step2")
+        idx = -1
+        for i in range(20):
+            idx = self.check_balance_leader()
+            if idx == 0:
+                break
+            time.sleep(1)
+        if idx != 0:
+            tdLog.exit(f"balance leader failed, dnode {idx} not found leader.")

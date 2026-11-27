@@ -1,6 +1,22 @@
+# Copyright (c) 2023 TAOS Data, Inc. <jhtao@taosdata.com>
+#
+# SPDX-License-Identifier: AGPL-3.0-or-later
+#
+# This program is free software: you can use, redistribute, and/or modify
+# it under the terms of the GNU Affero General Public License, version 3
+# or later ("AGPL"), as published by the Free Software Foundation.
+#
+# This program is distributed in the hope that it will be useful, but WITHOUT
+# ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+# FITNESS FOR A PARTICULAR PURPOSE.
+#
+# You should have received a copy of the GNU Affero General Public License
+# along with this program. If not, see <http://www.gnu.org/licenses/>.
+
 from new_test_framework.utils import tdLog, tdSql, tdDnodes
 import sys
 import time
+import platform
 from math import inf
 
 class TestShowCreateDb:
@@ -20,6 +36,9 @@ class TestShowCreateDb:
         tdSql.execute(f"use scd")
 
     def showCreateDbCheck(self, dbname, expectShowCreateDb, maxRetry=30, dropDbAndRecheck=False, dropDbAfterCheck=False):
+        # tdef.h defines the Windows default as 2, versus 1 on Linux.
+        if platform.system().lower() == "windows":
+            expectShowCreateDb = expectShowCreateDb.replace(" WAL_LEVEL 1 ", " WAL_LEVEL 2 ")
         retry_count = 0
         success = False
         while retry_count < maxRetry and not success:
@@ -56,7 +75,7 @@ class TestShowCreateDb:
 
         Since: v3.0.0.0
 
-        Labels: common,ci
+        Labels: common,ci,integration,functional
 
         Jira: None
 

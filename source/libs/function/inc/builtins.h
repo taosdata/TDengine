@@ -1,6 +1,8 @@
 /*
  * Copyright (c) 2019 TAOS Data, Inc. <jhtao@taosdata.com>
  *
+ * SPDX-License-Identifier: AGPL-3.0-or-later
+ *
  * This program is free software: you can use, redistribute, and/or modify
  * it under the terms of the GNU Affero General Public License, version 3
  * or later ("AGPL"), as published by the Free Software Foundation.
@@ -21,13 +23,14 @@ extern "C" {
 #endif
 
 #include "functionMgtInt.h"
+#include "tmsg.h"   // FQ_CAP_* bitmap constants
 
 struct SFunctionParaInfo;
 
 typedef int32_t (*FTranslateFunc)(SFunctionNode* pFunc, char* pErrBuf, int32_t len);
 typedef EFuncDataRequired (*FFuncDataRequired)(SFunctionNode* pFunc, STimeWindow* pTimeWindow);
 typedef int32_t (*FCreateMergeFuncParameters)(SNodeList* pRawParameters, SNode* pPartialRes, SNodeList** pParameters);
-typedef EFuncDataRequired (*FFuncDynDataRequired)(void* pRes, SDataBlockInfo* pBlocInfo);
+typedef EFuncDataRequired (*FFuncDynDataRequired)(void* pRes, SDataBlockInfo* pBlockInfo);
 typedef EFuncReturnRows (*FEstimateReturnRows)(SFunctionNode* pFunc);
 
 #define MAX_FUNC_PARA_PATTERN_NUM     2
@@ -66,6 +69,9 @@ typedef struct SBuiltinFuncDefinition {
   const char*          name;
   EFunctionType        type;
   uint64_t             classification;
+  uint32_t             fqPushCap;    // FQ push-down capability bitmap (FQ_CAP_* flags)
+  bool                 fqArg0NcharPushCapSet;  // arg0==NCHAR uses fqArg0NcharPushCap when true
+  uint32_t             fqArg0NcharPushCap;     // optional arg0==NCHAR push-down capability bitmap
   SFunctionParaInfo    parameters;
   FTranslateFunc       translateFunc;
   FFuncDataRequired    dataRequiredFunc;
@@ -84,10 +90,18 @@ typedef struct SBuiltinFuncDefinition {
   FCreateMergeFuncParameters createMergeParaFuc;
   FEstimateReturnRows        estimateReturnRowsFunc;
   processFuncByRow           processFuncByRow;
+  FExecHasPending            hasPending;
 } SBuiltinFuncDefinition;
 
 extern const SBuiltinFuncDefinition funcMgtBuiltins[];
 extern const int32_t                funcMgtBuiltinsNum;
+// Validates planned parameter nodes, including value constraints. The function
+// manager must be initialized; diagnostics are written to pErrBuf on failure.
+int32_t validateBuiltinFuncParams(SFunctionNode* pFunc, char* pErrBuf, int32_t len);
+// Validates borrowed runtime type IDs and arity against the built-in patterns.
+// Type IDs must be in [TSDB_DATA_TYPE_NULL, TSDB_DATA_TYPE_MAX); returns a
+// function parameter count/type error when no declared pattern matches.
+int32_t validateBuiltinFuncInputTypes(int32_t funcId, const int8_t* pTypes, int32_t numOfParams);
 
 #ifdef __cplusplus
 }

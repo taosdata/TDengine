@@ -1,19 +1,23 @@
 #!/bin/bash
+
+# Copyright (c) 2026 TAOS Data, Inc. <jhtao@taosdata.com>
 #
-# pack_community_tar.sh — Generate community edition tar.gz packages (server + client)
+# pack_community_tar.sh — Generate community edition tar.xz packages (server + client)
+# SPDX-License-Identifier: AGPL-3.0-or-later
 #
-# Usage:
-#   ./pack_community_tar.sh -c <compile_dir> -n <version> [-m <compat_version>] [-V <verType>]
+# This program is free software: you can use, redistribute, and/or modify
+# it under the terms of the GNU Affero General Public License, version 3
+# or later ("AGPL"), as published by the Free Software Foundation.
 #
-# Parameters:
-#   -c  Compile directory (cmake build output, e.g. debug/)
-#   -n  Version number (e.g. 3.3.6.0)
-#   -m  Compatible version number (default: 3.0.0.0)
-#   -V  Version type: stable | beta (default: stable)
+# This program is distributed in the hope that it will be useful, but WITHOUT
+# ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+# FITNESS FOR A PARTICULAR PURPOSE.
 #
 # Output:
-#   <community_dir>/release/TDengine-server-<ver>-Linux-<arch>.tar.gz
-#   <community_dir>/release/TDengine-client-<ver>-Linux-<arch>.tar.gz
+#   <community_dir>/release/TDengine-server-<ver>-Linux-<arch>.tar.xz
+#   <community_dir>/release/TDengine-client-<ver>-Linux-<arch>.tar.xz
+# You should have received a copy of the GNU Affero General Public License
+# along with this program. If not, see <http://www.gnu.org/licenses/>.
 
 set -e
 
@@ -92,6 +96,31 @@ release_dir="${community_dir}/release"
 code_dir="${community_dir}"
 cfg_dir="${community_dir}/packaging/cfg"
 tools_dir="${community_dir}/packaging/tools"
+
+# Copy the shipped C examples from packaging/examples-manifest.txt. The sources
+# were consolidated into docs/examples, but this wrapper keeps the same package
+# subset as the tarball / deb / rpm packagers so the examples payload does not
+# grow with the whole docs tree.
+copy_c_examples() {
+  local dst_dir=$1
+  local examples_src="${community_dir}/docs/examples"
+  local examples_manifest="${community_dir}/packaging/examples-manifest.txt"
+
+  mkdir -p "${dst_dir}/examples"
+  while read -r ex_group ex_dst ex_src; do
+    case "${ex_group}" in "" | \#*) continue ;; esac
+    [ "${ex_group}" = all ] || continue
+    [ "${ex_dst}" = c ] || continue
+    if [ ! -f "${examples_src}/${ex_src}" ]; then
+      echo "Error: example source missing: ${ex_src} (see ${examples_manifest})" >&2
+      exit 1
+    fi
+    # Keep the path below the language directory; see makepkg.sh.
+    ex_rel="${ex_src#*/}"
+    mkdir -p "${dst_dir}/examples/${ex_dst}/$(dirname "${ex_rel}")"
+    cp "${examples_src}/${ex_src}" "${dst_dir}/examples/${ex_dst}/${ex_rel}"
+  done < "${examples_manifest}"
+}
 
 # Verify build directory exists
 if [ ! -d "$build_dir" ]; then
@@ -238,11 +267,6 @@ for header in \
   copy_if_exists "$header" "${server_dir}/inc/"
 done
 
-# --- Create inner package.tar.gz ---
-echo "  Creating inner package.tar.gz..."
-cd "${server_dir}"
-tar -zcf package.tar.gz bin cfg inc --remove-files
-
 # --- Outer package: driver/ ---
 mkdir -p "${server_dir}/driver"
 cp "${build_dir}/lib/libtaos.so" "${server_dir}/driver/libtaos.so.${version}"
@@ -250,10 +274,7 @@ cp "${build_dir}/lib/libtaosnative.so" "${server_dir}/driver/libtaosnative.so.${
 echo "${versionComp}" > "${server_dir}/driver/vercomp.txt"
 
 # --- Outer package: examples/ ---
-if [ -d "${code_dir}/examples/c" ]; then
-  mkdir -p "${server_dir}/examples"
-  cp -r "${code_dir}/examples/c" "${server_dir}/examples/"
-fi
+copy_c_examples "${server_dir}"
 
 # --- Outer package: install.sh ---
 cp "${tools_dir}/install.sh" "${server_dir}/"
@@ -322,12 +343,12 @@ echo "  Creating server tar.gz..."
 cd "${release_dir}"
 
 if [[ "$verType" == "beta" ]] || [[ "$verType" == "preRelease" ]]; then
-  server_tar_name="${server_pkg_name}-${verType}-${os_type}-${arch}.tar.gz"
+  server_tar_name="${server_pkg_name}-${verType}-${os_type}-${arch}.tar.xz"
 else
-  server_tar_name="${server_pkg_name}-${os_type}-${arch}.tar.gz"
+  server_tar_name="${server_pkg_name}-${os_type}-${arch}.tar.xz"
 fi
 
-tar -zcf "${server_tar_name}" "$(basename "$server_dir")" --remove-files
+tar -Jcf "${server_tar_name}" "$(basename "$server_dir")" --remove-files
 echo "  ✓ Server package: ${release_dir}/${server_tar_name}"
 
 # ======================== Build Client Package ========================
@@ -374,11 +395,6 @@ for header in \
   copy_if_exists "$header" "${client_dir}/inc/"
 done
 
-# --- Create inner package.tar.gz ---
-echo "  Creating inner package.tar.gz..."
-cd "${client_dir}"
-tar -zcf package.tar.gz bin cfg inc --remove-files
-
 # --- Outer package: driver/ ---
 mkdir -p "${client_dir}/driver"
 cp "${build_dir}/lib/libtaos.so" "${client_dir}/driver/libtaos.so.${version}"
@@ -386,10 +402,7 @@ cp "${build_dir}/lib/libtaosnative.so" "${client_dir}/driver/libtaosnative.so.${
 echo "${versionComp}" > "${client_dir}/driver/vercomp.txt"
 
 # --- Outer package: examples/ ---
-if [ -d "${code_dir}/examples/c" ]; then
-  mkdir -p "${client_dir}/examples"
-  cp -r "${code_dir}/examples/c" "${client_dir}/examples/"
-fi
+copy_c_examples "${client_dir}"
 
 # --- Outer package: install_client.sh ---
 cp "${tools_dir}/install_client.sh" "${client_dir}/"
@@ -401,12 +414,12 @@ echo "  Creating client tar.gz..."
 cd "${release_dir}"
 
 if [[ "$verType" == "beta" ]] || [[ "$verType" == "preRelease" ]]; then
-  client_tar_name="${client_pkg_name}-${verType}-${os_type}-${arch}.tar.gz"
+  client_tar_name="${client_pkg_name}-${verType}-${os_type}-${arch}.tar.xz"
 else
-  client_tar_name="${client_pkg_name}-${os_type}-${arch}.tar.gz"
+  client_tar_name="${client_pkg_name}-${os_type}-${arch}.tar.xz"
 fi
 
-tar -zcf "${client_tar_name}" "$(basename "$client_dir")" --remove-files
+tar -Jcf "${client_tar_name}" "$(basename "$client_dir")" --remove-files
 echo "  ✓ Client package: ${release_dir}/${client_tar_name}"
 
 # ======================== Summary ========================

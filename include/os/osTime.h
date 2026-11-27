@@ -1,6 +1,8 @@
 /*
  * Copyright (c) 2019 TAOS Data, Inc. <jhtao@taosdata.com>
  *
+ * SPDX-License-Identifier: AGPL-3.0-or-later
+ *
  * This program is free software: you can use, redistribute, and/or modify
  * it under the terms of the GNU Affero General Public License, version 3
  * or later ("AGPL"), as published by the Free Software Foundation.
@@ -36,7 +38,7 @@ extern "C" {
 #ifdef WINDOWS
 
 #define CLOCK_REALTIME 0
-#define CLOCK_MONOTONIC 0
+#define CLOCK_MONOTONIC 1
 
 #define MILLISECOND_PER_SECOND (1000i64)
 #else
@@ -49,6 +51,8 @@ extern "C" {
 #define MILLISECOND_PER_DAY    (MILLISECOND_PER_HOUR * 24)
 #define MILLISECOND_PER_WEEK   (MILLISECOND_PER_DAY * 7)
 
+#define MICROSECOND_PER_SECOND (1000000LL)
+
 #define NANOSECOND_PER_USEC   (1000LL)
 #define NANOSECOND_PER_MSEC   (1000000LL)
 #define NANOSECOND_PER_SEC    (1000000000LL)
@@ -60,39 +64,53 @@ extern "C" {
 int32_t taosGetTimeOfDay(struct timeval *tv);
 
 int32_t taosClockGetTime(int clock_id, struct timespec *pTS);
+int32_t taosGetMonotonicClockId(char *clockId, size_t capacity);
 
 //@return timestamp in second
 int32_t taosGetTimestampSec();
 
+// Returns the clockId time in units of 1/unitsPerSecond second.
+// unitsPerSecond must divide NANOSECOND_PER_SEC. Seconds are scaled
+// separately to preserve the range of lower precisions.
+static FORCE_INLINE int64_t taosClockGetTimestamp(int clockId,
+                                                  int64_t unitsPerSecond) {
+  struct timespec systemTime = {0};
+  (void)taosClockGetTime(clockId, &systemTime);
+  return (int64_t)systemTime.tv_sec * unitsPerSecond +
+         systemTime.tv_nsec / (NANOSECOND_PER_SEC / unitsPerSecond);
+}
+
 //@return timestamp in millisecond
 static FORCE_INLINE int64_t taosGetTimestampMs() {
-  struct timeval systemTime;
-  (void)taosGetTimeOfDay(&systemTime);
-  return (int64_t)systemTime.tv_sec * 1000LL + (int64_t)systemTime.tv_usec / 1000;
+  return taosClockGetTimestamp(CLOCK_REALTIME, MILLISECOND_PER_SECOND);
 }
 
 //@return timestamp in microsecond
 static FORCE_INLINE int64_t taosGetTimestampUs() {
-  struct timeval systemTime;
-  (void)taosGetTimeOfDay(&systemTime);
-  return (int64_t)systemTime.tv_sec * 1000000LL + (int64_t)systemTime.tv_usec;
+  return taosClockGetTimestamp(CLOCK_REALTIME, MICROSECOND_PER_SECOND);
 }
 
 //@return timestamp in nanosecond
 static FORCE_INLINE int64_t taosGetTimestampNs() {
-  struct timespec systemTime = {0};
-  (void)taosClockGetTime(CLOCK_REALTIME, &systemTime);
-  return (int64_t)systemTime.tv_sec * 1000000000LL + (int64_t)systemTime.tv_nsec;
+  return taosClockGetTimestamp(CLOCK_REALTIME, NANOSECOND_PER_SEC);
 }
 
 //@return timestamp of monotonic clock in millisecond
 static FORCE_INLINE int64_t taosGetMonoTimestampMs() {
-  struct timespec systemTime = {0};
-  (void)taosClockGetTime(CLOCK_MONOTONIC, &systemTime);
-  return (int64_t)systemTime.tv_sec * 1000LL + (int64_t)systemTime.tv_nsec / 1000000;
+  return taosClockGetTimestamp(CLOCK_MONOTONIC, MILLISECOND_PER_SECOND);
+}
+
+//@return timestamp of monotonic clock in nanosecond
+// The nanosecond field is retained (actual precision depends on the platform clock),
+// preserving sub-millisecond separation that taosGetMonoTimestampMs discards.
+static FORCE_INLINE int64_t taosGetMonoTimestampNs() {
+  return taosClockGetTimestamp(CLOCK_MONOTONIC, NANOSECOND_PER_SEC);
 }
 
 char      *taosStrpTime(const char *buf, const char *fmt, struct tm *tm);
+// Retain the instant when formatting historical offset folds on Windows.
+size_t taosStrfTimeAt(char *s, size_t size, const char *format,
+                      const time_t *stamp, timezone_t tz);
 size_t     taosStrfTime(char *s, size_t maxsize, char const *format, struct tm const *t);
 struct tm *taosLocalTime(const time_t *timep, struct tm *result, char *buf, int32_t bufSize, timezone_t tz);
 struct tm *taosGmTimeR(const time_t *timep, struct tm *result);

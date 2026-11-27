@@ -1,6 +1,8 @@
 /*
  * Copyright (c) 2019 TAOS Data, Inc. <jhtao@taosdata.com>
  *
+ * SPDX-License-Identifier: AGPL-3.0-or-later
+ *
  * This program is free software: you can use, redistribute, and/or modify
  * it under the terms of the GNU Affero General Public License, version 3
  * or later ("AGPL"), as published by the Free Software Foundation.
@@ -76,7 +78,7 @@ int smlProcess_influx_Test() {
 int smlProcess_telnet_Test() {
   TAOS *taos = taos_connect("localhost", "root", "taosdata", NULL, 0);
 
-  TAOS_RES *pRes = taos_query(taos, "create database if not exists sml_db schemaless 1");
+  TAOS_RES *pRes = taos_query(taos, "create database if not exists sml_db schemaless 1 keep 36500");
   taos_free_result(pRes);
 
   pRes = taos_query(taos, "use sml_db");
@@ -112,7 +114,7 @@ int smlProcess_telnet_Test() {
 int smlProcess_telnet0_Test() {
   TAOS *taos = taos_connect("localhost", "root", "taosdata", NULL, 0);
 
-  TAOS_RES *pRes = taos_query(taos, "create database if not exists sml_db schemaless 1");
+  TAOS_RES *pRes = taos_query(taos, "create database if not exists sml_db schemaless 1 keep 36500");
   taos_free_result(pRes);
 
   pRes = taos_query(taos, "use sml_db");
@@ -150,7 +152,7 @@ int smlProcess_telnet0_Test() {
 int smlProcess_json0_Test() {
   TAOS *taos = taos_connect("localhost", "root", "taosdata", NULL, 0);
 
-  TAOS_RES *pRes = taos_query(taos, "create database if not exists sml_db");
+  TAOS_RES *pRes = taos_query(taos, "create database if not exists sml_db keep 36500");
   taos_free_result(pRes);
 
   pRes = taos_query(taos, "use sml_db");
@@ -219,7 +221,7 @@ int smlProcess_json0_Test() {
 int smlProcess_json1_Test() {
   TAOS *taos = taos_connect("localhost", "root", "taosdata", NULL, 0);
 
-  TAOS_RES *pRes = taos_query(taos, "create database if not exists sml_db");
+  TAOS_RES *pRes = taos_query(taos, "create database if not exists sml_db keep 36500");
   taos_free_result(pRes);
 
   pRes = taos_query(taos, "use sml_db");
@@ -316,7 +318,7 @@ int smlProcess_json1_Test() {
 int smlProcess_json2_Test() {
   TAOS *taos = taos_connect("localhost", "root", "taosdata", NULL, 0);
 
-  TAOS_RES *pRes = taos_query(taos, "create database if not exists sml_db schemaless 1");
+  TAOS_RES *pRes = taos_query(taos, "create database if not exists sml_db schemaless 1 keep 36500");
   taos_free_result(pRes);
 
   pRes = taos_query(taos, "use sml_db");
@@ -353,7 +355,7 @@ int smlProcess_json2_Test() {
 int smlProcess_json3_Test() {
   TAOS *taos = taos_connect("localhost", "root", "taosdata", NULL, 0);
 
-  TAOS_RES *pRes = taos_query(taos, "create database if not exists sml_db schemaless 1");
+  TAOS_RES *pRes = taos_query(taos, "create database if not exists sml_db schemaless 1 keep 36500");
   taos_free_result(pRes);
 
   pRes = taos_query(taos, "use sml_db");
@@ -388,7 +390,7 @@ int smlProcess_json3_Test() {
 int smlProcess_json_tag_not_same_Test() {
   TAOS *taos = taos_connect("localhost", "root", "taosdata", NULL, 0);
 
-  TAOS_RES *pRes = taos_query(taos, "create database if not exists sml_db");
+  TAOS_RES *pRes = taos_query(taos, "create database if not exists sml_db keep 36500");
   taos_free_result(pRes);
 
   pRes = taos_query(taos, "use sml_db");
@@ -483,7 +485,8 @@ int smlProcess_json_tag_not_same_Test() {
 int sml_TD15662_Test() {
   TAOS *taos = taos_connect("localhost", "root", "taosdata", NULL, 0);
 
-  TAOS_RES *pRes = taos_query(taos, "create database if not exists sml_db precision 'ns' schemaless 1");
+  TAOS_RES *pRes =
+      taos_query(taos, "create database if not exists sml_db precision 'ns' schemaless 1 keep 36500");
   taos_free_result(pRes);
 
   pRes = taos_query(taos, "use sml_db");
@@ -506,7 +509,7 @@ int sml_TD15662_Test() {
 int sml_TD15742_Test() {
   TAOS *taos = taos_connect("localhost", "root", "taosdata", NULL, 0);
 
-  TAOS_RES *pRes = taos_query(taos, "create database if not exists sml_db schemaless 1");
+  TAOS_RES *pRes = taos_query(taos, "create database if not exists sml_db schemaless 1 keep 36500");
   taos_free_result(pRes);
 
   pRes = taos_query(taos, "use sml_db");
@@ -528,7 +531,7 @@ int sml_TD15742_Test() {
 int sml_16384_Test() {
   TAOS *taos = taos_connect("localhost", "root", "taosdata", NULL, 0);
 
-  TAOS_RES *pRes = taos_query(taos, "create database if not exists sml_db schemaless 1");
+  TAOS_RES *pRes = taos_query(taos, "create database if not exists sml_db schemaless 1 keep 36500");
   taos_free_result(pRes);
 
   const char *sql[] = {
@@ -559,7 +562,7 @@ int sml_16384_Test() {
 int sml_oom_Test() {
   TAOS *taos = taos_connect("localhost", "root", "taosdata", NULL, 0);
 
-  TAOS_RES *pRes = taos_query(taos, "create database if not exists sml_db schemaless 1");
+  TAOS_RES *pRes = taos_query(taos, "create database if not exists sml_db schemaless 1 keep 36500");
   taos_free_result(pRes);
 
   const char *sql[] = {
@@ -980,7 +983,7 @@ int sml_oom_Test() {
 int sml_dup_time_Test() {
   TAOS *taos = taos_connect("localhost", "root", "taosdata", NULL, 0);
 
-  TAOS_RES *pRes = taos_query(taos, "create database if not exists sml_db schemaless 1");
+  TAOS_RES *pRes = taos_query(taos, "create database if not exists sml_db schemaless 1 keep 36500");
   taos_free_result(pRes);
 
   const char *sql[] = {//"test_ms,t0=t c0=f 1626006833641",
@@ -1019,7 +1022,7 @@ int sml_dup_time_Test() {
 int sml_add_tag_col_Test() {
   TAOS *taos = taos_connect("localhost", "root", "taosdata", NULL, 0);
 
-  TAOS_RES *pRes = taos_query(taos, "create database if not exists sml_db schemaless 1");
+  TAOS_RES *pRes = taos_query(taos, "create database if not exists sml_db schemaless 1 keep 36500");
   taos_free_result(pRes);
 
   const char *sql[] = {
@@ -1252,7 +1255,7 @@ int sml_escape1_Test() {
 int sml_19221_Test() {
   TAOS *taos = taos_connect("localhost", "root", "taosdata", NULL, 0);
 
-  TAOS_RES *pRes = taos_query(taos, "create database if not exists sml_db schemaless 1");
+  TAOS_RES *pRes = taos_query(taos, "create database if not exists sml_db schemaless 1 keep 36500");
   taos_free_result(pRes);
 
   const char *sql[] = {
@@ -1706,7 +1709,7 @@ int sml_ttl_Test() {
   TAOS_RES *pRes = taos_query(taos, "drop database if exists sml_db");
   taos_free_result(pRes);
 
-  pRes = taos_query(taos, "create database if not exists sml_db schemaless 1");
+  pRes = taos_query(taos, "create database if not exists sml_db schemaless 1 keep 36500");
   taos_free_result(pRes);
 
   const char *sql[] = {
@@ -2160,7 +2163,7 @@ int sml_td29373_Test() {
   TAOS_RES *pRes = taos_query(taos, "drop database if exists td29373");
   taos_free_result(pRes);
 
-  pRes = taos_query(taos, "create database if not exists td29373");
+  pRes = taos_query(taos, "create database if not exists td29373 keep 36500");
   taos_free_result(pRes);
 
   pRes = taos_query(taos, "use td29373");
@@ -2387,7 +2390,8 @@ int sml_td17324_Test() {
 int smlProcess_34114_Test() {
   TAOS *taos = taos_connect("localhost", "root", "taosdata", NULL, 0);
 
-  TAOS_RES *pRes = taos_query(taos, "create database if not exists sml_34114_db schemaless 1");
+  TAOS_RES *pRes =
+      taos_query(taos, "create database if not exists sml_34114_db schemaless 1 keep 36500");
   taos_free_result(pRes);
 
   pRes = taos_query(taos, "use sml_34114_db");

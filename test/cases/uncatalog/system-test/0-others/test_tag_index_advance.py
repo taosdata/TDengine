@@ -1,13 +1,17 @@
-###################################################################
-#           Copyright (c) 2016 by TAOS Technologies, Inc.
-#                     All rights reserved.
+# Copyright (c) 2016 TAOS Data, Inc. <jhtao@taosdata.com>
 #
-#  This file is proprietary and confidential to TAOS Technologies.
-#  No part of this file may be reproduced, stored, transmitted,
-#  disclosed or used in any form or by any means other than as
-#  expressly provided by the written permission from Jianhui Tao
+# SPDX-License-Identifier: AGPL-3.0-or-later
 #
-###################################################################
+# This program is free software: you can use, redistribute, and/or modify
+# it under the terms of the GNU Affero General Public License, version 3
+# or later ("AGPL"), as published by the Free Software Foundation.
+#
+# This program is distributed in the hope that it will be useful, but WITHOUT
+# ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+# FITNESS FOR A PARTICULAR PURPOSE.
+#
+# You should have received a copy of the GNU Affero General Public License
+# along with this program. If not, see <http://www.gnu.org/licenses/>.
 
 # -*- coding: utf-8 -*-
 
@@ -143,7 +147,7 @@ class TagCluster:
 
         Since: xxx
 
-        Labels: xxx
+        Labels: common,ci,integration,functional
 
         Jira: xxx
 
@@ -378,8 +382,8 @@ class TestTagIndexAdvance:
 
     def drop_tables(self, tbname, count):
         # table d1 and d20 have verify data , so can not drop
-        start = random.randint(21, count/2)
-        end = random.randint(count/2 + 1, count - 1)
+        start = random.randint(21, count // 2)
+        end = random.randint(count // 2 + 1, count - 1)
         for i in range(start, end):
             sql = f'drop table {tbname}{i}'
             tdSql.execute(sql)
@@ -488,7 +492,7 @@ class TestTagIndexAdvance:
 
         Since: xxx
 
-        Labels: xxx
+        Labels: common,ci,integration,functional
 
         Jira: xxx
 

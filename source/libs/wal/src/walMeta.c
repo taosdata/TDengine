@@ -1,6 +1,8 @@
 /*
  * Copyright (c) 2019 TAOS Data, Inc. <jhtao@taosdata.com>
  *
+ * SPDX-License-Identifier: AGPL-3.0-or-later
+ *
  * This program is free software: you can use, redistribute, and/or modify
  * it under the terms of the GNU Affero General Public License, version 3
  * or later ("AGPL"), as published by the Free Software Foundation.
@@ -50,7 +52,8 @@ int32_t walSetKeepVersion(SWal *pWal, int64_t ver) {
     return TSDB_CODE_INVALID_PARA;
   }
 
-  if (ver < 0) {
+  // -1 is the valid "release" sentinel (no keep constraint); other negative values are invalid.
+  if (ver < -1) {
     wError("vgId:%d, failed to set keep version, invalid ver:%" PRId64, pWal->cfg.vgId, ver);
     return TSDB_CODE_INVALID_PARA;
   }
@@ -85,160 +88,304 @@ static FORCE_INLINE int walBuildTmpMetaName(SWal* pWal, char* buf) {
   return snprintf(buf, WAL_FILE_LEN, "%s%smeta-ver.tmp", pWal->path, TD_DIRSEP);
 }
 
-FORCE_INLINE int32_t walScanLogGetLastVer(SWal* pWal, int32_t fileIdx, int64_t* lastVer) {
+// ---------------------------------------------------------------------------
+// WAL segment recovery scan
+//
+// A segment file is a chain of records, each [SWalCkHead][body], carrying strictly
+// consecutive versions. A record body is opaque bytes supplied by whoever proposed the
+// entry (a raft peer via TDMT_SYNC_CLIENT_REQUEST, or any client via INSERT), so a body
+// may contain a byte sequence that is byte-for-byte indistinguishable from real framing:
+// WAL_MAGIC plus the two CRC32 values, none of which is keyed, so all of them can be
+// precomputed by whoever chose the body. Recovery must therefore never *search* the file
+// for a record boundary -- a magic search lets body content decide the recovered
+// lastVer/fileSize, and those in turn decide which committed entries survive, where the
+// rebuilt idx entries point, and where later appends are recorded.
+//
+// Instead the scan starts from a boundary it can trust and walks the chain forward,
+// record by record:
+//   * an idx entry that is self-consistent (it sits in the slot its own version maps to)
+//     and resolves to a header carrying that same version. The idx file is a separate
+//     file holding fixed-size {ver, offset} pairs written only by walWriteIndex; nothing
+//     in it is ever derived from a record body, so it cannot be forged through the write
+//     path; or
+//   * offset 0, the first byte of the segment, which is a record boundary by construction.
+// Every step then requires the record to lie fully inside the file, to declare a sane
+// bodyLen, to pass both checksums, and to carry exactly "previous version + 1". The walk
+// stops at the first record that fails any of these and the file is truncated there,
+// which is what raft log semantics require anyway (no holes in the log).
+//
+// Because each step advances by at least sizeof(SWalCkHead) bytes towards a fixed
+// fileSize, the walk is also guaranteed to terminate -- the previous window-based scan
+// could re-read the same window forever when a forward-stage header check failed.
+// ---------------------------------------------------------------------------
+
+// Hard cap on how many idx slots the scan probes backwards while looking for a trusted
+// boundary. Giving up and starting from offset 0 is always correct, only slower, so this
+// bounds the cost of a pathological idx file without changing the result.
+#define WAL_SCAN_IDX_PROBE_MAX 256
+
+typedef struct {
+  TdFilePtr pFile;
+  int64_t   fileSize;   // size of the segment on disk, fixed for the whole scan
+  char*     buf;        // sliding read window over the segment
+  int64_t   capacity;   // bytes allocated for buf
+  int64_t   bufOffset;  // file offset that buf[0] maps to
+  int64_t   bufLen;     // valid bytes currently held in buf
+} SWalScanBuf;
+
+// Make the bytes at [offset, offset + need) available in the scan window and hand back a
+// pointer to them. On success *ppData is NULL only when offset is at/past EOF; *pAvail
+// may be smaller than `need` when the file ends first, which callers treat as a torn
+// record rather than an error.
+static int32_t walScanBufAt(SWal* pWal, SWalScanBuf* pScan, int64_t offset, int64_t need, char** ppData,
+                            int64_t* pAvail) {
+  *ppData = NULL;
+  *pAvail = 0;
+
+  if (offset < 0 || offset >= pScan->fileSize) {
+    TAOS_RETURN(TSDB_CODE_SUCCESS);
+  }
+
+  int64_t remain = pScan->fileSize - offset;
+  int64_t want = TMIN(need, remain);
+
+  if (offset >= pScan->bufOffset && offset + want <= pScan->bufOffset + pScan->bufLen) {
+    *ppData = pScan->buf + (offset - pScan->bufOffset);
+    *pAvail = pScan->bufOffset + pScan->bufLen - offset;
+    TAOS_RETURN(TSDB_CODE_SUCCESS);
+  }
+
+  // refill: always read at least a full scan block so that walking a segment record by
+  // record still costs one read per block, not one read per record
+  int64_t readSize = TMIN(TMAX(need, (int64_t)WAL_SCAN_BUF_SIZE), remain);
+  if (pScan->capacity < readSize) {
+    void* ptr = taosMemoryRealloc(pScan->buf, readSize);
+    if (ptr == NULL) {
+      TAOS_RETURN(terrno);
+    }
+    pScan->buf = ptr;
+    pScan->capacity = readSize;
+  }
+
+  pScan->bufOffset = 0;
+  pScan->bufLen = 0;
+
+  if (taosLSeekFile(pScan->pFile, offset, SEEK_SET) < 0) {
+    wError("vgId:%d, failed to lseek log file since %s, offset:%" PRId64, pWal->cfg.vgId, strerror(ERRNO), offset);
+    TAOS_RETURN(terrno);
+  }
+
+  int64_t n = taosReadFile(pScan->pFile, pScan->buf, readSize);
+  if (n < 0) {
+    wError("vgId:%d, failed to read log file since %s, offset:%" PRId64 ", readSize:%" PRId64, pWal->cfg.vgId,
+           strerror(ERRNO), offset, readSize);
+    TAOS_RETURN(terrno);
+  }
+
+  pScan->bufOffset = offset;
+  pScan->bufLen = n;
+
+  *ppData = (n > 0) ? pScan->buf : NULL;
+  *pAvail = n;
+
+  TAOS_RETURN(TSDB_CODE_SUCCESS);
+}
+
+// Validate the single record that is supposed to start at `offset`. `prevVer` is the
+// version of the record immediately before it (firstVer - 1 for the first record of a
+// segment); the version must be exactly prevVer + 1, which is what keeps a chain from
+// ever stepping into a record that the write path never produced.
+static int32_t walScanCheckRecord(SWal* pWal, SWalScanBuf* pScan, int64_t offset, int64_t prevVer,
+                                  int64_t* pRecordLen, int64_t* pVer) {
+  const int64_t walCkHeadSz = sizeof(SWalCkHead);
+  const uint64_t magic = WAL_MAGIC;
+  char*          data = NULL;
+  int64_t        avail = 0;
+
+  *pRecordLen = 0;
+  *pVer = -1;
+
+  TAOS_CHECK_RETURN(walScanBufAt(pWal, pScan, offset, walCkHeadSz, &data, &avail));
+  if (data == NULL || avail < walCkHeadSz) {
+    TAOS_RETURN(TSDB_CODE_WAL_FILE_CORRUPTED);
+  }
+
+  // compare the magic bytewise: `offset` is arbitrary, so the header is not aligned
+  if (memcmp(data, &magic, sizeof(magic)) != 0) {
+    TAOS_RETURN(TSDB_CODE_WAL_FILE_CORRUPTED);
+  }
+
+  SWalCkHead* pHead = (SWalCkHead*)data;
+  if (walValidHeadCksum(pHead) != 0) {
+    TAOS_RETURN(TSDB_CODE_WAL_CHKSUM_MISMATCH);
+  }
+
+  // bodyLen is attacker-influenced until the body checksum below passes, and it is used
+  // as an unsigned length by the checksum helpers and as an offset delta by every caller,
+  // so range-check it before it is used for anything at all
+  int32_t plainBodyLen = pHead->head.bodyLen;
+  if (!walValidBodyLen(plainBodyLen)) {
+    wWarn("vgId:%d, invalid body length:%d in wal entry header, offset:%" PRId64, pWal->cfg.vgId, plainBodyLen, offset);
+    TAOS_RETURN(TSDB_CODE_WAL_FILE_CORRUPTED);
+  }
+
+  int32_t cryptedBodyLen = plainBodyLen;
+  if (pWal->cfg.encryptData.encryptAlgrName[0] != '\0') {
+    cryptedBodyLen = ENCRYPTED_LEN(cryptedBodyLen);
+  }
+
+  int64_t recordLen = walCkHeadSz + cryptedBodyLen;
+  if (offset + recordLen > pScan->fileSize) {
+    TAOS_RETURN(TSDB_CODE_WAL_FILE_CORRUPTED);
+  }
+
+  // the body checksum needs the whole record resident
+  TAOS_CHECK_RETURN(walScanBufAt(pWal, pScan, offset, recordLen, &data, &avail));
+  if (data == NULL || avail < recordLen) {
+    TAOS_RETURN(TSDB_CODE_WAL_FILE_CORRUPTED);
+  }
+
+  pHead = (SWalCkHead*)data;
+  TAOS_CHECK_RETURN(decryptBody(&pWal->cfg, pHead, plainBodyLen, __FUNCTION__));
+
+  if (walValidBodyCksum(pHead) != 0) {
+    wWarn("vgId:%d, failed to validate checksum of wal entry body, offset:%" PRId64, pWal->cfg.vgId, offset);
+    TAOS_RETURN(TSDB_CODE_WAL_CHKSUM_MISMATCH);
+  }
+
+  int64_t ver = taosGetInt64Aligned(&pHead->head.version);
+  if (ver != prevVer + 1) {
+    // Versions in a segment are strictly consecutive. A gap here means the bytes at
+    // `offset` are not the record that follows prevVer, however well-formed they look.
+    wWarn("vgId:%d, wal entry index:%" PRId64 " does not follow index:%" PRId64 ", offset:%" PRId64, pWal->cfg.vgId,
+          ver, prevVer, offset);
+    TAOS_RETURN(TSDB_CODE_WAL_FILE_CORRUPTED);
+  }
+
+  *pRecordLen = recordLen;
+  *pVer = ver;
+
+  TAOS_RETURN(TSDB_CODE_SUCCESS);
+}
+
+// Pick the boundary the forward walk starts from: the highest idx slot that resolves to
+// a real record, or the start of the segment. Never fails -- any problem with the idx
+// file just leaves the caller walking the whole segment, which is always correct.
+static int32_t walScanFindAnchor(SWal* pWal, SWalFileInfo* pFileInfo, SWalScanBuf* pScan, int64_t* pAnchorVer,
+                                 int64_t* pNextOffset) {
+  *pAnchorVer = pFileInfo->firstVer - 1;
+  *pNextOffset = 0;
+
+  char fnameStr[WAL_FILE_LEN];
+  walBuildIdxName(pWal, pFileInfo->firstVer, fnameStr);
+
+  int64_t idxSize = 0;
+  if (taosStatFile(fnameStr, &idxSize, NULL, NULL) < 0) {
+    TAOS_RETURN(TSDB_CODE_SUCCESS);
+  }
+
+  int64_t entries = idxSize / (int64_t)sizeof(SWalIdxEntry);
+  if (entries <= 0) {
+    TAOS_RETURN(TSDB_CODE_SUCCESS);
+  }
+
+  TdFilePtr pIdxFile = taosOpenFile(fnameStr, TD_FILE_READ);
+  if (pIdxFile == NULL) {
+    wWarn("vgId:%d, failed to open idx file %s since %s, wal scan starts from the beginning of the segment",
+          pWal->cfg.vgId, fnameStr, terrstr());
+    TAOS_RETURN(TSDB_CODE_SUCCESS);
+  }
+
+  for (int64_t slot = entries - 1, probes = 0; slot >= 0 && probes < WAL_SCAN_IDX_PROBE_MAX; slot--, probes++) {
+    SWalIdxEntry entry = {0};
+
+    if (taosLSeekFile(pIdxFile, slot * (int64_t)sizeof(SWalIdxEntry), SEEK_SET) < 0) break;
+    if (taosReadFile(pIdxFile, &entry, sizeof(SWalIdxEntry)) != sizeof(SWalIdxEntry)) break;
+
+    // walWriteIndex stores the entry for version v at slot (v - firstVer); an entry that
+    // does not satisfy that is leftover garbage, not a usable boundary
+    if (entry.ver != pFileInfo->firstVer + slot || entry.offset < 0 || entry.offset >= pScan->fileSize) {
+      continue;
+    }
+
+    int64_t recordLen = 0;
+    int64_t ver = 0;
+    if (walScanCheckRecord(pWal, pScan, entry.offset, entry.ver - 1, &recordLen, &ver) != TSDB_CODE_SUCCESS) {
+      continue;
+    }
+
+    *pAnchorVer = ver;
+    *pNextOffset = entry.offset + recordLen;
+    wDebug("vgId:%d, wal scan anchored at index:%" PRId64 ", offset:%" PRId64 ", file:%s", pWal->cfg.vgId, ver,
+           entry.offset, fnameStr);
+    break;
+  }
+
+  TAOS_UNUSED(taosCloseFile(&pIdxFile));
+  TAOS_RETURN(TSDB_CODE_SUCCESS);
+}
+
+int32_t walScanLogGetLastVer(SWal* pWal, int32_t fileIdx, int64_t* lastVer) {
   int32_t       code = 0, lino = 0;
-  int32_t       sz = taosArrayGetSize(pWal->fileInfoSet);
   int64_t       retVer = -1;
-  void*         ptr = NULL;
   SWalFileInfo* pFileInfo = taosArrayGet(pWal->fileInfoSet, fileIdx);
+
+  // Everything the _err cleanup touches is declared and initialized here, before the
+  // first `goto _err` -- jumping over an initializer leaves the variable indeterminate.
+  TdFilePtr   pFile = NULL;
+  SWalScanBuf scan = {0};
+  int64_t     fileSize = 0;
+  int64_t     anchorVer = pFileInfo->firstVer - 1;
+  int64_t     prevVer = anchorVer;
+  int64_t     offset = 0;
+  int64_t     lastEntryEndOffset = 0;
 
   char fnameStr[WAL_FILE_LEN];
   walBuildLogName(pWal, pFileInfo->firstVer, fnameStr);
 
-  int64_t fileSize = 0;
   TAOS_CHECK_GOTO(taosStatFile(fnameStr, &fileSize, NULL, NULL), &lino, _err);
 
-  TdFilePtr pFile = taosOpenFile(fnameStr, TD_FILE_READ | TD_FILE_WRITE);
+  pFile = taosOpenFile(fnameStr, TD_FILE_READ | TD_FILE_WRITE);
   TSDB_CHECK_NULL(pFile, code, lino, _err, terrno);
 
   // ensure size as non-negative
   pFileInfo->fileSize = TMAX(0, pFileInfo->fileSize);
 
-  int64_t  stepSize = WAL_SCAN_BUF_SIZE;
-  uint64_t magic = WAL_MAGIC;
-  int64_t  walCkHeadSz = sizeof(SWalCkHead);
-  int64_t  end = fileSize;
-  int64_t  capacity = 0;
-  int64_t  readSize = 0;
-  char*    buf = NULL;
-  int64_t  offset = TMIN(pFileInfo->fileSize, fileSize);
-  int64_t  lastEntryBeginOffset = 0;
-  int64_t  lastEntryEndOffset = 0;
-  int64_t  recordLen = 0;
-  bool     forwardStage = false;
+  scan.pFile = pFile;
+  scan.fileSize = fileSize;
 
-  // check recover size
-  if (2 * tsWalFsyncDataSizeLimit + offset < end) {
-    wWarn("vgId:%d, possibly corrupted WAL range exceeds size limit (i.e, %" PRId64 " bytes), offset:%" PRId64
-          ", end:%" PRId64 ", file:%s",
-          pWal->cfg.vgId, 2 * tsWalFsyncDataSizeLimit, offset, end, fnameStr);
+  TAOS_CHECK_GOTO(walScanFindAnchor(pWal, pFileInfo, &scan, &anchorVer, &offset), &lino, _err);
+
+  prevVer = anchorVer;
+  lastEntryEndOffset = offset;
+  if (offset > 0) {
+    retVer = anchorVer;
   }
 
-  // search for the valid last WAL entry, e.g, block by block
-  while (1) {
-    offset = (lastEntryEndOffset > 0) ? offset : TMAX(0, offset - stepSize + walCkHeadSz - 1);
-    end = TMIN(offset + stepSize, fileSize);
+  // check recover size
+  if (2 * tsWalFsyncDataSizeLimit + offset < fileSize) {
+    wWarn("vgId:%d, possibly corrupted WAL range exceeds size limit (i.e, %" PRId64 " bytes), offset:%" PRId64
+          ", end:%" PRId64 ", file:%s",
+          pWal->cfg.vgId, 2 * tsWalFsyncDataSizeLimit, offset, fileSize, fnameStr);
+  }
 
-    readSize = end - offset;
-    capacity = readSize + sizeof(magic);
+  // walk the record chain forward from the trusted boundary
+  while (offset < fileSize) {
+    int64_t recordLen = 0;
+    int64_t ver = -1;
 
-    ptr = taosMemoryRealloc(buf, capacity);
-    TSDB_CHECK_NULL(ptr, code, lino, _err, terrno);
-    buf = ptr;
-
-    int64_t ret = taosLSeekFile(pFile, offset, SEEK_SET);
-    if (ret < 0) {
-      wError("vgId:%d, failed to lseek file since %s, offset:%" PRId64, pWal->cfg.vgId, strerror(ERRNO), offset);
-      TAOS_CHECK_GOTO(terrno, &lino, _err);
+    code = walScanCheckRecord(pWal, &scan, offset, prevVer, &recordLen, &ver);
+    if (code != TSDB_CODE_SUCCESS) {
+      wWarn("vgId:%d, wal entry chain ends at offset:%" PRId64 " of %" PRId64 " since %s, last index:%" PRId64
+            ", file:%s",
+            pWal->cfg.vgId, offset, fileSize, tstrerror(code), retVer, fnameStr);
+      break;
     }
 
-    if (readSize != taosReadFile(pFile, buf, readSize)) {
-      wError("vgId:%d, failed to read file %s since %s, readSize:%" PRId64, pWal->cfg.vgId, fnameStr, strerror(ERRNO),
-             readSize);
-      TAOS_CHECK_GOTO(terrno, &lino, _err);
-    }
-
-    char*       candidate = NULL;
-    char*       haystack = buf;
-    int64_t     pos = 0;
-    SWalCkHead* logContent = NULL;
-
-    while (true) {
-      forwardStage = (lastEntryEndOffset > 0 || offset == 0);
-      terrno = TSDB_CODE_SUCCESS;
-      if (forwardStage) {
-        candidate = (readSize - (haystack - buf)) > 0 ? haystack : NULL;
-      } else {
-        candidate = tmemmem(haystack, readSize - (haystack - buf), (char*)&magic, sizeof(magic));
-      }
-
-      if (candidate == NULL) break;
-      pos = candidate - buf;
-
-      // validate head
-      int64_t len = readSize - pos;
-      if (len < walCkHeadSz) {
-        break;
-      }
-
-      logContent = (SWalCkHead*)(buf + pos);
-      if (walValidHeadCksum(logContent) != 0) {
-        code = TSDB_CODE_WAL_CHKSUM_MISMATCH;
-        wWarn("vgId:%d, failed to validate checksum of wal entry header, offset:%" PRId64 ", file:%s", pWal->cfg.vgId,
-              offset + pos, fnameStr);
-        haystack = buf + pos + 1;
-        if (forwardStage) {
-          break;
-        } else {
-          continue;
-        }
-      }
-
-      // validate body
-      int32_t cryptedBodyLen = logContent->head.bodyLen;
-      if (pWal->cfg.encryptData.encryptAlgrName[0] != '\0') {
-        cryptedBodyLen = ENCRYPTED_LEN(cryptedBodyLen);
-      }
-      recordLen = walCkHeadSz + cryptedBodyLen;
-      if (len < recordLen) {
-        int64_t extraSize = recordLen - len;
-        if (capacity < readSize + extraSize + sizeof(magic)) {
-          capacity += extraSize;
-          void* ptr = taosMemoryRealloc(buf, capacity);
-          TSDB_CHECK_NULL(ptr, code, lino, _err, terrno);
-          buf = ptr;
-        }
-        int64_t ret = taosLSeekFile(pFile, offset + readSize, SEEK_SET);
-        if (ret < 0) {
-          wError("vgId:%d, failed to lseek file %s since %s, offset:%" PRId64, pWal->cfg.vgId, fnameStr,
-                 strerror(terrno), offset);
-          code = terrno;
-          break;
-        }
-        if (extraSize != taosReadFile(pFile, buf + readSize, extraSize)) {
-          wError("vgId:%d, failed to read file %s since %s, offset:%" PRId64 ", extraSize:%" PRId64,
-                 pWal->cfg.vgId, fnameStr, strerror(ERRNO), offset + readSize, extraSize);
-          code = terrno;
-          break;
-        }
-      }
-
-      logContent = (SWalCkHead*)(buf + pos);
-      TAOS_CHECK_GOTO(decryptBody(&pWal->cfg, logContent, logContent->head.bodyLen, __FUNCTION__), &lino, _err);
-
-      if (walValidBodyCksum(logContent) != 0) {
-        code = TSDB_CODE_WAL_CHKSUM_MISMATCH;
-        wWarn("vgId:%d, failed to validate checksum of wal entry body, offset:%" PRId64 ", file:%s", pWal->cfg.vgId,
-              offset + pos, fnameStr);
-        haystack = buf + pos + 1;
-        if (forwardStage) {
-          break;
-        } else {
-          continue;
-        }
-      }
-
-      // found one
-      retVer = taosGetInt64Aligned(&logContent->head.version);
-      lastEntryBeginOffset = offset + pos;
-      lastEntryEndOffset = offset + pos + recordLen;
-
-      // try next
-      haystack = buf + pos + recordLen;
-    }
-
-    offset = (lastEntryEndOffset > 0) ? lastEntryEndOffset : offset;
-    if (forwardStage && (terrno != TSDB_CODE_SUCCESS || end == fileSize)) break;
+    retVer = ver;
+    prevVer = ver;
+    offset += recordLen;  // recordLen >= sizeof(SWalCkHead) > 0, so this always progresses
+    lastEntryEndOffset = offset;
   }
 
   if (retVer < 0) {
@@ -270,7 +417,7 @@ _err:
     wError("vgId:%d, failed at line %d to scan log file %s since %s", pWal->cfg.vgId, lino, fnameStr, tstrerror(code));
   }
   TAOS_UNUSED(taosCloseFile(&pFile));
-  taosMemoryFree(buf);
+  taosMemoryFree(scan.buf);
   *lastVer = retVer;
 
   TAOS_RETURN(code);
@@ -289,7 +436,15 @@ static int32_t walRebuildFileInfoSet(SArray* metaLogList, SArray* actualLogList)
       if (pMetaInfo->firstVer < pLogInfo->firstVer) {
         j++;
       } else if (pMetaInfo->firstVer == pLogInfo->firstVer) {
+        // pLogInfo->diskId comes from the disk scan (walScanActualLogFiles) and always
+        // reflects where the file actually, physically lives right now -- meta's diskId
+        // may be stale (e.g. disk ids were reassigned, or the whole dataDir tree was
+        // moved/repointed since the meta was last saved). Preserve it across the
+        // whole-struct copy below instead of letting a stale persisted value win, or
+        // walBuildLogName resolves to the wrong path and taosStatFile fails with ENOENT.
+        SDiskID scannedDiskId = pLogInfo->diskId;
         (*pLogInfo) = *pMetaInfo;
+        pLogInfo->diskId = scannedDiskId;
         j++;
         break;
       } else {
@@ -404,12 +559,98 @@ static int32_t walCopyDirFiles(int32_t vgId, const char* srcDir, const char* dst
   return code;
 }
 
+// Collect absolute paths of every non-primary mount point that currently holds files
+// under pWal->relDir (skipping oldPath, the primary -- caller handles it separately),
+// using tfs's own cross-disk directory iterator. Called by walRenameCorruptedDir so that
+// backup/clear covers every disk this WAL's history might be spread across, not just the
+// primary directory -- otherwise segments on non-primary disks would become permanent
+// orphans (never backed up, never cleared) whenever the Sync layer invokes
+// walClearCorruption() on a multi-mount-point WAL.
+static int32_t walCollectTfsDirs(SWal* pWal, const char* oldPath, SArray* outDirs) {
+  int32_t  code = 0;
+  int32_t  lino = 0;
+  STfsDir* pTDir = NULL;
+
+  if (tfsOpendir(pWal->pTfs, pWal->relDir, &pTDir) != TSDB_CODE_SUCCESS) {
+    TAOS_RETURN(TSDB_CODE_SUCCESS);
+  }
+
+  for (const STfsFile* pFile = NULL; (pFile = tfsReaddir(pTDir)) != NULL;) {
+    if (taosIsDir(pFile->aname)) continue;
+    const char* diskPath = tfsGetDiskPath(pWal->pTfs, pFile->did);
+    if (diskPath == NULL) continue;
+
+    char dirPath[WAL_PATH_LEN];
+    (void)snprintf(dirPath, sizeof(dirPath), "%s%s%s", diskPath, TD_DIRSEP, pWal->relDir);
+    if (strcmp(dirPath, oldPath) == 0) continue;
+
+    bool    dup = false;
+    int32_t n = (int32_t)taosArrayGetSize(outDirs);
+    for (int32_t i = 0; i < n; i++) {
+      if (strcmp((char*)taosArrayGet(outDirs, i), dirPath) == 0) {
+        dup = true;
+        break;
+      }
+    }
+    if (!dup) {
+      TSDB_CHECK_NULL(taosArrayPush(outDirs, dirPath), code, lino, _exit, terrno);
+    }
+  }
+
+  tfsClosedir(pTDir);
+  TAOS_RETURN(TSDB_CODE_SUCCESS);
+
+_exit:
+  tfsClosedir(pTDir);
+  TAOS_RETURN(code);
+}
+
+// Backup (if configured) and then either rename-to-.corrupted or remove a single wal
+// directory. Reused for the primary directory and, when tfs is bound, every non-primary
+// mount point walCollectTfsDirs found.
+static int32_t walClearOneCorruptedDir(SWal* pWal, const char* dirPath, int64_t now, bool hasBackupDir) {
+  if (hasBackupDir) {
+    char backupSubDir[PATH_MAX + 64];
+    (void)snprintf(backupSubDir, sizeof(backupSubDir), "%s%swal_vgId%d_%" PRId64, tsWalCorruptionBackupDir,
+                   TD_DIRSEP, pWal->cfg.vgId, now);
+    // Reuse the same backupSubDir (same vgId + timestamp) across every mount point's
+    // call, so all of this vnode's segments land together in one backup folder --
+    // <firstVer>.log/.idx/.txn file names never collide across disks for the same vnode.
+    wInfo("vgId:%d, backing up corrupted WAL directory %s to %s", pWal->cfg.vgId, dirPath, backupSubDir);
+    if (taosMkDir(backupSubDir) != 0 && !taosCheckExistFile(backupSubDir)) {
+      wWarn("vgId:%d, failed to create backup dir %s, skip backup of %s", pWal->cfg.vgId, backupSubDir, dirPath);
+    } else {
+      int32_t backupCode = walCopyDirFiles(pWal->cfg.vgId, dirPath, backupSubDir);
+      if (backupCode != TSDB_CODE_SUCCESS) {
+        wWarn("vgId:%d, partial failure during WAL backup of %s to %s", pWal->cfg.vgId, dirPath, backupSubDir);
+      } else {
+        wInfo("vgId:%d, successfully backed up corrupted WAL %s to %s", pWal->cfg.vgId, dirPath, backupSubDir);
+      }
+    }
+
+    char newPath[WAL_FILE_LEN + 32];
+    (void)snprintf(newPath, sizeof(newPath), "%s.corrupted.%" PRId64, dirPath, now);
+    wInfo("vgId:%d, renaming corrupted WAL directory from %s to %s", pWal->cfg.vgId, dirPath, newPath);
+    if (taosRenameFile(dirPath, newPath) != 0) {
+      int32_t code = TAOS_SYSTEM_ERROR(errno);
+      wError("vgId:%d, failed to rename WAL directory from %s to %s since %s", pWal->cfg.vgId, dirPath, newPath,
+             tstrerror(code));
+      TAOS_RETURN(code);
+    }
+  } else {
+    wInfo("vgId:%d, removing corrupted WAL directory %s", pWal->cfg.vgId, dirPath);
+    taosRemoveDir(dirPath);
+  }
+
+  TAOS_RETURN(TSDB_CODE_SUCCESS);
+}
+
 static int32_t walRenameCorruptedDir(SWal* pWal) {
   int32_t code = TSDB_CODE_SUCCESS;
   int32_t lino = 0;
   char    oldPath[WAL_FILE_LEN];
-  char    newPath[WAL_FILE_LEN + 32];
   int64_t now = taosGetTimestampMs();
+  SArray* extraDirs = NULL;  // SArray<char[WAL_PATH_LEN]>, non-primary mount points
 
   // Close all open file handles before renaming the directory
   // This is critical especially for Windows systems where open files prevent directory rename
@@ -427,44 +668,42 @@ static int32_t walRenameCorruptedDir(SWal* pWal) {
   // Build old path
   tstrncpy(oldPath, pWal->path, sizeof(oldPath));
 
-  // If a backup directory is configured, copy WAL files there before clearing
-  if (tsWalCorruptionBackupDir[0] != '\0') {
-    char backupSubDir[PATH_MAX + 64];
-    (void)snprintf(backupSubDir, sizeof(backupSubDir), "%s%swal_vgId%d_%" PRId64, tsWalCorruptionBackupDir, TD_DIRSEP,
-                   pWal->cfg.vgId, now);
-    wInfo("vgId:%d, backing up corrupted WAL directory %s to %s", pWal->cfg.vgId, oldPath, backupSubDir);
-    if (taosMkDir(backupSubDir) != 0) {
-      wWarn("vgId:%d, failed to create backup dir %s, skip backup", pWal->cfg.vgId, backupSubDir);
-    } else {
-      int32_t backupCode = walCopyDirFiles(pWal->cfg.vgId, oldPath, backupSubDir);
-      if (backupCode != TSDB_CODE_SUCCESS) {
-        wWarn("vgId:%d, partial failure during WAL backup to %s", pWal->cfg.vgId, backupSubDir);
-      } else {
-        wInfo("vgId:%d, successfully backed up corrupted WAL to %s", pWal->cfg.vgId, backupSubDir);
-      }
+  bool hasBackupDir = (tsWalCorruptionBackupDir[0] != '\0');
+
+  if (pWal->pTfs != NULL) {
+    extraDirs = taosArrayInit(4, WAL_PATH_LEN);
+    TSDB_CHECK_NULL(extraDirs, code, lino, _exit, terrno);
+    // Best-effort: a failure to enumerate non-primary mount points should not abort
+    // clearing the primary directory below.
+    int32_t collectCode = walCollectTfsDirs(pWal, oldPath, extraDirs);
+    if (collectCode != TSDB_CODE_SUCCESS) {
+      wWarn("vgId:%d, failed to enumerate non-primary wal mount points since %s (continuing with primary only)",
+            pWal->cfg.vgId, tstrerror(collectCode));
     }
   }
 
-  if (tsWalCorruptionBackupDir[0] != '\0') {
-    // Backup dir configured: rename so the corrupted copy is also preserved locally
-    snprintf(newPath, sizeof(newPath), "%s.corrupted.%" PRId64, oldPath, now);
-    wInfo("vgId:%d, renaming corrupted WAL directory from %s to %s", pWal->cfg.vgId, oldPath, newPath);
-    if (taosRenameFile(oldPath, newPath) != 0) {
-      code = TAOS_SYSTEM_ERROR(errno);
-      wError("vgId:%d, failed to rename WAL directory from %s to %s since %s", pWal->cfg.vgId, oldPath, newPath,
-             tstrerror(code));
-      TAOS_CHECK_GOTO(code, &lino, _exit);
+  TAOS_CHECK_EXIT(walClearOneCorruptedDir(pWal, oldPath, now, hasBackupDir));
+
+  if (extraDirs != NULL) {
+    int32_t n = (int32_t)taosArrayGetSize(extraDirs);
+    for (int32_t i = 0; i < n; i++) {
+      const char* dirPath = (char*)taosArrayGet(extraDirs, i);
+      // Best-effort for non-primary disks too: log and continue rather than aborting the
+      // whole clear-corruption flow because one secondary mount point had an issue.
+      int32_t subCode = walClearOneCorruptedDir(pWal, dirPath, now, hasBackupDir);
+      if (subCode != TSDB_CODE_SUCCESS) {
+        wWarn("vgId:%d, failed to clear corrupted dir %s since %s (continuing)", pWal->cfg.vgId, dirPath,
+              tstrerror(subCode));
+      }
     }
-  } else {
-    // No backup dir configured: delete the corrupted directory directly
-    wInfo("vgId:%d, removing corrupted WAL directory %s", pWal->cfg.vgId, oldPath);
-    taosRemoveDir(oldPath);
   }
 
   // Clear the fileInfoSet
   taosArrayClear(pWal->fileInfoSet);
 
-  // Recreate the WAL directory
+  // Recreate the primary WAL directory. Non-primary directories are recreated lazily by
+  // tfsMkdirRecurAt the next time walRollImpl picks that disk again -- no need to
+  // eagerly recreate every mount point here.
   if (taosMkDir(oldPath) != 0) {
     code = TAOS_SYSTEM_ERROR(errno);
     wError("vgId:%d, failed to recreate WAL directory %s since %s", pWal->cfg.vgId, oldPath, tstrerror(code));
@@ -480,6 +719,7 @@ static int32_t walRenameCorruptedDir(SWal* pWal) {
   wInfo("vgId:%d, successfully cleared corrupted WAL directory and recreated a new one", pWal->cfg.vgId);
 
 _exit:
+  taosArrayDestroy(extraDirs);
   if (code != TSDB_CODE_SUCCESS) {
     wError("vgId:%d, failed to rename corrupted WAL directory since %s, at line:%d", pWal->cfg.vgId, tstrerror(code),
            lino);
@@ -608,6 +848,190 @@ static FORCE_INLINE bool walShouldDeleteCorruption(const SWal* pWal) {
   return tsWalDeleteOnCorruption || dmRepairNeedWalRepair(pWal->cfg.vgId);
 }
 
+// Scan for actual .log segment files on disk. When pWal->pTfs is bound, a historical
+// segment may live on any level-0 mount point, so this walks pWal->relDir across every
+// tfs-managed disk (mirroring how tsdb itself walks tfs directories via tfsOpendir/
+// tfsReaddir, see tsdbFS2.c) instead of scanning only pWal->path -- otherwise segments
+// placed on non-primary disks would look "missing" and get silently dropped from
+// fileInfoSet by walRebuildFileInfoSet below, permanently losing WAL data on the next
+// walSaveMeta().
+static int32_t walScanActualLogFiles(SWal* pWal, regex_t* pLogRegPattern, SArray* actualLog) {
+  if (pWal->pTfs == NULL) {
+    TdDirPtr pDir = taosOpenDir(pWal->path);
+    if (pDir == NULL) {
+      TAOS_RETURN(terrno);
+    }
+
+    TdDirEntryPtr pDirEntry;
+    while ((pDirEntry = taosReadDir(pDir)) != NULL) {
+      char* name = taosDirEntryBaseName(taosGetDirEntryName(pDirEntry));
+      if (regexec(pLogRegPattern, name, 0, NULL, 0) == 0) {
+        int64_t firstVer = -1;
+        int32_t consumed = 0;
+        // The regex's unescaped "." can match any single char, so a match doesn't
+        // guarantee the name is actually "<digits>.log". sscanf's return value alone
+        // isn't enough either: for e.g. "123xlog", "%lld" greedily consumes "123" and
+        // succeeds (return value 1) before the literal ".log" fails to match "xlog" and
+        // scanning stops -- a failed literal match doesn't undo the already-completed
+        // conversion. %n records how many bytes were actually consumed once the whole
+        // format string (conversion + literal ".log") matches, so comparing it against
+        // strlen(name) is what actually proves the name is exactly "<digits>.log".
+        if (sscanf(name, "%" PRId64 ".log%n", &firstVer, &consumed) != 1 || firstVer < 0 ||
+            (size_t)consumed != strlen(name)) {
+          continue;
+        }
+        SWalFileInfo fileInfo;
+        (void)memset(&fileInfo, -1, sizeof(SWalFileInfo));
+        fileInfo.firstVer = firstVer;
+        // Sentinel must match walRollFileInfo/walMetaDeserialize's {level:0, id:-1}, not
+        // the raw memset {-1,-1} -- walResolveFileDir treats both identically (id<0 means
+        // "use pWal->path"), but a mismatched diskLevel would make walMetaSerialize's
+        // output differ from a run that never rescanned, breaking byte-for-byte meta
+        // round-tripping (see WalKeepEnv.readOldMeta).
+        fileInfo.diskId.level = 0;
+        if (taosArrayPush(actualLog, &fileInfo) == NULL) {
+          int32_t code = terrno;
+          TAOS_UNUSED(taosCloseDir(&pDir));
+          TAOS_RETURN(code);
+        }
+      }
+    }
+    TAOS_UNUSED(taosCloseDir(&pDir));
+    TAOS_RETURN(TSDB_CODE_SUCCESS);
+  }
+
+  STfsDir* pTDir = NULL;
+  int32_t  code = tfsOpendir(pWal->pTfs, pWal->relDir, &pTDir);
+  if (code != TSDB_CODE_SUCCESS) {
+    TAOS_RETURN(code);
+  }
+
+  char bname[TSDB_FILENAME_LEN];
+  for (const STfsFile* pFile = NULL; (pFile = tfsReaddir(pTDir)) != NULL;) {
+    if (taosIsDir(pFile->aname)) continue;
+    tstrncpy(bname, pFile->aname, sizeof(bname));
+    char* name = taosDirEntryBaseName(bname);
+    if (regexec(pLogRegPattern, name, 0, NULL, 0) == 0) {
+      int64_t firstVer = -1;
+      int32_t consumed = 0;
+      // Same check as the single-mount branch above: don't trust a regex match alone,
+      // and don't trust sscanf's return value alone either -- confirm the whole name was
+      // consumed by comparing %n's count against strlen(name).
+      if (sscanf(name, "%" PRId64 ".log%n", &firstVer, &consumed) != 1 || firstVer < 0 ||
+          (size_t)consumed != strlen(name)) {
+        continue;
+      }
+      SWalFileInfo fileInfo;
+      (void)memset(&fileInfo, -1, sizeof(SWalFileInfo));
+      fileInfo.firstVer = firstVer;
+      fileInfo.diskId = pFile->did;
+      if (taosArrayPush(actualLog, &fileInfo) == NULL) {
+        code = terrno;
+        tfsClosedir(pTDir);
+        TAOS_RETURN(code);
+      }
+    }
+  }
+  tfsClosedir(pTDir);
+  TAOS_RETURN(TSDB_CODE_SUCCESS);
+}
+
+// Physically delete segment files that the meta file no longer references because they
+// were already retired, and drop them from the scan result.
+//
+// This is the upgrade path for clusters that ran a build where retention could not
+// unlink segments on non-primary mount points. Those segments were removed from meta but
+// survived on disk. walScanActualLogFiles walks every tfs mount, so on restart they come
+// back into the scan result and walRebuildFileInfoSet reinserts them -- and because
+// placement rotates across mounts, the survivors are not contiguous (the ones that had
+// landed on the primary mount really were deleted). walLogEntriesComplete then sees a
+// hole and, with walDeleteOnCorruption on by default, renames away the entire WAL
+// directory.
+//
+// So the orphans have to go before the completeness check runs, not at the next
+// retention cycle -- walOpen never gets that far.
+//
+// The oldest segment in the loaded meta is the authority: meta's first index is always
+// exactly some segment's firstVer (both walEndSnapshot and this repair pass derive it
+// from the oldest entry), so anything strictly below it lies entirely outside the live
+// range and is garbage. Segments at or above it are left alone -- including ones newer
+// than meta knows about, which are legitimately recovered by the existing rebuild.
+//
+// The minimum is computed by scanning rather than reading fileInfoSet[0]: the array is
+// kept in ascending order at runtime, but walMetaDeserialize pushes entries in whatever
+// order the meta file lists them without sorting. Trusting index 0 would mean a
+// hand-edited or reordered meta file yields too high a bound and deletes live segments.
+// n is tiny, so the scan is free insurance against deleting real data.
+//
+// vers.firstVer is folded in as a second, independent lower bound. walOpen only warns
+// when walLoadMeta fails, so a meta file that fails to parse midway through its file
+// list still reaches this point with a partially populated fileInfoSet. vers.firstVer is
+// read out of the "meta" object before that list, so it survives such a parse and caps
+// the bound back down. In a healthy meta the two agree exactly (walEndSnapshot derives
+// one from the other); taking the lower of them only ever purges less, never more.
+//
+// When meta carries no usable segment at all (lost, or a fresh WAL) there is nothing to
+// compare against, so nothing is purged and behavior is unchanged.
+static void walPurgeOrphanLogFiles(SWal* pWal, SArray* actualLog) {
+  int32_t metaFileNum = taosArrayGetSize(pWal->fileInfoSet);
+  if (metaFileNum <= 0) return;
+
+  int64_t oldestInMeta = INT64_MAX;
+  for (int32_t i = 0; i < metaFileNum; i++) {
+    int64_t firstVer = ((SWalFileInfo*)taosArrayGet(pWal->fileInfoSet, i))->firstVer;
+    if (firstVer >= 0 && firstVer < oldestInMeta) oldestInMeta = firstVer;
+  }
+  if (pWal->vers.firstVer >= 0) oldestInMeta = TMIN(oldestInMeta, pWal->vers.firstVer);
+
+  // No valid firstVer in meta, or the live range already starts at the very first
+  // version: either way nothing can be below it.
+  if (oldestInMeta == INT64_MAX || oldestInMeta == 0) return;
+
+  int32_t sz = taosArrayGetSize(actualLog);
+  int32_t keep = 0;
+  int32_t purged = 0;
+
+  for (int32_t i = 0; i < sz; i++) {
+    SWalFileInfo* pInfo = (SWalFileInfo*)taosArrayGet(actualLog, i);
+
+    if (pInfo->firstVer >= oldestInMeta) {
+      if (keep != i) {
+        *(SWalFileInfo*)taosArrayGet(actualLog, keep) = *pInfo;
+      }
+      keep++;
+      continue;
+    }
+
+    // Resolve through the diskId the scan recorded, not through fileInfoSet: meta does
+    // not reference this segment at all, so the usual reverse lookup cannot find it.
+    char segDir[WAL_PATH_LEN];
+    char fnameStr[WAL_FILE_LEN];
+    walResolveFileDirAt(pWal, pInfo->diskId, segDir, sizeof(segDir));
+
+    walBuildLogNameAt(segDir, pInfo->firstVer, fnameStr);
+    if (taosRemoveFile(fnameStr) < 0 && ERRNO != ENOENT) {
+      wError("vgId:%d, failed to remove orphan wal log file %s since %s", pWal->cfg.vgId, fnameStr, strerror(ERRNO));
+    } else {
+      wInfo("vgId:%d, removed orphan wal log file %s, below first index:%" PRId64 " in meta", pWal->cfg.vgId, fnameStr,
+            oldestInMeta);
+    }
+
+    walBuildIdxNameAt(segDir, pInfo->firstVer, fnameStr);
+    if (taosRemoveFile(fnameStr) < 0 && ERRNO != ENOENT) {
+      wError("vgId:%d, failed to remove orphan wal idx file %s since %s", pWal->cfg.vgId, fnameStr, strerror(ERRNO));
+    }
+
+    purged++;
+  }
+
+  if (purged > 0) {
+    taosArrayPopTailBatch(actualLog, sz - keep);
+    wWarn("vgId:%d, purged %d orphan wal segment(s) left behind below first index:%" PRId64
+          " in meta, likely leaked by an older build that could not delete segments on non-primary mount points",
+          pWal->cfg.vgId, purged, oldestInMeta);
+  }
+}
+
 int32_t walCheckAndRepairMeta(SWal* pWal) {
   // load log files, get first/snapshot/last version info
   int32_t     code = 0;
@@ -615,7 +1039,6 @@ int32_t walCheckAndRepairMeta(SWal* pWal) {
   const char* logPattern = "^[0-9]+.log$";
   const char* idxPattern = "^[0-9]+.idx$";
   regex_t     logRegPattern, idxRegPattern;
-  TdDirPtr    pDir = NULL;
   SArray*     actualLog = NULL;
 
   wInfo("vgId:%d, begin to repair meta, wal path:%s, first index:%" PRId64 ", last index:%" PRId64
@@ -626,29 +1049,20 @@ int32_t walCheckAndRepairMeta(SWal* pWal) {
 
   TAOS_CHECK_EXIT_SET_CODE(regcomp(&idxRegPattern, idxPattern, REG_EXTENDED), code, terrno);
 
-  pDir = taosOpenDir(pWal->path);
-  TSDB_CHECK_NULL(pDir, code, lino, _exit, terrno);
-
   actualLog = taosArrayInit(8, sizeof(SWalFileInfo));
+  TSDB_CHECK_NULL(actualLog, code, lino, _exit, terrno);
 
-  // scan log files and build new meta
-  TdDirEntryPtr pDirEntry;
-  while ((pDirEntry = taosReadDir(pDir)) != NULL) {
-    char* name = taosDirEntryBaseName(taosGetDirEntryName(pDirEntry));
-    int   code = regexec(&logRegPattern, name, 0, NULL, 0);
-    if (code == 0) {
-      SWalFileInfo fileInfo;
-      (void)memset(&fileInfo, -1, sizeof(SWalFileInfo));
-      (void)sscanf(name, "%" PRId64 ".log", &fileInfo.firstVer);
-      TSDB_CHECK_NULL(taosArrayPush(actualLog, &fileInfo), code, lino, _exit, terrno);
-    }
-  }
+  TAOS_CHECK_EXIT(walScanActualLogFiles(pWal, &logRegPattern, actualLog));
 
   taosArraySort(actualLog, compareWalFileInfo);
 
   wInfo("vgId:%d, actual log file, wal path:%s, num:%d", pWal->cfg.vgId, pWal->path,
         (int32_t)taosArrayGetSize(actualLog));
   printFileSet(pWal->cfg.vgId, actualLog, "actual log file");
+
+  // Drop segments meta already retired before anything downstream can trip over the
+  // holes they leave in the version range (see walPurgeOrphanLogFiles).
+  walPurgeOrphanLogFiles(pWal, actualLog);
 
   int     metaFileNum = taosArrayGetSize(pWal->fileInfoSet);
   int     actualFileNum = taosArrayGetSize(actualLog);
@@ -709,6 +1123,15 @@ int32_t walCheckAndRepairMeta(SWal* pWal) {
       lastVer = pFileInfo->firstVer - 1;
 
       code = TSDB_CODE_SUCCESS;
+    } else if (code != TSDB_CODE_SUCCESS) {
+      // The scan found a valid record chain and reports why it stopped (torn tail,
+      // checksum mismatch, a record that does not continue the chain, ...). It already
+      // truncated the file at the last intact record, which is the repair we want, so
+      // recovery continues -- but clear the diagnostic here instead of leaving it in
+      // `code` for some later step to be judged by.
+      wWarn("vgId:%d, repaired file %s by dropping the damaged tail since %s", pWal->cfg.vgId, fnameStr,
+            tstrerror(code));
+      code = TSDB_CODE_SUCCESS;
     }
     wInfo("vgId:%d, repaired file %s, last index:%" PRId64 ", fileSize:%" PRId64 ", fileSize in meta:%" PRId64,
           pWal->cfg.vgId, fnameStr, lastVer, fileSize, pFileInfo->fileSize);
@@ -750,7 +1173,6 @@ _exit:
     wError("vgId:%d, failed to repair meta since %s, at line:%d", pWal->cfg.vgId, tstrerror(code), lino);
   }
   taosArrayDestroy(actualLog);
-  TAOS_UNUSED(taosCloseDir(&pDir));
   walRegfree(&logRegPattern);
   walRegfree(&idxRegPattern);
 
@@ -758,11 +1180,18 @@ _exit:
 }
 
 static int32_t walReadLogHead(TdFilePtr pLogFile, int64_t offset, SWalCkHead* pCkHead) {
+  if (offset < 0) return TSDB_CODE_WAL_FILE_CORRUPTED;
+
   if (taosLSeekFile(pLogFile, offset, SEEK_SET) < 0) return terrno;
 
   if (taosReadFile(pLogFile, pCkHead, sizeof(SWalCkHead)) != sizeof(SWalCkHead)) return terrno;
 
+  if (pCkHead->magic != WAL_MAGIC) return TSDB_CODE_WAL_FILE_CORRUPTED;
+
   if (walValidHeadCksum(pCkHead) != 0) return TSDB_CODE_WAL_CHKSUM_MISMATCH;
+
+  // callers advance an idx offset by this length, so it must be a usable one
+  if (!walValidBodyLen(pCkHead->head.bodyLen)) return TSDB_CODE_WAL_FILE_CORRUPTED;
 
   return TSDB_CODE_SUCCESS;
 }
@@ -887,7 +1316,7 @@ static int32_t walCheckAndRepairIdxFile(SWal* pWal, int32_t fileIdx) {
   }
 
   if (pWal->cfg.level != TAOS_WAL_SKIP && taosFsyncFile(pIdxFile) < 0) {
-    wError("vgId:%d, faild to fsync file %s since %s", pWal->cfg.vgId, fnameStr, terrstr());
+    wError("vgId:%d, failed to fsync file %s since %s", pWal->cfg.vgId, fnameStr, terrstr());
     TAOS_CHECK_GOTO(TAOS_SYSTEM_ERROR(ERRNO), &lino, _err);
   }
 
@@ -966,6 +1395,10 @@ int32_t walRollFileInfo(SWal* pWal) {
   pNewInfo->closeTs = -1;
   pNewInfo->fileSize = 0;
   pNewInfo->syncedOffset = 0;
+  // Sentinel: "not yet assigned to a tfs disk" / "lives under pWal->path". walRollImpl
+  // overwrites this right after the push when multi-mount-point write is active.
+  pNewInfo->diskId.level = 0;
+  pNewInfo->diskId.id = -1;
   if (!taosArrayPush(pArray, pNewInfo)) {
     taosMemoryFree(pNewInfo);
     TAOS_RETURN(terrno);
@@ -1030,6 +1463,10 @@ int32_t walMetaSerialize(SWal* pWal, char** serialized) {
     if (cJSON_AddStringToObject(pField, "closeTs", buf) == NULL) goto _err;
     (void)snprintf(buf, WAL_JSON_BUF_SIZE, "%" PRId64, pInfo->fileSize);
     if (cJSON_AddStringToObject(pField, "fileSize", buf) == NULL) goto _err;
+    // diskLevel/diskId: int32_t fits exactly in a double, no string-encoding needed.
+    // Optional fields -- see walMetaDeserialize for the backward-compat default.
+    if (cJSON_AddNumberToObject(pField, "diskLevel", pInfo->diskId.level) == NULL) goto _err;
+    if (cJSON_AddNumberToObject(pField, "diskId", pInfo->diskId.id) == NULL) goto _err;
   }
   char* pSerialized = cJSON_Print(pRoot);
   cJSON_Delete(pRoot);
@@ -1083,6 +1520,10 @@ int32_t walMetaDeserialize(SWal* pWal, const char* bytes) {
     if (!pInfoJson) goto _err;
 
     SWalFileInfo info = {0};
+    // Default to "not tfs-tracked / lives under pWal->path" for meta files written
+    // before this feature existed (backward compatibility, same pattern as keepVersion).
+    info.diskId.level = 0;
+    info.diskId.id = -1;
 
     pField = cJSON_GetObjectItem(pInfoJson, "firstVer");
     if (!pField) goto _err;
@@ -1099,6 +1540,10 @@ int32_t walMetaDeserialize(SWal* pWal, const char* bytes) {
     pField = cJSON_GetObjectItem(pInfoJson, "fileSize");
     if (!pField) goto _err;
     info.fileSize = atoll(cJSON_GetStringValue(pField));
+    pField = cJSON_GetObjectItem(pInfoJson, "diskLevel");
+    if (pField) info.diskId.level = (int32_t)cJSON_GetNumberValue(pField);
+    pField = cJSON_GetObjectItem(pInfoJson, "diskId");
+    if (pField) info.diskId.id = (int32_t)cJSON_GetNumberValue(pField);
     if (!taosArrayPush(pArray, &info)) {
       cJSON_Delete(pRoot);
       return terrno;

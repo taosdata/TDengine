@@ -1,6 +1,8 @@
 /*
  * Copyright (c) 2019 TAOS Data, Inc. <jhtao@taosdata.com>
  *
+ * SPDX-License-Identifier: AGPL-3.0-or-later
+ *
  * This program is free software: you can use, redistribute, and/or modify
  * it under the terms of the GNU Affero General Public License, version 3
  * or later ("AGPL"), as published by the Free Software Foundation.
@@ -50,7 +52,15 @@ int32_t mndGetUserTokenStatuses(const char* user, SHashObj** pHash);
 
 int32_t mndBuildSMCreateTokenResp(STrans *pTrans, void **ppResp, int32_t *pRespLen);
 
+// Token names with this prefix are reserved for tokens the mnode issues on behalf of xnode.
+#define MND_TOKEN_RESERVED_PREFIX "__xnode_"
+
 int32_t mndProcessCreateTokenReq(SRpcMsg *pReq);
+
+// Same as mndProcessCreateTokenReq, but the token may use a reserved name.
+int32_t mndCreateInternalToken(SRpcMsg *pReq);
+
+int32_t mndXnodeEnsureUserTaskToken(SMnode *pMnode, SRpcMsg *pReq, const SUserObj *pOwner, char **ppToken);
 
 #ifdef __cplusplus
 }

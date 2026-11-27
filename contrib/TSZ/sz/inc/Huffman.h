@@ -20,6 +20,18 @@ extern "C" {
 //#define allNodes 131072
 //#define stateNum 65536
 
+//Upper bound of the node count accepted by the tree builder when the type array comes from a
+//compressed payload. The encoder derives its node count from the quantization interval count
+//(stateNum = 2*intervals, nodeCount = 2*stateNum-1), which stays far below this limit.
+#define MAX_HUFF_TREE_NODES (1 << 20)
+
+//Upper bound of the Huffman tree height accepted from a compressed payload. unpad_tree_uchar/ushort/
+//uint rebuild the tree recursively, so a payload describing a degenerate chain of nodeCount nodes
+//(nodeCount is bounded by MAX_HUFF_TREE_NODES) would nest that many frames and overflow the stack.
+//The encoder's longest code is only tens of bits for the type histograms SZ produces, so this is a
+//wide margin above any legitimate tree.
+#define MAX_HUFF_TREE_DEPTH 1024
+
 typedef struct node_t {
 	struct node_t *left, *right;
 	size_t freq;
@@ -52,7 +64,7 @@ void init(HuffmanTree *huffmanTree, int *s, size_t length);
 void init_static(HuffmanTree *huffmanTree, int *s, size_t length);
 void encode(HuffmanTree *huffmanTree, int *s, size_t length, unsigned char *out, size_t *outSize);
 
-void decode(unsigned char *s, size_t targetLength, node t, int *out);
+int decode(unsigned char *s, size_t sSize, size_t targetLength, node t, int *out);
 
 void pad_tree_uchar(HuffmanTree* huffmanTree, unsigned char* L, unsigned char* R, unsigned int* C, unsigned char* t, unsigned int i, node root);
 void pad_tree_ushort(HuffmanTree* huffmanTree, unsigned short* L, unsigned short* R, unsigned int* C, unsigned char* t, unsigned int i, node root);
@@ -61,9 +73,9 @@ unsigned int convert_HuffTree_to_bytes_anyStates(HuffmanTree* huffmanTree, int n
 void unpad_tree_uchar(HuffmanTree* huffmanTree, unsigned char* L, unsigned char* R, unsigned int* C, unsigned char *t, unsigned int i, node root);
 void unpad_tree_ushort(HuffmanTree* huffmanTree, unsigned short* L, unsigned short* R, unsigned int* C, unsigned char* t, unsigned int i, node root);
 void unpad_tree_uint(HuffmanTree* huffmanTree, unsigned int* L, unsigned int* R, unsigned int* C, unsigned char* t, unsigned int i, node root);
-node reconstruct_HuffTree_from_bytes_anyStates(HuffmanTree *huffmanTree, unsigned char* bytes, int nodeCount);
+int reconstruct_HuffTree_from_bytes_anyStates(HuffmanTree *huffmanTree, unsigned char* bytes, size_t bytesLen, int nodeCount, unsigned int maxSymbolValue, node *rootOut, size_t *treeBytesOut);
 void encode_withTree(HuffmanTree* huffmanTree, int *s, size_t length, unsigned char **out, size_t *outSize);
-void decode_withTree(HuffmanTree* huffmanTree, unsigned char *s, size_t targetLength, int *out);
+int decode_withTree(HuffmanTree* huffmanTree, unsigned char *s, size_t sSize, size_t targetLength, unsigned int maxSymbolValue, int *out);
 void SZ_ReleaseHuffman(HuffmanTree* huffmanTree);
 
 #ifdef __cplusplus

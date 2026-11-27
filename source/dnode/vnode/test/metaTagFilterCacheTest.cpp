@@ -1,0 +1,1387 @@
+/*
+ * Copyright (c) 2019 TAOS Data, Inc. <jhtao@taosdata.com>
+ *
+ * This program is free software: you can use, redistribute, and/or modify
+ * it under the terms of the GNU Affero General Public License, version 3
+ * or later ("AGPL"), as published by the Free Software Foundation.
+ *
+ * This program is distributed in the hope that it will be useful, but WITHOUT
+ * ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+ * FITNESS FOR A PARTICULAR PURPOSE.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program. If not, see <http://www.gnu.org/licenses/>.
+ */
+
+#include <algorithm>
+#include <array>
+#include <cstring>
+#include <functional>
+#include <memory>
+#include <string>
+#include <vector>
+
+#include "gtest/gtest.h"
+#include "stub.h"
+#include "tdTestSeam.h"
+
+namespace {
+
+// The engine that runs from libtaosd_shared.so reads its own copy of the seam
+// pointers, so the test assigns that copy explicitly instead of the one linked
+// into this binary.
+using tdtestseam::seamSlot;
+
+}  // namespace
+
+
+
+extern "C" {
+#include "meta.h"
+#include "tcommon.h"
+#include "tdataformat.h"
+#include "tglobal.h"
+#include "tmd5.h"
+#include "tmsgcb.h"
+#include "vnd.h"
+#include "vnode.h"
+}
+
+SDmNotifyHandle dmNotifyHdl = {};
+
+namespace {
+const void* failUidAppend = nullptr;
+bool        uidAppendFailed = false;
+int32_t     cursorNextBeforeFailure = -1;
+bool        failCursorSeek = false;
+bool        failCursorAdjust = false;
+bool        forceSuccessorResume = false;
+bool        forcedSuccessorResume = false;
+uint64_t    successorResumeUid = 0;
+
+// Clears the seam for the duration of the call so the replacement can reach the
+// real implementation.
+template <typename T, typename Fn>
+auto bypassSeam(T& slot, Fn&& fn) -> decltype(fn()) {
+  T saved = slot;
+  slot = nullptr;
+  auto result = fn();
+  slot = saved;
+  return result;
+}
+}  // namespace
+
+extern "C" void* seamTaosArrayAddBatch(SArray* array, const void* data, int32_t count) {
+  if (data != nullptr && data == failUidAppend) {
+    failUidAppend = nullptr;
+    uidAppendFailed = true;
+    terrno = TSDB_CODE_OUT_OF_MEMORY;
+    return nullptr;
+  }
+  return bypassSeam(gTdSeam_taosArrayAddBatch, [&] { return taosArrayAddBatch(array, data, count); });
+}
+
+extern "C" int32_t seamTdbTbcNext(TBC* cursor, void** key, int32_t* keyLen, void** value, int32_t* valueLen) {
+  if (cursorNextBeforeFailure == 0) {
+    cursorNextBeforeFailure = -1;
+    return TSDB_CODE_OUT_OF_MEMORY;
+  }
+  if (cursorNextBeforeFailure > 0) --cursorNextBeforeFailure;
+  return bypassSeam(gTdSeam_tdbTbcNext, [&] { return tdbTbcNext(cursor, key, keyLen, value, valueLen); });
+}
+
+extern "C" int32_t seamTdbTbcMoveTo(TBC* cursor, const void* key, int32_t keyLen, int32_t* comparison) {
+  if (failCursorSeek) {
+    failCursorSeek = false;
+    return TSDB_CODE_OUT_OF_MEMORY;
+  }
+  int32_t code =
+      bypassSeam(gTdSeam_tdbTbcMoveTo, [&] { return tdbTbcMoveTo(cursor, key, keyLen, comparison); });
+  if (code == TSDB_CODE_SUCCESS && forceSuccessorResume && keyLen == sizeof(SCtbIdxKey)) {
+    const auto* ctbKey = static_cast<const SCtbIdxKey*>(key);
+    if (ctbKey->uid == successorResumeUid) {
+      forceSuccessorResume = false;
+      code = bypassSeam(gTdSeam_tdbTbcMoveToNext, [&] { return tdbTbcMoveToNext(cursor); });
+      if (code == TSDB_CODE_SUCCESS) {
+        *comparison = -1;
+        forcedSuccessorResume = true;
+      }
+    }
+  }
+  return code;
+}
+
+extern "C" int32_t seamTdbTbcMoveToNext(TBC* cursor) {
+  if (failCursorAdjust) {
+    failCursorAdjust = false;
+    return TSDB_CODE_OUT_OF_MEMORY;
+  }
+  return bypassSeam(gTdSeam_tdbTbcMoveToNext, [&] { return tdbTbcMoveToNext(cursor); });
+}
+
+namespace {
+
+using ArrayOwner = std::unique_ptr<SArray, decltype(&taosArrayDestroy)>;
+using TagOwner = std::unique_ptr<STag, decltype(&tTagFree)>;
+
+void destroyVersionTagList(SArray* tags) {
+  for (size_t i = 0; i < taosArrayGetSize(tags); ++i) {
+    auto* info = static_cast<STUidTagInfo*>(taosArrayGet(tags, i));
+    taosMemoryFree(info->pTagVal);
+  }
+  taosArrayDestroy(tags);
+}
+
+constexpr tb_uid_t    kSuid = 700001;
+constexpr col_id_t    kTagId = 100;
+constexpr int64_t     kTxnId = 42;
+const uint8_t         kCondition[] = "100";
+std::function<void()> onMetaUnlock;
+
+void expectIntTagValue(const void* tags, int32_t expected) {
+  STagVal value = {};
+  value.cid = kTagId;
+  ASSERT_TRUE(tTagGet(static_cast<const STag*>(tags), &value));
+  ASSERT_EQ(TSDB_DATA_TYPE_INT, value.type);
+  // tTagGet populates only the bytes belonging to the stored tag type.
+  int32_t actual = 0;
+  memcpy(&actual, &value.i64, sizeof(actual));
+  EXPECT_EQ(expected, actual);
+}
+
+void unlockMetaThenMutate(SMeta* meta) {
+  EXPECT_EQ(0, taosThreadRwlockUnlock(&meta->lock));
+  if (onMetaUnlock) {
+    auto action = std::move(onMetaUnlock);
+    onMetaUnlock = nullptr;
+    action();
+  }
+}
+
+std::array<uint8_t, 16> tagKey(int32_t value) {
+  // The public cache API accepts the digest of (column id, typed TAG value).
+  uint8_t bytes[sizeof(kTagId) + sizeof(value)] = {};
+  memcpy(bytes, &kTagId, sizeof(kTagId));
+  memcpy(bytes + sizeof(kTagId), &value, sizeof(value));
+  T_MD5_CTX context = {};
+  tMD5Init(&context);
+  tMD5Update(&context, bytes, sizeof(bytes));
+  tMD5Final(&context);
+  std::array<uint8_t, 16> key = {};
+  memcpy(key.data(), context.digest, key.size());
+  return key;
+}
+
+struct CacheResult {
+  int32_t               code = 0;
+  bool                  acquired = false;
+  bool                  needWarmup = false;
+  std::vector<uint64_t> uids;
+};
+
+class MetaTagFilterCacheTest : public ::testing::Test {
+ protected:
+  void SetUp() override {
+    ASSERT_NE(nullptr, mkdtemp(directory_));
+    vnode_.path = directory_;
+    vnode_.config.vgId = 1;
+    vnode_.config.szPage = 4096;
+    vnode_.config.szCache = 256;
+    ASSERT_EQ(0, metaOpen(&vnode_, &vnode_.pMeta, 0));
+    ASSERT_EQ(0, metaBegin(vnode_.pMeta, META_BEGIN_HEAP_OS));
+    ASSERT_EQ(0, vnodeTxnInit(&vnode_));
+
+    SSchema rows[2] = {};
+    rows[0].type = TSDB_DATA_TYPE_TIMESTAMP;
+    rows[0].colId = 1;
+    rows[0].bytes = sizeof(int64_t);
+    tstrncpy(rows[0].name, "ts", sizeof(rows[0].name));
+    rows[1].type = TSDB_DATA_TYPE_INT;
+    rows[1].colId = 2;
+    rows[1].bytes = sizeof(int32_t);
+    tstrncpy(rows[1].name, "v", sizeof(rows[1].name));
+    tagSchema_.type = tagType_;
+    tagSchema_.colId = kTagId;
+    tagSchema_.bytes = tagBytes_;
+    tstrncpy(tagSchema_.name, "pile_code", sizeof(tagSchema_.name));
+    SColCmpr compression[2] = {};
+    for (int i = 0; i < 2; ++i) {
+      compression[i].id = rows[i].colId;
+      compression[i].alg = createDefaultColCmprByType(rows[i].type);
+    }
+    SVCreateStbReq request = {};
+    request.name = const_cast<char*>("pile");
+    request.suid = kSuid;
+    request.colCmpred = 1;
+    request.schemaRow.nCols = 2;
+    request.schemaRow.pSchema = rows;
+    request.schemaTag.nCols = 1;
+    request.schemaTag.pSchema = &tagSchema_;
+    request.colCmpr.nCols = 2;
+    request.colCmpr.pColCmpr = compression;
+    ASSERT_EQ(0, metaCreateSuperTable(vnode_.pMeta, ++version_, &request));
+
+    columns_.reset(taosArrayInit(1, sizeof(col_id_t)));
+    ASSERT_NE(nullptr, columns_);
+    ASSERT_NE(nullptr, taosArrayPush(columns_.get(), &kTagId));
+
+    *seamSlot(gTdSeam_taosArrayAddBatch, "gTdSeam_taosArrayAddBatch") = reinterpret_cast<void*>(&seamTaosArrayAddBatch);
+    *seamSlot(gTdSeam_tdbTbcNext, "gTdSeam_tdbTbcNext") = reinterpret_cast<void*>(&seamTdbTbcNext);
+    *seamSlot(gTdSeam_tdbTbcMoveTo, "gTdSeam_tdbTbcMoveTo") = reinterpret_cast<void*>(&seamTdbTbcMoveTo);
+    *seamSlot(gTdSeam_tdbTbcMoveToNext, "gTdSeam_tdbTbcMoveToNext") = reinterpret_cast<void*>(&seamTdbTbcMoveToNext);
+  }
+
+  void TearDown() override {
+    *seamSlot(gTdSeam_taosArrayAddBatch, "gTdSeam_taosArrayAddBatch") = nullptr;
+    *seamSlot(gTdSeam_tdbTbcNext, "gTdSeam_tdbTbcNext") = nullptr;
+    *seamSlot(gTdSeam_tdbTbcMoveTo, "gTdSeam_tdbTbcMoveTo") = nullptr;
+    *seamSlot(gTdSeam_tdbTbcMoveToNext, "gTdSeam_tdbTbcMoveToNext") = nullptr;
+    onMetaUnlock = nullptr;
+    failUidAppend = nullptr;
+    cursorNextBeforeFailure = -1;
+    failCursorSeek = false;
+    failCursorAdjust = false;
+    forceSuccessorResume = false;
+    forcedSuccessorResume = false;
+    successorResumeUid = 0;
+    stub_.reset(metaULock);
+    vnodeTxnCleanup(&vnode_);
+    metaClose(&vnode_.pMeta);
+    taosRemoveDir(directory_);
+  }
+
+  int32_t putChild(uint64_t uid, int32_t value, bool isNull = false, bool failAppend = false, int64_t txnId = 0) {
+    STagVal tag = {};
+    tag.cid = kTagId;
+    tag.type = TSDB_DATA_TYPE_INT;
+    tag.i64 = value;
+    return putChildTag(uid, tag, isNull, failAppend, txnId);
+  }
+
+  int32_t putChildTag(uint64_t uid, const STagVal& tag, bool isNull = false, bool failAppend = false,
+                      int64_t txnId = 0) {
+    ArrayOwner values(taosArrayInit(1, sizeof(STagVal)), taosArrayDestroy);
+    if (values == nullptr) return terrno;
+    if (!isNull && taosArrayPush(values.get(), &tag) == nullptr) return terrno;
+    STag*    raw = nullptr;
+    int32_t  code = tTagNew(values.get(), 0, 0, &raw);
+    TagOwner tags(raw, tTagFree);
+    if (code != 0) return code;
+    const std::string name = "p" + std::to_string(uid);
+    SMetaEntry        child = {};
+    child.version = ++version_;
+    child.type = TSDB_CHILD_TABLE;
+    child.uid = uid;
+    child.name = const_cast<char*>(name.c_str());
+    child.ctbEntry.suid = kSuid;
+    child.ctbEntry.pTags = reinterpret_cast<uint8_t*>(tags.get());
+    child.txnId = txnId;
+    child.txnStatus = txnId == 0 ? META_TXN_NORMAL : META_TXN_PRE_CREATE;
+    if (failAppend) {
+      uidAppendFailed = false;
+      failUidAppend = &child.uid;
+    }
+    code = metaHandleEntry2(vnode_.pMeta, &child);
+    failUidAppend = nullptr;
+    return code;
+  }
+
+  int32_t putPendingChild(uint64_t uid, int32_t value) {
+    int32_t code = vnodeTxnEnsureEntry(&vnode_, kTxnId, version_ + 1);
+    if (code != 0) return code;
+    code = putChild(uid, value, false, false, kTxnId);
+    if (code != 0) return code;
+    code = metaTxnIdxUpsert(vnode_.pMeta, uid, kTxnId, META_TXN_PRE_CREATE, -1);
+    if (code != 0) return code;
+    return vnodeTxnTrackTable(&vnode_, kTxnId, uid);
+  }
+
+  int32_t commitPendingChildren() {
+    SVTxnCommitReq req = {};
+    req.txnId = kTxnId;
+    std::array<char, 128> buffer = {};
+    const int32_t         len = tSerializeSVTxnCommitReq(buffer.data(), buffer.size(), &req);
+    if (len < 0) return len;
+    return vnodeProcessTxnCommitReq(&vnode_, ++version_, buffer.data(), len, nullptr);
+  }
+
+  int32_t dropChild(uint64_t uid) {
+    SMetaEntry child = {};
+    child.version = ++version_;
+    child.type = -TSDB_CHILD_TABLE;
+    child.uid = uid;
+    return metaHandleEntry2(vnode_.pMeta, &child);
+  }
+
+  CacheResult lookup(int32_t value, bool warmup = false) { return lookup(tagKey(value), warmup); }
+
+  CacheResult lookup(const std::array<uint8_t, 16>& key, bool warmup = false) {
+    CacheResult result;
+    ArrayOwner  uids(taosArrayInit(4, sizeof(uint64_t)), taosArrayDestroy);
+    if (uids == nullptr) {
+      result.code = terrno;
+      return result;
+    }
+    if (warmup) {
+      result.code = metaWarmupStableTagFilterCache(&vnode_, kSuid, kCondition, sizeof(kCondition), key.data(),
+                                                   key.size(), columns_.get(), uids.get(), &result.acquired);
+    } else {
+      result.code = metaStableTagFilterCacheGet(&vnode_, kSuid, kCondition, sizeof(kCondition), key.data(), key.size(),
+                                                uids.get(), &result.acquired, &result.needWarmup);
+    }
+    for (size_t i = 0; i < taosArrayGetSize(uids.get()); ++i) {
+      result.uids.push_back(*static_cast<uint64_t*>(taosArrayGet(uids.get(), i)));
+    }
+    return result;
+  }
+
+  void expectHit(int32_t value, const std::vector<uint64_t>& expected, bool warmup = false) {
+    const auto result = lookup(value, warmup);
+    ASSERT_EQ(0, result.code);
+    EXPECT_TRUE(result.acquired);
+    EXPECT_EQ(expected, result.uids);
+  }
+
+  int32_t alterTagSchema() {
+    SMetaEntry* entry = nullptr;
+    int32_t     code = metaFetchEntryByUid(vnode_.pMeta, kSuid, &entry);
+    if (code != 0) return code;
+    SVCreateStbReq request = {};
+    request.name = entry->name;
+    request.suid = kSuid;
+    request.schemaRow = entry->stbEntry.schemaRow;
+    request.schemaTag = entry->stbEntry.schemaTag;
+    ++request.schemaTag.version;
+    request.schemaTag.pSchema = &tagSchema_;
+    request.colCmpr = entry->colCmpr;
+    code = metaAlterSuperTable(vnode_.pMeta, ++version_, &request);
+    metaFetchEntryFree(&entry);
+    return code;
+  }
+
+  SVnode     vnode_ = {};
+  SSchema    tagSchema_ = {};
+  int8_t     tagType_ = TSDB_DATA_TYPE_INT;
+  int32_t    tagBytes_ = sizeof(int32_t);
+  int64_t    version_ = 100;
+  ArrayOwner columns_{nullptr, taosArrayDestroy};
+  Stub       stub_;
+  char       directory_[64] = "/tmp/tsdb-tag-cache-XXXXXX";
+};
+
+TEST_F(MetaTagFilterCacheTest, TableNameLookupPreservesUidIndexAllocationFailure) {
+  constexpr uint64_t uid = 800001;
+  ASSERT_EQ(0, putChild(uid, 1));
+  char name[TSDB_TABLE_FNAME_LEN + VARSTR_HEADER_SIZE] = {};
+  ASSERT_EQ(0, metaGetTableNameByUid(&vnode_, uid, name, 0));
+
+  {
+    Stub stub;
+    stub.set(tdbTbGet, +[](TTB*, const void*, int, void**, int*) -> int {
+      return terrno = TSDB_CODE_OUT_OF_MEMORY;
+    });
+    EXPECT_EQ(TSDB_CODE_OUT_OF_MEMORY, metaGetTableNameByUid(&vnode_, uid, name, 0));
+  }
+
+  EXPECT_EQ(0, metaGetTableNameByUid(&vnode_, uid, name, 0));
+  EXPECT_EQ(TSDB_CODE_PAR_TABLE_NOT_EXIST, metaGetTableNameByUid(&vnode_, uid + 1, name, 0));
+}
+
+TEST_F(MetaTagFilterCacheTest, VersionedBatchTagsDoNotScanTheVersionRangePerUid) {
+  constexpr uint64_t firstUid = 800001;
+  constexpr int32_t count = 257;  // Cross 128-UID lock-slice boundaries.
+  for (int32_t i = 0; i < count; ++i) {
+    ASSERT_EQ(0, putChild(firstUid + i, 1));
+  }
+  const int64_t batchVersion = version_ + 1;
+  ArrayOwner tags(taosArrayInit(count, sizeof(STUidTagInfo)), destroyVersionTagList);
+  ASSERT_NE(nullptr, tags);
+  for (int32_t i = 0; i < count; ++i) {
+    // A bulk SET TAG gives every updated child the same WAL version.
+    version_ = batchVersion - 1;
+    ASSERT_EQ(0, putChild(firstUid + i, i + 10));
+    STUidTagInfo info = {};
+    info.uid = firstUid + i;
+    ASSERT_NE(nullptr, taosArrayPush(tags.get(), &info));
+  }
+
+  // The existing cursor failure hook must remain unused on exact-version hits.
+  failCursorSeek = true;
+  ASSERT_EQ(0, metaGetTableTagsByUidsVersion(&vnode_, kSuid, tags.get(), batchVersion, 0));
+  EXPECT_TRUE(failCursorSeek);
+  failCursorSeek = false;
+  for (int32_t i = 0; i < count; ++i) {
+    auto* info = static_cast<STUidTagInfo*>(taosArrayGet(tags.get(), i));
+    ASSERT_NE(nullptr, info->pTagVal);
+    expectIntTagValue(info->pTagVal, i + 10);
+  }
+}
+
+TEST_F(MetaTagFilterCacheTest, MissingExactVersionFallsBackWithoutReadingFutureTags) {
+  constexpr uint64_t uid = 800001;
+  ASSERT_EQ(0, putChild(uid, 1));
+  const int64_t oldVersion = version_;
+  ASSERT_EQ(0, putChild(uid + 1, 2));
+  const int64_t betweenVersion = version_;
+  ASSERT_EQ(0, putChild(uid, 3));
+  ArrayOwner tags(taosArrayInit(1, sizeof(STUidTagInfo)), destroyVersionTagList);
+  ASSERT_NE(nullptr, tags);
+  STUidTagInfo info = {};
+  info.uid = uid;
+  ASSERT_NE(nullptr, taosArrayPush(tags.get(), &info));
+
+  for (int64_t version : {oldVersion, betweenVersion, int64_t(-1)}) {
+    SCOPED_TRACE(version);
+    ASSERT_EQ(0, metaGetTableTagsByUidsVersion(&vnode_, kSuid, tags.get(), version, 0));
+    auto* result = static_cast<STUidTagInfo*>(taosArrayGet(tags.get(), 0));
+    ASSERT_NE(nullptr, result->pTagVal);
+    expectIntTagValue(result->pTagVal, version == -1 ? 3 : 1);
+    taosMemoryFreeClear(result->pTagVal);
+  }
+}
+
+TEST_F(MetaTagFilterCacheTest, VersionedReaderDoesNotScanWhenLaterBatchIsAlreadyApplied) {
+  constexpr uint64_t firstUid = 800001;
+  constexpr int32_t count = 257;
+  for (int32_t i = 0; i < count; ++i) {
+    ASSERT_EQ(0, putChild(firstUid + i, 1));
+  }
+  const int64_t batchVersion = version_ + 1;
+  for (int32_t i = 0; i < count; ++i) {
+    version_ = batchVersion - 1;
+    ASSERT_EQ(0, putChild(firstUid + i, i + 10));
+  }
+  for (int32_t i = 0; i < count; ++i) {
+    version_ = batchVersion;
+    ASSERT_EQ(0, putChild(firstUid + i, i + 1000));
+  }
+
+  SMetaReader reader = {};
+  metaReaderDoInit(&reader, vnode_.pMeta, META_READER_NOLOCK, 0);
+  std::unique_ptr<SMetaReader, decltype(&metaReaderClear)> cleanup(&reader, metaReaderClear);
+  failCursorSeek = true;
+  for (int32_t i = 0; i < count; ++i) {
+    ASSERT_EQ(0, metaReaderGetTableEntryByVersionUid(&reader, batchVersion, firstUid + i));
+    EXPECT_EQ(batchVersion, reader.me.version);
+    expectIntTagValue(reader.me.ctbEntry.pTags, i + 10);
+  }
+  EXPECT_TRUE(failCursorSeek);
+  failCursorSeek = false;
+}
+
+TEST_F(MetaTagFilterCacheTest, VersionedReaderFallsBackWithoutReadingFutureTags) {
+  constexpr uint64_t uid = 800001;
+  ASSERT_EQ(0, putChild(uid, 1));
+  const int64_t oldVersion = version_;
+  ASSERT_EQ(0, putChild(uid + 1, 2));
+  const int64_t betweenVersion = version_;
+  ASSERT_EQ(0, putChild(uid, 3));
+
+  SMetaReader reader = {};
+  metaReaderDoInit(&reader, vnode_.pMeta, META_READER_NOLOCK, 0);
+  std::unique_ptr<SMetaReader, decltype(&metaReaderClear)> cleanup(&reader, metaReaderClear);
+  for (int64_t version : {oldVersion, betweenVersion, int64_t(-1)}) {
+    SCOPED_TRACE(version);
+    ASSERT_EQ(0, metaReaderGetTableEntryByVersionUid(&reader, version, uid));
+    expectIntTagValue(reader.me.ctbEntry.pTags, version == -1 ? 3 : 1);
+  }
+  EXPECT_EQ(TSDB_CODE_PAR_TABLE_NOT_EXIST,
+            metaReaderGetTableEntryByVersionUid(&reader, oldVersion - 1, uid));
+}
+
+TEST_F(MetaTagFilterCacheTest, VersionedReaderExactHitKeepsPendingCreateVisibility) {
+  constexpr uint64_t uid = 800001;
+  ASSERT_EQ(0, putPendingChild(uid, 1));
+  const int64_t pendingVersion = version_;
+  ASSERT_EQ(0, putChild(uid, 2, false, false, kTxnId));
+  auto readPending = [&](int64_t txnId) {
+    SMetaReader reader = {};
+    metaReaderDoInit(&reader, vnode_.pMeta, META_READER_NOLOCK, txnId);
+    std::unique_ptr<SMetaReader, decltype(&metaReaderClear)> cleanup(&reader, metaReaderClear);
+    return metaReaderGetTableEntryByVersionUid(&reader, pendingVersion, uid);
+  };
+  EXPECT_EQ(TSDB_CODE_PAR_TABLE_NOT_EXIST, readPending(0));
+  EXPECT_EQ(0, readPending(kTxnId));
+  // Keep the pending records until vacuum so the exact historical hit must
+  // honor the finalized transaction marker instead of inline promotion.
+  for (int32_t i = 1; i <= TSDB_TXN_INLINE_THRESHOLD; ++i) {
+    ASSERT_EQ(0, putPendingChild(uid + i, 1));
+  }
+  vnode_.vacuumRunning = 1;
+  ASSERT_EQ(0, commitPendingChildren());
+  ASSERT_EQ(TXN_META_COMMITTED, metaGetTxnMetaStatus(vnode_.pMeta, kTxnId));
+  EXPECT_EQ(0, readPending(0));
+  ASSERT_EQ(TSDB_TXN_INLINE_THRESHOLD + 1,
+            vnodeTxnVacuumBatch(&vnode_, TSDB_TXN_INLINE_THRESHOLD + 1));
+  vnode_.vacuumRunning = 0;
+}
+
+// Batch meta txn: a child's tag changed by an uncommitted txn (PRE_ALTER) is read-your-own-writes for that txn
+// only; every other reader, including non-txn readers (txnId 0), is redirected to the pre-alter value.
+TEST_F(MetaTagFilterCacheTest, PreAlterTagIsVisibleToOwnerTxnOnly) {
+  constexpr uint64_t uid = 800001;
+  constexpr int64_t  kOtherTxnId = 99;
+  ASSERT_EQ(0, putChild(uid, 1));
+  const int64_t origVersion = version_;
+  ASSERT_EQ(0, vnodeTxnEnsureEntry(&vnode_, kTxnId, version_ + 1));
+  ASSERT_EQ(0, putChild(uid, 2));  // the in-place (dirty) new tag value
+  ASSERT_EQ(0, metaTxnIdxUpsert(vnode_.pMeta, uid, kTxnId, META_TXN_PRE_ALTER, origVersion));
+  ASSERT_EQ(0, vnodeTxnTrackTable(&vnode_, kTxnId, uid));
+  ASSERT_TRUE(metaHasPendingTxnEntries(vnode_.pMeta));
+
+  auto readByVersionApi = [&](int64_t txnId, int32_t expected) {
+    ArrayOwner tags(taosArrayInit(1, sizeof(STUidTagInfo)), destroyVersionTagList);
+    ASSERT_NE(nullptr, tags);
+    STUidTagInfo info = {};
+    info.uid = uid;
+    ASSERT_NE(nullptr, taosArrayPush(tags.get(), &info));
+    ASSERT_EQ(0, metaGetTableTagsByUidsVersion(&vnode_, kSuid, tags.get(), -1, txnId));
+    auto* got = static_cast<STUidTagInfo*>(taosArrayGet(tags.get(), 0));
+    ASSERT_NE(nullptr, got->pTagVal);
+    expectIntTagValue(got->pTagVal, expected);
+  };
+  auto readByCursorApi = [&](int64_t txnId, int32_t expected) {
+    ArrayOwner tags(taosArrayInit(1, sizeof(STUidTagInfo)), destroyVersionTagList);
+    ASSERT_NE(nullptr, tags);
+    ASSERT_EQ(0, metaGetTableTags(&vnode_, kSuid, tags.get(), txnId));
+    ASSERT_EQ(1, taosArrayGetSize(tags.get()));
+    auto* got = static_cast<STUidTagInfo*>(taosArrayGet(tags.get(), 0));
+    ASSERT_NE(nullptr, got->pTagVal);
+    expectIntTagValue(got->pTagVal, expected);
+  };
+
+  readByVersionApi(kTxnId, 2);      // the altering txn sees its own write
+  readByVersionApi(0, 1);           // non-txn reader sees the committed value
+  readByVersionApi(kOtherTxnId, 1); // another txn sees the committed value
+  readByCursorApi(kTxnId, 2);
+  readByCursorApi(0, 1);
+  readByCursorApi(kOtherTxnId, 1);
+}
+
+// Batch meta txn: what each by-uid reader entry returns for one table, to one reader. The three entries must agree
+// (they share metaApplyTxnVisibility), so every visibility test asks all three the same question.
+struct ByUidVisibility {
+  int32_t byUid;
+  int32_t byVersionUid;
+  int32_t byUidCache;
+};
+
+static ByUidVisibility readByUidEntries(SVnode* pVnode, int64_t readerTxnId, int64_t version, tb_uid_t uid) {
+  auto open = [&](SMetaReader* reader) { metaReaderDoInit(reader, pVnode->pMeta, META_READER_NOLOCK, readerTxnId); };
+  ByUidVisibility out = {};
+  {
+    SMetaReader reader = {};
+    open(&reader);
+    out.byUid = metaReaderGetTableEntryByUid(&reader, uid);
+    metaReaderClear(&reader);
+  }
+  {
+    SMetaReader reader = {};
+    open(&reader);
+    out.byVersionUid = metaReaderGetTableEntryByVersionUid(&reader, version, uid);
+    metaReaderClear(&reader);
+  }
+  {
+    SMetaReader reader = {};
+    open(&reader);
+    out.byUidCache = metaReaderGetTableEntryByUidCache(&reader, uid);
+    metaReaderClear(&reader);
+  }
+  return out;
+}
+
+static void expectAllEntries(const ByUidVisibility& got, int32_t expected, const char* what) {
+  EXPECT_EQ(expected, got.byUid) << what << ": metaReaderGetTableEntryByUid";
+  EXPECT_EQ(expected, got.byVersionUid) << what << ": metaReaderGetTableEntryByVersionUid";
+  EXPECT_EQ(expected, got.byUidCache) << what << ": metaReaderGetTableEntryByUidCache";
+}
+
+// A table the txn dropped (PRE_DROP, not committed) is gone for that txn and still there for everyone else, through
+// every by-uid entry. After the txn commits it is gone for everyone.
+TEST_F(MetaTagFilterCacheTest, PreDropIsInvisibleToOwnerTxnOnly) {
+  constexpr tb_uid_t uid = 810001;
+  constexpr int64_t  kOtherTxnId = 99;
+  ASSERT_EQ(0, putChild(uid, 1));
+  const int64_t version = version_;
+  ASSERT_EQ(0, vnodeTxnEnsureEntry(&vnode_, kTxnId, version_ + 1));
+  ASSERT_EQ(0, metaMarkTableTxnStatus(vnode_.pMeta, uid, kTxnId, META_TXN_PRE_DROP, -1));
+  ASSERT_EQ(0, metaTxnIdxUpsert(vnode_.pMeta, uid, kTxnId, META_TXN_PRE_DROP, -1));
+  ASSERT_EQ(0, vnodeTxnTrackTable(&vnode_, kTxnId, uid));
+
+  expectAllEntries(readByUidEntries(&vnode_, kTxnId, version, uid), TSDB_CODE_PAR_TABLE_NOT_EXIST, "owner txn");
+  expectAllEntries(readByUidEntries(&vnode_, 0, version, uid), 0, "non-txn reader");
+  expectAllEntries(readByUidEntries(&vnode_, kOtherTxnId, version, uid), 0, "another txn");
+}
+
+// A table created by a txn that has since ROLLED BACK is invisible to everybody, the creating txn's own reader
+// included. (metaReaderGetTableEntryByVersionUid used to lack this check.)
+TEST_F(MetaTagFilterCacheTest, PreCreateOfRolledBackTxnIsInvisibleToEveryone) {
+  constexpr tb_uid_t uid = 810101;
+  ASSERT_EQ(0, putPendingChild(uid, 1));
+  const int64_t version = version_;
+
+  // before the outcome is known: only the creating txn sees it
+  expectAllEntries(readByUidEntries(&vnode_, kTxnId, version, uid), 0, "creator, txn open");
+  expectAllEntries(readByUidEntries(&vnode_, 0, version, uid), TSDB_CODE_PAR_TABLE_NOT_EXIST, "non-txn, txn open");
+
+  // record the outcome the way the lazy ROLLBACK does: a finalized marker, with the entry not yet vacuumed
+  int8_t rolledBack = TXN_META_ROLLEDBACK;
+  ASSERT_EQ(0, taosHashPut(vnode_.pTxnMetaCache, &kTxnId, sizeof(kTxnId), &rolledBack, sizeof(rolledBack)));
+  ASSERT_EQ(TXN_META_ROLLEDBACK, metaGetTxnMetaStatus(vnode_.pMeta, kTxnId));
+
+  expectAllEntries(readByUidEntries(&vnode_, kTxnId, version, uid), TSDB_CODE_PAR_TABLE_NOT_EXIST,
+                   "creator, txn rolled back");
+  expectAllEntries(readByUidEntries(&vnode_, 0, version, uid), TSDB_CODE_PAR_TABLE_NOT_EXIST,
+                   "non-txn, txn rolled back");
+}
+
+// The children a super table change must reach: PRE_CREATE children are skipped for a non-txn caller and for another
+// txn, and included for the txn that created them. For the physical drop of the super table every child belongs to
+// it, whoever may see it (includeAllPreCreate).
+TEST_F(MetaTagFilterCacheTest, ChildListIncludesPendingChildrenOfTheSameTxnOnly) {
+  constexpr tb_uid_t kCommitted = 820001, kPending1 = 820002, kPending2 = 820003;
+  constexpr int64_t  kOtherTxnId = 99;
+  ASSERT_EQ(0, putChild(kCommitted, 0));
+  ASSERT_EQ(0, putPendingChild(kPending1, 1));
+  ASSERT_EQ(0, putPendingChild(kPending2, 2));
+  ASSERT_TRUE(metaHasPendingTxnEntries(vnode_.pMeta));
+
+  auto childrenFor = [&](int64_t txnId, bool includeAll = false) {
+    SArray* list = nullptr;
+    EXPECT_EQ(0, metaGetChildUidsOfSuperTableTxn(vnode_.pMeta, kSuid, txnId, includeAll, &list));
+    std::vector<uint64_t> uids;
+    for (size_t i = 0; list != nullptr && i < taosArrayGetSize(list); ++i) {
+      uids.push_back(*static_cast<tb_uid_t*>(taosArrayGet(list, i)));
+    }
+    taosArrayDestroy(list);
+    std::sort(uids.begin(), uids.end());
+    return uids;
+  };
+
+  EXPECT_EQ((std::vector<uint64_t>{kCommitted, kPending1, kPending2}), childrenFor(kTxnId));
+  EXPECT_EQ((std::vector<uint64_t>{kCommitted}), childrenFor(0));
+  EXPECT_EQ((std::vector<uint64_t>{kCommitted}), childrenFor(kOtherTxnId));
+
+  // the physical drop of the super table: all of them, for any caller
+  const std::vector<uint64_t> all{kCommitted, kPending1, kPending2};
+  EXPECT_EQ(all, childrenFor(0, true));
+  EXPECT_EQ(all, childrenFor(kTxnId, true));
+  EXPECT_EQ(all, childrenFor(kOtherTxnId, true));
+
+  // the non-txn entry point keeps its old contract
+  SArray* plain = nullptr;
+  ASSERT_EQ(0, metaGetChildUidsOfSuperTable(vnode_.pMeta, kSuid, &plain));
+  EXPECT_EQ(1, taosArrayGetSize(plain));
+  taosArrayDestroy(plain);
+}
+
+// A child created and dropped inside one txn (PRE_CREATE_DROP) is gone for every reader, the txn itself included, so a
+// super table change must not reach it. Only the physical drop of the super table (includeAllPreCreate) still lists it,
+// because the entry has not been vacuumed yet and must go with its super table.
+TEST_F(MetaTagFilterCacheTest, PreCreateDropChildIsListedOnlyForPhysicalStbDrop) {
+  constexpr tb_uid_t kCommitted = 821001, kCreatedAndDropped = 821002;
+  constexpr int64_t  kOtherTxnId = 99;
+  ASSERT_EQ(0, putChild(kCommitted, 0));
+  ASSERT_EQ(0, putPendingChild(kCreatedAndDropped, 1));
+  ASSERT_EQ(0, metaTxnIdxUpsert(vnode_.pMeta, kCreatedAndDropped, kTxnId, META_TXN_PRE_CREATE_DROP, -1));
+  ASSERT_TRUE(metaHasPendingTxnEntries(vnode_.pMeta));
+
+  auto childrenFor = [&](int64_t txnId, bool includeAll) {
+    SArray* list = nullptr;
+    EXPECT_EQ(0, metaGetChildUidsOfSuperTableTxn(vnode_.pMeta, kSuid, txnId, includeAll, &list));
+    std::vector<uint64_t> uids;
+    for (size_t i = 0; list != nullptr && i < taosArrayGetSize(list); ++i) {
+      uids.push_back(*static_cast<tb_uid_t*>(taosArrayGet(list, i)));
+    }
+    taosArrayDestroy(list);
+    std::sort(uids.begin(), uids.end());
+    return uids;
+  };
+
+  const std::vector<uint64_t> committedOnly{kCommitted};
+  EXPECT_EQ(committedOnly, childrenFor(kTxnId, false)) << "the txn that created and dropped it";
+  EXPECT_EQ(committedOnly, childrenFor(kOtherTxnId, false)) << "another txn";
+  EXPECT_EQ(committedOnly, childrenFor(0, false)) << "non-txn caller";
+
+  const std::vector<uint64_t> all{kCommitted, kCreatedAndDropped};
+  EXPECT_EQ(all, childrenFor(0, true)) << "physical drop of the super table";
+  EXPECT_EQ(all, childrenFor(kTxnId, true)) << "physical drop of the super table, same txn";
+}
+
+// The owner txn's PRE_DROP hides the table from that txn only while the txn is open. Once the txn is ROLLED BACK and the
+// vacuum has not normalised the entry yet, ROLLBACK has restored the table: it must be visible again, to the owner's
+// reader too (a request in flight that still carries the txnId).
+TEST_F(MetaTagFilterCacheTest, PreDropOfRolledBackTxnIsVisibleAgainToOwnerTxn) {
+  constexpr tb_uid_t uid = 810201;
+  ASSERT_EQ(0, putChild(uid, 1));
+  const int64_t version = version_;
+  ASSERT_EQ(0, vnodeTxnEnsureEntry(&vnode_, kTxnId, version_ + 1));
+  ASSERT_EQ(0, metaMarkTableTxnStatus(vnode_.pMeta, uid, kTxnId, META_TXN_PRE_DROP, -1));
+  ASSERT_EQ(0, metaTxnIdxUpsert(vnode_.pMeta, uid, kTxnId, META_TXN_PRE_DROP, -1));
+  ASSERT_EQ(0, vnodeTxnTrackTable(&vnode_, kTxnId, uid));
+
+  // txn open: gone for the owner, still there for everyone else
+  expectAllEntries(readByUidEntries(&vnode_, kTxnId, version, uid), TSDB_CODE_PAR_TABLE_NOT_EXIST, "owner, txn open");
+  expectAllEntries(readByUidEntries(&vnode_, 0, version, uid), 0, "non-txn, txn open");
+
+  // record the outcome the way the lazy ROLLBACK does: a finalized marker, with the entry not yet vacuumed
+  int8_t rolledBack = TXN_META_ROLLEDBACK;
+  ASSERT_EQ(0, taosHashPut(vnode_.pTxnMetaCache, &kTxnId, sizeof(kTxnId), &rolledBack, sizeof(rolledBack)));
+  ASSERT_EQ(TXN_META_ROLLEDBACK, metaGetTxnMetaStatus(vnode_.pMeta, kTxnId));
+
+  expectAllEntries(readByUidEntries(&vnode_, kTxnId, version, uid), 0, "owner, txn rolled back");
+  expectAllEntries(readByUidEntries(&vnode_, 0, version, uid), 0, "non-txn, txn rolled back");
+}
+
+class MetaVarTagFilterCacheTest : public MetaTagFilterCacheTest, public ::testing::WithParamInterface<int8_t> {
+ protected:
+  void SetUp() override {
+    tagType_ = GetParam();
+    tagBytes_ = 8 * (tagType_ == TSDB_DATA_TYPE_NCHAR ? TSDB_NCHAR_SIZE : 1) + VARSTR_HEADER_SIZE;
+    MetaTagFilterCacheTest::SetUp();
+  }
+};
+
+TEST_P(MetaVarTagFilterCacheTest, WiderTagSchemaKeepsOldAndNewPlansOnTheSameMapping) {
+  uint32_t wideText[] = {'p', '1'};
+  uint8_t  text[] = {'p', '1'};
+  STagVal  tag = {};
+  tag.cid = kTagId;
+  tag.type = tagType_;
+  tag.pData = tagType_ == TSDB_DATA_TYPE_NCHAR ? reinterpret_cast<uint8_t*>(wideText) : text;
+  tag.nData = tagType_ == TSDB_DATA_TYPE_NCHAR ? sizeof(wideText) : 2;
+  ASSERT_EQ(0, putChildTag(800001, tag));
+  ASSERT_EQ(0, putChildTag(800002, tag));
+  auto key = [&]() {
+    std::vector<uint8_t> bytes(sizeof(kTagId) + sizeof(tag.nData) + tag.nData, 0);
+    memcpy(bytes.data(), &kTagId, sizeof(kTagId));
+    memcpy(bytes.data() + sizeof(kTagId), &tag.nData, sizeof(tag.nData));
+    memcpy(bytes.data() + sizeof(kTagId) + sizeof(tag.nData), tag.pData, tag.nData);
+    T_MD5_CTX context = {};
+    tMD5Init(&context);
+    tMD5Update(&context, bytes.data(), bytes.size());
+    tMD5Final(&context);
+    std::array<uint8_t, 16> digest = {};
+    memcpy(digest.data(), context.digest, digest.size());
+    return digest;
+  };
+  const auto oldPlanKey = key();
+  const auto before = lookup(oldPlanKey, true);
+  ASSERT_EQ(0, before.code);
+  ASSERT_TRUE(before.acquired);
+  ASSERT_EQ((std::vector<uint64_t>{800001, 800002}), before.uids);
+
+  tagSchema_.bytes = (tagSchema_.bytes - VARSTR_HEADER_SIZE) * 2 + VARSTR_HEADER_SIZE;
+  ASSERT_EQ(0, alterTagSchema());
+  const auto after = lookup(key());
+  ASSERT_EQ(0, after.code);
+  EXPECT_TRUE(after.acquired);
+  EXPECT_EQ((std::vector<uint64_t>{800001, 800002}), after.uids);
+  const auto oldPlan = lookup(oldPlanKey);
+  ASSERT_EQ(0, oldPlan.code);
+  EXPECT_TRUE(oldPlan.acquired);
+  EXPECT_EQ((std::vector<uint64_t>{800001, 800002}), oldPlan.uids);
+  ASSERT_EQ(0, metaStableTagFilterCacheDropSTable(vnode_.pMeta, kSuid));
+  const auto rebuilt = lookup(oldPlanKey, true);
+  ASSERT_EQ(0, rebuilt.code);
+  EXPECT_TRUE(rebuilt.acquired);
+  EXPECT_EQ((std::vector<uint64_t>{800001, 800002}), rebuilt.uids);
+  const auto newPlan = lookup(key());
+  ASSERT_EQ(0, newPlan.code);
+  EXPECT_TRUE(newPlan.acquired);
+  EXPECT_EQ((std::vector<uint64_t>{800001, 800002}), newPlan.uids);
+}
+
+INSTANTIATE_TEST_SUITE_P(VariableTags, MetaVarTagFilterCacheTest,
+                         ::testing::Values(TSDB_DATA_TYPE_VARCHAR, TSDB_DATA_TYPE_VARBINARY, TSDB_DATA_TYPE_NCHAR));
+
+TEST_F(MetaTagFilterCacheTest, RenameTagPreservesCompleteMapping) {
+  ASSERT_EQ(0, putChild(800001, 1));
+  expectHit(1, {800001}, true);
+  tstrncpy(tagSchema_.name, "renamed_pile_code", sizeof(tagSchema_.name));
+  ASSERT_EQ(0, alterTagSchema());
+  expectHit(1, {800001});
+}
+
+TEST_F(MetaTagFilterCacheTest, ColdMissingKeyStillNeedsWarmup) {
+  const auto result = lookup(42);
+  ASSERT_EQ(0, result.code);
+  EXPECT_FALSE(result.acquired);
+  EXPECT_TRUE(result.needWarmup);
+  EXPECT_TRUE(result.uids.empty());
+}
+
+TEST_F(MetaTagFilterCacheTest, CompleteWarmupMakesMissingKeyAnEmptyHit) {
+  ASSERT_EQ(0, putChild(800001, 1));
+  expectHit(1, {800001}, true);
+  expectHit(2, {});
+  expectHit(3, {}, true);
+}
+
+TEST_F(MetaTagFilterCacheTest, EmptySuperTableHasCompleteEmptyMapping) {
+  expectHit(1, {}, true);
+  expectHit(2, {});
+}
+
+TEST_F(MetaTagFilterCacheTest, CursorReadFailureDoesNotPublishPartialMapping) {
+  ASSERT_EQ(0, putChild(800001, 1));
+  ASSERT_EQ(0, putChild(800002, 2));
+  cursorNextBeforeFailure = 1;
+  const auto failed = lookup(2, true);
+  EXPECT_EQ(TSDB_CODE_OUT_OF_MEMORY, failed.code);
+  EXPECT_FALSE(failed.acquired);
+  const auto missing = lookup(2);
+  EXPECT_FALSE(missing.acquired);
+  EXPECT_TRUE(missing.needWarmup);
+  expectHit(2, {800002}, true);
+  expectHit(1, {800001});
+}
+
+TEST_F(MetaTagFilterCacheTest, CursorSeekFailureDoesNotPublishEmptyMapping) {
+  ASSERT_EQ(0, putChild(800001, 1));
+  failCursorSeek = true;
+  const auto failed = lookup(1, true);
+  EXPECT_EQ(TSDB_CODE_OUT_OF_MEMORY, failed.code);
+  EXPECT_FALSE(failed.acquired);
+  const auto missing = lookup(1);
+  EXPECT_FALSE(missing.acquired);
+  EXPECT_TRUE(missing.needWarmup);
+  expectHit(1, {800001}, true);
+}
+
+TEST_F(MetaTagFilterCacheTest, CursorInitialAdjustmentFailurePreservesError) {
+  ASSERT_EQ(0, putChild(800001, 1));
+  failCursorAdjust = true;
+  terrno = 0;
+  SMCtbCursor* cursor = metaOpenCtbCursor(&vnode_, kSuid + 1, 1, 0);
+  EXPECT_EQ(nullptr, cursor);
+  EXPECT_EQ(TSDB_CODE_OUT_OF_MEMORY, terrno);
+  metaCloseCtbCursor(cursor);
+  expectHit(1, {800001}, true);
+}
+
+TEST_F(MetaTagFilterCacheTest, PendingCreateCannotBecomePermanentEmptyHitAfterCommit) {
+  ASSERT_EQ(0, putPendingChild(800001, 1));
+  ASSERT_TRUE(metaHasPendingTxnEntries(vnode_.pMeta));
+  const auto pending = lookup(1, true);
+  EXPECT_EQ(0, pending.code);
+  EXPECT_FALSE(pending.acquired);
+  EXPECT_TRUE(lookup(1).needWarmup);
+  ASSERT_EQ(0, commitPendingChildren());
+  ASSERT_FALSE(metaHasPendingTxnEntries(vnode_.pMeta));
+  expectHit(1, {800001}, true);
+  expectHit(2, {});
+}
+
+TEST_F(MetaTagFilterCacheTest, PendingCreatesRemainRetryableUntilLazyCommitVacuumCompletes) {
+  ASSERT_EQ(0, putChild(800000, 0));
+  for (int32_t value = 1; value <= 129; ++value) {
+    ASSERT_EQ(0, putPendingChild(800000 + value, value));
+  }
+  EXPECT_FALSE(lookup(129, true).acquired);
+  // Take the vacuum slot so the test can run the real batches synchronously.
+  vnode_.vacuumRunning = 1;
+  ASSERT_EQ(0, commitPendingChildren());
+  ASSERT_EQ(TXN_META_COMMITTED, metaGetTxnMetaStatus(vnode_.pMeta, kTxnId));
+  EXPECT_FALSE(lookup(129, true).acquired);
+  ASSERT_EQ(129, vnodeTxnVacuumBatch(&vnode_, 256));
+  vnode_.vacuumRunning = 0;
+  ASSERT_FALSE(metaHasPendingTxnEntries(vnode_.pMeta));
+  expectHit(129, {800129}, true);
+  expectHit(0, {800000});
+  expectHit(1, {800001});
+}
+
+TEST_F(MetaTagFilterCacheTest, WarmupAdmitsMappingLargerThanOrdinaryTagCacheLimit) {
+  for (int32_t i = 0; i < 512; ++i) {
+    ASSERT_EQ(0, putChild(800000 + i, i));
+  }
+  // 512 distinct digest/UID entries exceed 10 KiB but are far below 2 MiB.
+  expectHit(0, {800000}, true);
+  expectHit(511, {800511});
+  expectHit(600, {});
+}
+
+TEST_F(MetaTagFilterCacheTest, WarmupRebuildsAcrossBatchBoundary) {
+  constexpr int64_t kBatchTables = 8192;
+  for (int64_t i = 0; i < kBatchTables; ++i) {
+    ASSERT_EQ(0, putChild(800000 + i, i));
+  }
+
+  expectHit(0, {800000}, true);
+  expectHit(kBatchTables - 1, {800000 + static_cast<uint64_t>(kBatchTables) - 1});
+  expectHit(kBatchTables, {});
+}
+
+TEST_F(MetaTagFilterCacheTest, WarmupAcceptsTwoMiBAndFallsBackAboveTheLimit) {
+  constexpr int64_t limit = 2 * 1024 * 1024;
+  constexpr int64_t entryBytes = 16 + sizeof(SArray) + sizeof(int32_t) + sizeof(uint64_t);
+  constexpr int32_t distinct = (limit / entryBytes) & ~1;
+  constexpr int32_t duplicates = (limit - distinct * entryBytes) / sizeof(uint64_t);
+  static_assert(distinct * entryBytes + duplicates * sizeof(uint64_t) == limit, "exact payload boundary");
+  const auto ordinaryLimit = tsTagFilterResCacheSize;
+  for (int32_t i = 0; i < distinct + duplicates; ++i) {
+    ASSERT_EQ(0, putChild(800000 + i, i < distinct ? i : 0));
+  }
+  expectHit(distinct - 1, {800000 + static_cast<uint64_t>(distinct) - 1}, true);
+  expectHit(distinct, {});
+
+  ASSERT_EQ(0, putChild(900000, distinct));
+  ASSERT_EQ(0, metaStableTagFilterCacheDropSTable(vnode_.pMeta, kSuid));
+  const auto tooLarge = lookup(distinct, true);
+  ASSERT_EQ(0, tooLarge.code);
+  EXPECT_FALSE(tooLarge.acquired);
+  const auto missing = lookup(distinct + 1);
+  ASSERT_EQ(0, missing.code);
+  EXPECT_FALSE(missing.acquired);
+  EXPECT_FALSE(missing.needWarmup);
+  EXPECT_EQ(ordinaryLimit, tsTagFilterResCacheSize);
+}
+
+TEST_F(MetaTagFilterCacheTest, WarmupReleasesMetaLockBetweenBatches) {
+  constexpr int64_t kBatchTables = 8192;
+  constexpr uint64_t kInsertedUid = 800100;
+  for (int64_t i = 0; i <= kBatchTables; ++i) {
+    uint64_t uid = 800000 + i;
+    if (uid == kInsertedUid) {
+      continue;
+    }
+    ASSERT_EQ(0, putChild(uid, i));
+  }
+
+  bool insertedDuringWarmup = false;
+  onMetaUnlock = [&] {
+    ASSERT_EQ(0, putChild(kInsertedUid, 999999));
+    insertedDuringWarmup = true;
+  };
+  stub_.set(metaULock, unlockMetaThenMutate);
+
+  expectHit(0, {800000}, true);
+  ASSERT_TRUE(insertedDuringWarmup);
+
+  // The writer ran after the cursor passed kInsertedUid. The published map is
+  // allowed to be stale and therefore reports the missing tag family as empty.
+  expectHit(999999, {});
+}
+
+TEST_F(MetaTagFilterCacheTest, WarmupResumeAfterBoundaryDropAvoidsDuplicatePredecessor) {
+  constexpr int64_t kBatchTables = 8192;
+  for (int64_t i = 0; i <= kBatchTables; ++i) {
+    ASSERT_EQ(0, putChild(800000 + i, i));
+  }
+
+  onMetaUnlock = [&] {
+    ASSERT_EQ(0, dropChild(800000 + kBatchTables - 1));
+  };
+  stub_.set(metaULock, unlockMetaThenMutate);
+  forceSuccessorResume = true;
+  successorResumeUid = 800000 + kBatchTables - 1;
+
+  expectHit(0, {800000}, true);
+  ASSERT_TRUE(forcedSuccessorResume);
+  // The deleted boundary UID must not cause the predecessor to be emitted again.
+  expectHit(kBatchTables - 2, {800000 + static_cast<uint64_t>(kBatchTables) - 2});
+  expectHit(kBatchTables, {800000 + static_cast<uint64_t>(kBatchTables)});
+}
+
+TEST_F(MetaTagFilterCacheTest, WarmupAbortsWhenPendingTransactionAppearsBetweenBatches) {
+  constexpr int64_t kBatchTables = 8192;
+  constexpr uint64_t kPendingUid = 800000 + kBatchTables;
+  for (int64_t i = 0; i < kBatchTables; ++i) {
+    ASSERT_EQ(0, putChild(800000 + i, i));
+  }
+
+  onMetaUnlock = [&] {
+    ASSERT_EQ(0, putPendingChild(kPendingUid, 999999));
+  };
+  stub_.set(metaULock, unlockMetaThenMutate);
+
+  const auto pending = lookup(0, true);
+  EXPECT_EQ(0, pending.code);
+  EXPECT_FALSE(pending.acquired);
+  EXPECT_FALSE(lookup(999999).acquired);
+}
+
+TEST_F(MetaTagFilterCacheTest, MetadataInsertAtUnlockCannotBeOverwrittenByWarmupPublication) {
+  ASSERT_EQ(0, putChild(800001, 1));
+  bool inserted = false;
+  onMetaUnlock = [&] {
+    ASSERT_EQ(0, putChild(800002, 2));
+    inserted = true;
+  };
+  // Deterministically run the real metadata writer at the first lock release
+  // during warmup. Previously this was between map construction and publication.
+  stub_.set(metaULock, unlockMetaThenMutate);
+  expectHit(1, {800001}, true);
+  ASSERT_TRUE(inserted);
+  expectHit(2, {800002});
+}
+
+TEST_F(MetaTagFilterCacheTest, CompleteMappingTracksInsertUpdateNullAndDrop) {
+  ASSERT_EQ(0, putChild(800001, 1));
+  expectHit(1, {800001}, true);
+  ASSERT_EQ(0, putChild(800002, 2));
+  expectHit(2, {800002});
+  ASSERT_EQ(0, putChild(800002, 3));
+  expectHit(2, {});
+  expectHit(3, {800002});
+  ASSERT_EQ(0, putChild(800002, 0, true));
+  expectHit(3, {});
+  ASSERT_EQ(0, putChild(800002, 1));
+  expectHit(1, {800001, 800002});
+  ASSERT_EQ(0, dropChild(800001));
+  expectHit(1, {800002});
+  ASSERT_EQ(0, dropChild(800002));
+  expectHit(1, {});
+}
+
+TEST_F(MetaTagFilterCacheTest, LateIndividualFillCannotPolluteCompleteMapping) {
+  ASSERT_EQ(0, putChild(800001, 1));
+  expectHit(1, {800001}, true);
+  ArrayOwner uids(taosArrayInit(1, sizeof(uint64_t)), taosArrayDestroy);
+  ASSERT_NE(nullptr, uids);
+  const uint64_t staleUid = 800002;
+  ASSERT_NE(nullptr, taosArrayPush(uids.get(), &staleUid));
+  SArray* columns = taosArrayDup(columns_.get(), nullptr);
+  ASSERT_NE(nullptr, columns);
+  const auto    key = tagKey(2);
+  const int32_t code = metaStableTagFilterCachePut(&vnode_, kSuid, kCondition, sizeof(kCondition), key.data(),
+                                                   key.size(), uids.get(), &columns);
+  taosArrayDestroy(columns);
+  ASSERT_EQ(0, code);
+  expectHit(2, {});
+}
+
+TEST_F(MetaTagFilterCacheTest, FailedUidAppendInvalidatesIncompleteCachedResults) {
+  for (uint64_t uid = 800001; uid <= 800004; ++uid) {
+    ASSERT_EQ(0, putChild(uid, 1));
+  }
+  expectHit(1, {800001, 800002, 800003, 800004}, true);
+  // The metadata writer succeeds even when its optional cache update fails.
+  ASSERT_EQ(0, putChild(800005, 1, false, true));
+  ASSERT_TRUE(uidAppendFailed);
+  const auto existing = lookup(1);
+  ASSERT_EQ(0, existing.code);
+  EXPECT_FALSE(existing.acquired);
+  const auto missing = lookup(2);
+  ASSERT_EQ(0, missing.code);
+  EXPECT_FALSE(missing.acquired);
+  expectHit(1, {800001, 800002, 800003, 800004, 800005}, true);
+}
+
+TEST_F(MetaTagFilterCacheTest, FailedNewKeyInsertInvalidatesCompleteMapping) {
+  ASSERT_EQ(0, putChild(800001, 1));
+  expectHit(1, {800001}, true);
+  ASSERT_EQ(0, putChild(800002, 2, false, true));
+  ASSERT_TRUE(uidAppendFailed);
+  const auto result = lookup(2);
+  ASSERT_EQ(0, result.code);
+  EXPECT_FALSE(result.acquired);
+  expectHit(2, {800002}, true);
+  expectHit(1, {800001});
+}
+
+// Single-JSON-tag SET TAG persists the client-supplied blob verbatim and re-reads it with
+// tTagGet on every later query, so a forged STag header (self-declared len/nTag disagreeing
+// with the bytes actually transmitted) must be rejected before it can reach the meta store.
+// Regression for the metaUpdateTableJsonTagValue write-path guard (TS-7114608840, engine
+// common/block finding 225 write side).
+TEST_F(MetaTagFilterCacheTest, JsonTagSetTagRejectsForgedBlobHeader) {
+  constexpr tb_uid_t kJsonSuid = 700002;
+  constexpr col_id_t kJsonTagId = 101;
+
+  SSchema rows[2] = {};
+  rows[0].type = TSDB_DATA_TYPE_TIMESTAMP;
+  rows[0].colId = 1;
+  rows[0].bytes = sizeof(int64_t);
+  tstrncpy(rows[0].name, "ts", sizeof(rows[0].name));
+  rows[1].type = TSDB_DATA_TYPE_INT;
+  rows[1].colId = 2;
+  rows[1].bytes = sizeof(int32_t);
+  tstrncpy(rows[1].name, "v", sizeof(rows[1].name));
+
+  SSchema jtag = {};
+  jtag.type = TSDB_DATA_TYPE_JSON;
+  jtag.colId = kJsonTagId;
+  jtag.bytes = TSDB_MAX_TAGS_LEN + VARSTR_HEADER_SIZE;
+  tstrncpy(jtag.name, "j", sizeof(jtag.name));
+
+  SVCreateStbReq stReq = {};
+  stReq.name = const_cast<char*>("json_st");
+  stReq.suid = kJsonSuid;
+  stReq.colCmpred = 1;
+  stReq.schemaRow.nCols = 2;
+  stReq.schemaRow.pSchema = rows;
+  stReq.schemaTag.nCols = 1;
+  stReq.schemaTag.pSchema = &jtag;
+  SColCmpr cmp[2] = {};
+  for (int i = 0; i < 2; ++i) {
+    cmp[i].id = rows[i].colId;
+    cmp[i].alg = createDefaultColCmprByType(rows[i].type);
+  }
+  stReq.colCmpr.nCols = 2;
+  stReq.colCmpr.pColCmpr = cmp;
+  ASSERT_EQ(0, metaCreateSuperTable(vnode_.pMeta, ++version_, &stReq));
+
+  // child table of json_st with a valid (empty) JSON tag blob
+  constexpr uint64_t uid = 800101;
+  const std::string  name = "json_c" + std::to_string(uid);
+  STag               emptyTag = {};
+  emptyTag.flags = TD_TAG_JSON;
+  emptyTag.len = sizeof(STag);
+  emptyTag.nTag = 0;
+  SMetaEntry child = {};
+  child.version = ++version_;
+  child.type = TSDB_CHILD_TABLE;
+  child.uid = uid;
+  child.name = const_cast<char*>(name.c_str());
+  child.ctbEntry.suid = kJsonSuid;
+  child.ctbEntry.pTags = reinterpret_cast<uint8_t*>(&emptyTag);
+  ASSERT_EQ(0, metaHandleEntry2(vnode_.pMeta, &child));
+
+  // a valid single-entry JSON tag blob, and a heap copy we can forge
+  SArray* values = taosArrayInit(1, sizeof(STagVal));
+  ASSERT_NE(nullptr, values);
+  STagVal tv = {};
+  tv.pKey = const_cast<char*>("k");
+  tv.type = TSDB_DATA_TYPE_JSON;
+  const char* json = "{\"k\":1}";
+  tv.pData = reinterpret_cast<uint8_t*>(const_cast<char*>(json));
+  tv.nData = strlen(json);
+  ASSERT_NE(nullptr, taosArrayPush(values, &tv));
+  STag* goodTag = nullptr;
+  ASSERT_EQ(0, tTagNew(values, 0, 1, &goodTag));
+  taosArrayDestroy(values);
+  const uint32_t goodLen = goodTag->len;
+  ASSERT_GT(goodLen, sizeof(STag));
+  ASSERT_EQ(0, tTagValidate(goodTag, goodLen));  // sanity: the generated blob is well-formed
+
+  auto setJsonTag = [&](STag* blob, uint32_t blobLen) -> int32_t {
+    SArray* tags = taosArrayInit(1, sizeof(SUpdatedTagVal));
+    if (tags == nullptr) {
+      return terrno != TSDB_CODE_SUCCESS ? terrno : TSDB_CODE_OUT_OF_MEMORY;
+    }
+    SUpdatedTagVal upd = {};
+    upd.tagName = const_cast<char*>("j");
+    upd.colId = kJsonTagId;
+    upd.tagType = TSDB_DATA_TYPE_JSON;
+    upd.pTagVal = reinterpret_cast<uint8_t*>(blob);
+    upd.nTagVal = blobLen;
+    if (taosArrayPush(tags, &upd) == nullptr) {
+      taosArrayDestroy(tags);
+      return terrno != TSDB_CODE_SUCCESS ? terrno : TSDB_CODE_OUT_OF_MEMORY;
+    }
+    SUpdateTableTagVal table = {};
+    table.tbName = const_cast<char*>(name.c_str());
+    table.tags = tags;
+    SArray* tables = taosArrayInit(1, sizeof(SUpdateTableTagVal));
+    if (tables == nullptr) {
+      taosArrayDestroy(tags);
+      return terrno != TSDB_CODE_SUCCESS ? terrno : TSDB_CODE_OUT_OF_MEMORY;
+    }
+    if (taosArrayPush(tables, &table) == nullptr) {
+      taosArrayDestroy(tags);
+      taosArrayDestroy(tables);
+      return terrno != TSDB_CODE_SUCCESS ? terrno : TSDB_CODE_OUT_OF_MEMORY;
+    }
+    SVAlterTbReq req = {};
+    req.action = TSDB_ALTER_TABLE_UPDATE_MULTI_TABLE_TAG_VAL;
+    req.tables = tables;
+    int32_t code = metaAlterTable(vnode_.pMeta, ++version_, &req, nullptr);
+    taosArrayDestroy(tags);
+    taosArrayDestroy(tables);
+    return code;
+  };
+
+  // a well-formed blob passes
+  EXPECT_EQ(0, setJsonTag(goodTag, goodLen));
+
+  // forged: header claims len=INT16_MAX while only goodLen bytes were transmitted
+  std::vector<uint8_t> forgedLenBuf(reinterpret_cast<uint8_t*>(goodTag), reinterpret_cast<uint8_t*>(goodTag) + goodLen);
+  STag*                forgedLen = reinterpret_cast<STag*>(forgedLenBuf.data());
+  forgedLen->len = INT16_MAX;
+  EXPECT_EQ(TSDB_CODE_INVALID_MSG, setJsonTag(forgedLen, goodLen));
+
+  // forged: nTag=100 makes the idx[] array run past the transmitted bytes
+  std::vector<uint8_t> forgedNtBuf(reinterpret_cast<uint8_t*>(goodTag), reinterpret_cast<uint8_t*>(goodTag) + goodLen);
+  STag*                forgedNt = reinterpret_cast<STag*>(forgedNtBuf.data());
+  forgedNt->nTag = 100;
+  EXPECT_EQ(TSDB_CODE_INVALID_MSG, setJsonTag(forgedNt, goodLen));
+
+  // forged: an unknown flag bit is rejected
+  std::vector<uint8_t> forgedFlBuf(reinterpret_cast<uint8_t*>(goodTag), reinterpret_cast<uint8_t*>(goodTag) + goodLen);
+  STag*                forgedFl = reinterpret_cast<STag*>(forgedFlBuf.data());
+  forgedFl->flags |= static_cast<int8_t>(0x01);
+  EXPECT_EQ(TSDB_CODE_INVALID_MSG, setJsonTag(forgedFl, goodLen));
+
+  tTagFree(goodTag);
+}
+
+// SET TAG on a fixed-width tag must reject a value whose length differs from the type's width: the length comes from
+// the request and is otherwise used to copy into / compare against an 8-byte value.
+TEST_F(MetaTagFilterCacheTest, SetTagRejectsWrongFixedWidthValue) {
+  constexpr uint64_t uid = 900001;
+  ASSERT_EQ(0, putChild(uid, 1));
+  const std::string name = "p" + std::to_string(uid);
+
+  auto setTag = [&](uint32_t nVal) -> int32_t {
+    std::vector<uint8_t> value(64, 0x7f);
+    SUpdatedTagVal       upd = {};
+    upd.tagName = const_cast<char*>("pile_code");
+    upd.colId = kTagId;
+    upd.tagType = TSDB_DATA_TYPE_INT;
+    upd.pTagVal = value.data();
+    upd.nTagVal = nVal;
+    SArray* tags = taosArrayInit(1, sizeof(SUpdatedTagVal));
+    SArray* tables = taosArrayInit(1, sizeof(SUpdateTableTagVal));
+    if (tags == nullptr || tables == nullptr) return TSDB_CODE_OUT_OF_MEMORY;
+    taosArrayPush(tags, &upd);
+    SUpdateTableTagVal table = {};
+    table.tbName = const_cast<char*>(name.c_str());
+    table.tags = tags;
+    taosArrayPush(tables, &table);
+    SVAlterTbReq req = {};
+    req.action = TSDB_ALTER_TABLE_UPDATE_MULTI_TABLE_TAG_VAL;
+    req.tables = tables;
+    int32_t code = metaAlterTable(vnode_.pMeta, ++version_, &req, nullptr);
+    taosArrayDestroy(tags);
+    taosArrayDestroy(tables);
+    return code;
+  };
+
+  EXPECT_EQ(TSDB_CODE_INVALID_MSG, setTag(16));
+  EXPECT_EQ(TSDB_CODE_INVALID_MSG, setTag(2));
+  EXPECT_EQ(0, setTag(sizeof(int32_t)));
+}
+
+}  // namespace
+
+extern "C" int meteDecodeColRefEntry(SDecoder *pDecoder, SMetaEntry *pME);
+
+// GHSA-hr67-c6c8-mwpx / TD-SEC-2026-032: meteDecodeColRefEntry allocates
+// nCols * sizeof(SColRef) via tDecoderMalloc, which now rejects sizes that
+// would truncate (int32 width) or wrap before allocating. A virtual table's
+// column-reference wrapper carrying a huge nCols (zigzag i32) must fail
+// decoding instead of getting a truncated allocation that the per-column
+// loop then writes past.
+TEST(MetaColRefDecodeOverflow, RejectsOversizedNCols) {
+  std::array<uint8_t, 32> buf = {};
+  SEncoder                encoder = {};
+  tEncoderInit(&encoder, buf.data(), (uint32_t)buf.size());
+  ASSERT_EQ(tStartEncode(&encoder), 0);
+  // 2^28 decodes to a huge SColRef count; sizeof(SColRef) * nCols overflows
+  // INT32_MAX and must be rejected by tDecoderMalloc rather than truncated.
+  ASSERT_EQ(tEncodeI32v(&encoder, (int32_t)(1 << 28)), 0);
+  ASSERT_EQ(tEncodeI32v(&encoder, 0), 0);  // version
+  tEndEncode(&encoder);
+  int32_t size = encoder.pos;
+  tEncoderClear(&encoder);
+
+  SMetaEntry entry = {};
+  SDecoder   decoder = {};
+  tDecoderInit(&decoder, buf.data(), size);
+  // The encoder used tStartEncode/tEndEncode, so the buffer carries a 4-byte length
+  // prefix. Consume it with the matching tStartDecode before reading the fields,
+  // mirroring the production metaDecodeEntryImpl path.
+  ASSERT_EQ(tStartDecode(&decoder), 0);
+  int32_t code = meteDecodeColRefEntry(&decoder, &entry);
+  EXPECT_NE(code, 0);
+  EXPECT_EQ(entry.colRef.pColRef, nullptr);
+  tDecoderClear(&decoder);
+}
+
+// ---- batch meta txn: the tag filter caches of a super table whose children a txn changed go with the txn ----
+// The stable tag filter cache is maintained by the meta writes themselves, i.e. when a txn statement runs. Once the
+// txn's outcome is in place every cached result of the touched super table is dropped (inline COMMIT / ROLLBACK:
+// after the last entry; lazy COMMIT / ROLLBACK: at finalize, for every super table), so no state of the txn survives
+// in it and the next reader rebuilds from what is visible then.
+
+namespace {
+int32_t rollbackTxn(SVnode* pVnode, int64_t* pVersion) {
+  SVTxnRollbackReq req = {};
+  req.txnId = kTxnId;
+  std::array<char, 128> buffer = {};
+  const int32_t         len = tSerializeSVTxnRollbackReq(buffer.data(), buffer.size(), &req);
+  if (len < 0) return len;
+  return vnodeProcessTxnRollbackReq(pVnode, ++(*pVersion), buffer.data(), len, nullptr);
+}
+}  // namespace
+
+TEST_F(MetaTagFilterCacheTest, InlineCommitDropsStableTagCacheOfTouchedSuperTable) {
+  ASSERT_EQ(0, putChild(800001, 1));
+  expectHit(1, {800001}, true);  // complete mapping built before the txn
+
+  ASSERT_EQ(0, putPendingChild(800002, 1));  // the txn's write already reached the cached mapping
+  ASSERT_EQ(0, commitPendingChildren());
+  ASSERT_FALSE(metaHasPendingTxnEntries(vnode_.pMeta));
+
+  const auto dropped = lookup(1);
+  EXPECT_EQ(0, dropped.code);
+  EXPECT_FALSE(dropped.acquired);  // gone with the txn
+  EXPECT_TRUE(dropped.needWarmup);
+  expectHit(1, {800001, 800002}, true);  // rebuilt from what is committed now
+}
+
+TEST_F(MetaTagFilterCacheTest, InlineRollbackDropsStableTagCacheOfUndoneTagChange) {
+  constexpr uint64_t uid = 800001;
+  ASSERT_EQ(0, putChild(uid, 1));
+  expectHit(1, {uid}, true);
+
+  // SET TAG inside the txn: the in-place new value moved the cached mapping to tag value 2
+  const int64_t origVersion = version_;
+  ASSERT_EQ(0, vnodeTxnEnsureEntry(&vnode_, kTxnId, version_ + 1));
+  ASSERT_EQ(0, putChild(uid, 2));
+  // as the txn machinery does after the ALTER: mark the entry itself and the txn index
+  ASSERT_EQ(0, metaMarkTableTxnStatus(vnode_.pMeta, uid, kTxnId, META_TXN_PRE_ALTER, origVersion));
+  ASSERT_EQ(0, metaTxnIdxUpsert(vnode_.pMeta, uid, kTxnId, META_TXN_PRE_ALTER, origVersion));
+  ASSERT_EQ(0, vnodeTxnTrackTable(&vnode_, kTxnId, uid));
+  // the tag change is already in the cached mapping
+  expectHit(2, {uid});
+
+  ASSERT_EQ(0, rollbackTxn(&vnode_, &version_));
+  ASSERT_FALSE(metaHasPendingTxnEntries(vnode_.pMeta));
+
+  // without the drop the mapping would still say "1 -> nothing, 2 -> uid", the value the rollback undid
+  const auto dropped = lookup(1);
+  EXPECT_EQ(0, dropped.code);
+  EXPECT_FALSE(dropped.acquired);
+  expectHit(1, {uid}, true);
+  expectHit(2, {});
+}
+
+TEST_F(MetaTagFilterCacheTest, LazyFinalizeDropsEveryStableTagCacheAtOnce) {
+  ASSERT_EQ(0, putChild(800000, 0));
+  expectHit(0, {800000}, true);
+  for (int32_t value = 1; value <= 129; ++value) {  // above the inline threshold: lazy finalize + vacuum
+    ASSERT_EQ(0, putPendingChild(800000 + value, 0));
+  }
+  vnode_.vacuumRunning = 1;  // keep the vacuum from running: the drop must not wait for it
+  ASSERT_EQ(0, commitPendingChildren());
+  ASSERT_EQ(TXN_META_COMMITTED, metaGetTxnMetaStatus(vnode_.pMeta, kTxnId));
+
+  const auto dropped = lookup(0);
+  EXPECT_EQ(0, dropped.code);
+  EXPECT_FALSE(dropped.acquired);  // dropped at finalize, before any vacuum batch
+
+  ASSERT_EQ(129, vnodeTxnVacuumBatch(&vnode_, 256));
+  vnode_.vacuumRunning = 0;
+  ASSERT_FALSE(metaHasPendingTxnEntries(vnode_.pMeta));
+  std::vector<uint64_t> all;
+  for (uint64_t uid = 800000; uid <= 800129; ++uid) all.push_back(uid);
+  expectHit(0, all, true);
+}
+
+TEST_F(MetaTagFilterCacheTest, ClearHelpersToleratePresentAndAbsentEntries) {
+  ASSERT_EQ(0, putChild(800001, 1));
+  expectHit(1, {800001}, true);
+  EXPECT_EQ(0, metaTagFilterCachesClearSuid(vnode_.pMeta, kSuid + 1));  // nothing cached for it: fine
+  EXPECT_TRUE(lookup(1).acquired);
+  EXPECT_EQ(0, metaTagFilterCachesClearSuid(vnode_.pMeta, kSuid));
+  EXPECT_FALSE(lookup(1).acquired);
+  EXPECT_EQ(0, metaTagFilterCachesClearSuid(vnode_.pMeta, kSuid));  // twice: fine
+
+  expectHit(1, {800001}, true);
+  EXPECT_EQ(0, metaTagFilterCachesClearAll(vnode_.pMeta));
+  EXPECT_FALSE(lookup(1).acquired);
+  EXPECT_EQ(0, metaTagFilterCachesClearAll(vnode_.pMeta));  // empty caches: fine
+}

@@ -1,6 +1,8 @@
 /*
  * Copyright (c) 2019 TAOS Data, Inc. <jhtao@taosdata.com>
  *
+ * SPDX-License-Identifier: AGPL-3.0-or-later
+ *
  * This program is free software: you can use, redistribute, and/or modify
  * it under the terms of the GNU Affero General Public License, version 3
  * or later ("AGPL"), as published by the Free Software Foundation.
@@ -12,6 +14,7 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
+
 #ifdef USE_MOUNT
 #define _DEFAULT_SOURCE
 #include "audit.h"
@@ -384,6 +387,7 @@ static int32_t mndSetCreateMountUndoActions(SMnode *pMnode, STrans *pTrans, SDbO
 
 #ifndef TD_ENTERPRISE
 int32_t mndCreateMount(SMnode *pMnode, SRpcMsg *pReq, SMountInfo *pInfo, SUserObj *pUser) {
+  mError("failed to create mount since %s", tstrerror(TSDB_CODE_OPS_NOT_SUPPORT));
   return TSDB_CODE_OPS_NOT_SUPPORT;
 }
 #endif
@@ -664,7 +668,10 @@ bool mndHasMountOnDnode(SMnode *pMnode, int32_t dnodeId) {
 }
 
 #ifndef TD_ENTERPRISE
-int32_t mndDropMount(SMnode *pMnode, SRpcMsg *pReq, SMountObj *pObj) { return TSDB_CODE_OPS_NOT_SUPPORT; }
+int32_t mndDropMount(SMnode *pMnode, SRpcMsg *pReq, SMountObj *pObj) {
+  mError("failed to drop mount since %s", tstrerror(TSDB_CODE_OPS_NOT_SUPPORT));
+  return TSDB_CODE_OPS_NOT_SUPPORT;
+}
 #endif
 
 static int32_t mndProcessDropMountReq(SRpcMsg *pReq) {

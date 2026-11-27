@@ -1,0 +1,109 @@
+USE join_condition_relaxation;
+
+SELECT /*+ JOIN_ALGO(HASH) */ a.id, b.id FROM l_expr a JOIN r_expr b ON a.x + b.k = b.x ORDER BY 1, 2;
+SELECT a.id, b.id FROM l_expr a JOIN r_expr b ON b.x = b.k + a.x ORDER BY 1, 2;
+SELECT /*+ JOIN_ALGO(HASH) */ a.id, b.id FROM l_expr a JOIN r_expr b ON a.x + ABS(b.k) = b.x ORDER BY 1, 2;
+SELECT a.id, b.id FROM l_expr a JOIN r_expr b ON a.x = a.k + b.x ORDER BY 1, 2;
+SELECT a.id, b.id FROM l_expr a JOIN r_expr b ON b.x + a.k = a.x ORDER BY 1, 2;
+SELECT a.id, b.id FROM (SELECT id, x FROM l_expr WHERE id <= 4) a JOIN (SELECT id, k, x FROM r_expr WHERE id <= 13) b ON a.x + b.k = b.x ORDER BY 1, 2;
+SELECT a.id, b.id FROM (SELECT DISTINCT id, x FROM l_expr) a JOIN (SELECT id, k, x FROM r_expr ORDER BY id DESC LIMIT 4) b ON a.x + b.k = b.x ORDER BY 1, 2;
+SELECT a.id, b.id FROM (SELECT id, MAX(x) x FROM l_expr GROUP BY id) a JOIN (SELECT id, MAX(k) k, MAX(x) x FROM r_expr GROUP BY id) b ON a.x + b.k = b.x ORDER BY 1, 2;
+SELECT a.id, b.id, c.id FROM (l_expr a JOIN r_expr b ON a.x + b.k = b.x) JOIN l_expr c ON c.x + b.k = b.x ORDER BY 1, 2, 3;
+
+SELECT a.id, b.id FROM l_expr a LEFT JOIN r_expr b ON a.x + b.k = b.x ORDER BY 1, 2;
+SELECT a.id, b.id FROM l_expr a RIGHT JOIN r_expr b ON a.x + b.k = b.x ORDER BY 1, 2;
+SELECT a.id, b.id FROM l_expr a FULL JOIN r_expr b ON a.x + b.k = b.x ORDER BY 1, 2;
+SELECT a.id FROM l_expr a LEFT SEMI JOIN r_expr b ON a.x + b.k = b.x ORDER BY 1;
+SELECT a.id FROM l_expr a LEFT ANTI JOIN r_expr b ON a.x + b.k = b.x ORDER BY 1;
+SELECT b.id FROM l_expr a RIGHT SEMI JOIN r_expr b ON a.x + b.k = b.x ORDER BY 1;
+SELECT b.id FROM l_expr a RIGHT ANTI JOIN r_expr b ON a.x + b.k = b.x ORDER BY 1;
+SELECT a.id, b.id FROM (SELECT * FROM l_expr WHERE 1 = 0) a FULL JOIN r_expr b ON a.x + b.k = b.x ORDER BY 1, 2;
+SELECT a.id, b.id FROM l_expr a FULL JOIN (SELECT * FROM r_expr WHERE 1 = 0) b ON a.x + b.k = b.x ORDER BY 1, 2;
+SELECT a.id, b.id FROM l_expr a FULL JOIN r_expr b ON a.x + b.k = b.x WHERE a.x IS NULL OR b.x IS NULL ORDER BY 1, 2;
+
+SELECT a.id, b.id FROM l_expr a JOIN r_expr b ON a.x + b.k = b.x AND LOWER(a.name) = LOWER(b.name) ORDER BY 1, 2;
+SELECT a.id, b.id FROM l_expr a JOIN r_expr b ON a.x + b.k = b.x AND a.k + b.y = b.k ORDER BY 1, 2;
+SELECT a.id, b.id FROM l_expr a JOIN r_expr b ON a.x + b.k = b.x AND b.x = b.k + a.x ORDER BY 1, 2;
+SELECT a.id, b.id FROM l_expr a JOIN r_expr b ON a.x + b.k = b.x AND a.y < b.y + 4 ORDER BY 1, 2;
+SELECT a.id, b.id FROM l_expr a JOIN r_expr b ON a.x + b.k = b.x WHERE a.id >= 2 AND b.id <= 12 ORDER BY 1, 2;
+SELECT a.id, b.id FROM (SELECT * FROM l_expr WHERE id >= 2 AND x IS NOT NULL) a JOIN (SELECT * FROM r_expr WHERE id <= 13 AND k IS NOT NULL) b ON a.x + b.k = b.x WHERE a.y >= 3 AND b.y <= 1 ORDER BY 1, 2;
+SELECT a.id, b.id FROM l_expr a LEFT JOIN r_expr b ON a.x + b.k = b.x AND b.id <= 12 ORDER BY 1, 2;
+SELECT a.id, b.id FROM l_expr a LEFT JOIN r_expr b ON a.x + b.k = b.x WHERE b.id <= 12 ORDER BY 1, 2;
+SELECT a.id, COUNT(*) FROM l_expr a JOIN r_expr b ON a.x + b.k = b.x WHERE b.id <= 13 GROUP BY a.id HAVING COUNT(*) >= 1 ORDER BY 1;
+SELECT COALESCE(a.name, 'null'), COUNT(*), SUM(b.id) FROM l_expr a JOIN r_expr b ON a.x + b.k = b.x GROUP BY a.name HAVING SUM(b.id) > 10 ORDER BY 1;
+SELECT a.id, b.id FROM l_expr a LEFT JOIN r_expr b ON a.x + b.k = b.x WHERE a.id >= 2 ORDER BY 1, 2 LIMIT 4;
+SELECT a.id, b.id FROM l_expr a JOIN r_expr b ON a.x + b.k = b.x ORDER BY b.id DESC, a.id DESC LIMIT 2 OFFSET 1;
+
+SELECT /*+ JOIN_ALGO(HASH) */ a.id, b.id FROM l_expr a JOIN r_expr b ON a.ts2 + b.y = b.ts2 WHERE a.ts2 IS NOT NULL AND b.ts2 IS NOT NULL ORDER BY 1, 2;
+SELECT /*+ JOIN_ALGO(HASH) */ a.id, b.id FROM l_expr a JOIN r_expr b ON b.ts2 = b.y + a.ts2 WHERE a.ts2 IS NOT NULL AND b.ts2 IS NOT NULL ORDER BY 1, 2;
+SELECT /*+ JOIN_ALGO(HASH) */ a.id FROM l_expr a LEFT ANTI JOIN r_expr b ON a.ts2 + b.y = b.ts2 ORDER BY 1;
+SELECT /*+ JOIN_ALGO(HASH) */ a.id, b.id FROM l_expr a FULL JOIN r_expr b ON a.ts2 + b.y = b.ts2 ORDER BY 1, 2;
+SELECT /*+ JOIN_ALGO(MERGE) */ a.id, b.id FROM l_expr a JOIN r_expr b ON a.ts2 + b.y = b.ts2 WHERE a.ts2 IS NOT NULL AND b.ts2 IS NOT NULL ORDER BY 1, 2;
+SELECT /*+ JOIN_ALGO(MERGE) */ a.id, b.id FROM l_expr a JOIN r_expr b ON b.ts2 = b.y + a.ts2 WHERE a.ts2 IS NOT NULL AND b.ts2 IS NOT NULL ORDER BY 1, 2;
+SELECT /*+ JOIN_ALGO(MERGE) */ a.id, b.id FROM l_expr a LEFT JOIN r_expr b ON a.ts2 + b.y = b.ts2 WHERE a.ts2 IS NOT NULL ORDER BY 1, 2;
+SELECT /*+ JOIN_ALGO(MERGE) */ a.id FROM l_expr a LEFT SEMI JOIN r_expr b ON a.ts2 + b.y = b.ts2 ORDER BY 1;
+SELECT /*+ JOIN_ALGO(MERGE) */ a.id FROM l_expr a LEFT ANTI JOIN r_expr b ON a.ts2 + b.y = b.ts2 ORDER BY 1;
+SELECT /*+ JOIN_ALGO(MERGE) */ b.id FROM l_expr a RIGHT ANTI JOIN r_expr b ON a.ts2 + b.y = b.ts2 ORDER BY 1;
+SELECT /*+ JOIN_ALGO(MERGE) */ a.id, b.id FROM l_expr a FULL JOIN r_expr b ON a.ts2 + b.y = b.ts2 ORDER BY 1, 2;
+SELECT /*+ JOIN_ALGO(MERGE) */ a.id, b.id FROM (SELECT id, ts2 FROM l_expr WHERE ts2 IS NOT NULL) a JOIN (SELECT id, ts2, y FROM r_expr WHERE ts2 IS NOT NULL) b ON a.ts2 + b.y = b.ts2 ORDER BY 1, 2;
+SELECT /*+ JOIN_ALGO(MERGE) */ a.id, b.id FROM (SELECT id, ts2 FROM l_expr WHERE ts2 IS NOT NULL ORDER BY id DESC LIMIT 4) a JOIN (SELECT id, ts2, y FROM r_expr WHERE ts2 IS NOT NULL ORDER BY id DESC LIMIT 4) b ON a.ts2 + b.y = b.ts2 WHERE a.id <= 3 AND b.id <= 13 ORDER BY 1, 2;
+
+
+SELECT a.id, b.id FROM l_expr a JOIN r_expr b ON a.x + b.y = b.k ORDER BY 1, 2;
+SELECT a.id, b.id FROM l_expr a JOIN r_expr b ON b.y + a.x = b.k ORDER BY 1, 2;
+SELECT a.id, b.id FROM l_expr a JOIN r_expr b ON b.k = a.x + b.y ORDER BY 1, 2;
+SELECT a.id, b.id FROM l_expr a JOIN r_expr b ON a.k + b.x = a.x ORDER BY 1, 2;
+SELECT a.id, b.id FROM l_expr a JOIN r_expr b ON b.x + a.k = a.x ORDER BY 1, 2;
+SELECT a.id, b.id FROM l_expr a JOIN r_expr b ON a.x + ABS(b.y) = b.k ORDER BY 1, 2;
+SELECT a.id, b.id FROM l_expr a JOIN r_expr b ON ABS(a.x) + b.y = b.k ORDER BY 1, 2;
+SELECT a.id, b.id FROM l_expr a JOIN r_expr b ON CAST(a.x AS BIGINT) + CAST(b.k AS BIGINT) = CAST(b.x AS BIGINT) ORDER BY 1, 2;
+
+SELECT a.id, b.id FROM l_expr a LEFT JOIN r_expr b ON a.x + b.y = b.k ORDER BY 1, 2;
+SELECT a.id, b.id FROM l_expr a RIGHT JOIN r_expr b ON a.x + b.y = b.k ORDER BY 1, 2;
+SELECT a.id, b.id FROM l_expr a FULL JOIN r_expr b ON a.x + b.y = b.k ORDER BY 1, 2;
+SELECT a.id FROM l_expr a LEFT SEMI JOIN r_expr b ON a.x + b.y = b.k ORDER BY 1;
+SELECT a.id FROM l_expr a LEFT ANTI JOIN r_expr b ON a.x + b.y = b.k ORDER BY 1;
+SELECT b.id FROM l_expr a RIGHT SEMI JOIN r_expr b ON a.x + b.y = b.k ORDER BY 1;
+SELECT b.id FROM l_expr a RIGHT ANTI JOIN r_expr b ON a.x + b.y = b.k ORDER BY 1;
+SELECT a.id, b.id FROM l_expr a LEFT JOIN r_expr b ON a.x + b.k = b.x AND a.id < b.id WHERE a.id BETWEEN 2 AND 5 ORDER BY 1, 2;
+SELECT a.id, b.id FROM l_expr a RIGHT JOIN r_expr b ON a.x + b.k = b.x AND b.y <= 1 WHERE b.id >= 12 ORDER BY 1, 2;
+SELECT a.id, b.id FROM l_expr a FULL JOIN r_expr b ON a.x + b.k = b.x AND a.name IS NOT NULL WHERE COALESCE(a.id, 0) + COALESCE(b.id, 0) > 10 ORDER BY 1, 2;
+
+SELECT a.id, b.id FROM (SELECT id, x FROM l_expr WHERE x IS NOT NULL) a JOIN r_expr b ON a.x + b.y = b.k ORDER BY 1, 2;
+SELECT a.id, b.id FROM l_expr a JOIN (SELECT id, k, x, y FROM r_expr WHERE y <= 1) b ON a.x + b.k = b.x ORDER BY 1, 2;
+SELECT a.id, b.id FROM (SELECT id, x FROM l_expr ORDER BY id DESC LIMIT 3) a LEFT JOIN r_expr b ON a.x + b.k = b.x ORDER BY 1, 2;
+SELECT a.id, b.id FROM l_expr a RIGHT JOIN (SELECT id, k, x FROM r_expr ORDER BY id LIMIT 3) b ON a.x + b.k = b.x ORDER BY 1, 2;
+SELECT a.id, b.id FROM (SELECT id, MIN(x) x FROM l_expr GROUP BY id HAVING MIN(x) IS NOT NULL) a JOIN r_expr b ON a.x + b.k = b.x ORDER BY 1, 2;
+SELECT a.id, b.id FROM l_expr a JOIN (SELECT id, MIN(k) k, MAX(x) x FROM r_expr GROUP BY id HAVING MAX(x) IS NOT NULL) b ON a.x + b.k = b.x ORDER BY 1, 2;
+SELECT a.id, b.id FROM (SELECT DISTINCT id, x FROM l_expr WHERE id >= 2) a FULL JOIN (SELECT DISTINCT id, k, x FROM r_expr WHERE id <= 14) b ON a.x + b.k = b.x ORDER BY 1, 2;
+SELECT a.id, b.id FROM (SELECT * FROM l_expr WHERE id IN (1, 2, 3)) a JOIN (SELECT * FROM r_expr WHERE id IN (11, 12, 13)) b ON a.x + b.k = b.x ORDER BY 1, 2;
+SELECT a.id, b.id FROM (SELECT id, x FROM l_expr WHERE id > 100) a LEFT JOIN r_expr b ON a.x + b.k = b.x ORDER BY 1, 2;
+
+SELECT a.id, COUNT(*), MIN(b.id), MAX(b.id) FROM l_expr a JOIN r_expr b ON a.x + b.k = b.x GROUP BY a.id ORDER BY 1;
+SELECT b.id, COUNT(*), SUM(a.id) FROM l_expr a JOIN r_expr b ON a.x + b.k = b.x GROUP BY b.id HAVING COUNT(*) = 1 ORDER BY 1;
+SELECT COUNT(*), SUM(a.id), SUM(b.id) FROM l_expr a JOIN r_expr b ON a.x + b.k = b.x;
+SELECT a.id, b.id, b.x FROM l_expr a JOIN r_expr b ON a.x + b.k = b.x ORDER BY 3, 1, 2;
+SELECT a.id, b.id, a.x, b.k, b.x, a.x + b.k FROM l_expr a JOIN r_expr b ON a.x + b.k = b.x ORDER BY 1, 2;
+SELECT a.id, b.id FROM l_expr a JOIN r_expr b ON a.x + b.k = b.x ORDER BY 1 DESC, 2 DESC LIMIT 1;
+SELECT a.id, b.id FROM l_expr a JOIN r_expr b ON a.x + b.k = b.x ORDER BY 1, 2 LIMIT 1 OFFSET 2;
+SELECT DISTINCT a.id FROM l_expr a JOIN r_expr b ON a.x + b.k = b.x ORDER BY 1;
+SELECT CASE WHEN a.id = 3 THEN 'dup' ELSE 'single' END kind, COUNT(*) FROM l_expr a JOIN r_expr b ON a.x + b.k = b.x GROUP BY CASE WHEN a.id = 3 THEN 'dup' ELSE 'single' END ORDER BY 1;
+
+SELECT /*+ JOIN_ALGO(HASH) */ a.id, b.id FROM l_expr a JOIN r_expr b ON a.ts2 + b.y = b.ts2 AND a.x + b.k = b.x ORDER BY 1, 2;
+SELECT /*+ JOIN_ALGO(HASH) */ a.id FROM l_expr a LEFT SEMI JOIN r_expr b ON b.ts2 = b.y + a.ts2 ORDER BY 1;
+SELECT /*+ JOIN_ALGO(HASH) */ b.id FROM l_expr a RIGHT SEMI JOIN r_expr b ON b.ts2 = b.y + a.ts2 ORDER BY 1;
+SELECT /*+ JOIN_ALGO(HASH) */ b.id FROM l_expr a RIGHT ANTI JOIN r_expr b ON b.ts2 = b.y + a.ts2 ORDER BY 1;
+SELECT /*+ JOIN_ALGO(MERGE) */ a.id, b.id FROM l_expr a RIGHT JOIN r_expr b ON b.ts2 = b.y + a.ts2 ORDER BY 1, 2;
+SELECT /*+ JOIN_ALGO(MERGE) */ a.id FROM l_expr a LEFT SEMI JOIN r_expr b ON b.ts2 = b.y + a.ts2 WHERE a.id >= 1 ORDER BY 1;
+SELECT /*+ JOIN_ALGO(MERGE) */ b.id FROM l_expr a RIGHT SEMI JOIN r_expr b ON b.ts2 = b.y + a.ts2 ORDER BY 1;
+SELECT /*+ JOIN_ALGO(MERGE) */ a.id, b.id FROM l_expr a LEFT JOIN r_expr b ON a.ts2 + b.y = b.ts2 AND b.id <= 12 ORDER BY 1, 2;
+SELECT /*+ JOIN_ALGO(MERGE) */ a.id, b.id FROM l_expr a RIGHT JOIN r_expr b ON a.ts2 + b.y = b.ts2 WHERE b.ts2 IS NOT NULL ORDER BY 1, 2;
+SELECT /*+ JOIN_ALGO(MERGE) */ COUNT(*), SUM(a.id), SUM(b.id) FROM l_expr a JOIN r_expr b ON a.ts2 + b.y = b.ts2;
+SELECT /*+ JOIN_ALGO(MERGE) */ a.id, b.id FROM (SELECT id, ts2 FROM l_expr WHERE id BETWEEN 1 AND 5) a FULL JOIN (SELECT id, ts2, y FROM r_expr WHERE id BETWEEN 11 AND 15) b ON a.ts2 + b.y = b.ts2 ORDER BY 1, 2;
+SELECT /*+ JOIN_ALGO(MERGE) */ a.id, b.id FROM (SELECT id, ts2 FROM l_expr WHERE id > 100) a LEFT JOIN r_expr b ON a.ts2 + b.y = b.ts2 ORDER BY 1, 2;
+
+SELECT a.id, b.id FROM l_expr a JOIN r_expr b ON a.x / b.k = b.x;
+SELECT a.id, b.id FROM l_expr a JOIN r_expr b ON a.x + b.k = b.x ORDER BY 1, 2;
+SELECT COUNT(*) FROM l_expr a JOIN r_expr b ON a.x + b.k = b.x;
+SELECT 1;
+SELECT 2;

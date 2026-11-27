@@ -1,15 +1,17 @@
-# ============================================================================
-# boosttools Makefile
+# Copyright (c) 2026 TAOS Data, Inc. <jhtao@taosdata.com>
 #
-# Build on any Linux/macOS machine with TDengine client installed.
-# Requires: gcc/clang, libtaos, pthreads
+# SPDX-License-Identifier: AGPL-3.0-or-later
 #
-# Usage:
-#   make                  # Build with default settings
-#   make DEBUG=1          # Debug build with ASAN
-#   make TDENGINE_DIR=/path/to/tdengine   # Custom TDengine path
-#   make clean            # Clean build artifacts
-# ============================================================================
+# This program is free software: you can use, redistribute, and/or modify
+# it under the terms of the GNU Affero General Public License, version 3
+# or later ("AGPL"), as published by the Free Software Foundation.
+#
+# This program is distributed in the hope that it will be useful, but WITHOUT
+# ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+# FITNESS FOR A PARTICULAR PURPOSE.
+#
+# You should have received a copy of the GNU Affero General Public License
+# along with this program. If not, see <http://www.gnu.org/licenses/>.
 
 CC       ?= gcc
 CFLAGS   := -std=c11 -Wall -Wextra -Wno-unused-parameter -D_GNU_SOURCE

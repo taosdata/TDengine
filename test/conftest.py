@@ -1,14 +1,298 @@
-# encoding:utf-8
+# Copyright (c) 2025 TAOS Data, Inc. <jhtao@taosdata.com>
+#
+# SPDX-License-Identifier: AGPL-3.0-or-later
+#
+# This program is free software: you can use, redistribute, and/or modify
+# it under the terms of the GNU Affero General Public License, version 3
+# or later ("AGPL"), as published by the Free Software Foundation.
+#
+# This program is distributed in the hope that it will be useful, but WITHOUT
+# ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+# FITNESS FOR A PARTICULAR PURPOSE.
+#
+# You should have received a copy of the GNU Affero General Public License
+# along with this program. If not, see <http://www.gnu.org/licenses/>.
+
 import copy
 import json
 import os
+from pathlib import Path
 import random
 import shutil
+import subprocess
+import sys
 import tempfile
 import time
 import uuid
 
 import pytest
+
+
+_WINDOWS_DLL_DIR = None
+_POSIX_TAOS_LIB_SENTINEL = "_TAOS_TEST_LIB_DIR"
+
+
+def _create_mnodes(cursor, mnode_count, timeout=180):
+    for dnode_id in range(2, mnode_count + 1):
+        deadline = time.monotonic() + timeout
+        statement = f"create mnode on dnode {dnode_id}"
+        while True:
+            try:
+                cursor.execute(statement)
+                break
+            except Exception as exc:
+                errno = getattr(exc, "errno", None)
+                # A previous global transaction can still be committing.
+                if errno is None or (errno & 0xFFFF) != 0x03D3:
+                    raise
+                if time.monotonic() >= deadline:
+                    raise TimeoutError(f"{statement}: transaction conflict after {timeout}s") from exc
+                time.sleep(1)
+
+        while True:
+            cursor.execute("select `id`, `role`, `status` from information_schema.ins_mnodes")
+            rows = cursor.fetchall()
+            if (set(row[0] for row in rows) == set(range(1, dnode_id + 1))
+                    and sum(row[1] == "leader" for row in rows) == 1
+                    and all(row[1] in ("leader", "follower") and row[2] == "ready" for row in rows)):
+                break
+            if time.monotonic() >= deadline:
+                raise TimeoutError(f"{statement}: mnodes not ready after {timeout}s: {rows!r}")
+            time.sleep(1)
+
+
+def _apply_runtime_exports(env, output):
+    for line in output.splitlines():
+        if not line.startswith('export '):
+            continue
+        key, value = line[len('export '):].split('=', 1)
+        if key == 'DYLD_LIBRARY_PATH' and sys.platform != 'darwin':
+            continue
+        env[key] = value.replace(f'${key}', env.get(key, ''))
+
+
+def _stage_without_interpreter_leaks(env):
+    """Bash and git exit non-zero when libasan reports their own allocations."""
+    if env.get('CI_ASAN_BUILD') != '1' and 'libasan' not in env.get('LD_PRELOAD', ''):
+        return env
+    for name in ('ASAN_OPTIONS', 'LSAN_OPTIONS'):
+        options = [
+            option for option in env.get(name, '').split(':')
+            if option and not option.startswith('detect_leaks=')
+        ]
+        options.append('detect_leaks=0')
+        env[name] = ':'.join(options)
+    return env
+
+
+def _stage_fq_runtime_libs(build_dir, env):
+    script = (
+        Path(__file__).resolve().parent
+        / 'cases'
+        / '09-DataQuerying'
+        / '19-FederatedQuery'
+        / 'ensure_fq_runtime_libs.sh'
+    )
+    if not script.exists():
+        return
+
+    run_env = _stage_without_interpreter_leaks(env.copy())
+    run_env.setdefault('TD_BUILD_DIR', str(build_dir))
+    run_env.setdefault('FQ_PYTHON', sys.executable)
+    timeout = int(os.getenv('FQ_RUNTIME_LIBS_TIMEOUT_S', '900'))
+    try:
+        result = subprocess.run(
+            ['bash', str(script)],
+            env=run_env,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.STDOUT,
+            text=True,
+            timeout=timeout,
+        )
+    except subprocess.TimeoutExpired as exc:
+        output = exc.stdout or ''
+        raise RuntimeError(
+            f'failed to stage federated-query runtime libs: timed out after '
+            f'{timeout}s\n{output}'
+        ) from exc
+    if result.returncode != 0:
+        raise RuntimeError(f'failed to stage federated-query runtime libs: {result.returncode}\n{result.stdout}')
+    _apply_runtime_exports(env, result.stdout)
+
+
+def _setup_windows_taos_dll_dir():
+    if os.name != "nt":
+        return
+
+    candidates = []
+    env_bin = os.getenv("TAOS_BIN_PATH")
+    if env_bin:
+        candidate = Path(env_bin).resolve()
+        missing = [name for name in ("taosd.exe", "taos.dll") if not (candidate / name).is_file()]
+        if missing:
+            raise pytest.UsageError(
+                f"TAOS_BIN_PATH={candidate} is missing Windows test artifacts: "
+                f"{', '.join(missing)}. Build the selected revision before running tests."
+            )
+        candidates.append(candidate)
+
+    for parent in Path(__file__).resolve().parents:
+        candidate = parent / "debug" / "build" / "bin"
+        if (candidate / "taosd.exe").exists() and (candidate / "taos.dll").exists():
+            candidates.append(candidate)
+
+    seen = set()
+    for candidate in candidates:
+        candidate = candidate.resolve()
+        key = str(candidate).lower()
+        if key in seen:
+            continue
+        seen.add(key)
+        if not candidate.is_dir():
+            continue
+
+        candidate_str = str(candidate)
+        path_items = os.environ.get("PATH", "").split(os.pathsep)
+        if not any(item.lower() == candidate_str.lower() for item in path_items if item):
+            os.environ["PATH"] = candidate_str + os.pathsep + os.environ.get("PATH", "")
+
+        global _WINDOWS_DLL_DIR
+        if hasattr(os, "add_dll_directory"):
+            _WINDOWS_DLL_DIR = os.add_dll_directory(candidate_str)
+        break
+
+
+def _raise_open_files_limit(target=1048576):
+    """Raise the open-files (RLIMIT_NOFILE) limit for this pytest process.
+
+    The test client opens many TDengine connections (every self.login()
+    reconnects to each dnode) plus allure result files. A low fd ceiling causes
+    two fd-exhaustion failure modes under parallel CI + ASAN:
+      - client socket/fd exhaustion -> 0x012f "third party error" at connect
+      - pytest/allure -> "OSError: [Errno 24] Too many open files" which aborts
+        the whole session with an INTERNALERROR (not a normal test failure).
+
+    Raising the soft limit up to the hard limit needs no privilege. Raising the
+    hard limit needs CAP_SYS_RESOURCE, which the CI container has (--privileged);
+    when unavailable we silently fall back to the hard limit. This only affects
+    this process and its children; taosd is launched separately and manages its
+    own limit in remote.py.
+    """
+    try:
+        import resource
+    except ImportError:
+        return  # not POSIX (e.g. Windows); nothing to do
+
+    soft, hard = resource.getrlimit(resource.RLIMIT_NOFILE)
+
+    # Best effort: try to raise the hard limit too (needs CAP_SYS_RESOURCE).
+    if hard != resource.RLIM_INFINITY and hard < target:
+        try:
+            resource.setrlimit(resource.RLIMIT_NOFILE, (target, target))
+            soft, hard = resource.getrlimit(resource.RLIMIT_NOFILE)
+        except (ValueError, OSError):
+            pass  # not permitted; keep the existing hard limit
+
+    desired = target if hard == resource.RLIM_INFINITY else min(target, hard)
+    if soft == resource.RLIM_INFINITY or soft >= desired:
+        return
+    try:
+        resource.setrlimit(resource.RLIMIT_NOFILE, (desired, hard))
+    except (ValueError, OSError):
+        pass
+
+
+def _is_federated_query_pytest_invocation():
+    if os.getenv("FQ_FORCE_LOCAL_LIBTAOS") == "1":
+        return True
+
+    hints = (
+        "19-FederatedQuery",
+        "05-VirtualTables",
+        "03-ExtSource",
+        "FederatedQuery",
+        "federated_query",
+        "test_fq_",
+        # Federated-stream suites drive the same external sources (SQL Server
+        # included) and need the same FQ runtime staging; without this hint an
+        # fs-only CI job on a fresh worker never staged the msodbcsql
+        # resources and every case failed in the first sqlcmd with
+        # SQLAllocHandle(HENV).
+        "test_fs_",
+        # Virtual-table stream suites live under 18-StreamProcessing/20-UseCase
+        # and drive the same external sources (SQL Server included), so they
+        # need the same staging instead of relying on FQ_FORCE_LOCAL_LIBTAOS.
+        "test_virtual_stream_",
+    )
+    return any(any(hint in arg for hint in hints) for arg in sys.argv[1:])
+
+
+def _iter_local_taos_lib_dirs():
+    candidates = []
+    env_bin = os.getenv("TAOS_BIN_PATH")
+    if env_bin:
+        bin_path = Path(env_bin)
+        if bin_path.is_file():
+            bin_path = bin_path.parent
+        if bin_path.name == "bin":
+            candidates.append(bin_path.parent / "lib")
+        else:
+            candidates.append(bin_path / "lib")
+
+    taosd_name = "taosd.exe" if os.name == "nt" else "taosd"
+    if os.name == "nt":
+        libtaos_name = "taos.dll"
+    elif sys.platform == "darwin":
+        libtaos_name = "libtaos.dylib"
+    else:
+        libtaos_name = "libtaos.so"
+    for parent in Path(__file__).resolve().parents:
+        build_dir = parent / "debug" / "build"
+        bin_dir = build_dir / "bin"
+        lib_dir = build_dir / "lib"
+        if (bin_dir / taosd_name).exists() and (lib_dir / libtaos_name).exists():
+            candidates.append(lib_dir)
+
+    seen = set()
+    for candidate in candidates:
+        try:
+            resolved = candidate.resolve()
+        except OSError:
+            continue
+        key = os.path.normcase(str(resolved))
+        if key in seen or not resolved.is_dir():
+            continue
+        seen.add(key)
+        yield resolved
+
+
+def _setup_posix_taos_lib_dir():
+    if os.name == "nt" or not _is_federated_query_pytest_invocation():
+        return
+
+    lib_env = "DYLD_LIBRARY_PATH" if sys.platform == "darwin" else "LD_LIBRARY_PATH"
+    current_marker = os.getenv(_POSIX_TAOS_LIB_SENTINEL, "")
+    current_paths = [p for p in os.environ.get(lib_env, "").split(os.pathsep) if p]
+
+    for lib_dir in _iter_local_taos_lib_dirs():
+        lib_dir_str = str(lib_dir)
+        if current_marker == lib_dir_str:
+            return
+
+        if current_paths and os.path.realpath(current_paths[0]) == lib_dir_str:
+            _stage_fq_runtime_libs(lib_dir.parent.parent, os.environ)
+            os.environ[_POSIX_TAOS_LIB_SENTINEL] = lib_dir_str
+            return
+
+        pruned = [p for p in current_paths if os.path.realpath(p) != lib_dir_str]
+        os.environ[lib_env] = os.pathsep.join([lib_dir_str] + pruned)
+        _stage_fq_runtime_libs(lib_dir.parent.parent, os.environ)
+        os.environ[_POSIX_TAOS_LIB_SENTINEL] = lib_dir_str
+        os.execv(sys.executable, [sys.executable] + sys.argv)
+_raise_open_files_limit()
+_setup_windows_taos_dll_dir()
+_setup_posix_taos_lib_dir()
+
 from new_test_framework.utils import (
     BeforeTest,
     eos,
@@ -137,7 +421,22 @@ def before_test_session(request):
     request.session.work_dir = request.session.before_test.get_and_mkdir_workdir(request.session.work_dir, request.session.taos_bin_path)
     if request.session.clean and os.path.exists(request.session.work_dir):
         tdLog.info(f"rm {request.session.work_dir} before deploy")
-        shutil.rmtree(request.session.work_dir)
+        # A taosd that is still shutting down can keep a log file mapped for a moment
+        # after it is signalled.  On Windows that open handle makes rmtree() fail with
+        # WinError 32 and aborts the case during setup, so retry instead of giving up on
+        # the first attempt.
+        last_err = None
+        for attempt in range(10):
+            try:
+                shutil.rmtree(request.session.work_dir)
+                last_err = None
+                break
+            except OSError as e:
+                last_err = e
+                tdLog.info(f"rmtree {request.session.work_dir} failed (attempt {attempt + 1}): {e}")
+                time.sleep(2)
+        if last_err is not None:
+            raise last_err
 
     # 获取yaml文件，缓存到servers变量中，供cls使用
     if request.config.getoption("--yaml_file"):
@@ -204,6 +503,15 @@ def before_test_session(request):
             request.session.create_dnode_num = request.session.denodes_num
 
         request.session.before_test.get_config_from_param(request)
+
+    # Publish the validated bin path back into the environment.  A machine-wide
+    # TAOS_BIN_PATH can be stale (it may name a build root that no longer
+    # exists); get_taos_bin_path() already falls back to the local tree, but
+    # tests and helper modules that look the client up by reading the variable
+    # directly -- and every subprocess they spawn -- would otherwise keep using
+    # the stale directory while the deployment itself used the fallback.
+    if request.session.taos_bin_path:
+        os.environ['TAOS_BIN_PATH'] = request.session.taos_bin_path
 
     if request.session.work_dir is None:
         raise pytest.UsageError("WORK_DIR is not set")
@@ -318,13 +626,15 @@ def before_test_class(request):
         )
 
     if request.session.mnodes_num:
-        for i in range(2, request.session.mnodes_num + 1):
-            tdSql.execute(f"create mnode on dnode {i}")
+        _create_mnodes(tdSql.cursor, request.session.mnodes_num)
         tdLog.debug(tdSql.query(f"show mnodes", row_tag=True))
 
     # 处理-Q参数，如果-Q参数不等于1，则创建qnode，并设置queryPolicy
     if request.session.query_policy != 1:
-        tdSql.execute("create qnode on dnode 1")
+        try:
+            tdSql.execute("create qnode on dnode 1", queryTimes=1)
+        except Exception:
+            pass  # Qnode may already exist in enterprise builds
         tdSql.execute(f'alter local "queryPolicy" "{request.session.query_policy}"')
         tdSql.query("show local variables")
         for i in range(len(tdSql.queryResult)):
@@ -415,6 +725,12 @@ def before_test_class(request):
                     if_success = False
         if if_success and not request.session.skip_stop:
             tdLog.info(f"successfully executed")
+            # ci/pytest.sh greps this marker from the captured stdout.  Under
+            # LD_PRELOAD=libasan the LeakSanitizer exit path can terminate the
+            # interpreter before Python flushes its (block-buffered) stdout,
+            # losing the marker and failing an otherwise green file.
+            sys.stdout.flush()
+            sys.stderr.flush()
             request.session.before_test.destroy(request.cls.yaml_file)
 
 
@@ -861,7 +1177,7 @@ def add_common_methods(request):
         for x in rlist:
             print(f"{i} {x}")
             i += 1
-        tdLog.exit(f'faild, not found "{s}" on above')
+        tdLog.exit(f'failed, not found "{s}" on above')
 
     request.cls.checkListString = checkListString
 
@@ -1187,19 +1503,22 @@ def pytest_collection_modifyitems(config, items):
                 )  # 有效，名称可以修改
                 tdLog.debug(item.name)
                 tdLog.debug(item._nodeid)
-                params = {"params": name_suffix}  # 你的参数组合
-                param_ids = [name_suffix]  # 自定义参数ID
+                # Preserve pytest's callspec for existing parametrized items.
+                if not hasattr(item, "callspec"):
+                    params = {"params": name_suffix}  # 你的参数组合
+                    param_ids = [name_suffix]  # 自定义参数ID
 
-                # 创建参数化标记
-                marker = pytest.mark.parametrize(
-                    argnames="params", argvalues=[name_suffix], ids=param_ids
-                )
-                item.add_marker(marker)
+                    # 创建参数化标记
+                    marker = pytest.mark.parametrize(
+                        argnames="params", argvalues=[name_suffix],
+                        ids=param_ids
+                    )
+                    item.add_marker(marker)
 
-                # 确保Allure能识别新参数
-                item.callspec = type(
-                    "CallSpec", (), {"params": params, "id": param_ids[0]}
-                )
+                    # 确保Allure能识别新参数
+                    item.callspec = type(
+                        "CallSpec", (), {"params": params, "id": param_ids[0]}
+                    )
 
             # 检查是否在测试列表中
             if testlist_file:

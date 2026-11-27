@@ -1,6 +1,8 @@
 /*
  * Copyright (c) 2019 TAOS Data, Inc. <jhtao@taosdata.com>
  *
+ * SPDX-License-Identifier: AGPL-3.0-or-later
+ *
  * This program is free software: you can use, redistribute, and/or modify
  * it under the terms of the GNU Affero General Public License, version 3
  * or later ("AGPL"), as published by the Free Software Foundation.
@@ -12,6 +14,7 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
+
 // Notes:
 // - A group may map to multiple data blocks in one file.
 // - Memory blocks are spilled to file when memory pressure is high.
@@ -22,6 +25,8 @@
 
 #include <stdbool.h>
 #include <stdint.h>
+#include "osThread.h"
+#include "streamMsg.h"
 #include "tarray.h"
 #include "tcommon.h"
 #include "tdef.h"
@@ -55,6 +60,7 @@ typedef struct SDataSinkFileMgr {
   int64_t fileBlockUsedCount;
   int64_t fileGroupBlockMaxSize;
   SRBTree pFreeFileBlockList;  // <groupDataStartOffSet, SFileBlockInfo>
+  TdThreadMutex freeBlockLock;  // Shared by readers of different groups and the spill writer.
 
   int64_t   readingGroupId;
   int64_t   writingGroupId;
@@ -74,7 +80,9 @@ typedef struct SDataSinkManager2 {
   int64_t   usedMemSize;
   int64_t   fileBlockSize;
   int64_t   readDataFromFileTimes;
-  SHashObj* dsStreamTaskList;  // hash <streamId + taskId, SSlidingTaskDSMgr/SAlignTaskDSMgr>
+  SHashObj*     dsStreamTaskList;  // hash <streamId + taskId + sessionId, SStreamDataCacheRegistration>
+  TdThreadMutex registrationLock;
+  bool          registrationLockInited;
 } SDataSinkManager2;
 extern SDataSinkManager2 g_pDataSinkManager;
 
@@ -87,6 +95,7 @@ typedef struct SSlidingWindowInMem {
   int64_t startTime;
   int64_t endTime;
   int64_t dataLen;
+  char    eventConditionPath[32];
   // char*   realDataBuf;    // realDataBuf == &pData + sizeof(SSlidingWindowInMem)
 } SSlidingWindowInMem;
 
@@ -94,6 +103,17 @@ typedef struct SAlignBlocksInMem {
   int64_t capacity;
   int64_t dataLen;
   int32_t nWindow;
+  // Per-window consumption flag (index = window ordinal inside this block).
+  // A data-cache read removes only the window it was asked for; the block is
+  // released once every window it holds has been read by its own request.
+  uint8_t* pConsumed;
+  int32_t  consumedCap;
+  int32_t  consumedCount;
+  // Only skip a fully consumed prefix; unmatched windows remain available to other requests.
+  int32_t  firstUnreadIndex;
+  int64_t  firstUnreadOffset;
+  int64_t  lastWindowStart;
+  bool     unorderedWindows;
   // trailing bytes store serialized SSlidingWindowInMem items
 } SAlignBlocksInMem;
 
@@ -110,6 +130,11 @@ typedef struct STaskDSMgr {
 
 typedef struct SAlignTaskDSMgr {
   int8_t            cleanMode;  // 1 - immediate, 2 - expired
+  void*             pScopedStore;
+  int32_t           leaseCount;
+  int32_t           refCount;
+  bool              retired;
+  bool              detached;
   int64_t           streamId;
   int64_t           taskId;
   int64_t           sessionId;  // sessionId is used to distinguish different sessions in the same task
@@ -120,6 +145,11 @@ typedef struct SAlignTaskDSMgr {
 
 typedef struct SSlidingTaskDSMgr {
   int8_t            cleanMode;  // 1 - immediate, 2 - expired
+  void*             pScopedStore;
+  int32_t           leaseCount;
+  int32_t           refCount;
+  bool              retired;
+  bool              detached;
   int64_t           streamId;
   int64_t           taskId;
   int64_t           sessionId;  // sessionId is used to distinguish different sessions in the same task
@@ -151,6 +181,9 @@ typedef struct SSlidingGrpMgr {
 
 typedef struct SAlignGrpMgr {
   int64_t groupId;
+  int64_t lastWindowStart;
+  bool    hasWindow;
+  bool    unorderedWindows;
   int8_t  status;        // EGroupStatus
   SArray* blocksInMem;   // array SAlignBlocksInMem <address, capacity, dataLen>
   SArray* blocksInFile;  // array SBlocksInfoFile <groupOffset, dataStartOffset, dataLen>
@@ -163,11 +196,14 @@ typedef enum {
   DATA_SINK_PART_TMP,  // part in tmp file, part in other position
 } SDataSinkPos;
 
+typedef struct SStreamDataCacheLease SStreamDataCacheLease;
+
 typedef struct SResultIter {
   SCleanMode        cleanMode;    // 1 - immediate, 2 - expired
   void*             groupData;    // SAlignGrpMgr(data in mem) or SSlidingGrpMgr(data in file)
   SDataSinkFileMgr* pFileMgr;     // when has data in file, pFileMgr is not NULL
   int32_t           tsColSlotId;  // ts column slot id
+  int32_t           blockIndex;   // only for exact-window immediate clean mode
   int32_t           winIndex;     // only for immediate clean mode, index of the window in the block
                      // when tmpBlocksInMem is not NULL, this is the index of the current tmpBlocksInMem's block
   int64_t      offset;          // array index, start from 0
@@ -176,6 +212,11 @@ typedef struct SResultIter {
   int64_t      groupId;
   int64_t      reqStartTime;
   int64_t      reqEndTime;
+  char         eventConditionPath[32];
+  bool         exactWindow;
+  bool         exactWindowMatched;
+  bool                   scopedResult;
+  SStreamDataCacheLease* pLease;
 } SResultIter;
 
 typedef enum {
@@ -201,6 +242,9 @@ void destroyStreamDataCache(void* pCache);
 // Append data to cache.
 int32_t putStreamDataCache(void* pCache, int64_t groupId, TSKEY wstart, TSKEY wend, SSDataBlock* pBlock,
                            int32_t startIndex, int32_t endIndex);
+int32_t putStreamDataCacheWithPath(void* pCache, int64_t groupId, TSKEY wstart, TSKEY wend,
+                                   const char* eventConditionPath, SSDataBlock* pBlock, int32_t startIndex,
+                                   int32_t endIndex);
 
 // Append data by transferring ownership of pBlock to cache on success.
 int32_t moveStreamDataCache(void* pCache, int64_t groupId, TSKEY wstart, TSKEY wend, SSDataBlock* pBlock);
@@ -214,8 +258,51 @@ int32_t getNextStreamDataCache(void** pIter, SSDataBlock** ppBlock);
 // Clean cache data for a group.
 int32_t cleanStreamDataCache(void* pCache, int64_t groupId);
 
+int32_t putStreamDataCacheScoped(void* pCache, const SStreamCacheScope* pScope, TSKEY wstart, TSKEY wend,
+                                 SSDataBlock* pBlock, int32_t startIndex, int32_t endIndex);
+int32_t getStreamDataCacheScoped(void* pCache, const SStreamCacheScope* pScope, TSKEY start, TSKEY end, void** ppIter);
+int32_t cleanStreamDataCacheScope(void* pCache, const SStreamCacheScope* pScope);
+int32_t cleanStreamDataCacheGroup(void* pCache, int64_t gid);
+
+// Raw snapshots in a private or registered cache. Source ids are local to that cache;
+// no window lineage or event-time identity is added. Range reads preserve stored rows.
+int32_t putStreamDataCacheSnapshot(void* pCache, int64_t sourceId, int32_t tsSlotId, SSDataBlock* pBlock,
+                                   int32_t startIndex, int32_t endIndex);
+int32_t getStreamDataCacheSnapshot(void* pCache, int64_t sourceId, TSKEY start, TSKEY end, void** ppIter);
+// Append an immutable source in bounded blocks, retaining its schema and timestamp slot.
+// On failure the target may contain a prefix; the caller must discard it, not retry the append.
+int32_t appendStreamDataCacheSnapshot(void* pTarget, int64_t targetSourceId, void* pSource, int64_t sourceId);
+
+typedef struct SStreamDataCacheWriteBatch SStreamDataCacheWriteBatch;
+typedef struct {
+  int32_t sourceSlotId;
+  int32_t targetSlotId;
+} SStreamDataCacheColumnProjection;
+
+int32_t beginStreamDataCacheWriteBatch(void* pCache, SStreamDataCacheWriteBatch** ppBatch);
+int32_t stageStreamDataCacheRowScoped(SStreamDataCacheWriteBatch* pBatch, const SStreamCacheScope* pScope,
+                                      const SSDataBlock* pBlock, int32_t rowIndex);
+int32_t stageStreamDataCacheProjectedRowScoped(SStreamDataCacheWriteBatch* pBatch, const SStreamCacheScope* pScope,
+                                               const SSDataBlock* pSourceBlock, int32_t sourceRowIndex,
+                                               const SSDataBlock* pPayloadTemplate, const SArray* pProjection);
+void    commitStreamDataCacheWriteBatch(SStreamDataCacheWriteBatch** ppBatch);
+void    abortStreamDataCacheWriteBatch(SStreamDataCacheWriteBatch** ppBatch);
+
+int32_t createDetachedStreamDataCache(int64_t streamId, int64_t taskId, int64_t sessionId, int32_t cleanMode,
+                                      int32_t tsSlotId, void** ppCache);
+int32_t replaceStreamDataCacheRegistration(int64_t streamId, int64_t taskId, int64_t sessionId, void* pExpectedOld,
+                                           void* pNew, void** ppRetired);
+int32_t acquireStreamDataCacheLease(int64_t streamId, int64_t taskId, int64_t sessionId,
+                                    SStreamDataCacheLease** ppLease, void** ppCache);
+void    releaseStreamDataCacheLease(SStreamDataCacheLease** ppLease);
+void    retireStreamDataCache(void** ppCache);
+
 // Cancel iterator traversal early.
 void cancelStreamDataCacheIterate(void** pIter);
+
+// Release unread fragments of one logical window when its read finishes or is cancelled early.
+int32_t alignReleaseWindowFragments(SAlignGrpMgr* pAlignGrpMgr, int64_t reqStartTime, int64_t reqEndTime,
+                                    const char* eventConditionPath);
 
 // Destroy all DataSink manager resources.
 void destroyDataSinkMgr();
@@ -224,6 +311,7 @@ void setDataSinkMaxMemSize(int64_t maxMemSize);
 
 // ----------------- Internal DataSink APIs -----------------
 int32_t initDataSinkFileDir();
+int32_t createStreamDataSinkFile(char* fileName, size_t fileNameSize, TdFilePtr* ppFile);
 int32_t initStreamDataSink();
 int32_t checkAndMoveMemCache(bool forWrite);
 int32_t moveSlidingTaskMemCache(SSlidingTaskDSMgr* pSlidingTaskMgr);
@@ -234,12 +322,12 @@ int32_t moveMemFromWaitList(int8_t mode);
 void* getWindowDataBuf(SSlidingWindowInMem* pWindowData);
 
 int32_t buildSlidingWindowInMem(SSDataBlock* pBlock, int32_t tsColSlotId, int32_t startIndex, int32_t endIndex,
-                                SSlidingWindowInMem** ppSlidingWinInMem);
+                                const char* eventConditionPath, SSlidingWindowInMem** ppSlidingWinInMem);
 void    destroySlidingWindowInMem(void* pSlidingWinInMem);
 void    destroySlidingWindowInMemPP(void* ppSlidingWinInMem);
 
 int32_t buildAlignWindowInMemBlock(SAlignGrpMgr* pAlignGrpMgr, SSDataBlock* pBlock, int32_t tsColSlotId, TSKEY wstart,
-                                   TSKEY wend, int32_t startIndex, int32_t endIndex);
+                                   TSKEY wend, const char* eventConditionPath, int32_t startIndex, int32_t endIndex);
 int32_t buildMoveAlignWindowInMem(SAlignGrpMgr* pAlignGrpMgr, SSDataBlock* pBlock, int32_t tsColSlotId, TSKEY wstart,
                                   TSKEY wend);
 
@@ -254,6 +342,7 @@ bool    setNextIteratorFromFile(SResultIter** ppResult);
 int32_t createDataResult(void** ppResult);
 void    releaseDataResult(void** ppResult);
 void    releaseDataResultAndResetMgrStatus(void** ppIter);
+void    releaseDataResultAndResetMgrStatusWithCleanup(void** ppIter);
 
 void slidingGrpMgrUsedMemAdd(SSlidingGrpMgr* pSlidingGrpCacheMgr, int64_t size);
 

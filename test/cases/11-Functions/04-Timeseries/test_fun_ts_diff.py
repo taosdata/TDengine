@@ -1,3 +1,18 @@
+# Copyright (c) 2025 TAOS Data, Inc. <jhtao@taosdata.com>
+#
+# SPDX-License-Identifier: AGPL-3.0-or-later
+#
+# This program is free software: you can use, redistribute, and/or modify
+# it under the terms of the GNU Affero General Public License, version 3
+# or later ("AGPL"), as published by the Free Software Foundation.
+#
+# This program is distributed in the hope that it will be useful, but WITHOUT
+# ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+# FITNESS FOR A PARTICULAR PURPOSE.
+#
+# You should have received a copy of the GNU Affero General Public License
+# along with this program. If not, see <http://www.gnu.org/licenses/>.
+
 import math
 import numpy as np
 import platform
@@ -105,8 +120,10 @@ class TestFunDiff:
 
         tdLog.info(f"=============== clear")
         tdSql.execute(f"drop database {db}")
-        tdSql.query(f"select * from information_schema.ins_databases")
-        tdSql.checkRows(2)
+        tdSql.query(
+            f"select name from information_schema.ins_databases where name = '{db}'"
+        )
+        tdSql.checkRows(0)
 
     def ComuteDiff(self):
         dbPrefix = "m_di_db"
@@ -166,17 +183,21 @@ class TestFunDiff:
         tdSql.checkData(1, 0, 1)
 
         tdLog.info(f"=============== step5")
-        tdSql.error(f"select diff(tbcol) as b from {tb} interval(1m)")
+        tdSql.query(f"select diff(tbcol) as b from {tb} interval(1m)")
+        tdSql.checkRows(0)
 
         tdLog.info(f"=============== step6")
         cc = 4 * 60000
         ms = 1601481600000 + cc
-        tdSql.error(f"select diff(tbcol) as b from {tb} where ts <= {ms} interval(1m)")
+        tdSql.query(f"select diff(tbcol) as b from {tb} where ts <= {ms} interval(1m)")
+        tdSql.checkRows(0)
 
         tdLog.info(f"=============== clear")
         tdSql.execute(f"drop database {db}")
-        tdSql.query(f"select * from information_schema.ins_databases")
-        tdSql.checkRows(2)
+        tdSql.query(
+            f"select name from information_schema.ins_databases where name = '{db}'"
+        )
+        tdSql.checkRows(0)
 
     def ComuteDiff2(self):
         dbPrefix = "m_di_db"
@@ -247,9 +268,11 @@ class TestFunDiff:
 
         tdSql.query(f"select 2+diff(c1) from {tb}")
         tdSql.query(f"select diff(c1+2) from {tb}")
-        tdSql.error(
+        tdSql.query(
             f"select diff(c1) from {tb} where ts > 0 and ts < now + 100m interval(10m)"
         )
+        tdSql.checkRows(9000)
+        tdSql.checkData(0, 0, 1)
         # sql select diff(c1) from $mt
         tdSql.error(f"select diff(diff(c1)) from {tb}")
         tdSql.error(f"select diff(c1) from m_di_tb1 where c2 like '2%'")
@@ -289,10 +312,12 @@ class TestFunDiff:
         tdSql.checkData(0, 0, 10)
 
         tdLog.info(f"=============== step5")
-        tdSql.error(f"select diff(c1) as b from {tb} interval(1m)")
+        tdSql.query(f"select diff(c1) as b from {tb} interval(1m)")
+        tdSql.checkRows(0)
 
         tdLog.info(f"=============== step6")
-        tdSql.error(f"select diff(c1) as b from {tb} where ts < now + 4m interval(1m)")
+        tdSql.query(f"select diff(c1) as b from {tb} where ts < now + 4m interval(1m)")
+        tdSql.checkRows(0)
 
         tdLog.info(f"=============== clear")
 
@@ -535,7 +560,26 @@ class TestFunDiff:
         tdSql.checkData(3, 2, 2)
         
         tdSql.execute(f"insert into  {dbname}.stb30749_2 values(%d, null, 1)" % (ts1 + 1))
-        tdSql.error(f"select ts, diff(col1, 3), diff(col2, 2) from {dbname}.stb30749")
+        tdSql.query(f"select ts, diff(col1, 3), diff(col2, 2) from {dbname}.stb30749")
+        tdSql.checkRows(6)
+        tdSql.checkData(0, 0, '2023-09-17 09:00:00.000')
+        tdSql.checkData(1, 0, '2023-09-17 09:00:00.001')
+        tdSql.checkData(2, 0, '2023-09-17 09:00:00.001')
+        tdSql.checkData(3, 0, '2023-09-17 09:00:00.003')
+        tdSql.checkData(4, 0, '2023-09-17 09:00:00.004')
+        tdSql.checkData(5, 0, '2023-09-17 09:00:00.005')
+        tdSql.checkData(0, 1, None)
+        tdSql.checkData(0, 2, 2)
+        tdSql.checkData(1, 1, None)
+        tdSql.checkData(1, 2, -2)
+        tdSql.checkData(2, 1, None)
+        tdSql.checkData(2, 2, 0)
+        tdSql.checkData(3, 1, 1)
+        tdSql.checkData(3, 2, 2)
+        tdSql.checkData(4, 1, None)
+        tdSql.checkData(4, 2, -2)
+        tdSql.checkData(5, 1, 1)
+        tdSql.checkData(5, 2, None)
 
     def withPkTest(self):
         dbname = "db"
@@ -1407,6 +1451,84 @@ class TestFunDiff:
         print("do_function_diff ...................... [passed]")
 
 
+    def do_integer_block_regression(self):
+        """Check all integer DIFF types against an independent row model."""
+        db = "diff_integer_regression"
+        base_ts = 1791000000000
+        cases = (
+            ("tinyint", -128, 127),
+            ("smallint", -32768, 32767),
+            ("int", -(1 << 31), (1 << 31) - 1),
+            ("bigint", -(1 << 63), (1 << 63) - 1),
+            ("tinyint unsigned", 0, 255),
+            ("smallint unsigned", 0, 65535),
+            ("int unsigned", 0, (1 << 32) - 1),
+            ("bigint unsigned", 0, (1 << 64) - 1),
+        )
+        tdSql.execute(f"create database if not exists {db} vgroups 1")
+        tdSql.execute(f"use {db}")
+        try:
+            for type_index, (type_name, minimum, maximum) in enumerate(cases):
+                high = maximum - 4
+                # High-half descending runs expose signed decoding of unsigned values.
+                pattern = [minimum, high + 4, high + 3, high + 2, None,
+                           high + 1, minimum, maximum, maximum - 1, None]
+                for length in (127, 128, 129, 256, 512):
+                    table = f"diff_integer_{type_index}_{length}"
+                    tdSql.execute(f"create table {table} (ts timestamp, c {type_name})")
+                    if length == 256:
+                        values = [None] * length
+                    elif length == 129:
+                        values = [None] + [pattern[i % len(pattern)] for i in range(length - 1)]
+                    else:
+                        values = [pattern[i % len(pattern)] for i in range(length)]
+                    for start in range(0, length, 100):
+                        rows = " ".join(
+                            f"({base_ts + i * 10},{'NULL' if values[i] is None else values[i]})"
+                            for i in range(start, min(start + 100, length))
+                        )
+                        tdSql.execute(f"insert into {table} values {rows}")
+                    for option in range(4):
+                        expected = []
+                        previous = values[0]
+                        for value in values[1:]:
+                            if value is None:
+                                if not option & 2:
+                                    expected.append((None,))
+                                continue
+                            if previous is None:
+                                previous = value
+                                if not option & 2:
+                                    expected.append((None,))
+                                continue
+                            negative = value < previous
+                            delta = (value - previous + (1 << 63)) % (1 << 64) - (1 << 63)
+                            previous = value
+                            if negative and option & 1:
+                                if not option & 2:
+                                    expected.append((None,))
+                            else:
+                                expected.append((delta,))
+                        tdSql.query(f"select diff(c, {option}) from {table}", queryTimes=1)
+                        actual = tdSql.queryResult
+                        if actual != expected:
+                            mismatch = next((i for i, (a, e) in enumerate(zip(actual, expected)) if a != e), None)
+                            raise AssertionError(
+                                f"{type_name} length={length} option={option}: "
+                                f"rows {len(actual)} != {len(expected)}, first mismatch={mismatch}"
+                            )
+                        if type_index >= 4 and length == 512:
+                            # The extra timestamp column forces the generic path.
+                            tdSql.query(f"select ts, diff(c, {option}) from {table}", queryTimes=1)
+                            generic = [(row[1],) for row in tdSql.queryResult]
+                            if generic != expected:
+                                raise AssertionError(
+                                    f"generic path differs: {type_name} option={option}"
+                                )
+        finally:
+            tdSql.execute(f"drop database {db}")
+        print("do_integer_block_regression .......... [passed]")
+
     #
     # ------------------ main ------------------
     #
@@ -1427,11 +1549,10 @@ class TestFunDiff:
 
         Since: v3.0.0.0
 
-        Labels: common,ci
+        Labels: common,ci,integration,functional
 
         Jira: None
 
-        History:
         History:
             - 2025-8-26 Simon Guan Migrated from tsim/query/diff.sim
             - 2025-8-26 Simon Guan Migrated from tsim/compute/diff.sim
@@ -1443,3 +1564,4 @@ class TestFunDiff:
         self.do_sim_diff()
         self.do_diff()
         self.do_function_diff()
+        self.do_integer_block_regression()

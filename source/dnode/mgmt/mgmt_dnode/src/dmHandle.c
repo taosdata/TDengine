@@ -1,6 +1,8 @@
 /*
  * Copyright (c) 2019 TAOS Data, Inc. <jhtao@taosdata.com>
  *
+ * SPDX-License-Identifier: AGPL-3.0-or-later
+ *
  * This program is free software: you can use, redistribute, and/or modify
  * it under the terms of the GNU Affero General Public License, version 3
  * or later ("AGPL"), as published by the Free Software Foundation.
@@ -10,7 +12,7 @@
  * FITNESS FOR A PARTICULAR PURPOSE.
  *
  * You should have received a copy of the GNU Affero General Public License
- * along with this program. If not, see <http:www.gnu.org/licenses/>.
+ * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
 #define _DEFAULT_SOURCE
@@ -18,6 +20,8 @@
 #include "dmInt.h"
 // #include "dmMgmt.h"
 #include "crypt.h"
+#include "osAtomic.h"  // atomic_store_32 for publishing tsEncryptKeysStatus
+#include "extConnector.h"
 #include "monitor.h"
 #include "stream.h"
 #include "systable.h"
@@ -25,6 +29,7 @@
 #include "tchecksum.h"
 #include "tencrypt.h"
 #include "tutil.h"
+#include "vnode.h"
 
 #if defined(TD_ENTERPRISE) && defined(TD_HAS_TAOSK)
 #include "taoskInt.h"
@@ -62,6 +67,7 @@ static void dmUpdateDnodeCfg(SDnodeMgmt *pMgmt, SDnodeCfg *pCfg) {
     pMgmt->pData->clusterId = pCfg->clusterId;
     monSetDnodeId(pCfg->dnodeId);
     auditSetDnodeId(pCfg->dnodeId);
+    vnodeSetDnodeId(pCfg->dnodeId);
     code = dmWriteEps(pMgmt->pData);
     if (code != 0) {
       dInfo("failed to set local info, dnodeId:%d clusterId:0x%" PRIx64 " reason:%s", pCfg->dnodeId, pCfg->clusterId,
@@ -213,7 +219,7 @@ static void dmProcessStatusRsp(SDnodeMgmt *pMgmt, SRpcMsg *pRsp) {
 
   if (pRsp->code != 0) {
     if (pRsp->code == TSDB_CODE_MND_DNODE_NOT_EXIST && !pMgmt->pData->dropped && pMgmt->pData->dnodeId > 0) {
-      dGInfo("dnode:%d, set to dropped since not exist in mnode, statusSeq:%d", pMgmt->pData->dnodeId,
+      dGInfo("dnode:%d, set to dropped since it does not exist in mnode, statusSeq:%d", pMgmt->pData->dnodeId,
              pMgmt->statusSeq);
       pMgmt->pData->dropped = 1;
       if (dmWriteEps(pMgmt->pData) != 0) {
@@ -292,23 +298,40 @@ void dmSendStatusReq(SDnodeMgmt *pMgmt) {
   tstrncpy(req.clusterCfg.monitorParas.tsSlowLogExceptDb, tsSlowLogExceptDb, TSDB_DB_NAME_LEN);
   memcpy(req.clusterCfg.timezone, tsTimezoneStr, TD_TIMEZONE_LEN);
   memcpy(req.clusterCfg.locale, tsLocale, TD_LOCALE_LEN);
-  memcpy(req.clusterCfg.charset, tsCharset, TD_LOCALE_LEN);
+  memcpy(req.clusterCfg.charset, tsCharset, TD_CHARSET_LEN);
 
   dTrace("send status req to mnode, begin to get vnode loads, statusSeq:%d", pMgmt->statusSeq);
 
   req.pVloads = tsVinfo.pVloads;
   tsVinfo.pVloads = NULL;
+  if (req.pVloads == NULL) {
+    // No fresh vnode loads available: either the status-info thread (dmUpdateStatusInfo()) has not
+    // refilled tsVinfo.pVloads yet (startup race with the status thread, or it is slower than the
+    // heartbeat period), or collecting the loads failed (e.g. taosArrayInit() in vmGetVnodeLoads()).
+    // The status req will then carry an empty vnode-load list, which tells mnode nothing about the
+    // vnodes; log it loudly so an empty heartbeat can be traced back to this dnode.
+    dWarn("send status req to mnode, no vnode loads collected, statusSeq:%d", pMgmt->statusSeq);
+  } else {
+    dTrace("send status req to mnode, numOfVloads:%d, statusSeq:%d", (int32_t)taosArrayGetSize(req.pVloads),
+           pMgmt->statusSeq);
+  }
 
   dTrace("send status req to mnode, begin to get mnode loads, statusSeq:%d", pMgmt->statusSeq);
   req.mload = tsMLoad;
 
   if (taosThreadMutexUnlock(&pMgmt->pData->statusInfolock) != 0) {
+    tFreeSStatusReq(&req);
     dError("failed to unlock status info lock");
     return;
   }
 
   dTrace("send status req to mnode, begin to get qnode loads, statusSeq:%d", pMgmt->statusSeq);
   (*pMgmt->getQnodeLoadsFp)(&req.qload);
+
+  // Collect idle txn keepalive queries from all VNodes
+  if (pMgmt->collectVnodeTxnIdleFp != NULL) {
+    (*pMgmt->collectVnodeTxnIdleFp)(&req.pTxnActiveQueries);
+  }
 
   req.statusSeq = pMgmt->statusSeq;
   req.ipWhiteVer = pMgmt->pData->ipWhiteVer;
@@ -325,6 +348,7 @@ void dmSendStatusReq(SDnodeMgmt *pMgmt) {
 
   int32_t contLen = tSerializeSStatusReq(NULL, 0, &req);
   if (contLen < 0) {
+    tFreeSStatusReq(&req);
     dError("failed to serialize status req since %s", tstrerror(contLen));
     return;
   }
@@ -333,6 +357,7 @@ void dmSendStatusReq(SDnodeMgmt *pMgmt) {
   contLen = tSerializeSStatusReq(pHead, contLen, &req);
   if (contLen < 0) {
     rpcFreeCont(pHead);
+    tFreeSStatusReq(&req);
     dError("failed to serialize status req since %s", tstrerror(contLen));
     return;
   }
@@ -394,7 +419,7 @@ static void dmProcessConfigRsp(SDnodeMgmt *pMgmt, SRpcMsg *pRsp) {
 
   if (pRsp->code != 0) {
     if (pRsp->code == TSDB_CODE_MND_DNODE_NOT_EXIST && !pMgmt->pData->dropped && pMgmt->pData->dnodeId > 0) {
-      dGInfo("dnode:%d, set to dropped since not exist in mnode", pMgmt->pData->dnodeId);
+      dGInfo("dnode:%d, set to dropped since it does not exist in mnode", pMgmt->pData->dnodeId);
       pMgmt->pData->dropped = 1;
       if (dmWriteEps(pMgmt->pData) != 0) {
         dError("failed to write dnode file");
@@ -468,7 +493,11 @@ int32_t dmProcessKeySyncRsp(SDnodeMgmt *pMgmt, SRpcMsg *pRsp) {
 
   dInfo("received key sync response, mnode keyVersion:%d, local keyVersion:%d, needUpdate:%d", keySyncRsp.keyVersion,
         tsLocalKeyVersion, keySyncRsp.needUpdate);
-  tsEncryptKeysStatus = keySyncRsp.encryptionKeyStatus;
+  // NOTE: tsEncryptKeysStatus is intentionally NOT published here. It is published at the end
+  // of this function (see below) only AFTER all key material (tsMetaKey, tsCfgKey, ...) has been
+  // fully applied. Publishing it earlier would let a concurrent SDB snapshot writer observe
+  // status==LOADED while tsMetaKey is still empty, producing a mixed plaintext/ciphertext
+  // sdb.data file that cannot be read back uniformly.
   if (keySyncRsp.needUpdate) {
 #if defined(TD_ENTERPRISE) && defined(TD_HAS_TAOSK)
     // Get encrypt file path from tsDataDir
@@ -522,7 +551,15 @@ int32_t dmProcessKeySyncRsp(SDnodeMgmt *pMgmt, SRpcMsg *pRsp) {
   } else {
     dDebug("local keys are up to date, version:%d", tsLocalKeyVersion);
   }
-  
+
+  // Publish the encryption key status ONLY AFTER every key field (tsMetaKey included) has been
+  // persisted to disk and copied into the global variables above. The status is read by concurrent
+  // SDB snapshot writers via atomic_load_32 (see taosWaitCfgKeyLoaded), so we must publish it with a
+  // matching atomic store to establish the happens-before relation and avoid a data race / UB. This
+  // guarantees readers also see a fully-populated tsMetaKey, preventing SDB writers from encrypting
+  // with an empty key or mixing plaintext/ciphertext within a single sdb.data file.
+  atomic_store_32(&tsEncryptKeysStatus, keySyncRsp.encryptionKeyStatus);
+
   code = TSDB_CODE_SUCCESS;
 
 _exit:
@@ -677,7 +714,8 @@ void dmUpdateStatusInfo(SDnodeMgmt *pMgmt) {
     tsVinfo.pVloads = vinfo.pVloads;
     vinfo.pVloads = NULL;
   } else {
-    taosArrayDestroy(vinfo.pVloads);
+    // Discard the freshly fetched loads; use the shared helper so each SVnodeLoad's embedded pSnapProgress array is freed too (avoid leak).
+    tFreeSVnodeLoadArray(vinfo.pVloads);
     vinfo.pVloads = NULL;
   }
 
@@ -729,6 +767,35 @@ int32_t dmProcessGrantRsp(SDnodeMgmt *pMgmt, SRpcMsg *pMsg) {
   return 0;
 }
 
+// cfgDumpItemValue prints string-like items with "%s", so a NULL str must not be snapshotted.
+// CFG_DTYPE_TIMEZONE is included because its case in cfgDumpItemValue falls through to the
+// string case.
+static bool dmIsNullStrCfgItem(const SConfigItem *pItem) {
+  switch (pItem->dtype) {
+    case CFG_DTYPE_STRING:
+    case CFG_DTYPE_DIR:
+    case CFG_DTYPE_LOCALE:
+    case CFG_DTYPE_CHARSET:
+    case CFG_DTYPE_TIMEZONE:
+    case CFG_DTYPE_NONE:
+      return pItem->str == NULL;
+    default:
+      return false;
+  }
+}
+
+// Restore an item whose new value was committed to SConfig but then failed to apply, so the
+// rejected value is not left behind for the next successful request to persist.
+static void dmRollbackCfgItem(SConfig *pCfg, const char *name, const char *oldValue) {
+  SConfigItem *pItem = NULL;
+  int32_t      code = cfgGetAndSetItem(pCfg, &pItem, name, oldValue, CFG_STYPE_ALTER_SERVER_CMD, true);
+  if (code != 0) {
+    dError("failed to roll back option:%s to value:%s since %s", name, oldValue, tstrerror(code));
+  } else {
+    dInfo("option:%s rolled back to value:%s since it failed to apply", name, oldValue);
+  }
+}
+
 int32_t dmProcessConfigReq(SDnodeMgmt *pMgmt, SRpcMsg *pMsg) {
   int32_t       code = 0;
   SDCfgDnodeReq cfgReq = {0};
@@ -743,6 +810,37 @@ int32_t dmProcessConfigReq(SDnodeMgmt *pMgmt, SRpcMsg *pMsg) {
   }
 
   dInfo("start to config, option:%s, value:%s", cfgReq.config, cfgReq.value);
+
+  // The dnode cannot authenticate the sender of TDMT_DND_CONFIG_DNODE, so it must not assume the
+  // mnode already validated the request. Re-run the same dyn-scope and category checks here,
+  // before the value is committed to the SConfig item - cfgGetAndSetItem only range-checks and
+  // never consults dynScope, so without this a non-dynamic or client-only item (supportVnodes,
+  // audit, fqdn, logDir, ...) would be applied and persisted.
+  // "resetlog" is not a config item and (enterprise) "ssblocksize" is pre-validated by the
+  // mnode; both intentionally bypass cfgCheckRangeForDynUpdate there, so mirror that here.
+  if (strncasecmp(cfgReq.config, "resetlog", strlen("resetlog")) != 0 &&
+      strncasecmp(cfgReq.config, "ssblocksize", strlen("ssblocksize")) != 0) {
+    code = cfgCheckRangeForDynUpdate(pCfg, cfgReq.config, cfgReq.value, true, cfgReq.alterType);
+    if (code != 0) {
+      dError("failed to config option:%s, value:%s since %s", cfgReq.config, cfgReq.value, tstrerror(code));
+      return code;
+    }
+  }
+
+  // Snapshot the current value so an item that passes the checks above but still fails to apply
+  // can be rolled back, instead of being left in SConfig for the next request to persist. Only
+  // the requested item is snapshotted: the derived items that a "syncTimeout" request fans out
+  // to below are not rolled back, but they are all CFG_DYN_SERVER and so already passed the
+  // dyn-scope gate.
+  char         oldValue[TSDB_DNODE_VALUE_LEN] = {0};
+  int32_t      oldValueLen = 0;
+  bool         canRollback = false;
+  SConfigItem *pOldItem = cfgGetItem(pCfg, cfgReq.config);
+  if (pOldItem != NULL && pOldItem->array == NULL && !dmIsNullStrCfgItem(pOldItem) &&
+      cfgDumpItemValue(pOldItem, oldValue, sizeof(oldValue), &oldValueLen) == 0 &&
+      oldValueLen < (int32_t)sizeof(oldValue)) {
+    canRollback = true;
+  }
 
   code = cfgGetAndSetItem(pCfg, &pItem, cfgReq.config, cfgReq.value, CFG_STYPE_ALTER_SERVER_CMD, true);
   if (code != 0) {
@@ -830,7 +928,14 @@ int32_t dmProcessConfigReq(SDnodeMgmt *pMgmt, SRpcMsg *pMsg) {
   }
 
   if (!isConifgItemLazyMode(pItem)) {
-    TAOS_CHECK_RETURN(taosCfgDynamicOptions(pCfg, cfgReq.config, true));
+    code = taosCfgDynamicOptions(pCfg, cfgReq.config, true);
+    if (code != 0) {
+      dError("failed to apply option:%s, value:%s since %s", cfgReq.config, cfgReq.value, tstrerror(code));
+      if (canRollback) {
+        dmRollbackCfgItem(pCfg, cfgReq.config, oldValue);
+      }
+      return code;
+    }
 
     if (taosStrncasecmp(cfgReq.config, "syncTimeout", 128) == 0) {
       TAOS_CHECK_RETURN(taosCfgDynamicOptions(pCfg, "arbSetAssignedTimeoutMs", true));
@@ -883,6 +988,20 @@ int32_t dmProcessConfigReq(SDnodeMgmt *pMgmt, SRpcMsg *pMsg) {
   if (cfgReq.version > 0) {
     tsdmConfigVersion = cfgReq.version;
   }
+
+  // Propagate federatedQuery* changes to the ext connector module so that
+  // pools created after this ALTER pick up the new values without restart.
+  if (taosStrncasecmp(cfgReq.config, "federatedQuery", 14) == 0) {
+    SExtConnectorModuleCfg extConnCfg = {
+      .max_pool_size_per_source = tsFederatedQueryMaxPoolSizePerSource,
+      .conn_timeout_ms          = tsFederatedQueryConnectTimeoutMs,
+      .query_timeout_ms         = tsFederatedQueryQueryTimeoutMs,
+      .idle_conn_ttl_s          = tsFederatedQueryIdleConnTtlSec,
+      .probe_timeout_ms         = tsFederatedQueryProbeTimeoutMs,
+    };
+    extConnectorUpdateModuleCfg(&extConnCfg);
+  }
+
   return code;
 }
 
@@ -1597,7 +1716,8 @@ static void dmGetServerRunStatus(SDnodeMgmt *pMgmt, SServerStatusRsp *pStatus) {
     }
   }
 
-  taosArrayDestroy(vinfo.pVloads);
+  // Use the shared helper so each SVnodeLoad's embedded pSnapProgress array is freed as well (avoid leak).
+  tFreeSVnodeLoadArray(vinfo.pVloads);
 }
 
 int32_t dmProcessServerRunStatus(SDnodeMgmt *pMgmt, SRpcMsg *pMsg) {
@@ -1696,6 +1816,129 @@ int32_t dmAppendVariablesToBlock(SSDataBlock *pBlock, int32_t dnodeId) {
   return colDataSetNItems(pColInfo, 0, (const char *)&dnodeId, pBlock->info.rows, 1, false);
 }
 
+static int32_t dmBuildCpuAllocationBlock(SSDataBlock **ppBlock) {
+  int32_t      code = 0;
+  SSDataBlock *pBlock = taosMemoryCalloc(1, sizeof(SSDataBlock));
+  if (pBlock == NULL) return terrno;
+
+  size_t               size = 0;
+  const SSysTableMeta *pMeta = NULL;
+  getInfosDbMeta(&pMeta, &size);
+
+  int32_t index = -1;
+  for (int32_t i = 0; i < (int32_t)size; ++i) {
+    if (strcmp(pMeta[i].name, TSDB_INS_TABLE_CPU_ALLOCATION) == 0) {
+      index = i;
+      break;
+    }
+  }
+  if (index < 0) {
+    taosMemoryFree(pBlock);
+    return TSDB_CODE_INTERNAL_ERROR;
+  }
+
+  pBlock->pDataBlock = taosArrayInit(pMeta[index].colNum, sizeof(SColumnInfoData));
+  if (pBlock->pDataBlock == NULL) {
+    code = terrno;
+    goto _exit_cpu;
+  }
+
+  for (int32_t i = 0; i < pMeta[index].colNum; ++i) {
+    SColumnInfoData colInfoData = {0};
+    colInfoData.info.colId = i + 1;
+    colInfoData.info.type = pMeta[index].schema[i].type;
+    colInfoData.info.bytes = pMeta[index].schema[i].bytes;
+    if (taosArrayPush(pBlock->pDataBlock, &colInfoData) == NULL) {
+      code = terrno;
+      goto _exit_cpu;
+    }
+  }
+
+  pBlock->info.hasVarCol = true;
+_exit_cpu:
+  if (code != 0) {
+    blockDataDestroy(pBlock);
+  } else {
+    *ppBlock = pBlock;
+  }
+  return code;
+}
+
+static int32_t dmAppendCpuAllocationRow(SSDataBlock *pBlock, int32_t dnodeId, const char *category, int32_t cores,
+                                        const char *coreIds, bool enabled) {
+  int32_t code = 0;
+  int32_t row = pBlock->info.rows;
+
+  // column 0: dnode_id (INT)
+  SColumnInfoData *pCol0 = taosArrayGet(pBlock->pDataBlock, 0);
+  if (pCol0 == NULL) return TSDB_CODE_OUT_OF_RANGE;
+  code = colDataSetVal(pCol0, row, (const char *)&dnodeId, false);
+  if (code) return code;
+
+  // column 1: thread_category (VARCHAR)
+  SColumnInfoData *pCol1 = taosArrayGet(pBlock->pDataBlock, 1);
+  if (pCol1 == NULL) return TSDB_CODE_OUT_OF_RANGE;
+  char catBuf[16 + VARSTR_HEADER_SIZE] = {0};
+  STR_TO_VARSTR(catBuf, category);
+  code = colDataSetVal(pCol1, row, catBuf, false);
+  if (code) return code;
+
+  // column 2: cores (INT)
+  SColumnInfoData *pCol2 = taosArrayGet(pBlock->pDataBlock, 2);
+  if (pCol2 == NULL) return TSDB_CODE_OUT_OF_RANGE;
+  code = colDataSetVal(pCol2, row, (const char *)&cores, false);
+  if (code) return code;
+
+  // column 3: core_ids (VARCHAR)
+  SColumnInfoData *pCol3 = taosArrayGet(pBlock->pDataBlock, 3);
+  if (pCol3 == NULL) return TSDB_CODE_OUT_OF_RANGE;
+  char idsBuf[256 + VARSTR_HEADER_SIZE] = {0};
+  STR_TO_VARSTR(idsBuf, coreIds);
+  code = colDataSetVal(pCol3, row, idsBuf, false);
+  if (code) return code;
+
+  // column 4: enabled (BOOL)
+  SColumnInfoData *pCol4 = taosArrayGet(pBlock->pDataBlock, 4);
+  if (pCol4 == NULL) return TSDB_CODE_OUT_OF_RANGE;
+  int8_t boolVal = enabled ? 1 : 0;
+  code = colDataSetVal(pCol4, row, (const char *)&boolVal, false);
+  if (code) return code;
+
+  pBlock->info.rows++;
+  return 0;
+}
+
+static int32_t dmFillCpuAllocationBlock(SSDataBlock *pBlock, int32_t dnodeId) {
+  int32_t                code = 0;
+  const SCpuAllocStatus *status = taosGetCpuAllocStatus();
+  const char            *catNames[] = {"management", "write", "read"};
+
+  code = blockDataEnsureCapacity(pBlock, THREAD_CAT_COUNT);
+  if (code) return code;
+
+  for (int32_t c = 0; c < THREAD_CAT_COUNT; c++) {
+    char    coreIdsBuf[256] = {0};
+    int32_t cores = 0;
+    bool    enabled = false;
+
+    if (status->enabled) {
+      cores = status->sets[c].count;
+      enabled = true;
+      int off = 0;
+      for (int32_t i = 0; i < status->sets[c].count && off < (int)sizeof(coreIdsBuf) - 8; i++) {
+        off +=
+            snprintf(coreIdsBuf + off, sizeof(coreIdsBuf) - off, "%s%d", i > 0 ? "," : "", status->sets[c].coreIds[i]);
+      }
+    } else {
+      tstrncpy(coreIdsBuf, "-", sizeof(coreIdsBuf));
+    }
+
+    code = dmAppendCpuAllocationRow(pBlock, dnodeId, catNames[c], cores, coreIdsBuf, enabled);
+    if (code) return code;
+  }
+  return 0;
+}
+
 int32_t dmProcessRetrieve(SDnodeMgmt *pMgmt, SRpcMsg *pMsg) {
   int32_t           size = 0;
   int32_t           rowsRead = 0;
@@ -1711,19 +1954,32 @@ int32_t dmProcessRetrieve(SDnodeMgmt *pMgmt, SRpcMsg *pMsg) {
     return code;
   }
 #endif
-  if (strcasecmp(retrieveReq.tb, TSDB_INS_TABLE_DNODE_VARIABLES)) {
+  if (strcasecmp(retrieveReq.tb, TSDB_INS_TABLE_DNODE_VARIABLES) != 0 &&
+      strcasecmp(retrieveReq.tb, TSDB_INS_TABLE_CPU_ALLOCATION) != 0) {
     return TSDB_CODE_INVALID_MSG;
   }
 
   SSDataBlock *pBlock = NULL;
-  if ((code = dmBuildVariablesBlock(&pBlock)) != 0) {
-    return code;
-  }
 
-  code = dmAppendVariablesToBlock(pBlock, pMgmt->pData->dnodeId);
-  if (code != 0) {
-    blockDataDestroy(pBlock);
-    return code;
+  if (strcasecmp(retrieveReq.tb, TSDB_INS_TABLE_CPU_ALLOCATION) == 0) {
+    if ((code = dmBuildCpuAllocationBlock(&pBlock)) != 0) {
+      return code;
+    }
+    code = dmFillCpuAllocationBlock(pBlock, pMgmt->pData->dnodeId);
+    if (code != 0) {
+      blockDataDestroy(pBlock);
+      return code;
+    }
+  } else {
+    if ((code = dmBuildVariablesBlock(&pBlock)) != 0) {
+      return code;
+    }
+
+    code = dmAppendVariablesToBlock(pBlock, pMgmt->pData->dnodeId);
+    if (code != 0) {
+      blockDataDestroy(pBlock);
+      return code;
+    }
   }
 
   size_t numOfCols = taosArrayGetSize(pBlock->pDataBlock);
@@ -1776,14 +2032,22 @@ int32_t dmProcessStreamHbRsp(SDnodeMgmt *pMgmt, SRpcMsg *pMsg) {
   SMStreamHbRspMsg rsp = {0};
   int32_t          code = 0;
   SDecoder         decoder;
-  char*            msg = POINTER_SHIFT(pMsg->pCont, sizeof(SStreamMsgGrpHeader));
-  int32_t          len = pMsg->contLen - sizeof(SStreamMsgGrpHeader);
   int64_t          currTs = taosGetTimestampMs();
 
   if (pMsg->code) {
     return streamHbHandleRspErr(pMsg->code, currTs);
   }
 
+  if (pMsg->pCont == NULL || pMsg->contLen < (int32_t)sizeof(SStreamMsgGrpHeader)) {
+    return streamHbHandleRspErr(TSDB_CODE_INVALID_MSG, currTs);
+  }
+  SStreamMsgGrpHeader header;
+  memcpy(&header, pMsg->pCont, sizeof(header));
+  if (header.streamGid < 0 || header.streamGid >= STREAM_MAX_GROUP_NUM) {
+    return streamHbHandleRspErr(TSDB_CODE_INVALID_MSG, currTs);
+  }
+  char   *msg = POINTER_SHIFT(pMsg->pCont, sizeof(header));
+  int32_t len = pMsg->contLen - sizeof(header);
   tDecoderInit(&decoder, (uint8_t*)msg, len);
   code = tDecodeStreamHbRsp(&decoder, &rsp);
   if (code < 0) {
@@ -1796,6 +2060,10 @@ int32_t dmProcessStreamHbRsp(SDnodeMgmt *pMgmt, SRpcMsg *pMsg) {
 
   tDecoderClear(&decoder);
 
+  if (header.streamGid != rsp.streamGId) {
+    tDeepFreeSMStreamHbRspMsg(&rsp);
+    return streamHbHandleRspErr(TSDB_CODE_INVALID_MSG, currTs);
+  }
   return streamHbProcessRspMsg(&rsp);
 }
 
@@ -1818,12 +2086,20 @@ SArray *dmGetMsgHandles() {
   if (dmSetMgmtHandle(pArray, TDMT_DND_CREATE_BNODE, dmPutNodeMsgToMgmtQueue, 0) == NULL) goto _OVER;
   if (dmSetMgmtHandle(pArray, TDMT_DND_DROP_BNODE, dmPutNodeMsgToMgmtQueue, 0) == NULL) goto _OVER;
   if (dmSetMgmtHandle(pArray, TDMT_DND_CONFIG_DNODE, dmPutNodeMsgToMgmtQueue, 0) == NULL) goto _OVER;
+#ifdef TD_ENTERPRISE
+  if (dmSetMgmtHandle(pArray, TDMT_DND_BACKUP, dmPutNodeMsgToMgmtQueue, 0) == NULL) goto _OVER;
+  if (dmSetMgmtHandle(pArray, TDMT_DND_BACKUP_PROGRESS, dmPutNodeMsgToMgmtQueue, 0) == NULL) goto _OVER;
+  if (dmSetMgmtHandle(pArray, TDMT_DND_KILL_BACKUP, dmPutNodeMsgToMgmtQueue, 0) == NULL) goto _OVER;
+#endif
   if (dmSetMgmtHandle(pArray, TDMT_DND_SERVER_STATUS, dmPutNodeMsgToMgmtQueue, 0) == NULL) goto _OVER;
   if (dmSetMgmtHandle(pArray, TDMT_DND_SYSTABLE_RETRIEVE, dmPutNodeMsgToMgmtQueue, 0) == NULL) goto _OVER;
   if (dmSetMgmtHandle(pArray, TDMT_DND_ALTER_MNODE_TYPE, dmPutNodeMsgToMgmtQueue, 0) == NULL) goto _OVER;
   if (dmSetMgmtHandle(pArray, TDMT_DND_CREATE_ENCRYPT_KEY, dmPutNodeMsgToMgmtQueue, 0) == NULL) goto _OVER;
-  if (dmSetMgmtHandle(pArray, TDMT_MND_ALTER_ENCRYPT_KEY, dmPutNodeMsgToMgmtQueue, 0) == NULL) goto _OVER;
-  if (dmSetMgmtHandle(pArray, TDMT_MND_ALTER_KEY_EXPIRATION, dmPutNodeMsgToMgmtQueue, 0) == NULL) goto _OVER;
+  // Second hop: DNODE consumes DND messages broadcast by mnode and updates local keys and expiry times.
+  // Do not register TDMT_MND_ALTER_* here. It belongs to the client-to-mnode first hop and is already
+  // registered by the MNODE module in mmHandle.c; registering it here would conflict with MNODE routing.
+  if (dmSetMgmtHandle(pArray, TDMT_DND_ALTER_ENCRYPT_KEY, dmPutNodeMsgToMgmtQueue, 0) == NULL) goto _OVER;
+  if (dmSetMgmtHandle(pArray, TDMT_DND_ALTER_KEY_EXPIRATION, dmPutNodeMsgToMgmtQueue, 0) == NULL) goto _OVER;
   if (dmSetMgmtHandle(pArray, TDMT_MND_STREAM_HEARTBEAT_RSP, dmPutMsgToStreamMgmtQueue, 0) == NULL) goto _OVER;
   if (dmSetMgmtHandle(pArray, TDMT_DND_RELOAD_DNODE_TLS, dmPutNodeMsgToMgmtQueue, 0) == NULL) goto _OVER;
 

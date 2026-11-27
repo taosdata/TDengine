@@ -1,6 +1,8 @@
 /*
  * Copyright (c) 2019 TAOS Data, Inc. <jhtao@taosdata.com>
  *
+ * SPDX-License-Identifier: AGPL-3.0-or-later
+ *
  * This program is free software: you can use, redistribute, and/or modify
  * it under the terms of the GNU Affero General Public License, version 3
  * or later ("AGPL"), as published by the Free Software Foundation.
@@ -43,4 +45,15 @@ TEST_F(PlanSessionTest, stable) {
   // select function along with the columns of select row, and with SESSION clause
   run("SELECT MAX(c1), c2 FROM st1 SESSION(ts, 10s)");
   run("SELECT count(ts) FROM st1 PARTITION BY c1 SESSION(ts, 10s)");
+}
+
+TEST_F(PlanSessionTest, smallDataScanSortHint) {
+  useDb("root", "test");
+
+  // A super-table SESSION query has no ORDER BY / Sort node; the batch split uses
+  // a per-vnode Table Merge Scan as the order source.  With the hint, that merge
+  // scan must be replaced by a plain Table Scan plus an inserted Sort.
+  run("SELECT /*+ smalldata_scan_sort() */ MAX(c1), MIN(c1) FROM st1 SESSION(ts, 10s)");
+
+  run("SELECT /*+ smalldata_scan_sort() */ count(ts) FROM st1 PARTITION BY c1 SESSION(ts, 10s)");
 }

@@ -1,6 +1,8 @@
 /*
  * Copyright (c) 2019 TAOS Data, Inc. <jhtao@taosdata.com>
  *
+ * SPDX-License-Identifier: AGPL-3.0-or-later
+ *
  * This program is free software: you can use, redistribute, and/or modify
  * it under the terms of the GNU Affero General Public License, version 3
  * or later ("AGPL"), as published by the Free Software Foundation.
@@ -44,6 +46,27 @@ extern "C" {
 // Use tsMaxSQLLength * 3 for buffer size to accommodate CREATE TABLE statement
 // Note: This is evaluated at runtime, so it will use the configured tsMaxSQLLength value
 #define SHOW_CREATE_TB_RESULT_FIELD2_LEN ((int32_t)(tsMaxSQLLength * 3))
+// The "Create Table" column is BLOB (4-byte length header) so that DDL text longer than
+// 65535 bytes is not truncated. Track the assembler buffer instead of a flat
+// TSDB_MAX_BLOB_LEN: the DDL actually written is capped at
+// min(SHOW_CREATE_TB_RESULT_FIELD2_LEN, TSDB_MAX_BLOB_LEN) (see command.c
+// setShowCreateDdlIntoResultBuf), so a flat TSDB_MAX_BLOB_LEN (16MB) would
+// over-declare the result column by ~4MB at the default tsMaxSQLLength (4MiB,
+// i.e. a 12MB assembler buffer) and under-declare when tsMaxSQLLength * 3
+// grows past TSDB_MAX_BLOB_LEN.
+#define SHOW_CREATE_TB_RESULT_FIELD2_BYTES \
+  ((SHOW_CREATE_TB_RESULT_FIELD2_LEN < TSDB_MAX_BLOB_LEN) ? SHOW_CREATE_TB_RESULT_FIELD2_LEN : TSDB_MAX_BLOB_LEN)
+// Max payload the BLOB result form can carry: the assembler buffer capped by
+// the BLOB type limit, minus the 4-byte length header. Single source for both
+// the declared column width (FIELD2_BYTES above) and the clamp in command.c
+// setShowCreateDdlIntoResultBuf -- keep the two derived from this one
+// definition so they cannot drift apart.
+#define SHOW_CREATE_TB_BLOB_RESULT_MAX_PAYLOAD (SHOW_CREATE_TB_RESULT_FIELD2_BYTES - BLOBSTR_HEADER_SIZE)
+// Max payload of a 2-byte varstr length header: the largest DDL the VARCHAR result
+// form (the non-FULL statement) can carry; command.c clamps the non-FULL result at
+// it. Not TB-specific: the SHOW CREATE VIEW assembler's clamp reuses this as the
+// plain varstr limit.
+#define SHOW_CREATE_VARSTR_RESULT_MAX_LEN 65535
 
 #define SHOW_CREATE_VIEW_RESULT_COLS       2
 #define SHOW_CREATE_VIEW_RESULT_FIELD1_LEN (TSDB_VIEW_FNAME_LEN + 4 + VARSTR_HEADER_SIZE)
@@ -55,12 +78,13 @@ extern "C" {
 #define SHOW_CREATE_STREAM_RESULT_FIELD1_LEN (TSDB_STREAM_FNAME_LEN + 4 + VARSTR_HEADER_SIZE)
 #define SHOW_CREATE_STREAM_RESULT_FIELD2_LEN ((int32_t)(tsMaxSQLLength + VARSTR_HEADER_SIZE))
 
-#define SHOW_LOCAL_VARIABLES_RESULT_COLS       5
+#define SHOW_LOCAL_VARIABLES_RESULT_COLS       6
 #define SHOW_LOCAL_VARIABLES_RESULT_FIELD1_LEN (TSDB_CONFIG_OPTION_LEN + VARSTR_HEADER_SIZE)
 #define SHOW_LOCAL_VARIABLES_RESULT_FIELD2_LEN (TSDB_CONFIG_PATH_LEN + VARSTR_HEADER_SIZE)
 #define SHOW_LOCAL_VARIABLES_RESULT_FIELD3_LEN (TSDB_CONFIG_SCOPE_LEN + VARSTR_HEADER_SIZE)
 #define SHOW_LOCAL_VARIABLES_RESULT_FIELD4_LEN (TSDB_CONFIG_CATEGORY_LEN + VARSTR_HEADER_SIZE)
 #define SHOW_LOCAL_VARIABLES_RESULT_FIELD5_LEN (TSDB_CONFIG_INFO_LEN + VARSTR_HEADER_SIZE)
+#define SHOW_LOCAL_VARIABLES_RESULT_FIELD6_LEN (TSDB_CONFIG_REBOOT_LEN + VARSTR_HEADER_SIZE)
 
 #define COMPACT_DB_RESULT_COLS       3
 #define COMPACT_DB_RESULT_FIELD1_LEN 32
@@ -153,6 +177,7 @@ typedef struct SDatabaseOptions {
   int8_t      allowDrop;
   int8_t      secureDelete;
   int8_t      securityLevel;
+  int32_t     parallel;       // concurrency limit for GROUP_PARALLEL trans, 0 = unlimited
   // for auto-compact
   int32_t     compactTimeOffset;  // hours
   int32_t     compactInterval;    // minutes
@@ -176,6 +201,14 @@ typedef struct SUseDatabaseStmt {
   ENodeType type;
   char      dbName[TSDB_DB_NAME_LEN];
 } SUseDatabaseStmt;
+
+// USE source_name | USE source.ns1 | USE source.ns1.ns2 (PG 3-seg)
+typedef struct SUseExtSourceStmt {
+  ENodeType type;
+  char      sourceName[TSDB_EXT_SOURCE_NAME_LEN];  // registered source name
+  char      ns1[TSDB_EXT_SOURCE_DATABASE_LEN];     // database (MySQL/Influx) or schema (PG 2-seg)
+  char      ns2[TSDB_EXT_SOURCE_SCHEMA_LEN];       // schema (PG 3-seg only; else empty)
+} SUseExtSourceStmt;
 
 typedef struct SDropDatabaseStmt {
   ENodeType type;
@@ -214,6 +247,17 @@ typedef struct SCompactDatabaseStmt {
   bool      metaOnly;
   bool      force;
 } SCompactDatabaseStmt;
+
+typedef struct SCreateBackupStmt {
+  ENodeType type;
+  int32_t   dnodeId;
+  bool      isFull;
+  char      backupRoot[TSDB_FILENAME_LEN];
+  int64_t   backupChainId;              // target chain for incremental; 0 = latest
+  char      dbName[TSDB_DB_NAME_LEN];  // empty means whole cluster
+  char      password[TSDB_USER_PASSWORD_LONGLEN];
+  int32_t   parallel;                   // vgroup backup parallelism; >= 1, 1 = serial
+} SCreateBackupStmt;
 
 typedef struct SRollupDatabaseStmt {
   ENodeType type;
@@ -301,9 +345,20 @@ typedef struct SColumnOptions {
   char      compressLevel[TSDB_CL_COMPRESS_OPTION_LEN];
   bool      bPrimaryKey;
   bool      hasRef;
+  int8_t    refPathParts;
+  int8_t    bindingKind;
+  char      referenceAlias[TSDB_COL_NAME_LEN];
+  char      timeColumn[TSDB_COL_NAME_LEN];
+  int8_t    refType;                              // 0=internal, 1=external (DS section 6.2.8)
+  char      refSourceName[TSDB_EXT_SOURCE_NAME_LEN]; // non-empty = external source 4-part ref
+  char      refSchema[TSDB_EXT_SOURCE_SCHEMA_LEN];   // external schema: from the path (5-part field, or the
+                                                     // middle segment of a 4-part SQL Server path) or the source
+                                                     // default filled by normalizeExternalRefNamespace()
   char      refDb[TSDB_DB_NAME_LEN];
   char      refTable[TSDB_TABLE_NAME_LEN];
   char      refColumn[TSDB_COL_NAME_LEN];
+  SNode     *pTagCond;        // series tag condition (SOperatorNode or SLogicConditionNode), or NULL
+  SNode     *pFilterCond;     // MySQL/PostgreSQL external-column filter, or NULL
 } SColumnOptions;
 
 typedef struct SColumnDefNode {
@@ -312,6 +367,7 @@ typedef struct SColumnDefNode {
   SDataType dataType;
   SNode*    pOptions;
   bool      sma;
+  SNode*    pTagVal;  // inline tag value for `TAGS(name TYPE = value)` (NULL  =>  tag is NULL/ref)
 } SColumnDefNode;
 
 typedef struct SCreateTableStmt {
@@ -319,9 +375,11 @@ typedef struct SCreateTableStmt {
   char           dbName[TSDB_DB_NAME_LEN];
   char           tableName[TSDB_TABLE_NAME_LEN];
   bool           ignoreExists;
+  bool           stableKeyword;  // true only for CREATE STABLE syntax (never a normal table)
   SNodeList*     pCols;
   SNodeList*     pTags;
   STableOptions* pOptions;
+  SNodeList*     pBaseOnList;  // list of SRealTableNode for BASE ON parents (NULL = no inheritance)
 } SCreateTableStmt;
 
 typedef struct SCreateVTableStmt {
@@ -330,6 +388,8 @@ typedef struct SCreateVTableStmt {
   char       tableName[TSDB_TABLE_NAME_LEN];
   bool       ignoreExists;
   SNodeList* pCols;
+  SNodeList* pSeriesList;     // list of SSeriesDeclNode (nullable)
+  SNodeList* pTags;           // list of SColumnDefNode (virtual normal table tags, nullable)
 } SCreateVTableStmt;
 
 typedef struct SCreateVSubTableStmt {
@@ -345,7 +405,24 @@ typedef struct SCreateVSubTableStmt {
   SNodeList* pColRefs;
   SNodeList* pSpecificTagRefs;  // tag_name FROM db.table.tag_col (same as specific_column_ref)
   SNodeList* pTagRefs;          // db.table.tag_col (same as column_ref, positional)
+  SNodeList* pSeriesList;       // list of SSeriesDeclNode (nullable)
+  SNodeList* pColDefs;          // column_def_list (name + type + FROM ext_src.db.table.col)
 } SCreateVSubTableStmt;
+
+typedef struct SReferenceDeclNode {
+  ENodeType type;
+  SReferenceEntry entry;
+} SReferenceDeclNode;
+
+// Series declaration: SERIES alias AS source.db.measurement (tag1='v1', ...)
+typedef struct SSeriesDeclNode {
+  ENodeType  type;
+  char       alias[TSDB_COL_NAME_LEN];
+  char       sourceName[TSDB_EXT_SOURCE_NAME_LEN];
+  char       dbName[TSDB_DB_NAME_LEN];
+  char       measurementName[TSDB_TABLE_NAME_LEN];
+  SNode*     pTagCond;   // SOperatorNode (single tag) or SLogicConditionNode(AND) (multiple)
+} SSeriesDeclNode;
 
 typedef struct SCreateSubTableClause {
   ENodeType      type;
@@ -397,11 +474,9 @@ typedef struct SDropSuperTableStmt {
 } SDropSuperTableStmt;
 
 typedef struct SDropVirtualTableStmt {
-  ENodeType type;
-  char      dbName[TSDB_DB_NAME_LEN];
-  char      tableName[TSDB_TABLE_NAME_LEN];
-  bool      ignoreNotExists;
-  bool      withOpt;
+  ENodeType  type;
+  SNodeList* pTables;
+  bool       withOpt;
 } SDropVirtualTableStmt;
 
 typedef struct SUpdateTagValueNode {
@@ -431,10 +506,20 @@ typedef struct SAlterTableStmt {
   SValueNode*     pVal;
   SColumnOptions* pColOptions;
   SNodeList*      pList; // list of tag, table or something else, depending on alter type
+  char            refSourceName[TSDB_TABLE_NAME_LEN];
+  char            refSchemaName[TSDB_EXT_SOURCE_SCHEMA_LEN];
   char            refDbName[TSDB_DB_NAME_LEN];
   char            refTableName[TSDB_TABLE_NAME_LEN];
   char            refColName[TSDB_COL_NAME_LEN];
+  int8_t          refPathParts;
+  int8_t          bindingKind;
+  char            referenceAlias[TSDB_COL_NAME_LEN];
+  char            timeColumn[TSDB_COL_NAME_LEN];
+  int8_t          refType;  // 0=local, 1=external
   SNode*          pWhere;
+  SNode*          pFilterCond;  // MySQL/PostgreSQL external-column filter, or NULL
+  SNode*          pSeriesDecl;  // SSeriesDeclNode* for ADD SERIES
+  char            seriesAlias[TSDB_COL_NAME_LEN]; // for REMOVE SERIES
 } SAlterTableStmt;
 
 
@@ -749,6 +834,10 @@ typedef struct {
 
 typedef struct {
   ENodeType type;
+} SRestartXnodeStmt;
+
+typedef struct {
+  ENodeType type;
   int32_t            id;
   CowStr             url;
   CowStr             token;
@@ -855,6 +944,7 @@ typedef struct SShowStmt {
   EOperatorType tableCondType;
   EShowKind     showKind;  // show databases: user/system, show tables: normal/child, others NULL
   bool          withFull;  // for show users full;
+  int8_t        xnodeDsnOutputMode;
   SNode*        pWhere;    // WHERE clause
 } SShowStmt;
 
@@ -876,6 +966,18 @@ typedef struct SShowCreateTableStmt {
   char      tableName[TSDB_TABLE_NAME_LEN];
   void*     pDbCfg;     // SDbCfgInfo
   void*     pTableCfg;  // STableCfg
+  // The optional FULL suffix of the statement ("SHOW CREATE TABLE t FULL"):
+  // when present, the "Create Table" column is typed BLOB (4-byte length header)
+  // and the DDL is returned complete (up to the assembler cap). Without FULL the
+  // result keeps the historical VARCHAR form: DDLs over 65535 bytes are clamped
+  // to 65535, byte-identical with pre-BLOB releases, so consumers built against
+  // the old result shape (e.g. connectors reading 2-byte varstr headers) are
+  // unaffected unless they opt in. One deliberate exception: pre-BLOB releases
+  // failed with TSDB_CODE_OUT_OF_BUFFER when a virtual table's column-reference
+  // filter pushed the assembled DDL past 65535; that corner now also clamps
+  // (with a qWarn pointing at the FULL suffix), turning a statement error into
+  // a usable truncated result.
+  bool fullResult;
 } SShowCreateTableStmt;
 
 typedef struct SShowCreateViewStmt {
@@ -893,6 +995,12 @@ typedef struct SShowCreateRsmaStmt {
   void*     pRsmaMeta;  // SRsmaInfoRsp;
   void*     pTableCfg;  // STableCfg
   bool      hasPrivilege;
+  // See SShowCreateTableStmt::fullResult: BLOB only under the FULL suffix. The
+  // grammar factory sets it on FULL statements in both editions, but on community
+  // builds the translator returns PAR_ENTERPRISE_ONLY before SHOW CREATE RSMA ever
+  // executes, so the statement never renders there; treat the field as set by the
+  // grammar only.
+  bool fullResult;
 } SShowCreateRsmaStmt;
 
 typedef struct SShowCreateStreamStmt {
@@ -936,6 +1044,10 @@ typedef struct SShowCompactsStmt {
   ENodeType type;
 } SShowCompactsStmt;
 
+typedef struct SShowBackupsStmt {
+  ENodeType type;
+} SShowBackupsStmt;
+
 typedef struct SShowScansStmt {
   ENodeType type;
 } SShowScansStmt;
@@ -959,6 +1071,20 @@ typedef struct SShowSsMigratesStmt {
 typedef struct SShowTokensStmt {
   ENodeType type;
 } SShowTokensStmt;
+
+// STransStmt.flags bits (BEGIN options); add new options here instead of new fields.
+#define TRANS_STMT_FLAG_ALLOW_NONTXN (1 << 0)  // BEGIN ALLOW_NONTRANSACTIONAL
+
+typedef struct STransStmt {
+  ENodeType type;
+  int32_t   transType;
+  uint8_t   flags;  // TRANS_STMT_FLAG_*
+  txn_id_t  transId;
+} STransStmt;
+
+typedef STransStmt SBeginTransStmt;
+typedef STransStmt SCommitTransStmt;
+typedef STransStmt SRollbackTransStmt;
 
 typedef struct SShowTransactionDetailsStmt {
   ENodeType type;
@@ -1010,6 +1136,10 @@ typedef struct SRestoreComponentNodeStmt {
   ENodeType type;
   int32_t   dnodeId;
   int32_t   vgId;
+  // parallel: upper limit on the number of vnodes restored in parallel. 0 means no limit
+  // (fully parallel, backward compatible).
+  // Only RESTORE DNODE / RESTORE VNODE ON DNODE commands set a non-zero value.
+  int32_t   parallel;
 } SRestoreComponentNodeStmt;
 
 typedef struct SCreateTopicStmt {
@@ -1051,6 +1181,16 @@ typedef struct SAlterLocalStmt {
   char      value[TSDB_DNODE_VALUE_LEN];
 } SAlterLocalStmt;
 
+typedef struct SSetTimezoneStmt {
+  ENodeType type;
+  char      timezone[TD_TIMEZONE_LEN];
+} SSetTimezoneStmt;
+
+typedef struct SSetFirstDayOfWeekStmt {
+  ENodeType type;
+  int8_t    firstDayOfWeek;
+} SSetFirstDayOfWeekStmt;
+
 typedef struct SAlterEncryptKeyStmt {
   ENodeType type;
   int8_t    keyType;  // 0: SVR_KEY, 1: DB_KEY
@@ -1079,13 +1219,33 @@ typedef struct SDescribeStmt {
   char        dbName[TSDB_DB_NAME_LEN];
   char        tableName[TSDB_TABLE_NAME_LEN];
   STableMeta* pMeta;
+  // External source path fields  -  mirrors SRealTableNode.numPathSegments / extSeg.
+  // Set when the DESCRIBE target uses a multi-segment external path (src.tbl or src.db.schema.tbl).
+  int8_t      numPathSegments;                      // 0/1 = local; 2 = src.tbl; 3 = src.mid0.tbl; 4 = src.mid0.mid1.tbl
+  char        extSeg[3][TSDB_EXT_SOURCE_NAME_LEN];  // [0]=source name; [1]=mid0 (db or schema); [2]=mid1 (schema; 4-seg only)
 } SDescribeStmt;
+
+typedef struct SResetQueryCacheStmt {
+  ENodeType type;
+  bool      forExtSource;
+  char      sourceName[TSDB_EXT_SOURCE_NAME_LEN];
+} SResetQueryCacheStmt;
 
 typedef struct SKillStmt {
   ENodeType type;
   int32_t   targetId;
   bool      force;
 } SKillStmt;
+
+typedef struct SKillBackupStmt {
+  ENodeType type;
+  int64_t   targetId;  // backup id
+} SKillBackupStmt;
+
+typedef struct SKillTransStmt {
+  ENodeType type;
+  int64_t   targetId;
+} SKillTransStmt;
 
 typedef struct SKillQueryStmt {
   ENodeType type;
@@ -1100,8 +1260,26 @@ typedef struct SStreamNotifyOptions {
   int64_t    notifyType;
 } SStreamNotifyOptions;
 
+typedef struct SStreamSqlSpan {
+  int32_t begin;  // inclusive byte offset in SParseContext.pSql
+  int32_t end;    // exclusive byte offset in SParseContext.pSql
+} SStreamSqlSpan;
+
+typedef struct SStreamCreateTimeInfo {
+  // pNonConfigOptionSpans and timezone are owned; do not shallow-copy this struct.
+  bool              hasTimezone;
+  bool              hasFirstDayOfWeek;
+  SStreamSqlSpan    timezoneValue;           // {-1, -1} when absent
+  SStreamSqlSpan    firstDayOfWeekValue;     // {-1, -1} when absent
+  SStreamSqlSpan    streamOptions;           // {-1, -1} when absent
+  int32_t           streamOptionsInsertPos;  // -1 when streamOptions is present
+  SArray*           pNonConfigOptionSpans;   // owned SArray<SStreamSqlSpan>
+  SStreamTimeConfig config;
+  timezone_t        timezone;  // owned timezone handle
+} SStreamCreateTimeInfo;
+
 typedef struct SCreateStreamStmt {
-  ENodeType  type;
+  ENodeType              type;
   char       streamDbName[TSDB_DB_NAME_LEN];
   char       streamName[TSDB_TABLE_NAME_LEN];
   char       targetDbName[TSDB_DB_NAME_LEN];
@@ -1112,6 +1290,7 @@ typedef struct SCreateStreamStmt {
   SNode*     pSubtable;
   SNodeList* pTags;  // SStreamTagDefNode
   SNodeList* pCols;  // SColumnDefNode
+  SStreamCreateTimeInfo* pTimeInfo;
   int8_t     nodelayCreateSubtable;  // 1 = create sub-tables at stream create; 0 = default
 } SCreateStreamStmt;
 
@@ -1198,6 +1377,10 @@ typedef struct SBalanceVgroupStmt {
   ENodeType type;
 } SBalanceVgroupStmt;
 
+typedef struct SFlushMnodeStmt {
+  ENodeType type;
+} SFlushMnodeStmt;
+
 typedef struct SAssignLeaderStmt {
   ENodeType type;
 } SAssignLeaderStmt;
@@ -1206,6 +1389,8 @@ typedef struct SBalanceVgroupLeaderStmt {
   ENodeType type;
   int32_t   vgId;
   char      dbName[TSDB_DB_NAME_LEN];
+  // true when the statement carried the FORCE keyword; consumed by the balance-leader mnode handler.
+  bool force;
 } SBalanceVgroupLeaderStmt;
 
 typedef struct SSetVgroupKeepVersionStmt {
@@ -1239,6 +1424,18 @@ typedef struct SSplitVgroupStmt {
   int32_t   vgId;
   bool      force;
 } SSplitVgroupStmt;
+
+typedef struct SCloseVnodeStmt {
+  ENodeType type;
+  int32_t   vgId;
+  int32_t   dnodeId;
+} SCloseVnodeStmt;
+
+typedef struct SOpenVnodeStmt {
+  ENodeType type;
+  int32_t   vgId;
+  int32_t   dnodeId;
+} SOpenVnodeStmt;
 
 typedef struct STSMAOptions {
   ENodeType  type;
@@ -1292,6 +1489,107 @@ typedef struct SAlterRsmaStmt {
   int8_t     alterType;
   SNodeList* pFuncs;
 } SAlterRsmaStmt;
+
+// ============== Federated query: external source DDL AST nodes ==============
+
+// CREATE EXTERNAL SOURCE [IF NOT EXISTS] name TYPE <type> HOST <host> PORT <port>
+//   USER <user> PASSWORD <password> [DATABASE <db>] [SCHEMA <schema>] [OPTIONS (...)]
+typedef struct SCreateExtSourceStmt {
+  ENodeType  type;         // QUERY_NODE_CREATE_EXT_SOURCE_STMT
+  char       sourceName[TSDB_EXT_SOURCE_NAME_LEN];
+  int8_t     sourceType;   // EExtSourceType
+  char       host[TSDB_EXT_SOURCE_HOST_LEN];
+  int32_t    port;
+  char       user[TSDB_EXT_SOURCE_USER_LEN];
+  char       password[TSDB_EXT_SOURCE_PASSWORD_LEN];
+  char       database[TSDB_EXT_SOURCE_DATABASE_LEN];
+  char       schemaName[TSDB_EXT_SOURCE_SCHEMA_LEN];
+  SNodeList* pOptions;     // list of SExtOptionNode (key-value option pairs)
+  bool       ignoreExists;
+} SCreateExtSourceStmt;
+
+// ALTER EXTERNAL SOURCE [IF EXISTS] name SET key=value [, key=value ...]
+typedef enum EExtCapControlAction {
+  EXT_CAP_ACTION_NONE = 0,
+  EXT_CAP_ACTION_ENABLE,
+  EXT_CAP_ACTION_DISABLE,
+} EExtCapControlAction;
+typedef struct SAlterExtSourceStmt {
+  ENodeType  type;           // QUERY_NODE_ALTER_EXT_SOURCE_STMT
+  char       sourceName[TSDB_EXT_SOURCE_NAME_LEN];
+  SNodeList* pAlterItems;    // list of SExtAlterClauseNode (one per SET clause, comma-separated)
+  int8_t     capAction;      // EExtCapControlAction, non-zero for local capability control
+  int8_t     capKind;        // EExtCapDemoteKind for local capability control
+  char       capValue[TSDB_FUNC_NAME_LEN];
+  bool       ignoreNotExists;
+} SAlterExtSourceStmt;
+
+// DROP EXTERNAL SOURCE [IF EXISTS] name
+typedef struct SDropExtSourceStmt {
+  ENodeType type;          // QUERY_NODE_DROP_EXT_SOURCE_STMT
+  char      sourceName[TSDB_EXT_SOURCE_NAME_LEN];
+  bool      ignoreNotExists;
+} SDropExtSourceStmt;
+
+// REFRESH EXTERNAL SOURCE name
+typedef struct SRefreshExtSourceStmt {
+  ENodeType type;          // QUERY_NODE_REFRESH_EXT_SOURCE_STMT
+  char      sourceName[TSDB_EXT_SOURCE_NAME_LEN];
+} SRefreshExtSourceStmt;
+
+// SHOW EXTERNAL SOURCES
+typedef struct SShowExtSourcesStmt {
+  ENodeType type;          // QUERY_NODE_SHOW_EXT_SOURCES_STMT
+} SShowExtSourcesStmt;
+
+// DESCRIBE EXTERNAL SOURCE name
+// Fields below are populated during rewriteDescribeExtSource (translation phase)
+// and consumed by execDescribeExtSource (LOCAL command execution).
+typedef struct SDescribeExtSourceStmt {
+  ENodeType type;          // QUERY_NODE_DESCRIBE_EXT_SOURCE_STMT
+  char      sourceName[TSDB_EXT_SOURCE_NAME_LEN];
+  // Populated by rewriteDescribeExtSource: heap-allocated SExtSourceInfo copy.
+  // Freed in nodesDestroyNode (QUERY_NODE_DESCRIBE_EXT_SOURCE_STMT case).
+  void*     pExtSrcInfo;   // SExtSourceInfo*  -  taosMemoryMalloc'd, not in node chunk
+} SDescribeExtSourceStmt;
+
+// SHOW EXTERNAL SOURCE <name> CAPABILITY
+// Populated by rewriteShowExtSourceCapability: heap-allocated SExtSourceCapability copy.
+// Freed in nodesDestroyNode (QUERY_NODE_SHOW_EXT_SOURCE_CAPABILITY_STMT case).
+typedef struct SShowExtSourceCapabilityStmt {
+  ENodeType type;           // QUERY_NODE_SHOW_EXT_SOURCE_CAPABILITY_STMT
+  char      sourceName[TSDB_EXT_SOURCE_NAME_LEN];
+  void*     pExtCapability; // SExtSourceCapability* - taosMemoryMalloc'd, not in node chunk
+} SShowExtSourceCapabilityStmt;
+// Alter clause type for ALTER EXTERNAL SOURCE SET ...
+typedef enum EExtAlterType {
+  EXT_ALTER_HOST     = 1,
+  EXT_ALTER_PORT     = 2,
+  EXT_ALTER_USER     = 3,
+  EXT_ALTER_PASSWORD = 4,
+  EXT_ALTER_DATABASE = 5,
+  EXT_ALTER_SCHEMA   = 6,
+  EXT_ALTER_OPTIONS  = 7,
+} EExtAlterType;
+
+// Single key=value option for OPTIONS(...) or ALTER SET clause
+typedef struct SExtOptionNode {
+  ENodeType type;          // QUERY_NODE_EXT_OPTION
+  char      key[TSDB_EXT_SOURCE_OPTION_KEY_LEN];
+  char      value[TSDB_EXT_SOURCE_OPTION_VALUE_LEN];  // single option value (e.g. schema name, path)
+} SExtOptionNode;
+
+// One clause in ALTER EXTERNAL SOURCE SET ... (discriminated union on alterType):
+//   - EXT_ALTER_HOST/PORT/USER/PASSWORD/DATABASE/SCHEMA: uses `value`, pOptions is NULL
+//   - EXT_ALTER_OPTIONS: uses `pOptions` (list of SExtOptionNode), value is unused
+typedef struct SExtAlterClauseNode {
+  ENodeType     type;          // QUERY_NODE_EXT_ALTER_CLAUSE
+  EExtAlterType alterType;     // discriminator: which field to alter
+  char          value[TSDB_EXT_SOURCE_HOST_LEN];  // structured field value (host is longest at 257)
+  SNodeList*    pOptions;      // OPTIONS key-value list; only set when alterType == EXT_ALTER_OPTIONS
+} SExtAlterClauseNode;
+
+// ============== end of federated query DDL AST nodes ==============
 
 #ifdef __cplusplus
 }

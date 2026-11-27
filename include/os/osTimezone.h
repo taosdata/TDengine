@@ -1,6 +1,8 @@
 /*
  * Copyright (c) 2019 TAOS Data, Inc. <jhtao@taosdata.com>
  *
+ * SPDX-License-Identifier: AGPL-3.0-or-later
+ *
  * This program is free software: you can use, redistribute, and/or modify
  * it under the terms of the GNU Affero General Public License, version 3
  * or later ("AGPL"), as published by the Free Software Foundation.
@@ -31,6 +33,14 @@ typedef void *timezone_t;
 // Add Windows version function declarations
 timezone_t tzalloc(char const *);
 void       tzfree(timezone_t);
+/* POSIX mktime_z equivalent: interpret the broken-down time using the given
+ * timezone rules and return the UTC epoch. */
+time_t     mktime_z(timezone_t, struct tm *);
+
+// Acquire a default-rule snapshot; the caller must release it with tzfree().
+timezone_t  taosAcquireDefaultTimezone(void);
+// tz must be non-NULL; the borrowed name remains valid until tzfree(tz).
+const char *taosTimezoneName(timezone_t tz);
 
 #else
 typedef struct state *timezone_t;
@@ -40,20 +50,53 @@ time_t     mktime_z(timezone_t, struct tm *);
 timezone_t tzalloc(char const *);
 void       tzfree(timezone_t);
 void       getTimezoneStr(char *tz);
-void       truncateTimezoneString(char *tz);
 
 #endif
 
+void    truncateTimezoneString(char *tz);
 int32_t taosGetLocalTimezoneOffset(int32_t *code);
-int32_t taosGetTZOffsetSeconds(timezone_t tz, int32_t *code);   // east-positive (tm_gmtoff convention); tz=NULL uses global default
+/*
+ * Return the timezone's current/default UTC offset in seconds.
+ *
+ * This API has no target timestamp parameter, so callers must not use it for
+ * historical or DST-sensitive instant calculations.  For "offset at a given
+ * timestamp", use taosGetTimezoneOffsetAtSeconds() from ttime.h instead.
+ *
+ * Result convention is east-positive (tm_gmtoff style); tz == NULL uses the
+ * global default timezone. On failure, return 0 and set terrno and *code
+ * (when supplied); callers must check the error status before using it.
+ */
+int32_t taosGetTZOffsetSeconds(timezone_t tz, int32_t *code);
 int32_t taosGetSystemTimezone(char *outTimezone);
 int32_t taosSetGlobalTimezone(const char *tz);
 int32_t taosFormatTimezoneStr(time_t t, const char *tzStr, timezone_t sp, char *outTimezoneStr);
+/*
+ * Re-render "Name (ABBR, +hhmm)" display text at the current instant. The
+ * abbreviation and offset in stored display text are snapshots that go stale
+ * after a DST transition; only the leading rule name is reused. tz == NULL
+ * uses the global default timezone.
+ */
+int32_t taosRefreshTimezoneStr(const char *display, timezone_t tz, char *outTimezoneStr);
 int32_t initTimezoneInfo();
 void    cleanupTimezoneInfo();
 
+/*
+ * Map a Windows canonical timezone name to its IANA equivalent.
+ * Returns the IANA name on success, or NULL if not found.
+ * Available on all platforms.
+ */
+const char *taosWindowsNameToIana(const char *winName);
+
+/*
+ * Map an IANA timezone name to its Windows canonical equivalent (the T-SQL
+ * "AT TIME ZONE" spelling).  The input is returned unchanged when it already
+ * names a Windows zone, and NULL when no mapping exists.  Mirrors
+ * taosWindowsNameToIana() over the same tables; available on all platforms.
+ */
+const char *taosIanaNameToWindows(const char *ianaName);
+
 #ifdef WINDOWS
-int64_t getWindowsTimezoneOffset(void);
+#define TAOS_INTERNAL_TZ_ENV "_TDENGINE_INTERNAL_TZ_RULE"
 #endif
 
 timezone_t getGlobalDefaultTZ();

@@ -1,3 +1,8 @@
+#ifdef _MSC_VER
+#define strcasecmp  _stricmp
+#define strncasecmp _strnicmp
+#endif
+
 #include "ttqProperty.h"
 
 #include <errno.h>

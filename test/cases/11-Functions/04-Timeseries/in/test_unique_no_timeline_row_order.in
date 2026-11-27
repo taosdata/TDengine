@@ -1,0 +1,25 @@
+USE test_no_timeline_row_order;
+## U1 - label group, ascending input order, all selected columns come from group first row
+SELECT v, seq, bucket, aux, marker FROM (SELECT unique(label) AS v, seq, bucket, aux, marker FROM (SELECT seq, bucket, aux, marker, label FROM t_unique ORDER BY seq)) ORDER BY v NULLS FIRST;
+## U2 - label group, descending input order changes representative rows
+SELECT v, seq, bucket, aux, marker FROM (SELECT unique(label) AS v, seq, bucket, aux, marker FROM (SELECT seq, bucket, aux, marker, label FROM t_unique ORDER BY seq DESC)) ORDER BY v NULLS FIRST;
+## U3 - numeric unique expression group, ascending input order
+SELECT v, seq, label, nullable_label, bucket, aux, marker FROM (SELECT unique(val) AS v, seq, label, nullable_label, bucket, aux, marker FROM (SELECT seq, val, label, nullable_label, bucket, aux, marker FROM t_unique ORDER BY seq)) ORDER BY v;
+## U4 - numeric unique expression group, descending input order
+SELECT v, seq, label, bucket, aux, marker FROM (SELECT unique(val) AS v, seq, label, bucket, aux, marker FROM (SELECT seq, val, label, bucket, aux, marker FROM t_unique ORDER BY seq DESC)) ORDER BY v;
+## U5 - nullable unique value group, NULL representative row is still a full row
+SELECT v, seq, label, marker FROM (SELECT unique(nullable_label) AS v, seq, label, marker FROM (SELECT seq, nullable_label, label, marker FROM t_unique ORDER BY seq)) ORDER BY v NULLS FIRST;
+## U6 - limit applies before unique
+SELECT v, seq, marker FROM (SELECT unique(label) AS v, seq, marker FROM (SELECT seq, label, marker FROM t_unique ORDER BY seq LIMIT 4)) ORDER BY v;
+## U7 - expression unique with selected columns
+SELECT v, seq, val, bucket, marker FROM (SELECT unique(val + bucket) AS v, seq, val, bucket, marker FROM (SELECT seq, val, bucket, marker FROM t_unique ORDER BY seq)) ORDER BY v;
+## U8 - projected TIMESTAMP input is degraded timeline, not no-timeline
+SELECT v, seq, bucket, aux, marker FROM (SELECT unique(label) AS v, seq, bucket, aux, marker FROM (SELECT ts, seq, bucket, aux, marker, label FROM t_unique ORDER BY seq)) WHERE v = 'alpha';
+## U9 - UNION ALL input without timestamp
+SELECT v, seq, marker FROM (SELECT unique(label) AS v, seq, marker FROM (SELECT 2 seq, 'b' label, 'b-first' marker UNION ALL SELECT 1, 'a', 'a-first' UNION ALL SELECT 3, 'b', 'b-later' ORDER BY seq)) ORDER BY v;
+## U10 - TEXT input projects no timestamp
+SELECT v, seq, marker FROM (SELECT unique(label) AS v, seq, marker FROM (SELECT seq, label, marker FROM TEXT(ts TIMESTAMP, seq INT, label NCHAR(16), marker NCHAR(16)) VALUES ('2024-01-01 00:00:01', 2, 'b', 'b-first') ('2024-01-01 00:00:02', 1, 'a', 'a-first') ('2024-01-01 00:00:03', 3, 'b', 'b-later') t ORDER BY seq)) ORDER BY v;
+## U11 - nested subquery input without timestamp
+SELECT v, seq, marker FROM (SELECT unique(label) AS v, seq, marker FROM (SELECT seq, label, marker FROM (SELECT seq, label, marker FROM t_unique WHERE label IS NOT NULL ORDER BY seq DESC) s WHERE seq >= 2)) ORDER BY v;
+## U12 - FILE input projects no timestamp
+SELECT v, seq, marker FROM (SELECT unique(label) AS v, seq, marker FROM (SELECT seq, label, marker FROM FILE('cases/11-Functions/04-Timeseries/data/test_unique_no_timeline_row_order.csv', 'ts TIMESTAMP, seq INT, label NCHAR(16), marker NCHAR(16)') f ORDER BY seq)) ORDER BY v;

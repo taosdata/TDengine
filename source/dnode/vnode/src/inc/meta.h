@@ -1,6 +1,8 @@
 /*
  * Copyright (c) 2019 TAOS Data, Inc. <jhtao@taosdata.com>
  *
+ * SPDX-License-Identifier: AGPL-3.0-or-later
+ *
  * This program is free software: you can use, redistribute, and/or modify
  * it under the terms of the GNU Affero General Public License, version 3
  * or later ("AGPL"), as published by the Free Software Foundation.
@@ -45,9 +47,14 @@ void metaULock(SMeta* pMeta);
 // metaEntry ==================
 int metaEncodeEntry(SEncoder* pCoder, const SMetaEntry* pME);
 int metaDecodeEntry(SDecoder* pCoder, SMetaEntry* pME);
+int metaDecodeEntryImpl(SDecoder* pCoder, SMetaEntry* pME, bool headerOnly);
 
 // metaQuery ==================
 int metaGetTableEntryByVersion(SMetaReader* pReader, int64_t version, tb_uid_t uid);
+
+// Exposed to the executor via SStoreMeta.getVtableGen: returns the vnode-wide
+// virtual-table metadata generation counter (see SMeta.vtableGen).
+int64_t metaGetVtableGenFromVnode(void* pVnode);
 
 // metaIdx ==================
 int  metaOpenIdx(SMeta* pMeta);
@@ -62,10 +69,45 @@ static FORCE_INLINE tb_uid_t metaGenerateUid(SMeta* pMeta) { return tGenIdPI64()
 int32_t metaHandleEntry2(SMeta* pMeta, const SMetaEntry* pEntry);
 void    metaHandleSyncEntry(SMeta* pMeta, const SMetaEntry* pEntry);
 
+// Build the merged column view of a table for meta responses: pRowSchema (the vstb row schema
+// for a virtual child table) followed by the vchild's own (extension) columns, and the
+// persisted colRef array (position-aligned with pRowSchema) followed by the own columns'
+// references. For non-vchild tables the outputs are plain copies of the persisted view.
+// Output arrays are newly allocated (taosMemory*); SColRef tagCondJson strings are
+// deep-copied. Caller owns the outputs.
+int32_t metaBuildMergedColView(const SMetaEntry* pEntry, const SSchemaWrapper* pRowSchema,
+                               SSchema** ppSchemas, SColRef** ppColRefs, int32_t* pNumCols);
+
+// Resolve the series tag condition that a TSDB_ALTER_TABLE_ALTER_COLUMN_REF request would install on
+// the column, without copying it: *ppTagCondJson points into pEntry's own series list (or is NULL
+// when the request is not an external ref or no series matches). Caller must not free it.
+void metaResolveColRefTagCond(const SMetaEntry* pEntry, const SVAlterTbReq* pReq, const char** ppTagCondJson,
+                              int32_t* pTagCondLen);
+
+// Return true when applying pReq to pColRef would leave every stored field byte-identical, i.e. the
+// ALTER is a no-op. colId is the id of the column pColRef belongs to; pNewTagCondJson/newTagCondLen
+// are what metaResolveColRefTagCond() produced for the same request.
+//
+// filterCondJson and tagCondJson take part in the comparison: both are persisted on the SColRef and
+// both change what the virtual-table reader resolves, so a request differing only there is a real
+// change and must not be treated as idempotent.
+bool metaColRefMatchesAlterReq(const SColRef* pColRef, const SVAlterTbReq* pReq, col_id_t colId,
+                               const char* pNewTagCondJson, int32_t newTagCondLen);
+
+// Build the merged tag view of a table for meta responses: pTagSchema (the vstb tag schema for
+// a virtual child table) followed by the vchild's own (extension) tags. For non-vchild tables
+// the output is a plain copy of pTagSchema. The output array is newly allocated (taosMemory*);
+// caller owns it.
+int32_t metaBuildMergedTagView(const SMetaEntry* pEntry, const SSchemaWrapper* pTagSchema, SSchema** ppTags,
+                               int32_t* pNumTags);
+
 // metaCache ==================
 int32_t metaCacheOpen(SMeta* pMeta);
 void    metaCacheClose(SMeta* pMeta);
 int32_t metaCacheUpsert(SMeta* pMeta, SMetaInfo* pInfo);
+// Caller holds the meta read lock. Read at most 64 cache entries, without I/O
+// or allocation. A miss with truncated=true is inconclusive, not an absence.
+int32_t metaCacheGetForDiagnostics(SMeta* pMeta, int64_t uid, SMetaInfo* pInfo, bool* pTruncated);
 int32_t metaCacheDrop(SMeta* pMeta, int64_t uid);
 
 int32_t metaStatsCacheUpsert(SMeta* pMeta, SMetaStbStats* pInfo);
@@ -75,7 +117,30 @@ int64_t metaGetStbKeep(SMeta* pMeta, int64_t uid);
 void    metaUpdateStbStats(SMeta* pMeta, int64_t uid, int64_t deltaCtb, int32_t deltaCol, int64_t deltaKeep);
 int32_t metaUidFilterCacheGet(SMeta* pMeta, uint64_t suid, const void* pKey, int32_t keyLen, LRUHandle** pHandle);
 int32_t metaGetChildUidsOfSuperTable(SMeta* pMeta, tb_uid_t suid, SArray** childList);
+// Same, but child tables that are PRE_CREATE in batch meta txn `txnId` are included (txnId 0: none are).
+// includeAllPreCreate: no visibility filter, every child that belongs to the super table (for dropping it).
+int32_t metaGetChildUidsOfSuperTableTxn(SMeta* pMeta, tb_uid_t suid, int64_t txnId, bool includeAllPreCreate,
+                                        SArray** childList);
 
+// Details of the first vchild own-name conflict found by the checks below, used to build a
+// client-facing error message that names the conflicting child table. pConflictTbName is the
+// child table name, pConflictColName the colliding column/tag name, isTag distinguishes an
+// own tag from an own data column. All fields stay zeroed when no conflict is found.
+typedef struct SOwnNameConflictInfo {
+  char childName[TSDB_TABLE_NAME_LEN];
+  char colName[TSDB_COL_NAME_LEN];
+  bool isTag;
+} SOwnNameConflictInfo;
+
+// Check whether any virtual child table of the super table already owns one of pNames (an
+// SArray whose elements are inline char[TSDB_COL_NAME_LEN], each a column/tag name -- NOT
+// char* pointers) as an own (extension) column/tag; returns TSDB_CODE_VND_COL_ALREADY_EXISTS
+// on conflict. pConflict (optional, may be NULL) receives the first conflicting child table /
+// name.
+int32_t metaCheckOwnNameConflictsOfChildTables(SMeta* pMeta, tb_uid_t suid, SArray* pNames,
+                                               SOwnNameConflictInfo* pConflict);
+
+bool schemasHasTypeMod(const SSchema *pSchema, int32_t nCols);
 struct SMeta {
   TdThreadRwlock lock;
 
@@ -86,6 +151,7 @@ struct SMeta {
   TXN*    txn;
   TTB*    pTbDb;
   TTB*    pSkmDb;
+  TTB*    pSkmExtDb;
   TTB*    pUidIdx;
   TTB*    pNameIdx;
   TTB*    pCtbIdx;
@@ -101,11 +167,33 @@ struct SMeta {
 
   TTB* pSmaIdx;
 
+  // batch meta txn: track pending txn entries for O(k) startup rebuild
+  TTB* pTxnIdx;
+
+  // batch meta txn: lazy COMMIT/ROLLBACK  -  txn finalization record for O(1) finalize
+  TTB* pTxnMeta;
+
   // stream
   TTB* pStreamDb;
 
   SMetaCache* pCache;
+
+  // vc_cols scan result cache invalidation: bumped on every virtual-table
+  // (VIRTUAL_NORMAL/VIRTUAL_CHILD) entry create/update/drop so calc-side
+  // readers can detect a stale cached scan with a single atomic load.
+  int64_t vtableGen;
+
+  SHashObj* uidSuidHash;
+  SHashObj* uidNameHash;
 };
+
+// vtable metadata generation: bumped whenever a virtual-table entry changes, so
+// readers that cached an ins_virtual_child_columns full scan can cheaply detect
+// staleness. Read with metaGetVtableGen, bump with metaBumpVtableGen.
+static FORCE_INLINE int64_t metaGetVtableGen(SMeta* pMeta) { return atomic_load_64(&pMeta->vtableGen); }
+// Bump is a real function (not inline) so the vnode txn unit test can seam it
+// out with a dummy SMeta pointer instead of dereferencing it.
+void metaBumpVtableGen(SMeta* pMeta);
 
 typedef struct {
   int64_t  version;
@@ -145,6 +233,13 @@ typedef struct {
   int64_t  smaUid;
 } SSmaIdxKey;
 
+#pragma pack(push, 1)
+typedef struct {
+  int64_t txnId;
+  int8_t  txnStatus;
+  int64_t txnOrigVer;
+} STxnIdxVal;
+#pragma pack(pop)
 typedef struct {
   int64_t  btime;
   tb_uid_t uid;
@@ -154,6 +249,15 @@ typedef struct {
   int64_t  ncol;
   tb_uid_t uid;
 } SNcolIdxKey;
+
+
+// metaTxn ==================
+// Fast-path check: returns true if there are any pending (active or finalized-but-un-vacuumed)
+// txn entries in this VNode. When false, callers can skip per-row tdbTbGet(pTxnIdx) lookups.
+// Uses a pre-maintained atomic counter  -  single cache-line read, no hash traversal.
+static FORCE_INLINE bool metaHasPendingTxnEntries(SMeta* pMeta) {
+  return atomic_load_32(&pMeta->pVnode->txnPendingCount) > 0;
+}
 
 // metaTable ==================
 int metaCreateTagIdxKey(tb_uid_t suid, int32_t cid, const void* pTagData, int32_t nTagData, int8_t type, tb_uid_t uid,

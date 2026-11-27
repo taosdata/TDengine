@@ -1,14 +1,18 @@
 
-###################################################################
-#           Copyright (c) 2016 by TAOS Technologies, Inc.
-#                     All rights reserved.
+# Copyright (c) 2016 TAOS Data, Inc. <jhtao@taosdata.com>
 #
-#  This file is proprietary and confidential to TAOS Technologies.
-#  No part of this file may be reproduced, stored, transmitted,
-#  disclosed or used in any form or by any means other than as
-#  expressly provided by the written permission from Jianhui Tao
+# SPDX-License-Identifier: AGPL-3.0-or-later
 #
-###################################################################
+# This program is free software: you can use, redistribute, and/or modify
+# it under the terms of the GNU Affero General Public License, version 3
+# or later ("AGPL"), as published by the Free Software Foundation.
+#
+# This program is distributed in the hope that it will be useful, but WITHOUT
+# ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+# FITNESS FOR A PARTICULAR PURPOSE.
+#
+# You should have received a copy of the GNU Affero General Public License
+# along with this program. If not, see <http://www.gnu.org/licenses/>.
 
 # -*- coding: utf-8 -*-
 
@@ -18,11 +22,21 @@ from math import inf
 import platform
 import os
 import sys
+import time
+
+import pytest
 
 
-NUM_INFO_DB_TABLES = 59  # number of system tables in information_schema
-NUM_PERF_DB_TABLES = 6  # number of system tables in performance_schema
 NUM_USER_DB_TABLES = 1  # number of user tables in test_meta_sysdb
+
+
+def get_sys_table_count(db_name):
+    tdSql.query(
+        f"select table_name from information_schema.ins_tables where db_name = '{db_name}'"
+    )
+    return tdSql.getRows()
+
+
 class TestMetaSysDb2:
     def setup_class(cls):
         tdLog.debug("start to execute %s" % __file__)
@@ -35,11 +49,14 @@ class TestMetaSysDb2:
         3. Check ins_columns result correctly with table_name filter
         4. Check table count scan with group by db_name and stable_name
         5. Check table count scan after taosd restart
-        6. Check count(distinct ...) function NOT optimized on ins_tables
+        6. Check count(distinct ...) function succeeds on ins_tables
+        7. Check count with table type filter on ins_tables
+        8. Check table_name =/IN filter results on ins_tables
+        9. Check table count scan stays correct after compact database meta_only
 
         Since: v3.3.6
 
-        Labels: common,ci
+        Labels: common,ci,integration,functional
 
         Jira: TS-7600
 
@@ -48,13 +65,19 @@ class TestMetaSysDb2:
             - 2025-11-27 Tony Zhang add check_ins_tables_count and check_count_distinct
             - 2025-12-22 Alex Duan Migrated from uncatalog/system-test/2-query/test_odbc.py
             - 2025-12-22 Alex Duan Migrated from uncatalog/system-test/2-query/test_table_count_scan.py
+            - 2026-09-21 add check_ins_tables_count_by_type for type-filtered count scan
+            - 2026-10-13 add check_table_name_in_filter for table_name =/IN direct lookup
+            - 2026-11-16 add check_table_count_after_compact for defect 7169279592
 
         """
         self.check_ins_tables_count()
+        self.check_ins_tables_count_by_type()
+        self.check_table_name_in_filter()
         self.check_table_type()
         self.check_count_distinct()
         self.do_odbc()
         self.do_table_count_scan()
+        self.check_table_count_after_compact()
 
     def check_table_type(self):
         # check table type in information_schema
@@ -68,6 +91,8 @@ class TestMetaSysDb2:
         tdLog.info(f"Checking optimized plan for 'information_schema.ins_tables'")
 
         # create test database and table
+        tdSql.execute("drop database if exists test_meta_sysdb", show=1)
+        tdSql.execute("drop database if exists empty_db_for_count_test", show=1)
         tdSql.execute("create database if not exists test_meta_sysdb", show=1)
         tdSql.execute("use test_meta_sysdb")
         tdSql.execute("create table stb (ts timestamp, v1 int) tags (t1 int)", show=1)
@@ -76,6 +101,8 @@ class TestMetaSysDb2:
         tdSql.execute("create database if not exists empty_db_for_count_test", show=1)
         tdSql.execute("use empty_db_for_count_test")
         tdSql.execute("create table stb_empty (ts timestamp, v1 int) tags (t1 int)", show=1)
+        info_tables = get_sys_table_count("information_schema")
+        perf_tables = get_sys_table_count("performance_schema")
 
         # check count plan optimization for information_schema.ins_tables
         # to guarantee the efficiency of count(*) query on it
@@ -89,7 +116,7 @@ class TestMetaSysDb2:
         ## 1.1 check count result
         tdSql.query("select count(*) cnt from information_schema.ins_tables", show=1)
         tdSql.checkRows(1)
-        tdSql.checkData(0, 0, NUM_INFO_DB_TABLES + NUM_PERF_DB_TABLES + NUM_USER_DB_TABLES) # 48 sys tables + 6 perf tables + 1 user table
+        tdSql.checkData(0, 0, info_tables + perf_tables + NUM_USER_DB_TABLES)
 
         ## 2. check plan with group by
         ### 2.1 check plan with group by db_name
@@ -103,8 +130,8 @@ class TestMetaSysDb2:
         tdSql.query("select db_name, count(*) cnt from information_schema.ins_tables \
                     group by db_name order by cnt desc", show=1)
         tdSql.checkRows(4)
-        tdSql.checkData(0, 1, NUM_INFO_DB_TABLES) # 47 tables in information_schema
-        tdSql.checkData(1, 1, NUM_PERF_DB_TABLES)  # 5  tables in sys
+        tdSql.checkData(0, 1, info_tables)
+        tdSql.checkData(1, 1, perf_tables)
         tdSql.checkData(2, 1, NUM_USER_DB_TABLES)  # 1  table in test_meta_sysdb
         tdSql.checkData(3, 1, 0)  # 0  table in empty_db_for_count_test
 
@@ -120,11 +147,22 @@ class TestMetaSysDb2:
                     group by stable_name order by cnt desc", show=1)
         tdSql.checkRows(3)
         tdSql.checkData(0, 0, None)
-        tdSql.checkData(0, 1, NUM_INFO_DB_TABLES + NUM_PERF_DB_TABLES) # 47+5 normal tables in system databases
+        tdSql.checkData(0, 1, info_tables + perf_tables)
         tdSql.checkData(1, 0, "stb")
         tdSql.checkData(1, 1, NUM_USER_DB_TABLES)  # 1  table in test_meta_sysdb.stb
         tdSql.checkData(2, 0, "stb_empty")
         tdSql.checkData(2, 1, 0)  # 0  table in empty_db_for_count_test.stb_empty
+
+        ### 2.5 check partition by stable_name result without order by
+        tdSql.query("select count(*) cnt, stable_name from information_schema.ins_tables \
+                    partition by stable_name", show=1)
+        tdSql.checkRows(3)
+        stable_name_counts = {}
+        for i in range(tdSql.getRows()):
+            stable_name_counts[tdSql.getData(i, 1)] = tdSql.getData(i, 0)
+        assert stable_name_counts.get(None) == info_tables + perf_tables
+        assert stable_name_counts.get("stb") == NUM_USER_DB_TABLES
+        assert stable_name_counts.get("stb_empty") == 0
 
         ## 3. check plan with where condition
         ### 3.1 check plan with where db_name
@@ -139,7 +177,7 @@ class TestMetaSysDb2:
         tdSql.query("select count(*) cnt from information_schema.ins_tables \
                     where db_name='information_schema'", show=1)
         tdSql.checkRows(1)
-        tdSql.checkData(0, 0, NUM_INFO_DB_TABLES) # 47 tables in information_schema
+        tdSql.checkData(0, 0, info_tables)
         ### 3.3 check plan with where stable_name
         tdSql.query("explain select count(*) cnt from information_schema.ins_tables \
                     where stable_name='stb'", show=1)
@@ -188,12 +226,170 @@ class TestMetaSysDb2:
 
         tdLog.info("Table count scan optimization check passed for all eligible tables.")
 
-    # if distinct keyword is enabled in count function,
-    # the optimization should check it and NOT apply optimization!!!!!
-    def check_count_distinct(self):
-        tdSql.error("select count(distinct table_name) from information_schema.ins_tables",
-                     expectErrInfo='syntax error near "distinct table_name) from information_schema.ins_tables"',
+    def check_ins_tables_count_by_type(self):
+        tdLog.info("Checking count-by-type plan for 'information_schema.ins_tables'")
+
+        # create a database with every table entry type, with asymmetric counts
+        tdSql.execute("drop database if exists test_type_count_db", show=1)
+        tdSql.execute("create database test_type_count_db vgroups 1", show=1)
+        tdSql.execute("use test_type_count_db")
+        # 3 normal tables
+        for i in range(1, 4):
+            tdSql.execute(f"create table ntb{i} (ts timestamp, v int)", show=1)
+        # 2 stables with 2 + 3 child tables
+        tdSql.execute("create stable stb_a (ts timestamp, v int) tags (t1 int)", show=1)
+        tdSql.execute("create stable stb_b (ts timestamp, v int) tags (t1 int)", show=1)
+        tdSql.execute("create table ctb_a1 using stb_a tags (1)", show=1)
+        tdSql.execute("create table ctb_a2 using stb_a tags (2)", show=1)
+        tdSql.execute("create table ctb_b1 using stb_b tags (1)", show=1)
+        tdSql.execute("create table ctb_b2 using stb_b tags (2)", show=1)
+        tdSql.execute("create table ctb_b3 using stb_b tags (3)", show=1)
+        # 1 virtual stable with 1 virtual child, 1 virtual normal table
+        tdSql.execute("create stable vstb (ts timestamp, v int) tags (t1 int) virtual 1", show=1)
+        tdSql.execute("create vtable vc1 (v from ntb1.v) using vstb tags (1)", show=1)
+        tdSql.execute("create vtable vntb1 (ts timestamp, v int from ntb2.v)", show=1)
+
+        expect_plan = 'Table Count Scan'
+        expected = {
+            'NORMAL_TABLE': 3,
+            'CHILD_TABLE': 5,
+            'VIRTUAL_NORMAL_TABLE': 1,
+            'VIRTUAL_CHILD_TABLE': 1,
+        }
+
+        ## 1. count with type filter uses the optimized plan and returns the right value
+        for t, cnt in expected.items():
+            tdSql.query(f"explain select count(*) from information_schema.ins_tables \
+                        where db_name='test_type_count_db' and type='{t}'", show=1)
+            scan_plan = tdSql.getColData(0)[-1]
+            assert expect_plan in scan_plan, \
+                f"expected '{expect_plan}' in plan for type='{t}', got: {scan_plan}"
+            tdSql.query(f"select count(*) from information_schema.ins_tables \
+                        where db_name='test_type_count_db' and type='{t}'", show=1)
+            tdSql.checkRows(1)
+            tdSql.checkData(0, 0, cnt)
+
+        ## 2. super tables are not ins_tables rows, count must be 0
+        tdSql.query("select count(*) from information_schema.ins_tables \
+                    where db_name='test_type_count_db' and type='SUPER_TABLE'", show=1)
+        tdSql.checkRows(1)
+        tdSql.checkData(0, 0, 0)
+
+        ## 3. type counts match the full-scan ground truth (group by type)
+        tdSql.query("select type, count(*) from information_schema.ins_tables \
+                    where db_name='test_type_count_db' group by type", show=1)
+        actual = {}
+        for i in range(tdSql.getRows()):
+            actual[tdSql.getData(i, 0)] = tdSql.getData(i, 1)
+        assert actual == expected, f"type counts {actual} != expected {expected}"
+
+        ## 4. type filter combined with group by must stay correct (falls back to full scan)
+        tdSql.query("select count(*) from information_schema.ins_tables \
+                    where db_name='test_type_count_db' and type='NORMAL_TABLE' group by db_name", show=1)
+        tdSql.checkRows(1)
+        tdSql.checkData(0, 0, expected['NORMAL_TABLE'])
+
+        tdSql.query("select stable_name, count(*) from information_schema.ins_tables \
+                    where db_name='test_type_count_db' and type='CHILD_TABLE' group by stable_name", show=1)
+        stable_counts = {}
+        for i in range(tdSql.getRows()):
+            stable_counts[tdSql.getData(i, 0)] = tdSql.getData(i, 1)
+        assert stable_counts == {'stb_a': 2, 'stb_b': 3}, \
+            f"child counts per stable {stable_counts} != expected"
+
+        tdSql.query("select stable_name, count(*) from information_schema.ins_tables \
+                    where db_name='test_type_count_db' and type='VIRTUAL_CHILD_TABLE' group by stable_name", show=1)
+        tdSql.checkRows(1)
+        tdSql.checkData(0, 0, 'vstb')
+        tdSql.checkData(0, 1, 1)
+
+        ## 5. total count still covers all four entry types
+        tdSql.query("select count(*) from information_schema.ins_tables \
+                    where db_name='test_type_count_db'", show=1)
+        tdSql.checkRows(1)
+        tdSql.checkData(0, 0, sum(expected.values()))
+
+        tdSql.execute("drop database test_type_count_db", show=1)
+        tdLog.info("Table count scan by type check passed.")
+
+    def check_table_name_in_filter(self):
+        tdLog.info("Checking table_name =/IN filter on 'information_schema.ins_tables'")
+
+        tdSql.execute("drop database if exists test_in_filter_db", show=1)
+        tdSql.execute("drop database if exists test_in_filter_db2", show=1)
+        tdSql.execute("create database test_in_filter_db vgroups 2", show=1)
+        tdSql.execute("use test_in_filter_db")
+        tdSql.execute("create stable stb (ts timestamp, v int) tags (t1 int)", show=1)
+        tdSql.execute("create table ctb1 using stb tags (1)", show=1)
+        tdSql.execute("create table ctb2 using stb tags (2)", show=1)
+        tdSql.execute("create table ntb1 (ts timestamp, v int)", show=1)
+        tdSql.execute("create database test_in_filter_db2 vgroups 1", show=1)
+        tdSql.execute("create table test_in_filter_db2.ntb2 (ts timestamp, v int)", show=1)
+
+        def rows_of_in(names, db=None):
+            name_list = ",".join(f"'{n}'" for n in names)
+            cond = f"table_name in ({name_list})"
+            if db is not None:
+                cond = f"db_name='{db}' and " + cond
+            tdSql.query(f"select db_name, table_name, stable_name from information_schema.ins_tables where {cond}",
+                        show=1)
+            return {(tdSql.getData(i, 0), tdSql.getData(i, 1), tdSql.getData(i, 2)) for i in range(tdSql.getRows())}
+
+        ## 1. single-element IN behaves like equality
+        rows = rows_of_in(["ctb1"], db="test_in_filter_db")
+        assert rows == {("test_in_filter_db", "ctb1", "stb")}, f"unexpected rows: {rows}"
+
+        ## 2. multi-element IN across child and normal tables
+        rows = rows_of_in(["ctb1", "ntb1", "ctb2"], db="test_in_filter_db")
+        assert rows == {("test_in_filter_db", "ctb1", "stb"),
+                        ("test_in_filter_db", "ctb2", "stb"),
+                        ("test_in_filter_db", "ntb1", None)}, f"unexpected rows: {rows}"
+
+        ## 3. super-table names never appear in ins_tables
+        assert rows_of_in(["stb"], db="test_in_filter_db") == set()
+        assert rows_of_in(["stb", "ctb1"], db="test_in_filter_db") == {("test_in_filter_db", "ctb1", "stb")}
+
+        ## 4. nonexistent names are ignored
+        assert rows_of_in(["not_exist_tb", "ctb2"], db="test_in_filter_db") == \
+            {("test_in_filter_db", "ctb2", "stb")}
+
+        ## 5. duplicate literals still return one row per table
+        assert rows_of_in(["ctb1", "ctb1"], db="test_in_filter_db") == {("test_in_filter_db", "ctb1", "stb")}
+
+        ## 6. IN without db_name covers tables from every db
+        rows = rows_of_in(["ntb1", "ntb2"])
+        assert rows == {("test_in_filter_db", "ntb1", None),
+                        ("test_in_filter_db2", "ntb2", None)}, f"unexpected rows: {rows}"
+
+        ## 7. equality filter still works
+        tdSql.query("select table_name, stable_name from information_schema.ins_tables \
+                    where db_name='test_in_filter_db' and table_name='ctb2'", show=1)
+        tdSql.checkRows(1)
+        tdSql.checkData(0, 0, "ctb2")
+        tdSql.checkData(0, 1, "stb")
+
+        ## 8. IN result matches the full-scan ground truth
+        tdSql.query("select table_name, stable_name from information_schema.ins_tables \
+                    where db_name='test_in_filter_db'", show=1)
+        truth = {("test_in_filter_db", tdSql.getData(i, 0), tdSql.getData(i, 1)) for i in range(tdSql.getRows())}
+        rows = rows_of_in(["ctb1", "ctb2", "ntb1", "stb"], db="test_in_filter_db")
+        assert rows == truth, f"IN result {rows} != full-scan ground truth {truth}"
+
+        ## 9. IN combined with another condition stays correct
+        tdSql.query("select table_name from information_schema.ins_tables \
+                    where db_name='test_in_filter_db' and table_name in ('ctb1','ntb1') and type='NORMAL_TABLE'",
                     show=1)
+        tdSql.checkRows(1)
+        tdSql.checkData(0, 0, "ntb1")
+
+        tdSql.execute("drop database test_in_filter_db", show=1)
+        tdSql.execute("drop database test_in_filter_db2", show=1)
+        tdLog.info("Table name =/IN filter check passed.")
+
+    def check_count_distinct(self):
+        tdSql.query("select count(distinct table_name) from information_schema.ins_tables", show=1)
+        tdSql.checkRows(1)
+        assert tdSql.getData(0, 0) > 0, "count(distinct table_name) should return a positive count"
 
     #
     # ------------------ test_odbc.py ------------------
@@ -254,6 +450,8 @@ class TestMetaSysDb2:
         sql += " tb2 using stb1 tags(2,'2',2.0)"
         sql += " tb3 using stb1 tags(3,'3',3.0)"
         tdSql.execute(sql)
+        info_tables = get_sys_table_count("information_schema")
+        perf_tables = get_sys_table_count("performance_schema")
 
         sql = "insert into "
         sql += ' tb1 values (\'2021-11-11 09:00:00\',true,1,1,1,1,1,1,"123","1234",1,1,1,1)'
@@ -277,10 +475,10 @@ class TestMetaSysDb2:
         for i in range(0, 3):
             db_name = tdSql.getData(i, 1)
             if db_name == 'information_schema':
-                tdSql.checkData(i, 0, NUM_INFO_DB_TABLES)
+                tdSql.checkData(i, 0, info_tables)
                 tdSql.checkData(i, 2, None)
             elif db_name == 'performance_schema':
-                tdSql.checkData(i, 0, 6)
+                tdSql.checkData(i, 0, perf_tables)
                 tdSql.checkData(i, 2, None)
             elif db_name == 'tbl_count':
                 tdSql.checkData(i, 0, 3)
@@ -290,10 +488,10 @@ class TestMetaSysDb2:
         
         tdSql.query('select count(1) v,db_name, stable_name from information_schema.ins_tables group by db_name, stable_name order by v desc;')
         tdSql.checkRows(3)
-        tdSql.checkData(0, 0, NUM_INFO_DB_TABLES)
+        tdSql.checkData(0, 0, info_tables)
         tdSql.checkData(0, 1, 'information_schema')
         tdSql.checkData(0, 2, None)
-        tdSql.checkData(1, 0, 6)
+        tdSql.checkData(1, 0, perf_tables)
         tdSql.checkData(1, 1, 'performance_schema')
         tdSql.checkData(1, 2, None)
         tdSql.checkData(2, 0, 3)
@@ -302,11 +500,11 @@ class TestMetaSysDb2:
 
         tdSql.query('select count(1) v,db_name from information_schema.ins_tables group by db_name order by v asc')
         tdSql.checkRows(3)
-        tdSql.checkData(1, 0, 6)
+        tdSql.checkData(1, 0, perf_tables)
         tdSql.checkData(1, 1, 'performance_schema')
         tdSql.checkData(0, 0, 3)
         tdSql.checkData(0, 1, 'tbl_count')
-        tdSql.checkData(2, 0, NUM_INFO_DB_TABLES)
+        tdSql.checkData(2, 0, info_tables)
         tdSql.checkData(2, 1, 'information_schema')
 
         tdSql.query("select count(*) from information_schema.ins_tables where db_name='tbl_count'")
@@ -319,7 +517,7 @@ class TestMetaSysDb2:
 
         tdSql.query('select count(*) from information_schema.ins_tables')
         tdSql.checkRows(1)
-        tdSql.checkData(0, 0, 68)
+        tdSql.checkData(0, 0, info_tables + perf_tables + 3)
 
 
         tdSql.execute('create table stba (ts timestamp, c1 bool, c2 tinyint, c3 smallint, c4 int, c5 bigint, c6 float, c7 double, c8 binary(10), c9 nchar(10), c10 tinyint unsigned, c11 smallint unsigned, c12 int unsigned, c13 bigint unsigned) TAGS(t1 int, t2 binary(10), t3 double);')
@@ -399,10 +597,10 @@ class TestMetaSysDb2:
         tdSql.checkData(1, 0, 3)
         tdSql.checkData(1, 1, 'tbl_count')
         tdSql.checkData(1, 2, 'stb1')
-        tdSql.checkData(2, 0, 6)
+        tdSql.checkData(2, 0, perf_tables)
         tdSql.checkData(2, 1, 'performance_schema')
         tdSql.checkData(2, 2, None)
-        tdSql.checkData(3, 0, NUM_INFO_DB_TABLES)
+        tdSql.checkData(3, 0, info_tables)
         tdSql.checkData(3, 1, 'information_schema')
         tdSql.checkData(3, 2, None)
 
@@ -414,10 +612,10 @@ class TestMetaSysDb2:
         tdSql.checkData(1, 0, 3)
         tdSql.checkData(1, 1, 'tbl_count')
         tdSql.checkData(1, 2, 'stb1')
-        tdSql.checkData(2, 0, 6)
+        tdSql.checkData(2, 0, perf_tables)
         tdSql.checkData(2, 1, 'performance_schema')
         tdSql.checkData(2, 2, None)
-        tdSql.checkData(3, 0, NUM_INFO_DB_TABLES)
+        tdSql.checkData(3, 0, info_tables)
         tdSql.checkData(3, 1, 'information_schema')
         tdSql.checkData(3, 2, None)
 
@@ -426,9 +624,9 @@ class TestMetaSysDb2:
 
         tdSql.checkData(0, 0, 4)
         tdSql.checkData(0, 1, 'tbl_count')
-        tdSql.checkData(1, 0, 6)
+        tdSql.checkData(1, 0, perf_tables)
         tdSql.checkData(1, 1, 'performance_schema')
-        tdSql.checkData(2, 0, NUM_INFO_DB_TABLES)
+        tdSql.checkData(2, 0, info_tables)
         tdSql.checkData(2, 1, 'information_schema')
 
         tdSql.query("select count(*) from information_schema.ins_tables where db_name='tbl_count'")
@@ -441,5 +639,151 @@ class TestMetaSysDb2:
 
         tdSql.query('select count(*) from information_schema.ins_tables')
         tdSql.checkRows(1)
-        tdSql.checkData(0, 0, 69)
+        tdSql.checkData(0, 0, info_tables + perf_tables + 4)
         tdSql.execute('drop database tbl_count')
+
+    #
+    # ------------------ compact database ... meta_only ------------------
+    #
+    def create_child_tables(self, db, count, batch=500):
+        """Create `count` child tables of db.stb, one row each."""
+        for start in range(0, count, batch):
+            values = " ".join(
+                f"{db}.t{i} using {db}.stb tags({i}) values(1700000000000,{i})"
+                for i in range(start, min(start + batch, count))
+            )
+            tdSql.execute(f"insert into {values}", show=1)
+
+    def pending_compacts(self, db):
+        tdSql.query("show compacts")
+        for row in range(tdSql.queryRows):
+            if str(tdSql.getData(row, 1)) == db:
+                return True
+        return False
+
+    def wait_compact_done(self, db, timeout=180):
+        """Wait until the compact record of `db` leaves `show compacts`.
+
+        A second compact issued while the previous one is still running is rejected
+        with "compact already exist", so every round waits first.
+        """
+        deadline = time.time() + timeout
+        while time.time() < deadline:
+            if not self.pending_compacts(db):
+                time.sleep(2)  # let the vnode finish publishing its final counters
+                return
+            time.sleep(1)
+        assert False, f"compact on {db} did not finish within {timeout}s"
+
+    def compact_meta_only(self, db):
+        self.wait_compact_done(db)
+        tdSql.execute(f"compact database {db} meta_only", show=1)
+        self.wait_compact_done(db)
+
+    def check_compact_table_count(self, db, expect_total, expect_child, expect_normal):
+        """Assert the optimized count(*) agrees with the metadata scan.
+
+        count(*) without GROUP BY is rewritten to a table count scan that reads the
+        vnode counter, while group by type walks the metadata. Comparing the two
+        catches a counter that diverged from the stored entries.
+        """
+        tdSql.query(f"select count(*) from information_schema.ins_tables where db_name='{db}'")
+        tdSql.checkRows(1)
+        optimized = int(tdSql.getData(0, 0))
+
+        tdSql.query(
+            f"select type, count(*) from information_schema.ins_tables "
+            f"where db_name='{db}' group by type",
+            show=1,
+        )
+        by_type = {}
+        for row in range(tdSql.queryRows):
+            by_type[str(tdSql.getData(row, 0))] = int(tdSql.getData(row, 1))
+        scanned = sum(by_type.values())
+
+        tdLog.info(f"[{db}] count(*)={optimized} group_by_total={scanned} by_type={by_type}")
+        assert scanned == expect_total, f"{db}: group by total is {scanned}, expected {expect_total}"
+        assert optimized == scanned, (
+            f"{db}: count(*) reports {optimized} but the metadata scan reports {scanned}; "
+            "the vnode table counter diverged from the metadata"
+        )
+        if expect_child is not None:
+            assert by_type.get("CHILD_TABLE", 0) == expect_child, (
+                f"{db}: child tables are {by_type.get('CHILD_TABLE', 0)}, expected {expect_child}"
+            )
+        if expect_normal is not None:
+            assert by_type.get("NORMAL_TABLE", 0) == expect_normal, (
+                f"{db}: normal tables are {by_type.get('NORMAL_TABLE', 0)}, expected {expect_normal}"
+            )
+
+    def check_table_count_after_compact(self):
+        """Check table counters survive compact database meta_only
+
+        ``compact database <db> meta_only`` rebuilds the vnode metadata by replaying
+        every live entry into a fresh directory. The replay takes the create path of
+        the entry handler, which increments the vnode table counters even though no
+        table is created, so the counters were added twice on every successful
+        compaction (defect 7169279592).
+
+        ins_tables hides this depending on the query shape: count(*) without GROUP BY
+        reads the vnode counter, group by type reads the metadata. Each step below
+        compares them against the known table count.
+        """
+        tdSql.query("select server_version()")
+        version = str(tdSql.getData(0, 0)).lower()
+        if "enterprise" not in version:
+            pytest.skip(f"compact database meta_only needs an enterprise build, server is {version}")
+
+        children = 1000
+        normals = 50
+        dbs = ["test_compact_child", "test_compact_mixed", "test_compact_write"]
+        try:
+            # 1. child tables only, repeated compaction must not accumulate
+            db = "test_compact_child"
+            tdSql.execute(f"drop database if exists {db}", show=1)
+            tdSql.execute(f"create database {db} vgroups 2", show=1)
+            tdSql.execute(f"create stable {db}.stb (ts timestamp, v int) tags (t1 int)", show=1)
+            self.create_child_tables(db, children)
+            self.check_compact_table_count(db, children, children, None)
+            for round_no in range(1, 3):
+                self.compact_meta_only(db)
+                tdLog.info(f"checking table count after meta-only compaction #{round_no}")
+                self.check_compact_table_count(db, children, children, None)
+
+            # 2. normal tables take another handler, so both counters must be checked
+            db = "test_compact_mixed"
+            tdSql.execute(f"drop database if exists {db}", show=1)
+            tdSql.execute(f"create database {db} vgroups 2", show=1)
+            for i in range(normals):
+                tdSql.execute(f"create table {db}.n{i} (ts timestamp, v int)")
+            tdSql.execute(f"create stable {db}.stb (ts timestamp, v int) tags (t1 int)", show=1)
+            self.create_child_tables(db, children)
+            expect_total = normals + children
+            self.check_compact_table_count(db, expect_total, children, normals)
+            self.compact_meta_only(db)
+            self.check_compact_table_count(db, expect_total, children, normals)
+
+            # 3. the corrected counters must still follow later create and drop
+            db = "test_compact_write"
+            tdSql.execute(f"drop database if exists {db}", show=1)
+            tdSql.execute(f"create database {db} vgroups 1", show=1)
+            tdSql.execute(f"create stable {db}.stb (ts timestamp, v int) tags (t1 int)", show=1)
+            self.create_child_tables(db, normals)
+            self.compact_meta_only(db)
+            self.check_compact_table_count(db, normals, normals, None)
+
+            tdSql.execute(f"insert into {db}.t_extra using {db}.stb tags(99999) values(1700000000000,1)", show=1)
+            self.check_compact_table_count(db, normals + 1, normals + 1, None)
+
+            tdSql.execute(f"drop table {db}.t_extra", show=1)
+            self.check_compact_table_count(db, normals, normals, None)
+        finally:
+            # A failing assertion exits the run; leave no database behind, otherwise the
+            # table totals of the earlier checks are off on the next local run.
+            for db in dbs:
+                try:
+                    tdSql.execute(f"drop database if exists {db}", show=1)
+                except Exception as e:  # noqa: BLE001 - cleanup must not mask the failure
+                    tdLog.info(f"cleanup of {db} failed: {e}")
+
+        tdLog.info("Table count check after meta-only compaction passed.")

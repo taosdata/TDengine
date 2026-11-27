@@ -1,6 +1,8 @@
 /*
  * Copyright (c) 2019 TAOS Data, Inc. <jhtao@taosdata.com>
  *
+ * SPDX-License-Identifier: AGPL-3.0-or-later
+ *
  * This program is free software: you can use, redistribute, and/or modify
  * it under the terms of the GNU Affero General Public License, version 3
  * or later ("AGPL"), as published by the Free Software Foundation.
@@ -16,9 +18,10 @@
 #include <ttimer.h>
 #include "cJSON.h"
 #include "catalog.h"
-#include "clientInt.h"
+#include "extConnector.h"
 #include "clientLog.h"
 #include "clientMonitor.h"
+#include "clientWlr.h"
 #include "functionMgt.h"
 #include "os.h"
 #include "osSleep.h"
@@ -30,6 +33,7 @@
 #include "tconv.h"
 #include "tglobal.h"
 #include "thttp.h"
+#include "tmisce.h"
 #include "tmsg.h"
 #include "tqueue.h"
 #include "tref.h"
@@ -44,7 +48,7 @@
 #define ENV_JSON_FALSE_CHECK(c)                     \
   do {                                              \
     if (!c) {                                       \
-      tscError("faild to add item to JSON object"); \
+      tscError("failed to add item to JSON object"); \
       code = TSDB_CODE_TSC_FAIL_GENERATE_JSON;      \
       goto _end;                                    \
     }                                               \
@@ -70,6 +74,25 @@ int32_t   clientStop = -1;
 SHashObj *pTimezoneMap = NULL;
 
 static TdThreadOnce tscinit = PTHREAD_ONCE_INIT;
+
+static const char *wlrInitErrorName(int32_t code) {
+  switch (code) {
+    case WLR_E_INIT_DIR:
+      return "WLR_E_INIT_DIR";
+    case WLR_E_ALLOC:
+      return "WLR_E_ALLOC";
+    case WLR_E_WRITE:
+      return "WLR_E_WRITE";
+    case WLR_E_PAYLOAD_LIMIT:
+      return "WLR_E_PAYLOAD_LIMIT";
+    case WLR_E_CONFIG:
+      return "WLR_E_CONFIG";
+    case WLR_E_STATE:
+      return "WLR_E_STATE";
+    default:
+      return "WLR_E_UNKNOWN";
+  }
+}
 volatile int32_t    tscInitRes = 0;
 
 static int32_t registerRequest(SRequestObj *pRequest, STscObj *pTscObj) {
@@ -355,6 +378,11 @@ static bool clientRpcTfp(int32_t code, tmsg_t msgType) {
   return false;
 }
 
+static bool clientRpcRetryOnOverload(int32_t code, tmsg_t msgType) {
+  if (code == TSDB_CODE_SYN_NEGOTIATION_WIN_FULL) return true;
+  return false;
+}
+
 // TODO refactor
 int32_t openTransporter(const char *user, const char *auth, int32_t numOfThread, void **pDnodeConn) {
   SRpcInit rpcInit;
@@ -375,6 +403,10 @@ int32_t openTransporter(const char *user, const char *auth, int32_t numOfThread,
   rpcInit.retryStepFactor = tsRedirectFactor;
   rpcInit.retryMaxInterval = tsRedirectMaxPeriod;
   rpcInit.retryMaxTimeout = tsMaxRetryWaitTime;
+
+  rpcInit.retryOnOverloadBaseInterval = tsRetryOnOverloadBaseInterval;
+  rpcInit.retryOnOverloadTimeout = tsRetryOnOverloadTimeout;
+  rpcInit.retryOnOverloadFp = clientRpcRetryOnOverload;
 
   int32_t connLimitNum = tsNumOfRpcSessions / (tsNumOfRpcThreads * 3);
   connLimitNum = TMAX(connLimitNum, 10);
@@ -492,6 +524,7 @@ void destroyTscObj(void *pObj) {
 
   destroyAllRequests(pTscObj->pRequests);
   taosHashCleanup(pTscObj->pRequests);
+  writeRawCleanupConn(pTscObj->id);
 
   schedulerStopQueryHb(pTscObj->pAppInfo->pTransporter);
   tscDebug("conn:0x%" PRIx64 ", p:%p destroyed, remain inst totalConn:%" PRId64, pTscObj->id, pTscObj,
@@ -500,6 +533,30 @@ void destroyTscObj(void *pObj) {
   // In any cases, we should not free app inst here. Or an race condition rises.
   /*int64_t connNum = */ (void)atomic_sub_fetch_64(&pTscObj->pAppInfo->numOfConns, 1);
 
+  // Best-effort rollback: if connection is destroyed with an active txn, notify MNode
+  // so it can clean up immediately rather than waiting for the timeout scan.
+#ifdef TD_ENTERPRISE
+  if (pTscObj->txnId != 0) {
+    tscBestEffortRollbackOrphanTxn(pTscObj, pTscObj->txnId, "destroyTscObj");
+  }
+#endif
+
+  tSimpleHashCleanup(pTscObj->pTxnVgSet);
+  pTscObj->pTxnVgSet = NULL;
+  // section 34.2 #2: clean up pTxnTableMeta if connection closes with active txn
+  if (pTscObj->pTxnTableMeta) {
+    void *pIter = taosHashIterate(pTscObj->pTxnTableMeta, NULL);
+    while (pIter) {
+      STableMeta **ppMeta = (STableMeta **)pIter;
+      taosMemoryFreeClear(*ppMeta);
+      pIter = taosHashIterate(pTscObj->pTxnTableMeta, pIter);
+    }
+    taosHashCleanup(pTscObj->pTxnTableMeta);
+    pTscObj->pTxnTableMeta = NULL;
+  }
+  // pTxnSuidMap values are char[] copied inline by the hash  -  no per-entry free needed.
+  taosHashCleanup(pTscObj->pTxnSuidMap);
+  pTscObj->pTxnSuidMap = NULL;
   (void)taosThreadMutexDestroy(&pTscObj->mutex);
   taosMemoryFree(pTscObj);
 
@@ -522,6 +579,8 @@ int32_t createTscObj(const char *user, const char *auth, const char *db, int32_t
   (*pObj)->connType = connType;
   (*pObj)->pAppInfo = pAppInfo;
   (*pObj)->appHbMgrIdx = pAppInfo->pAppHbMgr->idx;
+  (*pObj)->optionInfo.userAppId = TD_APP_UNKNOWN;
+  (*pObj)->optionInfo.firstDayOfWeek = (int8_t)tsFirstDayOfWeek;
   if (user == NULL) {
     (*pObj)->user[0] = 0;
     (*pObj)->pass[0] = 0;
@@ -539,7 +598,13 @@ int32_t createTscObj(const char *user, const char *auth, const char *db, int32_t
 
   TSC_ERR_RET(taosThreadMutexInit(&(*pObj)->mutex, NULL));
 
-  int32_t code = TSDB_CODE_SUCCESS;
+  int32_t code = tscInitSessionTimezone(*pObj);
+  if (code != TSDB_CODE_SUCCESS) {
+    taosHashCleanup((*pObj)->pRequests);
+    TAOS_UNUSED(taosThreadMutexDestroy(&(*pObj)->mutex));
+    taosMemoryFreeClear(*pObj);
+    return code;
+  }
 
   (*pObj)->id = taosAddRef(clientConnRefPool, *pObj);
   if ((*pObj)->id < 0) {
@@ -580,6 +645,10 @@ int32_t createRequest(uint64_t connId, int32_t type, int64_t reqid, SRequestObj 
     releaseTscObj(connId);
     TSC_ERR_JRET(TSDB_CODE_MND_USER_DISABLED);
   }
+  if (atomic_load_8(&pTscObj->passKilled) != 0) {
+    releaseTscObj(connId);
+    TSC_ERR_JRET(TSDB_CODE_MND_AUTH_FAILURE);
+  }
   SSyncQueryParam *interParam = taosMemoryCalloc(1, sizeof(SSyncQueryParam));
   if (interParam == NULL) {
     releaseTscObj(connId);
@@ -596,7 +665,9 @@ int32_t createRequest(uint64_t connId, int32_t type, int64_t reqid, SRequestObj 
   (*pRequest)->phaseStartTime = 0;
 
   (*pRequest)->body.resInfo.convertUcs4 = true;  // convert ucs4 by default
-  (*pRequest)->body.resInfo.charsetCxt = pTscObj->optionInfo.charsetCxt;
+  (*pRequest)->body.resInfo.charsetCxt =
+      taosResolveCharsetCxt(pTscObj->optionInfo.charsetCxt);
+  (*pRequest)->body.resInfo.timezone = (void *)pTscObj->optionInfo.timezone;
   (*pRequest)->type = type;
   (*pRequest)->allocatorRefId = -1;
 
@@ -623,6 +694,151 @@ _return:
     taosMemoryFree(*pRequest);
   }
   return code;
+}
+
+// Request phase writers publish (execPhase, phaseStartTime) as one seqlock
+// guarded snapshot: phaseSeq is odd while a writer updates the pair and even
+// when it is stable, so the heartbeat never mixes a new phase with an old
+// start time. Writers are serialized by phaseWriteLock; updates are rare and
+// the critical section only performs atomics, so it is non-reentrant and
+// cannot block on anything but the CPU.
+static void clientPhaseLockAcquire(SRequestObj *pReq) {
+  int32_t spins = 0;
+  while (atomic_val_compare_exchange_32(&pReq->phaseWriteLock, 0, 1) != 0) {
+    ++spins;
+    if (spins > CLIENT_PHASE_LOCK_SPIN_TIMES) {
+      // The holder is not making progress within the expected window, so it
+      // was most likely preempted. Back off instead of hammering the CPU and
+      // report the stall once per acquisition; the lock is not abandoned
+      // because a reader still needs a consistent pair to return.
+      if (spins == CLIENT_PHASE_LOCK_SPIN_TIMES + 1) {
+        tscError("req:0x%" PRIx64 ", phase write lock still held after %d attempts, the holder was likely "
+                 "preempted",
+                 pReq->self, CLIENT_PHASE_LOCK_SPIN_TIMES);
+      }
+      taosMsleep(10);
+    } else {
+      // Yield the CPU instead of a no-op sleep: taosMsleep(0) does not reliably
+      // give the writer holding the lock a chance to run.
+      taosMsleep(1);
+    }
+  }
+}
+
+static void clientPhaseWriteBegin(SRequestObj *pReq) {
+  clientPhaseLockAcquire(pReq);
+  // Increment immediately after acquiring the lock: from here on phaseSeq is
+  // odd and readers retry. The instructions between the CAS and this add are
+  // safe because no data store has happened yet, so a reader that passes the
+  // check reads the previous fully published pair. Each write performs two
+  // increments, so a reader that observes a writer at all sees a different
+  // sequence value and retries. The field is int32_t to match the atomic API;
+  // it is only compared for equality/parity, so a wrap-around is harmless.
+  (void)atomic_add_fetch_32(&pReq->phaseSeq, 1);
+}
+
+static void clientPhaseWriteEnd(SRequestObj *pReq) {
+  (void)atomic_add_fetch_32(&pReq->phaseSeq, 1);
+  atomic_store_32(&pReq->phaseWriteLock, 0);
+}
+
+void clientSetRequestPhase(SRequestObj *pReq, int32_t phase) {
+  if (pReq == NULL) {
+    return;
+  }
+  clientPhaseWriteBegin(pReq);
+  atomic_store_32(&pReq->execPhase, phase);
+  atomic_store_64(&pReq->phaseStartTime, taosGetTimestampMs());
+  clientPhaseWriteEnd(pReq);
+}
+
+void clientUpdateRequestPhaseIfChanged(SRequestObj *pReq, int32_t newPhase) {
+  if (pReq == NULL) {
+    return;
+  }
+  clientPhaseWriteBegin(pReq);
+  if (atomic_load_32(&pReq->execPhase) != newPhase) {
+    atomic_store_32(&pReq->execPhase, newPhase);
+    atomic_store_64(&pReq->phaseStartTime, taosGetTimestampMs());
+  }
+  clientPhaseWriteEnd(pReq);
+}
+
+void clientEnterRequestFetchPhase(SRequestObj *pReq) {
+  if (pReq == NULL) {
+    return;
+  }
+  clientPhaseWriteBegin(pReq);
+  int32_t curPhase = atomic_load_32(&pReq->execPhase);
+  // Once in the fetch stage the timer is kept: re-entering IN_PROGRESS for a
+  // later block must not restart the fetch stage, and a concurrent close of
+  // the stage is observed here instead of being overwritten.
+  if (curPhase == QUERY_PHASE_FETCH_RETURNED) {
+    // A later block arrives after the previous one was reported as returned:
+    // move back to in_progress but keep the single fetch stage timer.
+    atomic_store_32(&pReq->execPhase, QUERY_PHASE_FETCH_IN_PROGRESS);
+  } else if (!QUERY_PHASE_IS_FETCH_STAGE(curPhase)) {
+    atomic_store_32(&pReq->execPhase, QUERY_PHASE_FETCH_IN_PROGRESS);
+    atomic_store_64(&pReq->phaseStartTime, taosGetTimestampMs());
+  }
+  clientPhaseWriteEnd(pReq);
+}
+
+void clientCloseRequestFetchIfEntered(SRequestObj *pReq) {
+  if (pReq == NULL) {
+    return;
+  }
+  clientPhaseWriteBegin(pReq);
+  int32_t curPhase = atomic_load_32(&pReq->execPhase);
+  // Only a request that actually entered the fetch stage is closed. INSERT,
+  // failed, field-less and empty-result requests that never fetched keep their
+  // phase instead of being reported as a completed fetch.
+  if (QUERY_PHASE_IS_FETCH_STAGE(curPhase) && curPhase != QUERY_PHASE_FETCH_RETURNED) {
+    atomic_store_32(&pReq->execPhase, QUERY_PHASE_FETCH_RETURNED);
+    // Keep phaseStartTime: the whole fetch stage has a single timer.
+  }
+  clientPhaseWriteEnd(pReq);
+}
+
+void clientGetRequestPhaseSnapshot(SRequestObj *pReq, int32_t *pPhase, int64_t *pStartTime) {
+  if (pReq == NULL || pPhase == NULL || pStartTime == NULL) {
+    return;
+  }
+  for (int32_t i = 0; i < CLIENT_PHASE_READ_RETRY_TIMES; ++i) {
+    uint32_t seq1 = (uint32_t)atomic_load_32(&pReq->phaseSeq);
+    if (seq1 & 1U) {
+      taosMsleep(1);
+      continue;
+    }
+    int32_t phase = atomic_load_32(&pReq->execPhase);
+    int64_t start = atomic_load_64(&pReq->phaseStartTime);
+    uint32_t seq2 = (uint32_t)atomic_load_32(&pReq->phaseSeq);
+    if (seq1 == seq2) {
+      *pPhase = phase;
+      *pStartTime = start;
+      return;
+    }
+    // A writer was active while the pair was read: yield before retrying.
+    taosMsleep(1);
+  }
+  // Retries exhausted (a writer stayed active for the whole window). Reading
+  // the pair while holding the writer lock still returns a consistent
+  // snapshot; two independent lock-free loads could return a new phase paired
+  // with an old start time, which is exactly what this reader exists to avoid.
+  // Readers must never be invoked from inside a phase write critical section:
+  // phaseWriteLock is not recursive, so the acquisition below would wait on
+  // the lock the caller already holds.
+  tscWarn("req:0x%" PRIx64 ", phase snapshot unstable after %d retries, read it under the writer lock",
+          pReq->self, CLIENT_PHASE_READ_RETRY_TIMES);
+  clientPhaseLockAcquire(pReq);
+  // Follow the writer protocol on this fallback path as well: phaseSeq is odd
+  // while the pair is read under the lock and even again afterwards, so the
+  // degraded read is indistinguishable from a regular publication.
+  (void)atomic_add_fetch_32(&pReq->phaseSeq, 1);
+  *pPhase = atomic_load_32(&pReq->execPhase);
+  *pStartTime = atomic_load_64(&pReq->phaseStartTime);
+  (void)atomic_add_fetch_32(&pReq->phaseSeq, 1);
+  atomic_store_32(&pReq->phaseWriteLock, 0);
 }
 
 void doFreeReqResultInfo(SReqResultInfo *pResInfo) {
@@ -728,6 +944,9 @@ void doDestroyRequest(void *p) {
 
   int64_t nextReqRefId = pRequest->relation.nextRefId;
 
+  // safety net: a request that never got its callback must not keep its txn's statement slot
+  tscTxnReleaseStmtSlot(pRequest);
+
   int32_t code = taosHashRemove(pRequest->pTscObj->pRequests, &pRequest->self, sizeof(pRequest->self));
   if (TSDB_CODE_SUCCESS != code) {
     tscDebug("failed to remove request from hash since %s", tstrerror(code));
@@ -772,6 +991,7 @@ void doDestroyRequest(void *p) {
   // when the request object is destroyed, otherwise LeakSanitizer will report
   // catalog async response result leaks.
   catalogFreeMetaData(&pRequest->parseMeta);
+  extCapSessionOverlayDestroy(&pRequest->extSessionOverlay);
   TAOS_MEMSET(&pRequest->parseMeta, 0, sizeof(pRequest->parseMeta));
   nodesDestroyAllocator(pRequest->allocatorRefId);
 
@@ -1118,7 +1338,7 @@ void taos_init_imp(void) {
   const char *logName = CUS_PROMPT "log";
   ENV_ERR_RET(taosInitLogOutput(&logName), "failed to init log output");
   if (taosCreateLog(logName, 10, configDir, NULL, NULL, NULL, NULL, 1) != 0) {
-    (void)printf(" WARING: Create %s failed:%s. configDir=%s\n", logName, strerror(ERRNO), configDir);
+    (void)printf(" WARNING: Create %s failed:%s. configDir=%s\n", logName, strerror(ERRNO), configDir);
     SET_ERROR_MSG("Create %s failed:%s. configDir=%s", logName, strerror(ERRNO), configDir);
     tscInitRes = terrno;
     return;
@@ -1154,6 +1374,19 @@ void taos_init_imp(void) {
 
   SCatalogCfg cfg = {.maxDBCacheNum = 100, .maxTblCacheNum = 100};
   ENV_ERR_RET(catalogInit(&cfg), "failed to init catalog");
+
+#ifdef TD_ENTERPRISE
+  {
+    SExtConnectorModuleCfg extConnCfg = {
+      .max_pool_size_per_source = tsFederatedQueryMaxPoolSizePerSource,
+      .conn_timeout_ms          = tsFederatedQueryConnectTimeoutMs,
+      .query_timeout_ms         = tsFederatedQueryQueryTimeoutMs,
+      .idle_conn_ttl_s          = tsFederatedQueryIdleConnTtlSec,
+      .probe_timeout_ms         = tsFederatedQueryProbeTimeoutMs,
+    };
+    ENV_ERR_RET(extConnectorModuleInit(&extConnCfg), "failed to init ext connector");
+  }
+#endif
   ENV_ERR_RET(schedulerInit(), "failed to init scheduler");
   ENV_ERR_RET(initClientId(), "failed to init clientId");
 
@@ -1176,6 +1409,16 @@ void taos_init_imp(void) {
 
   if (tsSessionControl) {
     ENV_ERR_RET(sessMgtInit(), "failed to init session management");
+  }
+
+  // Workload recorder (DS 6.4). Deliberately NOT ENV_ERR_RET: recording is
+  // fail-open, so a bad directory or a full disk must leave a fully working
+  // driver rather than aborting client startup (FS 4.8). The failure is already
+  // logged with a WLR_E_* reason by the recorder itself.
+  int32_t wlrInitCode = wlrRecorderInitFromCfg();
+  if (wlrInitCode != WLR_E_OK) {
+    tscWarn("WLR: workload recording disabled, init error:%s(%d), client continues",
+            wlrInitErrorName(wlrInitCode), wlrInitCode);
   }
 
   tscInfo("TAOS driver is initialized successfully");

@@ -1,6 +1,8 @@
 /*
  * Copyright (c) 2019 TAOS Data, Inc. <jhtao@taosdata.com>
  *
+ * SPDX-License-Identifier: AGPL-3.0-or-later
+ *
  * This program is free software: you can use, redistribute, and/or modify
  * it under the terms of the GNU Affero General Public License, version 3
  * or later ("AGPL"), as published by the Free Software Foundation.
@@ -53,6 +55,22 @@ typedef enum {
 } ECheckSyncOp;
 
 void mndArbCheckSync(SArbGroup *pArbGroup, int64_t nowMs, ECheckSyncOp *pOp, SArbGroup *pNewGroup);
+
+// Update an existing arbgroup's member dnode mapping from a (dual-replica) vgroup layout.
+// Pure/logic-only: dup pOld, rewrite members[i].info.dnodeId from pVgObj->vnodeGid[i].dnodeId,
+// and reset assignedLeader when its dnode is no longer part of the vgroup.
+// Returns TSDB_CODE_INVALID_PARA if pVgObj->replica != 2.
+int32_t mndArbGroupUpdateDnodeByVgObj(SArbGroup *pOld, SVgObj *pVgObj, SArbGroup *pNew);
+
+// Apply the redistributed member dnodeId realignment onto pOld. Exposed for unit testing; the
+// assignedLeader fields and version-gated token/isSync fields are left to mndArbGroupActionUpdate.
+void mndArbGroupApplyDnodeRealign(SArbGroup *pOld, const SArbGroup *pNew);
+
+// Transactional wrapper: acquire the live arbgroup for pVgObj->vgId, apply
+// mndArbGroupUpdateDnodeByVgObj, and append the update as a commit log so it commits
+// atomically with the caller's transaction. No-op (returns 0) when replica != 2 or when
+// no arbgroup exists for this vgId (e.g. a database without an arbitrator).
+int32_t mndSetUpdateArbGroupDnodeByVgObj(SMnode *pMnode, STrans *pTrans, SVgObj *pVgObj);
 
 #ifdef __cplusplus
 }

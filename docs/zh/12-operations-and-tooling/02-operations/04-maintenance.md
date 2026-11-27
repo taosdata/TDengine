@@ -1,0 +1,288 @@
+---
+title: 集群维护
+sidebar_label: 集群维护
+---
+
+本节介绍 TDengine TSDB Enterprise 中提供的高阶集群维护手段，能够使 TDengine 集群长期运行得更健壮和高效。
+
+## 节点管理
+
+如何管理集群节点请参考 [节点管理](../../05-tdengine-sql/08-cluster-management/01-node.md)
+
+## 数据重整
+
+TDengine 面向多种写入场景，而很多写入场景下，TDengine 的存储会导致数据存储的放大或数据文件的空洞等。这一方面影响数据的存储效率，另一方面也会影响查询效率。为了解决上述问题，TDengine 企业版提供了对数据的重整功能，即 data compact 功能，将存储的数据文件重新整理，删除文件空洞和无效数据，提高数据的组织度，从而提高存储和查询的效率。数据重整功能在 3.0.3.0 版本第一次发布，此后又经过了多次迭代优化，建议使用最新版本。
+
+**语法**
+
+```SQL
+compact DATABASE db_name [start with 'XXXX'] [end with 'YYYY'] [META_ONLY] [FORCE];
+compact [db_name.]vgroups IN (vgroup_id1, vgroup_id2, ...) [start with 'XXXX'] [end with 'YYYY'] [META_ONLY] [FORCE];
+show compacts;
+show compact compact_id;
+kill compact compact_id;
+kill compact compact_id force;
+```
+
+**效果**
+
+- 扫描并压缩指定的 DB 中所有 vgroup 中 vnode 的所有数据文件
+- 扫描并压缩 DB 中指定的 vgroup 列表中 vnode 的所有数据文件，若 db_name 为空，则默认为当前数据库
+- compact 会删除被删除数据以及被删除的表的数据
+- compact 会合并多个 STT 文件
+- 可通过 start with 关键字指定 compact 数据的起始时间
+- 可通过 end with 关键字指定 compact 数据的终止时间
+- 可通过 `META_ONLY` 关键字指定只 compact 元数据。元数据默认情况下不会 compact。元数据压缩会阻塞写入和查询，且被压缩数据库应该停止写入和查询
+- 可通过 `FORCE` 关键字强制执行 compact，即使自上次 compact 以来没有新数据写入
+- compact 命令会返回 compact 任务的 ID
+- compact 任务会在后台异步执行，可以通过 show compacts 命令查看 compact 任务的进度
+- show 命令会返回 compact 任务的 ID，可以通过 kill compact 命令终止 compact 任务
+
+**补充说明**
+
+- compact 为异步，执行 compact 命令后不会等 compact 结束就会返回。如果上一个 compact 没有完成则再发起一个 compact 任务，则会等上一个任务完成后再返回。
+- compact 可能阻塞写入，尤其是在 stt_trigger = 1 的数据库中，但不阻塞查询。
+- `kill compact compact_id force` 会绕过 mnode 对 compact 任务的正常清理流程，强制从 SDB 中删除 compact 记录，允许在某个 dnode 离线时立即终止任务，而无需等待其恢复。**此操作存在风险**：compact 执行过程中正在修改的数据文件可能处于中间状态，强制删除记录不会触发离线节点侧的清理，可能导致数据文件损坏。**建议仅在节点彻底损坏、无法恢复的极端情况下使用**；若节点尚能正常启动，应优先将其拉起，再使用不带 `force` 的 `kill compact` 命令终止任务。
+
+## 数据扫描
+
+```SQL
+scan DATABASE db_name [start with 'XXXX'] [end with 'YYYY'];
+scan [db_name.]vgroups IN (vgroup_id1, vgroup_id2, ...) [start with 'XXXX'] [end with 'YYYY'];
+show scans;
+show scan <scan_id>;
+kill scan <scan_id>;
+```
+
+**效果**
+
+- 扫描指定的 DB 中所有 vgroup 中 vnode 的所有时序数据文件。若数据文件存问题，则在相应的服务端日志中输出
+- 扫描 DB 中指定的 vgroup 列表中 vnode 的所有数据文件，若 db_name 为空，则默认为当前数据库。若数据文件存问题，则在相应的服务端日志中输出
+- 可通过 start with 关键字指定 scan 数据的起始时间
+- 可通过 end with 关键字指定 scan 数据的终止时间
+- scan 任务会在后台异步执行，可以通过 show scans 命令查看 scan 任务列表
+- show 命令会返回 scan 任务的 ID，可以通过 kill scan 命令终止 scan 任务
+
+**补充说明**
+
+- scan 为异步，执行 scan 命令后不会等 scan 结束就会返回。如果上一个 scan 没有完成则再发起一个 scan 任务，则会等上一个任务完成后再返回。
+
+## 虚拟组 Leader 再平衡
+
+当多副本集群中的一个或多个节点因为升级或其它原因而重启后，有可能出现集群中各个 dnode 负载不均衡的现象，极端情况下会出现所有 vgroup 的 leader 都位于同一个 dnode 的情况。为了解决这个问题，可以使用下面的命令，该命令在 3.0.4.0 版本中首次发布，建议尽可能使用最新版本。
+
+```SQL
+balance vgroup leader; # 再平衡所有 vgroup 的 leader（随机方式）
+balance vgroup leader on <vgroup_id>; # 再平衡一个 vgroup 的 leader（随机方式）
+balance vgroup leader database <database_name>; # 再平衡一个 database 内所有 vgroup 的 leader（随机方式）
+
+balance vgroup leader force; # 强制均衡所有 vgroup 的 leader（强制方式）
+balance vgroup leader on <vgroup_id> force; # 强制均衡一个 vgroup 的 leader（强制方式）
+balance vgroup leader database <database_name> force; # 强制均衡一个 database 内所有 vgroup 的 leader（强制方式）
+```
+
+**功能**
+
+leader 再平衡有两种方式：
+
+- **随机方式**（不带 `force` 关键字）：触发 vgroup 重新选举，当前 leader 主动让出，所有副本平等地参与新一轮选举。由于选举本身带有随机性，最终产生的 leader 分布是概率性的，不保证完全均匀。这种方式不会导致 vgroup 选不出 leader。
+- **强制方式**（带 `force` 关键字）：通过对选举施加偏置，将 leader 强制指定到特定副本上，从而在各副本节点间实现均匀分布。这是旧版本的行为。
+
+**注意**
+
+- 在**随机方式**下，由于 vgroup 选举本身带有随机性，通过重新选举产生的均匀分布是概率性的，不会完全均匀。
+- 在**强制方式**下，如果被指定的目标副本数据落后其它副本过多，它在带偏置的选举中可能无法获得多数票，从而导致该 vgroup 暂时无法选出 leader。如果出现这种情况，只需再次执行 `balance vgroup leader ... force` 命令重试即可，或者等待 2 分钟直到其自动恢复。
+- 两种方式的副作用都是影响查询和写入，在 vgroup 重新选举时，从开始选举到选举出新的 leader 这段时间，这个 vgroup 无法写入和查询。选举过程一般在秒级完成。所有的 vgroup 会依次逐个重新选举。
+
+## 恢复数据节点
+
+当集群中的某个数据节点（dnode）的数据全部丢失或被破坏，比如磁盘损坏或者目录被误删除，可以通过 `restore dnode` 命令来恢复该数据节点上的部分或全部逻辑节点，该功能依赖多副本中的其它副本进行数据复制，所以只在集群中 dnode 数量大于等于 3 且副本数为 3 的情况下能够工作。
+
+```sql
+restore dnode <dnode_id>; # 恢复 dnode 上的 mnode，所有 vnode 和 qnode
+restore dnode <dnode_id> parallel <n>; # 指定并行恢复的 vnode 数量为 n，0 表示不限制
+restore mnode on dnode <dnode_id>; # 恢复 dnode 上的 mnode
+restore vnode on dnode <dnode_id>; # 恢复 dnode 上的所有 vnode
+restore vnode on dnode <dnode_id> parallel <n>; # 指定并行恢复的 vnode 数量为 n，0 表示不限制
+restore vnode on dnode <dnode_id> on vgroup <vgroup_id>; # 恢复 dnode 上指定 vgroup 的 vnode
+restore qnode on dnode <dnode_id>; # 恢复 dnode 上的 qnode
+```
+
+**PARALLEL**
+
+`restore dnode` 和 `restore vnode on dnode` 命令支持 `PARALLEL` 参数，用于控制同时并行恢复的 vnode 数量。
+
+- `PARALLEL <n>`：指定同时恢复的 vnode 数量为 `n`，`n` 为正整数。
+- `PARALLEL 0`：表示不限制并行数量，所有 vnode 同时开始恢复。
+- 不指定 `PARALLEL` 参数时，使用默认行为（不限制并行数量）。
+
+该参数适用于 dnode 上 vnode 数量较多、希望控制恢复并发度的场景，避免恢复过程占用过多系统资源。
+
+**限制**
+
+- 该功能是基于已有的复制功能的恢复，不是灾难恢复或者备份恢复，所以对于要恢复的 mnode 和 vnode 来说，使用该命令的前提是还存在该 mnode 或 vnode 的其它两个副本仍然能够正常工作。
+- 该命令不能修复数据目录中的个别文件的损坏或者丢失。例如，如果某个 mnode 或者 vnode 中的个别文件或数据损坏，无法单独恢复损坏的某个文件或者某块数据。此时，可以选择将该 mnode/vnode 的数据全部清空再进行恢复。
+
+## 本地修复模式
+
+如果问题只涉及单个节点上的本地文件，并且希望在启动过程中执行修复检查，可以用如下方式启动 `taosd`：
+
+```bash
+taosd -r --mode force --node-type vnode \
+  --repair-target meta:vnode=3
+```
+
+也可以在同一次启动中声明多个修复目标：
+
+```bash
+taosd -r --mode force --node-type vnode --backup-path /tmp/repair-bak \
+  --repair-target meta:vnode=3 \
+  --repair-target tsdb:vnode=5:fileid=1809 \
+  --repair-target wal:vnode=6
+```
+
+如果要一次修复同一个 vnode 下全部 TSDB fileset，可以直接使用 `fileid=*`：
+
+```bash
+taosd -r --mode force --node-type vnode \
+  --repair-target 'tsdb:vnode=5:fileid=*'
+```
+
+当前限制：
+
+- 当前只支持 `--mode force`。
+- 当前只支持 `--node-type vnode`。
+- `tsdb` repair target 必须显式指定 `fileid`，可以是单个 fileset 的 ID，也可以是 `*` 表示该 vnode 下全部 fileset。
+- 同一个 vnode 内，`fileid=*` 不能与显式 `fileid=<n>` target 混用。
+- `wal` repair target 当前不支持 `strategy`。
+- TSDB 默认策略 `drop_invalid_only` 只处理缺失文件这类损坏；如果要处理 size mismatch，请显式指定 `head_only_rebuild` 或 `full_rebuild`。
+
+完整的命令行语法、字段约束、默认策略和更多示例，请参考 [taosd 参考手册](../03-components/01-taosd.md)。
+
+## 离线修改 mnode 元数据
+
+当集群元数据出现错误且无法通过 SQL 修复时，例如 dnode 迁移后地址变化、错误的全局配置导致 mnode 无法启动、残留事务阻塞集群操作、双副本仲裁组状态异常等，可以将 mnode 元数据导出为 JSON 文件，人工修改后再导回。从 `v3.4.2.8` 开始支持该功能。
+
+:::warning
+
+该操作直接修改集群元数据，属于高危操作。操作前务必备份 `<dataDir>/mnode` 目录；能通过标准 SQL 解决的问题，应优先使用 SQL。
+
+:::
+
+### 集群正常时
+
+```bash
+# 1. 在 taos shell 中执行，将元数据落盘并截断 WAL，taosd 继续运行
+#    FLUSH MNODE;
+# 2. 停止 mnode leader 所在节点的 taosd
+systemctl stop taosd
+# 3. 备份 mnode 目录
+cp -r <dataDir>/mnode <dataDir>/mnode.bak
+# 4. 导出元数据，生成当前工作目录下的 sdb.json
+taosd -s
+# 5. 编辑 sdb.json 中的目标记录
+# 6. 导入并写回 sdb.data
+taosd -mSdb ./sdb.json
+# 7. 启动 taosd
+systemctl start taosd
+```
+
+### taosd 无法启动时
+
+```bash
+# 1. 停止所有 mnode 节点的 taosd
+systemctl stop taosd
+# 2. 备份 mnode 目录
+cp -r <dataDir>/mnode <dataDir>/mnode.bak
+# 3. 离线落盘元数据并截断 WAL
+taosd -fMnode
+# 4. 导出、编辑、导入
+taosd -s
+taosd -mSdb ./sdb.json
+# 5. 启动 taosd
+systemctl start taosd
+```
+
+`taosd -s`、`taosd -mSdb` 不会重放 WAL，因此必须先执行 `FLUSH MNODE` 或 `taosd -fMnode`，否则导出的内容可能不是最新状态，重启后 WAL 中未落盘的变更还会覆盖手工修改的内容。
+
+### 常见修改场景
+
+- **dnode 地址变更**：修改 `type` 为 `dnode` 的记录中的 `fields.fqdn`、`fields.port`。
+- **修正 vgroup 副本分布**：修改 `type` 为 `vgroup` 的记录中的 `fields.replicas[].dnodeId`。
+- **修复错误的全局配置**：修改 `type` 为 `config` 的记录中的 `fields.value`，并在同一次导入中把 `tsmmConfigVersion` 记录的 `fields.value` 加 1，否则修改不会生效。仅支持布尔、整数和浮点类型的配置。
+- **清理残留事务**：执行 `taosd -dTxn` 删除全部事务；只删除个别事务时，在 `sdb.json` 中删除对应的 `trans` 记录后导入。
+- **清理卡住的 compact 任务**：在 `sdb.json` 中删除对应的 `compact` 记录后导入。
+- **删除多余的 mnode**：在 `sdb.json` 中删除多余的 `mnode` 记录后导入。
+- **修正双副本仲裁组**：修改 `type` 为 `arb_group` 的记录，例如将 `fields.isSync` 改为 `"1"`、在 dnode 替换后修正 `fields.member0.dnodeId` 或 `fields.assignedLeader.assignedDnodeId`，从 `v3.4.3.12` 开始支持。重启后可通过 `SHOW ARBGROUPS` 确认结果。
+
+例如，将 dnode 1 的端口改为 6031，只需修改 `fields` 中的 `port`，其他内容保持不变：
+
+```json
+{
+  "type": "dnode",
+  "status": "4",
+  "sver": "2",
+  "fields": {
+    "id": "1",
+    "createdTime": "1700000000000",
+    "updateTime": "1700000001000",
+    "port": "6031",
+    "fqdn": "node1.example.com"
+  },
+  "rawData": "..."
+}
+```
+
+编辑时注意：
+
+- 所有值都必须保持带双引号的字符串形式，如 `"6031"`。
+- 不要修改 `rawData`、`status`、`sver`。
+- 导入是全量替换，`sdb.json` 中被删除的记录会从元数据中删除，不要删除无关记录。
+
+### 重建多副本 mnode
+
+多副本 mnode 集群已无法选出 leader、无法通过 `DROP MNODE`/`CREATE MNODE` 重建副本时，可以选择一个节点作为基准，用它的元数据覆盖其他副本：
+
+1. 停止所有 mnode 节点的 taosd。
+2. 在作为基准的节点上执行 `taosd -fMnode`。
+3. 将基准节点的 `<dataDir>/mnode/data/sdb.data` 复制到其他每个 mnode 节点的相同路径。
+4. 清空其他每个 mnode 节点的 `<dataDir>/mnode/wal/` 和 `<dataDir>/mnode/sync/` 目录。
+5. 先启动基准节点的 taosd，再依次启动其他节点。
+6. 执行 `SHOW MNODES;` 确认所有 mnode 状态正常。
+
+第 4 步不可省略：mnode 的 raft 成员关系、任期等状态保存在 `sync/` 目录中，不会从 `sdb.data` 派生。只复制 `sdb.data` 而不清空这两个目录时，节点会以旧的 raft 状态加入集群，可能导致日志校验失败或集群状态不一致。
+
+### 常见问题
+
+| 现象 | 原因 | 处理方法 |
+| --- | --- | --- |
+| 导入后重启，修改未生效 | 未先执行 `FLUSH MNODE` 或 `taosd -fMnode`，WAL 重放覆盖了修改 | 按上述流程先落盘，再重新导出、修改、导入 |
+| 修改的字段变成了 0 | 值写成了不带引号的数字 | 用备份恢复后，以字符串形式重新修改 |
+| 修改 `config` 后一直不生效 | 未递增 `tsmmConfigVersion` | 在同一次导入中将 `tsmmConfigVersion` 的 `value` 加 1 |
+| `taosd -mSdb` 报 JSON 格式错误 | `sdb.json` 结构被破坏 | 检查 JSON 语法，或用备份重新导出后修改 |
+| `taosd -fMnode`、`taosd -mSdb` 提示 taosd 正在运行 | 本节点 taosd 未停止 | 停止 taosd 后重试 |
+| `taosd -fMnode` 后，停止前正在执行的事务仍未完成 | 离线落盘不会推进或回滚事务 | 正常启动 taosd 后，mnode 会继续执行该事务 |
+
+完整的命令说明、`sdb.json` 格式和各类型可修改字段，请参考 [taosd 参考手册](../03-components/01-taosd.md#元数据导出与导入)。
+
+## 分裂虚拟组
+
+当一个 vgroup 因为子表数过多而导致 CPU 或 Disk 资源使用量负载过高时，增加 dnode 节点后，可通过 `split vgroup` 命令把该 vgroup 分裂为两个虚拟组。分裂完成后，新产生的两个 vgroup 承担原来由一个 vgroup 提供的读写服务。该命令在 3.0.6.0 版本第一次发布，建议尽可能使用最新版本。
+
+```sql
+split vgroup <vgroup_id>
+```
+
+**注意**
+
+- 单副本库虚拟组，在分裂完成后，历史时序数据总磁盘空间使用量，可能会翻倍。所以，在执行该操作之前，通过增加 dnode 节点方式，确保集群中有足够的 CPU 和磁盘资源，避免资源不足现象发生。
+- 该命令为 DB 级事务；执行过程，当前 DB 的其它管理事务将会被拒绝。集群中，其它 DB 不受影响。
+- 分裂任务执行过程中，可持续提供读写服务；期间，可能存在可感知的短暂的读写业务中断。
+- 在分裂过程中，不支持流和订阅。分裂结束后，历史 WAL 会清空。
+- 分裂过程中，可支持节点宕机重启容错；但不支持节点磁盘故障容错。
+
+## 在线更新集群配置
+
+从 `v3.1.1.0` 开始，TDengine TSDB Enterprise 支持在线热更新 `supportVnodes` 这个很重要的 dnode 配置参数。这个参数的原始配置方式是在 `taos.cfg` 配置文件中，表示该 dnode 能够支持的最大的 vnode 数量。当创建一个数据库时需要分配新的 vnode，当删除一个数据库时其 vnode 都会被销毁。
+
+如果通过在线更新或配置文件方式设置的 `supportVnodes` 小于 dnode 当前已经实际存在的 vnode 数量，已经存在的 vnode 不会受影响。但当尝试创建新的 database 时，是否能够创建成功则仍然受实际生效的 `supportVnodes` 参数决定。

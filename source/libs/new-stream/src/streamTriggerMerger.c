@@ -1,6 +1,8 @@
 /*
  * Copyright (c) 2019 TAOS Data, Inc. <jhtao@taosdata.com>
  *
+ * SPDX-License-Identifier: AGPL-3.0-or-later
+ *
  * This program is free software: you can use, redistribute, and/or modify
  * it under the terms of the GNU Affero General Public License, version 3
  * or later ("AGPL"), as published by the Free Software Foundation.
@@ -14,10 +16,13 @@
  */
 
 #include "streamTriggerMerger.h"
+#include "streamTimeAlign.h"
 
+#include "dataSink.h"
 #include "streamTriggerTask.h"
 #include "tcompare.h"
 #include "tdatablock.h"
+#include "tsort.h"
 
 static FORCE_INLINE int32_t stCompareRowsInBlocks(const SSDataBlock *pDataBlock, int32_t tsSlotId, int32_t pkSlotId,
                                                   int32_t leftIdx, int32_t rightIdx) {
@@ -63,6 +68,9 @@ typedef struct SSTriggerMetaDataList {
   int32_t      startIdx;
   int32_t      endIdx;
   int64_t      nextTs;
+  SSTriggerMetaData *batchSource;
+  SSTriggerMetaData  batchMeta;
+  bool               batchHasMore;
 } SSTriggerMetaDataList;
 
 static int32_t stMergeTreeGetSecondIndex(SMultiwayMergeTreeInfo *pTree, int32_t *pIdx) {
@@ -255,7 +263,13 @@ _end:
 
 static FORCE_INLINE void stTimestampSorterMetaListMoveForward(SSTriggerMetaDataList *pList) {
   SSTriggerMetaDataNode *pHead = TD_DLIST_HEAD(pList);
-  if (pHead != NULL) {
+  bool                   more = pList->batchHasMore;
+  if (pList->batchSource) {
+    pHead->pMeta = pList->batchSource;
+    pList->batchSource = NULL;
+    pList->batchHasMore = false;
+  }
+  if (pHead != NULL && !more) {
     TD_DLIST_POP(pList, pHead);
   }
   if (pList->pDataBlock != NULL) {
@@ -263,7 +277,20 @@ static FORCE_INLINE void stTimestampSorterMetaListMoveForward(SSTriggerMetaDataL
     pList->pDataBlock = NULL;
   }
   pList->startIdx = pList->endIdx = 0;
-  pList->nextTs = (TD_DLIST_HEAD(pList) == NULL) ? INT64_MAX : TD_DLIST_HEAD(pList)->pMeta->skey;
+  if (more) {
+    // The next raw batch may start at the same timestamp with another primary key.
+    pList->nextTs = pList->batchMeta.ekey;
+  } else {
+    pList->nextTs = (TD_DLIST_HEAD(pList) == NULL) ? INT64_MAX : TD_DLIST_HEAD(pList)->pMeta->skey;
+  }
+}
+
+// More than one physical row can map to one logical timestamp. TD_GE may return
+// any equal row; the row following the last strictly smaller key is the first match.
+static int32_t stTimestampLowerBound(const int64_t *times, int32_t start, int32_t end, int64_t ts) {
+  if (start == end || times[start] >= ts) return start;
+  const int64_t *before = taosbsearch(&ts, times + start, end - start, sizeof(*times), compareInt64Val, TD_LT);
+  return (int32_t)(before - times) + 1;
 }
 
 static int32_t stTimestampSorterMetaListSkip2Ts(SSTriggerTimestampSorter *pSorter, SSTriggerMetaDataList *pList,
@@ -290,12 +317,10 @@ static int32_t stTimestampSorterMetaListSkip2Ts(SSTriggerTimestampSorter *pSorte
     SColumnInfoData *pTsCol = taosArrayGet(pList->pDataBlock->pDataBlock, pSorter->tsSlotId);
     QUERY_CHECK_NULL(pTsCol, code, lino, _end, terrno);
     int64_t *pTsData = (int64_t *)pTsCol->pData;
-    void    *px =
-        taosbsearch(&ts, pTsData + pList->startIdx, nrows - pList->startIdx, sizeof(int64_t), compareInt64Val, TD_GE);
-    QUERY_CHECK_NULL(px, code, lino, _end, TSDB_CODE_INTERNAL_ERROR);
-    pList->startIdx = POINTER_DISTANCE(px, pTsData) / sizeof(int64_t);
+    pList->startIdx = stTimestampLowerBound(pTsData, pList->startIdx, nrows, ts);
+    QUERY_CHECK_CONDITION(pList->startIdx < nrows, code, lino, _end, TSDB_CODE_INTERNAL_ERROR);
     pList->endIdx = pList->startIdx;
-    pList->nextTs = *(int64_t *)px;
+    pList->nextTs = pTsData[pList->startIdx];
   }
 
 _end:
@@ -409,7 +434,11 @@ int32_t stTimestampSorterNextDataBlock(SSTriggerTimestampSorter *pSorter, SSData
       QUERY_CHECK_NULL(pTsCol, code, lino, _end, terrno);
       int64_t *pTsData = (int64_t *)pTsCol->pData;
       // update read progress
-      pSorter->readRange.skey = TMAX(pSorter->readRange.skey, pTsData[pList->endIdx - 1] + 1);
+      // The storage cursor already consumed this page. Its successor can still
+      // contain distinct physical rows in the last logical tick.
+      int64_t last = pTsData[pList->endIdx - 1];
+      int64_t next = (pList->endIdx == nrows && pList->batchHasMore) || last == INT64_MAX ? last : last + 1;
+      pSorter->readRange.skey = TMAX(pSorter->readRange.skey, next);
       // move forward to next block range
       pList->startIdx = pList->endIdx;
       if (pList->startIdx < nrows) {
@@ -738,7 +767,8 @@ _end:
   return code;
 }
 
-int32_t stTimestampSorterBindDataBlock(SSTriggerTimestampSorter *pSorter, SSDataBlock **ppDataBlock) {
+static int32_t stTimestampSorterBindBatch(SSTriggerTimestampSorter *pSorter, SSDataBlock **ppDataBlock, bool bounded,
+                                          bool done) {
   int32_t                code = TSDB_CODE_SUCCESS;
   int32_t                lino = 0;
   SStreamTriggerTask    *pTask = pSorter->pTask;
@@ -751,6 +781,13 @@ int32_t stTimestampSorterBindDataBlock(SSTriggerTimestampSorter *pSorter, SSData
   pList = TARRAY_GET_ELEM(pSorter->pMetaLists, tMergeTreeGetChosenIndex(pSorter->pDataMerger));
   QUERY_CHECK_CONDITION(pList->pDataBlock == NULL, code, lino, _end, TSDB_CODE_INVALID_PARA);
   QUERY_CHECK_NULL(TD_DLIST_HEAD(pList), code, lino, _end, TSDB_CODE_INVALID_PARA);
+  if (bounded) {
+    if (!done && blockDataGetNumOfRows(*ppDataBlock) <= 0) return TSDB_CODE_INVALID_MSG;
+    pList->batchSource = TD_DLIST_HEAD(pList)->pMeta;
+    pList->batchMeta = *pList->batchSource;
+    pList->batchHasMore = !done;
+    TD_DLIST_HEAD(pList)->pMeta = &pList->batchMeta;
+  }
   pList->pDataBlock = *ppDataBlock;
   *ppDataBlock = NULL;
 
@@ -771,13 +808,12 @@ int32_t stTimestampSorterBindDataBlock(SSTriggerTimestampSorter *pSorter, SSData
     pMeta->ekey = ekey;
     pMeta->nrows = nrows;
 
-    void *px = taosbsearch(&pList->nextTs, pTsData, nrows, sizeof(int64_t), compareInt64Val, TD_GE);
-    if (px == NULL) {
+    int32_t start = stTimestampLowerBound(pTsData, 0, nrows, pList->nextTs);
+    if (start == nrows) {
       stTimestampSorterMetaListMoveForward(pList);
     } else {
-      pList->startIdx = POINTER_DISTANCE(px, pTsData) / sizeof(int64_t);
-      pList->endIdx = pList->startIdx;
-      pList->nextTs = *(int64_t *)px;
+      pList->startIdx = pList->endIdx = start;
+      pList->nextTs = pTsData[start];
     }
   }
   code = tMergeTreeAdjust(pSorter->pDataMerger, tMergeTreeGetAdjustIndex(pSorter->pDataMerger));
@@ -790,12 +826,19 @@ _end:
   return code;
 }
 
+int32_t stTimestampSorterBindDataBlock(SSTriggerTimestampSorter *pSorter, SSDataBlock **ppDataBlock) {
+  return stTimestampSorterBindBatch(pSorter, ppDataBlock, false, true);
+}
+
 typedef struct SVtableMergerReaderInfo {
   SSTriggerTableColRef *pColRef;
   SSDataBlock          *pDataBlock;
   int32_t               startIdx;
   int32_t               endIdx;
   int64_t               nextTs;
+  int64_t               lastCopiedTs;
+  bool                  copied;
+  bool                  bounded;
 } SVtableMergerReaderInfo;
 
 static int32_t stVtableMergerReaderInfoCompare(const void *pLeft, const void *pRight, void *param) {
@@ -862,6 +905,10 @@ void stVtableMergerDestroy(void *ptr) {
   }
 
   SSTriggerVtableMerger *pMerger = *ppMerger;
+  taosArrayDestroyEx(pMerger->alignBuffers.sourceTimes, (FDelete)colDataDestroy);
+  pMerger->alignBuffers.sourceTimes = NULL;
+  blockDataDestroy(pMerger->alignBuffers.output);
+  blockDataDestroy(pMerger->alignBuffers.spare);
   if (pMerger->pDataBlock != NULL) {
     blockDataDestroy(pMerger->pDataBlock);
     pMerger->pDataBlock = NULL;
@@ -900,6 +947,10 @@ void stVtableMergerReset(SSTriggerVtableMerger *pMerger) {
 
   pMerger->flags = 0;
   pMerger->readRange = (STimeWindow){.skey = INT64_MAX, .ekey = INT64_MIN};
+  taosArrayDestroyEx(pMerger->alignBuffers.sourceTimes, (FDelete)colDataDestroy);
+  pMerger->alignBuffers.sourceTimes = NULL;
+  blockDataDestroy(pMerger->alignBuffers.output);
+  pMerger->alignBuffers.output = NULL;
   blockDataEmpty(pMerger->pDataBlock);
 
   if (pMerger->pReaderInfos != NULL) {
@@ -939,6 +990,7 @@ int32_t stVtableMergerSetMergeInfo(SSTriggerVtableMerger *pMerger, STimeWindow *
     pReaderInfo->pDataBlock = NULL;
     pReaderInfo->startIdx = pReaderInfo->endIdx = 0;
     pReaderInfo->nextTs = pRange->skey;
+    pReaderInfo->copied = pReaderInfo->bounded = false;
 
     SSTriggerTimestampSorter *pReader = NULL;
     if (i < TARRAY_SIZE(pReaders)) {
@@ -1032,6 +1084,42 @@ _end:
 
 #define stVtableMerger_NUM_OF_ROWS_PER_BLOCK 4096
 
+static int32_t stVtableMergerAssignColRows(SColumnInfoData *pDst, int32_t dstStart, SColumnInfoData *pSrc,
+                                           int32_t srcStart, int32_t nRows);
+
+// Rows from different source clocks can share one virtual timestamp. Keep each aligned input's own key.
+static int32_t stVtableMergerCopySourceTimes(SSTriggerAlignBuffers *buffers, const SArray *slots, int32_t width,
+                                             int32_t slot, const SColumnInfoData *times, int32_t src, int32_t dst,
+                                             int32_t rows, int32_t capacity) {
+  if (!buffers->sourceTimes) {
+    if (!times || !slots) return 0;
+    buffers->sourceTimes = taosArrayInit_s(sizeof(SColumnInfoData), width);
+    if (!buffers->sourceTimes) return terrno;
+    for (size_t i = 0; i < taosArrayGetSize(slots); ++i) {
+      const SSTimeAlignSlot *rule = taosArrayGet(slots, i);
+      SColumnInfoData       *column = taosArrayGet(buffers->sourceTimes, rule->inputSlot);
+      if (!column) return TSDB_CODE_INVALID_MSG;
+      *column = createColumnInfoData(TSDB_DATA_TYPE_BIGINT, sizeof(int64_t), 0);
+    }
+  }
+  SColumnInfoData *column = taosArrayGet(buffers->sourceTimes, slot);
+  if (!column || !column->info.bytes) return 0;
+  if (!times) {
+    if (column->pData) colDataSetNNULL(column, dst, rows);
+    return 0;
+  }
+  if (!column->pData) {
+    TAOS_CHECK_RETURN(colInfoDataEnsureCapacity(column, capacity, true));
+    colDataSetNNULL(column, 0, capacity);
+  }
+  for (int32_t i = 0; i < rows; ++i) {
+    int64_t tick;
+    memcpy(&tick, colDataGetData(times, src + i), sizeof(tick));
+    TAOS_CHECK_RETURN(colDataSetVal(column, dst + i, (const char *)&tick, false));
+  }
+  return 0;
+}
+
 static int32_t stVtableMergerCopyDataBlock(SSTriggerVtableMerger *pMerger, SVtableMergerReaderInfo *pReaderInfo,
                                            int64_t endTime, bool *pIsFull) {
   int32_t             code = TSDB_CODE_SUCCESS;
@@ -1049,8 +1137,10 @@ static int32_t stVtableMergerCopyDataBlock(SSTriggerVtableMerger *pMerger, SVtab
   int64_t *pOrigTsData = (int64_t *)pOrigTsCol->pData;
 
   int32_t virStartIdx = blockDataGetNumOfRows(pVirDataBlock);
-  if (virStartIdx > 0 && pVirTsData[virStartIdx - 1] == pOrigTsData[pReaderInfo->startIdx]) {
-    // merge to the last row
+  int64_t first = pOrigTsData[pReaderInfo->startIdx];
+  bool    sameSource = pReaderInfo->bounded && pReaderInfo->copied && pReaderInfo->lastCopiedTs == first;
+  if (virStartIdx > 0 && pVirTsData[virStartIdx - 1] == first && !sameSource) {
+    // Merge columns from different sources. Rows from the same cursor remain distinct.
     --virStartIdx;
   }
 
@@ -1063,19 +1153,34 @@ static int32_t stVtableMergerCopyDataBlock(SSTriggerVtableMerger *pMerger, SVtab
   code = colDataAssignNRows(pVirTsCol, virStartIdx, pOrigTsCol, pReaderInfo->startIdx, nRowsToCopy);
   QUERY_CHECK_CODE(code, lino, _end);
   int32_t nCols = taosArrayGetSize(pReaderInfo->pColRef->pColMatches);
+  const SColumnInfoData *sourceTimes = taosArrayGetLast(pOrigDataBlock->pDataBlock);
+  if (!sourceTimes || sourceTimes->info.colId != STREAM_WAL_PHYSICAL_TS_COL_ID) sourceTimes = NULL;
   for (int32_t i = 0; i < nCols; i++) {
     SSTriggerColMatch *pColMatch = TARRAY_GET_ELEM(pReaderInfo->pColRef->pColMatches, i);
     SColumnInfoData   *pVirCol = taosArrayGet(pVirDataBlock->pDataBlock, pColMatch->vtbSlotId);
     QUERY_CHECK_NULL(pVirCol, code, lino, _end, terrno);
     SColumnInfoData *pOrigCol = taosArrayGet(pOrigDataBlock->pDataBlock, i + 1);
     QUERY_CHECK_NULL(pOrigCol, code, lino, _end, terrno);
-    code = colDataAssignNRows(pVirCol, virStartIdx, pOrigCol, pReaderInfo->startIdx, nRowsToCopy);
+    if (pTask->pTimeAlign && pTask->flatVirtualScan) {
+      code =
+          stVtableMergerCopySourceTimes(&pMerger->alignBuffers, stTimeAlignSlots(pTask->pTimeAlignConfig, true),
+                                        blockDataGetNumOfCols(pVirDataBlock), pColMatch->vtbSlotId, sourceTimes,
+                                        pReaderInfo->startIdx, virStartIdx, nRowsToCopy, pVirDataBlock->info.capacity);
+      QUERY_CHECK_CODE(code, lino, _end);
+      code = stVtableMergerAssignColRows(pVirCol, virStartIdx, pOrigCol, pReaderInfo->startIdx, nRowsToCopy);
+    } else {
+      code = colDataAssignNRows(pVirCol, virStartIdx, pOrigCol, pReaderInfo->startIdx, nRowsToCopy);
+    }
     QUERY_CHECK_CODE(code, lino, _end);
   }
 
   // update block info
   pVirDataBlock->info.rows = virStartIdx + nRowsToCopy;
   pReaderInfo->startIdx += nRowsToCopy;
+  if (nRowsToCopy > 0) {
+    pReaderInfo->lastCopiedTs = pOrigTsData[pReaderInfo->startIdx - 1];
+    pReaderInfo->copied = true;
+  }
   *pIsFull = (pReaderInfo->startIdx < origEndIdx);
 
 _end:
@@ -1095,6 +1200,7 @@ int32_t stVtableMergerNextDataBlock(SSTriggerVtableMerger *pMerger, SSDataBlock 
 
   *ppDataBlock = NULL;
 
+_retrieve:
   if (IS_TRIGGER_VTABLE_MERGER_EMPTY(pMerger)) {
     goto _end;
   } else {
@@ -1181,7 +1287,8 @@ int32_t stVtableMergerNextDataBlock(SSTriggerVtableMerger *pMerger, SSDataBlock 
       if (pReaderInfo->startIdx < pReaderInfo->endIdx) {
         pReaderInfo->nextTs = pOrigTsData[pReaderInfo->startIdx];
       } else {
-        pReaderInfo->nextTs = pOrigTsData[pReaderInfo->endIdx - 1] + 1;
+        int64_t last = pOrigTsData[pReaderInfo->endIdx - 1];
+        pReaderInfo->nextTs = pReaderInfo->bounded || last == INT64_MAX ? last : last + 1;
         pReaderInfo->pDataBlock = NULL;
         pReaderInfo->startIdx = pReaderInfo->endIdx = 0;
       }
@@ -1213,18 +1320,25 @@ int32_t stVtableMergerNextDataBlock(SSTriggerVtableMerger *pMerger, SSDataBlock 
         }
       }
     }
+    SColumnInfoData *pVirTsCol = taosArrayGet(pDataBlock->pDataBlock, 0);
+    QUERY_CHECK_NULL(pVirTsCol, code, lino, _end, terrno);
+    int64_t nextTs = ((int64_t *)pVirTsCol->pData)[nrows - 1] + 1;
     if (pMerger->pFilter != NULL) {
       int32_t status = 0;
       code = filterExecute(pMerger->pFilter, pMerger->pDataBlock, &p, NULL, blockDataGetNumOfCols(pDataBlock), &status);
       QUERY_CHECK_CODE(code, lino, _end);
       code = trimDataBlock(pMerger->pDataBlock, nrows, (bool *)p->pData);
       QUERY_CHECK_CODE(code, lino, _end);
+      colDataDestroy(p);
+      taosMemoryFreeClear(p);
+    }
+    pMerger->readRange.skey = TMAX(pMerger->readRange.skey, nextTs);
+    if (blockDataGetNumOfRows(pDataBlock) == 0) {
+      // A filtered batch is neither a row nor EOF. Continue until rows, a fetch,
+      // or the end of the read range, preserving progress through filtered rows.
+      goto _retrieve;
     }
     *ppDataBlock = pMerger->pDataBlock;
-    SColumnInfoData *pVirTsCol = taosArrayGet(pDataBlock->pDataBlock, 0);
-    QUERY_CHECK_NULL(pVirTsCol, code, lino, _end, terrno);
-    int64_t *pVirTsData = (int64_t *)pVirTsCol->pData;
-    pMerger->readRange.skey = TMAX(pMerger->readRange.skey, pVirTsData[nrows - 1] + 1);
   }
 
 _end:
@@ -1236,6 +1350,305 @@ _end:
     ST_TASK_ELOG("%s failed at line %d since %s", __func__, lino, tstrerror(code));
   }
   return code;
+}
+
+typedef struct {
+  int64_t                        tableUid;
+  SStreamTriggerPeerSourceOps    ops;
+  void                          *pSource;
+  SStreamTriggerPeerHead         head;
+  EStreamTriggerPeerSourceStatus status;
+  bool                           headKnown;
+} SStreamTriggerPeerSource;
+
+struct SStreamTriggerPeerMerger {
+  int64_t               gid;
+  SArray               *pSources;
+  SSHashObj            *pSourceUids;
+  SArray               *pRows;
+  SArray               *pHeap;
+  SArray               *pOutstandingSources;
+  SWindowChainPeerGroup group;
+  int32_t               primeIndex;
+  int32_t               refreshIndex;
+  bool                  initialized;
+  bool                  started;
+  bool                  outstanding;
+  bool                  retryOutstanding;
+  bool                  failed;
+};
+
+int32_t stTriggerMergerPeerCreate(int64_t gid, SStreamTriggerPeerMerger **ppMerger) {
+  if (ppMerger == NULL || *ppMerger != NULL) {
+    return TSDB_CODE_INVALID_PARA;
+  }
+
+  SStreamTriggerPeerMerger *pMerger = taosMemoryCalloc(1, sizeof(SStreamTriggerPeerMerger));
+  if (pMerger == NULL) {
+    return terrno;
+  }
+  pMerger->pSources = taosArrayInit(4, sizeof(SStreamTriggerPeerSource));
+  pMerger->pSourceUids = tSimpleHashInit(4, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT));
+  pMerger->pRows = taosArrayInit(4, sizeof(SWindowChainRowRef));
+  pMerger->pHeap = taosArrayInit(4, sizeof(int32_t));
+  pMerger->pOutstandingSources = taosArrayInit(4, sizeof(int32_t));
+  if (pMerger->pSources == NULL || pMerger->pSourceUids == NULL || pMerger->pRows == NULL || pMerger->pHeap == NULL ||
+      pMerger->pOutstandingSources == NULL) {
+    taosArrayDestroy(pMerger->pSources);
+    tSimpleHashCleanup(pMerger->pSourceUids);
+    taosArrayDestroy(pMerger->pRows);
+    taosArrayDestroy(pMerger->pHeap);
+    taosArrayDestroy(pMerger->pOutstandingSources);
+    taosMemoryFree(pMerger);
+    return terrno;
+  }
+  pMerger->gid = gid;
+  pMerger->group.gid = gid;
+  pMerger->group.pRows = pMerger->pRows;
+  *ppMerger = pMerger;
+  return TSDB_CODE_SUCCESS;
+}
+
+void stTriggerMergerPeerReset(SStreamTriggerPeerMerger *pMerger, int64_t gid) {
+  if (pMerger == NULL) {
+    return;
+  }
+  taosArrayClear(pMerger->pSources);
+  tSimpleHashClear(pMerger->pSourceUids);
+  taosArrayClear(pMerger->pRows);
+  taosArrayClear(pMerger->pHeap);
+  taosArrayClear(pMerger->pOutstandingSources);
+  pMerger->gid = gid;
+  pMerger->group = (SWindowChainPeerGroup){.gid = gid, .pRows = pMerger->pRows};
+  pMerger->primeIndex = 0;
+  pMerger->refreshIndex = 0;
+  pMerger->initialized = false;
+  pMerger->started = false;
+  pMerger->outstanding = false;
+  pMerger->retryOutstanding = false;
+  pMerger->failed = false;
+}
+
+int32_t stTriggerMergerPeerAddSource(SStreamTriggerPeerMerger *pMerger, int64_t tableUid,
+                                     const SStreamTriggerPeerSourceOps *pOps, void *pSource) {
+  if (pMerger == NULL || pOps == NULL || pOps->peek == NULL || pOps->consume == NULL || pSource == NULL ||
+      pMerger->started || pMerger->failed) {
+    return TSDB_CODE_INVALID_PARA;
+  }
+  if (tSimpleHashGet(pMerger->pSourceUids, &tableUid, sizeof(tableUid)) != NULL) return TSDB_CODE_INVALID_PARA;
+  SStreamTriggerPeerSource source = {.tableUid = tableUid, .ops = *pOps, .pSource = pSource};
+  if (taosArrayPush(pMerger->pSources, &source) == NULL) {
+    return terrno;
+  }
+  const bool registered = true;
+  int32_t    code = tSimpleHashPut(pMerger->pSourceUids, &tableUid, sizeof(tableUid), &registered, sizeof(registered));
+  if (code != TSDB_CODE_SUCCESS) {
+    taosArrayPop(pMerger->pSources);
+    return code;
+  }
+  return TSDB_CODE_SUCCESS;
+}
+
+static bool stTriggerMergerPeerHeapLess(const SStreamTriggerPeerMerger *pMerger, int32_t leftIndex,
+                                        int32_t rightIndex) {
+  const SStreamTriggerPeerSource *pLeft = taosArrayGet(pMerger->pSources, leftIndex);
+  const SStreamTriggerPeerSource *pRight = taosArrayGet(pMerger->pSources, rightIndex);
+  if (pLeft->head.eventTs != pRight->head.eventTs) return pLeft->head.eventTs < pRight->head.eventTs;
+  if (pLeft->tableUid != pRight->tableUid) return pLeft->tableUid < pRight->tableUid;
+  return leftIndex < rightIndex;
+}
+
+static void stTriggerMergerPeerHeapSwap(SArray *pHeap, int32_t left, int32_t right) {
+  int32_t *pLeft = taosArrayGet(pHeap, left);
+  int32_t *pRight = taosArrayGet(pHeap, right);
+  int32_t  value = *pLeft;
+  *pLeft = *pRight;
+  *pRight = value;
+}
+
+static int32_t stTriggerMergerPeerHeapPush(SStreamTriggerPeerMerger *pMerger, int32_t sourceIndex) {
+  if (taosArrayPush(pMerger->pHeap, &sourceIndex) == NULL) return terrno;
+  int32_t child = taosArrayGetSize(pMerger->pHeap) - 1;
+  while (child > 0) {
+    int32_t parent = (child - 1) / 2;
+    int32_t childSource = *(int32_t *)taosArrayGet(pMerger->pHeap, child);
+    int32_t parentSource = *(int32_t *)taosArrayGet(pMerger->pHeap, parent);
+    if (!stTriggerMergerPeerHeapLess(pMerger, childSource, parentSource)) break;
+    stTriggerMergerPeerHeapSwap(pMerger->pHeap, child, parent);
+    child = parent;
+  }
+  return TSDB_CODE_SUCCESS;
+}
+
+static int32_t stTriggerMergerPeerHeapTop(const SStreamTriggerPeerMerger *pMerger) {
+  return *(int32_t *)taosArrayGet(pMerger->pHeap, 0);
+}
+
+static int32_t stTriggerMergerPeerHeapPop(SStreamTriggerPeerMerger *pMerger) {
+  int32_t result = stTriggerMergerPeerHeapTop(pMerger);
+  int32_t last = *(int32_t *)taosArrayGetLast(pMerger->pHeap);
+  taosArrayPop(pMerger->pHeap);
+  int32_t heapSize = taosArrayGetSize(pMerger->pHeap);
+  if (heapSize == 0) return result;
+  *(int32_t *)taosArrayGet(pMerger->pHeap, 0) = last;
+  int32_t parent = 0;
+  while (true) {
+    int32_t left = parent * 2 + 1;
+    if (left >= heapSize) break;
+    int32_t right = left + 1;
+    int32_t child = left;
+    if (right < heapSize) {
+      int32_t leftSource = *(int32_t *)taosArrayGet(pMerger->pHeap, left);
+      int32_t rightSource = *(int32_t *)taosArrayGet(pMerger->pHeap, right);
+      if (stTriggerMergerPeerHeapLess(pMerger, rightSource, leftSource)) child = right;
+    }
+    int32_t childSource = *(int32_t *)taosArrayGet(pMerger->pHeap, child);
+    int32_t parentSource = *(int32_t *)taosArrayGet(pMerger->pHeap, parent);
+    if (!stTriggerMergerPeerHeapLess(pMerger, childSource, parentSource)) break;
+    stTriggerMergerPeerHeapSwap(pMerger->pHeap, child, parent);
+    parent = child;
+  }
+  return result;
+}
+
+static int32_t stTriggerMergerPeerLoadSource(SStreamTriggerPeerMerger *pMerger, int32_t sourceIndex, bool *pNeedInput) {
+  SStreamTriggerPeerSource *pSource = taosArrayGet(pMerger->pSources, sourceIndex);
+  int32_t                   code = pSource->ops.peek(pSource->pSource, &pSource->head, &pSource->status);
+  if (code != TSDB_CODE_SUCCESS) return code;
+  if (pSource->status == STREAM_TRIGGER_PEER_SOURCE_NEED_INPUT) {
+    *pNeedInput = true;
+    return TSDB_CODE_SUCCESS;
+  }
+  if (pSource->status != STREAM_TRIGGER_PEER_SOURCE_ROW && pSource->status != STREAM_TRIGGER_PEER_SOURCE_EOF) {
+    return TSDB_CODE_INVALID_PARA;
+  }
+  if (pSource->status == STREAM_TRIGGER_PEER_SOURCE_ROW &&
+      (pSource->head.row.pBlock == NULL || pSource->head.row.rowIndex < 0 ||
+       pSource->head.row.rowIndex >= pSource->head.row.pBlock->info.rows ||
+       pSource->head.row.tableUid != pSource->tableUid)) {
+    return TSDB_CODE_INVALID_PARA;
+  }
+  pSource->headKnown = true;
+  return pSource->status == STREAM_TRIGGER_PEER_SOURCE_ROW ? stTriggerMergerPeerHeapPush(pMerger, sourceIndex)
+                                                           : TSDB_CODE_SUCCESS;
+}
+
+static void stTriggerMergerConsumeOutstanding(SStreamTriggerPeerMerger *pMerger) {
+  if (!pMerger->outstanding) {
+    return;
+  }
+  for (int32_t i = 0; i < taosArrayGetSize(pMerger->pOutstandingSources); ++i) {
+    int32_t                   sourceIndex = *(int32_t *)taosArrayGet(pMerger->pOutstandingSources, i);
+    SStreamTriggerPeerSource *pSource = taosArrayGet(pMerger->pSources, sourceIndex);
+    pSource->ops.consume(pSource->pSource);
+    pSource->headKnown = false;
+  }
+  pMerger->outstanding = false;
+  pMerger->refreshIndex = 0;
+  taosArrayClear(pMerger->pRows);
+}
+
+int32_t stTriggerMergerNextPeerGroup(SStreamTriggerPeerMerger *pMerger, EStreamTriggerPeerGroupStatus *pStatus,
+                                     int32_t *pNeedSourceIndex, const SWindowChainPeerGroup **ppGroup) {
+  if (pMerger == NULL || pStatus == NULL || pNeedSourceIndex == NULL || ppGroup == NULL || pMerger->failed) {
+    return TSDB_CODE_INVALID_PARA;
+  }
+  *pNeedSourceIndex = -1;
+  *ppGroup = NULL;
+  pMerger->started = true;
+  if (pMerger->retryOutstanding) {
+    pMerger->retryOutstanding = false;
+    *pStatus = STREAM_TRIGGER_PEER_GROUP_READY;
+    *ppGroup = &pMerger->group;
+    return TSDB_CODE_SUCCESS;
+  }
+  stTriggerMergerConsumeOutstanding(pMerger);
+
+  int32_t numSources = taosArrayGetSize(pMerger->pSources);
+  while (!pMerger->initialized && pMerger->primeIndex < numSources) {
+    bool    needInput = false;
+    int32_t code = stTriggerMergerPeerLoadSource(pMerger, pMerger->primeIndex, &needInput);
+    if (code != TSDB_CODE_SUCCESS) {
+      pMerger->failed = true;
+      return code;
+    }
+    if (needInput) {
+      *pStatus = STREAM_TRIGGER_PEER_GROUP_NEED_INPUT;
+      *pNeedSourceIndex = pMerger->primeIndex;
+      return TSDB_CODE_SUCCESS;
+    }
+    ++pMerger->primeIndex;
+  }
+  pMerger->initialized = true;
+
+  while (pMerger->refreshIndex < taosArrayGetSize(pMerger->pOutstandingSources)) {
+    int32_t sourceIndex = *(int32_t *)taosArrayGet(pMerger->pOutstandingSources, pMerger->refreshIndex);
+    bool    needInput = false;
+    int32_t code = stTriggerMergerPeerLoadSource(pMerger, sourceIndex, &needInput);
+    if (code != TSDB_CODE_SUCCESS) {
+      pMerger->failed = true;
+      return code;
+    }
+    if (needInput) {
+      *pStatus = STREAM_TRIGGER_PEER_GROUP_NEED_INPUT;
+      *pNeedSourceIndex = sourceIndex;
+      return TSDB_CODE_SUCCESS;
+    }
+    ++pMerger->refreshIndex;
+  }
+  taosArrayClear(pMerger->pOutstandingSources);
+  pMerger->refreshIndex = 0;
+
+  if (taosArrayGetSize(pMerger->pHeap) == 0) {
+    *pStatus = STREAM_TRIGGER_PEER_GROUP_EOF;
+    return TSDB_CODE_SUCCESS;
+  }
+  int32_t code = taosArrayEnsureCap(pMerger->pRows, numSources);
+  if (code == TSDB_CODE_SUCCESS) code = taosArrayEnsureCap(pMerger->pOutstandingSources, numSources);
+  if (code != TSDB_CODE_SUCCESS) {
+    pMerger->failed = true;
+    return code;
+  }
+  int32_t firstSourceIndex = stTriggerMergerPeerHeapTop(pMerger);
+  TSKEY   minTs = ((SStreamTriggerPeerSource *)taosArrayGet(pMerger->pSources, firstSourceIndex))->head.eventTs;
+  while (taosArrayGetSize(pMerger->pHeap) > 0) {
+    int32_t                   sourceIndex = stTriggerMergerPeerHeapTop(pMerger);
+    SStreamTriggerPeerSource *pSource = taosArrayGet(pMerger->pSources, sourceIndex);
+    if (pSource->head.eventTs != minTs) break;
+    sourceIndex = stTriggerMergerPeerHeapPop(pMerger);
+    pSource = taosArrayGet(pMerger->pSources, sourceIndex);
+    if (taosArrayPush(pMerger->pRows, &pSource->head.row) == NULL ||
+        taosArrayPush(pMerger->pOutstandingSources, &sourceIndex) == NULL) {
+      pMerger->failed = true;
+      return terrno;
+    }
+  }
+
+  pMerger->group.ts = minTs;
+  pMerger->outstanding = true;
+  *pStatus = STREAM_TRIGGER_PEER_GROUP_READY;
+  *ppGroup = &pMerger->group;
+  return TSDB_CODE_SUCCESS;
+}
+
+int32_t stTriggerMergerPeerRetryOutstanding(SStreamTriggerPeerMerger *pMerger) {
+  if (pMerger == NULL || !pMerger->outstanding || pMerger->failed) return TSDB_CODE_INVALID_PARA;
+  pMerger->retryOutstanding = true;
+  return TSDB_CODE_SUCCESS;
+}
+
+void stTriggerMergerPeerDestroy(SStreamTriggerPeerMerger **ppMerger) {
+  if (ppMerger == NULL || *ppMerger == NULL) {
+    return;
+  }
+  SStreamTriggerPeerMerger *pMerger = *ppMerger;
+  taosArrayDestroy(pMerger->pSources);
+  tSimpleHashCleanup(pMerger->pSourceUids);
+  taosArrayDestroy(pMerger->pRows);
+  taosArrayDestroy(pMerger->pHeap);
+  taosArrayDestroy(pMerger->pOutstandingSources);
+  taosMemoryFree(pMerger);
+  *ppMerger = NULL;
 }
 
 int32_t stVtableMergerGetMetaToFetch(SSTriggerVtableMerger *pMerger, SSTriggerMetaData **ppMeta,
@@ -1273,7 +1686,8 @@ _end:
   return code;
 }
 
-int32_t stVtableMergerBindDataBlock(SSTriggerVtableMerger *pMerger, SSDataBlock **ppDataBlock) {
+static int32_t stVtableMergerBindBatch(SSTriggerVtableMerger *pMerger, SSDataBlock **ppDataBlock, bool bounded,
+                                       bool done) {
   int32_t             code = TSDB_CODE_SUCCESS;
   int32_t             lino = 0;
   SStreamTriggerTask *pTask = pMerger->pTask;
@@ -1286,7 +1700,8 @@ int32_t stVtableMergerBindDataBlock(SSTriggerVtableMerger *pMerger, SSDataBlock 
   SVtableMergerReaderInfo  *pReaderInfo = TARRAY_GET_ELEM(pMerger->pReaderInfos, idx);
   SSTriggerTimestampSorter *pReader = *(SSTriggerTimestampSorter **)TARRAY_GET_ELEM(pMerger->pReaders, idx);
   QUERY_CHECK_CONDITION(pReaderInfo->pDataBlock == NULL, code, lino, _end, TSDB_CODE_INVALID_PARA);
-  code = stTimestampSorterBindDataBlock(pReader, ppDataBlock);
+  pReaderInfo->bounded = bounded;
+  code = stTimestampSorterBindBatch(pReader, ppDataBlock, bounded, done);
   QUERY_CHECK_CODE(code, lino, _end);
 
 _end:
@@ -1296,6 +1711,14 @@ _end:
   return code;
 }
 
+int32_t stVtableMergerBindDataBlock(SSTriggerVtableMerger *pMerger, SSDataBlock **ppDataBlock) {
+  return stVtableMergerBindBatch(pMerger, ppDataBlock, false, true);
+}
+
+int32_t stVtableMergerBindDataBatch(SSTriggerVtableMerger *pMerger, SSDataBlock **ppDataBlock, bool done) {
+  return stVtableMergerBindBatch(pMerger, ppDataBlock, true, done);
+}
+
 typedef struct SNewTimestampSorterSlice {
   int32_t startIdx;
   int32_t endIdx;
@@ -1303,6 +1726,27 @@ typedef struct SNewTimestampSorterSlice {
 } SNewTimestampSorterSlice;
 
 typedef TD_DLIST(SNewTimestampSorterSlice) SNewTimestampSorterSliceList;
+
+static int32_t stNewTimestampSorterMetaCompare(const void *pLeft, const void *pRight) {
+  const SSTriggerMetaData *pLeftMeta = *(const SSTriggerMetaData *const *)pLeft;
+  const SSTriggerMetaData *pRightMeta = *(const SSTriggerMetaData *const *)pRight;
+
+  if (pLeftMeta->skey < pRightMeta->skey) {
+    return -1;
+  } else if (pLeftMeta->skey > pRightMeta->skey) {
+    return 1;
+  } else if (pLeftMeta->ekey < pRightMeta->ekey) {
+    return -1;
+  } else if (pLeftMeta->ekey > pRightMeta->ekey) {
+    return 1;
+  } else if (pLeftMeta->ver < pRightMeta->ver) {
+    return -1;
+  } else if (pLeftMeta->ver > pRightMeta->ver) {
+    return 1;
+  }
+
+  return 0;
+}
 
 static int32_t stNewTimestampSorterSliceListCompare(const void *pLeft, const void *pRight, void *param) {
   int32_t                      left = *(const int32_t *)pLeft;
@@ -1323,7 +1767,8 @@ static int32_t stNewTimestampSorterSliceListCompare(const void *pLeft, const voi
       return -1;
     } else if (leftIdx >= 0 && rightIdx >= 0) {
       // compare by row key: timestamp first, then primary keys.
-      int32_t ret = stCompareRowsInBlocks(pSorter->pDataBlock, pSorter->tsSlotId, pSorter->pkSlotId, leftIdx, rightIdx);
+      int32_t ret =
+          stCompareRowsInBlocks(pSorter->pDataBlock, pSorter->keyTsSlotId, pSorter->pkSlotId, leftIdx, rightIdx);
       if (ret < 0) {
         return -1;
       } else if (ret > 0) {
@@ -1345,6 +1790,197 @@ _end:
     return 1;
   }
   return 0;
+}
+
+typedef struct {
+  void        *pIter;
+  SSDataBlock *pFirstBlock;
+  SSDataBlock *pInput;
+  SSDataBlock *pOutput;
+  SSortHandle *pHandle;
+  SArray      *pOrder;
+  SArray      *pKeys;
+  char        *pLastKey;
+  int32_t      lastKeyLen;
+  int32_t      tsSlotId;
+  int32_t      verSlotId;
+  int64_t      lastVer;
+  int64_t      lastTs;
+  int64_t      frontier;
+  int64_t      watermark;
+  bool         haveVersion;
+  bool         orderedInput;
+  STimeWindow  range;
+} SPeriodSnapshotSort;
+
+static void stPeriodSnapshotSortDestroy(SPeriodSnapshotSort *pSort) {
+  if (pSort == NULL) return;
+  tsortDestroySortHandle(pSort->pHandle);
+  cancelStreamDataCacheIterate(&pSort->pIter);
+  blockDataDestroy(pSort->pFirstBlock);
+  blockDataDestroy(pSort->pInput);
+  blockDataDestroy(pSort->pOutput);
+  taosArrayDestroy(pSort->pOrder);
+  taosArrayDestroy(pSort->pKeys);
+  taosMemoryFree(pSort->pLastKey);
+  taosMemoryFree(pSort);
+}
+
+static int32_t stPeriodSnapshotSortFetch(void *param, SSDataBlock **ppBlock) {
+  SPeriodSnapshotSort *pSort = param;
+  *ppBlock = NULL;
+  blockDataDestroy(pSort->pInput);
+  pSort->pInput = NULL;
+  while (pSort->pFirstBlock != NULL || pSort->pIter != NULL) {
+    SSDataBlock *pBlock = pSort->pFirstBlock;
+    pSort->pFirstBlock = NULL;
+    int32_t code = pBlock == NULL ? getNextStreamDataCache(&pSort->pIter, &pBlock) : TSDB_CODE_SUCCESS;
+    if (code != TSDB_CODE_SUCCESS) return code;
+    if (pBlock == NULL) continue;
+    SColumnInfoData *pTsCol = taosArrayGet(pBlock->pDataBlock, pSort->tsSlotId);
+    SColumnInfoData *pVerCol = taosArrayGet(pBlock->pDataBlock, pSort->verSlotId);
+    if (pTsCol == NULL || pVerCol == NULL) {
+      blockDataDestroy(pBlock);
+      return TSDB_CODE_INVALID_MSG;
+    }
+    int32_t first = -1;
+    for (int32_t row = 0; row <= pBlock->info.rows; ++row) {
+      bool accepted = false;
+      if (row < pBlock->info.rows) {
+        int64_t ts = *(int64_t *)colDataGetData(pTsCol, row);
+        int64_t ver = *(int64_t *)colDataGetData(pVerCol, row);
+        if (!pSort->haveVersion || ver != pSort->lastVer) {
+          if (pSort->haveVersion && ver < pSort->lastVer) {
+            code = TSDB_CODE_INVALID_MSG;
+            break;
+          }
+          pSort->haveVersion = true;
+          pSort->lastVer = ver;
+          pSort->frontier = pSort->lastTs;
+        }
+        accepted = ts >= pSort->range.skey && ts <= pSort->range.ekey;
+        if (pSort->orderedInput && pSort->frontier != INT64_MIN && pSort->frontier >= INT64_MIN + pSort->watermark &&
+            ts <= pSort->frontier - pSort->watermark) {
+          accepted = false;
+        }
+        pSort->lastTs = TMAX(pSort->lastTs, ts);
+      }
+      if (accepted) {
+        if (first < 0) first = row;
+      } else if (first >= 0) {
+        SSDataBlock *pRange = NULL;
+        code = blockDataExtractBlock(pBlock, first, row - first, &pRange);
+        if (code != TSDB_CODE_SUCCESS) break;
+        if (pSort->pInput == NULL) {
+          pSort->pInput = pRange;
+        } else {
+          code = blockDataMerge(pSort->pInput, pRange);
+          blockDataDestroy(pRange);
+          if (code != TSDB_CODE_SUCCESS) break;
+        }
+        first = -1;
+      }
+    }
+    blockDataDestroy(pBlock);
+    if (code != TSDB_CODE_SUCCESS) return code;
+    if (pSort->pInput != NULL) {
+      *ppBlock = pSort->pInput;
+      return TSDB_CODE_SUCCESS;
+    }
+  }
+  return TSDB_CODE_SUCCESS;
+}
+
+static int32_t stPeriodSnapshotSortSetData(SSTriggerNewTimestampSorter *pSorter, SSTriggerDataSlice *pSlice,
+                                           const STimeWindow *pRange, bool orderedInput) {
+  int32_t              code = TSDB_CODE_SUCCESS;
+  int32_t              lino = 0;
+  SSortSource         *pSource = NULL;
+  SPeriodSnapshotSort *pSort = taosMemoryCalloc(1, sizeof(*pSort));
+  if (pSort == NULL) return terrno;
+  pSorter->pSnapshotSort = pSort;
+  pSort->range = *pRange;
+  pSort->tsSlotId = pSorter->tsSlotId;
+  pSort->orderedInput = orderedInput;
+  pSort->watermark = pSorter->pTask->watermark;
+  pSort->lastTs = INT64_MIN;
+  code =
+      getStreamDataCacheSnapshot(pSlice->pSnapshotCache, pSlice->snapshotSourceId, TSKEY_MIN, TSKEY_MAX, &pSort->pIter);
+  QUERY_CHECK_CODE(code, lino, _end);
+  if (pSort->pIter == NULL) goto _end;
+  code = getNextStreamDataCache(&pSort->pIter, &pSort->pFirstBlock);
+  QUERY_CHECK_CODE(code, lino, _end);
+  if (pSort->pFirstBlock == NULL) goto _end;
+  pSort->verSlotId = blockDataGetNumOfCols(pSort->pFirstBlock) - 1 - pSorter->verColBias;
+  pSort->pOrder = taosArrayInit(3, sizeof(SBlockOrderInfo));
+  pSort->pKeys = taosArrayInit(2, sizeof(SColumn));
+  QUERY_CHECK_NULL(pSort->pOrder, code, lino, _end, terrno);
+  QUERY_CHECK_NULL(pSort->pKeys, code, lino, _end, terrno);
+  int32_t keySize = 0;
+  int32_t slots[] = {pSorter->tsSlotId, pSorter->pkSlotId, pSort->verSlotId};
+  for (int32_t i = 0; i < 3; ++i) {
+    if (i == 1 && (slots[i] < 0 || slots[i] == slots[0])) continue;
+    SColumnInfoData *pCol = taosArrayGet(pSort->pFirstBlock->pDataBlock, slots[i]);
+    QUERY_CHECK_NULL(pCol, code, lino, _end, TSDB_CODE_INVALID_MSG);
+    SBlockOrderInfo order = {.nullFirst = true, .order = i == 2 ? TSDB_ORDER_DESC : TSDB_ORDER_ASC, .slotId = slots[i]};
+    order.compFn = getKeyComparFunc(pCol->info.type, order.order);
+    QUERY_CHECK_NULL(taosArrayPush(pSort->pOrder, &order), code, lino, _end, terrno);
+    if (i != 2) {
+      SColumn key = {.slotId = slots[i], .type = pCol->info.type, .bytes = pCol->info.bytes};
+      QUERY_CHECK_NULL(taosArrayPush(pSort->pKeys, &key), code, lino, _end, terrno);
+      keySize += 1 + key.bytes;
+    }
+  }
+  pSort->pLastKey = taosMemoryCalloc(1, keySize);
+  QUERY_CHECK_NULL(pSort->pLastKey, code, lino, _end, terrno);
+  int32_t pageSize =
+      getProperSortPageSize(blockDataGetRowSize(pSort->pFirstBlock), blockDataGetNumOfCols(pSort->pFirstBlock));
+  code = tsortCreateSortHandle(pSort->pOrder, SORT_SINGLESOURCE_SORT, pageSize, 1024, pSort->pFirstBlock,
+                               "period snapshot", 0, 0, 0, &pSort->pHandle);
+  QUERY_CHECK_CODE(code, lino, _end);
+  tsortSetFetchRawDataFp(pSort->pHandle, stPeriodSnapshotSortFetch, NULL, pSort);
+  pSource = taosMemoryCalloc(1, sizeof(*pSource));
+  QUERY_CHECK_NULL(pSource, code, lino, _end, terrno);
+  pSource->param = pSort;
+  pSource->onlyRef = true;
+  code = tsortAddSource(pSort->pHandle, pSource);
+  QUERY_CHECK_CODE(code, lino, _end);
+  pSource = NULL;
+  code = tsortOpen(pSort->pHandle);
+  QUERY_CHECK_CODE(code, lino, _end);
+  code = tsortGetSortedDataBlock(pSort->pHandle, &pSort->pOutput);
+  QUERY_CHECK_CODE(code, lino, _end);
+  if (pSort->pOutput != NULL) {
+    code = blockDataEnsureCapacity(pSort->pOutput, 4096);
+    pSort->pOutput->info.id.uid = pSorter->readerKey.logicalUid;
+  }
+_end:
+  taosMemoryFree(pSource);
+  return code;
+}
+
+static int32_t stPeriodSnapshotSortNext(SSTriggerNewTimestampSorter *pSorter, SSDataBlock **ppBlock, int32_t *pStart,
+                                        int32_t *pEnd) {
+  SPeriodSnapshotSort *pSort = pSorter->pSnapshotSort;
+  *pStart = *pEnd = 0;
+  if (ppBlock != NULL) *ppBlock = NULL;
+  if (pSort->pOutput == NULL) return TSDB_CODE_SUCCESS;
+  blockDataEmpty(pSort->pOutput);
+  while (pSort->pOutput->info.rows < 4096) {
+    STupleHandle *pTuple = NULL;
+    int32_t       code = tsortNextTuple(pSort->pHandle, &pTuple);
+    if (code != TSDB_CODE_SUCCESS) return code;
+    if (pTuple == NULL) break;
+    int32_t different = tsortCompAndBuildKeys(pSort->pKeys, pSort->pLastKey, &pSort->lastKeyLen, pTuple);
+    if (different < 0) return different;
+    if (different == 0) continue;
+    code = tsortAppendTupleToBlock(pSort->pHandle, pSort->pOutput, pTuple);
+    if (code != TSDB_CODE_SUCCESS) return code;
+  }
+  pSorter->pDataBlock = pSort->pOutput;
+  *pEnd = pSort->pOutput->info.rows;
+  if (ppBlock != NULL && *pEnd > 0) *ppBlock = pSort->pOutput;
+  return TSDB_CODE_SUCCESS;
 }
 
 int32_t stNewTimestampSorterInit(SSTriggerNewTimestampSorter *pSorter, struct SStreamTriggerTask *pTask,
@@ -1374,6 +2010,7 @@ void stNewTimestampSorterDestroy(void *ptr) {
   }
 
   SSTriggerNewTimestampSorter *pSorter = *ppSorter;
+  stNewTimestampSorterReset(pSorter);
   if (pSorter->pSliceBuf != NULL) {
     taosArrayDestroy(pSorter->pSliceBuf);
     pSorter->pSliceBuf = NULL;
@@ -1394,8 +2031,13 @@ void stNewTimestampSorterReset(SSTriggerNewTimestampSorter *pSorter) {
     return;
   }
 
+  stPeriodSnapshotSortDestroy(pSorter->pSnapshotSort);
+  pSorter->pSnapshotSort = NULL;
+  blockDataDestroy(pSorter->pMergedRow);
+  pSorter->pMergedRow = pSorter->pWalInput = NULL;
   pSorter->inUse = false;
   pSorter->pDataBlock = NULL;
+  pSorter->readerKey = (SSTriggerReaderDataKey){0};
 
   if (pSorter->pSliceBuf != NULL) {
     taosArrayClear(pSorter->pSliceBuf);
@@ -1405,55 +2047,104 @@ void stNewTimestampSorterReset(SSTriggerNewTimestampSorter *pSorter) {
   }
 }
 
-int32_t stNewTimestampSorterSetData(SSTriggerNewTimestampSorter *pSorter, int64_t tbUid, int32_t tsSlotId,
-                                    int32_t pkSlotId, STimeWindow *pReadRange, SObjList *pMetas,
-                                    SSTriggerDataSlice *pSlice) {
+int32_t stNewTimestampSorterSetData(SSTriggerNewTimestampSorter *pSorter,
+                                    const SSTriggerReaderDataKey *pReaderKey, int32_t tsSlotId, int32_t pkSlotId,
+                                    STimeWindow *pReadRange, SObjList *pMetas, SSTriggerDataSlice *pSlice, bool orderedInput) {
   int32_t             code = TSDB_CODE_SUCCESS;
   int32_t             lino = 0;
   SStreamTriggerTask *pTask = pSorter->pTask;
   SSDataBlock        *pDataBlock = pSlice->pDataBlock;
+  SArray             *pSortedMetas = NULL;
 
   QUERY_CHECK_CONDITION(!pSorter->inUse, code, lino, _end, TSDB_CODE_INVALID_PARA);
+  QUERY_CHECK_NULL(pReaderKey, code, lino, _end, TSDB_CODE_INVALID_PARA);
 
   pSorter->inUse = true;
   pSorter->pDataBlock = pDataBlock;
   pSorter->tsSlotId = tsSlotId;
   pSorter->pkSlotId = pkSlotId;
-  pDataBlock->info.id.uid = tbUid;
+  pSorter->readerKey = *pReaderKey;
+  int32_t nativeTs = tStreamWalPhysicalTsSlot(pDataBlock);
+  pSorter->keyTsSlotId = nativeTs >= 0 ? nativeTs : tsSlotId;
+  if (pSlice->pSnapshotCache != NULL) return stPeriodSnapshotSortSetData(pSorter, pSlice, pReadRange, orderedInput);
+  pSorter->pWalInput = pDataBlock;
+  pDataBlock->info.id.uid = pReaderKey->logicalUid;
 
   // collect all data slices; data in each slice is in ascending order
   SColumnInfoData *pTsCol = taosArrayGet(pDataBlock->pDataBlock, tsSlotId);
   QUERY_CHECK_NULL(pTsCol, code, lino, _end, terrno);
-  int64_t         *pTsData = (int64_t *)pTsCol->pData;
-  SColumnInfoData *pVerCol = taosArrayGetLast(pDataBlock->pDataBlock);
-  QUERY_CHECK_NULL(pVerCol, code, lino, _end, terrno);
-  pVerCol -= pSorter->verColBias;
-  int64_t *pVerData = (int64_t *)pVerCol->pData;
+  int64_t *pTsData = (int64_t *)pTsCol->pData;
 
-  int32_t            i = pSlice->startIdx;
-  int64_t            lastTs = INT64_MIN;
+  /* EXT/federated trigger sources have no WAL-style version column appended to
+   * the data block (streamReaderExt.c only ever SELECTs the real trigger
+   * columns), and stRealtimeContextAddExtDataSlices always records meta.ver=0
+   * for them. Reading pVerCol here would misinterpret whichever real business
+   * column happens to sit at [lastCol - verColBias] as a version column, which
+   * (for EVENT's verColBias=2 on a narrow trigger column set) can even index
+   * before the start of the column array. Skip version gating entirely for
+   * EXT streams: every row in range is accepted regardless of "version". */
+  bool             isExtSource = stTriggerReaderKindIsExternal(pReaderKey->readerKind);
+  SColumnInfoData *pVerCol = NULL;
+  int64_t         *pVerData = NULL;
+  if (!isExtSource) {
+    pVerCol = taosArrayGetLast(pDataBlock->pDataBlock);
+    QUERY_CHECK_NULL(pVerCol, code, lino, _end, terrno);
+    pVerCol -= pSorter->verColBias;
+    pVerData = (int64_t *)pVerCol->pData;
+  }
+
   SSTriggerMetaData *pMeta = NULL;
   SObjListIter       iter;
   taosObjListInitIter(pMetas, &iter, TOBJLIST_ITER_FORWARD);
-  while ((i < pSlice->endIdx) && (pMeta = (SSTriggerMetaData *)taosObjListIterNext(&iter)) != NULL) {
-    while (i < pSlice->endIdx && pVerData[i] < pMeta->ver) {
-      lastTs = TMAX(lastTs, pTsData[i]);
-      i++;
+  if (isExtSource) {
+    pSortedMetas = taosArrayInit(0, sizeof(SSTriggerMetaData *));
+    QUERY_CHECK_NULL(pSortedMetas, code, lino, _end, terrno);
+    while ((pMeta = (SSTriggerMetaData *)taosObjListIterNext(&iter)) != NULL) {
+      void *px = taosArrayPush(pSortedMetas, &pMeta);
+      QUERY_CHECK_NULL(px, code, lino, _end, terrno);
     }
-    if (i < pSlice->endIdx && pVerData[i] > pMeta->ver) {
-      continue;
+    taosArraySort(pSortedMetas, stNewTimestampSorterMetaCompare);
+    ST_TASK_DLOG("sorted external trigger metas, readerId:%" PRIu64 ", logicalUid:%" PRId64 ", metaCount:%d",
+                 pReaderKey->stableReaderId, pReaderKey->logicalUid, (int32_t)TARRAY_SIZE(pSortedMetas));
+  }
+
+  // Watermarks and requested ranges are logical. Sorting and update identity use the source clock.
+  const SColumnInfoData *keyCol = taosArrayGet(pDataBlock->pDataBlock, pSorter->keyTsSlotId);
+  const int64_t         *keyTimes = (const int64_t *)keyCol->pData;
+  int32_t i = pSlice->startIdx;
+  int64_t lastTs = INT64_MIN;
+  int32_t metaIdx = 0;
+  while (i < pSlice->endIdx) {
+    if (isExtSource) {
+      if (metaIdx >= TARRAY_SIZE(pSortedMetas)) {
+        break;
+      }
+      pMeta = *(SSTriggerMetaData **)TARRAY_GET_ELEM(pSortedMetas, metaIdx++);
+    } else {
+      pMeta = (SSTriggerMetaData *)taosObjListIterNext(&iter);
+      if (pMeta == NULL) {
+        break;
+      }
     }
-    while (pTask->ignoreDisorder && i < pSlice->endIdx && lastTs != INT64_MIN &&
-           pTsData[i] <= lastTs - pTask->watermark) {
+    if (!isExtSource) {
+      while (i < pSlice->endIdx && pVerData[i] < pMeta->ver) {
+        lastTs = TMAX(lastTs, pTsData[i]);
+        i++;
+      }
+      if (i < pSlice->endIdx && pVerData[i] > pMeta->ver) {
+        continue;
+      }
+    }
+    while (orderedInput && i < pSlice->endIdx && lastTs != INT64_MIN && pTsData[i] <= lastTs - pTask->watermark) {
       i++;
     }
     int64_t skey = TMAX(pMeta->skey, pReadRange->skey);
-    while (i < pSlice->endIdx && pVerData[i] == pMeta->ver && pTsData[i] < skey) {
+    while (i < pSlice->endIdx && (isExtSource || pVerData[i] == pMeta->ver) && pTsData[i] < skey) {
       i++;
     }
     SNewTimestampSorterSlice slice = {.startIdx = i};
     int64_t                  ekey = TMIN(pMeta->ekey, pReadRange->ekey);
-    while (i < pSlice->endIdx && pVerData[i] == pMeta->ver && pTsData[i] <= ekey) {
+    while (i < pSlice->endIdx && (isExtSource || pVerData[i] == pMeta->ver) && pTsData[i] <= ekey) {
       i++;
     }
     slice.endIdx = i;
@@ -1463,7 +2154,7 @@ int32_t stNewTimestampSorterSetData(SSTriggerNewTimestampSorter *pSorter, int64_
         pLastSlice = TARRAY_GET_ELEM(pSorter->pSliceBuf, TARRAY_SIZE(pSorter->pSliceBuf) - 1);
       }
       if (pLastSlice != NULL && pLastSlice->endIdx == slice.startIdx &&
-          pTsData[pLastSlice->endIdx - 1] < pTsData[slice.startIdx]) {
+          keyTimes[pLastSlice->endIdx - 1] < keyTimes[slice.startIdx]) {
         // merge with the last slice
         pLastSlice->endIdx = slice.endIdx;
       } else {
@@ -1480,10 +2171,10 @@ int32_t stNewTimestampSorterSetData(SSTriggerNewTimestampSorter *pSorter, int64_
   for (int32_t i = 0; i < TARRAY_SIZE(pSorter->pSliceBuf); i++) {
     SNewTimestampSorterSlice     *pSlice = TARRAY_GET_ELEM(pSorter->pSliceBuf, i);
     SNewTimestampSorterSliceList *pList = NULL;
-    int64_t                       firstTs = pTsData[pSlice->startIdx];
+    int64_t                       firstTs = keyTimes[pSlice->startIdx];
     for (int32_t j = 0; j < TARRAY_SIZE(pSorter->pSliceLists); j++) {
       SNewTimestampSorterSliceList *pTempList = TARRAY_GET_ELEM(pSorter->pSliceLists, j);
-      if (pTsData[TD_DLIST_TAIL(pTempList)->endIdx - 1] < firstTs) {
+      if (keyTimes[TD_DLIST_TAIL(pTempList)->endIdx - 1] < firstTs) {
         pList = pTempList;
         break;
       }
@@ -1491,6 +2182,11 @@ int32_t stNewTimestampSorterSetData(SSTriggerNewTimestampSorter *pSorter, int64_
     if (pList == NULL) {
       pList = taosArrayReserve(pSorter->pSliceLists, 1);
       QUERY_CHECK_NULL(pList, code, lino, _end, terrno);
+      TD_DLIST_INIT(pList);
+      ST_TASK_DLOG("initialized timestamp sorter slice list, readerKind:%d, readerId:%" PRIu64
+                   ", logicalUid:%" PRId64 ", slice:[%d,%d)",
+                   pReaderKey->readerKind, pReaderKey->stableReaderId, pReaderKey->logicalUid, pSlice->startIdx,
+                   pSlice->endIdx);
     }
     TD_DLIST_APPEND(pList, pSlice);
   }
@@ -1525,10 +2221,59 @@ int32_t stNewTimestampSorterSetData(SSTriggerNewTimestampSorter *pSorter, int64_
   }
 
 _end:
+  taosArrayDestroy(pSortedMetas);
   if (TSDB_CODE_SUCCESS != code) {
     ST_TASK_ELOG("%s failed at line %d since %s", __func__, lino, tstrerror(code));
   }
   return code;
+}
+
+// Every head with this key represents an update. The highest input index is the latest WAL version.
+static int32_t stMergeWalCells(SSTriggerNewTimestampSorter *sorter, int32_t newest, int32_t maskStart) {
+  SSDataBlock *input = sorter->pWalInput;
+  if (!sorter->pMergedRow) TAOS_CHECK_RETURN(createOneDataBlock(input, false, &sorter->pMergedRow));
+  SSDataBlock *out = sorter->pMergedRow;
+  TAOS_CHECK_RETURN(blockDataEnsureCapacity(out, 1));
+  blockDataReset(out);
+  uint64_t explicitNulls = 0;
+  int32_t  maskEnd = maskStart + (maskStart + 63) / 64;
+  for (int32_t slot = 0; slot < blockDataGetNumOfCols(input); ++slot) {
+    if (slot >= maskStart && slot < maskEnd) continue;
+    SColumnInfoData *col = taosArrayGet(input->pDataBlock, slot);
+    int32_t          row = newest;
+    if (slot < maskStart && colDataIsNull_s(col, newest)) {
+      const SColumnInfoData *maskCol = taosArrayGet(input->pDataBlock, maskStart + slot / 64);
+      const uint64_t        *masks = (const uint64_t *)maskCol->pData;
+      uint64_t               bit = (uint64_t)1 << (slot % 64);
+      if (!(masks[newest] & bit)) {
+        row = -1;
+        for (int32_t j = 0; j < TARRAY_SIZE(sorter->pSliceLists); ++j) {
+          const SNewTimestampSorterSliceList *list = taosArrayGet(sorter->pSliceLists, j);
+          const SNewTimestampSorterSlice     *head = TD_DLIST_HEAD(list);
+          if (!head || head->startIdx <= row) continue;
+          int32_t r = head->startIdx;
+          if ((!colDataIsNull_s(col, r) || (masks[r] & bit)) &&
+              stCompareRowsInBlocks(input, sorter->keyTsSlotId, sorter->pkSlotId, newest, r) == 0)
+            row = r;
+        }
+      }
+    }
+    SColumnInfoData *dst = taosArrayGet(out->pDataBlock, slot);
+    if (row < 0 || colDataIsNull_s(col, row)) {
+      colDataSetNULL(dst, 0);
+      if (slot < maskStart && row >= 0) explicitNulls |= (uint64_t)1 << (slot % 64);
+    } else {
+      TAOS_CHECK_RETURN(colDataSetVal(dst, 0, colDataGetData(col, row), false));
+    }
+    if (slot < maskStart && (slot % 64 == 63 || slot + 1 == maskStart)) {
+      SColumnInfoData *mask = taosArrayGet(out->pDataBlock, maskStart + slot / 64);
+      TAOS_CHECK_RETURN(colDataSetVal(mask, 0, (const char *)&explicitNulls, false));
+      explicitNulls = 0;
+    }
+  }
+  out->info.rows = 1;
+  out->info.id = input->info.id;
+  return 0;
 }
 
 int32_t stNewTimestampSorterNextDataBlock(SSTriggerNewTimestampSorter *pSorter, SSDataBlock **ppDataBlock,
@@ -1539,6 +2284,10 @@ int32_t stNewTimestampSorterNextDataBlock(SSTriggerNewTimestampSorter *pSorter, 
   bool                needRebuild = false;
 
   QUERY_CHECK_CONDITION(pSorter->inUse, code, lino, _end, TSDB_CODE_INVALID_PARA);
+
+  if (pSorter->pSnapshotSort != NULL) return stPeriodSnapshotSortNext(pSorter, ppDataBlock, pStartIdx, pEndIdx);
+  pSorter->pDataBlock = pSorter->pWalInput;
+  bool merged = false;
 
   if (ppDataBlock != NULL) {
     *ppDataBlock = NULL;
@@ -1568,7 +2317,7 @@ int32_t stNewTimestampSorterNextDataBlock(SSTriggerNewTimestampSorter *pSorter, 
     goto _end;
   }
 
-  SColumnInfoData *pTsCol = TARRAY_GET_ELEM(pSorter->pDataBlock->pDataBlock, pSorter->tsSlotId);
+  SColumnInfoData *pTsCol = TARRAY_GET_ELEM(pSorter->pDataBlock->pDataBlock, pSorter->keyTsSlotId);
   int64_t         *pTsData = (int64_t *)pTsCol->pData;
   int64_t          startTs = pTsData[pSlice->startIdx];
   int64_t          endTs = INT64_MAX;
@@ -1578,8 +2327,16 @@ int32_t stNewTimestampSorterNextDataBlock(SSTriggerNewTimestampSorter *pSorter, 
     if (i == idx || pTempSlice == NULL) {
       continue;
     }
-    if (stCompareRowsInBlocks(pSorter->pDataBlock, pSorter->tsSlotId, pSorter->pkSlotId, pSlice->startIdx,
+    if (stCompareRowsInBlocks(pSorter->pDataBlock, pSorter->keyTsSlotId, pSorter->pkSlotId, pSlice->startIdx,
                               pTempSlice->startIdx) == 0) {
+      if (!needRebuild) {
+        int32_t mask = tStreamWalNullMaskSlot(pSorter->pDataBlock);
+        if (mask >= 0) {
+          code = stMergeWalCells(pSorter, pSlice->startIdx, mask);
+          QUERY_CHECK_CODE(code, lino, _end);
+          merged = true;
+        }
+      }
       // skip the current row
       ST_TASK_DLOG("Slice List %d: pop [%d, %d)", i, pTempSlice->startIdx, pTempSlice->startIdx + 1);
       needRebuild = true;
@@ -1597,7 +2354,7 @@ int32_t stNewTimestampSorterNextDataBlock(SSTriggerNewTimestampSorter *pSorter, 
   }
   QUERY_CHECK_CONDITION(endTs >= startTs, code, lino, _end, TSDB_CODE_INTERNAL_ERROR);
 
-  if (startTs == endTs) {
+  if (merged || startTs == endTs) {
     *pEndIdx = pSlice->startIdx + 1;
     pSlice->startIdx = *pEndIdx;
     if (pSlice->startIdx == pSlice->endIdx) {
@@ -1625,6 +2382,12 @@ int32_t stNewTimestampSorterNextDataBlock(SSTriggerNewTimestampSorter *pSorter, 
     code = tMergeTreeAdjust(pSorter->pDataMerger, tMergeTreeGetAdjustIndex(pSorter->pDataMerger));
     QUERY_CHECK_CODE(code, lino, _end);
   }
+  if (merged) {
+    pSorter->pDataBlock = pSorter->pMergedRow;
+    if (ppDataBlock) *ppDataBlock = pSorter->pMergedRow;
+    *pStartIdx = 0;
+    *pEndIdx = 1;
+  }
 
 _end:
   if (TSDB_CODE_SUCCESS != code) {
@@ -1636,6 +2399,8 @@ _end:
 typedef struct SNewVtableMergerReaderInfo {
   SSTriggerNewTimestampSorter *pReader;
   SSTriggerTableColRef        *pColRef;
+  int64_t                      generation;
+  int32_t                      bindingOrder;
   int32_t                      startIdx;
   int32_t                      endIdx;
 } SNewVtableMergerReaderInfo;
@@ -1669,6 +2434,11 @@ static int32_t stNewVtableMergerReaderInfoCompare(const void *pLeft, const void 
     } else if (leftTs > rightTs) {
       return 1;
     }
+    if (pLeftReaderInfo->generation != pRightReaderInfo->generation) {
+      return pLeftReaderInfo->generation < pRightReaderInfo->generation ? -1 : 1;
+    }
+    if (pLeftReaderInfo->bindingOrder != pRightReaderInfo->bindingOrder)
+      return pLeftReaderInfo->bindingOrder < pRightReaderInfo->bindingOrder ? -1 : 1;
   }
   // fallback to index comparison
   if (left < right) {
@@ -1694,6 +2464,7 @@ int32_t stNewVtableMergerInit(SSTriggerNewVtableMerger *pMerger, struct SStreamT
   int32_t lino = 0;
 
   pMerger->pTask = pTask;
+  pMerger->timeAlignTrigger = pTask->pTimeAlign && pDataBlock == pTask->pVirtTrigBlock;
   code = createOneDataBlock(pDataBlock, false, &pMerger->pDataBlock);
   QUERY_CHECK_CODE(code, lino, _end);
   bool hasPseudo = false;
@@ -1743,6 +2514,10 @@ void stNewVtableMergerDestroy(void *ptr) {
   }
 
   SSTriggerNewVtableMerger *pMerger = *ppMerger;
+  taosArrayDestroyEx(pMerger->alignBuffers.sourceTimes, (FDelete)colDataDestroy);
+  pMerger->alignBuffers.sourceTimes = NULL;
+  blockDataDestroy(pMerger->alignBuffers.output);
+  blockDataDestroy(pMerger->alignBuffers.spare);
   if (pMerger->pDataBlock != NULL) {
     blockDataDestroy(pMerger->pDataBlock);
     pMerger->pDataBlock = NULL;
@@ -1774,6 +2549,10 @@ void stNewVtableMergerReset(SSTriggerNewVtableMerger *pMerger) {
   }
 
   pMerger->inUse = false;
+  taosArrayDestroyEx(pMerger->alignBuffers.sourceTimes, (FDelete)colDataDestroy);
+  pMerger->alignBuffers.sourceTimes = NULL;
+  blockDataDestroy(pMerger->alignBuffers.output);
+  pMerger->alignBuffers.output = NULL;
   blockDataEmpty(pMerger->pDataBlock);
 
   if (pMerger->pPseudoColValues != NULL) {
@@ -1791,66 +2570,61 @@ void stNewVtableMergerReset(SSTriggerNewVtableMerger *pMerger) {
   }
 }
 
-int32_t stNewVtableMergerSetData(SSTriggerNewVtableMerger *pMerger, int64_t vtbUid, int32_t tsSlotId, int32_t pkSlotId,
-                                 STimeWindow *pReadRange, SObjList *pTableUids, SArray *pTableColRefs,
-                                 SSHashObj *pMetas, SSHashObj *pSlices) {
-  int32_t             code = TSDB_CODE_SUCCESS;
-  int32_t             lino = 0;
-  SStreamTriggerTask *pTask = pMerger->pTask;
-
-  QUERY_CHECK_CONDITION(!pMerger->inUse, code, lino, _end, TSDB_CODE_INVALID_PARA);
-  QUERY_CHECK_CONDITION(!stNewVtableMergerNeedPseudoCols(pMerger), code, lino, _end, TSDB_CODE_INVALID_PARA);
-
-  pMerger->inUse = true;
-  pMerger->nReaders = 0;
-  pMerger->pDataBlock->info.id.uid = vtbUid;
-  pMerger->tsSlotId = tsSlotId;
-
-  int32_t      nTables = taosArrayGetSize(pTableColRefs);
-  int64_t     *ar = NULL;
-  SObjListIter iter = {0};
-  taosObjListInitIter(pTableUids, &iter, TOBJLIST_ITER_FORWARD);
-  while ((ar = taosObjListIterNext(&iter)) != NULL) {
-    if (ar[0] != vtbUid) {
-      continue;
-    }
-    int64_t               otbUid = ar[1];
-    SSTriggerTableColRef *pColRef = NULL;
-    for (int32_t i = 0; i < nTables; i++) {
-      SSTriggerTableColRef *pTmpColRef = TARRAY_GET_ELEM(pTableColRefs, i);
-      if (pTmpColRef->otbUid == otbUid) {
-        pColRef = pTmpColRef;
-        break;
-      }
-    }
-    SSTriggerDataSlice *pSlice = tSimpleHashGet(pSlices, &otbUid, sizeof(int64_t));
-    QUERY_CHECK_NULL(pSlice, code, lino, _end, TSDB_CODE_INTERNAL_ERROR);
-    SNewVtableMergerReaderInfo *pReaderInfo = NULL;
-    if (pMerger->nReaders < TARRAY_SIZE(pMerger->pReaderInfos)) {
-      pReaderInfo = TARRAY_GET_ELEM(pMerger->pReaderInfos, pMerger->nReaders);
-    } else {
-      pReaderInfo = taosArrayReserve(pMerger->pReaderInfos, 1);
-      QUERY_CHECK_NULL(pReaderInfo, code, lino, _end, terrno);
-    }
-    pMerger->nReaders++;
-    if (pReaderInfo->pReader == NULL) {
-      pReaderInfo->pReader = taosMemoryCalloc(1, sizeof(SSTriggerNewTimestampSorter));
-      QUERY_CHECK_NULL(pReaderInfo->pReader, code, lino, _end, terrno);
-      code = stNewTimestampSorterInit(pReaderInfo->pReader, pTask, 0);
-      QUERY_CHECK_CODE(code, lino, _end);
-    }
-    SObjList *pMeta = tSimpleHashGet(pMetas, &pColRef->otbVgId, sizeof(int32_t));
-    QUERY_CHECK_NULL(pMeta, code, lino, _end, TSDB_CODE_INTERNAL_ERROR);
-    code = stNewTimestampSorterSetData(pReaderInfo->pReader, pColRef->otbUid, tsSlotId, pkSlotId, pReadRange, pMeta,
-                                       pSlice);
-    QUERY_CHECK_CODE(code, lino, _end);
-    pReaderInfo->pColRef = pColRef;
-    code = stNewTimestampSorterNextDataBlock(pReaderInfo->pReader, NULL, &pReaderInfo->startIdx, &pReaderInfo->endIdx);
+static int32_t stNewVtableMergerAddSource(SSTriggerNewVtableMerger *pMerger, int32_t tsSlotId, int32_t pkSlotId,
+                                          STimeWindow *pReadRange, const SSTriggerReaderDataKey *pReaderKey,
+                                          SSTriggerTableColRef *pColRef, SObjList *pMeta, SSTriggerDataSlice *pSlice,
+                                          int64_t generation, int32_t bindingOrder, bool orderedInput) {
+  int32_t                     code = TSDB_CODE_SUCCESS;
+  int32_t                     lino = 0;
+  SStreamTriggerTask         *pTask = pMerger->pTask;
+  SNewVtableMergerReaderInfo *pReaderInfo = NULL;
+  if (pMerger->nReaders < TARRAY_SIZE(pMerger->pReaderInfos)) {
+    pReaderInfo = TARRAY_GET_ELEM(pMerger->pReaderInfos, pMerger->nReaders);
+  } else {
+    pReaderInfo = taosArrayReserve(pMerger->pReaderInfos, 1);
+    QUERY_CHECK_NULL(pReaderInfo, code, lino, _end, terrno);
+  }
+  pMerger->nReaders++;
+  if (pReaderInfo->pReader == NULL) {
+    pReaderInfo->pReader = taosMemoryCalloc(1, sizeof(SSTriggerNewTimestampSorter));
+    QUERY_CHECK_NULL(pReaderInfo->pReader, code, lino, _end, terrno);
+    code = stNewTimestampSorterInit(pReaderInfo->pReader, pTask, 0);
     QUERY_CHECK_CODE(code, lino, _end);
   }
+  QUERY_CHECK_CONDITION(pMeta != NULL || pSlice->pSnapshotCache != NULL, code, lino, _end, TSDB_CODE_INTERNAL_ERROR);
+  int32_t readerTsSlotId = tsSlotId;
+  for (int32_t i = 0; i < TARRAY_SIZE(pColRef->pNewColMatches); ++i) {
+    SSTriggerColMatch *pMatch = TARRAY_GET_ELEM(pColRef->pNewColMatches, i);
+    if (pMatch->vtbSlotId == tsSlotId) {
+      readerTsSlotId = pMatch->otbSlotId;
+      break;
+    }
+  }
+  int32_t readerPkSlotId = -1;
+  for (int32_t i = 0; pkSlotId >= 0 && i < TARRAY_SIZE(pColRef->pNewColMatches); ++i) {
+    SSTriggerColMatch *pMatch = TARRAY_GET_ELEM(pColRef->pNewColMatches, i);
+    if (pMatch->vtbSlotId == pkSlotId) {
+      readerPkSlotId = pMatch->otbSlotId;
+      break;
+    }
+  }
+  code = stNewTimestampSorterSetData(pReaderInfo->pReader, pReaderKey, readerTsSlotId, readerPkSlotId, pReadRange,
+                                     pMeta, pSlice, orderedInput);
+  QUERY_CHECK_CODE(code, lino, _end);
+  pReaderInfo->pColRef = pColRef;
+  pReaderInfo->generation = generation;
+  pReaderInfo->bindingOrder = bindingOrder;
+  code = stNewTimestampSorterNextDataBlock(pReaderInfo->pReader, NULL, &pReaderInfo->startIdx, &pReaderInfo->endIdx);
+  QUERY_CHECK_CODE(code, lino, _end);
+_end:
+  return code;
+}
 
+static int32_t stNewVtableMergerBuildSources(SSTriggerNewVtableMerger *pMerger) {
+  int32_t code = TSDB_CODE_SUCCESS;
+  int32_t lino = 0;
   if (pMerger->nReaders == 0) {
-    goto _end;
+    return TSDB_CODE_SUCCESS;
   }
 
   if (pMerger->pDataMerger != NULL && pMerger->pDataMerger->numOfSources < pMerger->nReaders) {
@@ -1867,13 +2641,165 @@ int32_t stNewVtableMergerSetData(SSTriggerNewVtableMerger *pMerger, int64_t vtbU
   }
 
 _end:
+  return code;
+}
+
+int32_t stNewVtableMergerSetSources(SSTriggerNewVtableMerger *pMerger, int64_t vtbUid, int32_t tsSlotId,
+                                    int32_t pkSlotId, STimeWindow *pReadRange, SArray *pSources, bool orderedInput) {
+  if (pMerger->inUse || stNewVtableMergerNeedPseudoCols(pMerger)) return TSDB_CODE_INVALID_PARA;
+  pMerger->inUse = true;
+  pMerger->nReaders = 0;
+  pMerger->pDataBlock->info.id.uid = vtbUid;
+  pMerger->tsSlotId = tsSlotId;
+  for (int32_t i = 0; i < TARRAY_SIZE(pSources); ++i) {
+    SSTriggerVtableSource *pSource = TARRAY_GET_ELEM(pSources, i);
+    int32_t                code =
+        stNewVtableMergerAddSource(pMerger, tsSlotId, pkSlotId, pReadRange, &pSource->readerKey, pSource->pColRef,
+                                   pSource->pMetas, &pSource->slice, pSource->generation, i, orderedInput);
+    if (code != TSDB_CODE_SUCCESS) return code;
+  }
+  return stNewVtableMergerBuildSources(pMerger);
+}
+
+int32_t stNewVtableMergerSetData(SSTriggerNewVtableMerger *pMerger, int64_t vtbUid, int32_t tsSlotId, int32_t pkSlotId,
+                                 STimeWindow *pReadRange, SObjList *pTableUids, SArray *pTableColRefs,
+                                 SSHashObj *pMetas, SSHashObj *pSlices, SSHashObj *pReaderConsumedEkeys,
+                                 bool orderedInput) {
+  int32_t             code = TSDB_CODE_SUCCESS;
+  int32_t             lino = 0;
+  SStreamTriggerTask *pTask = pMerger->pTask;
+
+  QUERY_CHECK_CONDITION(!pMerger->inUse, code, lino, _end, TSDB_CODE_INVALID_PARA);
+  QUERY_CHECK_CONDITION(!stNewVtableMergerNeedPseudoCols(pMerger), code, lino, _end, TSDB_CODE_INVALID_PARA);
+
+  pMerger->inUse = true;
+  pMerger->nReaders = 0;
+  pMerger->pDataBlock->info.id.uid = vtbUid;
+  pMerger->tsSlotId = tsSlotId;
+
+  int32_t                        nTables = taosArrayGetSize(pTableColRefs);
+  SSTriggerVirtualTableSliceRef *pTableRef = NULL;
+  SObjListIter iter = {0};
+  taosObjListInitIter(pTableUids, &iter, TOBJLIST_ITER_FORWARD);
+  while ((pTableRef = taosObjListIterNext(&iter)) != NULL) {
+    if (pTableRef->virtualUid != vtbUid) {
+      continue;
+    }
+    SSTriggerTableColRef *pColRef = NULL;
+    int32_t               bindingOrder = pMerger->nReaders;
+    for (int32_t i = 0; i < nTables; i++) {
+      SSTriggerTableColRef *pTmpColRef = TARRAY_GET_ELEM(pTableColRefs, i);
+      bool sameReader = pTmpColRef->readerKey.readerKind == pTableRef->readerKey.readerKind &&
+                        pTmpColRef->readerKey.stableReaderId == pTableRef->readerKey.stableReaderId;
+      bool sameLogicalUid = pTmpColRef->readerKey.logicalUid == 0 ||
+                            pTmpColRef->readerKey.logicalUid == pTableRef->readerKey.logicalUid;
+      if (sameReader && sameLogicalUid) {
+        pColRef = pTmpColRef;
+        if (pMerger->timeAlignTrigger) bindingOrder = i;  // same source precedence as the history merger
+        break;
+      }
+    }
+    QUERY_CHECK_NULL(pColRef, code, lino, _end, TSDB_CODE_INTERNAL_ERROR);
+    SSTriggerDataSlice *pSlice =
+        tSimpleHashGet(pSlices, &pTableRef->readerKey, sizeof(SSTriggerReaderDataKey));
+    QUERY_CHECK_NULL(pSlice, code, lino, _end, TSDB_CODE_INTERNAL_ERROR);
+    SObjList *pMeta =
+        pMetas == NULL ? NULL : tSimpleHashGet(pMetas, &pTableRef->readerKey, sizeof(SSTriggerReaderDataKey));
+    STimeWindow readerRange = *pReadRange;
+    if (pReaderConsumedEkeys != NULL && pTableRef->readerKey.readerKind == STRIGGER_READER_KIND_EXTERNAL) {
+      int64_t *pConsumed =
+          (int64_t *)tSimpleHashGet(pReaderConsumedEkeys, &pTableRef->readerKey, sizeof(pTableRef->readerKey));
+      if (pConsumed == NULL || *pConsumed == INT64_MIN) {
+        // Reader has not delivered (or not consumed) anything for this group yet:
+        // accept its full range instead of clipping it to [oldThreshold+1, ...].
+        readerRange.skey = INT64_MIN;
+      } else {
+        readerRange.skey = TMAX(readerRange.skey, *pConsumed == INT64_MAX ? INT64_MAX : *pConsumed + 1);
+      }
+    }
+    code = stNewVtableMergerAddSource(pMerger, tsSlotId, pkSlotId, &readerRange, &pTableRef->readerKey, pColRef, pMeta,
+                                      pSlice, 0, bindingOrder, orderedInput);
+    QUERY_CHECK_CODE(code, lino, _end);
+  }
+
+  code = stNewVtableMergerBuildSources(pMerger);
+
+_end:
   if (TSDB_CODE_SUCCESS != code) {
     ST_TASK_ELOG("%s failed at line %d since %s", __func__, lino, tstrerror(code));
   }
   return code;
 }
 
-static int32_t stNewVtableMergerDoRetrieve(SSTriggerNewVtableMerger *pMerger, bool *filled) {
+int32_t stVtableMergerFirstInputTs(SSTriggerRealtimeGroup *group, const SSTriggerVirtTableInfo *table,
+                                   SObjList *tableRefs, bool ordered, int64_t *first, bool *found) {
+  *found = false;
+  SStreamTriggerTask *task = group->pContext->pTask;
+  // Binding builds only the source cursors. No virtual output or pseudo-column values are required.
+  SSDataBlock              output = {0};
+  SSTriggerNewVtableMerger probe = {.pTask = task, .pDataBlock = &output};
+  probe.pReaderInfos = taosArrayInit(1, sizeof(SNewVtableMergerReaderInfo));
+  if (!probe.pReaderInfos) return terrno;
+  STimeWindow range = {.skey = group->oldThreshold + 1, .ekey = group->newThreshold};
+  int32_t code = stNewVtableMergerSetData(&probe, table->tbUid, task->trigTsIndex, task->trigPkIndex, &range, tableRefs,
+                                          table->pTrigColRefs, group->pWalMetas, group->pContext->pSlices,
+                                          group->pReaderConsumedEkeys, ordered);
+  if (!code && probe.nReaders) {
+    const SNewVtableMergerReaderInfo *reader =
+        taosArrayGet(probe.pReaderInfos, tMergeTreeGetChosenIndex(probe.pDataMerger));
+    if (reader && reader->startIdx < reader->endIdx) {
+      const SColumnInfoData *ts = taosArrayGet(reader->pReader->pDataBlock->pDataBlock, reader->pReader->tsSlotId);
+      if (!ts || ts->info.type != TSDB_DATA_TYPE_TIMESTAMP || colDataIsNull_s(ts, reader->startIdx)) {
+        code = TSDB_CODE_INVALID_MSG;
+      } else {
+        memcpy(first, colDataGetData(ts, reader->startIdx), sizeof(*first));
+        *found = true;
+      }
+    }
+  }
+  taosArrayDestroyEx(probe.pReaderInfos, stNewVtableMergerDestoryReaderInfo);
+  tMergeTreeDestroy(&probe.pDataMerger);
+  return code;
+}
+
+/* Copy nRows from the external original-table column into the virtual column slot.
+ * colDataAssignNRows requires identical byte widths, but a legal variable-length reference may
+ * declare a wider virtual column than the external mapping (e.g. VARCHAR(64) over VARCHAR(32)):
+ * copy those row by row through colDataSetVal, which takes the length from the value's var header
+ * and grows the destination in place. Fixed-width columns keep the strict bulk path. */
+static int32_t stVtableMergerAssignColRows(SColumnInfoData *pDst, int32_t dstStart, SColumnInfoData *pSrc,
+                                           int32_t srcStart, int32_t nRows) {
+  bool varWidthMismatch = pSrc->info.type == pDst->info.type && pSrc->info.bytes != pDst->info.bytes &&
+                          (IS_STR_DATA_TYPE(pSrc->info.type) || pSrc->info.type == TSDB_DATA_TYPE_GEOMETRY);
+  if (!varWidthMismatch) {
+    return colDataAssignNRows(pDst, dstStart, pSrc, srcStart, nRows);
+  }
+  // The bulk path already guarantees the destination width can hold the values, but a value wider
+  // than the destination declaration (e.g. an external VARCHAR(64) mapped onto a virtual
+  // VARCHAR(32)) would otherwise be copied silently into an over-wide block and only fail later
+  // at sink write time. Reject it here with an explicit error instead.
+  int32_t dstMaxLen = pDst->info.bytes > VARSTR_HEADER_SIZE ? (int32_t)(pDst->info.bytes - VARSTR_HEADER_SIZE) : -1;
+  for (int32_t i = 0; i < nRows; ++i) {
+    int32_t srcIdx = srcStart + i;
+    if (colDataIsNull_s(pSrc, srcIdx)) {
+      colDataSetNULL(pDst, dstStart + i);
+    } else {
+      char   *pData = colDataGetData(pSrc, srcIdx);
+      if (dstMaxLen > 0 && varDataLen(pData) > dstMaxLen) {
+        stError("ext: var-width merge value exceeds virtual column width, srcBytes:%d dstBytes:%d valueLen:%d dstMaxLen:%d",
+                (int32_t)pSrc->info.bytes, (int32_t)pDst->info.bytes, varDataLen(pData), dstMaxLen);
+        return TSDB_CODE_OUT_OF_RANGE;
+      }
+      int32_t code = colDataSetVal(pDst, dstStart + i, pData, false);
+      if (code != TSDB_CODE_SUCCESS) {
+        return code;
+      }
+    }
+  }
+  return TSDB_CODE_SUCCESS;
+}
+
+static int32_t stNewVtableMergerDoRetrieve(SSTriggerNewVtableMerger *pMerger, int32_t *pLastReader, bool *filled) {
   int32_t             code = TSDB_CODE_SUCCESS;
   int32_t             lino = 0;
   SStreamTriggerTask *pTask = pMerger->pTask;
@@ -1894,13 +2820,14 @@ static int32_t stNewVtableMergerDoRetrieve(SSTriggerNewVtableMerger *pMerger, bo
   int64_t *pVirTsData = (int64_t *)pVirTsCol->pData;
 
   SSDataBlock     *pOrigDataBlock = pReaderInfo->pReader->pDataBlock;
-  SColumnInfoData *pOrigTsCol = taosArrayGet(pOrigDataBlock->pDataBlock, pMerger->tsSlotId);
+  SColumnInfoData *pOrigTsCol = taosArrayGet(pOrigDataBlock->pDataBlock, pReaderInfo->pReader->tsSlotId);
   QUERY_CHECK_NULL(pOrigTsCol, code, lino, _end, terrno);
   int64_t *pOrigTsData = (int64_t *)pOrigTsCol->pData;
 
   int32_t virStartIdx = blockDataGetNumOfRows(pVirDataBlock);
-  if (virStartIdx > 0 && pVirTsData[virStartIdx - 1] == pOrigTsData[pReaderInfo->startIdx]) {
-    // merge to the last row
+  // Equal ticks are ordered by reader. Keep repeated samples from that reader for PREV.
+  if (virStartIdx > 0 && pVirTsData[virStartIdx - 1] == pOrigTsData[pReaderInfo->startIdx] &&
+      (!pMerger->timeAlignTrigger || *pLastReader != idx)) {
     --virStartIdx;
   }
 
@@ -1910,7 +2837,24 @@ static int32_t stNewVtableMergerDoRetrieve(SSTriggerNewVtableMerger *pMerger, bo
   }
 
   *filled = true;
+  *pLastReader = idx;
   int32_t nCols = taosArrayGetSize(pReaderInfo->pColRef->pNewColMatches);
+  if (pMerger->timeAlignTrigger) {
+    int32_t                native = tStreamWalPhysicalTsSlot(pOrigDataBlock);
+    const SColumnInfoData *times = native >= 0 && tStreamWalNullMaskSlot(pOrigDataBlock) >= 0
+                                       ? taosArrayGet(pOrigDataBlock->pDataBlock, native)
+                                       : NULL;
+    int32_t                rows = pMerger->nReaders == 1
+                                      ? TMIN(VTABLE_MERGER_NROWS_PER_BLOCK - virStartIdx, pReaderInfo->endIdx - pReaderInfo->startIdx)
+                                      : 1;
+    for (int32_t i = 0; (times || pMerger->alignBuffers.sourceTimes) && i < nCols; ++i) {
+      SSTriggerColMatch *match = taosArrayGet(pReaderInfo->pColRef->pNewColMatches, i);
+      code = stVtableMergerCopySourceTimes(&pMerger->alignBuffers, stTimeAlignSlots(pTask->pTimeAlignConfig, false),
+                                           blockDataGetNumOfCols(pVirDataBlock), match->vtbSlotId, times,
+                                           pReaderInfo->startIdx, virStartIdx, rows, pVirDataBlock->info.capacity);
+      QUERY_CHECK_CODE(code, lino, _end);
+    }
+  }
   if (pMerger->nReaders == 1) {
     // copy whole data block from the single original table
     int32_t nRowsToCopy =
@@ -1923,7 +2867,7 @@ static int32_t stNewVtableMergerDoRetrieve(SSTriggerNewVtableMerger *pMerger, bo
       QUERY_CHECK_NULL(pVirCol, code, lino, _end, terrno);
       SColumnInfoData *pOrigCol = taosArrayGet(pOrigDataBlock->pDataBlock, pColMatch->otbSlotId);
       QUERY_CHECK_NULL(pOrigCol, code, lino, _end, terrno);
-      code = colDataAssignNRows(pVirCol, virStartIdx, pOrigCol, pReaderInfo->startIdx, nRowsToCopy);
+      code = stVtableMergerAssignColRows(pVirCol, virStartIdx, pOrigCol, pReaderInfo->startIdx, nRowsToCopy);
       QUERY_CHECK_CODE(code, lino, _end);
     }
     pReaderInfo->startIdx += nRowsToCopy;
@@ -2001,9 +2945,10 @@ _retrieve:
     SColumnInfoData *pCol = TARRAY_GET_ELEM(pMerger->pDataBlock->pDataBlock, i);
     colDataSetNNULL(pCol, 0, VTABLE_MERGER_NROWS_PER_BLOCK);
   }
-  bool filled = true;
+  int32_t lastReader = -1;
+  bool    filled = true;
   while (filled) {
-    code = stNewVtableMergerDoRetrieve(pMerger, &filled);
+    code = stNewVtableMergerDoRetrieve(pMerger, &lastReader, &filled);
     QUERY_CHECK_CODE(code, lino, _end);
   }
 
@@ -2035,6 +2980,8 @@ _retrieve:
       QUERY_CHECK_CODE(code, lino, _end);
       code = trimDataBlock(pMerger->pDataBlock, nrows, (bool *)p->pData);
       QUERY_CHECK_CODE(code, lino, _end);
+      colDataDestroy(p);
+      taosMemoryFreeClear(p);
       int32_t nrowsAfterFilter = blockDataGetNumOfRows(pMerger->pDataBlock);
       ST_TASK_DLOG("vtable merger filter applied, before: %d, after: %d", nrows, nrowsAfterFilter);
       if (nrowsAfterFilter == 0 && nrows == VTABLE_MERGER_NROWS_PER_BLOCK) {
@@ -2049,7 +2996,7 @@ _retrieve:
     goto _end;
   }
 
-  printDataBlock(pMerger->pDataBlock, __func__, "stream_vtable_data", pTask->task.streamId);
+  printDataBlock(pMerger->pDataBlock, __func__, "stream_vtable_data", pTask->task.streamId, pTask->task.charsetCxt);
 
   if (ppDataBlock != NULL) {
     *ppDataBlock = pMerger->pDataBlock;
@@ -2066,4 +3013,21 @@ _end:
     ST_TASK_ELOG("%s failed at line %d since %s", __func__, lino, tstrerror(code));
   }
   return code;
+}
+
+int32_t stVtableMergerAlignBlock(SSTimeAlignState *state, const SArray *slots, uint64_t uid, int32_t tsSlot,
+                                 SFilterInfo *filter, SSDataBlock *block, const SArray *sourceTimes,
+                                 int32_t timeOffset) {
+  for (int32_t i = 0; i < taosArrayGetSize(slots); ++i) {
+    const SSTimeAlignSlot *slot = taosArrayGet(slots, i);
+    if (slot->outputSlot != blockDataGetNumOfCols(block)) return TSDB_CODE_INVALID_MSG;
+    const SColumnInfoData *src = taosArrayGet(block->pDataBlock, slot->inputSlot);
+    SColumnInfoData        col = createColumnInfoData(src->info.type, src->info.bytes, slot->srcColId);
+    col.info.scale = src->info.scale;
+    col.info.precision = src->info.precision;
+    TAOS_CHECK_RETURN(blockDataAppendColInfo(block, &col));
+    SColumnInfoData *out = taosArrayGet(block->pDataBlock, slot->outputSlot);
+    TAOS_CHECK_RETURN(colInfoDataEnsureCapacity(out, block->info.capacity, true));
+  }
+  return stTimeAlignApplyFiltered(state, uid, slots, tsSlot, block, filter, sourceTimes, timeOffset);
 }
