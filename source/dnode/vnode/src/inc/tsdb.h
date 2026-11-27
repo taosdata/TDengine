@@ -779,6 +779,8 @@ STsdbFSetPartList *tsdbFSetPartListCreate();
 void               tsdbFSetPartListDestroy(STsdbFSetPartList **ppList);
 int32_t            tDeserializeTsdbFSetPartList(void *buf, int32_t bufLen, STsdbFSetPartList *pList);
 int32_t            tsdbFSetPartListToRangeDiff(STsdbFSetPartList *pList, TFileSetRangeArray **ppRanges);
+int32_t            tsdbFSetSnapshotToJson(const TFileSetArray *fsets, char **json);
+int32_t            tsdbFSetJsonToRangeDiff(const char *json, TFileSetRangeArray **ppRanges);
 
 // snap rep format
 typedef enum ETsdbRepFmt {

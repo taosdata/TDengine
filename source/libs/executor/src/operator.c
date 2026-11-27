@@ -18,6 +18,7 @@
 #include "executorInt.h"
 #include "executor.h"
 #include "function.h"
+#include "filter.h"
 #include "operator.h"
 #include "osTime.h"
 #include "query.h"
@@ -340,6 +341,75 @@ int32_t stopTableScanOperator(SOperatorInfo* pOperator, const char* pIdStr, SSto
   STraverParam p = {.pParam = pAPI};
   traverseOperatorTree(pOperator, doStopDataReader, &p, pIdStr);
   return p.code;
+}
+
+// The child is the completed LEFT JOIN. A missing group already has a
+// typed NULL candidate. Only rows reaching this scalar call are checked.
+typedef struct {
+  int16_t countSlotId;
+  int16_t valueSlotId;
+} SScalarCheckOperatorInfo;
+
+static void destroyScalarCheckInfo(void* info) { taosMemoryFree(info); }
+
+static int32_t nextScalarCheck(SOperatorInfo* op, SSDataBlock** result) {
+  const SScalarCheckOperatorInfo* info = op->info;
+  *result = NULL;
+  for (;;) {
+    SSDataBlock* block = NULL;
+    int32_t code = getNextBlockFromDownstreamChecked(op, 0, true, &block);
+    if (code) T_LONG_JMP(op->pTaskInfo->env, code);
+    if (block == NULL) {
+      setOperatorCompleted(op);
+      return TSDB_CODE_SUCCESS;
+    }
+    SColumnInfoData* col = taosArrayGet(block->pDataBlock, info->countSlotId);
+    SColumnInfoData* candidate = taosArrayGet(block->pDataBlock, info->valueSlotId);
+    if (!candidate || !col || col->info.type != TSDB_DATA_TYPE_BIGINT)
+      T_LONG_JMP(op->pTaskInfo->env, TSDB_CODE_QRY_EXECUTOR_INTERNAL_ERROR);
+    for (int32_t row = 0; row < block->info.rows; ++row) {
+      int64_t rows = colDataIsNull_s(col, row) ? 0 : GET_INT64_VAL(colDataGetData(col, row));
+      if (rows > 1) T_LONG_JMP(op->pTaskInfo->env, TSDB_CODE_PAR_INVALID_SCALAR_SUBQ_RES_ROWS);
+      if (rows == 0) colDataSetNULL(candidate, row);
+    }
+    code = doFilter(block, op->exprSupp.pFilterInfo, NULL, NULL);
+    if (code) T_LONG_JMP(op->pTaskInfo->env, code);
+    if (block->info.rows) {
+      *result = block;
+      return TSDB_CODE_SUCCESS;
+    }
+  }
+}
+
+static int32_t createScalarCheck(SScalarCheckPhysiNode* check, SOperatorInfo* child,
+                                 SExecTaskInfo* task, SOperatorInfo** result) {
+  SNode* count = nodesListGetNode(check->pProjections, 0);
+  SNode* value = nodesListGetNode(check->pProjections, 1);
+  if (LIST_LENGTH(check->pProjections) != 2 || !value || nodeType(value) != QUERY_NODE_COLUMN ||
+      ((SColumnNode*)value)->slotId < 0 || !count || nodeType(count) != QUERY_NODE_COLUMN ||
+      ((SColumnNode*)count)->slotId < 0 || ((SColumnNode*)count)->node.resType.type != TSDB_DATA_TYPE_BIGINT)
+    return TSDB_CODE_QRY_INVALID_MSG;
+  SScalarCheckOperatorInfo slots = {.countSlotId = ((SColumnNode*)count)->slotId,
+                                    .valueSlotId = ((SColumnNode*)value)->slotId};
+  SOperatorInfo* op = taosMemoryCalloc(1, sizeof(SOperatorInfo));
+  if (!op) return terrno;
+  SScalarCheckOperatorInfo* info = taosMemoryMalloc(sizeof(*info));
+  if (info == NULL) {
+    int32_t code = terrno;
+    taosMemoryFree(op);
+    return code;
+  }
+  *info = slots;
+  op->pPhyNode = check;
+  setOperatorInfo(op, "Scalar Row Check", QUERY_NODE_PHYSICAL_PLAN_SCALAR_CHECK, false, OP_NOT_OPENED, info, task);
+  initOperatorCostInfo(op);
+  op->fpSet = createOperatorFpSet(optrDummyOpenFn, nextScalarCheck, NULL, destroyScalarCheckInfo, optrDefaultBufFn, NULL,
+                                  optrDefaultGetNextExtFn, NULL);
+  int32_t code = filterInitFromNode(check->node.pConditions, &op->exprSupp.pFilterInfo, 0, NULL);
+  if (!code) code = appendDownstream(op, &child, 1);
+  if (code) destroyOperator(op);
+  else *result = op;
+  return code;
 }
 
 int32_t createOperator(SPhysiNode* pPhyNode, SExecTaskInfo* pTaskInfo, SReadHandle* pHandle, SNode* pTagCond,
@@ -763,7 +833,13 @@ int32_t createOperator(SPhysiNode* pPhyNode, SExecTaskInfo* pTaskInfo, SReadHand
   }
 
   SOperatorInfo* pOptr = NULL;
-  if (QUERY_NODE_PHYSICAL_PLAN_PROJECT == type) {
+  if (QUERY_NODE_PHYSICAL_PLAN_SCALAR_CHECK == type) {
+    code = size == 1 ? createScalarCheck((SScalarCheckPhysiNode*)pPhyNode, ops[0], pTaskInfo, &pOptr)
+                     : TSDB_CODE_QRY_INVALID_MSG;
+    if (code) {
+      for (size_t i = 0; i < size; ++i) destroyOperator(ops[i]);
+    }
+  } else if (QUERY_NODE_PHYSICAL_PLAN_PROJECT == type) {
     code = createProjectOperatorInfo(ops[0], (SProjectPhysiNode*)pPhyNode, pTaskInfo, &pOptr);
   } else if (QUERY_NODE_PHYSICAL_PLAN_HASH_AGG == type) {
     SAggPhysiNode* pAggNode = (SAggPhysiNode*)pPhyNode;

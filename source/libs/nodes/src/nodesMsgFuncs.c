@@ -36,7 +36,7 @@
 #define TLV_TYPE_ARRAY_ELEM   0
 
 static bool isPhysiOperatorType(ENodeType type) {
-  return type >= QUERY_NODE_PHYSICAL_PLAN_TAG_SCAN && type <= QUERY_NODE_PHYSICAL_PLAN_THETA_JOIN &&
+  return type >= QUERY_NODE_PHYSICAL_PLAN_TAG_SCAN && type <= QUERY_NODE_PHYSICAL_PLAN_SCALAR_CHECK &&
          type != QUERY_NODE_PHYSICAL_SUBPLAN && type != QUERY_NODE_PHYSICAL_PLAN &&
          type != QUERY_NODE_PHYSICAL_PLAN_DISPATCH && type != QUERY_NODE_PHYSICAL_PLAN_INSERT &&
          type != QUERY_NODE_PHYSICAL_PLAN_QUERY_INSERT && type != QUERY_NODE_PHYSICAL_PLAN_DELETE;
@@ -113,12 +113,16 @@ static int32_t msgToNodeListFromTlv(STlv* pTlv, void** pObj);
 static int32_t msgToSArray(STlv* pTlv, void** pObj);
 
 
-static int32_t initTlvEncoder(STlvEncoder* pEncoder) {
-  pEncoder->allocSize = NODES_MSG_DEFAULT_LEN;
+static int32_t initTlvEncoderWithSize(STlvEncoder* pEncoder, int32_t size) {
+  pEncoder->allocSize = size;
   pEncoder->offset = 0;
   pEncoder->tlvCount = 0;
   pEncoder->pBuf = taosMemoryMalloc(pEncoder->allocSize);
   return NULL == pEncoder->pBuf ? terrno : TSDB_CODE_SUCCESS;
+}
+
+static int32_t initTlvEncoder(STlvEncoder* pEncoder) {
+  return initTlvEncoderWithSize(pEncoder, NODES_MSG_DEFAULT_LEN);
 }
 
 static void clearTlvEncoder(STlvEncoder* pEncoder) { taosMemoryFree(pEncoder->pBuf); }
@@ -7415,10 +7419,18 @@ enum {
   SUBPLAN_CODE_CHARSET,
 };
 
-static int32_t subplanInlineToMsg(const void* pObj, STlvEncoder* pEncoder) {
-  const SSubplan* pNode = (const SSubplan*)pObj;
+typedef struct SSubplanInlineAttrs {
+  const SSubplan*       plan;
+  const SSubplanTarget* target;
+} SSubplanInlineAttrs;
 
-  int32_t code = subplanIdInlineToMsg(&pNode->id, pEncoder);
+static int32_t subplanInlineToMsg(const void* pObj, STlvEncoder* pEncoder) {
+  const SSubplanInlineAttrs* attrs = pObj;
+  const SSubplan* pNode = attrs->plan;
+  const SQueryNodeAddr* addr = attrs->target ? &attrs->target->execNode : &pNode->execNode;
+  SSubplanId id = pNode->id;
+  if (attrs->target) id.subplanId = attrs->target->subplanId;
+  int32_t code = subplanIdInlineToMsg(&id, pEncoder);
   if (TSDB_CODE_SUCCESS == code) {
     code = tlvEncodeValueEnum(pEncoder, pNode->subplanType);
   }
@@ -7435,7 +7447,7 @@ static int32_t subplanInlineToMsg(const void* pObj, STlvEncoder* pEncoder) {
     code = tlvEncodeValueCStr(pEncoder, pNode->user);
   }
   if (TSDB_CODE_SUCCESS == code) {
-    code = queryNodeAddrInlineToMsg(&pNode->execNode, pEncoder);
+    code = queryNodeAddrInlineToMsg(addr, pEncoder);
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = tlvEncodeValueBool(pEncoder, pNode->showRewrite);
@@ -7464,13 +7476,8 @@ static int32_t subplanInlineToMsg(const void* pObj, STlvEncoder* pEncoder) {
   return code;
 }
 
-static int32_t subplanToMsg(const void* pObj, STlvEncoder* pEncoder) {
-  const SSubplan* pNode = (const SSubplan*)pObj;
-
-  int32_t code = tlvEncodeObj(pEncoder, SUBPLAN_CODE_INLINE_ATTRS, subplanInlineToMsg, pNode);
-  if (TSDB_CODE_SUCCESS == code) {
-    code = tlvEncodeObj(pEncoder, SUBPLAN_CODE_ROOT_NODE, nodeToMsg, pNode->pNode);
-  }
+static int32_t encodeSubplanBody(const SSubplan* pNode, STlvEncoder* pEncoder, bool includeTableNum) {
+  int32_t code = tlvEncodeObj(pEncoder, SUBPLAN_CODE_ROOT_NODE, nodeToMsg, pNode->pNode);
   if (TSDB_CODE_SUCCESS == code) {
     code = tlvEncodeObj(pEncoder, SUBPLAN_CODE_DATA_SINK, nodeToMsg, pNode->pDataSink);
   }
@@ -7489,7 +7496,7 @@ static int32_t subplanToMsg(const void* pObj, STlvEncoder* pEncoder) {
   if (TSDB_CODE_SUCCESS == code) {
     code = tlvEncodeBool(pEncoder, SUBPLAN_CODE_REQUIRES_ANCESTOR_CONTEXT, pNode->requiresAncestorContext);
   }
-  if (TSDB_CODE_SUCCESS == code) {
+  if (code == TSDB_CODE_SUCCESS && includeTableNum) {
     code = tlvEncodeI32(pEncoder, SUBPLAN_CODE_EXEC_NODE_TABLE_NUM, pNode->execNodeStat.tableNum);
   }
   if (TSDB_CODE_SUCCESS == code && NULL != pNode->pSubQ) {
@@ -7511,6 +7518,52 @@ static int32_t subplanToMsg(const void* pObj, STlvEncoder* pEncoder) {
   if (TSDB_CODE_SUCCESS == code) {
     code = tlvEncodeCStr(pEncoder, SUBPLAN_CODE_CHARSET, pNode->charsetName);
   }
+  return code;
+}
+
+static int32_t subplanToMsg(const void* pObj, STlvEncoder* pEncoder) {
+  SSubplanInlineAttrs attrs = {.plan = pObj};
+  TAOS_CHECK_RETURN(tlvEncodeObj(pEncoder, SUBPLAN_CODE_INLINE_ATTRS, subplanInlineToMsg, &attrs));
+  return encodeSubplanBody(pObj, pEncoder, true);
+}
+
+int32_t nodesSubplanInvariantToMsg(const SSubplan* pPlan, char** ppBody, int32_t* pLen) {
+  STlvEncoder encoder = {0};
+  TAOS_CHECK_RETURN(initTlvEncoder(&encoder));
+  int32_t code = encodeSubplanBody(pPlan, &encoder, false);
+  if (code == TSDB_CODE_SUCCESS) endTlvEncode(&encoder, ppBody, pLen);
+  clearTlvEncoder(&encoder);
+  return code;
+}
+
+int32_t nodesSubplanAssembleMsg(const SSubplan* pPlan, const char* body, int32_t bodyLen, const SSubplanTarget* target,
+                                char** ppMsg, int32_t* pLen) {
+  if (!pPlan || !target || !body || bodyLen < 0 || !ppMsg || !pLen) return TSDB_CODE_INVALID_PARA;
+  const SEpSet* eps = &target->execNode.epSet;
+  if (eps->numOfEps < 0 || eps->numOfEps > TSDB_MAX_REPLICA) return TSDB_CODE_INVALID_PARA;
+  // Fixed inline fields and TLV tags fit in 128 bytes. Charge space for the
+  // actual endpoints instead of copying or reserving a full SSubplan per task.
+  const int32_t headerCapacity = 128 + strlen(pPlan->dbFName) + strlen(pPlan->user) +
+                                 eps->numOfEps * (sizeof(SEp) + sizeof(int16_t));
+  if (bodyLen > INT32_MAX - headerCapacity) return TSDB_CODE_INVALID_MSG_LEN;
+  STlvEncoder encoder = {0};
+  TAOS_CHECK_RETURN(initTlvEncoderWithSize(&encoder, bodyLen + headerCapacity));
+  encoder.offset = sizeof(STlv);
+  SSubplanInlineAttrs attrs = {.plan = pPlan, .target = target};
+  int32_t code = tlvEncodeObj(&encoder, SUBPLAN_CODE_INLINE_ATTRS, subplanInlineToMsg, &attrs);
+  if (code == TSDB_CODE_SUCCESS) {
+    code = tlvEncodeI32(&encoder, SUBPLAN_CODE_EXEC_NODE_TABLE_NUM, target->execNodeStat.tableNum);
+  }
+  if (code == TSDB_CODE_SUCCESS) {
+    code = tlvEncodeValueImpl(&encoder, body, bodyLen);
+  }
+  if (code == TSDB_CODE_SUCCESS) {
+    STlv* outer = (STlv*)encoder.pBuf;
+    outer->type = htons(QUERY_NODE_PHYSICAL_SUBPLAN);
+    outer->len = htonl(encoder.offset - sizeof(STlv));
+    endTlvEncode(&encoder, ppMsg, pLen);
+  }
+  clearTlvEncoder(&encoder);
   return code;
 }
 
@@ -8308,7 +8361,8 @@ enum { QUERY_PLAN_CODE_INLINE_ATTRS = 1, QUERY_PLAN_CODE_SUBPLANS, QUERY_PLAN_CO
        QUERY_PLAN_CODE_SUBQ_TYPE, QUERY_PLAN_CODE_SUB_SQL, QUERY_PLAN_CODE_EXPLAIN_MODE,
        QUERY_PLAN_CODE_EXPLAIN_VERBOSE, QUERY_PLAN_CODE_EXPLAIN_RATIO,
        QUERY_PLAN_CODE_HAS_FEDERATED_SCAN, QUERY_PLAN_CODE_HAS_SCAN,
-       QUERY_PLAN_CODE_SUBQUERY_DEPS_KNOWN, QUERY_PLAN_CODE_SUBQUERY_DEPENDENCIES };
+       QUERY_PLAN_CODE_SUBQUERY_DEPS_KNOWN, QUERY_PLAN_CODE_SUBQUERY_DEPENDENCIES,
+       QUERY_PLAN_CODE_COUNT_INCLUDES_SUBQUERIES };
 
 enum { SUBPLAN_LINK_CODE_PARENT = 1, SUBPLAN_LINK_CODE_CHILD };
 
@@ -8424,7 +8478,7 @@ static int32_t queryPlanInlineToMsg(const void* pObj, STlvEncoder* pEncoder) {
   return code;
 }
 
-static int32_t queryPlanToMsg(const void* pObj, STlvEncoder* pEncoder) {
+static int32_t queryPlanToMsgImpl(const void* pObj, STlvEncoder* pEncoder) {
   const SQueryPlan* pNode = (const SQueryPlan*)pObj;
 
   int32_t code = tlvEncodeObj(pEncoder, QUERY_PLAN_CODE_INLINE_ATTRS, queryPlanInlineToMsg, pNode);
@@ -8480,6 +8534,18 @@ static int32_t queryPlanToMsg(const void* pObj, STlvEncoder* pEncoder) {
   return code;
 }
 
+static int32_t queryPlanToMsg(const void* pObj, STlvEncoder* pEncoder) {
+  const SQueryPlan* plan = (const SQueryPlan*)pObj;
+  SPlanExportView view = {0};
+  int32_t code = nodesBuildPlanExportView(plan, &view);
+  if (code == TSDB_CODE_SUCCESS) code = queryPlanToMsgImpl(&view.plan, pEncoder);
+  if (code == TSDB_CODE_SUCCESS && view.plan.numOfSubplans != plan->numOfSubplans) {
+    code = tlvEncodeBool(pEncoder, QUERY_PLAN_CODE_COUNT_INCLUDES_SUBQUERIES, true);
+  }
+  nodesClearPlanExportView(&view);
+  return code;
+}
+
 static int32_t msgToQueryPlanInline(STlvDecoder* pDecoder, void* pObj) {
   SQueryPlan* pNode = (SQueryPlan*)pObj;
 
@@ -8496,6 +8562,7 @@ static int32_t msgToQueryPlan(STlvDecoder* pDecoder, void* pObj) {
 
   bool hasCorrelationTemplates = false;
   bool hasDagLinks = false;
+  bool countIncludesSubqueries = false;
   SArray* pLinks = NULL;
   int32_t code = TSDB_CODE_SUCCESS;
   STlv*   pTlv = NULL;
@@ -8560,12 +8627,18 @@ static int32_t msgToQueryPlan(STlvDecoder* pDecoder, void* pObj) {
       case QUERY_PLAN_CODE_SUBQUERY_DEPENDENCIES:
         code = msgToSubqueryDependencies(pTlv, &pNode->pSubqueryDeps);
         break;
+      case QUERY_PLAN_CODE_COUNT_INCLUDES_SUBQUERIES:
+        code = tlvDecodeBool(pTlv, &countIncludesSubqueries);
+        break;
       default:
         break;
     }
   }
   if (TSDB_CODE_SUCCESS == code && hasDagLinks) {
     code = nodesRestoreSubplanDag(pNode, pLinks);
+  }
+  if (code == TSDB_CODE_SUCCESS && countIncludesSubqueries) {
+    code = nodesCountPlanAndSubqueries(pNode, pNode->numOfSubplans, &pNode->numOfSubplans);
   }
   taosArrayDestroy(pLinks);
   if ((qDebugFlag & DEBUG_DEBUG) && TSDB_CODE_SUCCESS == code) {
@@ -8958,6 +9031,7 @@ enum {
   LOGIC_JOIN_CODE_FULL_ON_COND,
   LOGIC_JOIN_CODE_COL_EQ_COND,
   LOGIC_JOIN_CODE_IS_CROSS_JOIN,
+  LOGIC_JOIN_CODE_SCALAR_SUBQUERY_JOIN,
 };
 
 static int32_t logicJoinNodeToMsg(const void* pObj, STlvEncoder* pEncoder) {
@@ -8977,6 +9051,9 @@ static int32_t logicJoinNodeToMsg(const void* pObj, STlvEncoder* pEncoder) {
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = tlvEncodeBool(pEncoder, LOGIC_JOIN_CODE_IS_CROSS_JOIN, pNode->isCrossJoin);
+  }
+  if (TSDB_CODE_SUCCESS == code && pNode->scalarSubqueryJoin) {
+    code = tlvEncodeBool(pEncoder, LOGIC_JOIN_CODE_SCALAR_SUBQUERY_JOIN, true);
   }
   return code;
 }
@@ -9004,6 +9081,9 @@ static int32_t msgToLogicJoinNode(STlvDecoder* pDecoder, void* pObj) {
         break;
       case LOGIC_JOIN_CODE_IS_CROSS_JOIN:
         code = tlvDecodeBool(pTlv, &pNode->isCrossJoin);
+        break;
+      case LOGIC_JOIN_CODE_SCALAR_SUBQUERY_JOIN:
+        code = tlvDecodeBool(pTlv, &pNode->scalarSubqueryJoin);
         break;
       default:
         break;
@@ -9238,6 +9318,7 @@ static int32_t specificNodeToMsg(const void* pObj, STlvEncoder* pEncoder) {
     case QUERY_NODE_PHYSICAL_PLAN_SYSTABLE_SCAN:
       code = physiSysTableScanNodeToMsg(pObj, pEncoder);
       break;
+    case QUERY_NODE_PHYSICAL_PLAN_SCALAR_CHECK:
     case QUERY_NODE_PHYSICAL_PLAN_PROJECT:
       code = physiProjectNodeToMsg(pObj, pEncoder);
       break;
@@ -9343,6 +9424,7 @@ static int32_t specificNodeToMsg(const void* pObj, STlvEncoder* pEncoder) {
     case QUERY_NODE_LOGIC_PLAN_SCAN:
       code = logicScanNodeToMsg(pObj, pEncoder);
       break;
+    case QUERY_NODE_LOGIC_PLAN_SCALAR_CHECK:
     case QUERY_NODE_LOGIC_PLAN_PROJECT:
       code = logicProjectNodeToMsg(pObj, pEncoder);
       break;
@@ -9501,6 +9583,7 @@ static int32_t msgToSpecificNode(STlvDecoder* pDecoder, void* pObj) {
     case QUERY_NODE_PHYSICAL_PLAN_SYSTABLE_SCAN:
       code = msgToPhysiSysTableScanNode(pDecoder, pObj);
       break;
+    case QUERY_NODE_PHYSICAL_PLAN_SCALAR_CHECK:
     case QUERY_NODE_PHYSICAL_PLAN_PROJECT:
       code = msgToPhysiProjectNode(pDecoder, pObj);
       break;
@@ -9606,6 +9689,7 @@ static int32_t msgToSpecificNode(STlvDecoder* pDecoder, void* pObj) {
     case QUERY_NODE_LOGIC_PLAN_SCAN:
       code = msgToLogicScanNode(pDecoder, pObj);
       break;
+    case QUERY_NODE_LOGIC_PLAN_SCALAR_CHECK:
     case QUERY_NODE_LOGIC_PLAN_PROJECT:
       code = msgToLogicProjectNode(pDecoder, pObj);
       break;

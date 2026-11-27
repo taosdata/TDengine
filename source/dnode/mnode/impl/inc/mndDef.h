@@ -1538,8 +1538,8 @@ typedef enum {
 // code/bytesDone are updated by the backup progress timer; code holds the
 // final agent-side result once the backup finishes (0 = success).
 typedef struct {
+  int64_t backupId;       // backup id (SDB key, must be first)
   int64_t chainId;        // backup chain id
-  int64_t backupId;       // backup id (SDB key)
   int32_t dnodeId;        // dnode that owns backupRoot and runs the agent
   char    backupRoot[TSDB_MOUNT_PATH_LEN];
   char    dbName[TSDB_DB_FNAME_LEN];  // empty means whole cluster

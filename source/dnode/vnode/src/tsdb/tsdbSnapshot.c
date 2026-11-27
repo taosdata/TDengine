@@ -30,6 +30,7 @@ struct STsdbSnapReader {
   int64_t sver;
   int64_t ever;
   int8_t  type;
+  uint32_t compression;
   int32_t destDnodeId;  // target follower dnodeId served by this reader, used to bucket progress per target; 0=unknown/RSMA
 
   SBuffer  buffers[10];
@@ -244,9 +245,7 @@ static int32_t tsdbSnapCmprData(STsdbSnapReader* reader, uint8_t** data) {
   int32_t code = 0;
   int32_t lino = 0;
 
-  SColCompressInfo info;
-
-  SColCompressInfo cmprInfo = {.pColCmpr = NULL, .defaultCmprAlg = NO_COMPRESSION};
+  SColCompressInfo cmprInfo = {.pColCmpr = NULL, .defaultCmprAlg = reader->compression};
   code = tBlockDataCompress(reader->blockData, (void*)&cmprInfo, reader->buffers, reader->buffers + 4);
   TSDB_CHECK_CODE(code, lino, _exit);
 
@@ -452,10 +451,12 @@ _exit:
   return code;
 }
 
-int32_t tsdbSnapReaderOpen(STsdb* tsdb, int64_t sver, int64_t ever, int8_t type, int32_t destDnodeId, void* pRanges,
-                           STsdbSnapReader** reader) {
+static int32_t tsdbSnapReaderOpenImpl(STsdb* tsdb, int64_t sver, int64_t ever, int8_t type, int32_t destDnodeId,
+                                      void* pRanges, STsdbSnapReader** reader, char** fileSetsJson) {
   int32_t code = 0;
   int32_t lino = 0;
+  TFileSetArray* fsets = NULL;
+  if (fileSetsJson) *fileSetsJson = NULL;
 
   reader[0] = (STsdbSnapReader*)taosMemoryCalloc(1, sizeof(*reader[0]));
   if (reader[0] == NULL) return terrno;
@@ -464,10 +465,16 @@ int32_t tsdbSnapReaderOpen(STsdb* tsdb, int64_t sver, int64_t ever, int8_t type,
   reader[0]->sver = sver;
   reader[0]->ever = ever;
   reader[0]->type = type;
+  reader[0]->compression = NO_COMPRESSION;  // callers may override, e.g. tsdbBackupSnapReaderOpen
   reader[0]->destDnodeId = destDnodeId;  // record target dnodeId, used for per-bucket stats and bucket cleanup on close
 
-  code = tsdbFSCreateRefRangedSnapshot(tsdb->pFS, sver, ever, (TFileSetRangeArray*)pRanges, &reader[0]->fsrArr);
+  code = tsdbFSCreateRefRangedSnapshotWithFilesets(tsdb->pFS, sver, ever, (TFileSetRangeArray*)pRanges,
+                                                   &reader[0]->fsrArr, fileSetsJson ? &fsets : NULL);
   TSDB_CHECK_CODE(code, lino, _exit);
+  if (fileSetsJson) {
+    code = tsdbFSetSnapshotToJson(fsets, fileSetsJson);
+    TSDB_CHECK_CODE(code, lino, _exit);
+  }
 
   // build snap stat
   {
@@ -496,6 +503,7 @@ int32_t tsdbSnapReaderOpen(STsdb* tsdb, int64_t sver, int64_t ever, int8_t type,
   }
 
 _exit:
+  tsdbFSDestroyRefSnapshot(&fsets);
   if (code) {
     tsdbError("vgId:%d %s failed at %s:%d since %s, sver:%" PRId64 " ever:%" PRId64 " type:%d", TD_VID(tsdb->pVnode),
               __func__, __FILE__, lino, tstrerror(code), sver, ever, type);
@@ -505,6 +513,20 @@ _exit:
   } else {
     tsdbInfo("vgId:%d, tsdb snapshot incremental reader opened. sver:%" PRId64 " ever:%" PRId64 " type:%d",
              TD_VID(tsdb->pVnode), sver, ever, type);
+  }
+  return code;
+}
+
+int32_t tsdbSnapReaderOpen(STsdb* tsdb, int64_t sver, int64_t ever, int8_t type, int32_t destDnodeId, void* pRanges,
+                           STsdbSnapReader** reader) {
+  return tsdbSnapReaderOpenImpl(tsdb, sver, ever, type, destDnodeId, pRanges, reader, NULL);
+}
+
+int32_t tsdbBackupSnapReaderOpen(STsdb* tsdb, int64_t sver, int64_t ever, void* pRanges,
+                                 STsdbSnapReader** reader, char** fileSetsJson) {
+  int32_t code = tsdbSnapReaderOpenImpl(tsdb, sver, ever, SNAP_DATA_TSDB, 0, pRanges, reader, fileSetsJson);
+  if (code == 0) {
+    SET_COMPRESS((uint32_t)L1_DISABLED, L2_LZ4, L2_LVL_LOW, (*reader)->compression);
   }
   return code;
 }

@@ -15,6 +15,7 @@
 
 import argparse
 from contextlib import contextmanager
+import hashlib
 import html
 import json
 import os
@@ -53,7 +54,15 @@ BUILD_BINARIES = ("taosd.exe", "taos.exe", "taosBenchmark.exe", "taosadapter.exe
 # here once the artifact is published on the mirror.
 ORACLE_19C_ARTIFACT = "oracle-instantclient-19.28.0.0.0-windows-amd64.zip"
 ORACLE_19C_SHA256 = "4c32d73f19c44a33a7e4e0070f6d49be3fa14555cf35e0135e6e96408e741e04"
-ORACLE_EXTERNALS_URL = "https://git.tdengine.net/api/v4/projects/70/packages/generic/externals/latest"
+EXTERNALS_MIRROR_URL = "https://git.tdengine.net/api/v4/projects/70/packages/generic/externals/latest"
+ORACLE_EXTERNALS_URL = EXTERNALS_MIRROR_URL
+# The native Windows perl that builds OpenSSL (see ensure_openssl_perl): the
+# portable Strawberry Perl release, pinned by digest and cached on the mirror
+# together with the other externals.
+STRAWBERRY_PERL_VERSION = "5.42.3.1"
+STRAWBERRY_PERL_ARCHIVE = f"strawberry-perl-{STRAWBERRY_PERL_VERSION}-64bit-portable.zip"
+STRAWBERRY_PERL_SHA256 = "6a081a811781c30aca51dbc036afd93092af91e3297901f02c17043795a10690"
+STRAWBERRY_PERL_URL = f"{EXTERNALS_MIRROR_URL}/{STRAWBERRY_PERL_ARCHIVE}"
 SERIAL_CTEST_PATTERN = "timerTest|cunit_test|pcre.*|example.*|clientTest|connectOptionsTest|tmqTest|taoscTest|cosTest|tcs_test|osFileTests|idxFstTest"
 CTEST_READY_TIMEOUT_SECONDS = 300
 GIT_LOCK_WAIT_SECONDS = 60
@@ -467,6 +476,115 @@ def install_go_toolchain(source_dir, environment):
     environment["GODEBUG"] = "http2client=0"
 
 
+def perl_flavour(perl):
+    """``"<$^O> <version>"`` as printed by a perl, or None when it cannot run."""
+    try:
+        result = subprocess.run(
+            [str(perl), "-e", 'print "$^O $]"'],
+            stdout=subprocess.PIPE,
+            stderr=subprocess.DEVNULL,
+            text=True,
+            timeout=60,
+            check=False,
+        )
+    except (OSError, subprocess.SubprocessError):
+        return None
+    return result.stdout.strip() if result.returncode == 0 else None
+
+
+def perls_on_path(path):
+    """Every perl executable on ``path``, in lookup order."""
+    suffixes = ("",) if os.name != "nt" else (".exe", ".bat", ".cmd", "")
+    for directory in (path or "").split(os.pathsep):
+        for suffix in suffixes:
+            candidate = Path(directory or ".") / ("perl" + suffix)
+            if candidate.is_file():
+                yield candidate
+                break
+
+
+def file_sha256(path):
+    digest = hashlib.sha256()
+    with open(path, "rb") as handle:
+        for chunk in iter(lambda: handle.read(1024 * 1024), b""):
+            digest.update(chunk)
+    return digest.hexdigest()
+
+
+def install_strawberry_perl(source_dir):
+    """Fetch the portable Strawberry Perl that builds OpenSSL, see ensure_openssl_perl.
+
+    Like the Go toolchain it is cached next to the source tree and reused by
+    later runs.  Only the perl/ tree of the archive is unpacked, a fifth of
+    it; the MinGW toolchain Strawberry ships with is not needed.
+    """
+    cache_root = Path(os.environ.get("WIN_STRAWBERRY_PERL_CACHE", source_dir.parent / "ci-cache" / "strawberry-perl"))
+    destination = cache_root / STRAWBERRY_PERL_VERSION
+    perl = destination / "perl" / "bin" / "perl.exe"
+    if perl.exists():
+        return perl
+    cache_root.mkdir(parents=True, exist_ok=True)
+    archive = cache_root / STRAWBERRY_PERL_ARCHIVE
+    if not (archive.exists() and file_sha256(archive) == STRAWBERRY_PERL_SHA256):
+        archive.unlink(missing_ok=True)
+        print(f"[windows-ci] downloading portable Strawberry Perl {STRAWBERRY_PERL_VERSION}", flush=True)
+        try:
+            urllib.request.urlretrieve(STRAWBERRY_PERL_URL, archive)
+        except OSError as error:
+            archive.unlink(missing_ok=True)
+            fail(f"cannot download {STRAWBERRY_PERL_URL}: {error}")
+        digest = file_sha256(archive)
+        if digest != STRAWBERRY_PERL_SHA256:
+            archive.unlink(missing_ok=True)
+            fail(f"{STRAWBERRY_PERL_ARCHIVE} has SHA256 {digest}, expected {STRAWBERRY_PERL_SHA256}")
+    # Unpack beside the destination and swap it in once complete, so an
+    # interrupted run is never mistaken for a usable installation.
+    staging = cache_root / f"{STRAWBERRY_PERL_VERSION}.partial"
+    shutil.rmtree(staging, ignore_errors=True)
+    staging.mkdir(parents=True)
+    with zipfile.ZipFile(archive) as bundle:
+        for member in bundle.infolist():
+            if member.filename.startswith("perl/"):
+                bundle.extract(member, staging)
+    if not (staging / "perl" / "bin" / "perl.exe").exists():
+        fail(f"{STRAWBERRY_PERL_ARCHIVE} does not contain perl/bin/perl.exe")
+    shutil.rmtree(destination, ignore_errors=True)
+    staging.rename(destination)
+    print(f"[windows-ci] portable Strawberry Perl ready: {perl}", flush=True)
+    return perl
+
+
+def ensure_openssl_perl(environment, source_dir):
+    """Locate a native Windows perl for OpenSSL's Configure script.
+
+    OpenSSL's Configure drives the NMake build with the perl that ran it (the
+    makefile takes PERL from $^X).  The perl bundled with Git for Windows is
+    an MSYS/Cygwin perl: it reports a POSIX $^X and lacks modules Configure
+    needs, so it is skipped and the search goes on along PATH.  When nothing
+    native is installed, the portable Strawberry Perl is fetched instead.
+
+    The perl directory is deliberately not added to PATH.  Git's usr\\bin
+    ships a GNU link.exe too, which shadows the MSVC linker as soon as it
+    precedes the Visual Studio directories.
+    """
+    configured = os.environ.get("WIN_OPENSSL_PERL")
+    candidates = [Path(configured)] if configured else []
+    candidates.extend(perls_on_path(environment.get("PATH")))
+    candidates.append(Path(r"C:\Strawberry\perl\bin\perl.exe"))
+    rejected = []
+    for candidate in candidates:
+        flavour = perl_flavour(candidate) if candidate.is_file() else None
+        if flavour is None:
+            continue
+        if flavour.split()[0] == "MSWin32":
+            print(f"[windows-ci] using perl for OpenSSL: {candidate} ({flavour})", flush=True)
+            return candidate
+        rejected.append(f"{candidate} ({flavour})")
+    if rejected:
+        print(f"[windows-ci] no native Windows perl installed, rejected: {'; '.join(rejected)}", flush=True)
+    return install_strawberry_perl(source_dir)
+
+
 def ensure_rust_toolchain(environment):
     configured = environment.get("WIN_CARGO_HOME") or os.environ.get("WIN_CARGO_HOME")
     candidates = [Path(configured)] if configured else []
@@ -649,6 +767,7 @@ def build(source_dir, debug_dir):
     ensure_rust_toolchain(environment)
     require_command("gcc", environment)
     ensure_libpq_runtime(environment)
+    openssl_perl = ensure_openssl_perl(environment, source_dir)
 
     # Avoid Release inlining/LTO when unit tests patch function entries with cppstub.
     # MariaDB/PostgreSQL/ODBC providers are on: the Windows test matrix covers all
@@ -658,6 +777,7 @@ def build(source_dir, debug_dir):
     configure = [
         cmake, "..", "-G", "NMake Makefiles JOM", f"-DCMAKE_MAKE_PROGRAM={jom}",
         f"-DCMAKE_BUILD_TYPE={WINDOWS_CMAKE_BUILD_TYPE}",
+        f"-DOPENSSL_PERL_EXECUTABLE={openssl_perl}",
         "-DBUILD_ENTERPRISE=ON", "-DBUILD_TEST=ON", "-DBUILD_TOOLS=ON", "-DBUILD_ADAPTER=ON", "-DBUILD_KEEPER=ON",
         "-DBUILD_RUST=ON", "-DBUILD_WITH_MARIADB=ON", "-DBUILD_WITH_LIBPQ=ON", "-DBUILD_WITH_ODBC=ON",
         "-DINSTALL_FQ_RUNTIME_LIBS=ON", "-DBUILD_WITH_ARROW=ON", "-DBUILD_ROCKSDB=ON",

@@ -235,8 +235,8 @@ add_test(
   COMMAND xnodeSixStarWriteTest
 )
 
-if(TD_WINDOWS)
-  message(STATUS "Skipping envelopeCryptoTest: Windows does not support OpenSSL")
+if(TD_WINDOWS AND NOT TD_ENTERPRISE)
+  message(STATUS "Skipping envelopeCryptoTest: community Windows builds do not build OpenSSL")
 else()
   include(CheckCSourceCompiles)
 
@@ -312,6 +312,10 @@ else()
     envelopeCryptoTest
     PUBLIC crypt util os
   )
+  if(TD_WINDOWS)
+    # Static libssl/libcrypto leave their system dependencies to the consumer.
+    target_link_libraries(envelopeCryptoTest PRIVATE ws2_32 crypt32 advapi32 user32 bcrypt)
+  endif()
 
   add_test(
     NAME envelopeCryptoTest

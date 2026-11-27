@@ -1089,6 +1089,7 @@ typedef enum ENodeType {
   QUERY_NODE_LOGIC_PLAN_TAG_REF_SOURCE,
   QUERY_NODE_LOGIC_PLAN_DISTINCT_FILTER,
   QUERY_NODE_LOGIC_PLAN_WINDOW_FUNC,
+  QUERY_NODE_LOGIC_PLAN_SCALAR_CHECK,
 
   // physical plan node
   QUERY_NODE_PHYSICAL_PLAN_TAG_SCAN = 1100,
@@ -1168,6 +1169,7 @@ typedef enum ENodeType {
   // ignoring the filter and returning an unfiltered (too large) count during rolling upgrades.
   QUERY_NODE_PHYSICAL_PLAN_TABLE_COUNT_SCAN_BY_TYPE,
   QUERY_NODE_PHYSICAL_PLAN_THETA_JOIN,
+  QUERY_NODE_PHYSICAL_PLAN_SCALAR_CHECK,
   // xnode
   QUERY_NODE_CREATE_XNODE_STMT = 1200,  // Xnode
   QUERY_NODE_DROP_XNODE_STMT,
@@ -3566,13 +3568,13 @@ int32_t tDeserializeSKillCompactReq(void* buf, int32_t bufLen, SKillCompactReq* 
 void    tFreeSKillCompactReq(SKillCompactReq* pReq);
 
 // ==================== Cluster-level backup/restore ====================
-// client -> mnode: start a backup. Phase 2 only wires cluster-level FULL backup;
-// isFull and dbName are reserved for later phases.
+// client -> mnode: start a backup. The parser supports cluster-level FULL and
+// INCREMENTAL; dnode rejects incomplete incremental execution.
 typedef struct {
   int32_t dnodeId;                     // dnode that owns backupRoot and runs the agent
   char    backupRoot[TSDB_MOUNT_PATH_LEN];
-  int8_t  isFull;                      // reserved: 1 = full, 0 = incremental
-  int64_t backupChainId;               // reserved: target chain for incremental; 0 = latest
+  int8_t  isFull;                      // 1 = full, 0 = incremental
+  int64_t backupChainId;               // target chain for incremental; 0 = latest
   char    dbName[TSDB_DB_FNAME_LEN];   // reserved: empty = whole cluster
   int8_t  hasPassword;
   char    password[TSDB_PASSWORD_LEN];
@@ -3767,6 +3769,9 @@ typedef struct {
   int64_t backupId;
   int8_t  isFull;
   int8_t  op;
+  int64_t baseVersion;  // previous snapshot endVersion for incremental backups
+  uint8_t* fileSets;    // borrowed buffer; present only for incremental BEGIN
+  uint32_t fileSetsLen;
 } SBackupVnodeSnapReq;
 
 typedef struct {
@@ -5746,6 +5751,13 @@ typedef struct SSubQueryMsg {
 } SSubQueryMsg;
 
 int32_t tSerializeSSubQueryMsg(void* buf, int32_t bufLen, SSubQueryMsg* pReq);
+#define TSDB_SUBQ_DEC_SKIP_SQL         (1U << 0)
+#define TSDB_SUBQ_DEC_SKIP_MSG         (1U << 1)
+#define TSDB_SUBQ_DEC_SKIP_ENDPOINTS   (1U << 2)
+#define TSDB_SUBQ_DEC_SKIP_CORRELATION (1U << 3)
+#define TSDB_SUBQ_DEC_SKIP_ALL         (TSDB_SUBQ_DEC_SKIP_SQL | TSDB_SUBQ_DEC_SKIP_MSG | TSDB_SUBQ_DEC_SKIP_ENDPOINTS | TSDB_SUBQ_DEC_SKIP_CORRELATION)
+
+int32_t tDeserializeSSubQueryMsgExt(void *buf, int32_t bufLen, SSubQueryMsg *pReq, uint32_t skipFlags);
 int32_t tDeserializeSSubQueryMsg(void* buf, int32_t bufLen, SSubQueryMsg* pReq);
 void    tFreeSSubQueryMsg(SSubQueryMsg* pReq);
 int32_t tValidateCorrelationParams(const SArray* pDefs, const SArray* pValues);

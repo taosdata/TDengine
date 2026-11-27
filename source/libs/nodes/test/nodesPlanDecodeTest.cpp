@@ -116,6 +116,53 @@ TEST(PlanDecodeTest, WindowPartitionComparisonSurvivesCloneAndWireFormats) {
   }
 }
 
+TEST(PlanDecodeTest, ScalarCheckPreservesInputSlots) {
+  SNode* raw = nullptr;
+  ASSERT_EQ(0, nodesMakeNode(QUERY_NODE_PHYSICAL_PLAN_SCALAR_CHECK, &raw));
+  NodePtr check(raw, nodesDestroyNode);
+  SColumnNode* count = nullptr;
+  ASSERT_EQ(0, nodesMakeNode(QUERY_NODE_COLUMN, reinterpret_cast<SNode**>(&count)));
+  count->node.resType.type = TSDB_DATA_TYPE_BIGINT;
+  count->node.resType.bytes = sizeof(int64_t);
+  count->slotId = 7;
+  count->dataBlockId = 3;
+  ASSERT_EQ(0, nodesListMakeStrictAppend(&reinterpret_cast<SScalarCheckPhysiNode*>(raw)->pProjections,
+                                         reinterpret_cast<SNode*>(count)));
+  SColumnNode* value = nullptr;
+  ASSERT_EQ(0, nodesCloneNode(reinterpret_cast<SNode*>(count), reinterpret_cast<SNode**>(&value)));
+  value->slotId = 5;
+  ASSERT_EQ(0, nodesListMakeStrictAppend(&reinterpret_cast<SScalarCheckPhysiNode*>(raw)->pProjections,
+                                         reinterpret_cast<SNode*>(value)));
+  for (int mode : {0, 1, 2}) {
+    SNode* decoded = nullptr;
+    if (mode == 0) {
+      ASSERT_EQ(0, nodesCloneNode(raw, &decoded));
+    } else if (mode == 1) {
+      ASSERT_EQ(0, nodesStringToNode(saveJson(raw).c_str(), &decoded));
+    } else {
+      char* msg = nullptr;
+      int32_t len = 0;
+      ASSERT_EQ(0, nodesNodeToMsg(raw, &msg, &len));
+      auto code = nodesMsgToNode(msg, len, &decoded);
+      taosMemoryFree(msg);
+      ASSERT_EQ(0, code);
+    }
+    NodePtr copy(decoded, nodesDestroyNode);
+    ASSERT_EQ(QUERY_NODE_PHYSICAL_PLAN_SCALAR_CHECK, nodeType(decoded));
+    auto* col = reinterpret_cast<SColumnNode*>(nodesListGetNode(
+        reinterpret_cast<SScalarCheckPhysiNode*>(decoded)->pProjections, 0));
+    ASSERT_NE(nullptr, col);
+    EXPECT_EQ(3, col->dataBlockId);
+    EXPECT_EQ(7, col->slotId);
+    EXPECT_EQ(TSDB_DATA_TYPE_BIGINT, col->node.resType.type);
+    auto* candidate = reinterpret_cast<SColumnNode*>(nodesListGetNode(
+        reinterpret_cast<SScalarCheckPhysiNode*>(decoded)->pProjections, 1));
+    ASSERT_NE(nullptr, candidate);
+    EXPECT_EQ(3, candidate->dataBlockId);
+    EXPECT_EQ(5, candidate->slotId);
+  }
+}
+
 struct JoinCase {
   EJoinType type;
   EJoinSubType subType;

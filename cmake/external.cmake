@@ -1155,16 +1155,23 @@ if(BUILD_CRASHDUMP)      # {
 endif()   # }
 
 # ssl
-if(NOT TD_WINDOWS)       # {
-    # TODO: why at this moment???
-    # file(MAKE_DIRECTORY $ENV{HOME}/.cos-local.2/)
-    if(TD_LINUX)
-        set(ext_ssl_static libssl.a)
-        set(ext_crypto_static libcrypto.a)
-    elseif(TD_DARWIN)
-        set(ext_ssl_static libssl.a)
-        set(ext_crypto_static libcrypto.a)
-    endif()
+if(TD_WINDOWS)
+    # OpenSSL ships its static libraries as libssl.lib / libcrypto.lib on MSVC
+    # (the build sets no-shared, so there are no import libraries).
+    set(ext_ssl_static libssl.lib)
+    set(ext_crypto_static libcrypto.lib)
+elseif(TD_LINUX)
+    set(ext_ssl_static libssl.a)
+    set(ext_crypto_static libcrypto.a)
+elseif(TD_DARWIN)
+    set(ext_ssl_static libssl.a)
+    set(ext_crypto_static libcrypto.a)
+endif()
+# Only enterprise builds consume OpenSSL (transport TLS).  Community Windows
+# builds keep the stub TLS implementation and never build this external, so
+# ext_ssl_* must stay unset there: consumers would otherwise reference
+# libssl/libcrypto paths that are never produced.
+if(NOT TD_WINDOWS OR TD_ENTERPRISE)
     INIT_EXT(ext_ssl
         INC_DIR          include
         LIB              lib/${ext_ssl_static}
@@ -1180,6 +1187,115 @@ if(NOT TD_WINDOWS)       # {
         "https://github.com/openssl/openssl/releases/download/openssl-3.1.3/openssl-3.1.3.tar.gz"
         "openssl-3.1.3.tar.gz"
     )
+endif()
+if(TD_WINDOWS)
+    # Reached on Windows only for enterprise builds, see the guard above.
+    if(TD_ENTERPRISE)
+        # OpenSSL has no CMake build; it is configured by its own perl script
+        # and built with the NMake-compatible makefile.  Configure drives that
+        # makefile with the perl that ran it (PERL is taken from $^X), so only
+        # a native Windows perl works.  The perl bundled with Git for Windows
+        # is an MSYS/Cygwin perl: it reports a POSIX $^X and lacks modules
+        # Configure needs, which is why its usr/bin is not searched here.
+        if(NOT OPENSSL_PERL_EXECUTABLE)
+            # perl.exe goes first: find_program searches every location for one
+            # name before trying the next, so a perl later on PATH must not win
+            # over the perl.exe in the Strawberry hints.
+            find_program(OPENSSL_PERL_EXECUTABLE NAMES perl.exe perl
+                HINTS "C:/Strawberry/perl/bin" "$ENV{ProgramFiles}/Strawberry/perl/bin")
+        endif()
+        if(NOT OPENSSL_PERL_EXECUTABLE)
+            message(FATAL_ERROR
+                "OpenSSL on Windows requires a native Windows perl (Strawberry Perl) to run Configure; "
+                "set OPENSSL_PERL_EXECUTABLE to its perl.exe")
+        endif()
+        execute_process(
+            COMMAND "${OPENSSL_PERL_EXECUTABLE}" -e "print \$^O"
+            OUTPUT_VARIABLE _ext_ssl_perl_osname
+            OUTPUT_STRIP_TRAILING_WHITESPACE
+            ERROR_QUIET
+            RESULT_VARIABLE _ext_ssl_perl_rc
+        )
+        if(NOT _ext_ssl_perl_rc EQUAL 0 OR NOT _ext_ssl_perl_osname STREQUAL "MSWin32")
+            message(FATAL_ERROR
+                "OpenSSL on Windows requires a native Windows perl (Strawberry Perl): "
+                "'${OPENSSL_PERL_EXECUTABLE}' reports osname '${_ext_ssl_perl_osname}'. "
+                "An MSYS/Cygwin perl such as Git's usr/bin/perl.exe cannot run Configure for the "
+                "NMake build; set OPENSSL_PERL_EXECUTABLE to a native perl.exe.")
+        endif()
+        unset(_ext_ssl_perl_osname)
+        unset(_ext_ssl_perl_rc)
+        if(TD_WINDOWS_64)
+            set(_ext_ssl_configure_target VC-WIN64A)
+        else()
+            set(_ext_ssl_configure_target VC-WIN32)
+        endif()
+        # OpenSSL's static VC targets compile the library objects with
+        # /MT /Zl (Configurations/10-main.conf: lib_cflags adds them when the
+        # build is not shared), while this engine is built with /MDd in Debug
+        # and /MD in Release.  Objects from a different CRT trip
+        # LNK2038 RuntimeLibrary at link time, so pin the engine's CRT
+        # explicitly.  Configure appends trailing flags to %useradd{CFLAGS}
+        # after the target flags, which makes the last /M option win; mirror
+        # define.cmake, which uses /MDd for every non-Release configuration.
+        if(TD_CONFIG_NAME_RESOLVED MATCHES "Release")
+            set(_ext_ssl_crt_flag /MD)
+        else()
+            set(_ext_ssl_crt_flag /MDd)
+        endif()
+        # OpenSSL's VC targets generate a NMake makefile.  Only a
+        # NMake-compatible tool can drive it: reuse the parent build tool when
+        # that is nmake or jom (the NMake and JOM generators), but not when it
+        # is MSBuild (the Visual Studio generator) or Ninja, which cannot read
+        # the makefile at all -- the Visual Studio entry point documented in
+        # tools/deps/windows/install_deps_windows.ps1 must work too.  In that
+        # case a separate nmake/jom is looked up; it is on PATH in the
+        # Developer PowerShell for VS that the VS generator is configured
+        # from.  The parent CMAKE_MAKE_PROGRAM itself is left untouched.
+        get_filename_component(_ext_ssl_make_tool "${CMAKE_MAKE_PROGRAM}" NAME_WE)
+        string(TOLOWER "${_ext_ssl_make_tool}" _ext_ssl_make_tool)
+        if(_ext_ssl_make_tool MATCHES "^(nmake|jom)$")
+            set(OPENSSL_NMAKE_EXECUTABLE "${CMAKE_MAKE_PROGRAM}")
+        elseif(NOT OPENSSL_NMAKE_EXECUTABLE)
+            find_program(OPENSSL_NMAKE_EXECUTABLE NAMES nmake.exe nmake jom.exe jom)
+        endif()
+        if(NOT OPENSSL_NMAKE_EXECUTABLE)
+            message(FATAL_ERROR
+                "Building OpenSSL on Windows needs nmake or jom for its NMake makefile, but the "
+                "parent generator's build tool '${CMAKE_MAKE_PROGRAM}' cannot drive one and no "
+                "nmake/jom was found. Run CMake from a Developer PowerShell for VS, or set "
+                "OPENSSL_NMAKE_EXECUTABLE to the nmake.exe/jom.exe to use.")
+        endif()
+        ExternalProject_Add(ext_ssl
+            URL ${_url}
+            URL_HASH SHA256=f0316a2ebd89e7f2352976445458689f80302093788c466692fb2a188b2eacf6
+            PREFIX "${_base}"
+            BUILD_IN_SOURCE TRUE
+            # no-asm: Configure probes for NASM for the VC-WIN64A/VC-WIN32
+            # targets and aborts when it is missing, which the Windows build
+            # image does not guarantee.  The C implementations are used
+            # instead.
+            #
+            # /FS: the static VC targets keep the debug info of the whole
+            # library in one PDB (10-main.conf, lib_cflags /Zi /Fdossl_static.pdb)
+            # and OpenSSL only documents the serial nmake build.  When the
+            # parallel jom is used (the Windows CI generator), concurrent
+            # cl.exe instances fail with C1041 on that PDB unless /FS
+            # serializes the access; nmake ignores the flag.
+            CONFIGURE_COMMAND
+                COMMAND "${OPENSSL_PERL_EXECUTABLE}" Configure ${_ext_ssl_configure_target}
+                        --prefix=${_ins} no-shared no-tests no-asm --libdir=lib
+                        ${_ext_ssl_crt_flag} /FS
+            BUILD_COMMAND
+                COMMAND "${OPENSSL_NMAKE_EXECUTABLE}" build_libs
+            INSTALL_COMMAND
+                COMMAND "${OPENSSL_NMAKE_EXECUTABLE}" install_dev
+            EXCLUDE_FROM_ALL TRUE
+            VERBATIM
+        )
+        add_dependencies(build_externals ext_ssl)     # this is for github workflow in cache-miss step.
+    endif()
+else()
     # Docker Desktop for Mac uses VirtioFS for bind-mount volumes.  Under heavy
     # ccache corrupts certain OpenSSL .o files (cipher_aria.o becomes "data"
     # instead of ELF) when gcc-toolset-14 is used via ccache symlinks.
@@ -1212,7 +1328,7 @@ if(NOT TD_WINDOWS)       # {
         EXCLUDE_FROM_ALL TRUE
     )
     add_dependencies(build_externals ext_ssl)     # this is for github workflow in cache-miss step.
-endif()    # }
+endif()
 
 # libcurl
 if(NOT TD_WINDOWS)       # {
@@ -1867,6 +1983,16 @@ INIT_EXT(ext_libs3
 string(JOIN " " _ssl_libs ${ext_ssl_libs})
 set(_libs3_extra_args "")
 set(_libs3_depends ext_libxml2 ext_curl ext_zlib)
+if(NOT TD_WINDOWS)
+    # libs3 only links OpenSSL on its Linux branch.  Its Windows build uses the
+    # bundled crypto (src/mingw_functions.c) and reads none of the OPENSSL_*
+    # variables, so do not hand it ext_ssl_* there: on community Windows those
+    # are unset on purpose.
+    list(APPEND _libs3_extra_args
+        "-DOPENSSL_INCLUDE:STRING=${ext_ssl_inc_dir}"
+        "-DOPENSSL_LIBS:STRING=${ext_ssl_lib_ssl}"
+        "-DCRYPTO_LIBS:STRING=${ext_ssl_lib_crypto}")
+endif()
 if(TD_WINDOWS)
     list(APPEND _libs3_extra_args "-DCMAKE_C_FLAGS:STRING=/DWIN32_LEAN_AND_MEAN /DLIBXML_STATIC /DCURL_STATICLIB")
     list(APPEND _libs3_extra_args "-DPTHREAD_INCLUDE:STRING=${ext_pthread_inc_dir}")
@@ -1896,9 +2022,6 @@ ExternalProject_Add(ext_libs3
     CMAKE_ARGS ${_libs3_extra_args}
     CMAKE_ARGS -DCURL_INCLUDE:STRING=${ext_curl_inc_dir}
     CMAKE_ARGS -DCURL_LIBS:STRING=${ext_curl_libs}
-    CMAKE_ARGS -DOPENSSL_INCLUDE:STRING=${ext_ssl_inc_dir}
-    CMAKE_ARGS -DOPENSSL_LIBS:STRING=${ext_ssl_lib_ssl}
-    CMAKE_ARGS -DCRYPTO_LIBS:STRING=${ext_ssl_lib_crypto}
     CMAKE_ARGS -DLIBXML2_INCLUDE:STRING=${ext_libxml2_inc_dir}
     CMAKE_ARGS -DLIBXML2_LIBS:STRING=${ext_libxml2_libs}
     CMAKE_ARGS -DZLIB_INCLUDE:STRING=${ext_zlib_inc_dir}

@@ -33,7 +33,7 @@ class TestCorrelatedScalarLifecycle:
         tdLog.debug(f"start to execute {__file__}")
 
     def do_late_error(self):
-        scalar = "(select h.v from history h where h.device = r.device)"
+        scalar = "(select /*+ NO_DECORRELATE() */ h.v from history h where h.device = r.device)"
         tdSql.error(
             f"select r.device, {scalar} from readings r order by r.ts",
             expectedErrno=0x26A5,
@@ -58,7 +58,7 @@ class TestCorrelatedScalarLifecycle:
                 try:
                     barrier.wait(timeout=15)
                     cursor.execute(
-                        "select r.device, (select max(h.v) from history h "
+                        "select r.device, (select /*+ NO_DECORRELATE() */ max(h.v) from history h "
                         "where h.device = r.device) from readings r "
                         "where r.device < 3 order by r.ts"
                     )
@@ -128,7 +128,7 @@ class TestCorrelatedScalarLifecycle:
                 if retry_same_connection:
                     assert len(retry_rows) == 1 and retry_rows[0][0] == 1, retry_rows
             tdSql.query(
-                "select r.device, (select max(h.v) from history h where h.device = r.device) "
+                "select r.device, (select /*+ NO_DECORRELATE() */ max(h.v) from history h where h.device = r.device) "
                 "from readings r where r.device = 1",
                 queryTimes=1,
             )
@@ -179,7 +179,7 @@ class TestCorrelatedScalarLifecycle:
                 process.terminate()
                 process.wait(timeout=5)
         tdSql.query(
-            "select r.device, (select max(h.v) from history h "
+            "select r.device, (select /*+ NO_DECORRELATE() */ max(h.v) from history h "
             "where h.device = r.device) from readings r where r.device = 1",
             queryTimes=1,
         )
@@ -281,7 +281,7 @@ class TestCorrelatedScalarLifecycle:
                 assert False, "correlated query remained active after inner-node restart"
 
             tdSql.query(
-                f"select r.device, (select max(h.v) from {inner} h "
+                f"select r.device, (select /*+ NO_DECORRELATE() */ max(h.v) from {inner} h "
                 f"where h.device = r.device) from {outer} r",
                 queryTimes=1,
             )

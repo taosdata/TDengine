@@ -16,6 +16,7 @@
 # -*- coding: utf-8 -*-
 import os
 import shutil
+import subprocess
 import time
 import tempfile
 
@@ -79,8 +80,10 @@ class TestStreamBackupRestore(BackupRestoreTestBase):
         # source super table with a primary-key column
         tdSql.execute(f"CREATE TABLE {self.SOURCE_STB} (ts TIMESTAMP, c1 VARCHAR(16) primary key, c2 INT) tags(t INT)")
         # a snode must be created explicitly before any stream can run
-        tdSql.execute("CREATE SNODE ON DNODE 1")
         tdSql.query("SHOW SNODES")
+        if tdSql.queryRows == 0:
+            tdSql.execute("CREATE SNODE ON DNODE 1")
+            tdSql.query("SHOW SNODES")
         tdSql.checkKeyExist(1)
 
     def _create_stream(self, stream_name):
@@ -159,7 +162,7 @@ class TestStreamBackupRestore(BackupRestoreTestBase):
             time.sleep(1)
         tdLog.exit(f"result table {self.DB}.{table} did not get rows within {timeout}s")
 
-    def _verify_backup_contains_snode(self, chain_dir, require_checkpoint=True):
+    def _verify_backup_contains_snode(self, chain_dir, require_checkpoint=True, backup_id=None):
         """The backup must contain the snode directory with snode.json.
 
         require_checkpoint: the stream checkpoint is written periodically
@@ -167,7 +170,7 @@ class TestStreamBackupRestore(BackupRestoreTestBase):
         stopped the stream before the backup, at least one checkpoint file
         must be in the backup.
         """
-        backup_id = os.path.basename(chain_dir)
+        backup_id = str(backup_id or os.path.basename(chain_dir))
         snode_dir = os.path.join(chain_dir, backup_id, "snode", f"dnode{self.dnode_id}")
         tdLog.info(f"checking snode backup dir: {snode_dir}")
         snode_json = os.path.join(snode_dir, "snode.json")
@@ -288,3 +291,107 @@ class TestStreamBackupRestore(BackupRestoreTestBase):
                 return
             time.sleep(1)
         tdLog.exit(f"stream did not keep computing after restore: {rows_now} <= {rows_before}")
+
+    def do_incremental_stream_restore(self):
+        self.DB = "st_incremental"
+        self._prepare_stream_env()
+        base_ts = int(time.time() * 1000) - 1000
+        tdSql.execute(f"INSERT INTO t1 USING {self.SOURCE_STB} TAGS(1) VALUES ({base_ts}, 'seed', 1)")
+        self._create_stream("s1")
+        self._wait_stream_running("s1")
+        tdSql.execute(f"INSERT INTO t2 USING {self.SOURCE_STB} TAGS(2) VALUES "
+                      f"({base_ts + 1}, 'a', 11), ({base_ts + 1}, 'b', 12)")
+        self._wait_result_rows(self.RESULT_TABLE)
+        tdSql.execute(f"STOP STREAM {self.DB}.s1")
+        self._wait_stream_status("s1", "Stopped")
+        self._wait_checkpoint_file()
+        full_rows = self._result_rows()
+        chain = self._start_backup("stream_incremental")
+        full_id = int(os.path.basename(chain))
+        self._verify_backup_contains_snode(chain, backup_id=full_id)
+        full_ck_dir = os.path.join(chain, str(full_id), "snode", "dnode1", "checkpoint")
+        full_checkpoints = {}
+        for name in os.listdir(full_ck_dir):
+            if name.endswith(".ck"):
+                with open(os.path.join(full_ck_dir, name), "rb") as file:
+                    full_checkpoints[name] = file.read()
+
+        tdSql.execute(f"START STREAM {self.DB}.s1")
+        self._wait_stream_running("s1")
+        tdSql.execute(f"INSERT INTO t3 USING {self.SOURCE_STB} TAGS(3) VALUES "
+                      f"({base_ts + 100}, 'c', 21), ({base_ts + 100}, 'd', 22)")
+        deadline = time.monotonic() + 60
+        while time.monotonic() < deadline and self._result_rows() <= full_rows:
+            time.sleep(1)
+        assert self._result_rows() > full_rows, "stream did not process the incremental input"
+        tdSql.execute(f"STOP STREAM {self.DB}.s1")
+        self._wait_stream_status("s1", "Stopped")
+        self._wait_checkpoint_file()
+        checkpoint_dir = os.path.join(self._dnode_data_dir(1), "snode", "checkpoint")
+        deadline = time.monotonic() + 30
+        while time.monotonic() < deadline:
+            current = {}
+            for name in os.listdir(checkpoint_dir):
+                if name.endswith(".ck"):
+                    with open(os.path.join(checkpoint_dir, name), "rb") as file:
+                        current[name] = file.read()
+            if current and current != full_checkpoints:
+                break
+            time.sleep(1)
+        else:
+            raise AssertionError("stream checkpoint did not change after incremental input")
+        delta_rows = self._result_rows()
+        delta_id = self._start_incremental_backup(chain)
+        self._verify_backup_contains_snode(chain, backup_id=delta_id)
+
+        for backup_id, expected_rows in ((full_id, full_rows), (delta_id, delta_rows)):
+            self._stop_taosd()
+            result = subprocess.run(
+                [self._taosd_path(), "-c", self._cfg_path(), "--restore", chain,
+                 "--last-backup", str(backup_id)],
+                input="YES\nYES\n", text=True, capture_output=True, timeout=300,
+            )
+            assert result.returncode == 0, result.stdout + result.stderr
+            backup_ck = os.path.join(chain, str(backup_id), "snode", "dnode1", "checkpoint")
+            restored_ck = os.path.join(self._dnode_data_dir(1), "snode", "checkpoint")
+            checkpoints = [name for name in os.listdir(backup_ck) if name.endswith(".ck")]
+            assert checkpoints
+            for name in checkpoints:
+                with open(os.path.join(backup_ck, name), "rb") as source, \
+                     open(os.path.join(restored_ck, name), "rb") as restored:
+                    assert source.read() == restored.read(), (backup_id, name)
+            self._start_taosd()
+            assert self._result_rows() == expected_rows
+            tdSql.execute(f"START STREAM {self.DB}.s1")
+            self._wait_stream_running("s1")
+            tdSql.execute(f"INSERT INTO t4 USING {self.SOURCE_STB} TAGS(4) VALUES "
+                          f"({base_ts + 1000}, 'e', 31), ({base_ts + 1000}, 'f', 32)")
+            deadline = time.monotonic() + 60
+            while time.monotonic() < deadline and self._result_rows() <= expected_rows:
+                time.sleep(1)
+            assert self._result_rows() > expected_rows, f"stream did not resume after backup {backup_id}"
+        print("incremental stream restore ........................ [ passed ]")
+
+    def test_incremental_stream_restore(self):
+        """Restore checkpoints from full and incremental stream backups.
+
+        1. Stop the stream and back up a checkpoint at each of two points.
+        2. Restore each point and compare the selected checkpoint bytes.
+        3. Restart the stream and verify it processes new input.
+
+        The stream is stopped before each backup; this does not assert strict
+        checkpoint/data synchronization while writes are concurrent.
+
+        Catalog:
+            - Backup
+
+        Since: v3.4.3.0
+
+        Labels: common,ci,integration
+
+        Jira: None
+
+        History:
+            - 2026-11-09 Verify incremental stream checkpoint restore
+        """
+        self.do_incremental_stream_restore()

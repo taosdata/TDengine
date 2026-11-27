@@ -613,7 +613,9 @@ int32_t qWorkerPreprocessQueryMsg(void *qWorkerMgmt, SRpcMsg *pMsg, bool chkGran
   int32_t       code = 0;
   SQWorker     *mgmt = (SQWorker *)qWorkerMgmt;
   SSubQueryMsg  msg = {0};
-  if (tDeserializeSSubQueryMsg(pMsg->pCont, pMsg->contLen, &msg) < 0) {
+  uint32_t skip = TSDB_SUBQ_DEC_SKIP_MSG | TSDB_SUBQ_DEC_SKIP_ENDPOINTS;
+  if (!(qDebugFlag & DEBUG_DEBUG)) skip |= TSDB_SUBQ_DEC_SKIP_SQL;
+  if (tDeserializeSSubQueryMsgExt(pMsg->pCont, pMsg->contLen, &msg, skip) < 0) {
     QW_ELOG("tDeserializeSSubQueryMsg failed, contLen:%d", pMsg->contLen);
     QW_ERR_RET(TSDB_CODE_QRY_INVALID_INPUT);
   }
@@ -660,7 +662,7 @@ int32_t qWorkerPreprocessQueryMsg(void *qWorkerMgmt, SRpcMsg *pMsg, bool chkGran
   qwMsg.txnId = msg.txnId;
   qwMsg.firstDayOfWeek = msg.firstDayOfWeek;
 
-  QW_SCH_TASK_DLOG("prerocessQuery start, handle:%p, SQL:%s", pMsg->info.handle, msg.sql);
+  QW_SCH_TASK_DLOG("prerocessQuery start, handle:%p, SQL:%s", pMsg->info.handle, msg.sql ? msg.sql : "");
   code = qwPreprocessQuery(QW_FPARAMS(), &qwMsg);
   QW_SCH_TASK_DLOG("prerocessQuery end, handle:%p, code:%x", pMsg->info.handle, code);
 
@@ -677,7 +679,7 @@ int32_t qWorkerAbortPreprocessQueryMsg(void *qWorkerMgmt, SRpcMsg *pMsg) {
   int32_t       code = 0;
   SQWorker     *mgmt = (SQWorker *)qWorkerMgmt;
   SSubQueryMsg msg = {0};
-  if (tDeserializeSSubQueryMsg(pMsg->pCont, pMsg->contLen, &msg) < 0) {
+  if (tDeserializeSSubQueryMsgExt(pMsg->pCont, pMsg->contLen, &msg, TSDB_SUBQ_DEC_SKIP_ALL) < 0) {
     QW_ELOG("tDeserializeSSubQueryMsg failed, contLen:%d", pMsg->contLen);
     QW_ERR_RET(TSDB_CODE_QRY_INVALID_INPUT);
   }

@@ -48,7 +48,13 @@ typedef struct {
   int64_t snapshotIndex;
   int32_t numOfChunks;
   uint8_t digest[SHA256_DIGEST_SIZE];
+  char   *fileSetsJson;
 } SBackupVnodeDigest;
+
+typedef struct {
+  int64_t endVersion;
+  char   *fileSetsJson;
+} SBackupVnodeBaseline;
 
 typedef struct {
   uint64_t magic;
@@ -57,6 +63,7 @@ typedef struct {
 
 #define BACKUP_VNODE_DATA_MAGIC UINT64_C(0x54444E5644415441)
 #define DM_BACKUP_SM4_BLOCK_SIZE 16
+#define DM_BACKUP_MAX_MANIFEST_SIZE (16 * 1024 * 1024)
 // Each vnode backup is split into equal-sized chunk files (the last one may be
 // smaller) so a single vnode never exceeds the max file size of the target
 // filesystem. The chunk size MUST be a multiple of DM_BACKUP_SM4_BLOCK_SIZE so
@@ -142,6 +149,8 @@ typedef struct SDnodeMgmt {
 
 struct SBackupTask {
   SBackupDnodeReq req;
+  int64_t         clusterId;
+  int64_t         previousBackupId;
   int64_t         totalSize;
   int32_t         totalVgroups;
   int32_t         finishedVgroups;
@@ -151,6 +160,7 @@ struct SBackupTask {
   SArray         *snodeCheckpoints;  // SBackupCheckpointDigest
   SArray         *snodeConfigs;      // SBackupSnodeConfigDigest
   SArray         *vnodeSnapshots;    // SBackupVnodeDigest
+  SArray         *previousVnodeBaselines;  // SBackupVnodeBaseline, aligned with req.vgroups
   bool            running;
   bool            cancelled;
 };
@@ -168,10 +178,11 @@ void    dmUpdateStatusInfo(SDnodeMgmt *pMgmt);
 void    dmSendNotifyReq(SDnodeMgmt *pMgmt, SNotifyReq *pReq);
 int32_t dmProcessConfigReq(SDnodeMgmt *pMgmt, SRpcMsg *pMsg);
 int32_t dmProcessBackupReq(SDnodeMgmt *pMgmt, SRpcMsg *pMsg);
-void    dmBackupFreeTaskArtifacts(SBackupTask *pTask);
+void    dmBackupFreeTaskResources(SBackupTask *pTask);
 int32_t dmProcessBackupTask(SDnodeMgmt *pMgmt, SBackupTask *pTask);
 int32_t dmProcessBackupProgressReq(SDnodeMgmt *pMgmt, SRpcMsg *pMsg);
 int32_t dmProcessKillBackupReq(SDnodeMgmt *pMgmt, SRpcMsg *pMsg);
+int32_t dmBackupReadManifest(const char *backupDir, const char *password, SJson **ppManifest);
 int32_t dmRestoreFromBackupChain(const SDmRestoreOption *pOpt);
 int32_t dmProcessKeySyncRsp(SDnodeMgmt *pMgmt, SRpcMsg *pMsg);
 int32_t dmProcessAuthRsp(SDnodeMgmt *pMgmt, SRpcMsg *pMsg);

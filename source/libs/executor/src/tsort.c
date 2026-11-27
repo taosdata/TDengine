@@ -3117,6 +3117,67 @@ void tsortSetClosed(SSortHandle* pHandle) { atomic_store_8(&pHandle->closed, 2);
 
 void tsortSetMergeLimit(SSortHandle* pHandle, int64_t mergeLimit) { pHandle->mergeLimit = mergeLimit; }
 
+EMergeBlockPrune tsortGetMergeBlockPrune(const SSortHandle* pHandle,
+                                       const STimeWindow* pWindow,
+                                       bool allowTrim) {
+  if (pHandle->type != SORT_BLOCK_TS_MERGE || pHandle->pTsHeap == NULL ||
+      taosArrayGetSize(pHandle->pTsHeap) != (size_t)pHandle->tsHeapCap ||
+      pWindow->skey > pWindow->ekey) {
+    return MERGE_BLOCK_KEEP;
+  }
+
+  const SBlockOrderInfo* pOrder = taosArrayGet(pHandle->pSortInfo, 0);
+  bool asc = pOrder->order == TSDB_ORDER_ASC;
+  int64_t cutoff = pHandle->currMergeLimitTs;
+  // Keep timestamps equal to the cutoff for the remaining sort keys.
+  if (asc ? pWindow->skey > cutoff : pWindow->ekey < cutoff) {
+    return MERGE_BLOCK_SKIP;
+  }
+  if (allowTrim && (asc ? pWindow->ekey > cutoff : pWindow->skey < cutoff)) {
+    return MERGE_BLOCK_TRIM;
+  }
+  return MERGE_BLOCK_KEEP;
+}
+
+bool tsortTrimMergeBlock(const SSortHandle* pHandle, SSDataBlock* pBlock) {
+  if (pBlock->info.rows < 2 || !pBlock->info.dataLoad) {
+    return false;
+  }
+
+  const SBlockOrderInfo* pOrder = taosArrayGet(pHandle->pSortInfo, 0);
+  const SColumnInfoData* pCol =
+      taosArrayGet(pBlock->pDataBlock, pOrder->slotId);
+  if (pCol == NULL || pCol->pData == NULL) {
+    return false;
+  }
+
+  const int64_t* ts = (const int64_t*)pCol->pData;
+  int64_t        cutoff = pHandle->currMergeLimitTs;
+  int64_t        last = pBlock->info.rows - 1;
+  bool           asc = pOrder->order == TSDB_ORDER_ASC;
+
+  // The loaded rows can be narrower than the index window.
+  if (asc ? ts[0] > cutoff || ts[last] <= cutoff
+          : ts[0] < cutoff || ts[last] >= cutoff) {
+    return false;
+  }
+
+  int64_t lo = 1;
+  int64_t hi = last;
+  while (lo < hi) {
+    int64_t mid = lo + (hi - lo) / 2;
+    if (asc ? ts[mid] <= cutoff : ts[mid] >= cutoff) {
+      lo = mid + 1;
+    } else {
+      hi = mid;
+    }
+  }
+
+  blockDataKeepFirstNRows(pBlock, lo);
+  blockDataUpdateTsWindow(pBlock, pOrder->slotId);
+  return true;
+}
+
 void tsortSetFetchRawDataFp(SSortHandle* pHandle, _sort_fetch_block_fn_t fetchFp, void (*fp)(SSDataBlock*, void*),
                             void* param) {
   pHandle->fetchfp = fetchFp;

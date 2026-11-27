@@ -18,6 +18,7 @@
 #include <cstdlib>
 #include <set>
 #include <string>
+#include <vector>
 
 namespace ParserTest {
 namespace {
@@ -291,6 +292,44 @@ TEST(ParserAstTest, joinAlgoHintAcceptsSingleParameter) {
   EXPECT_EQ(LIST_LENGTH(result), 1);
   EXPECT_EQ(context.errCode, TSDB_CODE_SUCCESS);
   nodesDestroyList(result);
+}
+
+TEST(ParserAstTest, noDecorrelateAndJoinHintLists) {
+  struct HintCase {
+    const char* sql;
+    std::vector<EHintOption> options;
+  };
+  const HintCase cases[] = {
+      {"/*+ , NO_DECORRELATE() */", {}},
+      {"/*+ NO_DECORRELATE, HASH_JOIN() */", {}},
+      {"/*+ DECORRELATE() */", {}},
+      {"/*+ NO_DECORRELATE() NO_DECORRELATE() */", {HINT_NO_DECORRELATE}},
+      {"/*+ HASH_JOIN, NO_DECORRELATE() */", {HINT_HASH_JOIN, HINT_NO_DECORRELATE}},
+      {"/*+ MERGE_JOIN NO_DECORRELATE() */", {HINT_MERGE_JOIN, HINT_NO_DECORRELATE}},
+      {"/*+ HASH_JOIN() NO_DECORRELATE, MERGE_JOIN */", {HINT_HASH_JOIN}},
+      {"/*+ HASH_JOIN) NO_DECORRELATE() */", {}},
+      {"/*+ HASH_JOIN, NO_DECORRELATE(,) */", {HINT_HASH_JOIN}},
+  };
+  initKeywordsTableOnce();
+  for (const auto& test : cases) {
+    SCOPED_TRACE(test.sql);
+    SParseContext query = {};
+    SAstCreateContext context;
+    initAstCreateContext(&query, &context);
+    std::string hint(test.sql);
+    SToken literal = {};
+    literal.z = &hint[0];
+    literal.n = static_cast<uint32_t>(hint.size());
+    SNodeList* result = createHintNodeList(&context, &literal);
+    std::vector<EHintOption> options;
+    SNode* node = nullptr;
+    FOREACH(node, result) {
+      options.push_back(reinterpret_cast<SHintNode*>(node)->option);
+    }
+    nodesDestroyList(result);
+    EXPECT_EQ(context.errCode, TSDB_CODE_SUCCESS);
+    EXPECT_EQ(options, test.options);
+  }
 }
 
 // Guards the bound on the fixed-size SToken paramList[10] in

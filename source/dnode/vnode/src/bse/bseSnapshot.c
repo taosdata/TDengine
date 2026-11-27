@@ -57,6 +57,7 @@ static int32_t bseRawFileWriterOpen(SBse *pBse, int64_t sver, int64_t ever, SBse
   }
 
   p->fileType = pMeta->fileType;
+  p->timestamp = pMeta->timestamp;
   p->range = *range;
   p->pBse = pBse;
   p->pFile = taosOpenFile(path, TD_FILE_CREATE | TD_FILE_WRITE | TD_FILE_READ | TD_FILE_APPEND | TD_FILE_TRUNC);
@@ -114,7 +115,7 @@ int32_t bseSnapMayOpenNewFile(SBseSnapWriter *pWriter, SBseSnapMeta *pMeta) {
 
   SBseRawFileWriter *pOld = pWriter->pWriter;
 
-  if (pOld == NULL || (pOld->fileType != pMeta->fileType)) {
+  if (pOld == NULL || pOld->fileType != pMeta->fileType || pOld->timestamp != pMeta->timestamp) {
     if (pOld != NULL) {
       SBseLiveFileInfo info;
       bseRawFileGenLiveInfo(pOld, &info);
@@ -190,6 +191,7 @@ _error:
     if (p->pWriter != NULL) {
       bseError("vgId:%d failed to write snapshot data since %s", BSE_VGID((SBse *)p->pBse), tstrerror(code));
       bseRawFileWriterClose(p->pWriter, 0);
+      p->pWriter = NULL;
     }
     return code;
   }
@@ -206,6 +208,7 @@ void bseSnapWriterClose(SBseSnapWriter **pp, int8_t rollback) {
   taosArrayDestroy(p->pFileSet);
   bseRawFileWriterClose(p->pWriter, 0);
   taosMemoryFree(p);
+  *pp = NULL;
 }
 
 int32_t bseSnapReaderOpen(SBse *pBse, int64_t sver, int64_t ever, SBseSnapReader **ppReader) {
