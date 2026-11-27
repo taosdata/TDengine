@@ -17,7 +17,7 @@
 # along with this program. If not, see <http://www.gnu.org/licenses/>.
 
 import time
-from new_test_framework.utils import tdLog, tdSql, tdStream, cluster
+from new_test_framework.utils import clusterComCheck, tdLog, tdSql, tdStream
 
 class TestStreamIdleTrigger:
     """Stream idle trigger test suite
@@ -91,8 +91,8 @@ class TestStreamIdleTrigger:
     def test_resume_detection_basic(self):
         """Basic resume detection - trigger RESUME event after idle
 
-        Test that a partition group triggers a RESUME event when data
-        is received after being in IDLE state.
+        Wait for d001's first IDLE result before inserting resume data.
+        Verify that d001 emits a later result for the same idle period.
 
         Since: v3.3.4.0
 
@@ -103,14 +103,18 @@ class TestStreamIdleTrigger:
         History:
             - 2026-03-17 Created
         """
+        self.do_resume_detection_basic()
+
+    def do_resume_detection_basic(self):
         tdLog.info("=== Test: Basic resume detection ===")
 
-        # Create database and source table
-        self.init_test_database("resume_basic")
+        # Keep the event timestamp distinct even if IDLE and RESUME land within one millisecond.
+        db_name = f"{self.dbname}_resume_basic"
+        tdSql.prepare(dbname=db_name, vgroups=tdStream.vgroups, precision="ns")
+        clusterComCheck.checkDbReady(db_name)
         tdSql.execute("create table st (ts timestamp, v int) tags (gid int)")
         tdSql.execute("create table d001 using st tags (1)")
 
-        # Create stream with IDLE_TIMEOUT(3s) and EVENT_TYPE(IDLE|RESUME)
         stream_name = "s_resume_basic"
         self.create_stream_and_wait(
             stream_name,
@@ -118,21 +122,27 @@ class TestStreamIdleTrigger:
             f"sliding(1s) from st partition by tbname "
             f"stream_options(idle_timeout(3s) | event_type(idle|resume)) "
             f"into out_resume "
-            f"as select cast(_tidlestart/1000000 as timestamp), cast(_tidleend/1000000 as timestamp), tbname from st"
+            f"as select _tidleend as event_time, _tidlestart as idle_start from st"
         )
 
-        # Insert initial data
-        tdSql.execute("insert into d001 values (now, 1)")
-
-        # Wait for idle timeout, then insert new data to trigger RESUME
-        tdLog.info("Waiting for idle timeout...")
-        time.sleep(5)
-        tdSql.execute("insert into d001 values (now, 2)")
-
-        # Check if both IDLE and RESUME events were triggered
+        base_ts = 1760000000000000000
+        tdSql.execute(f"insert into d001 values ({base_ts}, 1)")
+        events_sql = (
+            "select cast(event_time as bigint), cast(idle_start as bigint) "
+            "from out_resume where tag_tbname = 'd001'"
+        )
         tdSql.checkResultsByFunc(
-            sql="select * from out_resume",
-            func=lambda: tdSql.getRows() >= 2,
+            sql=f"{events_sql} and event_time > idle_start",
+            func=lambda: tdSql.getRows() == 1,
+        )
+        first_idle_end, first_idle_start = tdSql.getData(0, 0), tdSql.getData(0, 1)
+
+        tdSql.execute(f"insert into d001 values ({base_ts + 1_000_000_000}, 2)")
+
+        # RESUME shares the first IDLE's start. The next IDLE starts at the resumed input.
+        tdSql.checkResultsByFunc(
+            sql=f"{events_sql} and idle_start = {first_idle_start} and event_time > {first_idle_end}",
+            func=lambda: tdSql.getRows() == 1,
         )
         tdLog.success("✓ IDLE and RESUME events triggered successfully")
 

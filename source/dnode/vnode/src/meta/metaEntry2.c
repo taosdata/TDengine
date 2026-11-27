@@ -3290,7 +3290,13 @@ static int32_t metaHandleSuperTableDrop(SMeta *pMeta, const SMetaEntry *pEntry) 
     return code;
   }
 
+  // The child enumeration walks pCtbIdx and probes pTxnIdx. The async txn vacuum thread mutates both trees under
+  // metaWLock, so an unlocked walk can read a page that is being split/merged/freed: that crashed taosd (SEGV in
+  // tdbTbGet from here) and could silently skip children, leaving them behind as orphans of the dropped STB.
+  // Hold the read lock for the whole enumeration (no caller holds the meta lock here).
+  metaRLock(pMeta);
   code = metaGetChildUidsOfSuperTableTxn(pMeta, pEntry->uid, 0, true, &childList);
+  metaULock(pMeta);
   if (code) {
     metaErr(TD_VID(pMeta->pVnode), code);
     metaFetchEntryFree(&pOldEntry);

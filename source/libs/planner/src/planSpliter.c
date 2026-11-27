@@ -3002,7 +3002,7 @@ static int32_t mergeTableScanSplit(SSplitContext* pCxt, SLogicSubplan* pSubplan)
 }
 
 static bool mergeAggColsNeedSplit(SLogicNode* pNode) {
-  if (QUERY_NODE_LOGIC_PLAN_AGG == nodeType(pNode) && 1 == LIST_LENGTH(pNode->pChildren) &&
+  if (!pNode->splitDone && QUERY_NODE_LOGIC_PLAN_AGG == nodeType(pNode) && 1 == LIST_LENGTH(pNode->pChildren) &&
       NULL != pNode->pParent &&
       QUERY_NODE_LOGIC_PLAN_MERGE == nodeType(pNode->pParent) &&
       ((SMergeLogicNode *)pNode->pParent)->colsMerge &&
@@ -3023,6 +3023,21 @@ static bool mergeAggColsFindSplitNode(SSplitContext* pCxt, SLogicSubplan* pSubpl
   return false;
 }
 
+static int32_t splSplitScanBranch(SSplitContext* pCxt, SLogicSubplan* pParent, SLogicNode* pScan,
+                                  ESubplanType parentType) {
+  PLAN_ERR_RET(splCreateExchangeNodeForSubplan(pCxt, pParent, pScan, parentType, false, false));
+  // The exchange replaced the scan in its parent. Transfer the detached scan to its subplan.
+  SLogicSubplan* pChild = splCreateScanSubplan(pCxt, pScan, 0);
+  if (NULL == pChild) {
+    int32_t code = terrno;
+    nodesDestroyNode((SNode*)pScan);
+    return code;
+  }
+  PLAN_ERR_RET(nodesListMakeStrictAppend(&pParent->pChildren, (SNode*)pChild));
+  ++pCxt->groupId;
+  return TSDB_CODE_SUCCESS;
+}
+
 static int32_t mergeAggColsSplit(SSplitContext* pCxt, SLogicSubplan* pSubplan) {
   int32_t                code = TSDB_CODE_SUCCESS;
   SMergeAggColsSplitInfo info = {0};
@@ -3030,11 +3045,12 @@ static int32_t mergeAggColsSplit(SSplitContext* pCxt, SLogicSubplan* pSubplan) {
     return TSDB_CODE_SUCCESS;
   }
 
-  PLAN_ERR_RET(splCreateExchangeNodeForSubplan(pCxt, info.pSubplan, info.pSplitNode, SUBPLAN_TYPE_MERGE, false,
-                                               false));
-  PLAN_ERR_RET(nodesListMakeStrictAppend(&info.pSubplan->pChildren, (SNode*)splCreateScanSubplan(pCxt, info.pSplitNode, 0)));
-
-  ++(pCxt->groupId);
+  SNode* branch = NULL;
+  FOREACH(branch, info.pAgg->node.pParent->pChildren) {
+    if (!mergeAggColsNeedSplit((SLogicNode*)branch)) continue;
+    SLogicNode* scan = (SLogicNode*)nodesListGetNode(((SLogicNode*)branch)->pChildren, 0);
+    PLAN_ERR_RET(splSplitScanBranch(pCxt, info.pSubplan, scan, SUBPLAN_TYPE_MERGE));
+  }
   pCxt->split = true;
   return code;
 }
@@ -3045,7 +3061,7 @@ typedef struct SMergeExtWinSplitInfo {
 } SMergeExtWinSplitInfo;
 
 static bool mergeExtWinNeedSplit(SLogicNode* pNode) {
-  if (QUERY_NODE_LOGIC_PLAN_SCAN == nodeType(pNode) &&
+  if (!pNode->splitDone && QUERY_NODE_LOGIC_PLAN_SCAN == nodeType(pNode) &&
       pNode->pParent &&
       pNode->pParent->pParent &&
       QUERY_NODE_LOGIC_PLAN_WINDOW == nodeType(pNode->pParent)) {
@@ -3093,16 +3109,17 @@ static int32_t mergeExtWinSplit(SSplitContext* pCxt, SLogicSubplan* pSubplan) {
     return TSDB_CODE_SUCCESS;
   }
 
-  PLAN_ERR_RET(splCreateExchangeNodeForSubplan(pCxt, info.pSubplan, info.pSplitNode, info.pSubplan->subplanType,
-                                               false, false));
-  PLAN_ERR_RET(nodesListMakeStrictAppend(&info.pSubplan->pChildren, (SNode*)splCreateScanSubplan(pCxt, info.pSplitNode, 0)));
-
-  // After moving the scan out, re-evaluate the parent subplan type: if no scan
-  // remains in the parent tree, it must not stay SUBPLAN_TYPE_SCAN, otherwise
-  // the scheduler will reject it with TSDB_CODE_SCH_DATA_SRC_EP_MISS.
+  SNode* window = NULL;
+  FOREACH(window, info.pSplitNode->pParent->pParent->pChildren) {
+    if (nodeType(window) != QUERY_NODE_LOGIC_PLAN_WINDOW) continue;
+    SNode* child = NULL;
+    FOREACH(child, ((SLogicNode*)window)->pChildren) {
+      SLogicNode* scan = (SLogicNode*)child;
+      if (!mergeExtWinNeedSplit(scan)) continue;
+      PLAN_ERR_RET(splSplitScanBranch(pCxt, info.pSubplan, scan, info.pSubplan->subplanType));
+    }
+  }
   splSetSubplanType(info.pSubplan);
-
-  ++(pCxt->groupId);
   pCxt->split = true;
   return code;
 }
@@ -3745,6 +3762,7 @@ static void setGroupMergeDecision(SPlanContext* pCxt, SLogicNode* pNode) {
 }
 
 int32_t splitLogicPlan(SPlanContext* pCxt, SLogicSubplan* pLogicSubplan) {
+  PLAN_ERR_RET(planMaterializeVirtualSourcesInTree(pLogicSubplan->pNode));
   // Preserve consumer requirements before splitting severs parent links.
   // Only terminal output through projections or global sorts can lose groups
   // and their timestamp ordering guarantees.

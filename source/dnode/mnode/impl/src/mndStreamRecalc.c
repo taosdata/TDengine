@@ -425,9 +425,9 @@ static bool mndStreamRecalcSnapshotValid(const SStreamRecalcSnapshot *pSnapshot)
     return false;
   }
   if (pSnapshot->status == STREAM_RECALC_STATUS_PENDING) return pSnapshot->progressPct == 0;
-  if (pSnapshot->status == STREAM_RECALC_STATUS_RUNNING) return pSnapshot->progressPct < 100;
   if (pSnapshot->status == STREAM_RECALC_STATUS_FINISHED) return pSnapshot->progressPct == 100;
-  return pSnapshot->progressPct < 100;
+  // The trigger can cover the full range before the last attempt succeeds or fails.
+  return true;
 }
 
 static bool mndStreamRecalcDetailValid(const SStreamRecalcDetail *pDetail) {

@@ -5328,6 +5328,711 @@ TEST(execUtilTest, stableTagFilterCacheSeparatesVariableTagComponents) {
   tsStableTagFilterCache = oldStable;
 }
 
+static int32_t g_testTbGroupPutCalls = 0;
+static uint64_t g_testTbGroupPutSuid = 0;
+static SArray* g_testTbGroupPutPayload = nullptr;
+
+static int32_t testMetaPutTbGroupToCache(void *pVnode, uint64_t suid, const void *pKey, int32_t keyLen,
+                                         void *pPayload, int32_t payloadLen) {
+  ++g_testTbGroupPutCalls;
+  g_testTbGroupPutSuid = suid;
+  // The mock takes ownership of each payload; release a previous one first so a
+  // repeated write cannot leak it.
+  if (g_testTbGroupPutPayload != nullptr && g_testTbGroupPutPayload != pPayload) {
+    taosArrayDestroy(g_testTbGroupPutPayload);
+  }
+  g_testTbGroupPutPayload = static_cast<SArray *>(pPayload);
+  return TSDB_CODE_SUCCESS;
+}
+
+// Restores the global cache switch and releases the mock payload even when an
+// ASSERT_* aborts the test body.
+struct TbGroupCacheMockGuard {
+  char oldCache;
+  TbGroupCacheMockGuard() : oldCache(tsTagFilterCache) {
+    tsTagFilterCache = 1;
+    g_testTbGroupPutCalls = 0;
+    g_testTbGroupPutSuid = 0;
+    g_testTbGroupPutPayload = nullptr;
+  }
+  ~TbGroupCacheMockGuard() {
+    tsTagFilterCache = oldCache;
+    if (g_testTbGroupPutPayload != nullptr) {
+      taosArrayDestroy(g_testTbGroupPutPayload);
+      g_testTbGroupPutPayload = nullptr;
+    }
+  }
+};
+
+TEST(execUtilTest, materializedScalarGroupBypassesTbGroupCacheWrite) {
+  TbGroupCacheMockGuard guard;
+
+  SStorageAPI api = {};
+  api.metaFn.metaPutTbGroupToCache = testMetaPutTbGroupToCache;
+
+  STableListInfo tables = {};
+  tables.idInfo.suid = 77;
+  tables.pTableList = taosArrayInit(2, sizeof(STableKeyInfo));
+  ASSERT_NE(nullptr, tables.pTableList);
+  STableKeyInfo table = {};
+  table.uid = 12345;
+  ASSERT_NE(nullptr, taosArrayPush(tables.pTableList, &table));
+
+  uint8_t digest[16] = {1};
+  uint8_t cacheKey[16] = {9};
+
+  // Materialized scalar group outputs must not duplicate the table list or
+  // write a zero/short-circuit digest entry.
+  SHashObj *pSlots = taosHashInit(4, taosGetDefaultHashFunction(TSDB_DATA_TYPE_INT), false, HASH_NO_LOCK);
+  ASSERT_NE(nullptr, pSlots);
+  tables.pGroupDataSlots = pSlots;
+  EXPECT_EQ(TSDB_CODE_SUCCESS,
+            execUtilTestPutTbGroupToCache(&tables, nullptr, &api, nullptr, digest, cacheKey, sizeof(cacheKey)));
+  EXPECT_EQ(0, g_testTbGroupPutCalls);
+  // The bypassed call must not have written (and therefore must not have
+  // swapped in) any payload at all.
+  EXPECT_EQ(nullptr, g_testTbGroupPutPayload);
+
+  // The non-materialized path keeps writing exactly one cache entry; the mock
+  // becomes the payload owner, so release it here.
+  tables.pGroupDataSlots = nullptr;
+  EXPECT_EQ(TSDB_CODE_SUCCESS,
+            execUtilTestPutTbGroupToCache(&tables, nullptr, &api, nullptr, digest, cacheKey, sizeof(cacheKey)));
+  EXPECT_EQ(1, g_testTbGroupPutCalls);
+  ASSERT_NE(nullptr, g_testTbGroupPutPayload);
+  // The payload is a copy of the current table list: same suid, same single
+  // table uid, and no shared buffer with the source array.
+  EXPECT_EQ(tables.idInfo.suid, g_testTbGroupPutSuid);
+  ASSERT_EQ(1, (int32_t)taosArrayGetSize(g_testTbGroupPutPayload));
+  const STableKeyInfo *written = static_cast<const STableKeyInfo *>(
+      taosArrayGet(g_testTbGroupPutPayload, 0));
+  const STableKeyInfo *source = static_cast<const STableKeyInfo *>(
+      taosArrayGet(tables.pTableList, 0));
+  ASSERT_NE(nullptr, written);
+  ASSERT_NE(nullptr, source);
+  EXPECT_EQ(source->uid, written->uid);
+  EXPECT_NE(static_cast<const void *>(written), static_cast<const void *>(source));
+  EXPECT_NE(static_cast<const void *>(g_testTbGroupPutPayload),
+            static_cast<const void *>(tables.pTableList));
+
+  // The no-cache digest and an explicit groupIdMap keep bypassing the write.
+  uint8_t noCacheDigest[16] = {2};  // TB_GROUP_DIGEST_NO_CACHE
+  EXPECT_EQ(TSDB_CODE_SUCCESS,
+            execUtilTestPutTbGroupToCache(&tables, nullptr, &api, nullptr, noCacheDigest, cacheKey, sizeof(cacheKey)));
+  EXPECT_EQ(TSDB_CODE_SUCCESS,
+            execUtilTestPutTbGroupToCache(&tables, pSlots, &api, nullptr, digest, cacheKey, sizeof(cacheKey)));
+  EXPECT_EQ(1, g_testTbGroupPutCalls);
+
+  taosHashCleanup(pSlots);
+  taosArrayDestroy(tables.pTableList);
+}
+
+static SColumnInfoData *makeScalarGroupTestColumn(int16_t type, int32_t bytes, int32_t rows, int32_t value) {
+  SColumnInfoData *p = static_cast<SColumnInfoData *>(taosMemoryCalloc(1, sizeof(SColumnInfoData)));
+  if (p == nullptr) return nullptr;
+  *p = createColumnInfoData(type, bytes, 0);
+  if (colInfoDataEnsureCapacity(p, rows, false) != 0) {
+    // ensureCapacity may already own a nullbitmap/payload; release it exactly
+    // like the other scalar-group test helpers.
+    colDataDestroy(p);
+    taosMemoryFree(p);
+    return nullptr;
+  }
+  for (int32_t i = 0; i < rows; ++i) {
+    colDataSetVal(p, i, reinterpret_cast<const char *>(&value), false);
+  }
+  return p;
+}
+
+static void freeScalarGroupTestColumn(void *p) {
+  if (p != nullptr) {
+    colDataDestroy(static_cast<SColumnInfoData *>(p));
+    taosMemoryFree(p);
+  }
+}
+
+// Releases the table-list state a test builds by hand even when an ASSERT_*
+// aborts the body; nothing else owns these members until the test destroys
+// them at the end.
+struct ScalarGroupTestTablesGuard {
+  STableListInfo *pTables;
+  explicit ScalarGroupTestTablesGuard(STableListInfo *tables) : pTables(tables) {}
+  ~ScalarGroupTestTablesGuard() {
+    if (pTables == nullptr) return;
+    taosArrayDestroyP(pTables->pGroupData, freeScalarGroupTestColumn);
+    pTables->pGroupData = nullptr;
+    taosHashCleanup(pTables->pGroupDataRows);
+    pTables->pGroupDataRows = nullptr;
+    taosHashCleanup(pTables->pGroupDataSlots);
+    pTables->pGroupDataSlots = nullptr;
+    taosArrayDestroy(pTables->pTableList);
+    pTables->pTableList = nullptr;
+  }
+};
+
+// A materialized GROUP BY key as it appears in pScanPseudoCols: a non-column
+// expression. Raw tag columns and scan pseudo-column functions are skipped by
+// initGroupDataSlotMap, so they cannot stand in for one.
+static SNode *makeScalarGroupKeyExpr(col_id_t colId, int32_t delta) {
+  SOperatorNode *pOp = nullptr;
+  if (nodesMakeNode(QUERY_NODE_OPERATOR, reinterpret_cast<SNode **>(&pOp)) != TSDB_CODE_SUCCESS || pOp == nullptr) {
+    return nullptr;
+  }
+  pOp->node.resType.type = TSDB_DATA_TYPE_BIGINT;
+  pOp->node.resType.bytes = sizeof(int64_t);
+  pOp->opType = OP_TYPE_ADD;
+  pOp->pLeft = makeTagColumn(colId, TSDB_DATA_TYPE_BIGINT, sizeof(int64_t));
+  pOp->pRight = makeIntValue(delta);
+  return reinterpret_cast<SNode *>(pOp);
+}
+
+static STargetNode *makeScalarGroupPseudoTarget(int32_t slotId, const SNode *pExpr) {
+  STargetNode *pTarget = nullptr;
+  if (nodesMakeNode(QUERY_NODE_TARGET, reinterpret_cast<SNode **>(&pTarget)) != TSDB_CODE_SUCCESS ||
+      pTarget == nullptr) {
+    return nullptr;
+  }
+  pTarget->slotId = slotId;
+  if (nodesCloneNode(pExpr, &pTarget->pExpr) != TSDB_CODE_SUCCESS) {
+    nodesDestroyNode(reinterpret_cast<SNode *>(pTarget));
+    return nullptr;
+  }
+  return pTarget;
+}
+
+TEST(execUtilTest, initGroupDataSlotMapSkipsValuesAndRebuilds) {
+  STableListInfo tables = {};
+  SNodeList *group = nullptr;
+  ASSERT_EQ(TSDB_CODE_SUCCESS, nodesListMakeStrictAppend(&group, makeIntValue(7)));
+  SNode *pKeyExpr = makeScalarGroupKeyExpr(3, 1);
+  ASSERT_EQ(TSDB_CODE_SUCCESS, nodesListMakeStrictAppend(&group, pKeyExpr));
+  SNode *pOtherExpr = makeScalarGroupKeyExpr(4, 2);
+  ASSERT_EQ(TSDB_CODE_SUCCESS, nodesListMakeStrictAppend(&group, pOtherExpr));
+
+  SScanPhysiNode scan = {};
+  // Raw tag pseudo columns are per-table values, not reusable group results.
+  STargetNode *pTagTarget = nullptr;
+  ASSERT_EQ(TSDB_CODE_SUCCESS, nodesMakeNode(QUERY_NODE_TARGET, reinterpret_cast<SNode **>(&pTagTarget)));
+  pTagTarget->slotId = 11;
+  pTagTarget->pExpr = makeTagColumn(3, TSDB_DATA_TYPE_BIGINT, sizeof(int64_t));
+  ASSERT_EQ(TSDB_CODE_SUCCESS,
+            nodesListMakeStrictAppend(&scan.pScanPseudoCols, reinterpret_cast<SNode *>(pTagTarget)));
+
+  SNode *pGroupKey = nodesListGetNode(group, 1);
+  SNode *pOtherKey = nodesListGetNode(group, 2);
+  ASSERT_EQ(TSDB_CODE_SUCCESS,
+            nodesListMakeStrictAppend(&scan.pScanPseudoCols,
+                                      reinterpret_cast<SNode *>(makeScalarGroupPseudoTarget(7, pGroupKey))));
+  ASSERT_EQ(TSDB_CODE_SUCCESS,
+            nodesListMakeStrictAppend(&scan.pScanPseudoCols,
+                                      reinterpret_cast<SNode *>(makeScalarGroupPseudoTarget(9, pOtherKey))));
+
+  ASSERT_EQ(TSDB_CODE_SUCCESS, execUtilTestInitGroupDataSlotMap(&tables, &scan, group));
+  int32_t  skippedSlot = 11;
+  EXPECT_EQ(nullptr, taosHashGet(tables.pGroupDataSlots, &skippedSlot, sizeof(skippedSlot)));
+  // VALUE entries are skipped, so the expressions are indexed 0 and 1.
+  int32_t  slot = 7;
+  int32_t *pIdx = static_cast<int32_t *>(taosHashGet(tables.pGroupDataSlots, &slot, sizeof(slot)));
+  ASSERT_NE(nullptr, pIdx);
+  EXPECT_EQ(0, *pIdx);
+  int32_t slot2 = 9;
+  pIdx = static_cast<int32_t *>(taosHashGet(tables.pGroupDataSlots, &slot2, sizeof(slot2)));
+  ASSERT_NE(nullptr, pIdx);
+  EXPECT_EQ(1, *pIdx);
+
+  // A second build must drop stale slot mappings. initGroupDataSlotMap rebuilds
+  // the hash from scratch (and this test relies on that contract, not on a
+  // particular internal cleanup call), so the old two slots must be gone.
+  SScanPhysiNode scan2 = {};
+  ASSERT_EQ(TSDB_CODE_SUCCESS,
+            nodesListMakeStrictAppend(&scan2.pScanPseudoCols,
+                                      reinterpret_cast<SNode *>(makeScalarGroupPseudoTarget(12, pGroupKey))));
+
+  ASSERT_EQ(TSDB_CODE_SUCCESS, execUtilTestInitGroupDataSlotMap(&tables, &scan2, group));
+  EXPECT_EQ(nullptr, taosHashGet(tables.pGroupDataSlots, &slot, sizeof(slot)));
+  EXPECT_EQ(nullptr, taosHashGet(tables.pGroupDataSlots, &slot2, sizeof(slot2)));
+  int32_t slot3 = 12;
+  pIdx = static_cast<int32_t *>(taosHashGet(tables.pGroupDataSlots, &slot3, sizeof(slot3)));
+  ASSERT_NE(nullptr, pIdx);
+  EXPECT_EQ(0, *pIdx);
+
+  nodesDestroyList(scan.pScanPseudoCols);
+  nodesDestroyList(scan2.pScanPseudoCols);
+  nodesDestroyList(group);
+  taosHashCleanup(tables.pGroupDataSlots);
+}
+
+TEST(execUtilTest, setScalarGroupColumnDataValidationAndCopy) {
+  STableListInfo tables = {};
+  ScalarGroupTestTablesGuard tablesGuard(&tables);
+  tables.pTableList = taosArrayInit(2, sizeof(STableKeyInfo));
+  ASSERT_NE(nullptr, tables.pTableList);
+  STableKeyInfo key0 = {};
+  STableKeyInfo key1 = {};
+  key0.uid = 101;
+  key1.uid = 202;
+  ASSERT_NE(nullptr, taosArrayPush(tables.pTableList, &key0));
+  ASSERT_NE(nullptr, taosArrayPush(tables.pTableList, &key1));
+
+  tables.pGroupDataRows = taosHashInit(4, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT), false, HASH_NO_LOCK);
+  tables.pGroupDataSlots = taosHashInit(4, taosGetDefaultHashFunction(TSDB_DATA_TYPE_INT), false, HASH_NO_LOCK);
+  ASSERT_NE(nullptr, tables.pGroupDataRows);
+  ASSERT_NE(nullptr, tables.pGroupDataSlots);
+  int32_t row0 = 0;
+  int32_t row1 = 1;
+  ASSERT_EQ(TSDB_CODE_SUCCESS, taosHashPut(tables.pGroupDataRows, &key0.uid, sizeof(key0.uid), &row0, sizeof(row0)));
+  ASSERT_EQ(TSDB_CODE_SUCCESS, taosHashPut(tables.pGroupDataRows, &key1.uid, sizeof(key1.uid), &row1, sizeof(row1)));
+  int32_t slot7 = 7;
+  int32_t slot8 = 8;
+  int32_t slot9 = 9;
+  int32_t data0 = 0;
+  int32_t data1 = 1;
+  int32_t dataOut = 5;
+  ASSERT_EQ(TSDB_CODE_SUCCESS, taosHashPut(tables.pGroupDataSlots, &slot7, sizeof(slot7), &data0, sizeof(data0)));
+  ASSERT_EQ(TSDB_CODE_SUCCESS, taosHashPut(tables.pGroupDataSlots, &slot8, sizeof(slot8), &data1, sizeof(data1)));
+  ASSERT_EQ(TSDB_CODE_SUCCESS, taosHashPut(tables.pGroupDataSlots, &slot9, sizeof(slot9), &dataOut, sizeof(dataOut)));
+
+  tables.pGroupData = taosArrayInit(2, POINTER_BYTES);
+  ASSERT_NE(nullptr, tables.pGroupData);
+  // Hold the columns in deleters until the array owns them, so an ASSERT that
+  // aborts the body cannot leak the ones not pushed yet.
+  std::unique_ptr<SColumnInfoData, decltype(&freeScalarGroupTestColumn)> src0(
+      makeScalarGroupTestColumn(TSDB_DATA_TYPE_INT, sizeof(int32_t), 2, 42), freeScalarGroupTestColumn);
+  std::unique_ptr<SColumnInfoData, decltype(&freeScalarGroupTestColumn)> src1(
+      makeScalarGroupTestColumn(TSDB_DATA_TYPE_INT, sizeof(int32_t), 2, 77), freeScalarGroupTestColumn);
+  ASSERT_NE(nullptr, src0);
+  ASSERT_NE(nullptr, src1);
+  SColumnInfoData *src0Raw = src0.get();
+  ASSERT_NE(nullptr, taosArrayPush(tables.pGroupData, &src0Raw));
+  src0.release();
+  SColumnInfoData *src1Raw = src1.get();
+  ASSERT_NE(nullptr, taosArrayPush(tables.pGroupData, &src1Raw));
+  src1.release();
+
+  bool           set = false;
+  SColumnInfoData dst = createColumnInfoData(TSDB_DATA_TYPE_INT, sizeof(int32_t), 7);
+  ASSERT_EQ(TSDB_CODE_SUCCESS, scanTestSetScalarGroupColumnData(&tables, slot7, key0.uid, &dst, 2, &set));
+  EXPECT_TRUE(set);
+  EXPECT_EQ(42, *reinterpret_cast<int32_t *>(colDataGetData(&dst, 0)));
+  EXPECT_EQ(42, *reinterpret_cast<int32_t *>(colDataGetData(&dst, 1)));
+  colDataDestroy(&dst);
+
+  // Unknown slot id / unknown uid / out-of-range data index.
+  dst = createColumnInfoData(TSDB_DATA_TYPE_INT, sizeof(int32_t), 7);
+  set = true;
+  EXPECT_EQ(TSDB_CODE_SUCCESS, scanTestSetScalarGroupColumnData(&tables, 6, key0.uid, &dst, 1, &set));
+  EXPECT_FALSE(set);
+  set = true;
+  EXPECT_EQ(TSDB_CODE_SUCCESS, scanTestSetScalarGroupColumnData(&tables, slot7, 999, &dst, 1, &set));
+  EXPECT_FALSE(set);
+  set = true;
+  EXPECT_EQ(TSDB_CODE_SUCCESS, scanTestSetScalarGroupColumnData(&tables, slot9, key0.uid, &dst, 1, &set));
+  EXPECT_FALSE(set);
+  colDataDestroy(&dst);
+
+  // Released placeholder (NULL group data entry).
+  freeScalarGroupTestColumn(taosArrayGetP(tables.pGroupData, 1));
+  SColumnInfoData *released = nullptr;
+  taosArraySet(tables.pGroupData, 1, &released);
+  dst = createColumnInfoData(TSDB_DATA_TYPE_INT, sizeof(int32_t), 8);
+  set = true;
+  EXPECT_EQ(TSDB_CODE_SUCCESS, scanTestSetScalarGroupColumnData(&tables, slot8, key1.uid, &dst, 1, &set));
+  EXPECT_FALSE(set);
+  colDataDestroy(&dst);
+
+  // Type mismatch and fixed-width mismatch.
+  SColumnInfoData dstBig = createColumnInfoData(TSDB_DATA_TYPE_BIGINT, sizeof(int64_t), 8);
+  set = true;
+  EXPECT_EQ(TSDB_CODE_SUCCESS, scanTestSetScalarGroupColumnData(&tables, slot7, key0.uid, &dstBig, 1, &set));
+  EXPECT_FALSE(set);
+  colDataDestroy(&dstBig);
+
+  SColumnInfoData dstWide = createColumnInfoData(TSDB_DATA_TYPE_INT, sizeof(int32_t), 7);
+  dstWide.info.bytes = sizeof(int64_t);
+  set = true;
+  EXPECT_EQ(TSDB_CODE_SUCCESS, scanTestSetScalarGroupColumnData(&tables, slot7, key0.uid, &dstWide, 1, &set));
+  EXPECT_FALSE(set);
+  colDataDestroy(&dstWide);
+
+  // Variable-length destination against a fixed-width source must fall back too.
+  SColumnInfoData dstVar = createColumnInfoData(TSDB_DATA_TYPE_VARCHAR, VARSTR_HEADER_SIZE + 8, 4);
+  set = true;
+  EXPECT_EQ(TSDB_CODE_SUCCESS, scanTestSetScalarGroupColumnData(&tables, slot7, key0.uid, &dstVar, 1, &set));
+  EXPECT_FALSE(set);
+  colDataDestroy(&dstVar);
+
+  // A reused destination that still has NULL bits in the rows being filled
+  // must come back with values, not stale NULLs.
+  SColumnInfoData dstReused = createColumnInfoData(TSDB_DATA_TYPE_INT, sizeof(int32_t), 0);
+  ASSERT_EQ(TSDB_CODE_SUCCESS, colInfoDataEnsureCapacity(&dstReused, 3, false));
+  colDataSetNULL(&dstReused, 0);
+  colDataSetNULL(&dstReused, 1);
+  ASSERT_TRUE(colDataIsNull_s(&dstReused, 0));
+  ASSERT_TRUE(colDataIsNull_s(&dstReused, 1));
+  set = true;
+  EXPECT_EQ(TSDB_CODE_SUCCESS,
+            scanTestSetScalarGroupColumnData(&tables, slot7, key0.uid, &dstReused, 2, &set));
+  EXPECT_TRUE(set);
+  EXPECT_FALSE(dstReused.hasNull);
+  for (int32_t i = 0; i < 2; ++i) {
+    EXPECT_FALSE(colDataIsNull_s(&dstReused, i));
+    EXPECT_EQ(42, *reinterpret_cast<int32_t *>(colDataGetData(&dstReused, i)));
+  }
+  colDataDestroy(&dstReused);
+}
+
+// Fixed-width column with per-row values and explicit NULL rows.
+static SColumnInfoData *makeScalarGroupFixedColumn(int16_t type, int32_t bytes, const std::vector<int64_t> &values,
+                                                   const std::vector<bool> &isNull) {
+  auto *p = static_cast<SColumnInfoData *>(taosMemoryCalloc(1, sizeof(SColumnInfoData)));
+  if (p == nullptr) return nullptr;
+  *p = createColumnInfoData(type, bytes, 0);
+  const int32_t rows = static_cast<int32_t>(values.size());
+  if (colInfoDataEnsureCapacity(p, rows, false) != 0) {
+    // colInfoDataEnsureCapacity may have allocated the bitmap or payload before
+    // failing; destroy through the same path as the success case.
+    colDataDestroy(p);
+    taosMemoryFree(p);
+    return nullptr;
+  }
+  for (int32_t i = 0; i < rows; ++i) {
+    if (i < static_cast<int32_t>(isNull.size()) && isNull[i]) {
+      colDataSetNULL(p, i);
+      continue;
+    }
+    int32_t code = TSDB_CODE_SUCCESS;
+    if (TSDB_DATA_TYPE_INT == type) {
+      const int32_t narrow = static_cast<int32_t>(values[i]);
+      code = colDataSetVal(p, i, reinterpret_cast<const char *>(&narrow), false);
+    } else {
+      code = colDataSetVal(p, i, reinterpret_cast<const char *>(&values[i]), false);
+    }
+    if (code != TSDB_CODE_SUCCESS) {
+      freeScalarGroupTestColumn(p);
+      return nullptr;
+    }
+  }
+  return p;
+}
+
+// Variable-width column whose rows all carry the same raw payload.
+static SColumnInfoData *makeScalarGroupVarColumn(int16_t type, int32_t bytes, int32_t rows,
+                                                 const std::string &value) {
+  auto *p = static_cast<SColumnInfoData *>(taosMemoryCalloc(1, sizeof(SColumnInfoData)));
+  if (p == nullptr) return nullptr;
+  *p = createColumnInfoData(type, bytes, 0);
+  if (colInfoDataEnsureCapacity(p, rows, false) != 0) {
+    // Variable-width capacity may have allocated the offset array already.
+    colDataDestroy(p);
+    taosMemoryFree(p);
+    return nullptr;
+  }
+  std::vector<char> buf(VARSTR_HEADER_SIZE + value.size());
+  varDataSetLen(buf.data(), value.size());
+  memcpy(buf.data() + VARSTR_HEADER_SIZE, value.data(), value.size());
+  for (int32_t i = 0; i < rows; ++i) {
+    if (colDataSetVal(p, i, buf.data(), false) != TSDB_CODE_SUCCESS) {
+      freeScalarGroupTestColumn(p);
+      return nullptr;
+    }
+  }
+  return p;
+}
+
+TEST(execUtilTest, retainReferencedGroupDataReleasesUnconsumedAndTagEntries) {
+  STableListInfo tables = {};
+  tables.pGroupDataSlots = taosHashInit(4, taosGetDefaultHashFunction(TSDB_DATA_TYPE_INT), false, HASH_NO_LOCK);
+  ASSERT_NE(nullptr, tables.pGroupDataSlots);
+
+  SNodeList *group = nullptr;
+  ASSERT_EQ(TSDB_CODE_SUCCESS, nodesListMakeStrictAppend(&group, makeIntValue(7)));
+  SNode *pKeyA = makeScalarGroupKeyExpr(3, 1);
+  SNode *pKeyB = makeScalarGroupKeyExpr(4, 2);
+  SNode *pTag = makeTagColumn(5, TSDB_DATA_TYPE_BIGINT, sizeof(int64_t));
+  ASSERT_NE(nullptr, pKeyA);
+  ASSERT_NE(nullptr, pKeyB);
+  ASSERT_NE(nullptr, pTag);
+  ASSERT_EQ(TSDB_CODE_SUCCESS, nodesListMakeStrictAppend(&group, pKeyA));
+  ASSERT_EQ(TSDB_CODE_SUCCESS, nodesListMakeStrictAppend(&group, pKeyB));
+  ASSERT_EQ(TSDB_CODE_SUCCESS, nodesListMakeStrictAppend(&group, pTag));
+
+  // Index 0 (regular scalar key) is consumed; index 1 is not; index 2 is a raw
+  // tag column and can never be reused even though a slot points at it.
+  int32_t slotA = 7;
+  int32_t slotB = 9;
+  int32_t index0 = 0;
+  int32_t index2 = 2;
+  ASSERT_EQ(TSDB_CODE_SUCCESS,
+            taosHashPut(tables.pGroupDataSlots, &slotA, sizeof(slotA), &index0, sizeof(index0)));
+  ASSERT_EQ(TSDB_CODE_SUCCESS,
+            taosHashPut(tables.pGroupDataSlots, &slotB, sizeof(slotB), &index2, sizeof(index2)));
+
+  SArray *groupData = taosArrayInit(3, POINTER_BYTES);
+  ASSERT_NE(nullptr, groupData);
+  SColumnInfoData *pCol0 = makeScalarGroupTestColumn(TSDB_DATA_TYPE_INT, sizeof(int32_t), 2, 42);
+  SColumnInfoData *pCol1 = makeScalarGroupTestColumn(TSDB_DATA_TYPE_INT, sizeof(int32_t), 2, 77);
+  SColumnInfoData *pCol2 = makeScalarGroupVarColumn(TSDB_DATA_TYPE_VARCHAR, VARSTR_HEADER_SIZE + 4096, 2,
+                                                     std::string(4000, 'w'));
+  ASSERT_NE(nullptr, pCol0);
+  ASSERT_NE(nullptr, pCol1);
+  ASSERT_NE(nullptr, pCol2);
+  ASSERT_NE(nullptr, taosArrayPush(groupData, &pCol0));
+  ASSERT_NE(nullptr, taosArrayPush(groupData, &pCol1));
+  ASSERT_NE(nullptr, taosArrayPush(groupData, &pCol2));
+
+  execUtilTestRetainReferencedGroupData(&tables, groupData, group);
+  EXPECT_NE(nullptr, taosArrayGetP(groupData, 0));
+  EXPECT_EQ(nullptr, taosArrayGetP(groupData, 1));
+  EXPECT_EQ(nullptr, taosArrayGetP(groupData, 2));
+
+  taosArrayDestroyP(groupData, freeScalarGroupTestColumn);
+  taosHashCleanup(tables.pGroupDataSlots);
+  nodesDestroyList(group);
+}
+
+TEST(execUtilTest, retainReferencedGroupDataKeepsMemoryBoundedAtScale) {
+  STableListInfo tables = {};
+  tables.pGroupDataSlots = taosHashInit(8, taosGetDefaultHashFunction(TSDB_DATA_TYPE_INT), false, HASH_NO_LOCK);
+  ASSERT_NE(nullptr, tables.pGroupDataSlots);
+  int32_t slot = 5;
+  int32_t index0 = 0;
+  ASSERT_EQ(TSDB_CODE_SUCCESS,
+            taosHashPut(tables.pGroupDataSlots, &slot, sizeof(slot), &index0, sizeof(index0)));
+
+  const int32_t numKeys = 512;
+  SNodeList *group = nullptr;
+  ASSERT_EQ(TSDB_CODE_SUCCESS, nodesListMakeStrictAppend(&group, makeIntValue(1)));
+  SArray *groupData = taosArrayInit(numKeys, POINTER_BYTES);
+  ASSERT_NE(nullptr, groupData);
+  for (int32_t i = 0; i < numKeys; ++i) {
+    SNode *pKey = makeScalarGroupKeyExpr(3, i + 1);
+    ASSERT_NE(nullptr, pKey);
+    ASSERT_EQ(TSDB_CODE_SUCCESS, nodesListMakeStrictAppend(&group, pKey));
+    // Wide string values model a consumed-but-unreferenced key; only index 0
+    // is mapped to an output slot, so the other 511 must be released.
+    SColumnInfoData *pCol =
+        makeScalarGroupVarColumn(TSDB_DATA_TYPE_VARCHAR, VARSTR_HEADER_SIZE + 4096, 1, std::string(4000, 'x'));
+    ASSERT_NE(nullptr, pCol);
+    ASSERT_NE(nullptr, taosArrayPush(groupData, &pCol));
+  }
+
+  execUtilTestRetainReferencedGroupData(&tables, groupData, group);
+  EXPECT_NE(nullptr, taosArrayGetP(groupData, 0));
+  for (int32_t i = 1; i < numKeys; ++i) {
+    EXPECT_EQ(nullptr, taosArrayGetP(groupData, i)) << i;
+  }
+
+  taosArrayDestroyP(groupData, freeScalarGroupTestColumn);
+  taosHashCleanup(tables.pGroupDataSlots);
+  nodesDestroyList(group);
+}
+
+TEST(execUtilTest, setScalarGroupColumnDataCopiesNullVarTimestampAndSharedRows) {
+  STableListInfo tables = {};
+  ScalarGroupTestTablesGuard tablesGuard(&tables);
+  tables.pTableList = taosArrayInit(4, sizeof(STableKeyInfo));
+  ASSERT_NE(nullptr, tables.pTableList);
+  const uint64_t uids[4] = {11, 22, 33, 44};
+  for (uint64_t uid : uids) {
+    STableKeyInfo key = {};
+    key.uid = uid;
+    ASSERT_NE(nullptr, taosArrayPush(tables.pTableList, &key));
+  }
+
+  tables.pGroupDataRows = taosHashInit(8, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT), false, HASH_NO_LOCK);
+  tables.pGroupDataSlots = taosHashInit(8, taosGetDefaultHashFunction(TSDB_DATA_TYPE_INT), false, HASH_NO_LOCK);
+  ASSERT_NE(nullptr, tables.pGroupDataRows);
+  ASSERT_NE(nullptr, tables.pGroupDataSlots);
+  // Two tables share group data row 0; the other two share row 1.
+  const int32_t rowsForUid[4] = {0, 0, 1, 1};
+  for (int32_t i = 0; i < 4; ++i) {
+    ASSERT_EQ(TSDB_CODE_SUCCESS,
+              taosHashPut(tables.pGroupDataRows, &uids[i], sizeof(uids[i]), &rowsForUid[i], sizeof(rowsForUid[i])));
+  }
+  int32_t slotInt = 101;
+  int32_t slotVarchar = 102;
+  int32_t slotTs = 103;
+  int32_t dataInt = 0;
+  int32_t dataVarchar = 1;
+  int32_t dataTs = 3;  // pGroupData order below is int, varchar, nchar, timestamp
+  ASSERT_EQ(TSDB_CODE_SUCCESS,
+            taosHashPut(tables.pGroupDataSlots, &slotInt, sizeof(slotInt), &dataInt, sizeof(dataInt)));
+  ASSERT_EQ(TSDB_CODE_SUCCESS, taosHashPut(tables.pGroupDataSlots, &slotVarchar, sizeof(slotVarchar), &dataVarchar,
+                                           sizeof(dataVarchar)));
+  ASSERT_EQ(TSDB_CODE_SUCCESS, taosHashPut(tables.pGroupDataSlots, &slotTs, sizeof(slotTs), &dataTs, sizeof(dataTs)));
+
+  tables.pGroupData = taosArrayInit(3, POINTER_BYTES);
+  ASSERT_NE(nullptr, tables.pGroupData);
+  SColumnInfoData *srcInt = makeScalarGroupFixedColumn(TSDB_DATA_TYPE_INT, sizeof(int32_t), {41, 0}, {false, true});
+  const uint32_t wideText[] = {'N', 'C'};
+  const std::string ncharText(reinterpret_cast<const char *>(wideText), sizeof(wideText));
+  SColumnInfoData *srcVarchar = makeScalarGroupVarColumn(TSDB_DATA_TYPE_VARCHAR, VARSTR_HEADER_SIZE + 16, 2, "alpha");
+  SColumnInfoData *srcNchar =
+      makeScalarGroupVarColumn(TSDB_DATA_TYPE_NCHAR, VARSTR_HEADER_SIZE + 16, 2, ncharText);
+  SColumnInfoData *srcTs =
+      makeScalarGroupFixedColumn(TSDB_DATA_TYPE_TIMESTAMP, sizeof(int64_t), {111222333444LL, 555666777888LL}, {});
+  ASSERT_NE(nullptr, srcInt);
+  ASSERT_NE(nullptr, srcVarchar);
+  ASSERT_NE(nullptr, srcNchar);
+  ASSERT_NE(nullptr, srcTs);
+  int32_t slotNchar = 104;
+  int32_t dataNchar = 2;
+  ASSERT_EQ(TSDB_CODE_SUCCESS,
+            taosHashPut(tables.pGroupDataSlots, &slotNchar, sizeof(slotNchar), &dataNchar, sizeof(dataNchar)));
+  for (SColumnInfoData *col : {srcInt, srcVarchar, srcNchar, srcTs}) {
+    ASSERT_NE(nullptr, taosArrayPush(tables.pGroupData, &col));
+  }
+  srcTs->info.precision = TSDB_TIME_PRECISION_NANO;
+
+  bool set = false;
+  // rows > source rows: every destination row repeats the single group value.
+  // The destination is deliberately left unallocated: the fill must size a
+  // column that has no payload/bitmap yet.
+  SColumnInfoData dstInt = createColumnInfoData(TSDB_DATA_TYPE_INT, sizeof(int32_t), 0);
+  ASSERT_EQ(TSDB_CODE_SUCCESS, scanTestSetScalarGroupColumnData(&tables, slotInt, uids[0], &dstInt, 3, &set));
+  EXPECT_TRUE(set);
+  for (int32_t i = 0; i < 3; ++i) {
+    ASSERT_FALSE(colDataIsNull_s(&dstInt, i));
+    EXPECT_EQ(41, *reinterpret_cast<int32_t *>(colDataGetData(&dstInt, i)));
+  }
+
+  // The same uid queried again reuses and overwrites the same destination.
+  set = false;
+  ASSERT_EQ(TSDB_CODE_SUCCESS, scanTestSetScalarGroupColumnData(&tables, slotInt, uids[0], &dstInt, 2, &set));
+  EXPECT_TRUE(set);
+  for (int32_t i = 0; i < 2; ++i) {
+    EXPECT_EQ(41, *reinterpret_cast<int32_t *>(colDataGetData(&dstInt, i)));
+  }
+
+  // A different uid mapped to the same group data row reads the same value.
+  set = false;
+  ASSERT_EQ(TSDB_CODE_SUCCESS, scanTestSetScalarGroupColumnData(&tables, slotInt, uids[1], &dstInt, 1, &set));
+  EXPECT_TRUE(set);
+  EXPECT_EQ(41, *reinterpret_cast<int32_t *>(colDataGetData(&dstInt, 0)));
+
+  // A NULL group value marks every destination row null.
+  set = false;
+  ASSERT_EQ(TSDB_CODE_SUCCESS, scanTestSetScalarGroupColumnData(&tables, slotInt, uids[2], &dstInt, 3, &set));
+  EXPECT_TRUE(set);
+  for (int32_t i = 0; i < 3; ++i) {
+    EXPECT_TRUE(colDataIsNull_s(&dstInt, i));
+  }
+  colDataDestroy(&dstInt);
+
+  // The NULL fill must also size a fixed-width column that was never allocated:
+  // it writes the NULL bitmap and clears the payload.
+  SColumnInfoData dstBareNull = createColumnInfoData(TSDB_DATA_TYPE_INT, sizeof(int32_t), 0);
+  set = false;
+  ASSERT_EQ(TSDB_CODE_SUCCESS, scanTestSetScalarGroupColumnData(&tables, slotInt, uids[2], &dstBareNull, 2, &set));
+  EXPECT_TRUE(set);
+  for (int32_t i = 0; i < 2; ++i) {
+    EXPECT_TRUE(colDataIsNull_s(&dstBareNull, i));
+  }
+  colDataDestroy(&dstBareNull);
+
+  // Variable-width values are sized from the source and copied per row; the
+  // bare destination has no offset array yet, so the fill must allocate it.
+  SColumnInfoData dstVarchar = createColumnInfoData(TSDB_DATA_TYPE_VARCHAR, VARSTR_HEADER_SIZE + 16, 0);
+  set = false;
+  ASSERT_EQ(TSDB_CODE_SUCCESS, scanTestSetScalarGroupColumnData(&tables, slotVarchar, uids[0], &dstVarchar, 2, &set));
+  EXPECT_TRUE(set);
+  for (int32_t i = 0; i < 2; ++i) {
+    EXPECT_EQ("alpha", std::string(varDataVal(colDataGetData(&dstVarchar, i)), varDataLen(colDataGetData(&dstVarchar, i))));
+  }
+  colDataDestroy(&dstVarchar);
+
+  SColumnInfoData dstNchar = createColumnInfoData(TSDB_DATA_TYPE_NCHAR, VARSTR_HEADER_SIZE + 16, 0);
+  ASSERT_EQ(TSDB_CODE_SUCCESS, colInfoDataEnsureCapacity(&dstNchar, 3, false));
+  set = false;
+  ASSERT_EQ(TSDB_CODE_SUCCESS, scanTestSetScalarGroupColumnData(&tables, slotNchar, uids[2], &dstNchar, 3, &set));
+  EXPECT_TRUE(set);
+  for (int32_t i = 0; i < 3; ++i) {
+    const char *data = colDataGetData(&dstNchar, i);
+    EXPECT_EQ(ncharText, std::string(varDataVal(data), varDataLen(data)));
+  }
+  colDataDestroy(&dstNchar);
+
+  // Timestamp values keep their raw width and precision across the copy.
+  SColumnInfoData dstTs = createColumnInfoData(TSDB_DATA_TYPE_TIMESTAMP, sizeof(int64_t), 0);
+  ASSERT_EQ(TSDB_CODE_SUCCESS, colInfoDataEnsureCapacity(&dstTs, 2, false));
+  dstTs.info.precision = TSDB_TIME_PRECISION_NANO;
+  set = false;
+  ASSERT_EQ(TSDB_CODE_SUCCESS, scanTestSetScalarGroupColumnData(&tables, slotTs, uids[2], &dstTs, 2, &set));
+  EXPECT_TRUE(set);
+  for (int32_t i = 0; i < 2; ++i) {
+    EXPECT_EQ(555666777888LL, *reinterpret_cast<int64_t *>(colDataGetData(&dstTs, i)));
+  }
+  EXPECT_EQ(TSDB_TIME_PRECISION_NANO, dstTs.info.precision);
+  colDataDestroy(&dstTs);
+
+  // A timestamp output with a different precision is semantically incompatible
+  // even though the type and width match; it must not be filled from the cache.
+  SColumnInfoData dstTsMilli = createColumnInfoData(TSDB_DATA_TYPE_TIMESTAMP, sizeof(int64_t), 0);
+  ASSERT_EQ(TSDB_CODE_SUCCESS, colInfoDataEnsureCapacity(&dstTsMilli, 2, false));
+  ASSERT_EQ(TSDB_TIME_PRECISION_MILLI, dstTsMilli.info.precision);
+  set = true;
+  EXPECT_EQ(TSDB_CODE_SUCCESS,
+            scanTestSetScalarGroupColumnData(&tables, slotTs, uids[2], &dstTsMilli, 2, &set));
+  EXPECT_FALSE(set);
+  colDataDestroy(&dstTsMilli);
+}
+
+TEST(execUtilTest, initGroupDataSlotMapDropsConflictingSlotMapping) {
+  STableListInfo tables = {};
+  SNodeList *group = nullptr;
+  SNode *pKeyExpr = makeScalarGroupKeyExpr(3, 1);
+  SNode *pOtherExpr = makeScalarGroupKeyExpr(4, 2);
+  ASSERT_NE(nullptr, pKeyExpr);
+  ASSERT_NE(nullptr, pOtherExpr);
+  ASSERT_EQ(TSDB_CODE_SUCCESS, nodesListMakeStrictAppend(&group, pKeyExpr));
+  ASSERT_EQ(TSDB_CODE_SUCCESS, nodesListMakeStrictAppend(&group, pOtherExpr));
+
+  // The conflict branch only fires while the two expressions compare unequal;
+  // pin that premise so a future nodesEqualNode change cannot silently turn
+  // this case into a no-conflict build.
+  EXPECT_FALSE(nodesEqualNode(pKeyExpr, pOtherExpr));
+
+  int32_t slot = 7;
+  // First show that a single mapping does build the map, so the NULL check
+  // below distinguishes "dropped on conflict" from "never created".
+  SScanPhysiNode single = {};
+  ASSERT_EQ(TSDB_CODE_SUCCESS, nodesListMakeStrictAppend(
+                                  &single.pScanPseudoCols,
+                                  reinterpret_cast<SNode *>(makeScalarGroupPseudoTarget(slot, pKeyExpr))));
+  ASSERT_EQ(TSDB_CODE_SUCCESS, execUtilTestInitGroupDataSlotMap(&tables, &single, group));
+  ASSERT_NE(nullptr, tables.pGroupDataSlots);
+  int32_t *pIdx = static_cast<int32_t *>(taosHashGet(tables.pGroupDataSlots, &slot, sizeof(slot)));
+  ASSERT_NE(nullptr, pIdx);
+  EXPECT_EQ(0, *pIdx);
+  nodesDestroyList(single.pScanPseudoCols);
+
+  // Both expressions are published into the same output slot, so the slot
+  // cannot identify a single group data column. The rebuild must drop it.
+  SScanPhysiNode scan = {};
+  STargetNode *pFirst = makeScalarGroupPseudoTarget(slot, pKeyExpr);
+  STargetNode *pSecond = makeScalarGroupPseudoTarget(slot, pOtherExpr);
+  ASSERT_NE(nullptr, pFirst);
+  ASSERT_NE(nullptr, pSecond);
+  ASSERT_EQ(TSDB_CODE_SUCCESS,
+            nodesListMakeStrictAppend(&scan.pScanPseudoCols, reinterpret_cast<SNode *>(pFirst)));
+  ASSERT_EQ(TSDB_CODE_SUCCESS,
+            nodesListMakeStrictAppend(&scan.pScanPseudoCols, reinterpret_cast<SNode *>(pSecond)));
+
+  ASSERT_EQ(TSDB_CODE_SUCCESS, execUtilTestInitGroupDataSlotMap(&tables, &scan, group));
+  EXPECT_EQ(nullptr, tables.pGroupDataSlots);
+
+  nodesDestroyList(scan.pScanPseudoCols);
+  nodesDestroyList(group);
+  // The conflict path drops the map itself, but clean up defensively so the
+  // test never depends on that internal contract.
+  if (tables.pGroupDataSlots != nullptr) {
+    taosHashCleanup(tables.pGroupDataSlots);
+  }
+  // This test never installs a table list; keep the teardown explicit so the
+  // ownership of a future fixture addition is obvious.
+  taosArrayDestroy(tables.pTableList);
+}
+
 TEST(execUtilTest, stableTagFilterCacheUsesTagRepresentationForIntegerValues) {
   const char oldStable = tsStableTagFilterCache;
   tsStableTagFilterCache = 1;
@@ -23371,6 +24076,44 @@ TEST_F(ReaderGroupScanTest, DimensionCreateSetsGenerationBeforeScalarEvaluation)
   setTaskScalarExtraInfo(&task_);
 }
 
+extern "C" int64_t nodesTestGetLiveAllocations(void);
+
+TEST(ExecTaskPlanTest, creationFailuresPreserveOnlySchedulerOwnedPlans) {
+  for (bool failTask : {true, false}) {
+    for (bool local : {true, false}) {
+      SCOPED_TRACE(::testing::Message() << "failTask=" << failTask << ", local=" << local);
+      const int64_t before = nodesTestGetLiveAllocations();
+      SNode* node = nullptr;
+      ASSERT_EQ(0, nodesMakeNode(QUERY_NODE_PHYSICAL_SUBPLAN, &node));
+      auto* plan = reinterpret_cast<SSubplan*>(node);
+      ASSERT_EQ(0, nodesMakeNode(QUERY_NODE_PHYSICAL_PLAN_TABLE_SCAN, reinterpret_cast<SNode**>(&plan->pNode)));
+      const int64_t withPlan = nodesTestGetLiveAllocations();
+      SReadHandle handle = {};
+      handle.localExec = local;
+      SExecTaskInfo* task = nullptr;
+      {
+        Stub probe;
+        if (failTask) {
+          probe.set(taosMemCalloc, +[](int64_t, int64_t) -> void* {
+            terrno = TSDB_CODE_OUT_OF_MEMORY;
+            return nullptr;
+          });
+        } else {
+          probe.set(createOperator, +[](SPhysiNode*, SExecTaskInfo*, SReadHandle*, SNode*, SNode*, const char*,
+                                        const char*, SOperatorInfo**, EOPTR_EXEC_MODEL) {
+            return TSDB_CODE_OUT_OF_MEMORY;
+          });
+        }
+        EXPECT_EQ(TSDB_CODE_OUT_OF_MEMORY,
+                  createExecTaskInfo(plan, &task, &handle, 1, 7, nullptr, OPTR_EXEC_MODEL_BATCH, nullptr, false));
+      }
+      EXPECT_EQ(nullptr, task);
+      ASSERT_EQ(local ? withPlan : before, nodesTestGetLiveAllocations());
+      if (local) nodesDestroyNode(node);
+    }
+  }
+}
+
 TEST_F(ReaderGroupScanTest, DimensionResetPreservesVersionAndCancellation) {
   auto &spy = lifecycleSpy_;
   scan_.base.readerAPI.tsdReaderOpen = scanReaderOpenSpy;
@@ -29822,6 +30565,8 @@ struct SMergeLimitFetchBlock {
 struct SMergeLimitFetchCtx {
   std::vector<SSDataBlock*> blocks;
   size_t                    next = 0;
+  SSortHandle*              pruneHandle = nullptr;
+  std::vector<int64_t>*      rowsAfterTrim = nullptr;
 };
 
 void destroyMergeLimitFetchCtx(SMergeLimitFetchCtx* ctx) {
@@ -29838,6 +30583,19 @@ int32_t mergeLimitTestFetch(void* param, SSDataBlock** result) {
     return 0;
   }
   *result = ctx->blocks[ctx->next++];
+  if (ctx->rowsAfterTrim != nullptr) {
+    SSDataBlock* block = *result;
+    block->info.dataLoad = true;
+    int32_t code = blockDataUpdateTsWindow(block, 0);
+    if (code != TSDB_CODE_SUCCESS) {
+      return code;
+    }
+    if (tsortGetMergeBlockPrune(ctx->pruneHandle, &block->info.window, true) ==
+        MERGE_BLOCK_TRIM) {
+      tsortTrimMergeBlock(ctx->pruneHandle, block);
+    }
+    ctx->rowsAfterTrim->push_back(block->info.rows);
+  }
   return 0;
 }
 
@@ -29912,7 +30670,8 @@ _end:
 // optional merge limit and return the emitted rows.
 int32_t runMergeLimitSort(const std::vector<SMergeLimitFetchBlock>& script, int32_t order, int64_t mergeLimit,
                           int64_t maxRows, std::vector<std::pair<int64_t, int64_t>>* out,
-                          std::vector<uint64_t>* prunedUids = nullptr) {
+                          std::vector<uint64_t>* prunedUids = nullptr,
+                          std::vector<int64_t>* rowsAfterTrim = nullptr) {
   SMergeLimitFetchCtx ctx;
   SArray*             orders = nullptr;
   SSortHandle*        handle = nullptr;
@@ -29939,6 +30698,8 @@ int32_t runMergeLimitSort(const std::vector<SMergeLimitFetchBlock>& script, int3
                                "merge-limit-test", 0, 0, 0, &handle);
   if (code != 0) goto _end;
   tsortSetMergeLimit(handle, mergeLimit);
+  ctx.pruneHandle = handle;
+  ctx.rowsAfterTrim = rowsAfterTrim;
   tsortSetFetchRawDataFp(handle, mergeLimitTestFetch, nullptr, nullptr);
   if (prunedUids != nullptr) {
     tsortSetMergeLimitReachedFp(handle, recordMergeLimitPrune, prunedUids);
@@ -30056,6 +30817,32 @@ TEST(SortMergeLimitTest, PruneCallbackFiresForTableBeyondThreshold) {
   }
   EXPECT_TRUE(prunedBeyond) << "table starting beyond the threshold must be skipped";
   EXPECT_FALSE(prunedTie) << "a table tying the threshold must not be pruned";
+}
+
+TEST(SortMergeLimitTest, TrimCrossingBlockKeepsCutoffTies) {
+  ExecutorTempDirGuard tempDir;
+  ASSERT_EQ(tempDir.code, TSDB_CODE_SUCCESS);
+
+  for (int32_t order : {TSDB_ORDER_ASC, TSDB_ORDER_DESC}) {
+    SCOPED_TRACE(order);
+    const int64_t step = order == TSDB_ORDER_ASC ? 1 : -1;
+    const std::vector<SMergeLimitFetchBlock> script = {
+        {1, {10 * step, 20 * step, 30 * step}, {101, 102, 103}},
+        {2, {15 * step, 20 * step, 20 * step, 21 * step, 80 * step},
+         {201, 202, 203, 204, 205}},
+        {3, {10 * step, 15 * step, 15 * step}, {301, 302, 303}},
+    };
+
+    std::vector<std::pair<int64_t, int64_t>> expected;
+    std::vector<std::pair<int64_t, int64_t>> actual;
+    std::vector<int64_t> rowsAfterTrim;
+    ASSERT_EQ(runMergeLimitSort(script, order, 2, 2, &expected), 0);
+    ASSERT_EQ(runMergeLimitSort(script, order, 2, 2, &actual, nullptr,
+                                &rowsAfterTrim),
+              0);
+    EXPECT_EQ(rowsAfterTrim, (std::vector<int64_t>{3, 3, 3}));
+    EXPECT_EQ(actual, expected);
+  }
 }
 
 // A budget above the live-heap cap must not prune on a k-th best bound: the

@@ -1366,6 +1366,8 @@ bool    extWinTestBlockNodeInvariantHolds(SList* pList, SListNode* pNode, SListN
 int32_t extWinTestOutputAliasLifecycle(SList* pOutputList, SList* pFreeBlocks, bool reset, bool* pAliasEstablished,
                                        bool* pAliasCleared);
 int32_t extWinTestLastWinClosed(SList* pOutputBlocks, bool* pClosed);
+int32_t scanTestSetScalarGroupColumnData(const STableListInfo* pTableListInfo, int32_t slotId, uint64_t uid,
+                                         SColumnInfoData* pDst, int32_t rows, bool* pSet);
 #endif
 
 #ifdef __cplusplus

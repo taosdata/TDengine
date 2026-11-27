@@ -901,6 +901,23 @@ static bool mndUpdateVnodeState(int32_t vgId, SVnodeGid *pGid, SVnodeLoad *pVloa
           pVload->syncTotalIndex, pVload->learnerProgress, pVload->snapSeq);
   }
 
+  // A create-db transaction stamps each new vgroup's leader from the alter-confirm response
+  // (mndTransSendRpcRsp). Status reports are built asynchronously on the dnode, so a report
+  // sampled while the vnode was still a follower can arrive at the mnode AFTER that stamp and
+  // carry an old FOLLOWER state. Applying it would downgrade the freshly stamped leader, leaving
+  // a committed (visible in ins_vgroups) but leaderless vgroup in the mnode cache; `show cluster
+  // alive` then returns 2 until the next heartbeat. Ignore non-leader reports for a short grace
+  // window after the stamp. Reports that do carry a leader state are still applied normally, so
+  // a real election or leader change is not delayed.
+  int64_t nowMs = taosGetTimestampMs();
+  if (pGid->stampedLeaderMs > 0 && nowMs > pGid->stampedLeaderMs &&
+      nowMs - pGid->stampedLeaderMs < 3000 && pVload->syncState != TAOS_SYNC_STATE_LEADER &&
+      pVload->syncState != TAOS_SYNC_STATE_ASSIGNED_LEADER) {
+    mInfo("vgId:%d, ignore stale %s report from dnode:%d, stamped leader at %" PRId64 " ms, report roleTime:%" PRId64,
+          vgId, syncStr(pVload->syncState), pGid->dnodeId, pGid->stampedLeaderMs, pVload->roleTimeMs);
+    return false;
+  }
+
   if (roleChanged || pGid->syncRestore != pVload->syncRestore || pGid->syncCanRead != pVload->syncCanRead ||
       pGid->startTimeMs != pVload->startTimeMs) {
     mInfo(
@@ -969,12 +986,13 @@ static int32_t mndProcessStatisReq(SRpcMsg *pReq) {
   mndReleaseUser(pMnode, pUser);
   pUser = NULL;
 
-  // taoskeeper interpolates the relayed body into SQL executed with its stored root credentials,
-  // so a non-JSON / malformed payload must never reach the monitoring endpoints. Reject anything
-  // that is not well-formed JSON before forwarding it.
-  if (statisReq.pCont == NULL || !tjsonValidateJson(statisReq.pCont)) {
+  // mnode only relays TDMT_MND_STATIS to the monitoring endpoints. Payload
+  // validation is intentionally not performed here; the consumer is responsible
+  // for validating the body. Keep the NULL guard because monSendContent() and
+  // the log below both require a non-NULL buffer.
+  if (statisReq.pCont == NULL) {
     tFreeSStatisReq(&statisReq);
-    mError("statis req from %s dropped: payload is not valid JSON", RPC_MSG_USER(pReq));
+    mError("statis req from %s dropped: payload is NULL", RPC_MSG_USER(pReq));
     TAOS_RETURN(TSDB_CODE_INVALID_PARA);
   }
 

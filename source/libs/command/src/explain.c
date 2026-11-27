@@ -1470,6 +1470,22 @@ static int32_t qExplainResNodeToRowsImpl(SExplainResNode *pResNode, SExplainCtx 
       }
       break;
     }
+    case QUERY_NODE_PHYSICAL_PLAN_SCALAR_CHECK: {
+      EXPLAIN_ROW_NEW(level, "Scalar Row Check");
+      if (pResNode->pExecInfo) {
+        EXPLAIN_ROW_APPEND(EXPLAIN_LEFT_PARENTHESIS_FORMAT);
+        QRY_ERR_RET(qExplainBufAppendExecInfo(pResNode->pExecInfo, tbuf, &tlen, &filterEfficiency));
+        EXPLAIN_ROW_APPEND(EXPLAIN_RIGHT_PARENTHESIS_FORMAT);
+      }
+      EXPLAIN_ROW_END();
+      QRY_ERR_RET(qExplainResAppendRow(ctx, tbuf, tlen, level));
+      if (verbose) {
+        QRY_ERR_RET(qExplainAppendFilterRow(ctx, level, pNode->pConditions, &tlen,
+                                            hasEfficiency ? &filterEfficiency : NULL));
+        QRY_ERR_RET(qExplainExecAnalyze(pResNode, ctx, level));
+      }
+      break;
+    }
     case QUERY_NODE_PHYSICAL_PLAN_PROJECT: {
       SProjectPhysiNode *pPrjNode = (SProjectPhysiNode *)pNode;
       EXPLAIN_ROW_NEW(level, EXPLAIN_PROJECTION_FORMAT);
@@ -3494,13 +3510,13 @@ static int32_t qExplainBuildPlanCtx(SQueryPlan *pDag, SExplainPlanCtx *pCtx) {
       plan = (SSubplan *)taskNode;
       pGroup = taosHashGet(pCtx->groupHash, &plan->id.groupId, sizeof(plan->id.groupId));
       if (pGroup) {
-        ++pGroup->nodeNum;
+        pGroup->nodeNum += subplanGetTargetCount(plan);
         ++n;
         continue;
       }
 
       SExplainGroup group = {0};
-      group.nodeNum = 1;
+      group.nodeNum = subplanGetTargetCount(plan);
       group.plan = plan;
 
       if (0 != taosHashPut(pCtx->groupHash, &plan->id.groupId, sizeof(plan->id.groupId), &group, sizeof(group))) {
@@ -3511,7 +3527,7 @@ static int32_t qExplainBuildPlanCtx(SQueryPlan *pDag, SExplainPlanCtx *pCtx) {
     }
 
     if (0 == i) {
-      if (taskNum > 1) {
+      if (taskNum > 1 || subplanGetTargetCount(plan) > 1) {
         qError("invalid taskNum %d for level 0", taskNum);
         QRY_ERR_JRET(TSDB_CODE_QRY_INVALID_INPUT);
       }

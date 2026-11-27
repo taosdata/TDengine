@@ -751,7 +751,7 @@ class PlannerTestBaseImpl {
   }
 
   void doScaleOutLogicPlan(SPlanContext* pCxt, SLogicSubplan* pLogicSubplan, SQueryLogicPlan** pLogicPlan) {
-    DO_WITH_THROW(scaleOutLogicPlan, pCxt, pLogicSubplan, pLogicPlan);
+    DO_WITH_THROW(scaleOutLogicPlan, pCxt, pLogicSubplan, false, pLogicPlan);
     res_.scaledLogicPlan_ = toString((SNode*)(*pLogicPlan));
   }
 

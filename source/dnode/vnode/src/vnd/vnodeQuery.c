@@ -1368,7 +1368,11 @@ int32_t vnodeProcessCheckStbAlterNameReq(SVnode *pVnode, SRpcMsg *pMsg) {
   {
     // single pass over the children for all names; the first conflict wins and is reported
     SOwnNameConflictInfo conflict = {0};
+    // walks the child index and fetches child entries: take the read lock so the async txn vacuum thread cannot
+    // mutate those B+ trees underneath us (the ALTER path calls the same function already holding the write lock)
+    metaRLock(pVnode->pMeta);
     code = metaCheckOwnNameConflictsOfChildTables(pVnode->pMeta, req.suid, req.pNames, &conflict);
+    metaULock(pVnode->pMeta);
     if (code != 0) {
       vError("vgId:%d, check-stb-alter-name failed for suid:%" PRId64 ", code:0x%x", TD_VID(pVnode), req.suid, code);
       if (code == TSDB_CODE_VND_COL_ALREADY_EXISTS && conflict.childName[0] != '\0') {
@@ -1376,7 +1380,10 @@ int32_t vnodeProcessCheckStbAlterNameReq(SVnode *pVnode, SRpcMsg *pMsg) {
         // stable name from the message, child table and column names are already known
         char         stbName[TSDB_TABLE_NAME_LEN] = {0};
         SMetaEntry  *pStbEntry = NULL;
-        if (metaFetchEntryByUid(pVnode->pMeta, req.suid, &pStbEntry) == 0 && pStbEntry != NULL) {
+        metaRLock(pVnode->pMeta);
+        int32_t stbFetchCode = metaFetchEntryByUid(pVnode->pMeta, req.suid, &pStbEntry);
+        metaULock(pVnode->pMeta);
+        if (stbFetchCode == 0 && pStbEntry != NULL) {
           tstrncpy(stbName, pStbEntry->name, sizeof(stbName));
           metaFetchEntryFree(&pStbEntry);
         }

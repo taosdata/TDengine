@@ -513,21 +513,15 @@ class TestBenchmarkCommandline:
     #
     # ------------------- main ----------------
     #
-    def test_benchmark_commandline(self): 
-        """taosBenchmark command line
+    def test_benchmark_commandline(self):
+        """taosBenchmark command line options
 
-        1. Verify -c with different config path
-        2. Verify -I with taosc, rest, stmt, stmt2, sml, sml-line, sml-telnet, sml-json, sml-taosjson
-        3. Verify -b with all data types
-        4. Verify -v with support vgroups
-        5. Verify -A with all data types
-        6. Verify -S to set start time
-        7. Verify -U to do supplement insert
-        8. Verify -V to check version info
-        9. Verify other command line options -ntyNxGrTiFM
-        10. Verify JIRA TD-11510/TD-19387/TD-19985/TD-21063/TD-22334/TD-21932/TD-19352/TD-21806
-        11. Verify invalid command line options
-        
+        1. Verify -V version output
+        2. Verify -c with different config paths
+        3. Verify -I taosc, rest, stmt and stmt2
+        4. Verify -b and -A with supported data types
+        5. Verify -S start time and the other insert options in do_commandline
+        6. Verify JIRA TD-11510/TD-19387/TD-19985/TD-21063/TD-22334/TD-21932/TD-19352/TD-21806
 
         Since: v3.0.0.0
 
@@ -535,26 +529,139 @@ class TestBenchmarkCommandline:
 
         Jira: None
 
-        History:            
-            - 2025-10-24 Alex Duan Migrated from uncatalog/army/tools/benchmark/basic/test_commandline_partial_col_numpy.py
-            - 2025-10-24 Alex Duan Migrated from uncatalog/army/tools/benchmark/basic/test_commandline_retry.py
-            - 2025-10-24 Alex Duan Migrated from uncatalog/army/tools/benchmark/basic/test_commandline_single_table.py 
-            - 2025-10-27 Alex Duan Migrated from uncatalog/army/tools/benchmark/basic/test_commandline_sml.py
-            - 2025-10-27 Alex Duan Migrated from uncatalog/army/tools/benchmark/basic/test_commandline_supplement_insert.py
-            - 2025-10-27 Alex Duan Migrated from uncatalog/army/tools/benchmark/basic/test_commandline_vgroups.py
+        History:
             - 2025-10-27 Alex Duan Migrated from uncatalog/army/tools/benchmark/basic/test_commandline.py
-            - 2025-10-28 Alex Duan Migrated from uncatalog/army/tools/benchmark/basic/test_invalid_commandline.py
+            - 2026-11-26 jbjia Run do_commandline by itself so CI can schedule it separately
 
         """
         self.do_commandline()
+
+    def test_benchmark_commandline_partial_col_numpy(self):
+        """taosBenchmark partial column insert
+
+        Verify -L writes the selected columns and leaves the others null.
+
+        Since: v3.0.0.0
+
+        Labels: common,ci,integration,functional
+
+        Jira: None
+
+        History:
+            - 2025-10-24 Alex Duan Migrated from uncatalog/army/tools/benchmark/basic/test_commandline_partial_col_numpy.py
+            - 2026-11-26 jbjia Run this scenario in its own CI process
+
+        """
         self.do_commandline_partial_col_numpy()
+
+    def test_benchmark_commandline_single_table(self):
+        """taosBenchmark normal-table insert interfaces
+
+        Verify -N with -I taosc, rest and stmt creates one normal table.
+
+        Since: v3.0.0.0
+
+        Labels: common,ci,integration,functional
+
+        Jira: None
+
+        History:
+            - 2025-10-24 Alex Duan Migrated from uncatalog/army/tools/benchmark/basic/test_commandline_single_table.py
+            - 2026-11-26 jbjia Run this scenario in its own CI process
+
+        """
         self.do_commandline_single_table()
+
+    def test_benchmark_commandline_sml(self):
+        """taosBenchmark schemaless insert protocols
+
+        Verify -I sml, sml-line, sml-telnet, sml-json and sml-taosjson.
+
+        Since: v3.0.0.0
+
+        Labels: common,ci,integration,functional
+
+        Jira: None
+
+        History:
+            - 2025-10-27 Alex Duan Migrated from uncatalog/army/tools/benchmark/basic/test_commandline_sml.py
+            - 2026-11-26 jbjia Run this scenario in its own CI process
+
+        """
         self.do_commandline_sml()
+
+    def test_benchmark_commandline_supplement_insert(self):
+        """taosBenchmark supplement insert
+
+        Verify -U inserts rows at the requested start time.
+
+        Since: v3.0.0.0
+
+        Labels: common,ci,integration,functional
+
+        Jira: None
+
+        History:
+            - 2025-10-27 Alex Duan Migrated from uncatalog/army/tools/benchmark/basic/test_commandline_supplement_insert.py
+            - 2026-11-26 jbjia Run this scenario in its own CI process
+
+        """
         self.do_commandline_supplement_insert()
+
+    def test_benchmark_commandline_vgroups(self):
+        """taosBenchmark vgroup option
+
+        Verify -v creates the requested number of vgroups.
+
+        Since: v3.0.0.0
+
+        Labels: common,ci,integration,functional
+
+        Jira: None
+
+        History:
+            - 2025-10-27 Alex Duan Migrated from uncatalog/army/tools/benchmark/basic/test_commandline_vgroups.py
+            - 2026-11-26 jbjia Run this scenario in its own CI process
+
+        """
         self.do_commandline_vgroups()
+
+    def test_benchmark_commandline_retry(self):
+        """taosBenchmark insert retry
+
+        Verify -r keeps inserting after the dnode restarts.
+
+        Since: v3.0.0.0
+
+        Labels: common,ci,integration,functional
+
+        Jira: None
+
+        History:
+            - 2025-10-24 Alex Duan Migrated from uncatalog/army/tools/benchmark/basic/test_commandline_retry.py
+            - 2026-11-26 jbjia Run this scenario in its own CI process
+
+        """
         self.do_commandline_retry()
+
+    def test_benchmark_commandline_invalid(self):
+        """taosBenchmark invalid command line options
+
+        Verify malformed and unknown options fail or fall back as before.
+
+        Since: v3.0.0.0
+
+        Labels: common,ci,integration,functional
+
+        Jira: None
+
+        History:
+            - 2025-10-28 Alex Duan Migrated from uncatalog/army/tools/benchmark/basic/test_invalid_commandline.py
+            - 2026-11-26 jbjia Run this scenario in its own CI process
+
+        """
         self.do_invalid_commandline()
-        
+
     #
     # ------------------- disorder ----------------
     #

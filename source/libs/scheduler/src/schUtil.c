@@ -398,6 +398,20 @@ int32_t schValidateSubplan(SSchJob *pJob, SSubplan *pSubplan, int32_t level, int
     SCH_ERR_RET(TSDB_CODE_QRY_INVALID_INPUT);
   }
 
+  const int32_t numOfTargets = taosArrayGetSize(pSubplan->pExecTargets);
+  if (numOfTargets > 1 && LIST_LENGTH(pSubplan->pChildren) > 0) {
+    SCH_ERR_RET(TSDB_CODE_QRY_INVALID_INPUT);
+  }
+  for (int32_t i = 0; i < numOfTargets; ++i) {
+    const SSubplanTarget *target = taosArrayGet(pSubplan->pExecTargets, i);
+    const SEpSet *eps = &target->execNode.epSet;
+    if (eps->numOfEps <= 0 && SCH_IS_DATA_BIND_PLAN(pSubplan)) {
+      SCH_ERR_RET(TSDB_CODE_SCH_DATA_SRC_EP_MISS);
+    }
+    if (eps->numOfEps <= 0 || eps->numOfEps > TSDB_MAX_REPLICA || eps->inUse < 0 || eps->inUse >= eps->numOfEps) {
+      SCH_ERR_RET(TSDB_CODE_QRY_INVALID_INPUT);
+    }
+  }
   if (SCH_IS_DATA_BIND_PLAN(pSubplan)) {
     if (pSubplan->execNode.epSet.numOfEps <= 0) {
       SCH_JOB_ELOG("no execNode specified for data src plan %d, numOfEps:%d", pSubplan->subplanType,

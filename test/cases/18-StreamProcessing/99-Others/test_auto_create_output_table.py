@@ -50,6 +50,203 @@ class TestStreamAutoCreateOutputTable:
         self.check_auto_create_out_ntb()
         self.insertDataAndCheck()
 
+    def test_nodelay_virtual_groups_without_trigger_data(self, request):
+        """Precreate virtual-group output tables without trigger-source rows.
+
+        Cover a fully unbound virtual stable, an unbound trigger column, and
+        trigger columns bound to empty and populated sources. Outputs must remain empty.
+        Verify that an empty VARCHAR partition value is stored as an empty output tag.
+
+        Since: v3.4.4.0
+
+        Catalog:
+            - StreamProcessing:Others
+
+        Labels: common,ci,regression
+
+        Feishu: https://project.feishu.cn/taosdata_td/defect/detail/7176192836
+
+        History:
+            - 2026-11-23 Codex Added metadata-based virtual-group creation coverage.
+        """
+        tdStream.ensureSnode()
+        db = "nodelay_empty_groups"
+        drop_db = f"drop database if exists {db} force"
+        tdSql.execute(drop_db)
+        request.addfinalizer(lambda: tdSql.execute(drop_db))
+        tdSql.executes(
+            [
+                f"create database {db} vgroups 2 keep 36500",
+                f"create table {db}.source_full (ts timestamp, state_value int)",
+                f"create table {db}.source_empty (ts timestamp, state_value int)",
+                f"create table {db}.source_aux (ts timestamp, payload int)",
+                f"insert into {db}.source_full values (1735689600000, 1)",
+                f"insert into {db}.source_aux values (1735689600000, 42)",
+                f"create stable {db}.vst (ts timestamp, state_value int, payload int) "
+                "tags (device int) virtual 1",
+                f"create vtable {db}.v_unbound (payload from {db}.source_aux.payload) "
+                f"using {db}.vst tags (1)",
+                f"create vtable {db}.v_empty (state_value from {db}.source_empty.state_value, "
+                f"payload from {db}.source_aux.payload) using {db}.vst tags (2)",
+                f"create vtable {db}.v_full (state_value from {db}.source_full.state_value, "
+                f"payload from {db}.source_aux.payload) using {db}.vst tags (3)",
+                f"create stable {db}.unbound_vst (ts timestamp, state_value int, payload int) "
+                "tags (device int) virtual 1",
+                f"create vtable {db}.v_no_refs using {db}.unbound_vst tags (1)",
+            ]
+        )
+        for stream, source, output, children in (
+            ("nd_empty_virtual", "vst", "out", ("out_v_empty", "out_v_full", "out_v_unbound")),
+            ("nd_no_refs", "unbound_vst", "unbound_out", ("unbound_out_v_no_refs",)),
+        ):
+            tdSql.execute(
+                f"create stream {db}.{stream} state_window(state_value) extend(1) true_for(60s) "
+                f"from {db}.{source} partition by tbname "
+                "stream_options(watermark(20s)|event_type(window_open|window_close)|"
+                "ignore_disorder|max_delay(30s)) "
+                f"into {db}.{output} nodelay_create_subtable output_subtable(concat('{output}_', tbname)) "
+                "as select _twstart as ts, last(state_value) as last_state, "
+                "last(payload) as last_payload from %%tbname "
+                "where ts >= _twstart and ts <= _twend"
+            )
+            tdStream.checkStreamStatus(stream)
+            tdSql.checkResultsByFunc(
+                sql=f"select table_name from information_schema.ins_tables "
+                f"where db_name = '{db}' and stable_name = '{output}' order by table_name",
+                func=lambda: tdSql.getRows() == len(children)
+                and all(tdSql.compareData(i, 0, name) for i, name in enumerate(children)),
+                retry=60,
+            )
+            for child in children:
+                tdSql.query(f"select count(*) from {db}.{child}")
+                tdSql.checkData(0, 0, 0)
+
+        tdSql.executes(
+            [
+                f"create stable {db}.label_vst (ts timestamp, state_value int) tags (label varchar(20)) virtual 1",
+                f"create vtable {db}.v_empty_label (state_value from {db}.source_empty.state_value) "
+                f"using {db}.label_vst tags ('')",
+                f"create stream {db}.nd_empty_label interval(1h) from {db}.label_vst partition by label "
+                f"into {db}.label_out nodelay_create_subtable output_subtable('out_empty_label') "
+                "tags (out_tag varchar(20) as %%1) "
+                f"as select _twstart as ts, last(state_value) as v from {db}.source_empty "
+                "where _c0 >= _twstart and _c0 <= _twend",
+            ]
+        )
+        tdSql.checkResultsByFunc(
+            sql="select tag_value from information_schema.ins_tags "
+            f"where db_name = '{db}' and stable_name = 'label_out' "
+            "and table_name = 'out_empty_label' and tag_name = 'out_tag'",
+            func=lambda: tdSql.getRows() == 1 and tdSql.getData(0, 0) == "",
+            retry=60,
+        )
+        tdSql.query(f"select count(*) from {db}.out_empty_label")
+        tdSql.checkData(0, 0, 0)
+
+    def test_nodelay_window_dependent_virtual_output(self, request):
+        """Verify output table creation for an empty virtual group.
+
+        The control stream uses the window start only in its query and precreates an empty table.
+        Wait for the window-dependent streams to read WAL before inserting the first data.
+        Verify that the table name and tag use the real window start, including when a filter removes every row.
+
+        Since: v3.4.4.0
+
+        Catalog:
+            - StreamProcessing:Others
+
+        Labels: common,ci,regression
+
+        Feishu: https://project.feishu.cn/taosdata_td/defect/detail/7176192836
+
+        History:
+            - 2026-11-25 Added a regression for window-dependent virtual output tables.
+        """
+        tdStream.ensureSnode()
+        db = "nodelay_window_output"
+        drop_db = f"drop database if exists {db} force"
+        tdSql.execute(drop_db)
+        request.addfinalizer(lambda: tdSql.execute(drop_db))
+        tdSql.executes(
+            [
+                f"create database {db} vgroups 1 keep 36500",
+                f"create table {db}.src (ts timestamp, state_value int)",
+                f"create stable {db}.vst (ts timestamp, state_value int) tags (device int) virtual 1",
+                f"create vtable {db}.vt (state_value from {db}.src.state_value) using {db}.vst tags (1)",
+            ]
+        )
+
+        # Enable enough runner slots for the first real calculations.
+        setting = "numOfStreamRunnerReplicas"
+        tdSql.query(f"show dnode 1 variables like '{setting}'")
+        tdSql.checkRows(1)
+        previous = tdSql.getData(0, 2)
+        try:
+            tdSql.execute(f"alter dnode 1 '{setting}' '2'")
+            for name, output in (
+                ("plain", "output_subtable(concat('plain_', tbname))"),
+                ("tagged", "output_subtable(concat('tagged_', tbname)) tags (first_window timestamp as _twstart)"),
+                ("named", "output_subtable(concat('named_', cast(cast(_twstart as bigint) as varchar(20))))"),
+                (
+                    "zero",
+                    "output_subtable(concat('zero_', cast(cast(_twstart as bigint) as varchar(20)))) "
+                    "tags (first_window bigint as cast(_twstart as bigint))",
+                ),
+            ):
+                value = "state_value" if name == "zero" else "last(state_value)"
+                filter_rows = " and state_value < 0" if name == "zero" else ""
+                tdSql.execute(
+                    f"create stream {db}.s_{name} count_window(2,2) from {db}.vst partition by tbname "
+                    "stream_options(ignore_disorder) "
+                    f"into {db}.out_{name} nodelay_create_subtable {output} "
+                    f"as select _twstart as ts, {value} as v from %%tbname "
+                    f"where _c0 >= _twstart and _c0 <= _twend{filter_rows}"
+                )
+            for name in ("plain", "tagged", "named", "zero"):
+                tdStream.checkStreamStatus(f"s_{name}")
+        finally:
+            tdSql.execute(f"alter dnode 1 '{setting}' '{previous}'")
+
+        # The lag metric is available after the realtime reader reports a WAL position.
+        tdSql.checkResultsByFunc(
+            sql="select stream_name from information_schema.ins_streams "
+            f"where db_name = '{db}' and stream_name in ('s_named','s_tagged','s_zero') and realtime_lag_ms is not null",
+            func=lambda: tdSql.getRows() == 3,
+            retry=60,
+        )
+        tables = (
+            "select table_name from information_schema.ins_tables "
+            f"where db_name = '{db}' and stable_name in ('out_plain','out_tagged','out_named','out_zero') order by table_name"
+        )
+        tdSql.checkResultsByFunc(
+            sql=tables, func=lambda: tdSql.getRows() == 1 and tdSql.compareData(0, 0, "plain_vt"), retry=60
+        )
+        first = int(time.time() * 1000) - 1000
+        tdSql.execute(f"insert into {db}.src values ({first}, 1) ({first + 1}, 2) ({first + 2}, 3)")
+        zero_table = f"zero_{first}"
+        expected = (f"named_{first}", "plain_vt", "tagged_vt", zero_table)
+        tdSql.checkResultsByFunc(
+            sql=tables,
+            func=lambda: tdSql.getRows() == len(expected)
+            and all(tdSql.compareData(i, 0, name) for i, name in enumerate(expected)),
+            retry=60,
+        )
+        tdSql.checkResultsByFunc(
+            sql=f"select cast(ts as bigint), cast(first_window as bigint) from {db}.tagged_vt order by ts",
+            func=lambda: tdSql.getRows() == 1
+            and tdSql.compareData(0, 0, first)
+            and tdSql.compareData(0, 1, first),
+            retry=60,
+        )
+        tdSql.checkResultsByArray(
+            sql="select tag_value from information_schema.ins_tags "
+            f"where db_name = '{db}' and table_name = '{zero_table}' and tag_name = 'first_window'",
+            exp_result=[[str(first)]],
+            retry=60,
+        )
+        tdSql.query(f"select count(*) from {db}.{zero_table}")
+        tdSql.checkData(0, 0, 0)
+
     def test_auto_create_output_table_for_vtable_period(self):
         """summary: test nodelay output subtable creation for virtual table period stream
 

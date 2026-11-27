@@ -867,10 +867,9 @@ static void dmProcessBackupQueue(SQueueInfo *pInfo, SBackupTaskItem *pTaskItem) 
     // written during execution and progress queries only read the scalar
     // identity/counter fields, so the large request/artifact arrays are no
     // longer needed. Free them under the mutex so no other path can observe
-    // them while they are torn down; the free functions are NULL-safe, and a
-    // later replacement/shutdown may free them again harmlessly.
-    tFreeSBackupDnodeReq(&pTask->req);
-    dmBackupFreeTaskArtifacts(pTask);
+    // them while they are torn down; the free function is NULL-safe and
+    // idempotent, and a later replacement/shutdown may free them again harmlessly.
+    dmBackupFreeTaskResources(pTask);
   }
   (void)taosThreadMutexUnlock(&pMgmt->backupMutex);
 
@@ -1011,8 +1010,7 @@ void dmStopWorker(SDnodeMgmt *pMgmt) {
   tSingleWorkerCleanup(&pMgmt->backupWorker);
   (void)taosThreadMutexLock(&pMgmt->backupMutex);
   if (pMgmt->pBackupTask != NULL) {
-    tFreeSBackupDnodeReq(&pMgmt->pBackupTask->req);
-    dmBackupFreeTaskArtifacts(pMgmt->pBackupTask);
+    dmBackupFreeTaskResources(pMgmt->pBackupTask);
   }
   taosMemoryFreeClear(pMgmt->pBackupTask);
   (void)taosThreadMutexUnlock(&pMgmt->backupMutex);

@@ -244,6 +244,7 @@ typedef struct SJoinLogicNode {
   bool           allEqTags;
   bool           isSingleTableJoin;
   bool           hasSubQuery;
+  bool           scalarSubqueryJoin; // Preserve the null-extended row until the original WHERE stage.
   bool           isCrossJoin;
   bool           isLowLevelJoin;
   bool           seqWinGroup;
@@ -296,6 +297,15 @@ typedef struct SVirtualScanLogicNode {
   bool          twoPassMode;      // PERCENTILE/repeat-scan: drive two passes (PRE_SCAN then MAIN_SCAN)
   bool          hasReferenceBinding;
   bool          hasFilterCond;    // saved external filters require virtual-row merging before agg/window
+  // Owned source scans are detached only during rule optimization.
+  SNodeList*    pDeferredSourceScans;
+  SNode*        pDeferredPrimaryCond;
+  SNode*        deferredSourceLimit;
+  STimeWindow   deferredScanRange;
+  EOrder        deferredScanOrder;
+  bool          hasDeferredScanRange;
+  bool          deferredScanPathDone;
+  bool          canDeferSources;
   bool          hasConstRefTag;   // true if has const-ref tags (vntb/ntb source)
 } SVirtualScanLogicNode;
 
@@ -356,6 +366,9 @@ typedef struct SProjectLogicNode {
   // block without a group id continues the current single sequence.
   bool       timeAlignOutputOrder;
 } SProjectLogicNode;
+
+// Unary pass-through. pProjections holds the input count and candidate value, in that order.
+typedef SProjectLogicNode SScalarCheckLogicNode;
 
 typedef struct SIndefRowsFuncLogicNode {
   SLogicNode node;
@@ -703,9 +716,17 @@ typedef struct SSubplanId {
   int32_t  subplanId;
 } SSubplanId;
 
+typedef struct SSubplanTarget {
+  int32_t        subplanId;
+  SQueryNodeAddr execNode;
+  SQueryNodeStat execNodeStat;
+} SSubplanTarget;
+
 typedef struct SLogicSubplan {
   ENodeType     type;
   SSubplanId    id;
+  bool          isTemplate;
+  int32_t       baseSubplanId;
   SNodeList*    pChildren;
   SNodeList*    pParents;
   SLogicNode*   pNode;
@@ -1059,6 +1080,9 @@ typedef struct SProjectPhysiNode {
   bool       timeAlignProject;  // see SProjectLogicNode.timeAlignProject
   bool       timeAlignOutputOrder;  // see SProjectLogicNode.timeAlignOutputOrder
 } SProjectPhysiNode;
+
+// Unary pass-through. pProjections holds the input count and candidate value, in that order.
+typedef SProjectPhysiNode SScalarCheckPhysiNode;
 
 typedef struct SIndefRowsFuncPhysiNode {
   SPhysiNode node;
@@ -1515,6 +1539,7 @@ typedef struct SSubplan {
   char           user[TSDB_USER_LEN];
   SQueryNodeAddr execNode;      // for the scan/modify subplan, the optional execution node
   SQueryNodeStat execNodeStat;  // only for scan subplan
+  SArray*        pExecTargets; // scheduler-local leaf instances
   SNodeList*     pChildren;     // the datasource subplan,from which to fetch the result
   SNodeList*     pParents;      // the data destination subplan, get data from current subplan
   SPhysiNode*    pNode;         // physical plan of current subplan
@@ -1541,6 +1566,15 @@ typedef struct SSubplan {
   int16_t        userAppId;  // encoded from client user_app, propagated for server-side use
   char charsetName[TD_CHARSET_LEN];
 } SSubplan;
+
+static inline int32_t subplanGetTargetCount(const SSubplan* pPlan) {
+  int32_t count = pPlan ? (int32_t)taosArrayGetSize(pPlan->pExecTargets) : 0;
+  return count > 0 ? count : 1;
+}
+
+int32_t nodesSubplanInvariantToMsg(const SSubplan* pPlan, char** ppBody, int32_t* pLen);
+int32_t nodesSubplanAssembleMsg(const SSubplan* pPlan, const char* body, int32_t bodyLen, const SSubplanTarget* target,
+                                char** ppMsg, int32_t* pLen);
 
 typedef enum EExplainMode {
   EXPLAIN_MODE_DISABLE = 1,

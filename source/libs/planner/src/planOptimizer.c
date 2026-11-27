@@ -78,6 +78,7 @@ typedef int32_t (*FOptimize)(SOptimizeContext* pCxt, SLogicSubplan* pLogicSubpla
 typedef struct SOptimizeRule {
   char*     pName;
   FOptimize optimizeFunc;
+  bool      localFixpoint;
 } SOptimizeRule;
 
 // Forward declarations for functions used before their definitions.
@@ -865,14 +866,6 @@ static int32_t scanPathOptSetOsdInfo(SOsdInfo* pInfo) {
   return code;
 }
 
-static int32_t scanPathOptMatch(SOptimizeContext* pCxt, SLogicNode* pLogicNode, SOsdInfo* pInfo) {
-  pInfo->pScan = (SScanLogicNode*)optFindPossibleNode(pLogicNode, scanPathOptMayBeOptimized, NULL);
-  if (NULL == pInfo->pScan) {
-    return TSDB_CODE_SUCCESS;
-  }
-  return scanPathOptSetOsdInfo(pInfo);
-}
-
 static EFuncDataRequired scanPathOptPromoteDataRequired(EFuncDataRequired l, EFuncDataRequired r) {
   switch (l) {
     case FUNC_DATA_REQUIRED_DATA_LOAD:
@@ -955,11 +948,32 @@ static void scanPathOptSetGroupOrderScan(SScanLogicNode* pScan) {
   }
 }
 
-static int32_t scanPathOptimize(SOptimizeContext* pCxt, SLogicSubplan* pLogicSubplan) {
+typedef int32_t (*FOptimizeNode)(SOptimizeContext*, SLogicNode*);
+
+// For rules that update nodes in place without detaching their children.
+static int32_t optVisitNodes(SOptimizeContext* pCxt, SLogicNode* pNode, FOptimizeNode apply) {
+  PLAN_ERR_RET(apply(pCxt, pNode));
+  SNode* child = NULL;
+  FOREACH(child, pNode->pChildren) {
+    PLAN_ERR_RET(optVisitNodes(pCxt, (SLogicNode*)child, apply));
+  }
+  return TSDB_CODE_SUCCESS;
+}
+
+static int32_t scanPathOptimizeNode(SOptimizeContext* pCxt, SLogicNode* pNode) {
+  if (nodeType(pNode) == QUERY_NODE_LOGIC_PLAN_VIRTUAL_TABLE_SCAN) {
+    SVirtualScanLogicNode* scan = (SVirtualScanLogicNode*)pNode;
+    if (scan->pDeferredSourceScans && !scan->deferredScanPathDone) {
+      // The existing rule derives direction from the first origin and marks its siblings done.
+      scan->deferredScanPathDone = true;
+      return scanPathOptimizeNode(pCxt, (SLogicNode*)nodesListGetNode(scan->pDeferredSourceScans, 0));
+    }
+  }
+  if (!scanPathOptMayBeOptimized(pNode, NULL)) return TSDB_CODE_SUCCESS;
   if (inStreamCalcClause(pCxt->pPlanCxt)) {
     // Stream calc skips scan-path rewrites, but consumers still need the native scan's
     // timestamp direction before the tree is split into reader and runner subplans.
-    SScanLogicNode* pScan = (SScanLogicNode*)optFindPossibleNode(pLogicSubplan->pNode, scanPathOptMayBeOptimized, NULL);
+    SScanLogicNode* pScan = (SScanLogicNode*)pNode;
     if (pScan != NULL) {
       if (pScan->scanType == SCAN_TYPE_TABLE || pScan->scanType == SCAN_TYPE_TABLE_MERGE) {
         pScan->node.outputTsOrder = pScan->scanSeq[0] > 0 ? ORDER_ASC : ORDER_DESC;
@@ -973,13 +987,8 @@ static int32_t scanPathOptimize(SOptimizeContext* pCxt, SLogicSubplan* pLogicSub
   SOsdInfo info = {.scanOrder = SCAN_ORDER_ASC};
   int32_t  code = TSDB_CODE_SUCCESS;
 
-  PLAN_ERR_JRET(scanPathOptMatch(pCxt, pLogicSubplan->pNode, &info));
-
-  planDebug("scan path optimize: subplan nodeType:%d, matched scan:%p", nodeType(pLogicSubplan->pNode), info.pScan);
-
-  if (!info.pScan) {
-    goto _return;
-  }
+  info.pScan = (SScanLogicNode*)pNode;
+  PLAN_ERR_JRET(scanPathOptSetOsdInfo(&info));
 
   // TIME_ALIGN: the DESC scan order comes from a LAST() consumer above the
   // aligned output; the align stage is direction aware, so that part is safe.
@@ -1011,7 +1020,7 @@ static int32_t scanPathOptimize(SOptimizeContext* pCxt, SLogicSubplan* pLogicSub
     info.pScan->lastScanType = LAST_SCAN_NONE;
   }
 
-  if (nodeType(info.pScan->node.pParent) == QUERY_NODE_LOGIC_PLAN_VIRTUAL_TABLE_SCAN) {
+  if (info.pScan->node.pParent && nodeType(info.pScan->node.pParent) == QUERY_NODE_LOGIC_PLAN_VIRTUAL_TABLE_SCAN) {
     SNode* pScan = NULL;
     FOREACH(pScan, info.pScan->node.pParent->pChildren) {
       OPTIMIZE_FLAG_SET_MASK(((SScanLogicNode*)pScan)->node.optimizedFlag, OPTIMIZE_FLAG_SCAN_PATH);
@@ -1028,6 +1037,10 @@ _return:
   }
   nodesDestroyList(info.pSdrFuncs);
   return code;
+}
+
+static int32_t scanPathOptimize(SOptimizeContext* pCxt, SLogicSubplan* pSubplan) {
+  return optVisitNodes(pCxt, pSubplan->pNode, scanPathOptimizeNode);
 }
 
 
@@ -2006,7 +2019,8 @@ static int32_t ensureVirtualTagScanChild(SVirtualScanLogicNode* pScan) {
   PLAN_ERR_JRET(nodesListMakeStrictAppend(&pScan->node.pChildren, (SNode*)pTemp));
   pTemp->node.pParent = (SLogicNode*)pScan;
 
-  return code;
+  // Subsequent rules must see the origins and tag input together.
+  return planMaterializeVirtualScanSources(pScan);
 
 _return:
   planError("%s failed at line %d, code: %d", __func__, lino, code);
@@ -4329,7 +4343,7 @@ static int32_t pdcDealJoin(SOptimizeContext* pCxt, SJoinLogicNode* pJoin) {
     code = pdcJoinSplitPrimEqCond(pCxt, pJoin);
   }
   while (true) {
-    if (TSDB_CODE_SUCCESS == code && NULL != pJoin->node.pConditions) {
+    if (TSDB_CODE_SUCCESS == code && !pJoin->scalarSubqueryJoin && NULL != pJoin->node.pConditions) {
       if (0 != gJoinWhereOpt[t][s].pushDownFlag) {
         code = pdcJoinSplitCond(pJoin, &pJoin->node.pConditions, &pOnCond, &pLeftChildCond, &pRightChildCond, true);
         if (TSDB_CODE_SUCCESS == code && NULL != pOnCond) {
@@ -5157,6 +5171,87 @@ static int32_t pdcTrivialPushDown(SOptimizeContext* pCxt, SLogicNode* pLogicNode
  * @param pVScan Virtual table scan node being rewritten in place.
  * @return TSDB_CODE_SUCCESS on success, otherwise an error code.
  */
+static int32_t pdcApplyVirtualSourceRange(SVirtualScanLogicNode* pVScan, SScanLogicNode* pOrgScan,
+                                          STimeWindow timeRange, SNode* pRemotePrimaryKeyCond) {
+  int32_t code = TSDB_CODE_SUCCESS;
+  SNode* pPushCond = NULL;
+  if (pRemotePrimaryKeyCond) {
+    PLAN_ERR_JRET(pdcCloneRewriteVtablePrimaryCond(pRemotePrimaryKeyCond, pOrgScan, &pPushCond));
+    PLAN_ERR_JRET(nodesMergeNode(&pOrgScan->pPrimaryCond, &pPushCond));
+    pPushCond = NULL;
+  }
+  if (pVScan->node.precision != pOrgScan->node.precision) {
+    // Skip sentinel values (TSKEY_MIN/TSKEY_MAX = unbounded) - convertTimePrecision
+    // only guards positive overflow, so TSKEY_MIN * 1000 would be signed-overflow UB.
+    // scanoperator.c applies the same guard for its time-window conversion.
+    pOrgScan->scanRange.skey =
+        (timeRange.skey == TSKEY_MIN || timeRange.skey == TSKEY_MAX)
+            ? timeRange.skey
+            : convertTimePrecision(timeRange.skey, pVScan->node.precision, pOrgScan->node.precision);
+    pOrgScan->scanRange.ekey =
+        (timeRange.ekey == TSKEY_MIN || timeRange.ekey == TSKEY_MAX)
+            ? timeRange.ekey
+            : convertTimePrecision(timeRange.ekey, pVScan->node.precision, pOrgScan->node.precision);
+  } else {
+    pOrgScan->scanRange = timeRange;
+  }
+_return:
+  nodesDestroyNode(pPushCond);
+  return code;
+}
+
+int32_t planMaterializeVirtualScanSources(SVirtualScanLogicNode* pScan) {
+  if (!pScan->pDeferredSourceScans) return TSDB_CODE_SUCCESS;
+  SNode* node = NULL;
+  FOREACH(node, pScan->pDeferredSourceScans) {
+    SScanLogicNode* source = (SScanLogicNode*)node;
+    source->node.pParent = (SLogicNode*)pScan;
+    if (pScan->hasDeferredScanRange) {
+      // Deferred origins start without a primary condition or LIMIT. Keep completed
+      // clones if a later origin fails, so a retry neither duplicates nor leaks them.
+      SNode* cond = source->pPrimaryCond ? NULL : pScan->pDeferredPrimaryCond;
+      PLAN_ERR_RET(pdcApplyVirtualSourceRange(pScan, source, pScan->deferredScanRange, cond));
+    }
+    if (pScan->deferredScanOrder == ORDER_ASC || pScan->deferredScanOrder == ORDER_DESC) {
+      source->scanSeq[0] = pScan->deferredScanOrder == ORDER_ASC;
+      source->scanSeq[1] = pScan->deferredScanOrder == ORDER_DESC;
+      source->node.outputTsOrder = pScan->deferredScanOrder;
+      source->sortPrimaryKey = true;
+    }
+    if (pScan->deferredSourceLimit && !source->node.pLimit) {
+      PLAN_ERR_RET(nodesCloneNode(pScan->deferredSourceLimit, &source->node.pLimit));
+    }
+    if (pScan->twoPassMode) {
+      source->scanSeq[0] = 1;
+      source->twoPassRescanSource = true;
+    }
+    if (pScan->deferredScanPathDone) OPTIMIZE_FLAG_SET_MASK(source->node.optimizedFlag, OPTIMIZE_FLAG_SCAN_PATH);
+  }
+  // Predicate pushdown can add a tag scan while the origin scans are deferred.
+  if (LIST_LENGTH(pScan->node.pChildren) > 0) {
+    PLAN_ERR_RET(nodesListAppendList(pScan->pDeferredSourceScans, pScan->node.pChildren));
+  } else {
+    nodesClearList(pScan->node.pChildren);
+  }
+  pScan->node.pChildren = pScan->pDeferredSourceScans;
+  pScan->pDeferredSourceScans = NULL;
+  NODES_DESTORY_NODE(pScan->deferredSourceLimit);
+  NODES_DESTORY_NODE(pScan->pDeferredPrimaryCond);
+  return TSDB_CODE_SUCCESS;
+}
+
+int32_t planMaterializeVirtualSourcesInTree(SLogicNode* pRoot) {
+  if (!pRoot) return TSDB_CODE_SUCCESS;
+  if (nodeType(pRoot) == QUERY_NODE_LOGIC_PLAN_VIRTUAL_TABLE_SCAN) {
+    PLAN_ERR_RET(planMaterializeVirtualScanSources((SVirtualScanLogicNode*)pRoot));
+  }
+  SNode* child = NULL;
+  FOREACH(child, pRoot->pChildren) {
+    PLAN_ERR_RET(planMaterializeVirtualSourcesInTree((SLogicNode*)child));
+  }
+  return TSDB_CODE_SUCCESS;
+}
+
 static int32_t pdcDealVirtualTable(SOptimizeContext* pCxt, SVirtualScanLogicNode* pVScan) {
   if (virtualScanContainsAlign(pVScan)) {
     return TSDB_CODE_SUCCESS;
@@ -5194,6 +5289,12 @@ static int32_t pdcDealVirtualTable(SOptimizeContext* pCxt, SVirtualScanLogicNode
     goto _return1;
   }
 
+  if (pVScan->pDeferredSourceScans) {
+    pVScan->hasDeferredScanRange = true;
+    pVScan->deferredScanRange = timeRange;
+    pVScan->pDeferredPrimaryCond = pRemotePrimaryKeyCond;
+    pRemotePrimaryKeyCond = NULL;
+  }
   SNode* pChildrenNode = NULL;
   FOREACH(pChildrenNode, pVScan->node.pChildren) {
     SLogicNode* pChild = (SLogicNode*)pChildrenNode;
@@ -5231,26 +5332,8 @@ static int32_t pdcDealVirtualTable(SOptimizeContext* pCxt, SVirtualScanLogicNode
       continue;
     }
 
-    if (pRemotePrimaryKeyCond) {
-      PLAN_ERR_JRET(pdcCloneRewriteVtablePrimaryCond(pRemotePrimaryKeyCond, pOrgScan, &pPushCond));
-      PLAN_ERR_JRET(nodesMergeNode(&pOrgScan->pPrimaryCond, &pPushCond));
-      pPushCond = NULL;
-    }
-    if (pVScan->node.precision != pOrgScan->node.precision) {
-      // Skip sentinel values (TSKEY_MIN/TSKEY_MAX = unbounded) - convertTimePrecision
-      // only guards positive overflow, so TSKEY_MIN * 1000 would be signed-overflow UB.
-      // scanoperator.c applies the same guard for its time-window conversion.
-      pOrgScan->scanRange.skey =
-          (timeRange.skey == TSKEY_MIN || timeRange.skey == TSKEY_MAX)
-              ? timeRange.skey
-              : convertTimePrecision(timeRange.skey, pVScan->node.precision, pOrgScan->node.precision);
-      pOrgScan->scanRange.ekey =
-          (timeRange.ekey == TSKEY_MIN || timeRange.ekey == TSKEY_MAX)
-              ? timeRange.ekey
-              : convertTimePrecision(timeRange.ekey, pVScan->node.precision, pOrgScan->node.precision);
-    } else {
-      pOrgScan->scanRange = timeRange;
-    }
+    PLAN_ERR_JRET(pdcApplyVirtualSourceRange(pVScan, pOrgScan, timeRange, pRemotePrimaryKeyCond));
+
   }
 
   NODES_DESTORY_NODE(pPrimaryKeyCond);
@@ -5591,11 +5674,8 @@ static bool eliminateNotNullCondMayBeOptimized(SLogicNode* pNode, void* pCtx) {
   return true;
 }
 
-static int32_t eliminateNotNullCondOptimize(SOptimizeContext* pCxt, SLogicSubplan* pLogicSubplan) {
-  SLogicNode* pNode = (SLogicNode*)optFindPossibleNode(pLogicSubplan->pNode, eliminateNotNullCondMayBeOptimized, NULL);
-  if (NULL == pNode) {
-    return TSDB_CODE_SUCCESS;
-  }
+static int32_t eliminateNotNullCondOptimizeNode(SOptimizeContext* pCxt, SLogicNode* pNode) {
+  if (!eliminateNotNullCondMayBeOptimized(pNode, NULL)) return TSDB_CODE_SUCCESS;
 
   SScanLogicNode* pScan = (SScanLogicNode*)nodesListGetNode(pNode->pChildren, 0);
   nodesDestroyNode(pScan->node.pConditions);
@@ -5604,6 +5684,10 @@ static int32_t eliminateNotNullCondOptimize(SOptimizeContext* pCxt, SLogicSubpla
   pCxt->optimized = true;
 
   return TSDB_CODE_SUCCESS;
+}
+
+static int32_t eliminateNotNullCondOptimize(SOptimizeContext* pCxt, SLogicSubplan* pSubplan) {
+  return optVisitNodes(pCxt, pSubplan->pNode, eliminateNotNullCondOptimizeNode);
 }
 
 static bool sortPriKeyOptIsPriKeyOrderBy(SNodeList* pSortKeys) {
@@ -5914,6 +5998,7 @@ static bool sortPriKeyOptHasUnsupportedPkFunc(SLogicNode* pLogicNode, EOrder sor
 }
 
 static bool sortPriKeyOptCanOrderVirtualScan(SVirtualScanLogicNode* pScan) {
+  if (pScan->pDeferredSourceScans) return !pScan->twoPassMode && !pScan->deferredSourceLimit;
   if (pScan->twoPassMode || 0 == LIST_LENGTH(pScan->node.pChildren)) {
     return false;
   }
@@ -6100,6 +6185,9 @@ static int32_t sortPriKeyOptApply(SOptimizeContext* pCxt, SLogicSubplan* pLogicS
       pScan->sortPrimaryKey = true;
     } else if (QUERY_NODE_LOGIC_PLAN_VIRTUAL_TABLE_SCAN == nodeType(pSequencingNode)) {
       SLogicNode* pOrdered = (SLogicNode*)pSequencingNode;
+      if (((SVirtualScanLogicNode*)pOrdered)->pDeferredSourceScans) {
+        ((SVirtualScanLogicNode*)pOrdered)->deferredScanOrder = order;
+      }
       pOrdered->inputTsOrder = order;
       pOrdered->outputTsOrder = order;
       pOrdered->resultDataOrder = DATA_ORDER_LEVEL_GLOBAL;
@@ -6201,6 +6289,7 @@ static bool virtualTopNMayBeOptimized(SLogicNode* pNode, void* pCtx) {
 }
 
 static bool setVirtualScanOrder(SVirtualScanLogicNode* pScan, EOrder order) {
+  if (pScan->pDeferredSourceScans) pScan->deferredScanOrder = order;
   // Every data scan must be able to emit rows in the requested timestamp order.
   // A local scan is flipped through scanSeq; an external scan is ordered by the
   // primary-key ORDER BY already proven in its remote plan, so that sort must
@@ -6313,6 +6402,18 @@ static bool virtualSourceLimitMayBeOptimized(SLogicNode* pNode, void* pCtx) {
       !virtualScanAlignAllowsSourceLimit(pScan)) {
     return false;
   }
+  if (pScan->pDeferredSourceScans) {
+    // Eligibility below was checked before detaching. Precision narrowing can
+    // collapse distinct source rows, so a source prefix may lose virtual rows.
+    EOrder order = pScan->deferredScanOrder;
+    if (order != ORDER_ASC && order != ORDER_DESC) order = ORDER_ASC;
+    if (order != pNode->outputTsOrder) return false;
+    SNode* origin = NULL;
+    FOREACH(origin, pScan->pDeferredSourceScans) {
+      if (((SLogicNode*)origin)->precision > pNode->precision) return false;
+    }
+    return true;
+  }
   SNode* pChild = NULL;
   FOREACH(pChild, pNode->pChildren) {
     if (QUERY_NODE_LOGIC_PLAN_SCAN != nodeType(pChild)) {
@@ -6397,6 +6498,13 @@ static int32_t virtualSourceLimitOptimize(SOptimizeContext* pCxt, SLogicSubplan*
   if (NULL == pScan || inStreamCalcClause(pCxt->pPlanCxt)) {
     return TSDB_CODE_SUCCESS;
   }
+  SVirtualScanLogicNode* pVirtual = (SVirtualScanLogicNode*)pScan;
+  if (pVirtual->pDeferredSourceScans) {
+    SLogicNode sink = {0};
+    PLAN_ERR_RET(cloneLimit(pScan, &sink, CLONE_LIMIT, &pCxt->optimized));
+    pVirtual->deferredSourceLimit = sink.pLimit;
+    return TSDB_CODE_SUCCESS;
+  }
   SNode* pChild = NULL;
   FOREACH(pChild, pScan->pChildren) {
     if (QUERY_NODE_LOGIC_PLAN_SCAN == nodeType(pChild) &&
@@ -6432,6 +6540,7 @@ static bool virtualScanSourceCanBeOrdered(SScanLogicNode* pSource) {
 }
 
 static bool virtualScanCanOrderSources(SVirtualScanLogicNode* pScan) {
+  if (pScan->pDeferredSourceScans) return !pScan->twoPassMode && !pScan->deferredSourceLimit;
   if (pScan->twoPassMode || 0 == LIST_LENGTH(pScan->node.pChildren)) {
     return false;
   }
@@ -6496,7 +6605,8 @@ static bool virtualLastMayBeOptimized(SLogicNode* pNode, void* pCtx) {
   }
 
   SNode* pSourceNode = NULL;
-  FOREACH(pSourceNode, pChild->pChildren) {
+  SNodeList* sources = pScan->pDeferredSourceScans ? pScan->pDeferredSourceScans : pChild->pChildren;
+  FOREACH(pSourceNode, sources) {
     // A tag-ref source supplies one table-level constant row.  VirtualScan stores
     // that row separately and fills the tag columns after merging, before the
     // limit is applied, so it neither joins the timestamp merge nor consumes the
@@ -7533,6 +7643,35 @@ static bool planOptNodeListHasTbname(SNodeList* pKeys) {
   return hasCol;
 }
 
+// Single traversal for materialization checks: both the tbname column and the
+// tbname() function make a group expression per-table rather than per-group.
+static EDealRes partTagsOptHasAnyTbname(SNode* pNode, void* pContext) {
+  ENodeType type = nodeType(pNode);
+  if (QUERY_NODE_COLUMN == type) {
+    if (COLUMN_TYPE_TBNAME == ((SColumnNode*)pNode)->colType) {
+      *(bool*)pContext = true;
+      return DEAL_RES_END;
+    }
+  } else if (QUERY_NODE_FUNCTION == type &&
+             FUNCTION_TYPE_TBNAME == ((SFunctionNode*)pNode)->funcType) {
+    *(bool*)pContext = true;
+    return DEAL_RES_END;
+  }
+  return DEAL_RES_CONTINUE;
+}
+
+static bool partTagsExprHasTbname(SNode* pNode) {
+  bool hasTbname = false;
+  nodesWalkExpr(pNode, partTagsOptHasAnyTbname, &hasTbname);
+  return hasTbname;
+}
+
+static bool partTagsGroupHasTbname(SNodeList* pKeys) {
+  bool hasTbname = false;
+  nodesWalkExprs(pKeys, partTagsOptHasAnyTbname, &hasTbname);
+  return hasTbname;
+}
+
 static bool isImplicitPartitionKeyList(SNodeList* pKeys) {
   if (1 != LIST_LENGTH(pKeys)) {
     return false;
@@ -7903,14 +8042,318 @@ static bool partTagsHasRealConsumer(const SAggLogicNode* pAgg, SNode* pExpr) {
   return false;
 }
 
-static int32_t partTagsRewriteGroupTagsToFuncs(SNodeList* pGroupTags, int32_t start, SAggLogicNode* pAgg,
+static bool partTagsFuncIsReusableScalar(int32_t funcId) {
+  // Only a pure scalar function can be evaluated once per group and reused by
+  // the scan. Aggregates, window pseudo columns, vector/indefinite-row and
+  // placeholder functions depend on more than one row or on execution context.
+  return !fmIsVolatileFunc(funcId) && !fmIsNoPushdownFunc(funcId) &&
+         !fmIsScanPseudoColumnFunc(funcId) && !fmIsWindowPseudoColumnFunc(funcId) &&
+         !fmIsAggFunc(funcId) && !fmIsVectorFunc(funcId) && !fmIsIndefiniteRowsFunc(funcId) &&
+         !fmIsPlaceHolderFunc(funcId);
+}
+
+static EDealRes partTagsOptHasNonMaterializableNode(SNode* pNode, void* pContext) {
+  switch (nodeType(pNode)) {
+    case QUERY_NODE_COLUMN:
+    case QUERY_NODE_VALUE:
+    case QUERY_NODE_OPERATOR:
+    case QUERY_NODE_LOGIC_CONDITION:
+    case QUERY_NODE_CASE_WHEN:
+    case QUERY_NODE_WHEN_THEN:
+      return DEAL_RES_CONTINUE;
+    case QUERY_NODE_FUNCTION:
+      if (!partTagsFuncIsReusableScalar(((SFunctionNode*)pNode)->funcId)) {
+        *(bool*)pContext = true;
+        return DEAL_RES_END;
+      }
+      return DEAL_RES_CONTINUE;
+    default:
+      // Subqueries (REMOTE_VALUE and friends) and other executor-context nodes
+      // cannot be copied into scan pseudo columns safely. Keep the original
+      // wrapper expression and let the aggregate evaluate it.
+      *(bool*)pContext = true;
+      return DEAL_RES_END;
+  }
+}
+
+static bool partTagsCanMaterializeGroupExpr(SNode* pNode) {
+  // Callers feed this predicate from group tag and pseudo column lists; a NULL
+  // entry must disable materialization instead of dereferencing it below.
+  if (NULL == pNode) {
+    return false;
+  }
+  if (QUERY_NODE_COLUMN == nodeType(pNode) || QUERY_NODE_VALUE == nodeType(pNode)) {
+    return false;
+  }
+  bool hasNonMaterializable = false;
+  nodesWalkExpr(pNode, partTagsOptHasNonMaterializableNode, &hasNonMaterializable);
+  return !hasNonMaterializable && !partTagsExprHasTbname(pNode);
+}
+
+// Contract: pScan->pGroupTags is a clone of the logic scan node's group tags
+// (planPhysiCreater.c) and is passed unchanged to the executor, whose group Data
+// indexing walks the same list. Order and contents must stay identical between
+// the planner rewrite and the executor lookup; only VALUE entries are skipped
+// on both sides.
+// addDataBlockSlots() keys an expression output by its aliasName and an
+// unqualified column by its colName (getSlotKey, planPhysiCreater.c). A
+// materialized group expression is published twice: as the scan pseudo column
+// (key = aliasName) and as the derived column appended to the scan targets
+// (key = colName, which doCreateColumn copies from aliasName), so the two
+// representations land in one output slot with one resType. That only works
+// while the name is unique: two different expressions sharing it would be
+// deduplicated into the same slot, and the executor's nodesEqualNode-based
+// pseudo-column match would then map one slot to two groupData indexes. Keep
+// the wrapper whenever the alias is empty or already used by another scan
+// output.
+static const char* partTagsSlotName(const SNode* pNode) {
+  if (QUERY_NODE_TARGET == nodeType(pNode)) {
+    pNode = ((const STargetNode*)pNode)->pExpr;
+  }
+  if (NULL == pNode || QUERY_NODE_VALUE == nodeType(pNode)) {
+    return NULL;
+  }
+  if (QUERY_NODE_COLUMN == nodeType(pNode)) {
+    const SColumnNode* pCol = (const SColumnNode*)pNode;
+    // A qualified column is keyed by tableAlias.colName and cannot collide
+    // with the bare alias of a group expression.
+    return ('\0' == pCol->tableAlias[0]) ? pCol->colName : NULL;
+  }
+  return ((const SExprNode*)pNode)->aliasName;
+}
+
+// Name a scan output is published under in pScan->node.pTargets: a column
+// appears by colName and a plain expression by aliasName. Only node kinds that
+// embed SExprNode as their first member are read through it; a TARGET wrapper is
+// unwrapped first and every other kind stays unnamed, so a caller never reads
+// one layout through another.
+static const char* partTagsPseudoOutputName(const SNode* pNode) {
+  if (NULL == pNode) {
+    return NULL;
+  }
+  if (QUERY_NODE_TARGET == nodeType(pNode)) {
+    pNode = ((const STargetNode*)pNode)->pExpr;
+    if (NULL == pNode) {
+      return NULL;
+    }
+  }
+  switch (nodeType(pNode)) {
+    case QUERY_NODE_COLUMN:
+      return ((const SColumnNode*)pNode)->colName;
+    case QUERY_NODE_OPERATOR:
+    case QUERY_NODE_LOGIC_CONDITION:
+    case QUERY_NODE_CASE_WHEN:
+    case QUERY_NODE_WHEN_THEN:
+    case QUERY_NODE_FUNCTION:
+      return ((const SExprNode*)pNode)->aliasName;
+    default:
+      return NULL;
+  }
+}
+
+static bool partTagsAliasCollides(SNodeList* pList, const SNode* pNode) {
+  if (NULL == pNode) {
+    return true;
+  }
+  // Only plain expression nodes embed SExprNode as their first member. Anything
+  // else (e.g. a TARGET wrapper) keeps the wrapper instead of reading the alias
+  // through a mismatched layout.
+  switch (nodeType(pNode)) {
+    case QUERY_NODE_COLUMN:
+    case QUERY_NODE_VALUE:
+    case QUERY_NODE_OPERATOR:
+    case QUERY_NODE_LOGIC_CONDITION:
+    case QUERY_NODE_CASE_WHEN:
+    case QUERY_NODE_WHEN_THEN:
+    case QUERY_NODE_FUNCTION:
+      break;
+    default:
+      return true;
+  }
+
+  const char* alias = ((const SExprNode*)pNode)->aliasName;
+  if ('\0' == alias[0]) {
+    return true;
+  }
+
+  SNode* pItem = NULL;
+  FOREACH(pItem, pList) {
+    const char* name = partTagsSlotName(pItem);
+    if (NULL != name && 0 == strcmp(alias, name)) {
+      return true;
+    }
+  }
+  return false;
+}
+
+static bool partTagsCanMaterializeAlias(const SScanLogicNode* pScan, const SNode* pNode) {
+  return !partTagsAliasCollides(pScan->pScanPseudoCols, pNode) &&
+         !partTagsAliasCollides(pScan->node.pTargets, pNode);
+}
+
+// The statement-level hint is attached to the statement root, which is not
+// always the aggregate node this rewrite starts from (a sort/project can sit
+// above it), so look up the parent chain instead of only the agg node.
+static bool partTagsOptHasNoGroupKeyReuseHint(const SLogicNode* pNode) {
+  for (const SLogicNode* pCurr = pNode; NULL != pCurr; pCurr = pCurr->pParent) {
+    if (getOptHint(pCurr->pHint, HINT_NO_GROUP_KEY_REUSE)) {
+      return true;
+    }
+  }
+  return false;
+}
+
+// A materialized group key publishes the scalar result in place of the source
+// expression: the aggregate wrapper receives a derived column named after the
+// original expression. Rules that must reason about the source (last-cache tag
+// classification) resolve that column back through the scan group tags, which
+// still hold the raw expression.
+static SNode* partTagsResolveMaterializedGroupExpr(const SScanLogicNode* pScan, const SColumnNode* pCol) {
+  if (NULL == pScan || NULL == pCol || NULL == pScan->pGroupTags || '\0' == pCol->colName[0]) {
+    return NULL;
+  }
+
+  SNode* pNode = NULL;
+  FOREACH(pNode, pScan->pGroupTags) {
+    // Only plain expression kinds embed SExprNode. A COLUMN was never
+    // rewritten and a VALUE is never materialized.
+    if (QUERY_NODE_COLUMN == nodeType(pNode) || QUERY_NODE_VALUE == nodeType(pNode)) {
+      continue;
+    }
+    const char* name = partTagsPseudoOutputName(pNode);
+    if (NULL != name && '\0' != name[0] && 0 == strcmp(name, pCol->colName)) {
+      return pNode;
+    }
+  }
+
+  return NULL;
+}
+
+// Drop the scan outputs that published a materialized group expression: the
+// derived target and the pseudo column that produced it. Both are keyed by the
+// expression alias, which the caller recorded in pNames.
+static int32_t partTagsPruneMaterializedScanOutputs(SScanLogicNode* pScan, SHashObj* pNames) {
+  if (NULL == pScan || NULL == pScan->pScanPseudoCols || NULL == pNames) {
+    return TSDB_CODE_SUCCESS;
+  }
+
+  SListCell* pCell = pScan->pScanPseudoCols->pHead;
+  while (NULL != pCell) {
+    SNode* pPseudo = pCell->pNode;
+    if (NULL == pPseudo || QUERY_NODE_COLUMN == nodeType(pPseudo) || !partTagsCanMaterializeGroupExpr(pPseudo)) {
+      pCell = pCell->pNext;
+      continue;
+    }
+
+    const char* name = partTagsPseudoOutputName(pPseudo);
+    if (NULL == name || NULL == taosHashGet(pNames, name, strlen(name))) {
+      pCell = pCell->pNext;
+      continue;
+    }
+
+    SListCell* pTargetCell = NULL != pScan->node.pTargets ? pScan->node.pTargets->pHead : NULL;
+    while (NULL != pTargetCell) {
+      const char* targetName = partTagsPseudoOutputName(pTargetCell->pNode);
+      if (NULL != targetName && 0 == strcmp(name, targetName)) {
+        pTargetCell = nodesListErase(pScan->node.pTargets, pTargetCell);
+        break;
+      }
+      pTargetCell = pTargetCell->pNext;
+    }
+
+    pCell = nodesListErase(pScan->pScanPseudoCols, pCell);
+  }
+
+  if (0 == pScan->pScanPseudoCols->length) {
+    nodesDestroyList(pScan->pScanPseudoCols);
+    pScan->pScanPseudoCols = NULL;
+  }
+
+  return TSDB_CODE_SUCCESS;
+}
+
+// Restore the raw source expression for materialized group keys. A cache scan
+// and any rule that rebuilds the scan from its aggregate functions can provide
+// raw tag columns but not the materialized group data, so the wrapper must
+// evaluate the expression from the tags again. The caller re-collects the tag
+// columns into the rebuilt scan output (splitCacheLastFuncOptUpdateScanNode) or
+// the original tag columns are already present.
+static int32_t partTagsDematerializeGroupKeys(SAggLogicNode* pAgg, SScanLogicNode* pScan) {
+  if (NULL == pAgg || NULL == pScan || NULL == pScan->pScanPseudoCols) {
+    return TSDB_CODE_SUCCESS;
+  }
+
+  SHashObj* pRemoved = taosHashInit(8, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), true, HASH_NO_LOCK);
+  if (NULL == pRemoved) {
+    return terrno;
+  }
+
+  int32_t code = TSDB_CODE_SUCCESS;
+  SNode*  pFuncNode = NULL;
+  FOREACH(pFuncNode, pAgg->pAggFuncs) {
+    SFunctionNode* pFunc = (SFunctionNode*)pFuncNode;
+    if (FUNCTION_TYPE_GROUP_KEY != pFunc->funcType && FUNCTION_TYPE_GROUP_CONST_VALUE != pFunc->funcType) {
+      continue;
+    }
+    if (NULL == pFunc->pParameterList || 1 != LIST_LENGTH(pFunc->pParameterList)) {
+      continue;
+    }
+
+    SNode* pParam = nodesListGetNode(pFunc->pParameterList, 0);
+    if (NULL == pParam || QUERY_NODE_COLUMN != nodeType(pParam)) {
+      continue;
+    }
+
+    SNode* pSource = partTagsResolveMaterializedGroupExpr(pScan, (SColumnNode*)pParam);
+    if (NULL == pSource) {
+      continue;
+    }
+
+    char name[TSDB_COL_NAME_LEN] = {0};
+    tstrncpy(name, ((SColumnNode*)pParam)->colName, sizeof(name));
+
+    SNode* pClone = NULL;
+    code = nodesCloneNode(pSource, &pClone);
+    if (TSDB_CODE_SUCCESS != code) {
+      break;
+    }
+    nodesDestroyList(pFunc->pParameterList);
+    pFunc->pParameterList = NULL;
+    code = nodesListMakeStrictAppend(&pFunc->pParameterList, pClone);
+    if (TSDB_CODE_SUCCESS != code) {
+      break;
+    }
+    if ('\0' != name[0]) {
+      code = taosHashPut(pRemoved, name, strlen(name), NULL, 0);
+      if (TSDB_CODE_SUCCESS != code) {
+        break;
+      }
+    }
+  }
+
+  if (TSDB_CODE_SUCCESS == code && taosHashGetSize(pRemoved) > 0) {
+    code = partTagsPruneMaterializedScanOutputs(pScan, pRemoved);
+  }
+
+  taosHashCleanup(pRemoved);
+  return code;
+}
+
+static int32_t partTagsRewriteGroupTagsToFuncs(SScanLogicNode* pScan, int32_t start, SAggLogicNode* pAgg,
                                                bool appendWrapperTarget) {
+  // Any tbname in the group keys disables materialization for the whole query:
+  // the executor's UID grouping path (groupbyTbname) skips groupData
+  // initialization, so a per-expression materialized column would have no
+  // producer. partTagsCanMaterializeGroupExpr keeps its own per-expression
+  // tbname check for callers that have no list-level gate (e.g.
+  // partTagsOptRemovePseudoCols).
+  bool groupHasTbname = partTagsGroupHasTbname(pScan->pGroupTags);
   bool    hasIndefRowsSelectFunc = partTagsHasIndefRowsSelectFunc(pAgg->pAggFuncs);
   partTagsDebugLogConsumerChain(pAgg);
   int32_t code = TSDB_CODE_SUCCESS;
   int32_t index = 0;
   SNode*  pNode = NULL;
-  FOREACH(pNode, pGroupTags) {
+  FOREACH(pNode, pScan->pGroupTags) {
     int32_t currIndex = index++;
     bool    needOutput = partTagsHasRealConsumer(pAgg, pNode);
     planDebug("FQ-partTags: groupTag[%d] nodeType=%d needOutput=%d", currIndex, (int)nodeType(pNode), needOutput);
@@ -7920,17 +8363,80 @@ static int32_t partTagsRewriteGroupTagsToFuncs(SNodeList* pGroupTags, int32_t st
     SFunctionNode* pFunc = NULL;
     if (hasIndefRowsSelectFunc) {
       code = partTagsCreateWrapperFunc("_select_value", pNode, &pFunc);
-      if (TSDB_CODE_SUCCESS == code) {
-        code = nodesListStrictAppend(pAgg->pAggFuncs, (SNode*)pFunc);
-      }
     } else {
       code = partTagsCreateWrapperFunc("_group_key", pNode, &pFunc);
-      if (TSDB_CODE_SUCCESS == code) {
-        code = nodesListStrictAppend(pAgg->pAggFuncs, (SNode*)pFunc);
-      }
     }
+    if (TSDB_CODE_SUCCESS == code && !appendWrapperTarget && SCAN_TYPE_STREAM != pScan->scanType &&
+        !partTagsOptHasNoGroupKeyReuseHint((const SLogicNode*)pScan) && !groupHasTbname &&
+        partTagsCanMaterializeGroupExpr(pNode) && partTagsCanMaterializeAlias(pScan, pNode)) {
+      // Reusable group data is incompatible with the table-group cache: that
+      // cache stores only table ids and group ids, so the executor cannot
+      // answer a cache hit with materialized values. NO_GROUP_KEY_REUSE is the
+      // optional non-materialized path for deployments that want repeated
+      // grouped scans to keep their tagFilterCache hits.
+      // Stream scans fill pseudo columns from raw tags in the WAL path. Keep
+      // the original wrapper expression there so aggregation evaluates it.
+      // Reuse the scalar value that other scans calculate for group IDs.
+      //
+      // The scan pseudo column must be the whole expression node, appended in
+      // group-tag order (VALUE entries are not materialized). The executor's
+      // initGroupDataSlotMap matches it back with nodesEqualNode and assigns
+      // the groupData index in that same order, so keep both sides aligned.
+      // The output slot is keyed by aliasName (addDataBlockSlots), hence the
+      // partTagsCanMaterializeAlias gate above; a duplicate alias would map
+      // two group expressions onto one slot.
+      //
+      // Build every fallible piece first and commit afterwards, so a failure
+      // cannot leave the scan with a pseudo column/target whose wrapper is
+      // missing from the aggregate function list.
+      SNode*     pScanExpr = NULL;
+      SNodeList* pScanCols = NULL;
+      SNodeList* pFuncParams = NULL;
+
+      code = nodesCloneNode(pNode, &pScanExpr);
+      if (TSDB_CODE_SUCCESS == code) {
+        code = createColumnByRewriteExpr(pNode, &pScanCols);
+      }
+      if (TSDB_CODE_SUCCESS == code) {
+        code = createColumnByRewriteExpr(pNode, &pFuncParams);
+      }
+      if (TSDB_CODE_SUCCESS == code) {
+        int32_t appendCode = nodesListMakeStrictAppend(&pScan->pScanPseudoCols, pScanExpr);
+        pScanExpr = NULL;  // ownership is consumed on both success and failure
+        code = appendCode;
+      }
+      if (TSDB_CODE_SUCCESS == code) {
+        int32_t appendCode = nodesListStrictAppendList(pScan->node.pTargets, pScanCols);
+        pScanCols = NULL;  // ownership is consumed on both success and failure
+        code = appendCode;
+      }
+      if (TSDB_CODE_SUCCESS == code) {
+        // Swap in the derived columns only after every fallible step passed:
+        // the wrapper keeps its original parameter list (and the signature
+        // fmGetFuncInfo computed from it) while an error can still destroy it.
+        NODES_DESTORY_LIST(pFunc->pParameterList);
+        pFunc->pParameterList = pFuncParams;
+        pFuncParams = NULL;
+      }
+      nodesDestroyNode(pScanExpr);
+      nodesDestroyList(pScanCols);
+      nodesDestroyList(pFuncParams);
+    }
+    if (TSDB_CODE_SUCCESS != code) {
+      // Wrapper creation leaves *ppFunc NULL on failure, and the materialization
+      // above commits its pieces atomically, so pFunc is still unowned here.
+      // This is the only explicit release point.
+      nodesDestroyNode((SNode*)pFunc);
+      break;
+    }
+    // Strict append takes ownership of pFunc on success and releases it on
+    // failure; createColumnByRewriteExpr only clones from it. No later holder
+    // refers back to this node, so do not destroy it below.
+    SNode* pAggFunc = (SNode*)pFunc;
+    code = nodesListStrictAppend(pAgg->pAggFuncs, pAggFunc);
+    pFunc = NULL;
     if (TSDB_CODE_SUCCESS == code && appendWrapperTarget) {
-      code = createColumnByRewriteExpr((SNode*)pFunc, &pAgg->node.pTargets);
+      code = createColumnByRewriteExpr(pAggFunc, &pAgg->node.pTargets);
     }
     if (TSDB_CODE_SUCCESS != code) {
       break;
@@ -8026,53 +8532,82 @@ static EDealRes partTagsCollectColsNodes(SNode* pNode, void* pContext) {
 }
 
 
-static bool partTagsIsScanPseudoColsInConds(SScanLogicNode* pScan) {
-  SCollectColsCxt cxt = {
-      .errCode = TSDB_CODE_SUCCESS,
-      .pColHash = taosHashInit(128, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), true, HASH_NO_LOCK)};
-  if (NULL == cxt.pColHash) {
-    return true;
-  }
-
-  nodesWalkExpr(pScan->node.pConditions, partTagsCollectColsNodes, &cxt);
-  if (cxt.errCode) {
-    taosHashCleanup(cxt.pColHash);
-    return true;
-  }
-
-  SNode* pNode = NULL;
-  FOREACH(pNode, pScan->pScanPseudoCols) {
-    if (taosHashGet(cxt.pColHash, ((SExprNode*)pNode)->aliasName, strlen(((SExprNode*)pNode)->aliasName))) {
-      taosHashCleanup(cxt.pColHash);
-      return true;
-    }
-  }
-
-  taosHashCleanup(cxt.pColHash);
-  return false;
-}
-
 static int32_t partTagsOptRemovePseudoCols(SScanLogicNode* pScan) {
   if (!pScan->noPseudoRefAfterGrp || NULL == pScan->pScanPseudoCols || pScan->pScanPseudoCols->length <= 0) {
     return TSDB_CODE_SUCCESS;
   }
 
-  if (pScan->node.pConditions && partTagsIsScanPseudoColsInConds(pScan)) {
-    return TSDB_CODE_SUCCESS;
-  }
-
-  SNode* pNode = NULL, *pTarget = NULL;
-  FOREACH(pNode, pScan->pScanPseudoCols) {
-    FOREACH(pTarget, pScan->node.pTargets) {
-      if (0 == strcmp(((SExprNode*)pNode)->aliasName, ((SColumnNode*)pTarget)->colName)) {
-        ERASE_NODE(pScan->node.pTargets);
-        break;
-      }
+  // Nothing after GROUP BY consumes a tag, so only two kinds of pseudo column
+  // survive:
+  //   1. the raw expression the materialization path in
+  //      partTagsRewriteGroupTagsToFuncs published as the executor's producer
+  //      for a reusable scalar group result;
+  //   2. a plain column still referenced by a scan condition (virtual-table
+  //      tag conditions read it by slot).
+  // Every other entry (a plain tag kept only as a group key, or a pseudo
+  // function the rewrite gave up on) would make the scan fetch tags and fill a
+  // whole column per block for no consumer. Collect the condition column names
+  // first; a failure to build that set keeps all plain columns rather than
+  // pruning a column a condition may read.
+  SCollectColsCxt cxt = {
+      .errCode = TSDB_CODE_SUCCESS,
+      .pColHash = taosHashInit(128, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), true, HASH_NO_LOCK)};
+  bool keepCondCols = true;
+  if (NULL != cxt.pColHash) {
+    if (NULL != pScan->node.pConditions) {
+      nodesWalkExpr(pScan->node.pConditions, partTagsCollectColsNodes, &cxt);
+    }
+    if (TSDB_CODE_SUCCESS == cxt.errCode) {
+      keepCondCols = false;
     }
   }
-  
-  nodesDestroyList(pScan->pScanPseudoCols);
-  pScan->pScanPseudoCols = NULL;
+
+  SListCell* pCell = pScan->pScanPseudoCols->pHead;
+  while (NULL != pCell) {
+    SNode* pPseudo = pCell->pNode;
+    bool   keep = false;
+    if (NULL == pPseudo) {
+      keep = false;
+    } else if (QUERY_NODE_COLUMN == nodeType(pPseudo)) {
+      const char* name = partTagsPseudoOutputName(pPseudo);
+      keep = keepCondCols || (NULL != name && NULL != cxt.pColHash &&
+                              NULL != taosHashGet(cxt.pColHash, name, strlen(name)));
+    } else {
+      keep = partTagsCanMaterializeGroupExpr(pPseudo);
+    }
+
+    if (keep) {
+      pCell = pCell->pNext;
+      continue;
+    }
+
+    // Derive the output name only from node kinds that embed SExprNode; a
+    // wrapper with another layout has no name to match on and is kept rather
+    // than erased as a guess.
+    const char* pseudoName = partTagsPseudoOutputName(pPseudo);
+    if (NULL != pseudoName) {
+      SListCell* pTargetCell = NULL != pScan->node.pTargets ? pScan->node.pTargets->pHead : NULL;
+      while (NULL != pTargetCell) {
+        const char* targetName = partTagsPseudoOutputName(pTargetCell->pNode);
+        if (NULL != targetName && 0 == strcmp(pseudoName, targetName)) {
+          pTargetCell = nodesListErase(pScan->node.pTargets, pTargetCell);
+          break;
+        }
+        pTargetCell = pTargetCell->pNext;
+      }
+    }
+
+    pCell = nodesListErase(pScan->pScanPseudoCols, pCell);
+  }
+
+  if (NULL != cxt.pColHash) {
+    taosHashCleanup(cxt.pColHash);
+  }
+
+  if (0 == pScan->pScanPseudoCols->length) {
+    nodesDestroyList(pScan->pScanPseudoCols);
+    pScan->pScanPseudoCols = NULL;
+  }
 
   return TSDB_CODE_SUCCESS;
 }
@@ -8282,7 +8817,7 @@ static int32_t partTagsOptimize(SOptimizeContext* pCxt, SLogicSubplan* pLogicSub
       // The external connector needs the wrapper in the declared remote output.
       // Local scans materialize it through pAggFuncs, as in 3.0; adding both
       // representations makes the aggregate descriptor count the tag twice.
-      code = partTagsRewriteGroupTagsToFuncs(pScan->pGroupTags, start, pAgg, pScan->scanType == SCAN_TYPE_EXTERNAL);
+      code = partTagsRewriteGroupTagsToFuncs(pScan, start, pAgg, pScan->scanType == SCAN_TYPE_EXTERNAL);
     }
   }
   if (TSDB_CODE_SUCCESS == code) {
@@ -8320,6 +8855,11 @@ static int32_t eliminateProjOptCheckProjColumnNames(SProjectLogicNode* pProjectN
 }
 
 static bool eliminateProjOptMayBeOptimized(SLogicNode* pNode, void* pCtx) {
+  // A scalar check returns the original JOIN block, including its hidden
+  // count. Its parent owns the projection onto the SQL result schema.
+  if (LIST_LENGTH(pNode->pChildren) == 1 &&
+      nodeType(nodesListGetNode(pNode->pChildren, 0)) == QUERY_NODE_LOGIC_PLAN_SCALAR_CHECK) return false;
+
   // Local super-table scans keep the root Project so the top-level project
   // operator can merge result blocks efficiently. External scans may reuse
   // the super-table model for semantic checks, but should still participate
@@ -9765,15 +10305,28 @@ static int32_t lastSmaNotNullPrefilterOptimize(SOptimizeContext* pCxt, SLogicSub
 }
 
 typedef struct SLastRowScanOptLastParaCkCxt {
-  bool hasTag;
-  bool hasCol;
+  const SScanLogicNode* pScan;
+  bool                  hasTag;
+  bool                  hasCol;
 } SLastRowScanOptLastParaCkCxt;
 
 static EDealRes lastRowScanOptLastParaIsTagImpl(SNode* pNode, void* pContext) {
   if (QUERY_NODE_COLUMN == nodeType(pNode)) {
     SLastRowScanOptLastParaCkCxt* pCxt = pContext;
-    if (COLUMN_TYPE_TAG == ((SColumnNode*)pNode)->colType || COLUMN_TYPE_TBNAME == ((SColumnNode*)pNode)->colType) {
+    SColumnNode*                  pCol = (SColumnNode*)pNode;
+    if (COLUMN_TYPE_TAG == pCol->colType || COLUMN_TYPE_TBNAME == pCol->colType) {
       pCxt->hasTag = true;
+      return DEAL_RES_END;
+    }
+    // A materialized group key is exposed as a derived column, so its colType
+    // no longer says where it came from. Classify the source expression to
+    // keep the last-row/last cache applicable to tag-only group keys.
+    SNode* pSource = partTagsResolveMaterializedGroupExpr(pCxt->pScan, pCol);
+    if (NULL != pSource) {
+      SLastRowScanOptLastParaCkCxt source = {.pScan = NULL, .hasTag = false, .hasCol = false};
+      nodesWalkExpr(pSource, lastRowScanOptLastParaIsTagImpl, &source);
+      pCxt->hasTag = pCxt->hasTag || source.hasTag;
+      pCxt->hasCol = pCxt->hasCol || source.hasCol;
     } else {
       pCxt->hasCol = true;
     }
@@ -9782,8 +10335,8 @@ static EDealRes lastRowScanOptLastParaIsTagImpl(SNode* pNode, void* pContext) {
   return DEAL_RES_CONTINUE;
 }
 
-static bool lastRowScanOptLastParaIsTag(SNode* pExpr) {
-  SLastRowScanOptLastParaCkCxt cxt = {.hasTag = false, .hasCol = false};
+static bool lastRowScanOptLastParaIsTag(const SScanLogicNode* pScan, SNode* pExpr) {
+  SLastRowScanOptLastParaCkCxt cxt = {.pScan = pScan, .hasTag = false, .hasCol = false};
   nodesWalkExpr(pExpr, lastRowScanOptLastParaIsTagImpl, &cxt);
   return cxt.hasTag && !cxt.hasCol;
 }
@@ -9924,7 +10477,7 @@ static bool lastRowScanOptCheckFuncList(SLogicNode* pNode, int8_t cacheLastModel
       }
     } else if (FUNCTION_TYPE_GROUP_KEY == pAggFunc->funcType || 
                 FUNCTION_TYPE_GROUP_CONST_VALUE == pAggFunc->funcType) {
-      if (!lastRowScanOptLastParaIsTag(pParam)) {
+      if (!lastRowScanOptLastParaIsTag(pScan, pParam)) {
         canOptimize = false;
         break;
       }
@@ -10136,20 +10689,26 @@ static int32_t lastRowScanBuildFuncTypes(SScanLogicNode* pScan, SColumnNode* pCo
   return TSDB_CODE_SUCCESS;
 }
 # endif
-static int32_t lastRowScanOptimize(SOptimizeContext* pCxt, SLogicSubplan* pLogicSubplan) {
+static int32_t lastRowScanOptimizeNode(SOptimizeContext* pCxt, SLogicNode* pLogicNode) {
   if (inStreamCalcClause(pCxt->pPlanCxt)) {
     // stream calc query does not support last/last_row optimization
     return TSDB_CODE_SUCCESS;
   }
-  SAggLogicNode* pAgg = (SAggLogicNode*)optFindPossibleNode(pLogicSubplan->pNode, lastRowScanOptMayBeOptimized, NULL);
-
-  if (NULL == pAgg) {
-    return TSDB_CODE_SUCCESS;
-  }
+  if (!lastRowScanOptMayBeOptimized(pLogicNode, NULL)) return TSDB_CODE_SUCCESS;
+  SAggLogicNode* pAgg = (SAggLogicNode*)pLogicNode;
 
   int32_t code = 0;
   int32_t lino = 0;
   SScanLogicNode* pScan = (SScanLogicNode*)nodesListGetNode(pAgg->node.pChildren, 0);
+  // The cache scan emits one row per table from the last/last_row cache; it
+  // does not build the reusable group data. Evaluate materialized group keys
+  // from the raw tag expression again before switching the scan type, otherwise
+  // their derived output would have no producer.
+  code = partTagsDematerializeGroupKeys(pAgg, pScan);
+  if (TSDB_CODE_SUCCESS != code) {
+    return code;
+  }
+
   pScan->scanType = SCAN_TYPE_LAST_ROW;
   pScan->igLastNull = pAgg->hasLast ? true : false;
 
@@ -10188,6 +10747,10 @@ static int32_t lastRowScanOptimize(SOptimizeContext* pCxt, SLogicSubplan* pLogic
   pAgg->hasLast = false;
   pCxt->optimized = true;
   return TSDB_CODE_SUCCESS;
+}
+
+static int32_t lastRowScanOptimize(SOptimizeContext* pCxt, SLogicSubplan* pSubplan) {
+  return optVisitNodes(pCxt, pSubplan->pNode, lastRowScanOptimizeNode);
 }
 
 static bool splitCacheLastFuncOptCanRegroup(const SLogicNode* pNode) {
@@ -10827,6 +11390,14 @@ static int32_t splitCacheLastFuncOptGrouped(SOptimizeContext* pCxt,
 
   SScanLogicNode* pScan =
       (SScanLogicNode*)nodesListGetNode(pCache->node.pChildren, 0);
+  // updateScanNode rebuilds each branch scan from its aggregate functions, so
+  // group keys become raw tag columns again. Restore the source expression on
+  // the materialized wrappers first; otherwise the cached branch would keep a
+  // derived parameter whose producing slot is gone, and the group-key match
+  // below would also fail to recognize the existing wrapper.
+  code = partTagsDematerializeGroupKeys(pCache, pScan);
+  if (TSDB_CODE_SUCCESS != code) goto _return;
+
   SNode* pNode = NULL;
   WHERE_EACH(pNode, pCache->pAggFuncs) {
     if (isNeedSplitCacheLastFunc((SFunctionNode*)pNode, pScan,
@@ -11960,12 +12531,9 @@ static int32_t tbCntScanOptRewriteAgg(SAggLogicNode* pAgg) {
 /**
   Apply table count scan optimization on the logic subplan.
 */
-static int32_t tableCountScanOptimize(SOptimizeContext* pCxt,
-                                      SLogicSubplan* pLogicSubplan) {
+static int32_t tableCountScanOptimizeNode(SOptimizeContext* pCxt, SLogicNode* pNode) {
   STbCntScanOptInfo info = {0};
-  if (!optFindEligibleNode(pLogicSubplan->pNode,
-                           (FShouldBeOptimized)tbCntScanOptShouldBeOptimized,
-                           &info)) {
+  if (!tbCntScanOptShouldBeOptimized(pNode, &info)) {
     return TSDB_CODE_SUCCESS;
   }
 
@@ -11977,6 +12545,10 @@ static int32_t tableCountScanOptimize(SOptimizeContext* pCxt,
     pCxt->optimized = true;
   }
   return code;
+}
+
+static int32_t tableCountScanOptimize(SOptimizeContext* pCxt, SLogicSubplan* pSubplan) {
+  return optVisitNodes(pCxt, pSubplan->pNode, tableCountScanOptimizeNode);
 }
 
 static SSortLogicNode* sortNonPriKeySatisfied(SLogicNode* pNode) {
@@ -14179,7 +14751,8 @@ static bool virtualRowFuncTopNCanOrderInput(SLogicNode* pInput) {
     return false;
   }
   SNode* pChild = NULL;
-  FOREACH(pChild, pInput->pChildren) {
+  SNodeList* sources = pScan->pDeferredSourceScans ? pScan->pDeferredSourceScans : pInput->pChildren;
+  FOREACH(pChild, sources) {
     if (QUERY_NODE_LOGIC_PLAN_SCAN == nodeType(pChild) && SCAN_TYPE_TABLE == ((SScanLogicNode*)pChild)->scanType &&
         !virtualRowFuncTopNCanOrderSource((SScanLogicNode*)pChild, pInput->precision)) {
       return false;
@@ -14450,7 +15023,7 @@ static bool pdaSelectInputsAreIndependent(SAggLogicNode* pAgg, SVirtualScanLogic
   }
 
   SNode* pChild = NULL;
-  FOREACH(pChild, pVScan->node.pChildren) {
+  FOREACH(pChild, (pVScan->pDeferredSourceScans ? pVScan->pDeferredSourceScans : pVScan->node.pChildren)) {
     SScanLogicNode* pScan = (SScanLogicNode*)pChild;
     SNode* pTs = findPrimaryTsScanCol(pScan);
     // Precision conversion and composite keys can collapse several source
@@ -14471,12 +15044,9 @@ static bool pdaMayBeOptimized(SLogicNode* pNode, void* pCtx) {
     return false;
   }
 
-  // virtual table scan should have more than one child.
-  if (LIST_LENGTH(((SVirtualScanLogicNode *)nodesListGetNode(pNode->pChildren, 0))->node.pChildren) < 2) {
-    return false;
-  }
-
-  SVirtualScanLogicNode* pVScan = (SVirtualScanLogicNode *)nodesListGetNode(pNode->pChildren, 0);
+  SVirtualScanLogicNode* pVScan = (SVirtualScanLogicNode*)nodesListGetNode(pNode->pChildren, 0);
+  SNodeList* sources = pVScan->pDeferredSourceScans ? pVScan->pDeferredSourceScans : pVScan->node.pChildren;
+  if (LIST_LENGTH(sources) < 2) return false;
   if (pVScan->hasReferenceBinding) return false;
 
   // All VirtualScan children must be plain table-scan nodes.
@@ -14609,6 +15179,14 @@ _return:
   return code;
 }
 
+static void copyPdaColumnRef(SColumnNode* pCol, const SColumnNode* pVScanCol) {
+  pCol->hasRef = pVScanCol->hasRef;
+  tstrncpy(pCol->refSourceName, pVScanCol->refSourceName, sizeof(pCol->refSourceName));
+  tstrncpy(pCol->refDbName, pVScanCol->refDbName, sizeof(pCol->refDbName));
+  tstrncpy(pCol->refTableName, pVScanCol->refTableName, sizeof(pCol->refTableName));
+  tstrncpy(pCol->refColName, pVScanCol->refColName, sizeof(pCol->refColName));
+}
+
 static void syncPdaColumnRef(SVirtualScanLogicNode* pVScan, SColumnNode* pCol) {
   SNode* pNode = NULL;
   FOREACH(pNode, pVScan->pScanCols) {
@@ -14621,11 +15199,7 @@ static void syncPdaColumnRef(SVirtualScanLogicNode* pVScan, SColumnNode* pCol) {
       continue;
     }
 
-    pCol->hasRef = pVScanCol->hasRef;
-    tstrncpy(pCol->refSourceName, pVScanCol->refSourceName, sizeof(pCol->refSourceName));
-    tstrncpy(pCol->refDbName, pVScanCol->refDbName, sizeof(pCol->refDbName));
-    tstrncpy(pCol->refTableName, pVScanCol->refTableName, sizeof(pCol->refTableName));
-    tstrncpy(pCol->refColName, pVScanCol->refColName, sizeof(pCol->refColName));
+    copyPdaColumnRef(pCol, pVScanCol);
     return;
   }
 }
@@ -14706,47 +15280,73 @@ static void pdaRemoveSyntheticRemotePkSort(SScanLogicNode* pScan) {
   nodesDestroyNode((SNode*)pSort);
 }
 
-static int32_t rebuildPlanForPdaOptimize(SColumnNode* pCol, SFunctionNode* pAggFunc, SVirtualScanLogicNode* pVScan,
-                                         SHashObj* pAggNodeMap, bool* pSkipped) {
-  int32_t         code = TSDB_CODE_SUCCESS;
-  SScanLogicNode* pDepScan = NULL;
-  SAggLogicNode*  pAggNode = NULL;
-  SScanLogicNode* pDepScanOrigin = NULL;
-  bool            append = false;
-  SAggLogicNode** pNodeFound = NULL;
+// Include the external source in the key. NUL-separated identifiers also
+// distinguish quoted names containing dots without delimiter escaping.
+typedef struct SPdaColumnKey {
+  char bytes[TSDB_EXT_SOURCE_NAME_LEN + TSDB_DB_NAME_LEN + TSDB_TABLE_NAME_LEN + TSDB_COL_NAME_LEN];
+} SPdaColumnKey;
 
-  // Aggregate columns from the same source scan in one branch. The scan pointer
-  // is unambiguous even when different external sources expose identical names.
-  PLAN_ERR_JRET(findDepTableScanNode(pCol, pVScan, (SNode**)&pDepScan, &pDepScanOrigin));
-  if (NULL == pDepScan) {
-    // column has no matching source-table scan (e.g. virtual table's own ts from COUNT(*));
-    // signal the caller to abandon PDA  -  proceeding would rewrite the plan without this func.
-    *pSkipped = true;
+static size_t pdaColumnKey(SPdaColumnKey* key, const char* source, const char* db, const char* table, const char* col) {
+  return snprintf(key->bytes, sizeof(key->bytes), "%s%c%s%c%s%c%s", source, 0, db, 0, table, 0, col);
+}
+
+static int32_t indexPdaSources(SVirtualScanLogicNode* pVScan, SHashObj* origins, SHashObj* columns) {
+  SNode* node = NULL;
+  FOREACH(node, pVScan->pScanCols) {
+    if (nodeType(node) != QUERY_NODE_COLUMN) continue;
+    SColumnNode* col = (SColumnNode*)node;
+    if (!taosHashGet(columns, &col->colId, sizeof(col->colId))) {
+      PLAN_ERR_RET(taosHashPut(columns, &col->colId, sizeof(col->colId), &col, POINTER_BYTES));
+    }
+  }
+  FOREACH(node, pVScan->node.pChildren) {
+    SScanLogicNode* scan = (SScanLogicNode*)node;
+    const char* source = "";
+    if (scan->scanType == SCAN_TYPE_EXTERNAL) {
+      if (!scan->pExtTableNode) continue;
+      source = ((SExtTableNode*)scan->pExtTableNode)->sourceName;
+    }
+    SNode* item = NULL;
+    FOREACH(item, scan->pScanCols) {
+      if (nodeType(item) != QUERY_NODE_COLUMN) continue;
+      SColumnNode* col = (SColumnNode*)item;
+      if (!col->hasDep || col->colId == PRIMARYKEY_TIMESTAMP_COL_ID) continue;
+      SPdaColumnKey key;
+      size_t len = pdaColumnKey(&key, source, col->dbName, col->tableAlias, col->colName);
+      if (!taosHashGet(origins, key.bytes, len)) {
+        PLAN_ERR_RET(taosHashPut(origins, key.bytes, len, &scan, POINTER_BYTES));
+      }
+    }
+  }
+  return TSDB_CODE_SUCCESS;
+}
+
+static int32_t rebuildPlanForPdaOptimize(SColumnNode* col, SFunctionNode* func, SHashObj* origins,
+                                         SHashObj* groups, bool* skipped) {
+  SPdaColumnKey key;
+  size_t len = pdaColumnKey(&key, col->refSourceName, col->refDbName, col->refTableName, col->refColName);
+  SScanLogicNode** origin = col->hasRef ? taosHashGet(origins, key.bytes, len) : NULL;
+  if (!origin) {
+    *skipped = true;
     return TSDB_CODE_SUCCESS;
   }
-  pdaRemoveSyntheticRemotePkSort(pDepScan);
-  pNodeFound = (SAggLogicNode **)taosHashGet(pAggNodeMap, &pDepScanOrigin, POINTER_BYTES);
-  if (NULL == pNodeFound) {
-    // make new agg node.
-    PLAN_ERR_JRET(nodesMakeNode(QUERY_NODE_LOGIC_PLAN_AGG, (SNode**)&pAggNode));
-    PLAN_ERR_JRET(mergeAggFuncToAggNode(pAggNode, pAggFunc, pDepScan));
-    PLAN_ERR_JRET(nodesListMakeAppend(&pAggNode->node.pChildren, (SNode*)pDepScan));
-    append = true;
-    PLAN_ERR_JRET(taosHashPut(pAggNodeMap, &pDepScanOrigin, POINTER_BYTES, &pAggNode, POINTER_BYTES));
-  } else {
-    pAggNode = *pNodeFound;
-    // merge the agg func to the existed agg node.
-    PLAN_ERR_JRET(mergeAggFuncToAggNode(pAggNode, pAggFunc, pDepScan));
-    nodesDestroyNode((SNode*)pDepScan);
-  }
-  return code;
+  SAggLogicNode** group = taosHashGet(groups, origin, POINTER_BYTES);
+  if (group) return mergeAggFuncToAggNode(*group, func, *origin);
+
+  int32_t code = TSDB_CODE_SUCCESS;
+  SAggLogicNode* agg = NULL;
+  SScanLogicNode* scan = NULL;
+  PLAN_ERR_JRET(nodesCloneNode((SNode*)*origin, (SNode**)&scan));
+  pdaRemoveSyntheticRemotePkSort(scan);
+  PLAN_ERR_JRET(nodesMakeNode(QUERY_NODE_LOGIC_PLAN_AGG, (SNode**)&agg));
+  PLAN_ERR_JRET(mergeAggFuncToAggNode(agg, func, scan));
+  PLAN_ERR_JRET(nodesListMakeAppend(&agg->node.pChildren, (SNode*)scan));
+  scan = NULL;
+  PLAN_ERR_JRET(taosHashPut(groups, origin, POINTER_BYTES, &agg, POINTER_BYTES));
+  return TSDB_CODE_SUCCESS;
 _return:
-  if (!append) {
-    nodesDestroyNode((SNode*)pDepScan);
-  }
-  if (TSDB_CODE_SUCCESS != code) {
-    planError("%s failed since %s", __func__, tstrerror(code));
-  }
+  nodesDestroyNode((SNode*)scan);
+  nodesDestroyNode((SNode*)agg);
   return code;
 }
 
@@ -14776,13 +15376,18 @@ static int32_t pdaOptimize(SOptimizeContext* pCxt, SLogicSubplan* pLogicSubplan)
   }
 
   SVirtualScanLogicNode *pVScan = (SVirtualScanLogicNode*)nodesListGetNode(pAgg->node.pChildren, 0);
+  PLAN_ERR_RET(planMaterializeVirtualScanSources(pVScan));
   SNode                 *pAggFunc = NULL;
   bool                   skipped = false;
   SHashObj              *pAggNodeMap = taosHashInit(LIST_LENGTH(pAgg->pAggFuncs), taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), true, HASH_ENTRY_LOCK);
-  if (NULL == pAggNodeMap) {
+  int32_t sourceCount = LIST_LENGTH(pVScan->node.pChildren);
+  SHashObj* origins = taosHashInit(sourceCount, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), false, HASH_NO_LOCK);
+  SHashObj* columns = taosHashInit(sourceCount, taosGetDefaultHashFunction(TSDB_DATA_TYPE_SMALLINT), false, HASH_NO_LOCK);
+  if (!origins || !columns || !pAggNodeMap) {
     PLAN_ERR_JRET(terrno);
   }
 
+  PLAN_ERR_JRET(indexPdaSources(pVScan, origins, columns));
   FOREACH(pAggFunc, pAgg->pAggFuncs) {
     SFunctionNode *pFunc = (SFunctionNode *)pAggFunc;
     SNode         *pParam = NULL;
@@ -14794,13 +15399,18 @@ static int32_t pdaOptimize(SOptimizeContext* pCxt, SLogicSubplan* pLogicSubplan)
       }
       if (QUERY_NODE_COLUMN == nodeType(pParam)) {
         SColumnNode *pCol = (SColumnNode *)pParam;
-        syncPdaColumnRef(pVScan, pCol);
+        SColumnNode** vcol = taosHashGet(columns, &pCol->colId, sizeof(pCol->colId));
+        if (vcol && strcmp((*vcol)->colName, pCol->colName) == 0) {
+          copyPdaColumnRef(pCol, *vcol);
+        } else {
+          syncPdaColumnRef(pVScan, pCol);
+        }
         if (pCol->colType == COLUMN_TYPE_TAG) {
           // If the column is a tag column, we should not optimize the aggregation. Since tag will be read from the
           // virtual tablescan operator.
           goto _return;
         }
-        PLAN_ERR_JRET(rebuildPlanForPdaOptimize(pCol, pFunc, pVScan, pAggNodeMap, &skipped));
+        PLAN_ERR_JRET(rebuildPlanForPdaOptimize(pCol, pFunc, origins, pAggNodeMap, &skipped));
         if (skipped) {
           // An agg func has no source-table scan (e.g. COUNT(*) -> COUNT(ts)); rewriting without it
           // would produce a plan with fewer outputs than the original agg. Bail out entirely.
@@ -14842,12 +15452,14 @@ static int32_t pdaOptimize(SOptimizeContext* pCxt, SLogicSubplan* pLogicSubplan)
     }
     PLAN_ERR_JRET(createColumnByRewriteExprs((*pAggNode)->pAggFuncs, &(*pAggNode)->node.pTargets));
     PLAN_ERR_JRET(nodesListMakeAppend(&pMerge->node.pChildren, (SNode*)*pAggNode));
+    *pAggNode = NULL; // pMerge now owns the branch.
   }
 
   PLAN_ERR_JRET(replaceLogicNode(pLogicSubplan, (SLogicNode*)pAgg, (SLogicNode*)pMerge));
 
-  nodesDestroyNode((SNode*)pVScan);
-  nodesDestroyNode((SNode*)pAgg);
+  nodesDestroyNode((SNode*)pAgg); // also destroys its virtual scan and origins
+  taosHashCleanup(origins);
+  taosHashCleanup(columns);
   taosHashCleanup(pAggNodeMap);
 
   pCxt->optimized = true;
@@ -14855,6 +15467,8 @@ static int32_t pdaOptimize(SOptimizeContext* pCxt, SLogicSubplan* pLogicSubplan)
 _return:
   nodesDestroyNode((SNode*)pMerge);
   taosHashSetFreeFp(pAggNodeMap, destroyAggLogicNode);
+  taosHashCleanup(origins);
+  taosHashCleanup(columns);
   taosHashCleanup(pAggNodeMap);
   return code;
 }
@@ -15628,6 +16242,7 @@ static int32_t vtableWindowOptimize(SOptimizeContext* pCxt, SLogicSubplan* pLogi
   bool                    sameOrigin = true;
   bool                    canOptimize = true;
 
+  PLAN_ERR_RET(planMaterializeVirtualScanSources((SVirtualScanLogicNode*)nodesListGetNode(pWindow->node.pChildren, 0)));
   PLAN_ERR_JRET(nodesCloneNode((SNode*)pWindow, (SNode**)&pNewWindow));
   pVirtualScan = (SVirtualScanLogicNode*)nodesListGetNode(pNewWindow->node.pChildren, 0);
   QUERY_CHECK_NULL(pVirtualScan, code, lino, _return, TSDB_CODE_INVALID_PARA)
@@ -19354,12 +19969,12 @@ static int32_t countDistinctPkOptimize(SOptimizeContext* pCxt, SLogicSubplan* pL
 static const SOptimizeRule optimizeRuleSet[] = {
   {.pName = "RewriteTail",                .optimizeFunc = rewriteTailOptimize},
   {.pName = "RewriteUnique",              .optimizeFunc = rewriteUniqueOptimize},
-  {.pName = "ScanPath",                   .optimizeFunc = scanPathOptimize},
+  {.pName = "ScanPath",                   .optimizeFunc = scanPathOptimize, .localFixpoint = true},
   {.pName = "PushDownCondition",          .optimizeFunc = pdcOptimize},
   // This rewrite requires group keys; TSMA only accepts aggregates without group keys.
   {.pName = "EliminateDistinctPk",         .optimizeFunc = eliminateDistinctPkOptimize},
   {.pName = "CountDistinctPk",             .optimizeFunc = countDistinctPkOptimize},
-  {.pName = "EliminateNotNullCond",       .optimizeFunc = eliminateNotNullCondOptimize},
+  {.pName = "EliminateNotNullCond",       .optimizeFunc = eliminateNotNullCondOptimize, .localFixpoint = true},
   // FqPushdown must run BEFORE Sort/Limit/Project optimizations.  Once it
   // extracts the Sort+Project chain into pRemoteLogicPlan, later rules
   // (PushDownLimit, EliminateProject, etc.) see no Sort/Project above the
@@ -19370,7 +19985,7 @@ static const SOptimizeRule optimizeRuleSet[] = {
   //   - ScanPath: explicit SCAN_TYPE_EXTERNAL guard
   //   - PushDownCondition: pdcDealScan has SCAN_TYPE_EXTERNAL guard
   //   - EliminateNotNullCond: explicit SCAN_TYPE_EXTERNAL guard
-  {.pName = "FqPushdown",                 .optimizeFunc = fqPushdownOptimize},
+  {.pName = "FqPushdown",                 .optimizeFunc = fqPushdownOptimize, .localFixpoint = true},
   {.pName = "FqInterp",                   .optimizeFunc = fqInterpOptimize},
   {.pName = "FqUnionAll",                 .optimizeFunc = fqUnionAllOptimize},
   {.pName = "FqUnionDedup",               .optimizeFunc = fqUnionDeduplicateOptimize},
@@ -19387,18 +20002,18 @@ static const SOptimizeRule optimizeRuleSet[] = {
   {.pName = "VirtualTopN",                .optimizeFunc = virtualTopNOptimize},
   {.pName = "SortForjoin",                .optimizeFunc = sortForJoinOptimize},
   {.pName = "PushDownLimit",              .optimizeFunc = pushDownLimitOptimize},
-  {.pName = "VirtualSourceLimit",         .optimizeFunc = virtualSourceLimitOptimize},
+  {.pName = "VirtualSourceLimit",         .optimizeFunc = virtualSourceLimitOptimize, .localFixpoint = true},
   {.pName = "PartitionTags",              .optimizeFunc = partTagsOptimize},
   {.pName = "MergeProjects",              .optimizeFunc = mergeProjectsOptimize},
-  {.pName = "LastSmaNotNull",             .optimizeFunc = lastSmaNotNullPrefilterOptimize},
-  {.pName = "splitCacheLastFunc",         .optimizeFunc = splitCacheLastFuncOptimize},
-  {.pName = "LastRowScan",                .optimizeFunc = lastRowScanOptimize},
+  {.pName = "LastSmaNotNull",             .optimizeFunc = lastSmaNotNullPrefilterOptimize, .localFixpoint = true},
+  {.pName = "splitCacheLastFunc",         .optimizeFunc = splitCacheLastFuncOptimize, .localFixpoint = true},
+  {.pName = "LastRowScan",                .optimizeFunc = lastRowScanOptimize, .localFixpoint = true},
   {.pName = "TagScan",                    .optimizeFunc = tagScanOptimize},
-  {.pName = "TableCountScan",             .optimizeFunc = tableCountScanOptimize},
+  {.pName = "TableCountScan",             .optimizeFunc = tableCountScanOptimize, .localFixpoint = true},
   {.pName = "EliminateProject",           .optimizeFunc = eliminateProjOptimize},
   {.pName = "EliminateSetOperator",       .optimizeFunc = eliminateSetOpOptimize},
   {.pName = "PartitionCols",              .optimizeFunc = partitionColsOpt},
-  {.pName = "Tsma",                       .optimizeFunc = tsmaOptimize},
+  {.pName = "Tsma",                       .optimizeFunc = tsmaOptimize, .localFixpoint = true},
   {.pName = "EliminateVirtualScan",       .optimizeFunc = eliminateVirtualScanOptimize},
   {.pName = "VirtualRowFuncTopN",             .optimizeFunc = virtualRowFuncTopNOptimize},
   {.pName = "PushDownAgg",                .optimizeFunc = pdaOptimize},
@@ -19429,22 +20044,19 @@ static bool subplanHasExternalScan(SLogicSubplan* pSubplan) {
 // source of truth for the final pushdown shape before physical planning.
 // -----------------------------------------------------------------------------
 
-static SScanLogicNode* fqFindExternalScan(SLogicNode* pNode) {
-  if (NULL == pNode) {
-    return NULL;
+static int32_t fqCollectExternalScans(SLogicNode* node, SNodeList** scans) {
+  if (nodeType(node) == QUERY_NODE_LOGIC_PLAN_SCAN) {
+    SScanLogicNode* scan = (SScanLogicNode*)node;
+    if (scan->scanType == SCAN_TYPE_EXTERNAL && !scan->virtualStableScan &&
+        !OPTIMIZE_FLAG_TEST_MASK(node->optimizedFlag, OPTIMIZE_FLAG_FQ_PUSHDOWN)) {
+      return nodesListMakeAppend(scans, (SNode*)scan);
+    }
   }
-  if (QUERY_NODE_LOGIC_PLAN_SCAN == nodeType(pNode) &&
-      ((SScanLogicNode*)pNode)->scanType == SCAN_TYPE_EXTERNAL &&
-      !((SScanLogicNode*)pNode)->virtualStableScan &&
-      !OPTIMIZE_FLAG_TEST_MASK(pNode->optimizedFlag, OPTIMIZE_FLAG_FQ_PUSHDOWN)) {
-    return (SScanLogicNode*)pNode;
+  SNode* child = NULL;
+  FOREACH(child, node->pChildren) {
+    PLAN_ERR_RET(fqCollectExternalScans((SLogicNode*)child, scans));
   }
-  SNode* pChild;
-  FOREACH(pChild, pNode->pChildren) {
-    SScanLogicNode* pFound = fqFindExternalScan((SLogicNode*)pChild);
-    if (pFound) return pFound;
-  }
-  return NULL;
+  return TSDB_CODE_SUCCESS;
 }
 
 // FqInterp runs AFTER FqPushdown.  At that point the docking external scan has
@@ -27640,24 +28252,8 @@ static int32_t fqCommitPushChain(SOptimizeContext* pCxt, SScanLogicNode* pScan,
   return TSDB_CODE_SUCCESS;
 }
 
-static int32_t fqPushdownOptimize(SOptimizeContext* pCxt, SLogicSubplan* pLogicSubplan) {
-  // Stream calc plans need a local Project/Sort left above the ExternalScan so that
-  // streamScanSplit (planSpliter.c) has a parent node to split the scan away from,
-  // producing a genuine runner subplan fed by Exchange from the calc-reader scan.
-  // Harvesting that chain down to the remote source (as this optimization normally
-  // does) collapses a bare passthrough calc query like "AS SELECT * FROM <ext table>"
-  // down to a single parentless scan, leaving the calc plan with zero runner
-  // subplans -- which the stream trigger/mnode deploy path cannot execute (calc
-  // requests can only be dispatched to a runner task, not a calc reader directly).
-  if (inStreamCalcClause(pCxt->pPlanCxt)) {
-    return TSDB_CODE_SUCCESS;
-  }
-
-  SScanLogicNode* pScan = fqFindExternalScan(pLogicSubplan->pNode);
-  if (NULL == pScan) {
-    return TSDB_CODE_SUCCESS;
-  }
-
+static int32_t fqPushdownScan(SOptimizeContext* pCxt, SLogicSubplan* pLogicSubplan, SScanLogicNode* pScan,
+                              bool* pRescan) {
   if (VTABLE_BINDING_REFERENCE == pScan->bindingKind) {
     // Raw records must reach timestamp validation before query filters and aggregates.
     OPTIMIZE_FLAG_SET_MASK(pScan->node.optimizedFlag, OPTIMIZE_FLAG_FQ_PUSHDOWN);
@@ -27673,34 +28269,6 @@ static int32_t fqPushdownOptimize(SOptimizeContext* pCxt, SLogicSubplan* pLogicS
   if (inStreamCalcClause(pCxt->pPlanCxt)) {
     planDebug("FQ-push: skip remote rewrite for stream calc scan=%p", pScan);
     return TSDB_CODE_SUCCESS;
-  }
-
-  // PARTITION->AGG collapse must happen BEFORE we build the remote plan.  The
-  // generic PartitionCols rule (partitionColsOpt) runs LATER in optimizeRuleSet[]
-  // than FqPushdown, so without this the remote plan would still carry a separate
-  // AGG-over-PARTITION pair (rendered as broken nested subqueries).  Reuse the
-  // exact same rule here so an external `... partition by k` with aggregation
-  // collapses into one AGG(GROUP BY k) before FQ collects it.  Idempotent: when
-  // PartitionCols runs again later the PARTITION is already gone (no-op).
-  {
-    int32_t mergeCode = partitionColsOpt(pCxt, pLogicSubplan);
-    if (TSDB_CODE_SUCCESS != mergeCode) return mergeCode;
-    // Do NOT pre-run the generic eliminateProjOptimize() in the FQ path.
-    // The remote renderer natively supports PROJECT and must preserve it as the
-    // single source of truth for final remote output order.  Using the generic
-    // main-plan Project elimination here mutates the logic tree before collect,
-    // which can drop the only explicit final-output owner and force later FQ
-    // helpers to infer outputs from child nodes (e.g. Sort/Scan), causing hidden
-    // ORDER/WHERE dependency columns to leak into remote SELECT results.
-    //
-    // Pass-through PROJECT folding for flat remote SQL is handled inside the FQ
-    // renderer/collector path itself, but ONLY when the Project is semantically
-    // pure column pruning/reordering over the child outputs.
-    //
-    // pScan is unaffected by partition collapse (it removes PARTITION above the
-    // scan), but re-find in case tree pointers shifted.
-    pScan = fqFindExternalScan(pLogicSubplan->pNode);
-    if (NULL == pScan) return TSDB_CODE_SUCCESS;
   }
 
   if (NULL != pScan->pExtTableNode && QUERY_NODE_EXTERNAL_TABLE == nodeType(pScan->pExtTableNode)) {
@@ -27843,6 +28411,8 @@ static int32_t fqPushdownOptimize(SOptimizeContext* pCxt, SLogicSubplan* pLogicS
       }
     }
 
+    // A committed join frees its other scan legs. Discard outstanding candidates before re-entering.
+    if (pBoundary && findLeafScanCount(pBoundary) > 1) *pRescan = true;
     code = fqCommitPushChain(pCxt, pScan, pLogicSubplan, pBoundary);
     if (TSDB_CODE_SUCCESS != code) goto _cleanup;
     ranCollectCommit = true;
@@ -28016,6 +28586,30 @@ static int32_t fqPushdownOptimize(SOptimizeContext* pCxt, SLogicSubplan* pLogicS
             pScan->pRemoteLogicPlan ? (int)nodeType(pScan->pRemoteLogicPlan) : -1);
 
 _cleanup:
+  return code;
+}
+
+static int32_t fqPushdownOptimize(SOptimizeContext* pCxt, SLogicSubplan* pLogicSubplan) {
+  if (inStreamCalcClause(pCxt->pPlanCxt)) return TSDB_CODE_SUCCESS;
+  SNodeList* scans = NULL;
+  int32_t code = fqCollectExternalScans(pLogicSubplan->pNode, &scans);
+  if (code == TSDB_CODE_SUCCESS && scans) {
+    // Collapse PARTITION before constructing a remote aggregate. The rewrite preserves scan leaves.
+    bool hasPartition = optFindPossibleNode(pLogicSubplan->pNode, partColOptShouldBeOptimized, NULL) != NULL;
+    SNode* node = NULL;
+    FOREACH(node, scans) {
+      SScanLogicNode* scan = (SScanLogicNode*)node;
+      if (hasPartition && scan->bindingKind != VTABLE_BINDING_REFERENCE) {
+        code = partitionColsOpt(pCxt, pLogicSubplan);
+        if (code != TSDB_CODE_SUCCESS) break;
+        hasPartition = optFindPossibleNode(pLogicSubplan->pNode, partColOptShouldBeOptimized, NULL) != NULL;
+      }
+      bool rescan = false;
+      code = fqPushdownScan(pCxt, pLogicSubplan, scan, &rescan);
+      if (code != TSDB_CODE_SUCCESS || rescan) break;
+    }
+  }
+  nodesClearList(scans);
   return code;
 }
 
@@ -28591,6 +29185,30 @@ static void finalizeLastScanType(SLogicNode* pNode) {
   }
 }
 
+// Keep origins visible during cross-unit planning and data-order initialization.
+// Only hide simple, independent native readers from repeated optimizer DFS passes.
+static void deferVirtualSources(SLogicNode* root) {
+  if (nodeType(root) == QUERY_NODE_LOGIC_PLAN_VIRTUAL_TABLE_SCAN) {
+    SVirtualScanLogicNode* scan = (SVirtualScanLogicNode*)root;
+    if (!scan->canDeferSources || LIST_LENGTH(root->pChildren) < 2) return;
+    SNode* node = NULL;
+    FOREACH(node, root->pChildren) {
+      if (nodeType(node) != QUERY_NODE_LOGIC_PLAN_SCAN) return;
+      SScanLogicNode* source = (SScanLogicNode*)node;
+      if (source->scanType != SCAN_TYPE_TABLE || source->scanSeq[0] != 1 || source->scanSeq[1] ||
+          source->pPrimaryCond || source->tableType == TSDB_SUPER_TABLE || !virtualScanSourceCanBeOrdered(source)) return;
+    }
+    scan->pDeferredSourceScans = root->pChildren;
+    scan->deferredScanOrder = TSDB_ORDER_NONE;
+    root->pChildren = NULL;
+    return;
+  }
+  SNode* node = NULL;
+  FOREACH(node, root->pChildren) {
+    deferVirtualSources((SLogicNode*)node);
+  }
+}
+
 int32_t optimizeLogicPlan(SPlanContext* pCxt, SLogicSubplan* pLogicSubplan) {
   planDestroyJoinPropsStore(pCxt);
   if (NULL != pLogicSubplan && pLogicSubplan->pushedDown) {
@@ -28601,15 +29219,14 @@ int32_t optimizeLogicPlan(SPlanContext* pCxt, SLogicSubplan* pLogicSubplan) {
   if (SUBPLAN_TYPE_MODIFY == pLogicSubplan->subplanType && NULL == pLogicSubplan->pNode->pChildren) {
     return TSDB_CODE_SUCCESS;
   }
+  deferVirtualSources(pLogicSubplan->pNode);
   int32_t code = applyOptimizeRule(pCxt, pLogicSubplan);
-  if (TSDB_CODE_SUCCESS == code) {
+  if (code == TSDB_CODE_SUCCESS) code = planMaterializeVirtualSourcesInTree(pLogicSubplan->pNode);
+  // Join lineage and temporal-column pruning have no consumers in a join-free plan.
+  if (code == TSDB_CODE_SUCCESS && pdcInputContainsJoin(pLogicSubplan->pNode)) {
     code = planFinalizeTemporalJoins(pCxt, pLogicSubplan->pNode);
-  }
-  if (TSDB_CODE_SUCCESS == code) {
-    code = pruneTemporalInputTargets(pLogicSubplan->pNode, NULL, false);
-  }
-  if (TSDB_CODE_SUCCESS == code) {
-    code = planRebuildJoinInputProps(pCxt, pLogicSubplan->pNode);
+    if (code == TSDB_CODE_SUCCESS) code = pruneTemporalInputTargets(pLogicSubplan->pNode, NULL, false);
+    if (code == TSDB_CODE_SUCCESS) code = planRebuildJoinInputProps(pCxt, pLogicSubplan->pNode);
   }
   if (TSDB_CODE_SUCCESS == code) {
     finalizeLastScanType(pLogicSubplan->pNode);
@@ -29248,13 +29865,17 @@ static int32_t applyOptimizeRule(SPlanContext* pCxt, SLogicSubplan* pLogicSubpla
   do {
     optimized = false;
     for (int32_t i = 0; i < optimizeRuleNum; ++i) {
-      cxt.optimized = false;
-      code = optimizeRuleSet[i].optimizeFunc(&cxt, pLogicSubplan);
-      if (TSDB_CODE_SUCCESS != code) {
-        planError("optimize rule [%s] failed, code:%s", optimizeRuleSet[i].pName, tstrerror(code));
-        goto _return;
-      }
-      if (cxt.optimized) {
+      bool changed = false;
+      do {
+        cxt.optimized = false;
+        code = optimizeRuleSet[i].optimizeFunc(&cxt, pLogicSubplan);
+        if (code != TSDB_CODE_SUCCESS) {
+          planError("optimize rule [%s] failed, code:%s", optimizeRuleSet[i].pName, tstrerror(code));
+          goto _return;
+        }
+        changed |= cxt.optimized;
+      } while (cxt.optimized && optimizeRuleSet[i].localFixpoint);
+      if (changed) {
         optimized = true;
         PLAN_ERR_JRET(dumpLogicSubplan(optimizeRuleSet[i].pName, pLogicSubplan));
         break;

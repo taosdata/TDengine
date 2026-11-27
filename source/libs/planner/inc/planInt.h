@@ -165,6 +165,10 @@ int32_t        planMarkSubqueryPushedDown(SPlanContext* pCxt, int32_t subQIdx);
 
 int32_t createLogicPlan(SPlanContext* pCxt, SLogicSubplan** pLogicSubplan);
 int32_t planCollectTaskSubqueryDeps(SPlanContext* pCxt, SLogicNode* pRoot, SSubplan* pSubplan);
+bool planCanDecorrelateSelect(SNode* pAst, bool inner);
+int32_t planDecorrelateScalar(SPlanContext* ctx, SLogicSubplan* outer, SLogicSubplan* inner,
+                              const SCorrelatedSubqueryNode* call, bool onlySubquery, bool rewriteFilters);
+int32_t planFinalizeScalarRewrite(SPlanContext* ctx, SLogicNode* root);
 void planWalkLogicExprFields(SLogicNode* pNode, FNodeWalker walker,
                              void* pContext);
 int32_t planCreateJoinPropsStore(SPlanContext* pCxt);
@@ -206,9 +210,12 @@ int32_t optimizeLogicPlan(SPlanContext* pCxt, SLogicSubplan* pLogicSubplan);
 int32_t planPushDownReferenceLimit(SLogicSubplan* pLogicSubplan, bool* pOptimized);
 int32_t planEliminateTemporalInputSort(SLogicSubplan* pSubplan,
                                        bool* pOptimized);
+int32_t planMaterializeVirtualScanSources(SVirtualScanLogicNode* pScan);
+int32_t planMaterializeVirtualSourcesInTree(SLogicNode* pRoot);
 int32_t splitLogicPlan(SPlanContext* pCxt, SLogicSubplan* pLogicSubplan);
 int32_t postSplitOptimize(SPlanContext* pCxt, SLogicSubplan* pLogicSubplan);
-int32_t scaleOutLogicPlan(SPlanContext* pCxt, SLogicSubplan* pLogicSubplan, SQueryLogicPlan** pLogicPlan);
+int32_t scaleOutLogicPlan(SPlanContext* pCxt, SLogicSubplan* pLogicSubplan, bool disableTemplateScaleOut,
+                          SQueryLogicPlan** pLogicPlan);
 int32_t createPhysiPlan(SPlanContext* pCxt, SQueryLogicPlan* pLogicPlan, SQueryPlan** pPlan, SArray* pExecNodeList);
 int32_t validateQueryPlan(SPlanContext* pCxt, SQueryPlan* pPlan);
 int32_t planCheckRequiredExtColumns(const SExtTableNode* pExtNode, const SNodeList* pScanCols);

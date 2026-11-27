@@ -17,6 +17,8 @@
 
 #include "tsdb.h"
 #include "tsdbFS2.h"
+#include "tjson.h"
+#include "cJSON.h"
 
 #define TSDB_SNAP_MSG_VER 1
 
@@ -143,6 +145,191 @@ static int32_t tsdbTFileSetToFSetPartition(STFileSet* fset, STsdbFSetPartition**
   }
   ppSP[0] = p;
   return 0;
+}
+
+static int32_t tsdbFSetPartitionToJson(STsdbFSetPartition* part, SJson* sets) {
+  static const char* names[] = {"head", "data", "sma", "tomb", "stt"};
+  int32_t code = 0;
+  SJson* set = tjsonCreateObject();
+  if (set == NULL) return terrno;
+
+  if ((code = tjsonAddIntegerToObject(set, "fid", part->fid)) != 0) goto _exit;
+  SJson* ranges = tjsonAddArrayToObject(set, "ranges");
+  if (ranges == NULL) {
+    code = terrno;
+    goto _exit;
+  }
+  for (int32_t i = 0; i < TSDB_FSET_RANGE_TYP_MAX; ++i) {
+    SVersionRange range;
+    TARRAY2_FOREACH(&part->verRanges[i], range) {
+      SJson* item = tjsonCreateObject();
+      if (item == NULL) {
+        code = terrno;
+        goto _exit;
+      }
+      if ((code = tjsonAddStringToObject(item, "type", names[i])) != 0 ||
+          (code = tjsonAddIntegerToObject(item, "minVer", range.minVer)) != 0 ||
+          (code = tjsonAddIntegerToObject(item, "maxVer", range.maxVer)) != 0 ||
+          (code = tjsonAddItemToArray(ranges, item)) != 0) {
+        tjsonDelete(item);
+        goto _exit;
+      }
+    }
+  }
+  code = tjsonAddItemToArray(sets, set);
+  if (code == 0) set = NULL;
+
+_exit:
+  tjsonDelete(set);
+  return code;
+}
+
+int32_t tsdbFSetSnapshotToJson(const TFileSetArray* fsets, char** json) {
+  int32_t code = 0;
+  SJson* root = tjsonCreateObject();
+  if (root == NULL) return terrno;
+  *json = NULL;
+  if ((code = tjsonAddIntegerToObject(root, "version", 1)) != 0) goto _exit;
+  SJson* sets = tjsonAddArrayToObject(root, "sets");
+  if (sets == NULL) {
+    code = terrno;
+    goto _exit;
+  }
+  STFileSet* fset;
+  TARRAY2_FOREACH(fsets, fset) {
+    STsdbFSetPartition* part = NULL;
+    code = tsdbTFileSetToFSetPartition(fset, &part);
+    if (code != 0) goto _exit;
+    code = tsdbFSetPartitionToJson(part, sets);
+    tsdbFSetPartitionClear(&part);
+    if (code != 0) goto _exit;
+  }
+  *json = tjsonToString(root);
+  if (*json == NULL) code = terrno != 0 ? terrno : TSDB_CODE_OUT_OF_MEMORY;
+
+_exit:
+  tjsonDelete(root);
+  return code;
+}
+
+static int32_t tsdbFSetJsonInt64(const cJSON* item, int64_t* value) {
+  if (cJSON_IsString(item) && item->valuestring && item->valuestring[0]) {
+    const char* text = item->valuestring;
+    const char* digits = text;
+    const char* maxDigits = "9223372036854775807";
+    if (*digits == '-') {
+      ++digits;
+      maxDigits = "9223372036854775808";
+    }
+    const char* p = digits;
+    if (*p == '\0') return TSDB_CODE_INVALID_DATA_FMT;
+    for (; *p; ++p) {
+      if (*p < '0' || *p > '9') return TSDB_CODE_INVALID_DATA_FMT;
+    }
+    while (*digits == '0') ++digits;
+    size_t len = strlen(digits);
+    if (len > 19 || (len == 19 && strcmp(digits, maxDigits) > 0)) return TSDB_CODE_INVALID_DATA_FMT;
+    char* end = NULL;
+    int64_t parsed = taosStr2Int64(text, &end, 10);
+    if (end == NULL || *end != '\0') return TSDB_CODE_INVALID_DATA_FMT;
+    *value = parsed;
+    return 0;
+  }
+  const double limit = 9007199254740991.0;
+  if (!cJSON_IsNumber(item) || !(item->valuedouble >= -limit && item->valuedouble <= limit)) {
+    return TSDB_CODE_INVALID_DATA_FMT;
+  }
+  int64_t parsed = (int64_t)item->valuedouble;
+  if ((double)parsed != item->valuedouble) return TSDB_CODE_INVALID_DATA_FMT;
+  *value = parsed;
+  return 0;
+}
+
+static int32_t tsdbFSetJsonReadRanges(const cJSON* ranges, STsdbFSetPartition* part) {
+  static const char* names[] = {"head", "data", "sma", "tomb", "stt"};
+  if (!cJSON_IsArray(ranges)) return TSDB_CODE_INVALID_DATA_FMT;
+  const cJSON* item;
+  cJSON_ArrayForEach(item, ranges) {
+    const cJSON* type = cJSON_GetObjectItemCaseSensitive(item, "type");
+    SVersionRange range = {0};
+    // A file holding no versioned data is snapshotted as {minVer: VERSION_MAX, maxVer: VERSION_MIN}, so an
+    // inverted range is expected and skipped when computing sver; only maxVer == VERSION_MAX must be
+    // rejected here, otherwise that sver would overflow.
+    if (!cJSON_IsObject(item) || !cJSON_IsString(type) || type->valuestring == NULL ||
+        tsdbFSetJsonInt64(cJSON_GetObjectItemCaseSensitive(item, "minVer"), &range.minVer) != 0 ||
+        tsdbFSetJsonInt64(cJSON_GetObjectItemCaseSensitive(item, "maxVer"), &range.maxVer) != 0 ||
+        range.maxVer == VERSION_MAX) {
+      return TSDB_CODE_INVALID_DATA_FMT;
+    }
+    int32_t typ = 0;
+    while (typ < TSDB_FSET_RANGE_TYP_MAX && strcmp(type->valuestring, names[typ]) != 0) ++typ;
+    if (typ == TSDB_FSET_RANGE_TYP_MAX) return TSDB_CODE_INVALID_DATA_FMT;
+    int32_t code = TARRAY2_APPEND(&part->verRanges[typ], range);
+    if (code != 0) return code;
+  }
+  return 0;
+}
+
+int32_t tsdbFSetJsonToRangeDiff(const char* json, TFileSetRangeArray** ppRanges) {
+  int32_t code = 0;
+  SJson* root = cJSON_ParseWithOpts(json, NULL, 1);
+  STsdbFSetPartList* parts = NULL;
+  STsdbFSetPartition* part = NULL;
+  SHashObj* ids = NULL;
+  *ppRanges = NULL;
+  const cJSON* version = cJSON_GetObjectItemCaseSensitive(root, "version");
+  const cJSON* sets = cJSON_GetObjectItemCaseSensitive(root, "sets");
+  int64_t format = 0;
+  if (!cJSON_IsObject(root) || tsdbFSetJsonInt64(version, &format) != 0 || format != 1 || !cJSON_IsArray(sets)) {
+    code = TSDB_CODE_INVALID_DATA_FMT;
+    goto _exit;
+  }
+  parts = tsdbFSetPartListCreate();
+  if (!parts) {
+    code = terrno;
+    goto _exit;
+  }
+  ids = taosHashInit(TMAX(cJSON_GetArraySize(sets), 1), taosGetDefaultHashFunction(TSDB_DATA_TYPE_INT), false,
+                     HASH_NO_LOCK);
+  if (!ids) {
+    code = terrno;
+    goto _exit;
+  }
+  const cJSON* set;
+  cJSON_ArrayForEach(set, sets) {
+    int64_t fid = 0;
+    if (!cJSON_IsObject(set) || tsdbFSetJsonInt64(cJSON_GetObjectItemCaseSensitive(set, "fid"), &fid) != 0 ||
+        fid < INT32_MIN || fid > INT32_MAX) {
+      code = TSDB_CODE_INVALID_DATA_FMT;
+      goto _exit;
+    }
+    int32_t id = (int32_t)fid;
+    if (taosHashGet(ids, &id, sizeof(id)) != NULL) {
+      code = TSDB_CODE_INVALID_DATA_FMT;
+      goto _exit;
+    }
+    code = taosHashPut(ids, &id, sizeof(id), &id, sizeof(id));
+    if (code != 0) goto _exit;
+    part = tsdbFSetPartitionCreate();
+    if (!part) {
+      code = terrno;
+      goto _exit;
+    }
+    part->fid = fid;
+    code = tsdbFSetJsonReadRanges(cJSON_GetObjectItemCaseSensitive(set, "ranges"), part);
+    if (code != 0) goto _exit;
+    code = TARRAY2_APPEND(parts, part);
+    if (code != 0) goto _exit;
+    part = NULL;
+  }
+  code = tsdbFSetPartListToRangeDiff(parts, ppRanges);
+
+_exit:
+  if (part) tsdbFSetPartitionClear(&part);
+  if (ids) taosHashCleanup(ids);
+  tsdbFSetPartListDestroy(&parts);
+  tjsonDelete(root);
+  return code;
 }
 
 // fset partition list

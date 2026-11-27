@@ -130,6 +130,7 @@ static int64_t getOffset(const SNode* pLimit) {
   return (NULL == pLimit || NULL == ((SLimitNode*)pLimit)->offset) ? -1 : ((SLimitNode*)pLimit)->offset->datum.i;
 }
 static void releaseColInfoData(void* pCol);
+static void resetGroupData(STableListInfo* pTableListInfo, bool keepSlots);
 int32_t sendFetchRemoteNodeReq(STaskSubJobCtx* ctx, int32_t subQIdx, SNode* pRes, bool reset);
 
 void initResultRowInfo(SResultRowInfo* pResultRowInfo) {
@@ -1006,6 +1007,46 @@ _end:
   return code;
 }
 
+// Single gate for the group-id-only table-list cache. Materialized scalar
+// group outputs (pGroupDataSlots != NULL) bypass both directions: the cache
+// cannot supply their values, and writing them under a zero digest would keep
+// duplicating a payload nobody reads. A txn whose view can differ from the
+// committed one (txnBypass) bypasses both directions as well.
+static bool tbGroupCacheAllowed(const STableListInfo* pTableListInfo, SHashObj* groupIdMap, const uint8_t* digest,
+                                bool txnBypass) {
+  return !txnBypass && tsTagFilterCache && groupIdMap == NULL && digest != NULL &&
+         digest[0] != TB_GROUP_DIGEST_NO_CACHE && pTableListInfo->pGroupDataSlots == NULL;
+}
+
+static int32_t putTbGroupToCache(STableListInfo* pTableListInfo, SHashObj* groupIdMap, SStorageAPI* pAPI, void* pVnode,
+                                 const uint8_t* digest, const uint8_t* cacheKey, int32_t keyLen, bool txnBypass) {
+  if (!tbGroupCacheAllowed(pTableListInfo, groupIdMap, digest, txnBypass)) {
+    return TSDB_CODE_SUCCESS;
+  }
+
+  SArray* tableList = taosArrayDup(pTableListInfo->pTableList, NULL);
+  if (tableList == NULL) {
+    return TSDB_CODE_OUT_OF_MEMORY;
+  }
+
+  int32_t code = pAPI->metaFn.metaPutTbGroupToCache(pVnode, pTableListInfo->idInfo.suid, cacheKey, keyLen, tableList,
+                                                    taosArrayGetSize(tableList) * sizeof(STableKeyInfo));
+  if (code != TSDB_CODE_SUCCESS) {
+    // metaPutTbGroupToCache only takes ownership on success; its failure paths
+    // can leave the copy behind, so release it here.
+    taosArrayDestroy(tableList);
+  }
+  return code;
+}
+
+#if defined(BUILD_TEST)
+int32_t execUtilTestPutTbGroupToCache(STableListInfo* pTableListInfo, SHashObj* groupIdMap, SStorageAPI* pAPI,
+                                      void* pVnode, const uint8_t* digest, const uint8_t* cacheKey, int32_t keyLen) {
+  // The test hook models a txn-free reader, so the txn bypass is off.
+  return putTbGroupToCache(pTableListInfo, groupIdMap, pAPI, pVnode, digest, cacheKey, keyLen, false);
+}
+#endif
+
 // Collects the TAG column ids read by pColList (as produced by qGetColumnsFromNodeList).
 // Returns NULL when the list cannot be built; callers then fall back to resolving every
 // TAG, which is always safe, only more expensive.
@@ -1355,6 +1396,68 @@ end:
   return code;
 }
 
+// Only the group keys actually mapped to a scan output slot are ever read back
+// as reusable scalar results. Release every other entry instead of keeping it
+// alive until tableListClear: the array is built for all candidate tables and
+// group keys, and an unconsumed key can hold wide string values for the whole
+// table list. A raw tag column is also released because it is a per-table copy
+// (colDataAssign), never a reusable scalar result; its slot is left NULL so a
+// consumer falls back to the table tags.
+static void retainReferencedGroupData(STableListInfo* pTableListInfo, SArray* groupData, SNodeList* group) {
+  int32_t numOfGroupData = groupData != NULL ? (int32_t)taosArrayGetSize(groupData) : 0;
+  if (numOfGroupData <= 0) {
+    return;
+  }
+
+  bool* pReferenced = taosMemoryCalloc(numOfGroupData, sizeof(bool));
+  if (NULL == pReferenced) {
+    // Keeping every entry is the safe fallback: a consumer that expected a
+    // released placeholder already handles the tag-column case, but guessing
+    // here could drop a value an output slot still reads.
+    return;
+  }
+
+  if (pTableListInfo->pGroupDataSlots != NULL) {
+    // pGroupDataSlots maps output slot -> groupData index; the hash values are
+    // the indexes themselves.
+    void* pIter = taosHashIterate(pTableListInfo->pGroupDataSlots, NULL);
+    while (NULL != pIter) {
+      int32_t index = *(int32_t*)pIter;
+      if (index >= 0 && index < numOfGroupData) {
+        pReferenced[index] = true;
+      }
+      pIter = taosHashIterate(pTableListInfo->pGroupDataSlots, pIter);
+    }
+  }
+
+  int32_t groupCursor = 0;
+  for (int32_t j = 0; j < numOfGroupData; ++j) {
+    while (groupCursor < LIST_LENGTH(group) &&
+           QUERY_NODE_VALUE == nodeType(nodesListGetNode(group, groupCursor))) {
+      ++groupCursor;
+    }
+    // The loop above only guarantees groupCursor never passed the end before
+    // skipping VALUE nodes; keep the lookup defensive so a future expression
+    // kind that does not produce a groupData entry cannot dereference NULL.
+    SNode* pGroupExpr = groupCursor < LIST_LENGTH(group) ? nodesListGetNode(group, groupCursor++) : NULL;
+    bool keep = (NULL != pGroupExpr && QUERY_NODE_COLUMN != nodeType(pGroupExpr) && pReferenced[j]);
+    if (!keep) {
+      SColumnInfoData* pValue = taosArrayGetP(groupData, j);
+      releaseColInfoData(pValue);
+      void* pNull = NULL;
+      taosArraySet(groupData, j, &pNull);
+    }
+  }
+
+  taosMemoryFree(pReferenced);
+}
+
+#if defined(BUILD_TEST)
+void execUtilTestRetainReferencedGroupData(STableListInfo* pTableListInfo, SArray* groupData, SNodeList* group) {
+  retainReferencedGroupData(pTableListInfo, groupData, group);
+}
+#endif
+
 // Batch meta txn: whether a txn read must keep away from the shared tag filter / table-group caches. They hold the
 // committed view and are keyed without any txn identity. A txn reader sees that same view as long as this vnode holds
 // no uncommitted txn entry (no PRE_CREATE / PRE_ALTER / PRE_DROP of any txn), so the caches stay usable then. Decide
@@ -1388,7 +1491,8 @@ int32_t getColInfoResultForGroupby(SReadHandle* pHandle, SNodeList* group, STabl
   // txn may have changed child tag values (SET TAG) that are not committed yet. A group-by on tags has no tag
   // condition, so digest[0] alone does not tell: bypass the cache (read and write) when the txn's view can differ.
   const bool txnBypass = txnReadBypassesTagCaches(pAPI, pVnode, pHandle->txnId);
-  if (tsTagFilterCache && groupIdMap == NULL && digest && digest[0] != TB_GROUP_DIGEST_NO_CACHE && !txnBypass) {
+  // The group-id-only cache cannot supply materialized scalar group outputs.
+  if (tbGroupCacheAllowed(pTableListInfo, groupIdMap, digest, txnBypass)) {
     SNodeListNode* listNode = NULL;
     code = nodesMakeNode(QUERY_NODE_NODE_LIST, (SNode**)&listNode);
     if (TSDB_CODE_SUCCESS != code) {
@@ -1537,6 +1641,23 @@ int32_t getColInfoResultForGroupby(SReadHandle* pHandle, SNodeList* group, STabl
     QUERY_CHECK_NULL(tmp, code, lino, end, terrno);
   }
 
+  // groupData holds exactly one entry per non-VALUE group key: the grouping key
+  // buffer below, the materialized slot map and its per-table row map all index
+  // it by that position. Fail the build instead of grouping or answering with
+  // shifted columns if a future node kind stops producing an entry.
+  int32_t numOfGroupDataEntries = 0;
+  FOREACH(pNode, group) {
+    if (QUERY_NODE_VALUE != nodeType(pNode)) {
+      ++numOfGroupDataEntries;
+    }
+  }
+  if ((int32_t)taosArrayGetSize(groupData) != numOfGroupDataEntries) {
+    qError("%s group data entries:%d do not match non-value group keys:%d, line:%d", __func__,
+           (int32_t)taosArrayGetSize(groupData), numOfGroupDataEntries, __LINE__);
+    code = TSDB_CODE_QRY_EXECUTOR_INTERNAL_ERROR;
+    goto end;
+  }
+
   int32_t baseIdLen = gIdFromBaseId ? sizeof(int64_t) : 0;
   int32_t keyLen = baseIdLen;
   SNode*  node;
@@ -1563,9 +1684,22 @@ int32_t getColInfoResultForGroupby(SReadHandle* pHandle, SNodeList* group, STabl
     }
   }
 
+  if (pTableListInfo->pGroupDataSlots != NULL) {
+    // A rescan rebuilds the per-table row map; release the previous one first so
+    // the rebuild cannot leak it.
+    taosHashCleanup(pTableListInfo->pGroupDataRows);
+    pTableListInfo->pGroupDataRows =
+        taosHashInit(rows, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT), false, HASH_NO_LOCK);
+    QUERY_CHECK_NULL(pTableListInfo->pGroupDataRows, code, lino, end, terrno);
+  }
+
   for (int i = 0; i < rows; i++) {
     STableKeyInfo* info = taosArrayGet(pTableListInfo->pTableList, i);
     QUERY_CHECK_NULL(info, code, lino, end, terrno);
+    if (pTableListInfo->pGroupDataRows != NULL) {
+      code = taosHashPut(pTableListInfo->pGroupDataRows, &info->uid, sizeof(info->uid), &i, sizeof(i));
+      QUERY_CHECK_CODE(code, lino, end);
+    }
 
     if (groupIdMap != NULL){
       gInfo = taosArrayInit(taosArrayGetSize(groupData), sizeof(SStreamGroupValue));
@@ -1672,15 +1806,20 @@ int32_t getColInfoResultForGroupby(SReadHandle* pHandle, SNodeList* group, STabl
     }
   }
 
-  // Batch meta txn: same decision as the cache read above (txnBypass)
-  if (tsTagFilterCache && groupIdMap == NULL && digest && digest[0] != TB_GROUP_DIGEST_NO_CACHE && !txnBypass) {
-    tableList = taosArrayDup(pTableListInfo->pTableList, NULL);
-    QUERY_CHECK_NULL(tableList, code, lino, end, terrno);
+  // Materialized scalar results need fresh evaluation, so the shared gate in
+  // putTbGroupToCache bypasses the write for exactly the same states that
+  // bypass the read above; the txn decision is one of them.
+  code = putTbGroupToCache(pTableListInfo, groupIdMap, pAPI, pVnode, digest, context.digest,
+                           (int32_t)tListLen(context.digest), txnBypass);
+  QUERY_CHECK_CODE(code, lino, end);
 
-    code = pAPI->metaFn.metaPutTbGroupToCache(pVnode, pTableListInfo->idInfo.suid, context.digest,
-                                              tListLen(context.digest), tableList,
-                                              taosArrayGetSize(tableList) * sizeof(STableKeyInfo));
-    QUERY_CHECK_CODE(code, lino, end);
+  if (pTableListInfo->pGroupDataSlots != NULL) {
+    // Release any previous array first so a rebuild without tableListClear
+    // cannot leak it.
+    taosArrayDestroyP(pTableListInfo->pGroupData, releaseColInfoData);
+    pTableListInfo->pGroupData = groupData;
+    groupData = NULL;
+    retainReferencedGroupData(pTableListInfo, pTableListInfo->pGroupData, group);
   }
 
   //  int64_t st2 = taosGetTimestampUs();
@@ -1696,7 +1835,16 @@ end:
   taosArrayDestroy(pColList);
 
   if (code != TSDB_CODE_SUCCESS) {
-    qError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
+    // A partially filled row map must not outlive this failed build: the row
+    // map and the group data it indexes are produced together, so drop both.
+    // Keep pGroupDataSlots: it is derived from the plan by
+    // initGroupDataSlotMap() and stays valid across rebuilds, and dropping it
+    // here would silently disable result reuse for a reused table list. The
+    // consumer already treats a slot without a row/data entry as "not
+    // materialized" and falls back to the table tags.
+    resetGroupData(pTableListInfo, true);
+    qError("%s failed at line %d since %s, reusable group data dropped (slots kept:%d)", __func__, lino,
+           tstrerror(code), pTableListInfo->pGroupDataSlots != NULL);
   }
   return code;
 }
@@ -5781,12 +5929,28 @@ _error:
   return NULL;
 }
 
+// Release the reusable scalar group state that is rebuilt as one unit: the
+// materialized group data, the per-table row map that indexes it and, unless
+// the caller keeps the slot mappings derived from the plan, the slot map. Every
+// released member is set to NULL so a later build can rebuild from scratch.
+static void resetGroupData(STableListInfo* pTableListInfo, bool keepSlots) {
+  taosHashCleanup(pTableListInfo->pGroupDataRows);
+  pTableListInfo->pGroupDataRows = NULL;
+  if (!keepSlots) {
+    taosHashCleanup(pTableListInfo->pGroupDataSlots);
+    pTableListInfo->pGroupDataSlots = NULL;
+  }
+  taosArrayDestroyP(pTableListInfo->pGroupData, releaseColInfoData);
+  pTableListInfo->pGroupData = NULL;
+}
+
 void tableListDestroy(STableListInfo* pTableListInfo) {
   if (pTableListInfo == NULL) {
     return;
   }
 
   taosArrayDestroy(pTableListInfo->pTableList);
+  resetGroupData(pTableListInfo, false);
   taosMemoryFreeClear(pTableListInfo->groupOffset);
 
   taosHashCleanup(pTableListInfo->map);
@@ -5804,6 +5968,7 @@ void tableListClear(STableListInfo* pTableListInfo) {
   }
 
   taosArrayClear(pTableListInfo->pTableList);
+  resetGroupData(pTableListInfo, false);
   taosHashClear(pTableListInfo->map);
   taosHashClear(pTableListInfo->pTbnameMap);
   taosHashClear(pTableListInfo->remainGroups);
@@ -5995,6 +6160,108 @@ end:
   return code;
 }
 
+static int32_t initGroupDataSlotMap(STableListInfo* pTableListInfo, SScanPhysiNode* pScanNode, SNodeList* group) {
+  int32_t code = TSDB_CODE_SUCCESS;
+  SNode*  pPseudo = NULL;
+
+  // Rebuild from scratch. tableListClear normally drops the whole unit, but a
+  // reused table list after a failed build could otherwise keep stale slot
+  // mappings: the row map is rebuilt by getColInfoResultForGroupby right after
+  // this function and the group data it indexes is installed there as well, so
+  // a rebuild that does not reach that step must never pair a new slot map with
+  // old group data.
+  resetGroupData(pTableListInfo, false);
+
+  // getColInfoResultForGroupby materializes one group data column per non-VALUE
+  // group key, in plan order, so the position in this index is exactly the
+  // group data index. Build it once instead of re-walking (and re-skipping
+  // VALUE entries) for every pseudo column.
+  SArray* pGroupKeys = taosArrayInit(LIST_LENGTH(group), POINTER_BYTES);
+  if (pGroupKeys == NULL) {
+    return terrno;
+  }
+  SNode* pKey = NULL;
+  FOREACH(pKey, group) {
+    if (QUERY_NODE_VALUE == nodeType(pKey)) {
+      continue;
+    }
+    if (taosArrayPush(pGroupKeys, &pKey) == NULL) {
+      code = terrno;
+      goto end;
+    }
+  }
+
+  FOREACH(pPseudo, pScanNode->pScanPseudoCols) {
+    if (QUERY_NODE_TARGET != nodeType(pPseudo)) {
+      continue;
+    }
+    SNode* pExpr = ((STargetNode*)pPseudo)->pExpr;
+    if (QUERY_NODE_COLUMN == nodeType(pExpr) || QUERY_NODE_VALUE == nodeType(pExpr) ||
+        (QUERY_NODE_FUNCTION == nodeType(pExpr) &&
+         fmIsScanPseudoColumnFunc(((SFunctionNode*)pExpr)->funcId))) {
+      continue;
+    }
+
+    int32_t groupDataIndex = -1;
+    for (int32_t i = 0; i < taosArrayGetSize(pGroupKeys); ++i) {
+      if (nodesEqualNode(pExpr, taosArrayGetP(pGroupKeys, i))) {
+        groupDataIndex = i;
+        break;
+      }
+    }
+    if (groupDataIndex < 0) {
+      continue;
+    }
+
+    if (pTableListInfo->pGroupDataSlots == NULL) {
+      // Size the map from the number of pseudo columns so the common case does
+      // not rehash while it is being filled.
+      int32_t initCap = TMAX(2, LIST_LENGTH(pScanNode->pScanPseudoCols));
+      pTableListInfo->pGroupDataSlots =
+          taosHashInit(initCap, taosGetDefaultHashFunction(TSDB_DATA_TYPE_INT), false, HASH_NO_LOCK);
+      if (pTableListInfo->pGroupDataSlots == NULL) {
+        code = terrno;
+        goto end;
+      }
+    }
+    int32_t slotId = ((STargetNode*)pPseudo)->slotId;
+    int32_t* pMapped = taosHashGet(pTableListInfo->pGroupDataSlots, &slotId, sizeof(slotId));
+    if (pMapped != NULL && *pMapped != groupDataIndex) {
+      // Two different group expressions were folded into one output slot by an
+      // earlier planner pass, so the slot cannot stand for either groupData
+      // column. Drop reuse entirely and let every consumer evaluate the
+      // expression from the table tags instead of answering with one of them.
+      qError("%s output slot:%d maps to group data %d and %d, disable reusable group data", __func__, slotId,
+             *pMapped, groupDataIndex);
+      taosHashCleanup(pTableListInfo->pGroupDataSlots);
+      pTableListInfo->pGroupDataSlots = NULL;
+      code = TSDB_CODE_SUCCESS;
+      goto end;
+    }
+    // Several slots mapping to one group data index is not a conflict: it means
+    // two outputs publish the same group expression, so reusing the same value
+    // is correct. Only one slot pointing at two different values is ambiguous.
+    // A false nodesEqualNode() match between different expressions would be a
+    // nodes-library defect that also corrupts group-id computation, so it is
+    // not guarded here.
+    code = taosHashPut(pTableListInfo->pGroupDataSlots, &slotId, sizeof(slotId), &groupDataIndex,
+                       sizeof(groupDataIndex));
+    if (code != TSDB_CODE_SUCCESS) {
+      goto end;
+    }
+  }
+
+end:
+  taosArrayDestroy(pGroupKeys);
+  return code;
+}
+
+#if defined(BUILD_TEST)
+int32_t execUtilTestInitGroupDataSlotMap(STableListInfo* pTableListInfo, SScanPhysiNode* pScanNode, SNodeList* group) {
+  return initGroupDataSlotMap(pTableListInfo, pScanNode, group);
+}
+#endif
+
 int32_t buildGroupIdMapForAllTables(STableListInfo* pTableListInfo, SReadHandle* pHandle, SScanPhysiNode* pScanNode,
                                     SNodeList* group, bool groupSort, uint8_t* digest, SStorageAPI* pAPI, SHashObj* groupIdMap, bool gIdFromBaseId) {
   int32_t code = TSDB_CODE_SUCCESS;
@@ -6004,6 +6271,17 @@ int32_t buildGroupIdMapForAllTables(STableListInfo* pTableListInfo, SReadHandle*
   size_t numOfTables = taosArrayGetSize(pTableListInfo->pTableList);
   if (!numOfTables) {
     return code;
+  }
+  if (!groupByTbname) {
+    code = initGroupDataSlotMap(pTableListInfo, pScanNode, group);
+    if (code != TSDB_CODE_SUCCESS) {
+      return code;
+    }
+  } else {
+    // UID grouping produces no per-group scalar column. Drop any slot/row map
+    // and group data left by a previous build of a reused table list so
+    // setScalarGroupColumnData cannot map a stale index into this round.
+    resetGroupData(pTableListInfo, false);
   }
   qDebug("numOfTables:%zu, groupByTbname:%d, group:%p", numOfTables, groupByTbname, group);
   if (group == NULL || groupByTbname) {

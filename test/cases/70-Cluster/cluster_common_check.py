@@ -253,7 +253,7 @@ class ClusterComCheck:
             if tdSql.getRows() != vgroup_numbers :
                 continue
             if self.db_replica == 1 :
-                if  tdSql.queryResult[0][4] == 'leader' and tdSql.queryResult[last_number][4] == 'leader':
+                if all(vgroup[4] == 'leader' for vgroup in tdSql.queryResult):
                     tdSql.query(f"select `replica` from information_schema.ins_databases where `name`='{db_name}';")
                     print("db replica :",tdSql.queryResult[0][0])
                     if tdSql.queryResult[0][0] == db_replica:

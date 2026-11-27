@@ -125,6 +125,7 @@ int32_t stRealtimeContextUpdateExtCompletedCutoffs(SSTriggerRealtimeContext* pCo
 int32_t stRealtimeContextCollectUserRecalcGids(SSTriggerRealtimeContext* pContext, SArray** ppGids);
 int32_t stRealtimeContextAddUserRecalcTransactional(SSTriggerRealtimeContext* pContext);
 int32_t stTestStampResultAdmission(SStreamTriggerTask* task, SSTriggerCalcRequest* request);
+void stTestClearResultChecks(SSTriggerRealtimeContext* context);
 int32_t stTestFreezeAlignedHandoff(SSTriggerHistoryContext* ctx, const SArray* tables);
 int64_t stTestAlignedOrdinaryEndVer(SStreamTriggerTask* task, const SStreamTaskAddr* addr, int64_t last);
 void    stTestDiscardAlignedChainUpdate(SSTriggerHistoryContext* history);
@@ -3868,6 +3869,7 @@ static SHashObj* failRealtimePipelineDataSinkHashInit(size_t, _hash_fn_t, bool, 
 struct PipelineQueuedControl {
   void*   pCont = nullptr;
   int32_t contLen = 0;
+  STraceId traceId = {};
 };
 
 struct PipelinePendingSend {
@@ -4959,14 +4961,14 @@ class RealtimePipelineHarness {
     return processZeroRowWal(dataIndex, gids);
   }
 
-  bool feedGroups(const std::vector<PipelineWalGroup>& groups) {
+  bool feedGroups(const std::vector<PipelineWalGroup>& groups, int64_t nextCursor = 0) {
     int32_t lastTsIndex = findPull(STRIGGER_PULL_LAST_TS);
     if (lastTsIndex >= 0 && processLastTs(lastTsIndex) != TSDB_CODE_SUCCESS) return false;
     int32_t dataIndex = findPull(STRIGGER_PULL_WAL_META_DATA_NEW);
     if (dataIndex < 0) dataIndex = findPull(STRIGGER_PULL_WAL_DATA_NEW);
     if (dataIndex < 0) dataIndex = findPull(STRIGGER_PULL_WAL_META_NEW);
     if (dataIndex < 0) return false;
-    return processGroupWal(dataIndex, groups) == TSDB_CODE_SUCCESS;
+    return processGroupWal(dataIndex, groups, nextCursor) == TSDB_CODE_SUCCESS;
   }
 
   bool feedUnitMetadata(int64_t gid, int64_t ticks, int64_t version) {
@@ -5437,6 +5439,11 @@ class RealtimePipelineHarness {
     return static_cast<int32_t>(std::count(groupColPullGids_.begin(), groupColPullGids_.end(), gid));
   }
 
+  int64_t pendingGroupColReader(int64_t gid) const {
+    int32_t i = findGroupColPull(gid);
+    return i < 0 ? 0 : pendingSends_[i].readerTaskId;
+  }
+
   PipelineCalcAttempt* calcAttempt(int32_t index) {
     return index < 0 || index >= static_cast<int32_t>(calcAttempts_.size()) ? nullptr : &calcAttempts_[index];
   }
@@ -5494,7 +5501,7 @@ class RealtimePipelineHarness {
                      : processPull(index, TDMT_STREAM_TRIGGER_PULL_RSP, responseCode, nullptr, 0);
   }
 
-  int32_t dispatchGroupColValue(int64_t gid, int64_t value, const char* tableName = nullptr) {
+  int32_t dispatchGroupColValue(int64_t gid, int64_t value, const char* tableName = nullptr, bool empty = false) {
     int32_t index = findGroupColPull(gid);
     if (index < 0) return TSDB_CODE_INVALID_PARA;
 
@@ -5510,7 +5517,7 @@ class RealtimePipelineHarness {
       groupValue.data.pData = reinterpret_cast<uint8_t*>(const_cast<char*>(tableName));
       groupValue.data.nData = static_cast<int32_t>(strlen(tableName));
     }
-    if (taosArrayPush(info.gInfo, &groupValue) == nullptr) {
+    if (!empty && taosArrayPush(info.gInfo, &groupValue) == nullptr) {
       taosArrayDestroy(info.gInfo);
       return terrno;
     }
@@ -5912,6 +5919,7 @@ class RealtimePipelineHarness {
     PipelineQueuedControl control;
     control.pCont = pMsg->pCont;
     control.contLen = pMsg->contLen;
+    control.traceId = pMsg->info.traceId;
     gRealtimePipelineHarness->controls_.push_back(control);
     pMsg->pCont = nullptr;
     return TSDB_CODE_SUCCESS;
@@ -5956,6 +5964,8 @@ class RealtimePipelineHarness {
       if (nextCalcSendCode_ != TSDB_CODE_SUCCESS) {
         int32_t code = nextCalcSendCode_;
         nextCalcSendCode_ = TSDB_CODE_SUCCESS;
+        rpcFreeCont(pMsg->pCont);
+        pMsg->pCont = nullptr;
         return code;
       }
       if (pMsg->pCont != nullptr && pMsg->contLen > static_cast<int32_t>(sizeof(SMsgHead))) {
@@ -6111,6 +6121,7 @@ class RealtimePipelineHarness {
     response.msgType = TDMT_STREAM_TRIGGER_CTRL;
     response.pCont = control.pCont;
     response.contLen = control.contLen;
+    response.info.traceId = control.traceId;
     int64_t errorTaskId = 0;
     int32_t code = stTriggerTaskProcessRsp(&task_.task, &response, &errorTaskId);
     rpcFreeCont(control.pCont);
@@ -6428,7 +6439,7 @@ class RealtimePipelineHarness {
     }
 
     const int64_t      version = versions.back().version;
-    const bool         dataOnly = pullType == STRIGGER_PULL_WAL_CALC_DATA_NEW;
+    const bool         dataOnly = pullType == STRIGGER_PULL_WAL_DATA_NEW || pullType == STRIGGER_PULL_WAL_CALC_DATA_NEW;
     SSTriggerWalNewRsp response = {.indexHash = pIndexHash,
                                    .dataBlock = pDataBlock,
                                    .metaBlock = dataOnly ? nullptr : pMetaBlock,
@@ -8773,6 +8784,72 @@ TEST_F(StreamNestedRecoveryTest, RevokedWalRoundDropsBufferedInputAndQueuesFresh
   stTriggerTaskDestroyRecalcRequest(&repair);
 }
 
+TEST_F(StreamNestedRecoveryTest, ChangedAlignedReaderDoesNotRepeatFirstClose) {
+  using H = RealtimePipelineHarness;
+  H harness;
+  harness.setDeployIgnoreDisorder(true);
+  ASSERT_TRUE(harness.init(RealtimePipelinePlan::LegacyParityEvent, false, STRIGGER_EVENT_WINDOW_NONE));
+  auto* task = harness.task();
+  task->addOptions |= STREAM_OPTION_TIME_ALIGN;
+  task->fillHistory = true;
+  task->fillHistoryStartTime = 0;
+  task->historyFinished = 1;
+  task->historyCalcStarted = false;
+  task->ignoreNoDataTrigger = true;
+  task->eventTrueForInfo = {};
+  ASSERT_TRUE(harness.start());
+
+  auto bound = [&](TSKEY last, int64_t cursor, uint64_t source) {
+    return harness.feedLastTsForReader(H::kReaderTaskId, last, H::kGid, STRIGGER_PULL_TIME_ALIGN_BOUND, cursor, source);
+  };
+  auto closeWindow = [&](TSKEY start, int64_t version) {
+    ASSERT_TRUE(harness.feedParityRows({{start, false, 0, 1, 0},
+                                        {start + 10, false, 0, 1, 0},
+                                        {start + 20, false, 0, 0, 1},
+                                        {start + 30, false, 0, 0, 0}},
+                                       version));
+    ASSERT_EQ(0, harness.respondPullCode(STRIGGER_PULL_TIME_ALIGN_VALIDATE, 0));
+    ASSERT_NE(nullptr, harness.group());
+    ASSERT_TRUE(harness.group()->hasClosedParentWindow);
+    EXPECT_EQ(start, harness.group()->prevParentWindow.skey);
+    EXPECT_EQ(start + 20, harness.group()->prevParentWindow.ekey);
+    ASSERT_EQ(0, harness.respondPullCode(STRIGGER_PULL_TIME_ALIGN_RELEASE, 0));
+  };
+  auto finishRepair = [&](bool firstClose, TSKEY start, TSKEY end, uint64_t source) {
+    ASSERT_EQ(1, listNEles(task->pRecalcRequests));
+    auto* request = *reinterpret_cast<SSTriggerRecalcRequest**>(tdListGetHead(task->pRecalcRequests)->data);
+    EXPECT_EQ(H::kGid, request->gid);
+    EXPECT_EQ(firstClose, request->pFirstCloseDelivered != nullptr);
+    EXPECT_EQ(!firstClose, request->timeAlignRepairOwner == task);
+    EXPECT_EQ(start, request->calcRange.skey);
+    EXPECT_EQ(end, request->calcRange.ekey);
+    ASSERT_EQ(0, harness.dispatchSerializedSessionControlCode(STREAM_TRIGGER_HISTORY_SESSIONID));
+    ASSERT_TRUE(task->recalcInProgress);
+    ASSERT_TRUE(bound(end, 10, source));
+    // The history Reader has no rows in the requested range. Its first later row completes the scan.
+    ASSERT_TRUE(harness.feedLastTsForReader(H::kReaderTaskId, 1000, H::kGid, STRIGGER_PULL_FIRST_TS));
+    ASSERT_FALSE(task->recalcInProgress);
+    ASSERT_EQ(0, harness.respondPullCode(STRIGGER_PULL_TIME_ALIGN_RELEASE, 0));
+  };
+
+  ASSERT_TRUE(bound(0, 1, 71));
+  ASSERT_NO_FATAL_FAILURE(closeWindow(100, 2));
+  ASSERT_NO_FATAL_FAILURE(finishRepair(true, 100, 120, 71));
+
+  ASSERT_EQ(0, harness.dispatchSerializedRealtimeStartCode());
+  ASSERT_TRUE(bound(200, 3, 72));
+  ASSERT_TRUE(harness.context()->timeAlignRestart);
+  ASSERT_EQ(0, harness.dispatchSerializedRealtimeStartCode());
+  ASSERT_EQ(0, harness.respondPullCode(STRIGGER_PULL_TIME_ALIGN_RELEASE, 0));
+  ASSERT_EQ(0, harness.dispatchSerializedRealtimeStartCode());
+  ASSERT_TRUE(bound(200, 3, 72));
+  ASSERT_NO_FATAL_FAILURE(finishRepair(false, 0, 200, 72));
+
+  ASSERT_EQ(0, harness.dispatchSerializedRealtimeStartCode());
+  ASSERT_NO_FATAL_FAILURE(closeWindow(300, 4));
+  EXPECT_EQ(0, listNEles(task->pRecalcRequests));
+}
+
 TEST_F(StreamNestedRecoveryTest, WalCheckRetryRetainsMetadataAndExpiredPageReseedsOnlyItsCells) {
   RealtimePipelineHarness harness;
   ASSERT_TRUE(harness.init(RealtimePipelinePlan::NestedSessionHierarchy));
@@ -9217,7 +9294,10 @@ struct CheckpointGenerationProbe {
   int32_t              encodeStarts = 0;
   int32_t              writes = 0;
   int32_t              syncs = 0;
+  std::function<void()> onWrite;
   int32_t              writeCode = TSDB_CODE_SUCCESS;
+  int32_t              syncCode = TSDB_CODE_SUCCESS;
+  std::vector<uint8_t> syncBytes;
   std::vector<uint8_t> bytes;
   std::vector<uint8_t> storedBytes;
 };
@@ -9237,6 +9317,7 @@ static int32_t captureCheckpointEncodeStart(SEncoder* pEncoder) {
 static int32_t captureCheckpointWrite(int64_t, void* pData, int64_t dataLen) {
   CheckpointGenerationProbe* pProbe = gCheckpointGenerationProbe;
   ++pProbe->writes;
+  if (pProbe->onWrite) pProbe->onWrite();
   if (pData != nullptr && dataLen > 0) {
     auto* pBytes = static_cast<uint8_t*>(pData);
     pProbe->bytes.assign(pBytes, pBytes + dataLen);
@@ -9245,11 +9326,16 @@ static int32_t captureCheckpointWrite(int64_t, void* pData, int64_t dataLen) {
   return pProbe->writeCode;
 }
 
-static int32_t captureCheckpointSync(int64_t, SEpSet*, void* pData, int64_t) {
+static int32_t captureCheckpointSync(int64_t, SEpSet*, void* pData, int64_t dataLen) {
   CheckpointGenerationProbe* pProbe = gCheckpointGenerationProbe;
   ++pProbe->syncs;
+  pProbe->syncBytes.clear();
+  if (pData && dataLen > 0) {
+    auto* pBytes = static_cast<uint8_t*>(pData);
+    pProbe->syncBytes.assign(pBytes, pBytes + dataLen);
+  }
   taosMemoryFree(pData);
-  return TSDB_CODE_SUCCESS;
+  return pProbe->syncCode;
 }
 
 static SEpSet* checkpointGenerationEpSet(int32_t) { return &gCheckpointGenerationEpSet; }
@@ -9315,6 +9401,698 @@ TEST(StreamCheckpointGenerationProbeTest, AllowsConcurrentHeapAllocations) {
   background.join();
 
   EXPECT_EQ(2000, completed.load());
+}
+
+class ScopedWalCheckpointClock {
+ public:
+  ScopedWalCheckpointClock() = default;
+  ~ScopedWalCheckpointClock() { stTriggerTestSetClock(nullptr, nullptr); }
+  ScopedWalCheckpointClock(const ScopedWalCheckpointClock&) = delete;
+  ScopedWalCheckpointClock& operator=(const ScopedWalCheckpointClock&) = delete;
+
+  void set(int64_t now) {
+    wallNs = now;
+    stTriggerTestSetClock(&wallNs, &wallNs);
+  }
+
+  void set(int64_t wall, int64_t mono) {
+    wallNs = wall;
+    monoNs_ = mono;
+    stTriggerTestSetClock(&wallNs, &monoNs_);
+  }
+
+  int64_t wallNs = 0;
+
+ private:
+  int64_t monoNs_ = 0;
+};
+
+static void startStateWalCheckpointTest(RealtimePipelineHarness& h, ScopedWalCheckpointClock& clock,
+                                        bool lowLatency = true, int32_t runnerCount = 3) {
+  ASSERT_TRUE(h.init(RealtimePipelinePlan::LegacyParityState, false, STRIGGER_EVENT_WINDOW_CLOSE,
+                     STRIGGER_EVENT_WINDOW_NONE, 0, runnerCount, lowLatency));
+  h.task()->stateExtend = 0;
+  h.task()->stateTrueForInfo = {};
+  h.retainCalcAttempts();
+  ASSERT_TRUE(h.start());
+  ASSERT_TRUE(h.feedLastTsForReader(RealtimePipelineHarness::kReaderTaskId, 0));
+  clock.set(h.context()->lastCheckpointTime);
+}
+
+TEST(StreamStateWalCheckpointTest, AdvancingTriggerTimeLeavesBackgroundClocksAlone) {
+  const int64_t wallBefore = taosGetTimestampNs();
+  const int64_t monoBefore = taosGetMonoTimestampNs();
+  int64_t       observedWall = 0;
+  int64_t       observedMono = 0;
+  {
+    RealtimePipelineHarness  h;
+    ScopedWalCheckpointClock clock;
+    ASSERT_NO_FATAL_FAILURE(startStateWalCheckpointTest(h, clock));
+    clock.wallNs += 120 * NANOSECOND_PER_MINUTE;
+    std::thread observer([&] {
+      observedWall = taosGetTimestampNs();
+      observedMono = taosGetMonoTimestampNs();
+    });
+    observer.join();
+  }
+  EXPECT_GE(observedWall, wallBefore);
+  EXPECT_LE(observedWall, taosGetTimestampNs());
+  EXPECT_GE(observedMono, monoBefore);
+  EXPECT_LE(observedMono, taosGetMonoTimestampNs());
+}
+
+static Stub*         gArrayReadStub = nullptr;
+static const SArray* gCountedArray = nullptr;
+static int64_t       gArrayReads = 0;
+
+static void* countTestArrayRead(const SArray* array, size_t index) {
+  if (array == gCountedArray) ++gArrayReads;
+  gArrayReadStub->reset(taosArrayGet);
+  void* result = taosArrayGet(array, index);
+  gArrayReadStub->set(taosArrayGet, countTestArrayRead);
+  return result;
+}
+
+template <typename F>
+static int64_t measureArrayReads(const SArray* array, F run) {
+  Stub stub;
+  gArrayReadStub = &stub;
+  gCountedArray = array;
+  gArrayReads = 0;
+  stub.set(taosArrayGet, countTestArrayRead);
+  run();
+  stub.reset(taosArrayGet);
+  gArrayReadStub = nullptr;
+  gCountedArray = nullptr;
+  return gArrayReads;
+}
+
+TEST(StreamStateWalCheckpointTest, ChecksCapturedSlotsLinearlyAcrossReplies) {
+  constexpr int                     kRequests = 32;
+  std::vector<std::vector<uint8_t>> savedCheckpoints;
+  for (bool reverse : {false, true}) {
+    SCOPED_TRACE(reverse);
+    RealtimePipelineHarness h;
+    ScopedWalCheckpointClock clock;
+    ASSERT_NO_FATAL_FAILURE(startStateWalCheckpointTest(h, clock, true, kRequests + 1));
+    ScopedCheckpointGenerationProbe checkpoint;
+    const auto*                     reader = recoveryWalProgress(h, h.kVgId);
+    ASSERT_NE(nullptr, reader);
+    for (int i = 0; i < kRequests; ++i) {
+      ASSERT_TRUE(h.feedGroups({{42 + i, 1001 + i, {100, 101}, {1, 2}, i + 1}}, i + 2));
+      ASSERT_EQ(i + 1, h.calcAttemptCount());
+      // One slot per Runner, filled in the order used to capture the checkpoint.
+      ASSERT_EQ(h.kRunnerTaskId + i, h.calcAttempt(i)->decoded.runnerTaskId);
+    }
+    clock.wallNs += 30 * NANOSECOND_PER_MINUTE;
+    ASSERT_TRUE(h.feedGroups({{42, 1001, {102}, {2}, kRequests + 1}}, kRequests + 2));
+    ASSERT_EQ(kRequests, taosArrayGetSize(h.context()->pWalCheckpointWaits));
+    SSTriggerCalcRequest* reused = nullptr;
+    const auto            reads = measureArrayReads(h.context()->pWalCheckpointWaits, [&] {
+      for (int i = 0; i < kRequests; ++i) {
+        int   attempt = reverse ? kRequests - 1 - i : i;
+        auto* slot = h.calcAttempt(attempt)->pooledRequest();
+        ASSERT_EQ(1, reader->doneVer);
+        ASSERT_EQ(0, checkpoint.probe().writes);
+        ASSERT_EQ(0, h.pendingPullCount(STRIGGER_PULL_WAL_META_DATA_NEW));
+        ASSERT_EQ(0, h.dispatchCalcAttempt(attempt, 0));
+        if (i == 0) {
+          ASSERT_EQ(0, stTriggerTaskAcquireRequest(h.task(), h.context()->sessionId, 9999, &reused));
+          ASSERT_EQ(slot, reused);
+        }
+      }
+    });
+    RecordProperty(reverse ? "reverse_slot_visits" : "ordered_slot_visits", static_cast<int>(reads));
+    EXPECT_GT(reads, 0);
+    EXPECT_LE(reads, 2 * kRequests);
+    EXPECT_EQ(kRequests + 2, reader->doneVer);
+    EXPECT_EQ(1, checkpoint.probe().writes);
+    EXPECT_EQ(1, h.pendingPullCount(STRIGGER_PULL_WAL_META_DATA_NEW));
+    savedCheckpoints.push_back(checkpoint.probe().storedBytes);
+    ASSERT_EQ(0, stTriggerTaskReleaseRequest(h.task(), &reused, true));
+  }
+  for (auto& saved : savedCheckpoints) {
+    ASSERT_FALSE(saved.empty());
+    RealtimePipelineHarness restarted;
+    ASSERT_TRUE(restarted.init(RealtimePipelinePlan::LegacyParityState));
+    restarted.setCheckpointBytes(std::move(saved));
+    ASSERT_TRUE(restarted.start());
+    const auto* reader = recoveryWalProgress(restarted, restarted.kVgId);
+    ASSERT_NE(nullptr, reader);
+    EXPECT_EQ(kRequests + 2, reader->savedVer);
+  }
+}
+
+TEST(StreamStateWalCheckpointTest, DrainsOnlyAfterThirtyMinutesWithoutProgress) {
+  using H = RealtimePipelineHarness;
+  std::vector<uint8_t> saved;
+  {
+    H    h;
+    ScopedWalCheckpointClock clock;
+    ASSERT_NO_FATAL_FAILURE(startStateWalCheckpointTest(h, clock));
+    const auto* reader = recoveryWalProgress(h, H::kVgId);
+    ASSERT_NE(nullptr, reader);
+
+    ScopedCheckpointGenerationProbe checkpoint;
+    const int64_t                   start = h.context()->lastCheckpointTime;
+    auto minute = [&clock, start](int m) { clock.wallNs = start + m * NANOSECOND_PER_MINUTE; };
+    // An hour with no WAL debt must not cause the first page to stall.
+    minute(60);
+    ASSERT_TRUE(h.feedGroups({{42, 1001, {100, 101}, {1, 2}, 1}}, 2));
+    ASSERT_EQ(1, h.calcAttemptCount());
+    ASSERT_EQ(1, h.pendingPullCount(STRIGGER_PULL_WAL_META_DATA_NEW));
+    ASSERT_EQ(1, reader->doneVer);
+    minute(85);
+    ASSERT_EQ(0, h.dispatchCalcAttempt(0, 0));
+    ASSERT_TRUE(h.feedGroups({{42, 1001, {102}, {2}, 2}}, 3));
+    ASSERT_EQ(3, reader->doneVer);
+
+    // Start a new stall. A normal checkpoint during the stall must not reset its age.
+    minute(90);
+    ASSERT_TRUE(h.feedGroups({{43, 1002, {200, 201}, {1, 2}, 3}}, 4));
+    minute(119);
+    ASSERT_TRUE(h.feedGroups({{43, 1002, {202}, {2}, 4}}, 5));
+    ASSERT_EQ(1, h.pendingPullCount(STRIGGER_PULL_WAL_META_DATA_NEW));
+    ASSERT_EQ(3, reader->doneVer);
+    const int writes = checkpoint.probe().writes;
+    ASSERT_GT(writes, 0);
+
+    minute(120);
+    ASSERT_TRUE(h.feedGroups({{44, 1003, {300, 301}, {1, 2}, 5}}, 6));
+    ASSERT_EQ(3, h.calcAttemptCount());
+    ASSERT_EQ(0, h.pendingPullCount(STRIGGER_PULL_WAL_META_DATA_NEW));
+    {
+      static int realtimeChecks;
+      realtimeChecks = 0;
+      Stub check;
+      check.set(
+          stTaskStatsRecordTriggerCheck, +[](SStreamTaskStats*, bool history, uint64_t, int64_t, int64_t) {
+            if (!history) ++realtimeChecks;
+          });
+      ASSERT_EQ(0, h.dispatchCalcAttempt(2, 0));
+      EXPECT_EQ(0, realtimeChecks);
+    }
+    ASSERT_EQ(0, h.dispatchSerializedRealtimeStartCode());
+    EXPECT_EQ(3, reader->doneVer);
+    EXPECT_EQ(writes, checkpoint.probe().writes);
+    EXPECT_EQ(0, h.pendingPullCount(STRIGGER_PULL_WAL_META_DATA_NEW));
+
+    // The final ACK must publish the cut and resume even without another input or timer tick.
+    ASSERT_EQ(0, h.dispatchCalcAttempt(1, 0));
+    EXPECT_EQ(6, reader->doneVer);
+    EXPECT_EQ(writes + 1, checkpoint.probe().writes);
+    EXPECT_EQ(1, h.pendingPullCount(STRIGGER_PULL_WAL_META_DATA_NEW));
+    saved = checkpoint.probe().storedBytes;
+  }
+  H restarted;
+  ASSERT_TRUE(restarted.init(RealtimePipelinePlan::LegacyParityState));
+  restarted.setCheckpointBytes(std::move(saved));
+  ASSERT_TRUE(restarted.start());
+  const auto* reader = recoveryWalProgress(restarted, H::kVgId);
+  ASSERT_NE(nullptr, reader);
+  EXPECT_EQ(6, reader->savedVer);
+}
+
+TEST(StreamStateWalCheckpointTest, ObservesIdleAndResumeWhileCalculationIsOutstanding) {
+  constexpr int64_t       stallNs = 30 * NANOSECOND_PER_MINUTE;
+  constexpr int64_t       timeoutMs = (stallNs + 5 * NANOSECOND_PER_SEC) / NANOSECOND_PER_MSEC;
+  RealtimePipelineHarness h;
+  ASSERT_TRUE(h.init(RealtimePipelinePlan::LegacyParityState, false, STRIGGER_EVENT_WINDOW_CLOSE,
+                     STRIGGER_EVENT_IDLE | STRIGGER_EVENT_RESUME, 0, 1, true, timeoutMs));
+  h.task()->stateExtend = 0;
+  h.task()->stateTrueForInfo = {};
+  h.task()->addOptions |= NOTIFY_ON_FAILURE_PAUSE;
+  h.retainCalcAttempts();
+  ASSERT_TRUE(h.start());
+  ASSERT_TRUE(h.feedLastTsForReader(RealtimePipelineHarness::kReaderTaskId, 0));
+  ScopedWalCheckpointClock clock;
+  clock.set(h.context()->lastCheckpointTime);
+  ScopedCheckpointGenerationProbe checkpoint;
+  ASSERT_TRUE(h.feedGroups({{42, 1001, {100, 101}, {1, 2}, 1}}, 2));
+  ASSERT_EQ(1, h.calcAttemptCount());
+
+  // The idle timeout expires five seconds after the stalled-checkpoint deadline.
+  clock.wallNs += stallNs;
+  ASSERT_TRUE(h.feedZeroRowWalForReader(RealtimePipelineHarness::kReaderTaskId, 2));
+  ASSERT_EQ(0, h.legacySendCount());
+  clock.wallNs += 5 * NANOSECOND_PER_SEC;
+  ASSERT_TRUE(h.dispatchSerializedRealtimeStart());
+  ASSERT_TRUE(h.feedZeroRowWalForReader(RealtimePipelineHarness::kReaderTaskId, 2));
+  ASSERT_EQ(1, h.legacySendCount());
+  std::unique_ptr<cJSON, decltype(&cJSON_Delete)> idle(cJSON_Parse(gLegacyNotifyPayload.c_str()), cJSON_Delete);
+  const auto* idleType = cJSON_GetObjectItemCaseSensitive(nestedNoticeEvent(idle.get()), "eventType");
+  ASSERT_STREQ("IDLE", cJSON_GetStringValue(idleType));
+  gLegacyNotifyPayload.clear();
+
+  clock.wallNs += NANOSECOND_PER_SEC;
+  ASSERT_TRUE(h.dispatchSerializedRealtimeStart());
+  ASSERT_TRUE(h.feedZeroRowWalForReader(RealtimePipelineHarness::kReaderTaskId, 2));
+  ASSERT_EQ(1, h.legacySendCount());
+  clock.wallNs += NANOSECOND_PER_SEC;
+  ASSERT_TRUE(h.dispatchSerializedRealtimeStart());
+  ASSERT_TRUE(h.feedGroups({{42, 1001, {102}, {2}, 2}}, 3));
+  ASSERT_EQ(2, h.legacySendCount());
+  std::unique_ptr<cJSON, decltype(&cJSON_Delete)> resume(cJSON_Parse(gLegacyNotifyPayload.c_str()), cJSON_Delete);
+  const auto* resumeType = cJSON_GetObjectItemCaseSensitive(nestedNoticeEvent(resume.get()), "eventType");
+  ASSERT_STREQ("RESUME", cJSON_GetStringValue(resumeType));
+  ASSERT_TRUE(h.feedGroups({{42, 1001, {103}, {2}, 3}}, 4));
+  ASSERT_EQ(0, h.dispatchCalcAttempt(0, 0));
+  EXPECT_EQ(2, h.legacySendCount());
+}
+
+TEST(StreamStateWalCheckpointTest, PartialCheckpointPreservesBothReaderCursors) {
+  using H = RealtimePipelineHarness;
+  auto startTwoReaders = [](H& h, const std::vector<uint8_t>& bytes) {
+    ASSERT_TRUE(h.init(RealtimePipelinePlan::LegacyParityState, false, STRIGGER_EVENT_WINDOW_CLOSE,
+                       STRIGGER_EVENT_WINDOW_NONE, 0, 3, true, 0, false, 2));
+    h.task()->stateExtend = 0;
+    h.task()->stateTrueForInfo = {};
+    h.retainCalcAttempts();
+    h.setCheckpointBytes(bytes);
+    ASSERT_TRUE(h.start());
+  };
+  std::vector<uint8_t> saved;
+  ASSERT_TRUE(makeRecoveryCheckpoint({{H::kVgId, 5, 9}}, {}, 1, &saved, 2));
+  {
+    H h;
+    ASSERT_NO_FATAL_FAILURE(startTwoReaders(h, saved));
+    const auto* oldReader = recoveryWalProgress(h, H::kVgId);
+    const auto* addedReader = recoveryWalProgress(h, H::kVgId + 1);
+    ASSERT_NE(nullptr, oldReader);
+    ASSERT_NE(nullptr, addedReader);
+    ASSERT_EQ(5, oldReader->startVer);
+    ASSERT_EQ(9, oldReader->savedVer);
+    ScopedCheckpointGenerationProbe checkpoint(TSDB_CODE_SUCCESS, saved);
+    ScopedWalCheckpointClock        clock;
+    clock.set(h.context()->lastCheckpointTime);
+    ASSERT_EQ(2, h.pendingPullCount(STRIGGER_PULL_WAL_META_DATA_NEW));
+
+    EXPECT_EQ(5, oldReader->pullReq.walMetaDataNewReq.lastVer);
+    EXPECT_EQ(0, addedReader->pullReq.walMetaDataNewReq.lastVer);
+    ASSERT_TRUE(h.feedZeroRowWalForReader(H::kReaderTaskId, 9));
+    EXPECT_EQ(0, checkpoint.probe().writes);
+    ASSERT_EQ(saved, checkpoint.probe().storedBytes);
+    int64_t len = 0;
+    ASSERT_EQ(0, stTriggerTaskDoGenCheckpoint(h.task(), nullptr, &len, 18));
+    ASSERT_EQ(0, len);
+    const PipelineWalGroup first{43, 1002, {200}, {1}, 11};
+    ASSERT_TRUE(h.feedGroups({first}, 12));
+    EXPECT_EQ(0, checkpoint.probe().writes);
+    ASSERT_EQ(saved, checkpoint.probe().storedBytes);
+    ASSERT_TRUE(h.dispatchSerializedRealtimeStart());
+    ASSERT_TRUE(h.feedZeroRowWalForReader(H::kReaderTaskId, 9));
+    // Recovery stopped at this Reader's saved cursor of zero. Replay its first retained row for live output.
+    ASSERT_EQ(0, addedReader->pullReq.walMetaDataNewReq.lastVer);
+    ASSERT_TRUE(h.feedGroups({first}, 12));
+    ASSERT_TRUE(h.feedZeroRowWalForReader(H::kReaderTaskId, 10));
+    ASSERT_TRUE(h.feedGroups({{43, 1002, {201}, {2}, 12}}, 13));
+    ASSERT_EQ(1, h.calcAttemptCount());
+    const auto& request = h.calcAttempt(0)->decoded;
+    ASSERT_EQ(1, taosArrayGetSize(request.params));
+    const auto* window = static_cast<const SSTriggerCalcParam*>(taosArrayGet(request.params, 0));
+    EXPECT_EQ(200, window->wstart);
+    EXPECT_EQ(200, window->wend);
+
+    clock.wallNs += 30 * NANOSECOND_PER_MINUTE;
+    ASSERT_TRUE(h.feedZeroRowWalForReader(H::kReaderTaskId, 11));
+    ASSERT_TRUE(h.feedGroups({{43, 1002, {202}, {2}, 13}}, 14));
+    ASSERT_TRUE(h.context()->drainingWalCheckpoint);
+    ASSERT_EQ(0, h.pendingPullCount(STRIGGER_PULL_WAL_META_DATA_NEW));
+    const int writes = checkpoint.probe().writes;
+    ASSERT_EQ(0, h.dispatchCalcAttempt(0, TSDB_CODE_SUCCESS));
+    ASSERT_EQ(writes + 1, checkpoint.probe().writes);
+    ASSERT_NE(saved, checkpoint.probe().storedBytes);
+    ASSERT_EQ(2, h.pendingPullCount(STRIGGER_PULL_WAL_META_DATA_NEW));
+    saved = checkpoint.probe().storedBytes;
+  }
+  H restored;
+  ASSERT_NO_FATAL_FAILURE(startTwoReaders(restored, saved));
+  const auto* oldReader = recoveryWalProgress(restored, H::kVgId);
+  const auto* addedReader = recoveryWalProgress(restored, H::kVgId + 1);
+  ASSERT_NE(nullptr, oldReader);
+  ASSERT_NE(nullptr, addedReader);
+  EXPECT_EQ(5, oldReader->startVer);
+  EXPECT_EQ(11, oldReader->savedVer);
+  EXPECT_EQ(0, addedReader->startVer);
+  EXPECT_EQ(14, addedReader->savedVer);
+}
+
+TEST(StreamStateWalCheckpointTest, UninitializedReaderCannotReleaseForcedCheckpoint) {
+  RealtimePipelineHarness h;
+  ScopedWalCheckpointClock clock;
+  ASSERT_NO_FATAL_FAILURE(startStateWalCheckpointTest(h, clock));
+  ScopedCheckpointGenerationProbe checkpoint;
+  ASSERT_TRUE(h.feedGroups({{42, 1001, {100, 101}, {1, 2}, 1}}, 2));
+  ASSERT_EQ(1, h.calcAttemptCount());
+  clock.wallNs += 30 * NANOSECOND_PER_MINUTE;
+  ASSERT_TRUE(h.feedGroups({{42, 1001, {102}, {2}, 2}}, 3));
+  ASSERT_TRUE(h.context()->drainingWalCheckpoint);
+  const int writes = checkpoint.probe().writes;
+  {
+    // An encoder without a confirmed Reader boundary returns success with no bytes.
+    Stub encoder;
+    encoder.set(
+        stTriggerTaskDoGenCheckpoint, +[](SStreamTriggerTask*, uint8_t*, int64_t* len, int32_t) -> int32_t {
+          *len = 0;
+          return TSDB_CODE_SUCCESS;
+        });
+    ASSERT_EQ(0, h.dispatchCalcAttempt(0, TSDB_CODE_SUCCESS));
+    EXPECT_EQ(writes, checkpoint.probe().writes);
+    EXPECT_TRUE(h.task()->pendingPeriodicCheckpoint);
+    EXPECT_TRUE(h.context()->drainingWalCheckpoint);
+    EXPECT_EQ(0, h.pendingPullCount(STRIGGER_PULL_WAL_META_DATA_NEW));
+  }
+  ASSERT_TRUE(h.dispatchSerializedRealtimeStart());
+  EXPECT_EQ(writes + 1, checkpoint.probe().writes);
+  EXPECT_FALSE(h.context()->drainingWalCheckpoint);
+  EXPECT_EQ(1, h.pendingPullCount(STRIGGER_PULL_WAL_META_DATA_NEW));
+}
+
+TEST(StreamStateWalCheckpointTest, WatermarkedRecoveryEmitsOnlyTheNextStateChange) {
+  using H = RealtimePipelineHarness;
+  using Window = std::pair<TSKEY, TSKEY>;
+  auto windows = [](H& h) {
+    std::vector<Window> result;
+    for (int i = 0; i < h.calcAttemptCount(); ++i) {
+      const auto* params = h.calcAttempt(i)->decoded.params;
+      for (int j = 0; j < taosArrayGetSize(params); ++j) {
+        const auto* param = static_cast<const SSTriggerCalcParam*>(taosArrayGet(params, j));
+        result.emplace_back(param->wstart, param->wend);
+      }
+    }
+    return result;
+  };
+
+  // WAL version 1 closes two windows. The watermark holds back timestamp 150.
+  const PipelineWalGroup history{H::kGid, H::kUid, {100, 110, 120, 150}, {1, 2, 3, 3}, 1, false, 0, 100};
+  auto                   feedHistory = [&](H& h) {
+    ASSERT_EQ(1, h.pendingPullCount(STRIGGER_PULL_WAL_META_NEW));
+    ASSERT_TRUE(h.feedGroups({history}, 2));
+    ASSERT_EQ(1, h.pendingPullCount(STRIGGER_PULL_WAL_DATA_NEW));
+    ASSERT_TRUE(h.feedRows({100, 110, 120}, {1, 2, 3}, 100, 1));
+  };
+  std::vector<uint8_t> saved;
+  {
+    H    h;
+    ScopedWalCheckpointClock clock;
+    h.setDeployWatermark(10);
+    ASSERT_NO_FATAL_FAILURE(startStateWalCheckpointTest(h, clock));
+    ScopedCheckpointGenerationProbe checkpoint;
+    ASSERT_NO_FATAL_FAILURE(feedHistory(h));
+    ASSERT_EQ((std::vector<Window>{{100, 100}, {110, 110}}), windows(h));
+
+    // Leave the Runner request outstanding across the stall deadline.
+    clock.wallNs += 30 * NANOSECOND_PER_MINUTE;
+    const int meta = h.prepareMetadataResponse(true);
+    ASSERT_GE(meta, 0);
+    ASSERT_EQ(0, h.processMetadataNoData(meta, 2 * sizeof(int64_t), 2));
+    ASSERT_TRUE(h.respondWalDataNoData(2));
+    ASSERT_EQ(0, h.pendingPullCount(STRIGGER_PULL_WAL_META_NEW));
+    const int writes = checkpoint.probe().writes;
+    for (int i = 0; i < h.calcAttemptCount(); ++i) ASSERT_EQ(0, h.dispatchCalcAttempt(i, TSDB_CODE_SUCCESS));
+    ASSERT_EQ(writes + 1, checkpoint.probe().writes);
+    saved = checkpoint.probe().storedBytes;
+  }
+
+  H restarted;
+  restarted.setDeployWatermark(10);
+  ASSERT_TRUE(restarted.init(RealtimePipelinePlan::LegacyParityState));
+  restarted.task()->stateExtend = 0;
+  restarted.task()->stateTrueForInfo = {};
+  restarted.retainCalcAttempts();
+  restarted.setCheckpointBytes(std::move(saved));
+  ASSERT_TRUE(restarted.start());
+  const auto* reader = recoveryWalProgress(restarted, H::kVgId);
+  ASSERT_NE(nullptr, reader);
+  ASSERT_EQ(1, reader->lastScanVer);
+  ASSERT_EQ(2, reader->savedVer);
+  ASSERT_TRUE(restarted.context()->recovering);
+  ASSERT_NO_FATAL_FAILURE(feedHistory(restarted));
+  EXPECT_EQ((std::vector<Window>{}), windows(restarted));
+
+  const PipelineWalGroup next{H::kGid, H::kUid, {160, 180}, {4, 4}, 2, false, 0, 160};
+  ASSERT_EQ(1, restarted.pendingPullCount(STRIGGER_PULL_WAL_META_NEW));
+  ASSERT_TRUE(restarted.feedGroups({next}, 3));
+  ASSERT_EQ(1, restarted.pendingPullCount(STRIGGER_PULL_WAL_DATA_NEW));
+  ASSERT_TRUE(restarted.feedVersionedRows({{H::kGid, H::kUid, {150}, {3}, 1}, {H::kGid, H::kUid, {160}, {4}, 2}}));
+  EXPECT_EQ((std::vector<Window>{{120, 150}}), windows(restarted));
+}
+
+TEST(StreamStateWalCheckpointTest, HoldsWalWhileRetryingRunnerOrCheckpoint) {
+  using H = RealtimePipelineHarness;
+  H    h;
+  ScopedWalCheckpointClock clock;
+  ASSERT_NO_FATAL_FAILURE(startStateWalCheckpointTest(h, clock));
+  const int64_t start = h.context()->lastCheckpointTime;
+  ASSERT_TRUE(h.feedGroups({{42, 1001, {100, 101}, {1, 2}, 1}}, 2));
+  const int64_t due = start + 30 * NANOSECOND_PER_MINUTE;
+  clock.wallNs = due;
+  ScopedCheckpointGenerationProbe checkpoint(TSDB_CODE_OUT_OF_MEMORY);
+  ASSERT_TRUE(h.feedGroups({{42, 1001, {102}, {2}, 2}}, 3));
+  ASSERT_EQ(0, h.pendingPullCount(STRIGGER_PULL_WAL_META_DATA_NEW));
+  ASSERT_EQ(0, h.dispatchCalcAttempt(0, TSDB_CODE_STREAM_VTABLE_NEED_REDEPLOY));
+  ASSERT_EQ(0, h.dispatchSerializedRealtimeStartCode());
+  EXPECT_EQ(1, recoveryWalProgress(h, H::kVgId)->doneVer);
+  EXPECT_EQ(0, checkpoint.probe().writes);
+  clock.wallNs = due + NANOSECOND_PER_SEC;
+  ASSERT_EQ(0, h.dispatchSerializedRealtimeRetryCode());
+  ASSERT_EQ(2, h.calcAttemptCount());
+  ASSERT_EQ(0, h.dispatchCalcAttempt(1, 0));
+  EXPECT_EQ(1, checkpoint.probe().writes);
+  EXPECT_TRUE(checkpoint.probe().storedBytes.empty());
+  EXPECT_EQ(0, h.pendingPullCount(STRIGGER_PULL_WAL_META_DATA_NEW));
+  gCheckpointGenerationProbe->writeCode = TSDB_CODE_SUCCESS;
+  ASSERT_EQ(0, h.dispatchSerializedRealtimeStartCode());
+  EXPECT_EQ(2, checkpoint.probe().writes);
+  EXPECT_FALSE(checkpoint.probe().storedBytes.empty());
+  EXPECT_EQ(1, h.pendingPullCount(STRIGGER_PULL_WAL_META_DATA_NEW));
+}
+
+TEST(StreamStateWalCheckpointTest, ReplicaSubmissionRetriesLatestLocalCheckpointWhileWalContinues) {
+  RealtimePipelineHarness h;
+  ScopedWalCheckpointClock clock;
+  ASSERT_NO_FATAL_FAILURE(startStateWalCheckpointTest(h, clock));
+  ASSERT_TRUE(h.feedGroups({{42, 1001, {100, 101}, {1, 2}, 1}}, 2));
+  clock.wallNs += 30 * NANOSECOND_PER_MINUTE;
+  ScopedCheckpointGenerationProbe checkpoint;
+  gCheckpointGenerationProbe->syncCode = TSDB_CODE_OUT_OF_MEMORY;
+  ASSERT_TRUE(h.feedGroups({{42, 1001, {102}, {2}, 2}}, 3));
+  ASSERT_EQ(0, h.pendingPullCount(STRIGGER_PULL_WAL_META_DATA_NEW));
+  ASSERT_EQ(0, h.dispatchCalcAttempt(0, 0));
+  ASSERT_EQ(1, h.pendingPullCount(STRIGGER_PULL_WAL_META_DATA_NEW));
+  ASSERT_EQ(1, checkpoint.probe().writes);
+  ASSERT_EQ(1, checkpoint.probe().syncs);
+  const auto    first = checkpoint.probe().storedBytes;
+  const int32_t version = h.task()->checkpointVersion;
+  ASSERT_FALSE(first.empty());
+  h.setCheckpointBytes(first);
+
+  clock.wallNs += NANOSECOND_PER_SEC;
+  ASSERT_TRUE(h.feedGroups({{42, 1001, {103}, {2}, 3}}, 4));
+  EXPECT_EQ(1, checkpoint.probe().writes);
+  EXPECT_EQ(version, h.task()->checkpointVersion);
+  EXPECT_EQ(2, checkpoint.probe().syncs);
+  EXPECT_EQ(first, checkpoint.probe().syncBytes);
+
+  clock.wallNs += 10 * NANOSECOND_PER_MINUTE;
+  ASSERT_TRUE(h.feedGroups({{42, 1001, {104}, {2}, 4}}, 5));
+  ASSERT_EQ(2, checkpoint.probe().writes);
+  const auto latest = checkpoint.probe().storedBytes;
+  ASSERT_NE(first, latest);
+  ASSERT_EQ(latest, checkpoint.probe().syncBytes);
+  h.setCheckpointBytes(latest);
+
+  gCheckpointGenerationProbe->syncCode = TSDB_CODE_SUCCESS;
+  const int syncs = checkpoint.probe().syncs;
+  clock.wallNs += NANOSECOND_PER_SEC;
+  ASSERT_TRUE(h.feedGroups({{42, 1001, {105}, {2}, 5}}, 6));
+  EXPECT_EQ(syncs + 1, checkpoint.probe().syncs);
+  EXPECT_EQ(latest, checkpoint.probe().syncBytes);
+  clock.wallNs += NANOSECOND_PER_SEC;
+  ASSERT_TRUE(h.feedGroups({{42, 1001, {106}, {2}, 6}}, 7));
+  EXPECT_EQ(syncs + 1, checkpoint.probe().syncs);
+  EXPECT_EQ(2, checkpoint.probe().writes);
+  EXPECT_EQ(version + 1, h.task()->checkpointVersion);
+  EXPECT_EQ(7, recoveryWalProgress(h, RealtimePipelineHarness::kVgId)->doneVer);
+}
+
+TEST(StreamStateWalCheckpointTest, FailedCalculationCannotBeConfirmedByAnotherReply) {
+  using H = RealtimePipelineHarness;
+  for (bool inDrain : {false, true}) {
+    SCOPED_TRACE(inDrain);
+    H    h;
+    ScopedWalCheckpointClock clock;
+    ASSERT_NO_FATAL_FAILURE(startStateWalCheckpointTest(h, clock));
+    const int64_t                   start = h.context()->lastCheckpointTime;
+    ScopedCheckpointGenerationProbe checkpoint;
+    ASSERT_TRUE(h.feedGroups({{42, 1001, {100, 101}, {1, 2}, 1}}, 2));
+    const int64_t due = start + (inDrain ? 30 : 29) * NANOSECOND_PER_MINUTE;
+    clock.wallNs = due;
+    ASSERT_TRUE(h.feedGroups({{43, 1002, {202, 203}, {1, 2}, 2}}, 3));
+    ASSERT_EQ(inDrain ? 0 : 1, h.pendingPullCount(STRIGGER_PULL_WAL_META_DATA_NEW));
+    const int priorWrites = checkpoint.probe().writes;
+    ASSERT_EQ(TSDB_CODE_INTERNAL_ERROR, h.dispatchCalcAttempt(0, TSDB_CODE_INTERNAL_ERROR));
+    EXPECT_EQ(inDrain ? TSDB_CODE_INTERNAL_ERROR : 0, h.dispatchCalcAttempt(1, TSDB_CODE_SUCCESS));
+    EXPECT_EQ(TSDB_CODE_INTERNAL_ERROR, h.dispatchSerializedRealtimeStartCode());
+    EXPECT_EQ(1, recoveryWalProgress(h, H::kVgId)->doneVer);
+    EXPECT_EQ(inDrain ? 0 : 1, h.pendingPullCount(STRIGGER_PULL_WAL_META_DATA_NEW));
+    EXPECT_EQ(priorWrites, checkpoint.probe().writes);
+  }
+}
+
+TEST(StreamStateWalCheckpointTest, DeferredCalculationsCanFinishWithWalPaused) {
+  RealtimePipelineHarness      h;
+  ScopedWalCheckpointClock     clock;
+  ScopedStreamBatchRequestWait batchWait(1000);
+  ASSERT_NO_FATAL_FAILURE(startStateWalCheckpointTest(h, clock, false));
+  ScopedCheckpointGenerationProbe checkpoint;
+  ASSERT_TRUE(h.feedGroups({{42, 1001, {100, 101}, {1, 2}, 1}}, 2));
+  ASSERT_EQ(0, h.calcAttemptCount());
+  clock.wallNs += 30 * NANOSECOND_PER_MINUTE;
+  ASSERT_TRUE(h.feedGroups({{43, 1002, {200, 201}, {1, 2}, 2}}, 3));
+  ASSERT_EQ(1, h.calcAttemptCount());
+  ASSERT_EQ(0, h.pendingPullCount(STRIGGER_PULL_WAL_META_DATA_NEW));
+  ASSERT_TRUE(h.context()->drainingWalCheckpoint);
+  ASSERT_EQ(1, h.group(43)->pPendingCalcParams.neles);
+  // The ACK releases a Runner slot after the wall clock moves back one hour.
+  const int64_t drainTime = clock.wallNs;
+  clock.set(drainTime - 60 * NANOSECOND_PER_MINUTE, drainTime + NANOSECOND_PER_SEC);
+  ASSERT_EQ(0, h.dispatchCalcAttempt(0, 0));
+  ASSERT_EQ(0, checkpoint.probe().writes);
+  ASSERT_EQ(2, h.calcAttemptCount());
+  EXPECT_EQ(43, h.calcAttempt(1)->decoded.gid);
+  ASSERT_EQ(0, h.pendingPullCount(STRIGGER_PULL_WAL_META_DATA_NEW));
+  ASSERT_EQ(0, h.dispatchCalcAttempt(1, 0));
+  EXPECT_EQ(3, recoveryWalProgress(h, RealtimePipelineHarness::kVgId)->doneVer);
+  EXPECT_EQ(1, checkpoint.probe().writes);
+  EXPECT_EQ(1, h.pendingPullCount(STRIGGER_PULL_WAL_META_DATA_NEW));
+}
+
+TEST(StreamStateWalCheckpointTest, FirstPageFailureWithFullSlotsKeepsPreviousCut) {
+  RealtimePipelineHarness h;
+  ScopedWalCheckpointClock clock;
+  ASSERT_NO_FATAL_FAILURE(startStateWalCheckpointTest(h, clock));
+  ScopedCheckpointGenerationProbe checkpoint;
+  std::vector<PipelineWalGroup>   groups;
+  for (int i = 0; i < 8; ++i) groups.push_back({42 + i, 1001 + i, {100, 101}, {1, 2}, 1});
+  ASSERT_TRUE(h.feedGroups(groups, 2));
+  ASSERT_EQ(STRIGGER_CONTEXT_ACQUIRE_REQUEST, h.context()->status);
+  ASSERT_EQ(0, h.context()->walStallDeadlineUs);
+  ASSERT_GT(h.calcAttemptCount(), 1);
+  ASSERT_EQ(TSDB_CODE_INTERNAL_ERROR, h.dispatchCalcAttempt(0, TSDB_CODE_INTERNAL_ERROR));
+  EXPECT_EQ(TSDB_CODE_INTERNAL_ERROR, h.dispatchCalcAttempt(1, 0));
+  EXPECT_EQ(TSDB_CODE_INTERNAL_ERROR, h.dispatchSerializedRealtimeStartCode());
+  EXPECT_EQ(1, recoveryWalProgress(h, h.kVgId)->doneVer);
+  EXPECT_EQ(0, checkpoint.probe().writes);
+}
+
+TEST(StreamStateWalCheckpointTest, LocalResendFailureKeepsPreviousCut) {
+  RealtimePipelineHarness h;
+  ScopedWalCheckpointClock clock;
+  ASSERT_NO_FATAL_FAILURE(startStateWalCheckpointTest(h, clock));
+  ScopedCheckpointGenerationProbe checkpoint;
+  ASSERT_TRUE(h.feedGroups({{42, 1001, {100, 101}, {1, 2}, 1}}, 2));
+  clock.wallNs += 30 * NANOSECOND_PER_MINUTE;
+  ASSERT_TRUE(h.feedGroups({{43, 1002, {200, 201}, {1, 2}, 2}}, 3));
+  ASSERT_EQ(0, h.dispatchCalcAttempt(0, TSDB_CODE_STREAM_VTABLE_NEED_REDEPLOY));
+  h.failNextCalcSend(TSDB_CODE_RPC_NETWORK_UNAVAIL);
+  clock.wallNs += NANOSECOND_PER_SEC;
+  ASSERT_EQ(TSDB_CODE_RPC_NETWORK_UNAVAIL, h.dispatchSerializedRealtimeRetryCode());
+  EXPECT_EQ(TSDB_CODE_RPC_NETWORK_UNAVAIL, h.dispatchCalcAttempt(1, 0));
+  EXPECT_EQ(1, recoveryWalProgress(h, h.kVgId)->doneVer);
+  EXPECT_EQ(0, checkpoint.probe().writes);
+  EXPECT_EQ(0, h.pendingPullCount(STRIGGER_PULL_WAL_META_DATA_NEW));
+}
+
+static void checkExpiredMaxDelayAfterWalCheckpoint(bool multiGroup, bool expiresDuringWrite = false) {
+  constexpr int64_t            stall = 30 * NANOSECOND_PER_MINUTE;
+  RealtimePipelineHarness      h;
+  ScopedWalCheckpointClock     clock;
+  ScopedStreamBatchRequestWait batchWait(1000);
+  ASSERT_NO_FATAL_FAILURE(startStateWalCheckpointTest(h, clock, false));
+  h.task()->multiGroupBatch = multiGroup;
+  h.task()->maxDelayNs = stall + 2 * NANOSECOND_PER_SEC + (expiresDuringWrite ? 10 : -10) * NANOSECOND_PER_MSEC;
+  ScopedCheckpointGenerationProbe checkpoint(TSDB_CODE_OUT_OF_MEMORY);
+
+  // Hold all slots until the drain has a pair of closed B windows to dispatch.
+  auto blockers = holdAllCalcSlots(h.task(), 9000, 900);
+  ASSERT_FALSE(blockers.empty());
+  ASSERT_TRUE(h.feedGroups({{42, 1001, {100, 102}, {1, 1}, 1}, {43, 1002, {200, 201}, {1, 2}, 1}}, 2));
+  clock.wallNs += stall;
+  ASSERT_TRUE(h.feedGroups({{43, 1002, {202}, {3}, 2}}, 3));
+  releaseCalcSlots(h.task(), &blockers);
+  ASSERT_TRUE(h.context()->drainingWalCheckpoint);
+  ASSERT_EQ(0, h.calcAttemptCount());
+  ASSERT_EQ(2, h.group(43)->pPendingCalcParams.neles);
+
+  // B's open window is still well short of MAX_DELAY.
+  clock.wallNs += NANOSECOND_PER_SEC;
+  ASSERT_EQ(0, h.dispatchSerializedRealtimeStartCode());
+  ASSERT_EQ(1, h.calcAttemptCount());
+  auto onlyGroupParams = [&](int attempt, int64_t gid) -> const SArray* {
+    const auto& req = h.calcAttempt(attempt)->decoded;
+    EXPECT_EQ(multiGroup, req.isMultiGroupCalc);
+    if (!req.isMultiGroupCalc) {
+      EXPECT_EQ(gid, req.gid);
+      return req.params;
+    }
+    EXPECT_EQ(1, tSimpleHashGetSize(req.pGroupCalcInfos));
+    const auto* group =
+        static_cast<const SSTriggerGroupCalcInfo*>(tSimpleHashGet(req.pGroupCalcInfos, &gid, sizeof(gid)));
+    return group ? group->pParams : nullptr;
+  };
+  const auto* closed = onlyGroupParams(0, 43);
+  ASSERT_NE(nullptr, closed);
+  ASSERT_EQ(2, taosArrayGetSize(closed));
+  for (int i = 0; i < 2; ++i) {
+    const auto* param = static_cast<const SSTriggerCalcParam*>(taosArrayGet(closed, i));
+    EXPECT_EQ(200 + i, param->wstart);
+    EXPECT_EQ(200 + i, param->wend);
+  }
+  ASSERT_EQ(0, h.pendingPullCount(STRIGGER_PULL_WAL_META_DATA_NEW));
+  ASSERT_EQ(0, h.dispatchCalcAttempt(0, 0));
+  ASSERT_EQ(1, checkpoint.probe().writes);
+  ASSERT_TRUE(checkpoint.probe().storedBytes.empty());
+  ASSERT_EQ(1, h.calcAttemptCount());
+  ASSERT_EQ(0, h.pendingPullCount(STRIGGER_PULL_WAL_META_DATA_NEW));
+
+  clock.wallNs += NANOSECOND_PER_SEC;
+  gCheckpointGenerationProbe->writeCode = TSDB_CODE_SUCCESS;
+  if (expiresDuringWrite) {
+    ASSERT_EQ(clock.wallNs + 10 * NANOSECOND_PER_MSEC, h.group(42)->nextExecTime);
+    gCheckpointGenerationProbe->onWrite = [&clock] { clock.wallNs += 50 * NANOSECOND_PER_MSEC; };
+  }
+  ASSERT_EQ(0, h.dispatchSerializedRealtimeStartCode());
+  ASSERT_FALSE(checkpoint.probe().storedBytes.empty());
+  ASSERT_EQ(2, h.calcAttemptCount());
+  const auto* open = onlyGroupParams(1, 42);
+  ASSERT_NE(nullptr, open);
+  ASSERT_EQ(1, taosArrayGetSize(open));
+  const auto* param = static_cast<const SSTriggerCalcParam*>(taosArrayGet(open, 0));
+  EXPECT_EQ(100, param->wstart);
+  EXPECT_EQ(102, param->wend);
+  EXPECT_EQ(clock.wallNs, param->triggerTime);
+  ASSERT_EQ(1, h.pendingPullCount(STRIGGER_PULL_WAL_META_DATA_NEW));
+
+  ASSERT_EQ(0, h.dispatchCalcAttempt(1, 0));
+  // The first resumed WAL page closes A. Its overdue open calculation has already been sent.
+  ASSERT_TRUE(h.feedGroups({{42, 1001, {103}, {2}, 3}}, 4));
+  EXPECT_EQ(2, h.calcAttemptCount());
+}
+
+TEST(StreamStateWalCheckpointTest, SingleGroupMaxDelayWaitsForDurableCutBeforeWalResumes) {
+  checkExpiredMaxDelayAfterWalCheckpoint(false);
+}
+
+TEST(StreamStateWalCheckpointTest, MultiGroupMaxDelayWaitsForDurableCutBeforeWalResumes) {
+  checkExpiredMaxDelayAfterWalCheckpoint(true);
+}
+
+TEST(StreamStateWalCheckpointTest, OpenWindowBecomesDueDuringCheckpointWrite) {
+  for (bool multiGroup : {false, true}) {
+    SCOPED_TRACE(multiGroup);
+    checkExpiredMaxDelayAfterWalCheckpoint(multiGroup, true);
+  }
 }
 
 TEST_F(StreamNestedRecoveryTest, ExternalInflightCalcDefersPeriodicAndUndeployCheckpoint) {
@@ -24333,6 +25111,218 @@ TEST_F(StreamNestedRealtimeTest, ZeroStartTagFallbackConsumesPreviousStreak) {
   }
 }
 
+TEST_F(StreamNestedRealtimeTest, NegativeIntervalAndExplicitEventFirstCloseQueueOnce) {
+  for (bool interval : {false, true}) {
+    SCOPED_TRACE(interval ? "INTERVAL" : "EVENT");
+    RealtimePipelineHarness harness;
+    harness.setDeployIgnoreDisorder(true);
+    ASSERT_TRUE(harness.init(interval ? RealtimePipelinePlan::LegacySession : RealtimePipelinePlan::LegacyParityEvent,
+                             false, STRIGGER_EVENT_WINDOW_NONE));
+    auto* task = harness.task();
+    if (interval) {
+      task->triggerType = STREAM_TRIGGER_SLIDING;
+      task->interval.interval = task->interval.sliding = 1000;
+      task->interval.intervalUnit = task->interval.slidingUnit = TIME_UNIT_MILLISECOND;
+      task->interval.precision = TSDB_TIME_PRECISION_MILLI;
+    } else {
+      SNode* start = nullptr;
+      ASSERT_EQ(0, nodesCloneNode(nodesListGetNode(reinterpret_cast<SNodeListNode*>(task->pStartCond)->pNodeList, 0),
+                                  &start));
+      nodesDestroyNode(task->pStartCond);
+      task->pStartCond = start;
+      task->eventTrueForInfo = {};
+    }
+    ASSERT_TRUE(harness.start());
+    task->fillHistory = true;
+    task->fillHistoryStartTime = -4000;
+    ASSERT_TRUE(harness.feedLastTsForReader(RealtimePipelineHarness::kReaderTaskId, -3500));
+    ASSERT_TRUE(harness.feedParityRows({{-2800, false, 0, 1, 0}, {-2000, false, 0, 0, 1}}, 2));
+    SSTriggerRecalcRequest* request = nullptr;
+    ASSERT_EQ(0, stTriggerTaskFetchRecalcRequest(task, &request));
+    ASSERT_NE(nullptr, request);
+    EXPECT_NE(nullptr, request->pFirstCloseDelivered);
+    EXPECT_FALSE(request->openWindowRepair);
+    EXPECT_EQ(interval ? -3000 : -2800, request->calcRange.skey);
+    EXPECT_EQ(interval ? -2001 : -2000, request->calcRange.ekey);
+    stTriggerTaskDestroyRecalcRequest(&request);
+
+    ASSERT_TRUE(harness.feedParityRows({{1000, false, 0, 1, 0}, {2000, false, 0, 0, 1}}, 3));
+    EXPECT_EQ(0, listNEles(task->pRecalcRequests));
+  }
+}
+
+TEST_F(StreamNestedRealtimeTest, FirstCloseAfterRecoveryPreservesOpenPredecessorRepair) {
+  RealtimePipelineHarness harness;
+  harness.setDeployIgnoreDisorder(true);
+  ASSERT_TRUE(harness.init(RealtimePipelinePlan::LegacyParityEvent, false, STRIGGER_EVENT_WINDOW_OPEN));
+  auto*  task = harness.task();
+  SNode* singleStart = nullptr;
+  ASSERT_EQ(0, nodesCloneNode(nodesListGetNode(reinterpret_cast<SNodeListNode*>(task->pStartCond)->pNodeList, 0),
+                              &singleStart));
+  nodesDestroyNode(task->pStartCond);
+  task->pStartCond = singleStart;
+  task->eventTrueForInfo = {};
+  task->placeHolderBitmap |= PLACE_HOLDER_PREV_WSTART;
+  ASSERT_TRUE(harness.start());
+  task->fillHistory = true;
+  ASSERT_TRUE(harness.feedLastTsForReader(RealtimePipelineHarness::kReaderTaskId, 0));
+  auto*         ctx = harness.context();
+  const int32_t vg = RealtimePipelineHarness::kVgId;
+  auto*         reader = static_cast<SSTriggerWalProgress*>(tSimpleHashGet(ctx->pReaderWalProgress, &vg, sizeof(vg)));
+  ASSERT_NE(nullptr, reader);
+  reader->savedVer = 4;
+  ctx->recovering = true;
+
+  ASSERT_TRUE(harness.feedParityRows({{1000, false, 0, 1, 0}}, 2));
+  ASSERT_TRUE(ctx->recovering);
+  ASSERT_NE(nullptr, harness.group());
+  EXPECT_EQ(1000, harness.group()->lastOpenRepairStart);
+  ASSERT_TRUE(harness.feedParityRows({{2000, false, 0, 1, 0}}, 3));
+  SSTriggerRecalcRequest* request = nullptr;
+  ASSERT_EQ(0, stTriggerTaskFetchRecalcRequest(task, &request));
+  ASSERT_NE(nullptr, request);
+  EXPECT_TRUE(request->openWindowRepair);
+  EXPECT_EQ(1000, request->calcRange.skey);
+  stTriggerTaskDestroyRecalcRequest(&request);
+  ASSERT_EQ(0, stTriggerTaskFetchRecalcRequest(task, &request));
+  ASSERT_EQ(nullptr, request);
+
+  ASSERT_TRUE(harness.feedParityRows({{3000, false, 0, 1, 0}}, 4));
+  ASSERT_FALSE(ctx->recovering);
+  ASSERT_TRUE(harness.feedParityRows({{4000, false, 0, 0, 1}}, 5));
+  ASSERT_EQ(0, stTriggerTaskFetchRecalcRequest(task, &request));
+  ASSERT_NE(nullptr, request);
+  EXPECT_FALSE(request->openWindowRepair);
+  EXPECT_EQ(1000, request->calcRange.skey);
+  EXPECT_EQ(4000, request->calcRange.ekey);
+  stTriggerTaskDestroyRecalcRequest(&request);
+  ASSERT_EQ(0, stTriggerTaskFetchRecalcRequest(task, &request));
+  EXPECT_EQ(nullptr, request);
+}
+
+TEST_F(StreamNestedRealtimeTest, CheckpointReplaysOnlyUnfinishedFirstClose) {
+  enum Phase { queued, active, delivered, queuedWithPredecessor };
+  using Harness = RealtimePipelineHarness;
+  const std::vector<PipelineRow> firstClose = {
+      {1000, false, 0, 1, 0}, {2000, false, 0, 1, 0}, {3000, false, 0, 0, 1}, {4000, false, 0, 1, 0}};
+  auto deploy = [](Harness& harness, Phase phase) {
+    harness.setDeployIgnoreDisorder(true);
+    ASSERT_TRUE(harness.init(RealtimePipelinePlan::LegacyParityEvent, false, STRIGGER_EVENT_WINDOW_NONE));
+    auto* task = harness.task();
+    task->eventTrueForInfo = {};
+    if (phase == queuedWithPredecessor) {
+      SNode* singleStart = nullptr;
+      ASSERT_EQ(0, nodesCloneNode(nodesListGetNode(reinterpret_cast<SNodeListNode*>(task->pStartCond)->pNodeList, 0),
+                                  &singleStart));
+      nodesDestroyNode(task->pStartCond);
+      task->pStartCond = singleStart;
+      task->placeHolderBitmap |= PLACE_HOLDER_PREV_WSTART;
+    }
+  };
+
+  for (Phase phase : {queued, active, delivered, queuedWithPredecessor}) {
+    SCOPED_TRACE(phase);
+    std::vector<uint8_t> checkpoint;
+    {
+      Harness saved;
+      ASSERT_NO_FATAL_FAILURE(deploy(saved, phase));
+      if (phase == delivered) {
+        saved.task()->historyCalcStarted = false;
+        saved.task()->ignoreNoDataTrigger = true;
+      }
+      ASSERT_TRUE(saved.start());
+      auto* task = saved.task();
+      task->fillHistory = true;
+      task->historyFinished = 1;
+      ASSERT_TRUE(saved.feedLastTsForReader(Harness::kReaderTaskId, 0));
+      ASSERT_TRUE(saved.feedParityRows({{500, false, 0, 0, 0}}, 2));
+      ASSERT_TRUE(saved.feedParityRows(firstClose, 3));
+      ASSERT_EQ(1, listNEles(task->pRecalcRequests));
+      if (phase == active) {
+        SSTriggerRecalcRequest* request = nullptr;
+        ASSERT_EQ(0, stTriggerTaskFetchRecalcRequest(task, &request));
+        ASSERT_NE(nullptr, request);
+        EXPECT_EQ(1000, request->calcRange.skey);
+        EXPECT_EQ(3000, request->calcRange.ekey);
+        stTriggerTaskDestroyRecalcRequest(&request);
+      } else if (phase == delivered) {
+        ASSERT_EQ(0, saved.dispatchSerializedSessionControlCode(STREAM_TRIGGER_HISTORY_SESSIONID));
+        ASSERT_TRUE(task->recalcInProgress);
+        ASSERT_TRUE(saved.feedLastTsForReader(Harness::kReaderTaskId, 5000, Harness::kGid, STRIGGER_PULL_FIRST_TS));
+        ASSERT_FALSE(task->recalcInProgress);
+      }
+      const int32_t vg = Harness::kVgId;
+      auto*         reader =
+          static_cast<SSTriggerWalProgress*>(tSimpleHashGet(saved.context()->pReaderWalProgress, &vg, sizeof(vg)));
+      ASSERT_NE(nullptr, reader);
+      // A successor with an open EVENT condition can pin the cursor before this batch.
+      reader->doneVer = phase == delivered ? 2 : 3;
+      int64_t length = 0;
+      ASSERT_EQ(0, stTriggerTaskDoGenCheckpoint(task, nullptr, &length, 1));
+      ASSERT_GT(length, 0);
+      checkpoint.resize(length);
+      ASSERT_EQ(0, stTriggerTaskDoGenCheckpoint(task, checkpoint.data(), &length, 1));
+    }
+
+    Harness restored;
+    ASSERT_NO_FATAL_FAILURE(deploy(restored, phase));
+    restored.task()->fillHistory = true;
+    restored.setCheckpointBytes(std::move(checkpoint));
+    ASSERT_TRUE(restored.start());
+    ASSERT_TRUE(restored.feedParityRows({{500, false, 0, 0, 0}}, 2));
+    EXPECT_EQ(phase != delivered, restored.context()->recovering);
+    EXPECT_EQ(0, listNEles(restored.task()->pRecalcRequests));
+    ASSERT_TRUE(restored.feedParityRows(firstClose, 3));
+    ASSERT_FALSE(restored.context()->recovering);
+    SSTriggerRecalcRequest* replay = nullptr;
+    ASSERT_EQ(0, stTriggerTaskFetchRecalcRequest(restored.task(), &replay));
+    if (phase == delivered) {
+      EXPECT_EQ(nullptr, replay);
+    } else {
+      ASSERT_NE(nullptr, replay);
+      EXPECT_EQ(1000, replay->calcRange.skey);
+      EXPECT_EQ(3000, replay->calcRange.ekey);
+    }
+    stTriggerTaskDestroyRecalcRequest(&replay);
+    ASSERT_EQ(0, stTriggerTaskFetchRecalcRequest(restored.task(), &replay));
+    EXPECT_EQ(nullptr, replay);
+    stTriggerTaskDestroyRecalcRequest(&replay);
+    ASSERT_TRUE(restored.feedParityRows({{5000, false, 0, 0, 1}}, 4));
+    EXPECT_EQ(0, listNEles(restored.task()->pRecalcRequests));
+    if (phase == queuedWithPredecessor) {
+      ASSERT_NE(nullptr, restored.group());
+      EXPECT_EQ(4000, restored.group()->prevWindow.skey);
+      EXPECT_EQ(5000, restored.group()->prevWindow.ekey);
+    }
+  }
+}
+
+TEST_F(StreamNestedRealtimeTest, ReplayedEventCloseDoesNotScheduleAnotherFirstClose) {
+  RealtimePipelineHarness harness;
+  harness.setDeployIgnoreDisorder(true);
+  ASSERT_TRUE(harness.init(RealtimePipelinePlan::LegacyParityEvent, false, STRIGGER_EVENT_WINDOW_CLOSE));
+  ASSERT_TRUE(harness.start());
+  harness.task()->fillHistory = true;
+  ASSERT_TRUE(harness.feedLastTsForReader(RealtimePipelineHarness::kReaderTaskId, 0));
+  auto*         ctx = harness.context();
+  const int32_t vg = RealtimePipelineHarness::kVgId;
+  auto*         reader = static_cast<SSTriggerWalProgress*>(tSimpleHashGet(ctx->pReaderWalProgress, &vg, sizeof(vg)));
+  ASSERT_NE(nullptr, reader);
+  reader->savedVer = 4;
+  ctx->recovering = true;
+  ReplayRecalcProbe probe;
+  installReplayRecalcProbe(&probe);
+  ASSERT_TRUE(harness.feedParityRows({{1000, false, 0, 1, 0}, {2000, false, 0, 1, 0}, {3000, false, 0, 0, 1}}, 2));
+  ASSERT_TRUE(ctx->recovering);
+  ASSERT_NE(nullptr, harness.group());
+  ASSERT_TRUE(harness.group()->hasClosedParentWindow);
+  EXPECT_EQ(0, probe.addCalls);
+  ASSERT_TRUE(harness.feedParityRows({{4000, false, 0, 0, 0}}, 4));
+  ASSERT_FALSE(ctx->recovering);
+  ASSERT_TRUE(harness.feedParityRows({{5000, false, 0, 1, 0}, {6000, false, 0, 1, 0}, {7000, false, 0, 0, 1}}, 5));
+  EXPECT_EQ(0, probe.addCalls);
+}
+
 TEST_F(StreamNestedRealtimeTest, DeletedStatePredecessorRepairsAlreadyOpenSuccessor) {
   RealtimePipelineHarness harness;
   ASSERT_TRUE(harness.init(RealtimePipelinePlan::LegacyParityState, false, STRIGGER_EVENT_WINDOW_NONE,
@@ -25940,6 +26930,361 @@ TEST_F(StreamTriggerTaskTest, OrdinaryRealtimeSameGroupRunsConcurrentlyWithoutTr
   ASSERT_EQ(TSDB_CODE_SUCCESS, harness.dispatchCalcAttempt(0, TSDB_CODE_SUCCESS));
 }
 
+static void capturePartitionRetryTimer(Stub& clock) {
+  clock.set(streamAcquireTask, captureRealtimePipelineTimerAcquire);
+  clock.set(streamReleaseTask, captureRealtimePipelineTimerRelease);
+  clock.set(streamTmrStart, ignoreRealtimePipelineTimerStart);
+  ASSERT_NE(nullptr, gRealtimePipelineWaitTimerCallback);
+}
+
+static void processPartitionRetryWake(RealtimePipelineHarness& h) {
+  ASSERT_EQ(1, h.queuedControlCount());
+  bool processed = false;
+  ASSERT_TRUE(h.processNextControl(&processed));
+  ASSERT_TRUE(processed);
+}
+
+TEST(StreamStateWalCheckpointTest, MissingPartitionValuePreservesClosedWindow) {
+  for (bool multiGroup : {false, true}) {
+    SCOPED_TRACE(multiGroup);
+    RealtimePipelineHarness h;
+    ScopedWalCheckpointClock clock;
+    Stub                     timer;
+    ASSERT_TRUE(h.init(RealtimePipelinePlan::LegacyParityState, false, STRIGGER_EVENT_WINDOW_CLOSE,
+                       STRIGGER_EVENT_WINDOW_NONE, 0, 3, true, 0, multiGroup, 1, true));
+    h.task()->stateExtend = 0;
+    h.task()->stateTrueForInfo = {};
+    if (multiGroup) {
+      // A partition made solely of constants is present even when the Reader returns zero dynamic values.
+      nodesDestroyList(h.task()->pPartitionCols);
+      h.task()->pPartitionCols = nullptr;
+      SNode* constant = nullptr;
+      ASSERT_EQ(0, nodesMakeValueNodeFromInt32(42, &constant));
+      ASSERT_EQ(0, nodesListMakeStrictAppend(&h.task()->pPartitionCols, constant));
+    }
+    h.retainCalcAttempts();
+    ASSERT_TRUE(h.start());
+    ASSERT_TRUE(h.feedLastTsForReader(h.kReaderTaskId, 0));
+    clock.set(h.context()->lastCheckpointTime);
+    ScopedCheckpointGenerationProbe checkpoint;
+
+    clock.wallNs += 10 * NANOSECOND_PER_MINUTE;
+    ASSERT_TRUE(h.feedGroups({{42, 1001, {100}, {1}, 1}}, 2));
+    const auto* reader = recoveryWalProgress(h, h.kVgId);
+    ASSERT_NE(nullptr, reader);
+    ASSERT_EQ(2, reader->doneVer);
+    const auto saved = checkpoint.probe().storedBytes;
+    ASSERT_FALSE(saved.empty());
+    ASSERT_TRUE(h.feedGroups({{42, 1001, {101}, {2}, 2}}, 3));
+    ASSERT_EQ(1, h.groupColPullCount(42));
+    ASSERT_EQ(0, h.dispatchGroupColNoContext(42));
+    ASSERT_TRUE(h.dispatchSerializedRealtimeStart());
+    EXPECT_EQ(0, h.calcAttemptCount());
+    EXPECT_EQ(2, reader->doneVer);
+    EXPECT_EQ(saved, checkpoint.probe().storedBytes);
+    EXPECT_EQ(1, h.groupColPullCount(42));
+
+    ASSERT_NO_FATAL_FAILURE(capturePartitionRetryTimer(timer));
+    const int64_t due = clock.wallNs + NANOSECOND_PER_SEC;
+    const int64_t earlierWall = clock.wallNs - 10 * NANOSECOND_PER_MINUTE;
+    clock.set(clock.wallNs, due - 1);
+    invokeRealtimePipelineWaitTimer(gRealtimePipelineWaitTimerCallback);
+    ASSERT_EQ(0, h.queuedControlCount());
+    // Move the wall clock back either before enqueue or between enqueue and dispatch.
+    clock.set(multiGroup ? earlierWall : due, due);
+    if (multiGroup) {
+      // Requeue a failed control delivery on the same monotonic clock.
+      h.failNextQueuePut(TSDB_CODE_RPC_NETWORK_UNAVAIL);
+      invokeRealtimePipelineWaitTimer(gRealtimePipelineWaitTimerCallback);
+      ASSERT_EQ(0, h.queuedControlCount());
+      invokeRealtimePipelineWaitTimer(gRealtimePipelineWaitTimerCallback);
+      ASSERT_EQ(0, h.queuedControlCount());
+      clock.set(earlierWall, due + NANOSECOND_PER_SEC);
+    }
+    invokeRealtimePipelineWaitTimer(gRealtimePipelineWaitTimerCallback);
+    clock.set(earlierWall, multiGroup ? due + NANOSECOND_PER_SEC : due);
+    ASSERT_TRUE(h.dispatchSerializedRealtimeStart());
+    ASSERT_EQ(1, h.groupColPullCount(42));
+    ASSERT_NO_FATAL_FAILURE(processPartitionRetryWake(h));
+    ASSERT_EQ(2, h.groupColPullCount(42));
+    ASSERT_EQ(0, h.dispatchGroupColValue(42, 4200, nullptr, multiGroup));
+    ASSERT_EQ(1, h.calcAttemptCount());
+    const auto& request = h.calcAttempt(0)->decoded;
+    const auto* group = multiGroup ? pipelineGroupCalcInfo(&request, 42) : nullptr;
+    if (multiGroup) ASSERT_NE(nullptr, group);
+    const auto* params = group ? group->pParams : request.params;
+    ASSERT_EQ(1, taosArrayGetSize(params));
+    const auto* window = static_cast<const SSTriggerCalcParam*>(taosArrayGet(params, 0));
+    EXPECT_EQ(100, window->wstart);
+    EXPECT_EQ(100, window->wend);
+    ASSERT_EQ(0, h.dispatchCalcAttempt(0, 0));
+    ASSERT_TRUE(h.feedGroups({{42, 1001, {102}, {2}, 3}}, 4));
+    EXPECT_EQ(4, reader->doneVer);
+    EXPECT_EQ(1, h.calcAttemptCount());
+  }
+}
+
+TEST(StreamStateWalCheckpointTest, MissingPartitionValueCanBeReadFromAnotherVnodeDuringDrain) {
+  using H = RealtimePipelineHarness;
+  constexpr int readerCount = 32;
+  H    h;
+  ScopedWalCheckpointClock clock;
+  Stub                     timer;
+  ASSERT_TRUE(h.init(RealtimePipelinePlan::LegacyParityState, false, STRIGGER_EVENT_WINDOW_CLOSE,
+                     STRIGGER_EVENT_WINDOW_NONE, 0, 3, true, 0, true, readerCount, true));
+  h.task()->stateExtend = 0;
+  h.task()->stateTrueForInfo = {};
+  h.retainCalcAttempts();
+  ASSERT_TRUE(h.start());
+  for (int i = 0; i < readerCount; ++i) ASSERT_TRUE(h.feedLastTsForReader(H::kReaderTaskId + i, 0));
+  clock.set(h.context()->lastCheckpointTime);
+  ScopedCheckpointGenerationProbe checkpoint;
+
+  ASSERT_TRUE(h.feedGroupsForReader(H::kReaderTaskId, {{42, 1001, {100, 101}, {1, 2}, 2}}));
+  for (int i = 1; i < readerCount; ++i) ASSERT_TRUE(h.feedZeroRowWalForReader(H::kReaderTaskId + i, 2));
+  ASSERT_EQ(0, h.dispatchGroupColValue(42, 4200));
+  ASSERT_EQ(1, h.calcAttemptCount());
+  ASSERT_NE(nullptr, pipelineGroupCalcInfo(&h.calcAttempt(0)->decoded, 42));
+  const auto* reader = recoveryWalProgress(h, H::kVgId);
+  ASSERT_NE(nullptr, reader);
+  const auto confirmed = reader->doneVer;
+
+  clock.wallNs += 30 * NANOSECOND_PER_MINUTE;
+  ASSERT_TRUE(h.feedZeroRowWalForReader(H::kReaderTaskId, 3));
+  ASSERT_TRUE(h.feedGroupsForReader(H::kReaderTaskId + 1, {{43, 1002, {200}, {1}, 3}}));
+  ASSERT_TRUE(h.feedGroupsForReader(H::kReaderTaskId + 2, {{43, 1003, {201}, {2}, 3}}));
+  for (int i = 3; i < readerCount; ++i) ASSERT_TRUE(h.feedZeroRowWalForReader(H::kReaderTaskId + i, 3));
+  const int64_t owner = h.pendingGroupColReader(43);
+  ASSERT_TRUE(owner == H::kReaderTaskId + 1 || owner == H::kReaderTaskId + 2);
+  ASSERT_EQ(0, h.dispatchGroupColNoContext(43));
+  ASSERT_EQ(0, h.dispatchCalcAttempt(0, 0));
+  ASSERT_TRUE(h.dispatchSerializedRealtimeStart());
+  EXPECT_EQ(1, h.groupColPullCount(43));
+  EXPECT_EQ(1, h.calcAttemptCount());
+  EXPECT_EQ(confirmed, reader->doneVer);
+  EXPECT_EQ(0, h.pendingPullCount(STRIGGER_PULL_WAL_META_DATA_NEW));
+  const int writes = checkpoint.probe().writes;
+
+  ASSERT_NO_FATAL_FAILURE(capturePartitionRetryTimer(timer));
+  clock.wallNs += NANOSECOND_PER_SEC;
+  invokeRealtimePipelineWaitTimer(gRealtimePipelineWaitTimerCallback);
+  ASSERT_NO_FATAL_FAILURE(processPartitionRetryWake(h));
+  ASSERT_EQ(owner, h.pendingGroupColReader(43));
+  // Every explicit miss starts the next lookup without another clock tick.
+  for (int i = 1; i < readerCount; ++i) {
+    ASSERT_EQ(0, h.dispatchGroupColNoContext(43));
+    ASSERT_EQ(1, h.pendingPullCount(STRIGGER_PULL_GROUP_COL_VALUE));
+    EXPECT_EQ(H::kReaderTaskId + (owner - H::kReaderTaskId + i) % readerCount, h.pendingGroupColReader(43));
+    EXPECT_EQ(0, h.pendingPullCount(STRIGGER_PULL_WAL_META_DATA_NEW));
+    EXPECT_EQ(confirmed, reader->doneVer);
+  }
+  ASSERT_EQ(0, h.dispatchGroupColValue(43, 4300));
+  ASSERT_EQ(2, h.calcAttemptCount());
+  const auto* group = pipelineGroupCalcInfo(&h.calcAttempt(1)->decoded, 43);
+  ASSERT_NE(nullptr, group);
+  ASSERT_EQ(1, taosArrayGetSize(group->pParams));
+  const auto* win = static_cast<const SSTriggerCalcParam*>(taosArrayGet(group->pParams, 0));
+  EXPECT_EQ(200, win->wstart);
+  EXPECT_EQ(200, win->wend);
+  EXPECT_EQ(confirmed, reader->doneVer);
+  EXPECT_EQ(writes, checkpoint.probe().writes);
+  ASSERT_EQ(0, h.dispatchCalcAttempt(1, 0));
+  EXPECT_EQ(3, reader->doneVer);
+  EXPECT_EQ(writes + 1, checkpoint.probe().writes);
+  EXPECT_EQ(readerCount, h.pendingPullCount(STRIGGER_PULL_WAL_META_DATA_NEW));
+  EXPECT_EQ(2, h.calcAttemptCount());
+}
+
+static void initPartitionStateCheckpointHarness(RealtimePipelineHarness& h) {
+  ASSERT_TRUE(h.init(RealtimePipelinePlan::LegacyParityState, false, STRIGGER_EVENT_WINDOW_CLOSE,
+                     STRIGGER_EVENT_WINDOW_NONE, 0, 3, true, 0, true, 1, true));
+  h.task()->stateExtend = 0;
+  h.task()->stateTrueForInfo = {};
+  h.retainCalcAttempts();
+}
+
+TEST(StreamStateWalCheckpointTest, MissingPartitionValueReplaysFromLastConfirmedWindowAfterUndeploy) {
+  using H = RealtimePipelineHarness;
+  const PipelineWalGroup open{42, 1001, {100}, {1}, 1};
+  const PipelineWalGroup close{42, 1001, {101}, {2}, 2};
+  for (bool priorCheckpoint : {false, true}) {
+    SCOPED_TRACE(priorCheckpoint);
+    std::vector<uint8_t> saved;
+    {
+      H    h;
+      ScopedWalCheckpointClock clock;
+      Stub                     timer;
+      ASSERT_NO_FATAL_FAILURE(initPartitionStateCheckpointHarness(h));
+      ASSERT_TRUE(h.start());
+      ASSERT_TRUE(h.feedLastTsForReader(H::kReaderTaskId, 0));
+      clock.set(h.context()->lastCheckpointTime);
+      ScopedCheckpointGenerationProbe checkpoint;
+      if (priorCheckpoint) clock.wallNs += 10 * NANOSECOND_PER_MINUTE;
+      ASSERT_TRUE(h.feedGroups({open}, 2));
+      ASSERT_EQ(priorCheckpoint, !checkpoint.probe().storedBytes.empty());
+      ASSERT_TRUE(h.feedGroups({close}, 3));
+      ASSERT_EQ(0, h.dispatchGroupColNoContext(42));
+      ASSERT_NO_FATAL_FAILURE(capturePartitionRetryTimer(timer));
+      clock.wallNs += NANOSECOND_PER_SEC;
+      invokeRealtimePipelineWaitTimer(gRealtimePipelineWaitTimerCallback);
+      ASSERT_NO_FATAL_FAILURE(processPartitionRetryWake(h));
+      ASSERT_EQ(TSDB_CODE_STREAM_NO_CONTEXT, h.dispatchGroupColNoContext(42));
+      EXPECT_EQ(TSDB_CODE_STREAM_NO_CONTEXT, h.dispatchSerializedRealtimeStartCode());
+      EXPECT_EQ(2, recoveryWalProgress(h, H::kVgId)->doneVer);
+      EXPECT_EQ(0, h.calcAttemptCount());
+      h.task()->task.undeployMsg.doCheckpoint = 1;
+      h.task()->task.undeployMsg.doCleanup = 0;
+      ASSERT_EQ(0, h.hardUndeploy());
+      saved = checkpoint.probe().storedBytes;
+      ASSERT_FALSE(saved.empty());
+    }
+    H restored;
+    ASSERT_NO_FATAL_FAILURE(initPartitionStateCheckpointHarness(restored));
+    restored.setCheckpointBytes(std::move(saved));
+    ASSERT_TRUE(restored.start());
+    ASSERT_EQ(1, recoveryWalProgress(restored, H::kVgId)->lastScanVer);
+    ASSERT_EQ(2, recoveryWalProgress(restored, H::kVgId)->savedVer);
+    ASSERT_TRUE(restored.feedGroups({open}, 2));
+    ASSERT_EQ(0, restored.calcAttemptCount());
+    ASSERT_TRUE(restored.feedGroups({close}, 3));
+    ASSERT_EQ(0, restored.dispatchGroupColValue(42, 4200));
+    ASSERT_EQ(1, restored.calcAttemptCount());
+    const auto* group = pipelineGroupCalcInfo(&restored.calcAttempt(0)->decoded, 42);
+    ASSERT_NE(nullptr, group);
+    ASSERT_EQ(1, taosArrayGetSize(group->pParams));
+    const auto* win = static_cast<const SSTriggerCalcParam*>(taosArrayGet(group->pParams, 0));
+    EXPECT_EQ(100, win->wstart);
+    EXPECT_EQ(100, win->wend);
+  }
+}
+
+TEST(StreamStateWalCheckpointTest, UndeployDuringPartitionMissSavesNewerConfirmedOutput) {
+  using H = RealtimePipelineHarness;
+  const PipelineWalGroup openA{42, 1001, {100}, {1}, 1};
+  const PipelineWalGroup closeA{42, 1001, {101}, {2}, 2};
+  const PipelineWalGroup openB{43, 1002, {200}, {1}, 3};
+  const PipelineWalGroup closeB{43, 1002, {201}, {2}, 4};
+  auto                   checkWindow = [](H& h, int attempt, int64_t gid, TSKEY ts) {
+    const auto* group = pipelineGroupCalcInfo(&h.calcAttempt(attempt)->decoded, gid);
+    ASSERT_NE(nullptr, group);
+    ASSERT_EQ(1, taosArrayGetSize(group->pParams));
+    const auto* win = static_cast<const SSTriggerCalcParam*>(taosArrayGet(group->pParams, 0));
+    EXPECT_EQ(ts, win->wstart);
+    EXPECT_EQ(ts, win->wend);
+  };
+
+  std::vector<uint8_t> saved;
+  {
+    H    h;
+    ScopedWalCheckpointClock clock;
+    ASSERT_NO_FATAL_FAILURE(initPartitionStateCheckpointHarness(h));
+    ASSERT_TRUE(h.start());
+    ASSERT_TRUE(h.feedLastTsForReader(H::kReaderTaskId, 0));
+    clock.set(h.context()->lastCheckpointTime + 10 * NANOSECOND_PER_MINUTE);
+    ScopedCheckpointGenerationProbe checkpoint;
+    ASSERT_TRUE(h.feedGroups({openA}, 2));
+    const auto* reader = recoveryWalProgress(h, H::kVgId);
+    ASSERT_NE(nullptr, reader);
+    ASSERT_EQ(2, reader->doneVer);
+    const auto prior = checkpoint.probe().storedBytes;
+    ASSERT_FALSE(prior.empty());
+
+    ASSERT_TRUE(h.feedGroups({closeA}, 3));
+    ASSERT_EQ(0, h.dispatchGroupColValue(42, 4200));
+    ASSERT_EQ(1, h.calcAttemptCount());
+    ASSERT_NO_FATAL_FAILURE(checkWindow(h, 0, 42, 100));
+    ASSERT_EQ(0, h.dispatchCalcAttempt(0, 0));
+    ASSERT_TRUE(h.feedGroups({openB}, 4));
+    ASSERT_EQ(4, reader->doneVer);
+    ASSERT_TRUE(h.feedGroups({closeB}, 5));
+    ASSERT_EQ(0, h.dispatchGroupColNoContext(43));
+    ASSERT_EQ(4, reader->doneVer);
+    ASSERT_EQ(5, reader->lastScanVer);
+    ASSERT_EQ(prior, checkpoint.probe().storedBytes);
+    ASSERT_EQ(1, h.calcAttemptCount());
+    h.task()->task.undeployMsg.doCheckpoint = 1;
+    h.task()->task.undeployMsg.doCleanup = 0;
+    ASSERT_EQ(0, h.hardUndeploy());
+    saved = checkpoint.probe().storedBytes;
+  }
+
+  H restored;
+  ASSERT_NO_FATAL_FAILURE(initPartitionStateCheckpointHarness(restored));
+  restored.setCheckpointBytes(std::move(saved));
+  ASSERT_TRUE(restored.start());
+  const auto* reader = recoveryWalProgress(restored, H::kVgId);
+  ASSERT_NE(nullptr, reader);
+  EXPECT_EQ(4, reader->savedVer);
+  ASSERT_TRUE(restored.feedGroups({openA}, 2));
+  ASSERT_TRUE(restored.feedGroups({closeA}, 3));
+  if (restored.pendingGroupColReader(42)) ASSERT_EQ(0, restored.dispatchGroupColValue(42, 4200));
+  EXPECT_EQ(0, restored.calcAttemptCount());
+  ASSERT_TRUE(restored.feedGroups({openB}, 4));
+  ASSERT_TRUE(restored.feedGroups({closeB}, 5));
+  ASSERT_EQ(0, restored.dispatchGroupColValue(43, 4300));
+  ASSERT_EQ(1, restored.calcAttemptCount());
+  ASSERT_NO_FATAL_FAILURE(checkWindow(restored, 0, 43, 200));
+  ASSERT_EQ(0, restored.dispatchCalcAttempt(0, 0));
+  ASSERT_TRUE(restored.feedZeroRowWalForReader(H::kReaderTaskId, 5));
+  EXPECT_EQ(5, reader->doneVer);
+  EXPECT_EQ(1, restored.calcAttemptCount());
+}
+
+TEST(StreamStateWalCheckpointTest, FailedInitialTimerDispatchKeepsPreviousCut) {
+  for (bool multiGroup : {true, false}) {
+    SCOPED_TRACE(multiGroup);
+    RealtimePipelineHarness      h;
+    ScopedWalCheckpointClock     clock;
+    Stub                         timer;
+    ScopedStreamBatchRequestWait batchWait(1000);
+    ASSERT_NO_FATAL_FAILURE(startStateWalCheckpointTest(h, clock, false));
+    h.task()->multiGroupBatch = multiGroup;
+    ScopedCheckpointGenerationProbe checkpoint;
+    clock.wallNs += 10 * NANOSECOND_PER_MINUTE;
+    ASSERT_TRUE(h.feedGroups({{42, 1001, {99}, {1}, 1}}, 2));
+    const auto* reader = recoveryWalProgress(h, h.kVgId);
+    ASSERT_NE(nullptr, reader);
+    ASSERT_EQ(2, reader->doneVer);
+    ASSERT_FALSE(checkpoint.probe().storedBytes.empty());
+    const auto saved = checkpoint.probe().storedBytes;
+
+    ASSERT_TRUE(h.feedGroups({{42, 1001, {100, 101}, {1, 2}, 2}}, 3));
+    ASSERT_EQ(0, h.calcAttemptCount());
+    clock.wallNs += 30 * NANOSECOND_PER_MINUTE;
+    ASSERT_TRUE(h.feedGroups({{43, 1002, {200, 201}, {1, 2}, 3}}, 4));
+    ASSERT_TRUE(h.context()->drainingWalCheckpoint);
+    ASSERT_EQ(1, h.calcAttemptCount());
+    ASSERT_EQ(1, h.context()->calcParamPool.size);
+    ASSERT_EQ(0, h.pendingPullCount(STRIGGER_PULL_WAL_META_DATA_NEW));
+    const int writes = checkpoint.probe().writes;
+    const int syncs = checkpoint.probe().syncs;
+
+    // Keep A in flight while the checkpoint timer flushes B for the first time.
+    timer.set(streamAcquireTask, captureRealtimePipelineTimerAcquire);
+    timer.set(streamReleaseTask, captureRealtimePipelineTimerRelease);
+    timer.set(streamTmrStart, ignoreRealtimePipelineTimerStart);
+    ASSERT_NE(nullptr, gRealtimePipelineWaitTimerCallback);
+    clock.wallNs += NANOSECOND_PER_SEC;
+    h.failNextCalcSend(TSDB_CODE_RPC_NETWORK_UNAVAIL);
+    invokeRealtimePipelineWaitTimer(gRealtimePipelineWaitTimerCallback);
+    ASSERT_EQ(1, h.queuedControlCount());
+    bool processed = false;
+    ASSERT_FALSE(h.processNextControl(&processed));
+    ASSERT_TRUE(processed);
+    ASSERT_EQ(0, h.context()->calcParamPool.size);
+    ASSERT_EQ(1, h.calcAttemptCount());
+
+    const int32_t ack = h.dispatchCalcAttempt(0, TSDB_CODE_SUCCESS);
+    EXPECT_TRUE(ack == TSDB_CODE_SUCCESS || ack == TSDB_CODE_RPC_NETWORK_UNAVAIL);
+    EXPECT_EQ(TSDB_CODE_RPC_NETWORK_UNAVAIL, h.dispatchSerializedRealtimeStartCode());
+    EXPECT_EQ(2, reader->doneVer);
+    EXPECT_EQ(saved, checkpoint.probe().storedBytes);
+    EXPECT_EQ(writes, checkpoint.probe().writes);
+    EXPECT_EQ(syncs, checkpoint.probe().syncs);
+    EXPECT_EQ(0, h.pendingPullCount(STRIGGER_PULL_WAL_META_DATA_NEW));
+  }
+}
+
 TEST_F(StreamTriggerTaskTest, AutomaticRealtimeCalcFailureIsFatalWithoutRetry) {
   RealtimePipelineHarness harness;
   ASSERT_TRUE(harness.init(RealtimePipelinePlan::LegacySession, false, STRIGGER_EVENT_WINDOW_CLOSE,
@@ -26107,6 +27452,375 @@ TEST_F(StreamTriggerTaskTest, VtableRetryKeepsPeriodPollingAndDedicatedWake) {
   ASSERT_TRUE(harness.processNextControl(&processed));
   EXPECT_EQ(STRIGGER_CONTEXT_IDLE, harness.context()->status);
   EXPECT_EQ(1, harness.pendingPullCount(STRIGGER_PULL_WAL_META_NEW));
+}
+
+TEST(StreamStateWalCheckpointTest, OneSlotPreservesBothDueWindowsAcrossTheNextWalPage) {
+  for (bool multiGroup : {false, true}) {
+    SCOPED_TRACE(multiGroup);
+    RealtimePipelineHarness      h;
+    ScopedWalCheckpointClock     clock;
+    ScopedStreamBatchRequestWait noBatchWait(0);
+    ASSERT_NO_FATAL_FAILURE(startStateWalCheckpointTest(h, clock, false, 1));
+    h.task()->multiGroupBatch = multiGroup;
+    h.task()->maxDelayNs = 31 * NANOSECOND_PER_MINUTE;
+    ScopedCheckpointGenerationProbe checkpoint;
+
+    ASSERT_TRUE(h.feedGroups({{42, 1001, {90, 100, 102}, {1, 2, 2}, 1}, {43, 1002, {200, 202}, {1, 1}, 1}}, 2));
+    ASSERT_EQ(1, h.calcAttemptCount());
+    clock.wallNs += 30 * NANOSECOND_PER_MINUTE;
+    ASSERT_TRUE(h.feedGroups({{42, 1001, {103}, {2}, 2}}, 3));
+    ASSERT_TRUE(h.context()->drainingWalCheckpoint);
+    ASSERT_EQ(0, h.pendingPullCount(STRIGGER_PULL_WAL_META_DATA_NEW));
+
+    clock.wallNs += 2 * NANOSECOND_PER_MINUTE;
+    ASSERT_EQ(0, h.dispatchCalcAttempt(0, 0));
+    ASSERT_EQ(1, checkpoint.probe().writes);
+    ASSERT_FALSE(checkpoint.probe().storedBytes.empty());
+    ASSERT_EQ(2, h.calcAttemptCount());
+
+    // Give the next WAL page priority over the Runner ACK as soon as reading resumes.
+    int nextAck = 1;
+    if (!multiGroup) {
+      ASSERT_EQ(0, h.pendingPullCount(STRIGGER_PULL_WAL_META_DATA_NEW));
+      // Waiting for the slot must not add another full MAX_DELAY cycle to the paused cut.
+      clock.wallNs += 32 * NANOSECOND_PER_MINUTE;
+      ASSERT_EQ(0, h.dispatchCalcAttempt(nextAck++, 0));
+      ASSERT_EQ(3, h.calcAttemptCount());
+      const auto* params = h.calcAttempt(2)->decoded.params;
+      ASSERT_EQ(1, taosArrayGetSize(params));
+      const auto* resumed = static_cast<const SSTriggerCalcParam*>(taosArrayGet(params, 0));
+      EXPECT_EQ(clock.wallNs, resumed->triggerTime);
+    }
+    ASSERT_EQ(1, h.pendingPullCount(STRIGGER_PULL_WAL_META_DATA_NEW));
+    // Extend then close both windows so the close ranges differ from the overdue open ranges.
+    ASSERT_TRUE(h.feedGroups({{42, 1001, {104, 105}, {2, 3}, 3}, {43, 1002, {203, 204}, {1, 2}, 3}}, 4));
+    while (nextAck < h.calcAttemptCount()) {
+      ASSERT_LE(h.calcAttemptCount(), 5);  // Initial close, two MAX_DELAYs and two closes.
+      ASSERT_EQ(0, h.dispatchCalcAttempt(nextAck++, 0));
+    }
+    std::vector<int64_t> dueGroups;
+    for (int i = 1; i < h.calcAttemptCount(); ++i) {
+      const auto& req = h.calcAttempt(i)->decoded;
+      for (int64_t gid : {42, 43}) {
+        const SArray* params = req.gid == gid ? req.params : nullptr;
+        if (const auto* group = pipelineGroupCalcInfo(&req, gid)) params = group->pParams;
+        for (int j = 0; j < taosArrayGetSize(params); ++j) {
+          const auto* param = static_cast<const SSTriggerCalcParam*>(taosArrayGet(params, j));
+          if ((gid == 42 && param->wstart == 100 && param->wend == 103) ||
+              (gid == 43 && param->wstart == 200 && param->wend == 202)) {
+            dueGroups.push_back(gid);
+          }
+        }
+      }
+    }
+    std::sort(dueGroups.begin(), dueGroups.end());
+    EXPECT_EQ((std::vector<int64_t>{42, 43}), dueGroups);
+  }
+}
+
+TEST(StreamStateWalCheckpointTest, SlowMaxDelayRepliesLetWalResume) {
+  using H = RealtimePipelineHarness;
+  std::vector<uint8_t> saved;
+  {
+    H    h;
+    ScopedWalCheckpointClock clock;
+    Stub                     timer;
+    ASSERT_NO_FATAL_FAILURE(startStateWalCheckpointTest(h, clock, true, 4));
+    timer.set(streamAcquireTask, captureRealtimePipelineTimerAcquire);
+    timer.set(streamReleaseTask, captureRealtimePipelineTimerRelease);
+    timer.set(streamTmrStart, ignoreRealtimePipelineTimerStart);
+    ASSERT_NE(nullptr, gRealtimePipelineWaitTimerCallback);
+    h.task()->maxDelayNs = 31 * NANOSECOND_PER_MINUTE;
+    ScopedCheckpointGenerationProbe checkpoint;
+    const auto*                     reader = recoveryWalProgress(h, H::kVgId);
+    ASSERT_NE(nullptr, reader);
+    ASSERT_TRUE(h.feedGroups({{42, 1001, {100, 101}, {1, 2}, 1}}, 2));
+    clock.wallNs += 30 * NANOSECOND_PER_MINUTE;
+    ASSERT_TRUE(h.feedGroups({{43, 1002, {200, 201}, {1, 2}, 2}}, 3));
+    ASSERT_EQ(2, h.calcAttemptCount());  // One closed window per group.
+    ASSERT_EQ(0, h.pendingPullCount(STRIGGER_PULL_WAL_META_DATA_NEW));
+
+    auto checkTimer = [&](int attempt, int64_t gid, TSKEY start) {
+      invokeRealtimePipelineWaitTimer(gRealtimePipelineWaitTimerCallback);
+      bool processed = false;
+      ASSERT_TRUE(h.processNextControl(&processed));
+      ASSERT_TRUE(processed);
+      ASSERT_EQ(attempt + 1, h.calcAttemptCount());
+      const auto& req = h.calcAttempt(attempt)->decoded;
+      ASSERT_EQ(gid, req.gid);
+      ASSERT_EQ(1, taosArrayGetSize(req.params));
+      const auto* window = static_cast<const SSTriggerCalcParam*>(taosArrayGet(req.params, 0));
+      EXPECT_EQ(start, window->wstart);
+      EXPECT_EQ(start, window->wend);
+      EXPECT_EQ(clock.wallNs, window->triggerTime);
+    };
+
+    // The wall clock jumps past group 42's deadline while only one timer tick elapses.
+    const int64_t mono = clock.wallNs + NANOSECOND_PER_SEC;
+    clock.set(clock.wallNs, mono);
+    invokeRealtimePipelineWaitTimer(gRealtimePipelineWaitTimerCallback);
+    EXPECT_EQ(0, h.queuedControlCount());
+    clock.wallNs += 2 * NANOSECOND_PER_MINUTE;
+    clock.set(clock.wallNs, mono);
+    ASSERT_NO_FATAL_FAILURE(checkTimer(2, 42, 101));
+    clock.set(clock.wallNs);
+    ASSERT_EQ(0, h.dispatchCalcAttempt(0, 0));  // Group 43's close still owns the cut.
+    clock.wallNs += 30 * NANOSECOND_PER_MINUTE;
+    ASSERT_NO_FATAL_FAILURE(checkTimer(3, 43, 201));
+    ASSERT_EQ(0, h.dispatchCalcAttempt(3, 0));  // An open-window ACK cannot confirm the close.
+    EXPECT_EQ(1, reader->doneVer);
+    EXPECT_EQ(0, checkpoint.probe().writes);
+    EXPECT_EQ(0, h.pendingPullCount(STRIGGER_PULL_WAL_META_DATA_NEW));
+
+    ASSERT_EQ(0, h.dispatchCalcAttempt(1, 0));
+    EXPECT_EQ(3, reader->doneVer);
+    EXPECT_EQ(1, checkpoint.probe().writes);
+    EXPECT_EQ(1, h.pendingPullCount(STRIGGER_PULL_WAL_META_DATA_NEW));
+    int64_t running = 0;
+    ASSERT_EQ(0, stTriggerTaskGetRunningReq(h.task(), h.context()->sessionId, &running));
+    EXPECT_EQ(1, running);  // Group 42's timer is still using its Runner slot.
+    saved = checkpoint.probe().storedBytes;
+    ASSERT_FALSE(saved.empty());
+    ASSERT_EQ(0, h.dispatchCalcAttempt(2, 0));
+    EXPECT_EQ(1, checkpoint.probe().writes);
+  }
+
+  SDecoder decoder = {};
+  tDecoderInit(&decoder, saved.data(), static_cast<int64_t>(saved.size()));
+  ASSERT_EQ(0, tStartDecode(&decoder));
+  int32_t version = 0;
+  int64_t streamId = 0;
+  int32_t format = 0;
+  ASSERT_EQ(0, tDecodeI32(&decoder, &version));
+  ASSERT_EQ(0, tDecodeI64(&decoder, &streamId));
+  ASSERT_EQ(0, tDecodeI32(&decoder, &format));
+  tEndDecode(&decoder);
+  tDecoderClear(&decoder);
+  EXPECT_EQ(15, format);  // Baseline format for an ordinary WAL stream with no repair state.
+  H restarted;
+  ASSERT_TRUE(restarted.init(RealtimePipelinePlan::LegacyParityState));
+  restarted.setCheckpointBytes(std::move(saved));
+  ASSERT_TRUE(restarted.start());
+  const auto* reader = recoveryWalProgress(restarted, H::kVgId);
+  ASSERT_NE(nullptr, reader);
+  EXPECT_EQ(3, reader->savedVer);
+}
+
+TEST(StreamStateWalCheckpointTest, EarlyCheckpointCompletionCancelsPendingWakes) {
+  RealtimePipelineHarness h;
+  ScopedWalCheckpointClock clock;
+  Stub                     timer;
+  ASSERT_NO_FATAL_FAILURE(startStateWalCheckpointTest(h, clock));
+  timer.set(streamAcquireTask, captureRealtimePipelineTimerAcquire);
+  timer.set(streamReleaseTask, captureRealtimePipelineTimerRelease);
+  timer.set(streamTmrStart, ignoreRealtimePipelineTimerStart);
+  ASSERT_NE(nullptr, gRealtimePipelineWaitTimerCallback);
+  h.task()->maxDelayNs = 24 * 60 * NANOSECOND_PER_MINUTE;
+  ScopedCheckpointGenerationProbe checkpoint;
+
+  for (int i = 0; i < 3; ++i) {
+    SCOPED_TRACE(i);
+    const int64_t gid = 42 + i;
+    const int64_t uid = 1001 + i;
+    const int64_t ver = 1 + 2 * i;
+    ASSERT_TRUE(h.feedGroups({{gid, uid, {100, 101}, {1, 2}, ver}}, ver + 1));
+    clock.wallNs += 30 * NANOSECOND_PER_MINUTE;
+    ASSERT_TRUE(h.feedGroups({{gid, uid, {102}, {2}, ver + 1}}, ver + 2));
+    ASSERT_TRUE(h.context()->drainingWalCheckpoint);
+    ASSERT_NE(0, h.task()->walCheckpointWakeId);
+    ASSERT_EQ(0, h.dispatchCalcAttempt(i, 0));
+    ASSERT_EQ(i + 1, checkpoint.probe().writes);
+    ASSERT_EQ(1, h.pendingPullCount(STRIGGER_PULL_WAL_META_DATA_NEW));
+  }
+
+  // Sweep past every registered deadline before the next WAL response arrives.
+  clock.wallNs += h.task()->maxDelayNs;
+  invokeRealtimePipelineWaitTimer(gRealtimePipelineWaitTimerCallback);
+  EXPECT_EQ(0, h.queuedControlCount());
+}
+
+TEST(StreamStateWalCheckpointTest, CancelledCheckpointWakeIsNotRequeuedAfterDeliveryFails) {
+  RealtimePipelineHarness h;
+  ScopedWalCheckpointClock clock;
+  Stub                     timer;
+  ASSERT_NO_FATAL_FAILURE(startStateWalCheckpointTest(h, clock));
+  timer.set(streamAcquireTask, captureRealtimePipelineTimerAcquire);
+  timer.set(streamReleaseTask, captureRealtimePipelineTimerRelease);
+  timer.set(streamTmrStart, ignoreRealtimePipelineTimerStart);
+  h.task()->maxDelayNs = 31 * NANOSECOND_PER_MINUTE;
+  ScopedCheckpointGenerationProbe checkpoint;
+  ASSERT_TRUE(h.feedGroups({{42, 1001, {100, 101}, {1, 2}, 1}}, 2));
+  clock.wallNs += 30 * NANOSECOND_PER_MINUTE;
+  ASSERT_TRUE(h.feedGroups({{42, 1001, {102}, {2}, 2}}, 3));
+  ASSERT_TRUE(h.context()->drainingWalCheckpoint);
+
+  // Complete the checkpoint after the timer takes its node but before queue delivery fails.
+  const auto originalPut = gStreamMgmt.msgCb.putToQueueFp;
+  gStreamMgmt.msgCb.putToQueueFp = [](void*, EQueueType, SRpcMsg*) -> int32_t {
+    EXPECT_EQ(0, gRealtimePipelineHarness->dispatchCalcAttempt(0, 0));
+    return TSDB_CODE_RPC_NETWORK_UNAVAIL;
+  };
+  clock.wallNs += 2 * NANOSECOND_PER_MINUTE;
+  invokeRealtimePipelineWaitTimer(gRealtimePipelineWaitTimerCallback);
+  gStreamMgmt.msgCb.putToQueueFp = originalPut;
+  ASSERT_EQ(1, checkpoint.probe().writes);
+  ASSERT_FALSE(h.context()->drainingWalCheckpoint);
+  clock.wallNs += NANOSECOND_PER_SEC;
+  invokeRealtimePipelineWaitTimer(gRealtimePipelineWaitTimerCallback);
+  EXPECT_EQ(0, h.queuedControlCount());
+}
+
+TEST(StreamStateWalCheckpointTest, QueuedCheckpointWakeExpiresAfterFinalAck) {
+  for (bool laterDrain : {false, true}) {
+    SCOPED_TRACE(laterDrain);
+    RealtimePipelineHarness      h;
+    ScopedWalCheckpointClock     clock;
+    Stub                         timer;
+    ScopedStreamBatchRequestWait batchWait(1000);
+    ASSERT_NO_FATAL_FAILURE(startStateWalCheckpointTest(h, clock, false));
+    timer.set(streamAcquireTask, captureRealtimePipelineTimerAcquire);
+    timer.set(streamReleaseTask, captureRealtimePipelineTimerRelease);
+    timer.set(streamTmrStart, ignoreRealtimePipelineTimerStart);
+    ScopedCheckpointGenerationProbe checkpoint;
+    ASSERT_TRUE(h.feedGroups({{42, 1001, {100, 101}, {1, 2}, 1}}, 2));
+    clock.wallNs += 30 * NANOSECOND_PER_MINUTE;
+    ASSERT_TRUE(h.feedGroups({{43, 1002, {200, 201}, {1, 2}, 2}}, 3));
+
+    // Leave the timer's control in the worker queue while the final Runner replies complete the cut.
+    clock.wallNs += NANOSECOND_PER_SEC;
+    invokeRealtimePipelineWaitTimer(gRealtimePipelineWaitTimerCallback);
+    ASSERT_EQ(1, h.queuedControlCount());
+    ASSERT_EQ(0, h.dispatchCalcAttempt(0, 0));
+    ASSERT_EQ(2, h.calcAttemptCount());
+    ASSERT_EQ(0, h.dispatchCalcAttempt(1, 0));
+    ASSERT_EQ(1, checkpoint.probe().writes);
+    ASSERT_EQ(1, h.pendingPullCount(STRIGGER_PULL_WAL_META_DATA_NEW));
+
+    if (laterDrain) {
+      ASSERT_TRUE(h.feedGroups({{44, 1003, {300, 301}, {1, 2}, 3}}, 4));
+      clock.wallNs += 30 * NANOSECOND_PER_MINUTE;
+      ASSERT_TRUE(h.feedGroups({{44, 1003, {302}, {2}, 4}}, 5));
+      gCheckpointGenerationProbe->writeCode = TSDB_CODE_OUT_OF_MEMORY;
+      ASSERT_EQ(0, h.dispatchCalcAttempt(2, 0));
+      ASSERT_TRUE(h.context()->drainingWalCheckpoint);
+      gCheckpointGenerationProbe->writeCode = TSDB_CODE_SUCCESS;
+    } else {
+      ASSERT_TRUE(h.feedZeroRowWalForReader(h.kReaderTaskId, 3));
+      ASSERT_EQ(STRIGGER_CONTEXT_IDLE, h.context()->status);
+    }
+    ASSERT_EQ(0, h.pendingPullCount(STRIGGER_PULL_WAL_META_DATA_NEW));
+    const int priorWrites = checkpoint.probe().writes;
+    bool      processed = false;
+    ASSERT_TRUE(h.processNextControl(&processed));
+    ASSERT_TRUE(processed);
+    EXPECT_EQ(priorWrites, checkpoint.probe().writes);
+    EXPECT_EQ(0, h.pendingPullCount(STRIGGER_PULL_WAL_META_DATA_NEW));
+
+    // Only the current idle poll or the current cut's retry may resume the Reader.
+    clock.wallNs += NANOSECOND_PER_SEC;
+    invokeRealtimePipelineWaitTimer(gRealtimePipelineWaitTimerCallback);
+    ASSERT_EQ(1, h.queuedControlCount());
+    ASSERT_TRUE(h.processNextControl(&processed));
+    ASSERT_TRUE(processed);
+    EXPECT_EQ(1, h.pendingPullCount(STRIGGER_PULL_WAL_META_DATA_NEW));
+    EXPECT_EQ(priorWrites + (laterDrain ? 1 : 0), checkpoint.probe().writes);
+  }
+}
+
+TEST(StreamStateWalCheckpointTest, ResumesOverdueWindowAfterAnotherSessionReturnsSlots) {
+  RealtimePipelineHarness h;
+  ScopedWalCheckpointClock clock;
+  Stub                     timer;
+  ASSERT_NO_FATAL_FAILURE(startStateWalCheckpointTest(h, clock));
+  timer.set(streamAcquireTask, captureRealtimePipelineTimerAcquire);
+  timer.set(streamReleaseTask, captureRealtimePipelineTimerRelease);
+  timer.set(streamTmrStart, ignoreRealtimePipelineTimerStart);
+  ASSERT_NE(nullptr, gRealtimePipelineWaitTimerCallback);
+  h.task()->maxDelayNs = 31 * NANOSECOND_PER_MINUTE;
+  ScopedCheckpointGenerationProbe checkpoint(TSDB_CODE_OUT_OF_MEMORY);
+  ASSERT_TRUE(h.feedGroups({{42, 1001, {100, 101}, {1, 2}, 1}}, 2));
+  ASSERT_EQ(1, h.calcAttemptCount());
+  clock.wallNs += 30 * NANOSECOND_PER_MINUTE;
+  ASSERT_TRUE(h.feedGroups({{42, 1001, {102}, {2}, 2}}, 3));
+  ASSERT_TRUE(h.context()->drainingWalCheckpoint);
+  ASSERT_EQ(0, h.dispatchCalcAttempt(0, 0));
+  ASSERT_EQ(1, checkpoint.probe().writes);
+  ASSERT_TRUE(checkpoint.probe().storedBytes.empty());
+
+  auto otherSessions = holdAllCalcSlots(h.task(), 9000, 900);
+  gCheckpointGenerationProbe->writeCode = TSDB_CODE_SUCCESS;
+  clock.wallNs += 32 * NANOSECOND_PER_MINUTE;
+  invokeRealtimePipelineWaitTimer(gRealtimePipelineWaitTimerCallback);
+  bool processed = false;
+  bool retryOk = h.processNextControl(&processed);
+  releaseCalcSlots(h.task(), &otherSessions);
+  ASSERT_TRUE(retryOk && processed);
+  ASSERT_FALSE(checkpoint.probe().storedBytes.empty());
+  ASSERT_EQ(1, h.calcAttemptCount());
+  ASSERT_EQ(0, h.pendingPullCount(STRIGGER_PULL_WAL_META_DATA_NEW));
+
+  // No realtime ACK can wake this task after the other sessions release their slots.
+  clock.wallNs += NANOSECOND_PER_SEC;
+  invokeRealtimePipelineWaitTimer(gRealtimePipelineWaitTimerCallback);
+  ASSERT_TRUE(h.processNextControl(&processed));
+  ASSERT_TRUE(processed);
+  ASSERT_EQ(2, h.calcAttemptCount());
+  const auto* params = h.calcAttempt(1)->decoded.params;
+  ASSERT_EQ(1, taosArrayGetSize(params));
+  const auto* window = static_cast<const SSTriggerCalcParam*>(taosArrayGet(params, 0));
+  EXPECT_EQ(101, window->wstart);
+  EXPECT_EQ(102, window->wend);
+  EXPECT_EQ(1, h.pendingPullCount(STRIGGER_PULL_WAL_META_DATA_NEW));
+  EXPECT_EQ(2, checkpoint.probe().writes);
+}
+
+TEST(StreamStateWalCheckpointTest, FailedWriteAdmitsHistoryAndRetriesOnMonotonicTimer) {
+  RealtimePipelineHarness h;
+  ScopedWalCheckpointClock clock;
+  Stub                     timer;
+  ASSERT_NO_FATAL_FAILURE(startStateWalCheckpointTest(h, clock));
+  ScopedCheckpointGenerationProbe checkpoint(TSDB_CODE_OUT_OF_MEMORY);
+  ASSERT_TRUE(h.feedGroups({{42, 1001, {100, 101}, {1, 2}, 1}}, 2));
+  clock.wallNs += 30 * NANOSECOND_PER_MINUTE;
+  ASSERT_TRUE(h.feedGroups({{42, 1001, {102}, {2}, 2}}, 3));
+  ASSERT_EQ(0, h.dispatchCalcAttempt(0, 0));
+  ASSERT_EQ(1, checkpoint.probe().writes);
+  SStreamRecalcReq history = {};
+  history.recalcId = 8;
+  history.start = 100;
+  history.end = 101;
+  ASSERT_NE(nullptr, taosArrayPush(h.task()->pUserRecalcRequests, &history));
+  ASSERT_EQ(0, h.dispatchSerializedRealtimeStartCode());
+  EXPECT_EQ(0, taosArrayGetSize(h.task()->pUserRecalcRequests));
+  bool foundHistory = false;
+  for (auto* node = tdListGetHead(h.task()->pRecalcRequests); node; node = TD_DLIST_NODE_NEXT(node)) {
+    auto* request = *reinterpret_cast<SSTriggerRecalcRequest**>(node->data);
+    for (int i = 0; i < taosArrayGetSize(request->pContributors); ++i) {
+      auto* contributor = static_cast<SStreamRecalcContributor*>(taosArrayGet(request->pContributors, i));
+      if (contributor->recalcId == history.recalcId) foundHistory = true;
+    }
+  }
+  EXPECT_TRUE(foundHistory);
+  EXPECT_EQ(0, h.pendingPullCount(STRIGGER_PULL_WAL_META_DATA_NEW));
+
+  timer.set(streamAcquireTask, captureRealtimePipelineTimerAcquire);
+  timer.set(streamReleaseTask, captureRealtimePipelineTimerRelease);
+  timer.set(streamTmrStart, ignoreRealtimePipelineTimerStart);
+  const int64_t wall = clock.wallNs - 10 * NANOSECOND_PER_MINUTE;
+  int64_t       mono = clock.wallNs + NANOSECOND_PER_SEC;
+  clock.set(wall, mono);
+  h.failNextQueuePut(TSDB_CODE_RPC_NETWORK_UNAVAIL);
+  invokeRealtimePipelineWaitTimer(gRealtimePipelineWaitTimerCallback);
+  ASSERT_EQ(0, h.queuedControlCount());
+  mono += NANOSECOND_PER_SEC;
+  clock.set(wall, mono);
+  invokeRealtimePipelineWaitTimer(gRealtimePipelineWaitTimerCallback);
+  ASSERT_EQ(1, h.queuedControlCount());
+  gCheckpointGenerationProbe->writeCode = TSDB_CODE_SUCCESS;
+  bool processed = false;
+  ASSERT_TRUE(h.processNextControl(&processed));
+  ASSERT_TRUE(processed);
+  EXPECT_EQ(1, h.pendingPullCount(STRIGGER_PULL_WAL_META_DATA_NEW));
 }
 
 TEST_F(StreamTriggerTaskTest, VtableRetrySendFailureReleasesRequest) {
@@ -31583,6 +33297,33 @@ TEST(StreamTriggerTaskRecalcTest, SessionPredecessorRepairWaitsForSuccessorGap) 
   }
 }
 
+TEST(StreamTriggerTaskRecalcTest, FirstClosedSessionBeforeEpochQueuesHistoryBoundaryRepair) {
+  CountRecalcFixture fixture;
+  fixture.task_.triggerType = STREAM_TRIGGER_SESSION;
+  fixture.task_.gap = 1000;
+  fixture.task_.fillHistory = true;
+  fixture.task_.fillHistoryStartTime = -4000;
+  fixture.task_.ignoreDisorder = true;
+  fixture.group_.oldThreshold = -2000;
+  fixture.group_.newThreshold = 1000;
+  fixture.group_.firstClosePending = true;
+
+  const STimeWindow firstLiveSession = {-2800, -2000};
+  ASSERT_EQ(TSDB_CODE_SUCCESS, stTriggerTaskTryAddNextWindowRecalc(&fixture.task_, &fixture.group_, &firstLiveSession));
+  EXPECT_FALSE(fixture.group_.firstClosePending);
+  SSTriggerRecalcRequest* request = nullptr;
+  ASSERT_EQ(TSDB_CODE_SUCCESS, stTriggerTaskFetchRecalcRequest(&fixture.task_, &request));
+  ASSERT_NE(nullptr, request);
+  EXPECT_NE(nullptr, request->pFirstCloseDelivered);
+  EXPECT_FALSE(request->openWindowRepair);
+  EXPECT_EQ(-4000, request->scanRange.skey);
+  EXPECT_EQ(-2800, request->calcRange.skey);
+  EXPECT_EQ(-2000, request->calcRange.ekey);
+  stTriggerTaskDestroyRecalcRequest(&request);
+  tSimpleHashCleanup(fixture.task_.pFirstCloseRepairs);
+  fixture.task_.pFirstCloseRepairs = nullptr;
+}
+
 TEST(StreamTriggerTaskRecalcTest, UnmarkedDeleteRangeDoesNotWaitForUnrelatedWindow) {
   CountRecalcFixture fixture;
   STimeWindow        range = {.skey = 100, .ekey = 102};
@@ -35867,6 +37608,39 @@ TEST_F(StreamTriggerIntervalMergeTest, FixedNonOverlappingIntervalKeepsAtMostOne
   EXPECT_LE(group_.windows.neles, 1);
 }
 
+TEST_F(StreamTriggerIntervalMergeTest, IgnoredLateWalWakesOnlyPendingPredecessorRepair) {
+  ConfigureInterval(3000, 'a', 1000, 'a');
+  task_.fillHistory = true;
+  task_.ignoreDisorder = true;
+  SSTriggerMetaData live = *static_cast<SSTriggerMetaData*>(taosObjListGetHead(metas_));
+  taosObjListClear(metas_);
+  ASSERT_EQ(stTestRealtimeGroupAddMeta(&group_, reader_->nodeId, nullptr, &live, 0), TSDB_CODE_SUCCESS);
+  ASSERT_EQ(StartCheck(), TSDB_CODE_SUCCESS);
+  ASSERT_EQ(group_.windows.neles, 3);
+  ASSERT_FALSE(group_.hasClosedWindow);
+  ASSERT_EQ(TD_DLIST_NELES(&context_.groupsToCheck), 0);
+
+  SSTriggerRealtimeGroup* group = &group_;
+  ASSERT_EQ(tSimpleHashPut(context_.pGroups, &group_.gid, sizeof(group_.gid), &group, sizeof(group)),
+            TSDB_CODE_SUCCESS);
+  SSDataBlock empty = {};
+  context_.pDeleteBlock = &empty;
+  context_.pTableBlock = &empty;
+  group_.oldThreshold = group_.newThreshold;
+  for (int64_t i = 0; i < 2; ++i) {
+    if (i == 1) group_.recalcNextWindow = true;
+    const TSKEY ts = live.skey - 1 - i;
+    context_.pMetaBlock = makePipelineMetaBlock(group_.gid, ts, live.ver + 1 + i, ts);
+    ASSERT_NE(context_.pMetaBlock, nullptr);
+    int32_t code = stTriggerTestProcWalMeta(&context_, progress_, 0);
+    blockDataDestroy(context_.pMetaBlock);
+    context_.pMetaBlock = nullptr;
+    ASSERT_EQ(code, TSDB_CODE_SUCCESS);
+    ASSERT_EQ(group_.newThreshold, group_.oldThreshold);
+    ASSERT_EQ(TD_DLIST_NELES(&context_.groupsToCheck), i);
+  }
+}
+
 TEST_F(StreamTriggerIntervalMergeTest, FixedGappedIntervalKeepsAtMostOneOpenWindow) {
   constexpr int64_t kDayMs = 24LL * 60 * 60 * 1000;
   ConfigureInterval(kDayMs, 'd', 7 * kDayMs, 'd');
@@ -37050,6 +38824,9 @@ class StreamCalcRequestAdmissionCreateTableProducerTest : public ::testing::Test
     context_.curReaderIdx = 2;
     context_.pGroupColVals = tSimpleHashInit(8, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT));
     ASSERT_NE(context_.pGroupColVals, nullptr);
+    tSimpleHashSetFreeFp(context_.pGroupColVals, [](void* value) {
+      taosArrayDestroyEx(*static_cast<SArray**>(value), tDestroySStreamGroupValue);
+    });
     context_.pReaderWalProgress = tSimpleHashInit(1, taosGetDefaultHashFunction(TSDB_DATA_TYPE_INT));
     ASSERT_NE(context_.pReaderWalProgress, nullptr);
     walProgress_.pTaskAddr = static_cast<SStreamTaskAddr*>(taosArrayGet(task_.readerList, 0));
@@ -37167,6 +38944,7 @@ class StreamTriggerNodelayResponseTest : public StreamCalcRequestAdmissionCreate
  protected:
   struct PendingResponse {
     int64_t       gid = 0;
+    int32_t       vgId = 0;
     SMsgSendInfo* sendInfo = nullptr;
   };
 
@@ -37179,15 +38957,7 @@ class StreamTriggerNodelayResponseTest : public StreamCalcRequestAdmissionCreate
     task_.addOptions = 0;
     task_.lowLatencyCalc = true;
     task_.triggerType = STREAM_TRIGGER_PERIOD;
-    auto* node = static_cast<SSTriggerCalcNode*>(taosArrayGet(task_.pCalcNodes, 0));
-    taosArrayDestroy(node->pSlots);
-    node->pSlots = taosArrayInit_s(sizeof(SSTriggerCalcSlot), 3);
-    ASSERT_NE(node->pSlots, nullptr);
-    node->idleSlots = {};
-    for (int32_t i = 0; i < 3; ++i) {
-      auto* slot = static_cast<SSTriggerCalcSlot*>(taosArrayGet(node->pSlots, i));
-      TD_DLIST_APPEND(&node->idleSlots, slot);
-    }
+    ASSERT_NO_FATAL_FAILURE(SetRunnerSlots(3));
     taosInitRWLatch(&task_.readerProgressLock);
     task_.pReaderProgressSnapshots = taosArrayInit(1, sizeof(SStreamReaderProgressSnapshot));
     ASSERT_NE(task_.pReaderProgressSnapshots, nullptr);
@@ -37199,9 +38969,27 @@ class StreamTriggerNodelayResponseTest : public StreamCalcRequestAdmissionCreate
     progress_->pullType = STRIGGER_PULL_GROUP_COL_VALUE;
   }
 
+  void SetRunnerSlots(int32_t slots) {
+    auto* node = static_cast<SSTriggerCalcNode*>(taosArrayGet(task_.pCalcNodes, 0));
+    taosArrayDestroy(node->pSlots);
+    node->pSlots = taosArrayInit_s(sizeof(SSTriggerCalcSlot), slots);
+    ASSERT_NE(node->pSlots, nullptr);
+    node->idleSlots = {};
+    for (int32_t i = 0; i < slots; ++i) {
+      auto* slot = static_cast<SSTriggerCalcSlot*>(taosArrayGet(node->pSlots, i));
+      TD_DLIST_APPEND(&node->idleSlots, slot);
+    }
+  }
+
   void TearDown() override {
     for (const auto& response : pulls_) destroyAhandle(response.sendInfo);
     for (const auto& response : creates_) destroyAhandle(response.sendInfo);
+    for (auto* sendInfo : extPulls_) destroyAhandle(sendInfo);
+    stTestClearResultChecks(&context_);
+    tSimpleHashCleanup(task_.resultDispatches);
+    taosArrayDestroyEx(context_.pPendingCreateGroupColVals, tDestroySStreamGroupValue);
+    taosArrayDestroy(context_.pPendingCreateFallbackVgIds);
+    stTriggerTaskInvalidateInternalGroupIndex(&task_);
     for (SArray* array : virtualArrays_) taosArrayDestroy(array);
     tSimpleHashCleanup(task_.pOrigTableInfos);
     tSimpleHashCleanup(task_.pVirtTableInfos);
@@ -37217,8 +39005,14 @@ class StreamTriggerNodelayResponseTest : public StreamCalcRequestAdmissionCreate
     PendingResponse response;
     response.sendInfo = sendInfo;
     if (msg->msgType == TDMT_STREAM_TRIGGER_PULL) {
-      response.gid = static_cast<SSTriggerGroupColValueRequest*>(handle->param)->gid;
+      if (handle->paramType != STRIGGER_AHANDLE_PARAM_RESULT_VALIDATE &&
+          static_cast<SSTriggerPullRequest*>(handle->param)->type == STRIGGER_PULL_GROUP_COL_VALUE) {
+        response.gid = static_cast<SSTriggerGroupColValueRequest*>(handle->param)->gid;
+        response.vgId = ntohl(static_cast<SMsgHead*>(msg->pCont)->vgId);
+      }
       current_->pulls_.push_back(response);
+    } else if (msg->msgType == TDMT_STREAM_TRIGGER_PULL_EXT) {
+      current_->extPulls_.push_back(sendInfo);
     } else {
       auto* request = static_cast<SSTriggerCalcRequest*>(handle->param);
       EXPECT_EQ(msg->msgType, TDMT_STREAM_TRIGGER_CALC);
@@ -37232,10 +39026,11 @@ class StreamTriggerNodelayResponseTest : public StreamCalcRequestAdmissionCreate
     return TSDB_CODE_SUCCESS;
   }
 
-  int32_t Dispatch(int32_t type, SMsgSendInfo* sendInfo, void* payload = nullptr, int32_t len = 0) {
+  int32_t Dispatch(int32_t type, SMsgSendInfo* sendInfo, void* payload = nullptr, int32_t len = 0,
+                   int32_t rspCode = TSDB_CODE_SUCCESS) {
     SRpcMsg response = {};
     response.msgType = type;
-    response.code = TSDB_CODE_SUCCESS;
+    response.code = rspCode;
     response.info.ahandle = sendInfo;
     response.pCont = payload;
     response.contLen = len;
@@ -37243,26 +39038,67 @@ class StreamTriggerNodelayResponseTest : public StreamCalcRequestAdmissionCreate
     return stTriggerTaskProcessRsp(&task_.task, &response, &errorTaskId);
   }
 
-  int32_t RespondInitialPull(void* payload = nullptr, int32_t len = 0) {
+  int32_t RespondInitialPull(void* payload = nullptr, int32_t len = 0, SSTriggerWalProgress* progress = nullptr) {
+    if (progress == nullptr) progress = progress_;
     SSTriggerAHandle handle = {};
-    handle.param = &progress_->pullReq.base;
-    handle.pullOwner = progress_;
+    handle.param = &progress->pullReq.base;
+    handle.pullOwner = progress;
     SMsgSendInfo sendInfo = {};
     sendInfo.param = &handle;
     return Dispatch(TDMT_STREAM_TRIGGER_PULL_RSP, &sendInfo, payload, len);
   }
 
-  int32_t Respond(std::vector<PendingResponse>& responses, size_t index, int32_t type) {
+  int32_t Respond(std::vector<PendingResponse>& responses, size_t index, int32_t type, void* payload = nullptr,
+                  int32_t len = 0, int32_t rspCode = TSDB_CODE_SUCCESS) {
     if (index >= responses.size() || responses[index].sendInfo == nullptr) return TSDB_CODE_INVALID_PARA;
     SMsgSendInfo* sendInfo = responses[index].sendInfo;
     responses[index].sendInfo = nullptr;
-    int32_t code = Dispatch(type, sendInfo);
+    int32_t code = Dispatch(type, sendInfo, payload, len, rspCode);
     destroyAhandle(sendInfo);
     return code;
   }
 
-  int32_t RespondPull(size_t index) { return Respond(pulls_, index, TDMT_STREAM_TRIGGER_PULL_RSP); }
+  int32_t RespondPull(size_t index, int32_t code = TSDB_CODE_SUCCESS) {
+    return Respond(pulls_, index, TDMT_STREAM_TRIGGER_PULL_RSP, nullptr, 0, code);
+  }
   int32_t RespondCreate(size_t index) { return Respond(creates_, index, TDMT_STREAM_TRIGGER_CALC_RSP); }
+
+  void RespondLastTs(std::initializer_list<int64_t> uids, SSTriggerWalProgress* progress = nullptr) {
+    SStreamTsResponse response = {};
+    response.ver = 1;
+    if (uids.size() > 0) {
+      response.tsInfo = taosArrayInit(uids.size(), sizeof(STsInfo));
+      ASSERT_NE(response.tsInfo, nullptr);
+      for (int64_t uid : uids) {
+        STsInfo info = {};
+        info.gId = uid;
+        info.ts = 1000;
+        ASSERT_NE(taosArrayPush(response.tsInfo, &info), nullptr);
+      }
+    }
+    int32_t len = tSerializeSStreamTsResponse(nullptr, 0, &response);
+    ASSERT_GT(len, 0);
+    std::vector<char> payload(len);
+    ASSERT_EQ(tSerializeSStreamTsResponse(payload.data(), len, &response), len);
+    taosArrayDestroy(response.tsInfo);
+    ASSERT_EQ(RespondInitialPull(payload.data(), len, progress), TSDB_CODE_SUCCESS);
+  }
+
+  void RespondEmptyLastTs(SSTriggerWalProgress* progress = nullptr) { RespondLastTs({}, progress); }
+
+  void RespondWithGroupValue(size_t index, const SStreamGroupValue& value) {
+    SStreamGroupInfo info = {};
+    info.gInfo = taosArrayInit(1, sizeof(value));
+    ASSERT_NE(info.gInfo, nullptr);
+    ASSERT_NE(taosArrayPush(info.gInfo, &value), nullptr);
+    ASSERT_LT(index, pulls_.size());
+    int32_t len = tSerializeSStreamGroupInfo(nullptr, 0, &info, pulls_[index].vgId);
+    ASSERT_GT(len, 0);
+    std::vector<char> payload(len);
+    ASSERT_EQ(tSerializeSStreamGroupInfo(payload.data(), len, &info, pulls_[index].vgId), len);
+    taosArrayDestroy(info.gInfo);
+    ASSERT_EQ(Respond(pulls_, index, TDMT_STREAM_TRIGGER_PULL_RSP, payload.data(), len), TSDB_CODE_SUCCESS);
+  }
 
   void AppendGroup(int64_t gid) {
     SSTriggerPendingCreateTableEntry entry = {};
@@ -37274,6 +39110,7 @@ class StreamTriggerNodelayResponseTest : public StreamCalcRequestAdmissionCreate
 
   void PrepareVirtualSources() {
     task_.isVirtualTable = true;
+    task_.addOptions |= STREAM_OPTION_PRECREATE_OUTPUT_ANALYZED | STREAM_OPTION_OUTPUT_NEEDS_GROUP_VALUES;
     task_.virTableInfoReady = true;
     task_.pOrigTableInfos = tSimpleHashInit(2, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT));
     task_.pVirtTableInfos = tSimpleHashInit(2, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT));
@@ -37310,6 +39147,7 @@ class StreamTriggerNodelayResponseTest : public StreamCalcRequestAdmissionCreate
   SSTriggerWalProgress*                    progress_ = nullptr;
   std::vector<PendingResponse>             pulls_;
   std::vector<PendingResponse>             creates_;
+  std::vector<SMsgSendInfo*>                extPulls_;
   std::vector<SArray*>                     virtualArrays_;
 };
 
@@ -37322,7 +39160,7 @@ TEST_F(StreamTriggerNodelayResponseTest, CalcResponseWaitsForCachedGroupPullBefo
   ASSERT_EQ(creates_.size(), 1U);
   ASSERT_EQ(pulls_.size(), 1U);
   ASSERT_EQ(RespondCreate(0), TSDB_CODE_SUCCESS);
-  EXPECT_EQ(taosArrayGetSize(context_.pPendingCreateTableGids), 2);
+  EXPECT_EQ(taosArrayGetSize(context_.pPendingCreateTableGids) - context_.pendingCreateTableIndex, 2U);
   EXPECT_EQ(creates_.size(), 1U);
   EXPECT_TRUE(progress_->groupColValuePullInFlight);
   ASSERT_EQ(RespondPull(0), TSDB_CODE_SUCCESS);
@@ -37368,22 +39206,8 @@ TEST_F(StreamTriggerNodelayResponseTest, SlotReleaseResumesCreateAfterGroupPullH
 
 TEST_F(StreamTriggerNodelayResponseTest, PhysicalSourcesCreateEachVirtualGroupOnlyOnce) {
   PrepareVirtualSources();
-  SStreamTsResponse response = {};
-  response.ver = 1;
-  response.tsInfo = taosArrayInit(2, sizeof(STsInfo));
-  ASSERT_NE(response.tsInfo, nullptr);
-  for (int64_t uid : {2001, 2002}) {
-    STsInfo info = {};
-    info.gId = uid;
-    info.ts = 1000;
-    ASSERT_NE(taosArrayPush(response.tsInfo, &info), nullptr);
-  }
-  int32_t len = tSerializeSStreamTsResponse(nullptr, 0, &response);
-  ASSERT_GT(len, 0);
-  std::vector<char> payload(len);
-  ASSERT_EQ(tSerializeSStreamTsResponse(payload.data(), len, &response), len);
-  taosArrayDestroy(response.tsInfo);
-  ASSERT_EQ(RespondInitialPull(payload.data(), len), TSDB_CODE_SUCCESS);
+  task_.addOptions |= STREAM_OPTION_OUTPUT_NEEDS_TRIGGER_VALUES;
+  ASSERT_NO_FATAL_FAILURE(RespondLastTs({2001, 2002}));
   EXPECT_EQ(taosArrayGetSize(context_.pPendingCreateTableGids), 2);
   ASSERT_EQ(RespondPull(0), TSDB_CODE_SUCCESS);
   ASSERT_EQ(RespondPull(1), TSDB_CODE_SUCCESS);
@@ -37394,6 +39218,453 @@ TEST_F(StreamTriggerNodelayResponseTest, PhysicalSourcesCreateEachVirtualGroupOn
   EXPECT_EQ(context_.pPendingCreateTableGids, nullptr);
   ASSERT_EQ(RespondCreate(0), TSDB_CODE_SUCCESS);
   ASSERT_EQ(RespondCreate(1), TSDB_CODE_SUCCESS);
+}
+
+TEST_F(StreamTriggerNodelayResponseTest, EmptySourcesStillCreateVirtualGroups) {
+  PrepareVirtualSources();
+  ASSERT_NO_FATAL_FAILURE(SetRunnerSlots(1));
+  // Both virtual children also belong to the first partition.
+  int64_t uid = 1002;
+  auto*   child = static_cast<SSTriggerVirtTableInfo*>(tSimpleHashGet(task_.pVirtTableInfos, &uid, sizeof(uid)));
+  ASSERT_NE(child, nullptr);
+  int64_t sharedGid = kCreateTableGroupId;
+  ASSERT_NE(taosArrayPush(child->tbGids, &sharedGid), nullptr);
+  ASSERT_NO_FATAL_FAILURE(RespondEmptyLastTs());
+  EXPECT_EQ(taosArrayGetSize(context_.pPendingCreateTableGids), 2);
+  EXPECT_EQ(tSimpleHashGetSize(task_.pHistoryCutoffTime), 0);
+  ASSERT_EQ(RespondPull(0), TSDB_CODE_SUCCESS);
+  SStreamGroupValue value = {};
+  value.data.type = TSDB_DATA_TYPE_VARCHAR;
+  ASSERT_NO_FATAL_FAILURE(RespondWithGroupValue(1, value));
+  ASSERT_EQ(creates_.size(), 1U);
+  EXPECT_EQ(taosArrayGetSize(context_.pPendingCreateGroupColVals), 1U);
+  EXPECT_EQ(tSimpleHashGetSize(context_.pGroupColVals), 0);
+  EXPECT_FALSE(context_.boundDetermined);
+  ASSERT_EQ(RespondCreate(0), TSDB_CODE_SUCCESS);
+  ASSERT_EQ(creates_.size(), 2U);
+  ASSERT_EQ(pulls_.size(), 2U);
+  EXPECT_EQ(pulls_[0].gid, sharedGid);
+  EXPECT_EQ(pulls_[1].gid, sharedGid + 1);
+  EXPECT_EQ(creates_[0].gid, sharedGid);
+  EXPECT_EQ(creates_[1].gid, sharedGid + 1);
+  auto* handle = static_cast<SSTriggerAHandle*>(creates_[1].sendInfo->param);
+  auto* req = static_cast<SSTriggerCalcRequest*>(handle->param);
+  ASSERT_EQ(taosArrayGetSize(req->groupColVals), 1U);
+  const auto* tag = static_cast<const SStreamGroupValue*>(taosArrayGet(req->groupColVals, 0));
+  EXPECT_EQ(tag->data.type, TSDB_DATA_TYPE_VARCHAR);
+  EXPECT_FALSE(tag->isNull);
+  EXPECT_EQ(tag->data.nData, 0);
+  EXPECT_EQ(tag->data.pData, nullptr);
+  EXPECT_EQ(context_.pPendingCreateGroupColVals, nullptr);
+  EXPECT_TRUE(context_.boundDetermined);
+  ASSERT_EQ(RespondCreate(1), TSDB_CODE_SUCCESS);
+}
+
+TEST_F(StreamTriggerNodelayResponseTest, EmptyVirtualGroupsWithWindowDependentOutputWaitForData) {
+  PrepareVirtualSources();
+  task_.addOptions |= STREAM_OPTION_OUTPUT_NEEDS_TRIGGER_VALUES;
+  // No vnode lookup is needed when the LAST_TS barrier found no groups to precreate.
+  int64_t uid = 1002;
+  auto* child = static_cast<SSTriggerVirtTableInfo*>(tSimpleHashGet(task_.pVirtTableInfos, &uid, sizeof(uid)));
+  ASSERT_NE(child, nullptr);
+  child->vgId = reader_.nodeId + 1;
+  ASSERT_NO_FATAL_FAILURE(RespondEmptyLastTs());
+  EXPECT_TRUE(pulls_.empty());
+  EXPECT_TRUE(creates_.empty());
+  EXPECT_TRUE(context_.boundDetermined);
+}
+
+TEST_F(StreamTriggerNodelayResponseTest, LegacyVirtualDeploymentPrecreatesOnlyGroupsWithLastTs) {
+  PrepareVirtualSources();
+  task_.addOptions = 0;
+  int64_t sourceUid = 2001;
+  auto* source = static_cast<SSTriggerOrigTableInfo*>(tSimpleHashGet(task_.pOrigTableInfos, &sourceUid,
+                                                                   sizeof(sourceUid)));
+  ASSERT_NE(source, nullptr);
+  taosArrayClear(source->pVtbUids);
+  int64_t virtualUid = 1001;
+  ASSERT_NE(taosArrayPush(source->pVtbUids, &virtualUid), nullptr);
+  ASSERT_NO_FATAL_FAILURE(RespondLastTs({sourceUid}));
+  ASSERT_EQ(pulls_.size(), 1U);
+  EXPECT_EQ(pulls_[0].gid, kCreateTableGroupId);
+  ASSERT_EQ(RespondPull(0), TSDB_CODE_SUCCESS);
+  EXPECT_TRUE(context_.boundDetermined);
+  ASSERT_EQ(creates_.size(), 1U);
+  ASSERT_EQ(RespondCreate(0), TSDB_CODE_SUCCESS);
+}
+
+TEST_F(StreamTriggerNodelayResponseTest, VirtualOutputsWithoutGroupDependenciesDoNotWaitForMissingValues) {
+  PrepareVirtualSources();
+  ASSERT_NO_FATAL_FAILURE(SetRunnerSlots(1));
+  task_.addOptions = STREAM_OPTION_PRECREATE_OUTPUT_ANALYZED;
+  task_.placeHolderBitmap = PLACE_HOLDER_PARTITION_IDX;
+  ASSERT_NO_FATAL_FAILURE(RespondLastTs({2001}));
+  ASSERT_EQ(RespondPull(0, TSDB_CODE_STREAM_NO_CONTEXT), TSDB_CODE_SUCCESS);
+  ASSERT_EQ(RespondPull(1, TSDB_CODE_STREAM_NO_CONTEXT), TSDB_CODE_SUCCESS);
+  ASSERT_EQ(creates_.size(), 1U);
+  EXPECT_FALSE(context_.boundDetermined);
+  ASSERT_EQ(RespondCreate(0), TSDB_CODE_SUCCESS);
+  ASSERT_EQ(creates_.size(), 2U);
+  EXPECT_EQ(pulls_.size(), 2U);
+  EXPECT_EQ(tSimpleHashGetSize(context_.pGroupColVals), 0);
+  EXPECT_TRUE(context_.boundDetermined);
+  ASSERT_EQ(RespondCreate(1), TSDB_CODE_SUCCESS);
+}
+
+TEST_F(StreamTriggerNodelayResponseTest, MissingVirtualGroupMetadataDoesNotBecomeNullTags) {
+  PrepareVirtualSources();
+  ASSERT_NO_FATAL_FAILURE(RespondEmptyLastTs());
+  ASSERT_EQ(pulls_.size(), 1U);
+  ASSERT_EQ(RespondPull(0, TSDB_CODE_STREAM_NO_CONTEXT), TSDB_CODE_SUCCESS);
+  EXPECT_TRUE(creates_.empty());
+  EXPECT_EQ(task_.pVirtTableGidIndex, nullptr);
+  ASSERT_EQ(pulls_.size(), 2U);
+  EXPECT_EQ(pulls_[1].gid, kCreateTableGroupId + 1);
+
+  SStreamGroupValue value = {};
+  value.isNull = true;
+  value.data.type = TSDB_DATA_TYPE_BIGINT;
+  ASSERT_NO_FATAL_FAILURE(RespondWithGroupValue(1, value));
+  ASSERT_EQ(creates_.size(), 1U);
+  EXPECT_EQ(creates_[0].gid, kCreateTableGroupId + 1);
+  auto* handle = static_cast<SSTriggerAHandle*>(creates_[0].sendInfo->param);
+  auto* request = static_cast<SSTriggerCalcRequest*>(handle->param);
+  ASSERT_EQ(taosArrayGetSize(request->groupColVals), 1U);
+  EXPECT_TRUE(static_cast<SStreamGroupValue*>(taosArrayGet(request->groupColVals, 0))->isNull);
+  EXPECT_TRUE(context_.boundDetermined);
+  ASSERT_EQ(RespondCreate(0), TSDB_CODE_SUCCESS);
+}
+
+TEST_F(StreamTriggerNodelayResponseTest, UnboundVirtualGroupsDoNotNeedOriginalSources) {
+  PrepareVirtualSources();
+  tSimpleHashClear(task_.pOrigTableInfos);
+  ASSERT_NO_FATAL_FAILURE(RespondEmptyLastTs());
+  EXPECT_EQ(taosArrayGetSize(context_.pPendingCreateTableGids), 2);
+  ASSERT_EQ(RespondPull(0), TSDB_CODE_SUCCESS);
+  ASSERT_EQ(RespondPull(1), TSDB_CODE_SUCCESS);
+  ASSERT_EQ(creates_.size(), 2U);
+  EXPECT_TRUE(context_.boundDetermined);
+  ASSERT_EQ(RespondCreate(0), TSDB_CODE_SUCCESS);
+  ASSERT_EQ(RespondCreate(1), TSDB_CODE_SUCCESS);
+}
+
+TEST_F(StreamTriggerNodelayResponseTest, TimeAlignAdmitsFirstPrecreateWriteWhileSecondGroupWaits) {
+  PrepareVirtualSources();
+  ASSERT_NO_FATAL_FAILURE(SetRunnerSlots(1));
+  task_.addOptions |= STREAM_OPTION_TIME_ALIGN;
+  task_.triggerType = STREAM_TRIGGER_STATE;
+  task_.task.nodeId = 1;
+  context_.timeAlignRound = 1;
+  progress_->timeAlignRound = context_.timeAlignRound;
+  ASSERT_NO_FATAL_FAILURE(RespondEmptyLastTs());
+  ASSERT_EQ(RespondPull(0), TSDB_CODE_SUCCESS);
+  ASSERT_EQ(RespondPull(1), TSDB_CODE_SUCCESS);
+  ASSERT_EQ(creates_.size(), 1U);
+  ASSERT_FALSE(context_.boundDetermined);
+
+  auto* handle = static_cast<SSTriggerAHandle*>(creates_[0].sendInfo->param);
+  auto* request = static_cast<SSTriggerCalcRequest*>(handle->param);
+  auto claim = request->resultAdmission;
+  SRpcHandleInfo reply = {};
+  context_.timeAlignBoundsPending = 1;
+  EXPECT_EQ(TSDB_CODE_STREAM_EXEC_CANCELLED, stTriggerTaskValidateResult(&task_.task, &claim, &reply));
+  EXPECT_EQ(pulls_.size(), 2U);
+  context_.timeAlignBoundsPending = 0;
+
+  // Keep the live claim but test the slot without its create-only role.
+  auto* firstSlot = static_cast<SSTriggerCalcSlot*>(handle->param);
+  firstSlot->createTableOnly = false;
+  EXPECT_EQ(TSDB_CODE_STREAM_EXEC_CANCELLED, stTriggerTaskValidateResult(&task_.task, &claim, &reply));
+  EXPECT_EQ(pulls_.size(), 2U);
+  firstSlot->createTableOnly = true;
+
+  static std::vector<int32_t> replies;
+  replies.clear();
+  stub_.set(tmsgSendRsp, +[](SRpcMsg* response) { replies.push_back(response->code); });
+  ASSERT_EQ(TSDB_CODE_SUCCESS, stTriggerTaskValidateResult(&task_.task, &claim, &reply));
+  ASSERT_EQ(pulls_.size(), 3U);
+  auto* validation = static_cast<SSTriggerAHandle*>(pulls_[2].sendInfo->param);
+  EXPECT_EQ(validation->paramType, STRIGGER_AHANDLE_PARAM_RESULT_VALIDATE);
+  ASSERT_EQ(RespondPull(2), TSDB_CODE_SUCCESS);
+  EXPECT_EQ(std::vector<int32_t>({TSDB_CODE_SUCCESS}), replies);
+  EXPECT_FALSE(context_.boundDetermined);
+
+  ASSERT_EQ(RespondCreate(0), TSDB_CODE_SUCCESS);
+  ASSERT_EQ(creates_.size(), 2U);
+  auto* second = static_cast<SSTriggerAHandle*>(creates_[1].sendInfo->param);
+  auto* secondSlot = static_cast<SSTriggerCalcSlot*>(second->param);
+  EXPECT_TRUE(secondSlot->createTableOnly);
+  EXPECT_EQ(secondSlot->req.gid, kCreateTableGroupId + 1);
+  ASSERT_EQ(RespondCreate(1), TSDB_CODE_SUCCESS);
+  EXPECT_FALSE(secondSlot->createTableOnly);
+}
+
+TEST_F(StreamTriggerNodelayResponseTest, TimeAlignRetriesFirstPrecreateAfterLocalAdmissionFailure) {
+  PrepareVirtualSources();
+  ASSERT_NO_FATAL_FAILURE(SetRunnerSlots(1));
+  task_.addOptions |= STREAM_OPTION_TIME_ALIGN;
+  task_.triggerType = STREAM_TRIGGER_STATE;
+  task_.task.nodeId = 1;
+  task_.realtimeStarted = 1;
+  context_.timeAlignRound = 1;
+  progress_->timeAlignRound = context_.timeAlignRound;
+  ASSERT_NO_FATAL_FAILURE(RespondEmptyLastTs());
+
+  static int32_t waits = 0;
+  waits = 0;
+  stub_.set(taosSecureRandBytes, +[](uint8_t*, int32_t) { return false; });
+  stub_.set(tdListAppend, +[](SList*, const void*) {
+    ++waits;
+    return TSDB_CODE_SUCCESS;
+  });
+  ASSERT_EQ(RespondPull(0), TSDB_CODE_SUCCESS);
+  ASSERT_EQ(waits, 1);
+  EXPECT_TRUE(creates_.empty());
+  EXPECT_EQ(pulls_.size(), 1U);
+  ASSERT_FALSE(context_.boundDetermined);
+  auto* entry = static_cast<SSTriggerPendingCreateTableEntry*>(taosArrayGet(context_.pPendingCreateTableGids, 0));
+  ASSERT_NE(entry, nullptr);
+  ASSERT_GT(entry->retryAt, 0);
+  // Deliver the queued wakeup after its deadline without sleeping.
+  entry->retryAt = taosGetTimestampNs() - 1;
+  stub_.reset(taosSecureRandBytes);
+
+  SSTriggerCtrlRequest control = {};
+  control.type = STRIGGER_CTRL_START;
+  control.streamId = task_.task.streamId;
+  control.taskId = task_.task.taskId;
+  control.sessionId = context_.sessionId;
+  int32_t len = tSerializeSTriggerCtrlRequest(nullptr, 0, &control);
+  ASSERT_GT(len, 0);
+  std::vector<char> payload(len);
+  ASSERT_EQ(tSerializeSTriggerCtrlRequest(payload.data(), len, &control), len);
+  ASSERT_EQ(Dispatch(TDMT_STREAM_TRIGGER_CTRL, nullptr, payload.data(), len), TSDB_CODE_SUCCESS);
+  ASSERT_EQ(creates_.size(), 1U);
+  EXPECT_EQ(creates_[0].gid, kCreateTableGroupId);
+  ASSERT_EQ(pulls_.size(), 2U);
+  ASSERT_EQ(RespondCreate(0), TSDB_CODE_SUCCESS);
+  ASSERT_EQ(RespondPull(1), TSDB_CODE_SUCCESS);
+  ASSERT_EQ(creates_.size(), 2U);
+  ASSERT_EQ(RespondCreate(1), TSDB_CODE_SUCCESS);
+  EXPECT_TRUE(context_.boundDetermined);
+}
+
+class StreamTriggerSharedGroupPrecreateTest
+    : public StreamTriggerNodelayResponseTest, public ::testing::WithParamInterface<bool> {};
+
+TEST_P(StreamTriggerSharedGroupPrecreateTest, WaitsForBothVnodesAndUsesFallbackTag) {
+  const bool legacyDeploy = GetParam();
+  PrepareVirtualSources();
+  if (legacyDeploy) task_.addOptions = 0;
+  ASSERT_NO_FATAL_FAILURE(SetRunnerSlots(1));
+
+  SStreamTaskAddr secondReader = {};
+  secondReader.nodeId = reader_.nodeId + 1;
+  secondReader.taskId = reader_.taskId + 1;
+  auto* address = static_cast<SStreamTaskAddr*>(taosArrayPush(task_.readerList, &secondReader));
+  ASSERT_NE(address, nullptr);
+  SSTriggerWalProgress second = {};
+  second.pTaskAddr = address;
+  second.pendingPulls = 1;
+  second.pullType = STRIGGER_PULL_LAST_TS;
+  second.pullReq.base.type = STRIGGER_PULL_LAST_TS;
+  second.pullReq.base.readerTaskId = address->taskId;
+  second.pullReq.base.sessionId = kRealtimeSessionId;
+  ASSERT_EQ(tSimpleHashPut(context_.pReaderWalProgress, &secondReader.nodeId, sizeof(secondReader.nodeId),
+                            &second, sizeof(second)),
+            TSDB_CODE_SUCCESS);
+  auto* secondProgress = static_cast<SSTriggerWalProgress*>(
+      tSimpleHashGet(context_.pReaderWalProgress, &secondReader.nodeId, sizeof(secondReader.nodeId)));
+  ASSERT_NE(secondProgress, nullptr);
+  int64_t uid = 1002;
+  auto* child = static_cast<SSTriggerVirtTableInfo*>(tSimpleHashGet(task_.pVirtTableInfos, &uid, sizeof(uid)));
+  ASSERT_NE(child, nullptr);
+  child->vgId = secondReader.nodeId;
+  int64_t sharedGid = kCreateTableGroupId;
+  ASSERT_NE(taosArrayPush(child->tbGids, &sharedGid), nullptr);
+
+  if (legacyDeploy) {
+    ASSERT_NO_FATAL_FAILURE(RespondLastTs({2001}, secondProgress));
+  } else {
+    ASSERT_NO_FATAL_FAILURE(RespondEmptyLastTs(secondProgress));
+  }
+  EXPECT_TRUE(pulls_.empty());
+  EXPECT_TRUE(creates_.empty());
+  ASSERT_NO_FATAL_FAILURE(RespondEmptyLastTs());
+  ASSERT_EQ(pulls_.size(), 1U);
+  EXPECT_EQ(pulls_[0].gid, kCreateTableGroupId);
+  EXPECT_EQ(pulls_[0].vgId, reader_.nodeId);
+  EXPECT_EQ(tSimpleHashGet(task_.pHistoryCutoffTime, &sharedGid, sizeof(sharedGid)) != nullptr, legacyDeploy);
+  ASSERT_EQ(RespondPull(0, TSDB_CODE_STREAM_NO_CONTEXT), TSDB_CODE_SUCCESS);
+  EXPECT_TRUE(creates_.empty());
+  ASSERT_EQ(pulls_.size(), 2U);
+  EXPECT_EQ(pulls_[1].gid, sharedGid);
+  EXPECT_EQ(pulls_[1].vgId, secondReader.nodeId);
+  SStreamGroupValue value = {};
+  value.data.type = TSDB_DATA_TYPE_BIGINT;
+  value.data.val = 987;
+  ASSERT_NO_FATAL_FAILURE(RespondWithGroupValue(1, value));
+  ASSERT_EQ(creates_.size(), 1U);
+  EXPECT_EQ(creates_[0].gid, sharedGid);
+  auto* handle = static_cast<SSTriggerAHandle*>(creates_[0].sendInfo->param);
+  auto* request = static_cast<SSTriggerCalcRequest*>(handle->param);
+  ASSERT_EQ(taosArrayGetSize(request->groupColVals), 1U);
+  EXPECT_EQ(static_cast<SStreamGroupValue*>(taosArrayGet(request->groupColVals, 0))->data.val, value.data.val);
+  EXPECT_EQ(tSimpleHashGetSize(context_.pGroupColVals), legacyDeploy ? 1 : 0);
+  EXPECT_EQ(context_.pPendingCreateGroupColVals, nullptr);
+  EXPECT_EQ(context_.pPendingCreateFallbackVgIds, nullptr);
+  ASSERT_EQ(pulls_.size(), 3U);
+  EXPECT_EQ(pulls_[2].gid, kCreateTableGroupId + 1);
+  EXPECT_EQ(pulls_[2].vgId, secondReader.nodeId);
+
+  ASSERT_EQ(RespondCreate(0), TSDB_CODE_SUCCESS);
+  EXPECT_EQ(creates_.size(), 1U);
+  EXPECT_FALSE(context_.boundDetermined);
+  ASSERT_EQ(RespondPull(2), TSDB_CODE_SUCCESS);
+  ASSERT_EQ(creates_.size(), 2U);
+  EXPECT_EQ(creates_[1].gid, kCreateTableGroupId + 1);
+  ASSERT_EQ(RespondCreate(1), TSDB_CODE_SUCCESS);
+  EXPECT_TRUE(context_.boundDetermined);
+}
+
+INSTANTIATE_TEST_SUITE_P(Deployments, StreamTriggerSharedGroupPrecreateTest, ::testing::Bool(),
+                         [](const ::testing::TestParamInfo<bool>& info) {
+                           return info.param ? "LegacyPopulatedGroup" : "AnalyzedEmptyGroup";
+                         });
+
+TEST_F(StreamTriggerNodelayResponseTest, EmptyExternalPollDoesNotInterruptVirtualPrecreation) {
+  PrepareVirtualSources();
+  ASSERT_NO_FATAL_FAILURE(SetRunnerSlots(2));
+  ASSERT_NO_FATAL_FAILURE(RespondEmptyLastTs());
+  ASSERT_EQ(RespondPull(0), TSDB_CODE_SUCCESS);
+  ASSERT_EQ(RespondPull(1), TSDB_CODE_SUCCESS);
+  ASSERT_EQ(creates_.size(), 1U);
+  ASSERT_EQ(progress_->pendingPulls, 0);
+
+  // The external bootstrap has sampled its bound and is returning its first empty poll.
+  context_.haveReadCheckpoint = true;
+  context_.boundDetermined = true;
+  Heap maxDelayHeap = {};
+  context_.pMaxDelayHeap = &maxDelayHeap;
+  SStreamTaskAddr extReader = {};
+  extReader.taskId = kReaderTaskId + 1;
+  SSTriggerExtProgress extProgress = {};
+  extProgress.pTaskAddr = &extReader;
+  extProgress.sessionId = kRealtimeSessionId;
+  extProgress.pendingPulls = 1;
+  extProgress.pullType = STRIGGER_PULL_META_EXT;
+  SSTriggerAHandle handle = {};
+  handle.param = &extProgress;
+  handle.requestType = STRIGGER_PULL_META_EXT;
+  SMsgSendInfo sendInfo = {};
+  sendInfo.param = &handle;
+  SRpcMsg response = {};
+  response.msgType = TDMT_STREAM_TRIGGER_PULL_EXT_RSP;
+  response.code = TSDB_CODE_STREAM_NO_DATA;
+  response.info.ahandle = &sendInfo;
+  int64_t errorTaskId = 0;
+  ASSERT_EQ(stTriggerTaskProcessRsp(&task_.task, &response, &errorTaskId), TSDB_CODE_SUCCESS);
+  EXPECT_EQ(context_.status, STRIGGER_CONTEXT_DETERMINE_BOUND);
+
+  // The slot release, rather than an unrelated poll, resumes the queued create.
+  context_.haveReadCheckpoint = false;
+  ASSERT_EQ(RespondCreate(0), TSDB_CODE_SUCCESS);
+  ASSERT_EQ(creates_.size(), 2U);
+  EXPECT_EQ(creates_[1].gid, kCreateTableGroupId + 1);
+  EXPECT_EQ(context_.pPendingCreateTableGids, nullptr);
+  ASSERT_EQ(RespondCreate(1), TSDB_CODE_SUCCESS);
+}
+
+TEST_F(StreamTriggerNodelayResponseTest, VirtualCreateOnlyResponsePreservesExternalWindowCutoff) {
+  PrepareVirtualSources();
+  ASSERT_NO_FATAL_FAILURE(RespondEmptyLastTs());
+  ASSERT_EQ(RespondPull(0), TSDB_CODE_SUCCESS);
+
+  ExternalCheckpointFixture ext = {};
+  initExternalCheckpointFixture(&ext, task_.task.streamId);
+  constexpr int64_t extReader = 42;
+  addExternalCheckpointRef(&ext, 7, "source|db|table", 1, extReader, 1, STRIGGER_READER_WATERMARK_ACTIVE, 1, 100);
+  addExternalCheckpointTriggerBinding(&ext, extReader, kCreateTableGroupId);
+  task_.pExtOrigTableRefs = ext.task.pExtOrigTableRefs;
+  context_.pReaderExtProgress = ext.context.pReaderExtProgress;
+  auto* extProgress = *static_cast<SSTriggerExtProgress**>(taosArrayGet(ext.ownedProgress, 0));
+  EXPECT_EQ(RespondCreate(0), TSDB_CODE_SUCCESS);
+  EXPECT_EQ(extProgress->pCompletedCutoffGroupMaxTs, nullptr);
+
+  tSimpleHashCleanup(context_.pGidToExtRefs);
+  context_.pGidToExtRefs = nullptr;
+  context_.pReaderExtProgress = nullptr;
+  task_.pExtOrigTableRefs = nullptr;
+  destroyExternalCheckpointFixture(&ext);
+  ASSERT_EQ(RespondPull(1), TSDB_CODE_SUCCESS);
+  ASSERT_EQ(RespondCreate(1), TSDB_CODE_SUCCESS);
+}
+
+TEST_F(StreamTriggerNodelayResponseTest, ExternalBootstrapDefersReadingUntilVirtualPrecreationFinishes) {
+  PrepareVirtualSources();
+  task_.triggerType = STREAM_TRIGGER_STATE;
+  task_.historyCalcStarted = true;
+  context_.haveReadCheckpoint = true;
+  context_.walMode = STRIGGER_WAL_META_WITH_DATA;
+  SSDataBlock triggerBlock = {};
+  progress_->pTrigBlock = &triggerBlock;
+  ASSERT_NO_FATAL_FAILURE(RespondEmptyLastTs());
+
+  ExternalCheckpointFixture ext = {};
+  initExternalCheckpointFixture(&ext, task_.task.streamId);
+  constexpr int64_t extReader = 42;
+  addExternalCheckpointRef(&ext, 7, "source|db|table", 1, extReader, 1, STRIGGER_READER_WATERMARK_ACTIVE, 1, 100);
+  addExternalCheckpointTriggerBinding(&ext, extReader, kCreateTableGroupId);
+  task_.pExtOrigTableRefs = ext.task.pExtOrigTableRefs;
+  context_.pReaderExtProgress = ext.context.pReaderExtProgress;
+  auto* extProgress = *static_cast<SSTriggerExtProgress**>(taosArrayGet(ext.ownedProgress, 0));
+  extProgress->sessionId = kRealtimeSessionId;
+  extProgress->pendingPulls = 1;
+  extProgress->pullType = STRIGGER_PULL_LAST_TS_EXT;
+  SSTriggerExtPullRsp response = {};
+  response.pullType = STRIGGER_PULL_LAST_TS_EXT;
+  response.deploymentGeneration = extProgress->deploymentGeneration;
+  response.pLastTsArr = taosArrayInit(1, sizeof(SExtLastTsInfo));
+  SExtLastTsInfo sample = {};
+  sample.uid = 1;
+  sample.ts = 200;
+  ASSERT_NE(taosArrayPush(response.pLastTsArr, &sample), nullptr);
+  int32_t len = tSerializeSSTriggerExtPullRsp(nullptr, 0, &response);
+  ASSERT_GT(len, 0);
+  std::vector<char> payload(len);
+  ASSERT_EQ(tSerializeSSTriggerExtPullRsp(payload.data(), len, &response), len);
+  tDestroySSTriggerExtPullRsp(&response);
+  SSTriggerAHandle handle = {};
+  handle.param = extProgress;
+  handle.requestType = STRIGGER_PULL_LAST_TS_EXT;
+  SMsgSendInfo sendInfo = {};
+  sendInfo.param = &handle;
+  EXPECT_EQ(Dispatch(TDMT_STREAM_TRIGGER_PULL_EXT_RSP, &sendInfo, payload.data(), len), TSDB_CODE_SUCCESS);
+  EXPECT_TRUE(extPulls_.empty());
+  auto* watermark = static_cast<int64_t*>(
+      tSimpleHashGet(extProgress->triggerSideUidMaxTs, &sample.uid, sizeof(sample.uid)));
+  ASSERT_NE(watermark, nullptr);
+  EXPECT_EQ(*watermark, sample.ts);
+
+  EXPECT_EQ(RespondPull(0), TSDB_CODE_SUCCESS);
+  EXPECT_EQ(RespondPull(1), TSDB_CODE_SUCCESS);
+  EXPECT_EQ(extPulls_.size(), 1U);
+  EXPECT_EQ(extProgress->pullType, STRIGGER_PULL_META_DATA_EXT);
+  EXPECT_EQ(context_.pPendingCreateTableGids, nullptr);
+  EXPECT_EQ(RespondCreate(0), TSDB_CODE_SUCCESS);
+  EXPECT_EQ(RespondCreate(1), TSDB_CODE_SUCCESS);
+  context_.pReaderExtProgress = nullptr;
+  task_.pExtOrigTableRefs = nullptr;
+  destroyExternalCheckpointFixture(&ext);
+}
+
+TEST_F(StreamTriggerNodelayResponseTest, DisabledNodelayFinishesWithoutCreatingVirtualGroups) {
+  PrepareVirtualSources();
+  task_.nodelayCreateSubtable = false;
+  ASSERT_NO_FATAL_FAILURE(RespondEmptyLastTs());
+  EXPECT_TRUE(context_.boundDetermined);
+  EXPECT_TRUE(pulls_.empty());
+  EXPECT_TRUE(creates_.empty());
 }
 
 TEST(StreamTriggerReaderDataKeyTest, InternalIdentityIncludesPhysicalSource) {
@@ -38485,6 +40756,21 @@ uint8_t                gRecalcBarrierCheckpoint[128];
 int64_t                gRecalcBarrierCheckpointLen = 0;
 int32_t                gManualStreamErrorCalls = 0;
 TAOS_TMR_CALLBACK      gManualWaitCallback = nullptr;
+int32_t                gManualTriggerNoticeDrops = 0;
+std::atomic<int64_t>   gManualWallNs{0};
+std::atomic<int64_t>   gManualMonoNs{0};
+
+int32_t readManualClock(int clockId, struct timespec* pTime) {
+  int64_t nowNs = clockId == CLOCK_REALTIME ? gManualWallNs.load() : gManualMonoNs.load();
+  pTime->tv_sec = (time_t)(nowNs / NANOSECOND_PER_SEC);
+  pTime->tv_nsec = (long)(nowNs % NANOSECOND_PER_SEC);
+  return 0;
+}
+
+void advanceManualClock(int64_t deltaNs) {
+  gManualWallNs += deltaNs;
+  gManualMonoNs += deltaNs;
+}
 SStreamTask*           gManualAcquiredTask = nullptr;
 int32_t                gManualTriggerStartCalls = 0;
 int32_t                gManualRetryAllocCalls = 0;
@@ -38507,6 +40793,7 @@ struct ManualWaitInfoView {
   uint8_t  padding[3];
   uint64_t manualRecalcChainId;
   uint64_t controlMsgId;
+  int64_t  walWindowDeadline;
 };
 
 void countManualStreamTaskError(int64_t, int64_t, int32_t) { ++gManualStreamErrorCalls; }
@@ -38521,7 +40808,11 @@ void ignoreManualTimerStop(tmr_h) {}
 
 int32_t captureManualTriggerStart(void*, EQueueType, SRpcMsg* pMsg) {
   ++gManualTriggerStartCalls;
-  rpcFreeCont(gManualQueuedCtrl.pCont);
+  if (gManualQueuedCtrl.pCont != nullptr) {
+    // A second wake posted before the first was processed is a duplicate the timer must not produce.
+    ++gManualTriggerNoticeDrops;
+    rpcFreeCont(gManualQueuedCtrl.pCont);
+  }
   gManualQueuedCtrl = *pMsg;
   pMsg->pCont = nullptr;
   return TSDB_CODE_SUCCESS;
@@ -39214,6 +41505,7 @@ class StreamTriggerTaskManualRetryTest : public StreamTriggerRecalcBarrierTest {
     gManualMissingAcquireCalls = 0;
     gManualTerminalWaitNode = nullptr;
     gManualTerminalRequeueCalls = 0;
+    gManualTriggerNoticeDrops = 0;
     stub_.set(streamTmrStop, ignoreManualTimerStop);
     stTriggerTaskEnvCleanup();
     gManualWaitCallback = nullptr;
@@ -39445,6 +41737,23 @@ class StreamTriggerTaskManualRetryTest : public StreamTriggerRecalcBarrierTest {
         stTriggerTaskProcessRsp(&task_.task, &response, pErrorTaskId == nullptr ? &localErrorTaskId : pErrorTaskId);
     destroyAhandle(sendInfo);
     return code;
+  }
+
+  // Fires the timer the trigger armed for its wait list and processes the wake it posts, so a test
+  // exercises the deadline path instead of injecting its own wake. Returns false when nothing is due.
+  bool DriveWaitTimer() {
+    if (gManualWaitCallback == nullptr) return false;
+    gManualAcquiredTask = &task_.task;
+    stub_.set(streamAcquireTask, acquireManualTriggerTask);
+    stub_.set(streamReleaseTask, releaseManualTriggerTask);
+    PutToQueueFp previousPutToQueue = gStreamMgmt.msgCb.putToQueueFp;
+    gStreamMgmt.msgCb.putToQueueFp = captureManualTriggerStart;
+    gManualWaitCallback(nullptr, nullptr);
+    gStreamMgmt.msgCb.putToQueueFp = previousPutToQueue;
+    gManualAcquiredTask = nullptr;
+    if (gManualQueuedCtrl.pCont == nullptr) return false;
+    EXPECT_EQ(ProcessQueuedManualCtrl(), TSDB_CODE_SUCCESS);
+    return true;
   }
 
   int32_t ProcessCapturedCalcResponse(int32_t responseCode) {
@@ -40035,18 +42344,96 @@ TEST_F(StreamTriggerTaskManualRetryIntegrationTest, MissingHistoryBoundaryReader
   EXPECT_EQ(0, TD_DLIST_NELES(&task_.backoffRecalcRequests));
 }
 
-TEST_F(StreamTriggerTaskManualRetryIntegrationTest, RealtimeMissingReaderReportsTriggerForRecovery) {
+TEST_F(StreamTriggerTaskManualRetryIntegrationTest, RealtimeMissingReaderResendsOnEachDeadline) {
   ExpectNoManualRecalcJobs();
+  gManualWallNs = taosGetTimestampNs();
+  gManualMonoNs = taosGetMonoTimestampNs();
+  stub_.set(taosClockGetTime, readManualClock);
+
   ASSERT_EQ(ProcessRealtimeStart(), TSDB_CODE_SUCCESS);
   ASSERT_NE(gRecalcBarrierSendState.pullAhandle, nullptr);
   auto* ahandle = static_cast<SSTriggerAHandle*>(gRecalcBarrierSendState.pullAhandle->param);
   auto* request = static_cast<SSTriggerPullRequest*>(ahandle->param);
   ASSERT_NE(nullptr, request);
   EXPECT_EQ(ahandle->sessionId, kRealtimeSessionId);
-  EXPECT_EQ(ahandle->manualAttempt.chainId, 0U);
   ASSERT_NE(request->readerTaskId, task_.task.taskId);
 
   int64_t errorTaskId = 0;
+  EXPECT_EQ(ProcessCapturedPullResponse(TSDB_CODE_STREAM_TASK_NOT_EXIST, &errorTaskId), TSDB_CODE_SUCCESS);
+  ASSERT_EQ(listNEles(&realtime_.retryPullReqs), 1);
+  EXPECT_EQ(gManualTriggerStartCalls, 0);
+  auto* queued = *reinterpret_cast<SSTriggerPullRequest**>(TD_DLIST_HEAD(&realtime_.retryPullReqs)->data);
+  EXPECT_EQ(queued, request);
+  EXPECT_EQ(queued->retryCount, 1U);
+
+  // Before the first deadline the armed wake neither fires nor burns an attempt.
+  EXPECT_FALSE(DriveWaitTimer());
+  EXPECT_EQ(gManualTriggerStartCalls, 0);
+  EXPECT_EQ(listNEles(&realtime_.retryPullReqs), 1);
+  EXPECT_EQ(request->retryCount, 1U);
+
+  // First deadline: the timer itself re-sends the same request.
+  advanceManualClock(STREAM_ACT_MIN_DELAY_MSEC * NANOSECOND_PER_MSEC + NANOSECOND_PER_MSEC);
+  ASSERT_TRUE(DriveWaitTimer());
+  EXPECT_EQ(gManualTriggerStartCalls, 1);
+  EXPECT_EQ(gManualTriggerNoticeDrops, 0);
+  ASSERT_NE(gRecalcBarrierSendState.pullAhandle, nullptr);
+  auto* resent = static_cast<SSTriggerAHandle*>(gRecalcBarrierSendState.pullAhandle->param);
+  ASSERT_NE(nullptr, resent);
+  EXPECT_EQ(static_cast<SSTriggerPullRequest*>(resent->param), request);
+  EXPECT_EQ(request->retryCount, 1U);
+  EXPECT_EQ(listNEles(&realtime_.retryPullReqs), 0);
+
+  // A second missing reply schedules its own deadline and keeps the same request.
+  EXPECT_EQ(ProcessCapturedPullResponse(TSDB_CODE_STREAM_TASK_NOT_EXIST, &errorTaskId), TSDB_CODE_SUCCESS);
+  ASSERT_EQ(listNEles(&realtime_.retryPullReqs), 1);
+  EXPECT_EQ(request->retryCount, 2U);
+  EXPECT_FALSE(DriveWaitTimer());
+  EXPECT_EQ(gManualTriggerStartCalls, 1);
+
+  advanceManualClock(STREAM_ACT_MIN_DELAY_MSEC * NANOSECOND_PER_MSEC + NANOSECOND_PER_MSEC);
+  ASSERT_TRUE(DriveWaitTimer());
+  EXPECT_EQ(gManualTriggerStartCalls, 2);
+  EXPECT_EQ(gManualTriggerNoticeDrops, 0);
+  ASSERT_NE(gRecalcBarrierSendState.pullAhandle, nullptr);
+  auto* again = static_cast<SSTriggerAHandle*>(gRecalcBarrierSendState.pullAhandle->param);
+  ASSERT_NE(nullptr, again);
+  EXPECT_EQ(static_cast<SSTriggerPullRequest*>(again->param), request);
+  EXPECT_EQ(request->retryCount, 2U);
+  EXPECT_EQ(listNEles(&realtime_.retryPullReqs), 0);
+  EXPECT_EQ(gManualStreamErrorCalls, 0);
+  ExpectNoManualRecalcJobs();
+}
+
+TEST_F(StreamTriggerTaskManualRetryIntegrationTest, RealtimeMissingReaderReportsTriggerAfterRetryBudgetExhausted) {
+  ExpectNoManualRecalcJobs();
+  gManualWallNs = taosGetTimestampNs();
+  gManualMonoNs = taosGetMonoTimestampNs();
+  stub_.set(taosClockGetTime, readManualClock);
+
+  ASSERT_EQ(ProcessRealtimeStart(), TSDB_CODE_SUCCESS);
+  ASSERT_NE(gRecalcBarrierSendState.pullAhandle, nullptr);
+  auto* ahandle = static_cast<SSTriggerAHandle*>(gRecalcBarrierSendState.pullAhandle->param);
+  auto* request = static_cast<SSTriggerPullRequest*>(ahandle->param);
+  ASSERT_NE(nullptr, request);
+  EXPECT_EQ(ahandle->sessionId, kRealtimeSessionId);
+  ASSERT_NE(request->readerTaskId, task_.task.taskId);
+
+  int64_t errorTaskId = 0;
+  EXPECT_EQ(ProcessCapturedPullResponse(TSDB_CODE_STREAM_TASK_NOT_EXIST, &errorTaskId), TSDB_CODE_SUCCESS);
+  for (uint32_t attempt = 1; attempt <= STREAM_PULL_TASK_NOT_EXIST_RETRY_LIMIT; ++attempt) {
+    ASSERT_EQ(listNEles(&realtime_.retryPullReqs), 1);
+    EXPECT_EQ(request->retryCount, attempt);
+    advanceManualClock(STREAM_ACT_MIN_DELAY_MSEC * NANOSECOND_PER_MSEC + NANOSECOND_PER_MSEC);
+    ASSERT_TRUE(DriveWaitTimer());
+    ASSERT_NE(gRecalcBarrierSendState.pullAhandle, nullptr);
+    if (attempt < STREAM_PULL_TASK_NOT_EXIST_RETRY_LIMIT) {
+      EXPECT_EQ(ProcessCapturedPullResponse(TSDB_CODE_STREAM_TASK_NOT_EXIST, &errorTaskId), TSDB_CODE_SUCCESS);
+    }
+  }
+  EXPECT_EQ(gManualTriggerNoticeDrops, 0);
+
+  // The budget is exhausted: the next missing-reader reply is reported for recovery.
   EXPECT_EQ(ProcessCapturedPullResponse(TSDB_CODE_STREAM_TASK_NOT_EXIST, &errorTaskId),
             TSDB_CODE_STREAM_TASK_NOT_EXIST);
   EXPECT_EQ(errorTaskId, task_.task.taskId);
@@ -40054,6 +42441,43 @@ TEST_F(StreamTriggerTaskManualRetryIntegrationTest, RealtimeMissingReaderReports
   EXPECT_EQ(TD_DLIST_NELES(&task_.backoffRecalcRequests), 0);
   EXPECT_EQ(gManualStreamErrorCalls, 0);
   ExpectNoManualRecalcJobs();
+}
+
+TEST_F(StreamTriggerTaskManualRetryIntegrationTest, HistoryMissingReaderResendsOnArmedTimer) {
+  ExpectNoManualRecalcJobs();
+  gManualWallNs = taosGetTimestampNs();
+  gManualMonoNs = taosGetMonoTimestampNs();
+  stub_.set(taosClockGetTime, readManualClock);
+
+  ASSERT_EQ(QueueFillHistory(100, 200), TSDB_CODE_SUCCESS);
+  ASSERT_EQ(ProcessHistoryStart(), TSDB_CODE_SUCCESS);
+  ASSERT_NE(gRecalcBarrierSendState.pullAhandle, nullptr);
+  auto* ahandle = static_cast<SSTriggerAHandle*>(gRecalcBarrierSendState.pullAhandle->param);
+  auto* request = static_cast<SSTriggerPullRequest*>(ahandle->param);
+  ASSERT_NE(nullptr, request);
+  EXPECT_EQ(ahandle->sessionId, kHistorySessionId);
+  EXPECT_TRUE(context_.isHistory);
+  ASSERT_NE(request->readerTaskId, task_.task.taskId);
+
+  int64_t errorTaskId = 0;
+  EXPECT_EQ(ProcessCapturedPullResponse(TSDB_CODE_STREAM_TASK_NOT_EXIST, &errorTaskId), TSDB_CODE_SUCCESS);
+  ASSERT_EQ(listNEles(&context_.retryPullReqs), 1);
+  auto* queued = *reinterpret_cast<SSTriggerPullRequest**>(TD_DLIST_HEAD(&context_.retryPullReqs)->data);
+  EXPECT_EQ(queued, request);
+  EXPECT_EQ(queued->retryCount, 1U);
+
+  EXPECT_FALSE(DriveWaitTimer());
+  EXPECT_EQ(request->retryCount, 1U);
+
+  advanceManualClock(STREAM_ACT_MIN_DELAY_MSEC * NANOSECOND_PER_MSEC + NANOSECOND_PER_MSEC);
+  ASSERT_TRUE(DriveWaitTimer());
+  EXPECT_EQ(gManualTriggerNoticeDrops, 0);
+  ASSERT_NE(gRecalcBarrierSendState.pullAhandle, nullptr);
+  auto* resent = static_cast<SSTriggerAHandle*>(gRecalcBarrierSendState.pullAhandle->param);
+  ASSERT_NE(nullptr, resent);
+  EXPECT_EQ(static_cast<SSTriggerPullRequest*>(resent->param), request);
+  EXPECT_EQ(request->retryCount, 1U);
+  EXPECT_EQ(listNEles(&context_.retryPullReqs), 0);
 }
 
 TEST_F(StreamTriggerTaskManualRetryIntegrationTest, MissingValidationReaderPreservesManualAttemptForRecovery) {
@@ -45330,18 +47754,6 @@ TEST(StreamRunnerTaskMgmtReqTest, KeepsPendingRequestInsteadOfReplacingIt) {
 /* A mixed virtual table can queue the same window range twice: an external source may deliver its
  * rows for a window the other sources already closed. Dispatching it twice makes the sink aggregate
  * the same rows twice (defect 7147722181), so the request keeps only the first param per range. */
-static Stub* gPendingDedupArrayStub = nullptr;
-static const SArray* gPendingDedupParams = nullptr;
-static int64_t gPendingDedupArrayReads = 0;
-
-static void* countPendingDedupArrayReads(const SArray* array, size_t index) {
-  if (array == gPendingDedupParams) ++gPendingDedupArrayReads;
-  gPendingDedupArrayStub->reset(taosArrayGet);
-  void* result = taosArrayGet(array, index);
-  gPendingDedupArrayStub->set(taosArrayGet, countPendingDedupArrayReads);
-  return result;
-}
-
 TEST(StreamTriggerPendingCalcDedupTest, BatchDoesNotRescanAssembledParameters) {
   constexpr int32_t kWindowCount = 1024;
   SObjPool pool = {};
@@ -45358,22 +47770,17 @@ TEST(StreamTriggerPendingCalcDedupTest, BatchDoesNotRescanAssembledParameters) {
   ASSERT_NE(params, nullptr);
   int32_t moved = 0;
   int32_t duplicates = 0;
-  Stub arrayStub;
-  gPendingDedupArrayStub = &arrayStub;
-  gPendingDedupParams = params;
-  gPendingDedupArrayReads = 0;
-  arrayStub.set(taosArrayGet, countPendingDedupArrayReads);
-  const int32_t code = stTestRealtimeCalcReqMovePending(params, &pending, STREAM_CALC_REQ_MAX_WIN_NUM, INT64_MAX,
-                                                       &moved, &duplicates);
-  arrayStub.reset(taosArrayGet);
-  gPendingDedupArrayStub = nullptr;
-  gPendingDedupParams = nullptr;
+  int32_t    code = 0;
+  const auto reads = measureArrayReads(params, [&] {
+    code =
+        stTestRealtimeCalcReqMovePending(params, &pending, STREAM_CALC_REQ_MAX_WIN_NUM, INT64_MAX, &moved, &duplicates);
+  });
   ASSERT_EQ(code, TSDB_CODE_SUCCESS);
   EXPECT_EQ(moved, kWindowCount);
   EXPECT_EQ(duplicates, 0);
   EXPECT_EQ(pending.neles, 0);
   ASSERT_EQ(taosArrayGetSize(params), kWindowCount);
-  EXPECT_LE(gPendingDedupArrayReads, 2 * kWindowCount);
+  EXPECT_LE(reads, 2 * kWindowCount);
   for (int32_t index = 0; index < kWindowCount; ++index) {
     const auto* param = static_cast<const SSTriggerCalcParam*>(taosArrayGet(params, index));
     EXPECT_EQ(param->wstart, index);

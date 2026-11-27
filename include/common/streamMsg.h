@@ -102,6 +102,9 @@ typedef struct STokenBucket       STokenBucket;
 #define STREAM_OPTION_TIME_CONFIG_PRESENT     BIT_FLAG_MASK(6)
 #define STREAM_OPTION_DERIVATIVE_TAG          BIT_FLAG_MASK(7)
 #define STREAM_OPTION_TIME_ALIGN                    BIT_FLAG_MASK(8)
+#define STREAM_OPTION_OUTPUT_NEEDS_TRIGGER_VALUES   BIT_FLAG_MASK(9)
+#define STREAM_OPTION_PRECREATE_OUTPUT_ANALYZED     BIT_FLAG_MASK(10)
+#define STREAM_OPTION_OUTPUT_NEEDS_GROUP_VALUES     BIT_FLAG_MASK(11)
 #define STREAM_TIME_ALIGN_FRAME_MAGIC               UINT32_C(0x4e575441)
 #define STREAM_TIME_ALIGN_FRAME_VERSION             1
 #define STREAM_RESULT_ADMISSION_FRAME_MAGIC         UINT32_C(0x4e575241)
@@ -1501,6 +1504,7 @@ typedef struct SSTriggerPullRequest {
   uint64_t          progressRequestToken;  // does not serialize
   SStreamManualRecalcAttemptId manualAttempt;         // does not serialize
   uint32_t          retryCount;  // does not serialize
+  int64_t           retryDueNs;  // does not serialize, earliest re-send of a retried pull
   uint64_t                     timeAlignWalRound;    // WAL reads for an admitted TIME_ALIGN round
   uint64_t                     timeAlignWalRequest;  // stable across a transport retry
 } SSTriggerPullRequest;
@@ -2097,6 +2101,8 @@ typedef enum ESTriggerCtrlType {
   STRIGGER_CTRL_START = 0,
   STRIGGER_CTRL_STOP = 1,
   STRIGGER_CTRL_CALC_RETRY = 2,
+  STRIGGER_CTRL_WAL_CHECKPOINT = 3,
+  STRIGGER_CTRL_GROUP_COL_RETRY = 4,
 } ESTriggerCtrlType;
 
 typedef enum {

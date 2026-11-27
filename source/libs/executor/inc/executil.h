@@ -199,6 +199,17 @@ typedef struct STableListInfo {
   SHashObj*        map;           // speedup acquire the tableQueryInfo by table uid
   SHashObj*        pTbnameMap;    // key: uid, value: an owned name resolved from a tbname condition
   SHashObj*        remainGroups;  // remaining group has not yet processed the empty group
+  // Optional reusable scalar group results. pGroupDataSlots is derived from the
+  // plan by initGroupDataSlotMap(); pGroupDataRows (table uid -> row) and
+  // pGroupData are installed together by getColInfoResultForGroupby() and must
+  // never be paired across builds. A failed build drops the row map and the
+  // group data but keeps the slot map, which stays valid for the next build.
+  // setScalarGroupColumnData() is the only consumer and falls back to the table
+  // tags when a slot has no row or data entry. Free all three together on
+  // teardown (tableListClear/tableListDestroy).
+  SArray*          pGroupData;    // optional scalar group results, indexed by pGroupDataSlots
+  SHashObj*        pGroupDataRows;  // key: table uid, value: row in pGroupData
+  SHashObj*        pGroupDataSlots; // key: output slot, value: index of the column in pGroupData
   STableListIdInfo idInfo;        // this maybe the super table or ordinary table
   // 128-bit fingerprint of the qualified child-table set (the de-duplicated map
   // uids), computed after the table list is built. Scans over the same virtual stable
@@ -437,6 +448,10 @@ void    execUtilTestSetExtractSingleRspBlockFailOnce(int32_t code);
 int32_t execUtilTestGetHandleRemoteRowResDestroyCount(void);
 void    execUtilTestFailStreamGroupSortHashPutAfter(int32_t successfulPuts);
 int32_t execUtilTestSortStreamTableGroups(STableListInfo* pTableListInfo);
+int32_t execUtilTestPutTbGroupToCache(STableListInfo* pTableListInfo, SHashObj* groupIdMap, SStorageAPI* pAPI,
+                                      void* pVnode, const uint8_t* digest, const uint8_t* cacheKey, int32_t keyLen);
+int32_t execUtilTestInitGroupDataSlotMap(STableListInfo* pTableListInfo, SScanPhysiNode* pScanNode, SNodeList* group);
+void    execUtilTestRetainReferencedGroupData(STableListInfo* pTableListInfo, SArray* groupData, SNodeList* group);
 #endif
 
 #ifdef __cplusplus

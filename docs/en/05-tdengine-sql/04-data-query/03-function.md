@@ -982,6 +982,40 @@ For VARCHAR strings, `CHAR_LENGTH`, `SUBSTRING/SUBSTR`, `SUBSTRING_INDEX`, `POSI
 
 The input parameters for string functions are of string type, and the return results are of numeric type or string type.
 
+### STRCMP
+
+```sql
+STRCMP(expr1, expr2)
+```
+
+**Function Classification**: Scalar function.
+
+**Function Description**: Compares two strings. Returns 0 if they are equal, -1 if `expr1` is less than `expr2`, and 1 otherwise.
+
+**Return Type**: INT.
+
+**Applicable Data Types**: `expr1` and `expr2` must be VARCHAR or NCHAR.
+
+**Nested Subquery Support**: Applicable to both inner and outer queries.
+
+**Applicable to**: Tables and supertables.
+
+**Usage**:
+
+- Returns NULL if either argument is NULL. An empty string is not NULL and is less than any non-empty string.
+- The comparison is binary: case-sensitive, trailing spaces are significant, and `STRCMP('A', 'a')` returns -1. This differs from MySQL's case-insensitive default collation; use `LOWER()` on both arguments for case-insensitive comparison.
+- When VARCHAR and NCHAR are mixed, the VARCHAR value is converted from UTF-8 to NCHAR and compared by code point. If the VARCHAR value contains invalid UTF-8, the conversion fails and an error is returned.
+- A UDF named `STRCMP` is shadowed by the built-in function after upgrade; rename it beforehand.
+
+**Example**:
+
+```sql
+taos> select strcmp('abc', 'abe');
+ strcmp('abc', 'abe') |
+=======================
+                   -1 |
+```
+
 ### CHAR_LENGTH
 
 ```sql

@@ -209,6 +209,6 @@ explain verbose true select (select count(*) from matrix_history where v > 15), 
 explain analyze verbose true select (select count(*) from matrix_history where v > 15), (select count(*) from matrix_history where v >= 15) from matrix_readings limit 1\G;
 select (select max(a.v) from matrix_history a where a.k = r.k), (select max(b.v) from matrix_history b where b.k = r.k) from matrix_readings r order by r.ts;
 # Expected InitPlans 0, correlated templates 2.
-explain select (select max(a.v) from matrix_history a where a.k = r.k), (select max(b.v) from matrix_history b where b.k = r.k) from matrix_readings r order by r.ts\G;
-explain analyze select (select max(a.v) from matrix_history a where a.k = r.k), (select max(b.v) from matrix_history b where b.k = r.k) from matrix_readings r order by r.ts\G;
+explain select /*+ NO_DECORRELATE() */ (select max(a.v) from matrix_history a where a.k = r.k), (select max(b.v) from matrix_history b where b.k = r.k) from matrix_readings r order by r.ts\G;
+explain analyze select /*+ NO_DECORRELATE() */ (select max(a.v) from matrix_history a where a.k = r.k), (select max(b.v) from matrix_history b where b.k = r.k) from matrix_readings r order by r.ts\G;
 drop database duplicate_equivalent_variants;
