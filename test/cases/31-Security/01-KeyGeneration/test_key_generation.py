@@ -38,6 +38,7 @@ class TestBasic:
         Since: v3.4.0.0
 
         Labels: common,ci,integration,functional,security
+
         Jira: TS-7230
 
         History:
