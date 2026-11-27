@@ -1748,7 +1748,24 @@ static int32_t buildCreateTbReq(SVnodeModifyOpStmt* pStmt, STag* pTag, SArray* p
                              TSDB_DEFAULT_TABLE_TTL);
 }
 
+#if !defined(TD_ENTERPRISE) && !defined(TD_ASTRA)
+// Rejects SM4 crypto functions in the community build before any value/tag conversion runs, so
+// every insert path (column values, tags, inline create-table tag values) reports the same error
+// instead of silently storing the plaintext produced by the built-in no-op implementations.
+static int32_t communityOnlyCryptErrMsg(SMsgBuf* pMsgBuf, const SToken* pToken) {
+  return generateSyntaxErrMsgExt(pMsgBuf, TSDB_CODE_OPS_NOT_SUPPORT,
+                                 "%.*s is only supported in TDengine Enterprise edition", (int32_t)pToken->n,
+                                 pToken->z);
+}
+#endif
+
 int32_t checkAndTrimValue(SToken* pToken, char* tmpTokenBuf, SMsgBuf* pMsgBuf, int8_t type) {
+#if !defined(TD_ENTERPRISE) && !defined(TD_ASTRA)
+  if (pToken->type == TK_SM4_ENCRYPT || pToken->type == TK_SM4_DECRYPT) {
+    return communityOnlyCryptErrMsg(pMsgBuf, pToken);
+  }
+#endif
+
   if (pToken->type == TK_NK_QUESTION) {
     return buildInvalidOperationMsg(pMsgBuf, "insert into super table syntax is not supported for stmt");
   }

@@ -18,6 +18,10 @@ from new_test_framework.utils import tdLog, tdSql, tdStream, sc, clusterComCheck
 
 
 class TestCrypto:
+    # SM4 is only implemented by the enterprise build; the community build rejects it at
+    # parse/translate time. The default keeps the helper methods usable when a single test
+    # method is selected with ``-k``; test_crypto() probe updates it per run.
+    sm4_supported = True
 
     def setup_class(cls):
         tdLog.debug(f"start to execute {__file__}")
@@ -40,6 +44,10 @@ class TestCrypto:
              - 2025-11-28 Stephen Jin Create crypto functions
 
         """
+
+        self.sm4_supported = self.detect_sm4_support()
+        if not self.sm4_supported:
+            self.sm4_community_rejection()
 
         self.smoking()
         tdStream.dropAllStreamsAndDbs()
@@ -152,6 +160,65 @@ class TestCrypto:
             tdSql.execute(f"drop database {db_name}")
         print("AES legacy IV migration ......................... [passed]")
 
+    def detect_sm4_support(self):
+        """Probe whether the connected server implements SM4 (enterprise build).
+
+        Wrapped in to_base64() because the raw ciphertext is varbinary and cannot be
+        decoded by the client resultset reader.
+        """
+        return (
+            tdSql.query(
+                "SELECT to_base64(sm4_encrypt('probe', 'mykeystring'))",
+                queryTimes=1,
+                exit=False,
+            )
+            is not False
+        )
+
+    def sm4_community_rejection(self):
+        """The community build must reject SM4 instead of returning the plaintext unchanged."""
+
+        # TSDB_CODE_OPS_NOT_SUPPORT: TAOS_DEF_ERROR_CODE(0, 0x0100)
+        errno = 0x80000100
+        err = "only supported in TDengine Enterprise edition"
+
+        def expect_rejected(sql):
+            tdSql.error(sql, expectedErrno=errno, expectErrInfo=err, fullMatched=False)
+
+        # SELECT: projection list, mixed case, and a nested call.
+        expect_rejected("SELECT sm4_encrypt('plaintext', 'mykeystring')")
+        expect_rejected("SELECT sm4_decrypt('ciphertext', 'mykeystring')")
+        expect_rejected("SELECT SM4_ENCRYPT('plaintext', 'mykeystring')")
+        expect_rejected("SELECT length(sm4_encrypt('plaintext', 'mykeystring'))")
+
+        db = "db_sm4_unsupported"
+        tdSql.execute(f"drop database if exists {db}")
+        tdSql.execute(f"create database {db}")
+        try:
+            tdSql.execute(f"create table {db}.tb(ts timestamp, v varchar(64))")
+            tdSql.execute(f"create table {db}.src(ts timestamp, v varchar(64))")
+            tdSql.execute(f"insert into {db}.src values(now, 'plaintext')")
+
+            # INSERT ... VALUES constant folding path.
+            expect_rejected(f"insert into {db}.tb values(now, sm4_encrypt('plaintext', 'mykeystring'))")
+            expect_rejected(f"insert into {db}.tb values(now, sm4_decrypt('ciphertext', 'mykeystring'))")
+
+            # INSERT ... SELECT and WHERE are translated as select statements.
+            expect_rejected(
+                f"insert into {db}.tb select ts, sm4_encrypt(v, 'mykeystring') from {db}.src"
+            )
+            expect_rejected(
+                f"select ts from {db}.src where length(sm4_encrypt(v, 'mykeystring')) > 0"
+            )
+
+            # Tag values go through the tag parser rather than the column value parser.
+            tdSql.execute(f"create stable {db}.st(ts timestamp, v int) tags(t varchar(64))")
+            expect_rejected(
+                f"insert into {db}.ct using {db}.st tags(sm4_encrypt('tagvalue', 'mykeystring')) values(now, 1)"
+            )
+        finally:
+            tdSql.execute(f"drop database if exists {db}")
+
     def smoking(self):
         vgroups = 1
         dbName = "db"
@@ -185,27 +252,28 @@ class TestCrypto:
         tdSql.checkRows(1)
         tdSql.checkData(0, 0, 'mytext')
 
-        tdLog.info(f"====> sm4")
-        f = 'sm4_ENCRYPT'
-        fi = 'sm4_decrypt'
-        
-        tdSql.query(f"SELECT {fi}({f}('mytext','mykeystring'), 'mykeystring')")
-        tdSql.checkRows(1)
-        tdSql.checkData(0, 0, 'mytext')
+        if self.sm4_supported:
+            tdLog.info(f"====> sm4")
+            f = 'sm4_ENCRYPT'
+            fi = 'sm4_decrypt'
 
-        tdSql.execute(f"drop table {dbName}.{tbName}")
-        tdSql.execute(f"create table {dbName}.{tbName}(ts timestamp, f1 varchar(32))")
-        tdSql.execute(f"insert into {dbName}.{tbName} values(now, {f}('mytext','mykeystring'))")
-        tdSql.query(f"SELECT {fi}(f1, 'mykeystring') from {dbName}.{tbName}")
-        tdSql.checkRows(1)
-        tdSql.checkData(0, 0, 'mytext')
+            tdSql.query(f"SELECT {fi}({f}('mytext','mykeystring'), 'mykeystring')")
+            tdSql.checkRows(1)
+            tdSql.checkData(0, 0, 'mytext')
 
-        tdSql.execute(f"drop table {dbName}.{tbName}")
-        tdSql.execute(f"create table {dbName}.{tbName}(ts timestamp, f1 varchar(32))")
-        tdSql.execute(f"insert into {dbName}.{tbName} SELECT now, {fi}({f}('mytext','mykeystring'), 'mykeystring')")
-        tdSql.query(f"SELECT f1 from {dbName}.{tbName}")
-        tdSql.checkRows(1)
-        tdSql.checkData(0, 0, 'mytext')
+            tdSql.execute(f"drop table {dbName}.{tbName}")
+            tdSql.execute(f"create table {dbName}.{tbName}(ts timestamp, f1 varchar(32))")
+            tdSql.execute(f"insert into {dbName}.{tbName} values(now, {f}('mytext','mykeystring'))")
+            tdSql.query(f"SELECT {fi}(f1, 'mykeystring') from {dbName}.{tbName}")
+            tdSql.checkRows(1)
+            tdSql.checkData(0, 0, 'mytext')
+
+            tdSql.execute(f"drop table {dbName}.{tbName}")
+            tdSql.execute(f"create table {dbName}.{tbName}(ts timestamp, f1 varchar(32))")
+            tdSql.execute(f"insert into {dbName}.{tbName} SELECT now, {fi}({f}('mytext','mykeystring'), 'mykeystring')")
+            tdSql.query(f"SELECT f1 from {dbName}.{tbName}")
+            tdSql.checkRows(1)
+            tdSql.checkData(0, 0, 'mytext')
 
         tdLog.info(f"====> base64")
         f = 'to_base64'
@@ -378,31 +446,32 @@ class TestCrypto:
         tdSql.checkRows(1)
         tdSql.checkData(0, 0, None)
 
-        f = 'sm4_encrypt'
-        
-        tdSql.query(f"SELECT {f}(null, 'mykeystring')")
-        tdSql.checkRows(1)
-        tdSql.checkData(0, 0, None)
+        if self.sm4_supported:
+            f = 'sm4_encrypt'
 
-        tdSql.execute(f"drop table if exists {dbName}.{tbName}")
-        tdSql.execute(f"create table {dbName}.{tbName}(ts timestamp, f1 varchar(256))")
-        tdSql.execute(f"insert into {dbName}.{tbName} values(now, {f}(NULL, 'mykeystring'))")
-        tdSql.query(f"SELECT f1 from {dbName}.{tbName}")
-        tdSql.checkRows(1)
-        tdSql.checkData(0, 0, None)
+            tdSql.query(f"SELECT {f}(null, 'mykeystring')")
+            tdSql.checkRows(1)
+            tdSql.checkData(0, 0, None)
 
-        f = 'sm4_decrypt'
-        
-        tdSql.query(f"SELECT {f}(null, 'mykeystring')")
-        tdSql.checkRows(1)
-        tdSql.checkData(0, 0, None)
+            tdSql.execute(f"drop table if exists {dbName}.{tbName}")
+            tdSql.execute(f"create table {dbName}.{tbName}(ts timestamp, f1 varchar(256))")
+            tdSql.execute(f"insert into {dbName}.{tbName} values(now, {f}(NULL, 'mykeystring'))")
+            tdSql.query(f"SELECT f1 from {dbName}.{tbName}")
+            tdSql.checkRows(1)
+            tdSql.checkData(0, 0, None)
 
-        tdSql.execute(f"drop table if exists {dbName}.{tbName}")
-        tdSql.execute(f"create table {dbName}.{tbName}(ts timestamp, f1 varchar(256))")
-        tdSql.execute(f"insert into {dbName}.{tbName} values(now, {f}(NULL, 'mykeystring'))")
-        tdSql.query(f"SELECT f1 from {dbName}.{tbName}")
-        tdSql.checkRows(1)
-        tdSql.checkData(0, 0, None)
+            f = 'sm4_decrypt'
+
+            tdSql.query(f"SELECT {f}(null, 'mykeystring')")
+            tdSql.checkRows(1)
+            tdSql.checkData(0, 0, None)
+
+            tdSql.execute(f"drop table if exists {dbName}.{tbName}")
+            tdSql.execute(f"create table {dbName}.{tbName}(ts timestamp, f1 varchar(256))")
+            tdSql.execute(f"insert into {dbName}.{tbName} values(now, {f}(NULL, 'mykeystring'))")
+            tdSql.query(f"SELECT f1 from {dbName}.{tbName}")
+            tdSql.checkRows(1)
+            tdSql.checkData(0, 0, None)
 
         tdLog.info(f"====> masking")
 
@@ -719,19 +788,20 @@ class TestCrypto:
         tdSql.checkRows(1)
         tdSql.checkData(0, 0, '')
 
-        f = 'sm4_encrypt'
-        fi = 'sm4_decrypt'
-        
-        tdSql.query(f"SELECT {fi}({f}('', 'mykeystring'), 'mykeystring')")
-        tdSql.checkRows(1)
-        tdSql.checkData(0, 0, '')
+        if self.sm4_supported:
+            f = 'sm4_encrypt'
+            fi = 'sm4_decrypt'
 
-        tdSql.execute(f"drop table if exists {dbName}.{tbName}")
-        tdSql.execute(f"create table {dbName}.{tbName}(ts timestamp, f1 varchar(256))")
-        tdSql.execute(f"insert into {dbName}.{tbName} values(now, {f}('', 'mykeystring'))")
-        tdSql.query(f"SELECT {fi}(f1, 'mykeystring') from {dbName}.{tbName}")
-        tdSql.checkRows(1)
-        tdSql.checkData(0, 0, '')
+            tdSql.query(f"SELECT {fi}({f}('', 'mykeystring'), 'mykeystring')")
+            tdSql.checkRows(1)
+            tdSql.checkData(0, 0, '')
+
+            tdSql.execute(f"drop table if exists {dbName}.{tbName}")
+            tdSql.execute(f"create table {dbName}.{tbName}(ts timestamp, f1 varchar(256))")
+            tdSql.execute(f"insert into {dbName}.{tbName} values(now, {f}('', 'mykeystring'))")
+            tdSql.query(f"SELECT {fi}(f1, 'mykeystring') from {dbName}.{tbName}")
+            tdSql.checkRows(1)
+            tdSql.checkData(0, 0, '')
 
     def single(self):
         vgroups = 1
@@ -914,19 +984,20 @@ class TestCrypto:
         tdSql.checkRows(1)
         tdSql.checkData(0, 0, 'a')
 
-        f = 'sm4_encrypt'
-        fi = 'sm4_decrypt'
-        
-        tdSql.query(f"SELECT {fi}({f}('a', 'mykeystring'), 'mykeystring')")
-        tdSql.checkRows(1)
-        tdSql.checkData(0, 0, 'a')
+        if self.sm4_supported:
+            f = 'sm4_encrypt'
+            fi = 'sm4_decrypt'
 
-        tdSql.execute(f"drop table if exists {dbName}.{tbName}")
-        tdSql.execute(f"create table {dbName}.{tbName}(ts timestamp, f1 varchar(256))")
-        tdSql.execute(f"insert into {dbName}.{tbName} values(now, {f}('a', 'mykeystring'))")
-        tdSql.query(f"SELECT {fi}(f1, 'mykeystring') from {dbName}.{tbName}")
-        tdSql.checkRows(1)
-        tdSql.checkData(0, 0, 'a')
+            tdSql.query(f"SELECT {fi}({f}('a', 'mykeystring'), 'mykeystring')")
+            tdSql.checkRows(1)
+            tdSql.checkData(0, 0, 'a')
+
+            tdSql.execute(f"drop table if exists {dbName}.{tbName}")
+            tdSql.execute(f"create table {dbName}.{tbName}(ts timestamp, f1 varchar(256))")
+            tdSql.execute(f"insert into {dbName}.{tbName} values(now, {f}('a', 'mykeystring'))")
+            tdSql.query(f"SELECT {fi}(f1, 'mykeystring') from {dbName}.{tbName}")
+            tdSql.checkRows(1)
+            tdSql.checkData(0, 0, 'a')
 
     def error(self):
         vgroups = 1

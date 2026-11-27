@@ -102,8 +102,6 @@ class TestFunctionNoFromAll:
         ("sha2", "select sha2('abc', 256);"),
         ("sign", "select sign(1);"),
         ("sin", "select sin(1);"),
-        ("sm4_decrypt", "select sm4_decrypt(sm4_encrypt('abc', 'key123456789012'), 'key123456789012');"),
-        ("sm4_encrypt", "select to_base64(sm4_encrypt('abc', 'key123456789012'));"),
         ("spread", "select spread(1);"),
         ("sqrt", "select sqrt(1);"),
         ("st_astext", "select st_astext(st_geomfromtext('POINT(1 2)'));"),
@@ -168,6 +166,13 @@ class TestFunctionNoFromAll:
         ("_table_count", "select _table_count;"),
     ]
 
+    # SM4 is only implemented by the enterprise build and rejected by the community build,
+    # so the expected outcome is probed at run time instead of being hard-coded here.
+    SM4_CASES = [
+        ("sm4_decrypt", "select sm4_decrypt(sm4_encrypt('abc', 'key123456789012'), 'key123456789012');"),
+        ("sm4_encrypt", "select to_base64(sm4_encrypt('abc', 'key123456789012'));"),
+    ]
+
     def _query_sql(self, sql):
         tdSql.sql = sql
         try:
@@ -182,9 +187,9 @@ class TestFunctionNoFromAll:
             tdSql.queryCols = 0
             return False, repr(err)
 
-    def do_positive_no_from_calls(self):
+    def do_positive_no_from_calls(self, extra_cases=()):
         failed = []
-        for name, sql in self.CASES:
+        for name, sql in self.CASES + list(extra_cases):
             success, detail = self._query_sql(sql)
             if not success:
                 failed.append((name, sql, detail))
@@ -219,6 +224,27 @@ class TestFunctionNoFromAll:
 
         print("negative no-from function calls ......................... [ passed ]")
 
+    def do_sm4_unsupported_calls(self):
+        """The community build must reject SM4 rather than return the plaintext unchanged."""
+        err = "only supported in TDengine Enterprise edition"
+        unexpected = []
+        for name, sql in self.SM4_CASES:
+            success, detail = self._query_sql(sql)
+            if success or err not in detail:
+                unexpected.append((name, sql, detail))
+
+        if unexpected:
+            preview = []
+            for name, sql, detail in unexpected:
+                tdLog.error(f"sm4 not rejected as expected - {name}: {sql} => {detail}")
+                preview.append(f"{name}: {sql} => {detail}")
+            tdLog.exit(
+                "sm4 functions were not rejected by the community build: "
+                f"{len(unexpected)}\\n" + "\\n".join(preview)
+            )
+
+        print("sm4 community rejection ......................... [ passed ]")
+
     def test_fun_no_from_all(self):
         """Function no-from:
 
@@ -239,5 +265,8 @@ class TestFunctionNoFromAll:
             - 2026-06-18 Codex Execute SQL through tdSql instead of taos CLI
 
         """
-        self.do_positive_no_from_calls()
+        sm4_supported, _ = self._query_sql(self.SM4_CASES[0][1])
+        self.do_positive_no_from_calls(self.SM4_CASES if sm4_supported else ())
         self.do_negative_no_from_calls()
+        if not sm4_supported:
+            self.do_sm4_unsupported_calls()

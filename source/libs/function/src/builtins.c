@@ -55,6 +55,13 @@ static int32_t invaildFuncParaValueErrMsg(char* pErrBuf, int32_t len, const char
   return buildFuncErrMsg(pErrBuf, len, TSDB_CODE_FUNC_FUNTION_PARA_VALUE, "Invalid parameter value : %s", pFuncName);
 }
 
+#if !defined(TD_ENTERPRISE) && !defined(TD_ASTRA)
+static int32_t enterpriseOnlyFuncErrMsg(char* pErrBuf, int32_t len, const char* pFuncName) {
+  return buildFuncErrMsg(pErrBuf, len, TSDB_CODE_OPS_NOT_SUPPORT,
+                         "%s is only supported in TDengine Enterprise edition", pFuncName);
+}
+#endif
+
 static int32_t validateTimeUnitParam(uint8_t dbPrec, const SValueNode* pVal) {
   if (!IS_DURATION_VAL(pVal->flag)) {
     return TSDB_CODE_FUNC_TIME_UNIT_INVALID;
@@ -2448,6 +2455,10 @@ static int32_t translateOutAesDe(SFunctionNode* pFunc, char* pErrBuf, int32_t le
 }
 
 static int32_t translateOutSm4(SFunctionNode* pFunc, char* pErrBuf, int32_t len) {
+#if !defined(TD_ENTERPRISE) && !defined(TD_ASTRA)
+  return enterpriseOnlyFuncErrMsg(pErrBuf, len, pFunc->functionName);
+#endif
+
   FUNC_ERR_RET(validateParam(pFunc, pErrBuf, len));
 
   uint8_t orgType = getSDataTypeFromNode(nodesListGetNode(pFunc->pParameterList, 0))->type;
@@ -2461,6 +2472,10 @@ static int32_t translateOutSm4(SFunctionNode* pFunc, char* pErrBuf, int32_t len)
 }
 
 static int32_t translateOutSm4De(SFunctionNode* pFunc, char* pErrBuf, int32_t len) {
+#if !defined(TD_ENTERPRISE) && !defined(TD_ASTRA)
+  return enterpriseOnlyFuncErrMsg(pErrBuf, len, pFunc->functionName);
+#endif
+
   FUNC_ERR_RET(validateParam(pFunc, pErrBuf, len));
 
   uint8_t orgType = getSDataTypeFromNode(nodesListGetNode(pFunc->pParameterList, 0))->type;
